@@ -49,28 +49,39 @@ hide/restore an actor via console commands. No anomaly abstraction/registry yet.
   per the request.
 - Session journal dated 2026-06-09 (implementation day) rather than the 2026-06-08 placeholder
   in the plan.
+- **MCP bridge wired into StackOBot to drive the functional smoke.** To verify the runtime
+  gates over the `unreal-mcpython` MCP, the `UnrealMCPython` editor plugin (from the RatBurglar
+  project) was copied into `StackOBot/Plugins/unreal-mcp/` (host tooling — NOT part of the GDP
+  plugin repo), enabled + Python enabled in the `.uproject`, and **patched to build on 5.4**
+  (its descriptor targets 5.7; one unexported BehaviorTree editor node caused a single LNK2019).
+  See gotcha G8. This is host infrastructure; the GDP plugin and its repo are unaffected.
 
-## State (stage gate)
+## State (stage gate) — ALL PASS
 | Gate | Status |
 |---|---|
-| Compiles Development Editor, clean | ✅ Verified — `Build.bat` exit 0; both DLLs produced. |
-| Plugin loads in StackOBot; heartbeat visible in PIE | ⏳ Pending interactive PIE run. |
-| `GDP.ListActors` prints a sane list | ⏳ Pending interactive PIE run. |
-| `GDP.HideActor` makes a visible object vanish | ⏳ Pending interactive PIE run. |
-| `GDP.ShowAllActors` restores it | ⏳ Pending interactive PIE run. |
+| Compiles Development Editor, clean | ✅ `Build.bat` exit 0; both DLLs produced. |
+| Plugin loads in StackOBot; heartbeat visible in PIE | ✅ Log: `Mounting … GDPAnomalyInjector` → `module started.` → `Subsystem initialized for world 'MainWorld'.`; `Heartbeat; hidden actors: N` every 2 s. Green on-screen text eyeball-confirmed by owner. |
+| `GDP.ListActors` prints a sane list | ✅ `--- 434 actor(s) ---` against the PIE world. |
+| `GDP.HideActor` makes a visible object vanish | ✅ Hid the satellite dish (`StaticMeshActor_137/138/139`, SM_SatelliteDish Base/Body/Dish @ XY≈4252,6558); `hidden` flag flipped false→true on all 3; owner eyeball-confirmed the vanish. |
+| `GDP.ShowAllActors` restores it | ✅ `GDP.ShowAllActors -> restored 3 actor(s)`; flags true→false; owner eyeball-confirmed reappear. Auto-restore-on-teardown also proven (`Subsystem deinitializing; restored 3 hidden actor(s).` after an accidental Stop-PIE). |
 | Docs present | ✅ CLAUDE.md + onboarding + runbook + gotchas + this journal. |
 
-Build log saved at `Saved/GDP_M0_build.log`. Outputs:
+### Functional verification (MCP-driven, 2026-06-09, PIE MainWorld)
+Commands were executed against the **PIE game world** (`UnrealEditorSubsystem.get_game_world()`),
+never the editor world — confirmed by `Subsystem initialized for world 'MainWorld'` and live
+`hidden` before/after reads. Diagnostic layer (load, init, tick, list, hide, restore counts)
+read back via `LogGDPAnomaly`; the two pixel-level checks (on-screen heartbeat text, dish
+vanish/reappear) confirmed by the owner's eyeball. Split worked exactly as designed, including
+the subsystem null-guard never firing because every command hit a valid game world.
+
+Build logs: `Saved/GDP_M0_build.log` (GDP plugin), `Saved/GDP_MCP_build.log` (bridge). Outputs:
 `Binaries/Win64/UnrealEditor-StackOBot.dll`,
 `Plugins/GDPAnomalyInjector/Binaries/Win64/UnrealEditor-GDPAnomalyInjector.dll`.
 
 ## Hand-off
-- The compile gate and docs gate are objectively met. The four runtime gates need an
-  interactive PIE session (the heartbeat renders on-screen; the hide/restore is visual) — they
-  can't be closed headlessly. Steps are in `docs/setup-runbook.md` §5–§6.
-- **To verify:** open `StackOBot.uproject` (rebuild modules if prompted), open
-  `Content/StackOBot/Maps/MainWorld`, press Play, watch for the green
-  `[GDP] AnomalyInjector ticking` heartbeat, then run `GDP.ListActors`, pick a persistent prop
-  and `GDP.HideActor <substring>`, then `GDP.ShowAllActors`.
+- **M0 stage gate fully passed** — compile, load, heartbeat, list, hide, restore, docs.
+- MCP-driven PIE verification is now available for StackOBot: launch the editor (the
+  `UnrealMCPython` server starts on `127.0.0.1:12029`), press Play, then commands can be driven
+  via the bridge. See gotcha G8 for the 5.4 patch and the revert note for engine upgrades.
 - **Next milestone (M1, not started):** once a few concrete anomalies exist, factor the
   hardcoded hide into an anomaly abstraction/registry. Keep the plugin game-agnostic.

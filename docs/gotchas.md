@@ -42,3 +42,21 @@ engine, which is almost certainly not what we want.
 subsystem never instantiates or ticks in the editor preview/editing world. Consequence: the
 `GDP.*` console commands resolve a null subsystem when run outside a game world — they
 null-guard and log a clear warning rather than crashing.
+
+### G8 — MCP bridge: UnrealMCPython is a 5.6/5.7 plugin; needs a local patch to build on 5.4
+To drive functional smoke tests via the `unreal-mcpython` MCP, the `UnrealMCPython` editor
+plugin (from the RatBurglar project, descriptor `EngineVersion 5.7.0`) was copied into
+`StackOBot/Plugins/unreal-mcp/` (host tooling — NOT part of the GDP plugin repo). Building it
+against source **UE 5.4.4** surfaced one linker error:
+`LNK2019 UBehaviorTreeGraphNode_SimpleParallel::GetPrivateStaticClass` (only 1 unresolved).
+Cause: in 5.4 that editor graph-node class is `UCLASS()` with **no `BEHAVIORTREEEDITOR_API`**,
+so it isn't exported and can't be linked from another module (it was exported in >= 5.6).
+**Fix:** in `Source/UnrealMCPython/Private/MCPythonHelper.cpp`, route the SimpleParallel case
+through the generic `UBehaviorTreeGraphNode_Composite` path (SimpleParallel runtime nodes are
+composites) and drop the unused `bIsSimpleParallel` local (else `-WarningsAsErrors` trips).
+Also set the copied `.uplugin` `"Installed": false` and remove its `EngineVersion` so 5.4
+doesn't reject it on load. After this, `StackOBotEditor` builds clean and the MCP server
+starts on `127.0.0.1:12029` when the editor launches. (Discovered 2026-06-09.)
+**If the engine is ever upgraded to >= 5.6, revert the MCPythonHelper patch** to restore the
+dedicated SimpleParallel graph node. This is a local patch to a third-party plugin copy; the
+RatBurglar original is untouched.
