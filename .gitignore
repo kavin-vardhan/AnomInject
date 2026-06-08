@@ -1,0 +1,18 @@
+# UE build/derived artifacts — never versioned.
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+
+# Compiler/debugger leftovers
+*.pdb
+*.obj
+*.o
+
+# IDE
+.vs/
+*.sln
+*.suo
+*.user
+*.vcxproj*
+.vscode/
