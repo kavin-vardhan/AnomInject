@@ -90,6 +90,49 @@ Open the console in PIE (press `` ` `` backtick) and run:
 
 The green on-screen heartbeat reads `[GDP] AnomalyInjector ticking (active: N/Total)`.
 
+## 7. Runtime verification recipe (MCP-driven gate checks)
+The non-visual stage gates are closed by driving PIE over the `unreal-mcpython` bridge (host tooling,
+gotcha G8) and reading state/logs back; the owner eyeballs the visual gates. This is exactly how M1's
+gates 2-7 were verified (2026-06-09) - reuse it for future anomalies.
+
+**Prereqs:** editor open with the plugin built; **press Play in `MainWorld`** (the subsystem is
+Game/PIE-only, so there is NO GDP subsystem until PIE is running); the bridge listens on
+`127.0.0.1:12029` (it starts with the editor, survives Stop-PIE).
+
+**Core idioms** (via `mcp__unreal-mcpython__util_execute_python`):
+- Get the PIE world (NOT the editor world):
+  `gw = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()`
+- Fire a command: `unreal.SystemLibrary.execute_console_command(gw, "GDP.Apply missing_object SM_Ramp")`
+- Read an actor's hidden flag against the PIE world: iterate
+  `unreal.GameplayStatics.get_all_actors_of_class(gw, unreal.Actor)`, filter by name substring, read
+  `a.get_editor_property('hidden')`. (Editor-world actors are different instances - always read `gw`'s.)
+- Read global time dilation: `unreal.GameplayStatics.get_global_time_dilation(gw)`
+- Read logs: `mcp__unreal-mcpython__util_get_output_log` with a keyword, e.g. `anomaly`,
+  `flicker toggle`, `Heartbeat`, `deinitializing`.
+
+**Gotchas that bit us (save yourself the rediscovery):**
+- **flicker toggles + the heartbeat log at Verbose.** First run
+  `execute_console_command(gw, "Log LogGDPAnomaly Verbose")`, then grep `flicker toggle`.
+- **Never `time.sleep()` in Python** - it blocks the game thread so nothing ticks. For ticking effects,
+  let real wall-clock pass *between* MCP calls, then read the accumulated toggle log.
+- **PIE can run at a few FPS;** the flicker `while`-drain replays multiple half-periods per frame, so the
+  toggle log still advances. (Several toggles sharing one timestamp is expected, not a bug.)
+- **Teardown gate:** leave anomalies active, **Stop PIE**, then read the log (editor stays open, bridge
+  still up) for `Subsystem deinitializing; reverted N active anomaly(ies).`
+- **Target selection:** pick a small, countable, persistent set - M1 used `SM_Ramp` (2 actors). The Bot
+  is runtime-spawned (G4), so it only matches after it spawns.
+
+**Gate -> check:**
+| gate | drive | assert |
+|------|-------|--------|
+| ListAnomalies | `GDP.ListAnomalies` | log: 3 lines, sorted, `id - description - usage` |
+| missing_object | `GDP.Apply missing_object SM_Ramp` | both ramps `hidden == True`; log `matched 2 actor(s)` |
+| flicker | `Log LogGDPAnomaly Verbose`; `GDP.Apply flicker SM_Ramp` | repeating `flicker toggle -> HIDDEN/VISIBLE`; heartbeat `active: 1/N` |
+| time_dilation | `GDP.Apply time_dilation 0.2`; `GDP.Revert time_dilation` | dilation `0.2`, then back to the captured baseline |
+| RevertAll | apply >=2 anomalies, then `GDP.RevertAll` | all hidden flags false, dilation baseline |
+| teardown | apply, then **Stop PIE** | log `Subsystem deinitializing; reverted N...` |
+| no-leak | `GDP.Apply <id> A` then `GDP.Apply <id> B` | only B's targets active; none stranded from A |
+
 ## Troubleshooting
 - **"The following modules are missing or built with a different engine version… rebuild?"** —
   expected if `Binaries/` is stale or absent. Click **Yes**, or run step 4 first.
