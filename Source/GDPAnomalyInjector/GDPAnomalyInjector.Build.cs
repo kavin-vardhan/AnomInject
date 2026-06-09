@@ -11,7 +11,9 @@ public class GDPAnomalyInjector : ModuleRules
 		// INVARIANT (M0): the plugin must stay game-agnostic. Depend only on engine
 		// modules reachable from any UE5 project. Do NOT add the host game module
 		// (e.g. "StackOBot") or any game-specific module here. See CLAUDE.md / gotchas.md.
-		// Later milestones may add: Renderer, RenderCore, RHI, Slate, InputCore.
+		// M1 reaffirms this: the anomaly registry + three anomalies (incl. time_dilation via
+			// UGameplayStatics, which is in Engine) add NO new dependency.
+			// Later milestones may add: Renderer, RenderCore, RHI, Slate, InputCore.
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",

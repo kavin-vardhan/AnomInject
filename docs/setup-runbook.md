@@ -76,14 +76,19 @@ Development Editor, clean." This produces `Binaries\Win64\UnrealEditor-StackOBot
 
 ## 6. Smoke test (stage gate)
 Open the console in PIE (press `` ` `` backtick) and run:
-1. `GDP.ListActors` — Output Log (category `LogGDPAnomaly`) prints `Class | Name | Label` for
-   every actor. Sanity-check it lists the level's props.
-2. `GDP.HideActor <substring>` — pick a **persistent level prop** from the list as the primary
-   smoke target (a visible `StaticMeshActor` in `MainWorld`, e.g. part of one of the
-   `SM_*`/`BPP_Struct_*` placements). The matched object vanishes in the viewport.
-   - **Note:** the Bot character is **runtime-spawned**, so `GDP.HideActor Bot` only matches
-     after the Bot exists in the world (after it spawns). Use it as a secondary target.
-3. `GDP.ShowAllActors` — the hidden object reappears.
+1. `GDP.ListAnomalies` — Output Log (category `LogGDPAnomaly`) lists three anomalies as
+   `id - description - usage`, sorted: `flicker`, `missing_object`, `time_dilation`.
+2. `GDP.ListActors` — prints `Class | Name | Label` for every actor; pick a target substring.
+3. `GDP.Apply missing_object <substring>` — pick a **persistent level prop** (a visible
+   `StaticMeshActor` in `MainWorld`, e.g. an `SM_*`/`BPP_Struct_*` placement). The matched object
+   vanishes. (The Bot is **runtime-spawned** — gotcha G4 — so it only matches after it spawns.)
+4. `GDP.Apply flicker <substring>` — the matched object visibly flickers (default 5 Hz). Optional
+   rate: `GDP.Apply flicker <substring> 2`.
+5. `GDP.Apply time_dilation 0.2` — the game slows to ~20% speed; `GDP.Revert time_dilation`
+   restores normal speed (to the captured baseline).
+6. `GDP.RevertAll` — restores everything still active. Stopping PIE also auto-reverts (teardown).
+
+The green on-screen heartbeat reads `[GDP] AnomalyInjector ticking (active: N/Total)`.
 
 ## Troubleshooting
 - **"The following modules are missing or built with a different engine version… rebuild?"** —

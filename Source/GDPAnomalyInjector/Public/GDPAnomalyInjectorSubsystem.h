@@ -4,17 +4,18 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "IGDPAnomaly.h"
 #include "GDPAnomalyInjectorSubsystem.generated.h"
 
 /**
  * UGDPAnomalyInjectorSubsystem
  *
- * M0 walking skeleton: a world-scoped, auto-ticking subsystem that proves the full
- * inject/restore loop end-to-end with ONE hardcoded anomaly (hide an actor).
+ * World-scoped, auto-ticking subsystem that OWNS the anomaly registry and acts as the
+ * manager: it registers one instance of each anomaly type in Initialize, ticks the active
+ * ones, dispatches Apply/Revert, and reverts everything on teardown. Restricted to
+ * Game + PIE worlds (never the editor preview world).
  *
- * No anomaly abstraction/registry yet — that gets factored once we have several
- * concrete anomalies. This type stays game-agnostic: it references only public UE
- * APIs and must never depend on the host game module.
+ * Stays game-agnostic: references only public UE APIs, never the host game module.
  */
 UCLASS()
 class GDPANOMALYINJECTOR_API UGDPAnomalyInjectorSubsystem : public UTickableWorldSubsystem
@@ -22,6 +23,10 @@ class GDPANOMALYINJECTOR_API UGDPAnomalyInjectorSubsystem : public UTickableWorl
 	GENERATED_BODY()
 
 public:
+	// Out-of-line dtor: the TMap<FName, TUniquePtr<IGDPAnomaly>> deleter needs the complete
+	// IGDPAnomaly type, which is available in the .cpp translation unit (gotcha G9).
+	virtual ~UGDPAnomalyInjectorSubsystem();
+
 	// --- USubsystem / UWorldSubsystem ---
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
@@ -30,32 +35,44 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 
-	// --- M0 anomaly operations (called by the console command surface) ---
-
+	// --- Targeting aid (not an anomaly) ---
 	/** Enumerate actors in the current world; log "Class | Name | Label" for each. */
 	void ListActors() const;
 
-	/**
-	 * Hide every actor whose Name OR Class name contains Substring (case-insensitive).
-	 * Deliberately never matches the editor label (GetActorLabel is editor-only and
-	 * absent in cooked builds). Returns the number of actors hidden this call.
-	 */
-	int32 HideActorsMatching(const FString& Substring);
+	// --- Anomaly manager API (called by the console command surface) ---
 
-	/** Restore every actor we have hidden. Returns the number restored. */
-	int32 ShowAllHidden();
+	/** Log each registered anomaly as "id - description - usage" (sorted by id). */
+	void ListAnomalies() const;
+
+	/**
+	 * Look up Id and apply it with Args. Each anomaly reverts-then-reapplies internally if
+	 * already active, so re-firing with new args never leaks state. Returns true if applied.
+	 */
+	bool ApplyAnomaly(const FName& Id, const TArray<FString>& Args);
+
+	/** Revert one anomaly if it is active. Returns true iff it was active and got reverted. */
+	bool RevertAnomaly(const FName& Id);
+
+	/** Revert every active anomaly. Returns the number reverted. */
+	int32 RevertAllActive();
+
+	/** Number of currently-active anomalies. */
+	int32 GetActiveAnomalyCount() const;
 
 protected:
 	/**
 	 * Restrict this subsystem to real game worlds (standalone Game + Play-In-Editor).
-	 * It must never instantiate or tick in the editor preview/editing world — we never
-	 * inject anomalies into the world being authored.
+	 * Never instantiates or ticks in the editor preview/editing world.
 	 */
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
 private:
-	/** Actors we have hidden, tracked weakly so destroyed actors never dangle. */
-	TArray<TWeakObjectPtr<AActor>> HiddenActors;
+	/**
+	 * Anomaly registry: one owned instance per type, keyed by GetId(). Plain C++ (not a
+	 * UPROPERTY — IGDPAnomaly is not a UObject); GC-safety lives inside each anomaly via
+	 * TWeakObjectPtr.
+	 */
+	TMap<FName, TUniquePtr<IGDPAnomaly>> Anomalies;
 
 	/** Seconds accumulated since the last heartbeat, used to throttle it. */
 	float HeartbeatAccumulator = 0.0f;

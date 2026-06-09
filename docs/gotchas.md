@@ -60,3 +60,35 @@ starts on `127.0.0.1:12029` when the editor launches. (Discovered 2026-06-09.)
 **If the engine is ever upgraded to >= 5.6, revert the MCPythonHelper patch** to restore the
 dedicated SimpleParallel graph node. This is a local patch to a third-party plugin copy; the
 RatBurglar original is untouched.
+
+### G9 — `TUniquePtr<IGDPAnomaly>` member in a UCLASS needs an out-of-line destructor (M1)
+The subsystem owns `TMap<FName, TUniquePtr<IGDPAnomaly>>`. The `TUniquePtr` deleter needs the
+**complete** `IGDPAnomaly` type at the point the map is destroyed. Declare the destructor in the
+header (`virtual ~UGDPAnomalyInjectorSubsystem();` — no `override`; destructors can't be marked
+`override`) and define it `= default` in the `.cpp`, which `#include`s the concrete anomaly headers.
+Without this you get incomplete-type errors at the implicitly-generated destructor. (2026-06-09.)
+
+### G10 — UBT does not auto-add `Private/` subfolders to the include path (M1)
+UnrealBuildTool puts only the module's `Public/` and `Private/` roots on the include path, **not**
+subfolders. The concrete anomalies live in `Private/Anomalies/`, so every include of them — in their
+own `.cpp` and in the subsystem `.cpp` — must be path-relative from `Private/`:
+`#include "Anomalies/GDPAnomaly_Flicker.h"`. Public headers (`IGDPAnomaly.h`, `GDPTargeting.h`)
+include bare. (2026-06-09.)
+
+### G11 — `SetGlobalTimeDilation` is clamped by WorldSettings (M1)
+`UGameplayStatics::SetGlobalTimeDilation` is clamped to `AWorldSettings` `MinGlobalTimeDilation` /
+`MaxGlobalTimeDilation` (defaults ~0.0001 .. 20). Extreme scales are silently clamped, so the
+`time_dilation` anomaly reads the value back after setting and warns if it differs from the request.
+Revert restores the **captured pre-Apply baseline** (AMB-3 ruling — overrides the brief's literal
+"set back to 1.0"), so a non-1.0 game baseline is preserved; it falls back to 1.0 only if nothing
+was captured. (2026-06-09.)
+
+### G12 — Actor-scoped anomalies share the single `bHidden` flag (last-writer-wins) (M1)
+`missing_object` and `flicker` both drive `SetActorHiddenInGame` on their targets. If two such
+anomalies target the **same** actor, they fight over one boolean: **last-writer-wins**. This is
+acceptable for M1 because the terminal state after `RevertAll` is always visible (every hide-revert
+ends in `SetActorHiddenInGame(false)`); only intermediate frames during deliberate concurrent use
+are wrong, and M1's test plan applies one actor anomaly at a time.
+**Revisit when we inject simultaneous/compound anomalies** (a likely future need for richer training
+data): the fix is a **subsystem-level "hidden-by" coordinator** (ref-count / owner-set per actor),
+which is addable **without touching the `IGDPAnomaly` interface**. Flagged, not built. (2026-06-09.)
