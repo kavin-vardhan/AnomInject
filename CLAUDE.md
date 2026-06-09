@@ -70,6 +70,11 @@ and is the single source of truth for the project.
   or ambiguities are surfaced back (listed standalone), not improvised.
 - **Plan-before-code.** A new milestone's first response is a file-by-file plan only; no
   implementation until approved.
+- **Commits — Conventional Commits.** Prefixes: `feat:` (new anomaly or capability), `fix:` (bug),
+  `docs:` (doc-only), `refactor:` (no behavior change), `chore:` (build/tooling). Scope anomaly-specific
+  changes, e.g. `feat(flicker): …`. **Tag each milestone** with `git tag m<N>` after its commit so
+  milestones diff cleanly (`m1..m2`, and a changelog can be auto-derived later). The git repo is the
+  plugin folder (`master`); host scaffolding lives outside it and is not committed here.
 - **Doc discipline — leave the docs able to (a) cold-start a fresh session and (b) explain the
   whole plugin to any UE dev.** When you start or advance a milestone you MUST, before the session
   closes:
