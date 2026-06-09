@@ -10,16 +10,22 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **Latest as-built:** **M1 — Anomaly Abstraction & Registry — COMPLETE** (the `IGDPAnomaly` interface +
-  subsystem-owned registry + three anomalies: `missing_object`, `flicker`, `time_dilation`).
-  **All 8 stage gates passed** — clean headless compile + gates 2–7 verified live in PIE `MainWorld`
-  (unreal-mcpython bridge + owner eyeball, 2026-06-09).
-  → `docs/sessions/2026-06-09-003-m1-implementation.md`, `docs/architecture.md`.
-- **Resolved:** **AMB-3 → capture-baseline** — `time_dilation` Revert restores the pre-Apply value
-  (not a hardcoded `1.0`). See journal 003 + gotcha G11.
-- **In flight:** none. **Next action:** awaiting the next milestone brief. The locked `IGDPAnomaly`
-  interface + registry are the foundation; "how to add an anomaly" is in `docs/architecture.md`.
-- Milestones: M0 (`…-001`) and M1 (`…-003`) both fully passed.
+- **Latest as-built:** **M2 — Breadth Round 1 — COMPLETE (all 8 stage gates passed).**
+  Adds two shared helpers — **A1** `GDPTargeting::FindComponentsMatching<T>` (component targeting) and
+  **A3** `GDPArgs` (parse/clamp/warn) — and three anomalies: `lighting_mismatch` (component, ULightComponent),
+  `lod_corruption` (component, UStaticMeshComponent, static-only), `camera_clipping` (global near-clip).
+  Registry lists **6** (sorted). **No `IGDPAnomaly` change was needed — the M1 lock held.** Clean headless
+  compile + gates 2–7 verified live in PIE `MainWorld` (unreal-mcpython bridge + owner eyeball, 2026-06-09).
+  → `docs/sessions/2026-06-09-004-m2-breadth-round-1.md`, `docs/architecture.md`.
+- **Resolved (M2):** **AMB-M2-1 → defer A2/`GDPCvar`** — near-clip is a console *command* + the
+  `GNearClippingPlane` global, not an `IConsoleVariable`, so `camera_clipping` is self-contained (no
+  `RenderCore` dep); GDPCvar lands with its first real cvar consumer (G13). **AMB-M2-2 → static-mesh-only
+  `lod_corruption`** (skeletal forced-LOD is an M3 follow-up, G16). M2 ships 2 helpers (A1, A3).
+- **Resolved (M1):** **AMB-3 → capture-baseline** — `time_dilation` Revert restores the pre-Apply value.
+  Generalized in M2 to the **per-target/global state-capture convention** (see architecture.md). G11.
+- **In flight:** none. **Next action:** awaiting owner acceptance to `git commit` + `git tag m2`, then the
+  M3 brief. M3 should be near-pure catalog fill (first candidates: `lod_popping`, skeletal `lod_corruption`).
+- Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`) all fully passed.
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

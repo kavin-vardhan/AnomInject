@@ -92,3 +92,53 @@ are wrong, and M1's test plan applies one actor anomaly at a time.
 **Revisit when we inject simultaneous/compound anomalies** (a likely future need for richer training
 data): the fix is a **subsystem-level "hidden-by" coordinator** (ref-count / owner-set per actor),
 which is addable **without touching the `IGDPAnomaly` interface**. Flagged, not built. (2026-06-09.)
+
+### G13 — `r.SetNearClipPlane` is a console COMMAND, not a console VARIABLE (M2)
+The near clip plane has **no** `IConsoleVariable`. In 5.4 source, `r.SetNearClipPlane` is an
+`FAutoConsoleCommand` (`UnrealEngine.cpp`) whose handler calls `SetNearClipPlaneGlobals(max(v, 1.0))`;
+the state lives in the **CORE global `GNearClippingPlane`** (`CoreGlobals.h`, default 10), mirrored to
+the render thread by RenderCore's `SetNearClipPlaneGlobals`. So `IConsoleManager::FindConsoleVariable("r.SetNearClipPlane")`
+returns **null** — the briefed "FindConsoleVariable → GetString/Set" cvar mechanism cannot drive it.
+This is why the generic cvar helper (GDPCvar / A2) was **deferred** (its sole would-be M2 consumer can't
+use it; it has zero real consumers, failing the ≥2-consumers bar). `camera_clipping` instead captures the
+baseline by reading `GNearClippingPlane` (Core, free) and applies/reverts via the `r.SetNearClipPlane`
+**console command** (`GEngine->Exec`, Engine) — **no `RenderCore` dependency**, and the command path
+correctly syncs the render-thread copy. The command clamps to `>= 1`, so restoring a sub-1 baseline would
+be clamped (default 10 round-trips cleanly). GDPCvar lands with its first genuine `IConsoleVariable`
+anomaly (post-process / scalability milestone). (2026-06-09.)
+
+### G14 — Runtime light mutation is only visible on Movable (and partially Stationary) lights (M2)
+`lighting_mismatch` mutates `ULightComponent` state (intensity / color / visibility / cast-shadow). For
+**Static/baked** lights the component property changes (the state-read gate passes) but the **rendered
+image does not** — the lighting is baked into lightmaps. Movable lights change fully at runtime;
+Stationary change partially (direct lighting dynamic, indirect baked). So the visual gate needs a
+**Movable** light target. Confirm a target's mobility live via `Light->Mobility == EComponentMobility::Movable`
+(MainWorld byte-scan suggested ~2 movable light actors exist; try the DirectionalLight first for the
+biggest visible effect). If none exists, add a Movable PointLight to a test sublevel, or accept
+state-only validation. (2026-06-09.)
+
+### G15 — `lod_corruption` only shows a visible change on multi-LOD meshes; stock MainWorld has no clean visual target (M2)
+Forcing a LOD does nothing visible if the target `UStaticMesh` ships a **single runtime LOD** — the
+state-read gate still passes (`ForcedLodModel` set + logged), but the image is unchanged.
+**Verified live in PIE MainWorld (2026-06-09)** — supersedes the planning-time byte-scan guess (`Boulder`):
+- Regular static props are matchable by name (e.g. ramp actors are named `SM_Ramp2/3_UAID_*`, so substring
+  `SM_Ramp` matches 2 components) **but report only 1 runtime LOD** → state proves out, no visual.
+- The **rocks** (`SM_Boulder`, `SM_RockFlats_01/02`) are placed on **`InstancedFoliageActor`** (auto-named
+  `InstancedFoliageActor_*`, **not** matchable by mesh-name substring) **and** report only 1 runtime LOD —
+  so `Boulder`/`RockFlats` as a substring matches **zero** actors. (The byte-scan's "LOD7" token did not
+  reflect the cooked/runtime LOD count.)
+- The **only** multi-LOD meshes in the streamed level are `SM_Bush` and `SM_Tree` (2 LODs each), also on
+  `InstancedFoliageActor` → reachable via substring **`Foliage`** (5 actors), which forces their instanced
+  components to the low-detail LOD. As *instanced* foliage the forced-LOD visual is subtle/unreliable.
+**Conclusion:** there is **no deterministic visual LOD target** in stock MainWorld. Validate `lod_corruption`
+by **state-read on `SM_Ramp`** (`forced_lod 0→1`, reverts to 0) plus a best-effort `Foliage` visual; for a
+guaranteed visual, import a multi-LOD mesh placed as a regular (non-instanced) `StaticMeshActor` into a test
+sublevel. Confirm any candidate live with `GetStaticMesh()->GetNumLODs() > 1`. (2026-06-09.)
+
+### G16 — Static-mesh vs skeletal-mesh forced-LOD are different APIs on different base classes (M2)
+`UStaticMeshComponent::SetForcedLodModel(int32)` (prop `ForcedLodModel`) vs
+`USkinnedMeshComponent::SetForcedLOD(int32)` / `GetForcedLOD()` (inherited by `USkeletalMeshComponent`).
+Both are **1-based** (0 = auto/off; N forces LOD N-1), but the method names and owning classes differ, and
+`FindComponentsMatching<T>` forces the call site to pick `T`. `lod_corruption` v1 is **static-mesh-only**
+(the deterministic MainWorld targets are static; the only skeletal candidate, the Bot, is runtime-spawned /
+non-deterministic — G4). Skeletal forced-LOD is a documented **M3 follow-up**. (2026-06-09.)

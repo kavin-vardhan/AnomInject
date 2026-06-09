@@ -71,13 +71,14 @@ Development Editor, clean." This produces `Binaries\Win64\UnrealEditor-StackOBot
 - Confirm the plugin is enabled: **Edit → Plugins → GDP → GDP Anomaly Injector** (it is on by
   default).
 - Open the level `Content/StackOBot/Maps/MainWorld`, press **Play** (PIE).
-- A green **`[GDP] AnomalyInjector ticking (hidden: N)`** heartbeat appears on-screen — proves
+- A green **`[GDP] AnomalyInjector ticking (active: N/Total)`** heartbeat appears on-screen — proves
   the subsystem initialized and ticks in PIE.
 
 ## 6. Smoke test (stage gate)
 Open the console in PIE (press `` ` `` backtick) and run:
-1. `GDP.ListAnomalies` — Output Log (category `LogGDPAnomaly`) lists three anomalies as
-   `id - description - usage`, sorted: `flicker`, `missing_object`, `time_dilation`.
+1. `GDP.ListAnomalies` — Output Log (category `LogGDPAnomaly`) lists **six** anomalies as
+   `id - description - usage`, sorted: `camera_clipping`, `flicker`, `lighting_mismatch`,
+   `lod_corruption`, `missing_object`, `time_dilation`.
 2. `GDP.ListActors` — prints `Class | Name | Label` for every actor; pick a target substring.
 3. `GDP.Apply missing_object <substring>` — pick a **persistent level prop** (a visible
    `StaticMeshActor` in `MainWorld`, e.g. an `SM_*`/`BPP_Struct_*` placement). The matched object
@@ -86,7 +87,19 @@ Open the console in PIE (press `` ` `` backtick) and run:
    rate: `GDP.Apply flicker <substring> 2`.
 5. `GDP.Apply time_dilation 0.2` — the game slows to ~20% speed; `GDP.Revert time_dilation`
    restores normal speed (to the captured baseline).
-6. `GDP.RevertAll` — restores everything still active. Stopping PIE also auto-reverts (teardown).
+6. `GDP.Apply lighting_mismatch <substring> [off|dim <f>|recolor <r g b>|noshadow]` — mismatch the
+   lights on matching actors (default `dim` 0.1). e.g. `GDP.Apply lighting_mismatch Light recolor 1 0 1`
+   (magenta), `... Light dim 0.05`, `... Light off`, `... Light noshadow`. **Needs a Movable light
+   to be visible** (gotcha G14) — `GDP.Revert lighting_mismatch` restores intensity/color/visibility/shadow.
+7. `GDP.Apply lod_corruption <substring> [lod-index]` — force matching **static-mesh** components to a
+   LOD (default worst/highest). In stock MainWorld use `GDP.Apply lod_corruption SM_Ramp` to validate
+   by **state** (`forced_lod 0→1`; ramps are single-LOD so no visual), and `GDP.Apply lod_corruption
+   Foliage` for a best-effort visual on the instanced Bush/Tree (the only multi-LOD meshes). There is no
+   deterministic *visual* LOD target in stock MainWorld — gotcha G15. `GDP.Revert lod_corruption` restores.
+8. `GDP.Apply camera_clipping [near-plane]` — push the near clip plane out (default 100) so near
+   geometry clips away; `GDP.Revert camera_clipping` restores the captured baseline (~10). Most
+   reliably-visible gate; no targeting.
+9. `GDP.RevertAll` — restores everything still active. Stopping PIE also auto-reverts (teardown).
 
 The green on-screen heartbeat reads `[GDP] AnomalyInjector ticking (active: N/Total)`.
 
@@ -125,13 +138,21 @@ Game/PIE-only, so there is NO GDP subsystem until PIE is running); the bridge li
 **Gate -> check:**
 | gate | drive | assert |
 |------|-------|--------|
-| ListAnomalies | `GDP.ListAnomalies` | log: 3 lines, sorted, `id - description - usage` |
+| ListAnomalies | `GDP.ListAnomalies` | log: **6** lines, sorted, `id - description - usage` |
 | missing_object | `GDP.Apply missing_object SM_Ramp` | both ramps `hidden == True`; log `matched 2 actor(s)` |
 | flicker | `Log LogGDPAnomaly Verbose`; `GDP.Apply flicker SM_Ramp` | repeating `flicker toggle -> HIDDEN/VISIBLE`; heartbeat `active: 1/N` |
 | time_dilation | `GDP.Apply time_dilation 0.2`; `GDP.Revert time_dilation` | dilation `0.2`, then back to the captured baseline |
-| RevertAll | apply >=2 anomalies, then `GDP.RevertAll` | all hidden flags false, dilation baseline |
-| teardown | apply, then **Stop PIE** | log `Subsystem deinitializing; reverted N...` |
-| no-leak | `GDP.Apply <id> A` then `GDP.Apply <id> B` | only B's targets active; none stranded from A |
+| lighting_mismatch | find a Movable `ULightComponent` (`Mobility==Movable`); `GDP.Apply lighting_mismatch <sub> recolor 1 0 1` | matched-count >= 1; read component `Intensity`/`GetLightColor()`/`GetVisibleFlag()`/`CastShadows` changed; `Revert` -> all restored. Owner eyeballs the lit change (movable target). |
+| lod_corruption | `GDP.Apply lod_corruption SM_Ramp` (state) + `... Foliage` (best-effort visual) | matched-count >= 1; read each `ForcedLodModel` == forced value (log `forced LOD N of M`); `Revert` -> prior (0). No deterministic visual target in stock MainWorld (G15). |
+| camera_clipping | `GDP.Apply camera_clipping 100`; `GDP.Revert camera_clipping` | `GNearClippingPlane` == 100, then baseline (~10). Owner eyeballs near geometry vanishing / returning. |
+| RevertAll | apply >=2 anomalies, then `GDP.RevertAll` | all `IsActive==false`; captured state restored (hidden flags false, dilation baseline, lights/LOD/near-clip restored) |
+| teardown | apply, then **Stop PIE** | log `Subsystem deinitializing; reverted N...`; re-check nothing stuck |
+| no-leak | `GDP.Apply <id> A` then `GDP.Apply <id> B` (esp. `lighting_mismatch recolor`) | single capture set; only B's targets active; A's restored (no stuck lights/LODs) |
+
+To read component state via the bridge: get the PIE world, `GameplayStatics.get_all_actors_of_class(gw, unreal.Actor)`,
+filter by substring, then iterate `a.get_components_by_class(unreal.LightComponent)` /
+`unreal.StaticMeshComponent` and read the property. Near clip: `unreal.SystemLibrary` has no getter — read it
+back via the `camera_clipping: near clip X -> Y.` log line (`util_get_output_log` keyword `camera_clipping`).
 
 ## Troubleshooting
 - **"The following modules are missing or built with a different engine version… rebuild?"** —

@@ -12,6 +12,9 @@
 #include "Anomalies/GDPAnomaly_MissingObject.h"
 #include "Anomalies/GDPAnomaly_Flicker.h"
 #include "Anomalies/GDPAnomaly_TimeDilation.h"
+#include "Anomalies/GDPAnomaly_LightingMismatch.h"
+#include "Anomalies/GDPAnomaly_LodCorruption.h"
+#include "Anomalies/GDPAnomaly_CameraClipping.h"
 
 /** Fixed on-screen-message key ("GDPH") so the heartbeat refreshes in place instead of stacking. */
 static constexpr uint64 GGDPHeartbeatKey = 0x47445048;
@@ -37,6 +40,9 @@ void UGDPAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 	Register(MakeUnique<FGDPAnomaly_MissingObject>());
 	Register(MakeUnique<FGDPAnomaly_Flicker>());
 	Register(MakeUnique<FGDPAnomaly_TimeDilation>());
+	Register(MakeUnique<FGDPAnomaly_LightingMismatch>());   // M2: component-targeting (A1) + per-target capture
+	Register(MakeUnique<FGDPAnomaly_LodCorruption>());      // M2: component-targeting (A1), static-mesh-only
+	Register(MakeUnique<FGDPAnomaly_CameraClipping>());     // M2: global near-clip capture/restore
 
 	UE_LOG(LogGDPAnomaly, Log, TEXT("Subsystem initialized for world '%s'. %d anomaly type(s) registered."),
 		*GetNameSafe(GetWorld()), Anomalies.Num());

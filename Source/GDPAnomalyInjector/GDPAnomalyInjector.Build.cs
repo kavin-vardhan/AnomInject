@@ -13,7 +13,13 @@ public class GDPAnomalyInjector : ModuleRules
 		// (e.g. "StackOBot") or any game-specific module here. See CLAUDE.md / gotchas.md.
 		// M1 reaffirms this: the anomaly registry + three anomalies (incl. time_dilation via
 			// UGameplayStatics, which is in Engine) add NO new dependency.
-			// Later milestones may add: Renderer, RenderCore, RHI, Slate, InputCore.
+			// M2 reaffirms it again: the A1 component finder (AActor::GetComponents<T>), A3 arg
+				// parsing, and the three new anomalies use only Engine/Core types — lights via
+				// Components/LightComponent.h, static-mesh LOD via Components/StaticMeshComponent.h +
+				// Engine/StaticMesh.h, and camera_clipping drives the near clip through the
+				// r.SetNearClipPlane console command (GEngine->Exec) + the GNearClippingPlane global
+				// (Core), deliberately AVOIDING a RenderCore dependency (AMB-1 ruling).
+				// Later milestones may add: Renderer, RenderCore, RHI, Slate, InputCore.
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
