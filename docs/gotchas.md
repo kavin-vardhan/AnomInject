@@ -89,6 +89,13 @@ on 5.1**; `LogMCPython: TCP server started at 127.0.0.1:12029`; it drove the ful
 **To restore BT authoring on >= 5.6:** re-add the dep + includes and delete the stubs + the
 `#if 0 ... #endif` guard. The bridge folder is **not under version control** (host tooling); these
 edits are recorded here, not committed to the plugin repo. (M2.6, 2026-06-10.)
+**Forward decision (flagged, not a TODO):** keeping the bridge unversioned holds only while it stays
+*regenerable third-party tooling* (known upstream + this exact recipe). When the capture/labeling/replay-
+harness milestone starts adding **bespoke C++ to the bridge** (e.g. GPU buffer / object-mask readback
+UFUNCTIONs), the bridge becomes **original project work** — at that point revisit versioning: `git init`
+the **host root** `D:\IntrusiveAnomalies\StackOBot` as a single host-substrate repo (scaffolding +
+`.uproject` + bridge), with a `.gitignore` for `Binaries/`, `Intermediate/`, `Saved/`, `DerivedDataCache/`.
+That C++ addition is the natural trigger; until then, docs-as-source-of-truth holds. (Flagged M2.6, 2026-06-10.)
 
 ### G9 — `TUniquePtr<IGDPAnomaly>` member in a UCLASS needs an out-of-line destructor (M1)
 The subsystem owns `TMap<FName, TUniquePtr<IGDPAnomaly>>`. The `TUniquePtr` deleter needs the
