@@ -1,12 +1,27 @@
 # Architecture (living — current as-built)
 
-> **Reflects:** M2 — Breadth Round 1 (component/global anomalies + the helpers that enable them).
-> **Complete — all 8 stage gates passed** (clean headless compile + gates 2–7 verified live in PIE
-> `MainWorld` via the unreal-mcpython bridge + owner eyeball, 2026-06-09). M2 required **no `IGDPAnomaly`
-> change** (the M1 lock held). Detail in `sessions/2026-06-09-004-m2-breadth-round-1.md`; M1 in
-> `sessions/2026-06-09-003-m1-implementation.md`.
+> **Reflects:** M2 — Breadth Round 1 (component/global anomalies + the helpers that enable them),
+> re-validated unchanged on UE 5.1 by **M2.5 (5.1 port)** + **M2.6 (bridge sever)**.
+> **Complete — all stage gates passed.** M2: clean headless compile + gates verified live in PIE
+> `MainWorld` (2026-06-09). M2.5/M2.6: clean Development-Editor compile on 5.1 (plugin source unchanged)
+> and all 10 anomaly gates re-driven green over the (severed) bridge + owner-confirmed visuals, 2026-06-10.
+> M2 required **no `IGDPAnomaly` change** (the M1 lock held); M2.5 required **no plugin-source change**.
+> Detail in `sessions/2026-06-10-005-m2.5-m2.6-5.1-port-bridge-sever.md`,
+> `sessions/2026-06-09-004-m2-breadth-round-1.md`; M1 in `sessions/2026-06-09-003-m1-implementation.md`.
 > **Maintenance:** update this file to match the code at the end of every milestone; describe only
 > what is built. Forward plans and design rationale live in the session journals.
+
+## Engine support
+- **Supported engine: UE 5.1 (canonical).** The two real target games are on 5.1, so 5.1 is the engine
+  of record. Originally built and validated on a source-built **UE 5.4.4**; ported to 5.1 in M2.5 with
+  **zero plugin-source changes** — all port watch-items (UTickableWorldSubsystem signatures,
+  `GetComponents<T>`, `SetVisibility`/`SetLightColor`, `SetForcedLodModel`/`GetNumLODs`,
+  `GNearClippingPlane`/`r.SetNearClipPlane`, dep set) were unchanged between 5.4 and 5.1. The module
+  pins no `CppStandard`, inheriting 5.1's C++17 default (5.4 defaulted to C++20); the code uses no
+  C++20-only syntax. Build-version constants are a **host** concern (gotcha G17): the 5.1 host targets
+  use `BuildSettingsVersion.V2` / `EngineIncludeOrderVersion.Unreal5_1`.
+- **Canonical engine + host:** source-built UE 5.1 at `D:\UESource\UnrealEngine`; host project
+  `D:\IntrusiveAnomalies\StackOBot` (natively-5.1 StackOBot). The old 5.4 host is retired.
 
 ## Purpose
 GDPAnomalyInjector injects labeled visual anomalies (graphics bugs) into a running UE5 game to
@@ -151,3 +166,10 @@ setters, `UStaticMeshComponent::SetForcedLodModel`, and the `r.SetNearClipPlane`
 Non-visual gates are checked in PIE via the `unreal-mcpython` MCP bridge (state/log reads: match
 counts, `IsActive`, world time-dilation value, flicker toggle logs); the owner eyeballs the visual
 gates (flicker, felt slowdown). See gotcha G8 for the bridge setup.
+- **Bridge on 5.1 (M2.6):** the bridge (host tooling, not part of this plugin) is **GenOrca
+  UnrealMCPython**, which targets UE 5.6+. To build on 5.1 its **`BehaviorTreeEditor` dependency was
+  severed** (those graph-node UCLASSes are unexported pre-5.6 — G8). The bridge's BT-graph **authoring**
+  tools (`build_behavior_tree`, `get_selected_bt_nodes`) are therefore **unavailable on 5.1**; everything
+  this project's verification uses — `execute_python`, Output-Log reads, actor/component state reads —
+  is intact. M2.5's full re-gate (Simulate session in an `EWorldType::PIE` world) was driven over the
+  severed bridge. Full diagnosis + the restore-on-5.6 recipe are in G8.

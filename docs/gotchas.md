@@ -61,6 +61,35 @@ starts on `127.0.0.1:12029` when the editor launches. (Discovered 2026-06-09.)
 dedicated SimpleParallel graph node. This is a local patch to a third-party plugin copy; the
 RatBurglar original is untouched.
 
+**Update (M2.6, UE 5.1, 2026-06-10) — full diagnosis + the 5.1 fix (severed the BehaviorTree dep).**
+The bridge (GenOrca **UnrealMCPython**, GitHub `GenOrca/unreal-mcp`) **officially targets UE 5.6+**.
+On 5.1 it does **not** build as-is. Working through it: first `BehaviorTreeEditor.h` and the
+`BehaviorTreeGraphNode*.h` / `EdGraphSchema_BehaviorTree.h` headers aren't on the include path
+(they live in the engine module's `Private/` + `Classes/`, not `Public/`); adding those include
+paths cleared that, then `MCPythonTcpServer.cpp` needed an explicit `#include "Async/Async.h"`
+(`AsyncTask` was transitively included on 5.4). After both, linking failed with **7 `LNK2019`
+unresolved externals** — `UBehaviorTreeGraphNode`, `UBehaviorTreeGraph`, and `_Root/_Task/_Decorator/
+_Service/_SubtreeTask`: these `BehaviorTreeEditor` UCLASSes have **no `BEHAVIORTREEEDITOR_API`
+export macro before 5.6**, so they're unexported and unlinkable from another module. This is the
+original G8 SimpleParallel issue **generalized to 7 symbols** — a hard 5.6→5.1 back-port wall that
+would need either an engine-source export patch (rejected: per-sync tax on the shared engine that
+also builds the real target games) or severing the feature.
+**Resolution — severed the `BehaviorTreeEditor` dependency (route a):** the bridge's BT-graph
+*authoring* features are unused by this project (we need console exec, Output-Log read, actor/
+component state reads). The coupling was isolated to **one Python router + three C++ functions**.
+The sever: dropped `"BehaviorTreeEditor"` from `UnrealMCPython.Build.cs`; removed the editor-graph
+`#include`s from `MCPythonHelper.cpp`; `#if 0`-compiled-out `GetSelectedBTNodes`,
+`CreateBTGraphNodeRecursive`, and `BuildBehaviorTree`; replaced the two public UFUNCTIONs with
+"unsupported on 5.1" JSON stubs; and marked the matching Python tools unsupported in
+`behavior_tree_router.py`. Kept the `Async/Async.h` fix. **Dropped 2 tools:** `build_behavior_tree`,
+`get_selected_bt_nodes`. **Retained the 4 runtime-BT read tools** (`get_behavior_tree_structure`,
+`get_bt_node_details`, `list_bt_node_classes`, `set_blackboard_to_behavior_tree` — they use AIModule
+runtime types, which are exported). After the sever the bridge **compiles, links, and loads clean
+on 5.1**; `LogMCPython: TCP server started at 127.0.0.1:12029`; it drove the full M2.5 re-gate.
+**To restore BT authoring on >= 5.6:** re-add the dep + includes and delete the stubs + the
+`#if 0 ... #endif` guard. The bridge folder is **not under version control** (host tooling); these
+edits are recorded here, not committed to the plugin repo. (M2.6, 2026-06-10.)
+
 ### G9 — `TUniquePtr<IGDPAnomaly>` member in a UCLASS needs an out-of-line destructor (M1)
 The subsystem owns `TMap<FName, TUniquePtr<IGDPAnomaly>>`. The `TUniquePtr` deleter needs the
 **complete** `IGDPAnomaly` type at the point the map is destroyed. Declare the destructor in the
@@ -142,3 +171,30 @@ Both are **1-based** (0 = auto/off; N forces LOD N-1), but the method names and 
 `FindComponentsMatching<T>` forces the call site to pick `T`. `lod_corruption` v1 is **static-mesh-only**
 (the deterministic MainWorld targets are static; the only skeletal candidate, the Bot, is runtime-spawned /
 non-deterministic — G4). Skeletal forced-LOD is a documented **M3 follow-up**. (2026-06-09.)
+
+### G17 — 5.1 host-target build constants are `BuildSettingsVersion.V2` / `EngineIncludeOrderVersion.Unreal5_1` (M2.5)
+The host scaffolding's `*.Target.cs` was written for 5.4 with `DefaultBuildSettings = BuildSettingsVersion.V5`
+and `IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_4`. **Neither value exists in 5.1** —
+building against 5.1 fails immediately with `'BuildSettingsVersion' does not contain a definition for 'V5'`
+and `'EngineIncludeOrderVersion' does not contain a definition for 'Unreal5_4'`. Verified against the 5.1
+UBT source (`Engine/Source/Programs/UnrealBuildTool/Configuration/TargetRules.cs`): 5.1 defines
+`BuildSettingsVersion` only up to **`V2`** (members `V1`, `V2`, `Latest`) and `EngineIncludeOrderVersion`
+only up to **`Unreal5_1`** (`Unreal5_0`, `Unreal5_1`, `Latest = Unreal5_1`). So the 5.1 host targets use
+`DefaultBuildSettings = BuildSettingsVersion.V2;` and `IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_1;`
+(`V2` is also what UBT's own upgrade hint resolves to: `Latest - 1`). This is **host scaffolding only** —
+the plugin `Build.cs` pins no `CppStandard` and inherits 5.1's C++17 default unchanged; the plugin source
+needed **zero** changes to compile on 5.1. (M2.5, 2026-06-10.)
+
+### G18 — after switching the source engine to a new branch, rebuild ShaderCompileWorker (env, M2.6)
+Switching `D:\UESource\UnrealEngine` to the **5.1** branch and rebuilding produced a fresh `UnrealEditor.exe`
+but left the **stale 5.4-era `ShaderCompileWorker.exe`** (the rebuild didn't include the SCW program).
+Launching the editor then throws the modal **"Expecting ShaderCompileWorker output version 8, got 20
+instead! Forgot to build ShaderCompileWorker?"** — shaders can't compile, editor unusable. The SCW binary
+was ~1 month older than `UnrealEditor.exe`. **Fix (engine tooling, NOT an engine-source patch):**
+```
+& "D:\UESource\UnrealEngine\Engine\Build\BatchFiles\Build.bat" ShaderCompileWorker Win64 Development -waitmutex
+```
+then relaunch (first launch recompiles all shaders since none are cached). Other engine **Programs**
+(`UnrealLightmass`, `InterchangeWorker`, …) can be similarly stale if their features are exercised —
+rebuild the same way if a version-mismatch modal names them. **Re-run this whenever the source engine is
+re-synced/rebuilt.** (M2.6, 2026-06-10.)

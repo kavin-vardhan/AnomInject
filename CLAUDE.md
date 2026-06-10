@@ -10,7 +10,15 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **Latest as-built:** **M2 — Breadth Round 1 — COMPLETE (all 8 stage gates passed).**
+- **Latest as-built:** **M2.5 (UE 5.1 port) + M2.6 (bridge sever) — COMPLETE (2026-06-10).** **UE 5.1 is now
+  the canonical engine** (the two real target games are on 5.1). Host = `D:\IntrusiveAnomalies\StackOBot`
+  (natively-5.1); source engine = 5.1 at `D:\UESource\UnrealEngine`. The six anomalies compile clean on 5.1
+  with **zero plugin-source changes** (all 7 port watch-items unchanged; only host-target build constants
+  changed — G17), and all **10** stage gates were re-driven **green over the MCP bridge** + owner-confirmed
+  visuals (flicker blink, magenta movable sun, near-clip). The `unreal-mcpython` bridge was ported to 5.1 by
+  **severing its `BehaviorTreeEditor` dependency** (G8) — costs only the 2 BT-authoring tools.
+  → `docs/sessions/2026-06-10-005-m2.5-m2.6-5.1-port-bridge-sever.md`.
+- **Prior as-built:** **M2 — Breadth Round 1 — COMPLETE (all 8 stage gates passed).**
   Adds two shared helpers — **A1** `GDPTargeting::FindComponentsMatching<T>` (component targeting) and
   **A3** `GDPArgs` (parse/clamp/warn) — and three anomalies: `lighting_mismatch` (component, ULightComponent),
   `lod_corruption` (component, UStaticMeshComponent, static-only), `camera_clipping` (global near-clip).
@@ -23,9 +31,11 @@ and is the single source of truth for the project.
   `lod_corruption`** (skeletal forced-LOD is an M3 follow-up, G16). M2 ships 2 helpers (A1, A3).
 - **Resolved (M1):** **AMB-3 → capture-baseline** — `time_dilation` Revert restores the pre-Apply value.
   Generalized in M2 to the **per-target/global state-capture convention** (see architecture.md). G11.
-- **In flight:** none. **Next action:** awaiting owner acceptance to `git commit` + `git tag m2`, then the
-  M3 brief. M3 should be near-pure catalog fill (first candidates: `lod_popping`, skeletal `lod_corruption`).
-- Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`) all fully passed.
+- **In flight:** none. **Next action:** docs-only commit in the plugin repo (`docs:` M2.5 5.1 port + M2.6
+  bridge sever) + tag `m2.5` (owner **accepted the re-gate 2026-06-10**). The bridge sever lives **outside**
+  the plugin repo (host tooling; the bridge folder + host root are unversioned) — how to record it is TBD
+  with the owner. Then the **M3** brief: near-pure catalog fill (`lod_popping`, skeletal `lod_corruption`).
+- Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`), M2.5+M2.6 (`…-005`) all fully passed.
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the
@@ -41,13 +51,18 @@ and is the single source of truth for the project.
   the home for milestone **plans** and **design decisions** (including open/blocking ones).
 
 ## Environment
-- Engine: **source-built UE 5.4.4** at `D:\UESource\UnrealEngine` (registered to the
-  `.uproject`'s `EngineAssociation` GUID under `HKCU\Software\Epic Games\Unreal Engine\Builds`).
-- Host project: **StackOBot** at `D:\Unreal Projects\StackOBot` (note the space in the path).
-- Plugin in-tree at `D:\Unreal Projects\StackOBot\Plugins\GDPAnomalyInjector\`.
-- Windows, MSVC. Build target: **StackOBotEditor / Development / Win64**.
-- Functional smoke tests run in **PIE via the `unreal-mcpython` MCP bridge** (host tooling, NOT part
-  of this repo — see gotcha G8). State/log reads close the non-visual gates; the owner eyeballs visuals.
+- Engine: **source-built UE 5.1** (Release-5.1) at `D:\UESource\UnrealEngine`, registered to the
+  `.uproject`'s `EngineAssociation` GUID `{B34F356C-4AE7-256A-F0E1-318A632BB902}` under
+  `HKCU\Software\Epic Games\Unreal Engine\Builds`. (Originally validated on source-built UE 5.4.4 — see
+  the Engine support note in architecture.md. After any engine re-sync, **rebuild ShaderCompileWorker** — G18.)
+- Host project: **StackOBot** at `D:\IntrusiveAnomalies\StackOBot` (natively-5.1; the old 5.4 host at
+  `D:\Unreal Projects\StackOBot` is retired).
+- Plugin in-tree at `D:\IntrusiveAnomalies\StackOBot\Plugins\GDPAnomalyInjector\` (its own git repo, `master`).
+- Windows, MSVC. Build target: **StackOBotEditor / Development / Win64**. Host-target build constants:
+  `BuildSettingsVersion.V2` / `EngineIncludeOrderVersion.Unreal5_1` (G17).
+- Functional smoke tests run in **PIE via the `unreal-mcpython` MCP bridge** (host tooling, NOT part of
+  this repo — see gotcha G8; on 5.1 its `BehaviorTreeEditor` dependency is severed). State/log reads close
+  the non-visual gates; the owner eyeballs visuals.
 
 ## Architecture (current as-built: M0 — full detail in docs/architecture.md)
 - One **Runtime** module `GDPAnomalyInjector`, `LoadingPhase = Default`, `EnabledByDefault: true`.

@@ -4,8 +4,18 @@ Authoritative, replayable recipe to go from a clean StackOBot checkout to a runn
 session with the `GDPAnomalyInjector` plugin loaded. Update this whenever the steps change.
 
 Paths assume:
-- Source engine: `D:\UESource\UnrealEngine` (UE 5.4.4).
-- Host project: `D:\Unreal Projects\StackOBot` (note the space).
+- Source engine: `D:\UESource\UnrealEngine` (UE **5.1**, Release-5.1 — canonical; originally UE 5.4.4).
+- Host project: `D:\IntrusiveAnomalies\StackOBot` (natively-5.1 StackOBot; the old 5.4 host
+  `D:\Unreal Projects\StackOBot` is retired).
+
+> **5.1 specifics (M2.5/M2.6):**
+> - Host-target build constants are `BuildSettingsVersion.V2` / `EngineIncludeOrderVersion.Unreal5_1`
+>   (the 5.4 `V5` / `Unreal5_4` do not exist on 5.1 — gotcha G17). The plugin pins no `CppStandard`
+>   (inherits 5.1's C++17). Generate project files / build against the **5.1 source** engine.
+> - If the editor throws **"ShaderCompileWorker output version 8, got 20"**, the SCW program is stale
+>   from the engine branch switch — rebuild it (gotcha G18) before launching.
+> - The `unreal-mcpython` bridge had its `BehaviorTreeEditor` dependency **severed** to build on 5.1
+>   (gotcha G8); its 2 BT-authoring tools are unavailable, everything else works.
 
 ---
 
@@ -29,8 +39,8 @@ clean start avoids "missing modules, rebuild?" prompts. Delete **only** the proj
 `Binaries/` and `Intermediate/`. Do **not** delete `Saved/`, and never touch engine or plugin
 artifacts.
 ```powershell
-Remove-Item -Recurse -Force "D:\Unreal Projects\StackOBot\Binaries"     -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force "D:\Unreal Projects\StackOBot\Intermediate" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "D:\IntrusiveAnomalies\StackOBot\Binaries"     -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "D:\IntrusiveAnomalies\StackOBot\Intermediate" -ErrorAction SilentlyContinue
 ```
 
 ## 2. Project is a code project (Route A)
@@ -51,7 +61,7 @@ The plugin is enabled via `"EnabledByDefault": true` in `GDPAnomalyInjector.uplu
 Only needed if you want the `.sln` for Visual Studio / Rider:
 ```powershell
 & "D:\UESource\UnrealEngine\Engine\Build\BatchFiles\Build.bat" -projectfiles `
-  -project="D:\Unreal Projects\StackOBot\StackOBot.uproject" -game -engine -progress
+  -project="D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject" -game -engine -progress
 ```
 Building from the command line (step 4) does not require this.
 
@@ -59,14 +69,14 @@ Building from the command line (step 4) does not require this.
 ```powershell
 & "D:\UESource\UnrealEngine\Engine\Build\BatchFiles\Build.bat" `
   StackOBotEditor Win64 Development `
-  -project="D:\Unreal Projects\StackOBot\StackOBot.uproject" -waitmutex
+  -project="D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject" -waitmutex
 ```
 A clean compile of just our modules (the engine is prebuilt) is the stage-gate "Compiles
 Development Editor, clean." This produces `Binaries\Win64\UnrealEditor-StackOBot.dll` and
 `Binaries\Win64\UnrealEditor-GDPAnomalyInjector.dll`.
 
 ## 5. Launch + PIE
-- Open `D:\Unreal Projects\StackOBot\StackOBot.uproject` (double-click uses the associated
+- Open `D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject` (double-click uses the associated
   source engine). If prompted to rebuild modules, allow it.
 - Confirm the plugin is enabled: **Edit → Plugins → GDP → GDP Anomaly Injector** (it is on by
   default).
