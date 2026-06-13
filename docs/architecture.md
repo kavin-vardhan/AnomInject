@@ -1,12 +1,14 @@
 # Architecture (living — current as-built)
 
-> **Reflects:** M2 — Breadth Round 1 (component/global anomalies + the helpers that enable them),
-> re-validated unchanged on UE 5.1 by **M2.5 (5.1 port)** + **M2.6 (bridge sever)**.
-> **Complete — all stage gates passed.** M2: clean headless compile + gates verified live in PIE
-> `MainWorld` (2026-06-09). M2.5/M2.6: clean Development-Editor compile on 5.1 (plugin source unchanged)
-> and all 10 anomaly gates re-driven green over the (severed) bridge + owner-confirmed visuals, 2026-06-10.
-> M2 required **no `IGDPAnomaly` change** (the M1 lock held); M2.5 required **no plugin-source change**.
-> Detail in `sessions/2026-06-10-005-m2.5-m2.6-5.1-port-bridge-sever.md`,
+> **Reflects:** M3 — LOD breadth fill: `lod_corruption` extended to **static OR skeletal** meshes
+> (same ID), a new ticking **`lod_popping`**, and the shared **`GDPLod`** helper that absorbs the
+> static/skeletal forced-LOD dispatch. Built on M2 — Breadth Round 1 (component/global anomalies +
+> the A1/A3 helpers), re-validated unchanged on UE 5.1 by M2.5 (5.1 port) + M2.6 (bridge sever).
+> **Catalog: 7 anomalies.** **Complete — all M3 state gates passed** (clean Development-Editor compile
+> on 5.1, exit 0; gates 1–9 driven green over the bridge in a `MainWorld` Simulate session, 2026-06-13).
+> M3 required **no `IGDPAnomaly` change** (the M1 lock held again) and **no new module dependency**.
+> Detail in `sessions/2026-06-13-006-m3-lod-breadth.md`,
+> `sessions/2026-06-10-005-m2.5-m2.6-5.1-port-bridge-sever.md`,
 > `sessions/2026-06-09-004-m2-breadth-round-1.md`; M1 in `sessions/2026-06-09-003-m1-implementation.md`.
 > **Maintenance:** update this file to match the code at the end of every milestone; describe only
 > what is built. Forward plans and design rationale live in the session journals.
@@ -30,11 +32,12 @@ on the Stack O Bot sample.
 
 ## Module & load
 - One **Runtime** module `GDPAnomalyInjector`, `LoadingPhase Default`, `EnabledByDefault: true`
-  (project-plugin scoped — gotcha G6), `VersionName 0.3.0`. Build.cs deps: `Core`, `CoreUObject`,
-  `Engine` — **unchanged through M2**: the A1 component finder, A3 arg parsing, and all three new
-  anomalies use only Engine/Core types, and `camera_clipping` drives the near clip via the
-  `r.SetNearClipPlane` console command + the `GNearClippingPlane` global (Core), deliberately avoiding
-  a `RenderCore` dependency (gotcha G13).
+  (project-plugin scoped — gotcha G6), `VersionName 0.4.0`. Build.cs deps: `Core`, `CoreUObject`, `Engine` — **unchanged
+  through M3**: the A1 component finder, A3 arg parsing, the M3 `GDPLod` LOD helper (which touches
+  `UStaticMeshComponent` / `USkinnedMeshComponent`, both Engine), and every anomaly use only
+  Engine/Core types; `camera_clipping` drives the near clip via the `r.SetNearClipPlane` console
+  command + the `GNearClippingPlane` global (Core), deliberately avoiding a `RenderCore` dependency
+  (gotcha G13).
 
 ## The anomaly abstraction — `IGDPAnomaly`  (`Public/IGDPAnomaly.h`)
 Plain C++ polymorphic interface (NOT a UCLASS — dispatch needs no reflection). One instance per type.
@@ -59,17 +62,19 @@ their targets/world as `TWeakObjectPtr` inside `Apply` (GC-safe) so `Tick` needs
 - **Deinitialize:** `RevertAllActive()` then `Super` — the generalized auto-restore-on-teardown.
 - **Re-entrancy:** dispatch is thin; each anomaly's `Apply` does the revert-then-reapply.
 
-## Lifecycle / targeting shapes (why these six anomalies)
+## Lifecycle / targeting shapes (why these seven anomalies)
 The catalog deliberately spans the axes the interface must cover, proving it generalizes. M1 proved
 the lifecycle axis (static / ticking / global); M2 proved the targeting & mutation axis (component-
-scoped across two component types, and a global driven by a console command):
+scoped across two component types, and a global driven by a console command); M3 proved a **heterogeneous
+target set** (one apply spanning static + skeletal components, dispatched per type behind a shared helper):
 | anomaly | scope | ticks? | proves |
 |---|---|---|---|
 | `missing_object` | actor | no | the static, actor-scoped baseline (re-homes the M0 hide) |
 | `flicker` | actor | **yes** | the `Tick` path |
 | `time_dilation` | world-global | no | the interface does **not** assume actor-scoping |
 | `lighting_mismatch` | **component** (ULightComponent) | no | component-level targeting (A1) + per-target full-state capture + multi-mode args |
-| `lod_corruption` | **component** (UStaticMeshComponent) | no | A1 generalizes across component *types*; per-target capture |
+| `lod_corruption` | **component** (static + skeletal mesh) | no | one capture convention over a **heterogeneous** target set; static/skeletal dispatch via `GDPLod` (M3) |
+| `lod_popping` | **component** (static + skeletal mesh) | **yes** | the `Tick` path reused (flicker mechanics) over the `GDPLod` LOD dispatch (M3) |
 | `camera_clipping` | global (near-clip) | no | global capture/restore via a console **command** (no cvar, no new dep) |
 
 ## Shared helpers
@@ -89,9 +94,25 @@ Free functions (deliberately not a base class). Single source of truth for the l
 ### Argument parsing — `GDPArgs`  (`Public/GDPArgs.h` / `Private/GDPArgs.cpp`)
 **A3.** `GetFloat / GetInt (value, Index, Default, Min, Max)` and `GetString (value, Index, Default)`.
 Consolidates the AMB-6 parse/clamp/warn behavior: missing index → `Default` (silent); non-numeric →
-warn + `Default`; out-of-range → warn + clamp; **never fails `Apply`**. Used by all three M2 anomalies.
-(M1's `flicker`/`time_dilation` keep their inline parse — validated code left untouched; an optional
-M3 cleanup could fold them onto `GDPArgs`.)
+warn + `Default`; out-of-range → warn + clamp; **never fails `Apply`**. Used by the M2 anomalies and
+by `lod_popping` (Hz). (M1's `flicker`/`time_dilation` keep their inline parse — validated code left
+untouched; the cosmetic divergence is intentional, not a TODO.)
+
+### LOD forced-LOD dispatch — `GDPLod`  (`Public/GDPLod.h` / `Private/GDPLod.cpp`)  **(M3)**
+Free functions (GDPTargeting/GDPArgs convention), justified by **2 consumers** (`lod_corruption`,
+`lod_popping`). Single source of truth for forced-LOD across the two LOD-forceable component families —
+`UStaticMeshComponent` (`SetForcedLodModel`/`ForcedLodModel`, count via `GetStaticMesh()->GetNumLODs()`)
+and `USkinnedMeshComponent` (`SetForcedLOD`/`GetForcedLOD`, count via the component's own `GetNumLODs()`;
+`USkeletalMeshComponent` derives). Both APIs are **1-based** (0 = auto/off; N forces LOD N-1). Surface:
+- `ResolveLodComponents(World, Substring)` → merges `FindComponentsMatching<UStaticMeshComponent>` and
+  `<USkinnedMeshComponent>` (disjoint siblings → duplicate-free) into `TArray<TWeakObjectPtr<UMeshComponent>>`.
+- `GetWorstLod(Comp)` / `GetForcedLod(Comp)` / `SetForcedLod(Comp, n)` — dispatch on the concrete type via
+  `Cast<>` internally, so callers hold one record keyed to the common base `UMeshComponent`.
+- `ResolveTargetLod(Comp, RequestedOrSentinel)` — `WorstLodSentinel` → that component's worst LOD; an
+  explicit 1-based index → clamped to `[1, max(WorstLod,1)]` (the default-worst / explicit-clamp rule).
+The skinned LOD count uses the **runtime render-data** accessor `USkinnedMeshComponent::GetNumLODs()`,
+the analog of the static `UStaticMesh::GetNumLODs()` — **not** the asset's authored `GetLODNum()`
+(gotcha G19). All types are in `Engine` → **no new module dependency**.
 
 ## Control surface (console commands)
 Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's world, null-guarded
@@ -111,7 +132,8 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
 | `flicker` | ticking, actor-scoped | `GDP.Apply flicker <sub> [hz]` | toggle hidden each half-period (default 5 Hz, clamp 60) | restore visible (any phase) | **as-built (M1)** |
 | `time_dilation` | world-global, no tick | `GDP.Apply time_dilation <scale>` | `SetGlobalTimeDilation(scale)` (clamped — G11) | restore captured baseline (AMB-3) | **as-built (M1)** |
 | `lighting_mismatch` | component (ULightComponent) | `GDP.Apply lighting_mismatch <sub> [off\|dim <f>\|recolor <r g b>\|noshadow]` | per mode: `SetVisibility(false)` / `SetIntensity(orig*f)` (def 0.1) / `SetLightColor(r,g,b)` (def magenta) / `SetCastShadows(false)`; default mode `dim` | restore captured intensity/color/visibility/cast-shadow per live comp; skip stale | **as-built (M2)** |
-| `lod_corruption` | component (UStaticMeshComponent) | `GDP.Apply lod_corruption <sub> [lod-index]` | `SetForcedLodModel(target)` (1-based; default worst = `GetNumLODs()`); explicit index clamped per comp | restore captured `ForcedLodModel` per live comp; skip stale | **as-built (M2)** — static-only (G16) |
+| `lod_corruption` | component (static **+ skeletal** mesh) | `GDP.Apply lod_corruption <sub> [lod-index]` | force each matched comp to a LOD via `GDPLod` (1-based; default worst per comp; explicit index clamped per comp). Static `SetForcedLodModel` / skinned `SetForcedLOD` | restore captured forced-LOD per live comp; skip stale | **as-built (M3)** — static + skeletal (G19; was static-only in M2, G16) |
+| `lod_popping` | component (static **+ skeletal** mesh), **ticking** | `GDP.Apply lod_popping <sub> [hz]` | each half-period, snap every matched comp between its captured baseline LOD and its worst LOD via `GDPLod` (default 2 Hz, clamp ≤ 30) | restore captured baseline per live comp regardless of phase; reset accumulator/phase | **as-built (M3)** |
 | `camera_clipping` | global (near-clip), no tick | `GDP.Apply camera_clipping [near]` | `r.SetNearClipPlane <near>` console command (default 100), pushing `GNearClippingPlane` out | restore captured baseline (~10) via the same command | **as-built (M2)** |
 
 ## Per-target / global state-capture convention
@@ -120,27 +142,32 @@ The generalization of M1's AMB-3 capture-baseline rule, followed by **every** st
   `time_dilation` captures `GetGlobalTimeDilation`; `camera_clipping` captures `GNearClippingPlane`).
   Component/actor anomalies: a **small per-target record keyed to the weak ptr** (e.g.
   `lighting_mismatch` stores intensity/color/visibility/cast-shadow per `ULightComponent`;
-  `lod_corruption` stores the prior `ForcedLodModel` per `UStaticMeshComponent`).
+  `lod_corruption` / `lod_popping` store the prior forced-LOD per `UMeshComponent`).
+- **The record may key to a common base over a heterogeneous target set (M3).** `lod_corruption` and
+  `lod_popping` key their record to `TWeakObjectPtr<UMeshComponent>` and let `GDPLod` dispatch the
+  static-vs-skeletal getter/setter via `Cast<>`. A single `Apply` therefore captures/forces/reverts a
+  **mixed** set — e.g. one `lod_corruption Bot` handles the Bot's static mesh component *and* its two
+  skinned components together. The convention is unchanged; only the record's pointer type widened.
 - **Revert restores the captured state and skips stale weak ptrs** (same GC-safety as `missing_object`).
 - **Re-apply reverts-then-reapplies** so there is always exactly one capture set (no stacking — e.g.
-  `lighting_mismatch recolor` re-applied never strands a recolored light).
+  `lighting_mismatch recolor` re-applied never strands a recolored light; `lod_popping` re-applied
+  mid-oscillation re-captures the *true* baseline, never a popped value).
 
 ## How to add an anomaly
 1. Implement `IGDPAnomaly` in `Private/Anomalies/GDPAnomaly_<Name>.{h,cpp}`. In `Apply`: resolve+cache
    targets as weak-ptrs (`GDPTargeting::FindActorsMatching` for actors, `FindComponentsMatching<T>` for
-   components), parse args via `GDPArgs`, **capture per-target/global state before mutating** (convention
-   above), mutate, return `false` if an actor/component anomaly matched zero targets (AMB-2). Undo in
-   `Revert` (restore captured state per live target; skip stale). Override `Tick(float)` only if it ticks.
+   components, `GDPLod::ResolveLodComponents` for LOD-forceable static+skeletal meshes), parse args via
+   `GDPArgs`, **capture per-target/global state before mutating** (convention above), mutate, return
+   `false` if an actor/component anomaly matched zero targets (AMB-2). Undo in `Revert` (restore
+   captured state per live target; skip stale). Override `Tick(float)` only if it ticks.
 2. Register it in `UGDPAnomalyInjectorSubsystem::Initialize`: `Register(MakeUnique<FGDPAnomaly_<Name>>())`.
 3. Include the header path-relative from `Private/`: `#include "Anomalies/GDPAnomaly_<Name>.h"` (gotcha G10).
 4. Add a catalog row above and a smoke line to the runbook.
 No interface change is needed for actor-, component-, world-, or global/console-driven shapes (proven
-across all six anomalies — the M1 `IGDPAnomaly` lock held through M2).
+across all seven anomalies — the M1 `IGDPAnomaly` lock held through M3, including the ticking
+`lod_popping` and the heterogeneous static+skeletal `lod_corruption`).
 
 ## Deferred (intentional — not forgotten)
-- **`lod_popping`** → M3. Trivial once `lod_corruption` exists: same targeting + M1's ticking pattern.
-- **Skeletal-mesh `lod_corruption`** → M3. `USkeletalMeshComponent::SetForcedLOD` is a different API
-  (gotcha G16); v1 is static-mesh-only. Same per-target pattern, different setter.
 - **`GDPCvar` (generic cvar capture/restore, the planned A2)** → post-process / scalability milestone.
   Deferred because its only would-be M2 consumer (`camera_clipping`) is driven by a console **command**,
   not an `IConsoleVariable` (gotcha G13), so A2 had zero real consumers and would have violated the
@@ -159,8 +186,11 @@ across all six anomalies — the M1 `IGDPAnomaly` lock held through M2).
 ## Game-agnostic invariant
 The module depends only on `Core`/`CoreUObject`/`Engine` and never references host (StackOBot) types.
 All anomalies use public UE APIs only — `SetActorHiddenInGame`, `UGameplayStatics`, `ULightComponent`
-setters, `UStaticMeshComponent::SetForcedLodModel`, and the `r.SetNearClipPlane` console command +
-`GNearClippingPlane` global. **M2 added no dependency** (and specifically avoided `RenderCore` — G13).
+setters, `UStaticMeshComponent::SetForcedLodModel`, `USkinnedMeshComponent::SetForcedLOD`/`GetForcedLOD`/
+`GetNumLODs`, and the `r.SetNearClipPlane` console command + `GNearClippingPlane` global. **Neither M2
+nor M3 added a dependency** — the M3 LOD work touches only Engine component types (and specifically
+still avoids `RenderCore` — G13). The Bot match in M3's gates is by class substring (`BP_Bot_C`), never
+a host type or label.
 
 ## Verification model
 Non-visual gates are checked in PIE via the `unreal-mcpython` MCP bridge (state/log reads: match

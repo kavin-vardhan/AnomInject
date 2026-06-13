@@ -31,18 +31,21 @@ Plugins/GDPAnomalyInjector/            <- this plugin = its own git repo, single
    │  ├─ IGDPAnomaly.h                 <- the locked anomaly interface (plain C++, not a UCLASS)
    │  ├─ GDPTargeting.h                <- FindActorsMatching + FindComponentsMatching<T> (A1, shared targeting)
    │  ├─ GDPArgs.h                     <- GetFloat/GetInt/GetString (A3, shared arg parse/clamp/warn)
+   │  ├─ GDPLod.h                      <- forced-LOD dispatch over static+skeletal meshes (M3, shared LOD helper)
    │  └─ GDPAnomalyInjectorSubsystem.h <- UGDPAnomalyInjectorSubsystem (manager + registry)
    └─ Private/
       ├─ GDPAnomalyInjectorModule.cpp  <- module boilerplate + log category definition
       ├─ GDPTargeting.cpp
       ├─ GDPArgs.cpp
+      ├─ GDPLod.cpp                    <- GDPLod impl (Cast<>-dispatched static/skinned forced-LOD)
       ├─ GDPAnomalyInjectorSubsystem.cpp <- lifecycle, heartbeat, registry, dispatch, console commands
-      └─ Anomalies/                    <- one IGDPAnomaly impl per file (6 anomalies)
+      └─ Anomalies/                    <- one IGDPAnomaly impl per file (7 anomalies)
          ├─ GDPAnomaly_MissingObject.{h,cpp}   <- static, actor-scoped
          ├─ GDPAnomaly_Flicker.{h,cpp}         <- ticking, actor-scoped
          ├─ GDPAnomaly_TimeDilation.{h,cpp}    <- world-global, no tick
          ├─ GDPAnomaly_LightingMismatch.{h,cpp}<- component-scoped (lights), per-target capture
-         ├─ GDPAnomaly_LodCorruption.{h,cpp}   <- component-scoped (static mesh), forced-LOD
+         ├─ GDPAnomaly_LodCorruption.{h,cpp}   <- component-scoped (static + skeletal mesh), forced-LOD (GDPLod)
+         ├─ GDPAnomaly_LodPopping.{h,cpp}      <- ticking, component-scoped (static + skeletal), LOD pop (GDPLod)
          └─ GDPAnomaly_CameraClipping.{h,cpp}  <- global near-clip, console-command capture/restore
 ```
 Host-only scaffolding lives **outside** the plugin, in the StackOBot project:
@@ -55,8 +58,8 @@ Open the console in PIE (`` ` `` backtick) and run:
 - `GDP.ListAnomalies` — list registered anomalies as `id - description - usage`.
 - `GDP.Apply <id> <args...>` — apply an anomaly, e.g. `GDP.Apply missing_object SatelliteDish`,
   `GDP.Apply flicker SatelliteDish 3`, `GDP.Apply time_dilation 0.2`,
-  `GDP.Apply lighting_mismatch Light recolor 1 0 1`, `GDP.Apply lod_corruption Boulder`,
-  `GDP.Apply camera_clipping 100`.
+  `GDP.Apply lighting_mismatch Light recolor 1 0 1`, `GDP.Apply lod_corruption Bot` (static or skeletal),
+  `GDP.Apply lod_popping Foliage 2`, `GDP.Apply camera_clipping 100`.
 - `GDP.Revert <id>` — revert one anomaly.
 - `GDP.RevertAll` — revert all active anomalies (also runs automatically on world teardown).
 

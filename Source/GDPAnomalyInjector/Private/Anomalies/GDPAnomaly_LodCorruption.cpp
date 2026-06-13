@@ -2,11 +2,10 @@
 
 #include "Anomalies/GDPAnomaly_LodCorruption.h"
 
-#include "GDPTargeting.h"
+#include "GDPLod.h"
 #include "GDPArgs.h"
 #include "GDPAnomalyInjectorLog.h"
-#include "Components/StaticMeshComponent.h"
-#include "Engine/StaticMesh.h"   // UStaticMesh::GetNumLODs
+#include "Components/MeshComponent.h"   // UMeshComponent (GetName on the resolved target)
 
 bool FGDPAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 {
@@ -28,42 +27,38 @@ bool FGDPAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args
 
 	const FString& Substring = Args[0];
 
-	// No explicit index -> worst/highest LOD per component (sentinel). Explicit index is clamped
-	// per component once we know that component's NumLODs (1-based; upper bound applied below).
+	// No explicit index -> worst/highest LOD per component (sentinel). Explicit index is 1-based and
+	// clamped per component once we know that component's LOD count (via GDPLod::ResolveTargetLod).
 	const bool bHasExplicitIndex = Args.IsValidIndex(1);
 	const int32 RequestedIndex = bHasExplicitIndex
 		? GDPArgs::GetInt(Args, 1, 1, 1, 64)   // 1-based; per-component upper clamp applied below
-		: WorstLodSentinel;
+		: GDPLod::WorstLodSentinel;
 
-	const TArray<TWeakObjectPtr<UStaticMeshComponent>> Meshes = GDPTargeting::FindComponentsMatching<UStaticMeshComponent>(World, Substring);
+	// Static AND skeletal: ResolveLodComponents merges both families keyed to the common base.
+	const TArray<TWeakObjectPtr<UMeshComponent>> Meshes = GDPLod::ResolveLodComponents(World, Substring);
 	if (Meshes.Num() == 0)
 	{
-		UE_LOG(LogGDPAnomaly, Log, TEXT("lod_corruption: matched 0 static-mesh component(s) for '%s'."), *Substring);
+		UE_LOG(LogGDPAnomaly, Log, TEXT("lod_corruption: matched 0 mesh component(s) for '%s'."), *Substring);
 		return false;   // AMB-2: zero match -> not applied / inactive
 	}
 
-	for (const TWeakObjectPtr<UStaticMeshComponent>& Weak : Meshes)
+	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
 	{
-		UStaticMeshComponent* Mesh = Weak.Get();
+		UMeshComponent* Mesh = Weak.Get();
 		if (!Mesh)
 		{
 			continue;
 		}
 
-		const UStaticMesh* StaticMesh = Mesh->GetStaticMesh();
-		const int32 NumLODs = StaticMesh ? StaticMesh->GetNumLODs() : 1;
-
-		// ForcedLodModel is 1-based (force to ForcedLodModel-1); worst/highest LOD => NumLODs.
-		const int32 Target = (RequestedIndex == WorstLodSentinel)
-			? NumLODs
-			: FMath::Clamp(RequestedIndex, 1, FMath::Max(NumLODs, 1));
+		const int32 NumLODs = GDPLod::GetWorstLod(Mesh);
+		const int32 Target = GDPLod::ResolveTargetLod(Mesh, RequestedIndex);
 
 		FCapturedLod Record;
 		Record.Mesh = Mesh;
-		Record.PrevForcedLodModel = Mesh->ForcedLodModel;
+		Record.PrevForcedLodModel = GDPLod::GetForcedLod(Mesh);
 		Captured.Add(Record);
 
-		Mesh->SetForcedLodModel(Target);
+		GDPLod::SetForcedLod(Mesh, Target);
 		UE_LOG(LogGDPAnomaly, Log, TEXT("lod_corruption: '%s' forced LOD %d of %d [was %d]."),
 			*Mesh->GetName(), Target, NumLODs, Record.PrevForcedLodModel);
 	}
@@ -75,15 +70,15 @@ bool FGDPAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args
 
 void FGDPAnomaly_LodCorruption::Revert()
 {
-	// Restore each component's captured ForcedLodModel (usually 0 = auto); skip stale ptrs (GC-safe).
+	// Restore each component's captured forced-LOD (usually 0 = auto); skip stale ptrs (GC-safe).
 	for (const FCapturedLod& Record : Captured)
 	{
-		UStaticMeshComponent* Mesh = Record.Mesh.Get();
+		UMeshComponent* Mesh = Record.Mesh.Get();
 		if (!Mesh)
 		{
 			continue;
 		}
-		Mesh->SetForcedLodModel(Record.PrevForcedLodModel);
+		GDPLod::SetForcedLod(Mesh, Record.PrevForcedLodModel);
 	}
 
 	Captured.Reset();

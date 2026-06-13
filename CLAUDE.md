@@ -10,7 +10,18 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **Latest as-built:** **M2.5 (UE 5.1 port) + M2.6 (bridge sever) — COMPLETE (2026-06-10).** **UE 5.1 is now
+- **Latest as-built:** **M3 — LOD breadth fill — COMPLETE (state gates green 2026-06-13; owner re-gate pending).**
+  `lod_corruption` extended to **static OR skeletal** meshes (same ID — one "LOD corruption" category; mesh
+  type is an implementation detail), new ticking **`lod_popping`** (flicker mechanics), and a new shared
+  helper **`GDPLod`** (`Public/GDPLod.h`+`Private/GDPLod.cpp`) absorbing the static/skeletal forced-LOD
+  dispatch (2 consumers). Registry lists **7** (sorted). **No `IGDPAnomaly` change** (M1 lock held again)
+  and **no new module dependency**. Clean Development-Editor compile on 5.1 (exit 0); all 9 state gates
+  driven green over the bridge in a `MainWorld` Simulate session — incl. the static **regression**
+  (M2-identical), the **heterogeneous** apply (`lod_corruption Bot` = 1 static + 2 skinned in one apply),
+  `lod_popping` oscillation, re-apply no-leak, RevertAll, teardown. **The Bot is single-LOD → skeletal
+  anomalies are state-validated, no Bot visual** (G20). VersionName → 0.4.0.
+  → `docs/sessions/2026-06-13-006-m3-lod-breadth.md`.
+- **Prior as-built:** **M2.5 (UE 5.1 port) + M2.6 (bridge sever) — COMPLETE (2026-06-10).** **UE 5.1 is now
   the canonical engine** (the two real target games are on 5.1). Host = `D:\IntrusiveAnomalies\StackOBot`
   (natively-5.1); source engine = 5.1 at `D:\UESource\UnrealEngine`. The six anomalies compile clean on 5.1
   with **zero plugin-source changes** (all 7 port watch-items unchanged; only host-target build constants
@@ -18,24 +29,31 @@ and is the single source of truth for the project.
   visuals (flicker blink, magenta movable sun, near-clip). The `unreal-mcpython` bridge was ported to 5.1 by
   **severing its `BehaviorTreeEditor` dependency** (G8) — costs only the 2 BT-authoring tools.
   → `docs/sessions/2026-06-10-005-m2.5-m2.6-5.1-port-bridge-sever.md`.
-- **Prior as-built:** **M2 — Breadth Round 1 — COMPLETE (all 8 stage gates passed).**
+- **Earlier:** **M2 — Breadth Round 1 — COMPLETE (all 8 stage gates passed).**
   Adds two shared helpers — **A1** `GDPTargeting::FindComponentsMatching<T>` (component targeting) and
   **A3** `GDPArgs` (parse/clamp/warn) — and three anomalies: `lighting_mismatch` (component, ULightComponent),
   `lod_corruption` (component, UStaticMeshComponent, static-only), `camera_clipping` (global near-clip).
   Registry lists **6** (sorted). **No `IGDPAnomaly` change was needed — the M1 lock held.** Clean headless
   compile + gates 2–7 verified live in PIE `MainWorld` (unreal-mcpython bridge + owner eyeball, 2026-06-09).
   → `docs/sessions/2026-06-09-004-m2-breadth-round-1.md`, `docs/architecture.md`.
+- **Resolved (M3):** **AMB-1 → skinned LOD count via `USkinnedMeshComponent::GetNumLODs()`** (runtime
+  render-data count — the analog of static `GetNumLODs()`; not the asset's authored `GetLODNum()`) — G19.
+  **AMB-2 → single tagged capture record keyed to the common base `UMeshComponent`** + `Cast<>` dispatch in
+  `GDPLod` (not two typed lists); this is what lets one apply span a heterogeneous static+skeletal set.
+  **AMB-3 → `lod_popping` default 2 Hz, ceiling 30 Hz.** Supersedes G16's static-only scope.
 - **Resolved (M2):** **AMB-M2-1 → defer A2/`GDPCvar`** — near-clip is a console *command* + the
   `GNearClippingPlane` global, not an `IConsoleVariable`, so `camera_clipping` is self-contained (no
-  `RenderCore` dep); GDPCvar lands with its first real cvar consumer (G13). **AMB-M2-2 → static-mesh-only
-  `lod_corruption`** (skeletal forced-LOD is an M3 follow-up, G16). M2 ships 2 helpers (A1, A3).
+  `RenderCore` dep); GDPCvar lands with its first real cvar consumer (G13). **AMB-M2-2 → static-only
+  `lod_corruption`** was the M2 stopgap; **resolved in M3** (static + skeletal via `GDPLod`, G19). M2 ships 2 helpers (A1, A3).
 - **Resolved (M1):** **AMB-3 → capture-baseline** — `time_dilation` Revert restores the pre-Apply value.
   Generalized in M2 to the **per-target/global state-capture convention** (see architecture.md). G11.
-- **In flight:** none. **Next action:** docs-only commit in the plugin repo (`docs:` M2.5 5.1 port + M2.6
-  bridge sever) + tag `m2.5` (owner **accepted the re-gate 2026-06-10**). The bridge sever lives **outside**
-  the plugin repo (host tooling; the bridge folder + host root are unversioned) — how to record it is TBD
-  with the owner. Then the **M3** brief: near-pure catalog fill (`lod_popping`, skeletal `lod_corruption`).
-- Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`), M2.5+M2.6 (`…-005`) all fully passed.
+- **In flight:** none. **Next action:** owner re-gate of M3 (state gates already green; optional Foliage
+  visual offered — the Bot itself is single-LOD so there's no Bot visual). On acceptance: `feat:` commit in
+  the plugin repo + tag **`m3`** (suggested: `feat(lod): skeletal lod_corruption + lod_popping (GDPLod helper)`).
+  Bridge/host scaffolding stay unversioned (G8 forward-decision unchanged). Then the next breadth round per
+  the chat-Claude brief.
+- Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`), M2.5+M2.6 (`…-005`) fully passed; M3 (`…-006`)
+  state-gated green, owner acceptance pending.
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

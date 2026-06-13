@@ -86,9 +86,9 @@ Development Editor, clean." This produces `Binaries\Win64\UnrealEditor-StackOBot
 
 ## 6. Smoke test (stage gate)
 Open the console in PIE (press `` ` `` backtick) and run:
-1. `GDP.ListAnomalies` — Output Log (category `LogGDPAnomaly`) lists **six** anomalies as
+1. `GDP.ListAnomalies` — Output Log (category `LogGDPAnomaly`) lists **seven** anomalies as
    `id - description - usage`, sorted: `camera_clipping`, `flicker`, `lighting_mismatch`,
-   `lod_corruption`, `missing_object`, `time_dilation`.
+   `lod_corruption`, `lod_popping`, `missing_object`, `time_dilation`.
 2. `GDP.ListActors` — prints `Class | Name | Label` for every actor; pick a target substring.
 3. `GDP.Apply missing_object <substring>` — pick a **persistent level prop** (a visible
    `StaticMeshActor` in `MainWorld`, e.g. an `SM_*`/`BPP_Struct_*` placement). The matched object
@@ -101,15 +101,21 @@ Open the console in PIE (press `` ` `` backtick) and run:
    lights on matching actors (default `dim` 0.1). e.g. `GDP.Apply lighting_mismatch Light recolor 1 0 1`
    (magenta), `... Light dim 0.05`, `... Light off`, `... Light noshadow`. **Needs a Movable light
    to be visible** (gotcha G14) — `GDP.Revert lighting_mismatch` restores intensity/color/visibility/shadow.
-7. `GDP.Apply lod_corruption <substring> [lod-index]` — force matching **static-mesh** components to a
-   LOD (default worst/highest). In stock MainWorld use `GDP.Apply lod_corruption SM_Ramp` to validate
-   by **state** (`forced_lod 0→1`; ramps are single-LOD so no visual), and `GDP.Apply lod_corruption
-   Foliage` for a best-effort visual on the instanced Bush/Tree (the only multi-LOD meshes). There is no
-   deterministic *visual* LOD target in stock MainWorld — gotcha G15. `GDP.Revert lod_corruption` restores.
-8. `GDP.Apply camera_clipping [near-plane]` — push the near clip plane out (default 100) so near
+7. `GDP.Apply lod_corruption <substring> [lod-index]` — force matching **static or skeletal** mesh
+   components to a LOD (default worst/highest per component). In stock MainWorld use
+   `GDP.Apply lod_corruption SM_Ramp` to validate by **state** (`forced_lod 0→1`; ramps are single-LOD so
+   no visual), `GDP.Apply lod_corruption Foliage` for a best-effort visual on the instanced Bush/Tree (the
+   only multi-LOD meshes), and — after the Bot spawns (Play) — `GDP.Apply lod_corruption Bot` to hit the
+   skeletal Bot (1 static + 2 skinned components in one apply; the Bot is single-LOD → state-only, G20).
+   There is no deterministic *visual* LOD target in stock MainWorld — gotchas G15/G20. `GDP.Revert lod_corruption` restores.
+8. `GDP.Apply lod_popping <substring> [hz]` — **ticking**: snap matching static/skeletal components between
+   their baseline and worst LOD each half-period (default 2 Hz, clamp ≤ 30). e.g. `GDP.Apply lod_popping
+   Foliage` (best-effort visual pop on Bush/Tree) or `GDP.Apply lod_popping Bot 2` (skeletal, state-only).
+   `GDP.Revert lod_popping` restores the captured baseline regardless of phase. Same visual caveat (G15/G20).
+9. `GDP.Apply camera_clipping [near-plane]` — push the near clip plane out (default 100) so near
    geometry clips away; `GDP.Revert camera_clipping` restores the captured baseline (~10). Most
    reliably-visible gate; no targeting.
-9. `GDP.RevertAll` — restores everything still active. Stopping PIE also auto-reverts (teardown).
+10. `GDP.RevertAll` — restores everything still active. Stopping PIE also auto-reverts (teardown).
 
 The green on-screen heartbeat reads `[GDP] AnomalyInjector ticking (active: N/Total)`.
 
@@ -148,12 +154,14 @@ Game/PIE-only, so there is NO GDP subsystem until PIE is running); the bridge li
 **Gate -> check:**
 | gate | drive | assert |
 |------|-------|--------|
-| ListAnomalies | `GDP.ListAnomalies` | log: **6** lines, sorted, `id - description - usage` |
+| ListAnomalies | `GDP.ListAnomalies` | log: **7** lines, sorted, `id - description - usage` |
 | missing_object | `GDP.Apply missing_object SM_Ramp` | both ramps `hidden == True`; log `matched 2 actor(s)` |
 | flicker | `Log LogGDPAnomaly Verbose`; `GDP.Apply flicker SM_Ramp` | repeating `flicker toggle -> HIDDEN/VISIBLE`; heartbeat `active: 1/N` |
 | time_dilation | `GDP.Apply time_dilation 0.2`; `GDP.Revert time_dilation` | dilation `0.2`, then back to the captured baseline |
 | lighting_mismatch | find a Movable `ULightComponent` (`Mobility==Movable`); `GDP.Apply lighting_mismatch <sub> recolor 1 0 1` | matched-count >= 1; read component `Intensity`/`GetLightColor()`/`GetVisibleFlag()`/`CastShadows` changed; `Revert` -> all restored. Owner eyeballs the lit change (movable target). |
-| lod_corruption | `GDP.Apply lod_corruption SM_Ramp` (state) + `... Foliage` (best-effort visual) | matched-count >= 1; read each `ForcedLodModel` == forced value (log `forced LOD N of M`); `Revert` -> prior (0). No deterministic visual target in stock MainWorld (G15). |
+| lod_corruption (static, regression) | `GDP.Apply lod_corruption SM_Ramp` | both ramps `forced_lod_model 0→1`, log `forced LOD 1 of 1`; `Revert` -> 0. Must be **identical to M2** (regression gate). |
+| lod_corruption (skeletal + heterogeneous) | after Bot spawns: `GDP.Apply lod_corruption Bot` | one apply hits `StaticMeshComponent_0` (static, `forced_lod_model`) + `CharacterMesh0`/`Jetpack` (skinned, `get_forced_lod()`) → all `0→1`, log `forced LOD on 3 component(s)`; `Revert` -> all 0. Bot single-LOD → state-only (G20). |
+| lod_popping | `Log LogGDPAnomaly Verbose`; `GDP.Apply lod_popping Bot` | snap log alternates `POPPED ↔ BASELINE (N components)` at 2 Hz; `Revert` -> captured baseline on all; re-apply mid-oscillation re-captures true baseline (no stuck popped value). |
 | camera_clipping | `GDP.Apply camera_clipping 100`; `GDP.Revert camera_clipping` | `GNearClippingPlane` == 100, then baseline (~10). Owner eyeballs near geometry vanishing / returning. |
 | RevertAll | apply >=2 anomalies, then `GDP.RevertAll` | all `IsActive==false`; captured state restored (hidden flags false, dilation baseline, lights/LOD/near-clip restored) |
 | teardown | apply, then **Stop PIE** | log `Subsystem deinitializing; reverted N...`; re-check nothing stuck |
@@ -161,8 +169,13 @@ Game/PIE-only, so there is NO GDP subsystem until PIE is running); the bridge li
 
 To read component state via the bridge: get the PIE world, `GameplayStatics.get_all_actors_of_class(gw, unreal.Actor)`,
 filter by substring, then iterate `a.get_components_by_class(unreal.LightComponent)` /
-`unreal.StaticMeshComponent` and read the property. Near clip: `unreal.SystemLibrary` has no getter — read it
-back via the `camera_clipping: near clip X -> Y.` log line (`util_get_output_log` keyword `camera_clipping`).
+`unreal.StaticMeshComponent` / `unreal.SkinnedMeshComponent` and read the property. Forced-LOD reads:
+static = `c.get_editor_property('forced_lod_model')`; skinned = `c.get_forced_lod()`. **The skinned
+component's `get_num_lods()` is NOT bound in editor Python** — read the runtime LOD count off the C++ log
+line `lod_corruption: '<comp>' forced LOD N of M` instead (M = the helper's `GetNumLODs()`; gotcha G19).
+The Bot (`BP_Bot_C_0`) carries 1 static + 2 skinned comps and spawns even in a Simulate session (G20).
+Near clip: `unreal.SystemLibrary` has no getter — read it back via the `camera_clipping: near clip X -> Y.`
+log line (`util_get_output_log` keyword `camera_clipping`).
 
 ## Troubleshooting
 - **"The following modules are missing or built with a different engine version… rebuild?"** —

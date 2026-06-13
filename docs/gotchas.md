@@ -205,3 +205,54 @@ then relaunch (first launch recompiles all shaders since none are cached). Other
 (`UnrealLightmass`, `InterchangeWorker`, …) can be similarly stale if their features are exercised —
 rebuild the same way if a version-mismatch modal names them. **Re-run this whenever the source engine is
 re-synced/rebuilt.** (M2.6, 2026-06-10.)
+
+### G19 — skeletal forced-LOD: the settled 5.1 accessors + common base (supersedes G16's static-only scope) (M3)
+`lod_corruption` is now static **OR** skeletal, and `lod_popping` is new; both go through the shared
+`GDPLod` helper. The 5.1 facts that pin the dispatch (all verified against `D:\UESource\UnrealEngine`,
+Release-5.1):
+- **Setter/getter — `USkinnedMeshComponent::SetForcedLOD(int32)` / `GetForcedLOD()`**
+  (`Components/SkinnedMeshComponent.h:844/848`). **1-based**, identical semantics to static
+  `UStaticMeshComponent::SetForcedLodModel(int32)` / `ForcedLodModel`: `0 = no forced LOD (auto)`,
+  `N` forces LOD `N-1`, valid range `[1, NumLODs]`. `USkeletalMeshComponent` inherits both from
+  `USkinnedMeshComponent` (the base that owns them).
+- **LOD-count accessor (the AMB-1 decision) — use `USkinnedMeshComponent::GetNumLODs()`**
+  (`:828`), whose impl returns the **runtime render-data count** `RenderData->LODRenderData.Num()`
+  (`SkinnedMeshComponent.cpp:3412`). This is the true analog of the static
+  `UStaticMesh::GetNumLODs()` we already use, and the right number for G15's runtime-LOD reasoning.
+  **Do NOT use the asset-level `USkinnedAsset::GetLODNum()`** (`Engine/SkinnedAsset.h:138`) — that is
+  the *authored* LOD count and can diverge from cooked/stripped runtime render data. (Note also that
+  in 5.1 the old `USkinnedMeshComponent::SkeletalMesh` UPROPERTY is **deprecated** in favour of
+  `GetSkinnedAsset()` / `USkeletalMeshComponent::GetSkeletalMeshAsset()`; using the component-level
+  `GetNumLODs()` sidesteps that entirely.)
+- **Common base = `UMeshComponent`.** `UStaticMeshComponent : UMeshComponent` and
+  `USkinnedMeshComponent : UMeshComponent` are disjoint siblings, so a single capture record keyed to
+  `TWeakObjectPtr<UMeshComponent>` covers both, and `GDPLod` recovers the concrete type via `Cast<>`
+  to pick the right getter/setter (AMB-2). Resolving both families = `FindComponentsMatching<UStaticMeshComponent>`
+  + `<USkinnedMeshComponent>` merged (no overlap). All types are in the **Engine** module — **no new
+  module dependency** (`Core`/`CoreUObject`/`Engine` unchanged).
+- **Python verification note:** the skinned component's `get_num_lods()` is **not bound** in the editor
+  Python API (only `get_forced_lod` / `set_forced_lod` / the `forced_lod_model` property are). Read the
+  runtime LOD count off the C++ log line `lod_corruption: '<comp>' forced LOD N of M` instead — `M` is
+  exactly what the helper's `GetNumLODs()` returned. (This supersedes the M2 "static-mesh-only" note in
+  G16; G16 stays as the historical record of why v1 was static-only.) (M3, 2026-06-13.)
+
+### G20 — the Bot DOES spawn in a Simulate session, carries mixed components, and is single-LOD (M3)
+Live scout over the bridge in a 5.1 `MainWorld` **Simulate** session (the only PIE-start exposed to the
+bridge is `LevelEditorSubsystem.editor_play_simulate`):
+- **The player Bot spawns in Simulate too.** Contrary to the usual "Simulate has no player pawn"
+  expectation, StackOBot's GameMode spawns `BP_Bot_C_0` in a Simulate session, so the **real** Bot was
+  available for the skeletal state gates with **no manual spawn and no full Play session**. (G4 still
+  holds for *timing* — it appears only after play begins, not at editor/MainWorld load.)
+- **`BP_Bot_C_0` carries 1 static + 2 skinned components:** `StaticMeshComponent_0` (static),
+  `CharacterMesh0` (skinned, `SKM_Bot`), `Jetpack` (skinned). So substring **`Bot`** is intrinsically a
+  **heterogeneous** target set — one `GDP.Apply lod_corruption Bot` captures/forces/reverts a static
+  mesh component *and* the skeletal Bot together (proves the AMB-2 single-record convention across
+  component types in one apply, no contrived cross-actor substring needed).
+- **`SKM_Bot` is single-LOD** (asset `lod_info` length 1; the helper read its runtime render-data count
+  as **1** live — log "forced LOD 1 of 1"). Per G15's logic (which applies to skeletal too), forcing a
+  LOD on a single-LOD mesh changes **no pixels** — so skeletal `lod_corruption`/`lod_popping` are
+  **state-validated only; the Bot is not a deterministic visual target.** Posture per G15: state-validated.
+- **Static multi-LOD targets, re-confirmed:** only `SM_Bush` (2 LODs) and `SM_Tree` (2 LODs), both on
+  `InstancedFoliageActor` (substring **`Foliage`**). Rocks are single-LOD. Same as G15 → **no new
+  deterministic visual for M3**; the instanced-foliage pop is the only (subtle/unreliable) visual.
+  (M3, 2026-06-13.)
