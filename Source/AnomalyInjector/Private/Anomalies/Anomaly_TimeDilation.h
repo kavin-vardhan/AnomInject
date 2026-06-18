@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IGDPAnomaly.h"
+#include "IAnomaly.h"
 
 class UWorld;
 
@@ -15,7 +15,7 @@ class UWorld;
  *
  * Note: AWorldSettings clamps Min/MaxGlobalTimeDilation, so extreme scales are clamped.
  */
-class FGDPAnomaly_TimeDilation final : public IGDPAnomaly
+class FAnomaly_TimeDilation final : public IAnomaly
 {
 public:
 	virtual FName   GetId() const override { return FName(TEXT("time_dilation")); }

@@ -1,13 +1,13 @@
 // Copyright GDP Anomaly Injection Project. All Rights Reserved.
 
-#include "Anomalies/GDPAnomaly_LightingMismatch.h"
+#include "Anomalies/Anomaly_LightingMismatch.h"
 
-#include "GDPTargeting.h"
-#include "GDPArgs.h"
-#include "GDPAnomalyInjectorLog.h"
+#include "AnomalyTargeting.h"
+#include "AnomalyArgs.h"
+#include "AnomalyInjectorLog.h"
 #include "Components/LightComponent.h"
 
-bool FGDPAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& Args)
+bool FAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& Args)
 {
 	if (!World)
 	{
@@ -15,7 +15,7 @@ bool FGDPAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& A
 	}
 	if (Args.Num() == 0 || Args[0].IsEmpty())
 	{
-		UE_LOG(LogGDPAnomaly, Warning, TEXT("lighting_mismatch: usage <substring> [off | dim <f> | recolor <r g b> | noshadow]"));
+		UE_LOG(LogAnomaly, Warning, TEXT("lighting_mismatch: usage <substring> [off | dim <f> | recolor <r g b> | noshadow]"));
 		return false;
 	}
 
@@ -28,10 +28,10 @@ bool FGDPAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& A
 	const FString& Substring = Args[0];
 
 	// Resolve the mode (default dim); unknown -> warn + fall back to dim.
-	FString Mode = GDPArgs::GetString(Args, 1, TEXT("dim")).ToLower();
+	FString Mode = AnomalyArgs::GetString(Args, 1, TEXT("dim")).ToLower();
 	if (Mode != TEXT("off") && Mode != TEXT("dim") && Mode != TEXT("recolor") && Mode != TEXT("noshadow"))
 	{
-		UE_LOG(LogGDPAnomaly, Warning, TEXT("lighting_mismatch: unknown mode '%s'; using 'dim'."), *Mode);
+		UE_LOG(LogAnomaly, Warning, TEXT("lighting_mismatch: unknown mode '%s'; using 'dim'."), *Mode);
 		Mode = TEXT("dim");
 	}
 
@@ -40,20 +40,20 @@ bool FGDPAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& A
 	FLinearColor RecolorColor(1.0f, 0.0f, 1.0f);   // magenta default
 	if (Mode == TEXT("dim"))
 	{
-		DimFactor = GDPArgs::GetFloat(Args, 2, 0.1f, 0.0f, 1.0f);
+		DimFactor = AnomalyArgs::GetFloat(Args, 2, 0.1f, 0.0f, 1.0f);
 	}
 	else if (Mode == TEXT("recolor"))
 	{
-		const float R = GDPArgs::GetFloat(Args, 2, 1.0f, 0.0f, 1.0f);
-		const float G = GDPArgs::GetFloat(Args, 3, 0.0f, 0.0f, 1.0f);
-		const float B = GDPArgs::GetFloat(Args, 4, 1.0f, 0.0f, 1.0f);
+		const float R = AnomalyArgs::GetFloat(Args, 2, 1.0f, 0.0f, 1.0f);
+		const float G = AnomalyArgs::GetFloat(Args, 3, 0.0f, 0.0f, 1.0f);
+		const float B = AnomalyArgs::GetFloat(Args, 4, 1.0f, 0.0f, 1.0f);
 		RecolorColor = FLinearColor(R, G, B);
 	}
 
-	const TArray<TWeakObjectPtr<ULightComponent>> Lights = GDPTargeting::FindComponentsMatching<ULightComponent>(World, Substring);
+	const TArray<TWeakObjectPtr<ULightComponent>> Lights = AnomalyTargeting::FindComponentsMatching<ULightComponent>(World, Substring);
 	if (Lights.Num() == 0)
 	{
-		UE_LOG(LogGDPAnomaly, Log, TEXT("lighting_mismatch: matched 0 light component(s) for '%s'."), *Substring);
+		UE_LOG(LogAnomaly, Log, TEXT("lighting_mismatch: matched 0 light component(s) for '%s'."), *Substring);
 		return false;   // AMB-2: zero match -> not applied / inactive
 	}
 
@@ -93,12 +93,12 @@ bool FGDPAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& A
 	}
 
 	bActive = Captured.Num() > 0;
-	UE_LOG(LogGDPAnomaly, Log, TEXT("lighting_mismatch: mode '%s' on %d light component(s) for '%s'."),
+	UE_LOG(LogAnomaly, Log, TEXT("lighting_mismatch: mode '%s' on %d light component(s) for '%s'."),
 		*Mode, Captured.Num(), *Substring);
 	return bActive;
 }
 
-void FGDPAnomaly_LightingMismatch::Revert()
+void FAnomaly_LightingMismatch::Revert()
 {
 	// Restore the full captured state per still-live component; skip stale ptrs (GC-safe).
 	for (const FCapturedLight& Record : Captured)

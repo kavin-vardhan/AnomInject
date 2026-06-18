@@ -5,4 +5,4 @@
 #include "Logging/LogMacros.h"
 
 /** Dedicated log category so injector output is filterable and never lost in LogTemp. */
-DECLARE_LOG_CATEGORY_EXTERN(LogGDPAnomaly, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogAnomaly, Log, All);

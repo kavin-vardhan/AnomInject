@@ -11,7 +11,7 @@ class UWorld;
  * Shared targeting helpers. Single source of truth for the label-free matching rule so
  * every actor- and component-scoped anomaly resolves targets identically.
  */
-namespace GDPTargeting
+namespace AnomalyTargeting
 {
 	/**
 	 * Find actors in World whose actor Name OR class name contains Substring
@@ -19,7 +19,7 @@ namespace GDPTargeting
 	 * (GetActorLabel is editor-only and absent in cooked builds). Returns weak-ptrs so
 	 * destroyed actors never dangle. Empty/null world or empty substring -> empty array.
 	 */
-	GDPANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> FindActorsMatching(UWorld* World, const FString& Substring);
+	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> FindActorsMatching(UWorld* World, const FString& Substring);
 
 	/**
 	 * Component-level targeting (M2 / A1). Same match rule as FindActorsMatching — resolve

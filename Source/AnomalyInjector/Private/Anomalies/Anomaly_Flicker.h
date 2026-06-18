@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IGDPAnomaly.h"
+#include "IAnomaly.h"
 
 class AActor;
 class UWorld;
@@ -13,7 +13,7 @@ class UWorld;
  * DeltaSeconds and toggle the targets' hidden flag every half-period. Revert leaves the
  * actors VISIBLE regardless of the current toggle phase. Proves the Tick path.
  */
-class FGDPAnomaly_Flicker final : public IGDPAnomaly
+class FAnomaly_Flicker final : public IAnomaly
 {
 public:
 	virtual FName   GetId() const override { return FName(TEXT("flicker")); }

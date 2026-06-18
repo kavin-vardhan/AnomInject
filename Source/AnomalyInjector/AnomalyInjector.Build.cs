@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class GDPAnomalyInjector : ModuleRules
+public class AnomalyInjector : ModuleRules
 {
-	public GDPAnomalyInjector(ReadOnlyTargetRules Target) : base(Target)
+	public AnomalyInjector(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 

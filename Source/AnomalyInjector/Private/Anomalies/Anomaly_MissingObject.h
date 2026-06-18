@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IGDPAnomaly.h"
+#include "IAnomaly.h"
 
 class AActor;
 class UWorld;
@@ -13,7 +13,7 @@ class UWorld;
  * Name/Class contains a substring, SetActorHiddenInGame(true), cache weak-ptrs, restore
  * on Revert. No Tick.
  */
-class FGDPAnomaly_MissingObject final : public IGDPAnomaly
+class FAnomaly_MissingObject final : public IAnomaly
 {
 public:
 	virtual FName   GetId() const override { return FName(TEXT("missing_object")); }

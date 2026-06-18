@@ -1,12 +1,12 @@
 // Copyright GDP Anomaly Injection Project. All Rights Reserved.
 
-#include "Anomalies/GDPAnomaly_Flicker.h"
+#include "Anomalies/Anomaly_Flicker.h"
 
-#include "GDPTargeting.h"
-#include "GDPAnomalyInjectorLog.h"
+#include "AnomalyTargeting.h"
+#include "AnomalyInjectorLog.h"
 #include "GameFramework/Actor.h"
 
-bool FGDPAnomaly_Flicker::Apply(UWorld* World, const TArray<FString>& Args)
+bool FAnomaly_Flicker::Apply(UWorld* World, const TArray<FString>& Args)
 {
 	if (!World)
 	{
@@ -14,7 +14,7 @@ bool FGDPAnomaly_Flicker::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 	if (Args.Num() == 0 || Args[0].IsEmpty())
 	{
-		UE_LOG(LogGDPAnomaly, Warning, TEXT("flicker: usage <name-substring> [hz]"));
+		UE_LOG(LogAnomaly, Warning, TEXT("flicker: usage <name-substring> [hz]"));
 		return false;
 	}
 
@@ -34,28 +34,28 @@ bool FGDPAnomaly_Flicker::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 		else
 		{
-			UE_LOG(LogGDPAnomaly, Warning, TEXT("flicker: '%s' is not a number; using %.1f Hz."), *Args[1], DefaultHz);
+			UE_LOG(LogAnomaly, Warning, TEXT("flicker: '%s' is not a number; using %.1f Hz."), *Args[1], DefaultHz);
 		}
 	}
 	if (!FMath::IsFinite(Hz) || Hz <= 0.0f)
 	{
-		UE_LOG(LogGDPAnomaly, Warning, TEXT("flicker: invalid rate; using %.1f Hz."), DefaultHz);
+		UE_LOG(LogAnomaly, Warning, TEXT("flicker: invalid rate; using %.1f Hz."), DefaultHz);
 		Hz = DefaultHz;
 	}
 	Hz = FMath::Min(Hz, MaxHz);
 	HalfPeriodSeconds = 0.5f / Hz;
 
-	Targets = GDPTargeting::FindActorsMatching(World, Args[0]);
+	Targets = AnomalyTargeting::FindActorsMatching(World, Args[0]);
 	Accumulator = 0.0f;
 	bHiddenPhase = false;
 	bActive = Targets.Num() > 0;   // zero match -> not applied / inactive (AMB-2)
 
-	UE_LOG(LogGDPAnomaly, Log, TEXT("flicker: matched %d actor(s) for '%s' at %.2f Hz (half-period %.3fs)."),
+	UE_LOG(LogAnomaly, Log, TEXT("flicker: matched %d actor(s) for '%s' at %.2f Hz (half-period %.3fs)."),
 		Targets.Num(), *Args[0], Hz, HalfPeriodSeconds);
 	return bActive;
 }
 
-void FGDPAnomaly_Flicker::Tick(float DeltaSeconds)
+void FAnomaly_Flicker::Tick(float DeltaSeconds)
 {
 	if (!bActive)
 	{
@@ -79,12 +79,12 @@ void FGDPAnomaly_Flicker::Tick(float DeltaSeconds)
 				++Affected;
 			}
 		}
-		UE_LOG(LogGDPAnomaly, Verbose, TEXT("flicker toggle -> %s (%d actors)."),
+		UE_LOG(LogAnomaly, Verbose, TEXT("flicker toggle -> %s (%d actors)."),
 			bHiddenPhase ? TEXT("HIDDEN") : TEXT("VISIBLE"), Affected);
 	}
 }
 
-void FGDPAnomaly_Flicker::Revert()
+void FAnomaly_Flicker::Revert()
 {
 	// Leave actors VISIBLE regardless of the current toggle phase.
 	for (const TWeakObjectPtr<AActor>& Weak : Targets)

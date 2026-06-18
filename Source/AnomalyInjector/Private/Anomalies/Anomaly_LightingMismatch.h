@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IGDPAnomaly.h"
+#include "IAnomaly.h"
 
 class UWorld;
 class ULightComponent;
@@ -24,7 +24,7 @@ class ULightComponent;
  * Visibility note: only Movable (and partially Stationary) lights change the rendered image at
  * runtime; Static/baked lights change the component property but not the image (gotcha G14).
  */
-class FGDPAnomaly_LightingMismatch final : public IGDPAnomaly
+class FAnomaly_LightingMismatch final : public IAnomaly
 {
 public:
 	virtual FName   GetId() const override { return FName(TEXT("lighting_mismatch")); }

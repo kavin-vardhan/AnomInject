@@ -4,11 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "IGDPAnomaly.h"
-#include "GDPAnomalyInjectorSubsystem.generated.h"
+#include "IAnomaly.h"
+#include "AnomalyInjectorSubsystem.generated.h"
 
 /**
- * UGDPAnomalyInjectorSubsystem
+ * UAnomalyInjectorSubsystem
  *
  * World-scoped, auto-ticking subsystem that OWNS the anomaly registry and acts as the
  * manager: it registers one instance of each anomaly type in Initialize, ticks the active
@@ -18,14 +18,14 @@
  * Stays game-agnostic: references only public UE APIs, never the host game module.
  */
 UCLASS()
-class GDPANOMALYINJECTOR_API UGDPAnomalyInjectorSubsystem : public UTickableWorldSubsystem
+class ANOMALYINJECTOR_API UAnomalyInjectorSubsystem : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
-	// Out-of-line dtor: the TMap<FName, TUniquePtr<IGDPAnomaly>> deleter needs the complete
-	// IGDPAnomaly type, which is available in the .cpp translation unit (gotcha G9).
-	virtual ~UGDPAnomalyInjectorSubsystem();
+	// Out-of-line dtor: the TMap<FName, TUniquePtr<IAnomaly>> deleter needs the complete
+	// IAnomaly type, which is available in the .cpp translation unit (gotcha G9).
+	virtual ~UAnomalyInjectorSubsystem();
 
 	// --- USubsystem / UWorldSubsystem ---
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -69,10 +69,10 @@ protected:
 private:
 	/**
 	 * Anomaly registry: one owned instance per type, keyed by GetId(). Plain C++ (not a
-	 * UPROPERTY — IGDPAnomaly is not a UObject); GC-safety lives inside each anomaly via
+	 * UPROPERTY — IAnomaly is not a UObject); GC-safety lives inside each anomaly via
 	 * TWeakObjectPtr.
 	 */
-	TMap<FName, TUniquePtr<IGDPAnomaly>> Anomalies;
+	TMap<FName, TUniquePtr<IAnomaly>> Anomalies;
 
 	/** Seconds accumulated since the last heartbeat, used to throttle it. */
 	float HeartbeatAccumulator = 0.0f;

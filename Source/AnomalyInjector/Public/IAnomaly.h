@@ -7,7 +7,7 @@
 class UWorld;
 
 /**
- * IGDPAnomaly — the locked M1 anomaly abstraction.
+ * IAnomaly — the locked M1 anomaly abstraction.
  *
  * A plain C++ polymorphic interface (NOT a UCLASS — the registry/dispatch needs no
  * reflection). One instance per anomaly type lives in the subsystem's registry and
@@ -21,15 +21,15 @@ class UWorld;
  *  - Re-applying an already-active anomaly must revert-then-reapply (no state leak).
  *  - Revert undoes everything Apply did and leaves IsActive() == false.
  */
-class IGDPAnomaly
+class IAnomaly
 {
 public:
-	virtual ~IGDPAnomaly() = default;
+	virtual ~IAnomaly() = default;
 
 	/** Stable snake_case identifier, e.g. "missing_object". */
 	virtual FName GetId() const = 0;
 
-	/** One-line human description for GDP.ListAnomalies. */
+	/** One-line human description for IAI.ListAnomalies. */
 	virtual FString GetDescription() const = 0;
 
 	/** Argument usage hint, e.g. "<name-substring> [hz]". */

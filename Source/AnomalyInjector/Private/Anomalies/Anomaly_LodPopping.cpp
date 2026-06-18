@@ -1,13 +1,13 @@
 // Copyright GDP Anomaly Injection Project. All Rights Reserved.
 
-#include "Anomalies/GDPAnomaly_LodPopping.h"
+#include "Anomalies/Anomaly_LodPopping.h"
 
-#include "GDPLod.h"
-#include "GDPArgs.h"
-#include "GDPAnomalyInjectorLog.h"
+#include "AnomalyLod.h"
+#include "AnomalyArgs.h"
+#include "AnomalyInjectorLog.h"
 #include "Components/MeshComponent.h"   // UMeshComponent
 
-bool FGDPAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
+bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 {
 	if (!World)
 	{
@@ -15,7 +15,7 @@ bool FGDPAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 	if (Args.Num() == 0 || Args[0].IsEmpty())
 	{
-		UE_LOG(LogGDPAnomaly, Warning, TEXT("lod_popping: usage <substring> [hz]"));
+		UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: usage <substring> [hz]"));
 		return false;
 	}
 
@@ -30,14 +30,14 @@ bool FGDPAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 
 	// Optional Hz (A3): default 2; non-numeric -> warn + default; clamped to [MinHz, MaxHz] so the
 	// half-period is always finite and positive.
-	const float Hz = GDPArgs::GetFloat(Args, 1, DefaultHz, MinHz, MaxHz);
+	const float Hz = AnomalyArgs::GetFloat(Args, 1, DefaultHz, MinHz, MaxHz);
 	HalfPeriodSeconds = 0.5f / Hz;
 
 	// Static AND skeletal, keyed to the common base (one apply pops a heterogeneous target set).
-	const TArray<TWeakObjectPtr<UMeshComponent>> Meshes = GDPLod::ResolveLodComponents(World, Substring);
+	const TArray<TWeakObjectPtr<UMeshComponent>> Meshes = AnomalyLod::ResolveLodComponents(World, Substring);
 	if (Meshes.Num() == 0)
 	{
-		UE_LOG(LogGDPAnomaly, Log, TEXT("lod_popping: matched 0 mesh component(s) for '%s'."), *Substring);
+		UE_LOG(LogAnomaly, Log, TEXT("lod_popping: matched 0 mesh component(s) for '%s'."), *Substring);
 		return false;   // AMB-2: zero match -> not applied / inactive
 	}
 
@@ -52,8 +52,8 @@ bool FGDPAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 
 		FPoppingTarget Target;
 		Target.Mesh = Mesh;
-		Target.BaselineLod = GDPLod::GetForcedLod(Mesh);   // capture original (usually 0 = auto)
-		Target.PoppedLod   = GDPLod::GetWorstLod(Mesh);    // worst available per component
+		Target.BaselineLod = AnomalyLod::GetForcedLod(Mesh);   // capture original (usually 0 = auto)
+		Target.PoppedLod   = AnomalyLod::GetWorstLod(Mesh);    // worst available per component
 		Targets.Add(Target);
 	}
 
@@ -63,12 +63,12 @@ bool FGDPAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	bPoppedPhase = false;
 	bActive = Targets.Num() > 0;
 
-	UE_LOG(LogGDPAnomaly, Log, TEXT("lod_popping: matched %d component(s) for '%s' at %.2f Hz (half-period %.3fs)."),
+	UE_LOG(LogAnomaly, Log, TEXT("lod_popping: matched %d component(s) for '%s' at %.2f Hz (half-period %.3fs)."),
 		Targets.Num(), *Substring, Hz, HalfPeriodSeconds);
 	return bActive;
 }
 
-void FGDPAnomaly_LodPopping::Tick(float DeltaSeconds)
+void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 {
 	if (!bActive)
 	{
@@ -88,23 +88,23 @@ void FGDPAnomaly_LodPopping::Tick(float DeltaSeconds)
 		{
 			if (UMeshComponent* Mesh = Target.Mesh.Get())
 			{
-				GDPLod::SetForcedLod(Mesh, bPoppedPhase ? Target.PoppedLod : Target.BaselineLod);
+				AnomalyLod::SetForcedLod(Mesh, bPoppedPhase ? Target.PoppedLod : Target.BaselineLod);
 				++Affected;
 			}
 		}
-		UE_LOG(LogGDPAnomaly, Verbose, TEXT("lod_popping snap -> %s (%d components)."),
+		UE_LOG(LogAnomaly, Verbose, TEXT("lod_popping snap -> %s (%d components)."),
 			bPoppedPhase ? TEXT("POPPED") : TEXT("BASELINE"), Affected);
 	}
 }
 
-void FGDPAnomaly_LodPopping::Revert()
+void FAnomaly_LodPopping::Revert()
 {
 	// Restore each captured baseline regardless of the current oscillation phase; skip stale ptrs.
 	for (const FPoppingTarget& Target : Targets)
 	{
 		if (UMeshComponent* Mesh = Target.Mesh.Get())
 		{
-			GDPLod::SetForcedLod(Mesh, Target.BaselineLod);
+			AnomalyLod::SetForcedLod(Mesh, Target.BaselineLod);
 		}
 	}
 

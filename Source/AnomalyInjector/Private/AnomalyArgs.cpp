@@ -1,10 +1,10 @@
 // Copyright GDP Anomaly Injection Project. All Rights Reserved.
 
-#include "GDPArgs.h"
+#include "AnomalyArgs.h"
 
-#include "GDPAnomalyInjectorLog.h"
+#include "AnomalyInjectorLog.h"
 
-namespace GDPArgs
+namespace AnomalyArgs
 {
 	float GetFloat(const TArray<FString>& Args, int32 Index, float Default, float Min, float Max)
 	{
@@ -16,7 +16,7 @@ namespace GDPArgs
 		const FString& Token = Args[Index];
 		if (!Token.IsNumeric())
 		{
-			UE_LOG(LogGDPAnomaly, Warning, TEXT("args[%d] '%s' is not a number; using default %.4f."),
+			UE_LOG(LogAnomaly, Warning, TEXT("args[%d] '%s' is not a number; using default %.4f."),
 				Index, *Token, Default);
 			return Default;
 		}
@@ -25,7 +25,7 @@ namespace GDPArgs
 		const float Clamped = FMath::Clamp(Value, Min, Max);
 		if (!FMath::IsNearlyEqual(Value, Clamped))
 		{
-			UE_LOG(LogGDPAnomaly, Warning, TEXT("args[%d] %.4f out of range [%.4f, %.4f]; clamped to %.4f."),
+			UE_LOG(LogAnomaly, Warning, TEXT("args[%d] %.4f out of range [%.4f, %.4f]; clamped to %.4f."),
 				Index, Value, Min, Max, Clamped);
 		}
 		return Clamped;
@@ -41,7 +41,7 @@ namespace GDPArgs
 		const FString& Token = Args[Index];
 		if (!Token.IsNumeric())
 		{
-			UE_LOG(LogGDPAnomaly, Warning, TEXT("args[%d] '%s' is not a number; using default %d."),
+			UE_LOG(LogAnomaly, Warning, TEXT("args[%d] '%s' is not a number; using default %d."),
 				Index, *Token, Default);
 			return Default;
 		}
@@ -50,7 +50,7 @@ namespace GDPArgs
 		const int32 Clamped = FMath::Clamp(Value, Min, Max);
 		if (Value != Clamped)
 		{
-			UE_LOG(LogGDPAnomaly, Warning, TEXT("args[%d] %d out of range [%d, %d]; clamped to %d."),
+			UE_LOG(LogAnomaly, Warning, TEXT("args[%d] %d out of range [%d, %d]; clamped to %d."),
 				Index, Value, Min, Max, Clamped);
 		}
 		return Clamped;

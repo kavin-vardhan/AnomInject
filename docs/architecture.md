@@ -1,12 +1,12 @@
 # Architecture (living — current as-built)
 
 > **Reflects:** M3 — LOD breadth fill: `lod_corruption` extended to **static OR skeletal** meshes
-> (same ID), a new ticking **`lod_popping`**, and the shared **`GDPLod`** helper that absorbs the
+> (same ID), a new ticking **`lod_popping`**, and the shared **`AnomalyLod`** helper that absorbs the
 > static/skeletal forced-LOD dispatch. Built on M2 — Breadth Round 1 (component/global anomalies +
 > the A1/A3 helpers), re-validated unchanged on UE 5.1 by M2.5 (5.1 port) + M2.6 (bridge sever).
 > **Catalog: 7 anomalies.** **Complete — all M3 state gates passed** (clean Development-Editor compile
 > on 5.1, exit 0; gates 1–9 driven green over the bridge in a `MainWorld` Simulate session, 2026-06-13).
-> M3 required **no `IGDPAnomaly` change** (the M1 lock held again) and **no new module dependency**.
+> M3 required **no `IAnomaly` change** (the M1 lock held again) and **no new module dependency**.
 > Detail in `sessions/2026-06-13-006-m3-lod-breadth.md`,
 > `sessions/2026-06-10-005-m2.5-m2.6-5.1-port-bridge-sever.md`,
 > `sessions/2026-06-09-004-m2-breadth-round-1.md`; M1 in `sessions/2026-06-09-003-m1-implementation.md`.
@@ -26,20 +26,20 @@
   `D:\IntrusiveAnomalies\StackOBot` (natively-5.1 StackOBot). The old 5.4 host is retired.
 
 ## Purpose
-GDPAnomalyInjector injects labeled visual anomalies (graphics bugs) into a running UE5 game to
+AnomalyInjector injects labeled visual anomalies (graphics bugs) into a running UE5 game to
 generate synthetic training data for bug-detection ML. Game-agnostic (public UE APIs only); tested
 on the Stack O Bot sample.
 
 ## Module & load
-- One **Runtime** module `GDPAnomalyInjector`, `LoadingPhase Default`, `EnabledByDefault: true`
+- One **Runtime** module `AnomalyInjector`, `LoadingPhase Default`, `EnabledByDefault: true`
   (project-plugin scoped — gotcha G6), `VersionName 0.4.0`. Build.cs deps: `Core`, `CoreUObject`, `Engine` — **unchanged
-  through M3**: the A1 component finder, A3 arg parsing, the M3 `GDPLod` LOD helper (which touches
+  through M3**: the A1 component finder, A3 arg parsing, the M3 `AnomalyLod` LOD helper (which touches
   `UStaticMeshComponent` / `USkinnedMeshComponent`, both Engine), and every anomaly use only
   Engine/Core types; `camera_clipping` drives the near clip via the `r.SetNearClipPlane` console
   command + the `GNearClippingPlane` global (Core), deliberately avoiding a `RenderCore` dependency
   (gotcha G13).
 
-## The anomaly abstraction — `IGDPAnomaly`  (`Public/IGDPAnomaly.h`)
+## The anomaly abstraction — `IAnomaly`  (`Public/IAnomaly.h`)
 Plain C++ polymorphic interface (NOT a UCLASS — dispatch needs no reflection). One instance per type.
 ```
 GetId() / GetDescription() / GetUsage()   // identity + help
@@ -52,10 +52,10 @@ Contract: `Apply` returns **false** (and stays inactive) when an actor anomaly m
 (AMB-2); re-applying an active anomaly **reverts-then-reapplies** (no state leak); anomalies cache
 their targets/world as `TWeakObjectPtr` inside `Apply` (GC-safe) so `Tick` needs only `DeltaSeconds`.
 
-## Core component — `UGDPAnomalyInjectorSubsystem` (the manager)
+## Core component — `UAnomalyInjectorSubsystem` (the manager)
 - A `UTickableWorldSubsystem` (UCLASS): one per world, auto-ticks, `GetWorld()`. **Game + PIE only**
   via `DoesSupportWorldType` (gotcha G7).
-- **Owns the registry** `TMap<FName, TUniquePtr<IGDPAnomaly>>` — plain C++, not a UPROPERTY. Registers
+- **Owns the registry** `TMap<FName, TUniquePtr<IAnomaly>>` — plain C++, not a UPROPERTY. Registers
   one instance of each anomaly type in `Initialize` (explicit, no self-registration macros). Needs an
   out-of-line destructor (gotcha G9).
 - **Tick:** drives `Tick(Dt)` on the active anomalies; the 2 s heartbeat now reports `(active: N/Total)`.
@@ -73,13 +73,13 @@ target set** (one apply spanning static + skeletal components, dispatched per ty
 | `flicker` | actor | **yes** | the `Tick` path |
 | `time_dilation` | world-global | no | the interface does **not** assume actor-scoping |
 | `lighting_mismatch` | **component** (ULightComponent) | no | component-level targeting (A1) + per-target full-state capture + multi-mode args |
-| `lod_corruption` | **component** (static + skeletal mesh) | no | one capture convention over a **heterogeneous** target set; static/skeletal dispatch via `GDPLod` (M3) |
-| `lod_popping` | **component** (static + skeletal mesh) | **yes** | the `Tick` path reused (flicker mechanics) over the `GDPLod` LOD dispatch (M3) |
+| `lod_corruption` | **component** (static + skeletal mesh) | no | one capture convention over a **heterogeneous** target set; static/skeletal dispatch via `AnomalyLod` (M3) |
+| `lod_popping` | **component** (static + skeletal mesh) | **yes** | the `Tick` path reused (flicker mechanics) over the `AnomalyLod` LOD dispatch (M3) |
 | `camera_clipping` | global (near-clip) | no | global capture/restore via a console **command** (no cvar, no new dep) |
 
 ## Shared helpers
 
-### Targeting — `GDPTargeting`  (`Public/GDPTargeting.h`)
+### Targeting — `AnomalyTargeting`  (`Public/AnomalyTargeting.h`)
 Free functions (deliberately not a base class). Single source of truth for the label-free match rule.
 - `FindActorsMatching(World, Substring)` — matches by `Actor->GetName()` **or**
   `Actor->GetClass()->GetName()` `.Contains(substring)` (case-insensitive), **never** `GetActorLabel()`
@@ -91,15 +91,15 @@ Free functions (deliberately not a base class). Single source of truth for the l
   other actors uniformly. Used by `lighting_mismatch` (`<ULightComponent>`) and `lod_corruption`
   (`<UStaticMeshComponent>`) — two consumers, two component types.
 
-### Argument parsing — `GDPArgs`  (`Public/GDPArgs.h` / `Private/GDPArgs.cpp`)
+### Argument parsing — `AnomalyArgs`  (`Public/AnomalyArgs.h` / `Private/AnomalyArgs.cpp`)
 **A3.** `GetFloat / GetInt (value, Index, Default, Min, Max)` and `GetString (value, Index, Default)`.
 Consolidates the AMB-6 parse/clamp/warn behavior: missing index → `Default` (silent); non-numeric →
 warn + `Default`; out-of-range → warn + clamp; **never fails `Apply`**. Used by the M2 anomalies and
 by `lod_popping` (Hz). (M1's `flicker`/`time_dilation` keep their inline parse — validated code left
 untouched; the cosmetic divergence is intentional, not a TODO.)
 
-### LOD forced-LOD dispatch — `GDPLod`  (`Public/GDPLod.h` / `Private/GDPLod.cpp`)  **(M3)**
-Free functions (GDPTargeting/GDPArgs convention), justified by **2 consumers** (`lod_corruption`,
+### LOD forced-LOD dispatch — `AnomalyLod`  (`Public/AnomalyLod.h` / `Private/AnomalyLod.cpp`)  **(M3)**
+Free functions (AnomalyTargeting/AnomalyArgs convention), justified by **2 consumers** (`lod_corruption`,
 `lod_popping`). Single source of truth for forced-LOD across the two LOD-forceable component families —
 `UStaticMeshComponent` (`SetForcedLodModel`/`ForcedLodModel`, count via `GetStaticMesh()->GetNumLODs()`)
 and `USkinnedMeshComponent` (`SetForcedLOD`/`GetForcedLOD`, count via the component's own `GetNumLODs()`;
@@ -116,25 +116,25 @@ the analog of the static `UStaticMesh::GetNumLODs()` — **not** the asset's aut
 
 ## Control surface (console commands)
 Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's world, null-guarded
-(warns outside Game/PIE). Output → Output Log, category `LogGDPAnomaly`.
-- `GDP.ListActors` — log `Class | Name | Label` per actor (targeting aid, not an anomaly).
-- `GDP.ListAnomalies` — list registered anomalies as `id - description - usage` (sorted).
-- `GDP.Apply <id> <args...>` — look up id, apply (reverts-then-reapplies if active).
-- `GDP.Revert <id>` — revert one active anomaly.
-- `GDP.RevertAll` — revert all active anomalies.
-*(M0's `GDP.HideActor` / `GDP.ShowAllActors` were removed — superseded by `GDP.Apply missing_object`
-/ `GDP.RevertAll`.)*
+(warns outside Game/PIE). Output → Output Log, category `LogAnomaly`.
+- `IAI.ListActors` — log `Class | Name | Label` per actor (targeting aid, not an anomaly).
+- `IAI.ListAnomalies` — list registered anomalies as `id - description - usage` (sorted).
+- `IAI.Apply <id> <args...>` — look up id, apply (reverts-then-reapplies if active).
+- `IAI.Revert <id>` — revert one active anomaly.
+- `IAI.RevertAll` — revert all active anomalies.
+*(M0's `IAI.HideActor` / `IAI.ShowAllActors` were removed — superseded by `IAI.Apply missing_object`
+/ `IAI.RevertAll`.)*
 
 ## Anomaly catalog
 | id | shape | usage | effect | revert | status |
 |----|-------|-------|--------|--------|--------|
-| `missing_object` | static, actor-scoped | `GDP.Apply missing_object <sub>` | `SetActorHiddenInGame(true)` on matches | un-hide / RevertAll / teardown | **as-built (M1)** |
-| `flicker` | ticking, actor-scoped | `GDP.Apply flicker <sub> [hz]` | toggle hidden each half-period (default 5 Hz, clamp 60) | restore visible (any phase) | **as-built (M1)** |
-| `time_dilation` | world-global, no tick | `GDP.Apply time_dilation <scale>` | `SetGlobalTimeDilation(scale)` (clamped — G11) | restore captured baseline (AMB-3) | **as-built (M1)** |
-| `lighting_mismatch` | component (ULightComponent) | `GDP.Apply lighting_mismatch <sub> [off\|dim <f>\|recolor <r g b>\|noshadow]` | per mode: `SetVisibility(false)` / `SetIntensity(orig*f)` (def 0.1) / `SetLightColor(r,g,b)` (def magenta) / `SetCastShadows(false)`; default mode `dim` | restore captured intensity/color/visibility/cast-shadow per live comp; skip stale | **as-built (M2)** |
-| `lod_corruption` | component (static **+ skeletal** mesh) | `GDP.Apply lod_corruption <sub> [lod-index]` | force each matched comp to a LOD via `GDPLod` (1-based; default worst per comp; explicit index clamped per comp). Static `SetForcedLodModel` / skinned `SetForcedLOD` | restore captured forced-LOD per live comp; skip stale | **as-built (M3)** — static + skeletal (G19; was static-only in M2, G16) |
-| `lod_popping` | component (static **+ skeletal** mesh), **ticking** | `GDP.Apply lod_popping <sub> [hz]` | each half-period, snap every matched comp between its captured baseline LOD and its worst LOD via `GDPLod` (default 2 Hz, clamp ≤ 30) | restore captured baseline per live comp regardless of phase; reset accumulator/phase | **as-built (M3)** |
-| `camera_clipping` | global (near-clip), no tick | `GDP.Apply camera_clipping [near]` | `r.SetNearClipPlane <near>` console command (default 100), pushing `GNearClippingPlane` out | restore captured baseline (~10) via the same command | **as-built (M2)** |
+| `missing_object` | static, actor-scoped | `IAI.Apply missing_object <sub>` | `SetActorHiddenInGame(true)` on matches | un-hide / RevertAll / teardown | **as-built (M1)** |
+| `flicker` | ticking, actor-scoped | `IAI.Apply flicker <sub> [hz]` | toggle hidden each half-period (default 5 Hz, clamp 60) | restore visible (any phase) | **as-built (M1)** |
+| `time_dilation` | world-global, no tick | `IAI.Apply time_dilation <scale>` | `SetGlobalTimeDilation(scale)` (clamped — G11) | restore captured baseline (AMB-3) | **as-built (M1)** |
+| `lighting_mismatch` | component (ULightComponent) | `IAI.Apply lighting_mismatch <sub> [off\|dim <f>\|recolor <r g b>\|noshadow]` | per mode: `SetVisibility(false)` / `SetIntensity(orig*f)` (def 0.1) / `SetLightColor(r,g,b)` (def magenta) / `SetCastShadows(false)`; default mode `dim` | restore captured intensity/color/visibility/cast-shadow per live comp; skip stale | **as-built (M2)** |
+| `lod_corruption` | component (static **+ skeletal** mesh) | `IAI.Apply lod_corruption <sub> [lod-index]` | force each matched comp to a LOD via `AnomalyLod` (1-based; default worst per comp; explicit index clamped per comp). Static `SetForcedLodModel` / skinned `SetForcedLOD` | restore captured forced-LOD per live comp; skip stale | **as-built (M3)** — static + skeletal (G19; was static-only in M2, G16) |
+| `lod_popping` | component (static **+ skeletal** mesh), **ticking** | `IAI.Apply lod_popping <sub> [hz]` | each half-period, snap every matched comp between its captured baseline LOD and its worst LOD via `AnomalyLod` (default 2 Hz, clamp ≤ 30) | restore captured baseline per live comp regardless of phase; reset accumulator/phase | **as-built (M3)** |
+| `camera_clipping` | global (near-clip), no tick | `IAI.Apply camera_clipping [near]` | `r.SetNearClipPlane <near>` console command (default 100), pushing `GNearClippingPlane` out | restore captured baseline (~10) via the same command | **as-built (M2)** |
 
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:
@@ -144,7 +144,7 @@ The generalization of M1's AMB-3 capture-baseline rule, followed by **every** st
   `lighting_mismatch` stores intensity/color/visibility/cast-shadow per `ULightComponent`;
   `lod_corruption` / `lod_popping` store the prior forced-LOD per `UMeshComponent`).
 - **The record may key to a common base over a heterogeneous target set (M3).** `lod_corruption` and
-  `lod_popping` key their record to `TWeakObjectPtr<UMeshComponent>` and let `GDPLod` dispatch the
+  `lod_popping` key their record to `TWeakObjectPtr<UMeshComponent>` and let `AnomalyLod` dispatch the
   static-vs-skeletal getter/setter via `Cast<>`. A single `Apply` therefore captures/forces/reverts a
   **mixed** set — e.g. one `lod_corruption Bot` handles the Bot's static mesh component *and* its two
   skinned components together. The convention is unchanged; only the record's pointer type widened.
@@ -154,21 +154,21 @@ The generalization of M1's AMB-3 capture-baseline rule, followed by **every** st
   mid-oscillation re-captures the *true* baseline, never a popped value).
 
 ## How to add an anomaly
-1. Implement `IGDPAnomaly` in `Private/Anomalies/GDPAnomaly_<Name>.{h,cpp}`. In `Apply`: resolve+cache
-   targets as weak-ptrs (`GDPTargeting::FindActorsMatching` for actors, `FindComponentsMatching<T>` for
-   components, `GDPLod::ResolveLodComponents` for LOD-forceable static+skeletal meshes), parse args via
-   `GDPArgs`, **capture per-target/global state before mutating** (convention above), mutate, return
+1. Implement `IAnomaly` in `Private/Anomalies/Anomaly_<Name>.{h,cpp}`. In `Apply`: resolve+cache
+   targets as weak-ptrs (`AnomalyTargeting::FindActorsMatching` for actors, `FindComponentsMatching<T>` for
+   components, `AnomalyLod::ResolveLodComponents` for LOD-forceable static+skeletal meshes), parse args via
+   `AnomalyArgs`, **capture per-target/global state before mutating** (convention above), mutate, return
    `false` if an actor/component anomaly matched zero targets (AMB-2). Undo in `Revert` (restore
    captured state per live target; skip stale). Override `Tick(float)` only if it ticks.
-2. Register it in `UGDPAnomalyInjectorSubsystem::Initialize`: `Register(MakeUnique<FGDPAnomaly_<Name>>())`.
-3. Include the header path-relative from `Private/`: `#include "Anomalies/GDPAnomaly_<Name>.h"` (gotcha G10).
+2. Register it in `UAnomalyInjectorSubsystem::Initialize`: `Register(MakeUnique<FAnomaly_<Name>>())`.
+3. Include the header path-relative from `Private/`: `#include "Anomalies/Anomaly_<Name>.h"` (gotcha G10).
 4. Add a catalog row above and a smoke line to the runbook.
 No interface change is needed for actor-, component-, world-, or global/console-driven shapes (proven
-across all seven anomalies — the M1 `IGDPAnomaly` lock held through M3, including the ticking
+across all seven anomalies — the M1 `IAnomaly` lock held through M3, including the ticking
 `lod_popping` and the heterogeneous static+skeletal `lod_corruption`).
 
 ## Deferred (intentional — not forgotten)
-- **`GDPCvar` (generic cvar capture/restore, the planned A2)** → post-process / scalability milestone.
+- **`AnomalyCvar` (generic cvar capture/restore, the planned A2)** → post-process / scalability milestone.
   Deferred because its only would-be M2 consumer (`camera_clipping`) is driven by a console **command**,
   not an `IConsoleVariable` (gotcha G13), so A2 had zero real consumers and would have violated the
   ≥2-consumers bar. It lands with its first genuine `IConsoleVariable` anomaly.
@@ -181,7 +181,7 @@ across all seven anomalies — the M1 `IGDPAnomaly` lock held through M3, includ
 - **Cross-anomaly target overlap** = last-writer-wins on the single `bHidden` flag (gotcha G12). Fine
   for one-anomaly-at-a-time use (terminal state after `RevertAll` is always visible). Compound /
   simultaneous anomalies will need a subsystem-level "hidden-by" coordinator — addable **without**
-  touching `IGDPAnomaly`. Flagged, not built.
+  touching `IAnomaly`. Flagged, not built.
 
 ## Game-agnostic invariant
 The module depends only on `Core`/`CoreUObject`/`Engine` and never references host (StackOBot) types.

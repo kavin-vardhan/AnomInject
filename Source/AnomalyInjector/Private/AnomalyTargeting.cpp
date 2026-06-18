@@ -1,12 +1,12 @@
 // Copyright GDP Anomaly Injection Project. All Rights Reserved.
 
-#include "GDPTargeting.h"
+#include "AnomalyTargeting.h"
 
 #include "EngineUtils.h"        // TActorIterator
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 
-namespace GDPTargeting
+namespace AnomalyTargeting
 {
 	TArray<TWeakObjectPtr<AActor>> FindActorsMatching(UWorld* World, const FString& Substring)
 	{

@@ -13,8 +13,8 @@ Route A game module and build. (Discovered 2026-06-08.)
 
 ### G2 — `GetActorLabel()` is editor-only
 It is compiled out (`WITH_EDITOR`) and absent in cooked builds. We print the label in
-`GDP.ListActors` guarded by `#if WITH_EDITOR`, but **matching must never use the label** —
-`GDP.HideActor` matches actor Name or Class only, keeping it forward-compatible with cooked
+`IAI.ListActors` guarded by `#if WITH_EDITOR`, but **matching must never use the label** —
+`IAI.HideActor` matches actor Name or Class only, keeping it forward-compatible with cooked
 builds.
 
 ### G3 — `SetActorHiddenInGame` hides in game/PIE, not the editor viewport
@@ -23,15 +23,15 @@ context. Don't expect the editing viewport to change when toggling hidden state.
 
 ### G4 — The Bot is runtime-spawned
 StackOBot spawns the player Bot at play time, so it is not in the world at PIE start.
-`GDP.HideActor Bot` only matches after the Bot exists. For a deterministic smoke test, hide a
+`IAI.HideActor Bot` only matches after the Bot exists. For a deterministic smoke test, hide a
 **persistent level prop** (a `StaticMeshActor` in `MainWorld`) instead.
 
 ### G5 — `UTickableWorldSubsystem::GetStatId()` is pure-virtual
 It must be overridden or the subsystem won't compile. Implement with
-`RETURN_QUICK_DECLARE_CYCLE_STAT(UGDPAnomalyInjectorSubsystem, STATGROUP_Tickables);`.
+`RETURN_QUICK_DECLARE_CYCLE_STAT(UAnomalyInjectorSubsystem, STATGROUP_Tickables);`.
 
 ### G6 — Plugin enablement via `EnabledByDefault: true` is project-plugin scoped
-We enable the plugin through `"EnabledByDefault": true` in `GDPAnomalyInjector.uplugin` so the
+We enable the plugin through `"EnabledByDefault": true` in `AnomalyInjector.uplugin` so the
 `.uproject` needs no `Plugins[]` entry. This is fine while it lives in a **project's**
 `Plugins/` folder. **Revisit if this ever becomes an engine plugin** (installed under the
 engine's `Plugins/`): `EnabledByDefault` would then auto-enable it for *every* project on that
@@ -40,13 +40,13 @@ engine, which is almost certainly not what we want.
 ### G7 — Restrict the subsystem to Game + PIE worlds
 `DoesSupportWorldType` returns true only for `EWorldType::Game` and `EWorldType::PIE`, so the
 subsystem never instantiates or ticks in the editor preview/editing world. Consequence: the
-`GDP.*` console commands resolve a null subsystem when run outside a game world — they
+`IAI.*` console commands resolve a null subsystem when run outside a game world — they
 null-guard and log a clear warning rather than crashing.
 
 ### G8 — MCP bridge: UnrealMCPython is a 5.6/5.7 plugin; needs a local patch to build on 5.4
 To drive functional smoke tests via the `unreal-mcpython` MCP, the `UnrealMCPython` editor
 plugin (from the RatBurglar project, descriptor `EngineVersion 5.7.0`) was copied into
-`StackOBot/Plugins/unreal-mcp/` (host tooling — NOT part of the GDP plugin repo). Building it
+`StackOBot/Plugins/unreal-mcp/` (host tooling — NOT part of the AnomalyInjector plugin repo). Building it
 against source **UE 5.4.4** surfaced one linker error:
 `LNK2019 UBehaviorTreeGraphNode_SimpleParallel::GetPrivateStaticClass` (only 1 unresolved).
 Cause: in 5.4 that editor graph-node class is `UCLASS()` with **no `BEHAVIORTREEEDITOR_API`**,
@@ -97,10 +97,10 @@ the **host root** `D:\IntrusiveAnomalies\StackOBot` as a single host-substrate r
 `.uproject` + bridge), with a `.gitignore` for `Binaries/`, `Intermediate/`, `Saved/`, `DerivedDataCache/`.
 That C++ addition is the natural trigger; until then, docs-as-source-of-truth holds. (Flagged M2.6, 2026-06-10.)
 
-### G9 — `TUniquePtr<IGDPAnomaly>` member in a UCLASS needs an out-of-line destructor (M1)
-The subsystem owns `TMap<FName, TUniquePtr<IGDPAnomaly>>`. The `TUniquePtr` deleter needs the
-**complete** `IGDPAnomaly` type at the point the map is destroyed. Declare the destructor in the
-header (`virtual ~UGDPAnomalyInjectorSubsystem();` — no `override`; destructors can't be marked
+### G9 — `TUniquePtr<IAnomaly>` member in a UCLASS needs an out-of-line destructor (M1)
+The subsystem owns `TMap<FName, TUniquePtr<IAnomaly>>`. The `TUniquePtr` deleter needs the
+**complete** `IAnomaly` type at the point the map is destroyed. Declare the destructor in the
+header (`virtual ~UAnomalyInjectorSubsystem();` — no `override`; destructors can't be marked
 `override`) and define it `= default` in the `.cpp`, which `#include`s the concrete anomaly headers.
 Without this you get incomplete-type errors at the implicitly-generated destructor. (2026-06-09.)
 
@@ -108,7 +108,7 @@ Without this you get incomplete-type errors at the implicitly-generated destruct
 UnrealBuildTool puts only the module's `Public/` and `Private/` roots on the include path, **not**
 subfolders. The concrete anomalies live in `Private/Anomalies/`, so every include of them — in their
 own `.cpp` and in the subsystem `.cpp` — must be path-relative from `Private/`:
-`#include "Anomalies/GDPAnomaly_Flicker.h"`. Public headers (`IGDPAnomaly.h`, `GDPTargeting.h`)
+`#include "Anomalies/Anomaly_Flicker.h"`. Public headers (`IAnomaly.h`, `AnomalyTargeting.h`)
 include bare. (2026-06-09.)
 
 ### G11 — `SetGlobalTimeDilation` is clamped by WorldSettings (M1)
@@ -127,7 +127,7 @@ ends in `SetActorHiddenInGame(false)`); only intermediate frames during delibera
 are wrong, and M1's test plan applies one actor anomaly at a time.
 **Revisit when we inject simultaneous/compound anomalies** (a likely future need for richer training
 data): the fix is a **subsystem-level "hidden-by" coordinator** (ref-count / owner-set per actor),
-which is addable **without touching the `IGDPAnomaly` interface**. Flagged, not built. (2026-06-09.)
+which is addable **without touching the `IAnomaly` interface**. Flagged, not built. (2026-06-09.)
 
 ### G13 — `r.SetNearClipPlane` is a console COMMAND, not a console VARIABLE (M2)
 The near clip plane has **no** `IConsoleVariable`. In 5.4 source, `r.SetNearClipPlane` is an
@@ -135,12 +135,12 @@ The near clip plane has **no** `IConsoleVariable`. In 5.4 source, `r.SetNearClip
 the state lives in the **CORE global `GNearClippingPlane`** (`CoreGlobals.h`, default 10), mirrored to
 the render thread by RenderCore's `SetNearClipPlaneGlobals`. So `IConsoleManager::FindConsoleVariable("r.SetNearClipPlane")`
 returns **null** — the briefed "FindConsoleVariable → GetString/Set" cvar mechanism cannot drive it.
-This is why the generic cvar helper (GDPCvar / A2) was **deferred** (its sole would-be M2 consumer can't
+This is why the generic cvar helper (AnomalyCvar / A2) was **deferred** (its sole would-be M2 consumer can't
 use it; it has zero real consumers, failing the ≥2-consumers bar). `camera_clipping` instead captures the
 baseline by reading `GNearClippingPlane` (Core, free) and applies/reverts via the `r.SetNearClipPlane`
 **console command** (`GEngine->Exec`, Engine) — **no `RenderCore` dependency**, and the command path
 correctly syncs the render-thread copy. The command clamps to `>= 1`, so restoring a sub-1 baseline would
-be clamped (default 10 round-trips cleanly). GDPCvar lands with its first genuine `IConsoleVariable`
+be clamped (default 10 round-trips cleanly). AnomalyCvar lands with its first genuine `IConsoleVariable`
 anomaly (post-process / scalability milestone). (2026-06-09.)
 
 ### G14 — Runtime light mutation is only visible on Movable (and partially Stationary) lights (M2)
@@ -208,7 +208,7 @@ re-synced/rebuilt.** (M2.6, 2026-06-10.)
 
 ### G19 — skeletal forced-LOD: the settled 5.1 accessors + common base (supersedes G16's static-only scope) (M3)
 `lod_corruption` is now static **OR** skeletal, and `lod_popping` is new; both go through the shared
-`GDPLod` helper. The 5.1 facts that pin the dispatch (all verified against `D:\UESource\UnrealEngine`,
+`AnomalyLod` helper. The 5.1 facts that pin the dispatch (all verified against `D:\UESource\UnrealEngine`,
 Release-5.1):
 - **Setter/getter — `USkinnedMeshComponent::SetForcedLOD(int32)` / `GetForcedLOD()`**
   (`Components/SkinnedMeshComponent.h:844/848`). **1-based**, identical semantics to static
@@ -226,7 +226,7 @@ Release-5.1):
   `GetNumLODs()` sidesteps that entirely.)
 - **Common base = `UMeshComponent`.** `UStaticMeshComponent : UMeshComponent` and
   `USkinnedMeshComponent : UMeshComponent` are disjoint siblings, so a single capture record keyed to
-  `TWeakObjectPtr<UMeshComponent>` covers both, and `GDPLod` recovers the concrete type via `Cast<>`
+  `TWeakObjectPtr<UMeshComponent>` covers both, and `AnomalyLod` recovers the concrete type via `Cast<>`
   to pick the right getter/setter (AMB-2). Resolving both families = `FindComponentsMatching<UStaticMeshComponent>`
   + `<USkinnedMeshComponent>` merged (no overlap). All types are in the **Engine** module — **no new
   module dependency** (`Core`/`CoreUObject`/`Engine` unchanged).
@@ -245,7 +245,7 @@ bridge is `LevelEditorSubsystem.editor_play_simulate`):
   holds for *timing* — it appears only after play begins, not at editor/MainWorld load.)
 - **`BP_Bot_C_0` carries 1 static + 2 skinned components:** `StaticMeshComponent_0` (static),
   `CharacterMesh0` (skinned, `SKM_Bot`), `Jetpack` (skinned). So substring **`Bot`** is intrinsically a
-  **heterogeneous** target set — one `GDP.Apply lod_corruption Bot` captures/forces/reverts a static
+  **heterogeneous** target set — one `IAI.Apply lod_corruption Bot` captures/forces/reverts a static
   mesh component *and* the skeletal Bot together (proves the AMB-2 single-record convention across
   component types in one apply, no contrived cross-actor substring needed).
 - **`SKM_Bot` is single-LOD** (asset `lod_info` length 1; the helper read its runtime render-data count
@@ -256,3 +256,13 @@ bridge is `LevelEditorSubsystem.editor_play_simulate`):
   `InstancedFoliageActor` (substring **`Foliage`**). Rocks are single-LOD. Same as G15 → **no new
   deterministic visual for M3**; the instanced-foliage pop is the only (subtle/unreliable) visual.
   (M3, 2026-06-13.)
+
+### G21 — module rename ⇒ DLL rename ⇒ must clean stale Binaries/Intermediate (refactor)
+Renaming the module (`GDPAnomalyInjector` → `AnomalyInjector`) renames its output DLL
+`UnrealEditor-GDPAnomalyInjector.dll` → `UnrealEditor-AnomalyInjector.dll`. The **old DLL** and the stale
+`Intermediate/` UHT manifests still name the old module, so a clean start is required or the editor tries to
+load the vanished old module ("modules missing, rebuild?") / links against stale objects. **Fix:** delete the
+project-root **and** plugin `Binaries/` + `Intermediate/` (never `Saved/`), then rebuild `StackOBotEditor /
+Development / Win64`. The subsystem `.generated.h` (the only `UCLASS`) regenerates under the new name
+automatically, and the `*_API` macro `ANOMALYINJECTOR_API` is derived from the module name by UHT — no manual
+edit. Verified clean compile (exit 0) + bridge re-gate green. (Session 007, 2026-06-18.)

@@ -2,9 +2,9 @@
 	"FileVersion": 3,
 	"Version": 1,
 	"VersionName": "0.4.0",
-	"FriendlyName": "GDP Anomaly Injector",
+	"FriendlyName": "Anomaly Injector",
 	"Description": "Injects labeled visual anomalies into UE5 games to generate synthetic training data for bug-detection ML. Game-agnostic via public UE APIs.",
-	"Category": "GDP",
+	"Category": "Anomaly Injection",
 	"CreatedBy": "GDP Anomaly Injection Project",
 	"CreatedByURL": "",
 	"DocsURL": "",
@@ -17,7 +17,7 @@
 	"EnabledByDefault": true,
 	"Modules": [
 		{
-			"Name": "GDPAnomalyInjector",
+			"Name": "AnomalyInjector",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		}

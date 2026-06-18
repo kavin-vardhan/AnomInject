@@ -1,27 +1,27 @@
 // Copyright GDP Anomaly Injection Project. All Rights Reserved.
 
-#include "GDPLod.h"
+#include "AnomalyLod.h"
 
-#include "GDPTargeting.h"
+#include "AnomalyTargeting.h"
 #include "Components/MeshComponent.h"
 #include "Components/StaticMeshComponent.h"   // SetForcedLodModel / ForcedLodModel / GetStaticMesh
 #include "Components/SkinnedMeshComponent.h"  // SetForcedLOD / GetForcedLOD / GetNumLODs (USkeletalMeshComponent derives)
 #include "Engine/StaticMesh.h"                // UStaticMesh::GetNumLODs
 
-TArray<TWeakObjectPtr<UMeshComponent>> GDPLod::ResolveLodComponents(UWorld* World, const FString& Substring)
+TArray<TWeakObjectPtr<UMeshComponent>> AnomalyLod::ResolveLodComponents(UWorld* World, const FString& Substring)
 {
 	TArray<TWeakObjectPtr<UMeshComponent>> Result;
 
 	// Static and skinned mesh components are disjoint siblings under UMeshComponent (no overlap),
-	// so concatenating the two matches is duplicate-free. Both reuse GDPTargeting's label-free rule.
-	for (const TWeakObjectPtr<UStaticMeshComponent>& Weak : GDPTargeting::FindComponentsMatching<UStaticMeshComponent>(World, Substring))
+	// so concatenating the two matches is duplicate-free. Both reuse AnomalyTargeting's label-free rule.
+	for (const TWeakObjectPtr<UStaticMeshComponent>& Weak : AnomalyTargeting::FindComponentsMatching<UStaticMeshComponent>(World, Substring))
 	{
 		if (UStaticMeshComponent* Comp = Weak.Get())
 		{
 			Result.Add(Comp);
 		}
 	}
-	for (const TWeakObjectPtr<USkinnedMeshComponent>& Weak : GDPTargeting::FindComponentsMatching<USkinnedMeshComponent>(World, Substring))
+	for (const TWeakObjectPtr<USkinnedMeshComponent>& Weak : AnomalyTargeting::FindComponentsMatching<USkinnedMeshComponent>(World, Substring))
 	{
 		if (USkinnedMeshComponent* Comp = Weak.Get())
 		{
@@ -31,7 +31,7 @@ TArray<TWeakObjectPtr<UMeshComponent>> GDPLod::ResolveLodComponents(UWorld* Worl
 	return Result;
 }
 
-int32 GDPLod::GetWorstLod(const UMeshComponent* Component)
+int32 AnomalyLod::GetWorstLod(const UMeshComponent* Component)
 {
 	if (const UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Component))
 	{
@@ -46,7 +46,7 @@ int32 GDPLod::GetWorstLod(const UMeshComponent* Component)
 	return 1;
 }
 
-int32 GDPLod::GetForcedLod(const UMeshComponent* Component)
+int32 AnomalyLod::GetForcedLod(const UMeshComponent* Component)
 {
 	if (const UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Component))
 	{
@@ -59,7 +59,7 @@ int32 GDPLod::GetForcedLod(const UMeshComponent* Component)
 	return 0;
 }
 
-void GDPLod::SetForcedLod(UMeshComponent* Component, int32 LodIndex)
+void AnomalyLod::SetForcedLod(UMeshComponent* Component, int32 LodIndex)
 {
 	if (UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Component))
 	{
@@ -71,7 +71,7 @@ void GDPLod::SetForcedLod(UMeshComponent* Component, int32 LodIndex)
 	}
 }
 
-int32 GDPLod::ResolveTargetLod(const UMeshComponent* Component, int32 RequestedOrSentinel)
+int32 AnomalyLod::ResolveTargetLod(const UMeshComponent* Component, int32 RequestedOrSentinel)
 {
 	const int32 Worst = GetWorstLod(Component);
 	if (RequestedOrSentinel == WorstLodSentinel)

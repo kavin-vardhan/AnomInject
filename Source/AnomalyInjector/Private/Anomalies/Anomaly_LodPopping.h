@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IGDPAnomaly.h"
+#include "IAnomaly.h"
 
 class UWorld;
 class UMeshComponent;
@@ -20,11 +20,11 @@ class UMeshComponent;
  * Default 2 Hz — slower than flicker so each LOD state dwells long enough to read as visibly
  * distinct; a fast pop just blurs into noise. Clamp ceiling 30 Hz (ratified AMB-3).
  *
- * Uses the shared GDPLod helper for the static/skeletal dispatch; the per-target record is keyed to
+ * Uses the shared AnomalyLod helper for the static/skeletal dispatch; the per-target record is keyed to
  * the common UMeshComponent base, so one apply pops a heterogeneous set (static prop + skeletal Bot).
- * Same Tick-path shape as flicker — no IGDPAnomaly change.
+ * Same Tick-path shape as flicker — no IAnomaly change.
  */
-class FGDPAnomaly_LodPopping final : public IGDPAnomaly
+class FAnomaly_LodPopping final : public IAnomaly
 {
 public:
 	virtual FName   GetId() const override { return FName(TEXT("lod_popping")); }

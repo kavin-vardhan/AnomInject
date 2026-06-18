@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IGDPAnomaly.h"
+#include "IAnomaly.h"
 
 class UWorld;
 
@@ -17,10 +17,10 @@ class UWorld;
  * RenderCore's SetNearClipPlaneGlobals). So we CAPTURE the baseline by reading GNearClippingPlane
  * (Core) and APPLY/REVERT by executing the `r.SetNearClipPlane <v>` console command (Engine) — no
  * new module dependency, and the command path correctly syncs the render-thread copy. The generic
- * cvar capture/restore helper (GDPCvar / A2) is deferred to the post-process/scalability milestone,
+ * cvar capture/restore helper (AnomalyCvar / A2) is deferred to the post-process/scalability milestone,
  * which has the genuine IConsoleVariable consumers it needs to earn its place. See gotcha G13.
  */
-class FGDPAnomaly_CameraClipping final : public IGDPAnomaly
+class FAnomaly_CameraClipping final : public IAnomaly
 {
 public:
 	virtual FName   GetId() const override { return FName(TEXT("camera_clipping")); }
