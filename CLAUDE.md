@@ -10,7 +10,7 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **Latest (m5, IMPLEMENTED — pending owner acceptance + commit):** **Object Selector + Inject UI (minimal) (2026-06-19).**
+- **Latest as-built:** **Object Selector + Inject UI (minimal) — COMPLETE (committed `aa2a3a4`, tagged `m5`) (2026-06-19).**
   A new **separate** `UAnomalySelectorSubsystem` (`Public/AnomalySelectorSubsystem.h` + `Private/AnomalySelectorSubsystem.cpp`,
   `UTickableWorldSubsystem`, Game+PIE only) that lets the player **select a visible on-screen object** (Tab-cycle over the
   **renderable-visible set** — frustum AND occlusion AND renders-to-screen) and **inject** one of the four object-scoped anomalies on it (default args), then
@@ -31,8 +31,12 @@ and is the single source of truth for the project.
   debug/landscape (the m4 visibility funcs stay byte-identical); a HUD `LastInjectResult` line surfaces the AMB-2 zero-match;
   `GetVisibleRenderableActors` returns empty on no-view (offer nothing, never blind). This is the set **auto-injection** will
   consume (gotcha G29). **No `IAnomaly` change, injector subsystem + all 7 anomalies untouched;
-  catalog stays 7.** VersionName → **0.6.0**. **Clean Development-Editor compile on 5.1 (exit 0).** Bridge state-gate + OFF-regression
-  pending; owner real-Play eyeball (keys + HUD) pending. → `docs/sessions/2026-06-19-009-selector-inject-ui.md`.
+  catalog stays 7.** VersionName → **0.6.0**. **Clean Development-Editor compile on 5.1 (exit 0).** Combined gate **green**
+  over the bridge (MainWorld Simulate): selection cycles the name-sorted renderable-visible set; `=` exact-match inject
+  hits exactly the selected actor (1 of 17 prefix-siblings); the renderable filter excludes RVTVolume / PlayerStart /
+  GameplayDebugger / zero-instance-grass LandscapeStreamingProxy while keeping meshes + foliage + NiagaraActors +
+  RoomBuilderSquare; zero-match (Niagara + `lod_corruption`) surfaced; OFF-regression byte-identical (`SM_Ramp`→2,
+  `=SM_Ramp2…`→1). **Owner real-Play eyeball green — ACCEPTED.** → `docs/sessions/2026-06-19-009-selector-inject-ui.md`.
 - **Prior milestone (as-built):** **Viewport-Visibility Layer — COMPLETE (committed `7c34275`, tagged `m4`) (2026-06-18).**
   New shared helper **`AnomalyViewport`** (`Public/AnomalyViewport.h` + `Private/AnomalyViewport.cpp`,
   AnomalyTargeting/Args/Lod convention) = "is this object visible to the player" via **frustum AND occlusion**
@@ -96,16 +100,14 @@ and is the single source of truth for the project.
   `lod_corruption`** was the M2 stopgap; **resolved in M3** (static + skeletal via `AnomalyLod`, G19). M2 ships 2 helpers (A1, A3).
 - **Resolved (M1):** **AMB-3 → capture-baseline** — `time_dilation` Revert restores the pre-Apply value.
   Generalized in M2 to the **per-target/global state-capture convention** (see architecture.md). G11.
-- **In flight:** **m5 (Object Selector + Inject UI)** — implemented + clean-compiled, **pending the bridge state-gate +
-  OFF-regression and the owner's real-Play eyeball, then commit + tag `m5`**. Suggested commit at acceptance:
-  `feat(selector): in-game object selector + inject UI (AnomalySelectorSubsystem)`. **Next action after acceptance:**
-  per the roadmap (`docs/viewport-and-roadmap-handoff.md`), **automatic injection** is the next consumer of the same
-  visible-set + apply-by-name primitives (the `=` exact-match path is load-bearing for it); also queued: finishing the
-  High-priority visual bugs, the `flicker→blinking` rename + new `flickering` (handoff §2.3), region-darkening (§2.4),
-  and the selector's screen-X ordering UX polish. Bridge/host stay unversioned (G8 unchanged).
+- **In flight:** none. **Next action:** per the roadmap (`docs/viewport-and-roadmap-handoff.md`), **automatic injection**
+  is the next consumer of the same renderable-visible set + apply-by-name primitives (the `=` exact-match path and
+  `AnomalyViewport::GetVisibleRenderableActors` are load-bearing for it). Also queued: finishing the High-priority visual
+  bugs, the `flicker→blinking` rename + new `flickering` (handoff §2.3), region-darkening (§2.4), and the selector's
+  screen-X ordering UX polish. Bridge/host stay unversioned (G8 unchanged).
 - Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`), M2.5+M2.6 (`…-005`), M3 (`…-006`) fully passed
   + tagged; rename refactor (`…-007`) committed `351c7e8` (no tag); **Viewport-Visibility Layer (`…-008`) committed
-  `7c34275`, tagged `m4`**; **Object Selector + Inject UI (`…-009`) implemented, pending acceptance → commit + tag `m5`.**
+  `7c34275`, tagged `m4`**; **Object Selector + Inject UI (`…-009`) committed `aa2a3a4`, tagged `m5`.**
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

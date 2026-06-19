@@ -168,12 +168,16 @@ the future **auto-injection** path consumes (alongside the `=` exact-match apply
 
 ## State
 - Clean compile on 5.1 (exit 0) **with the renderable filter folded in**. Catalog unchanged at 7. VersionName 0.6.0.
-  **Uncommitted** in the working tree pending the combined gate + owner acceptance. Plugin repo HEAD still `7c34275` (m4).
-  The renderable filter is part of the single forthcoming `m5` commit, not a separate one.
+  Combined gate green over the bridge (MainWorld Simulate); owner real-Play eyeball green. **Committed `aa2a3a4`,
+  tagged `m5`** (the renderable filter is part of that single commit, not a separate one). Acceptance recorded in a
+  follow-up `docs:` commit. Editor + bridge left up at MainWorld.
 
 ## Hand-off
-- Drive the bridge state-gate + OFF-regression, then **stop for owner acceptance** before committing/tagging (same as m4).
-  Suggested commit at acceptance: `feat(selector): in-game object selector + inject UI (AnomalySelectorSubsystem)`;
-  milestone tag **`m5`**. Leave the editor + bridge up at `MainWorld` so the owner can eyeball the HUD/input in real Play.
-- **Next consumer:** automatic injection (roadmap) reuses the same visible-set + apply-by-name (`=`) primitives — keep
-  them clean. Selector screen-X ordering is the queued UX polish. Bridge/host stay unversioned (G8 unchanged).
+- **ACCEPTED** — combined gate green over the bridge (selection cycle, `=` exact-match inject hitting exactly the
+  selected actor, renderable filter excluding RVTVolume/PlayerStart/GameplayDebugger/zero-instance-grass
+  LandscapeStreamingProxy while keeping meshes+foliage+NiagaraActors+RoomBuilderSquare, zero-match HUD, OFF-regression
+  `SM_Ramp`→2 / `=SM_Ramp2…`→1) + owner real-Play eyeball green. Committed **`aa2a3a4`**, tagged **`m5`**; acceptance
+  recorded in a follow-up `docs:` commit. Editor + bridge left up at `MainWorld`.
+- **Next consumer:** automatic injection (roadmap) reuses the same renderable-visible set
+  (`AnomalyViewport::GetVisibleRenderableActors`) + apply-by-name (`=`) primitives — keep them clean. Selector screen-X
+  ordering is the queued UX polish. Bridge/host stay unversioned (G8 unchanged).
