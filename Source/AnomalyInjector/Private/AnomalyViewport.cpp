@@ -8,9 +8,14 @@
 #include "ConvexVolume.h"                  // FConvexVolume, GetViewFrustumBounds
 #include "Camera/CameraTypes.h"           // FMinimalViewInfo::CalculateProjectionMatrix (reversed-Z)
 #include "Camera/PlayerCameraManager.h"   // APlayerCameraManager::GetFOVAngle
-#include "Components/PrimitiveComponent.h" // Bounds, GetOwner
+#include "Components/PrimitiveComponent.h" // Bounds, GetOwner, IsVisible
+#include "Components/StaticMeshComponent.h"   // UStaticMeshComponent (renderable allowlist)
+#include "Components/InstancedStaticMeshComponent.h" // UInstancedStaticMeshComponent (empty-instance guard; HISM derives)
+#include "Components/SkinnedMeshComponent.h"  // USkinnedMeshComponent (renderable allowlist; skeletal derives)
+#include "Particles/ParticleSystemComponent.h"// UFXSystemComponent — common Engine base of Niagara + Cascade (no Niagara dep)
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
+#include "EngineUtils.h"                  // TActorIterator (GetVisibleRenderableActors)
 #include "Engine/World.h"                 // UWorld::LineTraceSingleByChannel / GetFirstPlayerController / GetGameViewport
 #include "Engine/GameViewportClient.h"    // GetViewportSize (aspect)
 #include "Engine/EngineTypes.h"           // ECC_Visibility
@@ -131,6 +136,33 @@ namespace
 		}
 		return false;
 	}
+
+	/**
+	 * Renderable-visible test (m5 follow-on). The renderability check runs FIRST (cheap type+flag test,
+	 * IsRenderableComponent is declared in the header / defined below) so non-rendering primitives are
+	 * rejected before the occlusion line traces — correctness AND a perf win.
+	 */
+	bool IsComponentRenderableVisibleInternal(const FConvexVolume& Frustum, const FVector& ViewOrigin, UWorld* World, const UPrimitiveComponent* Component)
+	{
+		return AnomalyViewport::IsRenderableComponent(Component)
+			&& IsInFrustum(Frustum, Component)
+			&& IsUnoccluded(ViewOrigin, World, Component);
+	}
+
+	/** Actor renderable-visibility against a prebuilt frustum: ANY component renderable-visible. */
+	bool IsActorRenderableVisibleInternal(const FConvexVolume& Frustum, const FVector& ViewOrigin, UWorld* World, const AActor* Actor)
+	{
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (IsComponentRenderableVisibleInternal(Frustum, ViewOrigin, World, Prim))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
 }
 
 namespace AnomalyViewport
@@ -240,5 +272,89 @@ namespace AnomalyViewport
 			return Matched;   // no live view -> treat-as-unscoped (full set; already warned)
 		}
 		return FilterVisibleActors(View, World, Matched);
+	}
+
+	// --- Renderable-visible set (m5 follow-on; additive — the functions above are unchanged) ---
+
+	bool IsRenderableComponent(const UPrimitiveComponent* Component)
+	{
+		if (!Component || !Component->IsVisible())   // IsVisible(): not hidden-in-game, visible flag, level visible
+		{
+			return false;
+		}
+
+		// Empty-instance guard (R1 refinement): an instanced static mesh with ZERO instances is visible-flagged
+		// but draws nothing — e.g. the 0-instance landscape-grass ISMs that would otherwise leak a
+		// LandscapeStreamingProxy back into the set. "Renders nothing => not renderable." Populated ISMs
+		// (count > 0, incl. real foliage) and HISM (derives from ISM, so the Cast catches it) stay. This is a
+		// capability refinement, NOT a class blocklist (stays game-agnostic; generalizes to any empty ISM).
+		if (const UInstancedStaticMeshComponent* ISM = Cast<UInstancedStaticMeshComponent>(Component))
+		{
+			if (ISM->GetInstanceCount() <= 0)
+			{
+				return false;
+			}
+		}
+
+		// Capability/TYPE allowlist (game-agnostic; not a class blocklist). UFXSystemComponent is the common
+		// Engine base of UNiagaraComponent + UParticleSystemComponent, so VFX is caught with no Niagara dep.
+		return Component->IsA<UStaticMeshComponent>()
+			|| Component->IsA<USkinnedMeshComponent>()
+			|| Component->IsA<UFXSystemComponent>();
+		// EXTENSION POINT (intentionally inactive — landscape excluded for v1): to make terrain selectable,
+		// add `|| Component->IsA<ULandscapeComponent>()` here (include Landscape/LandscapeComponent.h).
+	}
+
+	bool IsActorRenderableVisible(const FAnomalyViewInfo& View, UWorld* World, const AActor* Actor)
+	{
+		if (!View.bValid || !World || !Actor)
+		{
+			return false;
+		}
+		return IsActorRenderableVisibleInternal(BuildFrustum(View), View.Origin, World, Actor);
+	}
+
+	TArray<TWeakObjectPtr<AActor>> FilterRenderableVisibleActors(const FAnomalyViewInfo& View, UWorld* World, const TArray<TWeakObjectPtr<AActor>>& In)
+	{
+		TArray<TWeakObjectPtr<AActor>> Result;
+		if (!View.bValid || !World)
+		{
+			return Result;
+		}
+		const FConvexVolume Frustum = BuildFrustum(View);   // build once for the whole set
+		for (const TWeakObjectPtr<AActor>& Weak : In)
+		{
+			AActor* Actor = Weak.Get();
+			if (Actor && IsActorRenderableVisibleInternal(Frustum, View.Origin, World, Actor))
+			{
+				Result.Add(Weak);
+			}
+		}
+		return Result;
+	}
+
+	TArray<TWeakObjectPtr<AActor>> GetVisibleRenderableActors(UWorld* World)
+	{
+		TArray<TWeakObjectPtr<AActor>> Result;
+
+		FAnomalyViewInfo View;
+		if (!GetActiveViewInfo(World, View))
+		{
+			// DELIBERATE: no resolvable view -> offer NOTHING (never inject/select blind). This is the
+			// opposite of the FindVisible*Matching finders' treat-as-unscoped, and intentionally so —
+			// see the header. GetActiveViewInfo already logged one warning.
+			return Result;
+		}
+
+		const FConvexVolume Frustum = BuildFrustum(View);   // build once, then filter the whole world
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (Actor && IsActorRenderableVisibleInternal(Frustum, View.Origin, World, Actor))
+			{
+				Result.Add(Actor);
+			}
+		}
+		return Result;
 	}
 }

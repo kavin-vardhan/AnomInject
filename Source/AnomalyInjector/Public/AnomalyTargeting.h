@@ -14,12 +14,22 @@ class UWorld;
 namespace AnomalyTargeting
 {
 	/**
-	 * Find actors in World whose actor Name OR class name contains Substring
+	 * Find actors in World whose actor Name OR class name matches Query
 	 * (case-insensitive). Deliberately never matches the editor label
 	 * (GetActorLabel is editor-only and absent in cooked builds). Returns weak-ptrs so
-	 * destroyed actors never dangle. Empty/null world or empty substring -> empty array.
+	 * destroyed actors never dangle. Empty/null world or empty query -> empty array.
+	 *
+	 * Match mode is chosen by an EXACT-MATCH SENTINEL on Query:
+	 *  - A leading '=' (e.g. "=SM_Ramp2_UAID_...") strips the '=' and matches by full NAME EQUALITY,
+	 *    so the result is exactly the one named actor — used by the in-game selector's InjectSelected()
+	 *    (passes "=" + Actor->GetName()) so an inject can never spill onto a same-prefixed sibling
+	 *    (e.g. "=Cube" never also hits "Cube2"). Object names cannot contain '=', so this never
+	 *    collides with a legitimate console substring query.
+	 *  - Otherwise Query is a case-insensitive SUBSTRING (Contains) — the original behavior, byte-identical.
+	 * (Exact-name is the v1 identity ceiling; perfect pointer identity across streamed sublevels with
+	 *  duplicate names would require an IAnomaly change — accepted limit, see journal 009 / gotcha G28.)
 	 */
-	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> FindActorsMatching(UWorld* World, const FString& Substring);
+	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> FindActorsMatching(UWorld* World, const FString& Query);
 
 	/**
 	 * Component-level targeting (M2 / A1). Same match rule as FindActorsMatching — resolve

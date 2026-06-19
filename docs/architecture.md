@@ -1,16 +1,25 @@
 # Architecture (living — current as-built)
 
-> **Reflects:** Viewport-Visibility Layer — a shared **`AnomalyViewport`** helper (frustum AND
-> occlusion against an explicit view) and an **opt-in** subsystem toggle `IAI.SetViewportScoping <0|1>`
+> **Reflects:** **Object Selector + Inject UI (m5)** — a new, separate **`UAnomalySelectorSubsystem`**
+> (Game+PIE world subsystem) that lets the player **select a visible on-screen object** (Tab-cycle over the
+> m4 visible set) and **inject** one of the four object-scoped anomalies on it, then revert. It calls the
+> existing injector's public `Apply`/`Revert` — the injector subsystem, `IAnomaly`, and the anomalies are
+> **untouched**. Targeting is made precise by a new **`=` exact-match sentinel** in `AnomalyTargeting`
+> (the only leaf-helper change; additive, substring path byte-identical). Activation is opt-in via
+> **`IAI.SelectorUI <0|1>` (default OFF)** → dormant → existing gates byte-identical. First dependency
+> addition since M0: **`InputCore`** (FKey/EKeys for raw input polling); the HUD is immediate-mode
+> (`UDebugDrawService` + `UCanvas` + `DrawDebug*`, all Engine) so **no Slate/UMG**. VersionName **0.6.0**.
+> Below this it still reflects the **Viewport-Visibility Layer (m4)** — a shared **`AnomalyViewport`**
+> helper (frustum AND occlusion against an explicit view) and an **opt-in** toggle `IAI.SetViewportScoping <0|1>`
 > (default **OFF**) that routes the four object-scoped, primitive-backed anomalies — `missing_object`,
 > `flicker`, `lod_corruption`, `lod_popping` — through it so they affect only objects visible in the
 > player's viewport. Built on M3 (LOD breadth + `AnomalyLod`), M2 (component/global anomalies + A1/A3
-> helpers), M2.5/M2.6 (5.1 port + bridge sever). **Catalog: still 7 anomalies** (no new types this
-> milestone). Required **no `IAnomaly` change** (the M1 lock held again) and **no new module
-> dependency** (frustum/traces/camera are all Engine; `FReversedZPerspectiveMatrix` is Core).
-> **State-gated green** (clean Development-Editor compile on 5.1, exit 0; synthetic-view frustum+occlusion
-> gate + OFF-is-byte-identical regression gate driven over the bridge in a `MainWorld` Simulate session,
-> session 008, 2026-06-18). Detail in `sessions/2026-06-18-008-viewport-visibility-layer.md`,
+> helpers), M2.5/M2.6 (5.1 port + bridge sever). **Catalog: still 7 anomalies** (the selector is UI over the
+> existing catalog — no new types). Required **no `IAnomaly` change** (the M1 lock held again).
+> **State-gated green** (clean Development-Editor compile on 5.1, exit 0; selector model driven over the bridge
+> in a `MainWorld` Simulate session + OFF-is-byte-identical regression, session 009, 2026-06-19; viewport
+> synthetic-view frustum+occlusion + regression gates, session 008, 2026-06-18). Detail in
+> `sessions/2026-06-19-009-selector-inject-ui.md`, `sessions/2026-06-18-008-viewport-visibility-layer.md`,
 > `sessions/2026-06-13-006-m3-lod-breadth.md`,
 > `sessions/2026-06-10-005-m2.5-m2.6-5.1-port-bridge-sever.md`,
 > `sessions/2026-06-09-004-m2-breadth-round-1.md`; M1 in `sessions/2026-06-09-003-m1-implementation.md`.
@@ -36,9 +45,13 @@ on the Stack O Bot sample.
 
 ## Module & load
 - One **Runtime** module `AnomalyInjector`, `LoadingPhase Default`, `EnabledByDefault: true`
-  (project-plugin scoped — gotcha G6), `VersionName 0.5.0`. Build.cs deps: `Core`, `CoreUObject`, `Engine` — **unchanged
-  through the viewport milestone**: the A1 component finder, A3 arg parsing, the `AnomalyLod` LOD helper, every
-  anomaly, and the new `AnomalyViewport` helper use only Engine/Core types. `AnomalyViewport`'s frustum
+  (project-plugin scoped — gotcha G6), `VersionName 0.6.0`. Build.cs deps: `Core`, `CoreUObject`, `Engine`,
+  **`InputCore`** — InputCore is the **first dep added since M0** (m5 selector: `FKey`/`EKeys` for raw input polling +
+  configurable keybinds). It is already a *public* dependency of Engine so it was transitively available; it is
+  declared explicitly for IWYU hygiene. The selector's HUD is **immediate-mode** (`UDebugDrawService` + `UCanvas` +
+  `DrawDebug*`, all Engine) so **no Slate/SlateCore/UMG** was needed (gotcha G27). Everything through the viewport
+  milestone stayed Engine/Core only: the A1 component finder, A3 arg parsing, the `AnomalyLod` LOD helper, every
+  anomaly, and the `AnomalyViewport` helper. `AnomalyViewport`'s frustum
   (`FConvexVolume` / `GetViewFrustumBounds` / `FMinimalViewInfo`), line-trace occlusion
   (`UWorld::LineTraceSingleByChannel`), and live view resolution (`APlayerController` / `APlayerCameraManager`)
   are all Engine; `FReversedZPerspectiveMatrix` is Core. `camera_clipping` drives the near clip via the
@@ -87,9 +100,18 @@ target set** (one apply spanning static + skeletal components, dispatched per ty
 
 ### Targeting — `AnomalyTargeting`  (`Public/AnomalyTargeting.h`)
 Free functions (deliberately not a base class). Single source of truth for the label-free match rule.
-- `FindActorsMatching(World, Substring)` — matches by `Actor->GetName()` **or**
-  `Actor->GetClass()->GetName()` `.Contains(substring)` (case-insensitive), **never** `GetActorLabel()`
+- `FindActorsMatching(World, Query)` — matches by `Actor->GetName()` **or**
+  `Actor->GetClass()->GetName()` `.Contains(query)` (case-insensitive), **never** `GetActorLabel()`
   (editor-only — gotcha G2). Returns weak-ptrs. Used by `missing_object`, `flicker`.
+  **Exact-match sentinel (m5):** a leading `=` on `Query` (e.g. `=SM_Ramp2_UAID_…`) strips the `=` and switches to
+  full-name **equality** (`Equals(IgnoreCase)`) instead of substring — so the selector's `InjectSelected()` (which passes
+  `"=" + Actor->GetName()`) targets **exactly** the selected actor and never a same-prefixed sibling (`=Cube` ≠ `Cube2`).
+  Object names cannot contain `=`, so this never collides with a real console substring query, and the substring path is
+  **byte-identical** when there is no `=`. Because every object-scoped path funnels through here (also via
+  `FindComponentsMatching<T>` / `AnomalyLod` / the `AnomalyViewport` finders), all four object-scoped anomalies inherit
+  exact targeting with **no anomaly edits and no `IAnomaly` change**. This is also the primitive the future
+  auto-injection path will use. Exact-*name* is the v1 identity ceiling (streamed-sublevel duplicate names would need
+  pointer identity = an `IAnomaly` change — accepted limit; gotcha G28).
 - `FindComponentsMatching<T>(World, Substring)` (**A1**, header-only template) — resolves matching
   actors via `FindActorsMatching` (same rule), then gathers each actor's components of type `T`
   (`AActor::GetComponents<T>`). Returns `TArray<TWeakObjectPtr<T>>`. Handles standalone light/mesh
@@ -154,6 +176,29 @@ corrupted frame is labeled-and-visible (the ML-relevant case), not labeled-but-i
   frame-keyed memo of (view + per-primitive result) slots in here for the future live-injection milestone.
 - All types are in `Core`/`Engine` → **no new module dependency**.
 
+**Renderable-visible set (m5 follow-on; additive — the functions above are unchanged).** For the object selector and
+future auto-injection, "visible" must mean **visible AND renderable**: in-frustum, unoccluded, and actually drawing
+geometry. A pure frustum+occlusion test also passes non-rendering primitives (collision boxes, capsules, RVT bounds
+boxes, editor billboards, landscape, debug/streaming actors), which must never be injectable targets. New entry points:
+- `IsRenderableComponent(Comp)` = `Comp->IsVisible()` **AND** a base-TYPE allowlist
+  `IsA<UStaticMeshComponent>() || IsA<USkinnedMeshComponent>() || IsA<UFXSystemComponent>()`. A capability/type test,
+  **not a class blocklist** (game-agnostic). `UFXSystemComponent` is the common **Engine** base of Niagara
+  (`UNiagaraComponent`, a plugin) and Cascade (`UParticleSystemComponent`), so VFX is caught with **no Niagara/FX dep**.
+  `IsVisible()` (not `ShouldRender()`) is deliberate — `ShouldRender()` has a non-shipping branch that returns true for
+  hidden collision components, a determinism footgun (gotcha G29). `ULandscapeComponent` is a documented one-line
+  extension point in the predicate, intentionally inactive (landscape excluded for v1). **Empty-instance refinement:**
+  an instanced static mesh / HISM with **zero instances** draws nothing, so it is treated as non-renderable
+  (`GetInstanceCount() > 0` required for ISMs) — this drops 0-instance landscape-grass ISMs (which would otherwise leak a
+  `LandscapeStreamingProxy` in) while keeping real foliage and populated ISMs. So **renderable = a visible SM/SK/FX
+  component that actually draws something (instanced ⇒ instance count > 0)**.
+- `IsActorRenderableVisible(View, World, Actor)` (any component passes), `FilterRenderableVisibleActors(View, World, In)`,
+  and `GetVisibleRenderableActors(World)` (resolve view → enumerate all actors → filter; the selector/auto-injection
+  entry point). The renderability check runs **first** in the per-component test, before the occlusion traces (perf win).
+- **No-view contract:** `GetVisibleRenderableActors` returns **empty** on no resolvable view (offer nothing, never
+  blind) — deliberately **distinct** from the `FindVisible*Matching` finders' treat-as-unscoped. Two callers, two safe
+  directions (console = act-don't-drop; selector/auto-injection = offer-nothing). Do not reconcile them (G29).
+- All types are in `Engine` → **still no new module dependency**.
+
 ## Control surface (console commands)
 Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's world, null-guarded
 (warns outside Game/PIE). Output → Output Log, category `LogAnomaly`.
@@ -167,6 +212,16 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
 - `IAI.TestVisibility <substring> <ox oy oz> <pitch yaw roll> [fovDeg] [aspect]` — **diagnostic** (not an
   anomaly): test the `AnomalyViewport` core against a **synthetic** view and log per-component
   `frustum / unoccluded / visible`. The deterministic synthetic-view state-gate driver.
+
+Object Selector + Inject UI (m5) — drive the `UAnomalySelectorSubsystem` (these are the bridge **thin-shell** over
+its public methods; the keys + HUD are the separate real-Play eyeball shell):
+- `IAI.SelectorUI <0|1>` — enable/disable the selector UI (default **OFF**; dormant when OFF).
+- `IAI.Selector.Next` / `IAI.Selector.Prev` — select the next/previous visible actor (name-sorted).
+- `IAI.Selector.Cycle` — cycle the chosen anomaly across the four object-scoped ids.
+- `IAI.Selector.Inject` — inject the chosen anomaly on the selected actor (exact-name target, default args).
+- `IAI.Selector.Revert` — revert the last anomaly the selector injected.
+- `IAI.Selector.Status` — log the selected actor, the visible-set names, and the chosen anomaly (the state-gate readback).
+- `IAI.SelectorBind <next|prev|cycle|inject|revert> <KeyName>` — rebind a key (validated via `EKeys::GetKeyDetails`).
 *(M0's `IAI.HideActor` / `IAI.ShowAllActors` were removed — superseded by `IAI.Apply missing_object`
 / `IAI.RevertAll`.)*
 
@@ -194,6 +249,58 @@ affected iff visible **at Apply time** (ticking anomalies fix their visible set 
 If scoping is ON but no live view resolves, the anomaly treats-as-unscoped (full matched set + one warning), so ON
 never silently drops every target. The catalog rows above are unchanged in effect; scoping only narrows *which*
 matched targets are acted on.
+
+## Object Selector + Inject UI — `UAnomalySelectorSubsystem` (m5)
+A **separate** `UTickableWorldSubsystem` (Game + PIE only, gotcha G7) — not the injector — that turns the m4 visible
+set into an interactive **select-an-object-and-inject** loop. It owns selection state + input polling + an immediate-mode
+HUD, and calls the injector's existing public `ApplyAnomaly` / `RevertAnomaly`. **The injector subsystem, `IAnomaly`,
+and all seven anomalies are untouched** (the no-core-change streak holds; this is UI over the existing catalog).
+
+- **Explicit-core / thin-shell split (mirrors m4).** The state-gatable surface is a set of public methods:
+  `AdvanceSelection()` / `SelectPrevious()` / `CycleAnomalyChoice()` / `InjectSelected()` / `RevertSelected()` plus
+  readbacks `GetSelectedActorName()` / `GetVisibleActorNames()` / `GetAnomalyChoice()`. **Two thin shells drive that
+  core:** (1) the `IAI.Selector.*` console commands (the MCP-bridge gate), and (2) per-tick raw-key input polling + the
+  HUD draw (the owner's real-Play eyeball). Only the methods/commands are bridge-driveable.
+- **Candidate set = the renderable-visible set** (m5 follow-on). Each refresh calls
+  `AnomalyViewport::GetVisibleRenderableActors(World)`, which resolves the live view and returns actors that are
+  in-frustum, unoccluded, **and** carry a *renderable* component (see "Renderable-visible set" under the
+  `AnomalyViewport` section). This excludes non-rendering actors that a pure frustum+occlusion test would pass —
+  volumes (e.g. `RuntimeVirtualTextureVolume`), spawn points (`PlayerStart`), debug/replication/streaming actors,
+  landscape — so they are never injectable targets. Selection is tracked by `TWeakObjectPtr` identity; if the selected
+  actor leaves the set (or is destroyed) the selection clears. *No-view rule:* the selector offers **nothing** when no
+  view resolves (never select/inject blind) — deliberately distinct from the anomaly finders' treat-as-unscoped (G23/G29).
+- **Cycle order = name-sorted (alphabetical) in v1** — deterministic, so the bridge gate can assert the exact cycle
+  sequence. **Screen-X (left-to-right) ordering is the intended next UX polish** (it directly serves the "intuitive"
+  goal); deferred only to keep v1 minimal + testable.
+- **Inject path.** `InjectSelected()` calls `ApplyAnomaly(<chosen id>, { "=" + Actor->GetName() })` — the `=`
+  exact-match sentinel targets **only** the selected actor (never a same-prefixed sibling). Default args only. The four
+  offered ids are `missing_object`, `flicker`, `lod_corruption`, `lod_popping`; globals (`time_dilation`,
+  `camera_clipping`) and `lighting_mismatch` stay console-only for v1. The selector **does not** touch
+  `IAI.SetViewportScoping` — it is self-scoping (you pick from the visible set), so injecting an exact-named,
+  already-confirmed-visible actor needs no further viewport re-filter. **Keep `IAI.SetViewportScoping 0` while using the
+  selector:** with scoping ON the injector re-tests visibility on apply, which can *drop* the target if it became
+  occluded in the sub-second between select and inject — redundant and surprising for this path.
+- **Revert path.** `RevertSelected()` reverts the **last id this selector injected** (`LastInjectedId`) via the
+  injector. Because the registry holds **one instance per id** (last-writer-wins per id), injecting the same anomaly id
+  on a second object reverts-then-reapplies — i.e. **only one object can carry a given anomaly type at a time**; the
+  first reappears (existing registry reality, G12-style — stated so it's not a surprise).
+- **HUD (immediate-mode, host-blind).** Registered via `UDebugDrawService::Register("Game", …)` (drawn by
+  `GameViewportClient::Draw` with no host HUD class — gotcha G25); unregistered on **both** disable and teardown, guarded
+  against double-register. Draws: a list of visible actor names (selected one marked, capped with a "+N more"),
+  a list of the four anomaly ids (chosen one marked), a **last inject/revert result line** (`LastInjectResult`) that
+  surfaces the AMB-2 zero-match case in real Play (e.g. an LOD anomaly on a pure-VFX actor → "0 matched") instead of it
+  being log-only, an on-screen name label anchored to the selected actor (`Canvas->Project`), and a world-space
+  `DrawDebugBox` around the selected actor's bounds (dev-only, `ENABLE_DRAW_DEBUG`).
+- **Input (raw, mapping-independent).** Per-tick poll of the local PC (`World->GetFirstPlayerController()`) via
+  `WasInputKeyJustPressed` / `IsInputKeyDown` (raw `KeyStateMap`, no project mapping needed — gotcha G26). Default
+  keybinds **Tab** (next) / **Shift+Tab** (prev) / **C** (cycle) / **G** (inject) / **H** (revert), all rebindable via
+  `IAI.SelectorBind` (the default prev gesture is Shift+Tab; a dedicated prev key can be bound). *Steam-overlay caveat:
+  Shift+Tab is grabbed by the Steam overlay in a Steam-launched build — fine in PIE; rebind escapes it (G26).*
+- **Activation = `IAI.SelectorUI <0|1>`, default OFF.** When OFF the subsystem is **dormant** (Tick early-returns, no
+  HUD delegate registered) → every existing M0–m4 gate is byte-identical (the regression gate).
+- **Refresh cadence.** Only while enabled: throttled (~0.1 s) for the HUD list, plus an on-demand refresh at the start
+  of `AdvanceSelection` / `SelectPrevious`. Bounds the synchronous occlusion-trace cost (occlusion runs only for
+  in-frustum actors).
 
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:
@@ -243,8 +350,11 @@ across all seven anomalies — the M1 `IAnomaly` lock held through M3, including
   touching `IAnomaly`. Flagged, not built.
 
 ## Game-agnostic invariant
-The module depends only on `Core`/`CoreUObject`/`Engine` and never references host (StackOBot) types.
-All anomalies use public UE APIs only — `SetActorHiddenInGame`, `UGameplayStatics`, `ULightComponent`
+The module depends only on `Core`/`CoreUObject`/`Engine`/`InputCore` and never references host (StackOBot) types.
+(`InputCore` is the m5 addition — `FKey`/`EKeys` for the selector's raw input polling + keybinds; no Slate/UMG.) The
+selector is game-agnostic by construction: its HUD draws via `UDebugDrawService` (no host HUD class — G25) and its
+input is raw key polling (no host input mappings — G26). All anomalies use public UE APIs only —
+`SetActorHiddenInGame`, `UGameplayStatics`, `ULightComponent`
 setters, `UStaticMeshComponent::SetForcedLodModel`, `USkinnedMeshComponent::SetForcedLOD`/`GetForcedLOD`/
 `GetNumLODs`, and the `r.SetNearClipPlane` console command + `GNearClippingPlane` global. **Neither M2
 nor M3 added a dependency** — the M3 LOD work touches only Engine component types (and specifically

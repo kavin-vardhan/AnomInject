@@ -332,3 +332,120 @@ and live agree for the same pose/FOV/aspect:
   target → `frustum=0` (near-plane works); target *53k units away but in cone* → `frustum=1` (far correctly not
   clipping); in-cone clear → `frustum=1 unoccluded=1`. If anything behind the camera or absurdly far tests as
   in-frustum, suspect the near-plane flag / VP assembly first. (Viewport milestone, session 008, 2026-06-18.)
+
+### G25 — a game-agnostic Canvas HUD = `UDebugDrawService::Register("Game")`; it draws WITHOUT the host's HUD class (m5)
+The selector UI must draw an on-screen overlay in PIE/standalone **without** the host cooperating (no setting the
+game's `AHUD`/GameMode HUD class — that would break the game-agnostic invariant). The settled 5.1 path:
+- `static FDelegateHandle UDebugDrawService::Register(const TCHAR* Name, const FDebugDrawDelegate&)`
+  (`Debug/DebugDrawService.h:23`, module **Engine**); the delegate is
+  `DECLARE_DELEGATE_TwoParams(FDebugDrawDelegate, UCanvas*, APlayerController*)` (`:16`).
+- It is a **global static** delegate list drawn unconditionally by the engine viewport path:
+  `UGameViewportClient::Draw` → `UDebugDrawService::Draw(ViewFamily.EngineShowFlags, InViewport, View, DebugCanvas, DebugCanvasObject)`
+  (`GameViewportClient.cpp:1820`). `Draw` fires every registered delegate whose **show flag** is set
+  (`DebugDrawService.cpp:84-111`). **Zero dependence on the project's HUD/GameMode class.**
+- Register under the **`Game`** show flag (`ShowFlagsValues.inl:267`), which is forced ON for any non-editor view:
+  `SetGame(InitMode != ESFIM_Editor && InitMode != ESFIM_VREditing)` (`ShowFlags.h:430`). So the delegate fires in
+  PIE and standalone game.
+- **Delegate hygiene (load-bearing):** register on enable; unregister on **both** disable **and**
+  `Deinitialize`/teardown; **guard against double-register** (`IAI.SelectorUI 1` twice must not stack delegates — a
+  dangling/duplicate debug-draw delegate is a crash/UB risk). The selector stores the `FDelegateHandle` and no-ops
+  `SetUIEnabled` when the state is unchanged.
+- **Rejected alternatives:** an `AHUD` post-render delegate needs the host to set our HUD class (not game-agnostic);
+  a `UGameViewportClient` Slate viewport widget needs Slate widget injection + pulls Slate/SlateCore (heavier).
+  `UDebugDrawService` is strictly minimal and host-blind. (m5, session 009, 2026-06-19.)
+
+### G26 — `IsInputKeyDown`/`WasInputKeyJustPressed` read RAW key state, independent of the game's input mappings (m5)
+For game-agnostic input the selector polls keys directly, with **no** project Action/Axis mapping required:
+- `APlayerController::IsInputKeyDown(FKey)` (`PlayerController.h:1563`) and `WasInputKeyJustPressed(FKey)` (`:1567`)
+  route to `PlayerInput->IsPressed(Key)` / `WasJustPressed(Key)` (`PlayerController.cpp:5530-5538`), which read the
+  raw **`KeyStateMap`**: `IsPressed` returns `KeyStateMap.Find(InKey)->bDown` (`PlayerInput.cpp:1807-1809`);
+  `WasJustPressed` returns `…->EventCounts[IE_Pressed].Num() > 0` (`:1691-1693`). `KeyStateMap` is populated from raw
+  key events, so polling `Tab` works even though StackOBot never binds it. `Shift+Tab` is composed at poll time:
+  `WasInputKeyJustPressed(Tab) && IsInputKeyDown(LeftShift||RightShift)`.
+- `FKey`/`EKeys` are in the **InputCore** module (`EKeys::Tab` etc. defined `InputCoreTypes.cpp:32/68/124`). The local
+  PC is reachable each tick via `World->GetFirstPlayerController()` (same call `AnomalyViewport` uses; G23 — a
+  Play/Simulate session always exposes one).
+- **Default keybinds (S7):** Tab (next) / Shift+Tab (prev) / C (cycle anomaly) / G (inject) / H (revert), all
+  rebindable via `IAI.SelectorBind <action> <KeyName>` (validated with `EKeys::GetKeyDetails(...).IsValid()`).
+  **Caveat:** in a **Steam-launched** build the Steam overlay grabs **Shift+Tab**, so the default prev gesture is
+  shadowed there (fine in PIE/standalone — it's an informed default; rebind `prev` to a dedicated key to escape it).
+  (m5, session 009, 2026-06-19.)
+
+### G27 — the selector adds exactly ONE module dep (`InputCore`); immediate-mode HUD avoids Slate/UMG entirely (m5)
+The roadmap anticipated the first UI milestone would pull Slate/SlateCore/UMG. It did **not** — by choosing an
+**immediate-mode** HUD over a UMG widget: `UDebugDrawService`, `UCanvas` (`Engine/Canvas.h`), `FCanvasTextItem`
+(`CanvasItem.h`) and `DrawDebugBox` (`DrawDebugHelpers.h`) are **all in the Engine module** (already a dep). The only
+non-Engine type is `FKey`/`EKeys` (**InputCore**). InputCore is already a **public** dependency of Engine
+(`Engine.Build.cs` PublicDependencyModuleNames), so it is transitively available — *strictly, zero new deps are
+required to compile* — but it is declared explicitly in `AnomalyInjector.Build.cs` for **IWYU hygiene**. Net: deps go
+`Core`/`CoreUObject`/`Engine` → **+`InputCore`** (the first addition since M0); **no Slate/SlateCore/UMG**. A custom-
+depth glowing outline (deferred, not v1) would later need the project Custom Depth-Stencil setting + a shipped
+post-process material + `UPrimitiveComponent::SetRenderCustomDepth`/`SetCustomDepthStencilValue`
+(`PrimitiveComponent.h:1758/1762`) — a render-pipeline + content surface the `DrawDebugBox` highlight sidesteps.
+(m5, session 009, 2026-06-19.)
+
+### G28 — the `=` exact-match sentinel in `AnomalyTargeting`; exact-name is the v1 identity ceiling (m5)
+`AnomalyTargeting::FindActorsMatching` matches by **substring** (`GetName().Contains` / class-name; `:28-30`). Passing
+the selected actor's `GetName()` as a plain substring is **not** safe for arbitrary actors: a selected `Cube` is a
+strict substring of `Cube2`, so an inject would also corrupt the numbered sibling — the exact mislabeled-but-present
+frame the viewport layer exists to prevent. (Stock StackOBot placed actors are `_UAID_…`-suffixed → effectively
+unique, so the risk is content-dependent, but the selector targets *arbitrary* user-picked actors so we can't rely on
+that.) **Fix (S1, pre-authorized by verify-item 5):** a leading-`=` sentinel in `FindActorsMatching` — strip the `=`
+and match by `GetName().Equals(rest, ESearchCase::IgnoreCase)`. Because **every** object-scoped path funnels through
+`FindActorsMatching` (directly, or via `FindComponentsMatching<T>` / `AnomalyLod` / the `AnomalyViewport` finders), this
+single edit makes exact targeting available to all four anomalies with **zero anomaly edits, zero `IAnomaly` change,
+and full backward-compatibility** (object names never contain `=`; the substring path is byte-identical with no `=`).
+`InjectSelected()` passes `"=" + Actor->GetName()`. **This is load-bearing beyond m5** — the future auto-injection path
+(which also targets arbitrary on-screen actors) uses the same primitive. **Accepted ceiling:** exact-*name* uniquely
+identifies within a level but not across streamed sublevels that hold duplicate names; perfect pointer identity would
+require widening `IAnomaly::Apply` past its string-arg contract (rejected — the M1 lock). Document, don't solve.
+(m5, session 009, 2026-06-19.)
+
+### G29 — "visible set" must mean "renderable-visible set": a frustum+occlusion-only test passes non-rendering primitives (m5)
+The live eyeball found the selector's visible set included **non-renderable** actors — `RuntimeVirtualTextureVolume`,
+`PlayerStart`, `GameplayDebuggerCategoryReplicator`, `LandscapeStreamingProxy`, `RoomBuilderSquare`. Cause: the m4
+visibility test is frustum AND occlusion over **any** `UPrimitiveComponent`, and these actors carry primitives that
+pass it but draw no useful geometry (collision boxes, capsules, bounds boxes). Injecting on them is the
+unlabeled-but-invisible sample the viewport layer exists to prevent. The fix is a **renderability predicate** added to
+`AnomalyViewport` (the shared source of truth — the selector AND future auto-injection consume the same corrected set).
+Pinned against 5.1 source:
+- **Predicate (R1) = `IsVisible()` AND a base-TYPE allowlist:** `IsRenderableComponent(Comp)` =
+  `Comp->IsVisible() && (Comp->IsA<UStaticMeshComponent>() || Comp->IsA<USkinnedMeshComponent>() || Comp->IsA<UFXSystemComponent>())`.
+  A capability/type test, **not a class blocklist** (a blocklist rots on another title; this stays game-agnostic).
+- **`IsVisible()`, not `ShouldRender()` (R3):** `USceneComponent::IsVisible()` returns false if `bHiddenInGame`, else
+  `GetVisibleFlag() && level-visible` (`SceneComponent.cpp:3140-3149`) — deterministic, view-independent. `ShouldRender()`
+  has a **non-shipping branch** that returns true for hidden collision components when
+  `World->bCreateRenderStateForHiddenComponentsWithCollsion` is set (`SceneComponent.cpp:3075-3104`) — a determinism
+  footgun for the synthetic gate. Avoided.
+- **VFX with NO new dep (R2 budget held):** `UFXSystemComponent : public UPrimitiveComponent` is **ENGINE_API**
+  (`Particles/ParticleSystemComponent.h:355`) and is the common base of `UNiagaraComponent` (Niagara **plugin**,
+  `NiagaraComponent.h:36`) and `UParticleSystemComponent` (`:459`). `IsA<UFXSystemComponent>()` catches both with only
+  the Engine header → deps stay `Core`/`CoreUObject`/`Engine`/`InputCore`.
+- **Why the RVT volume slipped in (precisely):** its RVT component is `URuntimeVirtualTextureComponent : USceneComponent`
+  (`RuntimeVirtualTextureComponent.h:17`) — **not** a primitive, so it was never in the set. The false-positive primitive
+  is the volume's bounds box `UBoxComponent "Bounds"` (`RuntimeVirtualTextureVolume.cpp:18`), excluded by the allowlist
+  (not SM/SK/FX). Same shape excludes PlayerStart (capsule) and the debug/streaming actors.
+- **Landscape (R5):** `ULandscapeComponent` renders but is excluded (not in the allowlist) — matching the requirement.
+  **Extension point:** add `|| IsA<ULandscapeComponent>()` (one line, still a type test) to make terrain selectable on a
+  future title — documented in `IsRenderableComponent`, intentionally inactive.
+- **Empty-instance guard (R1 refinement, confirmed by the live gate):** a `LandscapeStreamingProxy` still leaked in via
+  its **grass** — `GrassInstancedStaticMeshComponent` (a `UStaticMeshComponent` subclass) which IS allowlisted and
+  `IsVisible()`, but the live enumeration showed **instance count = 0** (empty — draws nothing). So `IsRenderableComponent`
+  additionally requires `Cast<UInstancedStaticMeshComponent>(Comp)->GetInstanceCount() > 0` for instanced meshes
+  ("renders nothing => not renderable"). HISM derives from ISM so the Cast catches grass/foliage uniformly; real foliage
+  and populated ISMs (count > 0) stay. Capability refinement, not a blocklist. **Counter-case kept:** `RoomBuilderSquare`
+  has 4 ISMs with 19/4/25/195 = **243 real instances** → it genuinely renders and is **intentionally retained** as a valid
+  target (the "no visible geometry" assumption was wrong; excluding it would reintroduce name-based special-casing the
+  allowlist exists to avoid). Corrected definition: **renderable = a visible SM/SK/FX component that actually draws
+  something (instanced ⇒ instance count > 0).**
+- **Ordering = perf (R1):** the renderability check runs FIRST in the per-component test, before the occlusion line
+  traces, so non-targets are rejected without tracing.
+- **Additive only (R2):** new entry points `IsRenderableComponent` / `IsActorRenderableVisible` /
+  `FilterRenderableVisibleActors` / `GetVisibleRenderableActors`. The m4 functions (`IsComponentVisible`,
+  `IsActorVisible`, `FilterVisibleActors`, `FindVisible*`) are **byte-identical** — the scoping-ON path + all prior gates
+  keep their guarantees without re-proving.
+- **No-view contract (R6):** `GetVisibleRenderableActors` returns **empty** on no resolvable view (offer nothing, never
+  inject blind) — **deliberately distinct** from the `FindVisible*Matching` finders' treat-as-unscoped. Two callers, two
+  safe directions: console finders serve an explicit human instruction (act, don't silently drop); the selector /
+  auto-injection must never offer or inject blind (no legitimate visible set ⇒ nothing). A future reader must NOT
+  "reconcile" them. (m5 follow-on, session 009, 2026-06-19.)

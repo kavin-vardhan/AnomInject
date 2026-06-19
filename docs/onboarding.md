@@ -25,15 +25,16 @@ Plugins/AnomalyInjector/            <- this plugin = its own git repo, single so
 ├─ CLAUDE.md                           <- canonical context + Current status (read first)
 ├─ docs/                               <- onboarding, architecture, runbook, gotchas, session journals
 └─ Source/AnomalyInjector/
-   ├─ AnomalyInjector.Build.cs      <- deps: Core, CoreUObject, Engine
+   ├─ AnomalyInjector.Build.cs      <- deps: Core, CoreUObject, Engine, InputCore (InputCore = m5: FKey/EKeys; no Slate/UMG)
    ├─ Public/
    │  ├─ AnomalyInjectorLog.h       <- LogAnomaly category
    │  ├─ IAnomaly.h                 <- the locked anomaly interface (plain C++, not a UCLASS)
-   │  ├─ AnomalyTargeting.h                <- FindActorsMatching + FindComponentsMatching<T> (A1, shared targeting)
+   │  ├─ AnomalyTargeting.h                <- FindActorsMatching (+ "=" exact-match sentinel) + FindComponentsMatching<T> (A1)
    │  ├─ AnomalyArgs.h                     <- GetFloat/GetInt/GetString (A3, shared arg parse/clamp/warn)
    │  ├─ AnomalyLod.h                      <- forced-LOD dispatch over static+skeletal meshes (M3, shared LOD helper)
    │  ├─ AnomalyViewport.h                 <- frustum+occlusion visibility tests over an explicit view (viewport milestone)
-   │  └─ AnomalyInjectorSubsystem.h <- UAnomalyInjectorSubsystem (manager + registry + viewport-scoping toggle)
+   │  ├─ AnomalyInjectorSubsystem.h <- UAnomalyInjectorSubsystem (manager + registry + viewport-scoping toggle)
+   │  └─ AnomalySelectorSubsystem.h <- UAnomalySelectorSubsystem (m5: select visible object + inject UI; separate subsystem)
    └─ Private/
       ├─ AnomalyInjectorModule.cpp  <- module boilerplate + log category definition
       ├─ AnomalyTargeting.cpp
@@ -41,6 +42,7 @@ Plugins/AnomalyInjector/            <- this plugin = its own git repo, single so
       ├─ AnomalyLod.cpp                    <- AnomalyLod impl (Cast<>-dispatched static/skinned forced-LOD)
       ├─ AnomalyViewport.cpp               <- AnomalyViewport impl (reversed-Z frustum + line-trace occlusion + live resolver)
       ├─ AnomalyInjectorSubsystem.cpp <- lifecycle, heartbeat, registry, dispatch, console commands, viewport-scoping toggle
+      ├─ AnomalySelectorSubsystem.cpp <- m5: selection model + raw input poll + immediate-mode HUD + IAI.Selector.* commands
       └─ Anomalies/                    <- one IAnomaly impl per file (7 anomalies)
          ├─ Anomaly_MissingObject.{h,cpp}   <- static, actor-scoped
          ├─ Anomaly_Flicker.{h,cpp}         <- ticking, actor-scoped
@@ -68,6 +70,10 @@ Open the console in PIE (`` ` `` backtick) and run:
   `flicker`, `lod_corruption`, `lod_popping`) to objects visible in the player's viewport (default OFF).
 - `IAI.TestVisibility <substring> <ox oy oz> <pitch yaw roll> [fov] [aspect]` — diagnostic for the
   viewport core against a synthetic view (logs per-component frustum/occlusion/visible).
+- **Object Selector + Inject UI (m5):** `IAI.SelectorUI <0|1>` (default OFF) turns on an in-game overlay to
+  **select a visible object and inject an anomaly on it**. Real-Play keys: Tab/Shift+Tab cycle the visible object,
+  C cycles the anomaly, G injects, H reverts (rebindable via `IAI.SelectorBind`). The bridge drives the same model
+  via `IAI.Selector.Next/Prev/Cycle/Inject/Revert` + `IAI.Selector.Status`. See the runbook §6a.
 
 Output goes to the **Output Log** under the `LogAnomaly` category. The tick heartbeat shows
 on-screen (green) as `[IAI] AnomalyInjector ticking (active: N/Total)` and proves the subsystem

@@ -124,6 +124,32 @@ Open the console in PIE (press `` ` `` backtick) and run:
 
 The green on-screen heartbeat reads `[IAI] AnomalyInjector ticking (active: N/Total, scoping: ON/OFF)`.
 
+### 6a. Object Selector + Inject UI (m5)
+The selector lets you **pick a visible on-screen object and inject an anomaly on it**, then revert — an interactive
+front-end over the m4 visible set. It is a separate subsystem; activation is opt-in (default OFF).
+1. `IAI.SelectorUI 1` — turn the UI on. An overlay appears (top-left): a list of currently-**visible** actor names,
+   a list of the four injectable anomalies, plus a yellow box + name label on the selected object.
+2. **Keys (real Play):** **Tab** = next object, **Shift+Tab** = previous, **C** = cycle anomaly,
+   **G** = inject on the selected object, **H** = revert. Tab cycles only objects the player can actually see —
+   in-frustum, unoccluded, **and renderable** (static / skeletal / VFX). Non-rendering actors (volumes, spawn points,
+   debug/streaming actors, landscape) are excluded, so cycling never stops on them. Selection is name-sorted (alphabetical) in v1.
+   A **"Last:"** line on the HUD reports the result of your last inject/revert — including "0 matched" when a combo
+   doesn't apply (e.g. an LOD anomaly fired at a pure-VFX actor).
+3. Pick an object with Tab, choose an anomaly with C, press **G** — the selected object is affected; press **H** to revert.
+4. `IAI.SelectorUI 0` — turn it off (dormant; everything else is byte-identical to before).
+- **Rebind** any key to escape a collision: `IAI.SelectorBind <next|prev|cycle|inject|revert> <KeyName>`
+  (e.g. `IAI.SelectorBind inject F` ; key names are UE `EKeys` names like `Tab`, `C`, `F1`, `RightMouseButton`).
+- **Three usability facts to know:**
+  - **One object per anomaly type at a time.** Injecting the same anomaly id on a second object reverts-then-reapplies
+    (one registry instance per id) — the first object reappears. Use different anomaly types to mark several objects at once.
+  - **Cycle order is alphabetical (name-sorted)** in v1 (deterministic for the bridge gate). Spatial left-to-right
+    ordering is the intended next UX polish.
+  - **Keep `IAI.SetViewportScoping 0` while using the selector.** The selector is already self-scoping (you pick from the
+    visible set). Running global scoping ON adds a redundant visibility re-test on inject that can *drop* the target if it
+    became occluded in the sub-second between select and inject.
+- **Steam-overlay caveat:** in a Steam-launched build the Steam overlay grabs **Shift+Tab**; it is fine in PIE/standalone.
+  Rebind `prev` to a dedicated key to escape it (gotcha G26).
+
 ## 7. Runtime verification recipe (MCP-driven gate checks)
 The non-visual stage gates are closed by driving PIE over the `unreal-mcpython` bridge (host tooling,
 gotcha G8) and reading state/logs back; the owner eyeballs the visual gates. This is exactly how M1's
@@ -175,6 +201,13 @@ Game/PIE-only, so there is NO AnomalyInjector subsystem until PIE is running); t
 | viewport occlusion (synthetic) | place a big blocker between a synthetic camera and SM_Ramp, then `IAI.TestVisibility` from that pose vs. a clear pose | blocked → `frustum=1 unoccluded=0`; clear → `frustum=1 unoccluded=1`. Same targets; occlusion flips on line-of-sight only. |
 | viewport regression (OFF) | default `scoping OFF`: re-run the `missing_object` / `lod_corruption` rows above | **byte-identical to M1/M3** (matched/forced/reverted counts unchanged) — the regression gate. |
 | viewport scoping (ON) | `IAI.SetViewportScoping 1`; `IAI.Apply missing_object SM_Ramp` | matched count = the ramps **in the resolved live view**; no-view → full set + "treated as unscoped" warning (AMB-V3). Owner eyeballs off-screen-untouched / on-screen-affected in **real Play**. |
+| selector renderable filter | `IAI.SelectorUI 1`; `IAI.Selector.Status` | the visible-names list **excludes** non-renderables (RVTVolume / PlayerStart / GameplayDebuggerCategoryReplicator / LandscapeStreamingProxy / RoomBuilderSquare) and **includes** renderables (Bot, ramps, pressure plates, doors, foliage/HISM). Live-enumerate the excluded actors' components to prove *why* (their primitives are UBoxComponent/capsule/etc., not static/skeletal/VFX — gotcha G29). |
+| selector model (cycle) | `IAI.SelectorUI 1`; repeat `IAI.Selector.Next` then `IAI.Selector.Status` | `Status` shows `selected` advancing through the **name-sorted** visible set (and `visible (N)` listed); wraps after the last. Deterministic in Simulate (view resolves, G23). |
+| selector zero-match HUD | select a pure-VFX / non-mesh actor; `IAI.Selector.Cycle` to `lod_corruption`; `IAI.Selector.Inject` | `Selector.Inject ... -> not applied`; HUD "Last:" line shows "0 matched" (R4); the AMB-2 path is surfaced, not silent. |
+| selector model (anomaly) | `IAI.Selector.Cycle` ×N; `IAI.Selector.Status` | chosen anomaly cycles `missing_object → flicker → lod_corruption → lod_popping → …`. |
+| selector inject (exact-match) | select an actor, `IAI.Selector.Inject`; read the target's hidden / `forced_lod_model` | the selected actor changed (e.g. `hidden==True` for `missing_object`); **confirm the `=` exact-name hit ONLY that actor**, not a numbered sibling — if stock content has a `<name>`/`<name>2` pair, select `<name>` and assert `<name>2` is untouched. |
+| selector revert | `IAI.Selector.Revert` | the last-injected id is reverted; target restored. |
+| selector OFF (regression) | `IAI.SelectorUI 0`; re-run the `ListAnomalies` / `missing_object SM_Ramp` rows | **byte-identical** to before the selector existed (subsystem dormant); the **`=` sentinel** leaves substring gates (`SM_Ramp` → 2 ramps, `Bot`, `Foliage`) unchanged. |
 
 **Synthetic-view gate recipe (viewport core).** The core is a pure function of (explicit view, world), so it is
 state-gatable deterministically with `IAI.TestVisibility` — no live player needed. Read a target's world bounds

@@ -19,12 +19,18 @@ public class AnomalyInjector : ModuleRules
 				// Engine/StaticMesh.h, and camera_clipping drives the near clip through the
 				// r.SetNearClipPlane console command (GEngine->Exec) + the GNearClippingPlane global
 				// (Core), deliberately AVOIDING a RenderCore dependency (AMB-1 ruling).
-				// Later milestones may add: Renderer, RenderCore, RHI, Slate, InputCore.
+				// m5 (selector UI): the FIRST dependency addition since M0 — "InputCore" for FKey/EKeys
+				// (raw input polling + configurable keybinds). The HUD is immediate-mode
+				// (UDebugDrawService + UCanvas + DrawDebug*, all in Engine), so NO Slate/SlateCore/UMG is
+				// needed. InputCore is already a PUBLIC dependency of Engine (Engine.Build.cs) so it is
+				// transitively available; it is declared here explicitly for IWYU hygiene.
+				// Later milestones may still add: Renderer, RenderCore, RHI, Slate (if a UMG UI lands).
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
 			"CoreUObject",
-			"Engine"
+			"Engine",
+			"InputCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

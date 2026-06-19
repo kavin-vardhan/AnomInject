@@ -10,7 +10,30 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **Latest as-built:** **Viewport-Visibility Layer — COMPLETE (committed `7c34275`, tagged `m4`) (2026-06-18).**
+- **Latest (m5, IMPLEMENTED — pending owner acceptance + commit):** **Object Selector + Inject UI (minimal) (2026-06-19).**
+  A new **separate** `UAnomalySelectorSubsystem` (`Public/AnomalySelectorSubsystem.h` + `Private/AnomalySelectorSubsystem.cpp`,
+  `UTickableWorldSubsystem`, Game+PIE only) that lets the player **select a visible on-screen object** (Tab-cycle over the
+  **renderable-visible set** — frustum AND occlusion AND renders-to-screen) and **inject** one of the four object-scoped anomalies on it (default args), then
+  revert — calling the existing injector's public `ApplyAnomaly`/`RevertAnomaly`. **Explicit-core / thin-shell split (as m4):**
+  public methods `AdvanceSelection`/`SelectPrevious`/`CycleAnomalyChoice`/`InjectSelected`/`RevertSelected` + readbacks
+  `GetSelectedActorName`/`GetVisibleActorNames`/`GetAnomalyChoice` are the bridge-gatable surface; two thin shells drive them —
+  the `IAI.Selector.*` console commands (bridge gate) and per-tick **raw input polling** + an **immediate-mode HUD**
+  (real-Play eyeball). Targeting is made exact by a new **`=` sentinel** in `AnomalyTargeting::FindActorsMatching`
+  (leading `=` → `GetName().Equals(IgnoreCase)`; substring path **byte-identical** with no `=`); `InjectSelected` passes
+  `"=" + GetName()` so it hits only the selected actor (the **only** leaf-helper change — additive; verify-item 5 pre-authorized).
+  HUD = `UDebugDrawService::Register("Game", …)` (host-blind, no game HUD class — G25) drawing a visible-names list + an
+  anomaly list + a `DrawDebugBox`/label on the selection; input = `WasInputKeyJustPressed`/`IsInputKeyDown` raw key state
+  (no host mappings — G26); defaults Tab/Shift+Tab/C/G/H, rebindable via `IAI.SelectorBind`. Activation **`IAI.SelectorUI <0|1>`,
+  default OFF → dormant → existing gates byte-identical.** **First dep since M0: `InputCore`** (FKey/EKeys; transitive via Engine,
+  declared for IWYU) — **no Slate/UMG** (immediate-mode). **Renderable-target filter folded in** (m5 follow-on): the selector's
+  visible set means **renderable-visible** — new additive `AnomalyViewport::IsRenderableComponent` (`IsVisible()` + a
+  static/skeletal/`UFXSystemComponent` base-type allowlist; VFX caught with no Niagara dep) excludes volumes/spawn-points/
+  debug/landscape (the m4 visibility funcs stay byte-identical); a HUD `LastInjectResult` line surfaces the AMB-2 zero-match;
+  `GetVisibleRenderableActors` returns empty on no-view (offer nothing, never blind). This is the set **auto-injection** will
+  consume (gotcha G29). **No `IAnomaly` change, injector subsystem + all 7 anomalies untouched;
+  catalog stays 7.** VersionName → **0.6.0**. **Clean Development-Editor compile on 5.1 (exit 0).** Bridge state-gate + OFF-regression
+  pending; owner real-Play eyeball (keys + HUD) pending. → `docs/sessions/2026-06-19-009-selector-inject-ui.md`.
+- **Prior milestone (as-built):** **Viewport-Visibility Layer — COMPLETE (committed `7c34275`, tagged `m4`) (2026-06-18).**
   New shared helper **`AnomalyViewport`** (`Public/AnomalyViewport.h` + `Private/AnomalyViewport.cpp`,
   AnomalyTargeting/Args/Lod convention) = "is this object visible to the player" via **frustum AND occlusion**
   over an explicit view spec `FAnomalyViewInfo` (deterministic, synthetic-view-gatable) + a thin live resolver
@@ -73,14 +96,16 @@ and is the single source of truth for the project.
   `lod_corruption`** was the M2 stopgap; **resolved in M3** (static + skeletal via `AnomalyLod`, G19). M2 ships 2 helpers (A1, A3).
 - **Resolved (M1):** **AMB-3 → capture-baseline** — `time_dilation` Revert restores the pre-Apply value.
   Generalized in M2 to the **per-target/global state-capture convention** (see architecture.md). G11.
-- **In flight:** none. **Next action:** the next breadth round per the roadmap
-  (`docs/viewport-and-roadmap-handoff.md`) — finish the High-priority visual bugs, built viewport-aware from birth
-  on `AnomalyViewport` (then the debug UI, then automatic injection). The `flicker→blinking` rename + new
-  `flickering` (handoff §2.3) and region-darkening (§2.4) are queued but out of the viewport milestone.
-  Bridge/host stay unversioned (G8 unchanged).
+- **In flight:** **m5 (Object Selector + Inject UI)** — implemented + clean-compiled, **pending the bridge state-gate +
+  OFF-regression and the owner's real-Play eyeball, then commit + tag `m5`**. Suggested commit at acceptance:
+  `feat(selector): in-game object selector + inject UI (AnomalySelectorSubsystem)`. **Next action after acceptance:**
+  per the roadmap (`docs/viewport-and-roadmap-handoff.md`), **automatic injection** is the next consumer of the same
+  visible-set + apply-by-name primitives (the `=` exact-match path is load-bearing for it); also queued: finishing the
+  High-priority visual bugs, the `flicker→blinking` rename + new `flickering` (handoff §2.3), region-darkening (§2.4),
+  and the selector's screen-X ordering UX polish. Bridge/host stay unversioned (G8 unchanged).
 - Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`), M2.5+M2.6 (`…-005`), M3 (`…-006`) fully passed
   + tagged; rename refactor (`…-007`) committed `351c7e8` (no tag); **Viewport-Visibility Layer (`…-008`) committed
-  `7c34275`, tagged `m4`.**
+  `7c34275`, tagged `m4`**; **Object Selector + Inject UI (`…-009`) implemented, pending acceptance → commit + tag `m5`.**
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

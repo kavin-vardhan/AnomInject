@@ -119,6 +119,54 @@ namespace AnomalyViewport
 	 */
 	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> FindVisibleActorsMatching(UWorld* World, const FString& Substring);
 
+	// --- Renderable-visible set (m5 follow-on) ---
+	// For the object selector / future auto-injection, "visible" must mean VISIBLE AND RENDERABLE:
+	// in-frustum, unoccluded, AND actually drawing geometry to the screen. A pure frustum+occlusion test
+	// (the functions above) also passes non-rendering primitives — collision boxes, capsules, RVT bounds
+	// boxes, editor billboards, landscape, debug/streaming actors — which must never be injectable targets
+	// (injecting on a never-visible actor is the unlabeled-but-invisible sample this layer exists to
+	// prevent). These are SEPARATE, additive entry points: every function above is byte-identical and
+	// unchanged (the m4 scoping-ON path and all prior gates keep their guarantees).
+
+	/**
+	 * Is Component a renderable target = IsVisible() (NOT hidden-in-game, visible flag set, level visible)
+	 * AND one of the rendering component families we treat as injectable geometry: static mesh, skeletal/
+	 * skinned mesh, or particle/VFX (Niagara + Cascade, caught via their common Engine base UFXSystemComponent
+	 * — so no Niagara/FX module dependency). This is a capability/TYPE test, NOT a class blocklist (a blocklist
+	 * would rot on a different title; this stays game-agnostic). Null -> false.
+	 * Empty-instance refinement: an instanced static mesh (or HISM) with ZERO instances draws nothing, so it
+	 * is treated as non-renderable ("renders nothing => not renderable") — this drops 0-instance landscape-grass
+	 * ISMs (which would otherwise leak a LandscapeStreamingProxy in) while keeping real foliage / populated ISMs.
+	 * IsVisible() (not ShouldRender()) is deliberate: ShouldRender() has a non-shipping branch that returns
+	 * true for hidden collision components under a world flag — a determinism footgun for the synthetic gate.
+	 * EXTENSION POINT: to make terrain selectable on a future title, add `|| IsA<ULandscapeComponent>()` in
+	 * the .cpp (one line; still a type test) — intentionally NOT active here (landscape is excluded for v1).
+	 */
+	ANOMALYINJECTOR_API bool IsRenderableComponent(const UPrimitiveComponent* Component);
+
+	/**
+	 * Is Actor renderable-visible from View? Disjunction over its primitive components — true iff ANY is
+	 * IsRenderableComponent AND in-frustum AND unoccluded (actor granularity). The cheap renderability
+	 * type/flag test runs FIRST, so non-targets are rejected before the occlusion line traces (correctness
+	 * + a perf win: fewer traces). Invalid view / null -> false.
+	 */
+	ANOMALYINJECTOR_API bool IsActorRenderableVisible(const FAnomalyViewInfo& View, UWorld* World, const AActor* Actor);
+
+	/** Subset of In that IsActorRenderableVisible(View, ...). Stable order; skips stale weak ptrs. */
+	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> FilterRenderableVisibleActors(
+		const FAnomalyViewInfo& View, UWorld* World, const TArray<TWeakObjectPtr<AActor>>& In);
+
+	/**
+	 * Convenience for the object selector / future auto-injection: resolve the live view, enumerate all
+	 * actors, and return the renderable-visible ones (UNSORTED; the caller orders).
+	 * DELIBERATE CONTRACT — on no resolvable view this returns EMPTY (offer nothing), never the full scene.
+	 * This differs ON PURPOSE from the FindVisible*Matching finders, which treat-as-unscoped (return the full
+	 * matched set) on no view: those serve an explicit console instruction (act, don't silently drop), whereas
+	 * the selector/auto-injection must never offer or inject BLIND (no legitimate visible set => nothing).
+	 * Two callers, two safe directions — a future reader must NOT "reconcile" them.
+	 */
+	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> GetVisibleRenderableActors(UWorld* World);
+
 	/**
 	 * Convenience finder: resolve the live view, match components of type T
 	 * (AnomalyTargeting::FindComponentsMatching<T>), and return only the visible ones. No-view ->
