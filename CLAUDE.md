@@ -10,7 +10,7 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **Latest as-built:** **Viewport-Visibility Layer — IMPLEMENTED + state-gated; pending owner acceptance (2026-06-18).**
+- **Latest as-built:** **Viewport-Visibility Layer — COMPLETE (committed `7c34275`, tagged `m4`) (2026-06-18).**
   New shared helper **`AnomalyViewport`** (`Public/AnomalyViewport.h` + `Private/AnomalyViewport.cpp`,
   AnomalyTargeting/Args/Lod convention) = "is this object visible to the player" via **frustum AND occlusion**
   over an explicit view spec `FAnomalyViewInfo` (deterministic, synthetic-view-gatable) + a thin live resolver
@@ -73,15 +73,14 @@ and is the single source of truth for the project.
   `lod_corruption`** was the M2 stopgap; **resolved in M3** (static + skeletal via `AnomalyLod`, G19). M2 ships 2 helpers (A1, A3).
 - **Resolved (M1):** **AMB-3 → capture-baseline** — `time_dilation` Revert restores the pre-Apply value.
   Generalized in M2 to the **per-target/global state-capture convention** (see architecture.md). G11.
-- **In flight:** **Viewport-Visibility Layer — code complete + state-gated, pending owner acceptance.**
-  **Next action:** owner eyeballs the **live resolver in real Play** (scoping ON: off-screen matched object
-  untouched, on-screen one affected — the only gate not closable in Simulate). On acceptance: one commit
-  `feat(viewport): viewport-visibility scoping layer + retrofit (AnomalyViewport)` and the milestone **tag**
-  (settled at acceptance). The handoff/roadmap doc is already committed (`3da4562`, `docs:`). Editor + bridge left
-  up at MainWorld for the eyeball. Bridge/host stay unversioned (G8 unchanged).
+- **In flight:** none. **Next action:** the next breadth round per the roadmap
+  (`docs/viewport-and-roadmap-handoff.md`) — finish the High-priority visual bugs, built viewport-aware from birth
+  on `AnomalyViewport` (then the debug UI, then automatic injection). The `flicker→blinking` rename + new
+  `flickering` (handoff §2.3) and region-darkening (§2.4) are queued but out of the viewport milestone.
+  Bridge/host stay unversioned (G8 unchanged).
 - Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`), M2.5+M2.6 (`…-005`), M3 (`…-006`) fully passed
-  + tagged; rename refactor (`…-007`) committed `351c7e8` (no tag); viewport layer (`…-008`) — state-gated green,
-  commit + tag pending owner acceptance.
+  + tagged; rename refactor (`…-007`) committed `351c7e8` (no tag); **Viewport-Visibility Layer (`…-008`) committed
+  `7c34275`, tagged `m4`.**
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

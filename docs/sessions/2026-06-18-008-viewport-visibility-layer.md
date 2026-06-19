@@ -104,8 +104,10 @@ milestone — not this one. Built directly on the GDP-rename refactor (`351c7e8`
   in the working tree pending owner acceptance.
 
 ## Hand-off
-- **Commit pending owner acceptance** of the real-Play eyeball. Suggested commit:
-  `feat(viewport): viewport-visibility scoping layer + retrofit (AnomalyViewport)`; **milestone tag** settled at
-  acceptance. Bridge/host stay unversioned (G8 unchanged).
+- **ACCEPTED** — owner live-gate green in real Play (off-screen matched object untouched, on-screen one affected).
+  Both ratified deviations kept: `IAI.TestVisibility` (diagnostic / synthetic-gate entry point) and the public
+  `IsComponentInFrustum` (documented frustum-only, NOT the visibility predicate, in its header + architecture.md).
+  AMB-V3's no-view degrade stays code-verified (not bridge-triggerable — Simulate exposes a view; errs safe = OFF
+  behavior; G23). Committed **`7c34275`**, tagged **`m4`**. Bridge/host stay unversioned (G8 unchanged).
 - Next per the roadmap (`docs/viewport-and-roadmap-handoff.md`): finish the High-priority visual bugs built
   viewport-aware from birth, then the debug UI, then automatic injection.
