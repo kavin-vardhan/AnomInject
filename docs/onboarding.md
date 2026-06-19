@@ -32,13 +32,15 @@ Plugins/AnomalyInjector/            <- this plugin = its own git repo, single so
    │  ├─ AnomalyTargeting.h                <- FindActorsMatching + FindComponentsMatching<T> (A1, shared targeting)
    │  ├─ AnomalyArgs.h                     <- GetFloat/GetInt/GetString (A3, shared arg parse/clamp/warn)
    │  ├─ AnomalyLod.h                      <- forced-LOD dispatch over static+skeletal meshes (M3, shared LOD helper)
-   │  └─ AnomalyInjectorSubsystem.h <- UAnomalyInjectorSubsystem (manager + registry)
+   │  ├─ AnomalyViewport.h                 <- frustum+occlusion visibility tests over an explicit view (viewport milestone)
+   │  └─ AnomalyInjectorSubsystem.h <- UAnomalyInjectorSubsystem (manager + registry + viewport-scoping toggle)
    └─ Private/
       ├─ AnomalyInjectorModule.cpp  <- module boilerplate + log category definition
       ├─ AnomalyTargeting.cpp
       ├─ AnomalyArgs.cpp
       ├─ AnomalyLod.cpp                    <- AnomalyLod impl (Cast<>-dispatched static/skinned forced-LOD)
-      ├─ AnomalyInjectorSubsystem.cpp <- lifecycle, heartbeat, registry, dispatch, console commands
+      ├─ AnomalyViewport.cpp               <- AnomalyViewport impl (reversed-Z frustum + line-trace occlusion + live resolver)
+      ├─ AnomalyInjectorSubsystem.cpp <- lifecycle, heartbeat, registry, dispatch, console commands, viewport-scoping toggle
       └─ Anomalies/                    <- one IAnomaly impl per file (7 anomalies)
          ├─ Anomaly_MissingObject.{h,cpp}   <- static, actor-scoped
          ├─ Anomaly_Flicker.{h,cpp}         <- ticking, actor-scoped
@@ -62,6 +64,10 @@ Open the console in PIE (`` ` `` backtick) and run:
   `IAI.Apply lod_popping Foliage 2`, `IAI.Apply camera_clipping 100`.
 - `IAI.Revert <id>` — revert one anomaly.
 - `IAI.RevertAll` — revert all active anomalies (also runs automatically on world teardown).
+- `IAI.SetViewportScoping <0|1>` — opt-in: scope the four object-scoped anomalies (`missing_object`,
+  `flicker`, `lod_corruption`, `lod_popping`) to objects visible in the player's viewport (default OFF).
+- `IAI.TestVisibility <substring> <ox oy oz> <pitch yaw roll> [fov] [aspect]` — diagnostic for the
+  viewport core against a synthetic view (logs per-component frustum/occlusion/visible).
 
 Output goes to the **Output Log** under the `LogAnomaly` category. The tick heartbeat shows
 on-screen (green) as `[IAI] AnomalyInjector ticking (active: N/Total)` and proves the subsystem

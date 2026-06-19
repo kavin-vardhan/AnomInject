@@ -1,13 +1,17 @@
 # Architecture (living — current as-built)
 
-> **Reflects:** M3 — LOD breadth fill: `lod_corruption` extended to **static OR skeletal** meshes
-> (same ID), a new ticking **`lod_popping`**, and the shared **`AnomalyLod`** helper that absorbs the
-> static/skeletal forced-LOD dispatch. Built on M2 — Breadth Round 1 (component/global anomalies +
-> the A1/A3 helpers), re-validated unchanged on UE 5.1 by M2.5 (5.1 port) + M2.6 (bridge sever).
-> **Catalog: 7 anomalies.** **Complete — all M3 state gates passed** (clean Development-Editor compile
-> on 5.1, exit 0; gates 1–9 driven green over the bridge in a `MainWorld` Simulate session, 2026-06-13).
-> M3 required **no `IAnomaly` change** (the M1 lock held again) and **no new module dependency**.
-> Detail in `sessions/2026-06-13-006-m3-lod-breadth.md`,
+> **Reflects:** Viewport-Visibility Layer — a shared **`AnomalyViewport`** helper (frustum AND
+> occlusion against an explicit view) and an **opt-in** subsystem toggle `IAI.SetViewportScoping <0|1>`
+> (default **OFF**) that routes the four object-scoped, primitive-backed anomalies — `missing_object`,
+> `flicker`, `lod_corruption`, `lod_popping` — through it so they affect only objects visible in the
+> player's viewport. Built on M3 (LOD breadth + `AnomalyLod`), M2 (component/global anomalies + A1/A3
+> helpers), M2.5/M2.6 (5.1 port + bridge sever). **Catalog: still 7 anomalies** (no new types this
+> milestone). Required **no `IAnomaly` change** (the M1 lock held again) and **no new module
+> dependency** (frustum/traces/camera are all Engine; `FReversedZPerspectiveMatrix` is Core).
+> **State-gated green** (clean Development-Editor compile on 5.1, exit 0; synthetic-view frustum+occlusion
+> gate + OFF-is-byte-identical regression gate driven over the bridge in a `MainWorld` Simulate session,
+> session 008, 2026-06-18). Detail in `sessions/2026-06-18-008-viewport-visibility-layer.md`,
+> `sessions/2026-06-13-006-m3-lod-breadth.md`,
 > `sessions/2026-06-10-005-m2.5-m2.6-5.1-port-bridge-sever.md`,
 > `sessions/2026-06-09-004-m2-breadth-round-1.md`; M1 in `sessions/2026-06-09-003-m1-implementation.md`.
 > **Maintenance:** update this file to match the code at the end of every milestone; describe only
@@ -32,12 +36,14 @@ on the Stack O Bot sample.
 
 ## Module & load
 - One **Runtime** module `AnomalyInjector`, `LoadingPhase Default`, `EnabledByDefault: true`
-  (project-plugin scoped — gotcha G6), `VersionName 0.4.0`. Build.cs deps: `Core`, `CoreUObject`, `Engine` — **unchanged
-  through M3**: the A1 component finder, A3 arg parsing, the M3 `AnomalyLod` LOD helper (which touches
-  `UStaticMeshComponent` / `USkinnedMeshComponent`, both Engine), and every anomaly use only
-  Engine/Core types; `camera_clipping` drives the near clip via the `r.SetNearClipPlane` console
-  command + the `GNearClippingPlane` global (Core), deliberately avoiding a `RenderCore` dependency
-  (gotcha G13).
+  (project-plugin scoped — gotcha G6), `VersionName 0.5.0`. Build.cs deps: `Core`, `CoreUObject`, `Engine` — **unchanged
+  through the viewport milestone**: the A1 component finder, A3 arg parsing, the `AnomalyLod` LOD helper, every
+  anomaly, and the new `AnomalyViewport` helper use only Engine/Core types. `AnomalyViewport`'s frustum
+  (`FConvexVolume` / `GetViewFrustumBounds` / `FMinimalViewInfo`), line-trace occlusion
+  (`UWorld::LineTraceSingleByChannel`), and live view resolution (`APlayerController` / `APlayerCameraManager`)
+  are all Engine; `FReversedZPerspectiveMatrix` is Core. `camera_clipping` drives the near clip via the
+  `r.SetNearClipPlane` console command + the `GNearClippingPlane` global (Core), deliberately avoiding a
+  `RenderCore` dependency (gotcha G13).
 
 ## The anomaly abstraction — `IAnomaly`  (`Public/IAnomaly.h`)
 Plain C++ polymorphic interface (NOT a UCLASS — dispatch needs no reflection). One instance per type.
@@ -114,6 +120,40 @@ The skinned LOD count uses the **runtime render-data** accessor `USkinnedMeshCom
 the analog of the static `UStaticMesh::GetNumLODs()` — **not** the asset's authored `GetLODNum()`
 (gotcha G19). All types are in `Engine` → **no new module dependency**.
 
+### Viewport visibility — `AnomalyViewport`  (`Public/AnomalyViewport.h` / `Private/AnomalyViewport.cpp`)  **(viewport milestone)**
+Free functions (the AnomalyTargeting/AnomalyArgs/AnomalyLod convention: light Public header, heavy includes +
+backend dispatch in the .cpp). Single source of truth for "is this object actually visible to the player" =
+**inside the camera frustum AND not occluded**. Lets the four object-scoped anomalies be opt-in scoped so a
+corrupted frame is labeled-and-visible (the ML-relevant case), not labeled-but-invisible.
+- **Core operates on an explicit view spec** `FAnomalyViewInfo { Origin, Rotation, HorizontalFOVDeg, AspectRatio,
+  bValid }` + the world. Pure function of (view, world) → deterministic and **state-gatable with a synthetic
+  view** (no live player needed). This split is deliberate: it keeps the live lookup thin and separately validated.
+- **Frustum (always; synchronous):** assemble the reversed-Z VP from the view spec exactly as the engine's live
+  path (`FReversedZPerspectiveMatrix` via `FMinimalViewInfo::CalculateProjectionMatrix` + the world→view basis
+  swap), `GetViewFrustumBounds(VP, bUseNearPlane=true, bUseFarPlane=false)`, then `FConvexVolume::IntersectSphere`
+  then `IntersectBox` against `UPrimitiveComponent::Bounds` (gotcha G24).
+- **Occlusion (backend-agnostic; PRIVATE to the .cpp):** v1 = multi-sample **camera-to-bounds line trace**
+  (`UWorld::LineTraceSingleByChannel`, `ECC_Visibility`; bounds center + 8 corners; ignore the target's own
+  actor; unoccluded if **any** sample's path is unblocked). Synchronous, deterministic, synthetic-gatable.
+  `UPrimitiveComponent::GetLastRenderTimeOnScreen()` is the documented drop-in **live** backend for the future
+  capture/live-injection milestone — a .cpp-only swap (gotcha G22). Trade-off: the trace over-includes on
+  no-collision / translucent occluders (safe direction — never drops a visible target).
+- **Public surface:** `IsComponentVisible(View, World, Comp)`, `IsActorVisible(View, World, Actor)` (disjunction
+  over the actor's primitive components — actor granularity); filter entry points `FilterVisibleActors(...)` and
+  header-only `FilterVisibleComponents<T>(...)`; composed convenience finders wrapping AnomalyTargeting —
+  `FindVisibleActorsMatching(World, Sub)` and header-only `FindVisibleComponentsMatching<T>(World, Sub)`. Also
+  `IsComponentInFrustum(View, Comp)` — **frustum-only, NOT the visibility predicate** (visibility = frustum AND
+  occlusion is the load-bearing invariant; this primitive exists for the synthetic-gate diagnostics / frustum
+  calibration and must not be read as "is visible"). The occlusion test stays private to the .cpp.
+- **Live resolver:** `GetActiveViewInfo(World, OutView)` fills the view spec from the first local player's POV
+  (`APlayerController::GetPlayerViewPoint` + `PlayerCameraManager->GetFOVAngle()`; aspect from the game viewport).
+  On no usable view it logs **one** warning, leaves `bValid=false`, and returns false; the convenience finders
+  then return the **full matched set (treat-as-unscoped)**, never dropping targets. No editor-viewport fallback
+  (no UnrealEd dep). A StackOBot Simulate session *does* expose a usable view (gotcha G23).
+- **No per-frame cache in v1** (matched sets are small; visibility is tested once at Apply, not per tick). A
+  frame-keyed memo of (view + per-primitive result) slots in here for the future live-injection milestone.
+- All types are in `Core`/`Engine` → **no new module dependency**.
+
 ## Control surface (console commands)
 Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's world, null-guarded
 (warns outside Game/PIE). Output → Output Log, category `LogAnomaly`.
@@ -122,6 +162,11 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
 - `IAI.Apply <id> <args...>` — look up id, apply (reverts-then-reapplies if active).
 - `IAI.Revert <id>` — revert one active anomaly.
 - `IAI.RevertAll` — revert all active anomalies.
+- `IAI.SetViewportScoping <0|1>` — toggle viewport-visibility scoping for the four object-scoped anomalies
+  (default **OFF**; see "Viewport-visibility scoping" below).
+- `IAI.TestVisibility <substring> <ox oy oz> <pitch yaw roll> [fovDeg] [aspect]` — **diagnostic** (not an
+  anomaly): test the `AnomalyViewport` core against a **synthetic** view and log per-component
+  `frustum / unoccluded / visible`. The deterministic synthetic-view state-gate driver.
 *(M0's `IAI.HideActor` / `IAI.ShowAllActors` were removed — superseded by `IAI.Apply missing_object`
 / `IAI.RevertAll`.)*
 
@@ -135,6 +180,20 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
 | `lod_corruption` | component (static **+ skeletal** mesh) | `IAI.Apply lod_corruption <sub> [lod-index]` | force each matched comp to a LOD via `AnomalyLod` (1-based; default worst per comp; explicit index clamped per comp). Static `SetForcedLodModel` / skinned `SetForcedLOD` | restore captured forced-LOD per live comp; skip stale | **as-built (M3)** — static + skeletal (G19; was static-only in M2, G16) |
 | `lod_popping` | component (static **+ skeletal** mesh), **ticking** | `IAI.Apply lod_popping <sub> [hz]` | each half-period, snap every matched comp between its captured baseline LOD and its worst LOD via `AnomalyLod` (default 2 Hz, clamp ≤ 30) | restore captured baseline per live comp regardless of phase; reset accumulator/phase | **as-built (M3)** |
 | `camera_clipping` | global (near-clip), no tick | `IAI.Apply camera_clipping [near]` | `r.SetNearClipPlane <near>` console command (default 100), pushing `GNearClippingPlane` out | restore captured baseline (~10) via the same command | **as-built (M2)** |
+
+## Viewport-visibility scoping (opt-in; default OFF)
+The subsystem holds one flag `bViewportScopingEnabled` (default **OFF**), toggled by `IAI.SetViewportScoping <0|1>`
+and read by anomalies via the static `UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World)`. **Only the four
+object-scoped, primitive-backed anomalies consult it:** `missing_object`, `flicker` (actor granularity — visible iff
+**any** primitive component is visible) and `lod_corruption`, `lod_popping` (component granularity). When **ON**, each
+routes target resolution through `AnomalyViewport` so it affects only objects visible in the player's view; when
+**OFF**, each takes its original resolution path **byte-identical to before** (the regression gate). Excluded by
+design: `lighting_mismatch` (a `ULightComponent` is not a primitive — that's the future region-darkening anomaly's
+concern) and the two globals `time_dilation` / `camera_clipping` (whole-frame). **v1 semantics:** a matched object is
+affected iff visible **at Apply time** (ticking anomalies fix their visible set at Apply; the tick does not re-test).
+If scoping is ON but no live view resolves, the anomaly treats-as-unscoped (full matched set + one warning), so ON
+never silently drops every target. The catalog rows above are unchanged in effect; scoping only narrows *which*
+matched targets are acted on.
 
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:

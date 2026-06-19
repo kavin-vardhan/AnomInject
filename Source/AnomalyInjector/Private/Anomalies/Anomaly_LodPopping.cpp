@@ -4,6 +4,8 @@
 
 #include "AnomalyLod.h"
 #include "AnomalyArgs.h"
+#include "AnomalyViewport.h"
+#include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "Components/MeshComponent.h"   // UMeshComponent
 
@@ -34,7 +36,18 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	HalfPeriodSeconds = 0.5f / Hz;
 
 	// Static AND skeletal, keyed to the common base (one apply pops a heterogeneous target set).
-	const TArray<TWeakObjectPtr<UMeshComponent>> Meshes = AnomalyLod::ResolveLodComponents(World, Substring);
+	TArray<TWeakObjectPtr<UMeshComponent>> Meshes = AnomalyLod::ResolveLodComponents(World, Substring);
+	// Opt-in viewport scoping (component granularity, AMB-V5): keep only meshes visible in the player's
+	// view, fixed at Apply (the tick does not re-test). No live view -> treat-as-unscoped (AMB-V3);
+	// OFF -> identical to before (regression gate).
+	if (UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World))
+	{
+		FAnomalyViewInfo View;
+		if (AnomalyViewport::GetActiveViewInfo(World, View))
+		{
+			Meshes = AnomalyViewport::FilterVisibleComponents(View, World, Meshes);
+		}
+	}
 	if (Meshes.Num() == 0)
 	{
 		UE_LOG(LogAnomaly, Log, TEXT("lod_popping: matched 0 mesh component(s) for '%s'."), *Substring);

@@ -4,6 +4,8 @@
 
 #include "AnomalyLod.h"
 #include "AnomalyArgs.h"
+#include "AnomalyViewport.h"
+#include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "Components/MeshComponent.h"   // UMeshComponent (GetName on the resolved target)
 
@@ -35,7 +37,17 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 		: AnomalyLod::WorstLodSentinel;
 
 	// Static AND skeletal: ResolveLodComponents merges both families keyed to the common base.
-	const TArray<TWeakObjectPtr<UMeshComponent>> Meshes = AnomalyLod::ResolveLodComponents(World, Substring);
+	TArray<TWeakObjectPtr<UMeshComponent>> Meshes = AnomalyLod::ResolveLodComponents(World, Substring);
+	// Opt-in viewport scoping (component granularity, AMB-V5): keep only meshes visible in the player's
+	// view. No live view -> treat-as-unscoped (AMB-V3); OFF -> identical to before (regression gate).
+	if (UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World))
+	{
+		FAnomalyViewInfo View;
+		if (AnomalyViewport::GetActiveViewInfo(World, View))
+		{
+			Meshes = AnomalyViewport::FilterVisibleComponents(View, World, Meshes);
+		}
+	}
 	if (Meshes.Num() == 0)
 	{
 		UE_LOG(LogAnomaly, Log, TEXT("lod_corruption: matched 0 mesh component(s) for '%s'."), *Substring);

@@ -116,8 +116,13 @@ Open the console in PIE (press `` ` `` backtick) and run:
    geometry clips away; `IAI.Revert camera_clipping` restores the captured baseline (~10). Most
    reliably-visible gate; no targeting.
 10. `IAI.RevertAll` — restores everything still active. Stopping PIE also auto-reverts (teardown).
+11. `IAI.SetViewportScoping 1` — opt-in viewport scoping (default OFF). Now `IAI.Apply missing_object <sub>`
+    (and `flicker` / `lod_corruption` / `lod_popping`) affects only matches **visible in the player's view** —
+    aim away from a matched object and it is left untouched; aim at it and it is affected. `IAI.SetViewportScoping 0`
+    restores the unscoped behavior. The heartbeat shows `scoping: ON/OFF`. (Diagnostic: `IAI.TestVisibility <sub>
+    <ox oy oz> <pitch yaw roll> [fov] [aspect]` logs per-component `frustum/unoccluded/visible` for a synthetic view.)
 
-The green on-screen heartbeat reads `[IAI] AnomalyInjector ticking (active: N/Total)`.
+The green on-screen heartbeat reads `[IAI] AnomalyInjector ticking (active: N/Total, scoping: ON/OFF)`.
 
 ## 7. Runtime verification recipe (MCP-driven gate checks)
 The non-visual stage gates are closed by driving PIE over the `unreal-mcpython` bridge (host tooling,
@@ -166,6 +171,20 @@ Game/PIE-only, so there is NO AnomalyInjector subsystem until PIE is running); t
 | RevertAll | apply >=2 anomalies, then `IAI.RevertAll` | all `IsActive==false`; captured state restored (hidden flags false, dilation baseline, lights/LOD/near-clip restored) |
 | teardown | apply, then **Stop PIE** | log `Subsystem deinitializing; reverted N...`; re-check nothing stuck |
 | no-leak | `IAI.Apply <id> A` then `IAI.Apply <id> B` (esp. `lighting_mismatch recolor`) | single capture set; only B's targets active; A's restored (no stuck lights/LODs) |
+| viewport frustum (synthetic) | `IAI.TestVisibility SM_Ramp <O> <R>` from 3 poses: looking at the ramps; looking away (behind); 53k units away but in cone | log per-comp: in-cone → `frustum=1`; behind camera → `frustum=0` (near-plane); far-but-in-cone → `frustum=1` (far not clipping). Reversed-Z VP validated (gotcha G24). |
+| viewport occlusion (synthetic) | place a big blocker between a synthetic camera and SM_Ramp, then `IAI.TestVisibility` from that pose vs. a clear pose | blocked → `frustum=1 unoccluded=0`; clear → `frustum=1 unoccluded=1`. Same targets; occlusion flips on line-of-sight only. |
+| viewport regression (OFF) | default `scoping OFF`: re-run the `missing_object` / `lod_corruption` rows above | **byte-identical to M1/M3** (matched/forced/reverted counts unchanged) — the regression gate. |
+| viewport scoping (ON) | `IAI.SetViewportScoping 1`; `IAI.Apply missing_object SM_Ramp` | matched count = the ramps **in the resolved live view**; no-view → full set + "treated as unscoped" warning (AMB-V3). Owner eyeballs off-screen-untouched / on-screen-affected in **real Play**. |
+
+**Synthetic-view gate recipe (viewport core).** The core is a pure function of (explicit view, world), so it is
+state-gatable deterministically with `IAI.TestVisibility` — no live player needed. Read a target's world bounds
+(`actor.get_actor_bounds(False)`), pick a camera origin/rotation, fire `IAI.TestVisibility`, and read the per-component
+`frustum/unoccluded/visible` lines off `LogAnomaly`. For a clean **close-range** occlusion negative, you need a
+full-coverage blocker in the **PIE** world — but `EditorActorSubsystem.spawn_actor_from_object` refuses to spawn
+during play. The working route: end Simulate, spawn a large `/Engine/BasicShapes/Cube` (default collision blocks
+`ECC_Visibility`) between the chosen camera and the target in the **editor** world, restart Simulate (it duplicates
+into the PIE world), gate, then **end Simulate and `destroy_actor` the blocker — never save the map**. (Session 008
+drove exactly this: behind/far/in-cone frustum cases + a wall-between vs clear-line occlusion pair, all green.)
 
 To read component state via the bridge: get the PIE world, `GameplayStatics.get_all_actors_of_class(gw, unreal.Actor)`,
 filter by substring, then iterate `a.get_components_by_class(unreal.LightComponent)` /

@@ -266,3 +266,69 @@ project-root **and** plugin `Binaries/` + `Intermediate/` (never `Saved/`), then
 Development / Win64`. The subsystem `.generated.h` (the only `UCLASS`) regenerates under the new name
 automatically, and the `*_API` macro `ANOMALYINJECTOR_API` is derived from the module name by UHT — no manual
 edit. Verified clean compile (exit 0) + bridge re-gate green. (Session 007, 2026-06-18.)
+
+### G22 — primitive render-time reflects occlusion, but only `GetLastRenderTimeOnScreen()` is shadow-clean (viewport)
+The viewport layer's occlusion question is "did the renderer actually draw this in the player's view." Pinned
+against 5.1 source for the AMB-V1 backend decision:
+- The **component-level** render time (`UPrimitiveComponent::LastRenderTime` / `LastRenderTimeOnScreen`, read by
+  `GetLastRenderTime()` / `GetLastRenderTimeOnScreen()` / `WasRecentlyRendered()`) is written by
+  `FPrimitiveSceneInfo::UpdateComponentLastRenderTime(t, bUpdateLastRenderTimeOnScreen)` — `LastRenderTime`
+  always, `LastRenderTimeOnScreen` only when the bool is true (`PrimitiveSceneInfo.cpp:2135`).
+- In the **main view** that update is gated on `View.PrimitiveDefinitelyUnoccludedMap[BitIndex]` with
+  `bUpdateLastRenderTimeOnScreen=true` (`SceneVisibility.cpp:2491`) — i.e. it genuinely reflects **occlusion**
+  (the comment says "This signals that the primitive is visible"), not just frustum/distance cull.
+- BUT the **shadow-depth** passes call the same updater with `bUpdateLastRenderTimeOnScreen=false`
+  (`ShadowSetup.cpp:1672, 1909`), so a primitive that is fully occluded yet casts a shadow into view still bumps
+  `LastRenderTime`. Therefore `GetLastRenderTime()` / `WasRecentlyRendered()` (which read it) are
+  **shadow-contaminated**; only **`GetLastRenderTimeOnScreen()`** is the occlusion-clean main-view signal. The
+  other `=true` site is ray-tracing-dynamic-geometry only (`DeferredShadingRenderer.cpp:1202`, gated on an RT
+  cvar; off in StackOBot). `UpdateComponentLastRenderTime` also writes `OwningActor->LastRenderTime`, so
+  `AActor::GetLastRenderTime()` is contaminated too.
+- **Decisive consequence (AMB-V1):** render-time is a property of *the view the renderer drew*; it **cannot be
+  evaluated for an arbitrary synthetic view**, which collides with the locked "core is deterministically
+  state-gatable with a synthetic view." So v1's occlusion backend is the **multi-sample camera-to-bounds line
+  trace** (synchronous, deterministic, synthetic-gatable, Engine-only), private behind `AnomalyViewport`.
+  `GetLastRenderTimeOnScreen()` (with a custom tolerance `World->TimeSince(...) <= max(Tol, DeltaTime+eps)`,
+  AMB-V2) is the verified drop-in **live** backend for the future capture/live-injection milestone — a .cpp-only
+  swap, where render-fidelity matters and a per-frame cache is in play. The trace over-includes on
+  no-collision / translucent occluders (accepted v1 trade-off; safe direction — never drops a visible target).
+  (Viewport milestone, session 008, 2026-06-18.)
+
+### G23 — a StackOBot Simulate session DOES expose a usable local-player view (viewport)
+Planning feared Simulate had no usable player camera (so live viewport scoping would degrade to unscoped there).
+Verified live over the bridge: StackOBot's Simulate session has `PlayerController_0` **with** a
+`PlayerCameraManager` whose POV is valid (e.g. loc (3074,4336,1646), yaw -40, fov 90 — near the level start),
+so `AnomalyViewport::GetActiveViewInfo` (which uses `APlayerController::GetPlayerViewPoint` + `GetFOVAngle`)
+**resolves a real view in Simulate** — `IAI.SetViewportScoping 1` then `IAI.Apply missing_object SM_Ramp`
+matched both ramps (both in that camera's cone) with **no** "no local player controller" warning. Caveats:
+- That POV is the **auto/spawn camera POV**, NOT the editor perspective viewport the user sees in Simulate, and
+  it isn't something to set/know a priori. So the **deterministic** core gate still uses the synthetic-view
+  command `IAI.TestVisibility` (a pure function of an explicit view + world); the live resolver's
+  off-screen/on-screen discrimination is owner-eyeballed in **real Play**.
+- The **no-view treat-as-unscoped degrade** (AMB-V3: `GetActiveViewInfo` returns false → return the full
+  matched set + one warning) is **code-verified, NOT bridge-triggerable** — precisely *because* StackOBot Simulate
+  always exposes a usable local-player view (above), so `GetActiveViewInfo` never returns false there and the
+  degrade branch can't be reached over the bridge. The branch **errs safe**: returning the full matched set is
+  exactly the scoping-**OFF** behavior, so on-but-no-view can only ever *over*-affect (act on every match), never
+  silently drop a target. It covers genuinely view-less contexts (dedicated server, very early frames). Deliberately
+  **no** `WITH_EDITOR` editor-viewport fallback was added (no UnrealEd dep). (Viewport milestone, session 008, 2026-06-18.)
+
+### G24 — reversed-Z is the one footgun assembling a synthetic view-projection; validate near/far empirically (viewport)
+For the synthetic-view core, assemble the VP exactly as the engine's live path does (verified 5.1) so synthetic
+and live agree for the same pose/FOV/aspect:
+- **Projection (reversed-Z, infinite far):** `FMinimalViewInfo::CalculateProjectionMatrix()` →
+  `FReversedZPerspectiveMatrix(max(0.001, FOV)*PI/360, AspectRatio, 1, NearClip)` where `FOV` is the **full
+  horizontal** FOV in degrees (`CameraStackTypes.cpp:89`). `SceneView.h:44`: "clip space Z=1 is the near plane,
+  Z=0 is the **infinite far** plane."
+- **View rotation (basis swap):** `FInverseRotationMatrix(Rotation) * FMatrix(FPlane(0,0,1,0),(1,0,0,0),(0,1,0,0),(0,0,0,1))`
+  (`LocalPlayer.cpp:1139`).
+- **Compose:** `VP = FTranslationMatrix(-Origin) * ViewRotationMatrix * ProjectionMatrix` (==
+  `FSceneViewProjectionData::ComputeViewProjectionMatrix`, `SceneView.h:82`).
+- **Frustum:** `GetViewFrustumBounds(Frustum, VP, /*bUseNearPlane=*/true, /*bUseFarPlane=*/false)` — under
+  reversed-Z the near plane (clip Z=1) rejects behind-camera geometry; the far plane is infinite/degenerate so it
+  is **skipped** (distant-but-in-cone objects stay in frustum). Then `Frustum.IntersectSphere/IntersectBox`
+  against `UPrimitiveComponent::Bounds`.
+- **Empirically validated** via `IAI.TestVisibility` in the synthetic gate (session 008): camera *behind* a known
+  target → `frustum=0` (near-plane works); target *53k units away but in cone* → `frustum=1` (far correctly not
+  clipping); in-cone clear → `frustum=1 unoccluded=1`. If anything behind the camera or absurdly far tests as
+  in-frustum, suspect the near-plane flag / VP assembly first. (Viewport milestone, session 008, 2026-06-18.)

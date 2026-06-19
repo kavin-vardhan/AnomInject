@@ -39,6 +39,25 @@ public:
 	/** Enumerate actors in the current world; log "Class | Name | Label" for each. */
 	void ListActors() const;
 
+	/**
+	 * Diagnostic (not an anomaly): test core viewport visibility against a SYNTHETIC view assembled
+	 * from Args (no live player needed) and log per-component frustum / occlusion / visible. This is the
+	 * deterministic synthetic-view state-gate driver. Args: <substring> <ox> <oy> <oz> <pitch> <yaw>
+	 * <roll> [fovDeg] [aspect].
+	 */
+	void TestVisibility(const TArray<FString>& Args) const;
+
+	// --- Viewport-visibility scoping (opt-in; default OFF) ---
+
+	/** Enable/disable routing object-scoped anomaly targeting through AnomalyViewport. */
+	void SetViewportScoping(bool bEnabled);
+
+	/** Current scoping state for this world's subsystem. */
+	bool IsViewportScopingEnabled() const { return bViewportScopingEnabled; }
+
+	/** Static convenience for anomalies: resolve the subsystem from World and read its flag (false if none). */
+	static bool IsViewportScopingEnabled(UWorld* World);
+
 	// --- Anomaly manager API (called by the console command surface) ---
 
 	/** Log each registered anomaly as "id - description - usage" (sorted by id). */
@@ -76,4 +95,11 @@ private:
 
 	/** Seconds accumulated since the last heartbeat, used to throttle it. */
 	float HeartbeatAccumulator = 0.0f;
+
+	/**
+	 * Opt-in viewport-visibility scoping. Default OFF so every existing gate is byte-identical
+	 * (the regression gate). When ON, the four object-scoped anomalies route target resolution through
+	 * AnomalyViewport. Toggled via IAI.SetViewportScoping <0|1>.
+	 */
+	bool bViewportScopingEnabled = false;
 };

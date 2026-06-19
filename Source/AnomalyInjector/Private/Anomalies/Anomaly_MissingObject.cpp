@@ -3,6 +3,8 @@
 #include "Anomalies/Anomaly_MissingObject.h"
 
 #include "AnomalyTargeting.h"
+#include "AnomalyViewport.h"
+#include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "GameFramework/Actor.h"
 
@@ -25,7 +27,12 @@ bool FAnomaly_MissingObject::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 
 	const FString& Substring = Args[0];
-	const TArray<TWeakObjectPtr<AActor>> Matches = AnomalyTargeting::FindActorsMatching(World, Substring);
+	// Opt-in viewport scoping: when ON, resolve only actors visible in the player's view (AMB-V3:
+	// no live view -> treat-as-unscoped). When OFF, identical to before (regression gate).
+	const TArray<TWeakObjectPtr<AActor>> Matches =
+		UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World)
+			? AnomalyViewport::FindVisibleActorsMatching(World, Substring)
+			: AnomalyTargeting::FindActorsMatching(World, Substring);
 	for (const TWeakObjectPtr<AActor>& Weak : Matches)
 	{
 		if (AActor* Actor = Weak.Get())

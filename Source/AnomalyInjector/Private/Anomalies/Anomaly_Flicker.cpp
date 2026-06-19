@@ -3,6 +3,8 @@
 #include "Anomalies/Anomaly_Flicker.h"
 
 #include "AnomalyTargeting.h"
+#include "AnomalyViewport.h"
+#include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "GameFramework/Actor.h"
 
@@ -45,7 +47,11 @@ bool FAnomaly_Flicker::Apply(UWorld* World, const TArray<FString>& Args)
 	Hz = FMath::Min(Hz, MaxHz);
 	HalfPeriodSeconds = 0.5f / Hz;
 
-	Targets = AnomalyTargeting::FindActorsMatching(World, Args[0]);
+	// Opt-in viewport scoping: when ON, target only actors visible in the player's view (AMB-V3:
+	// no live view -> treat-as-unscoped). The visible set is fixed at Apply; the tick does not re-test.
+	Targets = UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World)
+		? AnomalyViewport::FindVisibleActorsMatching(World, Args[0])
+		: AnomalyTargeting::FindActorsMatching(World, Args[0]);
 	Accumulator = 0.0f;
 	bHiddenPhase = false;
 	bActive = Targets.Num() > 0;   // zero match -> not applied / inactive (AMB-2)

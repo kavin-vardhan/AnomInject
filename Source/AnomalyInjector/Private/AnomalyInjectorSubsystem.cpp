@@ -9,6 +9,10 @@
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"   // FAutoConsoleCommandWithWorldAndArgs
 
+#include "AnomalyViewport.h"               // FAnomalyViewInfo + core visibility tests (TestVisibility diagnostic)
+#include "AnomalyTargeting.h"              // FindActorsMatching (TestVisibility diagnostic)
+#include "Components/PrimitiveComponent.h" // primitive components (TestVisibility diagnostic)
+
 #include "Anomalies/Anomaly_MissingObject.h"
 #include "Anomalies/Anomaly_Flicker.h"
 #include "Anomalies/Anomaly_TimeDilation.h"
@@ -98,9 +102,11 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 				GAnomalyHeartbeatKey,
 				2.5f,
 				FColor::Green,
-				FString::Printf(TEXT("[IAI] AnomalyInjector ticking (active: %d/%d)"), ActiveCount, Anomalies.Num()));
+				FString::Printf(TEXT("[IAI] AnomalyInjector ticking (active: %d/%d, scoping: %s)"),
+					ActiveCount, Anomalies.Num(), bViewportScopingEnabled ? TEXT("ON") : TEXT("OFF")));
 		}
-		UE_LOG(LogAnomaly, Verbose, TEXT("Heartbeat; active anomalies: %d/%d"), ActiveCount, Anomalies.Num());
+		UE_LOG(LogAnomaly, Verbose, TEXT("Heartbeat; active anomalies: %d/%d; scoping: %s"),
+			ActiveCount, Anomalies.Num(), bViewportScopingEnabled ? TEXT("ON") : TEXT("OFF"));
 	}
 }
 
@@ -139,6 +145,84 @@ void UAnomalyInjectorSubsystem::ListActors() const
 		++Count;
 	}
 	UE_LOG(LogAnomaly, Log, TEXT("--- %d actor(s) ---"), Count);
+}
+
+void UAnomalyInjectorSubsystem::TestVisibility(const TArray<FString>& Args) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// Args: 0=substring 1..3=origin(x y z) 4..6=rotation(pitch yaw roll) [7]=fovDeg [8]=aspect.
+	const FString Substring = Args[0];
+
+	FAnomalyViewInfo View;
+	View.Origin   = FVector(FCString::Atod(*Args[1]), FCString::Atod(*Args[2]), FCString::Atod(*Args[3]));
+	View.Rotation = FRotator(FCString::Atod(*Args[4]), FCString::Atod(*Args[5]), FCString::Atod(*Args[6]));
+	View.HorizontalFOVDeg = Args.IsValidIndex(7) ? FCString::Atof(*Args[7]) : 90.0f;
+	View.AspectRatio      = Args.IsValidIndex(8) ? FCString::Atof(*Args[8]) : (16.0f / 9.0f);
+	View.bValid = true;   // explicit synthetic view
+
+	UE_LOG(LogAnomaly, Log, TEXT("--- IAI.TestVisibility '%s' from O=(%s) R=(%s) fov=%.1f aspect=%.3f ---"),
+		*Substring, *View.Origin.ToString(), *View.Rotation.ToString(), View.HorizontalFOVDeg, View.AspectRatio);
+
+	const TArray<TWeakObjectPtr<AActor>> Actors = AnomalyTargeting::FindActorsMatching(World, Substring);
+	int32 TotalComps = 0;
+	int32 VisibleComps = 0;
+	for (const TWeakObjectPtr<AActor>& Weak : Actors)
+	{
+		AActor* Actor = Weak.Get();
+		if (!Actor)
+		{
+			continue;
+		}
+
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (!Prim)
+			{
+				continue;
+			}
+			const bool bFrustum = AnomalyViewport::IsComponentInFrustum(View, Prim);
+			const bool bVisible = AnomalyViewport::IsComponentVisible(View, World, Prim);
+			const bool bUnoccluded = bFrustum && bVisible;   // occlusion only meaningful when in frustum
+			++TotalComps;
+			if (bVisible)
+			{
+				++VisibleComps;
+			}
+			UE_LOG(LogAnomaly, Log, TEXT("  '%s' (actor '%s') frustum=%d unoccluded=%d visible=%d"),
+				*Prim->GetName(), *Actor->GetName(), bFrustum ? 1 : 0, bUnoccluded ? 1 : 0, bVisible ? 1 : 0);
+		}
+	}
+	UE_LOG(LogAnomaly, Log, TEXT("--- IAI.TestVisibility: %d visible / %d primitive component(s) for '%s' ---"),
+		VisibleComps, TotalComps, *Substring);
+}
+
+// ---------------------------------------------------------------------------
+// Viewport-visibility scoping (opt-in; default OFF)
+// ---------------------------------------------------------------------------
+
+void UAnomalyInjectorSubsystem::SetViewportScoping(bool bEnabled)
+{
+	bViewportScopingEnabled = bEnabled;
+	UE_LOG(LogAnomaly, Log, TEXT("IAI.SetViewportScoping -> %s."), bEnabled ? TEXT("ON") : TEXT("OFF"));
+}
+
+bool UAnomalyInjectorSubsystem::IsViewportScopingEnabled(UWorld* World)
+{
+	if (World)
+	{
+		if (const UAnomalyInjectorSubsystem* Subsystem = World->GetSubsystem<UAnomalyInjectorSubsystem>())
+		{
+			return Subsystem->bViewportScopingEnabled;
+		}
+	}
+	return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -333,5 +417,41 @@ static FAutoConsoleCommandWithWorldAndArgs GRevertAllCmd(
 			{
 				const int32 Count = Subsystem->RevertAllActive();
 				UE_LOG(LogAnomaly, Log, TEXT("IAI.RevertAll -> reverted %d anomaly(ies)."), Count);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GSetViewportScopingCmd(
+	TEXT("IAI.SetViewportScoping"),
+	TEXT("Toggle viewport-visibility scoping for object-scoped anomalies (default OFF). Usage: IAI.SetViewportScoping <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() == 0)
+			{
+				UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.SetViewportScoping <0|1>"));
+				return;
+			}
+			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
+			{
+				Subsystem->SetViewportScoping(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GTestVisibilityCmd(
+	TEXT("IAI.TestVisibility"),
+	TEXT("Diagnostic: test core visibility against a SYNTHETIC view (no live player needed). "
+	     "Usage: IAI.TestVisibility <substring> <ox> <oy> <oz> <pitch> <yaw> <roll> [fovDeg] [aspect]"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 7)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("Usage: IAI.TestVisibility <substring> <ox> <oy> <oz> <pitch> <yaw> <roll> [fovDeg] [aspect]"));
+				return;
+			}
+			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
+			{
+				Subsystem->TestVisibility(Args);
 			}
 		}));
