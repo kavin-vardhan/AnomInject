@@ -128,6 +128,11 @@ are wrong, and M1's test plan applies one actor anomaly at a time.
 **Revisit when we inject simultaneous/compound anomalies** (a likely future need for richer training
 data): the fix is a **subsystem-level "hidden-by" coordinator** (ref-count / owner-set per actor),
 which is addable **without touching the `IAnomaly` interface**. Flagged, not built. (2026-06-09.)
+**Superseded for auto-injection v1 (m6):** the auto-injector sidesteps this entirely with a
+**one-anomaly-per-actor** scheduler invariant (G30) — never two anomalies on one actor, so the shared
+`bHidden` (and forced-LOD) are never contended on the auto path. The coordinator above is still the
+correct path for **deliberate compound/stacked** same-actor anomalies (the deferred compound milestone),
+just no longer the *first* need. (Note added m6, 2026-06-19.)
 
 ### G13 — `r.SetNearClipPlane` is a console COMMAND, not a console VARIABLE (M2)
 The near clip plane has **no** `IConsoleVariable`. In 5.4 source, `r.SetNearClipPlane` is an
@@ -449,3 +454,34 @@ Pinned against 5.1 source:
   safe directions: console finders serve an explicit human instruction (act, don't silently drop); the selector /
   auto-injection must never offer or inject blind (no legitimate visible set ⇒ nothing). A future reader must NOT
   "reconcile" them. (m5 follow-on, session 009, 2026-06-19.)
+
+### G30 — auto-injection v1 is concurrent-but-collision-free BY CONSTRUCTION via a ONE-ANOMALY-PER-ACTOR scheduler invariant (m6)
+`UAnomalyAutoInjectorSubsystem` fires multiple anomalies at once but never collides — **without a ref-count
+coordinator** — by holding two scheduler invariants:
+- **(i) one live fire per id.** The injector registry holds exactly **one instance per id** (`TMap<FName,
+  TUniquePtr<IAnomaly>>`; re-Apply of a live id reverts-then-reapplies — `AnomalyInjectorSubsystem.cpp:250-263` +
+  each anomaly's `if (bActive) Revert();`). So the scheduler **never re-fires a still-live id** (the natural
+  concurrency ceiling = distinct enabled-id count, and clean revert accounting — it only ever reverts what it fired).
+- **(ii) one anomaly per actor.** `Candidates = V − {actors hosting ANY live fire}` (`TryFireOnce`). This single
+  invariant **subsumes BOTH conflict groups** — bHidden (`missing_object`/`flicker` both `SetActorHiddenInGame`) AND
+  forced-LOD (`lod_corruption`/`lod_popping` both `AnomalyLod::SetForcedLod`) — **and** the hide-masks-LOD case (a hide
+  hiding a LOD change = an invisible/mislabeled sample, the exact failure the viewport layer exists to prevent). Among
+  the 4 pool ids all 6 cross-pairs are either same-resource or visibility-masks-LOD, so one-per-actor is strictly
+  simpler than a per-conflict-group guard and needs **no id→group table**.
+- **The registry's one-instance-per-id is thus repurposed as the concurrency limiter** — the same property that makes
+  manual re-injection "last-writer-wins" (G12) is exactly what bounds and de-conflicts the auto path here.
+- **Determinism:** all randomness is one `FRandomStream` seeded once per run; draws happen on a fixed schedule
+  independent of `ApplyAnomaly`'s result (skip-paths consume 0 draws; Candidates-empty consumes only the Id draw; a real
+  attempt draws Id/Target/Hold then registers on success). The seed reproduces the choices given the same visible-set
+  sequence + Step granularity (full run reproducibility is a capture-pipeline concern, not v1).
+- **The deferred ref-count "hidden-by" coordinator + per-(id,target) registry keying (G12) remain the path for
+  DELIBERATE compound/stacked same-actor anomalies** — v1 sidesteps the need entirely via one-per-actor. (m6, session
+  010, 2026-06-19.)
+
+### G31 — conflict-group resource identity is NOT machine-readable from `GetUsage()`; v1 needs no group table anyway (m6)
+`IAnomaly::GetUsage()` returns a **human hint string** (e.g. `"<name-substring> [hz]"`, `"<substring> [lod-index]"` —
+`IAnomaly.h:36`), NOT the mutated resource (bHidden vs forced-LOD). So a conflict-group guard could never have read the
+resource from it. Under G30's one-anomaly-per-actor invariant the auto-injector needs **no group table at all** (the
+guard never reads a group). **Forward note:** IF selective per-group same-actor stacking is ever built (the deferred
+compound-anomaly milestone), encode groups in a **tiny internal id→group table** about the plugin's own ids — never
+parse `GetUsage()`, and don't add a resource accessor to `IAnomaly` (the M1 lock). (m6, session 010, 2026-06-19.)

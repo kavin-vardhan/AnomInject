@@ -150,14 +150,41 @@ front-end over the m4 visible set. It is a separate subsystem; activation is opt
 - **Steam-overlay caveat:** in a Steam-launched build the Steam overlay grabs **Shift+Tab**; it is fine in PIE/standalone.
   Rebind `prev` to a dedicated key to escape it (gotcha G26).
 
+### 6b. Automatic Injection (m6)
+The auto-injector fires the four object-scoped anomalies **randomly on the renderable objects currently on-screen**,
+each auto-reverting after a randomized hold. Separate subsystem; two switches, both default OFF.
+1. `IAI.Auto.Enable 1` — show the auto-injector overlay (right side): the four **types** (1-4) with on/off, the seed +
+   cadence, and the live fires (`id -> target  (Ns)`).
+2. **Pick types** (default: all four on) — keys **1/2/3/4** toggle `missing_object` / `flicker` / `lod_corruption` /
+   `lod_popping`; or `IAI.Auto.Pool <id|all> <0|1>`.
+3. `IAI.Auto.Run 1` (or key **J**) — start firing. Anomalies appear on on-screen objects at a random interval
+   (default [4,9]s), each on a **distinct** actor (one anomaly per actor), and auto-revert after a random hold
+   (default [3,6]s). `IAI.Auto.Run 0` (J) stops + reverts all live fires.
+4. Tune live: `IAI.Auto.Interval <min> <max>`, `IAI.Auto.Hold <min> <max>`, `IAI.Auto.MaxConcurrent <n>`,
+   `IAI.Auto.Persist <0|1>` (off = auto-revert), `IAI.Auto.Seed <int>` (or key **K** to reseed), `IAI.Auto.Status`.
+5. `IAI.Auto.Enable 0` — dormant (everything else byte-identical).
+- **Deterministic drive (no real time / no Enable/Run needed):** `IAI.Auto.Seed <int>` then `IAI.Auto.FireOnce`
+  (one attempt) or `IAI.Auto.Step <seconds>` (advance the scheduler). This is the bridge state-gate entry point.
+- **Keep `IAI.SetViewportScoping 0`** while running (it is self-scoping; a Run-start warning fires if scoping is ON).
+- **Do not run the selector and the auto-injector at once** — unsupported; a warning fires if both are enabled.
+- Keys `1-4`/`J`/`K` are rebindable: `IAI.Auto.Bind <pool1|pool2|pool3|pool4|run|reseed> <KeyName>`.
+
 ## 7. Runtime verification recipe (MCP-driven gate checks)
 The non-visual stage gates are closed by driving PIE over the `unreal-mcpython` bridge (host tooling,
 gotcha G8) and reading state/logs back; the owner eyeballs the visual gates. This is exactly how M1's
 gates 2-7 were verified (2026-06-09) - reuse it for future anomalies.
 
-**Prereqs:** editor open with the plugin built; **press Play in `MainWorld`** (the subsystem is
-Game/PIE-only, so there is NO AnomalyInjector subsystem until PIE is running); the bridge listens on
-`127.0.0.1:12029` (it starts with the editor, survives Stop-PIE).
+**Prereqs:** editor open with the plugin built; **a play session in `MainWorld`** (the subsystems are
+Game/PIE-only, so there is NO AnomalyInjector/Selector/AutoInjector subsystem until PIE is running); the
+bridge listens on `127.0.0.1:12029` (it starts with the editor, survives Stop-PIE). You can start/end the
+play session **headlessly over the bridge** instead of pressing Play by hand (used to drive the m6 gates):
+```python
+les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+if not les.is_in_play_in_editor(): les.editor_play_simulate()   # start Simulate (exposes a view, G23)
+# ... drive gates ...
+les.editor_request_end_play()                                   # end it cleanly
+```
+Get the PIE world after starting: `gw = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()`.
 
 **Core idioms** (via `mcp__unreal-mcpython__util_execute_python`):
 - Get the PIE world (NOT the editor world):
@@ -208,6 +235,14 @@ Game/PIE-only, so there is NO AnomalyInjector subsystem until PIE is running); t
 | selector inject (exact-match) | select an actor, `IAI.Selector.Inject`; read the target's hidden / `forced_lod_model` | the selected actor changed (e.g. `hidden==True` for `missing_object`); **confirm the `=` exact-name hit ONLY that actor**, not a numbered sibling — if stock content has a `<name>`/`<name>2` pair, select `<name>` and assert `<name>2` is untouched. |
 | selector revert | `IAI.Selector.Revert` | the last-injected id is reverted; target restored. |
 | selector OFF (regression) | `IAI.SelectorUI 0`; re-run the `ListAnomalies` / `missing_object SM_Ramp` rows | **byte-identical** to before the selector existed (subsystem dormant); the **`=` sentinel** leaves substring gates (`SM_Ramp` → 2 ramps, `Bot`, `Foliage`) unchanged. |
+| auto fire (deterministic) | `IAI.Auto.Enable 1`; `IAI.Auto.Seed 1234`; `IAI.Auto.Pool all 0`; `IAI.Auto.Pool missing_object 1`; `IAI.Auto.FireOnce`; `IAI.Auto.Status` | exactly **1** live fire, id `missing_object`, target in the renderable-visible set, target `hidden==True`; the `=` hit ONLY that actor (no prefix-sibling). |
+| auto collision-free (concurrent) | enable `{missing_object, flicker, lod_corruption}`; repeat `IAI.Auto.Step 5`; `IAI.Auto.Status` | **no two live fires on one actor** (OVERRIDE-1) and **no id double-live** (i); live count ≤ enabled-id count. |
+| auto auto-revert (R-LIFE) | `IAI.Auto.Hold 1 1`; `IAI.Auto.FireOnce`; `IAI.Auto.Step 1.5`; `IAI.Auto.Status` | the fire **auto-reverted** (live count drops; target restored; log `Auto.Revert ... hold elapsed`). Then `IAI.Auto.Persist 1`; `FireOnce`; `Step 100` → still live (persists). |
+| auto no-blind-fire | aim at nothing (empty renderable-visible set); `IAI.Auto.FireOnce`/`Step` | **zero** fires (`GetVisibleRenderableActors` empty → never inject blind). |
+| auto seed reproducibility | same `IAI.Auto.Seed S` + same `FireOnce`/`Step` sequence + same camera | identical fire/target/hold sequence across two runs (R-SEED; choices reproduce given the same visible-set sequence). |
+| auto zero-match | `IAI.Auto.Pool all 0`; `IAI.Auto.Pool lod_corruption 1`; with a pure-VFX actor the only visible target: `IAI.Auto.FireOnce` | **no live fire registered**; HUD/log "0 matched (skipped)"; the stream still advanced (Id/Target/Hold drawn) — no slot leak. |
+| auto OFF (regression) | `IAI.Auto.Enable 0` (default); re-run the `ListAnomalies` / `missing_object SM_Ramp` rows | **byte-identical** (subsystem dormant — Tick early-returns, no HUD delegate, no stream churn). |
+| auto coexistence-warn | `IAI.SelectorUI 1` then `IAI.Auto.Enable 1`; separately `IAI.SetViewportScoping 1` then `IAI.Auto.Run 1` | each logs a **Warning** (selector+auto both on; scoping ON at run-start). Neither **blocks** (R-COEXIST). |
 
 **Synthetic-view gate recipe (viewport core).** The core is a pure function of (explicit view, world), so it is
 state-gatable deterministically with `IAI.TestVisibility` — no live player needed. Read a target's world bounds

@@ -1,6 +1,17 @@
 # Architecture (living — current as-built)
 
-> **Reflects:** **Object Selector + Inject UI (m5)** — a new, separate **`UAnomalySelectorSubsystem`**
+> **Reflects:** **Automatic Injection (m6)** — a new, separate **`UAnomalyAutoInjectorSubsystem`**
+> (Game+PIE world subsystem) that, while running, fires the four object-scoped anomalies **randomly on the
+> renderable objects currently on-screen**, each auto-reverting after a randomized hold. Concurrent but
+> **collision-free by construction** via a one-anomaly-per-actor scheduler invariant (no coordinator — G30);
+> all randomness from one seeded `FRandomStream`. It calls only the injector's public `Apply`/`Revert` — the
+> injector, `IAnomaly`, the anomalies, and the leaf helpers are **untouched**. Same explicit-core / thin-shell
+> split as m5: a deterministic core (`AdvanceTime`/`TryFireOnce`, bridge-driveable as `IAI.Auto.Step`/`IAI.Auto.FireOnce`)
+> under two thin shells (`IAI.Auto.*` console + a raw-input/`UDebugDrawService` HUD). Two switches, both default
+> OFF → **dormant → existing gates byte-identical**: `IAI.Auto.Enable <0|1>` (HUD/keys) and `IAI.Auto.Run <0|1>`
+> (firing). **No new dependency** (`FRandomStream` = Core). VersionName **0.7.0**. **Catalog: still 7 anomalies**
+> (auto-injection is orchestration over the existing catalog — no new types).
+> Below this it still reflects the **Object Selector + Inject UI (m5)** — a separate **`UAnomalySelectorSubsystem`**
 > (Game+PIE world subsystem) that lets the player **select a visible on-screen object** (Tab-cycle over the
 > m4 visible set) and **inject** one of the four object-scoped anomalies on it, then revert. It calls the
 > existing injector's public `Apply`/`Revert` — the injector subsystem, `IAnomaly`, and the anomalies are
@@ -8,7 +19,7 @@
 > (the only leaf-helper change; additive, substring path byte-identical). Activation is opt-in via
 > **`IAI.SelectorUI <0|1>` (default OFF)** → dormant → existing gates byte-identical. First dependency
 > addition since M0: **`InputCore`** (FKey/EKeys for raw input polling); the HUD is immediate-mode
-> (`UDebugDrawService` + `UCanvas` + `DrawDebug*`, all Engine) so **no Slate/UMG**. VersionName **0.6.0**.
+> (`UDebugDrawService` + `UCanvas` + `DrawDebug*`, all Engine) so **no Slate/UMG** (m5 was VersionName 0.6.0).
 > Below this it still reflects the **Viewport-Visibility Layer (m4)** — a shared **`AnomalyViewport`**
 > helper (frustum AND occlusion against an explicit view) and an **opt-in** toggle `IAI.SetViewportScoping <0|1>`
 > (default **OFF**) that routes the four object-scoped, primitive-backed anomalies — `missing_object`,
@@ -222,6 +233,20 @@ its public methods; the keys + HUD are the separate real-Play eyeball shell):
 - `IAI.Selector.Revert` — revert the last anomaly the selector injected.
 - `IAI.Selector.Status` — log the selected actor, the visible-set names, and the chosen anomaly (the state-gate readback).
 - `IAI.SelectorBind <next|prev|cycle|inject|revert> <KeyName>` — rebind a key (validated via `EKeys::GetKeyDetails`).
+
+Automatic Injection (m6) — drive the `UAnomalyAutoInjectorSubsystem` (console thin-shell; the keys + HUD are the
+separate real-Play eyeball shell). `Step`/`FireOnce` drive the deterministic core directly (no Enable/Run needed):
+- `IAI.Auto.Enable <0|1>` — eyeball shell on/off (HUD + key polling). Default **OFF** → dormant.
+- `IAI.Auto.Run <0|1>` — start/stop the auto-tick firing loop (requires Enable; re-seeds + arms the first interval).
+- `IAI.Auto.Seed <int>` — set the run seed (re-initializes the stream now; default seed is time-based).
+- `IAI.Auto.Pool <id|all> <0|1>` — enable/disable a pool id (or all four) for firing.
+- `IAI.Auto.Interval <minSec> <maxSec>` / `IAI.Auto.Hold <minSec> <maxSec>` — inter-fire interval / per-fire hold ranges.
+- `IAI.Auto.MaxConcurrent <n>` — cap on concurrent live fires (also naturally bounded by the enabled-id count).
+- `IAI.Auto.Persist <0|1>` — persist-until-manual (default OFF = auto-revert after the hold).
+- `IAI.Auto.Step <seconds>` — advance the scheduler by N seconds (deterministic core drive; the bridge gate timing knob).
+- `IAI.Auto.FireOnce` — force one fire attempt now (deterministic core drive).
+- `IAI.Auto.Status` — log enable/run state, seed, cadence, the enabled set, and the live fires (the state-gate readback).
+- `IAI.Auto.Bind <pool1|pool2|pool3|pool4|run|reseed> <KeyName>` — rebind a key (validated via `EKeys::GetKeyDetails`).
 *(M0's `IAI.HideActor` / `IAI.ShowAllActors` were removed — superseded by `IAI.Apply missing_object`
 / `IAI.RevertAll`.)*
 
@@ -302,6 +327,59 @@ and all seven anomalies are untouched** (the no-core-change streak holds; this i
   of `AdvanceSelection` / `SelectPrevious`. Bounds the synchronous occlusion-trace cost (occlusion runs only for
   in-frustum actors).
 
+## Automatic Injection — `UAnomalyAutoInjectorSubsystem` (m6)
+A **third, separate** `UTickableWorldSubsystem` (Game + PIE only) — not the injector, not the selector — that
+auto-fires the four object-scoped anomalies on the renderable objects currently on-screen and auto-reverts them.
+It calls only the injector's public `ApplyAnomaly` / `RevertAnomaly`; **the injector, `IAnomaly`, the anomalies,
+and the leaf helpers are untouched** (auto-injection is orchestration over the existing catalog). v1 pool = the four
+object-scoped ids (`missing_object`, `flicker`, `lod_corruption`, `lod_popping`); globals + `lighting_mismatch` are a
+future non-object track.
+
+- **Concurrent but collision-free BY CONSTRUCTION (G30), via two scheduler invariants** — no ref-count coordinator:
+  - **(i) one live fire per id.** The injector registry holds one instance per id (re-Apply reverts-then-reapplies),
+    so the scheduler never re-fires a still-live id. Clean revert accounting + the natural concurrency ceiling
+    (max live ≤ distinct enabled-id count).
+  - **(ii) one anomaly per actor.** Targets are drawn from `V − {actors hosting ANY live fire}`. This one invariant
+    subsumes **both** conflict groups (bHidden: `missing_object`/`flicker`; forced-LOD: `lod_corruption`/`lod_popping`)
+    **and** the hide-masks-LOD case (a hide hiding a LOD change = an invisible/mislabeled sample). So there is no
+    id→group table. (The deferred ref-count coordinator from G12 is only needed for *deliberate* compound/stacked
+    same-actor anomalies.)
+- **Explicit, deterministic core / thin shells (mirrors m4/m5).** The core is `AdvanceTime(DeltaSeconds)` (service
+  auto-reverts one pass, then at most one timed fire window) and `TryFireOnce()` (force one attempt). It is a pure
+  function of (seeded stream, enable-set, cadence, the renderable-visible set) and is **driveable over the bridge
+  without real time** — `IAI.Auto.Step` → `AdvanceTime`, `IAI.Auto.FireOnce` → `TryFireOnce`. Two thin shells drive it:
+  the `IAI.Auto.*` console commands (bridge gate) and per-tick raw-key polling + an immediate-mode `UDebugDrawService`
+  HUD (real-Play eyeball; anchored to the right so it does not overlap the selector's top-left HUD).
+- **Three separated states.** `Enable` (`IAI.Auto.Enable`) = the eyeball shell only (registers the HUD, polls keys);
+  `Run` (`IAI.Auto.Run`) = the auto-tick auto-feed (Tick → `AdvanceTime(DeltaTime)`), forced OFF when !Enabled;
+  `Step`/`FireOnce` = direct manual core drive, working regardless of Enable/Run (given a configured enable-set + seed).
+  **Both switches default OFF → the subsystem is dormant (Tick early-returns, no HUD delegate) → every existing M0–m5
+  gate is byte-identical** (the regression guarantee).
+- **Self-scoping targeting (R-CAD).** Each fire attempt draws candidates from
+  `AnomalyViewport::GetVisibleRenderableActors(World)` directly and applies via the `=` exact-match token
+  (`"=" + Actor->GetName()`) so it hits only that actor. It does **not** use `IAI.SetViewportScoping` (keeping it ON
+  would make the `=` apply redundantly re-test visibility and could drop a target — m5 fact #3; a warning fires at
+  Run-start if scoping is ON). **No view → fire nothing this window** (the empty-on-no-view contract, R6/G29 — never
+  inject blind). A drawn (LOD id, pure-VFX actor) pair legitimately yields a zero-match: it is surfaced ("0 matched")
+  and not registered, never a silent slot leak.
+- **Lifecycle (R-LIFE).** Each fire records `{id, target weak-ptr, name, secondsRemaining}`; on its hold elapsing the
+  scheduler calls `RevertAnomaly(id)` and frees the slot. `IAI.Auto.Persist 1` (default off) suppresses auto-revert
+  (fires persist until run-stop / manual revert / teardown). On Run-stop and disable it reverts its own live fires; on
+  `Deinitialize` it only unregisters the HUD + clears (no inject calls — the injector restores everything on its own
+  teardown, since subsystem teardown order is unspecified).
+- **Determinism (R-SEED).** All randomness is one `FRandomStream`, seeded once per run (console-settable; default
+  time-based via `FPlatformTime::Cycles`). The draw protocol is **fixed and independent of `ApplyAnomaly`'s result**:
+  skip-paths (cap, empty eligible, empty view) consume zero draws; a Candidates-empty skip consumes exactly the Id
+  draw; a real attempt draws Id, Target, Hold (in that order) then registers on success only; an interval draw arms
+  each fire window. The seed reproduces the *choices* given the same sequence of visible sets (and Step granularity) —
+  full run reproducibility with fixed visible sets is a capture/replay concern, not v1.
+- **Coexistence (R-COEXIST).** Manual selector/console injection of a pool id during an auto run is **unsupported** (it
+  clobbers via the registry's one-instance-per-id; the auto-injector tracks only its own fires) — detected cases
+  (selector UI on; viewport scoping on) are **warned, not blocked**.
+- **Defaults.** Keys `1`/`2`/`3`/`4` toggle the four types, `J` start/stop, `K` reseed (distinct from the selector's
+  Tab/C/G/H, rebindable via `IAI.Auto.Bind`); interval [4,9]s, hold [3,6]s, MaxConcurrent 4 (tuned for clear
+  eyeballing — tighten later for dataset density). All console-settable.
+
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:
 - **Capture exactly the state you mutate, before mutating it.** Globals: one baseline (e.g.
@@ -347,13 +425,23 @@ across all seven anomalies — the M1 `IAnomaly` lock held through M3, including
 - **Cross-anomaly target overlap** = last-writer-wins on the single `bHidden` flag (gotcha G12). Fine
   for one-anomaly-at-a-time use (terminal state after `RevertAll` is always visible). Compound /
   simultaneous anomalies will need a subsystem-level "hidden-by" coordinator — addable **without**
-  touching `IAnomaly`. Flagged, not built.
+  touching `IAnomaly`. Flagged, not built. **The m6 auto-injector avoids this on its own path** with a
+  one-anomaly-per-actor scheduler invariant (G30), so it never contends the flag; the coordinator is only
+  for *deliberate* compound same-actor anomalies.
+- **Manual + auto injection together is unsupported (m6).** Manual selector/console injection of a pool id
+  while the auto-injector is running clobbers via the registry's one-instance-per-id (the auto-injector can
+  only track its own fires). Detected and warned, not blocked (R-COEXIST).
+- **Auto-injection reproducibility is over the bridge / Step granularity, not real Play.** The seed
+  reproduces the choices given the same visible-set sequence; full run reproducibility with fixed visible
+  sets is a capture/replay-pipeline concern (G30).
 
 ## Game-agnostic invariant
 The module depends only on `Core`/`CoreUObject`/`Engine`/`InputCore` and never references host (StackOBot) types.
-(`InputCore` is the m5 addition — `FKey`/`EKeys` for the selector's raw input polling + keybinds; no Slate/UMG.) The
-selector is game-agnostic by construction: its HUD draws via `UDebugDrawService` (no host HUD class — G25) and its
-input is raw key polling (no host input mappings — G26). All anomalies use public UE APIs only —
+(`InputCore` is the m5 addition — `FKey`/`EKeys` for raw input polling + keybinds; no Slate/UMG. **m6 added no
+dependency** — the auto-injector's `FRandomStream` is Core, its HUD/input reuse the same Engine/InputCore types.) The
+selector AND the auto-injector are game-agnostic by construction: their HUDs draw via `UDebugDrawService` (no host HUD
+class — G25) and their input is raw key polling (no host input mappings — G26); the auto-injector's pool/keybinds are
+about the plugin's own four ids, never host types. All anomalies use public UE APIs only —
 `SetActorHiddenInGame`, `UGameplayStatics`, `ULightComponent`
 setters, `UStaticMeshComponent::SetForcedLodModel`, `USkinnedMeshComponent::SetForcedLOD`/`GetForcedLOD`/
 `GetNumLODs`, and the `r.SetNearClipPlane` console command + `GNearClippingPlane` global. **Neither M2
