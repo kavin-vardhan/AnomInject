@@ -170,11 +170,16 @@ shifts stream position:
   the owner real-Play eyeball is the one remaining gate.
 
 ## Hand-off
-- **PENDING owner real-Play eyeball only** (all bridge gates green). The owner presses Play in `MainWorld`,
-  runs `IAI.Auto.Enable 1` → picks types (keys 1-4) → `IAI.Auto.Run 1` (J), and confirms anomalies fire only
-  on on-screen renderable objects, auto-revert after their hold, never two on one actor, and never fire with
-  nothing visible. On green → one `feat:` commit (the two new files + `.uplugin` + docs) + `git tag m6`.
-  Bridge/host stay unversioned (G8).
+- **ACCEPTED** — owner real-Play eyeball green (anomalies fire only on on-screen renderable objects,
+  auto-revert after their hold, one-per-actor, never blind) on top of all bridge state-gates green. Committed
+  **`41ba104`**, tagged **`m6`** (one `feat:` commit: the 2 new source files + `.uplugin` 0.7.0 + the 4 doc
+  updates + this journal + the resolved `auto-injection-handoff.md`). Acceptance recorded in a follow-up
+  `docs:` commit (m5 precedent; m6 stays pointed at the `feat:` commit — no retag). Bridge/host stay
+  unversioned (G8).
+- **Next milestone after m6:** the High-priority new bug types (born viewport-aware AND auto-injectable),
+  then the Tier-2 runtime control server (the ships-as-a-build control surface). The deferred compound/
+  stacked-anomaly path (ref-count "hidden-by" coordinator + per-(id,target) registry keying, G12) is only
+  needed when we deliberately want compound same-actor anomalies. See the post-m6 session-close handoff doc.
 - **Next milestone after m6:** the High-priority new bug types (born viewport-aware AND auto-injectable),
   then the Tier-2 runtime control server (the ships-as-a-build control surface). The deferred compound/
   stacked-anomaly path (ref-count "hidden-by" coordinator + per-(id,target) registry keying, G12) is only

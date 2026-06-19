@@ -10,8 +10,8 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **Latest (in flight):** **Automatic Injection (m6) — CODE-COMPLETE, clean compile (exit 0); ALL BRIDGE GATES GREEN;
-  owner real-Play eyeball PENDING; NOT yet committed/tagged (2026-06-19).** New **separate** `UAnomalyAutoInjectorSubsystem`
+- **Latest as-built:** **Automatic Injection — COMPLETE (committed `41ba104`, tagged `m6`) (2026-06-19).** New
+  **separate** `UAnomalyAutoInjectorSubsystem`
   (`Public/AnomalyAutoInjectorSubsystem.h` + `Private/AnomalyAutoInjectorSubsystem.cpp`, `UTickableWorldSubsystem`,
   Game+PIE) that auto-fires the **4** object-scoped anomalies **randomly on the renderable objects currently on-screen**
   (drawn from `AnomalyViewport::GetVisibleRenderableActors` + applied via the `=` exact-match token), each
@@ -33,8 +33,7 @@ and is the single source of truth for the project.
   GREEN (MainWorld Simulate):** deterministic headless fire + `=` exact-match (1 of 21 EnergyOrb siblings hit),
   auto-revert on hold-elapse, collision-free concurrent (3 distinct ids × 3 distinct actors, no 4th fire — invariants
   (i)+(ii)+cap), seed-reproducible target, OFF-regression byte-identical (`SM_Ramp`→2), both coexistence warnings fire
-  without blocking. **Next:** owner real-Play eyeball → one `feat:` commit + `git tag m6`.
-  → `docs/sessions/2026-06-19-010-auto-injection.md`.
+  without blocking. **Owner real-Play eyeball green — ACCEPTED.** → `docs/sessions/2026-06-19-010-auto-injection.md`.
 - **Prior milestone (as-built):** **Object Selector + Inject UI (minimal) — COMPLETE (committed `aa2a3a4`, tagged `m5`) (2026-06-19).**
   A new **separate** `UAnomalySelectorSubsystem` (`Public/AnomalySelectorSubsystem.h` + `Private/AnomalySelectorSubsystem.cpp`,
   `UTickableWorldSubsystem`, Game+PIE only) that lets the player **select a visible on-screen object** (Tab-cycle over the
@@ -125,17 +124,15 @@ and is the single source of truth for the project.
   `lod_corruption`** was the M2 stopgap; **resolved in M3** (static + skeletal via `AnomalyLod`, G19). M2 ships 2 helpers (A1, A3).
 - **Resolved (M1):** **AMB-3 → capture-baseline** — `time_dilation` Revert restores the pre-Apply value.
   Generalized in M2 to the **per-target/global state-capture convention** (see architecture.md). G11.
-- **In flight:** **m6 (automatic injection)** — code-complete + compile-green + **all bridge gates GREEN**; **only the
-  owner real-Play eyeball remains; commit + `git tag m6` after it.** **Next action:** owner presses Play in `MainWorld`,
-  `IAI.Auto.Enable 1` → pick types (keys 1-4) → `IAI.Auto.Run 1` (J), confirms on-screen-only fires that auto-revert,
-  one-per-actor, never blind (runbook §6b). After m6: the High-priority new bug types (born viewport-aware AND auto-injectable), then the
-  Tier-2 runtime control server (ships-as-a-build control surface). Also still queued: the `flicker→blinking` rename +
-  new `flickering` (handoff §2.3), region-darkening (§2.4), the selector's screen-X ordering polish. Bridge/host stay
-  unversioned (G8 unchanged).
+- **In flight:** none (m6 committed `41ba104` + tagged; a follow-up `docs:` commit will sweep the post-m6 session-close
+  handoff doc + the m6-acceptance notes — m6 stays pointed at the `feat:` commit, no retag). **Next action:** the
+  High-priority new bug types (born viewport-aware AND auto-injectable), then the Tier-2 runtime control server
+  (ships-as-a-build control surface). Also still queued: the `flicker→blinking` rename + new `flickering` (handoff §2.3),
+  region-darkening (§2.4), the selector's screen-X ordering polish. Bridge/host stay unversioned (G8 unchanged).
 - Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`), M2.5+M2.6 (`…-005`), M3 (`…-006`) fully passed
   + tagged; rename refactor (`…-007`) committed `351c7e8` (no tag); **Viewport-Visibility Layer (`…-008`) committed
   `7c34275`, tagged `m4`**; **Object Selector + Inject UI (`…-009`) committed `aa2a3a4`, tagged `m5`**;
-  **Automatic Injection (`…-010`) code-complete + compile-green, gates/eyeball pending, uncommitted.**
+  **Automatic Injection (`…-010`) committed `41ba104`, tagged `m6`.**
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the
