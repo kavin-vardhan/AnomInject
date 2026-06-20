@@ -47,8 +47,12 @@ fixes had to respect that, and the two fix commits had to be **path-scoped** to 
   surface stays byte-identical even with a radius set (threading the radius as a param, not reading the global
   inside the chokepoint, is what makes this opt-out possible).
 - **Sentinel default OFF:** `R <= 0` disables the cull entirely → byte-identical regression guarantee.
-- **Debug sphere (dev):** `UDebugDrawService("Game")` delegate draws a yellow sphere of radius R centered on
-  the **live pawn, re-resolved every frame**; registered/unregistered on the OFF↔ON boundary (G25 hygiene).
+- **Debug sphere (dev):** a yellow sphere of radius R centered on the **live pawn, re-resolved every frame**,
+  drawn from `FWorldDelegates::OnWorldPostActorTick` (PRE-scene-render — the same phase as the selector's
+  Tick-driven box); registered/unregistered on the OFF↔ON boundary. **Correction (post-acceptance):** the sphere
+  first shipped via a `UDebugDrawService("Game")` delegate and was **invisible** — that delegate fires POST scene
+  render, where a one-frame debug line is cleared before it can draw (a positive persistent-batcher lifetime did
+  not fix it either). The world-tick (pre-render) hook is the working fix; see **G34** for the full lesson.
   Accepted minor: a module unload while a radius is set leaks the handle (a teardown hook would touch the
   module `.cpp`, out of scope).
 - **No new dependency** (`IConsoleManager`/`FVector` = Core; `UDebugDrawService`/`DrawDebugSphere`/`APawn` =

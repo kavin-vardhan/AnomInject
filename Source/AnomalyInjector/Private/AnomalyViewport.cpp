@@ -22,7 +22,7 @@
 #include "Engine/HitResult.h"             // FHitResult (5.1)
 #include "CollisionQueryParams.h"         // FCollisionQueryParams
 #include "HAL/IConsoleManager.h"          // FAutoConsoleCommand (IAI.SetPollRadius)
-#include "Debug/DebugDrawService.h"       // UDebugDrawService::Register (poll-radius debug sphere, G25)
+#include "Engine/EngineBaseTypes.h"       // ELevelTick (FWorldDelegates::OnWorldPostActorTick signature)
 #include "DrawDebugHelpers.h"             // DrawDebugSphere (poll-radius debug sphere)
 
 namespace
@@ -54,19 +54,23 @@ namespace
 	}
 
 	/**
-	 * Dev debug-draw delegate (UDebugDrawService "Game", G25): draws the poll radius as a sphere centered on the
-	 * LIVE pawn, re-resolved EVERY frame (the pawn moves — never cache a position at registration). Self-gates on
-	 * R > 0, so it is a cheap no-op when the cull is off; SetPollRadius (un)registers it on the OFF<->ON boundary.
+	 * Dev poll-radius sphere, drawn from FWorldDelegates::OnWorldPostActorTick — which fires during the world tick,
+	 * BEFORE the scene render. This is the SAME phase as the selector's Tick-driven DrawDebugBox (which renders
+	 * correctly), so a one-frame debug line (LifeTime=-1) is rendered this frame. The earlier UDebugDrawService
+	 * "Game" delegate fired POST scene render, where one-frame debug lines are cleared before they can draw — that
+	 * is why the sphere never appeared (G34). Centered on the LIVE pawn, re-resolved every frame (the pawn moves).
+	 * Self-gates on R > 0 and a Game/PIE world, so it is a cheap no-op when off; (un)registered on the OFF<->ON
+	 * boundary by SetPollRadius.
 	 */
-	void DrawPollRadiusHUD(UCanvas* /*Canvas*/, APlayerController* PC)
+	void DrawPollRadiusTick(UWorld* World, ELevelTick /*TickType*/, float /*DeltaSeconds*/)
 	{
 		const float R = GPollRadius;
-		if (R <= 0.0f || !PC)
+		if (R <= 0.0f || !World || !World->IsGameWorld())   // IsGameWorld -> only PIE/standalone, never the editor world
 		{
 			return;
 		}
-		UWorld* World = PC->GetWorld();
-		if (!World)
+		APlayerController* PC = World->GetFirstPlayerController();
+		if (!PC)
 		{
 			return;
 		}
@@ -80,16 +84,7 @@ namespace
 			FRotator Unused;
 			PC->GetPlayerViewPoint(Center, Unused);   // no pawn -> camera origin (matches ResolvePollOrigin's fallback)
 		}
-		// PHASE (load-bearing): this delegate fires during the POST-scene canvas/HUD draw, after the world line
-		// batcher has already rendered this frame. A one-frame line (LifeTime <= 0) queued here is cleared before
-		// the next frame's scene pass and NEVER renders (that is why the sphere was invisible). A small POSITIVE
-		// lifetime routes the lines to the PERSISTENT batcher, which survives into the next scene pass; re-added
-		// every frame, the sphere is continuously visible (~1 frame latency). ~2x the last frame delta keeps it
-		// alive just long enough (minimal motion smear) while surviving low framerates via the 0.05s floor.
-		// (The selector's DrawDebugBox can use LifeTime=-1 only because it is drawn from the subsystem Tick, which
-		// runs BEFORE the scene render. AnomalyViewport has no Tick, hence the persistent-batcher route here.)
-		const float SphereLife = FMath::Max(World->GetDeltaSeconds() * 2.0f, 0.05f);
-		DrawDebugSphere(World, Center, R, 24, FColor::Yellow, /*bPersistent=*/false, SphereLife, /*DepthPriority=*/0, /*Thickness=*/2.0f);
+		DrawDebugSphere(World, Center, R, 24, FColor::Yellow, /*bPersistent=*/false, /*LifeTime=*/-1.0f, /*DepthPriority=*/0, /*Thickness=*/2.0f);
 	}
 
 	/**
@@ -650,15 +645,16 @@ namespace AnomalyViewport
 		const bool bNowOn = (Radius > 0.0f);
 		GPollRadius = Radius;
 
-		// Dev debug-draw sphere lifecycle (G25 hygiene): register on OFF->ON, unregister on ON->OFF. While ON the
-		// delegate self-gates on R > 0 anyway; this keeps a dangling delegate from lingering once the cull is off.
+		// Dev debug-sphere lifecycle (hygiene): register the pre-render world-tick draw hook on OFF->ON, remove it on
+		// ON->OFF. The hook self-gates on R > 0 anyway; removing it keeps no dangling delegate once the cull is off.
 		if (bNowOn && !bWasOn && !GPollRadiusDrawHandle.IsValid())
 		{
-			GPollRadiusDrawHandle = UDebugDrawService::Register(TEXT("Game"), FDebugDrawDelegate::CreateStatic(&DrawPollRadiusHUD));
+			GPollRadiusDrawHandle = FWorldDelegates::OnWorldPostActorTick.AddStatic(&DrawPollRadiusTick);
+			UE_LOG(LogAnomaly, Log, TEXT("IAI.SetPollRadius: debug sphere draw hook registered (real Play only)."));
 		}
 		else if (!bNowOn && bWasOn && GPollRadiusDrawHandle.IsValid())
 		{
-			UDebugDrawService::Unregister(GPollRadiusDrawHandle);
+			FWorldDelegates::OnWorldPostActorTick.Remove(GPollRadiusDrawHandle);
 			GPollRadiusDrawHandle.Reset();
 		}
 	}

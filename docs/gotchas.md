@@ -546,22 +546,23 @@ An optional distance cull on the LIVE renderable-visible poll: an actor is in th
   (`IsActorRenderableVisible` / `FilterRenderableVisibleActors`) pass radius **0** so the synthetic-gate surface stays
   byte-identical even when a radius is set. (Reading the global *inside* the chokepoint would have wrongly culled the
   synthetic surface too — hence the parameter.)
-- **Debug sphere (dev):** when `R > 0`, a `UDebugDrawService("Game")` delegate draws the radius as a yellow sphere
-  centered on the LIVE pawn, re-resolved **every frame** (never cache a position at registration — the pawn moves).
-  Registered/unregistered on the OFF↔ON boundary by `SetPollRadius` (G25 hygiene). Like all `UDebugDrawService` HUDs
-  it draws **only in real Play** (non-editor game view), not a Simulate/editor viewport. Accepted minor: a module
-  unload *while a radius is set* leaks the handle (a teardown hook would mean touching the module `.cpp`, out of this
-  fix's "touch only AnomalyViewport" scope) — fine for a dev-only viz.
-- **`DrawDebug*` from a `UDebugDrawService` delegate needs a POSITIVE LifeTime (persistent batcher), NOT -1.** The
-  delegate fires during the **post-scene** canvas/HUD draw — after the world line batcher has already rendered for
-  the frame. A one-frame line (`LifeTime <= 0`, the per-frame batcher) queued there is cleared before the next
-  frame's scene pass and **never renders** (the sphere shipped invisible for exactly this reason). A small positive
-  lifetime routes the lines to the **persistent** batcher, which survives into the next scene pass; re-added every
-  frame the shape is continuously visible (~1 frame latency). We use `max(2 * World->GetDeltaSeconds(), 0.05)` to
-  refresh with minimal motion smear while surviving low framerates. **Contrast:** the selector's `DrawDebugBox`
-  uses `LifeTime=-1` fine because it is drawn from the subsystem **Tick** (PRE-scene-render); a free-function
-  helper like `AnomalyViewport` has no Tick, so the persistent-batcher route is the correct fix. (Fixed 2026-06-20.)
-- **No new dep** (`IConsoleManager`/`FVector` = Core; `UDebugDrawService`/`DrawDebugSphere`/`APawn` = Engine). (Viewport
+- **Debug sphere (dev):** when `R > 0`, a yellow sphere of radius R is drawn centered on the LIVE pawn, re-resolved
+  **every frame** (never cache a position at registration — the pawn moves). The draw hook is (un)registered on the
+  OFF↔ON boundary by `SetPollRadius`. It draws **only in real Play** (Game/PIE world, gated by `World->IsGameWorld()`),
+  never a Simulate/editor viewport. Accepted minor: a module unload *while a radius is set* leaks the handle (a
+  teardown hook would mean touching the module `.cpp`, out of this fix's "touch only AnomalyViewport" scope).
+- **Drawing the 3D sphere needs a PRE-scene-render hook — a `UDebugDrawService` delegate does NOT work (the real
+  bug).** First attempt drew the sphere from a `UDebugDrawService("Game")` delegate; it never appeared. That delegate
+  fires during the **post-scene** canvas/HUD draw, *after* the world line batcher has already rendered for the frame,
+  so a one-frame debug line queued there is cleared before the next scene pass. **A positive (persistent-batcher)
+  lifetime did NOT fix it either** — still invisible (the persistent batcher's render state isn't reliably picked up
+  from that late phase). **The fix that works: draw from `FWorldDelegates::OnWorldPostActorTick`** (fires during the
+  world tick, BEFORE the scene render) with `LifeTime=-1` — the **same phase** as the selector's Tick-driven
+  `DrawDebugBox`, which always rendered correctly. Lesson: a one-frame `DrawDebug*` must be issued from a pre-render
+  per-frame context (subsystem `Tick` or a world-tick delegate); a free-function helper like `AnomalyViewport` (no
+  Tick) uses the world-tick delegate. The `UDebugDrawService` path is for **canvas (2D)** HUD draws, not 3D line-batcher
+  shapes. (Corrected 2026-06-20 after two failed attempts.)
+- **No new dep** (`IConsoleManager`/`FVector` = Core; `FWorldDelegates`/`DrawDebugSphere`/`APawn` = Engine). (Viewport
   fix, 2026-06-20.)
 
 ### G35 — UE unity builds merge .cpp files into ONE TU; anonymous-namespace helpers must be file-unique (m7)
