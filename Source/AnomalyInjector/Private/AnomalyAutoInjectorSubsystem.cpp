@@ -15,6 +15,7 @@
 #include "InputCoreTypes.h"             // EKeys, FKey
 #include "HAL/IConsoleManager.h"        // FAutoConsoleCommandWithWorldAndArgs
 #include "HAL/PlatformTime.h"           // FPlatformTime::Cycles (default time-based seed)
+#include "CoreGlobals.h"                // GFrameCounter (fire start-frame stamp, m7 capture/labeling)
 
 namespace
 {
@@ -158,7 +159,7 @@ void UAnomalyAutoInjectorSubsystem::SetRunning(bool bInRunning)
 	bRunning = bInRunning;
 	if (bRunning)
 	{
-		RevertAllLive();          // clean slate (e.g. any leftover FireOnce test fires)
+		RevertAllLiveFires();     // clean slate (e.g. any leftover FireOnce test fires)
 		WarnOnCoexistence();      // selector-on / scoping-on warnings at run-start
 		Stream.Initialize(Seed);  // reproducible from the seed
 		// Arm the first interval (NOT 0): an interval draw precedes EVERY fire window, including the first
@@ -168,7 +169,7 @@ void UAnomalyAutoInjectorSubsystem::SetRunning(bool bInRunning)
 	}
 	else
 	{
-		const int32 Reverted = RevertAllLive();
+		const int32 Reverted = RevertAllLiveFires();
 		UE_LOG(LogAnomaly, Log, TEXT("IAI.Auto.Run -> OFF (reverted %d live fire(s))."), Reverted);
 	}
 }
@@ -279,6 +280,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		Fire.Target = Target;
 		Fire.TargetName = TargetName;
 		Fire.SecondsRemaining = Hold;
+		Fire.StartFrame = GFrameCounter;   // capture/labeling: the fire's start frame (m7)
 		LiveFires.Add(Fire);
 		LastFireResult = FString::Printf(TEXT("fire %s on %s (hold %.1fs)"), *Id.ToString(), *TargetName, Hold);
 	}
@@ -408,7 +410,9 @@ TArray<FAutoLiveFireInfo> UAnomalyAutoInjectorSubsystem::GetLiveFires() const
 		FAutoLiveFireInfo Info;
 		Info.Id = Fire.Id;
 		Info.Target = Fire.TargetName;
+		Info.TargetActor = Fire.Target;          // the fired actor, for bounds projection (m7)
 		Info.SecondsRemaining = Fire.SecondsRemaining;
+		Info.StartFrame = Fire.StartFrame;
 		Result.Add(Info);
 	}
 	return Result;
@@ -514,7 +518,7 @@ int32 UAnomalyAutoInjectorSubsystem::ServiceReverts(float DeltaSeconds)
 	return Reverted;
 }
 
-int32 UAnomalyAutoInjectorSubsystem::RevertAllLive()
+int32 UAnomalyAutoInjectorSubsystem::RevertAllLiveFires()
 {
 	UAnomalyInjectorSubsystem* Injector = ResolveInjector(GetWorld());
 	const int32 Count = LiveFires.Num();

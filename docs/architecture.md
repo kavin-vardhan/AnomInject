@@ -1,6 +1,19 @@
 # Architecture (living — current as-built)
 
-> **Reflects:** **Automatic Injection (m6)** — a new, separate **`UAnomalyAutoInjectorSubsystem`**
+> **Reflects:** **Labeled Frame-Capture + 2D BBox Labeling (m7)** — a capture/labeling layer that produces an
+> ML-friendly labeled image sequence from a LIVE auto-injection run. Housed in the **`AnomalyControlServer`**
+> module (reuses its game-viewport capture primitive + ImageWrapper; gated by `ANOMALY_CONTROL_SERVER`, compiled
+> out of Shipping). A new **`UAnomalyCaptureSubsystem`** (Game+PIE, dormant) drives the m6 auto-injector's
+> deterministic core in **bursts** (`[pre] → FireOnce → [settle] → [positives] → RevertAllLiveFires → [settle]
+> → [post]`, looped) and, per captured frame, writes the game-viewport image + a JSONL label record sourced from
+> the auto-injector's own live-fire ground truth, stamped with one `GFrameCounter` (exact image↔label alignment).
+> The 2D box projects the fired actor's persisted bounds via `AnomalyViewport::ProjectActorBoundsToScreenRect`
+> (works even when the anomaly hid the actor). **Three sanctioned core exposures only** (`ProjectActorBoundsToScreenRect`;
+> `FAutoLiveFireInfo` widened with the target actor + start-frame; `RevertAllLiveFires` exposed) — `IAnomaly`,
+> the injector core, the anomalies, the leaf helpers, the `=` match, and `GetVisibleRenderableActors` are
+> **byte-clean**. **No new dependency.** VersionName **0.8.0**. **Catalog: still 7** (capture is infrastructure,
+> not a new anomaly). See `sessions/2026-06-20-012-frame-capture-labeling.md`. Below this it still reflects:
+> **Automatic Injection (m6)** — a new, separate **`UAnomalyAutoInjectorSubsystem`**
 > (Game+PIE world subsystem) that, while running, fires the four object-scoped anomalies **randomly on the
 > renderable objects currently on-screen**, each auto-reverting after a randomized hold. Concurrent but
 > **collision-free by construction** via a one-anomaly-per-actor scheduler invariant (no coordinator — G30);
@@ -263,6 +276,15 @@ separate real-Play eyeball shell). `Step`/`FireOnce` drive the deterministic cor
 - `IAI.Auto.FireOnce` — force one fire attempt now (deterministic core drive).
 - `IAI.Auto.Status` — log enable/run state, seed, cadence, the enabled set, and the live fires (the state-gate readback).
 - `IAI.Auto.Bind <pool1|pool2|pool3|pool4|run|reseed> <KeyName>` — rebind a key (validated via `EKeys::GetKeyDetails`).
+
+Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `AnomalyControlServer` module; only when
+`ANOMALY_CONTROL_SERVER=1`). Narrow the fired types via `IAI.Auto.Pool` first; the auto-injector's `Run` must be OFF:
+- `IAI.Capture.Shot [outDir] [png|jpeg]` — capture ONE labeled frame now (default dir `<ProjectSaved>/AnomalyCaptures/manual`).
+- `IAI.Capture.Config <settleK> <preFrames> <positiveFrames> <postFrames> <burstCount>` — set the burst schedule (burstCount 0 = until Stop).
+- `IAI.Capture.ViewLag <frames>` — bbox-projection view-lag L (default **0**; see "Capture & Labeling" below).
+- `IAI.Capture.Start [outDir] [png|jpeg] [seed]` — start a burst run (default dir `<ProjectSaved>/AnomalyCaptures`; png; seed = auto-injector's current).
+- `IAI.Capture.Stop` — stop the run (reverts in-flight fire, writes `run_summary.json`).
+- `IAI.Capture.Status` — log run state, config, counters.
 *(M0's `IAI.HideActor` / `IAI.ShowAllActors` were removed — superseded by `IAI.Apply missing_object`
 / `IAI.RevertAll`.)*
 
@@ -398,6 +420,59 @@ future non-object track.
 - **Defaults.** Keys `1`/`2`/`3`/`4` toggle the four types, `J` start/stop, `K` reseed (distinct from the selector's
   Tab/C/G/H, rebindable via `IAI.Auto.Bind`); interval [4,9]s, hold [3,6]s, MaxConcurrent 4 (tuned for clear
   eyeballing — tighten later for dataset density). All console-settable.
+
+## Capture & Labeling — `UAnomalyCaptureSubsystem` (m7, in the `AnomalyControlServer` module)
+Produces an ML-friendly **labeled image sequence** from a LIVE auto-injection run (L1: labels are the injector's own
+ground truth, not a replay diff). Housed in the control-server module (Q2 — reuses its game-viewport capture primitive +
+ImageWrapper + JSON; gated by `ANOMALY_CONTROL_SERVER`, so compiled out of Shipping — dataset capture is a dev/research
+activity in a packaged Development/Test build, never a retail Shipping build, satisfying L5).
+
+- **Three sanctioned core exposures (the ONLY `AnomalyInjector` touches).** `IAnomaly`, the injector core, the seven
+  anomalies, the leaf helpers, the `=` exact-match, and `GetVisibleRenderableActors` are **byte-clean**:
+  1. `AnomalyViewport::ProjectActorBoundsToScreenRect(View, Actor, OutMin, OutMax)` — the L2 2D-bbox projection, built on
+     the SAME private reversed-Z VP path the frustum / `GetVisibleRenderableActorInfos` pass uses. It unions the actor's
+     static/skeletal-mesh component bounds **by TYPE only — NOT `IsVisible()`-gated** — so a hidden `missing_object` /
+     `flicker` actor still projects ("where the hole is"); returns the **unclamped** normalized rect; false only
+     behind-camera / fully off-screen (gotcha G38).
+  2. `FAutoLiveFireInfo` widened with `TWeakObjectPtr<AActor> TargetActor` + `uint64 StartFrame` (the fired actor for
+     bounds projection + the fire's start `GFrameCounter`).
+  3. `UAnomalyAutoInjectorSubsystem::RevertAllLiveFires()` — exposed (was private): reverts each live fire via the injector
+     **and** clears the tracking list, so `GetLiveFires()` stays accurate. Capture drives burst reverts through this — NOT
+     the injector's `RevertAll`, which would leave the list stale (post-roll would mislabel positive).
+- **Burst state machine (deterministic, capture-driven).** Drives the m6 core directly (`TryFireOnce` / `RevertAllLiveFires`,
+  never `AdvanceTime` — that could fire a second interval-anomaly): `[pre M negatives] → FireOnce → [settle K skipped] →
+  [positives P] → RevertAllLiveFires → [settle K skipped] → [post M negatives]`, looped (post-roll doubles as the next
+  burst's pre-roll); `BurstCount 0` = until Stop. The **settle-K is SYMMETRIC at BOTH boundaries** because a game-thread
+  mutation reaches the rendered frame >=1 frame later (`r.OneFrameThreadLag`); skipping K frames after both the fire and
+  the revert keeps boundary frames from mislabeling (gotcha G37, default K=2). One frame per tick; each captured frame is
+  stamped with `GFrameCounter`.
+- **Per-frame labeling (same-tick, exact alignment — L3/Q6).** In one game-thread call: snapshot `Auto->GetLiveFires()` +
+  synchronous `FViewport::ReadPixels` (native resolution, opaque-alpha — gotcha G39) + project each fired actor's bounds →
+  write `frame_<GFrameCounter>.png` + append one JSONL record. The label falls out of the live-fire set: `anomaly_present`
+  = game-state truth (any live fire); per fire a pixel bbox `[x,y,w,h]` (clamped) + the unclamped normalized rect +
+  `bbox_valid`. **`visible_positive` = `anomaly_present && (≥1 bbox_valid)`** is the detection-relevant positive — under
+  camera motion a fired actor can leave the viewport mid-hold (`present=true` + all `bbox_valid=false`); those frames are
+  KEPT as hard negatives, not dropped (gotcha G42). The in-frustum-but-occluded sub-case is the deferred
+  `GetLastRenderTimeOnScreen` refinement (G22).
+- **View-lag L (default 0) — the spatial analogue of settle-K, but distinct.** A per-tick view ring; each capture projects
+  with the view from L ring-entries ago. **L=0 is validated and correct (not "zero lag"):** the capture subsystem (a
+  `FTickableGameObject`) ticks *before* `UpdateCameraManager` (LevelTick.cpp:1606 vs 1621), so `GetActiveViewInfo` at the
+  capture tick already returns the previous frame's camera POV — exactly the view that rendered the `ReadPixels` frame; the
+  two 1-frame lags cancel. FPS-invariant (frame-count relationship). The `IAI.Capture.ViewLag` knob stays for the future
+  async path (gotcha G41).
+- **Reproducibility (S4).** The run seeds the auto-injector stream at start → same seed + same visible-set sequence (a fixed
+  vantage) reproduces the fired (id, target) sequence — NOT pixel-identity (ambient scene motion). **Coexistence:** the
+  auto-injector's `Run` must be OFF during a capture run (capture owns firing) — warned, not blocked (A2). A zero-match
+  burst (empty eligible/visible) records negatives only and advances (A6).
+- **Output.** `run_<seed>_<timestamp>/` with `frame_<GFrameCounter>.png` + `labels.jsonl` (one record/line) + `run.json`
+  (manifest at start: seed, K, L, pre/positive/post, burstCount, viewport, format, schema version, start frame/time) +
+  `run_summary.json` (at stop). `tools/verify_capture.py` overlays the boxes onto frames + prints a per-frame table +
+  present/visible-positive/off-screen tallies (Pillow). **Capture primitive:** `AnomalyPreview::CaptureGameViewportEncoded`
+  (PNG/JPEG, opaque, native res) — shared infra physically committed with the control-server Slice-1 (`ff1be3c`).
+- **Deferred (the async exact path).** The synchronous `ReadPixels` flush is an observer-effect stall; the render-thread
+  async path (`OnBackBufferReadyToPresent` + `FRHIGPUTextureReadback`) is the documented superseder — REQUIRED before
+  framerate-bug anomalies enter the pool (the flush would corrupt the framerate label) and for exact-under-motion
+  view-matching (gotcha G40; re-derive L there).
 
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:

@@ -563,3 +563,93 @@ An optional distance cull on the LIVE renderable-visible poll: an actor is in th
   helper like `AnomalyViewport` has no Tick, so the persistent-batcher route is the correct fix. (Fixed 2026-06-20.)
 - **No new dep** (`IConsoleManager`/`FVector` = Core; `UDebugDrawService`/`DrawDebugSphere`/`APawn` = Engine). (Viewport
   fix, 2026-06-20.)
+
+### G35 — UE unity builds merge .cpp files into ONE TU; anonymous-namespace helpers must be file-unique (m7)
+A UE module's `.cpp` files are concatenated into a unity blob (`Module.<Name>.cpp`), so two files' `namespace { }`
+helpers share one translation unit. `AnomalyLabelWriter.cpp` defined `Num`/`Vec3` anonymous-namespace helpers
+identical to `ControlSnapshot.cpp`'s → ODR redefinition (`C2084: '...Num(double)' already has a body`), failing only
+the unity build (the core module compiled fine). **Fix:** give file-local helpers file-unique names (`LabelNum`/
+`LabelVec3`). Lesson: in a UE module never reuse a common anonymous-namespace helper name across `.cpp` files — the
+unity blob will collide even though each file is individually legal. (m7, 2026-06-20.)
+
+### G36 — image↔label alignment: capture + ground-truth snapshot in the SAME game-thread tick, stamped `GFrameCounter` (m7)
+The labeled-capture writes, per frame, the game-viewport image PLUS a label sourced from the auto-injector's own live-fire
+ground truth (L1). Both are taken in ONE game-thread call (`AnomalyLabel::CaptureLabeledShot`): the **synchronous**
+`FViewport::ReadPixels` and `Auto->GetLiveFires()` snapshot run on the same tick, and image + JSONL record are stamped
+with the same **`GFrameCounter`** ("Steadily increasing frame counter", `CoreGlobals.h:474` — the game-thread counter,
+not `GFrameNumber` which is render-oriented). The synchronous readback is what makes the co-thread, same-frame stamp
+exact (L3). The render-thread async path (G40) breaks this co-thread assumption and must re-establish alignment via the
+frame the backbuffer carries. (m7, 2026-06-20.)
+
+### G37 — a game-thread mutation reaches the rendered frame >=1 frame later; the capture-burst settle-K must be SYMMETRIC (m7)
+`r.OneFrameThreadLag` defaults to **1** (`UnrealEngine.cpp:388`), so the render thread trails the game thread by a frame:
+a fire or a revert applied on the game thread does not appear in the captured pixels for ~1 frame. A burst therefore has a
+lag window at **both** boundaries — just after `FireOnce` the anomaly is not on-screen yet (capturing then mislabels
+clean pixels as `present=true`); just after revert it is still on-screen (mislabels corrupted pixels as `present=false`).
+The capture subsystem **skips K frames after BOTH the fire AND the revert** before sampling the labeled window (default
+`K=2` = 1-frame lag + 1 margin). Settle-K is the **temporal**-lag knob and is **distinct** from the **spatial** view-lag L
+(G41) — never conflate them. Gate-2 validated the revert→negative boundary specifically. (m7, 2026-06-20.)
+
+### G38 — the 2D bbox projects the fired actor's PERSISTED bounds by TYPE, NOT the renderable-visible set (m7)
+`missing_object`/`flicker` **hide** the actor, so by capture time it has left the renderable-visible set
+(`GetVisibleRenderableActorInfos` excludes it — `IsVisible()==false`). But the label box must mark **where the now-hidden
+object is** (the correct missing-object label). So `AnomalyViewport::ProjectActorBoundsToScreenRect` unions the actor's
+static/skeletal-mesh component `Bounds` selected by **TYPE ONLY** (`IsA<UStaticMeshComponent>() || IsA<USkinnedMeshComponent>()`),
+**deliberately NOT gated on `IsVisible()`**, and projects that AABB directly via the shared reversed-Z VP path — NOT by
+reading the dashboard's screen-rect (which is absent for a hidden actor). `SetActorHiddenInGame` does not change a
+component's `Bounds`, so "where the hole is" projects correctly. This is why the actor-carrying readback (`FAutoLiveFireInfo::
+TargetActor`) is essential, not cosmetic. (m7, 2026-06-20.)
+
+### G39 — the game backbuffer's alpha is ~0; force opaque or PNG captures render fully TRANSPARENT ("empty") (m7)
+`FViewport::ReadPixels` returns BGRA; the game backbuffer's alpha channel carries no meaningful opacity (typically 0). PNG
+**preserves** alpha, so a captured frame opens fully transparent in any alpha-honoring viewer even though the RGB is
+correct — it looks "empty". (`Image.open(...).convert("RGB")` silently masks it by dropping alpha, which is why the
+overlay script showed the scene while the raw PNG looked empty.) JPEG has no alpha channel, so the dashboard preview path
+never exhibited it — the bug surfaced only when PNG became the dataset default. **Fix:** force every pixel `A=255` after
+readback (`CaptureGameViewportRaw`). Dataset images default to **PNG (lossless)** — JPEG blocking near high-contrast edges
+could be mislearned as corruption by a bug detector; JPEG stays behind a format flag for bandwidth. (m7, 2026-06-20.)
+
+### G40 — `ReadPixels` is a synchronous flush (observer-effect); the async backbuffer path is the deferred exact superseder (m7)
+`FViewport::ReadPixels` = `FRenderTarget::ReadPixels` enqueues a `ReadSurfaceData` of the viewport RT then
+`FlushRenderingCommands()` (`UnrealClient.cpp:51-89`) — a synchronous game-thread stall (it reads the last
+render-thread-completed frame; it does NOT trigger a fresh draw). Acceptable for v1: capture-driven bursts bound the
+stall, and the four object-scoped anomalies don't measure framerate. **But it is incompatible with framerate-bug
+anomalies** (the flush would corrupt the very framerate label) **and** is not pixel-exact under frame-time variance for
+motion view-matching. The render-thread async path — `FSlateRenderer::OnBackBufferReadyToPresent` (`SlateRenderer.h:299`)
++ a staged `FRHIGPUTextureReadback` — is the documented **exact superseder**, now motivated by BOTH framerate-bug
+anomalies AND exact motion view-matching. That path has its OWN lag characteristic: **re-derive L there; do NOT assume
+the L=0 of G41 carries over.** (m7, 2026-06-20.)
+
+### G41 — capture view-lag **L=0 is CORRECT (not "zero lag")**: world tickables tick BEFORE the camera update (m7)
+Stage-3 predicted L=1 (project the bbox with the view 1 frame back, to match the 1-frame-lagged render). **Empirically L=0
+matches and L=1 over-corrects** (box trails the object under motion). Why: the capture subsystem (a
+`UTickableWorldSubsystem` = `FTickableGameObject`) ticks at `LevelTick.cpp:1606`, **before** `UpdateCameraManager` at
+`:1621` (comment: "Update cameras last ... after all actors have been ticked"). So `GetActiveViewInfo` at the capture tick
+returns the **previous** frame's camera POV (frame N's camera not yet recomputed) — exactly the view that rendered the
+pixels `ReadPixels` returns (frame N-1, `r.OneFrameThreadLag=1`). The two 1-frame lags **cancel** → L=0 matches. **"L=0" is
+a ring-origin / tick-order convention for "one render-frame back," NOT zero render lag.** Consistency: spatial L=0 and
+temporal settle-K (G37) both account for the **same** ~1-frame render lag (coherent). **FPS-invariant:** it is a fixed
+frame-COUNT relationship (tick order + 1-frame render lag), so L=0 holds at any framerate by construction — no low-FPS
+re-test. The `IAI.Capture.ViewLag` knob + the per-tick view ring stay (default 0) to future-proof the async path (G40),
+which re-derives its own L. (m7, 2026-06-20.)
+
+### G42 — under motion a fired actor can leave the viewport mid-hold: `present=True` + `bbox_valid=false` is NOT a visible positive (m7)
+`anomaly_present` = "an anomaly is applied in game-state this frame" (game-state truth; it drives the validated temporal
+transitions — keep it independent of the projection). Under camera motion a fired actor can leave the viewport **during its
+hold**, so `present=true` with every bbox off-screen (`bbox_valid=false`). **These frames are KEPT** (legitimate hard
+negatives — anomaly active but not visible), **not dropped**. The detection-relevant positive is the top-level
+**`visible_positive` = `anomaly_present && (>=1 bbox_valid)`** written into each JSONL record — consumers filter on it for
+the detection set. The in-frustum-but-**OCCLUDED** sub-case (actor on-screen yet hidden behind geometry) is NOT caught by
+bounds projection — that's the deferred `GetLastRenderTimeOnScreen` refinement (G22), **now also motivated by per-frame
+visible-positive accuracy**, in addition to fire-time visibility gating. (m7, 2026-06-20.)
+
+### G43 — at cold-boot, distinguish COMMITTED vs WORKING-TREE state per track before building a milestone on a "primitive" (process, m7)
+m7's cold-boot read the control server's capture primitive (`AnomalyPreview::CaptureGameViewportJpeg`) from the **working
+tree** and treated it as the committed baseline. It was actually a **parallel track's uncommitted Slice-1 WIP** (the
+committed HEAD had a different Slice-0 `FAnomalyPreviewCapture` class). m7 was then built on top of it, entangling the
+milestone with another track's uncommitted work — surfaced only at commit time. **Resolved via Plan A:** a separate commit
+promoting the Slice-1 WIP (`ff1be3c`), then m7 path-scoped on top (this commit). **Lesson:** when a repo has multiple
+in-flight tracks, at bootstrap run `git status` / `git log` and distinguish committed vs working-tree state **per track**
+before treating any "existing primitive" as a stable foundation — a working-tree primitive may be another track's
+uncommitted WIP. Standalone-buildability of each commit (no forward-references) is what makes a clean post-hoc split
+possible. (m7, 2026-06-20.)

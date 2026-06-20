@@ -175,6 +175,27 @@ each auto-reverting after a randomized hold. Separate subsystem; two switches, b
 - **Do not run the selector and the auto-injector at once** — unsupported; a warning fires if both are enabled.
 - Keys `1-4`/`J`/`K` are rebindable: `IAI.Auto.Bind <pool1|pool2|pool3|pool4|run|reseed> <KeyName>`.
 
+### 6c. Labeled frame-capture (m7) — `IAI.Capture.*`
+Produces a labeled image sequence (`frame_<GFrameCounter>.png` + `labels.jsonl` + `run.json`) from a LIVE
+auto-injection run. **Must be real Play** (Simulate has no game viewport for `ReadPixels`). The capture
+subsystem lives in the `AnomalyControlServer` module (present in Development/Test; compiled out of Shipping).
+1. **Narrow the fired types** (StackOBot: LOD anomalies are visually null — G15/G20 — so capture only the visual
+   ones): `IAI.Auto.Pool all 0` → `IAI.Auto.Pool missing_object 1` → `IAI.Auto.Pool flicker 1`.
+2. Ensure the auto-injector's own loop is OFF: `IAI.Auto.Run 0` (capture owns firing; a warning fires if Run is on).
+3. **Single labeled frame:** `IAI.Auto.FireOnce` then `IAI.Capture.Shot` → one PNG + one JSONL record under
+   `<ProjectSaved>/AnomalyCaptures/manual/` (Gate 1).
+4. **Burst run:** `IAI.Auto.Seed <int>` → `IAI.Capture.Config <K> <pre> <positive> <post> <bursts>` (e.g.
+   `2 5 10 5 3`) → `IAI.Capture.Start`. It runs deterministically and auto-stops after `<bursts>` (or
+   `IAI.Capture.Stop` for a `0`/until-stop run). Output: `<ProjectSaved>/AnomalyCaptures/run_<seed>_<stamp>/`.
+5. **Under camera motion:** walk/turn during a long run (`...Config 2 5 30 5 0` → `Start` → move ~10 s → `Stop`).
+   `IAI.Capture.ViewLag` defaults to **0** (validated — gotcha G41); raise only if a moving box trails the object.
+6. **Verify:** `python tools/verify_capture.py --dir "<...>/run_<seed>_<stamp>"` (needs Pillow) — overlays the
+   boxes onto annotated copies + prints a per-frame `present` table (flips at burst boundaries) + present /
+   visible-positive / off-screen tallies. PNG is lossless + opaque (G39).
+- **Format:** PNG default (dataset fidelity); `jpeg` arg for bandwidth. **`visible_positive`** (present + a valid
+  box) is the detection-relevant positive; `present=true` + no box = anomaly active but off-screen (kept as a hard
+  negative — G42).
+
 ## 7. Runtime verification recipe (MCP-driven gate checks)
 The non-visual stage gates are closed by driving PIE over the `unreal-mcpython` bridge (host tooling,
 gotcha G8) and reading state/logs back; the owner eyeballs the visual gates. This is exactly how M1's

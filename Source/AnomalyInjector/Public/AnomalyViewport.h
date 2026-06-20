@@ -223,6 +223,28 @@ namespace AnomalyViewport
 	ANOMALYINJECTOR_API TArray<FRenderableActorInfo> GetVisibleRenderableActorInfos(UWorld* World);
 
 	/**
+	 * Project an actor's renderable bounds to a normalized screen-space rect (top-left origin), for the
+	 * capture/labeling milestone's 2D bounding box (L2). Built on the SAME reversed-Z VP path the frustum /
+	 * GetVisibleRenderableActorInfos pass uses (the one source of truth) — synthetic and live views agree.
+	 *
+	 * The bounds are the UNION of the actor's static- + skeletal-mesh component bounds, selected by TYPE
+	 * ONLY — deliberately NOT gated on IsVisible(). This is load-bearing: missing_object / flicker HIDE the
+	 * actor, so by capture time it is no longer in the renderable-visible set, but its component bounds /
+	 * transform persist. The label box = "where the (now-hidden) object is", the correct missing-object
+	 * label — which is exactly why this projects the fired actor's bounds DIRECTLY rather than reading a rect
+	 * off GetVisibleRenderableActorInfos (that set excludes the hidden actor).
+	 *
+	 * OutMin/OutMax are the UNCLAMPED normalized rect ([0,1] = on-screen; values may fall outside for a
+	 * partially off-screen actor — the caller clamps when converting to pixels). Returns true iff the box has
+	 * at least one corner in front of the camera AND the rect intersects the [0,1]x[0,1] screen; returns false
+	 * (and zeroes the outputs) when the actor is entirely behind the camera or fully off-screen, or on an
+	 * invalid view / null actor / no mesh component. A false return is a degenerate SPATIAL label only — the
+	 * caller still records the frame's temporal label.
+	 */
+	ANOMALYINJECTOR_API bool ProjectActorBoundsToScreenRect(
+		const FAnomalyViewInfo& View, const AActor* Actor, FVector2D& OutMin, FVector2D& OutMax);
+
+	/**
 	 * Convenience finder: resolve the live view, match components of type T
 	 * (AnomalyTargeting::FindComponentsMatching<T>), and return only the visible ones. No-view ->
 	 * full matched set (treat-as-unscoped). Header-only template (mirrors the actor finder).

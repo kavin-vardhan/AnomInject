@@ -26,14 +26,23 @@ struct FAutoLiveFire
 	TWeakObjectPtr<AActor> Target;
 	FString TargetName;
 	float SecondsRemaining = 0.0f;
+	/** GFrameCounter at the tick this fire was applied (capture/labeling: the fire's start frame, m7). */
+	uint64 StartFrame = 0;
 };
 
-/** A live auto-fire for the control-surface read-back (Slice 1, A3): no weak ptr — the cached name only. */
+/**
+ * A live auto-fire for the read-back. Slice 1 (dashboard) carried only the cached name; the capture/labeling
+ * milestone (m7) adds the target ACTOR (weak -> GC-safe) so the labeler can project its persisted 3D bounds to
+ * a 2D box EVEN WHEN the anomaly has hidden it (missing_object / flicker), plus the fire's start GFrameCounter.
+ * Both additions are byte-clean (additive read-back only; the injector / IAnomaly stay locked).
+ */
 struct FAutoLiveFireInfo
 {
 	FName Id;
-	FString Target;
+	FString Target;                     // cached actor name (survives the actor's destruction)
+	TWeakObjectPtr<AActor> TargetActor; // the fired actor, for bounds projection (m7); may be stale/null
 	float SecondsRemaining = 0.0f;
+	uint64 StartFrame = 0;              // GFrameCounter when the fire was applied (m7)
 };
 
 /**
@@ -131,6 +140,15 @@ public:
 	 *  routes here. Uses the current stream position (call IAI.Auto.Seed first for a reproducible sequence). */
 	bool TryFireOnce();
 
+	/**
+	 * Revert EVERY live fire (through the injector) and clear the tracking list; returns the number reverted.
+	 * The capture/labeling subsystem (m7) drives its burst reverts through this so GetLiveFires() stays
+	 * accurate — reverting a pool id via the injector directly (e.g. IAI.RevertAll) leaves this list STALE
+	 * (GetLiveFires would over-report and post-roll frames mislabel positive). Also used internally on
+	 * run-stop / disable. Additive read/control surface on the shell; the injector core stays locked.
+	 */
+	int32 RevertAllLiveFires();
+
 	// --- Enable-set + cadence config (console-settable; sane defaults in Initialize) ---
 
 	/** Enable/disable one of the four pool ids. Returns false on an id outside the pool. */
@@ -200,7 +218,6 @@ private:
 	void RegisterHUD();                                     // register the UDebugDrawService delegate (double-register-guarded)
 	void UnregisterHUD();                                   // unregister it (idempotent) — on disable AND teardown
 	int32 ServiceReverts(float DeltaSeconds);              // auto-revert past-deadline fires; returns # reverted
-	int32 RevertAllLive();                                  // revert + clear every live fire (run-stop / disable)
 	void WarnOnCoexistence() const;                         // selector-UI-on / viewport-scoping-on warnings (warn, not block)
 	bool IsIdLive(FName Id) const;                          // any live fire with this id (invariant i)
 	bool IsActorLive(const AActor* Actor) const;            // any live fire on this actor (invariant ii, OVERRIDE-1)

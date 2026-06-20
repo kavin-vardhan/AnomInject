@@ -310,6 +310,49 @@ namespace
 		OutMax = FVector2D(FMath::Clamp(MaxX, 0.0, 1.0), FMath::Clamp(MaxY, 0.0, 1.0));
 		return (OutMax.X > OutMin.X) && (OutMax.Y > OutMin.Y);
 	}
+
+	/**
+	 * UNCLAMPED variant of ProjectBoundsToScreenRect for the capture/labeling milestone (L2): same VP /
+	 * 8-corner / top-left-origin convention, but it returns the RAW normalized rect (values may fall outside
+	 * [0,1] for a partially off-screen object — the label writer clamps for pixels) and reports how many
+	 * corners are in front of the camera. The clamping ProjectBoundsToScreenRect above is left byte-identical
+	 * (it feeds the dashboard overlay, where clamping to screen is wanted). Returns false (no corner in front)
+	 * iff the box is entirely behind the camera.
+	 */
+	bool ProjectBoxToNormalizedRect(const FMatrix& ViewProj, const FVector& Center, const FVector& Extent,
+		FVector2D& OutMin, FVector2D& OutMax)
+	{
+		double MinX = 1.0e30, MinY = 1.0e30, MaxX = -1.0e30, MaxY = -1.0e30;
+		int32 NumInFront = 0;
+		for (int32 Corner = 0; Corner < 8; ++Corner)
+		{
+			const FVector P = Center + FVector(
+				(Corner & 1) ? Extent.X : -Extent.X,
+				(Corner & 2) ? Extent.Y : -Extent.Y,
+				(Corner & 4) ? Extent.Z : -Extent.Z);
+
+			const FVector4 Clip = ViewProj.TransformFVector4(FVector4(P, 1.0));
+			if (Clip.W <= SMALL_NUMBER)
+			{
+				continue;   // behind the camera
+			}
+			const double InvW = 1.0 / Clip.W;
+			const double Sx = (Clip.X * InvW) * 0.5 + 0.5;
+			const double Sy = 1.0 - ((Clip.Y * InvW) * 0.5 + 0.5);   // flip Y for top-left origin
+			MinX = FMath::Min(MinX, Sx); MaxX = FMath::Max(MaxX, Sx);
+			MinY = FMath::Min(MinY, Sy); MaxY = FMath::Max(MaxY, Sy);
+			++NumInFront;
+		}
+
+		if (NumInFront == 0)
+		{
+			OutMin = OutMax = FVector2D::ZeroVector;
+			return false;
+		}
+		OutMin = FVector2D(MinX, MinY);   // UNCLAMPED — may be < 0 or > 1
+		OutMax = FVector2D(MaxX, MaxY);
+		return true;
+	}
 }
 
 namespace AnomalyViewport
@@ -558,6 +601,45 @@ namespace AnomalyViewport
 			Result.Add(MoveTemp(Info));
 		}
 		return Result;
+	}
+
+	bool ProjectActorBoundsToScreenRect(const FAnomalyViewInfo& View, const AActor* Actor, FVector2D& OutMin, FVector2D& OutMax)
+	{
+		OutMin = OutMax = FVector2D::ZeroVector;
+		if (!View.bValid || !Actor)
+		{
+			return false;
+		}
+
+		// Union the actor's static- + skeletal-mesh component bounds, selected by TYPE ONLY (NOT IsVisible()):
+		// a hidden missing_object / flicker actor still contributes its persisted bounds — that is the point
+		// (the label box must mark where the now-hidden object is). Mirrors the IsRenderableComponent allowlist
+		// families minus the visibility gate.
+		FBox Box(ForceInit);
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (Prim && (Prim->IsA<UStaticMeshComponent>() || Prim->IsA<USkinnedMeshComponent>()))
+			{
+				Box += Prim->Bounds.GetBox();
+			}
+		}
+		if (!Box.IsValid)
+		{
+			return false;   // no mesh component to bound
+		}
+
+		const FMatrix ViewProj = BuildViewProjectionMatrix(View);
+		if (!ProjectBoxToNormalizedRect(ViewProj, Box.GetCenter(), Box.GetExtent(), OutMin, OutMax))
+		{
+			return false;   // entirely behind the camera
+		}
+
+		// Off-screen iff the (unclamped) rect does not intersect the [0,1]x[0,1] screen.
+		const bool bIntersectsScreen =
+			(OutMax.X > 0.0) && (OutMin.X < 1.0) && (OutMax.Y > 0.0) && (OutMin.Y < 1.0);
+		return bIntersectsScreen;
 	}
 
 	// --- Poll-radius accessors (shared state lives in the anonymous namespace above) ---
