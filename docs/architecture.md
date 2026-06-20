@@ -192,15 +192,16 @@ future auto-injection, "visible" must mean **visible AND renderable**: in-frustu
 geometry. A pure frustum+occlusion test also passes non-rendering primitives (collision boxes, capsules, RVT bounds
 boxes, editor billboards, landscape, debug/streaming actors), which must never be injectable targets. New entry points:
 - `IsRenderableComponent(Comp)` = `Comp->IsVisible()` **AND** a base-TYPE allowlist
-  `IsA<UStaticMeshComponent>() || IsA<USkinnedMeshComponent>() || IsA<UFXSystemComponent>()`. A capability/type test,
-  **not a class blocklist** (game-agnostic). `UFXSystemComponent` is the common **Engine** base of Niagara
-  (`UNiagaraComponent`, a plugin) and Cascade (`UParticleSystemComponent`), so VFX is caught with **no Niagara/FX dep**.
+  `IsA<UStaticMeshComponent>() || IsA<USkinnedMeshComponent>()`. A capability/type test, **not a class blocklist**
+  (game-agnostic). **VFX removed (G33):** the original `|| IsA<UFXSystemComponent>()` clause (Niagara + Cascade) was
+  deliberately dropped — particles are not useful injectable-geometry targets for the selector / auto-injector /
+  dashboard set; the `=name` console escape hatch still reaches VFX actors directly (it bypasses this predicate).
   `IsVisible()` (not `ShouldRender()`) is deliberate — `ShouldRender()` has a non-shipping branch that returns true for
   hidden collision components, a determinism footgun (gotcha G29). `ULandscapeComponent` is a documented one-line
   extension point in the predicate, intentionally inactive (landscape excluded for v1). **Empty-instance refinement:**
   an instanced static mesh / HISM with **zero instances** draws nothing, so it is treated as non-renderable
   (`GetInstanceCount() > 0` required for ISMs) — this drops 0-instance landscape-grass ISMs (which would otherwise leak a
-  `LandscapeStreamingProxy` in) while keeping real foliage and populated ISMs. So **renderable = a visible SM/SK/FX
+  `LandscapeStreamingProxy` in) while keeping real foliage and populated ISMs. So **renderable = a visible SM/SK
   component that actually draws something (instanced ⇒ instance count > 0)**.
 - `IsActorRenderableVisible(View, World, Actor)` (any component passes), `FilterRenderableVisibleActors(View, World, In)`,
   and `GetVisibleRenderableActors(World)` (resolve view → enumerate all actors → filter; the selector/auto-injection
@@ -313,8 +314,10 @@ and all seven anomalies are untouched** (the no-core-change streak holds; this i
   `GameViewportClient::Draw` with no host HUD class — gotcha G25); unregistered on **both** disable and teardown, guarded
   against double-register. Draws: a list of visible actor names (selected one marked, capped with a "+N more"),
   a list of the four anomaly ids (chosen one marked), a **last inject/revert result line** (`LastInjectResult`) that
-  surfaces the AMB-2 zero-match case in real Play (e.g. an LOD anomaly on a pure-VFX actor → "0 matched") instead of it
-  being log-only, an on-screen name label anchored to the selected actor (`Canvas->Project`), and a world-space
+  surfaces the AMB-2 zero-match case in real Play ("0 matched") instead of it being log-only — e.g. an LOD anomaly that
+  resolves no mesh component on the selected actor. (Since VFX left the set (G33), a pure-VFX actor is no longer
+  selectable; the zero-match-on-VFX case is now reached only via the `=name` console escape hatch.) Also: an on-screen
+  name label anchored to the selected actor (`Canvas->Project`), and a world-space
   `DrawDebugBox` around the selected actor's bounds (dev-only, `ENABLE_DRAW_DEBUG`).
 - **Input (raw, mapping-independent).** Per-tick poll of the local PC (`World->GetFirstPlayerController()`) via
   `WasInputKeyJustPressed` / `IsInputKeyDown` (raw `KeyStateMap`, no project mapping needed — gotcha G26). Default
@@ -360,8 +363,9 @@ future non-object track.
   (`"=" + Actor->GetName()`) so it hits only that actor. It does **not** use `IAI.SetViewportScoping` (keeping it ON
   would make the `=` apply redundantly re-test visibility and could drop a target — m5 fact #3; a warning fires at
   Run-start if scoping is ON). **No view → fire nothing this window** (the empty-on-no-view contract, R6/G29 — never
-  inject blind). A drawn (LOD id, pure-VFX actor) pair legitimately yields a zero-match: it is surfaced ("0 matched")
-  and not registered, never a silent slot leak.
+  inject blind). A drawn id that resolves no matching component legitimately yields a zero-match: it is surfaced
+  ("0 matched") and not registered, never a silent slot leak. (Since VFX left the set (G33), the auto pool no longer
+  targets pure-VFX actors, so the original LOD-on-VFX zero-match example no longer arises from the auto path.)
 - **Lifecycle (R-LIFE).** Each fire records `{id, target weak-ptr, name, secondsRemaining}`; on its hold elapsing the
   scheduler calls `RevertAnomaly(id)` and frees the slot. `IAI.Auto.Persist 1` (default off) suppresses auto-revert
   (fires persist until run-stop / manual revert / teardown). On Run-stop and disable it reverts its own live fires; on

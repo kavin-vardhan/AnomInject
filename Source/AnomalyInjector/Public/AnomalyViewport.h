@@ -67,7 +67,7 @@ struct FRenderableActorInfo
 	TWeakObjectPtr<AActor> Actor;
 	FString ActorName;
 	FString ClassName;
-	FString ComponentType;              // "SM" | "SK" | "FX" (the matched renderable component family)
+	FString ComponentType;              // "SM" | "SK" (the matched renderable component family; VFX removed, G33)
 	float Distance = 0.0f;              // view origin -> matched component bounds centre
 
 	// Normalized [0,1] screen rect, top-left origin (resolution-independent; the client scales to its view).
@@ -150,10 +150,13 @@ namespace AnomalyViewport
 
 	/**
 	 * Is Component a renderable target = IsVisible() (NOT hidden-in-game, visible flag set, level visible)
-	 * AND one of the rendering component families we treat as injectable geometry: static mesh, skeletal/
-	 * skinned mesh, or particle/VFX (Niagara + Cascade, caught via their common Engine base UFXSystemComponent
-	 * — so no Niagara/FX module dependency). This is a capability/TYPE test, NOT a class blocklist (a blocklist
-	 * would rot on a different title; this stays game-agnostic). Null -> false.
+	 * AND one of the rendering component families we treat as injectable geometry: static mesh OR skeletal/
+	 * skinned mesh. This is a capability/TYPE test, NOT a class blocklist (a blocklist would rot on a different
+	 * title; this stays game-agnostic). Null -> false.
+	 * VFX REMOVED (G33): particle/VFX (UFXSystemComponent — Niagara + Cascade) was deliberately dropped from the
+	 * allowlist, reversing the original G29/R1 inclusion — particles are not useful injectable geometry for the
+	 * selector / auto-injector / dashboard set. The "=name" console escape hatch (AnomalyTargeting) still reaches
+	 * VFX actors directly; it does NOT go through this predicate.
 	 * Empty-instance refinement: an instanced static mesh (or HISM) with ZERO instances draws nothing, so it
 	 * is treated as non-renderable ("renders nothing => not renderable") — this drops 0-instance landscape-grass
 	 * ISMs (which would otherwise leak a LandscapeStreamingProxy in) while keeping real foliage / populated ISMs.

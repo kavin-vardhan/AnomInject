@@ -12,7 +12,6 @@
 #include "Components/StaticMeshComponent.h"   // UStaticMeshComponent (renderable allowlist)
 #include "Components/InstancedStaticMeshComponent.h" // UInstancedStaticMeshComponent (empty-instance guard; HISM derives)
 #include "Components/SkinnedMeshComponent.h"  // USkinnedMeshComponent (renderable allowlist; skeletal derives)
-#include "Particles/ParticleSystemComponent.h"// UFXSystemComponent — common Engine base of Niagara + Cascade (no Niagara dep)
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
 #include "EngineUtils.h"                  // TActorIterator (GetVisibleRenderableActors)
@@ -177,12 +176,11 @@ namespace
 	}
 
 	/** Renderable component family tag for the read-back (matches the IsRenderableComponent allowlist;
-	 *  ISM/HISM derive from UStaticMeshComponent -> "SM"). */
+	 *  ISM/HISM derive from UStaticMeshComponent -> "SM"). VFX was removed from the set (G33). */
 	FString ClassifyRenderableComponent(const UPrimitiveComponent* Component)
 	{
 		if (Component->IsA<UStaticMeshComponent>())  { return TEXT("SM"); }
 		if (Component->IsA<USkinnedMeshComponent>()) { return TEXT("SK"); }
-		if (Component->IsA<UFXSystemComponent>())    { return TEXT("FX"); }
 		return TEXT("?");
 	}
 
@@ -360,11 +358,12 @@ namespace AnomalyViewport
 			}
 		}
 
-		// Capability/TYPE allowlist (game-agnostic; not a class blocklist). UFXSystemComponent is the common
-		// Engine base of UNiagaraComponent + UParticleSystemComponent, so VFX is caught with no Niagara dep.
+		// Capability/TYPE allowlist (game-agnostic; not a class blocklist): static OR skeletal/skinned mesh.
+		// VFX (UFXSystemComponent / Niagara + Cascade) was DELIBERATELY REMOVED from this set (G33, reverses
+		// the G29/R1 inclusion): particles are not useful injectable geometry targets for the selector / auto /
+		// dashboard set. The "=name" console escape hatch still reaches VFX actors (it bypasses this predicate).
 		return Component->IsA<UStaticMeshComponent>()
-			|| Component->IsA<USkinnedMeshComponent>()
-			|| Component->IsA<UFXSystemComponent>();
+			|| Component->IsA<USkinnedMeshComponent>();
 		// EXTENSION POINT (intentionally inactive — landscape excluded for v1): to make terrain selectable,
 		// add `|| Component->IsA<ULandscapeComponent>()` here (include Landscape/LandscapeComponent.h).
 	}

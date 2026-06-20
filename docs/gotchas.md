@@ -417,6 +417,9 @@ Pinned against 5.1 source:
 - **Predicate (R1) = `IsVisible()` AND a base-TYPE allowlist:** `IsRenderableComponent(Comp)` =
   `Comp->IsVisible() && (Comp->IsA<UStaticMeshComponent>() || Comp->IsA<USkinnedMeshComponent>() || Comp->IsA<UFXSystemComponent>())`.
   A capability/type test, **not a class blocklist** (a blocklist rots on another title; this stays game-agnostic).
+  **SUPERSEDED (VFX inclusion only) by G33 (2026-06-20):** the `|| IsA<UFXSystemComponent>()` clause was removed —
+  VFX/particles are no longer in the renderable-visible set. The rest of G29 (the SM/SK allowlist, `IsVisible()` over
+  `ShouldRender()`, the empty-ISM guard, the no-view contract, the landscape extension point) stands unchanged.
 - **`IsVisible()`, not `ShouldRender()` (R3):** `USceneComponent::IsVisible()` returns false if `bHiddenInGame`, else
   `GetVisibleFlag() && level-visible` (`SceneComponent.cpp:3140-3149`) — deterministic, view-independent. `ShouldRender()`
   has a **non-shipping branch** that returns true for hidden collision components when
@@ -501,3 +504,24 @@ new control-server module (`AnomalyControlServer`) first reused the core's `LogA
   keep Output-Log filtering clean (`LogAnomaly` vs `LogAnomalyServer`).
 - A genuinely shared cross-module category would need a custom `*_API`-decorated category declaration — not worth it;
   per-module categories are the UE norm. (Slice 0 / control server, 2026-06-20.)
+
+### G33 — VFX removed from the renderable-visible set (reverses the G29/R1 VFX inclusion) (viewport)
+The `IsRenderableComponent` allowlist originally admitted **three** families — static mesh, skeletal/skinned mesh, **and
+VFX** (`UFXSystemComponent`, the common Engine base of Niagara + Cascade; G29/R1). The VFX clause is now **removed**: the
+renderable-visible set is **SM ∥ SK only**. Rationale: particles are not useful *injectable geometry* targets — the four
+object-scoped anomalies are hide / flicker / forced-LOD, none of which produce a meaningful, labelable corruption on a
+pure-particle actor (the LOD pair can't even match one — no mesh LODs), so offering particles in the selectable/auto/
+dashboard set only invites unlabeled or no-op samples. This reverses the prior R1 ruling deliberately.
+- **Single change, single source of truth:** drop `|| Component->IsA<UFXSystemComponent>()` from the allowlist in
+  `AnomalyViewport::IsRenderableComponent`. Because the set is the one source of truth, this propagates in lockstep to
+  **all** consumers — the M5 selector, the m6 auto-injector, the control-server A4 read-back
+  (`GetVisibleRenderableActorInfos` → dashboard), and the `IAI.DumpVisible` set-identity gate. (Also removed: the dead
+  `"FX"` branch in `ClassifyRenderableComponent` and the now-unused `#include "Particles/ParticleSystemComponent.h"`.)
+- **Escape hatch intact (scope boundary):** the change is confined to the renderable-visible **set**. The console
+  by-name finders (`AnomalyTargeting::FindActorsMatching` / `FindComponentsMatching<T>`, incl. the `=name` exact match)
+  do **NOT** route through `IsRenderableComponent`, so `IAI.Apply <id> =<VfxActorName>` still reaches a VFX actor. The
+  explicit human-named escape hatch is preserved; only the auto-offered set narrows.
+- **Gate consequence:** the old "select a pure-VFX actor → LOD anomaly → 0 matched" scenario (R4 zero-match surfacing)
+  is no longer reachable *through the set* (the VFX actor is no longer offered). The `0 matched` HUD/log plumbing is
+  unchanged; the zero-match gate is re-pointed to the console escape hatch (`IAI.Apply lod_corruption =<VfxName>`).
+- Hard remove, no toggle. (Viewport fix, 2026-06-20.)

@@ -131,10 +131,11 @@ front-end over the m4 visible set. It is a separate subsystem; activation is opt
    a list of the four injectable anomalies, plus a yellow box + name label on the selected object.
 2. **Keys (real Play):** **Tab** = next object, **Shift+Tab** = previous, **C** = cycle anomaly,
    **G** = inject on the selected object, **H** = revert. Tab cycles only objects the player can actually see —
-   in-frustum, unoccluded, **and renderable** (static / skeletal / VFX). Non-rendering actors (volumes, spawn points,
-   debug/streaming actors, landscape) are excluded, so cycling never stops on them. Selection is name-sorted (alphabetical) in v1.
+   in-frustum, unoccluded, **and renderable** (static / skeletal mesh; **VFX excluded — G33**). Non-rendering actors
+   (volumes, spawn points, debug/streaming actors, landscape) and particle/VFX actors are excluded, so cycling never
+   stops on them. Selection is name-sorted (alphabetical) in v1.
    A **"Last:"** line on the HUD reports the result of your last inject/revert — including "0 matched" when a combo
-   doesn't apply (e.g. an LOD anomaly fired at a pure-VFX actor).
+   doesn't apply (e.g. an LOD anomaly that resolves no mesh component on the selected actor).
 3. Pick an object with Tab, choose an anomaly with C, press **G** — the selected object is affected; press **H** to revert.
 4. `IAI.SelectorUI 0` — turn it off (dormant; everything else is byte-identical to before).
 - **Rebind** any key to escape a collision: `IAI.SelectorBind <next|prev|cycle|inject|revert> <KeyName>`
@@ -228,9 +229,9 @@ Get the PIE world after starting: `gw = unreal.get_editor_subsystem(unreal.Unrea
 | viewport occlusion (synthetic) | place a big blocker between a synthetic camera and SM_Ramp, then `IAI.TestVisibility` from that pose vs. a clear pose | blocked → `frustum=1 unoccluded=0`; clear → `frustum=1 unoccluded=1`. Same targets; occlusion flips on line-of-sight only. |
 | viewport regression (OFF) | default `scoping OFF`: re-run the `missing_object` / `lod_corruption` rows above | **byte-identical to M1/M3** (matched/forced/reverted counts unchanged) — the regression gate. |
 | viewport scoping (ON) | `IAI.SetViewportScoping 1`; `IAI.Apply missing_object SM_Ramp` | matched count = the ramps **in the resolved live view**; no-view → full set + "treated as unscoped" warning (AMB-V3). Owner eyeballs off-screen-untouched / on-screen-affected in **real Play**. |
-| selector renderable filter | `IAI.SelectorUI 1`; `IAI.Selector.Status` | the visible-names list **excludes** non-renderables (RVTVolume / PlayerStart / GameplayDebuggerCategoryReplicator / LandscapeStreamingProxy / RoomBuilderSquare) and **includes** renderables (Bot, ramps, pressure plates, doors, foliage/HISM). Live-enumerate the excluded actors' components to prove *why* (their primitives are UBoxComponent/capsule/etc., not static/skeletal/VFX — gotcha G29). |
+| selector renderable filter | `IAI.SelectorUI 1`; `IAI.Selector.Status` | the visible-names list **excludes** non-renderables (RVTVolume / PlayerStart / GameplayDebuggerCategoryReplicator / LandscapeStreamingProxy / RoomBuilderSquare) **and particle/VFX actors (Niagara/Cascade — excluded since G33)**, and **includes** renderables (Bot, ramps, pressure plates, doors, foliage/HISM). Live-enumerate the excluded actors' components to prove *why* (their primitives are UBoxComponent/capsule/UFXSystemComponent/etc., not static/skeletal mesh — gotchas G29/G33). |
 | selector model (cycle) | `IAI.SelectorUI 1`; repeat `IAI.Selector.Next` then `IAI.Selector.Status` | `Status` shows `selected` advancing through the **name-sorted** visible set (and `visible (N)` listed); wraps after the last. Deterministic in Simulate (view resolves, G23). |
-| selector zero-match HUD | select a pure-VFX / non-mesh actor; `IAI.Selector.Cycle` to `lod_corruption`; `IAI.Selector.Inject` | `Selector.Inject ... -> not applied`; HUD "Last:" line shows "0 matched" (R4); the AMB-2 path is surfaced, not silent. |
+| selector zero-match HUD (escape hatch) | pure-VFX actors are no longer selectable (G33), so reach the zero-match via the console by-name escape hatch: `IAI.Apply lod_corruption =<VfxActorName>` | `Apply ... -> not applied` / "0 matched" in the log (R4 plumbing intact); the AMB-2 path is surfaced, not silent. The `=name` finder bypasses the renderable-set predicate, so it still reaches the VFX actor. |
 | selector model (anomaly) | `IAI.Selector.Cycle` ×N; `IAI.Selector.Status` | chosen anomaly cycles `missing_object → flicker → lod_corruption → lod_popping → …`. |
 | selector inject (exact-match) | select an actor, `IAI.Selector.Inject`; read the target's hidden / `forced_lod_model` | the selected actor changed (e.g. `hidden==True` for `missing_object`); **confirm the `=` exact-name hit ONLY that actor**, not a numbered sibling — if stock content has a `<name>`/`<name>2` pair, select `<name>` and assert `<name>2` is untouched. |
 | selector revert | `IAI.Selector.Revert` | the last-injected id is reverted; target restored. |
@@ -240,7 +241,7 @@ Get the PIE world after starting: `gw = unreal.get_editor_subsystem(unreal.Unrea
 | auto auto-revert (R-LIFE) | `IAI.Auto.Hold 1 1`; `IAI.Auto.FireOnce`; `IAI.Auto.Step 1.5`; `IAI.Auto.Status` | the fire **auto-reverted** (live count drops; target restored; log `Auto.Revert ... hold elapsed`). Then `IAI.Auto.Persist 1`; `FireOnce`; `Step 100` → still live (persists). |
 | auto no-blind-fire | aim at nothing (empty renderable-visible set); `IAI.Auto.FireOnce`/`Step` | **zero** fires (`GetVisibleRenderableActors` empty → never inject blind). |
 | auto seed reproducibility | same `IAI.Auto.Seed S` + same `FireOnce`/`Step` sequence + same camera | identical fire/target/hold sequence across two runs (R-SEED; choices reproduce given the same visible-set sequence). |
-| auto zero-match | `IAI.Auto.Pool all 0`; `IAI.Auto.Pool lod_corruption 1`; with a pure-VFX actor the only visible target: `IAI.Auto.FireOnce` | **no live fire registered**; HUD/log "0 matched (skipped)"; the stream still advanced (Id/Target/Hold drawn) — no slot leak. |
+| auto zero-match | pure-VFX actors are no longer in the auto pool's target set (G33), so the auto path no longer produces an LOD-on-VFX zero-match. The zero-match plumbing (stream advances Id/Target/Hold; no slot leak on `ApplyAnomaly==false`) is covered by the console escape-hatch row above + code-identity. | n/a via the set — re-pointed to the escape hatch. |
 | auto OFF (regression) | `IAI.Auto.Enable 0` (default); re-run the `ListAnomalies` / `missing_object SM_Ramp` rows | **byte-identical** (subsystem dormant — Tick early-returns, no HUD delegate, no stream churn). |
 | auto coexistence-warn | `IAI.SelectorUI 1` then `IAI.Auto.Enable 1`; separately `IAI.SetViewportScoping 1` then `IAI.Auto.Run 1` | each logs a **Warning** (selector+auto both on; scoping ON at run-start). Neither **blocks** (R-COEXIST). |
 
