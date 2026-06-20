@@ -525,3 +525,31 @@ dashboard set only invites unlabeled or no-op samples. This reverses the prior R
   is no longer reachable *through the set* (the VFX actor is no longer offered). The `0 matched` HUD/log plumbing is
   unchanged; the zero-match gate is re-pointed to the console escape hatch (`IAI.Apply lod_corruption =<VfxName>`).
 - Hard remove, no toggle. (Viewport fix, 2026-06-20.)
+
+### G34 — changeable poll-radius distance cull: pawn-origin, sentinel-OFF, applied at BOTH live entry points (viewport)
+An optional distance cull on the LIVE renderable-visible poll: an actor is in the set iff renderable AND within radius
+**R** of the poll origin AND in-frustum AND unoccluded. Console `IAI.SetPollRadius <value>` (cm), shared state in
+`AnomalyViewport.cpp`. The non-obvious parts:
+- **Origin = the player PAWN, not the camera (locked).** `ResolvePollOrigin` reads the first PC's possessed pawn
+  location; the camera origin is only a fallback when there is no pawn (spectator / pawn-less Simulate). Don't "fix"
+  this to the camera. (The dashboard's `FRenderableActorInfo::Distance` is separately CAMERA-relative — two metrics,
+  two purposes; deliberately not reconciled.)
+- **Metric = sphere-approximated bounds distance:** `Dist(PollOrigin, Bounds.Origin) - Bounds.SphereRadius <= R`.
+  `Component->Bounds` is a cached member (O(1)) — the same one the frustum/occlusion tests read, so there is no
+  double-computation to dedupe. Cull order: renderable type-test → distance → frustum → occlusion (cheapest-first;
+  out-of-range actors are rejected before any line trace). Order is a pure short-circuit choice (the set is an AND).
+- **Default OFF via a sentinel:** `R <= 0` disables the cull entirely → behavior BYTE-IDENTICAL to no-cull (the
+  regression guarantee). No separate enabled flag.
+- **Applied to BOTH live poll entry points** (`GetVisibleRenderableActors` AND `GetVisibleRenderableActorInfos`) with
+  the identical pawn-origin + radius, so the `IAI.DumpVisible` set-identity gate still passes. The cull is threaded as
+  a parameter through the shared chokepoint `IsComponentRenderableVisibleInternal`; the **explicit-view** functions
+  (`IsActorRenderableVisible` / `FilterRenderableVisibleActors`) pass radius **0** so the synthetic-gate surface stays
+  byte-identical even when a radius is set. (Reading the global *inside* the chokepoint would have wrongly culled the
+  synthetic surface too — hence the parameter.)
+- **Debug sphere (dev):** when `R > 0`, a `UDebugDrawService("Game")` delegate draws the radius as a yellow sphere
+  centered on the LIVE pawn, re-resolved **every frame** (never cache a position at registration — the pawn moves).
+  Registered/unregistered on the OFF↔ON boundary by `SetPollRadius` (G25 hygiene). Accepted minor: a module unload
+  *while a radius is set* leaks the handle (a teardown hook would mean touching the module `.cpp`, out of this fix's
+  "touch only AnomalyViewport" scope) — fine for a dev-only viz.
+- **No new dep** (`IConsoleManager`/`FVector` = Core; `UDebugDrawService`/`DrawDebugSphere`/`APawn` = Engine). (Viewport
+  fix, 2026-06-20.)

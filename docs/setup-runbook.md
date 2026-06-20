@@ -121,6 +121,11 @@ Open the console in PIE (press `` ` `` backtick) and run:
     aim away from a matched object and it is left untouched; aim at it and it is affected. `IAI.SetViewportScoping 0`
     restores the unscoped behavior. The heartbeat shows `scoping: ON/OFF`. (Diagnostic: `IAI.TestVisibility <sub>
     <ox oy oz> <pitch yaw roll> [fov] [aspect]` logs per-component `frustum/unoccluded/visible` for a synthetic view.)
+12. `IAI.SetPollRadius <cm>` — opt-in **distance cull** (default OFF) on the renderable-visible set: only renderable
+    actors within `<cm>` of the **player pawn** are offered to the selector / auto-injector / dashboard. `<= 0`
+    disables it (byte-identical to no cull); no argument prints the current radius. When set, a yellow debug sphere of
+    that radius is drawn around the pawn. Independent of `IAI.SetViewportScoping` (this culls the renderable-visible
+    *set*; scoping gates the *console finders*). See gotcha G34.
 
 The green on-screen heartbeat reads `[IAI] AnomalyInjector ticking (active: N/Total, scoping: ON/OFF)`.
 
@@ -244,6 +249,10 @@ Get the PIE world after starting: `gw = unreal.get_editor_subsystem(unreal.Unrea
 | auto zero-match | pure-VFX actors are no longer in the auto pool's target set (G33), so the auto path no longer produces an LOD-on-VFX zero-match. The zero-match plumbing (stream advances Id/Target/Hold; no slot leak on `ApplyAnomaly==false`) is covered by the console escape-hatch row above + code-identity. | n/a via the set — re-pointed to the escape hatch. |
 | auto OFF (regression) | `IAI.Auto.Enable 0` (default); re-run the `ListAnomalies` / `missing_object SM_Ramp` rows | **byte-identical** (subsystem dormant — Tick early-returns, no HUD delegate, no stream churn). |
 | auto coexistence-warn | `IAI.SelectorUI 1` then `IAI.Auto.Enable 1`; separately `IAI.SetViewportScoping 1` then `IAI.Auto.Run 1` | each logs a **Warning** (selector+auto both on; scoping ON at run-start). Neither **blocks** (R-COEXIST). |
+| poll-radius cull (G34) | note baseline `IAI.DumpVisible` count; `IAI.SetPollRadius <R>` with a small R (e.g. 1500); `IAI.DumpVisible` again (and check the selector/auto target set) | actors beyond R of the **pawn** drop out of the set; near actors remain. The drop is identical in the selector, the auto pool, and the dashboard (one source of truth). |
+| poll-radius set-identity | with `R > 0` set: `IAI.DumpVisible` | still `byte-identical(set+order): MATCH` — the cull is applied identically to `GetVisibleRenderableActors` and `GetVisibleRenderableActorInfos`. |
+| poll-radius OFF (regression) | `IAI.SetPollRadius 0` (default sentinel); re-run the prior renderable-set / `IAI.DumpVisible` rows | **byte-identical** to no-cull (R ≤ 0 disables entirely). `IAI.SetPollRadius` with no arg logs the current radius + usage and changes nothing. |
+| poll-radius debug sphere (eyeball) | `IAI.SetPollRadius <R>` in real Play | a yellow debug sphere of radius R is centered on the **live pawn** and follows it each frame; it disappears at `IAI.SetPollRadius 0`. |
 
 **Synthetic-view gate recipe (viewport core).** The core is a pure function of (explicit view, world), so it is
 state-gatable deterministically with `IAI.TestVisibility` — no live player needed. Read a target's world bounds

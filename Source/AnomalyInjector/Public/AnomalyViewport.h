@@ -175,9 +175,32 @@ namespace AnomalyViewport
 	 */
 	ANOMALYINJECTOR_API bool IsActorRenderableVisible(const FAnomalyViewInfo& View, UWorld* World, const AActor* Actor);
 
-	/** Subset of In that IsActorRenderableVisible(View, ...). Stable order; skips stale weak ptrs. */
+	/** Subset of In that IsActorRenderableVisible(View, ...). Stable order; skips stale weak ptrs.
+	 *  NOTE: this explicit-view function is part of the synthetic-gate surface and is NOT subject to the
+	 *  poll-radius cull (it always passes radius 0 internally) — the cull is a property of the LIVE whole-scene
+	 *  poll entry points below, not the deterministic (view, world) core. */
 	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> FilterRenderableVisibleActors(
 		const FAnomalyViewInfo& View, UWorld* World, const TArray<TWeakObjectPtr<AActor>>& In);
+
+	// --- Poll-radius distance cull (changeable; default OFF) ---
+	// An optional distance cull layered onto the LIVE renderable-visible poll (GetVisibleRenderableActors and
+	// GetVisibleRenderableActorInfos only). When a positive radius R is set, an actor is in the set iff it is
+	// renderable AND within R of the POLL ORIGIN (the player PAWN location, not the camera) AND in-frustum AND
+	// unoccluded. Metric = sphere-approximated bounds distance: dist(PollOrigin, Bounds.Origin) - SphereRadius <= R.
+	// The cull runs after the renderable type-test and before the occlusion line-traces (cheapest-cull-first).
+	// SINGLE SHARED STATE, one source of truth, lives in AnomalyViewport.cpp. Default OFF via a sentinel:
+	// R <= 0 disables the cull entirely, so behavior is BYTE-IDENTICAL to no-cull (no extra work, no actors
+	// dropped). Positive R enables it. Applied identically to BOTH live entry points, so the IAI.DumpVisible
+	// set-identity gate (GetVisibleRenderableActors vs GetVisibleRenderableActorInfos) still holds. The explicit-
+	// view functions (IsActorRenderableVisible / FilterRenderableVisibleActors) are NOT culled (synthetic surface).
+	// Console: IAI.SetPollRadius <value> (Unreal units / cm), registered in AnomalyViewport.cpp.
+
+	/** Set the shared poll-radius cull distance in Unreal units (cm). R <= 0 disables the cull (default OFF).
+	 *  Toggling across the 0 boundary also (un)registers the dev debug-draw sphere (drawn only while R > 0). */
+	ANOMALYINJECTOR_API void SetPollRadius(float Radius);
+
+	/** The current shared poll-radius (cm). <= 0 means the cull is OFF. */
+	ANOMALYINJECTOR_API float GetPollRadius();
 
 	/**
 	 * Convenience for the object selector / future auto-injection: resolve the live view, enumerate all

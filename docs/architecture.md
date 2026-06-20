@@ -209,6 +209,17 @@ boxes, editor billboards, landscape, debug/streaming actors), which must never b
 - **No-view contract:** `GetVisibleRenderableActors` returns **empty** on no resolvable view (offer nothing, never
   blind) — deliberately **distinct** from the `FindVisible*Matching` finders' treat-as-unscoped. Two callers, two safe
   directions (console = act-don't-drop; selector/auto-injection = offer-nothing). Do not reconcile them (G29).
+- **Poll-radius distance cull (changeable; default OFF — G34).** An optional cull layered onto the two LIVE poll
+  entry points (`GetVisibleRenderableActors` + `GetVisibleRenderableActorInfos`): with a positive radius **R**, an actor
+  is in the set iff renderable AND within **R** of the **player pawn** (sphere-approx bounds metric
+  `Dist(PollOrigin, Bounds.Origin) - SphereRadius <= R`) AND in-frustum AND unoccluded. Single shared state in
+  `AnomalyViewport`, set via `IAI.SetPollRadius <cm>`; `R <= 0` disables it → byte-identical to no-cull. The cull runs
+  after the renderable type-test and before the occlusion traces (cheapest-cull-first), is threaded through the shared
+  chokepoint so **both** live entry points apply it identically (the `IAI.DumpVisible` set-identity gate holds), and the
+  explicit-view functions (`IsActorRenderableVisible` / `FilterRenderableVisibleActors`) pass radius 0 (synthetic
+  surface stays byte-identical). When `R > 0` a dev `UDebugDrawService` sphere visualizes the radius around the live
+  pawn. Origin is the **pawn** (not the camera); the dashboard's `Distance` field stays camera-relative — distinct on
+  purpose. All types are in `Core`/`Engine` → no new dep.
 - All types are in `Engine` → **still no new module dependency**.
 
 ## Control surface (console commands)
@@ -221,6 +232,10 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
 - `IAI.RevertAll` — revert all active anomalies.
 - `IAI.SetViewportScoping <0|1>` — toggle viewport-visibility scoping for the four object-scoped anomalies
   (default **OFF**; see "Viewport-visibility scoping" below).
+- `IAI.SetPollRadius <cm>` — set the renderable-visible **poll-radius distance cull** around the player pawn (G34);
+  `<= 0` disables it (default **OFF**). Affects the selector / auto-injector / dashboard set (all consume the live
+  renderable-visible poll). No argument → prints the current radius. Registered in `AnomalyViewport.cpp` (it sets a
+  world-independent global, so unlike the other `IAI.*` commands it is a plain `FAutoConsoleCommand`).
 - `IAI.TestVisibility <substring> <ox oy oz> <pitch yaw roll> [fovDeg] [aspect]` — **diagnostic** (not an
   anomaly): test the `AnomalyViewport` core against a **synthetic** view and log per-component
   `frustum / unoccluded / visible`. The deterministic synthetic-view state-gate driver.

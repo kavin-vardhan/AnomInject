@@ -10,7 +10,26 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **Latest as-built:** **Automatic Injection — COMPLETE (committed `41ba104`, tagged `m6`) (2026-06-19).** New
+- **Latest as-built (post-m6 viewport fixes, 2026-06-20):** two surgical, owner-locked fixes to the shared
+  **renderable-visible set** in `AnomalyViewport` (the one source of truth consumed by the M5 selector, the m6
+  auto-injector, AND — new since m6 — the control-server **A4 read-back** `GetVisibleRenderableActorInfos` + the
+  `IAI.DumpVisible` set-identity gate). **(1) VFX removed (G33):** dropped the `UFXSystemComponent` clause from
+  `IsRenderableComponent` → the set is **SM ∥ SK only** (reverses the G29/R1 VFX inclusion; HARD REMOVE). The `=name`
+  console escape hatch still reaches VFX actors (it bypasses the predicate). **(2) Changeable poll-radius distance
+  cull (G34):** `IAI.SetPollRadius <cm>` adds an optional cull — actor in the set iff renderable AND within R of the
+  **player pawn** (sphere-approx bounds metric) AND in-frustum AND unoccluded; `R <= 0` disables it (default OFF,
+  byte-identical); applied identically at both live entry points (DumpVisible MATCH preserved); a dev debug sphere
+  visualizes R around the live pawn. **Only `AnomalyViewport.{h,cpp}` touched** (+ docs); `IAnomaly`/injector/anomalies/
+  selector/auto/control-server cores untouched; **no new dep**, no `.uplugin` bump. **Clean Development-Editor compile
+  on 5.1 (exit 0)** before each commit (control-server module re-links clean against the changed header). **Two atomic
+  path-scoped commits, NO tag:** `9bbd398` `fix(viewport): remove VFX from renderable-visible set` +
+  `<fix2>` `feat(viewport): add changeable poll-radius distance cull` (the uncommitted control-server WIP in the tree
+  was left untouched). Owner smoke-test pending. → `docs/sessions/2026-06-20-011-viewport-vfx-removal-poll-radius.md`.
+- **Prior as-built (control server, in flight):** the Tier-2 runtime control surface is under construction — committed
+  slices `2645236` (transport spike: WS server + auth + loopback gate + backbuffer→JPEG) and `4c05344` (core read-back
+  / A4: `GetVisibleRenderableActorInfos` + `FRenderableActorInfo`), plus uncommitted WIP. Separate `AnomalyControlServer`
+  module with its own log category (G32). Not yet journaled as a milestone.
+- **Latest milestone (as-built):** **Automatic Injection — COMPLETE (committed `41ba104`, tagged `m6`) (2026-06-19).** New
   **separate** `UAnomalyAutoInjectorSubsystem`
   (`Public/AnomalyAutoInjectorSubsystem.h` + `Private/AnomalyAutoInjectorSubsystem.cpp`, `UTickableWorldSubsystem`,
   Game+PIE) that auto-fires the **4** object-scoped anomalies **randomly on the renderable objects currently on-screen**
@@ -59,7 +78,8 @@ and is the single source of truth for the project.
   over the bridge (MainWorld Simulate): selection cycles the name-sorted renderable-visible set; `=` exact-match inject
   hits exactly the selected actor (1 of 17 prefix-siblings); the renderable filter excludes RVTVolume / PlayerStart /
   GameplayDebugger / zero-instance-grass LandscapeStreamingProxy while keeping meshes + foliage + NiagaraActors +
-  RoomBuilderSquare; zero-match (Niagara + `lod_corruption`) surfaced; OFF-regression byte-identical (`SM_Ramp`→2,
+  RoomBuilderSquare *(NiagaraActors/VFX were later removed from the set — G33, 2026-06-20)*;
+  zero-match (Niagara + `lod_corruption`) surfaced; OFF-regression byte-identical (`SM_Ramp`→2,
   `=SM_Ramp2…`→1). **Owner real-Play eyeball green — ACCEPTED.** → `docs/sessions/2026-06-19-009-selector-inject-ui.md`.
 - **Prior milestone (as-built):** **Viewport-Visibility Layer — COMPLETE (committed `7c34275`, tagged `m4`) (2026-06-18).**
   New shared helper **`AnomalyViewport`** (`Public/AnomalyViewport.h` + `Private/AnomalyViewport.cpp`,
@@ -124,10 +144,11 @@ and is the single source of truth for the project.
   `lod_corruption`** was the M2 stopgap; **resolved in M3** (static + skeletal via `AnomalyLod`, G19). M2 ships 2 helpers (A1, A3).
 - **Resolved (M1):** **AMB-3 → capture-baseline** — `time_dilation` Revert restores the pre-Apply value.
   Generalized in M2 to the **per-target/global state-capture convention** (see architecture.md). G11.
-- **In flight:** none (m6 committed `41ba104` + tagged; a follow-up `docs:` commit will sweep the post-m6 session-close
-  handoff doc + the m6-acceptance notes — m6 stays pointed at the `feat:` commit, no retag). **Next action:** the
-  High-priority new bug types (born viewport-aware AND auto-injectable), then the Tier-2 runtime control server
-  (ships-as-a-build control surface). Also still queued: the `flicker→blinking` rename + new `flickering` (handoff §2.3),
+- **In flight:** the **Tier-2 runtime control server** (`AnomalyControlServer` module — WS transport + A4 read-back;
+  committed `2645236`/`4c05344` + uncommitted WIP in the tree; not yet journaled as a milestone). The two post-m6
+  viewport fixes (G33 VFX removal + G34 poll-radius cull) are committed (`9bbd398` + `<fix2>`, no tag); owner smoke-test
+  pending. **Next action:** finish the control-server slice, then the High-priority new bug types (born viewport-aware
+  AND auto-injectable). Also still queued: the `flicker→blinking` rename + new `flickering` (handoff §2.3),
   region-darkening (§2.4), the selector's screen-X ordering polish. Bridge/host stay unversioned (G8 unchanged).
 - Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`), M2.5+M2.6 (`…-005`), M3 (`…-006`) fully passed
   + tagged; rename refactor (`…-007`) committed `351c7e8` (no tag); **Viewport-Visibility Layer (`…-008`) committed
