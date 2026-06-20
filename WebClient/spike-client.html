@@ -1,133 +1,209 @@
 <!DOCTYPE html>
 <!-- Copyright GDP Anomaly Injection Project. All Rights Reserved.
-     Slice 0 transport-spike test client (THROWAWAY). Single file, no build, no deps.
+     Slice 1 (Step 2) transport/read-back test client (THROWAWAY). Single file, no build, no deps.
      Open directly in a browser (file://) and connect to the in-game control server.
-     The React dashboard (Slice 1) lives in its own external repo; this only smoke-tests the transport. -->
+     The production React dashboard (Step 3) lives in its own external repo; this only smoke-tests the
+     server: connect/auth, subscribe, snapshot (visible+catalog+active+auto+session), inject round-trip,
+     and game-view-only preview frames with overlay rects. -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Anomaly Control — Slice 0 Spike Client</title>
+<title>Anomaly Control — Slice 1 Spike Client</title>
 <style>
-  body { font-family: ui-monospace, Consolas, monospace; margin: 0; background:#15171c; color:#d7dbe0; }
-  header { padding:10px 14px; background:#1d2128; border-bottom:1px solid #2b3038; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  input { background:#0f1115; border:1px solid #333; color:#d7dbe0; padding:5px 7px; border-radius:4px; }
-  button { background:#2b6cb0; border:0; color:#fff; padding:6px 12px; border-radius:4px; cursor:pointer; }
+  body { font-family: ui-monospace, Consolas, monospace; margin: 0; background:#15171c; color:#d7dbe0; font-size:12px; }
+  header { padding:8px 12px; background:#1d2128; border-bottom:1px solid #2b3038; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  input, select { background:#0f1115; border:1px solid #333; color:#d7dbe0; padding:4px 6px; border-radius:4px; }
+  button { background:#2b6cb0; border:0; color:#fff; padding:5px 10px; border-radius:4px; cursor:pointer; }
   button:disabled { background:#3a4049; cursor:not-allowed; }
   #status { margin-left:auto; font-weight:bold; }
   .ok { color:#48bb78; } .bad { color:#f56565; } .wait { color:#ecc94b; }
-  main { display:flex; gap:12px; padding:12px; align-items:flex-start; flex-wrap:wrap; }
-  #log { flex:1 1 360px; height:62vh; overflow:auto; background:#0f1115; border:1px solid #2b3038; border-radius:6px; padding:8px; white-space:pre-wrap; font-size:12px; }
-  #frameWrap { flex:1 1 480px; }
-  canvas { max-width:100%; border:1px solid #2b3038; border-radius:6px; background:#000; }
-  .meta { font-size:12px; color:#8a909b; margin-top:6px; }
+  main { display:flex; gap:10px; padding:10px; align-items:flex-start; flex-wrap:wrap; }
+  .col { display:flex; flex-direction:column; gap:8px; }
+  .panel { background:#0f1115; border:1px solid #2b3038; border-radius:6px; padding:8px; }
+  .panel h3 { margin:0 0 6px; font-size:12px; color:#8a909b; font-weight:600; }
+  #frameWrap { position:relative; width:640px; height:360px; }
+  #frame-canvas, #overlay-canvas { position:absolute; top:0; left:0; width:640px; height:360px; border:1px solid #2b3038; border-radius:6px; }
+  #overlay-canvas { pointer-events:none; }
+  #log { width:340px; height:200px; overflow:auto; white-space:pre-wrap; }
+  .list { max-height:200px; overflow:auto; }
+  .row { padding:2px 4px; border-radius:3px; cursor:pointer; }
+  .row:hover { background:#1d2530; }
+  .row.sel { background:#2b6cb0; color:#fff; }
+  table { border-collapse:collapse; } td { padding:1px 6px 1px 0; }
   .tx { color:#63b3ed; } .rx { color:#9ae6b4; } .err { color:#fc8181; } .sys { color:#a0aec0; }
+  label.inline { display:flex; gap:4px; align-items:center; }
 </style>
 </head>
 <body>
 <header>
-  <label>URL <input id="url" size="26" value="ws://127.0.0.1:8077" /></label>
-  <label>Token <input id="token" size="34" placeholder="paste from Output Log" /></label>
+  <label>URL <input id="url" size="22" value="ws://127.0.0.1:8077" /></label>
+  <label>Token <input id="token" size="30" placeholder="paste from Output Log" /></label>
   <button id="connect">Connect</button>
   <button id="disconnect" disabled>Disconnect</button>
-  <button id="echo" disabled>Send echo</button>
-  <button id="frame" disabled>Request frame</button>
+  <button id="listAnomalies" disabled>List anomalies</button>
+  <button id="revertAll" disabled>Revert all</button>
+  <label class="inline"><input type="checkbox" id="overlayChk" checked />overlay</label>
   <span id="status" class="bad">disconnected</span>
 </header>
 <main>
-  <div id="log"></div>
-  <div id="frameWrap">
-    <canvas id="frame-canvas" width="640" height="360"></canvas>
-    <div class="meta" id="frameMeta">no frame yet</div>
+  <div class="col">
+    <div id="frameWrap">
+      <canvas id="frame-canvas" width="640" height="360"></canvas>
+      <canvas id="overlay-canvas" width="640" height="360"></canvas>
+    </div>
+    <div class="panel">
+      <h3>INJECT</h3>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center">
+        <select id="anomalySel"></select>
+        <input id="targetInp" size="22" placeholder="target (click a visible actor)" />
+        <input id="argsInp" size="10" placeholder="args" />
+        <button id="injectBtn" disabled>Inject</button>
+        <button id="revertBtn" disabled>Revert</button>
+      </div>
+      <div id="scopeHint" class="sys"></div>
+    </div>
+    <div class="panel"><h3>LOG</h3><div id="log"></div></div>
+  </div>
+  <div class="col">
+    <div class="panel"><h3>VISIBLE (<span id="visCount">0</span>)</h3><div id="visList" class="list"></div></div>
+    <div class="panel"><h3>ACTIVE (<span id="actCount">0</span>)</h3><div id="actList" class="list"></div></div>
+  </div>
+  <div class="col">
+    <div class="panel"><h3>AUTO</h3><div id="autoPanel"></div></div>
+    <div class="panel"><h3>SESSION</h3><div id="sessionPanel"></div></div>
   </div>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
 const logEl = $('log');
-let ws = null, frameCount = 0;
+let ws = null, snapshot = null, catalog = [], selectedTarget = null, frameBitmap = null, frameWH = [640,360];
 
 function log(cls, msg) {
-  const t = new Date().toLocaleTimeString();
-  const line = document.createElement('div');
-  line.className = cls;
-  line.textContent = `[${t}] ${msg}`;
-  logEl.appendChild(line);
-  logEl.scrollTop = logEl.scrollHeight;
+  const line = document.createElement('div'); line.className = cls;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  logEl.appendChild(line); logEl.scrollTop = logEl.scrollHeight;
+  while (logEl.childNodes.length > 200) logEl.removeChild(logEl.firstChild);
 }
-function setStatus(cls, text) { const s = $('status'); s.className = cls; s.textContent = text; }
+function setStatus(cls, t) { const s = $('status'); s.className = cls; s.textContent = t; }
 function setConnected(on) {
   $('connect').disabled = on; $('disconnect').disabled = !on;
-  $('echo').disabled = !on;  $('frame').disabled = !on;
+  ['listAnomalies','revertAll','injectBtn','revertBtn'].forEach(id => $(id).disabled = !on);
+}
+const send = (obj) => { ws.send(JSON.stringify(obj)); log('tx','TX ' + obj.type); };
+
+// ---- frame vs json demux (Slice-0 finding: JSON arrives as TEXT; frames as BINARY with AIF1 magic) ----
+const MAGIC = [0x41,0x49,0x46,0x31];
+const isFrame = (b) => b.length >= 16 && MAGIC.every((m,i) => b[i]===m);
+
+function onMessage(ev) {
+  if (typeof ev.data === 'string') return handleJson(ev.data);
+  const bytes = new Uint8Array(ev.data);
+  if (isFrame(bytes)) return handleFrame(bytes);
+  handleJson(new TextDecoder('utf-8').decode(bytes));
 }
 
-// Frames may arrive as a binary WS frame; JSON may arrive as text OR binary depending on how the UE
-// libwebsockets server opcodes its Send (a SPIKE FINDING). This client is framing-agnostic: it sniffs
-// the 4-byte "AIF1" magic to tell a JPEG frame from a JSON message.
-const MAGIC = [0x41, 0x49, 0x46, 0x31]; // "AIF1"
-function isFrame(bytes) {
-  return bytes.length >= 16 && MAGIC.every((b, i) => bytes[i] === b);
-}
-
-function handleJsonText(text) {
-  log('rx', 'RX ' + text);
-  try {
-    const obj = JSON.parse(text);
-    if (obj.type === 'welcome') setStatus('ok', 'authenticated');
-  } catch (e) { /* not json — ignore */ }
+function handleJson(text) {
+  let m; try { m = JSON.parse(text); } catch { log('err','non-json: '+text.slice(0,80)); return; }
+  if (m.type === 'snapshot') { snapshot = m; renderSnapshot(m); drawOverlay(); return; }
+  if (m.type === 'welcome') { setStatus('ok','authenticated'); log('rx','welcome v'+m.v);
+    send({type:'subscribe', channels:['snapshot','frames'], snapshotHz:5, frameHz:2});
+    send({type:'list_anomalies'}); return; }
+  if (m.type === 'catalog') { catalog = m.entries || []; populateAnomalies(); log('rx','catalog: '+catalog.length+' entries'); return; }
+  if (m.type === 'ack') { log('rx','ack re='+m.re+(m.applied!==undefined?(' applied='+m.applied):'')); return; }
+  log('rx','RX '+text.slice(0,120));
 }
 
 function handleFrame(bytes) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const frameId = dv.getUint32(4, true);
-  const epoch   = dv.getUint32(8, true);
-  const w = dv.getUint16(12, true);
-  const h = dv.getUint16(14, true);
-  const jpeg = bytes.subarray(16);
-  const blob = new Blob([jpeg], { type: 'image/jpeg' });
-  createImageBitmap(blob).then((bmp) => {
-    const c = $('frame-canvas');
-    c.width = w; c.height = h;
-    c.getContext('2d').drawImage(bmp, 0, 0);
-    frameCount++;
-    $('frameMeta').textContent = `frame #${frameId} (epoch ${epoch}) ${w}x${h} — ${jpeg.length} bytes — total ${frameCount}`;
-    bmp.close();
-  }).catch((e) => log('err', 'frame decode failed: ' + e));
+  const w = dv.getUint16(12,true), h = dv.getUint16(14,true);
+  createImageBitmap(new Blob([bytes.subarray(16)], {type:'image/jpeg'})).then(bmp => {
+    frameBitmap = bmp; frameWH = [w,h];
+    const c = $('frame-canvas'); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    drawOverlay();
+  }).catch(e => log('err','frame decode: '+e));
 }
 
-function onMessage(ev) {
-  if (typeof ev.data === 'string') { handleJsonText(ev.data); return; }
-  // ArrayBuffer (binaryType = 'arraybuffer')
-  const bytes = new Uint8Array(ev.data);
-  if (isFrame(bytes)) { handleFrame(bytes); }
-  else { handleJsonText(new TextDecoder('utf-8').decode(bytes)); }
+function drawOverlay() {
+  const c = $('overlay-canvas'), ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  if (!snapshot || !$('overlayChk').checked) return;
+  for (const v of (snapshot.visible||[])) {
+    if (!v.rectValid) continue;
+    const [x0,y0,x1,y1] = v.rect;
+    const x = x0*c.width, y = y0*c.height, w = (x1-x0)*c.width, h = (y1-y0)*c.height;
+    const sel = v.name === selectedTarget;
+    ctx.strokeStyle = sel ? '#ecc94b' : 'rgba(99,179,237,0.8)';
+    ctx.lineWidth = sel ? 2 : 1;
+    ctx.strokeRect(x,y,w,h);
+  }
 }
+
+function renderSnapshot(m) {
+  // visible
+  $('visCount').textContent = (m.visible||[]).length;
+  const vl = $('visList'); vl.innerHTML = '';
+  for (const v of (m.visible||[])) {
+    const d = document.createElement('div');
+    d.className = 'row' + (v.name===selectedTarget ? ' sel' : '');
+    d.textContent = `${v.name} · ${v.comp} · ${Math.round(v.dist)}u`;
+    d.title = v.class;
+    d.onclick = () => { selectedTarget = v.name; $('targetInp').value = '=' + v.name; renderSnapshot(snapshot); drawOverlay(); };
+    vl.appendChild(d);
+  }
+  // active
+  $('actCount').textContent = (m.active||[]).length;
+  const al = $('actList'); al.innerHTML = '';
+  for (const a of (m.active||[])) {
+    const d = document.createElement('div'); d.className = 'row';
+    d.textContent = `${a.id} → ${a.target||'(global)'} [${a.source}] ${a.tActive.toFixed(1)}s`;
+    al.appendChild(d);
+  }
+  // auto
+  const au = m.auto||{};
+  $('autoPanel').innerHTML = au.enabled===undefined ? '(n/a)' :
+    `enabled=${au.enabled} running=${au.running} seed=${au.seed}<br>` +
+    `interval=[${au.intervalMin},${au.intervalMax}] hold=[${au.holdMin},${au.holdMax}]<br>` +
+    `maxConcurrent=${au.maxConcurrent} persist=${au.persist}<br>` +
+    `pool=${JSON.stringify(au.pool||{})}<br>liveFires=${(au.liveFires||[]).length}`;
+  // session
+  const s = m.session||{};
+  $('sessionPanel').innerHTML =
+    `scoping=${s.viewportScoping} selectorHud=${s.selectorHud} autoHud=${s.autoHud}<br>` +
+    `fps=${(s.fps||0).toFixed(0)} active=${s.activeCount} epoch=${m.epoch}`;
+}
+
+function populateAnomalies() {
+  const sel = $('anomalySel'); sel.innerHTML = '';
+  for (const e of catalog) { const o = document.createElement('option'); o.value = e.id; o.textContent = `${e.id} (${e.scope})`; sel.appendChild(o); }
+  updateScopeHint();
+}
+function curEntry() { return catalog.find(e => e.id === $('anomalySel').value); }
+function updateScopeHint() {
+  const e = curEntry(); if (!e) return;
+  $('scopeHint').textContent = `scope=${e.scope} · args: ` + (e.args.length ? e.args.map(a => `${a.name}:${a.type}${a.required?'!':''}${a.default?('='+a.default):''}`).join(', ') : '(none)');
+}
+$('anomalySel').onchange = updateScopeHint;
 
 $('connect').onclick = () => {
-  const url = $('url').value.trim();
-  const token = $('token').value.trim();
-  try { ws = new WebSocket(url); } catch (e) { log('err', 'bad URL: ' + e); return; }
-  ws.binaryType = 'arraybuffer';
-  setStatus('wait', 'connecting…');
-  ws.onopen = () => {
-    log('sys', 'socket open — sending hello');
-    setStatus('wait', 'authenticating…');
-    const hello = JSON.stringify({ type: 'hello', token, v: 1 });
-    ws.send(hello); log('tx', 'TX ' + hello);
-    setConnected(true);
-  };
+  try { ws = new WebSocket($('url').value.trim()); } catch(e){ log('err','bad url'); return; }
+  ws.binaryType = 'arraybuffer'; setStatus('wait','connecting…');
+  ws.onopen = () => { setStatus('wait','authenticating…'); send({type:'hello', token:$('token').value.trim(), v:1}); setConnected(true); };
   ws.onmessage = onMessage;
-  ws.onerror = () => { log('err', 'socket error'); setStatus('bad', 'error'); };
-  ws.onclose = () => { log('sys', 'socket closed'); setStatus('bad', 'disconnected'); setConnected(false); ws = null; };
+  ws.onerror = () => { log('err','socket error'); setStatus('bad','error'); };
+  ws.onclose = () => { setStatus('bad','disconnected'); setConnected(false); ws = null; };
 };
-$('disconnect').onclick = () => { if (ws) ws.close(); };
-$('echo').onclick = () => {
-  const m = JSON.stringify({ type: 'echo', payload: { ts: Date.now(), hello: 'spike' } });
-  ws.send(m); log('tx', 'TX ' + m);
+$('disconnect').onclick = () => ws && ws.close();
+$('listAnomalies').onclick = () => send({type:'list_anomalies'});
+$('revertAll').onclick = () => send({type:'revert_all'});
+$('injectBtn').onclick = () => {
+  const e = curEntry(); if (!e) return;
+  const target = e.scope === 'global' ? '' : $('targetInp').value.trim();
+  const args = $('argsInp').value.trim() ? $('argsInp').value.trim().split(/\s+/) : [];
+  send({type:'inject', anomaly:e.id, target, args});
 };
-$('frame').onclick = () => {
-  const m = JSON.stringify({ type: 'frame_request' });
-  ws.send(m); log('tx', 'TX ' + m);
-};
-log('sys', 'Slice-0 spike client ready. Start the server in-game (IAI.Server.Start), paste the token, Connect.');
+$('revertBtn').onclick = () => { const e = curEntry(); if (e) send({type:'revert', anomaly:e.id}); };
+$('overlayChk').onchange = drawOverlay;
+log('sys','Slice-1 spike client ready. Start the server in-game (IAI.Server.Start), paste the token, Connect.');
 </script>
 </body>
 </html>

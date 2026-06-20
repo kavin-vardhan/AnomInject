@@ -3,59 +3,43 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "HAL/CriticalSection.h"
-#include "HAL/ThreadSafeBool.h"
-#include "RHIResources.h"   // FTexture2DRHIRef (5.1 has no RHIFwd.h; it aliases FTextureRHIRef)
 
-class SWindow;
+class UWorld;
 
 /**
- * FAnomalyPreviewCapture (Slice 0 spike) — grabs the game backbuffer via the render-thread delegate
- * FSlateRenderer::OnBackBufferReadyToPresent (verified present on 5.1, SlateRenderer.h:300), reads it
- * back to CPU FColor, and hands the newest frame to the game thread on demand.
+ * AnomalyPreview (Slice 1 + m7 capture/labeling) — game-thread capture of the GAME viewport.
  *
- * RATIFIED preview path: OnBackBufferReadyToPresent (no disk writes, true presented frame) +
- * ImageWrapper JPEG. JPEG encoding happens on the GAME thread (TakeEncodedJpeg) to keep the render
- * thread doing only the (synchronous) readback. Throttle the request rate from the game thread.
+ * Uses FViewport::ReadPixels on World->GetGameViewport()->Viewport, which reads the game render target
+ * ONLY (no editor chrome) in both docked and separate-window PIE, and in a packaged build — superseding
+ * the Slice-0 backbuffer path (which captured the whole editor window in docked PIE) and the
+ * screenshot-delegate fallback (which wrote a PNG to disk per frame). No disk writes here (the label
+ * writer owns disk I/O). Native viewport resolution — NO downscale (downscaling is a later dataset-prep step).
  *
- * Known spike cost: ReadSurfaceData is a synchronous GPU readback (a render-thread stall). Acceptable at
- * the ~2 fps spike cadence; a later "real" path can use async/staged readback. Window targeting (only
- * capturing the game viewport's backbuffer, not editor windows) is THE correctness item the owner
- * smoke-test validates. If the RHI readback proves intractable, the documented fallback is
- * UGameViewportClient::OnScreenshotCaptured (game-thread, but writes a PNG to disk).
+ * Cost / latency (gotcha — m7 A1): ReadPixels is a SYNCHRONOUS readback (FlushRenderingCommands) that
+ * reads the LAST render-thread-completed frame of the game viewport RT. With r.OneFrameThreadLag (default
+ * ON) the render thread trails the game thread, so a game-thread state mutation in tick N is NOT in a frame
+ * captured during tick N — it appears ~1 frame later. Callers that mutate then immediately capture must
+ * settle (the burst state machine does). Call at a MODEST cadence to bound the synchronous stall; the
+ * render-thread async readback (OnBackBufferReadyToPresent + game-window filter, or a staged GPU readback)
+ * is the documented DEFERRED upgrade for higher fps (and is REQUIRED before framerate-bug anomalies enter
+ * the pool — the flush would corrupt the very framerate label). Engine + ImageWrapper only — no RHI/RenderCore/Slate.
  */
-class FAnomalyPreviewCapture
+namespace AnomalyPreview
 {
-public:
-	~FAnomalyPreviewCapture();
+	/** Output image encoding. PNG = lossless (default for the ML dataset — no compression artifacts a
+	 *  bug-detector could mislearn as corruption); JPEG = smaller (the dashboard preview path). */
+	enum class EImageFormat : uint8 { PNG, JPEG };
 
-	/** Register the render-thread backbuffer delegate. Safe no-op if Slate isn't initialized. */
-	void Start();
+	/** Capture the current game viewport as raw BGRA8 (FColor) pixels — no encode, no disk. Returns false if
+	 *  there is no game viewport or the readback failed. OutWidth/OutHeight are the native viewport pixel size. */
+	bool CaptureGameViewportRaw(UWorld* World, TArray<FColor>& OutPixels, int32& OutWidth, int32& OutHeight);
 
-	/** Unregister the delegate and flush rendering so no in-flight callback touches us. Idempotent. */
-	void Stop();
+	/** Capture + encode the current game viewport to PNG or JPEG. Quality applies to JPEG only (PNG is
+	 *  lossless). Returns false on no viewport / readback failure / encode failure. */
+	bool CaptureGameViewportEncoded(UWorld* World, EImageFormat Format, TArray<uint8>& OutBytes,
+		int32& OutWidth, int32& OutHeight, int32 JpegQuality = 90);
 
-	bool IsRunning() const { return bRunning; }
-
-	/** Game thread: request that the next matching present be grabbed. InTargetWindow filters to the game
-	 *  viewport's window (pass an invalid weak ptr to accept any window). */
-	void RequestCapture(TWeakPtr<SWindow> InTargetWindow);
-
-	/** Game thread: if a raw frame was grabbed since the last call, encode it to JPEG and return true. */
-	bool TakeEncodedJpeg(TArray<uint8>& OutJpeg, int32& OutWidth, int32& OutHeight, int32 Quality = 60);
-
-private:
-	void OnBackBufferReady(SWindow& Window, const FTexture2DRHIRef& BackBuffer); // RENDER THREAD
-
-	FDelegateHandle Handle;
-	bool bRunning = false;
-
-	// render -> game handoff: single newest-wins slot under a lock.
-	FCriticalSection Mutex;
-	TArray<FColor> PendingPixels;
-	FIntPoint PendingSize = FIntPoint::ZeroValue;
-	bool bHasPending = false;
-
-	FThreadSafeBool bCaptureRequested;
-	TWeakPtr<SWindow> TargetWindow;
-};
+	/** Capture + JPEG-encode the current game viewport (back-compat thin wrapper over CaptureGameViewportEncoded;
+	 *  the dashboard preview path). */
+	bool CaptureGameViewportJpeg(UWorld* World, TArray<uint8>& OutJpeg, int32& OutWidth, int32& OutHeight, int32 Quality = 60);
+}

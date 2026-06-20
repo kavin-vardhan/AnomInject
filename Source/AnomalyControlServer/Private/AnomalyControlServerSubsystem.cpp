@@ -5,23 +5,27 @@
 #include "AnomalyControlServerLog.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
-#include "Engine/GameViewportClient.h"
+#include "Engine/GameViewportClient.h"   // World->GetGameViewport()->GetViewportSize (epoch bump)
 #include "Misc/Guid.h"
 #include "HAL/PlatformTime.h"
-#include "HAL/IConsoleManager.h"     // FAutoConsoleCommandWithWorldAndArgs (project convention)
-#include "Containers/StringConv.h"   // FTCHARToUTF8 / FUTF8ToTCHAR
+#include "HAL/IConsoleManager.h"
+#include "Containers/StringConv.h"
 
 #if ANOMALY_CONTROL_SERVER
 #include "AnomalyPreviewCapture.h"
-#include "Widgets/SWindow.h"
+#include "ControlProtocol.h"
+#include "ControlSnapshot.h"
+#include "AnomalyInjectorSubsystem.h"
+#include "AnomalySelectorSubsystem.h"
+#include "AnomalyAutoInjectorSubsystem.h"
 #include "Modules/ModuleManager.h"
 #include "IWebSocketNetworkingModule.h"
 #include "IWebSocketServer.h"
 #include "INetworkingWebSocket.h"
 #include "WebSocketNetworkingDelegates.h"
 #include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "Serialization/JsonReader.h"
-#include "Serialization/JsonWriter.h"
 #include "Serialization/JsonSerializer.h"
 #endif
 
@@ -36,7 +40,7 @@ namespace
 }
 
 // ----------------------------------------------------------------------------------------------------
-// IAI.Server.* console surface (module-scoped, resolves the subsystem from the console's world; G7 guard)
+// IAI.Server.* console surface
 // ----------------------------------------------------------------------------------------------------
 
 static FAutoConsoleCommandWithWorldAndArgs GServerStartCmd(
@@ -145,19 +149,17 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 		return false;
 	}
 
-	if (!Preview.IsValid())
-	{
-		Preview = MakeUnique<FAnomalyPreviewCapture>();
-	}
-	Preview->Start();
-
 	bListening = true;
-	LastFrameRequestTime = 0.0;
+	LastSnapshotTime = 0.0;
+	LastFrameTime = 0.0;
 	FrameCounter = 0;
+	ViewEpoch = 0;
+	LastViewportX = 0;
+	LastViewportY = 0;
+	bWantOneFrame = false;
 
 	UE_LOG(LogAnomalyServer, Log, TEXT("=== Anomaly Control Server LISTENING on ws://127.0.0.1:%d ==="), Port);
 	UE_LOG(LogAnomalyServer, Log, TEXT("=== Control server token: %s ==="), *Token);
-	UE_LOG(LogAnomalyServer, Log, TEXT("    (NOTE: lws binds all interfaces; non-loopback peers are refused service. Token required.)"));
 	return true;
 #else
 	UE_LOG(LogAnomalyServer, Warning, TEXT("Control: server compiled out (ANOMALY_CONTROL_SERVER=0)."));
@@ -168,10 +170,6 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 void UAnomalyControlServerSubsystem::StopListening()
 {
 #if ANOMALY_CONTROL_SERVER
-	if (Preview.IsValid())
-	{
-		Preview->Stop();
-	}
 	Conns.Reset();
 	Server.Reset(); // destroys the server -> closes all connections
 	if (bListening)
@@ -198,8 +196,10 @@ void UAnomalyControlServerSubsystem::LogStatus() const
 			++Authed;
 		}
 	}
-	UE_LOG(LogAnomalyServer, Log, TEXT("Control: listening ws://127.0.0.1:%d | token=%s | %d connection(s), %d authed | preview=%s"),
-		Port, *Token, Conns.Num(), Authed, (Preview.IsValid() && Preview->IsRunning()) ? TEXT("on") : TEXT("off"));
+	UE_LOG(LogAnomalyServer, Log, TEXT("Control: listening ws://127.0.0.1:%d | token=%s | %d connection(s), %d authed | snapHz~%.1f frameHz~%.1f"),
+		Port, *Token, Conns.Num(), Authed,
+		SnapshotIntervalSec > 0 ? 1.0 / SnapshotIntervalSec : 0.0,
+		FrameIntervalSec > 0 ? 1.0 / FrameIntervalSec : 0.0);
 #else
 	UE_LOG(LogAnomalyServer, Log, TEXT("Control: compiled out (ANOMALY_CONTROL_SERVER=0)."));
 #endif
@@ -214,10 +214,8 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 		return;
 	}
 
-	// Service libwebsockets — connect / receive / close callbacks fire synchronously here (game thread).
-	Server->Tick();
+	Server->Tick();   // service libwebsockets (connect/receive/close callbacks fire here, game thread)
 
-	// Auth timeout: reject (stop servicing) any peer that never sent a valid hello within the window.
 	const double Now = FPlatformTime::Seconds();
 	for (FControlConn& C : Conns)
 	{
@@ -228,7 +226,17 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 		}
 	}
 
-	PushFrameIfReady();
+	if (Now - LastSnapshotTime >= SnapshotIntervalSec)
+	{
+		LastSnapshotTime = Now;
+		PushSnapshots();
+	}
+	if (bWantOneFrame || (Now - LastFrameTime >= FrameIntervalSec))
+	{
+		LastFrameTime = Now;
+		PushFrames(bWantOneFrame);
+		bWantOneFrame = false;
+	}
 #endif
 }
 
@@ -237,15 +245,6 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 FControlConn* UAnomalyControlServerSubsystem::FindConn(INetworkingWebSocket* Socket)
 {
 	return Conns.FindByPredicate([Socket](const FControlConn& C) { return C.Socket == Socket; });
-}
-
-TWeakPtr<SWindow> UAnomalyControlServerSubsystem::GetGameWindow() const
-{
-	if (GEngine && GEngine->GameViewport)
-	{
-		return GEngine->GameViewport->GetWindow();
-	}
-	return nullptr;
 }
 
 bool UAnomalyControlServerSubsystem::IsLoopbackAddr(const FString& Addr)
@@ -270,19 +269,14 @@ void UAnomalyControlServerSubsystem::OnClientConnected(INetworkingWebSocket* Soc
 	Conn.Socket = Socket;
 	Conn.ConnectTime = FPlatformTime::Seconds();
 
-	// A hard close is not exposed by INetworkingWebSocket; we enforce loopback by REFUSING SERVICE
-	// (never Send, ignore recv). SPIKE FINDING TO REPORT: what string RemoteEndPoint() returns for a local
-	// browser. Clearly-routable addresses are refused; an empty/unrecognized string is served-with-warning
-	// (so the smoke test isn't blocked by an unknown format) — Slice 1 hardens this once the format is known.
-	if (Remote.IsEmpty())
-	{
-		UE_LOG(LogAnomalyServer, Warning,
-			TEXT("Control: RemoteEndPoint() returned EMPTY — servicing anyway for the spike. REPORT THIS."));
-	}
-	else if (!IsLoopbackAddr(Remote))
+	// STRICT loopback (Slice 1): a hard close isn't exposed by INetworkingWebSocket, so we enforce it by
+	// REFUSING SERVICE. Non-loopback AND empty/unknown remote addresses are refused (token is the real guard;
+	// this is the accepted v1 backstop). Slice-0 found RemoteEndPoint reliably returns 127.0.0.1 for a local peer.
+	if (!IsLoopbackAddr(Remote))
 	{
 		Conn.bRejected = true;
-		UE_LOG(LogAnomalyServer, Warning, TEXT("Control: refusing non-loopback peer '%s' (no service)."), *Remote);
+		UE_LOG(LogAnomalyServer, Warning, TEXT("Control: refusing non-loopback peer '%s' (no service)."),
+			Remote.IsEmpty() ? TEXT("(empty)") : *Remote);
 	}
 	else
 	{
@@ -291,8 +285,6 @@ void UAnomalyControlServerSubsystem::OnClientConnected(INetworkingWebSocket* Soc
 
 	Conns.Add(Conn);
 
-	// Per-socket callbacks. Lambdas capture the raw socket; the server outlives these until close/teardown,
-	// and StopListening() resets the server (dropping all sockets) before this subsystem is destroyed.
 	Socket->SetReceiveCallBack(FWebSocketPacketReceivedCallBack::CreateLambda(
 		[this, Socket](void* Data, int32 Size) { OnReceive(Socket, Data, Size); }));
 	Socket->SetSocketClosedCallBack(FWebSocketInfoCallBack::CreateLambda(
@@ -319,39 +311,16 @@ void UAnomalyControlServerSubsystem::OnReceive(INetworkingWebSocket* Socket, voi
 	FControlConn* Conn = FindConn(Socket);
 	if (!Conn || Conn->bRejected)
 	{
-		return; // never service rejected/unknown peers
+		return;
 	}
 
-	const uint8* Bytes = static_cast<const uint8*>(Data);
+	// Slice-0 confirmed bPrependSize=false is clean both directions — a single UTF-8 parse (no prefix-skip).
+	const FUTF8ToTCHAR Conv(reinterpret_cast<const ANSICHAR*>(Data), Size);
+	const FString Text(Conv.Length(), Conv.Get());
 
-	auto BytesToString = [](const uint8* P, int32 N) -> FString
-	{
-		FUTF8ToTCHAR Conv(reinterpret_cast<const ANSICHAR*>(P), N);
-		return FString(Conv.Length(), Conv.Get());
-	};
-
-	auto ParseJson = [](const FString& In, TSharedPtr<FJsonObject>& Out) -> bool
-	{
-		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(In);
-		return FJsonSerializer::Deserialize(Reader, Out) && Out.IsValid();
-	};
-
-	// Defensive: try a clean UTF-8 parse first; if that fails and the payload is long enough, retry skipping
-	// a possible 4-byte length prefix (the UE netdriver framing convention). Which path wins is a SPIKE FINDING.
 	TSharedPtr<FJsonObject> Msg;
-	FString Text = BytesToString(Bytes, Size);
-	bool bParsed = ParseJson(Text, Msg);
-	if (!bParsed && Size > 4)
-	{
-		Text = BytesToString(Bytes + 4, Size - 4);
-		bParsed = ParseJson(Text, Msg);
-		if (bParsed)
-		{
-			UE_LOG(LogAnomalyServer, Warning, TEXT("Control: incoming had a 4-byte size prefix (lws framing) — stripped."));
-		}
-	}
-
-	if (!bParsed)
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Text);
+	if (!FJsonSerializer::Deserialize(Reader, Msg) || !Msg.IsValid())
 	{
 		UE_LOG(LogAnomalyServer, Warning, TEXT("Control: unparseable message (%d bytes) — ignored."), Size);
 		return;
@@ -375,8 +344,8 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			Conn.bAuthed = true;
 			const TSharedRef<FJsonObject> Welcome = MakeShared<FJsonObject>();
 			Welcome->SetStringField(TEXT("type"), TEXT("welcome"));
-			Welcome->SetStringField(TEXT("server"), TEXT("AnomalyControlServer/slice0"));
-			Welcome->SetNumberField(TEXT("v"), 1);
+			Welcome->SetStringField(TEXT("server"), TEXT("AnomalyControlServer/slice1"));
+			Welcome->SetNumberField(TEXT("v"), ControlProtocol::Version);
 			SendJson(Conn.Socket, Welcome);
 			UE_LOG(LogAnomalyServer, Log, TEXT("Control: client authenticated."));
 		}
@@ -393,34 +362,142 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		return; // ignore everything until authenticated
 	}
 
-	// --- Slice 0 protocol stub: echo + on-demand frame request. (Slice 1 replaces this with the real vocab.) ---
-	if (Type == TEXT("echo"))
+	UWorld* World = GetWorld();
+
+	if (Type == TEXT("list_anomalies"))
 	{
-		const TSharedRef<FJsonObject> Reply = MakeShared<FJsonObject>();
-		Reply->SetStringField(TEXT("type"), TEXT("echo_reply"));
-		const TSharedPtr<FJsonObject>* Payload = nullptr;
-		if (Msg->TryGetObjectField(TEXT("payload"), Payload) && Payload)
-		{
-			Reply->SetObjectField(TEXT("payload"), *Payload);
-		}
-		SendJson(Conn.Socket, Reply);
+		SendRawText(Conn.Socket, ControlSnapshot::BuildCatalogJson(World));
 		return;
 	}
 
-	if (Type == TEXT("frame_request"))
+	if (Type == TEXT("subscribe"))
 	{
-		if (Preview.IsValid())
+		Conn.bSubSnapshot = false;
+		Conn.bSubFrames = false;
+		const TArray<TSharedPtr<FJsonValue>>* Channels = nullptr;
+		if (Msg->TryGetArrayField(TEXT("channels"), Channels) && Channels)
 		{
-			Preview->RequestCapture(GetGameWindow());
+			for (const TSharedPtr<FJsonValue>& V : *Channels)
+			{
+				const FString Channel = V->AsString();
+				if (Channel == TEXT("snapshot")) { Conn.bSubSnapshot = true; }
+				else if (Channel == TEXT("frames")) { Conn.bSubFrames = true; }
+			}
 		}
+		double Hz = 0.0;
+		if (Msg->TryGetNumberField(TEXT("snapshotHz"), Hz) && Hz > 0.0)
+		{
+			SnapshotIntervalSec = 1.0 / FMath::Clamp(Hz, 1.0, 20.0);
+		}
+		if (Msg->TryGetNumberField(TEXT("frameHz"), Hz) && Hz > 0.0)
+		{
+			FrameIntervalSec = 1.0 / FMath::Clamp(Hz, 0.5, 10.0);   // bounded — ReadPixels is a synchronous flush
+		}
+		SendAck(Conn.Socket, TEXT("subscribe"));
 		return;
 	}
 
-	// Default: ack so the client sees a JSON round-trip for any other type.
-	const TSharedRef<FJsonObject> Ack = MakeShared<FJsonObject>();
-	Ack->SetStringField(TEXT("type"), TEXT("ack"));
-	Ack->SetStringField(TEXT("re"), Type);
-	SendJson(Conn.Socket, Ack);
+	if (Type == TEXT("inject"))
+	{
+		FString Anomaly, Target;
+		Msg->TryGetStringField(TEXT("anomaly"), Anomaly);
+		Msg->TryGetStringField(TEXT("target"), Target);
+
+		TArray<FString> ApplyArgs;
+		if (!Target.IsEmpty())
+		{
+			ApplyArgs.Add(Target);   // object/component scope: the first arg is the target query ("=<name>" exact)
+		}
+		const TArray<TSharedPtr<FJsonValue>>* ArgsArr = nullptr;
+		if (Msg->TryGetArrayField(TEXT("args"), ArgsArr) && ArgsArr)
+		{
+			for (const TSharedPtr<FJsonValue>& V : *ArgsArr)
+			{
+				ApplyArgs.Add(V->AsString());
+			}
+		}
+
+		bool bApplied = false;
+		if (UAnomalyInjectorSubsystem* Inj = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr)
+		{
+			bApplied = Inj->ApplyAnomaly(FName(*Anomaly), ApplyArgs);
+		}
+
+		const TSharedRef<FJsonObject> Ack = MakeShared<FJsonObject>();
+		Ack->SetStringField(TEXT("type"), TEXT("ack"));
+		Ack->SetStringField(TEXT("re"), TEXT("inject"));
+		Ack->SetStringField(TEXT("anomaly"), Anomaly);
+		Ack->SetBoolField(TEXT("applied"), bApplied);
+		SendJson(Conn.Socket, Ack);
+		return;
+	}
+
+	if (Type == TEXT("revert"))
+	{
+		FString Anomaly;
+		Msg->TryGetStringField(TEXT("anomaly"), Anomaly);
+		if (UAnomalyInjectorSubsystem* Inj = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr)
+		{
+			Inj->RevertAnomaly(FName(*Anomaly));
+		}
+		SendAck(Conn.Socket, TEXT("revert"));
+		return;
+	}
+
+	if (Type == TEXT("revert_all"))
+	{
+		if (UAnomalyInjectorSubsystem* Inj = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr)
+		{
+			Inj->RevertAllActive();
+		}
+		SendAck(Conn.Socket, TEXT("revert_all"));
+		return;
+	}
+
+	if (Type == TEXT("set_viewport_scoping"))
+	{
+		bool bEnabled = false;
+		Msg->TryGetBoolField(TEXT("enabled"), bEnabled);
+		if (UAnomalyInjectorSubsystem* Inj = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr)
+		{
+			Inj->SetViewportScoping(bEnabled);
+		}
+		SendAck(Conn.Socket, TEXT("set_viewport_scoping"));
+		return;
+	}
+
+	if (Type == TEXT("set_hud"))
+	{
+		FString Which;
+		bool bEnabled = false;
+		Msg->TryGetStringField(TEXT("which"), Which);
+		Msg->TryGetBoolField(TEXT("enabled"), bEnabled);
+		if (Which == TEXT("selector"))
+		{
+			if (UAnomalySelectorSubsystem* Sel = World ? World->GetSubsystem<UAnomalySelectorSubsystem>() : nullptr)
+			{
+				Sel->SetUIEnabled(bEnabled);
+			}
+		}
+		else if (Which == TEXT("auto"))
+		{
+			if (UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr)
+			{
+				Auto->SetEnabled(bEnabled);
+			}
+		}
+		SendAck(Conn.Socket, TEXT("set_hud"));
+		return;
+	}
+
+	if (Type == TEXT("request_frame"))
+	{
+		bWantOneFrame = true;
+		return;
+	}
+
+	// Unknown type -> ack so the client sees a round-trip.
+	SendAck(Conn.Socket, Type);
 }
 
 void UAnomalyControlServerSubsystem::SendJson(INetworkingWebSocket* Socket, const TSharedRef<FJsonObject>& Obj) const
@@ -438,75 +515,90 @@ void UAnomalyControlServerSubsystem::SendRawText(INetworkingWebSocket* Socket, c
 		return;
 	}
 	FTCHARToUTF8 Utf8(*Text);
-	// bPrependSize=false: send the raw message body (no 4-byte UE length prefix) so a browser WebSocket
-	// client receives clean bytes. THIS IS A KEY SPIKE ASSERTION.
 	Socket->Send(reinterpret_cast<const uint8*>(Utf8.Get()), (uint32)Utf8.Length(), /*bPrependSize=*/false);
 }
 
-void UAnomalyControlServerSubsystem::PushFrameIfReady()
+void UAnomalyControlServerSubsystem::SendAck(INetworkingWebSocket* Socket, const FString& ReType) const
 {
-	if (!Preview.IsValid())
-	{
-		return;
-	}
+	const TSharedRef<FJsonObject> Ack = MakeShared<FJsonObject>();
+	Ack->SetStringField(TEXT("type"), TEXT("ack"));
+	Ack->SetStringField(TEXT("re"), ReType);
+	SendJson(Socket, Ack);
+}
 
-	// Only do work if at least one authenticated client is connected.
-	bool bAnyAuthed = false;
+void UAnomalyControlServerSubsystem::PushSnapshots()
+{
+	bool bAny = false;
 	for (const FControlConn& C : Conns)
 	{
-		if (C.bAuthed)
+		if (C.bAuthed && C.bSubSnapshot)
 		{
-			bAnyAuthed = true;
+			bAny = true;
 			break;
 		}
 	}
-	if (!bAnyAuthed)
+	if (!bAny)
 	{
 		return;
 	}
 
-	// Throttle frame requests (~2 fps for the spike).
-	const double Now = FPlatformTime::Seconds();
-	if (Now - LastFrameRequestTime > FrameIntervalSeconds)
+	UWorld* World = GetWorld();
+
+	// Bump the view epoch on a resolution change (frame<->snapshot correlation).
+	int32 VX = 0, VY = 0;
+	if (UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr)
 	{
-		LastFrameRequestTime = Now;
-		Preview->RequestCapture(GetGameWindow());
+		FVector2D Size = FVector2D::ZeroVector;
+		GV->GetViewportSize(Size);
+		VX = (int32)Size.X;
+		VY = (int32)Size.Y;
+	}
+	if (VX != LastViewportX || VY != LastViewportY)
+	{
+		++ViewEpoch;
+		LastViewportX = VX;
+		LastViewportY = VY;
 	}
 
-	// If a frame was captured + encoded, push it as a binary WS frame: 16-byte header + JPEG bytes.
+	const FString Json = ControlSnapshot::BuildSnapshotJson(World, ViewEpoch);
+	for (const FControlConn& C : Conns)
+	{
+		if (C.bAuthed && C.bSubSnapshot && C.Socket)
+		{
+			SendRawText(C.Socket, Json);
+		}
+	}
+}
+
+void UAnomalyControlServerSubsystem::PushFrames(bool bForce)
+{
+	bool bAny = false;
+	for (const FControlConn& C : Conns)
+	{
+		if (C.bAuthed && (C.bSubFrames || bForce))
+		{
+			bAny = true;
+			break;
+		}
+	}
+	if (!bAny)
+	{
+		return;
+	}
+
 	TArray<uint8> Jpeg;
-	int32 W = 0;
-	int32 H = 0;
-	if (!Preview->TakeEncodedJpeg(Jpeg, W, H, /*Quality=*/60))
+	int32 W = 0, H = 0;
+	if (!AnomalyPreview::CaptureGameViewportJpeg(GetWorld(), Jpeg, W, H, /*Quality=*/60))
 	{
 		return;
 	}
 
-	TArray<uint8> Frame;
-	Frame.Reserve(16 + Jpeg.Num());
-	const uint8 Magic[4] = { 'A', 'I', 'F', '1' };
-	Frame.Append(Magic, 4);
-	auto PutU32 = [&Frame](uint32 V)
-	{
-		Frame.Add((uint8)(V & 0xFF));
-		Frame.Add((uint8)((V >> 8) & 0xFF));
-		Frame.Add((uint8)((V >> 16) & 0xFF));
-		Frame.Add((uint8)((V >> 24) & 0xFF));
-	};
-	auto PutU16 = [&Frame](uint16 V)
-	{
-		Frame.Add((uint8)(V & 0xFF));
-		Frame.Add((uint8)((V >> 8) & 0xFF));
-	};
-	PutU32(++FrameCounter);
-	PutU32(0); // epoch (v1 spike: unused — best-effort overlay alignment lives in Slice 1)
-	PutU16((uint16)FMath::Clamp(W, 0, 65535));
-	PutU16((uint16)FMath::Clamp(H, 0, 65535));
+	TArray<uint8> Frame = ControlProtocol::BuildFrameHeader(++FrameCounter, ViewEpoch, (uint16)FMath::Clamp(W, 0, 65535), (uint16)FMath::Clamp(H, 0, 65535));
 	Frame.Append(Jpeg);
 
 	for (const FControlConn& C : Conns)
 	{
-		if (C.bAuthed && C.Socket)
+		if (C.bAuthed && (C.bSubFrames || bForce) && C.Socket)
 		{
 			C.Socket->Send(Frame.GetData(), (uint32)Frame.Num(), /*bPrependSize=*/false);
 		}

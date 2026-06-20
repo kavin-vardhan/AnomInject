@@ -28,15 +28,13 @@ public class AnomalyControlServer : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"AnomalyInjector",      // core plugin module — reused here only for the LogAnomaly category (Slice 0);
-			                        // Slice 1 will call its public Apply/Revert/read-back surface.
+			"AnomalyInjector",      // core plugin module — Slice 1 calls its public Apply/Revert + read-back surface
 			"WebSocketNetworking",  // standalone IWebSocketServer (Experimental plugin, Runtime module, Win64 OK)
-			"Json",                 // FJsonObject parse/serialize for the control protocol stub
-			"ImageWrapper",         // EImageFormat::JPEG encode of the preview frame
-			"RHI",                  // FRHICommandListImmediate::ReadSurfaceData (backbuffer readback)
-			"RenderCore",           // FlushRenderingCommands / render-thread helpers
-			"Slate",                // FSlateApplication::GetRenderer()
-			"SlateCore"             // FSlateRenderer::OnBackBufferReadyToPresent, SWindow
+			"Json",                 // FJsonObject parse/serialize for the control protocol + snapshot
+			"ImageWrapper"          // EImageFormat::JPEG encode of the preview frame
+			// Slice-1 preview = FViewport::ReadPixels on the game viewport (Engine-only, game-view-only, no disk).
+			// The Slice-0 backbuffer path's RHI / RenderCore / Slate / SlateCore deps were DROPPED here; they
+			// return only with the deferred render-thread async-readback upgrade (higher fps + packaged capture).
 		});
 
 		// Build switch (ratified): the control server compiles OUT of Shipping. Even when compiled in
