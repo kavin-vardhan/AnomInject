@@ -80,7 +80,16 @@ namespace
 			FRotator Unused;
 			PC->GetPlayerViewPoint(Center, Unused);   // no pawn -> camera origin (matches ResolvePollOrigin's fallback)
 		}
-		DrawDebugSphere(World, Center, R, 24, FColor::Yellow, /*bPersistent=*/false, /*LifeTime=*/-1.0f, /*DepthPriority=*/0, /*Thickness=*/1.5f);
+		// PHASE (load-bearing): this delegate fires during the POST-scene canvas/HUD draw, after the world line
+		// batcher has already rendered this frame. A one-frame line (LifeTime <= 0) queued here is cleared before
+		// the next frame's scene pass and NEVER renders (that is why the sphere was invisible). A small POSITIVE
+		// lifetime routes the lines to the PERSISTENT batcher, which survives into the next scene pass; re-added
+		// every frame, the sphere is continuously visible (~1 frame latency). ~2x the last frame delta keeps it
+		// alive just long enough (minimal motion smear) while surviving low framerates via the 0.05s floor.
+		// (The selector's DrawDebugBox can use LifeTime=-1 only because it is drawn from the subsystem Tick, which
+		// runs BEFORE the scene render. AnomalyViewport has no Tick, hence the persistent-batcher route here.)
+		const float SphereLife = FMath::Max(World->GetDeltaSeconds() * 2.0f, 0.05f);
+		DrawDebugSphere(World, Center, R, 24, FColor::Yellow, /*bPersistent=*/false, SphereLife, /*DepthPriority=*/0, /*Thickness=*/2.0f);
 	}
 
 	/**

@@ -548,8 +548,18 @@ An optional distance cull on the LIVE renderable-visible poll: an actor is in th
   synthetic surface too — hence the parameter.)
 - **Debug sphere (dev):** when `R > 0`, a `UDebugDrawService("Game")` delegate draws the radius as a yellow sphere
   centered on the LIVE pawn, re-resolved **every frame** (never cache a position at registration — the pawn moves).
-  Registered/unregistered on the OFF↔ON boundary by `SetPollRadius` (G25 hygiene). Accepted minor: a module unload
-  *while a radius is set* leaks the handle (a teardown hook would mean touching the module `.cpp`, out of this fix's
-  "touch only AnomalyViewport" scope) — fine for a dev-only viz.
+  Registered/unregistered on the OFF↔ON boundary by `SetPollRadius` (G25 hygiene). Like all `UDebugDrawService` HUDs
+  it draws **only in real Play** (non-editor game view), not a Simulate/editor viewport. Accepted minor: a module
+  unload *while a radius is set* leaks the handle (a teardown hook would mean touching the module `.cpp`, out of this
+  fix's "touch only AnomalyViewport" scope) — fine for a dev-only viz.
+- **`DrawDebug*` from a `UDebugDrawService` delegate needs a POSITIVE LifeTime (persistent batcher), NOT -1.** The
+  delegate fires during the **post-scene** canvas/HUD draw — after the world line batcher has already rendered for
+  the frame. A one-frame line (`LifeTime <= 0`, the per-frame batcher) queued there is cleared before the next
+  frame's scene pass and **never renders** (the sphere shipped invisible for exactly this reason). A small positive
+  lifetime routes the lines to the **persistent** batcher, which survives into the next scene pass; re-added every
+  frame the shape is continuously visible (~1 frame latency). We use `max(2 * World->GetDeltaSeconds(), 0.05)` to
+  refresh with minimal motion smear while surviving low framerates. **Contrast:** the selector's `DrawDebugBox`
+  uses `LifeTime=-1` fine because it is drawn from the subsystem **Tick** (PRE-scene-render); a free-function
+  helper like `AnomalyViewport` has no Tick, so the persistent-batcher route is the correct fix. (Fixed 2026-06-20.)
 - **No new dep** (`IConsoleManager`/`FVector` = Core; `UDebugDrawService`/`DrawDebugSphere`/`APawn` = Engine). (Viewport
   fix, 2026-06-20.)
