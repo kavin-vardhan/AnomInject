@@ -237,6 +237,15 @@ void UAnomalyCaptureSubsystem::StopRun()
 #endif
 }
 
+void UAnomalyCaptureSubsystem::GetStatus(bool& bOutRunning, int32& OutFrames, FString& OutRunDir, int32& OutSeed) const
+{
+	// Pure read of existing state — additive read-back for the control server; no behavior change.
+	bOutRunning = bRunning;
+	OutFrames = FramesWritten;
+	OutRunDir = RunDir;
+	OutSeed = Seed;
+}
+
 void UAnomalyCaptureSubsystem::LogStatus() const
 {
 #if ANOMALY_CONTROL_SERVER

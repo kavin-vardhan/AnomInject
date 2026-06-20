@@ -18,6 +18,8 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
+#include "AnomalyViewport.h"           // AnomalyViewport::SetPollRadius / GetPollRadius (callable, public)
+#include "AnomalyCaptureSubsystem.h"   // m7 capture run control (in-module; read-only consumer here)
 #include "Modules/ModuleManager.h"
 #include "IWebSocketNetworkingModule.h"
 #include "IWebSocketServer.h"
@@ -493,6 +495,153 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 	if (Type == TEXT("request_frame"))
 	{
 		bWantOneFrame = true;
+		return;
+	}
+
+	// --- Poll radius (group 1) ---
+	if (Type == TEXT("set_poll_radius"))
+	{
+		double Cm = 0.0;
+		Msg->TryGetNumberField(TEXT("cm"), Cm);
+		AnomalyViewport::SetPollRadius((float)Cm);   // cm <= 0 = OFF (existing sentinel)
+		SendAck(Conn.Socket, TEXT("set_poll_radius"));
+		return;
+	}
+
+	// --- Auto-injection control (group 2; read-back already in the snapshot's `auto` block) ---
+	if (Type == TEXT("auto_config"))
+	{
+		if (UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr)
+		{
+			// pool { id: bool } — per-id enable/disable; ids not present are left untouched.
+			const TSharedPtr<FJsonObject>* Pool = nullptr;
+			if (Msg->TryGetObjectField(TEXT("pool"), Pool) && Pool && Pool->IsValid())
+			{
+				for (const TPair<FString, TSharedPtr<FJsonValue>>& KV : (*Pool)->Values)
+				{
+					if (KV.Value.IsValid())
+					{
+						Auto->SetAnomalyEnabled(FName(*KV.Key), KV.Value->AsBool());
+					}
+				}
+			}
+			// Cadence: each min/max pair updated together, preserving the unspecified half.
+			double MinV = 0.0, MaxV = 0.0;
+			const bool bHasIntMin = Msg->TryGetNumberField(TEXT("intervalMin"), MinV);
+			double MaxTmp = 0.0;
+			const bool bHasIntMax = Msg->TryGetNumberField(TEXT("intervalMax"), MaxTmp);
+			if (bHasIntMin || bHasIntMax)
+			{
+				float CurMin = 0.0f, CurMax = 0.0f;
+				Auto->GetIntervalRange(CurMin, CurMax);
+				Auto->SetIntervalRange(bHasIntMin ? (float)MinV : CurMin, bHasIntMax ? (float)MaxTmp : CurMax);
+			}
+			const bool bHasHoldMin = Msg->TryGetNumberField(TEXT("holdMin"), MinV);
+			const bool bHasHoldMax = Msg->TryGetNumberField(TEXT("holdMax"), MaxTmp);
+			if (bHasHoldMin || bHasHoldMax)
+			{
+				float CurMin = 0.0f, CurMax = 0.0f;
+				Auto->GetHoldRange(CurMin, CurMax);
+				Auto->SetHoldRange(bHasHoldMin ? (float)MinV : CurMin, bHasHoldMax ? (float)MaxTmp : CurMax);
+			}
+			double NumV = 0.0;
+			if (Msg->TryGetNumberField(TEXT("maxConcurrent"), NumV)) { Auto->SetMaxConcurrent((int32)NumV); }
+			bool bPersist = false;
+			if (Msg->TryGetBoolField(TEXT("persist"), bPersist)) { Auto->SetPersist(bPersist); }
+			if (Msg->TryGetNumberField(TEXT("seed"), NumV)) { Auto->SetSeed((int32)NumV); }
+		}
+		SendAck(Conn.Socket, TEXT("auto_config"));
+		return;
+	}
+
+	if (Type == TEXT("auto_run"))
+	{
+		bool bRunning = false;
+		Msg->TryGetBoolField(TEXT("running"), bRunning);
+		if (UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr)
+		{
+			if (bRunning) { Auto->SetEnabled(true); }   // Run requires Enable (Stage-0 ruling)
+			Auto->SetRunning(bRunning);
+		}
+		SendAck(Conn.Socket, TEXT("auto_run"));
+		return;
+	}
+
+	if (Type == TEXT("auto_step"))
+	{
+		double Seconds = 0.0;
+		Msg->TryGetNumberField(TEXT("seconds"), Seconds);
+		if (UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr)
+		{
+			Auto->AdvanceTime((float)Seconds);
+		}
+		SendAck(Conn.Socket, TEXT("auto_step"));
+		return;
+	}
+
+	if (Type == TEXT("auto_fire_once"))
+	{
+		if (UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr)
+		{
+			Auto->TryFireOnce();
+		}
+		SendAck(Conn.Socket, TEXT("auto_fire_once"));
+		return;
+	}
+
+	// --- Frame capture (group 3; wired to the m7 UAnomalyCaptureSubsystem, read-only consumer) ---
+	if (Type == TEXT("capture_start"))
+	{
+		FString Dir, Format;
+		Msg->TryGetStringField(TEXT("dir"), Dir);
+		Msg->TryGetStringField(TEXT("format"), Format);
+		double SeedV = -1.0;
+		Msg->TryGetNumberField(TEXT("seed"), SeedV);
+		const bool bPng = !Format.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase);   // PNG default; jpeg behind the flag
+		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
+		{
+			Cap->StartRun(Dir, bPng, (int32)SeedV);
+		}
+		SendAck(Conn.Socket, TEXT("capture_start"));
+		return;
+	}
+
+	if (Type == TEXT("capture_stop"))
+	{
+		bool bRun = false;
+		int32 Frames = 0, Seed = 0;
+		FString RunDir;
+		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
+		{
+			Cap->StopRun();
+			Cap->GetStatus(bRun, Frames, RunDir, Seed);   // post-stop: running=false + final counters/dir
+		}
+		const TSharedRef<FJsonObject> Reply = MakeShared<FJsonObject>();
+		Reply->SetStringField(TEXT("type"), TEXT("capture_stopped"));
+		Reply->SetBoolField(TEXT("running"), bRun);
+		Reply->SetStringField(TEXT("runDir"), RunDir);
+		Reply->SetNumberField(TEXT("frames"), Frames);
+		Reply->SetNumberField(TEXT("seed"), Seed);
+		SendJson(Conn.Socket, Reply);
+		return;
+	}
+
+	if (Type == TEXT("capture_status"))
+	{
+		bool bRun = false;
+		int32 Frames = 0, Seed = 0;
+		FString RunDir;
+		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
+		{
+			Cap->GetStatus(bRun, Frames, RunDir, Seed);
+		}
+		const TSharedRef<FJsonObject> Reply = MakeShared<FJsonObject>();
+		Reply->SetStringField(TEXT("type"), TEXT("capture_status"));
+		Reply->SetBoolField(TEXT("running"), bRun);
+		Reply->SetStringField(TEXT("runDir"), RunDir);
+		Reply->SetNumberField(TEXT("frames"), Frames);
+		Reply->SetNumberField(TEXT("seed"), Seed);
+		SendJson(Conn.Socket, Reply);
 		return;
 	}
 

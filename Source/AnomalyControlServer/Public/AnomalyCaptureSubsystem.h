@@ -73,6 +73,10 @@ public:
 
 	bool IsRunning() const { return bRunning; }
 
+	/** Read-only status for the control-surface read-back (additive; ZERO behavior change to capture logic).
+	 *  Added by the dashboard/control-server track for the WS snapshot + capture_stopped reply. */
+	void GetStatus(bool& bOutRunning, int32& OutFrames, FString& OutRunDir, int32& OutSeed) const;
+
 	/** Set the burst schedule (clamped: K>=0, others>=0, BurstCount>=0). Ignored mid-run (warns). */
 	void SetBurstConfig(int32 K, int32 Pre, int32 Positive, int32 Post, int32 Bursts);
 

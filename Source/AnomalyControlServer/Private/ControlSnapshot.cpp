@@ -16,6 +16,7 @@
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyViewport.h"
 #include "AnomalyCatalogTypes.h"
+#include "AnomalyCaptureSubsystem.h"   // capture status read-back (m7, in-module)
 
 namespace
 {
@@ -222,7 +223,25 @@ namespace ControlSnapshot
 			const double Dt = World ? World->GetDeltaSeconds() : 0.0;
 			O->SetNumberField(TEXT("fps"), Dt > 0.0 ? 1.0 / Dt : 0.0);
 			O->SetNumberField(TEXT("activeCount"), Inj ? Inj->GetActiveAnomalyCount() : 0);
+			O->SetNumberField(TEXT("pollRadius"), AnomalyViewport::GetPollRadius());   // cm; 0 = OFF (slider init)
 			Root->SetObjectField(TEXT("session"), O);
+		}
+
+		// --- capture status (m7 capture subsystem; read-only via GetStatus) ---
+		{
+			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+			bool bRunning = false;
+			int32 Frames = 0, Seed = 0;
+			FString RunDir;
+			if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
+			{
+				Cap->GetStatus(bRunning, Frames, RunDir, Seed);
+			}
+			O->SetBoolField(TEXT("running"), bRunning);
+			O->SetNumberField(TEXT("framesWritten"), Frames);
+			O->SetStringField(TEXT("runDir"), RunDir);
+			O->SetNumberField(TEXT("seed"), Seed);
+			Root->SetObjectField(TEXT("capture"), O);
 		}
 
 		return Serialize(Root);
