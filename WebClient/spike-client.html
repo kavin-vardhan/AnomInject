@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<!-- Copyright GDP Anomaly Injection Project. All Rights Reserved.
+     Slice 0 transport-spike test client (THROWAWAY). Single file, no build, no deps.
+     Open directly in a browser (file://) and connect to the in-game control server.
+     The React dashboard (Slice 1) lives in its own external repo; this only smoke-tests the transport. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Anomaly Control — Slice 0 Spike Client</title>
+<style>
+  body { font-family: ui-monospace, Consolas, monospace; margin: 0; background:#15171c; color:#d7dbe0; }
+  header { padding:10px 14px; background:#1d2128; border-bottom:1px solid #2b3038; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  input { background:#0f1115; border:1px solid #333; color:#d7dbe0; padding:5px 7px; border-radius:4px; }
+  button { background:#2b6cb0; border:0; color:#fff; padding:6px 12px; border-radius:4px; cursor:pointer; }
+  button:disabled { background:#3a4049; cursor:not-allowed; }
+  #status { margin-left:auto; font-weight:bold; }
+  .ok { color:#48bb78; } .bad { color:#f56565; } .wait { color:#ecc94b; }
+  main { display:flex; gap:12px; padding:12px; align-items:flex-start; flex-wrap:wrap; }
+  #log { flex:1 1 360px; height:62vh; overflow:auto; background:#0f1115; border:1px solid #2b3038; border-radius:6px; padding:8px; white-space:pre-wrap; font-size:12px; }
+  #frameWrap { flex:1 1 480px; }
+  canvas { max-width:100%; border:1px solid #2b3038; border-radius:6px; background:#000; }
+  .meta { font-size:12px; color:#8a909b; margin-top:6px; }
+  .tx { color:#63b3ed; } .rx { color:#9ae6b4; } .err { color:#fc8181; } .sys { color:#a0aec0; }
+</style>
+</head>
+<body>
+<header>
+  <label>URL <input id="url" size="26" value="ws://127.0.0.1:8077" /></label>
+  <label>Token <input id="token" size="34" placeholder="paste from Output Log" /></label>
+  <button id="connect">Connect</button>
+  <button id="disconnect" disabled>Disconnect</button>
+  <button id="echo" disabled>Send echo</button>
+  <button id="frame" disabled>Request frame</button>
+  <span id="status" class="bad">disconnected</span>
+</header>
+<main>
+  <div id="log"></div>
+  <div id="frameWrap">
+    <canvas id="frame-canvas" width="640" height="360"></canvas>
+    <div class="meta" id="frameMeta">no frame yet</div>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+let ws = null, frameCount = 0;
+
+function log(cls, msg) {
+  const t = new Date().toLocaleTimeString();
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = `[${t}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function setStatus(cls, text) { const s = $('status'); s.className = cls; s.textContent = text; }
+function setConnected(on) {
+  $('connect').disabled = on; $('disconnect').disabled = !on;
+  $('echo').disabled = !on;  $('frame').disabled = !on;
+}
+
+// Frames may arrive as a binary WS frame; JSON may arrive as text OR binary depending on how the UE
+// libwebsockets server opcodes its Send (a SPIKE FINDING). This client is framing-agnostic: it sniffs
+// the 4-byte "AIF1" magic to tell a JPEG frame from a JSON message.
+const MAGIC = [0x41, 0x49, 0x46, 0x31]; // "AIF1"
+function isFrame(bytes) {
+  return bytes.length >= 16 && MAGIC.every((b, i) => bytes[i] === b);
+}
+
+function handleJsonText(text) {
+  log('rx', 'RX ' + text);
+  try {
+    const obj = JSON.parse(text);
+    if (obj.type === 'welcome') setStatus('ok', 'authenticated');
+  } catch (e) { /* not json — ignore */ }
+}
+
+function handleFrame(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const frameId = dv.getUint32(4, true);
+  const epoch   = dv.getUint32(8, true);
+  const w = dv.getUint16(12, true);
+  const h = dv.getUint16(14, true);
+  const jpeg = bytes.subarray(16);
+  const blob = new Blob([jpeg], { type: 'image/jpeg' });
+  createImageBitmap(blob).then((bmp) => {
+    const c = $('frame-canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(bmp, 0, 0);
+    frameCount++;
+    $('frameMeta').textContent = `frame #${frameId} (epoch ${epoch}) ${w}x${h} — ${jpeg.length} bytes — total ${frameCount}`;
+    bmp.close();
+  }).catch((e) => log('err', 'frame decode failed: ' + e));
+}
+
+function onMessage(ev) {
+  if (typeof ev.data === 'string') { handleJsonText(ev.data); return; }
+  // ArrayBuffer (binaryType = 'arraybuffer')
+  const bytes = new Uint8Array(ev.data);
+  if (isFrame(bytes)) { handleFrame(bytes); }
+  else { handleJsonText(new TextDecoder('utf-8').decode(bytes)); }
+}
+
+$('connect').onclick = () => {
+  const url = $('url').value.trim();
+  const token = $('token').value.trim();
+  try { ws = new WebSocket(url); } catch (e) { log('err', 'bad URL: ' + e); return; }
+  ws.binaryType = 'arraybuffer';
+  setStatus('wait', 'connecting…');
+  ws.onopen = () => {
+    log('sys', 'socket open — sending hello');
+    setStatus('wait', 'authenticating…');
+    const hello = JSON.stringify({ type: 'hello', token, v: 1 });
+    ws.send(hello); log('tx', 'TX ' + hello);
+    setConnected(true);
+  };
+  ws.onmessage = onMessage;
+  ws.onerror = () => { log('err', 'socket error'); setStatus('bad', 'error'); };
+  ws.onclose = () => { log('sys', 'socket closed'); setStatus('bad', 'disconnected'); setConnected(false); ws = null; };
+};
+$('disconnect').onclick = () => { if (ws) ws.close(); };
+$('echo').onclick = () => {
+  const m = JSON.stringify({ type: 'echo', payload: { ts: Date.now(), hello: 'spike' } });
+  ws.send(m); log('tx', 'TX ' + m);
+};
+$('frame').onclick = () => {
+  const m = JSON.stringify({ type: 'frame_request' });
+  ws.send(m); log('tx', 'TX ' + m);
+};
+log('sys', 'Slice-0 spike client ready. Start the server in-game (IAI.Server.Start), paste the token, Connect.');
+</script>
+</body>
+</html>

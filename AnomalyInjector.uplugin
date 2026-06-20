@@ -20,6 +20,17 @@
 			"Name": "AnomalyInjector",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "AnomalyControlServer",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "WebSocketNetworking",
+			"Enabled": true
 		}
 	]
 }

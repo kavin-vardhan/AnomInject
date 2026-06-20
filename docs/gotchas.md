@@ -485,3 +485,19 @@ resource from it. Under G30's one-anomaly-per-actor invariant the auto-injector 
 guard never reads a group). **Forward note:** IF selective per-group same-actor stacking is ever built (the deferred
 compound-anomaly milestone), encode groups in a **tiny internal id→group table** about the plugin's own ids — never
 parse `GetUsage()`, and don't add a resource accessor to `IAnomaly` (the M1 lock). (m6, session 010, 2026-06-19.)
+
+### G32 — UE log categories do NOT export across module/DLL boundaries; each module declares its own (control server, Slice 0)
+A new module that reuses another module's `DECLARE_LOG_CATEGORY_EXTERN` category **compiles but fails to LINK**. The
+new control-server module (`AnomalyControlServer`) first reused the core's `LogAnomaly` (declared in the core's public
+`AnomalyInjectorLog.h`, defined `DEFINE_LOG_CATEGORY(LogAnomaly)` in the core module). Result:
+`LNK2001: unresolved external symbol "struct FLogCategoryLogAnomaly LogAnomaly"` → `LNK1120` (the Slice-0 build, exit 6).
+- **Cause:** `DEFINE_LOG_CATEGORY(X)` emits a plain global symbol with **no `*_API` (dllexport) decoration**, so the
+  category object is **not exported** from the defining module's DLL and cannot be resolved by a dependent module's DLL.
+  (UCLASS/USTRUCT reflected types and `*_API`-decorated functions export; bare log-category globals do not.) Including
+  the header is not enough — the *definition* lives unexported in the other DLL.
+- **Fix (idiomatic):** every module declares **its own** category. The control server uses `LogAnomalyServer`
+  (`DECLARE_LOG_CATEGORY_EXTERN` in a private `AnomalyControlServerLog.h`, `DEFINE_LOG_CATEGORY` in
+  `AnomalyControlServerModule.cpp`); the core keeps `LogAnomaly`. Rebuild clean (exit 0). Bonus: per-surface categories
+  keep Output-Log filtering clean (`LogAnomaly` vs `LogAnomalyServer`).
+- A genuinely shared cross-module category would need a custom `*_API`-decorated category declaration — not worth it;
+  per-module categories are the UE norm. (Slice 0 / control server, 2026-06-20.)
