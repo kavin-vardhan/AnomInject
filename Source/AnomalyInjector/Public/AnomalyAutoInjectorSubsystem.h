@@ -28,6 +28,14 @@ struct FAutoLiveFire
 	float SecondsRemaining = 0.0f;
 };
 
+/** A live auto-fire for the control-surface read-back (Slice 1, A3): no weak ptr — the cached name only. */
+struct FAutoLiveFireInfo
+{
+	FName Id;
+	FString Target;
+	float SecondsRemaining = 0.0f;
+};
+
 /**
  * UAnomalyAutoInjectorSubsystem  (milestone m6 — automatic injection)
  *
@@ -162,6 +170,15 @@ public:
 
 	/** The current run seed. */
 	int32 GetSeed() const { return Seed; }
+
+	// Cadence read-back (Slice 1, A3) — the control-surface analogue of LogStatus's printout.
+	void GetIntervalRange(float& OutMin, float& OutMax) const { OutMin = IntervalMin; OutMax = IntervalMax; }
+	void GetHoldRange(float& OutMin, float& OutMax) const { OutMin = HoldMin; OutMax = HoldMax; }
+	int32 GetMaxConcurrent() const { return MaxConcurrent; }
+	bool GetPersist() const { return bPersist; }
+
+	/** Live fires as structured {id, target-name, seconds-remaining} (the read-back analogue of GetLiveFireSummaries). */
+	TArray<FAutoLiveFireInfo> GetLiveFires() const;
 
 	/** Log enable/run state, seed, cadence, the enabled set, and the live fires (IAI.Auto.Status). */
 	void LogStatus() const;

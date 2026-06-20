@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "IAnomaly.h"
+#include "AnomalyCatalogTypes.h"   // FAnomalyCatalogEntry / FActiveAnomalyInfo (structured read-back, Slice 1)
 #include "AnomalyInjectorSubsystem.generated.h"
 
 /**
@@ -47,6 +48,19 @@ public:
 	 */
 	void TestVisibility(const TArray<FString>& Args) const;
 
+	// --- Diagnostics for the Slice-1 read-back additions (log-only; the bridge gate drivers, like
+	//     TestVisibility). They exercise the plain-C++ read-backs so they can be asserted over the bridge. ---
+
+	/** Log GetAnomalyCatalog(): per id, scope + usage + the authored arg schema (IAI.DumpCatalog). */
+	void DumpCatalog() const;
+
+	/** Log GetActiveAnomalies(): per active id, seconds-active + the applied args (IAI.DumpActive). */
+	void DumpActiveAnomalies() const;
+
+	/** Log GetVisibleRenderableActorInfos() AND assert it lists the SAME actors/order as
+	 *  GetVisibleRenderableActors() (the A4 rect gate + the byte-identical regression gate) (IAI.DumpVisible). */
+	void DumpVisibleRenderableInfos() const;
+
 	// --- Viewport-visibility scoping (opt-in; default OFF) ---
 
 	/** Enable/disable routing object-scoped anomaly targeting through AnomalyViewport. */
@@ -78,6 +92,17 @@ public:
 	/** Number of currently-active anomalies. */
 	int32 GetActiveAnomalyCount() const;
 
+	// --- Structured read-back for the control surface (Slice 1; additive — no IAnomaly change) ---
+
+	/** The registered anomalies as structured entries: id + description + usage (from IAnomaly) plus the
+	 *  authored targeting scope + arg schema (sourced from a registration-time table, NOT GetUsage parsing).
+	 *  Sorted by id. The non-logging analogue of ListAnomalies — drives the dashboard's generic inject UI. */
+	TArray<FAnomalyCatalogEntry> GetAnomalyCatalog() const;
+
+	/** The currently-active anomalies as {id, args-applied, seconds-active}, sorted by id. Reads existing
+	 *  IAnomaly::IsActive(); args + apply-time come from an inert side-table stamped in ApplyAnomaly. */
+	TArray<FActiveAnomalyInfo> GetActiveAnomalies() const;
+
 protected:
 	/**
 	 * Restrict this subsystem to real game worlds (standalone Game + Play-In-Editor).
@@ -92,6 +117,19 @@ private:
 	 * TWeakObjectPtr.
 	 */
 	TMap<FName, TUniquePtr<IAnomaly>> Anomalies;
+
+	/**
+	 * Inert read-back side-table (Slice 1, A2): records what each anomaly id was last applied with + when.
+	 * Stamped on a successful ApplyAnomaly, dropped on a no-op apply / Revert / RevertAll. Pure bookkeeping
+	 * — it NEVER affects Apply/Revert return values, match counts, or IsActive(), so every existing
+	 * state-gate is byte-identical. Read by GetActiveAnomalies().
+	 */
+	struct FActiveRecord
+	{
+		TArray<FString> Args;
+		double ApplyTimeSeconds = 0.0;
+	};
+	TMap<FName, FActiveRecord> ActiveRecords;
 
 	/** Seconds accumulated since the last heartbeat, used to throttle it. */
 	float HeartbeatAccumulator = 0.0f;

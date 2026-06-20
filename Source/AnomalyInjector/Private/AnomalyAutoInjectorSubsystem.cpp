@@ -399,6 +399,21 @@ TArray<FString> UAnomalyAutoInjectorSubsystem::GetLiveFireSummaries() const
 	return Result;
 }
 
+TArray<FAutoLiveFireInfo> UAnomalyAutoInjectorSubsystem::GetLiveFires() const
+{
+	TArray<FAutoLiveFireInfo> Result;
+	Result.Reserve(LiveFires.Num());
+	for (const FAutoLiveFire& Fire : LiveFires)
+	{
+		FAutoLiveFireInfo Info;
+		Info.Id = Fire.Id;
+		Info.Target = Fire.TargetName;
+		Info.SecondsRemaining = Fire.SecondsRemaining;
+		Result.Add(Info);
+	}
+	return Result;
+}
+
 void UAnomalyAutoInjectorSubsystem::LogStatus() const
 {
 	UE_LOG(LogAnomaly, Log, TEXT("--- IAI.Auto.Status ---"));

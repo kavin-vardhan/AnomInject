@@ -149,19 +149,83 @@ namespace
 			&& IsUnoccluded(ViewOrigin, World, Component);
 	}
 
-	/** Actor renderable-visibility against a prebuilt frustum: ANY component renderable-visible. */
-	bool IsActorRenderableVisibleInternal(const FConvexVolume& Frustum, const FVector& ViewOrigin, UWorld* World, const AActor* Actor)
+	/**
+	 * The FIRST renderable-visible primitive component of Actor (same iteration order + predicate as the
+	 * actor test), or nullptr. Single source so GetVisibleRenderableActors and the A4 Infos pass classify
+	 * the SAME actor set; the Infos pass additionally reads the matched component for its type + bounds.
+	 */
+	UPrimitiveComponent* FirstRenderableVisibleComponent(const FConvexVolume& Frustum, const FVector& ViewOrigin, UWorld* World, const AActor* Actor)
 	{
 		TArray<UPrimitiveComponent*> Prims;
 		Actor->GetComponents<UPrimitiveComponent>(Prims);
-		for (const UPrimitiveComponent* Prim : Prims)
+		for (UPrimitiveComponent* Prim : Prims)
 		{
 			if (IsComponentRenderableVisibleInternal(Frustum, ViewOrigin, World, Prim))
 			{
-				return true;
+				return Prim;
 			}
 		}
-		return false;
+		return nullptr;
+	}
+
+	/** Actor renderable-visibility against a prebuilt frustum: ANY component renderable-visible. Behaviour-
+	 *  preserving wrapper over FirstRenderableVisibleComponent (same loop / predicate / short-circuit), so
+	 *  GetVisibleRenderableActors stays BYTE-IDENTICAL (result + order). */
+	bool IsActorRenderableVisibleInternal(const FConvexVolume& Frustum, const FVector& ViewOrigin, UWorld* World, const AActor* Actor)
+	{
+		return FirstRenderableVisibleComponent(Frustum, ViewOrigin, World, Actor) != nullptr;
+	}
+
+	/** Renderable component family tag for the read-back (matches the IsRenderableComponent allowlist;
+	 *  ISM/HISM derive from UStaticMeshComponent -> "SM"). */
+	FString ClassifyRenderableComponent(const UPrimitiveComponent* Component)
+	{
+		if (Component->IsA<UStaticMeshComponent>())  { return TEXT("SM"); }
+		if (Component->IsA<USkinnedMeshComponent>()) { return TEXT("SK"); }
+		if (Component->IsA<UFXSystemComponent>())    { return TEXT("FX"); }
+		return TEXT("?");
+	}
+
+	/**
+	 * Project a world-space AABB (bounds centre +/- box extent) to a normalized [0,1] screen rect via the
+	 * view-projection matrix, top-left origin. Corners behind the camera (clip W <= 0) are skipped; returns
+	 * false if none project or the rect is degenerate. Reversed-Z affects only depth, so X/Y is the standard
+	 * perspective divide (G24 concerns the frustum near/far, not this projection).
+	 */
+	bool ProjectBoundsToScreenRect(const FMatrix& ViewProj, const FBoxSphereBounds& Bounds, FVector2D& OutMin, FVector2D& OutMax)
+	{
+		const FVector C = Bounds.Origin;
+		const FVector E = Bounds.BoxExtent;
+
+		double MinX = 1.0e30, MinY = 1.0e30, MaxX = -1.0e30, MaxY = -1.0e30;
+		int32 NumInFront = 0;
+		for (int32 Corner = 0; Corner < 8; ++Corner)
+		{
+			const FVector P = C + FVector(
+				(Corner & 1) ? E.X : -E.X,
+				(Corner & 2) ? E.Y : -E.Y,
+				(Corner & 4) ? E.Z : -E.Z);
+
+			const FVector4 Clip = ViewProj.TransformFVector4(FVector4(P, 1.0));
+			if (Clip.W <= SMALL_NUMBER)
+			{
+				continue;   // behind the camera
+			}
+			const double InvW = 1.0 / Clip.W;
+			const double Sx = (Clip.X * InvW) * 0.5 + 0.5;
+			const double Sy = 1.0 - ((Clip.Y * InvW) * 0.5 + 0.5);   // flip Y for top-left origin
+			MinX = FMath::Min(MinX, Sx); MaxX = FMath::Max(MaxX, Sx);
+			MinY = FMath::Min(MinY, Sy); MaxY = FMath::Max(MaxY, Sy);
+			++NumInFront;
+		}
+
+		if (NumInFront == 0)
+		{
+			return false;
+		}
+		OutMin = FVector2D(FMath::Clamp(MinX, 0.0, 1.0), FMath::Clamp(MinY, 0.0, 1.0));
+		OutMax = FVector2D(FMath::Clamp(MaxX, 0.0, 1.0), FMath::Clamp(MaxY, 0.0, 1.0));
+		return (OutMax.X > OutMin.X) && (OutMax.Y > OutMin.Y);
 	}
 }
 
@@ -354,6 +418,48 @@ namespace AnomalyViewport
 			{
 				Result.Add(Actor);
 			}
+		}
+		return Result;
+	}
+
+	TArray<FRenderableActorInfo> GetVisibleRenderableActorInfos(UWorld* World)
+	{
+		TArray<FRenderableActorInfo> Result;
+
+		FAnomalyViewInfo View;
+		if (!GetActiveViewInfo(World, View))
+		{
+			return Result;   // offer nothing on no view (same contract as GetVisibleRenderableActors)
+		}
+
+		// Build the VP once; derive the frustum from it (the projection reuses the same VP) — no double build.
+		const FMatrix ViewProj = BuildViewProjectionMatrix(View);
+		FConvexVolume Frustum;
+		GetViewFrustumBounds(Frustum, ViewProj, /*bUseNearPlane=*/true, /*bUseFarPlane=*/false);
+
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (!Actor)
+			{
+				continue;
+			}
+			// ONE occlusion pass per actor (short-circuits on the first renderable-visible component) —
+			// same predicate/order as GetVisibleRenderableActors, so the actor SET is identical.
+			UPrimitiveComponent* Match = FirstRenderableVisibleComponent(Frustum, View.Origin, World, Actor);
+			if (!Match)
+			{
+				continue;
+			}
+
+			FRenderableActorInfo Info;
+			Info.Actor = Actor;
+			Info.ActorName = Actor->GetName();
+			Info.ClassName = Actor->GetClass()->GetName();
+			Info.ComponentType = ClassifyRenderableComponent(Match);
+			Info.Distance = (float)(Match->Bounds.Origin - View.Origin).Size();
+			Info.bRectValid = ProjectBoundsToScreenRect(ViewProj, Match->Bounds, Info.ScreenMin, Info.ScreenMax);
+			Result.Add(MoveTemp(Info));
 		}
 		return Result;
 	}

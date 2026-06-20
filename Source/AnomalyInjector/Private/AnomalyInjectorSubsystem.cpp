@@ -28,6 +28,86 @@ static constexpr uint64 GAnomalyHeartbeatKey = 0x47445048;
 UAnomalyInjectorSubsystem::~UAnomalyInjectorSubsystem() = default;
 
 // ---------------------------------------------------------------------------
+// Authored catalog spec (Slice 1, A1) — the IAnomaly-free sourcing mechanism.
+//
+// scope + arg schema are authored here at the id level (NOT parsed from GetUsage(), a human hint — G31;
+// IAnomaly stays locked). Adding a new anomaly = add its case here next to its Register() line.
+// ---------------------------------------------------------------------------
+namespace
+{
+	FAnomalyArgSpec FloatArg(const TCHAR* Name, const TCHAR* Default, double Min, double Max, bool bRequired = false)
+	{
+		FAnomalyArgSpec A;
+		A.Name = Name; A.Type = EAnomalyArgType::Float; A.Default = Default; A.bRequired = bRequired;
+		A.bHasMin = true; A.Min = Min; A.bHasMax = true; A.Max = Max;
+		return A;
+	}
+	FAnomalyArgSpec IntArg(const TCHAR* Name, const TCHAR* Default, double Min, bool bRequired = false)
+	{
+		FAnomalyArgSpec A;
+		A.Name = Name; A.Type = EAnomalyArgType::Int; A.Default = Default; A.bRequired = bRequired;
+		A.bHasMin = true; A.Min = Min;
+		return A;
+	}
+	FAnomalyArgSpec StringArg(const TCHAR* Name, const TCHAR* Default)
+	{
+		FAnomalyArgSpec A;
+		A.Name = Name; A.Type = EAnomalyArgType::String; A.Default = Default;
+		return A;
+	}
+
+	void GetAuthoredSpec(const FName& Id, EAnomalyScope& OutScope, TArray<FAnomalyArgSpec>& OutArgs)
+	{
+		OutArgs.Reset();
+		if (Id == FName(TEXT("missing_object")))
+		{
+			OutScope = EAnomalyScope::Object;   // no args (the target is the picked actor)
+		}
+		else if (Id == FName(TEXT("flicker")))
+		{
+			OutScope = EAnomalyScope::Object;
+			OutArgs.Add(FloatArg(TEXT("hz"), TEXT("5"), 0.0, 60.0));
+		}
+		else if (Id == FName(TEXT("lod_corruption")))
+		{
+			OutScope = EAnomalyScope::Object;
+			OutArgs.Add(IntArg(TEXT("lod-index"), TEXT(""), 1.0));   // blank default = worst LOD per component
+		}
+		else if (Id == FName(TEXT("lod_popping")))
+		{
+			OutScope = EAnomalyScope::Object;
+			OutArgs.Add(FloatArg(TEXT("hz"), TEXT("2"), 0.0, 30.0));
+		}
+		else if (Id == FName(TEXT("time_dilation")))
+		{
+			OutScope = EAnomalyScope::Global;
+			OutArgs.Add(FloatArg(TEXT("scale"), TEXT("0.5"), 0.0, 20.0, /*bRequired=*/true));   // clamp ~ WorldSettings (G11)
+		}
+		else if (Id == FName(TEXT("camera_clipping")))
+		{
+			OutScope = EAnomalyScope::Global;
+			OutArgs.Add(FloatArg(TEXT("near"), TEXT("100"), 1.0, 100000.0));   // command clamps >= 1 (G13)
+		}
+		else if (Id == FName(TEXT("lighting_mismatch")))
+		{
+			OutScope = EAnomalyScope::Component;
+			FAnomalyArgSpec Mode;
+			Mode.Name = TEXT("mode"); Mode.Type = EAnomalyArgType::Enum; Mode.Default = TEXT("dim");
+			Mode.Options = { TEXT("off"), TEXT("dim"), TEXT("recolor"), TEXT("noshadow") };
+			OutArgs.Add(Mode);
+			// Mode-dependent values are positional + conditional (dim -> "<factor>"; recolor -> "<r g b>"),
+			// which a flat schema can't fully express — one freeform trailing field for v1 (documented).
+			OutArgs.Add(StringArg(TEXT("params"), TEXT("")));
+		}
+		else
+		{
+			OutScope = EAnomalyScope::Object;
+			UE_LOG(LogAnomaly, Warning, TEXT("GetAnomalyCatalog: no authored arg-spec for '%s' (default object/no-args)."), *Id.ToString());
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 
@@ -203,6 +283,88 @@ void UAnomalyInjectorSubsystem::TestVisibility(const TArray<FString>& Args) cons
 		VisibleComps, TotalComps, *Substring);
 }
 
+// --- Slice-1 read-back diagnostics (log-only; the bridge gate drivers) -------------------------------
+
+void UAnomalyInjectorSubsystem::DumpCatalog() const
+{
+	const TArray<FAnomalyCatalogEntry> Catalog = GetAnomalyCatalog();
+	UE_LOG(LogAnomaly, Log, TEXT("--- IAI.DumpCatalog (%d) ---"), Catalog.Num());
+	for (const FAnomalyCatalogEntry& Entry : Catalog)
+	{
+		FString ArgsStr;
+		for (const FAnomalyArgSpec& Arg : Entry.Args)
+		{
+			FString Bounds;
+			if (Arg.Type == EAnomalyArgType::Enum)
+			{
+				Bounds = FString::Printf(TEXT("{%s}"), *FString::Join(Arg.Options, TEXT("|")));
+			}
+			else if (Arg.bHasMin || Arg.bHasMax)
+			{
+				Bounds = FString::Printf(TEXT("[%s..%s]"),
+					Arg.bHasMin ? *FString::SanitizeFloat(Arg.Min) : TEXT("-"),
+					Arg.bHasMax ? *FString::SanitizeFloat(Arg.Max) : TEXT("-"));
+			}
+			ArgsStr += FString::Printf(TEXT(" %s:%s%s%s=%s"),
+				*Arg.Name, ToString(Arg.Type), Arg.bRequired ? TEXT("!") : TEXT(""),
+				*Bounds, Arg.Default.IsEmpty() ? TEXT("(none)") : *Arg.Default);
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("  %s | scope=%s | usage='%s' | args:%s"),
+			*Entry.Id.ToString(), ToString(Entry.Scope), *Entry.Usage,
+			ArgsStr.IsEmpty() ? TEXT(" (none)") : *ArgsStr);
+	}
+	UE_LOG(LogAnomaly, Log, TEXT("--- %d entry(ies) ---"), Catalog.Num());
+}
+
+void UAnomalyInjectorSubsystem::DumpActiveAnomalies() const
+{
+	const TArray<FActiveAnomalyInfo> Active = GetActiveAnomalies();
+	UE_LOG(LogAnomaly, Log, TEXT("--- IAI.DumpActive (%d) ---"), Active.Num());
+	for (const FActiveAnomalyInfo& Info : Active)
+	{
+		UE_LOG(LogAnomaly, Log, TEXT("  %s | active %.2fs | args=[%s]"),
+			*Info.Id.ToString(), Info.SecondsActive, *FString::Join(Info.Args, TEXT(" ")));
+	}
+	UE_LOG(LogAnomaly, Log, TEXT("--- %d active ---"), Active.Num());
+}
+
+void UAnomalyInjectorSubsystem::DumpVisibleRenderableInfos() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const TArray<TWeakObjectPtr<AActor>> Actors = AnomalyViewport::GetVisibleRenderableActors(World);
+	const TArray<FRenderableActorInfo> Infos = AnomalyViewport::GetVisibleRenderableActorInfos(World);
+
+	// Byte-identical regression gate: same count AND same actors in the same order.
+	bool bMatch = (Actors.Num() == Infos.Num());
+	if (bMatch)
+	{
+		for (int32 i = 0; i < Actors.Num(); ++i)
+		{
+			if (Actors[i].Get() != Infos[i].Actor.Get())
+			{
+				bMatch = false;
+				break;
+			}
+		}
+	}
+
+	UE_LOG(LogAnomaly, Log, TEXT("--- IAI.DumpVisible: infos=%d vs GetVisibleRenderableActors=%d | byte-identical(set+order): %s ---"),
+		Infos.Num(), Actors.Num(), bMatch ? TEXT("MATCH") : TEXT("MISMATCH"));
+	for (int32 i = 0; i < Infos.Num(); ++i)
+	{
+		const FRenderableActorInfo& Info = Infos[i];
+		UE_LOG(LogAnomaly, Log, TEXT("  [%d] %s | %s | %s | dist=%.0f | rect=%s [%.3f,%.3f - %.3f,%.3f]"),
+			i, *Info.ActorName, *Info.ClassName, *Info.ComponentType, Info.Distance,
+			Info.bRectValid ? TEXT("ok") : TEXT("invalid"),
+			Info.ScreenMin.X, Info.ScreenMin.Y, Info.ScreenMax.X, Info.ScreenMax.Y);
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Viewport-visibility scoping (opt-in; default OFF)
 // ---------------------------------------------------------------------------
@@ -258,6 +420,22 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 
 	// Re-entrancy (revert-then-reapply) is handled inside each anomaly's Apply.
 	const bool bApplied = (*Found)->Apply(GetWorld(), Args);
+
+	// A2 read-back side-table (INERT to gates): on success, record the args + apply-time; on a no-op apply
+	// (a zero-match re-apply leaves the anomaly inactive) drop any stale record. This runs AFTER Apply and
+	// does NOT influence bApplied / IsActive / match counts — kept in sync with the active state for read-back.
+	if (bApplied)
+	{
+		FActiveRecord Record;
+		Record.Args = Args;
+		Record.ApplyTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+		ActiveRecords.Add(Id, MoveTemp(Record));
+	}
+	else
+	{
+		ActiveRecords.Remove(Id);
+	}
+
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.Apply '%s' -> %s."), *Id.ToString(), bApplied ? TEXT("applied") : TEXT("not applied"));
 	return bApplied;
 }
@@ -277,6 +455,7 @@ bool UAnomalyInjectorSubsystem::RevertAnomaly(const FName& Id)
 	}
 
 	(*Found)->Revert();
+	ActiveRecords.Remove(Id);   // A2 side-table stays in sync (inert)
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.Revert '%s' -> reverted."), *Id.ToString());
 	return true;
 }
@@ -292,6 +471,7 @@ int32 UAnomalyInjectorSubsystem::RevertAllActive()
 			++Count;
 		}
 	}
+	ActiveRecords.Empty();   // A2 side-table stays in sync (nothing active after a RevertAll; inert)
 	return Count;
 }
 
@@ -306,6 +486,59 @@ int32 UAnomalyInjectorSubsystem::GetActiveAnomalyCount() const
 		}
 	}
 	return Count;
+}
+
+TArray<FAnomalyCatalogEntry> UAnomalyInjectorSubsystem::GetAnomalyCatalog() const
+{
+	TArray<FName> Ids;
+	Anomalies.GetKeys(Ids);
+	Ids.Sort([](const FName& A, const FName& B) { return A.ToString() < B.ToString(); });   // deterministic (AMB-5)
+
+	TArray<FAnomalyCatalogEntry> Out;
+	Out.Reserve(Ids.Num());
+	for (const FName& Id : Ids)
+	{
+		const TUniquePtr<IAnomaly>& Anomaly = Anomalies[Id];
+		if (!Anomaly)
+		{
+			continue;
+		}
+		FAnomalyCatalogEntry Entry;
+		Entry.Id = Anomaly->GetId();
+		Entry.Description = Anomaly->GetDescription();
+		Entry.Usage = Anomaly->GetUsage();
+		GetAuthoredSpec(Entry.Id, Entry.Scope, Entry.Args);   // authored scope + arg schema
+		Out.Add(MoveTemp(Entry));
+	}
+	return Out;
+}
+
+TArray<FActiveAnomalyInfo> UAnomalyInjectorSubsystem::GetActiveAnomalies() const
+{
+	const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+
+	TArray<FName> Ids;
+	Anomalies.GetKeys(Ids);
+	Ids.Sort([](const FName& A, const FName& B) { return A.ToString() < B.ToString(); });
+
+	TArray<FActiveAnomalyInfo> Out;
+	for (const FName& Id : Ids)
+	{
+		const TUniquePtr<IAnomaly>& Anomaly = Anomalies[Id];
+		if (!Anomaly || !Anomaly->IsActive())
+		{
+			continue;
+		}
+		FActiveAnomalyInfo Info;
+		Info.Id = Id;
+		if (const FActiveRecord* Rec = ActiveRecords.Find(Id))
+		{
+			Info.Args = Rec->Args;
+			Info.SecondsActive = FMath::Max(0.0, Now - Rec->ApplyTimeSeconds);
+		}
+		Out.Add(MoveTemp(Info));
+	}
+	return Out;
 }
 
 // ---------------------------------------------------------------------------
@@ -453,5 +686,42 @@ static FAutoConsoleCommandWithWorldAndArgs GTestVisibilityCmd(
 			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
 			{
 				Subsystem->TestVisibility(Args);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GDumpCatalogCmd(
+	TEXT("IAI.DumpCatalog"),
+	TEXT("Diagnostic: log the structured anomaly catalog (id | scope | usage | arg schema)."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
+			{
+				Subsystem->DumpCatalog();
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GDumpActiveCmd(
+	TEXT("IAI.DumpActive"),
+	TEXT("Diagnostic: log the active anomalies (id | seconds-active | applied args)."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
+			{
+				Subsystem->DumpActiveAnomalies();
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GDumpVisibleCmd(
+	TEXT("IAI.DumpVisible"),
+	TEXT("Diagnostic: log the renderable-visible actor infos (name|class|comp|dist|screen-rect) and assert "
+	     "set+order match GetVisibleRenderableActors (the A4 rect gate + the byte-identical regression gate)."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
+			{
+				Subsystem->DumpVisibleRenderableInfos();
 			}
 		}));

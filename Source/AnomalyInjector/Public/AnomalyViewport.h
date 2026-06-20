@@ -56,6 +56,26 @@ struct FAnomalyViewInfo
 	bool bValid = false;
 };
 
+/**
+ * Per-actor descriptor for the control-surface read-back (Slice 1, A4). One entry per renderable-visible
+ * actor: identity + the renderable component kind + distance + a normalized screen-space rect for the
+ * dashboard's overlay boxes / click-to-select. Computed in the SAME pass as the visibility test (no
+ * second occlusion pass); the rect is a pure projection of the matched component's bounds.
+ */
+struct FRenderableActorInfo
+{
+	TWeakObjectPtr<AActor> Actor;
+	FString ActorName;
+	FString ClassName;
+	FString ComponentType;              // "SM" | "SK" | "FX" (the matched renderable component family)
+	float Distance = 0.0f;              // view origin -> matched component bounds centre
+
+	// Normalized [0,1] screen rect, top-left origin (resolution-independent; the client scales to its view).
+	FVector2D ScreenMin = FVector2D::ZeroVector;
+	FVector2D ScreenMax = FVector2D::ZeroVector;
+	bool bRectValid = false;            // false if the bounds couldn't be projected (e.g. straddling the camera)
+};
+
 namespace AnomalyViewport
 {
 	/**
@@ -166,6 +186,15 @@ namespace AnomalyViewport
 	 * Two callers, two safe directions — a future reader must NOT "reconcile" them.
 	 */
 	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> GetVisibleRenderableActors(UWorld* World);
+
+	/**
+	 * Control-surface read-back (Slice 1, A4): the renderable-visible set as FRenderableActorInfo — the same
+	 * actors as GetVisibleRenderableActors (identical predicate + iteration order) PLUS, per actor, its
+	 * class / renderable component kind / distance / a normalized screen-space rect. Runs ONE pass: the
+	 * occlusion test fires once per actor (shared with the visibility predicate, no double traces); the rect
+	 * is a pure projection against the resolved view. Same offer-nothing-on-no-view contract (empty on no view).
+	 */
+	ANOMALYINJECTOR_API TArray<FRenderableActorInfo> GetVisibleRenderableActorInfos(UWorld* World);
 
 	/**
 	 * Convenience finder: resolve the live view, match components of type T
