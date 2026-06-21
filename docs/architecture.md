@@ -230,9 +230,11 @@ boxes, editor billboards, landscape, debug/streaming actors), which must never b
   after the renderable type-test and before the occlusion traces (cheapest-cull-first), is threaded through the shared
   chokepoint so **both** live entry points apply it identically (the `IAI.DumpVisible` set-identity gate holds), and the
   explicit-view functions (`IsActorRenderableVisible` / `FilterRenderableVisibleActors`) pass radius 0 (synthetic
-  surface stays byte-identical). When `R > 0` a dev `UDebugDrawService` sphere visualizes the radius around the live
-  pawn. Origin is the **pawn** (not the camera); the dashboard's `Distance` field stays camera-relative — distinct on
-  purpose. All types are in `Core`/`Engine` → no new dep.
+  surface stays byte-identical). When `R > 0` a dev debug sphere (drawn from a pre-render world-tick hook, `FWorldDelegates::
+  OnWorldPostActorTick` — G34) visualizes the radius around the live pawn; it is **suppressed during a capture run** so it
+  is not baked into captured frames (`SetDebugSphereSuppressed`, visual-only — the cull is unaffected, G44). Origin is the
+  **pawn** (not the camera); the dashboard's `Distance` field stays camera-relative — distinct on purpose. All types are in
+  `Core`/`Engine` → no new dep.
 - All types are in `Engine` → **still no new module dependency**.
 
 ## Control surface (console commands)
@@ -462,8 +464,10 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   async path (gotcha G41).
 - **Reproducibility (S4).** The run seeds the auto-injector stream at start → same seed + same visible-set sequence (a fixed
   vantage) reproduces the fired (id, target) sequence — NOT pixel-identity (ambient scene motion). **Coexistence:** the
-  auto-injector's `Run` must be OFF during a capture run (capture owns firing) — warned, not blocked (A2). A zero-match
-  burst (empty eligible/visible) records negatives only and advances (A6).
+  auto-injector's `Run` must be OFF during a capture run (capture owns firing) — warned, not blocked (A2); and the
+  poll-radius dev debug sphere is suppressed for the run so it is not baked into captured frames (`SetDebugSphereSuppressed`;
+  visual-only — the poll-radius cull keeps shrinking the set, G44). A zero-match burst (empty eligible/visible) records
+  negatives only and advances (A6).
 - **Output.** `run_<seed>_<timestamp>/` with `frame_<GFrameCounter>.png` + `labels.jsonl` (one record/line) + `run.json`
   (manifest at start: seed, K, L, pre/positive/post, burstCount, viewport, format, schema version, start frame/time) +
   `run_summary.json` (at stop). `tools/verify_capture.py` overlays the boxes onto frames + prints a per-frame table +

@@ -214,6 +214,15 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	ViewRing.Reset();   // fresh per run
 
 	bRunning = true;
+
+	// Hide the poll-radius debug sphere for the whole run so it is NOT baked into captured frames: capture reads
+	// the composited game backbuffer (FViewport::ReadPixels), which includes the line-batcher sphere. This is the
+	// VISUAL only — the poll-radius CULL stays fully active (the sphere flag is independent of the radius), so the
+	// renderable-visible set still shrinks as configured. Restored in FinishRun (the single run-exit). Mirrors the
+	// A2 auto-injector handling. [Cross-track note: the sphere lives in AnomalyViewport (poll-radius, 22cf34f /
+	// ae57b69); SetDebugSphereSuppressed is a tiny additive, cull-independent toggle added for this.]
+	AnomalyViewport::SetDebugSphereSuppressed(true);
+
 	Phase = ECapturePhase::LeadIn;
 	PhaseFramesLeft = PreFrames;
 
@@ -377,6 +386,10 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	bRunning = false;
 	Phase = ECapturePhase::Idle;
 	PhaseFramesLeft = 0;
+
+	// Restore the live poll-radius debug sphere (visual only — the cull was never changed). FinishRun is the single
+	// run-exit (StopRun, burst-count auto-finish, and Deinitialize teardown all route here), so this always runs.
+	AnomalyViewport::SetDebugSphereSuppressed(false);
 }
 
 // ----------------------------------------------------------------------------------------------------

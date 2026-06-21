@@ -551,6 +551,9 @@ An optional distance cull on the LIVE renderable-visible poll: an actor is in th
   OFF↔ON boundary by `SetPollRadius`. It draws **only in real Play** (Game/PIE world, gated by `World->IsGameWorld()`),
   never a Simulate/editor viewport. Accepted minor: a module unload *while a radius is set* leaks the handle (a
   teardown hook would mean touching the module `.cpp`, out of this fix's "touch only AnomalyViewport" scope).
+  **Capture interaction (G44):** the sphere is a line-batcher draw, so it bakes into game-viewport captures —
+  `SetDebugSphereSuppressed(bool)` (a cull-independent visual-only toggle) lets the capture run hide it; the cull is
+  unaffected.
 - **Drawing the 3D sphere needs a PRE-scene-render hook — a `UDebugDrawService` delegate does NOT work (the real
   bug).** First attempt drew the sphere from a `UDebugDrawService("Game")` delegate; it never appeared. That delegate
   fires during the **post-scene** canvas/HUD draw, *after* the world line batcher has already rendered for the frame,
@@ -654,3 +657,23 @@ in-flight tracks, at bootstrap run `git status` / `git log` and distinguish comm
 before treating any "existing primitive" as a stable foundation — a working-tree primitive may be another track's
 uncommitted WIP. Standalone-buildability of each commit (no forward-references) is what makes a clean post-hoc split
 possible. (m7, 2026-06-20.)
+
+### G44 — debug-draw (line batcher) IS baked into game-viewport `ReadPixels` captures; suppress it during a run (capture)
+The poll-radius debug sphere (G34, drawn via `DrawDebugSphere` from `FWorldDelegates::OnWorldPostActorTick`) was
+appearing **inside captured dataset frames**. Cause: capture grabs frames with `FViewport::ReadPixels` on the **game
+viewport** (`AnomalyPreview::CaptureGameViewportRaw`), which returns the final **composited backbuffer** — and engine
+debug-draw (the world `ULineBatchComponent`) renders into the scene, so it is part of that surface. There is **no
+readback-time show-flag exclusion** on the `FViewport::ReadPixels` path; you get exactly what the player sees, debug
+overlays included. (Contrast `UDebugDrawService` *canvas* HUD text, which is a separate 2D pass — but the sphere is a
+3D line-batcher draw, so it IS in the readback.)
+- **Fix = capture SUPPRESSES the visual, not the feature (Option B).** A tiny additive, cull-independent toggle in
+  `AnomalyViewport` — `SetDebugSphereSuppressed(bool)` — gates only the sphere draw hook; the poll-radius **cull**
+  (`GetVisibleRenderableActors`/`...Infos`) never reads it, so the renderable-visible SET is unchanged. `SetPollRadius 0`
+  was NOT an option (it would disable the cull too — both were gated on `GPollRadius > 0`).
+- **Lifecycle:** `UAnomalyCaptureSubsystem::StartRun` suppresses; `FinishRun` restores. `FinishRun` is the single
+  run-exit (Stop, burst-count auto-finish, and `Deinitialize` teardown all route through it), so the live sphere always
+  comes back. Mirrors the A1/A2 auto-injector coordination (`a12d16e`). Set-at-StartRun (processed before that frame's
+  `OnWorldPostActorTick`) means no sphere leaks into even the first pre-roll frame.
+- **General lesson:** anything you draw via `DrawDebug*` / the line batcher will land in a game-viewport pixel capture.
+  A capture/dataset path must suppress dev debug overlays for the duration of a run (or capture from a separate view
+  with its own ShowFlags). (Capture follow-up, 2026-06-21.)

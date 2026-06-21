@@ -32,6 +32,7 @@ namespace
 	// --- Poll-radius distance cull: shared state (single source of truth; default OFF, R <= 0 disables) ---
 	float GPollRadius = 0.0f;              // Unreal units (cm)
 	FDelegateHandle GPollRadiusDrawHandle; // dev debug sphere; valid only while a positive radius is set
+	bool GSuppressDebugSphere = false;     // hides ONLY the sphere visual (e.g. during frame capture); cull stays active
 
 	/**
 	 * Poll origin for the distance cull = the player PAWN location (LOCKED: pawn, not camera). Falls back to
@@ -65,7 +66,9 @@ namespace
 	void DrawPollRadiusTick(UWorld* World, ELevelTick /*TickType*/, float /*DeltaSeconds*/)
 	{
 		const float R = GPollRadius;
-		if (R <= 0.0f || !World || !World->IsGameWorld())   // IsGameWorld -> only PIE/standalone, never the editor world
+		// GSuppressDebugSphere hides ONLY this visual (e.g. so the capture readback doesn't bake the sphere into a
+		// dataset frame) — the cull keeps using GPollRadius regardless, so the visible set is unaffected.
+		if (R <= 0.0f || GSuppressDebugSphere || !World || !World->IsGameWorld())   // IsGameWorld -> only PIE/standalone
 		{
 			return;
 		}
@@ -662,6 +665,20 @@ namespace AnomalyViewport
 	float GetPollRadius()
 	{
 		return GPollRadius;
+	}
+
+	void SetDebugSphereSuppressed(bool bSuppressed)
+	{
+		// Visual-only: the OnWorldPostActorTick draw hook self-gates on this flag. The cull (GPollRadius) is
+		// untouched, so suppressing the sphere never changes the renderable-visible set. The hook stays registered
+		// (cheap no-op while suppressed); we don't unregister it here so SetPollRadius's OFF<->ON lifecycle is the
+		// sole owner of the handle.
+		GSuppressDebugSphere = bSuppressed;
+	}
+
+	bool IsDebugSphereSuppressed()
+	{
+		return GSuppressDebugSphere;
 	}
 }
 

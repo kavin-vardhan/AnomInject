@@ -203,6 +203,19 @@ namespace AnomalyViewport
 	ANOMALYINJECTOR_API float GetPollRadius();
 
 	/**
+	 * Suppress ONLY the dev debug SPHERE draw (the radius VISUAL), leaving the poll-radius CULL fully active.
+	 * The cull (GetVisibleRenderableActors / ...Infos) never reads this flag, so the visible SET is unchanged —
+	 * this hides only the on-screen overlay. Intended for the frame-capture path: a captured game-viewport frame
+	 * (FViewport::ReadPixels) bakes in the line-batcher sphere, so capture must suppress it while a run is active
+	 * and restore on stop/teardown (the cull keeps shrinking the set as normal). Default = NOT suppressed (live
+	 * monitoring shows the sphere). Single global writer expected (capture); set true on run-start, false on end.
+	 */
+	ANOMALYINJECTOR_API void SetDebugSphereSuppressed(bool bSuppressed);
+
+	/** Is the dev debug sphere currently suppressed (e.g. during a capture run)? Does not affect the cull. */
+	ANOMALYINJECTOR_API bool IsDebugSphereSuppressed();
+
+	/**
 	 * Convenience for the object selector / future auto-injection: resolve the live view, enumerate all
 	 * actors, and return the renderable-visible ones (UNSORTED; the caller orders).
 	 * DELIBERATE CONTRACT — on no resolvable view this returns EMPTY (offer nothing), never the full scene.
