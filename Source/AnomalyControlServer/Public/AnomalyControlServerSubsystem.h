@@ -105,6 +105,9 @@ private:
 	int32 LastViewportX = 0;
 	int32 LastViewportY = 0;
 
+	// A1: true while a capture run paused the auto-injector's Run (so Run is restored when the run ends).
+	bool bAutoWasRunning = false;
+
 	static constexpr double AuthTimeoutSeconds = 5.0;
 #endif // ANOMALY_CONTROL_SERVER
 

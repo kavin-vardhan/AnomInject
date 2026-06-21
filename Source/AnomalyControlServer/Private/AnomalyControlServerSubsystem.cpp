@@ -239,6 +239,23 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 		PushFrames(bWantOneFrame);
 		bWantOneFrame = false;
 	}
+
+	// A1 restore: when a capture run that paused the auto-injector's Run has ended (capture_stop, a
+	// self-finishing finite-burst run, or teardown), restore Run. Run-state ONLY — the pool/seed/Enable
+	// the capture driver fires from were never touched.
+	if (bAutoWasRunning)
+	{
+		UWorld* World = GetWorld();
+		UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
+		if (Cap && !Cap->IsRunning())
+		{
+			if (UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>())
+			{
+				Auto->SetRunning(true);
+			}
+			bAutoWasRunning = false;
+		}
+	}
 #endif
 }
 
@@ -600,6 +617,22 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		const bool bPng = !Format.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase);   // PNG default; jpeg behind the flag
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
+			// A1: a capture run OWNS injection (its burst driver fires via the auto-injector's TryFireOnce,
+			// drawing from the ENABLED POOL + seeded stream). A concurrent free-running Auto.Run would fire a
+			// competing schedule into the one-instance-per-id registry and corrupt labels — so pause Auto's
+			// RUN only (pool/seed/Enable preserved; capture keeps injecting), and restore it when the run ends
+			// (Tick). Only on a FRESH start: a no-op 2nd start must not overwrite the saved Run state.
+			if (!Cap->IsRunning())
+			{
+				if (UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr)
+				{
+					bAutoWasRunning = Auto->IsRunning();
+					if (bAutoWasRunning)
+					{
+						Auto->SetRunning(false);
+					}
+				}
+			}
 			Cap->StartRun(Dir, bPng, (int32)SeedV);
 		}
 		SendAck(Conn.Socket, TEXT("capture_start"));
