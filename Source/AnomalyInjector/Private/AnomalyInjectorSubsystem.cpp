@@ -8,6 +8,8 @@
 #include "Engine/World.h"          // UWorld
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"   // FAutoConsoleCommandWithWorldAndArgs
+#include "Materials/MaterialInterface.h"   // UMaterialInterface (m8: shipped missing_texture materials)
+#include "UObject/ConstructorHelpers.h"    // ConstructorHelpers::FObjectFinder (CDO hard-ref cook guarantee)
 
 #include "AnomalyViewport.h"               // FAnomalyViewInfo + core visibility tests (TestVisibility diagnostic)
 #include "AnomalyTargeting.h"              // FindActorsMatching (TestVisibility diagnostic)
@@ -20,12 +22,28 @@
 #include "Anomalies/Anomaly_LodCorruption.h"
 #include "Anomalies/Anomaly_LodPopping.h"
 #include "Anomalies/Anomaly_CameraClipping.h"
+#include "Anomalies/Anomaly_MissingTexture.h"
 
 /** Fixed on-screen-message key ("GDPH") so the heartbeat refreshes in place instead of stacking. */
 static constexpr uint64 GAnomalyHeartbeatKey = 0x47445048;
 
 // Out-of-line dtor defined where IAnomaly is a complete type (gotcha G9).
 UAnomalyInjectorSubsystem::~UAnomalyInjectorSubsystem() = default;
+
+// CDO hard-ref to the shipped "missing texture" material (m8). The static FObjectFinder resolves the asset
+// once (at CDO construction); the resulting non-transient UPROPERTY makes the cooker pull the plugin's
+// Content/ material into a packaged build with no host DefaultGame.ini / DirectoriesToAlwaysCook edit.
+UAnomalyInjectorSubsystem::UAnomalyInjectorSubsystem()
+{
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> CheckerFinder(
+		TEXT("/AnomalyInjector/Materials/M_MissingTexture_Checker.M_MissingTexture_Checker"));
+	MissingTextureChecker = CheckerFinder.Object;
+}
+
+UMaterialInterface* UAnomalyInjectorSubsystem::GetMissingTextureMaterial() const
+{
+	return MissingTextureChecker;
+}
 
 // ---------------------------------------------------------------------------
 // Authored catalog spec (Slice 1, A1) — the IAnomaly-free sourcing mechanism.
@@ -99,6 +117,10 @@ namespace
 			// which a flat schema can't fully express — one freeform trailing field for v1 (documented).
 			OutArgs.Add(StringArg(TEXT("params"), TEXT("")));
 		}
+		else if (Id == FName(TEXT("missing_texture")))
+		{
+			OutScope = EAnomalyScope::Object;   // no args (one look for now: the gray/white checker)
+		}
 		else
 		{
 			OutScope = EAnomalyScope::Object;
@@ -129,6 +151,7 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Register(MakeUnique<FAnomaly_LodCorruption>());      // M2/M3: component-targeting, static + skeletal (AnomalyLod)
 	Register(MakeUnique<FAnomaly_LodPopping>());         // M3: ticking LOD pop (AnomalyLod), static + skeletal
 	Register(MakeUnique<FAnomaly_CameraClipping>());     // M2: global near-clip capture/restore
+	Register(MakeUnique<FAnomaly_MissingTexture>());     // m8: per-component material swap -> missing-texture look
 
 	UE_LOG(LogAnomaly, Log, TEXT("Subsystem initialized for world '%s'. %d anomaly type(s) registered."),
 		*GetNameSafe(GetWorld()), Anomalies.Num());

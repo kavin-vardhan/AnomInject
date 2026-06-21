@@ -677,3 +677,65 @@ overlays included. (Contrast `UDebugDrawService` *canvas* HUD text, which is a s
 - **General lesson:** anything you draw via `DrawDebug*` / the line batcher will land in a game-viewport pixel capture.
   A capture/dataset path must suppress dev debug overlays for the duration of a run (or capture from a separate view
   with its own ShowFlags). (Capture follow-up, 2026-06-21.)
+
+### G45 — cook guarantee for plugin Content: a soft-ref does NOT cook; a CDO hard-ref does (m8)
+`missing_texture` ships the plugin's **first** `Content/` asset (the checker material). Getting a plugin-owned asset to
+**cook into a packaged build** is non-obvious:
+- A bare `FSoftObjectPath` / `TSoftObjectPtr` is just a path string — the cooker does NOT follow it, so the asset is
+  **omitted** from the package and `LoadSynchronous` returns null at runtime (silent no-op). Soft-ref alone is insufficient.
+- **The working mechanism (Option B, plugin-self-contained):** a `static ConstructorHelpers::FObjectFinder<UMaterialInterface>`
+  in the `UAnomalyInjectorSubsystem` constructor assigning a **non-transient `UPROPERTY() TObjectPtr<>`**. The CDO then carries
+  a hard reference the cooker follows → the asset cooks. (`UPROPERTY` must NOT be `Transient` — a transient ref isn't
+  serialized into the CDO, so the cooker won't see it.) No host `DefaultGame.ini` / `DirectoriesToAlwaysCook` edit — the
+  guarantee lives entirely in the plugin (a host-config line is forgettable in a fresh project → silent cook failure).
+- Also required: flip the `.uplugin` `"CanContainContent": true` (was false) so the `/AnomalyInjector/` content mount registers
+  (needs an editor restart to take effect). Empirically validated: cooked `.uasset` present + the CDO refs resolve **non-null at
+  runtime in a packaged Development build** (a temporary `Initialize` log proved it; removed before commit). (m8, 2026-06-21.)
+
+### G46 — `SetMaterial` per-component override = clean object isolation; revert needs the override-flag (m8)
+`missing_texture` swaps a mesh component's material slots via `UMeshComponent::SetMaterial(i, M)`, which writes the
+component's **`OverrideMaterials`** array — a **per-component** override, never the shared `UStaticMesh`/`USkeletalMesh` asset
+or the source `UMaterial`. So two actors sharing one mesh+material are isolated: recoloring one never bleeds to the sibling
+(gate-verified on `SM_RockFlats_02`/`M_Rock`). **Exact revert needs two things captured per slot:** the original
+`UMaterialInterface*` (`GetMaterial(i)`) **and** whether it was an explicit override (`OverrideMaterials.IsValidIndex(i) &&
+OverrideMaterials[i] != nullptr`). On revert: if it WAS an override, `SetMaterial(i, captured)`; else `SetMaterial(i, nullptr)`
+to clear the override back to the asset default. Both branches validated — the StackOBot Bot's skinned slots hold runtime MIDs
+(override → restore ptr); placed props use asset-default materials (no override → clear to null). `OverrideMaterials` is a
+public member of `UMeshComponent`. Static and skeletal are identical here (both derive `UMeshComponent`). (m8, 2026-06-21.)
+
+### G47 — the cook runs on EDITOR binaries: rebuild the editor target before cooking, or a CDO/content change is invisible (m8)
+The first `missing_texture` package built clean (exit 0) but contained **no material** — the cook commandlet runs in
+`UnrealEditor-Cmd` (the **editor** target), and the editor binaries had NOT been rebuilt with the new CDO `FObjectFinder`
+(the change existed only as an in-memory Live Coding patch, lost when the editor closed; the package build used `-nocompileeditor`).
+So the cook ran against old code with no material reference. **Fix:** `Build.bat StackOBotEditor …` (or otherwise refresh the
+editor DLLs) **before** `RunUAT BuildCookRun`. After rebuilding the editor, the material cooked. Lesson: a CDO/content reference
+only cooks if the binaries the **cook commandlet** loads contain it — that's the editor target, not the game target. (m8, 2026-06-21.)
+
+### G48 — UE 5.1 packages cooked assets into IoStore (`.ucas`/`.utoc`), NOT the `.pak`; verify by runtime load (m8)
+After the editor rebuild, `UnrealPak -list` on `StackOBot-Windows.pak` showed only the plugin's `.uplugin` — no material — yet
+the packaged game **loaded the material fine** (the subsystem CDO ref resolved non-null at runtime). Reason: UE 5.1 default
+packaging uses **IoStore** — cooked asset data lives in `StackOBot-Windows.ucas` (+ `.utoc` index), and the `.pak` carries only
+loose files (`.uplugin`, ini). So a missing-from-`.pak` asset is NOT missing from the package. **Verify packaged content by
+running the build and checking a runtime load** (a log line / actual use), not by `UnrealPak -list` on the `.pak`. (m8, 2026-06-21.)
+
+### G49 — a material swapped onto arbitrary meshes at runtime needs ALL mesh USAGE FLAGS pre-authored, or it renders default-gray (m8)
+The `missing_texture` material applied cleanly (override set, gate-green on state) but **rendered gray, not the intended colour**.
+Cause: **material usage flags.** UE can only add a usage flag (e.g. `bUsedWithSkeletalMesh`, `bUsedWithNanite`) during an
+**editor recompile** — at RUNTIME it cannot, so it substitutes the **default gray material** for any component type the material
+wasn't compiled for. StackOBot's ramps are **Nanite** (`Invalid material usage for Nanite static mesh … forcing default material`)
+and the Bot is **skeletal** (`Material with missing usage flag … skeletal mesh`) — both rendered gray. **Fix:** author the material
+with every mesh usage the anomaly can target set true — `used_with_skeletal_mesh`, `used_with_nanite`,
+`used_with_instanced_static_meshes`, `used_with_morph_targets`, `used_with_spline_meshes` (settable via `set_editor_property` at
+author time; baked into the `.uasset`). This applies to a packaged build too — found only because the visual gate looked at pixels,
+not just state. (m8, 2026-06-21.)
+
+### G50 — unlit + emissive lights the Lumen scene ("glow"); a flat colour that must NOT light the room uses Lit base-colour (m8)
+The first `missing_texture` look was **Unlit + Emissive** magenta (flat, lighting-independent). Owner feedback: it "reflects
+magenta onto surrounding surfaces, like a glowing object." Cause: an emissive surface feeds **Lumen's surface cache** and bounces
+its colour onto neighbours (and blooms). `UPrimitiveComponent::bEmissiveLightSource` is NOT the lever — it **defaults false**
+(PrimitiveComponent.cpp:321), so setting it false is a no-op; emissive still contributes. There is no clean per-material "exclude
+emissive from Lumen" in 5.1. **For a flat colour that renders but does NOT light the scene, use a LIT material with the colour on
+Base Color (matte: rough=1, spec=0), emissive=0** — it shades like a normal untextured surface and emits nothing. This is also the
+canonical missing-texture look (a flat colour on a lit surface) and more realistic for the dataset. v1 ships the **checker** look
+(lit gray/white); the flat-**magenta** variant + a `mode` arg are **deferred** (owner revisiting the look — the lit-vs-uniform
+tradeoff). (m8, 2026-06-21.)

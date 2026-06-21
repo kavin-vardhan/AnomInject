@@ -18,14 +18,15 @@
 
 namespace
 {
-	/** The four object-scoped, primitive-backed anomalies the selector offers (default args only).
-	 *  Globals (time_dilation, camera_clipping) + lighting_mismatch stay console-only for v1. */
+	/** The object-scoped, primitive-backed anomalies the selector offers (default args only; missing_texture
+	 *  has no args). Globals (time_dilation, camera_clipping) + lighting_mismatch stay console-only for v1. */
 	const FName GAnomalyChoices[] =
 	{
 		FName(TEXT("missing_object")),
 		FName(TEXT("flicker")),
 		FName(TEXT("lod_corruption")),
 		FName(TEXT("lod_popping")),
+		FName(TEXT("missing_texture")),
 	};
 	constexpr int32 GNumAnomalyChoices = UE_ARRAY_COUNT(GAnomalyChoices);
 
@@ -562,7 +563,7 @@ static FAutoConsoleCommandWithWorldAndArgs GSelectorPrevCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GSelectorCycleCmd(
 	TEXT("IAI.Selector.Cycle"),
-	TEXT("Cycle the chosen anomaly (missing_object/flicker/lod_corruption/lod_popping)."),
+	TEXT("Cycle the chosen anomaly (missing_object/flicker/lod_corruption/lod_popping/missing_texture)."),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{

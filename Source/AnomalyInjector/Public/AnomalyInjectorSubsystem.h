@@ -8,6 +8,8 @@
 #include "AnomalyCatalogTypes.h"   // FAnomalyCatalogEntry / FActiveAnomalyInfo (structured read-back, Slice 1)
 #include "AnomalyInjectorSubsystem.generated.h"
 
+class UMaterialInterface;
+
 /**
  * UAnomalyInjectorSubsystem
  *
@@ -24,6 +26,11 @@ class ANOMALYINJECTOR_API UAnomalyInjectorSubsystem : public UTickableWorldSubsy
 	GENERATED_BODY()
 
 public:
+	// Ctor: hard-references the shipped "missing texture" material via FObjectFinder so the CDO carries the
+	// reference -> the cooker follows it -> the plugin's Content/ asset cooks into a packaged build with no
+	// host DefaultGame.ini edit (m8 cook guarantee).
+	UAnomalyInjectorSubsystem();
+
 	// Out-of-line dtor: the TMap<FName, TUniquePtr<IAnomaly>> deleter needs the complete
 	// IAnomaly type, which is available in the .cpp translation unit (gotcha G9).
 	virtual ~UAnomalyInjectorSubsystem();
@@ -71,6 +78,12 @@ public:
 
 	/** Static convenience for anomalies: resolve the subsystem from World and read its flag (false if none). */
 	static bool IsViewportScopingEnabled(UWorld* World);
+
+	// --- Shipped material library (m8: missing_texture) ---
+
+	/** The plugin-shipped "missing texture" material (the gray/white checker). Hard-referenced by the CDO
+	 *  (cook guarantee); null only if the asset failed to load. */
+	UMaterialInterface* GetMissingTextureMaterial() const;
 
 	// --- Anomaly manager API (called by the console command surface) ---
 
@@ -140,4 +153,9 @@ private:
 	 * AnomalyViewport. Toggled via IAI.SetViewportScoping <0|1>.
 	 */
 	bool bViewportScopingEnabled = false;
+
+	// Shipped "missing texture" material (m8: the gray/white checker). UPROPERTY (non-transient) so the CDO
+	// serializes the hard reference and the cooker pulls the plugin's Content/ asset into a packaged build.
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> MissingTextureChecker;
 };

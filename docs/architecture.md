@@ -1,6 +1,14 @@
 # Architecture (living — current as-built)
 
-> **Reflects:** **Labeled Frame-Capture + 2D BBox Labeling (m7)** — a capture/labeling layer that produces an
+> **Reflects:** **Missing-Texture Anomaly (m8, VersionName 0.9.0)** — an 8th anomaly `missing_texture` (object-scoped):
+> per-component `UMeshComponent::SetMaterial` swaps every renderable static/skeletal slot to a plugin-**shipped** Lit
+> gray/white UV-checker material (object isolation; per-slot original captured for an exact revert). This is the plugin's
+> **first `Content/` asset** — the cook guarantee is a CDO hard-ref (`FObjectFinder` + a non-transient `UPROPERTY`) in the
+> injector subsystem, plus `"CanContainContent": true`, with no host config (gotchas G45/G47/G48). The material declares all
+> mesh usage flags so it renders on Nanite/skeletal/ISM at runtime (G49). `IAnomaly` untouched; deps still
+> `Core/CoreUObject/Engine/InputCore`; catalog now **8**. A flat-magenta variant + a `mode` arg are **deferred** (unlit-emissive
+> magenta lit the Lumen scene / "glowed" — G50). See `sessions/2026-06-21-013-missing-texture.md`. Below this it still reflects:
+> **Labeled Frame-Capture + 2D BBox Labeling (m7)** — a capture/labeling layer that produces an
 > ML-friendly labeled image sequence from a LIVE auto-injection run. Housed in the **`AnomalyControlServer`**
 > module (reuses its game-viewport capture primitive + ImageWrapper; gated by `ANOMALY_CONTROL_SERVER`, compiled
 > out of Shipping). A new **`UAnomalyCaptureSubsystem`** (Game+PIE, dormant) drives the m6 auto-injector's
@@ -300,6 +308,7 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
 | `lod_corruption` | component (static **+ skeletal** mesh) | `IAI.Apply lod_corruption <sub> [lod-index]` | force each matched comp to a LOD via `AnomalyLod` (1-based; default worst per comp; explicit index clamped per comp). Static `SetForcedLodModel` / skinned `SetForcedLOD` | restore captured forced-LOD per live comp; skip stale | **as-built (M3)** — static + skeletal (G19; was static-only in M2, G16) |
 | `lod_popping` | component (static **+ skeletal** mesh), **ticking** | `IAI.Apply lod_popping <sub> [hz]` | each half-period, snap every matched comp between its captured baseline LOD and its worst LOD via `AnomalyLod` (default 2 Hz, clamp ≤ 30) | restore captured baseline per live comp regardless of phase; reset accumulator/phase | **as-built (M3)** |
 | `camera_clipping` | global (near-clip), no tick | `IAI.Apply camera_clipping [near]` | `r.SetNearClipPlane <near>` console command (default 100), pushing `GNearClippingPlane` out | restore captured baseline (~10) via the same command | **as-built (M2)** |
+| `missing_texture` | actor-scoped (per-component `SetMaterial`), no tick | `IAI.Apply missing_texture <sub>` | swap every renderable SM/SK component's material slots to the plugin-shipped **Lit gray/white UV-checker** (per-component override → object isolation; never mutates the shared mesh/material asset) | restore captured per-slot original (explicit override → restore ptr; else `SetMaterial(i, nullptr)` to clear to asset default); skip stale | **as-built (m8)** — flat-magenta variant + `mode` arg deferred (m8 journal) |
 
 ## Viewport-visibility scoping (opt-in; default OFF)
 The subsystem holds one flag `bViewportScopingEnabled` (default **OFF**), toggled by `IAI.SetViewportScoping <0|1>`

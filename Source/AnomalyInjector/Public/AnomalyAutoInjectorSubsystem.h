@@ -106,7 +106,7 @@ class ANOMALYINJECTOR_API UAnomalyAutoInjectorSubsystem : public UTickableWorldS
 public:
 	/** Number of pool ids (and the matching count of toggle keybinds). The .cpp static_asserts the pool
 	 *  array length against this. */
-	static constexpr int32 NumPoolKeys = 4;
+	static constexpr int32 NumPoolKeys = 5;
 
 	// --- USubsystem / UWorldSubsystem ---
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;

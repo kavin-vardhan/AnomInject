@@ -121,6 +121,11 @@ Open the console in PIE (press `` ` `` backtick) and run:
     aim away from a matched object and it is left untouched; aim at it and it is affected. `IAI.SetViewportScoping 0`
     restores the unscoped behavior. The heartbeat shows `scoping: ON/OFF`. (Diagnostic: `IAI.TestVisibility <sub>
     <ox oy oz> <pitch yaw roll> [fov] [aspect]` logs per-component `frustum/unoccluded/visible` for a synthetic view.)
+12. `IAI.Apply missing_texture <substring>` — swap every renderable **static/skeletal** mesh slot on matching actors to
+    the shipped **Lit gray/white UV-checker** material (the "missing texture" look; per-component override = object
+    isolation, never mutates the shared mesh/material asset). e.g. `IAI.Apply missing_texture SM_Ramp` recolors the ramps;
+    `IAI.Revert missing_texture` restores each slot exactly. **No args** (one look for now; the flat-magenta variant + a
+    `mode` arg are deferred — gotcha G50). The material renders correctly on Nanite/skeletal meshes (usage flags — G49).
 12. `IAI.SetPollRadius <cm>` — opt-in **distance cull** (default OFF) on the renderable-visible set: only renderable
     actors within `<cm>` of the **player pawn** are offered to the selector / auto-injector / dashboard. `<= 0`
     disables it (byte-identical to no cull); no argument prints the current radius. When set, a yellow debug sphere of
@@ -248,6 +253,7 @@ Get the PIE world after starting: `gw = unreal.get_editor_subsystem(unreal.Unrea
 | lod_corruption (skeletal + heterogeneous) | after Bot spawns: `IAI.Apply lod_corruption Bot` | one apply hits `StaticMeshComponent_0` (static, `forced_lod_model`) + `CharacterMesh0`/`Jetpack` (skinned, `get_forced_lod()`) → all `0→1`, log `forced LOD on 3 component(s)`; `Revert` -> all 0. Bot single-LOD → state-only (G20). |
 | lod_popping | `Log LogAnomaly Verbose`; `IAI.Apply lod_popping Bot` | snap log alternates `POPPED ↔ BASELINE (N components)` at 2 Hz; `Revert` -> captured baseline on all; re-apply mid-oscillation re-captures true baseline (no stuck popped value). |
 | camera_clipping | `IAI.Apply camera_clipping 100`; `IAI.Revert camera_clipping` | `GNearClippingPlane` == 100, then baseline (~10). Owner eyeballs near geometry vanishing / returning. |
+| missing_texture | `IAI.Apply missing_texture SM_Ramp`; `IAI.Revert missing_texture` | every matched SM/SK slot → `M_MissingTexture_Checker`; a sibling sharing the same mesh+material is **untouched** (per-component isolation); `Revert` restores each slot's original exactly (explicit override → ptr; else cleared to asset default). Renders the checker on Nanite/skeletal targets (usage flags — G49). |
 | RevertAll | apply >=2 anomalies, then `IAI.RevertAll` | all `IsActive==false`; captured state restored (hidden flags false, dilation baseline, lights/LOD/near-clip restored) |
 | teardown | apply, then **Stop PIE** | log `Subsystem deinitializing; reverted N...`; re-check nothing stuck |
 | no-leak | `IAI.Apply <id> A` then `IAI.Apply <id> B` (esp. `lighting_mismatch recolor`) | single capture set; only B's targets active; A's restored (no stuck lights/LODs) |

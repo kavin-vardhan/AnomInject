@@ -19,15 +19,17 @@
 
 namespace
 {
-	/** v1 pool = the four object-scoped, primitive-backed anomalies only (R-POOL). Globals
-	 *  (time_dilation, camera_clipping) + lighting_mismatch are a future non-object track. The fixed
-	 *  ORDER is load-bearing: Eligible is built in this order so Stream.RandHelper indexing is reproducible. */
+	/** v1 pool = the five object-scoped, primitive-backed anomalies (R-POOL). Globals (time_dilation,
+	 *  camera_clipping) + lighting_mismatch are a future non-object track. The fixed ORDER is load-bearing:
+	 *  Eligible is built in this order so Stream.RandHelper indexing is reproducible — APPEND new ids at the
+	 *  END so existing seeds' early draws stay stable. */
 	const FName GAutoPool[] =
 	{
 		FName(TEXT("missing_object")),
 		FName(TEXT("flicker")),
 		FName(TEXT("lod_corruption")),
 		FName(TEXT("lod_popping")),
+		FName(TEXT("missing_texture")),
 	};
 	constexpr int32 GNumAutoPool = UE_ARRAY_COUNT(GAutoPool);
 	static_assert(GNumAutoPool == UAnomalyAutoInjectorSubsystem::NumPoolKeys, "pool size must match the keybind count");
@@ -47,12 +49,13 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 {
 	Super::Initialize(Collection);
 
-	// Default keybinds: 1/2/3/4 toggle the four pool ids, J start/stop the run, K reseed. Distinct from
+	// Default keybinds: 1/2/3/4/5 toggle the five pool ids, J start/stop the run, K reseed. Distinct from
 	// the selector's Tab/C/G/H so the two eyeball shells never react to one press (gotcha G26). Rebindable.
 	KeyPool[0] = EKeys::One;
 	KeyPool[1] = EKeys::Two;
 	KeyPool[2] = EKeys::Three;
 	KeyPool[3] = EKeys::Four;
+	KeyPool[4] = EKeys::Five;
 	KeyRun     = EKeys::J;
 	KeyReseed  = EKeys::K;
 
@@ -309,7 +312,7 @@ bool UAnomalyAutoInjectorSubsystem::SetAnomalyEnabled(FName Id, bool bInEnabled)
 	if (!bInPool)
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("IAI.Auto.Pool: '%s' is not a v1 pool id (missing_object/flicker/lod_corruption/lod_popping)."),
+			TEXT("IAI.Auto.Pool: '%s' is not a v1 pool id (missing_object/flicker/lod_corruption/lod_popping/missing_texture)."),
 			*Id.ToString());
 		return false;
 	}
@@ -449,12 +452,13 @@ bool UAnomalyAutoInjectorSubsystem::SetKeyBinding(FName Action, FKey Key)
 	else if (Action == FName(TEXT("pool2")))  { KeyPool[1] = Key; }
 	else if (Action == FName(TEXT("pool3")))  { KeyPool[2] = Key; }
 	else if (Action == FName(TEXT("pool4")))  { KeyPool[3] = Key; }
+	else if (Action == FName(TEXT("pool5")))  { KeyPool[4] = Key; }
 	else if (Action == FName(TEXT("run")))    { KeyRun = Key; }
 	else if (Action == FName(TEXT("reseed"))) { KeyReseed = Key; }
 	else
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("IAI.Auto.Bind: unknown action '%s' (use pool1/pool2/pool3/pool4/run/reseed)."), *Action.ToString());
+			TEXT("IAI.Auto.Bind: unknown action '%s' (use pool1/pool2/pool3/pool4/pool5/run/reseed)."), *Action.ToString());
 		return false;
 	}
 
@@ -639,7 +643,7 @@ void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* 
 		Seed, IntervalMin, IntervalMax, HoldMin, HoldMax, MaxConcurrent, bPersist ? TEXT("   PERSIST") : TEXT("")), X, Y);
 	Y += LineH * 1.5f;
 
-	// Enable-set: the four pool ids with on/off state (the gameplay-start "which types" selection).
+	// Enable-set: the pool ids with on/off state (the gameplay-start "which types" selection).
 	Canvas->SetDrawColor(FColor::White);
 	Canvas->DrawText(Font, TEXT("Types:"), X, Y);
 	Y += LineH;
