@@ -76,6 +76,10 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const logEl = $('log');
+// Anomalies hidden from the UI for now. They remain fully registered + applyable in-engine via
+// `IAI.Apply <id>` (the server still lists them in the catalog); this client just omits them from the
+// inject dropdown. Clear this set to show them again.
+const HIDDEN_ANOMALY_IDS = new Set(['lod_corruption', 'lod_popping', 'time_dilation', 'lighting_mismatch']);
 let ws = null, snapshot = null, catalog = [], selectedTarget = null, frameBitmap = null, frameWH = [640,360];
 
 function log(cls, msg) {
@@ -172,9 +176,10 @@ function renderSnapshot(m) {
     `fps=${(s.fps||0).toFixed(0)} active=${s.activeCount} epoch=${m.epoch}`;
 }
 
+function visibleCatalog() { return catalog.filter(e => !HIDDEN_ANOMALY_IDS.has(e.id)); }
 function populateAnomalies() {
   const sel = $('anomalySel'); sel.innerHTML = '';
-  for (const e of catalog) { const o = document.createElement('option'); o.value = e.id; o.textContent = `${e.id} (${e.scope})`; sel.appendChild(o); }
+  for (const e of visibleCatalog()) { const o = document.createElement('option'); o.value = e.id; o.textContent = `${e.id} (${e.scope})`; sel.appendChild(o); }
   updateScopeHint();
 }
 function curEntry() { return catalog.find(e => e.id === $('anomalySel').value); }

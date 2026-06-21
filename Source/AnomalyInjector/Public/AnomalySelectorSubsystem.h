@@ -69,7 +69,7 @@ public:
 	 *  (wraps; picks the last when nothing is selected). No-ops if no actor is visible. */
 	void SelectPrevious();
 
-	/** Advance the chosen anomaly to the next of the four object-scoped ids (wraps). */
+	/** Advance the chosen anomaly to the next of the selectable object-scoped ids (wraps). */
 	void CycleAnomalyChoice();
 
 	/** Inject the chosen anomaly on the selected actor (default args) via the injector subsystem,

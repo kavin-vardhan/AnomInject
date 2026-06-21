@@ -19,16 +19,16 @@
 
 namespace
 {
-	/** v1 pool = the five object-scoped, primitive-backed anomalies (R-POOL). Globals (time_dilation,
-	 *  camera_clipping) + lighting_mismatch are a future non-object track. The fixed ORDER is load-bearing:
-	 *  Eligible is built in this order so Stream.RandHelper indexing is reproducible — APPEND new ids at the
-	 *  END so existing seeds' early draws stay stable. */
+	/** v1 pool = the object-scoped, primitive-backed anomalies (R-POOL). NOTE: lod_corruption / lod_popping
+	 *  are intentionally HIDDEN from the UI for now, so they are omitted from the auto-injection pool (they
+	 *  remain fully registered and applyable via `IAI.Apply <id>` — functionality intact, just not auto-fired
+	 *  or shown). Globals (time_dilation, camera_clipping) + lighting_mismatch are a future non-object track.
+	 *  The fixed ORDER is load-bearing: Eligible is built in this order so Stream.RandHelper indexing is
+	 *  reproducible — APPEND new ids at the END so existing seeds' early draws stay stable. */
 	const FName GAutoPool[] =
 	{
 		FName(TEXT("missing_object")),
 		FName(TEXT("flicker")),
-		FName(TEXT("lod_corruption")),
-		FName(TEXT("lod_popping")),
 		FName(TEXT("missing_texture")),
 	};
 	constexpr int32 GNumAutoPool = UE_ARRAY_COUNT(GAutoPool);
@@ -49,13 +49,11 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 {
 	Super::Initialize(Collection);
 
-	// Default keybinds: 1/2/3/4/5 toggle the five pool ids, J start/stop the run, K reseed. Distinct from
+	// Default keybinds: 1/2/3 toggle the three pool ids, J start/stop the run, K reseed. Distinct from
 	// the selector's Tab/C/G/H so the two eyeball shells never react to one press (gotcha G26). Rebindable.
 	KeyPool[0] = EKeys::One;
 	KeyPool[1] = EKeys::Two;
 	KeyPool[2] = EKeys::Three;
-	KeyPool[3] = EKeys::Four;
-	KeyPool[4] = EKeys::Five;
 	KeyRun     = EKeys::J;
 	KeyReseed  = EKeys::K;
 
@@ -64,7 +62,7 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 	Seed = static_cast<int32>(FPlatformTime::Cycles());
 	Stream.Initialize(Seed);
 
-	// Default enable-set: all four on, so a fresh run fires variety out of the box.
+	// Default enable-set: all on, so a fresh run fires variety out of the box.
 	for (const FName& Id : GAutoPool)
 	{
 		EnabledIds.Add(Id);
@@ -312,7 +310,7 @@ bool UAnomalyAutoInjectorSubsystem::SetAnomalyEnabled(FName Id, bool bInEnabled)
 	if (!bInPool)
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("IAI.Auto.Pool: '%s' is not a v1 pool id (missing_object/flicker/lod_corruption/lod_popping/missing_texture)."),
+			TEXT("IAI.Auto.Pool: '%s' is not a v1 pool id (missing_object/flicker/missing_texture)."),
 			*Id.ToString());
 		return false;
 	}
@@ -451,14 +449,12 @@ bool UAnomalyAutoInjectorSubsystem::SetKeyBinding(FName Action, FKey Key)
 	if      (Action == FName(TEXT("pool1")))  { KeyPool[0] = Key; }
 	else if (Action == FName(TEXT("pool2")))  { KeyPool[1] = Key; }
 	else if (Action == FName(TEXT("pool3")))  { KeyPool[2] = Key; }
-	else if (Action == FName(TEXT("pool4")))  { KeyPool[3] = Key; }
-	else if (Action == FName(TEXT("pool5")))  { KeyPool[4] = Key; }
 	else if (Action == FName(TEXT("run")))    { KeyRun = Key; }
 	else if (Action == FName(TEXT("reseed"))) { KeyReseed = Key; }
 	else
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("IAI.Auto.Bind: unknown action '%s' (use pool1/pool2/pool3/pool4/pool5/run/reseed)."), *Action.ToString());
+			TEXT("IAI.Auto.Bind: unknown action '%s' (use pool1/pool2/pool3/run/reseed)."), *Action.ToString());
 		return false;
 	}
 
@@ -634,7 +630,7 @@ void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* 
 	const float LineH = 16.0f;
 
 	Canvas->SetDrawColor(FColor::White);
-	Canvas->DrawText(Font, FString::Printf(TEXT("[IAI] Auto-Injector  —  Run: %s   (1-4: types   J: run   K: reseed)"),
+	Canvas->DrawText(Font, FString::Printf(TEXT("[IAI] Auto-Injector  —  Run: %s   (1-3: types   J: run   K: reseed)"),
 		bRunning ? TEXT("ON") : TEXT("OFF")), X, Y);
 	Y += LineH * 1.5f;
 
@@ -822,11 +818,11 @@ static FAutoConsoleCommandWithWorldAndArgs GAutoStatusCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GAutoBindCmd(
 	TEXT("IAI.Auto.Bind"),
-	TEXT("Rebind an auto-injector key. Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|run|reseed> <KeyName>"),
+	TEXT("Rebind an auto-injector key. Usage: IAI.Auto.Bind <pool1|pool2|pool3|run|reseed> <KeyName>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
-			if (Args.Num() < 2) { UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|run|reseed> <KeyName>")); return; }
+			if (Args.Num() < 2) { UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Auto.Bind <pool1|pool2|pool3|run|reseed> <KeyName>")); return; }
 			const FName KeyName(*Args[1]);
 			const FKey Key(KeyName);
 			if (!EKeys::GetKeyDetails(Key).IsValid())

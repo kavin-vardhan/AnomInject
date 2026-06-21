@@ -89,8 +89,8 @@ struct FAutoLiveFireInfo
  * Self-scoping (R-CAD): targets are drawn from AnomalyViewport::GetVisibleRenderableActors directly; this
  * path does NOT use IAI.SetViewportScoping (keeping it ON would make the "=" apply redundantly re-test
  * visibility and could drop a target between pick and apply). No view -> fire nothing this window (never
- * inject blind). v1 pool = the 4 object-scoped anomalies only (globals + lighting_mismatch are a future
- * non-object track).
+ * inject blind). v1 pool = the object-scoped anomalies (LOD ids hidden from the UI for now — still
+ * registered + applyable via IAI.Apply; globals + lighting_mismatch are a future non-object track).
  *
  * Coexistence (R-COEXIST): manual selector/console injection of a pool id during an auto run is
  * UNSUPPORTED (it would clobber via the registry's one-instance-per-id; the auto-injector can only track
@@ -106,7 +106,7 @@ class ANOMALYINJECTOR_API UAnomalyAutoInjectorSubsystem : public UTickableWorldS
 public:
 	/** Number of pool ids (and the matching count of toggle keybinds). The .cpp static_asserts the pool
 	 *  array length against this. */
-	static constexpr int32 NumPoolKeys = 5;
+	static constexpr int32 NumPoolKeys = 3;
 
 	// --- USubsystem / UWorldSubsystem ---
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -151,10 +151,10 @@ public:
 
 	// --- Enable-set + cadence config (console-settable; sane defaults in Initialize) ---
 
-	/** Enable/disable one of the four pool ids. Returns false on an id outside the pool. */
+	/** Enable/disable one of the pool ids. Returns false on an id outside the pool. */
 	bool SetAnomalyEnabled(FName Id, bool bInEnabled);
 
-	/** Enable or disable all four pool ids at once. */
+	/** Enable or disable all pool ids at once. */
 	void SetAllAnomaliesEnabled(bool bInEnabled);
 
 	/** Set the run seed and re-initialize the stream immediately (so a subsequent FireOnce/Step is reproducible). */
@@ -203,7 +203,7 @@ public:
 
 	// --- Configurable keybinds ---
 
-	/** Rebind an action key. Action is one of pool1/pool2/pool3/pool4/run/reseed. Returns false on an
+	/** Rebind an action key. Action is one of pool1/pool2/pool3/run/reseed. Returns false on an
 	 *  unknown action (lets keys escape host/overlay collisions, and avoid the selector's Tab/C/G/H). */
 	bool SetKeyBinding(FName Action, FKey Key);
 
@@ -225,7 +225,7 @@ private:
 	/** The live fires the scheduler is tracking (the live-instance / revert-deadline bookkeeping). */
 	TArray<FAutoLiveFire> LiveFires;
 
-	/** Which pool ids are enabled for firing (subset of the fixed four-id pool). */
+	/** Which pool ids are enabled for firing (subset of the fixed pool). */
 	TSet<FName> EnabledIds;
 
 	/** The one seeded RNG behind every choice (interval, id, target, hold). Re-initialized on SetSeed / run-start. */
@@ -257,7 +257,7 @@ private:
 	/** Handle for the registered UDebugDrawService HUD delegate (invalid when not registered). */
 	FDelegateHandle DebugDrawHandle;
 
-	// Configurable keybinds (defaults set in Initialize): 1/2/3/4 toggle the four pool ids, J start/stop
+	// Configurable keybinds (defaults set in Initialize): 1/2/3 toggle the pool ids, J start/stop
 	// the run, K reseed. Deliberately distinct from the selector's Tab/C/G/H (gotcha G26 — both poll raw
 	// key state off the same PC, so distinct keys avoid both shells reacting to one press).
 	FKey KeyPool[NumPoolKeys];
