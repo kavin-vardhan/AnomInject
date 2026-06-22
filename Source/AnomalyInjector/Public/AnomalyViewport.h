@@ -215,6 +215,29 @@ namespace AnomalyViewport
 	/** Is the dev debug sphere currently suppressed (e.g. during a capture run)? Does not affect the cull. */
 	ANOMALYINJECTOR_API bool IsDebugSphereSuppressed();
 
+	// --- Screen-coverage candidate cull (changeable; default OFF) ---
+	// An optional ACTOR-LEVEL cull layered onto the LIVE renderable-visible poll (GetVisibleRenderableActors and
+	// GetVisibleRenderableActorInfos only), sibling to the poll-radius cull. When a positive percentage P is set, an
+	// actor is in the set iff it is renderable-visible (renderable AND in-frustum AND unoccluded AND within the poll
+	// radius) AND its on-screen footprint covers >= P% of the viewport. Footprint = the CLAMPED [0,1] screen AABB of
+	// the UNION of the actor's renderable-VISIBLE component bounds (the components that passed the per-component test),
+	// projected with the same reversed-Z VP the frustum uses; coverage = that rect's area (the rect is normalized, so
+	// the viewport area is 1). Clamp-before-area means a huge object with only a tiny on-screen sliver reads as the
+	// sliver, not full coverage. SINGLE SHARED STATE in AnomalyViewport.cpp. Default OFF via a sentinel: P <= 0 disables
+	// the cull, so behavior is BYTE-IDENTICAL to no-cull AND the cheap first-match short-circuit is preserved (the OFF
+	// path costs no extra traces). Applied identically to BOTH live entry points through the shared per-actor classifier
+	// (ClassifyRenderableVisibleLive), so the IAI.DumpVisible set-identity gate still holds with the cull ON. The
+	// explicit-view functions (IsActorRenderableVisible / FilterRenderableVisibleActors) are NOT culled (synthetic
+	// surface, conceptually P=0). Runs LAST (most expensive; actor-level). Console: IAI.SetMinScreenCoverage <pct>;
+	// diagnostic IAI.DumpCoverage. Composes with the poll-radius cull (independent gates).
+
+	/** Set the shared minimum on-screen coverage cull, as a PERCENT of the viewport area [0,100]. P <= 0 disables it
+	 *  (default OFF) -> byte-identical to no-cull. */
+	ANOMALYINJECTOR_API void SetMinScreenCoveragePct(float Pct);
+
+	/** The current shared minimum on-screen coverage percent. <= 0 means the cull is OFF. */
+	ANOMALYINJECTOR_API float GetMinScreenCoveragePct();
+
 	/**
 	 * Convenience for the object selector / future auto-injection: resolve the live view, enumerate all
 	 * actors, and return the renderable-visible ones (UNSORTED; the caller orders).

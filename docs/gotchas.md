@@ -739,3 +739,23 @@ Base Color (matte: rough=1, spec=0), emissive=0** — it shades like a normal un
 canonical missing-texture look (a flat colour on a lit surface) and more realistic for the dataset. v1 ships the **checker** look
 (lit gray/white); the flat-**magenta** variant + a `mode` arg are **deferred** (owner revisiting the look — the lit-vs-uniform
 tradeoff). (m8, 2026-06-21.)
+
+### G51 — the two LIVE renderable-visible entry points are NOT a single shared loop; an actor-level cull must go through a shared classifier (screen-coverage)
+`GetVisibleRenderableActors` and `GetVisibleRenderableActorInfos` each run their **own** `TActorIterator` loop; before the
+screen-coverage cull they shared only the **per-component** worker `FirstRenderableVisibleComponent` (the actor decision was
+`!= nullptr` in one, the match in the other). So there was **no single actor-aggregation point** to hang an actor-level cull on.
+The poll-radius cull got away with being a per-component param because it's a per-component test; **screen-coverage is actor-level**
+(union of the actor's renderable-visible components' bounds), so it needed a real shared actor decision. Fix: a new shared
+`ClassifyRenderableVisibleLive(Frustum, ViewProj, …, MinCoveragePct, …, OutFirstMatch)` that **both** loops now call — that is
+what keeps `IAI.DumpVisible`'s set-identity assertion true with the cull ON. Two load-bearing properties: **(1) OFF is
+byte-identical in result AND cost** — when `MinCoveragePct <= 0` the classifier just calls `FirstRenderableVisibleComponent`
+(the old short-circuit), no union pass / no projection, so the default path adds zero traces; **(2) ON does a single union pass**
+that yields both the first match and the union bounds (do NOT call `FirstRenderableVisibleComponent` *and then* re-iterate — that
+double-traces). Also: `GetVisibleRenderableActors` now builds the VP explicitly and derives the frustum from it (was
+`BuildFrustum(View)`) so it passes the **identical** projector `GetVisibleRenderableActorInfos` already used — required for set
+identity, and byte-identical because it's the same VP + near=on/far=off flags. Coverage reuses the **clamped**
+`ProjectBoundsToScreenRect` (the dashboard/A4 rect projector, already in `AnomalyViewport`) fed the visible-component union —
+**not** the m7 `ProjectActorBoundsToScreenRect` (that one is type-only + unclamped, for the label box "where the hole is"); coverage
+wants the true clamped on-screen footprint (clamp-before-area). No capture-module dependency, no dedup needed (both projectors live
+in `AnomalyViewport`). Console `IAI.SetMinScreenCoverage <pct>` (plain global cmd) + `IAI.DumpCoverage` (tuning diagnostic).
+Touch only `AnomalyViewport.{h,cpp}` + docs; no dep / no `IAnomaly` change. (2026-06-22.)

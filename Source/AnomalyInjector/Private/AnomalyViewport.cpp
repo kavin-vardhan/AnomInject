@@ -34,6 +34,9 @@ namespace
 	FDelegateHandle GPollRadiusDrawHandle; // dev debug sphere; valid only while a positive radius is set
 	bool GSuppressDebugSphere = false;     // hides ONLY the sphere visual (e.g. during frame capture); cull stays active
 
+	// --- Screen-coverage candidate cull: shared state (single source of truth; default OFF, P <= 0 disables) ---
+	float GMinScreenCoveragePct = 0.0f;   // minimum on-screen footprint as a percent of viewport area [0,100]; <= 0 = OFF
+
 	/**
 	 * Poll origin for the distance cull = the player PAWN location (LOCKED: pawn, not camera). Falls back to
 	 * Fallback (the camera origin, passed by the live callers) when there is no pawn — e.g. a spectator or a
@@ -351,6 +354,88 @@ namespace
 		OutMax = FVector2D(MaxX, MaxY);
 		return true;
 	}
+
+	// ------------------------------------------------------------------------------------------------
+	// Screen-coverage candidate cull (changeable; default OFF). See the header's block comment.
+	// ------------------------------------------------------------------------------------------------
+
+	/**
+	 * Union the world-space bounds of an actor's RENDERABLE-VISIBLE components (those passing the per-component
+	 * renderable + poll-radius + frustum + occlusion test) and return the FIRST such component (nullptr if none).
+	 * A single FULL pass — deliberately NOT FirstRenderableVisibleComponent's first-match short-circuit — because the
+	 * coverage gate needs the union of ALL passing components, not just one (one-anomaly-on-a-multi-part-bot must read
+	 * the whole bot's footprint). Only called on the coverage-ON path; the OFF path keeps the cheap short-circuit.
+	 * OutUnion must be passed FBox(ForceInit); it stays invalid when nothing passes.
+	 */
+	UPrimitiveComponent* CollectRenderableVisibleUnion(const FConvexVolume& Frustum, const FVector& ViewOrigin,
+		const FVector& PollOrigin, float PollRadius, UWorld* World, const AActor* Actor, FBox& OutUnion)
+	{
+		UPrimitiveComponent* First = nullptr;
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (UPrimitiveComponent* Prim : Prims)
+		{
+			if (IsComponentRenderableVisibleInternal(Frustum, ViewOrigin, PollOrigin, PollRadius, World, Prim))
+			{
+				if (!First)
+				{
+					First = Prim;
+				}
+				OutUnion += Prim->Bounds.GetBox();
+			}
+		}
+		return First;
+	}
+
+	/**
+	 * On-screen coverage gate. MinPct <= 0 -> always passes (OFF; byte-identical). Otherwise project the union AABB to
+	 * a CLAMPED [0,1] screen rect (ProjectBoundsToScreenRect: 8-corner, behind-camera-safe, clamped) and pass iff the
+	 * rect area (the rect is normalized, so the viewport area is 1) is >= MinPct%. A degenerate / off-screen projection
+	 * (false) reads as 0 coverage -> culled. The caller guarantees UnionBox is valid (>= 1 passing component).
+	 */
+	bool PassesScreenCoverage(const FMatrix& ViewProj, const FBox& UnionBox, float MinPct)
+	{
+		if (MinPct <= 0.0f)
+		{
+			return true;
+		}
+		FVector2D Min(FVector2D::ZeroVector), Max(FVector2D::ZeroVector);
+		if (!ProjectBoundsToScreenRect(ViewProj, FBoxSphereBounds(UnionBox), Min, Max))
+		{
+			return false;   // entirely behind camera / off-screen / degenerate -> 0 coverage
+		}
+		const float CoveragePct = (float)((Max.X - Min.X) * (Max.Y - Min.Y)) * 100.0f;
+		return CoveragePct >= MinPct;
+	}
+
+	/**
+	 * Shared per-actor membership decision for the TWO live entry points (GetVisibleRenderableActors and
+	 * GetVisibleRenderableActorInfos). BOTH call THIS, so the coverage gate is applied identically and the
+	 * IAI.DumpVisible set-identity gate holds with the cull ON. OutFirstMatch = the representative renderable-visible
+	 * component (the Infos pass reads its type / bounds; the actor pass ignores it).
+	 *  - Coverage OFF (MinCoveragePct <= 0): IDENTICAL to pre-cull behavior in BOTH result and cost — the cheap
+	 *    FirstRenderableVisibleComponent short-circuit, no union pass, no projection.
+	 *  - Coverage ON: ONE union pass yields the first match AND the union bounds (no double occlusion tracing), then
+	 *    the coverage gate decides.
+	 */
+	bool ClassifyRenderableVisibleLive(const FConvexVolume& Frustum, const FMatrix& ViewProj, const FVector& ViewOrigin,
+		const FVector& PollOrigin, float PollRadius, float MinCoveragePct, UWorld* World, const AActor* Actor,
+		UPrimitiveComponent*& OutFirstMatch)
+	{
+		if (MinCoveragePct <= 0.0f)
+		{
+			OutFirstMatch = FirstRenderableVisibleComponent(Frustum, ViewOrigin, PollOrigin, PollRadius, World, Actor);
+			return OutFirstMatch != nullptr;
+		}
+
+		FBox Union(ForceInit);
+		OutFirstMatch = CollectRenderableVisibleUnion(Frustum, ViewOrigin, PollOrigin, PollRadius, World, Actor, Union);
+		if (!OutFirstMatch || !Union.IsValid)
+		{
+			return false;
+		}
+		return PassesScreenCoverage(ViewProj, Union, MinCoveragePct);
+	}
 }
 
 namespace AnomalyViewport
@@ -537,14 +622,24 @@ namespace AnomalyViewport
 			return Result;
 		}
 
-		const FConvexVolume Frustum = BuildFrustum(View);   // build once, then filter the whole world
-		// Live poll: cull by the shared poll-radius around the player PAWN (camera origin as the no-pawn fallback).
+		// Build the VP once and derive the frustum FROM it — IDENTICAL to GetVisibleRenderableActorInfos, so the two
+		// live entry points share the exact same projector for the coverage gate (the IAI.DumpVisible set-identity gate
+		// requires identical VP/frustum/params in both). (Result is byte-identical to the prior BuildFrustum(View): same
+		// VP, same near=on/far=off flags.)
+		const FMatrix ViewProj = BuildViewProjectionMatrix(View);
+		FConvexVolume Frustum;
+		GetViewFrustumBounds(Frustum, ViewProj, /*bUseNearPlane=*/true, /*bUseFarPlane=*/false);
+
+		// Live poll: cull by the shared poll-radius around the player PAWN (camera origin as the no-pawn fallback) and
+		// the shared min-screen-coverage (both default OFF). Decided through the shared per-actor classifier.
 		const FVector PollOrigin = ResolvePollOrigin(World, View.Origin);
 		const float PollRadius = GPollRadius;
+		const float MinCoveragePct = GMinScreenCoveragePct;
 		for (TActorIterator<AActor> It(World); It; ++It)
 		{
 			AActor* Actor = *It;
-			if (Actor && IsActorRenderableVisibleInternal(Frustum, View.Origin, PollOrigin, PollRadius, World, Actor))
+			UPrimitiveComponent* Match = nullptr;
+			if (Actor && ClassifyRenderableVisibleLive(Frustum, ViewProj, View.Origin, PollOrigin, PollRadius, MinCoveragePct, World, Actor, Match))
 			{
 				Result.Add(Actor);
 			}
@@ -567,10 +662,11 @@ namespace AnomalyViewport
 		FConvexVolume Frustum;
 		GetViewFrustumBounds(Frustum, ViewProj, /*bUseNearPlane=*/true, /*bUseFarPlane=*/false);
 
-		// SAME poll-radius cull as GetVisibleRenderableActors (identical PollOrigin + radius) so the actor SET
-		// stays byte-identical between the two — preserving the IAI.DumpVisible set-identity gate.
+		// SAME poll-radius + min-coverage culls as GetVisibleRenderableActors (identical params + classifier) so the
+		// actor SET stays byte-identical between the two — preserving the IAI.DumpVisible set-identity gate.
 		const FVector PollOrigin = ResolvePollOrigin(World, View.Origin);
 		const float PollRadius = GPollRadius;
+		const float MinCoveragePct = GMinScreenCoveragePct;
 
 		for (TActorIterator<AActor> It(World); It; ++It)
 		{
@@ -579,10 +675,10 @@ namespace AnomalyViewport
 			{
 				continue;
 			}
-			// ONE occlusion pass per actor (short-circuits on the first renderable-visible component) —
-			// same predicate/order as GetVisibleRenderableActors, so the actor SET is identical.
-			UPrimitiveComponent* Match = FirstRenderableVisibleComponent(Frustum, View.Origin, PollOrigin, PollRadius, World, Actor);
-			if (!Match)
+			// Shared per-actor decision (same classifier + params as GetVisibleRenderableActors -> identical set+order).
+			// OFF path = the same first-match short-circuit as before; Match is the representative renderable-visible comp.
+			UPrimitiveComponent* Match = nullptr;
+			if (!ClassifyRenderableVisibleLive(Frustum, ViewProj, View.Origin, PollOrigin, PollRadius, MinCoveragePct, World, Actor, Match))
 			{
 				continue;
 			}
@@ -680,6 +776,17 @@ namespace AnomalyViewport
 	{
 		return GSuppressDebugSphere;
 	}
+
+	void SetMinScreenCoveragePct(float Pct)
+	{
+		// Sentinel: <= 0 stores exactly 0 (OFF -> byte-identical no-cull). Positive values clamp to [0,100].
+		GMinScreenCoveragePct = (Pct <= 0.0f) ? 0.0f : FMath::Clamp(Pct, 0.0f, 100.0f);
+	}
+
+	float GetMinScreenCoveragePct()
+	{
+		return GMinScreenCoveragePct;
+	}
 }
 
 // Console: IAI.SetPollRadius <value> — set the renderable-visible poll-radius cull (cm) around the player pawn.
@@ -703,4 +810,91 @@ static FAutoConsoleCommand GSetPollRadiusCmd(
 			const float R = FCString::Atof(*Args[0]);
 			AnomalyViewport::SetPollRadius(R);
 			UE_LOG(LogAnomaly, Log, TEXT("IAI.SetPollRadius -> %.1f cm (cull %s)."), R, (R > 0.0f) ? TEXT("ON") : TEXT("OFF"));
+		}));
+
+// Console: IAI.SetMinScreenCoverage <pct> — set the renderable-visible MIN ON-SCREEN COVERAGE cull (percent of the
+// viewport area). Sibling to IAI.SetPollRadius; like it, this sets a world-independent global, so it is a plain
+// FAutoConsoleCommand co-located here. <= 0 disables it (default OFF). No argument -> prints the current value +
+// ON/OFF (a bare FCString::Atof on a missing Args[0] would crash). The value clamps to [0,100].
+static FAutoConsoleCommand GSetMinScreenCoverageCmd(
+	TEXT("IAI.SetMinScreenCoverage"),
+	TEXT("Set the renderable-visible minimum on-screen coverage cull, as a PERCENT of the viewport area [0,100]. ")
+	TEXT("<= 0 disables it (default OFF). With no argument, prints the current value. Usage: IAI.SetMinScreenCoverage <pct>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args)
+		{
+			if (Args.Num() < 1)
+			{
+				const float Cur = AnomalyViewport::GetMinScreenCoveragePct();
+				UE_LOG(LogAnomaly, Log, TEXT("IAI.SetMinScreenCoverage: current = %.2f%% (cull %s). Usage: IAI.SetMinScreenCoverage <pct>"),
+					Cur, (Cur > 0.0f) ? TEXT("ON") : TEXT("OFF"));
+				return;
+			}
+			const float P = FCString::Atof(*Args[0]);
+			AnomalyViewport::SetMinScreenCoveragePct(P);
+			const float Now = AnomalyViewport::GetMinScreenCoveragePct();
+			UE_LOG(LogAnomaly, Log, TEXT("IAI.SetMinScreenCoverage -> %.2f%% (cull %s)."), Now, (Now > 0.0f) ? TEXT("ON") : TEXT("OFF"));
+		}));
+
+// Console: IAI.DumpCoverage — diagnostic (NOT a cull). Logs every renderable-visible (PRE-coverage) actor with its
+// on-screen coverage %, sorted ascending, marking which would be culled at the current IAI.SetMinScreenCoverage
+// threshold. The tuning companion: pick a threshold -> smoke -> observe -> iterate. World-dependent (needs the live
+// view + actor enumeration), so a WorldAndArgs command; mirrors IAI.DumpVisible / IAI.TestVisibility. Coverage here is
+// computed by the SAME union+projection path the cull uses, so the numbers match what a threshold will act on.
+static FAutoConsoleCommandWithWorldAndArgs GDumpCoverageCmd(
+	TEXT("IAI.DumpCoverage"),
+	TEXT("Diagnostic: log each renderable-visible actor's on-screen coverage percent (ascending), marking which would ")
+	TEXT("be culled at the current IAI.SetMinScreenCoverage threshold."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& /*Args*/, UWorld* World)
+		{
+			FAnomalyViewInfo View;
+			if (!AnomalyViewport::GetActiveViewInfo(World, View))
+			{
+				UE_LOG(LogAnomaly, Log, TEXT("IAI.DumpCoverage: no resolvable view (offer-nothing) — nothing to report."));
+				return;
+			}
+
+			const FMatrix ViewProj = BuildViewProjectionMatrix(View);
+			FConvexVolume Frustum;
+			GetViewFrustumBounds(Frustum, ViewProj, /*bUseNearPlane=*/true, /*bUseFarPlane=*/false);
+			const FVector PollOrigin = ResolvePollOrigin(World, View.Origin);
+			const float PollRadius = GPollRadius;
+			const float Threshold = GMinScreenCoveragePct;
+
+			struct FCovRow { float Pct; FString Name; FString Class; };
+			TArray<FCovRow> Rows;
+			for (TActorIterator<AActor> It(World); It; ++It)
+			{
+				AActor* Actor = *It;
+				if (!Actor)
+				{
+					continue;
+				}
+				FBox Union(ForceInit);
+				// PRE-coverage membership: the same renderable + poll-radius + frustum + occlusion set the cull acts on
+				// (NOT gated by the coverage threshold — report every candidate and its measured coverage).
+				if (!CollectRenderableVisibleUnion(Frustum, View.Origin, PollOrigin, PollRadius, World, Actor, Union) || !Union.IsValid)
+				{
+					continue;
+				}
+				float Pct = 0.0f;
+				FVector2D Min(FVector2D::ZeroVector), Max(FVector2D::ZeroVector);
+				if (ProjectBoundsToScreenRect(ViewProj, FBoxSphereBounds(Union), Min, Max))
+				{
+					Pct = (float)((Max.X - Min.X) * (Max.Y - Min.Y)) * 100.0f;
+				}
+				Rows.Add({ Pct, Actor->GetName(), Actor->GetClass()->GetName() });
+			}
+
+			Rows.Sort([](const FCovRow& A, const FCovRow& B) { return A.Pct < B.Pct; });
+
+			UE_LOG(LogAnomaly, Log, TEXT("--- IAI.DumpCoverage: %d renderable-visible actor(s) | threshold = %.2f%% (cull %s) ---"),
+				Rows.Num(), Threshold, (Threshold > 0.0f) ? TEXT("ON") : TEXT("OFF"));
+			for (const FCovRow& Row : Rows)
+			{
+				const bool bCulled = (Threshold > 0.0f) && (Row.Pct < Threshold);
+				UE_LOG(LogAnomaly, Log, TEXT("  %7.3f%%  %-44s [%s]%s"),
+					Row.Pct, *Row.Name, *Row.Class, bCulled ? TEXT("  <-- CULLED") : TEXT(""));
+			}
 		}));

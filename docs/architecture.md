@@ -243,6 +243,30 @@ boxes, editor billboards, landscape, debug/streaming actors), which must never b
   is not baked into captured frames (`SetDebugSphereSuppressed`, visual-only — the cull is unaffected, G44). Origin is the
   **pawn** (not the camera); the dashboard's `Distance` field stays camera-relative — distinct on purpose. All types are in
   `Core`/`Engine` → no new dep.
+- **Screen-coverage candidate cull (changeable; default OFF — G51).** A second optional cull layered onto the two LIVE
+  poll entry points, sibling to the poll-radius cull but **actor-level**: with a positive percentage **P**, an actor is in
+  the set iff renderable-visible (renderable AND in-frustum AND unoccluded AND within the poll radius) **AND** its
+  on-screen footprint covers **≥ P%** of the viewport. Footprint = the **clamped [0,1] screen AABB of the UNION of the
+  actor's renderable-VISIBLE component bounds** (only the components that passed the per-component test — so one anomaly
+  on a multi-part bot reads the whole bot), projected with the same reversed-Z VP the frustum uses; coverage = that
+  rect's area (the rect is normalized, so the viewport area = 1). **Clamp-before-area** means a huge object with only a
+  tiny on-screen sliver reads as the sliver, not full coverage; a behind-camera / off-screen union reads 0 → culled.
+  Single shared state in `AnomalyViewport`, set via `IAI.SetMinScreenCoverage <pct>`; `P <= 0` disables it → byte-identical
+  to no-cull. **Shared classifier (the key structural change):** the two live entry points had no single actor-aggregation
+  point (each ran its own actor loop, sharing only the per-component worker `FirstRenderableVisibleComponent`); coverage
+  is applied through a new shared per-actor decision `ClassifyRenderableVisibleLive`, which **both** loops now call so the
+  cull is applied identically (the `IAI.DumpVisible` set-identity gate holds with the cull ON). **OFF is byte-identical in
+  result AND cost** — the classifier keeps the cheap first-match short-circuit and runs no union pass / projection when
+  `P <= 0`; **ON** does a single union pass that yields the first match + the union bounds (no double occlusion tracing),
+  then the coverage gate. `GetVisibleRenderableActors` now builds the VP explicitly and derives the frustum from it
+  (identical to `GetVisibleRenderableActorInfos`) so both pass the same projector to the gate. The explicit-view functions
+  (`IsActorRenderableVisible` / `FilterRenderableVisibleActors`) are **not** culled (synthetic surface, conceptually
+  `P = 0`). It is the **most expensive, actor-level** gate, so it runs **last**; composes with the poll-radius cull
+  (independent gates). The projection reuses the existing clamped `ProjectBoundsToScreenRect` (the dashboard/A4 rect
+  projector) fed the visible-component union — **not** the m7 type-only/unclamped `ProjectActorBoundsToScreenRect`
+  (coverage wants the true clamped visible footprint, per the granularity + clamp-before-area rules). Tuning companion:
+  `IAI.DumpCoverage` logs every renderable-visible (pre-coverage) actor's coverage %, ascending, marking which the current
+  threshold would cull. All types are in `Core`/`Engine` → no new dep.
 - All types are in `Engine` → **still no new module dependency**.
 
 ## Control surface (console commands)
@@ -259,6 +283,13 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
   `<= 0` disables it (default **OFF**). Affects the selector / auto-injector / dashboard set (all consume the live
   renderable-visible poll). No argument → prints the current radius. Registered in `AnomalyViewport.cpp` (it sets a
   world-independent global, so unlike the other `IAI.*` commands it is a plain `FAutoConsoleCommand`).
+- `IAI.SetMinScreenCoverage <pct>` — set the renderable-visible **screen-coverage cull** (percent of viewport area, G51);
+  `<= 0` disables it (default **OFF**). Affects the selector / auto-injector / dashboard set (all consume the live
+  renderable-visible poll). No argument → prints the current value. Registered in `AnomalyViewport.cpp` as a plain
+  world-independent `FAutoConsoleCommand` (like `IAI.SetPollRadius`).
+- `IAI.DumpCoverage` — **diagnostic** (not a cull): log every renderable-visible (pre-coverage) actor with its on-screen
+  coverage %, sorted ascending, marking which the current `IAI.SetMinScreenCoverage` threshold would cull. The threshold
+  tuning companion. Registered in `AnomalyViewport.cpp` (world-dependent, so a `FAutoConsoleCommandWithWorldAndArgs`).
 - `IAI.TestVisibility <substring> <ox oy oz> <pitch yaw roll> [fovDeg] [aspect]` — **diagnostic** (not an
   anomaly): test the `AnomalyViewport` core against a **synthetic** view and log per-component
   `frustum / unoccluded / visible`. The deterministic synthetic-view state-gate driver.
