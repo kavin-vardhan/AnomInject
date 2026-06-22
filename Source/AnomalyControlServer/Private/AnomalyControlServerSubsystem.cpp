@@ -525,6 +525,16 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		return;
 	}
 
+	// --- Screen-coverage cull (group 1; sibling to poll-radius) ---
+	if (Type == TEXT("set_min_screen_coverage"))
+	{
+		double Pct = 0.0;
+		Msg->TryGetNumberField(TEXT("pct"), Pct);
+		AnomalyViewport::SetMinScreenCoveragePct((float)Pct);   // clamp [0,100] / <= 0 = OFF handled in the setter
+		SendAck(Conn.Socket, TEXT("set_min_screen_coverage"));
+		return;
+	}
+
 	// --- Auto-injection control (group 2; read-back already in the snapshot's `auto` block) ---
 	if (Type == TEXT("auto_config"))
 	{

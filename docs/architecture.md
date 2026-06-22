@@ -266,7 +266,9 @@ boxes, editor billboards, landscape, debug/streaming actors), which must never b
   projector) fed the visible-component union — **not** the m7 type-only/unclamped `ProjectActorBoundsToScreenRect`
   (coverage wants the true clamped visible footprint, per the granularity + clamp-before-area rules). Tuning companion:
   `IAI.DumpCoverage` logs every renderable-visible (pre-coverage) actor's coverage %, ascending, marking which the current
-  threshold would cull. All types are in `Core`/`Engine` → no new dep.
+  threshold would cull. All types are in `Core`/`Engine` → no new dep. **Also exposed on the Tier-2 dashboard** via the
+  control-server WS command `set_min_screen_coverage {pct}` → `SetMinScreenCoveragePct`, plus the `session.minScreenCoverage`
+  snapshot field (percent; 0 = OFF) for the live slider — mirroring poll-radius (`set_poll_radius` / `session.pollRadius`).
 - All types are in `Engine` → **still no new module dependency**.
 
 ## Control surface (console commands)

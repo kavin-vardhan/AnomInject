@@ -72,3 +72,13 @@ Code + docs complete. Gate status filled in at commit time. Commit (when gated +
 `feat(viewport): add changeable screen-coverage candidate cull` — path-scoped to `AnomalyViewport.{h,cpp}` + `docs/**`,
 no tag, no version bump. **Deferred (cross-track, flagged):** surfacing coverage in `FRenderableActorInfo` / the dashboard
 snapshot (not this pass).
+
+## Follow-on (same session) — dashboard slider
+The cull was then surfaced on the Tier-2 dashboard as a live slider (server side stacked on this same
+`review/screen-coverage-cull` branch; the React side on the dashboard repo's `review/coverage-slider`). Server: a
+`set_min_screen_coverage {pct}` WS command (→ `SetMinScreenCoveragePct`) + a `session.minScreenCoverage` snapshot field
+(→ `GetMinScreenCoveragePct`), both cloned from the poll-radius precedent and sitting in the `AnomalyControlServer` module
+(compiled out of Shipping). NOTE this is the **session-level** live value, NOT per-actor `FRenderableActorInfo` coverage —
+that per-actor surfacing stays deferred. Dashboard: a throttled continuous slider (new `src/lib/throttle.ts`, ~10/sec +
+authoritative send on release; numeric % snapshot-bound). **Idea logged, built nothing:** the existing poll-radius slider
+still sends on every change and could adopt the same throttle util later.

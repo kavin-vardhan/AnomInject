@@ -224,6 +224,7 @@ namespace ControlSnapshot
 			O->SetNumberField(TEXT("fps"), Dt > 0.0 ? 1.0 / Dt : 0.0);
 			O->SetNumberField(TEXT("activeCount"), Inj ? Inj->GetActiveAnomalyCount() : 0);
 			O->SetNumberField(TEXT("pollRadius"), AnomalyViewport::GetPollRadius());   // cm; 0 = OFF (slider init)
+			O->SetNumberField(TEXT("minScreenCoverage"), AnomalyViewport::GetMinScreenCoveragePct());   // percent; 0 = OFF (slider init)
 			Root->SetObjectField(TEXT("session"), O);
 		}
 
