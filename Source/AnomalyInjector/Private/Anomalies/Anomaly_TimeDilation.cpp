@@ -1,10 +1,8 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "Anomalies/Anomaly_TimeDilation.h"
 
 #include "AnomalyInjectorLog.h"
 #include "Engine/World.h"
-#include "Kismet/GameplayStatics.h"   // Engine module — no new Build.cs dependency
+#include "Kismet/GameplayStatics.h"
 
 bool FAnomaly_TimeDilation::Apply(UWorld* World, const TArray<FString>& Args)
 {
@@ -24,18 +22,15 @@ bool FAnomaly_TimeDilation::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 	const float Scale = FCString::Atof(*Args[0]);
 
-	// Re-entrancy: revert-then-reapply.
 	if (bActive)
 	{
 		Revert();
 	}
 
 	WorldWeak = World;
-	// AMB-3: capture the baseline BEFORE changing it; Revert restores exactly this.
 	PreviousDilation = UGameplayStatics::GetGlobalTimeDilation(World);
 	UGameplayStatics::SetGlobalTimeDilation(World, Scale);
 
-	// WorldSettings clamps Min/MaxGlobalTimeDilation; report if the request was clamped (G11).
 	const float Applied = UGameplayStatics::GetGlobalTimeDilation(World);
 	if (!FMath::IsNearlyEqual(Applied, Scale))
 	{
@@ -57,6 +52,6 @@ void FAnomaly_TimeDilation::Revert()
 		UE_LOG(LogAnomaly, Log, TEXT("time_dilation: restored baseline %.4f."), PreviousDilation);
 	}
 	WorldWeak.Reset();
-	PreviousDilation = 1.0f;   // fallback for any future Revert called before the next Apply
+	PreviousDilation = 1.0f;
 	bActive = false;
 }

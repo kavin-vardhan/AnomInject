@@ -1,19 +1,17 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 
-#include "EngineUtils.h"            // TActorIterator
-#include "Engine/Engine.h"         // GEngine
-#include "Engine/World.h"          // UWorld
+#include "EngineUtils.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "GameFramework/Actor.h"
-#include "HAL/IConsoleManager.h"   // FAutoConsoleCommandWithWorldAndArgs
-#include "Materials/MaterialInterface.h"   // UMaterialInterface (m8: shipped missing_texture materials)
-#include "UObject/ConstructorHelpers.h"    // ConstructorHelpers::FObjectFinder (CDO hard-ref cook guarantee)
+#include "HAL/IConsoleManager.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/ConstructorHelpers.h"
 
-#include "AnomalyViewport.h"               // FAnomalyViewInfo + core visibility tests (TestVisibility diagnostic)
-#include "AnomalyTargeting.h"              // FindActorsMatching (TestVisibility diagnostic)
-#include "Components/PrimitiveComponent.h" // primitive components (TestVisibility diagnostic)
+#include "AnomalyViewport.h"
+#include "AnomalyTargeting.h"
+#include "Components/PrimitiveComponent.h"
 
 #include "Anomalies/Anomaly_MissingObject.h"
 #include "Anomalies/Anomaly_Flicker.h"
@@ -24,15 +22,10 @@
 #include "Anomalies/Anomaly_CameraClipping.h"
 #include "Anomalies/Anomaly_MissingTexture.h"
 
-/** Fixed on-screen-message key ("GDPH") so the heartbeat refreshes in place instead of stacking. */
 static constexpr uint64 GAnomalyHeartbeatKey = 0x47445048;
 
-// Out-of-line dtor defined where IAnomaly is a complete type (gotcha G9).
 UAnomalyInjectorSubsystem::~UAnomalyInjectorSubsystem() = default;
 
-// CDO hard-ref to the shipped "missing texture" material (m8). The static FObjectFinder resolves the asset
-// once (at CDO construction); the resulting non-transient UPROPERTY makes the cooker pull the plugin's
-// Content/ material into a packaged build with no host DefaultGame.ini / DirectoriesToAlwaysCook edit.
 UAnomalyInjectorSubsystem::UAnomalyInjectorSubsystem()
 {
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> CheckerFinder(
@@ -45,12 +38,6 @@ UMaterialInterface* UAnomalyInjectorSubsystem::GetMissingTextureMaterial() const
 	return MissingTextureChecker;
 }
 
-// ---------------------------------------------------------------------------
-// Authored catalog spec (Slice 1, A1) — the IAnomaly-free sourcing mechanism.
-//
-// scope + arg schema are authored here at the id level (NOT parsed from GetUsage(), a human hint — G31;
-// IAnomaly stays locked). Adding a new anomaly = add its case here next to its Register() line.
-// ---------------------------------------------------------------------------
 namespace
 {
 	FAnomalyArgSpec FloatArg(const TCHAR* Name, const TCHAR* Default, double Min, double Max, bool bRequired = false)
@@ -79,7 +66,7 @@ namespace
 		OutArgs.Reset();
 		if (Id == FName(TEXT("missing_object")))
 		{
-			OutScope = EAnomalyScope::Object;   // no args (the target is the picked actor)
+			OutScope = EAnomalyScope::Object;
 		}
 		else if (Id == FName(TEXT("flicker")))
 		{
@@ -89,7 +76,7 @@ namespace
 		else if (Id == FName(TEXT("lod_corruption")))
 		{
 			OutScope = EAnomalyScope::Object;
-			OutArgs.Add(IntArg(TEXT("lod-index"), TEXT(""), 1.0));   // blank default = worst LOD per component
+			OutArgs.Add(IntArg(TEXT("lod-index"), TEXT(""), 1.0));
 		}
 		else if (Id == FName(TEXT("lod_popping")))
 		{
@@ -99,12 +86,12 @@ namespace
 		else if (Id == FName(TEXT("time_dilation")))
 		{
 			OutScope = EAnomalyScope::Global;
-			OutArgs.Add(FloatArg(TEXT("scale"), TEXT("0.5"), 0.0, 20.0, /*bRequired=*/true));   // clamp ~ WorldSettings (G11)
+			OutArgs.Add(FloatArg(TEXT("scale"), TEXT("0.5"), 0.0, 20.0,  true));
 		}
 		else if (Id == FName(TEXT("camera_clipping")))
 		{
 			OutScope = EAnomalyScope::Global;
-			OutArgs.Add(FloatArg(TEXT("near"), TEXT("100"), 1.0, 100000.0));   // command clamps >= 1 (G13)
+			OutArgs.Add(FloatArg(TEXT("near"), TEXT("100"), 1.0, 100000.0));
 		}
 		else if (Id == FName(TEXT("lighting_mismatch")))
 		{
@@ -113,13 +100,11 @@ namespace
 			Mode.Name = TEXT("mode"); Mode.Type = EAnomalyArgType::Enum; Mode.Default = TEXT("dim");
 			Mode.Options = { TEXT("off"), TEXT("dim"), TEXT("recolor"), TEXT("noshadow") };
 			OutArgs.Add(Mode);
-			// Mode-dependent values are positional + conditional (dim -> "<factor>"; recolor -> "<r g b>"),
-			// which a flat schema can't fully express — one freeform trailing field for v1 (documented).
 			OutArgs.Add(StringArg(TEXT("params"), TEXT("")));
 		}
 		else if (Id == FName(TEXT("missing_texture")))
 		{
-			OutScope = EAnomalyScope::Object;   // no args (one look for now: the gray/white checker)
+			OutScope = EAnomalyScope::Object;
 		}
 		else
 		{
@@ -129,16 +114,11 @@ namespace
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
 
 void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	// Explicit registration — one instance per type, keyed by GetId(). No self-registration
-	// macros (keeps it readable and free of static-init-order hazards).
 	auto Register = [this](TUniquePtr<IAnomaly> Anomaly)
 	{
 		const FName Id = Anomaly->GetId();
@@ -147,11 +127,11 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Register(MakeUnique<FAnomaly_MissingObject>());
 	Register(MakeUnique<FAnomaly_Flicker>());
 	Register(MakeUnique<FAnomaly_TimeDilation>());
-	Register(MakeUnique<FAnomaly_LightingMismatch>());   // M2: component-targeting (A1) + per-target capture
-	Register(MakeUnique<FAnomaly_LodCorruption>());      // M2/M3: component-targeting, static + skeletal (AnomalyLod)
-	Register(MakeUnique<FAnomaly_LodPopping>());         // M3: ticking LOD pop (AnomalyLod), static + skeletal
-	Register(MakeUnique<FAnomaly_CameraClipping>());     // M2: global near-clip capture/restore
-	Register(MakeUnique<FAnomaly_MissingTexture>());     // m8: per-component material swap -> missing-texture look
+	Register(MakeUnique<FAnomaly_LightingMismatch>());
+	Register(MakeUnique<FAnomaly_LodCorruption>());
+	Register(MakeUnique<FAnomaly_LodPopping>());
+	Register(MakeUnique<FAnomaly_CameraClipping>());
+	Register(MakeUnique<FAnomaly_MissingTexture>());
 
 	UE_LOG(LogAnomaly, Log, TEXT("Subsystem initialized for world '%s'. %d anomaly type(s) registered."),
 		*GetNameSafe(GetWorld()), Anomalies.Num());
@@ -159,7 +139,6 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UAnomalyInjectorSubsystem::Deinitialize()
 {
-	// Generalized auto-restore-on-teardown: revert anything still active before the world ends.
 	const int32 Reverted = RevertAllActive();
 	if (Reverted > 0)
 	{
@@ -170,7 +149,6 @@ void UAnomalyInjectorSubsystem::Deinitialize()
 
 bool UAnomalyInjectorSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
-	// Only real game worlds: standalone game and Play-In-Editor. Never the editor world.
 	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
 }
 
@@ -183,7 +161,6 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Drive the active anomalies (static ones inherit a no-op Tick).
 	for (const TPair<FName, TUniquePtr<IAnomaly>>& Pair : Anomalies)
 	{
 		if (Pair.Value && Pair.Value->IsActive())
@@ -192,8 +169,6 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 		}
 	}
 
-	// Heartbeat: proves the subsystem ticks in PIE. On-screen every ~2s plus a Verbose log,
-	// now reporting the active-anomaly count.
 	HeartbeatAccumulator += DeltaTime;
 	if (HeartbeatAccumulator >= 2.0f)
 	{
@@ -213,9 +188,6 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Targeting aid
-// ---------------------------------------------------------------------------
 
 void UAnomalyInjectorSubsystem::ListActors() const
 {
@@ -258,7 +230,6 @@ void UAnomalyInjectorSubsystem::TestVisibility(const TArray<FString>& Args) cons
 		return;
 	}
 
-	// Args: 0=substring 1..3=origin(x y z) 4..6=rotation(pitch yaw roll) [7]=fovDeg [8]=aspect.
 	const FString Substring = Args[0];
 
 	FAnomalyViewInfo View;
@@ -266,7 +237,7 @@ void UAnomalyInjectorSubsystem::TestVisibility(const TArray<FString>& Args) cons
 	View.Rotation = FRotator(FCString::Atod(*Args[4]), FCString::Atod(*Args[5]), FCString::Atod(*Args[6]));
 	View.HorizontalFOVDeg = Args.IsValidIndex(7) ? FCString::Atof(*Args[7]) : 90.0f;
 	View.AspectRatio      = Args.IsValidIndex(8) ? FCString::Atof(*Args[8]) : (16.0f / 9.0f);
-	View.bValid = true;   // explicit synthetic view
+	View.bValid = true;
 
 	UE_LOG(LogAnomaly, Log, TEXT("--- IAI.TestVisibility '%s' from O=(%s) R=(%s) fov=%.1f aspect=%.3f ---"),
 		*Substring, *View.Origin.ToString(), *View.Rotation.ToString(), View.HorizontalFOVDeg, View.AspectRatio);
@@ -292,7 +263,7 @@ void UAnomalyInjectorSubsystem::TestVisibility(const TArray<FString>& Args) cons
 			}
 			const bool bFrustum = AnomalyViewport::IsComponentInFrustum(View, Prim);
 			const bool bVisible = AnomalyViewport::IsComponentVisible(View, World, Prim);
-			const bool bUnoccluded = bFrustum && bVisible;   // occlusion only meaningful when in frustum
+			const bool bUnoccluded = bFrustum && bVisible;
 			++TotalComps;
 			if (bVisible)
 			{
@@ -306,7 +277,6 @@ void UAnomalyInjectorSubsystem::TestVisibility(const TArray<FString>& Args) cons
 		VisibleComps, TotalComps, *Substring);
 }
 
-// --- Slice-1 read-back diagnostics (log-only; the bridge gate drivers) -------------------------------
 
 void UAnomalyInjectorSubsystem::DumpCatalog() const
 {
@@ -362,7 +332,6 @@ void UAnomalyInjectorSubsystem::DumpVisibleRenderableInfos() const
 	const TArray<TWeakObjectPtr<AActor>> Actors = AnomalyViewport::GetVisibleRenderableActors(World);
 	const TArray<FRenderableActorInfo> Infos = AnomalyViewport::GetVisibleRenderableActorInfos(World);
 
-	// Byte-identical regression gate: same count AND same actors in the same order.
 	bool bMatch = (Actors.Num() == Infos.Num());
 	if (bMatch)
 	{
@@ -388,9 +357,6 @@ void UAnomalyInjectorSubsystem::DumpVisibleRenderableInfos() const
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Viewport-visibility scoping (opt-in; default OFF)
-// ---------------------------------------------------------------------------
 
 void UAnomalyInjectorSubsystem::SetViewportScoping(bool bEnabled)
 {
@@ -410,14 +376,9 @@ bool UAnomalyInjectorSubsystem::IsViewportScopingEnabled(UWorld* World)
 	return false;
 }
 
-// ---------------------------------------------------------------------------
-// Anomaly manager API
-// ---------------------------------------------------------------------------
 
 void UAnomalyInjectorSubsystem::ListAnomalies() const
 {
-	// Deterministic, sorted output (AMB-5). FName::operator< is index-order, not lexical,
-	// so sort by the string form.
 	TArray<FName> Ids;
 	Anomalies.GetKeys(Ids);
 	Ids.Sort([](const FName& A, const FName& B) { return A.ToString() < B.ToString(); });
@@ -441,12 +402,8 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 		return false;
 	}
 
-	// Re-entrancy (revert-then-reapply) is handled inside each anomaly's Apply.
 	const bool bApplied = (*Found)->Apply(GetWorld(), Args);
 
-	// A2 read-back side-table (INERT to gates): on success, record the args + apply-time; on a no-op apply
-	// (a zero-match re-apply leaves the anomaly inactive) drop any stale record. This runs AFTER Apply and
-	// does NOT influence bApplied / IsActive / match counts — kept in sync with the active state for read-back.
 	if (bApplied)
 	{
 		FActiveRecord Record;
@@ -478,7 +435,7 @@ bool UAnomalyInjectorSubsystem::RevertAnomaly(const FName& Id)
 	}
 
 	(*Found)->Revert();
-	ActiveRecords.Remove(Id);   // A2 side-table stays in sync (inert)
+	ActiveRecords.Remove(Id);
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.Revert '%s' -> reverted."), *Id.ToString());
 	return true;
 }
@@ -494,7 +451,7 @@ int32 UAnomalyInjectorSubsystem::RevertAllActive()
 			++Count;
 		}
 	}
-	ActiveRecords.Empty();   // A2 side-table stays in sync (nothing active after a RevertAll; inert)
+	ActiveRecords.Empty();
 	return Count;
 }
 
@@ -515,7 +472,7 @@ TArray<FAnomalyCatalogEntry> UAnomalyInjectorSubsystem::GetAnomalyCatalog() cons
 {
 	TArray<FName> Ids;
 	Anomalies.GetKeys(Ids);
-	Ids.Sort([](const FName& A, const FName& B) { return A.ToString() < B.ToString(); });   // deterministic (AMB-5)
+	Ids.Sort([](const FName& A, const FName& B) { return A.ToString() < B.ToString(); });
 
 	TArray<FAnomalyCatalogEntry> Out;
 	Out.Reserve(Ids.Num());
@@ -530,7 +487,7 @@ TArray<FAnomalyCatalogEntry> UAnomalyInjectorSubsystem::GetAnomalyCatalog() cons
 		Entry.Id = Anomaly->GetId();
 		Entry.Description = Anomaly->GetDescription();
 		Entry.Usage = Anomaly->GetUsage();
-		GetAuthoredSpec(Entry.Id, Entry.Scope, Entry.Args);   // authored scope + arg schema
+		GetAuthoredSpec(Entry.Id, Entry.Scope, Entry.Args);
 		Out.Add(MoveTemp(Entry));
 	}
 	return Out;
@@ -564,14 +521,6 @@ TArray<FActiveAnomalyInfo> UAnomalyInjectorSubsystem::GetActiveAnomalies() const
 	return Out;
 }
 
-// ---------------------------------------------------------------------------
-// Console command surface
-//
-// Module-scoped FAutoConsoleCommandWithWorldAndArgs objects: registered at module load,
-// alive for the module's lifetime, decoupled from subsystem lifetime. Each resolves the
-// subsystem from the world the console passes in, and null-guards gracefully when invoked
-// outside a game world (the subsystem only exists in Game/PIE worlds).
-// ---------------------------------------------------------------------------
 
 namespace
 {
@@ -593,7 +542,6 @@ namespace
 		return Subsystem;
 	}
 
-	/** Build a copy of Args with the first element (the id) removed. */
 	TArray<FString> TailArgs(const TArray<FString>& Args)
 	{
 		TArray<FString> Tail;

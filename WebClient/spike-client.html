@@ -1,10 +1,4 @@
 <!DOCTYPE html>
-<!-- Copyright GDP Anomaly Injection Project. All Rights Reserved.
-     Slice 1 (Step 2) transport/read-back test client (THROWAWAY). Single file, no build, no deps.
-     Open directly in a browser (file://) and connect to the in-game control server.
-     The production React dashboard (Step 3) lives in its own external repo; this only smoke-tests the
-     server: connect/auth, subscribe, snapshot (visible+catalog+active+auto+session), inject round-trip,
-     and game-view-only preview frames with overlay rects. -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -76,9 +70,6 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const logEl = $('log');
-// Anomalies hidden from the UI for now. They remain fully registered + applyable in-engine via
-// `IAI.Apply <id>` (the server still lists them in the catalog); this client just omits them from the
-// inject dropdown. Clear this set to show them again.
 const HIDDEN_ANOMALY_IDS = new Set(['lod_corruption', 'lod_popping', 'time_dilation', 'lighting_mismatch']);
 let ws = null, snapshot = null, catalog = [], selectedTarget = null, frameBitmap = null, frameWH = [640,360];
 
@@ -95,7 +86,6 @@ function setConnected(on) {
 }
 const send = (obj) => { ws.send(JSON.stringify(obj)); log('tx','TX ' + obj.type); };
 
-// ---- frame vs json demux (Slice-0 finding: JSON arrives as TEXT; frames as BINARY with AIF1 magic) ----
 const MAGIC = [0x41,0x49,0x46,0x31];
 const isFrame = (b) => b.length >= 16 && MAGIC.every((m,i) => b[i]===m);
 
@@ -143,7 +133,6 @@ function drawOverlay() {
 }
 
 function renderSnapshot(m) {
-  // visible
   $('visCount').textContent = (m.visible||[]).length;
   const vl = $('visList'); vl.innerHTML = '';
   for (const v of (m.visible||[])) {
@@ -154,7 +143,6 @@ function renderSnapshot(m) {
     d.onclick = () => { selectedTarget = v.name; $('targetInp').value = '=' + v.name; renderSnapshot(snapshot); drawOverlay(); };
     vl.appendChild(d);
   }
-  // active
   $('actCount').textContent = (m.active||[]).length;
   const al = $('actList'); al.innerHTML = '';
   for (const a of (m.active||[])) {
@@ -162,14 +150,12 @@ function renderSnapshot(m) {
     d.textContent = `${a.id} → ${a.target||'(global)'} [${a.source}] ${a.tActive.toFixed(1)}s`;
     al.appendChild(d);
   }
-  // auto
   const au = m.auto||{};
   $('autoPanel').innerHTML = au.enabled===undefined ? '(n/a)' :
     `enabled=${au.enabled} running=${au.running} seed=${au.seed}<br>` +
     `interval=[${au.intervalMin},${au.intervalMax}] hold=[${au.holdMin},${au.holdMax}]<br>` +
     `maxConcurrent=${au.maxConcurrent} persist=${au.persist}<br>` +
     `pool=${JSON.stringify(au.pool||{})}<br>liveFires=${(au.liveFires||[]).length}`;
-  // session
   const s = m.session||{};
   $('sessionPanel').innerHTML =
     `scoping=${s.viewportScoping} selectorHud=${s.selectorHud} autoHud=${s.autoHud}<br>` +

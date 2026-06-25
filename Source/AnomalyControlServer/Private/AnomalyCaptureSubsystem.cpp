@@ -1,5 +1,3 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "AnomalyCaptureSubsystem.h"
 
 #include "AnomalyControlServerLog.h"
@@ -8,7 +6,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Misc/Paths.h"
 #include "Misc/DateTime.h"
-#include "CoreGlobals.h"                 // GFrameCounter
+#include "CoreGlobals.h"
 
 #if ANOMALY_CONTROL_SERVER
 #include "AnomalyLabelWriter.h"
@@ -16,9 +14,6 @@
 #include "AnomalyAutoInjectorSubsystem.h"
 #endif
 
-// ----------------------------------------------------------------------------------------------------
-// USubsystem / UWorldSubsystem / FTickableGameObject
-// ----------------------------------------------------------------------------------------------------
 
 bool UAnomalyCaptureSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
@@ -42,7 +37,7 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UAnomalyCaptureSubsystem::Deinitialize()
 {
-	StopRun();   // clean teardown: revert any in-flight fire + finalize the run (S5)
+	StopRun();
 	Super::Deinitialize();
 }
 
@@ -55,14 +50,8 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		return;
 	}
 
-	// Sample the current view EVERY running tick (incl. pre-roll + settle frames) so the ring is continuously
-	// populated; a captured frame then projects with the view from L ticks ago (S3 — the render trails the
-	// game thread, so that older view matches the pixels ReadPixels just returned).
 	SampleViewThisTick();
 
-	// One frame per tick. Settle phases skip capture; the rest capture exactly one labeled frame. The fire/
-	// revert actions happen at phase boundaries (BeginFire / BeginRevert) so the symmetric K-frame settle
-	// brackets BOTH transitions (S1).
 	switch (Phase)
 	{
 	case ECapturePhase::LeadIn:
@@ -92,11 +81,10 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 			++BurstsDone;
 			if (BurstCount > 0 && BurstsDone >= BurstCount)
 			{
-				FinishRun(/*bLogLine=*/true);
+				FinishRun( true);
 			}
 			else
 			{
-				// The post-roll just emitted doubles as the next burst's pre-roll (S3 shared gap).
 				BeginFire();
 			}
 		}
@@ -105,12 +93,9 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 	default:
 		break;
 	}
-#endif // ANOMALY_CONTROL_SERVER
+#endif
 }
 
-// ----------------------------------------------------------------------------------------------------
-// Console-driven control
-// ----------------------------------------------------------------------------------------------------
 
 void UAnomalyCaptureSubsystem::SetBurstConfig(int32 K, int32 Pre, int32 Positive, int32 Post, int32 Bursts)
 {
@@ -156,8 +141,6 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		return;
 	}
 
-	// A2: capture OWNS firing via the deterministic core. If the auto-injector's own Run loop is on it would
-	// fire/revert concurrently and break one-per-burst. Warn, do NOT block (m6 precedent).
 	if (Auto->IsRunning())
 	{
 		UE_LOG(LogAnomalyServer, Warning,
@@ -165,12 +148,9 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 			     "'capture run + Auto.Run' is UNSUPPORTED. Recommend IAI.Auto.Run 0."));
 	}
 
-	// S4 reproducibility: seed the stream at run-start. InSeed < 0 keeps the auto-injector's current seed but
-	// re-initializes the stream to its start (SetSeed re-inits), so two same-seed fixed-vantage runs match.
 	Seed = (InSeed >= 0) ? InSeed : Auto->GetSeed();
 	Auto->SetSeed(Seed);
 
-	// Clean slate so the lead-in pre-roll is genuinely negative.
 	Auto->RevertAllLiveFires();
 
 	bFormatPng = bPng;
@@ -211,16 +191,10 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	FramesWritten = 0;
 	PositiveFramesWritten = 0;
 	ZeroMatchBursts = 0;
-	ViewRing.Reset();   // fresh per run
+	ViewRing.Reset();
 
 	bRunning = true;
 
-	// Hide the poll-radius debug sphere for the whole run so it is NOT baked into captured frames: capture reads
-	// the composited game backbuffer (FViewport::ReadPixels), which includes the line-batcher sphere. This is the
-	// VISUAL only — the poll-radius CULL stays fully active (the sphere flag is independent of the radius), so the
-	// renderable-visible set still shrinks as configured. Restored in FinishRun (the single run-exit). Mirrors the
-	// A2 auto-injector handling. [Cross-track note: the sphere lives in AnomalyViewport (poll-radius, 22cf34f /
-	// ae57b69); SetDebugSphereSuppressed is a tiny additive, cull-independent toggle added for this.]
 	AnomalyViewport::SetDebugSphereSuppressed(true);
 
 	Phase = ECapturePhase::LeadIn;
@@ -242,13 +216,12 @@ void UAnomalyCaptureSubsystem::StopRun()
 	{
 		return;
 	}
-	FinishRun(/*bLogLine=*/true);
+	FinishRun( true);
 #endif
 }
 
 void UAnomalyCaptureSubsystem::GetStatus(bool& bOutRunning, int32& OutFrames, FString& OutRunDir, int32& OutSeed) const
 {
-	// Pure read of existing state — additive read-back for the control server; no behavior change.
 	bOutRunning = bRunning;
 	OutFrames = FramesWritten;
 	OutRunDir = RunDir;
@@ -278,9 +251,6 @@ void UAnomalyCaptureSubsystem::LogStatus() const
 
 #if ANOMALY_CONTROL_SERVER
 
-// ----------------------------------------------------------------------------------------------------
-// Internals
-// ----------------------------------------------------------------------------------------------------
 
 UAnomalyAutoInjectorSubsystem* UAnomalyCaptureSubsystem::ResolveAuto() const
 {
@@ -291,10 +261,9 @@ UAnomalyAutoInjectorSubsystem* UAnomalyCaptureSubsystem::ResolveAuto() const
 void UAnomalyCaptureSubsystem::SampleViewThisTick()
 {
 	FAnomalyViewInfo V;
-	AnomalyViewport::GetActiveViewInfo(GetWorld(), V);   // bValid may be false (no live view) — stored as-is
+	AnomalyViewport::GetActiveViewInfo(GetWorld(), V);
 	ViewRing.Add(V);
 
-	// Keep only L + a small margin (newest last). RemoveAt(0) is O(n) but n is tiny (~3).
 	const int32 MaxDepth = ViewLagFrames + 2;
 	while (ViewRing.Num() > MaxDepth)
 	{
@@ -304,9 +273,6 @@ void UAnomalyCaptureSubsystem::SampleViewThisTick()
 
 FAnomalyViewInfo UAnomalyCaptureSubsystem::ProjectionView() const
 {
-	// The view from L ticks back (matches the captured pixels). At run start the ring isn't yet L+1 deep —
-	// those first frames fall back to the most recent view; they are pre-roll negatives (no fire => no bbox),
-	// so the fallback never mislabels a positive box. Empty ring => default (invalid) => bbox_valid=false.
 	const int32 Idx = ViewRing.Num() - 1 - ViewLagFrames;
 	if (ViewRing.IsValidIndex(Idx))
 	{
@@ -321,8 +287,6 @@ void UAnomalyCaptureSubsystem::BeginFire()
 	const bool bFired = Auto ? Auto->TryFireOnce() : false;
 	if (!bFired)
 	{
-		// A6: empty Eligible/Candidates/visible-set => this burst is negatives only. The m6 draw protocol
-		// already spent its draws, so determinism holds; advance.
 		++ZeroMatchBursts;
 		UE_LOG(LogAnomalyServer, Log, TEXT("Capture: burst %d fired nothing (zero-match / empty) — negatives only."),
 			BurstsDone + 1);
@@ -335,7 +299,7 @@ void UAnomalyCaptureSubsystem::BeginRevert()
 {
 	if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 	{
-		Auto->RevertAllLiveFires();   // S2: keep GetLiveFires accurate so the post-roll labels clean
+		Auto->RevertAllLiveFires();
 	}
 	Phase = ECapturePhase::SettleAfterRevert;
 	PhaseFramesLeft = SettleFrames;
@@ -347,17 +311,14 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 	const AnomalyPreview::EImageFormat Format =
 		bFormatPng ? AnomalyPreview::EImageFormat::PNG : AnomalyPreview::EImageFormat::JPEG;
 
-	// Classify the frame by the game-thread ground truth at THIS tick (accurate even on a zero-match burst,
-	// where the "positive" phase has no live fire).
 	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
 	const bool bPositive = Auto && Auto->GetLiveFireCount() > 0;
 
-	// Project the bbox with the view from L frames ago (matches the ReadPixels frame), NOT the current view.
 	const FAnomalyViewInfo ProjView = ProjectionView();
 
 	FString ImagePath, SidecarPath;
 	int32 NumLabels = 0;
-	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImagePath, SidecarPath, NumLabels, /*bLog=*/false))
+	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImagePath, SidecarPath, NumLabels,  false))
 	{
 		++FramesWritten;
 		if (bPositive)
@@ -371,7 +332,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 {
 	if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 	{
-		Auto->RevertAllLiveFires();   // leave the world clean (S5)
+		Auto->RevertAllLiveFires();
 	}
 
 	AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter);
@@ -387,14 +348,9 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	Phase = ECapturePhase::Idle;
 	PhaseFramesLeft = 0;
 
-	// Restore the live poll-radius debug sphere (visual only — the cull was never changed). FinishRun is the single
-	// run-exit (StopRun, burst-count auto-finish, and Deinitialize teardown all route here), so this always runs.
 	AnomalyViewport::SetDebugSphereSuppressed(false);
 }
 
-// ----------------------------------------------------------------------------------------------------
-// IAI.Capture.* console surface (module-scoped, mirroring the injector/auto pattern)
-// ----------------------------------------------------------------------------------------------------
 
 namespace
 {
@@ -439,7 +395,7 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureStopCmd(
 	TEXT("IAI.Capture.Stop"),
 	TEXT("Stop the capture run (reverts any in-flight fire, writes run_summary.json)."),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
-		[](const TArray<FString>& /*Args*/, UWorld* World)
+		[](const TArray<FString>&  , UWorld* World)
 		{
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->StopRun(); }
 		}));
@@ -448,7 +404,7 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureStatusCmd(
 	TEXT("IAI.Capture.Status"),
 	TEXT("Log capture run state, config, and counters."),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
-		[](const TArray<FString>& /*Args*/, UWorld* World)
+		[](const TArray<FString>&  , UWorld* World)
 		{
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->LogStatus(); }
 		}));
@@ -486,4 +442,4 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureViewLagCmd(
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetViewLag(FCString::Atoi(*Args[0])); }
 		}));
 
-#endif // ANOMALY_CONTROL_SERVER
+#endif

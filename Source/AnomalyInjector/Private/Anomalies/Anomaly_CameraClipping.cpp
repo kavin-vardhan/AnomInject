@@ -1,11 +1,9 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "Anomalies/Anomaly_CameraClipping.h"
 
 #include "AnomalyArgs.h"
 #include "AnomalyInjectorLog.h"
-#include "CoreGlobals.h"        // GNearClippingPlane (Core) — captured baseline
-#include "Engine/Engine.h"      // GEngine->Exec
+#include "CoreGlobals.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 
 void FAnomaly_CameraClipping::ExecuteSetNearClip(UWorld* World, float Value) const
@@ -14,8 +12,6 @@ void FAnomaly_CameraClipping::ExecuteSetNearClip(UWorld* World, float Value) con
 	{
 		return;
 	}
-	// r.SetNearClipPlane is a console COMMAND (not a cvar); its handler calls SetNearClipPlaneGlobals,
-	// which sets GNearClippingPlane and enqueues the render-thread sync. World is just the Exec context.
 	GEngine->Exec(World, *FString::Printf(TEXT("r.SetNearClipPlane %f"), Value));
 }
 
@@ -26,7 +22,6 @@ bool FAnomaly_CameraClipping::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
-	// Re-entrancy: revert-then-reapply so re-firing never stacks (single capture set).
 	if (bActive)
 	{
 		Revert();
@@ -35,7 +30,6 @@ bool FAnomaly_CameraClipping::Apply(UWorld* World, const TArray<FString>& Args)
 	const float NewNearClip = AnomalyArgs::GetFloat(Args, 0, DefaultNearClip, MinNearClip, MaxNearClip);
 
 	WorldWeak = World;
-	// Capture the baseline BEFORE changing it (AMB-3 convention); Revert restores exactly this.
 	PreviousNearClip = GNearClippingPlane;
 	ExecuteSetNearClip(World, NewNearClip);
 
@@ -46,11 +40,10 @@ bool FAnomaly_CameraClipping::Apply(UWorld* World, const TArray<FString>& Args)
 
 void FAnomaly_CameraClipping::Revert()
 {
-	// The global is restored regardless of whether the world survives; pass it as Exec context if alive.
 	ExecuteSetNearClip(WorldWeak.Get(), PreviousNearClip);
 	UE_LOG(LogAnomaly, Log, TEXT("camera_clipping: restored near clip %.3f."), PreviousNearClip);
 
 	WorldWeak.Reset();
-	PreviousNearClip = 10.0f;   // fallback for any future Revert before the next Apply
+	PreviousNearClip = 10.0f;
 	bActive = false;
 }

@@ -1,11 +1,9 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "AnomalyControlServerSubsystem.h"
 
 #include "AnomalyControlServerLog.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
-#include "Engine/GameViewportClient.h"   // World->GetGameViewport()->GetViewportSize (epoch bump)
+#include "Engine/GameViewportClient.h"
 #include "Misc/Guid.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/IConsoleManager.h"
@@ -18,8 +16,8 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
-#include "AnomalyViewport.h"           // AnomalyViewport::SetPollRadius / GetPollRadius (callable, public)
-#include "AnomalyCaptureSubsystem.h"   // m7 capture run control (in-module; read-only consumer here)
+#include "AnomalyViewport.h"
+#include "AnomalyCaptureSubsystem.h"
 #include "Modules/ModuleManager.h"
 #include "IWebSocketNetworkingModule.h"
 #include "IWebSocketServer.h"
@@ -41,9 +39,6 @@ namespace
 	}
 }
 
-// ----------------------------------------------------------------------------------------------------
-// IAI.Server.* console surface
-// ----------------------------------------------------------------------------------------------------
 
 static FAutoConsoleCommandWithWorldAndArgs GServerStartCmd(
 	TEXT("IAI.Server.Start"),
@@ -64,7 +59,7 @@ static FAutoConsoleCommandWithWorldAndArgs GServerStartCmd(
 static FAutoConsoleCommandWithWorldAndArgs GServerStopCmd(
 	TEXT("IAI.Server.Stop"),
 	TEXT("Stop the Anomaly control WebSocket server (closes all connections)."),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& /*Args*/, UWorld* World)
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>&  , UWorld* World)
 	{
 		if (UAnomalyControlServerSubsystem* Sub = GetServerSubsystem(World))
 		{
@@ -75,7 +70,7 @@ static FAutoConsoleCommandWithWorldAndArgs GServerStopCmd(
 static FAutoConsoleCommandWithWorldAndArgs GServerStatusCmd(
 	TEXT("IAI.Server.Status"),
 	TEXT("Log the Anomaly control server state (listening / port / token / connections)."),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& /*Args*/, UWorld* World)
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>&  , UWorld* World)
 	{
 		if (UAnomalyControlServerSubsystem* Sub = GetServerSubsystem(World))
 		{
@@ -83,9 +78,6 @@ static FAutoConsoleCommandWithWorldAndArgs GServerStatusCmd(
 		}
 	}));
 
-// ----------------------------------------------------------------------------------------------------
-// Subsystem
-// ----------------------------------------------------------------------------------------------------
 
 UAnomalyControlServerSubsystem::~UAnomalyControlServerSubsystem() = default;
 
@@ -173,7 +165,7 @@ void UAnomalyControlServerSubsystem::StopListening()
 {
 #if ANOMALY_CONTROL_SERVER
 	Conns.Reset();
-	Server.Reset(); // destroys the server -> closes all connections
+	Server.Reset();
 	if (bListening)
 	{
 		UE_LOG(LogAnomalyServer, Log, TEXT("Control: server stopped."));
@@ -216,7 +208,7 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 		return;
 	}
 
-	Server->Tick();   // service libwebsockets (connect/receive/close callbacks fire here, game thread)
+	Server->Tick();
 
 	const double Now = FPlatformTime::Seconds();
 	for (FControlConn& C : Conns)
@@ -240,9 +232,6 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 		bWantOneFrame = false;
 	}
 
-	// A1 restore: when a capture run that paused the auto-injector's Run has ended (capture_stop, a
-	// self-finishing finite-burst run, or teardown), restore Run. Run-state ONLY — the pool/seed/Enable
-	// the capture driver fires from were never touched.
 	if (bAutoWasRunning)
 	{
 		UWorld* World = GetWorld();
@@ -282,15 +271,12 @@ void UAnomalyControlServerSubsystem::OnClientConnected(INetworkingWebSocket* Soc
 		return;
 	}
 
-	const FString Remote = Socket->RemoteEndPoint(/*bAppendPort=*/false);
+	const FString Remote = Socket->RemoteEndPoint( false);
 
 	FControlConn Conn;
 	Conn.Socket = Socket;
 	Conn.ConnectTime = FPlatformTime::Seconds();
 
-	// STRICT loopback (Slice 1): a hard close isn't exposed by INetworkingWebSocket, so we enforce it by
-	// REFUSING SERVICE. Non-loopback AND empty/unknown remote addresses are refused (token is the real guard;
-	// this is the accepted v1 backstop). Slice-0 found RemoteEndPoint reliably returns 127.0.0.1 for a local peer.
 	if (!IsLoopbackAddr(Remote))
 	{
 		Conn.bRejected = true;
@@ -333,7 +319,6 @@ void UAnomalyControlServerSubsystem::OnReceive(INetworkingWebSocket* Socket, voi
 		return;
 	}
 
-	// Slice-0 confirmed bPrependSize=false is clean both directions — a single UTF-8 parse (no prefix-skip).
 	const FUTF8ToTCHAR Conv(reinterpret_cast<const ANSICHAR*>(Data), Size);
 	const FString Text(Conv.Length(), Conv.Get());
 
@@ -353,7 +338,6 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 	FString Type;
 	Msg->TryGetStringField(TEXT("type"), Type);
 
-	// Handshake gate.
 	if (Type == TEXT("hello"))
 	{
 		FString Tok;
@@ -378,7 +362,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 
 	if (!Conn.bAuthed)
 	{
-		return; // ignore everything until authenticated
+		return;
 	}
 
 	UWorld* World = GetWorld();
@@ -410,7 +394,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		}
 		if (Msg->TryGetNumberField(TEXT("frameHz"), Hz) && Hz > 0.0)
 		{
-			FrameIntervalSec = 1.0 / FMath::Clamp(Hz, 0.5, 10.0);   // bounded — ReadPixels is a synchronous flush
+			FrameIntervalSec = 1.0 / FMath::Clamp(Hz, 0.5, 10.0);
 		}
 		SendAck(Conn.Socket, TEXT("subscribe"));
 		return;
@@ -425,7 +409,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		TArray<FString> ApplyArgs;
 		if (!Target.IsEmpty())
 		{
-			ApplyArgs.Add(Target);   // object/component scope: the first arg is the target query ("=<name>" exact)
+			ApplyArgs.Add(Target);
 		}
 		const TArray<TSharedPtr<FJsonValue>>* ArgsArr = nullptr;
 		if (Msg->TryGetArrayField(TEXT("args"), ArgsArr) && ArgsArr)
@@ -515,32 +499,28 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		return;
 	}
 
-	// --- Poll radius (group 1) ---
 	if (Type == TEXT("set_poll_radius"))
 	{
 		double Cm = 0.0;
 		Msg->TryGetNumberField(TEXT("cm"), Cm);
-		AnomalyViewport::SetPollRadius((float)Cm);   // cm <= 0 = OFF (existing sentinel)
+		AnomalyViewport::SetPollRadius((float)Cm);
 		SendAck(Conn.Socket, TEXT("set_poll_radius"));
 		return;
 	}
 
-	// --- Screen-coverage cull (group 1; sibling to poll-radius) ---
 	if (Type == TEXT("set_min_screen_coverage"))
 	{
 		double Pct = 0.0;
 		Msg->TryGetNumberField(TEXT("pct"), Pct);
-		AnomalyViewport::SetMinScreenCoveragePct((float)Pct);   // clamp [0,100] / <= 0 = OFF handled in the setter
+		AnomalyViewport::SetMinScreenCoveragePct((float)Pct);
 		SendAck(Conn.Socket, TEXT("set_min_screen_coverage"));
 		return;
 	}
 
-	// --- Auto-injection control (group 2; read-back already in the snapshot's `auto` block) ---
 	if (Type == TEXT("auto_config"))
 	{
 		if (UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr)
 		{
-			// pool { id: bool } — per-id enable/disable; ids not present are left untouched.
 			const TSharedPtr<FJsonObject>* Pool = nullptr;
 			if (Msg->TryGetObjectField(TEXT("pool"), Pool) && Pool && Pool->IsValid())
 			{
@@ -552,7 +532,6 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 					}
 				}
 			}
-			// Cadence: each min/max pair updated together, preserving the unspecified half.
 			double MinV = 0.0, MaxV = 0.0;
 			const bool bHasIntMin = Msg->TryGetNumberField(TEXT("intervalMin"), MinV);
 			double MaxTmp = 0.0;
@@ -587,7 +566,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		Msg->TryGetBoolField(TEXT("running"), bRunning);
 		if (UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr)
 		{
-			if (bRunning) { Auto->SetEnabled(true); }   // Run requires Enable (Stage-0 ruling)
+			if (bRunning) { Auto->SetEnabled(true); }
 			Auto->SetRunning(bRunning);
 		}
 		SendAck(Conn.Socket, TEXT("auto_run"));
@@ -616,7 +595,6 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		return;
 	}
 
-	// --- Frame capture (group 3; wired to the m7 UAnomalyCaptureSubsystem, read-only consumer) ---
 	if (Type == TEXT("capture_start"))
 	{
 		FString Dir, Format;
@@ -624,14 +602,9 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		Msg->TryGetStringField(TEXT("format"), Format);
 		double SeedV = -1.0;
 		Msg->TryGetNumberField(TEXT("seed"), SeedV);
-		const bool bPng = !Format.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase);   // PNG default; jpeg behind the flag
+		const bool bPng = !Format.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase);
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
-			// A1: a capture run OWNS injection (its burst driver fires via the auto-injector's TryFireOnce,
-			// drawing from the ENABLED POOL + seeded stream). A concurrent free-running Auto.Run would fire a
-			// competing schedule into the one-instance-per-id registry and corrupt labels — so pause Auto's
-			// RUN only (pool/seed/Enable preserved; capture keeps injecting), and restore it when the run ends
-			// (Tick). Only on a FRESH start: a no-op 2nd start must not overwrite the saved Run state.
 			if (!Cap->IsRunning())
 			{
 				if (UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr)
@@ -657,7 +630,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
 			Cap->StopRun();
-			Cap->GetStatus(bRun, Frames, RunDir, Seed);   // post-stop: running=false + final counters/dir
+			Cap->GetStatus(bRun, Frames, RunDir, Seed);
 		}
 		const TSharedRef<FJsonObject> Reply = MakeShared<FJsonObject>();
 		Reply->SetStringField(TEXT("type"), TEXT("capture_stopped"));
@@ -688,7 +661,6 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		return;
 	}
 
-	// Unknown type -> ack so the client sees a round-trip.
 	SendAck(Conn.Socket, Type);
 }
 
@@ -707,7 +679,7 @@ void UAnomalyControlServerSubsystem::SendRawText(INetworkingWebSocket* Socket, c
 		return;
 	}
 	FTCHARToUTF8 Utf8(*Text);
-	Socket->Send(reinterpret_cast<const uint8*>(Utf8.Get()), (uint32)Utf8.Length(), /*bPrependSize=*/false);
+	Socket->Send(reinterpret_cast<const uint8*>(Utf8.Get()), (uint32)Utf8.Length(),  false);
 }
 
 void UAnomalyControlServerSubsystem::SendAck(INetworkingWebSocket* Socket, const FString& ReType) const
@@ -736,7 +708,6 @@ void UAnomalyControlServerSubsystem::PushSnapshots()
 
 	UWorld* World = GetWorld();
 
-	// Bump the view epoch on a resolution change (frame<->snapshot correlation).
 	int32 VX = 0, VY = 0;
 	if (UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr)
 	{
@@ -780,7 +751,7 @@ void UAnomalyControlServerSubsystem::PushFrames(bool bForce)
 
 	TArray<uint8> Jpeg;
 	int32 W = 0, H = 0;
-	if (!AnomalyPreview::CaptureGameViewportJpeg(GetWorld(), Jpeg, W, H, /*Quality=*/60))
+	if (!AnomalyPreview::CaptureGameViewportJpeg(GetWorld(), Jpeg, W, H,  60))
 	{
 		return;
 	}
@@ -792,9 +763,9 @@ void UAnomalyControlServerSubsystem::PushFrames(bool bForce)
 	{
 		if (C.bAuthed && (C.bSubFrames || bForce) && C.Socket)
 		{
-			C.Socket->Send(Frame.GetData(), (uint32)Frame.Num(), /*bPrependSize=*/false);
+			C.Socket->Send(Frame.GetData(), (uint32)Frame.Num(),  false);
 		}
 	}
 }
 
-#endif // ANOMALY_CONTROL_SERVER
+#endif

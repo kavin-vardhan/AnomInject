@@ -1,5 +1,3 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "AnomalyLabelWriter.h"
 
 #include "AnomalyControlServerLog.h"
@@ -7,12 +5,12 @@
 #if ANOMALY_CONTROL_SERVER
 
 #include "AnomalyPreviewCapture.h"
-#include "AnomalyViewport.h"               // ProjectActorBoundsToScreenRect / GetActiveViewInfo / FAnomalyViewInfo
-#include "AnomalyAutoInjectorSubsystem.h"  // FAutoLiveFireInfo / GetLiveFires
+#include "AnomalyViewport.h"
+#include "AnomalyAutoInjectorSubsystem.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
-#include "CoreGlobals.h"                   // GFrameCounter (the shared frame-index stamp)
+#include "CoreGlobals.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
@@ -25,8 +23,6 @@
 
 namespace
 {
-	// File-unique names: UE unity builds concatenate .cpp files into one TU, so an anonymous-namespace
-	// helper named identically to one in a sibling file (ControlSnapshot.cpp's Num/Vec3) is an ODR clash.
 	TSharedPtr<FJsonValue> LabelNum(double V) { return MakeShared<FJsonValueNumber>(V); }
 
 	TArray<TSharedPtr<FJsonValue>> LabelVec3(double X, double Y, double Z)
@@ -34,13 +30,6 @@ namespace
 		return { LabelNum(X), LabelNum(Y), LabelNum(Z) };
 	}
 
-	/**
-	 * Build one JSONL label record (a single condensed line) for a captured frame. anomaly_present is the
-	 * TEMPORAL label (any live fire this frame); each anomalies[] entry carries the SPATIAL label — the pixel
-	 * bbox [x,y,w,h] (clamped to the frame) plus the unclamped normalized rect and bbox_valid. A degenerate
-	 * spatial label (off-screen / behind camera / actor gone) sets bbox_valid=false but the frame + temporal
-	 * label are still recorded (never drop the frame for a bad box).
-	 */
 	FString BuildFrameLabelRecord(UWorld* World, const TArray<FAutoLiveFireInfo>& Fires,
 		const FAnomalyViewInfo& View, int32 W, int32 H, uint64 FrameIndex, const FString& ImageName, int32& OutNumLabels)
 	{
@@ -72,10 +61,8 @@ namespace
 			}
 			O->SetBoolField(TEXT("bbox_valid"), bValid);
 
-			// Unclamped normalized rect [minX, minY, maxX, maxY] (resolution-independent; may exceed [0,1]).
 			O->SetArrayField(TEXT("bbox_norm"), { LabelNum(Min.X), LabelNum(Min.Y), LabelNum(Max.X), LabelNum(Max.Y) });
 
-			// Pixel bbox [x, y, w, h], clamped to the frame [0,W]x[0,H].
 			const double X0 = FMath::Clamp((double)Min.X * W, 0.0, (double)W);
 			const double Y0 = FMath::Clamp((double)Min.Y * H, 0.0, (double)H);
 			const double X1 = FMath::Clamp((double)Max.X * W, 0.0, (double)W);
@@ -90,16 +77,8 @@ namespace
 		}
 		Root->SetArrayField(TEXT("anomalies"), Anoms);
 
-		// VISIBLE POSITIVE (the detection-relevant positive) = an anomaly is applied in game-state this frame
-		// AND at least one fire projects to an on-screen box. anomaly_present (game-state truth) stays separate:
-		// under camera motion a fired actor can leave the viewport DURING its hold -> anomaly_present=true with
-		// every bbox_valid=false (anomaly active but off-screen). Those are kept (legitimate hard negatives), not
-		// dropped; consumers filter on visible_positive for the detection set. NOTE: the in-frustum-but-OCCLUDED
-		// sub-case (on-screen yet hidden behind geometry) is NOT caught by bounds projection — that is the
-		// deferred GetLastRenderTimeOnScreen refinement (G22).
 		Root->SetBoolField(TEXT("visible_positive"), (Fires.Num() > 0) && (OutNumLabels > 0));
 
-		// View used for the projection (lets a consumer re-project / verify).
 		TSharedRef<FJsonObject> V = MakeShared<FJsonObject>();
 		V->SetArrayField(TEXT("origin"), LabelVec3(View.Origin.X, View.Origin.Y, View.Origin.Z));
 		V->SetArrayField(TEXT("rot"), LabelVec3(View.Rotation.Pitch, View.Rotation.Yaw, View.Rotation.Roll));
@@ -108,7 +87,6 @@ namespace
 		V->SetBoolField(TEXT("valid"), View.bValid);
 		Root->SetObjectField(TEXT("view"), V);
 
-		// Condensed (single-line) — one JSON object per line = JSONL.
 		FString Out;
 		const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
 			TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Out);
@@ -129,10 +107,6 @@ namespace AnomalyLabel
 			return false;
 		}
 
-		// (1) Same-tick ground truth: snapshot the live fires on this game-thread call (L3/Q6 — image and
-		//     label reflect one frame). The PROJECTION view is supplied by the caller — it must match the
-		//     captured pixels (the render trails the game thread, so a moving burst passes the view from L
-		//     frames ago, not the current view; S3). An invalid view => bbox_valid=false, frame still written.
 		TArray<FAutoLiveFireInfo> Fires;
 		if (UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>())
 		{
@@ -140,7 +114,6 @@ namespace AnomalyLabel
 		}
 		const FAnomalyViewInfo& View = ProjectionView;
 
-		// (2) Synchronous game-viewport capture (native resolution, no downscale).
 		TArray<uint8> ImageBytes;
 		int32 W = 0, H = 0;
 		if (!AnomalyPreview::CaptureGameViewportEncoded(World, Format, ImageBytes, W, H))
@@ -152,15 +125,13 @@ namespace AnomalyLabel
 			return false;
 		}
 
-		// (3) Stamp + filenames (image and record share the GFrameCounter).
 		const uint64 FrameIndex = GFrameCounter;
 		const TCHAR* Ext = (Format == AnomalyPreview::EImageFormat::PNG) ? TEXT("png") : TEXT("jpg");
 		const FString ImageName = FString::Printf(TEXT("frame_%llu.%s"), FrameIndex, Ext);
 		const FString ImagePath = FPaths::Combine(OutputDir, ImageName);
 		const FString SidecarPath = FPaths::Combine(OutputDir, TEXT("labels.jsonl"));
 
-		// (4) Ensure dir, write the image, append the label record line.
-		IFileManager::Get().MakeDirectory(*OutputDir, /*Tree=*/true);
+		IFileManager::Get().MakeDirectory(*OutputDir,  true);
 		if (!FFileHelper::SaveArrayToFile(ImageBytes, *ImagePath))
 		{
 			if (bLog)
@@ -200,7 +171,7 @@ namespace AnomalyLabel
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
 		FJsonSerializer::Serialize(Root, Writer);
 
-		IFileManager::Get().MakeDirectory(*RunDir, /*Tree=*/true);
+		IFileManager::Get().MakeDirectory(*RunDir,  true);
 		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("run.json")),
 			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	}
@@ -226,10 +197,6 @@ namespace AnomalyLabel
 	}
 }
 
-// ----------------------------------------------------------------------------------------------------
-// IAI.Capture.Shot — Stage-1 single-shot console surface (the full IAI.Capture.* set lands with the
-// burst subsystem in Stage 2). Module-scoped, mirroring the injector/auto console pattern.
-// ----------------------------------------------------------------------------------------------------
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 	TEXT("IAI.Capture.Shot"),
@@ -248,8 +215,6 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 				Format = AnomalyPreview::EImageFormat::JPEG;
 			}
 
-			// Manual single shot: project with the CURRENT view (intended for a still pose; the L-frame
-			// delayed-view correction is the burst path's concern, where the camera moves).
 			FAnomalyViewInfo View;
 			AnomalyViewport::GetActiveViewInfo(World, View);
 
@@ -266,4 +231,4 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 			}
 		}));
 
-#endif // ANOMALY_CONTROL_SERVER
+#endif

@@ -1,5 +1,3 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "ControlProtocol.h"
 
 namespace ControlProtocol

@@ -49,7 +49,6 @@ def main():
     except Exception:
         font = ImageFont.load_default()
 
-    # Print the run manifest (Stage-2 burst runs), if present.
     manifest_path = os.path.join(cap_dir, "run.json")
     if os.path.isfile(manifest_path):
         with open(manifest_path, "r", encoding="utf-8") as mf:
@@ -60,8 +59,8 @@ def main():
 
     n_frames = 0
     n_boxes = 0
-    n_present = 0          # frames with anomaly_present (game-state truth)
-    n_present_nobox = 0    # present but no valid bbox (anomaly active but off-screen during its hold)
+    n_present = 0
+    n_present_nobox = 0
     prev_present = None
     print(f"\ncapture dir : {cap_dir}")
     print(f"annotated   : {out_dir}\n")

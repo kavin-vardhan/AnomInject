@@ -1,5 +1,3 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -8,11 +6,6 @@
 class AActor;
 class UWorld;
 
-/**
- * flicker — ticking, actor-scoped. Resolve+cache targets in Apply; in Tick, accumulate
- * DeltaSeconds and toggle the targets' hidden flag every half-period. Revert leaves the
- * actors VISIBLE regardless of the current toggle phase. Proves the Tick path.
- */
 class FAnomaly_Flicker final : public IAnomaly
 {
 public:
@@ -27,7 +20,7 @@ public:
 
 private:
 	TArray<TWeakObjectPtr<AActor>> Targets;
-	float HalfPeriodSeconds = 0.1f;   // default 5 Hz -> 0.1s; recomputed in Apply
+	float HalfPeriodSeconds = 0.1f;
 	float Accumulator = 0.0f;
 	bool  bHiddenPhase = false;
 	bool  bActive = false;

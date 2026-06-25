@@ -1,5 +1,3 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "ControlSnapshot.h"
 #include "ControlProtocol.h"
 
@@ -16,7 +14,7 @@
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyViewport.h"
 #include "AnomalyCatalogTypes.h"
-#include "AnomalyCaptureSubsystem.h"   // capture status read-back (m7, in-module)
+#include "AnomalyCaptureSubsystem.h"
 
 namespace
 {
@@ -82,7 +80,6 @@ namespace ControlSnapshot
 		UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr;
 		UAnomalySelectorSubsystem* Sel = World ? World->GetSubsystem<UAnomalySelectorSubsystem>() : nullptr;
 
-		// --- view ---
 		{
 			FAnomalyViewInfo View;
 			const bool bValid = AnomalyViewport::GetActiveViewInfo(World, View);
@@ -99,7 +96,6 @@ namespace ControlSnapshot
 			Root->SetObjectField(TEXT("view"), V);
 		}
 
-		// --- visible renderable set (rects AS-IS; the dashboard handles presentation) ---
 		{
 			TArray<TSharedPtr<FJsonValue>> Arr;
 			if (World)
@@ -120,7 +116,6 @@ namespace ControlSnapshot
 			Root->SetArrayField(TEXT("visible"), Arr);
 		}
 
-		// --- active anomalies (target + source composed here) ---
 		{
 			TArray<TSharedPtr<FJsonValue>> Arr;
 			if (Inj)
@@ -146,7 +141,6 @@ namespace ControlSnapshot
 					const bool bAuto = AutoTargetById.Contains(A.Id);
 					O->SetStringField(TEXT("source"), bAuto ? TEXT("auto") : TEXT("manual"));
 
-					// target: auto -> live-fire name; manual non-global -> args[0] (strip a leading '='); global -> none.
 					FString Target;
 					if (bAuto)
 					{
@@ -167,7 +161,6 @@ namespace ControlSnapshot
 			Root->SetArrayField(TEXT("active"), Arr);
 		}
 
-		// --- auto-injector state ---
 		{
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			if (Auto)
@@ -186,7 +179,6 @@ namespace ControlSnapshot
 				O->SetNumberField(TEXT("maxConcurrent"), Auto->GetMaxConcurrent());
 				O->SetBoolField(TEXT("persist"), Auto->GetPersist());
 
-				// pool = the object-scoped ids, each with its enabled state.
 				TSharedRef<FJsonObject> Pool = MakeShared<FJsonObject>();
 				if (Inj)
 				{
@@ -214,7 +206,6 @@ namespace ControlSnapshot
 			Root->SetObjectField(TEXT("auto"), O);
 		}
 
-		// --- session flags + fps ---
 		{
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			O->SetBoolField(TEXT("viewportScoping"), Inj ? Inj->IsViewportScopingEnabled() : false);
@@ -223,12 +214,11 @@ namespace ControlSnapshot
 			const double Dt = World ? World->GetDeltaSeconds() : 0.0;
 			O->SetNumberField(TEXT("fps"), Dt > 0.0 ? 1.0 / Dt : 0.0);
 			O->SetNumberField(TEXT("activeCount"), Inj ? Inj->GetActiveAnomalyCount() : 0);
-			O->SetNumberField(TEXT("pollRadius"), AnomalyViewport::GetPollRadius());   // cm; 0 = OFF (slider init)
-			O->SetNumberField(TEXT("minScreenCoverage"), AnomalyViewport::GetMinScreenCoveragePct());   // percent; 0 = OFF (slider init)
+			O->SetNumberField(TEXT("pollRadius"), AnomalyViewport::GetPollRadius());
+			O->SetNumberField(TEXT("minScreenCoverage"), AnomalyViewport::GetMinScreenCoveragePct());
 			Root->SetObjectField(TEXT("session"), O);
 		}
 
-		// --- capture status (m7 capture subsystem; read-only via GetStatus) ---
 		{
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			bool bRunning = false;

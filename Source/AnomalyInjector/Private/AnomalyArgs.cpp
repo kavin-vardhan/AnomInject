@@ -1,5 +1,3 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "AnomalyArgs.h"
 
 #include "AnomalyInjectorLog.h"
@@ -10,7 +8,7 @@ namespace AnomalyArgs
 	{
 		if (!Args.IsValidIndex(Index))
 		{
-			return Default;   // omitted optional arg -> default, silently
+			return Default;
 		}
 
 		const FString& Token = Args[Index];

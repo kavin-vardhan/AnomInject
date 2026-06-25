@@ -1,5 +1,3 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "Anomalies/Anomaly_MissingObject.h"
 
 #include "AnomalyTargeting.h"
@@ -20,15 +18,12 @@ bool FAnomaly_MissingObject::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
-	// Re-entrancy: revert-then-reapply so re-firing with new args never leaks state.
 	if (bActive)
 	{
 		Revert();
 	}
 
 	const FString& Substring = Args[0];
-	// Opt-in viewport scoping: when ON, resolve only actors visible in the player's view (AMB-V3:
-	// no live view -> treat-as-unscoped). When OFF, identical to before (regression gate).
 	const TArray<TWeakObjectPtr<AActor>> Matches =
 		UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World)
 			? AnomalyViewport::FindVisibleActorsMatching(World, Substring)
@@ -44,7 +39,7 @@ bool FAnomaly_MissingObject::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 	}
 
-	bActive = HiddenActors.Num() > 0;   // zero match -> not applied / inactive (AMB-2)
+	bActive = HiddenActors.Num() > 0;
 	UE_LOG(LogAnomaly, Log, TEXT("missing_object: matched %d actor(s) for '%s'."), HiddenActors.Num(), *Substring);
 	return bActive;
 }

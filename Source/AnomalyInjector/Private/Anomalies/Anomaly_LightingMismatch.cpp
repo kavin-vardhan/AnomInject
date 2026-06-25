@@ -1,5 +1,3 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "Anomalies/Anomaly_LightingMismatch.h"
 
 #include "AnomalyTargeting.h"
@@ -19,7 +17,6 @@ bool FAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& Args
 		return false;
 	}
 
-	// Re-entrancy: revert-then-reapply so re-firing never leaks (single capture set; prior lights restored).
 	if (bActive)
 	{
 		Revert();
@@ -27,7 +24,6 @@ bool FAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& Args
 
 	const FString& Substring = Args[0];
 
-	// Resolve the mode (default dim); unknown -> warn + fall back to dim.
 	FString Mode = AnomalyArgs::GetString(Args, 1, TEXT("dim")).ToLower();
 	if (Mode != TEXT("off") && Mode != TEXT("dim") && Mode != TEXT("recolor") && Mode != TEXT("noshadow"))
 	{
@@ -35,9 +31,8 @@ bool FAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& Args
 		Mode = TEXT("dim");
 	}
 
-	// Parse mode-specific args up front (clamped via A3).
 	float DimFactor = 0.1f;
-	FLinearColor RecolorColor(1.0f, 0.0f, 1.0f);   // magenta default
+	FLinearColor RecolorColor(1.0f, 0.0f, 1.0f);
 	if (Mode == TEXT("dim"))
 	{
 		DimFactor = AnomalyArgs::GetFloat(Args, 2, 0.1f, 0.0f, 1.0f);
@@ -54,7 +49,7 @@ bool FAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& Args
 	if (Lights.Num() == 0)
 	{
 		UE_LOG(LogAnomaly, Log, TEXT("lighting_mismatch: matched 0 light component(s) for '%s'."), *Substring);
-		return false;   // AMB-2: zero match -> not applied / inactive
+		return false;
 	}
 
 	for (const TWeakObjectPtr<ULightComponent>& Weak : Lights)
@@ -65,7 +60,6 @@ bool FAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& Args
 			continue;
 		}
 
-		// Capture exactly what we can mutate, BEFORE mutating.
 		FCapturedLight Record;
 		Record.Light = Light;
 		Record.Intensity = Light->Intensity;
@@ -86,7 +80,7 @@ bool FAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& Args
 		{
 			Light->SetCastShadows(false);
 		}
-		else   // dim
+		else
 		{
 			Light->SetIntensity(Record.Intensity * DimFactor);
 		}
@@ -100,7 +94,6 @@ bool FAnomaly_LightingMismatch::Apply(UWorld* World, const TArray<FString>& Args
 
 void FAnomaly_LightingMismatch::Revert()
 {
-	// Restore the full captured state per still-live component; skip stale ptrs (GC-safe).
 	for (const FCapturedLight& Record : Captured)
 	{
 		ULightComponent* Light = Record.Light.Get();

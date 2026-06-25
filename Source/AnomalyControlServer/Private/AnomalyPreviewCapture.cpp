@@ -1,10 +1,8 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "AnomalyPreviewCapture.h"
 
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
-#include "UnrealClient.h"            // FViewport::ReadPixels / GetSizeXY
+#include "UnrealClient.h"
 #include "Modules/ModuleManager.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
@@ -30,16 +28,11 @@ namespace AnomalyPreview
 			return false;
 		}
 
-		// Game-view-only, synchronous readback (default flags + full rect). Native resolution; no disk, no downscale.
 		if (!Viewport->ReadPixels(OutPixels) || OutPixels.Num() == 0)
 		{
 			return false;
 		}
 
-		// Force opaque: the game backbuffer's alpha is not a meaningful opacity (typically ~0). PNG preserves
-		// alpha, so without this the saved frame renders fully TRANSPARENT ("empty") in any alpha-honoring
-		// viewer — even though the RGB pixels are correct. (JPEG has no alpha, so the dashboard path never
-		// showed this.) A displayed-frame screenshot is opaque by definition. Idempotent.
 		for (FColor& Px : OutPixels)
 		{
 			Px.A = 255;
@@ -73,7 +66,6 @@ namespace AnomalyPreview
 			return false;
 		}
 
-		// PNG ignores the quality arg (lossless); JPEG uses it. 0 => the wrapper's default for the format.
 		const int32 Quality = (Format == EImageFormat::PNG) ? 0 : JpegQuality;
 		const TArray64<uint8>& Compressed = Wrapper->GetCompressed(Quality);
 		if (Compressed.Num() == 0)

@@ -1,5 +1,3 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "Anomalies/Anomaly_LodPopping.h"
 
 #include "AnomalyLod.h"
@@ -7,7 +5,7 @@
 #include "AnomalyViewport.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
-#include "Components/MeshComponent.h"   // UMeshComponent
+#include "Components/MeshComponent.h"
 
 bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 {
@@ -21,8 +19,6 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
-	// Re-entrancy: revert-then-reapply so re-firing mid-oscillation never leaks — the prior targets
-	// are restored to baseline before the new capture, leaving exactly one capture set.
 	if (bActive)
 	{
 		Revert();
@@ -30,16 +26,10 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 
 	const FString& Substring = Args[0];
 
-	// Optional Hz (A3): default 2; non-numeric -> warn + default; clamped to [MinHz, MaxHz] so the
-	// half-period is always finite and positive.
 	const float Hz = AnomalyArgs::GetFloat(Args, 1, DefaultHz, MinHz, MaxHz);
 	HalfPeriodSeconds = 0.5f / Hz;
 
-	// Static AND skeletal, keyed to the common base (one apply pops a heterogeneous target set).
 	TArray<TWeakObjectPtr<UMeshComponent>> Meshes = AnomalyLod::ResolveLodComponents(World, Substring);
-	// Opt-in viewport scoping (component granularity, AMB-V5): keep only meshes visible in the player's
-	// view, fixed at Apply (the tick does not re-test). No live view -> treat-as-unscoped (AMB-V3);
-	// OFF -> identical to before (regression gate).
 	if (UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World))
 	{
 		FAnomalyViewInfo View;
@@ -51,7 +41,7 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	if (Meshes.Num() == 0)
 	{
 		UE_LOG(LogAnomaly, Log, TEXT("lod_popping: matched 0 mesh component(s) for '%s'."), *Substring);
-		return false;   // AMB-2: zero match -> not applied / inactive
+		return false;
 	}
 
 	Targets.Reset();
@@ -65,13 +55,11 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 
 		FPoppingTarget Target;
 		Target.Mesh = Mesh;
-		Target.BaselineLod = AnomalyLod::GetForcedLod(Mesh);   // capture original (usually 0 = auto)
-		Target.PoppedLod   = AnomalyLod::GetWorstLod(Mesh);    // worst available per component
+		Target.BaselineLod = AnomalyLod::GetForcedLod(Mesh);
+		Target.PoppedLod   = AnomalyLod::GetWorstLod(Mesh);
 		Targets.Add(Target);
 	}
 
-	// Start at the baseline phase; the first half-period flips to the popped LOD (mirrors flicker
-	// starting visible and first toggling hidden).
 	Accumulator = 0.0f;
 	bPoppedPhase = false;
 	bActive = Targets.Num() > 0;
@@ -89,8 +77,6 @@ void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 	}
 
 	Accumulator += DeltaSeconds;
-	// 'while' (not 'if') so a single long frame replays all elapsed half-periods and the phase
-	// never desyncs (flicker's while-drain).
 	while (Accumulator >= HalfPeriodSeconds)
 	{
 		Accumulator -= HalfPeriodSeconds;
@@ -112,7 +98,6 @@ void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 
 void FAnomaly_LodPopping::Revert()
 {
-	// Restore each captured baseline regardless of the current oscillation phase; skip stale ptrs.
 	for (const FPoppingTarget& Target : Targets)
 	{
 		if (UMeshComponent* Mesh = Target.Mesh.Get())

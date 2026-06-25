@@ -1,14 +1,8 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "Modules/ModuleManager.h"
 #include "AnomalyControlServerLog.h"
 
 DEFINE_LOG_CATEGORY(LogAnomalyServer);
 
-/**
- * Runtime module for the Anomaly control server (Slice 0 transport spike). Minimal — the work lives in
- * UAnomalyControlServerSubsystem and the IAI.Server.* console surface. This is just the module entry point.
- */
 class FAnomalyControlServerModule : public IModuleInterface
 {
 public:

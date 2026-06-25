@@ -1,19 +1,15 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "AnomalyLod.h"
 
 #include "AnomalyTargeting.h"
 #include "Components/MeshComponent.h"
-#include "Components/StaticMeshComponent.h"   // SetForcedLodModel / ForcedLodModel / GetStaticMesh
-#include "Components/SkinnedMeshComponent.h"  // SetForcedLOD / GetForcedLOD / GetNumLODs (USkeletalMeshComponent derives)
-#include "Engine/StaticMesh.h"                // UStaticMesh::GetNumLODs
+#include "Components/StaticMeshComponent.h"
+#include "Components/SkinnedMeshComponent.h"
+#include "Engine/StaticMesh.h"
 
 TArray<TWeakObjectPtr<UMeshComponent>> AnomalyLod::ResolveLodComponents(UWorld* World, const FString& Substring)
 {
 	TArray<TWeakObjectPtr<UMeshComponent>> Result;
 
-	// Static and skinned mesh components are disjoint siblings under UMeshComponent (no overlap),
-	// so concatenating the two matches is duplicate-free. Both reuse AnomalyTargeting's label-free rule.
 	for (const TWeakObjectPtr<UStaticMeshComponent>& Weak : AnomalyTargeting::FindComponentsMatching<UStaticMeshComponent>(World, Substring))
 	{
 		if (UStaticMeshComponent* Comp = Weak.Get())
@@ -40,7 +36,6 @@ int32 AnomalyLod::GetWorstLod(const UMeshComponent* Component)
 	}
 	if (const USkinnedMeshComponent* Skinned = Cast<USkinnedMeshComponent>(Component))
 	{
-		// Runtime render-data LOD count — the analog of UStaticMesh::GetNumLODs (gotcha G19).
 		return FMath::Max(Skinned->GetNumLODs(), 1);
 	}
 	return 1;

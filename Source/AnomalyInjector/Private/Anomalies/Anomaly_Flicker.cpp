@@ -1,5 +1,3 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "Anomalies/Anomaly_Flicker.h"
 
 #include "AnomalyTargeting.h"
@@ -20,13 +18,11 @@ bool FAnomaly_Flicker::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
-	// Re-entrancy: revert-then-reapply.
 	if (bActive)
 	{
 		Revert();
 	}
 
-	// Parse optional Hz (AMB-6): default 5; non-numeric or <= 0 -> warn + fall back; clamp ceiling.
 	float Hz = DefaultHz;
 	if (Args.Num() >= 2)
 	{
@@ -47,14 +43,12 @@ bool FAnomaly_Flicker::Apply(UWorld* World, const TArray<FString>& Args)
 	Hz = FMath::Min(Hz, MaxHz);
 	HalfPeriodSeconds = 0.5f / Hz;
 
-	// Opt-in viewport scoping: when ON, target only actors visible in the player's view (AMB-V3:
-	// no live view -> treat-as-unscoped). The visible set is fixed at Apply; the tick does not re-test.
 	Targets = UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World)
 		? AnomalyViewport::FindVisibleActorsMatching(World, Args[0])
 		: AnomalyTargeting::FindActorsMatching(World, Args[0]);
 	Accumulator = 0.0f;
 	bHiddenPhase = false;
-	bActive = Targets.Num() > 0;   // zero match -> not applied / inactive (AMB-2)
+	bActive = Targets.Num() > 0;
 
 	UE_LOG(LogAnomaly, Log, TEXT("flicker: matched %d actor(s) for '%s' at %.2f Hz (half-period %.3fs)."),
 		Targets.Num(), *Args[0], Hz, HalfPeriodSeconds);
@@ -69,8 +63,6 @@ void FAnomaly_Flicker::Tick(float DeltaSeconds)
 	}
 
 	Accumulator += DeltaSeconds;
-	// 'while' (not 'if') so a single long frame replays all elapsed half-periods and the
-	// phase never desyncs.
 	while (Accumulator >= HalfPeriodSeconds)
 	{
 		Accumulator -= HalfPeriodSeconds;
@@ -92,7 +84,6 @@ void FAnomaly_Flicker::Tick(float DeltaSeconds)
 
 void FAnomaly_Flicker::Revert()
 {
-	// Leave actors VISIBLE regardless of the current toggle phase.
 	for (const TWeakObjectPtr<AActor>& Weak : Targets)
 	{
 		if (AActor* Actor = Weak.Get())

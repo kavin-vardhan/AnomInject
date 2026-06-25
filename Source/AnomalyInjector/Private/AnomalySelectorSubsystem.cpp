@@ -1,28 +1,21 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
-#include "AnomalyInjectorSubsystem.h"   // public Apply/Revert surface (the injector stays untouched)
-#include "AnomalyViewport.h"            // GetActiveViewInfo + FilterVisibleActors (composed; AnomalyViewport unchanged)
+#include "AnomalyInjectorSubsystem.h"
+#include "AnomalyViewport.h"
 
-#include "EngineUtils.h"                // TActorIterator
-#include "Engine/Engine.h"             // GEngine, GetSmallFont
-#include "Engine/World.h"              // UWorld::GetFirstPlayerController / GetSubsystem
-#include "Engine/Canvas.h"            // UCanvas (HUD draw)
-#include "Debug/DebugDrawService.h"   // UDebugDrawService::Register/Unregister (host-blind HUD)
-#include "DrawDebugHelpers.h"         // DrawDebugBox (selected-object highlight)
+#include "EngineUtils.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Engine/Canvas.h"
+#include "Debug/DebugDrawService.h"
+#include "DrawDebugHelpers.h"
 #include "GameFramework/Actor.h"
-#include "GameFramework/PlayerController.h"   // IsInputKeyDown / WasInputKeyJustPressed (raw key state)
-#include "InputCoreTypes.h"           // EKeys, FKey
-#include "HAL/IConsoleManager.h"      // FAutoConsoleCommandWithWorldAndArgs
+#include "GameFramework/PlayerController.h"
+#include "InputCoreTypes.h"
+#include "HAL/IConsoleManager.h"
 
 namespace
 {
-	/** The object-scoped, primitive-backed anomalies the selector offers (default args only; missing_texture
-	 *  has no args). NOTE: lod_corruption / lod_popping are intentionally HIDDEN from the UI for now — they
-	 *  remain fully registered and applyable via `IAI.Apply <id>` (functionality intact); they are only
-	 *  omitted from this selectable list. Globals (time_dilation, camera_clipping) + lighting_mismatch stay
-	 *  console-only for v1. */
 	const FName GAnomalyChoices[] =
 	{
 		FName(TEXT("missing_object")),
@@ -31,23 +24,16 @@ namespace
 	};
 	constexpr int32 GNumAnomalyChoices = UE_ARRAY_COUNT(GAnomalyChoices);
 
-	/** Cap the on-screen visible list so a fully-visible scene cannot bury the screen. */
 	constexpr int32 GMaxListedActors = 18;
 }
 
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
 
 void UAnomalySelectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	// Default keybinds (S7 ruling). KeyPrev left invalid -> "previous" = Shift + KeyNext by default;
-	// all are rebindable via IAI.SelectorBind to escape host/overlay collisions (e.g. the Steam overlay
-	// grabs Shift+Tab in a Steam-launched build — fine in PIE; rebind escapes it; gotcha G26).
 	KeyNext   = EKeys::Tab;
-	KeyPrev   = FKey();          // none -> use Shift+Tab
+	KeyPrev   = FKey();
 	KeyCycle  = EKeys::C;
 	KeyInject = EKeys::G;
 	KeyRevert = EKeys::H;
@@ -58,7 +44,6 @@ void UAnomalySelectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UAnomalySelectorSubsystem::Deinitialize()
 {
-	// Delegate hygiene: a dangling debug-draw delegate is a crash risk. Always unregister on teardown.
 	UnregisterHUD();
 	Super::Deinitialize();
 }
@@ -77,43 +62,35 @@ void UAnomalySelectorSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Dormant when disabled -> existing gates byte-identical (no input poll, no refresh, no draw).
 	if (!bUIEnabled)
 	{
 		return;
 	}
 
-	// Input thin-shell: map raw keys -> the explicit-core methods.
 	PollInput();
 
-	// Throttled visible-set refresh so the HUD list stays current between key presses (Advance/Prev
-	// also refresh on-demand). Only-when-enabled + ~0.1s bounds the synchronous occlusion-trace cost.
 	RefreshAccumulator += DeltaTime;
 	if (RefreshAccumulator >= RefreshIntervalSeconds)
 	{
 		RefreshVisibleSet();
 	}
 
-	// World-space highlight on the selected object (dev-only; ENABLE_DRAW_DEBUG).
 	if (AActor* Actor = SelectedActor.Get())
 	{
 		FVector Origin = FVector::ZeroVector;
 		FVector Extent = FVector::ZeroVector;
-		Actor->GetActorBounds(/*bOnlyCollidingComponents=*/false, Origin, Extent);
-		DrawDebugBox(GetWorld(), Origin, Extent, FColor::Yellow, /*bPersistent=*/false, /*LifeTime=*/-1.0f, /*DepthPriority=*/0, /*Thickness=*/2.0f);
+		Actor->GetActorBounds( false, Origin, Extent);
+		DrawDebugBox(GetWorld(), Origin, Extent, FColor::Yellow,  false,  -1.0f,  0,  2.0f);
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Activation
-// ---------------------------------------------------------------------------
 
 void UAnomalySelectorSubsystem::SetUIEnabled(bool bEnabled)
 {
 	if (bEnabled == bUIEnabled)
 	{
 		UE_LOG(LogAnomaly, Log, TEXT("IAI.SelectorUI: already %s."), bEnabled ? TEXT("ON") : TEXT("OFF"));
-		return;   // idempotent -> never double-registers the HUD delegate
+		return;
 	}
 
 	bUIEnabled = bEnabled;
@@ -121,7 +98,7 @@ void UAnomalySelectorSubsystem::SetUIEnabled(bool bEnabled)
 	{
 		RegisterHUD();
 		RefreshAccumulator = 0.0f;
-		RefreshVisibleSet();   // populate the list immediately so the first frame already shows it
+		RefreshVisibleSet();
 	}
 	else
 	{
@@ -134,13 +111,10 @@ void UAnomalySelectorSubsystem::SetUIEnabled(bool bEnabled)
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.SelectorUI -> %s."), bEnabled ? TEXT("ON") : TEXT("OFF"));
 }
 
-// ---------------------------------------------------------------------------
-// Explicit core: selection model
-// ---------------------------------------------------------------------------
 
 void UAnomalySelectorSubsystem::AdvanceSelection()
 {
-	RefreshVisibleSet();   // on-demand fresh set (S4)
+	RefreshVisibleSet();
 	if (VisibleActors.Num() == 0)
 	{
 		SelectedActor.Reset();
@@ -148,8 +122,8 @@ void UAnomalySelectorSubsystem::AdvanceSelection()
 		return;
 	}
 
-	const int32 Current = IndexOfSelected();          // INDEX_NONE (-1) when nothing selected
-	const int32 Next = (Current + 1) % VisibleActors.Num();   // -1 -> 0 (first)
+	const int32 Current = IndexOfSelected();
+	const int32 Next = (Current + 1) % VisibleActors.Num();
 	SelectedActor = VisibleActors[Next];
 	UE_LOG(LogAnomaly, Log, TEXT("Selector.Next: selected '%s' (%d/%d)."),
 		*GetSelectedActorName(), Next + 1, VisibleActors.Num());
@@ -168,7 +142,7 @@ void UAnomalySelectorSubsystem::SelectPrevious()
 	int32 Current = IndexOfSelected();
 	if (Current < 0)
 	{
-		Current = 0;   // no selection -> step back from the first -> wraps to the last
+		Current = 0;
 	}
 	const int32 Prev = (Current - 1 + VisibleActors.Num()) % VisibleActors.Num();
 	SelectedActor = VisibleActors[Prev];
@@ -200,7 +174,6 @@ bool UAnomalySelectorSubsystem::InjectSelected()
 	}
 
 	const FName Id = GetAnomalyChoice();
-	// "=" exact-match sentinel: target ONLY this actor, never a same-prefixed sibling (S1 / verify-5).
 	const FString Token = FString(TEXT("=")) + Actor->GetName();
 	const bool bApplied = Injector->ApplyAnomaly(Id, TArray<FString>{ Token });
 	if (bApplied)
@@ -210,7 +183,6 @@ bool UAnomalySelectorSubsystem::InjectSelected()
 	}
 	else
 	{
-		// AMB-2 zero-match (e.g. an LOD anomaly on a pure-VFX actor): surface it on the HUD (R4), not just the log.
 		LastInjectResult = FString::Printf(TEXT("inject %s on %s: 0 matched (try a mesh / different anomaly)"),
 			*Id.ToString(), *Actor->GetName());
 	}
@@ -248,9 +220,6 @@ bool UAnomalySelectorSubsystem::RevertSelected()
 	return bReverted;
 }
 
-// ---------------------------------------------------------------------------
-// Explicit core: readbacks
-// ---------------------------------------------------------------------------
 
 FString UAnomalySelectorSubsystem::GetSelectedActorName() const
 {
@@ -292,9 +261,6 @@ void UAnomalySelectorSubsystem::LogStatus() const
 	UE_LOG(LogAnomaly, Log, TEXT("--- %d visible actor(s) ---"), Names.Num());
 }
 
-// ---------------------------------------------------------------------------
-// Configurable keybinds
-// ---------------------------------------------------------------------------
 
 bool UAnomalySelectorSubsystem::SetKeyBinding(FName Action, FKey Key)
 {
@@ -314,9 +280,6 @@ bool UAnomalySelectorSubsystem::SetKeyBinding(FName Action, FKey Key)
 	return true;
 }
 
-// ---------------------------------------------------------------------------
-// Thin shells + internals
-// ---------------------------------------------------------------------------
 
 void UAnomalySelectorSubsystem::PollInput()
 {
@@ -325,15 +288,14 @@ void UAnomalySelectorSubsystem::PollInput()
 	{
 		return;
 	}
-	APlayerController* PC = World->GetFirstPlayerController();   // reachable each tick (gotcha G23)
+	APlayerController* PC = World->GetFirstPlayerController();
 	if (!PC)
 	{
-		return;   // no local PC (e.g. very early frames) -> nothing to poll
+		return;
 	}
 
 	const bool bShift = PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift);
 
-	// Next / Prev. Default prev gesture = Shift + KeyNext; a dedicated KeyPrev (if rebound) also works.
 	if (KeyNext.IsValid() && PC->WasInputKeyJustPressed(KeyNext))
 	{
 		if (bShift) { SelectPrevious(); } else { AdvanceSelection(); }
@@ -352,18 +314,10 @@ void UAnomalySelectorSubsystem::RefreshVisibleSet()
 {
 	RefreshAccumulator = 0.0f;
 
-	// Renderable-visible set (m5 follow-on): visible AND actually renders geometry (static / skeletal /
-	// VFX) — non-rendering primitives (collision boxes, capsules, RVT bounds, landscape, debug/streaming
-	// actors) are excluded so they are never injectable targets. Single source of truth in AnomalyViewport,
-	// shared with future auto-injection. On no resolvable view it returns empty (offer nothing, never
-	// blind) — deliberately distinct from the anomaly finders' treat-as-unscoped (per G23 a Play/Simulate
-	// session resolves a view anyway).
 	UWorld* World = GetWorld();
 	VisibleActors = World ? AnomalyViewport::GetVisibleRenderableActors(World)
 	                      : TArray<TWeakObjectPtr<AActor>>();
 
-	// Name-sort for a deterministic, bridge-testable cycle order (v1). Screen-X ordering is the
-	// intended next UX polish (see architecture.md / journal 009).
 	VisibleActors.Sort([](const TWeakObjectPtr<AActor>& A, const TWeakObjectPtr<AActor>& B)
 	{
 		const AActor* AA = A.Get();
@@ -373,7 +327,6 @@ void UAnomalySelectorSubsystem::RefreshVisibleSet()
 		return AA->GetName() < BB->GetName();
 	});
 
-	// Reconcile: clear the selection if the selected actor left the visible set (or was destroyed).
 	if (!SelectedActor.IsValid() || !VisibleActors.Contains(SelectedActor))
 	{
 		SelectedActor.Reset();
@@ -393,11 +346,8 @@ void UAnomalySelectorSubsystem::RegisterHUD()
 {
 	if (DebugDrawHandle.IsValid())
 	{
-		return;   // already registered (guard against double-register)
+		return;
 	}
-	// Register under the "Game" engine show flag, which is ON for any non-editor view
-	// (ShowFlags.h: SetGame(InitMode != ESFIM_Editor ...)). Drawn by GameViewportClient::Draw with
-	// ZERO dependence on the host's HUD/GameMode class (gotcha G25).
 	DebugDrawHandle = UDebugDrawService::Register(
 		TEXT("Game"),
 		FDebugDrawDelegate::CreateUObject(this, &UAnomalySelectorSubsystem::DrawHUD));
@@ -412,7 +362,7 @@ void UAnomalySelectorSubsystem::UnregisterHUD()
 	}
 }
 
-void UAnomalySelectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* /*PC*/)
+void UAnomalySelectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController*  )
 {
 	if (!bUIEnabled || !Canvas)
 	{
@@ -432,7 +382,6 @@ void UAnomalySelectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* /*PC
 	Canvas->DrawText(Font, TEXT("[IAI] Object Selector  —  Tab / Shift+Tab: cycle object   C: anomaly   G: inject   H: revert"), X, Y);
 	Y += LineH * 1.5f;
 
-	// List 1 — visible actors (selected one marked).
 	Canvas->SetDrawColor(FColor::White);
 	Canvas->DrawText(Font, FString::Printf(TEXT("Visible objects (%d):"), VisibleActors.Num()), X, Y);
 	Y += LineH;
@@ -461,7 +410,6 @@ void UAnomalySelectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* /*PC
 
 	Y += LineH * 0.5f;
 
-	// List 2 — the injectable anomalies (chosen one marked).
 	Canvas->SetDrawColor(FColor::White);
 	Canvas->DrawText(Font, TEXT("Anomaly:"), X, Y);
 	Y += LineH;
@@ -473,7 +421,6 @@ void UAnomalySelectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* /*PC
 		Y += LineH;
 	}
 
-	// Last inject/revert result (R4) — surfaces the AMB-2 zero-match case in real Play, not log-only.
 	if (!LastInjectResult.IsEmpty())
 	{
 		Y += LineH * 0.5f;
@@ -482,11 +429,10 @@ void UAnomalySelectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* /*PC
 		Y += LineH;
 	}
 
-	// On-screen name label anchored to the selected actor.
 	if (const AActor* Actor = SelectedActor.Get())
 	{
 		const FVector Screen = Canvas->Project(Actor->GetActorLocation());
-		if (Screen.Z > 0.0f)   // in front of the camera
+		if (Screen.Z > 0.0f)
 		{
 			Canvas->SetDrawColor(FColor::Yellow);
 			Canvas->DrawText(Font, Actor->GetName(), Screen.X, Screen.Y);
@@ -494,12 +440,6 @@ void UAnomalySelectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* /*PC
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Console command surface (the bridge thin-shell -> the explicit-core methods)
-//
-// Module-scoped FAutoConsoleCommandWithWorldAndArgs, mirroring the injector's pattern: each resolves
-// the selector subsystem from the console's world and null-guards outside Game/PIE.
-// ---------------------------------------------------------------------------
 
 namespace
 {

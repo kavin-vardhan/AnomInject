@@ -1,30 +1,22 @@
-// Copyright GDP Anomaly Injection Project. All Rights Reserved.
-
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
-#include "AnomalyInjectorSubsystem.h"    // public Apply/Revert + IsViewportScopingEnabled (injector untouched)
-#include "AnomalySelectorSubsystem.h"    // IsUIEnabled (coexistence warning only; selector untouched)
-#include "AnomalyViewport.h"             // GetVisibleRenderableActors (the shared renderable-visible set)
+#include "AnomalyInjectorSubsystem.h"
+#include "AnomalySelectorSubsystem.h"
+#include "AnomalyViewport.h"
 
-#include "Engine/Engine.h"              // GEngine, GetSmallFont
-#include "Engine/World.h"               // UWorld::GetFirstPlayerController / GetSubsystem
-#include "Engine/Canvas.h"              // UCanvas (HUD draw)
-#include "Debug/DebugDrawService.h"     // UDebugDrawService::Register/Unregister (host-blind HUD, G25)
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Engine/Canvas.h"
+#include "Debug/DebugDrawService.h"
 #include "GameFramework/Actor.h"
-#include "GameFramework/PlayerController.h"   // WasInputKeyJustPressed (raw key state, G26)
-#include "InputCoreTypes.h"             // EKeys, FKey
-#include "HAL/IConsoleManager.h"        // FAutoConsoleCommandWithWorldAndArgs
-#include "HAL/PlatformTime.h"           // FPlatformTime::Cycles (default time-based seed)
-#include "CoreGlobals.h"                // GFrameCounter (fire start-frame stamp, m7 capture/labeling)
+#include "GameFramework/PlayerController.h"
+#include "InputCoreTypes.h"
+#include "HAL/IConsoleManager.h"
+#include "HAL/PlatformTime.h"
+#include "CoreGlobals.h"
 
 namespace
 {
-	/** v1 pool = the object-scoped, primitive-backed anomalies (R-POOL). NOTE: lod_corruption / lod_popping
-	 *  are intentionally HIDDEN from the UI for now, so they are omitted from the auto-injection pool (they
-	 *  remain fully registered and applyable via `IAI.Apply <id>` — functionality intact, just not auto-fired
-	 *  or shown). Globals (time_dilation, camera_clipping) + lighting_mismatch are a future non-object track.
-	 *  The fixed ORDER is load-bearing: Eligible is built in this order so Stream.RandHelper indexing is
-	 *  reproducible — APPEND new ids at the END so existing seeds' early draws stay stable. */
 	const FName GAutoPool[] =
 	{
 		FName(TEXT("missing_object")),
@@ -34,35 +26,26 @@ namespace
 	constexpr int32 GNumAutoPool = UE_ARRAY_COUNT(GAutoPool);
 	static_assert(GNumAutoPool == UAnomalyAutoInjectorSubsystem::NumPoolKeys, "pool size must match the keybind count");
 
-	/** Resolve the injector subsystem from World (the only thing the auto-injector calls into). */
 	UAnomalyInjectorSubsystem* ResolveInjector(UWorld* World)
 	{
 		return World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
 
 void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	// Default keybinds: 1/2/3 toggle the three pool ids, J start/stop the run, K reseed. Distinct from
-	// the selector's Tab/C/G/H so the two eyeball shells never react to one press (gotcha G26). Rebindable.
 	KeyPool[0] = EKeys::One;
 	KeyPool[1] = EKeys::Two;
 	KeyPool[2] = EKeys::Three;
 	KeyRun     = EKeys::J;
 	KeyReseed  = EKeys::K;
 
-	// Default seed is time-based (R-SEED: the seed VALUE may be time-derived; the scheduler DRAWS go
-	// through the stream, never global FMath::Rand). Console-settable via IAI.Auto.Seed.
 	Seed = static_cast<int32>(FPlatformTime::Cycles());
 	Stream.Initialize(Seed);
 
-	// Default enable-set: all on, so a fresh run fires variety out of the box.
 	for (const FName& Id : GAutoPool)
 	{
 		EnabledIds.Add(Id);
@@ -75,9 +58,6 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 
 void UAnomalyAutoInjectorSubsystem::Deinitialize()
 {
-	// Mirror the selector: only delegate hygiene here. Do NOT call into the injector during teardown
-	// (subsystem teardown order is unspecified) — the injector's own Deinitialize reverts everything
-	// still active, so the world is restored regardless.
 	UnregisterHUD();
 	LiveFires.Reset();
 	Super::Deinitialize();
@@ -97,7 +77,6 @@ void UAnomalyAutoInjectorSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Dormant when neither switch is on -> existing gates byte-identical (no poll, no schedule, no draw).
 	if (!bEnabled && !bRunning)
 	{
 		return;
@@ -105,37 +84,34 @@ void UAnomalyAutoInjectorSubsystem::Tick(float DeltaTime)
 
 	if (bEnabled)
 	{
-		PollInput();   // eyeball shell: raw keys -> toggle pool / run / reseed
+		PollInput();
 	}
 	if (bRunning)
 	{
-		AdvanceTime(DeltaTime);   // auto-feed the deterministic core with the frame delta
+		AdvanceTime(DeltaTime);
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Activation
-// ---------------------------------------------------------------------------
 
 void UAnomalyAutoInjectorSubsystem::SetEnabled(bool bInEnabled)
 {
 	if (bInEnabled == bEnabled)
 	{
 		UE_LOG(LogAnomaly, Log, TEXT("IAI.Auto.Enable: already %s."), bInEnabled ? TEXT("ON") : TEXT("OFF"));
-		return;   // idempotent -> never double-registers the HUD delegate
+		return;
 	}
 
 	bEnabled = bInEnabled;
 	if (bEnabled)
 	{
-		WarnOnCoexistence();   // e.g. selector UI already on (gate C: SelectorUI 1 then Auto.Enable 1)
+		WarnOnCoexistence();
 		RegisterHUD();
 	}
 	else
 	{
 		if (bRunning)
 		{
-			SetRunning(false);   // stop firing + revert live fires before going dormant
+			SetRunning(false);
 		}
 		UnregisterHUD();
 		LastFireResult.Reset();
@@ -154,17 +130,15 @@ void UAnomalyAutoInjectorSubsystem::SetRunning(bool bInRunning)
 	if (bInRunning && !bEnabled)
 	{
 		UE_LOG(LogAnomaly, Warning, TEXT("IAI.Auto.Run: enable the auto-injector first (IAI.Auto.Enable 1)."));
-		return;   // Run is forced OFF when !Enabled (ruling a)
+		return;
 	}
 
 	bRunning = bInRunning;
 	if (bRunning)
 	{
-		RevertAllLiveFires();     // clean slate (e.g. any leftover FireOnce test fires)
-		WarnOnCoexistence();      // selector-on / scoping-on warnings at run-start
-		Stream.Initialize(Seed);  // reproducible from the seed
-		// Arm the first interval (NOT 0): an interval draw precedes EVERY fire window, including the first
-		// (uniform draw protocol + a calmer start).
+		RevertAllLiveFires();
+		WarnOnCoexistence();
+		Stream.Initialize(Seed);
 		FireTimer = Stream.FRandRange(IntervalMin, IntervalMax);
 		UE_LOG(LogAnomaly, Log, TEXT("IAI.Auto.Run -> ON (seed %d, first fire in %.2fs)."), Seed, FireTimer);
 	}
@@ -175,18 +149,11 @@ void UAnomalyAutoInjectorSubsystem::SetRunning(bool bInRunning)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Explicit deterministic core
-// ---------------------------------------------------------------------------
 
 void UAnomalyAutoInjectorSubsystem::AdvanceTime(float DeltaSeconds)
 {
-	// 1) Service auto-reverts first so a freed slot can be reused by a fire this same call.
 	ServiceReverts(DeltaSeconds);
 
-	// 2) One timed fire window per call (frame-semantics). When the timer elapses, attempt one fire and
-	//    arm the next interval — the interval draw happens here regardless of whether the attempt fired,
-	//    so it is tied to the WINDOW, not to success (keeps the stream position deterministic).
 	FireTimer -= DeltaSeconds;
 	if (FireTimer <= 0.0f)
 	{
@@ -197,10 +164,6 @@ void UAnomalyAutoInjectorSubsystem::AdvanceTime(float DeltaSeconds)
 
 bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 {
-	// LOCKED DRAW PROTOCOL (R-SEED): stream draws happen on a FIXED schedule independent of ApplyAnomaly's
-	// result, so a zero-match never shifts stream position. Skip-paths consume ZERO draws (cap, empty
-	// Eligible, empty V); the Candidates-empty skip consumes exactly the Id draw; a real attempt draws
-	// Id, Target, Hold (in that order) THEN applies and registers on success only.
 
 	UWorld* World = GetWorld();
 	UAnomalyInjectorSubsystem* Injector = ResolveInjector(World);
@@ -209,13 +172,11 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		return false;
 	}
 
-	// Cap (0 draws). Also naturally bounded by the distinct enabled-id count via invariant (i).
 	if (LiveFires.Num() >= MaxConcurrent)
 	{
 		return false;
 	}
 
-	// Eligible = pool order, enabled, NOT currently live (invariant i). (0 draws.)
 	TArray<FName> Eligible;
 	Eligible.Reserve(GNumAutoPool);
 	for (const FName& Id : GAutoPool)
@@ -230,8 +191,6 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		return false;
 	}
 
-	// Renderable-visible set; empty on no view => never inject blind (R-CAD / R6). (0 draws.) Name-sort
-	// for deterministic RandHelper indexing (the set is unsorted by contract).
 	TArray<TWeakObjectPtr<AActor>> Visible = AnomalyViewport::GetVisibleRenderableActors(World);
 	if (Visible.Num() == 0)
 	{
@@ -246,10 +205,8 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		return AA->GetName() < BB->GetName();
 	});
 
-	// Draw 1 — Id.
 	const FName Id = Eligible[Stream.RandHelper(Eligible.Num())];
 
-	// Candidates = Visible - {actors hosting ANY live fire} (invariant ii, OVERRIDE-1: one anomaly per actor).
 	TArray<AActor*> Candidates;
 	Candidates.Reserve(Visible.Num());
 	for (const TWeakObjectPtr<AActor>& Weak : Visible)
@@ -262,15 +219,12 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	}
 	if (Candidates.Num() == 0)
 	{
-		// All visible actors already host a fire -> skip this window (the Id draw is consumed; locked).
 		return false;
 	}
 
-	// Draw 2 — Target. Draw 3 — Hold.
 	AActor* Target = Candidates[Stream.RandHelper(Candidates.Num())];
 	const float Hold = Stream.FRandRange(HoldMin, HoldMax);
 
-	// Apply to ONLY this actor via the "=" exact-match token (never a prefix-sibling). Register on success.
 	const FString TargetName = Target->GetName();
 	const FString Token = FString(TEXT("=")) + TargetName;
 	const bool bApplied = Injector->ApplyAnomaly(Id, TArray<FString>{ Token });
@@ -281,14 +235,12 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		Fire.Target = Target;
 		Fire.TargetName = TargetName;
 		Fire.SecondsRemaining = Hold;
-		Fire.StartFrame = GFrameCounter;   // capture/labeling: the fire's start frame (m7)
+		Fire.StartFrame = GFrameCounter;
 		LiveFires.Add(Fire);
 		LastFireResult = FString::Printf(TEXT("fire %s on %s (hold %.1fs)"), *Id.ToString(), *TargetName, Hold);
 	}
 	else
 	{
-		// Zero-match (e.g. an LOD id drawn onto a pure-VFX actor that is legitimately in the visible set):
-		// surface it, don't register, move on. The draws above are already spent (protocol locked).
 		LastFireResult = FString::Printf(TEXT("fire %s on %s: 0 matched (skipped)"), *Id.ToString(), *TargetName);
 	}
 	UE_LOG(LogAnomaly, Log, TEXT("Auto.Fire: '%s' on '%s' -> %s."),
@@ -296,9 +248,6 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	return bApplied;
 }
 
-// ---------------------------------------------------------------------------
-// Enable-set + cadence config
-// ---------------------------------------------------------------------------
 
 bool UAnomalyAutoInjectorSubsystem::SetAnomalyEnabled(FName Id, bool bInEnabled)
 {
@@ -336,7 +285,7 @@ void UAnomalyAutoInjectorSubsystem::SetAllAnomaliesEnabled(bool bInEnabled)
 void UAnomalyAutoInjectorSubsystem::SetSeed(int32 InSeed)
 {
 	Seed = InSeed;
-	Stream.Initialize(Seed);   // re-initialize now so a subsequent FireOnce/Step is reproducible
+	Stream.Initialize(Seed);
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.Auto.Seed -> %d."), Seed);
 }
 
@@ -367,14 +316,11 @@ void UAnomalyAutoInjectorSubsystem::SetPersist(bool bInPersist)
 		bPersist ? TEXT("ON") : TEXT("OFF"), bPersist ? TEXT("do NOT") : TEXT("do"));
 }
 
-// ---------------------------------------------------------------------------
-// Readbacks
-// ---------------------------------------------------------------------------
 
 TArray<FString> UAnomalyAutoInjectorSubsystem::GetEnabledIds() const
 {
 	TArray<FString> Result;
-	for (const FName& Id : GAutoPool)   // fixed pool order
+	for (const FName& Id : GAutoPool)
 	{
 		if (EnabledIds.Contains(Id))
 		{
@@ -411,7 +357,7 @@ TArray<FAutoLiveFireInfo> UAnomalyAutoInjectorSubsystem::GetLiveFires() const
 		FAutoLiveFireInfo Info;
 		Info.Id = Fire.Id;
 		Info.Target = Fire.TargetName;
-		Info.TargetActor = Fire.Target;          // the fired actor, for bounds projection (m7)
+		Info.TargetActor = Fire.Target;
 		Info.SecondsRemaining = Fire.SecondsRemaining;
 		Info.StartFrame = Fire.StartFrame;
 		Result.Add(Info);
@@ -440,9 +386,6 @@ void UAnomalyAutoInjectorSubsystem::LogStatus() const
 	UE_LOG(LogAnomaly, Log, TEXT("--- %d live fire(s) ---"), Live.Num());
 }
 
-// ---------------------------------------------------------------------------
-// Configurable keybinds
-// ---------------------------------------------------------------------------
 
 bool UAnomalyAutoInjectorSubsystem::SetKeyBinding(FName Action, FKey Key)
 {
@@ -462,9 +405,6 @@ bool UAnomalyAutoInjectorSubsystem::SetKeyBinding(FName Action, FKey Key)
 	return true;
 }
 
-// ---------------------------------------------------------------------------
-// Thin shells + internals
-// ---------------------------------------------------------------------------
 
 void UAnomalyAutoInjectorSubsystem::PollInput()
 {
@@ -473,7 +413,7 @@ void UAnomalyAutoInjectorSubsystem::PollInput()
 	{
 		return;
 	}
-	APlayerController* PC = World->GetFirstPlayerController();   // reachable each tick (gotcha G23)
+	APlayerController* PC = World->GetFirstPlayerController();
 	if (!PC)
 	{
 		return;
@@ -494,12 +434,11 @@ int32 UAnomalyAutoInjectorSubsystem::ServiceReverts(float DeltaSeconds)
 {
 	if (bPersist || LiveFires.Num() == 0)
 	{
-		return 0;   // persist -> fires never auto-expire (R-LIFE config flag)
+		return 0;
 	}
 
 	UAnomalyInjectorSubsystem* Injector = ResolveInjector(GetWorld());
 	int32 Reverted = 0;
-	// Reverse iterate for safe in-place removal.
 	for (int32 i = LiveFires.Num() - 1; i >= 0; --i)
 	{
 		LiveFires[i].SecondsRemaining -= DeltaSeconds;
@@ -507,7 +446,7 @@ int32 UAnomalyAutoInjectorSubsystem::ServiceReverts(float DeltaSeconds)
 		{
 			if (Injector)
 			{
-				Injector->RevertAnomaly(LiveFires[i].Id);   // GC-safe even if the target actor is gone
+				Injector->RevertAnomaly(LiveFires[i].Id);
 			}
 			UE_LOG(LogAnomaly, Log, TEXT("Auto.Revert: '%s' on '%s' (hold elapsed)."),
 				*LiveFires[i].Id.ToString(), *LiveFires[i].TargetName);
@@ -541,8 +480,6 @@ void UAnomalyAutoInjectorSubsystem::WarnOnCoexistence() const
 		return;
 	}
 
-	// R-COEXIST (warn, not block): manual selector/console injection of a pool id during an auto run will
-	// clobber via the registry's one-instance-per-id. The auto-injector can only track its OWN fires.
 	if (const UAnomalySelectorSubsystem* Selector = World->GetSubsystem<UAnomalySelectorSubsystem>())
 	{
 		if (Selector->IsUIEnabled())
@@ -553,9 +490,6 @@ void UAnomalyAutoInjectorSubsystem::WarnOnCoexistence() const
 		}
 	}
 
-	// Self-scoping: if viewport scoping is ON, the "=" apply re-tests visibility (redundant; can drop a
-	// target between pick and apply, m5 fact #3). Recommend OFF — but do NOT force it (would surprise a
-	// manual user).
 	if (UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World))
 	{
 		UE_LOG(LogAnomaly, Warning,
@@ -592,11 +526,8 @@ void UAnomalyAutoInjectorSubsystem::RegisterHUD()
 {
 	if (DebugDrawHandle.IsValid())
 	{
-		return;   // already registered (guard against double-register)
+		return;
 	}
-	// "Game" engine show flag — ON for any non-editor view; drawn by GameViewportClient::Draw with ZERO
-	// dependence on the host's HUD/GameMode class (gotcha G25). A second delegate alongside the selector's
-	// is additive (independent handles, both fire).
 	DebugDrawHandle = UDebugDrawService::Register(
 		TEXT("Game"),
 		FDebugDrawDelegate::CreateUObject(this, &UAnomalyAutoInjectorSubsystem::DrawHUD));
@@ -611,7 +542,7 @@ void UAnomalyAutoInjectorSubsystem::UnregisterHUD()
 	}
 }
 
-void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* /*PC*/)
+void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController*  )
 {
 	if (!bEnabled || !Canvas)
 	{
@@ -623,8 +554,6 @@ void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* 
 		return;
 	}
 
-	// Right column, off the selector's top-left HUD (both-on is unsupported, but a distinct anchor keeps
-	// it legible if the owner toggles both for a quick look).
 	const float X = FMath::Max(50.0f, Canvas->SizeX - 460.0f);
 	float Y = 80.0f;
 	const float LineH = 16.0f;
@@ -639,7 +568,6 @@ void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* 
 		Seed, IntervalMin, IntervalMax, HoldMin, HoldMax, MaxConcurrent, bPersist ? TEXT("   PERSIST") : TEXT("")), X, Y);
 	Y += LineH * 1.5f;
 
-	// Enable-set: the pool ids with on/off state (the gameplay-start "which types" selection).
 	Canvas->SetDrawColor(FColor::White);
 	Canvas->DrawText(Font, TEXT("Types:"), X, Y);
 	Y += LineH;
@@ -654,7 +582,6 @@ void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* 
 
 	Y += LineH * 0.5f;
 
-	// Live fires (id -> target, time left).
 	Canvas->SetDrawColor(FColor::White);
 	Canvas->DrawText(Font, FString::Printf(TEXT("Live (%d/%d):"), LiveFires.Num(), MaxConcurrent), X, Y);
 	Y += LineH;
@@ -676,12 +603,6 @@ void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* 
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Console command surface (the bridge thin-shell -> the explicit-core methods)
-//
-// Module-scoped FAutoConsoleCommandWithWorldAndArgs, mirroring the injector/selector pattern: each
-// resolves the auto-injector subsystem from the console's world and null-guards outside Game/PIE.
-// ---------------------------------------------------------------------------
 
 namespace
 {
