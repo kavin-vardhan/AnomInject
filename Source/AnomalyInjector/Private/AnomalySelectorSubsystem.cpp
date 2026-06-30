@@ -77,10 +77,13 @@ void UAnomalySelectorSubsystem::Tick(float DeltaTime)
 
 	if (AActor* Actor = SelectedActor.Get())
 	{
-		FVector Origin = FVector::ZeroVector;
-		FVector Extent = FVector::ZeroVector;
-		Actor->GetActorBounds( false, Origin, Extent);
-		DrawDebugBox(GetWorld(), Origin, Extent, FColor::Yellow,  false,  -1.0f,  0,  2.0f);
+		if (!AnomalyViewport::AreOverlaysSuppressed())
+		{
+			FVector Origin = FVector::ZeroVector;
+			FVector Extent = FVector::ZeroVector;
+			Actor->GetActorBounds( false, Origin, Extent);
+			DrawDebugBox(GetWorld(), Origin, Extent, FColor::Yellow,  false,  -1.0f,  0,  2.0f);
+		}
 	}
 }
 
@@ -364,7 +367,7 @@ void UAnomalySelectorSubsystem::UnregisterHUD()
 
 void UAnomalySelectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController*  )
 {
-	if (!bUIEnabled || !Canvas)
+	if (!bUIEnabled || !Canvas || AnomalyViewport::AreOverlaysSuppressed())
 	{
 		return;
 	}

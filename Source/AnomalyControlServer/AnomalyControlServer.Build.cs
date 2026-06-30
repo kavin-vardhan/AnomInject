@@ -16,9 +16,9 @@ public class AnomalyControlServer : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"AnomalyInjector",
+			"AnomalyCapture",
 			"WebSocketNetworking",
-			"Json",
-			"ImageWrapper"
+			"Json"
 		});
 
 		if (Target.Configuration == UnrealTargetConfiguration.Shipping)

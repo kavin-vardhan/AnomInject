@@ -43,13 +43,12 @@ namespace AnomalyPreview
 		return true;
 	}
 
-	bool CaptureGameViewportEncoded(UWorld* World, EImageFormat Format, TArray<uint8>& OutBytes,
-		int32& OutWidth, int32& OutHeight, int32 JpegQuality)
+	bool EncodePixels(EImageFormat Format, const TArray<FColor>& Pixels, int32 Width, int32 Height,
+		TArray<uint8>& OutBytes, int32 JpegQuality)
 	{
 		OutBytes.Reset();
 
-		TArray<FColor> Pixels;
-		if (!CaptureGameViewportRaw(World, Pixels, OutWidth, OutHeight))
+		if (Width <= 0 || Height <= 0 || Pixels.Num() < Width * Height)
 		{
 			return false;
 		}
@@ -61,7 +60,7 @@ namespace AnomalyPreview
 		{
 			return false;
 		}
-		if (!Wrapper->SetRaw(Pixels.GetData(), (int64)Pixels.Num() * sizeof(FColor), OutWidth, OutHeight, ERGBFormat::BGRA, 8))
+		if (!Wrapper->SetRaw(Pixels.GetData(), (int64)Width * (int64)Height * sizeof(FColor), Width, Height, ERGBFormat::BGRA, 8))
 		{
 			return false;
 		}
@@ -76,6 +75,20 @@ namespace AnomalyPreview
 		OutBytes.SetNumUninitialized(Compressed.Num());
 		FMemory::Memcpy(OutBytes.GetData(), Compressed.GetData(), Compressed.Num());
 		return true;
+	}
+
+	bool CaptureGameViewportEncoded(UWorld* World, EImageFormat Format, TArray<uint8>& OutBytes,
+		int32& OutWidth, int32& OutHeight, int32 JpegQuality)
+	{
+		OutBytes.Reset();
+
+		TArray<FColor> Pixels;
+		if (!CaptureGameViewportRaw(World, Pixels, OutWidth, OutHeight))
+		{
+			return false;
+		}
+
+		return EncodePixels(Format, Pixels, OutWidth, OutHeight, OutBytes, JpegQuality);
 	}
 
 	bool CaptureGameViewportJpeg(UWorld* World, TArray<uint8>& OutJpeg, int32& OutWidth, int32& OutHeight, int32 Quality)

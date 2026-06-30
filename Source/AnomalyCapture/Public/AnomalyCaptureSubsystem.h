@@ -5,12 +5,17 @@
 #include "AnomalyViewport.h"
 #include "AnomalyCaptureSubsystem.generated.h"
 
+struct FAnomalyCaptureAsyncState;
+
 UCLASS()
-class ANOMALYCONTROLSERVER_API UAnomalyCaptureSubsystem : public UTickableWorldSubsystem
+class ANOMALYCAPTURE_API UAnomalyCaptureSubsystem : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
+	UAnomalyCaptureSubsystem();
+	virtual ~UAnomalyCaptureSubsystem();
+
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
@@ -32,6 +37,10 @@ public:
 
 	void SetViewLag(int32 L);
 
+	// Async capture toggle (default ON). When OFF, falls back to the synchronous ReadPixels grab.
+	void SetAsyncCapture(bool bInAsync);
+	bool IsAsyncCapture() const { return bAsyncCapture; }
+
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
@@ -43,7 +52,8 @@ private:
 		SettleAfterFire,
 		Positives,
 		SettleAfterRevert,
-		PostGap
+		PostGap,
+		DrainTail
 	};
 
 	void BeginFire();
@@ -53,6 +63,11 @@ private:
 	void SampleViewThisTick();
 	FAnomalyViewInfo ProjectionView() const;
 	class UAnomalyAutoInjectorSubsystem* ResolveAuto() const;
+
+	// Async capture helpers.
+	void EnsureCapturer();
+	void ProcessCompletedFrames();
+	void DrainAsyncToCompletion();
 
 	bool bRunning = false;
 	ECapturePhase Phase = ECapturePhase::Idle;
@@ -75,4 +90,14 @@ private:
 
 	int32 ViewLagFrames = 0;
 	TArray<FAnomalyViewInfo> ViewRing;
+
+	bool bAsyncCapture = true;
+	TUniquePtr<FAnomalyCaptureAsyncState> Async;
+
+#if WITH_EDITOR
+	// Saved/restored around a capture run so the editor's PIE "Shift+F1 for Mouse Cursor" hint does
+	// not contaminate captured frames (transient in-memory only — never SaveConfig'd).
+	bool bSavedShowMouseControlLabel = false;
+	bool bMouseLabelOverridden = false;
+#endif
 };

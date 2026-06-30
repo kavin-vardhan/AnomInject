@@ -78,9 +78,9 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API float GetPollRadius();
 
-	ANOMALYINJECTOR_API void SetDebugSphereSuppressed(bool bSuppressed);
+	ANOMALYINJECTOR_API void SetOverlaysSuppressed(bool bSuppressed);
 
-	ANOMALYINJECTOR_API bool IsDebugSphereSuppressed();
+	ANOMALYINJECTOR_API bool AreOverlaysSuppressed();
 
 
 	ANOMALYINJECTOR_API void SetMinScreenCoveragePct(float Pct);

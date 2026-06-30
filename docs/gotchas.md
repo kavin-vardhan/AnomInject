@@ -759,3 +759,59 @@ identity, and byte-identical because it's the same VP + near=on/far=off flags. C
 wants the true clamped on-screen footprint (clamp-before-area). No capture-module dependency, no dedup needed (both projectors live
 in `AnomalyViewport`). Console `IAI.SetMinScreenCoverage <pct>` (plain global cmd) + `IAI.DumpCoverage` (tuning diagnostic).
 Touch only `AnomalyViewport.{h,cpp}` + docs; no dep / no `IAnomaly` change. (2026-06-22.)
+
+### G52 — the player-visible frame (GAME UI IN) is ONLY at the post-Slate backbuffer, NOT the scene-view-extension after-tonemap (stencil-capture S1)
+The contract is "capture the REAL player frame, game UI included, minus only our own dev overlays." The SVE post-processing
+pass (`SubscribeToPostProcessingPass` @ `Tonemap`) gives the final 3D color but it is **pre-HUD/Slate** — it drops the game's
+UI too. The only UI-inclusive, async-readback-able surface is **`FSlateRenderer::OnBackBufferReadyToPresent`** (render thread,
+after Slate composite, before present). Clip to the game-viewport rect via the engine's **FFrameGrabber pattern**: resolve
+`World->GetGameViewport()->GetGameViewportWidget()` → `FSlateApplication::FindWidgetWindow` → store the `SWindow*` as
+`TargetWindowPtr`, compute `CaptureRect` from the arranged widget's `GetAbsolutePosition/Size`, and in the callback ignore any
+window where `&SlateWindow != TargetWindowPtr`. This clips to the PIE viewport sub-rect EVEN in docked PIE → never captures
+editor chrome (the m7 backbuffer-grabs-whole-editor trap, G40, avoided). Consequence for later stages: color (backbuffer,
+post-Slate) and custom-stencil/depth (mid scene-render, pre-Slate, SVE) are now **two grab points in the same frame**, joined by
+the submit `GFrameCounter`. (2026-06-30.)
+
+### G53 — async readback that doesn't stall the game thread: keep ONLY the lock-copy-out on the render thread; encode+write go to a worker (stencil-capture S1)
+"Reasoned non-blocking" is not "measured non-blocking." The first cut polled `IsReady()` correctly and never blocked on the GPU,
+but it did the **format-convert on the render thread and the PNG encode + file write on the GAME thread** (in the per-tick
+drain). Per captured frame that is tens of ms of encode + disk I/O on the game thread; with `positive=8` it's 8 consecutive
+hitches, and since **animation is game-thread-advanced, the game-thread stall IS visible animation judder.** Fix: the render
+thread does ONLY the mandatory lock-copy-out (`Lock` is IsReady-gated; then a stride-removed `memcpy` of the raw native bytes;
+`Unlock`) — no convert, no encode. A thread-pool worker (`Async(ThreadPool)`, `FAnomalyAsyncWriter`) does convert + encode +
+write + jsonl-append (append serialized by a lock; counters atomic, mirrored to the game thread). The label RECORD is built on
+the **game thread** because it projects the target actor's bounds (UObject access is game-thread-only). Preload the ImageWrapper
+module on the game thread so workers never module-load. Only flush at run end, never per frame. (2026-06-30.)
+
+### G54 — `AddOnScreenDebugMessage` has an on-screen LIFETIME; a stop-new-adds gate cannot evict an already-displayed one (stencil-capture S1)
+The heartbeat used `AddOnScreenDebugMessage(key, 2.5s, …)`. Gating the ADD when overlays are suppressed stops NEW heartbeats,
+but a message added just before a capture run keeps DISPLAYING for its 2.5 s lifetime — leaking onto the lead-in frames. Evict
+it actively: call `GEngine->RemoveOnScreenDebugMessage(key)` **every tick while suppressed** (cheap; no-op if absent) so the
+lingering message is gone within one frame of the run starting. (2026-06-30.)
+
+### G55 — `ULevelEditorPlaySettings::ShowMouseControlLabel` is a one-shot SHOW-gate, NOT a live toggle (stencil-capture S1)
+The PIE "Shift+F1 for Mouse Cursor" hint is shown ONCE at PIE start (`SLevelViewport::StartPlayInEditor`, ~`:4035`) and on
+viewport swap (`:4327`), both gated by `ShowMouseControlLabel`. The widget is then persistent and **self-fades** via per-frame
+opacity/visibility delegates. So flipping the setting false mid-PIE does NOT hide an already-shown/fading label — a run-start
+flip is a no-op for the live label (it only prevents future swap re-shows). The reliable fix is to disable the setting at the
+capture subsystem's **Initialize** (PIE-world bring-up, before the viewport shows the label) and restore at Deinitialize →
+suppressed for the whole PIE session (an accepted trade for a capture tool). Transient (never `SaveConfig`), `WITH_EDITOR`-only,
+needs the `UnrealEd` editor dep (`if (Target.bBuildEditor)`). Relies on Initialize running before the label show (normal PIE
+order); if it doesn't hold, a force-hide of the live widget is the fallback. (2026-06-30.)
+
+### G56 — the LAST async-captured frame presents the NEXT frame, after a same-tick end-of-run flush → dropped; a DrainTail phase fixes it (stencil-capture S1)
+The final burst's last frame is armed on the tick the run wants to finish, but its backbuffer presents only the NEXT frame —
+after `FinishRun`'s bounded `FlushRenderingCommands` already ran — so its readback is never even enqueued and the frame is
+dropped ("1 frame did not resolve by run end"). A bigger flush can't help (you can't present a new frame synchronously inside a
+tick). Fix: a **`DrainTail` FSM phase** entered instead of finalizing — it ticks `max(10, ViewLag+4)` more frames; the per-tick
+`ProcessCompletedFrames` drains the tail as the last presents + GPU readbacks resolve naturally, and `FinishRun` fires the moment
+`PendingSnapshots==0`. A clean burst-count run drops ZERO frames. (Manual `IAI.Capture.Stop` keeps the bounded flush and may drop
+one in-flight frame on an abort — acceptable.) (2026-06-30.)
+
+### G57 — adaptive non-unity build exposes missing transitive includes a relocated/new .cpp relied on (stencil-capture S1)
+UBT's adaptive build uses `git status` to pull CHANGED/untracked files OUT of the unity blob and compile them individually. A
+relocated file (e.g. `AnomalyLabelWriter.cpp` moved into the new module) then loses includes a unity neighbor used to provide,
+so it fails standalone (here: `TCondensedJsonPrintPolicy` undeclared). The build that "passed" earlier only did so because the
+file was still unity-blobbed; the isolation set shifts as files change. Make every file **self-contained** (added explicit
+`Policies/CondensedJsonPrintPolicy.h` / `PrettyJsonPrintPolicy.h`). This is also why a clean non-unity compile is a stronger
+gate than a unity one. (2026-06-30.)

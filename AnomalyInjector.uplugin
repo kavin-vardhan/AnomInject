@@ -22,6 +22,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "AnomalyCapture",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "AnomalyControlServer",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"

@@ -1,8 +1,8 @@
 #include "AnomalyLabelWriter.h"
 
-#include "AnomalyControlServerLog.h"
+#include "AnomalyCaptureLog.h"
 
-#if ANOMALY_CONTROL_SERVER
+#if ANOMALY_CAPTURE
 
 #include "AnomalyPreviewCapture.h"
 #include "AnomalyViewport.h"
@@ -15,11 +15,14 @@
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Math/Float16Color.h"
 
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Serialization/JsonWriter.h"
 #include "Serialization/JsonSerializer.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
+#include "Policies/PrettyJsonPrintPolicy.h"
 
 namespace
 {
@@ -30,14 +33,15 @@ namespace
 		return { LabelNum(X), LabelNum(Y), LabelNum(Z) };
 	}
 
-	FString BuildFrameLabelRecord(UWorld* World, const TArray<FAutoLiveFireInfo>& Fires,
-		const FAnomalyViewInfo& View, int32 W, int32 H, uint64 FrameIndex, const FString& ImageName, int32& OutNumLabels)
+	FString BuildFrameLabelRecord(const TArray<FAutoLiveFireInfo>& Fires,
+		const FAnomalyViewInfo& View, int32 W, int32 H, uint64 FrameIndex, double TimeSeconds,
+		const FString& ImageName, int32& OutNumLabels)
 	{
 		OutNumLabels = 0;
 
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetNumberField(TEXT("frame_index"), (double)FrameIndex);
-		Root->SetNumberField(TEXT("t"), World ? World->GetTimeSeconds() : 0.0);
+		Root->SetNumberField(TEXT("t"), TimeSeconds);
 		Root->SetStringField(TEXT("image"), ImageName);
 		Root->SetNumberField(TEXT("width"), W);
 		Root->SetNumberField(TEXT("height"), H);
@@ -93,6 +97,77 @@ namespace
 		FJsonSerializer::Serialize(Root, Writer);
 		return Out;
 	}
+
+	bool AppendRecordAndImage(const FString& OutputDir, const TArray<uint8>& ImageBytes, const TCHAR* Ext,
+		const FString& Record, uint64 FrameIndex, FString& OutImagePath, FString& OutSidecarPath, bool bLog)
+	{
+		const FString ImageName = FString::Printf(TEXT("frame_%llu.%s"), FrameIndex, Ext);
+		const FString ImagePath = FPaths::Combine(OutputDir, ImageName);
+		const FString SidecarPath = FPaths::Combine(OutputDir, TEXT("labels.jsonl"));
+
+		IFileManager::Get().MakeDirectory(*OutputDir, true);
+		if (!FFileHelper::SaveArrayToFile(ImageBytes, *ImagePath))
+		{
+			if (bLog)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture: failed to write image '%s'."), *ImagePath);
+			}
+			return false;
+		}
+
+		FFileHelper::SaveStringToFile(Record + TEXT("\n"), *SidecarPath,
+			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+
+		OutImagePath = ImagePath;
+		OutSidecarPath = SidecarPath;
+		return true;
+	}
+
+	// Worker-thread convert: tight (stride-removed) native-format pixels -> opaque BGRA8 (FColor).
+	void ConvertTightToBGRA(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
+		int32 W, int32 H, TArray<FColor>& OutPixels)
+	{
+		OutPixels.SetNumUninitialized(W * H);
+		const uint8* Base = RawBytes.GetData();
+
+		for (int32 i = 0; i < W * H; ++i)
+		{
+			const uint8* P = Base + (int64)i * BytesPerPixel;
+			FColor& Out = OutPixels[i];
+
+			switch (Format)
+			{
+			case PF_B8G8R8A8:
+				Out = FColor(P[2], P[1], P[0], 255);   // bytes B,G,R,A
+				break;
+			case PF_R8G8B8A8:
+				Out = FColor(P[0], P[1], P[2], 255);   // bytes R,G,B,A
+				break;
+			case PF_A2B10G10R10:
+			{
+				const uint32 V = *reinterpret_cast<const uint32*>(P);
+				const uint8 R = (uint8)(((V >> 0) & 0x3FF) >> 2);
+				const uint8 G = (uint8)(((V >> 10) & 0x3FF) >> 2);
+				const uint8 B = (uint8)(((V >> 20) & 0x3FF) >> 2);
+				Out = FColor(R, G, B, 255);
+				break;
+			}
+			case PF_FloatRGBA:
+			{
+				const FFloat16* H16 = reinterpret_cast<const FFloat16*>(P);
+				auto ToByte = [](const FFloat16& In) -> uint8
+				{
+					return (uint8)FMath::Clamp(FMath::RoundToInt(In.GetFloat() * 255.0f), 0, 255);
+				};
+				Out = FColor(ToByte(H16[0]), ToByte(H16[1]), ToByte(H16[2]), 255);
+				break;
+			}
+			default:
+				Out = FColor(0, 0, 0, 255);
+				break;
+			}
+		}
+	}
 }
 
 namespace AnomalyLabel
@@ -112,7 +187,6 @@ namespace AnomalyLabel
 		{
 			Fires = Auto->GetLiveFires();
 		}
-		const FAnomalyViewInfo& View = ProjectionView;
 
 		TArray<uint8> ImageBytes;
 		int32 W = 0, H = 0;
@@ -120,7 +194,7 @@ namespace AnomalyLabel
 		{
 			if (bLog)
 			{
-				UE_LOG(LogAnomalyServer, Warning, TEXT("Capture: game-viewport capture failed (no game viewport?)."));
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture: game-viewport capture failed (no game viewport?)."));
 			}
 			return false;
 		}
@@ -128,25 +202,54 @@ namespace AnomalyLabel
 		const uint64 FrameIndex = GFrameCounter;
 		const TCHAR* Ext = (Format == AnomalyPreview::EImageFormat::PNG) ? TEXT("png") : TEXT("jpg");
 		const FString ImageName = FString::Printf(TEXT("frame_%llu.%s"), FrameIndex, Ext);
-		const FString ImagePath = FPaths::Combine(OutputDir, ImageName);
-		const FString SidecarPath = FPaths::Combine(OutputDir, TEXT("labels.jsonl"));
 
-		IFileManager::Get().MakeDirectory(*OutputDir,  true);
-		if (!FFileHelper::SaveArrayToFile(ImageBytes, *ImagePath))
+		const FString Record = BuildFrameLabelRecord(Fires, ProjectionView, W, H, FrameIndex,
+			World->GetTimeSeconds(), ImageName, OutNumLabels);
+
+		return AppendRecordAndImage(OutputDir, ImageBytes, Ext, Record, FrameIndex, OutImagePath, OutSidecarPath, bLog);
+	}
+
+	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
+		const FString& ImageName, int32& OutNumLabels)
+	{
+		return BuildFrameLabelRecord(Snapshot.Fires, Snapshot.View, Width, Height,
+			Snapshot.FrameCounter, Snapshot.TimeSeconds, ImageName, OutNumLabels);
+	}
+
+	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
+		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
+		uint64 FrameIndex, const FString& Record, FCriticalSection& JsonlLock)
+	{
+		if (Width <= 0 || Height <= 0 || BytesPerPixel <= 0 || RawBytes.Num() < (int64)Width * Height * BytesPerPixel)
 		{
-			if (bLog)
-			{
-				UE_LOG(LogAnomalyServer, Warning, TEXT("Capture: failed to write image '%s'."), *ImagePath);
-			}
 			return false;
 		}
 
-		const FString Record = BuildFrameLabelRecord(World, Fires, View, W, H, FrameIndex, ImageName, OutNumLabels);
-		FFileHelper::SaveStringToFile(Record + TEXT("\n"), *SidecarPath,
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+		TArray<FColor> Pixels;
+		ConvertTightToBGRA(SrcFormat, BytesPerPixel, RawBytes, Width, Height, Pixels);
 
-		OutImagePath = ImagePath;
-		OutSidecarPath = SidecarPath;
+		TArray<uint8> ImageBytes;
+		if (!AnomalyPreview::EncodePixels(OutFormat, Pixels, Width, Height, ImageBytes))
+		{
+			return false;
+		}
+
+		const TCHAR* Ext = (OutFormat == AnomalyPreview::EImageFormat::PNG) ? TEXT("png") : TEXT("jpg");
+		const FString ImageName = FString::Printf(TEXT("frame_%llu.%s"), FrameIndex, Ext);
+		const FString ImagePath = FPaths::Combine(OutputDir, ImageName);
+
+		IFileManager::Get().MakeDirectory(*OutputDir, true);
+		if (!FFileHelper::SaveArrayToFile(ImageBytes, *ImagePath))
+		{
+			return false;
+		}
+
+		{
+			FScopeLock Lock(&JsonlLock);
+			FFileHelper::SaveStringToFile(Record + TEXT("\n"), *FPaths::Combine(OutputDir, TEXT("labels.jsonl")),
+				FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+		}
+
 		return true;
 	}
 
@@ -171,7 +274,7 @@ namespace AnomalyLabel
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
 		FJsonSerializer::Serialize(Root, Writer);
 
-		IFileManager::Get().MakeDirectory(*RunDir,  true);
+		IFileManager::Get().MakeDirectory(*RunDir, true);
 		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("run.json")),
 			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	}
@@ -222,12 +325,12 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 			int32 NumLabels = 0;
 			if (AnomalyLabel::CaptureLabeledShot(World, Dir, Format, View, ImagePath, SidecarPath, NumLabels))
 			{
-				UE_LOG(LogAnomalyServer, Log, TEXT("Capture.Shot: wrote '%s' (%d valid bbox label(s)); record appended to '%s'."),
+				UE_LOG(LogAnomalyCapture, Log, TEXT("Capture.Shot: wrote '%s' (%d valid bbox label(s)); record appended to '%s'."),
 					*ImagePath, NumLabels, *SidecarPath);
 			}
 			else
 			{
-				UE_LOG(LogAnomalyServer, Warning, TEXT("Capture.Shot: failed (run inside a Game/PIE world with a live viewport)."));
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture.Shot: failed (run inside a Game/PIE world with a live viewport)."));
 			}
 		}));
 

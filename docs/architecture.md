@@ -465,11 +465,25 @@ future non-object track.
   Tab/C/G/H, rebindable via `IAI.Auto.Bind`); interval [4,9]s, hold [3,6]s, MaxConcurrent 4 (tuned for clear
   eyeballing — tighten later for dataset density). All console-settable.
 
-## Capture & Labeling — `UAnomalyCaptureSubsystem` (m7, in the `AnomalyControlServer` module)
+## Capture & Labeling — `UAnomalyCaptureSubsystem` (m7; relocated to the `AnomalyCapture` module — stencil-capture S1)
 Produces an ML-friendly **labeled image sequence** from a LIVE auto-injection run (L1: labels are the injector's own
-ground truth, not a replay diff). Housed in the control-server module (Q2 — reuses its game-viewport capture primitive +
-ImageWrapper + JSON; gated by `ANOMALY_CONTROL_SERVER`, so compiled out of Shipping — dataset capture is a dev/research
-activity in a packaged Development/Test build, never a retail Shipping build, satisfying L5).
+ground truth, not a replay diff).
+
+> **AS-BUILT UPDATE (`feature/stencil-capture` Stage 1, 2026-06-30 — see `docs/sessions/2026-06-30-015-stencil-capture-stage1.md`).**
+> Capture was **extracted from `AnomalyControlServer` into a new quarantined module `AnomalyCapture`** (gated `ANOMALY_CAPTURE`,
+> own log cat `LogAnomalyCapture`, render/Slate + `bBuildEditor`-only `UnrealEd` deps compiled out of Shipping; `ControlServer`
+> now depends on it). The default grab is now **async + UI-inclusive**: `FAnomalyFrameCapturer` reads the post-Slate composited
+> **backbuffer** (`OnBackBufferReadyToPresent`, the REAL player frame with game UI) clipped to the game-viewport rect, via a
+> staged `FRHIGPUTextureReadback`, with convert+encode+write on a **thread pool** (`FAnomalyAsyncWriter`) — non-blocking, no
+> game-thread stall. Only OUR dev overlays are suppressed during a run (`AnomalyViewport::SetOverlaysSuppressed` + heartbeat
+> eviction + PIE mouse-label disable at `Initialize`). `IAI.Capture.Async <0|1>` toggles back to the legacy **synchronous
+> `ReadPixels`** path described below (now the fallback). The 2D projected box below is UNCHANGED this stage; the occlusion-
+> correct stencil box is Stage 3 (color and stencil become two grab points joined by submit frame id). Gotchas G52–G57.
+> The rest of this section documents the m7 sync/labeling internals, which the fallback path still uses.
+
+The m7 housing (now the fallback path): reuses the game-viewport capture primitive +
+ImageWrapper + JSON; gated by `ANOMALY_CAPTURE`, so compiled out of Shipping — dataset capture is a dev/research
+activity in a packaged Development/Test build, never a retail Shipping build, satisfying L5.
 
 - **Three sanctioned core exposures (the ONLY `AnomalyInjector` touches).** `IAnomaly`, the injector core, the seven
   anomalies, the leaf helpers, the `=` exact-match, and `GetVisibleRenderableActors` are **byte-clean**:

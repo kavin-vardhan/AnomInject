@@ -29,7 +29,7 @@ namespace
 
 	float GPollRadius = 0.0f;
 	FDelegateHandle GPollRadiusDrawHandle;
-	bool GSuppressDebugSphere = false;
+	bool GOverlaysSuppressed = false;
 
 	float GMinScreenCoveragePct = 0.0f;
 
@@ -51,7 +51,7 @@ namespace
 	void DrawPollRadiusTick(UWorld* World, ELevelTick  , float  )
 	{
 		const float R = GPollRadius;
-		if (R <= 0.0f || GSuppressDebugSphere || !World || !World->IsGameWorld())
+		if (R <= 0.0f || GOverlaysSuppressed || !World || !World->IsGameWorld())
 		{
 			return;
 		}
@@ -622,14 +622,14 @@ namespace AnomalyViewport
 		return GPollRadius;
 	}
 
-	void SetDebugSphereSuppressed(bool bSuppressed)
+	void SetOverlaysSuppressed(bool bSuppressed)
 	{
-		GSuppressDebugSphere = bSuppressed;
+		GOverlaysSuppressed = bSuppressed;
 	}
 
-	bool IsDebugSphereSuppressed()
+	bool AreOverlaysSuppressed()
 	{
-		return GSuppressDebugSphere;
+		return GOverlaysSuppressed;
 	}
 
 	void SetMinScreenCoveragePct(float Pct)

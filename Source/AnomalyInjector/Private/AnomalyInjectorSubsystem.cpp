@@ -161,6 +161,14 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Clear any lingering heartbeat the instant overlays are suppressed (a capture run started).
+	// AddOnScreenDebugMessage has a 2.5s lifetime, so a heartbeat added just before the run would
+	// otherwise persist on-screen across the lead-in frames even though new ones are gated off.
+	if (GEngine && AnomalyViewport::AreOverlaysSuppressed())
+	{
+		GEngine->RemoveOnScreenDebugMessage(GAnomalyHeartbeatKey);
+	}
+
 	for (const TPair<FName, TUniquePtr<IAnomaly>>& Pair : Anomalies)
 	{
 		if (Pair.Value && Pair.Value->IsActive())
@@ -174,7 +182,9 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 	{
 		HeartbeatAccumulator = 0.0f;
 		const int32 ActiveCount = GetActiveAnomalyCount();
-		if (GEngine)
+		// Our own on-screen telemetry is a dev overlay -> suppress it on capture frames (only the
+		// GAME's UI belongs in a captured frame). Same flag as the sphere / selector / auto HUDs.
+		if (GEngine && !AnomalyViewport::AreOverlaysSuppressed())
 		{
 			GEngine->AddOnScreenDebugMessage(
 				GAnomalyHeartbeatKey,

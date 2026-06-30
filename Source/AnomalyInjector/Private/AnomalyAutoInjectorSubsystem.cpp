@@ -544,7 +544,7 @@ void UAnomalyAutoInjectorSubsystem::UnregisterHUD()
 
 void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController*  )
 {
-	if (!bEnabled || !Canvas)
+	if (!bEnabled || !Canvas || AnomalyViewport::AreOverlaysSuppressed())
 	{
 		return;
 	}
