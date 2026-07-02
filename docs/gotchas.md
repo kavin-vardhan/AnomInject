@@ -108,7 +108,7 @@ Without this you get incomplete-type errors at the implicitly-generated destruct
 UnrealBuildTool puts only the module's `Public/` and `Private/` roots on the include path, **not**
 subfolders. The concrete anomalies live in `Private/Anomalies/`, so every include of them — in their
 own `.cpp` and in the subsystem `.cpp` — must be path-relative from `Private/`:
-`#include "Anomalies/Anomaly_Flicker.h"`. Public headers (`IAnomaly.h`, `AnomalyTargeting.h`)
+`#include "Anomalies/Anomaly_Blinking.h"`. Public headers (`IAnomaly.h`, `AnomalyTargeting.h`)
 include bare. (2026-06-09.)
 
 ### G11 — `SetGlobalTimeDilation` is clamped by WorldSettings (M1)
@@ -120,7 +120,7 @@ Revert restores the **captured pre-Apply baseline** (AMB-3 ruling — overrides 
 was captured. (2026-06-09.)
 
 ### G12 — Actor-scoped anomalies share the single `bHidden` flag (last-writer-wins) (M1)
-`missing_object` and `flicker` both drive `SetActorHiddenInGame` on their targets. If two such
+`missing_object` and `blinking` both drive `SetActorHiddenInGame` on their targets. If two such
 anomalies target the **same** actor, they fight over one boolean: **last-writer-wins**. This is
 acceptable for M1 because the terminal state after `RevertAll` is always visible (every hide-revert
 ends in `SetActorHiddenInGame(false)`); only intermediate frames during deliberate concurrent use
@@ -466,7 +466,7 @@ coordinator** — by holding two scheduler invariants:
   each anomaly's `if (bActive) Revert();`). So the scheduler **never re-fires a still-live id** (the natural
   concurrency ceiling = distinct enabled-id count, and clean revert accounting — it only ever reverts what it fired).
 - **(ii) one anomaly per actor.** `Candidates = V − {actors hosting ANY live fire}` (`TryFireOnce`). This single
-  invariant **subsumes BOTH conflict groups** — bHidden (`missing_object`/`flicker` both `SetActorHiddenInGame`) AND
+  invariant **subsumes BOTH conflict groups** — bHidden (`missing_object`/`blinking` both `SetActorHiddenInGame`) AND
   forced-LOD (`lod_corruption`/`lod_popping` both `AnomalyLod::SetForcedLod`) — **and** the hide-masks-LOD case (a hide
   hiding a LOD change = an invisible/mislabeled sample, the exact failure the viewport layer exists to prevent). Among
   the 4 pool ids all 6 cross-pairs are either same-resource or visibility-masks-LOD, so one-per-actor is strictly
@@ -509,7 +509,7 @@ new control-server module (`AnomalyControlServer`) first reused the core's `LogA
 The `IsRenderableComponent` allowlist originally admitted **three** families — static mesh, skeletal/skinned mesh, **and
 VFX** (`UFXSystemComponent`, the common Engine base of Niagara + Cascade; G29/R1). The VFX clause is now **removed**: the
 renderable-visible set is **SM ∥ SK only**. Rationale: particles are not useful *injectable geometry* targets — the four
-object-scoped anomalies are hide / flicker / forced-LOD, none of which produce a meaningful, labelable corruption on a
+object-scoped anomalies are hide / blinking / forced-LOD, none of which produce a meaningful, labelable corruption on a
 pure-particle actor (the LOD pair can't even match one — no mesh LODs), so offering particles in the selectable/auto/
 dashboard set only invites unlabeled or no-op samples. This reverses the prior R1 ruling deliberately.
 - **Single change, single source of truth:** drop `|| Component->IsA<UFXSystemComponent>()` from the allowlist in
@@ -595,7 +595,7 @@ The capture subsystem **skips K frames after BOTH the fire AND the revert** befo
 (G41) — never conflate them. Gate-2 validated the revert→negative boundary specifically. (m7, 2026-06-20.)
 
 ### G38 — the 2D bbox projects the fired actor's PERSISTED bounds by TYPE, NOT the renderable-visible set (m7)
-`missing_object`/`flicker` **hide** the actor, so by capture time it has left the renderable-visible set
+`missing_object`/`blinking` **hide** the actor, so by capture time it has left the renderable-visible set
 (`GetVisibleRenderableActorInfos` excludes it — `IsVisible()==false`). But the label box must mark **where the now-hidden
 object is** (the correct missing-object label). So `AnomalyViewport::ProjectActorBoundsToScreenRect` unions the actor's
 static/skeletal-mesh component `Bounds` selected by **TYPE ONLY** (`IsA<UStaticMeshComponent>() || IsA<USkinnedMeshComponent>()`),

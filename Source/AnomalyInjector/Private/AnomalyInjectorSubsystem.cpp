@@ -14,7 +14,7 @@
 #include "Components/PrimitiveComponent.h"
 
 #include "Anomalies/Anomaly_MissingObject.h"
-#include "Anomalies/Anomaly_Flicker.h"
+#include "Anomalies/Anomaly_Blinking.h"
 #include "Anomalies/Anomaly_TimeDilation.h"
 #include "Anomalies/Anomaly_LightingMismatch.h"
 #include "Anomalies/Anomaly_LodCorruption.h"
@@ -68,7 +68,7 @@ namespace
 		{
 			OutScope = EAnomalyScope::Object;
 		}
-		else if (Id == FName(TEXT("flicker")))
+		else if (Id == FName(TEXT("blinking")))
 		{
 			OutScope = EAnomalyScope::Object;
 			OutArgs.Add(FloatArg(TEXT("hz"), TEXT("5"), 0.0, 60.0));
@@ -125,7 +125,7 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		Anomalies.Add(Id, MoveTemp(Anomaly));
 	};
 	Register(MakeUnique<FAnomaly_MissingObject>());
-	Register(MakeUnique<FAnomaly_Flicker>());
+	Register(MakeUnique<FAnomaly_Blinking>());
 	Register(MakeUnique<FAnomaly_TimeDilation>());
 	Register(MakeUnique<FAnomaly_LightingMismatch>());
 	Register(MakeUnique<FAnomaly_LodCorruption>());

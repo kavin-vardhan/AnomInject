@@ -47,7 +47,7 @@ Plugins/AnomalyInjector/            <- this plugin = its own git repo, single so
       ├─ AnomalyAutoInjectorSubsystem.cpp <- m6: seeded scheduler (AdvanceTime/TryFireOnce) + raw input poll + HUD + IAI.Auto.* commands
       └─ Anomalies/                    <- one IAnomaly impl per file (7 anomalies)
          ├─ Anomaly_MissingObject.{h,cpp}   <- static, actor-scoped
-         ├─ Anomaly_Flicker.{h,cpp}         <- ticking, actor-scoped
+         ├─ Anomaly_Blinking.{h,cpp}        <- ticking, actor-scoped
          ├─ Anomaly_TimeDilation.{h,cpp}    <- world-global, no tick
          ├─ Anomaly_LightingMismatch.{h,cpp}<- component-scoped (lights), per-target capture
          ├─ Anomaly_LodCorruption.{h,cpp}   <- component-scoped (static + skeletal mesh), forced-LOD (AnomalyLod)
@@ -63,13 +63,13 @@ Open the console in PIE (`` ` `` backtick) and run:
 - `IAI.ListActors` — log every actor as `Class | Name | Label` (targeting aid).
 - `IAI.ListAnomalies` — list registered anomalies as `id - description - usage`.
 - `IAI.Apply <id> <args...>` — apply an anomaly, e.g. `IAI.Apply missing_object SatelliteDish`,
-  `IAI.Apply flicker SatelliteDish 3`, `IAI.Apply time_dilation 0.2`,
+  `IAI.Apply blinking SatelliteDish 3`, `IAI.Apply time_dilation 0.2`,
   `IAI.Apply lighting_mismatch Light recolor 1 0 1`, `IAI.Apply lod_corruption Bot` (static or skeletal),
   `IAI.Apply lod_popping Foliage 2`, `IAI.Apply camera_clipping 100`.
 - `IAI.Revert <id>` — revert one anomaly.
 - `IAI.RevertAll` — revert all active anomalies (also runs automatically on world teardown).
 - `IAI.SetViewportScoping <0|1>` — opt-in: scope the four object-scoped anomalies (`missing_object`,
-  `flicker`, `lod_corruption`, `lod_popping`) to objects visible in the player's viewport (default OFF).
+  `blinking`, `lod_corruption`, `lod_popping`) to objects visible in the player's viewport (default OFF).
 - `IAI.TestVisibility <substring> <ox oy oz> <pitch yaw roll> [fov] [aspect]` — diagnostic for the
   viewport core against a synthetic view (logs per-component frustum/occlusion/visible).
 - **Object Selector + Inject UI (m5):** `IAI.SelectorUI <0|1>` (default OFF) turns on an in-game overlay to

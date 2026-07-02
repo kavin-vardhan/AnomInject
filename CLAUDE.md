@@ -2,7 +2,7 @@
 
 Personal research project **"GDP: Anomaly Injection"** (intrusive UE5 track). This is a
 UE5 plugin that injects **labeled visual anomalies** (graphics bugs — missing objects,
-lighting mismatch, LOD corruption, flicker, etc.) into UE5 games, to generate synthetic
+lighting mismatch, LOD corruption, blinking, etc.) into UE5 games, to generate synthetic
 training data for bug-detection ML. It is **game-agnostic** (public UE APIs only) and is
 tested on Stack O Bot. A separate non-intrusive tool exists elsewhere and is out of scope.
 
@@ -221,7 +221,7 @@ and is the single source of truth for the project.
   committed `2645236`/`4c05344` + uncommitted WIP in the tree; not yet journaled as a milestone). The two post-m6
   viewport fixes (G33 VFX removal + G34 poll-radius cull) are committed (`9bbd398` + `<fix2>`, no tag); owner smoke-test
   pending. **Next action:** finish the control-server slice, then the High-priority new bug types (born viewport-aware
-  AND auto-injectable). Also still queued: the `flicker→blinking` rename + new `flickering` (handoff §2.3),
+  AND auto-injectable). The `flicker→blinking` rename is **DONE** (`refactor(blinking)`, no tag). Also still queued: a new `flickering` anomaly (scene-region / light toggling; handoff §2.3),
   region-darkening (§2.4), the selector's screen-X ordering polish. Bridge/host stay unversioned (G8 unchanged).
 - Milestones: M0 (`…-001`), M1 (`…-003`), M2 (`…-004`), M2.5+M2.6 (`…-005`), M3 (`…-006`) fully passed
   + tagged; rename refactor (`…-007`) committed `351c7e8` (no tag); **Viewport-Visibility Layer (`…-008`) committed
@@ -286,7 +286,7 @@ and is the single source of truth for the project.
   implementation until approved.
 - **Commits — Conventional Commits.** Prefixes: `feat:` (new anomaly or capability), `fix:` (bug),
   `docs:` (doc-only), `refactor:` (no behavior change), `chore:` (build/tooling). Scope anomaly-specific
-  changes, e.g. `feat(flicker): …`. **Tag each milestone** with `git tag m<N>` after its commit so
+  changes, e.g. `feat(blinking): …`. **Tag each milestone** with `git tag m<N>` after its commit so
   milestones diff cleanly (`m1..m2`, and a changelog can be auto-derived later). The git repo is the
   plugin folder (`master`); host scaffolding lives outside it and is not committed here.
 - **Doc discipline — leave the docs able to (a) cold-start a fresh session and (b) explain the

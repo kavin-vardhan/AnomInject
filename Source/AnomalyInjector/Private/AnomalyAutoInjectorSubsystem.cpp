@@ -20,7 +20,7 @@ namespace
 	const FName GAutoPool[] =
 	{
 		FName(TEXT("missing_object")),
-		FName(TEXT("flicker")),
+		FName(TEXT("blinking")),
 		FName(TEXT("missing_texture")),
 	};
 	constexpr int32 GNumAutoPool = UE_ARRAY_COUNT(GAutoPool);
@@ -259,7 +259,7 @@ bool UAnomalyAutoInjectorSubsystem::SetAnomalyEnabled(FName Id, bool bInEnabled)
 	if (!bInPool)
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("IAI.Auto.Pool: '%s' is not a v1 pool id (missing_object/flicker/missing_texture)."),
+			TEXT("IAI.Auto.Pool: '%s' is not a v1 pool id (missing_object/blinking/missing_texture)."),
 			*Id.ToString());
 		return false;
 	}

@@ -44,7 +44,7 @@
 > Below this it still reflects the **Viewport-Visibility Layer (m4)** — a shared **`AnomalyViewport`**
 > helper (frustum AND occlusion against an explicit view) and an **opt-in** toggle `IAI.SetViewportScoping <0|1>`
 > (default **OFF**) that routes the four object-scoped, primitive-backed anomalies — `missing_object`,
-> `flicker`, `lod_corruption`, `lod_popping` — through it so they affect only objects visible in the
+> `blinking`, `lod_corruption`, `lod_popping` — through it so they affect only objects visible in the
 > player's viewport. Built on M3 (LOD breadth + `AnomalyLod`), M2 (component/global anomalies + A1/A3
 > helpers), M2.5/M2.6 (5.1 port + bridge sever). **Catalog: still 7 anomalies** (the selector is UI over the
 > existing catalog — no new types). Required **no `IAnomaly` change** (the M1 lock held again).
@@ -121,11 +121,11 @@ target set** (one apply spanning static + skeletal components, dispatched per ty
 | anomaly | scope | ticks? | proves |
 |---|---|---|---|
 | `missing_object` | actor | no | the static, actor-scoped baseline (re-homes the M0 hide) |
-| `flicker` | actor | **yes** | the `Tick` path |
+| `blinking` | actor | **yes** | the `Tick` path |
 | `time_dilation` | world-global | no | the interface does **not** assume actor-scoping |
 | `lighting_mismatch` | **component** (ULightComponent) | no | component-level targeting (A1) + per-target full-state capture + multi-mode args |
 | `lod_corruption` | **component** (static + skeletal mesh) | no | one capture convention over a **heterogeneous** target set; static/skeletal dispatch via `AnomalyLod` (M3) |
-| `lod_popping` | **component** (static + skeletal mesh) | **yes** | the `Tick` path reused (flicker mechanics) over the `AnomalyLod` LOD dispatch (M3) |
+| `lod_popping` | **component** (static + skeletal mesh) | **yes** | the `Tick` path reused (blinking mechanics) over the `AnomalyLod` LOD dispatch (M3) |
 | `camera_clipping` | global (near-clip) | no | global capture/restore via a console **command** (no cvar, no new dep) |
 
 ## Shared helpers
@@ -134,7 +134,7 @@ target set** (one apply spanning static + skeletal components, dispatched per ty
 Free functions (deliberately not a base class). Single source of truth for the label-free match rule.
 - `FindActorsMatching(World, Query)` — matches by `Actor->GetName()` **or**
   `Actor->GetClass()->GetName()` `.Contains(query)` (case-insensitive), **never** `GetActorLabel()`
-  (editor-only — gotcha G2). Returns weak-ptrs. Used by `missing_object`, `flicker`.
+  (editor-only — gotcha G2). Returns weak-ptrs. Used by `missing_object`, `blinking`.
   **Exact-match sentinel (m5):** a leading `=` on `Query` (e.g. `=SM_Ramp2_UAID_…`) strips the `=` and switches to
   full-name **equality** (`Equals(IgnoreCase)`) instead of substring — so the selector's `InjectSelected()` (which passes
   `"=" + Actor->GetName()`) targets **exactly** the selected actor and never a same-prefixed sibling (`=Cube` ≠ `Cube2`).
@@ -155,7 +155,7 @@ Free functions (deliberately not a base class). Single source of truth for the l
 **A3.** `GetFloat / GetInt (value, Index, Default, Min, Max)` and `GetString (value, Index, Default)`.
 Consolidates the AMB-6 parse/clamp/warn behavior: missing index → `Default` (silent); non-numeric →
 warn + `Default`; out-of-range → warn + clamp; **never fails `Apply`**. Used by the M2 anomalies and
-by `lod_popping` (Hz). (M1's `flicker`/`time_dilation` keep their inline parse — validated code left
+by `lod_popping` (Hz). (M1's `blinking`/`time_dilation` keep their inline parse — validated code left
 untouched; the cosmetic divergence is intentional, not a TODO.)
 
 ### LOD forced-LOD dispatch — `AnomalyLod`  (`Public/AnomalyLod.h` / `Private/AnomalyLod.cpp`)  **(M3)**
@@ -335,7 +335,7 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
 | id | shape | usage | effect | revert | status |
 |----|-------|-------|--------|--------|--------|
 | `missing_object` | static, actor-scoped | `IAI.Apply missing_object <sub>` | `SetActorHiddenInGame(true)` on matches | un-hide / RevertAll / teardown | **as-built (M1)** |
-| `flicker` | ticking, actor-scoped | `IAI.Apply flicker <sub> [hz]` | toggle hidden each half-period (default 5 Hz, clamp 60) | restore visible (any phase) | **as-built (M1)** |
+| `blinking` | ticking, actor-scoped | `IAI.Apply blinking <sub> [hz]` | toggle hidden each half-period (default 5 Hz, clamp 60) | restore visible (any phase) | **as-built (M1)** |
 | `time_dilation` | world-global, no tick | `IAI.Apply time_dilation <scale>` | `SetGlobalTimeDilation(scale)` (clamped — G11) | restore captured baseline (AMB-3) | **as-built (M1)** |
 | `lighting_mismatch` | component (ULightComponent) | `IAI.Apply lighting_mismatch <sub> [off\|dim <f>\|recolor <r g b>\|noshadow]` | per mode: `SetVisibility(false)` / `SetIntensity(orig*f)` (def 0.1) / `SetLightColor(r,g,b)` (def magenta) / `SetCastShadows(false)`; default mode `dim` | restore captured intensity/color/visibility/cast-shadow per live comp; skip stale | **as-built (M2)** |
 | `lod_corruption` | component (static **+ skeletal** mesh) | `IAI.Apply lod_corruption <sub> [lod-index]` | force each matched comp to a LOD via `AnomalyLod` (1-based; default worst per comp; explicit index clamped per comp). Static `SetForcedLodModel` / skinned `SetForcedLOD` | restore captured forced-LOD per live comp; skip stale | **as-built (M3)** — static + skeletal (G19; was static-only in M2, G16) |
@@ -346,7 +346,7 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
 ## Viewport-visibility scoping (opt-in; default OFF)
 The subsystem holds one flag `bViewportScopingEnabled` (default **OFF**), toggled by `IAI.SetViewportScoping <0|1>`
 and read by anomalies via the static `UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World)`. **Only the four
-object-scoped, primitive-backed anomalies consult it:** `missing_object`, `flicker` (actor granularity — visible iff
+object-scoped, primitive-backed anomalies consult it:** `missing_object`, `blinking` (actor granularity — visible iff
 **any** primitive component is visible) and `lod_corruption`, `lod_popping` (component granularity). When **ON**, each
 routes target resolution through `AnomalyViewport` so it affects only objects visible in the player's view; when
 **OFF**, each takes its original resolution path **byte-identical to before** (the regression gate). Excluded by
@@ -381,7 +381,7 @@ and all seven anomalies are untouched** (the no-core-change streak holds; this i
   goal); deferred only to keep v1 minimal + testable.
 - **Inject path.** `InjectSelected()` calls `ApplyAnomaly(<chosen id>, { "=" + Actor->GetName() })` — the `=`
   exact-match sentinel targets **only** the selected actor (never a same-prefixed sibling). Default args only. The four
-  offered ids are `missing_object`, `flicker`, `lod_corruption`, `lod_popping`; globals (`time_dilation`,
+  offered ids are `missing_object`, `blinking`, `lod_corruption`, `lod_popping`; globals (`time_dilation`,
   `camera_clipping`) and `lighting_mismatch` stay console-only for v1. The selector **does not** touch
   `IAI.SetViewportScoping` — it is self-scoping (you pick from the visible set), so injecting an exact-named,
   already-confirmed-visible actor needs no further viewport re-filter. **Keep `IAI.SetViewportScoping 0` while using the
@@ -416,7 +416,7 @@ A **third, separate** `UTickableWorldSubsystem` (Game + PIE only) — not the in
 auto-fires the four object-scoped anomalies on the renderable objects currently on-screen and auto-reverts them.
 It calls only the injector's public `ApplyAnomaly` / `RevertAnomaly`; **the injector, `IAnomaly`, the anomalies,
 and the leaf helpers are untouched** (auto-injection is orchestration over the existing catalog). v1 pool = the four
-object-scoped ids (`missing_object`, `flicker`, `lod_corruption`, `lod_popping`); globals + `lighting_mismatch` are a
+object-scoped ids (`missing_object`, `blinking`, `lod_corruption`, `lod_popping`); globals + `lighting_mismatch` are a
 future non-object track.
 
 - **Concurrent but collision-free BY CONSTRUCTION (G30), via two scheduler invariants** — no ref-count coordinator:
@@ -424,7 +424,7 @@ future non-object track.
     so the scheduler never re-fires a still-live id. Clean revert accounting + the natural concurrency ceiling
     (max live ≤ distinct enabled-id count).
   - **(ii) one anomaly per actor.** Targets are drawn from `V − {actors hosting ANY live fire}`. This one invariant
-    subsumes **both** conflict groups (bHidden: `missing_object`/`flicker`; forced-LOD: `lod_corruption`/`lod_popping`)
+    subsumes **both** conflict groups (bHidden: `missing_object`/`blinking`; forced-LOD: `lod_corruption`/`lod_popping`)
     **and** the hide-masks-LOD case (a hide hiding a LOD change = an invisible/mislabeled sample). So there is no
     id→group table. (The deferred ref-count coordinator from G12 is only needed for *deliberate* compound/stacked
     same-actor anomalies.)
@@ -490,7 +490,7 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   1. `AnomalyViewport::ProjectActorBoundsToScreenRect(View, Actor, OutMin, OutMax)` — the L2 2D-bbox projection, built on
      the SAME private reversed-Z VP path the frustum / `GetVisibleRenderableActorInfos` pass uses. It unions the actor's
      static/skeletal-mesh component bounds **by TYPE only — NOT `IsVisible()`-gated** — so a hidden `missing_object` /
-     `flicker` actor still projects ("where the hole is"); returns the **unclamped** normalized rect; false only
+     `blinking` actor still projects ("where the hole is"); returns the **unclamped** normalized rect; false only
      behind-camera / fully off-screen (gotcha G38).
   2. `FAutoLiveFireInfo` widened with `TWeakObjectPtr<AActor> TargetActor` + `uint64 StartFrame` (the fired actor for
      bounds projection + the fire's start `GFrameCounter`).
@@ -605,8 +605,8 @@ a host type or label.
 
 ## Verification model
 Non-visual gates are checked in PIE via the `unreal-mcpython` MCP bridge (state/log reads: match
-counts, `IsActive`, world time-dilation value, flicker toggle logs); the owner eyeballs the visual
-gates (flicker, felt slowdown). See gotcha G8 for the bridge setup.
+counts, `IsActive`, world time-dilation value, blinking toggle logs); the owner eyeballs the visual
+gates (blinking, felt slowdown). See gotcha G8 for the bridge setup.
 - **Bridge on 5.1 (M2.6):** the bridge (host tooling, not part of this plugin) is **GenOrca
   UnrealMCPython**, which targets UE 5.6+. To build on 5.1 its **`BehaviorTreeEditor` dependency was
   severed** (those graph-node UCLASSes are unexported pre-5.6 — G8). The bridge's BT-graph **authoring**

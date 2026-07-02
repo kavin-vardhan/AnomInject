@@ -6,11 +6,11 @@
 class AActor;
 class UWorld;
 
-class FAnomaly_Flicker final : public IAnomaly
+class FAnomaly_Blinking final : public IAnomaly
 {
 public:
-	virtual FName   GetId() const override { return FName(TEXT("flicker")); }
-	virtual FString GetDescription() const override { return TEXT("Flicker matching actors by toggling visibility at a rate (Hz)."); }
+	virtual FName   GetId() const override { return FName(TEXT("blinking")); }
+	virtual FString GetDescription() const override { return TEXT("Blinking matching actors by toggling visibility at a rate (Hz)."); }
 	virtual FString GetUsage() const override { return TEXT("<name-substring> [hz]"); }
 
 	virtual bool Apply(UWorld* World, const TArray<FString>& Args) override;

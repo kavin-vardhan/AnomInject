@@ -87,14 +87,14 @@ Development Editor, clean." This produces `Binaries\Win64\UnrealEditor-StackOBot
 ## 6. Smoke test (stage gate)
 Open the console in PIE (press `` ` `` backtick) and run:
 1. `IAI.ListAnomalies` — Output Log (category `LogAnomaly`) lists **seven** anomalies as
-   `id - description - usage`, sorted: `camera_clipping`, `flicker`, `lighting_mismatch`,
+   `id - description - usage`, sorted: `blinking`, `camera_clipping`, `lighting_mismatch`,
    `lod_corruption`, `lod_popping`, `missing_object`, `time_dilation`.
 2. `IAI.ListActors` — prints `Class | Name | Label` for every actor; pick a target substring.
 3. `IAI.Apply missing_object <substring>` — pick a **persistent level prop** (a visible
    `StaticMeshActor` in `MainWorld`, e.g. an `SM_*`/`BPP_Struct_*` placement). The matched object
    vanishes. (The Bot is **runtime-spawned** — gotcha G4 — so it only matches after it spawns.)
-4. `IAI.Apply flicker <substring>` — the matched object visibly flickers (default 5 Hz). Optional
-   rate: `IAI.Apply flicker <substring> 2`.
+4. `IAI.Apply blinking <substring>` — the matched object visibly blinks (default 5 Hz). Optional
+   rate: `IAI.Apply blinking <substring> 2`.
 5. `IAI.Apply time_dilation 0.2` — the game slows to ~20% speed; `IAI.Revert time_dilation`
    restores normal speed (to the captured baseline).
 6. `IAI.Apply lighting_mismatch <substring> [off|dim <f>|recolor <r g b>|noshadow]` — mismatch the
@@ -117,7 +117,7 @@ Open the console in PIE (press `` ` `` backtick) and run:
    reliably-visible gate; no targeting.
 10. `IAI.RevertAll` — restores everything still active. Stopping PIE also auto-reverts (teardown).
 11. `IAI.SetViewportScoping 1` — opt-in viewport scoping (default OFF). Now `IAI.Apply missing_object <sub>`
-    (and `flicker` / `lod_corruption` / `lod_popping`) affects only matches **visible in the player's view** —
+    (and `blinking` / `lod_corruption` / `lod_popping`) affects only matches **visible in the player's view** —
     aim away from a matched object and it is left untouched; aim at it and it is affected. `IAI.SetViewportScoping 0`
     restores the unscoped behavior. The heartbeat shows `scoping: ON/OFF`. (Diagnostic: `IAI.TestVisibility <sub>
     <ox oy oz> <pitch yaw roll> [fov] [aspect]` logs per-component `frustum/unoccluded/visible` for a synthetic view.)
@@ -166,7 +166,7 @@ The auto-injector fires the four object-scoped anomalies **randomly on the rende
 each auto-reverting after a randomized hold. Separate subsystem; two switches, both default OFF.
 1. `IAI.Auto.Enable 1` — show the auto-injector overlay (right side): the four **types** (1-4) with on/off, the seed +
    cadence, and the live fires (`id -> target  (Ns)`).
-2. **Pick types** (default: all four on) — keys **1/2/3/4** toggle `missing_object` / `flicker` / `lod_corruption` /
+2. **Pick types** (default: all four on) — keys **1/2/3/4** toggle `missing_object` / `blinking` / `lod_corruption` /
    `lod_popping`; or `IAI.Auto.Pool <id|all> <0|1>`.
 3. `IAI.Auto.Run 1` (or key **J**) — start firing. Anomalies appear on on-screen objects at a random interval
    (default [4,9]s), each on a **distinct** actor (one anomaly per actor), and auto-revert after a random hold
@@ -185,7 +185,7 @@ Produces a labeled image sequence (`frame_<GFrameCounter>.png` + `labels.jsonl` 
 auto-injection run. **Must be real Play** (Simulate has no game viewport for `ReadPixels`). The capture
 subsystem lives in the `AnomalyControlServer` module (present in Development/Test; compiled out of Shipping).
 1. **Narrow the fired types** (StackOBot: LOD anomalies are visually null — G15/G20 — so capture only the visual
-   ones): `IAI.Auto.Pool all 0` → `IAI.Auto.Pool missing_object 1` → `IAI.Auto.Pool flicker 1`.
+   ones): `IAI.Auto.Pool all 0` → `IAI.Auto.Pool missing_object 1` → `IAI.Auto.Pool blinking 1`.
 2. Ensure the auto-injector's own loop is OFF: `IAI.Auto.Run 0` (capture owns firing; a warning fires if Run is on).
 3. **Single labeled frame:** `IAI.Auto.FireOnce` then `IAI.Capture.Shot` → one PNG + one JSONL record under
    `<ProjectSaved>/AnomalyCaptures/manual/` (Gate 1).
@@ -227,14 +227,14 @@ Get the PIE world after starting: `gw = unreal.get_editor_subsystem(unreal.Unrea
   `a.get_editor_property('hidden')`. (Editor-world actors are different instances - always read `gw`'s.)
 - Read global time dilation: `unreal.GameplayStatics.get_global_time_dilation(gw)`
 - Read logs: `mcp__unreal-mcpython__util_get_output_log` with a keyword, e.g. `anomaly`,
-  `flicker toggle`, `Heartbeat`, `deinitializing`.
+  `blinking toggle`, `Heartbeat`, `deinitializing`.
 
 **Gotchas that bit us (save yourself the rediscovery):**
-- **flicker toggles + the heartbeat log at Verbose.** First run
-  `execute_console_command(gw, "Log LogAnomaly Verbose")`, then grep `flicker toggle`.
+- **blinking toggles + the heartbeat log at Verbose.** First run
+  `execute_console_command(gw, "Log LogAnomaly Verbose")`, then grep `blinking toggle`.
 - **Never `time.sleep()` in Python** - it blocks the game thread so nothing ticks. For ticking effects,
   let real wall-clock pass *between* MCP calls, then read the accumulated toggle log.
-- **PIE can run at a few FPS;** the flicker `while`-drain replays multiple half-periods per frame, so the
+- **PIE can run at a few FPS;** the blinking `while`-drain replays multiple half-periods per frame, so the
   toggle log still advances. (Several toggles sharing one timestamp is expected, not a bug.)
 - **Teardown gate:** leave anomalies active, **Stop PIE**, then read the log (editor stays open, bridge
   still up) for `Subsystem deinitializing; reverted N active anomaly(ies).`
@@ -246,7 +246,7 @@ Get the PIE world after starting: `gw = unreal.get_editor_subsystem(unreal.Unrea
 |------|-------|--------|
 | ListAnomalies | `IAI.ListAnomalies` | log: **7** lines, sorted, `id - description - usage` |
 | missing_object | `IAI.Apply missing_object SM_Ramp` | both ramps `hidden == True`; log `matched 2 actor(s)` |
-| flicker | `Log LogAnomaly Verbose`; `IAI.Apply flicker SM_Ramp` | repeating `flicker toggle -> HIDDEN/VISIBLE`; heartbeat `active: 1/N` |
+| blinking | `Log LogAnomaly Verbose`; `IAI.Apply blinking SM_Ramp` | repeating `blinking toggle -> HIDDEN/VISIBLE`; heartbeat `active: 1/N` |
 | time_dilation | `IAI.Apply time_dilation 0.2`; `IAI.Revert time_dilation` | dilation `0.2`, then back to the captured baseline |
 | lighting_mismatch | find a Movable `ULightComponent` (`Mobility==Movable`); `IAI.Apply lighting_mismatch <sub> recolor 1 0 1` | matched-count >= 1; read component `Intensity`/`GetLightColor()`/`GetVisibleFlag()`/`CastShadows` changed; `Revert` -> all restored. Owner eyeballs the lit change (movable target). |
 | lod_corruption (static, regression) | `IAI.Apply lod_corruption SM_Ramp` | both ramps `forced_lod_model 0→1`, log `forced LOD 1 of 1`; `Revert` -> 0. Must be **identical to M2** (regression gate). |
@@ -264,12 +264,12 @@ Get the PIE world after starting: `gw = unreal.get_editor_subsystem(unreal.Unrea
 | selector renderable filter | `IAI.SelectorUI 1`; `IAI.Selector.Status` | the visible-names list **excludes** non-renderables (RVTVolume / PlayerStart / GameplayDebuggerCategoryReplicator / LandscapeStreamingProxy / RoomBuilderSquare) **and particle/VFX actors (Niagara/Cascade — excluded since G33)**, and **includes** renderables (Bot, ramps, pressure plates, doors, foliage/HISM). Live-enumerate the excluded actors' components to prove *why* (their primitives are UBoxComponent/capsule/UFXSystemComponent/etc., not static/skeletal mesh — gotchas G29/G33). |
 | selector model (cycle) | `IAI.SelectorUI 1`; repeat `IAI.Selector.Next` then `IAI.Selector.Status` | `Status` shows `selected` advancing through the **name-sorted** visible set (and `visible (N)` listed); wraps after the last. Deterministic in Simulate (view resolves, G23). |
 | selector zero-match HUD (escape hatch) | pure-VFX actors are no longer selectable (G33), so reach the zero-match via the console by-name escape hatch: `IAI.Apply lod_corruption =<VfxActorName>` | `Apply ... -> not applied` / "0 matched" in the log (R4 plumbing intact); the AMB-2 path is surfaced, not silent. The `=name` finder bypasses the renderable-set predicate, so it still reaches the VFX actor. |
-| selector model (anomaly) | `IAI.Selector.Cycle` ×N; `IAI.Selector.Status` | chosen anomaly cycles `missing_object → flicker → lod_corruption → lod_popping → …`. |
+| selector model (anomaly) | `IAI.Selector.Cycle` ×N; `IAI.Selector.Status` | chosen anomaly cycles `missing_object → blinking → lod_corruption → lod_popping → …`. |
 | selector inject (exact-match) | select an actor, `IAI.Selector.Inject`; read the target's hidden / `forced_lod_model` | the selected actor changed (e.g. `hidden==True` for `missing_object`); **confirm the `=` exact-name hit ONLY that actor**, not a numbered sibling — if stock content has a `<name>`/`<name>2` pair, select `<name>` and assert `<name>2` is untouched. |
 | selector revert | `IAI.Selector.Revert` | the last-injected id is reverted; target restored. |
 | selector OFF (regression) | `IAI.SelectorUI 0`; re-run the `ListAnomalies` / `missing_object SM_Ramp` rows | **byte-identical** to before the selector existed (subsystem dormant); the **`=` sentinel** leaves substring gates (`SM_Ramp` → 2 ramps, `Bot`, `Foliage`) unchanged. |
 | auto fire (deterministic) | `IAI.Auto.Enable 1`; `IAI.Auto.Seed 1234`; `IAI.Auto.Pool all 0`; `IAI.Auto.Pool missing_object 1`; `IAI.Auto.FireOnce`; `IAI.Auto.Status` | exactly **1** live fire, id `missing_object`, target in the renderable-visible set, target `hidden==True`; the `=` hit ONLY that actor (no prefix-sibling). |
-| auto collision-free (concurrent) | enable `{missing_object, flicker, lod_corruption}`; repeat `IAI.Auto.Step 5`; `IAI.Auto.Status` | **no two live fires on one actor** (OVERRIDE-1) and **no id double-live** (i); live count ≤ enabled-id count. |
+| auto collision-free (concurrent) | enable `{missing_object, blinking, lod_corruption}`; repeat `IAI.Auto.Step 5`; `IAI.Auto.Status` | **no two live fires on one actor** (OVERRIDE-1) and **no id double-live** (i); live count ≤ enabled-id count. |
 | auto auto-revert (R-LIFE) | `IAI.Auto.Hold 1 1`; `IAI.Auto.FireOnce`; `IAI.Auto.Step 1.5`; `IAI.Auto.Status` | the fire **auto-reverted** (live count drops; target restored; log `Auto.Revert ... hold elapsed`). Then `IAI.Auto.Persist 1`; `FireOnce`; `Step 100` → still live (persists). |
 | auto no-blind-fire | aim at nothing (empty renderable-visible set); `IAI.Auto.FireOnce`/`Step` | **zero** fires (`GetVisibleRenderableActors` empty → never inject blind). |
 | auto seed reproducibility | same `IAI.Auto.Seed S` + same `FireOnce`/`Step` sequence + same camera | identical fire/target/hold sequence across two runs (R-SEED; choices reproduce given the same visible-set sequence). |
