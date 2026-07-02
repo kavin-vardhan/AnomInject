@@ -17,6 +17,11 @@
 #include "RenderingThread.h"
 #include "Modules/ModuleManager.h"
 
+#include "GameFramework/Actor.h"
+#include "GameFramework/PlayerController.h"
+#include "Misc/EngineVersion.h"
+#include "Misc/App.h"
+
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/SViewport.h"
@@ -32,14 +37,104 @@
 // Async capture state (PImpl) -- keeps the frame-capturer + render/Slate types out of the Public
 // subsystem header. Always a complete type so the TUniquePtr member destructs in any build config;
 // its members exist only when ANOMALY_CAPTURE is enabled.
+#if ANOMALY_CAPTURE
+// Per-event accumulator (one per fire = id + target + start_frame), built across the run and serialized
+// into annotation.json at finalize. Anchor* fields are captured at the event's SMALLEST session index
+// (its injection moment) — robust to async frames completing out of order.
+struct FSessionEventAccum
+{
+	FName Id = NAME_None;
+	FString Target;
+	uint64 StartFrame = 0;
+
+	TArray<int32> AffectedFrames;   // session-local indices where the fire was live AND bbox_valid
+	double CoverageSum = 0.0;
+	int32 CoverageCount = 0;
+
+	int32 AnchorIndex = MAX_int32;  // smallest session index seen while live -> anchors camera/engine/node
+	FVector CamPos = FVector::ZeroVector;
+	FRotator CamRot = FRotator::ZeroRotator;
+	float CamFov = 0.0f;
+	float CamAspect = 0.0f;
+	float CamNear = 0.0f;
+	FString CamPath;
+	int64 TicksMsec = 0;
+	FString NodeName;
+	FString NodePath;
+	FVector NodePos = FVector::ZeroVector;
+
+	int32 VisibleFrames = 0;
+	int32 HiddenFrames = 0;
+	int32 Transitions = 0;
+	int32 LastHidden = -1;
+	TArray<int32> HiddenIndices;    // session-indices where the actor was render-hidden (the OUT frames)
+};
+#endif
+
 struct FAnomalyCaptureAsyncState
 {
 #if ANOMALY_CAPTURE
 	TSharedPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> Capturer;
 	TSharedPtr<FAnomalyAsyncWriter, ESPMode::ThreadSafe> Writer;
 	TMap<uint64, AnomalyLabel::FCaptureSnapshot> PendingSnapshots;
+	TArray<FSessionEventAccum> SessionEvents;
 #endif
 };
+
+#if ANOMALY_CAPTURE
+namespace
+{
+	// Reversed-Z gives no finite far plane; this documented placeholder only matters for depth
+	// un-normalization, and depth is provided:false for now (populate the field, don't block).
+	constexpr float GAnomalyDefaultFarPlane = 1000000.0f;   // 10 km in cm
+
+	// A stable identifier for the active camera: the view-target actor's path (falls back to the camera
+	// manager). Used for the annotation's camera.path.
+	FString ResolveCameraPath(UWorld* World)
+	{
+		if (APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr)
+		{
+			if (AActor* VT = PC->GetViewTarget())
+			{
+				return VT->GetPathName();
+			}
+			if (PC->PlayerCameraManager)
+			{
+				return PC->PlayerCameraManager->GetPathName();
+			}
+		}
+		return FString();
+	}
+
+	// internal anomaly id -> client vocabulary. Only blinking maps to a client clip today; others are
+	// recorded in the session (type = internal id) but the slicer emits no client clip for them yet.
+	//
+	// STAGE 5 (slicer) CARRY-FORWARD — the native session is a SUPERSET; the slicer transforms, not copies:
+	//  1. Client affected_frames = the OUT frames only (per-event _debug.hidden_frame_list), NOT our full
+	//     live/bbox_valid affected_frames span. Client coverage_ratio then averages over those SAME
+	//     out-frames. (PENDING owner confirmation with client: their prose "frames that contain the blink"
+	//     is ambiguous vs their 1-out-frame example.)
+	//  2. Client camera is global_position + additionalProperties:false -> slicer DROPS our bonus camera
+	//     fields (rotation/fov_deg/aspect) + source_id + _debug + schema_version + engine name/version/project.
+	//  3. bbox_norm=[x0,y0,x1,y1] CORNERS vs bbox_px=[x,y,w,h] ORIGIN+SIZE (labels.jsonl) — do not conflate.
+	//  4. Clip window must include >=1 trailing post-revert VISIBLE frame so the delivered clip actually
+	//     shows the "reappear" the subtype claims (the object is still hidden at the last OUT frame).
+	void MapAnomalyToClient(FName Id, int32 Transitions, FString& OutType, FString& OutSubtype)
+	{
+		if (Id == FName(TEXT("blinking")))
+		{
+			OutType = TEXT("blink");
+			// One disappear->reappear cycle = visible->hidden->visible = 2 transitions. More = sustained.
+			OutSubtype = (Transitions <= 2) ? TEXT("disappear_reappear") : TEXT("flicker");
+		}
+		else
+		{
+			OutType = Id.ToString();
+			OutSubtype = FString();
+		}
+	}
+}
+#endif
 
 
 UAnomalyCaptureSubsystem::UAnomalyCaptureSubsystem()
@@ -306,6 +401,12 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		VW = (int32)Size.X;
 		VH = (int32)Size.Y;
 	}
+	ViewportW = VW;
+	ViewportH = VH;
+
+	const FEngineVersion& EV = FEngineVersion::Current();
+	EngineVersion = FString::Printf(TEXT("%u.%u"), (uint32)EV.GetMajor(), (uint32)EV.GetMinor());
+	EngineProject = FApp::GetProjectName();
 
 	StartFrame = GFrameCounter;
 
@@ -332,6 +433,10 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	ZeroMatchBursts = 0;
 	SessionFrameIndex = 0;
 	ViewRing.Reset();
+	if (Async.IsValid())
+	{
+		Async->SessionEvents.Reset();
+	}
 
 	if (bAsyncCapture)
 	{
@@ -522,6 +627,10 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		int32 NumLabels = 0;
 		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, Frame.Width, Frame.Height, ImageName, NumLabels);
 
+		// Fold this frame's submit-time fire state into the per-event session annotation accumulator.
+		AccumulateFrameEvents(Snap->Fires, Snap->FireHidden, Snap->FirePos, Snap->View, Snap->NearClip,
+			Snap->SessionIndex, Snap->TimeSeconds);
+
 		FAnomalyAsyncWriter::FJob Job;
 		Job.OutputDir = RunDir;
 		Job.OutFormat = Format;
@@ -643,10 +752,21 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			Snap.FrameCounter = GFrameCounter;
 			Snap.SessionIndex = SessionFrameIndex;
 			Snap.TimeSeconds = World ? World->GetTimeSeconds() : 0.0;
+			Snap.NearClip = GNearClippingPlane;
 			Snap.View = ProjView;
 			if (const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 			{
 				Snap.Fires = Auto->GetLiveFires();
+			}
+			// Sample the fast-toggling hidden flag + actor position NOW (submit time) — the async readback
+			// resolves a few frames later, by which point the blink has toggled again.
+			Snap.FireHidden.Reserve(Snap.Fires.Num());
+			Snap.FirePos.Reserve(Snap.Fires.Num());
+			for (const FAutoLiveFireInfo& F : Snap.Fires)
+			{
+				const AActor* FActor = F.TargetActor.Get();
+				Snap.FireHidden.Add((FActor && FActor->IsHidden()) ? 1 : 0);
+				Snap.FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 			}
 			Async->PendingSnapshots.Add(Snap.FrameCounter, MoveTemp(Snap));
 			Async->Capturer->ArmForCapture(GFrameCounter, TargetWindow, CaptureRect);
@@ -669,6 +789,22 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 	int32 NumLabels = 0;
 	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, ImagePath, SidecarPath, NumLabels, false))
 	{
+		// Accumulate this frame into the per-event session annotation (submit == capture tick here).
+		TArray<FAutoLiveFireInfo> Fires;
+		if (Auto) { Fires = Auto->GetLiveFires(); }
+		TArray<uint8> Hidden;
+		TArray<FVector> Pos;
+		Hidden.Reserve(Fires.Num());
+		Pos.Reserve(Fires.Num());
+		for (const FAutoLiveFireInfo& F : Fires)
+		{
+			const AActor* FActor = F.TargetActor.Get();
+			Hidden.Add((FActor && FActor->IsHidden()) ? 1 : 0);
+			Pos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
+		}
+		AccumulateFrameEvents(Fires, Hidden, Pos, ProjView, GNearClippingPlane, SessionFrameIndex,
+			World ? World->GetTimeSeconds() : 0.0);
+
 		++SessionFrameIndex;
 		++FramesWritten;
 		if (bPositive)
@@ -690,6 +826,9 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		DrainAsyncToCompletion();
 	}
 
+	// All frames are now accumulated -> assemble the native multi-anomaly annotation.json.
+	WriteSessionAnnotationFile();
+
 	AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter);
 
 	if (bLogLine)
@@ -704,6 +843,139 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	PhaseFramesLeft = 0;
 
 	AnomalyViewport::SetOverlaysSuppressed(false);
+}
+
+void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireInfo>& Fires,
+	const TArray<uint8>& FireHidden, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
+	float NearClip, int32 SessionIndex, double TimeSeconds)
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+
+	for (int32 i = 0; i < Fires.Num(); ++i)
+	{
+		const FAutoLiveFireInfo& F = Fires[i];
+
+		// One event per (id, target, start_frame). Re-fires of the same id on a later burst are distinct.
+		FSessionEventAccum* Ev = Async->SessionEvents.FindByPredicate(
+			[&F](const FSessionEventAccum& E){ return E.Id == F.Id && E.StartFrame == F.StartFrame && E.Target == F.Target; });
+		if (!Ev)
+		{
+			FSessionEventAccum NewEv;
+			NewEv.Id = F.Id;
+			NewEv.Target = F.Target;
+			NewEv.StartFrame = F.StartFrame;
+			Ev = &Async->SessionEvents[Async->SessionEvents.Add(MoveTemp(NewEv))];
+		}
+
+		// Anchor = injection moment (smallest session index while live) -> camera / engine / node snapshot.
+		if (SessionIndex < Ev->AnchorIndex)
+		{
+			Ev->AnchorIndex = SessionIndex;
+			Ev->CamPos = View.Origin;
+			Ev->CamRot = View.Rotation;
+			Ev->CamFov = View.HorizontalFOVDeg;
+			Ev->CamAspect = View.AspectRatio;
+			Ev->CamNear = NearClip;
+			Ev->CamPath = ResolveCameraPath(World);
+			Ev->TicksMsec = (int64)FMath::RoundToDouble(TimeSeconds * 1000.0);
+			Ev->NodeName = F.Target;
+			if (const AActor* FActor = F.TargetActor.Get())
+			{
+				Ev->NodePath = FActor->GetPathName();
+			}
+			Ev->NodePos = FirePos.IsValidIndex(i) ? FirePos[i] : FVector::ZeroVector;
+		}
+
+		// affected_frames = only frames where the projected box is valid; coverage = clamped box area.
+		if (const AActor* FActor = F.TargetActor.Get())
+		{
+			FVector2D Min(FVector2D::ZeroVector), Max(FVector2D::ZeroVector);
+			if (AnomalyViewport::ProjectActorBoundsToScreenRect(View, FActor, Min, Max))
+			{
+				Ev->AffectedFrames.Add(SessionIndex);
+				const double BoxW = FMath::Clamp((double)Max.X, 0.0, 1.0) - FMath::Clamp((double)Min.X, 0.0, 1.0);
+				const double BoxH = FMath::Clamp((double)Max.Y, 0.0, 1.0) - FMath::Clamp((double)Min.Y, 0.0, 1.0);
+				Ev->CoverageSum += FMath::Max(0.0, BoxW) * FMath::Max(0.0, BoxH);
+				++Ev->CoverageCount;
+			}
+		}
+
+		// Toggle observation (drives anomaly_subtype): count visibility transitions over the hold, and
+		// record which session-indices were actually hidden (the OUT frames the slicer emits).
+		const int32 Hidden = (FireHidden.IsValidIndex(i) && FireHidden[i]) ? 1 : 0;
+		if (Hidden) { ++Ev->HiddenFrames; Ev->HiddenIndices.Add(SessionIndex); } else { ++Ev->VisibleFrames; }
+		if (Ev->LastHidden != -1 && Hidden != Ev->LastHidden) { ++Ev->Transitions; }
+		Ev->LastHidden = Hidden;
+	}
+}
+
+void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+
+	AnomalyLabel::FSessionAnnotation A;
+	A.SessionId = SessionId;
+	A.Video.FramesDir = TEXT("Actual_Frames");
+	A.Video.VideoPath = FString::Printf(TEXT("Video_Clip/%s.mp4"), *SessionId);
+	A.Video.ResolutionW = ViewportW;
+	A.Video.ResolutionH = ViewportH;
+	A.Video.Fps = VideoFps;
+	A.Video.TotalFrames = FramesWritten;
+
+	for (FSessionEventAccum& Ev : Async->SessionEvents)
+	{
+		AnomalyLabel::FSessionEvent Out;
+		MapAnomalyToClient(Ev.Id, Ev.Transitions, Out.AnomalyType, Out.AnomalySubtype);
+		Out.SourceId = Ev.Id.ToString();
+
+		Ev.AffectedFrames.Sort();
+		Out.AffectedFrames = Ev.AffectedFrames;
+		Out.CoverageRatio = Ev.CoverageCount > 0 ? (Ev.CoverageSum / (double)Ev.CoverageCount) : 0.0;
+
+		AnomalyLabel::FSessionNode Node;
+		Node.Name = Ev.NodeName;
+		Node.Path = Ev.NodePath;
+		Node.GlobalPosition = Ev.NodePos;
+		Out.Nodes.Add(Node);
+		Out.PrimaryIndex = 0;
+
+		Out.CamPath = Ev.CamPath;
+		Out.CamPosition = Ev.CamPos;
+		Out.CamRotation = Ev.CamRot;
+		Out.CamFovDeg = Ev.CamFov;
+		Out.CamAspect = Ev.CamAspect;
+		Out.CamNear = Ev.CamNear;
+		Out.CamFar = GAnomalyDefaultFarPlane;
+
+		Out.TicksMsec = Ev.TicksMsec;
+		Out.EngineName = TEXT("UnrealEngine");
+		Out.EngineVersion = EngineVersion;
+		Out.EngineProject = EngineProject;
+
+		Out.VisibleFrames = Ev.VisibleFrames;
+		Out.HiddenFrames = Ev.HiddenFrames;
+		Out.Transitions = Ev.Transitions;
+		Ev.HiddenIndices.Sort();
+		Out.HiddenFrameList = Ev.HiddenIndices;
+
+		A.Events.Add(MoveTemp(Out));
+	}
+
+	if (AnomalyLabel::WriteSessionAnnotation(RunDir, A))
+	{
+		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: wrote annotation.json (%d anomaly event(s))."), A.Events.Num());
+	}
+	else
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture: failed to write annotation.json."));
+	}
 }
 
 

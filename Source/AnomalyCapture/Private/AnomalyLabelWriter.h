@@ -20,8 +20,13 @@ namespace AnomalyLabel
 		uint64 FrameCounter = 0;      // GFrameCounter at submit time (engine frame; kept for debug / cross-thread key)
 		int32  SessionIndex = 0;      // session-local 0-based frame ordinal (matches Actual_Frames/frame_%05d)
 		double TimeSeconds = 0.0;
+		float  NearClip = 0.0f;       // view near-clip (GNearClippingPlane) at submit time
 		FAnomalyViewInfo View;
 		TArray<FAutoLiveFireInfo> Fires;
+		// Submit-time per-fire state, index-aligned with Fires (the async readback resolves later, so the
+		// fast-toggling hidden flag + the actor position MUST be sampled here, not at completion).
+		TArray<uint8>   FireHidden;   // 1 = actor hidden this frame (blink off-phase / missing_object)
+		TArray<FVector> FirePos;      // actor world location at submit time
 	};
 
 	// Synchronous path (legacy / fallback): grabs the game viewport (ReadPixels) + projects + writes,
@@ -70,4 +75,71 @@ namespace AnomalyLabel
 
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
 		int32 ZeroMatchBursts, uint64 EndFrame);
+
+	// ---- Native multi-anomaly session annotation (annotation.json) ----------------------------------
+	// A superset of the client's per-clip schema: one shared video envelope + an anomalies[] array whose
+	// each element mirrors exactly one client clip (the slicer, Stage 5, cuts these into singular clips).
+
+	struct FSessionVideo
+	{
+		FString FramesDir;           // "Actual_Frames"
+		FString VideoPath;           // "Video_Clip/<session>.mp4" (host ffmpeg produces it, Stage 3)
+		int32 ResolutionW = 0;
+		int32 ResolutionH = 0;
+		int32 Fps = 30;              // playback/encode metadata, NOT the capture throughput
+		int32 TotalFrames = 0;
+	};
+
+	struct FSessionNode
+	{
+		FString Name;
+		FString Path;                // AActor::GetPathName()
+		FVector GlobalPosition = FVector::ZeroVector;  // GetActorLocation() at injection moment
+	};
+
+	// One per fire (id, target, start_frame). Mirrors one client clip.
+	struct FSessionEvent
+	{
+		FString AnomalyType;         // client vocab, e.g. "blink"
+		FString AnomalySubtype;      // e.g. "disappear_reappear" / "flicker" (derived from the toggle pattern)
+		FString SourceId;            // internal id, e.g. "blinking" (dropped by the slicer)
+		TArray<int32> AffectedFrames; // session-local indices where the fire was live AND bbox_valid
+		double CoverageRatio = 0.0;  // mean projected-bbox-area / frame-area over AffectedFrames (approx)
+
+		TArray<FSessionNode> Nodes;
+		int32 PrimaryIndex = 0;
+
+		// camera-at-event (client-required: path/position/near/far; rotation/fov/aspect are bonus)
+		FString CamPath;
+		FVector CamPosition = FVector::ZeroVector;
+		FRotator CamRotation = FRotator::ZeroRotator;
+		float CamFovDeg = 0.0f;
+		float CamAspect = 0.0f;
+		float CamNear = 0.0f;
+		float CamFar = 0.0f;
+
+		// engine-at-event (ticks_msec is client-required + reused verbatim in the clip filename)
+		int64 TicksMsec = 0;
+		FString EngineName;
+		FString EngineVersion;
+		FString EngineProject;
+
+		// diagnostic (also drives AnomalySubtype): visibility transitions observed over the hold.
+		// HiddenFrameList = session-indices where the actor was actually render-hidden (the OUT frames the
+		// slicer needs — the client clip's affected_frames are these, not our full live/bbox_valid span).
+		int32 VisibleFrames = 0;
+		int32 HiddenFrames = 0;
+		int32 Transitions = 0;
+		TArray<int32> HiddenFrameList;
+	};
+
+	struct FSessionAnnotation
+	{
+		FString SchemaVersion = TEXT("iai-session-1");
+		FString SessionId;
+		FSessionVideo Video;
+		TArray<FSessionEvent> Events;
+	};
+
+	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& Annotation);
 }

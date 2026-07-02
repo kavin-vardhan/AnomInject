@@ -294,6 +294,108 @@ namespace AnomalyLabel
 		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("run_summary.json")),
 			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	}
+
+	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& A)
+	{
+		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+		Root->SetStringField(TEXT("schema_version"), A.SchemaVersion);
+		Root->SetStringField(TEXT("session_id"), A.SessionId);
+
+		{
+			TSharedRef<FJsonObject> V = MakeShared<FJsonObject>();
+			V->SetStringField(TEXT("path"), A.Video.VideoPath);
+			V->SetStringField(TEXT("frames_dir"), A.Video.FramesDir);
+			V->SetArrayField(TEXT("resolution"), { LabelNum(A.Video.ResolutionW), LabelNum(A.Video.ResolutionH) });
+			V->SetNumberField(TEXT("fps"), A.Video.Fps);
+			V->SetNumberField(TEXT("total_frames"), A.Video.TotalFrames);
+			Root->SetObjectField(TEXT("video"), V);
+		}
+
+		TArray<TSharedPtr<FJsonValue>> Arr;
+		for (const FSessionEvent& E : A.Events)
+		{
+			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+			O->SetStringField(TEXT("anomaly_type"), E.AnomalyType);
+			O->SetStringField(TEXT("anomaly_subtype"), E.AnomalySubtype);
+			O->SetStringField(TEXT("source_id"), E.SourceId);
+
+			TArray<TSharedPtr<FJsonValue>> Frames;
+			for (int32 F : E.AffectedFrames) { Frames.Add(LabelNum(F)); }
+			O->SetArrayField(TEXT("affected_frames"), Frames);
+			O->SetNumberField(TEXT("coverage_ratio"), E.CoverageRatio);
+
+			{
+				TSharedRef<FJsonObject> Obj = MakeShared<FJsonObject>();
+				Obj->SetNumberField(TEXT("count"), E.Nodes.Num());
+				Obj->SetNumberField(TEXT("primary_index"), E.PrimaryIndex);
+				TArray<TSharedPtr<FJsonValue>> NodeArr;
+				for (const FSessionNode& N : E.Nodes)
+				{
+					TSharedRef<FJsonObject> NO = MakeShared<FJsonObject>();
+					NO->SetStringField(TEXT("name"), N.Name);
+					NO->SetStringField(TEXT("path"), N.Path);
+					NO->SetArrayField(TEXT("global_position"), LabelVec3(N.GlobalPosition.X, N.GlobalPosition.Y, N.GlobalPosition.Z));
+					NodeArr.Add(MakeShared<FJsonValueObject>(NO));
+				}
+				Obj->SetArrayField(TEXT("nodes"), NodeArr);
+				O->SetObjectField(TEXT("affected_objects"), Obj);
+			}
+
+			{
+				TSharedRef<FJsonObject> Cam = MakeShared<FJsonObject>();
+				Cam->SetStringField(TEXT("path"), E.CamPath);
+				Cam->SetArrayField(TEXT("global_position"), LabelVec3(E.CamPosition.X, E.CamPosition.Y, E.CamPosition.Z));
+				Cam->SetNumberField(TEXT("near"), E.CamNear);
+				Cam->SetNumberField(TEXT("far"), E.CamFar);
+				Cam->SetArrayField(TEXT("rotation"), LabelVec3(E.CamRotation.Pitch, E.CamRotation.Yaw, E.CamRotation.Roll));
+				Cam->SetNumberField(TEXT("fov_deg"), E.CamFovDeg);
+				Cam->SetNumberField(TEXT("aspect"), E.CamAspect);
+				O->SetObjectField(TEXT("camera"), Cam);
+			}
+
+			{
+				TSharedRef<FJsonObject> Eng = MakeShared<FJsonObject>();
+				Eng->SetNumberField(TEXT("ticks_msec"), (double)E.TicksMsec);
+				Eng->SetStringField(TEXT("name"), E.EngineName);
+				Eng->SetStringField(TEXT("version"), E.EngineVersion);
+				Eng->SetStringField(TEXT("project"), E.EngineProject);
+				O->SetObjectField(TEXT("engine"), Eng);
+			}
+
+			{
+				TSharedRef<FJsonObject> Mask = MakeShared<FJsonObject>();
+				Mask->SetBoolField(TEXT("provided"), false);
+				O->SetObjectField(TEXT("mask"), Mask);
+				TSharedRef<FJsonObject> Depth = MakeShared<FJsonObject>();
+				Depth->SetBoolField(TEXT("provided"), false);
+				O->SetObjectField(TEXT("depth"), Depth);
+			}
+
+			// Diagnostic block (NOT part of the client per-clip schema; the slicer drops it). Lets the gate
+			// cross-check the observed toggle pattern that classified anomaly_subtype.
+			{
+				TSharedRef<FJsonObject> Dbg = MakeShared<FJsonObject>();
+				Dbg->SetNumberField(TEXT("visible_frames"), E.VisibleFrames);
+				Dbg->SetNumberField(TEXT("hidden_frames"), E.HiddenFrames);
+				Dbg->SetNumberField(TEXT("transitions"), E.Transitions);
+				TArray<TSharedPtr<FJsonValue>> HiddenArr;
+				for (int32 HF : E.HiddenFrameList) { HiddenArr.Add(LabelNum(HF)); }
+				Dbg->SetArrayField(TEXT("hidden_frame_list"), HiddenArr);
+				O->SetObjectField(TEXT("_debug"), Dbg);
+			}
+
+			Arr.Add(MakeShared<FJsonValueObject>(O));
+		}
+		Root->SetArrayField(TEXT("anomalies"), Arr);
+
+		FString Out;
+		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+		FJsonSerializer::Serialize(Root, Writer);
+
+		IFileManager::Get().MakeDirectory(*RunDir, true);
+		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("annotation.json")),
+			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	}
 }
 
 

@@ -70,6 +70,12 @@ private:
 	FAnomalyViewInfo ProjectionView() const;
 	class UAnomalyAutoInjectorSubsystem* ResolveAuto() const;
 
+	// Session-annotation assembly (Stage 2): fold one captured frame's live fires into the per-event
+	// accumulator, and serialize the native multi-anomaly annotation.json at finalize.
+	void AccumulateFrameEvents(const TArray<struct FAutoLiveFireInfo>& Fires, const TArray<uint8>& FireHidden,
+		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds);
+	void WriteSessionAnnotationFile();
+
 	// Async capture helpers.
 	void EnsureCapturer();
 	void ProcessCompletedFrames();
@@ -93,6 +99,13 @@ private:
 	// the frame-cap counter: on reaching FrameCap the run stops arming and finalizes.
 	int32 SessionFrameIndex = 0;
 	int32 FrameCap = 0;
+
+	// Session-annotation metadata (captured at StartRun; serialized at finalize).
+	int32 ViewportW = 0;
+	int32 ViewportH = 0;
+	int32 VideoFps = 30;             // playback/encode fps metadata (NOT capture throughput)
+	FString EngineVersion;           // e.g. "5.1"
+	FString EngineProject;           // e.g. "StackOBot"
 
 	int32 SettleFrames = 2;
 	int32 PreFrames = 4;
