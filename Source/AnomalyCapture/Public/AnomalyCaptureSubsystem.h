@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "HAL/FileManager.h"
 #include "AnomalyViewport.h"
 #include "AnomalyCaptureSubsystem.generated.h"
 
