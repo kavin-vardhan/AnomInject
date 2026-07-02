@@ -86,7 +86,7 @@ namespace AnomalyLabel
 		FString VideoPath;           // "Video_Clip/<session>.mp4" (host ffmpeg produces it, Stage 3)
 		int32 ResolutionW = 0;
 		int32 ResolutionH = 0;
-		int32 Fps = 30;              // playback/encode metadata, NOT the capture throughput
+		double Fps = 30.0;           // MEASURED session rate (world-time; may be fractional) = mp4 playback fps
 		int32 TotalFrames = 0;
 	};
 

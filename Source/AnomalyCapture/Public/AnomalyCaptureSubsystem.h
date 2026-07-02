@@ -103,7 +103,14 @@ private:
 	// Session-annotation metadata (captured at StartRun; serialized at finalize).
 	int32 ViewportW = 0;
 	int32 ViewportH = 0;
-	int32 VideoFps = 30;             // playback/encode fps metadata (NOT capture throughput)
+	int32 VideoFps = 30;             // FALLBACK fps when the measured rate is unavailable (<2 frames)
+
+	// World-time of the first/last ARMED frame (same clock as labels.jsonl "t"). The session's real
+	// capture rate = (frames-1)/(last-first); written into annotation.json video.fps at finalize so the
+	// mp4 plays back at gameplay pacing (the capture arms one frame per engine tick, so wall-clock rate
+	// follows the machine -- a fixed 30 here made slow-PIE sessions play 3x fast).
+	double FirstFrameTimeSeconds = -1.0;
+	double LastFrameTimeSeconds = -1.0;
 	FString EngineVersion;           // e.g. "5.1"
 	FString EngineProject;           // e.g. "StackOBot"
 

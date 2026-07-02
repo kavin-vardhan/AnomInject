@@ -432,6 +432,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	PositiveFramesWritten = 0;
 	ZeroMatchBursts = 0;
 	SessionFrameIndex = 0;
+	FirstFrameTimeSeconds = -1.0;
+	LastFrameTimeSeconds = -1.0;
 	ViewRing.Reset();
 	if (Async.IsValid())
 	{
@@ -768,6 +770,11 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				Snap.FireHidden.Add((FActor && FActor->IsHidden()) ? 1 : 0);
 				Snap.FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 			}
+			if (FirstFrameTimeSeconds < 0.0)
+			{
+				FirstFrameTimeSeconds = Snap.TimeSeconds;
+			}
+			LastFrameTimeSeconds = Snap.TimeSeconds;
 			Async->PendingSnapshots.Add(Snap.FrameCounter, MoveTemp(Snap));
 			Async->Capturer->ArmForCapture(GFrameCounter, TargetWindow, CaptureRect);
 			++SessionFrameIndex;
@@ -802,8 +809,13 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			Hidden.Add((FActor && FActor->IsHidden()) ? 1 : 0);
 			Pos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 		}
-		AccumulateFrameEvents(Fires, Hidden, Pos, ProjView, GNearClippingPlane, SessionFrameIndex,
-			World ? World->GetTimeSeconds() : 0.0);
+		const double NowT = World ? World->GetTimeSeconds() : 0.0;
+		AccumulateFrameEvents(Fires, Hidden, Pos, ProjView, GNearClippingPlane, SessionFrameIndex, NowT);
+		if (FirstFrameTimeSeconds < 0.0)
+		{
+			FirstFrameTimeSeconds = NowT;
+		}
+		LastFrameTimeSeconds = NowT;
 
 		++SessionFrameIndex;
 		++FramesWritten;
@@ -926,8 +938,21 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 	A.Video.VideoPath = FString::Printf(TEXT("Video_Clip/%s.mp4"), *SessionId);
 	A.Video.ResolutionW = ViewportW;
 	A.Video.ResolutionH = ViewportH;
-	A.Video.Fps = VideoFps;
 	A.Video.TotalFrames = FramesWritten;
+
+	// MEASURED session fps (world-time span of the armed frames), so the encoded mp4 plays at gameplay
+	// pacing regardless of how fast the machine ran. One frame per engine tick means the true rate is
+	// whatever PIE achieved (e.g. ~10 fps on a loaded editor); a fixed 30 here played 3x fast. Settle
+	// phases capture nothing, so their small time gaps are smeared into the average -- accepted. Falls
+	// back to VideoFps when the span is degenerate (<2 armed frames).
+	double MeasuredFps = (double)VideoFps;
+	const double Span = LastFrameTimeSeconds - FirstFrameTimeSeconds;
+	if (SessionFrameIndex >= 2 && FirstFrameTimeSeconds >= 0.0 && Span > KINDA_SMALL_NUMBER)
+	{
+		MeasuredFps = FMath::Clamp((double)(SessionFrameIndex - 1) / Span, 1.0, 240.0);
+		MeasuredFps = FMath::RoundToDouble(MeasuredFps * 1000.0) / 1000.0;
+	}
+	A.Video.Fps = MeasuredFps;
 
 	for (FSessionEventAccum& Ev : Async->SessionEvents)
 	{
