@@ -350,6 +350,18 @@ void UAnomalyCaptureSubsystem::SetAsyncCapture(bool bInAsync)
 		bAsyncCapture ? TEXT("backbuffer readback, game UI included") : TEXT("synchronous ReadPixels fallback"));
 }
 
+void UAnomalyCaptureSubsystem::SetCaptureFps(int32 InFps)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Fps: ignored mid-run (stop first)."));
+		return;
+	}
+	VideoFps = FMath::Clamp(InFps, 1, 240);
+	UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.Fps: %d (fixed timestep 1/%d s per frame during runs)."),
+		VideoFps, VideoFps);
+}
+
 void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap)
 {
 #if ANOMALY_CAPTURE
@@ -455,6 +467,18 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 
 	bRunning = true;
 
+	// NATIVE-fps capture: run the engine on a FIXED timestep of 1/VideoFps for the whole run (the
+	// movie-render/offline pattern). Every tick advances game time by exactly 1/fps, so each captured
+	// frame is a true 1/fps slice and the mp4 encodes at exactly VideoFps with natural pacing -- no
+	// matter how fast or slow the machine renders. (While capturing, the world feels slow-motion on a
+	// machine below fps wall-clock and fast above it; the OUTPUT time base is exact either way.)
+	// Saved/restored around the run; app-wide, same scope movie capture uses.
+	bSavedUseFixedTimeStep = FApp::UseFixedTimeStep();
+	SavedFixedDeltaTime = FApp::GetFixedDeltaTime();
+	FApp::SetUseFixedTimeStep(true);
+	FApp::SetFixedDeltaTime(1.0 / (double)VideoFps);
+	bFixedTimeStepOverridden = true;
+
 	// Suppress ONLY our own dev overlays (poll-radius sphere, selector HUD/box, auto HUD, the
 	// on-screen heartbeat) for the whole run -> the captured frame is the real player view with the
 	// GAME UI intact, minus our scaffolding. Applies to both the async + sync paths.
@@ -464,8 +488,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	PhaseFramesLeft = PreFrames;
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | seed=%d fmt=%s capture=%s | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
-		*RunDir, Seed, *M.Format, bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"),
+		TEXT("=== Capture run STARTED: %s | seed=%d fmt=%s capture=%s fps=%d(fixed-step) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
+		*RunDir, Seed, *M.Format, bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"), VideoFps,
 		SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 		BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
 		FrameCap > 0 ? *FString::FromInt(FrameCap) : TEXT("none"));
@@ -854,6 +878,13 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	Phase = ECapturePhase::Idle;
 	PhaseFramesLeft = 0;
 
+	if (bFixedTimeStepOverridden)
+	{
+		FApp::SetUseFixedTimeStep(bSavedUseFixedTimeStep);
+		FApp::SetFixedDeltaTime(SavedFixedDeltaTime);
+		bFixedTimeStepOverridden = false;
+	}
+
 	AnomalyViewport::SetOverlaysSuppressed(false);
 }
 
@@ -940,19 +971,17 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 	A.Video.ResolutionH = ViewportH;
 	A.Video.TotalFrames = FramesWritten;
 
-	// MEASURED session fps (world-time span of the armed frames), so the encoded mp4 plays at gameplay
-	// pacing regardless of how fast the machine ran. One frame per engine tick means the true rate is
-	// whatever PIE achieved (e.g. ~10 fps on a loaded editor); a fixed 30 here played 3x fast. Settle
-	// phases capture nothing, so their small time gaps are smeared into the average -- accepted. Falls
-	// back to VideoFps when the span is degenerate (<2 armed frames).
-	double MeasuredFps = (double)VideoFps;
+	// The run executed on a fixed timestep of 1/VideoFps, so each frame IS exactly 1/VideoFps of game
+	// time -> the encode fps is the fixed rate itself, exactly. The measured world-time span is logged
+	// as a sanity check (settle gaps read it slightly low; a big deviation means the step didn't hold).
+	A.Video.Fps = (double)VideoFps;
 	const double Span = LastFrameTimeSeconds - FirstFrameTimeSeconds;
 	if (SessionFrameIndex >= 2 && FirstFrameTimeSeconds >= 0.0 && Span > KINDA_SMALL_NUMBER)
 	{
-		MeasuredFps = FMath::Clamp((double)(SessionFrameIndex - 1) / Span, 1.0, 240.0);
-		MeasuredFps = FMath::RoundToDouble(MeasuredFps * 1000.0) / 1000.0;
+		const double MeasuredFps = (double)(SessionFrameIndex - 1) / Span;
+		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: fixed-step fps=%d; measured over armed span %.3f fps (settle gaps read low)."),
+			VideoFps, MeasuredFps);
 	}
-	A.Video.Fps = MeasuredFps;
 
 	for (FSessionEventAccum& Ev : Async->SessionEvents)
 	{
@@ -1109,6 +1138,22 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureAsyncCmd(
 				return;
 			}
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetAsyncCapture(FCString::Atoi(*Args[0]) != 0); }
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureFpsCmd(
+	TEXT("IAI.Capture.Fps"),
+	TEXT("Set the native capture/playback rate (default 30). During a run the engine ticks on a FIXED ")
+	TEXT("timestep of 1/fps, so every frame is an exact 1/fps slice of game time and the mp4 encodes at ")
+	TEXT("exactly this rate. Usage: IAI.Capture.Fps <fps>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.Fps <fps>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetCaptureFps(FCString::Atoi(*Args[0])); }
 		}));
 
 #endif

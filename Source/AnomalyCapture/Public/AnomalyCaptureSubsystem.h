@@ -47,6 +47,10 @@ public:
 	void SetAsyncCapture(bool bInAsync);
 	bool IsAsyncCapture() const { return bAsyncCapture; }
 
+	// Capture/playback rate (default 30). During a run the engine ticks on a FIXED timestep of 1/fps,
+	// so every captured frame is an exact 1/fps slice of game time (offline-render pattern).
+	void SetCaptureFps(int32 InFps);
+
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
@@ -103,12 +107,20 @@ private:
 	// Session-annotation metadata (captured at StartRun; serialized at finalize).
 	int32 ViewportW = 0;
 	int32 ViewportH = 0;
-	int32 VideoFps = 30;             // FALLBACK fps when the measured rate is unavailable (<2 frames)
 
-	// World-time of the first/last ARMED frame (same clock as labels.jsonl "t"). The session's real
-	// capture rate = (frames-1)/(last-first); written into annotation.json video.fps at finalize so the
-	// mp4 plays back at gameplay pacing (the capture arms one frame per engine tick, so wall-clock rate
-	// follows the machine -- a fixed 30 here made slow-PIE sessions play 3x fast).
+	// The NATIVE capture rate: during a run the engine runs on a fixed timestep of 1/VideoFps, so each
+	// captured frame IS exactly 1/VideoFps of game time and the mp4 encodes at exactly this rate (natural
+	// pacing on any machine; wall-clock render speed becomes irrelevant). IAI.Capture.Fps to change.
+	int32 VideoFps = 30;
+
+	// Fixed-timestep engagement state (saved at StartRun, restored at FinishRun).
+	bool bSavedUseFixedTimeStep = false;
+	double SavedFixedDeltaTime = 0.0;
+	bool bFixedTimeStepOverridden = false;
+
+	// World-time of the first/last ARMED frame (same clock as labels.jsonl "t"). Diagnostic only: under
+	// the fixed timestep the measured rate must track VideoFps (settle gaps read it slightly low); a big
+	// deviation means the fixed step didn't hold.
 	double FirstFrameTimeSeconds = -1.0;
 	double LastFrameTimeSeconds = -1.0;
 	FString EngineVersion;           // e.g. "5.1"
