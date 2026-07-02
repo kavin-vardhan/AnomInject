@@ -25,7 +25,7 @@ public:
 		int32 BytesPerPixel = 0;
 		int32 Width = 0;
 		int32 Height = 0;
-		uint64 FrameIndex = 0;
+		FString ImageRelPath;          // image path relative to OutputDir (matches Record's "image" field)
 		FString Record;                // label record JSON, built on the game thread (UObject-safe)
 		bool bPositive = false;
 	};

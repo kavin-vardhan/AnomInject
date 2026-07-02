@@ -24,7 +24,7 @@ void FAnomalyAsyncWriter::Enqueue(FJob&& Job)
 void FAnomalyAsyncWriter::Run(FJob& Job)
 {
 	const bool bOk = AnomalyLabel::EncodeAndWriteFrame(Job.OutputDir, Job.OutFormat, Job.RawBytes,
-		Job.SrcFormat, Job.BytesPerPixel, Job.Width, Job.Height, Job.FrameIndex, Job.Record, JsonlCS);
+		Job.SrcFormat, Job.BytesPerPixel, Job.Width, Job.Height, Job.ImageRelPath, Job.Record, JsonlCS);
 
 	if (bOk)
 	{

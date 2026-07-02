@@ -17,7 +17,8 @@ namespace AnomalyLabel
 	// state, not the resolve frame's. The sync path fills this inline at the capture tick.
 	struct FCaptureSnapshot
 	{
-		uint64 FrameCounter = 0;
+		uint64 FrameCounter = 0;      // GFrameCounter at submit time (engine frame; kept for debug / cross-thread key)
+		int32  SessionIndex = 0;      // session-local 0-based frame ordinal (matches Actual_Frames/frame_%05d)
 		double TimeSeconds = 0.0;
 		FAnomalyViewInfo View;
 		TArray<FAutoLiveFireInfo> Fires;
@@ -25,8 +26,11 @@ namespace AnomalyLabel
 
 	// Synchronous path (legacy / fallback): grabs the game viewport (ReadPixels) + projects + writes,
 	// all on the calling tick. ProjectionView supplies the (optionally lagged) projection view.
+	// ImageRelName is the image path relative to OutputDir (session runs pass "Actual_Frames/frame_%05d.<ext>";
+	// the manual single-shot passes a flat "frame_<GFrameCounter>.<ext>"). SessionIndex is recorded as
+	// session_index in the label record.
 	bool CaptureLabeledShot(UWorld* World, const FString& OutputDir, AnomalyPreview::EImageFormat Format,
-		const FAnomalyViewInfo& ProjectionView,
+		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog = true);
 
 	// Async path, GAME THREAD: build the JSONL label record string from the submit-time snapshot.
@@ -37,11 +41,12 @@ namespace AnomalyLabel
 		const FString& ImageName, int32& OutNumLabels);
 
 	// Async path, WORKER THREAD: convert the tight native-format pixels -> BGRA, encode (PNG/JPEG),
-	// write frame_<FrameIndex>.<ext>, and append the pre-built Record to labels.jsonl under JsonlLock.
+	// write the image at OutputDir/ImageRelPath (parent dirs created), and append the pre-built Record to
+	// labels.jsonl under JsonlLock. ImageRelPath MUST match the "image" field baked into Record.
 	// Touches NO UObjects -> safe off the game thread.
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
-		uint64 FrameIndex, const FString& Record, FCriticalSection& JsonlLock);
+		const FString& ImageRelPath, const FString& Record, FCriticalSection& JsonlLock);
 
 	struct FRunManifest
 	{
@@ -52,6 +57,8 @@ namespace AnomalyLabel
 		int32 PositiveFrames = 0;
 		int32 PostFrames = 0;
 		int32 BurstCount = 0;
+		int32 FrameCap = 0;
+		FString SessionId;
 		int32 ViewportW = 0;
 		int32 ViewportH = 0;
 		FString Format;

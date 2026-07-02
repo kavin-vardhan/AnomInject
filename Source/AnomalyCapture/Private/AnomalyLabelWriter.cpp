@@ -34,13 +34,14 @@ namespace
 	}
 
 	FString BuildFrameLabelRecord(const TArray<FAutoLiveFireInfo>& Fires,
-		const FAnomalyViewInfo& View, int32 W, int32 H, uint64 FrameIndex, double TimeSeconds,
+		const FAnomalyViewInfo& View, int32 W, int32 H, uint64 FrameIndex, int32 SessionIndex, double TimeSeconds,
 		const FString& ImageName, int32& OutNumLabels)
 	{
 		OutNumLabels = 0;
 
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetNumberField(TEXT("frame_index"), (double)FrameIndex);
+		Root->SetNumberField(TEXT("session_index"), (double)SessionIndex);
 		Root->SetNumberField(TEXT("t"), TimeSeconds);
 		Root->SetStringField(TEXT("image"), ImageName);
 		Root->SetNumberField(TEXT("width"), W);
@@ -98,14 +99,13 @@ namespace
 		return Out;
 	}
 
-	bool AppendRecordAndImage(const FString& OutputDir, const TArray<uint8>& ImageBytes, const TCHAR* Ext,
-		const FString& Record, uint64 FrameIndex, FString& OutImagePath, FString& OutSidecarPath, bool bLog)
+	bool AppendRecordAndImage(const FString& OutputDir, const TArray<uint8>& ImageBytes,
+		const FString& Record, const FString& ImageRelName, FString& OutImagePath, FString& OutSidecarPath, bool bLog)
 	{
-		const FString ImageName = FString::Printf(TEXT("frame_%llu.%s"), FrameIndex, Ext);
-		const FString ImagePath = FPaths::Combine(OutputDir, ImageName);
+		const FString ImagePath = FPaths::Combine(OutputDir, ImageRelName);
 		const FString SidecarPath = FPaths::Combine(OutputDir, TEXT("labels.jsonl"));
 
-		IFileManager::Get().MakeDirectory(*OutputDir, true);
+		IFileManager::Get().MakeDirectory(*FPaths::GetPath(ImagePath), true);
 		if (!FFileHelper::SaveArrayToFile(ImageBytes, *ImagePath))
 		{
 			if (bLog)
@@ -173,7 +173,7 @@ namespace
 namespace AnomalyLabel
 {
 	bool CaptureLabeledShot(UWorld* World, const FString& OutputDir, AnomalyPreview::EImageFormat Format,
-		const FAnomalyViewInfo& ProjectionView,
+		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog)
 	{
 		OutNumLabels = 0;
@@ -199,26 +199,22 @@ namespace AnomalyLabel
 			return false;
 		}
 
-		const uint64 FrameIndex = GFrameCounter;
-		const TCHAR* Ext = (Format == AnomalyPreview::EImageFormat::PNG) ? TEXT("png") : TEXT("jpg");
-		const FString ImageName = FString::Printf(TEXT("frame_%llu.%s"), FrameIndex, Ext);
+		const FString Record = BuildFrameLabelRecord(Fires, ProjectionView, W, H, GFrameCounter, SessionIndex,
+			World->GetTimeSeconds(), ImageRelName, OutNumLabels);
 
-		const FString Record = BuildFrameLabelRecord(Fires, ProjectionView, W, H, FrameIndex,
-			World->GetTimeSeconds(), ImageName, OutNumLabels);
-
-		return AppendRecordAndImage(OutputDir, ImageBytes, Ext, Record, FrameIndex, OutImagePath, OutSidecarPath, bLog);
+		return AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog);
 	}
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
 		const FString& ImageName, int32& OutNumLabels)
 	{
 		return BuildFrameLabelRecord(Snapshot.Fires, Snapshot.View, Width, Height,
-			Snapshot.FrameCounter, Snapshot.TimeSeconds, ImageName, OutNumLabels);
+			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, ImageName, OutNumLabels);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
-		uint64 FrameIndex, const FString& Record, FCriticalSection& JsonlLock)
+		const FString& ImageRelPath, const FString& Record, FCriticalSection& JsonlLock)
 	{
 		if (Width <= 0 || Height <= 0 || BytesPerPixel <= 0 || RawBytes.Num() < (int64)Width * Height * BytesPerPixel)
 		{
@@ -234,11 +230,9 @@ namespace AnomalyLabel
 			return false;
 		}
 
-		const TCHAR* Ext = (OutFormat == AnomalyPreview::EImageFormat::PNG) ? TEXT("png") : TEXT("jpg");
-		const FString ImageName = FString::Printf(TEXT("frame_%llu.%s"), FrameIndex, Ext);
-		const FString ImagePath = FPaths::Combine(OutputDir, ImageName);
+		const FString ImagePath = FPaths::Combine(OutputDir, ImageRelPath);
 
-		IFileManager::Get().MakeDirectory(*OutputDir, true);
+		IFileManager::Get().MakeDirectory(*FPaths::GetPath(ImagePath), true);
 		if (!FFileHelper::SaveArrayToFile(ImageBytes, *ImagePath))
 		{
 			return false;
@@ -265,6 +259,8 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("positive_frames"), M.PositiveFrames);
 		Root->SetNumberField(TEXT("post_frames"), M.PostFrames);
 		Root->SetNumberField(TEXT("burst_count"), M.BurstCount);
+		Root->SetNumberField(TEXT("frame_cap"), M.FrameCap);
+		Root->SetStringField(TEXT("session_id"), M.SessionId);
 		Root->SetArrayField(TEXT("viewport"), { LabelNum(M.ViewportW), LabelNum(M.ViewportH) });
 		Root->SetStringField(TEXT("format"), M.Format);
 		Root->SetNumberField(TEXT("start_frame"), (double)M.StartFrame);
@@ -321,9 +317,13 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 			FAnomalyViewInfo View;
 			AnomalyViewport::GetActiveViewInfo(World, View);
 
+			// Manual single-shot: flat, unique filename (no session — reuse the engine frame counter).
+			const TCHAR* Ext = (Format == AnomalyPreview::EImageFormat::PNG) ? TEXT("png") : TEXT("jpg");
+			const FString ShotName = FString::Printf(TEXT("frame_%llu.%s"), GFrameCounter, Ext);
+
 			FString ImagePath, SidecarPath;
 			int32 NumLabels = 0;
-			if (AnomalyLabel::CaptureLabeledShot(World, Dir, Format, View, ImagePath, SidecarPath, NumLabels))
+			if (AnomalyLabel::CaptureLabeledShot(World, Dir, Format, View, ShotName, 0, ImagePath, SidecarPath, NumLabels))
 			{
 				UE_LOG(LogAnomalyCapture, Log, TEXT("Capture.Shot: wrote '%s' (%d valid bbox label(s)); record appended to '%s'."),
 					*ImagePath, NumLabels, *SidecarPath);

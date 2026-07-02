@@ -222,15 +222,21 @@ namespace ControlSnapshot
 		{
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			bool bRunning = false;
-			int32 Frames = 0, Seed = 0;
-			FString RunDir;
+			int32 Frames = 0, Seed = 0, FrameCap = 0;
+			FString RunDir, SessionId;
 			if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 			{
 				Cap->GetStatus(bRunning, Frames, RunDir, Seed);
+				FrameCap = Cap->GetFrameCap();
+				SessionId = Cap->GetSessionId();
 			}
+			const int32 Remaining = FrameCap > 0 ? FMath::Max(0, FrameCap - Frames) : -1;
 			O->SetBoolField(TEXT("running"), bRunning);
 			O->SetNumberField(TEXT("framesWritten"), Frames);
+			O->SetNumberField(TEXT("maxFrames"), FrameCap);
+			O->SetNumberField(TEXT("framesRemaining"), Remaining);
 			O->SetStringField(TEXT("runDir"), RunDir);
+			O->SetStringField(TEXT("sessionId"), SessionId);
 			O->SetNumberField(TEXT("seed"), Seed);
 			Root->SetObjectField(TEXT("capture"), O);
 		}

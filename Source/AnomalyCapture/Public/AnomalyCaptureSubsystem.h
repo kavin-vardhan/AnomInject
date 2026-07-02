@@ -23,7 +23,9 @@ public:
 	virtual TStatId GetStatId() const override;
 
 
-	void StartRun(const FString& BaseDir, bool bPng, int32 InSeed);
+	// InFrameCap > 0 caps the session at exactly that many written frames, then finalizes (0 = run until
+	// StopRun / the burst-count schedule, legacy behavior).
+	void StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap);
 
 	void StopRun();
 
@@ -32,6 +34,10 @@ public:
 	bool IsRunning() const { return bRunning; }
 
 	void GetStatus(bool& bOutRunning, int32& OutFrames, FString& OutRunDir, int32& OutSeed) const;
+
+	// Session-capture accessors (surfaced in the control-server snapshot).
+	int32 GetFrameCap() const { return FrameCap; }
+	FString GetSessionId() const { return SessionId; }
 
 	void SetBurstConfig(int32 K, int32 Pre, int32 Positive, int32 Post, int32 Bursts);
 
@@ -73,6 +79,7 @@ private:
 	ECapturePhase Phase = ECapturePhase::Idle;
 	int32 PhaseFramesLeft = 0;
 	FString RunDir;
+	FString SessionId;
 	int32 Seed = 0;
 	bool bFormatPng = true;
 	uint64 StartFrame = 0;
@@ -81,6 +88,11 @@ private:
 	int32 FramesWritten = 0;
 	int32 PositiveFramesWritten = 0;
 	int32 ZeroMatchBursts = 0;
+
+	// Session-local 0-based ordinal of the next frame to arm/write (== count armed so far). Doubles as
+	// the frame-cap counter: on reaching FrameCap the run stops arming and finalizes.
+	int32 SessionFrameIndex = 0;
+	int32 FrameCap = 0;
 
 	int32 SettleFrames = 2;
 	int32 PreFrames = 4;

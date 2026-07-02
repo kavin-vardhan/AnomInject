@@ -2,10 +2,11 @@
 """
 verify_capture.py — overlay the m7 capture/labeling bounding boxes onto the captured frames.
 
-The AnomalyInjector capture writes, per frame, an image (frame_<GFrameCounter>.png/.jpg) plus one JSON
-line in labels.jsonl. This tool reads that sidecar, draws each anomaly's bbox_px on its image, annotates
-it with the anomaly id + target name, and writes an annotated copy to <dir>/annotated/. It also prints a
-per-frame summary so you can confirm the temporal label (anomaly_present) and the spatial label (the box).
+The AnomalyInjector capture writes, per frame, an image (Actual_Frames/frame_<NNNNN>.png/.jpg, session-local
+0-based) plus one JSON line in labels.jsonl (its "image" field is the path relative to the session dir).
+This tool reads that sidecar, draws each anomaly's bbox_px on its image, annotates it with the anomaly id +
+target name, and writes an annotated copy to <dir>/annotated/. It also prints a per-frame summary so you can
+confirm the temporal label (anomaly_present) and the spatial label (the box).
 
 Usage:
     python verify_capture.py [--dir <captureDir>] [--out <annotatedDir>]
@@ -113,7 +114,7 @@ def main():
                 ty = max(0, y - 22)
                 draw.text((x + 2, ty), label, fill=color, font=font)
 
-            out_path = os.path.join(out_dir, os.path.splitext(img_name)[0] + "_annotated.png")
+            out_path = os.path.join(out_dir, os.path.splitext(os.path.basename(img_name))[0] + "_annotated.png")
             im.save(out_path)
 
     print("-" * 78)

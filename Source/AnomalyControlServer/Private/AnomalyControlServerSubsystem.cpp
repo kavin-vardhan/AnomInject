@@ -602,6 +602,8 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		Msg->TryGetStringField(TEXT("format"), Format);
 		double SeedV = -1.0;
 		Msg->TryGetNumberField(TEXT("seed"), SeedV);
+		double MaxFramesV = 0.0;
+		Msg->TryGetNumberField(TEXT("maxFrames"), MaxFramesV);
 		const bool bPng = !Format.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase);
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
@@ -616,7 +618,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 					}
 				}
 			}
-			Cap->StartRun(Dir, bPng, (int32)SeedV);
+			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV);
 		}
 		SendAck(Conn.Socket, TEXT("capture_start"));
 		return;
@@ -625,18 +627,22 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 	if (Type == TEXT("capture_stop"))
 	{
 		bool bRun = false;
-		int32 Frames = 0, Seed = 0;
-		FString RunDir;
+		int32 Frames = 0, Seed = 0, FrameCap = 0;
+		FString RunDir, SessionId;
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
 			Cap->StopRun();
 			Cap->GetStatus(bRun, Frames, RunDir, Seed);
+			FrameCap = Cap->GetFrameCap();
+			SessionId = Cap->GetSessionId();
 		}
 		const TSharedRef<FJsonObject> Reply = MakeShared<FJsonObject>();
 		Reply->SetStringField(TEXT("type"), TEXT("capture_stopped"));
 		Reply->SetBoolField(TEXT("running"), bRun);
 		Reply->SetStringField(TEXT("runDir"), RunDir);
+		Reply->SetStringField(TEXT("sessionId"), SessionId);
 		Reply->SetNumberField(TEXT("frames"), Frames);
+		Reply->SetNumberField(TEXT("maxFrames"), FrameCap);
 		Reply->SetNumberField(TEXT("seed"), Seed);
 		SendJson(Conn.Socket, Reply);
 		return;
@@ -645,17 +651,23 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 	if (Type == TEXT("capture_status"))
 	{
 		bool bRun = false;
-		int32 Frames = 0, Seed = 0;
-		FString RunDir;
+		int32 Frames = 0, Seed = 0, FrameCap = 0;
+		FString RunDir, SessionId;
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
 			Cap->GetStatus(bRun, Frames, RunDir, Seed);
+			FrameCap = Cap->GetFrameCap();
+			SessionId = Cap->GetSessionId();
 		}
+		const int32 Remaining = FrameCap > 0 ? FMath::Max(0, FrameCap - Frames) : -1;
 		const TSharedRef<FJsonObject> Reply = MakeShared<FJsonObject>();
 		Reply->SetStringField(TEXT("type"), TEXT("capture_status"));
 		Reply->SetBoolField(TEXT("running"), bRun);
 		Reply->SetStringField(TEXT("runDir"), RunDir);
+		Reply->SetStringField(TEXT("sessionId"), SessionId);
 		Reply->SetNumberField(TEXT("frames"), Frames);
+		Reply->SetNumberField(TEXT("maxFrames"), FrameCap);
+		Reply->SetNumberField(TEXT("framesRemaining"), Remaining);
 		Reply->SetNumberField(TEXT("seed"), Seed);
 		SendJson(Conn.Socket, Reply);
 		return;

@@ -130,6 +130,24 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		ProcessCompletedFrames();
 	}
 
+	// Hard N-frame cap: once exactly FrameCap frames have been armed, stop arming and finalize cleanly —
+	// no matter which cadence phase we're in (a truncated trailing burst is honest; its live fire is
+	// reverted by FinishRun). Never strands a half-burst: we always land in DrainTail -> FinishRun.
+	if (FrameCap > 0 && SessionFrameIndex >= FrameCap
+		&& Phase != ECapturePhase::Idle && Phase != ECapturePhase::DrainTail)
+	{
+		if (bAsyncCapture)
+		{
+			Phase = ECapturePhase::DrainTail;
+			PhaseFramesLeft = FMath::Max(10, ViewLagFrames + 4);
+		}
+		else
+		{
+			FinishRun(true);
+			return;
+		}
+	}
+
 	switch (Phase)
 	{
 	case ECapturePhase::LeadIn:
@@ -237,7 +255,7 @@ void UAnomalyCaptureSubsystem::SetAsyncCapture(bool bInAsync)
 		bAsyncCapture ? TEXT("backbuffer readback, game UI included") : TEXT("synchronous ReadPixels fallback"));
 }
 
-void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed)
+void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap)
 {
 #if ANOMALY_CAPTURE
 	if (bRunning)
@@ -267,12 +285,18 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	Auto->RevertAllLiveFires();
 
 	bFormatPng = bPng;
+	FrameCap = FMath::Max(0, InFrameCap);
 
 	const FString Base = BaseDir.IsEmpty()
 		? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("AnomalyCaptures"))
 		: BaseDir;
 	const FString Stamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S"));
-	RunDir = FPaths::Combine(Base, FString::Printf(TEXT("run_%d_%s"), Seed, *Stamp));
+	SessionId = FString::Printf(TEXT("session_%s_s%d"), *Stamp, Seed);
+	RunDir = FPaths::Combine(Base, SessionId);
+
+	// Frames live under Actual_Frames/ (session-local frame_%05d) so the host-side ffmpeg %05d glob and the
+	// client slicer both see contiguous 0-based numbering; created up-front so an empty run still has it.
+	IFileManager::Get().MakeDirectory(*FPaths::Combine(RunDir, TEXT("Actual_Frames")), true);
 
 	int32 VW = 0, VH = 0;
 	if (UGameViewportClient* GV = World->GetGameViewport())
@@ -293,6 +317,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	M.PositiveFrames = PositiveFrames;
 	M.PostFrames = PostFrames;
 	M.BurstCount = BurstCount;
+	M.FrameCap = FrameCap;
+	M.SessionId = SessionId;
 	M.ViewportW = VW;
 	M.ViewportH = VH;
 	M.Format = bFormatPng ? TEXT("png") : TEXT("jpeg");
@@ -304,6 +330,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	FramesWritten = 0;
 	PositiveFramesWritten = 0;
 	ZeroMatchBursts = 0;
+	SessionFrameIndex = 0;
 	ViewRing.Reset();
 
 	if (bAsyncCapture)
@@ -330,10 +357,11 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	PhaseFramesLeft = PreFrames;
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | seed=%d fmt=%s capture=%s | K=%d L=%d pre=%d positive=%d post=%d bursts=%s ==="),
+		TEXT("=== Capture run STARTED: %s | seed=%d fmt=%s capture=%s | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
 		*RunDir, Seed, *M.Format, bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"),
 		SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
-		BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"));
+		BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
+		FrameCap > 0 ? *FString::FromInt(FrameCap) : TEXT("none"));
 #else
 	UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: capture compiled out (ANOMALY_CAPTURE=0)."));
 #endif
@@ -488,7 +516,9 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 
 		// Build the label record on the GAME THREAD (it projects the target actor's bounds = UObject
 		// access). All heavy work (convert + encode + file write) is handed to the writer thread pool.
-		const FString ImageName = FString::Printf(TEXT("frame_%llu.%s"), Snap->FrameCounter, Ext);
+		// Session-local name so files are contiguous 0-based (ffmpeg %05d + client slicer); the label's
+		// "image" field and the written file share this exact rel path.
+		const FString ImageName = FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), Snap->SessionIndex, Ext);
 		int32 NumLabels = 0;
 		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, Frame.Width, Frame.Height, ImageName, NumLabels);
 
@@ -500,7 +530,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Job.BytesPerPixel = Frame.BytesPerPixel;
 		Job.Width = Frame.Width;
 		Job.Height = Frame.Height;
-		Job.FrameIndex = Snap->FrameCounter;
+		Job.ImageRelPath = ImageName;
 		Job.Record = Record;
 		Job.bPositive = Snap->Fires.Num() > 0;
 		Async->Writer->Enqueue(MoveTemp(Job));
@@ -611,6 +641,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		{
 			AnomalyLabel::FCaptureSnapshot Snap;
 			Snap.FrameCounter = GFrameCounter;
+			Snap.SessionIndex = SessionFrameIndex;
 			Snap.TimeSeconds = World ? World->GetTimeSeconds() : 0.0;
 			Snap.View = ProjView;
 			if (const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
@@ -619,6 +650,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			}
 			Async->PendingSnapshots.Add(Snap.FrameCounter, MoveTemp(Snap));
 			Async->Capturer->ArmForCapture(GFrameCounter, TargetWindow, CaptureRect);
+			++SessionFrameIndex;
 			return;
 		}
 
@@ -626,14 +658,18 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			TEXT("Capture(async): could not resolve the game-viewport rect this tick — falling back to sync grab."));
 	}
 
-	// Synchronous fallback (legacy ReadPixels grab on this tick).
+	// Synchronous fallback (legacy ReadPixels grab on this tick). Same session-local Actual_Frames/ naming.
 	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
 	const bool bPositive = Auto && Auto->GetLiveFireCount() > 0;
 
+	const TCHAR* Ext = bFormatPng ? TEXT("png") : TEXT("jpg");
+	const FString ImageName = FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), SessionFrameIndex, Ext);
+
 	FString ImagePath, SidecarPath;
 	int32 NumLabels = 0;
-	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImagePath, SidecarPath, NumLabels, false))
+	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, ImagePath, SidecarPath, NumLabels, false))
 	{
+		++SessionFrameIndex;
 		++FramesWritten;
 		if (bPositive)
 		{
@@ -691,9 +727,10 @@ namespace
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureStartCmd(
 	TEXT("IAI.Capture.Start"),
-	TEXT("Start a labeled burst-capture run. Usage: IAI.Capture.Start [outDir] [png|jpeg] [seed]  ")
-	TEXT("(default dir <ProjectSaved>/AnomalyCaptures; png; seed = auto-injector's current). The auto-injector's "
-	     "Run must be OFF (capture drives firing). Configure bursts first with IAI.Capture.Config."),
+	TEXT("Start a labeled burst-capture run. Usage: IAI.Capture.Start [outDir] [png|jpeg] [seed] [maxFrames]  ")
+	TEXT("(default dir <ProjectSaved>/AnomalyCaptures; png; seed = auto-injector's current; maxFrames 0 = until "
+	     "Stop / burst schedule). The auto-injector's Run must be OFF (capture drives firing). Configure bursts "
+	     "first with IAI.Capture.Config."),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
@@ -706,7 +743,8 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureStartCmd(
 					bPng = false;
 				}
 				const int32 Seed = (Args.Num() > 2) ? FCString::Atoi(*Args[2]) : -1;
-				Cap->StartRun(Dir, bPng, Seed);
+				const int32 MaxFrames = (Args.Num() > 3) ? FCString::Atoi(*Args[3]) : 0;
+				Cap->StartRun(Dir, bPng, Seed, MaxFrames);
 			}
 		}));
 
