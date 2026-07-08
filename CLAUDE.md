@@ -270,6 +270,16 @@ and is the single source of truth for the project.
   **interface + registry is the M1 design** (see Current status + journal 002), not yet in code.
 
 ## Invariants (do not violate)
+- **Source carries NO comments — by deliberate convention.** Every source file (C++ `.h/.cpp`, C#
+  `.Build.cs`, Python, `.bat`) is kept comment-free, *including* the top-of-file copyright/banner header.
+  **Do NOT add comments; strip any before committing.** (Feature work keeps re-introducing them — first
+  stripped in `d4a77db`, re-stripped 2026-07-08 after the `AnomalyCapture` module re-added them.) Enforced
+  with a deterministic, byte-preserving stripper kept in the workspace root alongside the two repos
+  (`_strip_comments.py`): run `python _strip_comments.py <repo-root>`. It removes only comments while
+  preserving every other byte — all string/char/template/regex literal contents, CRLF endings, and the BOM
+  (idempotent; validated byte-identical against the original strip). Put rationale and design notes in commit
+  messages, `docs/`, and the session journals — **never in code.** `LICENSE.txt` and the `.uplugin` JSON are
+  intentionally exempt (not source).
 - **Plugin stays game-agnostic.** The `AnomalyInjector` module may depend only on
   `Core`/`CoreUObject`/`Engine` (later `Renderer`/`RenderCore`/`RHI`/`Slate`/`InputCore`)
   and must **never `#include` or reference host game-module types** (e.g. anything from the
@@ -288,7 +298,8 @@ and is the single source of truth for the project.
   `docs:` (doc-only), `refactor:` (no behavior change), `chore:` (build/tooling). Scope anomaly-specific
   changes, e.g. `feat(blinking): …`. **Tag each milestone** with `git tag m<N>` after its commit so
   milestones diff cleanly (`m1..m2`, and a changelog can be auto-derived later). The git repo is the
-  plugin folder (`master`); host scaffolding lives outside it and is not committed here.
+  plugin folder (`master`); host scaffolding lives outside it and is not committed here. **Before every
+  commit, run the comment stripper (see Invariants) — the source must stay comment-free.**
 - **Doc discipline — leave the docs able to (a) cold-start a fresh session and (b) explain the
   whole plugin to any UE dev.** When you start or advance a milestone you MUST, before the session
   closes:
