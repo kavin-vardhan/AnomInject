@@ -34,24 +34,18 @@
 #endif
 #endif
 
-// Async capture state (PImpl) -- keeps the frame-capturer + render/Slate types out of the Public
-// subsystem header. Always a complete type so the TUniquePtr member destructs in any build config;
-// its members exist only when ANOMALY_CAPTURE is enabled.
 #if ANOMALY_CAPTURE
-// Per-event accumulator (one per fire = id + target + start_frame), built across the run and serialized
-// into annotation.json at finalize. Anchor* fields are captured at the event's SMALLEST session index
-// (its injection moment) — robust to async frames completing out of order.
 struct FSessionEventAccum
 {
 	FName Id = NAME_None;
 	FString Target;
 	uint64 StartFrame = 0;
 
-	TArray<int32> AffectedFrames;   // session-local indices where the fire was live AND bbox_valid
+	TArray<int32> AffectedFrames;
 	double CoverageSum = 0.0;
 	int32 CoverageCount = 0;
 
-	int32 AnchorIndex = MAX_int32;  // smallest session index seen while live -> anchors camera/engine/node
+	int32 AnchorIndex = MAX_int32;
 	FVector CamPos = FVector::ZeroVector;
 	FRotator CamRot = FRotator::ZeroRotator;
 	float CamFov = 0.0f;
@@ -67,7 +61,7 @@ struct FSessionEventAccum
 	int32 HiddenFrames = 0;
 	int32 Transitions = 0;
 	int32 LastHidden = -1;
-	TArray<int32> HiddenIndices;    // session-indices where the actor was render-hidden (the OUT frames)
+	TArray<int32> HiddenIndices;
 };
 #endif
 
@@ -84,12 +78,8 @@ struct FAnomalyCaptureAsyncState
 #if ANOMALY_CAPTURE
 namespace
 {
-	// Reversed-Z gives no finite far plane; this documented placeholder only matters for depth
-	// un-normalization, and depth is provided:false for now (populate the field, don't block).
-	constexpr float GAnomalyDefaultFarPlane = 1000000.0f;   // 10 km in cm
+	constexpr float GAnomalyDefaultFarPlane = 1000000.0f;
 
-	// A stable identifier for the active camera: the view-target actor's path (falls back to the camera
-	// manager). Used for the annotation's camera.path.
 	FString ResolveCameraPath(UWorld* World)
 	{
 		if (APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr)
@@ -106,25 +96,11 @@ namespace
 		return FString();
 	}
 
-	// internal anomaly id -> client vocabulary. Only blinking maps to a client clip today; others are
-	// recorded in the session (type = internal id) but the slicer emits no client clip for them yet.
-	//
-	// STAGE 5 (slicer) CARRY-FORWARD — the native session is a SUPERSET; the slicer transforms, not copies:
-	//  1. Client affected_frames = the OUT frames only (per-event _debug.hidden_frame_list), NOT our full
-	//     live/bbox_valid affected_frames span. Client coverage_ratio then averages over those SAME
-	//     out-frames. (PENDING owner confirmation with client: their prose "frames that contain the blink"
-	//     is ambiguous vs their 1-out-frame example.)
-	//  2. Client camera is global_position + additionalProperties:false -> slicer DROPS our bonus camera
-	//     fields (rotation/fov_deg/aspect) + source_id + _debug + schema_version + engine name/version/project.
-	//  3. bbox_norm=[x0,y0,x1,y1] CORNERS vs bbox_px=[x,y,w,h] ORIGIN+SIZE (labels.jsonl) — do not conflate.
-	//  4. Clip window must include >=1 trailing post-revert VISIBLE frame so the delivered clip actually
-	//     shows the "reappear" the subtype claims (the object is still hidden at the last OUT frame).
 	void MapAnomalyToClient(FName Id, int32 Transitions, FString& OutType, FString& OutSubtype)
 	{
 		if (Id == FName(TEXT("blinking")))
 		{
 			OutType = TEXT("blink");
-			// One disappear->reappear cycle = visible->hidden->visible = 2 transitions. More = sustained.
 			OutSubtype = (Transitions <= 2) ? TEXT("disappear_reappear") : TEXT("flicker");
 		}
 		else
@@ -160,11 +136,6 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 #if ANOMALY_CAPTURE
 	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start)."));
 #if WITH_EDITOR
-	// The PIE "Shift+F1 for Mouse Cursor" hint is shown ONCE at PIE start and self-fades; the setting is
-	// a one-shot SHOW-gate, NOT a live toggle (flipping it later cannot hide an already-shown label). So
-	// disable it here at PIE-world init — before the level viewport's StartPlayInEditor shows it — and
-	// restore on teardown. Keeps it out of EVERY captured frame for the PIE session (transient; never
-	// SaveConfig'd; editor-PIE chrome, absent in packaged builds).
 	if (ULevelEditorPlaySettings* PlaySettings = GetMutableDefault<ULevelEditorPlaySettings>())
 	{
 		bSavedShowMouseControlLabel = PlaySettings->ShowMouseControlLabel;
@@ -225,9 +196,6 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		ProcessCompletedFrames();
 	}
 
-	// Hard N-frame cap: once exactly FrameCap frames have been armed, stop arming and finalize cleanly —
-	// no matter which cadence phase we're in (a truncated trailing burst is honest; its live fire is
-	// reverted by FinishRun). Never strands a half-burst: we always land in DrainTail -> FinishRun.
 	if (FrameCap > 0 && SessionFrameIndex >= FrameCap
 		&& Phase != ECapturePhase::Idle && Phase != ECapturePhase::DrainTail)
 	{
@@ -274,9 +242,6 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 			{
 				if (bAsyncCapture)
 				{
-					// Let the last-armed frames present + their GPU readbacks resolve before finalizing
-					// (the final arm's backbuffer presents only NEXT frame). ProcessCompletedFrames at the
-					// top of Tick drains them each tick -> a clean run drops ZERO frames.
 					Phase = ECapturePhase::DrainTail;
 					PhaseFramesLeft = FMath::Max(10, ViewLagFrames + 4);
 				}
@@ -401,8 +366,6 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	SessionId = FString::Printf(TEXT("session_%s_s%d"), *Stamp, Seed);
 	RunDir = FPaths::Combine(Base, SessionId);
 
-	// Frames live under Actual_Frames/ (session-local frame_%05d) so the host-side ffmpeg %05d glob and the
-	// client slicer both see contiguous 0-based numbering; created up-front so an empty run still has it.
 	IFileManager::Get().MakeDirectory(*FPaths::Combine(RunDir, TEXT("Actual_Frames")), true);
 
 	int32 VW = 0, VH = 0;
@@ -467,21 +430,12 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 
 	bRunning = true;
 
-	// NATIVE-fps capture: run the engine on a FIXED timestep of 1/VideoFps for the whole run (the
-	// movie-render/offline pattern). Every tick advances game time by exactly 1/fps, so each captured
-	// frame is a true 1/fps slice and the mp4 encodes at exactly VideoFps with natural pacing -- no
-	// matter how fast or slow the machine renders. (While capturing, the world feels slow-motion on a
-	// machine below fps wall-clock and fast above it; the OUTPUT time base is exact either way.)
-	// Saved/restored around the run; app-wide, same scope movie capture uses.
 	bSavedUseFixedTimeStep = FApp::UseFixedTimeStep();
 	SavedFixedDeltaTime = FApp::GetFixedDeltaTime();
 	FApp::SetUseFixedTimeStep(true);
 	FApp::SetFixedDeltaTime(1.0 / (double)VideoFps);
 	bFixedTimeStepOverridden = true;
 
-	// Suppress ONLY our own dev overlays (poll-radius sphere, selector HUD/box, auto HUD, the
-	// on-screen heartbeat) for the whole run -> the captured frame is the real player view with the
-	// GAME UI intact, minus our scaffolding. Applies to both the async + sync paths.
 	AnomalyViewport::SetOverlaysSuppressed(true);
 
 	Phase = ECapturePhase::LeadIn;
@@ -543,9 +497,6 @@ void UAnomalyCaptureSubsystem::LogStatus() const
 
 namespace
 {
-	// Resolve the game viewport's window + its pixel rect within that window's backbuffer
-	// (FFrameGrabber pattern). Clips capture to the PIE viewport region even when docked inside the
-	// editor window -> editor chrome is never captured.
 	bool ComputeGameViewportCapture(UWorld* World, SWindow*& OutWindow, FIntRect& OutRect)
 	{
 		OutWindow = nullptr;
@@ -617,7 +568,6 @@ void UAnomalyCaptureSubsystem::EnsureCapturer()
 	{
 		Async->Writer = MakeShared<FAnomalyAsyncWriter, ESPMode::ThreadSafe>();
 	}
-	// Preload ImageWrapper on the game thread so the encode workers never trigger a module load.
 	FModuleManager::Get().LoadModule(TEXT("ImageWrapper"));
 }
 
@@ -645,15 +595,10 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			continue;
 		}
 
-		// Build the label record on the GAME THREAD (it projects the target actor's bounds = UObject
-		// access). All heavy work (convert + encode + file write) is handed to the writer thread pool.
-		// Session-local name so files are contiguous 0-based (ffmpeg %05d + client slicer); the label's
-		// "image" field and the written file share this exact rel path.
 		const FString ImageName = FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), Snap->SessionIndex, Ext);
 		int32 NumLabels = 0;
 		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, Frame.Width, Frame.Height, ImageName, NumLabels);
 
-		// Fold this frame's submit-time fire state into the per-event session annotation accumulator.
 		AccumulateFrameEvents(Snap->Fires, Snap->FireHidden, Snap->FirePos, Snap->View, Snap->NearClip,
 			Snap->SessionIndex, Snap->TimeSeconds);
 
@@ -673,7 +618,6 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Async->PendingSnapshots.Remove(Frame.RequestId);
 	}
 
-	// Mirror the worker counters back so status / summary have a single game-thread source.
 	FramesWritten = Async->Writer->GetFramesWritten();
 	PositiveFramesWritten = Async->Writer->GetPositiveWritten();
 }
@@ -685,9 +629,6 @@ void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 		return;
 	}
 
-	// End-of-run only (NOT during the per-frame loop): a bounded flush to resolve the last in-flight
-	// readbacks (GPU) and hand them to the writer. The run framerate is unaffected (the prohibition
-	// is on per-frame flushes during capture).
 	for (int32 Iter = 0; Iter < 8 && Async->PendingSnapshots.Num() > 0; ++Iter)
 	{
 		Async->Capturer->EnqueueDrain();
@@ -702,7 +643,6 @@ void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 		Async->PendingSnapshots.Empty();
 	}
 
-	// Wait for the encode/write worker jobs so run_summary reflects all writes.
 	Async->Writer->FlushPending(5.0);
 	FramesWritten = Async->Writer->GetFramesWritten();
 	PositiveFramesWritten = Async->Writer->GetPositiveWritten();
@@ -784,8 +724,6 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			{
 				Snap.Fires = Auto->GetLiveFires();
 			}
-			// Sample the fast-toggling hidden flag + actor position NOW (submit time) — the async readback
-			// resolves a few frames later, by which point the blink has toggled again.
 			Snap.FireHidden.Reserve(Snap.Fires.Num());
 			Snap.FirePos.Reserve(Snap.Fires.Num());
 			for (const FAutoLiveFireInfo& F : Snap.Fires)
@@ -809,7 +747,6 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			TEXT("Capture(async): could not resolve the game-viewport rect this tick — falling back to sync grab."));
 	}
 
-	// Synchronous fallback (legacy ReadPixels grab on this tick). Same session-local Actual_Frames/ naming.
 	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
 	const bool bPositive = Auto && Auto->GetLiveFireCount() > 0;
 
@@ -820,7 +757,6 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 	int32 NumLabels = 0;
 	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, ImagePath, SidecarPath, NumLabels, false))
 	{
-		// Accumulate this frame into the per-event session annotation (submit == capture tick here).
 		TArray<FAutoLiveFireInfo> Fires;
 		if (Auto) { Fires = Auto->GetLiveFires(); }
 		TArray<uint8> Hidden;
@@ -862,7 +798,6 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		DrainAsyncToCompletion();
 	}
 
-	// All frames are now accumulated -> assemble the native multi-anomaly annotation.json.
 	WriteSessionAnnotationFile();
 
 	AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter);
@@ -902,7 +837,6 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 	{
 		const FAutoLiveFireInfo& F = Fires[i];
 
-		// One event per (id, target, start_frame). Re-fires of the same id on a later burst are distinct.
 		FSessionEventAccum* Ev = Async->SessionEvents.FindByPredicate(
 			[&F](const FSessionEventAccum& E){ return E.Id == F.Id && E.StartFrame == F.StartFrame && E.Target == F.Target; });
 		if (!Ev)
@@ -914,7 +848,6 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			Ev = &Async->SessionEvents[Async->SessionEvents.Add(MoveTemp(NewEv))];
 		}
 
-		// Anchor = injection moment (smallest session index while live) -> camera / engine / node snapshot.
 		if (SessionIndex < Ev->AnchorIndex)
 		{
 			Ev->AnchorIndex = SessionIndex;
@@ -933,7 +866,6 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			Ev->NodePos = FirePos.IsValidIndex(i) ? FirePos[i] : FVector::ZeroVector;
 		}
 
-		// affected_frames = only frames where the projected box is valid; coverage = clamped box area.
 		if (const AActor* FActor = F.TargetActor.Get())
 		{
 			FVector2D Min(FVector2D::ZeroVector), Max(FVector2D::ZeroVector);
@@ -947,8 +879,6 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			}
 		}
 
-		// Toggle observation (drives anomaly_subtype): count visibility transitions over the hold, and
-		// record which session-indices were actually hidden (the OUT frames the slicer emits).
 		const int32 Hidden = (FireHidden.IsValidIndex(i) && FireHidden[i]) ? 1 : 0;
 		if (Hidden) { ++Ev->HiddenFrames; Ev->HiddenIndices.Add(SessionIndex); } else { ++Ev->VisibleFrames; }
 		if (Ev->LastHidden != -1 && Hidden != Ev->LastHidden) { ++Ev->Transitions; }
@@ -971,9 +901,6 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 	A.Video.ResolutionH = ViewportH;
 	A.Video.TotalFrames = FramesWritten;
 
-	// The run executed on a fixed timestep of 1/VideoFps, so each frame IS exactly 1/VideoFps of game
-	// time -> the encode fps is the fixed rate itself, exactly. The measured world-time span is logged
-	// as a sanity check (settle gaps read it slightly low; a big deviation means the step didn't hold).
 	A.Video.Fps = (double)VideoFps;
 	const double Span = LastFrameTimeSeconds - FirstFrameTimeSeconds;
 	if (SessionFrameIndex >= 2 && FirstFrameTimeSeconds >= 0.0 && Span > KINDA_SMALL_NUMBER)

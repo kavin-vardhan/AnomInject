@@ -123,7 +123,6 @@ namespace
 		return true;
 	}
 
-	// Worker-thread convert: tight (stride-removed) native-format pixels -> opaque BGRA8 (FColor).
 	void ConvertTightToBGRA(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
 		int32 W, int32 H, TArray<FColor>& OutPixels)
 	{
@@ -138,10 +137,10 @@ namespace
 			switch (Format)
 			{
 			case PF_B8G8R8A8:
-				Out = FColor(P[2], P[1], P[0], 255);   // bytes B,G,R,A
+				Out = FColor(P[2], P[1], P[0], 255);
 				break;
 			case PF_R8G8B8A8:
-				Out = FColor(P[0], P[1], P[2], 255);   // bytes R,G,B,A
+				Out = FColor(P[0], P[1], P[2], 255);
 				break;
 			case PF_A2B10G10R10:
 			{
@@ -371,8 +370,6 @@ namespace AnomalyLabel
 				O->SetObjectField(TEXT("depth"), Depth);
 			}
 
-			// Diagnostic block (NOT part of the client per-clip schema; the slicer drops it). Lets the gate
-			// cross-check the observed toggle pattern that classified anomaly_subtype.
 			{
 				TSharedRef<FJsonObject> Dbg = MakeShared<FJsonObject>();
 				Dbg->SetNumberField(TEXT("visible_frames"), E.VisibleFrames);
@@ -419,7 +416,6 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 			FAnomalyViewInfo View;
 			AnomalyViewport::GetActiveViewInfo(World, View);
 
-			// Manual single-shot: flat, unique filename (no session — reuse the engine frame counter).
 			const TCHAR* Ext = (Format == AnomalyPreview::EImageFormat::PNG) ? TEXT("png") : TEXT("jpg");
 			const FString ShotName = FString::Printf(TEXT("frame_%llu.%s"), GFrameCounter, Ext);
 

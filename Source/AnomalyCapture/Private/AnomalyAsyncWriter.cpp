@@ -62,4 +62,4 @@ void FAnomalyAsyncWriter::ResetCounters()
 	Dropped.Reset();
 }
 
-#endif // ANOMALY_CAPTURE
+#endif

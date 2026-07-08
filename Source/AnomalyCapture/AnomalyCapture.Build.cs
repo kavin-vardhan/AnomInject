@@ -24,9 +24,6 @@ public class AnomalyCapture : ModuleRules
 		{
 			PublicDefinitions.Add("ANOMALY_CAPTURE=1");
 
-			// Stage 1: async backbuffer color readback (OnBackBufferReadyToPresent + viewport-rect
-			// clip + FRHIGPUTextureReadback). Renderer / Renderer-private (FScreenPassTexture /
-			// FPostProcessMaterialInputs) are deferred to Stage 3 (the stencil/depth SVE).
 			PrivateDependencyModuleNames.AddRange(new string[]
 			{
 				"RenderCore",
@@ -41,8 +38,6 @@ public class AnomalyCapture : ModuleRules
 			PublicDefinitions.Add("ANOMALY_CAPTURE=0");
 		}
 
-		// Editor-only: suppress the PIE "Shift+F1 for Mouse Cursor" hint during a capture run
-		// (ULevelEditorPlaySettings). WITH_EDITOR-guarded; absent from packaged builds.
 		if (Target.bBuildEditor)
 		{
 			PrivateDependencyModuleNames.Add("UnrealEd");

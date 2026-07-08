@@ -8,11 +8,6 @@
 #include "PixelFormat.h"
 #include "AnomalyPreviewCapture.h"
 
-// Off-game-thread frame writer. The game thread only ENQUEUES a job (cheap move of the raw pixel
-// bytes + the already-built label record); a thread-pool task does the heavy CPU work — format
-// convert + PNG/JPEG encode + image file write + labels.jsonl append. This is the fix for the
-// per-frame game-thread stall (encode+write were synchronous on the game thread). The labels.jsonl
-// append is serialized by a shared lock; counters are atomic and mirrored back on the game thread.
 class FAnomalyAsyncWriter : public TSharedFromThis<FAnomalyAsyncWriter, ESPMode::ThreadSafe>
 {
 public:
@@ -20,13 +15,13 @@ public:
 	{
 		FString OutputDir;
 		AnomalyPreview::EImageFormat OutFormat = AnomalyPreview::EImageFormat::PNG;
-		TArray<uint8> RawBytes;        // tight (stride-removed) source pixels, native format
+		TArray<uint8> RawBytes;
 		EPixelFormat SrcFormat = PF_Unknown;
 		int32 BytesPerPixel = 0;
 		int32 Width = 0;
 		int32 Height = 0;
-		FString ImageRelPath;          // image path relative to OutputDir (matches Record's "image" field)
-		FString Record;                // label record JSON, built on the game thread (UObject-safe)
+		FString ImageRelPath;
+		FString Record;
 		bool bPositive = false;
 	};
 
@@ -49,4 +44,4 @@ private:
 	FCriticalSection JsonlCS;
 };
 
-#endif // ANOMALY_CAPTURE
+#endif

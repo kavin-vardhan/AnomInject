@@ -43,7 +43,6 @@ void FAnomalyFrameCapturer::UnregisterBackbufferHook()
 	}
 	BackBufferHandle.Reset();
 
-	// Make sure no in-flight present callback / drain is still referencing us before we go away.
 	FlushRenderingCommands();
 }
 
@@ -65,8 +64,6 @@ void FAnomalyFrameCapturer::OnBackBufferReadyToPresent_RenderThread(SWindow& Sla
 	bool bHaveArm = false;
 	{
 		FScopeLock Lock(&StateCS);
-		// Consume the front arm only if this present is for its window (ignore other windows /
-		// editor tool windows -> never captures editor chrome, even in docked PIE).
 		if (PendingArms.Num() > 0 && PendingArms[0].Window == &SlateWindow)
 		{
 			Arm = PendingArms[0];
@@ -153,8 +150,6 @@ void FAnomalyFrameCapturer::Drain_RenderThread()
 			Frame.BytesPerPixel = BPP;
 			Frame.RawBytes.SetNumUninitialized((int64)W * H * BPP);
 
-			// Minimal mandatory copy-out (must complete before Unlock): strided staging window ->
-			// tight buffer. The format convert + encode are deferred to the worker thread.
 			const uint8* Base = static_cast<const uint8*>(Src);
 			for (int32 y = 0; y < H; ++y)
 			{
@@ -190,4 +185,4 @@ bool FAnomalyFrameCapturer::PopCompleted(FAnomalyCapturedFrame& Out)
 	return true;
 }
 
-#endif // ANOMALY_CAPTURE
+#endif
