@@ -292,6 +292,10 @@ and is the single source of truth for the project.
 - **Two-Claude split.** Design decisions come from an orchestrating "chat Claude" and are
   ferried by Kavin (project owner). The implementing Claude implements. Genuine design forks
   or ambiguities are surfaced back (listed standalone), not improvised.
+- **Reports to Chat go in a copy block.** Any status/gate/handoff report meant to be ferried
+  back to the orchestrating chat Claude must be emitted as a single fenced code block (so the
+  owner can copy-paste it verbatim). Applies to stage-gate results, plan summaries, and any
+  "report back" deliverable.
 - **Plan-before-code.** A new milestone's first response is a file-by-file plan only; no
   implementation until approved.
 - **Commits — Conventional Commits.** Prefixes: `feat:` (new anomaly or capability), `fix:` (bug),
