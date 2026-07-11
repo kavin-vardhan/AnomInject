@@ -10,6 +10,25 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
+- **Latest milestone (as-built): Capture pacing + honest fps stamping — COMPLETE (tagged `m11`) (2026-07-11).**
+  Fixes the Issue-2 office "2x-fast mp4" on real-time-clock-driven client games. **Two-clock model (G64):** fixed
+  timestep (m10-era) pins only the GAME clock; real-time-driven content (client sequencer/audio-synced scenes) runs
+  on the WALL clock, so with fixed-step alone the mp4 plays fast by `VideoFps / sustained_wall_fps` (StackOBot is
+  game-clock-driven → was always exact). **Fix = real-time pacing** `IAI.Capture.Pace <0|1>` **default ON**: a
+  drift-free coarse-sleep+spin at the top of `UAnomalyCaptureSubsystem::Tick` holds every tick to ≥ `1/VideoFps` wall
+  → game == wall == video clock, correct for BOTH families (UE's own limiter is bypassed under fixed timestep, so
+  ours is the only pacer — G65). **Fallback = one-sided honest stamp:** every armed frame wall-stamped (`t_wall` per
+  labels.jsonl row, both async+sync); at finalize `speed_ratio = wallSpan/gameSpan` (same first/last armed frames,
+  settle gaps cancel), `sustained = VideoFps/ratio`; ratio > 1.02 → `annotation.video.fps` = sustained (fractional,
+  3dp; encode watcher float-parses) + warnings; else fps = VideoFps exactly (never stamp faster-than-target).
+  `video.target_fps` always written; `run.json` += target_fps/paced; `run_summary.json` += target_fps/
+  sustained_wall_fps/speed_ratio/stamped_fps/paced. NO frame dup / NO VFR (1:1 mapping inviolate). WS
+  `capture_stopped`/`capture_status` carry `{targetFps,stampedFps,speedRatio,paced}`; dashboard shows a post-run
+  badge on fallback (own untagged feat commit). All 5 bridge gates + owner eyeball GREEN (G-P1 paced 30 exact int
+  stamp; G-P2 throttled 60 → 58.055 fractional end-to-end via encode_watcher+ffprobe; G-P3 Pace-0 keeps 30; G-P4
+  zero drops; G-P5 sync t_wall coherent). Warm-up + background-editor-throttle skew measurements (G66). Deferred to
+  possible m11.1: hitch-robust median ratio (2% constexpr tol stands). Catalog stays 8.
+  → `docs/sessions/2026-07-11-017-m11-capture-pacing.md`, `docs/capture-fps.md` (rewritten).
 - **IN FLIGHT (branch `feature/stencil-capture` off `master` `d4a77db`, NOT on `master`): Occlusion-correct stencil bounding boxes + async unified capture.**
   Multi-stage; **Stage 1 COMPLETE, owner re-eyeball GREEN (2026-06-30), committed on the branch** (`refactor(capture)`, no tag). A new
   **quarantined `AnomalyCapture` module** (gated `ANOMALY_CAPTURE`; render/`RHI`/`RenderCore`/`Slate`/`SlateCore`/`ApplicationCore` + a
@@ -243,7 +262,8 @@ and is the single source of truth for the project.
   no tag); **Labeled Frame-Capture + 2D BBox Labeling (`…-012`) tagged `m7`** (control-server Slice-1 promoted first
   as `ff1be3c`, no tag); **Missing-Texture (`…-013`) tagged `m8`**; screen-coverage cull + slider (`…-014`, no tag);
   **multi-anomaly session capture tagged `m9`** (`88f519c`); fixed-timestep capture-fps (`c5d58b0`/`500eac7`, no tag,
-  `docs/capture-fps.md`); **targeted capture (`…-016`) tagged `m10`**. Next: **m11** (capture pacing + honest fps stamp).
+  `docs/capture-fps.md`); **targeted capture (`…-016`) tagged `m10`**; **capture pacing + honest fps stamping
+  (`…-017`) tagged `m11`**.
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

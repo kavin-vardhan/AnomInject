@@ -847,3 +847,30 @@ subsystem, not the auto layer, and would persist into the captured frames as UNL
 the auto layer's fire list). `StartRun` therefore also calls `Injector->RevertAllActive()` before frame 0. Gate: manual
 `missing_object` + `time_dilation`, then targeted start → `IAI.DumpActive` = 0 immediately after StartRun; the session
 shows only the targeted anomaly. (2026-07-10.)
+
+### G64 — a game's visible content advances on ONE of two clocks; fixed timestep pins only the GAME clock (m11)
+Game-clock-driven content (StackOBot world motion, our anomaly toggles) follows the world's delta seconds — fixed
+timestep captures it exactly. Real-time-driven content (sequencer scenes, platform-clock/audio-synced systems — the
+client games) advances on the WALL clock regardless of world delta. With fixed timestep alone, each captured frame
+then holds however much REAL time the frame took while the annotation claims 1/fps, and the mp4 plays fast by
+`VideoFps / sustained_wall_fps` (office: 60/29.3 ≈ 2.05x, with ZERO drops and an exactly-held fixed step — the frames
+and labels were never wrong, the two clocks just disagreed). The fix is to make the clocks agree: pace every capture
+tick to >= 1/fps of wall time (`IAI.Capture.Pace`, default ON) → game == wall == video, correct for BOTH families;
+when the box can't hold the rate, stamp `video.fps` with the SUSTAINED rate (one-sided: never stamp faster-than-target
+— that would speed up game-clock content). (2026-07-11.)
+
+### G65 — UE's own frame-rate limiter is BYPASSED under UseFixedTimeStep: any capture pacing must be self-implemented (m11)
+`UEngine::UpdateTimeAndHandleMaxTickRate` skips the MaxTickRate/smoothing wait entirely when `FApp::UseFixedTimeStep()`
+is on (benchmark semantics) — `t.MaxFPS` does nothing during a capture run, so it can neither pace a run NOR serve as a
+gate lever to throttle one. The m11 pacer is therefore the plugin's own drift-free sleep (coarse `SleepNoStats` +
+short spin at the top of the capture subsystem's Tick), and it is the ONLY limiter active during a run — no
+double-sleep. Measured precision on Windows: 33.2–33.6 ms held against a 33.33 ms target. (2026-07-11.)
+
+### G66 — sustained-fps measurements are skewed by first-run warm-up AND by the editor-backgrounded state (m11)
+Two big skews when judging what rate a box "sustains": (1) the first run(s) after an editor boot carry shader/PSO
+compilation — the very first m11 gate run measured 2.2 fps sustained on a box that later held 30.0 exactly; warm up
+with a throwaway run before judging. (2) A NOT-FOREGROUND editor is throttled: `UEditorEngine::ShouldThrottleCPUUsage`
+sleeps ~100 ms/frame when unfocused ("Use Less CPU in Background", `bThrottleCPUWhenNotForeground`) — and that check is
+DISABLED while shaders compile, so a cold busy editor can measure FASTER than a warm idle one. A fully OCCLUDED window
+throttles presents besides. Capture with the editor foreground/visible (the real workflow); headless/bridge sessions
+must foreground the window or flip the preference or their ratios are meaningless. (2026-07-11.)

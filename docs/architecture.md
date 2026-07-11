@@ -1,6 +1,24 @@
 # Architecture (living — current as-built)
 
-> **Reflects:** **Targeted capture modes + pre-run clean slate + entry-point parity (m10)** — a capture
+> **Reflects:** **Capture pacing + honest fps stamping (m11, in gate — not yet tagged)** — capture runs are
+> REAL-TIME PACED by default (`IAI.Capture.Pace <0|1>`, default ON): the capture subsystem holds every tick to
+> >= `1/VideoFps` of wall time (drift-free coarse-sleep + spin at the top of its Tick; no catch-up after hitches),
+> so game clock == wall clock == video clock and the delivered mp4 plays at natural speed for BOTH content clock
+> families (game-clock-driven like StackOBot AND real-time-driven like the client games — the two-clock model, G64;
+> UE's own limiter is bypassed under fixed timestep so this is the only pacer, G65). Every armed frame is
+> wall-stamped (`t_wall` per labels.jsonl row, both async + sync paths); at finalize
+> `speed_ratio = wallSpan/gameSpan` over the same first/last armed frames (settle gaps cancel) and
+> `sustained_wall_fps = VideoFps/ratio`. ONE-SIDED honest stamp: ratio > 1.02 → `annotation.video.fps` = sustained
+> (fractional, 3 decimals; encode watcher float-parses) + warnings (one-shot early at >=30 armed frames + finalize);
+> otherwise fps = VideoFps exactly (a faster-than-target run — only possible with Pace 0 — keeps VideoFps; stamping
+> the faster rate would speed up game-clock content). `annotation.video.target_fps` always recorded (internal);
+> `run.json` += `target_fps`/`paced`; `run_summary.json` += `target_fps`/`sustained_wall_fps`/`speed_ratio`/
+> `stamped_fps`/`paced`. NO frame duplication / NO VFR — the 1:1 Actual_Frames/labels/mp4 mapping is inviolate.
+> WS `capture_stopped`/`capture_status` replies carry `{targetFps, stampedFps, speedRatio, paced}` (valid-gated);
+> the dashboard CapturePanel shows a post-run badge from that payload when the stamp fell back. See
+> `docs/capture-fps.md` (rewritten: two-clock model) + `sessions/2026-07-11-017-m11-capture-pacing.md`. Below this
+> it still reflects:
+> **Targeted capture modes + pre-run clean slate + entry-point parity (m10)** — a capture
 > run now fires in one of two modes: **auto-pool** (unchanged: random mix from the enabled pool) or
 > **targeted** (`IAI.Capture.Start ... [anomaly] [targetActor]` / WS `capture_start {anomaly, target}` —
 > each burst fires exactly that anomaly on exactly that actor via the new

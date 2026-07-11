@@ -47,6 +47,20 @@ public:
 
 	void SetCaptureFps(int32 InFps);
 
+	void SetCapturePace(bool bInPace);
+	bool IsCapturePaced() const { return bPaceCapture; }
+
+	struct FLastRunPacing
+	{
+		bool bValid = false;
+		bool bPaced = true;
+		double TargetFps = 0.0;
+		double SustainedWallFps = 0.0;
+		double SpeedRatio = 1.0;
+		double StampedFps = 0.0;
+	};
+	const FLastRunPacing& GetLastRunPacing() const { return LastRunPacing; }
+
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
@@ -66,6 +80,10 @@ private:
 	void BeginRevert();
 	void CaptureCurrentFrame();
 	void FinishRun(bool bLogLine);
+	void PaceThisTick();
+	void StampArmWallClock(double NowWall);
+	void CheckEarlyPacingWarning();
+	void ComputeRunPacing();
 	void SampleViewThisTick();
 	FAnomalyViewInfo ProjectionView() const;
 	class UAnomalyAutoInjectorSubsystem* ResolveAuto() const;
@@ -113,6 +131,13 @@ private:
 
 	double FirstFrameTimeSeconds = -1.0;
 	double LastFrameTimeSeconds = -1.0;
+	double FirstArmWallSeconds = -1.0;
+	double LastArmWallSeconds = -1.0;
+	bool bPaceCapture = true;
+	bool bPaceInitialized = false;
+	double NextPaceWallTarget = 0.0;
+	bool bEarlyRatioWarned = false;
+	FLastRunPacing LastRunPacing;
 	FString EngineVersion;
 	FString EngineProject;
 

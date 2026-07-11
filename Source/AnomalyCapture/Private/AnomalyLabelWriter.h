@@ -17,6 +17,7 @@ namespace AnomalyLabel
 		uint64 FrameCounter = 0;
 		int32  SessionIndex = 0;
 		double TimeSeconds = 0.0;
+		double WallSeconds = 0.0;
 		float  NearClip = 0.0f;
 		FAnomalyViewInfo View;
 		TArray<FAutoLiveFireInfo> Fires;
@@ -26,7 +27,7 @@ namespace AnomalyLabel
 
 	bool CaptureLabeledShot(UWorld* World, const FString& OutputDir, AnomalyPreview::EImageFormat Format,
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
-		FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog = true);
+		double WallSeconds, FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog = true);
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
 		const FString& ImageName, int32& OutNumLabels);
@@ -54,12 +55,15 @@ namespace AnomalyLabel
 		FString Mode;
 		FString TargetAnomaly;
 		FString TargetActor;
+		int32 TargetFps = 30;
+		bool bPaced = true;
 	};
 
 	bool WriteRunManifest(const FString& RunDir, const FRunManifest& Manifest);
 
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
-		int32 ZeroMatchBursts, uint64 EndFrame);
+		int32 ZeroMatchBursts, uint64 EndFrame,
+		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced);
 
 
 	struct FSessionVideo
@@ -69,6 +73,7 @@ namespace AnomalyLabel
 		int32 ResolutionW = 0;
 		int32 ResolutionH = 0;
 		double Fps = 30.0;
+		int32 TargetFps = 30;
 		int32 TotalFrames = 0;
 	};
 

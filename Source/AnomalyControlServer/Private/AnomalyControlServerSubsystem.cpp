@@ -606,12 +606,14 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		bool bRun = false;
 		int32 Frames = 0, Seed = 0, FrameCap = 0;
 		FString RunDir, SessionId;
+		UAnomalyCaptureSubsystem::FLastRunPacing Pacing;
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
 			Cap->StopRun();
 			Cap->GetStatus(bRun, Frames, RunDir, Seed);
 			FrameCap = Cap->GetFrameCap();
 			SessionId = Cap->GetSessionId();
+			Pacing = Cap->GetLastRunPacing();
 		}
 		const TSharedRef<FJsonObject> Reply = MakeShared<FJsonObject>();
 		Reply->SetStringField(TEXT("type"), TEXT("capture_stopped"));
@@ -621,6 +623,13 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		Reply->SetNumberField(TEXT("frames"), Frames);
 		Reply->SetNumberField(TEXT("maxFrames"), FrameCap);
 		Reply->SetNumberField(TEXT("seed"), Seed);
+		if (Pacing.bValid)
+		{
+			Reply->SetNumberField(TEXT("targetFps"), Pacing.TargetFps);
+			Reply->SetNumberField(TEXT("stampedFps"), Pacing.StampedFps);
+			Reply->SetNumberField(TEXT("speedRatio"), Pacing.SpeedRatio);
+			Reply->SetBoolField(TEXT("paced"), Pacing.bPaced);
+		}
 		SendJson(Conn.Socket, Reply);
 		return;
 	}
@@ -630,11 +639,13 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		bool bRun = false;
 		int32 Frames = 0, Seed = 0, FrameCap = 0;
 		FString RunDir, SessionId;
+		UAnomalyCaptureSubsystem::FLastRunPacing Pacing;
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
 			Cap->GetStatus(bRun, Frames, RunDir, Seed);
 			FrameCap = Cap->GetFrameCap();
 			SessionId = Cap->GetSessionId();
+			Pacing = Cap->GetLastRunPacing();
 		}
 		const int32 Remaining = FrameCap > 0 ? FMath::Max(0, FrameCap - Frames) : -1;
 		const TSharedRef<FJsonObject> Reply = MakeShared<FJsonObject>();
@@ -646,6 +657,13 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		Reply->SetNumberField(TEXT("maxFrames"), FrameCap);
 		Reply->SetNumberField(TEXT("framesRemaining"), Remaining);
 		Reply->SetNumberField(TEXT("seed"), Seed);
+		if (Pacing.bValid)
+		{
+			Reply->SetNumberField(TEXT("targetFps"), Pacing.TargetFps);
+			Reply->SetNumberField(TEXT("stampedFps"), Pacing.StampedFps);
+			Reply->SetNumberField(TEXT("speedRatio"), Pacing.SpeedRatio);
+			Reply->SetBoolField(TEXT("paced"), Pacing.bPaced);
+		}
 		SendJson(Conn.Socket, Reply);
 		return;
 	}

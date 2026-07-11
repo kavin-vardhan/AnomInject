@@ -13,6 +13,7 @@
 #include "CoreGlobals.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Math/Float16Color.h"
@@ -35,7 +36,7 @@ namespace
 
 	FString BuildFrameLabelRecord(const TArray<FAutoLiveFireInfo>& Fires,
 		const FAnomalyViewInfo& View, int32 W, int32 H, uint64 FrameIndex, int32 SessionIndex, double TimeSeconds,
-		const FString& ImageName, int32& OutNumLabels)
+		double WallSeconds, const FString& ImageName, int32& OutNumLabels)
 	{
 		OutNumLabels = 0;
 
@@ -43,6 +44,7 @@ namespace
 		Root->SetNumberField(TEXT("frame_index"), (double)FrameIndex);
 		Root->SetNumberField(TEXT("session_index"), (double)SessionIndex);
 		Root->SetNumberField(TEXT("t"), TimeSeconds);
+		Root->SetNumberField(TEXT("t_wall"), WallSeconds);
 		Root->SetStringField(TEXT("image"), ImageName);
 		Root->SetNumberField(TEXT("width"), W);
 		Root->SetNumberField(TEXT("height"), H);
@@ -173,7 +175,7 @@ namespace AnomalyLabel
 {
 	bool CaptureLabeledShot(UWorld* World, const FString& OutputDir, AnomalyPreview::EImageFormat Format,
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
-		FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog)
+		double WallSeconds, FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog)
 	{
 		OutNumLabels = 0;
 		if (!World)
@@ -199,7 +201,7 @@ namespace AnomalyLabel
 		}
 
 		const FString Record = BuildFrameLabelRecord(Fires, ProjectionView, W, H, GFrameCounter, SessionIndex,
-			World->GetTimeSeconds(), ImageRelName, OutNumLabels);
+			World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
 
 		return AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog);
 	}
@@ -208,7 +210,7 @@ namespace AnomalyLabel
 		const FString& ImageName, int32& OutNumLabels)
 	{
 		return BuildFrameLabelRecord(Snapshot.Fires, Snapshot.View, Width, Height,
-			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, ImageName, OutNumLabels);
+			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, Snapshot.WallSeconds, ImageName, OutNumLabels);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -267,6 +269,8 @@ namespace AnomalyLabel
 		Root->SetStringField(TEXT("mode"), M.Mode);
 		Root->SetStringField(TEXT("target_anomaly"), M.TargetAnomaly);
 		Root->SetStringField(TEXT("target_actor"), M.TargetActor);
+		Root->SetNumberField(TEXT("target_fps"), M.TargetFps);
+		Root->SetBoolField(TEXT("paced"), M.bPaced);
 
 		FString Out;
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
@@ -278,7 +282,8 @@ namespace AnomalyLabel
 	}
 
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
-		int32 ZeroMatchBursts, uint64 EndFrame)
+		int32 ZeroMatchBursts, uint64 EndFrame,
+		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -288,6 +293,11 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("bursts_done"), BurstsDone);
 		Root->SetNumberField(TEXT("zero_match_bursts"), ZeroMatchBursts);
 		Root->SetNumberField(TEXT("end_frame"), (double)EndFrame);
+		Root->SetNumberField(TEXT("target_fps"), TargetFps);
+		Root->SetNumberField(TEXT("sustained_wall_fps"), SustainedWallFps);
+		Root->SetNumberField(TEXT("speed_ratio"), SpeedRatio);
+		Root->SetNumberField(TEXT("stamped_fps"), StampedFps);
+		Root->SetBoolField(TEXT("paced"), bPaced);
 
 		FString Out;
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
@@ -309,6 +319,7 @@ namespace AnomalyLabel
 			V->SetStringField(TEXT("frames_dir"), A.Video.FramesDir);
 			V->SetArrayField(TEXT("resolution"), { LabelNum(A.Video.ResolutionW), LabelNum(A.Video.ResolutionH) });
 			V->SetNumberField(TEXT("fps"), A.Video.Fps);
+			V->SetNumberField(TEXT("target_fps"), A.Video.TargetFps);
 			V->SetNumberField(TEXT("total_frames"), A.Video.TotalFrames);
 			Root->SetObjectField(TEXT("video"), V);
 		}
@@ -427,7 +438,7 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 
 			FString ImagePath, SidecarPath;
 			int32 NumLabels = 0;
-			if (AnomalyLabel::CaptureLabeledShot(World, Dir, Format, View, ShotName, 0, ImagePath, SidecarPath, NumLabels))
+			if (AnomalyLabel::CaptureLabeledShot(World, Dir, Format, View, ShotName, 0, FPlatformTime::Seconds(), ImagePath, SidecarPath, NumLabels))
 			{
 				UE_LOG(LogAnomalyCapture, Log, TEXT("Capture.Shot: wrote '%s' (%d valid bbox label(s)); record appended to '%s'."),
 					*ImagePath, NumLabels, *SidecarPath);

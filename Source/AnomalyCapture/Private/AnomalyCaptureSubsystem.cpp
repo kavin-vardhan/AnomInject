@@ -15,6 +15,8 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyFrameCapturer.h"
 #include "AnomalyAsyncWriter.h"
+#include "HAL/PlatformProcess.h"
+#include "HAL/PlatformTime.h"
 #include "RenderingThread.h"
 #include "Modules/ModuleManager.h"
 
@@ -80,6 +82,10 @@ struct FAnomalyCaptureAsyncState
 namespace
 {
 	constexpr float GAnomalyDefaultFarPlane = 1000000.0f;
+
+	constexpr double GFpsStampTolerance = 0.02;
+	constexpr double GPaceCoarseSleepMarginSec = 0.0015;
+	constexpr int32 GEarlyPacingWarnMinFrames = 30;
 
 	FString ResolveCameraPath(UWorld* World)
 	{
@@ -190,6 +196,8 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 	{
 		return;
 	}
+
+	PaceThisTick();
 
 	SampleViewThisTick();
 
@@ -329,6 +337,21 @@ void UAnomalyCaptureSubsystem::SetCaptureFps(int32 InFps)
 		VideoFps, VideoFps);
 }
 
+void UAnomalyCaptureSubsystem::SetCapturePace(bool bInPace)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Pace: ignored mid-run (stop first)."));
+		return;
+	}
+	bPaceCapture = bInPace;
+	UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.Pace: %s (%s)."),
+		bPaceCapture ? TEXT("ON") : TEXT("OFF"),
+		bPaceCapture
+			? TEXT("each captured frame is held to >= 1/fps of wall time; game == wall == video clock")
+			: TEXT("engine free-runs during capture; video.fps stamping stays honest"));
+}
+
 void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
 	const FString& InTargetAnomaly, const FString& InTargetActor)
 {
@@ -428,6 +451,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	M.Mode = bTargetedMode ? TEXT("targeted") : TEXT("auto_pool");
 	M.TargetAnomaly = bTargetedMode ? TargetAnomalyId.ToString() : FString();
 	M.TargetActor = bTargetedMode ? TargetActorName : FString();
+	M.TargetFps = VideoFps;
+	M.bPaced = bPaceCapture;
 	AnomalyLabel::WriteRunManifest(RunDir, M);
 
 	BurstsDone = 0;
@@ -437,6 +462,12 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	SessionFrameIndex = 0;
 	FirstFrameTimeSeconds = -1.0;
 	LastFrameTimeSeconds = -1.0;
+	FirstArmWallSeconds = -1.0;
+	LastArmWallSeconds = -1.0;
+	bPaceInitialized = false;
+	NextPaceWallTarget = 0.0;
+	bEarlyRatioWarned = false;
+	LastRunPacing = FLastRunPacing();
 	ViewRing.Reset();
 	if (Async.IsValid())
 	{
@@ -470,10 +501,11 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	PhaseFramesLeft = PreFrames;
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | mode=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
+		TEXT("=== Capture run STARTED: %s | mode=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
 		*RunDir,
 		bTargetedMode ? *FString::Printf(TEXT("targeted[%s on %s]"), *TargetAnomalyId.ToString(), *TargetActorName) : TEXT("auto-pool"),
 		Seed, *M.Format, bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"), VideoFps,
+		bPaceCapture ? TEXT(", paced") : TEXT(", unpaced"),
 		SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 		BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
 		FrameCap > 0 ? *FString::FromInt(FrameCap) : TEXT("none"));
@@ -507,10 +539,11 @@ void UAnomalyCaptureSubsystem::LogStatus() const
 	if (!bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture: idle. Config K=%d L=%d pre=%d positive=%d post=%d bursts=%s capture=%s. Start: IAI.Capture.Start [dir] [png|jpeg] [seed]."),
+			TEXT("Capture: idle. Config K=%d L=%d pre=%d positive=%d post=%d bursts=%s capture=%s fps=%d pace=%s. Start: IAI.Capture.Start [dir] [png|jpeg] [seed]."),
 			SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 			BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
-			bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"));
+			bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"),
+			VideoFps, bPaceCapture ? TEXT("on") : TEXT("off"));
 		return;
 	}
 	UE_LOG(LogAnomalyCapture, Log,
@@ -769,9 +802,12 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				FirstFrameTimeSeconds = Snap.TimeSeconds;
 			}
 			LastFrameTimeSeconds = Snap.TimeSeconds;
+			Snap.WallSeconds = FPlatformTime::Seconds();
+			StampArmWallClock(Snap.WallSeconds);
 			Async->PendingSnapshots.Add(Snap.FrameCounter, MoveTemp(Snap));
 			Async->Capturer->ArmForCapture(GFrameCounter, TargetWindow, CaptureRect);
 			++SessionFrameIndex;
+			CheckEarlyPacingWarning();
 			return;
 		}
 
@@ -787,7 +823,8 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 
 	FString ImagePath, SidecarPath;
 	int32 NumLabels = 0;
-	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, ImagePath, SidecarPath, NumLabels, false))
+	const double NowWall = FPlatformTime::Seconds();
+	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, NowWall, ImagePath, SidecarPath, NumLabels, false))
 	{
 		TArray<FAutoLiveFireInfo> Fires;
 		if (Auto) { Fires = Auto->GetLiveFires(); }
@@ -808,6 +845,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			FirstFrameTimeSeconds = NowT;
 		}
 		LastFrameTimeSeconds = NowT;
+		StampArmWallClock(NowWall);
 
 		++SessionFrameIndex;
 		++FramesWritten;
@@ -815,7 +853,113 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		{
 			++PositiveFramesWritten;
 		}
+		CheckEarlyPacingWarning();
 	}
+}
+
+void UAnomalyCaptureSubsystem::PaceThisTick()
+{
+	if (!bPaceCapture || VideoFps <= 0)
+	{
+		return;
+	}
+	const double Period = 1.0 / (double)VideoFps;
+	const double Now = FPlatformTime::Seconds();
+	if (!bPaceInitialized)
+	{
+		bPaceInitialized = true;
+		NextPaceWallTarget = Now + Period;
+		return;
+	}
+	if (Now < NextPaceWallTarget)
+	{
+		const double Coarse = NextPaceWallTarget - Now - GPaceCoarseSleepMarginSec;
+		if (Coarse > 0.0)
+		{
+			FPlatformProcess::SleepNoStats((float)Coarse);
+		}
+		while (FPlatformTime::Seconds() < NextPaceWallTarget)
+		{
+			FPlatformProcess::SleepNoStats(0.0f);
+		}
+		NextPaceWallTarget += Period;
+	}
+	else
+	{
+		NextPaceWallTarget = Now + Period;
+	}
+}
+
+void UAnomalyCaptureSubsystem::StampArmWallClock(double NowWall)
+{
+	if (FirstArmWallSeconds < 0.0)
+	{
+		FirstArmWallSeconds = NowWall;
+	}
+	LastArmWallSeconds = NowWall;
+}
+
+void UAnomalyCaptureSubsystem::CheckEarlyPacingWarning()
+{
+	if (bEarlyRatioWarned || SessionFrameIndex < GEarlyPacingWarnMinFrames)
+	{
+		return;
+	}
+	const double GameSpan = LastFrameTimeSeconds - FirstFrameTimeSeconds;
+	const double WallSpan = LastArmWallSeconds - FirstArmWallSeconds;
+	if (GameSpan <= KINDA_SMALL_NUMBER || WallSpan <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+	const double Ratio = WallSpan / GameSpan;
+	if (Ratio > 1.0 + GFpsStampTolerance)
+	{
+		bEarlyRatioWarned = true;
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture: sustaining ~%.1f of %d fps (ratio %.2f) — the video will be stamped at the true rate; lower IAI.Capture.Fps or run a packaged build."),
+			(double)VideoFps / Ratio, VideoFps, Ratio);
+	}
+}
+
+void UAnomalyCaptureSubsystem::ComputeRunPacing()
+{
+	LastRunPacing = FLastRunPacing();
+	LastRunPacing.bPaced = bPaceCapture;
+	LastRunPacing.TargetFps = (double)VideoFps;
+	LastRunPacing.SustainedWallFps = (double)VideoFps;
+	LastRunPacing.SpeedRatio = 1.0;
+	LastRunPacing.StampedFps = (double)VideoFps;
+
+	const double GameSpan = LastFrameTimeSeconds - FirstFrameTimeSeconds;
+	const double WallSpan = LastArmWallSeconds - FirstArmWallSeconds;
+	if (SessionFrameIndex < 2 || FirstFrameTimeSeconds < 0.0 || FirstArmWallSeconds < 0.0
+		|| GameSpan <= KINDA_SMALL_NUMBER || WallSpan <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+
+	LastRunPacing.bValid = true;
+	LastRunPacing.SpeedRatio = WallSpan / GameSpan;
+	LastRunPacing.SustainedWallFps = (double)VideoFps / LastRunPacing.SpeedRatio;
+
+	if (LastRunPacing.SpeedRatio > 1.0 + GFpsStampTolerance)
+	{
+		LastRunPacing.StampedFps = FMath::RoundToDouble(LastRunPacing.SustainedWallFps * 1000.0) / 1000.0;
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture: could not hold %d fps wall-clock (sustained %.3f fps, ratio %.3f) — video.fps stamped at the true rate %.3f."),
+			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps);
+	}
+	else if (LastRunPacing.SpeedRatio < 1.0 - GFpsStampTolerance)
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture: ran faster than %d fps wall-clock (ratio %.3f, pace=%s) — video.fps stays %d."),
+			VideoFps, LastRunPacing.SpeedRatio, bPaceCapture ? TEXT("on") : TEXT("off"), VideoFps);
+	}
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture: pacing=%s | target=%d fps | sustained=%.3f fps | ratio=%.3f | stamped=%.3f."),
+		bPaceCapture ? TEXT("on") : TEXT("off"), VideoFps,
+		LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps);
 }
 
 void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
@@ -830,9 +974,12 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		DrainAsyncToCompletion();
 	}
 
+	ComputeRunPacing();
+
 	WriteSessionAnnotationFile();
 
-	AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter);
+	AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
+		VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture);
 
 	if (bLogLine)
 	{
@@ -950,14 +1097,8 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 	A.Video.ResolutionH = ViewportH;
 	A.Video.TotalFrames = FramesWritten;
 
-	A.Video.Fps = (double)VideoFps;
-	const double Span = LastFrameTimeSeconds - FirstFrameTimeSeconds;
-	if (SessionFrameIndex >= 2 && FirstFrameTimeSeconds >= 0.0 && Span > KINDA_SMALL_NUMBER)
-	{
-		const double MeasuredFps = (double)(SessionFrameIndex - 1) / Span;
-		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: fixed-step fps=%d; measured over armed span %.3f fps (settle gaps read low)."),
-			VideoFps, MeasuredFps);
-	}
+	A.Video.Fps = LastRunPacing.StampedFps > 0.0 ? LastRunPacing.StampedFps : (double)VideoFps;
+	A.Video.TargetFps = VideoFps;
 
 	for (FSessionEventAccum& Ev : Async->SessionEvents)
 	{
@@ -1136,6 +1277,23 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureFpsCmd(
 				return;
 			}
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetCaptureFps(FCString::Atoi(*Args[0])); }
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCapturePaceCmd(
+	TEXT("IAI.Capture.Pace"),
+	TEXT("Toggle real-time frame pacing during capture runs (default ON). ON: each captured frame is held ")
+	TEXT("to >= 1/fps of WALL time, so game time == wall time == video time and the live game runs at 1x ")
+	TEXT("while capturing (slow-motion only if the machine cannot hold the rate). OFF: the engine free-runs ")
+	TEXT("(old behavior); video.fps stamping stays honest either way. Usage: IAI.Capture.Pace <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.Pace <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetCapturePace(FCString::Atoi(*Args[0]) != 0); }
 		}));
 
 #endif

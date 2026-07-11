@@ -1,105 +1,134 @@
-# Capture frame rate — why the video plays at the right speed
+# Capture frame rate — the two-clock model, pacing, and honest fps stamping
 
-This documents how the session-capture pipeline handles frame rate, the bug it fixes, and the
-behaviour you'll see while capturing. It supersedes the earlier "fps = fixed 30 metadata" assumption.
+This documents how the session-capture pipeline handles frame rate as of m11 (capture pacing +
+honest fps stamping). It supersedes the fixed-timestep-only description (which itself superseded
+the "fps = fixed 30 metadata" assumption).
 
-## The symptom
+## The two-clock model
 
-Capturing 120 frames at a stated 30 fps produced a 4-second mp4, but the motion in it was
-**sped up** — a take that covered ~12 seconds of actual gameplay was crammed into 4 seconds
-(≈3× fast). Importing the raw frames into Blender and setting 10 fps looked correct but ran long.
+A UE game's visible content advances on one of two clocks:
 
-## Root cause
+- **Game-clock-driven** content (StackOBot): world motion — the bot, physics, our anomaly toggles —
+  advances by the world's delta seconds. Pin the game clock and you pin the motion.
+- **Real-time-driven** content (the client games this plugin targets): significant visible content —
+  sequencer-driven scenes, platform-clock/audio-synced systems — advances on the WALL clock,
+  regardless of what the world's delta seconds say.
 
-The capture arms **exactly one frame per engine tick** — it already captures at the game's frame
-rate, not some independent throughput. The problem was the **time base written into the video**, not
-the frames themselves.
+`FApp::SetUseFixedTimeStep` + `SetFixedDeltaTime(1/fps)` (the m10-era fix) pins only the **game**
+clock: every tick advances game time by exactly `1/fps` no matter how long the frame really took.
+That is sufficient for game-clock content — which is why StackOBot captures played correctly — but
+on real-time-driven content each captured frame holds however much REAL time the frame took to
+render, while the annotation claims `1/fps`. When a machine sustains fewer fps than the target, the
+mp4 plays fast by exactly:
 
-On the host, PIE rendered at ~10 fps wall-clock during capture, so 120 consecutive engine frames
-spanned ~12 s of game time. The mp4 was then encoded at a hard-coded **30 fps**, so those 120 frames
-replayed in 4 s → a 3× fast-forward. Blender at 10 fps looked right because ~10 fps was the *true*
-rate of that session. The frame data and labels were always correct; only `video.fps` lied.
+```
+video_speedup ≈ VideoFps / sustained_wall_fps
+```
 
-## Options considered
+Office example (settled diagnosis, 2026-07-11): 157 ticks in 5.364 s wall at a 60-fps target →
+sustained ≈ 29.3 fps → ≈ 2.05x fast video, with zero frame drops and a perfectly exact fixed step.
+The frames and labels were always correct; wall time and game time simply disagreed.
 
-1. **Keep a fixed 30 and duplicate frames to real time** — rejected. Padding breaks the 1:1 mapping
-   between the mp4 frame count, `Actual_Frames/`, and `affected_frames` indices, which the client
-   clip mapping depends on.
-2. **Measure the real rate and write it into `video.fps`** — honest metadata. Implemented first
-   (commit `c5d58b0`): stamp the world-time of the first/last armed frame and write
-   `fps = (frames-1) / (t_last - t_first)`. The mp4 then plays at true gameplay pacing, but the rate
-   is whatever the machine happened to hit (fractional, e.g. 9.83), and varies run to run.
-3. **Make every frame an exact 1/fps slice (fixed timestep)** — the chosen fix. Instead of
-   *describing* whatever rate happened, *force* a native rate. This is the same mechanism UE's movie
-   render pipeline uses for deterministic offline rendering.
+## The fix: real-time frame pacing (`IAI.Capture.Pace`, default ON)
 
-Option 3 superseded option 2 (commit `500eac7`). The measured-rate calculation is kept only as a
-**finalize sanity log**, not written to the annotation.
+While a run is active, the capture subsystem holds every engine tick to **at least `1/VideoFps` of
+wall time** (a drift-free sleep at the top of its Tick — coarse sleep + short spin; if the machine
+falls behind, it does not try to catch up). Fixed timestep already pins game time to exactly
+`1/VideoFps`, so with pacing:
 
-## The fix: fixed timestep (native fps)
+```
+game clock == wall clock == video clock
+```
 
-For the duration of a capture run the subsystem switches the engine to a fixed timestep of
-`1 / VideoFps` (default 30):
+and the delivered video plays at natural speed for BOTH clock families. Two side effects, both
+desirable: the live game runs at **1x while capturing** (no more sped-up feel on a fast machine),
+and GPU readbacks get a full frame budget (fewer end-of-run stragglers).
 
-- `StartRun`: save `FApp::UseFixedTimeStep()` / `FApp::GetFixedDeltaTime()`, then
-  `FApp::SetUseFixedTimeStep(true)` and `FApp::SetFixedDeltaTime(1.0 / VideoFps)`.
-- `FinishRun`: restore both saved values.
+Note UE's own frame-rate limiter (`t.MaxFPS`, smoothing) is **bypassed under fixed timestep**
+(benchmark behavior), so this sleep is the plugin's own — there is no double-limiter, and no host
+project setting is touched.
 
-Every engine tick now advances game time by exactly `1/VideoFps` regardless of how long the frame
-actually took to render. Consequences:
+## The fallback: honest fps stamping (one-sided)
 
-- **Exact output.** 120 frames at 30 = exactly 4.0 s of game time; the mp4 encodes at exactly 30 fps
-  and plays at natural speed on **any** machine. `annotation.json` `video.fps` is the fixed rate,
-  exactly (an integer), so the client "fps matches the encoded video" rule holds.
-- **Time-deterministic runs.** A 5 Hz blink toggles every exactly 3 frames; holds, settles, and
-  pre/post-roll are exact frame counts. The same session config produces the same timing on the host
-  and the remote machine.
-- **Scope.** `SetUseFixedTimeStep` is app-wide — the same scope movie capture uses. It's saved and
-  restored around each run, so nothing leaks past `FinishRun`.
+Pacing cannot speed up a machine that renders SLOWER than the target. For that case the run
+measures the truth and stamps it:
+
+- Every armed frame is wall-stamped (`t_wall` per row in `labels.jsonl`, next to the game-time `t`);
+  the run keeps first/last armed wall stamps on both the async and sync paths.
+- At finalize: `speed_ratio = wallSpan / gameSpan` between the SAME first/last armed frames (settle
+  gaps cancel exactly); `sustained_wall_fps = VideoFps / speed_ratio`.
+- If `speed_ratio > 1.02` (couldn't hold the rate): `annotation.video.fps` is stamped with the
+  **sustained** rate (fractional, 3 decimals — the encode watcher float-parses fps). The mp4 then
+  plays at true speed on real-time-driven content.
+- Otherwise `video.fps = VideoFps` exactly (clean integer). A run FASTER than target wall-clock
+  (only possible with `Pace 0`) also keeps `VideoFps` — stamping the faster wall rate would make
+  game-clock content play fast; this direction is deliberately one-sided (Info log only).
+- `annotation.video.target_fps` always records the requested rate (internal field; the client
+  slicer drops it). `run.json` records `target_fps` + `paced` at start; `run_summary.json` records
+  `target_fps` / `sustained_wall_fps` / `speed_ratio` / `stamped_fps` / `paced` at finalize.
+
+The 1:1 mapping between `Actual_Frames/`, `labels.jsonl` rows, `affected_frames` indices, and mp4
+frame numbers is sacrosanct: NO frame duplication, NO variable frame rate, ever.
+
+Warnings: at ≥30 armed frames a one-shot warning fires if the running ratio exceeds tolerance
+("sustaining ~X of F fps — the video will be stamped at the true rate; lower IAI.Capture.Fps or run
+a packaged build"), and the finalize log always states pacing/target/sustained/ratio/stamped. The
+dashboard shows a post-run badge when the stamp fell back ("couldn't hold F fps — video stamped at
+X fps (true speed)").
 
 ## Behaviour you will see while capturing
 
-Fixed timestep decouples game-time from wall-clock and (as in benchmark mode) removes the frame-rate
-cap during the run, so the **live game feels sped up or slowed down while capturing**:
+With **Pace 1** (default): the live game runs at **1x** while the machine sustains the target rate,
+and drops into slow-motion (never sped-up) below it. The output time base is exact either way.
+
+With **Pace 0** (escape hatch, old behavior): the engine free-runs —
 
 ```
 feel = (frames the machine renders per real second) / VideoFps
 ```
 
-- Machine renders **faster** than `VideoFps` (e.g. a strong PC at 60+ fps) → game looks **sped up**.
-- Machine renders **at** `VideoFps` → **real-time**, no difference.
-- Machine renders **slower** (e.g. a loaded editor at ~10 fps) → game looks **slow-motion**.
-
-This is expected and is the fixed timestep working — the **output time base is exact either way**.
-One side effect: your hand-driven camera input is time-warped in the take (you move in real time while
-the world runs fast or slow), while world motion (bot, physics, anomalies) is exact. For a dataset
-this is normally fine.
-
-An optional future toggle, `IAI.Capture.Pace <0|1>`, would sleep each frame to hold ≥ `1/VideoFps`
-wall-clock so a fast machine feels real-time during capture (slow machines can't be sped up). The
-output is byte-identical with or without it. Not yet implemented.
+fast machine → sped-up live feel, slow machine → slow-motion. Stamping stays honest either way,
+with the one-sided rule above.
 
 ## Knobs
 
-- `IAI.Capture.Fps <fps>` — native capture/playback rate, default 30, clamped 1–240. Guarded mid-run
-  (stop first). Also settable per run; the fixed timestep uses this value.
+- `IAI.Capture.Fps <fps>` — native capture/playback rate, default 30, clamped 1–240. Guarded
+  mid-run (stop first). The fixed timestep, the pacer, and the stamp all use this value.
+- `IAI.Capture.Pace <0|1>` — real-time frame pacing during runs, default **1**. Guarded mid-run.
+
+## Operational guidance
+
+- **Wall-clock capture takes `frames / sustained_fps`, NOT `frames / VideoFps`.** Pacing holds each
+  frame to *at least* `1/VideoFps` of wall time — it cannot speed a slow box UP, only slow a fast one
+  down to real time. On a box that sustains below the target the run takes longer in wall time (and
+  the live game runs in slow motion); the delivered video is honest either way (played at the stamped
+  rate). Budget capture time against the sustained rate, not the target.
+- **The dashboard's live preview measurably drags sustained fps during capture.** Its per-frame
+  ReadPixels stacks on the capture path — observed dropping the sync path from ~18 fps to ~10.7 fps in
+  one run. For time-sensitive or delivery captures, disconnect the preview or use a packaged build.
+  (An async-preview upgrade + a packaged-build smoke test are the tracked future threads.)
+- **Choose `fps` ≤ what the box sustains** in that project/view mode — pacing then delivers exact
+  real-time capture with an integer stamp. `IAI.Capture.Status` shows the configured fps/pace.
+- **Warm up before judging**: the first run after an editor boot renders slow (shader compilation)
+  and skews sustained-fps measurements. Run a throwaway capture first.
+- **Packaged Development builds sustain far more than PIE** — for heavy titles at 60, prefer a
+  packaged build.
+- **Re-encode rescue for old sessions**: hand-patch `video.fps` in `annotation.json` (to
+  `target_fps / observed_speedup`) and delete the `.mp4_done` marker — the encode watcher
+  re-encodes at the corrected rate.
 
 ## Host-side encoder
 
 `host-tools/encode_watcher.py` reads `video.fps` from `annotation.json` and passes it to ffmpeg's
-`-framerate`. It parses fps as a float with a 30.0 fallback (commit `c803fe8` in the dashboard repo's
-`host-tools/`), so it works whether the annotation carries the exact integer (fixed-timestep path) or,
-historically, a fractional measured value.
+`-framerate`. It parses fps as a float with a 30.0 fallback (dashboard repo `c803fe8`), so integer
+(healthy) and fractional (fallback) stamps both encode correctly. Unchanged in m11.
 
-## Commit trail
+## History
 
 - `c5d58b0` — measured session fps written to `video.fps` (superseded).
-- `500eac7` — native-fps capture via fixed timestep (current behaviour); measured rate demoted to a
-  finalize sanity log.
-- `c803fe8` (dashboard `host-tools/`) — encoder accepts fractional fps.
+- `500eac7` — native-fps capture via fixed timestep (game clock pinned; the office 2x symptom on
+  real-time-driven titles led to the two-clock diagnosis).
+- m11 — real-time pacing (default ON) + one-sided honest stamping (this document).
 
-## Pre-fix sessions
-
-Sessions captured before `500eac7` still have their old `video.fps` baked into `annotation.json`
-(either a fixed 30 or a measured value). Recapture is simplest; alternatively hand-patch `video.fps`
-and delete the `.mp4_done` marker so the encode watcher re-encodes at the corrected rate.
+Sessions captured before m11 on real-time-driven content have their target fps baked into
+`video.fps` even when the box couldn't hold it — use the re-encode rescue above.
