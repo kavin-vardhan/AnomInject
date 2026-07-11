@@ -318,9 +318,23 @@ namespace AnomalyLabel
 			O->SetStringField(TEXT("anomaly_subtype"), E.AnomalySubtype);
 			O->SetStringField(TEXT("source_id"), E.SourceId);
 
-			TArray<TSharedPtr<FJsonValue>> Frames;
-			for (int32 F : E.AffectedFrames) { Frames.Add(LabelNum(F)); }
-			O->SetArrayField(TEXT("affected_frames"), Frames);
+			{
+				TSharedRef<FJsonObject> AF = MakeShared<FJsonObject>();
+				int32 Start = 0, End = 0, Count = 0;
+				if (E.FrameIndices.Num() > 0)
+				{
+					Start = E.FrameIndices[0];
+					End = E.FrameIndices.Last();
+					Count = End - Start + 1;
+				}
+				AF->SetNumberField(TEXT("start_frame"), Start);
+				AF->SetNumberField(TEXT("end_frame"), End);
+				AF->SetNumberField(TEXT("frame_count"), Count);
+				TArray<TSharedPtr<FJsonValue>> Idx;
+				for (int32 F : E.FrameIndices) { Idx.Add(LabelNum(F)); }
+				AF->SetArrayField(TEXT("frame_indices"), Idx);
+				O->SetObjectField(TEXT("affected_frames"), AF);
+			}
 			O->SetNumberField(TEXT("coverage_ratio"), E.CoverageRatio);
 
 			{
@@ -368,17 +382,6 @@ namespace AnomalyLabel
 				TSharedRef<FJsonObject> Depth = MakeShared<FJsonObject>();
 				Depth->SetBoolField(TEXT("provided"), false);
 				O->SetObjectField(TEXT("depth"), Depth);
-			}
-
-			{
-				TSharedRef<FJsonObject> Dbg = MakeShared<FJsonObject>();
-				Dbg->SetNumberField(TEXT("visible_frames"), E.VisibleFrames);
-				Dbg->SetNumberField(TEXT("hidden_frames"), E.HiddenFrames);
-				Dbg->SetNumberField(TEXT("transitions"), E.Transitions);
-				TArray<TSharedPtr<FJsonValue>> HiddenArr;
-				for (int32 HF : E.HiddenFrameList) { HiddenArr.Add(LabelNum(HF)); }
-				Dbg->SetArrayField(TEXT("hidden_frame_list"), HiddenArr);
-				O->SetObjectField(TEXT("_debug"), Dbg);
 			}
 
 			Arr.Add(MakeShared<FJsonValueObject>(O));

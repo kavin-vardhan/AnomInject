@@ -363,8 +363,14 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("AnomalyCaptures"))
 		: BaseDir;
 	const FString Stamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S"));
-	SessionId = FString::Printf(TEXT("session_%s_s%d"), *Stamp, Seed);
+	const FString BaseId = FString::Printf(TEXT("session_%s"), *Stamp);
+	SessionId = BaseId;
 	RunDir = FPaths::Combine(Base, SessionId);
+	for (int32 Disamb = 2; IFileManager::Get().DirectoryExists(*RunDir); ++Disamb)
+	{
+		SessionId = FString::Printf(TEXT("%s-%d"), *BaseId, Disamb);
+		RunDir = FPaths::Combine(Base, SessionId);
+	}
 
 	IFileManager::Get().MakeDirectory(*FPaths::Combine(RunDir, TEXT("Actual_Frames")), true);
 
@@ -916,8 +922,10 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		MapAnomalyToClient(Ev.Id, Ev.Transitions, Out.AnomalyType, Out.AnomalySubtype);
 		Out.SourceId = Ev.Id.ToString();
 
-		Ev.AffectedFrames.Sort();
-		Out.AffectedFrames = Ev.AffectedFrames;
+		const bool bHideType = Ev.HiddenIndices.Num() > 0;
+		TArray<int32> FrameIndices = bHideType ? Ev.HiddenIndices : Ev.AffectedFrames;
+		FrameIndices.Sort();
+		Out.FrameIndices = MoveTemp(FrameIndices);
 		Out.CoverageRatio = Ev.CoverageCount > 0 ? (Ev.CoverageSum / (double)Ev.CoverageCount) : 0.0;
 
 		AnomalyLabel::FSessionNode Node;
@@ -939,12 +947,6 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		Out.EngineName = TEXT("UnrealEngine");
 		Out.EngineVersion = EngineVersion;
 		Out.EngineProject = EngineProject;
-
-		Out.VisibleFrames = Ev.VisibleFrames;
-		Out.HiddenFrames = Ev.HiddenFrames;
-		Out.Transitions = Ev.Transitions;
-		Ev.HiddenIndices.Sort();
-		Out.HiddenFrameList = Ev.HiddenIndices;
 
 		A.Events.Add(MoveTemp(Out));
 	}

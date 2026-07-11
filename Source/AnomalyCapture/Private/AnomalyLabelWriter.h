@@ -81,7 +81,7 @@ namespace AnomalyLabel
 		FString AnomalyType;
 		FString AnomalySubtype;
 		FString SourceId;
-		TArray<int32> AffectedFrames;
+		TArray<int32> FrameIndices;
 		double CoverageRatio = 0.0;
 
 		TArray<FSessionNode> Nodes;
@@ -99,11 +99,6 @@ namespace AnomalyLabel
 		FString EngineName;
 		FString EngineVersion;
 		FString EngineProject;
-
-		int32 VisibleFrames = 0;
-		int32 HiddenFrames = 0;
-		int32 Transitions = 0;
-		TArray<int32> HiddenFrameList;
 	};
 
 	struct FSessionAnnotation
