@@ -24,7 +24,8 @@ public:
 	virtual TStatId GetStatId() const override;
 
 
-	void StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap);
+	void StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
+		const FString& InTargetAnomaly = FString(), const FString& InTargetActor = FString());
 
 	void StopRun();
 
@@ -93,6 +94,13 @@ private:
 
 	int32 SessionFrameIndex = 0;
 	int32 FrameCap = 0;
+
+	FName TargetAnomalyId = NAME_None;
+	FString TargetActorName;
+	bool bTargetedMode = false;
+
+	bool bAutoWasRunning = false;
+	bool bDeinitializing = false;
 
 	int32 ViewportW = 0;
 	int32 ViewportH = 0;

@@ -51,6 +51,9 @@ namespace AnomalyLabel
 		FString Format;
 		uint64 StartFrame = 0;
 		FString StartTimeUtc;
+		FString Mode;
+		FString TargetAnomaly;
+		FString TargetActor;
 	};
 
 	bool WriteRunManifest(const FString& RunDir, const FRunManifest& Manifest);

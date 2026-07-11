@@ -231,20 +231,6 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 		PushFrames(bWantOneFrame);
 		bWantOneFrame = false;
 	}
-
-	if (bAutoWasRunning)
-	{
-		UWorld* World = GetWorld();
-		UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
-		if (Cap && !Cap->IsRunning())
-		{
-			if (UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>())
-			{
-				Auto->SetRunning(true);
-			}
-			bAutoWasRunning = false;
-		}
-	}
 #endif
 }
 
@@ -597,9 +583,11 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 
 	if (Type == TEXT("capture_start"))
 	{
-		FString Dir, Format;
+		FString Dir, Format, Anomaly, TargetActor;
 		Msg->TryGetStringField(TEXT("dir"), Dir);
 		Msg->TryGetStringField(TEXT("format"), Format);
+		Msg->TryGetStringField(TEXT("anomaly"), Anomaly);
+		Msg->TryGetStringField(TEXT("target"), TargetActor);
 		double SeedV = -1.0;
 		Msg->TryGetNumberField(TEXT("seed"), SeedV);
 		double MaxFramesV = 0.0;
@@ -607,18 +595,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		const bool bPng = !Format.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase);
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
-			if (!Cap->IsRunning())
-			{
-				if (UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr)
-				{
-					bAutoWasRunning = Auto->IsRunning();
-					if (bAutoWasRunning)
-					{
-						Auto->SetRunning(false);
-					}
-				}
-			}
-			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV);
+			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV, Anomaly, TargetActor);
 		}
 		SendAck(Conn.Socket, TEXT("capture_start"));
 		return;

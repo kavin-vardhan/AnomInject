@@ -815,3 +815,35 @@ so it fails standalone (here: `TCondensedJsonPrintPolicy` undeclared). The build
 file was still unity-blobbed; the isolation set shifts as files change. Make every file **self-contained** (added explicit
 `Policies/CondensedJsonPrintPolicy.h` / `PrettyJsonPrintPolicy.h`). This is also why a clean non-unity compile is a stronger
 gate than a unity one. (2026-06-30.)
+
+*(G58/G59 reserved — the unmerged `feature/stencil-capture` branch already numbers its own gotchas up to G59; master
+continues at G60 so the rebase can absorb the branch entries without renumbering.)*
+
+### G60 — the console tokenizer delivers a quoted empty placeholder as the LITERAL 2-char string `""` (m10)
+`IAI.Capture.Start "" png "" 60 ...` does not give the handler empty strings for slots 0/2 — each `""` arrives as a
+2-character string of two double-quotes (and `''` as two single-quotes), so naive `Args[0]` use produces a literal `""`
+output dir (`""/session_...`). Any positional console command that supports skip-this-arg placeholders must NORMALIZE in
+the parser: treat empty, `""`, and `''` all as "use the default" (the `Slot()` lambda in the Start command). Runtime-verified
+2026-07-11: the placeholder run lands in `Saved/AnomalyCaptures/session_<ts>` with an auto seed. (2026-07-10.)
+
+### G61 — targeted fire is visibility-INDEPENDENT and assumes `IAI.SetViewportScoping` OFF (m10)
+`TryFireSpecific` targets by `=`-exact name via `AnomalyTargeting` — it does NOT consult the renderable-visible set the
+auto-pool draw uses, so a targeted capture can fire on an off-screen actor (frames are then honest hard negatives:
+`present=true`, no box). Corollary: with the m4 `IAI.SetViewportScoping 1` toggle ON (non-default), the underlying apply
+itself becomes visibility-gated and an off-screen targeted fire will zero-match instead. Targeted capture is specified
+for the default scoping-OFF configuration; keep it OFF during capture runs. (2026-07-10.)
+
+### G62 — capture pause/resume of the auto-injector must be CENTRALIZED in StartRun/FinishRun + teardown-guarded (m10)
+The m9 shape (WS handler pauses; control-server Tick polls to resume; console path only warns) split the policy across
+entry points and broke parity. Centralize: `StartRun` records `bAutoWasRunning` + pauses; `FinishRun` resumes. The resume
+MUST be guarded by a `bDeinitializing` flag set at `Deinitialize()` before its `StopRun()` call — PIE teardown funnels
+through the same FinishRun, and an unguarded resume would SetRunning(true) on a subsystem in a dying world. With the
+guard, teardown finalizes artifacts but never resumes. (2026-07-10.)
+
+### G63 — the pre-run clean slate needs `RevertAllActive()`, not just `RevertAllLiveFires()` (m10)
+`Auto->RevertAllLiveFires()` only clears the auto-injector's OWN live fires. Anomalies injected manually (console
+`IAI.Apply`, selector, dashboard-era inject) — object, component, or global scope — are tracked by the injector
+subsystem, not the auto layer, and would persist into the captured frames as UNLABELED contamination (labels source only
+the auto layer's fire list). `StartRun` therefore also calls `Injector->RevertAllActive()` before frame 0. Gate: manual
+`missing_object` + `time_dilation`, then targeted start → `IAI.DumpActive` = 0 immediately after StartRun; the session
+shows only the targeted anomaly. (2026-07-10.)

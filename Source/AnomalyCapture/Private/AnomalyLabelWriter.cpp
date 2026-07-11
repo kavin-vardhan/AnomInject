@@ -264,6 +264,9 @@ namespace AnomalyLabel
 		Root->SetStringField(TEXT("format"), M.Format);
 		Root->SetNumberField(TEXT("start_frame"), (double)M.StartFrame);
 		Root->SetStringField(TEXT("start_time_utc"), M.StartTimeUtc);
+		Root->SetStringField(TEXT("mode"), M.Mode);
+		Root->SetStringField(TEXT("target_anomaly"), M.TargetAnomaly);
+		Root->SetStringField(TEXT("target_actor"), M.TargetActor);
 
 		FString Out;
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);

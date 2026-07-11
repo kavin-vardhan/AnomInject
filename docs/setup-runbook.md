@@ -191,7 +191,17 @@ subsystem lives in the `AnomalyControlServer` module (present in Development/Tes
    `<ProjectSaved>/AnomalyCaptures/manual/` (Gate 1).
 4. **Burst run:** `IAI.Auto.Seed <int>` → `IAI.Capture.Config <K> <pre> <positive> <post> <bursts>` (e.g.
    `2 5 10 5 3`) → `IAI.Capture.Start`. It runs deterministically and auto-stops after `<bursts>` (or
-   `IAI.Capture.Stop` for a `0`/until-stop run). Output: `<ProjectSaved>/AnomalyCaptures/run_<seed>_<stamp>/`.
+   `IAI.Capture.Stop` for a `0`/until-stop run). Output: `<ProjectSaved>/AnomalyCaptures/session_<stamp>/`
+   (seed is in `run.json`; a same-second second run gets `-2/-3/...`).
+4b. **Targeted vs auto-pool (m10):** full usage is
+   `IAI.Capture.Start [outDir] [png|jpeg] [seed] [maxFrames] [anomaly] [targetActor]`. Pass BOTH trailing
+   args for a **targeted** run — every burst fires exactly that anomaly on exactly that actor (visibility-
+   independent, `=` exact-match; works for non-pool ids like `lod_popping` too); omit both for **auto-pool**.
+   Use `""` placeholders to skip leading args, e.g.
+   `IAI.Capture.Start "" png "" 60 blinking SM_Ramp3_UAID_..._2086822138` (G60). Only one of the two set →
+   warning + auto-pool fallback. StartRun pauses the auto-injector's Run and resumes it on finish (both
+   entry points), and reverts ALL active anomalies first (manual injects included — clean slate, G63).
+   `run.json` records `mode`/`target_anomaly`/`target_actor`.
 5. **Under camera motion:** walk/turn during a long run (`...Config 2 5 30 5 0` → `Start` → move ~10 s → `Stop`).
    `IAI.Capture.ViewLag` defaults to **0** (validated — gotcha G41); raise only if a moving box trails the object.
 6. **Verify:** `python tools/verify_capture.py --dir "<...>/run_<seed>_<stamp>"` (needs Pillow) — overlays the
@@ -200,6 +210,10 @@ subsystem lives in the `AnomalyControlServer` module (present in Development/Tes
 - **Format:** PNG default (dataset fidelity); `jpeg` arg for bandwidth. **`visible_positive`** (present + a valid
   box) is the detection-relevant positive; `present=true` + no box = anomaly active but off-screen (kept as a hard
   negative — G42).
+- **Dashboard (m10):** the Tier-2 dashboard's Capture panel has the same two modes — a **Targeted / Auto-pool**
+  toggle (targeted = anomaly dropdown + on-screen target picker; Start disabled until both are chosen). The old
+  Auto-injection panel is now the **"Capture pool"** (pool checkboxes only — the free-run controls are gone), and
+  the manual **Inject panel is removed** (ActivePanel + preview remain).
 
 ## 7. Runtime verification recipe (MCP-driven gate checks)
 The non-visual stage gates are closed by driving PIE over the `unreal-mcpython` bridge (host tooling,

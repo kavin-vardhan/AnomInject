@@ -1,6 +1,27 @@
 # Architecture (living — current as-built)
 
-> **Reflects:** **Missing-Texture Anomaly (m8, VersionName 0.9.0)** — an 8th anomaly `missing_texture` (object-scoped):
+> **Reflects:** **Targeted capture modes + pre-run clean slate + entry-point parity (m10)** — a capture
+> run now fires in one of two modes: **auto-pool** (unchanged: random mix from the enabled pool) or
+> **targeted** (`IAI.Capture.Start ... [anomaly] [targetActor]` / WS `capture_start {anomaly, target}` —
+> each burst fires exactly that anomaly on exactly that actor via the new
+> `UAnomalyAutoInjectorSubsystem::TryFireSpecific`, which keeps the MaxConcurrent / one-instance-per-id /
+> one-anomaly-per-actor guards and the `=` exact-match token; visibility-independent — G61). `run.json`
+> records `mode`/`target_anomaly`/`target_actor`. **Pre-run clean slate:** `StartRun` reverts the auto
+> layer's live fires AND calls `Injector->RevertAllActive()`, so manual injects of any scope can never
+> leak into the dataset unlabeled (G63). **Entry-point parity:** StartRun itself pauses the
+> auto-injector's Run and FinishRun resumes it (teardown-guarded by `bDeinitializing` — G62); the WS
+> handler's local pause/resume is deleted — console and dashboard paths are the same code path. Console
+> placeholders: `""` in leading arg slots resolves to the default (tokenizer quirk — G60). Sessions are
+> named `session_<YYYYMMDD-HHMMSS>` (seed lives in `run.json`; same-second collisions get `-2/-3/...`),
+> and `annotation.json` emits the client-shaped `affected_frames` object
+> (`{start_frame, end_frame, frame_count, frame_indices}`; hide-type fires list only the observed hidden
+> out-frames). The dashboard is capture-first: Targeted/Auto-pool toggle, the auto panel is now the
+> "Capture pool", and the manual Inject/Arg panels are deleted. This sits on the m9 session-capture layer
+> (the quarantined `AnomalyCapture` module: N-frame cap, `session_<ts>/Actual_Frames`, native
+> multi-anomaly `annotation.json`, host-side mp4 encode) and the fixed-timestep native-fps capture
+> (`IAI.Capture.Fps`, `docs/capture-fps.md`) — both on master, not yet detailed in this header. See
+> `sessions/2026-07-11-016-m10-targeted-capture.md`. Below this it still reflects:
+> **Missing-Texture Anomaly (m8, VersionName 0.9.0)** — an 8th anomaly `missing_texture` (object-scoped):
 > per-component `UMeshComponent::SetMaterial` swaps every renderable static/skeletal slot to a plugin-**shipped** Lit
 > gray/white UV-checker material (object isolation; per-slot original captured for an exact revert). This is the plugin's
 > **first `Content/` asset** — the cook guarantee is a CDO hard-ref (`FObjectFinder` + a non-transient `UPROPERTY`) in the

@@ -12,6 +12,7 @@
 #include "AnomalyLabelWriter.h"
 #include "AnomalyPreviewCapture.h"
 #include "AnomalyAutoInjectorSubsystem.h"
+#include "AnomalyInjectorSubsystem.h"
 #include "AnomalyFrameCapturer.h"
 #include "AnomalyAsyncWriter.h"
 #include "RenderingThread.h"
@@ -150,6 +151,7 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UAnomalyCaptureSubsystem::Deinitialize()
 {
+	bDeinitializing = true;
 	StopRun();
 #if ANOMALY_CAPTURE
 	if (Async.IsValid())
@@ -327,7 +329,8 @@ void UAnomalyCaptureSubsystem::SetCaptureFps(int32 InFps)
 		VideoFps, VideoFps);
 }
 
-void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap)
+void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
+	const FString& InTargetAnomaly, const FString& InTargetActor)
 {
 #if ANOMALY_CAPTURE
 	if (bRunning)
@@ -343,18 +346,34 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: no world / no auto-injector (run inside a Game/PIE world)."));
 		return;
 	}
+	UAnomalyInjectorSubsystem* Injector = World->GetSubsystem<UAnomalyInjectorSubsystem>();
 
-	if (Auto->IsRunning())
+	bAutoWasRunning = Auto->IsRunning();
+	if (bAutoWasRunning)
 	{
-		UE_LOG(LogAnomalyCapture, Warning,
-			TEXT("IAI.Capture.Start: the auto-injector's Run is ON — capture drives firing itself; "
-			     "'capture run + Auto.Run' is UNSUPPORTED. Recommend IAI.Auto.Run 0."));
+		Auto->SetRunning(false);
+		UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.Start: paused the auto-injector's Run for the capture (will resume on finish)."));
 	}
 
 	Seed = (InSeed >= 0) ? InSeed : Auto->GetSeed();
 	Auto->SetSeed(Seed);
 
 	Auto->RevertAllLiveFires();
+	if (Injector)
+	{
+		Injector->RevertAllActive();
+	}
+
+	const bool bHasAnomaly = !InTargetAnomaly.IsEmpty();
+	const bool bHasActor = !InTargetActor.IsEmpty();
+	bTargetedMode = bHasAnomaly && bHasActor;
+	TargetAnomalyId = bTargetedMode ? FName(*InTargetAnomaly) : NAME_None;
+	TargetActorName = bTargetedMode ? InTargetActor : FString();
+	if ((bHasAnomaly || bHasActor) && !bTargetedMode)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Capture.Start: targeted mode needs BOTH an anomaly and a target actor (got only one) — falling back to auto-pool."));
+	}
 
 	bFormatPng = bPng;
 	FrameCap = FMath::Max(0, InFrameCap);
@@ -406,6 +425,9 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	M.Format = bFormatPng ? TEXT("png") : TEXT("jpeg");
 	M.StartFrame = StartFrame;
 	M.StartTimeUtc = FDateTime::UtcNow().ToIso8601();
+	M.Mode = bTargetedMode ? TEXT("targeted") : TEXT("auto_pool");
+	M.TargetAnomaly = bTargetedMode ? TargetAnomalyId.ToString() : FString();
+	M.TargetActor = bTargetedMode ? TargetActorName : FString();
 	AnomalyLabel::WriteRunManifest(RunDir, M);
 
 	BurstsDone = 0;
@@ -448,8 +470,10 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	PhaseFramesLeft = PreFrames;
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | seed=%d fmt=%s capture=%s fps=%d(fixed-step) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
-		*RunDir, Seed, *M.Format, bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"), VideoFps,
+		TEXT("=== Capture run STARTED: %s | mode=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
+		*RunDir,
+		bTargetedMode ? *FString::Printf(TEXT("targeted[%s on %s]"), *TargetAnomalyId.ToString(), *TargetActorName) : TEXT("auto-pool"),
+		Seed, *M.Format, bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"), VideoFps,
 		SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 		BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
 		FrameCap > 0 ? *FString::FromInt(FrameCap) : TEXT("none"));
@@ -685,7 +709,9 @@ void UAnomalyCaptureSubsystem::SampleViewThisTick()
 void UAnomalyCaptureSubsystem::BeginFire()
 {
 	UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
-	const bool bFired = Auto ? Auto->TryFireOnce() : false;
+	const bool bFired = Auto
+		? (bTargetedMode ? Auto->TryFireSpecific(TargetAnomalyId, TargetActorName) : Auto->TryFireOnce())
+		: false;
 	if (!bFired)
 	{
 		++ZeroMatchBursts;
@@ -819,6 +845,10 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	Phase = ECapturePhase::Idle;
 	PhaseFramesLeft = 0;
 
+	bTargetedMode = false;
+	TargetAnomalyId = NAME_None;
+	TargetActorName.Reset();
+
 	if (bFixedTimeStepOverridden)
 	{
 		FApp::SetUseFixedTimeStep(bSavedUseFixedTimeStep);
@@ -827,6 +857,19 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	}
 
 	AnomalyViewport::SetOverlaysSuppressed(false);
+
+	if (bAutoWasRunning)
+	{
+		if (!bDeinitializing)
+		{
+			if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
+			{
+				Auto->SetRunning(true);
+				UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: resumed the auto-injector's Run (paused for the capture)."));
+			}
+		}
+		bAutoWasRunning = false;
+	}
 }
 
 void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireInfo>& Fires,
@@ -982,24 +1025,34 @@ namespace
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureStartCmd(
 	TEXT("IAI.Capture.Start"),
-	TEXT("Start a labeled burst-capture run. Usage: IAI.Capture.Start [outDir] [png|jpeg] [seed] [maxFrames]  ")
+	TEXT("Start a labeled burst-capture run. Usage: IAI.Capture.Start [outDir] [png|jpeg] [seed] [maxFrames] [anomaly] [targetActor]  ")
 	TEXT("(default dir <ProjectSaved>/AnomalyCaptures; png; seed = auto-injector's current; maxFrames 0 = until "
-	     "Stop / burst schedule). The auto-injector's Run must be OFF (capture drives firing). Configure bursts "
-	     "first with IAI.Capture.Config."),
+	     "Stop / burst schedule). Pass BOTH [anomaly] and [targetActor] for a TARGETED run (fires only that anomaly on "
+	     "only that actor each burst); omit both for AUTO-POOL (random mix from the enabled pool). Empty \"\" placeholders "
+	     "resolve to defaults for the leading args. The auto-injector's Run is paused for the run and resumed on finish. "
+	     "Configure bursts first with IAI.Capture.Config."),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
 			{
-				const FString Dir = (Args.Num() > 0 && !Args[0].IsEmpty()) ? Args[0] : FString();
-				bool bPng = true;
-				if (Args.Num() > 1 && (Args[1].Equals(TEXT("jpeg"), ESearchCase::IgnoreCase) || Args[1].Equals(TEXT("jpg"), ESearchCase::IgnoreCase)))
+				auto Slot = [&Args](int32 Index) -> FString
 				{
-					bPng = false;
-				}
-				const int32 Seed = (Args.Num() > 2) ? FCString::Atoi(*Args[2]) : -1;
-				const int32 MaxFrames = (Args.Num() > 3) ? FCString::Atoi(*Args[3]) : 0;
-				Cap->StartRun(Dir, bPng, Seed, MaxFrames);
+					if (!Args.IsValidIndex(Index)) { return FString(); }
+					const FString& S = Args[Index];
+					if (S.IsEmpty() || S == TEXT("\"\"") || S == TEXT("''")) { return FString(); }
+					return S;
+				};
+				const FString Dir = Slot(0);
+				const FString Fmt = Slot(1);
+				const FString SeedStr = Slot(2);
+				const FString MaxStr = Slot(3);
+				const FString Anomaly = Slot(4);
+				const FString TargetActor = Slot(5);
+				const bool bPng = !(Fmt.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase) || Fmt.Equals(TEXT("jpg"), ESearchCase::IgnoreCase));
+				const int32 Seed = !SeedStr.IsEmpty() ? FCString::Atoi(*SeedStr) : -1;
+				const int32 MaxFrames = !MaxStr.IsEmpty() ? FCString::Atoi(*MaxStr) : 0;
+				Cap->StartRun(Dir, bPng, Seed, MaxFrames, Anomaly, TargetActor);
 			}
 		}));
 

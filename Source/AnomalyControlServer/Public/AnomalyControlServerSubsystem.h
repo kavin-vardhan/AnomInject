@@ -74,8 +74,6 @@ private:
 	int32 LastViewportX = 0;
 	int32 LastViewportY = 0;
 
-	bool bAutoWasRunning = false;
-
 	static constexpr double AuthTimeoutSeconds = 5.0;
 #endif
 

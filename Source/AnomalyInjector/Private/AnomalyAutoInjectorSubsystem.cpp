@@ -3,6 +3,7 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyViewport.h"
+#include "AnomalyTargeting.h"
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -245,6 +246,72 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	}
 	UE_LOG(LogAnomaly, Log, TEXT("Auto.Fire: '%s' on '%s' -> %s."),
 		*Id.ToString(), *TargetName, bApplied ? TEXT("applied") : TEXT("0 matched"));
+	return bApplied;
+}
+
+bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& ActorName)
+{
+	UWorld* World = GetWorld();
+	UAnomalyInjectorSubsystem* Injector = ResolveInjector(World);
+	if (!World || !Injector)
+	{
+		return false;
+	}
+
+	if (Id.IsNone() || ActorName.IsEmpty())
+	{
+		return false;
+	}
+
+	if (LiveFires.Num() >= MaxConcurrent)
+	{
+		return false;
+	}
+
+	if (IsIdLive(Id))
+	{
+		return false;
+	}
+
+	AActor* Target = nullptr;
+	const TArray<TWeakObjectPtr<AActor>> Matches = AnomalyTargeting::FindActorsMatching(World, FString(TEXT("=")) + ActorName);
+	for (const TWeakObjectPtr<AActor>& Weak : Matches)
+	{
+		AActor* Actor = Weak.Get();
+		if (Actor && !IsActorLive(Actor))
+		{
+			Target = Actor;
+			break;
+		}
+	}
+	if (!Target)
+	{
+		LastFireResult = FString::Printf(TEXT("target %s: 0 matched (skipped)"), *ActorName);
+		UE_LOG(LogAnomaly, Log, TEXT("Auto.FireSpecific: '%s' on '%s' -> 0 matched."), *Id.ToString(), *ActorName);
+		return false;
+	}
+
+	const float Hold = Stream.FRandRange(HoldMin, HoldMax);
+	const FString TargetName = Target->GetName();
+	const FString Token = FString(TEXT("=")) + TargetName;
+	const bool bApplied = Injector->ApplyAnomaly(Id, TArray<FString>{ Token });
+	if (bApplied)
+	{
+		FAutoLiveFire Fire;
+		Fire.Id = Id;
+		Fire.Target = Target;
+		Fire.TargetName = TargetName;
+		Fire.SecondsRemaining = Hold;
+		Fire.StartFrame = GFrameCounter;
+		LiveFires.Add(Fire);
+		LastFireResult = FString::Printf(TEXT("fire %s on %s (targeted)"), *Id.ToString(), *TargetName);
+	}
+	else
+	{
+		LastFireResult = FString::Printf(TEXT("fire %s on %s: not applied"), *Id.ToString(), *TargetName);
+	}
+	UE_LOG(LogAnomaly, Log, TEXT("Auto.FireSpecific: '%s' on '%s' -> %s."),
+		*Id.ToString(), *TargetName, bApplied ? TEXT("applied") : TEXT("not applied"));
 	return bApplied;
 }
 

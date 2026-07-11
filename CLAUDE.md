@@ -27,6 +27,19 @@ and is the single source of truth for the project.
   stencil are now two grab points joined by frame id — G52). **Clean 5.1 Dev-Editor compile (exit 0); core dep set unchanged (render deps quarantined);
   `IAnomaly` untouched; catalog stays 8.** Gotchas **G52–G57**; journal `docs/sessions/2026-06-30-015-stencil-capture-stage1.md`.
   **Next:** Stage 2 — custom-stencil tagging (`r.CustomDepth 3`, set/restore), then Stage 3 (stencil/depth SVE + occlusion-correct box), Stage 4 (multi-actor + docs + tag).
+- **Latest milestone (as-built): Targeted capture modes + pre-run clean slate + entry-point parity — COMPLETE (tagged `m10`) (built 2026-07-10, closed 2026-07-11).**
+  Capture runs fire in **targeted** mode (`IAI.Capture.Start [outDir] [png|jpeg] [seed] [maxFrames] [anomaly] [targetActor]`,
+  `""` placeholders — G60; WS `capture_start {anomaly, target}`; new `UAnomalyAutoInjectorSubsystem::TryFireSpecific` — exact
+  `=`-match, keeps all m6 guards, visibility-independent G61) or **auto-pool** (unchanged). `run.json` records
+  `mode`/`target_anomaly`/`target_actor`. **Clean slate:** StartRun reverts auto live fires + `Injector->RevertAllActive()`
+  (no unlabeled contamination — G63; contam gate green, `IAI.DumpActive`=0 after start). **Parity:** StartRun/FinishRun own the
+  auto-injector pause/resume for BOTH entry points (`bDeinitializing` teardown guard — G62; WS-local pause/resume deleted).
+  Dashboard is capture-first (Targeted/Auto-pool toggle; auto panel → "Capture pool"; Inject/Arg panels deleted; own feat
+  commit in the dashboard repo). Also landed in the close turn: the m9-era follow-on `fix(capture)` (`6d4eb01` — client-shaped
+  `affected_frames` object + seedless `session_<ts>` naming) and the previously-untracked `docs/capture-fps.md` (`16a5c19`).
+  **NOTE:** "m10" in some earlier notes meant the untagged fixed-timestep capture-fps cluster (`c5d58b0`/`500eac7`/`417833a`) —
+  that naming is CORRECTED: m10 = this milestone; the approved capture-pacing/honest-fps plan = **m11** (next).
+  Catalog stays 8. → `docs/sessions/2026-07-11-016-m10-targeted-capture.md`.
 - **Latest as-built (post-m8, NO tag — both on `master`, 2026-06-22): Screen-coverage candidate cull + its dashboard slider.**
   **(1) Cull** (commit `a96f8bb`) — an optional **actor-level** cull on the renderable-visible set in `AnomalyViewport`: an actor
   is an injectable target iff its on-screen footprint (the **clamped projected union** of its renderable-visible component bounds)
@@ -228,7 +241,9 @@ and is the single source of truth for the project.
   `7c34275`, tagged `m4`**; **Object Selector + Inject UI (`…-009`) committed `aa2a3a4`, tagged `m5`**;
   **Automatic Injection (`…-010`) committed `41ba104`, tagged `m6`**; viewport VFX-removal + poll-radius (`…-011`,
   no tag); **Labeled Frame-Capture + 2D BBox Labeling (`…-012`) tagged `m7`** (control-server Slice-1 promoted first
-  as `ff1be3c`, no tag).
+  as `ff1be3c`, no tag); **Missing-Texture (`…-013`) tagged `m8`**; screen-coverage cull + slider (`…-014`, no tag);
+  **multi-anomaly session capture tagged `m9`** (`88f519c`); fixed-timestep capture-fps (`c5d58b0`/`500eac7`, no tag,
+  `docs/capture-fps.md`); **targeted capture (`…-016`) tagged `m10`**. Next: **m11** (capture pacing + honest fps stamp).
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the
