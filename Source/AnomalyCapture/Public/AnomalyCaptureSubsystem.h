@@ -50,6 +50,9 @@ public:
 	void SetCapturePace(bool bInPace);
 	bool IsCapturePaced() const { return bPaceCapture; }
 
+	void SetCaptureDelivery(bool bInDelivery);
+	bool IsDeliveryMode() const { return bDeliveryMode; }
+
 	struct FLastRunPacing
 	{
 		bool bValid = false;
@@ -151,6 +154,7 @@ private:
 	TArray<FAnomalyViewInfo> ViewRing;
 
 	bool bAsyncCapture = true;
+	bool bDeliveryMode = false;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;
 
 #if WITH_EDITOR

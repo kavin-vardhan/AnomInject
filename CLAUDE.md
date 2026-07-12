@@ -10,7 +10,27 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **Latest milestone (as-built): Capture pacing + honest fps stamping — COMPLETE (tagged `m11`) (2026-07-11).**
+- **Latest milestone (as-built): Client delivery mode — COMPLETE (tagged `m12`) (2026-07-12).**
+  A capture DELIVERY MODE for shipping the plugin to an external client who runs capture in their own build (no
+  post-processing between their capture and them → whatever capture writes IS what the client gets). `bDeliveryMode`
+  **default OFF** (full fidelity, byte-identical to m11 except the D3 annotation change). Console
+  `IAI.Capture.Delivery <0|1>` (mid-run guarded); packaged default read at Initialize via GConfig from the project
+  `Config/DefaultGame.ini` `[AnomalyCapture] bDeliveryModeDefault=True` (GConfig caches at startup → edit needs an
+  editor restart; console overrides per session, no SaveConfig; chose GConfig over UDeveloperSettings to avoid a new
+  dep/UCLASS — G69). **ON writes ONLY** `Actual_Frames/` + `Video_Clip/` + `run_summary.json` + `annotation.json`;
+  **suppresses** `labels.jsonl` + `run.json` (never created — label record still COMPUTED, uniform path; threaded
+  `bWriteLabels` through FJob→EncodeAndWriteFrame async + CaptureLabeledShot→AppendRecordAndImage sync, image always
+  written). run_summary kept (encode_watcher's done-signal); seed lives only in run.json → delivery withholds it →
+  session NOT client-reproducible (intended — G68). **D3 (both modes, always):** removed `schema_version` +
+  per-anomaly `source_id` from annotation.json (+ dead-field tidy). **D4:** run_summary gains a `delivery_mode` bool.
+  Manual `IAI.Capture.Shot` UNAFFECTED. Our QA tools (overlay_watcher.py/verify_capture.py) no-op on delivery
+  sessions BY DESIGN (need labels.jsonl — G67); encode_watcher unaffected. No new module dep (GConfig=Core); no
+  dashboard change (packaging-time decision, console+config only). All 5 bridge gates GREEN (OFF regression / ON
+  file-set + end-to-end mp4 / GConfig default / mid-run guard / annotation strip; both async+sync; 0 drops); fully
+  bridge-verifiable, no owner eyeball. Catalog stays 8. Files: AnomalyCaptureSubsystem.{h,cpp},
+  AnomalyLabelWriter.{h,cpp}, AnomalyAsyncWriter.{h,cpp}. → `docs/sessions/2026-07-12-018-m12-delivery-mode.md`,
+  `docs/client-delivery.md`.
+- **Prior milestone (as-built): Capture pacing + honest fps stamping — COMPLETE (tagged `m11`) (2026-07-11).**
   Fixes the Issue-2 office "2x-fast mp4" on real-time-clock-driven client games. **Two-clock model (G64):** fixed
   timestep (m10-era) pins only the GAME clock; real-time-driven content (client sequencer/audio-synced scenes) runs
   on the WALL clock, so with fixed-step alone the mp4 plays fast by `VideoFps / sustained_wall_fps` (StackOBot is
@@ -263,7 +283,7 @@ and is the single source of truth for the project.
   as `ff1be3c`, no tag); **Missing-Texture (`…-013`) tagged `m8`**; screen-coverage cull + slider (`…-014`, no tag);
   **multi-anomaly session capture tagged `m9`** (`88f519c`); fixed-timestep capture-fps (`c5d58b0`/`500eac7`, no tag,
   `docs/capture-fps.md`); **targeted capture (`…-016`) tagged `m10`**; **capture pacing + honest fps stamping
-  (`…-017`) tagged `m11`**.
+  (`…-017`) tagged `m11`**; **client delivery mode (`…-018`) tagged `m12`**.
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

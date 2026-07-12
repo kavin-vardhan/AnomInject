@@ -23,6 +23,7 @@ public:
 		FString ImageRelPath;
 		FString Record;
 		bool bPositive = false;
+		bool bWriteLabels = true;
 	};
 
 	void Enqueue(FJob&& Job);

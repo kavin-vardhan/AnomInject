@@ -102,7 +102,8 @@ namespace
 	}
 
 	bool AppendRecordAndImage(const FString& OutputDir, const TArray<uint8>& ImageBytes,
-		const FString& Record, const FString& ImageRelName, FString& OutImagePath, FString& OutSidecarPath, bool bLog)
+		const FString& Record, const FString& ImageRelName, FString& OutImagePath, FString& OutSidecarPath, bool bLog,
+		bool bWriteLabels)
 	{
 		const FString ImagePath = FPaths::Combine(OutputDir, ImageRelName);
 		const FString SidecarPath = FPaths::Combine(OutputDir, TEXT("labels.jsonl"));
@@ -117,8 +118,11 @@ namespace
 			return false;
 		}
 
-		FFileHelper::SaveStringToFile(Record + TEXT("\n"), *SidecarPath,
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+		if (bWriteLabels)
+		{
+			FFileHelper::SaveStringToFile(Record + TEXT("\n"), *SidecarPath,
+				FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+		}
 
 		OutImagePath = ImagePath;
 		OutSidecarPath = SidecarPath;
@@ -175,7 +179,8 @@ namespace AnomalyLabel
 {
 	bool CaptureLabeledShot(UWorld* World, const FString& OutputDir, AnomalyPreview::EImageFormat Format,
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
-		double WallSeconds, FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog)
+		double WallSeconds, FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog,
+		bool bWriteLabels)
 	{
 		OutNumLabels = 0;
 		if (!World)
@@ -203,7 +208,7 @@ namespace AnomalyLabel
 		const FString Record = BuildFrameLabelRecord(Fires, ProjectionView, W, H, GFrameCounter, SessionIndex,
 			World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
 
-		return AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog);
+		return AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog, bWriteLabels);
 	}
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
@@ -215,7 +220,7 @@ namespace AnomalyLabel
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
-		const FString& ImageRelPath, const FString& Record, FCriticalSection& JsonlLock)
+		const FString& ImageRelPath, const FString& Record, FCriticalSection& JsonlLock, bool bWriteLabels)
 	{
 		if (Width <= 0 || Height <= 0 || BytesPerPixel <= 0 || RawBytes.Num() < (int64)Width * Height * BytesPerPixel)
 		{
@@ -239,6 +244,7 @@ namespace AnomalyLabel
 			return false;
 		}
 
+		if (bWriteLabels)
 		{
 			FScopeLock Lock(&JsonlLock);
 			FFileHelper::SaveStringToFile(Record + TEXT("\n"), *FPaths::Combine(OutputDir, TEXT("labels.jsonl")),
@@ -283,7 +289,7 @@ namespace AnomalyLabel
 
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
 		int32 ZeroMatchBursts, uint64 EndFrame,
-		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced)
+		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -298,6 +304,7 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("speed_ratio"), SpeedRatio);
 		Root->SetNumberField(TEXT("stamped_fps"), StampedFps);
 		Root->SetBoolField(TEXT("paced"), bPaced);
+		Root->SetBoolField(TEXT("delivery_mode"), bDeliveryMode);
 
 		FString Out;
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
@@ -310,7 +317,6 @@ namespace AnomalyLabel
 	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& A)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-		Root->SetStringField(TEXT("schema_version"), A.SchemaVersion);
 		Root->SetStringField(TEXT("session_id"), A.SessionId);
 
 		{
@@ -330,7 +336,6 @@ namespace AnomalyLabel
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			O->SetStringField(TEXT("anomaly_type"), E.AnomalyType);
 			O->SetStringField(TEXT("anomaly_subtype"), E.AnomalySubtype);
-			O->SetStringField(TEXT("source_id"), E.SourceId);
 
 			{
 				TSharedRef<FJsonObject> AF = MakeShared<FJsonObject>();

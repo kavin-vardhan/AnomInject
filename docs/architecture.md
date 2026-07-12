@@ -1,6 +1,28 @@
 # Architecture (living — current as-built)
 
-> **Reflects:** **Capture pacing + honest fps stamping (m11, in gate — not yet tagged)** — capture runs are
+> **Reflects:** **Client delivery mode (m12, in gate — not yet tagged)** — a capture DELIVERY MODE that
+> limits what a run writes to disk to only client-facing files, for shipping the plugin to an external
+> client who runs capture in their own build (no post-processing step between their capture and them —
+> whatever capture writes IS what the client gets). A boolean `bDeliveryMode`, **default OFF** (full
+> fidelity, byte-identical to m11 except the D3 annotation change below). **ON writes ONLY**
+> `Actual_Frames/` + `Video_Clip/` (host mp4) + `run_summary.json` + `annotation.json`, and **suppresses**
+> `labels.jsonl` + `run.json` (never created — the label record is still COMPUTED, just not written; the
+> path is uniform). run_summary.json is kept because the host encode_watcher keys off it (its
+> done-signal); annotation.json is the client's primary artifact. Because `run.json` holds the seed,
+> delivery mode also withholds the seed → a delivered session is intentionally NOT client-reproducible
+> (repro metadata stays owner-side; G68). Toggle: `IAI.Capture.Delivery <0|1>` (mid-run guarded like the
+> other capture setters); the **packaged-build default** is read at subsystem Initialize from
+> `GConfig` — `DefaultGame.ini [AnomalyCapture] bDeliveryModeDefault=True` — so the owner sets it before
+> packaging a client build with no editor (the console command overrides per session; no SaveConfig from
+> console; G69). run_summary.json gains a neutral `delivery_mode` bool. **D3 (both modes, always):**
+> `schema_version` and per-anomaly `source_id` are removed from annotation.json (internal tags, no
+> downstream consumer) — the only annotation diff vs m11 in the OFF path. No new module dependency
+> (GConfig is Core); capture behavior (pacing/ground-truth/labeling compute) is identical in both modes —
+> only disk writes + those two annotation fields differ. NOTE: our own QA tools overlay_watcher.py and
+> tools/verify_capture.py require labels.jsonl and therefore no-op on delivery sessions BY DESIGN (G67).
+> See `sessions/2026-07-12-018-m12-delivery-mode.md` + the client-build handoff note
+> `docs/client-delivery.md`. Below this it still reflects:
+> **Capture pacing + honest fps stamping (m11)** — capture runs are
 > REAL-TIME PACED by default (`IAI.Capture.Pace <0|1>`, default ON): the capture subsystem holds every tick to
 > >= `1/VideoFps` of wall time (drift-free coarse-sleep + spin at the top of its Tick; no catch-up after hitches),
 > so game clock == wall clock == video clock and the delivered mp4 plays at natural speed for BOTH content clock

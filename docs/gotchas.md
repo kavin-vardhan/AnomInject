@@ -874,3 +874,34 @@ sleeps ~100 ms/frame when unfocused ("Use Less CPU in Background", `bThrottleCPU
 DISABLED while shaders compile, so a cold busy editor can measure FASTER than a warm idle one. A fully OCCLUDED window
 throttles presents besides. Capture with the editor foreground/visible (the real workflow); headless/bridge sessions
 must foreground the window or flip the preference or their ratios are meaningless. (2026-07-11.)
+
+### G67 — delivery mode suppresses labels.jsonl + run.json → our own QA tools no-op on delivery sessions BY DESIGN (m12)
+With `IAI.Capture.Delivery 1` a run writes only the client-facing set (Actual_Frames/ + Video_Clip/ + run_summary.json
++ annotation.json) and never creates labels.jsonl or run.json. Consequence: our host QA tools that read the per-frame
+label sidecar — `overlay_watcher.py` (hard-requires labels.jsonl; logs "no labels.jsonl" and skips) and
+`tools/verify_capture.py` (overlays boxes from labels.jsonl) — will NOT process a delivery session. This is intended, not
+a bug: delivery mode is for client OUTPUT, not our verification. Verify capture correctness in the DEFAULT (delivery-off)
+mode; ship in delivery mode. The host `encode_watcher.py` is unaffected — it keys off run_summary.json (its done-signal) +
+annotation.json only, never labels.jsonl/run.json, so the client's mp4 still encodes. (2026-07-12.)
+
+### G68 — delivery mode withholds the seed (it lives only in run.json) → a delivered session is not client-reproducible (m12)
+The injection seed is written ONLY to run.json (run_summary.json deliberately does not carry it). Delivery mode suppresses
+run.json, so a shipped session has no seed and the client cannot deterministically reproduce it. This is an intentional
+property, not an oversight — reproduction metadata stays owner-side. If you need a reproducible record of a delivered run,
+capture it once in delivery-OFF mode (which keeps run.json + the seed) for your own archive, then re-run in delivery mode
+for the client, or note the seed from the STARTED log (it is logged in both modes). (2026-07-12.)
+
+### G69 — the packaged delivery default is a GConfig read at Initialize, NOT a UDeveloperSettings/UPROPERTY (m12)
+The delivery default that survives into a packaged Development build (no editor) is read at subsystem Initialize via
+`GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bDeliveryModeDefault"), ..., GGameIni)` — the owner/client sets it in the
+PROJECT's `Config/DefaultGame.ini`:
+```
+[AnomalyCapture]
+bDeliveryModeDefault=True
+```
+Chosen over a UDeveloperSettings subclass to avoid a new module dependency + UCLASS. Two consequences to remember:
+(1) GConfig caches the ini at editor/app STARTUP — editing DefaultGame.ini while the editor is running does NOT take effect
+until a restart (the value is re-read at the next subsystem Initialize, but from the cached ini). To gate-test the default,
+edit the ini then RESTART the editor. (2) The console `IAI.Capture.Delivery <0|1>` overrides the seeded default for the
+session and does NOT SaveConfig — the durable default lives only in the ini the owner edits. Absent the key, the code
+default (OFF) stands. (2026-07-12.)

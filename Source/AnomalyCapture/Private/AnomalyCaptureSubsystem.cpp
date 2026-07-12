@@ -6,6 +6,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Misc/Paths.h"
 #include "Misc/DateTime.h"
+#include "Misc/ConfigCacheIni.h"
 #include "CoreGlobals.h"
 
 #if ANOMALY_CAPTURE
@@ -141,7 +142,13 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 #if ANOMALY_CAPTURE
-	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start)."));
+	bool bConfigDelivery = false;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bDeliveryModeDefault"), bConfigDelivery, GGameIni))
+	{
+		bDeliveryMode = bConfigDelivery;
+	}
+	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s."),
+		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"));
 #if WITH_EDITOR
 	if (ULevelEditorPlaySettings* PlaySettings = GetMutableDefault<ULevelEditorPlaySettings>())
 	{
@@ -352,6 +359,21 @@ void UAnomalyCaptureSubsystem::SetCapturePace(bool bInPace)
 			: TEXT("engine free-runs during capture; video.fps stamping stays honest"));
 }
 
+void UAnomalyCaptureSubsystem::SetCaptureDelivery(bool bInDelivery)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Delivery: ignored mid-run (stop first)."));
+		return;
+	}
+	bDeliveryMode = bInDelivery;
+	UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.Delivery: %s (%s)."),
+		bDeliveryMode ? TEXT("ON") : TEXT("OFF"),
+		bDeliveryMode
+			? TEXT("client-facing output only: Actual_Frames + Video_Clip + run_summary.json + annotation.json (no labels.jsonl, no run.json)")
+			: TEXT("full fidelity: all capture artifacts written"));
+}
+
 void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
 	const FString& InTargetAnomaly, const FString& InTargetActor)
 {
@@ -453,7 +475,10 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	M.TargetActor = bTargetedMode ? TargetActorName : FString();
 	M.TargetFps = VideoFps;
 	M.bPaced = bPaceCapture;
-	AnomalyLabel::WriteRunManifest(RunDir, M);
+	if (!bDeliveryMode)
+	{
+		AnomalyLabel::WriteRunManifest(RunDir, M);
+	}
 
 	BurstsDone = 0;
 	FramesWritten = 0;
@@ -501,9 +526,10 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	PhaseFramesLeft = PreFrames;
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | mode=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
+		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
 		*RunDir,
 		bTargetedMode ? *FString::Printf(TEXT("targeted[%s on %s]"), *TargetAnomalyId.ToString(), *TargetActorName) : TEXT("auto-pool"),
+		bDeliveryMode ? TEXT("on") : TEXT("off"),
 		Seed, *M.Format, bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"), VideoFps,
 		bPaceCapture ? TEXT(", paced") : TEXT(", unpaced"),
 		SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
@@ -539,11 +565,12 @@ void UAnomalyCaptureSubsystem::LogStatus() const
 	if (!bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture: idle. Config K=%d L=%d pre=%d positive=%d post=%d bursts=%s capture=%s fps=%d pace=%s. Start: IAI.Capture.Start [dir] [png|jpeg] [seed]."),
+			TEXT("Capture: idle. Config K=%d L=%d pre=%d positive=%d post=%d bursts=%s capture=%s fps=%d pace=%s delivery=%s. Start: IAI.Capture.Start [dir] [png|jpeg] [seed]."),
 			SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 			BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
 			bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"),
-			VideoFps, bPaceCapture ? TEXT("on") : TEXT("off"));
+			VideoFps, bPaceCapture ? TEXT("on") : TEXT("off"),
+			bDeliveryMode ? TEXT("on") : TEXT("off"));
 		return;
 	}
 	UE_LOG(LogAnomalyCapture, Log,
@@ -676,6 +703,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Job.ImageRelPath = ImageName;
 		Job.Record = Record;
 		Job.bPositive = Snap->Fires.Num() > 0;
+		Job.bWriteLabels = !bDeliveryMode;
 		Async->Writer->Enqueue(MoveTemp(Job));
 
 		Async->PendingSnapshots.Remove(Frame.RequestId);
@@ -824,7 +852,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 	FString ImagePath, SidecarPath;
 	int32 NumLabels = 0;
 	const double NowWall = FPlatformTime::Seconds();
-	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, NowWall, ImagePath, SidecarPath, NumLabels, false))
+	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, NowWall, ImagePath, SidecarPath, NumLabels, false, !bDeliveryMode))
 	{
 		TArray<FAutoLiveFireInfo> Fires;
 		if (Auto) { Fires = Auto->GetLiveFires(); }
@@ -979,7 +1007,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	WriteSessionAnnotationFile();
 
 	AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
-		VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture);
+		VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode);
 
 	if (bLogLine)
 	{
@@ -1104,7 +1132,6 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 	{
 		AnomalyLabel::FSessionEvent Out;
 		MapAnomalyToClient(Ev.Id, Ev.Transitions, Out.AnomalyType, Out.AnomalySubtype);
-		Out.SourceId = Ev.Id.ToString();
 
 		const bool bHideType = Ev.HiddenIndices.Num() > 0;
 		TArray<int32> FrameIndices = bHideType ? Ev.HiddenIndices : Ev.AffectedFrames;
@@ -1294,6 +1321,25 @@ static FAutoConsoleCommandWithWorldAndArgs GCapturePaceCmd(
 				return;
 			}
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetCapturePace(FCString::Atoi(*Args[0]) != 0); }
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryCmd(
+	TEXT("IAI.Capture.Delivery"),
+	TEXT("Toggle client-delivery mode (default OFF). ON: a run writes ONLY the client-facing artifacts — ")
+	TEXT("Actual_Frames/ + Video_Clip/ + run_summary.json + annotation.json — and suppresses labels.jsonl ")
+	TEXT("and run.json (so the seed is not shipped and the session is not client-reproducible). Ground-truth ")
+	TEXT("is still computed, just not written. OFF: full fidelity (all artifacts). The packaged default is ")
+	TEXT("read at startup from DefaultGame.ini [AnomalyCapture] bDeliveryModeDefault; this command overrides ")
+	TEXT("it for the session. Usage: IAI.Capture.Delivery <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.Delivery <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetCaptureDelivery(FCString::Atoi(*Args[0]) != 0); }
 		}));
 
 #endif

@@ -27,14 +27,15 @@ namespace AnomalyLabel
 
 	bool CaptureLabeledShot(UWorld* World, const FString& OutputDir, AnomalyPreview::EImageFormat Format,
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
-		double WallSeconds, FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog = true);
+		double WallSeconds, FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog = true,
+		bool bWriteLabels = true);
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
 		const FString& ImageName, int32& OutNumLabels);
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
-		const FString& ImageRelPath, const FString& Record, FCriticalSection& JsonlLock);
+		const FString& ImageRelPath, const FString& Record, FCriticalSection& JsonlLock, bool bWriteLabels = true);
 
 	struct FRunManifest
 	{
@@ -63,7 +64,7 @@ namespace AnomalyLabel
 
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
 		int32 ZeroMatchBursts, uint64 EndFrame,
-		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced);
+		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode);
 
 
 	struct FSessionVideo
@@ -88,7 +89,6 @@ namespace AnomalyLabel
 	{
 		FString AnomalyType;
 		FString AnomalySubtype;
-		FString SourceId;
 		TArray<int32> FrameIndices;
 		double CoverageRatio = 0.0;
 
@@ -111,7 +111,6 @@ namespace AnomalyLabel
 
 	struct FSessionAnnotation
 	{
-		FString SchemaVersion = TEXT("iai-session-1");
 		FString SessionId;
 		FSessionVideo Video;
 		TArray<FSessionEvent> Events;
