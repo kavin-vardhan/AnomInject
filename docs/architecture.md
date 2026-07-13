@@ -5,15 +5,15 @@
 > for GAME-CLOCK-driven content (StackOBot under fixed step), where every frame is an exact `1/target`
 > game-time slice and the natural stamp is TARGET — stamping sustained there plays the video
 > `speed_ratio`× too slow. A setting selects the clock: **`IAI.Capture.ContentClock <game|wall>`**
-> (mid-run guarded), default **game** (owner decision 2026-07-13), packaged default `DefaultGame.ini
-> [AnomalyCapture] ContentClockDefault` (GConfig at Initialize, absent → game). **game** (default) =
-> `video.fps` stamped at TARGET at any ratio (game-clock plays natural; a high ratio warns only that the
-> LIVE capture ran slow — a perf issue, not a video defect). **wall** = unchanged m11 behavior
-> (ratio>tol → sustained). **OPEN:** the client titles (Until Dawn/Concorde) showed a real-time (fast,
-> ratio≈2) AND a game-clock (slow, Fps 120/240) signature = likely mixed-clock; with default game a
-> real-time-driven title can play FAST, so a client build MUST set the correct mode per title explicitly
-> before shipping (owner validating wall vs game on the office machine; a per-clock-layer stamp may
-> eventually be needed). `run_summary.json` gains `content_clock`; annotation stays client-clean (its
+> (mid-run guarded), default **wall** (m15 — briefly `game` in m14, reverted after the owner tested the
+> client titles wall-clock on the office machine), packaged default `DefaultGame.ini [AnomalyCapture]
+> ContentClockDefault` (GConfig at Initialize, absent → wall). **wall** (default) = unchanged m11
+> behavior (ratio>tol → sustained); correct for the client's wall-clock titles (natural speed; video
+> length reflects real capture time). **game** = `video.fps` stamped at TARGET at any ratio (game-clock
+> content like StackOBot plays natural; a high ratio warns only that the LIVE capture ran slow — a perf
+> issue, not a video defect), set via ini in the StackOBot build. (m14's mixed-clock "OPEN" note is
+> CLOSED: the client titles tested wall-clock; a `game` default would play them ~2× fast = Issue-2.)
+> `run_summary.json` gains `content_clock`; annotation stays client-clean (its
 > `video.fps` already encodes the decision). Only AnomalyCapture (subsystem stamp branch + warnings +
 > the setting) + the run_summary field changed; fixed timestep / pacing / labeling / ground-truth all
 > UNCHANGED. See `sessions/2026-07-13-020-m14-content-clock.md`,

@@ -94,44 +94,49 @@ playing 5.16× slow; the correct stamp is 60 → a natural 2.0 s mp4.)
 
 Because the plugin cannot tell which clock the visible content followed, a **setting** picks it:
 
-- **`IAI.Capture.ContentClock <game|wall>`** (mid-run guarded), default **game**.
+- **`IAI.Capture.ContentClock <game|wall>`** (mid-run guarded), default **wall**.
 - Packaged default: `DefaultGame.ini [AnomalyCapture] ContentClockDefault=game|wall` (GConfig at
   Initialize, same mechanism as delivery mode). When the key is ABSENT the default resolves to
-  **game**. The console command overrides per session.
+  **wall**. The console command overrides per session.
 
 Behaviour per mode at finalize:
 
-- **game** (default): `video.fps` is stamped at **target** at ANY ratio (the frames are exact
-  `1/target` game-slices), so game-clock content always plays natural. A high ratio in game mode means
-  only that the **live capture ran slow** — a capture-time performance issue, not a video defect; the
-  warnings say so ("live capture ran slow … video stamped at target F and plays natural").
-- **wall**: UNCHANGED from the one-sided rule above — `ratio > 1.02` stamps sustained, within tolerance
-  stamps target, faster-than-target stays target. This is the m11 real-time-title path.
+- **wall** (default): UNCHANGED from the one-sided rule above — `ratio > 1.02` stamps sustained, within
+  tolerance stamps target, faster-than-target stays target. This is the m11 real-time-title path, and
+  the client titles are wall-clock (see below).
+- **game**: `video.fps` is stamped at **target** at ANY ratio (the frames are exact `1/target`
+  game-slices), so game-clock content always plays natural. A high ratio in game mode means only that
+  the **live capture ran slow** — a capture-time performance issue, not a video defect; the warnings
+  say so ("live capture ran slow … video stamped at target F and plays natural").
 
 `run_summary.json` records `content_clock` alongside
 `target_fps`/`sustained_wall_fps`/`speed_ratio`/`stamped_fps`/`paced` (annotation stays client-clean;
 its `video.fps` already encodes the decision).
 
-### Default = game, and the UNRESOLVED client mixed-clock question (owner decision, 2026-07-13)
+### Default = wall — the client-vs-StackOBot clock question, RESOLVED (m15, 2026-07-13)
 
-The default is **game** by owner decision, superseding the earlier "wall is correct for the client"
-framing. Reasoning + the open question, stated plainly:
+The default is **wall**. This was tested and settled on the actual office machine (it briefly shipped as
+`game` in m14 pending that test — now closed):
 
-- **StackOBot is uniformly game-clock**, and game mode is verified correct for it (a slow capture
-  stamps target and plays natural).
-- **The office client titles (Until Dawn, Concorde) are NOT settled.** They showed the Issue-2 FAST
-  signature at ratio ≈ 2 (suggesting real-time-driven parts → wall would be right there) AND a SLOW
-  signature at `Fps` 120/240 (suggesting game-clock world motion → game would be right there). That is
-  the fingerprint of **mixed-clock content**, and which mode a given title needs at the rate it is
-  actually captured at is **unresolved**.
-- **CONSEQUENCE — do not smooth over:** with default game, if a client title's visible motion is in
-  fact real-time-driven at the capture rate used, its video can play **FAST** (the Issue-2 failure).
-  So whoever cuts a client build **MUST re-evaluate the correct `ContentClock` for that specific title
-  on that specific box before shipping** — set the ini key explicitly per title. This is an OPEN item,
-  not settled by this milestone.
-- **Tracked future investigation:** the owner will test wall vs game on the actual office machine to
-  resolve each title's clock; a single per-run fps stamp cannot be right for a title whose game-clock
-  and real-time layers diverge, so a per-clock-layer stamp may eventually be needed (out of m14 scope).
+- **The client titles (Until Dawn, Concorde) are WALL-clock.** Owner-tested wall vs game on the office
+  machine: **wall** produces correct-SPEED videos for them. Their video LENGTH varies with the real
+  capture duration — that is CORRECT for wall-clock content (natural playback SPEED is the criterion,
+  and wall passes it), not a defect. The earlier `Fps` 120/240 "slow motion" was an
+  extreme-forced-ratio artifact, not game-clock evidence.
+- **StackOBot is GAME-clock** — set `game` in the StackOBot build (one ini line), where a slow capture
+  then stamps target and plays natural.
+- **Do NOT flip the default to `game` "to be helpful."** For the client's wall-clock titles that would
+  stamp the target on a slow run and play their videos ~`speed_ratio`× (≈2×) FAST — the Issue-2
+  regression. This is settled fact, not conjecture.
+- **Per-build mechanism, nobody types anything at runtime:** the client build uses the wall default (no
+  action); the owner's StackOBot build sets `[AnomalyCapture] ContentClockDefault=game` in its
+  `DefaultGame.ini`. The console command exists for ad-hoc override only.
+- **Wall-clock video-length property (not a bug):** for wall-clock content the delivered mp4's LENGTH =
+  the real capture duration (varies with machine/scene) while the SPEED is natural. A longer clip on a
+  slow box is expected and correct.
+
+This supersedes the m14 "default = game, mixed-clock UNRESOLVED, client FAST-risk open" framing
+(journal 020's open item is now CLOSED — see journal 021).
 
 **Pre-m14 game-clock sessions** captured before this setting have their sustained rate baked into
 `video.fps` on a slow run — use the re-encode rescue below (patch `video.fps` to the target and delete
@@ -157,7 +162,7 @@ with the one-sided rule above.
   mid-run (stop first). The fixed timestep, the pacer, and the stamp all use this value.
 - `IAI.Capture.Pace <0|1>` — real-time frame pacing during runs, default **1**. Guarded mid-run.
 - `IAI.Capture.ContentClock <game|wall>` — which clock the honest stamp follows on a slow run,
-  default **game** (see the content-clock section). Guarded mid-run; packaged default via
+  default **wall** (see the content-clock section). Guarded mid-run; packaged default via
   `DefaultGame.ini [AnomalyCapture] ContentClockDefault`.
 
 ## Operational guidance

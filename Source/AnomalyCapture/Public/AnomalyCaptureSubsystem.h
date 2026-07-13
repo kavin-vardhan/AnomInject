@@ -159,7 +159,7 @@ private:
 
 	bool bAsyncCapture = true;
 	bool bDeliveryMode = false;
-	EContentClock ContentClock = EContentClock::Game;
+	EContentClock ContentClock = EContentClock::Wall;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;
 
 #if WITH_EDITOR
