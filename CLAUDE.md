@@ -10,6 +10,26 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
+- **IN FLIGHT (built this session, NOT yet committed/tagged; on top of `m15` `bc10272`): m16 — three capture-delivery fixes.**
+  (1) **Client token auto-populate** — `AnomalyControlServerSubsystem::StartListening` reads `[AnomalyControlServer] Token`
+  from `DefaultGame.ini` via GConfig (present → fixed token; absent/empty → the existing random per-session GUID + log line,
+  so the owner in-editor is byte-unchanged). The dashboard bakes a matching `VITE_CONTROL_TOKEN` (via `.env`) and
+  auto-connects with zero client copy-paste; also persists the last-used token in localStorage so the owner stops re-pasting.
+  Static shared secret, localhost-only tradeoff owner-accepted (G71). (2) **Focus-gated capture start** — a Start ARMS
+  immediately but holds the first frame until the game window has foreground focus (new `ECapturePhase::ArmedPending`
+  resolved in `Tick`; focus = `FViewport::IsForegroundWindow`); the timing bundle (StartFrame/manifest/fixed-timestep) is
+  deferred out of `StartRun` into new `BeginActualRun` at focus-in; cancel-before-focus writes nothing + deletes the empty
+  session dir (`bRunBegun` guard). Skipped when there is no game window (headless/**Simulate → bridge gates don't deadlock**);
+  `IAI.Capture.FocusGate <0|1>` override + `[AnomalyCapture] bFocusGateDefault` + 30 s safety timeout (G72). (3)
+  **Preview-pause hardening** — the control server's `PushFrames` suppresses live-preview JPEG generation while a capture is
+  active (engine-side, immediate, no snapshot round-trip), so the synchronous preview `ReadPixels` can't drag sustained fps
+  (G73). A single `bRunning`/`IsCaptureActive()` signal (true arm→finish, armed-pending included) drives both the focus-gate
+  and the preview suppression. **Catalog stays 8; no new module dep** (GConfig=Core; focus via Engine `FViewport`;
+  AnomalyCapture already links Slate in non-Shipping). **Gates:** dashboard `npm run build` GREEN (tsc+vite; baked-token
+  inlining verified). **Owner-pending (this session was headless, no editor/UBT): plugin C++ compile + all engine/PIE gates**
+  (real-browser auto-connect, real-window focus-gate feel, preview-pause on the loaded box, Simulate-not-deadlocked). **NO
+  COMMIT this turn** — on owner accept: strip comments, commit plugin as one `feat` + tag `m16`, dashboard own `feat`
+  (untagged). → `docs/sessions/2026-07-13-022-m16-capture-delivery-fixes.md`, `docs/client-delivery.md`.
 - **Latest milestone (as-built): Content-clock default reverted to WALL — COMPLETE (tagged `m15`) (2026-07-13).**
   Small settle-milestone on top of m14: flips the `IAI.Capture.ContentClock` **default back to `wall`** (m14 had briefly
   shipped `game` on an owner override pending validation). RESOLVED by the owner testing wall vs game on the actual office

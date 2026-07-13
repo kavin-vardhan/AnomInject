@@ -926,3 +926,36 @@ StackOBot build = one ini line `ContentClockDefault=game`; nobody types anything
 the whole video, so a hypothetical title whose game-clock and real-time layers truly diverge still couldn't be right for
 both (a per-clock-layer stamp would be needed) — but the actual client titles are wall-clock, so this is not currently in
 play. In game mode a high ratio is only a live-capture perf issue, not a video defect. (2026-07-13.)
+
+### G71 — the control-server token can be a STATIC baked secret via GConfig; owner path stays random (m16)
+`StartListening` reads `[AnomalyControlServer] Token` from `GGameIni` (same GConfig-at-read pattern as the delivery-mode /
+content-clock defaults — G69). Present + non-empty → that fixed value is the token; absent/empty → the existing
+`FGuid::NewGuid()` random per-session token (owner in-editor is BYTE-UNCHANGED — still random, still logged). The client build
+sets the ini key AND builds the dashboard with a matching `VITE_CONTROL_TOKEN`, so the dashboard auto-fills + auto-connects with
+zero copy-paste. This is a **static shared secret** scoped to the privately-shipped client build (owner accepted the tradeoff:
+localhost-only tool, `ws://` ignores CORS so the token still stops an arbitrary web origin from driving the server; worst case
+if the two artifacts leak = local viewport-screenshot/injection, no network exposure). Do NOT drop/loopback-bypass auth to
+achieve auto-connect — the token is the only thing gating arbitrary local web origins. (2026-07-13.)
+
+### G72 — focus-gated capture start: viewport foreground signal; SKIP when no game window so headless/Simulate can't deadlock (m16)
+A capture Start ARMS immediately (clean-slate reverts + auto-pause happen now) but holds the first frame until the game window
+has focus, via a new `ECapturePhase::ArmedPending` resolved in `Tick`. Focus signal = `GameViewport->Viewport->IsForegroundWindow()`
+(Engine-only `FViewport` API — packaged-safe in Development/Test where capture is compiled in; no Slate dependency needed for the
+gate itself, though AnomalyCapture already links Slate in non-Shipping). The gate is applied ONLY when a game window exists
+(`GetGameViewport() && ->Viewport`); with no window (headless / MainWorld Simulate over the MCP bridge) it is skipped and the run
+begins immediately — so the owner's Simulate smoke-gates do NOT stall waiting for a "focus" that never comes. Two more escape
+hatches: `IAI.Capture.FocusGate 0` (session override; packaged default `[AnomalyCapture] bFocusGateDefault`) and a 30 s safety
+timeout that starts the run anyway (with a Warning) if focus never arrives. `IAI.Capture.Stop` cancels an armed-pending run, which
+deletes the empty session dir and writes NO artifacts (guarded by a new `bRunBegun` — the manifest/StartFrame/fixed-timestep are
+deferred out of `StartRun` into `BeginActualRun`, fired at focus-in, so timing/frame-indexing start at the real first frame). (2026-07-13.)
+
+### G73 — one "capture-active" signal (`bRunning`, set at ARM) drives both the focus-gate and preview suppression (m16)
+`bRunning` is set true in `StartRun` at arm time (before the focus decision) and cleared in `FinishRun` — so it is true across the
+whole arm→armed-pending→running→finish span, NOT just while frames flow. This single flag is the shared signal: (1) `Tick` proceeds
+into the armed-pending / phase machine while it is true; (2) the control server's `PushFrames` early-returns while
+`Cap->IsCaptureActive()` (== `bRunning`) — so the synchronous per-frame `CaptureGameViewportJpeg` preview generation STOPS the
+instant Start is accepted (armed-pending included), engine-side, without waiting for the dashboard to learn `capture.running` over
+the snapshot round-trip (the client-side unsubscribe stays as belt-and-suspenders). Only preview FRAMES are suppressed; snapshots
+keep flowing so the dashboard still tracks state. The preview simply freezes on its last frame during a capture and resumes when
+`bRunning` clears (the client re-subscribes on the next `running=false` snapshot). Because armed-pending already reads as
+`capture.running=true`, the preview can't drag the very focus-in moment the fix is protecting. (2026-07-13.)

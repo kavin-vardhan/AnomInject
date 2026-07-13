@@ -33,6 +33,11 @@ public:
 
 	bool IsRunning() const { return bRunning; }
 
+	bool IsCaptureActive() const { return bRunning; }
+
+	void SetFocusGate(bool bInGate);
+	bool IsFocusGated() const { return bFocusGate; }
+
 	void GetStatus(bool& bOutRunning, int32& OutFrames, FString& OutRunDir, int32& OutSeed) const;
 
 	int32 GetFrameCap() const { return FrameCap; }
@@ -75,6 +80,7 @@ private:
 	enum class ECapturePhase : uint8
 	{
 		Idle,
+		ArmedPending,
 		LeadIn,
 		SettleAfterFire,
 		Positives,
@@ -83,6 +89,9 @@ private:
 		DrainTail
 	};
 
+	void BeginActualRun();
+	bool HasGameWindow(UWorld* World) const;
+	bool IsGameWindowFocused(UWorld* World) const;
 	void BeginFire();
 	void BeginRevert();
 	void CaptureCurrentFrame();
@@ -104,6 +113,11 @@ private:
 	void DrainAsyncToCompletion();
 
 	bool bRunning = false;
+	bool bRunBegun = false;
+	bool bFocusGate = true;
+	double ArmWaitStartWall = 0.0;
+	double LastArmWaitLogWall = 0.0;
+	double FocusWaitTimeoutSeconds = 30.0;
 	ECapturePhase Phase = ECapturePhase::Idle;
 	int32 PhaseFramesLeft = 0;
 	FString RunDir;

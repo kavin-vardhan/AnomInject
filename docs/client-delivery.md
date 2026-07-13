@@ -79,3 +79,62 @@ annotation.json only, so the client's mp4 still encodes from a delivery session.
 `type`, `schema_version`, `total_frames`, `positive_frames`, `bursts_done`, `zero_match_bursts`,
 `end_frame` (raw engine frame counter), `target_fps`, `sustained_wall_fps`, `speed_ratio`, `stamped_fps`,
 `paced`, `delivery_mode`. No seed; nothing owner-sensitive.
+
+## Dashboard token — zero copy-paste for the client (m16)
+
+The control server needs a token before the dashboard can drive it. In-editor the server logs a random
+per-session token to the Output Log — useless for a client with only a packaged build (no console). For a
+client build we bake a **fixed shared token** into BOTH the game and the dashboard so the dashboard connects
+automatically with nothing to read, copy, or type.
+
+Set it in two places, and they MUST match:
+
+1. The **game** — `Config/DefaultGame.ini` (same file as the delivery-mode / content-clock keys):
+
+   ```
+   [AnomalyControlServer]
+   Token=<pick-a-long-random-value>
+   ```
+
+   `StartListening` reads this at startup. Present + non-empty → it is the token. Absent/empty → the server
+   falls back to the random per-session token + the existing log line (this is why the owner's own dev build,
+   which sets no key, is unchanged).
+
+2. The **dashboard** — build it with a matching `VITE_CONTROL_TOKEN`. Copy `.env.example` to `.env` and set:
+
+   ```
+   VITE_CONTROL_TOKEN=<the-same-value>
+   ```
+
+   then `npm run build`. When the baked token is present the dashboard pre-fills the token field and
+   **auto-connects** to `ws://127.0.0.1:8077` on load — no clicks. (`.env` is gitignored; never commit a real
+   token. The owner's dev build sets no `.env`, so the field stays empty and manual paste works as before —
+   and the dashboard now also remembers the last token you typed, via localStorage, so you stop re-pasting the
+   random one every reload.)
+
+**Security tradeoff (owner-accepted):** the baked token is a STATIC shared secret embedded in the two
+privately-shipped client artifacts (recoverable from the cooked ini and plaintext in the JS bundle). It is
+NOT per-session-random. It is still worth having: browser `ws://` connections ignore CORS, so without a token
+any website the client visits while the game runs could drive the control server and pull viewport JPEGs; the
+baked token stops any origin that doesn't know the value. This is a localhost-only research tool shipped to one
+client — worst case if both artifacts leak is unwanted local injection / a viewport-screenshot on the client's
+own machine; there is no network exposure. Do **not** disable auth to get auto-connect — that removes the only
+defense against arbitrary local web origins.
+
+## Capture Start waits for game-window focus (m16)
+
+Clicking **Start** in the dashboard (a browser window) would otherwise record idle frames during the moment
+the game window is unfocused and the client is clicking back to it. So a Start now **ARMS immediately** but
+holds the **first frame** until the game window has foreground focus. The client hits Start, alt-tabs to the
+game, and the run begins on focus — the lead-in frames are clean. The log shows `Capture ARMED — waiting for
+game-window focus`; `IAI.Capture.Stop` cancels an armed run (nothing is written). Default ON; override with
+`IAI.Capture.FocusGate 0` or the packaged default `[AnomalyCapture] bFocusGateDefault`. If there is no game
+window (headless), the gate is skipped and the run starts immediately; a safety timeout also starts it anyway
+if focus never arrives.
+
+## Preview auto-pauses during capture (m16)
+
+While a capture is active (armed or running), the server stops generating the live preview JPEGs entirely, so
+the preview never competes with the capture for the game thread on a loaded machine. The dashboard preview
+simply freezes on its last frame during the run and resumes automatically when the run ends. This is engine-side
+and authoritative — it does not depend on the dashboard reacting in time.

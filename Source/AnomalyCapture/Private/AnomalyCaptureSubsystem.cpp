@@ -3,6 +3,7 @@
 #include "AnomalyCaptureLog.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/Paths.h"
 #include "Misc/DateTime.h"
@@ -153,9 +154,15 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		if (ConfigClock.Equals(TEXT("game"), ESearchCase::IgnoreCase)) { ContentClock = EContentClock::Game; }
 		else if (ConfigClock.Equals(TEXT("wall"), ESearchCase::IgnoreCase)) { ContentClock = EContentClock::Wall; }
 	}
-	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s."),
+	bool bConfigFocusGate = false;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bFocusGateDefault"), bConfigFocusGate, GGameIni))
+	{
+		bFocusGate = bConfigFocusGate;
+	}
+	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
-		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"));
+		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
+		bFocusGate ? TEXT("on (start waits for game-window focus)") : TEXT("off (start begins immediately)"));
 #if WITH_EDITOR
 	if (ULevelEditorPlaySettings* PlaySettings = GetMutableDefault<ULevelEditorPlaySettings>())
 	{
@@ -208,6 +215,28 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 #if ANOMALY_CAPTURE
 	if (!bRunning)
 	{
+		return;
+	}
+
+	if (Phase == ECapturePhase::ArmedPending)
+	{
+		UWorld* World = GetWorld();
+		if (!HasGameWindow(World) || IsGameWindowFocused(World))
+		{
+			BeginActualRun();
+			return;
+		}
+		const double NowWall = FPlatformTime::Seconds();
+		if (NowWall - LastArmWaitLogWall >= 2.0)
+		{
+			LastArmWaitLogWall = NowWall;
+			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture armed — still waiting for game-window focus (%.0fs)."), NowWall - ArmWaitStartWall);
+		}
+		if (FocusWaitTimeoutSeconds > 0.0 && NowWall - ArmWaitStartWall >= FocusWaitTimeoutSeconds)
+		{
+			UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture armed — game-window focus not acquired after %.0fs; starting anyway (IAI.Capture.Stop to cancel)."), FocusWaitTimeoutSeconds);
+			BeginActualRun();
+		}
 		return;
 	}
 
@@ -396,6 +425,21 @@ void UAnomalyCaptureSubsystem::SetContentClock(EContentClock InClock)
 			: TEXT("content advances on the WALL clock (sequencer/real-time titles): a slow run stamps the sustained rate so the video plays at true speed"));
 }
 
+void UAnomalyCaptureSubsystem::SetFocusGate(bool bInGate)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.FocusGate: ignored mid-run (stop first)."));
+		return;
+	}
+	bFocusGate = bInGate;
+	UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.FocusGate: %s (%s)."),
+		bFocusGate ? TEXT("ON") : TEXT("OFF"),
+		bFocusGate
+			? TEXT("Start waits for game-window focus before the first frame")
+			: TEXT("Start begins immediately regardless of focus"));
+}
+
 void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
 	const FString& InTargetAnomaly, const FString& InTargetActor)
 {
@@ -475,33 +519,6 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	EngineVersion = FString::Printf(TEXT("%u.%u"), (uint32)EV.GetMajor(), (uint32)EV.GetMinor());
 	EngineProject = FApp::GetProjectName();
 
-	StartFrame = GFrameCounter;
-
-	AnomalyLabel::FRunManifest M;
-	M.Seed = Seed;
-	M.SettleFrames = SettleFrames;
-	M.ViewLagFrames = ViewLagFrames;
-	M.PreFrames = PreFrames;
-	M.PositiveFrames = PositiveFrames;
-	M.PostFrames = PostFrames;
-	M.BurstCount = BurstCount;
-	M.FrameCap = FrameCap;
-	M.SessionId = SessionId;
-	M.ViewportW = VW;
-	M.ViewportH = VH;
-	M.Format = bFormatPng ? TEXT("png") : TEXT("jpeg");
-	M.StartFrame = StartFrame;
-	M.StartTimeUtc = FDateTime::UtcNow().ToIso8601();
-	M.Mode = bTargetedMode ? TEXT("targeted") : TEXT("auto_pool");
-	M.TargetAnomaly = bTargetedMode ? TargetAnomalyId.ToString() : FString();
-	M.TargetActor = bTargetedMode ? TargetActorName : FString();
-	M.TargetFps = VideoFps;
-	M.bPaced = bPaceCapture;
-	if (!bDeliveryMode)
-	{
-		AnomalyLabel::WriteRunManifest(RunDir, M);
-	}
-
 	BurstsDone = 0;
 	FramesWritten = 0;
 	PositiveFramesWritten = 0;
@@ -535,6 +552,55 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	}
 
 	bRunning = true;
+	bRunBegun = false;
+
+	if (bFocusGate && HasGameWindow(World) && !IsGameWindowFocused(World))
+	{
+		Phase = ECapturePhase::ArmedPending;
+		ArmWaitStartWall = FPlatformTime::Seconds();
+		LastArmWaitLogWall = ArmWaitStartWall;
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("=== Capture ARMED: %s | waiting for game-window focus before the first frame (Start held; focus the game window to begin, or IAI.Capture.Stop to cancel) ==="),
+			*RunDir);
+	}
+	else
+	{
+		BeginActualRun();
+	}
+#else
+	UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: capture compiled out (ANOMALY_CAPTURE=0)."));
+#endif
+}
+
+void UAnomalyCaptureSubsystem::BeginActualRun()
+{
+#if ANOMALY_CAPTURE
+	StartFrame = GFrameCounter;
+
+	AnomalyLabel::FRunManifest M;
+	M.Seed = Seed;
+	M.SettleFrames = SettleFrames;
+	M.ViewLagFrames = ViewLagFrames;
+	M.PreFrames = PreFrames;
+	M.PositiveFrames = PositiveFrames;
+	M.PostFrames = PostFrames;
+	M.BurstCount = BurstCount;
+	M.FrameCap = FrameCap;
+	M.SessionId = SessionId;
+	M.ViewportW = ViewportW;
+	M.ViewportH = ViewportH;
+	M.Format = bFormatPng ? TEXT("png") : TEXT("jpeg");
+	M.StartFrame = StartFrame;
+	M.StartTimeUtc = FDateTime::UtcNow().ToIso8601();
+	M.Mode = bTargetedMode ? TEXT("targeted") : TEXT("auto_pool");
+	M.TargetAnomaly = bTargetedMode ? TargetAnomalyId.ToString() : FString();
+	M.TargetActor = bTargetedMode ? TargetActorName : FString();
+	M.TargetFps = VideoFps;
+	M.bPaced = bPaceCapture;
+	if (!bDeliveryMode)
+	{
+		AnomalyLabel::WriteRunManifest(RunDir, M);
+	}
 
 	bSavedUseFixedTimeStep = FApp::UseFixedTimeStep();
 	SavedFixedDeltaTime = FApp::GetFixedDeltaTime();
@@ -546,6 +612,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 
 	Phase = ECapturePhase::LeadIn;
 	PhaseFramesLeft = PreFrames;
+	bRunBegun = true;
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
@@ -558,9 +625,23 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 		BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
 		FrameCap > 0 ? *FString::FromInt(FrameCap) : TEXT("none"));
-#else
-	UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: capture compiled out (ANOMALY_CAPTURE=0)."));
 #endif
+}
+
+bool UAnomalyCaptureSubsystem::HasGameWindow(UWorld* World) const
+{
+	UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr;
+	return GV && GV->Viewport;
+}
+
+bool UAnomalyCaptureSubsystem::IsGameWindowFocused(UWorld* World) const
+{
+	UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr;
+	if (GV && GV->Viewport)
+	{
+		return GV->Viewport->IsForegroundWindow();
+	}
+	return true;
 }
 
 void UAnomalyCaptureSubsystem::StopRun()
@@ -588,13 +669,14 @@ void UAnomalyCaptureSubsystem::LogStatus() const
 	if (!bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture: idle. Config K=%d L=%d pre=%d positive=%d post=%d bursts=%s capture=%s fps=%d pace=%s delivery=%s clock=%s. Start: IAI.Capture.Start [dir] [png|jpeg] [seed]."),
+			TEXT("Capture: idle. Config K=%d L=%d pre=%d positive=%d post=%d bursts=%s capture=%s fps=%d pace=%s delivery=%s clock=%s focusgate=%s. Start: IAI.Capture.Start [dir] [png|jpeg] [seed]."),
 			SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 			BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
 			bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"),
 			VideoFps, bPaceCapture ? TEXT("on") : TEXT("off"),
 			bDeliveryMode ? TEXT("on") : TEXT("off"),
-			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"));
+			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"),
+			bFocusGate ? TEXT("on") : TEXT("off"));
 		return;
 	}
 	UE_LOG(LogAnomalyCapture, Log,
@@ -1044,26 +1126,40 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		Auto->RevertAllLiveFires();
 	}
 
-	if (bAsyncCapture)
+	if (bRunBegun)
 	{
-		DrainAsyncToCompletion();
+		if (bAsyncCapture)
+		{
+			DrainAsyncToCompletion();
+		}
+
+		ComputeRunPacing();
+
+		WriteSessionAnnotationFile();
+
+		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
+			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode,
+			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"));
+
+		if (bLogLine)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("=== Capture run FINISHED: %s | %d frame(s) (positive=%d) | %d burst(s), %d zero-match ==="),
+				*RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts);
+		}
+	}
+	else
+	{
+		IFileManager::Get().DeleteDirectory(*RunDir, false, true);
+		if (bLogLine)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("=== Capture run CANCELLED before focus: %s | no frames written (armed-pending run stopped) ==="),
+				*RunDir);
+		}
 	}
 
-	ComputeRunPacing();
-
-	WriteSessionAnnotationFile();
-
-	AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
-		VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode,
-		ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"));
-
-	if (bLogLine)
-	{
-		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("=== Capture run FINISHED: %s | %d frame(s) (positive=%d) | %d burst(s), %d zero-match ==="),
-			*RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts);
-	}
-
+	bRunBegun = false;
 	bRunning = false;
 	Phase = ECapturePhase::Idle;
 	PhaseFramesLeft = 0;
@@ -1421,6 +1517,29 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureContentClockCmd(
 			else
 			{
 				UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.ContentClock: unknown token '%s' — expected 'game' or 'wall'. No change."), *Args[0]);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureFocusGateCmd(
+	TEXT("IAI.Capture.FocusGate"),
+	TEXT("Gate the first captured frame on game-window focus (default ON). ON: a capture Start ARMS immediately ")
+	TEXT("but holds the first frame until the game window has foreground focus — so clicking Start in the ")
+	TEXT("external dashboard (browser) does not record idle frames during the click-and-move-back gap; focus the ")
+	TEXT("game window to begin, or IAI.Capture.Stop to cancel the armed run. The gate is skipped when there is no ")
+	TEXT("game window at all (headless / Simulate), and a safety timeout starts the run anyway if focus never ")
+	TEXT("arrives. Packaged default: DefaultGame.ini [AnomalyCapture] bFocusGateDefault; this command overrides it ")
+	TEXT("for the session. Usage: IAI.Capture.FocusGate <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.FocusGate <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetFocusGate(FCString::Atoi(*Args[0]) != 0);
 			}
 		}));
 

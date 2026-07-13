@@ -1,5 +1,26 @@
 # Architecture (living — current as-built)
 
+> **Reflects: three capture-delivery fixes (m16).** (1) **Client token auto-populate** — the control server
+> reads a fixed `[AnomalyControlServer] Token` from `DefaultGame.ini` (GConfig at StartListening); present →
+> that token, absent/empty → the existing random per-session GUID + log line (owner in-editor unchanged). The
+> dashboard bakes a matching `VITE_CONTROL_TOKEN` and auto-connects with zero client copy-paste (a static
+> shared secret; localhost-only tradeoff — `ws://` ignores CORS so the token still gates arbitrary web
+> origins; G71). (2) **Focus-gated capture start** — a Start ARMS immediately (clean-slate reverts + auto
+> pause happen now) but holds the first frame until the game window has foreground focus (new
+> `ECapturePhase::ArmedPending` resolved in `Tick` via `FViewport::IsForegroundWindow`); skipped when there
+> is no game window (headless / MainWorld Simulate), with an `IAI.Capture.FocusGate <0|1>` override +
+> `[AnomalyCapture] bFocusGateDefault` + a 30 s safety timeout; the timing-critical setup (StartFrame,
+> run manifest, fixed timestep) is deferred out of `StartRun` into `BeginActualRun` at focus-in, and a
+> cancel-before-focus writes no artifacts and deletes the empty session dir (`bRunBegun` guard; G72). (3)
+> **Preview-pause hardening** — the control server's `PushFrames` suppresses live-preview JPEG generation
+> while a capture is active, engine-side and immediate (no snapshot round-trip), so the synchronous
+> preview `ReadPixels` can't drag sustained fps at the start of a run (G73). A single `bRunning` /
+> `IsCaptureActive()` signal (true from arm → finish, armed-pending included) drives BOTH the focus-gate
+> machine and the preview suppression. Catalog stays 8; no new module dependency (GConfig is Core; focus via
+> Engine `FViewport`; AnomalyCapture already links Slate/ApplicationCore in non-Shipping). See
+> `sessions/2026-07-13-022-m16-capture-delivery-fixes.md`, `docs/client-delivery.md`. Below this it still
+> reflects:
+>
 > **Reflects:** **Content-clock-aware fps stamp (m14)** — the m11 honest
 > stamp (a slow run stamps the sustained wall rate) is correct for REAL-TIME-driven content but WRONG
 > for GAME-CLOCK-driven content (StackOBot under fixed step), where every frame is an exact `1/target`
@@ -405,8 +426,9 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
 - `IAI.Capture.Config <settleK> <preFrames> <positiveFrames> <postFrames> <burstCount>` — set the burst schedule (burstCount 0 = until Stop).
 - `IAI.Capture.ViewLag <frames>` — bbox-projection view-lag L (default **0**; see "Capture & Labeling" below).
 - `IAI.Capture.Start [outDir] [png|jpeg] [seed]` — start a burst run (default dir `<ProjectSaved>/AnomalyCaptures`; png; seed = auto-injector's current).
-- `IAI.Capture.Stop` — stop the run (reverts in-flight fire, writes `run_summary.json`).
+- `IAI.Capture.Stop` — stop the run (reverts in-flight fire, writes `run_summary.json`; cancels an armed-pending run cleanly).
 - `IAI.Capture.Status` — log run state, config, counters.
+- `IAI.Capture.FocusGate <0|1>` — gate the first captured frame on game-window focus (default ON; packaged default `[AnomalyCapture] bFocusGateDefault`). Start arms immediately but holds the first frame until the game window has focus; skipped when there is no game window (headless/Simulate); 30 s safety timeout starts anyway. **(m16)**
 *(M0's `IAI.HideActor` / `IAI.ShowAllActors` were removed — superseded by `IAI.Apply missing_object`
 / `IAI.RevertAll`.)*
 

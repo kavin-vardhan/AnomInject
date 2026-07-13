@@ -8,6 +8,8 @@
 #include "HAL/PlatformTime.h"
 #include "HAL/IConsoleManager.h"
 #include "Containers/StringConv.h"
+#include "Misc/ConfigCacheIni.h"
+#include "CoreGlobals.h"
 
 #if ANOMALY_CONTROL_SERVER
 #include "AnomalyPreviewCapture.h"
@@ -131,7 +133,12 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 	}
 
 	Port = (InPort > 0) ? InPort : DefaultControlPort;
-	Token = FGuid::NewGuid().ToString(EGuidFormats::Digits);
+
+	FString ConfigToken;
+	const bool bHasConfigToken = GConfig
+		&& GConfig->GetString(TEXT("AnomalyControlServer"), TEXT("Token"), ConfigToken, GGameIni)
+		&& !ConfigToken.IsEmpty();
+	Token = bHasConfigToken ? ConfigToken : FGuid::NewGuid().ToString(EGuidFormats::Digits);
 
 	FWebSocketClientConnectedCallBack ConnectedCb =
 		FWebSocketClientConnectedCallBack::CreateUObject(this, &UAnomalyControlServerSubsystem::OnClientConnected);
@@ -153,7 +160,8 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 	bWantOneFrame = false;
 
 	UE_LOG(LogAnomalyServer, Log, TEXT("=== Anomaly Control Server LISTENING on ws://127.0.0.1:%d ==="), Port);
-	UE_LOG(LogAnomalyServer, Log, TEXT("=== Control server token: %s ==="), *Token);
+	UE_LOG(LogAnomalyServer, Log, TEXT("=== Control server token: %s (%s) ==="), *Token,
+		bHasConfigToken ? TEXT("from DefaultGame.ini [AnomalyControlServer] Token") : TEXT("random per-session"));
 	return true;
 #else
 	UE_LOG(LogAnomalyServer, Warning, TEXT("Control: server compiled out (ANOMALY_CONTROL_SERVER=0)."));
@@ -742,6 +750,17 @@ void UAnomalyControlServerSubsystem::PushSnapshots()
 
 void UAnomalyControlServerSubsystem::PushFrames(bool bForce)
 {
+	if (UWorld* CapWorld = GetWorld())
+	{
+		if (UAnomalyCaptureSubsystem* Cap = CapWorld->GetSubsystem<UAnomalyCaptureSubsystem>())
+		{
+			if (Cap->IsCaptureActive())
+			{
+				return;
+			}
+		}
+	}
+
 	bool bAny = false;
 	for (const FControlConn& C : Conns)
 	{

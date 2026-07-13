@@ -192,6 +192,15 @@ with the one-sided rule above.
 `-framerate`. It parses fps as a float with a 30.0 fallback (dashboard repo `c803fe8`), so integer
 (healthy) and fractional (fallback) stamps both encode correctly. Unchanged in m11.
 
+## Preview no longer drags capture (m16)
+
+The control server's live preview does a synchronous `CaptureGameViewportJpeg` (ReadPixels) on the game
+thread each push. On a loaded machine that competed with the capture and dragged the sustained fps at the
+start of a run (the dashboard only unsubscribed after learning `capture.running` over the snapshot
+round-trip). As of m16 the server suppresses all preview-frame generation while a capture is active
+(`Cap->IsCaptureActive()`, true from arm through finish) — engine-side, immediate, no round-trip. So the
+preview cannot inflate `speed_ratio` during a run; the sustained-fps measurement reflects the capture alone.
+
 ## History
 
 - `c5d58b0` — measured session fps written to `video.fps` (superseded).
