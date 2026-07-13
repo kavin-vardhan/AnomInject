@@ -905,3 +905,24 @@ until a restart (the value is re-read at the next subsystem Initialize, but from
 edit the ini then RESTART the editor. (2) The console `IAI.Capture.Delivery <0|1>` overrides the seeded default for the
 session and does NOT SaveConfig — the durable default lives only in the ini the owner edits. Absent the key, the code
 default (OFF) stands. (2026-07-12.)
+
+### G70 — game-clock content + sub-target sustained ⇒ MUST set ContentClock game, or the mp4 plays ratio× SLOW (m14)
+The m11 honest stamp (a run with `speed_ratio > 1.02` stamps the SUSTAINED wall rate) is correct for REAL-TIME-driven
+content but WRONG for GAME-CLOCK-driven content (StackOBot world under fixed timestep). Under fixed step every frame is an
+exact `1/target` GAME-second slice of motion regardless of how slow the machine ran (proven: labels game t-deltas stay
+exactly `1/target`), so the natural playback rate is TARGET; stamping sustained makes the video play
+`target / sustained = speed_ratio` times SLOW (owner case: 120 @ 60 on a box sustaining 11.64 → stamped 11.64 → 10.3 s mp4
+at 5.16× slow; correct is 60 → 2.0 s natural — the owner's own hand-patch to 60 confirmed it). Fix: `IAI.Capture.ContentClock
+game` (or the `[AnomalyCapture] ContentClockDefault=game` ini key) makes game mode stamp TARGET at any ratio.
+**Default is `game`** (owner decision 2026-07-13; the member default + the GConfig-absent fallback both resolve to game),
+superseding the earlier "wall is correct for the client" framing. Reason for the flip: new owner evidence — the office
+titles (Until Dawn, Concorde) run in SLOW motion at `Fps` 120/240 (a game-clock signature) AS WELL AS the FAST signature at
+ratio ≈ 2 (a real-time signature), i.e. likely MIXED-clock and NOT settled. **OPEN CONSEQUENCE, do not smooth over:** with
+default game, a client title whose captured motion is actually real-time-driven will play FAST (the Issue-2 failure), so
+whoever cuts a client build MUST re-evaluate the correct mode for that title on that box and set the ini key explicitly
+before shipping. The stamp is a single fps for the whole video, so a title whose game-clock and real-time layers diverge
+can't be right for both — a per-clock-layer stamp may eventually be needed (tracked; owner to test wall vs game on the
+office machine). In game mode a high ratio is only a live-capture perf issue, not a video defect. The drag that pushes
+sustained ≪ target on the owner's box is whole-system/browser-GPU contention (H-B refuted the server-side preview pump via a
+clean A/B), which m14 does NOT touch — but once the stamp is content-clock-correct, the drag no longer corrupts the video,
+only slows the live capture. (2026-07-13.)

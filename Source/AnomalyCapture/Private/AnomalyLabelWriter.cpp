@@ -289,7 +289,8 @@ namespace AnomalyLabel
 
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
 		int32 ZeroMatchBursts, uint64 EndFrame,
-		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode)
+		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode,
+		const FString& ContentClock)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -305,6 +306,7 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("stamped_fps"), StampedFps);
 		Root->SetBoolField(TEXT("paced"), bPaced);
 		Root->SetBoolField(TEXT("delivery_mode"), bDeliveryMode);
+		Root->SetStringField(TEXT("content_clock"), ContentClock);
 
 		FString Out;
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);

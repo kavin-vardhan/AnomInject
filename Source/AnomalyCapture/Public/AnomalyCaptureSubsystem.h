@@ -53,6 +53,10 @@ public:
 	void SetCaptureDelivery(bool bInDelivery);
 	bool IsDeliveryMode() const { return bDeliveryMode; }
 
+	enum class EContentClock : uint8 { Wall, Game };
+	void SetContentClock(EContentClock InClock);
+	EContentClock GetContentClock() const { return ContentClock; }
+
 	struct FLastRunPacing
 	{
 		bool bValid = false;
@@ -155,6 +159,7 @@ private:
 
 	bool bAsyncCapture = true;
 	bool bDeliveryMode = false;
+	EContentClock ContentClock = EContentClock::Game;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;
 
 #if WITH_EDITOR

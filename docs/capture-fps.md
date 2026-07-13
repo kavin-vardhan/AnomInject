@@ -76,6 +76,67 @@ a packaged build"), and the finalize log always states pacing/target/sustained/r
 dashboard shows a post-run badge when the stamp fell back ("couldn't hold F fps — video stamped at
 X fps (true speed)").
 
+## The content-clock setting (m14) — which clock the honest stamp follows
+
+The one-sided stamp above is only correct when the video's playback rate should equal the SUSTAINED
+wall rate. That is true for **real-time-driven** content (sequencer/audio-synced titles), where each
+frame holds ~`1/sustained` wall-seconds of motion. It is WRONG for **game-clock-driven** content
+(StackOBot world under fixed step), where each frame holds exactly `1/target` GAME-seconds of motion
+regardless of how slow the machine ran — there the natural stamp is **target**, and stamping
+sustained makes the video play `speed_ratio`× too SLOW:
+
+```
+game-clock content stamped at sustained  →  plays  (target / sustained) = speed_ratio  times slow
+```
+
+(Observed: 120 frames @ target 60 on a box that sustained 11.64 → stamped 11.64 → a 10.3 s mp4
+playing 5.16× slow; the correct stamp is 60 → a natural 2.0 s mp4.)
+
+Because the plugin cannot tell which clock the visible content followed, a **setting** picks it:
+
+- **`IAI.Capture.ContentClock <game|wall>`** (mid-run guarded), default **game**.
+- Packaged default: `DefaultGame.ini [AnomalyCapture] ContentClockDefault=game|wall` (GConfig at
+  Initialize, same mechanism as delivery mode). When the key is ABSENT the default resolves to
+  **game**. The console command overrides per session.
+
+Behaviour per mode at finalize:
+
+- **game** (default): `video.fps` is stamped at **target** at ANY ratio (the frames are exact
+  `1/target` game-slices), so game-clock content always plays natural. A high ratio in game mode means
+  only that the **live capture ran slow** — a capture-time performance issue, not a video defect; the
+  warnings say so ("live capture ran slow … video stamped at target F and plays natural").
+- **wall**: UNCHANGED from the one-sided rule above — `ratio > 1.02` stamps sustained, within tolerance
+  stamps target, faster-than-target stays target. This is the m11 real-time-title path.
+
+`run_summary.json` records `content_clock` alongside
+`target_fps`/`sustained_wall_fps`/`speed_ratio`/`stamped_fps`/`paced` (annotation stays client-clean;
+its `video.fps` already encodes the decision).
+
+### Default = game, and the UNRESOLVED client mixed-clock question (owner decision, 2026-07-13)
+
+The default is **game** by owner decision, superseding the earlier "wall is correct for the client"
+framing. Reasoning + the open question, stated plainly:
+
+- **StackOBot is uniformly game-clock**, and game mode is verified correct for it (a slow capture
+  stamps target and plays natural).
+- **The office client titles (Until Dawn, Concorde) are NOT settled.** They showed the Issue-2 FAST
+  signature at ratio ≈ 2 (suggesting real-time-driven parts → wall would be right there) AND a SLOW
+  signature at `Fps` 120/240 (suggesting game-clock world motion → game would be right there). That is
+  the fingerprint of **mixed-clock content**, and which mode a given title needs at the rate it is
+  actually captured at is **unresolved**.
+- **CONSEQUENCE — do not smooth over:** with default game, if a client title's visible motion is in
+  fact real-time-driven at the capture rate used, its video can play **FAST** (the Issue-2 failure).
+  So whoever cuts a client build **MUST re-evaluate the correct `ContentClock` for that specific title
+  on that specific box before shipping** — set the ini key explicitly per title. This is an OPEN item,
+  not settled by this milestone.
+- **Tracked future investigation:** the owner will test wall vs game on the actual office machine to
+  resolve each title's clock; a single per-run fps stamp cannot be right for a title whose game-clock
+  and real-time layers diverge, so a per-clock-layer stamp may eventually be needed (out of m14 scope).
+
+**Pre-m14 game-clock sessions** captured before this setting have their sustained rate baked into
+`video.fps` on a slow run — use the re-encode rescue below (patch `video.fps` to the target and delete
+`.mp4_done`), which is exactly what makes a game-clock capture play natural.
+
 ## Behaviour you will see while capturing
 
 With **Pace 1** (default): the live game runs at **1x** while the machine sustains the target rate,
@@ -95,6 +156,9 @@ with the one-sided rule above.
 - `IAI.Capture.Fps <fps>` — native capture/playback rate, default 30, clamped 1–240. Guarded
   mid-run (stop first). The fixed timestep, the pacer, and the stamp all use this value.
 - `IAI.Capture.Pace <0|1>` — real-time frame pacing during runs, default **1**. Guarded mid-run.
+- `IAI.Capture.ContentClock <game|wall>` — which clock the honest stamp follows on a slow run,
+  default **game** (see the content-clock section). Guarded mid-run; packaged default via
+  `DefaultGame.ini [AnomalyCapture] ContentClockDefault`.
 
 ## Operational guidance
 

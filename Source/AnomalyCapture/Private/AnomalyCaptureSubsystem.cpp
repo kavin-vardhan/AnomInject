@@ -147,8 +147,15 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		bDeliveryMode = bConfigDelivery;
 	}
-	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s."),
-		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"));
+	FString ConfigClock;
+	if (GConfig && GConfig->GetString(TEXT("AnomalyCapture"), TEXT("ContentClockDefault"), ConfigClock, GGameIni))
+	{
+		if (ConfigClock.Equals(TEXT("game"), ESearchCase::IgnoreCase)) { ContentClock = EContentClock::Game; }
+		else if (ConfigClock.Equals(TEXT("wall"), ESearchCase::IgnoreCase)) { ContentClock = EContentClock::Wall; }
+	}
+	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s."),
+		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
+		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"));
 #if WITH_EDITOR
 	if (ULevelEditorPlaySettings* PlaySettings = GetMutableDefault<ULevelEditorPlaySettings>())
 	{
@@ -374,6 +381,21 @@ void UAnomalyCaptureSubsystem::SetCaptureDelivery(bool bInDelivery)
 			: TEXT("full fidelity: all capture artifacts written"));
 }
 
+void UAnomalyCaptureSubsystem::SetContentClock(EContentClock InClock)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.ContentClock: ignored mid-run (stop first)."));
+		return;
+	}
+	ContentClock = InClock;
+	UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.ContentClock: %s (%s)."),
+		ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"),
+		ContentClock == EContentClock::Game
+			? TEXT("content advances on the GAME clock (StackOBot etc.): video.fps stamped at TARGET; a slow run is a capture-time perf issue, not a video defect")
+			: TEXT("content advances on the WALL clock (sequencer/real-time titles): a slow run stamps the sustained rate so the video plays at true speed"));
+}
+
 void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
 	const FString& InTargetAnomaly, const FString& InTargetActor)
 {
@@ -526,10 +548,11 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	PhaseFramesLeft = PreFrames;
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
+		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
 		*RunDir,
 		bTargetedMode ? *FString::Printf(TEXT("targeted[%s on %s]"), *TargetAnomalyId.ToString(), *TargetActorName) : TEXT("auto-pool"),
 		bDeliveryMode ? TEXT("on") : TEXT("off"),
+		ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"),
 		Seed, *M.Format, bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"), VideoFps,
 		bPaceCapture ? TEXT(", paced") : TEXT(", unpaced"),
 		SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
@@ -565,12 +588,13 @@ void UAnomalyCaptureSubsystem::LogStatus() const
 	if (!bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture: idle. Config K=%d L=%d pre=%d positive=%d post=%d bursts=%s capture=%s fps=%d pace=%s delivery=%s. Start: IAI.Capture.Start [dir] [png|jpeg] [seed]."),
+			TEXT("Capture: idle. Config K=%d L=%d pre=%d positive=%d post=%d bursts=%s capture=%s fps=%d pace=%s delivery=%s clock=%s. Start: IAI.Capture.Start [dir] [png|jpeg] [seed]."),
 			SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 			BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
 			bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"),
 			VideoFps, bPaceCapture ? TEXT("on") : TEXT("off"),
-			bDeliveryMode ? TEXT("on") : TEXT("off"));
+			bDeliveryMode ? TEXT("on") : TEXT("off"),
+			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"));
 		return;
 	}
 	UE_LOG(LogAnomalyCapture, Log,
@@ -943,9 +967,18 @@ void UAnomalyCaptureSubsystem::CheckEarlyPacingWarning()
 	if (Ratio > 1.0 + GFpsStampTolerance)
 	{
 		bEarlyRatioWarned = true;
-		UE_LOG(LogAnomalyCapture, Warning,
-			TEXT("Capture: sustaining ~%.1f of %d fps (ratio %.2f) — the video will be stamped at the true rate; lower IAI.Capture.Fps or run a packaged build."),
-			(double)VideoFps / Ratio, VideoFps, Ratio);
+		if (ContentClock == EContentClock::Game)
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture: live capture running slow (~%.1f of %d fps, ratio %.2f) — the video will be stamped at target %d and plays natural; this is a capture-time perf issue only. Lower IAI.Capture.Fps or run packaged to speed the live capture."),
+				(double)VideoFps / Ratio, VideoFps, Ratio, VideoFps);
+		}
+		else
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture: sustaining ~%.1f of %d fps (ratio %.2f) — the video will be stamped at the true rate; lower IAI.Capture.Fps or run a packaged build."),
+				(double)VideoFps / Ratio, VideoFps, Ratio);
+		}
 	}
 }
 
@@ -970,23 +1003,37 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 	LastRunPacing.SpeedRatio = WallSpan / GameSpan;
 	LastRunPacing.SustainedWallFps = (double)VideoFps / LastRunPacing.SpeedRatio;
 
-	if (LastRunPacing.SpeedRatio > 1.0 + GFpsStampTolerance)
+	if (ContentClock == EContentClock::Game)
 	{
-		LastRunPacing.StampedFps = FMath::RoundToDouble(LastRunPacing.SustainedWallFps * 1000.0) / 1000.0;
-		UE_LOG(LogAnomalyCapture, Warning,
-			TEXT("Capture: could not hold %d fps wall-clock (sustained %.3f fps, ratio %.3f) — video.fps stamped at the true rate %.3f."),
-			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps);
+		LastRunPacing.StampedFps = (double)VideoFps;
+		if (LastRunPacing.SpeedRatio > 1.0 + GFpsStampTolerance)
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture: live capture ran slow (sustained %.3f of target %d fps, ratio %.3f) — video.fps stamped at target %d and plays natural; the slowness is a capture-time performance issue, not a video defect."),
+				LastRunPacing.SustainedWallFps, VideoFps, LastRunPacing.SpeedRatio, VideoFps);
+		}
 	}
-	else if (LastRunPacing.SpeedRatio < 1.0 - GFpsStampTolerance)
+	else
 	{
-		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture: ran faster than %d fps wall-clock (ratio %.3f, pace=%s) — video.fps stays %d."),
-			VideoFps, LastRunPacing.SpeedRatio, bPaceCapture ? TEXT("on") : TEXT("off"), VideoFps);
+		if (LastRunPacing.SpeedRatio > 1.0 + GFpsStampTolerance)
+		{
+			LastRunPacing.StampedFps = FMath::RoundToDouble(LastRunPacing.SustainedWallFps * 1000.0) / 1000.0;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture: could not hold %d fps wall-clock (sustained %.3f fps, ratio %.3f) — video.fps stamped at the true rate %.3f."),
+				VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps);
+		}
+		else if (LastRunPacing.SpeedRatio < 1.0 - GFpsStampTolerance)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture: ran faster than %d fps wall-clock (ratio %.3f, pace=%s) — video.fps stays %d."),
+				VideoFps, LastRunPacing.SpeedRatio, bPaceCapture ? TEXT("on") : TEXT("off"), VideoFps);
+		}
 	}
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Capture: pacing=%s | target=%d fps | sustained=%.3f fps | ratio=%.3f | stamped=%.3f."),
-		bPaceCapture ? TEXT("on") : TEXT("off"), VideoFps,
+		TEXT("Capture: pacing=%s | clock=%s | target=%d fps | sustained=%.3f fps | ratio=%.3f | stamped=%.3f."),
+		bPaceCapture ? TEXT("on") : TEXT("off"),
+		ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), VideoFps,
 		LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps);
 }
 
@@ -1007,7 +1054,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	WriteSessionAnnotationFile();
 
 	AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
-		VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode);
+		VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode,
+		ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"));
 
 	if (bLogLine)
 	{
@@ -1340,6 +1388,40 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryCmd(
 				return;
 			}
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetCaptureDelivery(FCString::Atoi(*Args[0]) != 0); }
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureContentClockCmd(
+	TEXT("IAI.Capture.ContentClock"),
+	TEXT("Select which clock the game's visible content advances on, so the honest fps stamp picks the right ")
+	TEXT("rate on a slow run (default WALL). game: content follows the GAME clock (StackOBot world under fixed ")
+	TEXT("step) — every frame is an exact 1/target game-time slice, so video.fps is stamped at TARGET at any ")
+	TEXT("ratio and plays natural; a slow run is a capture-time perf issue, not a video defect. wall: content ")
+	TEXT("follows the WALL clock (sequencer/real-time titles) — a run slower than target stamps the sustained ")
+	TEXT("rate so the video plays at true speed (the m11 office fix). Packaged default: DefaultGame.ini ")
+	TEXT("[AnomalyCapture] ContentClockDefault=game|wall; this command overrides it for the session. ")
+	TEXT("Usage: IAI.Capture.ContentClock <game|wall>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.ContentClock <game|wall>"));
+				return;
+			}
+			UAnomalyCaptureSubsystem* Cap = ResolveCapture(World);
+			if (!Cap) { return; }
+			if (Args[0].Equals(TEXT("game"), ESearchCase::IgnoreCase))
+			{
+				Cap->SetContentClock(UAnomalyCaptureSubsystem::EContentClock::Game);
+			}
+			else if (Args[0].Equals(TEXT("wall"), ESearchCase::IgnoreCase))
+			{
+				Cap->SetContentClock(UAnomalyCaptureSubsystem::EContentClock::Wall);
+			}
+			else
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.ContentClock: unknown token '%s' — expected 'game' or 'wall'. No change."), *Args[0]);
+			}
 		}));
 
 #endif

@@ -10,7 +10,22 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **Latest milestone (as-built): Client delivery mode — COMPLETE (tagged `m12`) (2026-07-12).**
+- **Latest milestone (as-built): Content-clock-aware fps stamp — COMPLETE (tagged `m14`) (2026-07-13).**
+  Fixes game-clock captures playing `speed_ratio`× SLOW (the m11 honest stamp always stamped the sustained wall rate,
+  which is correct for real-time content but wrong for game-clock content under fixed step, where every frame is an exact
+  `1/target` game-slice → the natural stamp is TARGET). New setting **`IAI.Capture.ContentClock <game|wall>`** (mid-run
+  guarded), **default `game`** (owner decision 2026-07-13), packaged default `DefaultGame.ini [AnomalyCapture]
+  ContentClockDefault` (GConfig at Initialize, absent → game; same mechanism as delivery mode). **game** = stamp TARGET at
+  any ratio (a high ratio only means the LIVE capture ran slow — perf issue, not a video defect); **wall** = unchanged m11
+  behavior (ratio>tol → sustained). `run_summary.json` gains `content_clock`; annotation client-clean. **OPEN (owner
+  validating on the office machine):** the client titles (Until Dawn/Concorde) show BOTH a real-time (fast, ratio≈2) and a
+  game-clock (slow, Fps 120/240) signature = likely MIXED-clock — with default game a real-time-driven title can play FAST
+  (Issue-2), so a client build MUST set the correct mode per title explicitly; a per-clock-layer stamp may eventually be
+  needed. Only AnomalyCapture (stamp branch + warnings + setting) + the run_summary field changed; fixed timestep / pacing
+  / labeling / ground-truth UNCHANGED. All 5 gates + end-to-end mp4 GREEN (game 60→2.0s natural; wall→sustained fractional;
+  ini default; mid-run guard; bad-token reject) + default-flip re-verify. G70. Catalog stays 8.
+  → `docs/sessions/2026-07-13-020-m14-content-clock.md`, `docs/capture-fps.md`.
+- **Prior milestone (as-built): Client delivery mode — COMPLETE (tagged `m12`) (2026-07-12).**
   A capture DELIVERY MODE for shipping the plugin to an external client who runs capture in their own build (no
   post-processing between their capture and them → whatever capture writes IS what the client gets). `bDeliveryMode`
   **default OFF** (full fidelity, byte-identical to m11 except the D3 annotation change). Console
@@ -283,7 +298,8 @@ and is the single source of truth for the project.
   as `ff1be3c`, no tag); **Missing-Texture (`…-013`) tagged `m8`**; screen-coverage cull + slider (`…-014`, no tag);
   **multi-anomaly session capture tagged `m9`** (`88f519c`); fixed-timestep capture-fps (`c5d58b0`/`500eac7`, no tag,
   `docs/capture-fps.md`); **targeted capture (`…-016`) tagged `m10`**; **capture pacing + honest fps stamping
-  (`…-017`) tagged `m11`**; **client delivery mode (`…-018`) tagged `m12`**.
+  (`…-017`) tagged `m11`**; **client delivery mode (`…-018`) tagged `m12`**; **confirmation-bounded dashboard optimism
+  (`…-019`, AnomDash, no tag)**; **content-clock-aware fps stamp (`…-020`) tagged `m14`**.
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

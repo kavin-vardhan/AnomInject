@@ -29,6 +29,19 @@ is simply not written to the per-frame sidecar. Default is OFF (full fidelity); 
 to normal capture except that annotation.json no longer carries the internal `schema_version` /
 `source_id` tags (removed in both modes as of m12).
 
+## Content clock (m14) — default is game; the client title's mode is an OPEN item
+
+The shipped default is `IAI.Capture.ContentClock game` (owner decision, 2026-07-13). game mode stamps
+a slow run at the target fps so game-clock world motion plays natural — verified correct for StackOBot.
+
+**The client titles are NOT settled.** Until Dawn / Concorde showed the Issue-2 FAST signature at
+ratio ≈ 2 (real-time-driven parts) AND a SLOW signature at Fps 120/240 (game-clock world motion) —
+likely MIXED-clock. So with the game default, a title whose captured motion is actually real-time-driven
+can play **FAST** (the Issue-2 failure). **Whoever cuts a client build MUST re-evaluate the correct
+`ContentClock` for that specific title on that box and set `[AnomalyCapture] ContentClockDefault`
+explicitly before shipping.** This is open, not settled by m14 — the owner is testing wall vs game on
+the actual office machine, and a per-clock-layer stamp may eventually be needed. See `capture-fps.md`.
+
 ## How to set it before packaging a client build
 
 Add to the **project's** `Config/DefaultGame.ini`:
