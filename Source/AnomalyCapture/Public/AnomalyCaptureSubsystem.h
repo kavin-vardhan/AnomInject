@@ -95,6 +95,7 @@ private:
 	void BeginFire();
 	void BeginRevert();
 	void CaptureCurrentFrame();
+	void FinalizeArmedLabel();
 	void FinishRun(bool bLogLine);
 	void PaceThisTick();
 	void StampArmWallClock(double NowWall);
@@ -133,6 +134,9 @@ private:
 
 	int32 SessionFrameIndex = 0;
 	int32 FrameCap = 0;
+
+	uint64 ArmedLabelFrameId = 0;
+	bool bHasArmedLabel = false;
 
 	FName TargetAnomalyId = NAME_None;
 	FString TargetActorName;

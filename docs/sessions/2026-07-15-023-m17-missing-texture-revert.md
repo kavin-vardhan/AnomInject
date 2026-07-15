@@ -138,26 +138,46 @@ TOP of the tick, before `CaptureCurrentFrame()`, so the armed frame and its labe
 it alongside the m18 preview re-plumb — it is the same class of silent dataset contamination this milestone
 exists to eliminate.
 
-## OPEN ITEM — Concorde confirmation is PENDING (owner, office box). Do not read m17 as "Concorde fixed".
+## CLOSED — Concorde confirmation RESOLVED (owner, office box, 2026-07-15, on pulled + rebuilt `m17`)
 
-**Validation status, stated precisely:**
-- **VALIDATED (local StackOBot repro, in a package):** the stuck revert now clears — immediate revert and
-  revert-after-churn; `revert_all` likewise; regression-clean on normal props (`StaticMeshActor_11`) and plain
-  skeletal content (`SkeletalMeshActor_3`, incl. a real game-created MID restored as the same object); the
+**The D4 open question is answered: the slot reset HOLDS on the real merged/master-pose proxy.** The owner ran
+`missing_texture` apply → revert on Concorde's **actual character body (`FWMasterSkeletalMeshComponent`)**:
+- **immediate apply → revert** → body reverts clean (the **re-find** path: the component is still the one we
+  captured);
+- **the CHURN case — apply → ~30 s of play (the character system re-creates the body materials/component
+  mid-hold) → revert** → body reverts clean (the **staleness path**: what the re-find + **sweep** + dead-original
+  default-reset exist for). *This is the scenario that previously left the hand stuck.*
+
+**Both revert paths are therefore validated on the real proxy, not only on the model.**
+
+The character system does **not** re-assert the checker back and does **not** leave the reset stuck, so **G77
+outcomes 2 and 3 below are dead** and the modular-proxy follow-up is **not needed**. (The owner's report is
+behavioral — "it reverts clean". Which internal branch fired on the real component, `restored` vs `swept`, is
+readable from the new revert log counters if anyone ever needs that detail; both were exercised in repro.)
+
+**Validation status, stated precisely — m17 is now confirmed on the real title, not just the model:**
+- **VALIDATED on Concorde's real `FWMasterSkeletalMeshComponent`** (office box): immediate revert **and**
+  revert-after-churn (mid-hold component re-creation) both clear the body.
+- **VALIDATED on the local StackOBot repro, in a package:** the stuck revert clears — immediate and
+  after-churn; `revert_all` likewise; regression-clean on normal props (`StaticMeshActor_11`) and plain skeletal
+  content (`SkeletalMeshActor_3`, incl. a real game-created MID restored as the same object); the
   our-material-only guard holds (a game-re-asserted MID is left untouched).
-- **NOT YET CONFIRMED:** Concorde's actual `FWMasterSkeletalMeshComponent`. The repro models the *mechanism*
-  (runtime-MID staleness + component re-creation); it is not the title's custom merged/master-pose proxy.
 
-**The D4 open question the owner's Concorde test answers:** does our slot reset **STICK** on the merged /
-master-pose proxy, or does the character system **re-assert over it** on its next update? Three outcomes:
-1. *Reset sticks, or the system re-asserts its OWN material over it* → **m17 confirmed on Concorde, close it.**
+**The mechanism note is kept below** — it is why the fix works, and it is where to look **if a future title ever
+regresses this way** (the outcomes are retained as diagnostic history, no longer as open items).
+
+**The D4 question this answered:** does our slot reset **STICK** on the merged/master-pose proxy, or does the
+character system **re-assert over it** on its next update? Three outcomes were possible:
+1. *Reset sticks, or the system re-asserts its OWN material over it* → m17 confirmed on Concorde.
    (The system re-asserting its own material is the intended outcome, not a failure — see G75.)
-2. *The system re-asserts the CHECKER back* → the proxy rebuilt itself from a state snapshot taken **before**
-   our revert, so it re-applies corruption we already cleared. m17's revert is then correct-but-insufficient.
-3. *The hand stays corrupted with no revert log activity on those components* → the corrupted slots are not
-   reachable from the matched actor at all (driven sub-parts owned by a *different* actor).
+   **← THIS IS WHAT HAPPENED. Closed 2026-07-15.**
+2. ~~*The system re-asserts the CHECKER back*~~ → would have meant the proxy rebuilt itself from a state snapshot
+   taken **before** our revert. **Did not occur.**
+3. ~~*The hand stays corrupted with no revert log activity on those components*~~ → would have meant the corrupted
+   slots are unreachable from the matched actor (driven sub-parts on a *different* actor). **Did not occur** — the
+   per-actor enumeration reaches the real proxy's slots.
 
-**Exact place for the next reader to look, per outcome:**
+**Retained diagnostic map (for a future regression, not an open item):**
 - **Outcome 2 or 3 → `Anomaly_MissingTexture.cpp`, `Revert()`, the per-owner sweep loop** — the
   `Owner->GetComponents<UMeshComponent>(Components)` enumeration is the single place that decides *which live
   components we are allowed to touch*. It resolves the actor's components **at revert time**, which is what makes
@@ -177,14 +197,22 @@ master-pose proxy, or does the character system **re-assert over it** on its nex
   the sweep reached the corrupted successor. `unresolved>0` with the hand still corrupted = outcome 3.
   A revert that logs nothing on the hand's components = they were never captured (outcome 3).
 
-## State
+## State — m17 CLOSED (confirmed on the real title)
 
 Code + docs written; G1–G5 all green in a local package (`Builds\MidRepro\Windows`). Comment stripper run before
-commit: 0 changed / 59 no-change (source already comment-free). Committed as one `fix(missing-texture)` + tag
-`m17`, pushed so the fix can reach the office box for the Concorde test (the fix must be on that machine before
-the real component can be exercised). The repro actor is **not** in the commit — it lives in the StackOBot project
-(`Source/StackOBot/MidReproActor.{h,cpp}`) and the plugin repo tracks zero test files. Concorde confirmation is the
-owner's **post-push** check; a follow-up milestone handles the modular-proxy case **if** it surfaces (see the open
-item above). Bug 1 (packaged black preview → backbuffer tee) is deferred to **m18** and was not touched.
-Also open, found while validating m17 and **not** caused by it: the burst-boundary label/pixel misalignment
-(above) — recommend prioritising with m18.
+commit: 0 changed / 59 no-change (source already comment-free). Shipped as one `fix(missing-texture)` commit
+`e2c6dd2` + tag `m17`, pushed (master and `refs/tags/m17` both confirmed at `e2c6dd2` on the remote) — pushed
+**before** the Concorde test on purpose, since the fix had to reach the office box before the real component could
+be exercised. The repro actor is **not** in the commit — it lives in the StackOBot project
+(`Source/StackOBot/MidReproActor.{h,cpp}`) and the plugin repo tracks zero test files.
+
+**The owner then pulled + rebuilt on the office box and confirmed the fix on Concorde's real
+`FWMasterSkeletalMeshComponent` — immediate revert and the ~30 s churn case both clear the body (see the CLOSED
+section above). m17 needs no follow-up; the modular-proxy contingency is dead.** This status flip is docs-only and
+was deliberately **not** given its own commit — it rides along with the next commit that touches these files
+(m18 or whenever), per the owner.
+
+Still open, and **not** m17's doing:
+- **Bug 1 — packaged black preview** → backbuffer tee. Deferred to **m18**, untouched here. Delivery-gating.
+- **Burst-boundary label/pixel misalignment** (found while validating m17, pre-existing, affects **every**
+  anomaly and every delivered dataset — see the section above). Recommend prioritising with m18.

@@ -637,11 +637,25 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   KEPT as hard negatives, not dropped (gotcha G42). The in-frustum-but-occluded sub-case is the deferred
   `GetLastRenderTimeOnScreen` refinement (G22).
 - **View-lag L (default 0) — the spatial analogue of settle-K, but distinct.** A per-tick view ring; each capture projects
-  with the view from L ring-entries ago. **L=0 is validated and correct (not "zero lag"):** the capture subsystem (a
-  `FTickableGameObject`) ticks *before* `UpdateCameraManager` (LevelTick.cpp:1606 vs 1621), so `GetActiveViewInfo` at the
-  capture tick already returns the previous frame's camera POV — exactly the view that rendered the `ReadPixels` frame; the
-  two 1-frame lags cancel. FPS-invariant (frame-count relationship). The `IAI.Capture.ViewLag` knob stays for the future
-  async path (gotcha G41).
+  with the view from L ring-entries ago. **L=0 is validated and correct (not "zero lag") FOR THE SYNC PATH:** the capture
+  subsystem (a `FTickableGameObject`) ticks *before* `UpdateCameraManager` (LevelTick.cpp:1606 vs 1621), so
+  `GetActiveViewInfo` at the capture tick already returns the previous frame's camera POV — exactly the view that rendered
+  the `ReadPixels` frame; the two 1-frame lags cancel. FPS-invariant (frame-count relationship). The `IAI.Capture.ViewLag`
+  knob stays for the future async path (gotcha G41). **OPEN (m18):** that async re-derivation was never done — the async
+  grab returns the ARM TICK's own render (camera N), while the ring still yields camera N-1, so the projected bbox is
+  predicted to be one frame stale under camera motion on the async path. Unmeasured (the validation scene has a static
+  camera); the m18 label fix below deliberately did NOT touch L. See G78.
+- **Label state stamp — END OF TICK on the async path (m18).** What a frame's label *says* is sampled from
+  `Auto->GetLiveFires()`; what the frame *shows* is the state at the end of its own tick, because the async capture grabs
+  the render of the tick that armed it. `BeginFire()`/`BeginRevert()` run later in that same `Tick` than
+  `CaptureCurrentFrame()`, so sampling the fire state at arm time described the PRE-transition world for a frame that
+  renders the POST-transition world — the label span sat one frame LATE at both burst boundaries. The async path therefore
+  arms the frame and stores the snapshot *without* the fire state, and `FinalizeArmedLabel()` (last statement of `Tick`,
+  after the phase switch) fills in `Fires`/`FireHidden`/`FirePos` post-transition. Because `anomaly_present`, the per-anomaly
+  bbox/`bbox_valid`, `AffectedFrames` and `HiddenIndices` all derive from that one sample, hide-type and non-hide shift
+  coherently and `visible_positive` stays consistent by construction. **The sync path is untouched and was already correct**
+  (its `ReadPixels` returns the *previous* frame, which pairs with an arm-time stamp) — the fix is async-only. Phase timing
+  and settle-K are byte-unchanged. G78.
 - **Reproducibility (S4).** The run seeds the auto-injector stream at start → same seed + same visible-set sequence (a fixed
   vantage) reproduces the fired (id, target) sequence — NOT pixel-identity (ambient scene motion). **Coexistence:** the
   auto-injector's `Run` must be OFF during a capture run (capture owns firing) — warned, not blocked (A2); and the

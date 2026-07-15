@@ -15,17 +15,45 @@ and is the single source of truth for the project.
   first-smoke-test bugs (packaged black preview; missing_texture stuck revert) were invisible in PIE. A package runs
   fully headless: `StackOBot.exe -windowed -ExecCmds="IAI.Server.Start, ..."` + the control server's own WS surface as
   the driver; iterative cook + exe hot-swap = ~1 min edit→validate loop. See **G76**.
-- **Latest milestone (as-built): m17 — missing_texture revert hardening for runtime/modular-character materials —
-  COMPLETE (tagged `m17`, on top of `m16` `84dfa52`) (2026-07-15). VALIDATION STATUS IS SPLIT — READ THIS BEFORE
-  TRUSTING IT ON A CLIENT TITLE: the fix is validated on a LOCAL StackOBot repro of the mechanism (stuck revert clears
-  immediate + after-churn; `revert_all` clears; regression byte-identical on plain props/`SKM_Bot` incl. a real game MID
-  restored as the same object; the our-material-only guard leaves a game-re-asserted MID untouched — all in a package),
-  but it is **NOT YET CONFIRMED on Concorde's actual `FWMasterSkeletalMeshComponent`**. OPEN: does the slot reset STICK
-  on that merged/master-pose proxy, or does the character system re-assert over it? → owner's office-box Concorde test
-  is the post-push check; **G77** records the exact place to look per outcome (start with the new revert log line, then
-  the per-owner sweep loop's `GetComponents` enumeration in `Anomaly_MissingTexture.cpp Revert()`; targeting upstream is
-  per-actor, so sub-parts on a DIFFERENT actor are never captured). A follow-up milestone handles the modular-proxy case
-  IF it surfaces.** Fixes the confirmed Concorde bug (body-only stuck corruption;
+- **IN FLIGHT (built this session, NOT yet committed/tagged; on top of `m17` `e2c6dd2`): m18 — burst-boundary label
+  alignment (async label stamp → end of tick).** Fixes the ~17% label/pixel misalignment found while validating m17 —
+  same dataset-poisoning class, and it hit EVERY anomaly type. **Mechanism:** `CaptureCurrentFrame()` sampled the label
+  from `GetLiveFires()` at mid-tick N, but `BeginFire()`/`BeginRevert()` run LATER IN THE SAME `Tick`, and the **async**
+  grab (default) returns the render of the ARM TICK ITSELF (frame N) → the frame armed on a transition tick renders the
+  POST-transition world while its label described the PRE-transition one. Measured: pixels positive [3..10] vs labels
+  positive [4..11] → **the label span ran one frame LATE**; fire edge = labeled clean / pixels anomalous (**false
+  negative — a "clean" example containing the bug**), revert edge = labeled positive / pixels clean (false positive).
+  Scale = **2/(PositiveFrames+PostFrames) = 16.7%** at defaults (17/100 measured), independent of settle-K and pre.
+  **⚠ DIRECTION NOTE: the brief's diagnosis ("pixels change on N+1 → shift the span LATER") was the exact inverse of the
+  measurement; the fix shifts the span one frame EARLIER.** The render thread's lag is a THREAD lag, not a state lag — a
+  change at end-of-tick-N lands in frame N's own render. **Fix (async-only; `AnomalyCaptureSubsystem.{h,cpp}` only):**
+  the arm stores the snapshot WITHOUT the fire state; new **`FinalizeArmedLabel()`** (last statement of `Tick`, after
+  the phase switch) fills `Fires`/`FireHidden`/`FirePos` post-transition. **Hide vs non-hide needs no special-casing** —
+  `anomaly_present`, the bbox/`bbox_valid`, `AffectedFrames` (non-hide `frame_indices`) and `HiddenIndices` (hide-type)
+  all derive from that ONE sample, so every surface shifts coherently and `visible_positive` stays consistent by
+  construction. **Sync is untouched and was already correct** (its `ReadPixels` returns the PREVIOUS frame — the same
+  fact L=0 rests on); **phase timing, settle-K, L=0 and the view ring are byte-unchanged.** **Gates G1–G6 GREEN in a
+  LOCAL PACKAGE:** 0/100 mismatches (was 17/100); hide-type `frame_indices`=[3..10]=hidden frames; non-hide
+  `frame_indices`=[3..10] non-empty; **frame cadence byte-identical pre/post** (proves settle-K/phase timing untouched),
+  positives 64→65 = exactly +9 FN −8 FP corrected; `verify_capture.py` clean (65 present / 65 boxes / 0 present-no-box)
+  + visual confirmation at both corrected edges. **NO COMMIT this turn** — on accept: strip comments, one `fix(capture)`
+  + tag `m18` (carries the m17-Concorde docs flip too). **OPEN (same root, NOT fixed):** the VIEW half — async grabs
+  camera N while the ring yields camera N-1 → bbox predicted 1 frame stale under camera motion (unmeasured; static-camera
+  scene; `IAI.Capture.ViewLag` is the knob G41 reserved for it). Also open: bbox projected from LIVE actor bounds at
+  record-build time (wrong for moving targets); `blinking` toggle edges vs tickable order; **sync capture writes BLACK
+  frames in a package** (same `ReadPixels` root as m19). G78.
+  → `docs/sessions/2026-07-15-024-m18-label-alignment.md`.
+- **Prior milestone (as-built): m17 — missing_texture revert hardening for runtime/modular-character materials —
+  COMPLETE (commit `e2c6dd2`, tagged `m17`, pushed; on top of `m16` `84dfa52`) (2026-07-15).
+  ✅ CONFIRMED ON THE REAL TITLE — no open items.** The owner pulled + rebuilt m17 on the office box and verified
+  `missing_texture` apply → revert on Concorde's **actual `FWMasterSkeletalMeshComponent`**: the body reverts clean both
+  for an **immediate** revert and for the **CHURN** case (apply → ~30 s play, character system re-creates the body
+  mid-hold → revert — the case that previously stuck). The slot reset STICKS on the real merged/master-pose proxy; the
+  character system does not re-assert the checker back. **The D4 question is RESOLVED and the modular-proxy follow-up is
+  NOT needed** (G77 closed; its outcome map is retained as regression history only). Also validated on the LOCAL
+  StackOBot repro in a package: stuck revert clears immediate + after-churn; `revert_all` clears; regression
+  byte-identical on plain props/`SKM_Bot` incl. a real game MID restored as the same object; the our-material-only guard
+  leaves a game-re-asserted MID untouched. Fixes the confirmed Concorde bug (body-only stuck corruption;
   `IAI.RevertAll` also failed): the anomaly restored through a saved component ptr + a saved original material ptr, and
   on characters whose own runtime logic re-creates the component and/or its MIDs (Concorde's
   `FWMasterSkeletalMeshComponent`) BOTH went stale during the hold → the stale-skip silently skipped → corruption
@@ -38,10 +66,11 @@ and is the single source of truth for the project.
   nullptr)`) so the game re-takes ownership, then **sweeps** every live mesh component of each touched actor for
   leftover checker (catches corruption copied onto a successor component we never captured). Every revert now logs
   `restored/default-reset/left-to-game/unresolved/swept/re-found` — **no more silent failures**. G74–G77.
-  **D4 finding:** the correct restore target is *whatever components are live on the actor at revert time* (not "the
-  master" vs "the sub-parts") — one revert handled a master + master-posed sub-part with different dispositions; the
-  restore must NOT survive the character system's next re-assertion (yielding the slot IS correct). Limits: per-actor
-  only (sub-parts on a *different* actor are out of reach); a swept successor can only be default-reset.
+  **D4 finding (repro-derived, since CONFIRMED on the real component):** the correct restore target is *whatever
+  components are live on the actor at revert time* (not "the master" vs "the sub-parts") — one revert handled a master +
+  master-posed sub-part with different dispositions; the restore must NOT survive the character system's next
+  re-assertion (yielding the slot IS correct). Limits (untested rather than known-broken): per-actor only (sub-parts on
+  a *different* actor are out of reach); a swept successor can only be default-reset.
   **Gates G1–G5 all GREEN in a LOCAL PACKAGE** (`Builds\MidRepro`, headless via WS): immediate + after-churn revert
   clean; `revert_all` clean; guard leaves a game-re-asserted MID untouched; **regression byte-identical on plain
   static/skeletal content incl. a real game MID**; targeted capture reverts within every burst (verified at pixel
@@ -51,13 +80,9 @@ and is the single source of truth for the project.
   `fix(missing-texture)` commit + tag `m17`, pushed (pushed BEFORE the Concorde test on purpose: the fix must reach
   the office box via GitHub before the real component can be exercised). Comment stripper run pre-commit: 0 changed /
   59 no-change. → `docs/sessions/2026-07-15-023-m17-missing-texture-revert.md`.
-- **OPEN — found while validating m17, PRE-EXISTING and NOT m17 (affects EVERY anomaly + every delivered dataset):**
-  a **1-frame label/pixel misalignment at both burst boundaries** (17/100 frames in the default config, perfectly
-  periodic at the burst stride). `AnomalyCaptureSubsystem::Tick` does `CaptureCurrentFrame(); --PhaseFramesLeft;` and
-  then `BeginFire()`/`BeginRevert()` **in the same tick**, so the last lead-in/post-gap frame is labeled clean but
-  renders the anomaly (**contaminated negative**), and the last positive frame renders clean but is labeled positive
-  (**false positive**). Fix shape (own milestone + gates): do the phase transition at the TOP of the tick, before
-  `CaptureCurrentFrame()`. Same class of silent contamination as m17 — recommend prioritising with m18.
+- *(The burst-boundary label misalignment found while validating m17 is now **m18**, above — built this session,
+  awaiting review. Note the fix landed on the label-stamp timing, NOT on the phase transition: the anomalies already
+  fire at the right time.)*
 - **DEFERRED to m18 (diagnosed + locally reproduced, NOT started): packaged black dashboard preview.** Title-independent
   (repros on local StackOBot package). The preview's `FViewport::ReadPixels` reads a game-viewport render target that
   **does not exist in a package** (packaged viewports render straight to the swapchain; `GetRenderTargetTexture()` is
@@ -391,8 +416,9 @@ and is the single source of truth for the project.
   (`…-017`) tagged `m11`**; **client delivery mode (`…-018`) tagged `m12`**; **confirmation-bounded dashboard optimism
   (`…-019`, AnomDash, no tag)**; **content-clock-aware fps stamp (`…-020`) tagged `m14`**; **content-clock default → wall
   (`…-021`) tagged `m15`**; **three capture-delivery fixes (`…-022`) tagged `m16`** (`84dfa52`);
-  **missing_texture revert hardening (`…-023`) tagged `m17`** (validated on the local repro; Concorde confirmation
-  pending — see G77).
+  **missing_texture revert hardening (`…-023`) tagged `m17`** (`e2c6dd2`; validated on the local repro **and confirmed
+  on Concorde's real `FWMasterSkeletalMeshComponent`**, immediate + churn — G77 closed); **burst-boundary label
+  alignment (`…-024`) = m18, BUILT + package-gated, NOT yet committed/tagged**.
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

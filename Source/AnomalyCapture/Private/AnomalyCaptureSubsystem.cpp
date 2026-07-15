@@ -324,6 +324,8 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 	default:
 		break;
 	}
+
+	FinalizeArmedLabel();
 #endif
 }
 
@@ -919,18 +921,6 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			Snap.TimeSeconds = World ? World->GetTimeSeconds() : 0.0;
 			Snap.NearClip = GNearClippingPlane;
 			Snap.View = ProjView;
-			if (const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
-			{
-				Snap.Fires = Auto->GetLiveFires();
-			}
-			Snap.FireHidden.Reserve(Snap.Fires.Num());
-			Snap.FirePos.Reserve(Snap.Fires.Num());
-			for (const FAutoLiveFireInfo& F : Snap.Fires)
-			{
-				const AActor* FActor = F.TargetActor.Get();
-				Snap.FireHidden.Add((FActor && FActor->IsHidden()) ? 1 : 0);
-				Snap.FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
-			}
 			if (FirstFrameTimeSeconds < 0.0)
 			{
 				FirstFrameTimeSeconds = Snap.TimeSeconds;
@@ -940,6 +930,8 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			StampArmWallClock(Snap.WallSeconds);
 			Async->PendingSnapshots.Add(Snap.FrameCounter, MoveTemp(Snap));
 			Async->Capturer->ArmForCapture(GFrameCounter, TargetWindow, CaptureRect);
+			ArmedLabelFrameId = GFrameCounter;
+			bHasArmedLabel = true;
 			++SessionFrameIndex;
 			CheckEarlyPacingWarning();
 			return;
@@ -988,6 +980,40 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			++PositiveFramesWritten;
 		}
 		CheckEarlyPacingWarning();
+	}
+}
+
+void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
+{
+	if (!bHasArmedLabel)
+	{
+		return;
+	}
+	bHasArmedLabel = false;
+
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(ArmedLabelFrameId);
+	if (!Snap)
+	{
+		return;
+	}
+
+	if (const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
+	{
+		Snap->Fires = Auto->GetLiveFires();
+	}
+	Snap->FireHidden.Reset();
+	Snap->FirePos.Reset();
+	Snap->FireHidden.Reserve(Snap->Fires.Num());
+	Snap->FirePos.Reserve(Snap->Fires.Num());
+	for (const FAutoLiveFireInfo& F : Snap->Fires)
+	{
+		const AActor* FActor = F.TargetActor.Get();
+		Snap->FireHidden.Add((FActor && FActor->IsHidden()) ? 1 : 0);
+		Snap->FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 	}
 }
 

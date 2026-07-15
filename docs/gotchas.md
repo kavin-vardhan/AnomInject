@@ -1000,17 +1000,27 @@ sends ALL WS messages as BINARY frames (opcode 2), JSON included — classify by
 opcode. Iterative cook + an exe hot-swap into the archived build makes the edit→validate loop ~1 minute. (2026-07-15.)
 
 
-### G77 — OPEN (m17): the modular merged-proxy case is NOT yet confirmed on Concorde; where to look if it bites
+### G77 — CLOSED/CONFIRMED (m17): the slot reset HOLDS on a real modular merged-proxy; the map below is now regression-history
 
-m17's revert hardening (G74/G75) is **validated on a local StackOBot repro** of the mechanism — runtime-MID staleness and
+**STATUS: CONFIRMED on the real title — closed 2026-07-15 (was OPEN for ~1 day).** The owner pulled + rebuilt `m17` on the
+office box and ran `missing_texture` apply → revert on Concorde's **actual `FWMasterSkeletalMeshComponent`**: the body reverts
+clean, both for an **immediate** revert and for the **CHURN** case (apply → ~30 s of play, letting the character system
+re-create the body component mid-hold → revert) — the case that previously left the hand stuck. **The slot reset STICKS on the
+real merged/master-pose proxy: the character system does not re-assert the checker back and does not leave it stuck.** So the
+lesson of G74/G75 is validated on a real runtime-assembled modular character, not only on the model — and outcomes 2 and 3
+below **did not occur**; they are kept as a diagnostic map in case a FUTURE title regresses this way. (The owner's report is
+behavioral; which branch fired — `restored` vs `swept` — is readable from the revert log counters if ever needed.)
+
+m17's revert hardening (G74/G75) was first **validated on a local StackOBot repro** of the mechanism — runtime-MID staleness and
 component re-creation, reproduced in a package via the test-only `MidReproActor` (`D:\IntrusiveAnomalies\StackOBot\Source\
-StackOBot\MidReproActor.{h,cpp}`, project game module, deliberately NOT in this repo; console `SOB.MidRepro.*`). It is
-**NOT confirmed on Concorde's real `FWMasterSkeletalMeshComponent`** — a custom, runtime-assembled merged/master-pose proxy.
-The open question: does our slot reset **STICK** on that proxy, or does the character system **re-assert over it** on its next
+StackOBot\MidReproActor.{h,cpp}`, project game module, deliberately NOT in this repo; console `SOB.MidRepro.*`). At the time it
+was **not yet confirmed on Concorde's real `FWMasterSkeletalMeshComponent`** — a custom, runtime-assembled merged/master-pose
+proxy — which is why the map below was written. The question then open (**now answered: the reset sticks**): does our slot reset
+**STICK** on that proxy, or does the character system **re-assert over it** on its next
 update? Repro Mode 3 (master + master-posed sub-part, sub-part rebuilt while the master re-asserts) says one revert reaches
-both, because the fix enumerates the actor's components **at revert time** rather than trusting the captured set — but a
-foreign proxy type may not behave like the model. **If Concorde still shows corruption after m17, read the new revert log line
-first** (`restored=/default-reset=/left-to-game=/unresolved=/swept=/re-found=`) — it now names the branch that fired:
+both, because the fix enumerates the actor's components **at revert time** rather than trusting the captured set — and the real
+proxy has now been shown to behave like the model. **If a title ever shows this corruption again, read the revert log line
+first** (`restored=/default-reset=/left-to-game=/unresolved=/swept=/re-found=`) — it names the branch that fired:
 - `swept>0` and the hand clears → working as designed.
 - The system re-asserts the **checker** back after our revert → the proxy rebuilt from a state snapshot taken BEFORE the
   revert. This is a TIMING problem (re-check after the system's next assertion, or reset on the driven sub-component instead
@@ -1021,4 +1031,54 @@ first** (`restored=/default-reset=/left-to-game=/unresolved=/swept=/re-found=`) 
   point that decides which live components we may touch — and possibly targeting upstream
   (`AnomalyLod::ResolveLodComponents` → `AnomalyTargeting::FindComponentsMatching<T>` is per-actor, so a sub-part owned by a
   DIFFERENT actor is never captured at all). Not the captured-slot list, which by construction only knows Apply-time components.
-(2026-07-15; close this entry once the owner's office-box Concorde test reports.)
+(2026-07-15. Opened when m17 shipped repro-validated; **CLOSED the same day** — the owner's office-box Concorde test confirmed
+the reset holds on the real `FWMasterSkeletalMeshComponent`, immediate and after ~30 s churn. Retained as a regression map.)
+
+
+### G78 — the async label stamp must describe END-OF-TICK state; the label span sat one frame LATE at burst boundaries (m18)
+
+**ROOT CAUSE, STATED FOR THE RECORD: an intra-tick ATTRIBUTION off-by-one at the span boundary — NOT a render-thread-lag
+inconsistency.** The label's fire state was sampled at a point in `Tick` BEFORE the `BeginFire()`/`BeginRevert()` whose
+effect the SAME frame's render includes, so the boundary frame was attributed the PRE-change state. It has nothing to do
+with the label side "failing to apply the 1-frame lag that ViewLagFrames=0 applies": **L=0 applies no compensation** — it
+means "use the view sampled this tick", which is correct on sync only because that view already IS the previous frame's
+camera (a natural lag, not an applied one). The fix required **no lag arithmetic whatsoever**; the rule is purely
+intra-tick — *the label must describe the state the frame renders, i.e. the end-of-tick world*. Do not re-tell this bug
+as a render-lag story; that story is what sent the first fix attempt in the wrong direction (see below).
+
+**The two capture paths grab DIFFERENT frames, and only one of them pairs with an arm-time label stamp.** Sync
+(`CaptureLabeledShot` → `FViewport::ReadPixels`) returns the **previously presented** frame N-1 — that is the whole basis of
+the validated L=0 derivation (G41: "exactly the view that rendered the ReadPixels frame; the two 1-frame lags cancel"). The
+async backbuffer grab (`FAnomalyFrameCapturer`, the default since the Stage-1 capture work) returns the render of the **arm
+tick itself** (frame N). Nothing downstream was re-derived for that shift — G41 even flags the `IAI.Capture.ViewLag` knob as
+being "for the future async path", and that re-derivation never happened.
+
+**Symptom (measured, packaged StackOBot, default burst config):** `CaptureCurrentFrame()` samples the label from
+`Auto->GetLiveFires()` at mid-tick N, then the phase machine calls `BeginFire()`/`BeginRevert()` LATER IN THE SAME `Tick`.
+So the frame armed on a transition tick renders the POST-transition world while its label describes the PRE-transition one.
+The label's positive span ran one frame LATE at BOTH boundaries: pixels positive on [3..10], labels positive on [4..11].
+- **Fire edge** — last lead-in/post-gap frame: labeled clean, pixels already anomalous = **false negative / contaminated
+  negative** (the dangerous one: a "clean" training example containing the bug).
+- **Revert edge** — last positive frame: labeled positive, pixels already clean = **false positive**.
+Exactly 1 frame per boundary; steady-state fraction **2 / (PositiveFrames + PostFrames)** = **16.7%** at defaults (17/100
+measured, 9 FN + 8 FP over 8 bursts). Independent of SettleFrames (settle ticks capture nothing) and of PreFrames.
+**The direction is counter-intuitive** — the instinct is "the render thread lags, so pixels change one frame later, so the
+label is early". That is WRONG here and was explicitly refuted: a state change made at the end of tick N lands in frame N's
+OWN render; the render thread's lag is a THREAD lag, not a state lag. The label was LATE, not early, so the span had to move
+one frame EARLIER. Always settle this direction with pixels (`align_check.py`), never by reasoning about thread lag.
+
+**Fix (m18):** the async path arms + stores the snapshot WITHOUT the fire state; `FinalizeArmedLabel()` — the last statement
+of `Tick`, after the phase switch — fills in `Fires`/`FireHidden`/`FirePos` from the post-transition world. Because
+`anomaly_present`, the per-anomaly bbox/`bbox_valid`, `AffectedFrames` (non-hide `frame_indices`) and `HiddenIndices`
+(hide-type `frame_indices`) ALL derive from that one sample, both anomaly families and `visible_positive` shift coherently
+with no per-family special-casing. Sync is untouched (already correct). Phase timing and settle-K are byte-unchanged — the
+captured frame cadence is identical pre/post fix, only the labels move. **Do NOT "fix" this by shifting the phase transition
+or by index-arithmetic on the span**: the former changes when anomalies fire (they fire at the right time already), and the
+latter would break the sync path, whose arm-time stamp is correct.
+
+**Still open after m18:** the VIEW half of the same async shift (bbox projected with camera N-1 against pixels from camera N)
+is untouched and predicted to be one frame stale under camera motion — the m18 scene has a static camera, so it could not be
+measured. If it is confirmed, `IAI.Capture.ViewLag` is the knob G41 reserved for exactly this. Related, also unfixed: the
+per-frame bbox is projected from the target's LIVE bounds at record-build time (`BuildFrameLabelRecord` →
+`ProjectActorBoundsToScreenRect(View, Actor)`), which on the async path is several ticks after the arm — harmless for a
+static target, wrong for a moving one. (2026-07-15.)
