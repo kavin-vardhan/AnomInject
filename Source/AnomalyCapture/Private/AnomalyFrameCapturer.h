@@ -41,6 +41,7 @@ private:
 		uint64 RequestId = 0;
 		SWindow* Window = nullptr;
 		FIntRect Rect;
+		uint32 RegisteredRtFrame = 0;
 	};
 
 	struct FInFlight

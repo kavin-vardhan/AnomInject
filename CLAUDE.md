@@ -15,7 +15,32 @@ and is the single source of truth for the project.
   first-smoke-test bugs (packaged black preview; missing_texture stuck revert) were invisible in PIE. A package runs
   fully headless: `StackOBot.exe -windowed -ExecCmds="IAI.Server.Start, ..."` + the control server's own WS surface as
   the driver; iterative cook + exe hot-swap = ~1 min edit→validate loop. See **G76**.
-- **IN FLIGHT (built this session, NOT yet committed/tagged; on top of `m19` `c8aa3fa`): m20 — annotation.json labeling.**
+- **IN FLIGHT (built this session, NOT yet committed/tagged; on top of `m20` `c01a214`): m21 — deterministic
+  arm→present pairing (the REAL root of the "−1 frame shift").** The owner's −1 (annotation/labels one earlier than
+  pixels) was **not delivery mode and not content clock** — both refuted by A/B + code (the clock only reaches the fps
+  stamp; the dev box was already running WALL: no `[AnomalyCapture]` ini section, engine default Wall since m15). And
+  it was never an annotation bug: **labels.jsonl shifts too.** **Real variable = the rate regime:** paced+sustainable
+  (`speed_ratio`≈1) = exact; starved (ratio≫1) OR pace-off (ratio 0.38, running FAST) = content lags index by one —
+  the m11 pacer's sleep was the only thing making the old pairing correct, and every m18/m19/m20 validation ran in
+  that one masking regime. **Measured (STEP 1):** arm-id→consume-rtframe delta = d=2 (99%) at ratio≈1, d=1 (100%)
+  starved/pace-off, **MIXED 88/12 within one starved run** → no fixed delta exists; pairing must be by identity/order.
+  **Fix (~18 lines, `AnomalyFrameCapturer.{h,cpp}` only):** arm registration now rides the render-thread command
+  stream (`ENQUEUE_RENDER_COMMAND`, weak-ptr guarded) → FIFO-ordered after present(N−1), before present(N) → "next
+  present wins" deterministic in every regime; `armRt` telemetry added to the armed-frame log. Preview tee inherits
+  (shared class). **Post-fix:** pace-off **FIXED** (0/100, was −1); ratio 1.05 exact; ratio≈1 byte-identical
+  (pattern/cadence match m20); pairing telemetry `consume−armRt=0` 100/100 even at ratio 3–5. **⚠ RESIDUAL EXPOSED
+  (open → proposed m22): under DEEP starvation (ratio≳3) the presented backbuffer can carry a STALE SCENE** — a
+  one-time mid-run event permanently shifts content −1 (missing_texture) while pairing stays perfect, and
+  render-STATE changes are worse: an 8-tick hide window (game-state-proven via annotation) **never appeared in any
+  presented frame** (blinking@240, visually confirmed). No arm-side pairing can fix content the present never
+  contained → m22 = scene-identity marker (the Stage-3 SVE; publishes which tick's scene each present carries) + the
+  slip/hide-propagation investigation. **SHIP RULE (per-session self-check, works today):**
+  `run_summary.speed_ratio ≤ ~1.05 & paced` → trust; `> ~1.05` → lower `IAI.Capture.Fps`, re-capture; audit delivered
+  sessions for ratio > 1.02. Honest gates: G2/G3/G4/G6(ratio≈1) GREEN; **G1/G5 (deep starve) NOT green** — improved
+  but residual, deferred with evidence. G82. **NO COMMIT this turn.**
+  → `docs/sessions/2026-07-15-027-m21-arm-present-pairing.md`.
+- **Latest milestone (as-built): m20 — annotation.json labeling — COMPLETE (commit `c01a214`, tagged `m20`, pushed)
+  (2026-07-15).**
   Three reported annotation bugs; measured against PIXEL ground truth in a package. **One was NOT a bug and two had
   different mechanisms than first diagnosed** — the fixes below are what the evidence supports (the brief's own
   pixel-exact gates are what prove it). **Bug A (missing_texture range shifted one earlier) = NOT A BUG, no code change.**
@@ -49,7 +74,10 @@ and is the single source of truth for the project.
   class can't recur; deferred post-delivery (touches the m18-validated path). *Note: annotation + labels already share one
   snapshot and one accumulator, so the drift risk is lower than feared — it's an emit-layer consolidation.* **ALSO PARKED
   (found, unapproved): `frame_count` is a SPAN not a count** (`End-Start+1`, AnomalyLabelWriter.cpp:349) — measured 7 vs 4
-  indices for gapped hide-type sets; ships in the client deliverable; owner decision. G81. **NO COMMIT this turn.**
+  indices for gapped hide-type sets; ships in the client deliverable; owner decision. G81. **SHIPPED** — one
+  `fix(capture)` commit `c01a214` + tag `m20`, pushed; dashboard untouched. *(Post-ship: the "Bug A" question was
+  pursued through two more owner hypotheses — delivery mode, then content clock — both refuted; the real root is the
+  m21 arm→present pairing race above, which also explains why the owner's box showed −1 while this box did not.)*
   → `docs/sessions/2026-07-15-026-m20-annotation-labeling.md`.
 - **Latest milestone (as-built): m19 — preview backbuffer tee + targeting defaults — COMPLETE (commit `c8aa3fa`, tagged
   `m19`, pushed) (2026-07-15).**
@@ -503,8 +531,9 @@ and is the single source of truth for the project.
   **missing_texture revert hardening (`…-023`) tagged `m17`** (`e2c6dd2`; validated on the local repro **and confirmed
   on Concorde's real `FWMasterSkeletalMeshComponent`**, immediate + churn — G77 closed); **burst-boundary label
   alignment (`…-024`) tagged `m18`** (`4559c8c`); **preview backbuffer tee + targeting defaults (`…-025`) tagged `m19`**
-  (`c8aa3fa`; G3/PIE + Concorde format = owner post-push checks); **annotation.json labeling (`…-026`) = m20, BUILT +
-  package-gated, NOT yet committed/tagged** (Bug A = not-a-bug, 0-vs-1-based question OPEN for the owner).
+  (`c8aa3fa`; G3/PIE + Concorde format = owner post-push checks); **annotation.json labeling (`…-026`) tagged `m20`**
+  (`c01a214`); **deterministic arm→present pairing (`…-027`) = m21, BUILT + package-gated, NOT yet committed/tagged**
+  (fixes the −1 in pace-off + mild-overrun regimes; deep-starvation residual → proposed m22 scene-identity marker).
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

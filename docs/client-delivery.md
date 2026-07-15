@@ -5,6 +5,58 @@ own build. There is no post-processing step between the client's capture and the
 capture writes to disk IS what the client receives.** Delivery mode limits a run's output to only the
 client-facing files.
 
+---
+
+## ⛔ THE SHIP RULE — check `speed_ratio` before delivering ANY session (m21, HARD GATE)
+
+**Label correctness is RATE-DEPENDENT. `run_summary.json`'s `speed_ratio` is the per-session trust check —
+read it before every delivery.**
+
+| `speed_ratio` (with `paced: true`) | Verdict |
+|---|---|
+| **≤ ~1.05** | ✅ **SAFE TO DELIVER** — frame-exact (proven at 1.000 and 1.052: labels/annotation match the pixels 0/100 mismatches) |
+| **≳ 1.1** | ⛔ **DO NOT SHIP.** Lower `IAI.Capture.Fps` until the run sustains ≈ 1.0, then **re-capture**. |
+
+**Keep pacing ON** (`IAI.Capture.Pace 1`, the default) — it is what makes real-time (wall-clock) client content
+play at the correct speed (m11). *(Pace-off no longer corrupts labels as of m21, but it still produces
+wrong-speed video for wall-clock titles.)*
+
+**Why:** a capture run that cannot sustain its target rate starves the render thread, and the presented backbuffer
+starts carrying a **stale scene** — the pixels lag their own frame index. m21 made the arm→present pairing
+deterministic (fixing the pace-off and mild-overrun cases outright), but under **deep starvation (ratio ≳ 3)** the
+GPU presents stale content and **no arm-side fix can repair pixels the present never contained** — see the known
+limitation below. A starved session is silently mislabeled, which is exactly the contamination this whole
+delivery path exists to prevent.
+
+**Audit already-delivered sessions:** any session whose `run_summary.json` shows `speed_ratio > 1.02` carries
+shifted labels and should be re-checked or re-captured. The field has shipped in `run_summary.json` since m11, so
+this is checkable retroactively on every session ever delivered.
+
+**Also see:** `capture-fps.md` (the two-clock model and how to pick a sustainable `IAI.Capture.Fps`).
+
+---
+
+## ⚠ KNOWN LIMITATION — deep starvation presents a stale scene (ratio ≳ 3; tracked for m22)
+
+Under deep starvation the defect is **below** the capture layer and is NOT a labeling bug:
+- **Materials** (e.g. `missing_texture`): a one-time mid-run slip leaves the presented content one frame behind
+  its index for the rest of the run — while the arm→present pairing telemetry stays *perfect* (0 drift, 100/100).
+- **Render-state changes** (e.g. `blinking`'s `SetActorHiddenInGame`): can fail to appear in **any** presented
+  frame at all. Measured at ratio 3.2: an 8-tick hide window, game-state-proven via the annotation, never showed
+  up in a single pixel.
+- Staleness is therefore **change-type-dependent**, which no arm-side pairing can fix.
+
+**Mitigation today:** the ship rule above — never deliver a session with `speed_ratio ≳ 1.1`.
+**Fix:** m22 — a scene-identity marker (minimal SVE) that publishes which tick's scene each present carries, so a
+frame can be *marked* rather than mislabeled when the present is stale.
+
+**Two theories that were investigated and REFUTED — do not re-chase them:**
+- **Delivery mode** is NOT a variable: full-fidelity vs delivery A/B on the same scene were both frame-exact.
+  `bDeliveryMode` gates only `run.json`, the label-record write and a `run_summary` flag.
+- **Content clock (wall vs game)** is NOT a variable: `ContentClock` only ever reaches the fps *stamp*
+  (`LastRunPacing.StampedFps`); frame indices are a plain counter. game@240 and wall@240 both shift; game@30 and
+  wall@30 are both exact. The variable is **`speed_ratio`**, nothing else. (G82.)
+
 ## What delivery mode does
 
 `IAI.Capture.Delivery 1` (or the packaged default below) makes each capture run write **only**:

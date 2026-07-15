@@ -167,6 +167,14 @@ with the one-sided rule above.
 
 ## Operational guidance
 
+- **⛔ `speed_ratio` IS A DELIVERY GATE, not just an fps-stamp input (m21).** Since m21, **label correctness is
+  rate-dependent**: a run that cannot sustain its target starves the render thread, and the presented backbuffer
+  begins carrying a **stale scene** — the pixels lag their own frame index, so labels/annotation are silently
+  shifted. **`speed_ratio ≤ ~1.05` with `paced: true` → frame-exact and safe to deliver (proven at 1.000 and
+  1.052). `speed_ratio ≳ 1.1` → DO NOT SHIP: lower `IAI.Capture.Fps` until it sustains ≈ 1.0 and re-capture.**
+  Deep starvation (ratio ≳ 3) is a known, unfixed residual — see **`client-delivery.md` → "THE SHIP RULE"** for
+  the full rule and the m22 plan. So "choose an fps the box sustains" (below) is no longer only about honest
+  video speed — it now decides whether the **labels** are true at all.
 - **Wall-clock capture takes `frames / sustained_fps`, NOT `frames / VideoFps`.** Pacing holds each
   frame to *at least* `1/VideoFps` of wall time — it cannot speed a slow box UP, only slow a fast one
   down to real time. On a box that sustains below the target the run takes longer in wall time (and

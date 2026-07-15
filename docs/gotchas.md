@@ -1215,3 +1215,40 @@ pre-m18 the range ran one LATE, which accidentally matched a 1-based reading; m1
 that reading.** Shifting it would re-introduce the m18 bug in the client deliverable. **Before treating any frame-index
 report as a shift, ask which artifact the "actual" came from, and settle it by opening the two candidate PNGs.**
 (2026-07-15.)
+
+
+### G82 — "next present wins" is a race: arm→present pairing must ride the render command stream; and ratio≈1 masks everything (m21)
+
+**The "-1 frame shift" (labels/annotation reading one earlier than the pixels) was never delivery-mode (refuted),
+never content-clock (refuted — the clock only touches the fps stamp, and the dev box was already running wall), and
+never an annotation bug (labels.jsonl shifts too). The variable is the CAPTURE RATE REGIME:** paced at a sustainable
+rate (speed_ratio ~ 1) = frame-exact; rate-starved (ratio >> 1) OR pacing off (even ratio < 1, running FAST) = every
+file's content lags its index by one.
+
+**Root:** `ArmForCapture` added the arm to `PendingArms` directly on the GAME thread at a wall-clock moment, and the
+backbuffer hook consumed the head arm at whatever present came next in wall-clock time. When the m11 pacer sleeps
+(ratio~1), the render thread drains during the sleep and presents N-1 BEFORE the arm -> the next present is N ->
+correct; that sleep was the only thing making the pairing right. Without it, present(N-1) fires after the arm ->
+consumed one early. **Measured:** the arm-id -> consume-rtframe delta is d=2 (99%) at ratio~1, d=1 (100%) starved or
+pace-off, and MIXES 88/12 within a single starved run -> no fixed-delta rule can ever pair these.
+
+**Fix (m21):** registration is enqueued via ENQUEUE_RENDER_COMMAND, so it is FIFO-ordered after present(N-1)'s
+broadcast (enqueued tick N-1) and before present(N)'s (enqueued end of tick N). "Next present wins" becomes
+deterministic in every regime. Telemetry (`armRt` at registration vs `rtframe` at consume, printed in the armed-frame
+log) proves it: consume-armRt = 0 for 100/100 frames even at ratio 3-5. Post-fix: pace-off and mild overrun
+(ratio <= ~1.05) are frame-exact (0/100, previously -1); ratio~1 byte-identical.
+
+**THE DEEPER RESIDUAL THE FIX EXPOSED (open, m22):** under DEEP starvation (ratio >~ 3) the presented backbuffer can
+carry a STALE SCENE — a one-time mid-run event permanently shifts presented content one frame behind its index while
+the pairing telemetry stays perfect; and render-STATE changes propagate even worse than material changes (an 8-tick
+SetActorHiddenInGame window, game-state-proven by the annotation, never appeared in ANY presented frame). No arm-side
+pairing can repair content the present never contained; the fix needs a scene-identity marker (the Stage-3 SVE) that
+publishes which tick's scene each present carries. Until then: **deep-starved captures are unreliable and
+self-identifying — `run_summary.speed_ratio > ~1.05 means do not ship the session; lower IAI.Capture.Fps and
+re-capture.**
+
+**Standing validation lesson:** capture-correctness gates must run ACROSS RATIO REGIMES (starved and pace-off, not
+just ratio~1) — every m18/m19/m20 validation ran paced+sustainable, the one regime where this whole bug class is
+invisible. And when a frame-pairing bug is suspected, settle the direction with PIXELS decoded from the files
+(align_check/mode_audit), never by reasoning about thread lag; this is the third time the pixel check overturned a
+plausible story. (2026-07-15.)

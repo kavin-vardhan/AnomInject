@@ -48,8 +48,22 @@ void FAnomalyFrameCapturer::UnregisterBackbufferHook()
 
 void FAnomalyFrameCapturer::ArmForCapture(uint64 RequestId, SWindow* TargetWindow, const FIntRect& CaptureRect)
 {
-	FScopeLock Lock(&StateCS);
-	PendingArms.Add(FArm{ RequestId, TargetWindow, CaptureRect });
+	TWeakPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> WeakSelf = AsShared();
+	FArm Arm;
+	Arm.RequestId = RequestId;
+	Arm.Window = TargetWindow;
+	Arm.Rect = CaptureRect;
+
+	ENQUEUE_RENDER_COMMAND(AnomalyCaptureArmRegister)(
+		[WeakSelf, Arm](FRHICommandListImmediate&) mutable
+		{
+			if (TSharedPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> Self = WeakSelf.Pin())
+			{
+				Arm.RegisteredRtFrame = GFrameNumberRenderThread;
+				FScopeLock Lock(&Self->StateCS);
+				Self->PendingArms.Add(Arm);
+			}
+		});
 }
 
 int32 FAnomalyFrameCapturer::NumPendingApprox() const
@@ -105,8 +119,8 @@ void FAnomalyFrameCapturer::OnBackBufferReadyToPresent_RenderThread(SWindow& Sla
 	InFlight.Add(MoveTemp(Item));
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Capture(async): armed frame id=%llu submitted (rtframe=%u, fmt=%d, rect=%dx%d)."),
-		Arm.RequestId, GFrameNumberRenderThread, (int32)Item.Format, Rect.Width(), Rect.Height());
+		TEXT("Capture(async): armed frame id=%llu submitted (rtframe=%u, armRt=%u, fmt=%d, rect=%dx%d)."),
+		Arm.RequestId, GFrameNumberRenderThread, Arm.RegisteredRtFrame, (int32)Item.Format, Rect.Width(), Rect.Height());
 }
 
 void FAnomalyFrameCapturer::EnqueueDrain()
