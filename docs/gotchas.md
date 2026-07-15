@@ -1175,3 +1175,43 @@ OFF, so each cull is isolated):**
 - A non-zero *default* does **not** register the dev debug sphere: registration only happens inside `SetPollRadius` on an
   OFF→ON transition. Good for client builds (no wireframe sphere), but it means the sphere no longer appears for the
   owner unless the slider is taken to 0 and back. (2026-07-15.)
+
+
+### G81 — a hide-type anomaly that ticks ITSELF is sampled one game tick stale; and never count transitions in arrival order (m20)
+
+**Two distinct defects in annotation.json's hide-type data, plus one non-bug worth not "fixing".**
+
+**(1) Self-ticking hide state was ONE GAME TICK STALE.** m18 samples the label at the end of the CAPTURE subsystem's
+Tick (G78). That is correct for state changed by `Apply`/`Revert`, because those run inside our own Tick
+(`BeginFire`/`BeginRevert`) — which is why `missing_object` was always right (m18 G3: 0/100). It is WRONG for an
+anomaly that toggles in its OWN tick: `blinking` is ticked by the INJECTOR subsystem
+(`AnomalyInjectorSubsystem.cpp:169-173`), a *different* `UTickableWorldSubsystem` that ticks AFTER us, so `IsHidden()`
+at our sample point still holds the previous frame's value while the frame renders with the new one. Measured:
+`annotation(gframe G) == pixels(gframe G-1)` on EVERY blink edge, every burst (`{4,5,6,10}` recorded vs `{4,5,9,10}`
+rendered). At a burst tail this reads as "the last hidden frame is missing" — it is not a tail clip and **there is no
+range end to fix**: `frame_indices` is emitted verbatim (`AnomalyLabelWriter.cpp:345-355`). **Rule: any state a foreign
+system mutates must be sampled AFTER every subsystem has ticked — i.e. at the top of the NEXT tick, not at the end of
+ours.** m20 defers only the hidden sample (`SampleDeferredHidden()`), which is safe precisely because `FireHidden`
+never reaches labels.jsonl — it feeds only annotation's hidden set + transition count. Check that property before
+moving any other sample.
+
+**(2) Transition counting was ORDER-DEPENDENT → spurious "flicker".** `Transitions` was accumulated incrementally via
+`LastHidden` in ARRIVAL order, but frames do not arrive in session order: `Drain_RenderThread` iterates `InFlight` in
+REVERSE (`AnomalyFrameCapturer.cpp:128` → `:164`) while `PopCompleted` is FIFO (`:184`), so any drain with >=2 ready
+frames (routine at DrainTail / under hitches) delivers them newest-first and invents transitions. **Rule: never derive
+an ORDER-SENSITIVE statistic during async accumulation.** m20 stores `TMap<int32,uint8> HiddenByIndex` and derives both
+the hidden set and the transition count from the SORTED keys at write time. NB the reported "single vanish → flicker"
+did not reproduce locally: `DefaultHz = 5.0f` (6-frame period) means the default 8-frame positive window genuinely
+holds ~2 hidden blocks, so "flicker" is CORRECT there — measure the blink rate against the window before calling it a
+misclassification.
+
+**(3) THE NON-BUG: annotation.json frame indices are 0-BASED and were already pixel-exact.** A reported "whole-range
+shift one earlier" for missing_texture did NOT reproduce: annotation `[3..10]` == pixels == labels, zero disagreement,
+and annotation index 3 <-> `frame_00003.png` <-> visibly corrupted. annotation and labels.jsonl are NOT separate paths
+— `BuildLabelRecordForSnapshot` and `AccumulateFrameEvents` are ADJACENT LINES (`AnomalyCaptureSubsystem.cpp:800`,
+`:802`) fed by the SAME m18-corrected snapshot. The whole pipeline is 0-based (`frame_%05d.png`; encode_watcher.py
+docstring :17-18), so a 1-based video player displays index 15 as "frame 16" = exactly the reported +1. **The tell:
+pre-m18 the range ran one LATE, which accidentally matched a 1-based reading; m18 made it 0-based-exact and "broke"
+that reading.** Shifting it would re-introduce the m18 bug in the client deliverable. **Before treating any frame-index
+report as a shift, ask which artifact the "actual" came from, and settle it by opening the two candidate PNGs.**
+(2026-07-15.)

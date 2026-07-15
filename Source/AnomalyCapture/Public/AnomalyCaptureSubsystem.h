@@ -101,6 +101,7 @@ private:
 	void BeginRevert();
 	void CaptureCurrentFrame();
 	void FinalizeArmedLabel();
+	void SampleDeferredHidden();
 	void FinishRun(bool bLogLine);
 	void PaceThisTick();
 	void StampArmWallClock(double NowWall);
@@ -142,6 +143,8 @@ private:
 
 	uint64 ArmedLabelFrameId = 0;
 	bool bHasArmedLabel = false;
+	uint64 DeferredHiddenFrameId = 0;
+	bool bHasDeferredHidden = false;
 
 	FName TargetAnomalyId = NAME_None;
 	FString TargetActorName;

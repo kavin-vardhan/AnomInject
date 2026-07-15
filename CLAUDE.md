@@ -15,7 +15,44 @@ and is the single source of truth for the project.
   first-smoke-test bugs (packaged black preview; missing_texture stuck revert) were invisible in PIE. A package runs
   fully headless: `StackOBot.exe -windowed -ExecCmds="IAI.Server.Start, ..."` + the control server's own WS surface as
   the driver; iterative cook + exe hot-swap = ~1 min edit→validate loop. See **G76**.
-- **IN FLIGHT (built this session, NOT yet committed/tagged; on top of `m18` `4559c8c`): m19 — preview backbuffer tee.**
+- **IN FLIGHT (built this session, NOT yet committed/tagged; on top of `m19` `c8aa3fa`): m20 — annotation.json labeling.**
+  Three reported annotation bugs; measured against PIXEL ground truth in a package. **One was NOT a bug and two had
+  different mechanisms than first diagnosed** — the fixes below are what the evidence supports (the brief's own
+  pixel-exact gates are what prove it). **Bug A (missing_texture range shifted one earlier) = NOT A BUG, no code change.**
+  annotation is NOT a separate path from labels.jsonl: `BuildLabelRecordForSnapshot` (:800) and `AccumulateFrameEvents`
+  (:802) are ADJACENT LINES fed by the SAME m18-corrected `Snap`. Measured: annotation `[3..10]` == pixels == labels, zero
+  disagreement; index 3 ↔ `frame_00003.png` ↔ visibly checkered. **Cause of the field report = 0-BASED vs 1-BASED
+  numbering** (pipeline is 0-based, `frame_%05d.png` + encode_watcher :17-18; a 1-based player shows index 15 as "frame
+  16" = the exact reported +1). **The tell: pre-m18 the range ran one LATE and accidentally matched a 1-based read; m18
+  made it 0-based-exact and "broke" that read.** Shifting +1 would RE-INTRODUCE the m18 bug in the client deliverable →
+  **OPEN owner question (blocks any change): which artifact was "actual 16..20" read from? Decisive test = open
+  frame_00015.png vs frame_00016.png; the first corrupted one IS start_frame.** If the client's tooling is 1-based that's
+  a SPEC change (all indices + docs + slicer contract), never a sample shift. **Bug B (blinking "tail clip") = blinking's
+  hidden state was ONE GAME TICK STALE** — there is no range end to fix (`frame_indices` is emitted verbatim,
+  AnomalyLabelWriter.cpp:345-355). Measured `annotation(G) == pixels(G-1)` on every blink edge: blinking toggles in the
+  INJECTOR's tick (AnomalyInjectorSubsystem.cpp:169-173), a different tickable running AFTER capture, so m18's
+  end-of-our-Tick sample predates it. (`missing_object` immune — hides in `Apply` inside our Tick. ⇒ hide-type splits:
+  Apply/Revert-driven = correct; self-ticking = stale. This is the m18/G78 predicted risk, now measured.) **FIX: new
+  `SampleDeferredHidden()` fills `FireHidden` at the TOP of the next Tick** (before `ProcessCompletedFrames`; also at
+  `FinishRun` top). **Zero blast radius on labels.jsonl — `FireHidden` never reaches it.** **Bug C = TWO independent
+  causes, NOT B's root** (a uniform shift preserves transition counts, so B's fix changes C by nothing): (C1) the
+  transition count was ORDER-DEPENDENT (accumulated on arrival, but `Drain_RenderThread` appends REVERSE →
+  out-of-order → spurious transitions → "flicker") → now `TMap HiddenByIndex` + derive hidden set AND transitions from
+  the SORTED keys at write time; (C2) `MapAnomalyToClient` else-branch never set a subtype → now mirrors the type.
+  *Note: "single vanish → flicker" did NOT reproduce — `DefaultHz=5.0f` (6-frame period) means the default 8-frame window
+  genuinely holds ~2 hidden blocks, so "flicker" is CORRECT there.* **Gates G1–G6 GREEN in a LOCAL PACKAGE, pixel-exact:**
+  G1 annotation==pixels==labels `[3..10]` (already true on m19); G2 blinking annotation `{4,5,9,10}` == pixels `{4,5,9,10}`
+  exactly (was `{4,5,6,10}`), tail frame included; G3 single-vanish window → **14/14 `disappear_reappear`**, default
+  multi-toggle → `flicker` (derivation intact, still data-driven), missing_texture → `missing_texture`; G5 **labels.jsonl
+  BYTE-IDENTICAL to m19** (same pattern/cadence/counts — m18 undisturbed); G6 overlay clean (65 present / 65 boxes / 0
+  present-no-box). **PARKED (owner D1): the shared range-builder refactor** — single source of truth so this off-by-one
+  class can't recur; deferred post-delivery (touches the m18-validated path). *Note: annotation + labels already share one
+  snapshot and one accumulator, so the drift risk is lower than feared — it's an emit-layer consolidation.* **ALSO PARKED
+  (found, unapproved): `frame_count` is a SPAN not a count** (`End-Start+1`, AnomalyLabelWriter.cpp:349) — measured 7 vs 4
+  indices for gapped hide-type sets; ships in the client deliverable; owner decision. G81. **NO COMMIT this turn.**
+  → `docs/sessions/2026-07-15-026-m20-annotation-labeling.md`.
+- **Latest milestone (as-built): m19 — preview backbuffer tee + targeting defaults — COMPLETE (commit `c8aa3fa`, tagged
+  `m19`, pushed) (2026-07-15).**
   Fixes the **black dashboard preview in ANY packaged build** (delivery-gating: no client build had a working preview).
   **Two premise corrections, both evidence-backed (docs must not restate the myths):** (1) the preview was **NEVER
   editor-gated** — no `WITH_EDITOR` guard exists; the only guard is `ANOMALY_CONTROL_SERVER` (= not-Shipping), so the
@@ -60,8 +97,9 @@ and is the single source of truth for the project.
   **⚠ The MainMenu set collapses to 1 under the POLL radius (not coverage) — a MENU-MAP ARTIFACT:** the poll cull is
   pawn-relative (G34) and a menu map's pawn is nowhere near the menu camera; in a real gameplay level the pawn IS the
   player. **The poll default therefore cannot be judged in this map — owner sanity check wanted in a gameplay level /
-  on Concorde.** G80. **NO COMMIT this turn.** → `docs/sessions/2026-07-15-025-m19-preview-backbuffer-tee.md`.
-- **Latest milestone (as-built): m18 — burst-boundary label alignment (async label stamp → end of tick) — COMPLETE
+  on Concorde.** G80. **SHIPPED** — one `feat(capture)` commit `c8aa3fa` + tag `m19`, pushed; dashboard untouched
+  (`f978f1b`) because it has no defaults of its own. → `docs/sessions/2026-07-15-025-m19-preview-backbuffer-tee.md`.
+- **Prior milestone (as-built): m18 — burst-boundary label alignment (async label stamp → end of tick) — COMPLETE
   (commit `4559c8c`, tagged `m18`, pushed) (2026-07-15).** Fixes the ~17% label/pixel misalignment found while validating m17 —
   same dataset-poisoning class, and it hit EVERY anomaly type. **Mechanism:** `CaptureCurrentFrame()` sampled the label
   from `GetLiveFires()` at mid-tick N, but `BeginFire()`/`BeginRevert()` run LATER IN THE SAME `Tick`, and the **async**
@@ -464,8 +502,9 @@ and is the single source of truth for the project.
   (`…-021`) tagged `m15`**; **three capture-delivery fixes (`…-022`) tagged `m16`** (`84dfa52`);
   **missing_texture revert hardening (`…-023`) tagged `m17`** (`e2c6dd2`; validated on the local repro **and confirmed
   on Concorde's real `FWMasterSkeletalMeshComponent`**, immediate + churn — G77 closed); **burst-boundary label
-  alignment (`…-024`) tagged `m18`** (`4559c8c`); **preview backbuffer tee (`…-025`) = m19, BUILT + package-gated,
-  NOT yet committed/tagged** (G3/PIE + Concorde format = owner checks).
+  alignment (`…-024`) tagged `m18`** (`4559c8c`); **preview backbuffer tee + targeting defaults (`…-025`) tagged `m19`**
+  (`c8aa3fa`; G3/PIE + Concorde format = owner post-push checks); **annotation.json labeling (`…-026`) = m20, BUILT +
+  package-gated, NOT yet committed/tagged** (Bug A = not-a-bug, 0-vs-1-based question OPEN for the owner).
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

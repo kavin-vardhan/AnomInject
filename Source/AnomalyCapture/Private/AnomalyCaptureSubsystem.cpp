@@ -65,9 +65,7 @@ struct FSessionEventAccum
 
 	int32 VisibleFrames = 0;
 	int32 HiddenFrames = 0;
-	int32 Transitions = 0;
-	int32 LastHidden = -1;
-	TArray<int32> HiddenIndices;
+	TMap<int32, uint8> HiddenByIndex;
 };
 #endif
 
@@ -116,7 +114,7 @@ namespace
 		else
 		{
 			OutType = Id.ToString();
-			OutSubtype = FString();
+			OutSubtype = Id.ToString();
 		}
 	}
 }
@@ -219,6 +217,8 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 	{
 		return;
 	}
+
+	SampleDeferredHidden();
 
 	if (Phase == ECapturePhase::ArmedPending)
 	{
@@ -1064,15 +1064,42 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 	{
 		Snap->Fires = Auto->GetLiveFires();
 	}
-	Snap->FireHidden.Reset();
 	Snap->FirePos.Reset();
-	Snap->FireHidden.Reserve(Snap->Fires.Num());
 	Snap->FirePos.Reserve(Snap->Fires.Num());
 	for (const FAutoLiveFireInfo& F : Snap->Fires)
 	{
 		const AActor* FActor = F.TargetActor.Get();
-		Snap->FireHidden.Add((FActor && FActor->IsHidden()) ? 1 : 0);
 		Snap->FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
+	}
+
+	DeferredHiddenFrameId = ArmedLabelFrameId;
+	bHasDeferredHidden = true;
+}
+
+void UAnomalyCaptureSubsystem::SampleDeferredHidden()
+{
+	if (!bHasDeferredHidden)
+	{
+		return;
+	}
+	bHasDeferredHidden = false;
+
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(DeferredHiddenFrameId);
+	if (!Snap)
+	{
+		return;
+	}
+
+	Snap->FireHidden.Reset();
+	Snap->FireHidden.Reserve(Snap->Fires.Num());
+	for (const FAutoLiveFireInfo& F : Snap->Fires)
+	{
+		const AActor* FActor = F.TargetActor.Get();
+		Snap->FireHidden.Add((FActor && FActor->IsHidden()) ? 1 : 0);
 	}
 }
 
@@ -1206,6 +1233,8 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 
 void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 {
+	SampleDeferredHidden();
+
 	if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 	{
 		Auto->RevertAllLiveFires();
@@ -1333,9 +1362,8 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 		}
 
 		const int32 Hidden = (FireHidden.IsValidIndex(i) && FireHidden[i]) ? 1 : 0;
-		if (Hidden) { ++Ev->HiddenFrames; Ev->HiddenIndices.Add(SessionIndex); } else { ++Ev->VisibleFrames; }
-		if (Ev->LastHidden != -1 && Hidden != Ev->LastHidden) { ++Ev->Transitions; }
-		Ev->LastHidden = Hidden;
+		if (Hidden) { ++Ev->HiddenFrames; } else { ++Ev->VisibleFrames; }
+		Ev->HiddenByIndex.Add(SessionIndex, (uint8)Hidden);
 	}
 }
 
@@ -1359,11 +1387,26 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 
 	for (FSessionEventAccum& Ev : Async->SessionEvents)
 	{
-		AnomalyLabel::FSessionEvent Out;
-		MapAnomalyToClient(Ev.Id, Ev.Transitions, Out.AnomalyType, Out.AnomalySubtype);
+		TArray<int32> HiddenKeys;
+		Ev.HiddenByIndex.GetKeys(HiddenKeys);
+		HiddenKeys.Sort();
 
-		const bool bHideType = Ev.HiddenIndices.Num() > 0;
-		TArray<int32> FrameIndices = bHideType ? Ev.HiddenIndices : Ev.AffectedFrames;
+		TArray<int32> HiddenIdx;
+		int32 Transitions = 0;
+		int32 PrevHidden = -1;
+		for (int32 Key : HiddenKeys)
+		{
+			const int32 Hidden = (int32)Ev.HiddenByIndex[Key];
+			if (Hidden) { HiddenIdx.Add(Key); }
+			if (PrevHidden != -1 && Hidden != PrevHidden) { ++Transitions; }
+			PrevHidden = Hidden;
+		}
+
+		AnomalyLabel::FSessionEvent Out;
+		MapAnomalyToClient(Ev.Id, Transitions, Out.AnomalyType, Out.AnomalySubtype);
+
+		const bool bHideType = HiddenIdx.Num() > 0;
+		TArray<int32> FrameIndices = bHideType ? MoveTemp(HiddenIdx) : Ev.AffectedFrames;
 		FrameIndices.Sort();
 		Out.FrameIndices = MoveTemp(FrameIndices);
 		Out.CoverageRatio = Ev.CoverageCount > 0 ? (Ev.CoverageSum / (double)Ev.CoverageCount) : 0.0;

@@ -685,6 +685,25 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   coherently and `visible_positive` stays consistent by construction. **The sync path is untouched and was already correct**
   (its `ReadPixels` returns the *previous* frame, which pairs with an arm-time stamp) — the fix is async-only. Phase timing
   and settle-K are byte-unchanged. G78.
+- **Hidden-state stamp — ONE TICK LATER than the fire stamp (m20).** End-of-our-Tick is the right sample point only for
+  state OUR Tick changes (`Apply`/`Revert` via `BeginFire`/`BeginRevert` — e.g. `missing_object`). An anomaly that toggles
+  in its OWN tick (`blinking`, driven by `UAnomalyInjectorSubsystem::Tick`, a *different* tickable that runs AFTER the
+  capture subsystem) is still holding the previous frame's value at that point, while the frame renders with the new one —
+  measured as `annotation(G) == pixels(G-1)` on every blink edge. So `FinalizeArmedLabel` stamps only `Fires`/`FirePos`,
+  and **`SampleDeferredHidden()` fills `FireHidden` at the TOP of the next Tick** — the first instant the world equals what
+  the previous frame rendered (all subsystems have ticked). It runs before `ProcessCompletedFrames` (the earliest a frame
+  armed at N can drain) and at the top of `FinishRun` (before `RevertAllLiveFires`) for a `StopRun` between ticks. **Safe
+  by construction: `FireHidden` never reaches labels.jsonl** — it feeds only annotation's hidden set + transition count —
+  so the m18-validated per-frame span is byte-unchanged. G81.
+- **annotation.json event stats are ORDER-INDEPENDENT (m20).** Frames arrive out of session order (`Drain_RenderThread`
+  fills `Completed` in reverse, `PopCompleted` is FIFO), so no order-sensitive statistic may be accumulated on arrival.
+  `FSessionEventAccum` stores `TMap<int32,uint8> HiddenByIndex`, and `WriteSessionAnnotationFile` derives **both** the
+  hide-type `frame_indices` and the `Transitions` count from the **sorted** keys at write time — one source, no drift, no
+  spurious transitions. Subtype derivation stays data-driven: `blinking` → `≤2 transitions = disappear_reappear`,
+  `≥3 = flicker`; every other id mirrors its type (`missing_texture` → `missing_texture`). G81.
+- **Frame indices are 0-BASED** and match `frame_%05d.png` exactly (`host-tools/encode_watcher.py` encodes the PNGs 1:1,
+  also 0-based). A 1-based video player therefore displays index N as "frame N+1" — that is a reading convention, not an
+  off-by-one. G81.
 - **Reproducibility (S4).** The run seeds the auto-injector stream at start → same seed + same visible-set sequence (a fixed
   vantage) reproduces the fired (id, target) sequence — NOT pixel-identity (ambient scene motion). **Coexistence:** the
   auto-injector's `Run` must be OFF during a capture run (capture owns firing) — warned, not blocked (A2); and the
