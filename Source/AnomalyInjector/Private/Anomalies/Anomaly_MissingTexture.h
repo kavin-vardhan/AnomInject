@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "IAnomaly.h"
 
+class AActor;
 class UWorld;
 class UMeshComponent;
 class UMaterialInterface;
@@ -22,10 +23,13 @@ private:
 	struct FCapturedSlot
 	{
 		TWeakObjectPtr<UMeshComponent> Mesh;
+		TWeakObjectPtr<AActor> Owner;
+		FName ComponentName = NAME_None;
 		int32 SlotIndex = 0;
 		TWeakObjectPtr<UMaterialInterface> OriginalMaterial;
 		bool bWasExplicitOverride = false;
 	};
 	TArray<FCapturedSlot> Captured;
+	TWeakObjectPtr<UMaterialInterface> AppliedChecker;
 	bool bActive = false;
 };

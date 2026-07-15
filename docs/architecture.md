@@ -442,7 +442,30 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
 | `lod_corruption` | component (static **+ skeletal** mesh) | `IAI.Apply lod_corruption <sub> [lod-index]` | force each matched comp to a LOD via `AnomalyLod` (1-based; default worst per comp; explicit index clamped per comp). Static `SetForcedLodModel` / skinned `SetForcedLOD` | restore captured forced-LOD per live comp; skip stale | **as-built (M3)** — static + skeletal (G19; was static-only in M2, G16) |
 | `lod_popping` | component (static **+ skeletal** mesh), **ticking** | `IAI.Apply lod_popping <sub> [hz]` | each half-period, snap every matched comp between its captured baseline LOD and its worst LOD via `AnomalyLod` (default 2 Hz, clamp ≤ 30) | restore captured baseline per live comp regardless of phase; reset accumulator/phase | **as-built (M3)** |
 | `camera_clipping` | global (near-clip), no tick | `IAI.Apply camera_clipping [near]` | `r.SetNearClipPlane <near>` console command (default 100), pushing `GNearClippingPlane` out | restore captured baseline (~10) via the same command | **as-built (M2)** |
-| `missing_texture` | actor-scoped (per-component `SetMaterial`), no tick | `IAI.Apply missing_texture <sub>` | swap every renderable SM/SK component's material slots to the plugin-shipped **Lit gray/white UV-checker** (per-component override → object isolation; never mutates the shared mesh/material asset) | restore captured per-slot original (explicit override → restore ptr; else `SetMaterial(i, nullptr)` to clear to asset default); skip stale | **as-built (m8)** — flat-magenta variant + `mode` arg deferred (m8 journal) |
+| `missing_texture` | actor-scoped (per-component `SetMaterial`), no tick | `IAI.Apply missing_texture <sub>` | swap every renderable SM/SK component's material slots to the plugin-shipped **Lit gray/white UV-checker** (per-component override → object isolation; never mutates the shared mesh/material asset) | **re-find + guarded restore (m17, see below)** — never trusts the saved component ptr | **as-built (m8, revert hardened m17)** — flat-magenta variant + `mode` arg deferred (m8 journal) |
+
+### `missing_texture` save-state + revert contract (m17)
+The only anomaly whose revert does **not** follow the plain "restore captured value per live comp; skip stale"
+convention — because it is the only one whose captured value is an **object pointer the game may own and re-create**
+(runtime MIDs on modular/merged characters), rather than a plain value (intensity, LOD index, near-clip) that stays
+valid. See gotchas G74–G76.
+- **Apply captures, per slot:** the component weak ptr **+ its owning actor + its `FName`** (identity that survives
+  re-creation), the slot index, the original material weak ptr, and `bWasExplicitOverride`. The anomaly also stores
+  the checker it actually applied (`AppliedChecker`), because `IAnomaly::Revert()` has no world access and the guard
+  needs to identify our own material. Apply's visible behavior is unchanged from m8.
+- **Revert, per captured slot:** (1) resolve the component — saved ptr if alive, else **re-find a live same-named
+  component on the owning actor**; (2) **guard** — act only if the slot's CURRENT material still is our checker, or a
+  material instance whose parent chain reaches it; if the game re-took the slot, leave it; (3) restore the saved
+  original if it is still alive and was an explicit override, **else `SetMaterial(i, nullptr)`** so the mesh's
+  built-in default renders and the owning system re-takes the slot on its next re-assertion.
+- **Then a sweep:** every live mesh component of each touched actor is checked for slots still holding our checker
+  (corruption that rode `OverrideMaterials` onto a **successor** component that was never captured) and reset to the
+  mesh default. The guard makes this idempotent.
+- **Every revert logs** `restored / default-reset / left-to-game / unresolved / swept / re-found`, warning per
+  unresolved or swept slot. A revert can no longer fail silently. If `AppliedChecker` is unresolvable, revert
+  refuses to touch anything (logs Error) rather than risk stomping game materials.
+- **Guarantee boundary:** components **on the matched actor**. Sub-parts owned by a *different* actor are not
+  reached; a swept successor can only be reset to the mesh default (no saved original exists for it).
 
 ## Viewport-visibility scoping (opt-in; default OFF)
 The subsystem holds one flag `bViewportScopingEnabled` (default **OFF**), toggled by `IAI.SetViewportScoping <0|1>`

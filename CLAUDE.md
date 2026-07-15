@@ -10,7 +10,66 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
-- **IN FLIGHT (built this session, NOT yet committed/tagged; on top of `m15` `bc10272`): m16 — three capture-delivery fixes.**
+- **STANDING TEST BASELINE (owner directive, 2026-07-15): validate against a LOCAL PACKAGED BUILD under
+  `D:\IntrusiveAnomalies\StackOBot\Builds`, not just PIE.** The editor masks packaged-only behavior — both
+  first-smoke-test bugs (packaged black preview; missing_texture stuck revert) were invisible in PIE. A package runs
+  fully headless: `StackOBot.exe -windowed -ExecCmds="IAI.Server.Start, ..."` + the control server's own WS surface as
+  the driver; iterative cook + exe hot-swap = ~1 min edit→validate loop. See **G76**.
+- **Latest milestone (as-built): m17 — missing_texture revert hardening for runtime/modular-character materials —
+  COMPLETE (tagged `m17`, on top of `m16` `84dfa52`) (2026-07-15). VALIDATION STATUS IS SPLIT — READ THIS BEFORE
+  TRUSTING IT ON A CLIENT TITLE: the fix is validated on a LOCAL StackOBot repro of the mechanism (stuck revert clears
+  immediate + after-churn; `revert_all` clears; regression byte-identical on plain props/`SKM_Bot` incl. a real game MID
+  restored as the same object; the our-material-only guard leaves a game-re-asserted MID untouched — all in a package),
+  but it is **NOT YET CONFIRMED on Concorde's actual `FWMasterSkeletalMeshComponent`**. OPEN: does the slot reset STICK
+  on that merged/master-pose proxy, or does the character system re-assert over it? → owner's office-box Concorde test
+  is the post-push check; **G77** records the exact place to look per outcome (start with the new revert log line, then
+  the per-owner sweep loop's `GetComponents` enumeration in `Anomaly_MissingTexture.cpp Revert()`; targeting upstream is
+  per-actor, so sub-parts on a DIFFERENT actor are never captured). A follow-up milestone handles the modular-proxy case
+  IF it surfaces.** Fixes the confirmed Concorde bug (body-only stuck corruption;
+  `IAI.RevertAll` also failed): the anomaly restored through a saved component ptr + a saved original material ptr, and
+  on characters whose own runtime logic re-creates the component and/or its MIDs (Concorde's
+  `FWMasterSkeletalMeshComponent`) BOTH went stale during the hold → the stale-skip silently skipped → corruption
+  persisted while frames were labeled CLEAN (dataset contamination). **Fix (only `Anomaly_MissingTexture.{h,cpp}`;
+  `IAnomaly`/injector/other anomalies/capture loop byte-unchanged; no new dep; catalog stays 8):** Apply additionally
+  records each slot's **owning actor + component `FName`** (+ the applied checker, since `Revert()` has no world
+  access); Revert **re-finds the live component** (saved ptr → else same-named on the owner), **guards** (touch a slot
+  only if it still holds our checker, incl. a MID whose parent chain reaches it — never stomp a material the game
+  re-took), restores the saved original if alive **else resets to the mesh built-in default** (`SetMaterial(i,
+  nullptr)`) so the game re-takes ownership, then **sweeps** every live mesh component of each touched actor for
+  leftover checker (catches corruption copied onto a successor component we never captured). Every revert now logs
+  `restored/default-reset/left-to-game/unresolved/swept/re-found` — **no more silent failures**. G74–G77.
+  **D4 finding:** the correct restore target is *whatever components are live on the actor at revert time* (not "the
+  master" vs "the sub-parts") — one revert handled a master + master-posed sub-part with different dispositions; the
+  restore must NOT survive the character system's next re-assertion (yielding the slot IS correct). Limits: per-actor
+  only (sub-parts on a *different* actor are out of reach); a swept successor can only be default-reset.
+  **Gates G1–G5 all GREEN in a LOCAL PACKAGE** (`Builds\MidRepro`, headless via WS): immediate + after-churn revert
+  clean; `revert_all` clean; guard leaves a game-re-asserted MID untouched; **regression byte-identical on plain
+  static/skeletal content incl. a real game MID**; targeted capture reverts within every burst (verified at pixel
+  level via PNG decode). **Repro harness is a VALIDATION ASSET, NOT in this repo:**
+  `D:\IntrusiveAnomalies\StackOBot\Source\StackOBot\MidReproActor.{h,cpp}` (project game module) +
+  `SOB.MidRepro.*` console commands; the plugin repo tracks zero test files. **SHIPPED** — one
+  `fix(missing-texture)` commit + tag `m17`, pushed (pushed BEFORE the Concorde test on purpose: the fix must reach
+  the office box via GitHub before the real component can be exercised). Comment stripper run pre-commit: 0 changed /
+  59 no-change. → `docs/sessions/2026-07-15-023-m17-missing-texture-revert.md`.
+- **OPEN — found while validating m17, PRE-EXISTING and NOT m17 (affects EVERY anomaly + every delivered dataset):**
+  a **1-frame label/pixel misalignment at both burst boundaries** (17/100 frames in the default config, perfectly
+  periodic at the burst stride). `AnomalyCaptureSubsystem::Tick` does `CaptureCurrentFrame(); --PhaseFramesLeft;` and
+  then `BeginFire()`/`BeginRevert()` **in the same tick**, so the last lead-in/post-gap frame is labeled clean but
+  renders the anomaly (**contaminated negative**), and the last positive frame renders clean but is labeled positive
+  (**false positive**). Fix shape (own milestone + gates): do the phase transition at the TOP of the tick, before
+  `CaptureCurrentFrame()`. Same class of silent contamination as m17 — recommend prioritising with m18.
+- **DEFERRED to m18 (diagnosed + locally reproduced, NOT started): packaged black dashboard preview.** Title-independent
+  (repros on local StackOBot package). The preview's `FViewport::ReadPixels` reads a game-viewport render target that
+  **does not exist in a package** (packaged viewports render straight to the swapchain; `GetRenderTargetTexture()` is
+  null → D3D12 `RHIReadSurfaceData` zero-fills and returns "success" → ~6 valid all-black 15 KB JPEGs/s on the wire,
+  frame counter ticking). PIE has a separate RT → works → editor masked it. Fix shape: TEE the preview off the
+  **backbuffer** stream the capture path already proves out (`OnBackBufferReadyToPresent` + GPU readback, throttled +
+  JPEG off-thread) — this also IS the long-deferred async-preview upgrade (kills the synchronous
+  `FlushRenderingCommands` game-thread stall). Must gate **arming** on `IsCaptureActive()` (preserve G73) and use its
+  OWN capturer instance (arm-match + Completed queue are single-consumer). **Delivery-gating: the preview is black in
+  ANY client package.**
+- **Prior milestone (as-built): m16 — three capture-delivery fixes — COMPLETE (tagged `m16` `84dfa52`, dashboard
+  `f978f1b`) (2026-07-13).**
   (1) **Client token auto-populate** — `AnomalyControlServerSubsystem::StartListening` reads `[AnomalyControlServer] Token`
   from `DefaultGame.ini` via GConfig (present → fixed token; absent/empty → the existing random per-session GUID + log line,
   so the owner in-editor is byte-unchanged). The dashboard bakes a matching `VITE_CONTROL_TOKEN` (via `.env`) and
@@ -26,11 +85,13 @@ and is the single source of truth for the project.
   (G73). A single `bRunning`/`IsCaptureActive()` signal (true arm→finish, armed-pending included) drives both the focus-gate
   and the preview suppression. **Catalog stays 8; no new module dep** (GConfig=Core; focus via Engine `FViewport`;
   AnomalyCapture already links Slate in non-Shipping). **Gates:** dashboard `npm run build` GREEN (tsc+vite; baked-token
-  inlining verified). **Owner-pending (this session was headless, no editor/UBT): plugin C++ compile + all engine/PIE gates**
-  (real-browser auto-connect, real-window focus-gate feel, preview-pause on the loaded box, Simulate-not-deadlocked). **NO
-  COMMIT this turn** — on owner accept: strip comments, commit plugin as one `feat` + tag `m16`, dashboard own `feat`
-  (untagged). → `docs/sessions/2026-07-13-022-m16-capture-delivery-fixes.md`, `docs/client-delivery.md`.
-- **Latest milestone (as-built): Content-clock default reverted to WALL — COMPLETE (tagged `m15`) (2026-07-13).**
+  inlining verified); owner-gate GREEN in-editor on real hardware; plugin compiled clean. **SHIPPED** — plugin `84dfa52`
+  tag `m16` pushed, dashboard `f978f1b` pushed (untagged per dash precedent), both trees clean.
+  → `docs/sessions/2026-07-13-022-m16-capture-delivery-fixes.md`, `docs/client-delivery.md`.
+  *(Field note from the first packaged smoke test: the m16 focus-gate + preview suppression are sound, but the preview
+  itself is black in ANY packaged build for an unrelated reason — see the m18 entry above; the G73 suppression is not
+  implicated.)*
+- **Prior milestone (as-built): Content-clock default reverted to WALL — COMPLETE (tagged `m15`) (2026-07-13).**
   Small settle-milestone on top of m14: flips the `IAI.Capture.ContentClock` **default back to `wall`** (m14 had briefly
   shipped `game` on an owner override pending validation). RESOLVED by the owner testing wall vs game on the actual office
   machine: **the client titles (Until Dawn/Concorde) are WALL-clock** — wall gives correct-SPEED video (length varies with
@@ -329,7 +390,9 @@ and is the single source of truth for the project.
   `docs/capture-fps.md`); **targeted capture (`…-016`) tagged `m10`**; **capture pacing + honest fps stamping
   (`…-017`) tagged `m11`**; **client delivery mode (`…-018`) tagged `m12`**; **confirmation-bounded dashboard optimism
   (`…-019`, AnomDash, no tag)**; **content-clock-aware fps stamp (`…-020`) tagged `m14`**; **content-clock default → wall
-  (`…-021`) tagged `m15`**.
+  (`…-021`) tagged `m15`**; **three capture-delivery fixes (`…-022`) tagged `m16`** (`84dfa52`);
+  **missing_texture revert hardening (`…-023`) tagged `m17`** (validated on the local repro; Concorde confirmation
+  pending — see G77).
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

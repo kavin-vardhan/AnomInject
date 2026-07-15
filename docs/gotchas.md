@@ -959,3 +959,66 @@ the snapshot round-trip (the client-side unsubscribe stays as belt-and-suspender
 keep flowing so the dashboard still tracks state. The preview simply freezes on its last frame during a capture and resumes when
 `bRunning` clears (the client re-subscribes on the next `running=false` snapshot). Because armed-pending already reads as
 `capture.running=true`, the preview can't drag the very focus-in moment the fix is protecting. (2026-07-13.)
+
+
+### G74 — a saved material pointer is NOT a valid restore target on runtime/modular characters (m17)
+
+`missing_texture` originally saved `TWeakObjectPtr<UMeshComponent>` + `TWeakObjectPtr<UMaterialInterface>` at Apply and
+restored through both at Revert. That is sound only for content whose materials are shared assets that never die and whose
+components are never re-created — i.e. props and StackOBot. On a character whose OWN runtime logic owns its materials
+(Concorde's `FWMasterSkeletalMeshComponent`; a merged/modular skeletal mesh assembled at runtime), TWO independent things go
+stale during the hold: (1) the component is re-created (outfit/merge/LOD rebuild) and `OverrideMaterials` is copied to the
+successor, so our saved component pointer is dead and the corruption now lives on a component we never captured; (2) our own
+`SetMaterial(i, checker)` evicted the game's runtime MID from the slot, dropping its only strong reference, so the saved
+"original" is GC'd and restores as null. The old revert then silently skipped (dead component) or cleared the override
+(dead original) — and reported success either way. **Rule: at revert, re-resolve the live component from the owning actor and
+verify the slot before touching it; never treat a saved pointer as the restore target.** Reproduced locally in a package
+(`MidReproActor` modes 1/2/3), not only on the client title. (2026-07-15.)
+
+### G75 — only touch a slot that still holds YOUR material; reset dead originals to the mesh default (m17)
+
+Two halves of the same lesson, both load-bearing and both proven by the local repro. **(a) Guard:** a character system
+re-asserts its materials on its own schedule, so by revert time the slot may already hold the GAME's fresh material. Restoring
+"our" saved original there — or worse, restoring a dead original as null — STOMPS live game state (m16 did exactly this:
+observed destroying a live `MaterialInstanceDynamic` and dropping the slot to the asset default until the game's next
+re-assert). Check `current == ours` (including a material instance whose PARENT CHAIN reaches ours — a game MID layered over
+our checker is still our corruption) and skip otherwise. **(b) Dead original → mesh default, not "leave it":** clearing the
+override (`SetMaterial(i, nullptr)`) makes the mesh's built-in default render and lets the owning system re-take the slot on
+its next assertion. Do NOT try to make a restore "survive" the character system's next re-assertion — surviving means fighting
+the owner; yielding the slot cleanly is the correct outcome. The guard also makes a post-revert sweep idempotent. (2026-07-15.)
+
+### G76 — validate against a LOCAL PACKAGED BUILD, not just PIE (standing rule, m17)
+
+Both first-smoke-test bugs (packaged black preview; missing_texture stuck revert) were invisible in the editor and only
+appeared in a package — the editor composites a separate render target for the game viewport (so the preview's `ReadPixels`
+works in PIE and returns black packaged), and PIE sessions rarely exercise the runtime-material/component churn that breaks a
+saved pointer. **Standing baseline: features are validated against a local package under
+`D:\IntrusiveAnomalies\StackOBot\Builds`, not only PIE.** A package can be driven fully headless with no editor and no office
+box: `StackOBot.exe -windowed -ExecCmds="IAI.Server.Start, ..."` plus the control server's own WS surface (inject / revert_all /
+capture_start) as the driver — a raw-socket client needs no dependencies. NOTE when writing such a client: the control server
+sends ALL WS messages as BINARY frames (opcode 2), JSON included — classify by content (`AIF1` magic = a preview frame), not by
+opcode. Iterative cook + an exe hot-swap into the archived build makes the edit→validate loop ~1 minute. (2026-07-15.)
+
+
+### G77 — OPEN (m17): the modular merged-proxy case is NOT yet confirmed on Concorde; where to look if it bites
+
+m17's revert hardening (G74/G75) is **validated on a local StackOBot repro** of the mechanism — runtime-MID staleness and
+component re-creation, reproduced in a package via the test-only `MidReproActor` (`D:\IntrusiveAnomalies\StackOBot\Source\
+StackOBot\MidReproActor.{h,cpp}`, project game module, deliberately NOT in this repo; console `SOB.MidRepro.*`). It is
+**NOT confirmed on Concorde's real `FWMasterSkeletalMeshComponent`** — a custom, runtime-assembled merged/master-pose proxy.
+The open question: does our slot reset **STICK** on that proxy, or does the character system **re-assert over it** on its next
+update? Repro Mode 3 (master + master-posed sub-part, sub-part rebuilt while the master re-asserts) says one revert reaches
+both, because the fix enumerates the actor's components **at revert time** rather than trusting the captured set — but a
+foreign proxy type may not behave like the model. **If Concorde still shows corruption after m17, read the new revert log line
+first** (`restored=/default-reset=/left-to-game=/unresolved=/swept=/re-found=`) — it now names the branch that fired:
+- `swept>0` and the hand clears → working as designed.
+- The system re-asserts the **checker** back after our revert → the proxy rebuilt from a state snapshot taken BEFORE the
+  revert. This is a TIMING problem (re-check after the system's next assertion, or reset on the driven sub-component instead
+  of the merged proxy) — do NOT "fix" it by making our restore survive re-assertion; that fights the owner system (G75).
+- `unresolved>0` with the hand still corrupted, or **no log activity at all** on the hand's components → the driven
+  sub-components are not reachable from the matched actor. Then the place to change is the **per-owner sweep loop in
+  `Anomaly_MissingTexture.cpp Revert()`** — the `Owner->GetComponents<UMeshComponent>(Components)` enumeration is the single
+  point that decides which live components we may touch — and possibly targeting upstream
+  (`AnomalyLod::ResolveLodComponents` → `AnomalyTargeting::FindComponentsMatching<T>` is per-actor, so a sub-part owned by a
+  DIFFERENT actor is never captured at all). Not the captured-slot list, which by construction only knows Apply-time components.
+(2026-07-15; close this entry once the owner's office-box Concorde test reports.)
