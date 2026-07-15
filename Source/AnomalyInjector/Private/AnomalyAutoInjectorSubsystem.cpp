@@ -27,6 +27,12 @@ namespace
 	constexpr int32 GNumAutoPool = UE_ARRAY_COUNT(GAutoPool);
 	static_assert(GNumAutoPool == UAnomalyAutoInjectorSubsystem::NumPoolKeys, "pool size must match the keybind count");
 
+	const FName GAutoPoolDefaultEnabled[] =
+	{
+		FName(TEXT("blinking")),
+		FName(TEXT("missing_texture")),
+	};
+
 	UAnomalyInjectorSubsystem* ResolveInjector(UWorld* World)
 	{
 		return World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
@@ -47,14 +53,14 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 	Seed = static_cast<int32>(FPlatformTime::Cycles());
 	Stream.Initialize(Seed);
 
-	for (const FName& Id : GAutoPool)
+	for (const FName& Id : GAutoPoolDefaultEnabled)
 	{
 		EnabledIds.Add(Id);
 	}
 
 	UE_LOG(LogAnomaly, Log,
-		TEXT("AutoInjector subsystem initialized for world '%s' (Enable OFF; IAI.Auto.Enable 1 to show the UI, IAI.Auto.Run 1 to fire)."),
-		*GetNameSafe(GetWorld()));
+		TEXT("AutoInjector subsystem initialized for world '%s' (Enable OFF; IAI.Auto.Enable 1 to show the UI, IAI.Auto.Run 1 to fire). Default pool: %s."),
+		*GetNameSafe(GetWorld()), *FString::Join(GetEnabledIds(), TEXT(", ")));
 }
 
 void UAnomalyAutoInjectorSubsystem::Deinitialize()

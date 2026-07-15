@@ -129,6 +129,10 @@ namespace
 		return true;
 	}
 
+}
+
+namespace AnomalyLabel
+{
 	void ConvertTightToBGRA(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
 		int32 W, int32 H, TArray<FColor>& OutPixels)
 	{
@@ -173,10 +177,6 @@ namespace
 			}
 		}
 	}
-}
-
-namespace AnomalyLabel
-{
 	bool CaptureLabeledShot(UWorld* World, const FString& OutputDir, AnomalyPreview::EImageFormat Format,
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		double WallSeconds, FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog,

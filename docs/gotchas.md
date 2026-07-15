@@ -1082,3 +1082,96 @@ measured. If it is confirmed, `IAI.Capture.ViewLag` is the knob G41 reserved for
 per-frame bbox is projected from the target's LIVE bounds at record-build time (`BuildFrameLabelRecord` →
 `ProjectActorBoundsToScreenRect(View, Actor)`), which on the async path is several ticks after the arm — harmless for a
 static target, wrong for a moving one. (2026-07-15.)
+
+
+### G79 — the preview's viewport ReadPixels is BLACK in any packaged build (it was never editor-gated); tee the preview off the backbuffer (m19)
+
+**Two myths to kill first, because both were believed and both are wrong.** (a) The preview was NOT "editor-only gated" —
+there is no `WITH_EDITOR` guard anywhere in `AnomalyPreviewCapture.{h,cpp}` or its call site; the only guard is
+`#if ANOMALY_CONTROL_SERVER`, which is =1 in every configuration except Shipping, so a packaged Development build compiled
+and RAN the preview. (b) The frames were NOT "never generated" — measured on the packaged build: 117 frames in 20 s
+(~5.8/s), frameId incrementing, every JPEG **exactly 15027 bytes**, decoding to a valid 1280×720 image of mean brightness
+**0.00**. They were generated, encoded and SENT, and they were BLACK. ⇒ **A "frame counter increments" gate PASSES on the
+broken build.** Gate the preview on PIXELS (decode it; assert non-black; assert JPEG sizes VARY — a constant size across
+frames is the black-frame fingerprint), never on the counter.
+
+**Cause:** a packaged game viewport renders straight to the swapchain and has NO separate render target, so
+`FRenderTarget::ReadPixels` → `GetRenderTargetTexture()` is null → `FD3D12DynamicRHI::RHIReadSurfaceData` hits
+`if (!ensure(InRHITexture)) { OutData.AddZeroed(...); return; }` — it ZERO-FILLS and returns, and ReadPixels reports
+SUCCESS (`return OutImageData.Num() > 0`). The one-shot `Ensure condition failed: InRHITexture` is the only fingerprint,
+and UE ensures fire once per site, so it does not bound how many frames failed. In PIE the game viewport DOES have its own
+render target, which is exactly why the editor masked this for weeks. **The same root also makes the SYNC CAPTURE path
+(`IAI.Capture.Async 0`) write a 100% BLACK dataset in a package with perfectly plausible labels — still unfixed as of m19.**
+
+**Fix (m19):** the preview tees off the same `OnBackBufferReadyToPresent` stream capture uses. It CANNOT share capture's
+grab — m16 suppression makes the two mutually exclusive in time (when capture grabs, preview must be silent, so there is
+never a capture frame to tee from), and `FAnomalyFrameCapturer`'s arm-matching and completed queue are single-consumer.
+So the preview owns a SECOND `FAnomalyFrameCapturer` instance on the same delegate; the capturer class is unmodified
+(that is what keeps capture byte-identical). Both bindings early-out with no arm pending.
+**Suppression must gate the ARM, not just the send** — gating only the send leaves the tee grabbing+encoding during a
+capture, fighting it. But the pump must still DRAIN while suppressed, or an in-flight `FRHIGPUTextureReadback` armed just
+before the capture start never unlocks. Encode goes to a background task (`ConvertTightToBGRA` + `EncodePixels`); the WS
+send stays on the game thread (the socket is not thread-safe). No `FlushRenderingCommands` remains in the path.
+
+**Format:** the preview now reuses `AnomalyLabel::ConvertTightToBGRA` (promoted out of a file-local anonymous namespace so
+both paths share ONE conversion). Its `default:` branch returns BLACK, so an unhandled swapchain format blackens BOTH the
+preview and the captures — meaning any title whose captured PNGs are correct will preview correctly. **If a title ever needs
+a new format or an HDR tonemap, `ConvertTightToBGRA` is the single place to add it and it fixes capture + preview at once.**
+
+**Honest perf:** this does NOT speed up capture — m16 already suppressed the preview during captures, so it could not have
+been dragging them. The removed ~6 Hz game-thread flush + encode only cost anything OUTSIDE capture (live dashboard use).
+On a light scene the difference is inside the noise floor; do not quote a capture-fps win. (2026-07-15.)
+
+
+### G80 — targeting defaults are ENGINE-authoritative; the dashboard mirrors them and has no defaults of its own (m19)
+
+**Changed defaults (m19):** poll radius `0 → 1800` cm (**18 m**), min screen coverage `0 → 6` %, auto-pool
+default-enabled `{missing_object, blinking, missing_texture} → {blinking, missing_texture}`. All three were previously
+"OFF/all-on" and are now the shipped starting point, because a **packaged client build with no dashboard must start
+correct on the engine side alone**. All three are plain hardcoded constants — `GPollRadius` / `GMinScreenCoveragePct`
+(`AnomalyViewport.cpp`, file-scope globals) and `GAutoPoolDefaultEnabled` (`AnomalyAutoInjectorSubsystem.cpp`, consumed
+in `Initialize`). They are **NOT ini-backed** (unlike the m12/m14/m16 capture defaults, which use GConfig +
+`DefaultGame.ini`); GConfig-backing is available as a follow-up if per-title tuning is ever wanted — the console
+commands and the dashboard sliders already give per-session overrides.
+
+**The parity question, answered: there is nothing to keep in parity.** The dashboard defines NO defaults for these —
+its sliders and pool checkboxes are pure mirrors of the snapshot (`session.pollRadius`, `session.minScreenCoverage`,
+and `auto.pool[id]` ← `Auto->IsAnomalyEnabled(id)` in `ControlSnapshot.cpp`); `store.ts` initialises `snapshot: null`
+and `SessionBar` only renders after `everConnected`. So changing the engine constant is sufficient AND is the only
+correct move: adding a matching dashboard-side default would create a SECOND source of truth that could silently drift
+from the engine. (The `?? 0` fallbacks in `SessionBar` are pre-first-snapshot placeholders, not defaults.)
+
+**UNITS — the two easy mistakes:** poll radius is **centimetres** (Unreal units), so "18 m" is `1800`, and the dashboard
+slider is cm (`max=20000, step=100`) rendered through `metres()`. Coverage is a **percent 0-100**, not a 0-1 ratio, so
+"6%" is `6.0f`, NOT `0.06` (the slider is `max=100, step=1`). Both new defaults land exactly on a slider step.
+
+**Consequences worth knowing before tuning these — MEASURED on StackOBot's MainMenu (coverage swept with the poll cull
+OFF, so each cull is isolated):**
+
+| coverage | eligible targets | Bot (`SkeletalMeshActor_3`) in set? |
+|---|---|---|
+| 0 % (pre-m19) | 15 | yes |
+| **6 % (the m19 default)** | **5** | **yes** |
+| 10 % | 4 | no |
+| 12 % (first proposal) | 4 | no |
+| *poll 18 m alone, coverage off* | **1** | no |
+
+- **The coverage cull is unforgiving near the threshold, and 6% was chosen for exactly that reason.** The Bot occupies
+  **9.98 %** of the viewport (independently corroborated by `annotation.json`'s `coverage_ratio: 0.10026` for the same
+  actor), so a 10 % or 12 % default **culls the hero character of the test scene** while 6 % keeps it with ~1.7×
+  headroom. When picking this number for a title, measure the smallest thing you still want targeted
+  (`IAI.DumpCoverage` prints per-actor coverage ascending) — do not guess.
+- **The poll radius, not coverage, is what collapses the MainMenu set to 1 — and that is a MENU-MAP ARTIFACT, not a
+  defect.** The cull is measured from the **player pawn** (G34), and a menu map's pawn is nowhere near the menu
+  vignette's camera, so everything the camera sees is >18 m from the pawn and gets culled. (Proof: the camera sits at
+  `[3837, 2525, 1700]`, ~3 m from the Bot — if the poll origin were the camera the Bot would pass comfortably.) In a
+  real gameplay level — the actual use case — the pawn IS the player and the camera is on them, so 18 m is meaningful.
+  **Do not tune or judge the poll radius in a menu map.**
+- The poll-radius cull compares `Dist(PollOrigin, Bounds.Origin) - Bounds.SphereRadius > R`, i.e. it **subtracts the
+  bounds sphere**, so very large actors (skybox / terrain / landscape) are never distance-culled at any sane radius —
+  which is why the single MainMenu survivor sits 122 m away despite an 18 m radius.
+- If a title's auto-pool starts zero-matching, suspect these two defaults first: `IAI.DumpCoverage` for the coverage
+  side, and remember the poll side is pawn-relative.
+- A non-zero *default* does **not** register the dev debug sphere: registration only happens inside `SetPollRadius` on an
+  OFF→ON transition. Good for client builds (no wireframe sphere), but it means the sphere no longer appears for the
+  owner unless the slider is taken to 0 and back. (2026-07-15.)

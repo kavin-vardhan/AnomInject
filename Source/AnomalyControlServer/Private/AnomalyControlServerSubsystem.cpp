@@ -218,6 +218,14 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 
 	Server->Tick();
 
+	if (UWorld* PumpWorld = GetWorld())
+	{
+		if (UAnomalyCaptureSubsystem* Cap = PumpWorld->GetSubsystem<UAnomalyCaptureSubsystem>())
+		{
+			Cap->PreviewPump();
+		}
+	}
+
 	const double Now = FPlatformTime::Seconds();
 	for (FControlConn& C : Conns)
 	{
@@ -750,15 +758,18 @@ void UAnomalyControlServerSubsystem::PushSnapshots()
 
 void UAnomalyControlServerSubsystem::PushFrames(bool bForce)
 {
+	UAnomalyCaptureSubsystem* Cap = nullptr;
 	if (UWorld* CapWorld = GetWorld())
 	{
-		if (UAnomalyCaptureSubsystem* Cap = CapWorld->GetSubsystem<UAnomalyCaptureSubsystem>())
-		{
-			if (Cap->IsCaptureActive())
-			{
-				return;
-			}
-		}
+		Cap = CapWorld->GetSubsystem<UAnomalyCaptureSubsystem>();
+	}
+	if (!Cap)
+	{
+		return;
+	}
+	if (Cap->IsCaptureActive())
+	{
+		return;
 	}
 
 	bool bAny = false;
@@ -777,21 +788,22 @@ void UAnomalyControlServerSubsystem::PushFrames(bool bForce)
 
 	TArray<uint8> Jpeg;
 	int32 W = 0, H = 0;
-	if (!AnomalyPreview::CaptureGameViewportJpeg(GetWorld(), Jpeg, W, H,  60))
+	uint32 FrameEpoch = 0;
+	if (Cap->PreviewPoll(Jpeg, W, H, FrameEpoch))
 	{
-		return;
-	}
+		TArray<uint8> Frame = ControlProtocol::BuildFrameHeader(++FrameCounter, FrameEpoch, (uint16)FMath::Clamp(W, 0, 65535), (uint16)FMath::Clamp(H, 0, 65535));
+		Frame.Append(Jpeg);
 
-	TArray<uint8> Frame = ControlProtocol::BuildFrameHeader(++FrameCounter, ViewEpoch, (uint16)FMath::Clamp(W, 0, 65535), (uint16)FMath::Clamp(H, 0, 65535));
-	Frame.Append(Jpeg);
-
-	for (const FControlConn& C : Conns)
-	{
-		if (C.bAuthed && (C.bSubFrames || bForce) && C.Socket)
+		for (const FControlConn& C : Conns)
 		{
-			C.Socket->Send(Frame.GetData(), (uint32)Frame.Num(),  false);
+			if (C.bAuthed && (C.bSubFrames || bForce) && C.Socket)
+			{
+				C.Socket->Send(Frame.GetData(), (uint32)Frame.Num(),  false);
+			}
 		}
 	}
+
+	Cap->PreviewArm(ViewEpoch);
 }
 
 #endif

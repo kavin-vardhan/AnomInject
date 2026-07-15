@@ -27,11 +27,11 @@ namespace
 {
 	using namespace AnomalyViewport;
 
-	float GPollRadius = 0.0f;
+	float GPollRadius = 1800.0f;
 	FDelegateHandle GPollRadiusDrawHandle;
 	bool GOverlaysSuppressed = false;
 
-	float GMinScreenCoveragePct = 0.0f;
+	float GMinScreenCoveragePct = 6.0f;
 
 	FVector ResolvePollOrigin(UWorld* World, const FVector& Fallback)
 	{
@@ -646,7 +646,7 @@ namespace AnomalyViewport
 static FAutoConsoleCommand GSetPollRadiusCmd(
 	TEXT("IAI.SetPollRadius"),
 	TEXT("Set the renderable-visible poll-radius distance cull around the player pawn, in Unreal units (cm). ")
-	TEXT("<= 0 disables it (default OFF). With no argument, prints the current radius. Usage: IAI.SetPollRadius <value>"),
+	TEXT("<= 0 disables it (default 1800 cm = 18 m). With no argument, prints the current radius. Usage: IAI.SetPollRadius <value>"),
 	FConsoleCommandWithArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args)
 		{
@@ -665,7 +665,7 @@ static FAutoConsoleCommand GSetPollRadiusCmd(
 static FAutoConsoleCommand GSetMinScreenCoverageCmd(
 	TEXT("IAI.SetMinScreenCoverage"),
 	TEXT("Set the renderable-visible minimum on-screen coverage cull, as a PERCENT of the viewport area [0,100]. ")
-	TEXT("<= 0 disables it (default OFF). With no argument, prints the current value. Usage: IAI.SetMinScreenCoverage <pct>"),
+	TEXT("<= 0 disables it (default 6%). With no argument, prints the current value. Usage: IAI.SetMinScreenCoverage <pct>"),
 	FConsoleCommandWithArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args)
 		{

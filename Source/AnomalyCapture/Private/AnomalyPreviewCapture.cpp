@@ -90,9 +90,4 @@ namespace AnomalyPreview
 
 		return EncodePixels(Format, Pixels, OutWidth, OutHeight, OutBytes, JpegQuality);
 	}
-
-	bool CaptureGameViewportJpeg(UWorld* World, TArray<uint8>& OutJpeg, int32& OutWidth, int32& OutHeight, int32 Quality)
-	{
-		return CaptureGameViewportEncoded(World, EImageFormat::JPEG, OutJpeg, OutWidth, OutHeight, Quality);
-	}
 }

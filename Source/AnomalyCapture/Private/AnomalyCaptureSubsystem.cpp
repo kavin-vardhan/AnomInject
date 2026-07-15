@@ -13,6 +13,7 @@
 #if ANOMALY_CAPTURE
 #include "AnomalyLabelWriter.h"
 #include "AnomalyPreviewCapture.h"
+#include "AnomalyPreviewTee.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyFrameCapturer.h"
@@ -181,6 +182,7 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 	bDeinitializing = true;
 	StopRun();
 #if ANOMALY_CAPTURE
+	PreviewTee.Reset();
 	if (Async.IsValid())
 	{
 		Async->PendingSnapshots.Empty();
@@ -981,6 +983,63 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		}
 		CheckEarlyPacingWarning();
 	}
+}
+
+void UAnomalyCaptureSubsystem::PreviewPump()
+{
+#if ANOMALY_CAPTURE
+	if (PreviewTee.IsValid())
+	{
+		PreviewTee->Pump(IsCaptureActive());
+	}
+#endif
+}
+
+void UAnomalyCaptureSubsystem::PreviewArm(uint32 InViewEpoch)
+{
+#if ANOMALY_CAPTURE
+	if (IsCaptureActive())
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	SWindow* TargetWindow = nullptr;
+	FIntRect CaptureRect;
+	if (!ComputeGameViewportCapture(World, TargetWindow, CaptureRect))
+	{
+		return;
+	}
+
+	if (!PreviewTee.IsValid())
+	{
+		PreviewTee = MakeUnique<FAnomalyPreviewTee>();
+		UE_LOG(LogAnomalyCapture, Log, TEXT("Preview(tee): backbuffer preview armed for the first time (hook registered)."));
+	}
+	if (PreviewTee->IsBusy())
+	{
+		return;
+	}
+	PreviewTee->Arm(TargetWindow, CaptureRect, InViewEpoch);
+#endif
+}
+
+bool UAnomalyCaptureSubsystem::PreviewPoll(TArray<uint8>& OutJpeg, int32& OutW, int32& OutH, uint32& OutEpoch)
+{
+#if ANOMALY_CAPTURE
+	if (!PreviewTee.IsValid())
+	{
+		return false;
+	}
+	if (IsCaptureActive())
+	{
+		PreviewTee->DiscardReady();
+		return false;
+	}
+	return PreviewTee->PollJpeg(OutJpeg, OutW, OutH, OutEpoch);
+#else
+	return false;
+#endif
 }
 
 void UAnomalyCaptureSubsystem::FinalizeArmedLabel()

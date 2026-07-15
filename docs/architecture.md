@@ -382,13 +382,27 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
 - `IAI.SetViewportScoping <0|1>` — toggle viewport-visibility scoping for the four object-scoped anomalies
   (default **OFF**; see "Viewport-visibility scoping" below).
 - `IAI.SetPollRadius <cm>` — set the renderable-visible **poll-radius distance cull** around the player pawn (G34);
-  `<= 0` disables it (default **OFF**). Affects the selector / auto-injector / dashboard set (all consume the live
-  renderable-visible poll). No argument → prints the current radius. Registered in `AnomalyViewport.cpp` (it sets a
-  world-independent global, so unlike the other `IAI.*` commands it is a plain `FAutoConsoleCommand`).
+  `<= 0` disables it. **Default `1800` cm (= 18 m), i.e. the cull is ON out of the box (m19).** Affects the selector /
+  auto-injector / dashboard set (all consume the live renderable-visible poll). No argument → prints the current radius.
+  Registered in `AnomalyViewport.cpp` (it sets a world-independent global, so unlike the other `IAI.*` commands it is a
+  plain `FAutoConsoleCommand`).
 - `IAI.SetMinScreenCoverage <pct>` — set the renderable-visible **screen-coverage cull** (percent of viewport area, G51);
-  `<= 0` disables it (default **OFF**). Affects the selector / auto-injector / dashboard set (all consume the live
-  renderable-visible poll). No argument → prints the current value. Registered in `AnomalyViewport.cpp` as a plain
-  world-independent `FAutoConsoleCommand` (like `IAI.SetPollRadius`).
+  `<= 0` disables it. **Default `6` %, i.e. the cull is ON out of the box (m19).** Affects the selector / auto-injector /
+  dashboard set (all consume the live renderable-visible poll). No argument → prints the current value. Registered in
+  `AnomalyViewport.cpp` as a plain world-independent `FAutoConsoleCommand` (like `IAI.SetPollRadius`).
+- **Targeting defaults + who owns them (m19).** The three targeting defaults are **hardcoded engine constants and the
+  ENGINE IS AUTHORITATIVE** — a packaged client build with no dashboard starts correct on its own:
+  `GPollRadius = 1800.0f` and `GMinScreenCoveragePct = 6.0f` (`AnomalyViewport.cpp`, file-scope globals — NOT
+  ini-backed; ini-backing via GConfig remains available as a follow-up if per-title tuning is ever wanted), and the
+  auto-pool's **default-enabled** set `GAutoPoolDefaultEnabled = { blinking, missing_texture }`
+  (`AnomalyAutoInjectorSubsystem.cpp`, consumed in `Initialize`). `GAutoPool` still offers all three ids
+  (`missing_object` remains selectable, just **not enabled by default**), and `SetAllAnomaliesEnabled(true)` still means
+  *all* of `GAutoPool` — it is an explicit action, not a default. **The dashboard has NO defaults of its own for these:**
+  the sliders and the pool checkboxes are pure mirrors of the snapshot (`session.pollRadius`,
+  `session.minScreenCoverage`, `auto.pool[id]` ← `Auto->IsAnomalyEnabled`), so engine and UI cannot drift. **Note the
+  poll-radius cull subtracts the bounds sphere radius**, so very large actors are never distance-culled; and a non-zero
+  *default* does not register the dev debug sphere (that only happens on an explicit `SetPollRadius` OFF→ON
+  transition) — which is what a client build wants. G80.
 - `IAI.DumpCoverage` — **diagnostic** (not a cull): log every renderable-visible (pre-coverage) actor with its on-screen
   coverage %, sorted ascending, marking which the current `IAI.SetMinScreenCoverage` threshold would cull. The threshold
   tuning companion. Registered in `AnomalyViewport.cpp` (world-dependent, so a `FAutoConsoleCommandWithWorldAndArgs`).
@@ -645,6 +659,21 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   grab returns the ARM TICK's own render (camera N), while the ring still yields camera N-1, so the projected bbox is
   predicted to be one frame stale under camera motion on the async path. Unmeasured (the validation scene has a static
   camera); the m18 label fix below deliberately did NOT touch L. See G78.
+- **Live preview — a backbuffer TEE, not a viewport read (m19).** The dashboard preview no longer uses
+  `FViewport::ReadPixels`: a packaged game viewport has no render target, so that read zero-filled and reported success
+  → a **black preview in ANY packaged build** (it was never editor-gated; it ran and sent black JPEGs — G79). The preview
+  now tees off the same `OnBackBufferReadyToPresent` stream the capture path uses, via its **own**
+  `FAnomalyFrameCapturer` instance (`FAnomalyPreviewTee`, `Private/AnomalyPreviewTee.{h,cpp}`) — it cannot share
+  capture's grab, because m16 suppression makes the two mutually exclusive in time and the capturer's arm/queue are
+  single-consumer. `UAnomalyCaptureSubsystem` owns the tee and exposes `PreviewPump()`/`PreviewArm(epoch)`/
+  `PreviewPoll(...)`; the control server drives them from its Tick, so all render/RHI stays quarantined in
+  `AnomalyCapture` and the control server gains **no render deps**. Arm cadence = the existing `subscribe` frameHz
+  (~6 Hz); the hook early-outs with no arm pending. **m16 suppression gates the ARM (not just the send)**, while the
+  pump still drains-and-discards so an in-flight readback cannot leak. Encode (`ConvertTightToBGRA` + `EncodePixels`)
+  runs on a background task; the WS send stays on the game thread. `ViewEpoch` is stamped at arm. The AIF1 wire format
+  is unchanged (no dashboard change). The preview now shows what the player sees (game UI included), matching captures.
+  Honest scope: **no capture speedup** (m16 already suppressed preview during captures); the win is a working packaged
+  preview + no ~6 Hz game-thread flush outside capture. G79.
 - **Label state stamp — END OF TICK on the async path (m18).** What a frame's label *says* is sampled from
   `Auto->GetLiveFires()`; what the frame *shows* is the state at the end of its own tick, because the async capture grabs
   the render of the tick that armed it. `BeginFire()`/`BeginRevert()` run later in that same `Tick` than

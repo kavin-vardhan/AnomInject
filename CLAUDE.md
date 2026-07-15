@@ -15,8 +15,54 @@ and is the single source of truth for the project.
   first-smoke-test bugs (packaged black preview; missing_texture stuck revert) were invisible in PIE. A package runs
   fully headless: `StackOBot.exe -windowed -ExecCmds="IAI.Server.Start, ..."` + the control server's own WS surface as
   the driver; iterative cook + exe hot-swap = ~1 min edit→validate loop. See **G76**.
-- **IN FLIGHT (built this session, NOT yet committed/tagged; on top of `m17` `e2c6dd2`): m18 — burst-boundary label
-  alignment (async label stamp → end of tick).** Fixes the ~17% label/pixel misalignment found while validating m17 —
+- **IN FLIGHT (built this session, NOT yet committed/tagged; on top of `m18` `4559c8c`): m19 — preview backbuffer tee.**
+  Fixes the **black dashboard preview in ANY packaged build** (delivery-gating: no client build had a working preview).
+  **Two premise corrections, both evidence-backed (docs must not restate the myths):** (1) the preview was **NEVER
+  editor-gated** — no `WITH_EDITOR` guard exists; the only guard is `ANOMALY_CONTROL_SERVER` (= not-Shipping), so the
+  packaged build compiled AND RAN it; (2) frames were **NOT "never generated"** — 117 frames/20 s were generated,
+  encoded and SENT, each **exactly 15027 B**, decoding to a valid 1280×720 image of mean **0.00** = BLACK. ⇒ **a
+  "frame counter increments" gate PASSES on the broken build; gate on PIXELS.** Cause: a packaged viewport has no
+  render target → `ReadPixels` zero-fills and reports success (G79). **Fix:** the preview tees off the same
+  `OnBackBufferReadyToPresent` stream as capture via its **own** `FAnomalyFrameCapturer` instance (new
+  `FAnomalyPreviewTee`) — it cannot share capture's grab (m16 makes them mutually exclusive in time; the capturer's
+  arm/queue are single-consumer). Capturer class **unmodified**. `UAnomalyCaptureSubsystem` owns the tee + a 3-method
+  facade (`PreviewPump`/`PreviewArm`/`PreviewPoll`) so the control server gains **no render deps**. **m16 suppression
+  gates the ARM, not just the send** (pump still drains-and-discards so an in-flight readback can't leak). Encode
+  off-thread; WS send stays on the game thread; **no `FlushRenderingCommands` left in the path**; `ViewEpoch` stamped
+  at arm. `ConvertTightToBGRA` promoted to `namespace AnomalyLabel` so capture + preview share ONE conversion.
+  **Dashboard UNCHANGED** (AIF1 format identical). **Gates in a LOCAL PACKAGE:** G1 preview WORKS — pixel-verified,
+  ~5.8/s, JPEGs ~71 KB and 60/60 **distinct** (vs the constant-15027 B black fingerprint), real scene decoded, and the
+  `InRHITexture` ensure is GONE; G2 suppression — **13.2 s capture running → 0 preview frames**, 51 after; G4 capture
+  **byte-identical to m18** (100 frames / 65 pos / same pattern / same cadence / same annotation `[3..10]` / 9 events);
+  G5 format `fmt=18` `PF_B8G8R8A8` correct on StackOBot; G6 no render-thread stall, ~5% fps delta **inside the noise
+  floor** (baseline itself 68–105 fps). **G3 (PIE) OWNER-PENDING** — needs the editor; same hook/rect/capturer class
+  that capture already proves in PIE. **HONEST PERF (no overclaim): m19 does NOT speed up capture** — m16 already
+  suppressed preview during captures; the win is a working packaged preview + no ~6 Hz game-thread flush OUTSIDE
+  capture (structural; unmeasurable on the light local scene). **KNOWN LIMITATION — Concorde/HDR format is an owner
+  post-push check** (mirrors m17): `ConvertTightToBGRA`'s `default:` branch returns BLACK, so any title whose captures
+  are correct will preview correctly (Concorde's captures are good ⇒ inference, not measurement); a true HDR
+  `PF_FloatRGBA` swapchain would look washed, not black. **Exact place to add a format/tonemap step if needed:
+  `AnomalyLabel::ConvertTightToBGRA` — it now fixes capture AND preview at once**; the `Preview(tee): first backbuffer
+  frame (fmt=…)` log makes it a 5-second check.
+  **BUNDLED INTO m19 (owner) — NEW TARGETING DEFAULTS: coverage `0 → 6`%, poll radius `0 → 1800` cm (18 m), auto-pool
+  default-enabled `{missing_object, blinking, missing_texture} → {blinking, missing_texture}`.** All three were
+  **hardcoded engine constants** (`GPollRadius`/`GMinScreenCoveragePct` in `AnomalyViewport.cpp`; a new
+  `GAutoPoolDefaultEnabled` consumed by `AnomalyAutoInjectorSubsystem::Initialize`) — **not** ini-backed (GConfig
+  remains a follow-up option). **The ENGINE IS AUTHORITATIVE and the dashboard has NO defaults of its own** — its
+  sliders/checkboxes are pure snapshot mirrors (`session.pollRadius`, `session.minScreenCoverage`, `auto.pool[id]` ←
+  `IsAnomalyEnabled`), so **zero dashboard changes were needed and the dashboard repo stays untouched at `f978f1b`**;
+  adding a UI-side default would have created a second source of truth that could drift. `missing_object` stays
+  **selectable, just not default-on**; `SetAllAnomaliesEnabled(true)` still means all of `GAutoPool`. **UNITS:** poll
+  radius is **cm** (18 m = 1800); coverage is **percent 0–100** (6% = `6.0f`). **Verified in a FRESH PACKAGED session,
+  no dashboard:** `1800.0 cm (cull ON)` / `6.00% (cull ON)` / `enabled pool (2): blinking, missing_texture`; snapshot
+  parity confirmed. **6% was measured, not guessed** — the Bot is 9.98% of the viewport (= `annotation.json`
+  `coverage_ratio: 0.10026`), so 10%/12% CULL THE TEST SCENE'S HERO CHARACTER; 6% keeps it (15→5 targets, Bot in).
+  **⚠ The MainMenu set collapses to 1 under the POLL radius (not coverage) — a MENU-MAP ARTIFACT:** the poll cull is
+  pawn-relative (G34) and a menu map's pawn is nowhere near the menu camera; in a real gameplay level the pawn IS the
+  player. **The poll default therefore cannot be judged in this map — owner sanity check wanted in a gameplay level /
+  on Concorde.** G80. **NO COMMIT this turn.** → `docs/sessions/2026-07-15-025-m19-preview-backbuffer-tee.md`.
+- **Latest milestone (as-built): m18 — burst-boundary label alignment (async label stamp → end of tick) — COMPLETE
+  (commit `4559c8c`, tagged `m18`, pushed) (2026-07-15).** Fixes the ~17% label/pixel misalignment found while validating m17 —
   same dataset-poisoning class, and it hit EVERY anomaly type. **Mechanism:** `CaptureCurrentFrame()` sampled the label
   from `GetLiveFires()` at mid-tick N, but `BeginFire()`/`BeginRevert()` run LATER IN THE SAME `Tick`, and the **async**
   grab (default) returns the render of the ARM TICK ITSELF (frame N) → the frame armed on a transition tick renders the
@@ -36,8 +82,8 @@ and is the single source of truth for the project.
   LOCAL PACKAGE:** 0/100 mismatches (was 17/100); hide-type `frame_indices`=[3..10]=hidden frames; non-hide
   `frame_indices`=[3..10] non-empty; **frame cadence byte-identical pre/post** (proves settle-K/phase timing untouched),
   positives 64→65 = exactly +9 FN −8 FP corrected; `verify_capture.py` clean (65 present / 65 boxes / 0 present-no-box)
-  + visual confirmation at both corrected edges. **NO COMMIT this turn** — on accept: strip comments, one `fix(capture)`
-  + tag `m18` (carries the m17-Concorde docs flip too). **OPEN (same root, NOT fixed):** the VIEW half — async grabs
+  + visual confirmation at both corrected edges. **SHIPPED** — one `fix(capture)` commit `4559c8c` + tag `m18`, pushed
+  (carried the m17-Concorde docs flip too). **OPEN (same root, NOT fixed):** the VIEW half — async grabs
   camera N while the ring yields camera N-1 → bbox predicted 1 frame stale under camera motion (unmeasured; static-camera
   scene; `IAI.Capture.ViewLag` is the knob G41 reserved for it). Also open: bbox projected from LIVE actor bounds at
   record-build time (wrong for moving targets); `blinking` toggle edges vs tickable order; **sync capture writes BLACK
@@ -418,7 +464,8 @@ and is the single source of truth for the project.
   (`…-021`) tagged `m15`**; **three capture-delivery fixes (`…-022`) tagged `m16`** (`84dfa52`);
   **missing_texture revert hardening (`…-023`) tagged `m17`** (`e2c6dd2`; validated on the local repro **and confirmed
   on Concorde's real `FWMasterSkeletalMeshComponent`**, immediate + churn — G77 closed); **burst-boundary label
-  alignment (`…-024`) = m18, BUILT + package-gated, NOT yet committed/tagged**.
+  alignment (`…-024`) tagged `m18`** (`4559c8c`); **preview backbuffer tee (`…-025`) = m19, BUILT + package-gated,
+  NOT yet committed/tagged** (G3/PIE + Concorde format = owner checks).
 
 ## Documentation system — how these docs fit together (read in this order)
 - **CLAUDE.md** (this file) — canonical context, environment, invariants, workflow rules, and the

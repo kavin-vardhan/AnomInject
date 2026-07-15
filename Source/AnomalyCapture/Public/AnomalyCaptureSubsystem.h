@@ -7,6 +7,7 @@
 #include "AnomalyCaptureSubsystem.generated.h"
 
 struct FAnomalyCaptureAsyncState;
+class FAnomalyPreviewTee;
 
 UCLASS()
 class ANOMALYCAPTURE_API UAnomalyCaptureSubsystem : public UTickableWorldSubsystem
@@ -34,6 +35,10 @@ public:
 	bool IsRunning() const { return bRunning; }
 
 	bool IsCaptureActive() const { return bRunning; }
+
+	void PreviewPump();
+	void PreviewArm(uint32 InViewEpoch);
+	bool PreviewPoll(TArray<uint8>& OutJpeg, int32& OutW, int32& OutH, uint32& OutEpoch);
 
 	void SetFocusGate(bool bInGate);
 	bool IsFocusGated() const { return bFocusGate; }
@@ -179,6 +184,7 @@ private:
 	bool bDeliveryMode = false;
 	EContentClock ContentClock = EContentClock::Wall;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;
+	TUniquePtr<FAnomalyPreviewTee> PreviewTee;
 
 #if WITH_EDITOR
 	bool bSavedShowMouseControlLabel = false;
