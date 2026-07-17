@@ -34,9 +34,9 @@ Double-click **`Setup.bat`** in the delivery folder and answer its prompts. It i
 
 * **Find or download ffmpeg.** If ffmpeg is already on your PATH (or was downloaded by a previous run) it uses that. Otherwise it offers to download a build for you; say **Yes** and it fetches and unpacks it automatically. (Say No only if you prefer to install ffmpeg yourself and add it to PATH — then re-run `Setup.bat`.)
 * **Find Python** on your PATH.
-* **Ask where captures appear.** The game writes every capture into a `Saved\AnomalyCaptures` folder **inside the game build folder** (created the first time you capture, so it's fine if it doesn't exist yet). Enter that full path when asked, e.g. `D:\Games\MyGameBuild\MyGame\Saved\AnomalyCaptures`. Setup offers to create the folder if it isn't there yet. **You only enter this once** — nothing else ever has to be hand-edited.
+* **Ask where captures should be saved.** Enter any folder you like (Setup creates it if it doesn't exist yet), e.g. `D:\AnomalyCaptures`. This one folder is used by **both** the video encoder (it watches here for finished captures) **and** the dashboard (the game is told to write captures here), so the two can't drift apart. **You only enter this once** — nothing else ever has to be hand-edited.
 * **Install the dashboard's dependencies** (`npm install`).
-* **Save your answers** to a small `config.bat` next to `Setup.bat`, which the run scripts read automatically.
+* **Save your answers** to a small `config.bat` next to `Setup.bat` (and point the dashboard at that same captures folder), which the run scripts read automatically.
 
 Re-run `Setup.bat` any time your paths change (new game build, moved captures folder) or the dashboard is updated.
 
@@ -115,7 +115,7 @@ Anomalies are applied to objects that are currently visible on screen. These two
 
 * **Auto-pool / Targeted** — the mode toggle described in Step 3 above.
 * **anomaly / target (on-screen)** — in Targeted mode, what to inject and on which object. The target list shows the current candidate objects (see the sliders above). You can also click an object in the live preview to select it.
-* **output folder (optional)** — leave this **blank**. The game then writes to its default `Saved\AnomalyCaptures` folder, which is the folder you pointed Setup at and where the video encoder is watching. (If you do type a folder here, the encoder won't see those sessions unless you re-run `Setup.bat` and point it at that folder.)
+* **captures folder** — pre-filled with the folder you chose in `Setup.bat` (the same folder the video encoder watches), so captures land exactly where the MP4s are made. Leave it as-is; only change it for a deliberate one-off to a different folder (the encoder won't see that run unless you re-run `Setup.bat` for that folder).
 * **format** — PNG (lossless, bigger files) or JPEG (smaller files).
 * **seed** — leave on “auto” unless you were asked to reproduce a specific run (see **Seed** above).
 * **frames** — how many frames to capture before stopping automatically. Blank = run until you press Stop.
