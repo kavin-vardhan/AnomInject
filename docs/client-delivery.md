@@ -152,17 +152,32 @@ Set it in two places, and they MUST match:
    falls back to the random per-session token + the existing log line (this is why the owner's own dev build,
    which sets no key, is unchanged).
 
-2. The **dashboard** — build it with a matching `VITE_CONTROL_TOKEN`. Copy `.env.example` to `.env` and set:
+2. The **dashboard** — set the same value as `controlToken` in the `config.json` that ships beside the built
+   app (`<delivery root>/dashboard/config.json`):
 
-   ```
-   VITE_CONTROL_TOKEN=<the-same-value>
+   ```json
+   { "controlToken": "<the-same-value>", "capturesRoot": "", "serverUrl": "ws://127.0.0.1:8077" }
    ```
 
-   then `npm run build`. When the baked token is present the dashboard pre-fills the token field and
-   **auto-connects** to `ws://127.0.0.1:8077` on load — no clicks. (`.env` is gitignored; never commit a real
-   token. The owner's dev build sets no `.env`, so the field stays empty and manual paste works as before —
-   and the dashboard now also remembers the last token you typed, via localStorage, so you stop re-pasting the
-   random one every reload.)
+   When a token is present the dashboard pre-fills it and **auto-connects** to `ws://127.0.0.1:8077` on
+   load — no clicks. `capturesRoot` is filled in by `Setup.bat` on the client's machine; `serverUrl` is
+   optional and defaults to `ws://127.0.0.1:8077`.
+
+   > **This replaced a build-time bake (M2, 2026-07-21).** The token used to come from a gitignored `.env`
+   > (`VITE_CONTROL_TOKEN`) compiled into the JS bundle, which meant assembling a delivery from a clean
+   > checkout produced a **silently tokenless** dashboard, and changing the token required a rebuild. It is
+   > now read at startup from a plain, visible, hand-editable file: no rebuild to change it, and a missing
+   > or wrong token is something you can open and fix. There is deliberately **no env fallback** — one
+   > source of truth.
+   >
+   > Degradations are all non-fatal: **no `config.json`** (or one the server answers with a page) → the
+   > dashboard opens its manual connect screen; **malformed JSON** → same, plus a console warning; a
+   > **present-but-rejected** token → the distinct "token rejected" screen from M1, whose copy names
+   > `config.json` as the file to fix. The dashboard also still remembers the last token you typed
+   > (localStorage), so the owner's own PIE workflow is unchanged.
+   >
+   > ⚠ **`dist/config.json` carries the DEV token after a build** — Vite copies `public/config.json` into
+   > `dist/`. Overwrite it with the client's token when assembling. See `PRE-DELIVERY-CHECKLIST.md` §2.
 
 **Security tradeoff (owner-accepted):** the baked token is a STATIC shared secret embedded in the two
 privately-shipped client artifacts (recoverable from the cooked ini and plaintext in the JS bundle). It is

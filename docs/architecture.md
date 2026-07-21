@@ -3,9 +3,12 @@
 > **Reflects: three capture-delivery fixes (m16).** (1) **Client token auto-populate** — the control server
 > reads a fixed `[AnomalyControlServer] Token` from `DefaultGame.ini` (GConfig at StartListening); present →
 > that token, absent/empty → the existing random per-session GUID + log line (owner in-editor unchanged). The
-> dashboard bakes a matching `VITE_CONTROL_TOKEN` and auto-connects with zero client copy-paste (a static
+> dashboard carries a matching token and auto-connects with zero client copy-paste (a static
 > shared secret; localhost-only tradeoff — `ws://` ignores CORS so the token still gates arbitrary web
-> origins; G71). (2) **Focus-gated capture start** — a Start ARMS immediately (clean-slate reverts + auto
+> origins; G71). **Dashboard side updated by M2 (2026-07-21):** that token is no longer baked into the
+> bundle at build time (`VITE_CONTROL_TOKEN`) — it is read at startup from a runtime `config.json` served
+> beside the app, so it can be changed without a rebuild and cannot silently vanish from a clean-checkout
+> assembly. The ENGINE side described here is unchanged. See `PRE-DELIVERY-CHECKLIST.md` + G84. (2) **Focus-gated capture start** — a Start ARMS immediately (clean-slate reverts + auto
 > pause happen now) but holds the first frame until the game window has foreground focus (new
 > `ECapturePhase::ArmedPending` resolved in `Tick` via `FViewport::IsForegroundWindow`); skipped when there
 > is no game window (headless / MainWorld Simulate), with an `IAI.Capture.FocusGate <0|1>` override +

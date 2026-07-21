@@ -937,6 +937,11 @@ localhost-only tool, `ws://` ignores CORS so the token still stops an arbitrary 
 if the two artifacts leak = local viewport-screenshot/injection, no network exposure). Do NOT drop/loopback-bypass auth to
 achieve auto-connect — the token is the only thing gating arbitrary local web origins. (2026-07-13.)
 
+**PARTIALLY SUPERSEDED (M2, 2026-07-21) — dashboard side only:** the `VITE_CONTROL_TOKEN` build-time bake
+described above is gone; the dashboard now reads its token at startup from a runtime `config.json` served
+beside the app. The ENGINE half of this entry (GConfig read, random-when-absent, the security tradeoff and
+the do-NOT-drop-auth rule) is unchanged and still current. See **G84**.
+
 ### G72 — focus-gated capture start: viewport foreground signal; SKIP when no game window so headless/Simulate can't deadlock (m16)
 A capture Start ARMS immediately (clean-slate reverts + auto-pause happen now) but holds the first frame until the game window
 has focus, via a new `ECapturePhase::ArmedPending` resolved in `Tick`. Focus signal = `GameViewport->Viewport->IsForegroundWindow()`
@@ -1276,3 +1281,40 @@ ignored, the dashboard's **welcome timeout is load-bearing, not belt-and-braces*
 is running and rejected me"; the timeout covers everything else (server wedged, message lost, an older server build
 with no error reply). The dashboard implements both and lands on one distinct `auth_failed` state, with no auto-retry.
 **Any future client for this server needs its own response timeout — never assume a reply will arrive.** (2026-07-21.)
+
+### G84 — ship client config as a RUNTIME file, not a build-time bake; and the four traps found doing it (M2)
+
+**The rule:** a value the client must have (here: the control-server token) must not be compiled into an
+artifact from a **gitignored** source. The m16 design baked `VITE_CONTROL_TOKEN` from `.env` into the JS
+bundle, so assembling a delivery from a clean checkout produced a **silently tokenless dashboard** — present,
+launching, looking correct, unable to connect — and changing the token meant a rebuild. M2 moved it to a
+`config.json` served beside the app, read at startup: hand-editable, visible, no rebuild, and a missing or
+wrong value is a file you can open. **No env fallback was kept** — two sources of truth for one secret is the
+confusion being removed. Degrade, never hang: absent/malformed config → the manual connect screen (the
+rejected-token case is G83's `auth_failed`).
+
+**Trap 1 — a UTF-8 BOM cost the shipped token.** `Setup.bat` stamps `capturesRoot` into `config.json` while
+preserving `controlToken`. Windows editors (Notepad; PowerShell `Set-Content -Encoding utf8`) write a BOM;
+`json.load` on a BOM'd file raises, and the naive `except → start from {}` fallback then **rewrote the file
+without the token**. Read with **`utf-8-sig`**, and never let "unreadable" silently mean "discard": the
+unparseable file is preserved as `.bak` with a loud warning. Same defence client-side (strip a leading BOM
+before `JSON.parse`). *Any config a human may edit will eventually arrive with a BOM.*
+
+**Trap 2 — `python -m http.server` resolves MIME from the WINDOWS REGISTRY.** A machine whose
+`HKCR\.js` carries `Content Type=text/plain` serves JavaScript as text/plain, the browser refuses the ES
+module, and the app is **blank** — on the client's box, where we cannot debug it. Our box is clean (no `.js`
+Content Type; Python 3.13 serves `text/javascript`), which is exactly why this is a trap: *it passes here and
+fails there.* Force types via `extensions_map` (consulted before the registry lookup). Don't gamble on a
+machine you cannot inspect.
+
+**Trap 3 — static servers cache; rewritten config keeps serving stale.** `http.server` sends
+conditional/cacheable responses, so a `config.json` updated by a re-run of `Setup.bat` can keep serving the
+OLD token until a hard refresh. Send `Cache-Control: no-store`. This bit during gating: a cached `index.html`
+served an earlier bundle and briefly disguised a gate result (the give-away was the asset hash in the DOM).
+**When verifying a static build, assert on the served asset hash, not just "the page works".**
+
+**Trap 4 — two cmd.exe parsing hazards in the launchers.** (a) An `echo` containing **parentheses inside an
+`if (...)` block** closes the block early → `. was unexpected at this time`; rephrase or escape as `^(`.
+(b) `timeout /t N` **aborts when stdin is redirected** ("Input redirection is not supported") — use
+`ping -n N 127.0.0.1 >nul` for a redirect-safe wait. Also note `.bat` files need CRLF (this repo enforces it
+via `.gitattributes`; an editor writing LF breaks multi-line blocks). (2026-07-21.)
