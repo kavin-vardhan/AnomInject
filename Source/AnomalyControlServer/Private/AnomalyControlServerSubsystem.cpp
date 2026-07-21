@@ -356,6 +356,11 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		}
 		else
 		{
+			const TSharedRef<FJsonObject> Err = MakeShared<FJsonObject>();
+			Err->SetStringField(TEXT("type"), TEXT("error"));
+			Err->SetStringField(TEXT("code"), TEXT("bad_token"));
+			Err->SetStringField(TEXT("message"), TEXT("token rejected"));
+			SendJson(Conn.Socket, Err);
 			Conn.bRejected = true;
 			UE_LOG(LogAnomalyServer, Warning, TEXT("Control: bad token — peer rejected."));
 		}
