@@ -1252,3 +1252,27 @@ just ratio~1) — every m18/m19/m20 validation ran paced+sustainable, the one re
 invisible. And when a frame-pairing bug is suspected, settle the direction with PIXELS decoded from the files
 (align_check/mode_audit), never by reasoning about thread lag; this is the third time the pixel check overturned a
 plausible story. (2026-07-15.)
+
+### G83 — UE 5.1 `INetworkingWebSocket` cannot CLOSE a socket; the error reply is the only bad-token signal (M1)
+
+`INetworkingWebSocket` (5.1, `Engine/Plugins/Experimental/WebSocketNetworking`) exposes `Send`/`Tick`/`Flush`/
+`SetXCallBack`/address getters and **no `Close` or `Destroy`**. The control server therefore has no way to hang up on a
+peer: `HandleMessage`'s bad-token branch could only set `Conn.bRejected` and then silently ignore that connection
+forever (the 5s `AuthTimeoutSeconds` sweep does the same for a peer that never sends `hello`). The socket stays OPEN
+from the client's point of view.
+
+**Consequence:** a client that sent a wrong token got NOTHING back — no reply, no close, no error. A browser client
+waiting on the server's `welcome` waits forever, showing "connecting/authenticating" indefinitely, and a **token
+mismatch is indistinguishable from a dead server**. This is exactly how the m16 baked-token footgun presented in the
+field: the dashboard looked broken rather than mis-configured.
+
+**Fix (M1, `3a46c1f`):** the bad-token branch now sends `{type:"error", code:"bad_token", message:"token rejected"}`
+via the same `SendJson` as `welcome`, *before* setting `bRejected`. It is additive and backward-compatible (older
+clients ignore unknown message types), so no `ControlProtocol::Version` bump. The no-hello auth-timeout branch is
+deliberately unchanged — that peer never identified itself and may not speak our protocol.
+
+**Client-side corollary (do not remove it):** because the server cannot close and a wrong-token peer is simply
+ignored, the dashboard's **welcome timeout is load-bearing, not belt-and-braces**. The error reply covers "the server
+is running and rejected me"; the timeout covers everything else (server wedged, message lost, an older server build
+with no error reply). The dashboard implements both and lands on one distinct `auth_failed` state, with no auto-retry.
+**Any future client for this server needs its own response timeout — never assume a reply will arrive.** (2026-07-21.)
