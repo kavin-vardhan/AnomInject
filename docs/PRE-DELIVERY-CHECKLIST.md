@@ -23,45 +23,52 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 - [ ] Build is **Development or Test**, not Shipping.
       *Capture and the control server are compiled out of Shipping entirely.*
 
-## 2. Dashboard bundle
+## 2. Desktop app + config
 
-- [ ] **Built with the current source**: `npm run build` on the build machine (not a stale `dist/`).
-- [ ] **`dashboard/config.json` exists and its `controlToken` is the CLIENT's token** — byte-identical to
-      the ini value in §1.
-      *Mismatch → the dashboard reaches the server and is rejected; since M1 that shows a clear
-      "token rejected" screen naming this file, but it still means a client who cannot capture.*
-- [ ] **The dev token is not shipped.** `dist/config.json` is copied from `public/config.json` by Vite, so
-      a fresh build carries the **dev** token (`TESTVALUE123`) unless you overwrite it.
-      *Easy to miss precisely because the file is present and looks right.*
-- [ ] `capturesRoot` may be left `""` — `Setup.bat` fills it in on the client's machine.
-- [ ] **Assets load from a plain file path.** The build must use `base: './'` (relative `./assets/...` in
-      `index.html`). Serve the bundle locally once and confirm it renders.
-      *Absolute `/assets/...` breaks the moment the app is served from anywhere but a server root.*
+- [ ] **Built with the current source**: `npm run build:tauri && npm run tauri build` on a machine with
+      **Rust ≥ 1.77.2**; copy `src-tauri/target/release/Dashboard.exe` to the delivery root.
+- [ ] **`config.json` sits at the delivery root (next to `Dashboard.exe`) and its `controlToken` is the
+      CLIENT's token** — byte-identical to the ini value in §1.
+      *Mismatch → the app reaches the server and is rejected; since M1 that shows a clear "token rejected"
+      screen naming `config.json`, but it still means a client who cannot capture.*
+- [ ] **`config.json` is NOT embedded in the exe.** `build:tauri` deletes `dist/config.json` before Tauri
+      compiles the frontend in, and the app reads the loose file at runtime — the token is editable with no
+      rebuild. Confirm once by deleting the loose `config.json`: the app should open its manual connect
+      screen (nothing baked). *This is the M2 footgun-fix; a regression here silently re-bakes the token.*
+- [ ] Author `config.json` by hand (or from `config.example.json`) — do **not** ship the dev
+      `public/config.json` (token `TESTVALUE123`). `capturesRoot` may be left `""`; `Setup.bat` fills it in.
 
 ## 3. Bundle assembly
 
 ```
-<delivery root>/  Setup.bat  Run.bat  dashboard/{index.html,assets/,config.json}  host-tools/  (game build)
+<delivery root>/  Setup.bat  Run.bat  Dashboard.exe  config.json  host-tools/  (game build)
 ```
 
-- [ ] `Setup.bat` + `Run.bat` sit at the **delivery root** (they resolve paths via `%~dp0`; they do not
-      work from inside `host-tools/`).
-- [ ] `host-tools/` contains `serve_dashboard.py`, `write_config.py`, `selfcheck.py`, `encode_watcher.py`.
+- [ ] `Setup.bat` + `Run.bat` + `Dashboard.exe` + `config.json` sit at the **delivery root** (the `.bat`s
+      resolve paths via `%~dp0`; the app reads `config.json` from its own folder).
+- [ ] `host-tools/` contains `encode_watcher.py`, `selfcheck.py`, `write_config.py`, and `serve_dashboard.py`
+      (the last is the fallback route only).
 - [ ] **The client-readme's LAUNCH section is filled in** with this build's actual game-launch steps.
       *It ships as an empty stub; the client cannot start the game without it.*
-- [ ] No `node_modules/`, no `package.json` in the bundle — the client needs **Python only**.
+- [ ] No `node_modules/`, no `package.json` in the bundle — the client needs **Python only** (for the encoder).
 
 ## 4. Dry run on a clean-ish machine
 
 - [ ] **`Setup.bat`**: ffmpeg fetch exercised (including the corporate-network retry path, or the manual
       fallback documented in the client-readme), Python found, captures folder created.
-- [ ] **`Setup.bat` did not clobber the token** — re-open `dashboard/config.json` and confirm
+- [ ] **`Setup.bat` did not clobber the token** — re-open `config.json` (at the delivery root) and confirm
       `controlToken` is still the client's value and `capturesRoot` is now filled in.
       *A config saved with a UTF-8 BOM used to make this file unparseable and cost the token silently.*
-- [ ] **`Run.bat`**: three windows/statuses — its self-check should print `dashboard` OK, `watcher` OK, and
-      `game server` OK once the game is running.
-- [ ] **A real capture end-to-end**: frames land in the chosen captures folder, `annotation.json` +
-      `run_summary.json` are written, and the mp4 appears a few seconds later.
+- [ ] **WebView2**: present by default on Win10 21H2+/Win11. `Setup.bat` checks the registry and
+      silent-installs the Evergreen bootstrapper if absent. ⚠ **The silent-install path has NOT been tested
+      against a machine actually lacking WebView2** (D-M3-4) — watch it on the first such client box; if it
+      fails, install WebView2 by hand from the Microsoft Evergreen page and re-run `Setup.bat`.
+- [ ] **SmartScreen**: `Dashboard.exe` is unsigned, so the first launch shows "Windows protected your PC" —
+      the client clicks **More info → Run anyway** once. Tell them to expect it (it is not a virus warning).
+- [ ] **`Run.bat`**: launches `Dashboard.exe` + the watcher; its self-check should print `dashboard`
+      (Dashboard.exe running) OK, `watcher` OK, and `game server` OK once the game is running.
+- [ ] **A real capture end-to-end**: start a capture *from the app*, frames land in the chosen captures
+      folder, `annotation.json` + `run_summary.json` are written, and the mp4 appears a few seconds later.
 - [ ] **This is the standing packaged-build gate (G76)** — validate against a packaged build, never PIE
       alone. Both first-smoke-test bugs (black preview; stuck `missing_texture` revert) were invisible in
       the editor.

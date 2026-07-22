@@ -1318,3 +1318,40 @@ served an earlier bundle and briefly disguised a gate result (the give-away was 
 (b) `timeout /t N` **aborts when stdin is redirected** ("Input redirection is not supported") — use
 `ping -n N 127.0.0.1 >nul` for a redirect-safe wait. Also note `.bat` files need CRLF (this repo enforces it
 via `.gitattributes`; an editor writing LF breaks multi-line blocks). (2026-07-21.)
+
+### G85 — wrapping the dashboard as a Tauri v2 desktop app: five lessons (M3)
+
+Wrapping the web dashboard in a **Tauri v2** shell (double-click `Dashboard.exe`, system WebView2, ~8 MB,
+no bundled Chromium) so a client needs no browser and no served build. The plugin/protocol/WS are untouched;
+these are the non-obvious traps.
+
+**1. `frontendDist` is COMPILED INTO the exe — never put `config.json` in `dist/`.** Tauri embeds the whole
+frontend build into the binary. If `dist/config.json` is present it is baked in, silently re-creating the
+M2 build-time-token footgun (G84). Two defences, both used: a `build:tauri` script deletes `dist/config.json`
+before `tauri build`, AND the app never `fetch`es config in a Tauri build — a narrow `#[tauri::command]
+read_config` reads `<exe_dir>/config.json` off disk (the loose, editable, runtime file). Detect the Tauri
+context with `'__TAURI_INTERNALS__' in window` (guard `typeof window` so Node unit tests stay on the fetch
+path). Proof it's not baked: delete the loose file → the app opens its manual connect screen.
+
+**2. A set CSP must explicitly allow the control-server WS or it dies silently.** With
+`app.security.csp` non-null, `connect-src` must list `ws://127.0.0.1:8077` (we also add `ipc:
+http://ipc.localhost` for Tauri's own IPC, and `img-src blob:` defensively). The preview uses
+`createImageBitmap(Blob)` directly (no `blob:` URL) so `connect-src` is the real requirement — but verify
+live: a wrong CSP shows a rendered-but-disconnected app, not an error. Ours needed no loosening.
+
+**3. Least privilege: your OWN commands need no capability grant.** A custom command registered via
+`invoke_handler` is callable from the main window without any entry in `capabilities/*.json` — that gates
+*plugin* commands (fs/shell/…), which we deliberately do NOT use. `read_config` + the scaffold's default
+capability is the whole surface.
+
+**4. Portable exe = `target/release/<productName>.exe` with `bundle.active:false`.** `tauri build` always
+compiles the release binary; `bundle.active:false` just skips the MSI/NSIS packaging. Ship that raw exe in
+the delivery folder (no installer, no Program Files/UAC). It is unsigned → first launch trips SmartScreen
+("More info → Run anyway", once) — documented for the client; code-signing is out of scope.
+
+**5. WebView2 + Rust MSRV.** The app renders in the system WebView2 (default on Win10 21H2+/Win11); detect
+via `pv` under `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}`
+(+HKCU), silent-install the Evergreen bootstrapper with `/silent /install`. Tauri v2 needs **Rust ≥ 1.77.2**
+(a stale 1.74.1 must be `rustup update stable`d). ⚠ **The silent-install path is UNTESTED against a machine
+actually lacking WebView2** — the dev box has it and was not uninstalled; first WebView2-less client is the
+watch-item (in PRE-DELIVERY-CHECKLIST §4). (2026-07-21.)
