@@ -10,13 +10,42 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
+- **STANDING CONVENTION (owner directive, 2026-07-29): this Current-status block is REFRESHED AT EVERY MILESTONE
+  CLOSE — same discipline as the session journals.** It is the cold-start contract: if it says "in flight / not
+  committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
+  slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
+  for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
+- **HEAD = `ed2b851`, tree CLEAN. Latest TAG = `m21` = `a2c3127`** (there is **no `m22` tag** — see below).
+  **Post-m21, untagged, on `master`** (all shipped/pushed): `3e5e455` + `a4a8862` docs(client-readme) — Setup/Run flow,
+  shared captures folder, ffmpeg troubleshooting; `3a46c1f` fix(control-server) — reply `{type:"error",
+  code:"bad_token"}` before rejecting a peer; `9c46ef5` docs(gotchas) **G83** — 5.1 `INetworkingWebSocket` has no
+  `Close`, the error reply is the only bad-token signal; `6d01bc9` docs(delivery) — PRE-DELIVERY-CHECKLIST + client
+  docs migrated to a runtime `config.json`; `ed2b851` docs(delivery) — desktop-app delivery (WebView2, SmartScreen,
+  Python-for-encoder) + **G85**. The **dashboard M1–M3 (Tauri `Dashboard.exe`)** work lives in the SEPARATE AnomDash
+  repo, not here.
+- **NEXT MAJOR TRACK (approved 2026-07-29): the SVE capture migration** — see
+  `docs/sessions/2026-07-29-028-capturebench-s1-and-traceability-plan.md`.
+  **NEW LOAD-BEARING REQUIREMENT: label correctness must be RATIO-INDEPENDENT.** A real client session at
+  `speed_ratio` **1.2** produced a confirmed **−1** on a `missing_object` boundary (effect frame 50, annotation 51) —
+  the **1.1–1.5 band that was never measured** (m21 validated ratio≈1.0 exact and ratio≳3 residual; this sat between
+  the two measured points). Clients capture on their own hardware and **will not be asked to discard or re-capture
+  sessions**. ⇒ **The `speed_ratio ≤ ~1.05` SHIP RULE IS DEMOTED from correctness gate to INTERNAL TELEMETRY**, and
+  retires entirely once the SVE migration lands. **The proposed `m22` scene-identity marker is SUPERSEDED and dead** —
+  the SVE grab point solves the same problem structurally (it reads the frame being rendered, so there is no
+  arm→present matching to get wrong). **UI decision: UI on/off ships as a GRAB-POINT CHOICE — SVE = UI-free,
+  backbuffer = UI-on. No UI-isolation work** (SDR has no isolated UI layer: `GetCompositeUIRenderTarget()` is
+  HDR-gated, `SlateRHIRenderer.cpp:980-991`). **Ground-truth contract AMENDED: UI presence is per-run config**
+  (proposed delivered default UI-off, pending client sign-off). 8-bit delivered color stands; the typed FP16/FP32 path
+  lands **with depth**. **`Plugins/CaptureBench/` is a PERMANENT non-shipping perf-regression harness** (own plugin,
+  gated `CAPTURE_BENCH`, never ships; it is NOT part of this repo).
 - **STANDING TEST BASELINE (owner directive, 2026-07-15): validate against a LOCAL PACKAGED BUILD under
   `D:\IntrusiveAnomalies\StackOBot\Builds`, not just PIE.** The editor masks packaged-only behavior — both
   first-smoke-test bugs (packaged black preview; missing_texture stuck revert) were invisible in PIE. A package runs
   fully headless: `StackOBot.exe -windowed -ExecCmds="IAI.Server.Start, ..."` + the control server's own WS surface as
   the driver; iterative cook + exe hot-swap = ~1 min edit→validate loop. See **G76**.
-- **IN FLIGHT (built this session, NOT yet committed/tagged; on top of `m20` `c01a214`): m21 — deterministic
-  arm→present pairing (the REAL root of the "−1 frame shift").** The owner's −1 (annotation/labels one earlier than
+- **Latest milestone (as-built): m21 — deterministic arm→present pairing — COMPLETE (commit `a2c3127`, tagged `m21`,
+  pushed) (2026-07-15).** *(Corrected 2026-07-29: this entry previously read "IN FLIGHT … NO COMMIT this turn" and
+  stayed that way for six subsequent commits. m21 shipped.)* The owner's −1 (annotation/labels one earlier than
   pixels) was **not delivery mode and not content clock** — both refuted by A/B + code (the clock only reaches the fps
   stamp; the dev box was already running WALL: no `[AnomalyCapture]` ini section, engine default Wall since m15). And
   it was never an annotation bug: **labels.jsonl shifts too.** **Real variable = the rate regime:** paced+sustainable
@@ -33,11 +62,12 @@ and is the single source of truth for the project.
   one-time mid-run event permanently shifts content −1 (missing_texture) while pairing stays perfect, and
   render-STATE changes are worse: an 8-tick hide window (game-state-proven via annotation) **never appeared in any
   presented frame** (blinking@240, visually confirmed). No arm-side pairing can fix content the present never
-  contained → m22 = scene-identity marker (the Stage-3 SVE; publishes which tick's scene each present carries) + the
-  slip/hide-propagation investigation. **SHIP RULE (per-session self-check, works today):**
-  `run_summary.speed_ratio ≤ ~1.05 & paced` → trust; `> ~1.05` → lower `IAI.Capture.Fps`, re-capture; audit delivered
-  sessions for ratio > 1.02. Honest gates: G2/G3/G4/G6(ratio≈1) GREEN; **G1/G5 (deep starve) NOT green** — improved
-  but residual, deferred with evidence. G82. **NO COMMIT this turn.**
+  contained → the proposed m22 = scene-identity marker. **⚠ SUPERSEDED 2026-07-29 — the m22 marker is DEAD and was
+  never tagged; the SVE migration replaces it** (it reads the frame being rendered, so no arm→present matching exists
+  to get wrong). **The old SHIP RULE (`run_summary.speed_ratio ≤ ~1.05 & paced` → trust) is DEMOTED to internal
+  telemetry** — it is NO LONGER a correctness gate, because a client session at ratio **1.2** shifted anyway and
+  clients will not re-capture. Honest gates as of m21: G2/G3/G4/G6(ratio≈1) GREEN; **G1/G5 (deep starve) NOT green** —
+  improved but residual, deferred with evidence. G82.
   → `docs/sessions/2026-07-15-027-m21-arm-present-pairing.md`.
 - **Latest milestone (as-built): m20 — annotation.json labeling — COMPLETE (commit `c01a214`, tagged `m20`, pushed)
   (2026-07-15).**
