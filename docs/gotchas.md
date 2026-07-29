@@ -1355,3 +1355,33 @@ via `pv` under `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226
 (a stale 1.74.1 must be `rustup update stable`d). ⚠ **The silent-install path is UNTESTED against a machine
 actually lacking WebView2** — the dev box has it and was not uninstalled; first WebView2-less client is the
 watch-item (in PRE-DELIVERY-CHECKLIST §4). (2026-07-21.)
+
+### G86 — a Visual Studio update silently invalidates the whole UBT cache AND breaks UE 5.1; pin `CompilerVersion`
+
+Symptom, in this order: (1) a build that should be incremental suddenly queues **~2500 actions**; (2) it then
+fails inside **engine** code, not project code:
+`Engine/Source/Runtime/Core/Public/Experimental/ConcurrentLinearAllocator.h(29): error C4668: '__has_feature'
+is not defined as a preprocessor macro` (plus C4067), preceded by
+`Detected compiler newer than Visual Studio 2022, please update min version checking`.
+
+Two independent facts, both worth knowing:
+- **The compiler version is part of UBT's action key.** When VS auto-updates the MSVC toolset, every cached
+  action key changes, so UBT rebuilds the entire engine even though no source changed. **The huge action
+  count is the tell** — it is not your code, and re-running does not help.
+- **UE 5.1 predates MSVC 14.42.** `__has_feature` is a Clang builtin; 14.42 does not define it, and 5.1's
+  Core header uses it unguarded under warnings-as-errors. The engine cannot compile on that toolset.
+
+**Fix — pin the toolchain** in `%APPDATA%\Unreal Engine\UnrealBuildTool\BuildConfiguration.xml`:
+```xml
+<WindowsPlatform>
+  <CompilerVersion>14.38.33130</CompilerVersion>
+</WindowsPlatform>
+```
+(Installed on this box: 14.36.32532, 14.38.33130, 14.42.34433; **14.38 builds 5.1 clean**.) ⚠ The pin does
+**not** undo the cache invalidation — one full ~2500-action engine rebuild still runs; it just now *succeeds*.
+Budget that wall time after any VS update.
+
+**Companion trap seen the same session:** with the editor still open (~6 GB), UBT saw ~500 MB free of 24 GB
+and self-capped to **one** parallel action (`Requested 1.5 GB free memory per action, 1.18 GB available`),
+turning that rebuild into hours. **Close the editor before any large build** — and note the link would have
+failed anyway on the loaded DLL (the Live-Coding class of failure). (2026-07-29.)
