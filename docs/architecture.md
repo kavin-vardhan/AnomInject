@@ -113,7 +113,18 @@
 >   are sampled ONCE, at the event's ANCHOR FRAME** (the first captured frame of the event), exactly like
 >   `global_position` and the camera block. **They are NOT per-frame truth** — for an actor that moves
 >   during the event, `bounds` describes its anchor-frame pose, not its pose on every affected frame.
->   `asset_name`/`component_class` come from the actor's first visible `UMeshComponent`. The dashboard is capture-first: Targeted/Auto-pool toggle, the auto panel is now the
+>   `asset_name`/`component_class` come from the actor's first visible `UMeshComponent`.
+> - **`coverage_pct`** (m22/B2) is the event's screen-coverage percentage at the anchor frame — client-visible,
+>   emitted in **both** modes, next to the existing `coverage_ratio`.
+>
+> **`selection_provenance.json` (m22/B2) — INTERNAL sidecar, NOT shipped.** Written at run finish next to
+> `run.json`, **suppressed in delivery mode** (same gate as `labels.jsonl`/`run.json`). One record per fired
+> event: `{anomaly_id, target, anchor_index, valid, coverage_pct, occlusion_samples_passed,
+> occlusion_samples_total, poll_distance}`. It answers "why was this target selectable?" when a session is
+> audited. Produced by `AnomalyViewport::EvaluateSelectionProvenance`, which is **observational only** — it is a
+> standalone function that no selection code calls, so the early-out occlusion boolean still decides selection
+> and the seeded selection sequence is unaffected. `poll_distance` is distance to the component's bounds
+> **sphere**, so it goes negative when the pawn is inside those bounds. The dashboard is capture-first: Targeted/Auto-pool toggle, the auto panel is now the
 > "Capture pool", and the manual Inject/Arg panels are deleted. This sits on the m9 session-capture layer
 > (the quarantined `AnomalyCapture` module: N-frame cap, `session_<ts>/Actual_Frames`, native
 > multi-anomaly `annotation.json`, host-side mp4 encode) and the fixed-timestep native-fps capture

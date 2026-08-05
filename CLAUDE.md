@@ -670,6 +670,15 @@ and is the single source of truth for the project.
   milestones diff cleanly (`m1..m2`, and a changelog can be auto-derived later). The git repo is the
   plugin folder (`master`); host scaffolding lives outside it and is not committed here. **Before every
   commit, run the comment stripper (see Invariants) — the source must stay comment-free.**
+- **PUSH — CODE OWNS PUSHES (standing rule, 2026-07-29; SUPERSEDES the old "owner owns remote pushes").**
+  When work is committed and gated, **push it yourself, including tags.** Do not wait for the owner to push —
+  the old rule added a round trip and nothing else. **KEEP:** before pushing, report `git status` +
+  `git log origin/master..master` so what went up is on the record — that is a **LOG, not an approval
+  request**; report it and push **in the same turn**. (Rationale: two tracks share this repo and entangled
+  once — G43 — so the record matters; the gate does not.) **KEEP:** **never force-push on a rejection** —
+  stop and flag it to the owner. **Auth stays with the owner; never handle credentials.**
+  ⚠ **This does NOT dissolve owner-owned QUALITY gates.** An owner Play-gate/eyeball smoke still comes
+  **before** a tag when one is required — the hold there is the **smoke gate**, not push ownership.
 - **Doc discipline — leave the docs able to (a) cold-start a fresh session and (b) explain the
   whole plugin to any UE dev.** When you start or advance a milestone you MUST, before the session
   closes:
