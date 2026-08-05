@@ -104,12 +104,12 @@ namespace
 		return FString();
 	}
 
-	void MapAnomalyToClient(FName Id, int32 Transitions, FString& OutType, FString& OutSubtype)
+	void MapAnomalyToClient(FName Id, FString& OutType, FString& OutSubtype)
 	{
 		if (Id == FName(TEXT("blinking")))
 		{
 			OutType = TEXT("blink");
-			OutSubtype = (Transitions <= 2) ? TEXT("disappear_reappear") : TEXT("flicker");
+			OutSubtype = TEXT("disappear_reappear");
 		}
 		else
 		{
@@ -1392,18 +1392,13 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		HiddenKeys.Sort();
 
 		TArray<int32> HiddenIdx;
-		int32 Transitions = 0;
-		int32 PrevHidden = -1;
 		for (int32 Key : HiddenKeys)
 		{
-			const int32 Hidden = (int32)Ev.HiddenByIndex[Key];
-			if (Hidden) { HiddenIdx.Add(Key); }
-			if (PrevHidden != -1 && Hidden != PrevHidden) { ++Transitions; }
-			PrevHidden = Hidden;
+			if (Ev.HiddenByIndex[Key]) { HiddenIdx.Add(Key); }
 		}
 
 		AnomalyLabel::FSessionEvent Out;
-		MapAnomalyToClient(Ev.Id, Transitions, Out.AnomalyType, Out.AnomalySubtype);
+		MapAnomalyToClient(Ev.Id, Out.AnomalyType, Out.AnomalySubtype);
 
 		const bool bHideType = HiddenIdx.Num() > 0;
 		TArray<int32> FrameIndices = bHideType ? MoveTemp(HiddenIdx) : Ev.AffectedFrames;

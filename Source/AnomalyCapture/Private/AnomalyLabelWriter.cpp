@@ -341,12 +341,12 @@ namespace AnomalyLabel
 
 			{
 				TSharedRef<FJsonObject> AF = MakeShared<FJsonObject>();
-				int32 Start = 0, End = 0, Count = 0;
-				if (E.FrameIndices.Num() > 0)
+				int32 Start = 0, End = 0;
+				const int32 Count = E.FrameIndices.Num();
+				if (Count > 0)
 				{
 					Start = E.FrameIndices[0];
 					End = E.FrameIndices.Last();
-					Count = End - Start + 1;
 				}
 				AF->SetNumberField(TEXT("start_frame"), Start);
 				AF->SetNumberField(TEXT("end_frame"), End);
