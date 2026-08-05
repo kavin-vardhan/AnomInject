@@ -315,6 +315,51 @@ namespace
 		return CoveragePct >= MinPct;
 	}
 
+	int32 CountUnoccludedSamples(const FVector& ViewOrigin, UWorld* World, const UPrimitiveComponent* Component,
+		int32& OutTotal)
+	{
+		OutTotal = 0;
+		if (!World || !Component)
+		{
+			return 0;
+		}
+
+		const FBoxSphereBounds& B = Component->Bounds;
+		const FVector C = B.Origin;
+		const FVector E = B.BoxExtent;
+
+		TArray<FVector, TInlineAllocator<9>> Samples;
+		Samples.Add(C);
+		for (int32 SignX = -1; SignX <= 1; SignX += 2)
+		{
+			for (int32 SignY = -1; SignY <= 1; SignY += 2)
+			{
+				for (int32 SignZ = -1; SignZ <= 1; SignZ += 2)
+				{
+					Samples.Add(C + FVector(SignX * E.X, SignY * E.Y, SignZ * E.Z));
+				}
+			}
+		}
+
+		FCollisionQueryParams Params(FName(TEXT("AnomalyViewportProvenance")), false);
+		if (const AActor* Owner = Component->GetOwner())
+		{
+			Params.AddIgnoredActor(Owner);
+		}
+
+		int32 Passed = 0;
+		for (const FVector& Target : Samples)
+		{
+			FHitResult Hit;
+			if (!World->LineTraceSingleByChannel(Hit, ViewOrigin, Target, ECC_Visibility, Params))
+			{
+				++Passed;
+			}
+			++OutTotal;
+		}
+		return Passed;
+	}
+
 	bool ClassifyRenderableVisibleLive(const FConvexVolume& Frustum, const FMatrix& ViewProj, const FVector& ViewOrigin,
 		const FVector& PollOrigin, float PollRadius, float MinCoveragePct, UWorld* World, const AActor* Actor,
 		UPrimitiveComponent*& OutFirstMatch)
@@ -490,6 +535,47 @@ namespace AnomalyViewport
 			}
 		}
 		return Result;
+	}
+
+	bool EvaluateSelectionProvenance(UWorld* World, const AActor* Actor, FSelectionProvenance& Out)
+	{
+		Out = FSelectionProvenance();
+		if (!World || !Actor)
+		{
+			return false;
+		}
+
+		FAnomalyViewInfo View;
+		if (!GetActiveViewInfo(World, View))
+		{
+			return false;
+		}
+
+		const FConvexVolume Frustum = BuildFrustum(View);
+		const FMatrix ViewProj = BuildViewProjectionMatrix(View);
+		const FVector PollOrigin = ResolvePollOrigin(World, View.Origin);
+
+		FBox Union(ForceInit);
+		UPrimitiveComponent* First = CollectRenderableVisibleUnion(Frustum, View.Origin, PollOrigin,
+			GPollRadius, World, Actor, Union);
+		if (!First)
+		{
+			return false;
+		}
+
+		FVector2D Min(FVector2D::ZeroVector), Max(FVector2D::ZeroVector);
+		if (ProjectBoundsToScreenRect(ViewProj, FBoxSphereBounds(Union), Min, Max))
+		{
+			Out.CoveragePct = (float)((Max.X - Min.X) * (Max.Y - Min.Y)) * 100.0f;
+		}
+
+		Out.OcclusionSamplesPassed = CountUnoccludedSamples(View.Origin, World, First, Out.OcclusionSamplesTotal);
+
+		const FBoxSphereBounds& B = First->Bounds;
+		Out.PollDistance = (float)(FVector::Dist(PollOrigin, B.Origin) - B.SphereRadius);
+
+		Out.bValid = true;
+		return true;
 	}
 
 	TArray<TWeakObjectPtr<AActor>> GetVisibleRenderableActors(UWorld* World)

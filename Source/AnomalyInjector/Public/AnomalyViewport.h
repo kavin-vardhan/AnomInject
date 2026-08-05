@@ -34,8 +34,19 @@ struct FRenderableActorInfo
 	bool bRectValid = false;
 };
 
+struct FSelectionProvenance
+{
+	float CoveragePct = -1.0f;
+	int32 OcclusionSamplesPassed = 0;
+	int32 OcclusionSamplesTotal = 0;
+	float PollDistance = -1.0f;
+	bool bValid = false;
+};
+
 namespace AnomalyViewport
 {
+	ANOMALYINJECTOR_API bool EvaluateSelectionProvenance(UWorld* World, const AActor* Actor, FSelectionProvenance& Out);
+
 	ANOMALYINJECTOR_API bool GetActiveViewInfo(UWorld* World, FAnomalyViewInfo& OutView);
 
 	ANOMALYINJECTOR_API bool IsComponentInFrustum(const FAnomalyViewInfo& View, const UPrimitiveComponent* Component);

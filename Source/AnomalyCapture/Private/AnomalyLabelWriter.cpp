@@ -254,6 +254,36 @@ namespace AnomalyLabel
 		return true;
 	}
 
+	bool WriteSelectionProvenance(const FString& RunDir, const TArray<FProvenanceRecord>& Records)
+	{
+		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+		Root->SetStringField(TEXT("type"), TEXT("selection_provenance"));
+
+		TArray<TSharedPtr<FJsonValue>> Arr;
+		for (const FProvenanceRecord& R : Records)
+		{
+			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+			O->SetStringField(TEXT("anomaly_id"), R.AnomalyId);
+			O->SetStringField(TEXT("target"), R.Target);
+			O->SetNumberField(TEXT("anchor_index"), R.AnchorIndex);
+			O->SetBoolField(TEXT("valid"), R.bValid);
+			O->SetNumberField(TEXT("coverage_pct"), R.CoveragePct);
+			O->SetNumberField(TEXT("occlusion_samples_passed"), R.OcclusionSamplesPassed);
+			O->SetNumberField(TEXT("occlusion_samples_total"), R.OcclusionSamplesTotal);
+			O->SetNumberField(TEXT("poll_distance"), R.PollDistance);
+			Arr.Add(MakeShared<FJsonValueObject>(O));
+		}
+		Root->SetArrayField(TEXT("events"), Arr);
+
+		FString Out;
+		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+		FJsonSerializer::Serialize(Root, Writer);
+
+		IFileManager::Get().MakeDirectory(*RunDir, true);
+		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("selection_provenance.json")),
+			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	}
+
 	bool WriteRunManifest(const FString& RunDir, const FRunManifest& M)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
@@ -357,6 +387,7 @@ namespace AnomalyLabel
 				O->SetObjectField(TEXT("affected_frames"), AF);
 			}
 			O->SetNumberField(TEXT("coverage_ratio"), E.CoverageRatio);
+			O->SetNumberField(TEXT("coverage_pct"), E.CoveragePct);
 
 			{
 				TSharedRef<FJsonObject> Obj = MakeShared<FJsonObject>();

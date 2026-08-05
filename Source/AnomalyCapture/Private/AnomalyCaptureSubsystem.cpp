@@ -60,6 +60,8 @@ struct FSessionEventAccum
 	FVector NodeBoundsOrigin = FVector::ZeroVector;
 	FVector NodeBoundsExtent = FVector::ZeroVector;
 
+	FSelectionProvenance Provenance;
+
 	int32 AnchorIndex = MAX_int32;
 	FVector CamPos = FVector::ZeroVector;
 	FRotator CamRot = FRotator::ZeroRotator;
@@ -1404,6 +1406,7 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 				Ev->NodePath = FActor->GetPathName();
 				ResolveNodeIdentity(FActor, Ev->NodeAssetName, Ev->NodeComponentClass,
 					Ev->NodeBoundsOrigin, Ev->NodeBoundsExtent);
+				AnomalyViewport::EvaluateSelectionProvenance(World, FActor, Ev->Provenance);
 			}
 			Ev->NodePos = FirePos.IsValidIndex(i) ? FirePos[i] : FVector::ZeroVector;
 		}
@@ -1465,6 +1468,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		FrameIndices.Sort();
 		Out.FrameIndices = MoveTemp(FrameIndices);
 		Out.CoverageRatio = Ev.CoverageCount > 0 ? (Ev.CoverageSum / (double)Ev.CoverageCount) : 0.0;
+		Out.CoveragePct = Ev.Provenance.CoveragePct;
 
 		AnomalyLabel::FSessionNode Node;
 		Node.Name = Ev.NodeName;
@@ -1491,6 +1495,25 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		Out.EngineProject = EngineProject;
 
 		A.Events.Add(MoveTemp(Out));
+	}
+
+	if (!bDeliveryMode)
+	{
+		TArray<AnomalyLabel::FProvenanceRecord> Prov;
+		for (const FSessionEventAccum& Ev : Async->SessionEvents)
+		{
+			AnomalyLabel::FProvenanceRecord R;
+			R.AnomalyId = Ev.Id.ToString();
+			R.Target = Ev.Target;
+			R.AnchorIndex = Ev.AnchorIndex == MAX_int32 ? -1 : Ev.AnchorIndex;
+			R.CoveragePct = Ev.Provenance.CoveragePct;
+			R.OcclusionSamplesPassed = Ev.Provenance.OcclusionSamplesPassed;
+			R.OcclusionSamplesTotal = Ev.Provenance.OcclusionSamplesTotal;
+			R.PollDistance = Ev.Provenance.PollDistance;
+			R.bValid = Ev.Provenance.bValid;
+			Prov.Add(MoveTemp(R));
+		}
+		AnomalyLabel::WriteSelectionProvenance(RunDir, Prov);
 	}
 
 	if (AnomalyLabel::WriteSessionAnnotation(RunDir, A))

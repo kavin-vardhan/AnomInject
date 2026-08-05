@@ -82,6 +82,20 @@ namespace AnomalyLabel
 		int32 TotalFrames = 0;
 	};
 
+	struct FProvenanceRecord
+	{
+		FString AnomalyId;
+		FString Target;
+		int32 AnchorIndex = 0;
+		float CoveragePct = -1.0f;
+		int32 OcclusionSamplesPassed = 0;
+		int32 OcclusionSamplesTotal = 0;
+		float PollDistance = -1.0f;
+		bool bValid = false;
+	};
+
+	bool WriteSelectionProvenance(const FString& RunDir, const TArray<FProvenanceRecord>& Records);
+
 	struct FSessionNode
 	{
 		FString Name;
@@ -99,6 +113,7 @@ namespace AnomalyLabel
 		FString AnomalySubtype;
 		TArray<int32> FrameIndices;
 		double CoverageRatio = 0.0;
+		float CoveragePct = -1.0f;
 
 		TArray<FSessionNode> Nodes;
 		int32 PrimaryIndex = 0;
