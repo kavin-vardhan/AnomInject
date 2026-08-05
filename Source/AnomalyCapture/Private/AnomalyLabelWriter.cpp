@@ -369,6 +369,14 @@ namespace AnomalyLabel
 					NO->SetStringField(TEXT("name"), N.Name);
 					NO->SetStringField(TEXT("path"), N.Path);
 					NO->SetArrayField(TEXT("global_position"), LabelVec3(N.GlobalPosition.X, N.GlobalPosition.Y, N.GlobalPosition.Z));
+					NO->SetStringField(TEXT("asset_name"), N.AssetName);
+					NO->SetStringField(TEXT("component_class"), N.ComponentClass);
+					{
+						TSharedRef<FJsonObject> B = MakeShared<FJsonObject>();
+						B->SetArrayField(TEXT("origin"), LabelVec3(N.BoundsOrigin.X, N.BoundsOrigin.Y, N.BoundsOrigin.Z));
+						B->SetArrayField(TEXT("extent"), LabelVec3(N.BoundsExtent.X, N.BoundsExtent.Y, N.BoundsExtent.Z));
+						NO->SetObjectField(TEXT("bounds"), B);
+					}
 					NodeArr.Add(MakeShared<FJsonValueObject>(NO));
 				}
 				Obj->SetArrayField(TEXT("nodes"), NodeArr);

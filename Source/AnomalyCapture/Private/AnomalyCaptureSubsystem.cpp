@@ -28,6 +28,10 @@
 #include "Misc/EngineVersion.h"
 #include "Misc/App.h"
 
+#include "Components/StaticMeshComponent.h"
+#include "Components/SkinnedMeshComponent.h"
+#include "Engine/StaticMesh.h"
+
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/SViewport.h"
@@ -50,6 +54,11 @@ struct FSessionEventAccum
 	TArray<int32> AffectedFrames;
 	double CoverageSum = 0.0;
 	int32 CoverageCount = 0;
+
+	FString NodeAssetName;
+	FString NodeComponentClass;
+	FVector NodeBoundsOrigin = FVector::ZeroVector;
+	FVector NodeBoundsExtent = FVector::ZeroVector;
 
 	int32 AnchorIndex = MAX_int32;
 	FVector CamPos = FVector::ZeroVector;
@@ -102,6 +111,55 @@ namespace
 			}
 		}
 		return FString();
+	}
+
+	void ResolveNodeIdentity(const AActor* Actor, FString& OutAssetName, FString& OutComponentClass,
+		FVector& OutBoundsOrigin, FVector& OutBoundsExtent)
+	{
+		OutAssetName.Reset();
+		OutComponentClass.Reset();
+		OutBoundsOrigin = FVector::ZeroVector;
+		OutBoundsExtent = FVector::ZeroVector;
+		if (!Actor)
+		{
+			return;
+		}
+
+		TArray<UMeshComponent*> Meshes;
+		Actor->GetComponents<UMeshComponent>(Meshes);
+		for (UMeshComponent* Mesh : Meshes)
+		{
+			if (!Mesh || !Mesh->IsVisible())
+			{
+				continue;
+			}
+			if (const UStaticMeshComponent* SM = Cast<UStaticMeshComponent>(Mesh))
+			{
+				if (const UStaticMesh* Asset = SM->GetStaticMesh())
+				{
+					OutAssetName = Asset->GetName();
+				}
+			}
+			else if (const USkinnedMeshComponent* SK = Cast<USkinnedMeshComponent>(Mesh))
+			{
+				if (const UObject* Asset = SK->GetSkinnedAsset())
+				{
+					OutAssetName = Asset->GetName();
+				}
+			}
+			OutComponentClass = Mesh->GetClass()->GetName();
+			if (!OutAssetName.IsEmpty())
+			{
+				break;
+			}
+		}
+
+		const FBox Box = Actor->GetComponentsBoundingBox(true);
+		if (Box.IsValid)
+		{
+			OutBoundsOrigin = Box.GetCenter();
+			OutBoundsExtent = Box.GetExtent();
+		}
 	}
 
 	void MapAnomalyToClient(FName Id, FString& OutType, FString& OutSubtype)
@@ -1344,6 +1402,8 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			if (const AActor* FActor = F.TargetActor.Get())
 			{
 				Ev->NodePath = FActor->GetPathName();
+				ResolveNodeIdentity(FActor, Ev->NodeAssetName, Ev->NodeComponentClass,
+					Ev->NodeBoundsOrigin, Ev->NodeBoundsExtent);
 			}
 			Ev->NodePos = FirePos.IsValidIndex(i) ? FirePos[i] : FVector::ZeroVector;
 		}
@@ -1410,6 +1470,10 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		Node.Name = Ev.NodeName;
 		Node.Path = Ev.NodePath;
 		Node.GlobalPosition = Ev.NodePos;
+		Node.AssetName = Ev.NodeAssetName;
+		Node.ComponentClass = Ev.NodeComponentClass;
+		Node.BoundsOrigin = Ev.NodeBoundsOrigin;
+		Node.BoundsExtent = Ev.NodeBoundsExtent;
 		Out.Nodes.Add(Node);
 		Out.PrimaryIndex = 0;
 

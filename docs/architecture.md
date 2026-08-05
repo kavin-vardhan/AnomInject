@@ -97,7 +97,23 @@
 > named `session_<YYYYMMDD-HHMMSS>` (seed lives in `run.json`; same-second collisions get `-2/-3/...`),
 > and `annotation.json` emits the client-shaped `affected_frames` object
 > (`{start_frame, end_frame, frame_count, frame_indices}`; hide-type fires list only the observed hidden
-> out-frames). The dashboard is capture-first: Targeted/Auto-pool toggle, the auto panel is now the
+> out-frames).
+>
+> **`annotation.json` field semantics (m22).**
+> - **`frame_count` is a TRUE COUNT** = `len(frame_indices)`. It was a *span* (`end-start+1`) up to m21,
+>   which disagreed with the index list on gapped (multi-toggle) events — that was G81, now fixed. The span
+>   is still recoverable as `end_frame - start_frame + 1`.
+> - **`anomaly_subtype` for `blink` is always `"disappear_reappear"`.** There is no per-event derivation;
+>   the old transition-counting logic is deleted. `"flicker"` has left the blink family entirely and is
+>   **reserved for the future separate `flickering` anomaly class** (unbuilt). Blink events may still
+>   contain multiple visibility toggles — that is intended behaviour, not a defect, and does not change
+>   the subtype. The `anomaly_subtype` field is retained in the schema for that future class.
+> - **`affected_objects.nodes[]` carries `asset_name`, `component_class` and `bounds {origin, extent}`**
+>   (m22/B1) so an auto-named level actor (`StaticMeshActor_###`) is identifiable. ⚠ **These four values
+>   are sampled ONCE, at the event's ANCHOR FRAME** (the first captured frame of the event), exactly like
+>   `global_position` and the camera block. **They are NOT per-frame truth** — for an actor that moves
+>   during the event, `bounds` describes its anchor-frame pose, not its pose on every affected frame.
+>   `asset_name`/`component_class` come from the actor's first visible `UMeshComponent`. The dashboard is capture-first: Targeted/Auto-pool toggle, the auto panel is now the
 > "Capture pool", and the manual Inject/Arg panels are deleted. This sits on the m9 session-capture layer
 > (the quarantined `AnomalyCapture` module: N-frame cap, `session_<ts>/Actual_Frames`, native
 > multi-anomaly `annotation.json`, host-side mp4 encode) and the fixed-timestep native-fps capture

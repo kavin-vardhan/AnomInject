@@ -87,6 +87,10 @@ namespace AnomalyLabel
 		FString Name;
 		FString Path;
 		FVector GlobalPosition = FVector::ZeroVector;
+		FString AssetName;
+		FString ComponentClass;
+		FVector BoundsOrigin = FVector::ZeroVector;
+		FVector BoundsExtent = FVector::ZeroVector;
 	};
 
 	struct FSessionEvent
