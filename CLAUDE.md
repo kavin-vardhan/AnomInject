@@ -15,7 +15,36 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- **HEAD = `ed2b851`, tree CLEAN. Latest TAG = `m21` = `a2c3127`** (there is **no `m22` tag** — see below).
+- **IN FLIGHT — m22: blink subtype pin + annotation traceability + selection provenance. CODE COMPLETE, all
+  gates green in a local package, NOT YET TAGGED (awaiting the owner Play-gate smoke) and NOT YET PUSHED.**
+  Three commits on `master`: `af8d937` `feat(blinking)` + `03a51d5` `feat(capture)` + `28bc6f1` `feat(capture)`.
+  **(1) Subtype pin** — the per-event subtype derivation is DELETED; `blink` now emits
+  `anomaly_subtype = "disappear_reappear"` **always**, however many toggles the event contains. **Blink's own
+  behaviour is UNCHANGED and is CORRECT** — multi-toggle within a window is intended, not a defect. `"flicker"`
+  leaves the blink family entirely and is **reserved for the future separate `flickering` class** (unbuilt);
+  the `anomaly_subtype` FIELD is retained so that class has a slot and the client file shape doesn't churn twice.
+  **(2) G81 FIXED** — `affected_frames.frame_count` was a SPAN (`end-start+1`, reporting 7 for 4 real indices on
+  gapped events); it is now a TRUE COUNT = `len(frame_indices)`. The span stays recoverable from
+  `start_frame`/`end_frame`. Confined to `WriteSessionAnnotation`; the m18-validated labels/range-builder path is
+  untouched. **(3) B1 traceability** — `affected_objects.nodes[]` gains `asset_name`, `component_class` and
+  `bounds{origin,extent}` so auto-named `StaticMeshActor_###` level actors are identifiable (verified:
+  `StaticMeshActor_0` → `SM_SlopeWarpLandscape`). ⚠ **Anchor-frame semantics — sampled ONCE at the event's first
+  captured frame, NOT per-frame truth** (documented in architecture.md). **(4) B2 selection provenance** — new
+  `AnomalyViewport::EvaluateSelectionProvenance`; `coverage_pct` → **annotation.json (client-visible, both
+  modes)**, occlusion samples passed/total + poll distance → new **`selection_provenance.json` sidecar
+  (internal, suppressed in delivery mode)**. **OBSERVATIONAL ONLY, enforced STRUCTURALLY: the selection path has
+  ZERO edits** (both `AnomalyViewport.cpp` hunks are pure insertions; the auto-injector/selector are untouched),
+  so the early-out boolean still decides selection. Gates: seeded selection identity (seed 4242, 8 events,
+  two runs byte-identical), delivery suppression, `frame_count == len(frame_indices)` on all 10 events, blink
+  subtype pinned on `runs=2` events, and the m20 trailing reappear frame still present.
+  **TWO DEVIATIONS from the approved plan, owner accept/reject pending:** B2 is a standalone evaluator rather
+  than an opt-in out-param threaded through `ClassifyRenderableVisibleLive` (so "observational" holds by
+  construction and costs 9 traces per EVENT, not per candidate per poll — but there is no runtime ON/OFF toggle,
+  so that gate is discharged structurally); and the internal half went to a finish-time sidecar rather than
+  `run.json`, because `run.json` is written at StartRun **before any event exists**.
+  **CLIENT-FACING:** `frame_count` and blink `anomaly_subtype` change value in files the client already receives.
+  → `docs/sessions/2026-07-29-029-m22-subtype-pin-traceability-provenance.md`.
+- **Previous HEAD before m22 = `ed2b851`. Latest TAG = `m21` = `a2c3127`** (m22 is not tagged yet).
   **Post-m21, untagged, on `master`** (all shipped/pushed): `3e5e455` + `a4a8862` docs(client-readme) — Setup/Run flow,
   shared captures folder, ffmpeg troubleshooting; `3a46c1f` fix(control-server) — reply `{type:"error",
   code:"bad_token"}` before rejecting a peer; `9c46ef5` docs(gotchas) **G83** — 5.1 `INetworkingWebSocket` has no
@@ -30,9 +59,11 @@ and is the single source of truth for the project.
   the **1.1–1.5 band that was never measured** (m21 validated ratio≈1.0 exact and ratio≳3 residual; this sat between
   the two measured points). Clients capture on their own hardware and **will not be asked to discard or re-capture
   sessions**. ⇒ **The `speed_ratio ≤ ~1.05` SHIP RULE IS DEMOTED from correctness gate to INTERNAL TELEMETRY**, and
-  retires entirely once the SVE migration lands. **The proposed `m22` scene-identity marker is SUPERSEDED and dead** —
+  retires entirely once the SVE migration lands. **The SCENE-IDENTITY-MARKER proposal is SUPERSEDED and dead** —
   the SVE grab point solves the same problem structurally (it reads the frame being rendered, so there is no
-  arm→present matching to get wrong). **UI decision: UI on/off ships as a GRAB-POINT CHOICE — SVE = UI-free,
+  arm→present matching to get wrong). ⚠ **That dead proposal once claimed the name "m22"; it was NEVER tagged,
+  and the m22 number is REASSIGNED to the blink-subtype/traceability milestone below. Refer to the dead
+  proposal by NAME (scene-identity marker), never by number.** **UI decision: UI on/off ships as a GRAB-POINT CHOICE — SVE = UI-free,
   backbuffer = UI-on. No UI-isolation work** (SDR has no isolated UI layer: `GetCompositeUIRenderTarget()` is
   HDR-gated, `SlateRHIRenderer.cpp:980-991`). **Ground-truth contract AMENDED: UI presence is per-run config**
   (proposed delivered default UI-off, pending client sign-off). 8-bit delivered color stands; the typed FP16/FP32 path
@@ -62,9 +93,9 @@ and is the single source of truth for the project.
   one-time mid-run event permanently shifts content −1 (missing_texture) while pairing stays perfect, and
   render-STATE changes are worse: an 8-tick hide window (game-state-proven via annotation) **never appeared in any
   presented frame** (blinking@240, visually confirmed). No arm-side pairing can fix content the present never
-  contained → the proposed m22 = scene-identity marker. **⚠ SUPERSEDED 2026-07-29 — the m22 marker is DEAD and was
+  contained → the proposed **scene-identity marker**. **⚠ SUPERSEDED 2026-07-29 — that proposal is DEAD and was
   never tagged; the SVE migration replaces it** (it reads the frame being rendered, so no arm→present matching exists
-  to get wrong). **The old SHIP RULE (`run_summary.speed_ratio ≤ ~1.05 & paced` → trust) is DEMOTED to internal
+  to get wrong). *(It once claimed the name "m22"; that number now means the blink-subtype/traceability milestone.)* **The old SHIP RULE (`run_summary.speed_ratio ≤ ~1.05 & paced` → trust) is DEMOTED to internal
   telemetry** — it is NO LONGER a correctness gate, because a client session at ratio **1.2** shifted anyway and
   clients will not re-capture. Honest gates as of m21: G2/G3/G4/G6(ratio≈1) GREEN; **G1/G5 (deep starve) NOT green** —
   improved but residual, deferred with evidence. G82.
