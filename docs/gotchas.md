@@ -1385,3 +1385,61 @@ Budget that wall time after any VS update.
 and self-capped to **one** parallel action (`Requested 1.5 GB free memory per action, 1.18 GB available`),
 turning that rebuild into hours. **Close the editor before any large build** — and note the link would have
 failed anyway on the loaded DLL (the Live-Coding class of failure). (2026-07-29.)
+
+### G87 — a packaged StackOBot run ALWAYS boots MainMenu, and MainMenu looks exactly like gameplay
+
+`Config/DefaultEngine.ini`: `GameDefaultMap=/Game/StackOBot/UI/MainMenu/MainMenu.MainMenu`
+(`EditorStartupMap` is MainWorld, which is why PIE and a package disagree).
+
+⚠ **The trap is not the config line — it is that StackOBot's MainMenu is a full 3D scene** with the Bot
+posed in a lit environment. A capture from it is visually indistinguishable from gameplay. A whole turn was
+lost to exactly this: a captured frame was declared "a REAL GAMEPLAY LEVEL" from the picture, while the
+`annotation.json` from the same session already contained
+`/Game/StackOBot/UI/MainMenu/MainMenu.MainMenu:PersistentLevel.StaticMeshActor_0`. The owner caught it.
+
+**RULE: check the level NAME, never the picture.** `CaptureBench.Probe 1` now emits it every tick:
+`PROBE,postactortick,gfc=…,level=MainMenu,actors=38`.
+
+**The redirect is ACTIVE, not a startup race — do not try to out-run it.** Measured:
+- `StackOBot.exe /Game/StackOBot/Maps/MainWorld` → `LoadMap MainWorld` then immediately `LoadMap MainMenu`.
+- Deferred `UGameplayStatics::OpenLevel` after the menu settles → travels to MainWorld, then bounces back
+  to MainMenu. (`GEngine->Exec(World,"open …")` does nothing at all in a packaged build — no LoadMap is
+  even attempted; `OpenLevel` is the API that works.)
+⇒ Every "get in early / get in late" approach is dead. The title pulls MainWorld back to the menu.
+
+**Consequence for the record:** every packaged validation this project ran before 2026-08-06 — the m22
+gates, the S1 packaged A/B matrix, B3' — necessarily ran in MainMenu. There was no way to leave it. Treat
+any packaged measurement from that era as menu-bound until argued otherwise. (2026-08-06.)
+
+### G88 — a loose `Config/DefaultEngine.ini` next to a package is IGNORED; the cooked config in the pak wins
+
+Attempting G87's workaround by creating
+`<Package>/StackOBot/Config/DefaultEngine.ini` with
+`[/Script/EngineSettings.GameMapsSettings] GameDefaultMap=…/MainWorld.MainWorld`
+had **no effect whatsoever** — `LoadMap` went straight to MainMenu and MainWorld was never attempted. The
+directory did not previously exist; creating it changes nothing. Cooked config lives inside the `.pak`/
+`.ucas` and takes precedence.
+
+**It fails SILENTLY** — no warning, no error, the run just behaves as before. Easy to believe the override
+"worked" and misattribute the resulting measurements. To change a packaged default map you must change the
+project config and **re-cook**. (2026-08-06.)
+
+### G89 — the CaptureBench gate level: a synthetic, owned, deterministic scene (F4)
+
+Because of G87/G88 there is no way to gate in a real StackOBot gameplay level from a package without a
+re-cook, so the ratio/keying gate matrix uses a **purpose-built bench level** instead.
+
+- Authored **headlessly and reproducibly** by
+  `Plugins/CaptureBench/tools/make_gate_level.py`, run via
+  `UnrealEditor-Cmd.exe <uproject> -run=pythonscript -script="<path>"`. Re-run it to rebuild the level from
+  scratch; do not hand-edit the map.
+- Asset: `/Game/CaptureBenchGate/CB_GateLevel`.
+- Contents, chosen against the gate constraints: a 6×6 deterministic grid of static-mesh targets
+  (Cube/Sphere/Cylinder/Cone, fixed positions — **no randomness anywhere**), a floor, one **skeletal** target
+  (`SKM_Bot`), a static directional light + sky light (no time-of-day drift), and a stationary `PlayerStart`
+  framing the grid, so camera motion is a variable we introduce deliberately rather than inherit. Targets sit
+  clear of the marker strip's top band.
+- ⚠ **SCOPE — do not mistake this for a general validation environment.** It exists to measure
+  **frame↔label alignment across ratio regimes**, which is a property of the capture path, not of scene
+  content. Work where scene content is the subject — the invisible-anomaly / selection-quality track — needs
+  REAL scenes and a synthetic level would be the wrong instrument. (2026-08-06.)
