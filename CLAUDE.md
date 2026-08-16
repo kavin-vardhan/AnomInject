@@ -16,8 +16,38 @@ and is the single source of truth for the project.
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
 - **IN FLIGHT — SVE capture migration, stage S2 (render-thread keying design). Production BYTE-UNCHANGED;
-  production still captures via the BACKBUFFER; no S3 work started.** → journal
-  `docs/sessions/2026-08-06-030-s2-keying-design-and-gate-environment.md`.
+  production still captures via the BACKBUFFER; no S3 work started.** → journals
+  `docs/sessions/2026-08-06-030-s2-keying-design-and-gate-environment.md` and
+  **`docs/sessions/2026-08-16-031-s2-i10-game-lever-and-render-lever-provenance.md` (latest)**.
+  **I10 GAME-LEVER LEGS DONE — THE CLIENT'S DEFECT DOES NOT REPRODUCE UNDER GAME-THREAD STARVATION.**
+  Six targeted single-anomaly hide-type legs (blink on one measured-prominent actor) across every required
+  A40 band — nominal 1.0000, mild 1.0558, **client 1.2148 and 1.2342**, **deep 3.0027**, **pacing-off
+  0.3312** — gave **44 hide events, 494 frames, ZERO misaligned frames**, with a live positive control (a
+  one-frame shift costs 19–30 mismatches per leg). An independent identity check agrees:
+  `labels.jsonl frame_index == the marker's decoded GFrameCounter in the pixels` on **532/534** frames, in
+  every regime. **Three of the four frozen predictions FAILED** (client/deep/pacing-off all predicted −1);
+  by the pre-declared rule the clean CLIENT band is a **MAJOR RESULT** — her defect has a different
+  mechanism. ⚠ **This licenses exactly one claim** — "does not reproduce under GAME-THREAD starvation, this
+  box, this level, VideoFps 30" — and **no mechanism claim**. **Deep starvation stays OPEN**: ratio 3.0 was
+  reached by a *game-thread* stall, which by the concurrency model never starves the renderer, so it cannot
+  have tested the present-side m21 residual. The high-`VideoFps` (120/240) legs are still owed.
+  **RENDER LEVER FIXED AND CHARACTERISED.** Root cause was **binary provenance, not code** (G92): the fix
+  *was* compiled at 11:53:58, 36 s before the legs — but never **staged**, so the package kept serving a
+  2026-08-06 exe. Re-staged, A44-verified by string scan, and it fires with **zero probe edits**
+  (`fired=780` at 40 ms; 0 at 0 ms). ⇒ **`speed_ratio` is NOT blind to render-side starvation** — the near-miss
+  major finding is refuted. Sweep `0→1.000 · 20→1.000 · 30→1.116 · 40→1.407 · 70→2.308 · 110→3.507`;
+  **one model for both levers**, `frame_time ≈ max(1/VideoFps, stall + residual)`, residual **1.3 ms game /
+  6.9 ms render**, knee **32.0 / 26.4 ms**. ⚠ **Corollary: the ratio cannot attribute** — a client's 1.2 says
+  frame time ≈ 40 ms and nothing about which thread starved. **The counter story is CORRECTED**: `163dd12`'s
+  counters were never in the binary, so "stall_fired=0" was never a reading — ratio arithmetic made that
+  catch. *"A counter that never printed is not a counter that printed 0."*
+  **NO render I10 legs run — their A40 bands must be pre-declared from the sweep first.**
+  New standing rules **A44** (prove the change is in the binary; string scan, not timestamp), **A45**
+  (a valid marker read is a strictly increasing series — the decoder confidently misreads markerless
+  frames), **A46** (kill by process name + assert an idle box; the 217 KB launcher trap already produced one
+  wrong ratio), **A47** (per-leg bbox — the gate level is content-deterministic, NOT camera-deterministic).
+  New gotchas **G90/G91/G92**. Banked sessions were moved out of the package before re-staging, to
+  `D:\IntrusiveAnomalies\_bench_sessions_bank` (1347.2 MB) — the archive step wipes that tree.
   **B′ is LOCKED**: a key-only ring — the game thread publishes at **`BeginRenderViewFamily`** (the ONLY
   hook where `ViewFamily.FrameNumber` is assigned; `SetupViewFamily` still reports `UINT_MAX`), the
   render-thread pass looks up by `View.Family->FrameNumber`, the label snapshot never crosses threads, and a
@@ -28,11 +58,16 @@ and is the single source of truth for the project.
   is never touched. See **G87–G89** for the whole saga (packaged runs always boot MainMenu; loose config
   beside a package is ignored; black-level, exposure-pin and cost-model corrections).
   **Game-thread stall→ratio table BANKED** (dev-box instrument, not a portable spec): knee 30→34 ms and
-  sharp, ratio **3.004 at 99 ms**, `frame_time ≈ stall + 1.3 ms`. **Render-thread lever does NOT fire
-  (`stall_fired=0`) — cause unidentified; no render numbers banked.**
-  **Open and NOT drifting toward "fine":** deep starvation (m21 residual never reproduced), the latch
-  lifetime rule (unbuilt), the captured-view matrix equality check (ViewRing/`ViewLagFrames` deletion is
-  blocked on it). **Nothing shows the migration FIXES the client's defect yet** — that is I10, not yet run.
+  sharp, ratio **3.004 at 99 ms**, `frame_time ≈ stall + 1.3 ms`. *(Re-verified on the rebuilt binary:
+  0 ms→1.0000, 99 ms→3.0242. ⚠ Those banked legs ran **marker-OFF** — the decoder's constant-`0`@row-105
+  false signature — so they carry no frame-identity evidence of their own; an A17/A19 input.)*
+  **Render-thread lever now WORKS and is characterised — see the 031 entry above.**
+  **Open and NOT drifting toward "fine":** deep starvation (m21 residual never reproduced, and the I10 deep
+  leg could not test it — game-thread stalls do not starve the renderer), the latch lifetime rule
+  (unbuilt), the captured-view matrix equality check (ViewRing/`ViewLagFrames` deletion is blocked on it).
+  **Nothing shows the migration FIXES the client's defect** — I10-game has now run and came back CLEAN,
+  which means the defect's mechanism is still unlocated; a render-side reproduction is the next place to
+  look, and it must exist before any fix can be shown to remove it.
 - **Prior milestone (as-built): m22 — blink subtype pin + annotation traceability + selection provenance —
   COMPLETE (tagged `m22`, pushed).**
   Three commits on `master`: `af8d937` `feat(blinking)` + `03a51d5` `feat(capture)` + `28bc6f1` `feat(capture)`.

@@ -1537,5 +1537,132 @@ production-capture legs it silently no-opped, and four legs at 20/40/70/110 ms r
 `ratio 1.000`. That reads exactly like the major finding "speed_ratio is blind to render-side starvation",
 and it would have been **wrong**. Levers now carry execution counters (`gameStallFired` / `renderStallFired`)
 reported per run. **A lever that never fired proves nothing about the metric it failed to move.**
-(As of 2026-08-06 the render lever still reports `fired=0` after a rebuild — cause not yet identified.)
 (2026-08-06.)
+
+⚠ **CORRECTED 2026-08-16 — the counter did not make that catch, and the reason matters.** The rebuild
+that moved the stall out of the SVE into an `ENQUEUE_RENDER_COMMAND`, *and the execution counters
+themselves*, were committed at CaptureBench `163dd12` **after the render legs had already run** — and the
+packaged binary they ran against had not been rebuilt since 2026-08-06 01:33:46. A UTF-16 string scan of
+that exe settles it: `CaptureBench.Stall.RenderMs` (the CVar) is **present**, so the knob appeared to
+work, while `CaptureBenchRenderStall`, `PROBE,renderstall` and `PROBE,stallcounters` are all **absent**.
+⇒ **The render lever's root cause is that the fix was not in the binary under test** (see **G92** — it
+had in fact been *compiled*, just never *staged*), and `stall_fired = 0` cannot have been a reading —
+there was no counter to read. What actually made the catch was **ratio arithmetic**: at 110 ms a firing
+render stall would force `ratio ≈ 3.3` by the concurrency model, and the ratio did not move. Remember it
+as **"a counter that never printed is not a counter that printed 0."** (The **game** lever's execution is
+proven by stronger evidence than a counter anyway: a busy-wait that never ran cannot move frame time from
+33.3 ms to 100.1 ms.)
+
+✅ **CONFIRMED the same day by re-staging and re-running, with ZERO probe edits.** On the freshly staged
+package the lever fires immediately — `PROBE,renderstall,fired=780,ms=40.0` at a 40 ms stall, and the
+counter logs **zero** lines at a 0 ms stall (negative control). **`speed_ratio` is therefore NOT blind to
+render-side starvation** — the hypothesis the dead lever nearly certified as a major finding is refuted by
+measurement. Sweep (same A32 conditions as the game table, targeted zero-match, 60 frames):
+`0→1.0000 · 10→1.0001 · 20→1.0000 · 30→1.1161 · 40→1.4069 · 70→2.3076 · 110→3.5065`.
+**One model covers both levers:** `frame_time ≈ max(1/VideoFps, stall + residual)` with residual
+**1.3 ms game / 6.9 ms render** ⇒ knee **32.0 ms game / 26.4 ms render**. The larger render residual is
+physical: that thread still renders the scene and services the capture readback (recorded natural cost
+8.52 ms). ⚠ **Corollary for reading client telemetry: both levers move the ratio through the same form,
+so a client's `speed_ratio` of 1.2 says frame time ≈ 40 ms and says NOTHING about which thread starved.
+The metric cannot attribute.** The A41 counter is now **paid for** — its first real observation.
+(2026-08-16.)
+
+**UPDATE 2026-08-16 — what the gate level was finally used for, and what it got wrong about itself.**
+
+*Leg classification bands, declared in advance so binning can never become goalpost-moving:*
+`nominal [1.00–1.02]` · `mild (1.02–1.10]` best-effort · `client [1.15–1.35]` · `deep ≥2.80` ·
+`pacing-off` (own category, ratio recorded not banded). ⚠ **The mild band is not reachable by dialling a
+stall** — its window sits inside the 1–2 ms run-to-run noise, and a leg that lands at 1.000 while
+*labelled* 1.05 is a **silently passing leg**. (It was covered anyway, by accident, at 1.0558.)
+
+*Two standing rules the gate legs are run under:* every leg states **targeted vs auto-pool and why**
+(auto-pool fires concurrent anomaly types and has silently shaped a measurement twice); and the pixel
+oracle keys on pixels **INSIDE the target bbox**, never whole-frame stats, because hiding an object also
+removes its cast shadow and brightens pixels *outside* the bbox (measured +1.66 mean / +4.67 max at event
+frames vs −0.18 / 0.39 on non-event frames).
+
+⚠ **The level is content-deterministic, NOT camera-deterministic — the "stationary PlayerStart" claim
+above is wrong in practice.** The pawn spawns above the floor, falls and settles, so:
+- the projected bbox **moves** for the first ~0.5–1 s (one leg showed 11 distinct bboxes, settling only at
+  captured frame 30);
+- whole-frame luminance **ramps 34 → 111** over the first ~16 captured frames (a raw in-bbox luminance
+  reading is swamped by this; normalise by the whole-frame mean);
+- **the settled camera differs between runs**: five legs rested with the same target at 306×235 px, one
+  rested at 178×291 px — at stall 39 vs stall 40, i.e. a **run-to-run bifurcation**, not a function of the
+  input. ⇒ **every leg must compute its OWN settled bbox and settle window; never assume a fixed bbox
+  across legs.**
+
+⚠ **The m16 focus gate makes leg start time nondeterministic.** Its 30 s timeout fires on some launches
+and not others, so some legs capture the warm-up and camera-settle and some begin fully warmed (one leg
+sat 31 s before `start_frame`). Legs are therefore **not condition-uniform** unless you set
+`IAI.Capture.FocusGate 0` or insert a fixed warm-up delay before starting.
+
+**The marker survives PRODUCTION capture** (checked because production had previously kept a DrawDebug
+poll-radius sphere out of saved frames): 60/60 frames decoded, strictly increasing. ⚠ **But the decoder
+returns a CONFIDENT WRONG ANSWER on markerless frames** — value `0`, row `105`, spread `95.3`, past its own
+`spread ≥ 40` gate, latching onto scene contrast. **A valid marker read is a strictly increasing decoded
+series, never a decode count.** Re-decoding the banked calibration session shows exactly that false
+signature on all 60 frames ⇒ **the banked stall→ratio legs were run marker-OFF** and carry no
+frame-identity evidence of their own (the table itself re-measured fine on the same binary: 99 ms → 3.0027
+vs banked 3.004; 39 ms → 1.2148 vs 1.204). (2026-08-16.)
+
+### G90 — the packaged `StackOBot.exe` at the package root is a LAUNCHER; killing it leaves the game running
+
+`Builds\<Package>\Windows\StackOBot.exe` is ~217 KB. The real game is the ~240 MB
+`Windows\StackOBot\Binaries\Win64\StackOBot.exe`, spawned as a **separate process**. So
+`Start-Process -PassThru` (or anything else that tracks the process it launched) hands you the **launcher**,
+which exits almost immediately — and killing it leaves the game alive.
+
+⚠ **This silently contaminates the NEXT measurement**, because the previous leg's game is still competing
+for the CPU you are trying to measure. MEASURED: a nominal leg (stall 0, pacing on) read `speed_ratio`
+**1.483** with a leftover instance alive; the identical leg on a verified-idle box read **1.0000**. Nothing
+in the output says "another instance is running" — you just get a plausible wrong number.
+
+**Rule:** any automated harness must `Stop-Process -Name StackOBot` and then **assert a zero-instance idle
+box** before every launch, and kill by name again after. (2026-08-16.)
+
+### G91 — `TryFireSpecific` prepends `=` itself; passing `=Name` silently zero-matches
+
+`UAnomalyAutoInjectorSubsystem::TryFireSpecific` builds its match token as
+`FString(TEXT("=")) + ActorName` (`AnomalyAutoInjectorSubsystem.cpp:283`). So the `targetActor` argument to
+`IAI.Capture.Start` / WS `capture_start` must be the **bare actor name**. Passing `"=StaticMeshActor_49"`
+becomes `"==StaticMeshActor_49"` and matches nothing.
+
+⚠ **It fails quietly and looks like a healthy run**: the capture completes, writes all its frames, and
+reports `positive_frames: 0` with `zero_match_bursts` equal to the burst count. Only
+`Auto.FireSpecific: '<id>' on '<name>' -> 0 matched.` in the log names the cause.
+
+Related, and the reason the mistake is easy to make: **actor LABELS are editor-only.** A level authored by
+script with `set_actor_label("CB_Target_07")` exposes **no such name at runtime** — in a package the
+matchable names are `StaticMeshActor_NN`. Pick a runtime target by measurement (`IAI.DumpCoverage`), never
+by the editor label. (2026-08-16.)
+
+### G92 — a packaged build can be COMPILED and never STAGED; the archive keeps serving the old exe
+
+The most expensive hour of the render-lever saga was this: the fix **was compiled**. The project-side
+`<Project>\Binaries\Win64\StackOBot.exe` was dated **2026-08-16 11:53:58**, thirty-six seconds before the
+first leg that was supposed to exercise it, and it contained every symbol. What never ran was
+`BuildCookRun`'s **stage/archive** step, so `Builds\BenchGate\Windows\...\StackOBot.exe` went on serving a
+binary from **2026-08-06** — and the legs launched *that*.
+
+⚠ **This is worse than forgetting to build, because you have a green build in hand.** UBT reports success,
+the CVar you are toggling exists in the old binary too (it predates the change), and the run completes
+normally. Nothing anywhere says "you are running a different binary than you compiled."
+
+⚠ **A timestamp check alone can mislead in BOTH directions here.** The archived exe inherits the *compile*
+time, not the archive time — after the corrective re-stage this session, `BuildCookRun` compiled nothing
+for the `StackOBot` target (4 actions, all `StackOBotEditor`) and the newly archived exe still read
+`11:53:58`. A newer-looking file is not proof it was staged, and an older-looking one is not proof it
+wasn't.
+
+**Rule (A44): prove the change is PRESENT in the binary under test with a symbol/string scan, not a
+timestamp.** Cheap and decisive:
+
+```
+python -c "import mmap; f=open(r'<pkg>\...\Binaries\Win64\<Game>.exe','rb'); m=mmap.mmap(f.fileno(),0,access=mmap.ACCESS_READ); print(m.find('MyNewLogString'.encode('utf-16-le'))>=0)"
+```
+
+`TEXT()` literals land in the exe as UTF-16LE, so any `UE_LOG` format string, `ENQUEUE_RENDER_COMMAND`
+name, or CVar name added by the change works as the probe. Scan for something the change **adds**, and
+also for a control string that existed **before** it, so a false negative from a bad scan is visible.
+(2026-08-16.)
