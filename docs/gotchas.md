@@ -1743,3 +1743,31 @@ only way to compare grab points on **the same frames**, and it works — but two
 
 **Matching method that works regardless:** decode the in-scene marker from both sets and match on
 `GFrameCounter` — do not assume the two capturers' frame numbering corresponds. (2026-08-16.)
+
+### G96 — an oracle's blindness is only ever exposed by known-answer controls: three instances, one principle
+
+Every pixel-oracle used on this project has been blind in some regime, and in **all three cases the
+blindness was invisible in the results and visible only when the oracle was run against a leg whose
+answer was already known**. The verdicts it produced in the blind regime were confident and wrong.
+
+1. **Fixed-K robust-sigma goes blind under A47 camera drift.** A `|x−median| > K·MAD` test needs a
+   stable baseline. When the camera settles slowly the baseline walks through the analysis window, MAD
+   inflates, and a real signal drops under the threshold. **Tell: MAD inflation** — 0.0102 at 30 fps
+   rising to 0.0481 at 90 fps on the same target. It reported ABSENT on legs that were not absent.
+2. **A neighbour-window local-contrast statistic goes blind on CONTIGUOUS claimed sets.** With
+   neighbours taken at ±2, every interior frame of an 8-consecutive claimed run has only claimed
+   neighbours, so it scores nothing: **2 of 8 frames evaluable**, and a "≥ half above threshold" rule
+   became 1-of-2. **Tell: evaluable-frame starvation.** Fatal here because 8-consecutive *is* the P3b
+   fallback shape — the oracle was blind in exactly the shape it existed to judge. Fix: take the
+   nearest non-claimed frames flanking the **event**, not each frame.
+3. **A calibration set can BRACKET a regime without CONTAINING it, so its floor is not derivable.**
+   Deriving a decidability floor from an ALIGNED control (sharp signal) and an ABSENT control (no
+   signal) yields nothing valid for a *spread* signal in between: one construction is contaminated
+   (pseudo-events' ±1 shifts land on real signal — **tell: the "no-signal" median lands at ≈TAU**), the
+   other measures numerical precision rather than discrimination. Two defensible floors gave opposite
+   verdicts on the same legs. → **A57**: certify only what is invariant across all defensible
+   constructions.
+
+**Practice this earns:** every oracle change re-verifies against **one known-ALIGNED and one
+known-ABSENT control** before its results are used (**A53**), and a control that cannot see the
+original bug certifies nothing. (2026-08-16.)

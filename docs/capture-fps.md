@@ -192,6 +192,15 @@ with the one-sided rule above.
   **mechanism is under diagnosis.** The same target/seed/anomaly is frame-exact at `VideoFps 30` across
   twelve legs, so **do not capture hide-type anomalies above 30 fps until this is closed**, and treat any
   existing high-fps session as suspect. → `docs/sessions/2026-08-16-032-s2-high-fps-sweep-and-p3-reproduction.md`.
+- **✅ m23 UPDATE — the labels are no longer fabricated, and the blink clock is frame-based.** As of
+  commit `2f74799`, blink's half-period is defined in FRAMES (default 3 = the previous 30 fps cadence,
+  byte-exact), so the toggle rate no longer depends on `VideoFps`; and a hide-type event that never
+  manifests now emits **zero** positive `frame_indices` with `manifested: false` plus a
+  `non_manifested_events` counter, instead of relabelling every on-screen frame as positive.
+  **Certification scope: 30 fps CERTIFIED (floor-robust). 60 fps frame-level certification DEFERRED
+  pending the P5 instrument — not failed. ≥90 fps remains P5-blocked** (hide manifestation spreads
+  across ~2 frames and decays with fps, so single-frame alignment is undecidable there).
+  → `docs/sessions/2026-08-16-034-m23-p3-fix-and-the-oracle-saga.md`.
 - **⚠ Above the box's sustainable capture rate, `speed_ratio` stops being a DIAL and becomes a READOUT.**
   MEASURED: `frame_time ≈ max(1/VideoFps, natural_frame_time, stall + ~1.4)`, and this dev box's natural
   frame cost is **12.7–17.8 ms** at 1280×720 with PNG writing (±20% wander). Once `1/VideoFps` drops below

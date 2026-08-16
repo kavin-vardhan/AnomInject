@@ -15,7 +15,35 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🔴 **P3 DIAGNOSED — MECHANISM ADOPTED. NEXT WORK = `m23` "P3-fix", PLAN STAGE.** → journal
+- ✅ **m23 "P3-fix" COMMITTED AND PUSHED — commit `2f74799`. ⚠ NOT TAGGED: the `m23` tag waits on the
+  owner's play-gate smoke.** → journal `docs/sessions/2026-08-16-034-m23-p3-fix-and-the-oracle-saga.md`.
+  **PRODUCTION CHANGED — the "production byte-unchanged" invariant of S2 RETIRES HERE**; from m23 on it is
+  *production changes only via approved milestone plans*. 8 files, +103/−34. `IAnomaly` untouched;
+  `labels.jsonl` untouched; auto-pool (`TryFireOnce`) untouched.
+  **P3a** — blink's half-period is now in **FRAMES** (default **3** = the previous 30 fps cadence,
+  byte-exact) instead of seconds, so the toggle no longer depends on `VideoFps`.
+  **P3b** — hide-type identity comes from the anomaly **ID** (`IsHideTypeAnomaly`), never from the
+  sampling outcome; zero sampled-hidden ⇒ **zero positives** + `manifested:false` + loud warning +
+  `non_manifested_events`; an **unregistered id** falls back loudly rather than silently.
+  **Targeted-fire args** — tokens after the target on `IAI.Capture.Start` forward verbatim to the
+  anomaly's parser (no tokens = byte-identical to before). It exists because **the guard is untestable
+  without it**.
+  **THE GUARD IS PROVEN BOTH WAYS, and that pair IS the certification:** forced non-manifestation
+  (`half_period_frames 40`) → **8/8 events `manifested:false`, zero `frame_indices`, counter 8**, verified
+  in the annotation rows; the 30 fps control → guard **silent**, counter 0, cadence byte-exact.
+  **CERTIFICATION SCOPE: 30 fps CERTIFIED, floor-robust** (12 decidable ALIGNED / 0 non-ALIGNED under
+  BOTH candidate floors). **60 fps FLOOR-BLOCKED — deferred, NOT failed. ≥90 fps P5-BLOCKED.**
+  ⚠ `positive_frames` stays **fire-active** and is unchanged by design — **fire-active ≠ manifested**;
+  the client artifact carries neither per-frame flag (delivery gates `labels.jsonl` entirely), so
+  event-level `manifested` is the only channel to the client.
+  New rules **A57** (floor-robustness: certify only what is invariant across all defensible calibration
+  constructions; a set that *brackets* a regime without *containing* it yields no floor) and **A58**
+  (diff-isolation rules are invariants-to-preserve, never confinement predictions; when a brief
+  contradicts itself take the conservative branch and flag it). New gotcha **G96** — oracle blindness is
+  exposed only by known-answer controls, three instances one principle.
+  **P5's founding instrument is assigned** (the blend-ladder from the certified 30 fps leg) and is also
+  the eventual source of DA60's deferred floor. Not built.
+- 🔴 **P3 DIAGNOSED — MECHANISM ADOPTED (superseded by m23 above; kept for the diagnosis record).** → journal
   `docs/sessions/2026-08-16-033-p3-mechanism-adopted.md` (2026-08-16). **P3 is TWO stacked defects:**
   **P3a (timing)** — `FAnomaly_Blinking` accumulates forwarded tick dt (`Anomaly_Blinking.cpp:58-69`)
   against `HalfPeriodSeconds = 0.5/Hz` (:44, default 5 Hz ⇒ 0.100 s), and under capture that dt **is**
