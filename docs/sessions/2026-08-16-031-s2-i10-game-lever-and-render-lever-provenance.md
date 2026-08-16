@@ -450,11 +450,118 @@ prefer-zero-edits rule.
 
 ---
 
-## 9. Next
+## 9. RENDER I10 — the legs, run against chat-declared bands
 
-**No render I10 legs were run, and their bands are not declared here.** Per the same A40 discipline
-that made the game legs interpretable, the bands must be **pre-declared chat-side from this sweep**
-before any render I10 leg runs. What the sweep supplies for that decision, from the model
+Bands were **declared chat-side from §8.3's sweep before any leg ran** — the same A40 discipline that
+made the game legs interpretable. The **defect outcome was UNPREDICTED**, stated verbatim before
+results; the sweep-model *aiming* values may be called accurate, the outcome may not.
+
+Method frozen identical to I10-game (§4.1–4.2): targeted single-anomaly `blinking` on
+`StaticMeshActor_49` (A36), seed 777, 90 frames/leg, marker on, A45 validity, A46 hygiene, A47 per-leg
+bbox, oracle inside the bbox (A35), exposure pinned, `VideoFps 30`, 1280×720, **delivery OFF /
+content_clock wall — these legs do not emulate delivery mode either**. A44 header: same package,
+compile stamp 2026-08-16 11:53:58, three-symbol scan PRESENT, CaptureBench `163dd12` clean.
+
+| leg | RenderMs | pace | achieved ratio | band | frame (ms) | `fired` | window | events | mismatches |
+|---|---|---|---|---|---|---|---|---|---|
+| R1 | 0 | on | **1.0000** | nominal | 33.3 | **0** | 0..89 | 8 | **0 / 90** |
+| R6 | 28 | on | **1.0815** | mild | 36.1 | 240 | 16..89 | 7 | **0 / 74** |
+| R2 | 33 | on | **1.2145** | **client** | 40.5 | 180 | 14..89 | 7 | **0 / 76** |
+| R3 | 36 | on | **1.3071** | **client** | 43.6 | 180 | 13..89 | 7 | **0 / 77** |
+| R4 | 110 | on | **3.4840** | **deep** | 116.1 | 120 | 5..89 | 7 | **0 / 85** |
+| R5 | 40 | **OFF** | **1.4317** | pacing-off | 47.7 | 180 | 12..89 | 7 | **0 / 78** |
+
+All six landed in their target bands **on the first attempt**; none of the 3-client / 1-deep retry
+allowance was used, and mild landed in its single best-effort attempt. Positive control live on every
+leg (shift ±1 costs 25–29 mismatches). Identity cross-check **520 / 520** decoded frames at
+`label.frame_index − marker_gfc == 0`. `CB_GateLevel` verified by name every leg. A27 eyes step: R4
+deep, index 63 vs 64, target present then gone at the claimed boundary.
+
+Per-leg validity (window): lum 106.23–117.67, sd 102.49–106.90, clip 0.00–16.95, cluster gap
+55.5–70.3% of range — all far inside the floors (lum ≥ 2.0, sd ≥ 5.0) and the 35% clip ceiling.
+
+**Result: the client's defect does NOT reproduce under render-thread CPU starvation** (this box, this
+level, `VideoFps 30`, current backbuffer path). No mechanism claim.
+
+### 9.1 Four precisions the numbers demanded
+
+**(a) What set the analysis-window starts.** `cam_settled_after = 0` on all six, so **luminance settle
+alone** drove every window — and it is a **wall-clock constant, not a frame count**. Multiply each
+leg's window start by its own frame time:
+
+```
+R6 16×36.1 = 578 ms   R2 14×40.5 = 567 ms   R3 13×43.6 = 567 ms
+R5 12×47.7 = 572 ms   R4  5×116.1 = 580 ms  R1 0 (warm start)
+```
+
+**≈570 ms in every cold-start leg**, spanning 5 frames or 16 depending only on how slow the leg ran.
+R1 is 0 because its m16 focus gate timed out and handed it a 31 s warm-up before `start_frame 2440` —
+finding B (§6) reappearing, here as the thing that *removes* the ramp rather than complicating it.
+
+⚠ **The camera uniformity here does NOT retire A47.** All six settled at the same bbox, but that is
+the bifurcation *not occurring*, not an explanation of it: across all twelve I10 legs it has now
+happened **once** (game-set L3). Intermittent, unexplained, ~1 in 12. A47 stands as written.
+
+**(b) `fired=N` is PROCESS-LIFETIME and quantised to 60.** Two independent effects, and the suspicion
+that pre-capture idle dominates is **confirmed**:
+
+- The log fires only on `(N % 60) == 0`, so the last printed value is `floor(total/60)*60` — it
+  under-reports by 0–59 and can never be read as an exact count.
+- The counter runs from module start, not from capture start. The §8.3 sweep point at 110 ms printed
+  **360** over 60 captured frames while R4 at the same stall printed **120** over 90. Measured cause:
+  the sweep leg sat in a **30.5 s focus-gate wait** (LoadMap 08:07:08.4 → capture START 08:07:38.9)
+  ticking the stall throughout, while R4 started in **0.5 s** (08:42:58.5 → 08:42:59.0) and only ever
+  ticked its 122-frame capture span.
+
+⇒ **Read `fired` as "the lever executed", never as "it executed N times during the capture."**
+
+**(c) A46 was in force on every leg.** The harness kills by process **name** and asserts a
+**zero-instance** box before each launch — aborting the leg if any instance survives — and kills by
+name again afterwards. Every leg in §9 and §8.3 ran under it.
+
+**(d) Pacing-off is now covered from BOTH sides, and they are different regimes.** Game-set L5
+free-ran **FAST** (ratio 0.3312 — no pacer, nothing else limiting). Render-set R5 with pacing off is
+**render-limited and runs SLOW** (1.4317): removing the pacer does not help when the render thread is
+the bottleneck. Both clean. "Pacing off" had been treated as one regime; it is two, and the slow one
+is the shape closer to a struggling client machine.
+
+### 9.2 Combined characterisation across both I10 sets
+
+**87 hide events · 974 oracle frames · 0 misalignments · 1052 / 1054 identity frames at diff 0**
+(both exceptions are the known markerless warm-up false decodes of §2).
+
+The arm→present pairing on the current backbuffer path is **byte-exact under CPU starvation of either
+thread**, nominal through deep, and pacing-off from both sides. **"CPU starvation breaks the pairing"
+is REFUTED for this instrument** — not merely unobserved.
+
+**Explicitly NOT ruled out**, pre-declared before the legs ran: **H1** (GPU-load starvation shape —
+untested by any lever we have; both levers are CPU busy-waits); the **high-`VideoFps` 120/240
+pacing-ON shape**, where the m21 residual was actually observed; and the **delivery-mode gap** below.
+
+### 9.3 The delivery-mode gap — on the record
+
+**Both I10 sets ran `delivery = OFF`**, because the oracle needs the projected bbox from
+`labels.jsonl` and delivery mode suppresses that file. **The client captures in delivery mode.** So
+nothing measured so far has exercised the delivery path's own label surfaces. Closing it needs a
+**delivery-compatible oracle** — pixel-derived bbox plus `annotation.json` indices, no `labels.jsonl`
+— which is future design work, not something re-running these legs can fix.
+
+---
+
+## 10. Next
+
+The standing hunt order, pre-declared:
+
+1. **High-`VideoFps` 120/240, pacing ON** — the shape the m21 residual was actually observed in. Next.
+   ⚠ A9 (`VideoFps 30` pinned) is **deliberately broken for that work and only there**, and per A9 the
+   30-fps table and the `max(budget, stall + residual)` fit **must not be arithmetically scaled** to
+   120/240 — those regimes get their own empirical points.
+2. **H1, GPU-load starvation** — no lever exists; the lever must be designed before, never in the same
+   turn as, its first measurement.
+3. **The delivery-mode gap** (§9.3).
+4. Client-config/content specifics — owner-owned office-machine lane, independent of these turns.
+
+The §8.3 sweep model that the render bands were declared from, retained for reference:
 `ratio ≈ (stall + 6.9) / 33.33`:
 
 | A40 band | required ratio | render stall that lands there |
@@ -465,9 +572,11 @@ before any render I10 leg runs. What the sweep supplies for that decision, from 
 | **deep** | ≥2.80 | **≥86.4** (110 measured 3.5065) |
 | pacing-off | own category | `Pace 0` with a render stall |
 
-Then, still owed and not covered by this session: the high-`VideoFps` (120/240, pacing ON) legs that
-reproduce the shape the m21 residual was actually observed in; the A17/A19 retroactive audit (paper
-only, both axes — with §2's marker-OFF finding as a new input); the I2 view-count re-measure.
+*(Aims held: 33 → predicted ≈1.20, measured 1.2145; 36 → ≈1.29, measured 1.3071.)*
+
+Then, still owed and not covered by this session: the high-`VideoFps` (120/240, pacing ON) legs; the
+A17/A19 retroactive audit (paper only, both axes — with §2's marker-OFF finding as a new input); the
+I2 view-count re-measure.
 
 ✅ **A20 item 4 is DISCHARGED, and had been for ten days** — the pre-cook `GameDefaultMap` check landed
 in `fbf8ad1` as the `Config/DefaultEngine.ini → GameDefaultMap` bullet in

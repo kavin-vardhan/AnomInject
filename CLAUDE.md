@@ -41,7 +41,27 @@ and is the single source of truth for the project.
   frame time ≈ 40 ms and nothing about which thread starved. **The counter story is CORRECTED**: `163dd12`'s
   counters were never in the binary, so "stall_fired=0" was never a reading — ratio arithmetic made that
   catch. *"A counter that never printed is not a counter that printed 0."*
-  **NO render I10 legs run — their A40 bands must be pre-declared from the sweep first.**
+  **RENDER I10 LEGS ALSO CLEAN — six for six in-band on the FIRST attempt, zero retries** (nominal
+  1.0000, mild 1.0815, **client 1.2145 / 1.3071**, **deep 3.4840**, pacing-off 1.4317): 43 events,
+  480 frames, **0 misalignments**, identity **520/520**. Bands were declared chat-side from the sweep
+  before any leg ran; the defect outcome was **UNPREDICTED**.
+  ⇒ **COMBINED across both I10 sets: 87 hide events · 974 oracle frames · 0 misalignments · 1052/1054
+  identity frames at diff 0. "CPU starvation breaks the arm→present pairing" is REFUTED for this
+  instrument** — nominal through deep, either thread, pacing-off from both sides. ⚠ **Pacing-off is
+  TWO regimes**: game-set L5 free-ran FAST (0.3312), render-set R5 was render-limited and ran SLOW
+  (1.4317) — the slow one is closer to a struggling client box. **Still NOT ruled out and named in
+  advance:** H1 (GPU-load shape — no lever exists for it), the high-`VideoFps` 120/240 pacing-ON shape
+  where the m21 residual was actually seen, and **the DELIVERY-MODE GAP — both I10 sets ran delivery
+  OFF because the oracle needs the `labels.jsonl` bbox that delivery suppresses, while the client
+  captures in delivery mode; closing it needs a delivery-compatible oracle.**
+  Precisions on the record: the analysis-window start is a **wall-clock ~570 ms luminance ramp**, not a
+  frame count (5 frames at 116 ms/frame, 16 at 36 ms/frame); `fired=N` is **process-lifetime and
+  quantised to 60** by the `%60` log filter, so it reads "the lever executed", never "N times during
+  capture"; the A47 camera bifurcation has now occurred **once in twelve legs** and is NOT retired by
+  these six.
+  ✅ **A20 item 4 was DISCHARGED by `fbf8ad1`** (the `GameDefaultMap` bullet in PRE-DELIVERY-CHECKLIST
+  §1 — that commit calls it the "delivery-checklist guard"); the debt had been carried forward wrongly
+  by the handoff, journal 030 and early drafts of 031. Struck.
   New standing rules **A44** (prove the change is in the binary; string scan, not timestamp), **A45**
   (a valid marker read is a strictly increasing series — the decoder confidently misreads markerless
   frames), **A46** (kill by process name + assert an idle box; the 217 KB launcher trap already produced one
