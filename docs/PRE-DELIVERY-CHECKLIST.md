@@ -22,6 +22,14 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       the Issue-2 regression. `game` is only correct for game-clock content such as StackOBot itself.*
 - [ ] Build is **Development or Test**, not Shipping.
       *Capture and the control server are compiled out of Shipping entirely.*
+- [ ] **`Config/DefaultEngine.ini` → `GameDefaultMap` points at the CLIENT's map, not a bench or test map.**
+      *A packaged build's default map can only be changed by editing the PROJECT config and re-cooking —
+      a loose `Config/DefaultEngine.ini` beside the package is silently ignored (G88). So anyone who needs
+      a package to boot somewhere else must edit the same host-project file the client build is cooked
+      from, and **nothing in git will catch it** — the host project config is outside the plugin repo.
+      Left un-reverted, the next client package silently boots into whatever bench map was last used.
+      Read the value; do not assume it. (Added 2026-08-06 after the CB_GateLevel work made this hazard
+      real — see G87/G88/G89.)*
 
 ## 2. Desktop app + config
 

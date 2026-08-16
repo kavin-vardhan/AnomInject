@@ -1443,3 +1443,99 @@ re-cook, so the ratio/keying gate matrix uses a **purpose-built bench level** in
   **frame↔label alignment across ratio regimes**, which is a property of the capture path, not of scene
   content. Work where scene content is the subject — the invisible-anomaly / selection-quality track — needs
   REAL scenes and a synthetic level would be the wrong instrument. (2026-08-06.)
+
+**How to build and reach it.**
+- Author: `UnrealEditor-Cmd.exe <uproject> -run=pythonscript -script="Plugins/CaptureBench/tools/make_gate_level.py"`.
+  The script deletes and rebuilds the asset, then **asserts** the asset exists and that the CB_-prefixed
+  actor count equals what it just authored, raising loudly on mismatch — because a failed author run once
+  **presented as success while leaving the OLD `.umap` in place** (see the API traps below).
+- Cook: `RunUAT BuildCookRun -project=… -platform=Win64 -clientconfig=Development -cook -stage -pak -archive
+  -archivedirectory=Builds\BenchGate -build -map="/Game/CaptureBenchGate/CB_GateLevel+/Game/StackOBot/UI/MainMenu/MainMenu"`.
+  **Cold cook (with a binary rebuild) is the long pole; a WARM content-only re-cook is ~1.3 minutes**, so
+  iterating the level by measurement is cheap.
+- Reach it by **command-line map argument**: `StackOBot.exe /Game/CaptureBenchGate/CB_GateLevel …`.
+  The default map is deliberately NOT changed, so the host project config is never touched (G88).
+  Verified it *stays*: 6,443/6,443 ticks reported `level=CB_GateLevel`, zero MainMenu loads. It does not
+  suffer StackOBot's MainWorld→MainMenu redirect because it contains no blueprint logic to redirect it.
+- ⚠ `Builds\BenchGate` is **NOT deliverable-shaped** — bench-only map, restricted cook. The client artifact
+  is `Builds\Windows`. Never send BenchGate.
+
+**Two UE 5.1 Python traps hit while authoring it.**
+1. `LevelEditorSubsystem.new_level` **REFUSES if the asset already exists** ("Failed to validate the
+   destination") — and the script then exits non-zero **while the old `.umap` survives untouched**. A
+   careless "the script ran" reading re-cooks the stale level. Delete the asset first, and assert after.
+2. `ADirectionalLight` / `APointLight` / `ASkyLight` have **no** `directional_light_component` /
+   `point_light_component` / `sky_light_component` attribute. The accessor is **`.light_component`**.
+
+**The level rendered BLACK at first, and the benchmark hid it.** A script-authored level is never opened in
+the editor, so **lighting is never baked**; static/stationary lights + unbuilt lighting render black, and
+there was no sky actor so even the background was 0. Measured: mean luminance **0.000**, max **0**,
+0.0000% non-black pixels. **Fix = fully MOVABLE lights (no bake needed) + a `SkyAtmosphere`.**
+⚠ The trap is that *shading nothing is cheap*: the black level benchmarked at **141.52 fps**, which reads as
+"a fast, light level" rather than "a broken one".
+
+**Exposure must be PINNED, and it is not the same problem as overexposure.**
+- Auto-exposure is ON by engine default (neither the project nor the engine config overrides it). MEASURED:
+  frame-to-frame mean-luminance spread **5.752 → 0.108** (~53×) when pinned. A deliberately deterministic
+  level was drifting ~5.75 luminance levels over 12 frames — enough to make luminance readings
+  irreproducible run to run.
+- Pin with `r.DefaultFeature.AutoExposure 0` + `r.EyeAdaptationQuality 0` on every gate run.
+- ⚠ **Auto-exposure was NOT the cause of the blown-out image**: clipping was slightly *worse* pinned
+  (58.02% vs 54.69%). That was light intensity. Two separate problems, one of which looks like the other.
+- Verified inert against the case that actually matters: hiding a bright object does **not** shift
+  whole-frame brightness. Anomaly run vs a zero-fire control (same seed/level/frames, targeted zero-match
+  so cadence is identical) diverged by **mean −0.18, max 0.39** on non-event frames vs **mean +1.66, max
+  4.67** on event frames — ~12× separation, confined to events.
+
+**Converged light values, and which lever actually moved cost.**
+`sun 1.8 lux · 3 movable point lights @2500 cd r1200 · dynamic_shadow_distance 4000 · floor =
+WorldGridMaterial`. The sweep that produced them:
+
+| | sun | point lights | shadow dist | floor | cost | clipped |
+|---|---|---|---|---|---|---|
+| start | 6.0 | 4 @40000 r1800 | 12000 | white | 29.5 ms* | 58.0% |
+| attempt 1 | 3.0 | 3 @4000 r1200 | 12000 | white | 29.8 ms* | 26.5% |
+| attempt 2 | 1.8 | 3 @2500 r1200 | **4000** | **WorldGrid** | 23.7 ms* | 9.2% |
+
+⚠ **`*` those costs are CONTAMINATED — they were measured with PNG encoding running.** Clean
+(capture-only) natural cost is **8.52 ms**. Encode contention is not scene cost. The 18–25 ms convergence
+target these numbers were chased against has since been **retired** (see below).
+⚠ **Shadow DISTANCE was the cost lever, not the lights** — attempt 1 cut point-light intensity 10× and
+dropped one light for **zero** cost change. **ATTRIBUTED, NOT ISOLATED:** attempt 2 moved four variables at
+once, so the shadow-distance attribution rests on attempt 1 having already cleared the lights. Anyone
+re-tuning cost should know that evidential standing before leaning on it.
+**White-on-white:** targets use the plain `BasicShapeMaterial`, so a white floor left them unreadable for a
+pixel oracle even at correct exposure. The grid floor material is what makes them legible.
+
+**Content checks are leg-validity conditions, and the visual step is NOT redundant with them.**
+Three crude, loud, leg-invalidating checks in `FCaptureBenchCapturer`: luminance floor `mean < 2.0/255`
+(black), flatness floor `sd < 5.0` (uniform), clip ceiling `>35%` at ≥250 (blown out). Healthy reference:
+the converged level clips **9.2%** against the 35% ceiling — the ceiling was calibrated against a
+known-good scene, not picked.
+⚠ **The luminance floor PASSED a 58%-blown, unusable frame** — correctly, since it only separates
+"rendered" from "did not render". Only *looking at a frame* caught that. **Eyes, then number, then
+benchmark** is a required order, not a nicety.
+⚠ Portability: all three thresholds assume a deliberately lit, deliberately varied scene. If they ever
+migrate toward production, that assumption travels with them and stops being safe.
+
+**A game-thread stall does NOT interact with scene cost — the "heavy gate level" premise is dead.**
+MEASURED: `frame_time ≈ stall + ~1.3 ms` (stall 76→77.1, 85→86.3, 99→100.1). The render thread runs
+concurrently, so a game-thread busy-wait simply replaces the frame time and the scene never enters. The
+**knee therefore sits at ~30–34 ms of stall regardless of scene weight**, not at `(1/VideoFps − natural cost)`.
+Cross-check: the model also fits the older MainMenu table away from the knee (60 ms→1.847 vs model 1.84;
+105 ms→3.198 vs 3.19) — two different scenes, one model.
+⇒ Making the gate level heavier buys nothing for this lever. **The 18–25 ms cost target is RETIRED**; the
+level's cost is a *recorded property* (8.52 ms), not a bar to clear. A light gate level is acceptable, and
+the game-stall table is **synthetic by nature and irreducibly so** — which is also exactly what makes it
+deterministic and repeatable across machines. Both halves are true.
+Scene cost can only enter via the RENDER thread, which is why a render-thread lever and a GPU-load leg are
+the shapes where level weight would matter.
+
+**⚠ A lever must PROVE it executed.** The render-thread stall was originally called from CaptureBench's
+SceneViewExtension, which is only active while CaptureBench's *own* capturer is running — so during
+production-capture legs it silently no-opped, and four legs at 20/40/70/110 ms returned a perfect
+`ratio 1.000`. That reads exactly like the major finding "speed_ratio is blind to render-side starvation",
+and it would have been **wrong**. Levers now carry execution counters (`gameStallFired` / `renderStallFired`)
+reported per run. **A lever that never fired proves nothing about the metric it failed to move.**
+(As of 2026-08-06 the render lever still reports `fired=0` after a rebuild — cause not yet identified.)
+(2026-08-06.)

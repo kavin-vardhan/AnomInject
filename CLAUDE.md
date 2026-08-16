@@ -15,8 +15,26 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- **IN FLIGHT — m22: blink subtype pin + annotation traceability + selection provenance. CODE COMPLETE, all
-  gates green in a local package, NOT YET TAGGED (awaiting the owner Play-gate smoke) and NOT YET PUSHED.**
+- **IN FLIGHT — SVE capture migration, stage S2 (render-thread keying design). Production BYTE-UNCHANGED;
+  production still captures via the BACKBUFFER; no S3 work started.** → journal
+  `docs/sessions/2026-08-06-030-s2-keying-design-and-gate-environment.md`.
+  **B′ is LOCKED**: a key-only ring — the game thread publishes at **`BeginRenderViewFamily`** (the ONLY
+  hook where `ViewFamily.FrameNumber` is assigned; `SetupViewFamily` still reports `UINT_MAX`), the
+  render-thread pass looks up by `View.Family->FrameNumber`, the label snapshot never crosses threads, and a
+  lookup miss is loud (counted, warned, frame dropped — never labelled by guess). Measured: counters advance
+  1:1, ring round-trip 100%, forced-miss 26/26 warned.
+  **Gate environment now exists and is characterised** — synthetic bench level `CB_GateLevel`, cooked to
+  `Builds\BenchGate` (**NOT deliverable**), reached by command-line map argument so the host project config
+  is never touched. See **G87–G89** for the whole saga (packaged runs always boot MainMenu; loose config
+  beside a package is ignored; black-level, exposure-pin and cost-model corrections).
+  **Game-thread stall→ratio table BANKED** (dev-box instrument, not a portable spec): knee 30→34 ms and
+  sharp, ratio **3.004 at 99 ms**, `frame_time ≈ stall + 1.3 ms`. **Render-thread lever does NOT fire
+  (`stall_fired=0`) — cause unidentified; no render numbers banked.**
+  **Open and NOT drifting toward "fine":** deep starvation (m21 residual never reproduced), the latch
+  lifetime rule (unbuilt), the captured-view matrix equality check (ViewRing/`ViewLagFrames` deletion is
+  blocked on it). **Nothing shows the migration FIXES the client's defect yet** — that is I10, not yet run.
+- **Prior milestone (as-built): m22 — blink subtype pin + annotation traceability + selection provenance —
+  COMPLETE (tagged `m22`, pushed).**
   Three commits on `master`: `af8d937` `feat(blinking)` + `03a51d5` `feat(capture)` + `28bc6f1` `feat(capture)`.
   **(1) Subtype pin** — the per-event subtype derivation is DELETED; `blink` now emits
   `anomaly_subtype = "disappear_reappear"` **always**, however many toggles the event contains. **Blink's own
