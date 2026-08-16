@@ -15,7 +15,37 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🔴 **FIRST REPRODUCTION — "P3": at `VideoFps` 120/240 a hide-type anomaly window is LABELLED IN
+- 🔴 **P3 DIAGNOSED — MECHANISM ADOPTED. NEXT WORK = `m23` "P3-fix", PLAN STAGE.** → journal
+  `docs/sessions/2026-08-16-033-p3-mechanism-adopted.md` (2026-08-16). **P3 is TWO stacked defects:**
+  **P3a (timing)** — `FAnomaly_Blinking` accumulates forwarded tick dt (`Anomaly_Blinking.cpp:58-69`)
+  against `HalfPeriodSeconds = 0.5/Hz` (:44, default 5 Hz ⇒ 0.100 s), and under capture that dt **is**
+  `1/VideoFps` (`AnomalyCaptureSubsystem.cpp:672`, clamp :442). When a window's ticks × (1/fps) never
+  reach the half-period the toggle never fires and **the actor is never hidden** (:76) — the pixels are
+  CORRECT, the scene truly has no anomaly. `Revert` resets the accumulator (:85-98), so no phase carries.
+  **P3b (labelling, anomaly-agnostic, the amplifier)** — `:1466` infers `bHideType` from the sampling
+  OUTCOME (`HiddenIdx.Num() > 0`) and `:1467` **silently substitutes `Ev.AffectedFrames`**, turning a
+  non-event into a full-window block of positives. **Fingerprint: genuine hide sets are GAPPED
+  (`[4,5,9,10]`); the fallback shape is CONSECUTIVE (`[3..10]`).** → **G94**.
+  **DISCRIMINATORS:** D-A fps bisection — a **THRESHOLD between 90 and 120 fps, not a gradient**
+  (60fps 12 ALIGNED, 90fps 6 ALIGNED, 120fps 13 ABSENT) with **zero SHIFTED events anywhere**; a
+  survey-derived 60–90 expectation was stated in advance and **FALSIFIED**. D-B grab-point test — true
+  dual capture, marker-matched, one oracle: **backbuffer and SceneColor agree to four decimals, both show
+  the object VISIBLE during labelled windows ⇒ P3 is scene-level and grab-point-independent; THE SVE
+  MIGRATION WOULD NOT CURE IT.** D-C — `missing_object` (hides in `Apply`) **MANIFESTS at 120 fps, 8
+  ALIGNED** ⇒ P3a is pinned on the toggle clock. **G95** (a second capturer's write load starves the
+  production writer; overlapping captures need the focus gate managed).
+  **FIX DIRECTION (plan only, no code yet):** **F-LABEL** — zero sampled-hidden ⇒ **zero positives**, row
+  kept with additive `manifested:false` + loud warning + session counter; hide-type identity from
+  existing routing, never from sample outcomes; `IAnomaly` LOCKED. **F-BLINK** — half-period in **FRAMES**
+  (integer), **default 3**, reproducing today's 30 fps cadence exactly; 60/90 fps cadence changes and that
+  is accepted. **SEQUENCING RULING: P3-fix lands and validates BEFORE S3** — client-facing dataset
+  poisoning outranks the internal migration, and D-B proves the SVE is orthogonal.
+  **OPEN, evidence-only: P4-CANDIDATE** — the D-C leg shows 41/96 shift-0 mismatches while all 8 event
+  edges are ALIGNED (a tail-length disagreement), **distinct from P3 and from P1, not conflated**.
+  New rules **A53** (any oracle/analysis change re-verifies against one known-ALIGNED and one
+  known-ABSENT control first) and the **A50 TRUNCATED addendum** (events cut by the frame cap are
+  classified TRUNCATED and excluded from taxonomy counts).
+- 🔴 **THE REPRODUCTION ITSELF — "P3": at `VideoFps` 120/240 a hide-type anomaly window is LABELLED IN
   `annotation.json` BUT NEVER APPEARS IN THE PIXELS. 49/49 events across four legs, zero manifested.**
   → `docs/sessions/2026-08-16-032-s2-high-fps-sweep-and-p3-reproduction.md` (2026-08-16).
   99 labelled-positive frames per leg, target plainly visible in every one (eyes-confirmed) —

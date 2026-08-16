@@ -1698,3 +1698,48 @@ focus-in, so pawn possession finishes at normal dt first; with the gate OFF a 4�
 **Rule: keep `IAI.Capture.FocusGate` ON for any capture above 30 fps.** The failure is quiet everywhere
 people look — the run completes, writes all its frames and reports the expected positive count; only
 `bbox_valid: false` in `labels.jsonl` (or an oracle finding nothing) reveals it. (2026-08-16.)
+
+### G94 — the annotation writer FABRICATES positives when a hide-type event never manifests
+
+`WriteSessionAnnotationFile` decides an event's kind from the **outcome of sampling**, then falls back:
+
+```cpp
+AnomalyCaptureSubsystem.cpp:1466   const bool bHideType = HiddenIdx.Num() > 0;
+                          :1467   TArray<int32> FrameIndices = bHideType ? MoveTemp(HiddenIdx) : Ev.AffectedFrames;
+```
+
+`HiddenIdx` holds the frames actually sampled hidden (`SampleDeferredHidden` :1139-1164 reads real actor
+state at :1162). So if a hide-type anomaly **never actually hides** — for any reason — `HiddenIdx` is
+empty, `bHideType` is **false**, and the event silently emits `Ev.AffectedFrames` instead: **every frame
+where the actor merely projected on screen, relabelled as positive.**
+
+⚠ **MEASURED consequence:** at `VideoFps` 120/240 this produced **99 labelled-positive frames per leg with
+the target plainly visible in all of them**, across 49/49 events (journals 032/033). A non-event becomes a
+full-window block of poisoned labels.
+
+**Fingerprint for spotting it in existing data:** genuine sampled hide sets are **GAPPED**
+(`[4,5,9,10]`); the fallback shape is a **CONSECUTIVE run covering the whole positive window**
+(`[3,4,5,6,7,8,9,10]`). A blink event whose `frame_indices` are perfectly consecutive is suspect.
+
+⚠ **It is anomaly-agnostic** — nothing about it is specific to `blinking`; any hide-type event that fails
+to manifest gets the same treatment. Hide-type identity must come from the routing that already sends an
+event into `SampleDeferredHidden`, never from whether sampling found anything. (2026-08-16.)
+
+### G95 — a second capturer's write load starves the production writer; and overlapping two captures needs the focus gate managed
+
+Running CaptureBench's SVE capture alongside a production `IAI.Capture.Start` in the same process is the
+only way to compare grab points on **the same frames**, and it works — but two traps sit in front of it.
+
+1. **Write starvation.** CaptureBench writes a PNG for **every rendered frame** (~720 KB each at
+   1280×720). With a 4000-frame budget at `VideoFps 120` this saturated the shared write path and
+   **production wrote 0 PNGs** while still producing a complete `run_summary.json` — i.e. it looks like a
+   successful run with an empty `Actual_Frames/`. Keep the bench budget just large enough to span the
+   production window.
+2. **Window alignment.** CaptureBench starts at tick 1; production's start is held by the m16 focus gate
+   (up to a 30 s timeout). Measured: the SVE captured `gfc 1..900` while production did not begin until
+   frame **2156** — **zero overlap, so no frame could be compared.** Since `FocusGate 0` is barred above
+   30 fps (**G93**), the fix is to bring the game window to the **foreground** after launch so the gate
+   releases immediately; production then starts near frame 1 and both captures overlap.
+
+**Matching method that works regardless:** decode the in-scene marker from both sets and match on
+`GFrameCounter` — do not assume the two capturers' frame numbering corresponds. (2026-08-16.)
