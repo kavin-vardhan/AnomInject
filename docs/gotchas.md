@@ -1665,4 +1665,11 @@ python -c "import mmap; f=open(r'<pkg>\...\Binaries\Win64\<Game>.exe','rb'); m=m
 `TEXT()` literals land in the exe as UTF-16LE, so any `UE_LOG` format string, `ENQUEUE_RENDER_COMMAND`
 name, or CVar name added by the change works as the probe. Scan for something the change **adds**, and
 also for a control string that existed **before** it, so a false negative from a bad scan is visible.
+
+⚠ **AND BEFORE YOU RE-STAGE: the archive step WIPES the package tree, including `<Package>\Windows\
+<Game>\Saved\`.** That is where a packaged run writes its capture sessions, so every banked session
+under it is destroyed by the fix. Move them out first. The bench sessions for this project now live at
+**`D:\IntrusiveAnomalies\_bench_sessions_bank`** (evacuated 2026-08-16, 1347.2 MB, 10 directories:
+`CAL CAL2 CaptureBench Config I10 Logs RSW SW T2 T2C`) — that is where the A17/A19 retroactive audit's
+raw evidence lives, and it is outside both git repos, so nothing but this note records it.
 (2026-08-16.)

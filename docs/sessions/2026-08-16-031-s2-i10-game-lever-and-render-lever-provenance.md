@@ -331,9 +331,12 @@ The 34 ms row is the knee-region noise G89 already documents, observed a second 
 
 ## 7. New standing rules (A44–A47), written out in full
 
-- **A44 — binary provenance.** No leg is interpreted until the change under test is proven **PRESENT
-  in the binary under test** — build timestamp plus symbol/string scan, or a version stamp.
-  ***"The harness ran" is never "the change ran."***
+- **A44 — binary provenance.** No leg is interpreted until the change under test is proven **PRESENT in
+  the artifact under test**, by **symbol/string scan** (or an embedded version stamp). **Build
+  timestamps are ADVISORY ONLY and mislead in both directions** — a stale binary can sit behind a green
+  build (staging skipped), and a freshly staged one can carry an old timestamp (the archive inherits the
+  compile time). ***"The harness ran" is never "the change ran."*** → **G92** for the trap and the
+  one-liner.
 - **A45 — marker validity.** A valid marker read is a **strictly increasing decoded series over the
   analysis window**. A lone successful decode is never evidence a marker was drawn; the decoder
   confidently misreads markerless frames.
@@ -464,9 +467,22 @@ before any render I10 leg runs. What the sweep supplies for that decision, from 
 
 Then, still owed and not covered by this session: the high-`VideoFps` (120/240, pacing ON) legs that
 reproduce the shape the m21 residual was actually observed in; the A17/A19 retroactive audit (paper
-only, both axes — with §2's marker-OFF finding as a new input); the I2 view-count re-measure;
-A20 item 4.
+only, both axes — with §2's marker-OFF finding as a new input); the I2 view-count re-measure.
 
-**Nothing about the migration is proven until a render-side reproduction exists and is then shown to
-go away.** This session narrowed where to look and rebuilt the instrument that can look there. It did
-not find the client's defect.
+✅ **A20 item 4 is DISCHARGED, and had been for ten days** — the pre-cook `GameDefaultMap` check landed
+in `fbf8ad1` as the `Config/DefaultEngine.ini → GameDefaultMap` bullet in
+`docs/PRE-DELIVERY-CHECKLIST.md` §1. That commit's message calls it the "delivery-checklist guard";
+the debt was then carried forward wrongly by the handoff doc and by this journal's first draft. Struck.
+
+**FRAMING CORRECTION — the migration is NOT gated on reproducing the client's defect.** S3's
+ratio × config matrix discharges **ratio-independence on its own terms**; that is the requirement. A
+reproduction is the strongest available *validation asset* — with one, S3 can show the defect **dies**
+rather than merely that gates pass — which is why the hunt continues. But it is not a logical
+precondition, and earlier phrasings in this repo that read "nothing is proven until the defect
+reproduces" overstate it. What remains true: **nothing shows the migration fixes HER defect**, and
+that specific claim needs a reproduction before it can be made.
+
+*(Environment note, no action: the machine's `HKLM` UE 5.1 registry path is stale; the 5.1 engine this
+project builds against is the source build at `D:\UESource\UnrealEngine`, resolved via the uproject's
+`EngineAssociation` GUID. A running `UnrealEditor.exe` on this box belongs to an unrelated 5.7
+project and was left alone.)*

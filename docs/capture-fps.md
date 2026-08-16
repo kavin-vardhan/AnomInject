@@ -175,6 +175,14 @@ with the one-sided rule above.
   Deep starvation (ratio ≳ 3) is a known, unfixed residual — see **`client-delivery.md` → "THE SHIP RULE"** for
   the full rule and the m22 plan. So "choose an fps the box sustains" (below) is no longer only about honest
   video speed — it now decides whether the **labels** are true at all.
+- **⚠ `speed_ratio` CANNOT ATTRIBUTE — it identifies frame time, never the starved thread.** MEASURED
+  2026-08-16 on both deterministic levers: a **game-thread** stall and a **render-thread** stall move the
+  ratio through the *same* functional form, `frame_time ≈ max(1/VideoFps, stall + residual)`, differing only
+  in the residual (**1.3 ms game / 6.9 ms render**, knees 32.0 / 26.4 ms at `VideoFps 30`). So a client
+  session reporting `speed_ratio 1.2` tells you frame time was ≈ 40 ms and tells you **nothing** about
+  *which* thread was starved — do not read a ratio as evidence for a game-side or a render-side cause.
+  (It also refutes the tempting reading that the ratio is *blind* to render-side starvation: it is not.)
+  → `docs/sessions/2026-08-16-031-s2-i10-game-lever-and-render-lever-provenance.md` §8.3 for the sweep.
 - **Wall-clock capture takes `frames / sustained_fps`, NOT `frames / VideoFps`.** Pacing holds each
   frame to *at least* `1/VideoFps` of wall time — it cannot speed a slow box UP, only slow a fast one
   down to real time. On a box that sustains below the target the run takes longer in wall time (and
