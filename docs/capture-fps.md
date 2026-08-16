@@ -183,6 +183,23 @@ with the one-sided rule above.
   *which* thread was starved — do not read a ratio as evidence for a game-side or a render-side cause.
   (It also refutes the tempting reading that the ratio is *blind* to render-side starvation: it is not.)
   → `docs/sessions/2026-08-16-031-s2-i10-game-lever-and-render-lever-provenance.md` §8.3 for the sweep.
+- **⛔ AT `VideoFps` 120/240 ON THE CURRENT BACKBUFFER PATH, HIDE-TYPE ANOMALY WINDOWS ARE LABELLED BUT NEVER
+  MANIFEST IN THE PIXELS.** MEASURED 2026-08-16: 49 of 49 hide events across four legs at 120 and 240 fps
+  produced `annotation.json` hide windows that appear in **no captured frame** (99 labelled-positive frames
+  per leg, target visible in every one). **Dataset-poisoning severity — every such frame is a training
+  example asserting an anomaly over a clean picture.** Frame↔label pairing is exact and frames are not
+  stale (0/149 duplicate-adjacent), so this is neither a pairing bug nor the m21 stale-present residual;
+  **mechanism is under diagnosis.** The same target/seed/anomaly is frame-exact at `VideoFps 30` across
+  twelve legs, so **do not capture hide-type anomalies above 30 fps until this is closed**, and treat any
+  existing high-fps session as suspect. → `docs/sessions/2026-08-16-032-s2-high-fps-sweep-and-p3-reproduction.md`.
+- **⚠ Above the box's sustainable capture rate, `speed_ratio` stops being a DIAL and becomes a READOUT.**
+  MEASURED: `frame_time ≈ max(1/VideoFps, natural_frame_time, stall + ~1.4)`, and this dev box's natural
+  frame cost is **12.7–17.8 ms** at 1280×720 with PNG writing (±20% wander). Once `1/VideoFps` drops below
+  natural cost the pacer never has headroom to pace, so the ratio just reports natural starvation:
+  **ratios 1.5–2.1 occur at 120 fps and 3.2–4.1 at 240 fps with ZERO induced load.** Consequence — a high
+  `speed_ratio` on a high-fps run does not imply anything was wrong beyond "the box cannot capture that
+  fast", and low ratios are simply unreachable there. ⚠ Dev-box figures; the shape transfers, the numbers
+  do not. → journal 032 §3.
 - **Wall-clock capture takes `frames / sustained_fps`, NOT `frames / VideoFps`.** Pacing holds each
   frame to *at least* `1/VideoFps` of wall time — it cannot speed a slow box UP, only slow a fast one
   down to real time. On a box that sustains below the target the run takes longer in wall time (and

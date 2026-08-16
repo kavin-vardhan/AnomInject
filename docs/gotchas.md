@@ -1673,3 +1673,28 @@ under it is destroyed by the fix. Move them out first. The bench sessions for th
 `CAL CAL2 CaptureBench Config I10 Logs RSW SW T2 T2C`) — that is where the A17/A19 retroactive audit's
 raw evidence lives, and it is outside both git repos, so nothing but this note records it.
 (2026-08-16.)
+
+### G93 — `FocusGate 0` + a high `VideoFps` corrupts the camera; neither alone does it
+
+Turning the m16 focus gate OFF at `VideoFps` 120/240 produced captures in which the player camera settled
+to a **wrong, fps-dependent rotation** and held it there for the whole run, aiming the target off screen.
+MEASURED: **0 of 150 label rows had a valid bbox** on both legs, with final view rotations
+`[332.9, 45.1]` at 120 fps and `[347.2, 51.2]` at 240 fps (the correct rest rotation is `[0, 0, 0]`).
+
+⚠ **It is the COMBINATION.** Isolated with a 2×2 rather than guessed:
+
+| `VideoFps` | `FocusGate` | valid bbox | final rot |
+|---|---|---|---|
+| 30 | **0** | 59/59 | `[0,0]` |
+| **120** | 1 | 99/99 | `[0,0]` |
+| **120** | **0** | **0/150** | `[332.9, 45.1]` |
+| **240** | **0** | **0/150** | `[347.2, 51.2]` |
+
+**Mechanism INFERRED, not proven:** `StartRun` calls `FApp::SetFixedDeltaTime(1.0 / VideoFps)`
+(`AnomalyCaptureSubsystem.cpp:672`). With the gate ON that call is deferred into `BeginActualRun` at
+focus-in, so pawn possession finishes at normal dt first; with the gate OFF a 4–8 ms fixed step engages
+*during* possession. At 30 fps the step is 33 ms and nothing breaks.
+
+**Rule: keep `IAI.Capture.FocusGate` ON for any capture above 30 fps.** The failure is quiet everywhere
+people look — the run completes, writes all its frames and reports the expected positive count; only
+`bbox_valid: false` in `labels.jsonl` (or an oracle finding nothing) reveals it. (2026-08-16.)

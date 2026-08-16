@@ -15,6 +15,37 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
+- 🔴 **FIRST REPRODUCTION — "P3": at `VideoFps` 120/240 a hide-type anomaly window is LABELLED IN
+  `annotation.json` BUT NEVER APPEARS IN THE PIXELS. 49/49 events across four legs, zero manifested.**
+  → `docs/sessions/2026-08-16-032-s2-high-fps-sweep-and-p3-reproduction.md` (2026-08-16).
+  99 labelled-positive frames per leg, target plainly visible in every one (eyes-confirmed) —
+  **dataset-poisoning severity.** **DO NOT CAPTURE HIDE-TYPE ANOMALIES ABOVE 30 fps until this closes**;
+  treat any existing high-fps session as suspect. Legs: HF1 120fps ratio 1.6916, HF2 240fps 3.8262,
+  HF3 120fps+26ms 3.3684, HF4 240fps+24ms 6.1092 — **all ABSENT**.
+  ⚠ **NOT the m21 stale-present mechanism**, and three discriminators say so (**A51** signature kit):
+  identity `label.frame_index == marker gfc` **590/590 diff 0**; adjacent-duplicate scan **0/149
+  byte-identical AND 0/149 near-identical** on every leg (frames are fresh); claimed-hidden frames at
+  **−1.8..+3.5 robust sigmas** vs **+22..+29** at 30 fps. Perfect pairing, fresh frames, anomaly state
+  never reaching the rendered scene. **NO MECHANISM CLAIM.**
+  ⚠ **`VideoFps`-SCOPED, NOT RATIO-SCOPED (A52):** HF1 at ratio 1.69 and HF4 at 6.11 are equally ABSENT
+  while the 30-fps legs at ratio 3.0027/3.4840 were perfectly ALIGNED — same target/seed/anomaly/binary.
+  🔎 **m21 ARCHAEOLOGY — the residual was P3 filed as P2, and its attribution was confounded.** Journal
+  027's R7 (`blinking@240`, "pixels never show the hide at all") **is P3**; R3/R6 were also at **240**.
+  Every m21 residual run was at `VideoFps 240`, so "deep starvation (ratio ≳3) → stale scene" conflated
+  ratio with fps — **our 30-fps deep legs hit ratio 3.0027/3.4840 and were clean on all three
+  discriminators.** Journal 027's "the staleness is change-type-dependent" inference is SUPERSEDED.
+  **THREE PHENOMENA, tracked separately from here:** **P1** the client's one-frame shift @ratio≈1.2,
+  30fps — **NOT reproduced** (12 legs); **P2** stale/duplicate present — **signature absent** here;
+  **P3** labelled hide never manifests — **REPRODUCED**, fps-dependent.
+  New rules **A48** (config echo — report the EFFECTIVE value from independent read-backs, never the one
+  requested), **A49** (pre-declared regime windows where A40's bands don't apply), **A50** (per-event
+  taxonomy ALIGNED/SHIFTED(N)/**ABSENT**; ABSENT counts as reproduction and the oracle must be *able* to
+  say it), **A51**, **A52**. New gotcha **G93** (`FocusGate 0` + high fps corrupts the camera — neither
+  alone does; keep the focus gate ON above 30 fps). **Also measured: above the box's sustainable capture
+  rate `speed_ratio` stops being a dial and becomes a readout** — natural frame cost 12.7–17.8 ms here, so
+  ratios 1.5–2.1 (120fps) and 3.2–4.1 (240fps) occur with ZERO induced load, and the nominal/client bands
+  are unreachable there. Still open and NOT closed by this: **H1** (GPU-load — both levers are CPU
+  busy-waits), the **delivery-mode gap** (every I10 leg ran delivery OFF), **A47**.
 - **IN FLIGHT — SVE capture migration, stage S2 (render-thread keying design). Production BYTE-UNCHANGED;
   production still captures via the BACKBUFFER; no S3 work started.** → journals
   `docs/sessions/2026-08-06-030-s2-keying-design-and-gate-environment.md` and
