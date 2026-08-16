@@ -255,7 +255,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	return bApplied;
 }
 
-bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& ActorName)
+bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& ActorName, const TArray<FString>& ExtraArgs)
 {
 	UWorld* World = GetWorld();
 	UAnomalyInjectorSubsystem* Injector = ResolveInjector(World);
@@ -300,7 +300,11 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 	const float Hold = Stream.FRandRange(HoldMin, HoldMax);
 	const FString TargetName = Target->GetName();
 	const FString Token = FString(TEXT("=")) + TargetName;
-	const bool bApplied = Injector->ApplyAnomaly(Id, TArray<FString>{ Token });
+	TArray<FString> ApplyArgs;
+	ApplyArgs.Reserve(1 + ExtraArgs.Num());
+	ApplyArgs.Add(Token);
+	ApplyArgs.Append(ExtraArgs);
+	const bool bApplied = Injector->ApplyAnomaly(Id, ApplyArgs);
 	if (bApplied)
 	{
 		FAutoLiveFire Fire;

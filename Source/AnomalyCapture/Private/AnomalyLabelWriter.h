@@ -68,7 +68,7 @@ namespace AnomalyLabel
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
 		int32 ZeroMatchBursts, uint64 EndFrame,
 		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode,
-		const FString& ContentClock);
+		const FString& ContentClock, int32 NonManifestedEvents);
 
 
 	struct FSessionVideo
@@ -112,6 +112,7 @@ namespace AnomalyLabel
 		FString AnomalyType;
 		FString AnomalySubtype;
 		TArray<int32> FrameIndices;
+		bool bManifested = true;
 		double CoverageRatio = 0.0;
 		float CoveragePct = -1.0f;
 

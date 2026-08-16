@@ -54,7 +54,7 @@ public:
 
 	bool TryFireOnce();
 
-	bool TryFireSpecific(FName Id, const FString& ActorName);
+	bool TryFireSpecific(FName Id, const FString& ActorName, const TArray<FString>& ExtraArgs = TArray<FString>());
 
 	int32 RevertAllLiveFires();
 

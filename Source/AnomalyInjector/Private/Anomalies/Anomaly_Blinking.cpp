@@ -14,7 +14,7 @@ bool FAnomaly_Blinking::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 	if (Args.Num() == 0 || Args[0].IsEmpty())
 	{
-		UE_LOG(LogAnomaly, Warning, TEXT("blinking: usage <name-substring> [hz]"));
+		UE_LOG(LogAnomaly, Warning, TEXT("blinking: usage <name-substring> [half_period_frames]"));
 		return false;
 	}
 
@@ -23,35 +23,37 @@ bool FAnomaly_Blinking::Apply(UWorld* World, const TArray<FString>& Args)
 		Revert();
 	}
 
-	float Hz = DefaultHz;
+	int32 Frames = DefaultHalfPeriodFrames;
 	if (Args.Num() >= 2)
 	{
 		if (Args[1].IsNumeric())
 		{
-			Hz = FCString::Atof(*Args[1]);
+			Frames = FCString::Atoi(*Args[1]);
 		}
 		else
 		{
-			UE_LOG(LogAnomaly, Warning, TEXT("blinking: '%s' is not a number; using %.1f Hz."), *Args[1], DefaultHz);
+			UE_LOG(LogAnomaly, Warning, TEXT("blinking: '%s' is not a whole number of frames; using %d."),
+				*Args[1], DefaultHalfPeriodFrames);
+			Frames = DefaultHalfPeriodFrames;
 		}
 	}
-	if (!FMath::IsFinite(Hz) || Hz <= 0.0f)
+	if (Frames < MinHalfPeriodFrames || Frames > MaxHalfPeriodFrames)
 	{
-		UE_LOG(LogAnomaly, Warning, TEXT("blinking: invalid rate; using %.1f Hz."), DefaultHz);
-		Hz = DefaultHz;
+		UE_LOG(LogAnomaly, Warning, TEXT("blinking: half-period %d out of range [%d..%d]; using %d."),
+			Frames, MinHalfPeriodFrames, MaxHalfPeriodFrames, DefaultHalfPeriodFrames);
+		Frames = DefaultHalfPeriodFrames;
 	}
-	Hz = FMath::Min(Hz, MaxHz);
-	HalfPeriodSeconds = 0.5f / Hz;
+	HalfPeriodFrames = Frames;
 
 	Targets = UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World)
 		? AnomalyViewport::FindVisibleActorsMatching(World, Args[0])
 		: AnomalyTargeting::FindActorsMatching(World, Args[0]);
-	Accumulator = 0.0f;
+	FramesSinceToggle = 0;
 	bHiddenPhase = false;
 	bActive = Targets.Num() > 0;
 
-	UE_LOG(LogAnomaly, Log, TEXT("blinking: matched %d actor(s) for '%s' at %.2f Hz (half-period %.3fs)."),
-		Targets.Num(), *Args[0], Hz, HalfPeriodSeconds);
+	UE_LOG(LogAnomaly, Log, TEXT("blinking: matched %d actor(s) for '%s' at half-period %d frame(s)."),
+		Targets.Num(), *Args[0], HalfPeriodFrames);
 	return bActive;
 }
 
@@ -62,10 +64,10 @@ void FAnomaly_Blinking::Tick(float DeltaSeconds)
 		return;
 	}
 
-	Accumulator += DeltaSeconds;
-	while (Accumulator >= HalfPeriodSeconds)
+	++FramesSinceToggle;
+	while (FramesSinceToggle >= HalfPeriodFrames)
 	{
-		Accumulator -= HalfPeriodSeconds;
+		FramesSinceToggle -= HalfPeriodFrames;
 		bHiddenPhase = !bHiddenPhase;
 
 		int32 Affected = 0;
@@ -92,7 +94,7 @@ void FAnomaly_Blinking::Revert()
 		}
 	}
 	Targets.Reset();
-	Accumulator = 0.0f;
+	FramesSinceToggle = 0;
 	bHiddenPhase = false;
 	bActive = false;
 }

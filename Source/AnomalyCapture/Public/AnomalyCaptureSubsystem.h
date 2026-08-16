@@ -26,7 +26,8 @@ public:
 
 
 	void StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
-		const FString& InTargetAnomaly = FString(), const FString& InTargetActor = FString());
+		const FString& InTargetAnomaly = FString(), const FString& InTargetActor = FString(),
+		const TArray<FString>& InTargetArgs = TArray<FString>());
 
 	void StopRun();
 
@@ -137,6 +138,7 @@ private:
 	int32 FramesWritten = 0;
 	int32 PositiveFramesWritten = 0;
 	int32 ZeroMatchBursts = 0;
+	int32 NonManifestedEvents = 0;
 
 	int32 SessionFrameIndex = 0;
 	int32 FrameCap = 0;
@@ -148,6 +150,7 @@ private:
 
 	FName TargetAnomalyId = NAME_None;
 	FString TargetActorName;
+	TArray<FString> TargetAnomalyArgs;
 	bool bTargetedMode = false;
 
 	bool bAutoWasRunning = false;

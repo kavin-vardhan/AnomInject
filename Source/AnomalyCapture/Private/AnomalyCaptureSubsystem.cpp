@@ -177,6 +177,24 @@ namespace
 			OutSubtype = Id.ToString();
 		}
 	}
+
+	bool IsHideTypeAnomaly(FName Id, bool& bOutKnownId)
+	{
+		static const TSet<FName> HideTypeIds = {
+			FName(TEXT("blinking")),
+			FName(TEXT("missing_object"))
+		};
+		static const TSet<FName> NonHideTypeIds = {
+			FName(TEXT("missing_texture")),
+			FName(TEXT("lighting_mismatch")),
+			FName(TEXT("lod_corruption")),
+			FName(TEXT("lod_popping")),
+			FName(TEXT("camera_clipping")),
+			FName(TEXT("time_dilation"))
+		};
+		bOutKnownId = HideTypeIds.Contains(Id) || NonHideTypeIds.Contains(Id);
+		return HideTypeIds.Contains(Id);
+	}
 }
 #endif
 
@@ -505,7 +523,7 @@ void UAnomalyCaptureSubsystem::SetFocusGate(bool bInGate)
 }
 
 void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
-	const FString& InTargetAnomaly, const FString& InTargetActor)
+	const FString& InTargetAnomaly, const FString& InTargetActor, const TArray<FString>& InTargetArgs)
 {
 #if ANOMALY_CAPTURE
 	if (bRunning)
@@ -544,6 +562,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	bTargetedMode = bHasAnomaly && bHasActor;
 	TargetAnomalyId = bTargetedMode ? FName(*InTargetAnomaly) : NAME_None;
 	TargetActorName = bTargetedMode ? InTargetActor : FString();
+	TargetAnomalyArgs = bTargetedMode ? InTargetArgs : TArray<FString>();
 	if ((bHasAnomaly || bHasActor) && !bTargetedMode)
 	{
 		UE_LOG(LogAnomalyCapture, Warning,
@@ -587,6 +606,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	FramesWritten = 0;
 	PositiveFramesWritten = 0;
 	ZeroMatchBursts = 0;
+	NonManifestedEvents = 0;
 	SessionFrameIndex = 0;
 	FirstFrameTimeSeconds = -1.0;
 	LastFrameTimeSeconds = -1.0;
@@ -941,7 +961,7 @@ void UAnomalyCaptureSubsystem::BeginFire()
 {
 	UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
 	const bool bFired = Auto
-		? (bTargetedMode ? Auto->TryFireSpecific(TargetAnomalyId, TargetActorName) : Auto->TryFireOnce())
+		? (bTargetedMode ? Auto->TryFireSpecific(TargetAnomalyId, TargetActorName, TargetAnomalyArgs) : Auto->TryFireOnce())
 		: false;
 	if (!bFired)
 	{
@@ -1313,7 +1333,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode,
-			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"));
+			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents);
 
 		if (bLogLine)
 		{
@@ -1341,6 +1361,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	bTargetedMode = false;
 	TargetAnomalyId = NAME_None;
 	TargetActorName.Reset();
+	TargetAnomalyArgs.Reset();
 
 	if (bFixedTimeStepOverridden)
 	{
@@ -1463,8 +1484,38 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		AnomalyLabel::FSessionEvent Out;
 		MapAnomalyToClient(Ev.Id, Out.AnomalyType, Out.AnomalySubtype);
 
-		const bool bHideType = HiddenIdx.Num() > 0;
-		TArray<int32> FrameIndices = bHideType ? MoveTemp(HiddenIdx) : Ev.AffectedFrames;
+		bool bKnownId = false;
+		const bool bHideType = IsHideTypeAnomaly(Ev.Id, bKnownId);
+		if (!bKnownId)
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture: anomaly id '%s' is not registered in the hide-type table — falling back to on-screen frames. ")
+				TEXT("If this is a hide-type anomaly it MUST be added to IsHideTypeAnomaly, or a non-manifesting event will be ")
+				TEXT("labelled positive on every frame the actor was visible."),
+				*Ev.Id.ToString());
+		}
+
+		TArray<int32> FrameIndices;
+		if (bHideType)
+		{
+			Out.bManifested = HiddenIdx.Num() > 0;
+			if (Out.bManifested)
+			{
+				FrameIndices = MoveTemp(HiddenIdx);
+			}
+			else
+			{
+				++NonManifestedEvents;
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture: '%s' event on '%s' NEVER MANIFESTED — no captured frame sampled the target hidden. ")
+					TEXT("Writing zero positive frames and manifested=false (previously this emitted %d on-screen frames as positives)."),
+					*Ev.Id.ToString(), *Ev.NodeName, Ev.AffectedFrames.Num());
+			}
+		}
+		else
+		{
+			FrameIndices = Ev.AffectedFrames;
+		}
 		FrameIndices.Sort();
 		Out.FrameIndices = MoveTemp(FrameIndices);
 		Out.CoverageRatio = Ev.CoverageCount > 0 ? (Ev.CoverageSum / (double)Ev.CoverageCount) : 0.0;
@@ -1547,7 +1598,7 @@ namespace
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureStartCmd(
 	TEXT("IAI.Capture.Start"),
-	TEXT("Start a labeled burst-capture run. Usage: IAI.Capture.Start [outDir] [png|jpeg] [seed] [maxFrames] [anomaly] [targetActor]  ")
+	TEXT("Start a labeled burst-capture run. Usage: IAI.Capture.Start [outDir] [png|jpeg] [seed] [maxFrames] [anomaly] [targetActor] [anomalyArgs...]  ")
 	TEXT("(default dir <ProjectSaved>/AnomalyCaptures; png; seed = auto-injector's current; maxFrames 0 = until "
 	     "Stop / burst schedule). Pass BOTH [anomaly] and [targetActor] for a TARGETED run (fires only that anomaly on "
 	     "only that actor each burst); omit both for AUTO-POOL (random mix from the enabled pool). Empty \"\" placeholders "
@@ -1571,10 +1622,15 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureStartCmd(
 				const FString MaxStr = Slot(3);
 				const FString Anomaly = Slot(4);
 				const FString TargetActor = Slot(5);
+				TArray<FString> TargetArgs;
+				for (int32 i = 6; Args.IsValidIndex(i); ++i)
+				{
+					TargetArgs.Add(Args[i]);
+				}
 				const bool bPng = !(Fmt.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase) || Fmt.Equals(TEXT("jpg"), ESearchCase::IgnoreCase));
 				const int32 Seed = !SeedStr.IsEmpty() ? FCString::Atoi(*SeedStr) : -1;
 				const int32 MaxFrames = !MaxStr.IsEmpty() ? FCString::Atoi(*MaxStr) : 0;
-				Cap->StartRun(Dir, bPng, Seed, MaxFrames, Anomaly, TargetActor);
+				Cap->StartRun(Dir, bPng, Seed, MaxFrames, Anomaly, TargetActor, TargetArgs);
 			}
 		}));
 
