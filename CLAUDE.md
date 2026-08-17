@@ -15,7 +15,35 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🚧 **S3 STARTED (2026-08-18) — S3a PLANNED, NOT IMPLEMENTED. No capture code written.** → journal
+- 🚧 **S3 IN FLIGHT — `S3a-1` SHIPPED `dbf139e`, GATE GREEN. Slices S3a-2 and S3a-3 NOT started.**
+  The B′ key ring, scene-view extension and SVE capturer exist and **NOTHING SELECTS THEM** —
+  `AnomalyCaptureSubsystem` is untouched, `StartRun` still always registers the backbuffer hook, and
+  the six new symbols appear in their own six files and **nowhere else**. Switch-OFF inertness is
+  **STRUCTURAL, not demonstrated** (there is no way to reach the code), which is the strongest form
+  that gate can take. **Gate evidence:** editor compiles exit 0; ring round-trip 8/8 with the
+  `bWanted` bit intact; wrap exact (100 published vs capacity 64 → 64 hits / 36 missed / 36 wrapped);
+  **`ForceMiss` proven BOTH ways before it is wired** (1 → 0 hits, 8 misses; 0 → back to 8/8).
+  ⚠ **DEVIATION, flagged:** the plan put both console vars in S3a-1, but registering the
+  `IAI.Capture.SVE` **selector** would have meant touching the subsystem and forfeiting
+  inert-by-construction — so the selector + mid-run guard + GConfig default move to **S3a-2**;
+  `IAI.Capture.SVE.ForceMiss` stays in S3a-1 because it is a **ring** property.
+  ⚠ **The ring is proven as LOGIC, not yet across threads** — publish and lookup ran on one thread
+  from the console; the real game-publishes/render-looks-up round trip is first exercised in S3a-2,
+  and under stall only in S3b. **New gotcha G100** — `AnomalyCapture` now compiles against a
+  **Renderer PRIVATE include path** (`PostProcess/PostProcessMaterial.h`, and the `class FViewInfo;`
+  forward declaration that must not be tidied away); an engine bump breaks it **inside our module,
+  far from the `Build.cs` line that caused it**. Non-Shipping only; core module and the backbuffer
+  fallback unaffected.
+  ⚠ **C1 RULING — G-S3a-1 HAS NO EXCLUSIONS:** when the switch is OFF the new `run_summary` fields
+  (`capture_path` + ring counters) are **not emitted at all**, so `run_summary.json` is byte-identical
+  too and rejoins the identity set alongside `annotation.json` and `labels.jsonl`. **S3a-3 must emit
+  those fields only when the switch is ON.**
+  ⚠ **C2 — S4 IS A CLIENT-VISIBLE CHANGE, NOT A SILENT DEFAULT FLIP:** the SVE grab is pre-Slate and
+  therefore **UI-free by construction** (which independently satisfies the client's stated UI-excluded
+  ask), so flipping the default at S4 **changes delivered image content** and must be planned as such.
+  **C3:** S3a-2 must **measure and report** the SVE-view-rect vs backbuffer-window-rect resolution
+  delta — "may differ" is not something to carry into the S4 decision.
+- 🚧 **S3 STARTED (2026-08-18) — S3a PLAN** → journal
   `docs/sessions/2026-08-18-037-s3a-plan-stage-renumber-h4-filed.md`.
   ⚠ **STAGE RENUMBERING — A NUMBER MOVED, READ THIS BEFORE TRUSTING ANY OLDER DOC:**
   **`S3`** = B′ into `AnomalyCapture` behind a **default-OFF** switch, **COLOUR ONLY**, full ratio ×

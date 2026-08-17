@@ -285,10 +285,108 @@ re-bank **before** staging; **A48** echo the *effective* config values, never th
 
 ---
 
-## 5. State
+## 5. Plan amendments on approval — C1 to C4
 
-- Plugin `master`: docs-only this turn. **No capture code written.**
-- `CaptureBench`: **`8dad64e`** — the frozen-level guard. **Probe untouched**; this is a tools edit,
-  not a probe edit (same ruling as the auditor).
+The plan above was approved with four changes. They are recorded here rather than edited into §4, so
+that what was proposed and what was ruled stay separable.
+
+### C1 — gate 1's carve-out is REMOVED. `run_summary.json` rejoins the identity set
+
+My plan excluded `run_summary.json` from G-S3a-1 because it records `capture_path`. **Ruled the
+other way, and the ruling is better:** when `bSveCapture` is **OFF**, `capture_path` and the four
+ring counters are **not emitted at all**, so `run_summary.json` is byte-identical too. That matches
+the switch's own semantics — OFF means the feature is not there, including in the summary — and it
+leaves the gate with **no exclusions**. A gate with an exclusion has an argument inside it.
+
+**G-S3a-1 final form, no exclusions:** same seed, same config, switch OFF vs the pre-S3 binary ⇒
+byte-identical `annotation.json`, `labels.jsonl` **and** `run_summary.json`, plus identical frame
+identity (decoded marker ↔ `frame_index` series, count, cadence). **Implementation consequence for
+S3a-3: emit the new fields only when the switch is ON.**
+
+Baseline sequencing unchanged and still load-bearing: baseline on the **currently staged m23 binary
+first**, **re-bank**, *then* stage S3a.
+
+### C2 — R5 is not a risk note, it is a scoped deliverable change
+
+Pre-Slate grab ⇒ **UI-free by construction**. That is the intended win and it independently
+satisfies a **stated client ask** (UI excluded).
+
+**Consequence recorded now so S4 cannot inherit it as a surprise: flipping the default at S4 CHANGES
+DELIVERED IMAGE CONTENT. S4 must plan it as a CLIENT-VISIBLE CHANGE, not a silent default flip.**
+Not an S3a action.
+
+### C3 — R4 gets measured, not carried as "may differ"
+
+On the G-S3a-3 nominal leg, **record the actual resolution delta** between the SVE view rect and the
+backbuffer Slate window rect, same machine and config. Report both numbers and the delta.
+**At S4 the resolution is what the client's data is in — "may differ" is not something to carry into
+that decision.** Observation only; no design change in S3a.
+
+### C4 — R1 becomes a gotcha, not a plan note
+
+Plan notes do not survive; gotchas do. Logged as **G100**, with the pin already in force (UE 5.1.1
+source build, MSVC 14.38.33130) and the non-Shipping-only blast radius.
+
+### Upheld without change
+
+**A11 stays OPEN, deferred to S3b** — and the reasoning is recorded because it generalises:
+`ForceMiss` counters are **synthetic**, and discharging A11 with them would be closing a debt using
+evidence that merely *fits*. Same class of move as grading with a ruler built after the results.
+**A10 is discharged by S3a but SCOPED to the nominal paced leg only** — it must not later be read as
+discharged across regimes; the matrix is what extends it. **No tag at S3a**: S3 is not a milestone
+until S3b certifies it.
+
+---
+
+## 6. S3a-1 — SHIPPED. Gate GREEN.
+
+**Commit `dbf139e`** — 7 files, +534. Nothing selects the SVE path.
+
+**Files:** `AnomalySveKeyRing.{h,cpp}`, `AnomalySceneViewExtension.{h,cpp}`,
+`AnomalySveCapturer.{h,cpp}`, and the `AnomalyCapture.Build.cs` dependency.
+**`AnomalyCaptureSubsystem` is NOT touched by this commit.**
+
+### 6.1 Deviation from the approved plan, flagged not taken silently
+
+The plan put **both** console vars in this slice. Registering the `IAI.Capture.SVE` **selector** here
+would have required touching `AnomalyCaptureSubsystem`, which would **forfeit the
+inert-by-construction property** — the thing chat called the strongest gate in the plan. So:
+
+- **`IAI.Capture.SVE.ForceMiss` stays in S3a-1** — it is a *ring* property, and keeping it here is
+  what let the forced-miss path be proven **before** it is wired.
+- **`IAI.Capture.SVE`, its mid-run guard and its GConfig default move to S3a-2**, where they actually
+  select the path.
+
+Taking the branch that preserves the stronger gate, and flagging it (A58 corollary).
+
+### 6.2 Gate evidence
+
+| check | result |
+|---|---|
+| `StackOBotEditor Win64 Development` compiles clean | **exit 0** — `Module.AnomalyCapture.cpp` → `UnrealEditor-AnomalyCapture.dll` linked |
+| **inert BY CONSTRUCTION** | the six new symbols appear in **their own six files and nowhere else** — grep over `Source/` returns no call site. Not "switch OFF behaves the same": *there is no way to reach it* |
+| ring round-trip, headless | `n=8` → published 8, **hits 8**, misses 0, wrapped 0, keyMismatches 0, wantedHits 4 → **PASS** (the `bWanted` bit round-trips too) |
+| ring wrap | `n=100` vs capacity 64 → **hits exactly 64**, misses 36, **wrapped 36**, keyMismatches 0 → **PASS** |
+| **ForceMiss fires** | `ForceMiss 1`, `n=8` → **hits 0, misses 8** → **PASS**. The guard's mechanism is proven *before* it is wired |
+| **ForceMiss sleeps** | `ForceMiss 0`, `n=8` → back to **8/8** → **PASS**. Both ways, per m23 |
+
+Run headlessly via `UnrealEditor-Cmd … -ExecCmds="IAI.Capture.SVE.RingTest …" -unattended -nullrhi`.
+⚠ **Honest note on that run:** the four results and the following `Cmd: quit` are in the log, but the
+process lingered afterwards on DDC maintenance and **I terminated it**, so the process exit code is
+**255, not 0**. The exit code is not gate evidence here and is not being presented as any; the four
+logged, timestamped `PASS` lines are.
+
+**Note this is the ring's *logic*, not the ring under a live render thread.** Publish and lookup ran
+on one thread from the console. The cross-thread round-trip (game publishes, render thread looks up)
+is exercised for the first time in **S3a-2**, and under stall only in **S3b**.
+
+---
+
+## 7. State
+
+- Plugin `master`: **`dbf139e`** — S3a-1 shipped, gate green. `AnomalyCaptureSubsystem` untouched.
+- `CaptureBench`: **`8dad64e`** — the frozen-level guard. **Probe untouched**.
 - Bank: 74 session dirs.
-- **Next turn: S3a implementation**, slices as above, on approval of this plan.
+- **Next: S3a-2** — wire `StartRun` / `CaptureCurrentFrame` / `FinishRun` to the switch, plus the
+  selector cvar, its mid-run guard and its GConfig default. Gates **G-S3a-1** (now with no
+  exclusions) and **G-S3a-3** (including the C3 resolution-delta measurement).

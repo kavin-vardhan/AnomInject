@@ -1869,3 +1869,36 @@ ways: default refuses, the override yields, a sibling path passes.
 
 **Generalisable:** a tool whose normal mode deletes a load-bearing artifact should refuse by default
 and require the destructive intent to be stated, not the safe intent. (2026-08-18.)
+
+---
+
+### G100 — `AnomalyCapture` now compiles against a Renderer **PRIVATE** include path, and an engine bump breaks it far from the failure site
+
+S3a-1 added to `AnomalyCapture.Build.cs`, **inside the non-Shipping block only**:
+
+```
+PrivateDependencyModuleNames += "Renderer"
+PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
+```
+
+It is required because the SVE post-process hook takes `FPostProcessMaterialInputs`, declared in
+`PostProcess/PostProcessMaterial.h`, which lives in **Renderer/Private** — engine-internal, with no
+API or deprecation contract. The same file also forces the `class FViewInfo;` forward declaration
+that sits, apparently pointlessly, between the includes in `AnomalySceneViewExtension.cpp`. **Do not
+"tidy" that line away** — the private header references the type.
+
+**Why this is G86-shaped.** The pin in force is a **source build of UE 5.1** at
+`D:\UESource\UnrealEngine` (`Build.version` 5.1.1, `++UE5+Release-5.1`) with **MSVC 14.38.33130**.
+An engine bump can move, rename or restructure that private header, and the failure surfaces as a
+**compile error inside our own capture module** — nowhere near the `Build.cs` line that caused it,
+and with nothing in the error naming the private-path dependency. A reader who has not seen this
+entry will debug the wrong file.
+
+**Blast radius is bounded and worth stating:** it is `PublicDefinitions ANOMALY_CAPTURE=0` in
+Shipping, so **Shipping never compiles it**; the `AnomalyInjector` core module is untouched, so the
+game-agnostic invariant is unaffected; and the backbuffer path has no such dependency, so the
+fallback survives an engine bump even if the SVE path does not.
+
+**If it breaks:** the choice is to re-find the header in the new layout, or to build the pass
+against a public surface if 5.x ever provides one. Do not vendor a copy of the private header.
+(2026-08-18.)
