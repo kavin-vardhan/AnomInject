@@ -1,4 +1,5 @@
 using UnrealBuildTool;
+using System.IO;
 
 public class AnomalyCapture : ModuleRules
 {
@@ -28,10 +29,13 @@ public class AnomalyCapture : ModuleRules
 			{
 				"RenderCore",
 				"RHI",
+				"Renderer",
 				"Slate",
 				"SlateCore",
 				"ApplicationCore"
 			});
+
+			PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
 		}
 		else
 		{
