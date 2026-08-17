@@ -1835,3 +1835,37 @@ discriminator for fabricated labels. A fabricated event whose target briefly lef
 *blessed* as genuine — a false negative in the dangerous direction, and the same "unknown falls
 through to safe" failure that Ruling C corrects elsewhere. Contiguity of `AffectedFrames` is an
 **empirical property of static-camera capture**, never a mechanical guarantee. (2026-08-17.)
+
+---
+
+### G99 — the level-authoring script is DESTRUCTIVE BY DEFAULT, and the asset it destroys is the frozen gate instrument
+
+`CaptureBench/tools/make_gate_level.py` opens with a delete-first block:
+
+```
+if unreal.EditorAssetLibrary.does_asset_exist(LEVEL_PATH):
+    unreal.EditorAssetLibrary.delete_asset(LEVEL_PATH)
+```
+
+That block exists for a good reason — `new_level` refuses if the asset exists — but it means the
+**default** behaviour of running the script is to **destroy** whatever is at `LEVEL_PATH`, and
+`LEVEL_PATH` shipped pointing at `/Game/CaptureBenchGate/CB_GateLevel`: the **frozen, verified gate
+instrument** that every banked leg, every A54 calibration and every I10/HF/M23 result is measured
+against.
+
+**Why "just re-run the script" does not recover it.** The script reproduces the *geometry*. It does
+not reproduce the convergence — the black-level fix, the exposure pin and the cost model
+(**G87–G89**) live in the capture configuration and in the banked baselines, not in the level. A
+rebuilt level is a *new* instrument, and every prior result would need re-baselining against it.
+
+**The trap is how ordinary the mistake is:** the obvious way to make a variant level is to open this
+script and run it. Nothing in the old file said stop.
+
+**Guarded 2026-08-18:** the script now **refuses** to author over any path in `FROZEN_LEVEL_PATHS`
+unless `--allow-overwrite-frozen` is passed (or the module constant is flipped), and the refusal
+names what is at stake, points at the sibling-level route, and reminds the reader to re-bank first
+(**G92**). A sibling level simply uses a different `LEVEL_PATH` and is unaffected. Verified three
+ways: default refuses, the override yields, a sibling path passes.
+
+**Generalisable:** a tool whose normal mode deletes a load-bearing artifact should refuse by default
+and require the destructive intent to be stated, not the safe intent. (2026-08-18.)

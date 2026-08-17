@@ -15,6 +15,54 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
+- 🚧 **S3 STARTED (2026-08-18) — S3a PLANNED, NOT IMPLEMENTED. No capture code written.** → journal
+  `docs/sessions/2026-08-18-037-s3a-plan-stage-renumber-h4-filed.md`.
+  ⚠ **STAGE RENUMBERING — A NUMBER MOVED, READ THIS BEFORE TRUSTING ANY OLDER DOC:**
+  **`S3`** = B′ into `AnomalyCapture` behind a **default-OFF** switch, **COLOUR ONLY**, full ratio ×
+  config matrix on the **real paced path** — *this is where ratio-independence is DISCHARGED* (unchanged);
+  **`S4` = the BACKBUFFER DEMOTION to the UI-on option + defaults flip + client config — `S4` WAS
+  "depth" and NO LONGER IS (it was S5)**; **DEPTH is PARKED and UNNUMBERED** (`SceneDepthTexture` in
+  `PrePostProcessPass_RenderThread`, FP32, + the typed FP16/FP32 path) — **parked, NOT deleted**,
+  revivable if the ML side wants it or the H4/stencil lane needs a cheap instrument. **THERE IS NO HOLE
+  AT S4 — the number moved down.** Any earlier text calling depth "S4" or the demotion "S5" is superseded.
+  **S3 SPLITS INTO TWO GATED TURNS (structural, not a suggestion): `S3a` = implementation (land B′
+  behind the switch, prove switch-OFF inert, prove the loud-miss guard fires ON THE PRODUCTION PATH);
+  `S3b` = the full ratio × config matrix.** Bundling them would let a validation miss halt a turn that
+  also holds uncommitted code. **S3a plan = 3 new files (`AnomalySveKeyRing`, `AnomalySceneViewExtension`,
+  `AnomalySveCapturer`) + `Renderer`/Renderer-private in `AnomalyCapture.Build.cs` (sanctioned: architecture.md
+  deferred it to Stage 3) + `IAI.Capture.SVE` (default 0, GConfig `bSveCaptureDefault`) + `IAI.Capture.SVE.ForceMiss`
+  + `run_summary.capture_path`; sliced into 3 gated commits; NO tag until after S3b.**
+  **THE SEAM IS `FAnomalyCapturedFrame::RequestId`** — B′ swaps the PRODUCER of that id and touches no
+  consumer (`PendingSnapshots`, label record, accumulator, writer, `labels.jsonl`, `annotation.json` all untouched).
+  **PRE-DECLARED PREDICTION (before the matrix exists): ratio-independence HOLDS at every ratio incl. deep and
+  pacing-off** — B′ keys by IDENTITY, not order, so the arm→present race has no positional step left to fail on.
+  **IF THE MATRIX GOES RED THAT IS A DESIGN FAILURE OF B′, NOT A BUG — it means REDESIGN, not patch.**
+  🚨 **S3 GOING GREEN DOES NOT CLOSE `P1`.** P1 has never been reproduced and you cannot demonstrate a fix
+  for something you cannot summon. A clean matrix proves the new path does not carry the OLD race; it is NOT
+  evidence it cures her defect. **P1 stays OPEN after S3**; leads unchanged: **H1** (GPU load, no lever exists)
+  and the **delivery-mode gap**. Free-run debts: **A10 discharges in S3a** (nominal paced leg only);
+  **key-ring-under-stall and A11 wait for S3b** (`ForceMiss` counters are synthetic, so they cannot honestly
+  discharge A11).
+- ⚠ **A47 AMENDED (2026-08-18): the bifurcation is in camera ROTATION, not position.** Measured: eye position
+  invariant at `(-1500,0,260)` on **369/369** banked gate samples; rotation modal `(0,0,0)` on 278/369.
+  **A47's original per-leg-bbox ruling is UNCHANGED.** New clause: **inter-actor occlusion is invariant across
+  the bifurcation** (it depends only on eye position + static geometry; rotation changes only frustum membership).
+  ⚠ **DO NOT GENERALISE — this holds because gate-level targets are all STATIC and the player start is fixed;
+  it FAILS in any level with motion.**
+- **HYPOTHESIS LEDGER:** **H1** GPU-load starvation — OPEN, no lever exists. **H2 — RETIRED-UNKNOWN**
+  (appears nowhere in this repo; history unrecoverable; **never re-mint this number** — the entry exists only so
+  nobody reclaims it). **H3** auto-exposure active — OPEN, likely, unconfirmed. **H4** occlusion-blind labelling —
+  OPEN, named, NOT adopted (see its bullet below).
+- **`P6` WIDENS to "annotation.json field-contract defects" — NO NEW NUMBER (A61 applied to phenomena).**
+  Three instances: **`node.bounds`** — **SETTLED** (editor-only frustum cube; contract ruling locked; parked as a
+  milestone candidate); **`camera.path`** — **OPEN**, naming/contract; **`coverage_pct` = 0 while `coverage_ratio` > 0**
+  — **OPEN, PREDICTED FROM SOURCE, NOT MEASURED** (a source read, never observed in any artifact; manifests **only**
+  under H4's exact condition, i.e. contingent on an unconfirmed hypothesis).
+- ✅ **make_gate_level.py FOOTGUN DEFUSED — `CaptureBench` `8dad64e`** (tools edit, **probe untouched**; the freeze
+  is not invoked). The script deleted the asset at `LEVEL_PATH` before authoring, so running it unmodified
+  **destroyed the frozen `CB_GateLevel`** that every banked leg and every A54 calibration is measured against. It
+  now **refuses by default**, names what is at stake, points at the sibling-level route, and yields only to
+  `--allow-overwrite-frozen`. Verified three ways (default refuses / override yields / sibling passes). **G99.**
 - ✅ **m23 "P3-fix" SHIPPED — commit `2f74799`, TAGGED `m23`, tag pushed and remote-confirmed.**
   → journal `docs/sessions/2026-08-16-034-m23-p3-fix-and-the-oracle-saga.md` (§7 = the smoke addendum).
   **OWNER PLAY-GATE SMOKE PASSED** in **PIE / StackOBot MainWorld** (`session_20260817-132214`, 90 frames,
