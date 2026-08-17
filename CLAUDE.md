@@ -64,8 +64,46 @@ and is the single source of truth for the project.
   verdict bucket). **New gotchas G97** (the bridge attaches to whichever editor is listening — a second
   UE project on this box, `HeistCrewUE`/5.7.4, silently captured it; permanent environmental fact) and
   **G98** (`AffectedFrames` is a PROJECTION-FILTERED SET, not a frame range — see the auditor entry).
-- ⛔ **DELIVERED-SESSION FABRICATION AUDITOR — PLAN APPROVED, BUILD HALTED AT ITS SOURCE-PREMISE GATE
-  (2026-08-17). NO CODE WRITTEN; CaptureBench untouched at `163dd12`.** The instrument is meant to decide
+- ⛔ **DELIVERED-SESSION FABRICATION AUDITOR — CANCELLED 2026-08-18 (not paused). NEVER IMPLEMENTED.**
+  → journal `docs/sessions/2026-08-18-036-auditor-cancelled-and-h4-occlusion-recon.md`.
+  Owner constraint: **there is no client communication channel in either direction**, so the audit's
+  output has **no consumer**. A cold reader who finds the approved plan in journal 035 is looking at
+  work that is **closed, not outstanding**. **KEPT AS REFERENCE ONLY** (all in journal 035): the
+  verified schema mapping, the three schema traps, the located control sessions, **G98**, and the
+  shipped-default observation. **NEG2 stays banked** — that rescue was correct regardless (G92).
+  🚫 **STRUCK FROM THE STANDING PLAN — struck, NOT deferred: the office-machine `target_fps` audit and
+  the precautionary "cap VideoFps at 30" client note. NO CLIENT-FACING ACTION ITEM SURVIVES ANYWHERE.**
+  Any older doc that still lists one — including `CHAT-HANDOFF-s2-i10-and-m23-p3-fix.md` §8 — is
+  superseded by this line.
+- ⚠ **NEW OPEN HYPOTHESIS `H4` — occlusion-blind labelling. NAMED, NOT ADOPTED, NEVER OBSERVED.**
+  (H1 and H3 are minted; H2 appears nowhere, and numbers are never reused, so H4 is next free.)
+  **The selection path is occlusion-aware and the label path is not:**
+  `IsComponentRenderableVisibleInternal` (`AnomalyViewport.cpp:165-181`) = renderable ∧ poll-radius ∧
+  frustum ∧ **`IsUnoccluded`**, while `ProjectActorBoundsToScreenRect` (`:653-685`, called at
+  `AnomalyCaptureSubsystem.cpp:1438`) runs **no trace at all** ⇒ a target on-screen but fully occluded
+  is **labelled positive while contributing no pixels**. `IsUnoccluded` traces centre+8 corners and
+  passes on ANY clear sample, so "fully occluded" = **9/9 blocked**. **Routed to
+  `feature/stencil-capture`** — that branch's premise (report actual pixel contribution before hiding)
+  is its cure, so H4 **strengthens a locked ruling** rather than opening a lane. **Pre-declared test:**
+  a target fully occluded for a whole event window, labelled, pixels unchanged. **RECON DONE, READ-ONLY,
+  NO TEST RUN:** `CB_GateLevel` holds **7 targets that are fully occluded AND on-screen** under the
+  rigorous cube-occluder-only floor (26/144 realistic, 52/144 upper bound) — **no scene mutation
+  needed**, and `make_gate_level.py` **deletes `LEVEL_PATH` before authoring**, so a sibling level must
+  rename first. **A47 is a ROTATION bifurcation, not a position one — measured: camera position
+  invariant at `(-1500,0,260)` on 369/369 banked gate samples, modal rotation `(0,0,0)` on 278/369** ⇒
+  occlusion is stable across the bifurcation by construction (rotation only changes frustum
+  membership). Verified name map: **`StaticMeshActor_K` ⇔ grid spawn `n = K−1`** (3 data points).
+  Targeted fire **bypasses occlusion** (`TryFireSpecific` has no viewport predicate) **only while
+  `IAI.SetViewportScoping` is OFF (its default)** — ON, the anomaly's own `Apply` re-filters and
+  selects nothing. Auto-pool **does** exclude occluded actors. **Only path (b)** — fire at an
+  already-occluded actor — is producible; **path (a)** (becomes occluded mid-window) is impossible here
+  (all-STATIC actors, invariant camera). **A54 would read this as ABSENT — the same verdict as P3 —
+  so it detects the symptom, not the cause;** the cause is already instrumented in
+  `selection_provenance.json`, ⚠ **but for a fully occluded target `EvaluateSelectionProvenance`
+  early-outs**, so the sidecar reads `valid:false` + `0/0` (not 9-blocked) and **`annotation.json`
+  ships `coverage_pct = 0` with `coverage_ratio > 0`** — observation only, not a designed
+  discriminator. Test design is chat-side; nothing runs until it returns.
+- ⛔ *(superseded — kept for the record)* **AUDITOR HALTED AT ITS SOURCE-PREMISE GATE (2026-08-17).** The instrument is meant to decide
   whether the client's already-delivered **pre-m23** sessions carry P3b-fabricated windows. Its
   window-blind design rests on "a gap is mechanically impossible for a fabricated event". **First half
   confirmed** (the pre-m23 fallback does emit `Ev.AffectedFrames` verbatim — `git show m23^`);
