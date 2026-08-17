@@ -23,18 +23,68 @@ and is the single source of truth for the project.
   fabrication shape; the tail event `[88,89]` is TRUNCATED per the A50 addendum. First confirmation in
   **real gameplay content** rather than synthetic `CB_GateLevel`. ⚠ **A PIE smoke is an owner sanity gate,
   NOT packaged evidence — G76 stands; m23's certification evidence remains the packaged BenchGate legs.**
-- ⚠ **NEW, OPEN, EVIDENCE-ONLY — `P6` "camera-block mis-fill" (name kept for reference; the evidence
-  RELOCATES it).** In `annotation.json`, `camera.path` equals the anomaly node's path and
-  `camera.global_position` equals `node.bounds.origin` to 13 s.f. **Traced read-only: the camera block is
-  NOT mis-sourced.** `labels.jsonl` shows all 90 frames reporting the same `view.origin` as
-  `camera.global_position` — a genuine `PC->GetPlayerViewPoint` (`AnomalyViewport.cpp:404-408` →
-  `ViewRing` → `AnomalyCaptureSubsystem.cpp:1417`). **The anomaly is on the `node.bounds` side:**
-  `Actor->GetComponentsBoundingBox(true)` (`:159-164`) unions **every** component incl. non-rendering
-  ones, returning a **perfect 1010 cube centred on the camera** for the pawn — the cube extent is the
-  tell. `camera.path` is the **view-target actor** path (`ResolveCameraPath` `:102-116`), which equals the
-  node path here only because the anomaly fired on the player pawn. **PRE-EXISTING, not an m23
-  regression, did not block the tag — but CLIENT-IMPACTING: annotation.json ships in delivery mode and
-  the writer has NO delivery gating for the camera block or node bounds.** Mechanism/fix scope: chat-side.
+- ✅ **`P6` BOUNDS SIDE — SETTLED 2026-08-17 (diagnosis only, NO code change).** → journal
+  `docs/sessions/2026-08-17-035-p6-bounds-settled-and-auditor-premise-halt.md`.
+  In `annotation.json`, `camera.path` equals the anomaly node's path and `camera.global_position`
+  equals `node.bounds.origin` to 13 s.f. **The camera block is NOT mis-sourced** — `labels.jsonl` shows
+  all 90 frames reporting the same `view.origin`, a genuine `PC->GetPlayerViewPoint`
+  (`AnomalyViewport.cpp:404-408` → `ViewRing` → `AnomalyCaptureSubsystem.cpp:1417`). **The 1010 cube is
+  `UDrawFrustumComponent`**, auto-created on the OWNING ACTOR by `UCameraComponent::OnRegister`
+  (`CameraComponent.cpp:118-152`): `UpdateDrawFrustum` sets `FrustumStartDist=10` +
+  `FrustumDrawDistance=1000` ⇒ `FrustumEndDist=1010` (`:203-212`), and `CalcBounds`
+  (`DrawFrustumComponent.cpp:164-167`) returns a box **centred on the camera** with extent
+  `(1010,1010,1010)`. It is a `UPrimitiveComponent`, so `GetComponentsBoundingBox(true)`
+  (`AnomalyCaptureSubsystem.cpp:159-164`) admits it via **`bNonColliding`** — visualisation-only and
+  hidden-in-game do not exclude it. It **contains** the capsule and mesh, so the union is unchanged and
+  the centre lands exactly on the camera (**containment, not compromise**).
+  ⚠ **CORRECTION — the earlier "unions spring arm / camera / collision" wording is STRUCTURALLY
+  IMPOSSIBLE and is struck:** the union iterates `UPrimitiveComponent` only (`Actor.cpp:1685`), and
+  spring arms and camera components are `USceneComponent`s. **1010 is a hardcoded editor visualisation
+  constant, not geometry.**
+  ⚠ **CLIENT-IMPACT DOWNGRADED — this is EDITOR/PIE-ONLY.** The creation is behind
+  `WITH_EDITORONLY_DATA`, and the packaged game target defines it **0** (measured in
+  `Intermediate\Build\Win64\StackOBot\Development\...\Definitions.*.h`). **Prediction on the record:** a
+  packaged capture of a camera-bearing pawn gives order-of-capsule bounds, not 1010. **NOT yet
+  measured — the corpus is confounded** (every packaged node with a bounds field is a camera-less
+  `StaticMeshActor`); the confirmation run is **DEFERRED by owner ruling**, and the gate level must NOT
+  be mutated to enable it. `camera.path` is the **view-target actor** path (`ResolveCameraPath`
+  `:102-116`), equal to the node path here only because the anomaly fired on the player pawn — an open
+  naming/contract question.
+  🔒 **CONTRACT DECISION — RULED AND LOCKED, NOT IMPLEMENTED, DO NOT RELITIGATE:** `node.bounds` must be
+  **render-relevant bounds** — the union over components that contribute drawn pixels — never a
+  whole-actor union admitting collision capsules and visualisation primitives, and it must reuse the
+  existing renderable definition (`IsRenderableComponent`, static-or-skinned, **G33**) so label geometry
+  and selection geometry agree on what "the object" is. **Parked as a milestone candidate.** Residual
+  that survives even packaged: the capsule is still unioned in, so `node.bounds ≠ mesh bounds` in both
+  configs — by a capsule, not by 1010.
+  **New rules A59** (MCP-bridge provenance: echo `Paths.project_dir()` + engine version or the
+  measurement is not attributed to this project), **A60** (a quantity absent from the artifact is
+  operator-supplied or the claim is UNDECIDABLE — never reconstructed, never defaulted, never replaced
+  by a weaker test reported as the original), **A61** (a new shape earns a diagnostic tag, never a new
+  verdict bucket). **New gotchas G97** (the bridge attaches to whichever editor is listening — a second
+  UE project on this box, `HeistCrewUE`/5.7.4, silently captured it; permanent environmental fact) and
+  **G98** (`AffectedFrames` is a PROJECTION-FILTERED SET, not a frame range — see the auditor entry).
+- ⛔ **DELIVERED-SESSION FABRICATION AUDITOR — PLAN APPROVED, BUILD HALTED AT ITS SOURCE-PREMISE GATE
+  (2026-08-17). NO CODE WRITTEN; CaptureBench untouched at `163dd12`.** The instrument is meant to decide
+  whether the client's already-delivered **pre-m23** sessions carry P3b-fabricated windows. Its
+  window-blind design rests on "a gap is mechanically impossible for a fabricated event". **First half
+  confirmed** (the pre-m23 fallback does emit `Ev.AffectedFrames` verbatim — `git show m23^`);
+  **second half FALSIFIED → G98:** `AffectedFrames` is accumulated only on frames passing
+  `ProjectActorBoundsToScreenRect` (`AnomalyViewport.cpp:653-685`), which fails on an invalid view, no
+  static/skinned bounds, a box entirely behind the camera, or a rect off-screen — so a target that
+  leaves frame mid-window **gaps** the set. **0/1,367 events show it, but that null is CONFOUNDED —
+  every banked leg is static-camera; the client captures moving-camera gameplay.** Blast radius covers
+  the windowed path too: a fabricated-but-gapped event reads as "strict gapped subset" = GENUINE-SHAPED,
+  i.e. **a false blessing in the dangerous direction**. Halted for a chat verdict; no in-turn repair.
+  **Also banked this turn:** control #3 (`NEG2\session_20260816-183524`, guard fired 8/8) rescued out of
+  the archive-wipe path (**G92**) into `_bench_sessions_bank` (95 files, SHA-256 verified). **Control #4
+  (delivery-ON) still does not exist** — 0 of 74 banked sessions has `delivery_mode=true`.
+  **Shipped-default observation (report-only, NOT wired in):** the burst window is `PositiveFrames = 8`,
+  hardcoded at `AnomalyCaptureSubsystem.h:182`, changeable **only** by the `IAI.Capture.Config` console
+  command — no dashboard command, no `config.json` key, no ini (`GConfig` reads only
+  `bDeliveryModeDefault` / `ContentClockDefault` / `bFocusGateDefault`). **The window is NOT obtainable
+  from the client** (owner constraint: not possible), which is why the design is window-blind.
+- ⚠ **m23 as-built (unchanged):**
   **PRODUCTION CHANGED — the "production byte-unchanged" invariant of S2 RETIRES HERE**; from m23 on it is
   *production changes only via approved milestone plans*. 8 files, +103/−34. `IAnomaly` untouched;
   `labels.jsonl` untouched; auto-pool (`TryFireOnce`) untouched.

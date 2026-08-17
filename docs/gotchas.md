@@ -1771,3 +1771,67 @@ answer was already known**. The verdicts it produced in the blind regime were co
 **Practice this earns:** every oracle change re-verifies against **one known-ALIGNED and one
 known-ABSENT control** before its results are used (**A53**), and a control that cannot see the
 original bug certifies nothing. (2026-08-16.)
+
+---
+
+### G97 — the MCP bridge attaches to whichever editor is listening, and a second UE project on this box will silently capture it
+
+**This is a permanent environmental fact of this workstation, not an incident.** The owner runs a
+second Unreal project alongside StackOBot. The `unreal-mcpython` bridge connects to whatever editor
+holds the port — it does **not** resolve a project. A bridge session that answers every call
+successfully may be answering about a different game on a different engine version.
+
+Observed 2026-08-17 while gathering P6 evidence: the bridge was live and responsive, and
+`Paths.project_dir()` returned `../../../../../Unreal Projects/HeistCrewUE/` with
+`SystemLibrary.get_engine_version()` = **5.7.4**, not StackOBot on **5.1.1**. The tell was indirect
+and would have been easy to miss: the level was `L_StackCurlTest`, `EditorAssetLibrary.
+does_asset_exist("/Game/StackOBot/Blueprints/Character/BP_Bot")` returned **false**, and an asset
+registry query for `BP_Bot` returned an empty list — while the same `.uasset` sits on disk. A reader
+who assumed the bridge meant StackOBot would have concluded the asset was missing.
+
+**Rule (A59): no measurement taken over the MCP bridge is attributed to this project until
+`Paths.project_dir()` AND the engine version have been read back and stated alongside the result.**
+A bridge connection is never evidence of which project answered. This is the A44 principle
+(prove the artifact under test is the one you think it is) applied to a live editor instead of a
+binary. (2026-08-17.)
+
+---
+
+### G98 — `AffectedFrames` is a PROJECTION-FILTERED SET, not a frame range: a fabricated label window can legitimately contain gaps
+
+The pre-m23 P3b fallback emitted `Ev.AffectedFrames` verbatim as an event's positive frames
+(`AnomalyCaptureSubsystem.cpp`, pre-m23: `const bool bHideType = HiddenIdx.Num() > 0;
+TArray<int32> FrameIndices = bHideType ? MoveTemp(HiddenIdx) : Ev.AffectedFrames;`). It is tempting —
+and it is **wrong** — to read that as "the fabricated set is the full contiguous burst window",
+because in every banked session it *is* contiguous.
+
+`AffectedFrames` is accumulated one index at a time and **only on frames that pass a projection
+test**:
+
+```
+if (AnomalyViewport::ProjectActorBoundsToScreenRect(View, FActor, Min, Max))
+{
+    Ev->AffectedFrames.Add(SessionIndex);
+}
+```
+
+`ProjectActorBoundsToScreenRect` (`AnomalyViewport.cpp:653-685`) returns **false** when the view is
+invalid, when the actor has no `UStaticMeshComponent`/`USkinnedMeshComponent` with a valid bounds
+box, when **no** bounds corner survives the `Clip.W > SMALL_NUMBER` test (whole box behind the
+camera), or when the projected rect does not intersect the screen. The enclosing
+`if (const AActor* FActor = F.TargetActor.Get())` adds a fourth: an actor that goes invalid mid-window
+is skipped too. Any of these failing on an interior frame while the frames either side pass leaves a
+**gap** in `AffectedFrames`. Note it is *not* occlusion-gated (no trace), so only frustum/screen
+exits and actor validity can do it — which is exactly what a turning camera does.
+
+**Why the corpus does not show it:** 0 of 1,367 non-empty events across all four corpora has a gapped
+non-hide (= `AffectedFrames`-verbatim) set. That null is **confounded, not reassuring** — every
+banked leg is a static-camera run (`CB_GateLevel`, and even the MainWorld smoke reports an identical
+`camera.global_position` on all 8 events), which is the one regime in which the target cannot leave
+the view. The client captures moving-camera gameplay.
+
+**Consequence, and this is the load-bearing part:** "gapped ⇒ genuine" is **not** a sound
+discriminator for fabricated labels. A fabricated event whose target briefly left frame would be
+*blessed* as genuine — a false negative in the dangerous direction, and the same "unknown falls
+through to safe" failure that Ruling C corrects elsewhere. Contiguity of `AffectedFrames` is an
+**empirical property of static-camera capture**, never a mechanical guarantee. (2026-08-17.)
