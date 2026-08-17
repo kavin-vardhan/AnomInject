@@ -145,4 +145,88 @@ retired, number never reused · **P5** queued with its founding instrument assig
 **H1** and the **delivery-mode gap** unchanged and untested. **A47** stands. Client-facing wording
 untouched — comms are owner-lane, gated on the owner's fps audit.
 
-**Tag `m23` is held for the owner's play-gate smoke.**
+**Tag `m23` is held for the owner's play-gate smoke.** → **DISCHARGED, see §7.**
+
+---
+
+## 7. ADDENDUM — owner play-gate smoke PASSED; tag `m23` pushed
+
+**Tag `m23` → `2f74799`, pushed, remote confirmed** (`refs/tags/m23`).
+
+Owner ran the smoke packet in **PIE, StackOBot `MainWorld`** — real gameplay content, not the synthetic
+bench level. Session **`session_20260817-132214`**, 90 frames, 1068×604, `target_fps 30`, `paced true`,
+`delivery_mode false`, ratio 1.0001. **Verified by reading the session from disk, not from the summary:**
+
+| | |
+|---|---|
+| events | 8 blink / `disappear_reappear` |
+| frame_indices | `[4,5,9,10] [16,17,21,22] [28,29,33,34] [40,41,45,46] [52,53,57,58] [64,65,69,70] [76,77,81,82] [88,89]` |
+| `manifested` | **true on 8/8** — the guard correctly SILENT on a real-blink run |
+| `non_manifested_events` | **0** |
+| fabrication shape | **zero occurrences** of the 8-consecutive fallback |
+
+Cadence is byte-exact to the historical shape on a 12-frame period. Event 8 `[88,89]` is **TRUNCATED**
+per the A50 addendum (window clipped by the 90-frame cap), matching the `TRUNCATED=1` in the bench R30
+leg — expected, not a defect. Window-vs-positive semantics are visible and correct in the client
+artifact: `start 4 / end 10 / frame_count 4` — the **window** is recorded while only genuinely-sampled
+hidden frames are **positives**. That is P3b working where the client will see it.
+
+⚠ **INDEPENDENT-SCENE NOTE, with its caveat in the same breath.** The fix's cadence is now confirmed in
+real StackOBot gameplay content, not only synthetic `CB_GateLevel`. **But a PIE smoke is an owner
+sanity gate, NOT packaged evidence — G76 stands, and m23's certification evidence remains the packaged
+BenchGate legs.**
+
+---
+
+## 8. NEW FINDING — **P6**, referred to as "camera-block mis-fill". EVIDENCE ONLY.
+
+Reported from the smoke `annotation.json`: `camera.path` equals the anomaly node's path, and
+`camera.global_position` equals `node.bounds.origin` to 13 significant figures, identically on all 8
+events. Read-only trace, **no fix, no edits, no mechanism adopted.**
+
+### Where each field comes from
+
+```
+camera.path            AnomalyCaptureSubsystem.cpp:1422  Ev->CamPath = ResolveCameraPath(World)
+                                              :102-116  PC->GetViewTarget()->GetPathName()
+                                                        (falls back to PlayerCameraManager path)
+camera.global_position            :1417  Ev->CamPos = View.Origin
+   View  <- Snap->View            :882   AccumulateFrameEvents(..., Snap->View, ...)
+         <- ProjectionView()      :937-945  ViewRing[Num-1-ViewLagFrames]
+         <- ViewRing.Add(V)       :949-951  AnomalyViewport::GetActiveViewInfo(World, V)
+         <- AnomalyViewport.cpp:404-408  PC->GetPlayerViewPoint(Location, Rotation); OutView.Origin = Location
+node.bounds            :159-164  Actor->GetComponentsBoundingBox(true); GetCenter() / GetExtent()
+all camera fields sampled once, at the event's ANCHOR frame (:1414 `SessionIndex < Ev->AnchorIndex`,
+                                                    AnchorIndex initialised to MAX_int32 at :65)
+```
+
+### What the data says — **the camera block is NOT mis-sourced; the equality comes from the other side**
+
+`labels.jsonl` in the same session carries the per-frame `view` struct the camera block is sampled
+from. **All 90 frames report `view.origin = [3161.227, 4410.8122, 1708.1683]`** — one distinct value,
+`rot [-8.475, -53.299]`, `fov 90`, `aspect 1.7682`, `valid true` — **identical to
+`camera.global_position`**. So that field is a genuine `GetPlayerViewPoint` viewpoint, constant because
+the player did not move.
+
+⇒ The suspicious equality is on the **`node.bounds`** side: `GetComponentsBoundingBox(true)` for
+`BP_Bot_C_0` returns a **perfect 1010 cube whose centre lands exactly on the camera**. That call unions
+**every** component including non-rendering ones (springarm/camera/collision), so for a blueprint pawn
+the reported "bounds" are not the mesh bounds. **The perfect-cube extent is the tell, and it is the
+bounds side that needs explaining — not the camera struct.** No mechanism adopted.
+
+`camera.path == node.path` is likewise explainable without a defect: the view target **is** the pawn,
+and this anomaly fired **on** the pawn. The two paths coincide in this session by construction. ⚠ It
+remains true that the field is the **view-target actor path**, not a camera path — which is a naming /
+semantics question for the client contract, not a wiring error.
+
+### Scope
+
+**PRE-EXISTING, NOT an m23 regression** — m23 touched label routing, the blink clock and arg plumbing;
+nothing within reach of the camera block or `ResolveNodeIdentity`. **It did not block the tag.**
+⚠ **CLIENT-IMPACTING: both fields ship.** `annotation.json` is written in delivery mode, and the
+annotation writer contains **no delivery gating for the camera block or node bounds**
+(`AnomalyLabelWriter.cpp` references `bDeliveryMode` only at `:322`/`:338`, for the `run_summary`
+field). So a delivered session carries a "camera" whose `path` is the view-target actor and a
+`bounds` that may be a non-visual component union.
+
+Ledger weight: **P6**, client-facing artifact correctness. Mechanism and fix scope are chat-side calls.

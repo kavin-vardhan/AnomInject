@@ -15,8 +15,26 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- ✅ **m23 "P3-fix" COMMITTED AND PUSHED — commit `2f74799`. ⚠ NOT TAGGED: the `m23` tag waits on the
-  owner's play-gate smoke.** → journal `docs/sessions/2026-08-16-034-m23-p3-fix-and-the-oracle-saga.md`.
+- ✅ **m23 "P3-fix" SHIPPED — commit `2f74799`, TAGGED `m23`, tag pushed and remote-confirmed.**
+  → journal `docs/sessions/2026-08-16-034-m23-p3-fix-and-the-oracle-saga.md` (§7 = the smoke addendum).
+  **OWNER PLAY-GATE SMOKE PASSED** in **PIE / StackOBot MainWorld** (`session_20260817-132214`, 90 frames,
+  1068×604, fps 30) — verified from disk: 8 blink events, **gapped cadence byte-exact to the historical
+  shape**, `manifested: true` 8/8, `non_manifested_events: 0`, **zero** occurrences of the 8-consecutive
+  fabrication shape; the tail event `[88,89]` is TRUNCATED per the A50 addendum. First confirmation in
+  **real gameplay content** rather than synthetic `CB_GateLevel`. ⚠ **A PIE smoke is an owner sanity gate,
+  NOT packaged evidence — G76 stands; m23's certification evidence remains the packaged BenchGate legs.**
+- ⚠ **NEW, OPEN, EVIDENCE-ONLY — `P6` "camera-block mis-fill" (name kept for reference; the evidence
+  RELOCATES it).** In `annotation.json`, `camera.path` equals the anomaly node's path and
+  `camera.global_position` equals `node.bounds.origin` to 13 s.f. **Traced read-only: the camera block is
+  NOT mis-sourced.** `labels.jsonl` shows all 90 frames reporting the same `view.origin` as
+  `camera.global_position` — a genuine `PC->GetPlayerViewPoint` (`AnomalyViewport.cpp:404-408` →
+  `ViewRing` → `AnomalyCaptureSubsystem.cpp:1417`). **The anomaly is on the `node.bounds` side:**
+  `Actor->GetComponentsBoundingBox(true)` (`:159-164`) unions **every** component incl. non-rendering
+  ones, returning a **perfect 1010 cube centred on the camera** for the pawn — the cube extent is the
+  tell. `camera.path` is the **view-target actor** path (`ResolveCameraPath` `:102-116`), which equals the
+  node path here only because the anomaly fired on the player pawn. **PRE-EXISTING, not an m23
+  regression, did not block the tag — but CLIENT-IMPACTING: annotation.json ships in delivery mode and
+  the writer has NO delivery gating for the camera block or node bounds.** Mechanism/fix scope: chat-side.
   **PRODUCTION CHANGED — the "production byte-unchanged" invariant of S2 RETIRES HERE**; from m23 on it is
   *production changes only via approved milestone plans*. 8 files, +103/−34. `IAnomaly` untouched;
   `labels.jsonl` untouched; auto-pool (`TryFireOnce`) untouched.
