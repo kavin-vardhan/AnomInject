@@ -2046,3 +2046,43 @@ result that had already been reported, accepted and committed.** The first three
 you expected**. "Never exercised" was a plausible, mildly disappointing result, so nobody pushed on it —
 including the person who wrote it. Ask of any zero: *what else would produce this exact zero?*
 (2026-08-18.)
+
+### G106 — an analysis instrument that grades a certified result is a COMMITTED ARTIFACT; prose is not a spec
+
+**What happened.** S3b Stage 2a went to run the A54 oracle against the bank and found **there was no A54
+oracle**. `TAU = 0.04684` and the canonical definition existed only in prose — `gotchas.md`, the S2
+handoff, journal 034, `PRE-DELIVERY-CHECKLIST.md`. The committed tools were `compare_sessions.py`,
+`subset_gate.py`, `decode_marker.py`, `compare_traces.py`, `exposure_shift.py`, `frame_stats.py`,
+`make_gate_level.py`, `verify_capture.py`. **No oracle, no ±1 shifter, no A56 checker.**
+
+⇒ **Every frame-alignment certification this project holds — I10 and m23 — was graded by scripts that no
+longer exist.** Those results are not wrong. They were **NOT REPRODUCIBLE**, which is a quieter problem
+and a worse one, because nothing announces it.
+
+**Why the prose was not enough — measured, not asserted.** Rebuilding from the written definition left
+**two load-bearing points under-specified**, and the most natural reading was wrong on both:
+
+| under-specified point | the attractive reading | what actually reproduces |
+|---|---|---|
+| do the event flanks move with the shift hypothesis? | **fixed** — "they are the clean baseline" | **they move.** A wrong shift must drag a hidden frame into its own reference so its score collapses; fixed flanks leave a wrong shift at exactly half the right one |
+| which shifts are scored? | −2…+2 | **−1, 0, +1 only.** With ±2 in the set, ±2 becomes the runner-up and **every margin halves** |
+
+Either error alone changes R30's median margin from the published **0.10737** to **0.0548 / 0.0505**, and
+its decidability from **12/12** to **0/12** — *while leaving every per-event verdict ALIGNED and the
+headline "12 ALIGNED / 0 non-ALIGNED" intact*. **A silently different instrument that agrees on the
+verdicts and disagrees on the confidence is the worst of both worlds:** it passes a casual re-check and
+it corrupts every decidability annotation A55 depends on.
+
+**Both were caught only by reproducing published NUMBERS, not published CONCLUSIONS.** "It says ALIGNED,
+and ALIGNED is what the journal says" would have shipped the wrong ruler twice over.
+
+**The rule.** Any script whose output appears in a certification — an oracle, a comparator, a floor
+construction, a positive control — is **committed with the result it graded**, in the repo, before the
+result is cited. Document the rule in prose by all means; the prose is the *explanation*, never the
+*definition*. **A verdict whose grader no longer exists is not reproducible, however well it was
+written up.**
+
+*Corollary, and it is the expensive half:* when an instrument must be rebuilt from prose, **reproducing
+the published verdicts is not sufficient evidence that you rebuilt the same instrument.** Reproduce the
+published *quantities* — medians, margins, decidability counts — or state plainly which ones you could
+not. (2026-08-18.)
