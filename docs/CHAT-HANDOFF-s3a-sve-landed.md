@@ -143,6 +143,17 @@ artifact) · **G104** the focus-drift environmental fact · **G105** the ambiguo
   evidence of the re-parented-`else` defect**; `feature/stencil-capture` (do not rebase).
 - The **packaged-leg recipe** is in `docs/setup-runbook.md` §8 — launch line, the CWD output trap, and
   the focus-forcing step. Use it rather than reconstructing one.
+- **The gate tooling is in `CaptureBench/tools/`** (local-only repo, `a0cd40b`) — **do not rewrite it**:
+  - `subset_gate.py <ctrlA> <ctrlB> <testA> <testB>` — **G-S3a-1**: A63 precondition first (refuses and
+    exits 2 if `start_frame` differs, printing no verdict), then control-pair → subset test, then the
+    invariant core. Exit `0` pass / `1` fail / `2` invalid.
+  - `compare_sessions.py <A> <B> [label]` — the field-by-field differ underneath it.
+
+  These produced the accepted S3a verdicts. **Verified against the bank three ways** when landed: it
+  reproduces the S3a-2 result (54/54, extras 0, PASS), the S3a-3 result (54/54, extras 0, PASS,
+  invariant core all identical), and it **refuses** the known-invalid `S3A3_OFF` leg
+  (`start_frame` 2559) with exit 2. Rebuilding a comparator from a description is how it drifts from
+  the one that produced the accepted results.
 
 ---
 

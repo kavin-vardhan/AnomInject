@@ -385,6 +385,22 @@ it, and **do not read its diff**. *A leg is discarded for how it ran, never for 
 **A62:** verify the session **on disk after the process has exited** — directory present, file count
 right. A log line saying `FINISHED` is not evidence a file exists.
 
+### 8.5 Run the gate — do not hand-roll a comparator
+
+```powershell
+& "C:\Python313\python.exe" `
+  "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools\subset_gate.py" `
+  <controlA> <controlB> <testA> <testB>
+```
+
+`controlA`/`controlB` are two runs of the **same reference binary** (they establish the run-unique
+field set empirically); `testA`/`testB` are the reference leg vs the leg under test. It enforces **A63
+first** — if `start_frame` differs it prints **no verdict** and exits **2**. Exit `0` pass / `1` fail /
+`2` invalid. `compare_sessions.py` is the field-by-field differ underneath it.
+
+⚠ **These scripts produced the accepted S3a verdicts.** Re-deriving a comparator from a description is
+how it drifts from the one the banked results were graded with.
+
 **G92:** re-bank before any step that wipes `Saved`. A code-only hot-swap does **not** touch it.
 
 ## Troubleshooting
