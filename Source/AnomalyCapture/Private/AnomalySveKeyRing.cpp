@@ -20,6 +20,13 @@ namespace AnomalySveKeyRing
 		TEXT("real starvation event produces, and the one that tests whether the guard DISCRIMINATES rather than merely notices)."),
 		ECVF_Default);
 
+	static TAutoConsoleVariable<int32> CVarForceMissPhase(
+		TEXT("IAI.Capture.SVE.ForceMissPhase"), 0,
+		TEXT("Phase offset for the every-Nth-key corruption, so it can be shifted relative to the capture cadence. ")
+		TEXT("Both are periodic and phase-lock at offset 0: an unshifted sweep can drop only non-positive frames and ")
+		TEXT("never exercise a dropped POSITIVE frame. Corruption fires when ((serial + phase) mod N) == 0."),
+		ECVF_Default);
+
 	static FCriticalSection RingCS;
 	static TArray<FKeyEntry> Ring;
 	static uint64 PublishSerial = 0;
@@ -40,9 +47,27 @@ namespace AnomalySveKeyRing
 		return FMath::Max(0, CVarForceMiss.GetValueOnAnyThread());
 	}
 
+	int32 GetForceMissPhase()
+	{
+		return FMath::Max(0, CVarForceMissPhase.GetValueOnAnyThread());
+	}
+
 	bool IsForceMiss()
 	{
 		return GetForceMissMode() != 0;
+	}
+
+	static bool ShouldCorrupt(uint64 Serial, int32 Mode, int32 Phase)
+	{
+		if (Mode == 1)
+		{
+			return true;
+		}
+		if (Mode > 1)
+		{
+			return ((Serial + (uint64)Phase) % (uint64)Mode) == 0;
+		}
+		return false;
 	}
 
 	void Reset()
@@ -71,6 +96,7 @@ namespace AnomalySveKeyRing
 	void PublishKey(uint32 FamilyFrameNumber, uint64 GameFrameCounter, bool bWanted)
 	{
 		const int32 Mode = GetForceMissMode();
+		const int32 Phase = GetForceMissPhase();
 
 		FKeyEntry Entry;
 		Entry.GameFrameCounter = GameFrameCounter;
@@ -80,7 +106,7 @@ namespace AnomalySveKeyRing
 		FScopeLock Lock(&RingCS);
 		Entry.Serial = ++PublishSerial;
 
-		const bool bCorrupt = (Mode == 1) || (Mode > 1 && (Entry.Serial % (uint64)Mode) == 0);
+		const bool bCorrupt = ShouldCorrupt(Entry.Serial, Mode, Phase);
 		Entry.FamilyFrameNumber = bCorrupt ? (FamilyFrameNumber ^ GForceMissMask) : FamilyFrameNumber;
 		if (bCorrupt)
 		{
@@ -152,22 +178,21 @@ namespace AnomalySveKeyRing
 
 		const FCounters C = GetCounters();
 		const int32 Mode = GetForceMissMode();
+		const int32 Phase = GetForceMissPhase();
 		const int32 FirstSurviving = FMath::Max(0, Count - GRingCapacity);
 
 		int32 ExpectedHits = 0;
 		for (int32 i = FirstSurviving; i < Count; ++i)
 		{
-			const uint64 Serial = (uint64)i + 1;
-			const bool bCorrupt = (Mode == 1) || (Mode > 1 && (Serial % (uint64)Mode) == 0);
-			if (!bCorrupt)
+			if (!ShouldCorrupt((uint64)i + 1, Mode, Phase))
 			{
 				++ExpectedHits;
 			}
 		}
 
 		UE_LOG(LogAnomalyCapture, Display,
-			TEXT("SVE ring self-test: n=%d capacity=%d forceMiss=%d | published=%d corrupted=%d hits=%d expectedHits=%d misses=%d wrapped=%d keyMismatches=%d wantedHits=%d | %s"),
-			Count, GRingCapacity, Mode,
+			TEXT("SVE ring self-test: n=%d capacity=%d forceMiss=%d phase=%d | published=%d corrupted=%d hits=%d expectedHits=%d misses=%d wrapped=%d keyMismatches=%d wantedHits=%d | %s"),
+			Count, GRingCapacity, Mode, Phase,
 			C.Published, C.Corrupted, Hits, ExpectedHits, C.Missed, C.Wrapped, KeyMismatches, WantedHits,
 			(KeyMismatches == 0 && Hits == ExpectedHits) ? TEXT("PASS") : TEXT("FAIL"));
 

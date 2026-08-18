@@ -622,6 +622,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		RunDir = FPaths::Combine(Base, SessionId);
 	}
 
+	LastRunDir = RunDir;
 	IFileManager::Get().MakeDirectory(*FPaths::Combine(RunDir, TEXT("Actual_Frames")), true);
 
 	int32 VW = 0, VH = 0;
@@ -758,7 +759,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		bTargetedMode ? *FString::Printf(TEXT("targeted[%s on %s]"), *TargetAnomalyId.ToString(), *TargetActorName) : TEXT("auto-pool"),
 		bDeliveryMode ? TEXT("on") : TEXT("off"),
 		ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"),
-		Seed, *M.Format, bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"), VideoFps,
+		Seed, *M.Format, DescribeGrabPoint(), VideoFps,
 		bPaceCapture ? TEXT(", paced") : TEXT(", unpaced"),
 		SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 		BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
@@ -797,7 +798,7 @@ void UAnomalyCaptureSubsystem::GetStatus(bool& bOutRunning, int32& OutFrames, FS
 {
 	bOutRunning = bRunning;
 	OutFrames = FramesWritten;
-	OutRunDir = RunDir;
+	OutRunDir = LastRunDir;
 	OutSeed = Seed;
 }
 
@@ -810,7 +811,7 @@ void UAnomalyCaptureSubsystem::LogStatus() const
 			TEXT("Capture: idle. Config K=%d L=%d pre=%d positive=%d post=%d bursts=%s capture=%s fps=%d pace=%s delivery=%s clock=%s focusgate=%s. Start: IAI.Capture.Start [dir] [png|jpeg] [seed]."),
 			SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 			BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
-			bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync"),
+			DescribeGrabPoint(),
 			VideoFps, bPaceCapture ? TEXT("on") : TEXT("off"),
 			bDeliveryMode ? TEXT("on") : TEXT("off"),
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"),
@@ -885,6 +886,15 @@ UAnomalyAutoInjectorSubsystem* UAnomalyCaptureSubsystem::ResolveAuto() const
 {
 	UWorld* World = GetWorld();
 	return World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr;
+}
+
+const TCHAR* UAnomalyCaptureSubsystem::DescribeGrabPoint() const
+{
+	if (bSveCapture)
+	{
+		return TEXT("sve/scene-colour");
+	}
+	return bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync");
 }
 
 void UAnomalyCaptureSubsystem::EnsureCapturer()
@@ -1447,9 +1457,21 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 		WriteSessionAnnotationFile();
 
+		AnomalyLabel::FRingTelemetry RingTelemetry;
+		if (bSveCapture)
+		{
+			const AnomalySveKeyRing::FCounters Ring = AnomalySveKeyRing::GetCounters();
+			RingTelemetry.Published = Ring.Published;
+			RingTelemetry.Consumed = Ring.Consumed;
+			RingTelemetry.Missed = Ring.Missed;
+			RingTelemetry.Wrapped = Ring.Wrapped;
+			RingTelemetry.Corrupted = Ring.Corrupted;
+		}
+
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode,
-			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents);
+			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
+			bSveCapture ? &RingTelemetry : nullptr);
 
 		if (bSveCapture)
 		{
@@ -1488,6 +1510,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	bRunning = false;
 	Phase = ECapturePhase::Idle;
 	PhaseFramesLeft = 0;
+	RunDir.Reset();
 
 	bTargetedMode = false;
 	TargetAnomalyId = NAME_None;

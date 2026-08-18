@@ -65,10 +65,19 @@ namespace AnomalyLabel
 
 	bool WriteRunManifest(const FString& RunDir, const FRunManifest& Manifest);
 
+	struct FRingTelemetry
+	{
+		int32 Published = 0;
+		int32 Consumed = 0;
+		int32 Missed = 0;
+		int32 Wrapped = 0;
+		int32 Corrupted = 0;
+	};
+
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
 		int32 ZeroMatchBursts, uint64 EndFrame,
 		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode,
-		const FString& ContentClock, int32 NonManifestedEvents);
+		const FString& ContentClock, int32 NonManifestedEvents, const FRingTelemetry* Ring = nullptr);
 
 
 	struct FSessionVideo

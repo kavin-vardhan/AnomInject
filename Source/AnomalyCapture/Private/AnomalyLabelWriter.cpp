@@ -320,7 +320,7 @@ namespace AnomalyLabel
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
 		int32 ZeroMatchBursts, uint64 EndFrame,
 		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode,
-		const FString& ContentClock, int32 NonManifestedEvents)
+		const FString& ContentClock, int32 NonManifestedEvents, const FRingTelemetry* Ring)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -338,6 +338,16 @@ namespace AnomalyLabel
 		Root->SetBoolField(TEXT("delivery_mode"), bDeliveryMode);
 		Root->SetStringField(TEXT("content_clock"), ContentClock);
 		Root->SetNumberField(TEXT("non_manifested_events"), NonManifestedEvents);
+
+		if (Ring)
+		{
+			Root->SetStringField(TEXT("capture_path"), TEXT("sve"));
+			Root->SetNumberField(TEXT("key_ring_published"), Ring->Published);
+			Root->SetNumberField(TEXT("key_ring_consumed"), Ring->Consumed);
+			Root->SetNumberField(TEXT("key_ring_missed"), Ring->Missed);
+			Root->SetNumberField(TEXT("key_ring_wrapped"), Ring->Wrapped);
+			Root->SetNumberField(TEXT("key_ring_corrupted"), Ring->Corrupted);
+		}
 
 		FString Out;
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);

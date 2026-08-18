@@ -119,6 +119,7 @@ private:
 		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds);
 	void WriteSessionAnnotationFile();
 
+	const TCHAR* DescribeGrabPoint() const;
 	void EnsureCapturer();
 	void ProcessCompletedFrames();
 	void DrainAsyncToCompletion();
@@ -132,6 +133,7 @@ private:
 	ECapturePhase Phase = ECapturePhase::Idle;
 	int32 PhaseFramesLeft = 0;
 	FString RunDir;
+	FString LastRunDir;
 	FString SessionId;
 	int32 Seed = 0;
 	bool bFormatPng = true;

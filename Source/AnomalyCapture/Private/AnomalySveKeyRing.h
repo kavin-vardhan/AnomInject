@@ -32,6 +32,7 @@ namespace AnomalySveKeyRing
 
 	int32 GetCapacity();
 	int32 GetForceMissMode();
+	int32 GetForceMissPhase();
 	bool IsForceMiss();
 }
 
