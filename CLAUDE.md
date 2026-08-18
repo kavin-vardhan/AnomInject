@@ -15,6 +15,40 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
+- 🛑 **`S3a-3` HALTED — one gate PASSED DECISIVELY, one MISSED on an uncontrolled variable. Code held
+  OFF `master` on `s3a-3-GATE-MISS-focus-confound` (`8f57a62`, pushed). DO NOT MERGE.** → journal
+  `docs/sessions/2026-08-18-040-s3a3-gate-miss-focus-confound.md`. Built + compiled: `run_summary`
+  `capture_path` + five `key_ring_*` fields **emitted only when the switch is ON** (**C1 leak-check
+  PASSED** — a switch-OFF `run_summary` carries exactly the pre-S3 key set);
+  `IAI.Capture.SVE.ForceMissPhase`; **FIX 2 as ruled** (`LastRunDir` set at `StartRun` + returned by
+  `GetStatus`, `RunDir` cleared in the lifecycle reset); banner reports the grab point via
+  `DescribeGrabPoint()`.
+  ✅ **DROPPED-POSITIVE GATE PASSES.** ⚠ **A metric of mine had to be corrected first:
+  `overlap = missing ∩ claimed = 0` is AMBIGUOUS — it is ALSO the pass condition, because a correctly
+  dropped positive vanishes from files AND from claims.** The sound discriminator is whether the
+  **claimed set SHRANK** vs the clean run. Whole N=4 phase space exhausted: phases 0/1/3 reproduce the
+  same lock (drops at offsets 1,7,11 mod 12; claims full), **phase 2 breaks it** (offsets 0,6,10;
+  claims 4,5,9) and **dropped 7 positives `[10,22,34,46,58,70,82]`**. All 7 absent from disk **and**
+  from claims; **claimed indices with no file behind them = `[]`**; 68 files ↔ 68 rows 1:1;
+  `session_index` == image number on every row. **Pre-declared prediction held — no label-fabrication
+  defect in the SVE path; P3b does not arrive by this route.**
+  🛑 **C1 SUBSET RE-RUN MISSED — 16 extras** (`engine/ticks_msec` ×8, `run.json/start_frame`,
+  `run_summary/end_frame`, 6 label fields). **Cause ENVIRONMENTAL, not code: the switch-OFF leg never
+  got window focus and sat out the 30 s focus-gate timeout** — `start_frame` **2559 vs 1** on all three
+  prior legs; `ticks_msec` 30270 vs 134 (**30270 ms IS the timeout**).
+  ⚠ **THE REAL FINDING: the gate has an UNCONTROLLED ENVIRONMENTAL VARIABLE that can flip it either
+  way. The control pair was n=2 with BOTH halves on prompt focus, so it never sampled that variance —
+  and S3a-2's re-gate (journal 039) passed partly because all four of its legs happened to get prompt
+  focus. Luck, not design.** A57's bracket-vs-contain problem, in the harness rather than in an oracle.
+  **NOT re-run for a green** (that would be discarding a red). ⚠ **Cannot claim S3a-3 switch-OFF IS
+  subset-identical — the same-focus-condition comparison has not been run.** Chat-side gate-design
+  call: pin the variable (`IAI.Capture.FocusGate 0` — ⚠ **G93**, 30 fps only) or make equal
+  `start_frame` a precondition of the comparison.
+  ⚠ **FIX 2's dashboard verification NOT PERFORMED** (the halt came first; it needs a WS client
+  post-run and `-ExecCmds` only fires at startup) — **`LastRunDir` is implemented but
+  RUNTIME-UNVERIFIED.**
+  ⚠ **The staged package exe is now AHEAD of `master`** — restore `StackOBot.exe.m23-baseline` or
+  re-stage before any leg that must run certified code.
 - ✅ **`S3a-2` FIXED AND RE-GATED IN FULL — ALL GATES GREEN (`130efaa`).** → journal
   `docs/sessions/2026-08-18-039-s3a2-fixed-and-regated.md`. `IAI.Capture.SVE` (default **0**, mid-run
   guarded, GConfig `bSveCaptureDefault`) now selects the B′ path; intermittent `ForceMiss` (0/1/N);
