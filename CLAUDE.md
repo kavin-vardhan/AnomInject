@@ -15,9 +15,34 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — `S3` IS CERTIFIED AND TAGGED `m24`. RATIO-INDEPENDENCE IS DISCHARGED.**
-  **Cold-start reading order: this block → `docs/sessions/2026-08-18-042-s3b-matrix-certified.md` →
-  `docs/CHAT-HANDOFF-s3a-sve-landed.md` → the three S2 handoffs.**
+- 🟩 **YOU ARE HERE — `S3` IS CERTIFIED AND TAGGED `m24`. RATIO-INDEPENDENCE IS DISCHARGED.
+  THE I10 WINDOW-RE-CHECK DEBT IS DISCHARGED. `S4` IS NEXT AND NOT STARTED.**
+  **Cold-start reading order: this block → `docs/sessions/2026-08-18-043-session-close-i10-recheck.md`
+  (session close-out, written for a cold reader) → `docs/sessions/2026-08-18-042-s3b-matrix-certified.md`
+  (the whole S3b arc; §10 is the re-check) → `docs/CHAT-HANDOFF-s3a-sve-landed.md` → the three S2 handoffs.**
+  ✅ **I10's NULL SURVIVES a MECHANICAL analysis window** — five of six legs certify, all ALL-ALIGNED,
+  7/7 decidable each, margins 0.108–0.112, in-leg positive control decisive both directions on every one;
+  **no leg returned SHIFTED or ABSENT**. **CPU starvation remains REFUTED as a cause of `P1`** and the
+  null no longer rests on hand-chosen windows. The hand-chosen windows were excluding **STARTUP MARKER
+  NOISE, not defect evidence** — the mechanical window is **STRICTER** on L1 (it includes all five noisy
+  rows the hand-choice removed) and L1 still returns ALL-ALIGNED. **This STRENGTHENS the null.**
+  ✅ **B1 PASSED A KNOWN-ANSWER CASE:** `L3_client39` (banked known-ALIGNED, bifurcated pose) returned
+  **NOT-A54-CERTIFIABLE, not a false ABSENT** — the exact property B1 was adopted for, exercised on the
+  case it was adopted against. **A control that PASSED**, not a leg that dropped out.
+  ⚠ **BUT THE CLIENT BAND IS NOW CARRIED BY ONE LEG (`L6_client40`) WHERE IT HAD TWO. `P1` IS A
+  CLIENT-BAND PHENOMENON**, so the refutation of CPU starvation at ~1.2 rests on **a single certified leg
+  plus one honestly unjudgeable leg**. Overturns nothing, not a defect — it is the **THINNESS OF THE
+  EVIDENCE, stated now** rather than discovered later if H1 also comes back clean. **`B2`'s payoff now
+  includes recovering `L3_client39` and restoring the client band to two legs** — a concrete gain it did
+  not have when filed; **B2 stays FILED, NOT SCHEDULED.** ⛔ **L3's bifurcation is NOT to be
+  investigated, recovered or re-windowed — it stays unjudgeable.**
+  ⚠ **CORRECTION TO JOURNAL 031, reconciled (BRANCH R):** its `532 / 534` is an **arithmetic slip** —
+  the corpus is **540**, and its "only two exceptions … in L3" is **eight**, in **L1 (5) and L3 (3)**.
+  Its own per-leg table (`85, 90, 87, 90, 90, 90`) reproduces this re-check **exactly**, so the data was
+  always right and only the summary was wrong. ⛔ **The "windows filtered the denominator" explanation
+  offered for it is WITHDRAWN — refuted by that same table** (85 and 87 exceed those legs' window sizes).
+  The same slip propagates to §9.2's combined `1052 / 1054` (true corpus 1080); **render half NOT
+  re-measured, flagged not corrected.** → **G110**.
   **Stage 1** marker survives an SVE production capture (90/90, strictly increasing, ~5× the decoder
   floor). **Stage 2a** the A54 oracle was **rebuilt from prose and certified against eight banked
   controls**. **Stage 2** five legs — **33 counted events, 33 ALIGNED, 0 SHIFTED, 0 ABSENT, 33/33

@@ -284,9 +284,11 @@ the client's −1, **it was not delivery mode.**
 | debt | status |
 |---|---|
 | **A11** | **OPEN** — the design prevented the condition it wanted to observe. `wrapped > 0` does not close it; `ForceMiss` never will |
-| **I10 hand-chosen-window re-check** | **NEXT.** Paper only, banked data, **no runs**. I10's null is **WEAKENED, not overturned** — a window chosen after seeing a leg is an unaccounted degree of freedom, and for a null the risk direction is exclusion of the frames where a defect would show. 30 fps throughout, so the oracle's certified range covers it. **Do not let this tag bury it** |
+| ~~I10 hand-chosen-window re-check~~ | ✅ **DISCHARGED — §10.** Null SURVIVES on five legs covering every band I10 claimed; the hand-chosen windows were excluding **startup marker noise, not defect evidence**, and the mechanical window is **stricter** on L1 with no verdict change. ⚠ **Client band narrowed from two legs to one** — see §10 and the row below |
+| **Client-band thinness (new, from §10)** | I10's refutation of CPU starvation **at ~1.2 — the band `P1` actually lives in — now rests on ONE certified leg (`L6_client40`) plus one honestly unjudgeable leg (`L3_client39`).** Overturns nothing and is not a defect; it is the **thinness of the evidence, stated now** rather than discovered later if H1 also comes back clean |
+| **Journal 031 arithmetic corrections (new, §10.3)** | `532/534` → the corpus is **540**; the "only two exceptions … in L3" is **eight**, in **L1 (5) and L3 (3)**. Reconciled against journal 031's own per-leg table, which reproduces this re-check exactly. ⚠ The same slip propagates to §9.2's combined `1052/1054` (true corpus 1080) — **render half NOT re-measured, flagged not corrected** |
 | **P7 / P5 blend-ladder** | serves **two** open items; priority raised. It manufactures **spread**, not pose |
-| **P8 / B2** | scale-free separability statistic — **filed, not built.** Now **gateable against eight controls** including `L3_client39` (known-ALIGNED, bifurcated pose). May reopen m23's DA60 floor, so it does not ride inside another milestone |
+| **P8 / B2** | scale-free separability statistic — **FILED, NOT SCHEDULED.** Now **gateable against eight controls** including `L3_client39` (known-ALIGNED, bifurcated pose). 🆕 **B2's payoff now includes RECOVERING `L3_client39` and restoring the client band to two legs** — a concrete gain it did not have when filed. Still a definition change needing its own eight-control gate, and it may reopen m23's DA60 floor, so it does not ride inside another milestone |
 | **The two lost bifurcated legs** | **recorded as lost**, not silently dropped |
 | **H4** | occlusion-blind labelling — filed, test designed, **unrun** |
 | **P6** | `camera.path` naming; `coverage_pct` vs `coverage_ratio` — **predicted from source, never measured** |
@@ -306,3 +308,102 @@ the client's −1, **it was not delivery mode.**
 **Next: S4 — the backbuffer demotion. NOT planned this turn.** ⚠ Per **C2** it is a **client-visible
 change, not a silent default flip**: the pre-Slate SVE grab is **UI-free by construction**, so flipping
 the default **changes delivered image content**. **Depth remains PARKED and UNNUMBERED.**
+
+---
+
+## 10. The I10 window re-check — **the null SURVIVES, narrowed by one leg**
+
+The six banked I10 legs re-run through the **mechanical** settle rule (K=5, tol=0.5°, unchanged) and the
+**certified** oracle. All six are 30 fps, so the oracle's certified range covers them and **P7 does not
+apply**. Paper only — banked data, no runs.
+
+| leg | ratio | band | window | pose | ev | verdict | med \|margin\| | dec |
+|---|---|---|---|---|---|---|---|---|
+| L1_nominal | 1.000006 | nominal | 0..89 | YES | 7 | ALL-ALIGNED | 0.108140 | 7/7 |
+| L2_client34 | 1.055830 | mild | 0..89 | YES | 7 | ALL-ALIGNED | 0.110411 | 7/7 |
+| **L3_client39** | 1.214760 | client | 29..89 | **NO** | — | **NOT-A54-CERTIFIABLE** | — | — |
+| L4_deep99 | 3.002709 | deep | 0..89 | YES | 7 | ALL-ALIGNED | 0.108624 | 7/7 |
+| L5_paceoff | 0.331247 | pacing-off | 0..89 | YES | 7 | ALL-ALIGNED | 0.110169 | 7/7 |
+| L6_client40 | 1.234177 | client | 0..89 | YES | 7 | ALL-ALIGNED | 0.111510 | 7/7 |
+
+In-leg positive control on every certifying leg, both directions, before its verdict: `+1` → ALIGNED 0 /
+SHIFTED 7; `−1` → ALIGNED 0 / SHIFTED 8. **No ALIGNED verdict survived any synthetic shift.** Settle
+constants were **not** re-tuned. Every certifying leg has 7 counted events, clearing the new ≥3 floor.
+
+⇒ **CPU STARVATION REMAINS REFUTED as a cause of P1. The weakening is DISCHARGED** — I10's null no
+longer rests on hand-chosen windows.
+
+### 10.1 The hand-chosen windows were excluding startup noise, not defect evidence
+
+A45/A10 failed on L1 and L3, so it was **quantified rather than flagged**:
+
+| corpus | bad rows | rate | where |
+|---|---|---|---|
+| **I10 (backbuffer, pre-S3)** | **8 / 540** | 1.48 % | L1 idx 0,1,2,3,4 (+1,+2,+3,+4,+7) · L3 idx 0,12,16 (+1,−32,−96) |
+| **S3b (SVE)** | **0 / 450** | 0.00 % | all five legs clean |
+
+L1's five bad rows sit at indices **0–4**, which journal 031's hand-chosen window (16..89) excluded and
+the **mechanical window (0..89) INCLUDES** — and **L1 still returns ALL-ALIGNED, 7/7 decidable.**
+
+> **The mechanical window is STRICTER on L1 than the hand-choice was, and the verdict does not move.**
+> The feared direction was a window excluding *defect evidence*. What it actually excluded was
+> **startup marker noise**. This **strengthens** the null rather than qualifying it.
+
+⚠ **RECORDED AS A LEAD, NOT AN ATTRIBUTION — do not let a later reader promote this:** the SVE set shows
+**zero** such rows in 450 frames. That is *consistent with* B′ removing an arm→present startup race, but
+**the two sets differ in BINARY as well as capture path**, so it is not a claim about B′.
+
+### 10.2 ✅ B1 PASSED A KNOWN-ANSWER CASE — recorded as a control that passed
+
+`L3_client39` is the banked **known-ALIGNED, bifurcated-pose** control (its hide is real, perfectly
+aligned and perfectly separated — see the P8 record). Under B1 it returned **NOT-A54-CERTIFIABLE, not a
+false ABSENT.** That is **precisely the property B1 was adopted for, exercised on the case it was
+adopted against.** It is a control that **passed**, not merely a leg that dropped out.
+
+### 10.3 Journal 031's `532 / 534` — **BRANCH R: it reconciles, and my proposed explanation was WRONG**
+
+Journal 031 §4.5 published, verbatim:
+
+```
+label.frame_index - marker_gfc  ==  0   on  532 / 534 decoded frames
+per leg: L1 85, L2 90, L3 87, L4 90, L5 90, L6 90.
+The only two exceptions are pre-window warm-up frames in L3 with no marker drawn
+```
+
+**The arithmetic:** `85 + 90 + 87 + 90 + 90 + 90 = 532` matching. Those per-leg counts are over **full
+90-frame legs**, not over its analysis windows — decisively, **L1's 85 and L3's 87 both EXCEED their own
+published window sizes** (74 and 60 frames). The corpus is therefore `6 × 90 = 540`.
+
+**Implied non-matching, leg by leg: L1 5 · L2 0 · L3 3 · L4 0 · L5 0 · L6 0 — IDENTICAL to this
+re-check's independent measurement.** The measurement reproduces exactly.
+
+⇒ **Two errors in journal 031, both internal to it and both now corrected:**
+
+1. **The denominator `534` is an arithmetic slip.** It is `532 + 2`, written to match the
+   "two exceptions" narrative. **The corpus is 540**, and its own per-leg table says so.
+2. **"The only two exceptions … in L3" is wrong.** There are **eight**, and they are in **L1 (five) and
+   L3 (three)** — L1 is not mentioned at all.
+
+⛔ **MY OWN PROPOSED EXPLANATION IS WITHDRAWN.** I proposed that the 534 arose because journal 031's
+windows filtered its denominator. **Its own per-leg data refutes that** — the counts are full-corpus.
+The gap was arithmetic, not methodological. *Recorded because the wrong explanation was plausible,
+fitted the narrative, and would have entered the record unchallenged had the reconciliation not been
+demanded.*
+
+⚠ **The same slip propagates to §9.2's combined `1052 / 1054`.** The combined corpus is `1080`
+(two sets × 6 legs × 90). **The render half is NOT re-measured here** — out of scope for this turn — so
+the combined figure is flagged, not corrected.
+
+**None of this disturbs journal 031's conclusions.** The matching count 532 is right, the per-leg
+distribution is right, and the identity claim holds in every regime.
+
+### 10.4 The positive-control count asymmetry — a frame-cap boundary effect
+
+`+1` counts 7 events, `−1` counts 8. The cause is the tail event `[88,89]` alone:
+
+- **shift 0** → `[88,89]`, trailing flank 90 — **absent** ⇒ TRUNCATED, 7 counted.
+- **shift +1** → `[89,90]`, trailing flank 91 — **absent** ⇒ still TRUNCATED, 7 counted.
+- **shift −1** → `[87,88]`, flanks 86 and 89 — **both exist** ⇒ evaluable, **8 counted**.
+
+Shifting the claimed set *earlier* pulls the tail event's trailing flank back inside the 90-frame cap and
+makes an otherwise-TRUNCATED event scoreable. It touches no other event and no verdict.

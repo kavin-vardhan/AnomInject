@@ -2184,3 +2184,45 @@ reason.
 time of the regime it was calibrated in. Before freezing one, ask **what the underlying quantity
 actually is** — here it was always seconds — and express it in those units. Same family as **G107**
 (a frozen absolute threshold inheriting its units' hidden dependencies). (2026-08-18.)
+
+### G110 — a summary figure that contradicts the document's own table survives review, because nobody re-adds the column
+
+Journal 031 §4.5 published, in a single paragraph:
+
+```
+label.frame_index - marker_gfc  ==  0   on  532 / 534 decoded frames
+per leg: L1 85, L2 90, L3 87, L4 90, L5 90, L6 90.
+The only two exceptions are pre-window warm-up frames in L3 with no marker drawn
+```
+
+**The headline and the table disagree, and the table is right.** `85+90+87+90+90+90 = 532` over a
+`6 × 90 = 540` corpus ⇒ **eight** non-matching rows, in **L1 (five) and L3 (three)**. The stated
+denominator `534` is `532 + 2`, written to fit the "two exceptions" sentence; and that sentence names
+**only L3**, while **L1 — which holds the majority of them — is not mentioned at all.**
+
+An independent re-measurement months later reproduced the per-leg distribution **exactly**: L1 5, L3 3,
+all others 0. **The data was always correct. Only the summary was wrong**, and it sat unchallenged
+through a milestone tag and two handoffs.
+
+**Why it survived:** the headline was the number people quoted, the table was the number nobody re-added,
+and the two lived four lines apart. **Nothing about the paragraph looks wrong** — it looks like a
+carefully-reported result, because most of it is one.
+
+⚠ **A PLAUSIBLE WRONG EXPLANATION NEARLY LANDED ON TOP OF IT.** The first hypothesis offered for the gap
+was that the analysis windows had filtered the denominator — mechanically sensible, consistent with a
+concern already live in the project, and **false**. Its own per-leg counts (85 and 87) **exceed** those
+legs' published window sizes (74 and 60), so they cannot be window-filtered. It was caught only because
+a **reconciliation was demanded before the correction was written.**
+
+**The rules that follow:**
+
+1. **State a ratio's denominator basis with the ratio** — what was enumerated, over what set. `532/534`
+   with no basis cannot be checked against a corpus later.
+2. **Re-add your own columns before publishing a summary over them.** A total that does not equal its
+   parts is the cheapest possible error to catch and the most expensive to leave.
+3. **When a published figure does not reconcile, reconcile it or record it as UNRECONCILED (A60).**
+   Do not fit a mechanism to the gap — the plausible one here was wrong, and it was *more* plausible than
+   the truth (a slip of two).
+
+*Companion to G96's family: this is not a blind instrument, it is a correct instrument with a mis-stated
+summary — which review handles even less well, because the underlying work is sound.* (2026-08-18.)
