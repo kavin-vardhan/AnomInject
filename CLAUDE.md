@@ -15,8 +15,64 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — `S3a` IS COMPLETE AND CERTIFIED. `S3b` NOT STARTED (scope being decided chat-side).**
-  **Cold-start reading order: this block → `docs/CHAT-HANDOFF-s3a-sve-landed.md` → the three S2 handoffs.**
+- 🟩 **YOU ARE HERE — `S3` IS CERTIFIED AND TAGGED `m24`. RATIO-INDEPENDENCE IS DISCHARGED.**
+  **Cold-start reading order: this block → `docs/sessions/2026-08-18-042-s3b-matrix-certified.md` →
+  `docs/CHAT-HANDOFF-s3a-sve-landed.md` → the three S2 handoffs.**
+  **Stage 1** marker survives an SVE production capture (90/90, strictly increasing, ~5× the decoder
+  floor). **Stage 2a** the A54 oracle was **rebuilt from prose and certified against eight banked
+  controls**. **Stage 2** five legs — **33 counted events, 33 ALIGNED, 0 SHIFTED, 0 ABSENT, 33/33
+  decidable** across nominal / client ×2 / deep 3.03 / pacing-off, positive control decisive in **both**
+  directions on every leg. **Stage 3** three delivery pairs — **zero extras**, invariant core
+  **IDENTICAL**. **Both pre-declared predictions HELD.**
+  ✅ **A10 DISCHARGED AT EVERY REGIME BY MARKER** (`frame_index − decoded_marker = {0}`, one distinct
+  value, all five legs) — strictly stronger than S3a's count+cadence inference. ✅ **RING UNDER STALL
+  DISCHARGED** (`published == consumed`, `missed = 0` everywhere). ✅ **`LastRunDir` DISCHARGED** —
+  verified post-run over a WS client against a capture already finished on disk.
+  🔬 **B′ behaves IDENTICALLY in delivery mode, not merely acceptably** — all five `key_ring_*` counters
+  and `capture_path` identical across every pair.
+  🚨 **`m24` SCOPE LIMITS — THESE TRAVEL WITH THE TAG: (1) MODAL CAMERA POSE ONLY** — a defect
+  manifesting only in a bifurcated pose would systematically not be seen by this design; **(2) A52 —
+  `VideoFps` 30 PINNED throughout; clean at 30 licenses NOTHING at other fps, in either direction;
+  (3) Stage 3 is ANNOTATION-SHAPE EVIDENCE ONLY** (the pixel oracle cannot run in delivery mode);
+  **(4) the oracle itself is certified at 30 fps and its MARGINS are NOT reproduced above it (`P7`).**
+  🚨 **`S3` GOING GREEN DOES NOT CLOSE `P1` — AND `P1` IS NOW NARROWED TO A SINGLE NAMED LEAD.**
+  P1 has never been reproduced and a fix cannot be demonstrated for something that cannot be summoned.
+  **The DELIVERY-MODE GAP IS CLOSED AS A DIVERGENCE HYPOTHESIS** — delivery changes nothing in the
+  annotation contract, so whatever produced the client's −1, **it was not delivery mode**. ⚠ **`H1`
+  (GPU-load starvation shape) is P1's ONLY REMAINING NAMED LEAD, and H1 HAS NO LEVER IN EXISTENCE. IF H1
+  ALSO COMES BACK CLEAN, `P1` HAS NO NAMED LEADS** — stated now, while a queue still sits in front of it.
+  Lever design for H1 is **chat-side first, NEVER same-turn as its first measurement.**
+  🆕 **`A64` — a DELIVERY-PAIR comparison requires a POSE-MATCH PRECONDITION ON THE PAIR**, not merely
+  per-leg B1 admissibility: two legs can each pass B1 and still sit in **different admissible poses**
+  (0.35° apart, inside tolerance, enough to move `coverage_ratio` ~1.9 % and read as a divergence).
+  B1 constrains each leg against CALIBRATION; nothing constrained the pair against EACH OTHER. Use
+  `coverage_ratio` as the pose indicator — **a discriminator, NEVER a gate.**
+  🆕 **ALSO RULED:** **≥ 3 COUNTED EVENTS PER LEG is a validity condition** (joins A31; a leg below 3 is
+  INVALID, not evidence — the settle window scales with frame time, so deep stalls can silently drop a
+  leg under the bar while still reporting ALL-ALIGNED); **A40 bands are compared at their own stated
+  precision (2 d.p.)**; **camera bifurcation measured at 2-IN-5, not 1-in-12, and BOTH instances were on
+  STALLED legs — association only, no mechanism adopted without measurement.**
+  🆕 **`P7`** A54 **margin scale is regime-dependent** (×0.98 sharp → ×2.05 spread); verdicts unaffected,
+  **decidability annotations affected**. OPEN. Leading hypothesis named, NOT adopted. **`P8`** TAU is an
+  **absolute** luminance difference and is therefore **NOT camera-pose invariant** — a bifurcated pose
+  produced a **FALSE ABSENT** on a hide that is real, perfectly aligned and perfectly separated, and
+  **A50 reads ABSENT as reproduction of the defect**, so it fails in the **dangerous** direction. Cured
+  for now by **B1**'s pose precondition; the real fix is **B2**, filed not built. → **G106/G107**.
+  📦 **ENVIRONMENT:** staged exe unchanged, SHA-256 `3BA854FB…`. **Bank 58 dirs.** `CaptureBench` carries
+  the analysis instruments (`a54_oracle.py`, `run_leg.ps1`, `eval_leg.py`, `check_pose.py`,
+  `verify_lastrundir.ps1`), local-only, **probe untouched all arc**. **The packaged-leg recipe is
+  `docs/setup-runbook.md` §8; the A63 harness is `CaptureBench/tools/run_leg.ps1` — use them, do not
+  reconstruct.**
+  ⛔ **OPEN DEBTS — see journal 042 §8 for the complete list.** Headline ones: **`A11` OPEN — the design
+  prevented the condition it wanted to observe** (`wrapped > 0` does not close it; `ForceMiss` never
+  will); **the I10 HAND-CHOSEN-WINDOW RE-CHECK is NEXT** (paper only, banked data, no runs — I10's null
+  is **WEAKENED, not overturned**, and a milestone tag must not bury it); **`B2`** now gateable against
+  **eight** controls incl. `L3_client39`; **two bifurcated legs were LOST to a compliance failure and are
+  recorded as lost**; `H4`; `P6`.
+  **NEXT: `S4` — the backbuffer demotion. NOT planned.** ⚠ **C2: it is a CLIENT-VISIBLE CHANGE, not a
+  silent default flip** — the pre-Slate SVE grab is **UI-free by construction**, so flipping the default
+  **changes delivered image content**. **Depth remains PARKED and UNNUMBERED.**
+- 🟦 *(superseded by the above — kept for the record)* **`S3a` COMPLETE AND CERTIFIED.**
   Repo `AnomalyInjector` **`f922ba8`**, clean, pushed, **NO TAG**. `CaptureBench` `8dad64e`, probe untouched.
   **B′ is landed in production behind a default-OFF switch, has run CROSS-THREAD (published 121 /
   consumed 121 / missed 0), and is green on every gate S3a defined.**
@@ -263,7 +319,29 @@ and is the single source of truth for the project.
   the bifurcation** (it depends only on eye position + static geometry; rotation changes only frustum membership).
   ⚠ **DO NOT GENERALISE — this holds because gate-level targets are all STATIC and the player start is fixed;
   it FAILS in any level with motion.**
-- **HYPOTHESIS LEDGER:** **H1** GPU-load starvation — OPEN, no lever exists. **H2 — RETIRED-UNKNOWN**
+- **PHENOMENON LEDGER — numbers are NEVER reused.** **P1** client's one-frame shift @ratio≈1.2, 30 fps —
+  **OPEN, never reproduced; NARROWED 2026-08-18: the delivery-mode lead is ELIMINATED by measurement, so
+  `H1` is its ONLY remaining named lead.** **P2** stale/duplicate present — signature absent.
+  **P3** labelled hide never manifests — FIXED at `m23`. **P4 — PERMANENTLY RETIRED, never re-mint.**
+  **P5** single-frame alignment undecidable ≥90 fps — queued, founding instrument (the blend-ladder)
+  assigned, unbuilt. **P6** `annotation.json` field-contract defects — `node.bounds` SETTLED,
+  `camera.path` OPEN, `coverage_pct` vs `coverage_ratio` OPEN (predicted from source, never measured).
+  🆕 **P7** A54 **margin scale is regime-dependent** — ×0.98 where the signal is sharp (30 fps), ×2.04–2.05
+  where it is spread (60/120 fps). **Verdicts unaffected; DECIDABILITY ANNOTATIONS AFFECTED.** OPEN.
+  Leading hypothesis **named and NOT adopted** (mean-of-claimed vs a per-frame formulation). ⚠ **P7 and P5
+  are BOTH about spread-signal behaviour at high fps and MAY BE THE SAME PHENOMENON SEEN FROM TWO SIDES** —
+  not asserted, not merged; whichever is investigated first checks the other. The **blend-ladder serves
+  both** (it manufactures **spread**, not pose).
+  🆕 **P8** **TAU is an ABSOLUTE luminance difference and is therefore NOT camera-pose invariant** — an
+  A47-bifurcated pose yields −0.0383 against the modal pose's +0.1126 on the *same* binary/target/seed, so
+  the oracle returns **ABSENT on a hide that is real, perfectly aligned and perfectly separated (zero
+  overlap)**. **A50 reads ABSENT as reproduction of the defect ⇒ this fails in the DANGEROUS direction.**
+  Contained by **B1**'s pose precondition (an honest NOT-CERTIFIABLE replaces the false ABSENT); the real
+  fix is **B2** (a scale-free separability statistic) — **filed, not built**, now gateable against **eight**
+  controls incl. `L3_client39`. ⚠ **P8's axis is POSE, so the blend-ladder does NOT serve it** — its
+  missing control was L3 and we now have it. → **G107**.
+- **HYPOTHESIS LEDGER:** **H1** GPU-load starvation — **OPEN, no lever exists, and now `P1`'s ONLY named
+  lead — if it comes back clean, P1 has NO named leads.** **H2 — RETIRED-UNKNOWN**
   (appears nowhere in this repo; history unrecoverable; **never re-mint this number** — the entry exists only so
   nobody reclaims it). **H3** auto-exposure active — OPEN, likely, unconfirmed. **H4** occlusion-blind labelling —
   OPEN, named, NOT adopted (see its bullet below).
