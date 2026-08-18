@@ -15,7 +15,49 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🛑 **`S3a-2` FAILED ITS OWN GATE AND IS DIAGNOSED — NOT FIXED. Code is on branch
+- ✅ **`S3a-2` FIXED AND RE-GATED IN FULL — ALL GATES GREEN (`130efaa`).** → journal
+  `docs/sessions/2026-08-18-039-s3a2-fixed-and-regated.md`. `IAI.Capture.SVE` (default **0**, mid-run
+  guarded, GConfig `bSveCaptureDefault`) now selects the B′ path; intermittent `ForceMiss` (0/1/N);
+  C3 log; A48 echo. **FIX 1 is STRUCTURAL: `FinishRun`'s finish logic now contains NO `else` at all** —
+  two independent `if`s over a captured `bWroteSession` — so no future append can inherit the branch
+  that deletes the session dir. SVE teardown moved to sit with the lifecycle reset.
+  ⛔ **FIX 2 (clear `RunDir`) is BLOCKED and was NOT worked around:** `capture_stop`
+  (`AnomalyControlServerSubsystem.cpp:625-643`) calls `StopRun()` then `GetStatus(...RunDir...)` and
+  ships `runDir` to the dashboard; `capture_status` and the snapshot do the same. Clearing it would
+  send an empty path. **The latent hazard from journal 038 therefore REMAINS** (unreachable today; FIX 1
+  does not remove it) — chat-side contract decision: add a `LastRunDir`, or accept and document.
+  **GATES:** **G-S3a-1 (amended) PASS** — control pair of two m23 runs measured a **54-field
+  run-unique set**; m23-vs-S3a-OFF is **54 fields with ZERO extras** ⇒ subset; invariant core
+  (event count, `frame_indices`, `manifested`, types, `video` minus `path`, and 11 `run_summary`
+  fields incl. `end_frame`) **all identical**; **A62 verified ON DISK after process exit** — 90 frames,
+  no `CANCELLED`. **G-S3a-3 PASS** — SVE leg wrote 90 frames, cadence **byte-exact** to
+  `[[4,5,9,10]…[88,89]]`, and **the ring round-tripped ACROSS THREADS for the first time ever:
+  published 121 · consumed 121 · missed 0.** **C3 measured: SVE view rect 1280×720 vs backbuffer
+  window rect 1280×720, dW=dH=0** (not generalisable to DPI-scaled/letterboxed configs).
+  **G-S3a-2 PASS, three readings on the artifact** — ForceMiss 0/1/4 → **90 / 0 / 68 frames on disk**,
+  `missed == corrupted` **exactly 25.0 %** at N=4, and the 68 survivors are **1:1 with their label
+  rows** carrying the canonical cadence.
+  ⚠ **A47 CAUGHT LIVE IN THE CONTROL PAIR — and it is why C1's original form was unsatisfiable:** the
+  two m23 legs differ in `camera.rotation` (one mid-settle, one at rest) and therefore in coverage,
+  bboxes, `visible_positive` **and all 90 of 90 frame images byte-wise**. **Byte identity of frames is
+  NOT available even between two runs of the same binary**, so frame identity rests on count + names +
+  cadence + the label index series. ⚠ **Marker was OFF on these legs**, so the decoded-marker↔`frame_index`
+  check was **not** performed.
+  ⚠ **TWO LIMITS ON THE FORCEMISS PROOF, recorded not smoothed:** (1) **`ForceMiss N` is PERIODIC and
+  the capture cadence is PERIODIC, so they PHASE-LOCK** — at N=4 the 22 dropped indices and the 30
+  claimed positives had **zero overlap** (≈0.02 % by chance), so **a dropped POSITIVE frame was never
+  exercised**; a randomised/offset mode is needed to reach it. (2) under partial loss
+  **`video.total_frames` (68) disagrees with the index range (0…89 with gaps)** — self-inconsistent
+  artifact, reachable only after the guard has fired. **Cosmetic, unfixed:** the run-`STARTED` banner
+  still prints `capture=async/backbuffer` on an SVE run (it reports `bAsyncCapture`, not the grab
+  point); the `grab point EFFECTIVE` line is authoritative.
+  ⚠ **A44 NEAR-MISS ON MY OWN SCAN:** an intermediate scan read **0** for every SVE symbol because it
+  decoded **ASCII only** — these strings are **UTF-16** (`ascii=0 utf16=8`). **A single-encoding scan is
+  a false-negative generator; always decode both.**
+  **Bank now 29 dirs** (+`S3A2_BASE2`, `S3A2_FIX_OFF`, `S3A2_FIX_ON`, `S3A2_FM1`, `S3A2_FM4`). Staged
+  package carries the **S3a** binary; the pre-S3 one is preserved as `StackOBot.exe.m23-baseline`.
+  **NEXT: S3a-3** — `run_summary` `capture_path` + ring counters, emitted **only when the switch is ON**.
+- 🛑 *(superseded by the above — kept for the record)* **`S3a-2` FAILED ITS OWN GATE AND WAS DIAGNOSED. Code on branch
   `s3a-2-GATE-FAILED-do-not-merge` (`087f4d9`, pushed). DO NOT MERGE. `master` is untouched.**
   → journal `docs/sessions/2026-08-18-038-s3a2-gate-failure-diagnosis.md`.
   **With the switch OFF a packaged run wrote a complete 90-frame session and then DELETED it.**
