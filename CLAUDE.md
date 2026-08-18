@@ -15,6 +15,42 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
+- 🟩 **YOU ARE HERE — `S3a` IS COMPLETE AND CERTIFIED. `S3b` NOT STARTED (scope being decided chat-side).**
+  **Cold-start reading order: this block → `docs/CHAT-HANDOFF-s3a-sve-landed.md` → the three S2 handoffs.**
+  Repo `AnomalyInjector` **`f922ba8`**, clean, pushed, **NO TAG**. `CaptureBench` `8dad64e`, probe untouched.
+  **B′ is landed in production behind a default-OFF switch, has run CROSS-THREAD (published 121 /
+  consumed 121 / missed 0), and is green on every gate S3a defined.**
+  🚨 **RATIO-INDEPENDENCE IS STILL UNDISCHARGED. Every S3a leg ran at ratio ≈1.0000006 — the easy
+  regime, and the one that has historically MASKED bugs in this project. S3a proves the MECHANISM
+  works; it proves NOTHING about the regimes S3 exists to certify. Do not read "S3a certified" as
+  "S3 done".** Also NOT established: behaviour under stall (the ring has never run starved) and
+  **marker-verified frame identity** (all legs ran **marker-OFF**, so the decoded-marker↔`frame_index`
+  check was never performed; byte comparison of frames is unusable — A47 makes 90/90 images differ
+  between two runs of the SAME binary).
+  🔒 **S3 IS NOT A MILESTONE UNTIL S3b CERTIFIES IT — no tag. S3 GOING GREEN DOES NOT CLOSE `P1`:** P1
+  has never been reproduced and a fix cannot be demonstrated for something that cannot be summoned. A
+  clean matrix proves the new path does not carry the **OLD** race; it is **not** evidence it cures her
+  defect. **P1 stays OPEN** — leads **H1** (GPU load, no lever exists) and the **delivery-mode gap**.
+  **If the S3b matrix goes red that is a DESIGN FAILURE of B′ — redesign, not patch.**
+  📦 **ENVIRONMENT THE NEXT SESSION INHERITS:** staged
+  `Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe` = the **S3a-3 build**
+  (240,539,648 B), A44-verified **in both encodings**; the **pre-S3 m23 baseline is preserved beside it**
+  as `StackOBot.exe.m23-baseline` (240,502,272 B). ⚠ `Builds\BenchGate\Windows\StackOBot.exe` (217 KB) is
+  the **launcher stub** (G90). **Bank = 34 dirs**; `S3A2_BASE`+`S3A2_BASE2` are the m23 **control pair**;
+  **`S3A3_P2` is the ONLY banked leg exercising a dropped positive frame.** Branches: `master`,
+  `s3a-2-GATE-FAILED-do-not-merge` (**unmerged ON PURPOSE — evidence of the re-parented-`else` defect**),
+  `feature/stencil-capture` (do not rebase). **The packaged-leg recipe is `docs/setup-runbook.md` §8 —
+  launch line, the CWD output trap, focus forcing, the both-encoding A44 scan. Use it, do not
+  reconstruct one.**
+  ⛔ **OPEN DEBTS (carried, not dropped):** (1) **`LastRunDir` ships UNCERTIFIED** — its runtime dashboard
+  check needs a **WS client against the control server post-run** (`-ExecCmds` is startup-only);
+  **verify in S3b**. (2) marker-OFF frame-identity limit. (3) `ForceMiss` phase-lock coarseness — 3 of 4
+  phases reproduce the same drop pattern. (4) `video.total_frames` vs index range under partial loss —
+  **noted, deliberately NOT fixed** (post-guard path only). (5) pre-existing: P6 `camera.path` naming;
+  P6 `coverage_pct` vs `coverage_ratio` (predicted from source, never observed); the render-relevant
+  `node.bounds` milestone candidate; **H4**.
+  🧭 **NO CLIENT-FACING ACTION ITEM EXISTS ANYWHERE IN THE PLAN** (struck 2026-08-18 — there is no client
+  channel in either direction).
 - ✅ **`S3a-3` CERTIFIED AND MERGED — all gates green once the confound was controlled.** → journal
   `docs/sessions/2026-08-18-041-a63-and-s3a3-certified.md`. **C1 subset re-run under A63: extras = 0**
   (control 54 fields, test 54 fields); **C1 leak check PASS** (switch-OFF `run_summary` has no

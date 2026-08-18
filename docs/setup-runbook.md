@@ -315,6 +315,78 @@ The Bot (`BP_Bot_C_0`) carries 1 static + 2 skinned comps and spawns even in a S
 Near clip: `unreal.SystemLibrary` has no getter — read it back via the `camera_clipping: near clip X -> Y.`
 log line (`util_get_output_log` keyword `camera_clipping`).
 
+## 8. Packaged bench leg — the recipe (use this, do not reconstruct one)
+
+The standing test baseline is a **local packaged build**, not PIE (G76). For a **code-only** change the
+whole cycle is a build plus one file copy — **no cook** (**G103**).
+
+### 8.1 Build and stage
+
+```powershell
+& "D:\UESource\UnrealEngine\Engine\Build\BatchFiles\Build.bat" `
+  StackOBot Win64 Development -project="D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject" -waitmutex
+
+$staged = "D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe"
+Copy-Item $staged "$staged.bak" -Force        # keep the previous binary if it is a baseline
+Copy-Item "D:\IntrusiveAnomalies\StackOBot\Binaries\Win64\StackOBot.exe" $staged -Force
+```
+
+⚠ **`Builds\BenchGate\Windows\StackOBot.exe` (217 KB) is the LAUNCHER STUB** — never scan or run it as
+the binary under test (**G90**). The real one is under `...\StackOBot\Binaries\Win64\`.
+
+### 8.2 A44 provenance — scan the STAGED artifact, BOTH encodings
+
+The hot-swap **is** the stage step, so *compiled ≠ staged* still applies.
+
+```powershell
+$b=[System.IO.File]::ReadAllBytes($staged)
+$a=[System.Text.Encoding]::ASCII.GetString($b); $u=[System.Text.Encoding]::Unicode.GetString($b)
+foreach($p in @("<a symbol your change adds>","IsHideTypeAnomaly")){
+  "{0,-32} ascii={1} utf16={2}" -f $p,
+    ([regex]::Matches($a,[regex]::Escape($p))).Count,
+    ([regex]::Matches($u,[regex]::Escape($p))).Count }
+```
+
+⚠ **UE string literals are UTF-16.** An ASCII-only scan returns **0 for everything** and reads as *"the
+change did not reach the package"* — a false negative on A44's load-bearing half. **A scan that reports
+zero across ALL symbols is SUSPECT TOOLING until the encoding is confirmed** — a real pre-change binary
+still matches *something*.
+
+### 8.3 Run a leg, with focus forced (G104)
+
+```powershell
+$cmds = 'IAI.Capture.Config 2 4 8 4 0, IAI.Capture.Start MYLEG png 777 90 blinking StaticMeshActor_49'
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force      # A46 idle-box assert
+$p = Start-Process -FilePath $staged -PassThru -ArgumentList @(
+  "/Game/CaptureBenchGate/CB_GateLevel","-windowed","-ResX=1280","-ResY=720",
+  "-ExecCmds=`"$cmds`"","-unattended","-nosplash")
+$sh = New-Object -ComObject WScript.Shell
+1..12 | ForEach-Object { Start-Sleep -Milliseconds 400; try { $sh.AppActivate($p.Id) } catch {} }
+Start-Sleep -Seconds 60
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+```
+
+- ⚠ **Output lands beside the EXE, not under `Saved`** — `...\Binaries\Win64\MYLEG\session_<ts>\`
+  (**G101**). The log prints only the relative path.
+- ⚠ **`-ExecCmds` fires at STARTUP ONLY.** There is no way to issue a post-run console command from the
+  packaged harness; anything needing that (e.g. a post-run `capture_status`) needs a WS client against
+  the control server.
+
+### 8.4 Validity before verdict
+
+```powershell
+(Get-Content "<session>\run.json" -Raw | ConvertFrom-Json).start_frame   # must MATCH across compared legs
+```
+
+**A63:** legs in a cross-binary comparison are comparable only if `start_frame` matches. A leg that rode
+the 30 s focus timeout (`start_frame` in the thousands, `ticks_msec[0]` ≈ 30270) is **INVALID** — re-run
+it, and **do not read its diff**. *A leg is discarded for how it ran, never for what it showed.*
+
+**A62:** verify the session **on disk after the process has exited** — directory present, file count
+right. A log line saying `FINISHED` is not evidence a file exists.
+
+**G92:** re-bank before any step that wipes `Saved`. A code-only hot-swap does **not** touch it.
+
 ## Troubleshooting
 - **"The following modules are missing or built with a different engine version… rebuild?"** —
   expected if `Binaries/` is stale or absent. Click **Yes**, or run step 4 first.

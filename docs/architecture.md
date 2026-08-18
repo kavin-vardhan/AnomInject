@@ -750,6 +750,51 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   framerate-bug anomalies enter the pool (the flush would corrupt the framerate label) and for exact-under-motion
   view-matching (gotcha G40; re-derive L there).
 
+## Grab points — backbuffer (default) and SVE / B′ (S3a, default OFF)
+
+**As-built:** the capture subsystem can obtain a frame from **two** grab points, selected by
+`IAI.Capture.SVE <0|1>` (**default 0**, mid-run guarded; packaged default from `DefaultGame.ini`
+`[AnomalyCapture] bSveCaptureDefault`). The backbuffer path is unchanged and remains the default.
+
+| | **backbuffer** (default) | **SVE / B′** (`IAI.Capture.SVE 1`) |
+|---|---|---|
+| hook | `FSlateRenderer::OnBackBufferReadyToPresent` | `FSceneViewExtensionBase`, after `EPostProcessingPass::VisualizeDepthOfField` |
+| content | the presented frame, **game UI included** | scene colour post-tonemap, **pre-Slate ⇒ UI-free by construction** |
+| rect | the Slate **window** rect | the **view** rect |
+| frame↔state pairing | **arm → next present** (order) | **identity** via the key ring (see below) |
+| implementation | `FAnomalyFrameCapturer` | `FAnomalySceneViewExtension` + `FAnomalySveCapturer` |
+
+**The key ring (`AnomalySveKeyRing`) is the whole of B′.** The game thread publishes
+`(FSceneViewFamily::FrameNumber → GFrameCounter, wanted)` at **`BeginRenderViewFamily`** — the only hook
+where `ViewFamily.FrameNumber` is assigned (`SetupViewFamily` still reports `UINT_MAX`). The
+render-thread pass looks the key up by `View.Family->FrameNumber` and recovers the `GFrameCounter`.
+Fixed capacity 64, oldest-evicted, four counters plus a corruption counter.
+
+**The seam is `FAnomalyCapturedFrame::RequestId`.** That id is already the key
+`Async->PendingSnapshots` uses, so the SVE path swaps the *producer* of the id and touches **no
+consumer** — the label record, the event accumulator, the async writer, `labels.jsonl` and
+`annotation.json` are all identical between grab points by construction.
+
+**A lookup miss is loud and lossy, never a guess:** the miss is counted, a warning carrying the ring
+counters is logged, and **the frame is dropped**. No frame is ever labelled from an unrecovered key.
+`IAI.Capture.SVE.ForceMiss <N>` (0 off / 1 every key / N>1 every Nth) and
+`IAI.Capture.SVE.ForceMissPhase <P>` exist solely to make that guard testable;
+`IAI.Capture.SVE.RingTest [n]` exercises the ring headlessly.
+
+**Telemetry:** when — and only when — the switch is ON, `run_summary.json` gains `capture_path: "sve"`
+and `key_ring_{published,consumed,missed,wrapped,corrupted}`. With the switch OFF the file is
+byte-identical to the pre-S3 shape.
+
+**Build cost:** `AnomalyCapture` gained `Renderer` **and a Renderer PRIVATE include path**, non-Shipping
+only, because the post-process hook takes `FPostProcessMaterialInputs` (**G100** — an engine bump breaks
+this far from its cause, and the `class FViewInfo;` forward declaration in
+`AnomalySceneViewExtension.cpp` must not be tidied away).
+
+⚠ **Certification scope:** S3a certified the mechanism at **ratio ≈ 1.0 only**. Ratio-independence,
+behaviour under stall, and marker-verified frame identity are **S3b** and are **not** established.
+`node.bounds`/UI/resolution consequences of ever flipping the default belong to **S4**, which must plan
+it as a **client-visible change** (the SVE image has no UI in it).
+
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:
 - **Capture exactly the state you mutate, before mutating it.** Globals: one baseline (e.g.

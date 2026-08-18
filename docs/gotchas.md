@@ -1986,3 +1986,63 @@ leg. Content changes still need the full path; code changes do not.
 *compiled is not staged* — applies unchanged: **A44-scan the staged artifact after copying**, not the
 build output. And back the previous exe up first if the old binary is a baseline you still need; the
 m23 gate binary had to be restored intact after the S3a-2 leg. (2026-08-18.)
+
+---
+
+### G104 — this box stops giving the game window focus MID-SESSION, and it silently invalidates cross-binary comparisons
+
+**Environmental fact of this workstation, not an incident.** The packaged legs are launched the same
+way every time:
+
+```
+StackOBot.exe /Game/CaptureBenchGate/CB_GateLevel -windowed -ResX=1280 -ResY=720 -ExecCmds="..." -unattended -nosplash
+```
+
+All morning that produced `run.json start_frame = 1` — the window took foreground focus on creation and
+capture began on the first tick. By the afternoon the **identical command** began producing
+`start_frame ≈ 2100–2560`: the window no longer took focus, so the m16 focus gate held the run in
+`ArmedPending` for the **full 30 s safety timeout** before starting anyway. Nothing in the harness, the
+command, or the build changed.
+
+**Why it is expensive.** Everything absolute shifts — `start_frame`, `end_frame`,
+`engine/ticks_msec` (30270 ms *is* the timeout), and the label rows' frame/time fields. A leg that rode
+the timeout **is not comparable** to one that did not, and the difference looks exactly like a code
+regression in a subset diff. It also inflates SVE `key_ring_published` counts (2228+ vs 121), because
+the extension activates in `StartRun` **before** the focus branch and publishes throughout the wait.
+
+**The rule it earned: A63** — `start_frame` must match across legs in a cross-binary comparison, or the
+leg is **INVALID** and re-run. *A leg is discarded for how it ran, never for what it showed.*
+
+**The remedy that works — use it, do not rediscover it.** Force focus at launch: `Start-Process -PassThru`,
+then call `WScript.Shell.AppActivate($p.Id)` on a short loop (~12 × 400 ms) while the window comes up.
+One attempt was enough to get `start_frame = 1` back. **Verify `start_frame` from `run.json`; never
+assume the leg was valid.**
+
+**The general lesson, and it is the argument for validity conditions over one-time calibration:** the
+confound was **moving**. A calibration taken in the morning certified nothing about the afternoon. Only
+a per-leg validity check catches a variable that drifts. (2026-08-18.)
+
+---
+
+### G105 — a zero-valued metric that is ALSO the pass condition: the fourth instance of G96's principle, and the first caught after acceptance
+
+**The metric:** `overlap = (frames missing from disk) ∩ (frames claimed positive)`. It was used to ask
+whether a forced-drop sweep had ever dropped a **positive** frame, and it read **0**.
+
+**Why it is blind:** when the label path handles a dropped positive **correctly**, the frame disappears
+from the files **and** from the claims — so the intersection is empty. **Zero overlap is simultaneously
+"the case was never exercised" and "the case was exercised and handled perfectly."** The metric cannot
+separate them, in exactly the region it was introduced to judge.
+
+**The sound discriminator: did the CLAIMED SET SHRINK against the clean run?** Under it, phase 0
+genuinely dropped no positive (30 of 30 claims intact) and phase 2 dropped 7 (23 of 30). Same artifacts,
+opposite conclusions.
+
+**This is G96's principle a fourth time** (after fixed-K sigma under drift, the ±2 neighbour-window LC on
+contiguous sets, and bracket-not-contain floor non-derivability) — **and the first caught *inside* a
+result that had already been reported, accepted and committed.** The first three were caught before use.
+
+**The escalation is the lesson:** a blind metric survives review when **its output looks like the answer
+you expected**. "Never exercised" was a plausible, mildly disappointing result, so nobody pushed on it —
+including the person who wrote it. Ask of any zero: *what else would produce this exact zero?*
+(2026-08-18.)
