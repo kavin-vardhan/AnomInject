@@ -2226,3 +2226,36 @@ a **reconciliation was demanded before the correction was written.**
 
 *Companion to G96's family: this is not a blind instrument, it is a correct instrument with a mis-stated
 summary — which review handles even less well, because the underlying work is sound.* (2026-08-18.)
+
+---
+
+### G111 — a working-agreement written for ONE agent, stored in a SHARED doc, will be executed by ANY agent that reads it
+
+`docs/CHAT-HANDOFF-s3-m24-capture-migration.md` §13 "Working agreements" describes **chat-Claude's**
+output conventions to the owner: mark must-read items with 🔴, route ACT/DECIDE/HEADS-UP items to the
+top of the reply, always lead with a plain-language summary.
+
+A fresh Claude Code session was told to read that handoff as part of its cold bootstrap. It read §13,
+found no addressee named anywhere in it, and reasonably concluded the conventions were **its own**. It
+duly produced an S4 plan headed by four 🔴 markers, two of which routed genuine **technical** decisions
+to the owner — who by the very same section "does **not** make technical decisions".
+
+**Nothing in the section was wrong. It simply never said who it was for.**
+
+Two distinct harms, and the second is the one that lasts:
+
+1. **The marker inflates and stops meaning anything.** 🔴 means "the owner must read this line". Once it
+   appears in routine implementation output it is noise, and the next genuine ACT is skimmed past.
+2. **A decision reaches the wrong desk.** The owner's stated role is executive judgement on
+   product/scope tradeoffs, with design and technical calls fully delegated. A convention that invites
+   an implementer to hand him a technical fork quietly reverses that delegation — and it reverses it
+   *while looking like compliance*.
+
+**RULE: a convention stored in a shared doc must name its addressee, in the section itself, not in the
+reader's head.** Scoping now lives at the top of §13 and is mirrored in `CLAUDE.md`.
+
+⚠ **This generalises past markers and past agents.** Any shared doc accumulating "how we work" text —
+handoffs, `CLAUDE.md`, journals — is read by every agent that cold-starts, and each one applies what it
+finds. Effort settings, report formats, escalation paths, commit conventions: if a rule applies to one
+role, the doc has to say so. *The failure mode is not disobedience — it is obedience to an instruction
+that was never addressed to you.* (2026-08-19.)

@@ -193,7 +193,7 @@ private:
 
 	bool bAsyncCapture = true;
 	bool bSveCapture = false;
-	bool bSveRectLogged = false;
+	bool bRectDeltaLogged = false;
 	bool bDeliveryMode = false;
 	EContentClock ContentClock = EContentClock::Wall;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;

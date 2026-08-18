@@ -247,10 +247,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		bSveCapture = bConfigSve;
 	}
-	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s."),
+	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s)."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
 		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
-		bFocusGate ? TEXT("on (start waits for game-window focus)") : TEXT("off (start begins immediately)"));
+		bFocusGate ? TEXT("on (start waits for game-window focus)") : TEXT("off (start begins immediately)"),
+		DescribeGrabPoint(),
+		bSveCapture ? TEXT("scene colour, pre-Slate — UI EXCLUDED") : TEXT("presented backbuffer — UI INCLUDED"));
 #if WITH_EDITOR
 	if (ULevelEditorPlaySettings* PlaySettings = GetMutableDefault<ULevelEditorPlaySettings>())
 	{
@@ -675,7 +677,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 
 	bRunning = true;
 	bRunBegun = false;
-	bSveRectLogged = false;
+	bRectDeltaLogged = false;
 
 	if (bSveCapture && Async.IsValid() && Async->SveCapturer.IsValid())
 	{
@@ -955,19 +957,26 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 	FAnomalyCapturedFrame Frame;
 	while (bUseSve ? Async->SveCapturer->PopCompleted(Frame) : Async->Capturer->PopCompleted(Frame))
 	{
-		if (bUseSve && !bSveRectLogged)
+		if (!bRectDeltaLogged)
 		{
-			bSveRectLogged = true;
+			bRectDeltaLogged = true;
 			SWindow* DeltaWindow = nullptr;
-			FIntRect BackbufferRect;
-			const bool bHaveBackbufferRect = ComputeGameViewportCapture(GetWorld(), DeltaWindow, BackbufferRect);
+			FIntRect SlateRect;
+			const bool bHaveSlateRect = ComputeGameViewportCapture(GetWorld(), DeltaWindow, SlateRect);
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture(sve): RESOLUTION DELTA — sve view rect %dx%d vs backbuffer window rect %s (dW=%s dH=%s). ")
-				TEXT("The SVE grabs the VIEW rect, the backbuffer path grabbed the Slate WINDOW rect; annotation.video.resolution follows whichever path ran."),
+				TEXT("Capture: RESOLUTION DELTA (3-rect) — grab=%s | grabbed %dx%d | slate-window %s | viewport-size %dx%d ")
+				TEXT("| dW_slate=%s dH_slate=%s | dW_vp=%d dH_vp=%d. ")
+				TEXT("GRABBED is the delivered image (SVE takes the VIEW rect, backbuffer takes the Slate WINDOW rect); ")
+				TEXT("VIEWPORT-SIZE is GetViewportSize() and is what annotation.video.resolution and run.json viewport report, ")
+				TEXT("so a non-zero dW_vp/dH_vp means the reported resolution disagrees with the delivered pixels."),
+				DescribeGrabPoint(),
 				Frame.Width, Frame.Height,
-				bHaveBackbufferRect ? *FString::Printf(TEXT("%dx%d"), BackbufferRect.Width(), BackbufferRect.Height()) : TEXT("unresolved"),
-				bHaveBackbufferRect ? *FString::Printf(TEXT("%d"), Frame.Width - BackbufferRect.Width()) : TEXT("?"),
-				bHaveBackbufferRect ? *FString::Printf(TEXT("%d"), Frame.Height - BackbufferRect.Height()) : TEXT("?"));
+				bHaveSlateRect ? *FString::Printf(TEXT("%dx%d"), SlateRect.Width(), SlateRect.Height()) : TEXT("unresolved"),
+				ViewportW, ViewportH,
+				bHaveSlateRect ? *FString::Printf(TEXT("%d"), Frame.Width - SlateRect.Width()) : TEXT("?"),
+				bHaveSlateRect ? *FString::Printf(TEXT("%d"), Frame.Height - SlateRect.Height()) : TEXT("?"),
+				Frame.Width - ViewportW,
+				Frame.Height - ViewportH);
 		}
 		const AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(Frame.RequestId);
 		if (!Snap)
