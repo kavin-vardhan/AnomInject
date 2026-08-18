@@ -2085,4 +2085,52 @@ written up.**
 *Corollary, and it is the expensive half:* when an instrument must be rebuilt from prose, **reproducing
 the published verdicts is not sufficient evidence that you rebuilt the same instrument.** Reproduce the
 published *quantities* — medians, margins, decidability counts — or state plainly which ones you could
-not. (2026-08-18.)
+not.
+
+**This is G96's principle a FIFTH time, and the sharpest.** The previous four were instruments **blind**
+in some region — they eventually surface as unevaluable or suspiciously tidy results. This one is not
+blind. It is **confidently wrong about how much it knows**, and it surfaces as *nothing at all*: the
+verdicts are right, the headline is right, and only the confidence is silently corrupted.
+
+⚠ **SCOPE OF THE REBUILT ORACLE (`CaptureBench/tools/a54_oracle.py`), recorded here as well as in the
+file:** certified at **VideoFps 30 only** — R30 (12/12 decidable, margins to 2.4 %) and I10HF HF1
+pre-fix (ALIGNED = 0). **Margin scale is NOT reproduced above 30 fps** (×0.98 sharp → ×2.05 spread).
+**Verdicts reproduce at every tested regime; margins do not.** Any use above 30 fps requires re-gating
+first. → **P7**. (2026-08-18.)
+
+### G107 — a frozen ABSOLUTE threshold silently inherits every dependency of the quantity it thresholds
+
+**TAU (0.04684) is an absolute in-bbox luminance difference.** How big that difference *is* depends on
+**where the camera came to rest** — the A47 bifurcation sets the bbox and the background behind the
+target. TAU was frozen from calibration legs that all happened to settle in the **modal** pose.
+
+Measured on two legs of the *same* I10 set, same binary, same target, same seed:
+
+| leg | camera rest pose | hidden − visible | A54 verdict |
+|---|---|---|---|
+| `L6_client40` | modal | **+0.1126** | ALIGNED |
+| `L3_client39` | **bifurcated** | **−0.0383** | **ABSENT — and it is FALSE** |
+
+L3's hide is **real, perfectly aligned and perfectly separated**: claimed frames 0.8153–0.8180,
+non-claimed 0.8531–0.8559, **zero overlap**, every claimed frame on the low side. The oracle returns
+ABSENT for one reason only — `0.0383 < 0.04684`. Note also the **sign flip**: the bifurcated pose makes
+the hidden side *darker*, matching journal 031's recorded "hidden side: low" for L3 against "high"
+everywhere else.
+
+**Why this is the dangerous direction, not the harmless one:** A50 treats **ABSENT as reproduction of
+the defect**. So a false ABSENT does not read as "inconclusive" — it reads as **evidence of a defect
+that is not there**, on the client band, which is the band that matters most.
+
+**A56 does not catch it, and cannot as written.** A56 asks whether a leg is *self-consistent* (modal-crop
+coverage, distinct-bbox count). L3 passes A56 comfortably once the settle window is applied — 97.6 %
+modal, 2 distinct. It never asks the question that matters: **is this leg's pose the pose TAU was
+calibrated on?**
+
+**A57 recurring.** The calibration set **brackets** the phenomenon without **containing** it — nothing
+in it exhibits a bifurcated pose, so no pose-invariant floor was derivable from it and none was noticed
+to be missing.
+
+**The general lesson, which outlives this oracle:** a threshold frozen in *absolute* units carries every
+hidden dependency of the units. Before freezing one, ask **what else changes its scale** — and if
+anything does, either normalise it away (a separability statistic is scale-free where a raw difference
+is not) or make the dependency an explicit precondition of use. → **P8**. (2026-08-18.)
