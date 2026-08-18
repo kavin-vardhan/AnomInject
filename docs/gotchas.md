@@ -2134,3 +2134,53 @@ to be missing.
 hidden dependency of the units. Before freezing one, ask **what else changes its scale** — and if
 anything does, either normalise it away (a separability statistic is scale-free where a raw difference
 is not) or make the dependency an explicit precondition of use. → **P8**. (2026-08-18.)
+
+### G108 — a STALLED process fails foreground activation, and "the box is being difficult" is the wrong first conclusion
+
+**What happened.** The S3b deep leg (`CaptureBench.Stall.GameMs 99`) rode the 30 s focus gate **three
+times in a row** — `start_frame` 298 / 299 / 300, which is *exactly* 30 s at ~100 ms/frame. The harness
+declared an **environmental halt**, which is what its own rule said to do.
+
+**It was not environmental. It was the harness.** A game thread busy-waiting 99 ms per tick reads as an
+**unresponsive window**, and Windows' foreground lock refuses `WScript.Shell.AppActivate` against one.
+The other legs acquired focus in ~1 s; the deep leg never acquired it at all. Same box, same session,
+same operator behaviour — **the stall lever was the variable.**
+
+**Fix:** a synthetic **ALT tap** (`keybd_event 0x12` down/up) releases the foreground lock, followed by a
+direct `SetForegroundWindow` + `BringWindowToTop`. The leg then started at **frame 1, 0.1 s, first
+attempt**. This is a **harness** mechanism — it does not touch the system under test, and the focus gate
+itself is untouched (**G93** stands).
+
+⛔ **VIRTUAL-DESKTOP ISOLATION — INVESTIGATED AND REJECTED. Do not re-propose it.** Launching the game on
+a separate virtual desktop *sounds* like the clean fix for focus contention. It is the opposite:
+**moving a window to another desktop REMOVES foreground focus**, which is precisely what the focus gate
+waits for. It would **guarantee the timeout it was meant to prevent.**
+
+**The general lesson:** when automation that normally works fails only under load, suspect the
+**automation's assumptions about the target's responsiveness** before concluding the environment is at
+fault. An "environmental" halt that only ever fires on the slowest configuration is not environmental.
+(2026-08-18.)
+
+### G109 — a threshold in FRAMES cannot generalise across regimes where frame time varies
+
+The A63 auto-retry first detected the focus timeout as `start_frame > 100`. That constant is wrong in
+both directions at once, and the arithmetic says why: the gate is **30 seconds**, so it expires at
+
+| regime | frame time | timeout lands at |
+|---|---|---|
+| nominal | 33.3 ms | ~900 frames |
+| client (stall 40) | 41.3 ms | ~726 frames |
+| deep (stall 99) | 100.3 ms | **~299 frames** |
+
+A single frame-count threshold is therefore **simultaneously too loose for the nominal leg** (a genuine
+timeout at 900 frames is caught, but so is a healthy 4 s acquisition at 120) **and only accidentally
+right for the deep one**. It happened to catch the deep leg's 298 because 298 > 100 — for the wrong
+reason.
+
+**Time is the invariant; frames are not.** The correct form is
+`start_frame / sustained_wall_fps >= 20 s`, both quantities read from the artifact.
+
+*Generalisation:* any harness constant expressed in frames, ticks, or iterations inherits the frame
+time of the regime it was calibrated in. Before freezing one, ask **what the underlying quantity
+actually is** — here it was always seconds — and express it in those units. Same family as **G107**
+(a frozen absolute threshold inheriting its units' hidden dependencies). (2026-08-18.)
