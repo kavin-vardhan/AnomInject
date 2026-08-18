@@ -21,6 +21,7 @@ namespace AnomalySveKeyRing
 		int32 Consumed = 0;
 		int32 Missed = 0;
 		int32 Wrapped = 0;
+		int32 Corrupted = 0;
 	};
 
 	void PublishKey(uint32 FamilyFrameNumber, uint64 GameFrameCounter, bool bWanted);
@@ -30,6 +31,7 @@ namespace AnomalySveKeyRing
 	FCounters GetCounters();
 
 	int32 GetCapacity();
+	int32 GetForceMissMode();
 	bool IsForceMiss();
 }
 

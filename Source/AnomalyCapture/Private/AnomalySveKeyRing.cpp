@@ -15,7 +15,9 @@ namespace AnomalySveKeyRing
 
 	static TAutoConsoleVariable<int32> CVarForceMiss(
 		TEXT("IAI.Capture.SVE.ForceMiss"), 0,
-		TEXT("1 = corrupt every published key so every render-thread lookup misses. Proves the loud-miss guard fires on the production path."),
+		TEXT("Corrupt published keys so render-thread lookups miss, proving the loud-miss guard fires on the production path. ")
+		TEXT("0 = off. 1 = corrupt EVERY key (total failure). N>1 = corrupt every Nth key (INTERMITTENT failure — the shape a ")
+		TEXT("real starvation event produces, and the one that tests whether the guard DISCRIMINATES rather than merely notices)."),
 		ECVF_Default);
 
 	static FCriticalSection RingCS;
@@ -26,15 +28,21 @@ namespace AnomalySveKeyRing
 	static FThreadSafeCounter Consumed;
 	static FThreadSafeCounter Missed;
 	static FThreadSafeCounter Wrapped;
+	static FThreadSafeCounter Corrupted;
 
 	int32 GetCapacity()
 	{
 		return GRingCapacity;
 	}
 
+	int32 GetForceMissMode()
+	{
+		return FMath::Max(0, CVarForceMiss.GetValueOnAnyThread());
+	}
+
 	bool IsForceMiss()
 	{
-		return CVarForceMiss.GetValueOnAnyThread() != 0;
+		return GetForceMissMode() != 0;
 	}
 
 	void Reset()
@@ -46,6 +54,7 @@ namespace AnomalySveKeyRing
 		Consumed.Reset();
 		Missed.Reset();
 		Wrapped.Reset();
+		Corrupted.Reset();
 	}
 
 	FCounters GetCounters()
@@ -55,19 +64,29 @@ namespace AnomalySveKeyRing
 		Out.Consumed = Consumed.GetValue();
 		Out.Missed = Missed.GetValue();
 		Out.Wrapped = Wrapped.GetValue();
+		Out.Corrupted = Corrupted.GetValue();
 		return Out;
 	}
 
 	void PublishKey(uint32 FamilyFrameNumber, uint64 GameFrameCounter, bool bWanted)
 	{
+		const int32 Mode = GetForceMissMode();
+
 		FKeyEntry Entry;
-		Entry.FamilyFrameNumber = IsForceMiss() ? (FamilyFrameNumber ^ GForceMissMask) : FamilyFrameNumber;
 		Entry.GameFrameCounter = GameFrameCounter;
 		Entry.bWanted = bWanted;
 		Entry.bValid = true;
 
 		FScopeLock Lock(&RingCS);
 		Entry.Serial = ++PublishSerial;
+
+		const bool bCorrupt = (Mode == 1) || (Mode > 1 && (Entry.Serial % (uint64)Mode) == 0);
+		Entry.FamilyFrameNumber = bCorrupt ? (FamilyFrameNumber ^ GForceMissMask) : FamilyFrameNumber;
+		if (bCorrupt)
+		{
+			Corrupted.Increment();
+		}
+
 		Ring.Add(Entry);
 		while (Ring.Num() > GRingCapacity)
 		{
@@ -132,13 +151,25 @@ namespace AnomalySveKeyRing
 		}
 
 		const FCounters C = GetCounters();
-		const int32 ExpectedHits = FMath::Min(Count, GRingCapacity);
+		const int32 Mode = GetForceMissMode();
+		const int32 FirstSurviving = FMath::Max(0, Count - GRingCapacity);
+
+		int32 ExpectedHits = 0;
+		for (int32 i = FirstSurviving; i < Count; ++i)
+		{
+			const uint64 Serial = (uint64)i + 1;
+			const bool bCorrupt = (Mode == 1) || (Mode > 1 && (Serial % (uint64)Mode) == 0);
+			if (!bCorrupt)
+			{
+				++ExpectedHits;
+			}
+		}
 
 		UE_LOG(LogAnomalyCapture, Display,
-			TEXT("SVE ring self-test: n=%d capacity=%d forceMiss=%d | published=%d hits=%d expectedHits=%d misses=%d wrapped=%d keyMismatches=%d wantedHits=%d | %s"),
-			Count, GRingCapacity, IsForceMiss() ? 1 : 0,
-			C.Published, Hits, IsForceMiss() ? 0 : ExpectedHits, C.Missed, C.Wrapped, KeyMismatches, WantedHits,
-			(KeyMismatches == 0 && Hits == (IsForceMiss() ? 0 : ExpectedHits)) ? TEXT("PASS") : TEXT("FAIL"));
+			TEXT("SVE ring self-test: n=%d capacity=%d forceMiss=%d | published=%d corrupted=%d hits=%d expectedHits=%d misses=%d wrapped=%d keyMismatches=%d wantedHits=%d | %s"),
+			Count, GRingCapacity, Mode,
+			C.Published, C.Corrupted, Hits, ExpectedHits, C.Missed, C.Wrapped, KeyMismatches, WantedHits,
+			(KeyMismatches == 0 && Hits == ExpectedHits) ? TEXT("PASS") : TEXT("FAIL"));
 
 		Reset();
 	}

@@ -64,6 +64,9 @@ public:
 	void SetCaptureDelivery(bool bInDelivery);
 	bool IsDeliveryMode() const { return bDeliveryMode; }
 
+	void SetSveCapture(bool bInSve);
+	bool IsSveCapture() const { return bSveCapture; }
+
 	enum class EContentClock : uint8 { Wall, Game };
 	void SetContentClock(EContentClock InClock);
 	EContentClock GetContentClock() const { return ContentClock; }
@@ -187,6 +190,8 @@ private:
 	TArray<FAnomalyViewInfo> ViewRing;
 
 	bool bAsyncCapture = true;
+	bool bSveCapture = false;
+	bool bSveRectLogged = false;
 	bool bDeliveryMode = false;
 	EContentClock ContentClock = EContentClock::Wall;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;

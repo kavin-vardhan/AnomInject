@@ -17,7 +17,11 @@
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyFrameCapturer.h"
+#include "AnomalySveCapturer.h"
+#include "AnomalySceneViewExtension.h"
+#include "AnomalySveKeyRing.h"
 #include "AnomalyAsyncWriter.h"
+#include "SceneViewExtension.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
 #include "RenderingThread.h"
@@ -84,6 +88,8 @@ struct FAnomalyCaptureAsyncState
 {
 #if ANOMALY_CAPTURE
 	TSharedPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> Capturer;
+	TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> SveCapturer;
+	TSharedPtr<FAnomalySceneViewExtension, ESPMode::ThreadSafe> SveExtension;
 	TSharedPtr<FAnomalyAsyncWriter, ESPMode::ThreadSafe> Writer;
 	TMap<uint64, AnomalyLabel::FCaptureSnapshot> PendingSnapshots;
 	TArray<FSessionEventAccum> SessionEvents;
@@ -236,6 +242,11 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		bFocusGate = bConfigFocusGate;
 	}
+	bool bConfigSve = false;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bSveCaptureDefault"), bConfigSve, GGameIni))
+	{
+		bSveCapture = bConfigSve;
+	}
 	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
 		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
@@ -267,6 +278,16 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 			Async->Capturer->UnregisterBackbufferHook();
 			Async->Capturer.Reset();
 		}
+		if (Async->SveCapturer.IsValid())
+		{
+			Async->SveCapturer->SetActive(false);
+		}
+		if (Async->SveExtension.IsValid())
+		{
+			Async->SveExtension.Reset();
+			FlushRenderingCommands();
+		}
+		Async->SveCapturer.Reset();
 		if (Async->Writer.IsValid())
 		{
 			Async->Writer->FlushPending(2.0);
@@ -492,6 +513,22 @@ void UAnomalyCaptureSubsystem::SetCaptureDelivery(bool bInDelivery)
 			: TEXT("full fidelity: all capture artifacts written"));
 }
 
+void UAnomalyCaptureSubsystem::SetSveCapture(bool bInSve)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.SVE: ignored mid-run (stop first)."));
+		return;
+	}
+	bSveCapture = bInSve;
+	UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.SVE: %s (effective=%d) (%s)."),
+		bSveCapture ? TEXT("ON") : TEXT("OFF"),
+		bSveCapture ? 1 : 0,
+		bSveCapture
+			? TEXT("B' scene-view-extension grab: scene colour after tonemap and BEFORE Slate, so the frame is UI-free; frame/state keyed by identity through the view-family ring, not by arm-to-present order")
+			: TEXT("backbuffer grab (default): the presented frame including game UI, keyed by arm-to-present pairing"));
+}
+
 void UAnomalyCaptureSubsystem::SetContentClock(EContentClock InClock)
 {
 	if (bRunning)
@@ -637,6 +674,23 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 
 	bRunning = true;
 	bRunBegun = false;
+	bSveRectLogged = false;
+
+	if (bSveCapture && Async.IsValid() && Async->SveCapturer.IsValid())
+	{
+		AnomalySveKeyRing::Reset();
+		Async->SveCapturer->Reset();
+		Async->SveCapturer->SetActive(true);
+	}
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture: grab point EFFECTIVE = %s (sve=%d, sveCapturer=%d, sveExtension=%d, backbufferCapturer=%d, forceMiss=%d)."),
+		bSveCapture ? TEXT("SVE/scene-colour (UI-free)") : TEXT("backbuffer (UI included)"),
+		bSveCapture ? 1 : 0,
+		(Async.IsValid() && Async->SveCapturer.IsValid()) ? 1 : 0,
+		(Async.IsValid() && Async->SveExtension.IsValid()) ? 1 : 0,
+		(Async.IsValid() && Async->Capturer.IsValid()) ? 1 : 0,
+		AnomalySveKeyRing::GetForceMissMode());
 
 	if (bFocusGate && HasGameWindow(World) && !IsGameWindowFocused(World))
 	{
@@ -839,7 +893,18 @@ void UAnomalyCaptureSubsystem::EnsureCapturer()
 	{
 		return;
 	}
-	if (!Async->Capturer.IsValid())
+	if (bSveCapture)
+	{
+		if (!Async->SveCapturer.IsValid())
+		{
+			Async->SveCapturer = MakeShared<FAnomalySveCapturer, ESPMode::ThreadSafe>();
+		}
+		if (!Async->SveExtension.IsValid())
+		{
+			Async->SveExtension = FSceneViewExtensions::NewExtension<FAnomalySceneViewExtension>(Async->SveCapturer);
+		}
+	}
+	else if (!Async->Capturer.IsValid())
 	{
 		Async->Capturer = MakeShared<FAnomalyFrameCapturer, ESPMode::ThreadSafe>();
 		Async->Capturer->RegisterBackbufferHook();
@@ -853,20 +918,47 @@ void UAnomalyCaptureSubsystem::EnsureCapturer()
 
 void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 {
-	if (!Async.IsValid() || !Async->Capturer.IsValid() || !Async->Writer.IsValid())
+	if (!Async.IsValid() || !Async->Writer.IsValid())
 	{
 		return;
 	}
 
-	Async->Capturer->EnqueueDrain();
+	const bool bUseSve = bSveCapture && Async->SveCapturer.IsValid();
+	if (!bUseSve && !Async->Capturer.IsValid())
+	{
+		return;
+	}
+
+	if (bUseSve)
+	{
+		Async->SveCapturer->EnqueueDrain();
+	}
+	else
+	{
+		Async->Capturer->EnqueueDrain();
+	}
 
 	const AnomalyPreview::EImageFormat Format =
 		bFormatPng ? AnomalyPreview::EImageFormat::PNG : AnomalyPreview::EImageFormat::JPEG;
 	const TCHAR* Ext = bFormatPng ? TEXT("png") : TEXT("jpg");
 
 	FAnomalyCapturedFrame Frame;
-	while (Async->Capturer->PopCompleted(Frame))
+	while (bUseSve ? Async->SveCapturer->PopCompleted(Frame) : Async->Capturer->PopCompleted(Frame))
 	{
+		if (bUseSve && !bSveRectLogged)
+		{
+			bSveRectLogged = true;
+			SWindow* DeltaWindow = nullptr;
+			FIntRect BackbufferRect;
+			const bool bHaveBackbufferRect = ComputeGameViewportCapture(GetWorld(), DeltaWindow, BackbufferRect);
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(sve): RESOLUTION DELTA — sve view rect %dx%d vs backbuffer window rect %s (dW=%s dH=%s). ")
+				TEXT("The SVE grabs the VIEW rect, the backbuffer path grabbed the Slate WINDOW rect; annotation.video.resolution follows whichever path ran."),
+				Frame.Width, Frame.Height,
+				bHaveBackbufferRect ? *FString::Printf(TEXT("%dx%d"), BackbufferRect.Width(), BackbufferRect.Height()) : TEXT("unresolved"),
+				bHaveBackbufferRect ? *FString::Printf(TEXT("%d"), Frame.Width - BackbufferRect.Width()) : TEXT("?"),
+				bHaveBackbufferRect ? *FString::Printf(TEXT("%d"), Frame.Height - BackbufferRect.Height()) : TEXT("?"));
+		}
 		const AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(Frame.RequestId);
 		if (!Snap)
 		{
@@ -905,14 +997,27 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 
 void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 {
-	if (!Async.IsValid() || !Async->Capturer.IsValid() || !Async->Writer.IsValid())
+	if (!Async.IsValid() || !Async->Writer.IsValid())
+	{
+		return;
+	}
+
+	const bool bUseSve = bSveCapture && Async->SveCapturer.IsValid();
+	if (!bUseSve && !Async->Capturer.IsValid())
 	{
 		return;
 	}
 
 	for (int32 Iter = 0; Iter < 8 && Async->PendingSnapshots.Num() > 0; ++Iter)
 	{
-		Async->Capturer->EnqueueDrain();
+		if (bUseSve)
+		{
+			Async->SveCapturer->EnqueueDrain();
+		}
+		else
+		{
+			Async->Capturer->EnqueueDrain();
+		}
 		FlushRenderingCommands();
 		ProcessCompletedFrames();
 	}
@@ -991,11 +1096,13 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 
 	const FAnomalyViewInfo ProjView = ProjectionView();
 
-	if (bAsyncCapture && Async.IsValid() && Async->Capturer.IsValid())
+	const bool bUseSve = bSveCapture && Async.IsValid() && Async->SveCapturer.IsValid();
+
+	if (bAsyncCapture && Async.IsValid() && (Async->Capturer.IsValid() || bUseSve))
 	{
 		SWindow* TargetWindow = nullptr;
 		FIntRect CaptureRect;
-		if (ComputeGameViewportCapture(World, TargetWindow, CaptureRect))
+		if (bUseSve || ComputeGameViewportCapture(World, TargetWindow, CaptureRect))
 		{
 			AnomalyLabel::FCaptureSnapshot Snap;
 			Snap.FrameCounter = GFrameCounter;
@@ -1011,7 +1118,14 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			Snap.WallSeconds = FPlatformTime::Seconds();
 			StampArmWallClock(Snap.WallSeconds);
 			Async->PendingSnapshots.Add(Snap.FrameCounter, MoveTemp(Snap));
-			Async->Capturer->ArmForCapture(GFrameCounter, TargetWindow, CaptureRect);
+			if (bUseSve)
+			{
+				Async->SveCapturer->MarkWanted(GFrameCounter);
+			}
+			else
+			{
+				Async->Capturer->ArmForCapture(GFrameCounter, TargetWindow, CaptureRect);
+			}
 			ArmedLabelFrameId = GFrameCounter;
 			bHasArmedLabel = true;
 			++SessionFrameIndex;
@@ -1320,7 +1434,9 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		Auto->RevertAllLiveFires();
 	}
 
-	if (bRunBegun)
+	const bool bWroteSession = bRunBegun;
+
+	if (bWroteSession)
 	{
 		if (bAsyncCapture)
 		{
@@ -1335,6 +1451,15 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents);
 
+		if (bSveCapture)
+		{
+			const AnomalySveKeyRing::FCounters Ring = AnomalySveKeyRing::GetCounters();
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(sve): key ring — published=%d consumed=%d missed=%d wrapped=%d corrupted=%d (forceMiss=%d)."),
+				Ring.Published, Ring.Consumed, Ring.Missed, Ring.Wrapped, Ring.Corrupted,
+				AnomalySveKeyRing::GetForceMissMode());
+		}
+
 		if (bLogLine)
 		{
 			UE_LOG(LogAnomalyCapture, Log,
@@ -1342,7 +1467,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				*RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts);
 		}
 	}
-	else
+
+	if (!bWroteSession)
 	{
 		IFileManager::Get().DeleteDirectory(*RunDir, false, true);
 		if (bLogLine)
@@ -1351,6 +1477,11 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				TEXT("=== Capture run CANCELLED before focus: %s | no frames written (armed-pending run stopped) ==="),
 				*RunDir);
 		}
+	}
+
+	if (Async.IsValid() && Async->SveCapturer.IsValid())
+	{
+		Async->SveCapturer->SetActive(false);
 	}
 
 	bRunBegun = false;
@@ -1750,6 +1881,30 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryCmd(
 				return;
 			}
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetCaptureDelivery(FCString::Atoi(*Args[0]) != 0); }
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureSveCmd(
+	TEXT("IAI.Capture.SVE"),
+	TEXT("Select the capture grab point (default OFF = backbuffer). ON: capture via a SceneViewExtension — scene ")
+	TEXT("colour after tonemap and BEFORE Slate composites the UI, so the frame is UI-free, and the frame/state key ")
+	TEXT("is recovered by IDENTITY through the view-family ring instead of by arm-to-present ORDER. OFF: the m21 ")
+	TEXT("backbuffer path — the presented frame including game UI. Mid-run changes are ignored (stop first). The ")
+	TEXT("packaged default is read at startup from DefaultGame.ini [AnomalyCapture] bSveCaptureDefault; this command ")
+	TEXT("overrides it for the session. Usage: IAI.Capture.SVE <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.SVE <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetSveCapture(FCString::Atoi(*Args[0]) != 0);
+				UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.SVE: EFFECTIVE READ-BACK = %d."),
+					Cap->IsSveCapture() ? 1 : 0);
+			}
 		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureContentClockCmd(
