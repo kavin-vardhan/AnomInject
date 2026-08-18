@@ -15,6 +15,44 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
+- 🛑 **`S3a-2` FAILED ITS OWN GATE AND IS DIAGNOSED — NOT FIXED. Code is on branch
+  `s3a-2-GATE-FAILED-do-not-merge` (`087f4d9`, pushed). DO NOT MERGE. `master` is untouched.**
+  → journal `docs/sessions/2026-08-18-038-s3a2-gate-failure-diagnosis.md`.
+  **With the switch OFF a packaged run wrote a complete 90-frame session and then DELETED it.**
+  **CAUSE (confirmed from source, not inferred): a re-parented `else`.** `FinishRun` is
+  `if (bRunBegun) {write…"FINISHED"} else {DeleteDirectory(RunDir); "CANCELLED before focus"}`; S3a-2
+  appended a block after the closing brace of the `if` body, and the next token was `else`, so **the
+  `else` changed owner** to the inserted `if (SveCapturer.IsValid())`. With the switch OFF that `if`
+  is always false ⇒ **the delete fired on every successful run, inside the same call** (the 20 ms
+  between `FINISHED` and `CANCELLED` **was the recursive delete**). Compiles clean; no warning; both
+  branches live. → **G102.** Both of Code's own leads were **eliminated**, and "FinishRun ran twice"
+  is **dead** — it ran once.
+  ✅ **BLAST RADIUS ANSWERED FROM SOURCE: `m23` and every shipped client build are NOT affected.**
+  All four `FinishRun` callers are guarded (`StopRun` on `!bRunning`; the frame-cap block on
+  `Phase != Idle`; the `PostGap`/`DrainTail` cases by a switch with no `case Idle`), and `FinishRun`
+  ends by setting `bRunning=false; Phase=Idle` — so it runs **at most once per run** and a successful
+  run **cannot** reach the delete. ⚠ **Latent, reported not overstated:** `RunDir` is *not* cleared at
+  the end of `FinishRun`, so the delete branch is one unguarded future call away from destroying a
+  *previous* session. Hardening candidate, not a defect, not in scope.
+  ⚠ **C1 IS AMENDED — the original was unsatisfiable (chat-side error, recorded).** Byte-identity of
+  `annotation.json`/`labels.jsonl`/`run_summary.json` across two runs is impossible: `session_id` is a
+  timestamp (and appears in `video.path`), and `run_summary` carries `end_frame` plus wall-derived
+  `speed_ratio`/`sustained_wall_fps`. **G-S3a-1 (AMENDED) = (1) CONTROL PAIR — two runs of the SAME
+  m23 binary establish the run-unique field set EMPIRICALLY, recorded field by field; (2) SUBSET TEST
+  — the m23-vs-S3a-OFF difference set must be a SUBSET of it, any extra field FAILS, no judgement
+  call; (3) frame identity.** Stricter than a hand-waved allowance, not looser.
+  🆕 **A62 — for any gate whose subject is written output, THE ARTIFACT ON DISK IS THE GATE.** Both
+  legs' logs read identically and perfectly (`FINISHED: 90 frame(s) (positive=59)`); a log-gated check
+  calls the failing leg GREEN. m19's lesson recurring in a new place.
+  **New gotchas G101** (`IAI.Capture.Start`'s `outDir` is **CWD-relative**, not `Saved`-relative — a
+  fresh run's output is beside the exe, so "it wrote nothing" is the wrong conclusion), **G102** (the
+  stolen `else`), **G103** (staging a code-only change is an **exe hot-swap** — ~85 s build + one file
+  copy, **no cook, and G92's archive-wipe is NOT in play**; but the hot-swap *is* the stage step, so
+  A44-scan the **staged** artifact).
+  **Banked:** `S3A2_BASE\session_20260818-110348` — a clean **m23 30 fps gate leg** (8 events, gapped
+  `[4,5,9,10]`, `manifested` 8/8, ratio 1.0000004), reusable as half the control pair;
+  `S3A2_OFF_FAILED_EVIDENCE\` — both run logs. **Staged package RESTORED to the m23 binary and
+  re-scanned (0 SVE strings).** **NEXT: the fix, as its own turn — diagnosis and fix do not share a turn.**
 - 🚧 **S3 IN FLIGHT — `S3a-1` SHIPPED `dbf139e`, GATE GREEN. Slices S3a-2 and S3a-3 NOT started.**
   The B′ key ring, scene-view extension and SVE capturer exist and **NOTHING SELECTS THEM** —
   `AnomalyCaptureSubsystem` is untouched, `StartRun` still always registers the backbuffer hook, and

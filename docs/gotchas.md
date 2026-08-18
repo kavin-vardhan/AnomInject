@@ -1902,3 +1902,87 @@ fallback survives an engine bump even if the SVE path does not.
 **If it breaks:** the choice is to re-find the header in the new layout, or to build the pass
 against a public surface if 5.x ever provides one. Do not vendor a copy of the private header.
 (2026-08-18.)
+
+---
+
+### G101 — `IAI.Capture.Start`'s `outDir` is relative to the PROCESS CWD, not to `Saved`
+
+A packaged leg launched as
+
+```
+...\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe ... -ExecCmds="... IAI.Capture.Start S3A2_BASE png 777 90 blinking StaticMeshActor_49"
+```
+
+wrote its session to **`...\Binaries\Win64\S3A2_BASE\session_<ts>\`** — beside the executable —
+**not** to `...\StackOBot\Saved\`. The log line says only
+`=== Capture run STARTED: S3A2_BASE/session_<ts> ...`, a relative path, which tells you nothing about
+the root.
+
+**Why this bites:** the banked legs (`I10\`, `HF\`, `M23\`, `NEG2\` …) all sit under `Saved\`, so
+`Saved\` looks like "where captures go". Searching there for a fresh run's output finds **nothing**,
+and the natural conclusion — "the run did not write" — is wrong. It wrote somewhere else.
+
+**Rule:** resolve the output root from the **process working directory**, or pass an absolute
+`outDir`. When a run appears to have produced nothing, search by session-id across the tree before
+concluding it failed. (2026-08-18.)
+
+---
+
+### G102 — appending a block after a closing brace can SILENTLY STEAL an `else`, and it compiles clean
+
+The S3a-2 gate failure was a **data-destroying** defect with a one-word cause. `FinishRun` was:
+
+```cpp
+if (bRunBegun) { ...write session...  "FINISHED" }
+else           { DeleteDirectory(RunDir);  "CANCELLED before focus" }
+```
+
+A new block was appended immediately after the closing brace of the `if` body. The next token in the
+file was `else`, so the result was:
+
+```cpp
+if (bRunBegun) { ...write session...  "FINISHED" }
+
+if (SveCapturer.IsValid()) { SveCapturer->SetActive(false); }   // <- inserted
+else { DeleteDirectory(RunDir); "CANCELLED before focus" }       // <- else changed owner
+```
+
+**The `else` re-parented from `if (bRunBegun)` to the inserted `if`.** Effect: every run whose SVE
+capturer was absent — i.e. **every run with the feature switched OFF** — wrote a complete 90-frame
+session and then **deleted it**, in the same call. The `FINISHED` and `CANCELLED` log lines landed
+20 ms apart, and **the 20 ms was the recursive delete**.
+
+**Nothing catches it.** `if/else` is valid C++ with or without the insertion: no warning, no type
+error, clean compile, clean link. Neither branch is dead code. It is invisible to every automated
+check we run.
+
+**Rules earned:**
+- When inserting after a `}`, **read the next token**. If it is `else`, you are inside an if/else
+  chain and appending there changes its meaning.
+- Prefer anchoring an insertion to the **start** of the following construct rather than the **end**
+  of the previous one.
+- Blocks whose `else` performs a **destructive** action (delete, truncate, overwrite) deserve the
+  brace-and-comment treatment, or restructuring to an early return, precisely because a silent
+  re-parent is unreviewable at the diff level. (2026-08-18.)
+
+---
+
+### G103 — staging a code-only change is an EXE HOT-SWAP; no cook, and G92's archive-wipe is not involved
+
+The plugin compiles **into the monolithic game executable**, so a code-only change reaches the
+packaged build by rebuilding the game target and **copying one file**:
+
+```
+Build.bat StackOBot Win64 Development -project=...\StackOBot.uproject
+copy  <Project>\Binaries\Win64\StackOBot.exe
+   -> Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe
+```
+
+**~85 s to build, one copy to stage.** No cook, no `BuildCookRun`, no archive step — and therefore
+**the G92 hazard (the archive step wiping the `Saved` tree) is not in play at all** for a code-only
+leg. Content changes still need the full path; code changes do not.
+
+**Two things this does NOT excuse.** The hot-swap **is** the stage step, so G92's actual lesson —
+*compiled is not staged* — applies unchanged: **A44-scan the staged artifact after copying**, not the
+build output. And back the previous exe up first if the old binary is a baseline you still need; the
+m23 gate binary had to be restored intact after the S3a-2 leg. (2026-08-18.)
