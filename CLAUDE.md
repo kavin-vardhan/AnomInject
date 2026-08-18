@@ -15,8 +15,44 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🛑 **`S3a-3` HALTED — one gate PASSED DECISIVELY, one MISSED on an uncontrolled variable. Code held
-  OFF `master` on `s3a-3-GATE-MISS-focus-confound` (`8f57a62`, pushed). DO NOT MERGE.** → journal
+- ✅ **`S3a-3` CERTIFIED AND MERGED — all gates green once the confound was controlled.** → journal
+  `docs/sessions/2026-08-18-041-a63-and-s3a3-certified.md`. **C1 subset re-run under A63: extras = 0**
+  (control 54 fields, test 54 fields); **C1 leak check PASS** (switch-OFF `run_summary` has no
+  `capture_path`, no `key_ring_*`); dropped-positive gate accepted last turn and **not re-run**.
+  🆕 **A63 — FOCUS-MATCH IS A LEG VALIDITY CONDITION.** Any leg entering a **cross-binary comparison**
+  must record its focus condition; two legs are **COMPARABLE only if `start_frame` matches** (neither
+  rode the 30 s focus timeout). Mismatch ⇒ **legs NOT comparable, the comparison DOES NOT RUN, the leg
+  is INVALID and re-run** — joining the A31 validity conditions. **INVALID ≠ FAILED, and that is what
+  stops it laundering a red: invalidity is declared by a PRE-FIXED rule, on a condition INDEPENDENT of
+  the outcome, decided BEFORE the comparison is read.** ⛔ **REJECTED: pinning with
+  `IAI.Capture.FocusGate 0` — that changes the system under test (G93: focus-gate × fixed-timestep
+  corrupts the camera intermittently even at 240 fps with the gate ON).**
+  ✅ **A63 RETROACTIVE CHECK ON S3a-2: SATISFIED** — `S3A2_BASE`/`BASE2`/`FIX_OFF` all `start_frame=1`,
+  so **S3a-2's green was robust, not lucky** (journal 040 raised the possibility; this closes it).
+  ⚠ **`S3A2_FM4` DID ride the timeout** (`start_frame` 2098) but was never in a cross-binary
+  comparison, so A63 does not invalidate it.
+  ⚠ **CORRECTION to journal 039: the large `key_ring_published` counts (2228 vs 121) were NOT
+  "dropped frames stalling the phase machine" — they are the FOCUS-GATE WAIT.** The SVE activates in
+  `StartRun` *before* the focus branch, so it publishes for every view family across the whole 30 s
+  `ArmedPending` wait. Every high-count leg rode the timeout. **Verdicts unaffected** — they rest on
+  `missed == corrupted`, the file set and 1:1 file↔row, none of which depend on the publish count.
+  ⚠ **The dropped-positive evidence (`S3A3_P2`) came from a timeout leg**; its criteria are internal to
+  the single leg, so A63 does not apply and it stands.
+  🆕 **G96 FOURTH INSTANCE, and the first caught INSIDE an already-accepted result:**
+  `overlap = missing ∩ claimed = 0` is **ambiguous** — it is simultaneously "never tested" and "tested
+  and handled perfectly", because a correctly dropped positive vanishes from files AND claims. **The
+  sound discriminator is whether the CLAIMED SET SHRANK vs the clean run.** A blind metric survives
+  review when its output looks like the answer you expected.
+  ⛔ **DEBT — `LastRunDir` SHIPS BUT IS NOT CERTIFIED.** The runtime dashboard check
+  (`capture_stop`/`capture_status`/`ControlSnapshot` read it post-run) needs a **WS client against the
+  control server**, which `-ExecCmds` cannot reach (startup-only). **Deliberately not built. VERIFY IN
+  S3b.** Other open debts: marker-OFF limit on frame identity; `ForceMiss` phase-lock coarseness;
+  `video.total_frames` vs index range under partial loss.
+  **Bank 34 dirs** (+`S3A3_OFF/P1/P2/P3/OFF_T1`); **`S3A3_P2` is the only banked leg exercising a
+  dropped positive.** Staged exe = S3a-3, A44-verified **in both encodings**; pre-S3 binary preserved
+  as `StackOBot.exe.m23-baseline`. **NEXT: S3b — the matrix. Not planned this turn.**
+- 🛑 *(superseded by the above — kept for the record)* **`S3a-3` HALTED on a focus confound; code was held
+  OFF `master` on `s3a-3-GATE-MISS-focus-confound`.** → journal
   `docs/sessions/2026-08-18-040-s3a3-gate-miss-focus-confound.md`. Built + compiled: `run_summary`
   `capture_path` + five `key_ring_*` fields **emitted only when the switch is ON** (**C1 leak-check
   PASSED** — a switch-OFF `run_summary` carries exactly the pre-S3 key set);
