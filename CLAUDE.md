@@ -182,11 +182,60 @@ and is the single source of truth for the project.
   complements**; there is a wide band between them. AABB corners lie **outside** a sphere/cylinder/cone
   (3 of the gate level's 4 shapes), a `NoCollision` or non-`ECC_Visibility` occluder does not occlude at
   all, and **there is no pixel test anywhere**. ⚠ **Source reading, NOT measurement.**
-  **(3) Candidate environments NAMED, NOT EVALUATED:** `MainWorld`, `Structures/Struct_001-004`,
-  `MainMenu`, `CB_GateLevel`. 🚨 **G87 IS STRONGER THAN "CHECK THE NAME" — THE REDIRECT IS ACTIVE:**
-  launching MainWorld loads it and then **immediately loads MainMenu**, and a deferred `OpenLevel`
-  **bounces back**. **MainWorld is not straightforwardly reachable packaged**, and any path (a) design
-  must confront that first. Whether any level has motion **without player input** is UNCHECKED.
+  **(3) Candidate environments NAMED.** *(Superseded by the scout below — see §23-§26.)*
+  🛰 **ENVIRONMENT SCOUT DONE (read-only, journal 045 §21-§28). PATH (a) IS STRUCTURALLY OPEN AND
+  ENVIRONMENTALLY BLOCKED.**
+  🚨 **S-1 — G87's MECHANISM IS WRONG, AND IT FORECLOSED A ROUTE THAT WAS NEVER CLOSED → G120.**
+  **`MainWorld` IS NOT COOKED INTO ANY STAGED BUILD.** Read directly from each
+  `StackOBot-Windows.utoc`: **BenchGate (`101AFEA4`) = `CB_GateLevel`, `Entry`, `MainMenu`; MidRepro
+  (`3814E080`) and `Builds\Windows` (`B3A49D82`) = `Entry`, `MainMenu`.** No `MainWorld`, no
+  `Struct_00*`, anywhere. `Builds\Windows`' exe is dated the day G87 was written. ⇒ `LoadMap MainWorld`
+  **fails because the map is not in the pak** and the engine falls back to `GameDefaultMap` — **engine
+  fallback, NOT an in-game redirect.** Source search confirms: the **only** `OpenLevel` in the framework
+  is in **`HUD_MainMenu`** and travels **MainMenu → MainWorld**; `GI_StackOBot` is a **save-game
+  manager** (its `LevelName` is a save-slot key); `GM_InGame` has only `ReceiveBeginPlay`;
+  `MainWorld_C` has no travel strings. **G87's headline rule ("check the level NAME, not the picture")
+  is UNAFFECTED and still correct** — only its explanation was wrong. ⚠ **CORRECTED BUT NOT
+  RE-MEASURED** (no packaged run was in scope); the settlement is one launch with the log read for the
+  missing-map browse error. ⛔ **The ONLY route to MainWorld is A RE-COOK** — and **it is THE SAME
+  RE-COOK `G118` CLOSURE NEEDS. Two debts collapse into one operation; both retire `101AFEA4`.**
+  🛑 **S-2 — NO LEVEL IN ANY STAGED BUILD HAS UNATTENDED MOTION THAT COULD CHANGE OCCLUSION STATE.**
+  `CB_GateLevel`: authored `STATIC` throughout, no Blueprints, eye invariant 844/844 — **none**.
+  `MainMenu`: 1 `SkeletalMeshActor` + `ABP_Bot`, `Landscape`, 2 `StaticMeshActor`, `BP_Cable`,
+  `BP_Spline`, **3 `CameraActor` with nothing driving them**, **no `LevelSequence`/Matinee/auto-play/
+  movement component** — the only motion is **skeletal animation inside one component**, not an actor
+  translating, so it cannot put an occluder between camera and target. `Struct_002`/`Struct_003`
+  external-actor sets (814 / 389 files): **zero Blueprint instances** — geometry only.
+  ✅ **`MainWorld` WOULD provide it, and the assets say so in their own words:** **`BP_Stomper`** —
+  *"When no trigger is referenced it move constantly"*; **`BP_MovingPlatform`** —
+  `InterpToMovementComponent` with **`EInterpToBehaviourType::PingPong`**, trigger **optional**;
+  **`BP_Fan`** — `AddLocalRotation` + `SetTimer` + `bLooping` (its overlap pushes the Bot, it does not
+  start the fan); **`BP_EnergyOrb`** — *"Add a bit of rotation per tick"*. Player-gated by contrast:
+  `BP_Elevator`, `BP_Button`, `BP_PressurePlate`, `BP_SpawnPad`. ⚠ **Per-instance `Trigger` assignment
+  and exact instance counts are NOT established** — the constant-motion cases are conditional on an
+  empty Trigger, which was not read.
+  🧱 **S-3 — of the three occluder shapes, NONE is available today.** (i) moving occluder crossing a
+  static target and (ii) moving target behind a static occluder both need `MainWorld`'s
+  `BP_MovingPlatform` / `BP_Stomper`; (iii) a moving camera has **no driver in any cooked level** and
+  an unattended run has no input.
+  🗺 **S-4 SETTLED — `MainWorld` is WORLD PARTITION with ONE-FILE-PER-ACTOR**, not a classic streaming
+  shell: **419 external actor files** under `__ExternalActors__/StackOBot/Maps/MainWorld/`, which is why
+  the `.umap` is 21 KB. *(PART THREE's "streams the Structures/ levels" guess was the right clue and the
+  wrong inference; `Struct_001-004` are partitioned companions with their own external-actor trees.)*
+  **Design-relevant: World Partition streams by distance, so streamed-in geometry is ITSELF a candidate
+  occluder and a capture run must survive that load timing.** ⛔ Cell size / runtime grid / whether
+  streaming is active in a packaged build were **NOT evaluated**.
+  ⛔ **MCP BRIDGE UNAVAILABLE** (`Connection refused 127.0.0.1:12029`) — **A59 satisfied vacuously: no
+  measurement was taken over it, so none is attributed and G97 has nothing to catch.** Everything above
+  is offline asset/container reading; the Blueprint evidence is **name-table strings plus the developer
+  comments embedded in them** (the quotes are direct; the machinery lists are indicative, not a graph
+  read).
+  🔢 **PREDICTION SET `P-a1`…`P-a5`, PRE-DECLARED (journal 045 §22) — recon 2's five items are
+  PREDICTIONS, not findings, and numbers are never reused:** `P-a1` first-clear-ray (8 of 9 blocked
+  passes) · `P-a2` AABB corners lie outside sphere/cylinder/cone · `P-a3` `bTraceComplex=false` ⇒ a
+  no-collision or non-`ECC_Visibility` occluder does not occlude · `P-a4` pick-time success never
+  implies pixels drawn · `P-a5` single sample in time, so pick-time truth decays. **Any path (a) design
+  must state WHICH it exercises and which it leaves untested.**
   🚨 **G118 — FOUND WHILE COLLECTING THE CORROBORATING ECHO, ORTHOGONAL TO H4, AND SECURITY-RELEVANT:
   the STAGED build enforces the placeholder control-server token `TESTVALUE123`** (cooked before the
   rotation), while `Config/DefaultGame.ini` carries a clean 64-char one. **G112's guard checks the
@@ -248,9 +297,12 @@ and is the single source of truth for the project.
   ELSE THAT USES THE BENCH BINARY.** `G118 CLOSURE = re-cook + re-stage + re-bank (G92 wipes `Saved`) +
   re-run the A44 hash scan`. **It runs AFTER the current measurement sequence and NEVER inside one**,
   because **closing it RETIRES staged exe `101AFEA4` as the m25 measurement binary.** ⛔ **Any result
-  still owed against `101AFEA4` must land BEFORE closure** — today that includes the whole path-(a)
-  question, which is not yet designed. Until it closes, treat any WS work against this build as running
-  with a **known-public token**.
+  still owed against `101AFEA4` must land BEFORE closure.** Until it closes, treat any WS work against
+  this build as running with a **known-public token**.
+  ✅ **THE SAME RE-COOK ALSO PUTS `MainWorld` IN A BUILD (§23), so `G118` CLOSURE AND THE PATH-(a)
+  ENVIRONMENT ARE ONE OPERATION, NOT TWO.** Sequence it once: decide the cook's map set (`CB_GateLevel`
+  must stay — every m25 result depends on it) **before** running it, because a re-cook that omits a map
+  is what created this situation in the first place.
   **LATER / UNORDERED, named but not sequenced:** `B2` (scale-free separability; eight-control gate; may
   reopen m23's DA60 floor) · **`B1`-NDC** (normalise `CALIB_BBOX` — unblocks alignment certification at
   any resolution; four legs blocked today, three with a motionless camera; definition change needing its

@@ -738,3 +738,167 @@ has **not** been checked.
 The cure is not built and will not be built before the incidence question is answered — the D-B lesson:
 the SVE migration would not have cured P3, and building it first would have shipped a migration while
 the poisoning continued.
+
+---
+---
+
+# PART FOUR — the environment scout. Read-only. No run, no code, no re-cook.
+
+## 21. RULING 1 — path (a)'s status, recorded verbatim
+
+> **PATH (a) IS NOT CLOSED BY ANY EXISTING RE-CHECK, BECAUSE NO RE-CHECK EXISTS. In DELIVERY MODE — the
+> client's shipping configuration — there is no occlusion evaluation after pick time at all, and no
+> record that one was ever made. The system's only per-frame test on the target list is `Weak.Get()`,
+> which asks whether the actor still EXISTS, not whether it can be SEEN.**
+
+⛔ **`feature/stencil-capture` is NOT touched, NOT rebased, NOT scoped, NOT estimated.** On the record
+for a cold reader: **D-B measured that the SVE migration would NOT have cured P3**, and building it
+first would have shipped a migration while the poisoning continued. We hold a mechanism observed in a
+lab condition (path b) and a shipped path with no re-validation (path a), and **ZERO observed instances
+of path (a)**. Between *"this can happen"* and *"this reaches a delivered dataset"* sits exactly one
+measurement, and it has not been taken.
+
+## 22. RULING 3 — the PREDICTION SET, pre-declared before any path (a) instrument exists
+
+Recon 2 was **source reading, not measurement**. Banked as numbered predictions. **Numbers never
+reused.** Any path (a) design must state **which of these it exercises and which it leaves untested.**
+
+| # | prediction |
+|---|---|
+| **P-a1** | **first-clear-ray** — a target with **8 of 9 rays blocked passes pick time**. `IsUnoccluded` returns `true` on the first clear ray. |
+| **P-a2** | **AABB corners** — for **sphere / cylinder / cone** a clear ray can reach a corner of empty space while the mesh is fully hidden. The traced points are `Component->Bounds` corners, not the mesh. |
+| **P-a3** | **`bTraceComplex = false`** — an occluder with **no collision**, or one ignoring **`ECC_Visibility`**, does not occlude at all for pick-time purposes. |
+| **P-a4** | **no pixel test** — pick-time success **never implies pixels were drawn**. Materials, opacity, `bRenderInMainPass`, LOD/HLOD substitution and distance culling are invisible to it. |
+| **P-a5** | **single sample in time** — nothing re-takes it (§19.1), so **pick-time truth decays** across the window. |
+
+**None has been observed.** H4's own lesson is that a mechanism read from source is not a mechanism seen.
+
+## 23. S-1 — THE MAINWORLD REDIRECT. 🚨 G87's MECHANISM IS WRONG. → **G120**
+
+**The redirect does not exist. `MainWorld` is not in any staged build.**
+
+Container index of every staged build, read directly from `StackOBot-Windows.utoc` (UTF-16 strings):
+
+| build | exe | cooked maps |
+|---|---|---|
+| `Builds\BenchGate` (m25, the measurement binary) | `101AFEA4` | `CB_GateLevel`, `Entry`, `MainMenu` |
+| `Builds\MidRepro` | `3814E080` | `Entry`, `MainMenu` |
+| `Builds\Windows` | `B3A49D82` | `Entry`, `MainMenu` |
+
+**`MainWorld.umap` is in NONE. Neither is any `Structures/Struct_00*`.** `Builds\Windows`' exe is dated
+`2026-08-06`, the same day G87 was written — almost certainly the build it measured.
+
+⇒ `LoadMap MainWorld` **fails because the map is not in the pak**, and the engine falls back to
+`GameDefaultMap` = MainMenu. **Engine fallback, not an in-game redirect.**
+
+**What performs a redirect, from an exhaustive source search — the answer is "nothing, in that
+direction":**
+
+| asset | what it actually contains |
+|---|---|
+| **`HUD_MainMenu`** | the **only** `OpenLevel` in the framework — `OpenLevel` + `MainWorld` + `LevelName` + `LoadingScreen` + `CreateWidget`. It travels **MainMenu → MainWorld** (the Play button). |
+| `GI_StackOBot` | a **save-game manager** (`InitSaveGame`, `GetCurrentLevelName`, orb persistence). Its `LevelName` is a **save-slot key**. **No `OpenLevel`.** |
+| `GM_InGame` | `ReceiveBeginPlay` only |
+| `MainWorld.umap` level BP (`MainWorld_C`) | **no** `OpenLevel` / `MainMenu` / travel strings |
+
+**Route to MainWorld in a packaged build:** a command-line map arg, a cvar and a post-boot console
+command **all fail identically for the same reason — the asset is not in the container.** ⛔ **The only
+route is A RE-COOK that includes the map.** Stated plainly because it is a real cost, and it collides
+with `G118`'s closure sequencing: **a re-cook retires `101AFEA4`.**
+✅ **But the two collapse: the re-cook `G118` closure needs and the re-cook MainWorld needs are THE SAME
+OPERATION.** That is a scheduling gain, not an extra cost.
+
+⛔ **NOT re-cooked. `GameDefaultMap` NOT changed. No packaged run.** ⚠ **The mechanism correction is
+NOT re-measured** — it rests on a direct read of the artifact's map index plus the source search. The
+one-command settlement is a packaged launch at MainWorld with the log read for the missing-map browse
+error. **Corrected but unconfirmed.**
+
+## 24. S-2 — MOTION INVENTORY. The honest answer is the one the brief anticipated.
+
+**NO LEVEL PRESENT IN ANY STAGED BUILD HAS UNATTENDED MOTION CAPABLE OF CHANGING OCCLUSION STATE.**
+
+| level | in a build? | unattended motion | evidence |
+|---|---|---|---|
+| **`CB_GateLevel`** | ✅ BenchGate | **NONE** | authored `STATIC` throughout by `make_gate_level.py`; no Blueprints; eye invariant on **844/844** banked samples |
+| **`MainMenu`** | ✅ all three | **effectively none** | contents: 1 `SkeletalMeshActor` + `ABP_Bot`, 1 `Landscape`, 2 `StaticMeshActor`, `BP_Cable`, `BP_Spline`, 3 `CameraActor`, lights, post-process. **No `LevelSequence`, no Matinee, no auto-play, no movement component.** The only motion is the Bot's **skeletal animation** — mesh deformation inside one component, **not an actor translating**, so it cannot bring an occluder between camera and target. The 3 `CameraActor`s have **nothing to drive them.** |
+| `Entry` | ✅ all three | engine template map; not a candidate |
+| **`MainWorld`** | ❌ **NOT COOKED** | **rich** — see below | |
+| `Struct_001..004` | ❌ **NOT COOKED** | **none found** | scanned `Struct_002` (814 external actor files) and `Struct_003` (389): **zero Blueprint actor instances**. They read as geometry sets. |
+
+### 24.1 What MainWorld *would* provide — the classes are present in its external-actor set
+
+MainWorld is a **World Partition** level with **419 external actor files** under
+`Content/__ExternalActors__/StackOBot/Maps/MainWorld/` (which is why the `.umap` is only 21 KB — S-4).
+Blueprint classes referenced there include `BP_EnergyOrb`, `BP_PressurePlate`, `BP_Button`,
+`BP_Elevator`, `BP_Stomper`, `BP_Crate`, `BP_MovingPlatform`, `BP_Lamp`, `BP_SpawnPad`, `BP_Spline`,
+`BP_Fan`, `BP_Cable`, `BP_Door`, `BP_Ramp`.
+
+**Which move without input — and the assets say so in their own words.** The Blueprints carry developer
+comments in the name table; these are direct quotes, not inference:
+
+| asset | unattended? | the asset's own words / machinery |
+|---|---|---|
+| **`BP_Stomper`** | ✅ **yes, when untriggered** | *"The stomper moves up and down driven by a curve in the timeline. **When no trigger is referenced it move constantly.** An assigned trigger, such as the pressure plate, activates and deactivates the stomper."* Also *"If there is an assigned trigger … **If not, just start the stomper**"*. `ReceiveBeginPlay` + `TimelineComponent` + `bLoop`, **no overlap gate on the actor itself** |
+| **`BP_MovingPlatform`** | ✅ **yes, when untriggered** | `InterpToMovementComponent`, **`EInterpToBehaviourType::PingPong`**, `Duration`, `DurationBetweenEnds`, `AddControlPointPosition`. *"as with the other objects it can be (de)activated by a trigger"* ⇒ trigger **optional**. Drives a Control Rig (`CR_MovingPlatform`) with a verlet simulation |
+| **`BP_Fan`** | ✅ **yes** | `K2_AddLocalRotation` + `SetTimerDelegate` + `bLooping` + `Activate`/`Deactivate`. Its `FanArea` overlap exists to **push the Bot**, not to start the fan |
+| **`BP_EnergyOrb`** | ✅ **yes** | *"Add a bit of rotation per tick"*, `bAutoActivate`, `ReceiveTick` — rotates unconditionally. **Small**, so a weak occluder |
+| `BP_Elevator`, `BP_Button`, `BP_PressurePlate`, `BP_SpawnPad` | ❌ | `OnComponentBeginOverlap` + `K2Node_ComponentBoundEvent` ⇒ **player-gated** |
+| `BP_Door`, `BP_Ramp` | ❓ | `TimelineComponent` + `PlayFromStart` + `ReceiveBeginPlay`, **no overlap on the actor**, but conventionally driven by a Button/PressurePlate reference. **Not established** |
+| `BP_Lamp`, `BP_Cable`, `BP_Crate`, `CR_MovingPlatform` | ❌ | no motion machinery found |
+
+⚠ **Two limits on the above, stated rather than buried.** (1) **Per-instance `Trigger` assignment is NOT
+established** — `BP_Stomper` and `BP_MovingPlatform` move constantly *only when their Trigger reference
+is empty*, and whether any given placed instance leaves it empty is a per-actor property this scout did
+not read. (2) **Exact instance counts are NOT established** — the tally counted string occurrences
+across external-actor files, which over-counts.
+
+## 25. S-3 — THE OCCLUDER QUESTION
+
+| shape | available **today** (cooked levels) | available **in MainWorld**, if it were cooked |
+|---|---|---|
+| **(i)** moving occluder crosses a static target | ❌ **none** | ✅ **`BP_MovingPlatform`** (PingPong translation, large) crossing any static `Environment/Modular` or `Props` mesh. **`BP_Stomper`** likewise on the vertical axis |
+| **(ii)** moving target passes behind a static occluder | ❌ **none** | ✅ same actors as the **target** instead of the occluder — `BP_MovingPlatform` and `BP_Stomper` are themselves `StaticMeshComponent` carriers and so are **selectable** by the auto-pool |
+| **(iii)** moving camera brings an occluder between itself and the target | ❌ **none** — CB_GateLevel's eye is invariant 844/844; MainMenu's 3 `CameraActor`s have nothing driving them | ❓ **not established** — would need the player pawn (no input in an unattended run) or a driven camera that does not exist |
+
+**`BP_Fan` and `BP_EnergyOrb` rotate in place**, so they change silhouette but do not translate; they
+are weak candidates for (i) and (ii) and no candidate at all for (iii).
+
+## 26. S-4 — THE STREAMING QUESTION, SETTLED
+
+**MainWorld is a WORLD PARTITION level with ONE-FILE-PER-ACTOR (OFPA), not a classic streaming shell.**
+Settled from the asset, superseding PART THREE's flagged guess:
+
+- `MainWorld.umap` contains `WorldPartition`, `WorldPartitionEditorSpatialHash`,
+  `WorldPartitionRuntimeSpatialHash`, and a reference into
+  `/Game/__ExternalActors__/StackOBot/Maps/MainWorld/…`.
+- Its actors live in **419 external `.uasset` files**, which is why the `.umap` is 21 KB. **The size was
+  the right clue and the wrong inference** — PART THREE guessed "streams the `Structures/` levels".
+- `Struct_001..004` each reference `/Game/StackOBot/Maps/MainWorld` and have their own
+  `__ExternalActors__` trees (`Struct_002`: 814 files, `Struct_003`: 389). They are **partitioned
+  companions of MainWorld**, not sublevels it streams in the classic sense.
+
+**Relevance to path (a), which is why the brief asked:** World Partition streams by **spatial distance
+from the streaming source**, so geometry genuinely does appear and disappear during play — **streamed-in
+geometry is itself a candidate occluder**, and a capture run in MainWorld must survive that load timing.
+⛔ **Not evaluated** — cell size, runtime grid setup, and whether streaming is even active in a packaged
+build were not read. Named because it is now a real design input, not an unknown.
+
+## 27. Scout limitations, stated
+
+- ⛔ **The MCP bridge was UNAVAILABLE** — `Connection refused (127.0.0.1:12029)`, no editor listening.
+  **A59 is therefore satisfied vacuously: no measurement was taken over the bridge, so none is
+  attributed to this project, and G97 has nothing to catch.** Everything above is **offline asset and
+  container reading.**
+- The Blueprint findings rest on **name-table strings and the developer comments embedded in them**.
+  The comments are direct quotes and are strong; the machinery lists are **indicative of graph
+  contents, not a graph read**. An editor session would settle per-instance `Trigger` assignment and
+  exact instance counts, and neither is established here.
+- ⛔ **No packaged run, no re-cook, no `GameDefaultMap` change, no production code, `CB_GateLevel`
+  untouched (G99).**
+
+## 28. State after PART FOUR
+
+**No run. No plugin production code. No tag. `feature/stencil-capture` untouched and not rebased.**
+Path (a) is **structurally open** and **environmentally blocked**: the only level with unattended
+movers is **not in any build**, and putting it in one is the same re-cook that closes `G118` and retires
+`101AFEA4`. ⛔ **The path (a) design is chat-side and is not written here.**

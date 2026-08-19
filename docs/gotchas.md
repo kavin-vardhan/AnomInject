@@ -1411,6 +1411,54 @@ lost to exactly this: a captured frame was declared "a REAL GAMEPLAY LEVEL" from
 gates, the S1 packaged A/B matrix, B3' — necessarily ran in MainMenu. There was no way to leave it. Treat
 any packaged measurement from that era as menu-bound until argued otherwise. (2026-08-06.)
 
+---
+
+🚨 **CORRECTION, 2026-08-19 — THE OBSERVATION STANDS, THE MECHANISM DOES NOT. `MainWorld` IS NOT IN ANY
+STAGED BUILD, AND THAT ALONE EXPLAINS EVERYTHING ABOVE.**
+
+The container index of every staged build was read directly (UTF-16 strings in `StackOBot-Windows.utoc`):
+
+| build | exe | cooked maps |
+|---|---|---|
+| `Builds\BenchGate` (m25) | `101AFEA4` | `CB_GateLevel`, `Entry`, **`MainMenu`** |
+| `Builds\MidRepro` | `3814E080` | `Entry`, **`MainMenu`** |
+| `Builds\Windows` | `B3A49D82` | `Entry`, **`MainMenu`** |
+
+**`MainWorld.umap` is in NONE of them. Neither is any `Structures/Struct_00*`.** `Builds\Windows`'
+exe is dated the same day G87 was written, so it is almost certainly the build G87 measured — and it
+contains two maps, neither of them MainWorld.
+
+⇒ `StackOBot.exe /Game/StackOBot/Maps/MainWorld` → `LoadMap MainWorld` **fails because the map is not
+in the pak**, and the engine does what it always does on a failed browse: **falls back to
+`GameDefaultMap`**, which is MainMenu. That is the "immediately loads MainMenu" in the log. It is
+**engine fallback, not an in-game redirect.**
+
+**Corroboration from source — an exhaustive search for the redirect found that it does not exist:**
+
+- the **only** `OpenLevel` in the framework is in **`HUD_MainMenu`**, and it travels **MainMenu →
+  MainWorld** (the Play button, with `BPW_LoadingScreen`). Nothing travels the other way.
+- `GI_StackOBot` is a **save-game manager** — `InitSaveGame` / `GetCurrentLevelName` / orb persistence.
+  Its `LevelName` is a **save-slot key**, not a travel target. No `OpenLevel` anywhere in it.
+- `GM_InGame` carries only `ReceiveBeginPlay`. `MainWorld.umap`'s level blueprint (`MainWorld_C`)
+  carries no `OpenLevel` / `MainMenu` / travel strings at all.
+
+⛔ **WHY THIS MATTERS MORE THAN A WRONG DETAIL: G87's conclusion FORECLOSED A ROUTE THAT WAS NEVER
+CLOSED.** It reads *"Every 'get in early / get in late' approach is dead. The title pulls MainWorld back
+to the menu"*, and on that basis MainWorld was treated as unreachable for ~13 days. The real situation
+is a **cook-scope** problem with a known fix (cook the map in), not an unwinnable fight with the title.
+The deferred-`OpenLevel` result is equally explained: `OpenLevel` to a map that is not in the pak fails
+and returns to the default map.
+
+⚠ **NOT RE-MEASURED.** This corrects an **attribution** on the strength of (a) a direct read of the
+artifact's own map index and (b) an exhaustive source search. **The one-command settlement is a
+packaged launch at MainWorld with the log checked for the missing-map browse error** — deliberately not
+run here (no packaged run was in scope). Treat the mechanism as **corrected but unconfirmed** until
+that runs.
+
+**The re-cook that would put MainWorld in a build is THE SAME re-cook `G118` closure needs** — see
+G118's sequencing note. Two debts collapse into one operation, and both retire `101AFEA4`.
+→ **G120**.
+
 ### G88 — a loose `Config/DefaultEngine.ini` next to a package is IGNORED; the cooked config in the pak wins
 
 Attempting G87's workaround by creating
@@ -2595,3 +2643,43 @@ if the answer is *"exactly what I am observing now"*, the check is not a check.
 false pass is silent, it looks like diligence, and it retires the suspicion that would otherwise catch
 the fault. When demoting such a guard, say **NECESSARY BUT NOT SUFFICIENT** rather than deleting it —
 the source check still catches a source-side regression, it just cannot certify a build. (2026-08-19.)
+
+---
+
+### G120 — an UNVERIFIED MECHANISM attached to a real observation FORECLOSES routes that were never closed
+
+G87 observed something true: a packaged launch at `MainWorld` ends up in `MainMenu`. It then attached a
+mechanism — *"the redirect is ACTIVE, not a startup race"*, *"the title pulls MainWorld back to the
+menu"* — and drew a conclusion from the mechanism rather than from the observation:
+
+> *"Every 'get in early / get in late' approach is dead."*
+
+**The mechanism was never verified, and it is wrong.** `MainWorld` is **not cooked into any staged
+build**; the engine was falling back to `GameDefaultMap` on a failed browse. An exhaustive source search
+finds **no** MainWorld→MainMenu travel anywhere — the only `OpenLevel` in the project runs the other
+way. MainWorld was treated as unreachable for ~13 days on the strength of an explanation nobody tested.
+
+**This is the mirror image of the failures already catalogued here, and the mirror is the point:**
+
+| shape | example | what it costs |
+|---|---|---|
+| a **false positive** from an unverified mechanism | G116 — a signature with an incumbent producer | you believe something that is not there |
+| a **false null** from an unverified lever | G114 — a lever that changed nothing | you believe nothing is there |
+| **a false FORECLOSURE from an unverified mechanism** | **this** | **you stop looking** |
+
+The first two get caught eventually, because someone re-runs the measurement. **A foreclosure is not
+re-run by anyone** — that is what foreclosing means. It is the most durable of the three and the least
+likely to be revisited, so it has to be caught at writing time.
+
+**RULE: an observation and its explanation are separate claims and must be recorded separately.** Write
+the observation as fact; write the mechanism as a hypothesis with its evidence, or as *"cause not
+established"*. ⛔ **Never derive a SCOPE decision — "X is impossible", "that approach is dead", "do not
+try Y" — from an unverified mechanism.** Scope decisions may only rest on the observation itself, which
+here would have supported the far weaker and far more useful *"a packaged launch at MainWorld ends in
+MainMenu; cause not established"*.
+
+*(This is the same discipline `CaptureBench/tools/check_pose.py` already applies to a failing gate —
+print the numbers, name the discriminator, and let the reader attribute — applied to prose instead of a
+tool. And note the near-miss: G87's own headline rule, "check the level NAME, never the picture", is
+correct and was never in question. The defect is entirely in the paragraph that explains why.)*
+(2026-08-19.)
