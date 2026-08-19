@@ -231,6 +231,43 @@ and is the single source of truth for the project.
   is offline asset/container reading; the Blueprint evidence is **name-table strings plus the developer
   comments embedded in them** (the quotes are direct; the machinery lists are indicative, not a graph
   read).
+  🔬 **CURE MEASUREMENT DONE (journal 045 PART ELEVEN). 7 targets marker-off, 5 GOOD / 2 BAD. n small,
+  nothing graded, NO CURE PROPOSED. ZERO production code. NO TAG.**
+  🚨 **Q2's ANSWER: THE CURE NEEDS A NEW MEASUREMENT, NOT A NEW THRESHOLD.** Every field the artifact
+  carries — `cov_pct`, `coverage_ratio`, `bbox_px`, `poll_distance`, `node.bounds` — describes **CLAIMED
+  extent. NONE describes DRAWN extent.** The one plausible proxy, `cov_pct`, **does not separate at
+  all**: BAD holds both the **highest** value in the table (**100.00**) and nearly the **lowest**
+  (**3.86**). ⛔ **And the SELECTION BOUNDS EXTENT IS NOT RECOVERABLE FROM ANY ARTIFACT** — `node.bounds`
+  is the whole actor (`P6`) and `poll_distance` is one equation in two unknowns, so **the quantity every
+  guard is computed from cannot be read back.**
+  **Q1: the only clean separator is POST-hide** — change ÷ claimed area, BAD {0.00603, 0.00838} vs GOOD
+  {0.0303 … 0.498}, 3.6× gap, no overlap. ⛔ **A cure decides BEFORE hiding, so it is not a rule.**
+  ⚠ **One PRE-hide quantity DID separate here — the OCCLUSION SAMPLE COUNT (BAD ≤ 3/9, GOOD ≥ 5/9).**
+  n=2 vs n=5 on a 9-valued integer, two GOOD one step from the boundary, mechanism post-hoc.
+  ⛔ **OBSERVATION, NOT A PROPOSED THRESHOLD.** *(It is the `P-a1` band again; `P-a1`…`P-a5` UNTESTED.)*
+  **Q3, measured cost of naive rules:** `poll_distance<0` → 2/2 BAD but **breaks 2/5 GOOD**;
+  `cov_pct>90` → 1/2 BAD, 0 GOOD *(misses `BP_SplineSpawn_C`)*; `cov_pct>3` → 2/2 BAD, **breaks 4/5
+  GOOD**; **blacklist ISM/HISM/Foliage → 2/2 BAD but breaks `RoomBuilderSquare_C`**; bounds÷rect
+  **not computable**. ⚠ **THE STRAWMAN FAILED DIFFERENTLY THAN PREDICTED** — `BP_SpawnPad_C` is **GOOD**,
+  so not rejecting it is correct behaviour; the blacklist's real cost is a **legitimate** target with a
+  **75:1** in/out ratio.
+  🆕 **A SECOND CLASS-(ii) INSTANCE, AND IT IS NOT FOLIAGE: `BP_SplineSpawn_C`** claims **22.9 %** of the
+  frame and changes essentially nothing anywhere (peak-in **0.0175** vs the control's **0.5515**, 31×).
+  ⚠ **I had EXCLUDED it last turn on the inference "it clearly draws", from its RECT SIZE — which is
+  CLAIMED extent, the very quantity H5 says is untrustworthy. Measurement overturned my call.**
+  🔧 **A DEFECT IN MY OWN HARNESS, found because the table tool SILENTLY SWALLOWED a leg:** `CM_SPLINE`
+  had **7 ZERO-BYTE PNGs** (highest indices) while `total_frames` read 76, files numbered 88,
+  `key_ring` read **121/121/0/0** and **nothing was logged** — every counter clean, the artifact
+  internally inconsistent. **CAUSE: `run_leg.ps1` killed the process the instant `run_summary.json`
+  appeared, truncating the async writer's tail flush.** ✅ **Proven both ways** — with a flush-wait the
+  re-run gave **90 frames / 0 zero-byte / total_frames 90**. **Harness, not product.** ⚠ **Product-side
+  OBSERVATION, narrow: an interrupted run leaves counters disagreeing with files, undisclosed** — the
+  `GetDropped()` warning cannot fire because the writer never counts them. **m19's lesson recurring:
+  gate on PIXELS, not on a counter.** Both fixes are harness-side; the tool now **reports every skipped
+  leg with its reason** (the silent skip is what hid the corrupt frames).
+  📐 **`SM_Ramp2` is an A35 case on the record: peak OUT 0.2955 > peak IN 0.1785, marker OFF** — the
+  largest change from hiding it is **outside its own bbox**. Any in-bbox-only rule scores this
+  legitimate target low.
   📒 **THE MECHANISM LEDGER IS `docs/invisible-anomaly-mechanisms.md` — READ IT FIRST.** Five rows
   (`m23`/`P3` FIXED · `H4` SUPPORTED · `H5`(ii) SUPPORTED · `H5`(i) ENUMERATED-NOT-OBSERVED ·
   **traceability degradation, marked NOT A CAUSE**), each stating **MEASURED vs SOURCE-READ**, evidence,

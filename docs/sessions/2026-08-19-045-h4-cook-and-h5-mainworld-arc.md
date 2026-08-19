@@ -2225,3 +2225,190 @@ all of them.**
 | build | unchanged — `exe 101AFEA4` + `utoc 939B9C9B` |
 | new | **G125** (the marker contaminant) · `docs/invisible-anomaly-mechanisms.md` · two sweep tools |
 | corrected | PART NINE's foliage grid numbers, at source (`-Marker 0`), not masked |
+
+---
+---
+
+# PART ELEVEN — the cure measurement. A distribution sketch, n small, nothing graded.
+
+⛔ **NO CODE. NO CURE DESIGNED OR PROPOSED. NO A54 VERDICT. `P6` DOES NOT MOVE.**
+*(Numbering: the owner confirmed PART TEN was correct and this is genuinely ELEVEN.)*
+
+## 77. 🚨 A DEFECT I FOUND IN MY OWN HARNESS, AND THE ARTIFACT THAT EXPOSED IT
+
+The table tool **silently swallowed a leg**. Chasing that rather than ignoring the gap found this:
+
+`CM_SPLINE` produced **88 PNG files, 7 of them ZERO BYTES** (indices 80, 82–87) — while
+`run_summary.total_frames` read **76**, `labels.jsonl` had **77 rows**, `key_ring` read **121/121/0/0**,
+`speed_ratio` **1.0000**, and **nothing was logged.** Every health counter clean, the artifact
+internally inconsistent, the disagreement undisclosed.
+
+**CAUSE: MY HARNESS, NOT THE PRODUCT.** `run_leg.ps1` waited for `run_summary.json` to appear and then
+killed the process **immediately** — but the summary is written at run *finish* while the **async frame
+writer is still flushing**. The kill truncated the tail, which is exactly why the zero-byte frames are
+the **highest indices**.
+
+✅ **DEMONSTRATED BOTH WAYS.** A flush-wait was added — poll until the frame count *and* the zero-byte
+count stop changing — and the leg re-run:
+
+| | without the wait | **with the wait** |
+|---|---|---|
+| frames on disk | 88 | **90** |
+| zero-byte | **7** | **0** |
+| `run_summary.total_frames` | 76 | **90** |
+
+⚠ **What survives as a product-side OBSERVATION, stated narrowly:** an interrupted run leaves an
+artifact whose counters disagree with its files **with no disclosure**. The `GetDropped() > 0` warning
+never fires because the writer never gets to count them. ⛔ **Not a defect claim** — a force-killed
+process cannot be expected to reconcile. **Recorded because a delivered session could in principle be
+interrupted the same way and would look clean.**
+
+🔁 **This is m19's lesson recurring: gate on PIXELS, not on a counter.** Here the counters were
+*self-consistent and wrong*.
+
+**Two harness fixes landed** (`CaptureBench`, local-only): the flush-wait above, which also **warns
+loudly if zero-byte frames remain**; and the table tool now **reports every skipped leg with its
+reason** instead of `except: continue`. ⚠ **The silent skip is what hid seven corrupt frames** — and
+the skip list immediately showed the other skips are **delivery-mode legs with no `labels.jsonl`**,
+which is correct and expected.
+
+## 78. THE TABLE — marker OFF, deduped, 7 distinct targets
+
+⛔ **94 of 110 banked legs are MARKER-ON and are EXCLUDED from every pixel figure below** (G125), not
+silently mixed.
+
+| target | component | rect % | `cov_pct` | `poll_dist` | occ | whole \|Δ\| | peak IN | peak OUT |
+|---|---|---|---|---|---|---|---|---|
+| `RoomBuilderSquare_C` | `InstancedStaticMesh` | 82.9 | 21.67 | **−1737.8** | 5/9 | **0.04413** | 0.2030 | 0.0027 |
+| `SM_Ramp2` | `StaticMesh` | 5.9 | 5.87 | +389.9 | 5/9 | 0.01105 | 0.1785 | **0.2955** |
+| **`StaticMeshActor_49`** *(control)* | `StaticMesh` | 7.8 | 7.80 | +418.1 | 9/9 | 0.00750 | **0.5515** | 0.0086 |
+| `InstancedFoliageActor_0_0_0` | `FoliageInstancedStaticMesh` | **100.0** | **100.00** | **−5396.0** | **1/9** | 0.00603 | 0.1242 | 0.0000 |
+| `BP_SpawnPad_C` | `StaticMesh` | 17.0 | 13.24 | **−123.4** | 9/9 | 0.00515 | 0.1264 | 0.0383 |
+| `BP_MovingPlatform_C` | `StaticMesh` | 0.5 | 0.57 | +1370.7 | 6/9 | 0.00249 | 0.0148 | 0.0295 |
+| `BP_SplineSpawn_C` | `InstancedStaticMesh` | 22.9 | 3.86 | **−19405.5** | **3/9** | **0.00192** | **0.0175** | 0.0149 |
+
+⛔ **(a) THE SELECTION BOUNDS EXTENT IS NOT RECOVERABLE FROM ANY ARTIFACT.** The guards use SM/SK
+`Component->Bounds`; `node.bounds` is `GetComponentsBoundingBox(true)` (whole actor — `P6`); and
+`poll_distance = dist − sphereRadius` is **one equation in two unknowns**. **The quantity every guard
+is computed from is not recorded.** That is itself a finding about the cure.
+
+### 78.1 ⚠ A SECOND CLASS-(ii) INSTANCE — and a call of mine it overturns
+
+**`BP_SplineSpawn_C` claims 22.9 % of the frame and hiding it changes essentially nothing anywhere** —
+peak IN **0.0175**, peak OUT 0.0149, whole-frame **0.00192**. Against the control's peak IN of
+**0.5515**, that is **31× smaller**.
+
+🚨 **LAST TURN I EXCLUDED IT FROM THE CLASS-(i) CANDIDATE LIST ON THE GROUNDS THAT "it clearly draws",
+citing its 22.9 % rect. THAT WAS AN INFERENCE FROM RECT SIZE, NOT A MEASUREMENT, AND IT WAS WRONG.**
+Rect size is *claimed* extent — the very quantity `H5` says is untrustworthy — so using it to conclude
+"it draws" assumed away the hypothesis. **Same error family as the class (i) prediction: I substituted
+a claim for a measurement.**
+
+⇒ **`H5` class (ii) now has n = 2 measured instances**, and — importantly — **one is NOT foliage.**
+
+### 78.2 `SM_Ramp2` — an A35 case, on the record
+
+**peak OUT 0.2955 > peak IN 0.1785**, with the marker OFF. The largest change from hiding the ramp is
+**outside its own bbox** — consistent with A35 (hiding an object removes its cast shadow). ⛔ Not
+investigated; recorded because any in-bbox-only rule would score this legitimate target low.
+
+## 79. Q1 — IS THERE A SEPARATION?
+
+**GOOD/BAD assigned by OUTCOME**, then asked whether anything **available before the hide** predicts it.
+**BAD = `InstancedFoliageActor`, `BP_SplineSpawn_C` (n=2). GOOD = the other five.**
+
+**The best discriminator found is POST-hide: change per unit claimed area (`whole|Δ|` ÷ `rect_frac`):**
+
+| | value |
+|---|---|
+| **BAD** `InstancedFoliageActor` | **0.00603** |
+| **BAD** `BP_SplineSpawn_C` | **0.00838** |
+| GOOD `BP_SpawnPad_C` | 0.0303 |
+| GOOD `RoomBuilderSquare_C` | 0.0532 |
+| GOOD `StaticMeshActor_49` | 0.0962 |
+| GOOD `SM_Ramp2` | 0.187 |
+| GOOD `BP_MovingPlatform_C` | 0.498 |
+
+**Clean separation, no overlap, a 3.6× gap.** ⛔ **But it requires the pixel measurement, and a cure
+must decide BEFORE hiding. A discriminator that needs the measurement is not a discriminator.**
+
+**Among PRE-hide quantities:**
+
+| quantity | separates? | overlap |
+|---|---|---|
+| `cov_pct` | ❌ **NO** | BAD {100.00, **3.86**} straddles GOOD {0.57 … 21.67} entirely |
+| rect % | ❌ **NO** | BAD {100.0, **22.9**}; GOOD `RoomBuilderSquare` is **82.9** |
+| `poll_distance < 0` | ⚠ partial | catches **2/2 BAD** but also **2/5 GOOD** |
+| ISM/HISM/Foliage class | ⚠ partial | catches **2/2 BAD** but also **1/5 GOOD** |
+| **occlusion sample count** | ✅ **yes, in this sample** | **BAD ≤ 3/9 · GOOD ≥ 5/9**, no overlap |
+
+⚠ **THE OCCLUSION-COUNT SEPARATION IS REAL IN THIS SAMPLE AND VERY WEAK AS EVIDENCE.** n=2 versus n=5
+on a 9-valued integer; `SM_Ramp2` and `RoomBuilderSquare_C` sit at 5/9, one step from the boundary; and
+the mechanism I can offer for it — an aggregate's rays go to cluster-AABB corners so more of them hit
+something — is **post-hoc**. ⛔ **Reported as an observation with its n, NOT proposed as a threshold.**
+*(It is also the `P-a1` band again: the targets that barely scrape past `IsUnoccluded` are the ones
+whose labels are worthless. `P-a1`…`P-a5` REMAIN UNTESTED.)*
+
+## 80. Q2 — WHAT IS THE RATIO THAT MATTERS? **The owner's prior is CONFIRMED.**
+
+> **Prior, stated to be refutable: the informative quantity is DRAWN EXTENT relative to CLAIMED
+> EXTENT, and no field currently carries drawn extent.**
+
+✅ **CONFIRMED, and the check that could have refuted it failed.** The one plausible proxy from
+existing fields is `cov_pct` — the *selection* bounds projected — and §79 shows it **does not separate
+at all** (BAD holds both the highest value in the table, 100.00, and nearly the lowest, 3.86). Bounds
+volume ÷ label rect is **not computable**: the numerator is the un-recorded quantity of §78(a).
+
+**Every field the artifact carries — `cov_pct`, `coverage_ratio`, `bbox_px`, `poll_distance`,
+`node.bounds` — describes CLAIMED extent. None describes DRAWN extent.**
+
+⇒ 🚨 **THE ANSWER IS "NO USABLE PROXY EXISTS", AND THAT MEANS THE CURE NEEDS A NEW MEASUREMENT RATHER
+THAN A NEW THRESHOLD.** The brief called either result complete; this is the one that obtained.
+⛔ **No cure proposed.** *(Noted without acting on it: that conclusion has the same shape as
+`feature/stencil-capture`'s premise — report actual pixel contribution. **That branch is H4's cure and
+is UNTOUCHED**; whether one measurement could serve both is not established and is not claimed.)*
+
+## 81. Q3 — HOW MANY LEGITIMATE TARGETS WOULD A NAIVE FIX BREAK?
+
+Over the 7 measured targets — **5 GOOD, 2 BAD**:
+
+| candidate rule | BAD caught | **GOOD broken** | which GOOD |
+|---|---|---|---|
+| **reject if `poll_distance` < 0** | 2 / 2 | **2 / 5 (40 %)** | `RoomBuilderSquare_C` (−1737.8), `BP_SpawnPad_C` (−123.4) |
+| **reject if `cov_pct` > 90** | 1 / 2 | 0 / 5 | — *(but misses `BP_SplineSpawn_C` entirely)* |
+| **reject if `cov_pct` > 20** | 1 / 2 | 1 / 5 | `RoomBuilderSquare_C` (21.67) |
+| **reject if `cov_pct` > 3** | 2 / 2 | **4 / 5 (80 %)** | all but `BP_MovingPlatform_C` |
+| **reject bounds-volume ÷ rect > X** | — | — | ⛔ **NOT COMPUTABLE** — the numerator is not recorded (§78a) |
+| **blacklist ISM / HISM / Foliage** | 2 / 2 | **1 / 5 (20 %)** | `RoomBuilderSquare_C` |
+
+**`cov_pct` has NO value that catches both BAD without breaking GOOD** — the curve is in the three rows
+above and it is monotone in the wrong way.
+
+### 81.1 ⚠ THE STRAWMAN FAILED DIFFERENTLY THAN PREDICTED — reporting the table, not the argument
+
+> The brief said: *"the blacklist … I expect it to miss `BP_SpawnPad_C` and I want that in the table
+> rather than in my argument."*
+
+**The table does not say that.** `BP_SpawnPad_C` **manifests correctly and is GOOD**, so a rule that
+does not reject it is behaving *correctly*, not failing. In this sample the blacklist **catches both
+BAD instances**, and its actual failure is **rejecting `RoomBuilderSquare_C`, a legitimate target that
+produces a strong, correctly-located change** (peak IN 0.2030 against peak OUT 0.0027, a 75:1 ratio).
+
+⛔ **The blacklist is still not a fix** — and now for a reason the measurement supports rather than one
+argued from principle: **it is the second-most damaging rule in the table to legitimate targets, and
+its apparent success at catching BAD rests on n=2 where both happen to be instanced.** `BP_SpawnPad_C`'s
+role in the argument is different from the one predicted: it shows that **a plain `StaticMeshComponent`
+can have a bounds sphere that defeats the poll cull** (§73) — which is why the *poll-distance* rule
+breaks it, not why the blacklist would.
+
+## 82. State after PART ELEVEN
+
+| | |
+|---|---|
+| plugin production code | **ZERO lines, across all eleven parts** |
+| tag | **none** · `feature/stencil-capture` **UNTOUCHED** |
+| `P6` | **DOES NOT MOVE** — third observation recorded in the ledger, not fixed |
+| build | unchanged — `exe 101AFEA4` + `utoc 939B9C9B` |
+| new | `cure_measurement_table.py` · harness flush-wait · skip-reporting |
+| corrected | my own exclusion of `BP_SplineSpawn_C`; the harness-induced zero-byte frames |
+| ⛔ not done | **no cure designed or proposed** — chat-side, next brief |
