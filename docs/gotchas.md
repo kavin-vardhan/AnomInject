@@ -2483,3 +2483,50 @@ instrument** and needs its own eight-control gate under A53. It is filed alongsi
 > says *"SCOPED to 1280×720 / CB_GateLevel / StaticMeshActor_49"* — all three were written down, and only
 > the resolution was ever treated as load-bearing. **Read the scope line as a conjunction of
 > preconditions, not as provenance.** (2026-08-19.)
+
+**Addendum, measured the same day.** Fired at `StaticMeshActor_100`, `check_pose.py`'s reporting-only
+output read `ratio m/CALIB = (None, 0.9161, 0.3777, 0.394)` — **non-uniform**, with `modal_rot` stable
+at `(0,0,0)` and `distinct=1, modal=100%`. Under the printed discriminator that is **neither** of the
+two causes it enumerates ("uniform ratio + camera still ⇒ resolution scope"; "non-uniform + modal_rot
+displaced + collapsed width ⇒ genuine A47"). It is a **third** cause — a different target — and the
+discriminator does not name it. ⚠ **A discriminator that lists two causes invites the reader to pick
+one.** Anything it does not enumerate reads as the nearest listed option, which here would have been
+"genuine A47 bifurcation" on a leg whose camera was provably motionless.
+
+---
+
+### G118 — the COOKED build enforces its own token, so a placeholder guard on the SOURCE ini validates the wrong artifact
+
+`Config/DefaultGame.ini` in the project carries a rotated 64-character control-server token.
+**The staged build rejects it.** Its own startup log says why:
+
+```
+=== Control server token: TESTVALUE123 (from DefaultGame.ini [AnomalyControlServer] Token) ===
+```
+
+The staged build was cooked **before** the rotation and still enforces the placeholder it was cooked
+with. **The parenthetical is the trap:** the binary says *"from DefaultGame.ini"* and means the
+**cooked** one, which is a different file from the one on disk. A reader who greps the project ini,
+sees a strong 64-char token, and matches it against that log line will conclude everything is fine.
+
+**Why this is worse than an ordinary staleness bug:** G112 installed a placeholder guard, and
+`verify_lastrundir.ps1` applies it — to the **source** ini. The source ini is clean. **The guard fires
+on the artifact that enforces nothing and stays silent about the one that is actually listening.**
+A build cooked before any future rotation inherits the same hole, silently.
+
+- **`TESTVALUE123` is a 12-character literal that appears in this repo's history.** Anyone who can
+  reach `ws://127.0.0.1:8077` on a box running a stale cooked build is authenticated.
+- **RULE: verify the token against the RUNNING PROCESS, not against the ini you edited.** The log line
+  above is the read-back; it is the A44 principle (prove the artifact under test is the one you think
+  it is) applied to a secret instead of a binary, and A48's (report the effective value from an
+  independent read-back) applied to something with no cvar to echo.
+- `ws_scoping_echo.ps1` now reads the enforced token from the live log, prints source-vs-enforced side
+  by side, and shouts when the enforced one is a placeholder. **Reading it from the log is a
+  READ-BACK, not a hardcoded secret** — the value never enters a tracked file.
+- ⛔ **NOT fixed here.** The fix is a re-cook (and a re-stage, which wipes `Saved` — G92 — so the bank
+  must be refreshed first), and that would replace the exact binary `101AFEA4` that every m25 result is
+  measured against. **Filed, not done.** It must not ride inside a measurement turn.
+
+*(Found while collecting H4's corroborating A48 echo; entirely orthogonal to H4, and recorded rather
+than absorbed. Related: G92 — compiled is not staged; G112 — placeholder tokens; G114 — a lever that
+does nothing.)* (2026-08-19.)

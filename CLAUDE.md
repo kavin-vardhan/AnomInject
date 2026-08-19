@@ -96,9 +96,68 @@ and is the single source of truth for the project.
   **`P1`'s `H1` lever** (GPU-load starvation shape — **P1's ONLY named lead, and it has NO LEVER IN
   EXISTENCE**; design **chat-side first, NEVER same-turn as its first measurement**; if H1 also comes
   back clean, **P1 HAS NO NAMED LEADS**).
-  🛑 **`H4` PRE-FLIGHT RAN 2026-08-19 AND HIT THE SCOPE GATE. NO PACKAGED RUN HAPPENED, NO BRANCH
-  OBTAINED, `H4` IS STILL *NAMED, NOT ADOPTED* — nothing measured is evidence for or against it.**
-  → journal `docs/sessions/2026-08-19-045-h4-preflight-halt.md`. **Read it before re-briefing H4.**
+  🟢 **`H4` RAN 2026-08-19 (after its brief was amended chat-side) AND THE RESULT IS
+  `H4-SUPPORTED` — THE MECHANISM IS OBSERVED, PATH (b), 8/8 EVENTS.** → journal
+  `docs/sessions/2026-08-19-045-h4-preflight-halt.md` (**PART TWO** is the run; part one is the
+  pre-flight that stopped the *original* brief). **STILL ZERO PLUGIN PRODUCTION CODE. NO TAG.**
+  **THE OBSERVATION:** on a target proven fully occluded (`StaticMeshActor_100`; `StaticMeshActor_86`
+  blocks all 9 rays alone, 0 rays floor-only), the label path emitted **`bbox_valid: true` on 59/59
+  rows**, `visible_positive` on 59 rows, `coverage_ratio 0.01160339 > 0`, and **8 annotation events all
+  `manifested: true`** — while `selection_provenance` read **`valid:false`, `0/0`, `coverage_pct −1`**
+  on all 8. **That pairing — provenance `valid:false` WITH `bbox_valid: true` at the same anchor — is
+  the C4 divergence, and it had NEVER been seen in 780 banked records. It occurred 8/8.**
+  **THE RAW SERIES (Ruling 3a — a SERIES, NOT AN A54 VERDICT; A54 is out of scope on this target,
+  G117):** in-bbox luminance moves by at most **2.0 × 10⁻⁴** with claimed/flank ranges **OVERLAPPING on
+  7 of 8 events**, against the control's **0.1023–0.1116** on the same binary and pose — a factor of
+  ~**500**, with inconsistent sign. **Labelled positive, boxed, `coverage_ratio > 0`, and changing
+  essentially nothing inside that box.**
+  ✅ **CONTROL (`StaticMeshActor_49`, same binary/geometry/schedule, adjacent launch):** provenance
+  **9/9 `valid:true`** ×8, and A54 — **in scope there** — returns **7/7 ALIGNED, 7/7 decidable, median
+  margin 0.10527**, with the positive control **decisive in BOTH directions** (`+1` → 7/7 SHIFTED,
+  `−1` → 8/8 SHIFTED). `modal_rot` **identical** across the two legs (delta 0.0, tol 0.5) —
+  **reported as a DISCRIMINATOR, never a gate.**
+  ⛔ **SUPPORTED, NOT CONFIRMED** — the word was chosen before the run, because the A54 leg of the
+  original signature is structurally unobtainable (G117); this rests on the provenance divergence plus
+  a raw series, not on an oracle verdict. ⛔ **NO INCIDENCE CLAIM** — path (b) only; path (a)
+  (selected while visible, becomes occluded during the window) **cannot be produced in `CB_GateLevel`**
+  (all targets STATIC, eye invariant on 844/844) and remains unbuilt. ⛔ **n = 1 leg** on the occluded
+  side; 8 events in one leg are not 8 legs. **Routes to `feature/stencil-capture` as its cure —
+  that branch is NOT touched and NOT rebased.**
+  ⚠ **CLAUSE CHAIN, and one link is NOT from the artifact:** C1 excluded by the artifact (every anchor
+  is absent from its event's hidden set); **C2 (poll radius) is NOT decidable from the artifact** — the
+  projector has no radius test and `poll_distance` is the −1 sentinel — so it is excluded by the
+  certified offline model (`_100` at 1031.9 cm, verified to **8e-6** against `_49`'s banked
+  418.09228516) **plus the live `pollRadius: 1800` read-back**; C3 excluded by `bbox_valid: true`;
+  **C4 is the remainder**, and is independently predicted from the geometry.
+  ✅ **A48 — BOTH ECHOES OBTAINED AND THEY AGREE.** Primary (behavioural, banked per leg):
+  `blinking: matched 1 actor(s) for '=StaticMeshActor_100'` ×8 — `matched 0` **is** the scoping-ON
+  signature, so `matched 1` on an occluded target proves the occlusion-aware path did not run.
+  Corroborating (live WS `ControlSnapshot`): `viewportScoping: False`, `pollRadius: 1800`,
+  `minScreenCoverage: 6`. **Ruling 2 honoured: NO `IAI.SetPollRadius`, shipping defaults throughout;
+  recorded that the 1800 cm radius is what ADMITS `_100` and is why `_11` was rejected.**
+  🔬 **P6's FIRST OBSERVATION:** `coverage_pct −1` alongside `coverage_ratio 0.01160339` on all 8
+  events. **It is −1, NOT 0** — journal 036 §3.5 and the original H4 filing both said 0; the source
+  said −1 in pre-flight and the run confirms it. ⛔ **`P6` DOES NOT MOVE — no `annotation.json` field
+  added, removed, renamed or recomputed.**
+  🌒 **SHADOW, resolved by WORDING not by target (Ruling 5), and it travels with the result:** no
+  candidate is clean on both poll radius and shadow. **H4 concerns whether the PROJECTOR boxes a target
+  contributing no pixels WITHIN ITS OWN BBOX.** `_100` contributes none inside its bbox and does throw
+  shadow outside it (2 of 9 patch samples visible); A54 keys strictly inside the bbox (A35), so the
+  shadow is outside the claim's scope **by construction** — and outside the client's complaint, which
+  is a labelled box around nothing. The measured ~2e-4 in-bbox excursion is what A35 predicts.
+  🚨 **G118 — FOUND WHILE COLLECTING THE CORROBORATING ECHO, ORTHOGONAL TO H4, AND SECURITY-RELEVANT:
+  the STAGED build enforces the placeholder control-server token `TESTVALUE123`** (cooked before the
+  rotation), while `Config/DefaultGame.ini` carries a clean 64-char one. **G112's guard checks the
+  SOURCE ini and therefore validates the artifact that enforces nothing.** The binary's own log says
+  *"from DefaultGame.ini"* and means the **cooked** one. ⛔ **NOT FIXED — the fix is a re-cook + re-stage,
+  which wipes `Saved` (G92) and would replace the exact binary `101AFEA4` every m25 result is measured
+  against. FILED, and it must not ride inside a measurement turn.**
+  ⚠ **A63 record: the control needed 2 attempts and try1 was banked before being discarded.** Its
+  failure was A56's **self-consistency** conjuncts (`distinct=8, modal=45.8%`) with **`pose_match=True`
+  and the bbox matching CALIB_BBOX exactly** — a **THIRD** cause behind the generic label *"POSE GATE
+  FAILED (B1) — CAUSE NOT ESTABLISHED"*, after resolution scope (S4-1) and genuine A47.
+  🛑 *(part one, kept — it is why the run above is trustworthy)* **THE ORIGINAL BRIEF WAS HALTED AT THE
+  SCOPE GATE BEFORE ANY RUN.**
   Three blockers, all found before the run: **(1)** a capture run carries **exactly ONE** targeted
   `(anomaly, actor)` pair — session events come only from `LiveFires`, and the only route that reaches a
   NAMED occluded actor is `BeginFire → TryFireSpecific` with the run's single configured pair

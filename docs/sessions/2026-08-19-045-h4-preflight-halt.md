@@ -340,3 +340,223 @@ Nothing above is adopted. It is the shape of the decision, not the decision.
 | `tools/h4_target_pick.py` | screens candidates against **all four** clauses, and self-checks against `poll_distance` and `bbox_px` before printing. |
 
 **`AnomalyInjector`:** this journal, **G116**, **G117**, and the status block. **Zero production code.**
+
+---
+---
+
+# PART TWO — THE RUN. The brief was amended chat-side, and the run went ahead.
+
+**All four decisions in §8 were ruled on chat-side before anything launched. The amended design was
+executed the same turn. Still ZERO plugin production code; still no tag.**
+
+## 10. What the rulings changed
+
+| # | ruling | effect |
+|---|---|---|
+| 1 | **two legs, not one run** | occluded `_100`, control `_49`, same binary, same geometry, adjacent launches. `run_leg.ps1` gained `-Anomaly` / `-Target` / `-BankPrefix`. Lost intra-run pose anchor accepted; `modal_rot` inter-leg match adopted **as a discriminator, never a gate** |
+| 2 | **shipping defaults** | **no `IAI.SetPollRadius`.** `_100` passes C2 at 1031.9 cm on the shipped 1800 cm radius, so no lever was used and none was needed |
+| 3 | **option (a)** | raw in-bbox luminance series, **reported as a series**. No A54 verdict on the occluded leg. Option (b) (per-leg calibration bbox) **filed** with `B1`-NDC and `B2` |
+| 4 | **sharpened discriminator** | the C3/C4 pairing entered the branch table **before** the run |
+| 5 | **shadow resolved by wording** | no better target hunted, no level re-authored — the claim narrowed instead (§14) |
+| 6 | **both A48 echoes, ranked** | echo 1 behavioural (primary), echo 2 WS state (corroborating), **disagreement ⇒ halt** |
+
+The branch table was **pre-registered as a file before either leg launched**, not merely restated in
+prose, so the restatement is an artifact rather than a claim about one.
+
+## 11. How the legs ran (A63, every attempt banked)
+
+| leg | target | attempts | verdict | B1 |
+|---|---|---|---|---|
+| `H4_CTRL_49` | `StaticMeshActor_49` | **2** | try1 **discarded and banked**, try2 accepted | **APPLIES** |
+| `H4_OCC_100` | `StaticMeshActor_100` | **1** | accepted | **NOT APPLICABLE (G117)** |
+
+⚠ **The control's discarded attempt 1 is worth reading precisely, because the harness's label is
+generic and the failing conjunct was not the one the label names.** try1 printed
+`bbox=(0.0, 485.2, 306.1, 234.8) pose_match=True` — the pose matched CALIB_BBOX **exactly** — but
+`distinct=8, modal=45.8%`. So it failed A56's **self-consistency** conjuncts
+(`coverage >= 0.90`, `distinct <= 3`), **not** `pose_match`. The harness said *"POSE GATE FAILED (B1) —
+CAUSE NOT ESTABLISHED"*, which is the honest label it was given in `bb79012`, and this is a **third
+distinct cause** behind that same label — after resolution scope (S4-1) and genuine A47 bifurcation.
+Recorded; not attributed further.
+
+**B1 was applied on the control and declared NOT APPLICABLE on the occluded leg**, exactly as G117
+requires. It was **not skipped to make a leg pass** — an off-calibration leg has no pose gate
+available at all, and `check_pose.py` still ran in reporting-only mode. Its output is instructive:
+`ratio m/CALIB = (None, 0.9161, 0.3777, 0.394)` — non-uniform, with `modal_rot` **stable at (0,0,0)**
+and `distinct=1, modal=100%`. Under the harness's own printed discriminator that is neither
+"resolution scope" nor "genuine A47 bifurcation": it is **a different target**, the third cause the
+discriminator does not enumerate.
+
+## 12. The A48 echoes — both obtained, and they AGREE
+
+**Echo 1 — behavioural, PRIMARY, banked with each leg** (`_leg_game.log`, copied out of
+`Saved/Logs` per attempt because the game rotates it on the next launch):
+
+```
+LogAnomaly: blinking: matched 1 actor(s) for '=StaticMeshActor_100' at half-period 3 frame(s).   x8
+LogAnomaly: blinking: matched 1 actor(s) for '=StaticMeshActor_49'  at half-period 3 frame(s).   x8
+```
+
+`matched 1` **on a target proven fully occluded** is only possible if `Anomaly_Blinking::Apply` took
+the plain-targeting path. With scoping ON it takes `FindVisibleActorsMatching` (frustum ∧
+`IsUnoccluded`) and **necessarily** logs `matched 0`. This is a direct observation of the exact
+condition A48 cares about, not a setter echoing its own argument.
+
+**Echo 2 — live subsystem read-back, CORROBORATING** (`ControlSnapshot.session` over WS):
+
+```
+viewportScoping   : False        <- agrees with echo 1
+pollRadius        : 1800 cm      <- the shipped default, read back rather than assumed
+minScreenCoverage : 6 %
+```
+
+**The two agree. No halt.** And per Ruling 2, recorded: **the 1800 cm radius is what admits `_100`**
+(1031.9 cm). A target ~800 cm further out is culled at clause C2 **before occlusion is ever
+consulted** — a real property of the shipping selector, not an artifact of this run. It is also why
+`StaticMeshActor_11` was rejected in pre-flight.
+
+### 12.1 🚨 Getting echo 2 exposed an unrelated, security-relevant defect → **G118**
+
+The first attempt read the token from `Config/DefaultGame.ini` — the file a developer edits, and the
+route `verify_lastrundir.ps1` established — and the server **rejected it**. The staged build's own
+startup log says why:
+
+```
+=== Control server token: TESTVALUE123 (from DefaultGame.ini [AnomalyControlServer] Token) ===
+```
+
+The project ini carries a rotated 64-char token. **The cooked build enforces `TESTVALUE123`.** The
+parenthetical is the trap: the binary says *"from DefaultGame.ini"* and means **the cooked one**,
+which is a different file from the one on disk. So **G112's placeholder guard validates an artifact
+that is not the one enforcing anything** — it fires on the source ini, which is clean, and stays
+silent about the build that is actually listening.
+
+Fixed harness-side by A44: the token is now read from the **running process's own log line**, which is
+a read-back rather than a hardcoded secret, and the script prints the mismatch and the placeholder
+warning loudly rather than proceeding quietly. **The measurement continued because this is orthogonal
+to H4** — but the defect is real and is filed, not absorbed.
+
+## 13. THE RESULT — **BRANCH H4-SUPPORTED**, on all four conjuncts, 8/8 events
+
+Same binary (`101AFEA4` = m25), same `1280×720` windowed at 100 % scale, same `VideoFps 30` pinned and
+paced, same burst schedule, `capture_path: "sve"` **not forced**, `content_clock: "wall"` asserted
+positively on both, `delivery_mode: false` on both, adjacent launches, **identical `modal_rot`**.
+
+| quantity | occluded `_100` | control `_49` |
+|---|---|---|
+| label rows for the target | 59 | 59 |
+| **`bbox_valid` TRUE** | **59 / 59** | 59 / 59 |
+| **`visible_positive` rows** | **59** | 59 |
+| distinct bboxes / modal | 1 · `(905.7, 444.5, 115.6, 92.5)` 100 % | 1 · `(0.0, 485.2, 306.1, 234.8)` 100 % |
+| annotation events | 8, **`manifested: true` on all 8** | 8, `manifested: true` on all 8 |
+| **`coverage_ratio`** | **0.01160339** (> 0) | 0.07797734 |
+| **`coverage_pct`** | **−1** | 7.7977 |
+| **provenance `valid`** | **`false` × 8** | `true` × 8 |
+| **occlusion samples** | **0 / 0 × 8** | **9 / 9 × 8** |
+| `poll_distance` | −1 (sentinel) | 418.1 |
+| anchor in the blink's hidden set | **false × 8** | false × 8 |
+| **clause** | **C4 OCCLUSION — 8/8 DIVERGENCE** | selection succeeded — 8/8 |
+| A54 | **not in scope (G117)** | **7/7 ALIGNED, 7/7 decidable**, median margin **0.10527** |
+| A54 positive control | n/a | **decisive BOTH ways**: `+1` → 7/7 SHIFTED, `−1` → 8/8 SHIFTED |
+
+**The C4 divergence — provenance `valid:false` + `0/0` with `bbox_valid: TRUE` on the same anchor
+frame — had never been observed in 780 banked records. It occurred on 8 of 8 events here.**
+
+### 13.1 The clause chain, and which link rests on what
+
+The four short-circuit clauses all write the same artifact string (G116), so each had to be excluded
+separately. **Two of the exclusions come from the artifact and one does not — that distinction is
+load-bearing and is stated rather than smoothed over.**
+
+| clause | excluded by | strength |
+|---|---|---|
+| **C1** renderable / `IsVisible` | **the artifact** — every anchor (3, 15, … 87) is **absent** from that event's `frame_indices`, i.e. the actor was **not** in the blink's hidden phase at the anchor. The control has the identical anchor/hidden structure and returns `valid:true` | direct |
+| **C2** poll radius | **NOT decidable from the artifact** — the projector has no radius test, so `bbox_valid` cannot speak to it, and `poll_distance` is the −1 sentinel. Excluded by the certified offline model (`_100` at **1031.9 cm**, model verified to **8e-6** against `_49`'s banked `418.09228516`) **plus the live `pollRadius: 1800` read-back** | **computation + read-back, not artifact** |
+| **C3** frustum | **the artifact** — `bbox_valid: TRUE` on all 59 rows and at all 8 anchors. This is the clause that produced all 21 banked impostors, and it is the one the sharpened discriminator was adopted to separate | direct |
+| **C4** occlusion | **what remains**, and it is independently predicted: `StaticMeshActor_86` (a cube at `(-900, 300, 135)`) blocks all 9 rays to `_100` on its own, with 0 rays blocked only by the floor | remainder + prediction |
+
+### 13.2 The raw series — reported AS a series (Ruling 3a), and it is not close
+
+⛔ **No A54 verdict. No shift search. TAU printed as a scale reference only, never applied.**
+
+| event | claimed mean | flank mean | diff | ranges |
+|---|---|---|---|---|
+| ev0 | 0.960815 | 0.960616 | **+0.000199** | OVERLAP |
+| ev1 | 0.962640 | 0.962467 | +0.000173 | OVERLAP |
+| ev2 | 0.963332 | 0.963323 | +0.000009 | OVERLAP |
+| ev3 | 0.963529 | 0.963539 | −0.000011 | OVERLAP |
+| ev4 | 0.963712 | 0.963720 | −0.000008 | OVERLAP |
+| ev5 | 0.963866 | 0.963827 | +0.000040 | OVERLAP |
+| ev6 | 0.964010 | 0.963999 | +0.000011 | OVERLAP |
+| ev7 | 0.963982 | 0.964008 | −0.000025 | disjoint — but **one** flank frame and 2.5e-5 of separation |
+
+Largest excursion **2.0 × 10⁻⁴**, claimed and flank ranges **overlapping on 7 of 8 events**. The
+control, on the same binary and the same pose, scores **0.1023 – 0.1116**. That is a factor of roughly
+**500**, and the sign is not even consistent across events.
+
+**So the target is labelled positive on 59 frames, carries a projected bbox, reports
+`coverage_ratio > 0` and `manifested: true` — while changing essentially nothing inside that bbox when
+it is hidden.** That is H4, observed.
+
+### 13.3 What this DOES NOT license
+
+⛔ **It is SUPPORTED, not CONFIRMED**, and the word was chosen before the run. The A54 leg of the
+original signature is structurally unobtainable (G117), so this rests on the provenance divergence
+plus a raw series, **not** on an oracle verdict.
+
+⛔ **NO INCIDENCE CLAIM.** This is path (b) — targeted fire on an *already*-occluded actor. Whether H4
+causes the client's complaint is a question about path (a) — selected while visible, becomes occluded
+during the window — which `CB_GateLevel` **cannot produce**: every target is `STATIC` and the eye
+position is invariant on 844/844 banked samples. The projector reads the current view and the actor's
+bounds and has no memory of how the target became occluded, which is what licenses the mechanism claim
+and nothing beyond it.
+
+⛔ **n = 1 leg on the occluded side.** Eight events within one leg are not eight legs.
+
+## 14. The shadow wording (Ruling 5), carried into the result
+
+There is no candidate clean on both poll radius and shadow: `_100` throws shadow into visible pixels
+(2 of 9 patch samples reachable from the eye), and the two shadow-clean candidates (`_11`, `_139`) are
+poll-culled. **No better target was hunted and the level was not re-authored.** The claim narrows to
+what H4 is actually about:
+
+> **H4 concerns whether the PROJECTOR emits a positive label for a target that contributes no pixels
+> WITHIN ITS OWN BBOX. `_100` contributes none inside its bbox and does contribute shadow outside it
+> (7/9 patch samples occluded, 2/9 visible). A54 keys strictly inside the bbox (A35), so the shadow is
+> outside the claim's scope BY CONSTRUCTION — and outside the client's complaint, which is a labelled
+> box around nothing.**
+
+The measured series is consistent with this and could not have been fitted to it: the in-bbox
+excursion is ~2e-4, i.e. the removal of the shadow **outside** the bbox left the **inside** unmoved,
+which is exactly what A35 predicts and why A35 exists.
+
+## 15. P6's first observation — recorded, and P6 DOES NOT MOVE
+
+**`coverage_pct: −1` alongside `coverage_ratio: 0.01160339` on all 8 events of the occluded leg.**
+
+Predicted from source in pre-flight, and the prediction included a correction: journal 036 §3.5 and
+the original H4 filing both said `coverage_pct == 0`. **It is −1** — the `FSelectionProvenance`
+sentinel — and the run confirms it directly. The divergence is real, ships to the client in delivery
+mode, and is now **measured** rather than read from source.
+
+⛔ **No `annotation.json` field is added, removed, renamed or recomputed. P6 remains OPEN and
+UNMOVED.** This is an observation of an open item, not a licence to close it.
+
+## 16. Final state
+
+| | |
+|---|---|
+| plugin production code | **ZERO lines touched, across both parts of this session** |
+| tag | **none** |
+| `feature/stencil-capture` | **untouched** |
+| `B1` / `TAU` / `CALIB_BBOX` / `POSE_TOL_PX` / A54 definition | **untouched** |
+| `P6` | **unmoved** |
+| bank | `H4_H4_CTRL_49`, `H4_H4_CTRL_49_try1` (discarded, banked), `H4_H4_CTRL_49_try2`, `H4_H4_OCC_100`, `H4_H4_OCC_100_try1` |
+| staged exe | `101AFEA4`, unchanged throughout |
+
+**Forward:** H4 is **SUPPORTED as a mechanism, path (b)**, and routes to `feature/stencil-capture`,
+whose premise — report actual pixel contribution before hiding — is its cure. **That branch is NOT
+touched and NOT rebased.** Path (a), and therefore any incidence claim, remains unbuilt and unclaimed.
+The `CALIB_BBOX` cluster (`B1`-NDC, the per-leg calibration bbox from Ruling 3b, `B2`) now blocks two
+named items and its priority rises accordingly, **without being scheduled**. **G118** is filed and is
+independent of all of it.
