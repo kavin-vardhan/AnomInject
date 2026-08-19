@@ -97,7 +97,48 @@ and is the single source of truth for the project.
   **once per RUN**. (2) **A re-picking veto destroys the seeded draw protocol** — `R-SEED` is
   deliberately independent of apply-result and `m22` gated on *"seed 4242, two runs byte-identical"*.
   **If a future reader proposes "just check before firing", both blockers are in journal §103.**
-  🚧 **THE COOK IS IN FLIGHT AND WILL NOT FINISH IN ONE TURN. → journal PART EIGHTEEN §129-§135.**
+  🛑 **THE COOK NOW SUCCEEDS AND THE BUILD STILL CANNOT BOOT. HALTED ON `LoadingPhase`.
+  → journal PART NINETEEN §136-§142.**
+  ✅ **DISK IS SOLVED: `Intermediate` (9,106 files / 13.0 GB) and `Saved` (5,443 files / 7.7 GB) are
+  MOVED TO `E:` AND JUNCTIONED**, so every path stays literally `D:\...` and **`run_leg.ps1` and the
+  other 15 baked paths needed NO edits**; the queued `E:` migration stays queued. Move byte-verified;
+  read-back through the junction confirms the file counts. **free D: 39.9 → 59.2 GB.** ✅ Through the
+  whole rebuild **`freeD` stayed flat while `freeE` absorbed the churn.** ⚠ **Residual, not
+  junctioned: `D:\UESource\UnrealEngine\Engine\Intermediate` (59.8 GB) is engine-side and still on
+  `D:`** — it swung D: between 42 and 59 GB and always recovered.
+  ✅ **COOK: `BUILD SUCCESSFUL`, ExitCode=0, 39m 26s. MAP GATE PASS** — `CB_GateLevel` · `Entry` ·
+  `MainMenu` · `MainWorld` all PRESENT, read from the artifact, both encodings.
+  🚨 **AND THE PACKAGED BUILD STILL DIED AT ENGINE INIT on `Missing global shader
+  FAnomalyVisibleMaskPS's permutation 0`. TWO CAUSES, EACH REPORTING SUCCESS AT THE STEP THAT CAUSED
+  IT → `G131`.**
+  **(1) `G47` AGAIN — THE COOK RUNS ON EDITOR BINARIES.** `UnrealEditor-AnomalyCapture.dll` was
+  **two days stale** and A44 on it read **`AnomalyVisibleMask` 0 · `/Plugin/AnomalyInjector` 0 ·
+  `IAI.Capture.Mask` 0** against **`IsHideTypeAnomaly` 1** ⇒ **scan sound, not blind.** So
+  `AddShaderSourceDirectoryMapping` never ran and the shader was never compiled. ✅ Fixed by
+  `Build.bat StackOBotEditor` (**45 s / 22 actions**, dll 473,600 → 590,336 B). ⚠ **`G47` has said
+  this since `m8`; RUNBOOK §8.6 DID NOT — its recipe builds only the GAME target. The knowledge
+  existed and the recipe did not carry it.** ✅ **§8.6 now has STEP 3.5.**
+  **(2) 🛑 THE BLOCKER — `LoadingPhase`.** With fresh editor binaries the cook crashed at commandlet
+  startup and the engine named the fix: *`Assertion failed: !bInitializedSerializationHistory
+  [Shader.cpp:246] — Shader type was loaded after engine init, use ELoadingPhase::PostConfigInit on
+  your module to cause it to load earlier.`* **`AnomalyCapture` is `"LoadingPhase": "Default"`.**
+  ⛔ **NOT a one-line flip — `AnomalyCapture` DEPENDS ON `AnomalyInjector`, also `Default`, and a
+  module cannot load before its dependency.** ⇒ **a PLUGIN-DESCRIPTOR change ⇒ HALT per the brief.**
+  🧭 **THE OWNER'S PICK — A / B / C, journal §139.1. RECOMMEND B:** a **new tiny `PostConfigInit`
+  module declaring ONLY the shader** (the standard UE pattern), leaving `AnomalyCapture` and
+  `AnomalyInjector` at `Default` with load order **untouched**. A = flip both modules (broad blast
+  radius); C = drop the global shader (re-opens what `M-2` already settled on correctness).
+  ✅ **BENCH RESTORED AND VERIFIED BOOTING** — cook #1 left the staged build non-bootable; restored
+  from `_binary_baselines\m25-h4h5m1-measurement-build\`, **all six files hash-MATCH**, control server
+  answers over WS, A48 behavioural echo present, **no missing-shader fatal.** **The preservation
+  precondition earned its keep within two hours of being taken.**
+  ⚠ **`G115` FIRED ON ME AND THE MECHANICAL DIFFSTAT CHECK IS THE ONLY REASON IT DID NOT LAND.** A
+  `Get-Content -Raw` → `Set-Content` round-trip for one PART-INDEX line returned **`2940 ++++----` on
+  a ~130-line addition**; diagnosis showed **`⚠` had become `Ã¢Å¡Â `** — every non-ASCII line in a
+  2,900-line journal double-encoded. **Reverted and re-applied through the editor tool.** ⚠ **I
+  attempted two "fixes" (strip BOM, convert EOL) BEFORE establishing the cause — both wrong;
+  `core.autocrlf=true` and the blob is LF/no-BOM, so neither was ever the real diff.**
+  🚧 *(superseded)* **THE COOK IS IN FLIGHT. → journal PART EIGHTEEN §129-§135.**
   Cleanup and banking are **DONE**; the cook is a **full 761-action rebuild** (because `Intermediate`
   was deleted to buy its disk space) running at **ONE parallel process** — UBT's own line:
   *"Requested 1.5 GB free memory per action, 2.36 GB available: limiting max parallel actions to 1"*,

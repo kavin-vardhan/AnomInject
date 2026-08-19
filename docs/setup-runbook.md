@@ -498,6 +498,29 @@ The cook is **map-restricted by `-map=`**. Anything not listed is **not in the b
 **That is exactly how `MainWorld` came to be absent from every build for months** (G87's correction,
 G120). `CB_GateLevel` is **non-negotiable** — every m25 certification is expressed in it.
 
+### 3.5 🚨 REBUILD THE **EDITOR** TARGET — the cook runs on editor binaries (G47, G131)
+
+⛔ **NOT OPTIONAL, and this step was MISSING from this recipe until 2026-08-20.** §4's command builds
+the **game** target. **The cook commandlet is `UnrealEditor-Cmd`, which loads EDITOR dlls** — if those
+are stale, the cook silently bakes old code and **still reports `BUILD SUCCESSFUL`.**
+
+```powershell
+& "D:\UESource\UnrealEngine\Engine\Build\BatchFiles\Build.bat" `
+  StackOBotEditor Win64 Development -project="D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject" -waitmutex
+```
+
+**Then A44-scan the EDITOR dll, not the staged exe**, for a symbol the change adds plus a control
+string that predates it:
+
+```powershell
+$dll="D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector\Binaries\Win64\UnrealEditor-AnomalyCapture.dll"
+$b=[System.IO.File]::ReadAllBytes($dll); $u=[System.Text.Encoding]::Unicode.GetString($b)
+foreach($p in @("<new symbol>","IsHideTypeAnomaly")){ "{0,-32} utf16={1}" -f $p,([regex]::Matches($u,[regex]::Escape($p))).Count }
+```
+
+📏 **Measured 2026-08-20: 45 s / 22 actions**, dll 473,600 B → 590,336 B. Cheap; skipping it cost a
+39-minute cook that produced an unbootable build.
+
 ### 4. Cook, stage, pak, archive
 
 ```powershell

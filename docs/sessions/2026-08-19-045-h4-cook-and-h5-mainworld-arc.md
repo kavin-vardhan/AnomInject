@@ -31,6 +31,7 @@ separable — each part exists because the one before it produced something unex
 | **Sixteen** | 119–123 | **`m26` SLICE 1 written · the four amendments · HALT** | Compiles clean, **cannot be validated**: 🚨 **a new GLOBAL SHADER needs a COOK — a hot-swap cannot deliver it, and it fails at engine init EVEN WITH THE SWITCH OFF.** `A-3`'s collision **IS** detectable, two ways |
 | **Seventeen** | 124–128 | **Cook preconditions · `G-3` amended · DISK HALT** | Quartet preserved **6/6 hash-verified**; map set declared; 🛑 **cook did NOT run — 0.94 GB free against a 10 GB floor.** 🚨 **`Saved\AnomalyCaptures`: 21 sessions, ZERO banked** |
 | **Eighteen** | 129–134 | **Cleanup executed · 21 sessions banked · cook IN FLIGHT** | **0.94 → 21.93 GB**; 21/21 banked incl. **the `m23` play-gate smoke**; **G130**. 🚨 **Ruling 1's order was IMPOSSIBLE — banking 3.89 GB needs 3.89 GB.** Cook is memory-bound at **1 process** (`G97`) |
+| **Nineteen** | 136–142 | **`E:` junctions · cook SUCCEEDS · build still cannot boot** | Disk solved, map gate PASS — 🛑 **HALT on `LoadingPhase`: a global shader must load at `PostConfigInit`.** **G131**; runbook §8.6 step 3.5; `G115` fired on me and the diffstat caught it |
 
 ⚠ **ONE INVESTIGATION, FIFTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fifteen;
 the reason it is not split is unchanged).*
@@ -4196,3 +4197,156 @@ correctness risk (the build regenerates them) but they are a time cost, and dele
 is exactly what forced this part's 761-action rebuild.**
 
 ⛔ **NO MIGRATION PLAN IS PROPOSED. This is the scope, and it stops here.**
+
+---
+
+# PART NINETEEN — the cook SUCCEEDS, the build still cannot boot: **`LoadingPhase`. HALT.**
+
+**Build dirs junctioned to `E:`, cook `BUILD SUCCESSFUL`, map gate PASS — and the packaged build
+still dies at engine init. Two causes, in sequence, each reporting success at the step that caused
+it. The second requires a PLUGIN-DESCRIPTOR change ⇒ HALT, per the brief.** **NO PRODUCTION CODE
+CHANGED. NO TAG. `P6` NOT MOVED.**
+
+---
+
+## 136. `E:` junctions — the disk problem is solved, and the harness never noticed
+
+**Owner directed the build to `E:` (609 GB free). Implemented as DIRECTORY JUNCTIONS so every path
+stays literally `D:\IntrusiveAnomalies\StackOBot\...`** — `run_leg.ps1:82,84` and the other 15 baked
+paths keep working **with no edits**, and the queued `E:` migration stays queued.
+
+| dir | moved | verification |
+|---|---|---|
+| `Intermediate` | **9,106 files / 13,037,633,600 B** | MOVE VERIFIED byte-count identical; **9,106 files visible through the junction** |
+| `Saved` | **5,443 files / 7,667,778,391 B** | MOVE VERIFIED; **5,443 files visible through the junction** |
+
+**free D: 39.86 → 59.17 GB · free E: 609.33 → 590.06 GB.**
+
+✅ **It worked exactly as intended: through the whole rebuild `freeD` stayed flat while `freeE`
+absorbed the churn.** ⚠ **One residual, measured and NOT junctioned: `D:\UESource\UnrealEngine\
+Engine\Intermediate` (59.78 GB) is engine-side and still on `D:`** — it oscillated D: between 42 and
+59 GB during the build. **It always recovered, and it is the remaining `D:` exposure.**
+
+⚠ **First attempt HALTED correctly** on *"the process cannot access the file because it is being used
+by another process"* — the previous cook was still live. **Nothing was moved.** *(That also corrected
+my earlier misread: at 00:07 I reported the cook had died, because I caught a gap between compile
+actions and a stale log tail. **It had not** — it ran to `[761/761]` and failed only at the link.)*
+
+## 137. Cook #1 — SUCCESSFUL, and the artifact is still wrong
+
+**`BUILD SUCCESSFUL`, ExitCode=0, 39m 26s**, with the editor closed and ~10 build processes.
+
+✅ **MAP GATE PASS**, read from the artifact, both encodings scanned:
+`CB_GateLevel` · `Entry` · `MainMenu` · `MainWorld` — **all PRESENT**, exit 0.
+
+**New quartet (`G121`):**
+
+| | hash | bytes | mtime |
+|---|---|---|---|
+| exe | **`23EF6202`** *(was `101AFEA4`)* | 240,608,768 | 01:18:20 |
+| `.utoc` | **`638A551E`** *(was `939B9C9B`)* | 268,036 | 01:18:49 |
+| `.ucas` | **`4A816025`** *(was `8A602D4D`)* | 284,469,936 | 01:18:49 |
+| `.pak` | `7CAE22DD` **UNCHANGED** | 10,115,703 | 01:18:45 |
+
+**A44 on the staged exe: every new symbol present in UTF-16, controls non-zero ⇒ sound scan.**
+
+🚨 **AND THE BUILD STILL DIED AT ENGINE INIT:**
+`Missing global shader FAnomalyVisibleMaskPS's permutation 0, Please make sure cooking was successful.`
+
+## 138. Cause 1 — `G47`: the cook runs on EDITOR binaries. **Measured.**
+
+| symbol | stale `UnrealEditor-AnomalyCapture.dll` (18-08, 473,600 B) |
+|---|---|
+| `AnomalyVisibleMask` | **0** |
+| `/Plugin/AnomalyInjector` | **0** |
+| `IAI.Capture.Mask` | **0** |
+| `IsHideTypeAnomaly` | **1** ⇒ **scan SOUND, not blind** |
+
+**The cook commandlet is `UnrealEditor-Cmd` and it loaded a two-day-old dll, so
+`AddShaderSourceDirectoryMapping` never ran and the shader was never compiled — while the cook
+reported success.**
+
+✅ **FIXED: `Build.bat StackOBotEditor` — 45 s, 22 actions, dll 473,600 → 590,336 B, all symbols
+present.**
+
+⚠ **`G47` has said this since `m8`. RUNBOOK §8.6 DID NOT** — its recipe builds only the game target.
+**The knowledge existed; the recipe did not carry it, and that is how I missed it.** ✅ **§8.6 now has
+step 3.5** with the editor rebuild *and* the A44 scan of the **editor dll**.
+
+## 139. 🚨 Cause 2 — `LoadingPhase`. **THE HALT.**
+
+Re-cook with fresh editor binaries **crashed at commandlet startup**, and the engine named the fix:
+
+```
+Assertion failed: !bInitializedSerializationHistory  [RenderCore/Private/Shader.cpp:246]
+Shader type was loaded after engine init, use ELoadingPhase::PostConfigInit on your module
+to cause it to load earlier.
+```
+
+*(The `EXCEPTION_ACCESS_VIOLATION` in `UClassRegisterAllCompiledInClasses()` below it is downstream
+noise. The assertion is the cause.)*
+
+**Global shader types must register BEFORE the shader serialization history is initialised.**
+`AnomalyInjector.uplugin` declares **`AnomalyCapture` with `"LoadingPhase": "Default"`** — after
+engine init.
+
+⛔ **AND IT IS NOT A ONE-LINE FLIP: `AnomalyCapture` depends on `AnomalyInjector`, also `Default`, and
+a module cannot load before its dependency.** All three modules are `Default` today.
+
+⇒ 🛑 **THE COOK REQUIRES A PLUGIN-DESCRIPTOR CHANGE. The brief says: *"NO PRODUCTION CODE CHANGES. If
+the cook requires any, HALT AND REPORT."* HALTED.**
+
+### 139.1 The options, costed — ⛔ NONE IMPLEMENTED, the pick is the owner's
+
+| # | option | cost / risk |
+|---|---|---|
+| **A** | Flip **`AnomalyCapture` + `AnomalyInjector`** to `PostConfigInit` | smallest edit — **but it changes module load order for the WHOLE plugin**, moving the injector and capture subsystems' module init before config is fully up. Broad blast radius for a shader problem |
+| **B** ⭐ | **A new tiny module** (e.g. `AnomalyShaders`) at **`PostConfigInit`** declaring **only** the global shader + the shader-directory mapping | **the standard UE pattern.** `AnomalyCapture`/`AnomalyInjector` keep `Default` and their load order is **untouched**. Costs one `.Build.cs`, one module `.cpp`, a `.uplugin` entry, and moving two files |
+| **C** | Avoid a global shader entirely | re-opens the `C-1` instrument question that `M-2` already settled on correctness grounds. **Not recommended** |
+
+**Recommendation: B** — it confines the change to the thing that actually needs the early phase.
+
+## 140. Bench restored and verified
+
+⚠ **The staged build was left non-bootable by cook #1** (exe `23EF6202` + a container without the
+shader). **Restored from `_binary_baselines\m25-h4h5m1-measurement-build\`:**
+
+**All six files hash-verified against the preserved copy — `101AFEA4` · `939B9C9B` · `8A602D4D` ·
+`7CAE22DD` · `C70ECDAA` · `A16A18A8`, ALL MATCH.**
+
+✅ **Verified booting, not assumed:** control server responded over WS
+(`viewportScoping False · pollRadius 1800 · minScreenCoverage 6`), behavioural A48 echo
+`blinking: matched 1 actor(s) for '=StaticMeshActor_100'` ×4, and **no missing-shader fatal in the
+log.** **The preservation precondition earned its keep within two hours of being taken.**
+
+## 141. ⚠ `G115` FIRED ON ME, AND THE PRE-COMMIT DIFFSTAT IS WHAT CAUGHT IT
+
+Adding the PART INDEX row for this part, I used a PowerShell `Get-Content -Raw` → `Set-Content`
+round-trip. **The diffstat came back `2940 ++++----` on a ~130-line addition.**
+
+**Diagnosed rather than committed:** BOM `EF BB BF` added · CRLF→LF · and, decisively, **`⚠` had
+become `Ã¢Å¡Â ` — double-encoded. Every non-ASCII line in a 2,900-line journal was corrupted.**
+
+⇒ **Reverted with `git checkout --` and re-applied through the editor tool.** ⚠ **Two encoding
+"fixes" attempted before diagnosing (strip BOM, convert EOL) — both were wrong because I had not yet
+established which of three candidate causes it was. `core.autocrlf=true` and the stored blob is
+LF/no-BOM, so neither line endings nor the BOM was ever the real diff.**
+
+**`G115` says exactly this and I did it anyway. The mechanical pre-commit diffstat check is the only
+reason it did not land.**
+
+## 142. State after PART NINETEEN
+
+| | |
+|---|---|
+| disk | ✅ **solved** — `Intermediate` + `Saved` junctioned to `E:`, harness paths untouched |
+| cook | ✅ runs to `BUILD SUCCESSFUL`; ✅ map gate PASS; ⛔ **artifact unbootable** |
+| blocker | 🛑 **`LoadingPhase` — a plugin-descriptor change. HALT.** |
+| slice 1 | ⛔ **still unvalidated**; branches pre-declared at `972840d` |
+| bench | ✅ **restored to the preserved quartet, hash-verified, boots** |
+| new | **`G131`** · runbook **§8.6 step 3.5** |
+| ⛔ next | **the owner's pick of A / B / C** |
+
+**WHAT THIS PART SETTLES: `BUILD SUCCESSFUL` is not evidence a shader reached the container — only
+booting the packaged build is. Two separate failures each reported success at the step that caused
+them, and the only instrument that caught either was running the artifact.**

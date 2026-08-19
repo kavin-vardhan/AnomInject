@@ -3114,3 +3114,60 @@ first** (`Intermediate`, `.vs`), **then preserve, then free the verified duplica
    before the disk filled.)*
 4. **Report free space after each freed tree, not only at the end** — a single before/after number
    hides which step actually bought the room. (2026-08-19.)
+
+### G131 — a plugin that declares a GLOBAL SHADER must load at `PostConfigInit`, and a SUCCESSFUL COOK is not evidence the shader reached the container
+
+**Two distinct failures, in sequence, both of which report success at the step that caused them.**
+
+#### (1) The cook ran on STALE EDITOR BINARIES — `G47`, hit again
+
+`m26` slice 1 added `IMPLEMENT_GLOBAL_SHADER(FAnomalyVisibleMaskPS, …)`. The full cook reported
+**`BUILD SUCCESSFUL`, ExitCode=0, 39m 26s**, cooked *"16.51 MB for 629 Global shaders"*, and the map
+gate passed on all four maps. **The packaged build then died at engine init on
+`Missing global shader FAnomalyVisibleMaskPS's permutation 0`.**
+
+**Cause, measured not inferred — A44 applied to the EDITOR dll:**
+
+| symbol | stale `UnrealEditor-AnomalyCapture.dll` (18-08, 473,600 B) |
+|---|---|
+| `AnomalyVisibleMask` | **0** |
+| `/Plugin/AnomalyInjector` | **0** |
+| `IAI.Capture.Mask` | **0** |
+| `IsHideTypeAnomaly` | **1** ⇒ **the scan is SOUND, not blind** |
+
+**The cook commandtlet is `UnrealEditor-Cmd` — it loads EDITOR dlls.** Ours were two days old, so
+`AddShaderSourceDirectoryMapping` never ran, the `.usf` was never found, and the shader was never
+compiled — **while the cook reported success.** `Build.bat StackOBotEditor …` fixed it in **45 s /
+22 actions**, taking the dll to **590,336 B** with every symbol present.
+
+⚠ **`G47` already said this since `m8`. The RUNBOOK did not** — §8.6's recipe builds only the GAME
+target. **The knowledge existed and the recipe didn't carry it**, which is how it was missed. §8.6
+now has an explicit editor-rebuild step.
+
+#### (2) 🚨 The real blocker: `LoadingPhase`
+
+With fresh editor binaries the cook **crashed at commandlet startup**, and the engine named the fix:
+
+```
+Assertion failed: !bInitializedSerializationHistory  [RenderCore/Private/Shader.cpp:246]
+Shader type was loaded after engine init, use ELoadingPhase::PostConfigInit on your module
+to cause it to load earlier.
+```
+
+*(The `EXCEPTION_ACCESS_VIOLATION` in `UClassRegisterAllCompiledInClasses()` underneath it is
+downstream noise — the assertion above it is the cause.)*
+
+**Global shader types must register BEFORE the shader serialization history is initialised.**
+`AnomalyCapture` is `"LoadingPhase": "Default"`, which is **after** engine init.
+⚠ **And it is not a one-line flip: `AnomalyCapture` depends on `AnomalyInjector`, also `Default`, and
+a module cannot load before its dependency.**
+
+**RULES.**
+1. **Adding a global shader to a plugin is a PLUGIN-DESCRIPTOR change, not just a code change.**
+   Budget the `LoadingPhase` question before writing the shader.
+2. **Before any cook that must pick up new code, REBUILD THE EDITOR TARGET and A44-scan the EDITOR
+   DLL** — not only the staged game exe. **`BUILD SUCCESSFUL` is not evidence the shader is in the
+   container**; only booting the packaged build is.
+3. **The standard pattern is a small dedicated module at `PostConfigInit` that declares only the
+   shader**, leaving existing modules' load order untouched. Flipping a module that other modules
+   depend on changes load order for all of them. (2026-08-20.)
