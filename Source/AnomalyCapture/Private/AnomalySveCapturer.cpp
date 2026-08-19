@@ -47,6 +47,16 @@ void FAnomalySveCapturer::Reset()
 		FScopeLock Lock(&CompletedCS);
 		Completed.Reset();
 	}
+	{
+		FScopeLock Lock(&LatencyCS);
+		Latency = FAnomalyReadbackLatencyStats();
+	}
+}
+
+FAnomalyReadbackLatencyStats FAnomalySveCapturer::GetLatencyStats() const
+{
+	FScopeLock Lock(&LatencyCS);
+	return Latency;
 }
 
 void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, EPixelFormat Format,
@@ -57,6 +67,7 @@ void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FI
 	Item.Readback = MoveTemp(Readback);
 	Item.Rect = Rect;
 	Item.Format = Format;
+	Item.SubmitRtFrame = GFrameNumberRenderThread;
 	InFlight.Add(MoveTemp(Item));
 
 	{
@@ -90,7 +101,22 @@ void FAnomalySveCapturer::Drain_RenderThread()
 		FInFlight& Item = InFlight[i];
 		if (!Item.Readback.IsValid() || !Item.Readback->IsReady())
 		{
+			if (Item.Readback.IsValid())
+			{
+				FScopeLock LatLock(&LatencyCS);
+				++Latency.NotReadyPolls;
+			}
 			continue;
+		}
+
+		{
+			const int32 LatencyFrames = (int32)((uint32)GFrameNumberRenderThread - Item.SubmitRtFrame);
+			FScopeLock LatLock(&LatencyCS);
+			++Latency.Samples;
+			Latency.SumFrames += LatencyFrames;
+			Latency.MinFrames = FMath::Min(Latency.MinFrames, LatencyFrames);
+			Latency.MaxFrames = FMath::Max(Latency.MaxFrames, LatencyFrames);
+			++Latency.Histogram.FindOrAdd(LatencyFrames);
 		}
 
 		int32 RowPitchInPixels = 0;

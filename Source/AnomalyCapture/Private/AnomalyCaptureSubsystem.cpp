@@ -1032,6 +1032,9 @@ void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 		return;
 	}
 
+	const int32 PendingAtDrainEntry = Async->PendingSnapshots.Num();
+	int32 IterationsConsumed = 0;
+
 	for (int32 Iter = 0; Iter < 8 && Async->PendingSnapshots.Num() > 0; ++Iter)
 	{
 		if (bUseSve)
@@ -1044,6 +1047,34 @@ void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 		}
 		FlushRenderingCommands();
 		ProcessCompletedFrames();
+		++IterationsConsumed;
+	}
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(drain): M1 pendingAtDrainEntry=%d flushIterationsConsumed=%d pendingAfter=%d ")
+		TEXT("(drainTailBudget=%d, stencilBranchHeldBudget=12)."),
+		PendingAtDrainEntry, IterationsConsumed, Async->PendingSnapshots.Num(),
+		FMath::Max(10, ViewLagFrames + 4));
+
+	if (bUseSve && Async->SveCapturer.IsValid())
+	{
+		const FAnomalyReadbackLatencyStats Stats = Async->SveCapturer->GetLatencyStats();
+		FString HistText;
+		TArray<int32> Keys;
+		Stats.Histogram.GetKeys(Keys);
+		Keys.Sort();
+		for (int32 Key : Keys)
+		{
+			HistText += FString::Printf(TEXT("%d:%d "), Key, Stats.Histogram[Key]);
+		}
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(drain): M1 readbackLatencyFrames samples=%d min=%d max=%d mean=%.3f notReadyPolls=%d hist=[%s]"),
+			Stats.Samples,
+			Stats.Samples > 0 ? Stats.MinFrames : -1,
+			Stats.Samples > 0 ? Stats.MaxFrames : -1,
+			Stats.Samples > 0 ? (double)Stats.SumFrames / (double)Stats.Samples : -1.0,
+			Stats.NotReadyPolls,
+			*HistText);
 	}
 
 	if (Async->PendingSnapshots.Num() > 0)

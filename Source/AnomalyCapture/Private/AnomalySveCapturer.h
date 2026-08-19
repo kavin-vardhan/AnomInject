@@ -10,6 +10,16 @@
 #include "PixelFormat.h"
 #include "RHIGPUReadback.h"
 
+struct FAnomalyReadbackLatencyStats
+{
+	int32 Samples = 0;
+	int32 MinFrames = MAX_int32;
+	int32 MaxFrames = MIN_int32;
+	int64 SumFrames = 0;
+	int32 NotReadyPolls = 0;
+	TMap<int32, int32> Histogram;
+};
+
 class FAnomalySveCapturer : public TSharedFromThis<FAnomalySveCapturer, ESPMode::ThreadSafe>
 {
 public:
@@ -26,6 +36,8 @@ public:
 	bool PopCompleted(FAnomalyCapturedFrame& Out);
 	int32 NumPendingApprox() const;
 
+	FAnomalyReadbackLatencyStats GetLatencyStats() const;
+
 	void Reset();
 
 private:
@@ -37,6 +49,7 @@ private:
 		TUniquePtr<FRHIGPUTextureReadback> Readback;
 		FIntRect Rect;
 		EPixelFormat Format = PF_Unknown;
+		uint32 SubmitRtFrame = 0;
 	};
 
 	mutable FCriticalSection StateCS;
@@ -47,6 +60,9 @@ private:
 
 	mutable FCriticalSection CompletedCS;
 	TArray<FAnomalyCapturedFrame> Completed;
+
+	mutable FCriticalSection LatencyCS;
+	FAnomalyReadbackLatencyStats Latency;
 };
 
 #endif
