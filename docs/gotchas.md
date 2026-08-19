@@ -1449,11 +1449,27 @@ is a **cook-scope** problem with a known fix (cook the map in), not an unwinnabl
 The deferred-`OpenLevel` result is equally explained: `OpenLevel` to a map that is not in the pak fails
 and returns to the default map.
 
-⚠ **NOT RE-MEASURED.** This corrects an **attribution** on the strength of (a) a direct read of the
-artifact's own map index and (b) an exhaustive source search. **The one-command settlement is a
-packaged launch at MainWorld with the log checked for the missing-map browse error** — deliberately not
-run here (no packaged run was in scope). Treat the mechanism as **corrected but unconfirmed** until
-that runs.
+✅ **CONFIRMED BY MEASUREMENT, 2026-08-19 (G-3 probe).** The predicted settlement was run on the
+unchanged m25 binary `101AFEA4` — one launch, one log read, **no cook and no re-stage**:
+
+```
+LogNet:       Browse:  /Game/StackOBot/Maps/MainWorld?Name=Player
+LogLoad:      LoadMap: /Game/StackOBot/Maps/MainWorld?Name=Player
+LogStreaming: Warning: LoadPackage: SkipPackage: /Game/StackOBot/Maps/MainWorld
+              - THE PACKAGE TO LOAD DOES NOT EXIST ON DISK OR IN THE LOADER
+LogLoad:      Error:   Failed to enter /Game/StackOBot/Maps/MainWorld:
+                       Failed to load package '/Game/StackOBot/Maps/MainWorld'.
+LogExit:      Exiting.
+```
+
+**"The package to load does not exist on disk or in the loader."** The map is not in the build. The
+"active redirect" is **confirmed to be nothing of the kind**. Log banked at
+`_bench_sessions_bank/G3_MAINWORLD_BROWSE_PROBE/`.
+
+⚠ **One difference NOT claimed as a further correction:** under `-unattended` this build **exits**
+rather than falling back to MainMenu, where G87 recorded a fallback. That is plausibly an
+`-unattended` artifact and was not isolated. **The CAUSE is what is settled**, and the cause is the
+missing package either way.
 
 **The re-cook that would put MainWorld in a build is THE SAME re-cook `G118` closure needs** — see
 G118's sequencing note. Two debts collapse into one operation, and both retire `101AFEA4`.

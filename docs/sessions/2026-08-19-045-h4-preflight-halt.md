@@ -902,3 +902,170 @@ build were not read. Named because it is now a real design input, not an unknown
 Path (a) is **structurally open** and **environmentally blocked**: the only level with unattended
 movers is **not in any build**, and putting it in one is the same re-cook that closes `G118` and retires
 `101AFEA4`. ⛔ **The path (a) design is chat-side and is not written here.**
+
+---
+---
+
+# PART FIVE — the pre-cook gate. G-1 PASSES. No cook performed.
+
+**Owner ruling: Option A, the rebuild happens, carrying BOTH the MainWorld cook and G118's token
+closure. THIS TURN IS THE GATE, NOT THE REBUILD.** Nothing was cooked, staged, or re-configured.
+
+## 29. G-1 — THE TRIGGER QUESTION. ✅ **PASS.**
+
+**Why this gate existed, restated:** the whole case for cooking MainWorld rested on a **developer
+comment** and on machinery lists explicitly labelled *indicative of graph contents, not a graph read*.
+Whether any **placed** instance leaves its `Trigger` empty was unestablished — and *"MainWorld gives us
+unattended motion"* was therefore exactly the thing **G120** forbids: a scope decision resting on an
+unverified mechanism.
+
+**Method — offline, because the bridge was refused again.** `unreal-mcpython` returned
+`Connection refused (127.0.0.1:12029)` on a fresh attempt, so **no editor measurement was taken and
+A59 is satisfied vacuously — nothing is attributed, and G97 has nothing to catch.** Settled instead
+from the World Partition **one-file-per-actor** tree: every placed actor is its own `.uasset`, and
+**UE serialises only non-default property values**, so an instance that leaves `Trigger` at `None`
+**does not serialise the property at all**.
+
+⚠ **The first classification was wrong and was corrected before use.** Keying on *"which BP classes
+does this file mention"* conflated *"is a Stomper"* with *"mentions a Stomper"* — two of the rows it
+called Stompers were **PressurePlate** files. Re-keyed on the actor's **own** path
+(`PersistentLevel.<Class>_C_UAID_…`), which names the actor the file *is*. All figures below are from
+the corrected pass.
+
+**Census — MainWorld's 419 external actor files, by own class:** `BP_EnergyOrb` 21 · `BP_PressurePlate`
+11 · `BP_Spline` 8 · `BP_Elevator` 7 · **`BP_Stomper` 7** · `BP_Button` 7 · `BP_Crate` 7 ·
+**`BP_MovingPlatform` 6** · `BP_Lamp` 6 · `BP_SpawnPad` 5 · **`BP_Fan` 4** · `BP_Door` 3 ·
+`BPP_Struct_001-004` 1 each · 318 plain (non-Blueprint) actors.
+
+### 29.1 Per-instance Trigger status
+
+| class | placed | **Trigger EMPTY** | Trigger BOUND | motion |
+|---|---|---|---|---|
+| **`BP_Stomper`** | 7 | **5** | 2 (both → `BP_PressurePlate`) | **translating**, vertical |
+| **`BP_MovingPlatform`** | 6 | **4** | 2 (both → `BP_PressurePlate`) | **translating**, `PingPong` |
+| **`BP_Fan`** | 4 | **2** | 2 (both → `BP_PressurePlate`) | rotating in place |
+| **`BP_EnergyOrb`** | 21 | **21** | 0 — *the class has no Trigger variable at all* | rotating in place, small |
+
+**⇒ NINE TRANSLATING MOVERS WITH AN EMPTY TRIGGER. THE GATE PASSES WITH WIDE MARGIN.**
+
+### 29.2 The discriminator was verified to fire in BOTH directions (G96)
+
+A discriminator that has only ever returned one answer is not a discriminator. **16 files across
+MainWorld carry a serialised `Trigger` property** — 11 `BP_PressurePlate`, 2 `BP_Stomper`,
+2 `BP_MovingPlatform`, 1 plain actor. So a `False` reading is **a real reading, not blindness**. The
+two independent signals — *property serialised* and *references a trigger class* — **agree on every
+Stomper and every MovingPlatform**, with no disagreements.
+
+⚠ **One correction, caught by that cross-check.** `BP_Fan` does **not** have a scalar `Trigger`; it has
+**`Triggers` (an array)** plus `TriggersActive` / `TriggersNeeded`. Keyed on `Trigger` the Fans read
+4-of-4 empty, which **contradicted** their reference signal (2 of 4 reference a PressurePlate). Re-keyed
+on `Triggers`, the two signals agree: **2 of 4 bound, 2 of 4 empty.** PART FOUR's *"BP_Fan —
+unattended, the overlap only pushes the Bot"* was **too strong**: the overlap is indeed not the gate,
+but a `Triggers` array is, and it is populated on half the instances. Corrected here.
+
+### 29.3 What is still NOT established
+
+- **Which** unbound Stomper/MovingPlatform is positioned to occlude **what** — placement geometry was
+  not analysed. Nine movers exist; whether any of them crosses a line of sight to a selectable target
+  is a **path (a) design question**, not a gate question.
+- The **`BP_Door` / `BP_Ramp`** ambiguity from PART FOUR is unchanged and was not needed.
+- Everything remains **asset reading**, not a running-game observation.
+
+## 30. G-2 — THE `101AFEA4` DEBT SWEEP
+
+**Legs that ran on `101AFEA4`** (banked sessions newer than the exe's `2026-08-19 12:32:39`):
+`S3B_S44_deliveryON_try2`, `S3B_S44_deliveryON_try3` (S4-4 delivery orthogonality) and all five H4
+dirs (`H4_H4_CTRL_49` + `_try1` discard + `_try2`, `H4_H4_OCC_100` + `_try1`).
+
+**Everything else in the m25 record ran on a DIFFERENT binary that is already preserved:** the ten
+S4-1 matrix legs ran on `.s4-0-baseline` `834BB30A`, and the S4-2 flip gates on `.s4-2-baseline`
+`259BF64F`. Those baselines sit beside the exe.
+
+### 30.1 THE LIST — what is still owed against `101AFEA4`
+
+| # | item | owed? |
+|---|---|---|
+| 1 | **m25 gate / limit / scope claims** | ❌ **No.** All reproduced and closed; *"Nothing in S4 is outstanding."* The matrix legs are on `834BB30A`, not this binary. |
+| 2 | **H4** | ❌ **No measurement owed.** The mechanism claim is complete and its limits (SUPPORTED-not-CONFIRMED, no incidence claim, n=1 leg) are recorded as limits, not as pending work. A future second occluded leg is a **replication**, and a replication on a *new* binary is stronger evidence, not weaker. |
+| 3 | **Path (a)** | ❌ **No — and it CANNOT be owed against this binary**, because it requires MainWorld, which this binary does not contain. It is owed against the *new* one. |
+| 4 | **`P5`/`P7` blend-ladder** | ❌ **No.** Not started. Its comparison set is **banked legs**, and every leg carries its own in-run control. It can run on the new binary with a fresh baseline. |
+| 5 | **`B2`, `B1`-NDC, the per-leg calibration bbox (G117)** | ❌ **No.** All are **analysis-side definition changes gated against BANKED data**, and banked data is unaffected by a re-cook. |
+| 6 | **`A11`** | ❌ **No.** Open with no design and no lever; not a measurement on this binary. |
+| 7 | **`P6`** | ❌ **No.** Its first observation is already recorded (from an H4 leg). Implementation is production work. |
+| 8 | **Client-band thinness · journal 031 render half · A17/A19 audit** | ❌ **No.** Paper and banked-data work. |
+
+✅ **THE LIST IS EMPTY. Nothing is owed against `101AFEA4`.** Stated explicitly, as the ruling
+required: this is the answer, not an absence of one. **The binary can be retired**, provided it is
+preserved as `.m25-baseline` and the caveats below are honoured.
+
+### 30.2 🚨 TWO RISKS THE SWEEP SURFACED — both concern the COOK, not the debts
+
+1. **THE BASELINE CHAIN LIVES INSIDE THE STAGED TREE AND A RE-STAGE CAN DESTROY IT.**
+   `StackOBot.exe.m23-baseline` `85A39CFB`, `.m24-baseline` `3BA854FB`, `.s4-0-baseline` `834BB30A`,
+   `.s4-2-baseline` `259BF64F` all sit in
+   `Builds\BenchGate\Windows\StackOBot\Binaries\Win64\` — **the exact directory a re-stage writes
+   into.** G92 already records that staging **wipes `Saved`**; nothing records what it does to
+   `Binaries`. ⛔ **COPY ALL FOUR BASELINES OUT OF THE STAGED TREE BEFORE THE COOK**, alongside
+   `101AFEA4` as the new `.m25-baseline`. Losing them would orphan every hash reference in the status
+   block and in four journals.
+2. **`CB_GateLevel` MUST BE IN THE COOK'S MAP SET, AND THE MAP SET MUST BE DECIDED BEFORE THE COOK
+   RUNS.** Every m25 certification is expressed in `CB_GateLevel`; losing it orphans the whole matrix.
+   **A cook that silently omitted a map is precisely what created this situation** — MainWorld's
+   absence was never noticed because nothing checks the cooked map set. ⇒ **After the cook, read the
+   new `StackOBot-Windows.utoc` map index back** and assert `CB_GateLevel`, `MainMenu` **and**
+   `MainWorld` are all present, before any leg runs. That check is the same shape as `G119`'s rule and
+   costs one command.
+
+## 31. G-3 — ✅ RUN. THE G87 CORRECTION IS NOW **CONFIRMED**, NOT MERELY CORRECTED.
+
+One launch of the **unchanged** `101AFEA4` at MainWorld, one log read. **No cook, no re-stage; the
+binary was only run.** Cost: ~25 seconds.
+
+```
+LogNet:       Browse:  /Game/StackOBot/Maps/MainWorld?Name=Player
+LogLoad:      LoadMap: /Game/StackOBot/Maps/MainWorld?Name=Player
+LogStreaming: Warning: LoadPackage: SkipPackage: /Game/StackOBot/Maps/MainWorld
+              - THE PACKAGE TO LOAD DOES NOT EXIST ON DISK OR IN THE LOADER
+LogLoad:      Error:   Failed to enter /Game/StackOBot/Maps/MainWorld:
+                       Failed to load package '/Game/StackOBot/Maps/MainWorld'.
+LogExit:      Exiting.
+```
+
+**"The package to load does not exist on disk or in the loader."** The container read (PART FOUR §23)
+predicted exactly this, and the engine states it in its own words. **G87's "active redirect" is
+confirmed to be nothing of the kind.** Log banked at `_bench_sessions_bank/G3_MAINWORLD_BROWSE_PROBE/`
+with a README naming the command and the decisive lines.
+
+⚠ **One difference NOT claimed as a further correction:** under `-unattended` this build **exits**
+rather than falling back to MainMenu, where G87 recorded a fallback. That is plausibly an
+`-unattended` artifact and **was not isolated**. The **cause** is what G-3 settles, and the cause is
+the missing package either way. *(Recording the difference rather than quietly absorbing it — the same
+standard G120 exists to enforce.)*
+
+## 32. G120's rule ELEVATED into the standing invariants
+
+Moved out of `docs/gotchas.md` alone and into **`CLAUDE.md` → Invariants (do not violate)**, at the
+top of the list:
+
+> **An observation and its explanation are SEPARATE CLAIMS, recorded separately. Never derive a SCOPE
+> decision — "X is impossible", "that approach is dead", "do not try Y" — from an unverified
+> mechanism.**
+
+with the reason a cold reader needs: a false positive (G116) and a false null (G114) are eventually
+caught because someone re-runs the measurement; **a false FORECLOSURE is never re-run, by definition,
+because foreclosing is the act of telling everyone not to.**
+
+## 33. State after PART FIVE
+
+| | |
+|---|---|
+| cook / re-stage / `GameDefaultMap` | ⛔ **NOT performed, NOT changed** |
+| plugin production code | **ZERO lines, across all five parts** |
+| tag | **none** |
+| `feature/stencil-capture` | **untouched** |
+| staged exe | **`101AFEA4`, unchanged** — G-3 only *ran* it |
+| `CB_GateLevel` | **untouched** (G99) |
+| bank | +1 dir: `G3_MAINWORLD_BROWSE_PROBE` (a log and a README; not a capture session) |
+
+**G-1 PASS · G-2 LIST EMPTY · G-3 CONFIRMED.** The cook is justified and unblocked. ⛔ **The cook brief
+is the owner's and is not written here. The path (a) design is chat-side and is not written here.**

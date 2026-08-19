@@ -230,6 +230,41 @@ and is the single source of truth for the project.
   is offline asset/container reading; the Blueprint evidence is **name-table strings plus the developer
   comments embedded in them** (the quotes are direct; the machinery lists are indicative, not a graph
   read).
+  🟢 **PRE-COOK GATE RAN 2026-08-19 (journal 045 §29-§33). OWNER RULED OPTION A — THE REBUILD HAPPENS,
+  CARRYING BOTH THE MainWorld COOK AND `G118`'s TOKEN CLOSURE. ⛔ NOTHING WAS COOKED OR STAGED THIS
+  TURN; `101AFEA4` IS UNCHANGED.**
+  ✅ **`G-1` PASS — the Trigger question is settled per PLACED INSTANCE.** MainWorld's 419
+  one-file-per-actor externals, keyed on each file's **own** `PersistentLevel.<Class>_C_UAID_` path
+  (a first pass keyed on *mentions* was wrong — it called two PressurePlate files Stompers — and was
+  corrected before use). **`BP_Stomper` 7 placed, 5 with an EMPTY Trigger · `BP_MovingPlatform` 6
+  placed, 4 EMPTY · `BP_Fan` 4 placed, 2 EMPTY · `BP_EnergyOrb` 21 placed, 21 (the class has no
+  Trigger variable).** ⇒ **NINE TRANSLATING MOVERS RUN UNATTENDED.** **Discriminator verified BOTH
+  WAYS (G96): 16 MainWorld files DO carry a serialised `Trigger`**, so a `False` is a reading, not
+  blindness; and the two signals (property serialised / references a trigger class) agree on every
+  Stomper and MovingPlatform. ⚠ **CORRECTION to PART FOUR: `BP_Fan` uses `Triggers` (an ARRAY), not a
+  scalar `Trigger`** — keyed wrongly it read 4-of-4 unattended and contradicted its own reference
+  signal; re-keyed, **2 of 4 are BOUND**. ⛔ Still NOT established: which mover is positioned to occlude
+  what (placement geometry unanalysed — a design question, not a gate question).
+  ✅ **`G-2` — THE `101AFEA4` DEBT SWEEP: THE LIST IS EMPTY. Nothing is owed against it; the binary can
+  be retired.** Only S4-4's two delivery legs and H4's five dirs ran on it; the S4-1 matrix is on
+  `.s4-0-baseline` `834BB30A` and the S4-2 gates on `.s4-2-baseline` `259BF64F`, both preserved.
+  H4 needs no re-measurement (its limits are limits, not pending work, and a replication on a NEW
+  binary is stronger); path (a) **cannot** be owed against a binary that lacks MainWorld; `P5`/`P7`,
+  `B2`, `B1`-NDC and the G117 sibling are all gated against **banked** data, which a re-cook does not
+  touch. 🚨 **BUT THE SWEEP SURFACED TWO COOK RISKS: (1) ALL FOUR `.baseline` EXES LIVE INSIDE
+  `Builds\BenchGate\...\Binaries\Win64\` — the exact directory a re-stage writes into. COPY THEM OUT
+  BEFORE THE COOK**, with `101AFEA4` as the new `.m25-baseline`; losing them orphans every hash
+  reference in this block and four journals. **(2) DECIDE THE COOK'S MAP SET BEFORE RUNNING IT and READ
+  THE NEW `.utoc` MAP INDEX BACK AFTERWARDS**, asserting `CB_GateLevel` + `MainMenu` + `MainWorld` —
+  **a cook that silently omitted a map is exactly what created this situation**, and nothing checks the
+  cooked map set today. *(G119's rule, applied to the cook.)*
+  ✅ **`G-3` — THE G87 CORRECTION IS NOW CONFIRMED, NOT MERELY CORRECTED.** One launch of the unchanged
+  `101AFEA4` at MainWorld: `LogStreaming: Warning: LoadPackage: SkipPackage: /Game/StackOBot/Maps/
+  MainWorld — THE PACKAGE TO LOAD DOES NOT EXIST ON DISK OR IN THE LOADER`, then
+  `LogLoad: Error: Failed to enter …`. Banked at `_bench_sessions_bank/G3_MAINWORLD_BROWSE_PROBE/`.
+  ⚠ Under `-unattended` this build **exits** rather than falling back to MainMenu, where G87 recorded a
+  fallback; that difference is plausibly an `-unattended` artifact, **was not isolated, and is NOT
+  claimed as a further correction** — the CAUSE is what G-3 settles.
   🔢 **PREDICTION SET `P-a1`…`P-a5`, PRE-DECLARED (journal 045 §22) — recon 2's five items are
   PREDICTIONS, not findings, and numbers are never reused:** `P-a1` first-clear-ray (8 of 9 blocked
   passes) · `P-a2` AABB corners lie outside sphere/cylinder/cone · `P-a3` `bTraceComplex=false` ⇒ a
@@ -1563,6 +1598,18 @@ and is the single source of truth for the project.
   **interface + registry is the M1 design** (see Current status + journal 002), not yet in code.
 
 ## Invariants (do not violate)
+- 🚨 **AN OBSERVATION AND ITS EXPLANATION ARE SEPARATE CLAIMS, RECORDED SEPARATELY. NEVER DERIVE A
+  SCOPE DECISION — *"X is impossible"*, *"that approach is dead"*, *"do not try Y"* — FROM AN
+  UNVERIFIED MECHANISM.** Write the observation as fact; write the mechanism as a hypothesis with its
+  evidence, or as **"cause not established"**. A scope decision may rest **only on the observation**.
+  **Why this is an invariant and not merely a gotcha (→ G120):** an unverified mechanism that produces
+  a false *positive* (G116) or a false *null* (G114) is eventually caught, because someone re-runs the
+  measurement. **A false FORECLOSURE is never re-run — by definition, because foreclosing is the act of
+  telling everyone not to.** It is the most durable failure this project can commit. Measured instance:
+  G87 attached *"the redirect is ACTIVE … every approach is dead"* to a true observation and closed off
+  `MainWorld` for ~13 days; the map was simply **not cooked into the build**, which one launch and one
+  log read settled. The same discipline `CaptureBench/tools/check_pose.py` already applies to a failing
+  gate — print the numbers, name the discriminator, let the reader attribute — **applies to prose.**
 - **Source carries NO comments — by deliberate convention.** Every source file (C++ `.h/.cpp`, C#
   `.Build.cs`, Python, `.bat`) is kept comment-free, *including* the top-of-file copyright/banner header.
   **Do NOT add comments; strip any before committing.** (Feature work keeps re-introducing them — first
