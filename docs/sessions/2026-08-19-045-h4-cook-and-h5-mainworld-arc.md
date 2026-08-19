@@ -29,6 +29,7 @@ separable — each part exists because the one before it produced something unex
 | **Fourteen** | 103–109 | **Shape ruled (c)+(b) · `M-1` · `M-2` · the ONE definition** | 🚨 **readback latency is ONE frame, so 10-vs-12 was two budgets and never reality** · **`RQT_Occlusion` counts the BOUNDING BOX ⇒ disqualified on CORRECTNESS** · `mask.provided` alone separates *never measured* from *measured zero* |
 | **Fifteen** | 110–118 | **`m26` — the implementation PLAN, file by file** | Design CLOSED · the negative branch is a **SHIP GATE** · 🚨 **`P-2` is the riskiest item: a hidden target reads zero and would invalidate EVERY hide-type event** — survivable only because *no qualifying frame* lands in `NOT_MEASURED` |
 | **Sixteen** | 119–123 | **`m26` SLICE 1 written · the four amendments · HALT** | Compiles clean, **cannot be validated**: 🚨 **a new GLOBAL SHADER needs a COOK — a hot-swap cannot deliver it, and it fails at engine init EVEN WITH THE SWITCH OFF.** `A-3`'s collision **IS** detectable, two ways |
+| **Seventeen** | 124–128 | **Cook preconditions · `G-3` amended · DISK HALT** | Quartet preserved **6/6 hash-verified**; map set declared; 🛑 **cook did NOT run — 0.94 GB free against a 10 GB floor.** 🚨 **`Saved\AnomalyCaptures`: 21 sessions, ZERO banked** |
 
 ⚠ **ONE INVESTIGATION, FIFTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fifteen;
 the reason it is not split is unchanged).*
@@ -3813,3 +3814,144 @@ recorded — but the rule I followed once, I did not follow twice.**
 inert — the binary cannot boot without it. That retires, for this class of change, the `S3a`
 precedent that a switch buys structural inertness, and it means `G-3` must be a control pair against
 a build without the shader rather than a switch-OFF leg on the same binary.**
+
+---
+
+# PART SEVENTEEN — the cook preconditions: **one PASSED, one HALTED ON DISK**
+
+**Owner ruled OPTION A (cook). Precondition 1 (preserve the quartet) is DONE and VERIFIED.
+Precondition 2 (declare the map set) is RECORDED. ⛔ THE COOK DID NOT RUN — free space is
+0.94 GB against the owner's own ~10 GB floor.** **NO PRODUCTION CODE CHANGED. NO TAG. `P6` NOT
+MOVED.** `feature/stencil-capture` **READ-ONLY at `76cac74`.**
+
+---
+
+## 124. `RULING 1` — `G-3` IS AMENDED, and the reason travels with it
+
+**`G-3` was:** *"byte-identical when the measurement is absent"*, run as a **switch-OFF leg on the
+same binary**. That rested on `S3a`'s precedent — *"switch-OFF inertness is STRUCTURAL; there is no
+way to reach the code."*
+
+🚨 **`G129` MADE THAT UNOBTAINABLE, BY MEASUREMENT.** A global shader's cost is paid **at load,
+unconditionally**; `IMPLEMENT_GLOBAL_SHADER` consults no cvar; the binary **cannot boot** without the
+shader in the container. **There is no switch-OFF state to compare against.**
+
+**`G-3` (AMENDED):**
+
+> A **CONTROL PAIR** against a build that does **NOT** contain the shader — `m25`'s preserved binary
+> versus `m26`-with-the-switch-OFF. **The run-unique field set is established empirically from a
+> same-binary pair FIRST; the test pair's difference set must be a SUBSET of it. EXTRAS MUST BE 0.**
+> Decided by a rule fixed in advance, never by judgement after seeing a diff.
+
+**This is the `m24` C1-replacement method, which the plan already carried.** ✅ **It still runs BOTH
+WAYS (`G96`): inert-when-off proves nothing unless the same instrument shows it is NOT inert when on.**
+
+⚠ **RECORDED FOR A FUTURE READER: switch-OFF inertness was RETIRED BY MEASUREMENT, NOT WEAKENED BY
+CONVENIENCE.** The gate did not get easier; it got *possible*. The old wording described a state that
+does not exist for this class of change.
+
+---
+
+## 125. PRECONDITION 1 — the quartet is preserved and hash-verified. ✅ PASS
+
+**Copied to `_binary_baselines\m25-h4h5m1-measurement-build\` — outside `Builds\`, where a stage
+cannot reach — and verified BY HASH AT THE NEW LOCATION before anything else (A62: a copy that ran is
+not a copy that landed).**
+
+| file | bytes | source | destination | match |
+|---|---|---|---|---|
+| `StackOBot.exe` | 240,540,672 | `101AFEA4` | `101AFEA4` | ✅ |
+| `StackOBot-Windows.utoc` | 268,036 | `939B9C9B` | `939B9C9B` | ✅ |
+| `StackOBot-Windows.ucas` | 284,469,920 | `8A602D4D` | `8A602D4D` | ✅ |
+| `StackOBot-Windows.pak` | 10,115,703 | `7CAE22DD` | `7CAE22DD` | ✅ |
+| `global.utoc` | 539 | `C70ECDAA` | `C70ECDAA` | ✅ |
+| `global.ucas` | 1,833,008 | `A16A18A8` | `A16A18A8` | ✅ |
+
+**6 of 6 match.** `README.md` updated with what the quartet is, **what rests on it** (every result in
+PARTS TWO–FOURTEEN, enumerated), and that it is **COMPLETE** unlike the exe-only `.m25-baseline`.
+
+⚠ **Also recorded there rather than quietly fixed: `1EBA8944` (the `M-1` instrument exe) was NOT
+archived before being overwritten** — bounded (rebuilds from `0185c10`, results banked), but an
+instance of this file's own rule not being followed.
+
+---
+
+## 126. PRECONDITION 2 — the map set, declared IN WRITING before the cook
+
+> **`CB_GateLevel` + `MainMenu` + `Entry` + `MainWorld`** (with its World Partition external actors).
+
+**Identical to the last cook.** `CB_GateLevel` **RETAINED, non-negotiable** — every `m25`
+certification, `B1`'s calibration and the A54 oracle are scoped to it. `MainWorld` **RETAINED** —
+`H5`'s reproduction and **both** known `H5`-shaped targets live there, and `G-4`/`G-5` need them.
+
+**Post-cook gate, before any leg:** `verify_cooked_maps.ps1`, which scans **both encodings** because
+the container's encoding is not stable and a single-encoding scan returns a clean-looking *"no maps
+cooked"*. `MainWorld` absent ⇒ HALT and report, do not re-cook blind. `CB_GateLevel` absent ⇒ HALT
+immediately.
+
+⛔ **NOT YET RUN — there is no new container to read.**
+
+---
+
+## 127. 🛑 THE HALT — DISK. 0.94 GB free against a ~10 GB floor.
+
+**The owner's precondition was explicit:** *"If preserving it would take free space below ~10 GB,
+HALT and say so — I will rule on bank retention rather than have you skip the preservation."*
+
+| | |
+|---|---|
+| free after the PART TWELVE prune | **19.12 GB** |
+| free at the start of this part | **1.37 GB** |
+| free after preserving the quartet (~537 MB) | **0.94 GB** |
+
+⚠ **The preservation was NOT skipped — it completed and verified first.** The floor was crossed
+before this part began; preserving the quartet cost only ~537 MB of it.
+
+**Where the ~17.7 GB went between PART TWELVE and here — this session's own work:** two full UBT
+builds with UHT reflection, three engine-fatal launches, shader-compile attempts, and eight capture
+legs. `StackOBot\Intermediate` alone is now **14.54 GB**.
+
+### 127.1 The candidates, classified — ⛔ NOTHING WAS DELETED
+
+| tree | size | class |
+|---|---|---|
+| `StackOBot\Intermediate` | **14.54 GB** | ✅ **REGENERABLE** — build intermediates. Deleting forces a full rebuild (~3 min measured) |
+| `StackOBot\.vs` | **4.72 GB** | ✅ **REGENERABLE** — Visual Studio cache; the command-line build does not use it |
+| `Builds\BenchGate\...\Saved\` | **5.66 GB** | ✅ **VERIFIED DUPLICATE — 75 sessions, ALL 75 present in the bank BY SESSION ID.** The PART TWELVE prune never covered this tree (it targeted `Binaries\Win64` leg dirs) |
+| `Builds\MidRepro` | **6.57 GB** | ⚠ **NEEDS A RULING** — the `m17` repro harness, a documented validation asset, untouched since 2026-07-15 |
+| `Builds\Windows` | **3.38 GB** | ⚠ **NEEDS A RULING** — the pre-cook 3-map build; historical evidence for `S-1`/`G87`'s correction |
+| `StackOBot\Saved\AnomalyCaptures` | **3.89 GB** | 🚨 **DO NOT TOUCH — 21 sessions, ZERO banked.** Editor/PIE-era captures, entirely unbanked evidence |
+| `_bench_sessions_bank` | **16.28 GB** | ⚠ **the owner's named lever** (bank retention) |
+
+🚨 **THE ONE ACTIONABLE FINDING IN THAT TABLE: `Saved\AnomalyCaptures` holds 21 sessions and NOT ONE
+is banked.** That is 3.89 GB of unbanked evidence sitting in the project tree — **the same shape as
+PART TWELVE's `RESCUE_P12_*` near-miss, found by the same session-ID method, and it must be banked
+before anything near it is deleted.**
+
+### 127.2 What a cook needs
+
+The last full cook produced a 284 MB `.ucas`, but the **working set** is far larger — `Saved\Cooked`
+plus `StagedBuilds` plus the archive copy. **0.94 GB is not enough to start, and a cook that runs out
+of disk mid-way is the worst possible outcome: a half-written container behind a build that still
+boots.**
+
+⇒ ⛔ **HALTED, AS INSTRUCTED. NOTHING DELETED. The ruling is the owner's.**
+
+---
+
+## 128. State after PART SEVENTEEN
+
+| | |
+|---|---|
+| precondition 1 | ✅ **PASS** — quartet preserved, **6/6 hash-verified at the new location**, README updated |
+| precondition 2 | ✅ **RECORDED** — map set declared; the read-back gate has nothing to read yet |
+| the cook | ⛔ **DID NOT RUN** |
+| slice 1 | unchanged — written, compiles clean, **still unvalidated** |
+| staged build | `101AFEA4` + the unchanged quartet; boots and writes sessions |
+| `P6` | **NOT MOVED** · production code **UNCHANGED this part** |
+| tag | **none** · `feature/stencil-capture` **UNTOUCHED at `76cac74`** |
+| ⛔ next | **the owner's disk ruling**, then the cook |
+
+**WHAT THIS PART ADDS BEYOND THE HALT: `Saved\AnomalyCaptures` holds 21 sessions and ZERO are
+banked — 3.89 GB of unbanked evidence found by the session-ID method while looking for something
+else entirely.**

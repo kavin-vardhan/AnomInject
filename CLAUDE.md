@@ -97,8 +97,32 @@ and is the single source of truth for the project.
   **once per RUN**. (2) **A re-picking veto destroys the seeded draw protocol** — `R-SEED` is
   deliberately independent of apply-result and `m22` gated on *"seed 4242, two runs byte-identical"*.
   **If a future reader proposes "just check before firing", both blockers are in journal §103.**
-  🛑 **`m26` SLICE 1 IS WRITTEN AND COMPILES CLEAN — AND ITS VALIDATION IS HALTED ON A COOK.
-  → journal PART SIXTEEN §119-§123. NO TAG. `P6` NOT MOVED.**
+  🛑 **OWNER RULED *COOK*, AND THE COOK IS ITSELF HALTED — ON DISK. → journal PART SEVENTEEN
+  §124-§128. FREE SPACE IS 0.94 GB AGAINST THE OWNER'S OWN ~10 GB FLOOR. NOTHING WAS DELETED; THE
+  RULING IS THE OWNER'S.** ✅ **Precondition 1 PASSED FIRST — the COMPLETE quartet (exe `101AFEA4` +
+  `utoc 939B9C9B` + `ucas 8A602D4D` + `pak 7CAE22DD` + both `global.*`) is preserved at
+  `_binary_baselines\m25-h4h5m1-measurement-build\`, **6/6 hash-verified AT THE NEW LOCATION** (A62),
+  README updated with what rests on it — **every result in journal PARTS TWO–FOURTEEN**. ✅
+  **Precondition 2 RECORDED:** map set declared in writing = `CB_GateLevel` + `MainMenu` + `Entry` +
+  `MainWorld`; `verify_cooked_maps.ps1` is the post-cook gate and has nothing to read yet.
+  📉 **WHERE THE DISK WENT (19.12 GB after the PART TWELVE prune → 0.94 GB): this session's own work**
+  — two full UBT builds with UHT, three engine-fatal launches, shader-compile attempts, eight legs.
+  `StackOBot\Intermediate` alone is **14.54 GB**. **Classified, nothing deleted:** ✅ regenerable —
+  `Intermediate` 14.54 GB, `.vs` 4.72 GB, and **`Builds\BenchGate\...\Saved\` 5.66 GB which is a
+  VERIFIED DUPLICATE (75 sessions, ALL 75 banked by session ID — the PART TWELVE prune never covered
+  this tree)**; ⚠ needs a ruling — `Builds\MidRepro` 6.57 GB, `Builds\Windows` 3.38 GB, the bank
+  16.28 GB; 🚨 **DO NOT TOUCH — `StackOBot\Saved\AnomalyCaptures` 3.89 GB: 21 sessions, ZERO BANKED.**
+  🚨 **THAT LAST ONE IS A FINDING IN ITS OWN RIGHT — 3.89 GB of UNBANKED evidence in the project tree,
+  found by the session-ID method while looking for disk space. Bank it before deleting anything near
+  it.**
+  ⚖ **`G-3` IS AMENDED (RULING 1, journal §124) AND THE REASON TRAVELS WITH IT:** *"byte-identical
+  with the switch OFF"* is **unobtainable** for a global shader (`G129`), so `G-3` becomes a **CONTROL
+  PAIR against a build that does not contain the shader** — `m25`'s preserved binary vs
+  `m26`-switch-OFF, run-unique set established from a same-binary pair first, **extras must be 0**,
+  decided by a rule fixed in advance. **Still BOTH WAYS (`G96`).** ⚠ **Switch-OFF inertness was
+  RETIRED BY MEASUREMENT, NOT WEAKENED BY CONVENIENCE.**
+  🛑 *(carried)* **`m26` SLICE 1 IS WRITTEN AND COMPILES CLEAN — VALIDATION BLOCKED ON THE COOK.
+  → journal PART SIXTEEN §119-§123.**
   🚨 **`G129` — THE HALT, AND IT RETIRES A PRECEDENT: A NEW GLOBAL SHADER CANNOT RIDE THE CODE-ONLY
   HOT-SWAP, AND A DEFAULT-OFF SWITCH DOES NOT MAKE IT INERT.** The slice-1 exe (`15A87075`)
   hot-swapped cleanly and **A44 confirmed every new symbol, both encodings, including the `.usf`
