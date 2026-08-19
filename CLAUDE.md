@@ -182,8 +182,9 @@ and is the single source of truth for the project.
   encodings:** the two new symbols `ascii=0 utf16=1`, alongside pre-existing symbols also at utf16=1
   ⇒ the change reached the package **and the scan is sound, not blind**.
   ⚠ **OPERATIONAL:** disk **19.1 GB free** (was 12.9 — PART TWELVE recovered 6.23 GB); bank
-  **152 dirs** (148 → 150 via `RESCUE_P12_*` on owner ruling, manifest-verified, bank now has a
-  **`README.md`**; → 152 with `P14_M1_DELIVOFF` + `P14_M1_DELIVON`); exe-side leg dirs **83 → 4**.
+  **154 dirs** (148 → 150 via `RESCUE_P12_*` on owner ruling, manifest-verified, bank now has a
+  **`README.md`**; → **154** with the two `P14_M1_*` legs, which bank as **FOUR** dirs because A63
+  keeps the `_try1` attempt alongside the accepted alias); exe-side leg dirs **83 → 4**.
   🚨 **THE NAME-SWEEP HAZARD IS NOW CONCRETE:** the bank already held `RESCUE_H4_WSECHO` — a
   **DIFFERENT session** (`…-140533`) from the exe-side `H4_WSECHO` (`…-170238`). **A name-based sweep
   would have matched them and destroyed the only copy while reporting a clean duplicate.** **Match by

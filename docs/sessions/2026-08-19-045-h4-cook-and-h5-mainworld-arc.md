@@ -3319,7 +3319,7 @@ the staged copy immediately before the swap.**
 | `P6` | ✅ **VERIFIED UNCHANGED BY MEASUREMENT** — 48 fields, 0 added, 0 removed |
 | tag | **none** · `feature/stencil-capture` **UNTOUCHED at `76cac74`** |
 | build | 🆕 **exe `1EBA8944`** + pak quartet unchanged; `101AFEA4` preserved |
-| bank | **150 → 152** (`P14_M1_DELIVOFF`, `P14_M1_DELIVON`) |
+| bank | **150 → 154** — two legs, **four dirs**: A63 banks the `_try1` attempt alongside the accepted alias |
 | shape | **(c) with (b)'s reporting** — (a) **REJECTED, permanently, two independent blockers** |
 | ⛔ not done | the cure itself. No mask, no veto, no tri-state — **stated as required, not written** |
 
