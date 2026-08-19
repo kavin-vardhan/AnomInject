@@ -97,8 +97,45 @@ and is the single source of truth for the project.
   **once per RUN**. (2) **A re-picking veto destroys the seeded draw protocol** — `R-SEED` is
   deliberately independent of apply-result and `m22` gated on *"seed 4242, two runs byte-identical"*.
   **If a future reader proposes "just check before firing", both blockers are in journal §103.**
-  🧭 **NEXT, AND IT IS CHAT-SIDE: the CURE's implementation plan.** Both gating measurements are done.
-  ⛔ **Do NOT implement the mask, the veto or the tri-state unprompted. `P6` DOES NOT MOVE.**
+  📋 **THE `m26` IMPLEMENTATION PLAN IS WRITTEN — journal PART FIFTEEN §110-§118. ⛔ NOT APPROVED.
+  NOTHING IMPLEMENTED. NO FILE CREATED.**
+  🧭 **NEXT: OWNER APPROVAL OF THE PLAN.** ⛔ **Do NOT implement the mask, the veto, the tri-state or
+  the counter until it is approved. `P6` DOES NOT MOVE — `mask.provided` false→true is a VALUE change
+  and is in scope; SUB-FIELDS under `mask` are a SHAPE change and are NOT.**
+  🚨 **THE PLAN'S RISKIEST ITEM, `P-2`, NAMED SO IT IS NOT LOST: a hide-type target is HIDDEN during
+  the positives, so a naive measurement reads ZERO and would INVALIDATE EVERY HIDE-TYPE EVENT EVER
+  RECORDED** (`blinking` + `missing_object` = the bulk of the dataset). **The design survives ONLY
+  because "no qualifying frame" lands in `NOT_MEASURED`, never `MEASURED_ZERO`** — which is precisely
+  why the two zeros were required to be different states. Rule: **arm the mask only on a tick where
+  the target is KNOWN NOT HIDDEN** — in-window for non-hide types and for `blinking`'s un-hidden
+  frames (`HiddenByIndex` already records them), and **post-revert** (`SettleAfterRevert` + `PostGap`)
+  for `missing_object`, which never draws in-window. ⚠ **Post-revert rests on a SETTLED CAMERA and a
+  STATIONARY TARGET** — measured here (`dYaw 0.0000` over 200 frames; gate-level eye invariant
+  844/844) and **NOT true in a level with motion**; it goes in the tag's scope statement.
+  ⚖ **RULING 2 — THE NEGATIVE BRANCH IS A SHIP GATE, NOT A TEST CASE** (a guard that has never fired
+  is not a guard, `G96` ×3): it must **FIRE** on `InstancedFoliageActor_0_0_0` / `BP_SplineSpawn_C`,
+  **NOT OVER-FIRE** on `StaticMeshActor_49` **and 🚨 `SM_Ramp2`** (peak-OUT `0.2955` > peak-IN
+  `0.1785` — **if the reduction is rect-scoped anywhere, `SM_Ramp2` is where it wrongly fires**, so
+  the reduction is **WHOLE-FRAME**), **ADMIT** when blind byte-identically, and be **LOUD** when blind.
+  ⛔ **WHAT DOES NOT SURVIVE FROM `feature/stencil-capture` INTO THE CURE:** its
+  **`InstancedFoliageActor` blacklist** (the selector is not touched at all); its
+  **`IsRenderableMesh`** narrowing (replaced by the shared `IsRenderableComponent`); **`StencilViz`**
+  (the only post-Slate path that can bake into a delivered frame — not shipping it removes that
+  hazard); and the branch's **`bbox_norm` re-sourcing**, which is the label-RECT fix and is **`P6`
+  movement, out of scope**.
+  ⚠ **RISKS CARRIED INTO THE PLAN:** ✅ seeded reproducibility **CONFIRMED UNAFFECTED** from source
+  (selection untouched; fixed timestep means GPU cost cannot perturb the stream) · `m23` needs a
+  precedence rule (**veto only `manifested == true` events**, keeping the two counters disjoint) ·
+  `m25` delivery orthogonality becomes **gate `G-9`** · 🚨 **a veto REMOVES events and `≥3 counted
+  events` is a VALIDITY condition, so a veto can silently turn a leg from EVIDENCE into INVALID** ·
+  `positive_frames` is fire-active and will disagree with a vetoed event · `ReservedStencilBase 200`
+  is a **convention, not a reservation**, on a host title using custom stencil · 🚨 **the mask
+  measures DRAWN SILHOUETTE, NOT VISUAL EFFECT**, so an almost-entirely-shadow target would be wrongly
+  vetoed and **none has ever been measured**.
+  ⚙ **`T-4`'s 256-entry array IS in the plan** (precondition now met): worst case **~9–28 ms → ~1–3
+  ms**, and the mask arms **a few times per burst, not per captured frame**. ⛔ **GPU-side reduction:
+  PREMATURE, FILED NOT BUILT** — no measurement says it is a problem, and `speed_ratio` is already the
+  instrument that would show it (gate `G-6`).
   🚨 **`M-1` ANSWERED — AND THE 10-vs-12 CONFLICT DISSOLVED RATHER THAN RESOLVING.** Measured on the
   existing colour readback, both delivery modes, 90 samples each: **readback latency is ONE render
   frame** (delivery OFF `min 1 max 2 mean 1.011`, hist `1:89 2:1`; delivery ON `min 1 max 1 mean

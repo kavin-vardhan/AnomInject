@@ -27,15 +27,16 @@ separable — each part exists because the one before it produced something unex
 | **Twelve** | 83–96 | **Cure OPTIONS costed from source · the disk prune** | **C-1 alone covers both `H5` classes; C-5 is a measured NO-OP; NO candidate is blocked by delivery mode.** **G126**, **G127**, **G128**. 6.23 GB recovered |
 | **Thirteen** | 97–102 | **`C-1` RULED the direction · the TIMING design** | 🚨 **selection → fire is ZERO frames, longest gap SIX ⇒ a 12-frame pre-flight does not fit** · `annotation.json` still OPEN at `FinishRun` · **Shipping has no capture, so a non-Shipping cure leaves no hole** |
 | **Fourteen** | 103–109 | **Shape ruled (c)+(b) · `M-1` · `M-2` · the ONE definition** | 🚨 **readback latency is ONE frame, so 10-vs-12 was two budgets and never reality** · **`RQT_Occlusion` counts the BOUNDING BOX ⇒ disqualified on CORRECTNESS** · `mask.provided` alone separates *never measured* from *measured zero* |
+| **Fifteen** | 110–118 | **`m26` — the implementation PLAN, file by file** | Design CLOSED · the negative branch is a **SHIP GATE** · 🚨 **`P-2` is the riskiest item: a hidden target reads zero and would invalidate EVERY hide-type event** — survivable only because *no qualifying frame* lands in `NOT_MEASURED` |
 
-⚠ **ONE INVESTIGATION, FOURTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fourteen;
+⚠ **ONE INVESTIGATION, FIFTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fifteen;
 the reason it is not split is unchanged).*
 
-**WHERE IT ENDS:** the cure's **DIRECTION** (`C-1`) and **SHAPE** ((c) with (b)'s reporting) are both
-ruled, and the two gating measurements are done. **The cure itself is NOT written.**
-`feature/stencil-capture` is **untouched** throughout — *mined, never resumed*. **`P6` never moved.**
-⚠ **Production code appears for the first time in PART FOURTEEN — log-only instrumentation for `M-1`,
-on owner permission; Parts One–Thirteen carry ZERO.**
+**WHERE IT ENDS:** the cure's **DIRECTION** (`C-1`), **SHAPE** ((c) with (b)'s reporting) and
+**PLAN** (`m26`, PART FIFTEEN) are all written. ⛔ **The plan is NOT APPROVED and NOTHING IS
+IMPLEMENTED.** `feature/stencil-capture` is **untouched** throughout — *mined, never resumed*.
+**`P6` never moved.** ⚠ **Production code appears for the first time in PART FOURTEEN — log-only
+instrumentation for `M-1`, on owner permission; Parts One–Thirteen carry ZERO.**
 
 ---
 
@@ -3329,3 +3330,297 @@ hardware count is disqualified because UE's occlusion query measures the BOUNDIN
 quantity `H5` calls a lie, so the mask stays for a CORRECTNESS reason; and the cure's one definition
 is `IsRenderableComponent`, which masking can adopt today and which makes *never measured* and
 *measured zero* distinguishable through `mask.provided` alone — with no `P6` movement.**
+
+---
+
+# PART FIFTEEN — `m26`: the implementation PLAN
+
+⛔ **PLAN ONLY. NOTHING WRITTEN. NO IMPLEMENTATION UNTIL APPROVED** (the project's standing
+plan-before-code rule). **`P6` DOES NOT MOVE.** `feature/stencil-capture` **READ-ONLY at `76cac74`,
+mined, never checked out.** **NO TAG.**
+
+---
+
+## 110. `RULING 1` — THE DESIGN IS CLOSED. Frozen statement.
+
+| axis | ruled |
+|---|---|
+| **SHAPE** | **(c) deferred invalidation, with (b)'s reporting folded in** |
+| **INSTRUMENT** | **the mask.** `RQT_Occlusion` **DISQUALIFIED ON CORRECTNESS** (bounds-rasterised), not on cost |
+| **TIMING** | readback completes in **ONE render frame**; `pendingAtDrainEntry` **0** on both delivery modes; the 8 blocking flushes **never entered**. ⇒ **NO LIFECYCLE CHANGE** |
+| **DEFINITION** | **`AnomalyViewport::IsRenderableComponent`** — the already-locked `G33`/`P6` predicate. **Masking ADOPTS it** (public `ANOMALYINJECTOR_API`, dependency already exists). **No fourth definition is created** |
+| **SAFETY** | `mask.provided` **false = NEVER MEASURED = MUST ADMIT**; **true + count 0 = MEASURED ZERO = may invalidate**. 🚨 **The two zeros must never share a representation ANYWHERE in the chain** |
+| **SCOPE** | capture configs only. `ANOMALY_CAPTURE=0` in Shipping ⇒ no labels ⇒ no `H5` defect. **Fallback on absent = ADMIT, never REJECT, and NEVER SILENT** |
+| **LIMITS** | **`L1`** frames already on disk · **`L2`** dropped events MUST be counted · **`L3`** delivery OFF and ON will disagree (`labels.jsonl` is prebuilt) |
+
+## 111. `RULING 2` — THE NEGATIVE BRANCH IS A **SHIP GATE**, not a test case
+
+**This project's record is unambiguous: a guard that has never fired is not a guard (`G96`, three
+instances), and only known-answer controls have ever exposed instrument blindness.**
+
+| gate | target | required outcome |
+|---|---|---|
+| **N-1 IT FIRES** | `InstancedFoliageActor_0_0_0` **or** `BP_SplineSpawn_C` (both measured, both banked) | event **INVALIDATED** |
+| **N-2 IT DOES NOT OVER-FIRE** | `StaticMeshActor_49` (control) **and** 🚨 **`SM_Ramp2`** | **NOT invalidated** |
+| **N-3 IT ADMITS WHEN BLIND** | measurement absent/failing | `mask.provided` **false**, event **ADMITTED**, output **byte-identical to today** |
+| **N-4 THE BLIND CASE IS LOUD** | same | absence **logged AND recorded in the artifact**. **`G119`'s diagnostic must not answer *"today's output"*** |
+
+🚨 **`SM_Ramp2` IS THE SHARPEST AND IS NAMED EXPLICITLY: peak-OUT `0.2955` against peak-IN `0.1785`.
+IF THE CURE'S MEASUREMENT IS RECT-SCOPED ANYWHERE, `SM_Ramp2` IS WHERE IT WILL WRONGLY FIRE.**
+⇒ **the reduction is WHOLE-FRAME, never rect-scoped** (§114).
+
+---
+
+## 112. `P-1` — FILE BY FILE
+
+**Legend — `MINE` = ported READ-ONLY from `feature/stencil-capture` (`git show`, branch untouched);
+`NEW` = written here; `EDIT` = change to an existing master file.**
+
+### 112.1 THE MASK — arm, render, read back
+
+| file | kind | what | notes |
+|---|---|---|---|
+| `Shaders/Private/AnomalyVisibleMask.usf` | **MINE, verbatim** | `customStencil ≥ ReservedBase ∧ customDeviceZ ≥ sceneDeviceZ − bias` → tag-valued R8 | ✅ correct as written; reversed-Z handled |
+| `Private/AnomalyMaskTypes.h` | **MINE** | `FAnomalyMaskAABB{Min/Max XY, **Count**}`, `FAnomalyMaskResult` | **`Count` is the measurement.** The AABB fields are carried but **NOT used by this cure** — the rect is out of scope |
+| `Private/AnomalyStencilSceneViewExtension.{h,cpp}` | **MINE + EDIT** | the mask pass + async readback | ⚠ **EDIT: the reduction (§114).** Everything else ports as-is |
+| `Private/AnomalyStencilTag.{h,cpp}` | **MINE + 🚨 EDIT** | tag/restore `{bRenderCustomDepth, CustomDepthStencilValue}`; refcount `r.CustomDepth 3` | 🚨 **ITS `IsRenderableMesh` IS DELETED AND REPLACED BY `AnomalyViewport::IsRenderableComponent`.** This is the `UPoseableMeshComponent` narrowing fix and it is **not optional** (§113.3) |
+| `AnomalyCapture.Build.cs` | **EDIT** | already has `Renderer` + the Renderer private include path | ✅ **no dependency change needed** |
+| `AnomalyCaptureModule.cpp` | **MINE** | shader-directory mapping for `/Plugin/AnomalyInjector/` | required for the `.usf` |
+
+⛔ **WHAT DOES *NOT* COME ACROSS FROM THE BRANCH:**
+1. 🚨 **`IsExcludedFoliageActor` and its call site in `ClassifyRenderableVisibleLive`** — the class
+   blacklist the owner ruled is not a fix, resting on a comment `H5` measured false. **DELETED. The
+   selector is not touched at all by this cure.**
+2. 🚨 **`AnomalyStencilTag::IsRenderableMesh`** — the narrowing defect. Replaced, not ported.
+3. **`StencilViz`** (`M_AnomalyStencilViz`, the post-process volume, `IAI.Capture.StencilViz`,
+   `tools/create_stencil_viz_material.py`) — debug visualisation. ⚠ **Deliberately excluded: it is the
+   only post-Slate path that can bake into a delivered frame** (the branch needed `LOCK-2` to force it
+   off during a run). **Not shipping it removes that hazard entirely.**
+4. **The branch's `bbox_norm` re-sourcing / `FResolvedFireBox` / `LOCK-1` box plumbing** — that is the
+   **label RECT** fix. ⛔ **OUT OF SCOPE** (it is `P6` movement).
+
+### 112.2 THE MEASUREMENT — reduce to a count, using the shared predicate
+
+| file | kind | what |
+|---|---|---|
+| `Private/AnomalyMaskMeasure.{h,cpp}` | **NEW** | owns the per-event measurement state machine: which events still need a measurement, which tag each holds, when to arm, and the **MAX-across-frames** reduction (§113.4) |
+| `Public/AnomalyViewport.h` / `Private/AnomalyViewport.cpp` | ⛔ **UNCHANGED** | `IsRenderableComponent` is **already** public `ANOMALYINJECTOR_API` (`:80`). **The cure CALLS it. Zero edits to the selector.** |
+
+### 112.3 THE REPORTING — `mask{}` provided/value
+
+| file | kind | what |
+|---|---|---|
+| `Private/AnomalyLabelWriter.h` | **EDIT** | `FSessionEvent` gains internal `MaskState` (tri-state) + `MaskCount` |
+| `Private/AnomalyLabelWriter.cpp` | **EDIT** | `:452-459` — `mask.provided` becomes **the tri-state's bool** instead of a hardcoded `false`. 🚨 **`depth{provided:false}` is left exactly as-is.** ⛔ **NO SUB-FIELDS ADDED under `mask` — that would be `P6` SHAPE movement** |
+
+### 112.4 THE INVALIDATION — the accumulator edit before `FinishRun`
+
+| file | kind | what |
+|---|---|---|
+| `Private/AnomalyCaptureSubsystem.cpp` | **EDIT** | (i) `FSessionEventAccum` gains `TWeakObjectPtr<AActor> TargetActor`, `EMaskState MaskState`, `int32 MaskCount` — **internal struct, not an artifact field**; (ii) arm/collect hooks in `Tick`; (iii) **the veto pass in `FinishRun`, between `DrainAsyncToCompletion()` and `WriteSessionAnnotationFile()`**; (iv) untag on `FinishRun` |
+| `Public/AnomalyCaptureSubsystem.h` | **EDIT** | the SVE + measure members, `VetoedEvents` counter |
+
+**The event key already exists and is stable:** `(Id, StartFrame, Target)`
+(`AccumulateFrameEvents`), and `StartFrame` is `GFrameCounter` at fire, unique per burst. **No new
+identity scheme is required.**
+
+### 112.5 THE COUNTER — dropped events
+
+| file | kind | what |
+|---|---|---|
+| `Private/AnomalyLabelWriter.{h,cpp}` | **EDIT** | `WriteRunSummary` gains **`vetoed_events`**, beside `non_manifested_events` |
+
+✅ **`run_summary.json` is NOT `P6`.** `P6` is the `annotation.json` contract; `run_summary` already
+gained `capture_path` + five `key_ring_*` at `S4` **without moving `P6`**. Precedent is explicit.
+
+---
+
+## 113. `P-2` — THE `LOCK-1` TIMING. **The highest-risk item in the plan.**
+
+🚨 **THE FAILURE MODE, STATED FIRST: for a hide-type anomaly the target is hidden during the
+positives, so the mask is 0 BY CONSTRUCTION. A cure that measures a hidden target and reads zero
+INVALIDATES EVERY HIDE-TYPE EVENT EVER RECORDED — which is every `blinking` and `missing_object`
+event, i.e. the bulk of the dataset.**
+
+### 113.1 What the code already gives us
+
+`IsHideTypeAnomaly` is an explicit table (`m23`): **hide-type = {`blinking`, `missing_object`}**;
+non-hide = {`missing_texture`, `lighting_mismatch`, `lod_corruption`, `lod_popping`,
+`camera_clipping`, `time_dilation`}. And **`FSessionEventAccum::HiddenByIndex` already records, per
+session index, whether the target was hidden** — the `m20` deferred sample.
+
+| anomaly class | is the target drawing during the positives? |
+|---|---|
+| **non-hide-type** (6 ids) | ✅ **yes, throughout** |
+| **`blinking`** | ⚠ **on SOME frames** — `HiddenByIndex[idx] == 0` marks them |
+| **`missing_object`** | ⛔ **never, for the whole window** |
+
+⚠ **And the last `LeadIn` frame is NOT a safe pre-fire sample:** `CaptureCurrentFrame()` runs and
+**then** `BeginFire()` runs in the same tick, and per `m18` the async grab returns the render of the
+**arm tick itself** — so that frame's pixels are already **post-fire**.
+
+### 113.2 THE RULE — one uniform rule, no per-type special-casing
+
+> **ARM THE MASK FOR AN EVENT'S TARGET ONLY ON A TICK WHERE THAT TARGET IS KNOWN NOT TO BE HIDDEN.**
+
+- **non-hide-type** → any in-window tick.
+- **`blinking`** → in-window ticks where the deferred hidden sample reads **not hidden**.
+- **`missing_object`** → **no in-window tick qualifies** ⇒ fall through to the **post-revert window**:
+  `SettleAfterRevert` (2 ticks) + `PostGap` (4 ticks), where `BeginRevert()` → `RevertAllLiveFires()`
+  has restored the actor.
+
+✅ **Post-revert measurement is sound here, and the camera is why:** `Q-5` measured the settled camera
+holding **dX 0.0004 · dY 0.0003 · dZ 0.0000 · dPitch 0.0000 · dYaw 0.0000** over 200 frames, and
+`CB_GateLevel`'s eye is invariant on **844/844**. **The target's drawn extent 6 ticks after the window
+is the same quantity as during it.** ⚠ **This assumption is level-dependent and belongs in the tag's
+scope statement** (§117) — it does **not** hold in a level with a moving camera or a moving target.
+
+⚠ **`RevertAllLiveFires()` clears `LiveFires`**, so during the post-revert window the fire is gone
+from the live set. **This is why `FSessionEventAccum` gains a `TWeakObjectPtr<AActor>`** — the
+accumulator, not the live-fire list, is what carries the target into the post-revert window.
+
+### 113.3 The measurement is per-EVENT, not per-FRAME — and it is much cheaper than the branch
+
+The branch armed a mask **on every captured frame**. This cure arms **only until each event has a
+usable measurement**, then stops. **Typical: a handful of arms per burst rather than 16.** That is
+both a cost win (§114) and a smaller surface for the reduction to be pathological on.
+
+### 113.4 The reduction across frames: **MAX, not FIRST**
+
+**Take the MAXIMUM `Count` across all measured frames for an event.** ⚠ **Deliberate asymmetry: MAX
+biases toward ADMITTING.** A frame where the target happens to be transiently occluded, mid-LOD-swap
+or clipped yields a low count; **FIRST would let such a frame invalidate a good target. MAX cannot.**
+Consistent with Ruling 2's `N-2`, which weighs over-firing as the worse failure.
+
+### 113.5 🚨 THE SAFETY PROPERTY, RESTATED AS THE RULE THAT MAKES `P-2` SURVIVABLE
+
+**If no qualifying tick is ever found for an event — for ANY reason: never un-hidden, target
+destroyed, tagging produced no component, readback never resolved — then `MaskState` stays
+`NOT_MEASURED`, `mask.provided` stays `false`, and THE EVENT IS ADMITTED.**
+
+⇒ **The `P-2` failure mode cannot produce a systematic false invalidation, because the hide-type case
+that has no measurable frame lands in `NOT_MEASURED`, not in `MEASURED_ZERO`.** **The two zeros are
+different states, and this is the case that proves why that requirement exists.**
+
+---
+
+## 114. `P-3` — THE REDUCTION
+
+**`T-4`'s precondition is now met, so the fix is IN the plan:** replace the per-pixel
+`TMap::FindOrAdd` with a **fixed 256-entry array indexed by tag value** (`ReservedStencilBase = 200`,
+headroom under 256), collapsed to a `TMap` once per frame after the scan.
+
+| case | before (`TMap`) | **after (array)** |
+|---|---|---|
+| all-zero | ~0.1–0.3 ms | ~0.1–0.3 ms |
+| 10 % tagged | ~1–3 ms | **~0.2–0.5 ms** |
+| **100 % tagged** *(the `H5` case)* | **~9–28 ms** | **~1–3 ms** |
+
+⚠ **ANALYTICAL, NOT MEASURED.** The `M-1` legs measured readback latency, not reduction cost. **A
+real number needs a bench leg with the mask built, which is implementation, not planning.**
+
+### Is a GPU-side reduction needed? — **NO. PREMATURE.**
+
+Three reasons, in order of weight:
+1. **The array fix alone takes the worst case from ~28 ms to ~1–3 ms**, against a 33 ms budget at
+   30 fps.
+2. **The mask is armed a few times per burst, not 16** (§113.3), so the *per-run* cost falls by
+   roughly an order of magnitude on top of that.
+3. **We have no measurement saying it is a problem.** Building a compute-shader reduction now would be
+   optimising against an estimate — the same shape as designing around the 12-frame budget that
+   `M-1` showed was never real.
+
+⇒ **FILED, NOT BUILT.** Revisit only if a measured leg shows the reduction on the render thread
+materially moving `speed_ratio`. ✅ **And `speed_ratio` is already the instrument that would show it**
+— it is in every `run_summary.json`, so the trigger is a gate (§115 `G-6`), not a new tool.
+
+---
+
+## 115. `P-4` — GATES, with thresholds and what a FAIL looks like
+
+| # | gate | pass threshold | **FAIL looks like** |
+|---|---|---|---|
+| **G-1** | **`P6` UNCHANGED, BY MEASUREMENT** | the 48-field key-set check (as run in PART FOURTEEN) — **0 added, 0 removed** against a pre-`m26` banked leg | any key delta ⇒ **`P6` MOVED ⇒ HALT** |
+| **G-2** | **`annotation.json` field SET unchanged** | same check, both delivery modes | as above |
+| **G-3** | **BYTE-IDENTICAL WHEN THE MEASUREMENT IS ABSENT** | with the cure's switch OFF, `annotation.json` + `labels.jsonl` + `run_summary` (minus run-unique fields, per the `m24` **control-pair** method) **identical** to the `m25` binary | any extra/changed field ⇒ the cure is not inert when off |
+| **G-4 = `N-1`** | **IT FIRES** | `InstancedFoliageActor_0_0_0` **and** `BP_SplineSpawn_C`: event **absent** from `anomalies[]`, `vetoed_events ≥ 1`, `mask.provided true` | event still present ⇒ the guard never fired ⇒ **not a guard** |
+| **G-5 = `N-2`** | **IT DOES NOT OVER-FIRE** | `StaticMeshActor_49` **and 🚨 `SM_Ramp2`**: event **present**, **NOT** vetoed, `mask.provided true`, count ≫ 0 | either vetoed ⇒ **the reduction is rect-scoped somewhere ⇒ HALT** |
+| **G-6** | **PACING NOT MATERIALLY DISTURBED** | `speed_ratio` within the banked band for the same config (≈1.000–1.002 on the `M-1` legs); ring `missed == corrupted == 0` | ratio inflation ⇒ the reduction or `r.CustomDepth 3` is costing real time ⇒ revisit §114 |
+| **G-7 = `N-3`** | **ADMITS WHEN BLIND** | measurement forced to fail: `mask.provided` **false**, event **ADMITTED**, `vetoed_events == 0` | a blind run that vetoes ⇒ 🚨 **the two zeros share a representation ⇒ HALT** |
+| **G-8 = `N-4`** | **THE BLIND CASE IS LOUD** | a `Warning` naming the reason **and** `mask.provided:false` in the artifact | silent ⇒ **`G119`'s diagnostic answers "today's output" ⇒ HALT** |
+| **G-9** | **DELIVERY ORTHOGONALITY (`m25`)** | a pose-matched delivery pair: event set, `mask.provided`, `vetoed_events` **identical** across modes | divergence ⇒ **`m25`'s certified property is broken ⇒ HALT** |
+| **G-10** | **`A54` STILL CERTIFIES ON THE CONTROL** | `CB_GateLevel` / `StaticMeshActor_49` leg: ALL-ALIGNED, **≥3 counted events** | below 3 ⇒ the leg is **INVALID**, not evidence (§116 risk 4) |
+
+⚠ **`G-3` and `G-7` must be run BOTH WAYS (`G96`).** A cure that is inert when off proves nothing
+unless the same instrument shows it is *not* inert when on.
+
+---
+
+## 116. `P-5` — RISK
+
+| # | risk | assessment |
+|---|---|---|
+| **1** | **SEEDED REPRODUCIBILITY** | ✅ **CONFIRMED UNAFFECTED, from source.** (c) touches nothing at or before selection: `TryFireOnce` is **unmodified**, the `Stream` draw order is **untouched**, and the veto acts on the accumulator at `FinishRun`. Under capture the interval timer is not even used — `BeginFire()` calls `TryFireOnce()` directly. ⚠ **One second-order path checked and cleared:** fixed timestep means GPU cost cannot change the number of game ticks, so tagging cannot perturb the stream either. **`G-3` re-proves it empirically.** |
+| **2** | **`m23` ACCOUNTING** | ⚠ **REAL, needs a stated precedence rule.** `non_manifested_events` counts hide-type events with zero sampled-hidden frames; a veto is a **different** category. An event can be **both**. **RULE: evaluate `manifested` first (`m23` logic byte-unchanged), then the veto; a non-manifested event is ALREADY excluded from positives, so vetoing it adds nothing and MUST NOT be double-counted.** Proposed: **veto only events with `manifested == true`.** Keeps the two counters disjoint and `m23` untouched |
+| **3** | **`m25` DELIVERY ORTHOGONALITY** | ⚠ **REAL.** `S4-4` certified **127 invariants identical** across delivery mode. The mask is delivery-independent **by construction** (the SVE does not consult `bDeliveryMode`), so the veto should be too — **but "should" is why `G-9` exists as a gate rather than an argument** |
+| **4** | 🚨 **`A54` / THE ≥3-EVENT VALIDITY CONDITION** | 🚨 **THE SUBTLEST ONE. A veto REMOVES events, and `≥3 counted events per leg` is a VALIDITY condition (A31 / `m24`). A cure that vetoes 6 of 8 events on a leg silently turns that leg from EVIDENCE into INVALID** — and A54's oracle would be judging a shrunken set. **Mitigation: A54 gate legs must use the control target, which `G-5` proves is never vetoed. Stated so it is not discovered.** |
+| **5** | **`run_summary.positive_frames` vs a vetoed event** | ⚠ `positive_frames` counts **fire-active** frames and is unchanged by design (`m23`: *fire-active ≠ manifested*). A vetoed event's frames stay counted ⇒ `run_summary` and `annotation.json` disagree. **Same family as `L2`; must be stated, not silently reconciled** |
+| **6** | **`r.CustomDepth 3` on a HOST GAME that already uses custom stencil** | ⚠ **GAME-AGNOSTIC RISK.** The branch's tag code saves/restores per component and refcounts the cvar — good — but a host title using custom stencil for its own effects shares a 0–255 space with our 200+ tags. **`ReservedStencilBase = 200` is a convention, not a reservation.** Belongs in the scope statement |
+| **7** | 🚨 **THE MASK MEASURES DRAWN SILHOUETTE, NOT VISUAL EFFECT** | 🚨 **THE DEEPEST LIMIT, and it is A35/`SM_Ramp2` in a new place.** A target whose contribution is largely **shadow, reflection or GI** has those pixels **outside its own silhouette by construction**, so the mask under-counts it. `SM_Ramp2` still draws real geometry (peak-in `0.1785`), so `G-5` should pass — **but a target that is ALMOST ENTIRELY shadow would be wrongly vetoed and we have never measured one.** ⛔ **MUST be in the tag's scope statement as a KNOWN, UNMEASURED limit** |
+| **8** | **Tagging mutates render state on a live target** | `bRenderCustomDepth` is saved/restored per component. ⚠ **`StencilViz` is deliberately NOT ported** (§112.1), which removes the only path by which custom stencil could reach delivered pixels |
+
+---
+
+## 117. `P-6` — MILESTONE SHAPE: **`m26`**
+
+**One milestone · one `feat(capture)` commit · annotated tag `m26` carrying its own scope statement,
+per the `m24`/`m25` precedent.** Owner Play-gate smoke **before** the tag, as the standing rule
+requires.
+
+### The scope statement `m26` will carry — drafted now, to be corrected by what the gates actually show
+
+> **`m26` — `H5` class (ii) mitigation: an event whose target is MEASURED to draw nothing is removed
+> from `annotation.json` before it is written.**
+>
+> **WHAT IS CERTIFIED:** the cure fires on two measured `H5`-shaped targets
+> (`InstancedFoliageActor_0_0_0`, `BP_SplineSpawn_C`), does not fire on two known-good targets
+> (`StaticMeshActor_49`, `SM_Ramp2` — the A35 case), admits byte-identically when the measurement is
+> absent, and is loud when blind. `annotation.json`'s field SET is UNCHANGED (`P6` not moved);
+> `mask.provided` moves `false → true` in a slot that already shipped.
+>
+> ⛔ **WHAT IS NOT:**
+> - **NO INCIDENCE CLAIM.** `H5`'s incidence in client data is still unknown, and `m26` does not
+>   measure it.
+> - **`H5` class (i) is ENUMERATED, NOT OBSERVED** — `m26` may or may not catch it; that is untested
+>   because no instance exists here.
+> - **`H4` IS NOT CURED.** Its cure remains `feature/stencil-capture`, still untouched. **Whether one
+>   measurement serves both is UNESTABLISHED** (Ruling, PART TWELVE §3.3).
+> - 🚨 **THE MASK MEASURES DRAWN SILHOUETTE, NOT VISUAL EFFECT.** A target whose contribution is
+>   mostly shadow/reflection/GI is under-counted. `SM_Ramp2` passes; **an almost-entirely-shadow
+>   target has never been measured.**
+> - 🚨 **THE POST-REVERT MEASUREMENT ASSUMES A SETTLED CAMERA AND A STATIONARY TARGET** (measured:
+>   `dYaw 0.0000` over 200 frames; `CB_GateLevel` eye invariant 844/844). **It does NOT hold in a
+>   level with a moving camera or a moving target**, and that is unmeasured.
+> - **`ReservedStencilBase = 200` is a CONVENTION, not a reservation** — a host title using custom
+>   stencil shares the space.
+> - **`L1`–`L3` carried:** frames stay on disk; `vetoed_events` must be read alongside
+>   `positive_frames`; **delivery OFF and ON disagree** because `labels.jsonl` is prebuilt.
+> - Carried from `m25`: modal pose only, `VideoFps` 30 only, alignment certified at 1280×720 and
+>   1281×721 only.
+
+---
+
+## 118. State after PART FIFTEEN
+
+| | |
+|---|---|
+| plan | **written, NOT approved. NOTHING IMPLEMENTED.** |
+| production code | unchanged since PART FOURTEEN's log-only `M-1` instrument |
+| `P6` | **DOES NOT MOVE** — plan explicitly forbids sub-fields under `mask` |
+| tag | **none** · `feature/stencil-capture` **UNTOUCHED at `76cac74`** |
+| ⛔ next | **owner approval of the plan.** No file is created until then |
+
+**THE PLAN'S RISKIEST ITEM, NAMED:** **`P-2`. If the cure measures a hidden target and reads zero it
+invalidates every hide-type event ever recorded. The design survives it ONLY because "no qualifying
+frame" lands in `NOT_MEASURED` rather than `MEASURED_ZERO` — which is exactly why the two zeros were
+required to be different states.**
