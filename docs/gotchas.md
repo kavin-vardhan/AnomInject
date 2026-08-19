@@ -2578,6 +2578,29 @@ which is mechanical too and therefore actually survives contact.
 ⛔ **Deliberately NOT automated.** A hook or wrapper for this is more surface than the fault is worth.
 (2026-08-19.)
 
+#### 🆕 AMENDMENT (2026-08-20) — **DIAGNOSE THE DIFF BEFORE FIXING IT**, and what actually caught it
+
+**This fired on the author of the rule.** A `Get-Content -Raw` → `Set-Content` round-trip for **one**
+PART-INDEX line returned **`2940 ++++----` on a ~130-line addition**.
+
+🚨 **AND THE MORE INSTRUCTIVE HALF: TWO REPAIRS WERE ATTEMPTED BEFORE THE CAUSE WAS NAMED, AND BOTH
+WERE WRONG.** *(1)* strip the BOM — the BOM was real but was not the diff; *(2)* convert LF→CRLF —
+**backwards**: `core.autocrlf=true` and the stored blob is **LF, no BOM**, so line endings were never
+the difference at all. The real cause was only found by comparing a single line against `HEAD`:
+**`⚠` had become `Ã¢Å¡Â ` — double-encoded.** Every non-ASCII line in a 2,900-line journal.
+
+⇒ **RULE: a large diffstat has SEVERAL possible causes — BOM, line endings, re-encode, or genuine
+content — and THE WRONG REPAIR IS INDISTINGUISHABLE FROM THE RIGHT ONE UNTIL THE CAUSE IS NAMED.**
+Diagnose first: check the first three bytes, check `core.autocrlf` and the **stored blob** (not the
+working copy), and diff **one known line** against `HEAD`. Only then repair — and when the content is
+corrupt the repair is `git checkout --` plus re-applying through the editor tool, never another
+round-trip.
+
+🚨 **RECORD WHAT CAUGHT IT: the MECHANICAL PRE-COMMIT DIFFSTAT CHECK, not vigilance.** The rule was
+known, written by the same hand, and violated anyway. **That is the entire argument for mechanical
+checks over remembered rules** — the check does not depend on remembering the rule at the moment it
+matters.
+
 ---
 
 ### G116 — a SHORT-CIRCUIT chain collapses four distinct causes into ONE artifact string, so a signature is only "unique" if the other clauses are excluded BY CONSTRUCTION

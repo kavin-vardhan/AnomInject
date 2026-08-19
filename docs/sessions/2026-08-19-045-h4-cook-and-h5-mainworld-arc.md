@@ -32,6 +32,7 @@ separable — each part exists because the one before it produced something unex
 | **Seventeen** | 124–128 | **Cook preconditions · `G-3` amended · DISK HALT** | Quartet preserved **6/6 hash-verified**; map set declared; 🛑 **cook did NOT run — 0.94 GB free against a 10 GB floor.** 🚨 **`Saved\AnomalyCaptures`: 21 sessions, ZERO banked** |
 | **Eighteen** | 129–134 | **Cleanup executed · 21 sessions banked · cook IN FLIGHT** | **0.94 → 21.93 GB**; 21/21 banked incl. **the `m23` play-gate smoke**; **G130**. 🚨 **Ruling 1's order was IMPOSSIBLE — banking 3.89 GB needs 3.89 GB.** Cook is memory-bound at **1 process** (`G97`) |
 | **Nineteen** | 136–142 | **`E:` junctions · cook SUCCEEDS · build still cannot boot** | Disk solved, map gate PASS — 🛑 **HALT on `LoadingPhase`: a global shader must load at `PostConfigInit`.** **G131**; runbook §8.6 step 3.5; `G115` fired on me and the diffstat caught it |
+| **Twenty** | 143–148 | **Option B ships · build BOOTS · the MEASUREMENT is wrong** | `AnomalyShaders` at `PostConfigInit`, **no `Renderer` dep, load order untouched**; all four gates PASS — 🛑 **HALT: `S4` + an `S3` observation.** Tag 255 pollutes the mask; a control measured ZERO. **`H5` legs deliberately NOT run** |
 
 ⚠ **ONE INVESTIGATION, FIFTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fifteen;
 the reason it is not split is unchanged).*
@@ -4350,3 +4351,180 @@ reason it did not land.**
 **WHAT THIS PART SETTLES: `BUILD SUCCESSFUL` is not evidence a shader reached the container — only
 booting the packaged build is. Two separate failures each reported success at the step that caused
 them, and the only instrument that caught either was running the artifact.**
+
+---
+
+# PART TWENTY — Option B ships, the build BOOTS, and the measurement is WRONG. **HALT.**
+
+**The shader module works. The cook works. The build boots. And slice 1's measurement is not
+trustworthy — for a reason my own `A-3` detector caught, and a second one it did not.**
+**NO TAG. `P6` NOT MOVED.** `feature/stencil-capture` **READ-ONLY at `76cac74`.**
+
+---
+
+## 143. `RULING 1` — the `E:` migration is **SUSPENDED, NOT CANCELLED**
+
+**The junction solved the problem the migration existed for**, with **zero path edits** and zero risk
+to 25 milestones of tooling. **Recorded as SUSPENDED**: disk pressure is resolved and a full
+migration would now be churn against no measured need.
+
+**It reopens if:** `freeD` trends down again despite the junctions, **or** the unjunctioned
+engine-side `D:\UESource\UnrealEngine\Engine\Intermediate` (~60 GB, swinging D: between 42 and 59 GB)
+becomes a blocker. ⛔ **The path scope note (§135) is NOT needed now; if the migration reopens it is
+asked for again.**
+
+✅ **Topology recorded in `setup-runbook.md` §3.6** so nobody finds ~21 GB "missing" from `D:` and
+concludes something is broken.
+
+## 144. `G115` AMENDED — diagnose before fixing, and name what caught it
+
+**Added to `G115`:** a large diffstat has **several** possible causes and **the wrong repair is
+indistinguishable from the right one until the cause is named.** Recorded that **two repairs were
+attempted before diagnosis and both were wrong** (the BOM was real but was not the diff; the LF→CRLF
+conversion was backwards — `core.autocrlf=true`, blob is LF/no-BOM). **And that what caught it was
+the MECHANICAL PRE-COMMIT DIFFSTAT CHECK, not vigilance** — the rule was written by the same hand and
+violated anyway. **That is the argument for mechanical checks over remembered rules.**
+
+## 145. `TASK 1` — the `AnomalyShaders` module
+
+| file | contents |
+|---|---|
+| `Source/AnomalyShaders/AnomalyShaders.Build.cs` | deps below |
+| `Public/AnomalyVisibleMaskShader.h` | `FAnomalyVisibleMaskPS` via **`DECLARE_EXPORTED_SHADER_TYPE(…, Global, ANOMALYSHADERS_API)`** + its `FParameters` |
+| `Private/AnomalyVisibleMaskShader.cpp` | **`IMPLEMENT_GLOBAL_SHADER`** — and nothing else |
+| `Private/AnomalyShadersModule.cpp` | **`AddShaderSourceDirectoryMapping`** — and nothing else |
+
+**DEPENDENCIES, and why each:** `Core` (always) · `Engine` — **`FSceneTextureShaderParameters` is
+`ENGINE_API` in `Engine/Public/SceneTexturesConfig.h`, NOT Renderer** · `RenderCore` (`FGlobalShader`,
+the param macros, `AddShaderSourceDirectoryMapping`) · `RHI` · `CoreUObject`, `Projects`
+(`IPluginManager`), private.
+
+🚨 **THE POINT OF THE DEPENDENCY LIST: NO `Renderer`, AND NO RENDERER-PRIVATE INCLUDE PATH.** Those
+stay in `AnomalyCapture` at `Default`. **A `PostConfigInit` module dragging the render deps early is
+exactly how Option A's blast radius comes back in through the side door, and it does not.**
+
+**GAME-AGNOSTIC INVARIANT: PRESERVED.** No host-game type is referenced; the deps are engine modules
+already contemplated by the invariant.
+
+✅ **`.uplugin` CONFIRMED — only the new entry moved:**
+
+| module | LoadingPhase |
+|---|---|
+| **`AnomalyShaders`** | 🆕 **`PostConfigInit`** |
+| `AnomalyInjector` | `Default` **unchanged** |
+| `AnomalyCapture` | `Default` **unchanged** |
+| `AnomalyControlServer` | `Default` **unchanged** |
+
+✅ **A44 on the EDITOR dlls proves the split is clean:**
+
+| dll | `AnomalyVisibleMask` | `/Plugin/AnomalyInjector` | `IAI.Capture.Mask` | `IsHideTypeAnomaly` |
+|---|---|---|---|---|
+| **`AnomalyShaders`** (58,880 B) | ✅ | ✅ mapping | ⛔ | ⛔ |
+| **`AnomalyCapture`** (585,216 B) | ✅ *(uses)* | ⛔ *(moved out)* | ✅ | ✅ |
+
+⚠ **One compile error worth recording:** `ANOMALYSHADERS_API` on **both** the class and
+`DECLARE_EXPORTED_SHADER_TYPE` → `C2487: member of dll interface class may not be declared with dll
+interface`. **The engine's own `BinkShaders.h` puts it only in the macro.** Fixed.
+
+## 146. `TASK 2` — the cook, the gates, and the new quartet
+
+✅ **COOK `BUILD SUCCESSFUL`, ExitCode=0, ~90 s** (incremental — 4 build actions).
+✅ **MAP GATE PASS** — `CB_GateLevel` · `Entry` · `MainMenu` · `MainWorld`, read from the artifact.
+✅ 🚨 **SHADER PRESENCE GATE — PASS.** Booted with `IAI.Capture.Mask 1`: **no `Missing global shader`,
+`Game Engine Initialized`, `Bringing World … up for play`.** ⚠ **The gate is the BOOT, and §3.7 now
+records WHY: string-scanning the container returns 0 for our shader AND 0 for known engine shaders,
+so it is suspect tooling, not evidence.**
+✅ **TOKEN READ-BACK PASS** — source `5b544cee3d97…` (64) **== enforced** `5b544cee3d97…` (64).
+
+**NEW QUARTET — preserved at `_binary_baselines\m26-slice1-measurement-build\`, 6/6 verified at the
+destination:**
+
+| | hash | bytes | mtime |
+|---|---|---|---|
+| exe | **`998B1399`** | 240,610,304 | 01:40:12 |
+| `.utoc` | **`9334496D`** | 268,174 | 01:40:42 |
+| `.ucas` | **`62EB0072`** | 284,474,032 | 01:40:42 |
+| `.pak` | **`78C977A5`** | 10,115,707 | 01:40:38 |
+
+## 147. `SLICE 1` — pre-declared branches, restated **VERBATIM**
+
+**Committed as `CaptureBench/tools/p18_slice1_predeclared_branches.md` at `972840d`, before any leg:**
+
+> | # | branch | reading that selects it |
+> |---|---|---|
+> | **S1** | MEASUREMENT CORRECT ON ALL FOUR | non-zero on both controls, zero on both `H5` targets |
+> | **S2** | CORRECT ON CONTROLS, NOT ON `H5` TARGETS | non-zero on controls, **non-zero** on foliage/splinespawn too |
+> | **S3** | CORRECT ON `H5` TARGETS, NOT ON CONTROLS | zero on the `H5` pair **and** zero on a control ⇒ 🚨 broken in the dangerous direction. HALT |
+> | **S4** | 🚨 `NOT_MEASURED` WHERE A QUALIFYING FRAME SHOULD EXIST | 🚨 **the `LOCK-1` rule is failing. HALT** |
+> | **S5** | MIXED / PARTIAL | report exactly what was seen, attribute nothing, HALT |
+> | **S6** | INVALID / NOT MEASURED (leg) | leg failed for a HOW-IT-RAN reason ⇒ discard, bank, re-run |
+
+### 147.1 THE RESULT — **`S4`, with an `S3`-shaped observation inside it. HALT.**
+
+**Two legs run, both A63-VALID on attempt 1, both banked.**
+
+| leg | map | target | events | `NOT_MEASURED` |
+|---|---|---|---|---|
+| `P20_M26S1_CTRL49` | `CB_GateLevel` | `StaticMeshActor_49` — **B1 PASSED** (`modal_rot (0,0,0)`, 59 rows, 1 distinct, 100 % modal) | 8 | **8 of 8** |
+| `P20_M26S1_RAMP` | `MainWorld` | `SM_Ramp2` — **B1 NOT APPLICABLE, declared** (G117) | 8 | **7 of 8** |
+
+✅ **WHAT WORKS, and it is not nothing:** the `LOCK-1` arm rule behaves exactly as designed —
+**`skippedHidden=3..4` on every event** shows it refusing to arm on hidden ticks; and
+**`arms=4 resolved=4` on 15 of 16 events** shows tagging, the mask pass and the readback all
+round-tripping.
+
+🚨 **WHAT IS WRONG — TWO FAULTS:**
+
+**(1) TAG 255 POLLUTES THE MASK.** `A-3`'s **unassigned-reserved-tag detector fired 25 times**, and
+**always on 255 — never 254, never any other value, in BOTH levels.**
+
+⚠ **AND THE DETECTOR'S MESSAGE NAMES A CAUSE IT HAS NOT ESTABLISHED** — it says *"a host title is
+writing into the reserved custom-stencil range"*. **StackOBot is a sample project; a single constant
+value in two unrelated levels is not a host-game signature.** 🚨 **This is S4-1's ruling recurring in
+code I wrote this turn: a gate that fails safe still misleads if its LABEL names a cause it has not
+established.** The wording must become *"an unassigned reserved tag was present — cause not
+established"*.
+
+⚠ **HYPOTHESIS, NOT ESTABLISHED: `ReservedStencilMax = 255` puts our range on top of the value an
+unpopulated / default custom-stencil read returns.** 255 is the classic unbound-read constant.
+**Testable cheaply by narrowing the reserved range below 255 — but that is production code.**
+
+**(2) 🚨 THE ONE EVENT THAT DID MEASURE, MEASURED ZERO — ON A CONTROL.** `SM_Ramp2`
+`startFrame=4`, `collisions=0`, `arms=4 resolved=4` ⇒ **`MEASURED_ZERO`, `maxCount=0`.**
+**`SM_Ramp2` is a control that must be NON-ZERO.** ⇒ **the `S3` shape: zero on a target that draws,
+which is the dangerous direction.**
+
+**Both faults have one coherent candidate explanation: the shader is not reading the stencil values
+we wrote — every read returns 255, so our tag never appears (count 0) and 255 appears instead.**
+⛔ **NOT ESTABLISHED. Stated as the leading candidate, not a finding.**
+
+### 147.2 ⛔ WHY I DID **NOT** RUN THE TWO `H5` LEGS
+
+**Because a ZERO on `InstancedFoliageActor_0_0_0` and `BP_SplineSpawn_C` is exactly what the bug
+produces.** With the measurement returning zero on a control, **an `H5` target reading zero would be
+indistinguishable from the defect — and would look like the cure working.**
+
+🚨 **That is the false-positive this project has named repeatedly (`G96`: a blind metric survives
+review when its output looks like the answer you expected). Running those legs now would manufacture
+evidence for a conclusion the instrument cannot support.**
+
+### 147.3 The halt
+
+**Fixing either fault is production code beyond Task 1's module.** The brief: *"NO FURTHER PRODUCTION
+CODE beyond Task 1's module. If anything else is required, HALT AND REPORT."* ⇒ **HALTED.**
+
+## 148. State after PART TWENTY
+
+| | |
+|---|---|
+| Option B | ✅ **shipped and works** — module split clean, no `Renderer` dep, load order untouched |
+| cook / gates | ✅ cook · ✅ map gate · ✅ **shader presence gate** · ✅ token read-back |
+| new quartet | ✅ **preserved 6/6** at `m26-slice1-measurement-build` |
+| slice 1 | 🛑 **`S4` + an `S3` observation. The measurement is NOT trustworthy.** |
+| `H5` legs | ⛔ **deliberately NOT run** — their zero would be indistinguishable from the bug |
+| `P6` · tag | **not moved · none** |
+| ⛔ next | **the owner's call on the two faults** |
+
+**WHAT THIS PART SETTLES: the plumbing is proven end to end — tag, mask, readback, and the `LOCK-1`
+timing rule all work — and the VALUE coming back is wrong. Slice 1's whole purpose was to establish
+that before the cure was trusted to act, and it did exactly that.**

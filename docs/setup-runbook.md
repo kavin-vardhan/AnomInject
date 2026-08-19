@@ -521,6 +521,53 @@ foreach($p in @("<new symbol>","IsHideTypeAnomaly")){ "{0,-32} utf16={1}" -f $p,
 📏 **Measured 2026-08-20: 45 s / 22 actions**, dll 473,600 B → 590,336 B. Cheap; skipping it cost a
 39-minute cook that produced an unbootable build.
 
+### 3.6 🗺 CURRENT DISK TOPOLOGY — `Intermediate` and `Saved` LIVE ON `E:` VIA JUNCTIONS
+
+⚠ **A future reader must NOT find ~21 GB "missing" from `D:` and conclude something is broken.**
+
+| path you use | what it actually is |
+|---|---|
+| `D:\IntrusiveAnomalies\StackOBot\Intermediate` | **JUNCTION → `E:\IA_BuildCache\StackOBot\Intermediate`** |
+| `D:\IntrusiveAnomalies\StackOBot\Saved` | **JUNCTION → `E:\IA_BuildCache\StackOBot\Saved`** |
+
+**Every path stays literally `D:\...`, so `run_leg.ps1` and the other 15 tools with baked `D:` paths
+work unchanged — no tool was edited.** Set up 2026-08-20 after a full rebuild exhausted `D:`
+(**`G130`**); the move was byte-verified and read back through the junction.
+
+⚠ **STILL ON `D:` AND NOT JUNCTIONED: `D:\UESource\UnrealEngine\Engine\Intermediate` (~60 GB).** It is
+engine-side and shared. During a full rebuild it swings `D:` free between **42 and 59 GB** and always
+recovers. **That swing is normal; it is the remaining `D:` exposure.**
+
+Check a junction with `Get-Item <path> -Force | Select-Object LinkType,Target`.
+
+### 3.7 🚨 SHADER PRESENCE GATE — required whenever the build declares a GLOBAL SHADER
+
+⛔ **`BUILD SUCCESSFUL` IS NOT EVIDENCE THE SHADER REACHED THE CONTAINER.** A cook has now reported
+success twice while producing a package that could not start (**`G131`**).
+
+⚠ **String-scanning the `.ucas`/`.utoc` for the shader name DOES NOT WORK and must not be used** —
+measured 2026-08-19: it returns **0 for our shader AND 0 for known engine shaders** (`ScreenPassVS`,
+`ResolvePixelShader`), because shader bytecode in IoStore is neither ASCII nor UTF-16 text. **A scan
+that returns zero for everything is suspect tooling, not a clean result.**
+
+⇒ **THE BOOT IS THE GATE.** Launch the staged build with the feature's cvar ON and read its own log:
+
+```powershell
+$staged="D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe"
+$p = Start-Process -FilePath $staged -PassThru -ArgumentList @(
+  "/Game/CaptureBenchGate/CB_GateLevel","-windowed","-ResX=1280","-ResY=720",
+  "-ExecCmds=`"IAI.Capture.Mask 1`"","-unattended","-nosplash")
+Start-Sleep -Seconds 45
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+$lg = Get-ChildItem "$(Split-Path $staged)\..\..\Saved\Logs" -Filter *.log |
+      Sort-Object LastWriteTime -Descending | Select-Object -First 1
+Select-String -Path $lg.FullName -Pattern 'Missing global shader|Fatal error'
+```
+
+**PASS** — no `Missing global shader`, and the log reaches `Game Engine Initialized` / `Bringing World
+… up for play`.
+⛔ **FAIL — HALT. Do not run legs on a build whose shader status is inferred.**
+
 ### 4. Cook, stage, pak, archive
 
 ```powershell
