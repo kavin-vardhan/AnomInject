@@ -1992,3 +1992,236 @@ a MILESTONE CANDIDATE and `P6` TERRITORY — NOT an in-turn change.** Ordered ch
 | journal | **renamed** to `…-045-h4-cook-and-h5-mainworld-arc.md`, **part index added** |
 | new | **`H5` minted** · **G124** · one new instrument `h5_pixel_change.py` |
 | path (a) | **PARKED, NOT REFUTED** — a priority decision, not a scope one |
+
+---
+---
+
+# PART TEN — traceability characterised, G124 generalises, and a marker contaminated my last numbers
+
+📋 **NUMBERING, FLAGGED NOT RESOLVED SILENTLY: the brief called this PART ELEVEN. The record has parts
+One–Nine and no PART TEN.** Numbered **TEN** to keep the sequence contiguous, because a hole with no
+PART TEN is exactly what confuses a cold reader. **Say the word and it renumbers.**
+
+## 69. ⚠ FIRST — A CORRECTION TO PART NINE. A HARNESS MARKER CONTAMINATED THE GRID.
+
+PART NINE reported the foliage grid as *"FOUR cells carry the change (0.1800, 0.1510, 0.1228,
+0.0860) — the peak EXCEEDS the control's whole-bbox score."*
+
+**Two of those four cells were not the foliage. They were the CaptureBench frame-identity marker.**
+
+Found by running a second MainWorld leg and noticing the two grids shared a signature:
+
+| leg | level | target | top-row cells (0,1) and (0,2) |
+|---|---|---|---|
+| `H5_MW_H5_FOLIAGE` | MainWorld | foliage | **0.1800, 0.1510** |
+| `H5i_SPAWNPAD` | MainWorld | `BP_SpawnPad_C` | **0.1797, 0.1528** |
+| `PC_POSTCOOK_SMOKE` | **CB_GateLevel** | `StaticMeshActor_49` | **0.1808, 0.1570** |
+
+**Three levels, three targets, the same two cells at the same magnitude.** `run_leg.ps1` passes
+`CaptureBench.Marker 1` by default and `CaptureBench.Marker.Top` is `0.80` of the half-height — near
+the top edge. **The marker encodes frame identity, so it changes every frame BY CONSTRUCTION**, which
+is precisely what a claimed-vs-flank differencer measures.
+
+**Corrected at source, not masked in analysis** — the leg was re-run with `-Marker 0`:
+
+| | with marker (PART NINE) | **marker OFF (corrected)** |
+|---|---|---|
+| whole-frame mean \|Δ\| | 0.0069 | **0.0059** |
+| grid peak | 0.1800 *(the marker)* | **0.1242** *(real)* |
+| top row | 0.1800, 0.1510 | **0.0018 – 0.0072** |
+| per-cell mean | 0.0149 | **0.0095** |
+
+⛔ **WITHDRAWN: *"the peak exceeds the control's whole-bbox score."*** That sentence was about the
+marker. **The honest comparison is grid-peak to grid-peak: foliage 0.1242 against the control leg's
+0.5515.**
+
+✅ **THE CLASS (ii) CONCLUSION IS UNCHANGED AND STRENGTHENED.** The label still claims **100 % of the
+frame**; the real change is **smaller** than reported (0.0059 vs a proper hide's 0.1023–0.1116, ≈ 5 %)
+and **more concentrated** — 3 cells above 0.04, ~55 of 64 below 0.01. **Removing a contaminant that
+inflated my numbers made the finding stronger, not weaker.** → **G125**.
+
+## 70. OWNER OBSERVATION 2, with its provenance
+
+🧾 **OWNER OBSERVATION — real evidence, eyeball-level, NOT MEASURED:**
+> *"`asset_name` and `component_class` obviously exist; they show properly when tested in the EDITOR,
+> but in BUILDS it shows `StaticMeshActor_xxx` for most objects."*
+
+⚠ **This contradicted a MEASURED point** — the H5 foliage leg ran on the **packaged** build and
+reported `asset_name SM_Bush`, `component_class FoliageInstancedStaticMeshComponent`. **The
+contradiction was the lead**, and it resolves cleanly.
+
+## 71. TASK 1 — THE DEGRADATION, CHARACTERISED. **It is `node.name`, and ONLY `node.name`.**
+
+### 71.1 From source: how each field is populated
+
+| field | populated by | editor vs build |
+|---|---|---|
+| **`node.name`** | `Ev->NodeName = F.Target` → `FAutoLiveFire::TargetName` → **`AActor::GetName()`** — the **internal object name**, **not** `GetActorLabel()` | **IDENTICAL.** Not `WITH_EDITOR`-guarded |
+| `node.path` | `FActor->GetPathName()` | **IDENTICAL** |
+| `asset_name` | first **visible** `UMeshComponent`'s `GetStaticMesh()`/`GetSkinnedAsset()` → `GetName()`; **empty** if that pointer is null or no visible mesh component exists | **IDENTICAL** |
+| `component_class` | that component's `GetClass()->GetName()`; set **even when the asset does not resolve** | **IDENTICAL** |
+
+🚨 **NOTHING in `ResolveNodeIdentity` IS `WITH_EDITOR`-GUARDED. There is NO editor-versus-build branch
+in the population code at all.** The only fallback is `continue` on `!Mesh->IsVisible()`, which would
+leave **both** `asset_name` and `component_class` empty — and the sweep shows that never happens here.
+
+### 71.2 From banked data — **1,267 node entries across 109 banked packaged legs**
+
+**Every distinct node identity in the bank:**
+
+| level | `node.name` | `asset_name` | `component_class` |
+|---|---|---|---|
+| CB_GateLevel | **`StaticMeshActor_49`** | `Cube` | `StaticMeshComponent` |
+| CB_GateLevel | **`StaticMeshActor_73`** | `Cylinder` | `StaticMeshComponent` |
+| CB_GateLevel | **`StaticMeshActor_85`** | `Cone` | `StaticMeshComponent` |
+| CB_GateLevel | **`StaticMeshActor_100`** | `Cone` | `StaticMeshComponent` |
+| MainWorld | `SM_Ramp2_UAID_…` | `SM_Ramp` | `StaticMeshComponent` |
+| MainWorld | `BP_MovingPlatform_C_UAID_…` ×4 | `SM_Modules_Platform` | `StaticMeshComponent` |
+| MainWorld | `BP_Stomper_C_UAID_…` | `SM_Fan_Frame` | `StaticMeshComponent` |
+| MainWorld | `BP_SpawnPad_C_UAID_…` | **`Plane`** *and* **`SM_SpawnPad_Base`** | `StaticMeshComponent` |
+| MainWorld | `BP_SplineSpawn_C_UAID_…` | `SM_GenericPlane` | **`InstancedStaticMeshComponent`** |
+| MainWorld | `RoomBuilderSquare_C_UAID_…` | `SM_FloorBase` | **`InstancedStaticMeshComponent`** |
+| MainWorld | `InstancedFoliageActor_0_0_0` | `SM_Bush` | `FoliageInstancedStaticMeshComponent` |
+
+**`asset_name` populated 15 / 15. `component_class` populated 15 / 15. ZERO empty.**
+⇒ ⛔ **THEY DO NOT DEGRADE IN BUILDS.**
+
+⚠ **A CLASSIFIER ERROR OF MINE, CORRECTED BEFORE REPORTING.** My first sweep regex
+`^[A-Za-z_][A-Za-z0-9_]*?_\d+$` classified `BP_MovingPlatform_C_UAID_B42E9936F542EBDB00_1649270448`
+as **GENERIC**, because it ends in digits. It printed *"MEANINGFUL 0"* for every level, which is an
+artifact of the classifier and **not a finding**. The table above is the raw data instead.
+
+### 71.3 What actually degrades, and why
+
+**`node.name` is `GetName()` — the internal object name — and its quality depends on HOW THE ACTOR WAS
+AUTHORED, not on editor-versus-build:**
+
+- **`CB_GateLevel`**: authored by `make_gate_level.py`, which calls `a.set_actor_label(name_hint)` and
+  **never sets the object name**. So `GetName()` stays **`StaticMeshActor_<n>`** while the label reads
+  `CB_Target_NN`. **In the editor you see the label. In a build labels do not exist.**
+- **`MainWorld`**: editor-placed and Blueprint instances — `GetName()` is already meaningful.
+
+✅ **MEASURED CONFIRMATION FROM THIS SESSION'S OWN LOG:** `IAI.ListActors` on the packaged build printed
+**`(no-label)` for all 432 MainWorld actors.** Labels are gone in a cooked build — which is exactly why
+`CLAUDE.md`'s invariant says **matching is label-free** and `ListActors` guards the label behind
+`WITH_EDITOR`.
+
+⇒ **THE OWNER'S OBSERVATION IS EXPLAINED AND REFINED.** She is comparing **the editor's LABEL** against
+**the build's `GetName()`**. For script-spawned or never-renamed actors those differ completely. **It
+is not a field-population defect; `asset_name` and `component_class` are intact in builds.**
+
+### 71.4 CONSEQUENCE FOR THE CLIENT'S DATA — stated plainly
+
+> **PARTIALLY YES.** The remaining invisible cases **CAN** be attributed to a culprit **class** from the
+> fields as they ship today — **via `asset_name` and `component_class`, which are populated in builds** —
+> **but NOT from `node.name` alone**, which for many actors carries nothing beyond the class.
+>
+> For the owner's two named culprits: `component_class` would read `InstancedStaticMeshComponent`-family
+> for `InstancedMeshActor`, and for a `BP_LocalVolumetricFog` the **Blueprint instance's `GetName()` is
+> itself meaningful** and `component_class` names the component.
+>
+> ⛔ **What CANNOT be done today: distinguish two instances of the same class**, or tell **which
+> selection predicate admitted** a given actor.
+
+⚠ **A SECOND FINDING FROM THE SWEEP, WORTH ITS OWN LINE: `BP_SpawnPad_C` reports TWO DIFFERENT
+`asset_name`s across legs — `Plane` and `SM_SpawnPad_Base`.** `ResolveNodeIdentity` takes the **first
+VISIBLE mesh component**, and that Blueprint toggles component visibility at runtime (`SetVisibility`
+found in the asset). **So the identity fields are NON-DETERMINISTIC for actors with runtime-toggled
+mesh components.** ⛔ **Recorded, not fixed. `P6` DOES NOT MOVE.**
+
+## 72. OWNER RULING — foliage DROPPED. **And the scope of that ruling is narrow.**
+
+> **APPLIES TO: the investigation.** No more foliage legs; foliage is not the study object.
+> **DOES NOT APPLY TO: selection, or any cure. NOTHING is excluded from the selector, and a class
+> blacklist is NOT adopted as a fix.**
+
+🚨 **WHY THE DISTINCTION IS LOAD-BEARING, now with a measurement behind it: G124's mechanism is
+AGGREGATE / OVERSIZED BOUNDS, not foliage-as-a-class.** §73 shows a **plain `StaticMeshComponent`**
+with the same collapse. **A fix that blacklisted `InstancedFoliageActor` would leave the identical hole
+open for every other actor whose bounds sphere exceeds the poll radius, while looking closed.** That is
+the difference between fixing the mechanism and hiding the one instance we happened to find.
+
+## 73. TASK 2 — **G124 GENERALISES. 3 of 13 non-foliage selectable actors.**
+
+The deciding quantity is `selection_provenance`'s **`poll_distance`**, which **is**
+`dist(pollOrigin, B.Origin) − B.SphereRadius` on the first renderable-visible component. **A NEGATIVE
+value means the component's bounds sphere already contains the poll origin ⇒ the 1800 cm cull can never
+fire, from anywhere in the level.**
+
+⚠ **`node.bounds` cannot substitute** — it is `GetComponentsBoundingBox(true)`, the whole actor, a
+different quantity. Measured: `BP_MovingPlatform`'s whole-actor box implies a ~2620 cm sphere while its
+**measured** `poll_distance` is **+1370…+1544**. The whole-actor box does not drive the cull.
+
+| actor | component_class | `poll_distance` | `coverage_pct` | occ | rect % |
+|---|---|---|---|---|---|
+| **`BP_SpawnPad_C`** | **`StaticMeshComponent`** | **−114.8 … −52.6** 🚨 | 11.94–19.79 | 4/9, 5/9 | 22.8 |
+| **`BP_SplineSpawn_C`** | `InstancedStaticMeshComponent` | **−19405.5** 🚨 | 3.86–22.89 | 3/9, 4/9 | 22.9 |
+| **`RoomBuilderSquare_C`** | `InstancedStaticMeshComponent` | **−1737.8** 🚨 | 21.67–23.52 | 3/9, 4/9 | 82.9 |
+| `BP_MovingPlatform_C` (near) | `StaticMeshComponent` | +1370.5 … +1544.0 | 0.41–2.77 | 5/9, 6/9 | 2.8 |
+| `SM_Ramp2` | `StaticMeshComponent` | +389.9 | 5.87–7.03 | 5/9 | 7.1 |
+| `StaticMeshActor_49 / 73 / 85` | `StaticMeshComponent` | +418.1 / +346.0 / +444.9 | 0.49–8.84 | 9/9 | 6.6–9.3 |
+
+**⇒ THE ANSWER: 3.** And the most important row is the first one:
+
+🚨 **`BP_SpawnPad_C` IS A PLAIN `StaticMeshComponent`.** It is **not** instanced, **not** foliage, and
+it still collapses the cull. **G124 is about OVERSIZED BOUNDS, and aggregation is only the most common
+way to get them.** Any instanced-component blacklist would miss this actor entirely.
+
+⚠ **Actors whose `poll_distance` is the −1 SENTINEL are NOT evidence either way** — provenance returned
+`valid:false` at that anchor, so no distance was ever computed. **UNMEASURED, not small.** ⚠ Also
+noted: a genuine `poll_distance` of exactly −1.0 would be indistinguishable from the sentinel. Not
+observed; stated because the tool cannot tell them apart.
+
+⚠ **Every one of the three negatives also sits in the `P-a1` band** — 3/9 and 4/9 rays clear, all
+`valid:true`. ⛔ **Corroboration, not a test. `P-a1`…`P-a5` REMAIN UNTESTED.**
+
+## 74. TASK 3 — CLASS (i). **BRANCH: SELECTED BUT MANIFESTS.**
+
+**Candidates enumerated with reasons BEFORE firing** (pre-registered as a file — no fishing):
+
+1. **`BP_SpawnPad_C` — strongest, two independent reasons.** (a) the Blueprint asset contains
+   `SetVisibility` + `bVisible` ⇒ it toggles a mesh component's visibility at runtime; (b) banked data
+   shows **the same actor reporting two different `asset_name`s** (`Plane`, `SM_SpawnPad_Base`), which
+   can only happen if the *first visible* mesh component resolved differently. Also **negative
+   `poll_distance`**.
+2. `BP_Button_C` — same markers, no banked identity split. Second choice.
+3. `BP_SplineSpawn_C` — **excluded and the exclusion recorded**: rect 22.9 % of frame, it clearly draws.
+
+**Result on `BP_SpawnPad_C`:** selected via `Plane` / `StaticMeshComponent`, provenance `valid:true`
+**9/9**, `poll_distance −123.4`, bbox 22.6 % of frame, `coverage_ratio 0.181`.
+
+**It manifests, and the label points at it correctly.** In-bbox Δ reaches **−0.0355 … −0.0367** on the
+settled events, and the **two brightest cells in the whole frame — 0.1861 and 0.1920 — are INSIDE the
+bbox**, at the pad's location. *(The 0.1797/0.1528 cells outside it were the marker, §69.)*
+
+> **BRANCH: SELECTED BUT MANIFESTS.** ⛔ **Why the prediction was wrong for it:** the visibility toggle
+> is real, but the component that was live at pick time was a **drawn** one. The `Plane`/`SM_SpawnPad_Base`
+> split proves *a* component is sometimes invisible — it does **not** show that the *selected* one
+> draws nothing. **I read "has a toggled component" as "the toggled component is the selected one",
+> and those are different claims.**
+
+⇒ **`H5` class (i) remains ENUMERATED, NOT OBSERVED.** ⚠ **StackOBot is a polished sample project and
+may simply not contain the pattern. That is a property of THIS PROJECT, not evidence against class (i)
+in the client's game.**
+
+## 75. TASK 4 — the ledger
+
+**`docs/invisible-anomaly-mechanisms.md`**, referenced from `CLAUDE.md`. Five rows: `m23`/`P3`
+(**FIXED**), `H4` (**SUPPORTED**, cure = `feature/stencil-capture`), `H5` (ii) (**SUPPORTED,
+reproduced, generalises**), `H5` (i) (**ENUMERATED, NOT OBSERVED**), and **traceability degradation —
+marked explicitly as NOT A CAUSE**, but as what prevents attributing the others. Each row states
+**MEASURED vs SOURCE-READ**, its evidence pointer, its limits, and its cure if known. It opens with:
+**these are DISTINCT mechanisms with potentially DISTINCT CURES, and no single fix is known to address
+all of them.**
+
+## 76. State after PART TEN
+
+| | |
+|---|---|
+| plugin production code | **ZERO lines, across all ten parts** |
+| tag | **none** · `feature/stencil-capture` **UNTOUCHED** |
+| `P6` | **DOES NOT MOVE** — no field added, removed, renamed or recomputed |
+| `GameDefaultMap` unchanged · `CB_GateLevel` untouched (G99) | |
+| build | unchanged — `exe 101AFEA4` + `utoc 939B9C9B` |
+| new | **G125** (the marker contaminant) · `docs/invisible-anomaly-mechanisms.md` · two sweep tools |
+| corrected | PART NINE's foliage grid numbers, at source (`-Marker 0`), not masked |

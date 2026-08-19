@@ -2890,3 +2890,61 @@ when the label points at the object) reports a real change and calls it a manife
 **RULE: before trusting a bounds-derived guard, ask whether the component AGGREGATES.** For ISM / HISM
 / foliage / spline-spawned meshes, `Bounds` is a container, not an object, and **every guard computed
 from it inherits that.** → **`H5` class (ii)**. (2026-08-19.)
+
+🚨 **GENERALISED, MEASURED, SAME DAY — AND IT IS NOT ABOUT AGGREGATION.** Sweeping every banked
+`poll_distance`, **3 of 13 non-foliage selectable actors are NEGATIVE**:
+
+| actor | component_class | `poll_distance` |
+|---|---|---|
+| **`BP_SpawnPad_C`** | **`StaticMeshComponent`** — *plain, not instanced* | **−114.8** |
+| `BP_SplineSpawn_C` | `InstancedStaticMeshComponent` | **−19405.5** |
+| `RoomBuilderSquare_C` | `InstancedStaticMeshComponent` | **−1737.8** |
+
+⛔ **`BP_SpawnPad_C` IS A PLAIN `StaticMeshComponent`.** The mechanism is **OVERSIZED BOUNDS**;
+aggregation is merely the most common way to get them. **A blacklist of instanced/foliage component
+types would miss it entirely while appearing to close the hole.**
+
+⚠ **`poll_distance == −1` is the STRUCT SENTINEL, not a measurement** — provenance returned
+`valid:false` and no distance was computed. Those actors are **UNMEASURED, not small**. A genuine value
+of exactly −1.0 would be indistinguishable from the sentinel; not observed, stated because the field
+cannot tell them apart.
+
+---
+
+### G125 — a frame-identity MARKER is a per-frame differencer's contaminant, and it looks exactly like a finding
+
+The `CaptureBench` marker exists to prove frame identity (A10), so **it changes every frame BY
+CONSTRUCTION**. A claimed-versus-flank pixel differencer measures exactly that, so the marker registers
+as a large, perfectly reproducible change — **in the same cells, at the same magnitude, in every leg.**
+
+It was reported in a result before it was caught. A grid of per-cell change on an `H5` leg read
+*"FOUR cells carry the change (0.1800, 0.1510, 0.1228, 0.0860)"* — **the first two were the marker.**
+
+**What exposed it was running a SECOND leg and comparing grids:**
+
+| leg | level | target | cells (0,1) and (0,2) |
+|---|---|---|---|
+| foliage | MainWorld | `InstancedFoliageActor` | 0.1800, 0.1510 |
+| spawn pad | MainWorld | `BP_SpawnPad_C` | 0.1797, 0.1528 |
+| control | **CB_GateLevel** | `StaticMeshActor_49` | 0.1808, 0.1570 |
+
+**Three levels, three targets, three different anomalies — the same two cells within 0.006.** No real
+signal does that. `CaptureBench.Marker.Top` is `0.80` of the half-height, i.e. near the top edge, and
+`run_leg.ps1` defaults `-Marker 1`.
+
+**FIXED AT SOURCE, NOT MASKED IN ANALYSIS.** The leg was re-run with **`-Marker 0`** rather than
+excluding cells in the reader — masking would have hidden any *real* change that happened to fall
+there. Corrected numbers: whole-frame mean 0.0069 → **0.0059**, grid peak 0.1800 → **0.1242**, top row
+0.1800/0.1510 → **0.0018–0.0072**. ✅ **The finding STRENGTHENED** — the real change is smaller and more
+concentrated than first reported.
+
+**RULES.**
+1. **Any instrument that writes into the frame must be OFF for a pixel measurement.** The marker earns
+   its place proving frame identity; it has no business in a differencer's input.
+2. **A signal identical across different subjects is an instrument, not a finding.** Cheapest possible
+   check: run one more leg on a *different* target and compare. A per-cell map makes this visible;
+   a single scalar would have hidden it inside the mean forever.
+3. ⚠ **A35's in-bbox rule would NOT have caught this here** — the contaminated cells were *outside* the
+   bbox on the CB_GateLevel control, so the in-bbox score was clean and the contamination only surfaced
+   when the measurement was widened to the whole frame for `H5`. **Widening a measurement can import
+   contaminants a narrower one excluded by luck.** (2026-08-19.)

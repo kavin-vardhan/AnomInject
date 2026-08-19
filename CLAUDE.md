@@ -231,6 +231,58 @@ and is the single source of truth for the project.
   is offline asset/container reading; the Blueprint evidence is **name-table strings plus the developer
   comments embedded in them** (the quotes are direct; the machinery lists are indicative, not a graph
   read).
+  📒 **THE MECHANISM LEDGER IS `docs/invisible-anomaly-mechanisms.md` — READ IT FIRST.** Five rows
+  (`m23`/`P3` FIXED · `H4` SUPPORTED · `H5`(ii) SUPPORTED · `H5`(i) ENUMERATED-NOT-OBSERVED ·
+  **traceability degradation, marked NOT A CAUSE**), each stating **MEASURED vs SOURCE-READ**, evidence,
+  limits and cure. **These are DISTINCT mechanisms with potentially DISTINCT CURES and NO SINGLE FIX IS
+  KNOWN TO ADDRESS ALL OF THEM** — `feature/stencil-capture` is **H4's** cure and has not been shown to
+  cure H5.
+  🚨 **CORRECTION TO PART NINE — A HARNESS MARKER CONTAMINATED THE PUBLISHED FOLIAGE GRID (journal 045
+  §69 → `G125`).** *"Four cells carry the change (0.1800, 0.1510, 0.1228, 0.0860) — the peak exceeds the
+  control's whole-bbox score"* — **the first two cells were the `CaptureBench` frame-identity marker,
+  which changes every frame BY CONSTRUCTION.** Caught by running a second leg and seeing the SAME two
+  cells within 0.006 across **three levels and three targets** (foliage 0.1800/0.1510 · spawn pad
+  0.1797/0.1528 · **CB_GateLevel control 0.1808/0.1570**). **Fixed AT SOURCE (`-Marker 0`), not masked
+  in the reader.** Corrected: whole-frame mean **0.0069 → 0.0059**, grid peak **0.1800 → 0.1242**, top
+  row **→ 0.0018–0.0072**. ⛔ **The "peak exceeds the control" sentence is WITHDRAWN.** ✅ **The class
+  (ii) finding STRENGTHENED — the real change is smaller and more concentrated.**
+  🧾 **OWNER OBSERVATION 2 (eyeball-level, NOT measured):** *"`asset_name`/`component_class` show
+  properly in the EDITOR but in BUILDS it shows `StaticMeshActor_xxx` for most objects."*
+  ✅ **CHARACTERISED FROM BANKED DATA — 1,267 node entries, 109 packaged legs — AND IT IS NOT A FIELD
+  DEGRADATION.** `asset_name` **15/15 populated**, `component_class` **15/15 populated**, **ZERO empty**.
+  ⛔ **Nothing in `ResolveNodeIdentity` is `WITH_EDITOR`-guarded; there is NO editor/build branch.**
+  **What degrades is `node.name` alone** — it is `AActor::GetName()` (the internal object name,
+  **identical** in editor and build), and its quality depends on **HOW THE ACTOR WAS AUTHORED**:
+  `CB_GateLevel`'s actors were script-spawned with only `set_actor_label()`, so `GetName()` stays
+  **`StaticMeshActor_<n>`** while the label reads `CB_Target_NN`; MainWorld's editor-placed and BP
+  actors already carry meaningful names. **The editor DISPLAYS the LABEL, which does not exist in a
+  cooked build** — measured this session: `IAI.ListActors` printed **`(no-label)` for all 432**
+  MainWorld actors. ⇒ **The owner is comparing the editor's LABEL against the build's `GetName()`.**
+  📌 **CONSEQUENCE FOR CLIENT DATA: PARTIALLY YES** — the remaining invisible cases **CAN** be attributed
+  to a culprit **class** today, **via `asset_name` + `component_class`**, but **NOT from `node.name`
+  alone**. **CANNOT** be done: distinguish two instances of the same class, or tell which predicate
+  admitted an actor. ⚠ **AND `BP_SpawnPad_C` REPORTS TWO DIFFERENT `asset_name`s ACROSS LEGS** (`Plane`
+  / `SM_SpawnPad_Base`) — `ResolveNodeIdentity` takes the **first VISIBLE** mesh component and that BP
+  toggles visibility, so **the identity fields are NON-DETERMINISTIC** for such actors. ⛔ **Recorded,
+  not fixed. `P6` DOES NOT MOVE.**
+  🛑 **OWNER RULING: `InstancedFoliageActor` DROPPED FROM THE INVESTIGATION. ⚠ SCOPE IS NARROW —
+  applies to the INVESTIGATION only, NOT to selection and NOT to any cure. NOTHING is excluded from the
+  selector and A CLASS BLACKLIST IS NOT ADOPTED AS A FIX.**
+  🚨 **`G124` GENERALISES, MEASURED: 3 of 13 NON-FOLIAGE selectable actors carry a NEGATIVE
+  `poll_distance`** — **`BP_SpawnPad_C` −114.8 (a PLAIN `StaticMeshComponent`)**, `BP_SplineSpawn_C`
+  **−19405.5**, `RoomBuilderSquare_C` **−1737.8**. Negative ⇒ the bounds sphere already contains the poll
+  origin ⇒ **the 1800 cm cull can NEVER fire from anywhere in the level.** ⛔ **The mechanism is
+  OVERSIZED BOUNDS, not aggregation — a blacklist of instanced/foliage types would MISS `BP_SpawnPad_C`
+  while appearing to close the hole.** ⚠ `poll_distance == −1` is the **sentinel**, i.e. UNMEASURED, not
+  small.
+  ⚠ **`H5` CLASS (i): BRANCH *SELECTED BUT MANIFESTS*.** Candidates were enumerated with reasons and
+  pre-registered before firing; the strongest (`BP_SpawnPad_C` — `SetVisibility` in the asset **and** a
+  banked two-asset identity split) **DRAWS, and its label points at it correctly** (in-bbox Δ −0.0355…
+  −0.0367; the two brightest cells in the frame, **0.1861 / 0.1920, are INSIDE the bbox**). ⛔ **Why the
+  prediction was wrong: I read "has a toggled component" as "the toggled component is the SELECTED one",
+  and those are different claims.** ⇒ **`H5` (i) remains ENUMERATED, NOT OBSERVED.** ⚠ **StackOBot is a
+  polished sample and may not contain the pattern — a property of THIS PROJECT, not evidence against
+  class (i) in the client's game.**
   🚨 **NEW PRIMARY LEAD — `H5` IS MINTED AND CLASS (ii) IS SUPPORTED, REPRODUCED HERE (journal 045
   PART NINE, §62-§68). ZERO production code. NO TAG.**
   🧾 **OWNER OBSERVATION (real evidence, EYEBALL-LEVEL, NOT MEASURED — do not upgrade, do not
