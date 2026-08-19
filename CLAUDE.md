@@ -85,14 +85,55 @@ and is the single source of truth for the project.
   builds (15/15); only `node.name` is uninformative, and identity is **non-deterministic** for actors
   that toggle component visibility.
   · **Path (a)** — **PARKED, NOT REFUTED.** A *priority* decision, not a scope one (G120).
-  🎯 **OWNER RULING — `C-1` (SURVIVING-PIXEL COUNT VIA A MASK) IS THE CURE DIRECTION. ⛔ IT IS NOT A
-  REVIVAL OF `feature/stencil-capture`: MINE IT, DO NOT RESUME IT.** Its foliage blacklist must not
-  survive; its `USkeletalMeshComponent` narrowing **manufactures the exact defect the cure exists to
-  detect**; its reduction is unpriced. **THE SHAPE IS NOT CHOSEN.**
-  🧭 **NEXT, AND IT IS CHAT-SIDE: `C-1`'s SHAPE — pre-flight veto (a) / post-hoc annotation (b) /
-  deferred veto (c).** PART THIRTEEN costed all three from source. ⛔ **Do NOT pick a shape, design,
-  prototype or implement. `P6` DOES NOT MOVE. ZERO production code in THIRTEEN parts — keep it that
-  way until a brief says otherwise.**
+  🎯 **OWNER RULINGS — DIRECTION AND SHAPE ARE BOTH SETTLED. `C-1` (SURVIVING-PIXEL COUNT VIA A MASK)
+  IS THE DIRECTION; THE SHAPE IS `(c)` DEFERRED VETO WITH `(b)`'s REPORTING.** ⛔ **NOT A REVIVAL OF
+  `feature/stencil-capture`: MINE IT, DO NOT RESUME IT** (its foliage blacklist must not survive; its
+  `USkeletalMeshComponent` narrowing **manufactures the exact defect the cure exists to detect**).
+  **THE CURE ITSELF IS NOT WRITTEN.**
+  ⛔ **SHAPE (a) PRE-FLIGHT VETO IS REJECTED — PERMANENTLY, NOT DEFERRED — on TWO INDEPENDENT
+  BLOCKERS.** (1) **Selection → fire is ZERO frames**: `BeginFire` → `TryFireOnce` runs
+  `GetVisibleRenderableActors`, **both seeded picks** and `ApplyAnomaly` (which hides the actor) in
+  **one synchronous call in one tick**; the longest gap anywhere is **6 frames** and `LeadIn` (4) runs
+  **once per RUN**. (2) **A re-picking veto destroys the seeded draw protocol** — `R-SEED` is
+  deliberately independent of apply-result and `m22` gated on *"seed 4242, two runs byte-identical"*.
+  **If a future reader proposes "just check before firing", both blockers are in journal §103.**
+  🧭 **NEXT, AND IT IS CHAT-SIDE: the CURE's implementation plan.** Both gating measurements are done.
+  ⛔ **Do NOT implement the mask, the veto or the tri-state unprompted. `P6` DOES NOT MOVE.**
+  🚨 **`M-1` ANSWERED — AND THE 10-vs-12 CONFLICT DISSOLVED RATHER THAN RESOLVING.** Measured on the
+  existing colour readback, both delivery modes, 90 samples each: **readback latency is ONE render
+  frame** (delivery OFF `min 1 max 2 mean 1.011`, hist `1:89 2:1`; delivery ON `min 1 max 1 mean
+  1.000`, hist `1:90`). **`pendingAtDrainEntry = 0` and `flushIterationsConsumed = 0 of 8` on BOTH
+  legs** — `DrainTail` alone had already resolved everything and the blocking flushes were **never
+  entered**. ⇒ **branch `B1`; shape (c) needs NO lifecycle change.** **The 10 and the 12 were two
+  BUDGETS, neither ever a measurement** — the real figure is 1, a 5× margin to the smaller.
+  ✅ **Free confirmation from the artifact rather than from source: the delivery-ON session's
+  non-image file set is `annotation.json` + `run_summary.json` and NOTHING ELSE.**
+  🚨 **`M-2` ANSWERED — BRANCH `C2`, AND IT IS A CORRECTNESS DISQUALIFICATION, NOT A COST ONE.**
+  `RQT_Occlusion` **is** a hardware pixel counter (*"the number of samples that are not culled"*,
+  `RHIDefinitions.h:1077`) — **but UE's batcher rasterises the primitive's BOUNDING BOX**
+  (`BatchPrimitive(BoundsOrigin, BoundsBoxExtent)`, `GCubeIndexBuffer`, 8 verts / 12 tris,
+  `SceneOcclusion.cpp:485-500,680,694`). **That is the very quantity `H5` names as the lie:** for the
+  foliage container it would return a huge count while ~6 % of the frame is drawn — **it would ACTIVELY
+  CONFIRM THE FALSE CLAIM.** ⇒ **a COUNT suffices for the veto, but the cheap hardware path cannot
+  supply a trustworthy one. THE MASK STAYS.** ⛔ **Its cost was DELIBERATELY NOT MEASURED** — a path
+  disqualified on correctness is not made more disqualified by a millisecond number. ⇒ **T-4's
+  256-entry array was NOT applied** (its precondition was *"if you touch the reduction"*, and M-2
+  never needed it).
+  📌 **THE ONE DEFINITION = `AnomalyViewport::IsRenderableComponent`** — the **already-locked**
+  `G33`/`P6` ruling, so adopting it is **not** a fourth definition. **Masking can adopt it TODAY**
+  (public `ANOMALYINJECTOR_API`; `AnomalyCapture` already depends on `AnomalyInjector`) and that alone
+  **removes the `UPoseableMeshComponent` narrowing**. ⚠ **Labelling CANNOT — that is the
+  locked-but-unimplemented `P6` bounds ruling, so the disagreement REMAINS, recorded.**
+  🚨 **REQUIRED, AND IT NEEDS NO NEW FIELD: *never measured* ≠ *measured zero*.** A target selectable
+  but never tagged reads mask 0 and would be **invalidated despite drawing perfectly** — under (c) that
+  **silently deletes a good event**. **`mask.provided` false/true IS the two states**: invalidate ONLY
+  when `provided == true`; `false` ⇒ **ADMIT**. Internally a **tri-state**
+  (`NOT_MEASURED`/`MEASURED_ZERO`/`MEASURED_NONZERO`), and **the two zeros must never share a
+  representation.** ⛔ **Stated as required, NOT implemented.**
+  ⚠ **ACCEPTED LIMITS OF (c), recorded now:** the **frames are already on disk** — (c) removes the
+  EVENT, it does not un-write PNGs; **dropped events must be COUNTED** (a `run_summary` counter, which
+  does **not** move `P6`); and **`labels.jsonl` (delivery OFF) is prebuilt and uncorrectable, so
+  delivery OFF and ON WILL DISAGREE — acceptable only because it is stated.**
   🚨 **PART THIRTEEN'S THREE DECIDING FACTS:**
   **(1) SELECTION → FIRE IS *ZERO FRAMES*.** `BeginFire` → `TryFireOnce` does
   `GetVisibleRenderableActors` → the seeded pick → `ApplyAnomaly` (which **hides the actor
@@ -130,9 +171,19 @@ and is the single source of truth for the project.
   the **label rect is TYPE-ONLY with no `IsVisible()` gate**, and `node.bounds` unions every
   primitive. **Three code paths, three answers to "what is the object?"** 🚨 **A mask would be a
   FOURTH — and a cure that adds one is a defect generator.**
+  🆕 **PRODUCTION CODE EXISTS AGAIN — narrowly, and it is LOG-ONLY.** PART FOURTEEN added `M-1`
+  readback-latency instrumentation to `AnomalySveCapturer.{h,cpp}` + two `UE_LOG` lines in
+  `DrainAsyncToCompletion`. **No behaviour change, no artifact field. `P6` VERIFIED UNCHANGED BY
+  MEASUREMENT — 48 fields, 0 added, 0 removed**, against a pre-change banked leg.
+  📦 **BUILD IDENTITY MOVED — ONE HALF OF THE QUARTET (`G121` in action): exe `101AFEA4` →
+  `1EBA8944`; `utoc 939B9C9B` / `ucas 8A602D4D` / `pak 7CAE22DD` ALL UNCHANGED** (code-only hot-swap,
+  no cook). ✅ **`101AFEA4` preserved** at `_binary_baselines\StackOBot.exe.m25-baseline`,
+  hash-verified against the staged copy **before** the swap. ✅ **A44 on the STAGED artifact, both
+  encodings:** the two new symbols `ascii=0 utf16=1`, alongside pre-existing symbols also at utf16=1
+  ⇒ the change reached the package **and the scan is sound, not blind**.
   ⚠ **OPERATIONAL:** disk **19.1 GB free** (was 12.9 — PART TWELVE recovered 6.23 GB); bank
-  **150 dirs** (**148 → 150**: `RESCUE_P12_H4_WSECHO` + `RESCUE_P12_MW_STOMPER_try1`, banked on owner
-  ruling, manifest-verified; the bank now has a **`README.md`**); exe-side leg dirs **83 → 4**.
+  **152 dirs** (148 → 150 via `RESCUE_P12_*` on owner ruling, manifest-verified, bank now has a
+  **`README.md`**; → 152 with `P14_M1_DELIVOFF` + `P14_M1_DELIVON`); exe-side leg dirs **83 → 4**.
   🚨 **THE NAME-SWEEP HAZARD IS NOW CONCRETE:** the bank already held `RESCUE_H4_WSECHO` — a
   **DIFFERENT session** (`…-140533`) from the exe-side `H4_WSECHO` (`…-170238`). **A name-based sweep
   would have matched them and destroyed the only copy while reporting a clean duplicate.** **Match by

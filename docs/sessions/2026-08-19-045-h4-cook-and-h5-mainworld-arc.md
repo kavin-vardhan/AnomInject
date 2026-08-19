@@ -26,13 +26,16 @@ separable — each part exists because the one before it produced something unex
 | **Eleven** | 77–82 | **The cure measurement** | 🚨 **The cure needs a NEW MEASUREMENT, not a new threshold.** A 2nd class-(ii) instance, and it is not foliage |
 | **Twelve** | 83–96 | **Cure OPTIONS costed from source · the disk prune** | **C-1 alone covers both `H5` classes; C-5 is a measured NO-OP; NO candidate is blocked by delivery mode.** **G126**, **G127**, **G128**. 6.23 GB recovered |
 | **Thirteen** | 97–102 | **`C-1` RULED the direction · the TIMING design** | 🚨 **selection → fire is ZERO frames, longest gap SIX ⇒ a 12-frame pre-flight does not fit** · `annotation.json` still OPEN at `FinishRun` · **Shipping has no capture, so a non-Shipping cure leaves no hole** |
+| **Fourteen** | 103–109 | **Shape ruled (c)+(b) · `M-1` · `M-2` · the ONE definition** | 🚨 **readback latency is ONE frame, so 10-vs-12 was two budgets and never reality** · **`RQT_Occlusion` counts the BOUNDING BOX ⇒ disqualified on CORRECTNESS** · `mask.provided` alone separates *never measured* from *measured zero* |
 
-⚠ **ONE INVESTIGATION, THIRTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Thirteen;
+⚠ **ONE INVESTIGATION, FOURTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fourteen;
 the reason it is not split is unchanged).*
 
-**WHERE IT ENDS:** `C-1` is the ruled **direction**; its **SHAPE is not chosen** and that is the
-owner's next brief. `feature/stencil-capture` is **untouched** throughout — *mined, never resumed*.
-**`P6` never moved. ZERO production code across all thirteen parts.**
+**WHERE IT ENDS:** the cure's **DIRECTION** (`C-1`) and **SHAPE** ((c) with (b)'s reporting) are both
+ruled, and the two gating measurements are done. **The cure itself is NOT written.**
+`feature/stencil-capture` is **untouched** throughout — *mined, never resumed*. **`P6` never moved.**
+⚠ **Production code appears for the first time in PART FOURTEEN — log-only instrumentation for `M-1`,
+on owner permission; Parts One–Thirteen carry ZERO.**
 
 ---
 
@@ -3049,3 +3052,280 @@ lifecycle is SIX, so a 12-frame pre-flight does not fit and would additionally b
 reproducibility; `annotation.json` is still OPEN at `FinishRun` and in DELIVERY MODE it is the ONLY
 label artifact, so a deferred veto is viable exactly where it matters; and because Shipping has no
 capture at all, a non-Shipping-only cure leaves NO HOLE — provided its absence is never silent.**
+
+---
+
+# PART FOURTEEN — the shape is ruled, and the two gating measurements
+
+🚨 **PRODUCTION CODE WAS WRITTEN THIS PART, FOR THE FIRST TIME IN THIRTEEN PARTS — narrowly, on owner
+permission, for `M-1` ONLY.** It is **log-only instrumentation**: no behaviour change, no artifact
+field. **`P6` VERIFIED UNCHANGED BY MEASUREMENT (48 fields, 0 added, 0 removed).** **NO TAG.**
+`feature/stencil-capture` **still READ-ONLY at `76cac74`, never checked out.**
+
+---
+
+## 103. `RULING 1` — SHAPE (a) IS **REJECTED, PERMANENTLY**, WITH REASONS
+
+⛔ **NOT DEFERRED. REJECTED.** Recorded so a future reader proposing *"just check before firing"* sees
+both blockers without re-deriving them.
+
+| # | blocker | source | independently sufficient? |
+|---|---|---|---|
+| **1** | **THE SELECTION-TO-FIRE GAP IS ZERO.** `BeginFire()` → `TryFireOnce()` runs `GetVisibleRenderableActors`, **both seeded picks**, and `ApplyAnomaly` — which **hides the actor immediately** — in **one synchronous call inside one tick.** The longest gap anywhere in the burst cycle is **6 frames**; `LeadIn` is **4** and runs **once per RUN**, not per burst | `AnomalyAutoInjectorSubsystem.cpp:172-256`, `AnomalyCaptureSubsystem.cpp:1089-1103, 375-434` | ✅ **YES** |
+| **2** | **A RE-PICKING VETO DESTROYS THE SEEDED DRAW PROTOCOL.** `R-SEED` made the draw order independent of apply-result on purpose; `m22` gated on *"seed 4242, 8 events, two runs byte-identical"*. A veto that rejects and re-picks makes the **number of stream draws depend on a render-thread pixel result** | same, + the `m22` gate | ✅ **YES** |
+
+**Recoverable only by redesigning `R-SEED`, which is not on the table.**
+
+---
+
+## 104. `RULING 2` — THE SHAPE IS **(c), WITH (b)'s REPORTING FOLDED IN**
+
+**One mechanism, two outputs:**
+
+1. **MEASURE** during the capture window (as (b) does) — same mask, **same `LOCK-1` timing
+   constraint**: for a hide-type anomaly the target is hidden during the positives, so **the mask is
+   0 BY CONSTRUCTION** and the measurement must come from a **negative** frame or a last-known value.
+2. **RECORD** the contribution in the already-shipping **`mask{}`** slot — `provided: false → true`, a
+   **VALUE** change.
+3. **INVALIDATE** the event in the **in-memory accumulator** before `FinishRun` writes
+   `annotation.json`, when the measured contribution says the target contributed nothing.
+
+**WHY (c) AND NOT (b) ALONE — on the record:** *(b) is a disclosure, not a cure.* The poisoned frames
+are still generated and still labelled positive; `manifested`, `frame_indices`, `coverage_pct` and
+`bbox` all still assert the claim; and **a consumer that ignores `mask{}` receives exactly today's
+dataset.**
+
+**WHY NOT (c) ALONE:** (c) needs (b)'s measurement anyway.
+
+### 104.1 ⚠ ACCEPTED LIMITS — recorded NOW, not discovered later
+
+| # | limit |
+|---|---|
+| **L1** | **The frames are already on disk.** (c) removes the **EVENT** from `annotation.json`; **it does not un-write PNGs.** |
+| **L2** | **Dropped events move total-vs-positive accounting**, and that must be **explicit and COUNTED, never silent** — a dropped event needs a counter exactly as `m23`'s `non_manifested_events` has one. ✅ **A `run_summary.json` counter does NOT move `P6`** — `P6` is the `annotation.json` contract, and `run_summary` already gained `capture_path` + five `key_ring_*` at `S4` without moving it. |
+| **L3** | **`labels.jsonl` (delivery OFF) is prebuilt and cannot be corrected** (`Job.Record` at `:1013`), so **delivery OFF and delivery ON will DISAGREE.** ⛔ **Acceptable only because it is stated here. It would not be acceptable discovered.** |
+
+---
+
+## 105. `M-1` — PRE-DECLARED BRANCHES, RESTATED **VERBATIM** BEFORE THE RESULT
+
+**Committed as a file BEFORE any leg ran: `CaptureBench/tools/p14_predeclared_branches.md`, commit
+`ee9ecc1`.** Restated here without alteration:
+
+> | # | branch | reading that selects it |
+> |---|---|---|
+> | **B1** | **DRAIN FORCES IT HOME, COMFORTABLY** | max observed latency **≤ 8** render frames, **0** frames dropped, and `DrainAsyncToCompletion` consumes **few** of its 8 iterations |
+> | **B2** | **DRAIN FORCES IT HOME, BUT ONLY VIA THE FLUSH** | 0 dropped, **but** frames remain pending when `DrainTail` ends and are resolved only by the blocking flushes |
+> | **B3** | **DRAIN DOES NOT FORCE IT HOME** | any frame dropped / unresolved at `WriteSessionAnnotationFile` ⇒ 🚨 needs an explicit wait at `FinishRun` — a **LIFECYCLE CHANGE, the OWNER'S RULING.** HALT |
+> | **B4** | **IT DEPENDS ON N, WITH A THRESHOLD** | latency varies systematically with proximity to run end |
+> | **B5** | **INVALID / NOT MEASURED** | instrument did not report; leg failed for a HOW-IT-RAN reason ⇒ discard, bank, re-run |
+
+**And the reframe, also pre-declared:** ⚠ *"the **12** is a BUDGET THE BRANCH AUTHOR CHOSE, NOT A
+MEASURED LATENCY. Nobody has measured what a GPU readback on this box actually costs."*
+
+### 105.1 The instrument
+
+Log-only, on the **existing** colour readback (`FAnomalySveCapturer`): record
+`GFrameNumberRenderThread` at `SubmitInFlight_RenderThread`, again when `IsReady()` first returns
+true in `Drain_RenderThread`; the difference is readback latency in **render frames**. Plus the
+pending count at `DrainAsyncToCompletion` entry and how many of its 8 blocking-flush iterations are
+consumed.
+
+⚠ **Stated in advance:** the colour readback is armed in the same frame and the same graph a mask
+would be, through the same `AddEnqueueCopyPass` → `FRHIGPUTextureReadback` → `IsReady()` mechanism.
+**Its payload is LARGER (BGRA vs R8), so its latency is an UPPER BOUND on a mask's, not an equal.**
+
+### 105.2 THE RESULT — **BRANCH `B1`, on both legs**
+
+| leg | delivery | samples | min | max | mean | notReadyPolls | histogram | pendingAtDrainEntry | flushIterationsConsumed | dropped |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `P14_M1_DELIVOFF` | **off** | 90 | **1** | **2** | **1.011** | 1 | `1:89 2:1` | **0** | **0 of 8** | **0** |
+| `P14_M1_DELIVON` | **on** | 90 | **1** | **1** | **1.000** | 0 | `1:90` | **0** | **0 of 8** | **0** |
+
+🚨 **THE ACTUAL READBACK LATENCY IS ONE RENDER FRAME.** 89 of 90 at 1, a single sample at 2, and on
+the delivery leg **90 of 90 at exactly 1.**
+
+✅ **`pendingAtDrainEntry = 0` on both legs — by the time `FinishRun`'s drain runs, NOTHING IS
+PENDING. `DrainTail` alone had already resolved everything, and the 8 blocking
+`FlushRenderingCommands()` iterations were NEVER ENTERED.**
+
+⇒ **`B1` selected: the drain forces it home, comfortably.** Max latency **2** against the branch
+budget **12** and the tail budget **10**.
+
+🚨 **AND THE 10-vs-12 QUESTION DISSOLVES RATHER THAN RESOLVING.** Neither number is anywhere near the
+measured latency — the real figure is **1**, with a **5× margin** to the smaller of the two. **The
+conflict I flagged in PART THIRTEEN was between two BUDGETS, neither of which was ever a measurement.**
+✅ **Shape (c) needs no lifecycle change.**
+
+**Both legs A63-VALID on attempt 1.** Delivery-OFF leg: **B1 pose gate APPLICABLE and PASSED**
+(`CB_GateLevel` / `StaticMeshActor_49` / 1280×720; `modal_rot (0,0,0)`, 59 rows, 1 distinct, modal
+100 %, `pose_match=True`). Delivery-ON leg: **B1 declared NOT CHECKABLE** — `labels.jsonl` is
+suppressed, so the harness reported the `coverage_ratio` pose *indicator* (`0.077977` × 8, invariant)
+**and declared it rather than skipping silently** (G117 honoured). Key ring **121/121/0/0** on both.
+
+### 105.3 A free confirmation of PART THIRTEEN, from the artifact rather than from source
+
+The delivery-ON session's non-image file set is **`annotation.json` + `run_summary.json`, and nothing
+else** — no `labels.jsonl`, no `run.json`. ⇒ **PART THIRTEEN's claim that in delivery mode
+`annotation.json` is the ONLY label artifact is now MEASURED, not merely read from
+`Job.bWriteLabels`.**
+
+---
+
+## 106. `M-2` — PRE-DECLARED BRANCHES, RESTATED **VERBATIM** BEFORE THE RESULT
+
+> | # | branch | reading that selects it |
+> |---|---|---|
+> | **C1** | **COUNT SUFFICIENT, HARDWARE PATH USABLE** | `RQT_Occlusion` returns a mesh-accurate drawn-pixel count at acceptable latency/cost |
+> | **C2** | **COUNT SUFFICIENT, HARDWARE PATH NOT USABLE** | a count answers the veto, **but** `RQT_Occlusion` cannot deliver a mesh-accurate one |
+> | **C3** | **COUNT INSUFFICIENT** | the veto provably needs spatial information |
+> | **C4** | **NOT DETERMINABLE WITHOUT MORE WORK** | source does not settle it |
+
+> ⚠ *"if the hardware path is disqualified on **CORRECTNESS**, measuring its **COST** is theatre. A
+> disqualified option is not made more disqualified by a millisecond number. **Report the
+> disqualification and stop.**"*
+
+### 106.1 THE RESULT — **BRANCH `C2`**, and it is settled from source
+
+**What `RQT_Occlusion` returns** — engine comment, verbatim
+(`RHIDefinitions.h:1077`): *"Result is the number of samples that are not culled (divide by MSAACount
+to get pixels)"*. ✅ **It is a hardware pixel counter.** **Count is sufficient for a veto.**
+
+🚨 **BUT WHAT IT COUNTS IS THE BOUNDING BOX, NOT THE MESH:**
+
+| source | what it shows |
+|---|---|
+| `SceneOcclusion.cpp:485` | `FOcclusionQueryBatcher::BatchPrimitive(const FVector& **BoundsOrigin**, const FVector& **BoundsBoxExtent**, …)` |
+| `:499-500` | `PrimitiveBoxMin = BoundsOrigin − BoundsBoxExtent` · `PrimitiveBoxMax = BoundsOrigin + BoundsBoxExtent` |
+| `:680`, `:757` | `DrawIndexedPrimitive(**GCubeIndexBuffer**, …, 8 verts, **12 triangles**)` — **a CUBE** |
+| `:694` | `const FBoxSphereBounds OcclusionBounds(SceneProxy->**WorldBounds**)` |
+
+⇒ **UE's occlusion machinery rasterises the primitive's BOUNDING BOX. `RQT_Occlusion` via that path
+returns the number of BOUNDING-BOX samples that pass the depth test.**
+
+🚨 **THAT IS PRECISELY THE QUANTITY `H5` NAMES AS THE LIE.** For `InstancedFoliageActor_0_0_0` the
+bounds are **252 m × 217 m × 67 m** covering the whole frame: a bounds-based occlusion query would
+return a **huge** sample count while the foliage draws ~6 % of the frame. **It would ACTIVELY CONFIRM
+THE FALSE CLAIM** — not merely fail to catch it.
+
+**To be useful the query must bracket a draw of the target's actual MESH**, which means custom
+per-target mesh draw commands — **more expensive than one full-screen mask pass**, and requiring
+renderer-private mesh-batch machinery.
+
+⇒ **`C2`: a COUNT suffices for the veto, but the cheap hardware path cannot supply a trustworthy one.
+THE MASK STAYS — justified by a CORRECTNESS reason, not by cost.**
+
+⛔ **AND THE COST WAS DELIBERATELY NOT MEASURED**, per the pre-declaration. A path disqualified on
+correctness is not made more disqualified by a millisecond number, and measuring it would have looked
+like diligence while adding nothing.
+
+⇒ **`T-4`'s fixed 256-entry array was consequently NOT APPLIED** — its own precondition was *"IF you
+touch the reduction at all for `M-2`"*, and `M-2` never needed the reduction touched. **Left for
+whoever implements the mask.**
+
+---
+
+## 107. `TASK 2` — THE ONE DEFINITION, and the two states
+
+### 107.1 The four definitions that exist today
+
+| path | test | `IsVisible()`? |
+|---|---|---|
+| **selection** — `IsRenderableComponent` (`AnomalyViewport.cpp:493`) | `IsVisible()` ∧ (ISM ⇒ `GetInstanceCount() > 0`) ∧ (`UStaticMeshComponent` ∨ **`USkinnedMeshComponent`**) | ✅ |
+| **label rect** — `ProjectActorBoundsToScreenRect` (`:653-685`) | **type only** | ⛔ |
+| **`node.bounds`** — `GetComponentsBoundingBox(true)` | every `UPrimitiveComponent` | ⛔ |
+| **branch tagging** — `AnomalyStencilTag::IsRenderableMesh` | `UStaticMeshComponent` ∨ **`USkeletalMeshComponent`** ← **NARROWER** | ⛔ |
+
+### 107.2 THE ANSWER: the cure uses **`AnomalyViewport::IsRenderableComponent`**, and it is not a new choice
+
+**It is the ALREADY-LOCKED ruling.** CLAUDE.md's `P6` contract decision states the definition *"must
+reuse the existing renderable definition (`IsRenderableComponent`, static-or-skinned, **G33**) so
+label geometry and selection geometry agree on what 'the object' is."* **Adopting it for masking
+applies that ruling; it does not make a fourth.**
+
+**Can all three paths share it?**
+
+| path | can share? | note |
+|---|---|---|
+| **selection** | ✅ already does | — |
+| **masking** | ✅ **immediately** — `IsRenderableComponent` is `ANOMALYINJECTOR_API` public (`AnomalyViewport.h:80`) and **`AnomalyCapture` already depends on `AnomalyInjector`** | **This alone removes the `UPoseableMeshComponent` narrowing defect** — by *calling the shared predicate* instead of hand-rolling a type test |
+| **labelling** | ⚠ **NOT TODAY** — adopting it changes label-rect **values**, which is the locked-but-unimplemented `P6` bounds ruling. ⛔ **`P6` DOES NOT MOVE**, so labelling stays as-is and **the disagreement REMAINS, recorded** | must be stated in the design |
+
+✅ **Why masking-with-`IsRenderableComponent` is SAFE against a type-only label set, argued rather
+than assumed:** the label set is a superset of the mask set, and every component in the difference is
+**invisible and therefore draws zero pixels**. **The mask can only omit components that contribute
+nothing**, so it cannot under-report the drawn extent of what the label claims. ⚠ **The
+`USkeletalMeshComponent` narrowing is NOT of that benign kind** — a `UPoseableMeshComponent` is
+visible **and draws**, so excluding it under-reports a real contribution. That is the difference
+between a safe omission and a false accusation.
+
+### 107.3 REQUIRED — *"measured zero"* and *"never measured"* must be DIFFERENT STATES
+
+🚨 **THE STAKE, concretely:** under (c), a target that is **selectable but never tagged** reads mask
+**0** and would be **INVALIDATED DESPITE DRAWING PERFECTLY.** That is a false accusation, and under
+(c) it **silently deletes a good event** — the cure manufacturing the defect it exists to detect.
+
+✅ **THE REPRESENTATION, AND IT NEEDS NO NEW FIELD: `mask.provided` — the bool that already ships —
+IS the two states.**
+
+| `mask.provided` | meaning | the cure may invalidate? |
+|---|---|---|
+| **`false`** | **NEVER MEASURED** — no mask ran, the target could not be tagged, or the readback did not resolve | ⛔ **NO — ADMIT** |
+| **`true`** | **MEASURED** | ✅ only then, and only if the count is zero |
+
+**THE RULE: an event may be invalidated ONLY when `provided == true`. `provided == false` ⇒ ADMIT** —
+the same fallback `T-3` established for an absent measurement, and for the same reason.
+
+⇒ ✅ **`P6` DOES NOT MOVE.** `provided: false → true` is a **VALUE** change in a slot that already
+ships. **No sub-field is required to carry the distinction.**
+
+**Internally** the accumulator needs a **tri-state** per event — `NOT_MEASURED` / `MEASURED_ZERO` /
+`MEASURED_NONZERO` — and **only `MEASURED_ZERO` invalidates.** ⚠ **A zero that means *"nothing was
+measured"* and a zero that means *"nothing was drawn"* MUST NOT SHARE A REPRESENTATION** anywhere in
+the chain. **⛔ NOT IMPLEMENTED — stated as required, per the brief.**
+
+---
+
+## 108. What changed on disk, and the build identity
+
+**PRODUCTION CODE (log-only, `M-1` only):** `AnomalySveCapturer.{h,cpp}` — a latency-stats struct,
+`SubmitRtFrame` on the in-flight item, accumulation in `Drain_RenderThread`, a `GetLatencyStats()`
+accessor, reset in `Reset()`. `AnomalyCaptureSubsystem.cpp` — two `UE_LOG` lines in
+`DrainAsyncToCompletion`. ⛔ **No behaviour change. No artifact field. `P6` verified unchanged by
+measurement.**
+
+🚨 **BUILD IDENTITY IS A QUARTET (`G121`), and a code-only hot-swap moved exactly one half:**
+
+| half | before | after |
+|---|---|---|
+| **exe** | `101AFEA4` | 🆕 **`1EBA8944`** |
+| `StackOBot-Windows.utoc` | `939B9C9B` | **`939B9C9B`** unchanged |
+| `StackOBot-Windows.ucas` | `8A602D4D` | **`8A602D4D`** unchanged |
+| `StackOBot-Windows.pak` | `7CAE22DD` | **`7CAE22DD`** unchanged |
+
+✅ **`101AFEA4` PRESERVED** at `_binary_baselines\StackOBot.exe.m25-baseline`, **hash-verified against
+the staged copy immediately before the swap.**
+✅ **A44 on the STAGED artifact, BOTH encodings:** `M1 readbackLatencyFrames` and
+`M1 pendingAtDrainEntry` **ascii=0 utf16=1**, alongside pre-existing `IsHideTypeAnomaly` and
+`capture_path` also at utf16=1 ⇒ **the change reached the package and the scan is sound, not blind.**
+
+---
+
+## 109. State after PART FOURTEEN
+
+| | |
+|---|---|
+| production code | 🆕 **log-only instrumentation, `M-1` only** — the first in fourteen parts, on owner permission |
+| `P6` | ✅ **VERIFIED UNCHANGED BY MEASUREMENT** — 48 fields, 0 added, 0 removed |
+| tag | **none** · `feature/stencil-capture` **UNTOUCHED at `76cac74`** |
+| build | 🆕 **exe `1EBA8944`** + pak quartet unchanged; `101AFEA4` preserved |
+| bank | **150 → 152** (`P14_M1_DELIVOFF`, `P14_M1_DELIVON`) |
+| shape | **(c) with (b)'s reporting** — (a) **REJECTED, permanently, two independent blockers** |
+| ⛔ not done | the cure itself. No mask, no veto, no tri-state — **stated as required, not written** |
+
+**WHAT THIS PART SETTLES:** **the readback takes ONE render frame, so the 10-vs-12 conflict was
+between two budgets and never touched reality — shape (c) needs no lifecycle change; the cheap
+hardware count is disqualified because UE's occlusion query measures the BOUNDING BOX, the very
+quantity `H5` calls a lie, so the mask stays for a CORRECTNESS reason; and the cure's one definition
+is `IsRenderableComponent`, which masking can adopt today and which makes *never measured* and
+*measured zero* distinguishable through `mask.provided` alone — with no `P6` movement.**
