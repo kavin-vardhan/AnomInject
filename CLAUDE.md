@@ -91,18 +91,49 @@ and is the single source of truth for the project.
   ⛔ **`annotation.json`'s field set is UNCHANGED across the whole of S4 and `P6` is NOT MOVED.**
   Content clock untouched, still `wall`, key still unset. **`S4` DOES NOT CLOSE `P1` — it never could.**
   **Nothing in S4 is outstanding.**
-  🧭 **FORWARD QUEUE, in order:** **`H4`** (occlusion-blind labelling — filed, designed, UNRUN; one
-  packaged run per the design in `CHAT-HANDOFF-s3-m24-capture-migration.md` §8; **its brief comes from
-  chat and its discriminators are pre-declared chat-side before anything runs**) → **`P5`/`P7` — the
+  🧭 **FORWARD QUEUE, in order:** **`H4`** (occlusion-blind labelling) → **`P5`/`P7` — the
   blend-ladder** (serves two open items; discriminators pre-declared chat-side BEFORE it is built) →
   **`P1`'s `H1` lever** (GPU-load starvation shape — **P1's ONLY named lead, and it has NO LEVER IN
   EXISTENCE**; design **chat-side first, NEVER same-turn as its first measurement**; if H1 also comes
   back clean, **P1 HAS NO NAMED LEADS**).
+  🛑 **`H4` PRE-FLIGHT RAN 2026-08-19 AND HIT THE SCOPE GATE. NO PACKAGED RUN HAPPENED, NO BRANCH
+  OBTAINED, `H4` IS STILL *NAMED, NOT ADOPTED* — nothing measured is evidence for or against it.**
+  → journal `docs/sessions/2026-08-19-045-h4-preflight-halt.md`. **Read it before re-briefing H4.**
+  Three blockers, all found before the run: **(1)** a capture run carries **exactly ONE** targeted
+  `(anomaly, actor)` pair — session events come only from `LiveFires`, and the only route that reaches a
+  NAMED occluded actor is `BeginFire → TryFireSpecific` with the run's single configured pair
+  (`IAI.Auto.FireOnce` routes through `IsUnoccluded`; `IAI.Apply` / WS `inject` never create a `LiveFire`
+  and so emit **no label at all**), so *"two targets in the same run"* needs **production code**;
+  **(2)** `a56_check` takes **one modal bbox per leg**, so a two-target leg is `NOT-A54-CERTIFIABLE` at
+  modal coverage ≈ 0.50 **before a pixel is read**; **(3) → G117 — `CALIB_BBOX` is `StaticMeshActor_49`'s
+  bbox and `pose_match` is a conjunct of `a56_check`, so the oracle CANNOT return ABSENT on any other
+  target, in any run design.** That is S4-1's off-calibration ruling recurring **on the target axis**;
+  the H4-CONFIRMED branch's *"A54 = ABSENT"* half is therefore **structurally unobtainable** as briefed.
+  🚨 **G116 — THE PRE-FLIGHT'S REAL FINDING: H4's pre-declared CAUSE signature is NOT unique to H4.**
+  `selection_provenance` `valid:false` + `0/0` is written by **four** short-circuit clauses (renderable /
+  **poll radius** / **frustum** / occlusion) and **21 of 780 banked records already carry it**, all on
+  `StaticMeshActor_49` which is **unoccluded 9/9** — **21/21 out of frustum, 0/21 occluded.** The
+  discriminator is now the **PAIR**: provenance `valid:false` **together with the anchor frame's
+  `bbox_valid: true`** (frustum kills the bbox too; occlusion does not). **The bank holds ZERO instances
+  of the divergence.** ⛔ **`StaticMeshActor_11` — the brief's first choice — is REJECTED**: at 2543.7 cm
+  it is outside the default **1800 cm poll radius**, so its `valid:false` would be the poll cull. Of the
+  briefed set only **`StaticMeshActor_100`** survives (poll 1031.9 cm, 97.6 % on-screen, all 9 rays
+  blocked by `StaticMeshActor_86` alone, **0 rays floor-only**). ⚠ **PF3, recorded and carried:
+  `_100` DOES throw shadow into visible pixels** (2 of 9 patch samples reachable), so *"contributes no
+  pixels"* is **false as stated** for it — and the two candidates whose shadows are fully hidden
+  (`_11`, `_139`) are exactly the two the poll radius rejects. ⚠ **PF4: viewport scoping is in NO capture
+  artifact** — the usable A48 echoes are the packaged log's `blinking: matched N actor(s)` (behavioural,
+  and `matched 0` *is* the scoping-ON signature) and WS `ControlSnapshot.viewportScoping`.
+  ⚠ **`coverage_pct` under that condition is `-1`, NOT `0`** (the `FSelectionProvenance` sentinel;
+  confirmed on all 21 banked records) — a correction to journal 036 §3.5 and to the §8 prediction, made
+  **before** the run. **Third instance of a claim resting on prose rather than a measurement (G106 first,
+  m24's `key_ring_*` second). `P6` DOES NOT MOVE.**
   **LATER / UNORDERED, named but not sequenced:** `B2` (scale-free separability; eight-control gate; may
   reopen m23's DA60 floor) · **`B1`-NDC** (normalise `CALIB_BBOX` — unblocks alignment certification at
   any resolution; four legs blocked today, three with a motionless camera; definition change needing its
-  own eight-control gate) · `P6` bounds implementation · the `A17`/`A19` retroactive audit · resolution
-  selection / JPEG / defaults profile.
+  own eight-control gate) — **now paired with its target-axis sibling from G117 (per-leg calibration
+  bbox); both are A53 definition changes and neither belongs in a measurement turn** · `P6` bounds
+  implementation · the `A17`/`A19` retroactive audit · resolution selection / JPEG / defaults profile.
 - 🟦 *(superseded — kept for the record)* **`S3` IS CERTIFIED AND TAGGED `m24`. RATIO-INDEPENDENCE IS
   DISCHARGED. THE I10 WINDOW-RE-CHECK DEBT IS DISCHARGED.**
   **Cold-start reading order: this block → `docs/sessions/2026-08-18-043-session-close-i10-recheck.md`

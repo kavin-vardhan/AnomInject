@@ -2398,3 +2398,88 @@ which is mechanical too and therefore actually survives contact.
 
 ⛔ **Deliberately NOT automated.** A hook or wrapper for this is more surface than the fault is worth.
 (2026-08-19.)
+
+---
+
+### G116 — a SHORT-CIRCUIT chain collapses four distinct causes into ONE artifact string, so a signature is only "unique" if the other clauses are excluded BY CONSTRUCTION
+
+`EvaluateSelectionProvenance` (`AnomalyViewport.cpp:540-576`) writes `valid:false`, `0/0` samples,
+`coverage_pct -1`, `poll_distance -1` — a single, distinctive-looking string. It is produced by **four
+different clauses**, evaluated in this order inside `IsComponentRenderableVisibleInternal`:
+
+```
+C1 renderable (SM/SK ∧ IsVisible)
+C2 poll radius   dist(pollOrigin, bounds.origin) − sphereRadius > GPollRadius   (default 1800 cm)
+C3 frustum
+C4 occlusion
+```
+
+**H4's cause signature was pre-declared as `valid:false` + `0/0`, "unique to H4" — i.e. C4.** The bank
+already contained that exact string **21 times out of 780 records**, every one on `StaticMeshActor_49`,
+which is **unoccluded on all 9 rays**. Recomputing the frustum test at each record's actual banked
+camera rotation explained all 21: **21/21 out of frustum (C3), 0/21 occluded (C4).** They are anchor
+frames that landed while the camera was still slewing through the A47 settle, 22°–116° of yaw off modal.
+
+**The fix is not a better threshold; it is a SECOND, INDEPENDENT quantity that the clauses disagree on.**
+Here `labels.jsonl`'s `bbox_valid` at the same anchor frame does it, because
+`ProjectActorBoundsToScreenRect` shares C3 (frustum/screen) but **not** C4 (it runs no trace):
+
+| clause | provenance | `bbox_valid` at the anchor frame |
+|---|---|---|
+| C3 frustum | `valid:false` 0/0 | **false** — both paths agree |
+| C4 occlusion | `valid:false` 0/0 | **true** — the paths DIVERGE, which is the whole hypothesis |
+
+All 21 banked cases read `bbox_valid:false`, so the bank holds **zero** instances of the divergence —
+neither corroboration nor refutation, but the incumbent producer of the signature, named.
+
+**RULE: before pre-declaring a signature as diagnostic of one cause, enumerate every branch that writes
+it. A short-circuit chain is the classic generator, because the artifact records the RESULT and not the
+CLAUSE.** Then either exclude the other clauses by construction (choose a target inside the poll radius;
+require the camera settled) or pair the signature with a quantity the clauses disagree on.
+
+> This is **G96's principle moved one step earlier**. G96 is about an oracle being blind in a regime;
+> G114 is about a lever that does nothing. This is about a **signature that is not the discriminator it
+> was declared to be** — and it is the cheapest of the three to catch, because the evidence was already
+> sitting in the bank and cost one read. **Grep the bank for the signature BEFORE the run.** A signature
+> that already occurs, on a case where its declared cause is impossible, is disqualified on the spot.
+
+(Found in H4's pre-flight; the run was stopped before it could be misread. → journal 045 §3. 2026-08-19.)
+
+---
+
+### G117 — `CALIB_BBOX` is frozen against a TARGET as well as a RESOLUTION, so the pixel oracle cannot judge a leg fired at any other actor
+
+S4-1 established that `CALIB_BBOX` is frozen **in pixels** at 1280×720 and therefore fails an
+off-calibration **resolution** for reasons unrelated to pose. The same constant is equally frozen
+against the **target**, and that had not been stated anywhere.
+
+`CALIB_BBOX = (0.0, 485.2, 306.1, 234.8)` **is `StaticMeshActor_49`'s bbox**, and `pose_match(modal)` is
+a **conjunct of `a56_check`**. So a leg fired at any other actor exits **2 / `NOT-A54-CERTIFIABLE`** —
+the oracle declines to judge, correctly and safely, but **for a reason it then misattributes**: its
+failure text prints *"P8: this leg's camera settled in a pose TAU was NOT calibrated on."* The pose may
+be perfectly modal. The cause is the target.
+
+**Consequence, and it is a design constraint rather than a bug:** any experiment that fires at an actor
+other than `StaticMeshActor_49` **has no A54 verdict available to it**, in any run design. Discovered
+when H4's pre-declared H4-CONFIRMED branch turned out to require "A54 = ABSENT" on a different target.
+
+Two further consequences worth having written down:
+
+- **A54 also cannot grade a MULTI-TARGET leg.** `a56_check` pools every `anomalies[]` entry of every
+  label row into one modal bbox. Two simultaneous targets ⇒ modal coverage ≈ 0.50 against
+  `A56_MIN_MODAL = 0.90` ⇒ not certifiable **before a single pixel is read**. The header already says
+  *"the bbox is the leg's MODAL bbox, taken once per leg"*; this is what that costs.
+- **The honest substitute is the RAW in-bbox series, reported AS a raw series.** Precedented: S3 read
+  L3's raw series before reporting when the oracle declined (→ P8/G107). It licenses less than an A54
+  verdict, and saying so is the point.
+
+⛔ **`CALIB_BBOX`, `TAU`, `POSE_TOL_PX` and the A54 definition stay UNTOUCHED.** The generalisation —
+per-leg calibration, or NDC-normalising `CALIB_BBOX` — is a **definition change to a certified
+instrument** and needs its own eight-control gate under A53. It is filed alongside `B1`-NDC and `B2`,
+**not** to be done inside a measurement turn.
+
+> **The general lesson: a frozen calibration constant is scoped by EVERY dimension of the leg it was
+> measured on, not just the one you were thinking about when you froze it.** `CALIB_BBOX`'s own comment
+> says *"SCOPED to 1280×720 / CB_GateLevel / StaticMeshActor_49"* — all three were written down, and only
+> the resolution was ever treated as load-bearing. **Read the scope line as a conjunction of
+> preconditions, not as provenance.** (2026-08-19.)
