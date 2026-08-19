@@ -2324,3 +2324,46 @@ was done through it.
 *General form, and it is the mirror of G92: verify the CHANNEL before trusting what it reports. G92 was
 a binary that was compiled but never staged; this is an exit code that is emitted but never earned.
 In both cases the tooling is confidently wrong and nothing in the output says so.* (2026-08-19.)
+
+---
+
+### G114 — a packaged UE game runs DPI-UNAWARE, so a display-scale change never reaches it, and the null that produces is an ARTIFACT
+
+S4-1's DPI leg was set up as: put the desktop at 150 %, run once at the engine default, run again with a
+per-application **`~ DPIUNAWARE`** override, compare. Both legs returned **dW = dH = 0** on every rect.
+Read naively that is *"DPI scaling does not move the capture rects"*.
+
+**It is not. The process never saw the 150 %.**
+
+An independent read-back — `GetProcessDpiAwareness` against the live PID, run **with and without** the
+override — returned **`PROCESS_DPI_UNAWARE` (0) in BOTH cases.** The packaged `StackOBot.exe` is already
+DPI-unaware, so:
+
+- Windows **virtualises** it: the process is told 96 DPI whatever the desktop is set to, and its output
+  is stretched by the compositor after the fact.
+- the `~ DPIUNAWARE` override was a **no-op** — it forced a state that was already true;
+- the two legs were **one regime measured twice**, not two regimes;
+- and **the DPI axis was not probed at all**, by either of them.
+
+⚠ **`EnableHighDPIAwareness` defaults to 1** in `GenericPlatformApplicationMisc.cpp` and is easy to read
+as "games are DPI-aware". The measured behaviour of the packaged game target is the opposite. **Read the
+process, not the cvar default.**
+
+**The fix is the OPPOSITE override.** `~ HIGHDPIAWARE` flips it to **`PROCESS_PER_MONITOR_DPI_AWARE` (2)**,
+verified by the same probe before the leg ran. Only then does the process observe the scaled display, and
+only that leg is evidence about DPI. (It also came back dW = dH = 0 — but now that is a *measurement*
+rather than an artifact of insulation.)
+
+> **This is G96's principle applied to the LEVER rather than to the oracle.** Every previous instance was
+> a blind *instrument*; this was a blind *manipulation*. A lever that does nothing produces a clean null
+> that looks exactly like a clean result — and unlike a blind oracle it leaves no unevaluable output to
+> notice. **The only thing that exposed it was a both-directions control on the lever itself: set it,
+> read the state back, clear it, read again, and require the two readings to DIFFER.**
+
+**RULE: an environmental lever must be verified to have CHANGED SOMETHING before any leg run under it is
+evidence.** A48 already says report the effective config from an independent read-back rather than what
+was requested; this extends it from in-process cvars to **OS-level and per-application state**, where
+there is no log line to echo and the failure is silent by construction.
+
+*(Related: G92 — compiled is not staged. Same family: the thing you believe you changed is not the thing
+under test.)* (2026-08-19.)
