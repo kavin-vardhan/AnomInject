@@ -230,9 +230,61 @@ and is the single source of truth for the project.
   is offline asset/container reading; the Blueprint evidence is **name-table strings plus the developer
   comments embedded in them** (the quotes are direct; the machinery lists are indicative, not a graph
   read).
-  🟢 **PRE-COOK GATE RAN 2026-08-19 (journal 045 §29-§33). OWNER RULED OPTION A — THE REBUILD HAPPENS,
-  CARRYING BOTH THE MainWorld COOK AND `G118`'s TOKEN CLOSURE. ⛔ NOTHING WAS COOKED OR STAGED THIS
-  TURN; `101AFEA4` IS UNCHANGED.**
+  🟩 **THE COOK IS DONE (journal 045 §34-§40). `MainWorld` IS IN THE BUILD, `G118` IS CLOSED, AND THE
+  SMOKE LEG REPRODUCES m25's CERTIFIED BEHAVIOUR. ZERO PRODUCTION CODE. NO TAG.**
+  🚨 **`G121` — THE EXE HASH DID NOT CHANGE, SO IT DOES NOT IDENTIFY THE BUILD.** No code changed, so
+  nothing compiled and the archived exe kept its compile time: **before and after are BOTH `101AFEA4`,
+  same mtime** — while the cooked maps went 3 → **4 (+MainWorld)**, the enforced token went
+  **`TESTVALUE123` → 64-char**, and `.ucas` went 125 MB → **284 MB**. **Same hash. Different build.**
+  ⛔ **Every A44 hash reference in this project identifies only HALF the artifact** — *"staged exe
+  `101AFEA4` = m25"* remains true and is **no longer sufficient**, because **two builds answer to it**.
+  ⚠ **The reverse is the dangerous case:** a code-only hot-swap (G103) moves the exe and leaves the pak,
+  so **the halves move independently and a same-hash comparison is not a same-build comparison in either
+  direction.** **RULE: build identity = exe hash + pak identity.**
+  📦 **THE MEASUREMENT BUILD, in full:** exe **`101AFEA4`** · `StackOBot-Windows.utoc` **`939B9C9B`**
+  (268,036 B, 2026-08-19 17:00:27, **4 maps**) · `.ucas` **`8A602D4D`** (284,469,920 B) · `.pak`
+  **`7CAE22DD`** (10,115,703 B). **Prior build for contrast: same exe + `.utoc` 194,996 B (16-08),
+  3 maps, placeholder token.**
+  ✅ **MAP-SET GATE PASS** — read from the `.utoc` container index, not from the `-map=` argument
+  (G119 applied to the cook): `CB_GateLevel` · `MainMenu` · **`MainWorld`** · `Entry` all PRESENT.
+  New permanent tool `CaptureBench/tools/verify_cooked_maps.ps1`; it scans **both encodings** and exits
+  **2** on zero-in-both rather than reporting a clean absence — **this container answered in ASCII while
+  the pre-cook ones answered in UTF-16, so the encoding is NOT stable and a single-encoding scan would
+  have read as "no maps cooked"** (G103's shape).
+  ✅ **`G118` CLOSED** — enforced token read back from the running build: **64-char, matches the source
+  ini, no placeholder.**
+  ✅ **A44 SCAN** of the staged exe, both encodings: 7 symbols, **ascii 0 / utf16 non-zero throughout** —
+  sound, not suspect tooling.
+  ✅ **SMOKE LEG (CB_GateLevel, 1280×720, fps 30 pinned, SVE not forced, delivery OFF, target `_49`):**
+  `capture_path sve` · `content_clock wall` · `key_ring 121/121 missed 0 corrupted 0` · **B1
+  pose-matched** · A56 **100 % of 59 rows, 1 distinct** · **A54 ALL-ALIGNED 7/7, decidable 7/7, median
+  margin 0.103835** · **positive control decisive BOTH ways (+1 → 7/7 SHIFTED, −1 → 8/8 SHIFTED)** ·
+  **7 counted events** · provenance **8 events all `valid:true` 9/9**. ⇒ **THE NEW BUILD IS THE
+  MEASUREMENT BUILD FOR PATH (a).**
+  📏 **WHAT THE STAGE DID: NOTHING WAS WIPED** — leg dirs 56 → 56, `.baseline` exes 4 → 4, `Saved\`
+  23 → 23 incl. `M23B`. ⚠ **ONE cook, ONE flag set (no `-clean`, archiving into an existing tree). The
+  2026-08-16 wipe is NOT retracted; the archive step is simply not UNCONDITIONALLY destructive and which
+  factor decides is NOT established. THE PRECAUTION STAYS.** G92 annotated in place.
+  🛟 **BASELINE CHAIN EVACUATED to `D:\IntrusiveAnomalies\_binary_baselines\` (a sibling of the bank,
+  outside `Builds\`), hash-verified AT THE NEW LOCATION: 5 of 5 match** (`101AFEA4` as `.m25-baseline`,
+  `259BF64F`, `834BB30A`, `3BA854FB`, `85A39CFB`), with a README mapping each hash to what cites it.
+  ⚠ **THE RE-BANK SWEEP FOUND UNBANKED EVIDENCE: `Saved\M23B` and EIGHT exe-side leg outputs, four of
+  which (`S43_defaultA/B`, `S43_backbuffer`, `S44_deliveryON`) are the RAW EVIDENCE BEHIND m25's S4-3
+  AND S4-4 CLAIMS.** Bank **91 → 104** dirs.
+  🚨 **A THIRD CONFIRMATION OF S-1, from our own docs:** `G91`'s documented cook command carries
+  `-map="…CB_GateLevel+…MainMenu"` and **never contained MainWorld** — the cause was written down here
+  since 2026-08-06, on the same page as the claim that the title actively redirects it away.
+  ⚠ **RUNBOOK GAP: `setup-runbook.md` §8 documents only the CODE-ONLY hot-swap** (*"no cook, G103"*).
+  **There is no full-cook recipe in §8** — the command used came from `G91`. Flagged, not silently fixed.
+  ⛔ **MainWorld is COOKED IN but has NOT been launched.** No path (a) leg. No occlusion measurement.
+  🔬 **Two observations, recorded not acted on:** the smoke leg needed **3 A63 attempts, two banked
+  bifurcation discards** with genuine A47 signatures (`modal_rot` 359.46/358.38 and 354.24/353.71) —
+  **2-of-3 exceeds the record's ~2-in-5 and the pak is much larger, so startup timing plausibly differs;
+  n=3, association only, nothing adopted**; and the accepted leg rests at **`(0.0, 0.35, 0.0)` not
+  exactly `(0,0,0)`**, moving `coverage_pct` 7.7977 → 7.6575 and modal bbox width 306.1 → 301.1 — **near
+  identical to H4's legs, not identical.**
+  🟦 *(superseded — kept for the record)* **PRE-COOK GATE RAN 2026-08-19 (journal 045 §29-§33). OWNER
+  RULED OPTION A. NOTHING WAS COOKED THAT TURN.**
   ✅ **`G-1` PASS — the Trigger question is settled per PLACED INSTANCE.** MainWorld's 419
   one-file-per-actor externals, keyed on each file's **own** `PersistentLevel.<Class>_C_UAID_` path
   (a first pass keyed on *mentions* was wrong — it called two PressurePlate files Stompers — and was

@@ -1069,3 +1069,206 @@ because foreclosing is the act of telling everyone not to.**
 
 **G-1 PASS · G-2 LIST EMPTY · G-3 CONFIRMED.** The cook is justified and unblocked. ⛔ **The cook brief
 is the owner's and is not written here. The path (a) design is chat-side and is not written here.**
+
+---
+---
+
+# PART SIX — the cook. Both preconditions met, all gates pass, smoke green.
+
+**Owner ruling: the cook is approved, carrying the MainWorld cook AND `G118`'s token closure.**
+Executed. **NO production code changed. No tag.**
+
+## 34. Precondition 1 — the baseline chain, rescued and verified
+
+Copied out of the staged tree to **`D:\IntrusiveAnomalies\_binary_baselines\`** — a **sibling of the
+bank, deliberately outside `Builds\`**, where a stage cannot reach it. **Verified BY HASH AT THE NEW
+LOCATION before anything else proceeded** (A62 — a copy that ran is not a copy that landed):
+
+| file at the new location | hash | expected | |
+|---|---|---|---|
+| `StackOBot.exe.m25-baseline` *(was `StackOBot.exe`)* | `101AFEA4` | `101AFEA4` | ✅ |
+| `StackOBot.exe.s4-2-baseline` | `259BF64F` | `259BF64F` | ✅ |
+| `StackOBot.exe.s4-0-baseline` | `834BB30A` | `834BB30A` | ✅ |
+| `StackOBot.exe.m24-baseline` | `3BA854FB` | `3BA854FB` | ✅ |
+| `StackOBot.exe.m23-baseline` | `85A39CFB` | `85A39CFB` | ✅ |
+
+**5 of 5 verified, 0 failures.** `README.md` written beside them naming each hash, what it is, and
+which journal or status line cites it.
+
+### 34.1 The re-bank sweep found more than the ruling anticipated
+
+**Bank 91 → 100 dirs, 10.13 GB.** Two categories were unbanked and would have been inside the blast
+radius:
+
+- **`Saved\M23B`** (108.6 MB) — the only `Saved` dir with no bank counterpart.
+- **Eight leg outputs beside the exe** (G101 — output lands next to the binary, not under `Saved`),
+  347.7 MB, matched **by session id** rather than by directory name (119 banked session ids checked):
+  `S43_defaultA`, `S43_defaultB`, `S43_backbuffer`, `S44_deliveryON` — ⚠ **these four are the RAW
+  EVIDENCE behind m25's S4-3 and S4-4 claims** — plus `H4_WSECHO`, `PRE`, `D3D12`, `S3A2_OFF`.
+
+Every other exe-side leg dir already had its accepted session in the bank.
+
+## 35. Precondition 2 — the map set, declared BEFORE and read back AFTER
+
+**Declared in writing before the cook ran**, with `CB_GateLevel` marked non-negotiable. Cook command,
+from `G91`'s recipe (**not** reconstructed):
+
+```
+RunUAT BuildCookRun -project=StackOBot.uproject -platform=Win64 -clientconfig=Development
+  -cook -stage -pak -archive -archivedirectory=Builds\BenchGate -build -utf8output -nocompileeditor
+  -map="/Game/CaptureBenchGate/CB_GateLevel+/Game/StackOBot/UI/MainMenu/MainMenu+/Game/StackOBot/Maps/MainWorld"
+```
+
+🚨 **A THIRD INDEPENDENT CONFIRMATION OF S-1, found in our own docs.** `G91`'s documented cook command
+carries `-map="…CB_GateLevel+…MainMenu"` and **has never contained MainWorld**. The cause of the whole
+episode was written down, in this repo, since 2026-08-06 — **on the same page as the sentence claiming
+the title actively redirects MainWorld away.**
+
+**Result: `BUILD SUCCESSFUL`, `ExitCode=0`, 2 m 27 s.** No production code changed.
+
+### 35.1 THE GATE — ✅ PASS
+
+`CaptureBench/tools/verify_cooked_maps.ps1` (new, committed) reads the **`.utoc` container index** —
+the artifact — rather than trusting the `-map=` argument, which is an **input**. G119 applied to the
+cook itself.
+
+```
+CB_GateLevel     PRESENT
+MainMenu         PRESENT
+MainWorld        PRESENT        <- the point of the cook
+Entry            PRESENT
+PASS - every required map is present in the cooked container.
+```
+
+⚠ **The tool scans BOTH encodings and reports which answered.** This container answered in **ASCII**
+(`hits ascii: 4, utf16: 0`); the pre-cook containers answered in UTF-16. **The encoding is not stable
+across containers**, so a single-encoding scan would have returned a clean-looking "no maps cooked" —
+the exact false-negative shape G103 records for the A44 binary scan. The tool exits **2** on a
+zero-in-both-encodings result rather than reporting a clean absence.
+
+⚠ **The tool's first draft failed to parse.** Windows PowerShell 5.1 reads a `.ps1` as **ANSI unless
+the file has a BOM**, so the em-dashes in it were a **parse error**, not a runtime one. Rewritten
+7-bit ASCII, with that stated in its header. *(The existing harness scripts happen to carry BOMs, which
+is why this had never bitten.)*
+
+## 36. G118 CLOSED — the token, read back from the running build
+
+```
+source Config\DefaultGame.ini : 5b544cee3d97... (len 64)
+ENFORCED by the staged binary : 5b544cee3d9780331b1fe1bed206bb4aaf74dbd8ebfb215b3f04b37f878d6c61 (len 64)
+```
+
+**No mismatch. No placeholder.** The build that enforced `TESTVALUE123` is gone. Read back from the
+running build's own `Control server token:` log line per the amended `PRE-DELIVERY-CHECKLIST` §1 —
+**not** from the source ini, which is the artifact that was never enforcing anything.
+
+Same probe, unchanged on the new build: `viewportScoping: False`, `pollRadius: 1800`,
+`minScreenCoverage: 6`, and the behavioural echo `blinking: matched 1 actor(s) for
+'=StaticMeshActor_100'`.
+
+## 37. A44 scan of the staged artifact, both encodings
+
+| symbol | ascii | utf16 |
+|---|---|---|
+| `IsHideTypeAnomaly` | 0 | **1** |
+| `selection_provenance` | 0 | **2** |
+| `capture_path` | 0 | **1** |
+| `IAI.Capture.SVE` | 0 | **10** |
+| `AnomalyViewportOcclusion` | 0 | **1** |
+| `AnomalyViewportProvenance` | 0 | **1** |
+| `Control server token` | 0 | **1** |
+
+**Non-zero throughout** — the scan is sound, not suspect tooling. Exactly the ASCII-0 / UTF-16-N shape
+G103 predicts.
+
+## 38. 🚨 WHAT THE STAGE ACTUALLY DID — and the finding it produced
+
+**Nothing was wiped.** Leg dirs beside the exe **56 → 56**; `.baseline` exes **4 → 4, all present**;
+`Saved\` **23 → 23 dirs, including `M23B`**. ⚠ **This is ONE cook with ONE flag set (no `-clean`,
+archiving into an existing tree). The 2026-08-16 wipe is NOT retracted** — what is now known is that
+the archive step is **not unconditionally destructive**, and *which* factor decides is **not
+established**. **The precaution stays.** G92 annotated in place.
+
+### 38.1 **G121 — the exe hash did NOT change, so it does not identify the build**
+
+| | before | after |
+|---|---|---|
+| **exe SHA-256** | **`101AFEA4`** | **`101AFEA4`** — *identical* |
+| exe mtime | 12:32:39 | **12:32:39** — *identical* |
+| cooked maps | 3 | **4 (+ MainWorld)** |
+| enforced token | **`TESTVALUE123`** | **64-char rotated** |
+| `.utoc` | 194,996 B | **268,036 B** |
+| `.ucas` | 125,071,408 B | **284,469,920 B** |
+
+**Same exe hash. Different build, different maps, different secret.** No code changed, so nothing was
+compiled and the archived exe kept its compile time.
+
+⛔ **This reaches backwards: every A44 hash reference in this project identifies only HALF the
+artifact.** *"Staged exe `101AFEA4` = m25"* was true, is still true, and is **no longer sufficient** —
+**two builds now answer to that hash.** ⚠ **And the reverse is the dangerous case:** a **code-only
+hot-swap (G103)** moves the exe hash and leaves the pak; the two halves move **independently**, so a
+same-hash comparison is not a same-build comparison **in either direction**.
+
+**RULE: build identity = exe hash + pak identity.** For the new build:
+
+```
+exe                    101AFEA4
+StackOBot-Windows.utoc 939B9C9B    268,036 bytes   2026-08-19 17:00:27   (4 maps)
+StackOBot-Windows.ucas 8A602D4D    284,469,920 bytes
+StackOBot-Windows.pak  7CAE22DD     10,115,703 bytes
+```
+
+## 39. SMOKE — ✅ ALL ASSERTIONS PASS. The new build reproduces m25's certified behaviour.
+
+One leg in `CB_GateLevel`, 1280×720 windowed, 100 % scale, `VideoFps` 30 pinned, SVE default **not
+forced**, delivery OFF, target `StaticMeshActor_49` (on-calibration, so **B1 applies**).
+
+| assertion | value | |
+|---|---|---|
+| `capture_path` | `sve` | ✅ |
+| `content_clock` | `wall` | ✅ |
+| `delivery_mode` | `false` | ✅ |
+| `key_ring_missed` | `0` | ✅ |
+| `published == consumed` | `121 == 121` | ✅ |
+| `key_ring_corrupted` | `0` | ✅ |
+| **B1 pose-match** | **YES** — modal bbox `(0.0, 485.6, 301.1, 234.4)` vs calib `(0.0, 485.2, 306.1, 234.8)`, tol 8.0 px | ✅ |
+| A56 | modal **100.0 %** of 59 bbox rows, **1** distinct → CERTIFIABLE | ✅ |
+| **A54** | **ALL-ALIGNED, 7/7, decidable 7/7**, median margin **0.103835** | ✅ |
+| **positive control BOTH ways** | `+1` → **7/7 SHIFTED**, `−1` → **8/8 SHIFTED**, decidable 0/7 and 0/8 | ✅ |
+| counted events | **7** (≥ 3) | ✅ |
+| provenance | 8 events, **all `valid:true`, 9/9**, `poll_distance` 418.1 | ✅ |
+
+⇒ **The new build becomes the measurement build for path (a).**
+
+### 39.1 Two observations recorded, neither acted on
+
+1. **A63 needed 3 attempts; two were banked bifurcation discards.** Attempts 1 and 2 settled non-modal
+   — `modal_rot` `(359.46, 358.38)` and `(354.24, 353.71)`, settle windows starting at frames 37 and 51
+   — i.e. **genuine A47 bifurcation**, matching the discriminator's own signature (non-uniform ratio +
+   displaced `modal_rot`), *not* the resolution-scope pattern. **2-of-3 is a higher bifurcation rate
+   than the record's ~2-in-5**, and the new pak is much larger, so startup/streaming timing plausibly
+   differs. ⛔ **n = 3. Association only. No mechanism adopted, nothing changed.**
+2. **The accepted leg's rest pose is `(0.0, 0.35, 0.0)`, not exactly `(0,0,0)`** as H4's legs were.
+   Inside `SETTLE_TOL_DEG` 0.5 and inside `POSE_TOL_PX` 8.0, so it certifies — and it moves
+   `coverage_pct` from `7.7977` to `7.6575` and the modal bbox width from `306.1` to `301.1`. **Recorded
+   because a future comparison against an H4 leg should know the poses are near-identical, not
+   identical.**
+
+## 40. State after PART SIX
+
+| | |
+|---|---|
+| cook | ✅ **done** — `BUILD SUCCESSFUL`, 2 m 27 s, ExitCode 0 |
+| plugin production code | **ZERO lines, across all six parts** |
+| tag | **none** — a re-cook is not a milestone |
+| `feature/stencil-capture` | **untouched** |
+| `GameDefaultMap` | **unchanged** (`…/MainMenu.MainMenu`) |
+| `CB_GateLevel` | **untouched** (G99) — and **retained in the cook** |
+| baselines | 5 evacuated + hash-verified at `_binary_baselines\`; 4 also still in the staged tree |
+| bank | 91 → **104** dirs (9 rescued pre-cook, 4 smoke-leg dirs) |
+| disk | 32.8 GB free |
+| MainWorld reachable | **cooked in — not yet launched.** No path (a) leg was run. |
+
+⛔ **MainWorld was NOT launched beyond what the map-set read-back required — which was a container
+read, not a launch.** No occlusion measurement. **The path (a) design is chat-side and is not written
+here.**

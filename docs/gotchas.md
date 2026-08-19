@@ -1738,6 +1738,69 @@ under it is destroyed by the fix. Move them out first. The bench sessions for th
 raw evidence lives, and it is outside both git repos, so nothing but this note records it.
 (2026-08-16.)
 
+---
+
+📏 **MEASURED 2026-08-19 on a FULL `-cook -stage -pak -archive -build` — NOTHING WAS WIPED.** The
+MainWorld/G118 re-cook was run with every precaution taken first (baselines evacuated and hash-verified,
+bank swept 91 → 100 dirs). Afterwards:
+
+| tree | before | after |
+|---|---|---|
+| `Builds\BenchGate\…\Binaries\Win64\` leg output dirs | 56 | **56** |
+| `Builds\BenchGate\…\Binaries\Win64\*.baseline` exes | 4 | **4, all present** |
+| `Builds\BenchGate\…\Saved\` dirs | 23 | **23, incl. `M23B`** |
+
+⚠ **DO NOT READ THIS AS "THE WARNING WAS WRONG."** It is **one** cook, with **this** flag set
+(`-cook -stage -pak -archive -build`, **no `-clean`**), archiving **into an existing tree**. The
+2026-08-16 wipe was observed and is not being retracted. What is now known is that the archive step is
+**not unconditionally destructive**, so the difference is in the flags or the state, and **which** is
+not established. **The precaution stays: evacuate first.** It costs one copy and the failure it
+prevents is unrecoverable. *(The `Binaries\Win64\` question was open because G92 only ever spoke about
+`Saved\`; it is now answered for this flag set and only this one.)*
+
+---
+
+### G121 — a content-only re-cook leaves the EXE HASH UNCHANGED, so the exe hash does not identify the build
+
+The MainWorld + G118 re-cook changed **what the build contains and what it enforces**, and left the
+binary byte-identical:
+
+| | before the cook | after the cook |
+|---|---|---|
+| **exe SHA-256** | **`101AFEA4`** | **`101AFEA4`** — *identical* |
+| exe mtime | 2026-08-19 12:32:39 | **2026-08-19 12:32:39** — *identical* |
+| cooked maps | `CB_GateLevel`, `Entry`, `MainMenu` | **+ `MainWorld`** |
+| enforced control-server token | **`TESTVALUE123`** (placeholder) | **64-char rotated** |
+| `StackOBot-Windows.utoc` | 194,996 bytes | **268,036 bytes** |
+| `StackOBot-Windows.ucas` | 125,071,408 bytes | **284,469,920 bytes** |
+
+**Same exe hash. Different build. Different maps. Different secret.** No code changed, so `BuildCookRun`
+compiled nothing for the `StackOBot` target and the archived exe kept its **compile** time (G92 already
+warns that the archived exe inherits compile time, not archive time — this is the same fact biting from
+the other side).
+
+⛔ **Consequence, and it reaches backwards: every A44 hash reference in this project identifies only
+HALF the artifact.** `CLAUDE.md`'s *"staged exe `101AFEA4` = m25"* was true and is still true, and it
+is **no longer sufficient** — two builds now answer to it. A leg banked "against `101AFEA4`" does not
+say which content it ran on.
+
+**RULE: a build's identity is `exe hash + pak identity`. Record both.** The cheap pak identity is the
+`.utoc` — its size, mtime and hash:
+
+```
+StackOBot-Windows.utoc  939B9C9B   268,036 bytes   2026-08-19 17:00:27   (4 maps)
+StackOBot-Windows.ucas  8A602D4D   284,469,920 bytes
+StackOBot-Windows.pak   7CAE22DD    10,115,703 bytes
+```
+
+⚠ **The reverse case is the dangerous one and it is the reason this is a gotcha rather than a note:** a
+**code-only hot-swap (G103)** changes the exe hash and leaves the pak alone — so the two halves move
+**independently**, and *either* can change while the recorded identity says nothing happened. A
+same-hash comparison is not a same-build comparison in either direction.
+
+*(Related: G92 — compiled is not staged; G118/G119 — check what the artifact ENFORCES, not what its
+source says. This is that principle applied to the artifact's own fingerprint.)* (2026-08-19.)
+
 ### G93 — `FocusGate 0` + a high `VideoFps` corrupts the camera; neither alone does it
 
 Turning the m16 focus gate OFF at `VideoFps` 120/240 produced captures in which the player camera settled
