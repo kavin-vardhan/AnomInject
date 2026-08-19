@@ -366,6 +366,21 @@ Start-Sleep -Seconds 60
 Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
 ```
 
+**Launch geometry is a leg VARIABLE (S4-0), not a constant.** `run_leg.ps1` takes `-ResX -ResY
+-Fullscreen -ExtraExecCmds -GeometryNote`; defaults are unchanged, so existing invocations run
+identically. Every banked attempt carries `_leg_geometry.json` **beside** the session recording the
+launch rect, window mode, OS DPI scale and leg config — a leg that will be graded later must state the
+conditions it was produced under (**G106**).
+
+⚠ **B1's pose gate CANNOT RUN off 1280×720** — `CALIB_BBOX` is frozen in **pixels**, so any other
+resolution fails it for a reason unrelated to pose. `check_pose.py` prints the per-component ratio;
+a **uniform** ratio matching the resolution ratio with a stable `modal_rot` means **resolution scope**,
+not bifurcation. Rect evidence is still valid on such a leg; **alignment evidence is not.**
+
+⚠ **A display-scale change does NOT reach a packaged build** (**G114**) — it is DPI-unaware, so Windows
+virtualises it. To probe DPI you must force awareness on (`~ HIGHDPIAWARE` in AppCompatFlags) **and
+verify it with `GetProcessDpiAwareness` before the leg**, or the clean null you get is an artifact.
+
 - ⚠ **Output lands beside the EXE, not under `Saved`** — `...\Binaries\Win64\MYLEG\session_<ts>\`
   (**G101**). The log prints only the relative path.
 - ⚠ **`-ExecCmds` fires at STARTUP ONLY.** There is no way to issue a post-run console command from the

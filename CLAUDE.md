@@ -15,8 +15,24 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — `S4-0`/`S4-1`/`S4-2` ARE DONE AND PUSHED. THE DEFAULT GRAB POINT IS NOW THE
-  SVE / SCENE-COLOUR PATH: DELIVERED FRAMES NO LONGER CONTAIN GAME UI. NO TAG YET (`m25` is owed).**
+- 🟩 **YOU ARE HERE — `S4` IS COMPLETE AND TAGGED `m25`. THE DEFAULT GRAB POINT IS THE SVE /
+  SCENE-COLOUR PATH: DELIVERED FRAMES NO LONGER CONTAIN GAME UI.**
+  ✅ **`S4-3`** — `run_summary.capture_path` is emitted on **BOTH** paths (`"sve"` / `"backbuffer"`), so a
+  delivered session states what produced it; an absent field used to be indistinguishable from a pre-S3
+  build. `key_ring_*` stay SVE-only. Gate by **control pair**: SVE field set added `[]` removed `[]`;
+  backbuffer added **exactly `['capture_path']`**; **`annotation.json` field set UNCHANGED on both paths
+  — `P6` NOT MOVED.** ⛔ **RULING: C1's leak-check invariant is FORMALLY RETIRED** — it existed to prove
+  S3a was inert when off and has no remaining job. A ruling, not a side effect.
+  ✅ **`S4-4`** — delivery orthogonality re-asserted at the new default: **EXTRAS = 0**, **127 invariants
+  asserted POSITIVELY, 127 identical**, `capture_path` **invariant across delivery mode**. ⚠ **The first
+  pair was INVALID, not FAILED** — non-pose-matched, and the extras were *entirely* the camera-dependent
+  fields (A64's exact predicted shape, and journal 042 §4's). The indicator was read BEFORE the
+  comparison, so **the comparison did not run**; a pose-matched partner arrived on attempt 3 and every
+  attempt was banked.
+  ⚠ **CORRECTION TO m24:** `key_ring_published`/`consumed`/`wrapped` are **RUN-UNIQUE, not invariant**
+  (measured on a same-binary control pair — they count view families rendered before capture starts).
+  Only `missed`/`corrupted` are invariant. **m24's verdicts are undisturbed** (they rest on
+  `missed == corrupted == 0`), but its "all five identical across every pair" does not generalise.
   → journal `docs/sessions/2026-08-19-044-s4-instrument-matrix-and-flip.md`.
   **`IAI.Capture.SVE 0` IS THE BISECT SWITCH** — the one setting that reaches the unchanged backbuffer
   path, no rebuild, no re-cook. `bSveCaptureDefault` in `DefaultGame.ini` still overrides; **the shipped
@@ -61,13 +77,13 @@ and is the single source of truth for the project.
   1001×721 rect. Alignment at any other resolution is UNVERIFIED ON BOTH GRAB POINTS and is blocked by
   B1's pixel calibration, not by the grab point."* Plus m24's carried limits (modal pose only; VideoFps
   30 pinned; P7; **S3/S4 going green does not close `P1`**).
-  📦 **ENVIRONMENT:** staged exe **`259BF64F`** (the flip). Baselines preserved beside it:
-  `.s4-0-baseline` `834BB30A` (the binary all ten S4-1 legs ran on), `.m24-baseline` `3BA854FB`,
-  `.m23-baseline` `85A39CFB`. **Bank 85 dirs.**
-  ⛔ **NOT DONE: `S4-3`** (emit `capture_path` unconditionally — **approved, not built**; a backbuffer
-  `run_summary` currently has **no `capture_path` at all**, indistinguishable from a pre-S3 build), `S4-4`
-  (delivery re-assertion), `S4-5`, and the tag. **`annotation.json`'s field set is UNCHANGED and `P6` is
-  NOT MOVED.** Content clock untouched, still `wall`, key still unset.
+  📦 **ENVIRONMENT:** staged exe **`101AFEA4`** = `m25`. Baselines beside it: `.s4-2-baseline`
+  `259BF64F`, `.s4-0-baseline` `834BB30A` (the binary all ten S4-1 legs ran on), `.m24-baseline`
+  `3BA854FB`, `.m23-baseline` `85A39CFB`.
+  ⛔ **`annotation.json`'s field set is UNCHANGED across the whole of S4 and `P6` is NOT MOVED.**
+  Content clock untouched, still `wall`, key still unset. **`S4` DOES NOT CLOSE `P1` — it never could.**
+  `H1` remains P1's only named lead and still has no lever; **lever design is chat-side first, never
+  same-turn as its first measurement.** **Nothing in S4 is outstanding.**
 - 🟦 *(superseded — kept for the record)* **`S3` IS CERTIFIED AND TAGGED `m24`. RATIO-INDEPENDENCE IS
   DISCHARGED. THE I10 WINDOW-RE-CHECK DEBT IS DISCHARGED.**
   **Cold-start reading order: this block → `docs/sessions/2026-08-18-043-session-close-i10-recheck.md`

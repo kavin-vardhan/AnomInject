@@ -36,7 +36,14 @@ this is checkable retroactively on every session ever delivered.
 
 ---
 
-## ⚠ KNOWN LIMITATION — deep starvation presents a stale scene (ratio ≳ 3; tracked for m22)
+## ⚠ KNOWN LIMITATION — deep starvation presents a stale scene (BACKBUFFER PATH; ratio ≳ 3)
+
+> **SCOPE, added at S4.** Everything in this section is a **BACKBUFFER-PATH** property — it is about
+> what the *present* carries. **The default grab point since S4 is the SVE path**, which reads scene
+> colour before Slate and was certified **ALL-ALIGNED at ratio 3.03** at `m24`.
+> ⛔ **THE SHIP RULE ABOVE IS NOT RELAXED.** That certification is on a **synthetic bench level**
+> (G89) at **`VideoFps` 30** (A52), and neither licenses loosening a delivery gate on real client
+> content. Check `speed_ratio` before delivering, exactly as before.
 
 Under deep starvation the defect is **below** the capture layer and is NOT a labeling bug:
 - **Materials** (e.g. `missing_texture`): a one-time mid-run slip leaves the presented content one frame behind

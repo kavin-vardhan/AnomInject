@@ -750,13 +750,19 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   framerate-bug anomalies enter the pool (the flush would corrupt the framerate label) and for exact-under-motion
   view-matching (gotcha G40; re-derive L there).
 
-## Grab points — backbuffer (default) and SVE / B′ (S3a, default OFF)
+## Grab points — SVE / B′ (DEFAULT since S4) and backbuffer (the UI-on option)
 
 **As-built:** the capture subsystem can obtain a frame from **two** grab points, selected by
-`IAI.Capture.SVE <0|1>` (**default 0**, mid-run guarded; packaged default from `DefaultGame.ini`
-`[AnomalyCapture] bSveCaptureDefault`). The backbuffer path is unchanged and remains the default.
+`IAI.Capture.SVE <0|1>` (**default 1 since S4**, mid-run guarded; overridable from `DefaultGame.ini`
+`[AnomalyCapture] bSveCaptureDefault`, though the shipped default deliberately needs **no ini key** —
+which is what makes it immune to **G88**).
 
-| | **backbuffer** (default) | **SVE / B′** (`IAI.Capture.SVE 1`) |
+**The backbuffer path is unchanged and is KEPT as the UI-on option. `IAI.Capture.SVE 0` is its NAMED
+BISECT SWITCH** — the one setting that reaches it with no rebuild and no re-cook, in the same polarity
+S3 certified, which is why the switch was deliberately **not renamed**. The startup banner reports the
+grab point **and where its default came from** (compiled-in vs ini).
+
+| | **backbuffer** (`IAI.Capture.SVE 0` — the UI-on option) | **SVE / B′** (DEFAULT) |
 |---|---|---|
 | hook | `FSlateRenderer::OnBackBufferReadyToPresent` | `FSceneViewExtensionBase`, after `EPostProcessingPass::VisualizeDepthOfField` |
 | content | the presented frame, **game UI included** | scene colour post-tonemap, **pre-Slate ⇒ UI-free by construction** |
@@ -781,9 +787,20 @@ counters is logged, and **the frame is dropped**. No frame is ever labelled from
 `IAI.Capture.SVE.ForceMissPhase <P>` exist solely to make that guard testable;
 `IAI.Capture.SVE.RingTest [n]` exercises the ring headlessly.
 
-**Telemetry:** when — and only when — the switch is ON, `run_summary.json` gains `capture_path: "sve"`
-and `key_ring_{published,consumed,missed,wrapped,corrupted}`. With the switch OFF the file is
-byte-identical to the pre-S3 shape.
+**Telemetry:** `run_summary.json` carries **`capture_path`** — `"sve"` or `"backbuffer"` — on **BOTH**
+paths since **S4-3**, so a delivered session states what produced it. An absent field used to be
+indistinguishable from a pre-S3 build. `key_ring_{published,consumed,missed,wrapped,corrupted}` remain
+**SVE-only**; they have no meaning on the backbuffer path.
+
+⚠ **`key_ring_published` / `consumed` / `wrapped` are RUN-UNIQUE, not invariant** — measured on a
+same-binary, same-config control pair, they vary with how many view families render before capture
+starts. Only `missed` and `corrupted` are invariant. *(m24 reported all five as identical across its
+pairs; that was true of those pairs and does not generalise. Corrected here, m24's verdicts undisturbed
+— they rest on `missed == corrupted == 0`, not on the publish count.)*
+
+⛔ **C1's leak-check invariant — "a switch-OFF `run_summary` is byte-identical to the pre-S3 shape" — is
+FORMALLY RETIRED as of S4-3.** It existed to prove S3a was inert when off; once SVE is the default it
+has no remaining job. **This is a RULING, not a side effect of the change.**
 
 **Build cost:** `AnomalyCapture` gained `Renderer` **and a Renderer PRIVATE include path**, non-Shipping
 only, because the post-process hook takes `FPostProcessMaterialInputs` (**G100** — an engine bump breaks

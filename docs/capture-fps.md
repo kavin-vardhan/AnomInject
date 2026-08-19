@@ -167,7 +167,12 @@ with the one-sided rule above.
 
 ## Operational guidance
 
-- **⛔ `speed_ratio` IS A DELIVERY GATE, not just an fps-stamp input (m21).** Since m21, **label correctness is
+- **⛔ `speed_ratio` IS A DELIVERY GATE, not just an fps-stamp input (m21).** *(SCOPE, added at S4: the
+  mechanism below is a **BACKBUFFER-PATH** property — it is about what the PRESENT carries. The SVE
+  default grabs scene colour before Slate and was certified ALL-ALIGNED at ratio 3.03 at `m24`. **The
+  ship rule is NOT relaxed** — that certification is on a synthetic bench level (G89) at `VideoFps` 30
+  (A52), which does not license loosening a delivery gate.)*
+  Since m21, **label correctness is
   rate-dependent**: a run that cannot sustain its target starves the render thread, and the presented backbuffer
   begins carrying a **stale scene** — the pixels lag their own frame index, so labels/annotation are silently
   shifted. **`speed_ratio ≤ ~1.05` with `paced: true` → frame-exact and safe to deliver (proven at 1.000 and
@@ -183,8 +188,11 @@ with the one-sided rule above.
   *which* thread was starved — do not read a ratio as evidence for a game-side or a render-side cause.
   (It also refutes the tempting reading that the ratio is *blind* to render-side starvation: it is not.)
   → `docs/sessions/2026-08-16-031-s2-i10-game-lever-and-render-lever-provenance.md` §8.3 for the sweep.
-- **⛔ AT `VideoFps` 120/240 ON THE CURRENT BACKBUFFER PATH, HIDE-TYPE ANOMALY WINDOWS ARE LABELLED BUT NEVER
-  MANIFEST IN THE PIXELS.** MEASURED 2026-08-16: 49 of 49 hide events across four legs at 120 and 240 fps
+- **⛔ AT `VideoFps` 120/240 ON THE BACKBUFFER PATH, HIDE-TYPE ANOMALY WINDOWS ARE LABELLED BUT NEVER
+  MANIFEST IN THE PIXELS.** *(SCOPE, added at S4: measured on the backbuffer path, which is no longer the
+  default. **NO CLAIM IS MADE ABOUT THE SVE PATH ABOVE 30 fps** — **A52** pins every S3/S4 leg at 30, and
+  clean at 30 licenses nothing at any other fps in either direction. Treat this as live on both paths
+  until someone measures otherwise.)* MEASURED 2026-08-16: 49 of 49 hide events across four legs at 120 and 240 fps
   produced `annotation.json` hide windows that appear in **no captured frame** (99 labelled-positive frames
   per leg, target visible in every one). **Dataset-poisoning severity — every such frame is a training
   example asserting an anomaly over a clean picture.** Frame↔label pairing is exact and frames are not

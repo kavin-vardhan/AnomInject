@@ -35,6 +35,14 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       ⚠ **There is no pre-cook or pre-stage script in this project** — cooking and staging are run by
       hand from `setup-runbook.md` §8 — so this check has nowhere automatic to live. It runs here or
       it does not run.
+- [ ] **GRAB POINT — confirm which one the build ships on, from the LOG, not from memory.**
+      *Since S4 the default is the **SVE / scene-colour** path and **delivered frames contain NO game
+      UI**. The startup log states it and where the default came from:*
+      `Grab point: sve/scene-colour (… UI EXCLUDED), default from S4 COMPILED-IN DEFAULT …`
+      *To ship a **UI-included** build instead, set `[AnomalyCapture] bSveCaptureDefault=False`
+      (or `IAI.Capture.SVE 0` at runtime) and confirm the banner reads `UI INCLUDED`.*
+      *Cross-check the artifact too: `run_summary.json` → `capture_path` is `"sve"` or `"backbuffer"`
+      on every session since S4-3, so a delivered session states what produced it.*
 - [ ] **`[AnomalyCapture] bDeliveryModeDefault=True`.**
       *Absent → the client's sessions ship `labels.jsonl` + `run.json`, which includes the seed. Delivery
       mode is what limits output to the client-facing artifacts.*

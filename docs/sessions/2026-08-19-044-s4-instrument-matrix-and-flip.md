@@ -150,6 +150,11 @@ nothing was environmental.
 
 - the causal attribution is **DELETED OUTRIGHT**. Nothing replaces it. It invited a reader to blame the
   box, and **G108** already records an "environmental" halt that was the harness itself.
+- **the header's identical claim about FOCUS TIMEOUTS was softened under the SAME PRINCIPLE**, not
+  under a separate ruling. G108 established that a stalled process fails foreground activation, so a
+  focus-timeout header asserting an environmental cause carries exactly the defect this section exists
+  to remove. Same principle, second instance, same turn — recorded this way because the audit trail
+  matters more than the boundary between the two.
 - the label is now **"POSE GATE FAILED (B1) — CAUSE NOT ESTABLISHED"**, with the reason stated inline.
 - `check_pose.py` gained a **reporting-only** detail block — measured bbox, `CALIB_BBOX`, the
   per-component ratio, `modal_rot`/`distinct`/modal % — and the discriminator in words. No verdict, no
@@ -245,16 +250,22 @@ That is **the exact signature journal 042 §10.1 recorded for I10's L1** — ind
 `+1,+2,+3,+4,+7`. Journal 042 flagged it as *"a LEAD, NOT AN ATTRIBUTION"* and refused to claim it for
 B′ **because the two corpora differed in BINARY as well as capture path.**
 
-> **THAT CONFOUND IS NOW REMOVED: same binary, same level, same seed, same launch, differing only in
-> the grab-point cvar.** The direction is unchanged and the instance is cleaner.
->
-> ⛔ **This is still NOT a mechanism claim about B′, and it is n = 1 on the same-binary axis.** It is a
-> strengthened association, nothing more. *(Noted without asserting a cause: index 4 carries diff +7 and
-> the first event's claimed set is `[4,5,9,10]`, so one noisy frame does fall inside it — which is
-> consistent with the backbuffer leg's 6/7 decidability against the default's 7/7, and is recorded as a
-> consistency, not an explanation.)*
+**RULED — the record entry, in these exact terms, so a cold reader cannot over-read it:**
 
-**No S4-2 gate depends on this**, and both legs are ALL-ALIGNED regardless.
+> **The `+1,+2,+3,+4,+7` startup marker signature is now observed under a SAME-BINARY, SAME-SEED,
+> SAME-LAUNCH control with the grab point as the only variable (S4-2 gate (c) pair). Journal 042
+> §10.1's binary confound is REMOVED. This is a STRENGTHENED ASSOCIATION at n = 1 on the same-binary
+> axis. It is NOT a mechanism claim about B′, and no gate depends on it. Both legs returned
+> ALL-ALIGNED.**
+
+Recorded alongside it **as consistency and NOT as explanation:** index 4 carries diff `+7`, the first
+event's claimed set is `[4,5,9,10]`, so one noisy frame falls inside it — which sits beside the
+backbuffer leg's 6/7 decidability against the default's 7/7.
+
+⛔ **DO NOT CHASE THIS.** No phenomenon number. No lever. It is adjacent to `P1`, and **P1's lever
+design is chat-side first — that ruling is intact and this does not touch it.** If a future
+same-binary pair happens for another reason it costs nothing to check, and n rises for free. **That is
+the whole plan for it.**
 
 ### 6.3 What did NOT change
 
@@ -264,6 +275,64 @@ built.** `annotation.json`'s field set is **unchanged**; **P6 is not moved**; th
 untouched and its key stays unset.
 
 ---
+
+## 6.4 S4-3 — `capture_path` on both paths. GATE PASS.
+
+`WriteRunSummary` takes an explicit grab-point argument; the call site **stops inferring the grab point
+from the `Ring` pointer**. `key_ring_*` stay inside `if (Ring)`.
+
+⚠ **A44 CANNOT DISCRIMINATE THIS CHANGE, and I did not invent a marker string to pretend otherwise.**
+S4-3 adds no new literal — `"backbuffer"` already occurs inside `"async/backbuffer"` and the banner
+text. **The provenance proof here is the ARTIFACT (A62): the presence of `capture_path` on a backbuffer
+leg IS the change**, which is a *stronger* discriminator than a scan, not a weaker one. Control strings
+were still scanned to prove the scanner works and the binary is ours.
+
+**Gate, by CONTROL PAIR — the run-unique set fixed empirically BEFORE any test diff was read:**
+
+| | result |
+|---|---|
+| control pair (two S4-3 default legs, same binary/config) | key sets **identical**; run-unique values = `end_frame`, `key_ring_{published,consumed,wrapped}`, `speed_ratio`, `sustained_wall_fps` |
+| **SVE path**, S4-2 leg → S4-3 leg field set | added `[]`, removed `[]` |
+| **BACKBUFFER path**, S4-2 leg → S4-3 leg field set | added **`['capture_path']`**, removed `[]` |
+| values | default `"sve"` · backbuffer `"backbuffer"` |
+| `key_ring_*` | present on SVE only — correct |
+| **`annotation.json` field set, BOTH paths** | added `[]`, removed `[]` — **P6 NOT MOVED** |
+
+⛔ **RULING, recorded here and in the tag, not only in chat: C1's leak-check invariant — "a switch-OFF
+`run_summary` is byte-identical to the pre-S3 shape" — is FORMALLY RETIRED as of S4-3.** It existed to
+prove S3a was inert when off; once SVE is the default it has no remaining job. **A ruling, not a side
+effect of the change.**
+
+## 6.5 S4-4 — delivery orthogonality at the new default. GATE PASS, on the second pair.
+
+**The first pair was INVALID, not FAILED, and the distinction is the whole point.**
+
+The first delivery-ON leg landed **non-pose-matched**: OFF `coverage_ratio` uniform `0.077977`, ON
+`0.060633, 0.060134, 0.062112×6`. The extras set was **entirely** `camera/rotation`, `coverage_pct`,
+`coverage_ratio` — the camera-dependent fields, and nothing else. **A64's exact predicted shape**, and
+the identical shape journal 042 §4 hit on D2/D3 (35 and 27 differing fields).
+
+> **The pose indicator was read BEFORE the comparison, by a pre-fixed rule, on a condition independent
+> of the outcome. So the comparison DID NOT RUN.** Re-running for a pose-matched partner is the method
+> journal 042 established, not a laundering route — and every attempt was banked, including the
+> non-matching ones.
+
+Attempt 3 landed pose-matched (`0.077977`, one distinct value). Re-gated:
+
+- **EXTRAS = 0** against the empirically-fixed run-unique set + `delivery_mode`.
+- **127 invariants asserted POSITIVELY, 127 identical, 0 differing** — event count, `frame_indices`,
+  `affected_frames` start/end/count, `manifested`, type/subtype, node name/path/asset/class/bounds,
+  `coverage_ratio`, `coverage_pct`, the camera block per event, and the run_summary invariants.
+- **`capture_path` is present in BOTH legs and INVARIANT across delivery mode** (`"sve"` / `"sve"`).
+
+⚠ **A CORRECTION TO m24, found by the control pair.** Journal 042 states *"all five `key_ring_*`
+counters and `capture_path` are identical across every pair."* **`published`/`consumed`/`wrapped` are
+RUN-UNIQUE** — two runs of the same binary at the same config differ in them, because they count view
+families rendered before capture starts. Only `missed`/`corrupted` are invariant. **m24's verdicts are
+undisturbed** — they rest on `missed == corrupted == 0` and on the file set, not on the publish count —
+but the claim as written is too strong and does not generalise. *My own first invariant list repeated
+that error and asserted all three as invariants; the control pair had already shown otherwise, and the
+control pair is authoritative.*
 
 ## 7. `m25` TAG SCOPE — this text travels with the tag
 
@@ -292,6 +361,13 @@ Carried forward from `m24`, unchanged: **modal camera pose only**; **`VideoFps` 
   geometry mattered most — the discards — were the only ones without it. Hoisted into
   `Write-LegGeometry`, now written for every banked attempt; the four already-banked dirs were
   retro-filled and marked as retro-filled.
+- **I re-encoded two docs while editing them.** A `Get-Content -Raw` / `Out-File -Encoding utf8`
+  round-trip on `architecture.md` and `capture-fps.md` rewrote **every non-ASCII line and added a BOM** —
+  `git diff --stat` read **377 insertions / 377 deletions** on files meant to change in a handful of
+  places. Caught by reading the diffstat rather than trusting the edit, reverted with
+  `git checkout --`, and redone through the editor tool: **35 insertions / 10 deletions, no BOM.**
+  *A diffstat wildly larger than the intended change is an encoding smell; check it before committing,
+  because the content can look right while every line is rewritten.*
 
 ---
 
