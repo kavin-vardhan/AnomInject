@@ -67,6 +67,9 @@ public:
 	void SetSveCapture(bool bInSve);
 	bool IsSveCapture() const { return bSveCapture; }
 
+	void SetMaskMeasure(bool bInMask);
+	bool IsMaskMeasure() const { return bMaskMeasure; }
+
 	enum class EContentClock : uint8 { Wall, Game };
 	void SetContentClock(EContentClock InClock);
 	EContentClock GetContentClock() const { return ContentClock; }
@@ -193,6 +196,7 @@ private:
 
 	bool bAsyncCapture = true;
 	bool bSveCapture = true;
+	bool bMaskMeasure = false;
 	bool bRectDeltaLogged = false;
 	bool bDeliveryMode = false;
 	EContentClock ContentClock = EContentClock::Wall;

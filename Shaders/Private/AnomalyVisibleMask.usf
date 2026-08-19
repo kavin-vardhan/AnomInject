@@ -1,0 +1,38 @@
+// AnomalyVisibleMask.usf — occlusion-correct silhouette mask (m26 slice 1).
+// For each pixel: if the custom-stencil value is one of our reserved tags AND the tagged surface is
+// the front-most one there (custom depth not behind the scene's front surface, reversed-Z), output
+// the tag; else 0. The CPU then reduces to a per-tag SURVIVING-PIXEL COUNT. Bound: the scene-texture
+// uniform buffer (FSceneTextureShaderParameters) provides CustomStencilTexture / CustomDepthTexture /
+// SceneDepthTexture.
+//
+// Mined READ-ONLY from feature/stencil-capture (76cac74). That branch is NOT checked out, merged or
+// rebased; this file is a copy, and the branch's foliage blacklist and USkeletalMeshComponent
+// narrowing deliberately did NOT come with it.
+
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/SceneTexturesCommon.ush"
+
+float DepthBias;
+uint ReservedBase;
+int2 ViewRectMin;
+
+void MainPS(float4 SvPosition : SV_POSITION, out uint OutMask : SV_Target0)
+{
+	// The mask RT is the view-rect size (0-based); the scene textures are full-extent with the view
+	// at ViewRectMin -> offset the scene-texture lookup.
+	int2 P = int2(SvPosition.xy) + ViewRectMin;
+
+	uint Stencil = CalcSceneCustomStencil((uint2)P);
+	if (Stencil < ReservedBase)
+	{
+		OutMask = 0;
+		return;
+	}
+
+	float CustomDeviceZ = SceneTexturesStruct.CustomDepthTexture.Load(int3(P, 0)).r;
+	float SceneDeviceZ  = SceneTexturesStruct.SceneDepthTexture.Load(int3(P, 0)).r;
+
+	// Reversed-Z: nearer = larger device Z. The tagged surface is visible (front-most) iff it is at
+	// least as near as the scene's front-most surface, within a small device-Z bias.
+	OutMask = (CustomDeviceZ >= SceneDeviceZ - DepthBias) ? Stencil : 0;
+}

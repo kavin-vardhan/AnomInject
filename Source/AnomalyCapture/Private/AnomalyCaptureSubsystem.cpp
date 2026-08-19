@@ -19,6 +19,9 @@
 #include "AnomalyFrameCapturer.h"
 #include "AnomalySveCapturer.h"
 #include "AnomalySceneViewExtension.h"
+#include "AnomalyMaskSceneViewExtension.h"
+#include "AnomalyMaskMeasure.h"
+#include "AnomalyStencilTag.h"
 #include "AnomalySveKeyRing.h"
 #include "AnomalyAsyncWriter.h"
 #include "SceneViewExtension.h"
@@ -90,9 +93,11 @@ struct FAnomalyCaptureAsyncState
 	TSharedPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> Capturer;
 	TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> SveCapturer;
 	TSharedPtr<FAnomalySceneViewExtension, ESPMode::ThreadSafe> SveExtension;
+	TSharedPtr<FAnomalyMaskSceneViewExtension, ESPMode::ThreadSafe> MaskExtension;
 	TSharedPtr<FAnomalyAsyncWriter, ESPMode::ThreadSafe> Writer;
 	TMap<uint64, AnomalyLabel::FCaptureSnapshot> PendingSnapshots;
 	TArray<FSessionEventAccum> SessionEvents;
+	FAnomalyMaskMeasure MaskMeasure;
 #endif
 };
 
@@ -433,6 +438,14 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		break;
 	}
 
+	if (bMaskMeasure && Async.IsValid() && Async->MaskExtension.IsValid())
+	{
+		Async->MaskMeasure.VerifyPendingTags();
+		Async->MaskExtension->EnqueueDrain();
+		Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
+		Async->MaskMeasure.ArmIfMeasurable(Async->MaskExtension.Get(), GFrameCounter);
+	}
+
 	FinalizeArmedLabel();
 #endif
 }
@@ -534,6 +547,19 @@ void UAnomalyCaptureSubsystem::SetSveCapture(bool bInSve)
 		bSveCapture
 			? TEXT("B' scene-view-extension grab: scene colour after tonemap and BEFORE Slate, so the frame is UI-free; frame/state keyed by identity through the view-family ring, not by arm-to-present order")
 			: TEXT("backbuffer grab (default): the presented frame including game UI, keyed by arm-to-present pairing"));
+}
+
+void UAnomalyCaptureSubsystem::SetMaskMeasure(bool bInMask)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Mask: ignored - a capture run is in progress."));
+		return;
+	}
+	bMaskMeasure = bInMask;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.Mask: %s (m26 slice 1: MEASURE ONLY - log output only, no artifact field, no veto)."),
+		bMaskMeasure ? TEXT("ON") : TEXT("off"));
 }
 
 void UAnomalyCaptureSubsystem::SetContentClock(EContentClock InClock)
@@ -689,6 +715,19 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		AnomalySveKeyRing::Reset();
 		Async->SveCapturer->Reset();
 		Async->SveCapturer->SetActive(true);
+	}
+
+	if (bMaskMeasure && Async.IsValid())
+	{
+		if (Async->MaskExtension.IsValid())
+		{
+			Async->MaskExtension->Reset();
+		}
+		Async->MaskMeasure.BeginRun();
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(mask): m26 SLICE 1 ACTIVE - MEASURE ONLY. Log output only: no annotation field, ")
+			TEXT("no veto, mask{provided} stays false. Reserved stencil base %d, max %d arms/event."),
+			AnomalyStencilTag::ReservedStencilBase, FAnomalyMaskMeasure::MaxArmsPerEvent);
 	}
 
 	UE_LOG(LogAnomalyCapture, Log,
@@ -925,6 +964,10 @@ void UAnomalyCaptureSubsystem::EnsureCapturer()
 	{
 		Async->Capturer = MakeShared<FAnomalyFrameCapturer, ESPMode::ThreadSafe>();
 		Async->Capturer->RegisterBackbufferHook();
+	}
+	if (bMaskMeasure && !Async->MaskExtension.IsValid())
+	{
+		Async->MaskExtension = FSceneViewExtensions::NewExtension<FAnomalyMaskSceneViewExtension>();
 	}
 	if (!Async->Writer.IsValid())
 	{
@@ -1547,6 +1590,48 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		}
 	}
 
+	if (bMaskMeasure && Async.IsValid())
+	{
+		if (Async->MaskExtension.IsValid())
+		{
+			Async->MaskExtension->EnqueueDrain();
+			FlushRenderingCommands();
+			Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
+		}
+
+		const TArray<FAnomalyMaskRecord>& Recs = Async->MaskMeasure.GetRecords();
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(mask): M26S1 SUMMARY events=%d notMeasured=%d"),
+			Recs.Num(), Async->MaskMeasure.NumUnmeasured());
+		for (const FAnomalyMaskRecord& R : Recs)
+		{
+			const double PctOfFrame = (R.ViewportPixels > 0)
+				? (100.0 * (double)R.MaxCount / (double)R.ViewportPixels) : -1.0;
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(mask): M26S1 EVENT id=%s target=%s startFrame=%llu tag=%d state=%s ")
+				TEXT("maxCount=%d viewportPx=%d pctOfFrame=%.4f arms=%d resolved=%d skippedHidden=%d ")
+				TEXT("collisions=%d tagFailed=%d%s%s"),
+				*R.Id.ToString(), *R.Target, R.StartFrame, (int32)R.Tag,
+				LexToStringAnomalyMaskState(R.State),
+				R.MaxCount, R.ViewportPixels, PctOfFrame,
+				R.ArmsIssued, R.ArmsResolved, R.SkippedHidden,
+				R.CollisionHits, R.bTagFailed ? 1 : 0,
+				R.FirstCollisionDetail.IsEmpty() ? TEXT("") : TEXT(" detail="),
+				*R.FirstCollisionDetail);
+
+			if (R.State == EAnomalyMaskState::NotMeasured)
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(mask): M26S1 NOT_MEASURED for '%s' on '%s' - no qualifying frame ")
+					TEXT("(armsIssued=%d resolved=%d skippedHidden=%d tagFailed=%d collisions=%d). ")
+					TEXT("Slice 3 MUST ADMIT this event: never-measured is not measured-zero."),
+					*R.Id.ToString(), *R.Target, R.ArmsIssued, R.ArmsResolved, R.SkippedHidden,
+					R.bTagFailed ? 1 : 0, R.CollisionHits);
+			}
+		}
+		Async->MaskMeasure.EndRun();
+	}
+
 	if (Async.IsValid() && Async->SveCapturer.IsValid())
 	{
 		Async->SveCapturer->SetActive(false);
@@ -1630,6 +1715,11 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 				AnomalyViewport::EvaluateSelectionProvenance(World, FActor, Ev->Provenance);
 			}
 			Ev->NodePos = FirePos.IsValidIndex(i) ? FirePos[i] : FVector::ZeroVector;
+		}
+
+		if (bMaskMeasure)
+		{
+			Async->MaskMeasure.FindOrAddRecord(F.Id, F.Target, F.StartFrame, const_cast<AActor*>(F.TargetActor.Get()));
 		}
 
 		if (const AActor* FActor = F.TargetActor.Get())
@@ -1950,6 +2040,31 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryCmd(
 				return;
 			}
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetCaptureDelivery(FCString::Atoi(*Args[0]) != 0); }
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskCmd(
+	TEXT("IAI.Capture.Mask"),
+	TEXT("m26 SLICE 1 - MEASURE ONLY (default OFF). ON: tag each fired target into custom stencil using the ")
+	TEXT("SHARED renderable predicate (AnomalyViewport::IsRenderableComponent), rasterise an occlusion-correct ")
+	TEXT("silhouette mask after tonemap, and reduce it to a per-event SURVIVING-PIXEL COUNT. The mask is armed ")
+	TEXT("only on a tick where the target is KNOWN NOT HIDDEN, so a hide-type target is measured post-revert; ")
+	TEXT("an event with no qualifying frame stays NOT_MEASURED and must be ADMITTED by slice 3. Output is LOG ")
+	TEXT("ONLY: no annotation.json field changes, mask{provided} stays false, and NOTHING is vetoed. Mid-run ")
+	TEXT("changes are ignored (stop first). Usage: IAI.Capture.Mask <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.Mask <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetMaskMeasure(FCString::Atoi(*Args[0]) != 0);
+				UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.Mask: EFFECTIVE READ-BACK = %d."),
+					Cap->IsMaskMeasure() ? 1 : 0);
+			}
 		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureSveCmd(
