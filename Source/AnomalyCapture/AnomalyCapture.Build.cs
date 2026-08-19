@@ -33,7 +33,7 @@ public class AnomalyCapture : ModuleRules
 				"Slate",
 				"SlateCore",
 				"ApplicationCore",
-				"Projects"
+				"AnomalyShaders"
 			});
 
 			PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));

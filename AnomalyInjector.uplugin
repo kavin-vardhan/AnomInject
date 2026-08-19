@@ -17,6 +17,11 @@
 	"EnabledByDefault": true,
 	"Modules": [
 		{
+			"Name": "AnomalyShaders",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit"
+		},
+		{
 			"Name": "AnomalyInjector",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
