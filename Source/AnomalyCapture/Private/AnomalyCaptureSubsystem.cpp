@@ -1485,6 +1485,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
+			bSveCapture ? TEXT("sve") : TEXT("backbuffer"),
 			bSveCapture ? &RingTelemetry : nullptr);
 
 		if (bSveCapture)
