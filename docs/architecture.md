@@ -790,10 +790,62 @@ only, because the post-process hook takes `FPostProcessMaterialInputs` (**G100**
 this far from its cause, and the `class FViewInfo;` forward declaration in
 `AnomalySceneViewExtension.cpp` must not be tidied away).
 
+### The resolution matrix (S4-1, measured) — RECT EQUIVALENCE
+
+Ten packaged legs, `CB_GateLevel`, `VideoFps` 30 pinned. Four rect sources compared per leg: the
+delivered **PNG** (read from its IHDR chunk — ground truth), `labels.jsonl` width/height,
+`annotation.video.resolution` and `run.json` viewport. **All four agree on every leg.**
+
+| leg | config | rect | dW/dH | B1 | A54 |
+|---|---|---|---|---|---|
+| M0s / M0b | 1280×720 windowed, SVE / backbuffer | 1280×720 | 0/0 | yes / n/a | ALL-ALIGNED 7/7 |
+| M1a | 1280×720, desktop **150 %**, engine default | 1280×720 | 0/0 | yes | ALL-ALIGNED 7/7 |
+| M1b | 1280×720, **150 %**, process forced **DPI-AWARE** | 1280×720 | 0/0 | yes | ALL-ALIGNED 7/7 |
+| M1c | **1001×721**, 150 %, DPI-aware (non-multiple) | 1001×721 | 0/0 | blocked | unjudgeable |
+| M2 | 1280×1024 (5:4) | 1280×1024 | 0/0 | blocked | unjudgeable |
+| M3 | 1920×1080 **fullscreen** | 1920×1080 | 0/0 | blocked | unjudgeable |
+| M4a / M4b | `r.ScreenPercentage` **50** / **170** @1280×720 | 1280×720 | 0/0 | yes | ALL-ALIGNED 7/7 |
+| M5 | **1281×721** (odd) | 1281×721 | 0/0 | yes | ALL-ALIGNED 7/7 |
+
+**The SVE grab is at OUTPUT resolution in every case**, including both screen-percentage directions.
+42 counted events across the six judgeable legs, **42 ALIGNED, 0 SHIFTED, 0 ABSENT, 42/42 decidable**,
+in-leg positive control decisive in both directions on every one.
+
+⚠ **THE THREE CAVEATS ON THE SCREEN-PERCENTAGE PRIOR, which travel with it.** Journal 028
+(`docs/sessions/2026-07-29-028-…`, the journal that MEASURED it — not the handoff that summarises it)
+found the SVE frame stayed at output resolution at SP 170/320. That figure was measured **(a)** with the
+**CaptureBench A/B probe plugin**, not production `FAnomalySceneViewExtension`; **(b)** at **1920×1080**,
+not 1280×720; and **(c)** **above SP 100 only**. M4b reproduces it on the production path at 1280×720;
+**M4a extends it into the upsample direction 028 never tested.**
+
+⚠ **NOT MEASURED, and M2 is explicitly NOT a substitute: a TRUE camera-constrained letterbox**
+(`bConstrainAspectRatio` on the camera). It needs a content change to `CB_GateLevel`, therefore
+`make_gate_level.py` (destructive by default — **G99**) and a re-cook (**G92**). The gap is stated, not
+papered over.
+
+⚠ **ALIGNMENT is certified at 1280×720 and 1281×721 ONLY.** B1's pose precondition compares a **PIXEL**
+bbox against `CALIB_BBOX`, frozen at 1280×720 with an 8 px tolerance, so it **cannot run at any other
+resolution** — four legs were blocked by it and **three of the four had a provably motionless camera**
+(`modal_rot` stable, `distinct=1`, modal 100 %). M3's per-component ratio is a uniform **1.5**, exactly
+the resolution ratio. **This is an INHERITED gap, not one S4 introduces: it is unverifiable on BOTH grab
+points.** Normalising `CALIB_BBOX` to NDC would unblock it and is **filed alongside B2** as a definition
+change needing its own eight-control gate. → **G107**'s family.
+
+⚠ **Packaged builds are DPI-UNAWARE** (**G114**) — Windows reports 96 DPI to the process whatever the
+desktop scale is. A display-scale change therefore does **not** reach the process, and a null measured
+that way is an artifact of insulation, not a result. M1b was re-run with the process **forced DPI-aware
+and verified** by `GetProcessDpiAwareness` before the leg; that is the leg the table cites.
+
 ⚠ **Certification scope:** S3a certified the mechanism at **ratio ≈ 1.0 only**. Ratio-independence,
-behaviour under stall, and marker-verified frame identity are **S3b** and are **not** established.
-`node.bounds`/UI/resolution consequences of ever flipping the default belong to **S4**, which must plan
-it as a **client-visible change** (the SVE image has no UI in it).
+behaviour under stall, and marker-verified frame identity were certified at **S3b** (`m24`).
+`node.bounds`/UI/resolution consequences of flipping the default belong to **S4**, which plans it as a
+**client-visible change** (the SVE image has no UI in it).
+
+**The UI claim's limit, verbatim — it is REASONING past the measured case and does not get promoted:**
+
+> **UI exclusion is verified in pixels against Canvas AHUD output in `CB_GateLevel` at 1280×720
+> windowed. Exclusion of Slate/UMG follows from compositing order and is REASONED, NOT MEASURED.
+> Not verified in a gameplay level.**
 
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:

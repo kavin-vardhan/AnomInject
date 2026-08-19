@@ -57,6 +57,37 @@ frame can be *marked* rather than mislabeled when the present is stale.
   (`LastRunPacing.StampedFps`); frame indices are a plain counter. game@240 and wall@240 both shift; game@30 and
   wall@30 are both exact. The variable is **`speed_ratio`**, nothing else. (G82.)
 
+## Display scaling and launch resolution (S4-1, measured)
+
+**Packaged builds are DPI-unaware.** Windows reports 96 DPI to the process regardless of desktop
+scaling and composites the output afterwards. **Captures are therefore at the LAUNCH resolution, not
+the scaled desktop resolution.** All four rect sources — the delivered PNG, `labels.jsonl`
+width/height, `annotation.video.resolution` and `run.json` viewport — agree in **both** regimes
+(measured, S4-1 legs M1a / M1b / M1c: desktop at 150 %, once at the engine default and once with the
+process forced DPI-aware and verified as such, including a non-multiple 1001×721 rect).
+
+⚠ **RECOMMEND EVEN LAUNCH DIMENSIONS.** With odd dimensions the **mp4 is 1 px larger than the frames**:
+h.264 requires even width and height, so the encoder pads (`pad=ceil(iw/2)*2:ceil(ih/2)*2`) — which is
+why the encode succeeds at all. **Measured** on a 1281×721 leg: PNGs 1281×721,
+`annotation.video.resolution` 1281×721, **mp4 1282×722**, 90 frames at 30 fps.
+**This is a constraint of odd launch dimensions, not a defect**, and the encoder is deliberately
+unchanged (crop-vs-pad is its own decision, not taken here).
+
+## What a delivered frame CONTAINS — the grab point (S4)
+
+The capture path has two grab points and the choice is what puts UI in the image or keeps it out:
+
+| | **SVE / scene colour** | **backbuffer** |
+|---|---|---|
+| console | `IAI.Capture.SVE 1` | `IAI.Capture.SVE 0` |
+| content | scene colour post-tonemap, **pre-Slate ⇒ NO UI** | the presented player frame, **UI INCLUDED** |
+
+⚠ **The limit on that claim, verbatim, and it does not get promoted by repetition:**
+
+> **UI exclusion is verified in pixels against Canvas AHUD output in `CB_GateLevel` at 1280×720
+> windowed. Exclusion of Slate/UMG follows from compositing order and is REASONED, NOT MEASURED.
+> Not verified in a gameplay level.**
+
 ## What delivery mode does
 
 `IAI.Capture.Delivery 1` (or the packaged default below) makes each capture run write **only**:

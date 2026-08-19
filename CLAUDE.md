@@ -15,8 +15,61 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — `S3` IS CERTIFIED AND TAGGED `m24`. RATIO-INDEPENDENCE IS DISCHARGED.
-  THE I10 WINDOW-RE-CHECK DEBT IS DISCHARGED. `S4` IS NEXT AND NOT STARTED.**
+- 🟩 **YOU ARE HERE — `S4-0`/`S4-1`/`S4-2` ARE DONE AND PUSHED. THE DEFAULT GRAB POINT IS NOW THE
+  SVE / SCENE-COLOUR PATH: DELIVERED FRAMES NO LONGER CONTAIN GAME UI. NO TAG YET (`m25` is owed).**
+  → journal `docs/sessions/2026-08-19-044-s4-instrument-matrix-and-flip.md`.
+  **`IAI.Capture.SVE 0` IS THE BISECT SWITCH** — the one setting that reaches the unchanged backbuffer
+  path, no rebuild, no re-cook. `bSveCaptureDefault` in `DefaultGame.ini` still overrides; **the shipped
+  default deliberately needs NO ini key**, which is what makes it immune to G88. The startup banner now
+  states the grab point **and where its default came from**.
+  ✅ **S4-1 MATRIX — CASE A ON ALL TEN LEGS.** All four rect sources (PNG-from-IHDR as ground truth,
+  `labels.jsonl`, `annotation.video.resolution`, `run.json` viewport) agree at 1280×720, 1280×1024,
+  fullscreen 1920×1080, odd 1281×721, non-multiple 1001×721, `r.ScreenPercentage` 50 **and** 170, and
+  desktop scale 150 % in two DPI regimes. **42 counted events, 42 ALIGNED, 42/42 decidable** on the six
+  judgeable legs. **CASE D never fired.**
+  ✅ **S4-2 GATES (a)–(d) ALL PASS.** Default leg with `IAI.Capture.SVE` **absent** from ExecCmds →
+  `capture_path: "sve"`, ring 121/121/0. Backbuffer leg contains UI by **positive pixel check**
+  (`max(R−B)` **1.00000 vs 0.00392**, separation 0.996 against a control band of 0.004; the pair is
+  A63-comparable and pose-matched with **identical** bboxes).
+  🚨 **G114 — THE FINDING OF THIS ARC, ABOVE THE RECTS: a packaged UE game is DPI-UNAWARE**, so a
+  display-scale change **never reaches the process** and the clean null that produces is an **ARTIFACT
+  OF INSULATION**. `GetProcessDpiAwareness` read `PROCESS_DPI_UNAWARE` **with and without** a
+  `~ DPIUNAWARE` override ⇒ the override was a **no-op** and two legs were one regime measured twice.
+  Fixed with the **opposite** override (`~ HIGHDPIAWARE` → `PER_MONITOR_DPI_AWARE`, verified before the
+  leg). **This is G96's principle applied to a LEVER rather than an oracle, and that is worse: a blind
+  oracle leaves unevaluable output to notice, while a lever that does nothing produces a clean null
+  INDISTINGUISHABLE from a clean result.** Read the LIVE PROCESS, not the cvar default
+  (`EnableHighDPIAwareness` defaults to 1 and reads the opposite way).
+  ⛔ **B1 CANNOT RUN OFF-CALIBRATION** — `CALIB_BBOX` is frozen **in PIXELS** at 1280×720, so four legs
+  were blocked and **three had a provably motionless camera** (M3's per-component ratio is a uniform
+  **1.5** = the resolution ratio). **RULED: accept and scope; B1 is UNTOUCHED.** Alignment is certified
+  at **1280×720 and 1281×721 only**, and that gap is **INHERITED — unverifiable on BOTH grab points**,
+  not introduced by S4. NDC-normalising `CALIB_BBOX` is **filed alongside `B2`**; per-resolution
+  constants **REJECTED** (same failure family as G107/P8).
+  🆕 **A gate that FAILS SAFE still misleads if its LABEL names a cause it has not established.** The
+  harness called those four failures *"INVALID (A47 bifurcated pose)"* then *"an ENVIRONMENTAL problem"* —
+  neither true. The causal attribution is **DELETED**; the label is now **"POSE GATE FAILED (B1) — CAUSE
+  NOT ESTABLISHED"**; `check_pose.py` prints the per-component ratio and the discriminator, **reporting
+  only**. Proven on both causes: resolution scope = uniform ratio + camera still; genuine A47 = width
+  ratio **0.055** + rotation displaced.
+  🔬 **The backbuffer leg reproduces I10-L1's startup marker noise** (indices 0–4, diffs
+  `+1,+2,+3,+4,+7`) **and the SVE leg shows zero** — on a **same-binary** pair, which removes the confound
+  journal 042 §10.1 flagged. ⛔ **Still NOT a mechanism claim about B′; n = 1 on that axis.**
+  🚨 **`m25` TAG SCOPE, when it is cut:** *"Label alignment on the default (SVE) path is certified at
+  1280×720 and 1281×721 only. Rect equivalence is certified across ten legs including 1280×1024,
+  fullscreen 1920×1080, SP50, SP170, and a VERIFIED DPI-AWARE process at 150 % including a non-multiple
+  1001×721 rect. Alignment at any other resolution is UNVERIFIED ON BOTH GRAB POINTS and is blocked by
+  B1's pixel calibration, not by the grab point."* Plus m24's carried limits (modal pose only; VideoFps
+  30 pinned; P7; **S3/S4 going green does not close `P1`**).
+  📦 **ENVIRONMENT:** staged exe **`259BF64F`** (the flip). Baselines preserved beside it:
+  `.s4-0-baseline` `834BB30A` (the binary all ten S4-1 legs ran on), `.m24-baseline` `3BA854FB`,
+  `.m23-baseline` `85A39CFB`. **Bank 85 dirs.**
+  ⛔ **NOT DONE: `S4-3`** (emit `capture_path` unconditionally — **approved, not built**; a backbuffer
+  `run_summary` currently has **no `capture_path` at all**, indistinguishable from a pre-S3 build), `S4-4`
+  (delivery re-assertion), `S4-5`, and the tag. **`annotation.json`'s field set is UNCHANGED and `P6` is
+  NOT MOVED.** Content clock untouched, still `wall`, key still unset.
+- 🟦 *(superseded — kept for the record)* **`S3` IS CERTIFIED AND TAGGED `m24`. RATIO-INDEPENDENCE IS
+  DISCHARGED. THE I10 WINDOW-RE-CHECK DEBT IS DISCHARGED.**
   **Cold-start reading order: this block → `docs/sessions/2026-08-18-043-session-close-i10-recheck.md`
   (session close-out, written for a cold reader) → `docs/sessions/2026-08-18-042-s3b-matrix-certified.md`
   (the whole S3b arc; §10 is the re-check) → `docs/CHAT-HANDOFF-s3a-sve-landed.md` → the three S2 handoffs.**

@@ -192,7 +192,7 @@ private:
 	TArray<FAnomalyViewInfo> ViewRing;
 
 	bool bAsyncCapture = true;
-	bool bSveCapture = false;
+	bool bSveCapture = true;
 	bool bRectDeltaLogged = false;
 	bool bDeliveryMode = false;
 	EContentClock ContentClock = EContentClock::Wall;

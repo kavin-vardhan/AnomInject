@@ -243,16 +243,21 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bFocusGate = bConfigFocusGate;
 	}
 	bool bConfigSve = false;
+	bool bSveFromIni = false;
 	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bSveCaptureDefault"), bConfigSve, GGameIni))
 	{
 		bSveCapture = bConfigSve;
+		bSveFromIni = true;
 	}
-	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s)."),
+	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s), default from %s."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
 		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
 		bFocusGate ? TEXT("on (start waits for game-window focus)") : TEXT("off (start begins immediately)"),
 		DescribeGrabPoint(),
-		bSveCapture ? TEXT("scene colour, pre-Slate — UI EXCLUDED") : TEXT("presented backbuffer — UI INCLUDED"));
+		bSveCapture ? TEXT("scene colour, pre-Slate — UI EXCLUDED") : TEXT("presented backbuffer — UI INCLUDED"),
+		bSveFromIni
+			? TEXT("DefaultGame.ini [AnomalyCapture] bSveCaptureDefault")
+			: TEXT("S4 COMPILED-IN DEFAULT (SVE, UI-free); no ini key present; IAI.Capture.SVE 0 selects the backbuffer/UI-on path"));
 #if WITH_EDITOR
 	if (ULevelEditorPlaySettings* PlaySettings = GetMutableDefault<ULevelEditorPlaySettings>())
 	{
