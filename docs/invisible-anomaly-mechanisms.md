@@ -45,6 +45,7 @@ been the difference between a finding and a foreclosure (**G120**).
 | **pointer** | journal 045 PART NINE · **G124** |
 | 🚨 **generalises** | **MEASURED and NOT foliage-specific.** **3 of 13** non-foliage selectable actors carry a **NEGATIVE `poll_distance`** — `BP_SpawnPad_C` **−114.8** (a **plain `StaticMeshComponent`**), `BP_SplineSpawn_C` **−19405.5**, `RoomBuilderSquare_C` **−1737.8**. A negative value means the bounds sphere already contains the poll origin, so **the 1800 cm cull can never fire from anywhere in the level**. |
 | ⛔ **limits** | **MECHANISM ONLY, NO INCIDENCE CLAIM.** One instance measured end-to-end; the owner's `InstancedMeshActor` is **not** this actor. |
+| **cure direction** | 🆕 **`C-1` (surviving-pixel count via a mask) — OWNER-RULED 2026-08-19.** ⛔ **NOT A REVIVAL OF `feature/stencil-capture`: mine it, do not resume it.** Its blacklist must not survive; its `USkeletalMeshComponent` narrowing manufactures the defect it detects; its reduction is unpriced. **SHAPE NOT CHOSEN** — see journal 045 PART THIRTEEN `T-2`. |
 | **n** | **2 measured instances** — `InstancedFoliageActor_0_0_0` and **`BP_SplineSpawn_C`** (22.9 % of frame claimed, peak in-bbox change **0.0175** against the control's **0.5515**). ⚠ **`BP_SplineSpawn_C` was excluded from an earlier candidate list on the inference "it clearly draws", from its rect size — which is CLAIMED extent, the very quantity H5 says is untrustworthy. Measurement overturned it.** |
 | **cure** | ⛔ **UNKNOWN, and NOT designed.** ⚠ **A CLASS BLACKLIST IS NOT A FIX** — measured, it breaks `RoomBuilderSquare_C`, a legitimate target with a 75:1 in/out change ratio. |
 
@@ -291,6 +292,26 @@ exactly and refcounts `r.CustomDepth 3`.
    direction.**
 3. ⚠ Its reduction is a **W×H single-threaded CPU scan on the render thread** per armed frame
    (921,600 byte reads at 1280×720). Not measured; flagged as the cost nobody has priced.
+
+---
+
+## 7. `P6`'s FOURTH OBSERVATION — label geometry and selection geometry DISAGREE
+
+⛔ **RECORDED, NOT FIXED. `P6` DOES NOT MOVE.** Same family as `C-5`, which is a **measured no-op on
+`H5`** (§6.2) — so this is **not** `H5`'s cure and must not be mistaken for it.
+
+| path | test | `IsVisible()` gate? |
+|---|---|---|
+| **selection** — `IsRenderableComponent` (`AnomalyViewport.cpp:493`) | `IsVisible()` ∧ ISM instance count ∧ type | ✅ **YES** |
+| **label rect** — `ProjectActorBoundsToScreenRect` (`:653-685`) | **type ONLY** — `IsA<UStaticMeshComponent>() \|\| IsA<USkinnedMeshComponent>()` | ⛔ **NO** |
+| **`node.bounds`** — `GetComponentsBoundingBox(true)` | every `UPrimitiveComponent`, incl. collision + gizmos | ⛔ **NO** |
+
+⇒ **an invisible mesh component ENLARGES the label box while being unable to carry a selection.**
+Three code paths, three different answers to *"what is the object?"*
+
+🚨 **ADJACENCY TO THE CURE — NOTED, NOT ACTED ON.** If a mask measures *"drawn pixels of the target"*,
+that is a **FOURTH** definition. **A cure that adds a fourth definition is a defect generator.** Any
+cure design must state which single definition selection, labelling and masking all share.
 
 ---
 

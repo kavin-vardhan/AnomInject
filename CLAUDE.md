@@ -20,9 +20,9 @@ and is the single source of truth for the project.
   📒 **READ `docs/invisible-anomaly-mechanisms.md` FIRST** — the five-row ledger of *distinct*
   mechanisms with *potentially distinct cures*, **now carrying `§6` THE COSTED CURE OPTION SPACE**.
   Then journal `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`, which has a **PART
-  INDEX** at the top covering **TWELVE parts** (H4 pre-flight → the H4 run → environment scout →
+  INDEX** at the top covering **THIRTEEN parts** (H4 pre-flight → the H4 run → environment scout →
   pre-cook gate → the re-cook → MainWorld first launch → geometry survey → `H5` → traceability →
-  cure measurement → **cure OPTIONS costed + disk prune**).
+  cure measurement → cure OPTIONS costed + disk prune → **`C-1` ruled + the TIMING design**).
   🧮 **PART TWELVE — THE OPTION SPACE IS COSTED FROM SOURCE. NOTHING IMPLEMENTED, NOTHING PICKED.**
   **THE ANSWER, in one line: `C-1` (stencil pixel count) is the ONLY candidate addressing BOTH `H5`
   classes; `C-3` (`WasRecentlyRendered`) is the only cheap one and it answers `H4`'s question rather
@@ -85,16 +85,59 @@ and is the single source of truth for the project.
   builds (15/15); only `node.name` is uninformative, and identity is **non-deterministic** for actors
   that toggle component visibility.
   · **Path (a)** — **PARKED, NOT REFUTED.** A *priority* decision, not a scope one (G120).
-  🧭 **NEXT, AND IT IS CHAT-SIDE: `H5`'s CURE — THE *PICK*.** The measurement is done (*the cure needs
-  a NEW MEASUREMENT, not a new threshold*) **and the option space is now costed from source (ledger
-  §6)**. What remains is a **choice among C-1…C-5, and it is the OWNER'S.** ⛔ **Do NOT pick, design,
-  prototype or implement a candidate unprompted. Do NOT touch `feature/stencil-capture` (it is H4's
-  cure and may not be H5's). `P6` DOES NOT MOVE. No production code has been written in TWELVE parts —
-  keep it that way until a brief says otherwise.**
+  🎯 **OWNER RULING — `C-1` (SURVIVING-PIXEL COUNT VIA A MASK) IS THE CURE DIRECTION. ⛔ IT IS NOT A
+  REVIVAL OF `feature/stencil-capture`: MINE IT, DO NOT RESUME IT.** Its foliage blacklist must not
+  survive; its `USkeletalMeshComponent` narrowing **manufactures the exact defect the cure exists to
+  detect**; its reduction is unpriced. **THE SHAPE IS NOT CHOSEN.**
+  🧭 **NEXT, AND IT IS CHAT-SIDE: `C-1`'s SHAPE — pre-flight veto (a) / post-hoc annotation (b) /
+  deferred veto (c).** PART THIRTEEN costed all three from source. ⛔ **Do NOT pick a shape, design,
+  prototype or implement. `P6` DOES NOT MOVE. ZERO production code in THIRTEEN parts — keep it that
+  way until a brief says otherwise.**
+  🚨 **PART THIRTEEN'S THREE DECIDING FACTS:**
+  **(1) SELECTION → FIRE IS *ZERO FRAMES*.** `BeginFire` → `TryFireOnce` does
+  `GetVisibleRenderableActors` → the seeded pick → `ApplyAnomaly` (which **hides the actor
+  immediately**) **in ONE synchronous call inside ONE tick.** The longest gap anywhere in the burst
+  cycle is **6 frames** (`SettleAfterRevert` 2 + `PostGap` 4, and PostGap frames are *captured*);
+  `LeadIn` is **4** and runs **once per RUN, not per burst**. ⇒ **a 12-frame pre-flight DOES NOT FIT
+  and would have to be CREATED, changing when anomalies fire.** ⚠ **AND IT WOULD BREAK SEEDED
+  REPRODUCIBILITY** — `R-SEED`'s draw protocol is deliberately independent of apply-result, and `m22`
+  gated on *"seed 4242, two runs byte-identical"*; a reject-and-re-pick makes the **draw count depend
+  on a render-thread result.**
+  **(2) `annotation.json` IS STILL OPEN AT `FinishRun`** — written **once** (`:1472`) from the
+  in-memory `Async->SessionEvents` accumulator, **after** `DrainAsyncToCompletion()`'s **8 iterations
+  each with a blocking `FlushRenderingCommands()`**. `labels.jsonl` is **not** re-openable
+  (`Job.Record` is prebuilt at `:1013`). 🚨 **AND `Job.bWriteLabels = !bDeliveryMode` ⇒ IN DELIVERY
+  MODE `labels.jsonl` IS NOT WRITTEN AT ALL, so `annotation.json` is the ONLY label artifact and it is
+  entirely deferred** ⇒ **a DEFERRED VETO is viable exactly in the mode the client uses.** ⚠ One
+  number does not line up: **`DrainTail` is `max(10, ViewLag+4)` = 10 frames against a 12-frame mask
+  budget** — flagged, and reconciling it is a MEASUREMENT, not a source read.
+  **(3) SHIPPING HAS NO CAPTURE AT ALL** (`ANOMALY_CAPTURE=0`), while the selector/auto-injector DO
+  ship. **`H5` is a LABELLING defect, so where there is no label there is no `H5` defect** ⇒ ✅ **a
+  NON-SHIPPING-ONLY CURE LEAVES NO HOLE**, which removes the only motive for putting render deps into
+  `AnomalyInjector`. **The fallback on an absent measurement must be *ADMIT* (byte-identical to
+  today), never *reject* — but it MUST NOT BE SILENT:** a silent admit in a non-Shipping build
+  reproduces today's defect **while looking cured** (`G119`'s diagnostic; `m19`'s "gate on pixels").
+  ⚠ **`T-4` — THE REDUCTION IS MOST EXPENSIVE EXACTLY WHERE THE DEFECT LIVES.** The W×H render-thread
+  scan is **ANALYTICAL, NOT MEASURED**: ~0.1–0.3 ms all-zero, **~9–28 ms at 100 % tagged** — and the
+  100 % case *is* `InstancedFoliageActor`. ✅ **Cheap fix inside the existing shape: tags are <256, so
+  a fixed 256-entry array replaces the per-pixel `TMap::FindOrAdd` and makes worst ≈ best.**
+  🚩 **AND THE INSTRUMENT FOLLOWS THE SHAPE, not the reverse: a VETO needs only a COUNT** — a hardware
+  `RQT_Occlusion` query *is* a pixel counter with an ~8-byte result — **only fixing the label RECT
+  needs the mask.** ⛔ A **downsampled** mask destroys the low end, **which is the signal**; a
+  **rect-scoped** count fails twice (the foliage rect *is* the frame, and A35/`SM_Ramp2` puts the
+  effect outside the rect).
+  📌 **`P6`'s FOURTH OBSERVATION — RECORDED, NOT FIXED (ledger §7):** selection checks `IsVisible()`,
+  the **label rect is TYPE-ONLY with no `IsVisible()` gate**, and `node.bounds` unions every
+  primitive. **Three code paths, three answers to "what is the object?"** 🚨 **A mask would be a
+  FOURTH — and a cure that adds one is a defect generator.**
   ⚠ **OPERATIONAL:** disk **19.1 GB free** (was 12.9 — PART TWELVE recovered 6.23 GB); bank
-  **148 dirs / 16.8 GB**; exe-side leg dirs **83 → 4**, and **all four remaining are deliberate
-  keeps** (two carry **UNBANKED sessions**, two hold no session at all). **The next disk lever is the
-  BANK RETENTION POLICY — a bigger decision, and the owner's.**
+  **150 dirs** (**148 → 150**: `RESCUE_P12_H4_WSECHO` + `RESCUE_P12_MW_STOMPER_try1`, banked on owner
+  ruling, manifest-verified; the bank now has a **`README.md`**); exe-side leg dirs **83 → 4**.
+  🚨 **THE NAME-SWEEP HAZARD IS NOW CONCRETE:** the bank already held `RESCUE_H4_WSECHO` — a
+  **DIFFERENT session** (`…-140533`) from the exe-side `H4_WSECHO` (`…-170238`). **A name-based sweep
+  would have matched them and destroyed the only copy while reporting a clean duplicate.** **Match by
+  SESSION ID + manifest — `CaptureBench/tools/prune_verify.ps1`.** **Next disk lever = BANK RETENTION,
+  the owner's call.**
 - 🟦 *(superseded as "you are here", still the LAST TAGGED MILESTONE)* **`S4` IS COMPLETE AND TAGGED
   `m25`. THE DEFAULT GRAB POINT IS THE SVE / SCENE-COLOUR PATH: DELIVERED FRAMES NO LONGER CONTAIN
   GAME UI.**

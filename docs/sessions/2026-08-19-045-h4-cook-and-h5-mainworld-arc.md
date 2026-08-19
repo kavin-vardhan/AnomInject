@@ -25,13 +25,14 @@ separable — each part exists because the one before it produced something unex
 | **Ten** | 69–76 | **Traceability characterised · `G124` generalises** | Only `node.name` degrades; **3/13 non-foliage actors collapse the poll cull**. **G125** — a marker contaminated PART NINE's numbers |
 | **Eleven** | 77–82 | **The cure measurement** | 🚨 **The cure needs a NEW MEASUREMENT, not a new threshold.** A 2nd class-(ii) instance, and it is not foliage |
 | **Twelve** | 83–96 | **Cure OPTIONS costed from source · the disk prune** | **C-1 alone covers both `H5` classes; C-5 is a measured NO-OP; NO candidate is blocked by delivery mode.** **G126**, **G127**, **G128**. 6.23 GB recovered |
+| **Thirteen** | 97–102 | **`C-1` RULED the direction · the TIMING design** | 🚨 **selection → fire is ZERO frames, longest gap SIX ⇒ a 12-frame pre-flight does not fit** · `annotation.json` still OPEN at `FinishRun` · **Shipping has no capture, so a non-Shipping cure leaves no hole** |
 
-⚠ **ONE INVESTIGATION, TWELVE PARTS** *(the "nine" in the note below predates Parts Ten–Twelve; the
-reason it is not split is unchanged).*
+⚠ **ONE INVESTIGATION, THIRTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Thirteen;
+the reason it is not split is unchanged).*
 
-**WHERE IT ENDS:** `H5`'s cure is **costed but NOT picked** — the pick is the owner's, next brief.
-`feature/stencil-capture` is **untouched** throughout. **`P6` never moved. ZERO production code across
-all twelve parts.**
+**WHERE IT ENDS:** `C-1` is the ruled **direction**; its **SHAPE is not chosen** and that is the
+owner's next brief. `feature/stencil-capture` is **untouched** throughout — *mined, never resumed*.
+**`P6` never moved. ZERO production code across all thirteen parts.**
 
 ---
 
@@ -2778,3 +2779,273 @@ need to be opened.**
 classes; C-3 is the only cheap one and it answers `H4`'s question rather than `H5`'s; C-5 is a `P6`
 correctness fix and a measured no-op on `H5`; and NO candidate is blocked by delivery mode — the real
 constraint is Shipping, which capture already lives outside.**
+
+---
+
+# PART THIRTEEN — the TIMING design: where a pixel answer can actually land
+
+**SOURCE READING ONLY. NO CODE, NO PROTOTYPE, NO BRANCH, NO SHAPE PICKED. ZERO PRODUCTION CODE — now
+across THIRTEEN parts. NO TAG. `P6` DOES NOT MOVE. `feature/stencil-capture` READ-ONLY.**
+
+---
+
+## 97. Rulings and the banking, recorded first
+
+**RULING 1 — `C-1` IS THE CURE DIRECTION, AND IT IS NOT A REVIVAL.** Recorded in the ledger §3
+(`cure direction` row). ⛔ **Mine `feature/stencil-capture`, do not resume it.** Its foliage blacklist
+must not survive; its `USkeletalMeshComponent` narrowing **manufactures the exact defect the cure
+exists to detect**; its reduction is unpriced (→ §104).
+
+**RULING 2 — the label/selection disagreement is `P6`'s FOURTH OBSERVATION: RECORD, DO NOT FIX.**
+Ledger **§7**. Three code paths already answer *"what is the object?"* differently. 🚨 **A mask would
+be a FOURTH definition, and a cure that adds one is a defect generator.**
+
+**BANKED, on owner ruling — bank 148 → 150.** Both verified by identical per-file path+size manifest
+on copy:
+
+| new bank dir | session | files |
+|---|---|---|
+| `RESCUE_P12_H4_WSECHO` | `session_20260819-170238` | 45 |
+| `RESCUE_P12_MW_STOMPER_try1` | `session_20260819-172148` | 95 |
+
+🚨 **AND THE NAME-BASED-SWEEP CLAIM IS NOW CONCRETE, NOT HYPOTHETICAL.** The bank **already
+contained** `RESCUE_H4_WSECHO` — holding **`session_20260819-140533`**, a **different session**. A
+sweep keying on directory names would have matched exe-side `H4_WSECHO` to it, called it banked, and
+**destroyed the only copy of `…-170238` while reporting a clean duplicate.** **The name matched; the
+evidence did not.** A bank `README.md` now records this (the bank had none).
+
+---
+
+## 98. `T-1` — THE LIFECYCLE, from source
+
+### 98.1 The tick
+
+`UAnomalyCaptureSubsystem::Tick` (`:318-438`), a `UTickableWorldSubsystem`, in order:
+
+| # | call | note |
+|---|---|---|
+| 1 | `SampleDeferredHidden()` | fills `FireHidden` from the **previous** tick (the `m20` fix) |
+| 2 | `ArmedPending` focus branch | early-returns until focus or the 30 s timeout |
+| 3 | `PaceThisTick()` | real-time pacing sleep (`m11`) |
+| 4 | `SampleViewThisTick()` | pushes the view into `ViewRing` |
+| 5 | `ProcessCompletedFrames()` | drains readbacks → builds the label record → `AccumulateFrameEvents` → enqueues the writer job |
+| 6 | frame-cap check | → `DrainTail` |
+| 7 | **the phase switch** | below |
+| 8 | `FinalizeArmedLabel()` | **last statement**; fills the armed snapshot POST-transition (the `m18` fix) |
+
+### 98.2 The phase machine, and the defaults
+
+Defaults from `AnomalyCaptureSubsystem.h:185-189`: **`SettleFrames K = 2` · `PreFrames = 4` ·
+`PositiveFrames = 8` · `PostFrames = 4` · `BurstCount = 0`** (unlimited).
+
+| phase | frames | captured? | exit |
+|---|---|---|---|
+| `LeadIn` | `Pre` **4** | ✅ | **`BeginFire()` IN THE SAME TICK as the last capture** |
+| `SettleAfterFire` | `K` **2** | ⛔ | → `Positives` |
+| `Positives` | **8** | ✅ | `BeginRevert()` |
+| `SettleAfterRevert` | `K` **2** | ⛔ | → `PostGap` |
+| `PostGap` | **4** | ✅ | **`BeginFire()` IN THE SAME TICK**, or → `DrainTail` |
+| `DrainTail` | `max(10, ViewLag+4)` = **10** | ⛔ | `FinishRun` (early when `PendingSnapshots` empties) |
+
+**One burst cycle = 20 ticks, 16 of them captured.** `LeadIn` runs **ONCE PER RUN**, not per burst.
+
+### 98.3 🚨 THE DECIDING FACT: SELECTION → FIRE IS **ZERO FRAMES**
+
+`BeginFire()` (`:1089-1103`) calls `TryFireOnce()`, and `TryFireOnce`
+(`AnomalyAutoInjectorSubsystem.cpp:172-256`) does **all** of this in **one synchronous call, inside
+one tick**:
+
+`GetVisibleRenderableActors(World)` → sort by name → `Stream.RandHelper` picks the id →
+build `Candidates` → `Stream.RandHelper` picks the target → `Stream.FRandRange` picks the hold →
+**`Injector->ApplyAnomaly(Id, {"=" + TargetName})`** — which for `missing_object` **hides the actor
+immediately**.
+
+⇒ **There is no gap between selection and fire to put a measurement into. It is not a small gap. It
+is zero.**
+
+### 98.4 What is knowable at each step
+
+| step | knowable | NOT knowable |
+|---|---|---|
+| `GetVisibleRenderableActors` | renderable **type**, `IsVisible()`, poll radius, frustum, `IsUnoccluded` (9 **CPU** traces), coverage from the **projected bounds union** | **anything about pixels.** The game thread runs *before* this frame is rendered — the frame containing the candidate **does not exist yet** |
+| `ApplyAnomaly` | same | same |
+| first captured positive (**3 ticks later**) | the frame's pixels | ⛔ **the target is already hidden, so its own pixels no longer exist to measure** |
+
+### 98.5 ⇒ DOES A 12-FRAME PRE-FLIGHT FIT ANYWHERE? **NO.**
+
+| candidate slot | frames | verdict |
+|---|---|---|
+| `LeadIn` | **4** | too short — and it exists **once per run**, not per burst |
+| inter-burst (`SettleAfterRevert` + `PostGap`) | **6** | too short — and `PostGap` frames are **captured as negatives**, so they are not free |
+| `ArmedPending` focus wait | up to **30 s** | ⛔ **not a design slot** — it is a focus gate, absent when the window is already focused |
+
+⛔ **The longest existing gap is 6 frames against a 12-frame budget. A pre-flight cannot be fitted
+into the existing sequence — it has to be CREATED, which changes when anomalies fire.**
+
+### 98.6 🚨 A SECOND BLOCKER ON THE VETO SHAPE: THE SEEDED DRAW PROTOCOL
+
+`TryFireOnce` consumes the seeded stream in a **fixed order**: id → target → hold, then
+`AdvanceTime` draws the next interval. **`R-SEED` made that protocol independent of apply-result on
+purpose**, and `m22` gated on **"seeded selection identity (seed 4242, 8 events, two runs
+byte-identical)"**.
+
+⇒ **A veto that rejects and re-picks makes the NUMBER OF DRAWS depend on a render-thread pixel
+result. Seeded reproducibility is destroyed and a SHIPPED GATE BREAKS.** Recoverable only by
+redesigning the protocol (e.g. draw a fixed-size candidate set up front and veto within it without
+re-drawing) — **a change to `R-SEED`, not an addition to it.**
+
+---
+
+## 99. `T-2` — the three shapes, costed
+
+### 99.1 (a) PRE-FLIGHT VETO — mask the candidate BEFORE arming
+
+| | |
+|---|---|
+| **fixes** | **both `H5` classes at the source. No poisoned sample is ever generated.** |
+| **does NOT fix** | a target that stops drawing *after* the pick (path (a)'s shape) — the answer is stale by construction (`P-a5`) |
+| **cost 1** | ⛔ **no slot exists** (§98.5) — ≥12 frames must be inserted before every fire |
+| **cost 2** | ⛔ **breaks seeded reproducibility** (§98.6) |
+| **cost 3** | at 30 fps, 12 frames = **0.4 s of game time** per fire; against a 20-tick burst cycle that is a **~60 % longer cycle** ⇒ **fewer events per run at the same frame cap** |
+| **cost 4** | the mask must be armed on a **CANDIDATE**, not a target ⇒ `bRenderCustomDepth` mutation and `r.CustomDepth 3` extend to **candidates**, widening the render-state mutation surface well beyond today's |
+| **contract** | ✅ **NONE.** The veto precedes any event, so nothing is written. `mask{}` stays `provided:false`. **Zero `P6` movement.** |
+
+### 99.2 (b) POST-HOC ANNOTATION — fire as now, measure during the window, record it
+
+| | |
+|---|---|
+| **fixes** | every sample becomes **filterable downstream**; the contribution lands in the **already-shipping `mask{}` slot** |
+| ⛔ **does NOT prevent** | **the poisoned frames are still generated and still labelled positive.** `manifested`, `frame_indices`, `coverage_pct`, `bbox` all still assert the claim. **A consumer that ignores `mask{}` receives exactly today's dataset.** |
+| ⛔ also cannot fix | the per-frame label **rect** — `Job.Record` is built and enqueued at `ProcessCompletedFrames` (`:996-1013`) and is **not retroactively editable** |
+| 🚨 **timing trap** | **for a HIDE-TYPE anomaly the target is hidden during the positive frames, so the mask is 0 BY CONSTRUCTION.** The measurement must come from a **negative** frame (`LeadIn`/`PostGap`) or a last-known value — **this is exactly what the branch's `LOCK-1` encodes**, and it is not optional |
+| **cost** | **cheapest by far** — masks armed only on frames already being captured; no lifecycle change, no seed change, no timing change |
+| **contract** | `mask.provided` → **true** = a **VALUE** change in a slot that already ships. ⚠ **Sub-fields under `mask` (a count, a rect) WOULD be a SHAPE change ⇒ `P6` MOVEMENT.** The slot exists; its contents do not. |
+
+### 99.3 (c) DEFERRED VETO — fire as now; invalidate the event retroactively
+
+**Q: is the artifact still open 12 frames in? — ANSWERED FROM `FinishRun`, not intuition.**
+
+| artifact | when written | still open? |
+|---|---|---|
+| **`annotation.json`** | **once, in `FinishRun` (`:1472`)**, from the in-memory `Async->SessionEvents` accumulator | ✅ **YES — mutable until `FinishRun`** |
+| `labels.jsonl` | per frame, `Job.Record` prebuilt and enqueued at `:1013` | ⛔ **NO** |
+| the PNGs | per frame, worker pool | ⛔ **NO** |
+
+✅ **And there is a real mechanism to force the readbacks home:** `FinishRun` calls
+`DrainAsyncToCompletion()` **before** writing the annotation — **8 iterations, each with a blocking
+`FlushRenderingCommands()`** (`:1035-1047`).
+
+🚨 **AND THE DECISIVE ONE FOR THE CLIENT: `Job.bWriteLabels = !bDeliveryMode` (`:1012`).** In
+**delivery mode `labels.jsonl` IS NOT WRITTEN AT ALL** ⇒ **in the mode the client actually uses,
+`annotation.json` is the ONLY label artifact, and it is written entirely at `FinishRun` from a
+still-open accumulator.** ⇒ **(c) is fully viable in exactly the mode that matters.**
+
+| | |
+|---|---|
+| **fixes** | poisoned events can be **dropped or flagged before the client artifact exists** |
+| **does NOT fix** | the **frames are already on disk**. A dropped event leaves images with no label — which is what a hard negative looks like, but it moves `total_frames` vs `positive_frames` accounting |
+| ⚠ **a number that does not line up** | **`DrainTail` is `max(10, ViewLag+4)` = 10 frames; the mask budget is 12.** The existing tail is **SHORTER than the readback budget**. `DrainAsyncToCompletion`'s 8× flush would very likely force it home — **but 10 < 12 as read, and reconciling it is a MEASUREMENT, not a source read. Flagged, not resolved.** |
+| **contract** | dropping an event changes `anomalies[]` **membership** — no field added, a **value/consistency** change. Flagging needs the `mask{}` slot (as in (b)). |
+
+---
+
+## 100. `T-3` — the module shape
+
+### 100.1 The four options
+
+| # | shape | game-agnostic invariant | when the provider is absent |
+|---|---|---|---|
+| 1 | **interface** declared in `AnomalyInjector`, implemented + registered by `AnomalyCapture` | ✅ preserved — the interface returns a **number**, needs no render types | pointer null |
+| 2 | **callback/delegate** set by `AnomalyCapture` | ✅ preserved | unbound |
+| 3 | **cached result** the selector reads (per-actor extent + frame stamp) | ✅ preserved — **and it matches §98.4: a pixel answer is ALWAYS stale, so a cache makes the staleness EXPLICIT instead of hidden** | cache empty / stale |
+| 4 | **move the measurement into `AnomalyInjector`** | ⚠ CLAUDE.md contemplates `Renderer`/`RHI`/`RenderCore`/`Slate` as later deps, so **not forbidden** — but it puts the **Renderer PRIVATE include path (`G100`) into the module that ships in EVERY config**, where an engine bump breaks the shipped path | n/a — always present |
+
+### 100.2 🚨 WHAT IS THE SHIPPING-BUILD BEHAVIOUR IF THE MEASUREMENT IS ABSENT? — answered explicitly
+
+**In Shipping, `ANOMALY_CAPTURE=0`: THERE IS NO CAPTURE AT ALL.** The module loads (it is listed in
+`AnomalyInjector.uplugin`) but its body is compiled out. The **selector and auto-injector DO exist**
+in Shipping — they live in `AnomalyInjector` — so anomalies can still be injected. **But no frames,
+no `labels.jsonl`, no `annotation.json` are produced.**
+
+⇒ **`H5` IS A LABELLING DEFECT — a sample whose label claims more than the pixels support. WHERE
+THERE IS NO LABEL, THERE IS NO `H5` DEFECT.** A Shipping build may still admit an over-claiming
+actor, but it mislabels nothing and poisons no dataset.
+
+⇒ ✅ **THE CURE CAN BE NON-SHIPPING-ONLY WITHOUT LEAVING A HOLE.** That is the answer that decides the
+shape, and it removes option 4's only real motivation.
+
+**⇒ THE FALLBACK ON ABSENT MUST THEREFORE BE *ADMIT* (behave exactly as today), NOT REJECT:**
+- **Reject-on-absent** changes injection behaviour in the config the host game ships, for **zero**
+  benefit — against the game-agnostic invariant in spirit.
+- **Admit-on-absent** is byte-identical to today wherever the measurement cannot exist.
+
+⚠ **BUT THE FALLBACK MUST NOT BE SILENT — and this is `G119`'s diagnostic pointed at the cure.** If
+the provider is absent in a **non-Shipping** build (failed registration, wrong load order), a silent
+admit **reproduces exactly today's defect while looking cured**. *"What would I observe if the thing I
+added never reached the thing under test?"* — **today's output.** ⇒ **absence must be logged loudly
+and recorded in the artifact**, or the cure is unfalsifiable. (`m19`: gate on pixels, not on a
+counter.)
+
+---
+
+## 101. `T-4` — pricing the reduction
+
+⚠ **ANALYTICAL, NOT MEASURED. Measuring needs production code ⇒ out of scope.** Stated as an estimate
+with its assumptions, never as a reading.
+
+**1280×720 = 921,600 px, R8 = 1 B/px ≈ 900 KB per armed frame, scanned single-threaded ON THE RENDER
+THREAD.**
+
+| case | work | estimate |
+|---|---|---|
+| all-zero mask | linear byte scan, ~900 KB (fits L2) | **~0.1–0.3 ms** |
+| 10 % tagged (~92 k px) | + **one `TMap::FindOrAdd` per non-zero pixel** | **~1–3 ms** |
+| 100 % tagged | ~921 k hash lookups | **~9–28 ms** |
+
+🚨 **THE PATHOLOGICAL CASE IS EXACTLY THE `H5` CASE.** The target that claims the whole frame
+(`InstancedFoliageActor`, `bbox_px (0,0,1280,720)`) is the one whose mask can cover the most pixels.
+**The reduction is most expensive precisely where the defect lives**, and at 30 fps the 100 % case
+approaches or exceeds the **33 ms** frame budget — **on the render thread.**
+
+✅ **A CHEAP FIX INSIDE THE EXISTING SHAPE, worth naming before any alternative:** tags are a tiny
+known set (`ReservedStencilBase = 200`, headroom under 256). **Replacing the `TMap` with a fixed
+256-entry array indexed by tag value removes the hash from the inner loop entirely and makes the
+worst case ≈ the best case.** That is a small change, not a new architecture, and it changes the cost
+picture before any of the options below are needed.
+
+### 101.1 Cheaper reductions, and what each gives up
+
+| option | what it costs | ⛔ what it GIVES UP |
+|---|---|---|
+| **(a) GPU-side reduction** — compute shader, atomic add for count + atomic min/max for bbox into a tiny per-tag buffer | readback drops **~900 KB → tens of bytes**; work moves to the GPU | little in fidelity — a compute shader, atomic contention on a full-screen pass, more code. **Still latent.** |
+| **(b) downsampled mask** (¼ → 320×180, **16× cheaper**) | cheapest of all | ⛔ **THE LOW END, WHICH IS THE SIGNAL.** A target drawing <16 px can reduce to **zero** — and *"draws far less than it claims"* is the whole `H5` measurement. **It systematically destroys the measurement exactly where the decision is made.** |
+| **(c) count only inside the projected rect** | scan shrinks with the rect | ⛔ **TWO INDEPENDENT FAILURES.** (i) For `InstancedFoliageActor` **the rect IS the whole frame**, so it saves nothing **precisely in the worst case**. (ii) **RULING 2 / A35** — `SM_Ramp2`'s peak effect is **OUTSIDE** its rect (**0.2955** out vs **0.1785** in), so a rect-scoped reduction **under-counts a legitimate target**. |
+| **(d) hardware occlusion query** (`RQT_Occlusion`) | engine doc: *"Result is the number of samples that are not culled (divide by MSAACount to get pixels)"* — **a hardware pixel counter, ~8-byte result** | ⛔ **no bbox — a COUNT ONLY.** Needs the target's geometry drawn in a query batch (a per-target draw); latent like all queries; MSAA scaling. |
+
+### 101.2 🚩 What (d) exposes, and it is a design finding
+
+**A VETO NEEDS ONLY A COUNT. ONLY FIXING THE LABEL *RECT* NEEDS THE MASK.**
+
+If the chosen shape is a **veto or a flag** — (a) or (c) in `T-2` — an occlusion query may be
+sufficient, and **the mask, the readback and the whole W×H scan disappear**. If the shape is *"correct
+the box to the drawn silhouette"*, the mask is unavoidable. ⇒ **`T-2`'s shape choice decides `T-4`'s
+instrument, not the other way round.**
+
+---
+
+## 102. State after PART THIRTEEN
+
+| | |
+|---|---|
+| plugin production code | **ZERO lines, across all THIRTEEN parts** |
+| tag | **none** · `feature/stencil-capture` **UNTOUCHED at `76cac74`, never checked out** |
+| `P6` | **DOES NOT MOVE** — fourth observation recorded in the ledger §7, not fixed |
+| bank | **148 → 150**, both recovered legs manifest-verified; bank `README.md` created |
+| ledger | §3 `cure direction` = `C-1` (Ruling 1) · **§7** `P6`'s fourth observation (Ruling 2) |
+| ⛔ not done | **no shape picked, nothing implemented, prototyped or branched** |
+
+**WHAT THIS PART SETTLES:** **selection → fire is ZERO frames and the longest gap in the whole
+lifecycle is SIX, so a 12-frame pre-flight does not fit and would additionally break seeded
+reproducibility; `annotation.json` is still OPEN at `FinishRun` and in DELIVERY MODE it is the ONLY
+label artifact, so a deferred veto is viable exactly where it matters; and because Shipping has no
+capture at all, a non-Shipping-only cure leaves NO HOLE — provided its absence is never silent.**
