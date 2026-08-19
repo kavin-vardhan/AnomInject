@@ -145,6 +145,48 @@ and is the single source of truth for the project.
   shadow outside it (2 of 9 patch samples visible); A54 keys strictly inside the bbox (A35), so the
   shadow is outside the claim's scope **by construction** — and outside the client's complaint, which
   is a labelled box around nothing. The measured ~2e-4 in-bbox excursion is what A35 predicts.
+  📌 **THE CLAIM, FIXED IN THESE WORDS (record verbatim; this is what travels):** *"H4 is SUPPORTED as
+  a mechanism, path (b), n=1 leg / 8 events. The label path emits a positive label, a valid projected
+  bbox, `coverage_ratio > 0` and `manifested:true` for a target that is fully occluded and changes
+  essentially nothing inside its own bbox (~2e-4 against a control's ~0.10, factor ~500, ranges
+  overlapping on 7 of 8 events with inconsistent sign). The C4 divergence — provenance `valid:false` +
+  `0/0` WITH `bbox_valid` TRUE — occurred 8/8 and had never been observed in 780+ banked records. NOT
+  CONFIRMED: the A54 leg of the original signature is structurally unobtainable (G117), so this rests on
+  the provenance divergence plus a raw series, not an oracle verdict. NO INCIDENCE CLAIM. This used
+  TARGETED fire, which bypasses `IsUnoccluded`. The shipped auto-pool screens occlusion AT PICK TIME.
+  Whether the shipped path is exposed is a SEPARATE, UNASKED QUESTION. Path (a) — visible at pick,
+  occluded during the window — is unbuilt and cannot be produced in `CB_GateLevel` (all targets STATIC,
+  eye invariant 844/844)."* **`H4`: NAMED, NOT ADOPTED → SUPPORTED (path b), MECHANISM ONLY. It does
+  NOT become a phenomenon number.**
+  🧭 **THE OPEN QUESTION, NOW PRECISELY STATED — and it is the one that decides whether this reaches a
+  client dataset: THE SHIPPED AUTO-POOL SCREENS OCCLUSION AT PICK TIME AND NEVER RE-CHECKS.** A target
+  selected while visible that becomes occluded mid-window would be labelled by the same occlusion-blind
+  projector, **with no manual targeting involved**. That is **path (a)**, and it is the only path that
+  can reach a delivered dataset. ⛔ **NOT DESIGNED, NOT RUN — its design is chat-side first and it needs
+  a level with motion, which `CB_GateLevel` is not.** ⛔ **THE CURE (`feature/stencil-capture`) IS NOT
+  BUILT BEFORE THE INCIDENCE QUESTION IS ANSWERED** — the D-B lesson: the SVE migration would not have
+  cured P3, and building it first would have shipped a migration while the poisoning continued.
+  🔎 **RECON DONE (read-only, journal 045 §19). THREE FINDINGS:**
+  **(1) NOTHING re-validates a live target after the fire begins — not occlusion, renderability, screen
+  coverage or distance.** `AdvanceTime` → `ServiceReverts` is a pure countdown; `Blinking::Tick`
+  iterates a `Targets` array resolved ONCE in `Apply` and never re-resolved (`Weak.Get()` is *object
+  validity*, not visibility); `MissingObject` has **no `Tick` at all**; and both per-frame label writers
+  call **only** `ProjectActorBoundsToScreenRect`. **The single occlusion evaluation downstream of pick
+  time is `EvaluateSelectionProvenance` — it runs ONCE at the anchor frame, its RETURN VALUE IS
+  DISCARDED, and its sidecar is SUPPRESSED IN DELIVERY MODE. So in the mode the client receives there is
+  no occlusion evaluation after pick time at all. Path (a) is NOT closed by any existing re-check.**
+  **(2) The pick-time guard is weaker than it looks:** 9 rays, **camera** origin, targets = bounds
+  centre + the **8 AABB corners** (not the mesh), `ECC_Visibility`, **`bTraceComplex=false`** (simple
+  collision only), owner ignored, and it **returns true on the FIRST CLEAR RAY** — so **1 of 9 clear ⇒
+  "unoccluded"**, while this project's bar for "occluded" is **9 of 9 blocked**. The two are **not
+  complements**; there is a wide band between them. AABB corners lie **outside** a sphere/cylinder/cone
+  (3 of the gate level's 4 shapes), a `NoCollision` or non-`ECC_Visibility` occluder does not occlude at
+  all, and **there is no pixel test anywhere**. ⚠ **Source reading, NOT measurement.**
+  **(3) Candidate environments NAMED, NOT EVALUATED:** `MainWorld`, `Structures/Struct_001-004`,
+  `MainMenu`, `CB_GateLevel`. 🚨 **G87 IS STRONGER THAN "CHECK THE NAME" — THE REDIRECT IS ACTIVE:**
+  launching MainWorld loads it and then **immediately loads MainMenu**, and a deferred `OpenLevel`
+  **bounces back**. **MainWorld is not straightforwardly reachable packaged**, and any path (a) design
+  must confront that first. Whether any level has motion **without player input** is UNCHECKED.
   🚨 **G118 — FOUND WHILE COLLECTING THE CORROBORATING ECHO, ORTHOGONAL TO H4, AND SECURITY-RELEVANT:
   the STAGED build enforces the placeholder control-server token `TESTVALUE123`** (cooked before the
   rotation), while `Config/DefaultGame.ini` carries a clean 64-char one. **G112's guard checks the
@@ -152,6 +194,21 @@ and is the single source of truth for the project.
   *"from DefaultGame.ini"* and means the **cooked** one. ⛔ **NOT FIXED — the fix is a re-cook + re-stage,
   which wipes `Saved` (G92) and would replace the exact binary `101AFEA4` every m25 result is measured
   against. FILED, and it must not ride inside a measurement turn.**
+  ✅ **G112 AMENDED IN PLACE (2026-08-19): its runnable detector is DEMOTED to NECESSARY-BUT-NOT-
+  SUFFICIENT** — not deleted, since it still catches a source-side regression, it just cannot certify a
+  build. `PRE-DELIVERY-CHECKLIST.md` §1 gains a second mandatory box: **the READ-BACK check** (start the
+  build, read `Control server token:` from its own log, assert non-placeholder and ≥32 chars), with the
+  stop *"if source and enforced disagree the build is STALE and must be RE-COOKED before delivery"*.
+  **A build is checked by what it ENFORCES, not by what its source says.**
+  🆕 **G119 — THE GENERALISATION, AND IT IS THE THIRD INSTANCE OF ONE SHAPE:** **G92** trusted "it
+  compiled" without verifying it was **staged**; **G113** trusted an **exit code** without verifying it
+  was **earned**; **G118** trusted the **source config** without verifying what the artifact
+  **enforces**. *For anything BAKED — cooked config, embedded resources, compiled-in defaults,
+  generated headers, packaged assets — the source file is an INPUT, not the artifact. Read it back out
+  of the running system.* Diagnostic: **"what would I observe if the thing I edited never reached the
+  thing under test?"** If the answer is *"exactly what I am observing now"*, it is not a check.
+  ⚠ **A guard that PASSES the unsafe case is worse than no guard** — the false pass is silent, looks
+  like diligence, and retires the suspicion that would otherwise catch the fault.
   ⚠ **A63 record: the control needed 2 attempts and try1 was banked before being discarded.** Its
   failure was A56's **self-consistency** conjuncts (`distinct=8, modal=45.8%`) with **`pose_match=True`
   and the bbox matching CALIB_BBOX exactly** — a **THIRD** cause behind the generic label *"POSE GATE
@@ -187,6 +244,13 @@ and is the single source of truth for the project.
   confirmed on all 21 banked records) — a correction to journal 036 §3.5 and to the §8 prediction, made
   **before** the run. **Third instance of a claim resting on prose rather than a measurement (G106 first,
   m24's `key_ring_*` second). `P6` DOES NOT MOVE.**
+  🔒 **`G118` CLOSURE — SEQUENCED BY THE OWNER, NOT BY THE IMPLEMENTER, AND IT IS A GATE ON EVERYTHING
+  ELSE THAT USES THE BENCH BINARY.** `G118 CLOSURE = re-cook + re-stage + re-bank (G92 wipes `Saved`) +
+  re-run the A44 hash scan`. **It runs AFTER the current measurement sequence and NEVER inside one**,
+  because **closing it RETIRES staged exe `101AFEA4` as the m25 measurement binary.** ⛔ **Any result
+  still owed against `101AFEA4` must land BEFORE closure** — today that includes the whole path-(a)
+  question, which is not yet designed. Until it closes, treat any WS work against this build as running
+  with a **known-public token**.
   **LATER / UNORDERED, named but not sequenced:** `B2` (scale-free separability; eight-control gate; may
   reopen m23's DA60 floor) · **`B1`-NDC** (normalise `CALIB_BBOX` — unblocks alignment certification at
   any resolution; four legs blocked today, three with a motionless camera; definition change needing its

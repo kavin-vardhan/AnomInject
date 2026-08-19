@@ -560,3 +560,181 @@ touched and NOT rebased.** Path (a), and therefore any incidence claim, remains 
 The `CALIB_BBOX` cluster (`B1`-NDC, the per-leg calibration bbox from Ruling 3b, `B2`) now blocks two
 named items and its priority rises accordingly, **without being scheduled**. **G118** is filed and is
 independent of all of it.
+
+---
+---
+
+# PART THREE — the claim fixed in words, G112 corrected, and read-only recon for path (a)
+
+**No run. No code. No cure built.** Documentation and source reading only.
+
+## 17. RULING 1 — the claim, fixed in these words. Record verbatim; this is what travels.
+
+> **H4 is SUPPORTED as a mechanism, path (b), n=1 leg / 8 events. The label path emits a positive
+> label, a valid projected bbox, `coverage_ratio > 0` and `manifested:true` for a target that is fully
+> occluded and changes essentially nothing inside its own bbox (~2e-4 against a control's ~0.10, factor
+> ~500, ranges overlapping on 7 of 8 events with inconsistent sign). The C4 divergence — provenance
+> `valid:false` + `0/0` WITH `bbox_valid` TRUE — occurred 8/8 and had never been observed in 780+
+> banked records.**
+>
+> **NOT CONFIRMED: the A54 leg of the original signature is structurally unobtainable (G117), so this
+> rests on the provenance divergence plus a raw series, not an oracle verdict.**
+> **NO INCIDENCE CLAIM. This used TARGETED fire, which bypasses `IsUnoccluded`. The shipped auto-pool
+> screens occlusion AT PICK TIME. Whether the shipped path is exposed is a SEPARATE, UNASKED
+> QUESTION.**
+> **Path (a) — visible at pick, occluded during the window — is unbuilt and cannot be produced in
+> `CB_GateLevel` (all targets STATIC, eye invariant 844/844).**
+
+**`H4` moves from NAMED, NOT ADOPTED → SUPPORTED (path b), MECHANISM ONLY.** It does **not** become a
+phenomenon number. It is a named hypothesis with evidence.
+
+## 18. RULING 2 — G112 is not incomplete, it is WRONG, and it has been amended in place
+
+`G112`'s runnable detector reads `StackOBot\Config\DefaultGame.ini`. **A packaged build enforces the
+COOKED copy baked into its pak at cook time**, so the detector **returns PASS on a build enforcing a
+12-character literal present in repo history**. A guard that passes the unsafe case is worse than no
+guard, because it retires the vigilance that would otherwise catch it.
+
+Landed this turn, documentation only, **no re-cook**:
+
+- **`G112` AMENDED IN PLACE** with a marked amendment block: the source ini is **not** the enforcing
+  artifact, the cooked config is, and the binary's own `(from DefaultGame.ini …)` log line **means the
+  cooked one**. The check is **DEMOTED to NECESSARY BUT NOT SUFFICIENT** — not deleted, because it
+  still catches a source-side regression; it simply cannot certify a build. Cross-references G118/G119.
+- **`PRE-DELIVERY-CHECKLIST.md` §1** gains a second, mandatory box carrying the **read-back** check —
+  start the build, read `Control server token:` from its own log, assert not-a-placeholder and ≥ 32
+  chars — with the explicit line **"A build is checked by what it ENFORCES, not by what its source
+  says"**, and a stop: if source and enforced disagree, the build is **STALE and must be re-cooked
+  before delivery**.
+- **`G118` gains its CLOSURE SEQUENCING**, stated as the owner's call:
+  `G118 CLOSURE = re-cook + re-stage + re-bank (G92 wipes Saved) + re-run the A44 hash scan`, to run
+  **after the current measurement sequence and never inside one**, because **closing it RETIRES staged
+  exe `101AFEA4` as the m25 measurement binary**. ⛔ **Any result still owed against `101AFEA4` must
+  land first.**
+- **`G119` — the generalisation**, and it is the **third instance of the same shape**:
+
+  | # | gotcha | channel trusted | never verified |
+  |---|---|---|---|
+  | 1 | **G92** | "it compiled" | that the binary was **staged** |
+  | 2 | **G113** | an **exit code** | that the code was **earned** |
+  | 3 | **G118 / G112-amended** | the **source** config | what the artifact **enforces** |
+
+  *For anything BAKED — cooked config, embedded resources, compiled-in defaults, generated headers,
+  packaged assets — the source file is an INPUT, not the artifact. Read it back out of the running
+  system.* The diagnostic question: **"what would I observe if the thing I edited never reached the
+  thing under test?"** If the answer is *"exactly what I am observing now"*, it is not a check.
+
+## 19. RECON FOR PATH (a) — read-only, from source. No run, no code, no design.
+
+### 19.1 Is there ANY re-validation of the selected target after `LiveFire` begins?
+
+**No. Not occlusion, not renderability, not screen coverage, not distance. Nothing.**
+
+The per-frame path was walked end to end. Every function on it, and what it does:
+
+| per-frame function | what it does to the live target | any visibility test? |
+|---|---|---|
+| `UAnomalyAutoInjectorSubsystem::Tick` (`:83`) | `PollInput()` if enabled; `AdvanceTime()` if running | **none** |
+| `└ AdvanceTime` (`:160`) | `ServiceReverts(dt)`, then decrement `FireTimer` and `TryFireOnce()` on expiry | **none** |
+| `└ ServiceReverts` (`:511-535`) | `SecondsRemaining -= dt`; on `<= 0` → `RevertAnomaly` + `LiveFires.RemoveAt` | **none — a pure countdown** |
+| `UAnomalyInjectorSubsystem::Tick` (`:159`) | dispatches `Tick` to each active anomaly | **none** |
+| `└ FAnomaly_Blinking::Tick` (`:60-84`) | iterates `Targets`, `SetActorHiddenInGame(bHiddenPhase)` | **none** |
+| `└ FAnomaly_MissingObject` | **has no `Tick` at all** — hides once at `Apply`, restores at `Revert` | **none** |
+| `UAnomalyCaptureSubsystem::AccumulateFrameEvents` (`:1558`) | accrues `AffectedFrames`, `CoverageSum`, `HiddenByIndex` | **`ProjectActorBoundsToScreenRect` only — no trace** |
+| `AnomalyLabel::BuildFrameLabelRecord` (`:37`) | writes `bbox_valid` / `bbox_px` / `visible_positive` per frame | **`ProjectActorBoundsToScreenRect` only — no trace** |
+
+**`FAnomaly_Blinking::Targets` is resolved ONCE, inside `Apply` (`:47-49`), and never re-resolved.**
+The only per-frame check on it is `Weak.Get()`, which is **object validity, not visibility** — it asks
+whether the actor still exists, not whether it can be seen.
+
+**The single occlusion evaluation anywhere downstream of pick time is
+`EvaluateSelectionProvenance`** (`AnomalyCaptureSubsystem.cpp:1599`), and three properties of it matter:
+
+1. it sits **inside the `if (SessionIndex < Ev->AnchorIndex)` block**, so it runs **once per event, at
+   the anchor frame only** — never again for the rest of the window;
+2. **its return value is discarded** (`AnomalyViewport::EvaluateSelectionProvenance(World, FActor, Ev->Provenance);`
+   — a bare call). Nothing gates on it. It **records**;
+3. it is written by `WriteSelectionProvenance` **only when `!bDeliveryMode`** (`:1720`).
+
+⇒ **In delivery mode — the mode the client receives — there is NO occlusion evaluation after pick
+time at all, and no record that one was ever made.** Path (a) is therefore **not closed by any
+existing re-check**, because no re-check exists.
+
+### 19.2 What does the pick-time `IsUnoccluded` actually test?
+
+`AnomalyViewport.cpp:109-144`. Reached by the auto-pool via
+`GetVisibleRenderableActors` → `ClassifyRenderableVisibleLive` → `CollectRenderableVisibleUnion` →
+`IsComponentRenderableVisibleInternal` → `IsUnoccluded`.
+
+| property | value |
+|---|---|
+| ray count | **9** |
+| origin | **`View.Origin`** — the CAMERA. (Distinct from `ResolvePollOrigin`, which is the **pawn**, and is used only for the radius cull) |
+| target points | bounds **centre** + the **8 corners of `Component->Bounds`** — the **AABB**, not the mesh |
+| channel | **`ECC_Visibility`** |
+| complexity | **`bTraceComplex = false`** → **simple collision only** |
+| ignored | **the owner actor only** |
+| verdict rule | **returns `true` on the FIRST clear ray** |
+
+Companion pick-time guards on the same path: the **poll-radius cull** (`GPollRadius`, default
+**1800 cm**, measured **pawn → bounds origin − sphere radius**) and the **screen-coverage floor**
+(`GMinScreenCoveragePct`, default **6 %**, on the projected union rect).
+
+**What could pass this guard while contributing no pixels — read from the code, not speculated:**
+
+- **First-clear-ray semantics.** **1 of 9 clear ⇒ "unoccluded".** A target with 8 of 9 rays blocked is
+  accepted. Contrast the *evidence* standard used for H4's target, which required **9 of 9 blocked**.
+  **The guard's bar for "visible" and this project's bar for "occluded" are not complements — there is
+  a wide band between them that is neither.**
+- **AABB corners, not the mesh.** For a **sphere, cylinder or cone** the AABB corners lie **outside the
+  rendered surface**. A ray can reach a corner of empty space while the mesh itself is entirely hidden.
+  *(`CB_GateLevel` cycles cube/sphere/cylinder/cone, so 3 of 4 target shapes have this property.)*
+- **`bTraceComplex = false`.** Occlusion is judged against **simple collision**. An occluder whose
+  simple collision is smaller than its render mesh under-occludes; a large visual occluder with
+  **`NoCollision`** or one that ignores `ECC_Visibility` — decals, foliage, translucent panels,
+  purely-decorative meshes — **does not occlude at all**.
+- **No pixel test anywhere.** Passing means *a ray reached one AABB corner*, never *pixels were drawn*.
+  Materials, opacity, `bRenderInMainPass`, LOD/HLOD substitution and distance culling are all invisible
+  to it.
+- **It is a single sample in time**, taken with the view at pick time, and §19.1 establishes nothing
+  re-takes it.
+
+⚠ **Stated as source reading, NOT as measurement.** None of the above has been observed producing an
+instance; H4's own lesson is that a mechanism read from source is not a mechanism seen.
+
+### 19.3 Candidate environments for a path (a) test — NAMED ONLY, not evaluated
+
+Every `.umap` in the project:
+
+| level | size | note |
+|---|---|---|
+| `/Game/StackOBot/Maps/MainWorld` | 21 KB | the gameplay level |
+| `/Game/StackOBot/Maps/Structures/Struct_001` | 301 KB | under `Maps/Structures/` |
+| `/Game/StackOBot/Maps/Structures/Struct_002` | 9 KB | " |
+| `/Game/StackOBot/Maps/Structures/Struct_003` | 15 KB | " |
+| `/Game/StackOBot/Maps/Structures/Struct_004` | 1.66 MB | " |
+| `/Game/StackOBot/UI/MainMenu/MainMenu` | 174 KB | the packaged **boot** map; a full 3D scene |
+| `/Game/CaptureBenchGate/CB_GateLevel` | 1.10 MB | the frozen instrument; **all STATIC, eye invariant** |
+
+🚨 **G87 FLAGGED, AND IT IS STRONGER THAN "CHECK THE NAME".** `GameDefaultMap` is
+`/Game/StackOBot/UI/MainMenu/MainMenu`, MainMenu is a full 3D scene visually indistinguishable from
+gameplay, **and the redirect is ACTIVE, not a startup race**: G87 records that
+`StackOBot.exe /Game/StackOBot/Maps/MainWorld` loads MainWorld and then **immediately loads MainMenu**,
+and that a deferred `OpenLevel` travels to MainWorld and **bounces back**. ⇒ **MainWorld is not
+straightforwardly reachable in a packaged build**, and any path (a) design must confront that before
+anything else. `CB_GateLevel` is unaffected only because nothing in it redirects.
+
+⛔ **Not evaluated, per the brief.** Two things are recorded as *observations to verify*, not findings:
+MainWorld's 21 KB size is consistent with a shell that streams the `Structures/` levels (a raw ASCII
+scan of the `.umap` found no `Struct_00*` or `LevelStreaming*` strings, but the asset is compressed so
+that scan is **not** evidence either way); and whether any of these contains motion **that occurs
+without player input** is unknown — an unattended packaged run has no input, so a path (a) test needs a
+moving occluder, a moving target, or a driven camera, and which of these exists in any of these levels
+has **not** been checked.
+
+## 20. State after PART THREE
+
+**No run. No plugin production code. No tag. `feature/stencil-capture` untouched and not rebased.**
+The cure is not built and will not be built before the incidence question is answered — the D-B lesson:
+the SVE migration would not have cured P3, and building it first would have shipped a migration while
+the poisoning continued.

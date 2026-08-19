@@ -2294,6 +2294,35 @@ non-zero and names the fault (no `TESTVALUE|CHANGEME|placeholder`, plus a positi
 assertion). It was verified against four cases before being trusted: the live config **PASS**, the
 historical `TESTVALUE123` **FAIL**, a 6-char token **FAIL**, an absent key **FAIL**.
 
+---
+
+🚨 **AMENDMENT, 2026-08-19 — THIS DETECTOR CHECKS THE WRONG ARTIFACT AND RETURNS PASS ON THE UNSAFE
+CASE.** The check above reads `StackOBot\Config\DefaultGame.ini`. **That file is not what any built
+game enforces.**
+
+A packaged build reads the **COOKED** copy of `DefaultGame.ini` baked into its pak at cook time. Editing
+or rotating the source ini changes **nothing** for a build already cooked. Measured on the m25 staged
+binary while collecting an unrelated read-back: the source ini carried a rotated 64-character token,
+the build **rejected** it, and the build's own startup log said
+
+```
+=== Control server token: TESTVALUE123 (from DefaultGame.ini [AnomalyControlServer] Token) ===
+```
+
+⚠ **The parenthetical is the trap.** The binary says *"from DefaultGame.ini"* and means **the cooked
+one**. A reader who greps the source ini, sees a strong token, and matches it against that log line
+concludes the rotation took. It did not.
+
+**So the detector above returns PASS on a build that is enforcing a 12-character literal present in
+this repo's history.** That is strictly worse than having no detector, because it retires the vigilance
+that would otherwise notice — which is the same complaint this gotcha makes about a checkbox, now
+turned on its own fix.
+
+**The check is DEMOTED: passing the source ini is NECESSARY, NOT SUFFICIENT.** The sufficient check is
+a read-back from the running build — start it, read `Control server token:` out of its own log, and
+assert *that* value is not a placeholder and is ≥ 32 chars. See **G118** for the full write-up and
+**G119** for the general shape. `PRE-DELIVERY-CHECKLIST.md` §1 carries both checks now, in that order.
+
 ⚠ **There is no pre-cook or pre-stage script in this project** — cooking and staging are run by hand
 from `setup-runbook.md` §8 — so the check has nowhere automatic to live and one was deliberately **not
 invented**. If a build wrapper is ever written, this check is its first line.
@@ -2530,3 +2559,39 @@ A build cooked before any future rotation inherits the same hole, silently.
 *(Found while collecting H4's corroborating A48 echo; entirely orthogonal to H4, and recorded rather
 than absorbed. Related: G92 — compiled is not staged; G112 — placeholder tokens; G114 — a lever that
 does nothing.)* (2026-08-19.)
+
+**CLOSURE IS SEQUENCED, NOT OPTIONAL — and closing it RETIRES the m25 measurement binary.**
+`G118 CLOSURE = re-cook + re-stage + re-bank (G92 wipes `Saved`) + a re-run of the A44 hash scan.`
+It runs **AFTER the current measurement sequence and NEVER inside one**, because a re-cook replaces
+staged exe **`101AFEA4`** — the binary every m25 result, and H4's own two legs, are measured against.
+⛔ **Any result still owed against `101AFEA4` must land BEFORE closure.** Sequencing is the owner's
+call, not the implementer's.
+
+---
+
+### G119 — a guard that checks the SOURCE of a baked artifact validates a copy the running system never reads
+
+**Third instance of the same shape**, and the pattern is now clear enough to name:
+
+| # | gotcha | the channel that was trusted | what was never verified |
+|---|---|---|---|
+| 1 | **G92** | "it compiled" | that the binary was **staged** |
+| 2 | **G113** | an **exit code** | that the code was **earned** rather than emitted |
+| 3 | **G118 / G112-amended** | the **source** config | what the built artifact **enforces** |
+
+Each time, a signal that *represents* the property was checked instead of the property. Each time the
+signal was real, correctly produced, and about the wrong object.
+
+**The general rule: for anything BAKED — cooked config, embedded resources, compiled-in defaults,
+generated headers, packaged assets — the source file is an INPUT, not the artifact. Check what the
+artifact ENFORCES, by reading it back out of the running system.**
+
+Practical form, and it is the same three words every time: **read it back.** A48 already says this for
+in-process cvars; G114 extended it to OS-level levers; G118 extends it to secrets. The unifying
+question is *"what would I observe if the thing I edited never reached the thing under test?"* — and
+if the answer is *"exactly what I am observing now"*, the check is not a check.
+
+⚠ **A guard that PASSES the unsafe case is worse than no guard.** All three instances share this: the
+false pass is silent, it looks like diligence, and it retires the suspicion that would otherwise catch
+the fault. When demoting such a guard, say **NECESSARY BUT NOT SUFFICIENT** rather than deleting it —
+the source check still catches a source-side regression, it just cannot certify a build. (2026-08-19.)

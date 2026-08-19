@@ -35,6 +35,35 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       ⚠ **There is no pre-cook or pre-stage script in this project** — cooking and staging are run by
       hand from `setup-runbook.md` §8 — so this check has nowhere automatic to live. It runs here or
       it does not run.
+
+- [ ] 🚨 **THE CHECK ABOVE IS NECESSARY BUT *NOT* SUFFICIENT — IT READS THE SOURCE INI, WHICH IS NOT
+      WHAT THE BUILD ENFORCES. RUN THE READ-BACK BELOW OR THE TOKEN IS UNVERIFIED.**
+      *A packaged build enforces the **COOKED** copy of `DefaultGame.ini` baked into its pak at cook
+      time. Rotating the source ini changes nothing for a build already cooked, so the check above
+      returns **PASS** on a build enforcing a placeholder (**G118**). Measured on the m25 staged binary:
+      source ini 64 chars, build enforcing `TESTVALUE123`.*
+      ⚠ **The build's log line says `(from DefaultGame.ini …)` and means the COOKED one.** Matching it
+      against the source file is exactly the mistake.
+
+      **A build is checked by what it ENFORCES, not by what its source says.** Start the build, read the
+      token out of its own log, assert on *that*:
+
+      ```powershell
+      # start the packaged build briefly (any map), then:
+      $log = "<staged>\StackOBot\Saved\Logs\StackOBot.log"
+      $m = Select-String -Path $log -Pattern 'Control server token:\s*(\S+)\s*\(' | Select-Object -Last 1
+      if (-not $m) { Write-Host "FAIL: build never logged a token (server not started?)" -Fore Red; exit 1 }
+      $t = $m.Matches[0].Groups[1].Value
+      if ($t -match 'TESTVALUE|CHANGEME|placeholder|^TEST$') { Write-Host "FAIL: BUILD ENFORCES A PLACEHOLDER: $t" -Fore Red; exit 1 }
+      if ($t.Length -lt 32) { Write-Host "FAIL: enforced token is $($t.Length) chars, need >= 32" -Fore Red; exit 1 }
+      Write-Host "PASS: BUILD ENFORCES a $($t.Length)-char non-placeholder token" -Fore Green
+      ```
+
+      *The log line appears once `IAI.Server.Start` has run, so include it in `-ExecCmds` for the probe
+      launch. `CaptureBench/tools/ws_scoping_echo.ps1` already does this read-back and prints
+      source-vs-enforced side by side.*
+      ⛔ **If the two disagree, the build is STALE relative to the config and must be RE-COOKED before
+      delivery.** Do not ship on the strength of the source file. → **G118**, **G119**.
 - [ ] **GRAB POINT — confirm which one the build ships on, from the LOG, not from memory.**
       *Since S4 the default is the **SVE / scene-colour** path and **delivered frames contain NO game
       UI**. The startup log states it and where the default came from:*
