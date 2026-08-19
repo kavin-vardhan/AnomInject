@@ -21,7 +21,12 @@ separable — each part exists because the one before it produced something unex
 | **Six** | 34–40 | **The re-cook** — MainWorld in, `G118` closed, smoke green | **G121** — the exe hash does not identify the build |
 | **Seven** | 41–50 | **MainWorld first launch** (recon) | Movers loaded; `BP_MovingPlatform` moves, `BP_Stomper` does not |
 | **Eight** | 51–61 | **Geometry survey** | 🛑 **NO CROSSING PAIR** for full occlusion. **G122**, **G123** |
-| **Nine** | 62– | **Owner evidence redirects the lead → `H5`** | ✅ **H5 class (ii) SUPPORTED**, reproduced here. **G124** |
+| **Nine** | 62–68 | **Owner evidence redirects the lead → `H5`** | ✅ **H5 class (ii) SUPPORTED**, reproduced here. **G124** |
+| **Ten** | 69–76 | **Traceability characterised · `G124` generalises** | Only `node.name` degrades; **3/13 non-foliage actors collapse the poll cull**. **G125** — a marker contaminated PART NINE's numbers |
+| **Eleven** | 77–82 | **The cure measurement** | 🚨 **The cure needs a NEW MEASUREMENT, not a new threshold.** A 2nd class-(ii) instance, and it is not foliage |
+
+**WHERE IT ENDS:** `H5`'s cure design is **chat-side and not written**. `feature/stencil-capture` is
+**untouched** throughout. **`P6` never moved. ZERO production code across all eleven parts.**
 
 ---
 

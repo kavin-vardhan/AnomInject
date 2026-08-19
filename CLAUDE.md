@@ -15,8 +15,36 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — `S4` IS COMPLETE AND TAGGED `m25`. THE DEFAULT GRAB POINT IS THE SVE /
-  SCENE-COLOUR PATH: DELIVERED FRAMES NO LONGER CONTAIN GAME UI.**
+- 🟩 **YOU ARE HERE — 2026-08-19. THE INVISIBLE-ANOMALY INVESTIGATION IS THE ACTIVE WORK, AND `H5` IS
+  THE PRIMARY LEAD. THE LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING HAS BEEN TAGGED SINCE.**
+  📒 **READ `docs/invisible-anomaly-mechanisms.md` FIRST** — the five-row ledger of *distinct*
+  mechanisms with *potentially distinct cures*. Then journal
+  `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`, which has a **PART INDEX** at the top
+  covering **eleven parts** (H4 pre-flight → the H4 run → environment scout → pre-cook gate → the
+  re-cook → MainWorld first launch → geometry survey → `H5` → traceability → cure measurement).
+  **WHERE THINGS STAND, in one read:**
+  · **`m23`/`P3`** — FIXED, shipped.
+  · **`H4`** (occluded target, occlusion-blind projector) — **SUPPORTED, path (b), mechanism only, n=1
+  leg. NO INCIDENCE CLAIM.** Cure = `feature/stencil-capture`, **UNTOUCHED**.
+  · **`H5`** (the selector's renderable test is a **TYPE test, not a DRAWING test**) — **class (ii)
+  SUPPORTED with n=2 measured instances** (`InstancedFoliageActor`, **`BP_SplineSpawn_C` — not
+  foliage**); **class (i) ENUMERATED, NOT OBSERVED** (owner's `BP_LocalVolumetricFog` is not
+  reproducible here — the client runs her own game).
+  · **Traceability** — characterised, **NOT a cause**: `asset_name`/`component_class` are intact in
+  builds (15/15); only `node.name` is uninformative, and identity is **non-deterministic** for actors
+  that toggle component visibility.
+  · **Path (a)** — **PARKED, NOT REFUTED.** A *priority* decision, not a scope one (G120).
+  🧭 **NEXT, AND IT IS CHAT-SIDE: `H5`'s CURE DESIGN.** The measurement that precedes it is done and
+  its answer is **the cure needs a NEW MEASUREMENT, not a new threshold** — every artifact field
+  describes **claimed** extent, none describes **drawn** extent, and the selection bounds cannot even be
+  read back. ⛔ **Do NOT design or propose a cure unprompted. Do NOT touch `feature/stencil-capture`
+  (it is H4's cure and may not be H5's). `P6` DOES NOT MOVE. No production code has been written in
+  eleven parts — keep it that way until a brief says otherwise.**
+  ⚠ **OPERATIONAL:** disk **12.9 GB free**; bank **148 dirs / 15.7 GB**, plus **6.4 GB of exe-side leg
+  dirs (83)** that are mostly duplicates of banked sessions — **the obvious thing to prune first**.
+- 🟦 *(superseded as "you are here", still the LAST TAGGED MILESTONE)* **`S4` IS COMPLETE AND TAGGED
+  `m25`. THE DEFAULT GRAB POINT IS THE SVE / SCENE-COLOUR PATH: DELIVERED FRAMES NO LONGER CONTAIN
+  GAME UI.**
   ✅ **`S4-3`** — `run_summary.capture_path` is emitted on **BOTH** paths (`"sve"` / `"backbuffer"`), so a
   delivered session states what produced it; an absent field used to be indistinguishable from a pre-S3
   build. `key_ring_*` stay SVE-only. Gate by **control pair**: SVE field set added `[]` removed `[]`;
@@ -1869,6 +1897,11 @@ and is the single source of truth for the project.
   *now*; forward plans live in the journals, never here.
 - **[docs/onboarding.md](docs/onboarding.md)** — what this is, how the work is run, where things live.
 - **[docs/setup-runbook.md](docs/setup-runbook.md)** — **living** recipe to build/run from scratch.
+- **[docs/invisible-anomaly-mechanisms.md](docs/invisible-anomaly-mechanisms.md)** — **the ledger of
+  invisible-anomaly mechanisms** (`m23`/`P3`, `H4`, `H5` (i) and (ii), and traceability marked as **NOT
+  a cause**). One symptom, several causes, **potentially distinct cures, and no single fix is known to
+  address all of them.** Each row states **MEASURED vs SOURCE-READ**, its limits, and its cure if known.
+  **Read this before touching anything in that line of work.**
 - **[docs/gotchas.md](docs/gotchas.md)** — **append-only** non-obvious lessons (G1, G2, …).
 - **[docs/sessions/](docs/sessions/)** — one journal per session, `YYYY-MM-DD-NNN-slug.md`: the
   chronological record (Goal / What done / Problem→Resolution / Deviations / State / Hand-off) and
