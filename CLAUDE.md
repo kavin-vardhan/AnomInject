@@ -98,8 +98,9 @@ and is the single source of truth for the project.
   back clean, **P1 HAS NO NAMED LEADS**).
   🟢 **`H4` RAN 2026-08-19 (after its brief was amended chat-side) AND THE RESULT IS
   `H4-SUPPORTED` — THE MECHANISM IS OBSERVED, PATH (b), 8/8 EVENTS.** → journal
-  `docs/sessions/2026-08-19-045-h4-preflight-halt.md` (**PART TWO** is the run; part one is the
-  pre-flight that stopped the *original* brief). **STILL ZERO PLUGIN PRODUCTION CODE. NO TAG.**
+  `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md` (**PART TWO** is the run; part one is
+  the pre-flight that stopped the *original* brief; **the file has a PART INDEX at the top**).
+  **STILL ZERO PLUGIN PRODUCTION CODE. NO TAG.**
   **THE OBSERVATION:** on a target proven fully occluded (`StaticMeshActor_100`; `StaticMeshActor_86`
   blocks all 9 rays alone, 0 rays floor-only), the label path emitted **`bbox_valid: true` on 59/59
   rows**, `visible_positive` on 59 rows, `coverage_ratio 0.01160339 > 0`, and **8 annotation events all
@@ -230,7 +231,71 @@ and is the single source of truth for the project.
   is offline asset/container reading; the Blueprint evidence is **name-table strings plus the developer
   comments embedded in them** (the quotes are direct; the machinery lists are indicative, not a graph
   read).
-  🟥 **GEOMETRY SURVEY DONE (journal 045 §51-§61). THE HALT OBTAINED: *NO CROSSING PAIR EXISTS* — from
+  🚨 **NEW PRIMARY LEAD — `H5` IS MINTED AND CLASS (ii) IS SUPPORTED, REPRODUCED HERE (journal 045
+  PART NINE, §62-§68). ZERO production code. NO TAG.**
+  🧾 **OWNER OBSERVATION (real evidence, EYEBALL-LEVEL, NOT MEASURED — do not upgrade, do not
+  discard):** the client's invisible anomalies were **NOT partially hidden — they could not be found at
+  all**; two culprit classes named in her data, **`InstancedMeshActor`** and **`BP_LocalVolumetricFog`**;
+  and the rest **could not be attributed because every actor reads `StaticMeshActor_xxx`.**
+  ⛔ **A CHAT-SIDE RULING WAS WITHDRAWN: *"partial occlusion is the right target"*** — it rested on what
+  our levels can produce, not on the client's data. **The Part Eight "no crossing pair" answer and
+  `H4 SUPPORTED (path b)` both STAND.** ⚠ **PATH (a) IS PARKED, NOT REFUTED — a PRIORITY decision, not
+  a SCOPE one (G120). Re-opening it needs a decision, not an argument.**
+  🆕 **`H5` — THE SELECTOR ADMITS OBJECTS THAT CANNOT MANIFEST A VISIBLE HIDE.** Number verified free
+  first: `H1`/`H3`/`H4` minted, **`H2` RETIRED-UNKNOWN**, no `H5`–`H9` anywhere. *Selection requires a
+  renderable component — **a TYPE test, not a DRAWING test**. An actor can satisfy it while contributing
+  no pixels, or pixels nowhere near where its label says.* **(i) non-drawing mesh component**
+  (`BP_LocalVolumetricFog`, **not reproducible here** — the client runs her own game; **what IS ours is
+  the FILTER that admitted it**); **(ii) aggregate/instanced actor** (`InstancedMeshActor`,
+  **reproducible here**). ⛔ **H4 is a target that WOULD draw but is BLOCKED; H5 is a target that WOULD
+  NOT DRAW ANYWAY. Same symptom, different mechanism, different cure. TWO ITEMS.**
+  🔎 **TASK 1 — THE FILTER, SOURCE READING NOT MEASUREMENT.** `IsRenderableComponent` checks exactly
+  **two** things: `Component->IsVisible()` and, for ISM, `GetInstanceCount() > 0`. ⛔ **ABSENT:** the
+  **owner actor's `bHidden`** (`IsVisible()` does not consult it — `ShouldRender()` would, and is not
+  used) · `bRenderInMainPass` · `GetStaticMesh() != nullptr` · section/triangle count · material
+  presence · `WasRecentlyRendered()` · **any distinction between ISM/HISM and a plain SMC** (they
+  DERIVE from `UStaticMeshComponent`, so they pass trivially). **Every companion predicate — frustum,
+  poll radius, occlusion, coverage — is computed on BOUNDS. Not one reads a pixel, a material or a draw
+  call.** Routes a fog-shaped actor could pass by: not-in-main-pass · null mesh · nothing-rendering
+  material · owner-hidden · an SMC used as an editor gizmo. **Any one suffices.**
+  ✅ **TASK 2 — CLASS (ii) REPRODUCED. Branches pre-registered as a FILE before the result was read.**
+  `InstancedFoliageActor_0_0_0`, MainWorld, delivery OFF, B1 **NOT APPLICABLE (declared)**, **no A54
+  verdict** (G117), raw series only. Selected and fired (`matched 1 actor(s)` → applied), 8 events.
+  **THE LABEL: `bbox_px (0,0,1280,720)` on 59/59 rows — THE ENTIRE FRAME · `coverage_ratio 1.00000000`
+  · `coverage_pct 100` · `manifested true` · `component_class FoliageInstancedStaticMeshComponent` ·
+  `asset SM_Bush` · `global_position [12800,12800,12800]` (a cell corner) · bounds 252 m × 217 m × 67 m.**
+  **THE PIXELS: mean |Δ| ≈ 0.0069 whole-frame**, against the `CB_GateLevel` control hide's
+  **0.1023–0.1116** and H4's occluded **≤2.0e-4** ⇒ **~6 % of a proper hide.** **THE GRID (8×8) is the
+  discriminator: FOUR cells carry it (0.1800, 0.1510, 0.1228, 0.0860) — the peak EXCEEDS the control's
+  whole-bbox score — and the other 60 are flat.** ⇒ **the label claims 100 % of the frame while the
+  change lives in ~6 % of it.** ⚠ **The predicted "change outside the bbox" test DEGENERATED — a
+  full-frame bbox has no outside — and the spatial grid answered instead.** ⛔ **MECHANISM ONLY, NO
+  INCIDENCE CLAIM;** the owner's `InstancedMeshActor` is not this actor.
+  🆕 **`G124` — AN AGGREGATE'S BOUNDS DEFEAT EVERY BOUNDS-BASED GUARD AT ONCE.** `poll_distance`
+  **−5396.0 (NEGATIVE** — the bounds sphere exceeds the distance, so the 1800 cm cull can never fire
+  **from anywhere in the level**) · `coverage_pct 100` against a 6 % floor · `IsUnoccluded` **1/9, the
+  exact minimum** · label rect the whole frame. ⚠ **The guards LOOK independent and are not — they are
+  four readings of ONE number.**
+  🔬 **`samples 1/9` is `P-a1`'s exact boundary in live data — CORROBORATION, NOT A TEST** (provenance
+  is computed at the anchor, *after* selection, so it cannot speak to passing PICK TIME). ⛔ **`P-a1`…
+  `P-a5` REMAIN UNTESTED; none marked touched.**
+  📐 **`P6`'s SECOND OBSERVATION (record only):** `nodes[].bounds` is
+  `GetComponentsBoundingBox(**true**)` — the whole actor — and `nodes[].global_position` is the actor
+  origin, while `bbox_norm`/`bbox_px` come from the **projector** over SM/SK `Component->Bounds`.
+  **LABELS ARE UNAFFECTED; any consumer using `node.bounds` or `global_position` for geometry can be
+  wrong by kilometres.** ⛔ **`P6` DOES NOT MOVE.** 🔗 Adjacency to `H5` class (ii) **noted, NOT merged**
+  — both concern *which components count as "the object"*; adjacency is not identity.
+  🚨 **TRACEABILITY IS NOW BLOCKING, and the `B1` NAME COLLIDES.** **`B1` (current)** = the pose-match
+  precondition on A56 (live, ~18 mentions here, in `run_leg.ps1`/`check_pose.py`). **`B1` (older, m22)**
+  = *"B1 traceability — `nodes[]` gains `asset_name`, `component_class`, bounds"*, **SHIPPED at
+  `03a51d5`**. **PROPOSED, NOT ADOPTED:** keep `B1` for the pose gate, retire the older to
+  **`m22-B1-traceability`**. ⚠ **`asset_name` and `component_class` ALREADY EXIST** and on this leg read
+  `SM_Bush` / `FoliageInstancedStaticMeshComponent` — **naming the culprit class outright.** ⛔ **WHY
+  THEY WERE INSUFFICIENT FOR THE OWNER IS NOT ESTABLISHED AND IS NOT GUESSED — the cheapest next step
+  is to ask which fields her copy actually shows.** Minimal additions, all **`P6` TERRITORY / MILESTONE
+  CANDIDATES because they change the `annotation.json` contract**: `instance_count` (would have named
+  class (ii) outright) · `component_name` · `render_bounds`. ⛔ **Nothing implemented.**
+  🟦 *(superseded — kept for the record)* **GEOMETRY SURVEY DONE (journal 045 §51-§61). THE HALT OBTAINED: *NO CROSSING PAIR EXISTS* — from
   the settled camera, NO moving platform can FULLY occlude any selectable target.** ZERO production
   code. NO TAG. Nothing graded. `P-a1`…`P-a5` still UNTESTED. **Design is the owner's call.**
   🧭 **Q-4, the deciding answer:** only **1 of 4** platforms is in the frustum at all (the other three

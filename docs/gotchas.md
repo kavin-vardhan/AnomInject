@@ -2857,3 +2857,36 @@ most likely to be untested**, because the author was looking at a case that had 
 *(Fixed by a `bbox is None` branch that says plainly that B1 has nothing to judge — explicitly NOT a
 pose reading and NOT a pose failure, which is the honest label where "failed" would name a cause the
 gate has not established. Same family as G113 — an exit code emitted but never earned.)* (2026-08-19.)
+
+---
+
+### G124 — an AGGREGATE component's bounds defeat EVERY bounds-based guard at once, and the same property makes its label wrong
+
+Measured on `InstancedFoliageActor_0_0_0` in MainWorld, shipping defaults, on the m25 build:
+
+| guard | intended job | what it did |
+|---|---|---|
+| **poll-radius cull** (`GPollRadius` 1800 cm) | reject actors too far to matter | **`poll_distance = −5396.0` — NEGATIVE.** It is `dist(pollOrigin, B.Origin) − B.SphereRadius`, and the cluster's bounds sphere (~17,000 cm) **exceeds the distance to it**, so the value is negative **from anywhere in the level**. The cull can never fire. |
+| **screen-coverage floor** (`GMinScreenCoveragePct` 6 %) | reject actors too small on screen | **`coverage_pct = 100`.** The union-bounds rect fills the frame. Vacuous. |
+| **`IsUnoccluded`** (9 rays, first clear wins) | reject actors nothing can see | **`1/9` — the exact minimum.** Rays are traced to the **cluster's** AABB corners, which are hundreds of metres apart and mostly in open air. |
+| **label rect** (`ProjectActorBoundsToScreenRect`) | say where the anomaly is | **`(0, 0, 1280, 720)` — the entire frame**, `coverage_ratio 1.0`, on 59/59 rows. |
+
+**One property causes all four: the bounds describe the CLUSTER, not the drawn geometry.** A 252 m ×
+217 m × 67 m box makes "how far", "how big on screen", "can anything see it" and "where is it" all
+answer about a volume the size of a district.
+
+**Why this is a gotcha and not just a fact about foliage:** ⚠ **the guards look independent and are
+not.** A reader satisfied that *"distance, coverage and occlusion all agree it is a valid target"* has
+three readings of **one number**. `UInstancedStaticMeshComponent` derives from `UStaticMeshComponent`
+and `UHierarchicalInstancedStaticMeshComponent`/`UFoliageInstancedStaticMeshComponent` from that, so
+they pass the type test **trivially**, and **nothing downstream treats them differently** — the only
+ISM-aware line in the whole filter is an instance-count `> 0` check.
+
+**Measured consequence:** hiding it changed the frame by **0.0069 mean luma** against a proper hide's
+**0.1023–0.1116** — while the label claimed **100 % of the frame**. The change was real but lived in
+**4 of 64 grid cells**; the other 60 were flat. **A bbox-only reading (A35's rule, which is correct
+when the label points at the object) reports a real change and calls it a manifest hide.**
+
+**RULE: before trusting a bounds-derived guard, ask whether the component AGGREGATES.** For ISM / HISM
+/ foliage / spline-spawned meshes, `Bounds` is a container, not an object, and **every guard computed
+from it inherits that.** → **`H5` class (ii)**. (2026-08-19.)

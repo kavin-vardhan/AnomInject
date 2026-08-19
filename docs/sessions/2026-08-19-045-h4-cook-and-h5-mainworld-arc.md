@@ -1,10 +1,33 @@
-# 2026-08-19 — 045 — H4 pre-flight: the run is BLOCKED, and the block was found before it ran
+# 2026-08-19 — 045 — H4, the re-cook, MainWorld, and H5
 
-**Plugin:** `AnomalyInjector` — **docs only. NO production code touched. NO tag.**
-**Bench:** `CaptureBench` — three new read-only recon instruments. Local-only.
+**Plugin:** `AnomalyInjector` — **docs only, in every part. ZERO production code. NO tag.**
+**Bench:** `CaptureBench` — read-only instruments throughout. Local-only.
 **Base:** `caaac09` (tag `m25` → `ebf1f16` → `d8482a2`).
 
-**NO RUN HAPPENED. No branch obtained. This journal records a pre-flight that reached the
+⚠ **ONE INVESTIGATION, NINE PARTS.** It began as a one-run H4 test and became the arc that unblocked
+path (a)'s environment and then found a different lead entirely. It is not split because it is not
+separable — each part exists because the one before it produced something unexpected. **Renamed from
+`…-045-h4-preflight-halt.md` on 2026-08-19; that title described only Part One.**
+
+## PART INDEX
+
+| part | §§ | what it is | outcome |
+|---|---|---|---|
+| **One** | 0–9 | **H4 pre-flight** — the original brief's design checked before running | ⛔ **SCOPE GATE.** No run. Three blockers found first. **G116**, **G117** |
+| **Two** | 10–16 | **The H4 run**, on the amended design | ✅ **H4 SUPPORTED** as a mechanism, path (b), 8/8 events |
+| **Three** | 17–20 | The claim fixed in words · `G112` corrected · path-(a) recon | **G118**, **G119**. Path (a) structurally open |
+| **Four** | 21–28 | **Environment scout** | 🚨 **MainWorld was never cooked.** G87's mechanism wrong → **G120** |
+| **Five** | 29–33 | **Pre-cook gate** G-1/G-2/G-3 | ✅ all pass. G-3 confirms the G87 correction |
+| **Six** | 34–40 | **The re-cook** — MainWorld in, `G118` closed, smoke green | **G121** — the exe hash does not identify the build |
+| **Seven** | 41–50 | **MainWorld first launch** (recon) | Movers loaded; `BP_MovingPlatform` moves, `BP_Stomper` does not |
+| **Eight** | 51–61 | **Geometry survey** | 🛑 **NO CROSSING PAIR** for full occlusion. **G122**, **G123** |
+| **Nine** | 62– | **Owner evidence redirects the lead → `H5`** | ✅ **H5 class (ii) SUPPORTED**, reproduced here. **G124** |
+
+---
+
+# PART ONE — H4 pre-flight: the run is BLOCKED, and the block was found before it ran
+
+**NO RUN HAPPENED. No branch obtained. This part records a pre-flight that reached the
 SCOPE GATE, and the three findings that made stopping the right answer rather than a delay.**
 
 ---
@@ -1674,3 +1697,298 @@ part index at the top would fix most of it without a split.**
 | bank | 110 → **126** dirs (8 survey legs + attempts) |
 | new gotchas | **G122** (namespace join), **G123** (a reporting path that can kill the run) |
 | new instruments | `mainworld_instance_join.md`, `mainworld_join.ps1`, `mainworld_q4_geometry.py` |
+
+---
+---
+
+# PART NINE — owner evidence redirects the lead. **`H5` is minted and class (ii) is SUPPORTED.**
+
+## 62. The evidence, and its provenance label
+
+🧾 **OWNER OBSERVATION — real evidence, EYEBALL-LEVEL, NOT MEASURED.** The owner inspected the
+client's delivered output directly and reported:
+
+1. **The invisible anomalies were NOT PARTIALLY HIDDEN. They could not be found at all.**
+2. Two culprit classes named in the client's data: **`InstancedMeshActor`** and
+   **`BP_LocalVolumetricFog`**. Both selected and hidden; for both, *"the blinking wasn't visible for
+   obvious reasons"*.
+3. The remaining invisible cases **could not be attributed**, because every actor is named
+   `StaticMeshActor_xxx`.
+
+⛔ **Not upgraded to measurement, not discarded.** It is the provenance label that makes it usable.
+
+### 62.1 A chat-side ruling was WITHDRAWN, and the distinction matters
+
+> **WITHDRAWN:** *"partial occlusion is the right target."* It rested on what `CB_GateLevel` and
+> MainWorld can produce, **not on what the client's data shows.** The owner's evidence outranks that
+> inference.
+
+**What SURVIVES unchanged:** the Part Eight *"no crossing pair"* answer for full occlusion, and **H4
+as SUPPORTED (path b)**.
+
+⚠ **PATH (a) IS PARKED, NOT REFUTED — and this is a PRIORITY decision, not a SCOPE one.** G120 forbids
+deriving a **scope** decision ("that approach is dead") from an unverified mechanism. Nothing here
+refutes path (a); a better-evidenced lead simply arrived. **The distinction is in the record so that
+re-opening path (a) needs no argument, only a decision.**
+
+## 63. **`H5`** — minted. Number verified against the record first.
+
+**Assigned: `H5`.** The record holds `H1` (GPU-load starvation, 49 mentions), **`H2` RETIRED-UNKNOWN**
+(*"appears nowhere in this repo; history unrecoverable; never re-mint this number"* — journal 037
+§1.2), `H3` (auto-exposure), `H4` (occlusion-blind labelling, 109 mentions). **No `H5`–`H9` anywhere.**
+**Numbers are never reused**, so `H5` is the next free one.
+
+> **`H5` — THE SELECTOR ADMITS OBJECTS THAT CANNOT MANIFEST A VISIBLE HIDE.**
+> Selection requires a renderable component (`IsRenderableComponent`, SM-or-SK, G33). **That is a TYPE
+> test. It is not a DRAWING test.** An actor can satisfy it while contributing no pixels, or while
+> contributing pixels nowhere near where its label says. Hiding such an actor produces a label with no
+> corresponding visual change, **in plain sight, with no occlusion involved.**
+>
+> **(i) NON-DRAWING MESH COMPONENT** — exists for editor visualisation and is not drawn in game.
+> Owner-observed instance: `BP_LocalVolumetricFog`. **Not reproducible here** — the client runs her own
+> game. **What IS ours and IS readable is the FILTER that admitted it.**
+> **(ii) AGGREGATE / INSTANCED ACTOR** — ISM/HISM derive from `UStaticMeshComponent` and pass the type
+> test trivially, while their `Bounds` cover the whole cluster. Owner-observed instance:
+> `InstancedMeshActor`. **Reproducible here.**
+
+⛔ **RELATIONSHIP TO H4, so neither absorbs the other: H4 is a target that WOULD draw but is BLOCKED.
+H5 is a target that WOULD NOT DRAW ANYWAY. Same symptom, different mechanism, different cure. TWO
+ITEMS.** ⛔ **`P-a1`…`P-a5` remain UNTESTED; none is marked touched.**
+
+## 64. TASK 1 — THE FILTER, FROM SOURCE. **SOURCE READING, NOT MEASUREMENT.**
+
+The whole of it, verbatim (`AnomalyViewport.cpp:493-510`):
+
+```cpp
+bool IsRenderableComponent(const UPrimitiveComponent* Component)
+{
+    if (!Component || !Component->IsVisible())        { return false; }
+    if (const UInstancedStaticMeshComponent* ISM = Cast<UInstancedStaticMeshComponent>(Component))
+    {
+        if (ISM->GetInstanceCount() <= 0)             { return false; }
+    }
+    return Component->IsA<UStaticMeshComponent>()
+        || Component->IsA<USkinnedMeshComponent>();
+}
+```
+
+| checked? | predicate | evidence |
+|---|---|---|
+| ✅ **PRESENT** | `bVisible` / `bHiddenInGame` | `Component->IsVisible()`. Engine source: `USceneComponent::IsVisible()` = `if (bHiddenInGame) return false; return GetVisibleFlag() && (!CachedLevelCollection \|\| CachedLevelCollection->IsVisible());` |
+| ✅ **PRESENT** | instance count > 0 on ISM/HISM | `ISM->GetInstanceCount() <= 0` |
+| ⛔ **ABSENT** | **owner actor's `bHidden`** | `IsVisible()` does **not** consult the owner. `UPrimitiveComponent::ShouldRender()` does — the filter does not use `ShouldRender()` |
+| ⛔ **ABSENT** | `bRenderInMainPass` | the identifier appears nowhere in the plugin |
+| ⛔ **ABSENT** | `GetStaticMesh() != nullptr` | never called on the selection path |
+| ⛔ **ABSENT** | section / triangle count | never queried |
+| ⛔ **ABSENT** | material presence, or a material that draws nothing | never queried |
+| ⛔ **ABSENT** | `WasRecentlyRendered()` | never called |
+| ⛔ **ABSENT** | **any distinction between ISM/HISM and a plain SMC** | `UInstancedStaticMeshComponent : public UStaticMeshComponent`; `UHierarchicalInstancedStaticMeshComponent : public UInstancedStaticMeshComponent`; `UFoliageInstancedStaticMeshComponent : public UHierarchicalInstancedStaticMeshComponent`. **All three pass `IsA<UStaticMeshComponent>()` trivially**, and after the instance-count guard nothing treats them differently |
+
+**The companion predicates on the same path, and what each tests:**
+`IsInFrustum` — bounds sphere ∧ box against the frustum. `IsUnoccluded` — 9 `ECC_Visibility` traces to
+**bounds centre + 8 AABB corners**, `bTraceComplex=false`, **first clear ray wins**. Poll radius —
+`dist(pollOrigin, B.Origin) − B.SphereRadius > R`. `PassesScreenCoverage` — projected **union bounds**
+rect area ≥ 6 %. **Every one of them is computed on BOUNDS. Not one reads a pixel, a material or a
+draw call.**
+
+### 64.1 By what route could a `BP_LocalVolumetricFog`-shaped actor pass this filter?
+
+⛔ **The contents of that Blueprint are NOT in this project and are NOT guessed.** Reasoning **from our
+filter outward**, these are the routes the code *permits* — each is a property our filter never reads:
+
+1. **A visible mesh component that is not drawn in the main pass.** `bRenderInMainPass = false` passes
+   `IsVisible()` and is invisible on screen. **Nothing checks it.**
+2. **A mesh component with a null `StaticMesh`** — or one whose mesh has no renderable sections.
+   `IsVisible()` is about the component, not its contents. **Nothing checks it.**
+3. **A material that renders nothing** (fully translucent, opacity 0, a null material slot).
+   **Nothing checks it.**
+4. **A component visible in the editor but hidden at runtime via the OWNER** — `SetActorHiddenInGame`
+   sets the *actor's* `bHidden`, which `IsVisible()` **does not consult**. **Nothing checks it.**
+5. **A volumetric / effect actor carrying an SMC purely as an editor gizmo or bounds proxy** — the type
+   test cannot distinguish a gizmo from a rendered prop.
+
+⚠ **Any one of these is sufficient. The filter's guarantee is "this component is of a renderable TYPE
+and is flagged visible", and that is strictly weaker than "this component draws pixels."** That gap
+**is** `H5`.
+
+## 65. TASK 2 — CLASS (ii) REPRODUCED HERE. ✅ **SUPPORTED.**
+
+Branches were **pre-registered as a file before the result was read.** Leg `H5_MW_H5_FOLIAGE`,
+MainWorld, 1280×720 windowed, 100 %, `VideoFps` 30 pinned, SVE **not forced**, **delivery OFF**,
+shipping defaults, A63 accepted on attempt 1 (focus 2.5 s), **B1 NOT APPLICABLE — declared**,
+**no A54 verdict** (G117).
+
+**Selection succeeded:** `blinking: matched 1 actor(s) for '=InstancedFoliageActor_0_0_0'` → `applied`.
+8 events, 0 zero-match, 0 non-manifested.
+
+### 65.1 The label as emitted
+
+| field | value |
+|---|---|
+| `component_class` | **`FoliageInstancedStaticMeshComponent`** (a HISM subclass) |
+| `asset_name` | `SM_Bush` |
+| **`bbox_px`** | **`(0, 0, 1280, 720)` on 59/59 rows — THE ENTIRE FRAME (100 %)** |
+| **`coverage_ratio`** | **`1.00000000`** |
+| **`coverage_pct`** | **`100`** |
+| `manifested` | **true**, on all 8 events |
+| `node.global_position` | **`[12800, 12800, 12800]`** — the foliage cell corner, not any bush |
+| `node.bounds` | origin `(11428.8, 9918.1, 3915.0)` extent `(12625.1, 10863.9, 3371.7)` — **a 252 m × 217 m × 67 m box** |
+| provenance | `valid:true`, **samples `1/9`**, `poll_distance` **`−5396.0`** |
+
+### 65.2 The pixel change — RAW SERIES, NOT A VERDICT
+
+The bbox **is** the whole frame, so in-bbox and whole-frame are the same number by construction:
+
+| ev | claimed / flank | Δ |
+|---|---|---|
+| 0 | 0.257862 / 0.254574 | +0.003288 |
+| 1 | 0.274649 / 0.281038 | −0.006389 |
+| 2 | 0.317203 / 0.310014 | +0.007189 |
+| 3 | 0.320717 / 0.313521 | +0.007196 |
+| 4 | 0.318330 / 0.311257 | +0.007073 |
+| 5 | 0.320565 / 0.313397 | +0.007168 |
+| 6 | 0.319117 / 0.312128 | +0.006989 |
+| 7 | 0.320958 / 0.311261 | +0.009697 |
+
+**Mean |Δ| ≈ 0.0069.** Scale references already measured on this build: the `CB_GateLevel` control hide
+scores **0.1023–0.1116**; H4's fully-occluded target scored **≤ 2.0 × 10⁻⁴**. ⇒ **the frame-wide change
+is ~6 % of a proper hide** — an order of magnitude below the control, two above nothing.
+
+### 65.3 The grid — **where the change actually is**
+
+Mean |claimed − flank| per cell, 8×8, averaged over 8 events (every cell is inside the bbox, because
+the bbox is the frame):
+
+```
+ 0.0018  0.1800  0.1510  0.0014  0.0048  0.0033  0.0065  0.0058
+ 0.0039  0.0175  0.0092  0.0028  0.0051  0.0077  0.0507  0.1228
+ 0.0062  0.0082  0.0129  0.0084  0.0339  0.0250  0.0860  0.0453
+ 0.0031  0.0071  0.0013  0.0176  0.0290  0.0051  0.0029  0.0103
+ 0.0062  0.0015  0.0062  0.0126  0.0107  0.0008  0.0011  0.0012
+ 0.0023  0.0027  0.0024  0.0028  0.0020  0.0004  0.0006  0.0008
+ 0.0004  0.0011  0.0013  0.0012  0.0009  0.0007  0.0003  0.0006
+ 0.0019  0.0040  0.0041  0.0017  0.0004  0.0003  0.0006  0.0004
+```
+
+**Four cells carry the change** (0.1800, 0.1510, 0.1228, 0.0860) against a whole-frame mean of 0.0149.
+**The peak cell, 0.1800, is larger than the CB_GateLevel control's whole-bbox score** — the bushes that
+*do* vanish vanish emphatically. **The other 60 cells are flat.** The bottom two rows are essentially
+untouched (0.0003–0.0041).
+
+**⇒ BRANCH: CLASS-(ii) SUPPORTED.** *"A label is emitted with a large bbox and non-trivial coverage,
+AND the in-bbox pixel change is negligible against the control scale."* Both hold — and the grid shows
+**why**: the label claims **100 % of the frame** while the change lives in **≈ 6 % of it**.
+
+⚠ **The predicted "change concentrated OUTSIDE the bbox" test DEGENERATED and could not run** — a
+full-frame bbox has no outside. **The spatial version of the same question answered it instead.**
+Recorded because a bbox-only reading (A35's rule, correct when the label points at the object) would
+have reported a real 0.0069 change and called it a manifest hide.
+
+⛔ **MECHANISM ONLY. NO INCIDENCE CLAIM.** One instance, one level, one camera pose. The owner's
+`InstancedMeshActor` is **not** this actor.
+
+### 65.4 Two guards were defeated by the SAME property → **G124**
+
+- **`poll_distance = −5396.0`, NEGATIVE.** `dist(pollOrigin, B.Origin) − B.SphereRadius`, and the
+  cluster's bounds sphere (≈ 17,000 cm) **exceeds the distance to it**. ⇒ **the 1800 cm poll-radius
+  cull can never reject this actor, from anywhere in the level.**
+- **`coverage_pct = 100` against a 6 % floor.** The union-bounds rect fills the screen. ⇒ **the
+  screen-coverage floor is vacuous for it.**
+
+**Both distance guards and the coverage guard are computed on the aggregate's bounds, so the very
+property that makes the label wrong also makes every guard that might have caught it pass.**
+
+### 65.5 `samples 1/9` — corroboration at the exact boundary, and NOT a test
+
+Provenance reports **1 of 9 rays clear**, i.e. **8 of 9 blocked** — the **exact minimum** that
+`IsUnoccluded` accepts, since it returns on the first clear ray. `P-a1` predicted precisely this case.
+
+⛔ **This CORROBORATES `P-a1`'s premise and does NOT test it**, on the same reasoning ruled for the
+6/9 rows: `P-a1` is about a target **passing pick time** at 8/9 blocked, and provenance is computed at
+the **anchor**, after selection. **`P-a1` remains UNTESTED.** Recorded because it is the strongest
+corroboration available — the boundary itself, in a shipping-defaults run.
+
+## 66. TASK 3 — `P6`'s SECOND OBSERVATION. **RECORD ONLY.**
+
+Two `annotation.json` node fields are computed by a **different code path** from the one that produces
+the label rect:
+
+| field | produced by | for `BP_MovingPlatform` | for the foliage actor |
+|---|---|---|---|
+| `nodes[].bounds` | `ResolveNodeIdentity` → **`Actor->GetComponentsBoundingBox(true)`** — the **whole actor**, including non-colliding components | origin `(5845, 3445, 2490)`, extent `(2115, 1315, 848)` = **42 m × 26 m × 17 m, centred ~2.2 km from the actor**, whose label rect is **240 × 20 px** | extent `(12625, 10864, 3372)` = **252 m × 217 m × 67 m** |
+| `nodes[].global_position` | the **actor origin** | — | **`[12800, 12800, 12800]`**, a cell corner |
+| `bbox_norm` / `bbox_px` | **the projector** — `ProjectActorBoundsToScreenRect` over **SM/SK `Component->Bounds` only** | correct | correct |
+
+Same family, second field: `BP_SplineSpawn`'s origin reads **142.8° off-axis — behind the camera** —
+while its geometry projects on screen.
+
+**CONSEQUENCE, without alarm: LABELS ARE UNAFFECTED.** `bbox_norm`/`bbox_px` come from the projector
+and are right. **But any consumer using `node.bounds` or `node.global_position` for geometry is reading
+something that can be wrong by kilometres.**
+
+⛔ **`P6` DOES NOT MOVE. The render-relevant-bounds ruling is NOT implemented.**
+
+🔗 **ADJACENCY NOTED, NOT ACTED ON:** the `P6` bounds ruling and `H5` class (ii) may share a root —
+**both are about which components count as "the object."** ⛔ **NOT merged. H4/P5–P7 taught that
+adjacency is not identity.**
+
+## 67. TASK 4 — TRACEABILITY. **SCOPE NOTE ONLY, NO IMPLEMENTATION.**
+
+### 67.1 🚨 The `B1` identifier collision — BOTH found, disambiguation PROPOSED not picked
+
+| which | meaning | status |
+|---|---|---|
+| **`B1` (current, S3/journal 042)** | the **pose-match precondition on A56** — `CALIB_BBOX`, `POSE_TOL_PX 8.0` | **live**, ~18 mentions in `CLAUDE.md` alone, cited in journals 042/044/045 and in `run_leg.ps1` / `check_pose.py` |
+| **`B1` (older, m22 plan — journals 028/029, `CHAT-HANDOFF-m22-and-sve-s1.md`)** | **"B1 traceability"** — *"`nodes[]` gains `asset_name`, `component_class`, and bounds"* | **SHIPPED at m22** (`03a51d5`) and closed |
+
+⚠ **They are not in conflict today only because the older one is finished.** Any brief that says *"the
+B1 work on the client's invisible-anomaly complaint"* is ambiguous **right now**.
+
+**PROPOSED (not adopted — the owner picks):** keep **`B1` = the pose-match precondition** (live, widely
+cited, in committed tool source where a rename costs real churn), and retire the older label to
+**`m22-B1-traceability`** wherever it is referenced. ⛔ **Not renamed unilaterally.**
+
+### 67.2 What the label path HAS at emission time
+
+`ResolveNodeIdentity` runs at the anchor with the `AActor*` in hand. **Already emitted** in
+`nodes[]`: `name`, `path`, `global_position`, **`asset_name`**, **`component_class`**, `bounds`.
+
+⚠ **`asset_name` and `component_class` ALREADY EXIST — they are exactly the m22-B1 traceability
+fields.** On this very leg they read `SM_Bush` / `FoliageInstancedStaticMeshComponent`, which **names
+the culprit class outright.**
+
+⛔ **WHY THEY WERE INSUFFICIENT FOR THE OWNER'S INSPECTION IS NOT ESTABLISHED FROM HERE, AND IS NOT
+GUESSED.** Candidate explanations — the client build predating m22, a viewer that surfaces only
+`name`, or the fields being present but not looked at — are **distinguishable only by asking which
+fields her copy actually shows.** **That question is the cheapest next step and it is the owner's to
+ask.**
+
+**HAS but does not write:** the **component's own name** (only its class); **instance count** for an
+ISM/HISM; **which selection predicate admitted it**; the per-component bounds the projector actually
+used (as distinct from `node.bounds`); and **actual drawn-pixel contribution** — which is
+`feature/stencil-capture`'s premise, **untouched**.
+
+### 67.3 A minimal addition, with the contract flag raised LOUDLY
+
+🚨 **ANY of these ADDS FIELDS TO `annotation.json`, which is the client-facing contract. That makes it
+a MILESTONE CANDIDATE and `P6` TERRITORY — NOT an in-turn change.** Ordered cheapest-first:
+
+1. **`nodes[].instance_count`** — an integer, only meaningful for ISM/HISM. **Would have named class
+   (ii) outright.**
+2. **`nodes[].component_name`** — disambiguates two components on one actor.
+3. **`nodes[].render_bounds`** — the SM/SK union the projector used, beside the existing whole-actor
+   `bounds`. **This is the P6 adjacency and must not be smuggled in under traceability.**
+
+⛔ **Nothing implemented. No field added.**
+
+## 68. State after PART NINE
+
+| | |
+|---|---|
+| plugin production code | **ZERO lines, across all nine parts** |
+| tag | **none** · `feature/stencil-capture` **UNTOUCHED** — *its premise is the cure for H4, and H5 may need a different one* |
+| `GameDefaultMap` unchanged · `CB_GateLevel` untouched (G99) | |
+| build | unchanged — `exe 101AFEA4` + `utoc 939B9C9B` |
+| journal | **renamed** to `…-045-h4-cook-and-h5-mainworld-arc.md`, **part index added** |
+| new | **`H5` minted** · **G124** · one new instrument `h5_pixel_change.py` |
+| path (a) | **PARKED, NOT REFUTED** — a priority decision, not a scope one |
