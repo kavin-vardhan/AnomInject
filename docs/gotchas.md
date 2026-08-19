@@ -2785,3 +2785,75 @@ print the numbers, name the discriminator, and let the reader attribute — appl
 tool. And note the near-miss: G87's own headline rule, "check the level NAME, never the picture", is
 correct and was never in question. The defect is entirely in the paragraph that explains why.)*
 (2026-08-19.)
+
+---
+
+### G122 — an ASSET census and a RUNTIME census are DIFFERENT NAMESPACES; a claim proven in one is UNPROVEN in the other until they are joined by an exact key
+
+`G-1` established, per **external actor FILE**, which `BP_Stomper` instances leave `Trigger` empty:
+**5 of 7**. A runtime motion leg then fired at a **runtime UAID name** and measured it perfectly
+static — camera identical to one decimal across 10 frames, target bbox identical on all of them.
+
+That is a clean measurement of the **wrong instance.** The one targeted was
+`…_2086831169`, which joins to file `0E5JK19NZI4C74C00ZZ7N`: **one of the two trigger-BOUND
+Stompers.** A bound Stomper standing still with nobody on the pressure plate is the **expected**
+result and tests nothing — yet it matched a pre-declared *"MOVERS LOADED BUT STATIC"* halt exactly,
+and reporting it would have sent the next stage down a different road on a false foreclosure (G120,
+one turn after that gotcha was written).
+
+**Neither census was wrong. Nothing joined them.** The file half keys on opaque GUID basenames
+(`0E5JK19NZI4C74C00ZZ7N`); the runtime half keys on `BP_Stomper_C_UAID_<HEX>_<N>`; and **actor labels
+do not exist in a cooked build** (`(no-label)`), so the human-readable name that would have bridged
+them is gone by design (G91's *"targeting is label-free"*).
+
+**The exact key exists and is cheap:** every one-file-per-actor `.uasset` contains its own object path
+`…MainWorld:PersistentLevel.<Class>_C_UAID_<HEX>_<N>`, and that substring **is** the runtime name.
+One scan joins the namespaces exactly.
+
+**RULE: before believing a runtime measurement about an instance whose PROPERTY was established
+asset-side (or vice versa), JOIN THE NAMESPACES BY AN EXACT KEY AND SAY WHICH INSTANCE YOU HIT.**
+A per-instance property does not transfer between namespaces on class name, count, or proximity.
+
+⚠ **And the join must be checked in BOTH directions (G96).** The same exercise showed `BP_Fan` keys on
+**`Triggers` (an ARRAY)**, not the scalar `Trigger`: keyed on the scalar, Fans read **4-of-4 empty
+while 2 of 4 referenced a `BP_PressurePlate`** — the two signals **disagreed**, which is the only
+reason the wrong key was caught. `mainworld_join.ps1` now reports any such disagreement, and the
+committed table `mainworld_instance_join.md` carries **class · file · runtime name · trigger status ·
+whether runtime motion is OBSERVED / REFUTED / UNTESTED per instance.** ⛔ **`UNTESTED` is not
+"presumed" anything** — the asset comment *"when no trigger is referenced it move constantly"* is
+already **refuted at runtime for one unbound Stomper.** (2026-08-19.)
+
+---
+
+### G123 — a code path labelled REPORTING ONLY that can terminate the run is not a reporting path
+
+`check_pose.py`'s B1-detail block carries the comment **"REPORTING ONLY — no verdict, no exit code, no
+definition depends on anything below."** It then did this:
+
+```
+ratio = tuple((round(m / c, 4) if c else None) for m, c in zip(bbox, O.CALIB_BBOX))
+TypeError: 'NoneType' object is not iterable
+```
+
+on any leg where `bbox is None` — i.e. **no bbox rows in the settle window**, which is the *normal*
+case off-calibration, where the camera settles looking somewhere the target is not. The exception
+propagated out of python, `run_leg.ps1` runs with `$ErrorActionPreference = "Stop"`, and **the harness
+died — after the capture artifacts had already been written to disk.**
+
+**Three properties made this worse than an ordinary crash, and they generalise:**
+
+1. **The block's own header asserts it cannot do this.** A reader auditing the harness for
+   result-affecting code would skip it *because of the comment*, which is exactly backwards.
+2. **It fired on the NORMAL case of a newly-supported configuration**, not on a rare one. The `-Map`
+   parameter had just made off-calibration levels reachable; the first such leg hit it.
+3. **The artifacts already existed.** The run had succeeded; only the report died. A less careful
+   reading would have recorded "the leg failed" for a leg that produced a complete, valid session.
+
+**RULE: a reporting path must be unable to change the outcome — including by raising.** If a block is
+labelled reporting-only, it must degrade to a printed message on every input the surrounding code can
+hand it, *especially* the "nothing to report" input. **The absence of a thing to report is the input
+most likely to be untested**, because the author was looking at a case that had one.
+
+*(Fixed by a `bbox is None` branch that says plainly that B1 has nothing to judge — explicitly NOT a
+pose reading and NOT a pose failure, which is the honest label where "failed" would name a cause the
+gate has not established. Same family as G113 — an exit code emitted but never earned.)* (2026-08-19.)

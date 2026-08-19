@@ -230,7 +230,54 @@ and is the single source of truth for the project.
   is offline asset/container reading; the Blueprint evidence is **name-table strings plus the developer
   comments embedded in them** (the quotes are direct; the machinery lists are indicative, not a graph
   read).
-  🟩 **MAINWORLD FIRST LAUNCH DONE — RECON, NOT PATH (a) (journal 045 §41-§50). BRANCH: "IT ALL
+  🟥 **GEOMETRY SURVEY DONE (journal 045 §51-§61). THE HALT OBTAINED: *NO CROSSING PAIR EXISTS* — from
+  the settled camera, NO moving platform can FULLY occlude any selectable target.** ZERO production
+  code. NO TAG. Nothing graded. `P-a1`…`P-a5` still UNTESTED. **Design is the owner's call.**
+  🧭 **Q-4, the deciding answer:** only **1 of 4** platforms is in the frustum at all (the other three
+  sit at **68.9° / 75.5° / 75.0°** off-axis against a 45° half-FOV). That one is at range **2191 cm**
+  and is **FARTHER than every compact selectable target** — `SM_Ramp2` 798, `RoomBuilderSquare` 1185,
+  `BP_SpawnPad` 504 — **so they occlude IT**. It has **no rect overlap** with `BP_SpawnPad` or
+  `BP_SplineSpawn`. ⚠ **It IS in front of both `InstancedFoliageActor`s (10831 / 16740 cm) with
+  overlapping rects — but its rect is 240×20 px against ~1280×713, so CONTAINMENT IS IMPOSSIBLE:
+  PARTIAL occlusion pairs exist, FULL ones do not.** Full occlusion (9/9 rays) needs containment.
+  ⛔ **Scoped to ONE camera pose** — the one an unattended run settles into. Not a claim about MainWorld.
+  ✅ **Q-1 the near platform PingPongs and REPEATS:** **Z only**, `1658.4 ↔ 2393.1` (**734.7 cm**),
+  **126.67 cm/s**, **period ≈ 12.1 s**, X/Y fixed, no dwell at the turnarounds.
+  ✅ **Q-2 ALL FOUR unbound platforms MOVE** — two on **Z** (126.67 and 210.00 cm/s), **two
+  HORIZONTALLY** (752.5 cm on Y; 995.6 cm on X). Horizontal travel is the shape that crosses a view.
+  ✅ **Q-5 THE CAMERA HOLDS:** after the ~25-frame settle, over the **last 200 frames (6.7 s)**:
+  **dX 0.0004 · dY 0.0003 · dZ 0.0000 · dPitch 0.0000 · dYaw 0.0000.** Sub-millimetre, exactly zero
+  rotation. **The still-camera assumption every design rests on is MEASURED and holds.**
+  ⚠ **CORRECTION TO §41-§50: the platform is 126.67 cm/s, NOT the ~168.9 I published.** I divided a
+  12-anchor gap by 0.4 s assuming captured frames are the only ticks; **game time between those anchors
+  is 0.5333 s.** 🚨 **AND IT IS A DESIGN CONSTRAINT: cm-per-CAPTURED-FRAME depends on the CAPTURE
+  CONFIG** — 5.630 at `2 4 8 4 0` vs **7.841** at `3 2 5 2 0`, a 39 % difference, while game-time speed
+  is identical to 2 d.p. **Any design saying "the occluder crosses at frame N" MUST state the config.
+  Never convert frames to seconds by dividing by `VideoFps` — read `t` from `labels.jsonl`.**
+  🚨 **TWO annotation FIELDS ARE NOT WHAT A SURVEY WOULD ASSUME, and using either would have INVERTED
+  Q-4:** `nodes[].bounds` is `GetComponentsBoundingBox(**true**)` — the **whole actor**, so
+  `BP_MovingPlatform` reports a **42 m × 26 m × 17 m box centred ~2.2 km from the actor** while its real
+  label rect is 240×20 px; and `global_position` is the **ACTOR ORIGIN**, so `BP_SplineSpawn` reads
+  **142.8° off-axis (behind the camera)** while its geometry projects on screen. **The projector and
+  `IsUnoccluded` use only SM/SK `Component->Bounds`.** ⛔ **Observation of the shipped contract only —
+  `P6` DOES NOT MOVE.**
+  ⚠ **Anchor-time and settled-time visibility are DIFFERENT SETS** — three of the six selectable
+  targets report `poll_distance` as the **−1 sentinel** because their anchors fall inside the ~25-frame
+  camera settle.
+  🆕 **`G122` — an ASSET census and a RUNTIME census are DIFFERENT NAMESPACES; a claim proven in one is
+  UNPROVEN in the other until joined by an exact key.** The join is now a committed artifact —
+  `CaptureBench/tools/mainworld_instance_join.md` (18 instances: class · file · runtime UAID · trigger ·
+  motion **OBSERVED/REFUTED/UNTESTED**) + `mainworld_join.ps1`. **Both signals AGREE on all 18 rows**,
+  and that cross-check is what caught **`BP_Fan` keying on `Triggers` (an ARRAY)**. ⛔ **`UNTESTED` is
+  NOT "presumed moving".**
+  🆕 **`G123` — a code path labelled REPORTING ONLY that can terminate the run is not a reporting
+  path.** `check_pose.py`'s B1-detail block raised `TypeError` on `bbox is None` — the **normal**
+  off-calibration case — and killed the harness **after the artifacts were written**, from a block whose
+  own header says it cannot affect anything.
+  📋 **REQUEST, NOT A DECISION: journal 045 is at EIGHT PARTS / ~1,500 lines.** Still one
+  investigation, so **NOT split** — that ruling is the owner's. A rename plus a part index would fix
+  most of it.
+  🟦 *(superseded — kept for the record)* **MAINWORLD FIRST LAUNCH DONE — RECON, NOT PATH (a) (journal 045 §41-§50). BRANCH: "IT ALL
   WORKS", with one partial. ZERO PRODUCTION CODE. NO TAG. B1 DECLARED NOT APPLICABLE, not skipped.**
   ✅ **R-1 IT BOOTS AND STAYS.** `Bringing World …MainWorld up for play`; **1102 probe ticks, every one
   `level=MainWorld, actors=432`, ZERO MainMenu loads, nothing redirects** — by NAME, not by picture

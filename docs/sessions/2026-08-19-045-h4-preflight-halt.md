@@ -1477,3 +1477,200 @@ chat-side and is not written here.
 | build | unchanged since the cook — `exe 101AFEA4` + `utoc 939B9C9B`, preserved complete in `_binary_baselines\` |
 | bank | 104 → **111** dirs (4 MainWorld legs + attempts) |
 | A63 | every leg accepted on attempt 1, focus at 1.4–1.5 s; **every attempt banked** |
+
+---
+---
+
+# PART EIGHT — the geometry survey. NO hypothesis, NO test, NO P-a prediction touched.
+
+⛔ **B1 NOT APPLICABLE, declared not skipped. Nothing graded. Shipping defaults, delivery OFF.**
+
+## 51. ⚠ CORRECTION TO PART SEVEN — the platform's speed was wrong by 33 %
+
+PART SEVEN reported the MovingPlatform at **"~168.9 cm/s"**. **It is 126.67 cm/s.** I divided a
+12-anchor gap by 0.4 s assuming 12 captured frames = 0.4 s at 30 fps. **Game time between those
+anchors is 0.5333 s, not 0.4 s** — captured frames are not the only ticks; the burst schedule's
+settle frames tick without being captured.
+
+Measured on two legs with different burst configs, normalised by `labels.jsonl`'s own `t`:
+
+| leg | config | Δframes | ΔZ | Δt (game) | speed | per captured frame |
+|---|---|---|---|---|---|---|
+| `MW_PLAT_FREE` | `2 4 8 4 0` | 12 | 67.556 | 0.5333 s | **126.67 cm/s** | 5.630 cm |
+| `MW_Q1_PLAT_LONG` | `3 2 5 2 0` | 7 | 54.889 | 0.4333 s | **126.67 cm/s** | 7.841 cm |
+
+**Game-time speed is identical to 2 d.p.; cm-per-captured-frame differs by 39 %.**
+
+🚨 **THIS IS A DESIGN CONSTRAINT, not just an arithmetic fix. THE OCCLUDER'S SPEED IN CAPTURED FRAMES
+DEPENDS ON THE CAPTURE CONFIG.** Any path (a) design that says *"the occluder crosses at frame N"*
+**must state the burst config**, or the number is meaningless. **Never convert frames to seconds by
+dividing by `VideoFps` — read `t` from `labels.jsonl`.**
+
+## 52. Ruling 1 — the 6/9 and 7/9 rows, held exactly where ruled
+
+Recorded as **PATH (a) MOTIVATING DATA, not as a result**: the transition series
+`6/9 → 7/9 → 7/9 → 9/9 → 7/9 → 7/9 → 9/9 → 9/9` with Z `1666.9 → 2139.8` and `coverage_pct`
+`0.5712 → 1.9345`, all rows `valid:true`.
+
+⛔ **This CORROBORATES `P-a1`'s premise that the band is occupied in practice. It does NOT test
+`P-a1`**, which is about a target **passing pick time** at 8/9 blocked; these are **per-anchor
+provenance readings on a target that was already selected**. **`P-a1`…`P-a5` remain UNTESTED and none
+is marked touched.** No test was designed around it.
+
+## 53. Ruling 2 — the two namespaces are joined, permanently → **G122**
+
+`CaptureBench/tools/mainworld_instance_join.md` (the table) and `mainworld_join.ps1` (regenerates the
+asset half) are committed. **18 instances** across `BP_Stomper` (7), `BP_MovingPlatform` (7), `BP_Fan`
+(4), each carrying **class · asset file · runtime UAID name · trigger status · runtime motion
+OBSERVED / REFUTED / UNTESTED**.
+
+**The join key is exact:** every one-file-per-actor `.uasset` contains its own object path
+`…PersistentLevel.<Class>_C_UAID_<HEX>_<N>`, and that substring **is** the runtime name. Nothing else
+bridges them — file basenames are opaque GUIDs and **actor labels do not exist in a cooked build**.
+
+✅ **Key sanity, both directions (G96): the two independent signals — *property serialised* and
+*references a trigger actor* — AGREE on all 18 rows**, and the tool prints any disagreement. ⚠ **That
+check is what caught `BP_Fan`'s ARRAY key** (`Triggers`, not `Trigger`): on the scalar, Fans read
+4-of-4 empty while 2 of 4 referenced a PressurePlate. Census: **Stomper 5 EMPTY / 2 BOUND ·
+MovingPlatform 4 EMPTY / 3 BOUND · Fan 2 EMPTY / 2 BOUND.**
+
+⛔ **`UNTESTED` is not "presumed moving"** — the asset comment is already refuted at runtime for one
+unbound Stomper.
+
+## 54. Q-1 — THE PLATFORM'S TRAJECTORY, FULLY CHARACTERISED. It PingPongs and it REPEATS.
+
+300-frame leg, 43 events at 7-frame anchors, 18.2 s of game time:
+
+```
+rise  f2   Z 1658.444  ...  f100 Z 2393.111   (+54.889 per anchor, constant)
+fall  f100          ...  f198 Z 1675.333   (-54.889 per anchor, constant)
+rise  f198          ...  f289 Z 2388.890   (+54.889, the cycle REPEATS)
+```
+
+| property | value |
+|---|---|
+| axis | **Z only** — X and Y fixed at `(3980, 2380)` across all 43 events |
+| endpoints | **Z 1658.4 (bottom) ↔ 2393.1 (top)** |
+| travel | **734.7 cm** |
+| speed | **126.67 cm/s**, constant on both directions |
+| **period** | **≈ 12.1 s** (bottom→top→bottom, f2→f198), and it repeats |
+| turnaround | visible as the two short deltas `+21.110` and `−4.221` at the endpoints — **no dwell** |
+
+⚠ **Q-1's BOUNDS QUESTION HAS A TRAP, AND IT IS LOAD-BEARING FOR THE SURVEY.**
+`annotation.json`'s `nodes[].bounds` reports **origin (5845, 3445, 2490), extent (2115, 1315, 848)** —
+a **42 m × 26 m × 17 m box centred ~2.2 km from the actor**. That is `ResolveNodeIdentity` calling
+`Actor->GetComponentsBoundingBox(**true**)` — the **whole actor including non-colliding components**,
+and `BP_MovingPlatform` carries spline / control-point components and a Control Rig.
+**The projector and `IsUnoccluded` use only SM/SK `Component->Bounds`.** Confirmed empirically: the
+platform's actual label rect is **240 × 20 px** with `coverage_pct` 0.57–1.93 %, which a 42 m box at
+that range could not produce.
+⛔ **`annotation.json`'s `bounds` is NOT the volume the label rect or the occlusion trace describe.**
+Using it for this survey would have inverted the answer. *(Recorded as an observation of the shipped
+contract. **`P6` DOES NOT MOVE** — no field added, removed, renamed or recomputed.)*
+⚠ **Same family, second field: `global_position` is the ACTOR ORIGIN.** `BP_SplineSpawn`'s origin is
+`(-278, 19104, 4946)` — **142.8° off-axis, i.e. behind the camera** — while its geometry projects to
+`x 552..1280`. Fine for a plain `StaticMeshActor`, misleading for a Blueprint that offsets meshes.
+
+## 55. Q-2 — ALL FOUR UNBOUND PLATFORMS MOVE, ON DIFFERENT AXES
+
+| instance | axis | range | speed (game time) | position |
+|---|---|---|---|---|
+| `…F542EBDB00_1649270448` | **Z** | 734.7 cm | **126.67 cm/s** | `(3980, 2380)` |
+| `…F542F9D500_2012115617` | **Z** | 476.0 cm | **210.00 cm/s** | `(9433, 7843)` |
+| `…F542F9D500_2012117619` | **HORIZONTAL** (Y 752.5 + X 132.7) | 752.5 cm | ~110 cm/s | `(≈9270, ·, 3726)` |
+| `…F542F9D500_2012105601` | **HORIZONTAL** (X 995.6 + Y 175.5) | 995.6 cm | ~145 cm/s | `(·, ≈9395, 3720)` |
+
+**4 of 4 move. Two travel vertically, two horizontally** — and horizontal travel is the shape that
+crosses a view rather than running along it.
+
+## 56. Q-3 — WHAT THE AUTO-POOL CAN ACTUALLY SELECT HERE
+
+Six renderable-visible actors at settle. Geometry obtained by **firing at each** (the only
+engine-authoritative source of position; `DumpVisible`/`DumpCoverage` give neither position nor
+bounds):
+
+| actor | modal `bbox_px` | range | bearing | `poll_distance` |
+|---|---|---|---|---|
+| `SM_Ramp2` | `(142, 144, 286, 189)` | 798 cm | 28.0° | **389.9** |
+| `RoomBuilderSquare_C` | `(0, 123, 1280, 597)` | 1185 cm | 20.1° | sentinel −1 |
+| `BP_SpawnPad_C` | `(291, 440, 673, 236)` | 504 cm | 0.0° | sentinel −1 |
+| `BP_SplineSpawn_C` | `(552, 0, 728, 290)` | *(origin 15502 cm, 142.8° — geometry offset)* | — | sentinel −1 |
+| `InstancedFoliageActor_0_-1_0` | ~`(0,0,1060,720)` | **16740 cm** | — | — |
+| `InstancedFoliageActor_0_0_0` | ~`(0,0,1280,713)` | **10831 cm** | — | — |
+
+⚠ **Three targets report `poll_distance` as the −1 sentinel** — their provenance was `valid:false` at
+their own legs' **anchor frames**, which fall in the first ~25 frames **while the camera is still
+settling**. They are in the visible set *after* settle. **Anchor-time and settled-time visibility are
+not the same set**, and this survey needed both readings to see that.
+
+## 57. Q-4 — THE INTERSECTION. **NO CROSSING PAIR EXISTS for FULL occlusion.**
+
+**Only ONE of the four platforms is in the frustum at all.** The other three sit at **68.9°, 75.5° and
+75.0° off-axis**, against a 45° horizontal half-FOV — **outside it**, at 7492–9057 cm. They cannot
+occlude anything in this view.
+
+The near platform: range **2191 cm**, bearing **25.1°**, rect `(219, 137, 240, 20)`, `poll_distance`
+**1370.7 → 1450.2**.
+
+| target | rect overlap | platform nearer? | contains? | verdict |
+|---|---|---|---|---|
+| `SM_Ramp2` (389.9) | 209 × 13 px | **no** | no | **NO — the platform is FARTHER; the ramp occludes IT** |
+| `RoomBuilderSquare` (1185 cm) | 240 × 20 px | **no** (2191 > 1185) | no | **NO — platform behind, and its rect is 1/160th the target's** |
+| `BP_SpawnPad` | **0 px in y** | — | no | **NO — rects do not overlap** |
+| `BP_SplineSpawn` | **0 px in x** | — | no | **NO — rects do not overlap** |
+| `InstancedFoliageActor` ×2 (10831 / 16740 cm) | overlap | **YES** | **no** | ⚠ **PARTIAL AT MOST — 240×20 px against ~1280×713; containment impossible** |
+
+**⇒ THE PRE-DECLARED HALT OBTAINS: no pair exists in which a moving platform can FULLY occlude a
+selectable target from the settled camera.** Full occlusion — 9 of 9 rays blocked — requires the
+occluder's rect to **contain** the target's, and no pair satisfies that.
+
+⚠ **Stated precisely, because the weaker claim is true and matters:** the platform **is** in front of
+both foliage actors with overlapping rects, so **PARTIAL occlusion pairs DO exist**. Partial occlusion
+is a different condition from the one path (a) needs and is not offered as a substitute.
+
+## 58. Q-5 — THE CAMERA HOLDS. Emphatically.
+
+Over the 300-frame leg, after the ~25-frame settle from pitch −20 to 0:
+
+```
+LAST 200 FRAMES (6.7 s):  dX 0.0004  dY 0.0003  dZ 0.0000  dPitch 0.0000  dYaw 0.0000
+```
+
+**Sub-millimetre in position, exactly zero in rotation.** No drift, no fall, no push. ✅ **The
+still-camera assumption every design rests on is measured and holds.** Pipeline across all survey
+legs: `capture_path sve`, `clock wall`, `delivery false`, ring `556/556/0` on the 300-frame leg,
+`speed_ratio` 1.0000, sustained 30.00 fps.
+
+## 59. THE BRANCH THAT OBTAINED, and what is NOT concluded
+
+> **NO CROSSING PAIR EXISTS** (for full occlusion), from the settled camera, with the four platforms
+> and six selectable targets this level presents unattended.
+
+⛔ **What this does NOT say.** It is scoped to **one camera pose** — the one an unattended run
+settles into. It is **not** a statement about MainWorld in general: a different spawn, a driven
+camera, or a different selectable set could change it entirely. ⛔ **No design is proposed.** The
+ruling is explicit that a driven camera or a scripted occluder is the owner's call.
+
+⛔ **`P-a1`…`P-a5` remain UNTESTED.** ⛔ **`feature/stencil-capture` untouched.** ⛔ **No path (a) test
+designed or run.** ⛔ **Zero production code.**
+
+## 60. 📋 A REQUEST, NOT A DECISION: journal 045 is getting unwieldy
+
+This journal now runs to **eight parts and ~1,500 lines** covering the H4 pre-flight, the H4 run, the
+claim ruling, the environment scout, the pre-cook gate, the cook, the MainWorld first launch and this
+survey. It is still **one investigation**, so it has not been split — **the ruling is the owner's and
+splitting is not done unilaterally.** Flagging it because a cold reader arriving at "H4 pre-flight
+halt" will not guess that the cook and a MainWorld geometry survey are inside it. **A rename plus a
+part index at the top would fix most of it without a split.**
+
+## 61. State after PART EIGHT
+
+| | |
+|---|---|
+| plugin production code | **ZERO lines, across all eight parts** |
+| tag | **none** · `feature/stencil-capture` **untouched** |
+| build | unchanged — `exe 101AFEA4` + `utoc 939B9C9B`, preserved complete |
+| `GameDefaultMap` unchanged · `CB_GateLevel` untouched (G99) | |
+| bank | 110 → **126** dirs (8 survey legs + attempts) |
+| new gotchas | **G122** (namespace join), **G123** (a reporting path that can kill the run) |
+| new instruments | `mainworld_instance_join.md`, `mainworld_join.ps1`, `mainworld_q4_geometry.py` |
