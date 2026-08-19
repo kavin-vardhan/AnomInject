@@ -97,9 +97,48 @@ and is the single source of truth for the project.
   **once per RUN**. (2) **A re-picking veto destroys the seeded draw protocol** — `R-SEED` is
   deliberately independent of apply-result and `m22` gated on *"seed 4242, two runs byte-identical"*.
   **If a future reader proposes "just check before firing", both blockers are in journal §103.**
-  🛑 **OWNER RULED *COOK*, AND THE COOK IS ITSELF HALTED — ON DISK. → journal PART SEVENTEEN
-  §124-§128. FREE SPACE IS 0.94 GB AGAINST THE OWNER'S OWN ~10 GB FLOOR. NOTHING WAS DELETED; THE
-  RULING IS THE OWNER'S.** ✅ **Precondition 1 PASSED FIRST — the COMPLETE quartet (exe `101AFEA4` +
+  🚧 **THE COOK IS IN FLIGHT AND WILL NOT FINISH IN ONE TURN. → journal PART EIGHTEEN §129-§135.**
+  Cleanup and banking are **DONE**; the cook is a **full 761-action rebuild** (because `Intermediate`
+  was deleted to buy its disk space) running at **ONE parallel process** — UBT's own line:
+  *"Requested 1.5 GB free memory per action, 2.36 GB available: limiting max parallel actions to 1"*,
+  because a second `UnrealEditor` is resident at **3.19 GB** (**`G97`**, a permanent environmental
+  fact). **Memory-bound, not CPU-bound: 10 cores idle.** ⛔ **NOT interrupted** — the build phase
+  writes only `Intermediate`/`Binaries`, **no container is being written yet**, so it is safe where it
+  stands. ⛔ **NO completion estimate is offered as a finding** — the action list is PCH-heavy at the
+  head and a linear extrapolation would be a claim the data does not support.
+  ⛔ **CONSEQUENTLY NOT RUN: the `verify_cooked_maps.ps1` map gate · the A44 scan of the new artifact ·
+  the token read-back · the new quartet identity · THE ENTIRE SLICE-1 VALIDATION.** ✅ **Ready so the
+  next turn starts clean: the slice-1 PRE-DECLARED BRANCH TABLE, `CaptureBench/tools/
+  p18_slice1_predeclared_branches.md`, commit `972840d` — written and committed BEFORE the cook
+  finished and before any leg ran.**
+  ✅ **DISK: 0.94 GB → 21.93 GB, per-tree** — `.vs` +4.65 · `Intermediate` +14.56 · *(banking −3.89)* ·
+  `Builds\BenchGate\...\Saved` +5.67 (**75 of 75 re-verified duplicate by session ID AND per-file
+  manifest, in the SAME script as the deletion** so nothing separated verify from delete).
+  ✅ **21 PIE-ERA SESSIONS BANKED, 21/21 manifest-verified; bank 158 → 159 dirs / 183 session ids.**
+  🚨 **ONE OF THEM IS CITED EVIDENCE — `session_20260817-132214` IS THE `m23` OWNER PLAY-GATE SMOKE**,
+  the first confirmation of the `m23` fix in real gameplay content, sitting unbanked in the project
+  tree. **Third time the session-ID method has found unbanked evidence; a name-based sweep found none
+  of the three.** ⚠ Originals left in place until the cook succeeds.
+  🚨 **RULING 1's ORDER WAS IMPOSSIBLE AND THE RESOLUTION IS THE LESSON (`G130`): banking 3.89 GB needs
+  3.89 GB, and 0.94 GB existed.** The first attempt died mid-copy and left **a PARTIAL bank dir (652
+  files / 891 MB) indistinguishable by name from a complete one** — deleted at once, source
+  re-verified. ⇒ **when preservation and cleanup contend for the same disk, FREE ONLY WHAT CONTAINS NO
+  EVIDENCE FIRST, then bank, then free the verified duplicates.** The literal order changed; the
+  protection did not.
+  🆕 **`G130`** — *an operation's WORKING SET is not its OUTPUT SIZE; running out of room mid-way
+  yields a half-written artifact behind a system that still starts.* + **`setup-runbook.md` §8.6
+  STEP 0**: a go/no-go disk floor (**≥15 GB GO · <10 GB NO-GO**) naming what is **not** free space.
+  🗺 **`E:` MOVE SCOPE NOTE DELIVERED (journal §135) — LIST ONLY, NOTHING CHANGED.** 🚨 **The hazard is
+  the UNTRACKED set, and the worst item is not a file: `HKCU\Software\Epic Games\Unreal Engine\Builds`
+  maps the `.uproject`'s GUID → `D:/UESource/UnrealEngine`** — in no repo, no file, no backup. Also
+  untracked: **a SECOND copy of the host-tools watchers at `D:\IntrusiveAnomalies\host-tools\`** (that
+  directory is not a git repo) and a **third** in `_M2Smoke\`, plus both preserved-evidence READMEs.
+  **Engine: LEAVE IT ON `D:`** — the `.uproject` resolves by GUID, our `Build.cs` files are
+  engine-relative, and it is 230 GB. ⚠ **A full rebuild is required after any move regardless** —
+  `Intermediate\**\*.dep.json` stores absolute paths. 🚨 **Worst failure mode is SILENT: the 5 python
+  sweeps' `BANK = r"D:\..."` would report an EMPTY CENSUS as a clean result, and
+  `overlay_watcher.py`'s `CAPTURES_ROOT` would poll a missing dir forever without erroring.**
+  🛑 *(carried)* **OWNER RULED *COOK*; PART SEVENTEEN's disk halt is now CLEARED. → §124-§128.** ✅ **Precondition 1 PASSED FIRST — the COMPLETE quartet (exe `101AFEA4` +
   `utoc 939B9C9B` + `ucas 8A602D4D` + `pak 7CAE22DD` + both `global.*`) is preserved at
   `_binary_baselines\m25-h4h5m1-measurement-build\`, **6/6 hash-verified AT THE NEW LOCATION** (A62),
   README updated with what rests on it — **every result in journal PARTS TWO–FOURTEEN**. ✅

@@ -3074,3 +3074,43 @@ switch here**, so a gate of the form *"byte-identical with the switch off"* must
 3. **Do not plan switch-OFF inertness for anything that participates in a cooked map** — shaders,
    cooked assets, generated tables. Ask *"does this exist before my switch is read?"* before
    promising inertness. (2026-08-19.)
+
+### G130 — an operation's WORKING SET is not its OUTPUT SIZE, and running out of room mid-way yields a half-written artifact behind a system that still starts
+
+**Disk became a blocker twice in six parts.** Both times the estimate came from the **output**: the
+cooked `.ucas` is **284 MB**, so a cook "needs a few hundred MB". **It does not.** The cook also
+writes `Saved\Cooked`, `Saved\StagedBuilds` **and** the archive copy — a transient requirement of
+**multiple GB**, none of which survives into the artifact you measured.
+
+**Measured 2026-08-19, and the shape is worth keeping:**
+
+| | |
+|---|---|
+| free after the PART TWELVE prune | **19.12 GB** |
+| free six parts later | **0.94 GB** |
+| what consumed it | two full UBT builds with UHT, three engine-fatal launches, shader-compile attempts, eight capture legs |
+| `StackOBot\Intermediate` alone | **14.54 GB** |
+
+🚨 **THE FAILURE MODE IS THE POINT, AND IT IS NOT "IT STOPS".** A cook that exhausts the disk part-way
+leaves a **HALF-WRITTEN CONTAINER BEHIND A BUILD THAT STILL BOOTS.** The exe is fine, the game starts,
+and the container is short — **an artifact that presents as healthy.** This project already has the
+vocabulary for that: it is `G118`'s *"a guard that PASSES the unsafe case is worse than no guard"*,
+and `m19`'s *"gate on PIXELS, not on a counter"*, applied to storage.
+
+**A second-order trap, hit this turn:** the plan was *"bank the unbanked evidence FIRST, then free
+space."* **That ordering was impossible** — banking 3.89 GB needs 3.89 GB, and only 0.94 GB existed.
+⇒ **When preservation and cleanup contend for the same resource, free ONLY what contains no evidence
+first** (`Intermediate`, `.vs`), **then preserve, then free the verified duplicates.** The intent —
+*never delete evidence before it is safe* — is preserved; the literal order is not achievable.
+
+**RULES.**
+1. **Check free space BEFORE starting a cook, a full rebuild, or a bulk copy** — a go/no-go floor, not
+   a glance afterwards. Runbook §8.6 step 0 carries the figures.
+2. **Estimate from the WORKING SET, never from the output.** Ask *"what does this write that it later
+   deletes?"*
+3. **A copy that runs out of space leaves a PARTIAL directory that looks like a real one.** Delete the
+   partial immediately and re-verify the source — a half-copied bank entry is indistinguishable from
+   a complete one by name alone. *(Measured here: 652 files / 891 MB of a 21-session copy landed
+   before the disk filled.)*
+4. **Report free space after each freed tree, not only at the end** — a single before/after number
+   hides which step actually bought the room. (2026-08-19.)

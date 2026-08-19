@@ -30,6 +30,7 @@ separable — each part exists because the one before it produced something unex
 | **Fifteen** | 110–118 | **`m26` — the implementation PLAN, file by file** | Design CLOSED · the negative branch is a **SHIP GATE** · 🚨 **`P-2` is the riskiest item: a hidden target reads zero and would invalidate EVERY hide-type event** — survivable only because *no qualifying frame* lands in `NOT_MEASURED` |
 | **Sixteen** | 119–123 | **`m26` SLICE 1 written · the four amendments · HALT** | Compiles clean, **cannot be validated**: 🚨 **a new GLOBAL SHADER needs a COOK — a hot-swap cannot deliver it, and it fails at engine init EVEN WITH THE SWITCH OFF.** `A-3`'s collision **IS** detectable, two ways |
 | **Seventeen** | 124–128 | **Cook preconditions · `G-3` amended · DISK HALT** | Quartet preserved **6/6 hash-verified**; map set declared; 🛑 **cook did NOT run — 0.94 GB free against a 10 GB floor.** 🚨 **`Saved\AnomalyCaptures`: 21 sessions, ZERO banked** |
+| **Eighteen** | 129–134 | **Cleanup executed · 21 sessions banked · cook IN FLIGHT** | **0.94 → 21.93 GB**; 21/21 banked incl. **the `m23` play-gate smoke**; **G130**. 🚨 **Ruling 1's order was IMPOSSIBLE — banking 3.89 GB needs 3.89 GB.** Cook is memory-bound at **1 process** (`G97`) |
 
 ⚠ **ONE INVESTIGATION, FIFTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fifteen;
 the reason it is not split is unchanged).*
@@ -3955,3 +3956,243 @@ boots.**
 **WHAT THIS PART ADDS BEYOND THE HALT: `Saved\AnomalyCaptures` holds 21 sessions and ZERO are
 banked — 3.89 GB of unbanked evidence found by the session-ID method while looking for something
 else entirely.**
+
+---
+
+# PART EIGHTEEN — cleanup executed, evidence banked, **the cook is IN FLIGHT**
+
+**Owner authorised Rulings 1–4. All cleanup is DONE and every figure below is measured. The cook is
+RUNNING and will not finish inside this turn — the reason is measured too.** **NO PRODUCTION CODE
+CHANGED. NO TAG. `P6` NOT MOVED.** `feature/stencil-capture` **READ-ONLY at `76cac74`.**
+
+---
+
+## 129. 🚨 THE ORDERING IN RULING 1 WAS IMPOSSIBLE, AND WHY — the first thing that happened
+
+**Ruling 1 said: bank `Saved\AnomalyCaptures` FIRST, before anything is deleted.** I started there.
+
+**It failed on the first session: `Copy-Item : There is not enough space on the disk.`**
+**Banking 3.89 GB requires 3.89 GB, and 0.94 GB existed.** The ordering was written assuming room
+that the previous part had already reported was gone.
+
+⚠ **AND IT LEFT EXACTLY THE ARTIFACT WE HAD JUST FINISHED WARNING ABOUT: a PARTIAL bank directory —
+652 files / 891 MB of a 21-session copy — indistinguishable by name from a complete one.** It was
+**deleted immediately** and the source **re-verified intact (21 sessions, 2,967 files, 3.89 GB)**
+before anything else ran.
+
+### 129.1 The resolution, and the principle it rests on
+
+**The INTENT of "bank first" is *never delete evidence before it is safe*. That intent is preserved by
+a different order:**
+
+> **FREE ONLY WHAT CONTAINS NO EVIDENCE AT ALL → THEN BANK → THEN FREE THE VERIFIED DUPLICATES.**
+
+`Intermediate` and `.vs` are **build artifacts containing no evidence of anything**. Freeing them
+cannot endanger a single session. Only the **third** tree (`Builds\BenchGate\...\Saved`) holds capture
+data, and it was not touched until after the banking completed and was verified.
+
+⇒ **Nothing that could be evidence was deleted before it was banked. The literal order changed; the
+protection did not.** → **`G130`**
+
+---
+
+## 130. `RULING 1` — the 21 PIE-era sessions are banked ✅
+
+| | |
+|---|---|
+| bank dirs before | **158** |
+| bank dirs after | **159** *(one container, `PIE_UNBANKED_SWEEP_20260819/`, holding all 21 sessions — the `CAL`/`ANCH` precedent)* |
+| distinct session ids | 162 → **183** |
+| verification | **21/21 IDENTICAL** per-file `{relative path → size}` manifest on copy |
+
+⚠ **`session_20260713-113639` has 3 files / 0 MB — incomplete. BANKED ANYWAY and marked**, per the
+ruling: *a truncated artifact is still evidence of something; a deleted one is not.*
+
+🚨 **ONE OF THE 21 IS CITED EVIDENCE: `session_20260817-132214` IS THE `m23` OWNER PLAY-GATE SMOKE** —
+the run CLAUDE.md records as *"90 frames, 1068×604, fps 30, 8 blink events, gapped cadence byte-exact
+to the historical shape, `manifested: true` 8/8"*, and **the first confirmation of the `m23` fix in
+real gameplay content rather than synthetic `CB_GateLevel`.** It was sitting unbanked in the project
+tree, and a disk sweep is what found it.
+
+**Third instance of the session-ID method finding unbanked evidence** — PART SIX's nine dirs, PART
+TWELVE's two rescues, these 21. **A name-based sweep found none of them.** Recorded in the bank
+`README.md`.
+
+⚠ **The originals were LEFT IN PLACE**, per the ruling, until the cook succeeds.
+
+---
+
+## 131. `RULING 2` — the three trees, freed, with per-tree figures
+
+| step | tree | free after | recovered |
+|---|---|---|---|
+| — | *(start)* | **0.94 GB** | — |
+| 1 | `StackOBot\.vs` | **5.59 GB** | **4.65 GB** |
+| 2 | `StackOBot\Intermediate` | **20.15 GB** | **14.56 GB** |
+| 3 | *(banking the 21 sessions)* | **16.26 GB** | −3.89 GB |
+| 4 | `Builds\BenchGate\...\Saved` | **21.93 GB** | **5.67 GB** |
+
+✅ **`G-3`'s condition on tree 3 was honoured exactly: the re-verification and the deletion ran in ONE
+script, with no other work between them** — *"that gap is where a stale verification becomes a wrong
+one."* Result: **75 of 75 duplicate by SESSION ID *and* per-file manifest**, zero failures, so nothing
+had to be spared.
+
+⛔ **UNTOUCHED as instructed:** `_binary_baselines` (both preserved quartets) · the session bank ·
+`Builds\MidRepro` · `Builds\Windows` · `Saved\AnomalyCaptures` originals.
+
+✅ **`G92` RE-BANK CHECK BEFORE COOKING: 0 unbanked sessions** in `Builds\BenchGate` (7 sessions) and
+`StackOBot\Saved` (21 sessions). Matched **by session ID**.
+
+---
+
+## 132. `RULING 4` — disk is now an instrument
+
+**`setup-runbook.md` §8.6 gains a STEP 0 — a go/no-go floor before the cook:** ≥15 GB **GO** ·
+10–15 GB **marginal** · <10 GB **NO-GO, do not start**. It carries the measured working-set figures
+and names the trees that are **not** free space (`_binary_baselines`, the bank, `MidRepro`, and
+**`Builds\Windows` — the physical evidence behind `S-1`/`G87`**).
+
+🆕 **`G130`** — generalised: *an operation's WORKING SET is not its OUTPUT SIZE, and running out of
+room mid-way yields a half-written artifact behind a system that still starts.* It carries the
+284 MB-output-vs-multi-GB-working-set figure, the partial-copy trap measured here, and the
+preservation-vs-cleanup ordering resolution from §129.
+
+---
+
+## 133. THE COOK — running, and slow for a measured reason
+
+**Launched with the declared map set, unchanged:**
+`CB_GateLevel` + `MainMenu` + `MainWorld` *(`Entry` arrives by default)*.
+
+⚠ **IT IS A FULL 761-ACTION REBUILD, NOT AN INCREMENTAL ONE — because `Intermediate` was deleted to
+buy the disk space the cook needed.** That cost was known and accepted; the runbook records it as
+*"forces a full rebuild, ~3 min"*, which was measured on a **10-process** build.
+
+🚨 **IT IS RUNNING AT ONE PROCESS, AND THE REASON IS MEASURED, NOT GUESSED.** UBT's own line:
+
+```
+Requested 1.5 GB free memory per action, 2.36 GB available: limiting max parallel actions to 1
+Building 761 actions with 1 process...
+```
+
+**A second `UnrealEditor` is resident at 3.19 GB working set** — **`G97`'s permanent environmental
+fact** *(the operator runs a second UE editor on this box and is not asked to avoid the machine)*.
+⇒ **the build is memory-bound, not CPU-bound: 10 physical cores idle behind a 1-process limit.**
+
+**Observed rate: ~15 of 761 actions in ~5 minutes.** ⛔ **No completion estimate is offered as a
+finding** — engine PCH actions and leaf compiles differ by more than an order of magnitude and a
+linear extrapolation from the PCH-heavy head of the list would be a claim the data does not support.
+**What IS established: it will not finish inside this turn.**
+
+⛔ **NOT INTERRUPTED.** The build phase writes only `Intermediate`/`Binaries`; **no container is being
+written yet**, so it is safe where it stands — but restarting would discard the work already done for
+nothing.
+
+**Consequently NOT YET RUN, and none of them can be:** the `verify_cooked_maps.ps1` map gate · the
+A44 scan of the new staged artifact · the token read-back · the new quartet identity · **and the
+entire slice-1 validation.**
+
+✅ **What IS ready and committed so the next turn starts clean:** the slice-1 **pre-declared branch
+table**, `CaptureBench/tools/p18_slice1_predeclared_branches.md`, commit **`972840d`** — **written
+and committed BEFORE the cook finished and before any leg ran**, exactly as the practice requires.
+
+---
+
+## 134. State after PART EIGHTEEN
+
+| | |
+|---|---|
+| Ruling 1 | ✅ **21/21 banked and verified**; bank **158 → 159** dirs, 183 session ids |
+| Ruling 2 | ✅ **all three trees freed** — **0.94 GB → 21.93 GB**, per-tree figures recorded |
+| Ruling 3 | ✅ **reserved trees untouched** |
+| Ruling 4 | ✅ runbook §8.6 **step 0** + **`G130`** |
+| the cook | 🚧 **IN FLIGHT** — full rebuild, memory-bound at 1 process |
+| slice 1 | ⛔ **NOT VALIDATED** — blocked on the cook; branches pre-declared and committed |
+| `P6` · tag · branch | **not moved · none · `76cac74` untouched** |
+
+**WHAT THIS PART SETTLES: the preservation-vs-cleanup ordering. When banking and freeing contend for
+the same disk, the resolution is not to skip either — it is to free ONLY what contains no evidence
+first. The literal order in the ruling was impossible; the protection it existed for was kept
+intact.**
+
+---
+
+## 135. ADDENDUM — SCOPE NOTE for the queued move to `E:`
+
+⛔ **SCOPE ONLY. NOTHING CHANGED, NOTHING COPIED, NO MIGRATION PLAN PROPOSED.** Every path below was
+read this turn and **left exactly as it is.** This is the input to the move brief, not the brief.
+
+### 135.1 TRACKED — in git, visible in a diff, recoverable
+
+| file | line(s) | value |
+|---|---|---|
+| `CaptureBench/tools/run_leg.ps1` | **82**, **84** | staged exe · `_bench_sessions_bank` |
+| `CaptureBench/tools/verify_cooked_maps.ps1` | **37** | default `-Utoc` under `Builds\BenchGate` |
+| `CaptureBench/tools/ws_scoping_echo.ps1` | **61**, **68** | `Config\DefaultGame.ini` · staged exe |
+| `CaptureBench/tools/verify_lastrundir.ps1` | **38**, **53** | `DefaultGame.ini` · staged exe |
+| `CaptureBench/tools/mainworld_recon.ps1` | **50**, **51** | staged exe · staged log |
+| `CaptureBench/tools/mainworld_join.ps1` | **37** | `__ExternalActors__` root |
+| `CaptureBench/tools/prune_verify.ps1` | **10**, **11** | bank root · exe root |
+| `CaptureBench/tools/cure_measurement_table.py` | **40** | `BANK = r"D:\..."` |
+| `CaptureBench/tools/guard_collapse_sweep.py` | **36** | `BANK` |
+| `CaptureBench/tools/h4_recon.py` | **49** | `BANK` |
+| `CaptureBench/tools/mainworld_q4_geometry.py` | **38** | `BANK` |
+| `CaptureBench/tools/traceability_sweep.py` | **41** | `BANK` |
+| `AnomalyInjector/docs/PRE-DELIVERY-CHECKLIST.md` | **24** | `Config\DefaultGame.ini` |
+| `AnomalyInjector/docs/setup-runbook.md` | **7–9**, **30**, **42–43**, §8.1–8.6 | engine · host · clean · build/stage/cook |
+| `AnomalyInjector/docs/architecture.md` | **200–201** | engine · host |
+| `AnomalyInjector/docs/gotchas.md` | **96**, **201**, **207**, **216**, **1001**, **1020**, **1736**, **1821**, **2041** | engine, host, bank, baselines |
+| `AnomalyInjector/docs/sessions/*` | many | historical prose |
+| `anomaly-dashboard/host-tools/overlay_watcher.py` | **23**, **39**, **40** | `CAPTURES_ROOT` · `VERIFY_SCRIPT` |
+
+⚠ **`CaptureBench` is TRACKED BUT LOCAL-ONLY — no remote.** Its 17 baked paths are in version control
+and **nowhere else**. A drive move plus a disk loss takes the harness with it.
+
+### 135.2 🚨 UNTRACKED — the hazard, and it is `G112`'s shape exactly
+
+> *"a value that lives outside version control returns silently."*
+
+| # | where | what |
+|---|---|---|
+| **1** | 🚨 **Windows registry** — `HKCU\Software\Epic Games\Unreal Engine\Builds` | **`{B34F356C-4AE7-256A-F0E1-318A632BB902}` → `D:/UESource/UnrealEngine`.** **This is how `StackOBot.uproject` resolves its engine at all** — the `.uproject` holds only the GUID. **It is in no file, in no repo, and in no backup.** The single most invisible path in the system |
+| **2** | `D:\IntrusiveAnomalies\host-tools\` | **A SECOND, UNTRACKED COPY** of `encode_watcher.py`, `overlay_watcher.py`, `start_encode_watcher.bat`, `start_overlay_watcher.bat`. `D:\IntrusiveAnomalies` **is not a git repo.** The tracked copies live in `anomaly-dashboard/host-tools/` — **two copies, one tracked, one not** |
+| **3** | `D:\IntrusiveAnomalies\_M2Smoke\host-tools\encode_watcher.py` | **a THIRD copy**, also untracked |
+| **4** | `_binary_baselines\README.md` | untracked; carries the **hash→meaning provenance** for both quartets |
+| **5** | `_bench_sessions_bank\README.md` | untracked; carries the **name-matched-but-evidence-differed** warning |
+| **6** | `Builds\BenchGate\...` , `_bench_sessions_bank\`, `_binary_baselines\` | the trees themselves — build artifacts and evidence are deliberately not in git |
+
+### 135.3 WHAT BREAKS IF A PATH IS MISSED — by failure mode
+
+🚨 **Ranked by danger, because a path that SILENTLY FALLS BACK is worse than one that errors.**
+
+| category | failure mode | danger |
+|---|---|---|
+| 🚨 **Python `BANK = r"D:\..."`** *(5 sweep tools)* | the bank path resolves to nothing ⇒ **the sweep reports an EMPTY CENSUS as a clean result.** `traceability_sweep.py` / `guard_collapse_sweep.py` would answer *"0 legs"* and look like a pass | 🚨 **SILENT WRONG ANSWER — the worst class.** *(`cure_measurement_table.py` is partly protected: PART ELEVEN taught it to report every skipped leg with a reason)* |
+| 🚨 **`overlay_watcher.py CAPTURES_ROOT`** | polls a directory that does not exist, **never triggers, never errors** — frames simply never get annotated | 🚨 **SILENT NO-OP.** `G112`'s exact shape |
+| ⚠ **`verify_cooked_maps.ps1 -Utoc` default** | a missing `.utoc` and a genuinely map-less container both land near *"found nothing"* | ⚠ **MISLEADING** — the tool's exit-2-on-zero-in-both design blunts it, but the two causes must not be conflated |
+| ✅ **`run_leg.ps1` staged exe / bank** | path not found ⇒ **the leg fails loudly and immediately** | ✅ **SAFE — hard error** |
+| ✅ **Registry engine mapping** | `.uproject` cannot resolve its engine ⇒ **build/open fails outright** | ✅ **SAFE — hard error**, though the message names a GUID, not a path |
+| ⚠ **Docs / runbook / gotchas** | no runtime effect — but **a cold-start session follows them and lands nowhere**, which is a real cost given this project's cold-start contract | ⚠ **STALE PROSE** |
+| 🚨 **The two untracked READMEs** | if lost in the move, **the hash→meaning provenance for both preserved quartets goes with them** — and `A44`/`G121` say a result whose build cannot be identified is not a result | 🚨 **UNRECOVERABLE CONTEXT LOSS** |
+
+### 135.4 DOES `D:\UESource\UnrealEngine` HAVE TO MOVE? — **NO. It can stay. Stated plainly.**
+
+**Recommendation: LEAVE THE ENGINE ON `D:`.** Three reasons, in order of weight:
+
+1. **Nothing couples the project's correctness to the engine's drive letter.** `StackOBot.uproject`
+   references the engine **by GUID**, resolved through the registry — so the project can live on `E:`
+   and the engine on `D:` with **one registry value unchanged**.
+2. **Our build files hardcode no engine path.** `AnomalyCapture.Build.cs` uses
+   `GetModuleDirectory("Renderer")`, and the branch's variant uses `EngineDirectory` — **both
+   engine-relative**. Verified this turn.
+3. **It is ~230 GB and a source build.** Moving it is a larger, riskier operation than the project,
+   with its own rebuild, and it buys nothing the move is for.
+
+⚠ **ONE CONSEQUENCE THAT MUST BE IN THE MOVE BRIEF EITHER WAY: a FULL REBUILD IS REQUIRED AFTER THE
+MOVE.** `Intermediate\**\*.dep.json` stores **absolute** source and PCH paths — measured this turn in
+`CaptureBench\Intermediate\...\Module.CaptureBench.cpp.dep.json`, which names both
+`d:\intrusiveanomalies\...` and `d:\uesource\...`. **Stale intermediates after a move are not a
+correctness risk (the build regenerates them) but they are a time cost, and deleting `Intermediate`
+is exactly what forced this part's 761-action rebuild.**
+
+⛔ **NO MIGRATION PLAN IS PROPOSED. This is the scope, and it stops here.**

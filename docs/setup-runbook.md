@@ -428,7 +428,43 @@ changed level, a config value the game reads from its cooked ini (secrets, defau
 defaults), or a new asset. Those need a full cook, and until 2026-08-19 this document had **no
 recipe for one**; it had to be reconstructed from `G91`. Written down here after being executed.
 
-**Run the steps in this order. Steps 1–3 are protective and are not optional.**
+**Run the steps in this order. Steps 0–3 are protective and are not optional.**
+
+### 0. 🚨 CHECK FREE SPACE FIRST — GO / NO-GO (G130)
+
+```powershell
+(Get-PSDrive D).Free / 1GB
+```
+
+| free | verdict |
+|---|---|
+| **≥ 15 GB** | ✅ **GO** |
+| 10–15 GB | ⚠ **marginal** — free something regenerable first |
+| **< 10 GB** | ⛔ **NO-GO. Do not start.** |
+
+⚠ **THE OUTPUT IS NOT THE WORKING SET.** The cooked `.ucas` is **284 MB**, and that number is
+useless for planning: the cook additionally writes `Saved\Cooked`, `Saved\StagedBuilds` **and** the
+archive copy, so the transient requirement is **multiple GB**. Measured 2026-08-19: the project tree
+went from 19.12 GB free to **0.94 GB** across two builds and eight legs — `Intermediate` alone reached
+**14.54 GB**.
+
+🚨 **WHY THIS IS A GATE AND NOT A TIP: a cook that runs out of disk mid-way leaves a HALF-WRITTEN
+CONTAINER BEHIND A BUILD THAT STILL BOOTS.** The failure does not announce itself; it produces an
+artifact that presents as healthy. **That is worse than any amount of lost progress.**
+
+**Regenerable trees, safe to free without any retention decision** (measured sizes, 2026-08-19):
+
+| tree | size | note |
+|---|---|---|
+| `StackOBot\Intermediate` | 14.54 GB | forces a full rebuild, ~3 min |
+| `StackOBot\.vs` | 4.72 GB | Visual Studio cache; the CLI build does not use it |
+| `Builds\BenchGate\...\Saved\` | 5.66 GB | ⚠ **only after verifying every session is banked BY SESSION ID + per-file manifest** |
+
+⛔ **NOT free space, and named here so they are never treated as such:** `_binary_baselines` (the two
+preserved quartets) · `_bench_sessions_bank` · `Builds\MidRepro` (the `m17` repro harness, a
+documented validation asset) · **`Builds\Windows` — the pre-cook 3-map build, which is the PHYSICAL
+EVIDENCE behind `S-1` and the `G87` correction; it is the artifact that proves `MainWorld` was never
+cooked, and re-deriving that would need a cook.**
 
 ### 1. Re-bank first (G92)
 
