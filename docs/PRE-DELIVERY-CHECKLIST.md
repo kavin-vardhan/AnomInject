@@ -11,9 +11,30 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 
 ## 1. Game build — `Config/DefaultGame.ini`
 
-- [ ] **`[AnomalyControlServer] Token` is set to a long random value.**
+- [ ] **`[AnomalyControlServer] Token` is set to a long random value — RUN THE CHECK, do not read it.**
       *Absent → the server falls back to a random per-session token that a client with no console can
       never read; the dashboard cannot connect at all.*
+
+      ⛔ **A PLACEHOLDER TOKEN HAS COME BACK ONCE ALREADY** after `m16` recorded it reverted, because the
+      file is **outside version control** and two other legs of the dev pair kept the value alive
+      (**G112**). Ticking a box did not catch it and will not. Run this instead — it exits non-zero and
+      names the fault:
+
+      ```powershell
+      $ini = "D:\IntrusiveAnomalies\StackOBot\Config\DefaultGame.ini"
+      $m = [regex]::Match((Get-Content $ini -Raw), '(?m)^\s*Token\s*=\s*(\S+)\s*$')
+      if (-not $m.Success) { Write-Host "FAIL: no Token key" -Fore Red; exit 1 }
+      $t = $m.Groups[1].Value
+      if ($t -match 'TESTVALUE|CHANGEME|placeholder|^TEST$') { Write-Host "FAIL: PLACEHOLDER token" -Fore Red; exit 1 }
+      if ($t.Length -lt 32) { Write-Host "FAIL: token is $($t.Length) chars, need >= 32" -Fore Red; exit 1 }
+      Write-Host "PASS: token present, $($t.Length) chars, not a placeholder" -Fore Green
+      ```
+
+      Then confirm the **dashboard** half matches: `<delivery root>/dashboard/config.json` →
+      `controlToken`. The two must be identical or the client's dashboard cannot connect.
+      ⚠ **There is no pre-cook or pre-stage script in this project** — cooking and staging are run by
+      hand from `setup-runbook.md` §8 — so this check has nowhere automatic to live. It runs here or
+      it does not run.
 - [ ] **`[AnomalyCapture] bDeliveryModeDefault=True`.**
       *Absent → the client's sessions ship `labels.jsonl` + `run.json`, which includes the seed. Delivery
       mode is what limits output to the client-facing artifacts.*
@@ -44,7 +65,11 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       rebuild. Confirm once by deleting the loose `config.json`: the app should open its manual connect
       screen (nothing baked). *This is the M2 footgun-fix; a regression here silently re-bakes the token.*
 - [ ] Author `config.json` by hand (or from `config.example.json`) — do **not** ship the dev
-      `public/config.json` (token `TESTVALUE123`). `capturesRoot` may be left `""`; `Setup.bat` fills it in.
+      `public/config.json`. `capturesRoot` may be left `""`; `Setup.bat` fills it in.
+      ⚠ This line used to name the dev token literally. **It no longer does, deliberately** — a
+      placeholder written into a doc is another untracked leg that outlives every rotation (**G112**).
+      The dev token is whatever `StackOBot\Config\DefaultGame.ini` currently holds; read it there, and
+      run §1's check against the value you actually ship.
 
 ## 3. Bundle assembly
 

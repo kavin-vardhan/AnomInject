@@ -2259,3 +2259,68 @@ handoffs, `CLAUDE.md`, journals — is read by every agent that cold-starts, and
 finds. Effort settings, report formats, escalation paths, commit conventions: if a rule applies to one
 role, the doc has to say so. *The failure mode is not disobedience — it is obedience to an instruction
 that was never addressed to you.* (2026-08-19.)
+
+---
+
+### G112 — a gate/test artifact written into a file OUTSIDE version control will silently return
+
+`m16` recorded the `[AnomalyControlServer] Token=TESTVALUE123` gate artifact as **reverted** from
+`StackOBot\Config\DefaultGame.ini`. On 2026-08-19 it was **back**, and it was found only by unrelated
+inspection while planning S4's client-config section — not by any check, and not by the pre-delivery
+checklist, which already carried a "Token is set to a long random value" box.
+
+**It did not come back because a script rewrote it.** The generator question was asked explicitly and
+the answer is: **nothing in the workspace writes that file.** What kept the value alive is that the
+dev pair had **three legs and only one of them was tracked**:
+
+| leg | tracked? |
+|---|---|
+| `StackOBot\Config\DefaultGame.ini` | **no** — StackOBot is not a git repository at all |
+| `anomaly-dashboard\public\config.json` | **no** — explicitly gitignored (`.gitignore:6`) |
+| `CaptureBench\tools\verify_lastrundir.ps1` | **YES** — hardcoded `TESTVALUE123` as a *parameter default* |
+
+Reverting one leg left the other two asserting the value, and the pair only works when all three match —
+so the ini was re-established to make dev auto-connect work again. **A revert that leaves the
+convention intact is not a revert.**
+
+⚠ **A KNOWN DEFAULT IS WORSE THAN NO DEFAULT.** The committed tool's `[string]$Token = "TESTVALUE123"`
+is the sharpest part: it is in version control, it is silent, and it survives every rotation of the
+actual secret. It now reads the token from `DefaultGame.ini` instead, refuses a placeholder, and warns
+below 32 chars — so the tool has exactly one source of truth and git has none.
+
+**RULE: untracked config needs a DETECTOR, not a memory.** A checkbox that says "confirm X" is a memory
+with better formatting. `PRE-DELIVERY-CHECKLIST.md` §1 now carries a **runnable** check that exits
+non-zero and names the fault (no `TESTVALUE|CHANGEME|placeholder`, plus a positive `>= 32 chars`
+assertion). It was verified against four cases before being trusted: the live config **PASS**, the
+historical `TESTVALUE123` **FAIL**, a 6-char token **FAIL**, an absent key **FAIL**.
+
+⚠ **There is no pre-cook or pre-stage script in this project** — cooking and staging are run by hand
+from `setup-runbook.md` §8 — so the check has nowhere automatic to live and one was deliberately **not
+invented**. If a build wrapper is ever written, this check is its first line.
+
+**Generalises past tokens.** `GameDefaultMap` (G88) sits in the same untracked host config and the
+checklist already flags it with *"nothing in git will catch it"* — that note was right, and this is what
+"nothing in git will catch it" looks like when it actually happens. Any value that a **cook consumes**
+and **git does not see** needs an executable check, whatever the value is. (2026-08-19.)
+
+---
+
+### G113 — the Bash tool exits 1 on every call in this environment while producing correct output
+
+Environmental, this workstation, not a project defect. Every `Bash` tool invocation returns **exit code
+1** with a trailing
+`bash.exe: /c/Users/.../Temp/claude-XXXX-cwd: No such file or directory`,
+**while the command itself runs and its stdout is correct**. The failure is in the wrapper's
+working-directory save step, after the command has already succeeded.
+
+**Why it matters here specifically:** this project gates on exit codes
+(`subset_gate.py` 0/1/2, `run_leg.ps1` 0/2, `resolution_delta.py` 0/1/2). A tool that reports failure
+while succeeding is the exact shape that gets a green result recorded as red — or, worse, gets a real
+red dismissed as "that's just the Bash thing".
+
+**Workaround: use the PowerShell tool for everything.** It reports exit codes faithfully. All S4-0 work
+was done through it.
+
+*General form, and it is the mirror of G92: verify the CHANNEL before trusting what it reports. G92 was
+a binary that was compiled but never staged; this is an exit code that is emitted but never earned.
+In both cases the tooling is confidently wrong and nothing in the output says so.* (2026-08-19.)

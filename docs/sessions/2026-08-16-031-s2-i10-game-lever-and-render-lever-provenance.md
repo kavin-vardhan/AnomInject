@@ -235,6 +235,16 @@ per leg: L1 85, L2 90, L3 87, L4 90, L5 90, L6 90. **The only two exceptions are
 warm-up frames in L3 with no marker drawn** — the §2 false-decode signature, outside every leg's
 analysis window.
 
+> ⛔ **CORRECTED 2026-08-18 (journal 042 §10.3, BRANCH R) — both figures above are wrong; the
+> MEASUREMENT is right.** The denominator **534 is an arithmetic slip**: `85+90+87+90+90+90 = 532`
+> matching over a corpus of `6 × 90 = 540`, not 534. `534` is `532 + 2`, written to fit the
+> "two exceptions" narrative. And **"the only two exceptions … in L3" is wrong — there are EIGHT, in
+> L1 (five, at indices 0–4) and L3 (three)**; L1 is not mentioned in that sentence at all.
+> The per-leg table right above is **correct and reproduces an independent 2026-08-18 re-measurement
+> exactly**, so nothing here disturbs this section's conclusions — only its summary line was wrong.
+> *(An explanation that these windows filtered the denominator was offered and then **WITHDRAWN**:
+> L1's 85 and L3's 87 both EXCEED those legs' own published window sizes of 74 and 60.)* → **G110**.
+
 This holds in **every** regime, deep starvation (ratio 3.0) and pacing-off (0.33) included. It is the
 property the m21 residual violates: a **stale presented scene would decode an EARLIER counter than
 the label claims**. It does not, anywhere. This goes into the record **beside** the pixel oracle as
@@ -529,6 +539,15 @@ is the shape closer to a struggling client machine.
 
 **87 hide events · 974 oracle frames · 0 misalignments · 1052 / 1054 identity frames at diff 0**
 (both exceptions are the known markerless warm-up false decodes of §2).
+
+> ⛔ **FLAGGED 2026-08-18, NOT CORRECTED — do not cite `1052 / 1054` without this note.**
+> **`1052/1054`: the denominator carries the same arithmetic slip as `532/534` (§4.5). The true corpus
+> is 1080** (two sets × 6 legs × 90 frames). **The RENDER half has NOT been re-measured, so NO
+> CORRECTED FIGURE EXISTS** — only the game half was re-measured (journal 042 §10.3), and it came back
+> `532 / 540` with eight non-matching rows in L1 (5) and L3 (3), not two in L3.
+> **This is a FLAG, not a correction.** Re-measuring the render half is out of scope and remains an
+> open debt; until it is done, the honest statement is *"the combined figure's denominator is known to
+> be wrong and its numerator is unverified"*. → **G110**.
 
 The arm→present pairing on the current backbuffer path is **byte-exact under CPU starvation of either
 thread**, nominal through deep, and pacing-off from both sides. **"CPU starvation breaks the pairing"
