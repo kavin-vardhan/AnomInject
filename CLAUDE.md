@@ -18,10 +18,61 @@ and is the single source of truth for the project.
 - 🟩 **YOU ARE HERE — 2026-08-19. THE INVISIBLE-ANOMALY INVESTIGATION IS THE ACTIVE WORK, AND `H5` IS
   THE PRIMARY LEAD. THE LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING HAS BEEN TAGGED SINCE.**
   📒 **READ `docs/invisible-anomaly-mechanisms.md` FIRST** — the five-row ledger of *distinct*
-  mechanisms with *potentially distinct cures*. Then journal
-  `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`, which has a **PART INDEX** at the top
-  covering **eleven parts** (H4 pre-flight → the H4 run → environment scout → pre-cook gate → the
-  re-cook → MainWorld first launch → geometry survey → `H5` → traceability → cure measurement).
+  mechanisms with *potentially distinct cures*, **now carrying `§6` THE COSTED CURE OPTION SPACE**.
+  Then journal `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`, which has a **PART
+  INDEX** at the top covering **TWELVE parts** (H4 pre-flight → the H4 run → environment scout →
+  pre-cook gate → the re-cook → MainWorld first launch → geometry survey → `H5` → traceability →
+  cure measurement → **cure OPTIONS costed + disk prune**).
+  🧮 **PART TWELVE — THE OPTION SPACE IS COSTED FROM SOURCE. NOTHING IMPLEMENTED, NOTHING PICKED.**
+  **THE ANSWER, in one line: `C-1` (stencil pixel count) is the ONLY candidate addressing BOTH `H5`
+  classes; `C-3` (`WasRecentlyRendered`) is the only cheap one and it answers `H4`'s question rather
+  than `H5`'s; `C-5` (render-relevant bounds) is a `P6` correctness fix and a MEASURED NO-OP on `H5`;
+  and NO candidate is blocked by DELIVERY MODE.**
+  🚨 **`G128` — DELIVERY MODE GATES *REPORTING*, NOT *MEASUREMENT*.** `EvaluateSelectionProvenance`
+  runs **unconditionally** (`:1599`); only the **sidecar** is suppressed (`:1720`); and `coverage_pct`
+  from that same struct **already reaches `annotation.json` in BOTH modes** (`:1691`). ⇒ *"a cure that
+  only works with delivery off is not a cure"* — **none of the five is one.** 🆕 **And
+  `annotation.json` ALREADY EMITS `mask:{provided:false}` and `depth:{provided:false}` on every event**
+  (`AnomalyLabelWriter.cpp:452-459`) — **the slots a mask/depth cure reports through already ship**, so
+  populating them changes a VALUE, not the field SHAPE.
+  🚨 **`G127` — THE FILTER SHIPS IN EVERY CONFIG; EVERY PIXEL MEASUREMENT IS COMPILED OUT OF SHIPPING.**
+  `IsRenderableComponent` lives in **`AnomalyInjector`** (no render deps, all configs);
+  the SVE/readback live in **`AnomalyCapture`** (`ANOMALY_CAPTURE=0` in Shipping). ⇒ *"have the selector
+  ask the mask"* is a **MODULE-SHAPE DECISION.** ⚠ **Second half, easier to miss: a pixel measurement
+  CANNOT INFORM A SAME-FRAME PICK-TIME DECISION** — async readback, and the stencil branch budgets
+  **12 frames** before abandoning a mask. **Any pixel-derived cure is a PRE-FLIGHT (arm → wait →
+  decide), never an inline predicate.**
+  🚨 **`G126` — `WasRecentlyRendered()` is TRUE for a SHADOW-ONLY contributor.** The shadow path bumps
+  `LastRenderTime` with `bUpdateLastRenderTimeOnScreen=false` (`ShadowSetup.cpp:1672,1909`) and
+  `AActor::WasRecentlyRendered` reads exactly that field. **`SM_Ramp2` is that shape.** It is also
+  **BINARY** (4 px reads like 400,000) and doubly latent. ✅ Its `true` path *is* gated on
+  `PrimitiveDefinitelyUnoccludedMap`, so it is genuinely occlusion-aware — **an `H4` candidate, not an
+  `H5` one.**
+  🔎 **`C-1` READ-ONLY FINDINGS (branch never checked out):** the measurement is **already built** —
+  `FAnomalyMaskAABB.Count` **IS** the surviving-pixel count. ⚠ **But three things travel with it:**
+  its last commit **excludes `InstancedFoliageActor`** (the blacklist the owner RULED is not a fix)
+  **on a code comment asserting "standalone ISM/HISM crates have sane bounds" — now MEASURED FALSE**;
+  its tagging tests **`USkeletalMeshComponent`** while the selector tests the base
+  **`USkinnedMeshComponent`**, so a `UPoseableMeshComponent` target is **selectable but never tagged ⇒
+  mask Count 0 on a target that draws**, failing in the dangerous direction; and its reduction is an
+  **unpriced W×H CPU scan ON THE RENDER THREAD** per armed frame.
+  🆕 **A REAL DEFECT `C-5` WOULD FIX, found in source:** the **label** path
+  (`ProjectActorBoundsToScreenRect`, `:653-685`) unions components on a **TYPE-ONLY** test with **no
+  `IsVisible()` gate**, while **selection** (`:493`) **does** check it — **label geometry and selection
+  geometry already disagree about what "the object" is.** ⛔ Still a no-op on `H5`.
+  📌 **RULING 1 (ledger §3.3) — the `H4`/`H5` SHARED CURE IS A HYPOTHESIS, NOT A FINDING**, recorded
+  verbatim; it is attractive *because* it would collapse two mechanisms into one fix, which is the
+  reason to test it rather than assume it. 📌 **RULING 2 (ledger §3.2) — `SM_Ramp2` IS AN A35 CASE AND
+  IT CONSTRAINS THE CURE:** peak-OUT **0.2955** > peak-IN **0.1785** on a legitimate target ⇒ **any
+  bbox-scoped measurement inherits that failure mode and must say so.**
+  💾 **DISK PRUNED — 12.89 → 19.12 GB free (6.23 GB recovered).** 79 leg dirs deleted, each proven a
+  duplicate **BY SESSION ID *and* by an identical per-file path+size manifest** (stronger than asked,
+  chosen because PART ELEVEN's zero-byte frames prove a size-blind check would bless a truncated copy).
+  ⛔ **4 dirs NOT verifiable ⇒ NOT deleted, listed and left alone** — **`H4_WSECHO` and
+  `MW_STOMPER_try1` are UNBANKED EVIDENCE** (session ids absent from the bank; a name-based sweep would
+  have destroyed them) plus `D3D12` and an empty `S3A2_OFF`. **`_binary_baselines` (11 files, the
+  `pathA` quartet hash-identical), the bank (148 dirs) and the staged build are UNTOUCHED and verified
+  after the prune.**
   **WHERE THINGS STAND, in one read:**
   · **`m23`/`P3`** — FIXED, shipped.
   · **`H4`** (occluded target, occlusion-blind projector) — **SUPPORTED, path (b), mechanism only, n=1
@@ -34,14 +85,16 @@ and is the single source of truth for the project.
   builds (15/15); only `node.name` is uninformative, and identity is **non-deterministic** for actors
   that toggle component visibility.
   · **Path (a)** — **PARKED, NOT REFUTED.** A *priority* decision, not a scope one (G120).
-  🧭 **NEXT, AND IT IS CHAT-SIDE: `H5`'s CURE DESIGN.** The measurement that precedes it is done and
-  its answer is **the cure needs a NEW MEASUREMENT, not a new threshold** — every artifact field
-  describes **claimed** extent, none describes **drawn** extent, and the selection bounds cannot even be
-  read back. ⛔ **Do NOT design or propose a cure unprompted. Do NOT touch `feature/stencil-capture`
-  (it is H4's cure and may not be H5's). `P6` DOES NOT MOVE. No production code has been written in
-  eleven parts — keep it that way until a brief says otherwise.**
-  ⚠ **OPERATIONAL:** disk **12.9 GB free**; bank **148 dirs / 15.7 GB**, plus **6.4 GB of exe-side leg
-  dirs (83)** that are mostly duplicates of banked sessions — **the obvious thing to prune first**.
+  🧭 **NEXT, AND IT IS CHAT-SIDE: `H5`'s CURE — THE *PICK*.** The measurement is done (*the cure needs
+  a NEW MEASUREMENT, not a new threshold*) **and the option space is now costed from source (ledger
+  §6)**. What remains is a **choice among C-1…C-5, and it is the OWNER'S.** ⛔ **Do NOT pick, design,
+  prototype or implement a candidate unprompted. Do NOT touch `feature/stencil-capture` (it is H4's
+  cure and may not be H5's). `P6` DOES NOT MOVE. No production code has been written in TWELVE parts —
+  keep it that way until a brief says otherwise.**
+  ⚠ **OPERATIONAL:** disk **19.1 GB free** (was 12.9 — PART TWELVE recovered 6.23 GB); bank
+  **148 dirs / 16.8 GB**; exe-side leg dirs **83 → 4**, and **all four remaining are deliberate
+  keeps** (two carry **UNBANKED sessions**, two hold no session at all). **The next disk lever is the
+  BANK RETENTION POLICY — a bigger decision, and the owner's.**
 - 🟦 *(superseded as "you are here", still the LAST TAGGED MILESTONE)* **`S4` IS COMPLETE AND TAGGED
   `m25`. THE DEFAULT GRAB POINT IS THE SVE / SCENE-COLOUR PATH: DELIVERED FRAMES NO LONGER CONTAIN
   GAME UI.**

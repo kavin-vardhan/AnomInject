@@ -2948,3 +2948,85 @@ concentrated than first reported.
    bbox on the CB_GateLevel control, so the in-bbox score was clean and the contamination only surfaced
    when the measurement was widened to the whole frame for `H5`. **Widening a measurement can import
    contaminants a narrower one excluded by luck.** (2026-08-19.)
+
+### G126 — `WasRecentlyRendered()` is TRUE for a SHADOW-ONLY contributor, so "the engine says it rendered" is not "it put pixels on screen"
+
+Costing `C-3` as an `H5`/`H4` cure candidate meant reading what the engine actually writes. It is not
+one signal — **`LastRenderTime` is bumped from three places with two different meanings.**
+
+| writer | flag | meaning |
+|---|---|---|
+| `SceneVisibility.cpp:2493` | `bUpdateLastRenderTimeOnScreen=**true**` | visible **and** `PrimitiveDefinitelyUnoccludedMap` set |
+| `ShadowSetup.cpp:1672` | `bUpdateLastRenderTimeOnScreen=**false**` | **in a shadow-casting pass** |
+| `ShadowSetup.cpp:1909` | `bUpdateLastRenderTimeOnScreen=**false**` | ditto |
+
+`AActor::WasRecentlyRendered` reads `LastRenderTime` (`Actor.cpp:1989-2000`), which the shadow path
+**does** bump. ⇒ **an object contributing only a shadow — no direct pixels — reads as "recently
+rendered".**
+
+🚨 **This is not hypothetical here: `SM_Ramp2` is exactly that shape** — peak change **OUT** of its
+bbox **0.2955** against **IN** **0.1785**, marker-off, on a legitimate target.
+
+⚠ **The finer-grained field exists and is NOT the same one:** `LastRenderTimeOnScreen` is bumped only
+by the `true` path. `WasRecentlyRendered()` does **not** use it.
+
+**RULES.**
+1. **`WasRecentlyRendered()` answers "did the renderer touch this", not "did the viewer see it".**
+   For a drawn-extent question it is the wrong instrument at any tolerance.
+2. **It is BINARY** — it cannot distinguish a target drawing 4 pixels from one drawing 400,000, which
+   is the entire `H5` class-(ii) question.
+3. ⚠ **It is LATENT in two stacked ways** — written from the render thread, *"up to a frame behind
+   the game thread"* (`PrimitiveComponent.h:810-814`), **plus** occlusion-query buffering
+   (`FOcclusionQueryHelpers::GetNumBufferedFrames`). *"Recently"* is a tolerance, never an instant.
+4. ✅ **What it IS good for:** it is the **cheapest** thing that is genuinely occlusion-aware, because
+   the `true` path is gated on `PrimitiveDefinitelyUnoccludedMap`. That makes it a candidate for
+   `H4`'s question and **not** for `H5`'s. (2026-08-19.)
+
+### G127 — the FILTER ships in every configuration; every PIXEL MEASUREMENT is compiled OUT of Shipping. They are not in the same module and cannot simply call each other.
+
+The `H5` filter under study — `IsRenderableComponent`, `IsUnoccluded`, the selector, every anomaly —
+lives in **`AnomalyInjector`**: deps `Core`/`CoreUObject`/`Engine`/`InputCore`, **no render deps**,
+built in **every** configuration including Shipping.
+
+Every candidate that measures pixels lives in **`AnomalyCapture`**, which declares
+`ANOMALY_CAPTURE=**0**` in Shipping and pulls `Renderer`/`RHI`/`RenderCore`/`Slate` **plus the
+Renderer PRIVATE include path** only when `Target.Configuration != Shipping`
+(`AnomalyCapture.Build.cs:24-43`).
+
+⇒ **"just have the selector ask the mask" is a MODULE-SHAPE DECISION, not an implementation
+detail.** Either the cure is non-Shipping-only, or `AnomalyInjector` grows render dependencies.
+*(CLAUDE.md's invariant contemplates those deps, so this is a cost to price — not a prohibition.)*
+
+⚠ **AND THE SECOND HALF, WHICH IS EASIER TO MISS: a pixel measurement CANNOT INFORM A SAME-FRAME
+PICK-TIME DECISION.** The SVE runs on the **render thread** after post-processing and returns by
+**async GPU readback**; `FAnomalySveCapturer::Drain_RenderThread` polls `IsReady()` and simply skips
+a frame that is not ready. `feature/stencil-capture` budgets **12 frames** before abandoning a mask
+(`HeldAges[i] > 12`). **Any pixel-derived cure is therefore a PRE-FLIGHT — arm, wait, decide — never
+a predicate the selector can call inline.** Design accordingly, or the cure silently decides on
+last-frame's answer. (2026-08-19.)
+
+### G128 — DELIVERY MODE gates REPORTING, not MEASUREMENT — and one provenance field already crosses into the client artifact
+
+It is natural to read *"the provenance sidecar is only written when delivery is OFF"* as *"provenance
+is not computed in delivery mode"*. **Source says otherwise, and the distinction decides whether a
+whole class of cure is viable.**
+
+| line | what it does | delivery-gated? |
+|---|---|---|
+| `AnomalyCaptureSubsystem.cpp:1599` | `EvaluateSelectionProvenance(...)` — the 9 traces, the coverage rect, the poll distance | ⛔ **NO — unconditional** |
+| `:1691` | `Out.CoveragePct = Ev.Provenance.CoveragePct` | ⛔ **NO** |
+| `AnomalyLabelWriter.cpp:404` | writes `coverage_pct` into **`annotation.json`** | ⛔ **NO — both modes** |
+| `AnomalyCaptureSubsystem.cpp:1720` | writes **`selection_provenance.json`** | ✅ **YES** |
+
+⇒ **the measurement always runs and one of its outputs already reaches the client.** Only the
+*internal sidecar file* is suppressed. **A cure is not blocked by delivery mode; it is blocked only
+if it needs a channel that does not already exist** — and `annotation.json` is written in both modes.
+
+🆕 **Related, and it removes a second assumed blocker:** `annotation.json` already emits
+**`mask: {provided: false}`** and **`depth: {provided: false}`** on every event, hardcoded, in every
+delivered artifact today (`AnomalyLabelWriter.cpp:452-459`). **The slots a mask- or depth-based cure
+would report through are already in the shipped contract**, so populating them changes a **value**,
+not the field **shape**. Adding sub-fields underneath them would be a shape change.
+
+⚠ **The real constraint is SHIPPING, not delivery** (→ `G127`) — and capture is already compiled out
+of Shipping, so a client capturing at all is on a non-Shipping build. (2026-08-19.)

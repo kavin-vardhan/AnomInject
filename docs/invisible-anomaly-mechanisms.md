@@ -78,6 +78,30 @@ THRESHOLD.**
 GOOD ≥ 5/9).** n=2 vs n=5 on a 9-valued integer, two GOOD targets one step from the boundary, and the
 mechanism offered for it is post-hoc. ⛔ **An observation, NOT a proposed threshold.**
 
+### 3.2 ⛔ RULING — `SM_Ramp2` IS AN A35 CASE AND IT CONSTRAINS ANY FUTURE CURE
+
+**Measured, marker-off, on a LEGITIMATE target:** `SM_Ramp2` peak change **OUT** of its own bbox
+**0.2955** exceeds peak change **IN** **0.1785**. **The largest visual effect of hiding it is outside
+the rect it claims.**
+
+🚨 **THIS IS A CONSTRAINT ON THE CURE, NOT A CURIOSITY.** A cure that measures drawn contribution
+**only inside the claimed rect** scores this target low and would reject it. Shadows are the named
+instance; A35 covers the general case. **Any candidate whose measurement is bbox-scoped inherits this
+failure mode and must state it.**
+
+### 3.3 ⛔ RULING — THE `H4`/`H5` SHARED-CURE QUESTION IS A HYPOTHESIS, NOT A FINDING
+
+Recorded verbatim, so the resemblance is never later treated as established:
+
+> **"`H4`'s cure (report actual pixel contribution before hiding) and `H5`'s required new measurement
+> RESEMBLE each other. Whether ONE measurement serves BOTH is UNESTABLISHED. It is attractive
+> precisely because it would collapse two mechanisms into one fix, and that is the reason to test it
+> rather than assume it. `H4` is a target that WOULD draw and is BLOCKED; `H5` is a target that
+> contributes far less than it claims. A measurement answering 'is this target currently occluded' is
+> not obviously the same as one answering 'how much of what this label claims is actually drawn'."**
+
+⛔ **`feature/stencil-capture` STAYS UNTOUCHED AND UNREBASED.**
+
 ## 4. `H5` class (i) — the target WOULD NOT DRAW ANYWAY
 
 | | |
@@ -133,6 +157,140 @@ DIFFERENT WAYS. `asset_name` identifies a CLASS reliably and an INSTANCE unrelia
 actor across two groups without any indication that they are the same object.
 
 ⛔ **`P6` DOES NOT MOVE. Not fixed.**
+
+---
+
+## 6. CURE OPTIONS — the costed space (journal 045 PART TWELVE)
+
+⛔ **SOURCE READING AND COSTING ONLY. NOTHING IMPLEMENTED, NOTHING PROTOTYPED, NO CANDIDATE PICKED —
+that is the owner's call and it is the next brief.**
+
+### 6.0 Two architectural facts that price every candidate
+
+**(1) THE FILTER AND THE PIXELS LIVE IN DIFFERENT MODULES, AND ONE OF THEM DOES NOT EXIST IN SHIPPING.**
+`IsRenderableComponent`, `IsUnoccluded`, the selector and every anomaly live in **`AnomalyInjector`**,
+whose deps are `Core`/`CoreUObject`/`Engine`/`InputCore` and which builds in **every** configuration.
+Every pixel measurement lives in **`AnomalyCapture`**, which is `ANOMALY_CAPTURE=0` in Shipping and
+holds all render deps (`Renderer`, `RHI`, `RenderCore`, plus the Renderer **private** include path,
+`AnomalyCapture.Build.cs:24-43`). ⇒ **a pixel-based cure either is non-Shipping-only, or
+`AnomalyInjector` gains render dependencies.** *(Not forbidden — CLAUDE.md's invariant contemplates
+those deps — but it is a plugin-shape decision, not an implementation detail.)*
+
+**(2) A PIXEL MEASUREMENT CANNOT INFORM A SAME-FRAME PICK-TIME DECISION.** The SVE runs on the
+**render thread**, after post-processing, and its result returns by **async GPU readback**
+(`AnomalySveCapturer::Drain_RenderThread` polls `IsReady()` and skips when not ready). The stencil
+branch budgets **12 frames** for that round trip before it gives up on a mask
+(`HeldAges[i] > 12`). ⇒ **any pixel-derived cure is a PRE-FLIGHT — arm, wait, then decide — not a
+predicate the selector can call.**
+
+### 6.1 The five candidates
+
+| | measures | where it can run | cost | cannot see |
+|---|---|---|---|---|
+| **C-1** stencil / ID-buffer pixel count | **surviving pixel COUNT + pixel AABB** per tagged target, occlusion-correct | render thread, `SubscribeToPostProcessingPass` | full-screen PS + R8 RT + readback **per armed frame**, plus a **W×H CPU scan on the render thread** per frame; mutates target render state and forces `r.CustomDepth 3` | anything outside the tagged silhouette — **shadows (A35 / `SM_Ramp2`)**; anything not tagged |
+| **C-2** depth comparison | target's **expected** depth vs scene depth at its rect | render thread, `PrePostProcessPass_RenderThread` *(exists; currently unused)* | one depth read; **cheaper than C-1** — no tagging, no per-target pass | ⛔ **its reference depth comes from the SAME bounds `H5` says are untrustworthy**; cannot separate "target is here" from "something else is at that depth" |
+| **C-3** `WasRecentlyRendered()` | **binary**: did this primitive render recently | game thread, free, anywhere | ~free — one float compare | ⛔ **HOW MUCH** it drew. Also **TRUE for a shadow-only contributor** (see `G126`) |
+| **C-4** per-instance / per-section bounds | real extent of **each instance** instead of the cluster | game thread, pick time | O(instances); `GetInstanceTransform` + mesh bounds, pure CPU, no render deps | ⛔ **a PLAIN component whose bounds exceed its mesh** — i.e. `BP_SpawnPad_C` (−114.8, plain SMC) |
+| **C-5** render-relevant bounds (the LOCKED `P6` ruling) | **WHICH components** count as "the object" | game thread, pick time | negligible; reuses `IsRenderableComponent` | ⛔ **how big one renderable component's bounds are** — an ISM's `Bounds` stay the whole cluster |
+
+### 6.2 What each would have returned on the 7 banked targets
+
+⛔ **Stated as DERIVABLE or NOT DERIVABLE. Nothing is estimated.**
+
+| candidate | derivable? | result |
+|---|---|---|
+| **C-1** | ⛔ **NOT DERIVABLE** | No banked artifact carries a per-target pixel count. The nearest banked quantity, whole-frame `\|d\|`, is a **contrast-weighted** change, not an **area** — substituting it is exactly the named error family. **One bound IS derivable:** on the foliage leg the change occupied **4 of 64** grid cells against a **100 %** claim, so a count would have been far below the claimed area. That bounds *where change occurred*, not the count. |
+| **C-2** | ⛔ **NOT DERIVABLE** | Same reason, plus the reference depth is not recorded either. |
+| **C-3** | ✅ **DERIVABLE** | **TRUE on all 7 → 0/2 BAD caught, 0/5 GOOD broken.** Every one of the 7 passed selection (`IsVisible()` ∧ frustum ∧ ≥1 of 9 clear rays) and every hide produced a **non-zero, localized** change (min `0.00192`), so all 7 were drawing. **C-3 separates NOTHING on this set** — as expected: it targets class (i), and this set contains **no** class (i) instance. |
+| **C-4** | ⚠ **PARTIAL** | Applies to **3 of 7** (the instanced ones): `RoomBuilderSquare_C` GOOD, `InstancedFoliageActor` BAD, `BP_SplineSpawn_C` BAD. **Leaves the 4 plain-SMC targets untouched — including `BP_SpawnPad_C`, whose −114.8 is the whole point of `G124`'s generalisation.** Whether it would **break `RoomBuilderSquare_C`** is ⛔ **NOT DERIVABLE** — that depends on the reduction rule (union? largest? nearest?), which no candidate specifies. Exact per-instance transforms are runtime state, absent from every artifact. |
+| **C-5** | ✅ **DERIVABLE** | **0/2 BAD caught, 0/5 GOOD broken — a NO-OP on this set.** All 7 were selected *through* a component that already passed `IsRenderableComponent`, so `IsVisible()` was already true for it; C-5 changes **which** components are unioned, never **how big** a renderable component's bounds are. ⇒ **C-5 is a correctness fix for `P6`'s bounds defect, NOT an `H5` cure.** |
+
+🆕 **A REAL DEFECT C-5 *WOULD* FIX, found in source this turn:** the **label** path
+(`ProjectActorBoundsToScreenRect`, `AnomalyViewport.cpp:653-685`) unions components on a **TYPE-ONLY**
+test with **no `IsVisible()` gate**, while **selection** (`IsRenderableComponent`, `:493`) **does**
+check `IsVisible()`. **The label rect and the selection set already disagree about what "the object"
+is** — an invisible mesh component enlarges the box but cannot be selected through. C-5 makes them
+agree. *(This is `G33`'s "one definition of the object" applied to the box; it does not touch `H5`.)*
+
+### 6.3 Question A — which class does each address?
+
+| candidate | class (i) *non-drawing* | class (ii) *over-claiming* |
+|---|---|---|
+| **C-1** stencil pixel count | ✅ zero surviving pixels | ✅ count ≪ claimed area |
+| **C-2** depth | ⚠ partial (a null mesh writes no depth) | ⛔ **no** — reference depth is derived from the bad bounds |
+| **C-3** `WasRecentlyRendered` | ✅ **only** | ⛔ **no** — binary |
+| **C-4** per-instance bounds | ⛔ no | ⚠ **the AGGREGATE half only** |
+| **C-5** render-relevant bounds | ⛔ no | ⛔ no |
+
+⇒ **C-1 is the only candidate that addresses BOTH.**
+
+### 6.4 Question B — which could ALSO answer `H4`? (HYPOTHESIS, per §3.3)
+
+| candidate | hypothesis | uncertainty |
+|---|---|---|
+| **C-1** | **Plausible, and it is the branch's own premise** — the shader's test *is* an occlusion test (`customDepth >= sceneDepth - bias`), so zero surviving pixels covers *blocked* and *draws nothing* alike | ⚠ **The TIMING differs between the two uses.** `LOCK-1` on that branch takes the mask **while the target renders** and falls back to a projected/last-known box once it is hidden. `H4` path (b) fires at an **already-occluded** target, so the mask is zero **with nothing to fall back to**. One measurement, two different moments — **UNESTABLISHED** |
+| **C-2** | **Plausible for `H4`** — depth comparison is precisely an occlusion test | ⛔ **and it is the candidate that does NOT serve `H5`.** A cure chosen for `H4` alone |
+| **C-3** | **Plausible, and by far the cheapest** — component `LastRenderTime` is bumped only when `PrimitiveDefinitelyUnoccludedMap` is set (`SceneVisibility.cpp:2491`), i.e. it is **genuinely occlusion-aware** | ⚠ **`G126`** — the shadow path bumps it too (`ShadowSetup.cpp:1672,1909`), so a shadow-only contributor reads "rendered". Also latent: render thread ≥1 frame behind, plus occlusion-query buffering |
+| **C-4 / C-5** | ⛔ **no** — neither reads occlusion | — |
+
+### 6.5 Question C — DELIVERY MODE. ⚠ LOAD-BEARING, answered for every candidate.
+
+🚨 **THE PREMISE NEEDS CORRECTING FIRST, FROM SOURCE: DELIVERY MODE GATES *REPORTING*, NOT
+*MEASUREMENT*.** `EvaluateSelectionProvenance` is called **unconditionally**
+(`AnomalyCaptureSubsystem.cpp:1599`); only the **sidecar file** is suppressed (`:1720`); and
+`coverage_pct` — a field of that same struct — **already reaches `annotation.json` in BOTH modes**
+(`:1691`, written at `AnomalyLabelWriter.cpp:404`).
+
+⇒ **NO CANDIDATE IS BLOCKED BY DELIVERY MODE.** All five can run and all five can report, because
+`annotation.json` is written in both modes.
+
+| candidate | runs in delivery? | real constraint |
+|---|---|---|
+| **C-1** | ✅ | ⚠ **SHIPPING**, not delivery — `AnomalyCapture` is compiled out of Shipping. Already true of capture itself, so a client capturing at all is on a non-Shipping build |
+| **C-2** | ✅ | same |
+| **C-3** | ✅ **most delivery-safe** | none — game thread, engine-only, needs no artifact at all if used as a gate |
+| **C-4** | ✅ | none |
+| **C-5** | ✅ | none |
+
+### 6.6 Does it move `P6`?
+
+🆕 **`annotation.json` ALREADY CARRIES THE SLOTS.** Every event object emits
+**`mask: {provided: false}`** and **`depth: {provided: false}`**, hardcoded, today, in every delivered
+artifact (`AnomalyLabelWriter.cpp:452-459`).
+
+| candidate | moves `P6`? |
+|---|---|
+| **C-1** | ⚠ **VALUE, not SHAPE** — `mask.provided` flips to `true` in a slot that already ships; `bbox_norm` changes value. **Adding sub-fields under `mask` WOULD be a shape change** |
+| **C-2** | ⚠ same, via the `depth` slot |
+| **C-3** | ✅ **NONE** if used purely as a pick-time gate — no field added, removed, renamed or recomputed |
+| **C-4** | ⚠ **VALUE only** — `coverage_pct`, `coverage_ratio`, `bbox_*` change value; no field changes |
+| **C-5** | ⚠ **VALUE only** — this *is* the locked `node.bounds` ruling; no field changes |
+
+### 6.7 What `feature/stencil-capture` already implements (READ-ONLY inspection, `C-1`)
+
+**Tip `76cac74`; the stencil work is `468ed6b` → `b39c0d0` → `76cac74`. NOT checked out, NOT merged,
+NOT rebased, NOT modified.** Diff vs `master`: **21 files, +1283/−48**.
+
+✅ **It got a long way.** A real global shader (`Shaders/Private/AnomalyVisibleMask.usf`) tests
+`customStencil ∈ reserved ∧ customDepth ≥ sceneDepth − bias` and writes a tag-valued R8 mask; the SVE
+runs it after **Tonemap**, reads back async, and reduces to **`FAnomalyMaskAABB{MinX,MinY,MaxX,MaxY,
+Count}` per tag** — **`Count` IS the surviving-pixel count `C-1` needs, and it already exists.**
+Tagging saves and restores each primitive's prior `{bRenderCustomDepth, CustomDepthStencilValue}`
+exactly and refcounts `r.CustomDepth 3`.
+
+⚠ **THREE THINGS A COSTING MUST CARRY:**
+1. 🚨 **Its last commit "excludes `InstancedFoliageActor`" — the class blacklist the owner has RULED
+   IS NOT A FIX** — and the code comment justifying it says *"standalone ISM/HISM crates have sane
+   bounds"*, which is now **MEASURED FALSE** (`BP_SplineSpawn_C` −19405.5 is a standalone ISM;
+   `BP_SpawnPad_C` −114.8 is a plain SMC). **The branch's own scoping rests on a premise `H5`
+   refuted.**
+2. 🚨 **A NARROWING DEFECT:** its `IsRenderableMesh` tests **`USkeletalMeshComponent`**, while
+   `master`'s selector tests the **base `USkinnedMeshComponent`**. A `USkinnedMeshComponent` that is
+   not a `USkeletalMeshComponent` (e.g. `UPoseableMeshComponent`) is **selectable but never tagged**
+   ⇒ **mask count 0 on a target that draws — a false "contributes nothing", failing in the dangerous
+   direction.**
+3. ⚠ Its reduction is a **W×H single-threaded CPU scan on the render thread** per armed frame
+   (921,600 byte reads at 1280×720). Not measured; flagged as the cost nobody has priced.
 
 ---
 
