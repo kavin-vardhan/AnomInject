@@ -1799,7 +1799,30 @@ StackOBot-Windows.pak   7CAE22DD    10,115,703 bytes
 same-hash comparison is not a same-build comparison in either direction.
 
 *(Related: G92 — compiled is not staged; G118/G119 — check what the artifact ENFORCES, not what its
-source says. This is that principle applied to the artifact's own fingerprint.)* (2026-08-19.)
+source says. This is that principle applied to the artifact's own fingerprint.)*
+
+**⛔ THE RETROACTIVE CONSEQUENCE, STATED PLAINLY: THE BASELINE CHAIN PRESERVES EXES ONLY, AND AN EXE IS
+HALF AN ARTIFACT.** `_binary_baselines\StackOBot.exe.m25-baseline` (`101AFEA4`) **does NOT reconstruct
+the build H4 was measured on** — that build's other half (3 maps, `TESTVALUE123`, `.utoc` 194,996 B)
+was overwritten by the 2026-08-19 cook and **is gone**. Same for `.s4-2`, `.s4-0`, `.m24`, `.m23`.
+
+⚠ **THE LOSS IS BOUNDED AND THE RECEIPT IS THE G-2 DEBT SWEEP** (journal 045 §30), run **before** the
+cook precisely so this could be said: every claim still owed against `101AFEA4` was enumerated and
+**the list was EMPTY**. ⛔ **Do NOT attempt to reconstruct any pre-cook pak.** Record it as a bounded
+loss, not an open hole.
+
+**A BASELINE IS NOW A QUARTET — anything less is not a baseline:**
+
+```
+exe hash + StackOBot-Windows.utoc hash + .ucas hash + .pak hash
+```
+
+**The current PATH-(a) MEASUREMENT BUILD is preserved complete** at
+`D:\IntrusiveAnomalies\_binary_baselines\` (exe) + `pathA-measurement-build-paks\` (containers),
+hash-verified at that location after copying (A62):
+`exe 101AFEA4 · utoc 939B9C9B (268,036 B, 4 maps) · ucas 8A602D4D · pak 7CAE22DD`.
+Path (a) will be measured against **that exact container**, and a future cook overwrites the live one
+**silently** — a known failure mode now, not a hypothetical. (2026-08-19.)
 
 ### G93 — `FocusGate 0` + a high `VideoFps` corrupts the camera; neither alone does it
 

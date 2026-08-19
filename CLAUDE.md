@@ -230,7 +230,57 @@ and is the single source of truth for the project.
   is offline asset/container reading; the Blueprint evidence is **name-table strings plus the developer
   comments embedded in them** (the quotes are direct; the machinery lists are indicative, not a graph
   read).
-  🟩 **THE COOK IS DONE (journal 045 §34-§40). `MainWorld` IS IN THE BUILD, `G118` IS CLOSED, AND THE
+  🟩 **MAINWORLD FIRST LAUNCH DONE — RECON, NOT PATH (a) (journal 045 §41-§50). BRANCH: "IT ALL
+  WORKS", with one partial. ZERO PRODUCTION CODE. NO TAG. B1 DECLARED NOT APPLICABLE, not skipped.**
+  ✅ **R-1 IT BOOTS AND STAYS.** `Bringing World …MainWorld up for play`; **1102 probe ticks, every one
+  `level=MainWorld, actors=432`, ZERO MainMenu loads, nothing redirects** — by NAME, not by picture
+  (G87's headline rule, which survives its own correction). The process **stays alive** where the
+  pre-cook build exited.
+  ✅ **R-2 THERE IS A POPULATED GAMEPLAY VIEW** — not black, not a default origin view. **A streaming
+  source exists with NO input** (`PC_InGame_C … X=3450 Y=4020 Z=1519.8`, `CellsToActivate(1)`), so the
+  *"an unattended run may have no streaming source"* prior is **REFUTED**. Post-settle view origin
+  `(3073.76, 4335.69, 1634.48)` rot `(0,−39.999,0)`, 6 renderable-visible actors. ⚠ **The camera is NOT
+  static for the first ~25 frames** — the pawn settles from pitch −20 to 0, which is why the visible set
+  differs between startup and settle.
+  ✅ **R-3 THE MOVERS ARE ALL LOADED.** `IAI.ListActors` at startup: **432 actors in world MainWorld**
+  against 419 external files ⇒ World Partition had already streamed essentially everything. **7
+  `BP_Stomper`, 7 `BP_MovingPlatform`, 4 `BP_Fan`** named, matching the asset census. Targeted fire
+  resolved every mover tried (`matched 1 actor(s)` → `applied`). ⚠ **`snapshot.visible` sees only 6 —
+  what the auto-pool can SELECT is far narrower than what is LOADED**, and conflating them would read
+  as "not loaded".
+  ⚠ **R-4 SPLITS BY CLASS — AND THE FIRST ANSWER WAS WRONG, CAUGHT BEFORE IT WAS REPORTED.** The first
+  leg fired at a Stomper that measured perfectly static over a **10-frame window with the camera
+  identical to one decimal** — which looked like the pre-declared *MOVERS LOADED BUT STATIC* halt.
+  🚨 **Joining runtime UAID names back to the asset files showed that instance is one of the two BOUND
+  Stompers.** A trigger-bound Stomper standing still with nobody on the plate is the EXPECTED result
+  and tests nothing. **The gap was mine: G-1 keyed on FILES, the leg keyed on RUNTIME UAID NAMES, and
+  the two had never been joined.** The join is now done for all 13 Stomper/MovingPlatform instances.
+  **Re-measured on UNBOUND instances at TWO cadences to exclude aliasing** (8 events at 12-frame
+  spacing + **13 events at 7-frame spacing** via `IAI.Capture.Config 3 2 5 2 0`):
+  ⛔ **`BP_Stomper` (unbound) is STATIC — 21 samples, two incommensurate cadences, ONE position**
+  `(8962.014, 8754.727, 2599.993)` to three decimals. ✅ **`BP_MovingPlatform` (unbound) MOVES —
+  Z 1666.889 → 2139.779, `+67.556 cm` per 0.4 s ⇒ **~168.9 cm/s**, **472.9 cm** across the leg, X and Y
+  constant.** `global_position` is a WORLD position, so this is actor motion, not view motion.
+  ⇒ **G-1's asset reading is CONFIRMED at runtime for `BP_MovingPlatform` and REFUTED at runtime for
+  `BP_Stomper`.** ⛔ **n = 1 instance each; no mechanism proposed for the still Stomper.**
+  ✅ **R-5 PIPELINE, RECORDED NOT GRADED:** four legs, all `capture_path sve` · `clock wall` ·
+  `delivery false` · `non_manifested 0` · `zero-match 0` · ring **121/121/0** (166/166/0 on the 12-burst
+  leg) · `speed_ratio` **1.0000–1.0020**, sustained **29.94–30.00 fps**. **No streaming hitch visible.**
+  🔬 **FREE OBSERVATION, RECORDED AND NOT ACTED ON:** on the MovingPlatform leg `bbox_valid` is **59/59**
+  and the **occlusion sample count VARIES WITHIN ONE WINDOW — 6/9 → 7/9 → 9/9 → 7/9 → 9/9** — with the
+  **6/9 and 7/9 rows `valid:true`, i.e. SELECTED.** That is the `P-a1` band appearing in live data.
+  ⛔ **RECON ONLY. No path (a) hypothesis declared, nothing graded, `P-a1`…`P-a5` remain UNTESTED.**
+  🔧 **HARNESS FAULTS FIXED:** `check_pose.py` **crashed the harness** (`TypeError` on `bbox is None`)
+  for a leg with no bbox rows in the settle window — **from inside the block whose own header says
+  REPORTING ONLY**, and after the artifacts were written; now says plainly that **B1 has nothing to
+  judge**. `run_leg.ps1` gained **`-Map`**, recorded in `_leg_geometry.json`.
+  📌 **RULINGS 1–3 LANDED:** build identity is a **QUARTET** and the **PATH-(a) MEASUREMENT BUILD IS
+  PRESERVED COMPLETE** (`pathA-measurement-build-paks/`, hash-verified, 282.9 MB); ⛔ **`.m25-baseline`
+  is EXE-ONLY and does NOT reconstruct the build H4 ran on — that pak is GONE, the loss is BOUNDED and
+  the G-2 sweep is the receipt, and NO reconstruction is to be attempted**; `setup-runbook.md` **§8.6
+  FULL COOK** written; and **any future comparison against an H4 leg must treat the poses as
+  NEAR-identical, not identical.**
+  🟦 *(superseded — kept for the record)* **THE COOK IS DONE (journal 045 §34-§40). `MainWorld` IS IN THE BUILD, `G118` IS CLOSED, AND THE
   SMOKE LEG REPRODUCES m25's CERTIFIED BEHAVIOUR. ZERO PRODUCTION CODE. NO TAG.**
   🚨 **`G121` — THE EXE HASH DID NOT CHANGE, SO IT DOES NOT IDENTIFY THE BUILD.** No code changed, so
   nothing compiled and the archived exe kept its compile time: **before and after are BOTH `101AFEA4`,

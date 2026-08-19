@@ -418,6 +418,113 @@ how it drifts from the one the banked results were graded with.
 
 **G92:** re-bank before any step that wipes `Saved`. A code-only hot-swap does **not** touch it.
 
+---
+
+## 8.6 FULL COOK — the recipe (use this; §8.1–§8.5 above are the CODE-ONLY hot-swap)
+
+⚠ **Everything above this point is the hot-swap: a build plus one file copy, NO COOK (G103).** It is
+the right cycle for a code change and the wrong one for anything that changes **content** — a new or
+changed level, a config value the game reads from its cooked ini (secrets, default map, capture
+defaults), or a new asset. Those need a full cook, and until 2026-08-19 this document had **no
+recipe for one**; it had to be reconstructed from `G91`. Written down here after being executed.
+
+**Run the steps in this order. Steps 1–3 are protective and are not optional.**
+
+### 1. Re-bank first (G92)
+
+The archive step is destructive **under conditions that are not established**. Move anything unbanked
+out of the package tree **before** cooking:
+
+- `Builds\BenchGate\Windows\StackOBot\Saved\` — the historical capture dirs.
+- `Builds\BenchGate\Windows\StackOBot\Binaries\Win64\<LABEL>\` — ⚠ **leg output lands beside the EXE,
+  not under `Saved` (G101)**, so it is easy to miss. **Match by SESSION ID, not by directory name** —
+  the harness banks the *accepted* session under a different directory name, so a name-based check
+  reports false duplicates. The 2026-08-19 sweep found **9 unbanked items** this way, four of which
+  were the raw evidence behind m25's S4-3 and S4-4 claims.
+
+📏 **Measured 2026-08-19: that cook wiped NOTHING** (leg dirs 56→56, baselines 4→4, `Saved` 23→23).
+⛔ **This does NOT retire the step.** One cook, one flag set (no `-clean`, archiving into an existing
+tree); the 2026-08-16 wipe stands and which factor decides is unknown. One copy versus an
+unrecoverable loss.
+
+### 2. Rescue the baseline QUARTET (G121)
+
+⛔ **A baseline is `exe + utoc + ucas + pak`. An exe alone is half an artifact** — a content-only cook
+leaves the exe byte-identical while changing maps, secrets and hundreds of MB of content.
+
+Copy the current exe **and the `Content\Paks\` set** to `D:\IntrusiveAnomalies\_binary_baselines\`
+(outside `Builds\`, where a stage cannot reach), then **verify by hash AT THE NEW LOCATION** — A62, a
+copy that ran is not a copy that landed. Update that directory's `README.md`.
+
+### 3. Declare the map set IN WRITING, before the cook
+
+The cook is **map-restricted by `-map=`**. Anything not listed is **not in the build**, silently.
+**That is exactly how `MainWorld` came to be absent from every build for months** (G87's correction,
+G120). `CB_GateLevel` is **non-negotiable** — every m25 certification is expressed in it.
+
+### 4. Cook, stage, pak, archive
+
+```powershell
+& "D:\UESource\UnrealEngine\Engine\Build\BatchFiles\RunUAT.bat" `
+  BuildCookRun `
+  -project="D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject" `
+  -platform=Win64 -clientconfig=Development `
+  -cook -stage -pak -archive `
+  -archivedirectory="D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate" `
+  -build -utf8output -nocompileeditor `
+  -map="/Game/CaptureBenchGate/CB_GateLevel+/Game/StackOBot/UI/MainMenu/MainMenu+/Game/StackOBot/Maps/MainWorld"
+```
+
+`Entry.umap` arrives without being listed (engine default). **A World Partition level's external
+actors are pulled in by naming the level** — `MainWorld`'s 419 one-file-per-actor externals cooked
+from the single `-map=` entry. Measured wall time: **2 m 27 s** for that set on a warm DDC.
+⛔ **If the cook requires a production-code change to succeed, HALT** — that is a scope change.
+
+### 5. GATE: read the cooked map set back OUT OF THE ARTIFACT
+
+```powershell
+powershell -File "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools\verify_cooked_maps.ps1"
+```
+
+**`-map=` is an INPUT; the `.utoc` container index is the ARTIFACT** (G119). Exit `0` pass · `1` a
+required map missing, with a distinct HALT for `CB_GateLevel` · `2` unexpected entries **or a scan
+that found nothing in either encoding**. ⚠ **The index encoding is NOT stable** — pre-cook containers
+read back as UTF-16, the post-cook one as ASCII — so a single-encoding scan can return a clean-looking
+*"no maps cooked"*. The tool scans both and says which answered.
+
+### 6. Token read-back (G118 / G112-amended)
+
+A packaged build enforces the **cooked** config. Read the enforced token from the **running build's own
+log**, never from the source ini:
+
+```powershell
+powershell -File "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools\ws_scoping_echo.ps1"
+```
+
+It prints source-vs-enforced side by side and shouts on a placeholder. ⛔ **If the build still enforces
+a placeholder after a full cook, HALT** — that means the cook is not consuming the config you think it
+is, which is a bigger finding than the token.
+
+### 7. A44 scan of the STAGED artifact, both encodings (§8.2, G103)
+
+Scan for a symbol the change adds **and** a control string that predates it. ⚠ **Zero across ALL
+symbols is SUSPECT TOOLING, not a clean result** — `TEXT()` literals are UTF-16.
+
+### 8. Record the new build identity — all four hashes
+
+`exe · StackOBot-Windows.utoc · .ucas · .pak`. ⚠ **The exe hash may be UNCHANGED** if no code changed
+(the archived exe keeps its *compile* time), so **the exe hash alone does not tell you the cook
+happened.** The `.utoc` size/mtime/hash does.
+
+### 9. SMOKE: one leg in `CB_GateLevel`, on-calibration
+
+1280×720 windowed, 100 % scale, `VideoFps` 30 pinned, SVE default **not forced**, delivery OFF, target
+`StaticMeshActor_49` (so **B1 applies**). Assert: `capture_path` `sve` · `content_clock` `wall` ·
+`key_ring` `missed 0` and `published == consumed` · **B1 pose-matched** · **A54 ALL-ALIGNED with the
+in-leg positive control decisive in BOTH directions** · **≥ 3 counted events**.
+⛔ **A cook that changed certified behaviour is a FINDING** — it must not be discovered later, inside
+a result.
+
 ## Troubleshooting
 - **"The following modules are missing or built with a different engine version… rebuild?"** —
   expected if `Binaries/` is stale or absent. Click **Yes**, or run step 4 first.

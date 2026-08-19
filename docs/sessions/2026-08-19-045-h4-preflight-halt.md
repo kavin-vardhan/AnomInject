@@ -1272,3 +1272,208 @@ forced**, delivery OFF, target `StaticMeshActor_49` (on-calibration, so **B1 app
 ⛔ **MainWorld was NOT launched beyond what the map-set read-back required — which was a container
 read, not a launch.** No occlusion measurement. **The path (a) design is chat-side and is not written
 here.**
+
+---
+---
+
+# PART SEVEN — MainWorld first launch. RECON, not path (a).
+
+⛔ **THIS IS NOT A PATH (a) TEST.** It declares no hypothesis about occlusion and grades nothing.
+**B1 IS NOT APPLICABLE and is DECLARED so, not skipped** — `TAU`, `CALIB_BBOX` and `POSE_TOL_PX` are
+scoped to `CB_GateLevel` / `StaticMeshActor_49` / 1280×720 (G117), and MainWorld satisfies none of it.
+**No A54 verdict was produced or attempted.**
+
+**Why recon came first:** `G-1` established that `Trigger` is **empty in the ASSET FILES**. It did
+**not** establish that anything **moves at runtime** with no player present. Separate claims (G120),
+and only one had been observed.
+
+## 41. Rulings 1–3, landed
+
+**Ruling 1 — build identity is a quartet.** `_binary_baselines/README.md` rewritten: every exe entry
+now states it is **EXE ONLY** and **does not reconstruct a build**, with `.m25-baseline` called out —
+**the m25-era pak (3 maps, `TESTVALUE123`, `.utoc` 194,996 B) was overwritten by the cook and is
+gone.** ⚠ **The loss is BOUNDED and the receipt is the G-2 sweep** (§30, run *before* the cook for
+exactly this reason): the debt list was **empty**. ⛔ **No reconstruction attempted.** `G121` amended
+with the same. **The PATH-(a) MEASUREMENT BUILD is now preserved COMPLETE** —
+`pathA-measurement-build-paks/` beside the exe, **hash-verified at the new location** (A62), 282.9 MB,
+5 of 5 match: `exe 101AFEA4 · utoc 939B9C9B · ucas 8A602D4D · pak 7CAE22DD` (+ `global.*`).
+
+**Ruling 2 — the runbook gap is closed.** `setup-runbook.md` **§8.6 FULL COOK** added: re-bank first
+(with the *match by session id, not directory name* trap that found 9 unbanked items), rescue the
+**quartet**, declare the map set, the full `-map=` command, `verify_cooked_maps.ps1` **as a gate**, the
+token read-back, the A44 scan, build identity, and the smoke leg.
+
+**Ruling 3 — the two observations carried, not chased.** Bifurcation 2-of-3 is **association only, not
+a lead**; it becomes worth a number only if it persists across MainWorld legs. And **any future
+comparison against an H4 leg must treat the poses as NEAR-identical, not identical** — `(0.0, 0.35, 0)`
+vs `(0,0,0)`, `coverage_pct` 7.7977 → 7.6575, modal bbox width 306.1 → 301.1.
+
+## 42. R-1 — DOES IT BOOT, AND IS IT ACTUALLY MAINWORLD? ✅ **YES.**
+
+```
+LogNet:            Browse:  /Game/StackOBot/Maps/MainWorld?Name=Player
+LogLoad:           LoadMap: /Game/StackOBot/Maps/MainWorld?Name=Player
+LogWorldPartition: ULevel::OnLevelLoaded(MainWorld)(bIsOwningWorldGameWorld=1, bIsOwningWorldPartitioned=1 …)
+LogWorldPartition: WorldPartition initialize took 441 us
+LogWorld:          Bringing World /Game/StackOBot/Maps/MainWorld.MainWorld up for play
+```
+
+**By LEVEL NAME, not by the picture** (G87's headline rule, which survives its own correction):
+`CaptureBench.Probe 1` emitted **1102 ticks, every one `level=MainWorld, actors=432`. Zero MainMenu
+loads. Nothing redirects.** The subsystems initialise for world `'MainWorld'`. The process **stayed
+alive** — where the pre-cook build **exited** on the missing package, this one runs.
+
+## 43. R-2 — IS THERE A VIEW, AND WHAT IS IN IT? ✅ **A POPULATED GAMEPLAY VIEW.**
+
+Not black, and not a default view from the origin. A **streaming source exists without any input** —
+`New Streaming Source: PC_InGame_C_2147482444 -> X=3450.000 Y=4020.000 Z=1519.836`,
+`CellsToActivate(1)` — so the prior that *"an unattended run may have no streaming source at all"* is
+**refuted**.
+
+Post-settle view: origin `(3073.76, 4335.69, 1634.48)`, rot `(0, −39.999, 0)`, 1280×720, with **6
+renderable-visible actors**: `SM_Ramp2`, `BP_SplineSpawn`, `RoomBuilderSquare`, `BP_SpawnPad` and two
+`InstancedFoliageActor`s.
+
+⚠ **The camera is NOT static for the first ~25 frames** — the pawn settles from pitch −20 at
+`(2982.1, 4412.6, 1742.1)` to pitch 0 at `(3073.8, 4335.6, 1634.5)`, then holds to ~2 cm. At **startup**
+the visible set was a *different* 6 — `BP_Stomper` (dist 779), `BP_Elevator` (1010),
+`RoomBuilderSquare`, `BP_SpawnPad`, 2 foliage — so **set membership changes during settle**, and that
+turned out to be camera motion, not actor motion (§45).
+
+## 44. R-3 — ARE THE MOVERS LOADED? ✅ **YES, ALL OF THEM.**
+
+**Instrument: `IAI.ListActors` from `-ExecCmds`, i.e. at STARTUP.** ⚠ It is a **lower bound** on what
+is loaded, never an upper one — and it reported **432 actors in world `MainWorld`** at frame 1, against
+419 external actor files, so World Partition had **already streamed essentially everything**.
+
+Named in that list, matching the asset census exactly: **7 `BP_Stomper_C`**, **7 `BP_MovingPlatform`**
+(6 `_C` + 1 `BP_MovingPlatform2`), **4 `BP_Fan_C`**, plus `BP_EnergyOrb`, `BP_Elevator`, `BP_Door`.
+
+**Second, independent instrument: targeted fire resolved them.**
+`blinking: matched 1 actor(s) for '=BP_Stomper_C_UAID_…'` → `Auto.FireSpecific: applied`, on every
+mover tried. ⚠ **Third instrument, `snapshot.visible` (the auto-pool's own enumeration), sees only 6** —
+because it is renderable ∧ poll-radius ∧ frustum ∧ unoccluded ∧ ≥6 % coverage. **What the auto-pool can
+SELECT is far narrower than what is LOADED**, and conflating the two would have read as "not loaded".
+
+## 45. R-4 — DO THEY MOVE, UNATTENDED? ⚠ **SPLIT BY CLASS. AND THE FIRST ANSWER WAS WRONG.**
+
+### 45.1 🚨 The first measurement targeted a **BOUND** Stomper — caught before it was reported
+
+The first leg fired at `BP_Stomper_C_UAID_B42E9936F5429ADA00_2086831169`, which was on-screen at
+startup. It measured **completely static**: over frames 3–16 the **camera was identical to one decimal**
+at `(2982.1, 4412.6, 1742.1)` pitch −20, and the target's `bbox_px` was **identical** at
+`(0.0, 0.0, 181.8, 720.0)` on all 10 of those frames.
+
+That looked like the pre-declared **MOVERS LOADED BUT STATIC** halt. **It is not, and reporting it
+would have been a false finding.** Joining runtime UAID names back to the asset files —
+`PersistentLevel.<Class>_C_UAID_…` appears inside each external actor file, so the join is exact —
+shows that instance is file `0E5JK19NZI4C74C00ZZ7N`: **one of the two BOUND Stompers.**
+
+**A trigger-bound Stomper standing still with nobody on the pressure plate is the EXPECTED result and
+tests nothing.** G-1's claim was about the **unbound** instances. ⚠ **The gap was mine: G-1 keyed on
+FILES, this leg keyed on RUNTIME UAID NAMES, and the two had never been joined.** The join is now done
+for all 13 Stomper/MovingPlatform instances and is in the record.
+
+### 45.2 Re-measured on **unbound** instances, at TWO cadences to exclude aliasing
+
+Anchors are 12 frames apart at the default config, so 8 identical samples could be a period that
+divides 0.4 s. A second leg used `IAI.Capture.Config 3 2 5 2 0` → **13 events at 7-frame spacing**.
+
+| leg | target | events | distinct positions | verdict |
+|---|---|---|---|---|
+| `MW_STOMP_FREE` | **unbound** Stomper `…F542F9D500_2012109606` | 8 (spacing 12) | **1** | **STATIC** |
+| `MW_STOMP_FREE_C2` | same, cadence B | **13 (spacing 7)** | **1** | **STATIC** |
+| `MW_PLAT_FREE` | **unbound** MovingPlatform `…F542EBDB00_1649270448` | 8 | **8** | ✅ **MOVES** |
+
+**21 samples of the unbound Stomper at two incommensurate cadences, all `(8962.014, 8754.727,
+2599.993)` to three decimals.** A period would have to divide both 12 and 7 frames — 84 frames = 2.8 s
+against a 3 s leg. **Aliasing is excluded in practice.**
+
+**The MovingPlatform translates on Z, monotonically:**
+
+```
+1666.889 -> 1734.444 -> 1802.000 -> 1869.556 -> 1937.111 -> 2004.667 -> 2072.223 -> 2139.779
++67.556 cm per 12 frames (0.4 s)  =>  ~168.9 cm/s   |   472.9 cm across the leg
+```
+
+X and Y constant. That is `InterpToMovementComponent` on its control-point path, **with no player and
+no input**. ⚠ **`global_position` is a WORLD position and camera-independent** — this is actor motion,
+not view motion.
+
+**⇒ G-1's asset reading is CONFIRMED at runtime for `BP_MovingPlatform` and REFUTED at runtime for
+`BP_Stomper`.** ⛔ **n = 1 instance of each. No mechanism proposed for why the unbound Stomper is
+still.** The asset comment (*"when no trigger is referenced it move constantly"*) is an **asset fact**
+that did not survive contact for that class — exactly the separation G120 demands, now with a
+measurement on both sides.
+
+## 46. R-5 — WHAT DOES THE CAPTURE PIPELINE DO HERE? **RECORDED, NOT GRADED.**
+
+| leg | frames | positive | bursts | speed_ratio | sustained fps | ring p/c/missed | events | zero-match |
+|---|---|---|---|---|---|---|---|---|
+| `MW_STOMPER` (bound) | 90 | 59 | 7 | 1.0000 | 30.00 | 121/121/**0** | 8 | 0 |
+| `MW_STOMP_FREE` | 90 | 59 | 7 | 1.0020 | 29.94 | 121/121/**0** | 8 | 0 |
+| `MW_STOMP_FREE_C2` | 90 | 65 | 12 | 1.0000 | 30.00 | 166/166/**0** | 13 | 0 |
+| `MW_PLAT_FREE` | 90 | 59 | 7 | 1.0000 | 30.00 | 121/121/**0** | 8 | 0 |
+
+`capture_path` **`sve`**, `content_clock` **`wall`**, `delivery_mode` **false**, `non_manifested` **0**
+on every leg. **Ratio is in band and no streaming hitch is visible** in frame counts, pacing or ring
+counters. ⛔ **Not graded. An out-of-band ratio here would have been DATA, not a failure.**
+
+## 47. 🔬 A free observation, recorded and NOT acted on
+
+The MovingPlatform leg is fully instrumented and its **occlusion state is DYNAMIC**:
+
+| anchor | valid | occlusion samples | coverage_pct | poll_distance | node Z |
+|---|---|---|---|---|---|
+| 3 | true | **6/9** | 0.5712 | 1370.7 | 1666.889 |
+| 15 | true | 7/9 | 0.4118 | 1374.6 | 1734.444 |
+| 27 | true | 7/9 | 0.8807 | 1380.6 | 1802.000 |
+| 39 | true | **9/9** | 1.0817 | 1389.5 | 1869.556 |
+| 51 | true | 7/9 | 1.2911 | 1401.0 | 1937.111 |
+| 63 | true | 7/9 | 1.5043 | 1414.9 | 2004.667 |
+| 75 | true | **9/9** | 1.7191 | 1431.4 | 2072.223 |
+| 87 | true | **9/9** | 1.9345 | 1450.2 | 2139.779 |
+
+`bbox_valid` **59/59** and `visible_positive` **59/59** — on screen throughout.
+
+⚠ **Two things are visible here and NEITHER is claimed:** the occlusion sample count **varies within a
+single window** (6 → 7 → 9 → 7 → 9), and the **6/9 and 7/9 rows are `valid:true`** — i.e. selected —
+which is the `P-a1` band (*"1 of 9 clear ⇒ unoccluded"*) appearing in live data. ⛔ **This is RECON.
+No path (a) hypothesis is declared, nothing is graded, and `P-a1`…`P-a5` remain UNTESTED
+predictions.**
+
+## 48. Harness faults found and fixed
+
+- **`check_pose.py` CRASHED the harness** (`TypeError: 'NoneType' object is not iterable`) on a leg
+  with **no bbox rows in the settle window** — which is normal off-calibration, where the camera
+  settles looking elsewhere. ⚠ **The crash was inside the block whose own header says REPORTING
+  ONLY**, and it killed the run *after* the artifacts were written. Fixed: a `bbox is None` branch that
+  says plainly that **B1 has nothing to judge — not a pose reading and not a pose failure.**
+- **`run_leg.ps1` gained `-Map`** (harness targeting parameter, same class as `-Target`), and
+  `_leg_geometry.json` now records it.
+
+## 49. THE BRANCH THAT OBTAINED
+
+> **IT ALL WORKS.** Level boots and stays in MainWorld; the view is populated; the movers are loaded;
+> **at least one class moves unattended**; capture produces frames and labels with clean pipeline
+> numbers.
+
+⚠ **With one pre-declared branch partially firing: `BP_Stomper` is LOADED BUT STATIC even when
+unbound** — a complete finding in its own right, and G-1's runtime extrapolation is refuted **for that
+class**. It does **not** send path (a) to a driven camera, because `BP_MovingPlatform` supplies the
+unattended translating occluder the design needs.
+
+⛔ **REPORTING AND STOPPING. No path (a) test designed, no path (a) test run.** That design is
+chat-side and is not written here.
+
+## 50. State after PART SEVEN
+
+| | |
+|---|---|
+| plugin production code | **ZERO lines, across all seven parts** |
+| tag | **none** |
+| `feature/stencil-capture` | **untouched** |
+| `GameDefaultMap` | **unchanged** · `CB_GateLevel` **untouched** (G99) |
+| build | unchanged since the cook — `exe 101AFEA4` + `utoc 939B9C9B`, preserved complete in `_binary_baselines\` |
+| bank | 104 → **111** dirs (4 MainWorld legs + attempts) |
+| A63 | every leg accepted on attempt 1, focus at 1.4–1.5 s; **every attempt banked** |
