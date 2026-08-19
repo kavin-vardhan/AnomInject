@@ -3030,3 +3030,47 @@ not the field **shape**. Adding sub-fields underneath them would be a shape chan
 
 ⚠ **The real constraint is SHIPPING, not delivery** (→ `G127`) — and capture is already compiled out
 of Shipping, so a client capturing at all is on a non-Shipping build. (2026-08-19.)
+
+### G129 — a new GLOBAL SHADER cannot ride the code-only hot-swap, and a default-OFF switch does NOT make it inert
+
+**G103** established that a code-only change stages as an **exe hot-swap** — ~85 s build, one file
+copy, **no cook**. That is true for C++ and it is **false the moment the change adds an
+`IMPLEMENT_GLOBAL_SHADER`.**
+
+`m26` slice 1 added `FAnomalyVisibleMaskPS` (`/Plugin/AnomalyInjector/Private/AnomalyVisibleMask.usf`).
+The exe hot-swapped cleanly and **A44 confirmed every new symbol in the staged binary, both
+encodings** — including the shader's virtual path. **The build then died at startup, 3 of 3 attempts,
+with no artifact:**
+
+```
+Fatal error: [ShaderCompiler.cpp] [Line: 6931]
+Missing global shader FAnomalyVisibleMaskPS's permutation 0, Please make sure cooking was successful.
+```
+
+**Global shaders live in the cooked container, which the hot-swap does not touch. The exe half moved;
+the shader half did not** — `G121`'s quartet, biting from the other side.
+
+🚨 **TWO PROPERTIES THAT MATTER MORE THAN THE FAILURE ITSELF:**
+
+1. **IT FIRES AT ENGINE INIT, before anything runs.**
+2. 🚨 **IT FIRES WITH THE FEATURE'S SWITCH *OFF*.** Global shader-map verification **does not consult
+   a runtime cvar.**
+
+⇒ **`IMPLEMENT_GLOBAL_SHADER` IS NOT GATED BY ANY RUNTIME SWITCH. A default-OFF console variable does
+not make a global shader optional — the binary cannot boot without it.**
+
+⚠ **AND THAT RETIRES A PRECEDENT FOR THIS CLASS OF CHANGE.** `S3a` earned its strongest gate from
+*"switch-OFF inertness is STRUCTURAL — there is no way to reach the code."* **A global shader has no
+such state.** Its cost is paid at load, unconditionally. **"Inert when off" is UNOBTAINABLE by a
+switch here**, so a gate of the form *"byte-identical with the switch off"* must instead be a
+**CONTROL PAIR against a build that does not contain the shader at all**.
+
+**RULES.**
+1. **Adding a global shader is a COOK-CLASS change, not a hot-swap-class one.** Budget the cook, and
+   remember it retires the pak half of the build identity every prior measurement was taken on.
+2. **A44 passing is NOT sufficient for a shader change.** The scan proved the symbol reached the
+   binary and the build still could not boot — **the binary is not the whole artifact** (`G119`'s
+   principle, on the half `G121` names).
+3. **Do not plan switch-OFF inertness for anything that participates in a cooked map** — shaders,
+   cooked assets, generated tables. Ask *"does this exist before my switch is read?"* before
+   promising inertness. (2026-08-19.)

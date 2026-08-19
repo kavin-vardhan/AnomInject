@@ -97,11 +97,49 @@ and is the single source of truth for the project.
   **once per RUN**. (2) **A re-picking veto destroys the seeded draw protocol** — `R-SEED` is
   deliberately independent of apply-result and `m22` gated on *"seed 4242, two runs byte-identical"*.
   **If a future reader proposes "just check before firing", both blockers are in journal §103.**
-  📋 **THE `m26` IMPLEMENTATION PLAN IS WRITTEN — journal PART FIFTEEN §110-§118. ⛔ NOT APPROVED.
-  NOTHING IMPLEMENTED. NO FILE CREATED.**
-  🧭 **NEXT: OWNER APPROVAL OF THE PLAN.** ⛔ **Do NOT implement the mask, the veto, the tri-state or
-  the counter until it is approved. `P6` DOES NOT MOVE — `mask.provided` false→true is a VALUE change
-  and is in scope; SUB-FIELDS under `mask` are a SHAPE change and are NOT.**
+  🛑 **`m26` SLICE 1 IS WRITTEN AND COMPILES CLEAN — AND ITS VALIDATION IS HALTED ON A COOK.
+  → journal PART SIXTEEN §119-§123. NO TAG. `P6` NOT MOVED.**
+  🚨 **`G129` — THE HALT, AND IT RETIRES A PRECEDENT: A NEW GLOBAL SHADER CANNOT RIDE THE CODE-ONLY
+  HOT-SWAP, AND A DEFAULT-OFF SWITCH DOES NOT MAKE IT INERT.** The slice-1 exe (`15A87075`)
+  hot-swapped cleanly and **A44 confirmed every new symbol, both encodings, including the `.usf`
+  virtual path** — then the build **died at ENGINE INIT, 3 of 3 attempts, no artifact**:
+  *`Fatal error: [ShaderCompiler.cpp:6931] Missing global shader FAnomalyVisibleMaskPS's permutation
+  0, Please make sure cooking was successful.`* **Global shaders live in the COOKED CONTAINER, which
+  the hot-swap does not touch** (`G121`'s quartet biting from the other side). ⇒ **it fires BEFORE
+  anything runs and it fires WITH THE MASK SWITCH OFF — `IMPLEMENT_GLOBAL_SHADER` is not gated by any
+  cvar.** ⚠ **So `S3a`'s "switch-OFF inertness is STRUCTURAL" precedent DOES NOT EXTEND to a global
+  shader, and `G-3` must become a CONTROL PAIR against a build without the shader (the `m24` method),
+  not a switch-OFF leg on the same binary.** ⚠ **A44 passing is NOT sufficient for a shader change —
+  the symbol reached the binary and the build still could not boot.**
+  🧭 **NEXT, AND IT IS THE OWNER'S CALL: (1) COOK OR NOT** — slice 1 cannot be validated without one,
+  and a cook **retires the pak quartet every `H4`/`H5`/`M-1` measurement was taken on**, and this
+  project has always treated cooks as owner-sequenced (`G118` was explicitly *"AFTER the current
+  measurement sequence and NEVER inside one"*; `G92` wipes `Saved`). **(2) If cooking, DECLARE THE MAP
+  SET IN WRITING FIRST** (`CB_GateLevel` + `MainMenu` + `MainWorld` + `Entry`). **(3) Amend `G-3`'s
+  wording** per `G129`.
+  ✅ **BENCH RESTORED AND VERIFIED: staged exe back to `101AFEA4`** (m25 baseline, hash-verified from
+  `_binary_baselines`), pak quartet untouched; **it boots and writes full sessions** (3 restore-smoke
+  attempts, 97 files each, banked). ⚠ **Those 3 attempts FAILED THE B1 POSE GATE** (`modal_rot
+  (0,2.27,0)`, `distinct=10`, bbox width `69.0` vs `306.1`) — by the harness's own discriminator that
+  reads as **genuine A47 bifurcation**, ⛔ **CAUSE NOT ESTABLISHED and NOT attributed** (3 consecutive
+  is above the recorded ~2-in-5; the box was memory-pressured at ~3.7 GB free after three
+  engine-fatal launches — **association only**). **It is NOT evidence about slice 1: the bench boots
+  and produces artifacts.**
+  ⚠ **MY OWN GAP, RECORDED: I overwrote the staged `1EBA8944` (the `M-1` instrument build) WITHOUT
+  archiving it, having archived `101AFEA4` before the previous swap.** Loss is bounded — `1EBA8944`
+  rebuilds from commit `0185c10` and `M-1`'s results are banked — **but the rule I followed once I did
+  not follow twice.**
+  📋 **THE `m26` PLAN IS APPROVED WITH FOUR AMENDMENTS (journal PART FIFTEEN §110-§118, PART SIXTEEN
+  §119).** **`A-1`** veto only `manifested == true` — the two counters stay disjoint and are defined
+  side by side (*"the hide never showed in pixels"* vs *"the target contributed no pixels to hide"*).
+  **`A-2`** risk 4 becomes **gate `G-11`** (report counted events BEFORE and AFTER the veto; below 3
+  ⇒ the leg is INVALID) **plus a client-facing derivation note — a post-`m26` event count is NOT
+  comparable with a pre-`m26` one**. **`A-3`** the stencil collision **IS detectable and both
+  detectors are implemented** — a game-thread property read-back, and unassigned-reserved-tag
+  detection in the mask; either ⇒ `NOT_MEASURED` + a loud warning. **`A-4`** `G-5` now reports
+  peak-IN/peak-OUT beside the veto decision, so `SM_Ramp2` surviving becomes a **measured** data point.
+  ⛔ **SLICES 2 (reporting) AND 3 (veto) ARE NOT STARTED.** `P6` DOES NOT MOVE — `mask.provided`
+  false→true is a VALUE change and is in scope; SUB-FIELDS under `mask` are a SHAPE change and are NOT.
   🚨 **THE PLAN'S RISKIEST ITEM, `P-2`, NAMED SO IT IS NOT LOST: a hide-type target is HIDDEN during
   the positives, so a naive measurement reads ZERO and would INVALIDATE EVERY HIDE-TYPE EVENT EVER
   RECORDED** (`blinking` + `missing_object` = the bulk of the dataset). **The design survives ONLY

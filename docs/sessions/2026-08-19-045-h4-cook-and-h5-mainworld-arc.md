@@ -28,6 +28,7 @@ separable — each part exists because the one before it produced something unex
 | **Thirteen** | 97–102 | **`C-1` RULED the direction · the TIMING design** | 🚨 **selection → fire is ZERO frames, longest gap SIX ⇒ a 12-frame pre-flight does not fit** · `annotation.json` still OPEN at `FinishRun` · **Shipping has no capture, so a non-Shipping cure leaves no hole** |
 | **Fourteen** | 103–109 | **Shape ruled (c)+(b) · `M-1` · `M-2` · the ONE definition** | 🚨 **readback latency is ONE frame, so 10-vs-12 was two budgets and never reality** · **`RQT_Occlusion` counts the BOUNDING BOX ⇒ disqualified on CORRECTNESS** · `mask.provided` alone separates *never measured* from *measured zero* |
 | **Fifteen** | 110–118 | **`m26` — the implementation PLAN, file by file** | Design CLOSED · the negative branch is a **SHIP GATE** · 🚨 **`P-2` is the riskiest item: a hidden target reads zero and would invalidate EVERY hide-type event** — survivable only because *no qualifying frame* lands in `NOT_MEASURED` |
+| **Sixteen** | 119–123 | **`m26` SLICE 1 written · the four amendments · HALT** | Compiles clean, **cannot be validated**: 🚨 **a new GLOBAL SHADER needs a COOK — a hot-swap cannot deliver it, and it fails at engine init EVEN WITH THE SWITCH OFF.** `A-3`'s collision **IS** detectable, two ways |
 
 ⚠ **ONE INVESTIGATION, FIFTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fifteen;
 the reason it is not split is unchanged).*
@@ -3624,3 +3625,191 @@ requires.
 invalidates every hide-type event ever recorded. The design survives it ONLY because "no qualifying
 frame" lands in `NOT_MEASURED` rather than `MEASURED_ZERO` — which is exactly why the two zeros were
 required to be different states.**
+
+---
+
+# PART SIXTEEN — `m26` SLICE 1: written and compiling; **VALIDATION HALTED ON A COOK**
+
+**SLICE 1 IS WRITTEN AND BUILDS CLEAN. It CANNOT be validated on the staged build, and the reason is
+a fact nobody in this design had — including me.** ⛔ **NO TAG. `P6` NOT MOVED.**
+`feature/stencil-capture` **READ-ONLY at `76cac74`, never checked out.**
+
+---
+
+## 119. The four amendments, recorded
+
+| # | amendment | disposition |
+|---|---|---|
+| **A-1** | **Veto only `manifested == true` events** | ✅ **ADOPTED AS PROPOSED.** Definitions recorded side by side in §119.1 |
+| **A-2** | **Risk 4 becomes gate `G-11`** | ✅ **ADOPTED.** Added to the gate table, plus the client-facing derivation note (§119.2) |
+| **A-3** | **MEASURE the stencil collision, do not only disclaim it** | ✅ **ADOPTED, AND IT IS DETECTABLE — TWO WAYS** (§119.3) |
+| **A-4** | **Risk 7 gets a control** | ✅ **ADOPTED.** `G-5` extended (§119.4) |
+
+### 119.1 `A-1` — the two counters, side by side, in these words
+
+> **`non_manifested_events`** — *"the hide never showed in pixels."* A hide-type event where **no
+> captured frame sampled the target hidden**. Shipped at `m23`.
+>
+> **`vetoed_events`** — *"the target contributed no pixels to hide."* An event whose target was
+> **MEASURED** to draw nothing, and which was therefore removed from `annotation.json`. New at `m26`.
+
+**They answer different questions and they are DISJOINT: only `manifested == true` events are
+eligible for a veto**, so an event is never counted in both. `m23`'s logic is byte-unchanged.
+
+### 119.2 `A-2` — `G-11`, and the derivation note
+
+**`G-11`: on every certifying leg, report COUNTED EVENTS BEFORE and AFTER the veto pass, as two
+numbers. If the after-count drops below 3 on a leg that would otherwise certify, THAT LEG IS
+INVALID** — reported as invalid, never silently graded on the reduced set.
+
+🚨 **AND THE CLIENT-FACING HALF, which the gate alone does not cover:** *"a consumer computing event
+counts from `annotation.json` after `m26` is counting **POST-VETO** events, and a **pre-`m26` session
+is not comparable on that number**. `vetoed_events` in `run_summary.json` gives the delta."* **This
+goes where a client-facing reader hits it — `docs/client-readme.md` and the `m26` tag scope — not only
+in the gate table.**
+
+### 119.3 `A-3` — the collision IS detectable, two ways, and both are implemented
+
+⛔ **The disclaimer does NOT stand alone.** Slice 1 implements both detectors:
+
+| # | detector | catches |
+|---|---|---|
+| **1** | **Game-thread property read-back** — `VerifyActorStillTagged()` re-reads `bRenderCustomDepth` and `CustomDepthStencilValue` off the component on a later tick and compares against what we wrote | a host game that **re-asserts its own stencil value** on the component — the most likely collision mode |
+| **2** | **Unassigned-reserved-tag detection in the mask** — the reduction reports any tag in `[200,255]` that **this run never assigned** | a host game **writing into our reserved range** on its own actors |
+
+**On either detection: the record's measurement is discarded, the state stays `NOT_MEASURED` (⇒
+ADMIT), and a `Warning` fires naming the tag and the reason.**
+
+⚠ **Honest limit, stated rather than glossed:** if a host game overwrote our 200 with a value **below**
+`ReservedStencilBase`, detector 1 catches it on the component property, but a collision that happened
+only in the GPU stencil buffer without touching the component property would be invisible. **Detector
+1 covers the realistic path; full coverage would need a stencil read-back we are not doing.**
+
+⚠ **The owner's framing is exactly right and is recorded:** this is the **environmental twin** of the
+`USkeletalMeshComponent` narrowing — *a measurement that reads zero for a reason unrelated to the
+target's contribution*.
+
+### 119.4 `A-4` — `G-5` extended
+
+**Report, for each negative-control target, its peak-IN and peak-OUT pixel change ALONGSIDE the veto
+decision.** `SM_Ramp2` is the known case (peak-OUT **0.2955** > peak-IN **0.1785**) and **should be
+ADMITTED** — giving a **measured** data point that a substantially-outside-the-rect target survives
+the cure, rather than an argument that it should. 🚨 **If a target is ever vetoed while carrying a
+large peak-OUT, that is the shadow limit firing in real data and it HALTS for a ruling.**
+⛔ **No hunt for an almost-entirely-shadow target. It stays unmeasured and disclaimed.**
+
+---
+
+## 120. What SLICE 1 actually is, as written
+
+**MEASURE ONLY. LOG OUTPUT ONLY. No artifact field, no veto, `mask{provided}` stays `false`.**
+Switch `IAI.Capture.Mask <0|1>`, **default OFF**.
+
+| file | kind | what |
+|---|---|---|
+| `Shaders/Private/AnomalyVisibleMask.usf` | **MINE** | the occlusion-correct silhouette test, verbatim |
+| `Private/AnomalyMaskTypes.h` | **NEW** | per-tag result + **`EAnomalyMaskState` tri-state** |
+| `Private/AnomalyStencilTag.{h,cpp}` | **MINE + EDIT** | 🚨 **`IsRenderableMesh` DELETED; tagging now calls `AnomalyViewport::IsRenderableComponent`** — the narrowing fix. Plus `VerifyActorStillTagged()` for `A-3` |
+| `Private/AnomalyMaskSceneViewExtension.{h,cpp}` | **MINE + EDIT** | the mask pass; **`T-4`'s fixed 256-entry array replaces the per-pixel `TMap`**; unassigned-tag detection |
+| `Private/AnomalyMaskMeasure.{h,cpp}` | **NEW** | the per-event state machine: `LOCK-1` arm rule, **MAX-across-frames**, ≤4 arms/event, tri-state |
+| `Private/AnomalyCaptureSubsystem.{h,cpp}` | **EDIT** | switch, record registration, arm/collect in `Tick`, the slice-1 summary log |
+| `Private/AnomalyCaptureModule.cpp` | **MINE** | shader-directory mapping |
+| `AnomalyCapture.Build.cs` | **EDIT** | **+`Projects`** only — `Renderer` and the Renderer private include path were already there |
+
+⛔ **NOT ported, as ruled:** the foliage blacklist · `IsRenderableMesh`'s narrowing · `StencilViz` ·
+the `bbox_norm` re-sourcing. **`AnomalyViewport` is UNCHANGED — the cure calls the predicate.**
+
+✅ **Compiles clean** (Development Win64, exit 0, 198 s).
+
+---
+
+## 121. 🚨 THE HALT — a new global shader CANNOT be delivered by a code-only hot-swap
+
+**Staged the slice-1 exe (`15A87075`) by hot-swap, pak quartet untouched. A44 confirmed every new
+symbol present in the staged binary, both encodings** (`IAI.Capture.Mask` utf16=6, `M26S1 EVENT`
+utf16=1, `AnomalyVisibleMask` utf16=3, the `.usf` virtual path utf16=1, alongside pre-existing
+`IsHideTypeAnomaly` utf16=1 — **so the scan is sound, not blind**).
+
+**The leg produced NO ARTIFACT on 3 of 3 attempts. Cause read from the log, not inferred:**
+
+```
+Fatal error: [ShaderCompiler.cpp] [Line: 6931]
+Missing global shader FAnomalyVisibleMaskPS's permutation 0, Please make sure cooking was successful.
+```
+
+### 121.1 Two properties of this failure that matter more than the failure
+
+1. 🚨 **IT FIRES AT ENGINE INIT, BEFORE ANY CAPTURE STARTS.**
+2. 🚨 **IT FIRES WITH THE MASK SWITCH *OFF*.** Global shader-map verification **does not consult a
+   runtime cvar.**
+
+⇒ **`IMPLEMENT_GLOBAL_SHADER` IS NOT GATED BY ANY RUNTIME SWITCH.** A default-OFF console variable
+does **not** make a global shader optional — **the binary cannot boot without it.**
+
+🚨 **THIS BREAKS AN ASSUMPTION THE PLAN INHERITED FROM `S3a`.** `G-3` ("byte-identical when the
+measurement is absent") was written on the `S3a` precedent, where a default-OFF switch made new code
+**structurally inert**. **That precedent does not extend to a global shader**: the shader's cost is
+paid at load, unconditionally, and *"inert when off"* is **unobtainable by a switch** for this class
+of change. **The only inert configuration is a build that does not contain the shader at all.**
+
+### 121.2 Why this is a HALT and not something to just do
+
+**Validating slice 1 requires a FULL COOK** (runbook §8.6), which:
+- **retires the current build quartet** — the pak half (`utoc 939B9C9B` / `ucas 8A602D4D` /
+  `pak 7CAE22DD`) is what every `H4`/`H5`/`M-1` measurement in Parts Two–Fourteen was taken on;
+- is an operation this project has **repeatedly treated as owner-sequenced** — `G118`'s closure was
+  explicitly sequenced by the owner *"AFTER the current measurement sequence and NEVER inside one"*;
+- **`G92`** wipes `Saved` and the archive step's destructiveness is **not established** ("the
+  precaution stays").
+
+⇒ **REPORTED, NOT PERFORMED. The cook is the owner's call.**
+
+### 121.3 Bench state — restored and verified
+
+**Staged exe restored to `101AFEA4`** (the `m25` baseline, preserved and hash-verified in
+`_binary_baselines`). ✅ **It boots and writes full sessions** — three restore-smoke attempts, **97
+files each**, banked.
+
+⚠ **Those three attempts FAILED THE B1 POSE GATE (3 of 3)** — `modal_rot (0, 2.27, 0)`, `distinct=10`,
+`modal 72.9 %`, bbox width `69.0` against `CALIB_BBOX`'s `306.1`, ratio non-uniform
+`(—, 0.9256, 0.2254, 0.7176)`. **By the harness's own discriminator that reads as genuine A47
+bifurcation rather than resolution scope.** ⛔ **CAUSE NOT ESTABLISHED, and it is not attributed** —
+3 consecutive is above the recorded ~2-in-5 rate, and the box was memory-pressured (~3.7 GB free)
+during a session that also ran three engine-fatal launches. **Association only. The harness correctly
+offered no verdict.** ⚠ **The point that matters for the halt: the bench BOOTS and PRODUCES
+ARTIFACTS. The pose gate is a separate, pre-existing, known-flaky condition and is NOT evidence about
+slice 1.**
+
+⚠ **A gap in my own handling, recorded:** I overwrote the staged `1EBA8944` (the `M-1` instrument
+build) without archiving it first, having archived `101AFEA4` before the previous swap. **The loss is
+bounded — `1EBA8944` is reproducible from commit `0185c10`, and `M-1`'s results are already banked and
+recorded — but the rule I followed once, I did not follow twice.**
+
+---
+
+## 122. What the owner has to rule on
+
+| # | question |
+|---|---|
+| **1** | 🚨 **Cook or not?** Slice 1 cannot be validated without one, and a cook retires the quartet every prior measurement was taken on. |
+| **2** | If cooking: **the map set must be declared IN WRITING before the cook** (runbook §8.6 step 3) — `CB_GateLevel` + `MainMenu` + `MainWorld` + `Entry`, i.e. the current set — because *"a cook that silently omitted a map is what created the `MainWorld` situation in the first place."* |
+| **3** | **`G-3`'s wording needs amending** given §121.1: *"byte-identical when the measurement is absent"* is **unobtainable by a switch** for a global shader. The honest form is a **control pair against a build that does not contain the shader** — i.e. `m25` vs `m26`-switch-OFF, which is exactly the `m24` control-pair method already in the plan. |
+
+---
+
+## 123. State after PART SIXTEEN
+
+| | |
+|---|---|
+| slice 1 | **WRITTEN, COMPILES CLEAN, NOT VALIDATED** |
+| halt | **a new global shader needs a COOK; a hot-swap cannot deliver it** |
+| staged build | **restored to `101AFEA4`** + unchanged pak quartet; boots and writes sessions |
+| `P6` | **NOT MOVED** — slice 1 writes to the log only |
+| tag | **none** · `feature/stencil-capture` **UNTOUCHED at `76cac74`** |
+| bank | **154 → 158** (3 restore-smoke attempts + the shader-halt log evidence) |
+| ⛔ next | **the owner's ruling on the cook** |
+
+**WHAT THIS PART SETTLES, beyond the halt:** **a default-OFF switch does NOT make a global shader
+inert — the binary cannot boot without it. That retires, for this class of change, the `S3a`
+precedent that a switch buys structural inertness, and it means `G-3` must be a control pair against
+a build without the shader rather than a switch-OFF leg on the same binary.**
