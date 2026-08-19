@@ -2367,3 +2367,34 @@ there is no log line to echo and the failure is silent by construction.
 
 *(Related: G92 — compiled is not staged. Same family: the thing you believe you changed is not the thing
 under test.)* (2026-08-19.)
+
+---
+
+### G115 — a shell round-trip re-encodes the WHOLE file, and the tell is the DIFFSTAT, not the text
+
+Writing a tracked file through a shell round-trip — `Get-Content -Raw` → `Out-File` / `Set-Content` —
+**re-encodes the entire file**: every non-ASCII line rewritten, plus a BOM added. **The content still
+reads correctly**, so nothing in the text says anything is wrong.
+
+**The tell is the diffstat.** Two instances on 2026-08-19, both while making small edits:
+
+| file | intended | what `git diff --stat` actually said |
+|---|---|---|
+| `architecture.md` + `capture-fps.md` | a handful of lines | **377 insertions / 377 deletions** |
+| `CLAUDE.md` | two blocks | **700 insertions / 685 deletions** |
+
+Both were caught by *reading the diffstat before committing*, reverted with `git checkout --`, and
+redone through the editor tool — landing at 35/10 and 34/13 respectively, no BOM. Nothing corrupted
+reached a commit.
+
+**RULE: use the editor tool for edits to tracked files. A diffstat disproportionate to the intended
+change is an ENCODING SMELL and must be checked BEFORE committing.**
+
+⚠ **Treat this as a TOOL-REFLEX, not an attention lapse — that is the load-bearing part.** The first
+instance was written up as a correction, *and the second happened roughly two minutes later, in the same
+turn, on a different file.* **A written note did not defend against it**, because the reach for a shell
+one-liner is automatic when the edit looks mechanical. The defence is the diffstat check at commit time,
+which is mechanical too and therefore actually survives contact.
+
+⛔ **Deliberately NOT automated.** A hook or wrapper for this is more surface than the fault is worth.
+(2026-08-19.)

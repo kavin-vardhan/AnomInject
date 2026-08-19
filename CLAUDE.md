@@ -80,10 +80,29 @@ and is the single source of truth for the project.
   📦 **ENVIRONMENT:** staged exe **`101AFEA4`** = `m25`. Baselines beside it: `.s4-2-baseline`
   `259BF64F`, `.s4-0-baseline` `834BB30A` (the binary all ten S4-1 legs ran on), `.m24-baseline`
   `3BA854FB`, `.m23-baseline` `85A39CFB`.
+  ⚠ **`m25` CARRIES A CORRECTION TO `m24`, because a tag object cannot be amended (no force-push,
+  fix-forward).** A reader arriving at m24 via its tag is routed forward to journal 044 §6.5:
+  *"of the five `key_ring_*` counters, only `missed` and `corrupted` are invariant across runs.
+  `published`/`consumed`/`wrapped` are RUN-UNIQUE — they count view families rendered before capture
+  begins. m24's verdicts are UNDISTURBED; they rest on `missed == corrupted == 0` and on the file set,
+  not on the publish count. The claim as written did not generalise."* Annotated in place in journal 042
+  §1 as well. **Second instance of a certified claim resting on PROSE rather than a MEASUREMENT** —
+  G106 was the first. **The control pair is authoritative over the prose.**
   ⛔ **`annotation.json`'s field set is UNCHANGED across the whole of S4 and `P6` is NOT MOVED.**
   Content clock untouched, still `wall`, key still unset. **`S4` DOES NOT CLOSE `P1` — it never could.**
-  `H1` remains P1's only named lead and still has no lever; **lever design is chat-side first, never
-  same-turn as its first measurement.** **Nothing in S4 is outstanding.**
+  **Nothing in S4 is outstanding.**
+  🧭 **FORWARD QUEUE, in order:** **`H4`** (occlusion-blind labelling — filed, designed, UNRUN; one
+  packaged run per the design in `CHAT-HANDOFF-s3-m24-capture-migration.md` §8; **its brief comes from
+  chat and its discriminators are pre-declared chat-side before anything runs**) → **`P5`/`P7` — the
+  blend-ladder** (serves two open items; discriminators pre-declared chat-side BEFORE it is built) →
+  **`P1`'s `H1` lever** (GPU-load starvation shape — **P1's ONLY named lead, and it has NO LEVER IN
+  EXISTENCE**; design **chat-side first, NEVER same-turn as its first measurement**; if H1 also comes
+  back clean, **P1 HAS NO NAMED LEADS**).
+  **LATER / UNORDERED, named but not sequenced:** `B2` (scale-free separability; eight-control gate; may
+  reopen m23's DA60 floor) · **`B1`-NDC** (normalise `CALIB_BBOX` — unblocks alignment certification at
+  any resolution; four legs blocked today, three with a motionless camera; definition change needing its
+  own eight-control gate) · `P6` bounds implementation · the `A17`/`A19` retroactive audit · resolution
+  selection / JPEG / defaults profile.
 - 🟦 *(superseded — kept for the record)* **`S3` IS CERTIFIED AND TAGGED `m24`. RATIO-INDEPENDENCE IS
   DISCHARGED. THE I10 WINDOW-RE-CHECK DEBT IS DISCHARGED.**
   **Cold-start reading order: this block → `docs/sessions/2026-08-18-043-session-close-i10-recheck.md`
@@ -1375,6 +1394,13 @@ and is the single source of truth for the project.
   "report back" deliverable.
 - **Plan-before-code.** A new milestone's first response is a file-by-file plan only; no
   implementation until approved.
+- ⚠ **PRE-COMMIT HABIT (standing, 2026-08-19): read `git diff --stat` BEFORE every commit. A diffstat
+  wildly larger than the intended change HALTS the commit** — it is almost always an **encoding smell**
+  (**G115**): a shell round-trip (`Get-Content -Raw` → `Out-File`/`Set-Content`) re-encodes the whole
+  file, rewriting every non-ASCII line and adding a BOM, **while the text still reads correctly**. Use
+  the editor tool for edits to tracked files. *Measured twice in one turn — 377/377 and 700/685 on files
+  meant to change in a handful of places — the second time two minutes after the lesson was written
+  down, which is why this is a mechanical check and not a note.* **Deliberately NOT automated.**
 - **Commits — Conventional Commits.** Prefixes: `feat:` (new anomaly or capability), `fix:` (bug),
   `docs:` (doc-only), `refactor:` (no behavior change), `chore:` (build/tooling). Scope anomaly-specific
   changes, e.g. `feat(blinking): …`. **Tag each milestone** with `git tag m<N>` after its commit so

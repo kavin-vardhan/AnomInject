@@ -60,6 +60,19 @@ second is evidence. Identical on all three pairs: event count · `frame_indices`
 > **B′ behaves IDENTICALLY in delivery mode, not merely acceptably** — all five `key_ring_*` counters
 > and `capture_path` are identical across every pair.
 
+> ⛔ **CORRECTION TO m24 (surfaced by S4-4's control pair, 2026-08-19): of the five `key_ring_*`
+> counters, only `missed` and `corrupted` are invariant across runs. `published` / `consumed` /
+> `wrapped` are RUN-UNIQUE — they count view families rendered before capture begins. m24's verdicts
+> are UNDISTURBED; they rest on `missed == corrupted == 0` and on the file set, not on the publish
+> count. The claim as written did not generalise.**
+>
+> It was true of *these* pairs. It became a general invariant only in the prose. **This is the second
+> time this project has found a certified claim resting on prose rather than on a measurement** — the
+> first was **G106**, where the grading instrument itself existed only in prose. Here, S4-4's control
+> pair had already shown the three counters varying *before* the test diff was read, and the first
+> invariant list written against it repeated m24's wording anyway. **The control pair is authoritative
+> over the prose.** → journal 044 §6.5.
+
 ---
 
 ## 2. Stage 2a — the oracle did not exist, and rebuilding it was the risk

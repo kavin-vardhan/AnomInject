@@ -334,6 +334,25 @@ but the claim as written is too strong and does not generalise. *My own first in
 that error and asserted all three as invariants; the control pair had already shown otherwise, and the
 control pair is authoritative.*
 
+**The correction, in the form that travels:**
+
+> **CORRECTION TO m24 (surfaced by S4-4's control pair): of the five `key_ring_*` counters, only
+> `missed` and `corrupted` are invariant across runs. `published` / `consumed` / `wrapped` are
+> RUN-UNIQUE — they count view families rendered before capture begins. m24's verdicts are UNDISTURBED;
+> they rest on `missed == corrupted == 0` and on the file set, not on the publish count. The claim as
+> written did not generalise.**
+
+**Annotated in place** at journal 042 §1, where a cold reader hits the claim. ⚠ **The `m24` tag object
+CANNOT be amended** — no force-push, fix-forward — so **`m25` carries the correction forward** and a
+reader arriving at m24 via its tag is routed here.
+
+**Why it matters beyond the numbers:** the claim was true of *those* pairs and became a *general
+invariant only in the prose*. **That is the second time this project has found a certified claim resting
+on prose rather than on a measurement** — the first was **G106**, where the grading instrument itself
+existed only in prose. S4-4's control pair had already shown the three counters varying *before* the
+test diff was read, and I wrote an invariant list that repeated m24's wording anyway. **The control pair
+is authoritative over the prose:** I had the measurement in hand and deferred to the sentence.
+
 ## 7. `m25` TAG SCOPE — this text travels with the tag
 
 > **Label alignment on the default (SVE) path is certified at 1280×720 and 1281×721 only. Rect
@@ -379,4 +398,46 @@ never addressed to you*. **G112** a gate artifact in a file outside version cont
 untracked config needs a **detector**, not a memory. **G113** the Bash tool exits 1 on every call in this
 environment while producing correct output — this project gates on exit codes, so verify the **channel**
 before trusting what it reports (mirror of G92). **G114** a packaged UE game is **DPI-unaware**, so a
-display-scale change never reaches it and the null that produces is an **artifact**.
+display-scale change never reaches it and the null that produces is an **artifact**. **G115** a shell
+round-trip re-encodes the whole file and **the tell is the DIFFSTAT, not the text** — a tool-reflex, not
+an attention lapse.
+
+---
+
+## 10. Closing — S4 as shipped
+
+**S4 demoted the backbuffer to the UI-on option.** The default grab point is the SVE / scene-colour
+path, so delivered frames no longer contain game UI; `IAI.Capture.SVE 0` is the named bisect switch and
+the shipped default needs no ini key. Rect equivalence is certified across **ten legs** with all four
+rect sources agreeing on every one, **42/42 events ALIGNED and decidable** on the six judgeable legs, UI
+exclusion and presence established by **positive pixel check** on an identical-bbox pair, delivery
+orthogonality re-asserted, and `capture_path` now stating on **both** paths what produced a session.
+Tagged **`m25`**, annotated, carrying its own scope. **S4 does not close `P1` and never could.**
+
+### 10.1 Two gate/change mismatches, two OPPOSITE correct resolutions
+
+Both stages hit the same shape — *the gate does not fit the change* — and the right answer was different
+each time, which is the point worth keeping:
+
+| | **S4-2** | **S4-3** |
+|---|---|---|
+| the mismatch | a one-token default flip adds **no string** for A44 to bind to | the change adds **no new literal** (`"backbuffer"` already occurs inside `"async/backbuffer"`) |
+| resolution | **give the change something worth adding** — the banner now states the grab point *and where its default came from*, which a client build's log should carry anyway | **say the scan cannot discriminate it**, and name the stronger discriminator: the **artifact** (A62) — the presence of `capture_path` on a backbuffer leg *is* the change |
+| what was NOT done | weaken or waive the gate | **invent a marker string so the scan appears to pass** |
+
+> **Both were reached by asking what actually PROVES the thing, rather than what SATISFIES the
+> checklist.** A gate that no longer fits its change is a signal, not an obstacle — and the two live
+> answers are *make the change provable* or *name a better proof*, never *make the check pass*.
+
+### 10.2 What this session got wrong
+
+- **The m24 `key_ring` claim** — §6.5. Second instance of a certified claim resting on prose rather
+  than measurement (G106 was the first), and I had the contradicting measurement in hand before I
+  repeated the prose.
+- **Two encoding incidents, the second after the lesson was written** — §8 and **G115**. Reported as
+  two, not folded into one, because *the repeat is the more useful datum*: it shows the fault is a
+  tool-reflex that a written note does not defend against. Nothing corrupted reached a commit; both
+  were caught by reading `git diff --stat` before committing, which is now a standing pre-commit habit
+  in `CLAUDE.md`.
+- **A cross-binary control-region delta nearly reported as a real grab-point difference** — §8.
+- **The `~ DPIUNAWARE` leg reported as a DPI regime before it was verified to be one** — §3.1.
