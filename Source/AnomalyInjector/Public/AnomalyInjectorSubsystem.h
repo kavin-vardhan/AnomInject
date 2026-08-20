@@ -45,6 +45,8 @@ public:
 
 	UMaterialInterface* GetMissingTextureMaterial() const;
 
+	UMaterialInterface* GetCorruptedTextureMaterial() const;
+
 
 	void ListAnomalies() const;
 
@@ -80,4 +82,7 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> MissingTextureChecker;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> CorruptedTexturePink;
 };

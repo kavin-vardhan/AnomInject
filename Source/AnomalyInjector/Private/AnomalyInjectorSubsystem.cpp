@@ -21,6 +21,7 @@
 #include "Anomalies/Anomaly_LodPopping.h"
 #include "Anomalies/Anomaly_CameraClipping.h"
 #include "Anomalies/Anomaly_MissingTexture.h"
+#include "Anomalies/Anomaly_CorruptedTexture.h"
 
 static constexpr uint64 GAnomalyHeartbeatKey = 0x47445048;
 
@@ -31,11 +32,20 @@ UAnomalyInjectorSubsystem::UAnomalyInjectorSubsystem()
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> CheckerFinder(
 		TEXT("/AnomalyInjector/Materials/M_MissingTexture_Checker.M_MissingTexture_Checker"));
 	MissingTextureChecker = CheckerFinder.Object;
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> PinkFinder(
+		TEXT("/AnomalyInjector/Materials/M_CorruptedTexture_Pink.M_CorruptedTexture_Pink"));
+	CorruptedTexturePink = PinkFinder.Object;
 }
 
 UMaterialInterface* UAnomalyInjectorSubsystem::GetMissingTextureMaterial() const
 {
 	return MissingTextureChecker;
+}
+
+UMaterialInterface* UAnomalyInjectorSubsystem::GetCorruptedTextureMaterial() const
+{
+	return CorruptedTexturePink;
 }
 
 namespace
@@ -71,7 +81,7 @@ namespace
 		else if (Id == FName(TEXT("blinking")))
 		{
 			OutScope = EAnomalyScope::Object;
-			OutArgs.Add(FloatArg(TEXT("hz"), TEXT("5"), 0.0, 60.0));
+			OutArgs.Add(IntArg(TEXT("half_period_frames"), TEXT("3"), 1.0));
 		}
 		else if (Id == FName(TEXT("lod_corruption")))
 		{
@@ -81,7 +91,7 @@ namespace
 		else if (Id == FName(TEXT("lod_popping")))
 		{
 			OutScope = EAnomalyScope::Object;
-			OutArgs.Add(FloatArg(TEXT("hz"), TEXT("2"), 0.0, 30.0));
+			OutArgs.Add(IntArg(TEXT("half_period_frames"), TEXT("8"), 1.0));
 		}
 		else if (Id == FName(TEXT("time_dilation")))
 		{
@@ -103,6 +113,10 @@ namespace
 			OutArgs.Add(StringArg(TEXT("params"), TEXT("")));
 		}
 		else if (Id == FName(TEXT("missing_texture")))
+		{
+			OutScope = EAnomalyScope::Object;
+		}
+		else if (Id == FName(TEXT("corrupted_texture")))
 		{
 			OutScope = EAnomalyScope::Object;
 		}
@@ -132,6 +146,7 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Register(MakeUnique<FAnomaly_LodPopping>());
 	Register(MakeUnique<FAnomaly_CameraClipping>());
 	Register(MakeUnique<FAnomaly_MissingTexture>());
+	Register(MakeUnique<FAnomaly_CorruptedTexture>());
 
 	UE_LOG(LogAnomaly, Log, TEXT("Subsystem initialized for world '%s'. %d anomaly type(s) registered."),
 		*GetNameSafe(GetWorld()), Anomalies.Num());

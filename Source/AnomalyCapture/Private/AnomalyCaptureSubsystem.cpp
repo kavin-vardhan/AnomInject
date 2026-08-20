@@ -201,6 +201,7 @@ namespace
 		};
 		static const TSet<FName> NonHideTypeIds = {
 			FName(TEXT("missing_texture")),
+			FName(TEXT("corrupted_texture")),
 			FName(TEXT("lighting_mismatch")),
 			FName(TEXT("lod_corruption")),
 			FName(TEXT("lod_popping")),

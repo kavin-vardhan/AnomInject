@@ -2,6 +2,7 @@ import unreal
 
 MOUNT_DIR = "/AnomalyInjector/Materials"
 CHECKER_NAME = "M_MissingTexture_Checker"
+PINK_NAME = "M_CorruptedTexture_Pink"
 
 MEL = unreal.MaterialEditingLibrary
 EAL = unreal.EditorAssetLibrary
@@ -83,9 +84,51 @@ def build_checker():
     return path
 
 
+def build_pink():
+    """Solid magenta Base Color, Lit and OPAQUE. One constant, no UVs and no world position, so the
+    appearance is deterministic for every object at every scale, orientation and camera distance.
+    Lit base-colour deliberately, NOT unlit-emissive: G50 recorded that an emissive magenta lit the
+    Lumen scene and bled onto neighbouring actors."""
+    mat, path = _fresh_material(PINK_NAME)
+
+    pink = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -300, 0)
+    pink.set_editor_property("constant", unreal.LinearColor(1.0, 0.0, 1.0, 1.0))
+    MEL.connect_material_property(pink, "", unreal.MaterialProperty.MP_BASE_COLOR)
+
+    MEL.recompile_material(mat)
+    EAL.save_asset(path)
+    return path
+
+
+def _verify(path):
+    """Read the saved asset back and assert the properties the anomalies depend on. Opaque keeps the
+    class out of translucent territory and stencil-mask-measurable; two-sided stops a back-facing hit
+    from drawing the untouched original, which m26 would read as MEASURED_ZERO and veto; the usage
+    flags are per-mesh-class and their absence renders default-gray at runtime instead of failing (G49)."""
+    mat = EAL.load_asset(path)
+    checks = {
+        "blend_mode": mat.get_editor_property("blend_mode") == unreal.BlendMode.BLEND_OPAQUE,
+        "two_sided": mat.get_editor_property("two_sided") is True,
+        "shading_model": mat.get_editor_property("shading_model") == unreal.MaterialShadingModel.MSM_DEFAULT_LIT,
+        "used_with_skeletal_mesh": mat.get_editor_property("used_with_skeletal_mesh") is True,
+        "used_with_nanite": mat.get_editor_property("used_with_nanite") is True,
+        "used_with_instanced_static_meshes": mat.get_editor_property("used_with_instanced_static_meshes") is True,
+        "used_with_morph_targets": mat.get_editor_property("used_with_morph_targets") is True,
+        "used_with_spline_meshes": mat.get_editor_property("used_with_spline_meshes") is True,
+    }
+    failed = [k for k, ok in checks.items() if not ok]
+    for key in sorted(checks):
+        unreal.log("[anomaly-materials] {0}: {1} = {2}".format(path, key, "OK" if checks[key] else "FAIL"))
+    if failed:
+        raise RuntimeError("[anomaly-materials] {0} FAILED verification: {1}".format(path, ", ".join(failed)))
+    return True
+
+
 def main():
-    results = {"checker": build_checker()}
-    unreal.log("[missing_texture] authored materials: {0}".format(results))
+    results = {"checker": build_checker(), "pink": build_pink()}
+    for path in results.values():
+        _verify(path)
+    unreal.log("[anomaly-materials] authored and verified: {0}".format(results))
     return results
 
 

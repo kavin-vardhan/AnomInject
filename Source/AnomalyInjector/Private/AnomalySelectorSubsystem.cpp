@@ -21,6 +21,8 @@ namespace
 		FName(TEXT("missing_object")),
 		FName(TEXT("blinking")),
 		FName(TEXT("missing_texture")),
+		FName(TEXT("corrupted_texture")),
+		FName(TEXT("lod_popping")),
 	};
 	constexpr int32 GNumAnomalyChoices = UE_ARRAY_COUNT(GAnomalyChoices);
 
