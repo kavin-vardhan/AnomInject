@@ -141,6 +141,16 @@ int32 FAnomalyMaskMeasure::TotalResidualDiscards() const
 	return N;
 }
 
+int32 FAnomalyMaskMeasure::TotalNoPassDiscards() const
+{
+	int32 N = 0;
+	for (const FAnomalyMaskRecord& R : Records)
+	{
+		N += R.FramesNoPass;
+	}
+	return N;
+}
+
 bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId)
 {
 	if (!Sve)
@@ -353,6 +363,25 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 				RequestId, *R.Target, (int32)R.Tag,
 				Mask.bSawUnassignedReservedTag ? 1 : 0,
 				(bSampled && !bConfirmedVisible) ? 1 : 0);
+			ArmedRequestToRecord.Remove(RequestId);
+			continue;
+		}
+
+		const bool bPassRan = Mask.CustomStencilExtent.X > 1 && Mask.CustomStencilExtent.Y > 1;
+		if (!bPassRan)
+		{
+			++R.FramesNoPass;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(mask): M26S1 NO-PASS id=%llu target=%s tag=%d customStencilExtent=%dx%d - the ")
+				TEXT("custom-depth pass was NOT PRODUCED for this frame, so the bound stencil is the engine's ")
+				TEXT("1x1 StencilDummy and this frame carries NO EVIDENCE about the target. It is discarded ")
+				TEXT("(frame-scoped). A frame contributes only on POSITIVE evidence that the pass ran; the 255 ")
+				TEXT("detector is a SECONDARY signal and cannot supply that evidence, because it can fire on at ")
+				TEXT("most one pixel and only when the depth gate passes there (G133). A target that never ")
+				TEXT("produces the pass - e.g. NANITE geometry on UE 5.1, which cannot write custom depth at all ")
+				TEXT("(G134) - lands in NOT_MEASURED and must be ADMITTED, never vetoed."),
+				RequestId, *R.Target, (int32)R.Tag,
+				Mask.CustomStencilExtent.X, Mask.CustomStencilExtent.Y);
 			ArmedRequestToRecord.Remove(RequestId);
 			continue;
 		}

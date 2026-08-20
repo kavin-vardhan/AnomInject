@@ -1607,6 +1607,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 		int32 MaskProbeArms = 0;
 		int32 MaskResidualDiscards = 0;
+		int32 MaskNoPassDiscards = 0;
 		if (bMaskMeasure && Async.IsValid() && Async->MaskExtension.IsValid())
 		{
 			Async->MaskExtension->EnqueueDrain();
@@ -1614,6 +1615,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
 			MaskProbeArms = Async->MaskMeasure.TotalProbeArms();
 			MaskResidualDiscards = Async->MaskMeasure.TotalResidualDiscards();
+			MaskNoPassDiscards = Async->MaskMeasure.TotalNoPassDiscards();
 		}
 
 		AnomalyLabel::FRingTelemetry RingTelemetry;
@@ -1632,7 +1634,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
 			bSveCapture ? TEXT("sve") : TEXT("backbuffer"),
 			bSveCapture ? &RingTelemetry : nullptr,
-			MaskProbeArms, MaskResidualDiscards);
+			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards);
 
 		if (bSveCapture)
 		{
@@ -1682,13 +1684,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(mask): M26S1 EVENT id=%s target=%s startFrame=%llu tag=%d state=%s ")
 				TEXT("maxCount=%d viewportPx=%d pctOfFrame=%.4f arms=%d resolved=%d framesDiscarded=%d ")
-				TEXT("framesResidual=%d framesUnconfirmed=%d framesContributed=%d probeArms=%d ")
+				TEXT("framesResidual=%d framesUnconfirmed=%d framesNoPass=%d framesContributed=%d probeArms=%d ")
 				TEXT("skippedHidden=%d collisions=%d tagFailed=%d%s%s"),
 				*R.Id.ToString(), *R.Target, R.StartFrame, (int32)R.Tag,
 				LexToStringAnomalyMaskState(R.State),
 				R.MaxCount, R.ViewportPixels, PctOfFrame,
 				R.ArmsIssued, R.ArmsResolved, R.FramesDiscarded,
-				R.FramesResidualDiscarded, R.FramesUnconfirmed, R.FramesContributed, R.ProbeArms,
+				R.FramesResidualDiscarded, R.FramesUnconfirmed, R.FramesNoPass,
+				R.FramesContributed, R.ProbeArms,
 				R.SkippedHidden,
 				R.CollisionHits, R.bTagFailed ? 1 : 0,
 				R.FirstCollisionDetail.IsEmpty() ? TEXT("") : TEXT(" detail="),
@@ -1699,11 +1702,15 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				UE_LOG(LogAnomalyCapture, Warning,
 					TEXT("Capture(mask): M26S1 NOT_MEASURED for '%s' on '%s' - no clean frame ")
 					TEXT("(armsIssued=%d resolved=%d framesDiscarded=%d framesResidual=%d ")
-					TEXT("framesUnconfirmed=%d probeArms=%d skippedHidden=%d tagFailed=%d collisions=%d). ")
-					TEXT("Slice 3 MUST ADMIT this event: never-measured is not measured-zero."),
+					TEXT("framesUnconfirmed=%d framesNoPass=%d probeArms=%d skippedHidden=%d tagFailed=%d ")
+					TEXT("collisions=%d). Slice 3 MUST ADMIT this event: never-measured is not measured-zero.%s"),
 					*R.Id.ToString(), *R.Target, R.ArmsIssued, R.ArmsResolved, R.FramesDiscarded,
-					R.FramesResidualDiscarded, R.FramesUnconfirmed, R.ProbeArms,
-					R.SkippedHidden, R.bTagFailed ? 1 : 0, R.CollisionHits);
+					R.FramesResidualDiscarded, R.FramesUnconfirmed, R.FramesNoPass, R.ProbeArms,
+					R.SkippedHidden, R.bTagFailed ? 1 : 0, R.CollisionHits,
+					(R.FramesNoPass > 0 && R.FramesNoPass == R.ArmsResolved)
+						? TEXT(" EVERY resolved frame lacked the custom-depth pass: this target may be ")
+						  TEXT("structurally unmeasurable by the mask (NANITE on UE 5.1 is the known case, G134).")
+						: TEXT(""));
 			}
 		}
 		Async->MaskMeasure.EndRun();

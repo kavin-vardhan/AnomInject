@@ -30,6 +30,7 @@ struct FAnomalyMaskRecord
 	int32 FramesDiscarded = 0;
 	int32 FramesResidualDiscarded = 0;
 	int32 FramesUnconfirmed = 0;
+	int32 FramesNoPass = 0;
 	int32 FramesContributed = 0;
 	int32 ProbeArms = 0;
 	FString FirstCollisionDetail;
@@ -59,6 +60,7 @@ public:
 	int32 NumUnmeasured() const;
 	int32 TotalProbeArms() const;
 	int32 TotalResidualDiscards() const;
+	int32 TotalNoPassDiscards() const;
 
 private:
 	int32 AllocateTag();
