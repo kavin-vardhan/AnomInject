@@ -9,11 +9,12 @@ path (a)'s environment and then found a different lead entirely. It is not split
 separable — each part exists because the one before it produced something unexpected. **Renamed from
 `…-045-h4-preflight-halt.md` on 2026-08-19; that title described only Part One.**
 
-> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART TWENTY-NINE.** It
-> states `m26`'s state (**slices 1 AND 2 done and gated; the cure identifies both `H5` instances
-> and now REPORTS through `mask.provided`; slice 3 not started**), what is **proven and must not be
-> re-proved**, and the rulings that travel. **You do not need to read the twenty-nine parts above
-> it — though §198 is worth one minute: the clean result at the end was not a clean path.**
+> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART THIRTY.** It
+> states `m26`'s state (**slices 1 AND 2 done and FULLY gated — `G-9` closed with `EXTRAS = 0`;
+> the cure identifies both `H5` instances and REPORTS through `mask.provided`; slice 3 not
+> started**), what is **proven and must not be re-proved**, and the rulings that travel. **You do
+> not need to read the thirty parts above it — though §198 is worth one minute: the clean result at
+> the end was not a clean path.**
 
 ## PART INDEX
 
@@ -48,18 +49,19 @@ separable — each part exists because the one before it produced something unex
 | **Twenty-seven** | 188–192 | 🎯 **Both `H5` targets are NON-NANITE — the cure reaches what it was built for** · the extent precondition ships | **`T-1` first, as ruled:** `SM_Bush` and `SM_GenericPlane` **plain**; the discriminator `StaticMeshActor_49` = `/Engine/BasicShapes/Cube` **plain** ⇒ `G134`'s explanation CLOSES, signature predicts measurability **5/5**. ⚠ **But StackOBot's authored structural geometry is overwhelmingly Nanite — "common case" is MEASURED, not projected.** **Ruling 1 built (`3beb3ba`) and gated: `SM_Ramp2` `MEASURED_ZERO` → `NOT_MEASURED` ×8; L1–L4 unchanged** — `F-T2-A`'s literal firing traced to POSE (identical arm ids, identical dispositions, counts group by pose not build) and **the criterion corrected in the record**. **Ruling 2: `SM_Ramp2` retired to a known-Nanite control; NO non-Nanite A35-shaped control exists — said so; A35 → tag as UNTESTED.** **Ruling 3: scope drafted; scene depth IS Nanite-inclusive (`NaniteMaterials.cpp:896,930`) — answer only** |
 | **Twenty-eight** | 193–197 | 🎯 **`F-6` COMPLETE · THE `H5` LEGS RUN — the cure identifies both instances that motivated it** | Rulings recorded: the third field APPROVED (`run_summary` +3, and the scope statement now SAYS +3) · the Nanite entanglement into the HEADLINE of `client-delivery.md` · **`G135`** (a restricted-asset calibration level cannot exhibit defects outside its asset set, and the blindness reads as a CLEAN PASS — tension stated, CB_GateLevel NOT changed). **`N-2` replacement `StaticMeshActor_73`: 8/8 non-zero at 5.27 % vs its claimed 6.87 % ⇒ item 2 PASS ⇒ ALL FIVE `F-6` ITEMS PASS.** 🎯 **`BP_SplineSpawn_C` → `MEASURED_ZERO` ×8 against a 22.89 % claim (branch `Z1`); `InstancedFoliageActor_0_0_0` → 1.4 % drawn against a `coverage_pct 100` / whole-frame-bbox claim (branch `Z2`) — every bucket clean, 29/29 frames view-sized, branch `X` did not fire.** ⛔ No incidence claim · no threshold · not a veto test · slices 2/3 not started · NO TAG |
 | **Twenty-nine** | 198–203 | ✅ **SLICE 2 SHIPS — `mask.provided` carries the tri-state** | **All five known-answer rows correct: `SM_Ramp2` → `false`, `BP_SplineSpawn_C` (MEASURED_ZERO) → `true`** — the two zeros stay distinguishable, tested BOTH ways; the guarantee is one function switching on `State` alone that never sees a magnitude. G-2 **48/48 in BOTH delivery modes**, INERT when off, 0 mapping mismatches. 🚨 **`A64` justified itself: the first delivery leg read `provided:false` everywhere and looked like a delivery-orthogonality break — it was a bifurcated POSE, refuted by a pose-matched delivery leg reading `true` AND by the `Cylinder` leg reproducing the signature with delivery OFF via frustum culling.** ⚠ **`G-9` path-level subset INCONCLUSIVE (my control pair under-sampled pitch) — invariant core passes POSITIVELY.** §198 records that the clean result was not a clean path. ⛔ **Slice 3 NOT started; no threshold exists anywhere** |
+| **Thirty** | 204–208 | ✅ **`G-9` CLOSES — `EXTRAS = 0`** · `framesNoPass` defined everywhere a reader meets it | **Route (a) chosen — make the confound ABSENT, not EXCUSED; (b)'s laundering hazard restated as the reason it was refused.** All three legs settled at the SAME pose (`0/0/0`, `coverage_ratio 0.077977`) first try, so 🎯 **the run-unique set shrank 26 → 4** (`session_id`, `speed_ratio`, `sustained_wall_fps`, `video/path`) and the OFF/ON difference is exactly those **plus `delivery_mode`** — the gate got HARDER and passed. Invariant core re-asserted identical. **Ruling 2: `framesNoPass` is NOT a Nanite counter — corrected in the NO-PASS line, the NOT_MEASURED warning, `G134` and `client-delivery.md`.** **Ruling 3: the "false NEVER means the target drew nothing" sentence into the tag scope statement.** §207 reports the raw measured-vs-claimed pixel areas, **numbers only**. ⛔ **Slice 3 still NOT started** |
 
-⚠ **ONE INVESTIGATION, TWENTY-NINE PARTS** *(the "nine" in the note below predates Parts Ten
+⚠ **ONE INVESTIGATION, THIRTY PARTS** *(the "nine" in the note below predates Parts Ten
 onward; the reason it is not split is unchanged).*
 
-**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART TWENTY-NINE.** 🎯 **`m26` SLICES 1
+**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART THIRTY.** 🎯 **`m26` SLICES 1
 AND 2 ARE DONE AND GATED: both faults fixed (`795f2a4`, `4a9631a`), the extent precondition shipped
 (`3beb3ba`), `F-6` COMPLETE on all five items, the `H5` LEGS RUN — the cure identifies both
 instances that motivated it (`BP_SplineSpawn_C` measures ZERO against a 22.89 % claim; the foliage
 measures 1.4 % of frame against a claim of the ENTIRE frame, both with every integrity bucket
 clean) — and SLICE 2 now REPORTS it through `mask.provided`, with the two zeros proven
-distinguishable in both directions (`ece343f`).** ⛔ **SLICE 3 NOT STARTED; NO THRESHOLD EXISTS
-ANYWHERE.** ⚠ **Two limits travel: `G134` — the mask cannot see Nanite geometry on UE 5.1, and
+distinguishable in both directions (`ece343f`), with **`G-9` CLOSED at `EXTRAS = 0` on a
+pose-matched pair (PART THIRTY)**.** ⛔ **SLICE 3 NOT STARTED; NO THRESHOLD EXISTS ANYWHERE.** ⚠ **Two limits travel: `G134` — the mask cannot see Nanite geometry on UE 5.1, and
 on this title that is the COMMON CASE (measured, and now in `client-delivery.md`'s headline);
 `G133` — closed. `G135` records why the calibration level could never have shown either.**
 ⛔ **NO INCIDENCE CLAIM · NO THRESHOLD PROPOSED · class (i) still ENUMERATED-NOT-OBSERVED · the A35
@@ -69,7 +71,7 @@ owner's call**. `feature/stencil-capture` **untouched** throughout — *mined, n
 ⚠ **Production code appears for the first time in PART FOURTEEN (log-only `M-1` instrumentation, on
 owner permission); Parts One–Thirteen carry ZERO.**
 
-🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART TWENTY-NINE IS THE COLD-START ENTRY POINT.**
+🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART THIRTY IS THE COLD-START ENTRY POINT.**
 
 ---
 
@@ -3621,6 +3623,21 @@ requires.
 > absent, and is loud when blind. `annotation.json`'s field SET is UNCHANGED (`P6` not moved);
 > `mask.provided` moves `false → true` in a slot that already shipped.
 >
+> 🆕 **AMENDED (PART THIRTY, Rulings 2–3 — these three paragraphs travel with the tag):**
+> **(1) `run_summary.json` gains THREE fields — `mask_probe_arms`, `mask_residual_discards`,
+> `mask_nopass_discards`.** `annotation.json`'s field SET is unchanged. *(The declared number is
+> `+3`, and `+3` is what ships.)*
+> **(2) `mask.provided` `false` NEVER means "the target drew nothing" — it means no measurement
+> exists, and such an event carries exactly as much evidence as it did before `m26`: none from this
+> measurement.**
+> **(3) `framesNoPass` / `mask_nopass_discards` counts frames where the custom-depth pass did not
+> produce for this target. Causes include Nanite geometry, frustum culling, and any other route by
+> which the target is absent from the view's relevant set. It is NOT a Nanite counter. In all cases
+> the frame is discarded and the event tends toward `NOT_MEASURED`, which ADMITS.**
+> ⚠ **`SM_Ramp2` is NO LONGER the `N-2` control** — it is Nanite and therefore unmeasurable here;
+> it serves as the KNOWN-NANITE control. `N-2` is `StaticMeshActor_73`. 🚨 **The A35 over-fire
+> property is UNTESTED — no non-Nanite A35-shaped target exists in the measured set.**
+>
 > ⛔ **WHAT IS NOT:**
 > - **NO INCIDENCE CLAIM.** `H5`'s incidence in client data is still unknown, and `m26` does not
 >   measure it.
@@ -5885,6 +5902,8 @@ either way.
 ## 196. Scope statement and artifacts
 
 ### 196.1 The `m26` scope statement's field list — corrected to `+3`
+*(⚠ superseded in part by PART THIRTY §205, which adds the client-facing `mask.provided` sentence
+and the `framesNoPass` definition to the same statement. The `+3` correction below stands.)*
 
 > `run_summary.json` gains **THREE** fields at `m26`: **`mask_probe_arms`**,
 > **`mask_residual_discards`**, **`mask_nopass_discards`**. `annotation.json`'s field SET is
@@ -6086,9 +6105,129 @@ veto should ever act on it.**
 
 ---
 
-# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–29.
+# PART THIRTY — **`G-9` CLOSES: `EXTRAS = 0`.** Route (a), and the run-unique set got NARROWER instead of wider.
 
-**Session closed 2026-08-20 at the end of PART TWENTY-NINE. `m26` is IN PROGRESS.**
+**Ruling 1: `G-9` closes BEFORE slice 3, because slice 3 deletes events from `annotation.json` and
+in delivery mode that is the ONLY label artifact the client receives.** ⛔ **SLICE 3 NOT STARTED.
+NO TAG. `P6` NOT MOVED. Stencil range 200/255. CB_GateLevel untouched (`G99`).
+`feature/stencil-capture` READ-ONLY.**
+
+---
+
+## 204. `G-9` — route **(a)**, chosen, with route (b)'s hazard restated before running
+
+**CHOSEN: (a), an exactly pose-matched OFF/ON pair. WHY: it makes the difference VANISH rather
+than EXCUSED.** If the two legs settle at the same pose, the pose-derived fields are identical and
+there is nothing to subtract — **the run-unique set is not widened by a single member, so there is
+no laundering surface at all.**
+
+**(b)'s constraint, restated because the ruling asked for it to be stated before running — and it
+is the reason (b) was NOT taken:** widening a run-unique set is how a real difference gets
+laundered into an expected one. Under (b) the pitch variation would have to arise from the **same
+mechanism that produces it naturally** (`A47` settle), never anything introduced to make the axis
+appear, and the pair would have to be **two OFF legs establishing the baseline, never the test pair
+itself**. ⚠ **Even honouring all of that, (b) means re-running legs UNTIL THE BASELINE WIDENS
+ENOUGH TO EXCUSE THE DIFFERENCE BEING CLEARED — the laundering shape, even when every individual
+step is legitimate.** (a) has no such shape.
+
+### 204.1 🎯 THE RESULT — and the gate got HARDER, not easier
+
+**All three legs landed at the same settled pose — camera rotation `0/0/0`, `coverage_ratio`
+`0.077977`, `CALIB_BBOX` exactly — on the first attempt for each.** *(The delivery leg cannot be
+pose-gated from its artifact at all, so the match was verified from `camera.rotation` and
+`coverage_ratio`, which are camera-derived and outcome-independent.)*
+
+| | P29 (inconclusive) | **P30 (this part)** |
+|---|---|---|
+| control pair | poses DIFFERED (yaw only) | **pose-IDENTICAL** |
+| **run-unique set size** | **26** — incl. `camera/rotation[*]`, `coverage_pct`, `coverage_ratio` | 🎯 **4** — `/session_id`, `/speed_ratio`, `/sustained_wall_fps`, `/video/path` |
+| test-pair difference set | 33 | **5** — the four above **+ `/delivery_mode`** |
+| **path-level `EXTRAS`** | **6** (all pose-derived) | ✅ **0** |
+
+🚨 **THE RUN-UNIQUE SET SHRANK FROM 26 TO 4, AND THAT IS THE POINT: NO POSE FIELD IS IN IT AT ALL,
+so no pose field could be excused even if one had differed.** The subset test is now **maximally
+strict** — every member was exercised by the control pair by construction, and the only field the
+test pair adds is the variable under test. ✅ **PASS on the ruling's terms: `EXTRAS = 0` against a
+run-unique set whose every member the control pair exercised.**
+
+### 204.2 The invariant core — carried forward, not re-run, and it holds on this pair too
+
+The ruling said the P29 invariant core stands and needs no re-running. **It was re-asserted anyway
+on this pair, because it costs one command:** `mask.provided` **identical across modes on all 8
+events** (`true` both sides, 0 mismatches) · `depth.provided` identical · **`mask_probe_arms`,
+`mask_residual_discards`, `mask_nopass_discards` all identical (0/0/0)** · event **COUNT**
+identical (8 vs 8) · full **key SET** identical, 0 only-OFF and 0 only-ON.
+
+⇒ **`G-9` IS CLOSED. `m25`'s certified delivery orthogonality survives slice 2.**
+📦 Gate run on staged **`F4EBEAD7`** (`047FA489` archived first), container unchanged, A44 green.
+
+## 205. `RULING 2` — `framesNoPass` gets its definition fixed WHERE A READER HITS IT
+
+**The definition, now written at every point of contact:**
+
+> **`framesNoPass` counts frames where the custom-depth pass did not produce for this target.
+> Causes include Nanite geometry (`G134`), frustum culling, and any other route by which the target
+> is absent from the view's relevant set. It is NOT a Nanite counter. In all cases the frame is
+> discarded and the event tends toward `NOT_MEASURED`, which ADMITS.**
+
+| where | was | now |
+|---|---|---|
+| the `M26S1 NO-PASS` log line | *"e.g. NANITE geometry on UE 5.1"* — named Nanite as if it were the cause | **"THIS IS NOT A NANITE-SPECIFIC COUNTER"** + Nanite · frustum culling · any absence from the relevant set |
+| the `M26S1 NOT_MEASURED` warning | *"NANITE on UE 5.1 is the known case"* | **"framesNoPass is NOT a Nanite counter"** + the three causes + how to distinguish them |
+| **`G134`** (gotchas) | implied the counter was Nanite-specific | 🚨 **corrected**, with the `Cylinder` measurement quoted and the consequence named: *"had that gone unrecorded, `G134` would have inherited a wrong denominator"* |
+| **`client-delivery.md`** | *"A target whose every armed frame lands there is structurally unmeasurable"* | **"IT IS NOT A NANITE COUNTER"** + the causes + *"a high count means the measurement could not see the target on those frames, not that the target is Nanite and not that it drew nothing"* |
+
+*(Shipped in `7ea8ce9`; A44-verified in the staged binary. The wording change was made BEFORE the
+`G-9` legs so the gate certifies the binary that carries it.)*
+
+## 206. `RULING 3` — the client-facing sentence, kept verbatim, into the tag scope statement
+
+Added to the `m26` scope statement (§117) alongside `client-delivery.md`:
+
+> **`mask.provided` `false` NEVER means "the target drew nothing" — it means no measurement exists,
+> and such an event carries exactly as much evidence as it did before `m26`: none from this
+> measurement.**
+
+## 207. REPORTING ONLY — the two raw quantities behind each slice-1 target
+
+**Measured pixel count and claimed coverage as an AREA IN PIXELS, same units, viewport 921,600 px.**
+⛔ **No ratio, no threshold, no comparison operator. Tool: `CaptureBench/tools/p30_raw_quantities.py`,
+which computes none of those by construction.**
+
+| target | state | **measured px** | **claimed px** |
+|---|---|---|---|
+| **`StaticMeshActor_49`** (`Cube`, control) | `MEASURED_NONZERO` ×8 | **66,843 – 66,878** | **71,864** (all 8 events) |
+| **`StaticMeshActor_73`** (`Cylinder`, `N-2`) | `MEASURED_NONZERO` ×8 | **48,590 – 48,597** | **63,296** (all 8 events) |
+| **`InstancedFoliageActor_0_0_0`** (`H5`) | `MEASURED_NONZERO` ×8 | **5,689** · then **12,514 – 13,342** | **921,600** (all 8 events — the entire viewport) |
+| **`BP_SplineSpawn_C`** (`H5`) | `MEASURED_ZERO` ×8 | **0** (all 8 events) | **35,535** ×2, then **210,921 – 210,942** ×6 |
+
+*(Per-event detail is in the tool's output; the ranges above span the eight events of each leg.)*
+
+## 208. State after PART THIRTY
+
+| | |
+|---|---|
+| **`G-9`** | ✅ **CLOSED — `EXTRAS = 0`** against a 4-member run-unique set, on a pose-matched pair; invariant core identical |
+| slice 2 | ✅ shipped and fully gated |
+| `framesNoPass` | ✅ **definition fixed at four points of contact** (two in the binary, two in docs) |
+| the client sentence | ✅ in `client-delivery.md` **and** the tag scope statement |
+| raw quantities | ✅ reported, **numbers only** |
+| **slice 3** | ⛔ **NOT STARTED. Its rule is the owner's decision. NO THRESHOLD EXISTS in the code or the docs, and nothing has begun to assert one.** |
+| build | staged **`F4EBEAD7`**; container unchanged; A44 green |
+| banked | `P30_G9_OFF_A`, `P30_G9_OFF_B`, `P30_G9_ON_1` (+ attempts) |
+| ⛔ unchanged | **NO TAG** · `P6` does not move · CB_GateLevel untouched · `feature/stencil-capture` READ-ONLY |
+
+**WHAT THIS PART SETTLES: the delivery gate that was inconclusive is now closed by making the
+confound absent rather than expected — the run-unique set went from 26 members to 4, and the
+difference between a delivery-ON and a delivery-OFF session is exactly one field plus the four that
+differ between any two runs. And the counter that was one report away from being read as a Nanite
+gauge forever now carries its own definition everywhere a reader meets it.**
+
+---
+
+# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–30.
+
+**Session closed 2026-08-20 at the end of PART THIRTY. `m26` is IN PROGRESS.**
 **NO TAG since `m25`. `P6` HAS NEVER MOVED. `feature/stencil-capture` is READ-ONLY at `76cac74` —
 mine it, never check it out.**
 
@@ -6232,7 +6371,7 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 |---|---|
 | plugin | `AnomalyInjector`, `master`, pushed, **no tag since `m25`** |
 | bench | `CaptureBench`, **local-only, no remote** |
-| staged exe | **`047FA489`** (slice 2; code-only hot-swap over the `m26` cook; predecessors archived first: `F93AEF71` at `…exe.m26-slice1-certified-F93AEF71`, `DBA2D8EC`, `444D4812`) |
+| staged exe | **`F4EBEAD7`** (slice 2 + the `framesNoPass` wording fix; code-only hot-swap over the `m26` cook; predecessors archived first: `047FA489` at `…exe.m26-slice2-047FA489`, `F93AEF71`, `DBA2D8EC`, `444D4812`) |
 | container | `m26` cook — `utoc 9334496D` · `ucas 62EB0072` · `pak 78C977A5`; **4 maps** |
 | preserved quartets | `m25-h4h5m1-measurement-build` (Parts 2–14) · `m26-slice1-measurement-build` |
 | 🗺 **disk topology** | ⚠ **`Intermediate` and `Saved` are JUNCTIONS to `E:\IA_BuildCache\...`** — every path stays `D:\...` and **no tool needed editing**. Do not "fix" the missing ~21 GB on `D:`. Runbook §3.6 |
@@ -6242,10 +6381,10 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 ## H.6 What the next session should do first
 
 1. **Read `docs/invisible-anomaly-mechanisms.md`** — the ledger — then this HANDOFF. **Nothing else
-   from Parts 1–29 is required.**
-2. 🎯 **SLICES 1 AND 2 ARE DONE AND GATED.** The next decision is the OWNER's: **whether to start
-   slice 3 (the deferred veto + `vetoed_events` + gate `G-11`).** ⛔ **Do NOT start it unprompted,
-   and do NOT propose a veto rule.**
+   from Parts 1–30 is required.**
+2. 🎯 **SLICES 1 AND 2 ARE DONE AND FULLY GATED — `G-9` CLOSED at `EXTRAS = 0` (PART THIRTY).** The
+   next decision is the OWNER's: **whether to start slice 3 (the deferred veto + `vetoed_events` +
+   gate `G-11`).** ⛔ **Do NOT start it unprompted, and do NOT propose a veto rule.**
 3. ⛔ **NO THRESHOLD EXISTS ANYWHERE — not in code, not in docs.** §195.3's four-target table is a
    distribution sketch on one title, not a calibration. **Slice 3's rule is a separate decision
    with its own evidence and its own gates.**
@@ -6255,8 +6394,9 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
    `< 3` counted events) · 🚨 **risk 7 / A35 — the mask measures DRAWN SILHOUETTE, not VISUAL
    EFFECT, and the A35 over-fire property is UNTESTED because no control for it exists (§190)** ·
    and 🚨 **`G134` — a Nanite target reports `provided:false` and MUST therefore be ADMITTED.**
-5. ⚠ **One gate is INCONCLUSIVE and it is honest about it: `G-9` at PATH level** (§201.2). The
-   invariant core passed positively; the subset test has 6 pose-derived residuals because my
-   control pair under-sampled pitch. **A definitive path-level `G-9` needs an exactly-pose-matched
-   OFF/ON pair, or a control pair that spans pitch.**
+5. ✅ **`G-9` IS CLOSED (PART THIRTY §204): `EXTRAS = 0` on a pose-matched OFF/ON pair against a
+   4-member run-unique set — `/session_id`, `/speed_ratio`, `/sustained_wall_fps`, `/video/path`.
+   The delivery-ON vs delivery-OFF difference is exactly those four plus `/delivery_mode`.**
+   *(P29's inconclusive result is superseded; the method that closed it was route (a) — make the
+   confound absent rather than expected.)*
 6. `P6` does not move. CB_GateLevel untouched (`G99`). Stencil range 200/255. **No tag.**

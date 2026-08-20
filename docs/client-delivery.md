@@ -215,9 +215,14 @@ event — **and it is also the cure not working on that target.**
 mislead. The PATTERN is the finding.)*
 
 **How to see it in a delivered session:** `run_summary.json` → **`mask_nopass_discards`** counts
-frames where the custom-depth pass was never produced. A target whose every armed frame lands there
-is structurally unmeasurable by the mask. ⚠ **Scoped to UE 5.1** — a later engine with Nanite
-custom-depth support changes this.
+frames where the custom-depth pass did not produce for the target.
+🚨 **IT IS NOT A NANITE COUNTER.** Its causes include Nanite geometry (above), **frustum culling**,
+and any other route by which the target is absent from the view's relevant set — e.g. a target that
+drifted off screen. In every case the frame is discarded and the event tends toward `NOT_MEASURED`,
+**which ADMITS**. *(A high count therefore means "the measurement could not see the target on those
+frames", not "the target is Nanite" and not "the target drew nothing".)*
+⚠ **Scoped to UE 5.1** — a later engine with Nanite custom-depth support changes the Nanite half of
+this, not the culling half.
 
 ## Dashboard token — zero copy-paste for the client (m16)
 

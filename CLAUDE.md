@@ -15,13 +15,13 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (seventh session). 🎯 `m26` SLICES 1 AND 2 ARE DONE AND GATED:
-  `F-6` COMPLETE, THE `H5` LEGS RUN, AND `mask.provided` NOW CARRIES THE MEASUREMENT. SLICE 3 IS
-  THE OWNER'S NEXT CALL AND ITS RULE IS NOT DESIGNED. LAST SHIPPED MILESTONE IS STILL `m25`;
-  NOTHING TAGGED SINCE.**
+- 🟩 **YOU ARE HERE — 2026-08-20 (eighth session). 🎯 `m26` SLICES 1 AND 2 ARE DONE AND FULLY
+  GATED — `F-6` COMPLETE, THE `H5` LEGS RUN, `mask.provided` CARRIES THE MEASUREMENT, AND `G-9` IS
+  CLOSED AT `EXTRAS = 0`. SLICE 3 IS THE OWNER'S NEXT CALL AND ITS RULE IS NOT DESIGNED. LAST
+  SHIPPED MILESTONE IS STILL `m25`; NOTHING TAGGED SINCE.**
   🧭 **COLD START: read `docs/invisible-anomaly-mechanisms.md` (the ledger), then go STRAIGHT to the
   `HANDOFF` section at the END of `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`
-  (PART TWENTY-NINE). THAT HANDOFF IS SELF-CONTAINED.**
+  (PART THIRTY). THAT HANDOFF IS SELF-CONTAINED.**
   ✅ **SLICE 2 SHIPPED (`ece343f`) AND GATED.** `annotation.json`'s already-shipping
   `mask{provided}` stops being a hardcoded `false` and carries the tri-state's bool:
   **`NOT_MEASURED` → `false` (never measured, MUST ADMIT) · `MEASURED_ZERO` → `true` ·
@@ -46,16 +46,33 @@ and is the single source of truth for the project.
   🆕 **CONSEQUENCE WORTH CARRYING: `framesNoPass` means "not in the view's relevant set", NOT
   "Nanite" — FRUSTUM CULLING reaches it too, and the admit bias handles it correctly (off-screen ⇒
   NOT_MEASURED ⇒ `provided:false` ⇒ ADMIT).**
-  ⚠ **ONE GATE IS INCONCLUSIVE AND SAYS SO: `G-9` AT PATH LEVEL.** Invariant core **PASSES
-  POSITIVELY** (mask.provided identical across modes on all 8 events; depth identical; all three
-  `m26` `run_summary` fields identical; event count identical; key set identical). But the
-  path-level subset test has **6 residual extras, every one camera-pose-derived**, because **my
-  control pair under-sampled pose — the two OFF legs differed in YAW but not PITCH**, so
-  `rotation[0]` never entered the run-unique set. Kind-level EXTRAS = 0. ⛔ **NOT called a pass: a
-  definitive path-level `G-9` needs an exactly-pose-matched OFF/ON pair or a control pair that
-  spans pitch.**
-  📦 staged exe **`047FA489`** (`F93AEF71` archived first), container unchanged, A44 green. Banked:
-  `P29_S2_{CTRL49_A,CTRL49_B,CTRL49_DEL,CTRL49_DEL2,CYL73,FOLIAGE,SPLINE,RAMP,INERT}`.
+  ✅ 🎯 **`G-9` IS CLOSED (PART THIRTY): `EXTRAS = 0`.** P29's path-level result was INCONCLUSIVE
+  (6 pose-derived residuals — my control pair had under-sampled pitch). **Closed by ROUTE (a): make
+  the confound ABSENT rather than EXCUSED.** All three legs settled at the SAME pose (rotation
+  `0/0/0`, `coverage_ratio 0.077977`) on the first attempt each, so 🚨 **the run-unique set SHRANK
+  from 26 members to 4** — `/session_id`, `/speed_ratio`, `/sustained_wall_fps`, `/video/path` —
+  **containing NO pose field at all, which makes the subset test STRICTER than the one that was
+  inconclusive.** The delivery-ON vs delivery-OFF difference set is **exactly those four plus
+  `/delivery_mode`**. Invariant core re-asserted identical (mask.provided ×8, depth, all three
+  `m26` fields, event count, full key set). ⛔ **Route (b) — widening the run-unique set — was
+  REFUSED and the reason recorded: it means re-running legs until the baseline widens enough to
+  excuse the difference being cleared, which is the laundering shape even when every step is
+  legitimate.**
+  ✅ **`framesNoPass` HAS ITS DEFINITION FIXED WHERE A READER HITS IT** (`7ea8ce9`): *"counts frames
+  where the custom-depth pass did not produce for this target. Causes include Nanite geometry
+  (`G134`), frustum culling, and any other route by which the target is absent from the view's
+  relevant set. **It is NOT a Nanite counter.** In all cases the frame is discarded and the event
+  tends toward `NOT_MEASURED`, which ADMITS."* — corrected in the NO-PASS log line, the
+  NOT_MEASURED warning, `G134`, and `client-delivery.md`.
+  ✅ **THE CLIENT-FACING SENTENCE IS IN THE TAG SCOPE STATEMENT, VERBATIM:** *"`mask.provided`
+  `false` NEVER means 'the target drew nothing' — it means no measurement exists, and such an event
+  carries exactly as much evidence as it did before `m26`: none from this measurement."*
+  📊 **REPORTED FOR THE SLICE-3 DECISION, NUMBERS ONLY, NO RULE PROPOSED** (journal §207 — measured
+  px vs claimed px, viewport 921,600): `StaticMeshActor_49` **66,843–66,878 vs 71,864** ·
+  `StaticMeshActor_73` **48,590–48,597 vs 63,296** · foliage **5,689 then 12,514–13,342 vs
+  921,600** · `BP_SplineSpawn_C` **0 vs 35,535 (×2) then 210,921–210,942 (×6)**.
+  📦 staged exe **`F4EBEAD7`** (`047FA489` archived first), container unchanged, A44 green. Banked:
+  `P29_S2_*` (nine legs) and `P30_G9_{OFF_A,OFF_B,ON_1}`.
   ⛔ **SLICE 3 NOT STARTED. Its veto rule is NOT designed, NOT proposed, and NOT assumed anywhere —
   and NO THRESHOLD EXISTS in the code or the docs.** The §195.3 ratio table is a distribution
   sketch on four targets from one title, not a calibration. **Do not start slice 3 unprompted.**

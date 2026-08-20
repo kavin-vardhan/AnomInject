@@ -3283,6 +3283,21 @@ PRIMITIVE CLASSES of the content it certifies for, not just the geometry sizes a
 2. **A target's measurability is a property to CHECK, not assume** — for C-1 on 5.1, a Nanite mesh
    is selectable, taggable, verifiable, and permanently unmeasurable; without a pass-ran
    precondition (G133) it reads as a clean zero, the false-veto direction.
+
+🚨 **DO NOT READ `framesNoPass` AS A NANITE COUNTER — IT IS NOT ONE, AND THE DISTINCTION WAS ONE
+REPORT AWAY FROM BEING LOST.** The counter's definition, fixed here:
+
+> **`framesNoPass` counts frames where the custom-depth pass did not produce for this target.
+> Causes include Nanite geometry (this gotcha), frustum culling, and any other route by which the
+> target is absent from the view's relevant set. It is NOT a Nanite counter. In all cases the frame
+> is discarded and the event tends toward `NOT_MEASURED`, which ADMITS.**
+
+**Measured (journal PART TWENTY-NINE §200.1), on a DELIVERY-OFF leg with a plain non-Nanite
+`Cylinder`:** as the camera drifted and the target left the frustum, `coverage_ratio` fell
+`0.0685 → 0.0379 → 0, 0, 0, 0` while `framesNoPass` rose `0 → 3 → 4, 4, 4, 4` **in lockstep** —
+the same mechanism (`SceneVisibility.cpp:2470`: relevance runs over the VISIBLE set) reached by
+culling rather than by Nanite. **Had that gone unrecorded, `G134` would have inherited a wrong
+denominator and every future `framesNoPass > 0` would have been read as evidence of Nanite.**
 3. On a Nanite-heavy host title this limit is the COMMON CASE, not the corner — it belongs in the
    cure's scope statement, not its footnotes. (2026-08-20.)
 
