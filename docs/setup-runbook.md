@@ -86,9 +86,13 @@ Development Editor, clean." This produces `Binaries\Win64\UnrealEditor-StackOBot
 
 ## 6. Smoke test (stage gate)
 Open the console in PIE (press `` ` `` backtick) and run:
-1. `IAI.ListAnomalies` — Output Log (category `LogAnomaly`) lists **seven** anomalies as
-   `id - description - usage`, sorted: `blinking`, `camera_clipping`, `lighting_mismatch`,
-   `lod_corruption`, `lod_popping`, `missing_object`, `time_dilation`.
+1. `IAI.ListAnomalies` — Output Log (category `LogAnomaly`) lists, sorted, `id - description - usage`,
+   **the count recorded in `CLAUDE.md`'s Current-status block, with every id listed there present**.
+   ⚠ **Phrased categorically ON PURPOSE — this line read "seven" from m3 until m29 while the catalog
+   had been 8 since m8.** A hardcoded number in a living doc goes stale silently; a pointer to the
+   single source cannot. (At the time of writing that is **9**: `blinking`, `camera_clipping`,
+   `corrupted_texture`, `lighting_mismatch`, `lod_corruption`, `lod_popping`, `missing_object`,
+   `missing_texture`, `time_dilation`.)
 2. `IAI.ListActors` — prints `Class | Name | Label` for every actor; pick a target substring.
 3. `IAI.Apply missing_object <substring>` — pick a **persistent level prop** (a visible
    `StaticMeshActor` in `MainWorld`, e.g. an `SM_*`/`BPP_Struct_*` placement). The matched object
@@ -258,7 +262,7 @@ Get the PIE world after starting: `gw = unreal.get_editor_subsystem(unreal.Unrea
 **Gate -> check:**
 | gate | drive | assert |
 |------|-------|--------|
-| ListAnomalies | `IAI.ListAnomalies` | log: **7** lines, sorted, `id - description - usage` |
+| ListAnomalies | `IAI.ListAnomalies` | log: sorted `id - description - usage`, **the count recorded in `CLAUDE.md`'s Current-status block, every id listed there present** (9 at the time of writing) |
 | missing_object | `IAI.Apply missing_object SM_Ramp` | both ramps `hidden == True`; log `matched 2 actor(s)` |
 | blinking | `Log LogAnomaly Verbose`; `IAI.Apply blinking SM_Ramp` | repeating `blinking toggle -> HIDDEN/VISIBLE`; heartbeat `active: 1/N` |
 | time_dilation | `IAI.Apply time_dilation 0.2`; `IAI.Revert time_dilation` | dilation `0.2`, then back to the captured baseline |

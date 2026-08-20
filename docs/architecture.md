@@ -424,8 +424,9 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
   ENGINE IS AUTHORITATIVE** — a packaged client build with no dashboard starts correct on its own:
   `GPollRadius = 1800.0f` and `GMinScreenCoveragePct = 6.0f` (`AnomalyViewport.cpp`, file-scope globals — NOT
   ini-backed; ini-backing via GConfig remains available as a follow-up if per-title tuning is ever wanted), and the
-  auto-pool's **default-enabled** set `GAutoPoolDefaultEnabled = { blinking, missing_texture }`
-  (`AnomalyAutoInjectorSubsystem.cpp`, consumed in `Initialize`). `GAutoPool` still offers all three ids
+  auto-pool's **default-enabled** set `GAutoPoolDefaultEnabled = { blinking, missing_texture, corrupted_texture,
+  lod_popping }` (`AnomalyAutoInjectorSubsystem.cpp`, consumed in `Initialize`; m29 — the M2 pool).
+  `GAutoPool` still offers all five ids
   (`missing_object` remains selectable, just **not enabled by default**), and `SetAllAnomaliesEnabled(true)` still means
   *all* of `GAutoPool` — it is an explicit action, not a default. **The dashboard has NO defaults of its own for these:**
   the sliders and the pool checkboxes are pure mirrors of the snapshot (`session.pollRadius`,
@@ -484,9 +485,41 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
 | `time_dilation` | world-global, no tick | `IAI.Apply time_dilation <scale>` | `SetGlobalTimeDilation(scale)` (clamped — G11) | restore captured baseline (AMB-3) | **as-built (M1)** |
 | `lighting_mismatch` | component (ULightComponent) | `IAI.Apply lighting_mismatch <sub> [off\|dim <f>\|recolor <r g b>\|noshadow]` | per mode: `SetVisibility(false)` / `SetIntensity(orig*f)` (def 0.1) / `SetLightColor(r,g,b)` (def magenta) / `SetCastShadows(false)`; default mode `dim` | restore captured intensity/color/visibility/cast-shadow per live comp; skip stale | **as-built (M2)** |
 | `lod_corruption` | component (static **+ skeletal** mesh) | `IAI.Apply lod_corruption <sub> [lod-index]` | force each matched comp to a LOD via `AnomalyLod` (1-based; default worst per comp; explicit index clamped per comp). Static `SetForcedLodModel` / skinned `SetForcedLOD` | restore captured forced-LOD per live comp; skip stale | **as-built (M3)** — static + skeletal (G19; was static-only in M2, G16) |
-| `lod_popping` | component (static **+ skeletal** mesh), **ticking** | `IAI.Apply lod_popping <sub> [hz]` | each half-period, snap every matched comp between its captured baseline LOD and its worst LOD via `AnomalyLod` (default 2 Hz, clamp ≤ 30) | restore captured baseline per live comp regardless of phase; reset accumulator/phase | **as-built (M3)** |
+| `lod_popping` | component (static **+ skeletal** mesh), **ticking** | `IAI.Apply lod_popping <sub> [half_period_frames]` | each half-period **counted in FRAMES** (default **8**, range 1..600), snap every matched comp between its captured baseline LOD and its worst LOD via `AnomalyLod`. **A matched component qualifies only if `AnomalyLod::HasMultipleLods` (≥2 LODs); all-refused ⇒ Apply returns false ⇒ no fire, no label** | restore captured baseline per live comp regardless of phase; reset frame counter/phase | **as-built (M3; m29 = frames + ≥2-LOD guard)** — ⚠ **the guard is NECESSARY BUT NOT SUFFICIENT, see below** |
 | `camera_clipping` | global (near-clip), no tick | `IAI.Apply camera_clipping [near]` | `r.SetNearClipPlane <near>` console command (default 100), pushing `GNearClippingPlane` out | restore captured baseline (~10) via the same command | **as-built (M2)** |
-| `missing_texture` | actor-scoped (per-component `SetMaterial`), no tick | `IAI.Apply missing_texture <sub>` | swap every renderable SM/SK component's material slots to the plugin-shipped **Lit gray/white UV-checker** (per-component override → object isolation; never mutates the shared mesh/material asset) | **re-find + guarded restore (m17, see below)** — never trusts the saved component ptr | **as-built (m8, revert hardened m17)** — flat-magenta variant + `mode` arg deferred (m8 journal) |
+| `missing_texture` | actor-scoped (per-component `SetMaterial`), no tick | `IAI.Apply missing_texture <sub>` | swap every renderable SM/SK component's material slots to the plugin-shipped **Lit gray/white UV-checker** (per-component override → object isolation; never mutates the shared mesh/material asset) | **re-find + guarded restore (m17, see below)** — never trusts the saved component ptr | **as-built (m8, revert hardened m17)** — the flat-magenta variant deferred at m8 shipped instead as its own id, `corrupted_texture` |
+| `corrupted_texture` | actor-scoped (per-component `SetMaterial`), no tick | `IAI.Apply corrupted_texture <sub>` | swap every renderable SM/SK component's material slots to the plugin-shipped **Lit solid-magenta, OPAQUE, two-sided** material `M_CorruptedTexture_Pink` (same per-component override → object isolation) | **the m17 contract, mirrored**: re-find live component → touch a slot only if it still holds OUR pink → restore / default-reset → sweep successors | **as-built (m29)** — distinct from `missing_texture`, which is CHECKERED |
+
+### ⚠ `lod_popping`'s ≥2-LOD guard is NECESSARY BUT NOT SUFFICIENT (m29, MEASURED)
+
+The guard refuses a component with a single LOD, because forcing a LOD there pops it **to itself**:
+no visible change, positive label. 🚨 **It does NOT catch the other route to the same outcome — a
+mesh with several LODs whose rendered difference is negligible at that target's on-screen size.**
+Measured on `SM_rock` (4 LODs, non-Nanite): forced LOD 1 vs forced LOD 4 differ by **~0.4 % of the
+silhouette** (≈110 px), and a direct pixel diff across a toggle with a static camera shows **no
+change on the rock at all**.
+
+🚨 **Nothing downstream catches it either. The m26 mask veto CANNOT** — the object still draws, so it
+reads `MEASURED_NONZERO` and the event survives; and the mask measures the **silhouette**, which is
+exactly what does not change. See journal `2026-08-21-047` and **G149**.
+
+### The auto-pool checkbox set is a THREE-STAGE derivation (m29 recon)
+
+Reading it wrong is how an id ends up rendering a **live-looking but inert** checkbox:
+
+1. **Engine, snapshot** — `ControlSnapshot.cpp` keys `auto.pool` on **every OBJECT-SCOPED CATALOG
+   ENTRY**, i.e. on `GetAnomalyCatalog()` filtered by `E.Scope == EAnomalyScope::Object`. It is
+   **NOT** keyed on `GAutoPool`.
+2. **Client, denylist** — `store.ts` `HIDDEN_ANOMALY_IDS` removes ids from **both** the pool object
+   **and the catalog** (`setCatalog` filters through the same set), so a denied id disappears from
+   the Targeted dropdown too.
+3. **Client, render** — `AutoPanel.tsx` renders what survives; the checked state is
+   `auto.pool[id]` ← `IsAnomalyEnabled`.
+
+🚨 **Catalog membership makes a checkbox APPEAR; `GAutoPool` membership makes it WORK.**
+`SetAnomalyEnabled` rejects any id not in `GAutoPool`, logging a warning the dashboard user never
+sees. Adding an object-scoped id to the catalog **without** adding it to `GAutoPool` therefore ships
+a checkbox that renders, toggles in the UI, and silently does nothing.
 
 ### `missing_texture` save-state + revert contract (m17)
 The only anomaly whose revert does **not** follow the plain "restore captured value per live comp; skip stale"

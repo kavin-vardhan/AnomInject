@@ -3905,3 +3905,49 @@ checker was wrong, not the build, and it wore the costume of a build failure.
 4. This generalises to every `--format` field that has a `*`-prefixed sibling: the unprefixed form
    answers *about the ref's own object*, not *about what it eventually points to*.
 (2026-08-20, m28 Stage 0.)
+
+---
+
+## G149 — a guard drawn on a PROXY for the property you care about stops exactly where the proxy stops
+
+`m29` gave `lod_popping` a **≥2 LOD guard**: a matched component qualifies only if its runtime LOD
+count is at least 2. The reasoning is sound — a single-LOD mesh forced to a LOD pops **to itself**,
+producing a positive label with no visible change.
+
+**But LOD COUNT is a PROXY.** The property that actually matters is *"would forcing this LOD change
+what is drawn, at this target's current on-screen size?"* — which depends on the mesh, the distance,
+and what auto-LOD was already selecting. The proxy is only sound at the extreme: `count == 1` is
+certainly invisible; `count >= 2` is **not** certainly visible.
+
+**MEASURED on `SM_rock` (4 LODs, non-Nanite, MainWorld):** forced LOD 1 vs forced LOD 4, event-matched
+across five events, differ by **~0.4 % of the silhouette** (≈110 px) — systematic and one-directional,
+so the LOD IS applied; it just does not move the outline. A direct pixel diff across a toggle
+(half-period 1 frame, camera static to 0.05 cm, both frames labelled positive) shows the change on
+MainWorld's moving platform and fans and **nothing on the rock**. Good LODs cut triangles and preserve
+the silhouette — which is precisely why forcing one is invisible.
+
+🚨 **NOTHING DOWNSTREAM CATCHES IT.** The `m26` mask veto cannot: the object still draws, so it reads
+`MEASURED_NONZERO` and the event survives. And it could never catch it in principle — the mask measures
+the **silhouette**, and the silhouette is exactly what does not change.
+
+⚠ **THE PART THAT TRAVELS: a high refusal rate reads as protection.** Across three auto-pool legs the
+guard fired **5 times out of 7 draws**, which looks like a guard doing its job. The two that got through
+were the invisible ones. **A guard's fire count says nothing about the cases it admits.**
+
+(2026-08-21, m29 — G-P1 failed on this; no fix designed, diagnosis and fix do not share a turn.)
+
+---
+
+## G150 — adding a pool member re-rolls every seeded auto-pool draw
+
+`m29` added two ids to `GAutoPool`, so `Eligible[Stream.RandHelper(Eligible.Num())]` draws from a
+larger set: **the same seed now yields a different id/target sequence.** Every banked MainWorld
+auto-pool run is therefore **NON-COMPARABLE across this commit**.
+
+This is **`G140`'s shape, second instance** — there the selectable ACTOR set changed (the foliage
+exclusion), here the ANOMALY set does. Both re-roll the same stream.
+
+⇒ **Any regression leg for an existing anomaly must be TARGETED, never auto-pool.** An auto-pool
+before/after comparison across a pool-membership change is measuring the draw, not the anomaly.
+
+(2026-08-21, m29.)

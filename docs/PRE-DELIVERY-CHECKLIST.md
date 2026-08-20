@@ -46,6 +46,18 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       → `docs/invisible-anomaly-mechanisms.md`, **"`H6` — DOCUMENTED, NOT FIXED"**,
       routes (a)–(e).
 
+- [ ] **`IAI.ListAnomalies` returns the count recorded in `CLAUDE.md`'s Current-status block, and every
+      id listed there is present.**
+      *Phrased CATEGORICALLY, against a single source, and never as a number in this file. A literal
+      count here goes stale the moment an anomaly ships and then reads as a passing check —
+      `setup-runbook.md` asserted "seven" from m3 until m29 while the catalog had been 8 since m8.
+      The failure mode is `G119`'s: a check that cannot fail is not a check.*
+
+      ⚠ **Also assert the DELIVERED POOL, not just the catalog** — the startup line
+      `AutoInjector subsystem initialized ... Default pool: <ids>` states what a client capture will
+      actually fire. Catalog membership and pool membership are different things, and only the
+      second changes the delivered dataset.
+
 - [ ] **`[AnomalyControlServer] Token` is set to a long random value — RUN THE CHECK, do not read it.**
       *Absent → the server falls back to a random per-session token that a client with no console can
       never read; the dashboard cannot connect at all.*

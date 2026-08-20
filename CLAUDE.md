@@ -15,7 +15,63 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-21 (latest). 🎯 `m28` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.
+- 🛑 **YOU ARE HERE — 2026-08-21 (latest). `m29` IS BUILT AND GATED AND IS *HALTED*. NOT TAGGED, AND
+  NOT ON `master` — the whole tree is on branch `m29-GATE-FAILED-lod-popping-invisible`.**
+  🧭 **COLD START: read `docs/sessions/2026-08-21-047-m29-corrupted-texture-and-lod-popping.md`. It is
+  self-contained and carries the pre-cook declaration, all gate results and the finding.**
+  ✅ **`corrupted_texture` IS GREEN AND IS THE DELIVERABLE THAT SURVIVED.** New 9th anomaly, object-scoped,
+  solid magenta **OPAQUE two-sided Lit** per-component material swap (`M_CorruptedTexture_Pink`, the
+  plugin's second Content asset), m17 revert contract mirrored. **G-8 (blocking) PASSED for it**: fired
+  from the auto-pool on both owner-added rocks, **`MEASURED_NONZERO` 34,931 px (3.79 %) and 25,612 px
+  (2.78 %)**, every discard bucket zero, non-Nanite targets declared before the leg. Full-span `n=8`
+  labels beside `blink`'s gapped `n=4` in the same artifact. Reverts clean on all 9 bursts.
+  🛑 **`lod_popping` FAILED `G-P1`, WHICH IS BLOCKING: IT PRODUCES NO VISIBLE CHANGE.** Three independent
+  measurements agree — a direct pixel diff across a toggle (half-period 1, camera static to **0.05 cm**,
+  both frames labelled positive) shows the change on MainWorld's **moving platform and fans and NOTHING
+  on the rock**; forced **LOD 1 vs LOD 4** on that rock differ by **~0.4 % of the silhouette** (~110 px,
+  systematic across 5 event-matched pairs, so the LOD *is* applied); and across three auto-pool legs
+  `lod_popping` was drawn **7 times → 5 REFUSED by the new guard, 2 applied, and both of those were the
+  invisible case**. ⇒ **zero usable anomalies on this content while consuming ~20 % of the pool draws.**
+  🆕 **`G149` — THE ≥2 LOD GUARD IS NECESSARY BUT NOT SUFFICIENT, and this is the transferable half.**
+  It guards on **LOD COUNT**, a PROXY for *"would forcing this LOD change what is drawn at this target's
+  on-screen size"*. Sound only at the extreme (count 1 ⇒ certainly invisible); **count ≥ 2 is NOT
+  certainly visible.** 🚨 **NOTHING DOWNSTREAM CATCHES IT — the `m26` mask veto CANNOT, because the object
+  still draws (`MEASURED_NONZERO`, and zero of these events were vetoed), and the mask measures the
+  SILHOUETTE, which is exactly what does not change.** ⚠ **A high refusal rate reads as protection: the
+  guard fired 5-of-7 and the two it admitted were the bad ones.**
+  ⛔ **NO FIX DESIGNED, NONE PROPOSED** — a sufficient guard needs a ruling on what it may measure and
+  when (`G127`: a pixel measurement cannot inform a same-frame pick-time decision), and **diagnosis and
+  fix do not share a turn.**
+  🧭 **THE OWNER'S CALL, and it is the only thing blocking a tag:** (a) ship `m29` as `corrupted_texture`
+  ONLY and drop `lod_popping` back out of `GAutoPoolDefaultEnabled` — a one-line change at
+  `AnomalyAutoInjectorSubsystem.cpp` — or (b) keep it default-checked knowing it labels invisible events,
+  or (c) design a sufficient guard as its own milestone. **`lod_popping`'s timing conversion and its guard
+  are correct and gated either way; what failed is whether the anomaly is VISIBLE on this content.**
+  🆕 **`G150` / `T4` — adding two pool ids re-rolls the seeded draw, so EVERY banked MainWorld auto-pool run
+  is NON-COMPARABLE across this commit** (`G140`'s shape, second instance). ⇒ **any regression leg for an
+  existing anomaly must be TARGETED, never auto-pool.**
+  ✅ **ALSO LANDED AND GATED:** `lod_popping`'s wall-time-vs-Hz accumulator converted to **FRAMES**
+  (F-BLINK's shape; default **8** — ⚠ 2 Hz at 30 fps is **7.5 frames**, so "reproduce exactly" was
+  arithmetically impossible and 8 was chosen as the first half-period the old code yields) · the **`G139`
+  `IAI.Capture.Mask` help string**, read back **out of the staged exe both directions** (new string
+  present, old absent) · **two stale catalog arg-specs** — `blinking` still declared a float `hz` arg,
+  **stale since m23** · `PRE-DELIVERY-CHECKLIST` gains a **CATEGORICAL** catalog box and `setup-runbook`
+  stops asserting **"seven"**, which it had done since m3 while the catalog was 8 from m8.
+  📌 **CORRECTED RECORD, journalled: `missing_texture` is CHECKERED, not magenta** — the live docs were
+  always right (`architecture.md:489`); only two chat handoffs said magenta, and **historical handoffs are
+  not rewritten**. The flat-magenta variant deferred at m8 (`G50`) has now shipped as its own id.
+  📌 **CORRECTED RECORD: `camera_clipping` and `lod_popping` left the dashboard by an OWNER SCOPE DECISION
+  for the M1 release, NOT by any architectural rule excluding globals from capture surfaces. Any note
+  implying such a rule is HISTORY, NOT POLICY.**
+  📦 **BUILD IDENTITY (`G121`, the QUARTET):** pre-cook `18081D39` / `72262793` / `6C26C482` / `0BEA8D24`
+  preserved at `_binary_baselines\m28-precook-build\`, **6/6 hash-verified at the new location**;
+  m29 candidate **exe `14F45C34` · utoc `5547B352` · ucas `B89EAFF0` · pak `BFB95333`**. Map gate PASS
+  (4/4 from the container). **`.ucas` grew 284 → 364 MB — the owner's `Hidden_shrine` rock pack cooked in.**
+  ⛔ **NOT DONE, and named rather than implied: `G-P2` (fps-independent cadence) NOT RUN — blocked by
+  `G-P1`, there is no visible cadence to compare · `G-4` exercised the STATIC mesh class only, skeletal
+  and instanced/foliage were never drawn · `G-10` not confirmed against a running dashboard (69/69 unit
+  tests and a clean build only) · `G-3` PIE sanity superseded by packaged evidence.**
+- 🟦 *(superseded as "you are here" — still the LAST TAGGED MILESTONE)* **2026-08-21. 🎯 `m28` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.
   ALL NINE GATES `A`–`I` PASSED, AND THE OWNER SMOKE PASSED ON `MainWorld` UNDER SHIPPED SELECTION.**
   ⛔ **Do not start anything new unprompted — the next milestone is the owner's call.**
   🎯 **THE SMOKE'S STRONGEST RESULT: native and downscaled runs of the same seed produced an IDENTICAL
