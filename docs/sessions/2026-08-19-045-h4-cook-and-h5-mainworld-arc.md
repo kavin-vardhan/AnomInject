@@ -9,10 +9,10 @@ path (a)'s environment and then found a different lead entirely. It is not split
 separable — each part exists because the one before it produced something unexpected. **Renamed from
 `…-045-h4-preflight-halt.md` on 2026-08-19; that title described only Part One.**
 
-> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART TWENTY-FOUR.** It states
-> `m26`'s state, the two faults' dispositions (**one fixed, one diagnosed-not-fixed**), what is
-> **proven and must not be re-proved**, and the rulings that travel. **You do not need to read the
-> twenty-four parts above it.**
+> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART TWENTY-FIVE.** It states
+> `m26`'s state, the two faults' dispositions (**one fixed; one diagnosed, its fix DESIGNED and
+> awaiting the owner's ruling**), what is **proven and must not be re-proved**, and the rulings
+> that travel. **You do not need to read the twenty-five parts above it.**
 
 ## PART INDEX
 
@@ -42,20 +42,22 @@ separable — each part exists because the one before it produced something unex
 | **Twenty-two** | 157–161 | **`F-1` refutes the fix direction — the design cannot be written** | 🚨 **The proxy is ALREADY up to date: `SendAllEndOfFrameUpdates` runs inside `BeginRenderingViewFamilies` in the SAME frame.** Zero ticks needed. Pass point and cvar priority also exonerated ⇒ **source-only diagnosis EXHAUSTED**; the unmeasured `r.CustomDepth` is next. `F-4`/`F-5`/`F-6` answered |
 | **Twenty-three** | 162–168 | 🚨 **THE MASK WORKS — 7.25 % vs a 7.80 % banked rect** | Branch **THEY DISAGREE**: cvar is **3 everywhere** (exonerated) but custom depth is produced on **exactly half** the armed frames in a fixed per-burst pattern (mechanism NOT established) — **and my own EVENT-scoped collision discard threw away the frames that did measure** |
 | **Twenty-four** | 169–174 | **Fault (i) FIXED · fault (ii) MECHANISM ESTABLISHED** | Frame-scoped discard (`795f2a4`): control **MEASURED_NONZERO 7.25 %** on every full event, all-discarded event lands **NOT_MEASURED** (admit path demonstrated live). 🚨 **The arm gate's hidden read is ONE TICK STALE vs the rendered frame** — 15/15 dummies hidden at render, 0 refuter violations, `missing_texture` control 32/32 REAL. **G132** (`GFrameCounter++` precedes `OnEndFrame`). ⛔ **Fault (ii) NOT fixed; `F-6` NOT claimed; `H5` still blocked; NO tag** |
+| **Twenty-five** | 175–181 | **The fault-(ii) fix DESIGNED — `RULING 1` governs it. NO CODE** | 🚨 **Ruling 1: the 255 dummy is a property of THIS BENCH — the fix must close the stale read itself.** Chosen: **Option B — arm from `OnWorldTickEnd`** (post-toggle by position, `LevelTick.cpp:1814`; pre-draw, `GameEngine.cpp:1891`; zero behaviour change outside `AnomalyCapture`) + the **M-4 sampler becomes an ENFORCING whitelist confirmation** (the render is bracketed) + the **item-5 probe** + the **`bRunning` guard** (retires §172's stray arm). Options A/C/D rejected with reasons. Budgets: blinking 4/2 → 4/4; `missing_object` 4-of-6 post-revert; no type drops to zero. ⛔ **NOT implemented — owner's ruling next** |
 
-⚠ **ONE INVESTIGATION, TWENTY-FOUR PARTS** *(the "nine" in the note below predates Parts Ten
+⚠ **ONE INVESTIGATION, TWENTY-FIVE PARTS** *(the "nine" in the note below predates Parts Ten
 onward; the reason it is not split is unchanged).*
 
-**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART TWENTY-FOUR.** `m26`'s
+**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART TWENTY-FIVE.** `m26`'s
 **direction**, **shape**, **plan** and **slice 1** are all written; **fault (i) is FIXED and the
-control measures 7.25 % on every full event; fault (ii)'s MECHANISM IS ESTABLISHED (the arm gate's
-one-tick-stale hidden read) and its FIX IS NOT DESIGNED — the owner's call under the `F-6` gate.**
-Slices 2 and 3 **not started**; **`H5` legs BLOCKED**. `feature/stencil-capture` **untouched**
-throughout — *mined, never resumed*. **`P6` never moved (measured 48/48 both ways in PART
-TWENTY-FOUR). NO TAG since `m25`.** ⚠ **Production code appears for the first time in PART FOURTEEN
-(log-only `M-1` instrumentation, on owner permission); Parts One–Thirteen carry ZERO.**
+control measures 7.25 % on every full event; fault (ii)'s MECHANISM IS ESTABLISHED and its FIX IS
+DESIGNED under `RULING 1` (Option B: arm from `OnWorldTickEnd`, the render bracketed by an
+enforcing confirmation) — NOT IMPLEMENTED, awaiting the owner's ruling.** Slices 2 and 3 **not
+started**; **`H5` legs BLOCKED**. `feature/stencil-capture` **untouched** throughout — *mined,
+never resumed*. **`P6` never moved (measured 48/48 both ways in PART TWENTY-FOUR). NO TAG since
+`m25`.** ⚠ **Production code appears for the first time in PART FOURTEEN (log-only `M-1`
+instrumentation, on owner permission); Parts One–Thirteen carry ZERO.**
 
-🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART TWENTY-FOUR IS THE COLD-START ENTRY POINT.**
+🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART TWENTY-FIVE IS THE COLD-START ENTRY POINT.**
 
 ---
 
@@ -5160,9 +5162,199 @@ the frame it arms. What it deliberately does NOT do: fix fault (ii), run `SM_Ram
 
 ---
 
-# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–24.
+# PART TWENTY-FIVE — the fault-(ii) fix is DESIGNED. Ruling 1 governs it. **NO CODE.**
 
-**Session closed 2026-08-20 at the end of PART TWENTY-FOUR. `m26` is IN PROGRESS.**
+**PART TWENTY-FOUR ACCEPTED; the fix is approved IN PRINCIPLE, design first.** ⛔ **DESIGN ONLY —
+nothing implemented this turn. NO TAG. `P6` NOT MOVED. Stencil range stays 200/255.
+`feature/stencil-capture` READ-ONLY. `H5` legs BLOCKED. Slices 2/3 not started.**
+
+---
+
+## 175. `RULING 1` — the hazard IS the specification. Recorded verbatim; it governs every choice below.
+
+> **"The 255 dummy is a PROPERTY OF THIS BENCH, not of the defect. On a host title where custom
+> depth is produced by other primitives, a stale arm yields a clean MEASURED_ZERO with no tell —
+> and under slice 3 that SILENTLY DELETES A GOOD EVENT. The fix must close the stale read itself.
+> Any fix that relies on detecting the dummy is a fix that works only where we happen to be
+> looking."**
+
+*(G124's shape in a new place: the loud symptom and the mechanism are not the same thing, and the
+loudness is environmental.)* ⇒ **Two consequences used below: (1) the fix must relocate the READ,
+not improve the dummy detector; (2) the correctness test must measure the actual property — "the
+gate read the state the frame rendered" — never the symptom's absence.**
+
+## 176. `H-1` — THE OPTIONS, COSTED. **Option B is the design.**
+
+**The engine facts every option is priced against (read this session, 5.1 source):**
+
+| # | fact | source |
+|---|---|---|
+| 1 | both subsystems are `FTickableGameObject`s, ticked together inside `UWorld::Tick` — their mutual order is REGISTRATION ORDER, engine-internal, with no public priority API | `LevelTick.cpp:1606` (`FTickableGameObject::TickObjects`) |
+| 2 | **`FWorldDelegates::OnWorldTickEnd` broadcasts as the LAST line of `UWorld::Tick`** — after every tick group, timer, and tickable | `LevelTick.cpp:1814` |
+| 3 | the draw — where `F-1`'s proxy flush lands — runs AFTER the world tick, same frame | `GameEngine.cpp:1775` (world tick) → `:1891` (`RedrawViewports`) |
+| 4 | `GFrameCounter` is still N at `OnWorldTickEnd` (it increments later, `LaunchEngineLoop.cpp:5568`) — request-id semantics unchanged; `G132` does not bite there | PART TWENTY-FOUR |
+
+### 176.1 Option A — reorder the tick dependency. ⛔ **REJECTED — it is a BEHAVIOUR change, twice over, and there is no stable lever.**
+
+Two sub-forms, both bad:
+- **Injector earlier:** 🚨 **changes WHEN anomalies apply. The injector is the SHIPPING SELECTOR** —
+  toggle timing relative to captured frames is what the dataset records; this is a behaviour change
+  to the product, not a measurement change.
+- **Capture later:** leaves the injector alone but **moves `SampleDeferredHidden` and the
+  `FireHidden` label sampling with it** — the one-tick-stale hidden sample is an `m20`-CHARACTERISED
+  property of every shipped `annotation.json`; making it fresh silently changes `HiddenByIndex`,
+  `manifested`, and positive-frame derivations on every future leg. **A label-content change wearing
+  a measurement fix's clothes.**
+- And mechanically: tickable order is registration order (fact 1) — any "reorder" rests on
+  engine-internal iteration, exactly the fragility that produced this fault.
+
+### 176.2 🎯 Option B — arm from `OnWorldTickEnd`: post-toggle by POSITION, not by luck. **CHOSEN.**
+
+**Move the mask block — `VerifyPendingTags` → `EnqueueDrain` → `CollectResults` →
+`ArmIfMeasurable`, as a unit, internal order preserved — out of `UAnomalyCaptureSubsystem::Tick`
+(`:441-447`) into a `FWorldDelegates::OnWorldTickEnd` handler** (registered at `Initialize`,
+removed at `Deinitialize`, mirroring PART TWENTY-FOUR's `OnEndFrame` pattern; guards: world match,
+`bMaskMeasure`, **`bRunning`** (= `H-5`), `Async` valid).
+
+| property | why it holds |
+|---|---|
+| the arm read is POST-TOGGLE | fact 2 — every tickable (the injector included) has ticked before the broadcast |
+| the tag and the arm still make the SAME frame | fact 3 — the draw (and `F-1`'s flush inside it) has not happened yet |
+| robust to registration order | the anchor is a POSITION in the frame, not a place in the tickable array |
+| request ids unchanged | fact 4 |
+| **tick ordering: NOTHING moves** | the phase machine, `CaptureCurrentFrame`, pacing, `SampleDeferredHidden`, labels — all stay in `Tick`, byte-for-byte semantics |
+| **behaviour outside `AnomalyCapture`: NONE** | the injector is untouched; no module gains or loses an API; captured frames, labels, seeds identical |
+
+⚠ **Honest residual, stated:** `OnWorldTickEnd` covers everything that ticks. Code that toggles
+hidden state AFTER the world tick (inside the draw itself, or another `OnWorldTickEnd` handler
+registered later) is outside the anchor. **That residual is what `H-2`'s enforcing confirmation
+exists for — it is caught and discarded, never admitted.**
+
+### 176.3 Option C — the injector publishes the state the frame will render. ⛔ **REJECTED ON RULING 1.**
+
+It fixes **blinking**, not the class. `IsHidden()` can be toggled by ANY code — on a host title,
+by the host's own logic, which will never publish through our API. *"Have the toggler tell us"* is
+a fix that works only where we happen to be looking — Ruling 1's exact wording. It also adds a
+capture-serving public surface to the SHIPPING module (`ANOMALYINJECTOR_API`) for the benefit of a
+non-Shipping measurement — the `G127` module boundary crossed in the wrong direction.
+
+### 176.4 Option D — keep the arm point, discard at resolve using the `m20` deferred sample. ⛔ **REJECTED as the fix; its IDEA survives in `H-2`/`H-3`.**
+
+Post-hoc discard makes the numbers safe but (1) **the premise is itself order-fragile** — the
+deferred sample means "the state frame t rendered" only under the SAME unguaranteed tick order
+that produced this fault; (2) the blinking arm budget stays half-wasted; (3) it treats the symptom
+class Ruling 1 forbids treating. **What survives: resolve-time render-state checking — anchored at
+`OnEndFrame` (order-robust), as the enforcing confirmation below.**
+
+## 177. `H-2` — THE CORRECTNESS TEST. The property, not the symptom.
+
+**The property to prove: EVERY FRAME THAT CONTRIBUTES TO A MEASUREMENT WAS VERIFIED VISIBLE AT
+BOTH BRACKETS OF ITS RENDER.** "The dummies stop" is environmental (Ruling 1) and is NOT the test.
+
+**The M-4 sampler BECOMES PRODUCT, and it becomes ENFORCING — whitelist polarity:**
+- At `OnEndFrame` (after the draw is enqueued, before anything else can tick), each armed-this-tick
+  frame's target is sampled. **A frame CONTRIBUTES only if its sample RAN and read VISIBLE.**
+  Hidden, or sample missing ⇒ the frame is fed into the existing `PollutedRequests` /
+  `bFramePolluted` path ⇒ **frame-scoped discard**.
+- **Polarity rationale:** a missing check must never read as a passed check (`G119`'s family).
+  Blacklist ("pollute if seen hidden") admits the unchecked frame; whitelist does not.
+- The `M24 ENDFRAME` log line stays, so the offline join (`p24_join.py`) remains auditable.
+- **It lives inside `ANOMALY_CAPTURE`** — permanent instrument code, zero Shipping footprint
+  (`G127`), not dev-scratch.
+
+**So the render is BRACKETED:** visible at `OnWorldTickEnd` (the arm) ∧ visible at `OnEndFrame`
+(the confirmation), with the draw between them. Anything that changed the state before the frame
+was drawn lands on one bracket or the other ⇒ discarded ⇒ **`MEASURED_ZERO` is unreachable from a
+stale read even in the residual cases Option B cannot anchor.**
+
+**Gate legs and their pre-declarable predictions** *(to be pre-declared as a file before the fix
+leg runs, per standing practice)*:
+
+| leg | prediction |
+|---|---|
+| blinking control (`StaticMeshActor_49`) | `arms=4 resolved=4 framesDiscarded=0 framesContributed=4` per full event · join: every armed frame REAL ∧ `hiddenEof=0` · `ENDFRAME` line count == armed count |
+| `missing_texture` control | unchanged from P24: 4/4, 0 discards |
+| **`missing_object` leg (new to the gate)** | **ZERO in-window arms** (the gate now refuses the whole hidden window) · **4 post-revert arms, all contributing** — this exercises `P-2`'s riskiest path BEFORE slice 3 exists |
+| item-5 probe leg (below) | the probe frame fires BOTH detectors and is discarded; the event still measures from its clean frames |
+
+**`F-6` item 5 (the 255 detector proven still live, BOTH ways) — the mechanism, designed now:**
+post-fix, a healthy bench NEVER produces a dummy naturally (that is the point), so the detector's
+silence needs a live-fire demonstration on the NEW binary, not only the control-pair argument from
+the banked pre-fix P24 leg. **THE PROBE: a default-OFF flag (`IAI.Capture.MaskProbe`) that, on a
+gate leg only, issues ONE deliberate arm on a KNOWN-hidden tick (`missing_object` in-window),
+logged loudly as PROBE.** Expected: dummy bound ⇒ 255 detector FIRES; end-of-frame confirmation
+reads hidden ⇒ frame DISCARDED; the event still resolves from its post-revert frames. **One probe
+frame demonstrates the 255 detector, the enforcing confirmation, and the frame-scoped discard all
+live on the shipped binary — and the admit bias disposes of it safely.** The probe bypasses
+`LOCK-1` for exactly that one arm, by design, only under the flag.
+
+## 178. `H-3` — WHAT IT DOES TO `LOCK-1`. Preserved, and strengthened — stated point by point.
+
+**The arm gate stays `LOCK-1`'s enforcement point** — the refusal stays in `ArmIfMeasurable`,
+same code, same `skippedHidden` accounting. What moves is WHEN it runs: its `IsHidden()` read now
+happens after every toggler, so **the rule finally refuses on the state the frame actually
+renders** rather than a one-tick-stale proxy of it.
+
+**`F-2`'s banked rule** — *hidden at ANY sampled point ⇒ `NOT_MEASURED`, never `MEASURED_ZERO`* —
+**maps onto the design at three points:**
+
+| sampled point | where | on hidden |
+|---|---|---|
+| **ARM** | `ArmIfMeasurable` at `OnWorldTickEnd` | no arm at all (`skippedHidden`) |
+| **VERIFY** (write side) | `VerifyPendingTags`, per tick, unchanged | in-flight frames polluted (frame-scoped, P24) |
+| **RESOLVE** (render state) | the enforcing `OnEndFrame` confirmation (§177) | frame discarded before its count is read |
+
+⇒ **`MEASURED_ZERO` now requires: visible at arm ∧ visible at confirmation ∧ tag verified held ∧
+a clean read.** An event with no such frame stays `NOT_MEASURED` by the P24-proven initialisation
+path. **The two zeros still never share a representation anywhere.**
+
+## 179. `H-4` — THE ARM BUDGET AFTER THE FIX. No type loses its window; blinking's waste becomes yield.
+
+The gate arms at most one record per tick (code: `ArmIfMeasurable` returns after one arm) and a
+record keeps arming on later eligible ticks until its 4-arm cap — unchanged.
+
+| anomaly class | qualifying ticks post-fix | budget |
+|---|---|---|
+| **non-hide (6 ids)** | unchanged — any in-window tick | **4 issued / 4 usable** (was 4/4) |
+| **`blinking`** | rendered-VISIBLE ticks: ~3 per positives window (half-period 3 in 8) **plus post-revert ticks backfill to the cap** (the record arms until 4; post-revert the target is restored) | **4 issued / 4 usable** (was 4 issued / 2 usable) — predicted `framesDiscarded=0` |
+| **`missing_object`** | in-window: **ZERO** (correct — the target renders hidden all window; pre-fix the stale read wasted an arm at window start) · post-revert: the 6-tick window (`SettleAfterRevert` 2 + `PostGap` 4), one arm per tick | **4 issued / 4 usable in a 6-tick window — room confirmed, 6 ≥ 4** |
+
+**Zero-qualifying-arms risk: NONE.** Every type retains ≥ 3 qualifying ticks per event; the fix
+does not SKIP ticks the instrument previously used — it stops spending budget on ticks that
+measured nothing. ⚠ *Blinking taking some arms post-revert measures the same quantity under the
+same settled-camera scope note as `missing_object` (§113.2) — already in the tag's scope statement.*
+
+## 180. `H-5` — the stray post-`FinishRun` arm, folded in. One guard, and Option B absorbs it.
+
+The defect (§172): the Tick mask block ran below the phase switch with no `bRunning` check, so the
+`FinishRun` tick re-tagged the target after `RestoreAll` and issued one stray arm whose pass ran
+after the cvar restore (`mode=1`, the id-122 row). **In this design the block lives in the
+`OnWorldTickEnd` handler, whose guard set INCLUDES `bRunning`** — `FinishRun` (inside `Tick`, i.e.
+inside `UWorld::Tick`) has already cleared it by the time the handler fires that same tick. The
+stray arm, the post-`RestoreAll` re-tag, and the post-restore pass all die with that one guard.
+**Verification on the gate legs: `M23 PASS` line count == total arms issued in the `M26S1`
+summaries, and no PASS record with `mode != 3`.**
+
+## 181. State after PART TWENTY-FIVE
+
+| | |
+|---|---|
+| the design | **written (§175–§180), NOT implemented — owner's ruling next** |
+| Ruling 1 | recorded verbatim (§175) and used to reject Options C and D |
+| production code | **unchanged this turn** — HEAD still `475147e`'s tree for `Source/` |
+| gate owed after the fix | **`F-6` all five items (item 5 via the §177 probe) → `SM_Ramp2` with peak-IN/OUT (`A-4`) → only then the `H5` legs** — adopted verbatim from the ruling |
+| unchanged | `P6` · stencil range 200/255 · `feature/stencil-capture` at `76cac74` · slices 2/3 · **NO TAG** |
+
+**WHAT THIS PART SETTLES: the fix has one shape that changes nothing outside the measurement —
+relocate the read to a position in the frame that is post-toggle by construction, bracket the
+render with an enforcing confirmation so no stale read can ever contribute, and let the same
+guard retire the stray arm. What it deliberately leaves to the owner: whether to build it.**
+
+---
+
+# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–25.
+
+**Session closed 2026-08-20 at the end of PART TWENTY-FIVE. `m26` is IN PROGRESS.**
 **NO TAG since `m25`. `P6` HAS NEVER MOVED. `feature/stencil-capture` is READ-ONLY at `76cac74` —
 mine it, never check it out.**
 
@@ -5194,7 +5386,7 @@ path) — **demonstrated live by the frame-cap-truncated final event** (§169.1)
 full event: `arms=4 resolved=4 framesDiscarded=2 framesContributed=2`, **7.2517–7.2550 %** vs the
 banked 7.80 % rect.
 
-### FAULT (ii) — custom depth not produced on the D-R-R-D frames — 🚨 **MECHANISM ESTABLISHED (§171), FIX NOT DESIGNED, NOT WRITTEN**
+### FAULT (ii) — custom depth not produced on the D-R-R-D frames — 🚨 **MECHANISM ESTABLISHED (§171) · FIX DESIGNED (PART TWENTY-FIVE §176–§180), NOT IMPLEMENTED — awaiting the owner's ruling on the design**
 
 **The arm gate's `IsHidden()` read is ONE TICK STALE relative to the frame it arms:** the capture
 subsystem ticks (and arms) before the injector subsystem toggles `blinking`, and the toggle
@@ -5204,14 +5396,24 @@ and the `missing_texture` control (never hidden) produced 32/32 REAL** — so hi
 visible set ⇒ `bHasCustomDepthPrimitives` false (`SceneVisibility.cpp:2470`) ⇒
 `RenderCustomDepthPass` false (`CustomDepthRendering.cpp:148`) ⇒ dummy ⇒ 255.
 
-🚨 **FOR THE FIX DESIGN (owner's call): on a host title that keeps custom depth produced, the
-same stale arm returns CLEAN `MEASURED_ZERO` with no 255 tell (§171.4) — the fix must close the
-stale read, not rely on the dummy's loudness. Gate = `F-6`, all five items, then the `SM_Ramp2`
-control, and only then do the `H5` legs unblock.**
+🚨 **`RULING 1` GOVERNS THE FIX (recorded verbatim §175): the 255 dummy is a property of THIS
+BENCH, not of the defect — on a host title a stale arm yields a clean `MEASURED_ZERO` with no
+tell, and under slice 3 that silently deletes a good event. The fix must close the stale read
+itself.**
 
-📌 **Also FILED, NOT FIXED (§172): one stray arm fires after `FinishRun` each leg** (the Tick
-mask block doesn't check `bRunning` after the phase switch) — re-tags the target post-`RestoreAll`
-and leaves `bRenderCustomDepth` asserted. One-guard fix, belongs with the fault-(ii) turn.
+**THE DESIGN (§176, Option B):** move the mask block (verify → drain → collect → arm) from `Tick`
+to a **`FWorldDelegates::OnWorldTickEnd`** handler — post-toggle by POSITION (`LevelTick.cpp:1814`
+is the last line of `UWorld::Tick`), pre-draw same frame (`GameEngine.cpp:1891`), zero behaviour
+change outside `AnomalyCapture`. Plus (§177) the **M-4 sampler becomes an ENFORCING, whitelist
+confirmation** (a frame contributes only if its `OnEndFrame` sample ran and read visible — the
+render is BRACKETED), the **item-5 probe** (`IAI.Capture.MaskProbe`, default OFF, one deliberate
+known-hidden arm to prove both detectors live on the new binary), and (§180) the **`bRunning`
+guard** that retires the stray post-`FinishRun` arm. `LOCK-1` preserved and strengthened (§178);
+arm budgets: non-hide 4/4 · blinking 4/4 (was 4/2) · missing_object 0 in-window + 4 of 6
+post-revert ticks — no type drops to zero (§179).
+
+**Gate after implementation = `F-6` all five items (item 5 via the probe) → `SM_Ramp2` with
+peak-IN/peak-OUT (`A-4`) → only then the `H5` legs.**
 
 ## H.3 PROVEN — do **not** re-prove any of these
 
@@ -5244,6 +5446,10 @@ and leaves `bRenderCustomDepth` asserted. One-guard fix, belongs with the fault-
   effect of anything.**
 - ✅ **`CollectResults` is FRAME-scoped as of `795f2a4`** (PART TWENTY-FOUR). The admit bias is
   unchanged and was demonstrated live.
+- 🆕 **`RULING 1` (PART TWENTY-FIVE §175) travels with the fix:** the fix must close the stale
+  read itself; any fix that relies on detecting the dummy works only where we happen to be
+  looking. **Options C (injector publishes state) and D (post-hoc discard as the fix) are
+  REJECTED on this ruling — do not re-propose them.**
 
 ## H.5 Environment a cold session inherits
 
@@ -5261,10 +5467,13 @@ and leaves `bRenderCustomDepth` asserted. One-guard fix, belongs with the fault-
 ## H.6 What the next session should do first
 
 1. **Read `docs/invisible-anomaly-mechanisms.md`** — the ledger — then this HANDOFF. **Nothing else
-   from Parts 1–24 is required.**
-2. **Do NOT design or write the fault-(ii) fix unprompted.** The mechanism is established (§171);
-   the FIX is the owner's call, its gate is **`F-6`, all five items**, and §171.4's host-title
-   hazard plus §172's stray post-`FinishRun` arm belong in its design brief.
-3. **The `H5` legs stay BLOCKED until the full `F-6` gate passes after that fix** — the blinking
-   control reading 7.25 % now is necessary, not sufficient (`SM_Ramp2` and item 5 are still owed).
+   from Parts 1–25 is required.**
+2. **The fault-(ii) fix is DESIGNED (§176–§180) and NOT implemented — do not implement it
+   unprompted; the design awaits the owner's ruling.** If ruled GO: pre-declare the gate-leg
+   predictions (§177's table) as a file BEFORE any leg, implement Option B + the enforcing
+   confirmation + the probe + the `bRunning` guard, then run the gate in the adopted order:
+   **`F-6` all five items → `SM_Ramp2` (`A-4` peak-IN/OUT beside it, must be ADMITTED) → only
+   then the `H5` legs.**
+3. **The `H5` legs stay BLOCKED until that full gate passes** — the blinking control reading
+   7.25 % now is necessary, not sufficient.
 4. Slices 2 and 3 stay NOT STARTED. `P6` does not move. No tag.

@@ -15,12 +15,42 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (second session). `m26` IS IN PROGRESS: FAULT (i) FIXED AND
-  MEASURED, FAULT (ii) MECHANISM ESTABLISHED AND DELIBERATELY NOT FIXED. LAST SHIPPED MILESTONE IS
-  STILL `m25`; NOTHING TAGGED SINCE.**
+- 🟩 **YOU ARE HERE — 2026-08-20 (third session). `m26` IS IN PROGRESS: FAULT (i) FIXED AND
+  MEASURED, FAULT (ii) MECHANISM ESTABLISHED AND ITS FIX **DESIGNED — NOT IMPLEMENTED, AWAITING THE
+  OWNER'S RULING** (journal PART TWENTY-FIVE). LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING
+  TAGGED SINCE.**
   🧭 **COLD START: read `docs/invisible-anomaly-mechanisms.md` (the ledger), then go STRAIGHT to the
   `HANDOFF` section at the END of `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`
-  (PART TWENTY-FOUR). THAT HANDOFF IS SELF-CONTAINED.**
+  (PART TWENTY-FIVE). THAT HANDOFF IS SELF-CONTAINED.**
+  🚨 **`RULING 1` (owner, 2026-08-20, recorded verbatim in journal §175) GOVERNS THE FAULT-(ii)
+  FIX: the 255 dummy is a property of THIS BENCH, not of the defect — on a host title a stale arm
+  yields a CLEAN `MEASURED_ZERO` with no tell, and under slice 3 that silently deletes a good
+  event. THE FIX MUST CLOSE THE STALE READ ITSELF; any fix that relies on detecting the dummy
+  works only where we happen to be looking.**
+  📐 **THE DESIGN (journal §176–§180, H-1..H-5 answered): Option B — move the mask block
+  (verify → drain → collect → arm) from `Tick` to `FWorldDelegates::OnWorldTickEnd`** — post-toggle
+  BY POSITION (`LevelTick.cpp:1814` is the last line of `UWorld::Tick`, after every tickable incl.
+  the injector), pre-draw SAME frame (`GameEngine.cpp:1891`), request-id semantics unchanged
+  (`GFrameCounter` still N there), **zero tick reordering, zero behaviour outside `AnomalyCapture`**.
+  Plus: **the M-4 end-frame sampler becomes PRODUCT and ENFORCING, whitelist polarity** — a frame
+  contributes ONLY if its `OnEndFrame` sample ran and read visible, so the render is BRACKETED and
+  a stale read cannot reach `MEASURED_ZERO` even in the residual cases the anchor cannot cover;
+  **the `F-6` item-5 probe** (`IAI.Capture.MaskProbe`, default OFF: ONE deliberate known-hidden arm
+  on a gate leg proves the 255 detector + confirmation + frame-scoped discard all live on the new
+  binary, and the admit bias disposes of the probe frame); **the `bRunning` guard** retires §172's
+  stray post-`FinishRun` arm. **`LOCK-1` preserved and strengthened** — F-2's rule maps to ARM
+  (refusal, now post-toggle) / VERIFY (write side, unchanged) / RESOLVE (enforcing confirmation).
+  **Budgets: non-hide 4/4 · blinking 4 issued / 4 usable (was 4/2) · `missing_object` 0 in-window
+  (correct) + 4 of the 6 post-revert ticks — NO type drops to zero.**
+  ⛔ **REJECTED, with reasons banked: Option A** (tick reorder — injector-earlier changes when
+  anomalies APPLY = shipping behaviour; capture-later silently changes the `m20`-characterised
+  hidden-sample labels; and tickable order is registration order, no stable lever) · **Option C**
+  (injector publishes state — fixes blinking, not the class; Ruling 1's exact failure; G127
+  boundary crossed backwards) · **Option D** (post-hoc discard as the fix — its premise is itself
+  tick-order-fragile and the budget stays wasted; its IDEA survives as the enforcing confirmation).
+  ⛔ **NOTHING IMPLEMENTED THIS TURN. If ruled GO: pre-declare the §177 gate-leg predictions as a
+  file BEFORE any leg, implement, then the adopted order: `F-6` ALL FIVE ITEMS (item 5 via the
+  probe) → `SM_Ramp2` (`A-4` peak-IN/OUT beside it, must be ADMITTED) → only then the `H5` legs.**
   ✅ **FAULT (i) FIXED at `795f2a4` — the discard is FRAME-SCOPED.** A polluted read discards that
   frame only; clean frames feed the MAX. **`MEASURED_ZERO` is reachable ONLY from a clean resolved
   read; an event with no clean frame stays `NOT_MEASURED` (admit)** — `State` initialises to
@@ -41,12 +71,11 @@ and is the single source of truth for the project.
   seven events — and the `missing_texture` control (never hidden) produced 32/32 REAL, 0 dummies,
   8/8 events clean (`framesDiscarded=0 contributed=4 collisions=0`), refuting the
   unrelated-per-burst-reason candidate.** The write side stays exonerated (0 verify collisions).
-  ⛔ **THE FAULT-(ii) FIX IS NOT DESIGNED AND NOT WRITTEN — owner's call, gate = `F-6` all five
-  items, THEN the `SM_Ramp2` control, THEN the `H5` legs unblock.** 🚨 **Design hazard recorded
-  (§171.4): on a host title that keeps custom depth produced, the same stale arm returns CLEAN
-  `MEASURED_ZERO` with no 255 tell — the fix must close the stale read, not rely on the dummy's
-  loudness.** 📌 **Also FILED NOT FIXED (§172): one stray arm fires after `FinishRun` each leg**
-  (the Tick mask block doesn't check `bRunning`), re-tagging the target post-`RestoreAll`.
+  ⛔ *(superseded by PART TWENTY-FIVE above: the fix is now DESIGNED, still not written)* **the
+  gate order stands — `F-6` all five items, THEN the `SM_Ramp2` control, THEN the `H5` legs
+  unblock.** 🚨 **The §171.4 hazard was elevated to `RULING 1` (see above).** 📌 **§172's stray
+  post-`FinishRun` arm is folded into the design as the `bRunning` guard (H-5)** — it re-tags the
+  target post-`RestoreAll` until fixed.
   🆕 **`G132`** — `GFrameCounter++` precedes `OnEndFrame.Broadcast()` (`LaunchEngineLoop.cpp:5568`
   vs `:5623`), so an end-frame sampler keyed on the counter matches nothing; the first M-4 build
   reported 0 lines and the pre-declared **B4** branch caught it (fixed at `9f91472`).
