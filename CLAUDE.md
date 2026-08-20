@@ -97,8 +97,38 @@ and is the single source of truth for the project.
   **once per RUN**. (2) **A re-picking veto destroys the seeded draw protocol** — `R-SEED` is
   deliberately independent of apply-result and `m22` gated on *"seed 4242, two runs byte-identical"*.
   **If a future reader proposes "just check before firing", both blockers are in journal §103.**
-  🚨 **`F-1` REFUTES THE APPROVED FIX DIRECTION — THE TIMING DESIGN CANNOT BE WRITTEN. → journal PART
-  TWENTY-TWO §157-§161. DESIGN TURN, NO CODE. NO TAG.**
+  🚨 **THE MASK WORKS. → journal PART TWENTY-THREE §162-§168. MEASUREMENT TURN, NO FIX. NO TAG.**
+  **On every frame where custom depth was produced it returns `totalMasked` **66,635–66,862 px =
+  7.23–7.25 % of frame**, spread **< 0.03 %** across 14 frames — against `StaticMeshActor_49`'s banked
+  **7.80 %** rect. **The right magnitude, and slightly UNDER the bounding rect, which is exactly what
+  an occlusion-correct silhouette should be.** ⇒ **the instrument is fundamentally sound; it was never
+  broken, it was being discarded.**
+  ✅ **`M-1`/`M-3`: `r.CustomDepth` IS EXONERATED — the last link anyone could reason about.**
+  `beginRun before=1 after=3`, `finishRun before restore=3`, and **`rCustomDepth_renderThread=3` on
+  ALL 30 armed frames**, read at the pass point where it is consumed.
+  🚨 **`M-2`: BRANCH "THEY DISAGREE" — mode 3 AND custom depth NOT produced, on EXACTLY HALF the armed
+  frames (15/30), in a FIXED per-burst pattern: arm1 DUMMY · arm2 REAL · arm3 REAL · arm4 DUMMY,
+  identical across all seven full events.** Measured directly by the pre-declared discriminator —
+  `StencilDummy` is **1×1**, the real texture is view-sized, so `customStencilExtent` settles it
+  without inference. ⛔ **THE MECHANISM FOR THE ALTERNATION IS NOT ESTABLISHED AND IS NOT GUESSED**
+  *(`blinking`'s 3-frame half-period and `m20`'s one-tick-stale hidden sample are an obvious place to
+  look, and that is a lead, not a claim)*.
+  🚨 **SECOND, INDEPENDENT FAULT, AND IT IS MINE: ONE BAD FRAME DISCARDS A WHOLE EVENT.**
+  `CollectResults` does `if (R.CollisionHits > 0) { continue; }` — **the collision flag is
+  EVENT-scoped where the observation is FRAME-scoped**, so after the first dummy frame every later
+  frame of that event is skipped **before its count is read**, including the good ones. **The
+  MAX-across-frames design never runs.** ⚠ **The two faults are INDEPENDENT: even with the alternation
+  unexplained, a frame-scoped discard would have produced `MEASURED_NONZERO` at ~7.25 % on this
+  control.** ⛔ **NOT FIXED — no same-turn fix to a validity instrument.**
+  📌 **RECORDED: the tag/arm separation is WITHDRAWN (not deferred).** **`F-2`'s rule is BANKED** for
+  any future split — hidden-state tested at **TAG, ARM and RESOLVE**, hidden at ANY ⇒ `NOT_MEASURED`.
+  **`F-6` ADOPTED IN FULL as the fix gate**, including **item 5: the 255 detector proven still live
+  both ways (`G96`)**, without which items 1–4 can pass on an instrument that has stopped looking.
+  📦 build: exe **`722266A7`** (code-only hot-swap; container unchanged from the `m26` cook, boot
+  re-verified). Leg `P23_M23_CVAR_CTRL49`, **B1 PASSED**, A63 attempt 2 (attempt 1 banked as a pose
+  discard).
+  🚨 *(superseded)* **`F-1` REFUTED THE APPROVED TIMING FIX. → PART TWENTY-TWO §157-§161.** Its
+  refutation **STANDS**; the cvar it pointed at as next has now been measured and is clean.
   **THE PROXY IS ALREADY UP TO DATE.** `SetRenderCustomDepth` → `MarkRenderStateDirty` →
   `MarkForNeededEndOfFrameRecreate`, **and that recreate is flushed INSIDE
   `FRendererModule::BeginRenderingViewFamilies` in the SAME frame** (`SceneRendering.cpp:4528`), whose

@@ -35,6 +35,7 @@ separable — each part exists because the one before it produced something unex
 | **Twenty** | 143–148 | **Option B ships · build BOOTS · the MEASUREMENT is wrong** | `AnomalyShaders` at `PostConfigInit`, **no `Renderer` dep, load order untouched**; all four gates PASS — 🛑 **HALT: `S4` + an `S3` observation.** Tag 255 pollutes the mask; a control measured ZERO. **`H5` legs deliberately NOT run** |
 | **Twenty-one** | 149–156 | **255 IS the engine's `StencilDummy` — ESTABLISHED** | 🚨 **`FColor::White`, bound when custom depth is not produced.** The range candidate is **REFUTED**, and repairing it would have **silenced the detector and vetoed everything**. Detector no longer names an unestablished cause. ⚠ **Its `D-4` "one-frame ordering" explanation is SUPERSEDED by Part Twenty-two** |
 | **Twenty-two** | 157–161 | **`F-1` refutes the fix direction — the design cannot be written** | 🚨 **The proxy is ALREADY up to date: `SendAllEndOfFrameUpdates` runs inside `BeginRenderingViewFamilies` in the SAME frame.** Zero ticks needed. Pass point and cvar priority also exonerated ⇒ **source-only diagnosis EXHAUSTED**; the unmeasured `r.CustomDepth` is next. `F-4`/`F-5`/`F-6` answered |
+| **Twenty-three** | 162–168 | 🚨 **THE MASK WORKS — 7.25 % vs a 7.80 % banked rect** | Branch **THEY DISAGREE**: cvar is **3 everywhere** (exonerated) but custom depth is produced on **exactly half** the armed frames in a fixed per-burst pattern (mechanism NOT established) — **and my own EVENT-scoped collision discard threw away the frames that did measure** |
 
 ⚠ **ONE INVESTIGATION, FIFTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fifteen;
 the reason it is not split is unchanged).*
@@ -4838,3 +4839,129 @@ identical from outside.** The gate must therefore be **positive evidence**, not 
 **WHAT THIS PART SETTLES: the approved fix would not have worked, and the reason is the same shape as
 the repair it replaced — a change targeting a symptom whose mechanism source refutes. `F-1` was the
 right first question, and asking it before writing the design is the only reason that was caught.**
+
+---
+
+# PART TWENTY-THREE — **THE MASK WORKS.** It has been working on half the frames all along.
+
+🚨 **BRANCH: "THEY DISAGREE" — mode 3 at pass time, custom depth NOT produced on half the armed
+frames. The pre-declared "more interesting one".** **AND A SECOND FINDING THAT IS ENTIRELY MINE: the
+mask has been returning a CORRECT, STABLE measurement on every frame where custom depth was produced,
+and my own collision handling threw it away.**
+⛔ **MEASUREMENT ONLY. NO FIX APPLIED. NO TAG. `P6` NOT MOVED.**
+
+**Branches pre-declared at `CaptureBench 2537a2d`, before any measurement.**
+
+---
+
+## 162. Recorded first: the withdrawal, the banked rule, the adopted gate
+
+- **THE TAG/ARM SEPARATION IS WITHDRAWN, NOT DEFERRED** — `F-1` refutes it at the source (§158).
+- **`F-2`'s RULE IS BANKED** though contingent and now probably moot: *if tag and arm are ever
+  separated, the hidden-state test applies at **TAG**, **ARM** and **RESOLVE** time, and hidden at
+  **ANY** of them yields `NOT_MEASURED`.* **Derived under no pressure, which is when rules are worth
+  writing.**
+- **`F-6` IS ADOPTED IN FULL as the fix gate**, including item 5 — **the 255 detector proven still
+  live, both ways (`G96`)** — *"without it, items 1-4 can all pass on an instrument that has stopped
+  looking."*
+- **`F-4`'s coupling travels:** tags persist to `FinishRun`, so a later event measures under
+  conditions an earlier one created. ⇒ **the instrument reports PER ARMED FRAME and nothing is
+  averaged.** §164 shows why that mattered.
+
+## 163. `M-1` and `M-3` — **THE CVAR IS EXONERATED**
+
+| measurement | result |
+|---|---|
+| **`M-3`** game thread, over time | `beginRun rCustomDepth before=1 after=3` · `finishRun before restore=3` ⇒ **set correctly and never reset during the run** |
+| **`M-1`** render thread, at the pass point, per armed frame | **`rCustomDepth_renderThread=3` on ALL 30 armed frames** |
+
+⇒ ✅ **The last unmeasured link is measured, and it is clean.** The engine default is 1 (*enabled
+WITHOUT stencil writes*) and our `Set(3, ECVF_SetByCode)` reaches the renderer. **It is not the
+cause.**
+
+## 164. 🚨 `M-2` — CUSTOM DEPTH IS PRODUCED ON **EXACTLY HALF** THE ARMED FRAMES, IN A REGULAR PATTERN
+
+**Direct discriminator, decided in advance: `StencilDummy` is `1×1`; the real texture is view-sized.**
+
+**30 armed frames: 15 dummy, 15 real.** And the pattern is **not random** — it is identical in every
+burst:
+
+| arm within event | 1st | 2nd | 3rd | 4th |
+|---|---|---|---|---|
+| `customStencilExtent` | **`1x1` DUMMY** | **`1280x720` REAL** | **`1280x720` REAL** | **`1x1` DUMMY** |
+
+*(ids 6,10,11,12 · 22,26,27,28 · 38,42,43,44 · 54,58,59,60 · 70,74,75,76 · 86,90,91,92 ·
+102,106,107,108 · 118,122 — **seven full events, all identical**.)*
+
+⛔ **THE MECHANISM FOR THE PATTERN IS NOT ESTABLISHED AND IS NOT GUESSED HERE.** What is established:
+it correlates with **position within the burst**, not with anything stochastic, and **the cvar is 3
+throughout**, so it is not a mode problem. *(`blinking`'s half-period is 3 frames and the deferred
+hidden sample is one tick stale (`m20`) — an obvious place to look, and NOT a claim.)*
+
+## 165. 🚨 **THE MASK WORKS.** The numbers on the real frames are correct and stable.
+
+**On every one of the 14 reduced real frames:**
+
+| | |
+|---|---|
+| `totalMasked` | **66,635 – 66,862 px** |
+| `pctOfFrame` | **7.23 – 7.25 %** |
+| spread across 14 frames | **< 0.03 %** |
+
+✅ **AND IT MATCHES THE BANKED GROUND TRUTH.** `StaticMeshActor_49`'s banked figures are **rect 7.8 %
+/ `cov_pct` 7.80**. **The mask reads 7.25 % — the right magnitude and slightly UNDER the bounding
+rect, which is exactly what an occlusion-correct silhouette should be against a rectangle.**
+
+🚨 **THIS IS THE POSITIVE EVIDENCE `F-6` ITEM 1 ASKS FOR, ON THE FRAMES THAT WERE MEASURED. The
+instrument is fundamentally sound. It was never broken — it was being discarded.**
+
+## 166. 🚨 THE SECOND FINDING, AND IT IS MINE: **ONE BAD FRAME DISCARDS A WHOLE EVENT**
+
+**Every event still reports `NOT_MEASURED`, `maxCount=0`, `collisions=2`** — while two of its four
+frames carried a correct ~66,800-pixel measurement.
+
+**Cause, in code I wrote:** `FAnomalyMaskMeasure::CollectResults` does
+
+```
+if (R.CollisionHits > 0) { ArmedRequestToRecord.Remove(RequestId); continue; }
+```
+
+⇒ **the collision flag is EVENT-SCOPED where the observation is FRAME-SCOPED.** A single dummy frame
+sets `CollisionHits`, and from then on **every subsequent frame of that event is skipped before its
+count is ever read** — including the good ones. **The `MAX`-across-frames design (§113.4) was intended
+to take the best frame; the collision check throws the event away before `MAX` ever runs.**
+
+⚠ **THE TWO FAULTS ARE INDEPENDENT.** Even with the alternation unexplained, **a frame-scoped discard
+would have produced `MEASURED_NONZERO` at ~7.25 % on this control.** ⛔ **NOT FIXED THIS TURN — no
+same-turn fix to a validity instrument.**
+
+## 167. Where the pre-declared branches land
+
+| branch | selected? |
+|---|---|
+| mode 3 **and** produced ⇒ cvar exonerated, fault elsewhere | ⛔ no |
+| mode **not** 3, or **not** produced ⇒ mechanism established | ⛔ not as stated |
+| 🚨 **THEY DISAGREE — mode 3 but not produced** | ✅ **SELECTED, and it is the more interesting one, as pre-declared** |
+| `B4` instrument did not report | ⛔ no — 30 armed frames, all reported |
+
+**Plus one outcome no branch anticipated: the instrument's numbers were RIGHT on the frames it
+measured, and a bug in the result-collection discarded them.** ⚠ **Recorded as unanticipated rather
+than folded into a branch.**
+
+## 168. State after PART TWENTY-THREE
+
+| | |
+|---|---|
+| `r.CustomDepth` | ✅ **EXONERATED** — 3 at set, 3 at every pass, 3 at finish |
+| custom depth produced | ⚠ **on exactly half the armed frames, in a fixed per-burst pattern.** Mechanism **NOT established** |
+| the mask itself | ✅ **CORRECT — 7.23–7.25 % against a 7.80 % banked rect, spread < 0.03 % over 14 frames** |
+| why slice 1 reported nothing | 🚨 **event-scoped collision discard throwing away good frames — my bug** |
+| build | exe **`722266A7`** (hot-swap; container unchanged from the `m26` cook, boot re-verified) |
+| leg | `P23_M23_CVAR_CTRL49`, A63 attempt 2 (attempt 1 banked as a pose discard), **B1 PASSED** |
+| unchanged | LOCK-1 · plumbing · module · gates · quartet · range 200/255 · **H5 legs BLOCKED** |
+| ⛔ next | **the owner's ruling — two independent faults, neither fixed** |
+
+**WHAT THIS PART SETTLES: the mask measures correctly. Two separate defects were hiding that — an
+unexplained per-burst alternation in whether custom depth is produced, and an event-scoped discard in
+my own collection code that threw away the frames which did measure. The cvar, the last thing anyone
+could reason about from source, is clean.**
