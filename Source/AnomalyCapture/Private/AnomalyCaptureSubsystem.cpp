@@ -597,7 +597,10 @@ void UAnomalyCaptureSubsystem::SetMaskMeasure(bool bInMask)
 	}
 	bMaskMeasure = bInMask;
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("IAI.Capture.Mask: %s (m26 slice 1: MEASURE ONLY - log output only, no artifact field, no veto)."),
+		TEXT("IAI.Capture.Mask: %s (m26 slices 1+2+3: MEASURE, REPORT and VETO. mask{provided} carries the ")
+		TEXT("measurement tri-state, and an event is REMOVED from annotation.json if and only if it manifested ")
+		TEXT("AND its target was MEASURED at ZERO drawn pixels - no ratio, no threshold. The full banner prints ")
+		TEXT("at IAI.Capture.Start.)"),
 		bMaskMeasure ? TEXT("ON") : TEXT("off"));
 }
 
