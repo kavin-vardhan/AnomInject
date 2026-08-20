@@ -3194,3 +3194,28 @@ a module cannot load before its dependency.**
 3. **The standard pattern is a small dedicated module at `PostConfigInit` that declares only the
    shader**, leaving existing modules' load order untouched. Flipping a module that other modules
    depend on changes load order for all of them. (2026-08-20.)
+
+### G132 — `GFrameCounter` increments BEFORE `OnEndFrame` broadcasts, so an end-of-frame sampler keyed on it looks at the NEXT frame's id
+
+An `FCoreDelegates::OnEndFrame` handler that filters work by `Id == GFrameCounter` matches nothing,
+every frame, silently. The engine increments the counter mid-`FEngineLoop::Tick` — **after** the
+world tick, **before** the end-frame broadcast:
+
+```
+LaunchEngineLoop.cpp:5568   GFrameCounter++;                        // after world tick + render kick-off
+LaunchEngineLoop.cpp:5623   FCoreDelegates::OnEndFrame.Broadcast(); // counter is already N+1 here
+```
+
+So a request stamped with `GFrameCounter` during a subsystem `Tick` (value N) can never be found at
+`OnEndFrame` by comparing against `GFrameCounter` (value N+1). Hit on the first M-4 instrument
+build (journal 045 §170): **0 `M24 ENDFRAME` lines against 30 `M23 PASS` lines** — the pre-declared
+B4 branch ("instrument did not report") is what surfaced it before any conclusion was drawn from
+the silence.
+
+**RULES.**
+1. **Do not re-derive "what happened this tick" from `GFrameCounter` at `OnEndFrame`** — record the
+   ids explicitly at the point of action and consume that list in the handler.
+2. **The two sides of a cross-phase join must be verified to EMIT before the join is read** — an
+   empty join side is indistinguishable from "nothing to report" unless a control quantity (here,
+   the PASS line count) says the other side was live. Same family as G96: the blindness was visible
+   only because the expected count was known. (2026-08-20.)

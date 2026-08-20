@@ -15,13 +15,54 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20. `m26` IS IN PROGRESS: SLICE 1 SHIPPED, ITS MEASUREMENT PROVEN
-  CORRECT, SLICE 1 NOT VALIDATED, TWO FAULTS OPEN. LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING
-  TAGGED SINCE.**
+- 🟩 **YOU ARE HERE — 2026-08-20 (second session). `m26` IS IN PROGRESS: FAULT (i) FIXED AND
+  MEASURED, FAULT (ii) MECHANISM ESTABLISHED AND DELIBERATELY NOT FIXED. LAST SHIPPED MILESTONE IS
+  STILL `m25`; NOTHING TAGGED SINCE.**
   🧭 **COLD START: read `docs/invisible-anomaly-mechanisms.md` (the ledger), then go STRAIGHT to the
   `HANDOFF` section at the END of `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`
-  (PART TWENTY-THREE). THAT HANDOFF IS SELF-CONTAINED — you do not need the twenty-three parts above
-  it.**
+  (PART TWENTY-FOUR). THAT HANDOFF IS SELF-CONTAINED.**
+  ✅ **FAULT (i) FIXED at `795f2a4` — the discard is FRAME-SCOPED.** A polluted read discards that
+  frame only; clean frames feed the MAX. **`MEASURED_ZERO` is reachable ONLY from a clean resolved
+  read; an event with no clean frame stays `NOT_MEASURED` (admit)** — `State` initialises to
+  `NotMeasured` and `CollectResults` writes it only on the clean path. **Measured on the accepted
+  control leg `P24_M26S1F1_CTRL49` (B1 PASSED, modal pose exactly): every full event
+  `arms=4 resolved=4 framesDiscarded=2 framesContributed=2 MEASURED_NONZERO 7.2517–7.2550 %` vs
+  the banked 7.80 % rect — and the frame-cap-truncated final event (all frames discarded) landed
+  `NOT_MEASURED`, the admit path demonstrated live in an artifact.**
+  🚨 **FAULT (ii) MECHANISM ESTABLISHED — journal PART TWENTY-FOUR §171, branches pre-declared at
+  `CaptureBench/tools/p24_fault2_predeclared.md` (`cb299aa`) with refuters BEFORE measuring. THE ARM
+  GATE'S `IsHidden()` READ IS ONE GAME TICK STALE relative to the frame it arms:** the capture
+  subsystem ticks (and arms) before the injector subsystem toggles `blinking`, and the toggle
+  reaches the SAME frame's render (`F-1`'s guarantee — the one that exonerated the tag path — is
+  what makes the hide path bite). Hidden at render ⇒ not in the visible set ⇒
+  `bHasCustomDepthPrimitives` false (`SceneVisibility.cpp:2470`) ⇒ `RenderCustomDepthPass` false
+  (`CustomDepthRendering.cpp:148`) ⇒ `StencilDummy` ⇒ 255. **Measured: 15/15 dummy frames hidden at
+  end-of-frame, 14/14 joined real frames visible, ZERO refuter violations, D-R-R-D ⇔ 1-0-0-1 on all
+  seven events — and the `missing_texture` control (never hidden) produced 32/32 REAL, 0 dummies,
+  8/8 events clean (`framesDiscarded=0 contributed=4 collisions=0`), refuting the
+  unrelated-per-burst-reason candidate.** The write side stays exonerated (0 verify collisions).
+  ⛔ **THE FAULT-(ii) FIX IS NOT DESIGNED AND NOT WRITTEN — owner's call, gate = `F-6` all five
+  items, THEN the `SM_Ramp2` control, THEN the `H5` legs unblock.** 🚨 **Design hazard recorded
+  (§171.4): on a host title that keeps custom depth produced, the same stale arm returns CLEAN
+  `MEASURED_ZERO` with no 255 tell — the fix must close the stale read, not rely on the dummy's
+  loudness.** 📌 **Also FILED NOT FIXED (§172): one stray arm fires after `FinishRun` each leg**
+  (the Tick mask block doesn't check `bRunning`), re-tagging the target post-`RestoreAll`.
+  🆕 **`G132`** — `GFrameCounter++` precedes `OnEndFrame.Broadcast()` (`LaunchEngineLoop.cpp:5568`
+  vs `:5623`), so an end-frame sampler keyed on the counter matches nothing; the first M-4 build
+  reported 0 lines and the pre-declared **B4** branch caught it (fixed at `9f91472`).
+  ✅ **`P6` MEASURED UNCHANGED both ways: 48/48 keys, 0 added 0 removed, `annotation.json` AND
+  `run_summary.json`, post-fix vs pre-fix banked leg.**
+  📦 staged exe **`444D4812`** (hot-swap, built==staged verified; `722266A7` archived FIRST to
+  `_binary_baselines\StackOBot.exe.m26-slice1-m1m3-instrument-722266A7`) · container UNCHANGED
+  (`utoc 9334496D · ucas 62EB0072 · pak 78C977A5`, 4 maps). A44: all four new strings in the
+  STAGED exe. Legs banked: `P24_M26S1F1_CTRL49`, `P24_M26S1F1_MTEX49` (+ per-attempt copies incl.
+  3 pose-discarded first-cycle tries, A63).
+  ⛔ **STILL TRUE: slice 1 NOT `F-6`-VALIDATED (necessary-not-sufficient: the blinking control is
+  green but `SM_Ramp2` and item 5 are owed AFTER the fault-(ii) fix) · slices 2/3 NOT STARTED ·
+  `H5` LEGS BLOCKED · `P6` DOES NOT MOVE · stencil range stays 200/255 · `feature/stencil-capture`
+  READ-ONLY at `76cac74` · NO TAG.**
+- 🟦 *(superseded — the first 2026-08-20 session's state; both faults were then open)* **`m26` SLICE 1
+  SHIPPED, ITS MEASUREMENT PROVEN CORRECT, SLICE 1 NOT VALIDATED, TWO FAULTS OPEN.**
   **`m26` = the `H5` class-(ii) cure: an event whose target is MEASURED to draw nothing is removed
   from `annotation.json` before it is written. Shape (c) deferred veto + (b)'s reporting.**
   · **slice 1 (MEASURE ONLY, log-only, `IAI.Capture.Mask` default OFF) — SHIPPED.**
