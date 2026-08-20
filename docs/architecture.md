@@ -840,6 +840,72 @@ not 1280×720; and **(c)** **above SP 100 only**. M4b reproduces it on the produ
 `make_gate_level.py` (destructive by default — **G99**) and a re-cook (**G92**). The gap is stated, not
 papered over.
 
+### Capture OUTPUT RESOLUTION — a downscale ON WRITE (`m28`)
+
+**The render is ALWAYS native. Only the WRITTEN frame is resampled.** This shape was chosen because
+the `m26`/`m27` stencil mask counts at the view's render resolution — `SceneColor.ViewRect` at the
+Tonemap pass (`AnomalyMaskSceneViewExtension.cpp`), reduced over `Item.ViewRectSize` — and **never
+sees the capture output buffer**, so a write-time downscale **structurally cannot reach the veto**.
+Selection, labelling geometry and the mask are untouched: `AnomalyViewport.*`, `AnomalyMaskMeasure.*`
+and `AnomalyMaskSceneViewExtension.*` gained **not one line**.
+
+| | |
+|---|---|
+| **the knob** | **ONE: target output HEIGHT.** `0` = NATIVE (no resample; the written bytes are identical to a pre-`m28` build). |
+| **width** | ⛔ **THERE IS NO WIDTH PARAMETER.** It is derived from each frame's own aspect. A non-aspect-preserving output is **UNREPRESENTABLE, not guarded against** — the projection matrix takes its aspect from `GetViewportSize()` (`AnomalyViewport.cpp`), so a stretched output would silently invalidate every `bbox` and coverage figure. |
+| **derivation** | `AnomalyLabel::DeriveOutputSize` — the ONE place `D2`'s rules exist. `H` snapped to the nearest EVEN, min 2; `W = SnapEven(round(H·Wsrc/Hsrc))`, min 2, never exceeding `Wsrc`. **NEVER UPSCALES:** a request at or above the frame's own height yields native and no resample runs. |
+| **when** | **PER FRAME, from the frame in hand** — never from `GetViewportSize()`. |
+| **the filter** | **AREA / BOX**, fractional edge weights, in `AnomalyLabel::ResampleAndEncodeBGRA`. **Not point, not bilinear** — point sampling destroys thin features, and thin features are the evidence class this project protects. |
+| **the ONE site** | `ResampleAndEncodeBGRA` is the **sole** resample in the codebase. Two invocation points, both "the last moment BGRA exists before encode": the async writer path and `CaptureLabeledShot` (which serves both the sync fallback and `IAI.Capture.Shot`). |
+| ⚠ **why not `EncodePixels`** | It is the nearest common function of all three write paths **and it is CONTAMINATED**: `AnomalyPreviewTee.cpp` calls it too. Resampling there would silently downscale the live preview, which is the coordinate frame the dashboard's click-to-select maps against. **The preview is untouched BY CONSTRUCTION.** |
+
+**ONE derived pair reaches every consumer, and each one is a single argument change:**
+the resampler · `labels.jsonl` `width`/`height` · **every `bbox_px`** (it is already computed from the
+same `W,H` at `AnomalyLabelWriter.cpp`, so it follows for free — **no new scaling code was written**,
+which is the entire reason the pair is threaded rather than re-derived) · `annotation.video.resolution`.
+
+🎯 **`annotation.video.resolution` NOW COMES FROM THE FIRST WRITTEN FRAME'S REAL DIMENSIONS**, reported
+back by the writer, not from `GetViewportSize()` at `StartRun`. A later frame of differing size emits a
+loud WARNING naming both pairs. **A session that writes no frame reports `[0,0]` plus a warning** — it
+deliberately does NOT fall back to the viewport, which is the quantity that was wrong. **`run.json`'s
+`viewport` is UNCHANGED and still reports `GetViewportSize()`** — the two fields now answer different
+questions on purpose. **No new fields and no new counters were added to any delivered artifact.**
+
+**PRECEDENCE, highest first**, resolved in `StartRun`, with **`-1` meaning ABSENT and `0` meaning a
+deliberate request for NATIVE** — the sentinel is what keeps every level distinguishable:
+
+| # | source | how |
+|---|---|---|
+| 1 | per-run argument | dashboard `outputHeight` in `capture_start`; console `IAI.Capture.Start … oh=<n>` |
+| 2 | between-runs override | `IAI.Capture.OutputHeight <height\|0\|-1>` (`-1` clears) |
+| 3 | ini | `DefaultGame.ini` `[AnomalyCapture] CaptureOutputHeightDefault` |
+| 4 | compiled default | `0` (native) |
+
+**ONE UNCONDITIONAL `StartRun` line names the requested height and WHICH LEVEL WON** (`G139`), and a
+separate **first-frame line carries the MEASURED `native WxH -> output WxH`** — the authoritative pair.
+⚠ **The `StartRun` line deliberately carries NO `WxH`:** at `StartRun` no frame has been grabbed, so the
+only available source would be `GetViewportSize()`. The viewport-vs-frame disagreement is already
+instrumented by the **RESOLUTION DELTA (3-rect)** line; a second predictor of the same quantity is
+duplication, not evidence.
+
+📌 **`resamples_performed` is INTERNAL/LOG ONLY** and is deliberately **not** in `run_summary.json`. It
+increments **only on the successful-write branch**, in lockstep with `FramesWritten`, so it reads
+EXACTLY `0` on a native run and EXACTLY `framesWritten` on a downscaled one.
+
+⚠ **THE ONE DECLARED RESIDUAL:** because `H_out` is snapped even and `W_out` is derived and snapped
+even, the delivered image's aspect can differ from the render's by up to about **one part in a
+thousand**. Labels stay EXACTLY consistent with the delivered pixels — `bbox_px`, `labels`
+`width`/`height` and `video.resolution` all use the **same** derived pair. What drifts is only the
+render projection aspect versus the output image aspect. **Sub-pixel, declared in advance, not gated.**
+
+⛔ **NO ALIGNMENT CLAIM IS EXTENDED.** The matrix above certifies alignment at **1280×720 and 1281×721
+only**. `m28` can produce output sizes outside that set and **certifies nothing at them.**
+
+📌 **The host encoder needs no change:** `encode_watcher.py` already pads odd dimensions to even
+(`-vf pad=ceil(iw/2)*2:ceil(ih/2)*2`), and a derived pair is always even, so the pad becomes a no-op on
+downscaled runs. `verify_capture.py` / `overlay_watcher.py` also need none — they draw from
+`labels.jsonl` onto the frames, and both now carry the output pair.
+
 ⚠ **ALIGNMENT is certified at 1280×720 and 1281×721 ONLY.** B1's pose precondition compares a **PIXEL**
 bbox against `CALIB_BBOX`, frozen at 1280×720 with an 8 px tolerance, so it **cannot run at any other
 resolution** — four legs were blocked by it and **three of the four had a provably motionless camera**

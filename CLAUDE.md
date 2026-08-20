@@ -15,7 +15,72 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (latest). 🎯 `m27` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.
+- 🟩 **YOU ARE HERE — 2026-08-20 (latest). 🔨 `m28` IS BUILT AND PUSHED, `NOT TAGGED`, AND
+  ⛔ NOT ONE GATE HAS RUN.** Plugin `master` pushed; AnomDash pushed. **The owner presses Play;
+  every gate leg is waiting on him.** 🧭 **The runbook for those legs was handed over in chat —
+  gates `A`–`I`, pre-declared VERBATIM at `docs/predictions/2026-08-20-m28-gates.md` (+ AMENDMENT 1).
+  Read that file before reading any result.** Journal: `docs/sessions/2026-08-20-047-m28-output-resolution.md`.
+  🎯 **`m28` = ONE capture knob, a target output HEIGHT, as a DOWNSCALE ON WRITE. The render stays
+  native; only the WRITTEN frame is resampled.** ⛔ **THERE IS NO WIDTH PARAMETER AND THERE MUST
+  NEVER BE ONE** — width is derived from each frame's own aspect, so a non-aspect-preserving output
+  is **UNREPRESENTABLE, not guarded against**. `0` = native and the written bytes are identical to a
+  pre-`m28` build.
+  🚨 **WHY THIS SHAPE IS SAFE, ESTABLISHED FROM SOURCE BEFORE ANY CODE: the `m26`/`m27` mask counts
+  at the VIEW'S RENDER RESOLUTION (`SceneColor.ViewRect` at the Tonemap pass) and NEVER SEES THE
+  CAPTURE OUTPUT BUFFER, so a write-time downscale STRUCTURALLY CANNOT REACH THE VETO.**
+  `AnomalyViewport.*`, `AnomalyMaskMeasure.*` and `AnomalyMaskSceneViewExtension.*` gained **not one
+  line** — that is the premise, and **`GATE D` is the control that proves it** (every `bbox_norm`
+  identical across a native/downscale pair at one seed; if any MOVES, the design is wrong and the
+  standing instruction is STOP AND REPORT, no same-turn fix).
+  🎯 **THE DEFECT `m28` ACTUALLY FIXES, from survey S0:** `annotation.video.resolution` came from
+  `GetViewportSize()` at `StartRun`, **not from any written frame**, and in DELIVERY MODE
+  `labels.jsonl` is not written at all — so **a delivered dataset contained NO artifact recording
+  the true dimensions of its own pixels.** It now comes from the **FIRST WRITTEN FRAME**.
+  **`run.json`'s `viewport` is UNCHANGED** and still reports `GetViewportSize()`; the two fields now
+  answer different questions on purpose. **No new fields, no new counters in any delivered artifact.**
+  📌 **PRECEDENCE (`G139`'s pattern, applied before it could bite):** per-run argument (dashboard
+  `outputHeight` / console `oh=<n>`) → `IAI.Capture.OutputHeight` → `DefaultGame.ini`
+  `[AnomalyCapture] CaptureOutputHeightDefault` → compiled default `0`. **`-1` means ABSENT and `0`
+  means a deliberate NATIVE** — the sentinel is what keeps every level distinguishable, so **`m27`'s
+  FINDING 3 disjunction problem does NOT recur here.**
+  ⚖ **`D7` WAS SELF-CONTRADICTORY AGAINST `D3` AND THE RULING WAS TO CUT, NOT ADD.** At `StartRun` no
+  frame has been grabbed, so naming "native WxH" there could only come from `GetViewportSize()` — the
+  source `D3` forbids. **The `StartRun` line therefore carries REQUESTED HEIGHT + PROVENANCE ONLY**;
+  the authoritative pair is logged from the first written frame. **The viewport-vs-frame disagreement
+  was ALREADY instrumented by the RESOLUTION DELTA (3-rect) line — a second predictor is duplication,
+  not evidence.** `GATE B` was re-aimed at the measured line, recorded as **AMENDMENT 1 before any
+  leg ran** (a TIGHTENING; it now tests the whole chain from grabbed frame to written file).
+  🆕 **`GATE I` ADDED for the same reason the defect existed:** every other leg runs delivery OFF
+  because `GATE D` needs `labels.jsonl`, so **without it the fix would never be tested in the mode
+  client captures actually use.**
+  ⚠ **`D6` ASKED FOR ONE RESAMPLE SITE AND THE THREE WRITE PATHS DO NOT CONVERGE ON A SAFE ONE.**
+  Reported rather than duplicated: the nearest common function is `AnomalyPreview::EncodePixels` and
+  it is **CONTAMINATED — `AnomalyPreviewTee.cpp` calls it too**, so resampling there would silently
+  downscale the live preview, which is the dashboard's click-to-select coordinate frame. As built:
+  **ONE implementation, TWO invocation points, preview untouched BY CONSTRUCTION.**
+  🎯 **`bbox_px` NEEDED NO NEW CODE** — it is already computed from the same `W,H` the labels carry,
+  so threading ONE derived pair fixes the resampler, `labels.jsonl` `width`/`height`, every `bbox_px`
+  and `video.resolution` together. **Two derivations would be two chances to disagree.**
+  ✅ **`W1` FIXED, and it was worse than "a typo bug": `bPng = !Format.Equals("jpeg")` meant `"jpg"`
+  silently produced PNG while the console accepted both spellings, every unrecognised string became
+  PNG with NO warning, and the failure is INVISIBLE IN THE ARTIFACT because `run.json` faithfully
+  records `"png"` — the value actually used.** → **`G144`**. ⛔ **`W2` FILED NOT FIXED** (the format
+  is never echoed back) under **`G139`**, not the mechanisms ledger — owner-ruled.
+  🆕 **`G143`** (`git tag -l --format='%(objectname:short)'` prints the TAG OBJECT for an annotated
+  tag, not the commit — it made a CORRECT repo look mismatched at cold start; **use
+  `git rev-parse --short <tag>^{commit}`**, now folded into the Workflow rules below) · **`G144`**
+  (a parser mapping "everything else" to a default turns a typo into a silent behaviour change).
+  ⚠ **DECLARED RESIDUAL, stated BEFORE measurement:** even-snapping both axes lets the delivered
+  aspect differ from the render's by up to ~one part in a thousand. **Labels stay EXACTLY consistent
+  with the delivered pixels** (same derived pair everywhere); only the render-vs-output aspect drifts.
+  Sub-pixel, not gated. ⛔ **NO ALIGNMENT CLAIM IS EXTENDED — `m25` certifies 1280×720 and 1281×721
+  ONLY, and `m28` certifies nothing at any new size.**
+  ⚠ **I DID NOT VISUALLY VERIFY THE DASHBOARD CONTROL** — `App.tsx` returns `ConnectScreen` until a
+  live WS connection exists, so it is unreachable without PIE. It is in the owner's runbook.
+  ⛔ **`H6` REMAINS DOCUMENTED, NOT FIXED · `P6` DID NOT MOVE · `m26`/`m27` tags NOT moved ·
+  `feature/stencil-capture` UNTOUCHED at `76cac74` · NO RATIO OR THRESHOLD ANYWHERE.**
+- 🟦 *(superseded as "you are here" by the `m28` entry above — `m27` is the last SHIPPED, TAGGED state)*
+  **2026-08-20. 🎯 `m27` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.
   THE OWNER'S PLAY-GATE SMOKE PASSED IN REAL GAMEPLAY.** Plugin `4a92962`, tag **`m27`**, pushed;
   AnomDash `b8273c2`, pushed. ⛔ **Do not start anything new unprompted — the next milestone is the
   owner's call.**
@@ -3065,6 +3130,20 @@ and is the single source of truth for the project.
   milestones diff cleanly (`m1..m2`, and a changelog can be auto-derived later). The git repo is the
   plugin folder (`master`); host scaffolding lives outside it and is not committed here. **Before every
   commit, run the comment stripper (see Invariants) — the source must stay comment-free.**
+- ⚠ **COLD-START TAG VERIFICATION — USE `rev-parse`, NOT `git tag -l --format`.** To confirm which
+  commit a milestone tag points at:
+  ```
+  git rev-parse --short m26^{commit}
+  git rev-parse --short m27^{commit}
+  ```
+  **Why this is written down: our tags are ANNOTATED, so `git tag -l m27 --format='%(objectname:short)'`
+  prints the TAG OBJECT's hash, not the commit's** — `m26` reads `4328961` and `m27` reads `1756f52`
+  that way, against the real commits `d6bee7a` and `4a92962`. A cold session comparing those against a
+  handoff doc sees a MISMATCH ON A REPO THAT IS CORRECT, and the pre-declared response to a bootstrap
+  mismatch is to halt. `%(*objectname:short)` (with the asterisk) also dereferences, but `rev-parse
+  <tag>^{commit}` is the form that cannot be got subtly wrong. *(2026-08-20, m28 Stage 0 — the
+  instruction sheet itself carried the broken form; `G142`'s shape, the CHECKER wrong and not the
+  build.)*
 - **PUSH — CODE OWNS PUSHES (standing rule, 2026-07-29; SUPERSEDES the old "owner owns remote pushes").**
   When work is committed and gated, **push it yourself, including tags.** Do not wait for the owner to push —
   the old rule added a round trip and nothing else. **KEEP:** before pushing, report `git status` +

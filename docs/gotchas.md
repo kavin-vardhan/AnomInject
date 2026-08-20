@@ -3551,6 +3551,100 @@ It costs nothing there and must not motivate a cook of its own. **`G118`'s cooke
 item travels the same way and should be cleared in the same pass.**
 (Filed 2026-08-20, `m27`.)
 
+---
+
+⛔ **SECOND FILED ITEM, DELIBERATELY NOT FIXED AT `m28` — THE CAPTURE FORMAT IS NEVER ECHOED
+BACK TO THE OPERATOR (`W2`).**
+
+`capture_start` accepts a `format` field and the engine honours it end to end
+(`AnomalyControlServerSubsystem.cpp` → `bFormatPng` → the writer). **But nothing reports it
+back.** `ControlSnapshot.cpp` carries no capture-format field and the `capture_stopped` reply
+does not include one, so **the dashboard's format select is fire-and-forget**: the operator
+cannot confirm from the UI which format the run actually used.
+
+It IS recorded after the fact in `run.json`'s `"format"` — so this is a **latency of
+feedback**, not a loss of the record, which is why it is filed rather than fixed.
+
+⚠ **WHY IT IS FILED HERE AND NOT IN `docs/invisible-anomaly-mechanisms.md`:** that ledger is
+for **invisible-anomaly MECHANISMS** only. A missing echo is this gotcha's own subject —
+*report the EFFECTIVE value* — so `G139` is the correct anchor. **Owner-ruled, `m28`.**
+
+📌 **`m28` DID fix the other half (`W1`)**: the same parser used to fall back to PNG **silently**
+on any unrecognised string, and it now warns. **The value is reported when it is WRONG; it is
+still not reported when it is RIGHT.** See **`G144`**.
+(Filed 2026-08-20, `m28`.)
+
+---
+
+### G144 — A PARSER THAT MAPS "EVERYTHING ELSE" TO A DEFAULT TURNS A TYPO INTO A SILENT BEHAVIOUR CHANGE
+
+Until `m28` the control server chose the capture image format like this:
+
+```cpp
+const bool bPng = !Format.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase);
+```
+
+**Three separate defects live in that one line, and all three are invisible at runtime.**
+
+1. **`"jpg"` SILENTLY PRODUCED PNG.** The console command accepted **both** spellings
+   (`AnomalyCaptureSubsystem.cpp`, and `IAI.Capture.Shot` likewise), so the SAME WORD meant
+   different things depending on which surface you typed it into. Nothing anywhere said so.
+2. **EVERY unrecognised string became PNG**, with no warning — a typo, a future caller, a
+   different client, all silently redirected to the default.
+3. **The failure is INVISIBLE IN THE ARTIFACT**, because `run.json` faithfully records `"png"` —
+   the value that was actually used. The record is honest; it just records the wrong intent.
+   ⚠ **A correct-looking artifact is the worst place for a defect to hide.**
+
+**RULES.**
+1. **Never write `bFlag = !(x == "oneValue")`.** Enumerate the accepted values explicitly and give
+   the no-match case its own branch. A boolean derived by negating one comparison silently claims
+   that everything in the universe except one string means the other thing.
+2. **THE NO-MATCH BRANCH MUST BE LOUD**, and the warning must name **the unrecognised value AND
+   the fallback taken** — "unrecognised format" alone does not tell the operator what they got.
+3. **DISTINGUISH ABSENT FROM WRONG.** An omitted field is a caller legitimately taking the
+   default and must stay silent; a present-but-unparseable field is an error and must not. `m28`
+   treats empty/absent as silent and everything else non-matching as a warning.
+4. **Accept every spelling your other surfaces accept, or make them all reject it.** The
+   divergence is worse than either policy.
+5. ⚠ **This is `G96` again:** the fallback branch existed for the whole life of the feature and
+   had **never once been observed to fire**, because firing it produced no output. **A guard that
+   cannot be seen firing is not a guard, and neither is a fallback.** Gate G for `m28` therefore
+   requires the warning to be *demonstrated* firing, not merely present in the source.
+(2026-08-20, `m28`.)
+
+---
+
+### G145 — a PowerShell here-string passed to `git commit -m` LOSES ITS EMBEDDED DOUBLE QUOTES
+
+`git commit -m @'…'@` with a literal here-string looks safe — single-quoted, no `$` expansion, the
+`G141` trap avoided. **The message still arrives with every `"` stripped.** PowerShell 5.1 hands the
+string to the native executable through Windows argument re-parsing, which consumes the inner quotes.
+
+**MEASURED, twice in one turn (`m28`):**
+
+| written | committed |
+|---|---|
+| ``bPng = !Format.Equals("jpeg")`` | `bPng = !Format.Equals(jpeg)` |
+| `a parser that maps "everything else" to a default` | **the argument SPLIT** — git reported `error: pathspec 'else to a default …' did not match any file(s)` |
+
+⚠ **THE TWO FAILURE MODES ARE NOT EQUALLY VISIBLE, AND THE QUIET ONE IS WORSE.** The second failed
+loudly and cost nothing. **The first SUCCEEDED** — a commit landed, and only a deliberate read-back
+showed the quotes gone. It was a commit **about string-literal matching**, so the mangling removed
+exactly the characters carrying the meaning.
+
+**RULES.**
+1. **Write the message to a file and use `git commit -F <file>`.** Author the file with the editor
+   tool, never `Set-Content`/`Out-File` (`G141` — BOM).
+2. **`-m` with a here-string is acceptable ONLY for messages containing no `"` at all.** In this
+   project's commit style — which quotes identifiers, log strings and ini keys constantly — that is
+   almost never true.
+3. **READ THE MESSAGE BACK after committing**, the same way `G115` says to read the diffstat before:
+   `git log -1 --format=%B`. Both checks are mechanical and both exist because the failure is silent.
+4. **Amending is correct here and is not an exception to the prefer-a-new-commit rule:** the commit
+   was **unpushed**, so nothing was rewritten for anyone else, and a follow-up commit that only fixes
+   prose is worse than a clean amend. The rule guards shared history, not local drafts.
+(2026-08-20, `m28`.)
+
 ### G140 — changing the SELECTABLE SET changes SEEDED SELECTION, so banked runs stop being comparable across the change
 
 `m27` excludes `AInstancedFoliageActor` from `IsRenderableComponent`. That predicate feeds
@@ -3659,3 +3753,38 @@ that should NOT.** Here the known-good input existed for free and was not used �
 two runs happened to be exactly that pair, and the script only survived because the numbers
 were read by hand afterwards.
 (2026-08-20.)
+
+---
+
+### G143 — `git tag -l --format='%(objectname:short)'` PRINTS THE TAG OBJECT, NOT THE COMMIT, AND OUR TAGS ARE ANNOTATED
+
+A cold-start instruction sheet asked for tag verification with:
+
+```
+git tag -l m26 m27 --format='%(refname:short) %(objectname:short)'
+```
+
+It printed `m26 4328961` and `m27 1756f52`, against expected commits `d6bee7a` and `4a92962`.
+**Both numbers were wrong and the repository was perfectly correct.** For an **annotated** tag
+`%(objectname)` is the hash of the TAG OBJECT — a real object with its own message, tagger and
+date — and the commit hangs off it. `%(*objectname)`, with the asterisk, is the dereferenced
+commit.
+
+⚠ **THE COST IS NOT THE CONFUSION, IT IS THE HALT.** Bootstrap contracts here say *"if any of
+that does not match, STOP and report before continuing"* — correctly, because a repo in an
+unexpected state is exactly when work should not proceed. So a defect in the CHECK spends the
+session's most expensive response on a non-event. This is **`G142`'s shape one level up**: the
+checker was wrong, not the build, and it wore the costume of a build failure.
+
+**RULES.**
+1. **Verify a tag with `git rev-parse --short <tag>^{commit}`.** It is unambiguous, it cannot be
+   got subtly wrong, and it reads identically for annotated and lightweight tags.
+2. **A hash that "looks like a hash" is not evidence it is the RIGHT KIND of hash.** Both values
+   above are valid 7-hex object names. Nothing about the output announced that it was answering a
+   different question from the one asked.
+3. ⚠ **Do not silently "fix" a bootstrap mismatch by adjusting the expectation.** Establish which
+   side is wrong first. Here the instruction was wrong; had the tag genuinely moved, the same
+   output would have meant something entirely different and far worse.
+4. This generalises to every `--format` field that has a `*`-prefixed sibling: the unprefixed form
+   answers *about the ref's own object*, not *about what it eventually points to*.
+(2026-08-20, m28 Stage 0.)
