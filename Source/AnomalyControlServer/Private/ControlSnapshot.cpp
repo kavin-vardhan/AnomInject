@@ -184,7 +184,7 @@ namespace ControlSnapshot
 				{
 					for (const FAnomalyCatalogEntry& E : Inj->GetAnomalyCatalog())
 					{
-						if (E.Scope == EAnomalyScope::Object)
+						if (E.Scope == EAnomalyScope::Object || E.Scope == EAnomalyScope::Global)
 						{
 							Pool->SetBoolField(E.Id.ToString(), Auto->IsAnomalyEnabled(E.Id));
 						}

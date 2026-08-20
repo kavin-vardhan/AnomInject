@@ -969,6 +969,8 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	PhaseFramesLeft = PreFrames;
 	bRunBegun = true;
 
+	ApplySessionGlobals();
+
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
 		*RunDir,
@@ -1487,6 +1489,18 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 
 		TArray<FAutoLiveFireInfo> Fires;
 		if (Auto) { Fires = Auto->GetLiveFires(); }
+		if (ActiveSessionGlobals.Num() > 0)
+		{
+			if (IsNearClipSlicingNow())
+			{
+				AppendSessionGlobalFires(Fires);
+				++SessionGlobalPositiveFrames;
+			}
+			else
+			{
+				++SessionGlobalNegativeFrames;
+			}
+		}
 		TArray<uint8> Hidden;
 		TArray<FVector> Pos;
 		Hidden.Reserve(Fires.Num());
@@ -1595,6 +1609,18 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 	{
 		Snap->Fires = Auto->GetLiveFires();
 	}
+	if (ActiveSessionGlobals.Num() > 0)
+	{
+		if (IsNearClipSlicingNow())
+		{
+			AppendSessionGlobalFires(Snap->Fires);
+			++SessionGlobalPositiveFrames;
+		}
+		else
+		{
+			++SessionGlobalNegativeFrames;
+		}
+	}
 	Snap->FirePos.Reset();
 	Snap->FirePos.Reserve(Snap->Fires.Num());
 	for (const FAutoLiveFireInfo& F : Snap->Fires)
@@ -1605,6 +1631,131 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 
 	DeferredHiddenFrameId = ArmedLabelFrameId;
 	bHasDeferredHidden = true;
+}
+
+void UAnomalyCaptureSubsystem::ApplySessionGlobals()
+{
+	ActiveSessionGlobals.Reset();
+	SessionGlobalPositiveFrames = 0;
+	SessionGlobalNegativeFrames = 0;
+	SessionGlobalBaselineNearClip = GNearClippingPlane;
+
+	if (bTargetedMode)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	if (!Injector || !Auto)
+	{
+		return;
+	}
+
+	for (const FAnomalyCatalogEntry& Entry : Injector->GetAnomalyCatalog())
+	{
+		if (Entry.Scope != EAnomalyScope::Global || !Auto->IsAnomalyEnabled(Entry.Id))
+		{
+			continue;
+		}
+		if (Injector->ApplyAnomaly(Entry.Id, TArray<FString>()))
+		{
+			ActiveSessionGlobals.Add(Entry.Id);
+		}
+		else
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(session-global): '%s' is enabled in the pool but its Apply returned false - it is NOT active for this session."),
+				*Entry.Id.ToString());
+		}
+	}
+
+	if (ActiveSessionGlobals.Num() > 0)
+	{
+		TArray<FString> Names;
+		for (const FName& Id : ActiveSessionGlobals) { Names.Add(Id.ToString()); }
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("=== Capture(session-global): APPLIED FOR THE WHOLE SESSION: %s. Baseline near-clip was %.3f, it is now %.3f. ")
+			TEXT("These are held from StartRun to FinishRun and NEVER routed through the auto-injector's per-burst fire path, ")
+			TEXT("so no target actor is drawn and no '=ActorName' token is ever built for them. ")
+			TEXT("A frame is labelled positive ONLY when geometry is actually within the near-clip radius - the near plane being ")
+			TEXT("wrong is not the same as the viewer seeing anything wrong. ==="),
+			*FString::Join(Names, TEXT(", ")), SessionGlobalBaselineNearClip, GNearClippingPlane);
+	}
+}
+
+void UAnomalyCaptureSubsystem::RevertSessionGlobals()
+{
+	if (ActiveSessionGlobals.Num() == 0)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	if (Injector)
+	{
+		for (const FName& Id : ActiveSessionGlobals)
+		{
+			Injector->RevertAnomaly(Id);
+		}
+	}
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("=== Capture(session-global): REVERTED %d id(s). Near-clip is now %.3f (baseline at StartRun was %.3f). ")
+		TEXT("Frames labelled positive: %d, negative: %d - the split is the near-clip PROXIMITY QUERY, not the session flag. ==="),
+		ActiveSessionGlobals.Num(), GNearClippingPlane, SessionGlobalBaselineNearClip,
+		SessionGlobalPositiveFrames, SessionGlobalNegativeFrames);
+
+	ActiveSessionGlobals.Reset();
+}
+
+bool UAnomalyCaptureSubsystem::IsNearClipSlicingNow() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	FAnomalyViewInfo View;
+	if (!AnomalyViewport::GetActiveViewInfo(World, View))
+	{
+		return false;
+	}
+
+	const float Radius = GNearClippingPlane;
+	if (Radius <= 0.0f)
+	{
+		return false;
+	}
+
+	FCollisionQueryParams Params(FName(TEXT("AnomalyNearClipProbe")), false);
+	if (const APlayerController* PC = World->GetFirstPlayerController())
+	{
+		if (const APawn* Pawn = PC->GetPawn())
+		{
+			Params.AddIgnoredActor(Pawn);
+		}
+	}
+
+	return World->OverlapAnyTestByChannel(View.Origin, FQuat::Identity, ECC_Visibility,
+		FCollisionShape::MakeSphere(Radius), Params);
+}
+
+void UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo>& InOutFires) const
+{
+	for (const FName& Id : ActiveSessionGlobals)
+	{
+		FAutoLiveFireInfo F;
+		F.Id = Id;
+		F.Target = FString();
+		F.TargetActor = nullptr;
+		F.SecondsRemaining = 0.0f;
+		F.StartFrame = (uint64)StartFrame;
+		InOutFires.Add(F);
+	}
 }
 
 void UAnomalyCaptureSubsystem::SampleDeferredHidden()
@@ -1853,6 +2004,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		{
 			DrainAsyncToCompletion();
 		}
+
+		RevertSessionGlobals();
 
 		ComputeRunPacing();
 
@@ -2182,6 +2335,12 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 				Ev->CoverageSum += FMath::Max(0.0, BoxW) * FMath::Max(0.0, BoxH);
 				++Ev->CoverageCount;
 			}
+		}
+		else if (ActiveSessionGlobals.Contains(F.Id))
+		{
+			Ev->AffectedFrames.Add(SessionIndex);
+			Ev->CoverageSum += 1.0;
+			++Ev->CoverageCount;
 		}
 
 		const int32 Hidden = (FireHidden.IsValidIndex(i) && FireHidden[i]) ? 1 : 0;

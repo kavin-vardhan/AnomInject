@@ -132,6 +132,16 @@ private:
 		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds);
 	void WriteSessionAnnotationFile();
 
+	void ApplySessionGlobals();
+	void RevertSessionGlobals();
+	bool IsNearClipSlicingNow() const;
+	void AppendSessionGlobalFires(TArray<struct FAutoLiveFireInfo>& InOutFires) const;
+
+	TArray<FName> ActiveSessionGlobals;
+	float SessionGlobalBaselineNearClip = 0.0f;
+	int32 SessionGlobalPositiveFrames = 0;
+	int32 SessionGlobalNegativeFrames = 0;
+
 	const TCHAR* DescribeGrabPoint() const;
 	void EnsureCapturer();
 	void ProcessCompletedFrames();

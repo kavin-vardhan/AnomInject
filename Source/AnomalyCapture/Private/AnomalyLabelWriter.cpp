@@ -66,6 +66,12 @@ namespace
 			{
 				bValid = AnomalyViewport::ProjectActorBoundsToScreenRect(View, Actor, Min, Max);
 			}
+			else if (F.Target.IsEmpty())
+			{
+				Min = FVector2D(0.0, 0.0);
+				Max = FVector2D(1.0, 1.0);
+				bValid = true;
+			}
 			O->SetBoolField(TEXT("bbox_valid"), bValid);
 
 			O->SetArrayField(TEXT("bbox_norm"), { LabelNum(Min.X), LabelNum(Min.Y), LabelNum(Max.X), LabelNum(Max.Y) });
