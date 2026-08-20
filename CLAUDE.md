@@ -15,12 +15,57 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (ninth session). 🎯 `m26` IS FUNCTIONALLY COMPLETE: SLICES 1, 2
-  AND 3 ALL SHIPPED AND GATED. THE VETO IS ZERO-ONLY AND IT FIRES. ⛔ NEXT IS THE OWNER'S PLAY-GATE
-  SMOKE, WHICH THE OWNER WILL BRIEF — NO TAG UNTIL THEN. LAST SHIPPED MILESTONE IS STILL `m25`.**
+- 🟩 **YOU ARE HERE — 2026-08-20. 🎯 `m26` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.**
+  **`m26` = the `H5` class-(ii) cure: an event whose target is MEASURED to draw ZERO pixels is
+  removed from `annotation.json` before it is written. Slices 1, 2 and 3 all gated; `F-6` complete;
+  the OWNER PLAY-GATE SMOKE PASSED in real gameplay, including the AUTO-POOL path no bench leg ever
+  exercised.** ⛔ **Do not start anything new unprompted — the next milestone is the owner's call.**
   🧭 **COLD START: read `docs/invisible-anomaly-mechanisms.md` (the ledger), then go STRAIGHT to the
   `HANDOFF` section at the END of `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`
-  (PART THIRTY-ONE). THAT HANDOFF IS SELF-CONTAINED.**
+  (PART THIRTY-TWO). THAT HANDOFF IS SELF-CONTAINED.**
+  🎯 **THE SMOKE, THREE TESTS IN REAL CONTENT ON `MainWorld`:** **A** targeted `BP_SplineSpawn_C` —
+  `vetoed_events 8`, `anomalies []`, 90 PNGs intact · **B** targeted `InstancedFoliageActor_0_0_0` —
+  **0 vetoed, 8 kept: THE RULE'S OWN GUARD HELD** · **C AUTO-POOL** (the new coverage — the selector
+  picking its own targets with the veto live) — 8 events, 4 kept / 4 vetoed, **ALL FOUR
+  `state=MEASURED_ZERO`**, `countedEventsBefore=8 After=4 vetoed=4`, **`notMeasured=0`**.
+  ⚠ **Three of the four vetoed events show `framesNoPass=1 collisions=1` beside
+  `framesContributed=3` — the frame-scoped discard working as designed: one polluted frame dropped,
+  three clean frames contributing, MAX = 0 ⇒ MEASURED_ZERO. These are measured zeros, not
+  unexamined ones.**
+  🚨 **THE VETO RULE (ruled; NEVER re-open by proposing a ratio): veto IFF manifested AND
+  `MEASURED_ZERO`. `NOT_MEASURED` never vetoed; a measured NON-ZERO count never vetoed however small
+  a fraction of its claimed extent. NO RATIO, NO THRESHOLD — the owner's reasoning is verbatim in
+  the tag scope statement and at journal §209.**
+  🚨 **THE ACCEPTED COST, QUOTE IT RATHER THAN SOFTEN IT: `m26` is a PARTIAL cure for `H5`. It
+  removes the zero-contribution case and LEAVES THE OVER-CLAIM CASE** — the foliage (5,689–13,342 px
+  against a 921,600 px claim) ships as a valid label. **`m26` does NOT close `P1`, does NOT cure
+  `H4`, and `H5` class (i) is still ENUMERATED-NOT-OBSERVED.**
+  🆕 **FINDING 1 — `L3` IS LIVE AND SHARPER THAN RECORDED:** *"in a single delivery-OFF session
+  folder, `annotation.json` and `labels.jsonl` NOW DISAGREE ON EVENT CONTENT"* — a fully-vetoed
+  session ships `anomalies: []` beside **59 label rows asserting `anomaly_present` and
+  `visible_positive`**. ✅ **NO CLIENT IMPACT** (delivery mode never writes `labels.jsonl`) ⚠ **but
+  OWNER-SIDE OVERLAY TOOLING WILL DRAW BOXES FOR VETOED EVENTS: `tools/verify_capture.py`, invoked
+  by `overlay_watcher.py` — which exists in THREE copies (`host-tools\`,
+  `anomaly-dashboard\host-tools\`, `_M2Smoke\host-tools\`). The Dashboard app itself is NOT
+  affected.** ⛔ **DELIBERATELY NOT FIXED** — a separate change with its own gates.
+  🆕 **FINDING 2 — a prediction of MINE that did not fire, recorded as an OBSERVATION (n=1):** I
+  predicted many Nanite `NOT_MEASURED` events on MainWorld; Test C produced **ZERO** and
+  `mask_nopass_discards=3`. The auto-pool picked foliage and simple meshes. ⛔ **Does NOT contradict
+  `G134`** (measurability ≠ what the selector picks) — **it touches the unstated assumption that the
+  two coincide. If the auto-pool systematically avoids Nanite structural geometry, the cure's reach
+  may be WIDER than `G134` implies. A LEAD, NOT A LANE — do not investigate unprompted.**
+  🆕 **FINDING 3 — THE MEASUREMENT IS VIEW-DEPENDENT:** `BP_SplineSpawn_C` measured **54,779 px
+  (KEPT)** in Test C and **ZERO 8/8 (VETOED)** on the bench. Correct, not contradictory — the mask
+  reports drawn pixels IN THAT VIEW. 🚨 **"`H5`-shaped target" is a property of a TARGET IN A VIEW,
+  not of a target.**
+  ⚠ **BUILD IDENTITY (`G121`), STATED: the staged bench exe `5EA6AB92` is the tagged source MINUS
+  one commit** — `49d1c7a`, a log-wording fix with **no behavioural effect** (`SetMaskMeasure` still
+  announced "slice 1 MEASURE ONLY"; the owner hit it on step 2 of the smoke). ⛔ **The binary was
+  deliberately NOT rebuilt — `5EA6AB92` is the exact binary all nine slice-3 gate legs ran on, and
+  swapping it for an ungated one to fix a log string is the worse trade.**
+  📌 **OPEN LEADS, none a lane until ruled:** the over-claim case · Finding 2 · `labels.jsonl` (`L3`)
+  · `H4` · `H5` class (i) · `P1`.
+- 🟦 *(superseded — pre-tag: slice 3 shipped and gated, awaiting the owner smoke)*
   ✅ **SLICE 3 SHIPPED (`65deadc`) AND GATED. THE RULE, AS RULED: VETO IF AND ONLY IF the event
   manifested AND its target's state is `MEASURED_ZERO`.** ⛔ **`NOT_MEASURED` is NEVER vetoed
   (never measured ⇒ MUST ADMIT) · a measured NON-ZERO count is NEVER vetoed however small a

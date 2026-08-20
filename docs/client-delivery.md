@@ -218,6 +218,24 @@ shadow.**
 - **`L3`** `labels.jsonl` (delivery OFF only) is **prebuilt and cannot be corrected**, so
   **delivery OFF and delivery ON WILL DISAGREE on event content.** Stated, not reconciled.
 
+🚨 **`L3` IN ITS SHARPER, OBSERVED FORM — and it bites OWNER-SIDE TOOLING, not the client:**
+
+> **IN A SINGLE DELIVERY-OFF SESSION FOLDER, `annotation.json` AND `labels.jsonl` NOW DISAGREE ON
+> EVENT CONTENT.** The veto edits the in-memory accumulator before `annotation.json` is written;
+> `labels.jsonl` is prebuilt per frame and cannot be corrected. **A fully-vetoed session ships an
+> empty `anomalies` array beside 59 label rows asserting `anomaly_present` and `visible_positive`.
+> NO CLIENT IMPACT — delivery mode does not write `labels.jsonl` — but OWNER-SIDE TOOLING THAT
+> READS `labels.jsonl` WILL DRAW BOXES FOR VETOED EVENTS.**
+
+**Affected tooling, named:** **`tools/verify_capture.py`** — it reads `labels.jsonl` and draws the
+boxes — and **`overlay_watcher.py`, which invokes it automatically on every completed run**.
+⚠ **`overlay_watcher.py` exists in THREE copies**: `host-tools\`, `anomaly-dashboard\host-tools\`,
+`_M2Smoke\host-tools\`. ✅ **The Dashboard application itself is NOT affected — it does not read
+`labels.jsonl`.**
+⛔ **NOT FIXED, deliberately:** correcting `labels.jsonl` is a separate change with its own gates,
+and `L3` was accepted as a limit before the veto was built. **If you overlay a vetoed session and
+see boxes, that is this — not a labelling regression.**
+
 ## ⛔ KNOWN LIMITATION (`m26`) — THE CURE CANNOT SEE NANITE GEOMETRY, AND ON A NANITE-HEAVY TITLE THAT IS MOST OF THE LEVEL
 
 `m26` decides whether a labelled target actually drew anything by rasterising it into a

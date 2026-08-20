@@ -172,6 +172,13 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       count are unaffected, so frames-without-events is EXPECTED, not a defect.
       ⚠ **Delivery OFF and ON disagree on event content** (`L3`): `labels.jsonl` is prebuilt and
       cannot be corrected by the veto. **Do not diff them and report a bug.**
+- [ ] 🚨 **`m26`, OWNER-SIDE ONLY: if you OVERLAY a delivery-OFF session, expect boxes on VETOED
+      events.** *`annotation.json` and `labels.jsonl` disagree inside one session folder — a
+      fully-vetoed run ships an empty `anomalies` array beside 59 label rows still asserting
+      `anomaly_present`. The overlay chain (`overlay_watcher.py` → `tools/verify_capture.py`) reads
+      `labels.jsonl`, so it draws them.* **NO CLIENT IMPACT — delivery mode does not write
+      `labels.jsonl` at all** — but do not read those boxes as a labelling regression, and do not
+      ship overlay output made from a vetoed session as if it matched `annotation.json`.
 
 ## 6. Security note (owner-accepted, restate when handing over)
 

@@ -9,12 +9,12 @@ path (a)'s environment and then found a different lead entirely. It is not split
 separable — each part exists because the one before it produced something unexpected. **Renamed from
 `…-045-h4-preflight-halt.md` on 2026-08-19; that title described only Part One.**
 
-> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART THIRTY-ONE.** It
-> states `m26`'s state (**FUNCTIONALLY COMPLETE — slices 1, 2 and 3 all shipped and gated; the
-> veto is ZERO-ONLY and it fires; next is the owner's play-gate smoke, and NO TAG until then**),
-> what is **proven and must not be re-proved**, and the rulings that travel. **You do not need to
-> read the thirty-one parts above it — though §198 is worth one minute: the clean result at the end
-> was not a clean path.**
+> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART THIRTY-TWO.** It
+> states `m26`'s state (**SHIPPED AND TAGGED — the owner play-gate smoke passed, including the
+> auto-pool path; the veto is ZERO-ONLY and every veto it fired was on a measured zero**), what is
+> **proven and must not be re-proved**, and the rulings that travel. **You do not need to read the
+> thirty-two parts above it — though §198 is worth one minute: the clean result at the end was not
+> a clean path.**
 
 ## PART INDEX
 
@@ -51,12 +51,15 @@ separable — each part exists because the one before it produced something unex
 | **Twenty-nine** | 198–203 | ✅ **SLICE 2 SHIPS — `mask.provided` carries the tri-state** | **All five known-answer rows correct: `SM_Ramp2` → `false`, `BP_SplineSpawn_C` (MEASURED_ZERO) → `true`** — the two zeros stay distinguishable, tested BOTH ways; the guarantee is one function switching on `State` alone that never sees a magnitude. G-2 **48/48 in BOTH delivery modes**, INERT when off, 0 mapping mismatches. 🚨 **`A64` justified itself: the first delivery leg read `provided:false` everywhere and looked like a delivery-orthogonality break — it was a bifurcated POSE, refuted by a pose-matched delivery leg reading `true` AND by the `Cylinder` leg reproducing the signature with delivery OFF via frustum culling.** ⚠ **`G-9` path-level subset INCONCLUSIVE (my control pair under-sampled pitch) — invariant core passes POSITIVELY.** §198 records that the clean result was not a clean path. ⛔ **Slice 3 NOT started; no threshold exists anywhere** |
 | **Thirty** | 204–208 | ✅ **`G-9` CLOSES — `EXTRAS = 0`** · `framesNoPass` defined everywhere a reader meets it | **Route (a) chosen — make the confound ABSENT, not EXCUSED; (b)'s laundering hazard restated as the reason it was refused.** All three legs settled at the SAME pose (`0/0/0`, `coverage_ratio 0.077977`) first try, so 🎯 **the run-unique set shrank 26 → 4** (`session_id`, `speed_ratio`, `sustained_wall_fps`, `video/path`) and the OFF/ON difference is exactly those **plus `delivery_mode`** — the gate got HARDER and passed. Invariant core re-asserted identical. **Ruling 2: `framesNoPass` is NOT a Nanite counter — corrected in the NO-PASS line, the NOT_MEASURED warning, `G134` and `client-delivery.md`.** **Ruling 3: the "false NEVER means the target drew nothing" sentence into the tag scope statement.** §207 reports the raw measured-vs-claimed pixel areas, **numbers only**. ⛔ **Slice 3 still NOT started** |
 | **Thirty-one** | 209–213 | 🎯 **SLICE 3 SHIPS — the veto is ZERO-ONLY and IT FIRES. `m26` functionally complete** | **The ruling recorded VERBATIM (§209), including why a ratio was refused despite the four targets separating cleanly: every GOOD target measured is a convex primitive, and a complex-silhouette legitimate target — which would break a ratio rule — does not exist in the measured set (`G135`'s failure shape).** Implementation tests the ENUM STATE only; `manifested` evaluated first so `vetoed_events`/`non_manifested_events` are disjoint by construction. **`BP_SplineSpawn_C`: 8/8 vetoed, annotation `anomalies: []`, `vetoed_events=8`.** 🚨 **The foliage at ~1.4 % of its claim: NOT vetoed — the rule's own guard.** 🚨 **`SM_Ramp2`'s 8 `NOT_MEASURED` events: ALL KEPT — the data-destroying direction closed.** `G-9` re-run at slice 3: **EXTRAS 0**, event SET identical across modes. `P6` 48/48, `run_summary` +4. **The accepted cost, the `A35` ruling and `L1`–`L3` into the tag statement and `client-delivery.md`.** ⛔ **NO TAG — owner play-gate smoke first** |
+| **Thirty-two** | 214–220 | 🎯 **THE OWNER SMOKE PASSES AND `m26` IS TAGGED** | Log check on Test C (auto-pool, the path no gate leg exercised): **all four vetoes `state=MEASURED_ZERO`**, `G-11` 8→4 reconciles, **`notMeasured=0`**. Tests A and B pass in real content — including 🚨 **the foliage guard holding on MainWorld**. **Finding 1: `L3` is LIVE and sharper — `annotation.json` and `labels.jsonl` disagree INSIDE one session folder; affected tooling named (`verify_capture.py` via `overlay_watcher.py`, THREE copies; the Dashboard is NOT affected); deliberately NOT fixed.** **Finding 2: my own prediction of many Nanite `NOT_MEASURED` events did NOT fire — the auto-pool picked foliage and simple meshes; observation, n=1, `G134` untouched.** **Finding 3: the measurement is VIEW-DEPENDENT — the spline measured 54,779 px here and zero on the bench; "H5-shaped" is a property of a target IN A VIEW.** 🚨 **The draft "WHAT IS CERTIFIED" paragraph had become FALSE and was corrected before tagging** |
 
-⚠ **ONE INVESTIGATION, THIRTY-ONE PARTS** *(the "nine" in the note below predates Parts Ten
+⚠ **ONE INVESTIGATION, THIRTY-TWO PARTS** *(the "nine" in the note below predates Parts Ten
 onward; the reason it is not split is unchanged).*
 
-**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART THIRTY-ONE.** 🎯 **`m26` IS FUNCTIONALLY
-COMPLETE — SLICES 1, 2 AND 3 ALL SHIPPED AND GATED.** Both faults fixed (`795f2a4`, `4a9631a`), the
+**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART THIRTY-TWO.** 🎯 **`m26` IS SHIPPED
+AND TAGGED — SLICES 1, 2 AND 3 ALL GATED, AND THE OWNER PLAY-GATE SMOKE PASSED IN REAL GAMEPLAY
+INCLUDING THE AUTO-POOL PATH** (8 events, 4 vetoed, **all four `MEASURED_ZERO`**, `notMeasured=0`).
+Both faults fixed (`795f2a4`, `4a9631a`), the
 extent precondition shipped (`3beb3ba`), `F-6` COMPLETE on all five items, the `H5` LEGS RUN (the
 cure identifies both instances that motivated it), slice 2 REPORTS through `mask.provided`
 (`ece343f`) with the two zeros proven distinguishable both ways, `G-9` CLOSED at `EXTRAS = 0` on a
@@ -68,13 +71,13 @@ zero-silhouette target may still cast shadow; vetoed anyway, by ruling) · `L1`�
 mask cannot see Nanite geometry on UE 5.1, and on this title that is the COMMON CASE; `G133` closed;
 `G135` records why the calibration level could never have shown either.**
 ⛔ **NO INCIDENCE CLAIM · class (i) still ENUMERATED-NOT-OBSERVED · the A35 over-fire property
-UNTESTED, no control for it exists.** `feature/stencil-capture` **untouched** throughout — *mined,
-never resumed*. **`P6` never moved (measured 48/48 in Parts 24, 26, 27, 28, 29 and 31). NO TAG since
-`m25` — THE OWNER'S PLAY-GATE SMOKE COMES FIRST.**
+UNTESTED, no control for it exists · `m26` does NOT close `P1`.** `feature/stencil-capture`
+**untouched** throughout — *mined, never resumed*. **`P6` never moved (measured 48/48 in Parts 24,
+26, 27, 28, 29 and 31).**
 ⚠ **Production code appears for the first time in PART FOURTEEN (log-only `M-1` instrumentation, on
 owner permission); Parts One–Thirteen carry ZERO.**
 
-🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART THIRTY-ONE IS THE COLD-START ENTRY POINT.**
+🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART THIRTY-TWO IS THE COLD-START ENTRY POINT.**
 
 ---
 
@@ -3620,11 +3623,53 @@ requires.
 > **`m26` — `H5` class (ii) mitigation: an event whose target is MEASURED to draw nothing is removed
 > from `annotation.json` before it is written.**
 >
-> **WHAT IS CERTIFIED:** the cure fires on two measured `H5`-shaped targets
-> (`InstancedFoliageActor_0_0_0`, `BP_SplineSpawn_C`), does not fire on two known-good targets
-> (`StaticMeshActor_49`, `SM_Ramp2` — the A35 case), admits byte-identically when the measurement is
-> absent, and is loud when blind. `annotation.json`'s field SET is UNCHANGED (`P6` not moved);
-> `mask.provided` moves `false → true` in a slot that already shipped.
+> ⚠ *(The original draft of this paragraph said the cure "fires on two measured `H5`-shaped targets
+> (`InstancedFoliageActor_0_0_0`, `BP_SplineSpawn_C`)" and named `SM_Ramp2` a known-good control.
+> **Both became false as the milestone progressed** — the foliage measures NON-ZERO and is
+> deliberately NOT vetoed, and `SM_Ramp2` is Nanite and unmeasurable. Corrected before tagging.)*
+>
+> **WHAT IS CERTIFIED — THE FOUR DEMONSTRATIONS:**
+> **(1) IT FIRES** — `BP_SplineSpawn_C`, measured `MEASURED_ZERO` on 8/8 events, all 8 removed,
+> `vetoed_events=8`. **(2) IT DOES NOT OVER-FIRE** — `StaticMeshActor_49` (`Cube`) and
+> `StaticMeshActor_73` (`Cylinder`) untouched, **and critically `InstancedFoliageActor_0_0_0`
+> untouched** despite drawing ~1.4 % of what it claims. **(3) IT ADMITS WHEN BLIND** —
+> `SM_Ramp2` (known-Nanite), 8/8 `NOT_MEASURED`, all kept. **(4) THE BLIND CASE IS LOUD** —
+> `mask.provided:false` in the artifact plus `mask_nopass_discards`.
+> **`F-6`, ALL FIVE ITEMS:** (1) `StaticMeshActor_49` NON-ZERO with `collisions=0` · (2) a
+> legitimate drawing control NOT over-fired (`StaticMeshActor_73`, 5.27 % vs its claimed 6.87 %) ·
+> (3) arm counts match prediction · (4) `pctOfFrame` plausible · (5) **the 255 detector proven
+> still live BOTH ways (`G96`)** via the default-OFF known-hidden probe.
+> **OWNER PLAY-GATE SMOKE PASSED** in real gameplay content on `MainWorld`, including the
+> **AUTO-POOL** path the bench legs never exercised: 8 events, 4 vetoed, **all four
+> `state=MEASURED_ZERO`**, `countedEventsBefore=8 / After=4 / vetoed=4`, `notMeasured=0`.
+> `annotation.json`'s field SET is UNCHANGED (`P6` not moved); `mask.provided` moves
+> `false → true` in a slot that already shipped.
+>
+> 🚨 **THE VETO RULING, WITH THE OWNER'S REASONING VERBATIM — because a cold reader must see why
+> the obvious rule was refused:**
+> *"The four measured targets separate cleanly (good 0.77–0.93 drawn/claimed; bad 0.014 and 0.000),
+> and a ratio threshold would catch both known `H5` instances. IT IS REFUSED ANYWAY. Both GOOD
+> targets are convex primitives viewed head-on — `/Engine/BasicShapes` Cube and Cylinder — which is
+> why they score so high. A legitimate target with a COMPLEX SILHOUETTE (fence, railing, ladder,
+> grate, sparse foliage) can draw a small fraction of its bounding rect while being fully visible
+> and fully valid. NO SUCH TARGET EXISTS IN OUR MEASURED SET. Calibrating a threshold on four
+> points, all simple convex shapes, is `G135`'s exact failure: a calibration set that cannot exhibit
+> the case that would break the rule, with the blindness presenting as a clean pass. A count of ZERO
+> needs no calibration. A target contributing not one pixel cannot be the visible anomaly its label
+> claims, whatever its silhouette."*
+>
+> 🚨 **THE NANITE LIMIT, UNSOFTENED, WITH THE ENTANGLEMENT FINDING:** on **UE 5.1 a Nanite
+> primitive cannot write custom depth at all** — the Nanite scene proxy never sets
+> `bRenderCustomDepth` and the custom-depth pass has no Nanite path. Setting the flag **succeeds,
+> verifies, and never reaches a pixel.** A Nanite target is therefore `NOT_MEASURED` ⇒ **ALWAYS
+> ADMITTED, never vetoed** — safe, and also the cure not working there.
+> **AND THE ENTANGLEMENT, MEASURED ON THIS TITLE RATHER THAN PROJECTED:** StackOBot's authored
+> structural geometry — walls, floors, platforms, pillars, pipes, crates, doors, ramps — is
+> **overwhelmingly Nanite**, while foliage and simple planes are not. **The two `H5` instances this
+> cure was built from are reachable BECAUSE OF WHAT THEY HAPPEN TO BE MADE OF, not because `H5`
+> favours measurable geometry.** On a Nanite-heavy host title the cure is inert for most authored
+> geometry. ⚠ **A second-order consequence: every A35-shaped legitimate target this project has
+> measured is Nanite, so the A35 over-fire risk cannot be tested on this bench at all.**
 >
 > 🆕 **AMENDED AGAIN (PART THIRTY-ONE — the veto ships; these paragraphs travel with the tag):**
 > **THE VETO IS ZERO-ONLY.** An event is removed from `annotation.json` **if and only if** it
@@ -3646,6 +3691,19 @@ requires.
 > is NOT comparable with a pre-`m26` one; `vetoed_events` carries the delta** · `labels.jsonl`
 > (delivery OFF) is prebuilt and uncorrectable, so **delivery OFF and ON WILL DISAGREE on event
 > content**.
+> 🚨 **`L3` IN ITS SHARPER, OBSERVED FORM (owner smoke, PART THIRTY-TWO):** *"IN A SINGLE
+> DELIVERY-OFF SESSION FOLDER, `annotation.json` AND `labels.jsonl` NOW DISAGREE ON EVENT CONTENT.
+> The veto edits the in-memory accumulator before `annotation.json` is written; `labels.jsonl` is
+> prebuilt per frame and cannot be corrected. A fully-vetoed session ships an empty `anomalies`
+> array beside 59 label rows asserting `anomaly_present` and `visible_positive`. NO CLIENT IMPACT —
+> delivery mode does not write `labels.jsonl` — but OWNER-SIDE TOOLING THAT READS `labels.jsonl`
+> WILL DRAW BOXES FOR VETOED EVENTS."*
+> **AFFECTED TOOLING, NAMED:** `tools/verify_capture.py` (it is the code that draws the boxes) and
+> **`overlay_watcher.py`, which invokes it automatically on every completed run — and which exists
+> in THREE copies** (`host-tools\`, `anomaly-dashboard\host-tools\`, `_M2Smoke\host-tools\`).
+> ✅ **The Dashboard application itself is NOT affected — it does not read `labels.jsonl`.**
+> ⛔ **NOT FIXED, DELIBERATELY:** correcting `labels.jsonl` is a different change with its own
+> gates, and `L3` was accepted as a limit before slice 3 was built.
 > **`vetoed_events` and `non_manifested_events` are DISJOINT by construction** — *"the target
 > contributed no pixels to hide"* vs *"the hide never showed in pixels"*.
 >
@@ -3671,6 +3729,10 @@ requires.
 >   because no instance exists here.
 > - **`H4` IS NOT CURED.** Its cure remains `feature/stencil-capture`, still untouched. **Whether one
 >   measurement serves both is UNESTABLISHED** (Ruling, PART TWELVE §3.3).
+> - 🚨 **`m26` DOES NOT CLOSE `P1`.** `S4`/`m25`'s precedent carries: `P1` was narrowed to `H1`
+>   alone and `H1` has no lever. `m26` addresses `H5` class (ii) and touches neither.
+> - ⚠ **`H5` class (ii) is not fully cured either** — see THE ACCEPTED COST above. `m26` removes the
+>   zero-contribution case and **leaves the over-claim case shipping as valid labels.**
 > - 🚨 **THE MASK MEASURES DRAWN SILHOUETTE, NOT VISUAL EFFECT.** A target whose contribution is
 >   mostly shadow/reflection/GI is under-counted. `SM_Ramp2` passes; **an almost-entirely-shadow
 >   target has never been measured.**
@@ -6389,10 +6451,153 @@ tested on a banked known answer, and neither occurred.**
 
 ---
 
-# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–31.
+# PART THIRTY-TWO — **THE OWNER SMOKE PASSES AND `m26` IS TAGGED.** Three findings recorded on the way.
 
-**Session closed 2026-08-20 at the end of PART THIRTY-ONE. `m26` is FUNCTIONALLY COMPLETE and
-AWAITING THE OWNER'S PLAY-GATE SMOKE. NO TAG.**
+**The owner ran the smoke in the editor on real gameplay content. Tests A and B were verified from
+artifacts by the owner; Test C's veto reasons live only in the PIE log and are read here.**
+
+---
+
+## 214. THE LOG CHECK — the one thing artifacts could not answer
+
+**Vetoed events are REMOVED from `annotation.json`, so the artifact cannot say WHY a veto fired.**
+Read from the live PIE log (`Saved/Logs/StackOBot.log`, 394,508 bytes, editor still running — **not
+rolled**), session `session_20260820-153241`, auto-pool, seed 0:
+
+| # | line | target | **state** |
+|---|---|---|---|
+| 1 | L2129 | `BP_Stomper_C_UAID_…2086831169` (blinking) | ✅ **`MEASURED_ZERO`** |
+| 2 | L2130 | `RoomBuilderSquare_C_UAID_…1080865874` (blinking) | ✅ **`MEASURED_ZERO`** |
+| 3 | L2131 | `RoomBuilderSquare_C_UAID_…1080865874` (missing_texture) | ✅ **`MEASURED_ZERO`** |
+| 4 | L2132 | `BP_Stomper_C_UAID_…2086831169` (missing_texture) | ✅ **`MEASURED_ZERO`** |
+
+**`G-11` (L2138): `countedEventsBefore=8 countedEventsAfter=4 vetoedEvents=4 nonManifestedEvents=0`
+— `8 − 4 = 4` ✅.**
+
+🎯 **FOUR FOR FOUR `MEASURED_ZERO`. PASS.**
+
+**Did any event reach `NOT_MEASURED`, and was it kept?** **`M26S1 SUMMARY events=8 notMeasured=0`
+(L2141) — NO event reached `NOT_MEASURED` in this session, so none could have been wrongly vetoed.**
+The eight records (which survive the veto, since only the accumulator is edited):
+
+| state | events | disposition |
+|---|---|---|
+| `MEASURED_NONZERO` | 4 — `InstancedFoliageActor_0_-1_0` (4,519 px), `BP_SplineSpawn_C` (54,779 px), `BP_Elevator_C` (3,800 px), `InstancedFoliageActor_0_0_0` (6,661 px) | **KEPT** |
+| `MEASURED_ZERO` | 4 — `BP_Stomper_C` ×2, `RoomBuilderSquare_C` ×2 | **VETOED** |
+
+⚠ **One detail worth recording rather than glossing: three of the four vetoed events show
+`framesNoPass=1 collisions=1` (the 255 detector fired once each) alongside `framesContributed=3`.**
+That is **the frame-scoped discard working exactly as designed** — one polluted frame dropped,
+three clean frames contributed, `MAX` across them = 0 ⇒ `MEASURED_ZERO`. It also accounts precisely
+for the artifact's `mask_nopass_discards=3`. **These are measured zeros, not unexamined ones.**
+
+## 215. SMOKE RESULT — A, B, C
+
+| test | session | result |
+|---|---|---|
+| **A** targeted `BP_SplineSpawn_C` | `152352` | ✅ **PASS** — `vetoed_events 8`, `anomalies []`, 90 PNGs, `total_frames 90`, empty artifact well-formed. **`G-4` in real content** |
+| **B** targeted `InstancedFoliageActor_0_0_0` | `153210` | ✅ **PASS** — `vetoed_events 0`, 8 kept, all `provided:true`, all `cov_pct 100`. 🚨 **THE RULE'S OWN GUARD HELD IN REAL CONTENT** |
+| **C** auto-pool, seed 0 | `153241` | ✅ **PASS** — 4 kept / 4 vetoed, **all four `MEASURED_ZERO`**, `notMeasured=0`, `G-11` reconciles |
+
+**Cross-cutting (owner-verified):** `mask` sub-keys exactly `{provided}` — **`P6` held** ·
+`depth.provided false` throughout · `mask_probe_arms 0` · field set identical between the sessions
+carrying events.
+
+🚨 **WHAT TEST C ADDED THAT NO GATE LEG DID: the AUTO-POOL path — the selector picking its own
+targets and anomalies with the veto live.** Every one of the nine slice-3 gate legs was a TARGETED
+single-actor run. **Selection-plus-veto had never run together until this smoke.**
+
+## 216. `FINDING 1` — `L3` IS LIVE, AND SHARPER THAN AS RECORDED
+
+Test A's session folder contains **both** `annotation.json` with `anomalies: []` **and**
+`labels.jsonl` with **59 rows carrying `anomaly_present:true` and `visible_positive:true`.**
+
+> **"IN A SINGLE DELIVERY-OFF SESSION FOLDER, `annotation.json` AND `labels.jsonl` NOW DISAGREE ON
+> EVENT CONTENT. The veto edits the in-memory accumulator before `annotation.json` is written;
+> `labels.jsonl` is prebuilt per frame and cannot be corrected. A fully-vetoed session ships an
+> empty `anomalies` array beside 59 label rows asserting `anomaly_present` and `visible_positive`.
+> NO CLIENT IMPACT — delivery mode does not write `labels.jsonl` — but OWNER-SIDE TOOLING THAT
+> READS `labels.jsonl` WILL DRAW BOXES FOR VETOED EVENTS."**
+
+**AFFECTED TOOLING, ESTABLISHED BY READING THE CHAIN RATHER THAN GUESSING:**
+`overlay_watcher.py` watches `CAPTURES_ROOT` and, on run completion, invokes
+**`tools/verify_capture.py`, which is the code that reads `labels.jsonl` and draws the boxes**
+(`overlay_watcher.py:6-7,41`). ⚠ **`overlay_watcher.py` exists in THREE copies** —
+`host-tools\`, `anomaly-dashboard\host-tools\`, `_M2Smoke\host-tools\` — consistent with the `E:`
+scope note's untracked-set warning. ✅ **The Dashboard application itself is NOT affected: it does
+not read `labels.jsonl`** (verified by absence across the whole tree).
+⛔ **NOT FIXED, by instruction and on merit:** correcting `labels.jsonl` is a different change with
+its own gates, and `L3` was accepted as a limit *before* slice 3 was built.
+**Written into:** the tag scope statement (§117), `client-delivery.md`, `PRE-DELIVERY-CHECKLIST.md`.
+
+## 217. `FINDING 2` — a prediction of MINE that did not fire. OBSERVATION, n=1.
+
+**My smoke brief predicted "MANY events `NOT_MEASURED` / `provided:false`, with
+`mask_nopass_discards` climbing" on MainWorld, because most authored geometry there is Nanite.**
+**Observed in Test C: ZERO kept events with `provided:false`, and `mask_nopass_discards = 3` for
+the whole run.** The auto-pool picked foliage and simple meshes — `SM_Tree`, `SM_GenericPlane`,
+`SM_Elevator`, `SM_Bush`, plus `BP_Stomper_C` and `RoomBuilderSquare_C` — **not Nanite structural
+geometry.**
+
+⛔ **IT DOES NOT CONTRADICT `G134`**, which is about **MEASURABILITY**, not about **what the
+selector picks**. What it touches is **the unstated assumption that those two coincide** — an
+assumption my brief made and the run did not support. **If the auto-pool systematically avoids
+Nanite structural geometry — coverage floor, occlusion, poll radius — then the cure's practical
+reach may be WIDER than `G134`'s framing implies.**
+⛔ **RECORDED, NOT INVESTIGATED. n=1, one run, eight events. A lead for later, not a lane now.**
+
+## 218. `FINDING 3` — the measurement is VIEW-DEPENDENT. Recorded so two results are not read as contradictory.
+
+**`BP_SplineSpawn_C` was KEPT in Test C** (`missing_texture`, `MEASURED_NONZERO` **54,779 px**,
+`cov_pct 13.4`) **while it measured ZERO on 8/8 events on the bench** (`blinking`, CB pose,
+PART TWENTY-EIGHT).
+
+**That is correct behaviour, not a contradiction:** the mask reports **drawn pixels IN THAT VIEW**,
+not a fixed property of the asset. 🚨 **CONSEQUENCE WORTH CARRYING: "`H5`-shaped target" is a
+property of a TARGET IN A VIEW, not of a target.** A future reader comparing the two results must
+compare the views as well.
+
+## 219. THE TAG — `m26`
+
+**Every item the ruling required was verified present in the scope statement before tagging, and
+two were missing or WRONG and were corrected first:**
+- 🚨 **The draft "WHAT IS CERTIFIED" paragraph was FALSE by the end of the milestone** — it claimed
+  the cure "fires on two measured `H5`-shaped targets (`InstancedFoliageActor_0_0_0`,
+  `BP_SplineSpawn_C`)" and named `SM_Ramp2` a known-good control. **The foliage measures NON-ZERO
+  and is deliberately NOT vetoed; `SM_Ramp2` is Nanite and unmeasurable.** Rewritten to the four
+  demonstrations and the five `F-6` items, with the correction noted in place.
+- **ADDED:** the owner's veto reasoning **verbatim** · the Nanite limit **with the entanglement
+  finding** · `L3`'s sharper form with the affected tooling named · **"`m26` does not close `P1`"**
+  (`S4`/`m25` precedent) · and an explicit line that **`H5` class (ii) is not fully cured either.**
+
+⚠ **BUILD IDENTITY, STATED HONESTLY (`G121`):** the staged bench exe is **`5EA6AB92`**, which is the
+tagged source **minus one commit** — `49d1c7a`, a log-wording correction with **no behavioural
+effect** (`SetMaskMeasure` still announced "slice 1 MEASURE ONLY"; the owner hit it on step 2 of the
+smoke). ⛔ **The binary was deliberately NOT rebuilt: `5EA6AB92` is the exact binary all nine
+slice-3 gate legs ran on, and replacing it with an ungated one to fix a log string would be a worse
+trade.** The editor DLLs used for the smoke are in the same position.
+
+## 220. State after PART THIRTY-TWO
+
+| | |
+|---|---|
+| **`m26`** | ✅ **TAGGED.** Slices 1, 2, 3 shipped and gated; `F-6` complete; owner play-gate smoke PASSED including the auto-pool path |
+| findings | `L3` sharpened with tooling named (1) · auto-pool target selection observation (2) · view-dependence of the measurement (3) |
+| ⛔ NOT cured | the `H5` **over-claim** case · `H5` class (i) · `H4` · `P1` |
+| ⛔ NOT fixed | `labels.jsonl` disagreement (by instruction) |
+| unchanged | `P6` never moved · stencil range 200/255 · CB_GateLevel untouched · `feature/stencil-capture` READ-ONLY at `76cac74` |
+
+**WHAT THIS PART SETTLES: the cure works in real gameplay, on targets the selector chose for
+itself, and every veto it fired was on a measured zero. The milestone ships knowing exactly what it
+does not do — the over-claim case, Nanite geometry, `H4`, and `P1` are all still open, and the tag
+says so in its own text.**
+
+---
+
+# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–32.
+
+**Session closed 2026-08-20 at the end of PART THIRTY-TWO. 🎯 `m26` IS SHIPPED AND TAGGED — the
+owner play-gate smoke PASSED, including the auto-pool path the bench legs never exercised.**
 **NO TAG since `m25`. `P6` HAS NEVER MOVED. `feature/stencil-capture` is READ-ONLY at `76cac74` —
 mine it, never check it out.**
 
@@ -6546,10 +6751,15 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 ## H.6 What the next session should do first
 
 1. **Read `docs/invisible-anomaly-mechanisms.md`** — the ledger — then this HANDOFF. **Nothing else
-   from Parts 1–31 is required.**
-2. 🎯 **`m26` IS FUNCTIONALLY COMPLETE — slices 1, 2 and 3 all shipped and gated.** ⛔ **THE NEXT
-   STEP IS THE OWNER'S PLAY-GATE SMOKE, WHICH THE OWNER WILL BRIEF. DO NOT TAG UNTIL THEN**, and do
-   not start anything new unprompted.
+   from Parts 1–32 is required.**
+2. 🎯 **`m26` IS SHIPPED AND TAGGED. The milestone is CLOSED.** ⛔ **Do not start anything new
+   unprompted — the next milestone is the owner's to choose.**
+   📌 **Open leads recorded, none of them a lane until ruled:** the `H5` **over-claim** case (the
+   accepted cost — needs a calibration campaign with complex-silhouette targets) · **Finding 2** —
+   whether the auto-pool systematically avoids Nanite structural geometry, which would make the
+   cure's practical reach wider than `G134` implies (n=1, do not investigate unprompted) ·
+   `labels.jsonl`'s disagreement with `annotation.json` (`L3`, deliberately unfixed) · `H4` ·
+   `H5` class (i) · `P1`.
 3. ⛔ **THE VETO RULE IS ZERO-ONLY AND IT IS RULED. NO THRESHOLD EXISTS ANYWHERE — not in code, not
    in docs.** §209 records the owner's reasoning verbatim, including why a ratio was refused
    despite the four targets separating cleanly: **every GOOD target measured is a convex primitive,
