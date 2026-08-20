@@ -395,14 +395,61 @@ precondition. A target contributing no evidence about itself can therefore reach
 MEASURED_ZERO and be vetoed as though it had been measured and found empty.
 MEASURED, I11-A (five legs, two routes) and I11-B Stage 1 (unaided, shipping path).
 
-IT IS NOT A NANITE-ONLY DEFECT. Two routes are PROVEN:
+IT IS NOT A NANITE-ONLY DEFECT. FIVE routes are now named, FOUR of them PROVEN:
   (a) NANITE — the target cannot write custom depth at all on 5.1 (G134). HIGH HARM: a
       fully visible, drawing target is deleted.
   (b) OFF-SCREEN — proven with SM_GratIng, NON-Nanite. LOWER HARM: deleting an
       off-screen target's label is arguably the correct outcome reached by an unsound
       route.
-THE SET OF ROUTES IS NOT CLOSED. Two are named. Others may exist and have not been
+  (c) FULLY OCCLUSION-CULLED — removed from the visible set, so relevance never runs and
+      no custom depth is written. LOWER HARM: deletion is what H4 says SHOULD happen.
+      Right outcome, unsound route. SOURCE-READ.
+  (d) DEGENERATE GEOMETRY — zero sections/triangles, or an ISM whose instances are all
+      culled while GetInstanceCount() stays > 0. LOWER HARM: this is H5 class (i), the
+      case the cure exists to catch. Right outcome, unsound route. SOURCE-READ.
+  (e) TRANSLUCENT MATERIAL — 🚨 HIGH HARM, AND THE RESULT IS SIMPLY WRONG. VERIFIED FROM
+      5.1 SOURCE. FCustomDepthPassMeshProcessor::UseDefaultMaterial sets
+      bIgnoreThisMaterial for a translucent blend mode unless the material opts in
+      (CustomDepthRendering.cpp:310-338, whose own comment reads "ignore translucent
+      materials without allowing custom depth writes"), and TryAddMeshBatch then
+      `return true` with NO draw command added (:359-364). The opt-in is
+      AllowTranslucentCustomDepthWrites (Material.h:833-835, read at Material.cpp:6253-
+      6256), an author-ticked box under Translucency > Advanced with NO initialiser and
+      NO constructor assignment anywhere in the engine — DEFAULT OFF.
+      ⚠ AND IT IS SELF-SUFFICIENT, unlike every other route: the target still TAGS
+      (IsRenderableComponent has no material test, AnomalyViewport.cpp:493-510) and its
+      relevance still sets bRenderCustomDepth with no blend-mode test
+      (StaticMeshRender.cpp:1936, PrimitiveSceneProxy.h:598), so IT SUPPLIES ITS OWN
+      bPassRan. A SINGLE-TARGET run on a translucent object is enough. A plainly
+      visible, fully drawing object has its label DELETED.
+
+🚨 NONE OF (b)–(e) DEPENDS ON NANITE. Occlusion culling, degenerate geometry and
+translucent materials bite with Support Nanite OFF exactly as they would with it on.
+THE SUPPORT-NANITE ARGUMENT DOES NOT COVER THEM, AND NEITHER DOES THE PRE-DELIVERY
+CHECKLIST BOX THAT ASKS ABOUT IT.
+
+✅ ONE ROUTE IS CLOSED, AND IT IS CLOSED STRUCTURALLY, WHICH IS WORTH AS MUCH AS A
+MEASUREMENT: bTagFailed (no renderable component to tag) ADMITS. In ArmIfMeasurable the
+`continue` at AnomalyMaskMeasure.cpp:180-185 precedes ArmMask (:188), ++ArmsIssued (:189)
+and the ArmedRequestToRecord insert (:190); CollectResults builds its entire work list
+from that map (:302-304); and State initialises to NotMeasured (AnomalyMaskMeasure.h:22)
+and is written only on the clean contribute path (:437). A tag-failed event therefore
+never reaches the bPassRan test at all, so ANOTHER ACTOR'S TAG CANNOT PULL IT INTO A
+MEASUREMENT. Confirmed empirically too: tagFailed = 0 on all eight play-gate smoke
+events.
+
+THE SET OF ROUTES IS STILL NOT CLOSED. Five are named. Others may exist and have not been
 looked for.
+
+⚠ WHY NO BENCH LEG WOULD EVER HAVE CAUGHT (e) — G135 AGAIN: a scan of the live MainWorld
+found ZERO translucent material slots across 350 mesh actors, 593 static/skinned
+components and 1,055 slots. The calibration content cannot exhibit the defect class.
+⛔ THAT NUMBER IS ABOUT THE WRONG PROJECT. It says nothing about the ship target, whose
+translucent-asset count is UNMEASURED, like its Nanite count. And the scan has stated
+weaknesses (G136): it read the BASE material's blend mode, so a MATERIAL INSTANCE
+OVERRIDING THE BLEND MODE would read as opaque — the engine warns about exactly this at
+MaterialShared.cpp:1758 — and it does not cover dynamic instances or static-switch
+permutations.
 
 MITIGATION IN THE CODE: MaxCount is a MAX across contributing frames, so ONE real
 non-zero reading survives any number of phantom zeros. The exposed case is a target
@@ -411,6 +458,25 @@ contributing no real evidence on EVERY armed frame.
 WHY IT IS NOT BEING FIXED: the near-term ship target is Concorde, where Nanite support
 is DISABLED at project level (owner-verified 2026-08-20), which removes route (a) as
 configured. Route (b) remains and is accepted at its stated lower harm.
+
+OWNER DECISION 2026-08-20, AND THE DISAGREEMENT IS RECORDED SO IT IS NOT RELITIGATED:
+THE MASK SHIPS ON (m27), AND ROUTE (e) IS ACCEPTED AS A COST.
+  OPTION A, RULED: turn the mask on in delivered builds and accept that translucent
+  targets can have good labels deleted in delivered captures.
+  OPTION C, RECOMMENDED BY CHAT AND NOT TAKEN: fix route (e) before shipping the mask
+  on, on the grounds that ITS FAILURE IS INVISIBLE TO THE CLIENT — she receives fewer
+  labels with no signal that anything went wrong, which is the one failure mode this
+  project has consistently treated as worse than a loud one.
+  THE OWNER RULED A. The reasoning that carried it: with the mask OFF a delivered build
+  behaves as m25, which is the invisible-anomaly labelling the client complained about
+  in the first place. Shipping it off is a KNOWN defect affecting all geometry; shipping
+  it on is an ACCEPTED defect affecting translucent geometry of unmeasured extent.
+⚠ ROUTE (e) IS NOT BEING FIXED IN m27, AND NO FIX FOR ANY ROUTE IS DESIGNED, PROPOSED OR
+QUEUED. m27 is a DEFAULTS AND PACKAGING change, not a repair.
+📌 m27 CARRIES A DIAGNOSTIC FOR THE ACCEPTED COST: each vetoed event logs whether any
+material slot on its tagged components is translucent, so the population nobody has
+measured becomes measurable from a delivered session. It is a READOUT — it does not feed
+the veto and must never become a filter.
 
 THE CONDITION THIS RESTS ON, AND IT IS ONE CHECKBOX:
   Project Settings > Engine > Rendering > SUPPORT NANITE, currently UNTICKED.

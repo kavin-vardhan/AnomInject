@@ -30,6 +30,22 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       own source and Blueprints for `bRenderCustomDepth` / "Render CustomDepth Pass".
       → same entry.
 
+- [ ] ⚠ **READ THIS BEFORE TICKING EITHER BOX ABOVE: THEY DO NOT COVER `H6`.**
+      *The two boxes above close `H6`'s **Nanite** route only. Three further routes are
+      named and **none of them depends on Nanite** — a fully **occlusion-culled** target,
+      **degenerate geometry**, and 🚨 **a TRANSLUCENT-material target, which is HIGH HARM
+      and self-sufficient: it tags, it makes the custom-depth pass run, it writes
+      nothing, and its label is deleted while the object is plainly visible and drawing.***
+      ⛔ **Ticking the Nanite boxes does NOT make the delivered build safe from `H6`.**
+      **ACCEPTED BY OWNER RULING (Option A, 2026-08-20) as the cost of shipping the mask
+      ON.** Chat recommended fixing route (e) first because its failure is invisible to
+      the client; the owner ruled otherwise and the disagreement is recorded.
+      📌 **The translucent population is UNMEASURED on any delivered title.** `m27` logs
+      it per vetoed event so it stops being unmeasured — read
+      `translucent_vetoes` / the per-veto log lines in a delivered session.
+      → `docs/invisible-anomaly-mechanisms.md`, **"`H6` — DOCUMENTED, NOT FIXED"**,
+      routes (a)–(e).
+
 - [ ] **`[AnomalyControlServer] Token` is set to a long random value — RUN THE CHECK, do not read it.**
       *Absent → the server falls back to a random per-session token that a client with no console can
       never read; the dashboard cannot connect at all.*
