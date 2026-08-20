@@ -130,7 +130,7 @@ applies to it directly.
 | G-1 clean rebuild | ✅ PASS | editor **and** game targets, exit 0 |
 | G-2 catalog 8 → 9 | ✅ PASS | `9 anomaly type(s) registered`; `corrupted_texture \| scope=object \| usage='' \| args: (none)` |
 | G-4 static pink | ✅ PASS | solid magenta, Lit, opaque, no Lumen bleed, no UI |
-| **G-4S skeletal pink** | ✅ **PASS (blocking)** | `CharacterMesh0 -> pink on 2 slot(s)` + `Jetpack -> pink on 1`; `SKM_Bot` / `SkeletalMeshComponent`, full-span `n=8`. **Renders solid pink, NOT default-gray, out of the cooked artifact** ⇒ `used_with_skeletal_mesh` survived the cook (G49) |
+| **G-4S skeletal pink** | ✅ **PASS (blocking) — OWNER-CONFIRMED BY EYE, 2026-08-21** | `CharacterMesh0 -> pink on 2 slot(s)` + `Jetpack -> pink on 1`; `SKM_Bot` / `SkeletalMeshComponent`, full-span `n=8`. **Renders solid pink, NOT default-gray, out of the cooked artifact** ⇒ `used_with_skeletal_mesh` survived the cook (G49). 🎯 **The owner judged the delivered frame directly — "pink confirmed" — which is the instrument this gate was designed around: pink-vs-gray needs no threshold, and no numeric colour test was invented for it.** |
 | G-5 apply/revert/re-apply | ✅ PASS | every revert `restored/default-reset/left-to-game=0/unresolved=0/swept=0` |
 | G-6 isolation | ✅ PASS | per-component override; shared asset never mutated |
 | G-7 full-span labels | ✅ PASS | `corrupted_texture` `n=8` beside `blink`'s gapped `n=4`; zero unregistered-id warnings |

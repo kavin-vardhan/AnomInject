@@ -30,6 +30,11 @@ and is the single source of truth for the project.
   **the m26 cure reaches the new id without anyone wiring it there**. **`G-4S`**: the Bot's
   **SKELETAL** mesh renders solid pink — not default-gray — **out of the cooked artifact**, which is
   what proves `used_with_skeletal_mesh` survived the cook (`G49`).
+  ✅ **`G-4S` IS OWNER-CONFIRMED BY EYE (2026-08-21): "pink confirmed".** That was the last blocking
+  item outstanding on `m29`, and **NOTHING IS NOW OUTSTANDING ON THIS MILESTONE.** ⚠ The tag `m29`
+  was cut BEFORE that confirmation arrived and is **NOT being moved** — a tag object cannot be
+  amended (no force-push, fix-forward; the `m25` precedent). The confirmation lives in this block and
+  in journal 047's gate table.
   ⚖ **`lod_popping` — ITS TIMING FIX AND ITS ≥2-LOD GUARD SHIP; ITS POOL MEMBERSHIP IS m30.**
   🚨 **IT IS A CLIENT REQUIREMENT AND IT WILL SHIP. NOTHING HERE SAYS OTHERWISE.** It is deferred
   under the owner's PRE-AUTHORISED CONTINGENCY because its proximity gate could not be calibrated in
