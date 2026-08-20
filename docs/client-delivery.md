@@ -174,6 +174,22 @@ Since `S4`: `capture_path` and the five `key_ring_*` counters.
 Nanite limitation below. **`mask_probe_arms` must read `0` on every delivered session** (it counts
 deliberate bench-only probe arms; the pre-delivery checklist has the check).
 
+## `annotation.json` → `mask.provided` (m26 slice 2) — what it means to a client
+
+Every event has always carried `mask: {provided: …}`. Since `m26` it carries a **real value**:
+
+| `mask.provided` | meaning |
+|---|---|
+| **`true`** | the target's drawn pixels **were measured** for this event |
+| **`false`** | **NOT measured** — the measurement did not run or could not see the target |
+
+🚨 **`false` NEVER means "the target drew nothing".** It means no measurement exists. The common
+causes are the Nanite limitation below, a target that left the camera frustum, and a hide-type
+target with no measurable frame. **A `false` event carries exactly as much evidence as it did
+before `m26`: none from this measurement.** ⚠ **No field reports the measured AMOUNT — that would
+be a change to the annotation contract and is deliberately not made.** *(As of `m26`, nothing is
+ever removed from `annotation.json` on the basis of this value.)*
+
 ## ⛔ KNOWN LIMITATION (`m26`) — THE CURE CANNOT SEE NANITE GEOMETRY, AND ON A NANITE-HEAVY TITLE THAT IS MOST OF THE LEVEL
 
 `m26` decides whether a labelled target actually drew anything by rasterising it into a

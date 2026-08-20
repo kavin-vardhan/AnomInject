@@ -15,13 +15,56 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (sixth session). 🎯 `m26` SLICE 1 IS DONE AND CERTIFIED: `F-6`
-  COMPLETE ON ALL FIVE ITEMS, AND THE `H5` LEGS ARE RUN — THE CURE IDENTIFIES BOTH INSTANCES THAT
-  MOTIVATED IT. SLICES 2 AND 3 ARE THE OWNER'S NEXT CALL. LAST SHIPPED MILESTONE IS STILL `m25`;
+- 🟩 **YOU ARE HERE — 2026-08-20 (seventh session). 🎯 `m26` SLICES 1 AND 2 ARE DONE AND GATED:
+  `F-6` COMPLETE, THE `H5` LEGS RUN, AND `mask.provided` NOW CARRIES THE MEASUREMENT. SLICE 3 IS
+  THE OWNER'S NEXT CALL AND ITS RULE IS NOT DESIGNED. LAST SHIPPED MILESTONE IS STILL `m25`;
   NOTHING TAGGED SINCE.**
   🧭 **COLD START: read `docs/invisible-anomaly-mechanisms.md` (the ledger), then go STRAIGHT to the
   `HANDOFF` section at the END of `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`
-  (PART TWENTY-EIGHT). THAT HANDOFF IS SELF-CONTAINED.**
+  (PART TWENTY-NINE). THAT HANDOFF IS SELF-CONTAINED.**
+  ✅ **SLICE 2 SHIPPED (`ece343f`) AND GATED.** `annotation.json`'s already-shipping
+  `mask{provided}` stops being a hardcoded `false` and carries the tri-state's bool:
+  **`NOT_MEASURED` → `false` (never measured, MUST ADMIT) · `MEASURED_ZERO` → `true` ·
+  `MEASURED_NONZERO` → `true`.**
+  🚨 **THE GUARANTEE, NAMED: `provided` is produced by ONE function
+  (`MaskStateProvidesMeasurement`) switching on `State` ALONE. `MaxCount` is never consulted and
+  never emitted, so no code path can collapse `MEASURED_ZERO` into `NOT_MEASURED` or the reverse.**
+  🎯 **ALL FIVE KNOWN-ANSWER ROWS CORRECT, tested in BOTH directions on banked answers:** Cube
+  `true`×8 · **Cylinder `true`×4 AND `false`×4 in ONE leg** · foliage `true`×8 ·
+  🚨 **`BP_SplineSpawn_C` (`MEASURED_ZERO`) → `true`×8 (`F-2` did not fire)** ·
+  🚨 **`SM_Ramp2` (`NOT_MEASURED`, the known-Nanite control) → `false`×8 (`F-1` did not fire).**
+  **0 mapping mismatches; `mask` sub-keys exactly `['provided']`; `depth` untouched.**
+  ✅ **GATES: G-2 field SET 48/48 in BOTH delivery modes (7 legs) · P6 unchanged, `run_summary` +3
+  and nothing more · INERT — mask OFF ⇒ `provided:false` everywhere, 0 MAP lines · F-1…F-7 none
+  fired.**
+  🚨 **`A64` JUSTIFIED ITSELF AND STOPPED A FALSE FINDING.** The first delivery leg read
+  `provided:false` on every event with `framesNoPass=4` — which reads as *"delivery mode breaks the
+  mask"*, a G-9 failure. **It was a BIFURCATED POSE** (`coverage_ratio` 0.051/0 vs the OFF legs'
+  0.078). Refuted two ways: a **POSE-MATCHED delivery leg reads `true` on every event**, and the
+  **`Cylinder` leg reproduces the identical signature with delivery OFF** — its `coverage_ratio`
+  falls to 0 and `framesNoPass` rises to 4 in lockstep as the target leaves the frustum.
+  🆕 **CONSEQUENCE WORTH CARRYING: `framesNoPass` means "not in the view's relevant set", NOT
+  "Nanite" — FRUSTUM CULLING reaches it too, and the admit bias handles it correctly (off-screen ⇒
+  NOT_MEASURED ⇒ `provided:false` ⇒ ADMIT).**
+  ⚠ **ONE GATE IS INCONCLUSIVE AND SAYS SO: `G-9` AT PATH LEVEL.** Invariant core **PASSES
+  POSITIVELY** (mask.provided identical across modes on all 8 events; depth identical; all three
+  `m26` `run_summary` fields identical; event count identical; key set identical). But the
+  path-level subset test has **6 residual extras, every one camera-pose-derived**, because **my
+  control pair under-sampled pose — the two OFF legs differed in YAW but not PITCH**, so
+  `rotation[0]` never entered the run-unique set. Kind-level EXTRAS = 0. ⛔ **NOT called a pass: a
+  definitive path-level `G-9` needs an exactly-pose-matched OFF/ON pair or a control pair that
+  spans pitch.**
+  📦 staged exe **`047FA489`** (`F93AEF71` archived first), container unchanged, A44 green. Banked:
+  `P29_S2_{CTRL49_A,CTRL49_B,CTRL49_DEL,CTRL49_DEL2,CYL73,FOLIAGE,SPLINE,RAMP,INERT}`.
+  ⛔ **SLICE 3 NOT STARTED. Its veto rule is NOT designed, NOT proposed, and NOT assumed anywhere —
+  and NO THRESHOLD EXISTS in the code or the docs.** The §195.3 ratio table is a distribution
+  sketch on four targets from one title, not a calibration. **Do not start slice 3 unprompted.**
+  📌 **§198 is in the journal for cold readers: eleven parts ago this instrument returned a constant
+  255. The path to a clean result ran through two source-refuted repairs, a fault in our own
+  collection code, a stale read, a structurally blind detector, and a calibration level that could
+  not have shown the blindness — every one caught before it shipped.**
+- 🟦 *(superseded — the sixth 2026-08-20 session: `F-6` completed and the `H5` legs run)*
+  **The cure identifies both `H5` instances; slice 2 was the owner's next call.**
   🎯 **THE `H5` LEGS — the measurement the milestone was blocked on. Branches pre-declared at bench
   `2c2e60a` BEFORE either leg ran:**
   · **`BP_SplineSpawn_C` (`SM_GenericPlane`): label claims `coverage_pct` 22.89 % — mask measures

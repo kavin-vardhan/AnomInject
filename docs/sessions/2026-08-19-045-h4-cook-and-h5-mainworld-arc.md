@@ -9,11 +9,11 @@ path (a)'s environment and then found a different lead entirely. It is not split
 separable — each part exists because the one before it produced something unexpected. **Renamed from
 `…-045-h4-preflight-halt.md` on 2026-08-19; that title described only Part One.**
 
-> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART TWENTY-EIGHT.** It
-> states `m26`'s state (**slice 1 DONE AND CERTIFIED — `F-6` complete on all five items — and the
-> `H5` legs RUN: the cure identifies both instances that motivated it**), what is **proven and must
-> not be re-proved**, and the rulings that travel. **You do not need to read the twenty-eight parts
-> above it.**
+> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART TWENTY-NINE.** It
+> states `m26`'s state (**slices 1 AND 2 done and gated; the cure identifies both `H5` instances
+> and now REPORTS through `mask.provided`; slice 3 not started**), what is **proven and must not be
+> re-proved**, and the rulings that travel. **You do not need to read the twenty-nine parts above
+> it — though §198 is worth one minute: the clean result at the end was not a clean path.**
 
 ## PART INDEX
 
@@ -47,16 +47,19 @@ separable — each part exists because the one before it produced something unex
 | **Twenty-six** | 182–187 | **The fix SHIPS and PASSES its four legs · the `SM_Ramp2` control FAILS `F-6` item 2. HALT** | Implementation `4a9631a` + A-1/A-2; **L1–L4 met every pre-declared prediction** (blinking 4/4, `missing_object` 0 in-window + 4 post-revert, the probe firing all three detectors on demand — items 1/3/4/5 PASS, stray arm verified gone). 🛑 **Item 2 FAIL, two limits exposed: `G134` — the instrument is STRUCTURALLY BLIND TO NANITE in 5.1** (proxy relevance never sets `bRenderCustomDepth`; the ramp draws from the identical `CM_CM_RAMP` camera) **and `G133` — the 255 detector is a SINGLE-PIXEL, view-contingent signal**, so event 1 contributed a clean `MEASURED_ZERO` from a never-run pass. ⛔ **`H5` NOT run; extent precondition NOT added (same-turn rule); owner's ruling next** |
 | **Twenty-seven** | 188–192 | 🎯 **Both `H5` targets are NON-NANITE — the cure reaches what it was built for** · the extent precondition ships | **`T-1` first, as ruled:** `SM_Bush` and `SM_GenericPlane` **plain**; the discriminator `StaticMeshActor_49` = `/Engine/BasicShapes/Cube` **plain** ⇒ `G134`'s explanation CLOSES, signature predicts measurability **5/5**. ⚠ **But StackOBot's authored structural geometry is overwhelmingly Nanite — "common case" is MEASURED, not projected.** **Ruling 1 built (`3beb3ba`) and gated: `SM_Ramp2` `MEASURED_ZERO` → `NOT_MEASURED` ×8; L1–L4 unchanged** — `F-T2-A`'s literal firing traced to POSE (identical arm ids, identical dispositions, counts group by pose not build) and **the criterion corrected in the record**. **Ruling 2: `SM_Ramp2` retired to a known-Nanite control; NO non-Nanite A35-shaped control exists — said so; A35 → tag as UNTESTED.** **Ruling 3: scope drafted; scene depth IS Nanite-inclusive (`NaniteMaterials.cpp:896,930`) — answer only** |
 | **Twenty-eight** | 193–197 | 🎯 **`F-6` COMPLETE · THE `H5` LEGS RUN — the cure identifies both instances that motivated it** | Rulings recorded: the third field APPROVED (`run_summary` +3, and the scope statement now SAYS +3) · the Nanite entanglement into the HEADLINE of `client-delivery.md` · **`G135`** (a restricted-asset calibration level cannot exhibit defects outside its asset set, and the blindness reads as a CLEAN PASS — tension stated, CB_GateLevel NOT changed). **`N-2` replacement `StaticMeshActor_73`: 8/8 non-zero at 5.27 % vs its claimed 6.87 % ⇒ item 2 PASS ⇒ ALL FIVE `F-6` ITEMS PASS.** 🎯 **`BP_SplineSpawn_C` → `MEASURED_ZERO` ×8 against a 22.89 % claim (branch `Z1`); `InstancedFoliageActor_0_0_0` → 1.4 % drawn against a `coverage_pct 100` / whole-frame-bbox claim (branch `Z2`) — every bucket clean, 29/29 frames view-sized, branch `X` did not fire.** ⛔ No incidence claim · no threshold · not a veto test · slices 2/3 not started · NO TAG |
+| **Twenty-nine** | 198–203 | ✅ **SLICE 2 SHIPS — `mask.provided` carries the tri-state** | **All five known-answer rows correct: `SM_Ramp2` → `false`, `BP_SplineSpawn_C` (MEASURED_ZERO) → `true`** — the two zeros stay distinguishable, tested BOTH ways; the guarantee is one function switching on `State` alone that never sees a magnitude. G-2 **48/48 in BOTH delivery modes**, INERT when off, 0 mapping mismatches. 🚨 **`A64` justified itself: the first delivery leg read `provided:false` everywhere and looked like a delivery-orthogonality break — it was a bifurcated POSE, refuted by a pose-matched delivery leg reading `true` AND by the `Cylinder` leg reproducing the signature with delivery OFF via frustum culling.** ⚠ **`G-9` path-level subset INCONCLUSIVE (my control pair under-sampled pitch) — invariant core passes POSITIVELY.** §198 records that the clean result was not a clean path. ⛔ **Slice 3 NOT started; no threshold exists anywhere** |
 
-⚠ **ONE INVESTIGATION, TWENTY-EIGHT PARTS** *(the "nine" in the note below predates Parts Ten
+⚠ **ONE INVESTIGATION, TWENTY-NINE PARTS** *(the "nine" in the note below predates Parts Ten
 onward; the reason it is not split is unchanged).*
 
-**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART TWENTY-EIGHT.** 🎯 **`m26` SLICE 1
-IS DONE AND CERTIFIED: both faults fixed (`795f2a4`, `4a9631a`), the extent precondition shipped
-(`3beb3ba`), `F-6` COMPLETE on all five items — and THE `H5` LEGS ARE RUN. The cure identifies both
-instances that motivated it: `BP_SplineSpawn_C` measures ZERO against a 22.89 % claim, and the
-foliage measures 1.4 % of frame against a claim of the ENTIRE frame — both with every integrity
-bucket clean.** ⚠ **Two limits travel: `G134` — the mask cannot see Nanite geometry on UE 5.1, and
+**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART TWENTY-NINE.** 🎯 **`m26` SLICES 1
+AND 2 ARE DONE AND GATED: both faults fixed (`795f2a4`, `4a9631a`), the extent precondition shipped
+(`3beb3ba`), `F-6` COMPLETE on all five items, the `H5` LEGS RUN — the cure identifies both
+instances that motivated it (`BP_SplineSpawn_C` measures ZERO against a 22.89 % claim; the foliage
+measures 1.4 % of frame against a claim of the ENTIRE frame, both with every integrity bucket
+clean) — and SLICE 2 now REPORTS it through `mask.provided`, with the two zeros proven
+distinguishable in both directions (`ece343f`).** ⛔ **SLICE 3 NOT STARTED; NO THRESHOLD EXISTS
+ANYWHERE.** ⚠ **Two limits travel: `G134` — the mask cannot see Nanite geometry on UE 5.1, and
 on this title that is the COMMON CASE (measured, and now in `client-delivery.md`'s headline);
 `G133` — closed. `G135` records why the calibration level could never have shown either.**
 ⛔ **NO INCIDENCE CLAIM · NO THRESHOLD PROPOSED · class (i) still ENUMERATED-NOT-OBSERVED · the A35
@@ -66,7 +69,7 @@ owner's call**. `feature/stencil-capture` **untouched** throughout — *mined, n
 ⚠ **Production code appears for the first time in PART FOURTEEN (log-only `M-1` instrumentation, on
 owner permission); Parts One–Thirteen carry ZERO.**
 
-🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART TWENTY-EIGHT IS THE COLD-START ENTRY POINT.**
+🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART TWENTY-NINE IS THE COLD-START ENTRY POINT.**
 
 ---
 
@@ -5920,9 +5923,172 @@ can act on. What remains is the owner's: whether to act on it.**
 
 ---
 
-# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–28.
+# PART TWENTY-NINE — **SLICE 2 SHIPS.** `mask.provided` carries the tri-state, and both zeros stay distinguishable.
 
-**Session closed 2026-08-20 at the end of PART TWENTY-EIGHT. `m26` is IN PROGRESS.**
+**Slice 2 cleared with scope frozen. Predictions pre-declared as a file BEFORE implementation and
+before any leg — `CaptureBench/tools/p29_slice2_predeclared.md`, commit `e36beb3`.**
+⛔ **SLICE 3 NOT STARTED — its veto rule is NOT designed, NOT proposed, and NOT assumed by anything
+here. NO TAG. `P6` NOT MOVED. Stencil range 200/255. CB_GateLevel untouched (`G99`).
+`feature/stencil-capture` READ-ONLY.**
+
+---
+
+## 198. 📌 RECORDED FOR A COLD READER: the clean result at the end was not a clean path
+
+**Eleven parts ago this instrument returned a constant 255.** It now separates two known-good
+targets from two known-bad ones with every integrity bucket clean and its guards demonstrated live
+on demand. **The path from there to here ran through two repairs that source refuted before they
+were built (the stencil range, the tag/arm separation), one fault in our own collection code (the
+event-scoped discard), one stale read (the arm gate's one-tick-old hidden state), one structurally
+blind detector (the single-pixel 255 signal), and a calibration level that could not have shown the
+blindness (BasicShapes throughout). EVERY ONE WAS CAUGHT BEFORE IT SHIPPED.** ⚠ **A reader
+arriving at PART TWENTY-EIGHT's numbers should not mistake them for a straight line.**
+
+## 199. Slice 2 — what changed, and the code path that guarantees the safety property
+
+**`mask.provided` stops being a hardcoded `false` and becomes the measurement tri-state's bool.**
+
+| internal state | `mask.provided` |
+|---|---|
+| `NotMeasured` | **`false`** — never measured ⇒ MUST ADMIT |
+| `MeasuredZero` | **`true`** — measured |
+| `MeasuredNonZero` | **`true`** — measured |
+
+🚨 **THE GUARANTEE, NAMED AS THE RULING ASKED:** `provided` is produced by **one function,
+`MaskStateProvidesMeasurement`, which switches on `State` ALONE.** Its only `true` branches are
+`MeasuredZero` and `MeasuredNonZero`; everything else — including the "no mask record for this
+event" path — falls to `false`. **`MaxCount` is never consulted and never emitted**, so there is
+no code path on which a magnitude can turn `MEASURED_ZERO` into `NOT_MEASURED` or the reverse.
+**The two zeros cannot collapse: one is `true`, the other is `false`, structurally.**
+
+**Scope held:** no sub-fields under `mask` (verified per leg: sub-keys are exactly `['provided']`)
+· `depth{provided:false}` untouched · field SET unchanged · **nothing vetoed.**
+⚠ **One ordering change, stated because it is real:** the final mask collect moved to **before**
+`WriteSessionAnnotationFile()` — it previously ran after it and fed only `run_summary`. Nothing
+else in `FinishRun` moved.
+⚠ **And two strings were corrected: the `IAI.Capture.Mask` help text and the `StartRun` banner both
+claimed "log output only … mask{provided} stays false". They no longer do.** A binary must not
+assert something it has stopped doing.
+
+## 200. THE KNOWN-ANSWER SET — all five rows correct, in both directions
+
+| # | target | measured state | `mask.provided` | predicted | |
+|---|---|---|---|---|---|
+| 1 | `StaticMeshActor_49` (`Cube`) | `MEASURED_NONZERO` ×8 | **true** ×8 | true | ✅ |
+| 2 | `StaticMeshActor_73` (`Cylinder`) | `MEASURED_NONZERO` ×4, **`NOT_MEASURED` ×4** | **true ×4, false ×4** | both | ✅ 🎯 **both directions in ONE leg** |
+| 3 | `InstancedFoliageActor_0_0_0` | `MEASURED_NONZERO` ×8 | **true** ×8 | true | ✅ |
+| 4 | 🚨 `BP_SplineSpawn_C` | **`MEASURED_ZERO` ×8** | **true** ×8 | true | ✅ **`F-2` does NOT fire** |
+| 5 | 🚨 **`SM_Ramp2`** (known-Nanite control) | **`NOT_MEASURED` ×8** | **false** ×8 | false | ✅ **`F-1` does NOT fire** |
+
+**Mapping mismatches: 0 on every leg.** Sub-keys under `mask`: exactly `['provided']` everywhere.
+`depth.provided`: `false` everywhere.
+
+🚨 **ROWS 4 AND 5 ARE THE MILESTONE'S SAFETY PROPERTY, TESTED IN BOTH DIRECTIONS ON BANKED KNOWN
+ANSWERS.** Row 5 reading `true` would mean a slice-3 veto **deletes a target that draws real
+geometry and the instrument merely cannot see**. Row 4 reading `false` would mean `MEASURED_ZERO`
+had collapsed into `NOT_MEASURED` and **the cure would never fire at all**. Neither happened.
+
+### 200.1 🆕 An unplanned corroboration from row 2 — and it re-derives `G134`'s mechanism from a different cause
+
+The `Cylinder` leg produced **both** values in one run, and the reason is visible in the artifact:
+
+| event | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| `coverage_ratio` | 0.0685 | 0.0680 | 0.0678 | 0.0379 | **0** | **0** | **0** | **0** |
+| `framesNoPass` | 0 | 0 | 0 | **3** | **4** | **4** | **4** | **4** |
+| `mask.provided` | true | true | true | true | **false** | **false** | **false** | **false** |
+
+**The camera drifted until the cylinder left the frustum, and the moment it did, the custom-depth
+pass stopped being produced.** ⇒ **`framesNoPass` is not a Nanite-specific signal — it is
+"the target is not in the view's relevant set", and FRUSTUM CULLING reaches it exactly as Nanite
+does** (`SceneVisibility.cpp:2470`, relevance runs over the VISIBLE set). ✅ **And the admit bias
+handles it correctly: a target that is off-screen is NOT MEASURED, reports `provided:false`, and
+must be ADMITTED.** *(Observed, not engineered; recorded because it is a second, independent route
+to the same mechanism.)*
+
+## 201. `G-9` — delivery orthogonality. ⚠ **INVARIANT CORE PASSES POSITIVELY; the path-level subset test is INCONCLUSIVE and I am not calling it a pass.**
+
+### 201.1 🚨 First: `A64` justified itself, and it stopped me writing a false finding
+
+**The FIRST delivery leg (`P29_S2_CTRL49_DEL`) came back `mask.provided:false` on every event, with
+`framesNoPass=4` on all eight** — the mask armed and passed normally (29 arms / 29 passes), but the
+custom-depth pass was never produced. **Read alone, that says "delivery mode breaks the mask" — a
+G-9 failure and a serious finding.**
+
+**It is not what happened.** That leg's `coverage_ratio` was **0.0513 and 0** against the OFF legs'
+**0.0780** — a bifurcated pose, with the target barely or never projecting. **Two independent
+things refute the delivery explanation:**
+1. **The `Cylinder` leg reproduces the identical signature with delivery OFF** (§200.1) — pose
+   alone is sufficient to produce it.
+2. **A POSE-MATCHED delivery leg (`P29_S2_CTRL49_DEL2`, `coverage_ratio` 0.0729–0.0780 against the
+   OFF leg's 0.0780) reads `mask.provided:true` on every event.** A positive test, not an absence.
+
+⇒ **Delivery mode does NOT suppress the mask.** 🚨 **And this is precisely why the ruling said
+"B1 per leg is not sufficient": a delivery leg cannot be pose-gated from its artifact at all (no
+`labels.jsonl`), the harness accepted it on attempt 1, and without pose-matching I would have
+reported a delivery-orthogonality break caused by a camera pointed elsewhere.**
+
+### 201.2 The two halves of the gate, reported separately
+
+**✅ INVARIANT CORE — ASSERTED POSITIVELY, not inferred from absence in a diff list:**
+
+| asserted | result |
+|---|---|
+| `mask.provided`, all 8 events, OFF vs ON | ✅ **IDENTICAL** — `true` in both modes, 0 mismatches |
+| `depth.provided` | ✅ identical, `false` |
+| `mask_probe_arms` · `mask_residual_discards` · `mask_nopass_discards` | ✅ **identical (0/0/0 in both modes)** — the three `m26` fields are delivery-invariant |
+| event COUNT | ✅ identical (8 vs 8) |
+| full key SET, both artifacts | ✅ **identical — 0 only-OFF, 0 only-ON** |
+
+**⚠ SUBSET TEST — path level: `EXTRAS = 6`. Kind level: `EXTRAS = 0`.**
+The six are `anomalies[0]/camera/rotation[0]`, `[0]/camera/rotation[1]`, `[0]/coverage_pct`, and
+`camera/rotation[0]` on events 5–7 — **every one a camera-pose-derived field**, and every one of a
+KIND the control pair already established as run-unique (`camera/rotation[*]`, `coverage_pct`,
+`coverage_ratio`). At kind level the test pair's difference set is **exactly** the control pair's
+kinds **plus `delivery_mode`**.
+
+⛔ **I AM NOT CALLING THAT A PASS, AND THE REASON IS A DEFECT IN MY CONTROL PAIR, NOT IN THE
+BUILD.** The two OFF legs happened to settle at poses differing in **yaw but not pitch**, so
+`camera/rotation[0]` never entered the run-unique set — **the control pair UNDER-SAMPLED the pose
+variation it exists to characterise.** And the OFF/ON pair is pose-matched only *approximately*,
+because a delivery leg's pose can only be matched by re-running against the `coverage_ratio`
+indicator. ⇒ **A definitive path-level `G-9` needs either an exactly-pose-matched OFF/ON pair or a
+control pair that spans pitch. Neither was achieved this turn, and the gate is recorded as
+INCONCLUSIVE at path level rather than quietly passed at kind level.** ✅ **What IS established is
+the part slice 2 actually changes: the invariant core, positively, on every element.**
+
+## 202. The remaining gates
+
+| gate | result |
+|---|---|
+| **G-2** field SET unchanged, **BOTH delivery modes** | ✅ **48/48, 0 added 0 removed, on all seven legs including the delivery-ON leg** |
+| **P6** | ✅ **annotation 48/48 unchanged; `run_summary` +3 and nothing more**, every leg |
+| **MAP** | ✅ **all five known-answer rows correct; 0 mismatches** |
+| **INERT** | ✅ **mask OFF ⇒ `provided:false` on all 8 events, 0 `M26S2 MAP` lines, all three counters 0** — the reporting change is inert when the switch is off |
+| **F-1 … F-7** | ✅ **none fired** |
+
+## 203. State after PART TWENTY-NINE
+
+| | |
+|---|---|
+| **slice 2** | ✅ **SHIPPED (`ece343f`) and gated.** `mask.provided` carries the tri-state; both zeros stay distinguishable, tested both ways on banked known answers |
+| **slice 3** | ⛔ **NOT STARTED.** Its veto rule is not designed, not proposed, and not assumed — **and no threshold exists anywhere in the code or the docs** |
+| `G-9` | ⚠ **invariant core PASSES positively; path-level subset INCONCLUSIVE (my control pair under-sampled pitch)** — owner's to weigh |
+| build | staged **`047FA489`** (`F93AEF71` archived first); container unchanged; A44 green |
+| banked | `P29_S2_{CTRL49_A,CTRL49_B,CTRL49_DEL,CTRL49_DEL2,CYL73,FOLIAGE,SPLINE,RAMP,INERT}` + attempts |
+| ⛔ unchanged | **NO TAG** · `P6` does not move · CB_GateLevel untouched · stencil range 200/255 · `feature/stencil-capture` READ-ONLY |
+
+**WHAT THIS PART SETTLES: the measurement now reaches the artifact, and the one property everything
+downstream depends on — that "never measured" and "measured zero" are different states — is
+enforced by a single function that cannot see a magnitude, and was tested in both directions on
+targets whose correct answers were already banked. What it deliberately leaves open: whether a
+veto should ever act on it.**
+
+---
+
+# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–29.
+
+**Session closed 2026-08-20 at the end of PART TWENTY-NINE. `m26` is IN PROGRESS.**
 **NO TAG since `m25`. `P6` HAS NEVER MOVED. `feature/stencil-capture` is READ-ONLY at `76cac74` —
 mine it, never check it out.**
 
@@ -5935,8 +6101,8 @@ reporting**.
 | slice | state |
 |---|---|
 | **1 — MEASURE ONLY** *(log-only, `IAI.Capture.Mask`, default OFF)* | ✅ **DONE AND CERTIFIED. Both faults FIXED (`795f2a4`, `4a9631a`), the EXTENT PRECONDITION shipped (`3beb3ba`), and `F-6` is COMPLETE — ALL FIVE ITEMS PASS** (item 2 by the replacement control `StaticMeshActor_73`) |
-| **2 — REPORTING** (`mask.provided` → the tri-state's bool) | ⛔ **NOT STARTED** |
-| **3 — THE VETO** + `vetoed_events` + gate `G-11` | ⛔ **NOT STARTED** |
+| **2 — REPORTING** (`mask.provided` → the tri-state's bool) | ✅ **SHIPPED AND GATED (`ece343f`, PART TWENTY-NINE).** All five known-answer rows correct; **`SM_Ramp2` → `false`, `BP_SplineSpawn_C` (MEASURED_ZERO) → `true`** — the two zeros stay distinguishable, tested both ways. Field SET 48/48 in BOTH delivery modes; inert when the switch is off |
+| **3 — THE VETO** + `vetoed_events` + gate `G-11` | ⛔ **NOT STARTED — and its rule is NOT designed, NOT proposed, and NOT assumed anywhere. NO THRESHOLD EXISTS in the code or the docs.** |
 
 🎯 **THE `H5` LEGS ARE RUN, AND THE CURE IDENTIFIES BOTH INSTANCES THAT MOTIVATED IT
 (PART TWENTY-EIGHT §195):**
@@ -6036,6 +6202,9 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 | 🆕 **scene depth IS Nanite-inclusive on 5.1** | `Nanite::EmitDepthTargets` writes `SceneDepth` (`NaniteMaterials.cpp:896,930`; compute path `:856`) — answered, nothing designed |
 | 🆕 **`F-6` COMPLETE, all five items** | item 2 by `StaticMeshActor_73` (`Cylinder`) — 8/8 non-zero at 5.27 % vs its claimed 6.87 %, buckets clean |
 | 🆕 🎯 **the cure identifies both `H5` targets** | `BP_SplineSpawn_C` **`MEASURED_ZERO` ×8** vs a 22.89 % claim · foliage **1.4 % drawn** vs a **100 %** claim — all buckets clean, 29/29 frames view-sized on every leg |
+| 🆕 **slice 2's mapping** | five known-answer rows correct both ways; `provided` derives from `State` ALONE through one function that never sees a magnitude |
+| 🆕 **`framesNoPass` is "not in the visible set", not "Nanite"** | the `Cylinder` leg reached it by FRUSTUM CULLING with delivery OFF (`coverage_ratio` → 0 in lockstep) — same mechanism, different cause |
+| 🆕 **delivery does NOT suppress the mask** | a POSE-MATCHED delivery-ON leg reads `provided:true` on every event; the first delivery leg's zeros were its bifurcated pose |
 
 ## H.4 Rulings that travel
 
@@ -6063,7 +6232,7 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 |---|---|
 | plugin | `AnomalyInjector`, `master`, pushed, **no tag since `m25`** |
 | bench | `CaptureBench`, **local-only, no remote** |
-| staged exe | **`F93AEF71`** (the extent precondition; code-only hot-swap over the `m26` cook; predecessors archived first: `DBA2D8EC` at `…exe.m26-p26-fault2-fix-DBA2D8EC`, `444D4812` at `…exe.m26-p24-fault1-fix-444D4812`) |
+| staged exe | **`047FA489`** (slice 2; code-only hot-swap over the `m26` cook; predecessors archived first: `F93AEF71` at `…exe.m26-slice1-certified-F93AEF71`, `DBA2D8EC`, `444D4812`) |
 | container | `m26` cook — `utoc 9334496D` · `ucas 62EB0072` · `pak 78C977A5`; **4 maps** |
 | preserved quartets | `m25-h4h5m1-measurement-build` (Parts 2–14) · `m26-slice1-measurement-build` |
 | 🗺 **disk topology** | ⚠ **`Intermediate` and `Saved` are JUNCTIONS to `E:\IA_BuildCache\...`** — every path stays `D:\...` and **no tool needed editing**. Do not "fix" the missing ~21 GB on `D:`. Runbook §3.6 |
@@ -6073,16 +6242,21 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 ## H.6 What the next session should do first
 
 1. **Read `docs/invisible-anomaly-mechanisms.md`** — the ledger — then this HANDOFF. **Nothing else
-   from Parts 1–28 is required.**
-2. 🎯 **SLICE 1 IS DONE AND CERTIFIED. `F-6` is COMPLETE and both `H5` targets are MEASURED.** The
-   next decision is the OWNER's: **whether to start slice 2 (reporting — `mask.provided` becomes
-   the tri-state's bool) and slice 3 (the deferred veto + `vetoed_events` + gate `G-11`).**
-   ⛔ **Do NOT start either unprompted.**
-3. ⛔ **NO THRESHOLD EXISTS AND NONE WAS PROPOSED.** §195.3's four-target table is a distribution
-   sketch on one title, not a calibration. **Slice 3's veto rule is a separate decision.**
-4. ⚠ **Carried into slice 3's design when it comes:** `m23` precedence (veto only
-   `manifested == true`), `L1`–`L3` (frames stay on disk · dropped events must be counted ·
-   delivery OFF/ON will disagree), risk 4 (a veto can turn a leg from EVIDENCE into INVALID at
-   `< 3` counted events), and 🚨 **risk 7 / A35 — the mask measures DRAWN SILHOUETTE, not VISUAL
-   EFFECT, and the A35 over-fire property is UNTESTED because no control for it exists (§190).**
-5. `P6` does not move. CB_GateLevel untouched (`G99`). Stencil range 200/255. **No tag.**
+   from Parts 1–29 is required.**
+2. 🎯 **SLICES 1 AND 2 ARE DONE AND GATED.** The next decision is the OWNER's: **whether to start
+   slice 3 (the deferred veto + `vetoed_events` + gate `G-11`).** ⛔ **Do NOT start it unprompted,
+   and do NOT propose a veto rule.**
+3. ⛔ **NO THRESHOLD EXISTS ANYWHERE — not in code, not in docs.** §195.3's four-target table is a
+   distribution sketch on one title, not a calibration. **Slice 3's rule is a separate decision
+   with its own evidence and its own gates.**
+4. ⚠ **Owed / carried, if slice 3 is ever cleared:** `m23` precedence (veto only
+   `manifested == true`) · `L1`–`L3` (frames stay on disk · dropped events must be counted ·
+   delivery OFF/ON will disagree) · risk 4 (a veto can turn a leg from EVIDENCE into INVALID at
+   `< 3` counted events) · 🚨 **risk 7 / A35 — the mask measures DRAWN SILHOUETTE, not VISUAL
+   EFFECT, and the A35 over-fire property is UNTESTED because no control for it exists (§190)** ·
+   and 🚨 **`G134` — a Nanite target reports `provided:false` and MUST therefore be ADMITTED.**
+5. ⚠ **One gate is INCONCLUSIVE and it is honest about it: `G-9` at PATH level** (§201.2). The
+   invariant core passed positively; the subset test has 6 pose-derived residuals because my
+   control pair under-sampled pitch. **A definitive path-level `G-9` needs an exactly-pose-matched
+   OFF/ON pair, or a control pair that spans pitch.**
+6. `P6` does not move. CB_GateLevel untouched (`G99`). Stencil range 200/255. **No tag.**
