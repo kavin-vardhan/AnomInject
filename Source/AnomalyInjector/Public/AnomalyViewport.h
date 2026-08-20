@@ -105,6 +105,8 @@ namespace AnomalyViewport
 	ANOMALYINJECTOR_API bool ProjectActorBoundsToScreenRect(
 		const FAnomalyViewInfo& View, const AActor* Actor, FVector2D& OutMin, FVector2D& OutMax);
 
+	ANOMALYINJECTOR_API float GetActorScreenCoveragePct(UWorld* World, const AActor* Actor);
+
 	template <typename T>
 	TArray<TWeakObjectPtr<T>> FindVisibleComponentsMatching(UWorld* World, const FString& Substring)
 	{

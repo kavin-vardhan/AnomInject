@@ -64,6 +64,8 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 
 	Targets.Reset();
 	int32 RefusedSingleLod = 0;
+	int32 RefusedTooSmall = 0;
+	TMap<const AActor*, float> CoverageByOwner;
 	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
 	{
 		UMeshComponent* Mesh = Weak.Get();
@@ -81,6 +83,30 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 			continue;
 		}
 
+		const AActor* Owner = Mesh->GetOwner();
+		float Coverage = -1.0f;
+		if (const float* Cached = CoverageByOwner.Find(Owner))
+		{
+			Coverage = *Cached;
+		}
+		else
+		{
+			Coverage = AnomalyViewport::GetActorScreenCoveragePct(World, Owner);
+			CoverageByOwner.Add(Owner, Coverage);
+			UE_LOG(LogAnomaly, Log,
+				TEXT("lod_popping: COVERAGE '%s' bounds_coverage_pct=%.4f (threshold %.4f) — bounds-projected screen coverage at PICK TIME, the same quantity the gate tests; NOT drawn extent, which is smaller."),
+				*GetNameSafe(Owner), Coverage, MinCoveragePct);
+		}
+
+		if (MinCoveragePct > 0.0f && Coverage < MinCoveragePct)
+		{
+			++RefusedTooSmall;
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("lod_popping: REFUSED '%s' — bounds_coverage_pct %.4f is below the %.4f minimum, so at this on-screen size its LODs do not differ visibly: forcing one would pop it to itself. Same failure as a single-LOD mesh, and the mask veto cannot catch it either (it still draws pixels)."),
+				*Mesh->GetName(), Coverage, MinCoveragePct);
+			continue;
+		}
+
 		FPoppingTarget Target;
 		Target.Mesh = Mesh;
 		Target.BaselineLod = AnomalyLod::GetForcedLod(Mesh);
@@ -95,14 +121,14 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	if (!bActive)
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL %d — every one has a single LOD. Applying nothing, so no fire is recorded and no label is written."),
-			Meshes.Num(), *Substring, RefusedSingleLod);
+			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL — %d single-LOD, %d below the %.4f bounds_coverage_pct minimum. Applying nothing, so no fire is recorded and no label is written."),
+			Meshes.Num(), *Substring, RefusedSingleLod, RefusedTooSmall, MinCoveragePct);
 		return false;
 	}
 
 	UE_LOG(LogAnomaly, Log,
-		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) — %d qualified (>=2 LODs), %d refused (single LOD)."),
-		Meshes.Num(), *Substring, HalfPeriodFrames, Targets.Num(), RefusedSingleLod);
+		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) — %d qualified, %d refused (single LOD), %d refused (below %.4f bounds_coverage_pct)."),
+		Meshes.Num(), *Substring, HalfPeriodFrames, Targets.Num(), RefusedSingleLod, RefusedTooSmall, MinCoveragePct);
 	return bActive;
 }
 

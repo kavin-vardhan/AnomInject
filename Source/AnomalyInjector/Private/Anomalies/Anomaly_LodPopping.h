@@ -35,4 +35,6 @@ private:
 	static constexpr int32 DefaultHalfPeriodFrames = 8;
 	static constexpr int32 MinHalfPeriodFrames = 1;
 	static constexpr int32 MaxHalfPeriodFrames = 600;
+
+	static constexpr float MinCoveragePct = 7.0f;
 };

@@ -587,6 +587,45 @@ namespace AnomalyViewport
 		return true;
 	}
 
+	float GetActorScreenCoveragePct(UWorld* World, const AActor* Actor)
+	{
+		if (!World || !Actor)
+		{
+			return -1.0f;
+		}
+
+		FAnomalyViewInfo View;
+		if (!GetActiveViewInfo(World, View))
+		{
+			return -1.0f;
+		}
+
+		FBox Union(ForceInit);
+		bool bAny = false;
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (Prim && IsRenderableComponent(Prim))
+			{
+				Union += Prim->Bounds.GetBox();
+				bAny = true;
+			}
+		}
+		if (!bAny || !Union.IsValid)
+		{
+			return -1.0f;
+		}
+
+		const FMatrix ViewProj = BuildViewProjectionMatrix(View);
+		FVector2D Min(FVector2D::ZeroVector), Max(FVector2D::ZeroVector);
+		if (!ProjectBoundsToScreenRect(ViewProj, FBoxSphereBounds(Union), Min, Max))
+		{
+			return -1.0f;
+		}
+		return (float)((Max.X - Min.X) * (Max.Y - Min.Y)) * 100.0f;
+	}
+
 	TArray<TWeakObjectPtr<AActor>> GetVisibleRenderableActors(UWorld* World)
 	{
 		TArray<TWeakObjectPtr<AActor>> Result;
