@@ -97,8 +97,44 @@ and is the single source of truth for the project.
   **once per RUN**. (2) **A re-picking veto destroys the seeded draw protocol** — `R-SEED` is
   deliberately independent of apply-result and `m22` gated on *"seed 4242, two runs byte-identical"*.
   **If a future reader proposes "just check before firing", both blockers are in journal §103.**
-  🎯 **THE `m26` SLICE-1 FAULT IS DIAGNOSED AND IT IS **NOT** THE TAG RANGE. → journal PART
-  TWENTY-ONE §149-§156. DIAGNOSIS ONLY — NO FIX APPLIED. NO TAG.**
+  🚨 **`F-1` REFUTES THE APPROVED FIX DIRECTION — THE TIMING DESIGN CANNOT BE WRITTEN. → journal PART
+  TWENTY-TWO §157-§161. DESIGN TURN, NO CODE. NO TAG.**
+  **THE PROXY IS ALREADY UP TO DATE.** `SetRenderCustomDepth` → `MarkRenderStateDirty` →
+  `MarkForNeededEndOfFrameRecreate`, **and that recreate is flushed INSIDE
+  `FRendererModule::BeginRenderingViewFamilies` in the SAME frame** (`SceneRendering.cpp:4528`), whose
+  own comment reads *"Guarantee that all render proxies are up to date before kicking off a
+  BeginRenderViewFamily."* ⇒ **tag-and-arm-in-the-same-tick is NOT the fault; separating them would
+  change nothing.** ⇒ **`F-1`'s answer is ZERO ticks, and it is a GUARANTEE, not a typical case.**
+  ⚠ **That is the `ReservedStencilMax` mistake in a new place — a change targeting a symptom whose
+  mechanism source refutes. Asking `F-1` BEFORE writing the design is the only reason it was caught.**
+  ✅ **TWO MORE CANDIDATES EXONERATED FROM SOURCE:** the **post-Tonemap pass point** is legitimate —
+  `SceneTextures.SetupMode |= CustomDepth` and the uniform buffer is **rebuilt** whenever
+  `RenderCustomDepthPass` returns true (`DeferredShadingRenderer.cpp:2981,3306`); and the **cvar
+  priority** is fine — `ECVF_SetByCode` is second-highest and **no project ini sets `r.CustomDepth`
+  at all**. ⛔ *(priority only — that the write would not be rejected, NOT that the value was 3 at
+  pass time.)*
+  🚨 **SOURCE-ONLY DIAGNOSIS IS NOW EXHAUSTED: every link reads as correct and the measurement
+  disagrees.** ⇒ **NEXT IS MEASUREMENT — `r.CustomDepth`'s EFFECTIVE value at pass time, the one link
+  still carrying its "assumed, not measured" label.** `GetCustomDepthMode()` maps **1→`Enabled`** and
+  only **3→`EnabledWithStencil`**; `FCustomDepthTextures::Create` returns an INVALID set when not
+  enabled, `RenderCustomDepthPass` then returns false, and no custom depth is produced. **A value of 1
+  at pass time produces EXACTLY the observed symptom.** ⛔ **Not a claim it IS the cause — a claim it
+  is the only unmeasured link with a mechanism that reaches the symptom.**
+  📐 **`F-4`/`F-5`/`F-6` ANSWERED (cause-independent).** Tags release only at `FinishRun` and the
+  release is **symmetric** (same deferred path, same guarantee); a residual 255 after any fix is
+  **diagnostic** (uniform ⇒ pass not run that frame · geometry-shaped or any other reserved value ⇒
+  something genuinely writing); and 🚨 **the GATE must be POSITIVE evidence — both controls NON-ZERO
+  with `collisions=0`, arm counts matching prediction, a plausible `pctOfFrame`, and `G96` BOTH WAYS:
+  THE 255 DETECTOR PROVEN STILL LIVE, so its silence means absence and not blindness.**
+  ⚠ **`F-2`/`F-3` CONTINGENT** — but the rule is fixed now for any future tag/arm split: **the
+  hidden-state test applies at tag time, arm time AND resolve time, and hidden at ANY of them ⇒
+  `NOT_MEASURED`, never `MEASURED_ZERO`** (the window is exactly `blinking`'s 3-frame half-period, so
+  the transition is the common case, not a rare race). And `missing_object` has only a **6-tick**
+  post-revert window, so a large separation risks **ZERO arms** — a cure that never fires while
+  looking like a clean pass.
+  🎯 *(carried)* **THE SLICE-1 FAULT: `255` IS THE ENGINE'S `StencilDummy`. → PART TWENTY-ONE
+  §149-§156.** ⚠ **That part's `D-4` "one-frame ordering" explanation is SUPERSEDED above; its
+  `255 = StencilDummy` finding STANDS.**
   🚨 **`D-3` ESTABLISHED FROM ENGINE SOURCE: 255 IS THE ENGINE'S OWN FALLBACK.**
   `SystemTextures.cpp:247-256` creates `StencilDummy` as a **1×1 `PF_R8G8B8A8_UINT` filled with
   `FColor::White` = 255**, and `SceneTextures.cpp:959` binds

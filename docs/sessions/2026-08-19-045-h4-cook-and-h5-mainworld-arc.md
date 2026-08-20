@@ -33,7 +33,8 @@ separable — each part exists because the one before it produced something unex
 | **Eighteen** | 129–134 | **Cleanup executed · 21 sessions banked · cook IN FLIGHT** | **0.94 → 21.93 GB**; 21/21 banked incl. **the `m23` play-gate smoke**; **G130**. 🚨 **Ruling 1's order was IMPOSSIBLE — banking 3.89 GB needs 3.89 GB.** Cook is memory-bound at **1 process** (`G97`) |
 | **Nineteen** | 136–142 | **`E:` junctions · cook SUCCEEDS · build still cannot boot** | Disk solved, map gate PASS — 🛑 **HALT on `LoadingPhase`: a global shader must load at `PostConfigInit`.** **G131**; runbook §8.6 step 3.5; `G115` fired on me and the diffstat caught it |
 | **Twenty** | 143–148 | **Option B ships · build BOOTS · the MEASUREMENT is wrong** | `AnomalyShaders` at `PostConfigInit`, **no `Renderer` dep, load order untouched**; all four gates PASS — 🛑 **HALT: `S4` + an `S3` observation.** Tag 255 pollutes the mask; a control measured ZERO. **`H5` legs deliberately NOT run** |
-| **Twenty-one** | 149–156 | **The cause: a ONE-FRAME ORDERING BUG, not the tag range** | 🚨 **255 IS the engine's `StencilDummy` (`FColor::White`), bound when custom depth is not produced — ESTABLISHED FROM SOURCE.** The range candidate is **REFUTED**, and repairing it would have **silenced the detector and vetoed everything**. Detector no longer names an unestablished cause |
+| **Twenty-one** | 149–156 | **255 IS the engine's `StencilDummy` — ESTABLISHED** | 🚨 **`FColor::White`, bound when custom depth is not produced.** The range candidate is **REFUTED**, and repairing it would have **silenced the detector and vetoed everything**. Detector no longer names an unestablished cause. ⚠ **Its `D-4` "one-frame ordering" explanation is SUPERSEDED by Part Twenty-two** |
+| **Twenty-two** | 157–161 | **`F-1` refutes the fix direction — the design cannot be written** | 🚨 **The proxy is ALREADY up to date: `SendAllEndOfFrameUpdates` runs inside `BeginRenderingViewFamilies` in the SAME frame.** Zero ticks needed. Pass point and cvar priority also exonerated ⇒ **source-only diagnosis EXHAUSTED**; the unmeasured `r.CustomDepth` is next. `F-4`/`F-5`/`F-6` answered |
 
 ⚠ **ONE INVESTIGATION, FIFTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fifteen;
 the reason it is not split is unchanged).*
@@ -4671,3 +4672,169 @@ DISCRIMINATOR:**
 and the pre-declared refuters are what caught it. Repairing the leading candidate would have produced
 `MEASURED_ZERO` with `collisions=0` on every event: a clean-looking answer that vetoes the entire
 dataset.**
+
+⚠ **SUPERSEDED BY PART TWENTY-TWO: `F-1` REFUTES the one-frame-ordering candidate from source. The
+`255 = StencilDummy` finding (§149-§151) STANDS; the `D-4` explanation for *why* custom depth was not
+produced does NOT.**
+
+---
+
+# PART TWENTY-TWO — `F-1` REFUTES THE FIX DIRECTION. **The design cannot be written yet.**
+
+🚨 **I WAS ASKED TO DESIGN THE TIMING FIX. `F-1`'s FIRST QUESTION — "establish from source WHEN the
+proxy actually has the flag" — ANSWERS IT, AND THE ANSWER REMOVES THE FIX'S REASON TO EXIST.**
+⛔ **DESIGN ONLY, NO CODE. NO TAG. `P6` NOT MOVED.** `feature/stencil-capture` **READ-ONLY.**
+
+---
+
+## 157. Rulings recorded
+
+**RULING 1 — the fix is approved IN PRINCIPLE, design first.** ⇒ **§158 reports why the design cannot
+be written on the approved premise.**
+**RULING 2 — the `H5` legs stay BLOCKED** until **both** controls read NON-ZERO. **Unchanged, and it
+is not affected by anything below.**
+
+## 158. 🚨 `F-1` — THE PROXY IS **ALREADY UP TO DATE**. ONE TICK IS NOT NEEDED; ZERO ARE.
+
+**Chain established from source, each link read, not inferred:**
+
+| # | fact | source |
+|---|---|---|
+| 1 | `SetRenderCustomDepth` → `MarkRenderStateDirty()` → **`MarkForNeededEndOfFrameRecreate()`** | `ActorComponent.cpp` |
+| 2 | 🚨 **the end-of-frame recreate is flushed INSIDE the render entry point, in the SAME frame** | `SceneRendering.cpp:4528`, in **`FRendererModule::BeginRenderingViewFamilies`** |
+| 3 | and the engine's own comment says why | *"Guarantee that all render proxies are up to date before kicking off a `BeginRenderViewFamily`."* |
+
+⇒ **BY THE TIME OUR MASK PASS RUNS, THE PROXY HAS THE FLAG. The tag-and-arm-in-the-same-tick
+ordering is NOT the fault.** ⛔ **Separating tag from arm would change nothing — it is the
+`ReservedStencilMax` repair again, in a new place: a change that cannot fix the symptom it targets.**
+
+⇒ **`F-1`'s answer is not "one tick" or "usually one". It is ZERO — the guarantee already exists,
+and it is a guarantee, not a typical case.**
+
+### 158.1 Two further candidates that source ALSO exonerates
+
+**(a) THE PASS POINT IS FINE.** Post-processing does not get a custom-depth-less buffer by design —
+when the custom depth pass runs, the uniform buffer is **rebuilt to include it**:
+
+```cpp
+// DeferredShadingRenderer.cpp:2981 and :3306
+if (RenderCustomDepthPass(GraphBuilder, SceneTextures.CustomDepth, ...))
+{
+    SceneTextures.SetupMode |= ESceneTextureSetupMode::CustomDepth;
+    SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(..., SceneTextures.SetupMode);
+}
+```
+
+⇒ **post-Tonemap is a legitimate place to read custom stencil — PROVIDED the pass ran.**
+
+**(b) THE CVAR PRIORITY IS FINE.** `ECVF_SetByCode = 0x09000000` is **second-highest** (only
+`SetByConsole` outranks it), and **no `Config\*.ini` in this project sets `r.CustomDepth` at all** —
+so nothing outranks our `Set(3, ECVF_SetByCode)`. ⛔ **This is about PRIORITY only. It says the write
+would not be rejected; it does NOT say the value was 3 at pass time.**
+
+## 159. Where that leaves the diagnosis
+
+**Every link in the chain, read from source, says it should work:**
+
+`r.CustomDepth` set to 3 at `StartRun` (high priority, unopposed) → tag written and verified on the
+component (`D-2`, `collisions=0`) → proxy recreate flushed before `BeginRenderViewFamily` (`F-1`) →
+custom depth pass runs → uniform buffer rebuilt with `CustomDepth` (§158.1a) → our post-Tonemap read
+gets the real stencil.
+
+**And the measurement says it does not.** ⇒ 🚨 **SOURCE-ONLY DIAGNOSIS IS EXHAUSTED. The next step is
+MEASUREMENT, not design.**
+
+⚠ **AND THE THING TO MEASURE IS THE ONE I ALREADY LABELLED ASSUMED-NOT-MEASURED, exactly as the owner
+warned it must not quietly become settled:**
+
+> **`r.CustomDepth`'s EFFECTIVE value at pass time.** `-ExecCmds` is startup-only and reports the
+> default (**1**, *enabled but stencil writes OFF*), not the in-run value. **`GetCustomDepthMode()`
+> maps 1→`Enabled` and only 3→`EnabledWithStencil`, and `FCustomDepthTextures::Create` returns an
+> INVALID texture set when the mode is not enabled — after which `RenderCustomDepthPass` returns
+> false and no custom depth is produced.** **A value of 1 at pass time produces EXACTLY the observed
+> symptom.**
+
+⛔ **NOT a claim that the cvar is the cause — a claim that it is the ONLY link still unmeasured, and
+that it has a mechanism reaching the observed symptom.**
+
+## 160. `F-2`..`F-6` — what survives, and what is contingent
+
+### `F-2` LOCK-1 vs a tag/arm split — ⚠ **CONTINGENT, but the RULE is recorded now**
+
+⛔ **Not answerable as a design while the fix that creates the window is refuted.** **But the hazard
+the owner named is real for ANY future change that separates tag from arm, so the rule is fixed
+here rather than re-derived under time pressure:**
+
+> **IF tag and arm are ever separated, the hidden-state test must be applied at EVERY point in the
+> window — tag time, arm time, and the frame the mask resolves — and a target hidden at ANY of them
+> yields `NOT_MEASURED`, never `MEASURED_ZERO`.**
+
+🚨 **The window is exactly `blinking`'s toggle period (half-period 3 frames), so a not-hidden→hidden
+transition inside it is not a rare race — it is the common case.** **The admit bias is the safety
+argument and it is not negotiable.**
+
+### `F-3` budget — ⚠ **CONTINGENT.** Numbers depend on the separation `N`, which is now not needed
+
+**Recorded for whoever needs it:** events are **16 ticks** apart; arms are capped at **4**;
+`missing_object` has only the **6-tick post-revert window** (`SettleAfterRevert` 2 + `PostGap` 4).
+🚨 **A separation of `N` ticks divides that window: at `N=2` `missing_object` retains ~2 arms, and any
+larger `N` risks ZERO — which would make it permanently `NOT_MEASURED`, a cure that never fires while
+looking like a clean pass.**
+
+### `F-4` UNTAGGING — ✅ **ANSWERABLE NOW, and it is cause-independent**
+
+Today tags are applied in `ArmIfMeasurable` and released **only** at `EndRun` via
+`AnomalyStencilTag::RestoreAll()`, so **a tag persists for the rest of the run.**
+
+| question | answer |
+|---|---|
+| when is a tag cleared? | **only at `FinishRun`** — never per event |
+| can a retagged target collide with its own stale state? | **No today** — tag values are allocated per event and never reused within a run (`NextTagOffset` increments; the range is 56 wide against ≤8 events). ⚠ **A longer run could wrap and reuse a tag while the old one is still applied.** |
+| does the release defer the same way? | ✅ **Yes — `SetRenderCustomDepth(false)` takes the same `MarkRenderStateDirty` path**, so a release is also flushed before the next `BeginRenderViewFamily`. **Symmetric, and per `F-1` that is a guarantee.** |
+
+⚠ **Persistent tags are why the one clean-measuring event saw no 255** (§153): earlier tags had
+already made custom depth render. **That is a real coupling between events and it should not be
+relied on.**
+
+### `F-5` WHAT A RESIDUAL 255 WOULD MEAN — ✅ **ANSWERABLE NOW**
+
+| after a working fix | meaning |
+|---|---|
+| **no 255 at all** | custom depth is produced; the dummy is never bound |
+| **255 uniform across the frame, on some frames** | ⇒ **custom depth was not produced for THOSE frames** — a per-frame gating problem, not a per-target one |
+| **255 in a geometry-shaped region** | ⇒ 🚨 **genuinely written by something** — the only reading under which the original "host title" wording would have been right |
+| **any reserved value other than 255** | ⇒ something writing into the range; the dummy cannot produce it |
+
+✅ **The detector's discriminator (as rewritten in PART TWENTY-ONE) separates all four, and needs no
+further change.**
+
+### `F-6` THE GATE — ✅ **ANSWERABLE NOW, and it is the most important item here**
+
+🚨 **`R1`'s standing warning applies to the fix itself: a silent instrument and a working one look
+identical from outside.** The gate must therefore be **positive evidence**, not absence of noise:
+
+| # | required observation |
+|---|---|
+| **1** | **`StaticMeshActor_49` (CB_GateLevel) NON-ZERO** — `MEASURED_NONZERO`, `collisions=0` |
+| **2** | **`SM_Ramp2` (MainWorld) NON-ZERO** — `collisions=0`; **`A-4`: peak-IN/peak-OUT reported beside it** (peak-OUT **0.2955** > peak-IN **0.1785**) |
+| **3** | **arm counts match the `F-3` prediction** — not merely non-zero, the predicted number |
+| **4** | **`pctOfFrame` is PLAUSIBLE for the target's on-screen size** — a count that is non-zero but absurd is still wrong |
+| **5** | 🚨 **THE 255 DETECTOR IS PROVEN STILL LIVE (`G96`, both ways)** — demonstrate it can still fire, so its silence means ABSENCE and not BLINDNESS. **Without this, items 1-4 could all pass on an instrument that has simply stopped looking.** |
+
+⛔ **Only after 1–5 do the `H5` legs unblock (Ruling 2).**
+
+## 161. State after PART TWENTY-TWO
+
+| | |
+|---|---|
+| `F-1` | 🚨 **ANSWERED — and it REFUTES the approved fix direction.** The proxy is already up to date; **zero** ticks are needed |
+| also exonerated | the **post-Tonemap pass point** · the **cvar priority** |
+| diagnosis | ⛔ **source-only is EXHAUSTED** — every link reads as correct and the measurement disagrees |
+| next | **MEASURE `r.CustomDepth`'s effective value at pass time** — the only unmeasured link, and it has a mechanism reaching the exact symptom |
+| `F-2`/`F-3` | ⚠ **CONTINGENT** — rules and numbers recorded, design deferred |
+| `F-4`/`F-5`/`F-6` | ✅ **answered, cause-independent** |
+| unchanged | **`LOCK-1` PROVEN · plumbing · module · gates · quartet · write side exonerated · range stays 200/255** |
+
+**WHAT THIS PART SETTLES: the approved fix would not have worked, and the reason is the same shape as
+the repair it replaced — a change targeting a symptom whose mechanism source refutes. `F-1` was the
+right first question, and asking it before writing the design is the only reason that was caught.**
