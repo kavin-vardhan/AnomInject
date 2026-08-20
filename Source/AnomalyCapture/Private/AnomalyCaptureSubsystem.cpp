@@ -2594,7 +2594,10 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskCmd(
 	TEXT("IAI.Capture.Mask"),
-	TEXT("m26 SLICES 1+2 - MEASURE AND REPORT (default OFF). ON: tag each fired target into custom stencil using ")
+	TEXT("m26 SLICES 1+2+3 - MEASURE, REPORT AND VETO. The COMPILED default is OFF, but that is only the ")
+	TEXT("fallback: [AnomalyCapture] bMaskMeasureDefault in DefaultGame.ini carries delivered behaviour, and ")
+	TEXT("this switch overrides whichever of the two applies, for the session, BETWEEN RUNS. Read the effective ")
+	TEXT("value and its provenance from the StartRun echo, never from this help text. ON: tag each fired target into custom stencil using ")
 	TEXT("the SHARED renderable predicate (AnomalyViewport::IsRenderableComponent), rasterise an ")
 	TEXT("occlusion-correct silhouette mask after tonemap, and reduce it to a per-event SURVIVING-PIXEL COUNT. ")
 	TEXT("A frame contributes only on POSITIVE evidence the custom-depth pass ran and the target rendered ")
