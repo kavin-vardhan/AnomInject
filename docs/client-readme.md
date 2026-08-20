@@ -12,11 +12,11 @@ The delivery folder looks like this — the two launchers sit at the top:
 
 ```
 <delivery folder>/
+  README.md            this guide
   Setup.bat            run once, first
-  Run.bat              starts everything (encoder + dashboard app)
-  Dashboard.exe        the dashboard app (double-clickable)
-  config.json          settings the app reads on startup (already set up)
-  host-tools/          the encoder script
+  Run.bat              starts everything (encoder + dashboard)
+  dashboard/           the dashboard itself, plus the config.json it reads on startup
+  host-tools/          the encoder and helper scripts
   (your game build)    see the Launch section below
 ```
 
@@ -24,9 +24,11 @@ The delivery folder looks like this — the two launchers sit at the top:
 
 Install this once, before first setup:
 
-* **Python** (3.10+) — runs the video encoder (turns captured frames into an MP4). https://python.org — during install, tick **“Add Python to PATH”**. No extra Python packages are needed.
+* **Python** (3.10+) — runs the video encoder and serves the dashboard. https://python.org — during install, tick **“Add Python to PATH”**. No extra Python packages are needed.
 
-That's the only prerequisite. The dashboard itself is a normal desktop app (`Dashboard.exe`) — you do **not** need Node.js, you do **not** need a browser, and you do **not** need to download ffmpeg yourself (`Setup.bat` fetches ffmpeg for you, or uses one already on your PATH).
+That's the only prerequisite. The dashboard **opens in your normal web browser** — there is nothing to install for it. You do **not** need Node.js, and you do **not** need to download ffmpeg yourself (`Setup.bat` fetches ffmpeg for you, or uses one already on your PATH).
+
+*(Python 3.7 is the hard minimum for the small server that shows the dashboard; 3.10+ is recommended and is what the encoder is tested against.)*
 
 ## 2. First-time setup (once)
 
@@ -34,13 +36,12 @@ Double-click **`Setup.bat`** in the delivery folder and answer its prompts. It i
 
 * **Find or download ffmpeg.** If ffmpeg is already on your PATH (or was downloaded by a previous run) it uses that. Otherwise it offers to download a build for you; say **Yes** and it fetches and unpacks it automatically. (Say No only if you prefer to install ffmpeg yourself and add it to PATH — then re-run `Setup.bat`.)
 * **Find Python** on your PATH.
-* **Check the display runtime (WebView2).** The dashboard app draws itself using Microsoft's WebView2 runtime, which is already installed on almost all Windows 10/11 machines. If it happens to be missing, `Setup.bat` installs it for you automatically (this needs internet the first time).
 * **Ask where captures should be saved.** Enter any folder you like (Setup creates it, and any missing folders above it, if it doesn't exist yet), e.g. `D:\AnomalyCaptures`. This one folder is used by **both** the video encoder (it watches here for finished captures) **and** the dashboard (the game is told to write captures here), so the two can't drift apart. **You only enter this once** — nothing else ever has to be hand-edited.
 * **Save your answers** to a small `config.bat` next to `Setup.bat` (and point the dashboard at that same captures folder), which the run scripts read automatically.
 
 Re-run `Setup.bat` any time your paths change (new game build, moved captures folder) or the dashboard is updated.
 
-**Token (connects the dashboard to the game).** The dashboard and the game share a token so only your dashboard can control your game. This is already configured in the build you received — you do not need to enter or paste anything. (For reference it lives in `config.json` next to `Dashboard.exe`; if the dashboard ever reports that the token was rejected, that is the file to check.)
+**Token (connects the dashboard to the game).** The dashboard and the game share a token so only your dashboard can control your game. This is already configured in the build you received — you do not need to enter or paste anything. (For reference it lives in `dashboard\config.json`; if the dashboard ever reports that the token was rejected, that is the file to check. `Setup.bat` checks that the dashboard can actually read it and stops if it cannot.)
 
 ## 3. Running a capture session
 
@@ -59,13 +60,23 @@ Do these in order each time you want to capture.
 Double-click **`Run.bat`**. It opens two windows:
 
 * **Anomaly Watcher** — watches for finished captures and turns them into MP4s automatically.
-* **Anomaly Dashboard** — the control app itself, a normal desktop window (no browser needed).
+* **Anomaly Dashboard Server** — a small local server that hands the dashboard to your browser.
 
-**The first time** `Dashboard.exe` opens, Windows may show a blue **“Windows protected your PC”** screen because the app isn't code-signed. Click **More info → Run anyway** — you only do this once. (It is not a virus warning; it's the app in your own delivery folder.)
+Your **default browser then opens automatically** at `http://127.0.0.1:5180/`. If it does not, or you close the tab, just open that address yourself — the server window stays running. Nothing is published to the internet: it listens only on your own machine.
 
 `Run.bat` then prints a short **status check** — dashboard, watcher, and game server — so you can see at a glance whether anything is missing. If the game server line says *NOT RUNNING YET*, go back to Step 1 and start the game; the dashboard will connect on its own once it is up.
 
-The dashboard connects to the game automatically — no token to enter. You should see a green “connected” dot and a live preview of the game. **Leave the app and the watcher window open while you capture; close them when you're done.**
+The dashboard connects to the game automatically — no token to enter. You should see a green “connected” dot and a live preview of the game. **Leave the two windows open while you capture; close them when you're done.** (Closing the browser tab is harmless — reopen the address to come back.)
+
+### Working on two monitors, or without alt-tabbing
+
+If you are running the game on one monitor and the dashboard on the other, you can start a capture **entirely from the game's own console** and never touch the dashboard:
+
+```
+IAI.Capture.Start "" png 0 120 blinking
+```
+
+The arguments are the same ones the dashboard sets for you — output folder (`""` = the default), image format, seed (`0` = pick one), frame count, and optionally an anomaly and a target object. This matters because **capture waits for the game window to have focus before it records its first frame**: if you start a capture from the dashboard and then click back to the game, the first moments are spent waiting rather than capturing. Starting from the game's console means the game already has focus, so recording begins immediately and you never do the click-across-and-back dance. The dashboard still shows the run and the watcher still encodes it.
 
 ### Step 3 — Capture
 
@@ -168,9 +179,9 @@ Your machine renders the game at some frame rate ("native fps") — check it in 
 ## 7. Troubleshooting
 
 * **Dashboard won't connect** — make sure the game is running and its control server is up (see the Launch section, Step 2); check with `IAI.Server.Status` in the console, or read the status check `Run.bat` prints. The dashboard connects to `127.0.0.1:8077` on this machine only.
-* **Dashboard says the token was rejected** — the game and the dashboard disagree about the shared token. Check `controlToken` in `config.json` (next to `Dashboard.exe`) against the build you were given, then close and reopen the app. (You can also paste a token straight into the app's connect screen for a one-off.)
-* **The app window doesn't appear (or is blank)** — it needs Microsoft's WebView2 runtime. Re-run `Setup.bat`, which installs it; if that machine has no internet, install WebView2 by hand from Microsoft's Edge WebView2 page, then run `Run.bat` again.
-* **“Windows protected your PC” on first launch** — expected; the app isn't code-signed. Click **More info → Run anyway** (once). It's the app from your own delivery folder, not a download.
+* **Dashboard says the token was rejected** — the game and the dashboard disagree about the shared token. Check `controlToken` in `dashboard\config.json` against the build you were given, then reload the page. (You can also paste a token straight into the connect screen for a one-off.)
+* **The browser doesn't open, or the page won't load** — check the **Anomaly Dashboard Server** window opened by `Run.bat`. If it says the port is already in use, another copy is already running: use that tab instead. Otherwise open `http://127.0.0.1:5180/` yourself.
+* **The page loads but is blank** — that usually means `dashboard\config.json` is missing or unreadable. Re-run `Setup.bat`; it writes the file and then verifies the dashboard can actually fetch it, and stops if it cannot.
 * **Pressed Start but nothing is recording** — click into the game window. Capture waits for the game to have focus before its first frame (so it doesn't start on a timeout after ~30 seconds otherwise).
 * **The live preview froze** — if a capture is running, that's intentional; it resumes when the run ends. If no capture is running, check the connection dot.
 * **No MP4 appears** — make sure the **Anomaly Watcher** window (opened by `Run.bat`) is still open. The most common cause is a wrong captures folder or a missing ffmpeg: re-run `Setup.bat` to re-enter the captures path and (re)install ffmpeg, then restart `Run.bat`. The watcher prints a line for every session it encodes — and a clear message if it can't find ffmpeg. It will encode any sessions it missed once the paths are right.

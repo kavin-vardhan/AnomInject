@@ -3503,3 +3503,35 @@ new behaviour, never **ACROSS** the change.
 4. Targeted fire is **unaffected** — `TryFireSpecific` carries no viewport predicate, so the `=name`
    escape hatch still reaches an excluded actor deliberately.
 (2026-08-20.)
+
+---
+
+### G141 — PowerShell's `-Encoding utf8` WRITES A BOM, and it has now corrupted files in this project twice in one session
+
+`Set-Content`/`Out-File -Encoding utf8` in **Windows PowerShell 5.1 emits UTF-8 WITH a BOM**. The
+bytes `EF BB BF` land at the head of the file and nothing complains.
+
+**TWICE IN ONE SESSION (2026-08-20):**
+1. A shell round-trip to add one parameter to `AnomalyLabelWriter.{h,cpp}` prefixed a BOM to both.
+   Caught by the standing pre-commit diffstat habit (`G115`) — the diff showed
+   `-#pragma once` / `+<BOM>#pragma once`, a change to line 1 nobody asked for. Reverted and redone
+   with the editor tool.
+2. A hand-written test `config.json` for the dashboard verifier, written with `Out-File -Encoding
+   utf8`, made the verifier fail with *"Unexpected UTF-8 BOM (decode using utf-8-sig)"*.
+
+⚠ **THE SECOND ONE IS THE INSTRUCTIVE ONE, BECAUSE THE TOOL WAS RIGHT.** A BOM'd `config.json`
+breaks the browser's `JSON.parse` exactly as it broke Python's. The verifier catching it was the
+guard WORKING, not a false alarm, and treating it as noise would have discarded a real signal.
+*(The shipped `write_config.py` writes clean UTF-8 — verified, no BOM — so only hand-written files
+are exposed.)*
+
+**RULES.**
+1. **Never write a tracked source or config file through `Set-Content`/`Out-File`.** Use the editor
+   tool, which preserves encoding and line endings.
+2. When a script genuinely must write a file, use
+   `[System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))`
+   — the `$false` is "no BOM" and is the whole point.
+3. **`G115`'s diffstat check is what catches this**, because a BOM shows as a change to line 1 of a
+   file whose line 1 you did not touch. Read the diffstat before every commit.
+4. A parser rejecting a BOM is reporting a REAL defect in the file. Fix the file, not the parser.
+(2026-08-20.)
