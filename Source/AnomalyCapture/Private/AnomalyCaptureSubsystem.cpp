@@ -38,7 +38,10 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
+#include "MaterialShared.h"
 
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SWindow.h"
@@ -257,6 +260,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bSveCapture = bConfigSve;
 		bSveFromIni = true;
 	}
+	bool bConfigMask = false;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bMaskMeasureDefault"), bConfigMask, GGameIni))
+	{
+		bMaskMeasure = bConfigMask;
+		bMaskMeasureFromIni = true;
+	}
 	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s), default from %s."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
 		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
@@ -266,6 +275,13 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bSveFromIni
 			? TEXT("DefaultGame.ini [AnomalyCapture] bSveCaptureDefault")
 			: TEXT("S4 COMPILED-IN DEFAULT (SVE, UI-free); no ini key present; IAI.Capture.SVE 0 selects the backbuffer/UI-on path"));
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(mask): m27 EFFECTIVE AT INIT - mask %s, default from %s. Mask off means the m26 H5 cure ")
+		TEXT("is INACTIVE and this build labels exactly as m25 did."),
+		bMaskMeasure ? TEXT("ON (measure, report and veto)") : TEXT("off"),
+		bMaskMeasureFromIni
+			? TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault")
+			: TEXT("COMPILED DEFAULT (off); no ini key present; IAI.Capture.Mask 1 enables it for the session"));
 #if WITH_EDITOR
 	if (ULevelEditorPlaySettings* PlaySettings = GetMutableDefault<ULevelEditorPlaySettings>())
 	{
@@ -596,11 +612,13 @@ void UAnomalyCaptureSubsystem::SetMaskMeasure(bool bInMask)
 		return;
 	}
 	bMaskMeasure = bInMask;
+	bMaskMeasureFromIni = false;
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("IAI.Capture.Mask: %s (m26 slices 1+2+3: MEASURE, REPORT and VETO. mask{provided} carries the ")
-		TEXT("measurement tri-state, and an event is REMOVED from annotation.json if and only if it manifested ")
-		TEXT("AND its target was MEASURED at ZERO drawn pixels - no ratio, no threshold. The full banner prints ")
-		TEXT("at IAI.Capture.Start.)"),
+		TEXT("IAI.Capture.Mask: %s - THE BISECT SWITCH, and it takes effect BETWEEN RUNS, not mid-run. It gates ")
+		TEXT("m26 slices 1+2+3 together: MEASURE, mask{provided}, and the VETO. Setting it 0 and re-capturing ")
+		TEXT("returns the build to m25 labelling behaviour in about thirty seconds, with no rebuild. It overrides ")
+		TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault for this session. The full banner prints at ")
+		TEXT("IAI.Capture.Start."),
 		bMaskMeasure ? TEXT("ON") : TEXT("off"));
 }
 
@@ -775,6 +793,16 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		Async->SveCapturer->Reset();
 		Async->SveCapturer->SetActive(true);
 	}
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("=== Capture(mask): EFFECTIVE FOR THIS RUN - mask %s, default from %s === READ THIS LINE, NOT THE ")
+		TEXT("INI. Mask off means the m26 H5 cure is INACTIVE and this session labels exactly as m25 did. In a ")
+		TEXT("packaged build the ini that counts is the COOKED DefaultGame.ini - a loose ini beside the package ")
+		TEXT("is a SILENT NO-OP (G88), which is why this line reports the EFFECTIVE value and not the file."),
+		bMaskMeasure ? TEXT("ON (measure, report and veto)") : TEXT("off"),
+		bMaskMeasureFromIni
+			? TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault")
+			: TEXT("COMPILED DEFAULT (off) or IAI.Capture.Mask"));
 
 	if (bMaskMeasure && Async.IsValid())
 	{
@@ -1609,6 +1637,46 @@ static bool MaskStateVetoes(EAnomalyMaskState State)
 	return State == EAnomalyMaskState::MeasuredZero;
 }
 
+static bool AnyTranslucentSlotOnTaggedComponents(const AActor* Actor, int32& OutTranslucentSlots, int32& OutTotalSlots, bool& bOutKnown)
+{
+	OutTranslucentSlots = 0;
+	OutTotalSlots = 0;
+	bOutKnown = false;
+	if (!Actor)
+	{
+		return false;
+	}
+
+	int32 RenderableComponents = 0;
+	TInlineComponentArray<UPrimitiveComponent*> Prims;
+	const_cast<AActor*>(Actor)->GetComponents(Prims);
+	for (const UPrimitiveComponent* Prim : Prims)
+	{
+		if (!AnomalyViewport::IsRenderableComponent(Prim))
+		{
+			continue;
+		}
+		++RenderableComponents;
+		const int32 NumSlots = Prim->GetNumMaterials();
+		for (int32 SlotIndex = 0; SlotIndex < NumSlots; ++SlotIndex)
+		{
+			const UMaterialInterface* Mat = Prim->GetMaterial(SlotIndex);
+			if (!Mat)
+			{
+				continue;
+			}
+			++OutTotalSlots;
+			if (IsTranslucentBlendMode(Mat->GetBlendMode()))
+			{
+				++OutTranslucentSlots;
+			}
+		}
+	}
+
+	bOutKnown = (RenderableComponents > 0) && (OutTotalSlots > 0);
+	return bOutKnown && OutTranslucentSlots > 0;
+}
+
 static bool AccumEventManifested(const FSessionEventAccum& Ev)
 {
 	bool bKnownId = false;
@@ -1661,6 +1729,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		}
 
 		VetoedEvents = 0;
+		TranslucentVetoes = 0;
+		TranslucencyUnknownVetoes = 0;
 		int32 CountedEventsBefore = Async.IsValid() ? Async->SessionEvents.Num() : 0;
 		if (bMaskMeasure && Async.IsValid())
 		{
@@ -1677,6 +1747,32 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				{
 					continue;
 				}
+				int32 TranslucentSlots = 0;
+				int32 TotalSlots = 0;
+				bool bTranslucencyKnown = false;
+				const bool bAnyTranslucent = AnyTranslucentSlotOnTaggedComponents(
+					Rec->TargetActor.Get(), TranslucentSlots, TotalSlots, bTranslucencyKnown);
+				if (!bTranslucencyKnown)
+				{
+					++TranslucencyUnknownVetoes;
+				}
+				else if (bAnyTranslucent)
+				{
+					++TranslucentVetoes;
+				}
+
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("VETOED-OBJECT target=%s asset=%s componentClass=%s state=%s maxCount=%d ")
+					TEXT("translucency=%s translucentSlots=%d/%d anomaly=%s startFrame=%llu"),
+					*Ev.Target,
+					Ev.NodeAssetName.IsEmpty() ? TEXT("(none)") : *Ev.NodeAssetName,
+					Ev.NodeComponentClass.IsEmpty() ? TEXT("(none)") : *Ev.NodeComponentClass,
+					LexToStringAnomalyMaskState(Rec->State),
+					Rec->MaxCount,
+					bTranslucencyKnown ? (bAnyTranslucent ? TEXT("TRANSLUCENT") : TEXT("opaque")) : TEXT("UNKNOWN"),
+					TranslucentSlots, TotalSlots,
+					*Ev.Id.ToString(), Ev.StartFrame);
+
 				UE_LOG(LogAnomalyCapture, Warning,
 					TEXT("Capture(mask): M26S3 VETO id=%s target=%s startFrame=%llu state=%s - the target was ")
 					TEXT("MEASURED and contributed ZERO drawn pixels, so this event is removed from ")
@@ -1694,6 +1790,17 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 		if (bMaskMeasure && Async.IsValid())
 		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(mask): M27 VETO SUMMARY vetoedEvents=%d translucentVetoes=%d ")
+				TEXT("translucencyUnknownVetoes=%d - one line per removed object was logged above, each prefixed ")
+				TEXT("with the single grep token named in client-delivery.md; ")
+				TEXT("a vetoed event leaves NO trace in annotation.json, so those lines and vetoed_events are the ")
+				TEXT("only record. translucentVetoes counts vetoes whose target carried at least one TRANSLUCENT ")
+				TEXT("material slot: on UE 5.1 such a target cannot write custom depth unless its material ticks ")
+				TEXT("Allow Custom Depth Writes, so its zero may mean the mask could not see it rather than that ")
+				TEXT("it drew nothing. UNKNOWN is counted SEPARATELY and is NOT the same as opaque. Both counters ")
+				TEXT("are DIAGNOSTIC - they feed nothing, gate nothing, and must never become a filter."),
+				VetoedEvents, TranslucentVetoes, TranslucencyUnknownVetoes);
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(mask): M26S3 G-11 countedEventsBefore=%d countedEventsAfter=%d vetoedEvents=%d ")
 				TEXT("nonManifestedEvents=%d - the two counters are DISJOINT by construction: manifested is ")
@@ -1722,7 +1829,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
 			bSveCapture ? TEXT("sve") : TEXT("backbuffer"),
 			bSveCapture ? &RingTelemetry : nullptr,
-			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards, VetoedEvents);
+			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards, VetoedEvents,
+			TranslucentVetoes, TranslucencyUnknownVetoes);
 
 		if (bSveCapture)
 		{

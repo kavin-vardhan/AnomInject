@@ -288,6 +288,70 @@ plugin, and it can be undone by one checkbox.** → **the full entry, the second
 on, and what would reopen it: `docs/invisible-anomaly-mechanisms.md`, "`H6` — DOCUMENTED, NOT
 FIXED".** ⛔ **Two pre-delivery boxes now exist for it — see `PRE-DELIVERY-CHECKLIST.md` §1.**
 
+## `m27` — TURNING THE CURE ON IN A DELIVERED BUILD, AND HOW TO SEE WHAT IT REMOVED
+
+🚨 **WITHOUT THIS BLOCK THE `m26` CURE DOES NOTHING.** `bMaskMeasure`'s compiled default is
+**false**, deliberately, so a build with no ini key labels exactly as `m25` did — which is the
+invisible-anomaly behaviour the client reported. **The ini carries the delivered behaviour.**
+
+Paste into the **host project's** `Config/DefaultGame.ini` **before the cook**:
+
+```ini
+[AnomalyCapture]
+bMaskMeasureDefault=True
+bDeliveryModeDefault=True
+```
+
+Those are the only two keys whose delivered value differs from the compiled default.
+`bSveCaptureDefault` is deliberately **omitted** — the compiled default is already the UI-free SVE
+path since `S4`, and leaving the key absent is what makes the grab point immune to `G88`.
+`bFocusGateDefault` and `ContentClockDefault` are already correct for client titles.
+
+🚨 **`G88` — WHERE IT MUST LIVE.** In a packaged build the ini that counts is the **COOKED**
+`DefaultGame.ini`. **A loose ini beside the package is a SILENT NO-OP.** The key must be in the
+project config **before the cook**, and the only trustworthy confirmation is the run's own log:
+
+```
+=== Capture(mask): EFFECTIVE FOR THIS RUN - mask ON (measure, report and veto), default from
+    DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault === READ THIS LINE, NOT THE INI.
+```
+
+That line prints on **every** run, mask on or off, and names where the value came from. If it says
+`COMPILED DEFAULT (off)` while your ini says `True`, the key did not reach the build.
+
+### THE BISECT — `IAI.Capture.Mask 0`
+
+If captures look wrong, set it to `0` and **re-capture**. That returns the build to `m25` labelling
+in about thirty seconds with no rebuild, and comparing the two sessions says whether the cure is
+implicated. ⚠ **It takes effect BETWEEN RUNS, not mid-run** — stop the run first. (The same is true
+of `IAI.Capture.SVE 0`, the grab-point bisect.)
+
+### SEEING WHAT THE VETO REMOVED — 🔎 GREP FOR `VETOED-OBJECT`
+
+**A vetoed event leaves NO trace in `annotation.json`** — that is the whole point of it. So the only
+record is `run_summary.json` and the log.
+
+- `run_summary.json` → **`vetoed_events`** (how many), **`translucent_vetoes`** and
+  **`translucency_unknown_vetoes`** (the diagnostic below).
+- The log → **one line per removed object, each beginning `VETOED-OBJECT`.** That single token
+  appears nowhere else in the codebase, so `findstr VETOED-OBJECT` on the log lists exactly the
+  objects that went, with `asset=`, `componentClass=`, `state=`, `maxCount=` and the translucency
+  verdict on each.
+
+⚠ **`translucency=UNKNOWN` IS NOT `opaque`.** It means the target was gone or carried no material
+slot when the line was written, and it is counted separately for that reason. A translucent target
+cannot write custom depth on UE 5.1 unless its material ticks *Allow Custom Depth Writes*, so a zero
+measured on one may mean **the mask could not see it**, not that it drew nothing —
+route (e) in `docs/invisible-anomaly-mechanisms.md`, an accepted cost.
+⛔ **These are DIAGNOSTIC.** They feed nothing, gate nothing, and must never become a filter.
+
+### `m27` ALSO REMOVES FOLIAGE FROM SELECTION
+
+`AInstancedFoliageActor` is no longer selectable, so **delivered datasets contain no foliage
+anomalies at all**. Its label boxed the entire frame for a ~1.4 % effect and was unusable.
+→ the full reasoning, and the correction to the reason previously given for it, is in
+`docs/invisible-anomaly-mechanisms.md`, **"FOLIAGE EXCLUDED FROM SELECTION"**.
+
 ## Dashboard token — zero copy-paste for the client (m16)
 
 The control server needs a token before the dashboard can drive it. In-editor the server logs a random

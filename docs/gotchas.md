@@ -3447,3 +3447,59 @@ did not fire.
    viewport, windowing and DPI are all environment.
 3. **Report the mismatch even when the gate survives** — the next reader needs to know the written
    expectation and the measurement were not the same number. (2026-08-20.)
+
+---
+
+### G139 — a default that can come from an ini must echo its EFFECTIVE VALUE **and its PROVENANCE**, or "the key did not take" is indistinguishable from "deliberately off"
+
+`m26` shipped the mask behind `bMaskMeasure`, default **false**, with no ini key. `m27` added
+`bMaskMeasureDefault`. Writing the key is the easy half. **The half that matters is that until
+`m27`, THE LOG SAID NOTHING AT ALL WHEN THE MASK WAS OFF** — the only mask banner
+(`AnomalyCaptureSubsystem.cpp`, the "m26 SLICES 1+2+3 ACTIVE" block) is *inside* `if (bMaskMeasure …)`.
+
+So a delivered session with a missing, misspelt, or **silently ignored** key produced a log that was
+byte-for-byte identical to one where the mask was deliberately off. **The failure and the intended
+state were indistinguishable in the only artifact the client returns.**
+
+⚠ **And `G88` makes the silent case the LIKELY one, not the exotic one:** in a packaged build
+`GGameIni` resolves to the **COOKED** `DefaultGame.ini`. A loose ini beside the package is a **no-op**.
+A client can set the key correctly, in a real file, and have it do nothing.
+
+**RULES.**
+1. **Echo the EFFECTIVE value, read back from the getter, not the value you think you set** (A48) —
+   and echo it **UNCONDITIONALLY**, on the off path as loudly as on the on path. A feature that
+   reports itself only when enabled cannot be diagnosed when it is not.
+2. **Echo the PROVENANCE beside it** — ini key vs compiled default vs console override. "Off" and
+   "off because your key never arrived" are different facts and only provenance separates them.
+3. **State where the setting must live to take effect**, in the same line, because the reader
+   holding the wrong file is exactly who needs telling.
+4. This generalises past inis: any default with more than one possible source needs both halves.
+   `bSveCaptureDefault` already did this and is the pattern worth copying.
+(2026-08-20.)
+
+---
+
+### G140 — changing the SELECTABLE SET changes SEEDED SELECTION, so banked runs stop being comparable across the change
+
+`m27` excludes `AInstancedFoliageActor` from `IsRenderableComponent`. That predicate feeds
+`GetVisibleRenderableActors`, which is **the input to the seeded draw stream**.
+
+⇒ **THE SAME SEED NOW PICKS DIFFERENT TARGETS.** This is correct and expected, and it is not a
+defect — but it silently invalidates a comparison the project relies on constantly.
+
+🚨 **EVERY BANKED MAINWORLD AUTO-POOL RUN IS NON-COMPARABLE TO ANYTHING CAPTURED AFTER `m27`.**
+A post-change run at seed 0 will not reproduce the play-gate smoke's target list, and **that is the
+change working, not a regression.** `m22`'s same-seed byte-identity gate is satisfied **WITHIN** the
+new behaviour, never **ACROSS** the change.
+
+**RULES.**
+1. **Any edit to the selection predicate is a comparability boundary.** Date it, name it, and say
+   which banked evidence it retires — the way a binary hash or a cook does.
+2. **Do not diagnose a post-change seed mismatch as a bug.** Check the boundary first.
+3. ⚠ **The blast radius is wider than the selector**: the same predicate serves the auto-injector
+   **and** the dashboard's `GetVisibleRenderableActorInfos`, so the visible-set read-back moves too.
+   That is by design (`G33`'s one-definition ruling) and is why `IAI.DumpVisible`'s set-identity
+   assertion has to be re-checked after any such edit rather than assumed.
+4. Targeted fire is **unaffected** — `TryFireSpecific` carries no viewport predicate, so the `=name`
+   escape hatch still reaches an excluded actor deliberately.
+(2026-08-20.)

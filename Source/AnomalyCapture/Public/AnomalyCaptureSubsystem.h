@@ -154,6 +154,8 @@ private:
 	int32 ZeroMatchBursts = 0;
 	int32 NonManifestedEvents = 0;
 	int32 VetoedEvents = 0;
+	int32 TranslucentVetoes = 0;
+	int32 TranslucencyUnknownVetoes = 0;
 
 	int32 SessionFrameIndex = 0;
 	int32 FrameCap = 0;
@@ -204,6 +206,7 @@ private:
 	bool bAsyncCapture = true;
 	bool bSveCapture = true;
 	bool bMaskMeasure = false;
+	bool bMaskMeasureFromIni = false;
 	bool bMaskProbe = false;
 	bool bMaskProbeFiredThisRun = false;
 	FDelegateHandle MaskEndFrameHandle;

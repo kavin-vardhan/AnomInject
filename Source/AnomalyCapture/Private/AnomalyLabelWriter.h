@@ -80,7 +80,7 @@ namespace AnomalyLabel
 		const FString& ContentClock, int32 NonManifestedEvents, const FString& CapturePath,
 		const FRingTelemetry* Ring = nullptr,
 		int32 MaskProbeArms = 0, int32 MaskResidualDiscards = 0, int32 MaskNoPassDiscards = 0,
-		int32 VetoedEvents = 0);
+		int32 VetoedEvents = 0, int32 TranslucentVetoes = 0, int32 TranslucencyUnknownVetoes = 0);
 
 
 	struct FSessionVideo
