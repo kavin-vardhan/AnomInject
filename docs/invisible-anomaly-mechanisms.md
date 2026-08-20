@@ -347,3 +347,37 @@ the subject of investigation I11.
 
 The m26 tag message under-describes this scope. The tag is NOT being rewritten. This
 entry is the correction of record.
+
+SAFETY-PROPERTY CORRECTION — the admit bias is sound at the enum and unsound at the
+assignment (MEASURED, I11-A)
+
+m26's safety property is recorded as structural: MaskStateProvidesMeasurement and
+MaskStateVetoes switch on the state enum alone, MaxCount is never read, and "there is
+no code path on which a magnitude can move an event between the two zeros."
+
+THAT SENTENCE REMAINS TRUE AND IS NOT WITHDRAWN. No magnitude moves an event between
+the two zeros.
+
+WHAT IS WRONG IS THE SAFETY ARGUMENT BUILT ON IT. The argument assumed that an event
+reaching MEASURED_ZERO had been measured. I11-A measured that it need not have been.
+
+bPassRan tests Mask.CustomStencilExtent — a VIEW-LEVEL property, "was custom depth
+produced at all this frame" — and uses it as a PER-TARGET precondition. When any
+primitive in the scene writes custom depth the extent goes view-sized, and a target
+that contributed no evidence whatever passes bPassRan and contributes a clean
+Count = 0.
+
+MEASURED, I11-A, five legs, two independent routes, every gate passed:
+  lever OFF  framesNoPass=4 framesContributed=0            -> NOT_MEASURED -> ADMITTED
+  lever ON   framesNoPass=0 framesContributed=4 maxCount=0 -> MEASURED_ZERO -> VETOED
+Same target, same map, same seed, same session shape, pose matched to 0.175 deg. The
+only change was one boolean on an unrelated lamp.
+
+CONSEQUENCE: a target the instrument CANNOT SEE can be deleted as though it had been
+seen and found empty. On UE 5.1 that includes every Nanite target (G134) — 244 of
+MainWorld's 350 static-mesh actors by direct property read.
+
+SCOPE, SO IT IS NOT OVERREAD: PIE only (G76) — MECHANISM CLAIM ONLY. NO INCIDENCE
+CLAIM. The lever was constructed deliberately. Whether the shipping path supplies its
+own writer is OPEN and is investigation I11-B. The m26 tag does not carry this. THE TAG
+IS NOT BEING REWRITTEN. This entry is the correction of record.

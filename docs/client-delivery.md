@@ -270,6 +270,16 @@ frames", not "the target is Nanite" and not "the target drew nothing".)*
 ⚠ **Scoped to UE 5.1** — a later engine with Nanite custom-depth support changes the Nanite half of
 this, not the culling half.
 
+🚨 **CORRECTED 2026-08-20 — "a Nanite target is ALWAYS ADMITTED" IS NOT UNCONDITIONAL.** `I11-A`
+measured that a target the mask cannot see can reach `MEASURED_ZERO` and be **vetoed**, because the
+pass-ran precondition is a **VIEW-LEVEL** property used per target. The paragraph above states the
+safe case; it is the safe case **only while nothing else in the scene writes custom depth.**
+⛔ **MECHANISM CLAIM ONLY — PIE, no incidence claim, and whether the shipping path supplies its own
+writer is OPEN (`I11-B`).** **Do not read this as a statement about any delivered session.**
+→ **the full correction of record is `docs/invisible-anomaly-mechanisms.md`, "SAFETY-PROPERTY
+CORRECTION — the admit bias is sound at the enum and unsound at the assignment".** It is stated
+once, there.
+
 ## Dashboard token — zero copy-paste for the client (m16)
 
 The control server needs a token before the dashboard can drive it. In-editor the server logs a random

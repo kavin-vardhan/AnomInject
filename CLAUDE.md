@@ -15,7 +15,25 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20. 🎯 `m26` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.**
+- 🟩 **YOU ARE HERE — 2026-08-20 (later). 🚨 `m26`'s SAFETY ARGUMENT IS CORRECTED BY MEASUREMENT.
+  `I11-A` SUPPORTS `H6` ON TWO INDEPENDENT ROUTES: a target the mask CANNOT SEE can reach
+  `MEASURED_ZERO` and be VETOED, because `bPassRan` is a VIEW-LEVEL property used as a PER-TARGET
+  precondition.** Five legs, every gate passed, the only change between admitted and deleted was
+  **one boolean on an unrelated lamp**.
+  📌 **THE CORRECTION IS STATED ONCE, AND NOT RESTATED HERE:
+  `docs/invisible-anomaly-mechanisms.md` → "SAFETY-PROPERTY CORRECTION — the admit bias is sound at
+  the enum and unsound at the assignment".** `client-delivery.md`'s Nanite KNOWN LIMITATION points
+  at the same entry.
+  ⛔ **MECHANISM CLAIM ONLY — PIE (`G76`), NO INCIDENCE CLAIM, the lever was CONSTRUCTED.** Whether
+  the shipping path supplies its own writer is **OPEN and is `I11-B`**. ⛔ **NO FIX IS AUTHORISED,
+  DESIGNED OR PROPOSED — owner ruling: `I11-B` first, because it is the BEFORE picture and a fix
+  would destroy it.** ⛔ **The `m26` tag does NOT carry this and is NOT being rewritten.**
+  🧭 Pre-declarations live in `docs/predictions/`; `I11-A`'s is `8a42809`, amended twice, both
+  amendments BEFORE any measurement existed, zero deletions.
+  📌 **`L3` IS NOW LOAD-BEARING, NOT A PREDICTION: `I11-A`'s vetoed legs keep their view evidence
+  ONLY in `labels.jsonl`. Nobody "fixes" `L3` until this line of work closes.**
+- 🟦 *(superseded as "you are here" by the entry above — `m26` is still the shipped, tagged state)*
+  **2026-08-20. 🎯 `m26` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.**
   **`m26` = the `H5` class-(ii) cure: an event whose target is MEASURED to draw ZERO pixels is
   removed from `annotation.json` before it is written. Slices 1, 2 and 3 all gated; `F-6` complete;
   the OWNER PLAY-GATE SMOKE PASSED in real gameplay, including the AUTO-POOL path no bench leg ever
