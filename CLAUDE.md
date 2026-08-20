@@ -15,11 +15,25 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (latest). 🔨 `m28` IS BUILT AND PUSHED, `NOT TAGGED`, AND
-  ⛔ NOT ONE GATE HAS RUN.** Plugin `master` pushed; AnomDash pushed. **The owner presses Play;
-  every gate leg is waiting on him.** 🧭 **The runbook for those legs was handed over in chat —
-  gates `A`–`I`, pre-declared VERBATIM at `docs/predictions/2026-08-20-m28-gates.md` (+ AMENDMENT 1).
-  Read that file before reading any result.** Journal: `docs/sessions/2026-08-20-047-m28-output-resolution.md`.
+- 🟩 **YOU ARE HERE — 2026-08-21 (latest). ✅ `m28` — ALL NINE GATES `A`–`I` RUN AND PASSED,
+  OWNER-ACCEPTED. `NOT TAGGED` YET — the owner smoke is the remaining step.** Plugin `master`
+  pushed; AnomDash pushed. 🧭 **Gates pre-declared VERBATIM at
+  `docs/predictions/2026-08-20-m28-gates.md` (+ AMENDMENT 1 + an ADDITION made during the run).
+  Read that file before reading any result.** Journal:
+  `docs/sessions/2026-08-20-047-m28-output-resolution.md` — §11 results, **§12 the vacuity
+  finding**, §14 closing rulings. Artifacts banked at `_bench_sessions_bank\M28_GATES\`
+  (4 sessions, BOTH logs, 139-file manifest).
+  🚨 **THE MOST IMPORTANT THING IN THE MILESTONE IS A HOLE IN THE GATE, NOT IN THE CODE:
+  `GATE D` — the control the whole design rests on — PASSED ON AN EMPTY RUN.** Both legs held
+  ZERO anomalies (`positive_frames=0`; the 6 % coverage cull removes all 69 candidates in an
+  875×869 PIE panel), and comparing two empty sets returns equal. **The emptiest possible run
+  produced the gate's cleanest pass.** Caught by an **un-pre-declared counter-check** —
+  *`bbox_px` rows differing MUST be > 0* — then re-run with 19 valid bboxes per leg.
+  ⚖ **`GATE D` IS NOT AMENDED RETROACTIVELY: it passed on its written terms BOTH times and its
+  written form REMAINS VACUOUSLY SATISFIABLE.** → new standing rule **`G146`**.
+  ⚠ **EVERY GATE LEG RAN WITH `IAI.SetMinScreenCoverage 0` AND `IAI.Capture.FocusGate 0` — LEG
+  CONDITIONS, NOT DEFAULTS. Neither shipped default changed.** ⇒ **nothing in the gate set
+  exercised `m28` under the shipped selection behaviour; that is what the owner smoke closes.**
   🎯 **`m28` = ONE capture knob, a target output HEIGHT, as a DOWNSCALE ON WRITE. The render stays
   native; only the WRITTEN frame is resampled.** ⛔ **THERE IS NO WIDTH PARAMETER AND THERE MUST
   NEVER BE ONE** — width is derived from each frame's own aspect, so a non-aspect-preserving output

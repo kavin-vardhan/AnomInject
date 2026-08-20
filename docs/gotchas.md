@@ -3614,36 +3614,114 @@ const bool bPng = !Format.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase);
 
 ---
 
-### G145 — a PowerShell here-string passed to `git commit -m` LOSES ITS EMBEDDED DOUBLE QUOTES
+### G145 — PowerShell STRIPS EMBEDDED DOUBLE QUOTES from any argument it hands a NATIVE command
 
-`git commit -m @'…'@` with a literal here-string looks safe — single-quoted, no `$` expansion, the
-`G141` trap avoided. **The message still arrives with every `"` stripped.** PowerShell 5.1 hands the
-string to the native executable through Windows argument re-parsing, which consumes the inner quotes.
+⚠ **THIS IS NOT A GIT GOTCHA.** It was first found on `git commit -m` and was originally written that
+way; the third instance had **nothing to do with git** and forced the widening. **Any native
+executable invoked from PowerShell 5.1 — `git`, `python`, `ffmpeg`, anything — receives its arguments
+through Windows argument re-parsing, which consumes inner `"` characters.** A literal here-string
+(`@'…'@`) does **not** protect you: it defeats `$`-expansion and the `G141` BOM trap, and neither of
+those is this problem.
 
-**MEASURED, twice in one turn (`m28`):**
+**MEASURED, THREE TIMES, ALL DURING `m28`:**
 
-| written | committed |
-|---|---|
-| ``bPng = !Format.Equals("jpeg")`` | `bPng = !Format.Equals(jpeg)` |
-| `a parser that maps "everything else" to a default` | **the argument SPLIT** — git reported `error: pathspec 'else to a default …' did not match any file(s)` |
+| # | what was written | what arrived |
+|---|---|---|
+| 1 | `git commit -m` body containing ``!Format.Equals("jpeg")`` | `!Format.Equals(jpeg)` — **committed silently** |
+| 2 | `git commit -m` body containing `maps "everything else" to a default` | **the argument SPLIT**; git errored `pathspec 'else to a default …' did not match any file(s)` |
+| 3 | `python ws_send.py <token> '{"type":"capture_start","format":"jpg"}'` | `{type:capture_start,format:jpg}` — **invalid JSON, silently rejected by the server** |
 
-⚠ **THE TWO FAILURE MODES ARE NOT EQUALLY VISIBLE, AND THE QUIET ONE IS WORSE.** The second failed
-loudly and cost nothing. **The first SUCCEEDED** — a commit landed, and only a deliberate read-back
-showed the quotes gone. It was a commit **about string-literal matching**, so the mangling removed
-exactly the characters carrying the meaning.
+🚨 **THE QUIET FAILURES ARE THE EXPENSIVE ONES, AND TWO OF THE THREE WERE QUIET.** #2 errored and cost
+nothing. #1 landed a commit *about string-literal matching* with exactly the characters carrying the
+meaning removed, caught only by a deliberate read-back. #3 looked like a successful send — the client
+printed `TX`, the socket closed cleanly — and the gate leg simply produced nothing, which is
+indistinguishable from a feature that does not work.
 
 **RULES.**
-1. **Write the message to a file and use `git commit -F <file>`.** Author the file with the editor
-   tool, never `Set-Content`/`Out-File` (`G141` — BOM).
-2. **`-m` with a here-string is acceptable ONLY for messages containing no `"` at all.** In this
-   project's commit style — which quotes identifiers, log strings and ini keys constantly — that is
-   almost never true.
-3. **READ THE MESSAGE BACK after committing**, the same way `G115` says to read the diffstat before:
-   `git log -1 --format=%B`. Both checks are mechanical and both exist because the failure is silent.
-4. **Amending is correct here and is not an exception to the prefer-a-new-commit rule:** the commit
+1. **PASS THE PAYLOAD IN A FILE, NOT AS AN INLINE ARGUMENT.** `git commit -F <file>`;
+   `ws_send.py <token> <msgfile>`. This is the fix shape for the whole class, not a git trick.
+   Author the file with the editor tool, never `Set-Content`/`Out-File` (`G141` — BOM).
+2. **An inline argument is acceptable ONLY when it contains no `"` at all.** In this project — which
+   quotes identifiers, log strings, ini keys and JSON constantly — that is almost never true.
+3. **VERIFY THE PAYLOAD ARRIVED INTACT, at the receiving end.** `git log -1 --format=%B` after a
+   commit; have the sender echo the exact bytes it transmitted. Same mechanical habit as `G115`'s
+   diffstat, and it exists for the same reason: the failure is silent.
+4. **A validating parse at the sender catches it before the wire.** `ws_send.py` now runs
+   `json.loads` on every message before connecting, so a mangled payload fails loudly and locally
+   instead of becoming an empty test result.
+5. **Amending is correct for #1 and is not an exception to the prefer-a-new-commit rule:** the commit
    was **unpushed**, so nothing was rewritten for anyone else, and a follow-up commit that only fixes
    prose is worse than a clean amend. The rule guards shared history, not local drafts.
-(2026-08-20, `m28`.)
+(2026-08-20, `m28`; widened from git-only to all native commands 2026-08-21 after the third instance.)
+
+---
+
+### G146 — a gate whose pass condition is an EQUALITY needs a companion that FAILS ON EMPTY INPUT
+
+**`m28`'s `GATE D` is the control the whole milestone rests on:** run the same seed native and
+downscaled, and every `bbox_norm` must be IDENTICAL, because `bbox_norm` never sees a pixel dimension.
+If one moves, a pixel dimension reached the projection path and the design is wrong.
+
+**IT PASSED. IT WAS MEANINGLESS.** Both legs contained **zero anomalies** — `positive_frames=0`,
+`annotation.anomalies=0`, every burst logging *"fired nothing (zero-match / empty)"*. Comparing two
+empty sets returns equal. 🚨 **THE EMPTIEST POSSIBLE RUN PRODUCED THE GATE'S CLEANEST PASS.**
+
+The emptiness itself was an environment property, not a defect: `IAI.DumpCoverage` reported **69**
+renderable-visible actors while `IAI.DumpVisible` reported **0**, because in an 875×869 PIE panel no
+actor reaches the default 6 % screen-coverage threshold. With the cull off, the re-run pair carried
+**19 valid bboxes per leg** and the gate became real.
+
+**WHAT CAUGHT IT WAS NOT IN THE PRE-DECLARATION** — an added counter-check: *`bbox_px` rows differing
+MUST be > 0, else nothing was actually rescaled.* `bbox_px` reading zero differences **alongside
+`width`/`height` that plainly differed** is what exposed the hole.
+
+**THE RULE (owner ruling, 2026-08-21).**
+
+> **A gate whose pass condition is an EQUALITY needs a companion condition that FAILS ON EMPTY INPUT.
+> Otherwise the emptiest possible run is its cleanest pass.**
+
+**HOW TO APPLY IT.**
+1. When drafting a gate, ask **"what is the emptiest input that satisfies this?"** If the answer is
+   *"no data at all"*, the gate is not finished.
+2. **Pair every "these must be IDENTICAL" with a "these must DIFFER"** on a quantity the change is
+   supposed to move. One without the other is half a control.
+3. **Put a NON-VACUITY MINIMUM in the gate text itself** — *"at least N valid rows per leg"* — so the
+   check lives in the pre-declaration and not in whoever happens to read the output.
+4. ⛔ **This is NOT a tolerance and does not reopen the ratio/threshold ruling.** *"More than zero
+   data points"* is a categorical precondition on the INSTRUMENT, not a magnitude test on the SUBJECT.
+
+⚠ **THIRD INSTANCE OF THE ORACLE SHAPE** — `G106` (the A54 oracle existed only in prose), `G142` (two
+defects in a verification script, found while reporting a pass), and now this. **What all three share:
+the INSTRUMENT was wrong while the PRODUCT was fine, and every time the wrongness presented as a CLEAN
+RESULT rather than as an error.** That is why these keep costing a session each: nothing about a pass
+invites a second look.
+(2026-08-21, `m28`.)
+
+---
+
+### G147 — the host encoder PADS odd frames to even and MUST NOT be changed to scale or crop
+
+`encode_watcher.py` runs ffmpeg with `-vf pad=ceil(iw/2)*2:ceil(ih/2)*2` because H.264 + `yuv420p`
+require even dimensions and a PIE viewport is routinely odd (measured: **875×869**, and `1238×585`
+in the original note).
+
+🚨 **THE CHOICE OF *PAD* OVER *SCALE* OR *CROP* IS LOAD-BEARING AND THE REASON WAS NEARLY LOST.**
+Padding adds ≤1 px at the **bottom/right**, which **leaves the top-left origin fixed** — and therefore
+leaves **every `bbox_px` coordinate in `labels.jsonl` and `annotation.json` valid on the encoded
+video**. A `scale` would move every coordinate; a `crop` from anywhere but bottom-right would move the
+origin. Either would silently invalidate the labels against the mp4 while producing a video that looks
+perfectly fine.
+
+⚠ **HOW IT WAS NEARLY LOST, and this is the transferable half:** that reasoning existed **only as a
+source comment**, and the canonical copy of the script (`anomaly-dashboard/host-tools/`) has been
+comment-stripped. It survives today only in the owner's older working copy at
+`D:\IntrusiveAnomalies\host-tools\`. **A rule whose only record is a comment in one of three
+divergent copies is one cleanup away from being deleted by someone who thinks `scale` is tidier.**
+Recorded here so the constraint outlives the comment.
+
+📌 **`m28` makes the pad a no-op for downscaled runs** — `DeriveOutputSize` always yields an even pair
+— but it is still required for NATIVE runs at an odd viewport, which is the common case in PIE.
+(2026-08-21, `m28`.)
 
 ### G140 — changing the SELECTABLE SET changes SEEDED SELECTION, so banked runs stop being comparable across the change
 

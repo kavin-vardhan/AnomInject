@@ -871,6 +871,39 @@ deliberately does NOT fall back to the viewport, which is the quantity that was 
 `viewport` is UNCHANGED and still reports `GetViewportSize()`** — the two fields now answer different
 questions on purpose. **No new fields and no new counters were added to any delivered artifact.**
 
+#### 🚨 THE TWO RESOLUTION FIELDS LEGITIMATELY DISAGREE — THAT IS THE FEATURE, NOT A BUG
+
+**A cold reader who sees these two numbers differ in one session folder must not file it.** Since
+`m28` they answer DIFFERENT QUESTIONS and are SUPPOSED to diverge whenever a downscale is requested:
+
+| field | answers | source |
+|---|---|---|
+| `annotation.json` → `video.resolution` | **"how big are the PIXELS I was actually given?"** | the FIRST WRITTEN FRAME, measured |
+| `run.json` → `viewport` | **"how big was the game's viewport?"** | `GetViewportSize()` at `StartRun` |
+
+**MEASURED, `m28` `GATE C`, the two legs that make the point:**
+
+| leg | frame_00000 IHDR (ground truth) | `video.resolution` | `run.json` `viewport` |
+|---|---|---|---|
+| native | 875×869 | **875×869** | 875×869 |
+| downscale `oh=360` | 362×360 | **362×360** | **875×869** |
+
+⚠ **THE NATIVE LEG PROVES NOTHING ON ITS OWN AND MUST NOT BE CITED AS IF IT DID** — there the two
+fields agree, and they would have agreed before `m28` too, for the old and wrong reason. **THE
+DOWNSCALE LEG IS THE PROOF:** `video.resolution` follows the delivered pixels while `viewport` stays
+with the window. This was pre-declared as prediction `P-B` and it held.
+
+📌 **WHICH ONE SHOULD A CONSUMER USE? `video.resolution`, always, for anything that touches pixels** —
+it is the only field that describes the frames on disk, and it is the one `labels.jsonl`
+`width`/`height` and every `bbox_px` are computed from. `viewport` is provenance about the capture
+environment, not a description of the output.
+
+🚨 **AND IN DELIVERY MODE `video.resolution` IS THE ONLY RECORD THERE IS.** `labels.jsonl` is not
+written (`bWriteLabels = !bDeliveryMode`) and `run.json` is not shipped at all — a delivered session
+folder contains `annotation.json` + `run_summary.json` + the frames. **Before `m28` a delivered
+dataset therefore contained NO artifact stating the true dimensions of its own pixels.** That is the
+defect this change exists to fix, and `GATE I` is the leg that proves it reaches the shipped mode.
+
 **PRECEDENCE, highest first**, resolved in `StartRun`, with **`-1` meaning ABSENT and `0` meaning a
 deliberate request for NATIVE** — the sentinel is what keeps every level distinguishable:
 

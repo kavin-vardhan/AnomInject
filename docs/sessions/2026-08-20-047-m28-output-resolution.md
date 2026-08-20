@@ -275,7 +275,7 @@ unaffected by which copy runs. **Deliberately not fixed; out of scope this sessi
 
 ---
 
-## 9. State after this session
+## 9. State after the BUILD stage (superseded by §16)
 
 | | |
 |---|---|
@@ -283,9 +283,197 @@ unaffected by which copy runs. **Deliberately not fixed; out of scope this sessi
 | tags | `m26` → `d6bee7a`, `m27` → `4a92962`. **NEITHER MOVED.** |
 | `feature/stencil-capture` | **UNTOUCHED at `76cac74`**, never checked out |
 | AnomDash | `CapturePanel.tsx` + rebuilt `dist/`, committed and pushed |
-| gates | **NONE RUN.** All of A–I await the owner's play session. |
-| PIE | **not started by me at any point** |
+| gates | **NONE RUN** at that point. |
+| PIE | not started by me at any point |
 
-⛔ **`H6` REMAINS DOCUMENTED, NOT FIXED. `P6` DID NOT MOVE. NO RATIO OR THRESHOLD EXISTS
-ANYWHERE IN THE CODE OR THE DOCS.** `m28` touches none of that line of work — by design, and
-`GATE D` is the control that proves it.
+---
+
+## 10. HOW THE GATES WERE ACTUALLY RUN — the M0 split, exercised properly
+
+⚖ **The owner asked whether Code could run the legs itself. It can, and `G136` is precisely why
+that was not obvious:** `G136` established that **none of the bridge's 62 endpoints starts Play
+or Simulate** — but that is a statement about STARTING PIE, not about driving it. **The M0 gate
+split has always been "the owner presses Play; Code drives everything after that."**
+
+**As run:** the owner pressed Play twice (once per PIE session) and did nothing else. Code issued
+every console command through `unreal-mcpython`'s `util_execute_python` →
+`SystemLibrary.execute_console_command(get_game_world(), …)`, read every log line and artifact
+from disk, and drove the two `GATE G` wire sends through a **stdlib-only WebSocket client**
+written for the purpose (`ws_send.py` — raw handshake + masked text frame, no dependencies).
+
+🚨 **BINARY IDENTITY WAS ESTABLISHED BEFORE ANY LEG, AND THE FIRST ATTEMPT AT IT WAS WORTHLESS.**
+The check was `get_console_variable_int_value(name) is not None` — which is true for **every**
+string, including a garbage one, so it could not fail. The log proved it: *"Failed to find console
+variable 'IAI.Capture.OutputHeight'"* for all of them, because these are console **commands**, not
+variables. **Re-done as a positive observation with a negative control:** issuing
+`IAI.Capture.OutputHeight` with no args produced its usage line; `IAI.Capture.ThisCommandDoesNotExist`
+produced nothing. **That is what proved the editor had the new module and not a stale DLL.**
+
+### 10.1 ⚠ LEG CONDITIONS — NOT DEFAULTS, AND NOTHING BELOW CHANGED A SHIPPED DEFAULT
+
+Recorded loudly because a future reader must not infer either of these is the product's behaviour.
+
+| condition | why | shipped default |
+|---|---|---|
+| `IAI.Capture.FocusGate 0` | so unattended bridge-driven runs begin deterministically instead of waiting on window focus | **ON, unchanged** |
+| `IAI.SetMinScreenCoverage 0` | see §12 — at 6 % the auto-pool selects nothing in an 875×869 PIE panel | **6 %, unchanged** |
+
+⛔ **NEITHER DEFAULT WAS EDITED IN CODE OR INI.** Both were session-scoped console overrides, and
+both were **identical across every compared pair**, so neither can explain any result. ⚠ **A 6 %
+threshold is NOT thereby shown to be wrong, and the focus gate is NOT off in a delivered build.**
+
+---
+
+## 11. GATE RESULTS — ALL NINE PASS
+
+Build under test: plugin `c25bf59`, editor build, DLL 23:53:36. Map `CB_GateLevel`, PIE panel,
+**native 875×869**, seed 7 on every leg. Banked at `_bench_sessions_bank\M28_GATES\`.
+
+| gate | result | the number that decides it |
+|---|---|---|
+| **A** | PASS | native `resamples_performed = 0`; downscale `30 == 30` framesWritten. Exact both ways, and `12/12` on the three `F` legs |
+| **B** | PASS | `frame_00000.png` IHDR read off disk = **362×360** = the MEASURED line's output size |
+| **C** | PASS | see §11.1 — the divergence IS the proof |
+| **D** | PASS, **non-vacuously** | `bbox_norm` rows differing **0**; `bbox_px` rows differing **19**; 19 valid bboxes/leg. See §12 |
+| **E** | PASS | four distinct provenance strings, each naming the right level |
+| **F** | PASS | `361→364×362` (snapped up), `1080→native` (no upscale), `0→native` with **PER-RUN** provenance |
+| **G** | PASS | `"jpg"`→JPEG; `"banana"`→PNG **and the warning demonstrably fired** |
+| **H** | DONE | native PNG + native JPEG pair, same seed/map/session, both with content. **Banked, ungraded** |
+| **I** | PASS | delivery ON, `544×540` on both sides, `labels.jsonl` absent |
+
+### 11.1 `GATE C` — and why only one of its two legs is evidence
+
+| leg | IHDR (ground truth) | `video.resolution` | `run.json viewport` |
+|---|---|---|---|
+| native | 875×869 | 875×869 | 875×869 |
+| downscale `oh=360` | 362×360 | **362×360** | **875×869** |
+
+🚨 **The native leg proves nothing — the two fields would have agreed before `m28` too, for the old
+and wrong reason.** The downscale leg is the whole gate: `video.resolution` follows the pixels while
+`viewport` stays with the window. **Pre-declared as `P-B`, and it held.**
+
+### 11.2 `GATE E` — the four readings, verbatim from the echo
+
+```
+height=0    from COMPILED DEFAULT (0 = native); no ini key present, no override set, no per-run argument
+height=540  from DefaultGame.ini [AnomalyCapture] CaptureOutputHeightDefault
+height=720  from IAI.Capture.OutputHeight (between-runs override)      <- ini still 540
+height=360  from PER-RUN ARGUMENT (dashboard outputHeight / console Start oh=)  <- ini 540 AND override 720 still set
+```
+
+📌 **`GATE F`'s zero leg is the sentinel proof:** `oh=0` reports height **0** from **PER-RUN
+ARGUMENT**, against the compiled-default leg's height **0** from **COMPILED DEFAULT**. *"Nobody
+asked"* and *"deliberately asked for native"* are separable. **`m27`'s FINDING 3 disjunction does
+not recur.**
+
+### 11.3 `GATE D`'s sample row — the design in one line
+
+```
+native    875x869  norm 0.16666672521210724,0.53051225208472552,0.31818185127166354,0.64917101019199153
+                   px   145.83338456059383,461.01514706162646,132.57573530211178,103.11446079521414
+downscale 362x360  norm 0.16666672521210724,0.53051225208472552,0.31818185127166354,0.64917101019199153
+                   px    60.33335452678282,190.98441075050118,54.848475633559381,42.717152918615767
+```
+
+`bbox_norm` **identical to 17 significant digits**; `bbox_px` scaled by exactly `362/875`. **Nothing
+reached the projection path.**
+
+---
+
+## 12. 🚨 THE VACUITY FINDING — `GATE D` PASSED ON NOTHING, AND THE GATE COULD NOT TELL
+
+**This is the most important thing in the session and it is a defect in the PRE-DECLARATION, not in
+`m28`.**
+
+The first native/downscale pair returned `GATE D`'s pass condition — **`bbox_norm` rows differing:
+0** — and it was meaningless. Both legs contained **zero anomalies**: `positive_frames=0`,
+`annotation.anomalies=0`, every burst logging *"fired nothing (zero-match / empty)"*. **Comparing two
+empty sets returns equal. THE EMPTIEST POSSIBLE RUN PRODUCED THE GATE'S CLEANEST PASS.**
+
+**CAUSE OF THE EMPTINESS — MEASURED, and it is an environment property, not a defect:**
+`IAI.DumpCoverage` reported **69 renderable-visible actors** while `IAI.DumpVisible` reported **0**.
+In an 875×869 PIE panel no single actor reaches the default **6 %** screen-coverage threshold, so the
+auto-pool had nothing to select. With `IAI.SetMinScreenCoverage 0` the visible set returned to 69 and
+the re-run pair carried **19 valid bboxes per leg**.
+
+**WHAT CAUGHT IT WAS NOT PRE-DECLARED.** An added counter-check: *`bbox_px` rows differing MUST be
+> 0, else nothing was actually rescaled.* `bbox_px` reading **zero** differences **while
+`width`/`height` plainly differed** is what exposed the hole.
+
+⚖ **OWNER RULING `C2` — `GATE D` IS NOT AMENDED RETROACTIVELY.** The amendment rule forbids touching
+a prediction once the instrument exists, and by then it did. **The record stands exactly as measured:
+`GATE D` passed on its written terms BOTH times, and only the added counter-check separates the real
+pass from the empty one. Its written form remains vacuously satisfiable.** The counter-check is
+recorded in the gate file as an **ADDITION made during the run**, dated and attributed, deleting
+nothing.
+
+⚖ **OWNER RULING `C1` — THE STANDING RULE, now `G146`:**
+
+> **A gate whose pass condition is an EQUALITY needs a companion condition that FAILS ON EMPTY INPUT.
+> Otherwise the emptiest possible run is its cleanest pass.**
+
+⚠ **THIRD INSTANCE OF THE ORACLE SHAPE** — `G106` (the A54 oracle existed only in prose), `G142` (two
+defects in a verification script, found while reporting a pass), now this. **All three share: the
+INSTRUMENT was wrong while the PRODUCT was fine, and every time the wrongness presented as a CLEAN
+RESULT rather than an error.** Nothing about a pass invites a second look, which is why each has cost
+a session.
+
+---
+
+## 13. 🆕 TWO INSTRUMENTATION SCARES — BOTH MINE, NEITHER A DEFECT
+
+Recorded because each read exactly like a build defect for several minutes, and `G142` says the first
+hypothesis on a surprising reading is that the CHECK is wrong.
+
+**SCARE 1 — "three `MEASURED` lines for two legs."** `util_get_output_log` **writes its own output
+back into the log** as a `LogPython` line, so a later grep re-matched leg 1's text embedded inside an
+earlier dump. **The checker polluted the very artifact it was reading.** Filtering `LogPython` gives a
+clean 1:1. *(This is `G142` defect 1's shape — a whole-log grep that cannot tell one run's evidence
+from another's.)*
+
+**SCARE 2 — "26 echo lines for 13 runs", an exact doubling.** The pattern `EFFECTIVE FOR THIS RUN`
+also matches **`m27`'s MASK echo**, which uses the identical phrase (`Capture(mask): EFFECTIVE FOR
+THIS RUN — mask ON…`). With `m28`-specific patterns the counts are exactly **13/13/13/13** and
+**3/3/3/3** (runs / echo / measured / summary). ⚠ **A log-line convention reused across milestones
+makes every loose grep ambiguous** — anchor on the `Capture(mN)` prefix, never on the shared phrase.
+
+---
+
+## 14. ⚖ CLOSING RULINGS
+
+*(Numbered `C1`–`C6` here, corresponding to the six rulings issued at milestone close.)*
+
+**`C1` VACUITY COMPANION** — new standing rule, written as `G146` **and** as a dated design note in
+the gate file, because the moment it is most needed is while someone is drafting the NEXT gate table.
+
+**`C2` `GATE D` NOT AMENDED RETROACTIVELY** — see §12.
+
+**`C3` `dimMismatches` STAYS UNPROVEN AND SHIPS.** It read **0 on all 16 runs**, so the mid-run
+size-change warning has never fired. ⛔ **A contrived trigger was explicitly REFUSED: it would prove
+the warning compiles, not that it protects anything.** It is a **DIAGNOSTIC, not a correctness
+guard** — if it never fires, nothing is wrong. 🚨 **NAMED AS UNPROVEN IN THE TAG so silence is never
+later read as evidence.** *(Note this is a deliberate, reasoned exception to `G96`'s "a guard that has
+never fired is not a guard" — `G96` applies to guards that gate correctness; this one only reports.)*
+
+**`C4` `G145` WIDENS** — it was never a git gotcha. Rewritten for **any native command invoked from
+PowerShell**, with the third instance (a WebSocket JSON payload, nothing to do with git) and the fix
+shape: **pass the payload in a FILE, not as an inline argument.**
+
+**`C5` LEG CONDITIONS ARE NOT DEFAULTS** — see §10.1. In the journal and in the tag.
+
+**`C6` NO ALIGNMENT CLAIM IS EXTENDED** — `m25` certifies **1280×720 and 1281×721 only**. Nothing
+here certifies 875×869; alignment was not tested at any size. In the tag scope.
+
+---
+
+## 15. OPEN / NOT DONE, DELIBERATELY
+
+* **`dimMismatches` unproven** — `C3`, shipped as a named limitation.
+* **The JPEG pair is BANKED AND UNGRADED.** No comparison, no quality claim, no threshold proposed.
+  Grading is a separate instrument that does not exist yet.
+* **`GATE D`'s written form remains vacuously satisfiable** — `C2`. Not rewritten.
+* ⚠ **Every gate leg ran with `SetMinScreenCoverage` forced to 0**, so **nothing in the gate set
+  exercised `m28` under the shipped selection behaviour.** Closed by the owner smoke (§16).
+* **`H6` REMAINS DOCUMENTED, NOT FIXED. `P6` DID NOT MOVE. NO RATIO OR THRESHOLD EXISTS ANYWHERE IN
+  THE CODE OR THE DOCS.** `m28` touches none of that line of work — by design, and `GATE D` is the
+  control that proves it.
