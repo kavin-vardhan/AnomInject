@@ -13,6 +13,8 @@ namespace AnomalyLod
 
 	ANOMALYINJECTOR_API int32 GetWorstLod(const UMeshComponent* Component);
 
+	ANOMALYINJECTOR_API bool HasMultipleLods(const UMeshComponent* Component);
+
 	ANOMALYINJECTOR_API int32 GetForcedLod(const UMeshComponent* Component);
 
 	ANOMALYINJECTOR_API void SetForcedLod(UMeshComponent* Component, int32 LodIndex);

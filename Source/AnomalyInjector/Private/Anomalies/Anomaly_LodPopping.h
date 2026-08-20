@@ -10,8 +10,8 @@ class FAnomaly_LodPopping final : public IAnomaly
 {
 public:
 	virtual FName   GetId() const override { return FName(TEXT("lod_popping")); }
-	virtual FString GetDescription() const override { return TEXT("Pop matching static or skeletal mesh components between LODs at a rate (Hz)."); }
-	virtual FString GetUsage() const override { return TEXT("<substring> [hz]"); }
+	virtual FString GetDescription() const override { return TEXT("Pop matching static or skeletal mesh components between LODs every N frames."); }
+	virtual FString GetUsage() const override { return TEXT("<substring> [half_period_frames]"); }
 
 	virtual bool Apply(UWorld* World, const TArray<FString>& Args) override;
 	virtual void Tick(float DeltaSeconds) override;
@@ -27,12 +27,12 @@ private:
 	};
 
 	TArray<FPoppingTarget> Targets;
-	float HalfPeriodSeconds = 0.25f;
-	float Accumulator = 0.0f;
+	int32 HalfPeriodFrames = DefaultHalfPeriodFrames;
+	int32 FramesSinceToggle = 0;
 	bool  bPoppedPhase = false;
 	bool  bActive = false;
 
-	static constexpr float DefaultHz = 2.0f;
-	static constexpr float MinHz = 0.1f;
-	static constexpr float MaxHz = 30.0f;
+	static constexpr int32 DefaultHalfPeriodFrames = 8;
+	static constexpr int32 MinHalfPeriodFrames = 1;
+	static constexpr int32 MaxHalfPeriodFrames = 600;
 };

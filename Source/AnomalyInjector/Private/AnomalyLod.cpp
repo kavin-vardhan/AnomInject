@@ -41,6 +41,11 @@ int32 AnomalyLod::GetWorstLod(const UMeshComponent* Component)
 	return 1;
 }
 
+bool AnomalyLod::HasMultipleLods(const UMeshComponent* Component)
+{
+	return GetWorstLod(Component) >= 2;
+}
+
 int32 AnomalyLod::GetForcedLod(const UMeshComponent* Component)
 {
 	if (const UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Component))

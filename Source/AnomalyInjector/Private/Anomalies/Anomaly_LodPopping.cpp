@@ -1,7 +1,6 @@
 #include "Anomalies/Anomaly_LodPopping.h"
 
 #include "AnomalyLod.h"
-#include "AnomalyArgs.h"
 #include "AnomalyViewport.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
@@ -15,7 +14,7 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 	if (Args.Num() == 0 || Args[0].IsEmpty())
 	{
-		UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: usage <substring> [hz]"));
+		UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: usage <substring> [half_period_frames]"));
 		return false;
 	}
 
@@ -24,10 +23,29 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		Revert();
 	}
 
-	const FString& Substring = Args[0];
+	int32 Frames = DefaultHalfPeriodFrames;
+	if (Args.Num() >= 2)
+	{
+		if (Args[1].IsNumeric())
+		{
+			Frames = FCString::Atoi(*Args[1]);
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: '%s' is not a whole number of frames; using %d."),
+				*Args[1], DefaultHalfPeriodFrames);
+			Frames = DefaultHalfPeriodFrames;
+		}
+	}
+	if (Frames < MinHalfPeriodFrames || Frames > MaxHalfPeriodFrames)
+	{
+		UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: half-period %d out of range [%d..%d]; using %d."),
+			Frames, MinHalfPeriodFrames, MaxHalfPeriodFrames, DefaultHalfPeriodFrames);
+		Frames = DefaultHalfPeriodFrames;
+	}
+	HalfPeriodFrames = Frames;
 
-	const float Hz = AnomalyArgs::GetFloat(Args, 1, DefaultHz, MinHz, MaxHz);
-	HalfPeriodSeconds = 0.5f / Hz;
+	const FString& Substring = Args[0];
 
 	TArray<TWeakObjectPtr<UMeshComponent>> Meshes = AnomalyLod::ResolveLodComponents(World, Substring);
 	if (UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World))
@@ -45,11 +63,21 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 
 	Targets.Reset();
+	int32 RefusedSingleLod = 0;
 	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
 	{
 		UMeshComponent* Mesh = Weak.Get();
 		if (!Mesh)
 		{
+			continue;
+		}
+
+		if (!AnomalyLod::HasMultipleLods(Mesh))
+		{
+			++RefusedSingleLod;
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("lod_popping: REFUSED '%s' — it has a single LOD, so forcing a LOD would pop it to itself: no visible change, and a positive label with no visible change is an invisible anomaly the mask veto cannot catch (it still draws pixels)."),
+				*Mesh->GetName());
 			continue;
 		}
 
@@ -60,12 +88,21 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		Targets.Add(Target);
 	}
 
-	Accumulator = 0.0f;
+	FramesSinceToggle = 0;
 	bPoppedPhase = false;
 	bActive = Targets.Num() > 0;
 
-	UE_LOG(LogAnomaly, Log, TEXT("lod_popping: matched %d component(s) for '%s' at %.2f Hz (half-period %.3fs)."),
-		Targets.Num(), *Substring, Hz, HalfPeriodSeconds);
+	if (!bActive)
+	{
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL %d — every one has a single LOD. Applying nothing, so no fire is recorded and no label is written."),
+			Meshes.Num(), *Substring, RefusedSingleLod);
+		return false;
+	}
+
+	UE_LOG(LogAnomaly, Log,
+		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) — %d qualified (>=2 LODs), %d refused (single LOD)."),
+		Meshes.Num(), *Substring, HalfPeriodFrames, Targets.Num(), RefusedSingleLod);
 	return bActive;
 }
 
@@ -76,10 +113,10 @@ void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 		return;
 	}
 
-	Accumulator += DeltaSeconds;
-	while (Accumulator >= HalfPeriodSeconds)
+	++FramesSinceToggle;
+	while (FramesSinceToggle >= HalfPeriodFrames)
 	{
-		Accumulator -= HalfPeriodSeconds;
+		FramesSinceToggle -= HalfPeriodFrames;
 		bPoppedPhase = !bPoppedPhase;
 
 		int32 Affected = 0;
@@ -107,7 +144,7 @@ void FAnomaly_LodPopping::Revert()
 	}
 
 	Targets.Reset();
-	Accumulator = 0.0f;
+	FramesSinceToggle = 0;
 	bPoppedPhase = false;
 	bActive = false;
 }
