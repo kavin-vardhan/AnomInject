@@ -24,6 +24,8 @@ namespace
 		FName(TEXT("blinking")),
 		FName(TEXT("missing_texture")),
 		FName(TEXT("corrupted_texture")),
+		FName(TEXT("lod_popping")),
+		FName(TEXT("camera_clipping")),
 	};
 	constexpr int32 GNumAutoPool = UE_ARRAY_COUNT(GAutoPool);
 	static_assert(GNumAutoPool == UAnomalyAutoInjectorSubsystem::NumPoolKeys, "pool size must match the keybind count");
@@ -33,11 +35,29 @@ namespace
 		FName(TEXT("blinking")),
 		FName(TEXT("missing_texture")),
 		FName(TEXT("corrupted_texture")),
+		FName(TEXT("lod_popping")),
+		FName(TEXT("camera_clipping")),
 	};
 
 	UAnomalyInjectorSubsystem* ResolveInjector(UWorld* World)
 	{
 		return World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	}
+
+	bool IsSessionGlobalId(UAnomalyInjectorSubsystem* Injector, const FName& Id)
+	{
+		if (!Injector)
+		{
+			return false;
+		}
+		for (const FAnomalyCatalogEntry& Entry : Injector->GetAnomalyCatalog())
+		{
+			if (Entry.Id == Id)
+			{
+				return Entry.Scope == EAnomalyScope::Global;
+			}
+		}
+		return false;
 	}
 }
 
@@ -50,6 +70,8 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 	KeyPool[1] = EKeys::Two;
 	KeyPool[2] = EKeys::Three;
 	KeyPool[3] = EKeys::Four;
+	KeyPool[4] = EKeys::Five;
+	KeyPool[5] = EKeys::Six;
 	KeyRun     = EKeys::J;
 	KeyReseed  = EKeys::K;
 
@@ -191,10 +213,15 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	Eligible.Reserve(GNumAutoPool);
 	for (const FName& Id : GAutoPool)
 	{
-		if (EnabledIds.Contains(Id) && !IsIdLive(Id))
+		if (!EnabledIds.Contains(Id) || IsIdLive(Id))
 		{
-			Eligible.Add(Id);
+			continue;
 		}
+		if (IsSessionGlobalId(Injector, Id))
+		{
+			continue;
+		}
+		Eligible.Add(Id);
 	}
 	if (Eligible.Num() == 0)
 	{
@@ -479,12 +506,14 @@ bool UAnomalyAutoInjectorSubsystem::SetKeyBinding(FName Action, FKey Key)
 	else if (Action == FName(TEXT("pool2")))  { KeyPool[1] = Key; }
 	else if (Action == FName(TEXT("pool3")))  { KeyPool[2] = Key; }
 	else if (Action == FName(TEXT("pool4")))  { KeyPool[3] = Key; }
+	else if (Action == FName(TEXT("pool5")))  { KeyPool[4] = Key; }
+	else if (Action == FName(TEXT("pool6")))  { KeyPool[5] = Key; }
 	else if (Action == FName(TEXT("run")))    { KeyRun = Key; }
 	else if (Action == FName(TEXT("reseed"))) { KeyReseed = Key; }
 	else
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("IAI.Auto.Bind: unknown action '%s' (use pool1/pool2/pool3/pool4/run/reseed)."), *Action.ToString());
+			TEXT("IAI.Auto.Bind: unknown action '%s' (use pool1/pool2/pool3/pool4/pool5/pool6/run/reseed)."), *Action.ToString());
 		return false;
 	}
 
@@ -572,7 +601,7 @@ void UAnomalyAutoInjectorSubsystem::WarnOnCoexistence() const
 		if (Selector->IsUIEnabled())
 		{
 			UE_LOG(LogAnomaly, Warning,
-				TEXT("Auto-injector and the selector UI are BOTH enabled â€” UNSUPPORTED. Manual injection of a pool id "
+				TEXT("Auto-injector and the selector UI are BOTH enabled Ã¢â‚¬â€ UNSUPPORTED. Manual injection of a pool id "
 				     "during an auto run will clobber via the injector's one-instance-per-id. Disable one (IAI.SelectorUI 0)."));
 		}
 	}
@@ -646,7 +675,7 @@ void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* 
 	const float LineH = 16.0f;
 
 	Canvas->SetDrawColor(FColor::White);
-	Canvas->DrawText(Font, FString::Printf(TEXT("[IAI] Auto-Injector  â€”  Run: %s   (1-3: types   J: run   K: reseed)"),
+	Canvas->DrawText(Font, FString::Printf(TEXT("[IAI] Auto-Injector  Ã¢â‚¬â€  Run: %s   (1-3: types   J: run   K: reseed)"),
 		bRunning ? TEXT("ON") : TEXT("OFF")), X, Y);
 	Y += LineH * 1.5f;
 
@@ -826,11 +855,11 @@ static FAutoConsoleCommandWithWorldAndArgs GAutoStatusCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GAutoBindCmd(
 	TEXT("IAI.Auto.Bind"),
-	TEXT("Rebind an auto-injector key. Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|run|reseed> <KeyName>"),
+	TEXT("Rebind an auto-injector key. Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|pool5|pool6|run|reseed> <KeyName>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
-			if (Args.Num() < 2) { UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|run|reseed> <KeyName>")); return; }
+			if (Args.Num() < 2) { UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|pool5|pool6|run|reseed> <KeyName>")); return; }
 			const FName KeyName(*Args[1]);
 			const FKey Key(KeyName);
 			if (!EKeys::GetKeyDetails(Key).IsValid())

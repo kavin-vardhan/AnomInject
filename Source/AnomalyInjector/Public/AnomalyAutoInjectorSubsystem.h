@@ -34,7 +34,7 @@ class ANOMALYINJECTOR_API UAnomalyAutoInjectorSubsystem : public UTickableWorldS
 	GENERATED_BODY()
 
 public:
-	static constexpr int32 NumPoolKeys = 4;
+	static constexpr int32 NumPoolKeys = 6;
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
