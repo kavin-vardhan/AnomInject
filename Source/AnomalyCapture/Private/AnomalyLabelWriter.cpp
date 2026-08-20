@@ -456,7 +456,7 @@ namespace AnomalyLabel
 
 			{
 				TSharedRef<FJsonObject> Mask = MakeShared<FJsonObject>();
-				Mask->SetBoolField(TEXT("provided"), false);
+				Mask->SetBoolField(TEXT("provided"), E.bMaskProvided);
 				O->SetObjectField(TEXT("mask"), Mask);
 				TSharedRef<FJsonObject> Depth = MakeShared<FJsonObject>();
 				Depth->SetBoolField(TEXT("provided"), false);

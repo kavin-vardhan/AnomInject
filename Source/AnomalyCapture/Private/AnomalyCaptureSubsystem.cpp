@@ -781,8 +781,11 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		Async->MaskMeasure.BeginRun();
 		bMaskProbeFiredThisRun = false;
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture(mask): m26 SLICE 1 ACTIVE - MEASURE ONLY. Log output only: no annotation field, ")
-			TEXT("no veto, mask{provided} stays false. Reserved stencil base %d, max %d arms/event."),
+			TEXT("Capture(mask): m26 SLICES 1+2 ACTIVE - MEASURE AND REPORT. annotation.json's ALREADY-SHIPPING ")
+			TEXT("mask{provided} now carries the measurement tri-state's bool (NOT_MEASURED -> false, ")
+			TEXT("MEASURED_ZERO/MEASURED_NONZERO -> true). NO sub-fields are added, depth{} is untouched, the ")
+			TEXT("field SET is unchanged, and NOTHING IS VETOED - slice 3 does not exist. Reserved stencil ")
+			TEXT("base %d, max %d arms/event."),
 			AnomalyStencilTag::ReservedStencilBase, FAnomalyMaskMeasure::MaxArmsPerEvent);
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(mask): probe EFFECTIVE=%d (flag=%d, deliveryMode=%d - the probe is INERT in ")
@@ -1603,8 +1606,6 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 		ComputeRunPacing();
 
-		WriteSessionAnnotationFile();
-
 		int32 MaskProbeArms = 0;
 		int32 MaskResidualDiscards = 0;
 		int32 MaskNoPassDiscards = 0;
@@ -1617,6 +1618,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			MaskResidualDiscards = Async->MaskMeasure.TotalResidualDiscards();
 			MaskNoPassDiscards = Async->MaskMeasure.TotalNoPassDiscards();
 		}
+
+		WriteSessionAnnotationFile();
 
 		AnomalyLabel::FRingTelemetry RingTelemetry;
 		if (bSveCapture)
@@ -1825,6 +1828,18 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 	}
 }
 
+#if ANOMALY_CAPTURE
+static bool MaskStateProvidesMeasurement(EAnomalyMaskState State)
+{
+	switch (State)
+	{
+	case EAnomalyMaskState::MeasuredZero:    return true;
+	case EAnomalyMaskState::MeasuredNonZero: return true;
+	default:                                 return false;
+	}
+}
+#endif
+
 void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 {
 	if (!Async.IsValid())
@@ -1918,6 +1933,29 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		Out.EngineName = TEXT("UnrealEngine");
 		Out.EngineVersion = EngineVersion;
 		Out.EngineProject = EngineProject;
+
+		Out.bMaskProvided = false;
+		if (bMaskMeasure)
+		{
+			if (const FAnomalyMaskRecord* Rec = Async->MaskMeasure.FindRecord(Ev.Id, Ev.Target, Ev.StartFrame))
+			{
+				Out.bMaskProvided = MaskStateProvidesMeasurement(Rec->State);
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(mask): M26S2 MAP id=%s target=%s startFrame=%llu state=%s -> mask.provided=%s ")
+					TEXT("(NOT_MEASURED maps to false and MUST BE ADMITTED; MEASURED_ZERO maps to TRUE and is a ")
+					TEXT("measurement, not an absence - the two zeros never share a representation)"),
+					*Ev.Id.ToString(), *Ev.Target, Ev.StartFrame,
+					LexToStringAnomalyMaskState(Rec->State),
+					Out.bMaskProvided ? TEXT("true") : TEXT("false"));
+			}
+			else
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(mask): M26S2 MAP id=%s target=%s startFrame=%llu - NO MASK RECORD for this event ")
+					TEXT("-> mask.provided=false (never measured, MUST BE ADMITTED)"),
+					*Ev.Id.ToString(), *Ev.Target, Ev.StartFrame);
+			}
+		}
 
 		A.Events.Add(MoveTemp(Out));
 	}
@@ -2128,13 +2166,17 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskCmd(
 	TEXT("IAI.Capture.Mask"),
-	TEXT("m26 SLICE 1 - MEASURE ONLY (default OFF). ON: tag each fired target into custom stencil using the ")
-	TEXT("SHARED renderable predicate (AnomalyViewport::IsRenderableComponent), rasterise an occlusion-correct ")
-	TEXT("silhouette mask after tonemap, and reduce it to a per-event SURVIVING-PIXEL COUNT. The mask is armed ")
-	TEXT("only on a tick where the target is KNOWN NOT HIDDEN, so a hide-type target is measured post-revert; ")
-	TEXT("an event with no qualifying frame stays NOT_MEASURED and must be ADMITTED by slice 3. Output is LOG ")
-	TEXT("ONLY: no annotation.json field changes, mask{provided} stays false, and NOTHING is vetoed. Mid-run ")
-	TEXT("changes are ignored (stop first). Usage: IAI.Capture.Mask <0|1>"),
+	TEXT("m26 SLICES 1+2 - MEASURE AND REPORT (default OFF). ON: tag each fired target into custom stencil using ")
+	TEXT("the SHARED renderable predicate (AnomalyViewport::IsRenderableComponent), rasterise an ")
+	TEXT("occlusion-correct silhouette mask after tonemap, and reduce it to a per-event SURVIVING-PIXEL COUNT. ")
+	TEXT("A frame contributes only on POSITIVE evidence the custom-depth pass ran and the target rendered ")
+	TEXT("visible. The mask is armed only on a tick where the target is KNOWN NOT HIDDEN, so a hide-type target ")
+	TEXT("is measured post-revert; an event with no qualifying frame stays NOT_MEASURED. SLICE 2 REPORTING: ")
+	TEXT("annotation.json's already-shipping mask{provided} carries the tri-state's bool - NOT_MEASURED false ")
+	TEXT("(never measured, MUST be admitted), MEASURED_ZERO and MEASURED_NONZERO true. NO sub-fields are added ")
+	TEXT("under mask, depth{} is untouched, the field SET is unchanged, and NOTHING IS VETOED - slice 3 does ")
+	TEXT("not exist. With this OFF no event has a record, so mask{provided} is false everywhere and the output ")
+	TEXT("is unchanged. Mid-run changes are ignored (stop first). Usage: IAI.Capture.Mask <0|1>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{

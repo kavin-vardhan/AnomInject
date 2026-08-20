@@ -142,6 +142,8 @@ namespace AnomalyLabel
 		FString EngineName;
 		FString EngineVersion;
 		FString EngineProject;
+
+		bool bMaskProvided = false;
 	};
 
 	struct FSessionAnnotation
