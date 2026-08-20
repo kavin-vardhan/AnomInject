@@ -40,7 +40,9 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 	}
 
 	const uint64 GameFrame = GFrameCounter;
-	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, GameFrame, Cap->IsWanted(GameFrame));
+	const bool bWanted = Cap->IsWanted(GameFrame);
+	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, GameFrame, bWanted);
+	Cap->TraceWantPublish(InViewFamily.FrameNumber, GameFrame, bWanted);
 }
 
 void FAnomalySceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass Pass,

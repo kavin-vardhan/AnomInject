@@ -36,6 +36,7 @@ namespace AnomalySveKeyRing
 	static FThreadSafeCounter Missed;
 	static FThreadSafeCounter Wrapped;
 	static FThreadSafeCounter Corrupted;
+	static FThreadSafeCounter WantedPublished;
 
 	int32 GetCapacity()
 	{
@@ -80,6 +81,7 @@ namespace AnomalySveKeyRing
 		Missed.Reset();
 		Wrapped.Reset();
 		Corrupted.Reset();
+		WantedPublished.Reset();
 	}
 
 	FCounters GetCounters()
@@ -90,6 +92,7 @@ namespace AnomalySveKeyRing
 		Out.Missed = Missed.GetValue();
 		Out.Wrapped = Wrapped.GetValue();
 		Out.Corrupted = Corrupted.GetValue();
+		Out.WantedPublished = WantedPublished.GetValue();
 		return Out;
 	}
 
@@ -120,6 +123,10 @@ namespace AnomalySveKeyRing
 			Wrapped.Increment();
 		}
 		Published.Increment();
+		if (bWanted)
+		{
+			WantedPublished.Increment();
+		}
 	}
 
 	bool LookupKey(uint32 FamilyFrameNumber, FKeyEntry& Out)

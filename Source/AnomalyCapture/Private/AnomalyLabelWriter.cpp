@@ -513,6 +513,7 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("key_ring_missed"), Ring->Missed);
 			Root->SetNumberField(TEXT("key_ring_wrapped"), Ring->Wrapped);
 			Root->SetNumberField(TEXT("key_ring_corrupted"), Ring->Corrupted);
+			Root->SetNumberField(TEXT("wanted_published"), Ring->WantedPublished);
 		}
 
 		FString Out;

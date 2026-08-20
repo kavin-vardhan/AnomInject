@@ -22,6 +22,7 @@ namespace AnomalySveKeyRing
 		int32 Missed = 0;
 		int32 Wrapped = 0;
 		int32 Corrupted = 0;
+		int32 WantedPublished = 0;
 	};
 
 	void PublishKey(uint32 FamilyFrameNumber, uint64 GameFrameCounter, bool bWanted);

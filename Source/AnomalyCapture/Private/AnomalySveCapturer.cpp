@@ -23,12 +23,53 @@ void FAnomalySveCapturer::MarkWanted(uint64 GameFrameCounter)
 {
 	FScopeLock Lock(&StateCS);
 	WantedFrames.Add(GameFrameCounter);
+	LastMarkedFrame = GameFrameCounter;
 }
 
 bool FAnomalySveCapturer::IsWanted(uint64 GameFrameCounter) const
 {
 	FScopeLock Lock(&StateCS);
 	return WantedFrames.Contains(GameFrameCounter);
+}
+
+uint64 FAnomalySveCapturer::GetLastMarkedFrame() const
+{
+	FScopeLock Lock(&StateCS);
+	return LastMarkedFrame;
+}
+
+void FAnomalySveCapturer::TraceWantPublish(uint32 FamilyFrameNumber, uint64 PublishGameFrame, bool bWanted)
+{
+	const uint64 LastMarked = GetLastMarkedFrame();
+
+	FScopeLock Lock(&WantTraceCS);
+	if (WantTrace.TracedPublishes >= WantTracePublishLimit)
+	{
+		return;
+	}
+	++WantTrace.TracedPublishes;
+
+	FString OffsetText = TEXT("n/a");
+	if (LastMarked != 0)
+	{
+		const int64 Offset = (int64)PublishGameFrame - (int64)LastMarked;
+		++WantTrace.OffsetSamples;
+		WantTrace.OffsetMin = FMath::Min(WantTrace.OffsetMin, Offset);
+		WantTrace.OffsetMax = FMath::Max(WantTrace.OffsetMax, Offset);
+		++WantTrace.OffsetHistogram.FindOrAdd(Offset);
+		OffsetText = FString::Printf(TEXT("%lld"), Offset);
+	}
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(sve): SVE-WANT-TRACE publish %d/%d familyFrame=%u publishGameFrame=%llu wanted=%d lastMarked=%llu offset=%s"),
+		WantTrace.TracedPublishes, WantTracePublishLimit,
+		FamilyFrameNumber, PublishGameFrame, bWanted ? 1 : 0, LastMarked, *OffsetText);
+}
+
+FAnomalyWantTraceStats FAnomalySveCapturer::GetWantTraceStats() const
+{
+	FScopeLock Lock(&WantTraceCS);
+	return WantTrace;
 }
 
 int32 FAnomalySveCapturer::NumPendingApprox() const
@@ -42,6 +83,7 @@ void FAnomalySveCapturer::Reset()
 	{
 		FScopeLock Lock(&StateCS);
 		WantedFrames.Reset();
+		LastMarkedFrame = 0;
 	}
 	{
 		FScopeLock Lock(&CompletedCS);
@@ -50,6 +92,10 @@ void FAnomalySveCapturer::Reset()
 	{
 		FScopeLock Lock(&LatencyCS);
 		Latency = FAnomalyReadbackLatencyStats();
+	}
+	{
+		FScopeLock Lock(&WantTraceCS);
+		WantTrace = FAnomalyWantTraceStats();
 	}
 }
 

@@ -2142,6 +2142,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			RingTelemetry.Missed = Ring.Missed;
 			RingTelemetry.Wrapped = Ring.Wrapped;
 			RingTelemetry.Corrupted = Ring.Corrupted;
+			RingTelemetry.WantedPublished = Ring.WantedPublished;
 		}
 
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
@@ -2159,6 +2160,41 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				TEXT("Capture(sve): key ring — published=%d consumed=%d missed=%d wrapped=%d corrupted=%d (forceMiss=%d)."),
 				Ring.Published, Ring.Consumed, Ring.Missed, Ring.Wrapped, Ring.Corrupted,
 				AnomalySveKeyRing::GetForceMissMode());
+
+			if (Async.IsValid() && Async->SveCapturer.IsValid())
+			{
+				const FAnomalyWantTraceStats Want = Async->SveCapturer->GetWantTraceStats();
+				int64 ModeOffset = 0;
+				int32 ModeCount = 0;
+				FString HistText;
+				TArray<int64> OffsetKeys;
+				Want.OffsetHistogram.GetKeys(OffsetKeys);
+				OffsetKeys.Sort();
+				for (const int64 Key : OffsetKeys)
+				{
+					const int32 KeyCount = Want.OffsetHistogram[Key];
+					HistText += FString::Printf(TEXT("%lld:%d "), Key, KeyCount);
+					if (KeyCount > ModeCount)
+					{
+						ModeCount = KeyCount;
+						ModeOffset = Key;
+					}
+				}
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(sve): SVE-WANT-SUMMARY wantedPublished=%d of %d publishes | traced=%d of first %d, ")
+					TEXT("offsetSamples=%d min=%s max=%s mode=%s hist=[%s] — offset is publish-time GFrameCounter minus ")
+					TEXT("the capturer's last-marked frame over the traced window; the per-publish lines above carry ")
+					TEXT("their own token. wantedPublished=0 with marks issued means the game-thread mark never met its ")
+					TEXT("publish — the frame-number handshake missed; wantedPublished matching the wanted frame count ")
+					TEXT("means publish saw the marks and any loss is downstream of publish."),
+					Ring.WantedPublished, Ring.Published,
+					Want.TracedPublishes, (int32)FAnomalySveCapturer::WantTracePublishLimit,
+					Want.OffsetSamples,
+					Want.OffsetSamples > 0 ? *FString::Printf(TEXT("%lld"), Want.OffsetMin) : TEXT("n/a"),
+					Want.OffsetSamples > 0 ? *FString::Printf(TEXT("%lld"), Want.OffsetMax) : TEXT("n/a"),
+					Want.OffsetSamples > 0 ? *FString::Printf(TEXT("%lld"), ModeOffset) : TEXT("n/a"),
+					*HistText);
+			}
 		}
 
 		if (bLogLine)
