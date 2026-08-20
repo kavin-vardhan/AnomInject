@@ -154,9 +154,12 @@ void FAnomalyMaskMeasure::VerifyPendingTags()
 				R.FirstCollisionDetail = Detail;
 			}
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture(mask): STENCIL TAG DID NOT SURVIVE for '%s' on '%s' (tag %d) - %s. ")
-				TEXT("Treating this measurement as NOT_MEASURED (admit). A host title writing custom stencil ")
-				TEXT("shares the 0-255 space with our reserved base %d; the base is a CONVENTION, not a reservation."),
+				TEXT("Capture(mask): OBSERVED - the stencil tag did not read back for '%s' on '%s' (tag %d) - %s. ")
+				TEXT("CAUSE NOT ESTABLISHED. This measurement is discarded and the event stays NOT_MEASURED ")
+				TEXT("(admit). DISCRIMINATORS: the component property being overwritten means something else ")
+				TEXT("re-asserted it; the property reading back correctly while the MASK still misses the tag ")
+				TEXT("means the fault is on the READ side, not the write. Reserved base %d is a CONVENTION, ")
+				TEXT("not a reservation."),
 				*R.Id.ToString(), *R.Target, (int32)R.Tag, *Detail, AnomalyStencilTag::ReservedStencilBase);
 		}
 	}
@@ -196,12 +199,16 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 			if (R.FirstCollisionDetail.IsEmpty())
 			{
 				R.FirstCollisionDetail = FString::Printf(
-					TEXT("mask carried unassigned reserved tag %d"), (int32)Mask.FirstUnassignedTag);
+					TEXT("unassigned reserved tag %d observed, cause not established"),
+					(int32)Mask.FirstUnassignedTag);
 			}
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture(mask): the mask carried reserved tag %d which this run never assigned. ")
-				TEXT("A host title is writing into the reserved custom-stencil range; measurements this run ")
-				TEXT("are NOT trustworthy and are treated as NOT_MEASURED (admit)."),
+				TEXT("Capture(mask): OBSERVED - the mask carried reserved-range tag %d, which this run never ")
+				TEXT("assigned. CAUSE NOT ESTABLISHED. This measurement is discarded and the event stays ")
+				TEXT("NOT_MEASURED (admit). DISCRIMINATORS: 255 uniformly across the frame is the engine's ")
+				TEXT("StencilDummy fallback (FColor::White), bound when custom depth was NOT produced for the ")
+				TEXT("frame - i.e. our stencil was never read; a value in a GEOMETRY-SHAPED region, or any ")
+				TEXT("value other than 255, is something genuinely writing into the reserved range."),
 				(int32)Mask.FirstUnassignedTag);
 		}
 
