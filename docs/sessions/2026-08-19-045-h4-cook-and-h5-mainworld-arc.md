@@ -9,12 +9,12 @@ path (a)'s environment and then found a different lead entirely. It is not split
 separable — each part exists because the one before it produced something unexpected. **Renamed from
 `…-045-h4-preflight-halt.md` on 2026-08-19; that title described only Part One.**
 
-> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART THIRTY.** It
-> states `m26`'s state (**slices 1 AND 2 done and FULLY gated — `G-9` closed with `EXTRAS = 0`;
-> the cure identifies both `H5` instances and REPORTS through `mask.provided`; slice 3 not
-> started**), what is **proven and must not be re-proved**, and the rulings that travel. **You do
-> not need to read the thirty parts above it — though §198 is worth one minute: the clean result at
-> the end was not a clean path.**
+> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART THIRTY-ONE.** It
+> states `m26`'s state (**FUNCTIONALLY COMPLETE — slices 1, 2 and 3 all shipped and gated; the
+> veto is ZERO-ONLY and it fires; next is the owner's play-gate smoke, and NO TAG until then**),
+> what is **proven and must not be re-proved**, and the rulings that travel. **You do not need to
+> read the thirty-one parts above it — though §198 is worth one minute: the clean result at the end
+> was not a clean path.**
 
 ## PART INDEX
 
@@ -50,28 +50,31 @@ separable — each part exists because the one before it produced something unex
 | **Twenty-eight** | 193–197 | 🎯 **`F-6` COMPLETE · THE `H5` LEGS RUN — the cure identifies both instances that motivated it** | Rulings recorded: the third field APPROVED (`run_summary` +3, and the scope statement now SAYS +3) · the Nanite entanglement into the HEADLINE of `client-delivery.md` · **`G135`** (a restricted-asset calibration level cannot exhibit defects outside its asset set, and the blindness reads as a CLEAN PASS — tension stated, CB_GateLevel NOT changed). **`N-2` replacement `StaticMeshActor_73`: 8/8 non-zero at 5.27 % vs its claimed 6.87 % ⇒ item 2 PASS ⇒ ALL FIVE `F-6` ITEMS PASS.** 🎯 **`BP_SplineSpawn_C` → `MEASURED_ZERO` ×8 against a 22.89 % claim (branch `Z1`); `InstancedFoliageActor_0_0_0` → 1.4 % drawn against a `coverage_pct 100` / whole-frame-bbox claim (branch `Z2`) — every bucket clean, 29/29 frames view-sized, branch `X` did not fire.** ⛔ No incidence claim · no threshold · not a veto test · slices 2/3 not started · NO TAG |
 | **Twenty-nine** | 198–203 | ✅ **SLICE 2 SHIPS — `mask.provided` carries the tri-state** | **All five known-answer rows correct: `SM_Ramp2` → `false`, `BP_SplineSpawn_C` (MEASURED_ZERO) → `true`** — the two zeros stay distinguishable, tested BOTH ways; the guarantee is one function switching on `State` alone that never sees a magnitude. G-2 **48/48 in BOTH delivery modes**, INERT when off, 0 mapping mismatches. 🚨 **`A64` justified itself: the first delivery leg read `provided:false` everywhere and looked like a delivery-orthogonality break — it was a bifurcated POSE, refuted by a pose-matched delivery leg reading `true` AND by the `Cylinder` leg reproducing the signature with delivery OFF via frustum culling.** ⚠ **`G-9` path-level subset INCONCLUSIVE (my control pair under-sampled pitch) — invariant core passes POSITIVELY.** §198 records that the clean result was not a clean path. ⛔ **Slice 3 NOT started; no threshold exists anywhere** |
 | **Thirty** | 204–208 | ✅ **`G-9` CLOSES — `EXTRAS = 0`** · `framesNoPass` defined everywhere a reader meets it | **Route (a) chosen — make the confound ABSENT, not EXCUSED; (b)'s laundering hazard restated as the reason it was refused.** All three legs settled at the SAME pose (`0/0/0`, `coverage_ratio 0.077977`) first try, so 🎯 **the run-unique set shrank 26 → 4** (`session_id`, `speed_ratio`, `sustained_wall_fps`, `video/path`) and the OFF/ON difference is exactly those **plus `delivery_mode`** — the gate got HARDER and passed. Invariant core re-asserted identical. **Ruling 2: `framesNoPass` is NOT a Nanite counter — corrected in the NO-PASS line, the NOT_MEASURED warning, `G134` and `client-delivery.md`.** **Ruling 3: the "false NEVER means the target drew nothing" sentence into the tag scope statement.** §207 reports the raw measured-vs-claimed pixel areas, **numbers only**. ⛔ **Slice 3 still NOT started** |
+| **Thirty-one** | 209–213 | 🎯 **SLICE 3 SHIPS — the veto is ZERO-ONLY and IT FIRES. `m26` functionally complete** | **The ruling recorded VERBATIM (§209), including why a ratio was refused despite the four targets separating cleanly: every GOOD target measured is a convex primitive, and a complex-silhouette legitimate target — which would break a ratio rule — does not exist in the measured set (`G135`'s failure shape).** Implementation tests the ENUM STATE only; `manifested` evaluated first so `vetoed_events`/`non_manifested_events` are disjoint by construction. **`BP_SplineSpawn_C`: 8/8 vetoed, annotation `anomalies: []`, `vetoed_events=8`.** 🚨 **The foliage at ~1.4 % of its claim: NOT vetoed — the rule's own guard.** 🚨 **`SM_Ramp2`'s 8 `NOT_MEASURED` events: ALL KEPT — the data-destroying direction closed.** `G-9` re-run at slice 3: **EXTRAS 0**, event SET identical across modes. `P6` 48/48, `run_summary` +4. **The accepted cost, the `A35` ruling and `L1`–`L3` into the tag statement and `client-delivery.md`.** ⛔ **NO TAG — owner play-gate smoke first** |
 
-⚠ **ONE INVESTIGATION, THIRTY PARTS** *(the "nine" in the note below predates Parts Ten
+⚠ **ONE INVESTIGATION, THIRTY-ONE PARTS** *(the "nine" in the note below predates Parts Ten
 onward; the reason it is not split is unchanged).*
 
-**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART THIRTY.** 🎯 **`m26` SLICES 1
-AND 2 ARE DONE AND GATED: both faults fixed (`795f2a4`, `4a9631a`), the extent precondition shipped
-(`3beb3ba`), `F-6` COMPLETE on all five items, the `H5` LEGS RUN — the cure identifies both
-instances that motivated it (`BP_SplineSpawn_C` measures ZERO against a 22.89 % claim; the foliage
-measures 1.4 % of frame against a claim of the ENTIRE frame, both with every integrity bucket
-clean) — and SLICE 2 now REPORTS it through `mask.provided`, with the two zeros proven
-distinguishable in both directions (`ece343f`), with **`G-9` CLOSED at `EXTRAS = 0` on a
-pose-matched pair (PART THIRTY)**.** ⛔ **SLICE 3 NOT STARTED; NO THRESHOLD EXISTS ANYWHERE.** ⚠ **Two limits travel: `G134` — the mask cannot see Nanite geometry on UE 5.1, and
-on this title that is the COMMON CASE (measured, and now in `client-delivery.md`'s headline);
-`G133` — closed. `G135` records why the calibration level could never have shown either.**
-⛔ **NO INCIDENCE CLAIM · NO THRESHOLD PROPOSED · class (i) still ENUMERATED-NOT-OBSERVED · the A35
-over-fire property UNTESTED, no control for it exists.** Slices 2 and 3 **not started — the
-owner's call**. `feature/stencil-capture` **untouched** throughout — *mined, never resumed*.
-**`P6` never moved (measured 48/48 in Parts 24, 26, 27 and 28). NO TAG since `m25`.**
+**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART THIRTY-ONE.** 🎯 **`m26` IS FUNCTIONALLY
+COMPLETE — SLICES 1, 2 AND 3 ALL SHIPPED AND GATED.** Both faults fixed (`795f2a4`, `4a9631a`), the
+extent precondition shipped (`3beb3ba`), `F-6` COMPLETE on all five items, the `H5` LEGS RUN (the
+cure identifies both instances that motivated it), slice 2 REPORTS through `mask.provided`
+(`ece343f`) with the two zeros proven distinguishable both ways, `G-9` CLOSED at `EXTRAS = 0` on a
+pose-matched pair (PART THIRTY), and **SLICE 3's VETO SHIPS (`65deadc`) — ZERO-ONLY: it removes
+`BP_SplineSpawn_C`'s 8 events and removes NOTHING else, including the foliage at ~1.4 % of its
+claim.** ⛔ **NO RATIO, NO THRESHOLD — the reasoning for refusing one is recorded verbatim at
+§209.** ⚠ **Limits that travel: the ACCEPTED COST (the over-claim case is NOT cured) · `A35` (a
+zero-silhouette target may still cast shadow; vetoed anyway, by ruling) · `L1`–`L3` · `G134` — the
+mask cannot see Nanite geometry on UE 5.1, and on this title that is the COMMON CASE; `G133` closed;
+`G135` records why the calibration level could never have shown either.**
+⛔ **NO INCIDENCE CLAIM · class (i) still ENUMERATED-NOT-OBSERVED · the A35 over-fire property
+UNTESTED, no control for it exists.** `feature/stencil-capture` **untouched** throughout — *mined,
+never resumed*. **`P6` never moved (measured 48/48 in Parts 24, 26, 27, 28, 29 and 31). NO TAG since
+`m25` — THE OWNER'S PLAY-GATE SMOKE COMES FIRST.**
 ⚠ **Production code appears for the first time in PART FOURTEEN (log-only `M-1` instrumentation, on
 owner permission); Parts One–Thirteen carry ZERO.**
 
-🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART THIRTY IS THE COLD-START ENTRY POINT.**
+🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART THIRTY-ONE IS THE COLD-START ENTRY POINT.**
 
 ---
 
@@ -3623,10 +3626,33 @@ requires.
 > absent, and is loud when blind. `annotation.json`'s field SET is UNCHANGED (`P6` not moved);
 > `mask.provided` moves `false → true` in a slot that already shipped.
 >
+> 🆕 **AMENDED AGAIN (PART THIRTY-ONE — the veto ships; these paragraphs travel with the tag):**
+> **THE VETO IS ZERO-ONLY.** An event is removed from `annotation.json` **if and only if** it
+> manifested AND its target was **MEASURED at ZERO drawn pixels**. `NOT_MEASURED` is never vetoed;
+> a measured NON-ZERO count is never vetoed **however small a fraction of its claimed extent it
+> is**. **There is no ratio and no threshold.**
+> 🚨 **THE ACCEPTED COST:** *"`m26` vetoes only targets measured at ZERO drawn pixels. A target
+> that OVER-CLAIMS — measured non-zero but far below its claimed extent, such as the
+> `InstancedFoliageActor` measured at 5,689–13,342 px against a claimed 921,600 px (the entire
+> frame) — IS NOT VETOED and ships as a valid label. `m26` is a PARTIAL cure for `H5`: it removes
+> the zero-contribution case and leaves the over-claim case. The over-claim rule requires a
+> calibration campaign including complex-silhouette legitimate targets, which do not exist in the
+> current measured set."*
+> ⚠ **`A35`, as a RULING with its reason:** a zero-silhouette target can still have indirect visual
+> effect — `BP_SplineSpawn_C`'s banked hide showed a small in-bbox luma change (`0.0175`) while the
+> mask reads exactly zero. **`m26` vetoes it anyway, because the label points at the OBJECT and not
+> at its shadow.**
+> **`L1`–`L3`:** frames are already on disk and are **NOT un-written** · **a post-`m26` event count
+> is NOT comparable with a pre-`m26` one; `vetoed_events` carries the delta** · `labels.jsonl`
+> (delivery OFF) is prebuilt and uncorrectable, so **delivery OFF and ON WILL DISAGREE on event
+> content**.
+> **`vetoed_events` and `non_manifested_events` are DISJOINT by construction** — *"the target
+> contributed no pixels to hide"* vs *"the hide never showed in pixels"*.
+>
 > 🆕 **AMENDED (PART THIRTY, Rulings 2–3 — these three paragraphs travel with the tag):**
-> **(1) `run_summary.json` gains THREE fields — `mask_probe_arms`, `mask_residual_discards`,
-> `mask_nopass_discards`.** `annotation.json`'s field SET is unchanged. *(The declared number is
-> `+3`, and `+3` is what ships.)*
+> **(1) `run_summary.json` gains FOUR fields — `mask_probe_arms`, `mask_residual_discards`,
+> `mask_nopass_discards`, `vetoed_events`.** `annotation.json`'s field SET is unchanged. *(The
+> declared number is `+4`, and `+4` is what ships.)*
 > **(2) `mask.provided` `false` NEVER means "the target drew nothing" — it means no measurement
 > exists, and such an event carries exactly as much evidence as it did before `m26`: none from this
 > measurement.**
@@ -6225,9 +6251,148 @@ gauge forever now carries its own definition everywhere a reader meets it.**
 
 ---
 
-# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–30.
+# PART THIRTY-ONE — **SLICE 3 SHIPS. THE VETO IS ZERO-ONLY, AND IT FIRES.** `m26` is functionally complete.
 
-**Session closed 2026-08-20 at the end of PART THIRTY. `m26` is IN PROGRESS.**
+**Predictions pre-declared BEFORE implementation and before any leg —
+`CaptureBench/tools/p31_slice3_predeclared.md`, commit `043b110`.**
+⛔ **NO TAG — the owner smoke gate comes first. `P6` NOT MOVED. Stencil range 200/255.
+CB_GateLevel untouched (`G99`). `feature/stencil-capture` READ-ONLY.**
+
+---
+
+## 209. `THE VETO RULING` — recorded VERBATIM, because a cold reader must see why the obvious rule was refused
+
+> **VETO IF AND ONLY IF: `State == MEASURED_ZERO`.** That is: `mask.provided == true` AND the
+> measured pixel count == 0.
+>
+> **NOT VETOED, under any circumstance:** `NOT_MEASURED` (`provided:false`) — never measured, MUST
+> ADMIT, unchanged and non-negotiable · `MEASURED_NONZERO` — any count ≥ 1 pixel, regardless of how
+> small a fraction of the claimed area it is · `manifested == false` events — `A-1`'s precedence
+> rule stands, veto only `manifested == true`.
+>
+> **NO RATIO. NO THRESHOLD. NO COMPARISON AGAINST claimed area.** Do not implement one, do not
+> leave a constant that could become one, and do not name a variable as though a ratio is coming.
+
+**THE OWNER'S REASONING, VERBATIM:**
+
+> **"The four measured targets separate cleanly (good 0.77–0.93 drawn/claimed; bad 0.014 and
+> 0.000), and a ratio threshold would catch both known `H5` instances. IT IS REFUSED ANYWAY. Both
+> GOOD targets are convex primitives viewed head-on — `/Engine/BasicShapes` Cube and Cylinder —
+> which is why they score so high. A legitimate target with a COMPLEX SILHOUETTE (fence, railing,
+> ladder, grate, sparse foliage) can draw a small fraction of its bounding rect while being fully
+> visible and fully valid. NO SUCH TARGET EXISTS IN OUR MEASURED SET. Calibrating a threshold on
+> four points, all simple convex shapes, is `G135`'s exact failure: a calibration set that cannot
+> exhibit the case that would break the rule, with the blindness presenting as a clean pass.
+> A count of ZERO needs no calibration. A target contributing not one pixel cannot be the visible
+> anomaly its label claims, whatever its silhouette."**
+
+## 210. The implementation (`65deadc`)
+
+**The veto pass runs in `FinishRun`, after the final mask collect and BEFORE
+`WriteSessionAnnotationFile`, on the in-memory accumulator.** It tests **the enum state only** —
+`MaskStateVetoes(State) { return State == EAnomalyMaskState::MeasuredZero; }`. ⛔ **`MaxCount` is
+never read, no percentage is computed, no constant is introduced that could become a threshold, and
+no identifier is named as though a ratio is coming.**
+**`AccumEventManifested` shares ONE definition of "manifested" with the writer** rather than
+duplicating `m23`'s logic, and it is evaluated **FIRST** — so `vetoed_events` and
+`non_manifested_events` are **DISJOINT BY CONSTRUCTION**, in the agreed words:
+
+| counter | means |
+|---|---|
+| `non_manifested_events` | **"the hide never showed in pixels"** |
+| `vetoed_events` | **"the target contributed no pixels to hide"** |
+
+`run_summary` gains **`vetoed_events`** — **`+4` since `m25`**, and the tag's field list says `+4`.
+The cvar help and the `StartRun` banner now describe the veto truthfully, including that it is
+zero-only and that frames are not un-written.
+
+## 211. GATE RESULTS — every prediction met, no failure branch fired
+
+| leg | target | measured | vetoed | events kept | `vetoed_events` | gate |
+|---|---|---|---|---|---|---|
+| **A** `P31_S3_SPLINE` | `BP_SplineSpawn_C` | `MEASURED_ZERO` ×8 | 🎯 **8** | **0** | **8** | ✅ **`G-4` IT FIRES** |
+| **B** `P31_S3_CTRL49` | `StaticMeshActor_49` | `MEASURED_NONZERO` ×8 | 0 | 8 | 0 | ✅ `G-5`, `G-10` |
+| **C** `P31_S3_CYL73` | `StaticMeshActor_73` | `MEASURED_NONZERO` ×8 | 0 | 8 | 0 | ✅ `G-5` |
+| **D** 🚨 `P31_S3_FOLIAGE` | `InstancedFoliageActor_0_0_0` | `MEASURED_NONZERO` ×8 | **0** | **8** | **0** | ✅ 🚨 **THE RULE'S OWN GUARD** |
+| **E** `P31_S3_RAMP` | `SM_Ramp2` (known-Nanite) | `NOT_MEASURED` ×8 | **0** | 8 | 0 | ✅ **`G-7` admits when blind** |
+| **F–H** `P31_S3_G9_{OFF_A,OFF_B,ON}` | `StaticMeshActor_49` | `MEASURED_NONZERO` | 0 | 8 | 0 | ✅ **`G-9`** |
+| **I** `P31_S3_INERT` | mask OFF | — | **0**, zero `VETO` lines | 8 | 0 | ✅ **`F-7` inert** |
+
+🚨 **LEG D IS THE RESULT THAT MATTERS MOST AFTER LEG A.** The foliage draws **~1.4 % of what it
+claims** and **is NOT vetoed** — because the rule is zero-only. **Had any veto appeared there, a
+ratio would have crept in and the gate would have failed.** It did not.
+🚨 **LEG E IS THE DATA-DESTROYING DIRECTION, AND IT IS CLOSED.** Eight `NOT_MEASURED` events on a
+target that draws real geometry and the instrument merely cannot see — **all eight KEPT.**
+
+**`G-8` (the blind case is loud) — in the ARTIFACT, not just the log:** leg E ships
+`mask.provided:false` on every event **and** `mask_nopass_discards=30` in `run_summary`.
+**`G-11` — two numbers, every leg:** `countedEventsBefore` / `countedEventsAfter` logged, with
+`before − vetoed == after` verified and `vetoed + nonManifested ≤ before` (no double-count).
+**`P6`** — `annotation.json` **48/48, 0 added 0 removed** on every leg; `run_summary` **+4 exactly**.
+
+### 211.1 `G-9` re-run at slice 3 — because the veto CHANGES `annotation.json` content
+
+All three legs settled at the same pose (`0/0/0`, `coverage_ratio 0.077977`), route (a) again.
+**Path-level `EXTRAS = 0`** against a **4-member** run-unique set. **Invariant core asserted
+positively and extended for slice 3:** `mask.provided` identical ×8 · `depth.provided` identical ·
+all three mask counters identical · **`vetoed_events` identical (0/0)** · **the EVENT SET itself
+identical across modes (8 vs 8, same types and start frames)** · event count identical · full key
+set identical.
+
+### 211.2 ⚠ The consequence that was pre-declared rather than discovered
+
+**Leg A vetoes all 8 of its events, so its `annotation.json` contains ZERO anomalies** — which is
+**the veto working** and simultaneously **below `G-11`'s 3-event floor**. Reconciled by the leg's
+ROLE, fixed before it ran: **leg A is a DEMONSTRATION leg (`G-4`), not a certifying one; it is not
+graded by `A54` and certifies nothing about alignment.** ✅ **`F-8` checked explicitly: the empty
+artifact parses, `anomalies` is a well-formed empty array, `video.total_frames` is still 90, and
+all 90 PNGs remain on disk** — `L1` demonstrated rather than asserted.
+
+## 212. The accepted cost and the `A35` ruling — into the docs, not buried
+
+Both written into `client-delivery.md` and the `m26` tag scope statement:
+
+> **`m26` vetoes only targets measured at ZERO drawn pixels. A target that OVER-CLAIMS — measured
+> non-zero but far below its claimed extent, such as the `InstancedFoliageActor` measured at
+> 5,689–13,342 px against a claimed 921,600 px (the entire frame) — IS NOT VETOED and ships as a
+> valid label. `m26` is a PARTIAL cure for `H5`: it removes the zero-contribution case and leaves
+> the over-claim case. The over-claim rule requires a calibration campaign including
+> complex-silhouette legitimate targets, which do not exist in the current measured set.**
+
+> ⚠ **`A35` — and it now bites a VETOED case, as a RULING with its reason, not an oversight:**
+> `BP_SplineSpawn_C`'s banked hide showed a small in-bbox luma change (**0.0175**) while the mask
+> reads exactly zero. **A zero-silhouette target can still have indirect visual effect (shadow,
+> GI). `m26` vetoes it anyway, because the label points at the OBJECT and not at its shadow.**
+
+Plus **`L1`–`L3`** stated: frames are on disk and are NOT un-written · **a post-`m26` event count is
+NOT comparable with a pre-`m26` one and `vetoed_events` carries the delta** · `labels.jsonl`
+(delivery OFF) is prebuilt and uncorrectable, so **delivery OFF and ON WILL DISAGREE on event
+content**.
+
+## 213. State after PART THIRTY-ONE
+
+| | |
+|---|---|
+| **slice 3** | ✅ **SHIPPED (`65deadc`) AND GATED. The veto fires on `MEASURED_ZERO` and on nothing else.** |
+| **`m26`** | ✅ **FUNCTIONALLY COMPLETE — slices 1, 2 and 3 all shipped and gated** |
+| gates | `G-4` ✅ · `G-5` ✅ (incl. the foliage guard) · `G-7` ✅ · `G-8` ✅ · `G-9` ✅ EXTRAS 0 · `G-10` ✅ · `G-11` ✅ · `P6` ✅ 48/48 · `A-1` disjoint ✅ · `F-1`…`F-8` **none fired** |
+| build | staged **`5EA6AB92`** (`F4EBEAD7` archived first); container unchanged; A44 green |
+| banked | `P31_S3_{SPLINE,CTRL49,CYL73,FOLIAGE,RAMP,G9_OFF_A,G9_OFF_B,G9_ON,INERT}` |
+| ⛔ **NEXT** | **THE OWNER'S PLAY-GATE SMOKE, WHICH THE OWNER WILL BRIEF. NO TAG UNTIL THEN.** |
+
+**WHAT THIS PART SETTLES: the cure acts. An event whose target was measured to draw nothing is
+removed before `annotation.json` is written, and everything else is kept — including a target that
+draws 1.4 % of what it claims, because the rule is zero-only and a threshold was refused on
+evidence about what our control set cannot contain. The two failure directions that would have
+mattered — vetoing a target the instrument merely cannot see, and vetoing on a ratio — were each
+tested on a banked known answer, and neither occurred.**
+
+---
+
+# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–31.
+
+**Session closed 2026-08-20 at the end of PART THIRTY-ONE. `m26` is FUNCTIONALLY COMPLETE and
+AWAITING THE OWNER'S PLAY-GATE SMOKE. NO TAG.**
 **NO TAG since `m25`. `P6` HAS NEVER MOVED. `feature/stencil-capture` is READ-ONLY at `76cac74` —
 mine it, never check it out.**
 
@@ -6241,7 +6406,7 @@ reporting**.
 |---|---|
 | **1 — MEASURE ONLY** *(log-only, `IAI.Capture.Mask`, default OFF)* | ✅ **DONE AND CERTIFIED. Both faults FIXED (`795f2a4`, `4a9631a`), the EXTENT PRECONDITION shipped (`3beb3ba`), and `F-6` is COMPLETE — ALL FIVE ITEMS PASS** (item 2 by the replacement control `StaticMeshActor_73`) |
 | **2 — REPORTING** (`mask.provided` → the tri-state's bool) | ✅ **SHIPPED AND GATED (`ece343f`, PART TWENTY-NINE).** All five known-answer rows correct; **`SM_Ramp2` → `false`, `BP_SplineSpawn_C` (MEASURED_ZERO) → `true`** — the two zeros stay distinguishable, tested both ways. Field SET 48/48 in BOTH delivery modes; inert when the switch is off |
-| **3 — THE VETO** + `vetoed_events` + gate `G-11` | ⛔ **NOT STARTED — and its rule is NOT designed, NOT proposed, and NOT assumed anywhere. NO THRESHOLD EXISTS in the code or the docs.** |
+| **3 — THE VETO** + `vetoed_events` + gate `G-11` | ✅ **SHIPPED AND GATED (`65deadc`, PART THIRTY-ONE). THE RULE IS ZERO-ONLY:** veto iff manifested AND `MEASURED_ZERO`. **`NOT_MEASURED` never vetoed; a measured non-zero count never vetoed however small — NO RATIO, NO THRESHOLD.** Fires on `BP_SplineSpawn_C` (8/8 removed); does NOT fire on the foliage at ~1.4 % of its claim, the two controls, or the known-Nanite target |
 
 🎯 **THE `H5` LEGS ARE RUN, AND THE CURE IDENTIFIES BOTH INSTANCES THAT MOTIVATED IT
 (PART TWENTY-EIGHT §195):**
@@ -6371,7 +6536,7 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 |---|---|
 | plugin | `AnomalyInjector`, `master`, pushed, **no tag since `m25`** |
 | bench | `CaptureBench`, **local-only, no remote** |
-| staged exe | **`F4EBEAD7`** (slice 2 + the `framesNoPass` wording fix; code-only hot-swap over the `m26` cook; predecessors archived first: `047FA489` at `…exe.m26-slice2-047FA489`, `F93AEF71`, `DBA2D8EC`, `444D4812`) |
+| staged exe | **`5EA6AB92`** (slice 3, the veto; code-only hot-swap over the `m26` cook; predecessors archived first: `F4EBEAD7`, `047FA489`, `F93AEF71`, `DBA2D8EC`, `444D4812`) |
 | container | `m26` cook — `utoc 9334496D` · `ucas 62EB0072` · `pak 78C977A5`; **4 maps** |
 | preserved quartets | `m25-h4h5m1-measurement-build` (Parts 2–14) · `m26-slice1-measurement-build` |
 | 🗺 **disk topology** | ⚠ **`Intermediate` and `Saved` are JUNCTIONS to `E:\IA_BuildCache\...`** — every path stays `D:\...` and **no tool needed editing**. Do not "fix" the missing ~21 GB on `D:`. Runbook §3.6 |
@@ -6381,19 +6546,21 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 ## H.6 What the next session should do first
 
 1. **Read `docs/invisible-anomaly-mechanisms.md`** — the ledger — then this HANDOFF. **Nothing else
-   from Parts 1–30 is required.**
-2. 🎯 **SLICES 1 AND 2 ARE DONE AND FULLY GATED — `G-9` CLOSED at `EXTRAS = 0` (PART THIRTY).** The
-   next decision is the OWNER's: **whether to start slice 3 (the deferred veto + `vetoed_events` +
-   gate `G-11`).** ⛔ **Do NOT start it unprompted, and do NOT propose a veto rule.**
-3. ⛔ **NO THRESHOLD EXISTS ANYWHERE — not in code, not in docs.** §195.3's four-target table is a
-   distribution sketch on one title, not a calibration. **Slice 3's rule is a separate decision
-   with its own evidence and its own gates.**
-4. ⚠ **Owed / carried, if slice 3 is ever cleared:** `m23` precedence (veto only
-   `manifested == true`) · `L1`–`L3` (frames stay on disk · dropped events must be counted ·
-   delivery OFF/ON will disagree) · risk 4 (a veto can turn a leg from EVIDENCE into INVALID at
-   `< 3` counted events) · 🚨 **risk 7 / A35 — the mask measures DRAWN SILHOUETTE, not VISUAL
-   EFFECT, and the A35 over-fire property is UNTESTED because no control for it exists (§190)** ·
-   and 🚨 **`G134` — a Nanite target reports `provided:false` and MUST therefore be ADMITTED.**
+   from Parts 1–31 is required.**
+2. 🎯 **`m26` IS FUNCTIONALLY COMPLETE — slices 1, 2 and 3 all shipped and gated.** ⛔ **THE NEXT
+   STEP IS THE OWNER'S PLAY-GATE SMOKE, WHICH THE OWNER WILL BRIEF. DO NOT TAG UNTIL THEN**, and do
+   not start anything new unprompted.
+3. ⛔ **THE VETO RULE IS ZERO-ONLY AND IT IS RULED. NO THRESHOLD EXISTS ANYWHERE — not in code, not
+   in docs.** §209 records the owner's reasoning verbatim, including why a ratio was refused
+   despite the four targets separating cleanly: **every GOOD target measured is a convex primitive,
+   and a complex-silhouette legitimate target — which would break a ratio rule — does not exist in
+   the measured set.** ⚠ **Do not re-open this by proposing one.**
+4. ⚠ **Limits that travel with `m26` and must be quoted, not softened:** the ACCEPTED COST (the
+   over-claim case is NOT cured — §212) · `A35` (a zero-silhouette target may still cast shadow;
+   vetoed anyway, by ruling) · `L1`–`L3` · risk 4 (a veto can turn a certifying leg INVALID below
+   3 counted events — `G-11` reports before/after) · 🚨 **`G134` — a Nanite target reports
+   `provided:false` and is therefore ALWAYS ADMITTED** · **the A35 over-fire property is UNTESTED
+   because no non-Nanite complex-silhouette control exists (§190).**
 5. ✅ **`G-9` IS CLOSED (PART THIRTY §204): `EXTRAS = 0` on a pose-matched OFF/ON pair against a
    4-member run-unique set — `/session_id`, `/speed_ratio`, `/sustained_wall_fps`, `/video/path`.
    The delivery-ON vs delivery-OFF difference is exactly those four plus `/delivery_mode`.**

@@ -187,8 +187,36 @@ Every event has always carried `mask: {provided: …}`. Since `m26` it carries a
 causes are the Nanite limitation below, a target that left the camera frustum, and a hide-type
 target with no measurable frame. **A `false` event carries exactly as much evidence as it did
 before `m26`: none from this measurement.** ⚠ **No field reports the measured AMOUNT — that would
-be a change to the annotation contract and is deliberately not made.** *(As of `m26`, nothing is
-ever removed from `annotation.json` on the basis of this value.)*
+be a change to the annotation contract and is deliberately not made.**
+
+## `m26` REMOVES SOME EVENTS — what is removed, what is NOT, and the accepted cost
+
+**An event is removed from `annotation.json` IF AND ONLY IF its target was MEASURED and drew
+ZERO pixels** (and it manifested). Removed events are counted in `run_summary.json` →
+**`vetoed_events`**.
+
+🚨 **THE ACCEPTED COST, STATED PLAINLY:**
+
+> **`m26` vetoes only targets measured at ZERO drawn pixels. A target that OVER-CLAIMS — measured
+> non-zero but far below its claimed extent, such as the `InstancedFoliageActor` measured at
+> 5,689–13,342 px against a claimed 921,600 px (the entire frame) — IS NOT VETOED and ships as a
+> valid label. `m26` is a PARTIAL cure for `H5`: it removes the zero-contribution case and leaves
+> the over-claim case. The over-claim rule requires a calibration campaign including
+> complex-silhouette legitimate targets, which do not exist in the current measured set.**
+
+⚠ **AND ONE RULING THAT BITES A VETOED CASE, recorded as a decision rather than an oversight:** a
+target measured at zero SILHOUETTE can still have indirect visual effect — shadow, GI, reflection.
+`BP_SplineSpawn_C`'s banked hide showed a small in-bbox luma change (**0.0175**) while the mask
+reads exactly zero. **`m26` vetoes it anyway, because the label points at the OBJECT and not at its
+shadow.**
+
+**LIMITS carried, stated not discovered:**
+- **`L1`** the captured **frames are already on disk and are NOT un-written** — the veto removes the
+  EVENT, not the PNGs. `video.total_frames` is unchanged.
+- **`L2`** 🚨 **a post-`m26` event count is NOT comparable with a pre-`m26` one.**
+  `vetoed_events` carries the delta; read the two together or the comparison is wrong.
+- **`L3`** `labels.jsonl` (delivery OFF only) is **prebuilt and cannot be corrected**, so
+  **delivery OFF and delivery ON WILL DISAGREE on event content.** Stated, not reconciled.
 
 ## ⛔ KNOWN LIMITATION (`m26`) — THE CURE CANNOT SEE NANITE GEOMETRY, AND ON A NANITE-HEAVY TITLE THAT IS MOST OF THE LEVEL
 

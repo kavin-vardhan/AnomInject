@@ -15,13 +15,61 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (eighth session). 🎯 `m26` SLICES 1 AND 2 ARE DONE AND FULLY
-  GATED — `F-6` COMPLETE, THE `H5` LEGS RUN, `mask.provided` CARRIES THE MEASUREMENT, AND `G-9` IS
-  CLOSED AT `EXTRAS = 0`. SLICE 3 IS THE OWNER'S NEXT CALL AND ITS RULE IS NOT DESIGNED. LAST
-  SHIPPED MILESTONE IS STILL `m25`; NOTHING TAGGED SINCE.**
+- 🟩 **YOU ARE HERE — 2026-08-20 (ninth session). 🎯 `m26` IS FUNCTIONALLY COMPLETE: SLICES 1, 2
+  AND 3 ALL SHIPPED AND GATED. THE VETO IS ZERO-ONLY AND IT FIRES. ⛔ NEXT IS THE OWNER'S PLAY-GATE
+  SMOKE, WHICH THE OWNER WILL BRIEF — NO TAG UNTIL THEN. LAST SHIPPED MILESTONE IS STILL `m25`.**
   🧭 **COLD START: read `docs/invisible-anomaly-mechanisms.md` (the ledger), then go STRAIGHT to the
   `HANDOFF` section at the END of `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`
-  (PART THIRTY). THAT HANDOFF IS SELF-CONTAINED.**
+  (PART THIRTY-ONE). THAT HANDOFF IS SELF-CONTAINED.**
+  ✅ **SLICE 3 SHIPPED (`65deadc`) AND GATED. THE RULE, AS RULED: VETO IF AND ONLY IF the event
+  manifested AND its target's state is `MEASURED_ZERO`.** ⛔ **`NOT_MEASURED` is NEVER vetoed
+  (never measured ⇒ MUST ADMIT) · a measured NON-ZERO count is NEVER vetoed however small a
+  fraction of its claimed extent · `manifested == false` never vetoed (`A-1` precedence).**
+  🚨 **NO RATIO. NO THRESHOLD. NO COMPARISON AGAINST CLAIMED AREA — and none must ever be
+  proposed.** The implementation tests the ENUM STATE only (`MaskStateVetoes`); `MaxCount` is never
+  read and no constant exists that could become a threshold. **The owner's reasoning for refusing a
+  ratio is recorded VERBATIM at journal §209 — in short: every GOOD target we have measured is a
+  convex primitive viewed head-on, a complex-silhouette legitimate target (fence, railing, grate,
+  sparse foliage) would draw a small fraction of its rect while being perfectly valid, and NO SUCH
+  TARGET EXISTS IN OUR MEASURED SET. Calibrating on four convex points is `G135`'s exact failure.
+  A count of ZERO needs no calibration.**
+  🎯 **GATE RESULTS — every prediction met, no failure branch fired** (pre-declared at bench
+  `043b110` before implementation): **`BP_SplineSpawn_C` 8/8 VETOED, `annotation.json` `anomalies:
+  []`, `vetoed_events=8`** · 🚨 **the FOLIAGE at ~1.4 % of its claim NOT vetoed — the rule's own
+  guard; a veto there would have meant a ratio crept in** · 🚨 **`SM_Ramp2`'s 8 `NOT_MEASURED`
+  events ALL KEPT — the data-destroying direction, closed** · Cube and Cylinder controls untouched
+  · **`G-9` re-run at slice 3: `EXTRAS = 0`, and the invariant core now includes `vetoed_events`
+  AND the EVENT SET itself, identical across delivery modes** · `G-8` loud in the ARTIFACT
+  (`provided:false` + `mask_nopass_discards=30`) · `G-11` before/after logged, `before − vetoed ==
+  after`, counters disjoint · **`P6` 48/48 on every leg; `run_summary` +4 exactly** · **`F-7`
+  inert: mask OFF ⇒ zero vetoes.**
+  ⚠ **PRE-DECLARED AND CONFIRMED, not discovered: the spline leg vetoes ALL its events, so its
+  `annotation.json` has ZERO anomalies.** That is the veto WORKING and simultaneously below
+  `G-11`'s 3-event floor — reconciled by the leg's ROLE, fixed in advance: **it is a DEMONSTRATION
+  leg, not a certifying one.** `F-8` checked: the empty artifact parses, `video.total_frames` is
+  still 90, and **all 90 PNGs remain on disk (`L1` demonstrated, not asserted)**.
+  🚨 **THE ACCEPTED COST, IN THE TAG STATEMENT AND `client-delivery.md`, NOT BURIED:** *"`m26`
+  vetoes only targets measured at ZERO drawn pixels. A target that OVER-CLAIMS — measured non-zero
+  but far below its claimed extent, such as the `InstancedFoliageActor` measured at 5,689–13,342 px
+  against a claimed 921,600 px (the entire frame) — IS NOT VETOED and ships as a valid label. `m26`
+  is a PARTIAL cure for `H5`: it removes the zero-contribution case and leaves the over-claim case.
+  The over-claim rule requires a calibration campaign including complex-silhouette legitimate
+  targets, which do not exist in the current measured set."*
+  ⚠ **`A35`, AS A RULING WITH ITS REASON:** `BP_SplineSpawn_C`'s banked hide showed a small in-bbox
+  luma change (`0.0175`) while the mask reads exactly zero — a zero-silhouette target can still
+  have indirect visual effect (shadow, GI). **`m26` vetoes it anyway, because the label points at
+  the OBJECT and not at its shadow.**
+  📌 **`L1`–`L3` stated in the docs:** frames are on disk and NOT un-written · **a post-`m26` event
+  count is NOT comparable with a pre-`m26` one; `vetoed_events` carries the delta** · `labels.jsonl`
+  (delivery OFF) is prebuilt and uncorrectable, so **delivery OFF and ON WILL DISAGREE on event
+  content**.
+  📦 staged exe **`5EA6AB92`** (`F4EBEAD7` archived first), container unchanged, A44 green. Banked:
+  `P31_S3_{SPLINE,CTRL49,CYL73,FOLIAGE,RAMP,G9_OFF_A,G9_OFF_B,G9_ON,INERT}`.
+  ⛔ **NEXT: THE OWNER'S PLAY-GATE SMOKE. DO NOT TAG UNTIL IT PASSES, and do not start anything new
+  unprompted.** `P6` does not move · CB_GateLevel untouched (`G99`) · stencil range 200/255 ·
+  `feature/stencil-capture` READ-ONLY.
+- 🟦 *(superseded — the eighth 2026-08-20 session: slice 2 and the `G-9` closure)* **`G-9` closed
+  at `EXTRAS = 0`; `framesNoPass` is not a Nanite counter.**
   ✅ **SLICE 2 SHIPPED (`ece343f`) AND GATED.** `annotation.json`'s already-shipping
   `mask{provided}` stops being a hardcoded `false` and carries the tri-state's bool:
   **`NOT_MEASURED` → `false` (never measured, MUST ADMIT) · `MEASURED_ZERO` → `true` ·

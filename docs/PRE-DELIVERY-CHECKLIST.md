@@ -164,6 +164,14 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       and, in delivery mode, **no** `labels.jsonl` and **no** `run.json`.
 - [ ] Frame indices are **0-based** and match `annotation.json` (`frame_00000.png` is index 0). If the
       client's tooling is 1-based, that is a spec conversation — never a quiet ±1 shift.
+- [ ] 🆕 **`m26`: read `run_summary.json` → `vetoed_events` BEFORE quoting an event count.**
+      *Since `m26` an event whose target was MEASURED to draw ZERO pixels is REMOVED from
+      `annotation.json`. `vetoed_events` counts them.* 🚨 **A post-`m26` event count is NOT
+      comparable with a pre-`m26` one (`L2`) — quote the two numbers together or the comparison is
+      wrong.* ⚠ **The captured FRAMES are not removed** (`L1`): `video.total_frames` and the PNG
+      count are unaffected, so frames-without-events is EXPECTED, not a defect.
+      ⚠ **Delivery OFF and ON disagree on event content** (`L3`): `labels.jsonl` is prebuilt and
+      cannot be corrected by the veto. **Do not diff them and report a bug.**
 
 ## 6. Security note (owner-accepted, restate when handing over)
 
