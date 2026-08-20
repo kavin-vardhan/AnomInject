@@ -3723,6 +3723,45 @@ Recorded here so the constraint outlives the comment.
 — but it is still required for NATIVE runs at an odd viewport, which is the common case in PIE.
 (2026-08-21, `m28`.)
 
+---
+
+### G148 — NEVER CHANGE THE LEVEL FROM THE MCP BRIDGE: it executes Python INSIDE a world tick, and the load destroys the world that is ticking
+
+**MEASURED — it crashed the editor outright (2026-08-21, `m28` smoke setup).** The call was an
+ordinary-looking one:
+
+```python
+if ues.get_game_world() is None:                      # PIE not running - looked safe
+    les.load_level("/Game/StackOBot/Maps/MainWorld")
+```
+
+```
+Assertion failed: !LevelList.Contains(TickTaskLevel)
+  FTickTaskManager::FreeTickTaskLevel()  <-  UWorld::FinishDestroy()
+  <- IncrementalPurgeGarbage()  <-  UWorld::Tick()
+  <- FMCPythonTcpServer::ProcessDataOnGameThread()  <-  FPythonScriptPlugin::EvalString()
+```
+
+**THE GUARD WAS NOT THE PROBLEM AND ADDING A BETTER GUARD WILL NOT FIX IT.** PIE genuinely was not
+running. The problem is *where the bridge runs Python*: `FMCPythonTcpServer::ProcessDataOnGameThread`
+evaluates the string **from inside `UWorld::Tick`**, so a level load tears down the very world whose
+tick group is on the stack, and the tick task level is still registered when GC frees it.
+
+**RULES.**
+1. ⛔ **Do not call `load_level`, `new_level`, `open_level`, or anything else that destroys or swaps
+   the world, from `util_execute_python`.** Console commands, property reads/writes, actor queries and
+   `execute_console_command` are all fine — they do not destroy the ticking world.
+2. **A map change is an OWNER action**, like pressing Play. That is not a limitation of the bridge to
+   work around; it is the same `M0` split (**`G136`**) applied to the other end of the session.
+3. If a deferred load is ever genuinely needed, it must be scheduled **off** the tick —
+   `unreal.register_slate_post_tick_callback` or a timer — and that has **not been tried here**, so
+   treat it as unverified rather than as the recommended workaround.
+4. ✅ **The blast radius was zero and that is worth recording too:** every artifact was already
+   committed, pushed and banked before the call. **The habit of banking and pushing at each stage is
+   what turned an editor crash into an inconvenience.** (`G92`'s discipline paying off in the other
+   direction.)
+(2026-08-21, `m28`.)
+
 ### G140 — changing the SELECTABLE SET changes SEEDED SELECTION, so banked runs stop being comparable across the change
 
 `m27` excludes `AInstancedFoliageActor` from `IsRenderableComponent`. That predicate feeds

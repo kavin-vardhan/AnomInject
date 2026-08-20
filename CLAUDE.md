@@ -15,9 +15,24 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-21 (latest). ✅ `m28` — ALL NINE GATES `A`–`I` RUN AND PASSED,
-  OWNER-ACCEPTED. `NOT TAGGED` YET — the owner smoke is the remaining step.** Plugin `master`
-  pushed; AnomDash pushed. 🧭 **Gates pre-declared VERBATIM at
+- 🟩 **YOU ARE HERE — 2026-08-21 (latest). 🎯 `m28` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.
+  ALL NINE GATES `A`–`I` PASSED, AND THE OWNER SMOKE PASSED ON `MainWorld` UNDER SHIPPED SELECTION.**
+  ⛔ **Do not start anything new unprompted — the next milestone is the owner's call.**
+  🎯 **THE SMOKE'S STRONGEST RESULT: native and downscaled runs of the same seed produced an IDENTICAL
+  EVENT OUTCOME — same kept anomaly, same 40 positive frames, and the SAME 4 VETOED EVENTS — with the
+  `m26`/`m27` veto LIVE AND DELETING.** That is `m28`'s premise shown in real content: **a write-time
+  downscale does not reach the veto.** Banked at `_bench_sessions_bank\M28_OWNER_SMOKE\`.
+  🚨 **THE SMOKE CAUGHT A REAL REGRESSION THAT THE GATES STRUCTURALLY COULD NOT: the dashboard's
+  `Start capture` BUTTON WAS UNREACHABLE.** The fourth control wrapped `.cap-row` to three lines and
+  the panel — default `flex-shrink: 1` — was squashed (`clientHeight 209` vs `scrollHeight 290`),
+  putting the button outside the visible column. **In the DOM, enabled, and unclickable.** Fixed with
+  `.col.right > .panel { flex-shrink: 0; }` — `overflow: auto` was already there and never got to
+  scroll. ⚠ **`read_page` saying an element EXISTS is not evidence a human can REACH it, and a
+  wire-only verification would have shipped it** — `GATE E`'s fourth leg had already proven the wire.
+  ✅ **The dashboard control is now VISUALLY VERIFIED**: `size` sits beside `format`, defaults to
+  *native (as rendered)*; 540p ⇒ *from **PER-RUN ARGUMENT***; native ⇒ *from **COMPILED DEFAULT** … no
+  per-run argument*, **proving the field is OMITTED, not sent as 0.**
+  🧭 **Gates pre-declared VERBATIM at
   `docs/predictions/2026-08-20-m28-gates.md` (+ AMENDMENT 1 + an ADDITION made during the run).
   Read that file before reading any result.** Journal:
   `docs/sessions/2026-08-20-047-m28-output-resolution.md` — §11 results, **§12 the vacuity

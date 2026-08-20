@@ -477,3 +477,82 @@ here certifies 875×869; alignment was not tested at any size. In the tag scope.
 * **`H6` REMAINS DOCUMENTED, NOT FIXED. `P6` DID NOT MOVE. NO RATIO OR THRESHOLD EXISTS ANYWHERE IN
   THE CODE OR THE DOCS.** `m28` touches none of that line of work — by design, and `GATE D` is the
   control that proves it.
+
+---
+
+## 16. THE OWNER SMOKE — PASSED, ON `MainWorld`, UNDER SHIPPED SELECTION
+
+**This closes the gap §15 named.** Every gate leg ran with `SetMinScreenCoverage` forced to 0; this
+did not. Banked at `_bench_sessions_bank\M28_OWNER_SMOKE\` (192 files, manifest, log).
+
+**Preconditions, verified before any run:** `MainWorld`; **`IAI.SetMinScreenCoverage` at its 6 %
+DEFAULT, cull ON**; `IAI.DumpVisible` = **5** real selectable actors; ini key absent (compiled
+default 0); mask ON from the ini; delivery off. Focus gate off — the one leg condition, for
+unattended driving.
+
+| leg | requested | measured | resamples/written | events |
+|---|---|---|---|---|
+| **S1** console, seed 11, 60f | `0` COMPILED DEFAULT | 875×869 → **875×869**, native | **0** / 60 | 1 anomaly, 40 positives, **4 vetoed** |
+| **S2** console, seed 11, 60f | `540` PER-RUN | 875×869 → **544×540**, YES | **60** / 60 | 1 anomaly, 40 positives, **4 vetoed** |
+
+🎯 **THE STRONGEST SINGLE RESULT IN THE MILESTONE: the EVENT OUTCOME IS IDENTICAL ACROSS THE PAIR —
+same kept anomaly, same 40 positive frames, and the SAME 4 VETOED EVENTS — with the `m26`/`m27` veto
+LIVE and firing.** That is the `m28` premise demonstrated in real content: **a write-time downscale
+does not reach the veto.** The gate legs argued it from source and from an artificial pair; this shows
+it with the cure actually deleting events.
+
+**`GATE D`'s property re-checked on this real pair, with `G146`'s companion applied:**
+`rows 60 = 60` · `distinct view origins 1 and 1, identical` · **40 valid bboxes** ·
+**`bbox_norm` rows differing = 0** · **`bbox_px` rows differing = 40** · labels `875×869` vs `544×540`.
+Artifacts: `IHDR == annotation.video.resolution` on both legs.
+
+### 16.1 THE DASHBOARD CONTROL — VISUALLY VERIFIED, and it was the last unverified surface
+
+Driven by Code in a real browser against the live server (`dist/` served on 5180, real WebSocket
+connection, real clicks), **not** simulated:
+
+* The **`size`** select exists **beside `format`**, defaults to **"native (as rendered)"**, offering
+  1080p / 720p / 540p / 360p, with the explanatory tooltip.
+* Selecting **540p** and clicking **Start capture** produced
+  *"requested output height 540, from **PER-RUN ARGUMENT** (dashboard outputHeight…)"* → 544×540,
+  `resamples 30/30`.
+* Leaving it on **native** produced *"requested output height 0, from **COMPILED DEFAULT** … **no
+  per-run argument**"* → **proving the field is OMITTED, not sent as 0**, which is `D8`'s
+  fall-through requirement and the `-1`/`0` sentinel working across the wire.
+
+### 16.2 🚨 A REAL REGRESSION THE SMOKE CAUGHT — THE START BUTTON WAS UNREACHABLE
+
+**Found only because the UI was actually driven.** Adding the fourth control to `.cap-row` wrapped it
+from two lines to three, and the capture panel — a flex child with the default `flex-shrink: 1` —
+**was squashed instead of allowed to grow**: measured `clientHeight 209` against `scrollHeight 290`,
+which put **`Start capture` at y=406 while the panel ended at y=353.** The button was in the DOM,
+enabled, and **painted outside the visible column.** `read_page` reported it as present; only the
+screenshot and a geometry measurement showed it was unusable.
+
+**FIX — one line, and it repairs a LATENT fragility rather than my symptom:**
+```css
+.col.right > .panel { flex-shrink: 0; }
+```
+`.col.right` already had `overflow: auto`; it never got to scroll because the panels shrank first.
+Verified live before editing source (panel 209→310 = its full content height, button inside the
+column box, column scroll engaged), then applied, rebuilt, and re-verified in the browser.
+
+⚠ **THE LESSON, and it is why the owner's "you also run the smoke" instruction mattered:** the wire
+path was already proven by `GATE E`'s fourth leg, and a wire-only verification would have shipped a
+dashboard **whose Start button could not be clicked**. **`read_page` saying an element exists is not
+evidence a human can reach it.** *(I had flagged this exact file in the Stage 1 plan as "styles.css —
+cosmetic, may end up empty". It did not end up empty.)*
+
+---
+
+## 17. State at milestone close
+
+| | |
+|---|---|
+| plugin | `m28` **TAGGED**; all work pushed |
+| AnomDash | CSS regression fix pushed |
+| tags | `m26` → `d6bee7a`, `m27` → `4a92962`, **NEITHER MOVED**; `m28` new |
+| `feature/stencil-capture` | **UNTOUCHED at `76cac74`**, never checked out |
+| gates | **A–I ALL PASS**, banked at `_bench_sessions_bank\M28_GATES\` |
+| owner smoke | **PASSED** on `MainWorld` under shipped selection, banked at `_bench_sessions_bank\M28_OWNER_SMOKE\` |
+| `DefaultGame.ini` | restored to its prior content; **no shipped default changed** |
