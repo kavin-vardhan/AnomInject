@@ -28,17 +28,24 @@ namespace AnomalyLabel
 	void ConvertTightToBGRA(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
 		int32 W, int32 H, TArray<FColor>& OutPixels);
 
+	void DeriveOutputSize(int32 SrcW, int32 SrcH, int32 TargetH, int32& OutW, int32& OutH, bool& bOutNeedsResample);
+
+	bool ResampleAndEncodeBGRA(AnomalyPreview::EImageFormat Format, const TArray<FColor>& Pixels,
+		int32 SrcW, int32 SrcH, int32 OutW, int32 OutH, TArray<uint8>& OutBytes, bool& bOutResampled);
+
 	bool CaptureLabeledShot(UWorld* World, const FString& OutputDir, AnomalyPreview::EImageFormat Format,
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
-		double WallSeconds, FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog = true,
-		bool bWriteLabels = true);
+		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
+		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
+		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true);
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
 		const FString& ImageName, int32& OutNumLabels);
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
-		const FString& ImageRelPath, const FString& Record, FCriticalSection& JsonlLock, bool bWriteLabels = true);
+		int32 OutWidth, int32 OutHeight, const FString& ImageRelPath, const FString& Record,
+		FCriticalSection& JsonlLock, bool bWriteLabels, bool& bOutResampled);
 
 	struct FRunManifest
 	{

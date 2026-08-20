@@ -266,6 +266,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bMaskMeasure = bConfigMask;
 		bMaskMeasureFromIni = true;
 	}
+	int32 ConfigOutputHeight = 0;
+	if (GConfig && GConfig->GetInt(TEXT("AnomalyCapture"), TEXT("CaptureOutputHeightDefault"), ConfigOutputHeight, GGameIni))
+	{
+		OutputHeightIni = ConfigOutputHeight;
+		bOutputHeightFromIni = true;
+	}
 	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s), default from %s."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
 		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
@@ -282,6 +288,13 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bMaskMeasureFromIni
 			? TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault")
 			: TEXT("COMPILED DEFAULT (off); no ini key present; IAI.Capture.Mask 1 enables it for the session"));
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m28): OUTPUT HEIGHT AT INIT - ini level %s. 0 means NATIVE and the written frames are ")
+		TEXT("byte-identical to a pre-m28 build. This is the INI LEVEL ONLY; a console override or a per-run ")
+		TEXT("argument can still beat it, and the EFFECTIVE value for a run is echoed at IAI.Capture.Start."),
+		bOutputHeightFromIni
+			? *FString::Printf(TEXT("%d, from DefaultGame.ini [AnomalyCapture] CaptureOutputHeightDefault"), OutputHeightIni)
+			: TEXT("not set; no ini key present, so the compiled default 0 (native) stands unless overridden"));
 #if WITH_EDITOR
 	if (ULevelEditorPlaySettings* PlaySettings = GetMutableDefault<ULevelEditorPlaySettings>())
 	{
@@ -638,6 +651,24 @@ void UAnomalyCaptureSubsystem::SetMaskProbe(bool bInProbe)
 		bMaskProbe ? TEXT("ON") : TEXT("off"));
 }
 
+void UAnomalyCaptureSubsystem::SetOutputHeightOverride(int32 InHeight)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.OutputHeight: ignored mid-run (stop first)."));
+		return;
+	}
+	OutputHeightOverride = (InHeight < 0) ? -1 : InHeight;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.OutputHeight: EFFECTIVE READ-BACK = %s. This is the BETWEEN-RUNS override (precedence ")
+		TEXT("level 2). It BEATS the ini and is BEATEN by a per-run argument. -1 means CLEARED, which is NOT the ")
+		TEXT("same as 0: cleared falls through to the ini or the compiled default, while 0 is a deliberate ")
+		TEXT("request for NATIVE that overrides the ini."),
+		(OutputHeightOverride < 0)
+			? TEXT("-1 (cleared - falls through to the ini / compiled default)")
+			: *FString::Printf(TEXT("%d"), OutputHeightOverride));
+}
+
 void UAnomalyCaptureSubsystem::SetContentClock(EContentClock InClock)
 {
 	if (bRunning)
@@ -669,7 +700,8 @@ void UAnomalyCaptureSubsystem::SetFocusGate(bool bInGate)
 }
 
 void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
-	const FString& InTargetAnomaly, const FString& InTargetActor, const TArray<FString>& InTargetArgs)
+	const FString& InTargetAnomaly, const FString& InTargetActor, const TArray<FString>& InTargetArgs,
+	int32 InOutputHeight)
 {
 #if ANOMALY_CAPTURE
 	if (bRunning)
@@ -718,6 +750,28 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	bFormatPng = bPng;
 	FrameCap = FMath::Max(0, InFrameCap);
 
+	if (InOutputHeight >= 0)
+	{
+		EffectiveOutputHeight = InOutputHeight;
+		OutputHeightSource = EOutputHeightSource::PerRun;
+	}
+	else if (OutputHeightOverride >= 0)
+	{
+		EffectiveOutputHeight = OutputHeightOverride;
+		OutputHeightSource = EOutputHeightSource::Override;
+	}
+	else if (bOutputHeightFromIni)
+	{
+		EffectiveOutputHeight = OutputHeightIni;
+		OutputHeightSource = EOutputHeightSource::Ini;
+	}
+	else
+	{
+		EffectiveOutputHeight = 0;
+		OutputHeightSource = EOutputHeightSource::CompiledDefault;
+	}
+	EffectiveOutputHeight = FMath::Max(0, EffectiveOutputHeight);
+
 	const FString Base = BaseDir.IsEmpty()
 		? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("AnomalyCaptures"))
 		: BaseDir;
@@ -756,6 +810,11 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	NonManifestedEvents = 0;
 	VetoedEvents = 0;
 	SessionFrameIndex = 0;
+	SyncResamplesPerformed = 0;
+	SyncFirstWrittenW = 0;
+	SyncFirstWrittenH = 0;
+	SyncDimMismatches = 0;
+	bLoggedFirstFrameMeasuredLine = false;
 	FirstFrameTimeSeconds = -1.0;
 	LastFrameTimeSeconds = -1.0;
 	FirstArmWallSeconds = -1.0;
@@ -803,6 +862,18 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		bMaskMeasureFromIni
 			? TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault")
 			: TEXT("COMPILED DEFAULT (off) or IAI.Capture.Mask"));
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("=== Capture(m28): EFFECTIVE FOR THIS RUN - requested output height %d, from %s === READ THIS LINE, ")
+		TEXT("NOT THE INI. 0 means NATIVE: no resample runs and the written frames are byte-identical to a ")
+		TEXT("pre-m28 build. The render is ALWAYS native - this resamples at the WRITE step only, so it cannot ")
+		TEXT("affect selection, labelling geometry or the m26/m27 mask veto. Width is NEVER specified: it is ")
+		TEXT("derived from each frame's own aspect, so a non-aspect-preserving output is unrepresentable. A ")
+		TEXT("request at or above the frame's own height is NOT an upscale - it yields native. In a packaged ")
+		TEXT("build the ini that counts is the COOKED DefaultGame.ini - a loose ini beside the package is a ")
+		TEXT("SILENT NO-OP (G88), which is why this line reports the EFFECTIVE value and not the file. The ")
+		TEXT("ACTUAL output size is measured from the first written frame and logged separately."),
+		EffectiveOutputHeight, DescribeOutputHeightSource());
 
 	if (bMaskMeasure && Async.IsValid())
 	{
@@ -1041,6 +1112,56 @@ const TCHAR* UAnomalyCaptureSubsystem::DescribeGrabPoint() const
 	return bAsyncCapture ? TEXT("async/backbuffer") : TEXT("sync");
 }
 
+const TCHAR* UAnomalyCaptureSubsystem::DescribeOutputHeightSource() const
+{
+	switch (OutputHeightSource)
+	{
+	case EOutputHeightSource::PerRun:
+		return TEXT("PER-RUN ARGUMENT (dashboard outputHeight / console Start oh=)");
+	case EOutputHeightSource::Override:
+		return TEXT("IAI.Capture.OutputHeight (between-runs override)");
+	case EOutputHeightSource::Ini:
+		return TEXT("DefaultGame.ini [AnomalyCapture] CaptureOutputHeightDefault");
+	default:
+		break;
+	}
+	return TEXT("COMPILED DEFAULT (0 = native); no ini key present, no override set, no per-run argument");
+}
+
+void UAnomalyCaptureSubsystem::LogFirstFrameMeasuredLine(int32 SrcW, int32 SrcH, int32 OutW, int32 OutH, bool bResampled)
+{
+	if (bLoggedFirstFrameMeasuredLine)
+	{
+		return;
+	}
+	bLoggedFirstFrameMeasuredLine = true;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m28): MEASURED FROM THE FIRST WRITTEN FRAME - native %dx%d -> output %dx%d, resample %s. ")
+		TEXT("This is the authoritative pair; it is what labels.jsonl width/height, every bbox_px and ")
+		TEXT("annotation.video.resolution are computed from."),
+		SrcW, SrcH, OutW, OutH,
+		bResampled ? TEXT("YES") : TEXT("no - native, path unchanged"));
+}
+
+void UAnomalyCaptureSubsystem::NoteSyncWrittenSize(int32 W, int32 H, const FString& ImageRelPath)
+{
+	if (SyncFirstWrittenW <= 0 || SyncFirstWrittenH <= 0)
+	{
+		SyncFirstWrittenW = W;
+		SyncFirstWrittenH = H;
+		return;
+	}
+	if (SyncFirstWrittenW != W || SyncFirstWrittenH != H)
+	{
+		++SyncDimMismatches;
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(m28): FRAME DIMENSIONS CHANGED MID-RUN - '%s' was written at %dx%d but the FIRST written ")
+			TEXT("frame of this session was %dx%d. annotation.json video.resolution reports the FIRST frame's ")
+			TEXT("pair, so it does NOT describe this frame."),
+			*ImageRelPath, W, H, SyncFirstWrittenW, SyncFirstWrittenH);
+	}
+}
+
 void UAnomalyCaptureSubsystem::EnsureCapturer()
 {
 	if (!Async.IsValid())
@@ -1132,9 +1253,15 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			continue;
 		}
 
+		int32 OutW = Frame.Width;
+		int32 OutH = Frame.Height;
+		bool bNeedsResample = false;
+		AnomalyLabel::DeriveOutputSize(Frame.Width, Frame.Height, EffectiveOutputHeight, OutW, OutH, bNeedsResample);
+		LogFirstFrameMeasuredLine(Frame.Width, Frame.Height, OutW, OutH, bNeedsResample);
+
 		const FString ImageName = FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), Snap->SessionIndex, Ext);
 		int32 NumLabels = 0;
-		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, Frame.Width, Frame.Height, ImageName, NumLabels);
+		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, OutW, OutH, ImageName, NumLabels);
 
 		AccumulateFrameEvents(Snap->Fires, Snap->FireHidden, Snap->FirePos, Snap->View, Snap->NearClip,
 			Snap->SessionIndex, Snap->TimeSeconds);
@@ -1147,6 +1274,8 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Job.BytesPerPixel = Frame.BytesPerPixel;
 		Job.Width = Frame.Width;
 		Job.Height = Frame.Height;
+		Job.OutWidth = OutW;
+		Job.OutHeight = OutH;
 		Job.ImageRelPath = ImageName;
 		Job.Record = Record;
 		Job.bPositive = Snap->Fires.Num() > 0;
@@ -1341,9 +1470,20 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 
 	FString ImagePath, SidecarPath;
 	int32 NumLabels = 0;
+	int32 NativeW = 0, NativeH = 0, WrittenW = 0, WrittenH = 0;
+	bool bResampled = false;
 	const double NowWall = FPlatformTime::Seconds();
-	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, NowWall, ImagePath, SidecarPath, NumLabels, false, !bDeliveryMode))
+	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, NowWall,
+		EffectiveOutputHeight, ImagePath, SidecarPath, NumLabels, NativeW, NativeH, WrittenW, WrittenH, bResampled,
+		false, !bDeliveryMode))
 	{
+		if (bResampled)
+		{
+			++SyncResamplesPerformed;
+		}
+		LogFirstFrameMeasuredLine(NativeW, NativeH, WrittenW, WrittenH, bResampled);
+		NoteSyncWrittenSize(WrittenW, WrittenH, ImageName);
+
 		TArray<FAutoLiveFireInfo> Fires;
 		if (Auto) { Fires = Auto->GetLiveFires(); }
 		TArray<uint8> Hidden;
@@ -1728,6 +1868,32 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			MaskNoPassDiscards = Async->MaskMeasure.TotalNoPassDiscards();
 		}
 
+		{
+			const int32 AsyncResamples = (Async.IsValid() && Async->Writer.IsValid())
+				? Async->Writer->GetResamplesPerformed() : 0;
+			const int32 AsyncMismatches = (Async.IsValid() && Async->Writer.IsValid())
+				? Async->Writer->GetDimMismatches() : 0;
+			int32 FirstW = 0, FirstH = 0;
+			if (Async.IsValid() && Async->Writer.IsValid())
+			{
+				Async->Writer->GetFirstWrittenSize(FirstW, FirstH);
+			}
+			if (FirstW <= 0 || FirstH <= 0)
+			{
+				FirstW = SyncFirstWrittenW;
+				FirstH = SyncFirstWrittenH;
+			}
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m28): RESAMPLE SUMMARY resamples_performed=%d framesWritten=%d ")
+				TEXT("requestedOutputHeight=%d source=%s firstWrittenFrame=%dx%d dimMismatches=%d. ")
+				TEXT("resamples_performed is INTERNAL/LOG ONLY and is deliberately NOT written to ")
+				TEXT("run_summary.json. On a NATIVE run it must be EXACTLY 0; on a downscaled run it must ")
+				TEXT("EXACTLY equal framesWritten."),
+				AsyncResamples + SyncResamplesPerformed, FramesWritten,
+				EffectiveOutputHeight, DescribeOutputHeightSource(),
+				FirstW, FirstH, AsyncMismatches + SyncDimMismatches);
+		}
+
 		VetoedEvents = 0;
 		TranslucentVetoes = 0;
 		TranslucencyUnknownVetoes = 0;
@@ -2034,8 +2200,43 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 	A.SessionId = SessionId;
 	A.Video.FramesDir = TEXT("Actual_Frames");
 	A.Video.VideoPath = FString::Printf(TEXT("Video_Clip/%s.mp4"), *SessionId);
-	A.Video.ResolutionW = ViewportW;
-	A.Video.ResolutionH = ViewportH;
+	int32 AsyncW = 0, AsyncH = 0;
+	if (Async->Writer.IsValid())
+	{
+		Async->Writer->GetFirstWrittenSize(AsyncW, AsyncH);
+	}
+
+	int32 ResolvedW = 0, ResolvedH = 0;
+	if (AsyncW > 0 && AsyncH > 0)
+	{
+		ResolvedW = AsyncW;
+		ResolvedH = AsyncH;
+		if (SyncFirstWrittenW > 0 && SyncFirstWrittenH > 0
+			&& (SyncFirstWrittenW != AsyncW || SyncFirstWrittenH != AsyncH))
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(m28): THIS SESSION WROTE FRAMES ON BOTH PATHS AND THEY DISAGREE - async first-written ")
+				TEXT("%dx%d vs sync-fallback first-written %dx%d. video.resolution reports the ASYNC pair. The ")
+				TEXT("session's frames are NOT all one size."),
+				AsyncW, AsyncH, SyncFirstWrittenW, SyncFirstWrittenH);
+		}
+	}
+	else if (SyncFirstWrittenW > 0 && SyncFirstWrittenH > 0)
+	{
+		ResolvedW = SyncFirstWrittenW;
+		ResolvedH = SyncFirstWrittenH;
+	}
+	else
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(m28): NO FRAME WAS WRITTEN THIS SESSION, so annotation.json video.resolution is [0,0]. ")
+			TEXT("It is sourced from the FIRST WRITTEN FRAME by design (m28/D4) and a session with no pixels ")
+			TEXT("describes no pixels. It is deliberately NOT falling back to GetViewportSize(), which is the ")
+			TEXT("quantity survey S0 found does not describe the delivered image."));
+	}
+
+	A.Video.ResolutionW = ResolvedW;
+	A.Video.ResolutionH = ResolvedH;
 	A.Video.TotalFrames = FramesWritten;
 
 	A.Video.Fps = LastRunPacing.StampedFps > 0.0 ? LastRunPacing.StampedFps : (double)VideoFps;
@@ -2198,16 +2399,35 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureStartCmd(
 	     "Stop / burst schedule). Pass BOTH [anomaly] and [targetActor] for a TARGETED run (fires only that anomaly on "
 	     "only that actor each burst); omit both for AUTO-POOL (random mix from the enabled pool). Empty \"\" placeholders "
 	     "resolve to defaults for the leading args. The auto-injector's Run is paused for the run and resumed on finish. "
-	     "Configure bursts first with IAI.Capture.Config."),
+	     "Configure bursts first with IAI.Capture.Config. ")
+	TEXT("OUTPUT RESOLUTION: an optional NON-POSITIONAL token oh=<height> may appear ANYWHERE in the argument list. ")
+	TEXT("It is the PER-RUN output height (precedence level 1 - it beats IAI.Capture.OutputHeight and the ini) and is ")
+	TEXT("STRIPPED before the anomaly args are collected. oh=0 requests NATIVE explicitly; omitting it entirely falls ")
+	TEXT("through to the override, then the ini, then the compiled default. It is deliberately NOT positional because ")
+	TEXT("args 6+ are forwarded to the anomaly VERBATIM and there is no free slot."),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
 			{
-				auto Slot = [&Args](int32 Index) -> FString
+				int32 PerRunOutputHeight = -1;
+				TArray<FString> Positional;
+				Positional.Reserve(Args.Num());
+				for (const FString& A : Args)
 				{
-					if (!Args.IsValidIndex(Index)) { return FString(); }
-					const FString& S = Args[Index];
+					if (A.StartsWith(TEXT("oh="), ESearchCase::IgnoreCase))
+					{
+						const FString Value = A.Mid(3);
+						PerRunOutputHeight = Value.IsEmpty() ? -1 : FMath::Max(0, FCString::Atoi(*Value));
+						continue;
+					}
+					Positional.Add(A);
+				}
+
+				auto Slot = [&Positional](int32 Index) -> FString
+				{
+					if (!Positional.IsValidIndex(Index)) { return FString(); }
+					const FString& S = Positional[Index];
 					if (S.IsEmpty() || S == TEXT("\"\"") || S == TEXT("''")) { return FString(); }
 					return S;
 				};
@@ -2218,14 +2438,39 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureStartCmd(
 				const FString Anomaly = Slot(4);
 				const FString TargetActor = Slot(5);
 				TArray<FString> TargetArgs;
-				for (int32 i = 6; Args.IsValidIndex(i); ++i)
+				for (int32 i = 6; Positional.IsValidIndex(i); ++i)
 				{
-					TargetArgs.Add(Args[i]);
+					TargetArgs.Add(Positional[i]);
 				}
 				const bool bPng = !(Fmt.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase) || Fmt.Equals(TEXT("jpg"), ESearchCase::IgnoreCase));
 				const int32 Seed = !SeedStr.IsEmpty() ? FCString::Atoi(*SeedStr) : -1;
 				const int32 MaxFrames = !MaxStr.IsEmpty() ? FCString::Atoi(*MaxStr) : 0;
-				Cap->StartRun(Dir, bPng, Seed, MaxFrames, Anomaly, TargetActor, TargetArgs);
+				Cap->StartRun(Dir, bPng, Seed, MaxFrames, Anomaly, TargetActor, TargetArgs, PerRunOutputHeight);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureOutputHeightCmd(
+	TEXT("IAI.Capture.OutputHeight"),
+	TEXT("Set the capture OUTPUT HEIGHT for subsequent runs (default 0 = NATIVE). This is a DOWNSCALE ON WRITE: the ")
+	TEXT("render is always native and only the WRITTEN frame is resampled, so it cannot affect selection, labelling ")
+	TEXT("geometry or the m26/m27 mask veto - the mask counts at the view's render resolution and never sees the ")
+	TEXT("written file. There is NO width parameter by design: width is derived from each frame's own aspect and both ")
+	TEXT("are snapped to even, so a non-aspect-preserving output cannot be requested. A value at or above the frame's ")
+	TEXT("own height is NOT an upscale - it yields native and no resample runs. Mid-run changes are ignored (stop ")
+	TEXT("first). This is the BETWEEN-RUNS override, precedence level 2: it BEATS DefaultGame.ini [AnomalyCapture] ")
+	TEXT("CaptureOutputHeightDefault and is BEATEN by a per-run argument (dashboard outputHeight, console Start oh=). ")
+	TEXT("Pass -1 to CLEAR it, which is NOT the same as 0. Usage: IAI.Capture.OutputHeight <height|0|-1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.OutputHeight <height|0|-1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetOutputHeightOverride(FCString::Atoi(*Args[0]));
 			}
 		}));
 

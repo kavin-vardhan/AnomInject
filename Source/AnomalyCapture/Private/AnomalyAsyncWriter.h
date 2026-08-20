@@ -20,6 +20,8 @@ public:
 		int32 BytesPerPixel = 0;
 		int32 Width = 0;
 		int32 Height = 0;
+		int32 OutWidth = 0;
+		int32 OutHeight = 0;
 		FString ImageRelPath;
 		FString Record;
 		bool bPositive = false;
@@ -35,14 +37,25 @@ public:
 	int32 GetPending() const { return Pending.GetValue(); }
 	int32 GetDropped() const { return Dropped.GetValue(); }
 
+	int32 GetResamplesPerformed() const { return ResamplesPerformed.GetValue(); }
+	int32 GetDimMismatches() const { return DimMismatches.GetValue(); }
+	void GetFirstWrittenSize(int32& OutW, int32& OutH) const;
+
 private:
 	void Run(FJob& Job);
+	void NoteWrittenSize(int32 W, int32 H, const FString& ImageRelPath);
 
 	FThreadSafeCounter FramesWritten;
 	FThreadSafeCounter PositiveWritten;
 	FThreadSafeCounter Pending;
 	FThreadSafeCounter Dropped;
+	FThreadSafeCounter ResamplesPerformed;
+	FThreadSafeCounter DimMismatches;
 	FCriticalSection JsonlCS;
+
+	mutable FCriticalSection DimCS;
+	int32 FirstWrittenW = 0;
+	int32 FirstWrittenH = 0;
 };
 
 #endif

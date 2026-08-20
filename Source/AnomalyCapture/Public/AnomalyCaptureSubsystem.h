@@ -28,7 +28,7 @@ public:
 
 	void StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
 		const FString& InTargetAnomaly = FString(), const FString& InTargetActor = FString(),
-		const TArray<FString>& InTargetArgs = TArray<FString>());
+		const TArray<FString>& InTargetArgs = TArray<FString>(), int32 InOutputHeight = -1);
 
 	void StopRun();
 
@@ -73,6 +73,10 @@ public:
 
 	void SetMaskProbe(bool bInProbe);
 	bool IsMaskProbe() const { return bMaskProbe; }
+
+	void SetOutputHeightOverride(int32 InHeight);
+	int32 GetOutputHeightOverride() const { return OutputHeightOverride; }
+	int32 GetEffectiveOutputHeight() const { return EffectiveOutputHeight; }
 
 	enum class EContentClock : uint8 { Wall, Game };
 	void SetContentClock(EContentClock InClock);
@@ -147,6 +151,23 @@ private:
 	int32 Seed = 0;
 	bool bFormatPng = true;
 	uint64 StartFrame = 0;
+
+	enum class EOutputHeightSource : uint8 { CompiledDefault, Ini, Override, PerRun };
+
+	int32 OutputHeightIni = 0;
+	bool bOutputHeightFromIni = false;
+	int32 OutputHeightOverride = -1;
+	int32 EffectiveOutputHeight = 0;
+	EOutputHeightSource OutputHeightSource = EOutputHeightSource::CompiledDefault;
+	int32 SyncResamplesPerformed = 0;
+	int32 SyncFirstWrittenW = 0;
+	int32 SyncFirstWrittenH = 0;
+	int32 SyncDimMismatches = 0;
+	bool bLoggedFirstFrameMeasuredLine = false;
+
+	const TCHAR* DescribeOutputHeightSource() const;
+	void NoteSyncWrittenSize(int32 W, int32 H, const FString& ImageRelPath);
+	void LogFirstFrameMeasuredLine(int32 SrcW, int32 SrcH, int32 OutW, int32 OutH, bool bResampled);
 
 	int32 BurstsDone = 0;
 	int32 FramesWritten = 0;

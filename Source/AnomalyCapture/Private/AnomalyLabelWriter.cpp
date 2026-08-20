@@ -177,12 +177,133 @@ namespace AnomalyLabel
 			}
 		}
 	}
+	void DeriveOutputSize(int32 SrcW, int32 SrcH, int32 TargetH, int32& OutW, int32& OutH, bool& bOutNeedsResample)
+	{
+		OutW = SrcW;
+		OutH = SrcH;
+		bOutNeedsResample = false;
+
+		if (SrcW <= 0 || SrcH <= 0 || TargetH <= 0 || TargetH >= SrcH)
+		{
+			return;
+		}
+
+		const int32 SnappedH = FMath::Max(2, 2 * ((TargetH + 1) / 2));
+		if (SnappedH >= SrcH)
+		{
+			return;
+		}
+
+		int32 DerivedW = FMath::RoundToInt((double)SnappedH * (double)SrcW / (double)SrcH);
+		DerivedW = FMath::Max(2, 2 * ((DerivedW + 1) / 2));
+		if (DerivedW > SrcW)
+		{
+			DerivedW = FMath::Max(2, (SrcW / 2) * 2);
+		}
+
+		if (DerivedW == SrcW && SnappedH == SrcH)
+		{
+			return;
+		}
+
+		OutW = DerivedW;
+		OutH = SnappedH;
+		bOutNeedsResample = true;
+	}
+
+	bool ResampleAndEncodeBGRA(AnomalyPreview::EImageFormat Format, const TArray<FColor>& Pixels,
+		int32 SrcW, int32 SrcH, int32 OutW, int32 OutH, TArray<uint8>& OutBytes, bool& bOutResampled)
+	{
+		bOutResampled = false;
+
+		if (SrcW <= 0 || SrcH <= 0 || Pixels.Num() < SrcW * SrcH)
+		{
+			return false;
+		}
+
+		if (OutW <= 0 || OutH <= 0 || (OutW == SrcW && OutH == SrcH))
+		{
+			return AnomalyPreview::EncodePixels(Format, Pixels, SrcW, SrcH, OutBytes);
+		}
+
+		TArray<FColor> Scaled;
+		Scaled.SetNumUninitialized(OutW * OutH);
+
+		const double ScaleX = (double)SrcW / (double)OutW;
+		const double ScaleY = (double)SrcH / (double)OutH;
+		const FColor* Base = Pixels.GetData();
+
+		for (int32 Dy = 0; Dy < OutH; ++Dy)
+		{
+			const double SrcY0 = (double)Dy * ScaleY;
+			const double SrcY1 = (double)(Dy + 1) * ScaleY;
+			const int32 Y0 = FMath::Clamp((int32)FMath::FloorToDouble(SrcY0), 0, SrcH - 1);
+			const int32 Y1 = FMath::Clamp((int32)FMath::CeilToDouble(SrcY1) - 1, 0, SrcH - 1);
+
+			for (int32 Dx = 0; Dx < OutW; ++Dx)
+			{
+				const double SrcX0 = (double)Dx * ScaleX;
+				const double SrcX1 = (double)(Dx + 1) * ScaleX;
+				const int32 X0 = FMath::Clamp((int32)FMath::FloorToDouble(SrcX0), 0, SrcW - 1);
+				const int32 X1 = FMath::Clamp((int32)FMath::CeilToDouble(SrcX1) - 1, 0, SrcW - 1);
+
+				double AccR = 0.0, AccG = 0.0, AccB = 0.0, AccWeight = 0.0;
+				for (int32 Sy = Y0; Sy <= Y1; ++Sy)
+				{
+					const double WeightY = FMath::Min(SrcY1, (double)(Sy + 1)) - FMath::Max(SrcY0, (double)Sy);
+					if (WeightY <= 0.0)
+					{
+						continue;
+					}
+					const FColor* Row = Base + (int64)Sy * SrcW;
+					for (int32 Sx = X0; Sx <= X1; ++Sx)
+					{
+						const double WeightX = FMath::Min(SrcX1, (double)(Sx + 1)) - FMath::Max(SrcX0, (double)Sx);
+						if (WeightX <= 0.0)
+						{
+							continue;
+						}
+						const double Weight = WeightX * WeightY;
+						const FColor& C = Row[Sx];
+						AccR += (double)C.R * Weight;
+						AccG += (double)C.G * Weight;
+						AccB += (double)C.B * Weight;
+						AccWeight += Weight;
+					}
+				}
+
+				FColor& Out = Scaled[(int64)Dy * OutW + Dx];
+				if (AccWeight > 0.0)
+				{
+					Out = FColor(
+						(uint8)FMath::Clamp(FMath::RoundToInt(AccR / AccWeight), 0, 255),
+						(uint8)FMath::Clamp(FMath::RoundToInt(AccG / AccWeight), 0, 255),
+						(uint8)FMath::Clamp(FMath::RoundToInt(AccB / AccWeight), 0, 255),
+						255);
+				}
+				else
+				{
+					Out = FColor(0, 0, 0, 255);
+				}
+			}
+		}
+
+		bOutResampled = true;
+		return AnomalyPreview::EncodePixels(Format, Scaled, OutW, OutH, OutBytes);
+	}
+
 	bool CaptureLabeledShot(UWorld* World, const FString& OutputDir, AnomalyPreview::EImageFormat Format,
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
-		double WallSeconds, FString& OutImagePath, FString& OutSidecarPath, int32& OutNumLabels, bool bLog,
-		bool bWriteLabels)
+		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
+		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
+		bool& bOutResampled, bool bLog, bool bWriteLabels)
 	{
 		OutNumLabels = 0;
+		OutNativeW = 0;
+		OutNativeH = 0;
+		OutWrittenW = 0;
+		OutWrittenH = 0;
+		bOutResampled = false;
 		if (!World)
 		{
 			return false;
@@ -194,9 +315,9 @@ namespace AnomalyLabel
 			Fires = Auto->GetLiveFires();
 		}
 
-		TArray<uint8> ImageBytes;
+		TArray<FColor> Pixels;
 		int32 W = 0, H = 0;
-		if (!AnomalyPreview::CaptureGameViewportEncoded(World, Format, ImageBytes, W, H))
+		if (!AnomalyPreview::CaptureGameViewportRaw(World, Pixels, W, H))
 		{
 			if (bLog)
 			{
@@ -205,10 +326,35 @@ namespace AnomalyLabel
 			return false;
 		}
 
-		const FString Record = BuildFrameLabelRecord(Fires, ProjectionView, W, H, GFrameCounter, SessionIndex,
+		OutNativeW = W;
+		OutNativeH = H;
+
+		int32 OutW = W, OutH = H;
+		bool bNeedsResample = false;
+		DeriveOutputSize(W, H, TargetOutputHeight, OutW, OutH, bNeedsResample);
+
+		TArray<uint8> ImageBytes;
+		if (!ResampleAndEncodeBGRA(Format, Pixels, W, H, OutW, OutH, ImageBytes, bOutResampled))
+		{
+			if (bLog)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture: encode failed for '%s' (%dx%d -> %dx%d)."),
+					*ImageRelName, W, H, OutW, OutH);
+			}
+			return false;
+		}
+
+		const FString Record = BuildFrameLabelRecord(Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
 			World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
 
-		return AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog, bWriteLabels);
+		if (!AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog, bWriteLabels))
+		{
+			return false;
+		}
+
+		OutWrittenW = OutW;
+		OutWrittenH = OutH;
+		return true;
 	}
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
@@ -220,8 +366,11 @@ namespace AnomalyLabel
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
-		const FString& ImageRelPath, const FString& Record, FCriticalSection& JsonlLock, bool bWriteLabels)
+		int32 OutWidth, int32 OutHeight, const FString& ImageRelPath, const FString& Record,
+		FCriticalSection& JsonlLock, bool bWriteLabels, bool& bOutResampled)
 	{
+		bOutResampled = false;
+
 		if (Width <= 0 || Height <= 0 || BytesPerPixel <= 0 || RawBytes.Num() < (int64)Width * Height * BytesPerPixel)
 		{
 			return false;
@@ -231,7 +380,7 @@ namespace AnomalyLabel
 		ConvertTightToBGRA(SrcFormat, BytesPerPixel, RawBytes, Width, Height, Pixels);
 
 		TArray<uint8> ImageBytes;
-		if (!AnomalyPreview::EncodePixels(OutFormat, Pixels, Width, Height, ImageBytes))
+		if (!ResampleAndEncodeBGRA(OutFormat, Pixels, Width, Height, OutWidth, OutHeight, ImageBytes, bOutResampled))
 		{
 			return false;
 		}
@@ -485,7 +634,11 @@ namespace AnomalyLabel
 static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 	TEXT("IAI.Capture.Shot"),
 	TEXT("Capture ONE labeled frame (PNG default) + append a JSONL label record. ")
-	TEXT("Usage: IAI.Capture.Shot [outDir] [png|jpeg]  (default outDir: <ProjectSaved>/AnomalyCaptures/manual)"),
+	TEXT("Usage: IAI.Capture.Shot [outDir] [png|jpeg] [outputHeight]  (default outDir: ")
+	TEXT("<ProjectSaved>/AnomalyCaptures/manual). outputHeight 0 or omitted = NATIVE; a value below the frame's ")
+	TEXT("own height downscales the WRITTEN image only (width derived from the frame's aspect, both snapped even); ")
+	TEXT("a value at or above it is NOT an upscale and yields native. This one-shot takes its height from the ")
+	TEXT("argument alone and does NOT consult the run-level precedence chain."),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
@@ -499,6 +652,8 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 				Format = AnomalyPreview::EImageFormat::JPEG;
 			}
 
+			const int32 TargetOutputHeight = (Args.Num() > 2 && !Args[2].IsEmpty()) ? FCString::Atoi(*Args[2]) : 0;
+
 			FAnomalyViewInfo View;
 			AnomalyViewport::GetActiveViewInfo(World, View);
 
@@ -507,10 +662,16 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 
 			FString ImagePath, SidecarPath;
 			int32 NumLabels = 0;
-			if (AnomalyLabel::CaptureLabeledShot(World, Dir, Format, View, ShotName, 0, FPlatformTime::Seconds(), ImagePath, SidecarPath, NumLabels))
+			int32 NativeW = 0, NativeH = 0, WrittenW = 0, WrittenH = 0;
+			bool bResampled = false;
+			if (AnomalyLabel::CaptureLabeledShot(World, Dir, Format, View, ShotName, 0, FPlatformTime::Seconds(),
+				TargetOutputHeight, ImagePath, SidecarPath, NumLabels, NativeW, NativeH, WrittenW, WrittenH, bResampled))
 			{
-				UE_LOG(LogAnomalyCapture, Log, TEXT("Capture.Shot: wrote '%s' (%d valid bbox label(s)); record appended to '%s'."),
-					*ImagePath, NumLabels, *SidecarPath);
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture.Shot: wrote '%s' - native %dx%d -> output %dx%d, resample %s (%d valid bbox ")
+					TEXT("label(s)); record appended to '%s'."),
+					*ImagePath, NativeW, NativeH, WrittenW, WrittenH,
+					bResampled ? TEXT("YES") : TEXT("no - native"), NumLabels, *SidecarPath);
 			}
 			else
 			{

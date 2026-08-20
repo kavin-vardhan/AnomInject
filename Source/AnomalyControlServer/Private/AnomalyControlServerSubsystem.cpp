@@ -613,10 +613,33 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		Msg->TryGetNumberField(TEXT("seed"), SeedV);
 		double MaxFramesV = 0.0;
 		Msg->TryGetNumberField(TEXT("maxFrames"), MaxFramesV);
-		const bool bPng = !Format.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase);
+		double OutputHeightV = -1.0;
+		const bool bHaveOutputHeight = Msg->TryGetNumberField(TEXT("outputHeight"), OutputHeightV);
+		const int32 OutputHeight = bHaveOutputHeight ? FMath::Max(0, (int32)OutputHeightV) : -1;
+
+		bool bPng = true;
+		if (Format.IsEmpty() || Format.Equals(TEXT("png"), ESearchCase::IgnoreCase))
+		{
+			bPng = true;
+		}
+		else if (Format.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase) || Format.Equals(TEXT("jpg"), ESearchCase::IgnoreCase))
+		{
+			bPng = false;
+		}
+		else
+		{
+			bPng = true;
+			UE_LOG(LogAnomalyServer, Warning,
+				TEXT("capture_start: UNRECOGNISED format '%s' - expected 'png', 'jpeg' or 'jpg'. FALLING BACK TO ")
+				TEXT("PNG for this run. The written frames will be .png regardless of what the caller intended, ")
+				TEXT("and run.json will record \"png\". Before m28 this fallback was SILENT."),
+				*Format);
+		}
+
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
-			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV, Anomaly, TargetActor);
+			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV, Anomaly, TargetActor,
+				TArray<FString>(), OutputHeight);
 		}
 		SendAck(Conn.Socket, TEXT("capture_start"));
 		return;
