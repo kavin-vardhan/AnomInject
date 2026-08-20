@@ -97,8 +97,47 @@ and is the single source of truth for the project.
   **once per RUN**. (2) **A re-picking veto destroys the seeded draw protocol** — `R-SEED` is
   deliberately independent of apply-result and `m22` gated on *"seed 4242, two runs byte-identical"*.
   **If a future reader proposes "just check before firing", both blockers are in journal §103.**
-  🛑 **THE COOK NOW SUCCEEDS AND THE BUILD STILL CANNOT BOOT. HALTED ON `LoadingPhase`.
-  → journal PART NINETEEN §136-§142.**
+  🎯 **THE `m26` SLICE-1 FAULT IS DIAGNOSED AND IT IS **NOT** THE TAG RANGE. → journal PART
+  TWENTY-ONE §149-§156. DIAGNOSIS ONLY — NO FIX APPLIED. NO TAG.**
+  🚨 **`D-3` ESTABLISHED FROM ENGINE SOURCE: 255 IS THE ENGINE'S OWN FALLBACK.**
+  `SystemTextures.cpp:247-256` creates `StencilDummy` as a **1×1 `PF_R8G8B8A8_UINT` filled with
+  `FColor::White` = 255**, and `SceneTextures.cpp:959` binds
+  `CustomStencilTexture = bCustomDepthProduced ? CustomDepthTextures.Stencil : StencilDummySRV`.
+  ⇒ **when custom depth is not produced, `CalcSceneCustomStencil` returns 255 at EVERY pixel** —
+  which is the observation exactly (always 255, never 254, uniform, both levels, 25 times).
+  ⇒ **`D-1`: the read is LIVE and the pass point is fine; it resolves to the DUMMY.**
+  🚨 **THE `ReservedStencilMax` CANDIDATE IS REFUTED — AND REPAIRING IT WOULD HAVE BEEN WORSE THAN
+  LEAVING IT BROKEN.** Moving the range to e.g. 100-155 leaves every read returning 255, which would
+  then fall **outside** our range ⇒ the shader writes 0 ⇒ **the unassigned-tag detector GOES SILENT**
+  ⇒ every event returns `MEASURED_ZERO` with `collisions=0`, a clean-looking answer that **under
+  slice 3 would VETO EVERY EVENT.** **A loud fault converted into a silent one** (`G118`: a guard that
+  passes the unsafe case is worse than no guard). **The pre-declared refuters are what caught this.**
+  ⚠ **`D-4` LEADING CANDIDATE, source-grounded, NOT measured: A ONE-FRAME ORDERING BUG.**
+  `SetRenderCustomDepth` → **`MarkRenderStateDirty()`, a DEFERRED render-state recreate** — the proxy
+  flag is **not live for the frame it is set in** — and `ArmIfMeasurable` **tags and arms in the SAME
+  tick**. ⇒ the mask pass for frame N runs against a proxy that has not received the flag ⇒ custom
+  depth not produced ⇒ dummy ⇒ 255. ⚠ **HONEST LIMIT: `r.CustomDepth`'s EFFECTIVE value at pass time
+  was NOT read back** (`-ExecCmds` is startup-only and would report the default, 1); *"the cvar is
+  fine"* is **assumed, not measured**, and is recorded as such.
+  ✅ **`D-2`: THE WRITE SIDE IS EXONERATED.** One event (`P20_M26S1_RAMP` `startFrame=4`) had
+  `collisions=0` — property verified `bRenderCustomDepth true` and value == our tag — and **still
+  returned count 0** ⇒ read-side fault. It also explains why that one event saw no 255: earlier tags
+  had propagated by then, so the real stencil was bound, while its own target had only just been
+  tagged. **One cause, two different-looking symptoms.**
+  ✅ **`D-5`: benign** — the outlier (`arms=1`) is the LAST event of each leg, truncated by the
+  90-frame cap. Not a second fault.
+  ✅ **TASK 2 DONE — the detector no longer names a cause it has not established.** It said *"a host
+  title is writing into the reserved range"*, which **would have sent a future reader hunting a host
+  game in a sample project** (`G120`). It now reports the OBSERVATION plus the DISCRIMINATOR (255
+  uniform = engine fallback; geometry-shaped or any other value = something genuinely writing).
+  Message only, no logic changed.
+  ⛔ **STILL STANDING, not re-opened by this fault: `LOCK-1` is PROVEN** (`skippedHidden=3..4` on
+  every event) · the **tag → mask → readback plumbing round-trips** · the **module** · the **four
+  gates** · the **new quartet**.
+  ⛔ **DO NOT: run the H5 legs until a control reads NON-ZERO · move the stencil range · start slice
+  2 or 3 · tag.**
+  🛑 *(superseded)* **THE COOK SUCCEEDS AND THE BUILD CANNOT BOOT — HALTED ON `LoadingPhase`.
+  → PART NINETEEN §136-§142.** ✅ **RESOLVED in PART TWENTY by Option B.**
   ✅ **DISK IS SOLVED: `Intermediate` (9,106 files / 13.0 GB) and `Saved` (5,443 files / 7.7 GB) are
   MOVED TO `E:` AND JUNCTIONED**, so every path stays literally `D:\...` and **`run_leg.ps1` and the
   other 15 baked paths needed NO edits**; the queued `E:` migration stays queued. Move byte-verified;

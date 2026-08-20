@@ -33,6 +33,7 @@ separable — each part exists because the one before it produced something unex
 | **Eighteen** | 129–134 | **Cleanup executed · 21 sessions banked · cook IN FLIGHT** | **0.94 → 21.93 GB**; 21/21 banked incl. **the `m23` play-gate smoke**; **G130**. 🚨 **Ruling 1's order was IMPOSSIBLE — banking 3.89 GB needs 3.89 GB.** Cook is memory-bound at **1 process** (`G97`) |
 | **Nineteen** | 136–142 | **`E:` junctions · cook SUCCEEDS · build still cannot boot** | Disk solved, map gate PASS — 🛑 **HALT on `LoadingPhase`: a global shader must load at `PostConfigInit`.** **G131**; runbook §8.6 step 3.5; `G115` fired on me and the diffstat caught it |
 | **Twenty** | 143–148 | **Option B ships · build BOOTS · the MEASUREMENT is wrong** | `AnomalyShaders` at `PostConfigInit`, **no `Renderer` dep, load order untouched**; all four gates PASS — 🛑 **HALT: `S4` + an `S3` observation.** Tag 255 pollutes the mask; a control measured ZERO. **`H5` legs deliberately NOT run** |
+| **Twenty-one** | 149–156 | **The cause: a ONE-FRAME ORDERING BUG, not the tag range** | 🚨 **255 IS the engine's `StencilDummy` (`FColor::White`), bound when custom depth is not produced — ESTABLISHED FROM SOURCE.** The range candidate is **REFUTED**, and repairing it would have **silenced the detector and vetoed everything**. Detector no longer names an unestablished cause |
 
 ⚠ **ONE INVESTIGATION, FIFTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fifteen;
 the reason it is not split is unchanged).*
@@ -4528,3 +4529,145 @@ CODE beyond Task 1's module. If anything else is required, HALT AND REPORT."* �
 **WHAT THIS PART SETTLES: the plumbing is proven end to end — tag, mask, readback, and the `LOCK-1`
 timing rule all work — and the VALUE coming back is wrong. Slice 1's whole purpose was to establish
 that before the cure was trusted to act, and it did exactly that.**
+
+---
+
+# PART TWENTY-ONE — the cause is ESTABLISHED, and it is **NOT** the tag range
+
+🚨 **THE LEADING CANDIDATE FROM PART TWENTY IS REFUTED, AND "FIXING" IT WOULD HAVE BEEN WORSE THAN
+LEAVING IT BROKEN.** ⛔ **DIAGNOSIS ONLY — NO FIX. NO TAG. `P6` NOT MOVED.**
+`feature/stencil-capture` **READ-ONLY at `76cac74`.**
+
+**Branches pre-declared as a file BEFORE any measurement: `CaptureBench/tools/
+p21_diagnosis_predeclared.md`, commit `6428282`, including the refuters `R1`–`R5`.**
+
+---
+
+## 149. `D-3` FIRST, because it answers everything else — **255 IS THE ENGINE'S FALLBACK**
+
+**ESTABLISHED FROM ENGINE SOURCE, not inferred:**
+
+```cpp
+// Renderer/Private/SystemTextures.cpp:247-256  — "Create a dummy stencil SRV."
+FRHITextureCreateDesc::Create2D(TEXT("StencilDummy"), 1, 1, PF_R8G8B8A8_UINT)
+FTextureRHIRef Texture = RHICreateTexture(Desc);
+SetDummyTextureData<FColor>(Texture, FColor::White);      // <<< WHITE = 255
+```
+
+**And the binding that selects it (`SceneTextures.cpp:959`):**
+
+```cpp
+SceneTextureParameters.CustomStencilTexture =
+    bCustomDepthProduced ? CustomDepthTextures.Stencil : SystemTextures.StencilDummySRV;
+```
+
+⇒ **When custom depth is NOT produced for the frame, `CustomStencilTexture` is a 1×1 texture filled
+with 255, and `CalcSceneCustomStencil` returns 255 AT EVERY PIXEL.**
+
+**That is the observation exactly: always 255, never 254, uniform, in both levels, 25 times.**
+⇒ **`D-3` = candidate (a), the unpopulated-buffer fallback. Candidates (b) format/swizzle and (c)
+something-writes-255 are both EXCLUDED** — a 1×1 white dummy explains the constant, the uniformity
+and the level-independence together.
+
+## 150. `D-1` — the shader IS reading, but it is reading the WRONG TEXTURE
+
+`CalcSceneCustomStencil` (`SceneTexturesCommon.ush:134`) does
+`SceneTexturesStruct.CustomStencilTexture.Load(...) STENCIL_COMPONENT_SWIZZLE`. **The binding is
+live and the read succeeds** — it simply resolves to the dummy. ⇒ **the pass point is not wrong and
+the read is not broken; the buffer it names was never produced.**
+
+## 151. 🚨 `R1` FIRES — THE `ReservedStencilMax` CANDIDATE IS **REFUTED**, AND THE REPAIR WOULD HAVE BEEN ACTIVELY HARMFUL
+
+**Pre-declared refuter `R1`/`R3`: if the read path is live and the value is a bound fallback, the
+range is not the cause.** It is.
+
+🚨 **AND THE TRAP THE OWNER NAMED IS REAL AND WORSE THAN "CHANGES NOTHING": moving the reserved range
+to, say, 100–155 would leave every read still returning 255 — but 255 would then be OUTSIDE our
+range, so `CalcSceneCustomStencil` would fail the `Stencil < ReservedBase` test, the shader would
+write 0, and THE UNASSIGNED-TAG DETECTOR WOULD GO SILENT.**
+
+⇒ **Every event would come back `MEASURED_ZERO` with `collisions=0` — a confident, clean-looking
+answer that is entirely wrong, and under slice 3 IT WOULD VETO EVERY EVENT.** **The "fix" would have
+converted a loud fault into a silent one.** *(`G118`'s rule: a guard that passes the unsafe case is
+worse than no guard.)*
+
+## 152. `D-4` — why custom depth was not produced. **LEADING CANDIDATE, source-grounded, NOT measured**
+
+Two requirements, and the second is the suspect:
+
+| requirement | state |
+|---|---|
+| **`r.CustomDepth` must be 3** (`EnabledWithStencil`) | ⚠ engine **default is 1** — *enabled, but stencil writes OFF*. We set 3 in `FAnomalyMaskMeasure::BeginRun()` at `StartRun`, **several frames before the first arm**, and the cvar is `ECVF_RenderThreadSafe`. **Plausibly fine, NOT read back — see the limit below.** |
+| **a primitive must be marked `bRenderCustomDepth` for that view** | 🚨 **`SetRenderCustomDepth` → `MarkRenderStateDirty()` — a DEFERRED render-state recreate.** The proxy flag is **not live for the frame in which it is set.** |
+
+🚨 **AND WE TAG AND ARM IN THE SAME TICK.** `ArmIfMeasurable` calls `TagActor(...)` and then
+`Sve->ArmMask(RequestId)` **on the same tick**, so the mask pass for frame N runs against a proxy
+that has not yet received the flag ⇒ **custom depth not produced ⇒ dummy bound ⇒ 255.**
+
+⇒ **THE FAULT IS A ONE-FRAME ORDERING BUG, NOT A RANGE BUG.** The tag needs at least one frame to
+reach the render thread before the mask can see it.
+
+⛔ **STATED AS THE LEADING CANDIDATE, NOT ESTABLISHED.** What would settle it is arming N frames
+after tagging and watching 255 disappear — **that is the repair, and it is not this turn's work.**
+⚠ **Honest limit: `r.CustomDepth`'s EFFECTIVE value at pass time was NOT read back.** `-ExecCmds` is
+startup-only and would report the default, not the in-run value; a real read-back needs
+instrumentation. **So "the cvar is fine" is assumed, not measured, and that assumption is recorded
+rather than buried.**
+
+## 153. `D-2` — the write side is **EXONERATED**, and the odd event now makes sense
+
+**Pre-declared `R5`: an event with `collisions=0` that still returns count 0 exonerates the write
+side.** That event exists — `P20_M26S1_RAMP`, `startFrame=4`: **`collisions=0`, `arms=4 resolved=4`,
+`MEASURED_ZERO`.** `collisions=0` means `VerifyActorStillTagged` found `bRenderCustomDepth` **true**
+and `CustomDepthStencilValue` **== our tag** on every renderable component. ⇒ **the property was
+written and held; the mask still never saw it.** ⇒ **READ-SIDE FAULT. The tagging code is not at
+fault.**
+
+✅ **And it explains the one event that did NOT see 255:** by then earlier tags had propagated, so
+custom depth **was** produced and the real stencil was bound — no dummy, no 255 — while *that
+event's own* target had only just been tagged, so its tag was absent ⇒ **count 0 with no collision.**
+**Same single cause, two different-looking symptoms.**
+
+## 154. `D-5` — the 16th event: **benign, fully explained**
+
+The outlier is the **last** event of each leg (`startFrame=116`, `arms=1 resolved=1`). Events are
+spaced **16 ticks** apart (one burst = `K2 + P8 + K2 + Post4`), and the run ends at the **90-frame
+cap**, entering `DrainTail` before that event could issue its remaining arms. ⇒ **truncation by the
+frame cap — the pre-declared benign branch. NOT a second fault.**
+
+## 155. `TASK 2` — the detector no longer names a cause it has not established
+
+**Both detector messages rewritten to state the OBSERVATION and hand the reader the
+DISCRIMINATOR:**
+
+- **was:** *"A host title is writing into the reserved custom-stencil range"* — an unestablished cause
+  that **would have sent a future reader hunting a host game in a sample project** (`G120`'s false
+  foreclosure in the making).
+- **now:** *"OBSERVED — the mask carried reserved-range tag N, which this run never assigned. CAUSE
+  NOT ESTABLISHED … DISCRIMINATORS: 255 uniformly across the frame is the engine's StencilDummy
+  fallback, bound when custom depth was NOT produced — i.e. our stencil was never read; a
+  geometry-shaped region, or any value other than 255, is something genuinely writing into the
+  reserved range."*
+- The tag read-back warning likewise now separates **write-side** from **read-side** and says which
+  observation distinguishes them.
+
+⛔ **Message only — no logic changed.** Compiles clean.
+
+## 156. State after PART TWENTY-ONE
+
+| | |
+|---|---|
+| `D-3` | ✅ **ESTABLISHED** — 255 is `StencilDummy` = `FColor::White`, bound when custom depth is not produced |
+| `D-1` | ✅ **ESTABLISHED** — the read is live; it resolves to the dummy |
+| `D-2` | ✅ **write side EXONERATED** — read-side fault |
+| `D-4` | ⚠ **LEADING CANDIDATE: tag-and-arm-in-the-same-tick.** `SetRenderCustomDepth` is a DEFERRED render-state recreate. **`r.CustomDepth` effective value NOT read back — recorded as assumed** |
+| `D-5` | ✅ **benign** — frame-cap truncation |
+| range candidate | 🚨 **REFUTED — and the repair would have SILENCED the detector and vetoed everything** |
+| Task 2 | ✅ detector reports observation + discriminator, not cause |
+| still standing | **`LOCK-1` PROVEN · plumbing round-trips · module · gates · quartet** |
+| ⛔ next | **the owner's ruling on the fix** |
+
+**WHAT THIS PART SETTLES: the fault is a ONE-FRAME ORDERING BUG on the read side, not the tag range —
+and the pre-declared refuters are what caught it. Repairing the leading candidate would have produced
+`MEASURED_ZERO` with `collisions=0` on every event: a clean-looking answer that vetoes the entire
+dataset.**
