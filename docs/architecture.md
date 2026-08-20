@@ -425,10 +425,8 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
   `GPollRadius = 1800.0f` and `GMinScreenCoveragePct = 6.0f` (`AnomalyViewport.cpp`, file-scope globals — NOT
   ini-backed; ini-backing via GConfig remains available as a follow-up if per-title tuning is ever wanted), and the
   auto-pool's **default-enabled** set `GAutoPoolDefaultEnabled = { blinking, missing_texture,
-  corrupted_texture }` (`AnomalyAutoInjectorSubsystem.cpp`, consumed in `Initialize`; m29).
-  ⚠ **`lod_popping` is NOT in `GAutoPool` — its pool membership is m30 work, gated on a proximity
-  threshold that could not be calibrated at m29** (journal 047). It remains fully usable by targeted
-  fire and by the selector. `GAutoPool` offers all four ids
+  corrupted_texture, lod_popping, camera_clipping }` (`AnomalyAutoInjectorSubsystem.cpp`, consumed in
+  `Initialize`; m30 — the M2 pool). `GAutoPool` offers all six ids
   (`missing_object` remains selectable, just **not enabled by default**), and `SetAllAnomaliesEnabled(true)` still means
   *all* of `GAutoPool` — it is an explicit action, not a default. **The dashboard has NO defaults of its own for these:**
   the sliders and the pool checkboxes are pure mirrors of the snapshot (`session.pollRadius`,
@@ -505,11 +503,36 @@ variable is **ON-SCREEN SIZE**, not LOD authoring quality.
 
 🚨 **Nothing downstream catches the admitted case. The m26 mask veto CANNOT** — the object still
 draws, so it reads `MEASURED_NONZERO` and the event survives; and the mask measures the
-**silhouette**, which is what a distant LOD swap barely moves. **The gate must be at PICK TIME**, and
-that gate is **m30** work. See journal `2026-08-21-047` and **G149** (with its same-day amendment).
+**silhouette**, which is what a distant LOD swap barely moves. **The gate is therefore at PICK TIME.**
 
-⚠ **The obvious metric is a proxy for a proxy:** bounds coverage over-reads drawn extent — the
-MainWorld rock reads **11.83 % bounds coverage while drawing 2.78 % of frame**, ~4×.
+✅ **CLOSED AT m30 — the proximity gate.** `lod_popping` requires its own minimum
+**bounds-projected screen coverage at pick time**, `MinCoveragePct = 7.0`, stacked on the ≥2-LOD
+guard. Below it, Apply returns false through the same AMB-2 matched-zero path — no fire, no label.
+Bounds only, no pixel read (`G127`-safe). Calibrated, not chosen: **9.3453 % visible / 3.9045 %
+invisible**, with the visible signal collapsing three orders of magnitude between them; the threshold
+sits at **1.79× above the invisible anchor and 1.34× below the visible one**, biased toward refusing
+because a positive label with no visible change is the dataset-poisoning direction.
+
+⚠ **ONE QUANTITY THROUGHOUT: bounds coverage, never drawn extent.** They differ by ~4× — the
+MainWorld rock reads **11.83 % bounds while drawing 2.78 % of frame** — so mixing them would silently
+move the threshold. The gate, both anchors and every recorded number all name the same quantity.
+
+### `camera_clipping` is a SESSION-GLOBAL pool member (m30)
+
+The first Global-scoped id in the pool. It is **held for the whole capture session** — applied in
+`BeginActualRun` (after `StartRun`'s clean slate, so the slate cannot revert it) and reverted in
+`FinishRun` — and it **NEVER routes through `TryFireOnce`**, which now skips Global-scoped ids. That
+removes the `"=ActorName"` misparse structurally: the token is never built for it.
+
+🚨 **A frame is labelled positive ONLY when geometry is within the anomalous near-clip radius**, by a
+per-frame sphere overlap at the camera (bounds only, no pixel read). The near plane being wrong is
+not the same as the viewer seeing anything wrong, and labelling a whole session positive would ship
+thousands of frames showing nothing — which **the m26 mask veto cannot catch, because there is no
+target and therefore no mask.**
+
+**`P6` does not move.** The existing event shape carries it: whole-frame as `coverage_ratio = 1` and
+per-frame `bbox_norm = 0,0,1,1`, empty `asset_name`, and `coverage_pct` left at its `-1` sentinel
+(it comes from selection provenance, and a global anomaly has no selected actor).
 
 ### The auto-pool checkbox set is a THREE-STAGE derivation (m29 recon)
 

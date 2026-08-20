@@ -4022,3 +4022,29 @@ is never opened in the editor, so nothing is ever baked - the lighting must be M
 actually reach the geometry.
 
 (2026-08-21, m29.)
+---
+
+## G152 — a guard that is skipped in the mode you test it in passes for the wrong reason
+
+m30's brief specified a non-interference gate for the new SESSION-GLOBAL anomaly against a TARGETED
+capture leg: prove that camera_clipping being active all session does not disturb any other anomaly's
+labels.
+
+**Session globals are deliberately skipped in targeted mode.** So that gate would have run with
+camera_clipping never applied at all, compared clean labels against clean labels, and PASSED - while
+testing nothing. G96's shape, arriving through a different door: not a blind oracle this time, but a
+correct test pointed at a configuration where the condition cannot occur.
+
+**Caught by asking what the leg would look like if the feature were completely broken.** The answer
+was "identical", which is the diagnostic G119 already states: *what would I observe if the thing I
+edited never reached the thing under test?* If that answer matches what you are observing, it is not
+a check.
+
+**Non-interference was instead evidenced where the anomaly is positive on EVERY frame** - the
+close-pose leg - with the other anomalies' burst spans unchanged at the canonical cadence.
+
+⚠ The general form: when a feature has a mode gate, a test written before that gate existed can
+silently land on the wrong side of it. Re-read the test's PRECONDITIONS after adding any mode guard,
+not just the test's assertions.
+
+(2026-08-21, m30.)

@@ -15,7 +15,79 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-21 (latest). 🎯 `m29` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.**
+- 🟩 **YOU ARE HERE — 2026-08-21 (latest). `m30` IS BUILT AND GATED. TAG HELD pending TWO OWNER
+  EYEBALL VERDICTS (`G-P1`, `G-C1`) — everything else passes.**
+  🧭 **COLD START: read `docs/sessions/2026-08-21-048-m30-lod-proximity-gate-and-camera-clipping.md`.**
+  🎯 **`m30` = TWO POOL MEMBERS, BOTH DEFAULT-CHECKED. The delivered pool is now FIVE: `blinking`,
+  `missing_texture`, `corrupted_texture`, `lod_popping`, `camera_clipping`.**
+  ✅ **`lod_popping` FINISHES m29's DEFERRAL — the proximity gate is CALIBRATED, not chosen.**
+  `MinCoveragePct = 7.0`, **bounds-projected screen coverage at PICK TIME**, stacked on the ≥2-LOD
+  guard; below it Apply returns false through the same AMB-2 matched-zero path ⇒ **no fire, no label**.
+  Bounds only, no pixel read (`G127`-safe). **Bracket: 9.3453 % VISIBLE / 3.9045 % INVISIBLE**, the
+  visible signal collapsing **three orders of magnitude** between them (12,489 px → 14 px). Margins
+  **1.79× above the invisible anchor, 1.34× below the visible one**, biased toward REFUSING because a
+  positive label with no visible change is the dataset-poisoning direction.
+  🔑 **WHY m29 COULD NOT CLOSE IT AND m30 COULD, IN ONE LINE: m29 read coverage from
+  `annotation.json` and hit the `-1` sentinel and an inverted rect. THE GATE COMPUTES COVERAGE ITSELF
+  — instrumenting THAT and logging it made the label projector irrelevant.** Its inverted-rect bug is
+  untouched and out of scope. ✅ **Sound, not merely self-consistent: on the two rungs where both
+  routes produce a number they agree exactly — 33.0365 vs 33.04, 9.3453 vs 9.35.**
+  ⚠ **ONE QUANTITY THROUGHOUT: bounds coverage, NEVER drawn extent — they differ ~4× (the MainWorld
+  rock reads 11.83 % bounds while DRAWING 2.78 %), so mixing them silently moves the threshold.**
+  ✅ **`camera_clipping` IS THE FIRST GLOBAL-SCOPED POOL MEMBER.** Snapshot filter widened to
+  `Object || Global` ⇒ it renders in the existing checkbox list, **no dashboard layout work**;
+  `time_dilation` became eligible too and is **VERIFIED still hidden**, not assumed. Held for the whole
+  session (applied in `BeginActualRun`, AFTER `StartRun`'s clean slate, reverted at `FinishRun`) and
+  **NEVER routed through `TryFireOnce`**, which now skips Global ids — **the `"=ActorName"` misparse is
+  removed STRUCTURALLY, not guarded against.**
+  🚨 **THE DESIGN CALL, AND IT IS THE POINT: A FRAME IS LABELLED POSITIVE ONLY WHEN GEOMETRY IS
+  ACTUALLY WITHIN THE NEAR-CLIP RADIUS** — a per-frame sphere overlap at the camera, bounds only.
+  **The near plane being wrong is not the same as the viewer seeing anything wrong.** Labelling a whole
+  session positive would ship thousands of frames showing nothing — the client's original complaint at
+  scale — and **the m26 mask veto CANNOT catch it, because there is no target and therefore no mask.**
+  ✅ **`P6` DOES NOT MOVE, VERIFIED:** the event key set and `run_summary`'s key set are unchanged.
+  Whole-frame rides the existing shape as `coverage_ratio = 1` and per-frame `bbox_norm = 0,0,1,1`,
+  empty `asset_name`, `coverage_pct` left at its `-1` sentinel (it comes from selection provenance, and
+  a global anomaly has no selected actor).
+  ⏳ **BLOCKING AND OUTSTANDING — TWO OWNER VERDICTS, frames already sent:** **`G-P1`** lod_popping
+  visibly pops (MainWorld rock, LOD0 vs LOD3, **2,090 strong px in-bbox** against a 3,406 px
+  out-of-bbox control channel carrying the level's movers) · **`G-C1`** camera_clipping visibly slices
+  (**54.65 % of frame differs**; the wall fills the view OFF and is clipped away entirely ON).
+  **The tag is HELD until both are answered — m29's lesson: a tag cut before the verdict cannot carry it.**
+  ✅ **EVERYTHING ELSE PASSES.** **`G-P2′` CATEGORICAL** — `half_period_frames=8` **and 5 toggles at
+  BOTH 30 and 60 fps**; under the old seconds design doubling fps halves the per-frame cadence ·
+  **`G-P4` the gate FIRES** — rung D at **1.7681 %** refused, **0 `lod_popping` events in
+  `annotation.json`** · **`G-C2` BOTH DIRECTIONS** — close pose **60 positive / 0 negative**, open space
+  **0 / 120** · `G-C3` near-clip **10 → 100 → 10**, baseline read from the log not assumed ·
+  `G-C4` toggling camera_clipping is **ACCEPTED** (the R1 trap, tested positively) · `G-9′` ·
+  `G-8′` · **`G-R` regression TARGETED** — `corrupted_texture` and `missing_texture` both 5 events, all
+  manifested, canonical spans, all `n=8`.
+  ⚠ **HONEST LIMIT, NOT CLAIMED: `G-C2`'s "SAME SESSION" WAS NOT ACHIEVABLE.** Both directions are
+  proven on the same build across **two** sessions; one session cannot show both because **no cooked
+  level gives camera motion relative to nearby geometry.**
+  ⚠ **A NEAR-VACUOUS TEST, CAUGHT (`G96`'s shape):** B4's non-interference gate was specified against a
+  TARGETED leg, but session globals are deliberately skipped in targeted mode — so it would have passed
+  **because the condition never occurs.** Non-interference is instead evidenced where camera_clipping is
+  positive on EVERY frame, with the other anomalies' spans unchanged.
+  📊 **`A6` FIRE RATE, REPORTED NOT TUNED: 8 `lod_popping` draws across four packaged auto-pool legs —
+  2 SURVIVED the gate, 6 REFUSED (25 %).** The refusals are dominated by the **single-LOD** guard, not
+  the new coverage gate: MainWorld's structural geometry is largely single-LOD/Nanite. **Nothing was
+  loosened.** If 25 % is too thin in real play that is a pool-composition decision, not a threshold one.
+  ✅ **HYGIENE: `CB_LodCalib` is EXCLUDED from the shipping cook and the map gate is CLEAN at exit 0
+  with its expected set UNTOUCHED — the gate was not silenced to make it quiet.** ⚠ The gates needing
+  that level (`G-P4`, `G-C1`, `G-C2`, the calibration) ran on the gating build, which differed from the
+  shipping build **only** by its presence; the code is identical. Stated rather than glossed.
+  🧪 **`G151` EARNED ITS KEEP THREE TIMES IN ONE SESSION.** The near-wall demo took three iterations —
+  first too far (the query's `0 positive` was CORRECT, my geometry was wrong), then unlit (a black
+  rectangle: a valid diff, a useless artifact), then lit. **Every intermediate frame was luma-checked
+  before being trusted.**
+  📦 **BUILD QUARTET (`G121`):** exe **`99AE7526`** · utoc **`3D4C02D9`** · ucas **`D15236B2`** ·
+  pak **`BFB95333`**.
+  ⛔ **NOT DONE, named:** `G-10` still never confirmed against a running dashboard · the label
+  projector's inverted rect on synthetic levels is **untouched and out of scope** · instanced/foliage
+  mesh class still never drawn by the pool for the pink check.
+  🧭 **`P6` NOT MOVED · `feature/stencil-capture` UNTOUCHED · no force-push · no ratio proposed.**
+- 🟦 *(superseded as "you are here" by the `m30` entry above — `m29` is the last TAGGED milestone)* **2026-08-21. 🎯 `m29` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.**
   🧭 **COLD START: read `docs/sessions/2026-08-21-047-m29-corrupted-texture-and-lod-popping.md`. It is
   self-contained and OPENS WITH TWO CORRECTIONS TO ITS OWN EARLIER REPORT — read those first.**
   🎯 **`m29` = `corrupted_texture`, a NEW 9th anomaly, object-scoped, DEFAULT-CHECKED in the delivered
