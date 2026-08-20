@@ -102,6 +102,7 @@ private:
 	};
 
 	void BeginActualRun();
+	void OnEndFrameMaskSample();
 	bool HasGameWindow(UWorld* World) const;
 	bool IsGameWindowFocused(UWorld* World) const;
 	void BeginFire();
@@ -197,6 +198,7 @@ private:
 	bool bAsyncCapture = true;
 	bool bSveCapture = true;
 	bool bMaskMeasure = false;
+	FDelegateHandle MaskEndFrameHandle;
 	bool bRectDeltaLogged = false;
 	bool bDeliveryMode = false;
 	EContentClock ContentClock = EContentClock::Wall;

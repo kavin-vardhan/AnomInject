@@ -25,6 +25,7 @@ void FAnomalyMaskMeasure::BeginRun()
 {
 	Records.Reset();
 	ArmedRequestToRecord.Reset();
+	PollutedRequests.Reset();
 	NextTagOffset = 0;
 
 	const int32 Before = ReadCustomDepthCVar();
@@ -45,6 +46,7 @@ void FAnomalyMaskMeasure::EndRun()
 	UntagAll();
 	AnomalyStencilTag::DisableCustomStencil();
 	ArmedRequestToRecord.Reset();
+	PollutedRequests.Reset();
 	NextTagOffset = 0;
 }
 
@@ -164,8 +166,9 @@ bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, u
 
 void FAnomalyMaskMeasure::VerifyPendingTags()
 {
-	for (FAnomalyMaskRecord& R : Records)
+	for (int32 RecordIndex = 0; RecordIndex < Records.Num(); ++RecordIndex)
 	{
+		FAnomalyMaskRecord& R = Records[RecordIndex];
 		if (R.ArmsIssued <= 0 || R.ArmsIssued == R.ArmsResolved)
 		{
 			continue;
@@ -183,13 +186,21 @@ void FAnomalyMaskMeasure::VerifyPendingTags()
 			{
 				R.FirstCollisionDetail = Detail;
 			}
+			for (const TPair<uint64, int32>& Pair : ArmedRequestToRecord)
+			{
+				if (Pair.Value == RecordIndex)
+				{
+					PollutedRequests.Add(Pair.Key);
+				}
+			}
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture(mask): OBSERVED - the stencil tag did not read back for '%s' on '%s' (tag %d) - %s. ")
-				TEXT("CAUSE NOT ESTABLISHED. This measurement is discarded and the event stays NOT_MEASURED ")
-				TEXT("(admit). DISCRIMINATORS: the component property being overwritten means something else ")
-				TEXT("re-asserted it; the property reading back correctly while the MASK still misses the tag ")
-				TEXT("means the fault is on the READ side, not the write. Reserved base %d is a CONVENTION, ")
-				TEXT("not a reservation."),
+				TEXT("CAUSE NOT ESTABLISHED. The frames currently in flight for this event are discarded; ")
+				TEXT("frames whose reads were clean still contribute, and an event with no clean frame stays ")
+				TEXT("NOT_MEASURED (admit), never MEASURED_ZERO. DISCRIMINATORS: the component property being ")
+				TEXT("overwritten means something else re-asserted it; the property reading back correctly while ")
+				TEXT("the MASK still misses the tag means the fault is on the READ side, not the write. Reserved ")
+				TEXT("base %d is a CONVENTION, not a reservation."),
 				*R.Id.ToString(), *R.Target, (int32)R.Tag, *Detail, AnomalyStencilTag::ReservedStencilBase);
 		}
 	}
@@ -216,6 +227,7 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 		if (!IndexPtr || !Records.IsValidIndex(*IndexPtr))
 		{
 			ArmedRequestToRecord.Remove(RequestId);
+			PollutedRequests.Remove(RequestId);
 			continue;
 		}
 
@@ -223,8 +235,11 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 		++R.ArmsResolved;
 		R.ViewportPixels = Mask.ViewRectSize.X * Mask.ViewRectSize.Y;
 
+		bool bFramePolluted = PollutedRequests.Remove(RequestId) > 0;
+
 		if (Mask.bSawUnassignedReservedTag)
 		{
+			bFramePolluted = true;
 			++R.CollisionHits;
 			if (R.FirstCollisionDetail.IsEmpty())
 			{
@@ -234,16 +249,23 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 			}
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture(mask): OBSERVED - the mask carried reserved-range tag %d, which this run never ")
-				TEXT("assigned. CAUSE NOT ESTABLISHED. This measurement is discarded and the event stays ")
-				TEXT("NOT_MEASURED (admit). DISCRIMINATORS: 255 uniformly across the frame is the engine's ")
-				TEXT("StencilDummy fallback (FColor::White), bound when custom depth was NOT produced for the ")
-				TEXT("frame - i.e. our stencil was never read; a value in a GEOMETRY-SHAPED region, or any ")
-				TEXT("value other than 255, is something genuinely writing into the reserved range."),
+				TEXT("assigned. CAUSE NOT ESTABLISHED. THIS FRAME's read is discarded; frames of this event ")
+				TEXT("whose reads were clean still contribute, and an event with no clean frame stays ")
+				TEXT("NOT_MEASURED (admit), never MEASURED_ZERO. DISCRIMINATORS: 255 uniformly across the ")
+				TEXT("frame is the engine's StencilDummy fallback (FColor::White), bound when custom depth ")
+				TEXT("was NOT produced for the frame - i.e. our stencil was never read; a value in a ")
+				TEXT("GEOMETRY-SHAPED region, or any value other than 255, is something genuinely writing ")
+				TEXT("into the reserved range."),
 				(int32)Mask.FirstUnassignedTag);
 		}
 
-		if (R.CollisionHits > 0)
+		if (bFramePolluted)
 		{
+			++R.FramesDiscarded;
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(mask): M24 FRAME DISCARDED id=%llu target=%s tag=%d framesDiscarded=%d ")
+				TEXT("framesContributed=%d (frame-scoped: only this read is dropped)"),
+				RequestId, *R.Target, (int32)R.Tag, R.FramesDiscarded, R.FramesContributed);
 			ArmedRequestToRecord.Remove(RequestId);
 			continue;
 		}
@@ -254,10 +276,31 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 			Count = Found->Count;
 		}
 
+		++R.FramesContributed;
 		R.MaxCount = FMath::Max(R.MaxCount, Count);
 		R.State = (R.MaxCount > 0) ? EAnomalyMaskState::MeasuredNonZero : EAnomalyMaskState::MeasuredZero;
 
 		ArmedRequestToRecord.Remove(RequestId);
+	}
+}
+
+void FAnomalyMaskMeasure::SampleEndOfFrame()
+{
+	const uint64 FrameId = (uint64)GFrameCounter;
+	for (const TPair<uint64, int32>& Pair : ArmedRequestToRecord)
+	{
+		if (Pair.Key != FrameId || !Records.IsValidIndex(Pair.Value))
+		{
+			continue;
+		}
+		const FAnomalyMaskRecord& R = Records[Pair.Value];
+		const AActor* Actor = R.TargetActor.Get();
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(mask): M24 ENDFRAME id=%llu target=%s tag=%d hiddenAtArm=0 hiddenAtEndOfFrame=%d ")
+			TEXT("actorValid=%d (sampled after all subsystem ticks; this is the state the frame rendered)"),
+			Pair.Key, *R.Target, (int32)R.Tag,
+			(Actor && Actor->IsHidden()) ? 1 : 0,
+			Actor ? 1 : 0);
 	}
 }
 
