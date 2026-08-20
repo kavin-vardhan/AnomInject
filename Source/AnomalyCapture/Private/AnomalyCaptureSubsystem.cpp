@@ -733,6 +733,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	PositiveFramesWritten = 0;
 	ZeroMatchBursts = 0;
 	NonManifestedEvents = 0;
+	VetoedEvents = 0;
 	SessionFrameIndex = 0;
 	FirstFrameTimeSeconds = -1.0;
 	LastFrameTimeSeconds = -1.0;
@@ -781,11 +782,14 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		Async->MaskMeasure.BeginRun();
 		bMaskProbeFiredThisRun = false;
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture(mask): m26 SLICES 1+2 ACTIVE - MEASURE AND REPORT. annotation.json's ALREADY-SHIPPING ")
-			TEXT("mask{provided} now carries the measurement tri-state's bool (NOT_MEASURED -> false, ")
-			TEXT("MEASURED_ZERO/MEASURED_NONZERO -> true). NO sub-fields are added, depth{} is untouched, the ")
-			TEXT("field SET is unchanged, and NOTHING IS VETOED - slice 3 does not exist. Reserved stencil ")
-			TEXT("base %d, max %d arms/event."),
+			TEXT("Capture(mask): m26 SLICES 1+2+3 ACTIVE - MEASURE, REPORT AND VETO. annotation.json's ")
+			TEXT("ALREADY-SHIPPING mask{provided} carries the measurement tri-state's bool (NOT_MEASURED -> ")
+			TEXT("false, MEASURED_ZERO/MEASURED_NONZERO -> true); NO sub-fields are added and depth{} is ")
+			TEXT("untouched. THE VETO IS ZERO-ONLY: an event is removed from annotation.json IF AND ONLY IF it ")
+			TEXT("is manifested AND its target was MEASURED at ZERO drawn pixels. NOT_MEASURED is never ")
+			TEXT("vetoed, and a measured NON-ZERO count is never vetoed however small a fraction of its ")
+			TEXT("claimed extent it is - there is NO ratio and NO threshold. The captured frames are NOT ")
+			TEXT("un-written. Reserved stencil base %d, max %d arms/event."),
 			AnomalyStencilTag::ReservedStencilBase, FAnomalyMaskMeasure::MaxArmsPerEvent);
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(mask): probe EFFECTIVE=%d (flag=%d, deliveryMode=%d - the probe is INERT in ")
@@ -1586,6 +1590,40 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 		LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps);
 }
 
+#if ANOMALY_CAPTURE
+static bool MaskStateProvidesMeasurement(EAnomalyMaskState State)
+{
+	switch (State)
+	{
+	case EAnomalyMaskState::MeasuredZero:    return true;
+	case EAnomalyMaskState::MeasuredNonZero: return true;
+	default:                                 return false;
+	}
+}
+
+static bool MaskStateVetoes(EAnomalyMaskState State)
+{
+	return State == EAnomalyMaskState::MeasuredZero;
+}
+
+static bool AccumEventManifested(const FSessionEventAccum& Ev)
+{
+	bool bKnownId = false;
+	if (!IsHideTypeAnomaly(Ev.Id, bKnownId))
+	{
+		return true;
+	}
+	for (const TPair<int32, uint8>& Pair : Ev.HiddenByIndex)
+	{
+		if (Pair.Value)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+#endif
+
 void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 {
 	SampleDeferredHidden();
@@ -1619,7 +1657,51 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			MaskNoPassDiscards = Async->MaskMeasure.TotalNoPassDiscards();
 		}
 
+		VetoedEvents = 0;
+		int32 CountedEventsBefore = Async.IsValid() ? Async->SessionEvents.Num() : 0;
+		if (bMaskMeasure && Async.IsValid())
+		{
+			for (int32 i = Async->SessionEvents.Num() - 1; i >= 0; --i)
+			{
+				const FSessionEventAccum& Ev = Async->SessionEvents[i];
+				if (!AccumEventManifested(Ev))
+				{
+					continue;
+				}
+				const FAnomalyMaskRecord* Rec =
+					Async->MaskMeasure.FindRecord(Ev.Id, Ev.Target, Ev.StartFrame);
+				if (!Rec || !MaskStateVetoes(Rec->State))
+				{
+					continue;
+				}
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(mask): M26S3 VETO id=%s target=%s startFrame=%llu state=%s - the target was ")
+					TEXT("MEASURED and contributed ZERO drawn pixels, so this event is removed from ")
+					TEXT("annotation.json before it is written. The captured FRAMES are NOT un-written (L1). ")
+					TEXT("NOT_MEASURED is never vetoed, and a measured NON-ZERO count is never vetoed however ")
+					TEXT("small it is - the rule is zero-only and there is no ratio or threshold."),
+					*Ev.Id.ToString(), *Ev.Target, Ev.StartFrame,
+					LexToStringAnomalyMaskState(Rec->State));
+				Async->SessionEvents.RemoveAt(i);
+				++VetoedEvents;
+			}
+		}
+
 		WriteSessionAnnotationFile();
+
+		if (bMaskMeasure && Async.IsValid())
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(mask): M26S3 G-11 countedEventsBefore=%d countedEventsAfter=%d vetoedEvents=%d ")
+				TEXT("nonManifestedEvents=%d - the two counters are DISJOINT by construction: manifested is ")
+				TEXT("evaluated FIRST and a non-manifested event is NEVER vetoed. non_manifested_events means ")
+				TEXT("'the hide never showed in pixels'; vetoed_events means 'the target contributed no pixels ")
+				TEXT("to hide'. A CERTIFYING leg with fewer than 3 counted events AFTER the veto is INVALID and ")
+				TEXT("must be reported as invalid, never graded on the reduced set. A demonstration leg that ")
+				TEXT("vetoes everything is the veto WORKING, not a validity failure - the distinction is the ")
+				TEXT("leg's ROLE, fixed before it runs."),
+				CountedEventsBefore, Async->SessionEvents.Num(), VetoedEvents, NonManifestedEvents);
+		}
 
 		AnomalyLabel::FRingTelemetry RingTelemetry;
 		if (bSveCapture)
@@ -1637,7 +1719,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
 			bSveCapture ? TEXT("sve") : TEXT("backbuffer"),
 			bSveCapture ? &RingTelemetry : nullptr,
-			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards);
+			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards, VetoedEvents);
 
 		if (bSveCapture)
 		{
@@ -1829,18 +1911,6 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 		Ev->HiddenByIndex.Add(SessionIndex, (uint8)Hidden);
 	}
 }
-
-#if ANOMALY_CAPTURE
-static bool MaskStateProvidesMeasurement(EAnomalyMaskState State)
-{
-	switch (State)
-	{
-	case EAnomalyMaskState::MeasuredZero:    return true;
-	case EAnomalyMaskState::MeasuredNonZero: return true;
-	default:                                 return false;
-	}
-}
-#endif
 
 void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 {
@@ -2176,9 +2246,14 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskCmd(
 	TEXT("is measured post-revert; an event with no qualifying frame stays NOT_MEASURED. SLICE 2 REPORTING: ")
 	TEXT("annotation.json's already-shipping mask{provided} carries the tri-state's bool - NOT_MEASURED false ")
 	TEXT("(never measured, MUST be admitted), MEASURED_ZERO and MEASURED_NONZERO true. NO sub-fields are added ")
-	TEXT("under mask, depth{} is untouched, the field SET is unchanged, and NOTHING IS VETOED - slice 3 does ")
-	TEXT("not exist. With this OFF no event has a record, so mask{provided} is false everywhere and the output ")
-	TEXT("is unchanged. Mid-run changes are ignored (stop first). Usage: IAI.Capture.Mask <0|1>"),
+	TEXT("under mask and depth{} is untouched. SLICE 3 VETO, ZERO-ONLY: an event is removed from ")
+	TEXT("annotation.json IF AND ONLY IF it is manifested AND its target was MEASURED at ZERO drawn pixels. ")
+	TEXT("NOT_MEASURED is NEVER vetoed; a measured NON-ZERO count is NEVER vetoed however small a fraction of ")
+	TEXT("its claimed extent it is - there is NO ratio and NO threshold. Removed events are counted in ")
+	TEXT("run_summary vetoed_events, which stays DISJOINT from non_manifested_events; the captured frames are ")
+	TEXT("NOT un-written. With this OFF no event has a record, so mask{provided} is false everywhere, nothing ")
+	TEXT("is vetoed and the output is unchanged. Mid-run changes are ignored (stop first). ")
+	TEXT("Usage: IAI.Capture.Mask <0|1>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{

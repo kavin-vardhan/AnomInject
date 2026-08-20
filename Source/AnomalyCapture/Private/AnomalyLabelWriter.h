@@ -79,7 +79,8 @@ namespace AnomalyLabel
 		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode,
 		const FString& ContentClock, int32 NonManifestedEvents, const FString& CapturePath,
 		const FRingTelemetry* Ring = nullptr,
-		int32 MaskProbeArms = 0, int32 MaskResidualDiscards = 0, int32 MaskNoPassDiscards = 0);
+		int32 MaskProbeArms = 0, int32 MaskResidualDiscards = 0, int32 MaskNoPassDiscards = 0,
+		int32 VetoedEvents = 0);
 
 
 	struct FSessionVideo

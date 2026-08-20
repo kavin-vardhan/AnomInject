@@ -153,6 +153,7 @@ private:
 	int32 PositiveFramesWritten = 0;
 	int32 ZeroMatchBursts = 0;
 	int32 NonManifestedEvents = 0;
+	int32 VetoedEvents = 0;
 
 	int32 SessionFrameIndex = 0;
 	int32 FrameCap = 0;

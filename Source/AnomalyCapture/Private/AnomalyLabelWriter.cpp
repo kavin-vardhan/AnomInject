@@ -322,7 +322,8 @@ namespace AnomalyLabel
 		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode,
 		const FString& ContentClock, int32 NonManifestedEvents, const FString& CapturePath,
 		const FRingTelemetry* Ring,
-		int32 MaskProbeArms, int32 MaskResidualDiscards, int32 MaskNoPassDiscards)
+		int32 MaskProbeArms, int32 MaskResidualDiscards, int32 MaskNoPassDiscards,
+		int32 VetoedEvents)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -346,6 +347,7 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("mask_probe_arms"), MaskProbeArms);
 		Root->SetNumberField(TEXT("mask_residual_discards"), MaskResidualDiscards);
 		Root->SetNumberField(TEXT("mask_nopass_discards"), MaskNoPassDiscards);
+		Root->SetNumberField(TEXT("vetoed_events"), VetoedEvents);
 
 		if (Ring)
 		{
