@@ -13,6 +13,7 @@
 #include "ShaderParameterStruct.h"
 #include "PixelShaderUtils.h"
 #include "SceneTextureParameters.h"
+#include "HAL/IConsoleManager.h"
 
 class FViewInfo;
 
@@ -122,10 +123,33 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	TUniquePtr<FRHIGPUTextureReadback> Readback = MakeUnique<FRHIGPUTextureReadback>(TEXT("AnomalyMaskReadback"));
 	AddEnqueueCopyPass(GraphBuilder, Readback.Get(), MaskRT);
 
+	int32 ModeAtPass = -1;
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth")))
+	{
+		ModeAtPass = CVar->GetInt();
+	}
+
+	FIntPoint StencilExtent = FIntPoint::ZeroValue;
+	if (Inputs.SceneTextures.SceneTextures)
+	{
+		const auto SceneTexParams = Inputs.SceneTextures.SceneTextures->GetParameters();
+		if (SceneTexParams->CustomStencilTexture && SceneTexParams->CustomStencilTexture->Desc.Texture)
+		{
+			StencilExtent = SceneTexParams->CustomStencilTexture->Desc.Texture->Desc.Extent;
+		}
+	}
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(mask): M23 PASS id=%llu rCustomDepth_renderThread=%d customStencilExtent=%dx%d ")
+		TEXT("viewRect=%dx%d (StencilDummy is 1x1: extent 1x1 means custom depth was NOT produced)"),
+		RequestId, ModeAtPass, StencilExtent.X, StencilExtent.Y, Size.X, Size.Y);
+
 	FMaskInFlight Item;
 	Item.RequestId = RequestId;
 	Item.Readback = MoveTemp(Readback);
 	Item.ViewRectSize = Size;
+	Item.CustomDepthModeAtPass = ModeAtPass;
+	Item.CustomStencilExtent = StencilExtent;
 	InFlight.Add(MoveTemp(Item));
 
 	return SceneColor;
@@ -219,8 +243,21 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread()
 				{
 					Result.bSawUnassignedReservedTag = true;
 					Result.FirstUnassignedTag = Tag;
+					Result.UnassignedTagCount = Counts[t];
 				}
 			}
+
+			Result.CustomDepthModeAtPass = Item.CustomDepthModeAtPass;
+			Result.CustomStencilExtent = Item.CustomStencilExtent;
+
+			const int32 ViewPixels = W * H;
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(mask): M23 REDUCE id=%llu mode=%d stencilExtent=%dx%d totalMasked=%d ")
+				TEXT("unassignedTag=%d unassignedCount=%d viewPixels=%d unassignedPctOfFrame=%.2f"),
+				Item.RequestId, Item.CustomDepthModeAtPass, Item.CustomStencilExtent.X,
+				Item.CustomStencilExtent.Y, Result.TotalMaskedPixels,
+				(int32)Result.FirstUnassignedTag, Result.UnassignedTagCount, ViewPixels,
+				ViewPixels > 0 ? (100.0 * (double)Result.UnassignedTagCount / (double)ViewPixels) : -1.0);
 
 			Item.Readback->Unlock();
 

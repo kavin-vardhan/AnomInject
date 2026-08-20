@@ -7,17 +7,41 @@
 #include "AnomalyStencilTag.h"
 
 #include "GameFramework/Actor.h"
+#include "HAL/IConsoleManager.h"
+
+namespace
+{
+	int32 ReadCustomDepthCVar()
+	{
+		if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth")))
+		{
+			return CVar->GetInt();
+		}
+		return -1;
+	}
+}
 
 void FAnomalyMaskMeasure::BeginRun()
 {
 	Records.Reset();
 	ArmedRequestToRecord.Reset();
 	NextTagOffset = 0;
+
+	const int32 Before = ReadCustomDepthCVar();
 	AnomalyStencilTag::EnableCustomStencil();
+	const int32 After = ReadCustomDepthCVar();
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(mask): M23 CVAR beginRun rCustomDepth before=%d after=%d (3 = EnabledWithStencil; ")
+		TEXT("1 = Enabled WITHOUT stencil writes, which is the engine default)"),
+		Before, After);
 }
 
 void FAnomalyMaskMeasure::EndRun()
 {
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(mask): M23 CVAR finishRun rCustomDepth before restore=%d"), ReadCustomDepthCVar());
+
 	UntagAll();
 	AnomalyStencilTag::DisableCustomStencil();
 	ArmedRequestToRecord.Reset();
@@ -126,6 +150,12 @@ bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, u
 		Sve->ArmMask(RequestId);
 		++R.ArmsIssued;
 		ArmedRequestToRecord.Add(RequestId, i);
+
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(mask): M23 ARM id=%llu target=%s tag=%d taggedComponents=%d ")
+			TEXT("rCustomDepth_gameThread=%d armIndex=%d"),
+			RequestId, *R.Target, (int32)R.Tag, Tagged, ReadCustomDepthCVar(), R.ArmsIssued);
+
 		return true;
 	}
 

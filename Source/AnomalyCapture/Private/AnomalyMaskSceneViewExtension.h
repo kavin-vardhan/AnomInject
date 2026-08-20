@@ -46,6 +46,8 @@ private:
 		uint64 RequestId = 0;
 		TUniquePtr<FRHIGPUTextureReadback> Readback;
 		FIntPoint ViewRectSize = FIntPoint::ZeroValue;
+		int32 CustomDepthModeAtPass = -1;
+		FIntPoint CustomStencilExtent = FIntPoint::ZeroValue;
 	};
 
 	mutable FCriticalSection StateCS;

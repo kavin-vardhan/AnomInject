@@ -18,6 +18,9 @@ struct FAnomalyMaskResult
 	int32 TotalMaskedPixels = 0;
 	bool bSawUnassignedReservedTag = false;
 	uint8 FirstUnassignedTag = 0;
+	int32 UnassignedTagCount = 0;
+	int32 CustomDepthModeAtPass = -1;
+	FIntPoint CustomStencilExtent = FIntPoint::ZeroValue;
 };
 
 enum class EAnomalyMaskState : uint8
