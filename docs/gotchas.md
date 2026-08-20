@@ -3304,3 +3304,39 @@ EVIDENCE, not a measurement** — it prints its own two weaknesses (the struct c
 different sub-field; `bEnabled` is a generic name), and it is load-bearing only as a DIFFERENTIAL
 across a set whose measured behaviour is already known. The editor bridge was refused
 (`Connection refused`), so `A59` corroboration was **abandoned rather than worked around**.
+
+---
+
+### G135 — a calibration environment built from a RESTRICTED ASSET SET cannot exhibit defect classes that depend on assets outside it, and the blindness presents as a CLEAN PASS
+
+`CB_GateLevel` is built by `make_gate_level.py:54-58` **entirely from `/Engine/BasicShapes/`** —
+Cube, Sphere, Cylinder, Cone. Every one is non-Nanite. The `m26` mask instrument was therefore
+green on that level for an entire milestone **while being structurally incapable of measuring
+Nanite geometry (`G134`)** — a limit that only appeared when a control was finally run on real
+level content (`SM_Ramp2`, journal PART TWENTY-SIX).
+
+**The failure mode is the point: the bench did not report a gap, it reported success.** Nothing in
+a run on BasicShapes geometry can distinguish *"the instrument works"* from *"the instrument works
+on everything this level contains."*
+
+🚨 **THE TENSION IS REAL AND IS NOT RESOLVED HERE, DELIBERATELY.** The properties that make
+`CB_GateLevel` a good instrument — fully controlled, script-authored, deterministic, frozen — are
+**the same properties that make it unrepresentative of shipped content.** You cannot have both in
+one level. ⛔ **Do NOT "fix" this by changing `CB_GateLevel`**: it is frozen, `m25`'s certifications
+are expressed in it, and `G99` guards it. **The correct response is knowing what it cannot show,
+and running the ship-gate controls somewhere else.**
+
+**RULES.**
+1. **Enumerate what your calibration environment is MADE OF, not just what it is shaped like** —
+   asset features (Nanite, landscape, water, skeletal, instanced, translucent, WPO) are defect-class
+   dimensions, and a level that contains one value of each certifies only that value.
+2. **A ship gate needs at least one control on REAL CONTENT**, precisely because the calibration
+   level cannot surprise you. `N-2` on `SM_Ramp2` is what caught `G134`; it earned its place in one
+   leg.
+3. **Say what the environment cannot show, in the certification** — an instrument certified on a
+   restricted set is certified FOR that set until proven wider.
+
+*(Same family as `G107` — a calibration set that brackets a regime without containing it — and `P8`
+— TAU is not pose-invariant. All three are "the control was valid and the conclusion was not."*
+*Found in journal 045 PART TWENTY-SEVEN by asking why the control worked rather than being*
+*satisfied that it did.)* (2026-08-20.)

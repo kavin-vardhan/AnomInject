@@ -39,7 +39,7 @@ been the difference between a finding and a foreclosure (**G120**).
 
 | | |
 |---|---|
-| **status** | ✅ **SUPPORTED, REPRODUCED HERE** |
+| **status** | ✅ **SUPPORTED, REPRODUCED HERE — and 🆕 MEASURED BY THE CURE ITSELF ON BOTH INSTANCES (2026-08-20, journal PART TWENTY-EIGHT §195).** `BP_SplineSpawn_C`: label claims **22.89 %** of frame, mask measures **ZERO surviving pixels**, 8 of 8 events. `InstancedFoliageActor_0_0_0`: label claims **100 % / `bbox_px (0,0,1280,720)`**, mask measures **0.62–1.45 %** — it draws **~1.4 % of what it claims**. **Both with every integrity bucket clean** (`framesContributed = arms`; discarded/residual/unconfirmed/noPass/probe/collisions/tagFailed all 0; 29/29 armed frames view-sized). ⛔ **Measurement only — slice 3 does not exist, nothing was vetoed, NO THRESHOLD proposed, NO INCIDENCE CLAIM.** |
 | **what it is** | Selection requires a renderable component — **a TYPE test, not a DRAWING test**. `UInstancedStaticMeshComponent` derives from `UStaticMeshComponent`, so aggregates pass trivially while their `Bounds` cover the whole cluster. The label describes the container; the pixels are a small subset of it. |
 | **evidence** | **MEASURED.** `InstancedFoliageActor_0_0_0`: `bbox_px (0,0,1280,720)` on 59/59 rows — **the entire frame** — `coverage_ratio 1.0`, `coverage_pct 100`, `manifested true`, while whole-frame change was **~0.0069** and an 8×8 grid put it in **4 of 64 cells**. |
 | **pointer** | journal 045 PART NINE · **G124** |

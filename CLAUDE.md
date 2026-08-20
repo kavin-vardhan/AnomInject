@@ -15,13 +15,58 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (fifth session). `m26` IS IN PROGRESS: BOTH SLICE-1 FAULTS FIXED
-  AND PROVEN · THE EXTENT PRECONDITION SHIPPED AND CLOSED THE FALSE ZERO · 🎯 **BOTH `H5` TARGETS
-  CONFIRMED NON-NANITE, SO THE CURE REACHES THE INSTANCES THAT MOTIVATED IT.** ONE LEG IS OWED
-  BEFORE `H5` UNBLOCKS. LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING TAGGED SINCE.**
+- 🟩 **YOU ARE HERE — 2026-08-20 (sixth session). 🎯 `m26` SLICE 1 IS DONE AND CERTIFIED: `F-6`
+  COMPLETE ON ALL FIVE ITEMS, AND THE `H5` LEGS ARE RUN — THE CURE IDENTIFIES BOTH INSTANCES THAT
+  MOTIVATED IT. SLICES 2 AND 3 ARE THE OWNER'S NEXT CALL. LAST SHIPPED MILESTONE IS STILL `m25`;
+  NOTHING TAGGED SINCE.**
   🧭 **COLD START: read `docs/invisible-anomaly-mechanisms.md` (the ledger), then go STRAIGHT to the
   `HANDOFF` section at the END of `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`
-  (PART TWENTY-SEVEN). THAT HANDOFF IS SELF-CONTAINED.**
+  (PART TWENTY-EIGHT). THAT HANDOFF IS SELF-CONTAINED.**
+  🎯 **THE `H5` LEGS — the measurement the milestone was blocked on. Branches pre-declared at bench
+  `2c2e60a` BEFORE either leg ran:**
+  · **`BP_SplineSpawn_C` (`SM_GenericPlane`): label claims `coverage_pct` 22.89 % — mask measures
+  `MEASURED_ZERO`, ZERO pixels, on ALL 8 EVENTS. Branch `Z1`, the aimed-at result.**
+  · **`InstancedFoliageActor_0_0_0` (`SM_Bush`): label claims `coverage_pct` 100 % with
+  `bbox_px (0,0,1280,720)` — THE ENTIRE FRAME — mask measures 5,689–13,342 px = 0.62–1.45 %, i.e.
+  it draws ≈1.4 % of what it claims. Branch `Z2`.**
+  🚨 **BOTH ZEROS ARRIVED INTERPRETABLE — that is what makes them evidence:** `framesContributed =
+  arms` on every event, and `framesDiscarded / framesResidual / framesUnconfirmed / framesNoPass /
+  probeArms / collisions / tagFailed` **ALL ZERO**, with **29/29 armed frames view-sized (zero
+  dummies)** on every leg. **Pre-declared branch `X` — "any zero with any bucket non-zero is NOT
+  YET INTERPRETABLE" — did NOT fire.** The target was tagged, the tag verified held, the pass
+  produced, and visibility confirmed at both brackets — and the mask still found nothing.
+  ✅ **`F-6` IS COMPLETE, ALL FIVE ITEMS.** Item 2 satisfied by the replacement `N-2` control
+  **`StaticMeshActor_73`** (`Cylinder`, non-Nanite): **8/8 `MEASURED_NONZERO` at 5.27 % of frame
+  against its own claimed 6.87 %**, all buckets clean, accepted attempt 1. **`SM_Ramp2` is retired
+  from `N-2` and now serves as the KNOWN-NANITE control** (must read `NOT_MEASURED` every time — a
+  positive test for `G134` and the first place a future engine bump would show).
+  📊 **The four targets, reported and DELIBERATELY NOT THRESHOLDED** (drawn ÷ claimed):
+  `StaticMeshActor_49` **0.93** · `StaticMeshActor_73` **0.77** · foliage **0.014** ·
+  `BP_SplineSpawn_C` **0.000**. ⛔ **NO threshold is proposed or implied — four targets on one title
+  is a distribution sketch, not a calibration; slice 3's veto rule is a separate decision.**
+  ⛔ **WHAT THESE LEGS DO NOT ESTABLISH, declared in advance and restated after: NO INCIDENCE
+  CLAIM · `H5` class (i) still ENUMERATED-NOT-OBSERVED · NOT a veto test (slice 3 does not exist;
+  nothing was removed from any artifact — these legs MEASURE, they do not ACT) · NOT a Nanite
+  result (both targets are non-Nanite).**
+  ⚠ **ONE NUANCE RECORDED, NOT SMOOTHED:** the spline's banked hide showed a small non-zero luma
+  change (**0.0175**) while the mask reads exactly 0 — **consistent with plan risk 7 / A35: the
+  mask measures DRAWN SILHOUETTE, not VISUAL EFFECT.** The already-recorded limit showing up where
+  the plan said it would; not re-opened.
+  ✅ **RULINGS RECORDED: (1) the third field APPROVED — `run_summary` is `+3`
+  (`mask_probe_arms`, `mask_residual_discards`, `mask_nopass_discards`), and the `m26` scope
+  statement now SAYS `+3`, not `+2`. (2) The Nanite entanglement is in `client-delivery.md` as its
+  own `⛔ KNOWN LIMITATION` headline section, in the ruling's own terms, with no percentage.
+  (3) 🆕 `G135` — a calibration environment built from a RESTRICTED ASSET SET cannot exhibit defect
+  classes outside that set, and the blindness presents as a CLEAN PASS; the tension is STATED, not
+  resolved, and CB_GateLevel is NOT changed (`G99`).**
+  📦 staged exe **`F93AEF71`**, container unchanged, A44 green. Banked: `P28_N2_CYL73`,
+  `P28_H5_FOLIAGE`, `P28_H5_SPLINE` — **all three accepted on attempt 1**; `B1` NOT APPLICABLE on
+  all three, declared in advance (`G117`). **`P6` measured unchanged on all three: 48/48.**
+  ⛔ **NEXT IS THE OWNER'S: whether to start slice 2 (reporting) and slice 3 (the veto). DO NOT
+  START EITHER UNPROMPTED.** `P6` does not move · CB_GateLevel untouched · stencil range 200/255 ·
+  `feature/stencil-capture` READ-ONLY · depth work parked · **NO TAG.**
+- 🟦 *(superseded — the fifth 2026-08-20 session: T-1 answered, the extent precondition shipped)*
+  **Both `H5` targets confirmed NON-NANITE; `G133` closed.**
   🎯 **`T-1` ANSWERED FIRST, AS RULED — IT OUTRANKED THE THREE RULINGS.** Asset-side, read-only,
   pre-declared at bench `3fdea29` before the first read: **`InstancedFoliageActor_0_0_0` →
   `SM_Bush` = NON-NANITE · `BP_SplineSpawn_C` → `SM_GenericPlane` = NON-NANITE** ⇒ **branch one:

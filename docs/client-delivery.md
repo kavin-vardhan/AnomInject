@@ -169,6 +169,39 @@ annotation.json only, so the client's mp4 still encodes from a delivery session.
 `type`, `schema_version`, `total_frames`, `positive_frames`, `bursts_done`, `zero_match_bursts`,
 `end_frame` (raw engine frame counter), `target_fps`, `sustained_wall_fps`, `speed_ratio`, `stamped_fps`,
 `paced`, `delivery_mode`. No seed; nothing owner-sensitive.
+Since `S4`: `capture_path` and the five `key_ring_*` counters.
+🆕 **Since `m26`: `mask_probe_arms`, `mask_residual_discards`, `mask_nopass_discards`** — see the
+Nanite limitation below. **`mask_probe_arms` must read `0` on every delivered session** (it counts
+deliberate bench-only probe arms; the pre-delivery checklist has the check).
+
+## ⛔ KNOWN LIMITATION (`m26`) — THE CURE CANNOT SEE NANITE GEOMETRY, AND ON A NANITE-HEAVY TITLE THAT IS MOST OF THE LEVEL
+
+`m26` decides whether a labelled target actually drew anything by rasterising it into a
+**custom-depth / stencil mask**. On **UE 5.1 a Nanite primitive cannot write custom depth at all** —
+the Nanite scene proxy never sets `bRenderCustomDepth` and the custom-depth pass has no Nanite path.
+Setting the flag on a Nanite component **succeeds and verifies, and never reaches a pixel.**
+
+**What that means for a delivered session:** a Nanite target is measured as `NOT_MEASURED` and is
+therefore **ALWAYS ADMITTED, never removed.** That is safe — the cure can never delete a good
+event — **and it is also the cure not working on that target.**
+
+🚨 **THE SCOPE, STATED PLAINLY BECAUSE IT IS THE MORE IMPORTANT HALF:**
+
+> **The two `H5` instances this cure was built from are reachable BECAUSE OF WHAT THEY HAPPEN TO BE
+> MADE OF, not because `H5` favours measurable geometry.** On StackOBot, authored structural
+> geometry — walls, floors, platforms, pillars, pipes, crates, doors, ramps — is **overwhelmingly
+> Nanite and therefore unmeasurable by this cure on UE 5.1**, while foliage and simple planes are
+> not. **Measured on this title, not projected.** On a Nanite-heavy host title **the cure is inert
+> for most authored geometry**: those targets are always ADMITTED, never vetoed, which is safe and
+> is also the cure not working there.
+
+*(No percentage is quoted deliberately — an asset-count ratio would include non-mesh assets and
+mislead. The PATTERN is the finding.)*
+
+**How to see it in a delivered session:** `run_summary.json` → **`mask_nopass_discards`** counts
+frames where the custom-depth pass was never produced. A target whose every armed frame lands there
+is structurally unmeasurable by the mask. ⚠ **Scoped to UE 5.1** — a later engine with Nanite
+custom-depth support changes this.
 
 ## Dashboard token — zero copy-paste for the client (m16)
 
