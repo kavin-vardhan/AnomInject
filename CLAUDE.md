@@ -15,7 +15,122 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (later). 🚨 `m26`'s SAFETY ARGUMENT IS CORRECTED BY MEASUREMENT.
+- 🟩 **YOU ARE HERE — 2026-08-20 (latest). `m27` IS BUILT AND FULLY GATED. ⛔ NOT TAGGED, NOTHING
+  PUSHED — THE ONLY THING BETWEEN IT AND THE TAG IS THE OWNER'S PLAY-GATE SMOKE.**
+  🎯 **`m27` = three unrelated problems that became visible while `H6` was being written up. IT IS
+  NOT AN `H6` FIX AND MUST NEVER BE READ AS ONE — `H6` REMAINS DOCUMENTED, NOT FIXED.**
+  **(A)** `[AnomalyCapture] bMaskMeasureDefault` — without it the `m26` cure **did nothing in a
+  delivered build** (compiled default `false`), so a client build labelled exactly as `m25` did.
+  Compiled default **STAYS `false`**; the ini carries delivered behaviour; `IAI.Capture.Mask` still
+  overrides. **(A2)** the **`VETOED-OBJECT`** readout — one line per removed event (target,
+  `asset_name`, `component_class`, state, `maxCount`, translucency verdict) + `run_summary`
+  `translucent_vetoes` / `translucency_unknown_vetoes`. **(A3)** the bisect switch's help now says
+  what it is and that it acts **BETWEEN RUNS**. **(F)** `AInstancedFoliageActor` **excluded from
+  selection**. **(B)** the client is back on the **browser** workflow with a **manifest-driven
+  bundler**.
+  🚨 **THE LOAD-BEARING PART IS NOT THE KEY — IT IS THE ECHO (`G139`). Until `m27` the log said
+  NOTHING about the mask when it was off**, so a delivered session with a missing, misspelt or
+  `G88`-silenced key produced a log **byte-identical** to a deliberate off. `StartRun` now echoes the
+  **EFFECTIVE value AND its PROVENANCE unconditionally**, and says in the line itself that a loose
+  ini beside a package is a no-op.
+  ✅ **ALL GATES PASS.** `Gate 1` (a `bTagFailed` cannot manufacture a `MEASURED_ZERO` — the
+  `continue` at `AnomalyMaskMeasure.cpp:180-185` **precedes** the arm, so it lands `NOT_MEASURED`
+  ⇒ ADMIT) · `Gate P` (bundler, **run twice**, 9/9 entries, 24 files, served with no repo access,
+  bogus plugin repo ⇒ exit 2 and no bundle) · **`Gate F`** · **`Gate 2`** · **`Gate 3`, four legs**.
+  🎯 **`GATE 3`, EVERY READING FROM THE `StartRun` ECHO (A48), NEVER FROM THE VALUE SET:**
+  **1** key absent ⇒ *mask off, **COMPILED DEFAULT (off); no ini key present*** (0 vetoed, 8 events)
+  · **2** key True ⇒ *mask **ON**, from **`DefaultGame.ini`*** (**6 vetoed, 2 events**)
+  · **3** key True + `IAI.Capture.Mask 0` ⇒ *mask **off*** — **the bisect beats the ini** (0 vetoed,
+  8 events) · **4** key True + **delivery ON** ⇒ all six `VETOED-OBJECT` lines present **and** both
+  new counters in `run_summary` — **identical veto outcome to leg 2, so `G-9` orthogonality holds at
+  `m27`**.
+  🚨 **THE COUNT GATE WAS VERIFIED AGAINST THE ARTIFACT, NOT AGAINST ITSELF.** Legs 1 and 2 ran the
+  **same seed, map and exe**, so leg 1 is a true BEFORE picture: differencing the two event sets by
+  `(target, anomaly_type, start_frame)` gives **6 events actually missing**, against
+  `vetoed_events = 6` and `countedEventsBefore=8 After=2`. **`vetoed_events` is the owner's ONLY
+  signal that anything was deleted — an off-by-one there is completely silent to him.**
+  ✅ **`G88` SATISFIED POSITIVELY:** `bMaskMeasureDefault` read back **out of the cooked
+  `StackOBot-Windows.pak`**, `TESTVALUE123` absent, and **no loose `Config` dir exists beside the
+  package at all**. ✅ **`G118` stays closed** — the enforced 64-char token was read from the
+  **running process's own log**, not the source ini.
+  🆕 **FINDING 1 — THE ACCEPTED COST HAS ITS FIRST MEASUREMENT: `translucent_vetoes = 1`.** The owner
+  accepted route (e)'s cost with **nobody having measured it**; on the first leg that could report
+  one, `BP_SplineSpawn_C` / `SM_GenericPlane` was vetoed with **`translucentSlots=1/1`**.
+  🆕 🚨 **FINDING 2 — AND THE SAME LEG CONSTRAINS ROUTE (e). SAME ACTOR, SAME SESSION, 32 FRAMES
+  APART:** `blinking` (tag 203) ⇒ **`MEASURED_ZERO`**, `maxCount=0`; `missing_texture` (tag 205) ⇒
+  **`MEASURED_NONZERO`, `maxCount=114,724` = 12.4484 % of frame**. **Both fully interpretable** —
+  `arms=4 resolved=4 framesContributed=4` with `framesDiscarded`/`framesResidual`/
+  `framesUnconfirmed`/`framesNoPass`/`probeArms`/`collisions`/`tagFailed` **ALL ZERO** on both.
+  ⇒ **if translucency simply prevented custom-depth writes, this actor would read zero in BOTH. It
+  did not.** ⛔ **NO MECHANISM CLAIMED, NONE GUESSED (`G120`); the `skippedHidden` 5-vs-0 difference
+  is a LEAD, NOT A FINDING.** 📌 **Consequence that travels: `translucent_vetoes` counts a property
+  of the TARGET, and is NOT evidence that translucency caused the zero — this very leg is the
+  counter-example. The shipped log wording already hedges ("its zero MAY mean…"); that hedge is now
+  load-bearing.**
+  ⚠ **FINDING 3, AN HONEST LIMITATION, REPORTED NOT FIXED:** when the mask is **ON** the echo names
+  its source exactly, but when **OFF** it reads *"COMPILED DEFAULT (off) **or** `IAI.Capture.Mask`"*
+  — **a disjunction that alone cannot separate "key missing" from "console turned it off"**, the two
+  states `G139` exists to separate. **The `Initialize` banner + the `StartRun` echo TOGETHER do
+  resolve it; the `StartRun` line alone does not.** Not fixed — no same-turn change to a line four
+  legs were just read from.
+  ⚠ **`G121`, THIRD AND CLEANEST INSTANCE: THE EXE HASH IS IDENTICAL ACROSS BOTH COOKS
+  (`18081D39`, same mtime) WHILE ALL THREE CONTAINER FILES CHANGED.** Cook #1 (no key)
+  `utoc 9ABDEC35 · ucas AED3DEC2 · pak 2047F41D`; **cook #2 (the `m27` candidate)
+  `utoc 72262793 · ucas 6C26C482 · pak 0BEA8D24`**. **Two builds answer to the same exe hash — here
+  the exe half carries ZERO information.** Cook #1's quartet preserved at
+  `_binary_baselines\m27-cook1-nokey-build\`, **6/6 hash-verified at the new location (A62)** —
+  **leg 1 is only reproducible there, because it tests the ABSENCE of the key.**
+  🚨 **`F1` REFUTED THE STATED REASON FOR THE FOLIAGE EXCLUSION, FROM OUR OWN BANKED DATA.**
+  *"HISM keeps rendering after `SetActorHiddenInGame`"* is **NOT SUPPORTED** — journal 045 Parts
+  Nine/Ten (post marker-correction) measured a whole-frame mean of **0.0059** in **4 of 64 cells,
+  peak 0.1242**, exactly where the bushes are; if the hide did nothing that number is zero.
+  **The OBSERVATION stands; the EXPLANATION was never verified and must not be written as the reason
+  again (`G120`'s shape, caught before it reached a doc).** **The real reason is that ITS LABEL IS
+  UNUSABLE:** `coverage_pct 100` and `bbox_px` = the entire frame while ~1.4 % changes.
+  ⚠ **COST, AT ITS REAL SIZE: MainWorld's settled SELECTABLE pool is about SIX actors, not ~350** —
+  so the exclusion removes **roughly a third of the selectable variety**. ⚠ **But my prediction that
+  the pool would thin to four was itself corrected by measurement: the seeded selection BACKFILLED
+  and `m27`'s auto-pool leg selected SIX distinct actors**, two of which (`BP_SpawnPad_C`,
+  `SM_Ramp2`) had not appeared in the pre-change smoke. **Count held; MEMBERSHIP changed** (`n=1`
+  leg). **`G140`**: the same seed now picks different targets ⇒ **every banked MainWorld auto-pool
+  run is NON-COMPARABLE across this commit.**
+  ⛔ **The August ruling that a class blacklist is NOT a fix for `H5` STANDS — scoped, not
+  reversed.** Oversized bounds stay open for every other actor; `BP_SpawnPad_C` (a plain
+  `StaticMeshComponent` at `poll_distance −114.8`) is the named example no foliage blacklist touches.
+  📌 **`Foliage` added to `AnomalyInjector`'s PRIVATE deps by owner ruling** — recorded in the
+  Invariants above as a dated ruling, the treatment `InputCore` got at `m5`. **A class-NAME string
+  match was REFUSED: a rename makes a name match silently stop excluding, while a type reference
+  BREAKS THE BUILD.** `AInstancedFoliageActor` is `MinimalAPI`, which does not export member
+  functions **but DOES export `StaticClass()` — all `IsA<T>()` needs.**
+  🆕 **`config.json` MOVED BACK INTO `dashboard/`, AND THE HISTORY IS RECORDED SO IT IS NOT
+  RE-BROKEN.** The app fetches `./config.json` **relative to the served root**. `c32f858` + doc
+  `6d01bc9` (2026-07-21) **agreed** on `dashboard/`; the Tauri commit `7963be5` (2026-07-22) moved it
+  to the delivery root — **correct for a desktop app** — and the doc was not updated. **The doc was
+  stale FOR THE TAURI ERA ONLY.** Left as it was, **`m27` would have shipped a dashboard that LOADS
+  AND SILENTLY FAILS TO AUTHENTICATE.** `Setup.bat` now **ASSERTS it is fetchable over HTTP**, proven
+  both ways (present → exit 0, removed → exit 4).
+  📦 **DELIVERY:** `bundle_manifest.txt` is an **ALLOWLIST, not copy-except** — a client-facing file
+  not listed **does not ship**. **`PLUGINFILE` is a CROSS-REPO entry** (`docs/client-readme.md` →
+  the bundle's `README.md`); a missing one **fails, names the path searched, and deletes the partial
+  bundle**. The bundler **does not copy itself** and **never copies the dev `config.json`** (it
+  carries the owner's token). ⚠ **The real risk it guards is not a missing file — it is a STALE
+  `dist/`**, so it refuses without a build, demands typed confirmation when `src/` is newer, and
+  prints `dist/`'s build time every run. **Tauri is untouched and simply does not ship.**
+  ⛔ **DELIBERATELY LEFT OUT:** no disclosure about vetoed labels, `H6` or the known limitations was
+  added to `client-readme.md` — **that is a COMMS decision and it is the owner's** · **`L3` is
+  unfixed and now visible in `m27`'s own artifacts** (leg 2's `labels.jsonl` asserts positives for
+  events `annotation.json` no longer contains; **no client impact** — delivery mode never writes it —
+  **but owner-side overlay tooling will draw boxes for vetoed events**) · `SM_GratIng`'s
+  drawn-to-claimed ratio was **not measured in any leg**.
+  🆕 **`G139`** (echo the EFFECTIVE value **and its PROVENANCE**) · **`G140`** (changing the
+  selectable set changes seeded selection ⇒ banked runs stop being comparable) · **`G141`**
+  (PowerShell `-Encoding utf8` **WRITES A BOM** — it corrupted files **twice in one session**; use
+  the editor tool, or `File.AppendAllText` with `UTF8Encoding($false)`).
+  🧭 **NEXT, AND IT IS THE ONLY THING OUTSTANDING: THE OWNER'S PLAY-GATE SMOKE, THEN `git tag m27`
+  AND PUSH ALL FIVE COMMITS** — plugin `0d5e458`, `409b67a`, `9f86600`; AnomDash `2a62c2b`,
+  `b8273c2`. **`m26` tag NOT moved · `feature/stencil-capture` UNTOUCHED at `76cac74` · no
+  force-push · `P6` does not move · `H6` DOCUMENTED, NOT FIXED.**
+- 🟦 *(superseded as "you are here" by the `m27` entry above)* **2026-08-20 (later). 🚨 `m26`'s SAFETY ARGUMENT IS CORRECTED BY MEASUREMENT.
   `I11-A` SUPPORTS `H6` ON TWO INDEPENDENT ROUTES: a target the mask CANNOT SEE can reach
   `MEASURED_ZERO` and be VETOED, because `bPassRan` is a VIEW-LEVEL property used as a PER-TARGET
   precondition.** Five legs, every gate passed, the only change between admitted and deleted was
@@ -38,6 +153,9 @@ and is the single source of truth for the project.
   were wholly Nanite AND on screen** (`BP_Stomper_C`, `RoomBuilderSquare_C` — every component
   Nanite by direct property read). ⛔ **`H6` does not need an external lever.** ⛔ **The smoke's four
   vetoes are still NOT attributed to `H6` — present and active is not the same as caused (`G120`).**
+  ⚠ **CORRECTED: the "NO `m27`" half of this decision was REVERSED by the owner the same day —
+  `m27` exists, is built and is gated. The `H6` half is UNCHANGED: `H6` remains DOCUMENTED, NOT
+  FIXED, and `m27` is not an `H6` fix.**
   ⚖ **OWNER DECISION 2026-08-20: `H6` IS DOCUMENTED, NOT FIXED. NO `m27`. NO FIX. NO VETO-DEFAULT
   CHANGE.** The near-term ship target (Concorde) has **SUPPORT NANITE DISABLED**, which makes
   Nanite-flagged meshes render through the conventional path and therefore MEASURABLE — verified
