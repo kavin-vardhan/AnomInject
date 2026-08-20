@@ -3951,3 +3951,74 @@ exclusion), here the ANOMALY set does. Both re-roll the same stream.
 before/after comparison across a pool-membership change is measuring the draw, not the anomaly.
 
 (2026-08-21, m29.)
+---
+
+## G149 — AMENDMENT (2026-08-21, same day): the missing variable is ON-SCREEN SIZE, not LOD quality
+
+The entry above stands on two of its three claims and is CORRECTED on the middle one.
+
+**STANDS.** LOD COUNT is a proxy; count 1 is certainly invisible; count >= 2 is NOT certainly visible.
+
+**CORRECTED.** The original entry attributed the invisibility to LOD authoring quality - "good LODs
+cut triangles and preserve the silhouette, which is precisely why forcing one is invisible". That is
+wrong as stated. **A good LOD preserves the silhouette AT THE SIZE IT WAS AUTHORED FOR.** Close
+enough, the difference is plainly visible. Measured on the same mesh, LOD 1 vs LOD 4, two legs,
+identical camera, whole-frame pixels differing by >= 8/255:
+
+    bounds coverage 33.04%  ->  66,615 px   VISIBLE
+    bounds coverage  9.35%  ->  12,489 px   VISIBLE
+    farther rung            ->      14 px   not visible
+    farthest rung           ->       8 px   not visible
+
+**The 0.4% best-vs-worst delta in the original entry is a reading AT THAT DISTANCE, not a property
+of the mesh.** Three orders of magnitude separate the visible rungs from the invisible ones.
+
+**STANDS.** Nothing downstream catches the admitted case: the m26 mask measures the SILHOUETTE and
+reads MEASURED_NONZERO either way. The gate must be at PICK TIME.
+
+**WHY THE ORIGINAL WAS WRONG, and it is the transferable part:** every leg behind it ran under the
+shipped 18 m pawn-anchored poll radius only, with the target at ~3% of frame. The condition the
+anomaly is FOR - the player being near the object - was never in the test. G135's shape: a bench leg
+that structurally cannot exhibit the effect returns a clean negative, and a clean negative reads like
+a finding.
+
+**ALSO CORRECTED, a method error worth keeping:** the original entry's MainWorld evidence compared
+ADJACENT FRAMES WITHIN ONE LEG at half-period 1, assuming they straddled a toggle. They did not. The
+sound instrument is TWO LEGS at fixed different LODs with a matched camera, diffed at the same frame
+index. Re-measured that way, the MainWorld target shows 2,133 strong pixels inside its own bbox
+against an out-of-bbox control channel - i.e. it DOES change, contradicting the original reading.
+
+(2026-08-21, m29. The bounds-coverage proxy over-reads: that same target reads 11.83% bounds coverage
+while drawing 2.78% of frame, ~4x. A threshold on bounds coverage is a proxy for a proxy.)
+
+---
+
+## G151 — a black frame and a null result are the same number, and the mask cannot tell them apart
+
+A synthetic calibration level authored by script rendered **100% BLACK** in the packaged build:
+`mean_luma 0.0000`, **zero non-zero pixels of 921,600**. LOD 1 vs LOD 4 frames from it were
+**byte-identical**, and that was read as "the anomaly produces no visible change".
+
+**It was black-vs-black.** The owner caught it by looking at the screen.
+
+🚨 **THE PART THAT MATTERS: A CONTRADICTION WAS SITTING IN THE DATA AND WAS READ AS NOISE.** The
+custom-depth mask reported a small but SYSTEMATIC, one-directional difference between the two LODs on
+every event, while the colour frames showed nothing at all. Both readings were correct:
+**custom depth does not need lighting, so the mask saw the real geometry change; the colour frames
+carried no light.** The discriminator was in hand and was dismissed.
+
+**RULE: a luma check is the FIRST thing run against any new or rebuilt capture environment, before
+any measurement taken in it is trusted.** `mean_luma > 0` and `nonzero% > 0` - one line, no
+threshold to argue about. This is m19's "gate on PIXELS, not on a counter" in its third instance, and
+the first where the misleading number was a DIFFERENCE rather than a count.
+
+**Isolation before diagnosis:** on the SAME build, MainWorld read `mean_luma 107.95 / 99.14% nonzero`
+while the synthetic level read `0.0000`. That is what established the build was healthy and only the
+level was dark - a one-command check that prevented a wrong and expensive conclusion about the cook.
+
+**Cause, for anyone authoring a bench level:** it lacked the movable point lights `make_gate_level.py`
+spawns, and its directional light was not flagged as the atmosphere sun light. A script-authored level
+is never opened in the editor, so nothing is ever baked - the lighting must be MOVABLE and it must
+actually reach the geometry.
+
+(2026-08-21, m29.)

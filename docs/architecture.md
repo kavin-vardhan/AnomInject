@@ -424,9 +424,11 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
   ENGINE IS AUTHORITATIVE** — a packaged client build with no dashboard starts correct on its own:
   `GPollRadius = 1800.0f` and `GMinScreenCoveragePct = 6.0f` (`AnomalyViewport.cpp`, file-scope globals — NOT
   ini-backed; ini-backing via GConfig remains available as a follow-up if per-title tuning is ever wanted), and the
-  auto-pool's **default-enabled** set `GAutoPoolDefaultEnabled = { blinking, missing_texture, corrupted_texture,
-  lod_popping }` (`AnomalyAutoInjectorSubsystem.cpp`, consumed in `Initialize`; m29 — the M2 pool).
-  `GAutoPool` still offers all five ids
+  auto-pool's **default-enabled** set `GAutoPoolDefaultEnabled = { blinking, missing_texture,
+  corrupted_texture }` (`AnomalyAutoInjectorSubsystem.cpp`, consumed in `Initialize`; m29).
+  ⚠ **`lod_popping` is NOT in `GAutoPool` — its pool membership is m30 work, gated on a proximity
+  threshold that could not be calibrated at m29** (journal 047). It remains fully usable by targeted
+  fire and by the selector. `GAutoPool` offers all four ids
   (`missing_object` remains selectable, just **not enabled by default**), and `SetAllAnomaliesEnabled(true)` still means
   *all* of `GAutoPool` — it is an explicit action, not a default. **The dashboard has NO defaults of its own for these:**
   the sliders and the pool checkboxes are pure mirrors of the snapshot (`session.pollRadius`,
@@ -494,14 +496,20 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
 
 The guard refuses a component with a single LOD, because forcing a LOD there pops it **to itself**:
 no visible change, positive label. 🚨 **It does NOT catch the other route to the same outcome — a
-mesh with several LODs whose rendered difference is negligible at that target's on-screen size.**
-Measured on `SM_rock` (4 LODs, non-Nanite): forced LOD 1 vs forced LOD 4 differ by **~0.4 % of the
-silhouette** (≈110 px), and a direct pixel diff across a toggle with a static camera shows **no
-change on the rock at all**.
+multi-LOD mesh that is simply TOO FAR AWAY / TOO SMALL ON SCREEN for its LODs to differ visibly.**
 
-🚨 **Nothing downstream catches it either. The m26 mask veto CANNOT** — the object still draws, so it
-reads `MEASURED_NONZERO` and the event survives; and the mask measures the **silhouette**, which is
-exactly what does not change. See journal `2026-08-21-047` and **G149**.
+Measured on `SM_rock` (4 LODs, non-Nanite), LOD 1 vs LOD 4, two legs at a matched camera, whole-frame
+pixels differing by ≥8/255: **33.04 % bounds coverage → 66,615 px (plainly visible)** ·
+**9.35 % → 12,489 px (visible)** · farther rungs → **14 px** and **8 px (not visible)**. The missing
+variable is **ON-SCREEN SIZE**, not LOD authoring quality.
+
+🚨 **Nothing downstream catches the admitted case. The m26 mask veto CANNOT** — the object still
+draws, so it reads `MEASURED_NONZERO` and the event survives; and the mask measures the
+**silhouette**, which is what a distant LOD swap barely moves. **The gate must be at PICK TIME**, and
+that gate is **m30** work. See journal `2026-08-21-047` and **G149** (with its same-day amendment).
+
+⚠ **The obvious metric is a proxy for a proxy:** bounds coverage over-reads drawn extent — the
+MainWorld rock reads **11.83 % bounds coverage while drawing 2.78 % of frame**, ~4×.
 
 ### The auto-pool checkbox set is a THREE-STAGE derivation (m29 recon)
 
