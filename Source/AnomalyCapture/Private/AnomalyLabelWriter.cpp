@@ -321,7 +321,8 @@ namespace AnomalyLabel
 		int32 ZeroMatchBursts, uint64 EndFrame,
 		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode,
 		const FString& ContentClock, int32 NonManifestedEvents, const FString& CapturePath,
-		const FRingTelemetry* Ring)
+		const FRingTelemetry* Ring,
+		int32 MaskProbeArms, int32 MaskResidualDiscards)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -341,6 +342,9 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("non_manifested_events"), NonManifestedEvents);
 
 		Root->SetStringField(TEXT("capture_path"), CapturePath);
+
+		Root->SetNumberField(TEXT("mask_probe_arms"), MaskProbeArms);
+		Root->SetNumberField(TEXT("mask_residual_discards"), MaskResidualDiscards);
 
 		if (Ring)
 		{

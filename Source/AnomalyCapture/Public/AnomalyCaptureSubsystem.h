@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "HAL/FileManager.h"
+#include "Engine/EngineBaseTypes.h"
 #include "AnomalyViewport.h"
 #include "AnomalyCaptureSubsystem.generated.h"
 
@@ -70,6 +71,9 @@ public:
 	void SetMaskMeasure(bool bInMask);
 	bool IsMaskMeasure() const { return bMaskMeasure; }
 
+	void SetMaskProbe(bool bInProbe);
+	bool IsMaskProbe() const { return bMaskProbe; }
+
 	enum class EContentClock : uint8 { Wall, Game };
 	void SetContentClock(EContentClock InClock);
 	EContentClock GetContentClock() const { return ContentClock; }
@@ -103,6 +107,7 @@ private:
 
 	void BeginActualRun();
 	void OnEndFrameMaskSample();
+	void OnWorldTickEndMask(UWorld* World, ELevelTick TickType, float DeltaSeconds);
 	bool HasGameWindow(UWorld* World) const;
 	bool IsGameWindowFocused(UWorld* World) const;
 	void BeginFire();
@@ -198,7 +203,10 @@ private:
 	bool bAsyncCapture = true;
 	bool bSveCapture = true;
 	bool bMaskMeasure = false;
+	bool bMaskProbe = false;
+	bool bMaskProbeFiredThisRun = false;
 	FDelegateHandle MaskEndFrameHandle;
+	FDelegateHandle MaskWorldTickEndHandle;
 	bool bRectDeltaLogged = false;
 	bool bDeliveryMode = false;
 	EContentClock ContentClock = EContentClock::Wall;

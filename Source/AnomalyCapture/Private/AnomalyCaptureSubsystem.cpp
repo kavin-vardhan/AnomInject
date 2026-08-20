@@ -233,6 +233,7 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 #if ANOMALY_CAPTURE
 	MaskEndFrameHandle = FCoreDelegates::OnEndFrame.AddUObject(this, &UAnomalyCaptureSubsystem::OnEndFrameMaskSample);
+	MaskWorldTickEndHandle = FWorldDelegates::OnWorldTickEnd.AddUObject(this, &UAnomalyCaptureSubsystem::OnWorldTickEndMask);
 	bool bConfigDelivery = false;
 	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bDeliveryModeDefault"), bConfigDelivery, GGameIni))
 	{
@@ -287,6 +288,11 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 	{
 		FCoreDelegates::OnEndFrame.Remove(MaskEndFrameHandle);
 		MaskEndFrameHandle.Reset();
+	}
+	if (MaskWorldTickEndHandle.IsValid())
+	{
+		FWorldDelegates::OnWorldTickEnd.Remove(MaskWorldTickEndHandle);
+		MaskWorldTickEndHandle.Reset();
 	}
 	PreviewTee.Reset();
 	if (Async.IsValid())
@@ -445,15 +451,30 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		break;
 	}
 
-	if (bMaskMeasure && Async.IsValid() && Async->MaskExtension.IsValid())
+	FinalizeArmedLabel();
+#endif
+}
+
+void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick TickType, float DeltaSeconds)
+{
+#if ANOMALY_CAPTURE
+	if (World != GetWorld() || !bMaskMeasure || !bRunning || !Async.IsValid() || !Async->MaskExtension.IsValid())
 	{
-		Async->MaskMeasure.VerifyPendingTags();
-		Async->MaskExtension->EnqueueDrain();
-		Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
-		Async->MaskMeasure.ArmIfMeasurable(Async->MaskExtension.Get(), GFrameCounter);
+		return;
 	}
 
-	FinalizeArmedLabel();
+	Async->MaskMeasure.VerifyPendingTags();
+	Async->MaskExtension->EnqueueDrain();
+	Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
+	const bool bArmedNormal = Async->MaskMeasure.ArmIfMeasurable(Async->MaskExtension.Get(), GFrameCounter);
+
+	if (!bArmedNormal && bMaskProbe && !bMaskProbeFiredThisRun && !bDeliveryMode)
+	{
+		if (Async->MaskMeasure.ArmProbeOnHidden(Async->MaskExtension.Get(), GFrameCounter))
+		{
+			bMaskProbeFiredThisRun = true;
+		}
+	}
 #endif
 }
 
@@ -578,6 +599,22 @@ void UAnomalyCaptureSubsystem::SetMaskMeasure(bool bInMask)
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("IAI.Capture.Mask: %s (m26 slice 1: MEASURE ONLY - log output only, no artifact field, no veto)."),
 		bMaskMeasure ? TEXT("ON") : TEXT("off"));
+}
+
+void UAnomalyCaptureSubsystem::SetMaskProbe(bool bInProbe)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.MaskProbe: ignored - a capture run is in progress."));
+		return;
+	}
+	bMaskProbe = bInProbe;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Capture.MaskProbe: %s (GATE ARTEFACT, default OFF - one deliberate KNOWN-HIDDEN arm per run ")
+		TEXT("to prove the 255 detector, the end-of-frame confirmation and the frame-scoped discard are LIVE. ")
+		TEXT("LOCK-1 is bypassed for that ONE arm. INERT IN DELIVERY MODE BY GUARD regardless of this flag. ")
+		TEXT("MUST be OFF in any build that ships - see docs/PRE-DELIVERY-CHECKLIST.md)."),
+		bMaskProbe ? TEXT("ON") : TEXT("off"));
 }
 
 void UAnomalyCaptureSubsystem::SetContentClock(EContentClock InClock)
@@ -742,10 +779,15 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 			Async->MaskExtension->Reset();
 		}
 		Async->MaskMeasure.BeginRun();
+		bMaskProbeFiredThisRun = false;
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(mask): m26 SLICE 1 ACTIVE - MEASURE ONLY. Log output only: no annotation field, ")
 			TEXT("no veto, mask{provided} stays false. Reserved stencil base %d, max %d arms/event."),
 			AnomalyStencilTag::ReservedStencilBase, FAnomalyMaskMeasure::MaxArmsPerEvent);
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(mask): probe EFFECTIVE=%d (flag=%d, deliveryMode=%d - the probe is INERT in ")
+			TEXT("delivery mode by GUARD regardless of the flag; default OFF; gate use only)."),
+			(bMaskProbe && !bDeliveryMode) ? 1 : 0, bMaskProbe ? 1 : 0, bDeliveryMode ? 1 : 0);
 	}
 
 	UE_LOG(LogAnomalyCapture, Log,
@@ -1563,6 +1605,17 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 		WriteSessionAnnotationFile();
 
+		int32 MaskProbeArms = 0;
+		int32 MaskResidualDiscards = 0;
+		if (bMaskMeasure && Async.IsValid() && Async->MaskExtension.IsValid())
+		{
+			Async->MaskExtension->EnqueueDrain();
+			FlushRenderingCommands();
+			Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
+			MaskProbeArms = Async->MaskMeasure.TotalProbeArms();
+			MaskResidualDiscards = Async->MaskMeasure.TotalResidualDiscards();
+		}
+
 		AnomalyLabel::FRingTelemetry RingTelemetry;
 		if (bSveCapture)
 		{
@@ -1578,7 +1631,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
 			bSveCapture ? TEXT("sve") : TEXT("backbuffer"),
-			bSveCapture ? &RingTelemetry : nullptr);
+			bSveCapture ? &RingTelemetry : nullptr,
+			MaskProbeArms, MaskResidualDiscards);
 
 		if (bSveCapture)
 		{
@@ -1610,7 +1664,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 	if (bMaskMeasure && Async.IsValid())
 	{
-		if (Async->MaskExtension.IsValid())
+		if (!bWroteSession && Async->MaskExtension.IsValid())
 		{
 			Async->MaskExtension->EnqueueDrain();
 			FlushRenderingCommands();
@@ -1628,11 +1682,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(mask): M26S1 EVENT id=%s target=%s startFrame=%llu tag=%d state=%s ")
 				TEXT("maxCount=%d viewportPx=%d pctOfFrame=%.4f arms=%d resolved=%d framesDiscarded=%d ")
-				TEXT("framesContributed=%d skippedHidden=%d collisions=%d tagFailed=%d%s%s"),
+				TEXT("framesResidual=%d framesUnconfirmed=%d framesContributed=%d probeArms=%d ")
+				TEXT("skippedHidden=%d collisions=%d tagFailed=%d%s%s"),
 				*R.Id.ToString(), *R.Target, R.StartFrame, (int32)R.Tag,
 				LexToStringAnomalyMaskState(R.State),
 				R.MaxCount, R.ViewportPixels, PctOfFrame,
-				R.ArmsIssued, R.ArmsResolved, R.FramesDiscarded, R.FramesContributed, R.SkippedHidden,
+				R.ArmsIssued, R.ArmsResolved, R.FramesDiscarded,
+				R.FramesResidualDiscarded, R.FramesUnconfirmed, R.FramesContributed, R.ProbeArms,
+				R.SkippedHidden,
 				R.CollisionHits, R.bTagFailed ? 1 : 0,
 				R.FirstCollisionDetail.IsEmpty() ? TEXT("") : TEXT(" detail="),
 				*R.FirstCollisionDetail);
@@ -1641,9 +1698,11 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			{
 				UE_LOG(LogAnomalyCapture, Warning,
 					TEXT("Capture(mask): M26S1 NOT_MEASURED for '%s' on '%s' - no clean frame ")
-					TEXT("(armsIssued=%d resolved=%d framesDiscarded=%d skippedHidden=%d tagFailed=%d ")
-					TEXT("collisions=%d). Slice 3 MUST ADMIT this event: never-measured is not measured-zero."),
+					TEXT("(armsIssued=%d resolved=%d framesDiscarded=%d framesResidual=%d ")
+					TEXT("framesUnconfirmed=%d probeArms=%d skippedHidden=%d tagFailed=%d collisions=%d). ")
+					TEXT("Slice 3 MUST ADMIT this event: never-measured is not measured-zero."),
 					*R.Id.ToString(), *R.Target, R.ArmsIssued, R.ArmsResolved, R.FramesDiscarded,
+					R.FramesResidualDiscarded, R.FramesUnconfirmed, R.ProbeArms,
 					R.SkippedHidden, R.bTagFailed ? 1 : 0, R.CollisionHits);
 			}
 		}
@@ -2082,6 +2141,31 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskCmd(
 				Cap->SetMaskMeasure(FCString::Atoi(*Args[0]) != 0);
 				UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.Mask: EFFECTIVE READ-BACK = %d."),
 					Cap->IsMaskMeasure() ? 1 : 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskProbeCmd(
+	TEXT("IAI.Capture.MaskProbe"),
+	TEXT("GATE ARTEFACT - default OFF, MUST be OFF in any build that ships (docs/PRE-DELIVERY-CHECKLIST.md). ")
+	TEXT("ON: during a mask-measure run, issue ONE deliberate arm on a KNOWN-HIDDEN tick to prove the ")
+	TEXT("255/StencilDummy detector, the end-of-frame confirmation and the frame-scoped discard are all LIVE ")
+	TEXT("on this binary (F-6 item 5, G96 both ways). LOCK-1 is bypassed for that ONE arm only; the probe ")
+	TEXT("frame is bucketed PROBE and can never contribute to a measurement. INERT IN DELIVERY MODE by a ")
+	TEXT("guard at the fire site, regardless of this flag. Mid-run changes are ignored (stop first). ")
+	TEXT("Usage: IAI.Capture.MaskProbe <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.MaskProbe <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetMaskProbe(FCString::Atoi(*Args[0]) != 0);
+				UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.MaskProbe: EFFECTIVE READ-BACK = %d."),
+					Cap->IsMaskProbe() ? 1 : 0);
 			}
 		}));
 

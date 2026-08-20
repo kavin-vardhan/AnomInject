@@ -28,7 +28,10 @@ struct FAnomalyMaskRecord
 	int32 SkippedHidden = 0;
 	int32 CollisionHits = 0;
 	int32 FramesDiscarded = 0;
+	int32 FramesResidualDiscarded = 0;
+	int32 FramesUnconfirmed = 0;
 	int32 FramesContributed = 0;
+	int32 ProbeArms = 0;
 	FString FirstCollisionDetail;
 	bool bTagFailed = false;
 };
@@ -45,6 +48,7 @@ public:
 	FAnomalyMaskRecord* FindRecord(FName Id, const FString& Target, uint64 StartFrame);
 
 	bool ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId);
+	bool ArmProbeOnHidden(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId);
 	void VerifyPendingTags();
 	void CollectResults(FAnomalyMaskSceneViewExtension* Sve);
 	void SampleEndOfFrame();
@@ -53,6 +57,8 @@ public:
 	const TArray<FAnomalyMaskRecord>& GetRecords() const { return Records; }
 	TSet<uint8> BuildAssignedTagSet() const;
 	int32 NumUnmeasured() const;
+	int32 TotalProbeArms() const;
+	int32 TotalResidualDiscards() const;
 
 private:
 	int32 AllocateTag();
@@ -60,6 +66,8 @@ private:
 	TArray<FAnomalyMaskRecord> Records;
 	TMap<uint64, int32> ArmedRequestToRecord;
 	TSet<uint64> PollutedRequests;
+	TSet<uint64> ProbeRequests;
+	TMap<uint64, uint8> EndFrameSample;
 	TArray<uint64> ArmedThisFrame;
 	int32 NextTagOffset = 0;
 };

@@ -80,6 +80,18 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       the Issue-2 regression. `game` is only correct for game-clock content such as StackOBot itself.*
 - [ ] Build is **Development or Test**, not Shipping.
       *Capture and the control server are compiled out of Shipping entirely.*
+- [ ] 🚨 **`IAI.Capture.MaskProbe` is OFF in anything that ships — check what the BUILD does, not what
+      you intended.** *The probe is a GATE ARTEFACT (m26, F-6 item 5): under the flag it deliberately
+      bypasses `LOCK-1` for one arm per run to prove the mask's detectors are live. It defaults OFF and
+      is INERT in delivery mode by a code guard regardless of the flag — but this line exists for the
+      same reason the token read-back does (G118/G119): a bench convenience left ON is invisible until
+      it isn't. The read-back is in every capture run's log:*
+      `Capture(mask): probe EFFECTIVE=0 (flag=0, deliveryMode=1 ...)`
+      *— assert `EFFECTIVE=0` on a probe-free launch of the build you ship, and grep the delivered
+      session's log copy (if any) for `PROBE ARM`: zero hits. `run_summary.json` → `mask_probe_arms`
+      must read `0` on every delivered session — that field exists precisely so a probe cannot fire
+      without leaving an artifact trace. Same class as the token check: fine on the bench, wrong in a
+      delivery.*
 - [ ] **`Config/DefaultEngine.ini` → `GameDefaultMap` points at the CLIENT's map, not a bench or test map.**
       *A packaged build's default map can only be changed by editing the PROJECT config and re-cooking —
       a loose `Config/DefaultEngine.ini` beside the package is silently ignored (G88). So anyone who needs

@@ -26,6 +26,8 @@ void FAnomalyMaskMeasure::BeginRun()
 	Records.Reset();
 	ArmedRequestToRecord.Reset();
 	PollutedRequests.Reset();
+	ProbeRequests.Reset();
+	EndFrameSample.Reset();
 	ArmedThisFrame.Reset();
 	NextTagOffset = 0;
 
@@ -48,6 +50,8 @@ void FAnomalyMaskMeasure::EndRun()
 	AnomalyStencilTag::DisableCustomStencil();
 	ArmedRequestToRecord.Reset();
 	PollutedRequests.Reset();
+	ProbeRequests.Reset();
+	EndFrameSample.Reset();
 	ArmedThisFrame.Reset();
 	NextTagOffset = 0;
 }
@@ -117,6 +121,26 @@ int32 FAnomalyMaskMeasure::NumUnmeasured() const
 	return N;
 }
 
+int32 FAnomalyMaskMeasure::TotalProbeArms() const
+{
+	int32 N = 0;
+	for (const FAnomalyMaskRecord& R : Records)
+	{
+		N += R.ProbeArms;
+	}
+	return N;
+}
+
+int32 FAnomalyMaskMeasure::TotalResidualDiscards() const
+{
+	int32 N = 0;
+	for (const FAnomalyMaskRecord& R : Records)
+	{
+		N += R.FramesResidualDiscarded;
+	}
+	return N;
+}
+
 bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId)
 {
 	if (!Sve)
@@ -160,6 +184,55 @@ bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, u
 			TEXT("Capture(mask): M23 ARM id=%llu target=%s tag=%d taggedComponents=%d ")
 			TEXT("rCustomDepth_gameThread=%d armIndex=%d"),
 			RequestId, *R.Target, (int32)R.Tag, Tagged, ReadCustomDepthCVar(), R.ArmsIssued);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool FAnomalyMaskMeasure::ArmProbeOnHidden(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId)
+{
+	if (!Sve || ArmedRequestToRecord.Contains(RequestId))
+	{
+		return false;
+	}
+
+	for (int32 i = 0; i < Records.Num(); ++i)
+	{
+		FAnomalyMaskRecord& R = Records[i];
+		if (R.ArmsIssued >= MaxArmsPerEvent)
+		{
+			continue;
+		}
+
+		AActor* Actor = R.TargetActor.Get();
+		if (!Actor || !Actor->IsHidden())
+		{
+			continue;
+		}
+
+		const int32 Tagged = AnomalyStencilTag::TagActor(Actor, (int32)R.Tag);
+		if (Tagged <= 0)
+		{
+			continue;
+		}
+
+		Sve->SetAssignedTags(BuildAssignedTagSet());
+		Sve->ArmMask(RequestId);
+		++R.ArmsIssued;
+		++R.ProbeArms;
+		ArmedRequestToRecord.Add(RequestId, i);
+		ArmedThisFrame.Add(RequestId);
+		ProbeRequests.Add(RequestId);
+
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(mask): M26S1 PROBE ARM id=%llu target=%s tag=%d taggedComponents=%d - ")
+			TEXT("DELIBERATELY armed on a KNOWN-HIDDEN tick (F-6 item 5 liveness demonstration, gate use ")
+			TEXT("only; LOCK-1 bypassed for THIS ONE ARM). Expected: the 255/StencilDummy detector FIRES, ")
+			TEXT("the end-of-frame confirmation reads HIDDEN, and the frame is bucketed PROBE - it can ")
+			TEXT("never contribute to a measurement."),
+			RequestId, *R.Target, (int32)R.Tag, Tagged);
 
 		return true;
 	}
@@ -231,6 +304,8 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 		{
 			ArmedRequestToRecord.Remove(RequestId);
 			PollutedRequests.Remove(RequestId);
+			ProbeRequests.Remove(RequestId);
+			EndFrameSample.Remove(RequestId);
 			continue;
 		}
 
@@ -238,7 +313,12 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 		++R.ArmsResolved;
 		R.ViewportPixels = Mask.ViewRectSize.X * Mask.ViewRectSize.Y;
 
+		const bool bProbe = ProbeRequests.Remove(RequestId) > 0;
 		bool bFramePolluted = PollutedRequests.Remove(RequestId) > 0;
+
+		uint8 Sample = 255;
+		const bool bSampled = EndFrameSample.RemoveAndCopyValue(RequestId, Sample);
+		const bool bConfirmedVisible = bSampled && Sample == 1;
 
 		if (Mask.bSawUnassignedReservedTag)
 		{
@@ -247,19 +327,48 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 			if (R.FirstCollisionDetail.IsEmpty())
 			{
 				R.FirstCollisionDetail = FString::Printf(
-					TEXT("unassigned reserved tag %d observed, cause not established"),
-					(int32)Mask.FirstUnassignedTag);
+					TEXT("unassigned reserved tag %d observed%s, cause not established"),
+					(int32)Mask.FirstUnassignedTag,
+					bProbe ? TEXT(" (PROBE frame - expected)") : TEXT(""));
 			}
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture(mask): OBSERVED - the mask carried reserved-range tag %d, which this run never ")
-				TEXT("assigned. CAUSE NOT ESTABLISHED. THIS FRAME's read is discarded; frames of this event ")
+				TEXT("assigned.%s CAUSE NOT ESTABLISHED. THIS FRAME's read is discarded; frames of this event ")
 				TEXT("whose reads were clean still contribute, and an event with no clean frame stays ")
 				TEXT("NOT_MEASURED (admit), never MEASURED_ZERO. DISCRIMINATORS: 255 uniformly across the ")
 				TEXT("frame is the engine's StencilDummy fallback (FColor::White), bound when custom depth ")
 				TEXT("was NOT produced for the frame - i.e. our stencil was never read; a value in a ")
 				TEXT("GEOMETRY-SHAPED region, or any value other than 255, is something genuinely writing ")
 				TEXT("into the reserved range."),
-				(int32)Mask.FirstUnassignedTag);
+				(int32)Mask.FirstUnassignedTag,
+				bProbe ? TEXT(" THIS IS THE PROBE FRAME - the fire is EXPECTED and demonstrates the detector is live.") : TEXT(""));
+		}
+
+		if (bProbe)
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(mask): M26S1 PROBE RESULT id=%llu target=%s tag=%d detector255Fired=%d ")
+				TEXT("confirmationReadHidden=%d - frame bucketed PROBE, discarded, contributes nothing. ")
+				TEXT("F-6 item 5: the detectors demonstrated LIVE on this binary."),
+				RequestId, *R.Target, (int32)R.Tag,
+				Mask.bSawUnassignedReservedTag ? 1 : 0,
+				(bSampled && !bConfirmedVisible) ? 1 : 0);
+			ArmedRequestToRecord.Remove(RequestId);
+			continue;
+		}
+
+		if (bSampled && !bConfirmedVisible)
+		{
+			++R.FramesResidualDiscarded;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(mask): M26S1 RESIDUAL id=%llu target=%s tag=%d - the ARM gate accepted this ")
+				TEXT("frame and the end-of-frame confirmation read HIDDEN: the state changed AFTER ")
+				TEXT("OnWorldTickEnd and before the frame was drawn. OBSERVED, cause not established. The ")
+				TEXT("frame is discarded (frame-scoped). On this bench the expected count is ZERO; a ")
+				TEXT("non-zero on a host title is post-tick hidden toggling occurring in the wild."),
+				RequestId, *R.Target, (int32)R.Tag);
+			ArmedRequestToRecord.Remove(RequestId);
+			continue;
 		}
 
 		if (bFramePolluted)
@@ -269,6 +378,19 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 				TEXT("Capture(mask): M24 FRAME DISCARDED id=%llu target=%s tag=%d framesDiscarded=%d ")
 				TEXT("framesContributed=%d (frame-scoped: only this read is dropped)"),
 				RequestId, *R.Target, (int32)R.Tag, R.FramesDiscarded, R.FramesContributed);
+			ArmedRequestToRecord.Remove(RequestId);
+			continue;
+		}
+
+		if (!bSampled)
+		{
+			++R.FramesUnconfirmed;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(mask): M26S1 UNCONFIRMED id=%llu target=%s tag=%d - no end-of-frame sample ")
+				TEXT("ran for this armed frame, so it is discarded under the whitelist polarity: a missing ")
+				TEXT("check must never read as a passed check. Expected count is ZERO everywhere; non-zero ")
+				TEXT("means the confirmation instrument itself was not live for this frame."),
+				RequestId, *R.Target, (int32)R.Tag);
 			ArmedRequestToRecord.Remove(RequestId);
 			continue;
 		}
@@ -298,12 +420,18 @@ void FAnomalyMaskMeasure::SampleEndOfFrame()
 		}
 		const FAnomalyMaskRecord& R = Records[*IndexPtr];
 		const AActor* Actor = R.TargetActor.Get();
+		const bool bHiddenNow = !Actor || Actor->IsHidden();
+		const bool bProbe = ProbeRequests.Contains(RequestId);
+		EndFrameSample.Add(RequestId, bHiddenNow ? (uint8)0 : (uint8)1);
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture(mask): M24 ENDFRAME id=%llu target=%s tag=%d hiddenAtArm=0 hiddenAtEndOfFrame=%d ")
-			TEXT("actorValid=%d (sampled after all subsystem ticks; this is the state the frame rendered)"),
+			TEXT("Capture(mask): M24 ENDFRAME id=%llu target=%s tag=%d hiddenAtArm=%d hiddenAtEndOfFrame=%d ")
+			TEXT("actorValid=%d probe=%d (sampled after all subsystem ticks; this is the state the frame ")
+			TEXT("rendered; a frame contributes ONLY if this sample ran and read visible)"),
 			RequestId, *R.Target, (int32)R.Tag,
-			(Actor && Actor->IsHidden()) ? 1 : 0,
-			Actor ? 1 : 0);
+			bProbe ? 1 : 0,
+			bHiddenNow ? 1 : 0,
+			Actor ? 1 : 0,
+			bProbe ? 1 : 0);
 	}
 	ArmedThisFrame.Reset();
 }
