@@ -16,6 +16,7 @@ public class AnomalyInjector : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
+			"Foliage"
 		});
 	}
 }

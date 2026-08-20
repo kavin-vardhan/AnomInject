@@ -920,7 +920,15 @@ across all seven anomalies — the M1 `IAnomaly` lock held through M3, including
   sets is a capture/replay-pipeline concern (G30).
 
 ## Game-agnostic invariant
-The module depends only on `Core`/`CoreUObject`/`Engine`/`InputCore` and never references host (StackOBot) types.
+The module depends only on `Core`/`CoreUObject`/`Engine`/`InputCore`/**`Foliage`** and never references host (StackOBot) types.
+⚖ **`Foliage` is the `m27` addition (2026-08-20, owner ruling)** — a **PRIVATE** dependency so it does not
+propagate to `AnomalyCapture`/`AnomalyControlServer`, on an **ENGINE Runtime** module present in every UE build
+(`Runtime/Foliage/Foliage.Build.cs`: no editor gating, no `ModuleType` override). It exists so
+`IsRenderableComponent` can exclude `AInstancedFoliageActor` **by TYPE** rather than by class-name string.
+🚨 **A name match was refused because it would fail SILENTLY on a rename; a type reference breaks the build,
+and a compile error is the loudest failure available.** ⛔ No string match is to be added alongside it.
+📌 `AInstancedFoliageActor` is declared `MinimalAPI`, so its **member functions are not exported** — but
+`MinimalAPI` **does** export `StaticClass()`, which is all `IsA<T>()` needs. `IsA` links; a member call would not.
 (`InputCore` is the m5 addition — `FKey`/`EKeys` for raw input polling + keybinds; no Slate/UMG. **m6 added no
 dependency** — the auto-injector's `FRandomStream` is Core, its HUD/input reuse the same Engine/InputCore types.) The
 selector AND the auto-injector are game-agnostic by construction: their HUDs draw via `UDebugDrawService` (no host HUD

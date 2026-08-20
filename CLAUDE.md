@@ -2842,9 +2842,20 @@ and is the single source of truth for the project.
   messages, `docs/`, and the session journals — **never in code.** `LICENSE.txt` and the `.uplugin` JSON are
   intentionally exempt (not source).
 - **Plugin stays game-agnostic.** The `AnomalyInjector` module may depend only on
-  `Core`/`CoreUObject`/`Engine` (later `Renderer`/`RenderCore`/`RHI`/`Slate`/`InputCore`)
+  `Core`/`CoreUObject`/`Engine`/`InputCore`/**`Foliage`** (later `Renderer`/`RenderCore`/`RHI`/`Slate`)
   and must **never `#include` or reference host game-module types** (e.g. anything from the
   `StackOBot` module). Host-specific buildability lives in the project, never in the plugin.
+  ⚖ **`Foliage` ADDED 2026-08-20 BY OWNER RULING, at `m27`, and recorded here as a ruling rather
+  than left as drift** — same treatment `InputCore` got at `m5` ("first dep since M0"). **The
+  invariant is about not depending on HOST types; `Foliage` is an ENGINE Runtime module present in
+  every UE build** (`Runtime/Foliage/Foliage.Build.cs` has no editor gating and no `ModuleType`
+  override). It exists so `IsRenderableComponent` can exclude `AInstancedFoliageActor` **by TYPE**.
+  🚨 **The alternative — a class-NAME string match — was REFUSED, and the reason is the rule:** a
+  rename would make a name match SILENTLY STOP EXCLUDING, whereas a type reference **breaks the
+  build**. A compile error is the loudest failure available; a missing check must never read as a
+  passed check. ⛔ **Do NOT add a string match "as belt and braces"** — two mechanisms means one can
+  rot unnoticed while the other covers for it. It is `PrivateDependencyModuleNames`, so it does not
+  propagate to `AnomalyCapture` or `AnomalyControlServer`.
 - **Matching is label-free.** Targeting matches by actor Name or Class only.
   `GetActorLabel()` is editor-only and absent in cooked builds — `ListActors` may print the
   label (guarded by `WITH_EDITOR`) but nothing matches on it.

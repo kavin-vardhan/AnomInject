@@ -441,6 +441,63 @@ events.
 THE SET OF ROUTES IS STILL NOT CLOSED. Five are named. Others may exist and have not been
 looked for.
 
+FOLIAGE EXCLUDED FROM SELECTION — m27, 2026-08-20. THE INSTANCE GOES; THE MECHANISM STAYS.
+
+InstancedFoliageActor is excluded from selection because ITS LABEL IS UNUSABLE, not
+because the anomaly fails to occur.
+
+THE HIDE DOES MANIFEST. Measured, journal 045 Parts Nine/Ten (post marker-contamination
+correction): hiding InstancedFoliageActor_0_0_0 changed the frame by a whole-frame mean
+of 0.0059, concentrated in 4 of 64 grid cells, peak cell 0.1242 — localised exactly where
+the bushes are. If the hide did nothing that number is zero.
+
+WHAT FAILS IS LOCALISATION. coverage_pct reads 100 and bbox_px reads the entire frame
+while roughly 1.4% of it changes — wrong by two orders of magnitude. A label that boxes
+the whole frame teaches a detector that unchanged pixels are anomalous. That is the same
+failure mode as a labeled-but-invisible sample and it is worse than no label at all.
+
+CORRECTION — DISCARD THIS: "HISM ignores SetActorHiddenInGame, so foliage never actually
+hides." NOT SUPPORTED. Our own banked measurement points against it, and Actor.cpp:4556
+shows SetActorHiddenInGame calls SetHidden() + MarkComponentsRenderStateDirty() with no
+foliage opt-out found in source. The July 2026 observation is NOT called wrong — it may
+have been a different build, a different actor, or an effect small enough to read as
+absent — but it is NOT ESTABLISHED and must never again be written as the reason.
+
+THE EXCLUSION IS A STOPGAP, NOT A CURE, AND MAY NOT BE PERMANENT. It removes a target
+whose label cannot be localised with the tools that exist today. A per-instance bbox would
+make foliage a legitimate target again. That path is UNBUILT and UNQUEUED — recorded as a
+possibility, not a plan.
+
+WHY m23's GUARD DOES NOT ALREADY CATCH THIS — VERIFIED FROM SOURCE, m27:
+the manifested guard keys on a FLAG at every link, so it agrees with the actor and stays
+silent. AnomalyCaptureSubsystem.cpp:1492 fills FireHidden from FActor->IsHidden(); :2020
+and :2022 carry it into HiddenByIndex; :2053 derives HiddenIdx from it; and bManifested is
+HiddenIdx.Num() > 0. Both hide anomalies set exactly that flag
+(Anomaly_MissingObject.cpp:35, Anomaly_Blinking.cpp:78). The guard is not broken — it
+answers a different question.
+
+THE COST, OWNER-ACCEPTED AND STATED AT ITS REAL SIZE: delivered datasets will contain NO
+foliage anomalies at all, permanently, until per-instance foliage handling exists.
+⚠ AND IT IS NOT A ROUNDING ERROR ON THIS MAP. Foliage is 2 of ~350 mesh-owning actors,
+but the SELECTOR'S pool is far narrower — MainWorld's settled view offers about SIX
+selectable actors, and the play-gate smoke tagged exactly six, two of them foliage. THE
+EXCLUSION REMOVES A THIRD OF THE SELECTABLE VARIETY IN THAT VIEW. The cost paragraph
+should not read cheaper than it is.
+
+🚨 AND THE MECHANISM IS NOT CURED BY THIS. THE AUGUST RULING STANDS, SCOPED NOT REVERSED:
+a class blacklist is NOT a fix for H5, because it hides one instance while OVERSIZED
+BOUNDS stay open for every other actor. That argument was about CURING H5 and it is
+untouched. What it never addressed is whether to keep firing at a target whose label
+cannot be localised, which is a separate question and the one m27 answers.
+  H5 CLASS (ii) REMAINS OPEN for every actor whose bounds exceed its drawn footprint.
+  BP_SpawnPad_C IS THE NAMED EXAMPLE: a plain UStaticMeshComponent — not instanced, not
+  foliage — with poll_distance −114.8, which no foliage blacklist touches and which G124
+  generalised from precisely to stop this being read as a foliage problem.
+  THE OVER-CLAIM RULE REMAINS THE CURE AND REMAINS UNBUILT — and it is now UNBLOCKED:
+  SM_GratIng is the complex-silhouette NON-Nanite control whose absence journal §209 gave
+  as the reason a ratio could not be calibrated. It exists, in the shipped level, and it
+  is measurable.
+
 ⚠ WHY NO BENCH LEG WOULD EVER HAVE CAUGHT (e) — G135 AGAIN: a scan of the live MainWorld
 found ZERO translucent material slots across 350 mesh actors, 593 static/skinned
 components and 1,055 slots. The calibration content cannot exhibit the defect class.

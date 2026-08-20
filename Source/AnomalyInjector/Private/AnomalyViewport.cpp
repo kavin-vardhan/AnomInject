@@ -10,6 +10,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
+#include "InstancedFoliageActor.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -495,6 +496,14 @@ namespace AnomalyViewport
 		if (!Component || !Component->IsVisible())
 		{
 			return false;
+		}
+
+		if (const AActor* Owner = Component->GetOwner())
+		{
+			if (Owner->IsA<AInstancedFoliageActor>())
+			{
+				return false;
+			}
 		}
 
 		if (const UInstancedStaticMeshComponent* ISM = Cast<UInstancedStaticMeshComponent>(Component))
