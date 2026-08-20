@@ -26,6 +26,7 @@ void FAnomalyMaskMeasure::BeginRun()
 	Records.Reset();
 	ArmedRequestToRecord.Reset();
 	PollutedRequests.Reset();
+	ArmedThisFrame.Reset();
 	NextTagOffset = 0;
 
 	const int32 Before = ReadCustomDepthCVar();
@@ -47,6 +48,7 @@ void FAnomalyMaskMeasure::EndRun()
 	AnomalyStencilTag::DisableCustomStencil();
 	ArmedRequestToRecord.Reset();
 	PollutedRequests.Reset();
+	ArmedThisFrame.Reset();
 	NextTagOffset = 0;
 }
 
@@ -152,6 +154,7 @@ bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, u
 		Sve->ArmMask(RequestId);
 		++R.ArmsIssued;
 		ArmedRequestToRecord.Add(RequestId, i);
+		ArmedThisFrame.Add(RequestId);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(mask): M23 ARM id=%llu target=%s tag=%d taggedComponents=%d ")
@@ -286,22 +289,23 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 
 void FAnomalyMaskMeasure::SampleEndOfFrame()
 {
-	const uint64 FrameId = (uint64)GFrameCounter;
-	for (const TPair<uint64, int32>& Pair : ArmedRequestToRecord)
+	for (uint64 RequestId : ArmedThisFrame)
 	{
-		if (Pair.Key != FrameId || !Records.IsValidIndex(Pair.Value))
+		const int32* IndexPtr = ArmedRequestToRecord.Find(RequestId);
+		if (!IndexPtr || !Records.IsValidIndex(*IndexPtr))
 		{
 			continue;
 		}
-		const FAnomalyMaskRecord& R = Records[Pair.Value];
+		const FAnomalyMaskRecord& R = Records[*IndexPtr];
 		const AActor* Actor = R.TargetActor.Get();
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(mask): M24 ENDFRAME id=%llu target=%s tag=%d hiddenAtArm=0 hiddenAtEndOfFrame=%d ")
 			TEXT("actorValid=%d (sampled after all subsystem ticks; this is the state the frame rendered)"),
-			Pair.Key, *R.Target, (int32)R.Tag,
+			RequestId, *R.Target, (int32)R.Tag,
 			(Actor && Actor->IsHidden()) ? 1 : 0,
 			Actor ? 1 : 0);
 	}
+	ArmedThisFrame.Reset();
 }
 
 #endif

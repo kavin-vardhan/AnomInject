@@ -60,6 +60,7 @@ private:
 	TArray<FAnomalyMaskRecord> Records;
 	TMap<uint64, int32> ArmedRequestToRecord;
 	TSet<uint64> PollutedRequests;
+	TArray<uint64> ArmedThisFrame;
 	int32 NextTagOffset = 0;
 };
 
