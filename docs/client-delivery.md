@@ -280,6 +280,14 @@ writer is OPEN (`I11-B`).** **Do not read this as a statement about any delivere
 CORRECTION — the admit bias is sound at the enum and unsound at the assignment".** It is stated
 once, there.
 
+⚖ **RULED 2026-08-20 — `H6` IS DOCUMENTED, NOT FIXED, AND THE DECISION RESTS ON A HOST SETTING.**
+The near-term ship target has **SUPPORT NANITE DISABLED at project level**, which makes a
+Nanite-flagged mesh render through the conventional path and therefore **measurable** — so the
+high-harm route is **inert as configured**. ⚠ **That is a property of the HOST PROJECT, not of this
+plugin, and it can be undone by one checkbox.** → **the full entry, the second cvar it also depends
+on, and what would reopen it: `docs/invisible-anomaly-mechanisms.md`, "`H6` — DOCUMENTED, NOT
+FIXED".** ⛔ **Two pre-delivery boxes now exist for it — see `PRE-DELIVERY-CHECKLIST.md` §1.**
+
 ## Dashboard token — zero copy-paste for the client (m16)
 
 The control server needs a token before the dashboard can drive it. In-editor the server logs a random

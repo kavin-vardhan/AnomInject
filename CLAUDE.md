@@ -32,6 +32,21 @@ and is the single source of truth for the project.
   amendments BEFORE any measurement existed, zero deletions.
   📌 **`L3` IS NOW LOAD-BEARING, NOT A PREDICTION: `I11-A`'s vetoed legs keep their view evidence
   ONLY in `labels.jsonl`. Nobody "fixes" `L3` until this line of work closes.**
+  🎯 **`I11-B` STAGE 1 CLOSED IT AT BRANCH `Y-1`: THE SHIPPING PATH SUPPLIES ITS OWN WRITER.** In the
+  owner's play-gate smoke auto-pool run, with nothing constructed, the extent was view-sized on
+  **26 armed frames from the plugin's OWN accumulated tags**, and **both `MEASURED_ZERO` targets
+  were wholly Nanite AND on screen** (`BP_Stomper_C`, `RoomBuilderSquare_C` — every component
+  Nanite by direct property read). ⛔ **`H6` does not need an external lever.** ⛔ **The smoke's four
+  vetoes are still NOT attributed to `H6` — present and active is not the same as caused (`G120`).**
+  ⚖ **OWNER DECISION 2026-08-20: `H6` IS DOCUMENTED, NOT FIXED. NO `m27`. NO FIX. NO VETO-DEFAULT
+  CHANGE.** The near-term ship target (Concorde) has **SUPPORT NANITE DISABLED**, which makes
+  Nanite-flagged meshes render through the conventional path and therefore MEASURABLE — verified
+  from 5.1 source, **and conditional on `r.Nanite.ProxyRenderMode` also being at its default `0`**.
+  📌 **STATED ONCE, NOT RESTATED HERE: `docs/invisible-anomaly-mechanisms.md` → "`H6` — DOCUMENTED,
+  NOT FIXED".** Two new boxes in `PRE-DELIVERY-CHECKLIST.md` §1 are what make the condition survive
+  a session that has forgotten it.
+  📌 **`I11-B` is CLOSED AT STAGE 1. Stage 2 (packaged) is UNRUN, NOT CANCELLED — its
+  pre-declaration stands as written if it is ever needed.**
 - 🟦 *(superseded as "you are here" by the entry above — `m26` is still the shipped, tagged state)*
   **2026-08-20. 🎯 `m26` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.**
   **`m26` = the `H5` class-(ii) cure: an event whose target is MEASURED to draw ZERO pixels is

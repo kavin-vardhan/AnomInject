@@ -381,3 +381,82 @@ SCOPE, SO IT IS NOT OVERREAD: PIE only (G76) — MECHANISM CLAIM ONLY. NO INCIDE
 CLAIM. The lever was constructed deliberately. Whether the shipping path supplies its
 own writer is OPEN and is investigation I11-B. The m26 tag does not carry this. THE TAG
 IS NOT BEING REWRITTEN. This entry is the correction of record.
+
+UPDATE, I11-B STAGE 1, 2026-08-20: the shipping path SUPPLIES ITS OWN WRITER. Branch
+Y-1. In the owner's play-gate smoke auto-pool run, with nothing constructed, the extent
+was view-sized on 26 armed frames from the plugin's OWN accumulated tags, and both
+MEASURED_ZERO targets were wholly Nanite and on screen. H6 does not need an external
+lever.
+
+H6 — DOCUMENTED, NOT FIXED. OWNER DECISION, 2026-08-20.
+
+THE DEFECT: bPassRan tests a VIEW-LEVEL property and uses it as a PER-TARGET
+precondition. A target contributing no evidence about itself can therefore reach
+MEASURED_ZERO and be vetoed as though it had been measured and found empty.
+MEASURED, I11-A (five legs, two routes) and I11-B Stage 1 (unaided, shipping path).
+
+IT IS NOT A NANITE-ONLY DEFECT. Two routes are PROVEN:
+  (a) NANITE — the target cannot write custom depth at all on 5.1 (G134). HIGH HARM: a
+      fully visible, drawing target is deleted.
+  (b) OFF-SCREEN — proven with SM_GratIng, NON-Nanite. LOWER HARM: deleting an
+      off-screen target's label is arguably the correct outcome reached by an unsound
+      route.
+THE SET OF ROUTES IS NOT CLOSED. Two are named. Others may exist and have not been
+looked for.
+
+MITIGATION IN THE CODE: MaxCount is a MAX across contributing frames, so ONE real
+non-zero reading survives any number of phantom zeros. The exposed case is a target
+contributing no real evidence on EVERY armed frame.
+
+WHY IT IS NOT BEING FIXED: the near-term ship target is Concorde, where Nanite support
+is DISABLED at project level (owner-verified 2026-08-20), which removes route (a) as
+configured. Route (b) remains and is accepted at its stated lower harm.
+
+THE CONDITION THIS RESTS ON, AND IT IS ONE CHECKBOX:
+  Project Settings > Engine > Rendering > SUPPORT NANITE, currently UNTICKED.
+  IF IT IS EVER TICKED, ROUTE (a) GOES LIVE ACROSS EVERY NANITE-FLAGGED MESH AT ONCE,
+  WITH NO CHANGE TO THE PLUGIN. Concorde's Nanite-flagged asset count is UNKNOWN — the
+  5.1 Content Browser has no Nanite filter and no census was run.
+
+WHAT WOULD REOPEN THIS: Nanite support enabled in any host title · a host that already
+writes custom depth (outlines, highlights, post-process masks) — NEVER ASSESSED, and it
+supplies the precondition permanently, independent of Nanite · a third route found ·
+any evidence on incidence in a delivered capture.
+
+NOT CLAIMED: no incidence claim anywhere. All evidence is PIE (G76). The four vetoes in
+the play-gate smoke are NOT attributed to H6 — H6 was present and active in that run;
+that is not the same as having caused them (G120).
+
+WHY DISABLING SUPPORT NANITE MAKES A NANITE-FLAGGED MESH MEASURABLE — VERIFIED FROM 5.1
+SOURCE, AND IT IS CONDITIONAL. The chain, cited:
+  1. the project checkbox is r.Nanite.ProjectEnabled (RendererSettings.h:560), backed by
+     GNaniteProjectEnabled, default 1 (RenderUtils.cpp:22-25).
+  2. DoesPlatformSupportNanite returns FALSE outright when it is 0
+     (RenderUtils.cpp:1727-1734), and UseNanite (RenderUtils.h:759) reaches it through
+     DoesRuntimeSupportNanite.
+  3. UStaticMeshComponent::ShouldCreateNaniteProxy is therefore FALSE
+     (StaticMeshComponent.cpp:1719-1736), so NO Nanite::FSceneProxy is created.
+  4. 🚨 THE FALLBACK IS GATED ON A SECOND CVAR: r.Nanite.ProxyRenderMode
+     (GNaniteProxyRenderMode, StaticMeshRender.cpp:127-140). At its DEFAULT 0 the
+     component falls through to a conventional FStaticMeshSceneProxy
+     (StaticMeshRender.cpp:2459-2477). At 1 or 2 the code RETURNS NULLPTR and the mesh
+     RENDERS NOTHING — its own comment says "just make the mesh invisible instead".
+     Same shape for ISM (InstancedStaticMesh.cpp:2362-2374) and HISM
+     (HierarchicalInstancedStaticMesh.cpp:3179-3186).
+  5. The conventional proxy DOES set the flag the mask needs:
+     FStaticMeshSceneProxy::GetViewRelevance does Result.bRenderCustomDepth =
+     ShouldRenderCustomDepth() (StaticMeshRender.cpp:1936) — exactly what
+     Nanite::FSceneProxy::GetViewRelevance never does (G134,
+     NaniteResources.cpp:941-1010).
+⇒ TRUE, ON THE STATED CONDITION: with SUPPORT NANITE unticked AND
+  r.Nanite.ProxyRenderMode at its default 0, a Nanite-flagged mesh renders through the
+  conventional path, can set bRenderCustomDepth, and IS measurable by the m26 mask —
+  so route (a) is INERT in Concorde as configured.
+  ⚠ THE CONDITION IS NOT ONE CHECKBOX BUT TWO. r.Nanite.ProxyRenderMode is a
+  SCALABILITY cvar and can be set by an ini, a device profile or a scalability group
+  without anyone touching project settings. If it is non-zero, Nanite-flagged meshes do
+  not render AT ALL — a louder failure than a measurement one, but it is a different
+  failure and it is not the state this decision assumes.
+  ⚠ The same fallback governs Nanite being unsupported for ANY other reason — the
+  r.Nanite cvar, missing 64-bit atomics, or forward shading (RenderUtils.h, UseNanite /
+  DoesRuntimeSupportNanite). The decision rests on the fallback, not on the checkbox.

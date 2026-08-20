@@ -145,3 +145,42 @@ STANDING CONSTRAINTS
   measurement exists, and ONLY to TIGHTEN a validity condition. Never to loosen one, and
   never a prediction or a verdict once the instrument exists. Every amendment is dated,
   appends, and deletes nothing.
+
+================================================================================
+OUTCOME RECORD — 2026-08-20. NOT AN AMENDMENT.
+================================================================================
+
+THIS IS AN OUTCOME RECORD, NOT AN AMENDMENT. Nothing above it is changed. No prediction,
+no verdict, no branch and no validity condition has been touched — the instrument is
+recorded exactly as it was committed before the readings were taken.
+
+STAGE 1 RESULT: BRANCH Y-1. SELF-SUPPLIED LEVER CONFIRMED.
+  S1  extent view-sized (876x872) on 26 armed frames of the auto-pool smoke, and 1x1 on
+      6. MainWorld has zero pre-existing custom-depth writers, so that extent came from
+      OUR OWN TAGS.
+  S2  8 events, notMeasured=0. Four MEASURED_NONZERO (4,519 / 54,779 / 3,800 / 6,661 px)
+      and four MEASURED_ZERO.
+  S3  BOTH MEASURED_ZERO targets are WHOLLY NANITE by direct property read —
+      BP_Stomper_C (SM_Fan_Frame, SM_GenericMachine_Engine) and RoomBuilderSquare_C (four
+      ISM components: SM_Modular_Window, SM_Modular_Wall_InnerCorner, SM_Modular_Wall_250,
+      SM_FloorBase). Every event in the run reads bbox_valid TRUE on all its rows, so
+      nothing was off screen. The other tagged targets are non-Nanite and drawing.
+  S4  countedEventsBefore=8 countedEventsAfter=4 vetoedEvents=4 nonManifestedEvents=0.
+
+  All three Y-1 clauses met. Per the pre-registered meaning: H6 fires UNAIDED, and Stage 2
+  is not needed for the mechanism claim.
+  ⛔ AND THE RESTRAINT THAT CAME WITH Y-1, HELD: the smoke's four vetoes are NOT
+  attributed to H6. H6 was PRESENT AND ACTIVE in that run; that is not the same as having
+  caused them (G120).
+
+  WEIGHT: as declared before reading, S4 was fully seen and carries no predictive weight,
+  S2 and S3 were partly seen, and S1 was wholly fresh. THE VERDICT RESTS ON THE FRESH
+  QUANTITY.
+
+I11-B IS CLOSED AT STAGE 1 BY OWNER DECISION, 2026-08-20.
+STAGE 2 IS UNRUN — NOT CANCELLED. Its design above stands as written and is to be used
+unchanged if it is ever needed. DO NOT DELETE THIS FILE.
+
+CONSEQUENT DECISION, recorded elsewhere and pointed at from here rather than restated:
+H6 IS DOCUMENTED, NOT FIXED. No m27, no fix, no veto-default change. The entry of record
+is docs/invisible-anomaly-mechanisms.md → "H6 — DOCUMENTED, NOT FIXED".

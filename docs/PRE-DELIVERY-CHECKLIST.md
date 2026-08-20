@@ -11,6 +11,25 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 
 ## 1. Game build — `Config/DefaultGame.ini`
 
+- [ ] 🚨 **HOST PROJECT: `Project Settings > Engine > Rendering > Nanite > Support Nanite` is
+      DISABLED.**
+      *If it is ENABLED, `H6`'s high-harm route goes live across **every Nanite-flagged mesh at
+      once, with no change to this plugin**: a fully visible, drawing target can be measured at zero
+      and DELETED from `annotation.json`. The whole decision not to fix `H6` rests on this box, and
+      it is a HOST setting that nobody here controls.*
+      ⚠ **Also confirm `r.Nanite.ProxyRenderMode` is at its default `0`** — it is a **scalability**
+      cvar and an ini, device profile or scalability group can set it without anyone opening project
+      settings. Non-zero means Nanite-flagged meshes render NOTHING at all.
+      → `docs/invisible-anomaly-mechanisms.md`, **"`H6` — DOCUMENTED, NOT FIXED"**.
+
+- [ ] 🚨 **HOST PROJECT: the game does NOT itself write custom depth** — outlines, selection
+      highlights, post-process masks, any `bRenderCustomDepth` / `SetRenderCustomDepth` usage.
+      *A host that writes custom depth supplies `H6`'s precondition **permanently and independently
+      of Nanite**, so the "Support Nanite is off" argument above does not cover it.* ⛔ **NEVER
+      ASSESSED on any host title — this box is the first time it is being asked.** Grep the host's
+      own source and Blueprints for `bRenderCustomDepth` / "Render CustomDepth Pass".
+      → same entry.
+
 - [ ] **`[AnomalyControlServer] Token` is set to a long random value — RUN THE CHECK, do not read it.**
       *Absent → the server falls back to a random per-session token that a client with no console can
       never read; the dashboard cannot connect at all.*
