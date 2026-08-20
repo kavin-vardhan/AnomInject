@@ -23,6 +23,8 @@ namespace
 		FName(TEXT("missing_object")),
 		FName(TEXT("blinking")),
 		FName(TEXT("missing_texture")),
+		FName(TEXT("corrupted_texture")),
+		FName(TEXT("lod_popping")),
 	};
 	constexpr int32 GNumAutoPool = UE_ARRAY_COUNT(GAutoPool);
 	static_assert(GNumAutoPool == UAnomalyAutoInjectorSubsystem::NumPoolKeys, "pool size must match the keybind count");
@@ -31,6 +33,8 @@ namespace
 	{
 		FName(TEXT("blinking")),
 		FName(TEXT("missing_texture")),
+		FName(TEXT("corrupted_texture")),
+		FName(TEXT("lod_popping")),
 	};
 
 	UAnomalyInjectorSubsystem* ResolveInjector(UWorld* World)
@@ -47,6 +51,8 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 	KeyPool[0] = EKeys::One;
 	KeyPool[1] = EKeys::Two;
 	KeyPool[2] = EKeys::Three;
+	KeyPool[3] = EKeys::Four;
+	KeyPool[4] = EKeys::Five;
 	KeyRun     = EKeys::J;
 	KeyReseed  = EKeys::K;
 
@@ -335,9 +341,15 @@ bool UAnomalyAutoInjectorSubsystem::SetAnomalyEnabled(FName Id, bool bInEnabled)
 	}
 	if (!bInPool)
 	{
+		TArray<FString> PoolNames;
+		PoolNames.Reserve(GNumAutoPool);
+		for (const FName& PoolId : GAutoPool)
+		{
+			PoolNames.Add(PoolId.ToString());
+		}
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("IAI.Auto.Pool: '%s' is not a v1 pool id (missing_object/blinking/missing_texture)."),
-			*Id.ToString());
+			TEXT("IAI.Auto.Pool: '%s' is not a pool id (%s)."),
+			*Id.ToString(), *FString::Join(PoolNames, TEXT("/")));
 		return false;
 	}
 
@@ -469,12 +481,14 @@ bool UAnomalyAutoInjectorSubsystem::SetKeyBinding(FName Action, FKey Key)
 	if      (Action == FName(TEXT("pool1")))  { KeyPool[0] = Key; }
 	else if (Action == FName(TEXT("pool2")))  { KeyPool[1] = Key; }
 	else if (Action == FName(TEXT("pool3")))  { KeyPool[2] = Key; }
+	else if (Action == FName(TEXT("pool4")))  { KeyPool[3] = Key; }
+	else if (Action == FName(TEXT("pool5")))  { KeyPool[4] = Key; }
 	else if (Action == FName(TEXT("run")))    { KeyRun = Key; }
 	else if (Action == FName(TEXT("reseed"))) { KeyReseed = Key; }
 	else
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("IAI.Auto.Bind: unknown action '%s' (use pool1/pool2/pool3/run/reseed)."), *Action.ToString());
+			TEXT("IAI.Auto.Bind: unknown action '%s' (use pool1/pool2/pool3/pool4/pool5/run/reseed)."), *Action.ToString());
 		return false;
 	}
 
@@ -816,11 +830,11 @@ static FAutoConsoleCommandWithWorldAndArgs GAutoStatusCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GAutoBindCmd(
 	TEXT("IAI.Auto.Bind"),
-	TEXT("Rebind an auto-injector key. Usage: IAI.Auto.Bind <pool1|pool2|pool3|run|reseed> <KeyName>"),
+	TEXT("Rebind an auto-injector key. Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|pool5|run|reseed> <KeyName>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
-			if (Args.Num() < 2) { UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Auto.Bind <pool1|pool2|pool3|run|reseed> <KeyName>")); return; }
+			if (Args.Num() < 2) { UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|pool5|run|reseed> <KeyName>")); return; }
 			const FName KeyName(*Args[1]);
 			const FKey Key(KeyName);
 			if (!EKeys::GetKeyDetails(Key).IsValid())
