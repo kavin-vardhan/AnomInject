@@ -15,8 +15,20 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-21 (latest). `m30` IS BUILT AND GATED. TAG HELD pending TWO OWNER
-  EYEBALL VERDICTS (`G-P1`, `G-C1`) — everything else passes.**
+- 🟩 **YOU ARE HERE — 2026-08-21 (latest). 🎯 `m30` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.
+  BOTH BLOCKING EYEBALL GATES CONFIRMED BY THE OWNER: `G-P1` VISIBLE, `G-C1` VISIBLE.**
+  🚨 **THE DELIVERED POOL IS FIVE — `blinking`, `missing_texture`, `corrupted_texture`,
+  `lod_popping`, `camera_clipping`. This line is the SINGLE SOURCE the categorical
+  `PRE-DELIVERY-CHECKLIST` box and `setup-runbook` both point at; catalog count is NINE.**
+  📌 **RESIDUALS — recorded, deliberately NOT queued.** (1) **`G-10` still never confirmed against a
+  running dashboard** — `corrupted_texture` and `lod_popping` are engine-side default-enabled so they
+  fire regardless; risk is **cosmetic**; close it opportunistically at the next natural dashboard use.
+  (2) **The pink material's `used_with_instanced_static_meshes` flag has never been exercised** (no
+  instanced target has ever been drawn by the pool). Low risk — foliage is excluded at the `G33`
+  chokepoint — but non-zero for non-foliage ISM targets, and ⚠ **the failure mode is SILENT: it would
+  render default-gray and still measure `MEASURED_NONZERO`, so only an eye catches it** (the reason
+  `G-4S` was an eyeball gate). (3) **The label projector's inverted rect on synthetic levels** —
+  untouched, out of scope, stays filed.
   🧭 **COLD START: read `docs/sessions/2026-08-21-048-m30-lod-proximity-gate-and-camera-clipping.md`.**
   🎯 **`m30` = TWO POOL MEMBERS, BOTH DEFAULT-CHECKED. The delivered pool is now FIVE: `blinking`,
   `missing_texture`, `corrupted_texture`, `lod_popping`, `camera_clipping`.**
@@ -49,11 +61,12 @@ and is the single source of truth for the project.
   Whole-frame rides the existing shape as `coverage_ratio = 1` and per-frame `bbox_norm = 0,0,1,1`,
   empty `asset_name`, `coverage_pct` left at its `-1` sentinel (it comes from selection provenance, and
   a global anomaly has no selected actor).
-  ⏳ **BLOCKING AND OUTSTANDING — TWO OWNER VERDICTS, frames already sent:** **`G-P1`** lod_popping
+  ✅ **BOTH BLOCKING EYEBALL GATES CONFIRMED BY THE OWNER (2026-08-21):** **`G-P1`** lod_popping
   visibly pops (MainWorld rock, LOD0 vs LOD3, **2,090 strong px in-bbox** against a 3,406 px
   out-of-bbox control channel carrying the level's movers) · **`G-C1`** camera_clipping visibly slices
   (**54.65 % of frame differs**; the wall fills the view OFF and is clipped away entirely ON).
-  **The tag is HELD until both are answered — m29's lesson: a tag cut before the verdict cannot carry it.**
+  🎯 **The tag was HELD until both were answered and cut only afterwards — m29's lesson applied: a tag
+  cut before the verdict cannot carry it.**
   ✅ **EVERYTHING ELSE PASSES.** **`G-P2′` CATEGORICAL** — `half_period_frames=8` **and 5 toggles at
   BOTH 30 and 60 fps**; under the old seconds design doubling fps halves the per-frame cadence ·
   **`G-P4` the gate FIRES** — rung D at **1.7681 %** refused, **0 `lod_popping` events in

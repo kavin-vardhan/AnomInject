@@ -60,10 +60,14 @@ Bounds only, no pixel read (**G127-safe**).
 ### A6 — FIRE RATE, REPORTED NOT TUNED
 
 Four packaged auto-pool legs on MainWorld, **8 `lod_popping` draws: 2 survived the gate, 6 refused**
-(25 %). The refusals are dominated by the **single-LOD** guard, not the new coverage gate —
-MainWorld's structural geometry is largely single-LOD/Nanite. **Nothing was loosened.** This is a
-number for the owner: if 25 % is too thin in real play, that is a pool-composition decision, not a
-threshold decision.
+(25 %). **Nothing was loosened.**
+
+🚨 **DO NOT READ 25 % AS A TUNING SIGNAL, ON THIS MAP OR ANY OTHER.** The refusals are dominated by
+the **single-LOD guard**, not by the new coverage threshold: MainWorld's structural geometry is
+largely single-LOD / Nanite, so most draws are rejected before coverage is ever consulted. **The rate
+is therefore a property of THIS MAP's content, not of the threshold.** On content with multi-LOD
+geometry the same threshold would admit far more. If 25 % is too thin in real play, that is a
+pool-composition decision about what the map contains — not a reason to move 7.0.
 
 ---
 
@@ -157,9 +161,31 @@ trusted** — `cc_off mean_luma 137.46 / 100 % non-zero`, `cc_on 90.69 / 72.9 %`
 **Build quartet (G121):** exe **`99AE7526`** · utoc **`3D4C02D9`** · ucas **`D15236B2`** · pak
 **`BFB95333`**.
 
-⚠ **The gates needing `CB_LodCalib` (G-P4, G-C1, G-C2, the calibration) ran on the gating build,
-which differed from the shipping build ONLY by the presence of that level.** The code is identical.
+⚠ **THE GATING BUILD AND THE SHIPPING BUILD ARE NOT THE SAME ARTIFACT, and a cold reader should not
+have to reconstruct that.** The gates needing `CB_LodCalib` — **G-P4, G-C1, G-C2 and the whole
+calibration** — ran on a **gating build** that contained the calibration level. The **shipping
+build**, whose quartet is above, was cooked from **identical code** with that level **excluded**;
+its map gate is clean at exit 0. **The only difference between the two artifacts is the presence of
+`CB_LodCalib` in the container.** Everything else — every source file, every ini value — is the same.
 Stated rather than glossed.
+
+## ✅ OWNER VERDICT — BOTH BLOCKING EYEBALL GATES PASS (2026-08-21)
+
+**`G-P1` VISIBLE** and **`G-C1` VISIBLE**, judged by the owner on the delivered frames from the
+packaged build. Those were the last two items outstanding; **`m30` is tagged.**
+
+## RESIDUALS — recorded, deliberately NOT queued
+
+1. **`G-10` has still never been confirmed against a running dashboard.** `corrupted_texture` and
+   `lod_popping` are **engine-side default-enabled**, so they fire regardless of what the UI shows;
+   the residual risk is **cosmetic**. Close it opportunistically at the next natural dashboard use.
+2. **The pink material's `used_with_instanced_static_meshes` flag has never been exercised**, because
+   no instanced target has ever been drawn by the pool. Low risk — foliage is excluded from the
+   renderable-visible set at the `G33` chokepoint — but **non-zero for non-foliage ISM targets**, and
+   ⚠ **the failure mode is SILENT: the mesh would render default-gray and still measure
+   `MEASURED_NONZERO`, so no automated check catches it. Only an eye does** (the same reason `G-4S`
+   was an eyeball gate).
+3. **The label projector's inverted rect on synthetic levels** — untouched, out of scope, stays filed.
 
 ---
 

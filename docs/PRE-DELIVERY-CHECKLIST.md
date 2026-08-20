@@ -55,8 +55,10 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 
       ⚠ **Also assert the DELIVERED POOL, not just the catalog** — the startup line
       `AutoInjector subsystem initialized ... Default pool: <ids>` states what a client capture will
-      actually fire. Catalog membership and pool membership are different things, and only the
-      second changes the delivered dataset.
+      actually fire, and it **must match the pool recorded in `CLAUDE.md`'s Current-status block,
+      id for id**. Catalog membership and pool membership are different things, and only the second
+      changes the delivered dataset. *(Also phrased against the single source, for the same reason:
+      a pool list written out here would go stale the next time a member is added.)*
 
 - [ ] **`[AnomalyControlServer] Token` is set to a long random value — RUN THE CHECK, do not read it.**
       *Absent → the server falls back to a random per-session token that a client with no console can
