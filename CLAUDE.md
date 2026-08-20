@@ -15,13 +15,54 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (third session). `m26` IS IN PROGRESS: FAULT (i) FIXED AND
-  MEASURED, FAULT (ii) MECHANISM ESTABLISHED AND ITS FIX **DESIGNED — NOT IMPLEMENTED, AWAITING THE
-  OWNER'S RULING** (journal PART TWENTY-FIVE). LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING
-  TAGGED SINCE.**
+- 🟩 **YOU ARE HERE — 2026-08-20 (fourth session). `m26` IS IN PROGRESS: BOTH SLICE-1 FAULTS ARE
+  FIXED AND PROVEN — AND `F-6` HALTED AT ITEM 2: THE `SM_Ramp2` CONTROL EXPOSED TWO NEW INSTRUMENT
+  LIMITS. THE OWNER RULES NEXT. LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING TAGGED SINCE.**
   🧭 **COLD START: read `docs/invisible-anomaly-mechanisms.md` (the ledger), then go STRAIGHT to the
   `HANDOFF` section at the END of `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`
-  (PART TWENTY-FIVE). THAT HANDOFF IS SELF-CONTAINED.**
+  (PART TWENTY-SIX). THAT HANDOFF IS SELF-CONTAINED.**
+  ✅ **THE FAULT-(ii) FIX SHIPPED (`4a9631a`, the Part-25 design + amendments A-1/A-2) AND PASSED
+  EVERY PRE-DECLARED PREDICTION ON FOUR GATE LEGS** (bench pre-declaration `84106bd` BEFORE the
+  build existed): mask block armed from `OnWorldTickEnd`; render BRACKETED by the enforcing
+  whitelist confirmation; disjoint buckets (`framesDiscarded`/`framesResidual`/`framesUnconfirmed`/
+  `probeArms`); the `bRunning` guard retired §172's stray arm (zero mode≠3 records on all five
+  legs). **L1 blinking: 4/4 contributed per event, 0 dummies, 7.20–7.22 % · L2 missing_texture:
+  4/4, byte-matching P24 · L3 missing_object: 0 in-window arms + 4 post-revert, capped final event
+  = `NOT_MEASURED` MUST-ADMIT (the admit path live again) · L4 probe: ONE known-hidden arm fired
+  the 255 detector + confirmation + discard on the shipped binary, `run_summary.mask_probe_arms=1`
+  — `F-6` ITEMS 1/3/4/5 PASS, `G96` both ways.** `mask_residual_discards=0` everywhere (A-2's
+  bench expectation). `P6` measured unchanged (48/48); `run_summary` +2 exactly as declared
+  (`mask_probe_arms`, `mask_residual_discards`).
+  🛑 **`F-6` ITEM 2 FAILED — `P26_FIX2_RAMP`: 29/29 armed frames DUMMY while the target was
+  un-hidden, tagged-and-verified, in-frustum, AND DRAWING (`CM_CM_RAMP` at the IDENTICAL camera:
+  in-bbox change 0.1785). TWO LIMITS EXPOSED, BOTH RECORDED:**
+  🆕 **`G134` — THE INSTRUMENT IS STRUCTURALLY BLIND TO NANITE ON UE 5.1. ESTABLISHED:** `SM_Ramp`
+  is Nanite-enabled (asset signature); `Nanite::FSceneProxy::GetViewRelevance` NEVER sets
+  `bRenderCustomDepth` (`NaniteResources.cpp:941-1010`); `bHasCustomDepthPrimitives` rises only
+  from that flag (`SceneVisibility.cpp:2470`); the 5.1 custom-depth pass has NO Nanite path.
+  **A Nanite target is selectable, taggable, verifiable — and permanently unmeasurable by C-1 on
+  this engine. On a Nanite-heavy host title that is the COMMON CASE.** Ledger updated.
+  🆕 **`G133` — THE 255 DETECTOR IS A SINGLE-PIXEL, VIEW-CONTINGENT SIGNAL. MEASURED:** the dummy
+  is 1×1; out-of-bounds loads return 0; the depth gate must also pass at texel (0,0) — **every
+  fire this milestone was `unassignedCount=1`.** Ramp event 1 had a non-far (0,0): no fire, and
+  four zeros from a NEVER-RUN pass CONTRIBUTED ⇒ **`MEASURED_ZERO` on the A35 control — Ruling
+  1's hazard realised on our own bench.** The pass-ran discriminator (`customStencilExtent` 1×1
+  vs view-sized) exists per frame since M-2 and **is NOT yet a contribution precondition — NOT
+  fixed this turn (the gate failed; no same-turn fix to the validity instrument).**
+  ⛔ **HALTED AT THE FIRST FAILURE, AS RULED. `H5` LEGS NOT RUN — now DOUBLY uninterpretable (no
+  extent precondition; the foliage targets' own Nanite status unestablished).** 🧭 **OWED THE
+  OWNER: (1) the extent contribution precondition (safe: all-dummy events land `NOT_MEASURED` ⇒
+  ADMIT; cost: Nanite targets permanently unmeasured), (2) `m26`'s Nanite scope statement, (3)
+  whether `SM_Ramp2` can remain the `N-2` control for an instrument that cannot see it.**
+  📦 staged exe **`DBA2D8EC`** (built==staged verified; predecessor `444D4812` archived FIRST at
+  `_binary_baselines\StackOBot.exe.m26-p24-fault1-fix-444D4812`) · container UNCHANGED
+  (`utoc 9334496D · ucas 62EB0072 · pak 78C977A5`, 4 maps) · A44 all seven new strings. Legs
+  banked: `P26_FIX2_{CTRL49,MTEX49,MOBJ49,PROBE49,RAMP}` + every discarded attempt (A63; two
+  full 3-discard pose cycles re-run per the pre-declared F-H branch).
+  ⛔ **STILL TRUE: slices 2/3 NOT STARTED · `P6` DOES NOT MOVE · stencil range 200/255 ·
+  `feature/stencil-capture` READ-ONLY at `76cac74` · NO TAG.**
+- 🟦 *(superseded — the third 2026-08-20 session: the design turn; implemented and gated above)*
+  **FAULT (ii) FIX DESIGNED UNDER RULING 1 — Option B, the bracket, the probe, the guard.**
   🚨 **`RULING 1` (owner, 2026-08-20, recorded verbatim in journal §175) GOVERNS THE FAULT-(ii)
   FIX: the 255 dummy is a property of THIS BENCH, not of the defect — on a host title a stale arm
   yields a CLEAN `MEASURED_ZERO` with no tell, and under slice 3 that silently deletes a good

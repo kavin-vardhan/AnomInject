@@ -3219,3 +3219,63 @@ the silence.
    empty join side is indistinguishable from "nothing to report" unless a control quantity (here,
    the PASS line count) says the other side was live. Same family as G96: the blindness was visible
    only because the expected count was known. (2026-08-20.)
+
+### G133 — the StencilDummy 255 detector fires on AT MOST ONE PIXEL, and whether that pixel fires depends on what the camera happens to show
+
+D-3 established that when custom depth is not produced the engine binds `StencilDummy` — a **1×1**
+texture filled with 255 — and §149 said the shader read "returns 255 AT EVERY PIXEL." **The mask's
+detector never saw that.** Two gates sit between the binding and the detector: `.Load` on a 1×1
+texture returns **0 for every out-of-bounds pixel**, so 255 exists only at texel (0,0); and the
+mask shader also requires the custom-DEPTH comparison to pass there, which against the depth dummy
+happens only where the scene shows the far plane. **Measured across the whole milestone: every
+single 255 fire was `unassignedCount=1` — one pixel — and on the `P26_FIX2_RAMP` leg, four armed
+frames whose pass never ran produced NO fire at all** (the top-left pixel was not far-plane), so
+four zeros from an unproduced pass were CONTRIBUTED and the event read **`MEASURED_ZERO` on the
+A35 control** — the exact clean-looking false zero Ruling 1 warned about, produced by the
+detector's own environmental dependence.
+
+**RULES.**
+1. **A detector whose FIRING is contingent on view content cannot certify anything by SILENCE.**
+   The pass-ran discriminator is the extent datum (`customStencilExtent` 1×1 vs view-sized) —
+   direct, per frame, content-independent, and already collected since M-2.
+2. **A measurement may CONTRIBUTE only when the instrument is PROVEN to have run for that frame**
+   — "no anomaly signal" and "instrument did not run" must never share the value 0. This is the
+   whitelist-polarity rule (a missing check must never read as a passed check) applied one level
+   deeper: to the renderer pass itself, not just our sampler.
+3. When quoting an engine fallback's value, state where it can actually REACH your reader — "the
+   read returns 255" was true of `CalcSceneCustomStencil` and false of the mask output, and the
+   gap between those two sentences held a silent false zero. (2026-08-20.)
+
+### G134 — Nanite primitives cannot write custom depth in UE 5.1, so a custom-depth instrument is STRUCTURALLY BLIND to Nanite geometry — and a non-Nanite bench level can never show it
+
+The `SM_Ramp2` control (F-6 item 2) came back with the custom-depth pass produced on **0 of 29
+armed frames** while the target was tagged (verified), un-hidden (bracket samples 0/29), in-frustum
+(projected bbox valid) — **and DRAWING: the PART ELEVEN hide-measurement `CM_CM_RAMP` ran at the
+identical camera pose and hiding the ramp changed in-bbox pixels by 0.1785.** The chain, read from
+source:
+
+| # | fact | source |
+|---|---|---|
+| 1 | `SM_Ramp` serialises a non-default `NaniteSettings` with `bEnabled` — the Nanite-enabled signature | `Content\...\Modular\SM_Ramp.uasset` |
+| 2 | **`Nanite::FSceneProxy::GetViewRelevance` NEVER sets `bRenderCustomDepth`** — both branches | `NaniteResources.cpp:941-1010` |
+| 3 | `View.bHasCustomDepthPrimitives` rises ONLY from that relevance flag | `SceneVisibility.cpp:2470` |
+| 4 | the 5.1 custom-depth pass has **no Nanite path** — it rasterises classic mesh draw commands only | `CustomDepthRendering.cpp` (zero Nanite references) |
+
+⇒ **setting `bRenderCustomDepth` on a Nanite component succeeds, verifies on read-back, and can
+never reach a pixel.** The property write is not the capability.
+
+⚠ **The trap's shape is G124's: the loudness is environmental.** The calibration control
+(`StaticMeshActor_49`) lives in the script-built gate level on plain meshes, where the instrument
+works perfectly — an entire milestone of green controls on a bench that could not exhibit the
+blindness. Only the second control, on real level content, could. **A control set must span the
+PRIMITIVE CLASSES of the content it certifies for, not just the geometry sizes and poses.**
+
+**RULES.**
+1. **Before adopting a rendering-feature-based instrument, enumerate which primitive classes feed
+   that feature in the TARGET ENGINE VERSION** — Nanite, landscape, water, skeletal, ISM each have
+   their own paths, and support tables move between versions.
+2. **A target's measurability is a property to CHECK, not assume** — for C-1 on 5.1, a Nanite mesh
+   is selectable, taggable, verifiable, and permanently unmeasurable; without a pass-ran
+   precondition (G133) it reads as a clean zero, the false-veto direction.
+3. On a Nanite-heavy host title this limit is the COMMON CASE, not the corner — it belongs in the
+   cure's scope statement, not its footnotes. (2026-08-20.)

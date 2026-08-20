@@ -9,10 +9,11 @@ path (a)'s environment and then found a different lead entirely. It is not split
 separable — each part exists because the one before it produced something unexpected. **Renamed from
 `…-045-h4-preflight-halt.md` on 2026-08-19; that title described only Part One.**
 
-> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART TWENTY-FIVE.** It states
-> `m26`'s state, the two faults' dispositions (**one fixed; one diagnosed, its fix DESIGNED and
-> awaiting the owner's ruling**), what is **proven and must not be re-proved**, and the rulings
-> that travel. **You do not need to read the twenty-five parts above it.**
+> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART TWENTY-SIX.** It states
+> `m26`'s state (**both faults FIXED and proven; `F-6` HALTED at item 2 on two newly exposed
+> instrument limits — Nanite blindness and the single-pixel 255 detector**), what is **proven and
+> must not be re-proved**, and the rulings that travel. **You do not need to read the twenty-six
+> parts above it.**
 
 ## PART INDEX
 
@@ -43,21 +44,24 @@ separable — each part exists because the one before it produced something unex
 | **Twenty-three** | 162–168 | 🚨 **THE MASK WORKS — 7.25 % vs a 7.80 % banked rect** | Branch **THEY DISAGREE**: cvar is **3 everywhere** (exonerated) but custom depth is produced on **exactly half** the armed frames in a fixed per-burst pattern (mechanism NOT established) — **and my own EVENT-scoped collision discard threw away the frames that did measure** |
 | **Twenty-four** | 169–174 | **Fault (i) FIXED · fault (ii) MECHANISM ESTABLISHED** | Frame-scoped discard (`795f2a4`): control **MEASURED_NONZERO 7.25 %** on every full event, all-discarded event lands **NOT_MEASURED** (admit path demonstrated live). 🚨 **The arm gate's hidden read is ONE TICK STALE vs the rendered frame** — 15/15 dummies hidden at render, 0 refuter violations, `missing_texture` control 32/32 REAL. **G132** (`GFrameCounter++` precedes `OnEndFrame`). ⛔ **Fault (ii) NOT fixed; `F-6` NOT claimed; `H5` still blocked; NO tag** |
 | **Twenty-five** | 175–181 | **The fault-(ii) fix DESIGNED — `RULING 1` governs it. NO CODE** | 🚨 **Ruling 1: the 255 dummy is a property of THIS BENCH — the fix must close the stale read itself.** Chosen: **Option B — arm from `OnWorldTickEnd`** (post-toggle by position, `LevelTick.cpp:1814`; pre-draw, `GameEngine.cpp:1891`; zero behaviour change outside `AnomalyCapture`) + the **M-4 sampler becomes an ENFORCING whitelist confirmation** (the render is bracketed) + the **item-5 probe** + the **`bRunning` guard** (retires §172's stray arm). Options A/C/D rejected with reasons. Budgets: blinking 4/2 → 4/4; `missing_object` 4-of-6 post-revert; no type drops to zero. ⛔ **NOT implemented — owner's ruling next** |
+| **Twenty-six** | 182–187 | **The fix SHIPS and PASSES its four legs · the `SM_Ramp2` control FAILS `F-6` item 2. HALT** | Implementation `4a9631a` + A-1/A-2; **L1–L4 met every pre-declared prediction** (blinking 4/4, `missing_object` 0 in-window + 4 post-revert, the probe firing all three detectors on demand — items 1/3/4/5 PASS, stray arm verified gone). 🛑 **Item 2 FAIL, two limits exposed: `G134` — the instrument is STRUCTURALLY BLIND TO NANITE in 5.1** (proxy relevance never sets `bRenderCustomDepth`; the ramp draws from the identical `CM_CM_RAMP` camera) **and `G133` — the 255 detector is a SINGLE-PIXEL, view-contingent signal**, so event 1 contributed a clean `MEASURED_ZERO` from a never-run pass. ⛔ **`H5` NOT run; extent precondition NOT added (same-turn rule); owner's ruling next** |
 
-⚠ **ONE INVESTIGATION, TWENTY-FIVE PARTS** *(the "nine" in the note below predates Parts Ten
+⚠ **ONE INVESTIGATION, TWENTY-SIX PARTS** *(the "nine" in the note below predates Parts Ten
 onward; the reason it is not split is unchanged).*
 
-**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART TWENTY-FIVE.** `m26`'s
-**direction**, **shape**, **plan** and **slice 1** are all written; **fault (i) is FIXED and the
-control measures 7.25 % on every full event; fault (ii)'s MECHANISM IS ESTABLISHED and its FIX IS
-DESIGNED under `RULING 1` (Option B: arm from `OnWorldTickEnd`, the render bracketed by an
-enforcing confirmation) — NOT IMPLEMENTED, awaiting the owner's ruling.** Slices 2 and 3 **not
-started**; **`H5` legs BLOCKED**. `feature/stencil-capture` **untouched** throughout — *mined,
-never resumed*. **`P6` never moved (measured 48/48 both ways in PART TWENTY-FOUR). NO TAG since
+**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART TWENTY-SIX.** **Both slice-1
+faults are FIXED and PROVEN** (fault (i) `795f2a4`; fault (ii) `4a9631a` under `RULING 1`, gate
+legs L1–L4 all green, the probe demonstrating the detectors live on demand). 🛑 **`F-6` HALTED AT
+ITEM 2: the `SM_Ramp2` control exposed that the instrument is STRUCTURALLY BLIND TO NANITE
+GEOMETRY on UE 5.1 (`G134`) and that the 255 detector is a single-pixel, view-contingent signal
+that let a clean `MEASURED_ZERO` through from a never-run pass (`G133`). The extent contribution
+precondition is identified but NOT added — the owner rules next.** Slices 2 and 3 **not
+started**; **`H5` legs NOT RUN, BLOCKED**. `feature/stencil-capture` **untouched** throughout —
+*mined, never resumed*. **`P6` never moved (measured 48/48 in Parts 24 and 26). NO TAG since
 `m25`.** ⚠ **Production code appears for the first time in PART FOURTEEN (log-only `M-1`
 instrumentation, on owner permission); Parts One–Thirteen carry ZERO.**
 
-🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART TWENTY-FIVE IS THE COLD-START ENTRY POINT.**
+🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART TWENTY-SIX IS THE COLD-START ENTRY POINT.**
 
 ---
 
@@ -5352,9 +5356,169 @@ guard retire the stray arm. What it deliberately leaves to the owner: whether to
 
 ---
 
-# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–25.
+# PART TWENTY-SIX — the fix SHIPS and PROVES ITSELF on four legs; **the `SM_Ramp2` control then FAILS `F-6` item 2 and exposes TWO NEW instrument limits. HALT.**
 
-**Session closed 2026-08-20 at the end of PART TWENTY-FIVE. `m26` is IN PROGRESS.**
+**The Part-25 design implemented as approved, with amendments A-1 and A-2. Gate run in the adopted
+order, predictions pre-declared first. STOPPED AT THE FIRST FAILURE — item 2.**
+⛔ **`H5` LEGS NOT RUN. NO TAG. `P6` NOT MOVED (measured again below). Stencil range untouched.**
+
+**Predictions pre-declared BEFORE the fixed build existed:
+`CaptureBench/tools/p26_fix2_gate_predeclared.md`, commit `84106bd`.**
+
+---
+
+## 182. A-1 and A-2 recorded, and the implementation
+
+**A-1 (the probe is a gate artefact):** default OFF; **inert in delivery mode by a GUARD at the
+fire site** (`!bDeliveryMode` in the arm condition, not a convention); `PROBE` in every log line;
+the fire is **artifact-attributable** — `run_summary.mask_probe_arms`; and
+`PRE-DELIVERY-CHECKLIST.md` §1 gains the OFF check (same class as the token read-back). **A48
+echo implemented:** every mask run logs `probe EFFECTIVE=<n> (flag=<n>, deliveryMode=<n> …)`.
+**A-2 (the residual gets a name and a counter):** a frame the ARM gate accepted whose end-of-frame
+confirmation read HIDDEN is counted in **`framesResidual`** — its own bucket, never shared with
+pollution (`framesDiscarded`), never with `framesUnconfirmed` (sample never ran), never with
+`probeArms`. **Reported per event in the summary line AND per leg in
+`run_summary.mask_residual_discards` — artifact chosen over log-only because the residual on a
+host title would be discovered from delivered artifacts, and A-1 already required the probe field
+in `run_summary`; the two ride together** (`capture_path`/`key_ring_*` precedent; run_summary is
+not `P6`).
+
+**The implementation (commit `4a9631a`):** the mask block moved from `Tick` to a
+`FWorldDelegates::OnWorldTickEnd` handler (guards: world match · `bMaskMeasure` · **`bRunning`** ·
+`Async`); the enforcing confirmation is WHITELIST — a frame contributes only if its `OnEndFrame`
+sample ran and read visible; `IAI.Capture.MaskProbe` issues at most ONE known-hidden arm per run,
+only when the normal arm did not fire that tick; the final mask collect moved BEFORE
+`WriteRunSummary` so the artifact counters are complete.
+**Identity:** staged exe **`DBA2D8EC`** (built==staged hash-verified; predecessor `444D4812` — the
+P24 measurement binary — archived FIRST at `_binary_baselines\StackOBot.exe.m26-p24-fault1-fix-444D4812`);
+container UNCHANGED (`utoc 9334496D · ucas 62EB0072 · pak 78C977A5`, 4 maps). **A44:** all seven
+new strings present in the STAGED exe, UTF-16, controls present.
+
+## 183. The pre-declared predictions, restated verbatim before any result
+
+> **L1** "Every full event: `arms=4 resolved=4 framesContributed=4 framesDiscarded=0
+> framesResidual=0 framesUnconfirmed=0 probeArms=0 collisions=0 state=MEASURED_NONZERO`,
+> `pctOfFrame` 7.2–7.3 … every armed frame REAL … `M24 ENDFRAME` line count == armed-frame count;
+> `M23 PASS` line count == total arms issued; no PASS record at mode != 3."
+> **L2** "Unchanged from P24: 8/8 events 4/4 contributed, 0 discarded/residual/unconfirmed,
+> collisions=0, MEASURED_NONZERO ~7.25 %."
+> **L3** "ZERO in-window arms … 4 post-revert arms … all 4 contributing … trailing event(s) …
+> possibly zero ⇒ NOT_MEASURED, never MEASURED_ZERO."
+> **L4** "Exactly ONE probe arm … the 255 detector FIRES … the sample reads HIDDEN … bucketed
+> PROBE … probed event `arms=4 resolved=4 probeArms=1 framesContributed=3` …
+> `mask_probe_arms=1`."
+> **L5** "Every full event `MEASURED_NONZERO`, `collisions=0` … A-4 beside the result: peak-OUT
+> `0.2955` > peak-IN `0.1785` … `SM_Ramp2` MUST read non-zero."
+
+## 184. L1–L4: **every prediction met.** `F-6` items 1, 3, 4, 5 PASS.
+
+| leg | accepted | result vs prediction |
+|---|---|---|
+| **L1** `P26_FIX2_CTRL49` (blinking; B1 PASS attempt 3; 2 pose discards banked) | ✅ | 7 full events `4/4 contributed, 0/0/0 discard/residual/unconfirmed, collisions=0, MEASURED_NONZERO 7.1963–7.2174 %`; truncated final event contributed its single clean arm; **29 PASS == 29 ENDFRAME == arms issued; ZERO mode≠3 records — §172's stray arm is GONE (H-5 verified)**; arms moved to rendered-visible ticks ({9,10,11,14}, `skippedHidden` 3→5) — exactly H-4's shape |
+| **L2** `P26_FIX2_MTEX49` (B1 PASS attempt 2) | ✅ | 8/8 events 4/4, byte-matching P24's maxCounts (66862/66878); 32/32 REAL·visible |
+| **L3** `P26_FIX2_MOBJ49` (B1 PASS; one 3-discard cycle re-run per A63/F-H) | ✅ | **0 in-window arms (`skippedHidden=8` — the whole hidden window refused) · 4 post-revert arms per full event, all contributing, 7.2529–7.2567 %**; the final event's post-revert window fell beyond the cap ⇒ `arms=0` ⇒ **`NOT_MEASURED` with the MUST-ADMIT warning — the admit path live again, in `P-2`'s purest shape** |
+| **L4** `P26_FIX2_PROBE49` (B1 PASS; one cycle re-run) | ✅ | **exactly ONE probe arm** (id 6, in-window hidden tick); `PROBE RESULT detector255Fired=1 confirmationReadHidden=1`, frame bucketed PROBE; probed event `probeArms=1 framesContributed=3 MEASURED_NONZERO`; **`run_summary.mask_probe_arms=1`** — 🚨 **`F-6` item 5: the 255 detector, the confirmation and the frame-scoped discard demonstrated LIVE on the shipped binary; `G96` both ways (silent L1–L3, fires on demand L4)** |
+
+`mask_residual_discards` = **0 on every leg** (the bench expectation). Artifact check (F-F):
+`annotation.json` **48/48, 0 added 0 removed** (`P6` not moved); `run_summary` **exactly
+{`mask_probe_arms`, `mask_residual_discards`} added** — the declared +2, nothing else. Probe A48
+echo on probe-free legs: `probe EFFECTIVE=0 (flag=0, …)`.
+
+⇒ **THE PART-24 MECHANISM IS CLOSED: with the arm read post-toggle and the render bracketed, a
+blinking target yields 4/4 usable arms and zero dummies on the calibration control.**
+
+## 185. 🛑 L5 — `P26_FIX2_RAMP` (accepted attempt 1; B1 NOT APPLICABLE, G117): **`F-6` ITEM 2 FAILS**
+
+**Observed, before any attribution:**
+
+| # | observation |
+|---|---|
+| 1 | **29/29 armed frames: `customStencilExtent=1x1`** — the custom-depth pass was produced on NO armed frame |
+| 2 | **29/29: `hiddenAtEndOfFrame=0`** — the target was NOT hidden at render, ever. `framesResidual=0`. The Part-24 fault is not what this is |
+| 3 | tag applied and held (`taggedComponents=1`, zero write-side verify collisions), `mode=3` on all 29 |
+| 4 | the ramp's projected bbox is VALID and in-frustum (286×189 px) on in-window label rows; camera steady at (−20, −40) |
+| 5 | events 2–8: the 255 detector fired per frame (`unassignedCount=1` each) ⇒ all frames discarded ⇒ `NOT_MEASURED` + MUST-ADMIT — **fails safe** |
+| 6 | 🚨 **event 1 (`startFrame=4`): NO 255 on its four frames (`unassignedCount=0`) ⇒ 4 frames CONTRIBUTED count 0 ⇒ `MEASURED_ZERO` — a clean-looking zero on the A35 control, through every guard built this turn** |
+
+**A-4 beside the result, as required: banked peak-OUT `0.2955` > peak-IN `0.1785`. And the
+decisive artifact fact: `CM_CM_RAMP` — the PART ELEVEN hide-measurement — ran at the IDENTICAL
+camera (−20, −39.9989) and hiding the ramp changed in-bbox pixels by 0.1785 ⇒ THE RAMP DRAWS in
+the base pass from this exact view.** A drawing, tagged, un-hidden, in-frustum target whose
+custom-depth pass never runs is not the Part-24 fault and not occlusion culling.
+
+### 185.1 FINDING 1 — **the instrument is structurally blind to NANITE geometry in this engine. ESTABLISHED.**
+
+| # | link | source |
+|---|---|---|
+| 1 | `SM_Ramp` (the ramp's `asset_name`) serializes a non-default `NaniteSettings` **with `bEnabled`** — the Nanite-ENABLED signature (properties serialize only when non-default; the default is false) | `Content\StackOBot\Environment\Modular\SM_Ramp.uasset` (name-table scan; ⚠ editor confirmation is one query away and was NOT taken — `G97`) |
+| 2 | **`Nanite::FSceneProxy::GetViewRelevance` NEVER sets `bRenderCustomDepth`** — read in full, both branches | `NaniteResources.cpp:941-1010` |
+| 3 | `bHasCustomDepthPrimitives` is raised ONLY from `ViewRelevance.bRenderCustomDepth` | `SceneVisibility.cpp:2470` |
+| 4 | the 5.1 custom-depth pass has **no Nanite path at all** (zero matches in the file); it rasterises classic mesh draw commands | `CustomDepthRendering.cpp` |
+
+⇒ **a Nanite primitive cannot write custom depth in UE 5.1, with any flag, any cvar, any timing.**
+The component property write succeeds and verifies (D-2 re-confirmed) — and can never reach
+pixels. The bench control that "worked" all milestone (`StaticMeshActor_49`) lives in the
+script-built gate level on non-Nanite geometry, **so the bench could never have shown this** —
+`G124`'s shape again: the loudness of a fault is environmental. → **`G134`.**
+
+### 185.2 FINDING 2 — **a CLEAN `MEASURED_ZERO` from an unproduced pass: the contribution path lacks a "pass ran" precondition, and the 255 detector cannot supply it. MEASURED.**
+
+The REDUCE data re-reads the whole milestone's detector history: **every 255 fire ever recorded
+was `unassignedCount=1` — ONE pixel.** The dummy is a **1×1** texture; `.Load` at any other pixel
+returns **0** out-of-bounds, so 255 can only ever appear at texel (0,0), and only when the
+depth-dummy comparison passes there. **The detector is a single-pixel, view-content-contingent
+signal: event 1's frames simply had a non-far pixel at (0,0), the detector stayed silent, and
+four zeros from a pass that never ran were CONTRIBUTED.** Under slice 3 that vetoes a control.
+🚨 **This is Ruling 1's exact hazard shape realised ON OUR OWN BENCH, through the detector's
+environmental dependence rather than a host title.** The reliable pass-ran discriminator —
+`CustomStencilExtent` 1×1 vs view-sized — **is already collected per frame and logged since M-2,
+and is NOT yet a contribution precondition. NOT FIXED THIS TURN** — the gate has failed and a
+same-turn change to the validity instrument is exactly what the standing rule forbids. → **`G133`.**
+
+## 186. The halt, and what it does and does not mean
+
+- **`F-6`: items 1, 3, 4, 5 PASS. Item 2 FAILS. STOPPED at the first failure, as ruled. The
+  `SM_Ramp2` control did not over-fire — it exposed the instrument. That is what `N-2`/`G-5`
+  exist for.**
+- ⛔ **`H5` LEGS NOT RUN, STILL BLOCKED** — an `H5` zero is now DOUBLY uninterpretable: the
+  extent precondition does not exist yet, and Nanite scope is unresolved. *(For the record:
+  `InstancedFoliageActor` foliage on this title may itself be Nanite-affected — its measurability
+  is now an open question of the same kind.)*
+- **The Part-24/Part-25 fix itself is NOT the failure** — it passed every gate it was designed
+  for (L1–L4) and the ramp leg's `framesResidual=0`/`hiddenAtEndOfFrame=0` show the stale-read
+  class is closed.
+- **What this means for the cure is the OWNER'S territory, stated but not designed:** (1) the
+  extent precondition (contribute only view-sized frames) closes the false-zero hole and lands
+  every all-dummy event in `NOT_MEASURED` ⇒ ADMIT — safe, but it makes Nanite targets permanently
+  unmeasured by C-1 on this engine; (2) `m26`'s scope statement must carry "the mask cannot see
+  Nanite geometry in UE 5.1" as a KNOWN limit, and a Nanite-heavy host title makes that limit the
+  common case, not the corner; (3) whether `SM_Ramp2` can remain the `N-2` control for a
+  custom-depth instrument is now a real question — a control the instrument cannot ever see
+  cannot certify over-fire.
+
+## 187. State after PART TWENTY-SIX
+
+| | |
+|---|---|
+| the fix | ✅ shipped (`4a9631a`), proven on L1–L4; A-1 and A-2 implemented |
+| `F-6` | 🛑 **items 1/3/4/5 PASS · item 2 FAIL — HALTED at first failure** |
+| new instrument limits | **`G133`** (single-pixel, view-contingent 255 detector; extent is the pass-ran datum) · **`G134`** (Nanite blindness, UE 5.1 structural) |
+| legs banked | `P26_FIX2_CTRL49/MTEX49/MOBJ49/PROBE49/RAMP` + every discarded attempt (A63) |
+| `P6` | measured unchanged again — 48/48; `run_summary` +2 exactly as declared |
+| `H5` | ⛔ **BLOCKED** · slices 2/3 NOT STARTED · **NO TAG** · `feature/stencil-capture` untouched |
+| ⛔ next | **the owner's ruling** — the extent precondition, the Nanite scope question, and what replaces or reinterprets the `SM_Ramp2` control |
+
+**WHAT THIS PART SETTLES: the stale-read fault is fixed and proven, the probe demonstrates the
+detectors live on demand, and the ship-gate control did its job by failing — the instrument
+cannot see Nanite geometry in this engine, and until a pass-ran precondition exists a target it
+cannot see can read as a clean zero. Both limits were invisible from the non-Nanite bench level,
+which is why the gate runs on `SM_Ramp2` at all.**
+
+---
+
+# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–26.
+
+**Session closed 2026-08-20 at the end of PART TWENTY-SIX. `m26` is IN PROGRESS.**
 **NO TAG since `m25`. `P6` HAS NEVER MOVED. `feature/stencil-capture` is READ-ONLY at `76cac74` —
 mine it, never check it out.**
 
@@ -5366,14 +5530,14 @@ reporting**.
 
 | slice | state |
 |---|---|
-| **1 — MEASURE ONLY** *(log-only, `IAI.Capture.Mask`, default OFF)* | **SHIPPED; fault (i) FIXED (`795f2a4`); fault (ii) mechanism ESTABLISHED, NOT FIXED (H.2).** The control now reads **MEASURED_NONZERO 7.25 %** on every full event — ⛔ **still NOT `F-6`-validated: `SM_Ramp2` not re-run, item 5 not run, and fault (ii) still discards half the frames** |
+| **1 — MEASURE ONLY** *(log-only, `IAI.Capture.Mask`, default OFF)* | **SHIPPED. Fault (i) FIXED (`795f2a4`). Fault (ii) FIXED (`4a9631a`, Part-25 design + A-1/A-2) and PROVEN on four gate legs.** 🛑 **BUT `F-6` HALTED AT ITEM 2: the `SM_Ramp2` control exposed TWO NEW instrument limits (H.2b) — the gate is items 1/3/4/5 PASS, item 2 FAIL** |
 | **2 — REPORTING** (`mask.provided` → the tri-state's bool) | ⛔ **NOT STARTED** |
 | **3 — THE VETO** + `vetoed_events` + gate `G-11` | ⛔ **NOT STARTED** |
 
-⛔ **THE `H5` LEGS ARE BLOCKED** — do **not** run `InstancedFoliageActor_0_0_0` or
-`BP_SplineSpawn_C` until **BOTH** controls read NON-ZERO **under the full `F-6` gate, after the
-fault-(ii) fix**. **A zero from a broken instrument is indistinguishable from a zero from a working
-one, and would look like the cure succeeding** (`G96`).
+⛔ **THE `H5` LEGS ARE BLOCKED, and are now DOUBLY uninterpretable** — no pass-ran precondition
+exists yet, and Nanite measurability is unresolved (their foliage targets may be Nanite-affected
+themselves). **A zero from an instrument that cannot see the target looks exactly like the cure
+succeeding** (`G96`, now with a measured instance on the A35 control).
 
 ## H.2 🚨 THE TWO FAULTS — one FIXED, one DIAGNOSED-NOT-FIXED (PART TWENTY-FOUR)
 
@@ -5386,34 +5550,44 @@ path) — **demonstrated live by the frame-cap-truncated final event** (§169.1)
 full event: `arms=4 resolved=4 framesDiscarded=2 framesContributed=2`, **7.2517–7.2550 %** vs the
 banked 7.80 % rect.
 
-### FAULT (ii) — custom depth not produced on the D-R-R-D frames — 🚨 **MECHANISM ESTABLISHED (§171) · FIX DESIGNED (PART TWENTY-FIVE §176–§180), NOT IMPLEMENTED — awaiting the owner's ruling on the design**
+### FAULT (ii) — the stale arm read — ✅ **FIXED (`4a9631a`, the Part-25 design + A-1/A-2) and PROVEN (PART TWENTY-SIX §184)**
 
-**The arm gate's `IsHidden()` read is ONE TICK STALE relative to the frame it arms:** the capture
-subsystem ticks (and arms) before the injector subsystem toggles `blinking`, and the toggle
-reaches the SAME frame's render (`F-1`). Measured by the pre-declared discriminator: **15/15
-dummy frames hidden at end-of-frame, 14/14 joined real frames visible, zero refuter violations,
-and the `missing_texture` control (never hidden) produced 32/32 REAL** — so hidden ⇒ not in the
-visible set ⇒ `bHasCustomDepthPrimitives` false (`SceneVisibility.cpp:2470`) ⇒
-`RenderCustomDepthPass` false (`CustomDepthRendering.cpp:148`) ⇒ dummy ⇒ 255.
+The mask block runs from **`FWorldDelegates::OnWorldTickEnd`** (post-toggle by position, pre-draw
+same frame); the render is **BRACKETED** by an enforcing whitelist confirmation (a frame
+contributes only if its `OnEndFrame` sample ran and read visible); the **`bRunning` guard**
+retired §172's stray post-`FinishRun` arm (verified: zero mode≠3 pass records on all five legs).
+Amendments implemented: **A-1** (probe = gate artefact: default OFF, delivery-inert by GUARD at
+the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
+`PRE-DELIVERY-CHECKLIST.md`) · **A-2** (the residual has its own counter, per event and in
+`run_summary.mask_residual_discards`; 0 on every bench leg).
+**Gate legs L1–L4 met every pre-declared prediction** (`p26_fix2_gate_predeclared.md`, bench
+`84106bd`): blinking 4/4 contributed 7.20–7.22 %, `missing_texture` 4/4 byte-matching P24,
+`missing_object` 0 in-window + 4 post-revert with the capped final event landing `NOT_MEASURED`
+(the admit path, twice demonstrated live), the probe firing all three detectors on demand —
+**`F-6` items 1/3/4/5 PASS.**
 
-🚨 **`RULING 1` GOVERNS THE FIX (recorded verbatim §175): the 255 dummy is a property of THIS
-BENCH, not of the defect — on a host title a stale arm yields a clean `MEASURED_ZERO` with no
-tell, and under slice 3 that silently deletes a good event. The fix must close the stale read
-itself.**
+### H.2b 🛑 **`F-6` ITEM 2 FAILED — the `SM_Ramp2` control exposed TWO NEW instrument limits (PART TWENTY-SIX §185). HALTED at the first failure. The owner's ruling is next.**
 
-**THE DESIGN (§176, Option B):** move the mask block (verify → drain → collect → arm) from `Tick`
-to a **`FWorldDelegates::OnWorldTickEnd`** handler — post-toggle by POSITION (`LevelTick.cpp:1814`
-is the last line of `UWorld::Tick`), pre-draw same frame (`GameEngine.cpp:1891`), zero behaviour
-change outside `AnomalyCapture`. Plus (§177) the **M-4 sampler becomes an ENFORCING, whitelist
-confirmation** (a frame contributes only if its `OnEndFrame` sample ran and read visible — the
-render is BRACKETED), the **item-5 probe** (`IAI.Capture.MaskProbe`, default OFF, one deliberate
-known-hidden arm to prove both detectors live on the new binary), and (§180) the **`bRunning`
-guard** that retires the stray post-`FinishRun` arm. `LOCK-1` preserved and strengthened (§178);
-arm budgets: non-hide 4/4 · blinking 4/4 (was 4/2) · missing_object 0 in-window + 4 of 6
-post-revert ticks — no type drops to zero (§179).
-
-**Gate after implementation = `F-6` all five items (item 5 via the probe) → `SM_Ramp2` with
-peak-IN/peak-OUT (`A-4`) → only then the `H5` legs.**
+- **`G134` — THE INSTRUMENT IS STRUCTURALLY BLIND TO NANITE GEOMETRY IN UE 5.1. ESTABLISHED:**
+  `SM_Ramp` is Nanite-enabled (asset serialisation signature; editor confirmation not taken —
+  `G97`); `Nanite::FSceneProxy::GetViewRelevance` never sets `bRenderCustomDepth`
+  (`NaniteResources.cpp:941-1010`, both branches); `bHasCustomDepthPrimitives` rises only from
+  that flag (`SceneVisibility.cpp:2470`); the 5.1 custom-depth pass has NO Nanite path
+  (`CustomDepthRendering.cpp`, zero matches). The ramp DRAWS from the leg camera (`CM_CM_RAMP`,
+  identical pose (−20,−40), in-bbox change 0.1785), is tagged and un-hidden — and 29/29 armed
+  frames were dummies. **A Nanite target can never be measured by C-1 on this engine.**
+- **`G133` — A CLEAN `MEASURED_ZERO` FROM AN UNPRODUCED PASS. MEASURED:** the 255 detector fires
+  on AT MOST ONE PIXEL (texel (0,0) of the 1×1 dummy; out-of-bounds loads return 0; depth-gated) —
+  **every fire this milestone was `unassignedCount=1`.** Event 1 of the ramp leg had a non-far
+  (0,0): the detector stayed silent and four zeros from a never-run pass CONTRIBUTED ⇒
+  **`MEASURED_ZERO` on the A35 control — Ruling 1's hazard realised on our own bench.** The
+  pass-ran discriminator — `CustomStencilExtent` 1×1 vs view-sized — is already collected per
+  frame and is **NOT yet a contribution precondition. NOT fixed** (the gate failed; no same-turn
+  fix to the validity instrument).
+- **Open for the ruling:** the extent precondition (safe — all-dummy events land `NOT_MEASURED` ⇒
+  ADMIT; honest cost — Nanite targets permanently unmeasured on 5.1) · `m26`'s scope statement on
+  Nanite (a Nanite-heavy host title makes the limit the common case) · whether `SM_Ramp2` can
+  remain the `N-2` control for an instrument that cannot see it.
 
 ## H.3 PROVEN — do **not** re-prove any of these
 
@@ -5430,6 +5604,9 @@ peak-IN/peak-OUT (`A-4`) → only then the `H5` legs.**
 | **the mask's number** | **7.23–7.25 % vs a 7.80 % banked rect, spread < 0.03 % over 14 frames** |
 | 🆕 **the frame-scoped collection** | full events `discarded=2 contributed=2 MEASURED_NONZERO 7.25 %`; the all-discarded event lands `NOT_MEASURED` — measured on `P24_M26S1F1_CTRL49` |
 | 🆕 **fault (ii)'s mechanism** | stale-by-one-tick arm read, established by the P24 join (0 refuter violations, R-C control clean) |
+| 🆕 **the fault-(ii) FIX** | `OnWorldTickEnd` arm + bracketed render: blinking 4/4 usable, zero dummies, `LOCK-1` refuses the whole `missing_object` window (`skippedHidden=8`), stray arm gone — P26 legs L1–L4 |
+| 🆕 **the probe / item 5** | one deliberate hidden arm fires the 255 detector + confirmation + discard on the shipped binary; admit bias disposes of it (`P26_FIX2_PROBE49`) |
+| 🆕 **the ramp draws from the leg camera** | `CM_CM_RAMP`, identical pose, in-bbox change 0.1785 — which is what makes `G134` a finding about the INSTRUMENT, not the target |
 
 ## H.4 Rulings that travel
 
@@ -5457,23 +5634,22 @@ peak-IN/peak-OUT (`A-4`) → only then the `H5` legs.**
 |---|---|
 | plugin | `AnomalyInjector`, `master`, pushed, **no tag since `m25`** |
 | bench | `CaptureBench`, **local-only, no remote** |
-| staged exe | **`444D4812`** (code-only hot-swap over the `m26` cook; `722266A7` archived first at `_binary_baselines\StackOBot.exe.m26-slice1-m1m3-instrument-722266A7`) |
+| staged exe | **`DBA2D8EC`** (the fault-(ii) fix; code-only hot-swap over the `m26` cook; predecessor `444D4812` — the P24 measurement binary — archived first at `_binary_baselines\StackOBot.exe.m26-p24-fault1-fix-444D4812`) |
 | container | `m26` cook — `utoc 9334496D` · `ucas 62EB0072` · `pak 78C977A5`; **4 maps** |
 | preserved quartets | `m25-h4h5m1-measurement-build` (Parts 2–14) · `m26-slice1-measurement-build` |
 | 🗺 **disk topology** | ⚠ **`Intermediate` and `Saved` are JUNCTIONS to `E:\IA_BuildCache\...`** — every path stays `D:\...` and **no tool needed editing**. Do not "fix" the missing ~21 GB on `D:`. Runbook §3.6 |
 | ⚠ cook recipe | **runbook §8.6 STEP 0** (disk floor) and **STEP 3.5** (rebuild the EDITOR target — `G47`/`G131`) are **not optional** |
-| bank | `_bench_sessions_bank`, latest `P24_M26S1F1_CTRL49` / `P24_M26S1F1_MTEX49` |
+| bank | `_bench_sessions_bank`, latest the five `P26_FIX2_*` legs + discarded attempts |
 
 ## H.6 What the next session should do first
 
 1. **Read `docs/invisible-anomaly-mechanisms.md`** — the ledger — then this HANDOFF. **Nothing else
-   from Parts 1–25 is required.**
-2. **The fault-(ii) fix is DESIGNED (§176–§180) and NOT implemented — do not implement it
-   unprompted; the design awaits the owner's ruling.** If ruled GO: pre-declare the gate-leg
-   predictions (§177's table) as a file BEFORE any leg, implement Option B + the enforcing
-   confirmation + the probe + the `bRunning` guard, then run the gate in the adopted order:
-   **`F-6` all five items → `SM_Ramp2` (`A-4` peak-IN/OUT beside it, must be ADMITTED) → only
-   then the `H5` legs.**
-3. **The `H5` legs stay BLOCKED until that full gate passes** — the blinking control reading
-   7.25 % now is necessary, not sufficient.
+   from Parts 1–26 is required.**
+2. 🛑 **`F-6` HALTED AT ITEM 2 (H.2b). Do NOT fix the instrument unprompted.** The owner rules on:
+   the **extent contribution precondition** (`CustomStencilExtent` view-sized required to
+   contribute — closes `G133`'s clean-zero hole; the datum already exists per frame), the **Nanite
+   scope statement** (`G134` — C-1 cannot see Nanite geometry on 5.1), and **what serves as the
+   `N-2` control** now that `SM_Ramp2` is unmeasurable by construction.
+3. **The `H5` legs stay BLOCKED** — no pass-ran precondition exists yet, and the foliage targets'
+   own Nanite status is unestablished. An `H5` zero today is uninterpretable.
 4. Slices 2 and 3 stay NOT STARTED. `P6` does not move. No tag.
