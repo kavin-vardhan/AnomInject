@@ -15,7 +15,64 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-21 (latest). 🎯 `m30` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.
+- 🚧 **YOU ARE HERE — 2026-08-21 (latest). `m31` IS OPEN: THE SVE CAPTURE PATH — THE SHIPPING
+  DEFAULT SINCE `m25` — PRODUCED ZERO FRAMES ON CONCORDE, THE FIRST HOST THAT WAS NOT THE TEST RIG.
+  `m31-S1` (the instrumentation) IS BUILT AND SHIPPED; NO FIX EXISTS, NONE IS AUTHORISED.**
+  🧭 **COLD START: read `docs/sessions/2026-08-21-049-m31-s1-sve-wanted-handshake.md` — it is
+  self-contained (symptom, relayed diagnosis, source verification, what S1 measures, hand-off).**
+  🚨 **STATED FOR THE RECORD: FIRST DEFECT EVER FOUND BY A SECOND HOST, AND THE SHIPPING DEFAULT
+  PATH WAS THE BROKEN ONE.** SVE was certified across ten configs, every ratio regime, both delivery
+  modes, over four milestones — every leg on THE SAME PROJECT. **Certification depth on one axis
+  says nothing about a second axis** — second instance in three days (`m27`'s settled camera was the
+  first). ⚠ **Milestone numbering verified at cold start: m28/m29/m30 ALL EXIST, highest tag is
+  `m30`; chat's "last tag m27" record was stale by three. m31 is the correct next number — NO gap.**
+  🎯 **THE SYMPTOM (Concorde/FWChaos, UE 5.1 source-built, m27 build, delivery ON):** SVE default ⇒
+  session folder + `annotation.json` + `run_summary` written, `Actual_Frames/` EMPTY, `total_frames
+  0`, 9 bursts fired, pacer clean · `IAI.Capture.SVE 0` ⇒ PNGs written normally, same build, same
+  machine. **THE OFFICE DIAGNOSIS (relayed, then INDEPENDENTLY VERIFIED FROM SOURCE HERE — journal
+  049 §6):** zero `submitted` lines, in-flight list EMPTY at every drain, `pendingAfter=120`, ring
+  HEALTHY (`published=332 consumed=332 missed=0`) ⇒ the only silent exit on the chain is the
+  `!Entry.bWanted` return (`AnomalySceneViewExtension.cpp:84-87`) — **verified the ONLY silent exit
+  between a successful `LookupKey` and submission, and publish-time is `bWanted`'s ONLY writer.**
+  The game-thread `MarkWanted(GFrameCounter)` systematically missed the publish-time
+  `IsWanted(GFrameCounter)` — a DESIGN ASSUMPTION (exact frame equality across two sites whose
+  ordering the engine does not guarantee) falsified by the first real second host. ⚠ **`bWanted`
+  false is INFERRED from 0/120, not OBSERVED — S1 exists to close exactly that gap.**
+  ✅ **`m31-S1` SHIPPED — DIAGNOSTIC ONLY, ADDITIVE ONLY, PERMANENT (the path failed silently end to
+  end on its first real host; it earned permanent instrumentation, as m27's mask echo did):**
+  `wantedPublished` beside the ring counters · a bounded per-publish trace (first 64, compiled
+  constant; family frame + publish `GFrameCounter` + `bWanted` + last-marked frame + signed offset,
+  ONE LINE PER PUBLISH so repeated game frames against differing family numbers read directly) · an
+  UNCONDITIONAL run-end summary (wantedPublished=X of Y, offset min/max/mode + histogram) ·
+  `run_summary` gains **`wanted_published` ONLY**. Tokens verified unique repo-wide before adoption;
+  named ONCE, in journal 049 §7 and the predictions file, per the VETOED-OBJECT discipline.
+  **NO BEHAVIOUR CHANGE: `bWanted`'s computation untouched · no default flip · `P6` NOT MOVED ·
+  `annotation.json` unchanged · m27/m30 tags untouched · `feature/stencil-capture` untouched.**
+  🧭 **THE READING IS PRE-REGISTERED — `docs/predictions/2026-08-21-m31-s1-branch-table.md`,
+  committed WITH S1. RESTATE IT VERBATIM BEFORE ANY RESULT IS READ.** R-1 wantedPublished≈0 ⇒ miss
+  OBSERVED, the measured offset becomes the fix's calibration, design to chat WITH the number ·
+  R-2 wantedPublished≈120 ⇒ the loss is between publish and lookup, the ring is the suspect, STOP
+  and report · R-3 mixed ⇒ report verbatim, chat rules. ALL branches: PIE licenses mechanism only
+  (G76); the fix validates PACKAGED, same-seed before/after (the m27 count-gate shape). **THREE
+  candidate fixes pre-registered, NONE authorised** (FIFO pairing — costs exact-frame identity;
+  tolerance window — needs the number only R-1 supplies; instrument first — that is S1). **The
+  pairing fact is banked for option 1's debate (journal 049 §8): `PendingSnapshots` is an exact
+  `TMap::Find` with NO tolerance — a one-frame slip either drops on a VERBOSE-only log or SILENTLY
+  MISPAIRS with the adjacent armed frame's snapshot.**
+  ⚖ **ROLE RULING, PERMANENT: TWO Code instances exist. THIS BOX IS THE ONLY CANONICAL AUTHOR; the
+  office instance is EYES, BUILDER AND RUNNER ONLY — it commits and pushes NOTHING; everything
+  reaches Concorde BY GIT PULL; NOTHING leaves the office machine (the only outbound channel is
+  what the owner reads off the screen).**
+  📌 **FILED, NOT FIXED — `G153`:** a QUOTED `IAI.Capture.Start` outDir carries the quote characters
+  into `RunDir` ⇒ `annotation.json` write fails. Fix candidate FOLDS INTO THE MILESTONE THAT FIXES
+  THE HANDSHAKE — same cook — together with `IAI.Capture.Mask`'s stale help string (A3 PARTIAL) and
+  `G118`'s placeholder token.
+  ⛔ **NOT DONE, named:** no fix designed or authorised · the instrumented Concorde run has not
+  happened (owner pulls at the office; results return by screen) · the ~2.8× publishes-per-wanted-
+  frame lead (332 vs 120) is a CANDIDATE, NOT A CLAIM · a StackOBot leg of S1 would be a sanity
+  check, not evidence about Concorde.
+- 🟦 *(superseded as "you are here" by the `m31` entry above — `m30` is the last TAGGED milestone)*
+  **2026-08-21. 🎯 `m30` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.
   BOTH BLOCKING EYEBALL GATES CONFIRMED BY THE OWNER: `G-P1` VISIBLE, `G-C1` VISIBLE.**
   🚨 **THE DELIVERED POOL IS FIVE — `blinking`, `missing_texture`, `corrupted_texture`,
   `lod_popping`, `camera_clipping`. This line is the SINGLE SOURCE the categorical

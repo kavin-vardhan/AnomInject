@@ -4048,3 +4048,21 @@ silently land on the wrong side of it. Re-read the test's PRECONDITIONS after ad
 not just the test's assertions.
 
 (2026-08-21, m30.)
+---
+
+## G153 — console arg quotes survive into the path: a quoted outDir becomes literal quote characters in RunDir
+
+Relayed from the first Concorde/FWChaos run (m31, office box): `IAI.Capture.Start` with outDir
+`"E:\Captures"` carried the QUOTE CHARACTERS into `RunDir` as literal path characters, and the run
+ended with `Warning: Capture: failed to write annotation.json`. A CLIENT-FACING SHARP EDGE: quoting a
+path is the natural thing to type, the run appears to proceed, and the failure surfaces only at
+write time as a warning that does not name the cause.
+
+**FILED, NOT FIXED.** The fix candidate (strip surrounding quotes when parsing the outDir token) is
+to be FOLDED INTO THE MILESTONE THAT FIXES THE SVE WANTED-HANDSHAKE — the next milestone that already
+requires a cook — together with the two other fold-ins riding the same rule: `IAI.Capture.Mask`'s
+stale help string (m27 RULING 2 / Deliverable A3 PARTIAL, filed at G139's addendum) and G118's cooked
+placeholder token. Same cook, one binary swap, per the m27/G139 precedent that a string fix never
+retires a gated binary on its own.
+
+(2026-08-21, m31 open — relayed observation, not reproduced on this box.)
