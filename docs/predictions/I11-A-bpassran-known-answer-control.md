@@ -227,3 +227,124 @@ POSE RULE — THREE CLAUSES, AND THE TRAP IN CLAUSE (ii)
        replaced by a weaker reading reported as the original.
 
 NO SAME-TURN FIX TO ANYTHING, WHATEVER COMES BACK.
+
+
+================================================================================
+SECOND AMENDMENT — 2026-08-20. MADE BEFORE ANY MEASUREMENT EXISTS.
+================================================================================
+
+THIS AMENDMENT WAS MADE BEFORE ANY MEASUREMENT EXISTS. No leg of I11-A had been
+run when it was written — not one arm, not one attempt, not one log line. All prior
+text is PRESERVED. Nothing is deleted.
+
+THE STANDING RULE THIS AMENDMENT OBEYS — a rule, not an excuse for this instance
+  A pre-declaration may be amended before any measurement exists, and ONLY to
+  TIGHTEN a validity condition. It is never amended to LOOSEN one, and a prediction
+  or a verdict is never amended at all once the instrument exists. Every amendment
+  is dated, appends, and deletes nothing.
+
+PREDICTIONS AND VERDICTS ARE UNCHANGED BY THIS AMENDMENT. A and B remain the two
+independent routes.
+
+THE ENVIRONMENT — OPT P
+  PLAY-IN-EDITOR, OWNER-INITIATED. The owner presses Play once per leg and touches
+  nothing else. The FOCUS GATE IS LIVE (it is skipped in Simulate; that is one of
+  the reasons Simulate was rejected). Every leg records its start_frame so a leg
+  that rode the focus-gate timeout is visible as such (A63).
+  Play-In-Editor cannot be started from Python in UE 5.1 and the bridge exposes no
+  endpoint that starts one; the bridge drives everything else.
+  G76 holds: mechanism claim only, no shipping claim, no statement about delivered
+  captures.
+
+TIGHTENING 1 — SOURCE QUESTIONS ANSWERED BEFORE THE FIRST PLAY
+  (a) Does TryFireSpecific carry ANY visibility, frustum or coverage guard?
+      ANSWERED NO, from source. AnomalyAutoInjectorSubsystem.cpp:258-326 gates on
+      world/injector validity, non-empty id and name, MaxConcurrent, IsIdLive,
+      exact "=" name match, IsActorLive, and ApplyAnomaly's return. There is no
+      viewport predicate of any kind. A target behind the camera fires.
+      CARRIED CAVEAT: the anomaly's own Apply re-filters if IAI.SetViewportScoping
+      is ON (default OFF). The per-leg read-back is the fire log line — under
+      scoping ON, blinking matches 0 and the line reads "not applied".
+  (b) If the target is off-screen, does the mask ARM at all, or does LOCK-1 refuse?
+      THE DANGEROUS ONE. If nothing armed, the leg would read NOT_MEASURED for a
+      reason having NOTHING to do with bPassRan — a clean-looking pass on the SOUND
+      prediction, produced by never reaching the precondition. That is a FALSE
+      CONFIRMATION and it is excluded BY CONSTRUCTION, not spotted afterwards.
+      ANSWERED, from source: it DOES arm. LOCK-1 tests AActor::IsHidden()
+      (AnomalyMaskMeasure.cpp:174), the actor's bHidden flag, which is what the
+      blinking anomaly toggles — it is NOT on-screen-ness. TagActor requires only
+      IsRenderableComponent = component IsVisible() and type, again not
+      on-screen-ness. SampleEndOfFrame reads the same IsHidden(), so an un-hidden
+      off-screen actor confirms VISIBLE and is not residual-discarded.
+      THE GATE BELOW MAKES THIS EXPLICIT RATHER THAN ASSUMED.
+  (c) Confirm the PIE world is MainWorld before any capture, on EVERY leg. Cheap,
+      and G87 exists.
+  (d) Enumerate the BRIDGE'S OWN command surface, not the `unreal` namespace, and
+      report whether any endpoint starts a Play session as opposed to Simulate.
+      ANSWERED NONE, by positive enumeration of all 62 advertised endpoints.
+      AND THE RULE THAT PRODUCED THIS QUESTION: an absence-of-finding is a WEAKER
+      claim than a positive measurement, and it is only as good as the surface that
+      was searched. The first PIE foreclosure enumerated the wrong surface.
+
+TIGHTENING 2 — PER-ARM VIEW-RELATIONSHIP GATES
+  A HOLE CLOSED: Ruling 4(i) said Arm A needs no pose matching, which is true — a
+  Nanite target cannot write custom depth from any pose. But it never required the
+  target to be ON SCREEN. If SM_Ramp2 falls out of frustum, ARM A SILENTLY BECOMES
+  ARM B and "two independent routes" collapses into one route measured twice.
+
+  Both gates read coverage_ratio FROM THE PROJECTOR, which is independent of the
+  lever under both its states.
+  framesNoPass REMAINS BARRED as view evidence, and THE BAR NOW APPLIES TO ARM A AS
+  WELL AS ARM B. It is downstream of the lever; H6 predicts precisely that it stops
+  firing when the lever is on.
+
+    ARM A / C-Ramp   VALID only with coverage_ratio > 0 across the window.
+                     Target on screen and still unable to write custom depth: the
+                     Arm A condition.
+    ARM B / C-Grat   VALID only with coverage_ratio -> 0 across the window.
+    ALL ARMS         VALID only with ArmsIssued > 0. If nothing armed, the
+                     precondition was never exercised. INVALID, NOT REFUTING.
+
+  Gate failure = INVALID, never refuting, never "close enough".
+
+  ADDITIONAL TIGHTENING, PERMITTED BY THE STANDING RULE BECAUSE IT ONLY NARROWS:
+  coverage_ratio 0.0 is AMBIGUOUS in source — AnomalyCaptureSubsystem.cpp:1985
+  emits 0.0 both when the target never projected (CoverageCount == 0, the sentinel)
+  and when it projected with zero clamped area. Both readings mean "contributed no
+  on-screen area", so the gate holds either way, but the ambiguity is recorded and
+  the stronger per-frame evidence is required alongside it: labels.jsonl's
+  per-row bbox_valid, from the same projector CPU path and equally independent of
+  the lever. Delivery is OFF on every leg, so labels.jsonl is written.
+    ARM A / C-Ramp   additionally requires bbox_valid TRUE on at least one row.
+    ARM B / C-Grat   additionally requires bbox_valid FALSE on every row of the
+                     event's window.
+
+TIGHTENING 3 — FIVE LEGS. RETURN TO BASELINE.
+  The lever goes ON and then OFF again, and the control is RE-RUN after it is
+  cleared.
+
+    1. C-Ramp   lever OFF · targeted SM_Ramp2_UAID_B42E9936F5429ADA00_2086822137
+    2. C-Grat   lever OFF · targeted
+                StaticMeshActor_UAID_A85E45CFE4047BD300_1260804314
+       -- lever set ON: BP_Lamp_C_UAID_B42E9936F5429ADA00_2086829166,
+          render_custom_depth TRUE, custom_depth_stencil_value 1. VERIFIED SET.
+    3. ARM A    lever ON  · same target as leg 1
+    4. ARM B    lever ON  · same target as leg 2
+       -- lever cleared. VERIFIED CLEAR.
+    5. C-Ramp'  lever OFF · same target as leg 1
+
+  Held across all five: level, actor presence, pose (untouched by the owner), seed
+  777, session shape, PIE. THE ONLY THING THAT MOVES IS ONE BOOLEAN ON ONE ACTOR.
+
+  C-Ramp' PREDICTION: NOT_MEASURED, customStencilExtent 1x1 — identical to leg 1.
+  IF LEG 5 DOES NOT MATCH LEG 1, THE WORLD DID NOT COME BACK and the lever was not
+  the only thing that moved. THE ENTIRE RUN IS INVALID. Nothing from A or B is read.
+
+  LEVER VALIDITY, unchanged and binding: customStencilExtent must differ between OFF
+  legs and ON legs, read from the M23 PASS / M26S1 NO-PASS lines. Expectation 1x1 vs
+  1280x720. NOT inferred from any arm's outcome.
+
+OUT OF SCOPE FOR EVERY LEG OF I11-A
+  DO NOT MEASURE SM_GratIng's DRAWN-TO-CLAIMED RATIO IN ANY LEG. The
+  complex-silhouette finding is real and is a lane the owner will open deliberately
+  after I11-A returns. It is recorded in the journal and acted on nowhere.
