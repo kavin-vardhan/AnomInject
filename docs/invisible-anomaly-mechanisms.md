@@ -328,3 +328,22 @@ cure design must state which single definition selection, labelling and masking 
 - Whether any two rows share a cure.
 
 *(Maintained alongside `docs/gotchas.md`. Referenced from `CLAUDE.md`. Created 2026-08-19.)*
+
+SCOPE CORRECTION — what m26 actually does (source-derived, not measured)
+
+m26 is recorded as "the H5 cure". That name is narrower than the shipped behaviour.
+
+The veto switches on the mask state enum alone. MEASURED_ZERO carries no cause. The
+code therefore deletes ANY event whose target was measured to draw zero pixels in
+that view, whatever produced the zero. Candidate producers include H5-shaped targets
+that cannot manifest, occluded targets (H4-shaped), targets that left the view rect,
+and targets not rendered in that frame for any other reason.
+
+This is a statement about what the code does, read from source. It is NOT a claim
+that the cure catches H4 — that remains an open hypothesis, deliberately unclaimed.
+
+Which causes actually produce MEASURED_ZERO rather than NOT_MEASURED is OPEN and is
+the subject of investigation I11.
+
+The m26 tag message under-describes this scope. The tag is NOT being rewritten. This
+entry is the correction of record.
