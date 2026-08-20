@@ -1711,8 +1711,10 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 					R.FramesResidualDiscarded, R.FramesUnconfirmed, R.FramesNoPass, R.ProbeArms,
 					R.SkippedHidden, R.bTagFailed ? 1 : 0, R.CollisionHits,
 					(R.FramesNoPass > 0 && R.FramesNoPass == R.ArmsResolved)
-						? TEXT(" EVERY resolved frame lacked the custom-depth pass: this target may be ")
-						  TEXT("structurally unmeasurable by the mask (NANITE on UE 5.1 is the known case, G134).")
+						? TEXT(" EVERY resolved frame lacked the custom-depth pass for this target. framesNoPass ")
+						  TEXT("is NOT a Nanite counter: the causes include NANITE geometry (G134), FRUSTUM ")
+						  TEXT("CULLING, and any other route by which the target is absent from the view's ")
+						  TEXT("relevant set. Distinguish them by whether the target projected on screen at all.")
 						: TEXT(""));
 			}
 		}

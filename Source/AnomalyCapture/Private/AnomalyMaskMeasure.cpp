@@ -373,13 +373,15 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 			++R.FramesNoPass;
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture(mask): M26S1 NO-PASS id=%llu target=%s tag=%d customStencilExtent=%dx%d - the ")
-				TEXT("custom-depth pass was NOT PRODUCED for this frame, so the bound stencil is the engine's ")
-				TEXT("1x1 StencilDummy and this frame carries NO EVIDENCE about the target. It is discarded ")
-				TEXT("(frame-scoped). A frame contributes only on POSITIVE evidence that the pass ran; the 255 ")
-				TEXT("detector is a SECONDARY signal and cannot supply that evidence, because it can fire on at ")
-				TEXT("most one pixel and only when the depth gate passes there (G133). A target that never ")
-				TEXT("produces the pass - e.g. NANITE geometry on UE 5.1, which cannot write custom depth at all ")
-				TEXT("(G134) - lands in NOT_MEASURED and must be ADMITTED, never vetoed."),
+				TEXT("custom-depth pass did not produce for this target on this frame, so the bound stencil is ")
+				TEXT("the engine's 1x1 StencilDummy and the frame carries NO EVIDENCE about the target. It is ")
+				TEXT("discarded (frame-scoped). A frame contributes only on POSITIVE evidence that the pass ran; ")
+				TEXT("the 255 detector is a SECONDARY signal and cannot supply that evidence, because it can ")
+				TEXT("fire on at most one pixel and only when the depth gate passes there (G133). ")
+				TEXT("THIS IS NOT A NANITE-SPECIFIC COUNTER: the causes include NANITE geometry, which cannot ")
+				TEXT("write custom depth at all on UE 5.1 (G134), FRUSTUM CULLING, and any other route by which ")
+				TEXT("the target is absent from the view's relevant set. In every case the frame is discarded ")
+				TEXT("and the event tends toward NOT_MEASURED, which ADMITS."),
 				RequestId, *R.Target, (int32)R.Tag,
 				Mask.CustomStencilExtent.X, Mask.CustomStencilExtent.Y);
 			ArmedRequestToRecord.Remove(RequestId);
