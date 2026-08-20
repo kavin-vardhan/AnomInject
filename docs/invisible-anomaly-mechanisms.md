@@ -441,6 +441,50 @@ events.
 THE SET OF ROUTES IS STILL NOT CLOSED. Five are named. Others may exist and have not been
 looked for.
 
+THE CURE'S REACH IS VIEW-DEPENDENT AND CAN BE LOW — MEASURED, owner play-gate smoke,
+2026-08-20. A FINDING, NOT A LOG NOTE.
+
+Two runs ELEVEN MINUTES APART, on the SAME BUILD, in REAL GAMEPLAY on MainWorld:
+
+    session_20260820-211024    1 of 8 events NOT_MEASURED    mask_nopass_discards  4
+    session_20260820-211345    5 of 8 events NOT_MEASURED    mask_nopass_discards 20
+
+Those events were ADMITTED BECAUSE NOTHING WAS MEASURED, not because they were measured
+to draw. On 211345 the m26/m27 cure was effectively INERT FOR FIVE OF EIGHT EVENTS. All
+five carried framesNoPass=4 with framesContributed=0 — every armed frame failed the
+custom-depth pass.
+
+THIS IS THE DESIGNED SAFE DIRECTION AND IS NOT A DEFECT. NOT_MEASURED => ADMIT. Nothing
+was wrongly deleted. IT IS THE ADMIT BIAS WORKING, and the run is internally consistent:
+211345 produced ZERO MEASURED_ZERO events, so vetoed_events = 0 is the CORRECT output
+rather than a silent failure. The full breakdown was 5 NOT_MEASURED / 3 MEASURED_NONZERO
+/ 0 MEASURED_ZERO, and mask.provided matched the tri-state on all eight rows.
+
+NO MECHANISM IS CLAIMED (G120). framesNoPass is NOT a Nanite counter — frustum culling,
+occlusion culling and any other route by which the target is absent from the view's
+relevant set reach the same counter. ONE of the five IS established: SM_Ramp2 is the
+KNOWN-NANITE CONTROL and MUST read NOT_MEASURED every time (G134), so its appearance here
+is the control behaving correctly. THE OTHER FOUR — BP_Stomper_C, BP_MovingPlatform_C,
+BP_PressurePlate_C, RoomBuilderSquare_C — ARE NOT ESTABLISHED AND WERE NOT CHASED.
+
+WHY IT WAS INVISIBLE UNTIL NOW, AND THIS IS THE TRANSFERABLE PART: THE BENCH LEGS
+STRUCTURALLY COULD NOT HAVE SHOWN IT. They run unattended with a settled camera and read
+notMeasured = 0. A moving camera with real World-Partition streaming swung the rate from
+1-in-8 to 5-in-8 between two runs minutes apart. That is G135's shape again — an
+instrument environment that cannot exhibit the case, with the blindness presenting as a
+CLEAN PASS. AN OWNER-PLAYED RUN IS A DIFFERENT INSTRUMENT FROM A BENCH LEG AND SEES
+THINGS THE BENCH CANNOT. It is also the same axis as the m26 smoke's Finding 3, "the
+measurement is VIEW-DEPENDENT" — that finding was about one target measuring differently
+in two views; this one is about HOW MANY events get measured at all.
+
+CONSEQUENCE, DECISION-RELEVANT AND NOT YET DECIDED: HOW MUCH OF H5 THE CURE CATCHES IN A
+CLIENT CAPTURE IS VARIABLE AND CAN BE SMALL. Any future statement to a client about what
+the cure does must carry that. NOT a defect, NOT queued, NO number minted.
+
+ALSO RECORDED SO IT IS NOT RE-DISCOVERED AS NEW: SM_Ramp2 logged collisions=2 with
+"unassigned reserved tag 255 observed, cause not established". That is G133's known
+single-pixel detector, cause not established, UNCHANGED. Not a new observation.
+
 FOLIAGE EXCLUDED FROM SELECTION — m27, 2026-08-20. THE INSTANCE GOES; THE MECHANISM STAYS.
 
 InstancedFoliageActor is excluded from selection because ITS LABEL IS UNUSABLE, not

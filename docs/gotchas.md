@@ -1824,6 +1824,39 @@ hash-verified at that location after copying (A62):
 Path (a) will be measured against **that exact container**, and a future cook overwrites the live one
 **silently** — a known failure mode now, not a hypothetical. (2026-08-19.)
 
+---
+
+🚨 **THE RUNNING COUNT, BECAUSE THE PATTERN IS THE FINDING AND NOT ANY SINGLE INSTANCE:
+UNBANKED EVIDENCE HAS NOW BEEN FOUND SITTING IN THE PROJECT TREE FIVE SEPARATE TIMES.**
+Two of those five were on **2026-08-20 alone**.
+
+| # | when | what was sitting unbanked |
+|---|---|---|
+| 1 | 2026-08-14 | `RESCUE_H4_WSECHO` — and the bank already held a **DIFFERENT session** of the same NAME (`…-140533` vs `…-170238`). **A name-based sweep would have destroyed the only copy while reporting a clean duplicate.** |
+| 2 | 2026-08-19 | 21 PIE-era sessions / 3.89 GB in `StackOBot\Saved\AnomalyCaptures`, **including `session_20260817-132214` — the `m23` OWNER PLAY-GATE SMOKE**, the first confirmation of that fix in real gameplay. |
+| 3 | 2026-08-19 | `Saved\M23B` + **eight** exe-side leg outputs, **four of which are the raw evidence behind `m25`'s S4-3 and S4-4 claims** (bank 91 → 104). |
+| 4 | 2026-08-20 | Three unbanked smoke sessions + the **rolled** smoke log, rescued as `I11B_SMOKE_RESCUE`. |
+| 5 | 2026-08-20 | **BOTH owner play-gate smoke sessions for `m27`** (`…-211024`, `…-211345`) + `StackOBot.log`. |
+
+**WHAT THE FIVE HAVE IN COMMON, and it is the actionable part:**
+
+1. **Every one was found by matching SESSION ID, never by directory name.** A name-based
+   sweep found **none** of them, and in case 1 would have actively destroyed evidence.
+2. **The most valuable item is repeatedly an OWNER-PLAYED run, not a bench leg** (cases 2
+   and 5). Those are produced outside the harness, so nothing banks them automatically —
+   **the harness banks its own legs and creates exactly the blind spot.**
+3. 🚨 **CASE 5 ADDS A NEW ONE: THE LOG CAN BE THE ONLY COPY OF A RESULT.** A vetoed event
+   leaves **NO trace in `annotation.json`** by design (`m26`), so the `VETOED-OBJECT` lines
+   recording *which three objects were deleted* in `session_20260820-211024` existed
+   **nowhere else on disk**. Banking the sessions and not the log would have preserved the
+   artifacts and lost the finding. ⇒ **BANK THE LOG ALONGSIDE ANY SESSION WHOSE RESULT IS
+   PARTLY LOG-ONLY**, and note that UE **rotates** the log on the next launch (case 4 lost
+   one that way and had to rescue a `-backup-` file).
+
+**RULE: after ANY owner-played or out-of-harness capture, sweep by SESSION ID before doing
+anything that touches the package tree, and bank the log with it.** Cheap; the alternative
+is unrecoverable.
+
 ### G93 — `FocusGate 0` + a high `VideoFps` corrupts the camera; neither alone does it
 
 Turning the m16 focus gate OFF at `VideoFps` 120/240 produced captures in which the player camera settled
@@ -3479,6 +3512,45 @@ A client can set the key correctly, in a real file, and have it do nothing.
 
 ---
 
+---
+
+⛔ **FILED DEFECT, DELIBERATELY NOT FIXED AT `m27` — `IAI.Capture.Mask`'s CONSOLE HELP STILL
+CONTRADICTS THIS GOTCHA AND ITSELF. DELIVERABLE A3 IS *PARTIAL*.**
+
+**The exact string, first line of the help in
+`Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp`:**
+
+```
+"m26 SLICES 1+2 - MEASURE AND REPORT (default OFF). ON: tag each fired target into custom stencil using "
+```
+
+**What A3 DID deliver** (verified in the shipped string): the help now describes the
+**slice-3 zero-only veto** accurately — *"an event is removed from `annotation.json` IF AND
+ONLY IF it is manifested AND its target was MEASURED at ZERO drawn pixels … there is NO
+ratio and NO threshold"* — and it states **"Mid-run changes are ignored (stop first)"**.
+
+**What A3 did NOT deliver, and both are in that one opening line:**
+1. **`"SLICES 1+2"` is stale** — the body of the same help goes on to describe **slice 3**.
+   ⚠ **A reader therefore hits an INTERNAL INCONSISTENCY rather than a plain error**, which
+   is the harder kind to trust your way out of: the header and the body disagree, and
+   nothing says which is current.
+2. **`"(default OFF)"` is now only the COMPILED default.** After `m27` the **ini decides**,
+   so a build with `bMaskMeasureDefault=True` runs with the mask **ON** while its own console
+   help says OFF. **That is this gotcha's exact failure mode surviving inside the fix for it.**
+3. The word **BISECT** never appears, though that is what the switch now is.
+
+**WHY IT WAS NOT FIXED — the trade, recorded so it is not re-litigated as sloppiness:** a
+one-character source change forces a rebuild **and a re-cook**, which **moves the exe hash and
+INVALIDATES ALL FOUR `m27` GATE-3 LEGS** — for a string **no gate ever read**. Trading
+certified evidence for cosmetics is the wrong direction. **Same trade already made
+deliberately for `G118`'s cooked placeholder token and for the `m26` bench binary
+(`5EA6AB92`, shipped one commit behind to preserve the binary nine gate legs ran on).**
+
+🧭 **THE RULE FOR CLEARING IT: FOLD IT INTO THE NEXT MILESTONE THAT ALREADY REQUIRES A COOK.**
+It costs nothing there and must not motivate a cook of its own. **`G118`'s cooked-placeholder
+item travels the same way and should be cleared in the same pass.**
+(Filed 2026-08-20, `m27`.)
+
 ### G140 — changing the SELECTABLE SET changes SEEDED SELECTION, so banked runs stop being comparable across the change
 
 `m27` excludes `AInstancedFoliageActor` from `IsRenderableComponent`. That predicate feeds
@@ -3534,4 +3606,56 @@ are exposed.)*
 3. **`G115`'s diffstat check is what catches this**, because a BOM shows as a change to line 1 of a
    file whose line 1 you did not touch. Read the diffstat before every commit.
 4. A parser rejecting a BOM is reporting a REAL defect in the file. Fix the file, not the parser.
+(2026-08-20.)
+
+### G142 — a VERIFICATION SCRIPT is a defect surface of its own, and its failures wear the costume of a BUILD failure
+
+🚨 **BOTH DEFECTS BELOW WERE IN THE CHECKER, NOT IN THE BUILD, AND EITHER WOULD HAVE
+MANUFACTURED A FALSE `COUNTS DISAGREE — STOP`** on a gate that was working perfectly.
+Caught 2026-08-20 while running `m27`'s owner play-gate smoke — **while reporting a PASS**.
+
+⚠ **WHY THIS IS ITS OWN GOTCHA AND NOT A FOOTNOTE: A FALSE FAILURE IS MORE EXPENSIVE THAN
+A MISSED ONE HERE.** It costs the owner a round trip, and — worse — **it teaches him to
+distrust a gate that was correct**, which is the one thing a gate cannot survive. `G118`
+already records that a guard passing the unsafe case is worse than no guard; this is the
+mirror image, and it is not obviously cheaper.
+
+**DEFECT 1 — THE SCRIPT ASSUMED ONE CAPTURE RUN PER LOG. A LOG CAN HOLD MANY.**
+The owner captured **twice in one game session**. A whole-log
+`Select-String VETOED-OBJECT` therefore counted **run A's three lines** against **run B's
+`vetoed_events = 0`** and would have reported a mismatch. Nothing about the log announces
+that it spans two runs.
+
+**DEFECT 2 — THE OBVIOUS WINDOW ANCHOR IS WRONG IN BOTH DIRECTIONS.** Scoping a run to
+"from `Capture run STARTED` to `Capture run FINISHED`" is wrong at **both** ends, and the
+two errors point opposite ways, so neither cancels the other:
+
+| line | where it actually is | first symptom |
+|---|---|---|
+| the per-run mask ECHO (`READ THIS LINE, NOT THE INI`) | **BEFORE** the `STARTED` banner | reported the echo **MISSING** — read as "the ini did not take" |
+| `M27 VETO SUMMARY`, `M26S3 G-11` | before `FINISHED` ✅ | (correctly scoped by accident) |
+| the per-event `M26S1 EVENT` lines | **AFTER** the `FINISHED` banner | printed the **PREVIOUS run's** events under this run's heading |
+
+Measured line numbers from that log, as the proof: run A `STARTED` 1859 · veto summary
+2211 · `G-11` 2212 · `FINISHED` 2214 · **`M26S1 EVENT` 2216–2224**; run B `STARTED` 2245
+· summary 2575 · `FINISHED` 2578 · **`M26S1 EVENT` 2580–2592**.
+
+**THE CORRECT SCOPING RULE — write it into any future checker rather than re-deriving it:**
+
+> A run's evidence spans **from after the PREVIOUS run's last `M26S1 EVENT` line, to this
+> run's last `M26S1 EVENT` line.** The `STARTED` banner sits in the MIDDLE of its own run's
+> evidence, not at the start of it. Anchoring on `STARTED` silently truncates both ends.
+
+Safer still where it is available: **key on the SESSION ID**, which appears in both banners,
+and take the Nth occurrence of each marker. Safest of all for a manual check: **restart the
+game between captures** so one log holds one run.
+
+**THE GENERAL RULE.** When a check fails, the FIRST hypothesis is that **the check** is
+wrong, not the artifact — especially a check written in the same session as the thing it
+checks, because it has never been exercised against a known-good input. That is `G96`'s
+principle (a guard that has never fired is not a guard) applied to the **checker** instead
+of the product. **Two known-answer inputs cost minutes: one run that SHOULD trip it and one
+that should NOT.** Here the known-good input existed for free and was not used — the owner's
+two runs happened to be exactly that pair, and the script only survived because the numbers
+were read by hand afterwards.
 (2026-08-20.)
