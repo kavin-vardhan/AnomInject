@@ -15,8 +15,55 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-19. THE INVISIBLE-ANOMALY INVESTIGATION IS THE ACTIVE WORK, AND `H5` IS
-  THE PRIMARY LEAD. THE LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING HAS BEEN TAGGED SINCE.**
+- 🟩 **YOU ARE HERE — 2026-08-20. `m26` IS IN PROGRESS: SLICE 1 SHIPPED, ITS MEASUREMENT PROVEN
+  CORRECT, SLICE 1 NOT VALIDATED, TWO FAULTS OPEN. LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING
+  TAGGED SINCE.**
+  🧭 **COLD START: read `docs/invisible-anomaly-mechanisms.md` (the ledger), then go STRAIGHT to the
+  `HANDOFF` section at the END of `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`
+  (PART TWENTY-THREE). THAT HANDOFF IS SELF-CONTAINED — you do not need the twenty-three parts above
+  it.**
+  **`m26` = the `H5` class-(ii) cure: an event whose target is MEASURED to draw nothing is removed
+  from `annotation.json` before it is written. Shape (c) deferred veto + (b)'s reporting.**
+  · **slice 1 (MEASURE ONLY, log-only, `IAI.Capture.Mask` default OFF) — SHIPPED.**
+  🚨 **ITS MEASUREMENT IS PROVEN CORRECT: 7.23–7.25 % of frame, spread < 0.03 % over 14 frames,
+  against `StaticMeshActor_49`'s banked 7.80 % rect — the right magnitude and slightly UNDER the
+  bounding rect, which is what an occlusion-correct silhouette should be.**
+  ⛔ **BUT SLICE 1 IS NOT VALIDATED** · **slice 2 (reporting) and slice 3 (the veto) NOT STARTED**
+  · ⛔ **`H5` LEGS BLOCKED** until BOTH controls read NON-ZERO.
+  🚨 **TWO OPEN FAULTS, INDEPENDENT, NEITHER FIXED — do not let one explain the other:**
+  **(i) `CollectResults` discards frame-scoped results on an EVENT-scoped flag.** CAUSE ESTABLISHED,
+  in our code: `if (R.CollisionHits > 0) { continue; }` skips every later frame of an event **before
+  its count is read**, so MAX-across-frames never runs. ⚠ **Fixing this ALONE turns the control green
+  at ~7.25 % while fault (ii) still fails half the frames — a partial instrument passing a gate,
+  which is what `F-6` item 5 exists for.**
+  **(ii) Custom depth is NOT PRODUCED on exactly half the armed frames** — 15 of 30, in a **fixed
+  per-burst pattern (arm1 DUMMY · arm2 REAL · arm3 REAL · arm4 DUMMY), identical across all seven
+  full events.** ⛔ **MECHANISM NOT ESTABLISHED AND NOT GUESSED.** ⚠ **LEAD ONLY, not a claim:**
+  `blinking`'s half-period is 3 frames and `m20` established the hidden sample is ONE GAME TICK STALE.
+  ✅ **PROVEN — DO NOT RE-PROVE:** `LOCK-1`'s hidden-tick refusal · the tag→mask→readback plumbing ·
+  `AnomalyShaders` (`PostConfigInit`, no `Renderer` dep, other modules' load order untouched) · the
+  four gates (cook · map set · **shader presence = the BOOT** · token read-back) · the
+  `m26-slice1` quartet · the **write side exonerated** · **the cvar exonerated (`r.CustomDepth` = 3 on
+  ALL 30 armed frames at the pass point)** · **255 = `StencilDummy` (`FColor::White`)**.
+  ⛔ **WITHDRAWN, NOT DEFERRED: the tag/arm separation** — `F-1` refutes it at source (the proxy is
+  already up to date; `SendAllEndOfFrameUpdates` runs inside `BeginRenderingViewFamilies`, same
+  frame). **Zero ticks needed, and it is a guarantee.**
+  📌 **BANKED for any future tag/arm split:** hidden-state tested at **TAG, ARM and RESOLVE**; hidden
+  at **ANY** ⇒ **`NOT_MEASURED`**, never `MEASURED_ZERO`.
+  ✅ **ADOPTED — `F-6` IS THE FIX GATE, all five items**, including 🚨 **item 5: the 255 detector
+  PROVEN STILL LIVE, both ways (`G96`)** — without it items 1–4 can pass on an instrument that has
+  stopped looking.
+  ⛔ **Stencil range stays `200`/`255`. `CollectResults` is still event-scoped — left as found,
+  deliberately. NO same-turn fix to a validity instrument, and the mask IS `m26`'s validity
+  instrument.**
+  📦 **ENVIRONMENT:** staged exe **`722266A7`** (code-only hot-swap over the `m26` cook) · container
+  `utoc 9334496D` / `ucas 62EB0072` / `pak 78C977A5`, **4 maps** · quartets preserved at
+  `m25-h4h5m1-measurement-build` (Parts 2–14) and `m26-slice1-measurement-build`.
+  🗺 ⚠ **DISK TOPOLOGY: `Intermediate` and `Saved` are JUNCTIONS to `E:\IA_BuildCache\...`** — every
+  path stays `D:\...` and **no tool needed editing. Do NOT "fix" the ~21 GB apparently missing from
+  `D:`.** Runbook **§3.6**. ⚠ **Runbook §8.6 STEP 0 (disk floor) and STEP 3.5 (rebuild the EDITOR
+  target — `G47`/`G131`) are NOT OPTIONAL.**
+- 🟦 *(superseded — the H4/H5 investigation that produced `m26`)* **`H5` WAS THE PRIMARY LEAD.**
   📒 **READ `docs/invisible-anomaly-mechanisms.md` FIRST** — the five-row ledger of *distinct*
   mechanisms with *potentially distinct cures*, **now carrying `§6` THE COSTED CURE OPTION SPACE**.
   Then journal `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`, which has a **PART

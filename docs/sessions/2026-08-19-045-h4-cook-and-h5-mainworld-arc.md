@@ -9,6 +9,10 @@ path (a)'s environment and then found a different lead entirely. It is not split
 separable — each part exists because the one before it produced something unexpected. **Renamed from
 `…-045-h4-preflight-halt.md` on 2026-08-19; that title described only Part One.**
 
+> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART TWENTY-THREE.** It states
+> `m26`'s state, the **two open faults**, what is **proven and must not be re-proved**, and the
+> rulings that travel. **You do not need to read the twenty-three parts above it.**
+
 ## PART INDEX
 
 | part | §§ | what it is | outcome |
@@ -37,14 +41,18 @@ separable — each part exists because the one before it produced something unex
 | **Twenty-two** | 157–161 | **`F-1` refutes the fix direction — the design cannot be written** | 🚨 **The proxy is ALREADY up to date: `SendAllEndOfFrameUpdates` runs inside `BeginRenderingViewFamilies` in the SAME frame.** Zero ticks needed. Pass point and cvar priority also exonerated ⇒ **source-only diagnosis EXHAUSTED**; the unmeasured `r.CustomDepth` is next. `F-4`/`F-5`/`F-6` answered |
 | **Twenty-three** | 162–168 | 🚨 **THE MASK WORKS — 7.25 % vs a 7.80 % banked rect** | Branch **THEY DISAGREE**: cvar is **3 everywhere** (exonerated) but custom depth is produced on **exactly half** the armed frames in a fixed per-burst pattern (mechanism NOT established) — **and my own EVENT-scoped collision discard threw away the frames that did measure** |
 
-⚠ **ONE INVESTIGATION, FIFTEEN PARTS** *(the "nine" in the note below predates Parts Ten–Fifteen;
-the reason it is not split is unchanged).*
+⚠ **ONE INVESTIGATION, TWENTY-THREE PARTS** *(the "nine" in the note below predates Parts Ten
+onward; the reason it is not split is unchanged).*
 
-**WHERE IT ENDS:** the cure's **DIRECTION** (`C-1`), **SHAPE** ((c) with (b)'s reporting) and
-**PLAN** (`m26`, PART FIFTEEN) are all written. ⛔ **The plan is NOT APPROVED and NOTHING IS
-IMPLEMENTED.** `feature/stencil-capture` is **untouched** throughout — *mined, never resumed*.
-**`P6` never moved.** ⚠ **Production code appears for the first time in PART FOURTEEN — log-only
-instrumentation for `M-1`, on owner permission; Parts One–Thirteen carry ZERO.**
+**WHERE IT ENDS — SESSION CLOSED 2026-08-20.** `m26`'s **direction**, **shape**, **plan** and
+**slice 1** are all written, and 🚨 **slice 1's MEASUREMENT IS PROVEN CORRECT on the frames it
+measured — 7.23–7.25 % against a 7.80 % banked rect.** ⛔ **But slice 1 is NOT VALIDATED: TWO
+INDEPENDENT FAULTS ARE OPEN AND NEITHER IS FIXED.** Slices 2 and 3 **not started**; **`H5` legs
+BLOCKED**. `feature/stencil-capture` **untouched** throughout — *mined, never resumed*. **`P6` never
+moved. NO TAG since `m25`.** ⚠ **Production code appears for the first time in PART FOURTEEN
+(log-only `M-1` instrumentation, on owner permission); Parts One–Thirteen carry ZERO.**
+
+🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART TWENTY-THREE IS THE COLD-START ENTRY POINT.**
 
 ---
 
@@ -4965,3 +4973,109 @@ than folded into a branch.**
 unexplained per-burst alternation in whether custom depth is produced, and an event-scoped discard in
 my own collection code that threw away the frames which did measure. The cvar, the last thing anyone
 could reason about from source, is clean.**
+
+---
+
+# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–23.
+
+**Session closed 2026-08-20 at the end of PART TWENTY-THREE. `m26` is IN PROGRESS.**
+**NO TAG since `m25`. `P6` HAS NEVER MOVED. `feature/stencil-capture` is READ-ONLY at `76cac74` —
+mine it, never check it out.**
+
+## H.1 Where `m26` stands, in one read
+
+**`m26` is the `H5` class-(ii) cure: an event whose target is MEASURED to draw nothing is removed
+from `annotation.json` before it is written.** Shape ruled **(c) deferred veto with (b)'s
+reporting**.
+
+| slice | state |
+|---|---|
+| **1 — MEASURE ONLY** *(log-only, `IAI.Capture.Mask`, default OFF)* | **WRITTEN AND SHIPPED. Its MEASUREMENT IS PROVEN CORRECT on the frames it measured** (§165) — **but slice 1 is NOT VALIDATED**, because two faults (H.2) stop most frames reaching a result |
+| **2 — REPORTING** (`mask.provided` → the tri-state's bool) | ⛔ **NOT STARTED** |
+| **3 — THE VETO** + `vetoed_events` + gate `G-11` | ⛔ **NOT STARTED** |
+
+⛔ **THE `H5` LEGS ARE BLOCKED** — do **not** run `InstancedFoliageActor_0_0_0` or
+`BP_SplineSpawn_C` until **BOTH** controls read NON-ZERO. **A zero from a broken instrument is
+indistinguishable from a zero from a working one, and would look like the cure succeeding** (`G96`).
+
+## H.2 🚨 THE TWO OPEN FAULTS — **INDEPENDENT. Neither is fixed. Do not let one explain the other.**
+
+### FAULT (i) — `CollectResults` discards frame-scoped results on an event-scoped flag
+
+**CAUSE ESTABLISHED. IN OUR CODE. NOT FIXED.**
+`FAnomalyMaskMeasure::CollectResults` (`AnomalyMaskMeasure.cpp`) does
+`if (R.CollisionHits > 0) { ...; continue; }`. **The collision flag is EVENT-scoped; the observation
+is FRAME-scoped.** After the first bad frame, **every later frame of that event is skipped before its
+count is read**, so the **MAX-across-frames** design never runs and a good frame is thrown away.
+
+⚠ **Fixing this ALONE would turn the control green at ~7.25 % while fault (ii) still silently fails
+half the frames — a partial instrument passing a gate. That is what `F-6` item 5 exists for.**
+
+### FAULT (ii) — custom depth is not produced on exactly half the armed frames
+
+**MECHANISM NOT ESTABLISHED. NOT GUESSED.** Measured: **15 of 30 armed frames**, in a **fixed
+per-burst pattern identical across all seven full events**:
+
+| arm within event | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|
+| `customStencilExtent` | **`1x1` DUMMY** | `1280x720` REAL | `1280x720` REAL | **`1x1` DUMMY** |
+
+**Discriminator (decided in advance): `StencilDummy` is `1×1`; the real texture is view-sized.**
+It correlates with **position within the burst**, not with anything stochastic.
+
+⚠ **A LEAD, EXPLICITLY NOT A CLAIM:** `blinking`'s half-period is **3 frames**, and `m20` established
+the blinking hidden sample is **ONE GAME TICK STALE**. **That is where to look first. It is not the
+answer, and it must not be written down as one.**
+
+## H.3 PROVEN — do **not** re-prove any of these
+
+| | |
+|---|---|
+| **`LOCK-1`'s hidden-tick refusal** | `skippedHidden=3..4` on every event — the riskiest item in the whole plan, validated |
+| **the plumbing round-trip** | tag → mask pass → readback, `arms=N resolved=N` |
+| **`AnomalyShaders`** | `PostConfigInit`, **no `Renderer` dep**, other modules' load order untouched |
+| **the four gates** | cook · map set · **shader presence (the BOOT)** · token read-back |
+| **the `m26-slice1` quartet** | preserved 6/6 at `_binary_baselines\m26-slice1-measurement-build\` |
+| **the write side** | exonerated — property verified intact while the mask still saw nothing |
+| **the cvar** | **`r.CustomDepth` = 3 on ALL 30 armed frames, read at the pass point** |
+| **`255` = `StencilDummy`** | `FColor::White`, bound when custom depth is not produced |
+| **the mask's number** | **7.23–7.25 % vs a 7.80 % banked rect, spread < 0.03 % over 14 frames** |
+
+## H.4 Rulings that travel
+
+- ⛔ **WITHDRAWN, NOT DEFERRED: the tag/arm separation.** `F-1` refutes it at source — the proxy is
+  already up to date (`SendAllEndOfFrameUpdates` runs inside `BeginRenderingViewFamilies`, same
+  frame). **Zero ticks are needed, and it is a guarantee.** Nothing to revisit.
+- 📌 **BANKED for any future tag/arm split:** the hidden-state test applies at **TAG**, **ARM** and
+  **RESOLVE** time; hidden at **ANY** ⇒ **`NOT_MEASURED`**, never `MEASURED_ZERO`.
+- ✅ **ADOPTED — `F-6` IS THE FIX GATE, all five items** (§160): both controls NON-ZERO with
+  `collisions=0` · arm counts matching prediction · plausible `pctOfFrame` · **and item 5 — 🚨 THE
+  255 DETECTOR PROVEN STILL LIVE, BOTH WAYS (`G96`)**, without which items 1–4 can pass on an
+  instrument that has stopped looking.
+- ⛔ **The stencil range stays `200`/`255`** — refuted as the cause; **not to be changed as a side
+  effect of anything.**
+- ⛔ **`CollectResults` is still event-scoped** — left as found, deliberately.
+
+## H.5 Environment a cold session inherits
+
+| | |
+|---|---|
+| plugin | `AnomalyInjector`, `master`, pushed, **no tag since `m25`** |
+| bench | `CaptureBench`, **local-only, no remote** |
+| staged exe | **`722266A7`** (code-only hot-swap over the `m26` cook) |
+| container | `m26` cook — `utoc 9334496D` · `ucas 62EB0072` · `pak 78C977A5`; **4 maps** |
+| preserved quartets | `m25-h4h5m1-measurement-build` (Parts 2–14) · `m26-slice1-measurement-build` |
+| 🗺 **disk topology** | ⚠ **`Intermediate` and `Saved` are JUNCTIONS to `E:\IA_BuildCache\...`** — every path stays `D:\...` and **no tool needed editing**. Do not "fix" the missing ~21 GB on `D:`. Runbook §3.6 |
+| ⚠ cook recipe | **runbook §8.6 STEP 0** (disk floor) and **STEP 3.5** (rebuild the EDITOR target — `G47`/`G131`) are **not optional** |
+| bank | `_bench_sessions_bank`, latest `P23_M23_CVAR_CTRL49` |
+
+## H.6 What the next session should do first
+
+1. **Read `docs/invisible-anomaly-mechanisms.md`** — the ledger — then this HANDOFF. **Nothing else
+   from Parts 1–23 is required.**
+2. **Do NOT fix either fault unprompted.** Both are the owner's call, and **there is no same-turn fix
+   to a validity instrument — the mask IS `m26`'s validity instrument.**
+3. If asked to proceed, **fault (ii) is the one that needs a measurement**, not a design: the
+   alternation's mechanism is unestablished, and the last three turns each killed a plausible repair
+   whose premise had not been checked (**the stencil range**, **the tick separation**, **the cvar**).
+   **Establish the mechanism before building anything.**
