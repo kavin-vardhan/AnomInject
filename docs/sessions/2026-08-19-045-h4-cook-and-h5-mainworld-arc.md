@@ -9,11 +9,11 @@ path (a)'s environment and then found a different lead entirely. It is not split
 separable — each part exists because the one before it produced something unexpected. **Renamed from
 `…-045-h4-preflight-halt.md` on 2026-08-19; that title described only Part One.**
 
-> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART TWENTY-SIX.** It states
-> `m26`'s state (**both faults FIXED and proven; `F-6` HALTED at item 2 on two newly exposed
-> instrument limits — Nanite blindness and the single-pixel 255 detector**), what is **proven and
-> must not be re-proved**, and the rulings that travel. **You do not need to read the twenty-six
-> parts above it.**
+> 🧭 **COLD READER: GO STRAIGHT TO THE `HANDOFF` SECTION AT THE END OF PART TWENTY-SEVEN.** It
+> states `m26`'s state (**both faults FIXED, the extent precondition shipped, and both `H5` targets
+> confirmed NON-NANITE so the cure reaches them; ONE leg — the replacement `N-2` control — is owed
+> before `H5` unblocks**), what is **proven and must not be re-proved**, and the rulings that
+> travel. **You do not need to read the twenty-seven parts above it.**
 
 ## PART INDEX
 
@@ -45,23 +45,25 @@ separable — each part exists because the one before it produced something unex
 | **Twenty-four** | 169–174 | **Fault (i) FIXED · fault (ii) MECHANISM ESTABLISHED** | Frame-scoped discard (`795f2a4`): control **MEASURED_NONZERO 7.25 %** on every full event, all-discarded event lands **NOT_MEASURED** (admit path demonstrated live). 🚨 **The arm gate's hidden read is ONE TICK STALE vs the rendered frame** — 15/15 dummies hidden at render, 0 refuter violations, `missing_texture` control 32/32 REAL. **G132** (`GFrameCounter++` precedes `OnEndFrame`). ⛔ **Fault (ii) NOT fixed; `F-6` NOT claimed; `H5` still blocked; NO tag** |
 | **Twenty-five** | 175–181 | **The fault-(ii) fix DESIGNED — `RULING 1` governs it. NO CODE** | 🚨 **Ruling 1: the 255 dummy is a property of THIS BENCH — the fix must close the stale read itself.** Chosen: **Option B — arm from `OnWorldTickEnd`** (post-toggle by position, `LevelTick.cpp:1814`; pre-draw, `GameEngine.cpp:1891`; zero behaviour change outside `AnomalyCapture`) + the **M-4 sampler becomes an ENFORCING whitelist confirmation** (the render is bracketed) + the **item-5 probe** + the **`bRunning` guard** (retires §172's stray arm). Options A/C/D rejected with reasons. Budgets: blinking 4/2 → 4/4; `missing_object` 4-of-6 post-revert; no type drops to zero. ⛔ **NOT implemented — owner's ruling next** |
 | **Twenty-six** | 182–187 | **The fix SHIPS and PASSES its four legs · the `SM_Ramp2` control FAILS `F-6` item 2. HALT** | Implementation `4a9631a` + A-1/A-2; **L1–L4 met every pre-declared prediction** (blinking 4/4, `missing_object` 0 in-window + 4 post-revert, the probe firing all three detectors on demand — items 1/3/4/5 PASS, stray arm verified gone). 🛑 **Item 2 FAIL, two limits exposed: `G134` — the instrument is STRUCTURALLY BLIND TO NANITE in 5.1** (proxy relevance never sets `bRenderCustomDepth`; the ramp draws from the identical `CM_CM_RAMP` camera) **and `G133` — the 255 detector is a SINGLE-PIXEL, view-contingent signal**, so event 1 contributed a clean `MEASURED_ZERO` from a never-run pass. ⛔ **`H5` NOT run; extent precondition NOT added (same-turn rule); owner's ruling next** |
+| **Twenty-seven** | 188–192 | 🎯 **Both `H5` targets are NON-NANITE — the cure reaches what it was built for** · the extent precondition ships | **`T-1` first, as ruled:** `SM_Bush` and `SM_GenericPlane` **plain**; the discriminator `StaticMeshActor_49` = `/Engine/BasicShapes/Cube` **plain** ⇒ `G134`'s explanation CLOSES, signature predicts measurability **5/5**. ⚠ **But StackOBot's authored structural geometry is overwhelmingly Nanite — "common case" is MEASURED, not projected.** **Ruling 1 built (`3beb3ba`) and gated: `SM_Ramp2` `MEASURED_ZERO` → `NOT_MEASURED` ×8; L1–L4 unchanged** — `F-T2-A`'s literal firing traced to POSE (identical arm ids, identical dispositions, counts group by pose not build) and **the criterion corrected in the record**. **Ruling 2: `SM_Ramp2` retired to a known-Nanite control; NO non-Nanite A35-shaped control exists — said so; A35 → tag as UNTESTED.** **Ruling 3: scope drafted; scene depth IS Nanite-inclusive (`NaniteMaterials.cpp:896,930`) — answer only** |
 
-⚠ **ONE INVESTIGATION, TWENTY-SIX PARTS** *(the "nine" in the note below predates Parts Ten
+⚠ **ONE INVESTIGATION, TWENTY-SEVEN PARTS** *(the "nine" in the note below predates Parts Ten
 onward; the reason it is not split is unchanged).*
 
-**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART TWENTY-SIX.** **Both slice-1
-faults are FIXED and PROVEN** (fault (i) `795f2a4`; fault (ii) `4a9631a` under `RULING 1`, gate
-legs L1–L4 all green, the probe demonstrating the detectors live on demand). 🛑 **`F-6` HALTED AT
-ITEM 2: the `SM_Ramp2` control exposed that the instrument is STRUCTURALLY BLIND TO NANITE
-GEOMETRY on UE 5.1 (`G134`) and that the 255 detector is a single-pixel, view-contingent signal
-that let a clean `MEASURED_ZERO` through from a never-run pass (`G133`). The extent contribution
-precondition is identified but NOT added — the owner rules next.** Slices 2 and 3 **not
-started**; **`H5` legs NOT RUN, BLOCKED**. `feature/stencil-capture` **untouched** throughout —
-*mined, never resumed*. **`P6` never moved (measured 48/48 in Parts 24 and 26). NO TAG since
-`m25`.** ⚠ **Production code appears for the first time in PART FOURTEEN (log-only `M-1`
-instrumentation, on owner permission); Parts One–Thirteen carry ZERO.**
+**WHERE IT ENDS — SESSION CLOSED 2026-08-20 AT THE END OF PART TWENTY-SEVEN.** **Both slice-1
+faults are FIXED and PROVEN** (`795f2a4`, `4a9631a`), **the EXTENT PRECONDITION shipped
+(`3beb3ba`) and closed the false `MEASURED_ZERO`** the `N-2` control caught, and 🎯 **both `H5`
+targets are confirmed NON-NANITE, so the cure reaches the instances that motivated it.** ⚠ **Two
+limits travel: `G134` — the mask cannot see Nanite geometry on UE 5.1, and on this title that is
+the COMMON CASE (measured); `G133` — closed, the 255 detector demoted to secondary.** ⛔ **ONE LEG
+IS OWED before `H5` unblocks: the replacement `N-2` control (`SM_Ramp2` is retired to a
+known-Nanite control), and no non-Nanite A35-shaped control exists, so A35 goes to the tag as
+UNTESTED.** Slices 2 and 3 **not started**; **`H5` legs NOT RUN**. `feature/stencil-capture`
+**untouched** throughout — *mined, never resumed*. **`P6` never moved (measured 48/48 in Parts 24,
+26 and 27). NO TAG since `m25`.** ⚠ **Production code appears for the first time in PART FOURTEEN
+(log-only `M-1` instrumentation, on owner permission); Parts One–Thirteen carry ZERO.**
 
-🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART TWENTY-SIX IS THE COLD-START ENTRY POINT.**
+🧭 **→ THE `HANDOFF` SECTION AT THE END OF PART TWENTY-SEVEN IS THE COLD-START ENTRY POINT.**
 
 ---
 
@@ -5516,9 +5518,231 @@ which is why the gate runs on `SM_Ramp2` at all.**
 
 ---
 
-# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–26.
+# PART TWENTY-SEVEN — **the `H5` instances are NON-NANITE: the cure reaches what it was built for.** The extent precondition ships and closes the false zero.
 
-**Session closed 2026-08-20 at the end of PART TWENTY-SIX. `m26` is IN PROGRESS.**
+**T-1 answered first, as ruled — it outranked the three rulings and it lands on the good branch.**
+Then Ruling 1 built and gated, Ruling 2's control search, Ruling 3's scope draft and the depth
+question. ⛔ **`H5` LEGS STILL NOT RUN. NO TAG. `P6` NOT MOVED. Stencil range 200/255.
+`feature/stencil-capture` READ-ONLY.**
+
+**Pre-declared BEFORE the first asset was read: `CaptureBench/tools/p27_nanite_status_predeclared.md`,
+commit `3fdea29`** — including T-2's predictions and the refuters `F-T2-A`/`F-T2-B`.
+
+---
+
+## 188. `T-1` — the branches, restated verbatim, then the answer
+
+> **BOTH H5 TARGETS NON-NANITE** => the cure applies to the instances that motivated it. `m26`
+> proceeds with a stated Nanite limit. Continue to T-2.
+> **EITHER OR BOTH NANITE** => the cure cannot measure the `H5` instances on this bench. That is a
+> SCOPE-LEVEL finding, not a defect. Report it, complete T-2, and HALT before T-3 and T-4.
+> **MIXED** => report which, and treat the Nanite one as the second branch.
+
+### 188.1 Method, and its confidence — stated before the result
+
+**M-A (primary, offline):** the `.uasset` name-table signature. UE tagged-property serialisation
+writes a property NAME only when the value differs from the class default, and
+`FMeshNaniteSettings::bEnabled` defaults to **false** — so `NaniteSettings` **+** `bEnabled`
+present is evidence the struct was written with a non-default sub-field. Tool committed as
+`CaptureBench/tools/nanite_signature_scan.py` (`G106`: an instrument that grades a result is a
+committed artifact), **with its two weaknesses printed beside every run** — the struct can
+serialise for a different sub-field, and `bEnabled` is a generic name.
+**M-B (corroboration): ABANDONED, NOT WORKED AROUND.** The editor bridge answered
+`Connection refused (127.0.0.1:12029)`. Per the pre-declaration and `A59`/`G97`, no bridge reading
+is attributed without a project-identity read-back, and there was no bridge. **M-A stands alone,
+at EVIDENCE strength, never claimed as a measurement.**
+
+### 188.2 🎯 THE RESULT — and the discriminator closes the Part-26 explanation
+
+| actor | mesh | signature | measured behaviour |
+|---|---|---|---|
+| **`InstancedFoliageActor_0_0_0`** *(`H5` #1)* | `SM_Bush` | ✅ **plain — NON-NANITE** | — |
+| **`BP_SplineSpawn_C`** *(`H5` #2)* | `SM_GenericPlane` | ✅ **plain — NON-NANITE** | — |
+| 🚨 **`StaticMeshActor_49`** *(THE DISCRIMINATOR)* | **`Cube`** *(`/Engine/BasicShapes/`)* | ✅ **plain — NON-NANITE** | **MEASURED SUCCESSFULLY all milestone** |
+| **`SM_Ramp2`** | `SM_Ramp` | 🚨 **NANITE** | **29/29 armed frames dummy (Part 26)** |
+| **CB_GateLevel's whole target set** | `Cube`·`Sphere`·`Cylinder`·`Cone` — `make_gate_level.py:54-58` builds the level **entirely from `/Engine/BasicShapes/`** | ✅ **all plain** | the calibration bench, always green |
+
+**Pre-declared reading `N-1` FIRES and `N-2` DOES NOT:** the discriminator is non-Nanite, so
+**that is why it measured, and `G134`'s explanation CLOSES.** Every target that ever measured is
+non-Nanite; the one that never did is Nanite. The signature predicts measurability on 5 for 5.
+
+⇒ 🎯 **BRANCH ONE: BOTH `H5` TARGETS ARE NON-NANITE. THE CURE CAN SEE THE VERY INSTANCES THAT
+MOTIVATED IT.** `m26` proceeds with a stated Nanite limit. Continue to T-2.
+
+### 188.3 ⚠ The scope finding that travels with it — and it CONFIRMS "common case"
+
+Sweeping all StackOBot content: **46 assets carry the Nanite signature.** *(A percentage is not
+offered — the sweep denominator includes non-mesh assets, so it would mislead.)* **The PATTERN is
+the finding: the authored structural geometry is overwhelmingly Nanite** — walls, floors,
+platforms, pillars, roofs, pipes, fences, crates, buttons, doors, the ramp — **while foliage and
+a few simple planes are not.** ⇒ **On this very title the Nanite limit would hit most of the level
+and miss the foliage. `G134`'s "common case, not corner case" is not a projection about some
+hypothetical host title; it is measured here.** ⚠ **The two `H5` instances are non-Nanite by luck
+of what they are made of, not by any property of `H5`.**
+
+## 189. `RULING 1` / `T-2` — the extent precondition SHIPS (`3beb3ba`) and closes the false zero
+
+`customStencilExtent` (1×1 dummy vs view-sized real) is now a **CONTRIBUTION PRECONDITION**: a
+frame contributes only on **positive evidence the pass ran**. New disjoint bucket `framesNoPass`;
+the probe branch precedes it by design, so a deliberate dummy is attributed to PROBE, not to
+no-pass. **The 255 detector is DEMOTED TO A SECONDARY SIGNAL, and the record says so.**
+
+### 189.1 The decisive gate — `SM_Ramp2`, same target, same leg design
+
+| | Part 26 (pre-precondition) | **Part 27 (post)** |
+|---|---|---|
+| event 1 (`startFrame=4`) | 🚨 **`MEASURED_ZERO`**, 4 frames contributed | ✅ **`NOT_MEASURED`**, `framesNoPass=4`, contributed **0** |
+| events 2–8 | `NOT_MEASURED` via pollution | ✅ `NOT_MEASURED` via **`framesNoPass`** — the honest reason |
+| leg summary | `notMeasured=7` of 8 | ✅ **`notMeasured=8` of 8** |
+| artifact | — | **`mask_nopass_discards=29`** |
+
+🚨 **THE FALSE ACCUSATION IS GONE. `F-T2-B` does not fire.** And the reason recorded in the
+artifact is now the true one — "the pass never ran" — rather than an incidental 255.
+
+### 189.2 L1–L4 unchanged — and `F-T2-A`'s LITERAL firing, investigated rather than waved away
+
+**L2 `missing_texture`** `66878/66862…` and **L3 `missing_object`** `66878/66862/66843/66862` are
+**byte-identical to Part 26**. **L4 probe**: exactly one probe arm, `detector255Fired=1
+confirmationReadHidden=1`, probed event `probeArms=1 framesContributed=3 MEASURED_NONZERO`,
+`mask_probe_arms=1`, `framesNoPass=0`. All dispositions unchanged; `framesNoPass=0` on L1–L4.
+
+⚠ **BUT L1's `maxCount` MOVED — 66321-66516 (P26) → 66843-66878 (P27) — and `F-T2-A` as I wrote it
+says any movement ⇒ HALT. It was investigated before proceeding, and the cause is POSE, not the
+precondition:**
+
+| leg | build | settled pose | modal bbox | maxCount range |
+|---|---|---|---|---|
+| `P24_M26S1F1_CTRL49` | pre-precondition | **(0,0,0) exact** | **`(0.0, 485.2, 306.1, 234.8)` = `CALIB_BBOX`** | 66832–66862 |
+| `P26_FIX2_CTRL49` | pre-precondition | (359.83, 0.35) | `(0.0, 483.6, 301.6, 236.4)` — 4.5 px narrower | **66321–66516** |
+| `P27_EXT_CTRL49` | **post-precondition** | **(0,0,0) exact** | **`= CALIB_BBOX`** | 66843–66878 |
+
+**Four independent facts settle it.** (1) **The counts group by POSE, not by BUILD** — P24 and P27
+straddle the change and agree to ~0.05 %; P26 sits apart with a 0.8 % smaller bbox area. (2) **The
+armed tick ids are byte-identical between P26 and P27** (`9,10,11,14,25,…,121`) — the same frames
+were armed. (3) **The bucket dispositions are identical** (`4/4 contributed, framesNoPass=0`) — no
+frame was removed from contributing. (4) **Structural:** the precondition is a `continue` placed
+BEFORE contribution; it can only ever REMOVE a frame, never alter a contributing frame's `Count`.
+✅ **And L2 confirms it from the other direction: a DIFFERENT pose whose bbox AREA happens to match
+(302.0×238.4 vs 306.1×234.8) returns BYTE-IDENTICAL counts across builds.** The count tracks
+projected silhouette area, which tracks the settle pose within `B1`'s 8 px tolerance.
+📌 **CRITERION CORRECTED IN THE RECORD, not quietly:** `F-T2-A` should have read *"any maxCount
+that moves AT A MATCHED POSE"*. As written it cannot distinguish the change under test from a
+confound this project characterised long ago (`A47`/`B1`). **A refuter that fires on a known
+confound is a badly drawn refuter, and the fix is to say so, not to grant an exception.**
+
+### 189.3 ⚠ `run_summary` gained a THIRD field — declared, not slipped in
+
+`mask_nopass_discards` is **beyond the +2 that A-1/A-2 declared.** **I added it deliberately and
+report it for veto:** Ruling 2 makes `SM_Ramp2` a POSITIVE test for the Nanite limit, and a test
+whose evidence lives only in a log cannot be run from a delivered session. Measured key-set check:
+**`annotation.json` 48/48, 0 added 0 removed (`P6` NOT MOVED)** · **`run_summary` +3**
+(`mask_probe_arms`, `mask_residual_discards`, `mask_nopass_discards`), 0 removed.
+
+## 190. `RULING 2` / `T-3` — the replacement `N-2` control: **no non-Nanite A35-shaped target exists. Saying so.**
+
+**`SM_Ramp2` is retired as `N-2` and becomes the KNOWN-NANITE CONTROL**, as ruled: post-Ruling-1 it
+must return `NOT_MEASURED` every time — a **positive test that the instrument recognises what it
+cannot see**, and the place where a future engine bump adding Nanite custom-depth support would
+show up first. §189.1 is its first passing run.
+
+**The search, and its honest result:**
+
+| requirement | available? |
+|---|---|
+| non-Nanite **and** drawing **and** selectable | ✅ **yes** — CB_GateLevel is `/Engine/BasicShapes/` throughout: `StaticMeshActor_73` (`Cylinder`) and `StaticMeshActor_85` (`Cone`) both appear in banked label rows with valid bboxes. ⛔ **`StaticMeshActor_100` is excluded — it is `H4`'s deliberately-occluded target** |
+| …**and A35-shaped** | ⛔ **NOT AVAILABLE ANYWHERE** |
+
+**Why not, precisely:** the peak-IN/peak-OUT split is banked for **exactly one target —
+`SM_Ramp2`** (OUT `0.2955` > IN `0.1785`). For the other measured targets the split was never
+banked, so their A35 status is **UNKNOWN, not "not A35"** — and it does not matter, because
+**every measured legitimate target except the `Cube` control is NANITE** (`SM_Modules_Platform`,
+`SM_FloorBase`, `SM_SpawnPad_Base`, `SM_Ramp`). Even if one proved A35-shaped it would be
+unusable as a control for this instrument. ⇒ **On this project's content, "A35-shaped legitimate
+target" and "Nanite" are entangled, and the entanglement is not a coincidence — A35 shapes come
+from large authored structural geometry, which is exactly what is Nanite here.**
+
+⇒ **RECOMMENDATION (the ruling's own fallback): `N-2` is satisfied by a plain non-Nanite drawing
+target — `StaticMeshActor_73` (`Cylinder`) is the cleanest candidate — and 🚨 THE A35 PROPERTY
+GOES INTO THE TAG AS *UNTESTED*, stated, not quietly dropped.**
+⚠ **Two limitations of that recommendation, stated:** (1) a second gate-level primitive shares the
+level, lighting and trivial geometry of the item-1 control, so it adds **little independence** —
+it demonstrates non-over-firing, not robustness; (2) a stronger `N-2` would be a non-Nanite
+**MainWorld** actor, and **whether any exists as a selectable drawing target is UNESTABLISHED** —
+the plain meshes there (`SM_Elevator`, `SM_Pipes_250`, `SM_GratIng`, `SM_Cube1M`, the foliage) are
+asset-side facts, and joining them to placed, selectable actors needs a runtime census leg
+(`G122`'s rule), **which was not run this turn.** ⛔ **No asset was modified to manufacture a
+control.**
+
+## 191. `RULING 3` / `T-4` — the Nanite scope statement, drafted; and the depth question, ANSWERED
+
+### 191.1 Draft for the `m26` tag and `client-delivery.md` — not softened
+
+> 🚨 **`m26` CANNOT SEE NANITE GEOMETRY.** The measurement is a custom-depth/stencil mask, and on
+> **UE 5.1 a Nanite primitive cannot write custom depth at all** — `Nanite::FSceneProxy::
+> GetViewRelevance` never sets `bRenderCustomDepth`, and the custom-depth pass has no Nanite path.
+> Setting the flag on a Nanite component **succeeds and verifies, and never reaches a pixel.**
+>
+> **CONSEQUENCE FOR THE CURE:** a Nanite target is **measured as `NOT_MEASURED` and therefore
+> ALWAYS ADMITTED, never vetoed.** That is safe — it can never delete a good event — **and it is
+> also the cure not working on that target.** `m26` neither detects nor mitigates `H5` on Nanite
+> geometry.
+>
+> 🚨 **THIS IS THE COMMON CASE, NOT A CORNER CASE, AND IT IS MEASURED RATHER THAN PROJECTED.** On
+> StackOBot itself the authored structural geometry — walls, floors, platforms, pillars, roofs,
+> pipes, fences, crates, doors, ramps — is overwhelmingly Nanite, while foliage and simple planes
+> are not. **On a Nanite-heavy title, most of the level is outside this cure's reach.** The two
+> `H5` instances it does cover are non-Nanite because of what they are made of, not because `H5`
+> favours non-Nanite geometry.
+>
+> **HOW TO TELL FROM A DELIVERED SESSION:** `run_summary.json` → `mask_nopass_discards` counts
+> frames where the pass was never produced. A target whose every armed frame lands there is
+> structurally unmeasurable by the mask; the per-event log names the case.
+>
+> ⚠ Scoped to **UE 5.1**. A later engine that supports Nanite custom depth changes this, and the
+> `SM_Ramp2` control is the first place that would show.
+
+### 191.2 THE DEPTH QUESTION — **ANSWERED: YES, SCENE DEPTH IS NANITE-INCLUSIVE ON 5.1**
+
+**Answer only, from source, as instructed — no design, no costing, nothing revived.**
+
+`Nanite::EmitDepthTargets` (`NaniteMaterials.cpp:745`) takes `FRDGTextureRef SceneDepth` and writes
+into it: `PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepth,
+ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite_StencilWrite)` at **`:896`**
+(`FEmitSceneDepthStencilPS`) and **`:930`** (`FEmitSceneDepthPS`), with a compute path
+`FDepthExportCS` (**`:856`**, `RDG_EVENT_NAME("DepthExport")`) and an HTile resummarize on
+`SceneDepth` at **`:1024`**.
+
+⇒ **Nanite geometry IS present in scene depth. A path exists where `C-1` has none.** ⛔ **Stated as
+the answer to the question asked and nothing more — no hybrid designed, no cost estimated, the
+depth work stays parked, and whether `C-2` could serve `H5`'s question remains what PART TWELVE
+§6.3 already recorded: `C-2` addresses class (i) partially and class (ii) NOT AT ALL, because its
+reference depth comes from the same bounds `H5` calls untrustworthy.**
+
+## 192. State after PART TWENTY-SEVEN
+
+| | |
+|---|---|
+| `T-1` | ✅ **BRANCH ONE — both `H5` targets NON-NANITE.** Discriminator closes `G134`'s explanation (5/5) |
+| Ruling 1 / `T-2` | ✅ **BUILT (`3beb3ba`) AND GATED** — `SM_Ramp2` `MEASURED_ZERO` → `NOT_MEASURED` ×8; L1–L4 unchanged; `F-T2-A`'s literal firing traced to pose and the criterion corrected |
+| Ruling 2 / `T-3` | ✅ `SM_Ramp2` repurposed as the known-Nanite control (first pass banked). **No non-Nanite A35-shaped control exists — said so.** `N-2` → a plain non-Nanite target; **A35 → tag as UNTESTED** |
+| Ruling 3 / `T-4` | ✅ scope statement drafted, unsoftened; **depth question answered: scene depth IS Nanite-inclusive** |
+| artifacts | `annotation.json` **48/48 — `P6` NOT MOVED**; `run_summary` **+3**, the third flagged for veto |
+| build | staged **`F93AEF71`** (`DBA2D8EC` archived first); container unchanged; A44 green |
+| ⛔ unchanged | `H5` legs **NOT RUN** · slices 2/3 **NOT STARTED** · **NO TAG** · stencil range 200/255 · `feature/stencil-capture` untouched |
+
+**WHAT THIS PART SETTLES: the cure can see the two instances that motivated it — that was the
+question that decided whether `m26` has value on its own bench, and the answer is yes. The extent
+precondition closes the false accusation the `N-2` control caught. And the same asset scan that
+brought the good news brought the honest bad news with it: on this title most of the authored
+level is Nanite and outside the cure's reach, and the A35 over-fire risk cannot be tested here at
+all, because every A35-shaped legitimate target we have is made of exactly the geometry the
+instrument cannot see.**
+
+---
+
+# 🧭 HANDOFF — READ THIS FIRST. A COLD SESSION NEEDS NOTHING ELSE FROM PARTS 1–27.
+
+**Session closed 2026-08-20 at the end of PART TWENTY-SEVEN. `m26` is IN PROGRESS.**
 **NO TAG since `m25`. `P6` HAS NEVER MOVED. `feature/stencil-capture` is READ-ONLY at `76cac74` —
 mine it, never check it out.**
 
@@ -5530,14 +5754,19 @@ reporting**.
 
 | slice | state |
 |---|---|
-| **1 — MEASURE ONLY** *(log-only, `IAI.Capture.Mask`, default OFF)* | **SHIPPED. Fault (i) FIXED (`795f2a4`). Fault (ii) FIXED (`4a9631a`, Part-25 design + A-1/A-2) and PROVEN on four gate legs.** 🛑 **BUT `F-6` HALTED AT ITEM 2: the `SM_Ramp2` control exposed TWO NEW instrument limits (H.2b) — the gate is items 1/3/4/5 PASS, item 2 FAIL** |
+| **1 — MEASURE ONLY** *(log-only, `IAI.Capture.Mask`, default OFF)* | **SHIPPED. Fault (i) FIXED (`795f2a4`). Fault (ii) FIXED (`4a9631a`) and PROVEN on four gate legs. The EXTENT PRECONDITION shipped (`3beb3ba`) and closed the false zero.** ⚠ **`F-6` item 2 is now satisfied by a REPLACEMENT control (`SM_Ramp2` is retired to a known-Nanite control) — the replacement leg has NOT been run** |
 | **2 — REPORTING** (`mask.provided` → the tri-state's bool) | ⛔ **NOT STARTED** |
 | **3 — THE VETO** + `vetoed_events` + gate `G-11` | ⛔ **NOT STARTED** |
 
-⛔ **THE `H5` LEGS ARE BLOCKED, and are now DOUBLY uninterpretable** — no pass-ran precondition
-exists yet, and Nanite measurability is unresolved (their foliage targets may be Nanite-affected
-themselves). **A zero from an instrument that cannot see the target looks exactly like the cure
-succeeding** (`G96`, now with a measured instance on the A35 control).
+✅ 🎯 **`T-1` ANSWERED (PART TWENTY-SEVEN): BOTH `H5` TARGETS ARE NON-NANITE** — `SM_Bush`
+(`InstancedFoliageActor_0_0_0`) and `SM_GenericPlane` (`BP_SplineSpawn_C`). **The cure CAN see the
+instances that motivated it.** The discriminator closes too: `StaticMeshActor_49` is
+`/Engine/BasicShapes/Cube`, non-Nanite — which is why it measured all milestone — and the
+signature predicts measurability 5 for 5.
+
+⛔ **THE `H5` LEGS ARE STILL NOT RUN.** The remaining precondition is the `N-2` REPLACEMENT control
+leg (H.2b), not the Nanite question. **A zero from an instrument that cannot see the target looks
+exactly like the cure succeeding** (`G96`, with a measured instance now banked).
 
 ## H.2 🚨 THE TWO FAULTS — one FIXED, one DIAGNOSED-NOT-FIXED (PART TWENTY-FOUR)
 
@@ -5566,28 +5795,28 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 (the admit path, twice demonstrated live), the probe firing all three detectors on demand —
 **`F-6` items 1/3/4/5 PASS.**
 
-### H.2b 🛑 **`F-6` ITEM 2 FAILED — the `SM_Ramp2` control exposed TWO NEW instrument limits (PART TWENTY-SIX §185). HALTED at the first failure. The owner's ruling is next.**
+### H.2b ⚠ **THE TWO INSTRUMENT LIMITS — `G133` CLOSED BY THE EXTENT PRECONDITION, `G134` PERMANENT AND SCOPED**
 
-- **`G134` — THE INSTRUMENT IS STRUCTURALLY BLIND TO NANITE GEOMETRY IN UE 5.1. ESTABLISHED:**
-  `SM_Ramp` is Nanite-enabled (asset serialisation signature; editor confirmation not taken —
-  `G97`); `Nanite::FSceneProxy::GetViewRelevance` never sets `bRenderCustomDepth`
-  (`NaniteResources.cpp:941-1010`, both branches); `bHasCustomDepthPrimitives` rises only from
-  that flag (`SceneVisibility.cpp:2470`); the 5.1 custom-depth pass has NO Nanite path
-  (`CustomDepthRendering.cpp`, zero matches). The ramp DRAWS from the leg camera (`CM_CM_RAMP`,
-  identical pose (−20,−40), in-bbox change 0.1785), is tagged and un-hidden — and 29/29 armed
-  frames were dummies. **A Nanite target can never be measured by C-1 on this engine.**
-- **`G133` — A CLEAN `MEASURED_ZERO` FROM AN UNPRODUCED PASS. MEASURED:** the 255 detector fires
-  on AT MOST ONE PIXEL (texel (0,0) of the 1×1 dummy; out-of-bounds loads return 0; depth-gated) —
-  **every fire this milestone was `unassignedCount=1`.** Event 1 of the ramp leg had a non-far
-  (0,0): the detector stayed silent and four zeros from a never-run pass CONTRIBUTED ⇒
-  **`MEASURED_ZERO` on the A35 control — Ruling 1's hazard realised on our own bench.** The
-  pass-ran discriminator — `CustomStencilExtent` 1×1 vs view-sized — is already collected per
-  frame and is **NOT yet a contribution precondition. NOT fixed** (the gate failed; no same-turn
-  fix to the validity instrument).
-- **Open for the ruling:** the extent precondition (safe — all-dummy events land `NOT_MEASURED` ⇒
-  ADMIT; honest cost — Nanite targets permanently unmeasured on 5.1) · `m26`'s scope statement on
-  Nanite (a Nanite-heavy host title makes the limit the common case) · whether `SM_Ramp2` can
-  remain the `N-2` control for an instrument that cannot see it.
+- **`G134` — THE INSTRUMENT IS STRUCTURALLY BLIND TO NANITE GEOMETRY IN UE 5.1. ESTABLISHED, AND
+  IT IS PERMANENT ON THIS ENGINE:** `Nanite::FSceneProxy::GetViewRelevance` never sets
+  `bRenderCustomDepth` (`NaniteResources.cpp:941-1010`, both branches); `bHasCustomDepthPrimitives`
+  rises only from that flag (`SceneVisibility.cpp:2470`); the 5.1 custom-depth pass has NO Nanite
+  path. ✅ **Scoped in PART TWENTY-SEVEN: the two `H5` targets are NON-Nanite, so the cure reaches
+  them — but on StackOBot the authored structural geometry is overwhelmingly Nanite, so the limit
+  is the COMMON CASE, measured not projected.** Nanite targets land `NOT_MEASURED` ⇒ **always
+  ADMITTED, never vetoed** — safe, and also the cure not working there. Scope statement drafted
+  (§191.1).
+- ✅ **`G133` — CLOSED (`3beb3ba`).** The 255 detector fires on AT MOST ONE PIXEL and its silence
+  could never certify the pass ran; **`customStencilExtent` is now a CONTRIBUTION PRECONDITION**,
+  so a frame contributes only on positive evidence. The Part-26 false `MEASURED_ZERO` on
+  `SM_Ramp2` is **gone — all 8 events now `NOT_MEASURED`** (§189.1), and the 255 detector is
+  **demoted to a SECONDARY signal**.
+- ⛔ **WHAT IS STILL OWED BEFORE `H5` UNBLOCKS — one leg:** `F-6` item 2 needs its **REPLACEMENT
+  `N-2` control** run (Ruling 2). `SM_Ramp2` is retired to the **known-Nanite control** (must read
+  `NOT_MEASURED` every time — a positive test for the limit; first pass banked). **Recommended
+  replacement: `StaticMeshActor_73` (`Cylinder`, non-Nanite, CB_GateLevel) — NOT YET RUN.**
+  🚨 **No non-Nanite A35-shaped control exists anywhere in the measured set (§190), so the A35
+  over-fire property goes into the tag as UNTESTED.**
 
 ## H.3 PROVEN — do **not** re-prove any of these
 
@@ -5607,6 +5836,11 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 | 🆕 **the fault-(ii) FIX** | `OnWorldTickEnd` arm + bracketed render: blinking 4/4 usable, zero dummies, `LOCK-1` refuses the whole `missing_object` window (`skippedHidden=8`), stray arm gone — P26 legs L1–L4 |
 | 🆕 **the probe / item 5** | one deliberate hidden arm fires the 255 detector + confirmation + discard on the shipped binary; admit bias disposes of it (`P26_FIX2_PROBE49`) |
 | 🆕 **the ramp draws from the leg camera** | `CM_CM_RAMP`, identical pose, in-bbox change 0.1785 — which is what makes `G134` a finding about the INSTRUMENT, not the target |
+| 🆕 **both `H5` targets are NON-NANITE** | `SM_Bush`, `SM_GenericPlane` — the cure reaches the instances that motivated it (P27 §188.2) |
+| 🆕 **the discriminator** | `StaticMeshActor_49` = `/Engine/BasicShapes/Cube`, non-Nanite; CB_GateLevel is BasicShapes throughout — signature predicts measurability **5 for 5** |
+| 🆕 **the extent precondition works** | `SM_Ramp2` `MEASURED_ZERO` → `NOT_MEASURED` ×8, `framesNoPass=29`, L1–L4 unchanged at matched pose |
+| 🆕 **mask count tracks projected bbox AREA** | matched-area poses give byte-identical counts across builds; 0.8 % smaller area ⇒ 0.5 % fewer pixels (P27 §189.2) — **use a MATCHED POSE before comparing counts across legs** |
+| 🆕 **scene depth IS Nanite-inclusive on 5.1** | `Nanite::EmitDepthTargets` writes `SceneDepth` (`NaniteMaterials.cpp:896,930`; compute path `:856`) — answered, nothing designed |
 
 ## H.4 Rulings that travel
 
@@ -5634,22 +5868,26 @@ the fire site, `PROBE`-marked, `run_summary.mask_probe_arms`, checklisted in
 |---|---|
 | plugin | `AnomalyInjector`, `master`, pushed, **no tag since `m25`** |
 | bench | `CaptureBench`, **local-only, no remote** |
-| staged exe | **`DBA2D8EC`** (the fault-(ii) fix; code-only hot-swap over the `m26` cook; predecessor `444D4812` — the P24 measurement binary — archived first at `_binary_baselines\StackOBot.exe.m26-p24-fault1-fix-444D4812`) |
+| staged exe | **`F93AEF71`** (the extent precondition; code-only hot-swap over the `m26` cook; predecessors archived first: `DBA2D8EC` at `…exe.m26-p26-fault2-fix-DBA2D8EC`, `444D4812` at `…exe.m26-p24-fault1-fix-444D4812`) |
 | container | `m26` cook — `utoc 9334496D` · `ucas 62EB0072` · `pak 78C977A5`; **4 maps** |
 | preserved quartets | `m25-h4h5m1-measurement-build` (Parts 2–14) · `m26-slice1-measurement-build` |
 | 🗺 **disk topology** | ⚠ **`Intermediate` and `Saved` are JUNCTIONS to `E:\IA_BuildCache\...`** — every path stays `D:\...` and **no tool needed editing**. Do not "fix" the missing ~21 GB on `D:`. Runbook §3.6 |
 | ⚠ cook recipe | **runbook §8.6 STEP 0** (disk floor) and **STEP 3.5** (rebuild the EDITOR target — `G47`/`G131`) are **not optional** |
-| bank | `_bench_sessions_bank`, latest the five `P26_FIX2_*` legs + discarded attempts |
+| bank | `_bench_sessions_bank`, latest the five `P27_EXT_*` legs (and the five `P26_FIX2_*`) + every discarded attempt |
 
 ## H.6 What the next session should do first
 
 1. **Read `docs/invisible-anomaly-mechanisms.md`** — the ledger — then this HANDOFF. **Nothing else
-   from Parts 1–26 is required.**
-2. 🛑 **`F-6` HALTED AT ITEM 2 (H.2b). Do NOT fix the instrument unprompted.** The owner rules on:
-   the **extent contribution precondition** (`CustomStencilExtent` view-sized required to
-   contribute — closes `G133`'s clean-zero hole; the datum already exists per frame), the **Nanite
-   scope statement** (`G134` — C-1 cannot see Nanite geometry on 5.1), and **what serves as the
-   `N-2` control** now that `SM_Ramp2` is unmeasurable by construction.
-3. **The `H5` legs stay BLOCKED** — no pass-ran precondition exists yet, and the foliage targets'
-   own Nanite status is unestablished. An `H5` zero today is uninterpretable.
-4. Slices 2 and 3 stay NOT STARTED. `P6` does not move. No tag.
+   from Parts 1–27 is required.**
+2. **ONE LEG IS OWED BEFORE `H5` UNBLOCKS: the replacement `N-2` control** (Ruling 2) — recommended
+   `StaticMeshActor_73` (`Cylinder`, non-Nanite, CB_GateLevel), which must read **NON-ZERO with
+   `collisions=0`**. Pre-declare its prediction as a file first, per standing practice.
+   ⚠ **Its two stated weaknesses travel with it (§190): it shares the gate level with the item-1
+   control, so it shows non-over-firing rather than robustness; and the A35 property is UNTESTED
+   because no non-Nanite A35-shaped target exists here at all.**
+3. **Then, and only then, the `H5` legs** — `InstancedFoliageActor_0_0_0` and `BP_SplineSpawn_C`,
+   both confirmed NON-Nanite and therefore measurable.
+4. ⚠ **Awaiting the owner's veto or blessing: `run_summary.mask_nopass_discards`** — a third
+   artifact field beyond the declared +2, added deliberately (§189.3) so the known-Nanite control
+   is auditable from a delivered session.
+5. Slices 2 and 3 stay NOT STARTED. `P6` does not move. No tag.

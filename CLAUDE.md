@@ -15,12 +15,76 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (fourth session). `m26` IS IN PROGRESS: BOTH SLICE-1 FAULTS ARE
-  FIXED AND PROVEN — AND `F-6` HALTED AT ITEM 2: THE `SM_Ramp2` CONTROL EXPOSED TWO NEW INSTRUMENT
-  LIMITS. THE OWNER RULES NEXT. LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING TAGGED SINCE.**
+- 🟩 **YOU ARE HERE — 2026-08-20 (fifth session). `m26` IS IN PROGRESS: BOTH SLICE-1 FAULTS FIXED
+  AND PROVEN · THE EXTENT PRECONDITION SHIPPED AND CLOSED THE FALSE ZERO · 🎯 **BOTH `H5` TARGETS
+  CONFIRMED NON-NANITE, SO THE CURE REACHES THE INSTANCES THAT MOTIVATED IT.** ONE LEG IS OWED
+  BEFORE `H5` UNBLOCKS. LAST SHIPPED MILESTONE IS STILL `m25`; NOTHING TAGGED SINCE.**
   🧭 **COLD START: read `docs/invisible-anomaly-mechanisms.md` (the ledger), then go STRAIGHT to the
   `HANDOFF` section at the END of `docs/sessions/2026-08-19-045-h4-cook-and-h5-mainworld-arc.md`
-  (PART TWENTY-SIX). THAT HANDOFF IS SELF-CONTAINED.**
+  (PART TWENTY-SEVEN). THAT HANDOFF IS SELF-CONTAINED.**
+  🎯 **`T-1` ANSWERED FIRST, AS RULED — IT OUTRANKED THE THREE RULINGS.** Asset-side, read-only,
+  pre-declared at bench `3fdea29` before the first read: **`InstancedFoliageActor_0_0_0` →
+  `SM_Bush` = NON-NANITE · `BP_SplineSpawn_C` → `SM_GenericPlane` = NON-NANITE** ⇒ **branch one:
+  the cure applies to the instances that motivated it.** **The discriminator closes too:
+  `StaticMeshActor_49` → `/Engine/BasicShapes/Cube` = NON-NANITE, and `make_gate_level.py:54-58`
+  builds the WHOLE calibration level from `/Engine/BasicShapes/` — which is exactly why the
+  instrument was green there all milestone, and why the blindness was invisible.** `SM_Ramp` =
+  NANITE, confirming PART TWENTY-SIX. **The signature predicts measurability 5 for 5.**
+  ⚠ **THE HONEST OTHER HALF, MEASURED NOT PROJECTED: StackOBot's authored structural geometry
+  (walls, floors, platforms, pillars, roofs, pipes, fences, crates, doors, ramps) is overwhelmingly
+  NANITE — 46 assets carry the signature — while foliage and simple planes are not. `G134`'s
+  "common case, not corner case" is measured ON THIS TITLE. The two `H5` instances are reachable
+  because of what they are made of, not because `H5` favours non-Nanite geometry.**
+  📌 **Method: `CaptureBench/tools/nanite_signature_scan.py` — EVIDENCE, not a measurement; it
+  prints its own two weaknesses and is load-bearing only as a DIFFERENTIAL. The editor bridge was
+  refused, so `A59` corroboration was ABANDONED rather than worked around.**
+  ✅ **`RULING 1` BUILT AND GATED (`3beb3ba`): `customStencilExtent` is now a CONTRIBUTION
+  PRECONDITION** — a frame contributes only on POSITIVE evidence the pass ran; new disjoint bucket
+  `framesNoPass`; **the 255 detector is DEMOTED to a SECONDARY signal.** 🚨 **The decisive gate
+  passes: `SM_Ramp2` went `MEASURED_ZERO` (event 1) → `NOT_MEASURED` on ALL 8 EVENTS,
+  `framesNoPass=29`, `mask_nopass_discards=29` — the false accusation is gone, and the recorded
+  reason is now the true one.** **L1–L4 unchanged** (L2/L3 byte-identical maxCounts; L4's probe
+  still fires all three detectors, `mask_probe_arms=1`).
+  ⚠ **`F-T2-A` FIRED ON A LITERAL READING AND WAS INVESTIGATED, NOT WAVED AWAY: L1's maxCount moved
+  — cause is POSE, not the precondition.** Counts group by SETTLE POSE, not by build (P24 exact
+  pose 66832-66862 · P26 4.5 px-narrower bbox 66321-66516 · P27 exact pose 66843-66878); **arm tick
+  ids byte-identical P26↔P27**; dispositions identical; and structurally the precondition is a
+  `continue` BEFORE contribution, so it can only remove a frame, never alter a contributing
+  frame's count. **L2 confirms from the other side: a different pose with a MATCHING bbox AREA
+  gives byte-identical counts.** 📌 **Criterion corrected in the record: it should read "any
+  maxCount that moves AT A MATCHED POSE" — a refuter that fires on a characterised confound
+  (`A47`/`B1`) is badly drawn, and the fix is to say so, not to grant an exception.**
+  ✅ **`RULING 2`: `SM_Ramp2` RETIRED as `N-2` and REPURPOSED as the KNOWN-NANITE CONTROL** — it
+  must read `NOT_MEASURED` every time (a POSITIVE test for the limit; first pass banked, and where
+  a future engine bump adding Nanite custom-depth would show first). 🚨 **NO NON-NANITE A35-SHAPED
+  CONTROL EXISTS — said so, per the ruling's own fallback:** the peak-IN/OUT split is banked for
+  `SM_Ramp2` ALONE, and **every other measured legitimate target is Nanite**, so the A35 risk and
+  the Nanite limit are entangled on this content. ⇒ **`N-2` → a plain non-Nanite drawing target
+  (recommended `StaticMeshActor_73`, `Cylinder`); A35 GOES INTO THE TAG AS *UNTESTED*.** ⚠ Two
+  stated weaknesses: it shares the gate level with the item-1 control (little independence), and a
+  stronger MainWorld candidate's existence is UNESTABLISHED (needs a census leg, `G122`). **No
+  asset was modified to manufacture a control.**
+  ✅ **`RULING 3`: the Nanite scope statement is DRAFTED AND UNSOFTENED** (journal §191.1) — a
+  Nanite target is ALWAYS ADMITTED, never vetoed, which is safe **and is also the cure not working
+  there**; `run_summary.mask_nopass_discards` is how a delivered session shows it.
+  ✅ **THE DEPTH QUESTION, ANSWERED FROM SOURCE, ANSWER ONLY: SCENE DEPTH *IS* NANITE-INCLUSIVE ON
+  5.1.** `Nanite::EmitDepthTargets` binds `FDepthStencilBinding(SceneDepth, ELoad,
+  DepthWrite_StencilWrite)` (`NaniteMaterials.cpp:896` and `:930`; compute path `FDepthExportCS`
+  `:856`; HTile resummarize `:1024`). ⇒ **a path exists where `C-1` has none.** ⛔ **Nothing
+  designed, nothing costed, the depth work stays parked** — and PART TWELVE §6.3's finding stands:
+  `C-2`'s reference depth comes from the same bounds `H5` calls untrustworthy.
+  ⚠ **AWAITING VETO OR BLESSING: `run_summary.mask_nopass_discards` is a THIRD artifact field
+  beyond the declared +2** — added deliberately so the known-Nanite control is auditable from a
+  delivered session rather than only a log. Measured: **`annotation.json` 48/48, `P6` NOT MOVED;
+  `run_summary` +3.**
+  📦 staged exe **`F93AEF71`** (built==staged verified; `DBA2D8EC` and `444D4812` both archived
+  first in `_binary_baselines\`) · container UNCHANGED · A44 green. Legs banked:
+  `P27_EXT_{RAMP,CTRL49,MTEX49,MOBJ49,PROBE49}` + discarded attempts (A63).
+  ⛔ **NEXT, AND IT IS ONE LEG: the replacement `N-2` control (pre-declare its prediction first),
+  THEN the `H5` legs — both now confirmed measurable.** Slices 2/3 NOT STARTED · `P6` DOES NOT
+  MOVE · stencil range 200/255 · `feature/stencil-capture` READ-ONLY · **NO TAG.**
+- 🟦 *(superseded — the fourth 2026-08-20 session: the fix gated, `F-6` halted at item 2)*
+  **`G133`/`G134` exposed by the `SM_Ramp2` control.**
   ✅ **THE FAULT-(ii) FIX SHIPPED (`4a9631a`, the Part-25 design + amendments A-1/A-2) AND PASSED
   EVERY PRE-DECLARED PREDICTION ON FOUR GATE LEGS** (bench pre-declaration `84106bd` BEFORE the
   build existed): mask block armed from `OnWorldTickEnd`; render BRACKETED by the enforcing

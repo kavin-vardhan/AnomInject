@@ -3246,6 +3246,12 @@ detector's own environmental dependence.
    read returns 255" was true of `CalcSceneCustomStencil` and false of the mask output, and the
    gap between those two sentences held a silent false zero. (2026-08-20.)
 
+✅ **CLOSED 2026-08-20 (journal PART TWENTY-SEVEN, `3beb3ba`):** `customStencilExtent` (1×1 dummy vs
+view-sized real) is now a **CONTRIBUTION PRECONDITION** — a frame contributes only on positive
+evidence the pass ran, in its own disjoint bucket `framesNoPass`, and the 255 detector is
+**demoted to a SECONDARY signal**. Verified on the banked failure: `SM_Ramp2` went from
+`MEASURED_ZERO` on event 1 to **`NOT_MEASURED` on all 8 events**, with L1–L4 unchanged.
+
 ### G134 — Nanite primitives cannot write custom depth in UE 5.1, so a custom-depth instrument is STRUCTURALLY BLIND to Nanite geometry — and a non-Nanite bench level can never show it
 
 The `SM_Ramp2` control (F-6 item 2) came back with the custom-depth pass produced on **0 of 29
@@ -3279,3 +3285,22 @@ PRIMITIVE CLASSES of the content it certifies for, not just the geometry sizes a
    precondition (G133) it reads as a clean zero, the false-veto direction.
 3. On a Nanite-heavy host title this limit is the COMMON CASE, not the corner — it belongs in the
    cure's scope statement, not its footnotes. (2026-08-20.)
+
+**🆕 SCOPED 2026-08-20 (journal PART TWENTY-SEVEN), and the scoping cuts both ways.** An asset-side
+name-table sweep classified the target set: **both `H5` instances are NON-Nanite** (`SM_Bush`,
+`SM_GenericPlane`), so the cure reaches the cases that motivated it; and the discriminator closes —
+**`StaticMeshActor_49` is `/Engine/BasicShapes/Cube`, and `make_gate_level.py:54-58` builds the
+whole calibration level from `/Engine/BasicShapes/`.** The signature predicted measurability on
+**5 of 5** targets. ⚠ **THE BAD HALF: StackOBot's own authored structural geometry — walls, floors,
+platforms, pillars, roofs, pipes, fences, crates, doors, ramps — is overwhelmingly Nanite (46
+assets carry the signature), while foliage and simple planes are not. So "common case" is MEASURED
+ON THIS TITLE, not projected about a hypothetical one, and the two `H5` instances are reachable
+because of what they happen to be made of, not because `H5` favours non-Nanite geometry.**
+⚠ **A second-order consequence worth its own line: every A35-shaped legitimate target this project
+has measured is Nanite, so the A35 over-fire risk cannot be tested on this bench at all** — the
+`N-2` control's A35 property goes into the tag as UNTESTED rather than being quietly dropped.
+📌 **Method note: the classifier is `CaptureBench/tools/nanite_signature_scan.py`, and it is
+EVIDENCE, not a measurement** — it prints its own two weaknesses (the struct can serialise for a
+different sub-field; `bEnabled` is a generic name), and it is load-bearing only as a DIFFERENTIAL
+across a set whose measured behaviour is already known. The editor bridge was refused
+(`Connection refused`), so `A59` corroboration was **abandoned rather than worked around**.
