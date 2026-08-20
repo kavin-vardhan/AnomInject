@@ -3355,3 +3355,95 @@ and running the ship-gate controls somewhere else.**
 — TAU is not pose-invariant. All three are "the control was valid and the conclusion was not."*
 *Found in journal 045 PART TWENTY-SEVEN by asking why the control worked rather than being*
 *satisfied that it did.)* (2026-08-20.)
+
+---
+
+### G136 — an ABSENCE-OF-FINDING is only as good as the SURFACE that was searched
+
+Code reported that Play-In-Editor cannot be started from a script, having enumerated
+`unreal.LevelEditorSubsystem` and the `unreal` namespace: only `editor_play_simulate()` exists and
+there is no `editor_request_begin_play`. **The conclusion was correct. The check was not.**
+
+**The `unreal` namespace is the wrong surface for a CUSTOM BRIDGE.** `unreal-mcpython` is bespoke,
+was extended for this project on 5.1, and a start-PIE endpoint would live C++-side over
+`GEditor->RequestPlaySession` — reachable from a bridge and invisible to a Python-namespace scan.
+The owner challenged the foreclosure from project history (*"the M0 gate split was explicit — the
+owner presses Play; Code drives everything after that"*) and named the surface that should have been
+searched.
+
+**Re-run properly: all 62 advertised bridge endpoints enumerated by category** — actor 17, asset 2,
+behavior_tree 13, blueprint 11, editor 6, game 3, material 10, util 3. **None starts Play or
+Simulate.** The finding SURVIVED — but it survived a test it had not previously been given.
+
+**RULES.**
+1. **An absence-of-finding is a WEAKER claim than a positive measurement, and it is only as good as
+   the surface searched.** State which surface, and why that is the surface where the thing would
+   live.
+2. **For anything custom — a bridge, a plugin, a wrapper — enumerate ITS OWN advertised surface,
+   not the surface of the thing it wraps.**
+3. ⚠ **This is `G120` with the safety catch removed.** A false positive gets re-run; a false null
+   gets re-run; **a false FORECLOSURE is not re-run, by definition.** Here the only thing that
+   tested it was the owner's memory of a receipt. Do not rely on that being available next time.
+
+*(Contrast, from the same session: the 982-component custom-depth-writer census, the five-stage
+stencil-inertness confirmation and the direct `nanite_settings.enabled` reads are POSITIVE
+measurements and were never exposed to this failure mode.)* (2026-08-20.)
+
+---
+
+### G137 — a VIEW-LEVEL property used as a PER-TARGET precondition admits evidence that does not exist
+
+`m26`'s mask decides whether a frame may contribute by testing `Mask.CustomStencilExtent` — 1x1
+means the engine's `StencilDummy` is bound, view-sized means custom depth was produced. That answers
+**"was custom depth produced AT ALL for this view this frame"**. It is used as **"did THIS TARGET
+write custom depth"**.
+
+Those are different questions, and the gap is not academic: the extent goes view-sized if **ANY**
+primitive in the scene writes custom depth — it need not be a tagged target — and with
+`AnomalyStencilTag` never untagging until `RestoreAll()` at `EndRun`, tags also accumulate across a
+run.
+
+**MEASURED (`I11-A`, journal 046), five legs, two independent routes, every gate passed:**
+
+```
+lever OFF   framesNoPass=4  framesContributed=0             -> NOT_MEASURED -> ADMITTED
+lever ON    framesNoPass=0  framesContributed=4  maxCount=0 -> MEASURED_ZERO -> VETOED
+```
+
+Same target, same map, same seed, same session shape, pose matched to 0.175 deg. **The only change
+was `bRenderCustomDepth` on one unrelated lamp.** Four frames carrying no evidence about the target
+were contributed as clean zeros, and the event was deleted from `annotation.json`.
+
+**RULES.**
+1. **"The instrument was running" and "the instrument saw THIS subject" are different claims.** A
+   per-frame or per-view answer substituted for a per-subject one converts *no evidence* into
+   *measured zero* — silently, and in the data-destroying direction.
+2. **State the SCOPE of every precondition next to its name** — per frame, per view, per target.
+   `bPassRan` reads as per-target and is per-view.
+3. ⚠ **A structural safety argument can be TRUE while the safety property is UNSOUND.** `m26`'s
+   *"no code path lets a magnitude move an event between the two zeros"* is correct and is NOT
+   withdrawn. What failed is the assumption underneath it — that an event reaching `MEASURED_ZERO`
+   had been measured at all. **Check the ASSIGNMENT into a state, not only the transitions between
+   states.** (2026-08-20.)
+
+---
+
+### G138 — an expectation written for one environment, read in another; write validity gates as CATEGORIES
+
+`I11-A`'s pre-declaration required the lever to change `customStencilExtent` and wrote the
+expectation as *"1x1 vs 1280x720"*. The legs ran in a PIE panel, whose view rect is **876x872**.
+
+**The gate passed anyway, and that is the whole lesson: it was written CATEGORICALLY — "the extent
+MUST DIFFER between lever-ON and lever-OFF" — with the numbers as illustration.** 1x1 versus 876x872
+differs unambiguously. Had the gate been written as *"the extent must read 1280x720"* it would have
+FAILED on a correct instrument in a valid run, and the failure would have looked like a lever that
+did not fire.
+
+**RULES.**
+1. **Write a validity gate as the CATEGORY you actually mean.** "Must differ", "must be non-empty",
+   "on screen or not" survive an environment change; a literal value does not.
+2. **A number carried into a pre-declaration inherits the environment it was measured in** — the
+   same shape as `G117` (`CALIB_BBOX` scoped to a resolution AND a target) and `G107`. Resolution,
+   viewport, windowing and DPI are all environment.
+3. **Report the mismatch even when the gate survives** — the next reader needs to know the written
+   expectation and the measurement were not the same number. (2026-08-20.)
