@@ -15,8 +15,10 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🟩 **YOU ARE HERE — 2026-08-20 (latest). `m27` IS BUILT AND FULLY GATED. ⛔ NOT TAGGED, NOTHING
-  PUSHED — THE ONLY THING BETWEEN IT AND THE TAG IS THE OWNER'S PLAY-GATE SMOKE.**
+- 🟩 **YOU ARE HERE — 2026-08-20 (latest). 🎯 `m27` IS SHIPPED AND TAGGED. THE MILESTONE IS CLOSED.
+  THE OWNER'S PLAY-GATE SMOKE PASSED IN REAL GAMEPLAY.** Plugin `4a92962`, tag **`m27`**, pushed;
+  AnomDash `b8273c2`, pushed. ⛔ **Do not start anything new unprompted — the next milestone is the
+  owner's call.**
   🎯 **`m27` = three unrelated problems that became visible while `H6` was being written up. IT IS
   NOT AN `H6` FIX AND MUST NEVER BE READ AS ONE — `H6` REMAINS DOCUMENTED, NOT FIXED.**
   **(A)** `[AnomalyCapture] bMaskMeasureDefault` — without it the `m26` cure **did nothing in a
@@ -126,10 +128,63 @@ and is the single source of truth for the project.
   selectable set changes seeded selection ⇒ banked runs stop being comparable) · **`G141`**
   (PowerShell `-Encoding utf8` **WRITES A BOM** — it corrupted files **twice in one session**; use
   the editor tool, or `File.AppendAllText` with `UTF8Encoding($false)`).
-  🧭 **NEXT, AND IT IS THE ONLY THING OUTSTANDING: THE OWNER'S PLAY-GATE SMOKE, THEN `git tag m27`
-  AND PUSH ALL FIVE COMMITS** — plugin `0d5e458`, `409b67a`, `9f86600`; AnomDash `2a62c2b`,
-  `b8273c2`. **`m26` tag NOT moved · `feature/stencil-capture` UNTOUCHED at `76cac74` · no
-  force-push · `P6` does not move · `H6` DOCUMENTED, NOT FIXED.**
+  🎯 **THE OWNER PLAY-GATE SMOKE — PASSED, real gameplay on `MainWorld`, and HE CAPTURED TWICE, which
+  between them exercised BOTH SIDES OF THE VETO:** `session_20260820-211024` **8 events → 5 kept, 3
+  VETOED** · `session_20260820-211345` **8 events → 8 kept, 0 vetoed**. **CHECK 1** the echo names the
+  ini · **CHECK 2** `vetoed_events` matches the `VETOED-OBJECT` line count · **CHECK 3** zero foliage in
+  `annotation.json`, `labels.jsonl` AND `selection_provenance.json`, pool alive with
+  **`BP_MovingPlatform_C` and `BP_PressurePlate_C` — targets no bench leg has ever selected**.
+  🚨 **THE ZERO-VETO RUN WAS READ AS INTERNALLY CONSISTENT, NOT AS A SILENT FAILURE:** it produced
+  **5 `NOT_MEASURED` / 3 `MEASURED_NONZERO` / 0 `MEASURED_ZERO`** with `mask.provided` matching the
+  tri-state on all 8 rows ⇒ **zero vetoes is the CORRECT OUTPUT.** **A zero shown to be the right zero
+  is worth more than a green tick.**
+  🆕 🚨 **THE ARC'S MOST DECISION-RELEVANT FINDING — STATED ONCE, NOT RESTATED HERE:
+  `docs/invisible-anomaly-mechanisms.md` → "THE CURE'S REACH IS VIEW-DEPENDENT AND CAN BE LOW",
+  beside the `H6` entry.** Two runs **eleven minutes apart on the SAME BUILD** went **1-of-8 and
+  5-of-8 `NOT_MEASURED`** (`mask_nopass_discards` 4 → 20): on `211345` the cure was **effectively
+  INERT for five of eight events**, admitted because **nothing was measured**, not because they were
+  measured to draw. ⛔ **The designed SAFE direction, NOT a defect** (`NOT_MEASURED` ⇒ ADMIT; nothing
+  wrongly deleted). ⛔ **NO MECHANISM CLAIMED (`G120`)** — one of the five IS established (`SM_Ramp2`,
+  the known-Nanite control, `G134`); **the other four were NOT chased.** ⚠ **THE TRANSFERABLE HALF:
+  THE BENCH LEGS STRUCTURALLY COULD NOT HAVE SHOWN THIS** — unattended, settled camera,
+  `notMeasured=0`. **`G135`'s shape again, and an OWNER-PLAYED RUN IS A DIFFERENT INSTRUMENT FROM A
+  BENCH LEG.** 📌 **CONSEQUENCE, UNDECIDED: how much of `H5` the cure catches in a CLIENT capture is
+  VARIABLE and can be small, and any statement to a client must carry that. Not queued, no number
+  minted.**
+  🆕 **`G142` — A VERIFICATION SCRIPT IS A DEFECT SURFACE OF ITS OWN. TWO defects in MY OWN checker,
+  found while reporting a PASS, EITHER of which would have manufactured a false `COUNTS DISAGREE —
+  STOP` on a gate that was working:** (1) it assumed **one capture run per log** and the owner captured
+  twice; (2) anchoring on `Capture run STARTED` is wrong **at both ends in opposite directions** — the
+  per-run **echo prints BEFORE** it, the per-event `M26S1 EVENT` lines print **AFTER the `FINISHED`
+  banner**. ⚠ **A FALSE failure is expensive here: it teaches the owner to distrust a gate that was
+  correct.** Recorded as **VERIFICATION-TOOLING defects, explicitly NOT build defects.**
+  📌 **`G92` NOW CARRIES A RUNNING COUNT: UNBANKED EVIDENCE HAS BEEN FOUND IN THE PROJECT TREE FIVE
+  TIMES, TWO OF THEM ON 2026-08-20.** Every one was found **by SESSION ID, never by directory name**,
+  and the most valuable item is repeatedly an **owner-played run** — the harness banks its own legs and
+  creates exactly that blind spot. 🚨 **NEW SUB-LESSON: THE LOG CAN BE THE ONLY COPY OF A RESULT** — a
+  vetoed event leaves **no trace in `annotation.json`**, so the `VETOED-OBJECT` lines naming which three
+  objects `211024` deleted existed **nowhere else**. Both sessions **and the log** are banked at
+  `_bench_sessions_bank\M27_OWNER_PLAYGATE_SMOKE\`, manifest-verified 95/95 each.
+  ⚖ **RULING 1 — FOUR COMMITS, NOT SQUASHED, AND THE REASON IS RECORDED SO IT IS NOT READ AS DRIFT:**
+  the brief's *"one commit"* **predates** foliage and the client-readme rewrite entering scope, and
+  **squashing would hide which change carries which gate — the convention exists FOR traceability.**
+  Five plugin commits: `0d5e458` · `409b67a` · `9f86600` · `3b91fe4` · `4a92962`.
+  ⚖ **RULING 2 — ⛔ FILED, DELIBERATELY NOT FIXED: `IAI.Capture.Mask`'s console help still opens
+  *"m26 SLICES 1+2 - MEASURE AND REPORT (default OFF)"*, so DELIVERABLE A3 IS *PARTIAL*.** It is stale
+  against **its own body** (which describes slice 3) and against the ini key (`default OFF` is now only
+  the COMPILED default) — **this gotcha's own failure mode surviving inside the fix for it**, and a
+  reader meets an **internal inconsistency** rather than a plain error. **Filed at `G139`'s addendum.**
+  **NOT fixed because a re-cook MOVES THE EXE AND INVALIDATES ALL FOUR GATE 3 LEGS for a string no gate
+  ever read** — the same trade already made for `G118` and the `m26` bench binary. 🧭 **CLEARING RULE:
+  FOLD INTO THE NEXT MILESTONE THAT ALREADY REQUIRES A COOK, with `G118`'s placeholder token.**
+  📌 **THE TAG CARRIES SEVEN LIMITS** — reach is view-dependent · `m26`'s zero-only partial cure is
+  unchanged (**the over-claim case still ships as a valid label; NO RATIO, NO THRESHOLD, and none must
+  ever be proposed**) · **`translucent_vetoes` counts a PROPERTY OF THE TARGET, NOT A CAUSE** (the m27
+  gate run holds the counter-example) · **delivered datasets contain NO FOLIAGE ANOMALIES AT ALL** ·
+  A3 partial · **`L3` live and deliberately unfixed** · **a vetoed event leaves NO TRACE in
+  `annotation.json`, so the log lines and `vetoed_events` are the only record.**
+  🧭 **NOTHING IS OUTSTANDING. `m26` tag NOT moved · `feature/stencil-capture` UNTOUCHED at `76cac74` ·
+  no force-push · `P6` DID NOT MOVE · `H6` REMAINS DOCUMENTED, NOT FIXED · `L3` stays unfixed.**
 - 🟦 *(superseded as "you are here" by the `m27` entry above)* **2026-08-20 (later). 🚨 `m26`'s SAFETY ARGUMENT IS CORRECTED BY MEASUREMENT.
   `I11-A` SUPPORTS `H6` ON TWO INDEPENDENT ROUTES: a target the mask CANNOT SEE can reach
   `MEASURED_ZERO` and be VETOED, because `bPassRan` is a VIEW-LEVEL property used as a PER-TARGET
