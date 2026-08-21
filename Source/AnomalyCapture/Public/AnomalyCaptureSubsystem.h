@@ -74,6 +74,11 @@ public:
 	void SetMaskProbe(bool bInProbe);
 	bool IsMaskProbe() const { return bMaskProbe; }
 
+	void SetTickPin(bool bInPin);
+	bool IsTickPinEnabled() const { return bTickPinEnabled; }
+	const TCHAR* DescribeTickPinSource() const;
+	static bool IsTickPinCompiled();
+
 	void SetOutputHeightOverride(int32 InHeight);
 	int32 GetOutputHeightOverride() const { return OutputHeightOverride; }
 	int32 GetEffectiveOutputHeight() const { return EffectiveOutputHeight; }
@@ -216,6 +221,7 @@ private:
 
 	bool bTickPinEnabled = true;
 	bool bTickPinFromIni = false;
+	bool bTickPinFromConsole = false;
 	bool bTickPinApplied = false;
 	int32 TickPinSaved = -1;
 	int32 TickPinReasserts = 0;

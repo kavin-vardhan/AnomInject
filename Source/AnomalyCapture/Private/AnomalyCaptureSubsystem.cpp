@@ -15,6 +15,7 @@
 #include "AnomalyPreviewCapture.h"
 #include "AnomalyPreviewTee.h"
 #include "AnomalyAutoInjectorSubsystem.h"
+#include "AnomalyDefaults.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyFrameCapturer.h"
 #include "AnomalySveCapturer.h"
@@ -691,6 +692,58 @@ void UAnomalyCaptureSubsystem::SetMaskMeasure(bool bInMask)
 		bMaskMeasure ? TEXT("ON") : TEXT("off"));
 }
 
+const TCHAR* UAnomalyCaptureSubsystem::DescribeTickPinSource() const
+{
+	if (bTickPinFromConsole)
+	{
+		return TEXT("IAI.Capture.TickPin (console override, beats the ini)");
+	}
+	if (bTickPinFromIni)
+	{
+		return TEXT("DefaultGame.ini [AnomalyCapture] bTickModePinDefault");
+	}
+	return TEXT("COMPILED DEFAULT (on where the fork is detected)");
+}
+
+bool UAnomalyCaptureSubsystem::IsTickPinCompiled()
+{
+#if ANOMALY_CAPTURE
+	return AnomalyTickPin::bCompiled;
+#else
+	return false;
+#endif
+}
+
+void UAnomalyCaptureSubsystem::SetTickPin(bool bInPin)
+{
+#if ANOMALY_CAPTURE
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.TickPin: ignored mid-run (stop first)."));
+		return;
+	}
+	bTickPinEnabled = bInPin;
+	bTickPinFromConsole = true;
+	if (!AnomalyTickPin::bCompiled)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Capture.TickPin: %s RECORDED but this build is TICKPIN not-compiled (no decoupled-tick ")
+			TEXT("fork was detected at build time), so NOTHING is pinned whatever you set. The command exists on ")
+			TEXT("every build on purpose - a silently missing command on the host that matters is worse than a ")
+			TEXT("command that says it can do nothing."),
+			bTickPinEnabled ? TEXT("ON") : TEXT("off"));
+		return;
+	}
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.TickPin: %s - THE BISECT SWITCH FOR THE PIN, and it takes effect BETWEEN RUNS, not ")
+		TEXT("mid-run. It overrides DefaultGame.ini [AnomalyCapture] bTickModePinDefault for this session, which ")
+		TEXT("matters because a loose ini beside a package is a no-op (G88) - the cooked config wins, so without ")
+		TEXT("this command the unpinned control leg would need a second COOK. Set it 0 and re-capture for the ")
+		TEXT("unpinned control, 1 for the pinned leg; the full provenance prints at IAI.Capture.Start."),
+		bTickPinEnabled ? TEXT("ON") : TEXT("off"));
+#endif
+}
+
 void UAnomalyCaptureSubsystem::SetMaskProbe(bool bInProbe)
 {
 	if (bRunning)
@@ -1062,16 +1115,15 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 			TEXT("Capture(tickpin): TICKPIN active saved=%d (decoupled sim/render tick forced OFF for the ")
 			TEXT("duration of this capture, re-applied every capture tick, restored at finish; default from %s%s)."),
 			TickPinSaved,
-			bTickPinFromIni
-				? TEXT("DefaultGame.ini [AnomalyCapture] bTickModePinDefault")
-				: TEXT("COMPILED DEFAULT (on where the fork is detected)"),
+			DescribeTickPinSource(),
 			AnomalyTickPin::bForkDefineVisible ? TEXT("; fork build define visible to this TU") : TEXT(""));
 	}
 	else if (AnomalyTickPin::bCompiled)
 	{
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture(tickpin): TICKPIN disabled-by-ini (the fork WAS detected at build time; ")
-			TEXT("DefaultGame.ini [AnomalyCapture] bTickModePinDefault turned the pin off for this session)."));
+			TEXT("Capture(tickpin): TICKPIN disabled-by-ini (the fork WAS detected at build time; the pin is off ")
+			TEXT("for this session, default from %s). This is the UNPINNED CONTROL leg."),
+			DescribeTickPinSource());
 	}
 	else
 	{
@@ -1089,7 +1141,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	ApplySessionGlobals();
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s ==="),
+		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s | blinkHalf=%s lodHalf=%s ==="),
 		*RunDir,
 		bTargetedMode ? *FString::Printf(TEXT("targeted[%s on %s]"), *TargetAnomalyId.ToString(), *TargetActorName) : TEXT("auto-pool"),
 		bDeliveryMode ? TEXT("on") : TEXT("off"),
@@ -1098,7 +1150,9 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		bPaceCapture ? TEXT(", paced") : TEXT(", unpaced"),
 		SettleFrames, ViewLagFrames, PreFrames, PositiveFrames, PostFrames,
 		BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
-		FrameCap > 0 ? *FString::FromInt(FrameCap) : TEXT("none"));
+		FrameCap > 0 ? *FString::FromInt(FrameCap) : TEXT("none"),
+		*AnomalyDefaults::DescribeBlinkingHalfPeriod(),
+		*AnomalyDefaults::DescribeLodPoppingHalfPeriod());
 #endif
 }
 
@@ -2942,6 +2996,38 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskCmd(
 				Cap->SetMaskMeasure(FCString::Atoi(*Args[0]) != 0);
 				UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.Mask: EFFECTIVE READ-BACK = %d."),
 					Cap->IsMaskMeasure() ? 1 : 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureTickPinCmd(
+	TEXT("IAI.Capture.TickPin"),
+	TEXT("THE BISECT SWITCH FOR THE CAPTURE-TIME ENGINE TICK-MODE PIN, in the IAI.Capture.SVE 0 tradition: one ")
+	TEXT("setting that reaches the other behaviour with no rebuild and NO RE-COOK. On a decoupled-tick fork the ")
+	TEXT("pin forces the fixed-sim/variable-render mode OFF for the duration of a capture and restores it at ")
+	TEXT("finish. PRECEDENCE: this console override beats DefaultGame.ini [AnomalyCapture] bTickModePinDefault, ")
+	TEXT("which beats the compiled default (on where the fork is detected). The override exists because a loose ")
+	TEXT("ini beside a package is a NO-OP (G88) - the cooked config wins - so without it the unpinned control leg ")
+	TEXT("would cost a second COOK, and the pinned-vs-unpinned A/B is the whole measurement. Settable BOTH ways: ")
+	TEXT("0 for the unpinned control leg, 1 for the pinned leg. On a build where the pin compiled out this ")
+	TEXT("command STILL EXISTS and says so - a silently missing command on the host that matters is the failure ")
+	TEXT("mode we refuse. Mid-run changes are ignored (stop first). The effective value and its source print in ")
+	TEXT("the single TICKPIN line at IAI.Capture.Start. Usage: IAI.Capture.TickPin <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.TickPin <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetTickPin(FCString::Atoi(*Args[0]) != 0);
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("IAI.Capture.TickPin: EFFECTIVE READ-BACK = %d (compiled=%d, source=%s)."),
+					Cap->IsTickPinEnabled() ? 1 : 0,
+					UAnomalyCaptureSubsystem::IsTickPinCompiled() ? 1 : 0,
+					Cap->DescribeTickPinSource());
 			}
 		}));
 
