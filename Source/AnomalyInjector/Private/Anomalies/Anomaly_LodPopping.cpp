@@ -2,6 +2,7 @@
 
 #include "AnomalyLod.h"
 #include "AnomalyViewport.h"
+#include "AnomalyDefaults.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "Components/MeshComponent.h"
@@ -23,7 +24,19 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		Revert();
 	}
 
-	int32 Frames = DefaultHalfPeriodFrames;
+	static_assert(DefaultHalfPeriodFrames == AnomalyDefaults::LodPoppingHalfPeriodCompiled,
+		"lod_popping's compiled half-period and AnomalyDefaults::LodPoppingHalfPeriodCompiled have drifted apart - "
+		"the capture run-config echo reads the AnomalyDefaults copy, so a silent disagreement would print one "
+		"number while the anomaly used another");
+	static_assert(MinHalfPeriodFrames == AnomalyDefaults::HalfPeriodMin
+		&& MaxHalfPeriodFrames == AnomalyDefaults::HalfPeriodMax,
+		"lod_popping's half-period clamp and AnomalyDefaults' clamp have drifted apart");
+
+	const int32 EffectiveDefault = AnomalyDefaults::GetHalfPeriodFrames(
+		AnomalyDefaults::LodPoppingHalfPeriodKey(), DefaultHalfPeriodFrames,
+		MinHalfPeriodFrames, MaxHalfPeriodFrames, TEXT("lod_popping"));
+
+	int32 Frames = EffectiveDefault;
 	if (Args.Num() >= 2)
 	{
 		if (Args[1].IsNumeric())
@@ -33,15 +46,15 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		else
 		{
 			UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: '%s' is not a whole number of frames; using %d."),
-				*Args[1], DefaultHalfPeriodFrames);
-			Frames = DefaultHalfPeriodFrames;
+				*Args[1], EffectiveDefault);
+			Frames = EffectiveDefault;
 		}
 	}
 	if (Frames < MinHalfPeriodFrames || Frames > MaxHalfPeriodFrames)
 	{
 		UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: half-period %d out of range [%d..%d]; using %d."),
-			Frames, MinHalfPeriodFrames, MaxHalfPeriodFrames, DefaultHalfPeriodFrames);
-		Frames = DefaultHalfPeriodFrames;
+			Frames, MinHalfPeriodFrames, MaxHalfPeriodFrames, EffectiveDefault);
+		Frames = EffectiveDefault;
 	}
 	HalfPeriodFrames = Frames;
 
