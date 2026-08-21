@@ -15,9 +15,64 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🚧 **YOU ARE HERE — 2026-08-21 (latest). `m31` IS OPEN: THE SVE CAPTURE PATH — THE SHIPPING
+- 🚧 **YOU ARE HERE — 2026-08-21 (latest). `m31` FIX IS BUILT, GATED LOCALLY AND PUSHED — AWAITING
+  THE CONCORDE LEGS (V-3 in-editor, V-4 packaged). ⛔ m31 DOES NOT TAG UNTIL V-4 PASSES.**
+  🧭 **COLD START: read `docs/sessions/2026-08-21-050-m31-fix-handshake-rekey.md` — it is
+  self-contained (the defect, the retraction chain, the Option-B design, every consumer re-keyed,
+  the V-2 A/B results, the owner's office procedure).**
+  🎯 **THE FIX (Option B, mechanism-independent BY DESIGN — the fork's exact mechanism is
+  DELIBERATELY UNSETTLED and no code, comment or doc asserts one):** the SVE wanted-handshake no
+  longer compares two independent reads of `GFrameCounter`. A PLUGIN-OWNED monotonic serial is
+  minted ONCE at the arm site, keys `PendingSnapshots`, rides BOTH capturers (`ArmForCapture` and
+  the SVE path's new pending-wanted FIFO), and is carried BY VALUE end to end; the publish site
+  consumes the oldest intent for the next ELIGIBLE family (scene/reflection-capture families
+  guarded out AND COUNTED); the ring key stays `FSceneViewFamily::FrameNumber` — the one value
+  MEASURED-CORRECT on the broken host. **The backbuffer pattern transplanted — proven
+  fixed/variable-safe BY DESIGN from source (mint-once / carry-by-value / consume-in-order; its
+  one latent flaw, GFrameCounter-as-token uniqueness, is removed in both paths by the serial).**
+  ⚖ **INVARIANT WIDENED (owner ruling, dated, in architecture.md §Game-agnostic): never let
+  correctness depend on ANYTHING a host can redefine — engine globals included. No mode
+  sniffing; no tolerance windows (clocks at different rates diverge without bound).**
+  ✅ **V-2 PASSED, BOTH PATHS, TRUE A/B** (pre-fix legs on the certified m30 exe `99AE7526`,
+  archived; post-fix exe `DC55CB9B`, built==staged, A44 both-encodings: 5 new tokens at exact
+  multiplicity, retired symbol ABSENT): 90/90 frames · 8/8 events IDENTICAL pre-vs-post on BOTH
+  paths (canonical gapped cadence) · `annotation.json` KEYSET IDENTICAL — **P6 unmoved,
+  MEASURED** · ring 121/121/0 · run_summary differs by exactly the one pre-declared field.
+  🎯 **THE GATE LINE (permanent, unconditional):** post-fix SVE leg reads `marksIssued=90
+  publishesSeen=121 wantedMatches=90 submitsIssued=90 framesWritten=90 pendingWantedAtEnd=0
+  maxPendingDepth=1` — handshake CONNECTED, and `maxPendingDepth=1` is the lockstep degeneration
+  MEASURED: on a stock loop the FIFO reproduces the pre-m31 pairing exactly. A failed run
+  localises itself: marks>matches = arm side · matches>submits = render pass ·
+  submits>frames = pairing (per-frame drops now WARN — promoted from Verbose, G154) ·
+  ineligible-family count exposes a mis-guard (Amendment 2).
+  📌 **ALSO IN THE BUILD:** `G153` CLOSED — `IAI.Capture.Start` dequotes outDir and REFUSES
+  LOUDLY at StartRun on a surviving quote char or uncreatable dir (refusal POSITIVELY tested:
+  fired on `Q:\`, no run started) · run_summary `wanted_published` → **`wanted_matches`**
+  (Amendment 3, name=semantics; counts publishes that consumed a pending arm; semantics line in
+  capture-fps.md §Arm→frame pairing) · ⚠ the `IAI.Capture.Mask` help-string brief item was STALE
+  — already fixed at m29, verified, refused as work.
+  ⚠ **SEMANTICS ON DECOUPLED HOSTS, stated not buried (capture-fps.md):** on a fixed/variable
+  fork the captured frame is THE NEXT ELIGIBLE FAMILY AFTER THE ARM (the backbuffer's
+  m21/m22-characterised semantics; pre-m31 such hosts got NOTHING); `labels.jsonl frame_index`
+  keeps its source (arm-time GFrameCounter) and on such hosts identifies the ARM TICK. Lockstep
+  hosts byte-equivalent. **FIFO overrun is LOUD twice** (existing did-not-resolve WARNING +
+  `pendingWantedAtEnd`).
+  🧭 **PRE-REGISTERED: `docs/predictions/2026-08-21-m31-fix-validation.md`** — V-1…V-4 with
+  both-path variants + V-3's failure branch (an unlocalisable zero is a gate failure OF THE
+  INSTRUMENTATION). ⚠ **V-1 (StackOBot PIE) NOT RUN here — no editor/bridge in the session;
+  stated, not skipped silently; packaged pair is the stronger instrument (G76) and the office
+  procedure covers the in-editor instrument on the host that matters.**
+  ⛔ **NOT DONE:** V-3/V-4 (office-side; owner procedure at journal 050 §10: pull → rebuild
+  editor target → Play → one SVE capture → one backbuffer capture → grep the tokens named in
+  journal 050 §6) · the mask system's measurement cadence under a decoupled loop (named;
+  fails-safe NOT_MEASURED⇒ADMIT) · m27/m30 tags untouched · `feature/stencil-capture` untouched
+  at `76cac74` · no ratio/threshold anywhere.
+- 🟦 *(superseded as "you are here" by the fix entry above — kept as the m31-S1 record; the S1
+  telemetry it describes was SUBSUMED by the fix's gate instrumentation, and its branch table
+  R-1/R-3 was superseded by the fix-validation pre-registration)* **2026-08-21 (earlier).
+  `m31` OPENED: THE SVE CAPTURE PATH — THE SHIPPING
   DEFAULT SINCE `m25` — PRODUCED ZERO FRAMES ON CONCORDE, THE FIRST HOST THAT WAS NOT THE TEST RIG.
-  `m31-S1` (the instrumentation) IS BUILT AND SHIPPED; NO FIX EXISTS, NONE IS AUTHORISED.**
+  `m31-S1` (the instrumentation) WAS BUILT AND SHIPPED; the fix above followed.**
   🧭 **COLD START: read `docs/sessions/2026-08-21-049-m31-s1-sve-wanted-handshake.md` — it is
   self-contained (symptom, relayed diagnosis, source verification, what S1 measures, hand-off).**
   🚨 **STATED FOR THE RECORD: FIRST DEFECT EVER FOUND BY A SECOND HOST, AND THE SHIPPING DEFAULT

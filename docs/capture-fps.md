@@ -251,6 +251,35 @@ round-trip). As of m16 the server suppresses all preview-frame generation while 
 (`Cap->IsCaptureActive()`, true from arm through finish) — engine-side, immediate, no round-trip. So the
 preview cannot inflate `speed_ratio` during a run; the sustained-fps measurement reflects the capture alone.
 
+## Arm→frame pairing semantics under decoupled engine loops (m31)
+
+Since m31 the SVE (default) capture path pairs an armed frame to its pixels the way the
+backbuffer path always has: a plugin-owned request id is minted once at the arm site, pushed
+onto a pending-wanted FIFO, and consumed by the NEXT ELIGIBLE view family to publish
+(scene-capture and reflection-capture families are guarded out and counted). No engine frame
+counter is compared across sites anywhere on either path.
+
+What this means for the artifacts, stated plainly:
+
+- **On a stock engine loop** (StackOBot and every certified configuration) the arm and the
+  family publish happen inside one loop iteration, so the FIFO degenerates to exactly the
+  pre-m31 pairing — the captured pixels are the arm tick's own render, unchanged.
+- **On a host that decouples sim and render** (fixed sim + variable render forks), "the
+  captured frame" is defined as the FIRST eligible view family rendered at or after the arm.
+  Pre-m31 the SVE path delivered NOTHING on such hosts; the backbuffer path always had exactly
+  this next-present semantics, characterised at m21/m22.
+- `labels.jsonl`'s `frame_index` keeps its source unchanged: it is `GFrameCounter` read at the
+  arm site (the same read that feeds every timing stamp). On a stock loop it also identifies
+  the rendered frame, which is what the bench marker oracle checks; on a decoupled host it
+  identifies the ARM TICK, and the delivered pixels are the next eligible render after it.
+- If arms outpace eligible publishes (a host rendering slower than sim), the FIFO grows and
+  unconsumed arms reach run end: their snapshots are reported by the existing loud
+  "did not resolve by run end (dropped)" warning, and the run-end handshake summary prints the
+  leftover FIFO depth. Nothing is silently discarded.
+- `run_summary.wanted_matches` (renamed from the never-consumed `wanted_published` at m31)
+  counts exactly: publishes that consumed a pending arm — wanted-matches made. On a healthy
+  run it equals the arm count and the written frame count.
+
 ## History
 
 - `c5d58b0` — measured session fps written to `video.fps` (superseded).

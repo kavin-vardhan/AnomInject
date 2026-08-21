@@ -1084,6 +1084,20 @@ across all seven anomalies — the M1 `IAnomaly` lock held through M3, including
 
 ## Game-agnostic invariant
 The module depends only on `Core`/`CoreUObject`/`Engine`/`InputCore`/**`Foliage`** and never references host (StackOBot) types.
+⚖ **WIDENED BY OWNER RULING, 2026-08-21 (`m31`): the invariant is not just "never reference host TYPES" —
+it is "NEVER LET CORRECTNESS DEPEND ON ANYTHING A HOST CAN REDEFINE."** The m31 defect was this invariant
+violated through an ENGINE GLOBAL rather than a host type: the SVE capture handshake compared two
+independent reads of `GFrameCounter` (game-side arm vs publish-side check), a pairing that holds only
+under the stock engine loop's increment placement. The first host running a forked loop (Firewalk:
+fixed sim + variable render) redefined that global's cadence — as a fork is entitled to — and the
+shipping capture path silently wrote zero frames. **The cure class is structural, not compensatory:
+mint identity ONCE at a site the plugin owns, carry it BY VALUE, pair by ORDER — never by comparing two
+independent reads of any engine global, and never with a tolerance window (clocks at different rates
+diverge without bound). No sniffing an engine mode and branching: immunity by construction, not by
+detection.** The backbuffer path already embodied this shape (arm-minted id, FIFO consume, no
+render-side frame-number read) and is why it survived the fork untouched; m31 re-keys the SVE path to
+the same shape and replaces the one residual engine-global dependence in both paths
+(`GFrameCounter`-as-token uniqueness) with a plugin-owned serial.
 ⚖ **`Foliage` is the `m27` addition (2026-08-20, owner ruling)** — a **PRIVATE** dependency so it does not
 propagate to `AnomalyCapture`/`AnomalyControlServer`, on an **ENGINE Runtime** module present in every UE build
 (`Runtime/Foliage/Foliage.Build.cs`: no editor gating, no `ModuleType` override). It exists so

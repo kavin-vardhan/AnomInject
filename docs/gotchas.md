@@ -4066,3 +4066,31 @@ placeholder token. Same cook, one binary swap, per the m27/G139 precedent that a
 retires a gated binary on its own.
 
 (2026-08-21, m31 open — relayed observation, not reproduced on this box.)
+
+---
+
+## G154 — a drop that logs at Verbose is invisible by default, and it made two different failures identical
+
+The snapshot-pairing drop in ProcessCompletedFrames ("completed frame id=N has no pending
+snapshot") logged at VERBOSE — suppressed at default verbosity. Consequence, realised during m31:
+a BROKEN PAIRING (frames completing under ids the snapshot map does not hold) produces exactly the
+same observable as a path that never submitted at all — zero PNGs, no explanation — so the one
+diagnostic that separates "nothing arrived" from "things arrived and were thrown away" was mute
+precisely when it was needed.
+
+**The rule: any code path that DISCARDS work product must announce it at a verbosity that is ON by
+default.** A drop is not debug detail — it is the system reporting that it destroyed something. The
+m31 fix promotes that drop to a Warning with its own unique grep token, and the run-end handshake
+summary names which stage lost frames so a zero localises itself.
+
+(2026-08-21, m31.)
+
+---
+
+## G153 — ADDENDUM (2026-08-21, same day): FIXED in m31
+
+The quoted-outDir sharp edge is closed by the m31 build: IAI.Capture.Start now strips one wrapping
+pair of quotes from the outDir argument, REFUSES loudly at StartRun (log Error, run never starts,
+auto-injector resumed) if a quote character survives inside the path, and REFUSES loudly if the run
+directory cannot be created — the failure surfaces at start time with its own token, never at
+annotation-write time. The entry above stands as the record of the sharp edge and its cost.
