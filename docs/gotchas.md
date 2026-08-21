@@ -4094,3 +4094,135 @@ pair of quotes from the outDir argument, REFUSES loudly at StartRun (log Error, 
 auto-injector resumed) if a quote character survives inside the path, and REFUSES loudly if the run
 directory cannot be created — the failure surfaces at start time with its own token, never at
 annotation-write time. The entry above stands as the record of the sharp edge and its cost.
+
+## G155 — a detector calibrated on a synthetic patch is calibrated on the easy case, and the real one can fail in the opposite direction
+
+Two pixel detectors written for the label-offset instrument PASSED a synthetic gate and FAILED on
+real frames, each for a different reason, and both were only caught because real pixels were looked
+at afterwards.
+
+**MAGENTA.** An absolute-brightness test (`min(R,B) > 128`) sailed through a saturated synthetic
+patch. On real frames the corruption material is LIT, so its pixels sit well below any absolute
+floor: the same test read 0.203 and 0.046 of the region on frames that are unmistakably magenta to
+the eye. The shipped test is RELATIVE — `G < 0.60·min(R,B)` and `|R−B| < 0.40·max(R,B)` — and reads
+those frames at 0.373 / 0.198 while still reading 0.000 on checkered ones.
+
+**CHECKER.** The absolute route (achromatic + bimodal luminance + edge energy) failed for a more
+instructive reason: **a bbox holding a DARK OBJECT ON A BRIGHT BACKGROUND is strongly bimodal
+whether or not a checker is present.** The anomalous and the clean frame were nearly
+indistinguishable on every statistic the detector used — separation 0.739 vs 0.720, concentration
+0.914 vs 0.943. The only quantity that moved at all was edge energy, 0.0081 → 0.0108. A DIFFERENTIAL
+route against the same region's edge energy in the baseline frame is what catches it.
+
+⚠ **THE RULE: a synthetic fixture proves the detector fires on the ideal case. It cannot show what
+the detector CONFUSES.** Where the quantity being measured is a property of a REGION rather than of
+an object, the background is inside the measurement, and a differential test against a known-clean
+frame of the same region is worth more than any absolute threshold. Validate on real pixels you have
+actually looked at, and keep the synthetic as a regression guard, not as the calibration.
+
+## G156 — delivery mode removes the bbox, and that costs CORRECTNESS, not merely confidence
+
+Delivery mode does not write `labels.jsonl`, and `labels.jsonl` is the ONLY carrier of the per-frame
+bbox — `annotation.json` has no bbox field at all. Any tool that localises a measurement to the
+anomaly's region therefore degrades to WHOLE FRAME, and loses the ambient ring that rejects camera
+motion at the same time.
+
+Measured on delivery-mode fixtures built from sessions whose true offset was KNOWN:
+
+| fixture | true offset | delivery-mode reading |
+|---|---|---|
+| blink | +0 | median +0 but per-event range +0..+7 |
+| missing_texture | +0 | **median startΔ +6 — WRONG**, half the events unmeasurable |
+| missing_texture | +1 | **all eight events UNMEASURABLE** |
+| missing_object | +1 | median +1, only 2 of 8 events survive |
+
+In-region contrast collapses about fifteenfold (peak/T 33.9 → 2.3).
+
+⚠ **The failure is not a uniform loss of confidence — a texture event reports a CONFIDENT WRONG
+NUMBER.** An offset of 1–6 frames is NOT reliably detectable in delivery mode. **THE CLIENT'S SHIPPED
+CONFIG CANNOT SELF-VERIFY; ANY DIAGNOSTIC CAPTURE MUST SET `IAI.Capture.Delivery 0`.** This is the
+same shape as `L3` — delivery mode changes what evidence exists, not just what is convenient.
+
+## G157 — a project setting can make a defect STRUCTURALLY unreproducible, and the clean logs look like health
+
+Both shipped materials were missing `bUsedWithStaticLighting`. On Concorde this drew the ENGINE
+DEFAULT MATERIAL on statically-lit static meshes while the skeletal weapon drew our magenta — one
+anomaly type, two appearances. On this box the defect had been present the whole time and produced
+NOTHING: not a warning, not a wrong pixel.
+
+The mechanism is a single project line: **`r.AllowStaticLighting=False` in StackOBot's
+`DefaultEngine.ini`.** The engine gate (`StaticMeshRender.cpp:2225`) only consults
+`MATUSAGE_StaticLighting` when the section has `bHasSurfaceStaticLighting`, which needs a
+lightmap/shadowmap. With static lighting disallowed no primitive here has one, so the usage is never
+queried, the flag's absence costs nothing, and no warning is emitted.
+
+Evidence that the silence was real and not filtered: **eleven packaged home logs contain ZERO
+`LogMaterial` lines of any verbosity** while `LogRHI`, `LogAnomalyCapture`, `LogConfig` and a dozen
+others log freely, and no suppression is configured.
+
+⚠ **THE RULE: before concluding "our build is fine", ask which HOST SETTING decides whether the code
+path under test runs at all.** A green home run is evidence about this project's configuration, not
+about the plugin. And ⚠ **the log only warns for usages actually EXERCISED at runtime — the absence
+of a warning for some other flag means that path was not hit, NOT that the flag is set.** Do not
+narrow a fix to the one flag you happened to see warned.
+
+## G158 — frame byte-identity is not available between two runs of the same binary, so a single-frame difference proves nothing on its own
+
+Re-measured while validating the tick-mode pin: **90 of 90 frames differ between two runs of the
+SAME binary** on the settled CB_GateLevel bench. This is A47's bifurcation and its relatives, and it
+means a byte-diff of frames carries zero information about a code change in either direction.
+
+It bites at the margin. A post-change leg showed two of seven events at agreement 0.9375 instead of
+1.000 — ONE extra boundary frame crossing the manifestation threshold — which read like a regression.
+A SECOND post-change leg read 1.000 on all seven, identical to both pre-change legs.
+
+⚠ **THE RULE: when a difference is one frame wide, run the leg again before attributing it.** The
+sound instrument for a cross-binary comparison is the CONTROL PAIR plus the INVARIANT CORE
+(`subset_gate.py`), never frame bytes. And note the corollary for that gate: **when a change
+deliberately ADDS artifact fields, the subset gate EXITS NONZERO by construction** — it flags any
+field the control pair does not exhibit. Report that as it printed and show the extras are exactly
+the declared additions; do not relabel it a pass.
+
+## G159 — a string scan of a cooked container is blind to serialized property flags, and only a known-TRUE control reveals it
+
+Attempting to confirm that `bUsedWithStaticLighting` reached the COOKED container, the obvious
+instrument is to scan `StackOBot-Windows.ucas` for the property name. **Run the control first, and
+here the control killed the instrument:**
+
+- `M_CorruptedTexture_Pink` and `M_MissingTexture_Checker` — PRESENT in the pre-fix container.
+- `bUsedWithStaticLighting`, `bUsedWithClothing` **and `bUsedWithSkeletalMesh`** — ALL ABSENT.
+
+`bUsedWithSkeletalMesh` was KNOWN TRUE before the fix, because m29's `G-4S` proved skeletal pink
+renders out of the cooked artifact. So an "absent" reading is BLINDNESS, not a negative. Cooked
+packages do not carry these flags as searchable strings.
+
+⚠ **The instrument was rejected rather than its result reported.** What remains is corroboration and
+was labelled as such: the `.ucas` grew 364,557,872 → 364,594,736 bytes while the `.pak` stayed
+BYTE-IDENTICAL and `global.*` unchanged, consistent with extra vertex-factory permutations from two
+new usage flags on two materials. **A size delta is not a flag read-back.** This is `G96`'s principle
+applied to a container scan: a search that cannot find a value you KNOW is there tells you about the
+search.
+
+## G160 — `preFrames` is a one-time lead-in; `postFrames` governs the gap between annotated windows
+
+`IAI.Capture.Config <settleK> <preFrames> <positiveFrames> <postFrames> <burstCount>` governs the
+burst schedule on BOTH the targeted and the auto-pool path — the capture FSM is targeting-agnostic
+and `bTargetedMode` only selects which fire route `BeginFire()` takes. But the parameter that widens
+the CLEAN GAP between annotated windows is **`postFrames`, not `preFrames`**, because `LeadIn` runs
+ONCE PER RUN rather than once per burst.
+
+Measured, after the wrong knob was recommended first:
+
+| config | resulting windows | min clean gap |
+|---|---|---|
+| `2 14 8 4 0` | 13-20, 27-31, 39-43, 49-56, 61-68, 85-92, 97-104, 109-116 | **4 — unchanged** |
+| `2 4 8 14 0` | 3-10, 26-32, 48-54, 69-76, 91-98 | **14** |
+
+Raising `preFrames` from 4 to 14 left the burst period at 12 and the gap at 4.
+
+⚠ **Why this matters beyond the knob name: the clean gap is the CEILING on any offset measurement
+that derives its baseline from the annotation.** On the standard `2 4 8 4 0` config that ceiling is
+about ±2 frames. `tools/measure_label_offset.py` prints the achieved gap and `--require-gap N` exits
+nonzero below a bar — **the correction above was found because the tool PRINTED the number, not
+because anyone re-derived it.** Let the instrument enforce the precondition rather than trusting
+arithmetic about the schedule.

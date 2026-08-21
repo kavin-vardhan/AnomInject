@@ -440,6 +440,19 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
 - `IAI.TestVisibility <substring> <ox oy oz> <pitch yaw roll> [fovDeg] [aspect]` — **diagnostic** (not an
   anomaly): test the `AnomalyViewport` core against a **synthetic** view and log per-component
   `frustum / unoccluded / visible`. The deterministic synthetic-view state-gate driver.
+- `IAI.Anomaly.BlinkHalfPeriod <frames|default>` / `IAI.Anomaly.LodHalfPeriod <frames|default>` (session 051) —
+  set the **AUTO-POOL** default half-period for `blinking` / `lod_popping`, in FRAMES. Registered in
+  `AnomalyDefaults.cpp` as plain world-independent `FAutoConsoleCommand`s. Range `[1..600]`; an out-of-range
+  value is **REFUSED, never clamped** (a clamp turns a typo into a different cadence that still looks
+  deliberate — `G144`'s shape). `default` clears the override. Both print an `EFFECTIVE READ-BACK`.
+  **PRECEDENCE, four levels: a TARGETED fire's own argument > this console override > `DefaultGame.ini`
+  `[AnomalyInjector]` `BlinkingHalfPeriodFramesDefault` / `LodPoppingHalfPeriodFramesDefault` > the compiled
+  default (3 / 8).** The console form exists because **`G88` — a loose ini beside a package is a NO-OP, the
+  cooked config wins — so on a packaged client build an ini-only lever would still need a re-cook, and the
+  client ships an AUTO-POOL config.** ⚠ **Absent override and absent ini key ⇒ compiled default, byte-identical
+  to a build without them; this is a LEVER, not a change.** The canonical constants live in `AnomalyDefaults`
+  and each anomaly's `Apply` carries a `static_assert` tying its own constant and clamp to them, so a drift
+  breaks the build rather than the artifact.
 
 Object Selector + Inject UI (m5) — drive the `UAnomalySelectorSubsystem` (these are the bridge **thin-shell** over
 its public methods; the keys + HUD are the separate real-Play eyeball shell):
@@ -469,6 +482,27 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
 `ANOMALY_CONTROL_SERVER=1`). Narrow the fired types via `IAI.Auto.Pool` first; the auto-injector's `Run` must be OFF:
 - `IAI.Capture.Shot [outDir] [png|jpeg]` — capture ONE labeled frame now (default dir `<ProjectSaved>/AnomalyCaptures/manual`).
 - `IAI.Capture.Config <settleK> <preFrames> <positiveFrames> <postFrames> <burstCount>` — set the burst schedule (burstCount 0 = until Stop).
+  ⚠ **`preFrames` is a ONE-TIME LEAD-IN — it runs once per RUN, not once per burst. The CLEAN GAP between
+  annotated windows is governed by `postFrames` (`G160`).** Measured: `2 14 8 4 0` leaves the gap at **4**;
+  `2 4 8 14 0` gives **14**. The schedule applies identically on the TARGETED and the AUTO-POOL paths — the
+  capture FSM is targeting-agnostic and `bTargetedMode` only selects which fire route `BeginFire()` takes.
+  **That gap is the CEILING on any offset measurement whose baseline comes from the annotation** (about ±2
+  frames on the shipped `2 4 8 4 0`), so a diagnostic capture wants `2 4 8 14 0` — and
+  `tools/measure_label_offset.py --require-gap N` should enforce it rather than anyone trusting arithmetic.
+- `IAI.Capture.TickPin <0|1>` (session 051) — **THE BISECT SWITCH FOR THE CAPTURE-TIME ENGINE TICK-MODE PIN**,
+  in the `IAI.Capture.SVE 0` tradition: one setting reaching the other behaviour with **no rebuild and no
+  re-cook**. On a decoupled-tick engine fork the pin forces the fixed-sim/variable-render mode OFF for the
+  duration of a capture (saved at run start, **re-applied every capture tick as a SET, never a toggle**, because
+  the host re-asserts it; restored at finish). **Precedence: this console override > `DefaultGame.ini`
+  `[AnomalyCapture]` `bTickModePinDefault` > compiled default (on where the fork is detected).** It exists
+  because **`G88`** — without it the unpinned control leg would cost a second COOK. Mid-run changes ignored.
+  ⚠ **On a build where the pin compiled out the command STILL EXISTS and says so** — a silently missing command
+  on the host that matters is the failure mode we refuse. All fork-touching code sits behind the build-time
+  probe define `ANOMINJECT_FW_TICKPIN` (marker file `FWNetSubsystem.cpp`; the probe logs its result either way)
+  and compiles out entirely on stock engines, so the core module stays fork-blind. Exactly one greppable
+  `TICKPIN` line per run states the effective value and its source; `run_summary` carries
+  `tickpin_compiled/applied/saved/reasserts`, `capture_game_ticks` and `ticks_per_captured_frame`
+  (**`annotation.json`'s field set does NOT move** — the m27 precedent).
 - `IAI.Capture.ViewLag <frames>` — bbox-projection view-lag L (default **0**; see "Capture & Labeling" below).
 - `IAI.Capture.Start [outDir] [png|jpeg] [seed]` — start a burst run (default dir `<ProjectSaved>/AnomalyCaptures`; png; seed = auto-injector's current).
 - `IAI.Capture.Stop` — stop the run (reverts in-flight fire, writes `run_summary.json`; cancels an armed-pending run cleanly).

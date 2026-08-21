@@ -15,7 +15,91 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🚧 **YOU ARE HERE — 2026-08-21 (latest). `m31` FIX IS BUILT, GATED LOCALLY AND PUSHED — AWAITING
+- 🚧 **YOU ARE HERE — 2026-08-21 (latest, session 051). SIX COMMITS AND ONE COOK ON TOP OF THE m31
+  FIX. ⛔ NO MILESTONE WAS OPENED AND NOTHING WAS TAGGED — `m31` IS STILL THE OPEN MILESTONE AND
+  STILL AWAITS CONCORDE V-3/V-4 (its entry is the next bullet down and is STILL LIVE, not
+  superseded). Highest tag remains `m30`.**
+  🧭 **COLD START: read `docs/sessions/2026-08-21-051-label-offset-instrument-material-flags-tickpin.md`
+  — it is self-contained — THEN journal 050 for the m31 fix itself.**
+  📦 **NEW BUILD QUARTET (`G121`): exe `DD76385F` · utoc `E4FE9B35` · ucas `D9929F6F` · pak
+  `BFB95333`. Map gate PASS at exit 0 (CB_GateLevel + MainMenu + MainWorld + Entry, and CLEAN
+  without `CB_LodCalib`, so the expected set was not silenced).** The m31 V-2 quartet it replaces is
+  preserved and hash-verified at `_binary_baselines\m31-v2-container\` (5/5) with its exe at
+  `_binary_baselines\StackOBot.exe.m31-v2-postfix-DC55CB9B`.
+  **Commits:** `ea99d6b` tools move · `d3f3152` material usage flags · `98d04d4` ceiling banner ·
+  `f999d7a` tick-mode pin · `b4e07e0` pin console override · `a3aa1e6` auto-pool anomaly defaults.
+  AnomDash at `7922457`.
+  🔧 **1. THE MEASUREMENT INSTRUMENT — `tools/measure_label_offset.py`.** Read-only; per annotated
+  event it measures where the anomaly MANIFESTS IN PIXELS against where `annotation.json` CLAIMS it
+  is. Python 3 + Pillow, `--selftest` built in. **Its own module docstring is the reference.**
+  ⚖ **STANDING RULE: INTERNAL diagnostics ride the PLUGIN repo's `tools/`; CLIENT-SHIPPED host
+  tooling stays in AnomDash `host-tools/`** (encode_watcher precedent) — the office pulls this repo.
+  🚨 **ITS CEILING IS THE HEADLINE: the baseline comes from frames the ANNOTATION calls clean, so an
+  offset larger than the clean gap between bursts CONTAMINATES that baseline — and the first version
+  reported a confident, wrong, UNDER-READ offset.** It now prints
+  `MEASURABLE RANGE +/-N (min clean gap G)` with `N = G//2`, raises
+  `*** BASELINE CONTAMINATED ***` per type, and `--require-gap N` EXITS NONZERO.
+  **On the standard `2 4 8 4 0` config that ceiling is about ±2 frames.**
+  ✅ **Gates: G-C classifier 10/10 · G-B trusted sessions median +0 on blink, missing_texture and
+  missing_object · G-A synthetic ±3 EXACT on four types × three variants · G-A real ±1 EXACT on nine
+  fixtures.** ⚠ **±3 on a real bench session is NOT achievable** (the duty cycle forbids it) and no
+  pass was manufactured for it.
+  🎨 **2. MATERIAL USAGE FLAGS — a ship-visible defect, CONFIRMED ON CONCORDE.** Both shipped
+  materials were missing `bUsedWithStaticLighting` (measured `False` on our own assets); now **7
+  flags each**, set by headless idempotent `tools/set_material_usage_flags.py`, with
+  `create_anomaly_materials.py` drawing from the same constant so re-authoring cannot reintroduce it.
+  🚨 **THIS BOX STRUCTURALLY CANNOT REPRODUCE OR VERIFY IT — `r.AllowStaticLighting=False` in
+  StackOBot's `DefaultEngine.ini` means `MATUSAGE_StaticLighting` is never queried here** (11 packaged
+  logs, ZERO `LogMaterial` lines, no suppression configured). **Concorde's re-cook plus a
+  `missing bUsedWith` grep is the ONLY verification that exists.** → `G157`.
+  🚨 **ESCALATION, STATED NOT SOFTENED: previously delivered CONCORDE-CAPTURED datasets are
+  affected.** Statically-lit STATIC-MESH targets drew the engine default material while the event was
+  labelled manifested with full coverage. **These are WRONG-APPEARANCE samples, not
+  labelled-but-invisible ones** — the default IS a visible change; but grey is not magenta
+  corruption, so a model learned the wrong appearance for that class. Skeletal targets are unaffected
+  (that flag was already set), which is exactly why the owner saw a magenta weapon beside
+  grid-rendered props. ⛔ **No remediation attempted — owner's call, recorded not chased.**
+  ⏱ **3. CAPTURE-TIME ENGINE TICK-MODE PIN**, behind a BUILD-TIME probe for the decoupled-tick fork
+  (marker `FWNetSubsystem.cpp` → `ANOMINJECT_FW_TICKPIN`); it compiles out entirely on stock and the
+  probe LOGS its result either way. Save → force false → **re-apply every capture tick (a SET, never
+  a toggle)** → restore at finish. **Guard proven by breaking it: forcing the define on stock FAILS
+  the build naming `FApp::sUseFixedGameTickWithVariableRenderTick_Net` at both access sites, exit 6.**
+  **One unconditional greppable line per run** — `TICKPIN active saved=<0|1>` /
+  `TICKPIN disabled-by-ini` / `TICKPIN not-compiled (no decoupled-tick fork detected)` — naming its
+  provenance. **`run_summary` +6 fields; `annotation.json` DID NOT MOVE** (m27 precedent):
+  `tickpin_compiled/applied/saved/reasserts`, `capture_game_ticks`, `ticks_per_captured_frame`.
+  📊 **UNPINNED HOME BASELINE MEASURED: `ticks_per_captured_frame` = 1.3556** — the reference the
+  office comparison needs. 🎯 **`IAI.Capture.TickPin <0|1>` IS THE NAMED BISECT** (the
+  `IAI.Capture.SVE 0` precedent), added because **`G88` makes an ini-only lever a no-op beside a
+  package — without it the unpinned control leg would cost a SECOND COOK.** It exists and answers
+  explicitly even on builds where the pin compiled out.
+  🔩 **4. AUTO-POOL ANOMALY PARAMETER DEFAULTS** — `[AnomalyInjector]`
+  `BlinkingHalfPeriodFramesDefault` (compiled 3) and `LodPoppingHalfPeriodFramesDefault` (compiled 8),
+  plus console overrides `IAI.Anomaly.BlinkHalfPeriod` / `IAI.Anomaly.LodHalfPeriod` for the same G88
+  reason. **Precedence: targeted-fire arg > console > ini > compiled.** Range `[1..600]`,
+  **out-of-range REFUSED not clamped**; **absent key ⇒ compiled default, byte-identical**. Echoed on
+  the EXISTING run-config line as `blinkHalf=3(compiled) lodHalf=8(compiled)`. **NO VALUE WAS
+  CHANGED** — this is a lever so Saturday's pre-registered recalibration does not need a re-cook.
+  🚨 **CORRECTION CARRIED FORWARD (`G160`): `preFrames` is a ONE-TIME LEAD-IN; `postFrames` governs
+  the clean gap between annotated windows.** Measured: `2 14 8 4 0` left the gap at **4**;
+  `2 4 8 14 0` gives **14**. `IAI.Capture.Config` DOES govern spacing on the auto-pool path (the FSM
+  is targeting-agnostic). **Diagnostic capture = `IAI.Capture.Delivery 0` + `IAI.Capture.Config
+  2 4 8 14 0`, then let `--require-gap 12` enforce it rather than trusting arithmetic.**
+  🚨 **`G156` — DELIVERY MODE CANNOT SELF-VERIFY.** No `labels.jsonl` ⇒ no bbox ⇒ FULLFRAME region
+  and no ambient ring. Measured against KNOWN offsets: a known-+0 `missing_texture` session reads
+  **median startΔ +6 (WRONG)**, a known-+1 one goes **entirely unmeasurable**. **An offset of 1–6
+  frames is NOT reliably detectable in delivery mode; verification is ALWAYS a delivery-OFF exercise.**
+  ✅ **POST-COOK APPEARANCES UNCHANGED** — pre-fix vs post-fix cook, same seed and config:
+  `corrupted_texture` MAG 8/CHK 0/OTH 0 both; `missing_texture` MAG 0/CHK 16/OTH 0 both, all offsets
+  **+0**. So `missing_texture` reading CHECKER at home is the INTENDED appearance, **confirmed not
+  refuted**.
+  ⛔ **NOT DONE, named:** a DIRECT read-back of the usage flags from inside the cooked container —
+  the string-scan instrument was **REJECTED because its control failed** (`bUsedWithSkeletalMesh`,
+  known TRUE, is equally absent → blindness not a negative, `G159`) · no cadence compensation and no
+  constant invented · no remediation of past datasets · `P6` did not move ·
+  `feature/stencil-capture` untouched at `76cac74` · no force-push · no ratio, no threshold anywhere.
+- 🟦 *(STILL THE LIVE MILESTONE — only the "you are here" marker moved to the entry above; m31 is
+  OPEN and UNTAGGED)* **2026-08-21. `m31` FIX IS BUILT, GATED LOCALLY AND PUSHED — AWAITING
   THE CONCORDE LEGS (V-3 in-editor, V-4 packaged). ⛔ m31 DOES NOT TAG UNTIL V-4 PASSES.**
   🧭 **COLD START: read `docs/sessions/2026-08-21-050-m31-fix-handshake-rekey.md` — it is
   self-contained (the defect, the retraction chain, the Option-B design, every consumer re-keyed,
