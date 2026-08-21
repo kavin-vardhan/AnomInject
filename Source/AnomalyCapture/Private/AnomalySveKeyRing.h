@@ -9,7 +9,7 @@ namespace AnomalySveKeyRing
 	struct FKeyEntry
 	{
 		uint32 FamilyFrameNumber = 0;
-		uint64 GameFrameCounter = 0;
+		uint64 RequestId = 0;
 		uint64 Serial = 0;
 		bool bWanted = false;
 		bool bValid = false;
@@ -22,10 +22,10 @@ namespace AnomalySveKeyRing
 		int32 Missed = 0;
 		int32 Wrapped = 0;
 		int32 Corrupted = 0;
-		int32 WantedPublished = 0;
+		int32 WantedMatches = 0;
 	};
 
-	void PublishKey(uint32 FamilyFrameNumber, uint64 GameFrameCounter, bool bWanted);
+	void PublishKey(uint32 FamilyFrameNumber, uint64 RequestId, bool bWanted);
 	bool LookupKey(uint32 FamilyFrameNumber, FKeyEntry& Out);
 
 	void Reset();

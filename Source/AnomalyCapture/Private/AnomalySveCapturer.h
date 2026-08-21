@@ -20,29 +20,29 @@ struct FAnomalyReadbackLatencyStats
 	TMap<int32, int32> Histogram;
 };
 
-struct FAnomalyWantTraceStats
+struct FAnomalySveHandshakeStats
 {
+	int32 ArmsIssued = 0;
+	int32 Matches = 0;
+	int32 SubmitsIssued = 0;
+	int32 MaxPendingDepth = 0;
+	int32 PendingNow = 0;
+	int32 FamiliesIneligible = 0;
+	int32 TracedArms = 0;
 	int32 TracedPublishes = 0;
-	int32 OffsetSamples = 0;
-	int64 OffsetMin = MAX_int64;
-	int64 OffsetMax = MIN_int64;
-	TMap<int64, int32> OffsetHistogram;
 };
 
 class FAnomalySveCapturer : public TSharedFromThis<FAnomalySveCapturer, ESPMode::ThreadSafe>
 {
 public:
-	static constexpr int32 WantTracePublishLimit = 64;
+	static constexpr int32 HandshakeTraceLimit = 64;
 
 	void SetActive(bool bInActive);
 	bool IsActive() const;
 
-	void MarkWanted(uint64 GameFrameCounter);
-	bool IsWanted(uint64 GameFrameCounter) const;
-	uint64 GetLastMarkedFrame() const;
-
-	void TraceWantPublish(uint32 FamilyFrameNumber, uint64 PublishGameFrame, bool bWanted);
-	FAnomalyWantTraceStats GetWantTraceStats() const;
+	void ArmWanted(uint64 RequestId);
+	bool ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId);
+	void NoteIneligibleFamily();
 
 	void SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, EPixelFormat Format,
 		TUniquePtr<FRHIGPUTextureReadback>&& Readback);
@@ -51,6 +51,7 @@ public:
 	bool PopCompleted(FAnomalyCapturedFrame& Out);
 	int32 NumPendingApprox() const;
 
+	FAnomalySveHandshakeStats GetHandshakeStats() const;
 	FAnomalyReadbackLatencyStats GetLatencyStats() const;
 
 	void Reset();
@@ -68,12 +69,10 @@ private:
 	};
 
 	mutable FCriticalSection StateCS;
-	TSet<uint64> WantedFrames;
-	uint64 LastMarkedFrame = 0;
+	TArray<uint64> PendingWanted;
+	FAnomalySveHandshakeStats Handshake;
 	FThreadSafeCounter ActiveFlag;
-
-	mutable FCriticalSection WantTraceCS;
-	FAnomalyWantTraceStats WantTrace;
+	FThreadSafeCounter Submits;
 
 	TArray<FInFlight> InFlight;
 

@@ -191,9 +191,10 @@ private:
 	int32 SessionFrameIndex = 0;
 	int32 FrameCap = 0;
 
-	uint64 ArmedLabelFrameId = 0;
+	uint64 CaptureRequestSerial = 0;
+	uint64 ArmedLabelRequestId = 0;
 	bool bHasArmedLabel = false;
-	uint64 DeferredHiddenFrameId = 0;
+	uint64 DeferredHiddenRequestId = 0;
 	bool bHasDeferredHidden = false;
 
 	FName TargetAnomalyId = NAME_None;

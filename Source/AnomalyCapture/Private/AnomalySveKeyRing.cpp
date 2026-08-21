@@ -36,7 +36,7 @@ namespace AnomalySveKeyRing
 	static FThreadSafeCounter Missed;
 	static FThreadSafeCounter Wrapped;
 	static FThreadSafeCounter Corrupted;
-	static FThreadSafeCounter WantedPublished;
+	static FThreadSafeCounter WantedMatches;
 
 	int32 GetCapacity()
 	{
@@ -81,7 +81,7 @@ namespace AnomalySveKeyRing
 		Missed.Reset();
 		Wrapped.Reset();
 		Corrupted.Reset();
-		WantedPublished.Reset();
+		WantedMatches.Reset();
 	}
 
 	FCounters GetCounters()
@@ -92,17 +92,17 @@ namespace AnomalySveKeyRing
 		Out.Missed = Missed.GetValue();
 		Out.Wrapped = Wrapped.GetValue();
 		Out.Corrupted = Corrupted.GetValue();
-		Out.WantedPublished = WantedPublished.GetValue();
+		Out.WantedMatches = WantedMatches.GetValue();
 		return Out;
 	}
 
-	void PublishKey(uint32 FamilyFrameNumber, uint64 GameFrameCounter, bool bWanted)
+	void PublishKey(uint32 FamilyFrameNumber, uint64 RequestId, bool bWanted)
 	{
 		const int32 Mode = GetForceMissMode();
 		const int32 Phase = GetForceMissPhase();
 
 		FKeyEntry Entry;
-		Entry.GameFrameCounter = GameFrameCounter;
+		Entry.RequestId = RequestId;
 		Entry.bWanted = bWanted;
 		Entry.bValid = true;
 
@@ -125,7 +125,7 @@ namespace AnomalySveKeyRing
 		Published.Increment();
 		if (bWanted)
 		{
-			WantedPublished.Increment();
+			WantedMatches.Increment();
 		}
 	}
 
@@ -156,11 +156,11 @@ namespace AnomalySveKeyRing
 		Reset();
 
 		const uint32 BaseFamily = 100000u;
-		const uint64 BaseGfc = 900000ull;
+		const uint64 BaseRequest = 900000ull;
 
 		for (int32 i = 0; i < Count; ++i)
 		{
-			PublishKey(BaseFamily + (uint32)i, BaseGfc + (uint64)i, (i % 2) == 0);
+			PublishKey(BaseFamily + (uint32)i, BaseRequest + (uint64)i, (i % 2) == 0);
 		}
 
 		int32 Hits = 0;
@@ -176,7 +176,7 @@ namespace AnomalySveKeyRing
 				{
 					++WantedHits;
 				}
-				if (Entry.GameFrameCounter != BaseGfc + (uint64)i)
+				if (Entry.RequestId != BaseRequest + (uint64)i)
 				{
 					++KeyMismatches;
 				}

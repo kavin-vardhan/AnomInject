@@ -19,72 +19,79 @@ bool FAnomalySveCapturer::IsActive() const
 	return ActiveFlag.GetValue() != 0;
 }
 
-void FAnomalySveCapturer::MarkWanted(uint64 GameFrameCounter)
+void FAnomalySveCapturer::ArmWanted(uint64 RequestId)
 {
-	FScopeLock Lock(&StateCS);
-	WantedFrames.Add(GameFrameCounter);
-	LastMarkedFrame = GameFrameCounter;
-}
-
-bool FAnomalySveCapturer::IsWanted(uint64 GameFrameCounter) const
-{
-	FScopeLock Lock(&StateCS);
-	return WantedFrames.Contains(GameFrameCounter);
-}
-
-uint64 FAnomalySveCapturer::GetLastMarkedFrame() const
-{
-	FScopeLock Lock(&StateCS);
-	return LastMarkedFrame;
-}
-
-void FAnomalySveCapturer::TraceWantPublish(uint32 FamilyFrameNumber, uint64 PublishGameFrame, bool bWanted)
-{
-	const uint64 LastMarked = GetLastMarkedFrame();
-
-	FScopeLock Lock(&WantTraceCS);
-	if (WantTrace.TracedPublishes >= WantTracePublishLimit)
+	int32 DepthAfter = 0;
+	int32 TraceIndex = 0;
 	{
-		return;
+		FScopeLock Lock(&StateCS);
+		PendingWanted.Add(RequestId);
+		DepthAfter = PendingWanted.Num();
+		++Handshake.ArmsIssued;
+		Handshake.MaxPendingDepth = FMath::Max(Handshake.MaxPendingDepth, DepthAfter);
+		if (Handshake.TracedArms < HandshakeTraceLimit)
+		{
+			TraceIndex = ++Handshake.TracedArms;
+		}
 	}
-	++WantTrace.TracedPublishes;
-
-	FString OffsetText = TEXT("n/a");
-	if (LastMarked != 0)
+	if (TraceIndex > 0)
 	{
-		const int64 Offset = (int64)PublishGameFrame - (int64)LastMarked;
-		++WantTrace.OffsetSamples;
-		WantTrace.OffsetMin = FMath::Min(WantTrace.OffsetMin, Offset);
-		WantTrace.OffsetMax = FMath::Max(WantTrace.OffsetMax, Offset);
-		++WantTrace.OffsetHistogram.FindOrAdd(Offset);
-		OffsetText = FString::Printf(TEXT("%lld"), Offset);
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(sve): SVE-WANT-TRACE arm %d/%d requestId=%llu gameFrame=%llu pendingAfter=%d"),
+			TraceIndex, HandshakeTraceLimit, RequestId, (uint64)GFrameCounter, DepthAfter);
 	}
-
-	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Capture(sve): SVE-WANT-TRACE publish %d/%d familyFrame=%u publishGameFrame=%llu wanted=%d lastMarked=%llu offset=%s"),
-		WantTrace.TracedPublishes, WantTracePublishLimit,
-		FamilyFrameNumber, PublishGameFrame, bWanted ? 1 : 0, LastMarked, *OffsetText);
 }
 
-FAnomalyWantTraceStats FAnomalySveCapturer::GetWantTraceStats() const
+bool FAnomalySveCapturer::ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId)
 {
-	FScopeLock Lock(&WantTraceCS);
-	return WantTrace;
+	OutRequestId = 0;
+	bool bWanted = false;
+	int32 DepthBefore = 0;
+	int32 TraceIndex = 0;
+	{
+		FScopeLock Lock(&StateCS);
+		DepthBefore = PendingWanted.Num();
+		if (DepthBefore > 0)
+		{
+			OutRequestId = PendingWanted[0];
+			PendingWanted.RemoveAt(0);
+			bWanted = true;
+			++Handshake.Matches;
+		}
+		if (Handshake.TracedPublishes < HandshakeTraceLimit)
+		{
+			TraceIndex = ++Handshake.TracedPublishes;
+		}
+	}
+	if (TraceIndex > 0)
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(sve): SVE-WANT-TRACE publish %d/%d familyFrame=%u wanted=%d requestId=%llu pendingBefore=%d"),
+			TraceIndex, HandshakeTraceLimit, FamilyFrameNumber, bWanted ? 1 : 0, OutRequestId, DepthBefore);
+	}
+	return bWanted;
+}
+
+void FAnomalySveCapturer::NoteIneligibleFamily()
+{
+	FScopeLock Lock(&StateCS);
+	++Handshake.FamiliesIneligible;
 }
 
 int32 FAnomalySveCapturer::NumPendingApprox() const
 {
 	FScopeLock Lock(&StateCS);
-	return WantedFrames.Num();
+	return PendingWanted.Num();
 }
 
 void FAnomalySveCapturer::Reset()
 {
 	{
 		FScopeLock Lock(&StateCS);
-		WantedFrames.Reset();
-		LastMarkedFrame = 0;
+		PendingWanted.Reset();
+		Handshake = FAnomalySveHandshakeStats();
 	}
+	Submits.Reset();
 	{
 		FScopeLock Lock(&CompletedCS);
 		Completed.Reset();
@@ -93,10 +100,18 @@ void FAnomalySveCapturer::Reset()
 		FScopeLock Lock(&LatencyCS);
 		Latency = FAnomalyReadbackLatencyStats();
 	}
+}
+
+FAnomalySveHandshakeStats FAnomalySveCapturer::GetHandshakeStats() const
+{
+	FAnomalySveHandshakeStats Out;
 	{
-		FScopeLock Lock(&WantTraceCS);
-		WantTrace = FAnomalyWantTraceStats();
+		FScopeLock Lock(&StateCS);
+		Out = Handshake;
+		Out.PendingNow = PendingWanted.Num();
 	}
+	Out.SubmitsIssued = Submits.GetValue();
+	return Out;
 }
 
 FAnomalyReadbackLatencyStats FAnomalySveCapturer::GetLatencyStats() const
@@ -116,10 +131,7 @@ void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FI
 	Item.SubmitRtFrame = GFrameNumberRenderThread;
 	InFlight.Add(MoveTemp(Item));
 
-	{
-		FScopeLock Lock(&StateCS);
-		WantedFrames.Remove(RequestId);
-	}
+	Submits.Increment();
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(sve): keyed frame id=%llu submitted (rtframe=%u, fmt=%d, rect=%dx%d)."),

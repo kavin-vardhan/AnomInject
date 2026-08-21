@@ -39,10 +39,16 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 		return;
 	}
 
-	const uint64 GameFrame = GFrameCounter;
-	const bool bWanted = Cap->IsWanted(GameFrame);
-	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, GameFrame, bWanted);
-	Cap->TraceWantPublish(InViewFamily.FrameNumber, GameFrame, bWanted);
+	if (InViewFamily.Views.Num() == 0 || !InViewFamily.Views[0]
+		|| InViewFamily.Views[0]->bIsSceneCapture || InViewFamily.Views[0]->bIsReflectionCapture)
+	{
+		Cap->NoteIneligibleFamily();
+		return;
+	}
+
+	uint64 RequestId = 0;
+	const bool bWanted = Cap->ConsumeWantedForPublish(InViewFamily.FrameNumber, RequestId);
+	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, RequestId, bWanted);
 }
 
 void FAnomalySceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass Pass,
@@ -93,7 +99,7 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	if (!Texture || Rect.Width() <= 0 || Rect.Height() <= 0)
 	{
 		UE_LOG(LogAnomalyCapture, Warning,
-			TEXT("Capture(sve): empty scene-colour rect for frame id=%llu — skipped."), Entry.GameFrameCounter);
+			TEXT("Capture(sve): empty scene-colour rect for frame id=%llu — skipped."), Entry.RequestId);
 		return SceneColor;
 	}
 
@@ -102,7 +108,7 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	AddEnqueueCopyPass(GraphBuilder, Readback.Get(), Texture,
 		FResolveRect(Rect.Min.X, Rect.Min.Y, Rect.Max.X, Rect.Max.Y));
 
-	Cap->SubmitInFlight_RenderThread(Entry.GameFrameCounter, Rect, Texture->Desc.Format, MoveTemp(Readback));
+	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, Texture->Desc.Format, MoveTemp(Readback));
 
 	return SceneColor;
 }

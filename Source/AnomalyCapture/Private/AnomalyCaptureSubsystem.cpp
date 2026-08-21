@@ -720,6 +720,23 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	}
 	UAnomalyInjectorSubsystem* Injector = World->GetSubsystem<UAnomalyInjectorSubsystem>();
 
+	FString CleanBaseDir = BaseDir.TrimStartAndEnd();
+	if (CleanBaseDir.Len() >= 2
+		&& ((CleanBaseDir.StartsWith(TEXT("\"")) && CleanBaseDir.EndsWith(TEXT("\"")))
+			|| (CleanBaseDir.StartsWith(TEXT("'")) && CleanBaseDir.EndsWith(TEXT("'")))))
+	{
+		CleanBaseDir = CleanBaseDir.Mid(1, CleanBaseDir.Len() - 2).TrimStartAndEnd();
+	}
+	if (CleanBaseDir.Contains(TEXT("\"")))
+	{
+		UE_LOG(LogAnomalyCapture, Error,
+			TEXT("IAI.Capture.Start: CAP-RUNDIR-REFUSED outDir %s still contains a quote character after unwrapping — ")
+			TEXT("REFUSING TO START rather than failing silently at annotation-write time. Pass the path without ")
+			TEXT("embedded quotes."),
+			*CleanBaseDir);
+		return;
+	}
+
 	bAutoWasRunning = Auto->IsRunning();
 	if (bAutoWasRunning)
 	{
@@ -773,9 +790,9 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	}
 	EffectiveOutputHeight = FMath::Max(0, EffectiveOutputHeight);
 
-	const FString Base = BaseDir.IsEmpty()
+	const FString Base = CleanBaseDir.IsEmpty()
 		? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("AnomalyCaptures"))
-		: BaseDir;
+		: CleanBaseDir;
 	const FString Stamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S"));
 	const FString BaseId = FString::Printf(TEXT("session_%s"), *Stamp);
 	SessionId = BaseId;
@@ -786,8 +803,22 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		RunDir = FPaths::Combine(Base, SessionId);
 	}
 
+	if (!IFileManager::Get().MakeDirectory(*FPaths::Combine(RunDir, TEXT("Actual_Frames")), true))
+	{
+		UE_LOG(LogAnomalyCapture, Error,
+			TEXT("IAI.Capture.Start: CAP-RUNDIR-REFUSED could not create run directory %s — REFUSING TO START ")
+			TEXT("rather than failing silently at annotation-write time. Check the outDir argument."),
+			*RunDir);
+		RunDir.Reset();
+		SessionId.Reset();
+		if (bAutoWasRunning)
+		{
+			Auto->SetRunning(true);
+			bAutoWasRunning = false;
+		}
+		return;
+	}
 	LastRunDir = RunDir;
-	IFileManager::Get().MakeDirectory(*FPaths::Combine(RunDir, TEXT("Actual_Frames")), true);
 
 	int32 VW = 0, VH = 0;
 	if (UGameViewportClient* GV = World->GetGameViewport())
@@ -1251,8 +1282,11 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		const AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(Frame.RequestId);
 		if (!Snap)
 		{
-			UE_LOG(LogAnomalyCapture, Verbose, TEXT("Capture(async): completed frame id=%llu has no pending snapshot (dropped)."),
-				Frame.RequestId);
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(async): CAP-PAIR-DROP completed frame id=%llu has no pending snapshot — frame DROPPED, ")
+				TEXT("never labelled by guess (pendingSnapshots=%d). This drop used to log at Verbose, which made a ")
+				TEXT("broken pairing indistinguishable from a path that never submitted."),
+				Frame.RequestId, Async->PendingSnapshots.Num());
 			continue;
 		}
 
@@ -1432,6 +1466,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		FIntRect CaptureRect;
 		if (bUseSve || ComputeGameViewportCapture(World, TargetWindow, CaptureRect))
 		{
+			const uint64 RequestId = ++CaptureRequestSerial;
 			AnomalyLabel::FCaptureSnapshot Snap;
 			Snap.FrameCounter = GFrameCounter;
 			Snap.SessionIndex = SessionFrameIndex;
@@ -1445,16 +1480,16 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			LastFrameTimeSeconds = Snap.TimeSeconds;
 			Snap.WallSeconds = FPlatformTime::Seconds();
 			StampArmWallClock(Snap.WallSeconds);
-			Async->PendingSnapshots.Add(Snap.FrameCounter, MoveTemp(Snap));
+			Async->PendingSnapshots.Add(RequestId, MoveTemp(Snap));
 			if (bUseSve)
 			{
-				Async->SveCapturer->MarkWanted(GFrameCounter);
+				Async->SveCapturer->ArmWanted(RequestId);
 			}
 			else
 			{
-				Async->Capturer->ArmForCapture(GFrameCounter, TargetWindow, CaptureRect);
+				Async->Capturer->ArmForCapture(RequestId, TargetWindow, CaptureRect);
 			}
-			ArmedLabelFrameId = GFrameCounter;
+			ArmedLabelRequestId = RequestId;
 			bHasArmedLabel = true;
 			++SessionFrameIndex;
 			CheckEarlyPacingWarning();
@@ -1599,7 +1634,7 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 	{
 		return;
 	}
-	AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(ArmedLabelFrameId);
+	AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(ArmedLabelRequestId);
 	if (!Snap)
 	{
 		return;
@@ -1629,7 +1664,7 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 		Snap->FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 	}
 
-	DeferredHiddenFrameId = ArmedLabelFrameId;
+	DeferredHiddenRequestId = ArmedLabelRequestId;
 	bHasDeferredHidden = true;
 }
 
@@ -1770,7 +1805,7 @@ void UAnomalyCaptureSubsystem::SampleDeferredHidden()
 	{
 		return;
 	}
-	AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(DeferredHiddenFrameId);
+	AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(DeferredHiddenRequestId);
 	if (!Snap)
 	{
 		return;
@@ -2142,7 +2177,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			RingTelemetry.Missed = Ring.Missed;
 			RingTelemetry.Wrapped = Ring.Wrapped;
 			RingTelemetry.Corrupted = Ring.Corrupted;
-			RingTelemetry.WantedPublished = Ring.WantedPublished;
+			RingTelemetry.WantedMatches = Ring.WantedMatches;
 		}
 
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
@@ -2163,37 +2198,19 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 			if (Async.IsValid() && Async->SveCapturer.IsValid())
 			{
-				const FAnomalyWantTraceStats Want = Async->SveCapturer->GetWantTraceStats();
-				int64 ModeOffset = 0;
-				int32 ModeCount = 0;
-				FString HistText;
-				TArray<int64> OffsetKeys;
-				Want.OffsetHistogram.GetKeys(OffsetKeys);
-				OffsetKeys.Sort();
-				for (const int64 Key : OffsetKeys)
-				{
-					const int32 KeyCount = Want.OffsetHistogram[Key];
-					HistText += FString::Printf(TEXT("%lld:%d "), Key, KeyCount);
-					if (KeyCount > ModeCount)
-					{
-						ModeCount = KeyCount;
-						ModeOffset = Key;
-					}
-				}
+				const FAnomalySveHandshakeStats Shake = Async->SveCapturer->GetHandshakeStats();
 				UE_LOG(LogAnomalyCapture, Log,
-					TEXT("Capture(sve): SVE-WANT-SUMMARY wantedPublished=%d of %d publishes | traced=%d of first %d, ")
-					TEXT("offsetSamples=%d min=%s max=%s mode=%s hist=[%s] — offset is publish-time GFrameCounter minus ")
-					TEXT("the capturer's last-marked frame over the traced window; the per-publish lines above carry ")
-					TEXT("their own token. wantedPublished=0 with marks issued means the game-thread mark never met its ")
-					TEXT("publish — the frame-number handshake missed; wantedPublished matching the wanted frame count ")
-					TEXT("means publish saw the marks and any loss is downstream of publish."),
-					Ring.WantedPublished, Ring.Published,
-					Want.TracedPublishes, (int32)FAnomalySveCapturer::WantTracePublishLimit,
-					Want.OffsetSamples,
-					Want.OffsetSamples > 0 ? *FString::Printf(TEXT("%lld"), Want.OffsetMin) : TEXT("n/a"),
-					Want.OffsetSamples > 0 ? *FString::Printf(TEXT("%lld"), Want.OffsetMax) : TEXT("n/a"),
-					Want.OffsetSamples > 0 ? *FString::Printf(TEXT("%lld"), ModeOffset) : TEXT("n/a"),
-					*HistText);
+					TEXT("Capture(sve): SVE-WANT-SUMMARY marksIssued=%d publishesSeen=%d wantedMatches=%d ")
+					TEXT("submitsIssued=%d framesWritten=%d pendingWantedAtEnd=%d maxPendingDepth=%d ")
+					TEXT("(traced %d arm / %d publish event(s) of first %d each; the per-event lines above carry ")
+					TEXT("their own token). The handshake is CONNECTED when marksIssued, wantedMatches, submitsIssued ")
+					TEXT("and framesWritten agree; a gap between ADJACENT numbers names the stage that missed — ")
+					TEXT("marks>matches: arms never met an eligible publish; matches>submits: the render pass dropped ")
+					TEXT("keyed frames; submits>frames: readback or snapshot pairing lost them (pairing losses now ")
+					TEXT("warn per frame with their own token)."),
+					Shake.ArmsIssued, Ring.Published, Ring.WantedMatches,
+					Shake.SubmitsIssued, FramesWritten, Shake.PendingNow, Shake.MaxPendingDepth,
+					Shake.TracedArms, Shake.TracedPublishes, (int32)FAnomalySveCapturer::HandshakeTraceLimit);
 			}
 		}
 

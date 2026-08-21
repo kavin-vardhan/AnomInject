@@ -79,7 +79,7 @@ namespace AnomalyLabel
 		int32 Missed = 0;
 		int32 Wrapped = 0;
 		int32 Corrupted = 0;
-		int32 WantedPublished = 0;
+		int32 WantedMatches = 0;
 	};
 
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
