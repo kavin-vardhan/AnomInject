@@ -9,6 +9,10 @@ DerivedDataCache/
 *.obj
 *.o
 
+# Build-time TICKPIN force-override markers — operator-local, must never travel.
+ANOMINJECT_TICKPIN_FORCE_ON
+ANOMINJECT_TICKPIN_FORCE_OFF
+
 # IDE
 .vs/
 *.sln
