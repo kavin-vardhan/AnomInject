@@ -8,6 +8,16 @@ MEL = unreal.MaterialEditingLibrary
 EAL = unreal.EditorAssetLibrary
 _TOOLS = unreal.AssetToolsHelpers.get_asset_tools()
 
+USAGE_FLAGS = (
+    "used_with_static_lighting",
+    "used_with_skeletal_mesh",
+    "used_with_instanced_static_meshes",
+    "used_with_spline_meshes",
+    "used_with_morph_targets",
+    "used_with_nanite",
+    "used_with_clothing",
+)
+
 
 def _fresh_material(name):
     """Delete any existing asset at the path and create a fresh Lit (matte), two-sided, opaque UMaterial."""
@@ -22,8 +32,7 @@ def _fresh_material(name):
     spec = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant, -320, 320)
     spec.set_editor_property("r", 0.0)
     MEL.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
-    for usage in ("used_with_skeletal_mesh", "used_with_nanite", "used_with_instanced_static_meshes",
-                  "used_with_morph_targets", "used_with_spline_meshes"):
+    for usage in USAGE_FLAGS:
         mat.set_editor_property(usage, True)
     return mat, path
 
