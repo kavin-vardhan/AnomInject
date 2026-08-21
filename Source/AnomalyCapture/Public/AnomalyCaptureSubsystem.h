@@ -214,6 +214,13 @@ private:
 	double SavedFixedDeltaTime = 0.0;
 	bool bFixedTimeStepOverridden = false;
 
+	bool bTickPinEnabled = true;
+	bool bTickPinFromIni = false;
+	bool bTickPinApplied = false;
+	int32 TickPinSaved = -1;
+	int32 TickPinReasserts = 0;
+	int32 CaptureGameTicks = 0;
+
 	double FirstFrameTimeSeconds = -1.0;
 	double LastFrameTimeSeconds = -1.0;
 	double FirstArmWallSeconds = -1.0;

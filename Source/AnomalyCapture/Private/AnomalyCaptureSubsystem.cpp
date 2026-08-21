@@ -56,6 +56,42 @@
 #endif
 
 #if ANOMALY_CAPTURE
+namespace AnomalyTickPin
+{
+#if ANOMINJECT_FW_TICKPIN
+	static constexpr bool bCompiled = true;
+
+	static bool Read()
+	{
+		return FApp::sUseFixedGameTickWithVariableRenderTick_Net;
+	}
+
+	static void Write(bool bValue)
+	{
+		FApp::sUseFixedGameTickWithVariableRenderTick_Net = bValue;
+	}
+
+#if defined(FW_BUILD_FIXEDTICKWITHVARIABLERENDER)
+	static constexpr bool bForkDefineVisible = true;
+#else
+	static constexpr bool bForkDefineVisible = false;
+#endif
+
+#else
+	static constexpr bool bCompiled = false;
+	static constexpr bool bForkDefineVisible = false;
+
+	static bool Read()
+	{
+		return false;
+	}
+
+	static void Write(bool)
+	{
+	}
+#endif
+}
+
 struct FSessionEventAccum
 {
 	FName Id = NAME_None;
@@ -273,6 +309,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		OutputHeightIni = ConfigOutputHeight;
 		bOutputHeightFromIni = true;
 	}
+	bool bConfigTickPin = false;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bTickModePinDefault"), bConfigTickPin, GGameIni))
+	{
+		bTickPinEnabled = bConfigTickPin;
+		bTickPinFromIni = true;
+	}
 	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s), default from %s."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
 		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
@@ -370,6 +412,19 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 	if (!bRunning)
 	{
 		return;
+	}
+
+	if (bRunBegun)
+	{
+		++CaptureGameTicks;
+		if (bTickPinApplied)
+		{
+			if (AnomalyTickPin::Read())
+			{
+				++TickPinReasserts;
+			}
+			AnomalyTickPin::Write(false);
+		}
 	}
 
 	SampleDeferredHidden();
@@ -993,6 +1048,37 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	FApp::SetUseFixedTimeStep(true);
 	FApp::SetFixedDeltaTime(1.0 / (double)VideoFps);
 	bFixedTimeStepOverridden = true;
+
+	TickPinReasserts = 0;
+	CaptureGameTicks = 0;
+	bTickPinApplied = false;
+	TickPinSaved = -1;
+	if (AnomalyTickPin::bCompiled && bTickPinEnabled)
+	{
+		TickPinSaved = AnomalyTickPin::Read() ? 1 : 0;
+		AnomalyTickPin::Write(false);
+		bTickPinApplied = true;
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(tickpin): TICKPIN active saved=%d (decoupled sim/render tick forced OFF for the ")
+			TEXT("duration of this capture, re-applied every capture tick, restored at finish; default from %s%s)."),
+			TickPinSaved,
+			bTickPinFromIni
+				? TEXT("DefaultGame.ini [AnomalyCapture] bTickModePinDefault")
+				: TEXT("COMPILED DEFAULT (on where the fork is detected)"),
+			AnomalyTickPin::bForkDefineVisible ? TEXT("; fork build define visible to this TU") : TEXT(""));
+	}
+	else if (AnomalyTickPin::bCompiled)
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(tickpin): TICKPIN disabled-by-ini (the fork WAS detected at build time; ")
+			TEXT("DefaultGame.ini [AnomalyCapture] bTickModePinDefault turned the pin off for this session)."));
+	}
+	else
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(tickpin): TICKPIN not-compiled (no decoupled-tick fork detected) — this build never ")
+			TEXT("touches the engine tick mode and behaves exactly as it did before the pin existed."));
+	}
 
 	AnomalyViewport::SetOverlaysSuppressed(true);
 
@@ -2180,13 +2266,20 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			RingTelemetry.WantedMatches = Ring.WantedMatches;
 		}
 
+		AnomalyLabel::FTickPinTelemetry TickPinReport;
+		TickPinReport.bCompiled = AnomalyTickPin::bCompiled;
+		TickPinReport.bApplied = bTickPinApplied;
+		TickPinReport.Saved = TickPinSaved;
+		TickPinReport.Reasserts = TickPinReasserts;
+		TickPinReport.GameTicks = CaptureGameTicks;
+
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
 			bSveCapture ? TEXT("sve") : TEXT("backbuffer"),
 			bSveCapture ? &RingTelemetry : nullptr,
 			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards, VetoedEvents,
-			TranslucentVetoes, TranslucencyUnknownVetoes);
+			TranslucentVetoes, TranslucencyUnknownVetoes, &TickPinReport);
 
 		if (bSveCapture)
 		{
@@ -2308,6 +2401,16 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		FApp::SetUseFixedTimeStep(bSavedUseFixedTimeStep);
 		FApp::SetFixedDeltaTime(SavedFixedDeltaTime);
 		bFixedTimeStepOverridden = false;
+	}
+
+	if (bTickPinApplied)
+	{
+		AnomalyTickPin::Write(TickPinSaved != 0);
+		bTickPinApplied = false;
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(tickpin): TICKPIN restored=%d reasserts=%d gameTicks=%d. If the process dies mid-capture ")
+			TEXT("this restore never runs and the host re-asserts its own mode on the next round entry."),
+			TickPinSaved, TickPinReasserts, CaptureGameTicks);
 	}
 
 	AnomalyViewport::SetOverlaysSuppressed(false);

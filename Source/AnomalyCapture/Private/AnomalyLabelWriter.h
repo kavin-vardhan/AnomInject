@@ -82,13 +82,23 @@ namespace AnomalyLabel
 		int32 WantedMatches = 0;
 	};
 
+	struct FTickPinTelemetry
+	{
+		bool bCompiled = false;
+		bool bApplied = false;
+		int32 Saved = -1;
+		int32 Reasserts = 0;
+		int32 GameTicks = 0;
+	};
+
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
 		int32 ZeroMatchBursts, uint64 EndFrame,
 		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode,
 		const FString& ContentClock, int32 NonManifestedEvents, const FString& CapturePath,
 		const FRingTelemetry* Ring = nullptr,
 		int32 MaskProbeArms = 0, int32 MaskResidualDiscards = 0, int32 MaskNoPassDiscards = 0,
-		int32 VetoedEvents = 0, int32 TranslucentVetoes = 0, int32 TranslucencyUnknownVetoes = 0);
+		int32 VetoedEvents = 0, int32 TranslucentVetoes = 0, int32 TranslucencyUnknownVetoes = 0,
+		const FTickPinTelemetry* TickPin = nullptr);
 
 
 	struct FSessionVideo

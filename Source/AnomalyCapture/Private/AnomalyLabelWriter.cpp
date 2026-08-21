@@ -478,7 +478,8 @@ namespace AnomalyLabel
 		const FString& ContentClock, int32 NonManifestedEvents, const FString& CapturePath,
 		const FRingTelemetry* Ring,
 		int32 MaskProbeArms, int32 MaskResidualDiscards, int32 MaskNoPassDiscards,
-		int32 VetoedEvents, int32 TranslucentVetoes, int32 TranslucencyUnknownVetoes)
+		int32 VetoedEvents, int32 TranslucentVetoes, int32 TranslucencyUnknownVetoes,
+		const FTickPinTelemetry* TickPin)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -514,6 +515,17 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("key_ring_wrapped"), Ring->Wrapped);
 			Root->SetNumberField(TEXT("key_ring_corrupted"), Ring->Corrupted);
 			Root->SetNumberField(TEXT("wanted_matches"), Ring->WantedMatches);
+		}
+
+		if (TickPin)
+		{
+			Root->SetBoolField(TEXT("tickpin_compiled"), TickPin->bCompiled);
+			Root->SetBoolField(TEXT("tickpin_applied"), TickPin->bApplied);
+			Root->SetNumberField(TEXT("tickpin_saved"), TickPin->Saved);
+			Root->SetNumberField(TEXT("tickpin_reasserts"), TickPin->Reasserts);
+			Root->SetNumberField(TEXT("capture_game_ticks"), TickPin->GameTicks);
+			Root->SetNumberField(TEXT("ticks_per_captured_frame"),
+				TotalFrames > 0 ? ((double)TickPin->GameTicks / (double)TotalFrames) : 0.0);
 		}
 
 		FString Out;
