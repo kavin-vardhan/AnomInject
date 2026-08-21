@@ -261,7 +261,26 @@ USAGE
 Worth running once on a machine you have not used this script on before: the detectors are built from
 Pillow primitives, so a different Pillow build is the one thing that could silently change them.
 
-Exit codes: 0 normal, 1 no session found, 2 Pillow missing, 3 selftest failed.
+--------------------------------------------------------------------------------------------------
+MEASUREMENT CEILING - printed in every session header, not only per type
+--------------------------------------------------------------------------------------------------
+    CEILING  *** MEASURABLE RANGE +/-N frames (min clean gap G, ...) - offsets beyond this are
+             UNDER-READ, not absent ***
+
+N = G // 2, where G is the smallest number of frames between two adjacent annotated windows. The
+limit is STRUCTURAL, not a tuning choice: this tool attributes each frame to the nearer event using
+the MIDPOINT between adjacent windows, so an offset larger than half the gap moves manifestation
+across that boundary and it is assigned to the NEIGHBOURING event. On the standard 2/4/8/4/0 capture
+config G is about 4 and the ceiling is about +/-2.
+
+The per-type *** BASELINE CONTAMINATED *** banner is the softer, earlier warning - it fires as soon
+as ONE reference frame is itself manifesting, which happens before the ceiling is reached. Both are
+printed; neither replaces the other.
+
+--require-gap N additionally EXITS NONZERO (4) when any session's clean gap is below N, so a
+badly-configured office capture announces itself before anyone reads numbers off a screen.
+
+Exit codes: 0 normal, 1 no session found, 2 Pillow missing, 3 selftest failed, 4 require-gap failed.
 """
 
 import argparse
@@ -1874,6 +1893,26 @@ def fmt_csv_value(v):
     return v
 
 
+def measurement_ceiling(sess, png_idx):
+    windows = []
+    for ev in sess.events:
+        idxs, _ = event_indices(ev)
+        if not idxs:
+            continue
+        if png_idx and (max(idxs) - min(idxs) + 1) >= SESSION_SPAN_FRAC * len(png_idx):
+            continue
+        windows.append((min(idxs), max(idxs)))
+    windows.sort()
+    if len(windows) >= 2:
+        gaps = [windows[i + 1][0] - windows[i][1] - 1 for i in range(len(windows) - 1)]
+        return min(gaps), "between %d annotated window(s)" % len(windows)
+    if len(windows) == 1 and png_idx:
+        head = windows[0][0] - min(png_idx)
+        tail = max(png_idx) - windows[0][1]
+        return min(head, tail), "single window - head/tail gap"
+    return None, "no measurable window"
+
+
 def build_index_check(sess, png_idx, annotated_all, frame_w, frame_h):
     lines = []
     if not png_idx:
@@ -1972,6 +2011,8 @@ def main():
     ap.add_argument("--csv", default="measure_label_offset.csv", help="per-event CSV output path")
     ap.add_argument("--series", action="store_true", help="also dump the per-frame signal series CSV")
     ap.add_argument("--verbose", action="store_true", help="one console line per event")
+    ap.add_argument("--require-gap", type=int, default=0,
+                    help="fail (exit 4) if any session's clean gap between annotated windows is below N")
     ap.add_argument("--region", choices=("auto", "modal"), default="auto", help="per-frame bbox or modal bbox")
     ap.add_argument("--k", type=float, default=K_SIGMA, help="threshold sigma multiplier")
     ap.add_argument("--pad", type=int, default=NEIGHBOURHOOD_PAD, help="neighbourhood padding in frames")
@@ -2014,6 +2055,7 @@ def main():
         return 1
 
     all_rows = []
+    gap_failures = []
     series = [] if args.series else None
     for sess_dir, label, logpath in inputs:
         sess = Session(sess_dir, label)
@@ -2028,6 +2070,28 @@ def main():
             annotated_all.update(idxs)
 
         index_check = build_index_check(sess, png_idx, annotated_all, frame_w, frame_h)
+
+        gap, gap_note = measurement_ceiling(sess, png_idx)
+        if gap is None:
+            index_check.append("CEILING  MEASURABLE RANGE UNKNOWN (%s)" % gap_note)
+        else:
+            ceiling = max(0, gap // 2)
+            index_check.append(
+                "CEILING  *** MEASURABLE RANGE +/-%d frames (min clean gap %d, %s) - offsets beyond "
+                "this are UNDER-READ, not absent ***" % (ceiling, gap, gap_note)
+            )
+            index_check.append(
+                "CEILING  the limit is structural: half the clean gap is the attribution midpoint "
+                "between adjacent windows, past which manifestation is assigned to the NEIGHBOUR."
+            )
+            if args.require_gap and gap < args.require_gap:
+                index_check.append(
+                    "CEILING  *** REQUIRE-GAP FAILED: clean gap %d < required %d - this capture is "
+                    "configured too tightly to measure the offsets you are about to read ***"
+                    % (gap, args.require_gap)
+                )
+                gap_failures.append((sess.label, gap))
+
         log_line, segment = build_log_line(sess, logpath, args.no_log)
 
         eligible, guard_used, spanning = eligible_baseline_frames(sess, png_idx)
@@ -2092,6 +2156,15 @@ def main():
             sum(1 for r in all_rows if r["status"] != "OK"),
         )
     )
+    if gap_failures:
+        print(
+            "*** REQUIRE-GAP FAILED on %d session(s) (needed >=%d): %s"
+            % (len(gap_failures), args.require_gap,
+               ", ".join("%s=%d" % (lbl, g) for lbl, g in gap_failures))
+        )
+        print("*** exiting nonzero so a badly-configured run announces itself before numbers are read off a screen")
+        print("=" * 108)
+        return 4
     print("=" * 108)
     return 0
 
