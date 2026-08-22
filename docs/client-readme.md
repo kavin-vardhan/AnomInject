@@ -121,14 +121,21 @@ You do not have to run anything. `Run.bat` starts it, and a few seconds after ea
 
 **What the colours mean:**
 
-* **RED box** — this anomaly **is in `annotation.json`** for this frame. It is a shipped label: part of the dataset you received.
-* **AMBER box** — this anomaly is a **candidate that did not become a shipped label** on this frame. Each amber box is tagged with why:
-  * **`OUTSIDE-SUBSET`** — by far the most common, and it is normal. For anomalies that hide an object (blink, missing object), `annotation.json` lists only the frames where the object was actually **hidden**, while the amber boxes cover the rest of that anomaly's window — the lead-in frame and the “visible again” half of each blink. The label is correct; the amber box is simply a frame the object was on screen normally.
-  * **`VETOED`** — the system measured that this object drew **no visible pixels at all** in that view, so it removed the event rather than ship a label pointing at nothing.
-  * **`NON-MANIFESTED`** — the anomaly was triggered but never actually reached the picture, so it carries no positive frames.
-  * **`UNMATCHED`** — unexpected. If you see this, it is worth telling us.
+* **RED box — the delivered ground truth.** This anomaly **is in `annotation.json`** for this frame. Red is your dataset.
+* **AMBER box — a candidate that is not a label on this frame.** Amber is *not* a rejected label and *not* an error. Each amber box is tagged with which of the cases below it is.
 
-**Two things it never does:** it never changes a captured frame (every annotated image is a new file in `annotated/`), and it never changes a label. The labels come from the game engine and are the authority; this tool only draws what is already there.
+**You will see a lot of amber, and that is expected.** Across 389 measured sessions, of all the amber boxes drawn:
+
+| Amber category | Share | What it means |
+| --- | --- | --- |
+| **`OUTSIDE-SUBSET`** | **90.1 %** | **Expected, by design.** For anomalies that hide an object (blink, missing object), `annotation.json` lists only the frames where the object was actually **hidden**. The overlay additionally marks the rest of that anomaly's window — the lead-in frame and the “visible again” halves of a blink. The label is correct; these frames are simply ones where the object was on screen normally. This is the dominant amber category by a wide margin. |
+| **`VETOED`** | **9.9 %** | An event the plugin **removed** from `annotation.json` because the object was measured to draw **no visible pixels** in that view. This is the invisible-anomaly cure doing its job: rather than ship a label pointing at nothing, the event is dropped. These boxes are useful — they show you **where** something was dropped, so you can judge whether dropping it was right. |
+| **`NON-MANIFESTED`** | ~0 % | The anomaly was triggered but never reached the picture, so it carries no positive frames. Not seen in any measured session; the tool reports it if it ever occurs. |
+| **`UNMATCHED`** | ~0 % | Unexpected. If you see this, it is worth telling us. |
+
+So the short version: **red is what you were given; the overwhelming majority of amber is the normal shape of a hide-type anomaly's window, and the rest is the system correctly declining to label something invisible.** Nothing is being quietly discarded — every dropped event is visible to you as an amber box.
+
+**Two things it never does:** it never changes a captured frame (every annotated image is a new file in `annotated/`), and it never changes a label. The labels come from the game engine and are the authority; this tool only reads them and draws what is already there.
 
 If the overlay window says Pillow is missing, run the install line it prints (see section 1) and start `Run.bat` again. Nothing else is affected in the meantime.
 
@@ -240,6 +247,18 @@ On locked-down corporate networks the automatic ffmpeg download can be blocked o
 * **`run_summary.json`** is a small technical summary (frame counts, timing) — you can ignore it, but don't delete it before the MP4 appears; the encoder uses it to know the session is complete.
 * **`labels.jsonl`** is one line per captured frame carrying the same labels per frame, including each anomaly's bounding box. It is what the overlay inspector reads.
 * **`annotated/`** holds the overlay inspector's output — a copy of each frame with its labels drawn on. Nothing else reads this folder; it is there for you to look at, and deleting it changes nothing.
+
+### Reading `labels.jsonl` — the rows are not in order
+
+**If you parse `labels.jsonl`, read this first.** The file has one JSON object per line, one line per captured frame. Every frame is present exactly once — **but the lines are not written in frame order.** They are written in the order the capture's background writer finished them, which varies from run to run, and neighbouring frames routinely swap places.
+
+What to do:
+
+* **Key or sort by `session_index`.** That is the frame number: `session_index` N is `Actual_Frames/frame_000NN.png`, frame N of the video, and frame N of `annotation.json`'s frame indices. It is the only field that ties the three together.
+* **Do not sort or join on `frame_index`.** That field is the game engine's own internal frame counter. It counts different things and starts from a different place, so it is **not** interchangeable with `session_index` — joining on it will silently mismatch rows. It is kept for engine-side diagnostics; a data consumer should ignore it.
+* **Do not assume line N is frame N**, and do not assume the file is sorted even if a particular run happens to come out that way.
+
+Nothing is missing and nothing is duplicated — it is purely an ordering property. `annotation.json` is unaffected: its frame indices are always in order.
 
 ### A note on `camera_clipping`
 
