@@ -122,9 +122,9 @@ struct FSessionEventAccum
 	FString NodePath;
 	FVector NodePos = FVector::ZeroVector;
 
-	int32 VisibleFrames = 0;
-	int32 HiddenFrames = 0;
-	TMap<int32, uint8> HiddenByIndex;
+	int32 InactiveFrames = 0;
+	int32 ActiveFrames = 0;
+	TMap<int32, uint8> ActiveByIndex;
 };
 #endif
 
@@ -230,23 +230,39 @@ namespace
 		}
 	}
 
-	bool IsHideTypeAnomaly(FName Id, bool& bOutKnownId)
+	enum class EAnomalyActiveSource : uint8
 	{
-		static const TSet<FName> HideTypeIds = {
-			FName(TEXT("blinking")),
-			FName(TEXT("missing_object"))
+		FireWindow,
+		ActorHidden,
+		AnomalyState
+	};
+
+	EAnomalyActiveSource ResolveAnomalyActiveSource(FName Id, bool& bOutKnownId)
+	{
+		static const TMap<FName, EAnomalyActiveSource> SourceById = {
+			{ FName(TEXT("blinking")),          EAnomalyActiveSource::ActorHidden },
+			{ FName(TEXT("missing_object")),    EAnomalyActiveSource::ActorHidden },
+			{ FName(TEXT("lod_popping")),       EAnomalyActiveSource::AnomalyState },
+			{ FName(TEXT("missing_texture")),   EAnomalyActiveSource::FireWindow },
+			{ FName(TEXT("corrupted_texture")), EAnomalyActiveSource::FireWindow },
+			{ FName(TEXT("lighting_mismatch")), EAnomalyActiveSource::FireWindow },
+			{ FName(TEXT("lod_corruption")),    EAnomalyActiveSource::FireWindow },
+			{ FName(TEXT("camera_clipping")),   EAnomalyActiveSource::FireWindow },
+			{ FName(TEXT("time_dilation")),     EAnomalyActiveSource::FireWindow }
 		};
-		static const TSet<FName> NonHideTypeIds = {
-			FName(TEXT("missing_texture")),
-			FName(TEXT("corrupted_texture")),
-			FName(TEXT("lighting_mismatch")),
-			FName(TEXT("lod_corruption")),
-			FName(TEXT("lod_popping")),
-			FName(TEXT("camera_clipping")),
-			FName(TEXT("time_dilation"))
-		};
-		bOutKnownId = HideTypeIds.Contains(Id) || NonHideTypeIds.Contains(Id);
-		return HideTypeIds.Contains(Id);
+		const EAnomalyActiveSource* Found = SourceById.Find(Id);
+		bOutKnownId = (Found != nullptr);
+		return Found ? *Found : EAnomalyActiveSource::FireWindow;
+	}
+
+	const TCHAR* DescribeActiveSource(EAnomalyActiveSource Source)
+	{
+		switch (Source)
+		{
+		case EAnomalyActiveSource::ActorHidden:  return TEXT("actor-hidden");
+		case EAnomalyActiveSource::AnomalyState: return TEXT("anomaly-state");
+		default:                                 return TEXT("fire-window");
+		}
 	}
 }
 #endif
@@ -434,7 +450,7 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		}
 	}
 
-	SampleDeferredHidden();
+	SampleDeferredActiveState();
 
 	if (Phase == ECapturePhase::ArmedPending)
 	{
@@ -1480,7 +1496,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		int32 NumLabels = 0;
 		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, OutW, OutH, ImageName, NumLabels);
 
-		AccumulateFrameEvents(Snap->Fires, Snap->FireHidden, Snap->FirePos, Snap->View, Snap->NearClip,
+		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePos, Snap->View, Snap->NearClip,
 			Snap->SessionIndex, Snap->TimeSeconds);
 
 		FAnomalyAsyncWriter::FJob Job;
@@ -1716,18 +1732,30 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				++SessionGlobalNegativeFrames;
 			}
 		}
-		TArray<uint8> Hidden;
+		const UAnomalyInjectorSubsystem* SyncInjector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		TArray<uint8> ActiveNow;
 		TArray<FVector> Pos;
-		Hidden.Reserve(Fires.Num());
+		ActiveNow.Reserve(Fires.Num());
 		Pos.Reserve(Fires.Num());
 		for (const FAutoLiveFireInfo& F : Fires)
 		{
 			const AActor* FActor = F.TargetActor.Get();
-			Hidden.Add((FActor && FActor->IsHidden()) ? 1 : 0);
+			bool bKnownId = false;
+			const EAnomalyActiveSource Source = ResolveAnomalyActiveSource(F.Id, bKnownId);
+			if (Source == EAnomalyActiveSource::AnomalyState)
+			{
+				ActiveNow.Add(!FActor
+					? 1
+					: ((SyncInjector && SyncInjector->IsAnomalyCurrentlyAnomalous(F.Id)) ? 1 : 0));
+			}
+			else
+			{
+				ActiveNow.Add((FActor && FActor->IsHidden()) ? 1 : 0);
+			}
 			Pos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 		}
 		const double NowT = World ? World->GetTimeSeconds() : 0.0;
-		AccumulateFrameEvents(Fires, Hidden, Pos, ProjView, GNearClippingPlane, SessionFrameIndex, NowT);
+		AccumulateFrameEvents(Fires, ActiveNow, Pos, ProjView, GNearClippingPlane, SessionFrameIndex, NowT);
 		if (FirstFrameTimeSeconds < 0.0)
 		{
 			FirstFrameTimeSeconds = NowT;
@@ -1844,8 +1872,8 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 		Snap->FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 	}
 
-	DeferredHiddenRequestId = ArmedLabelRequestId;
-	bHasDeferredHidden = true;
+	DeferredActiveRequestId = ArmedLabelRequestId;
+	bHasDeferredActive = true;
 }
 
 void UAnomalyCaptureSubsystem::ApplySessionGlobals()
@@ -1973,30 +2001,47 @@ void UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo
 	}
 }
 
-void UAnomalyCaptureSubsystem::SampleDeferredHidden()
+void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 {
-	if (!bHasDeferredHidden)
+	if (!bHasDeferredActive)
 	{
 		return;
 	}
-	bHasDeferredHidden = false;
+	bHasDeferredActive = false;
 
 	if (!Async.IsValid())
 	{
 		return;
 	}
-	AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(DeferredHiddenRequestId);
+	AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(DeferredActiveRequestId);
 	if (!Snap)
 	{
 		return;
 	}
 
-	Snap->FireHidden.Reset();
-	Snap->FireHidden.Reserve(Snap->Fires.Num());
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+
+	Snap->FireActive.Reset();
+	Snap->FireActive.Reserve(Snap->Fires.Num());
 	for (const FAutoLiveFireInfo& F : Snap->Fires)
 	{
 		const AActor* FActor = F.TargetActor.Get();
-		Snap->FireHidden.Add((FActor && FActor->IsHidden()) ? 1 : 0);
+		bool bKnownId = false;
+		const EAnomalyActiveSource Source = ResolveAnomalyActiveSource(F.Id, bKnownId);
+
+		uint8 Active = 0;
+		if (Source == EAnomalyActiveSource::AnomalyState)
+		{
+			Active = !FActor
+				? 1
+				: ((Injector && Injector->IsAnomalyCurrentlyAnomalous(F.Id)) ? 1 : 0);
+		}
+		else
+		{
+			Active = (FActor && FActor->IsHidden()) ? 1 : 0;
+		}
+		Snap->FireActive.Add(Active);
 	}
 }
 
@@ -2187,11 +2232,11 @@ static bool AnyTranslucentSlotOnTaggedComponents(const AActor* Actor, int32& Out
 static bool AccumEventManifested(const FSessionEventAccum& Ev)
 {
 	bool bKnownId = false;
-	if (!IsHideTypeAnomaly(Ev.Id, bKnownId))
+	if (ResolveAnomalyActiveSource(Ev.Id, bKnownId) == EAnomalyActiveSource::FireWindow)
 	{
 		return true;
 	}
-	for (const TPair<int32, uint8>& Pair : Ev.HiddenByIndex)
+	for (const TPair<int32, uint8>& Pair : Ev.ActiveByIndex)
 	{
 		if (Pair.Value)
 		{
@@ -2204,7 +2249,7 @@ static bool AccumEventManifested(const FSessionEventAccum& Ev)
 
 void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 {
-	SampleDeferredHidden();
+	SampleDeferredActiveState();
 
 	if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 	{
@@ -2535,7 +2580,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 }
 
 void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireInfo>& Fires,
-	const TArray<uint8>& FireHidden, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
+	const TArray<uint8>& FireActive, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
 	float NearClip, int32 SessionIndex, double TimeSeconds)
 {
 	if (!Async.IsValid())
@@ -2604,9 +2649,9 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			++Ev->CoverageCount;
 		}
 
-		const int32 Hidden = (FireHidden.IsValidIndex(i) && FireHidden[i]) ? 1 : 0;
-		if (Hidden) { ++Ev->HiddenFrames; } else { ++Ev->VisibleFrames; }
-		Ev->HiddenByIndex.Add(SessionIndex, (uint8)Hidden);
+		const int32 Active = (FireActive.IsValidIndex(i) && FireActive[i]) ? 1 : 0;
+		if (Active) { ++Ev->ActiveFrames; } else { ++Ev->InactiveFrames; }
+		Ev->ActiveByIndex.Add(SessionIndex, (uint8)Active);
 	}
 }
 
@@ -2665,45 +2710,47 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 
 	for (FSessionEventAccum& Ev : Async->SessionEvents)
 	{
-		TArray<int32> HiddenKeys;
-		Ev.HiddenByIndex.GetKeys(HiddenKeys);
-		HiddenKeys.Sort();
+		TArray<int32> ActiveKeys;
+		Ev.ActiveByIndex.GetKeys(ActiveKeys);
+		ActiveKeys.Sort();
 
-		TArray<int32> HiddenIdx;
-		for (int32 Key : HiddenKeys)
+		TArray<int32> ActiveIdx;
+		for (int32 Key : ActiveKeys)
 		{
-			if (Ev.HiddenByIndex[Key]) { HiddenIdx.Add(Key); }
+			if (Ev.ActiveByIndex[Key]) { ActiveIdx.Add(Key); }
 		}
 
 		AnomalyLabel::FSessionEvent Out;
 		MapAnomalyToClient(Ev.Id, Out.AnomalyType, Out.AnomalySubtype);
 
 		bool bKnownId = false;
-		const bool bHideType = IsHideTypeAnomaly(Ev.Id, bKnownId);
+		const EAnomalyActiveSource Source = ResolveAnomalyActiveSource(Ev.Id, bKnownId);
 		if (!bKnownId)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: anomaly id '%s' is not registered in the hide-type table — falling back to on-screen frames. ")
-				TEXT("If this is a hide-type anomaly it MUST be added to IsHideTypeAnomaly, or a non-manifesting event will be ")
-				TEXT("labelled positive on every frame the actor was visible."),
+				TEXT("Capture: anomaly id '%s' is not registered in the active-state table — falling back to the whole fire ")
+				TEXT("window. If this anomaly TOGGLES its anomalous state inside its own fire window it MUST be added to ")
+				TEXT("ResolveAnomalyActiveSource, or every frame of the window is labelled positive whether or not the ")
+				TEXT("anomaly was actually showing."),
 				*Ev.Id.ToString());
 		}
 
 		TArray<int32> FrameIndices;
-		if (bHideType)
+		if (Source != EAnomalyActiveSource::FireWindow)
 		{
-			Out.bManifested = HiddenIdx.Num() > 0;
+			Out.bManifested = ActiveIdx.Num() > 0;
 			if (Out.bManifested)
 			{
-				FrameIndices = MoveTemp(HiddenIdx);
+				FrameIndices = MoveTemp(ActiveIdx);
 			}
 			else
 			{
 				++NonManifestedEvents;
 				UE_LOG(LogAnomalyCapture, Warning,
-					TEXT("Capture: '%s' event on '%s' NEVER MANIFESTED — no captured frame sampled the target hidden. ")
-					TEXT("Writing zero positive frames and manifested=false (previously this emitted %d on-screen frames as positives)."),
-					*Ev.Id.ToString(), *Ev.NodeName, Ev.AffectedFrames.Num());
+					TEXT("Capture: '%s' event on '%s' NEVER MANIFESTED — no captured frame sampled the anomaly as active ")
+					TEXT("(state source: %s). Writing zero positive frames and manifested=false (previously this emitted %d ")
+					TEXT("on-screen frames as positives)."),
+					*Ev.Id.ToString(), *Ev.NodeName, DescribeActiveSource(Source), Ev.AffectedFrames.Num());
 			}
 		}
 		else
@@ -2712,6 +2759,15 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		}
 		FrameIndices.Sort();
 		Out.FrameIndices = MoveTemp(FrameIndices);
+		if (Source != EAnomalyActiveSource::FireWindow && Out.bManifested)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture: TOGGLING-SUBSET id=%s target=%s source=%s positives=%d of %d fire-active frame(s) — ")
+				TEXT("annotation.json carries the ACTIVE SUBSET (gapped), never the whole fire window. labels.jsonl still ")
+				TEXT("covers the whole window, which is why the overlay tool shows AMBER OUTSIDE-SUBSET boxes there."),
+				*Ev.Id.ToString(), *Ev.NodeName, DescribeActiveSource(Source),
+				Out.FrameIndices.Num(), Ev.ActiveByIndex.Num());
+		}
 		Out.CoverageRatio = Ev.CoverageCount > 0 ? (Ev.CoverageSum / (double)Ev.CoverageCount) : 0.0;
 		Out.CoveragePct = Ev.Provenance.CoveragePct;
 

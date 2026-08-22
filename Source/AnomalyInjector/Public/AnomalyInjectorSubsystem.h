@@ -58,6 +58,8 @@ public:
 
 	int32 GetActiveAnomalyCount() const;
 
+	bool IsAnomalyCurrentlyAnomalous(const FName& Id) const;
+
 
 	TArray<FAnomalyCatalogEntry> GetAnomalyCatalog() const;
 

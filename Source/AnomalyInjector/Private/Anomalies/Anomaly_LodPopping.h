@@ -17,6 +17,7 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void Revert() override;
 	virtual bool IsActive() const override { return bActive; }
+	virtual bool IsCurrentlyAnomalous() const override { return bActive && bPoppedPhase; }
 
 private:
 	struct FPoppingTarget

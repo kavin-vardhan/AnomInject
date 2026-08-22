@@ -22,4 +22,6 @@ public:
 	virtual void Revert() = 0;
 
 	virtual bool IsActive() const = 0;
+
+	virtual bool IsCurrentlyAnomalous() const { return IsActive(); }
 };

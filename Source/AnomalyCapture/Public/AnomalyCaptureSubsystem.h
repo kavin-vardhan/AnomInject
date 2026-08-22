@@ -127,7 +127,7 @@ private:
 	void BeginRevert();
 	void CaptureCurrentFrame();
 	void FinalizeArmedLabel();
-	void SampleDeferredHidden();
+	void SampleDeferredActiveState();
 	void FinishRun(bool bLogLine);
 	void PaceThisTick();
 	void StampArmWallClock(double NowWall);
@@ -137,7 +137,7 @@ private:
 	FAnomalyViewInfo ProjectionView() const;
 	class UAnomalyAutoInjectorSubsystem* ResolveAuto() const;
 
-	void AccumulateFrameEvents(const TArray<struct FAutoLiveFireInfo>& Fires, const TArray<uint8>& FireHidden,
+	void AccumulateFrameEvents(const TArray<struct FAutoLiveFireInfo>& Fires, const TArray<uint8>& FireActive,
 		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds);
 	void WriteSessionAnnotationFile();
 
@@ -203,8 +203,8 @@ private:
 	uint64 CaptureRequestSerial = 0;
 	uint64 ArmedLabelRequestId = 0;
 	bool bHasArmedLabel = false;
-	uint64 DeferredHiddenRequestId = 0;
-	bool bHasDeferredHidden = false;
+	uint64 DeferredActiveRequestId = 0;
+	bool bHasDeferredActive = false;
 
 	FName TargetAnomalyId = NAME_None;
 	FString TargetActorName;

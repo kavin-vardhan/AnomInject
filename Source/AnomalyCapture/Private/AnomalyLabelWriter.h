@@ -21,7 +21,7 @@ namespace AnomalyLabel
 		float  NearClip = 0.0f;
 		FAnomalyViewInfo View;
 		TArray<FAutoLiveFireInfo> Fires;
-		TArray<uint8>   FireHidden;
+		TArray<uint8>   FireActive;
 		TArray<FVector> FirePos;
 	};
 
