@@ -40,6 +40,7 @@ struct FAnomalyCatalogEntry
 	FString Description;
 	FString Usage;
 	EAnomalyScope Scope = EAnomalyScope::Object;
+	bool bTargetable = true;
 	TArray<FAnomalyArgSpec> Args;
 };
 

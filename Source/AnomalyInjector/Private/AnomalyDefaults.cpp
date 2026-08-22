@@ -48,6 +48,18 @@ namespace
 		return bSet;
 	}
 
+	float& TriggerRadiusOverride()
+	{
+		static float Value = 0.0f;
+		return Value;
+	}
+
+	bool& TriggerRadiusOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
 	FResolvedDefault Resolve(const TCHAR* IniKey, int32 CompiledDefault, int32 MinFrames, int32 MaxFrames,
 		const TCHAR* AnomalyName)
 	{
@@ -350,6 +362,102 @@ namespace AnomalyDefaults
 			TEXT("lod_popping: console proximity override cleared; the ini value or the compiled default takes over."));
 	}
 
+	const TCHAR* CameraClippingTriggerRadiusKey()
+	{
+		return TEXT("CameraClippingTriggerRadiusCm");
+	}
+
+	float GetCameraClippingTriggerRadiusCm()
+	{
+		if (TriggerRadiusOverrideSet())
+		{
+			return TriggerRadiusOverride();
+		}
+		static bool bResolved = false;
+		static float Value = CameraClippingTriggerRadiusCompiled;
+		static const TCHAR* Source = TEXT("compiled");
+		if (bResolved)
+		{
+			return Value;
+		}
+		bResolved = true;
+
+		float FromIni = 0.0f;
+		if (GConfig && GConfig->GetFloat(SectionName(), CameraClippingTriggerRadiusKey(), FromIni, GGameIni))
+		{
+			if (FromIni < TriggerRadiusMin || FromIni > TriggerRadiusMax)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("camera_clipping: DefaultGame.ini [%s] %s = %.2f is out of range [%.0f..%.0f]; using the ")
+					TEXT("COMPILED default %.2f cm. The key is REFUSED rather than clamped, so a typo cannot quietly ")
+					TEXT("become a different trigger reach. Note 0 is REFUSED on purpose - a zero radius would never ")
+					TEXT("fire and would look like a working configuration."),
+					SectionName(), CameraClippingTriggerRadiusKey(), FromIni, TriggerRadiusMin, TriggerRadiusMax,
+					CameraClippingTriggerRadiusCompiled);
+			}
+			else
+			{
+				Value = FromIni;
+				Source = TEXT("ini");
+			}
+		}
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("camera_clipping: TARGETED trigger radius = %.2f cm (%s). Measured with the SAME metric as the poll ")
+			TEXT("radius and the lod_popping proximity gate (sphere-approx bounds distance from ResolvePollOrigin), so ")
+			TEXT("all three numbers are directly comparable. It applies ONLY to a targeted camera_clipping fire; the ")
+			TEXT("session-global path is untouched by it. The compiled default deliberately matches the lod_popping ")
+			TEXT("proximity default so the product carries ONE 'right next to the player' distance, not two."),
+			Value, Source);
+		return Value;
+	}
+
+	bool SetCameraClippingTriggerRadiusOverride(float Cm)
+	{
+		if (Cm < TriggerRadiusMin || Cm > TriggerRadiusMax)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("camera_clipping: trigger radius %.2f is out of range [%.0f..%.0f]; the console override is ")
+				TEXT("REFUSED and the previous value still stands."), Cm, TriggerRadiusMin, TriggerRadiusMax);
+			return false;
+		}
+		TriggerRadiusOverride() = Cm;
+		TriggerRadiusOverrideSet() = true;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("camera_clipping: TARGETED trigger radius set to %.2f cm by console override. This BEATS ")
+			TEXT("DefaultGame.ini [%s] %s (G88: a loose ini beside a package is a no-op). It takes effect on the NEXT ")
+			TEXT("targeted fire; a fire already live keeps the radius it was applied with."),
+			Cm, SectionName(), CameraClippingTriggerRadiusKey());
+		return true;
+	}
+
+	void ClearCameraClippingTriggerRadiusOverride()
+	{
+		TriggerRadiusOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("camera_clipping: console trigger-radius override cleared; the ini value or the compiled default takes over."));
+	}
+
+	FString DescribeCameraClippingTriggerRadius()
+	{
+		const float V = GetCameraClippingTriggerRadiusCm();
+		const TCHAR* Src = TEXT("compiled");
+		if (TriggerRadiusOverrideSet())
+		{
+			Src = TEXT("console");
+		}
+		else
+		{
+			float FromIni = 0.0f;
+			if (GConfig && GConfig->GetFloat(SectionName(), CameraClippingTriggerRadiusKey(), FromIni, GGameIni)
+				&& FromIni >= TriggerRadiusMin && FromIni <= TriggerRadiusMax)
+			{
+				Src = TEXT("ini");
+			}
+		}
+		return FString::Printf(TEXT("%.0fcm(%s)"), V, Src);
+	}
+
 	FString DescribeLodPoppingMaxDistance()
 	{
 		const float V = GetLodPoppingMaxDistanceCm();
@@ -469,7 +577,51 @@ namespace
 		UE_LOG(LogAnomaly, Log, TEXT("IAI.Anomaly.LodMaxDistance: EFFECTIVE READ-BACK = %s."),
 			*AnomalyDefaults::DescribeLodPoppingMaxDistance());
 	}
+
+	void HandleCameraClipTriggerRadius(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Anomaly.CameraClipTriggerRadius <cm|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeCameraClippingTriggerRadius());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearCameraClippingTriggerRadiusOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetCameraClippingTriggerRadiusOverride(FCString::Atof(*Args[0]));
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Anomaly.CameraClipTriggerRadius: '%s' is not a number of cm (or 'default')."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Anomaly.CameraClipTriggerRadius: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeCameraClippingTriggerRadius());
+	}
 }
+
+static FAutoConsoleCommand GCameraClipTriggerRadiusCmd(
+	TEXT("IAI.Anomaly.CameraClipTriggerRadius"),
+	TEXT("Set the TARGETED camera_clipping trigger radius, in CM. It applies ONLY when camera_clipping is fired on a "
+	     "named object (IAI.Capture.Start ... camera_clipping =<ActorName>, or IAI.Apply camera_clipping =<ActorName>); "
+	     "the session-global whole-run behaviour is untouched and byte-identical when the targeted mode is unused. Per "
+	     "tick the near plane goes anomalous while the player is within this distance of the target and is restored "
+	     "when the player leaves, so the rest of the scene is not spuriously clipped. The metric is the SAME one the "
+	     "poll radius and the lod_popping proximity gate use (sphere-approx bounds distance from the poll origin), so "
+	     "the three numbers are directly comparable. PRECEDENCE: console beats DefaultGame.ini [AnomalyInjector] "
+	     "CameraClippingTriggerRadiusCm, which beats the compiled default 200 - deliberately the same number as the "
+	     "lod_popping proximity default, because the product should carry ONE 'right next to the player' distance. "
+	     "Range [1..1000000]; out of range is REFUSED, never clamped, and 0 is out of range on purpose because a zero "
+	     "radius would never fire while looking like a working configuration. LABELLING IS UNCHANGED: a frame counts "
+	     "positive only when the near plane is anomalous AND geometry is actually within the near-clip radius, so if "
+	     "the player never approaches, the event carries zero positives and the m23 F-LABEL guard reports it. Pass "
+	     "'default' to clear the override. Usage: IAI.Anomaly.CameraClipTriggerRadius <cm|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleCameraClipTriggerRadius));
 
 static FAutoConsoleCommand GLodMaxDistanceCmd(
 	TEXT("IAI.Anomaly.LodMaxDistance"),

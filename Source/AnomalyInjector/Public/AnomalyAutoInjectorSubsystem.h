@@ -17,6 +17,7 @@ struct FAutoLiveFire
 	FString TargetName;
 	float SecondsRemaining = 0.0f;
 	uint64 StartFrame = 0;
+	bool bWholeFrameExtent = false;
 };
 
 struct FAutoLiveFireInfo
@@ -26,6 +27,7 @@ struct FAutoLiveFireInfo
 	TWeakObjectPtr<AActor> TargetActor;
 	float SecondsRemaining = 0.0f;
 	uint64 StartFrame = 0;
+	bool bWholeFrameExtent = false;
 };
 
 UCLASS()

@@ -255,7 +255,7 @@ namespace
 			{ FName(TEXT("corrupted_texture")), EAnomalyActiveSource::FireWindow },
 			{ FName(TEXT("lighting_mismatch")), EAnomalyActiveSource::FireWindow },
 			{ FName(TEXT("lod_corruption")),    EAnomalyActiveSource::FireWindow },
-			{ FName(TEXT("camera_clipping")),   EAnomalyActiveSource::FireWindow },
+			{ FName(TEXT("camera_clipping")),   EAnomalyActiveSource::AnomalyState },
 			{ FName(TEXT("time_dilation")),     EAnomalyActiveSource::FireWindow }
 		};
 		const EAnomalyActiveSource* Found = SourceById.Find(Id);
@@ -1202,7 +1202,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	ApplySessionGlobals();
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s | blinkHalf=%s lodHalf=%s lodMaxDist=%s | excludePatterns=%s | labelsInDelivery=%s ==="),
+		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s | blinkHalf=%s lodHalf=%s lodMaxDist=%s clipRadius=%s | excludePatterns=%s | labelsInDelivery=%s ==="),
 		*RunDir,
 		bTargetedMode ? *FString::Printf(TEXT("targeted[%s on %s]"), *TargetAnomalyId.ToString(), *TargetActorName) : TEXT("auto-pool"),
 		bDeliveryMode ? TEXT("on") : TEXT("off"),
@@ -1215,6 +1215,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		*AnomalyDefaults::DescribeBlinkingHalfPeriod(),
 		*AnomalyDefaults::DescribeLodPoppingHalfPeriod(),
 		*AnomalyDefaults::DescribeLodPoppingMaxDistance(),
+		*AnomalyDefaults::DescribeCameraClippingTriggerRadius(),
 		*AnomalyDefaults::DescribeExcludedTargetPatterns(),
 		*DescribeLabelsInDelivery());
 #endif
@@ -1964,35 +1965,7 @@ void UAnomalyCaptureSubsystem::RevertSessionGlobals()
 
 bool UAnomalyCaptureSubsystem::IsNearClipSlicingNow() const
 {
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return false;
-	}
-
-	FAnomalyViewInfo View;
-	if (!AnomalyViewport::GetActiveViewInfo(World, View))
-	{
-		return false;
-	}
-
-	const float Radius = GNearClippingPlane;
-	if (Radius <= 0.0f)
-	{
-		return false;
-	}
-
-	FCollisionQueryParams Params(FName(TEXT("AnomalyNearClipProbe")), false);
-	if (const APlayerController* PC = World->GetFirstPlayerController())
-	{
-		if (const APawn* Pawn = PC->GetPawn())
-		{
-			Params.AddIgnoredActor(Pawn);
-		}
-	}
-
-	return World->OverlapAnyTestByChannel(View.Origin, FQuat::Identity, ECC_Visibility,
-		FCollisionShape::MakeSphere(Radius), Params);
+	return AnomalyViewport::IsGeometryWithinNearClipRadius(GetWorld());
 }
 
 void UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo>& InOutFires) const
@@ -2005,6 +1978,7 @@ void UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo
 		F.TargetActor = nullptr;
 		F.SecondsRemaining = 0.0f;
 		F.StartFrame = (uint64)StartFrame;
+		F.bWholeFrameExtent = true;
 		InOutFires.Add(F);
 	}
 }
@@ -2638,7 +2612,13 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			Async->MaskMeasure.FindOrAddRecord(F.Id, F.Target, F.StartFrame, const_cast<AActor*>(F.TargetActor.Get()));
 		}
 
-		if (const AActor* FActor = F.TargetActor.Get())
+		if (F.bWholeFrameExtent || ActiveSessionGlobals.Contains(F.Id))
+		{
+			Ev->AffectedFrames.Add(SessionIndex);
+			Ev->CoverageSum += 1.0;
+			++Ev->CoverageCount;
+		}
+		else if (const AActor* FActor = F.TargetActor.Get())
 		{
 			FVector2D Min(FVector2D::ZeroVector), Max(FVector2D::ZeroVector);
 			if (AnomalyViewport::ProjectActorBoundsToScreenRect(View, FActor, Min, Max))
@@ -2649,12 +2629,6 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 				Ev->CoverageSum += FMath::Max(0.0, BoxW) * FMath::Max(0.0, BoxH);
 				++Ev->CoverageCount;
 			}
-		}
-		else if (ActiveSessionGlobals.Contains(F.Id))
-		{
-			Ev->AffectedFrames.Add(SessionIndex);
-			Ev->CoverageSum += 1.0;
-			++Ev->CoverageCount;
 		}
 
 		const int32 Active = (FireActive.IsValidIndex(i) && FireActive[i]) ? 1 : 0;

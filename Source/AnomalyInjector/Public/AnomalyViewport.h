@@ -115,6 +115,8 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API float GetActorPollDistanceCm(UWorld* World, const AActor* Actor);
 
+	ANOMALYINJECTOR_API bool IsGeometryWithinNearClipRadius(UWorld* World);
+
 	ANOMALYINJECTOR_API void ResetTargetExclusionStats();
 
 	ANOMALYINJECTOR_API int32 GetTargetExclusionCount();

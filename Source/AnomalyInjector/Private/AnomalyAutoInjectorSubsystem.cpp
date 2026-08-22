@@ -345,6 +345,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 		Fire.TargetName = TargetName;
 		Fire.SecondsRemaining = Hold;
 		Fire.StartFrame = GFrameCounter;
+		Fire.bWholeFrameExtent = IsSessionGlobalId(Injector, Id);
 		LiveFires.Add(Fire);
 		LastFireResult = FString::Printf(TEXT("fire %s on %s (targeted)"), *Id.ToString(), *TargetName);
 	}
@@ -475,6 +476,7 @@ TArray<FAutoLiveFireInfo> UAnomalyAutoInjectorSubsystem::GetLiveFires() const
 		Info.TargetActor = Fire.Target;
 		Info.SecondsRemaining = Fire.SecondsRemaining;
 		Info.StartFrame = Fire.StartFrame;
+		Info.bWholeFrameExtent = Fire.bWholeFrameExtent;
 		Result.Add(Info);
 	}
 	return Result;

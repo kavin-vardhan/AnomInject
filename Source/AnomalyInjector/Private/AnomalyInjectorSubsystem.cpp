@@ -71,6 +71,15 @@ namespace
 		return A;
 	}
 
+	bool IsTargetableId(const FName& Id, EAnomalyScope Scope)
+	{
+		if (Scope != EAnomalyScope::Global)
+		{
+			return true;
+		}
+		return Id == FName(TEXT("camera_clipping"));
+	}
+
 	void GetAuthoredSpec(const FName& Id, EAnomalyScope& OutScope, TArray<FAnomalyArgSpec>& OutArgs)
 	{
 		OutArgs.Reset();
@@ -538,6 +547,7 @@ TArray<FAnomalyCatalogEntry> UAnomalyInjectorSubsystem::GetAnomalyCatalog() cons
 		Entry.Description = Anomaly->GetDescription();
 		Entry.Usage = Anomaly->GetUsage();
 		GetAuthoredSpec(Entry.Id, Entry.Scope, Entry.Args);
+		Entry.bTargetable = IsTargetableId(Entry.Id, Entry.Scope);
 		Out.Add(MoveTemp(Entry));
 	}
 	return Out;

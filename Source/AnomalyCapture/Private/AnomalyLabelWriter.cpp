@@ -62,15 +62,15 @@ namespace
 			FVector2D Min(FVector2D::ZeroVector);
 			FVector2D Max(FVector2D::ZeroVector);
 			bool bValid = false;
-			if (const AActor* Actor = F.TargetActor.Get())
-			{
-				bValid = AnomalyViewport::ProjectActorBoundsToScreenRect(View, Actor, Min, Max);
-			}
-			else if (F.Target.IsEmpty())
+			if (F.bWholeFrameExtent || (F.TargetActor.Get() == nullptr && F.Target.IsEmpty()))
 			{
 				Min = FVector2D(0.0, 0.0);
 				Max = FVector2D(1.0, 1.0);
 				bValid = true;
+			}
+			else if (const AActor* Actor = F.TargetActor.Get())
+			{
+				bValid = AnomalyViewport::ProjectActorBoundsToScreenRect(View, Actor, Min, Max);
 			}
 			O->SetBoolField(TEXT("bbox_valid"), bValid);
 

@@ -734,6 +734,38 @@ namespace AnomalyViewport
 		return bAny ? Best : Unmeasurable;
 	}
 
+	bool IsGeometryWithinNearClipRadius(UWorld* World)
+	{
+		if (!World)
+		{
+			return false;
+		}
+
+		FAnomalyViewInfo View;
+		if (!GetActiveViewInfo(World, View))
+		{
+			return false;
+		}
+
+		const float Radius = GNearClippingPlane;
+		if (Radius <= 0.0f)
+		{
+			return false;
+		}
+
+		FCollisionQueryParams Params(FName(TEXT("AnomalyNearClipProbe")), false);
+		if (const APlayerController* PC = World->GetFirstPlayerController())
+		{
+			if (const APawn* Pawn = PC->GetPawn())
+			{
+				Params.AddIgnoredActor(Pawn);
+			}
+		}
+
+		return World->OverlapAnyTestByChannel(View.Origin, FQuat::Identity, ECC_Visibility,
+			FCollisionShape::MakeSphere(Radius), Params);
+	}
+
 	void ResetTargetExclusionStats()
 	{
 		ExcludedActorsSeen().Reset();

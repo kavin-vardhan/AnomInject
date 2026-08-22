@@ -262,6 +262,7 @@ namespace ControlSnapshot
 				O->SetStringField(TEXT("description"), E.Description);
 				O->SetStringField(TEXT("usage"), E.Usage);
 				O->SetStringField(TEXT("scope"), ToString(E.Scope));
+				O->SetBoolField(TEXT("targetable"), E.bTargetable);
 
 				TArray<TSharedPtr<FJsonValue>> ArgsArr;
 				for (const FAnomalyArgSpec& Arg : E.Args)
