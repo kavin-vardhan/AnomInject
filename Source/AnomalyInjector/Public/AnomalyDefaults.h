@@ -25,4 +25,21 @@ namespace AnomalyDefaults
 	ANOMALYINJECTOR_API bool SetConsoleOverride(const TCHAR* IniKey, int32 Frames,
 		int32 MinFrames, int32 MaxFrames, const TCHAR* AnomalyName);
 	ANOMALYINJECTOR_API void ClearConsoleOverride(const TCHAR* IniKey);
+
+	ANOMALYINJECTOR_API const TCHAR* ExcludedTargetPatternsKey();
+	ANOMALYINJECTOR_API const TArray<FString>& GetExcludedTargetPatterns();
+	ANOMALYINJECTOR_API FString DescribeExcludedTargetPatterns();
+	ANOMALYINJECTOR_API void SetExcludedTargetPatternsOverride(const TArray<FString>& Patterns);
+	ANOMALYINJECTOR_API void ClearExcludedTargetPatternsOverride();
+	ANOMALYINJECTOR_API FString ExcludedTargetPatternsSource();
+
+	inline constexpr float LodPoppingMaxDistanceCompiled = 200.0f;
+	inline constexpr float MaxDistanceMin = 0.0f;
+	inline constexpr float MaxDistanceMax = 1000000.0f;
+
+	ANOMALYINJECTOR_API const TCHAR* LodPoppingMaxDistanceKey();
+	ANOMALYINJECTOR_API float GetLodPoppingMaxDistanceCm();
+	ANOMALYINJECTOR_API FString DescribeLodPoppingMaxDistance();
+	ANOMALYINJECTOR_API bool SetLodPoppingMaxDistanceOverride(float Cm);
+	ANOMALYINJECTOR_API void ClearLodPoppingMaxDistanceOverride();
 }

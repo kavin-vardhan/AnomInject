@@ -479,7 +479,7 @@ namespace AnomalyLabel
 		const FRingTelemetry* Ring,
 		int32 MaskProbeArms, int32 MaskResidualDiscards, int32 MaskNoPassDiscards,
 		int32 VetoedEvents, int32 TranslucentVetoes, int32 TranslucencyUnknownVetoes,
-		const FTickPinTelemetry* TickPin)
+		const FTickPinTelemetry* TickPin, int32 PatternExcludedTargets)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -506,6 +506,7 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("vetoed_events"), VetoedEvents);
 		Root->SetNumberField(TEXT("translucent_vetoes"), TranslucentVetoes);
 		Root->SetNumberField(TEXT("translucency_unknown_vetoes"), TranslucencyUnknownVetoes);
+		Root->SetNumberField(TEXT("pattern_excluded_targets"), PatternExcludedTargets);
 
 		if (Ring)
 		{

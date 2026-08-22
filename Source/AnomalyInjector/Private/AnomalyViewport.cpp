@@ -2,6 +2,10 @@
 
 #include "AnomalyTargeting.h"
 #include "AnomalyInjectorLog.h"
+#include "AnomalyDefaults.h"
+
+#include "Engine/StaticMesh.h"
+#include "Engine/SkinnedAsset.h"
 
 #include "ConvexVolume.h"
 #include "Camera/CameraTypes.h"
@@ -33,6 +37,82 @@ namespace
 	bool GOverlaysSuppressed = false;
 
 	float GMinScreenCoveragePct = 6.0f;
+
+	TSet<FString>& ExcludedActorsSeen()
+	{
+		static TSet<FString> Seen;
+		return Seen;
+	}
+
+	FString MeshAssetNameOf(const UPrimitiveComponent* Component)
+	{
+		if (const UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(Component))
+		{
+			if (const UStaticMesh* Mesh = SMC->GetStaticMesh())
+			{
+				return Mesh->GetName();
+			}
+		}
+		else if (const USkinnedMeshComponent* SKC = Cast<USkinnedMeshComponent>(Component))
+		{
+			if (const USkinnedAsset* Asset = SKC->GetSkinnedAsset())
+			{
+				return Asset->GetName();
+			}
+		}
+		return FString();
+	}
+
+	bool MatchesExcludedTargetPattern(const UPrimitiveComponent* Component)
+	{
+		const TArray<FString>& Patterns = AnomalyDefaults::GetExcludedTargetPatterns();
+		if (Patterns.Num() == 0)
+		{
+			return false;
+		}
+
+		const AActor* Owner = Component->GetOwner();
+		const FString ActorName = Owner ? Owner->GetName() : FString();
+		const FString CompName = Component->GetName();
+		const FString AssetName = MeshAssetNameOf(Component);
+
+		for (const FString& Pattern : Patterns)
+		{
+			const TCHAR* Field = nullptr;
+			const FString* Value = nullptr;
+			if (!ActorName.IsEmpty() && ActorName.Contains(Pattern, ESearchCase::IgnoreCase))
+			{
+				Field = TEXT("actor");
+				Value = &ActorName;
+			}
+			else if (!CompName.IsEmpty() && CompName.Contains(Pattern, ESearchCase::IgnoreCase))
+			{
+				Field = TEXT("component");
+				Value = &CompName;
+			}
+			else if (!AssetName.IsEmpty() && AssetName.Contains(Pattern, ESearchCase::IgnoreCase))
+			{
+				Field = TEXT("asset");
+				Value = &AssetName;
+			}
+
+			if (Field)
+			{
+				bool bAlready = false;
+				ExcludedActorsSeen().Add(ActorName, &bAlready);
+				if (!bAlready)
+				{
+					UE_LOG(LogAnomaly, Warning,
+						TEXT("EXCLUDED-TARGET actor='%s' matched_field=%s matched_value='%s' pattern='%s' source=%s — ")
+						TEXT("refused as an injection candidate. This is a LABEL-QUALITY exclusion: the anomaly would ")
+						TEXT("still occur, but its label would point at something a viewer cannot see change."),
+						*ActorName, Field, **Value, *Pattern, *AnomalyDefaults::ExcludedTargetPatternsSource());
+				}
+				return true;
+			}
+		}
+		return false;
+	}
 
 	FVector ResolvePollOrigin(UWorld* World, const FVector& Fallback)
 	{
@@ -506,6 +586,11 @@ namespace AnomalyViewport
 			}
 		}
 
+		if (MatchesExcludedTargetPattern(Component))
+		{
+			return false;
+		}
+
 		if (const UInstancedStaticMeshComponent* ISM = Cast<UInstancedStaticMeshComponent>(Component))
 		{
 			if (ISM->GetInstanceCount() <= 0)
@@ -585,6 +670,53 @@ namespace AnomalyViewport
 
 		Out.bValid = true;
 		return true;
+	}
+
+	float GetActorPollDistanceCm(UWorld* World, const AActor* Actor)
+	{
+		const float Unmeasurable = TNumericLimits<float>::Max();
+		if (!World || !Actor)
+		{
+			return Unmeasurable;
+		}
+
+		FAnomalyViewInfo View;
+		if (!GetActiveViewInfo(World, View))
+		{
+			return Unmeasurable;
+		}
+
+		const FVector PollOrigin = ResolvePollOrigin(World, View.Origin);
+
+		bool bAny = false;
+		float Best = 0.0f;
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (!Prim || !IsRenderableComponent(Prim))
+			{
+				continue;
+			}
+			const FBoxSphereBounds& B = Prim->Bounds;
+			const float D = (float)FVector::Dist(PollOrigin, B.Origin) - (float)B.SphereRadius;
+			if (!bAny || D < Best)
+			{
+				Best = D;
+				bAny = true;
+			}
+		}
+		return bAny ? Best : Unmeasurable;
+	}
+
+	void ResetTargetExclusionStats()
+	{
+		ExcludedActorsSeen().Reset();
+	}
+
+	int32 GetTargetExclusionCount()
+	{
+		return ExcludedActorsSeen().Num();
 	}
 
 	float GetActorScreenCoveragePct(UWorld* World, const AActor* Actor)

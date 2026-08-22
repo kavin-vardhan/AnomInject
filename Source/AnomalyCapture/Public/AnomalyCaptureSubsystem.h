@@ -258,6 +258,10 @@ private:
 	FDelegateHandle MaskWorldTickEndHandle;
 	bool bRectDeltaLogged = false;
 	bool bDeliveryMode = false;
+	bool bLabelsInDelivery = true;
+	bool bLabelsInDeliveryFromIni = false;
+	bool bLabelsInDeliveryFromConsole = false;
+	int32 PatternExcludedTargets = 0;
 	EContentClock ContentClock = EContentClock::Wall;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;
 	TUniquePtr<FAnomalyPreviewTee> PreviewTee;

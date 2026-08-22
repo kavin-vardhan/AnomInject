@@ -107,6 +107,12 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API float GetActorScreenCoveragePct(UWorld* World, const AActor* Actor);
 
+	ANOMALYINJECTOR_API float GetActorPollDistanceCm(UWorld* World, const AActor* Actor);
+
+	ANOMALYINJECTOR_API void ResetTargetExclusionStats();
+
+	ANOMALYINJECTOR_API int32 GetTargetExclusionCount();
+
 	template <typename T>
 	TArray<TWeakObjectPtr<T>> FindVisibleComponentsMatching(UWorld* World, const FString& Substring)
 	{

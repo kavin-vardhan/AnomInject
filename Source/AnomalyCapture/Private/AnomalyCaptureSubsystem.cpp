@@ -1102,6 +1102,9 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	FApp::SetFixedDeltaTime(1.0 / (double)VideoFps);
 	bFixedTimeStepOverridden = true;
 
+	AnomalyViewport::ResetTargetExclusionStats();
+	PatternExcludedTargets = 0;
+
 	TickPinReasserts = 0;
 	CaptureGameTicks = 0;
 	bTickPinApplied = false;
@@ -2320,6 +2323,17 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			RingTelemetry.WantedMatches = Ring.WantedMatches;
 		}
 
+		PatternExcludedTargets = AnomalyViewport::GetTargetExclusionCount();
+		if (PatternExcludedTargets > 0)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture: %d distinct actor(s) were REFUSED as injection candidates by the target-exclusion ")
+				TEXT("patterns (%s) during this run — see the EXCLUDED-TARGET lines above for which, and which ")
+				TEXT("pattern matched each. This counts DISTINCT ACTORS refused at the selection chokepoint, not ")
+				TEXT("anomalies that would otherwise have fired."),
+				PatternExcludedTargets, *AnomalyDefaults::DescribeExcludedTargetPatterns());
+		}
+
 		AnomalyLabel::FTickPinTelemetry TickPinReport;
 		TickPinReport.bCompiled = AnomalyTickPin::bCompiled;
 		TickPinReport.bApplied = bTickPinApplied;
@@ -2333,7 +2347,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			bSveCapture ? TEXT("sve") : TEXT("backbuffer"),
 			bSveCapture ? &RingTelemetry : nullptr,
 			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards, VetoedEvents,
-			TranslucentVetoes, TranslucencyUnknownVetoes, &TickPinReport);
+			TranslucentVetoes, TranslucencyUnknownVetoes, &TickPinReport, PatternExcludedTargets);
 
 		if (bSveCapture)
 		{
