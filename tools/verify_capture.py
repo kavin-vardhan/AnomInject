@@ -1,18 +1,38 @@
 #!/usr/bin/env python3
 """
-verify_capture.py — overlay the m7 capture/labeling bounding boxes onto the captured frames.
+verify_capture.py - draw the capture's bounding boxes onto COPIES of the frames, for HUMAN INSPECTION.
 
-The AnomalyInjector capture writes, per frame, an image (Actual_Frames/frame_<NNNNN>.png/.jpg, session-local
-0-based) plus one JSON line in labels.jsonl (its "image" field is the path relative to the session dir).
-This tool reads that sidecar, draws each anomaly's bbox_px on its image, annotates it with the anomaly id +
-target name, and writes an annotated copy to <dir>/annotated/. It also prints a per-frame summary so you can
-confirm the temporal label (anomaly_present) and the spatial label (the box).
+THIS IS NOT A LABEL PRODUCER. The engine-side labels are authoritative and this tool never writes,
+edits or second-guesses them. It reads what was written and draws it, so a person can look at a frame
+and see what the dataset claims about it. The use case it exists for: an anomaly nobody can spot by
+eye - rocks on the ground with a missing texture - was annotated correctly, and the overlay is how you
+confirm that rather than take it on faith.
+
+It writes annotated COPIES into <dir>/annotated/ and never modifies a captured frame.
+
+TWO COLOURS, and the difference is the point:
+
+  RED    the event is in annotation.json for that frame. This is a SHIPPED label - it is in the
+         dataset the client receives.
+
+  AMBER  the box is in labels.jsonl but NOT in annotation.json for that frame. It is a CANDIDATE that
+         did not become a shipped label. Each amber box is tagged with why, as far as the artifacts
+         can tell:
+           OUTSIDE-SUBSET  the event IS annotated, but not on this frame. For hide-type anomalies
+                           (blink, missing_object) annotation.json carries only the frames where the
+                           object was actually HIDDEN, while labels.jsonl covers the whole fire-active
+                           window including the lead-in and the un-hidden half of each blink. This is
+                           BY DESIGN and is the common case by a wide margin.
+           NON-MANIFESTED  the event is annotated with manifested:false - the hide was ordered but
+                           never reached the pixels, so it carries no positive frames (m23).
+           VETOED          no such event survives in annotation.json and run_summary reports vetoed
+                           events - the pixel veto measured the target drawing zero pixels and removed
+                           the event before annotation.json was written (m26/m27).
+           UNMATCHED       no such event in annotation.json and nothing reports a veto. Unexpected;
+                           worth reporting.
 
 Usage:
-    python verify_capture.py [--dir <captureDir>] [--out <annotatedDir>]
-
-Defaults to the manual single-shot dir:
-    D:/IntrusiveAnomalies/StackOBot/Saved/AnomalyCaptures/manual
+    python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet]
 
 Requires Pillow:  pip install pillow
 """
@@ -24,11 +44,89 @@ import sys
 
 DEFAULT_DIR = r"D:/IntrusiveAnomalies/StackOBot/Saved/AnomalyCaptures/manual"
 
+RED = (255, 40, 40)
+AMBER = (255, 176, 0)
+GREY = (140, 140, 140)
+
+CAT_SHIPPED = "SHIPPED"
+CAT_OUTSIDE = "OUTSIDE-SUBSET"
+CAT_NONMANIF = "NON-MANIFESTED"
+CAT_VETOED = "VETOED"
+CAT_UNMATCHED = "UNMATCHED"
+
+
+def client_type(engine_id):
+    return "blink" if engine_id == "blinking" else engine_id
+
+
+def load_events(cap_dir):
+    path = os.path.join(cap_dir, "annotation.json")
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        ann = json.load(f)
+    events = []
+    for ev in ann.get("anomalies", []) or []:
+        af = ev.get("affected_frames", {}) or {}
+        nodes = (ev.get("affected_objects", {}) or {}).get("nodes", []) or []
+        events.append({
+            "type": ev.get("anomaly_type", ""),
+            "names": set(n.get("name", "") for n in nodes),
+            "start": af.get("start_frame"),
+            "end": af.get("end_frame"),
+            "idx": set(af.get("frame_indices", []) or []),
+            "manifested": bool(ev.get("manifested", True)),
+        })
+    return events
+
+
+def load_run_summary(cap_dir):
+    path = os.path.join(cap_dir, "run_summary.json")
+    if not os.path.isfile(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def classify(frame_key, engine_id, target, events, any_vetoed):
+    """Return (category, colour). Engine labels are authoritative; this only reads them."""
+    if events is None:
+        return CAT_SHIPPED, RED
+
+    ctype = client_type(engine_id)
+    cands = [e for e in events if e["type"] == ctype and target in e["names"]]
+
+    if any(frame_key in e["idx"] for e in cands):
+        return CAT_SHIPPED, RED
+    if not cands:
+        return (CAT_VETOED if any_vetoed else CAT_UNMATCHED), AMBER
+    if any(not e["manifested"] for e in cands):
+        return CAT_NONMANIF, AMBER
+    return CAT_OUTSIDE, AMBER
+
+
+def draw_legend(draw, font, width, has_amber):
+    pad = 6
+    sw = 14
+    lines = [(RED, "RED  in annotation.json - a shipped label")]
+    if has_amber:
+        lines.append((AMBER, "AMBER  candidate only - not in annotation.json"))
+    box_w = 360
+    box_h = pad * 2 + len(lines) * 20
+    draw.rectangle([0, 0, box_w, box_h], fill=(0, 0, 0))
+    y = pad
+    for colour, text in lines:
+        draw.rectangle([pad, y + 3, pad + sw, y + 3 + sw], fill=colour)
+        draw.text((pad + sw + 8, y), text, fill=(255, 255, 255), font=font)
+        y += 20
+
 
 def main():
-    ap = argparse.ArgumentParser(description="Overlay AnomalyInjector capture bboxes onto frames.")
-    ap.add_argument("--dir", default=DEFAULT_DIR, help="capture dir containing labels.jsonl + frames")
-    ap.add_argument("--out", default=None, help="output dir for annotated frames (default: <dir>/annotated)")
+    ap = argparse.ArgumentParser(
+        description="Draw capture bboxes onto copies of the frames for human inspection (never edits labels).")
+    ap.add_argument("--dir", default=DEFAULT_DIR, help="session dir containing labels.jsonl + frames")
+    ap.add_argument("--out", default=None, help="output dir for annotated copies (default: <dir>/annotated)")
+    ap.add_argument("--quiet", action="store_true", help="suppress the per-frame table (keep progress + summary)")
     args = ap.parse_args()
 
     cap_dir = os.path.abspath(args.dir)
@@ -37,92 +135,101 @@ def main():
 
     if not os.path.isfile(sidecar):
         sys.exit(f"ERROR: no labels.jsonl in {cap_dir}\n"
-                 f"       (run IAI.Capture.Shot in-game first, or pass --dir)")
+                 f"       In delivery mode this file is written only when "
+                 f"IAI.Capture.DeliveryLabels is ON (it is ON by default).")
 
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError:
-        sys.exit("ERROR: Pillow is required.  pip install pillow")
+        sys.exit("ERROR: Pillow is required for the overlay tool.\n"
+                 "       Install it with:  python -m pip install --upgrade Pillow")
+
+    events = load_events(cap_dir)
+    rs = load_run_summary(cap_dir)
+    any_vetoed = int(rs.get("vetoed_events", 0) or 0) > 0
 
     os.makedirs(out_dir, exist_ok=True)
     try:
-        font = ImageFont.truetype("arial.ttf", 18)
+        font = ImageFont.truetype("arial.ttf", 16)
     except Exception:
         font = ImageFont.load_default()
 
-    manifest_path = os.path.join(cap_dir, "run.json")
-    if os.path.isfile(manifest_path):
-        with open(manifest_path, "r", encoding="utf-8") as mf:
-            m = json.load(mf)
-        print(f"\nrun.json: seed={m.get('seed')} K={m.get('settle_frames')} L={m.get('view_lag_frames')} "
-              f"pre={m.get('pre_frames')} positive={m.get('positive_frames')} post={m.get('post_frames')} "
-              f"bursts={m.get('burst_count')} fmt={m.get('format')} viewport={m.get('viewport')}")
-
-    n_frames = 0
-    n_boxes = 0
-    n_present = 0
-    n_present_nobox = 0
-    prev_present = None
-    print(f"\ncapture dir : {cap_dir}")
-    print(f"annotated   : {out_dir}\n")
-    print(f"{'frame':>12}  {'present':>7}  {'w x h':>11}  anomalies")
-    print("-" * 78)
-
     with open(sidecar, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            rec = json.loads(line)
-            n_frames += 1
+        rows = [json.loads(line) for line in f if line.strip()]
 
-            img_name = rec.get("image", "")
-            img_path = os.path.join(cap_dir, img_name)
-            present = rec.get("anomaly_present", False)
-            W = rec.get("width", 0)
-            H = rec.get("height", 0)
-            anoms = rec.get("anomalies", [])
+    total = len(rows)
+    counts = {CAT_SHIPPED: 0, CAT_OUTSIDE: 0, CAT_NONMANIF: 0, CAT_VETOED: 0, CAT_UNMATCHED: 0}
+    targets_by_cat = {k: set() for k in counts}
+    n_boxes = 0
+    n_missing_img = 0
 
-            summary = ", ".join(
-                f"{a.get('id')}->{a.get('target_name')}"
-                f"[{'box' if a.get('bbox_valid') else 'NObox'}]"
-                for a in anoms
-            ) or "(none)"
-            any_box = any(a.get("bbox_valid") for a in anoms)
-            if present:
-                n_present += 1
-                if not any_box:
-                    n_present_nobox += 1
-            flip = "  <-- present flips" if (prev_present is not None and present != prev_present) else ""
-            prev_present = present
-            print(f"{rec.get('frame_index',''):>12}  {str(present):>7}  {W:>4} x {H:<4}  {summary}{flip}")
+    if events is None:
+        print("NOTE: no annotation.json beside labels.jsonl - every box is drawn RED and nothing is "
+              "classified. Run this on a finished session dir.", flush=True)
 
-            if not os.path.isfile(img_path):
-                print(f"             ! image missing: {img_name}")
-                continue
+    print(f"session   : {cap_dir}", flush=True)
+    print(f"annotated : {out_dir}", flush=True)
+    if not args.quiet:
+        print(f"{'frame':>7}  {'present':>7}  anomalies", flush=True)
+        print("-" * 78, flush=True)
 
-            im = Image.open(img_path).convert("RGB")
-            draw = ImageDraw.Draw(im)
-            for a in anoms:
-                x, y, w, h = a.get("bbox_px", [0, 0, 0, 0])
-                valid = a.get("bbox_valid", False)
-                color = (255, 40, 40) if valid else (140, 140, 140)
-                if w > 0 and h > 0:
-                    draw.rectangle([x, y, x + w, y + h], outline=color, width=3)
-                    n_boxes += 1 if valid else 0
-                label = f"{a.get('id')}  {a.get('target_name')}"
-                ty = max(0, y - 22)
-                draw.text((x + 2, ty), label, fill=color, font=font)
+    for i, rec in enumerate(rows, 1):
+        frame_key = rec.get("session_index", rec.get("frame_index"))
+        img_name = rec.get("image", "")
+        img_path = os.path.join(cap_dir, img_name)
+        anoms = rec.get("anomalies", []) or []
 
-            out_path = os.path.join(out_dir, os.path.splitext(os.path.basename(img_name))[0] + "_annotated.png")
-            im.save(out_path)
+        classified = []
+        for a in anoms:
+            cat, colour = classify(frame_key, a.get("id", ""), a.get("target_name", ""),
+                                   events, any_vetoed)
+            counts[cat] += 1
+            targets_by_cat[cat].add(a.get("target_name", ""))
+            classified.append((a, cat, colour))
 
-    print("-" * 78)
-    n_visible_pos = n_present - n_present_nobox
-    print(f"{n_frames} frame(s), {n_boxes} valid box(es) drawn.")
-    print(f"present=True: {n_present}  |  visible-positive (present + a box): {n_visible_pos}  |  "
-          f"present-but-off-screen (no box): {n_present_nobox}")
-    print(f"Open the annotated frames in: {out_dir}\n")
+        if not args.quiet:
+            summary = ", ".join(f"{a.get('id')}->{a.get('target_name')}[{cat}]"
+                                for a, cat, _ in classified) or "(none)"
+            print(f"{frame_key:>7}  {str(rec.get('anomaly_present', False)):>7}  {summary}", flush=True)
+
+        if not os.path.isfile(img_path):
+            n_missing_img += 1
+            print(f"[progress] {i}/{total} (image missing: {img_name})", flush=True)
+            continue
+
+        im = Image.open(img_path).convert("RGB")
+        draw = ImageDraw.Draw(im)
+        has_amber = False
+        for a, cat, colour in classified:
+            x, y, w, h = a.get("bbox_px", [0, 0, 0, 0])
+            if not a.get("bbox_valid", False):
+                colour = GREY
+            if w > 0 and h > 0:
+                draw.rectangle([x, y, x + w, y + h], outline=colour, width=3)
+                n_boxes += 1
+            if colour == AMBER:
+                has_amber = True
+            tag = f"{a.get('id')} {a.get('target_name')}"
+            if cat != CAT_SHIPPED:
+                tag += f"  [{cat}]"
+            draw.text((x + 2, max(0, y - 20)), tag, fill=colour, font=font)
+
+        draw_legend(draw, font, im.width, has_amber)
+        out_path = os.path.join(out_dir, os.path.splitext(os.path.basename(img_name))[0] + "_annotated.png")
+        im.save(out_path)
+        print(f"[progress] {i}/{total}", flush=True)
+
+    print("-" * 78, flush=True)
+    print(f"{total} frame(s), {n_boxes} box(es) drawn into {out_dir}", flush=True)
+    print(f"  RED   {CAT_SHIPPED:<16} {counts[CAT_SHIPPED]:>5}   {sorted(targets_by_cat[CAT_SHIPPED])}", flush=True)
+    for cat in (CAT_OUTSIDE, CAT_NONMANIF, CAT_VETOED, CAT_UNMATCHED):
+        if counts[cat]:
+            print(f"  AMBER {cat:<16} {counts[cat]:>5}   {sorted(targets_by_cat[cat])}", flush=True)
+    if n_missing_img:
+        print(f"  {n_missing_img} labelled frame(s) had no image on disk", flush=True)
+    if counts[CAT_UNMATCHED]:
+        print("  NOTE: UNMATCHED means a candidate box has no matching event in annotation.json and "
+              "run_summary reports no vetoes. That combination is not expected - worth reporting.", flush=True)
 
 
 if __name__ == "__main__":
