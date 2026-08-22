@@ -24,7 +24,14 @@ The delivery folder looks like this — the two launchers sit at the top:
 
 Install this once, before first setup:
 
-* **Python** (3.10+) — runs the video encoder and serves the dashboard. https://python.org — during install, tick **“Add Python to PATH”**. No extra Python packages are needed.
+* **Python** (3.10+) — runs the video encoder, the overlay inspector and the dashboard server. https://python.org — during install, tick **“Add Python to PATH”**.
+* **Pillow** — one Python package, needed only by the **overlay inspector** (section 3, Step 5). Install it once by opening a command prompt and running:
+
+  ```
+  python -m pip install --upgrade Pillow
+  ```
+
+  If you skip this, everything else still works — captures, labels and video are unaffected. The overlay window will simply tell you Pillow is missing, print the exact install line for your Python, and close.
 
 That's the only prerequisite. The dashboard **opens in your normal web browser** — there is nothing to install for it. You do **not** need Node.js, and you do **not** need to download ffmpeg yourself (`Setup.bat` fetches ffmpeg for you, or uses one already on your PATH).
 
@@ -57,16 +64,17 @@ Do these in order each time you want to capture.
 
 ### Step 2 — Start capturing (encoder + dashboard)
 
-Double-click **`Run.bat`**. It opens two windows:
+Double-click **`Run.bat`**. It opens three windows:
 
 * **Anomaly Watcher** — watches for finished captures and turns them into MP4s automatically.
+* **Anomaly Overlay Inspector** — watches for finished captures and draws the labels onto copies of the frames, so you can see what each frame is labelled as (section 3, Step 5). It prints its progress as it works.
 * **Anomaly Dashboard Server** — a small local server that hands the dashboard to your browser.
 
 Your **default browser then opens automatically** at `http://127.0.0.1:5180/`. If it does not, or you close the tab, just open that address yourself — the server window stays running. Nothing is published to the internet: it listens only on your own machine.
 
 `Run.bat` then prints a short **status check** — dashboard, watcher, and game server — so you can see at a glance whether anything is missing. If the game server line says *NOT RUNNING YET*, go back to Step 1 and start the game; the dashboard will connect on its own once it is up.
 
-The dashboard connects to the game automatically — no token to enter. You should see a green “connected” dot and a live preview of the game. **Leave the two windows open while you capture; close them when you're done.** (Closing the browser tab is harmless — reopen the address to come back.)
+The dashboard connects to the game automatically — no token to enter. You should see a green “connected” dot and a live preview of the game. **Leave the three windows open while you capture; close them when you're done.** (Closing the browser tab is harmless — reopen the address to come back.)
 
 ### Working on two monitors, or without alt-tabbing
 
@@ -99,9 +107,30 @@ session_<date-time>/
   Video_Clip/           the MP4 (produced by the host tools)
   run_summary.json      a small technical summary of the run
   annotation.json       the anomaly labels for the session
+  labels.jsonl          the same labels again, one line per frame
+  annotated/            copies of the frames with the labels drawn on (see Step 5)
 ```
 
 The MP4 appears a few seconds after capture finishes (as long as the Anomaly Watcher window from Step 2 is running).
+
+### Step 5 — Check the labels by eye (the overlay inspector)
+
+Some anomalies are genuinely hard to spot — a missing texture on rocks lying on the ground, for instance, can look perfectly normal until you know where to look. The **overlay inspector** exists for exactly that: it draws the capture's own bounding boxes onto **copies** of your frames so you can confirm what the dataset says about a frame instead of squinting at it.
+
+You do not have to run anything. `Run.bat` starts it, and a few seconds after each capture finishes you will find an **`annotated/`** folder inside that session with one image per frame. Open any of them.
+
+**What the colours mean:**
+
+* **RED box** — this anomaly **is in `annotation.json`** for this frame. It is a shipped label: part of the dataset you received.
+* **AMBER box** — this anomaly is a **candidate that did not become a shipped label** on this frame. Each amber box is tagged with why:
+  * **`OUTSIDE-SUBSET`** — by far the most common, and it is normal. For anomalies that hide an object (blink, missing object), `annotation.json` lists only the frames where the object was actually **hidden**, while the amber boxes cover the rest of that anomaly's window — the lead-in frame and the “visible again” half of each blink. The label is correct; the amber box is simply a frame the object was on screen normally.
+  * **`VETOED`** — the system measured that this object drew **no visible pixels at all** in that view, so it removed the event rather than ship a label pointing at nothing.
+  * **`NON-MANIFESTED`** — the anomaly was triggered but never actually reached the picture, so it carries no positive frames.
+  * **`UNMATCHED`** — unexpected. If you see this, it is worth telling us.
+
+**Two things it never does:** it never changes a captured frame (every annotated image is a new file in `annotated/`), and it never changes a label. The labels come from the game engine and are the authority; this tool only draws what is already there.
+
+If the overlay window says Pillow is missing, run the install line it prints (see section 1) and start `Run.bat` again. Nothing else is affected in the meantime.
 
 ## 4. The dashboard, control by control
 
@@ -209,5 +238,9 @@ On locked-down corporate networks the automatic ffmpeg download can be blocked o
 * **`Actual_Frames/`** holds the source images, numbered from `frame_00000` in capture order — frame N in the folder is frame N in the video and frame N in the annotation's frame indices.
 * **`Video_Clip/`** holds those frames encoded to MP4 at the fps recorded in `annotation.json`.
 * **`run_summary.json`** is a small technical summary (frame counts, timing) — you can ignore it, but don't delete it before the MP4 appears; the encoder uses it to know the session is complete.
+* **`labels.jsonl`** is one line per captured frame carrying the same labels per frame, including each anomaly's bounding box. It is what the overlay inspector reads.
+* **`annotated/`** holds the overlay inspector's output — a copy of each frame with its labels drawn on. Nothing else reads this folder; it is there for you to look at, and deleting it changes nothing.
 
-Note: bounding-box / pixel-mask detail is not included in this release.
+### A note on `camera_clipping`
+
+`camera_clipping` is a **whole-session** anomaly: it applies to the camera for the entire capture rather than to one object for a few frames. A consequence worth knowing in advance: anything permanently close to the camera — a first-person viewmodel, a held weapon — sits inside the near-clip radius for the whole run, so it will appear sliced or partly missing in **every frame** of that session. **This is expected behaviour, not a defect**, and it is what the anomaly is meant to look like.
