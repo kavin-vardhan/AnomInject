@@ -599,8 +599,33 @@ namespace AnomalyViewport
 			}
 		}
 
-		return Component->IsA<UStaticMeshComponent>()
-			|| Component->IsA<USkinnedMeshComponent>();
+		return IsRenderableGeometryComponent(Component);
+	}
+
+	bool IsRenderableGeometryComponent(const UPrimitiveComponent* Component)
+	{
+		return Component
+			&& (Component->IsA<UStaticMeshComponent>() || Component->IsA<USkinnedMeshComponent>());
+	}
+
+	bool GetActorRenderableBounds(const AActor* Actor, FBox& OutBox)
+	{
+		OutBox = FBox(ForceInit);
+		if (!Actor)
+		{
+			return false;
+		}
+
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (IsRenderableGeometryComponent(Prim))
+			{
+				OutBox += Prim->Bounds.GetBox();
+			}
+		}
+		return OutBox.IsValid != 0;
 	}
 
 	bool IsActorRenderableVisible(const FAnomalyViewInfo& View, UWorld* World, const AActor* Actor)
@@ -839,16 +864,7 @@ namespace AnomalyViewport
 		}
 
 		FBox Box(ForceInit);
-		TArray<UPrimitiveComponent*> Prims;
-		Actor->GetComponents<UPrimitiveComponent>(Prims);
-		for (const UPrimitiveComponent* Prim : Prims)
-		{
-			if (Prim && (Prim->IsA<UStaticMeshComponent>() || Prim->IsA<USkinnedMeshComponent>()))
-			{
-				Box += Prim->Bounds.GetBox();
-			}
-		}
-		if (!Box.IsValid)
+		if (!GetActorRenderableBounds(Actor, Box))
 		{
 			return false;
 		}

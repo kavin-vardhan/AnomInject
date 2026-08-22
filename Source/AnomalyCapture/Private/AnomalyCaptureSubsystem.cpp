@@ -208,11 +208,19 @@ namespace
 			}
 		}
 
-		const FBox Box = Actor->GetComponentsBoundingBox(true);
-		if (Box.IsValid)
+		FBox Box(ForceInit);
+		if (AnomalyViewport::GetActorRenderableBounds(Actor, Box))
 		{
 			OutBoundsOrigin = Box.GetCenter();
 			OutBoundsExtent = Box.GetExtent();
+		}
+		else
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture: '%s' has NO renderable geometry component (no static or skinned mesh), so node.bounds is ")
+				TEXT("left at zero rather than reporting a collision or visualisation primitive. An event on a target ")
+				TEXT("that draws nothing is worth looking at."),
+				*GetNameSafe(Actor));
 		}
 	}
 

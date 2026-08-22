@@ -79,6 +79,10 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API bool IsRenderableComponent(const UPrimitiveComponent* Component);
 
+	ANOMALYINJECTOR_API bool IsRenderableGeometryComponent(const UPrimitiveComponent* Component);
+
+	ANOMALYINJECTOR_API bool GetActorRenderableBounds(const AActor* Actor, FBox& OutBox);
+
 	ANOMALYINJECTOR_API bool IsActorRenderableVisible(const FAnomalyViewInfo& View, UWorld* World, const AActor* Actor);
 
 	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> FilterRenderableVisibleActors(
