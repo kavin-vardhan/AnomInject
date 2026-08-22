@@ -79,6 +79,10 @@ public:
 	const TCHAR* DescribeTickPinSource() const;
 	static bool IsTickPinCompiled();
 
+	FString DescribeLabelsInDelivery() const;
+	void SetLabelsInDelivery(bool bInWrite);
+	bool GetLabelsInDelivery() const { return bLabelsInDelivery; }
+
 	void SetOutputHeightOverride(int32 InHeight);
 	int32 GetOutputHeightOverride() const { return OutputHeightOverride; }
 	int32 GetEffectiveOutputHeight() const { return EffectiveOutputHeight; }

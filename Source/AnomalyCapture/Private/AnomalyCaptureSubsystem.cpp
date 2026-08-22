@@ -316,6 +316,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bTickPinEnabled = bConfigTickPin;
 		bTickPinFromIni = true;
 	}
+	bool bConfigLabelsInDelivery = false;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bWriteLabelsInDeliveryDefault"), bConfigLabelsInDelivery, GGameIni))
+	{
+		bLabelsInDelivery = bConfigLabelsInDelivery;
+		bLabelsInDeliveryFromIni = true;
+	}
 	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s), default from %s."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
 		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
@@ -703,6 +709,34 @@ const TCHAR* UAnomalyCaptureSubsystem::DescribeTickPinSource() const
 		return TEXT("DefaultGame.ini [AnomalyCapture] bTickModePinDefault");
 	}
 	return TEXT("COMPILED DEFAULT (on where the fork is detected)");
+}
+
+FString UAnomalyCaptureSubsystem::DescribeLabelsInDelivery() const
+{
+	const TCHAR* Source = bLabelsInDeliveryFromConsole
+		? TEXT("console")
+		: (bLabelsInDeliveryFromIni ? TEXT("ini") : TEXT("COMPILED DEFAULT"));
+	return FString::Printf(TEXT("%s(%s)"), bLabelsInDelivery ? TEXT("on") : TEXT("off"), Source);
+}
+
+void UAnomalyCaptureSubsystem::SetLabelsInDelivery(bool bInWrite)
+{
+#if ANOMALY_CAPTURE
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.DeliveryLabels: ignored mid-run (stop first)."));
+		return;
+	}
+	bLabelsInDelivery = bInWrite;
+	bLabelsInDeliveryFromConsole = true;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.DeliveryLabels: %s. This decides whether labels.jsonl is written WHEN DELIVERY MODE IS ON; ")
+		TEXT("with delivery OFF the file is written regardless and this setting changes nothing. It ADDS a file to the ")
+		TEXT("delivered set and nothing else - annotation.json's field set does not move and run.json stays suppressed. ")
+		TEXT("The overlay inspection tool reads labels.jsonl, so turning this OFF makes that tool inert on a delivered ")
+		TEXT("session."),
+		bLabelsInDelivery ? TEXT("ON (labels.jsonl IS written in delivery mode)") : TEXT("off (pre-m32 minimal file set)"));
+#endif
 }
 
 bool UAnomalyCaptureSubsystem::IsTickPinCompiled()
@@ -1144,7 +1178,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	ApplySessionGlobals();
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s | blinkHalf=%s lodHalf=%s ==="),
+		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s | blinkHalf=%s lodHalf=%s lodMaxDist=%s | excludePatterns=%s | labelsInDelivery=%s ==="),
 		*RunDir,
 		bTargetedMode ? *FString::Printf(TEXT("targeted[%s on %s]"), *TargetAnomalyId.ToString(), *TargetActorName) : TEXT("auto-pool"),
 		bDeliveryMode ? TEXT("on") : TEXT("off"),
@@ -1155,7 +1189,10 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		BurstCount > 0 ? *FString::FromInt(BurstCount) : TEXT("until-stop"),
 		FrameCap > 0 ? *FString::FromInt(FrameCap) : TEXT("none"),
 		*AnomalyDefaults::DescribeBlinkingHalfPeriod(),
-		*AnomalyDefaults::DescribeLodPoppingHalfPeriod());
+		*AnomalyDefaults::DescribeLodPoppingHalfPeriod(),
+		*AnomalyDefaults::DescribeLodPoppingMaxDistance(),
+		*AnomalyDefaults::DescribeExcludedTargetPatterns(),
+		*DescribeLabelsInDelivery());
 #endif
 }
 
@@ -1459,7 +1496,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Job.ImageRelPath = ImageName;
 		Job.Record = Record;
 		Job.bPositive = Snap->Fires.Num() > 0;
-		Job.bWriteLabels = !bDeliveryMode;
+		Job.bWriteLabels = !bDeliveryMode || bLabelsInDelivery;
 		Async->Writer->Enqueue(MoveTemp(Job));
 
 		Async->PendingSnapshots.Remove(Frame.RequestId);
@@ -1656,7 +1693,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 	const double NowWall = FPlatformTime::Seconds();
 	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, NowWall,
 		EffectiveOutputHeight, ImagePath, SidecarPath, NumLabels, NativeW, NativeH, WrittenW, WrittenH, bResampled,
-		false, !bDeliveryMode))
+		false, !bDeliveryMode || bLabelsInDelivery))
 	{
 		if (bResampled)
 		{
@@ -2974,6 +3011,29 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryCmd(
 				return;
 			}
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetCaptureDelivery(FCString::Atoi(*Args[0]) != 0); }
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryLabelsCmd(
+	TEXT("IAI.Capture.DeliveryLabels"),
+	TEXT("Whether labels.jsonl is written WHEN DELIVERY MODE IS ON. COMPILED DEFAULT is ON. With delivery OFF the ")
+	TEXT("file is written regardless and this changes nothing. It exists because the overlay INSPECTION tool draws ")
+	TEXT("its boxes from labels.jsonl, and delivery mode used to suppress that file while still COMPUTING the data - ")
+	TEXT("so the tool could not run in the config the client actually ships. This ADDS one small text file to the ")
+	TEXT("delivered set and nothing else: annotation.json's field set does NOT move and run.json stays suppressed, ")
+	TEXT("so the seed is still withheld and the session is still not client-reproducible. Turn it off to restore the ")
+	TEXT("pre-m32 minimal file set. The packaged default is read at startup from DefaultGame.ini [AnomalyCapture] ")
+	TEXT("bWriteLabelsInDeliveryDefault; this command overrides it for the session, BETWEEN RUNS. Read the effective ")
+	TEXT("value and its provenance from the StartRun echo (labelsInDelivery=...), never from this help text. ")
+	TEXT("Usage: IAI.Capture.DeliveryLabels <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.DeliveryLabels <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetLabelsInDelivery(FCString::Atoi(*Args[0]) != 0); }
 		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskCmd(
