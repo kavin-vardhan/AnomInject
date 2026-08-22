@@ -27,6 +27,8 @@ struct FRenderableActorInfo
 	FString ActorName;
 	FString ClassName;
 	FString ComponentType;
+	FString AssetName;
+	FString ComponentClass;
 	float Distance = 0.0f;
 
 	FVector2D ScreenMin = FVector2D::ZeroVector;

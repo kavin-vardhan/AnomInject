@@ -370,8 +370,11 @@ void UAnomalyInjectorSubsystem::DumpVisibleRenderableInfos() const
 	for (int32 i = 0; i < Infos.Num(); ++i)
 	{
 		const FRenderableActorInfo& Info = Infos[i];
-		UE_LOG(LogAnomaly, Log, TEXT("  [%d] %s | %s | %s | dist=%.0f | rect=%s [%.3f,%.3f - %.3f,%.3f]"),
-			i, *Info.ActorName, *Info.ClassName, *Info.ComponentType, Info.Distance,
+		UE_LOG(LogAnomaly, Log, TEXT("  [%d] %s | asset=%s | %s | %s | %s | dist=%.0f | rect=%s [%.3f,%.3f - %.3f,%.3f]"),
+			i, *Info.ActorName,
+			Info.AssetName.IsEmpty() ? TEXT("(none)") : *Info.AssetName,
+			Info.ComponentClass.IsEmpty() ? TEXT("(none)") : *Info.ComponentClass,
+			*Info.ClassName, *Info.ComponentType, Info.Distance,
 			Info.bRectValid ? TEXT("ok") : TEXT("invalid"),
 			Info.ScreenMin.X, Info.ScreenMin.Y, Info.ScreenMax.X, Info.ScreenMax.Y);
 	}

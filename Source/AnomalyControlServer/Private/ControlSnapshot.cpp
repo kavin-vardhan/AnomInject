@@ -106,6 +106,8 @@ namespace ControlSnapshot
 					O->SetStringField(TEXT("name"), Info.ActorName);
 					O->SetStringField(TEXT("class"), Info.ClassName);
 					O->SetStringField(TEXT("comp"), Info.ComponentType);
+					O->SetStringField(TEXT("asset"), Info.AssetName);
+					O->SetStringField(TEXT("compClass"), Info.ComponentClass);
 					O->SetNumberField(TEXT("dist"), Info.Distance);
 					O->SetArrayField(TEXT("rect"), {
 						Num(Info.ScreenMin.X), Num(Info.ScreenMin.Y), Num(Info.ScreenMax.X), Num(Info.ScreenMax.Y) });

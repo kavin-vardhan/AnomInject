@@ -848,6 +848,8 @@ namespace AnomalyViewport
 			Info.ActorName = Actor->GetName();
 			Info.ClassName = Actor->GetClass()->GetName();
 			Info.ComponentType = ClassifyRenderableComponent(Match);
+			Info.AssetName = MeshAssetNameOf(Match);
+			Info.ComponentClass = Match->GetClass()->GetName();
 			Info.Distance = (float)(Match->Bounds.Origin - View.Origin).Size();
 			Info.bRectValid = ProjectBoundsToScreenRect(ViewProj, Match->Bounds, Info.ScreenMin, Info.ScreenMax);
 			Result.Add(MoveTemp(Info));
