@@ -75,10 +75,14 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
+	const float MaxDistanceCm = AnomalyDefaults::GetLodPoppingMaxDistanceCm();
+
 	Targets.Reset();
 	int32 RefusedSingleLod = 0;
 	int32 RefusedTooSmall = 0;
+	int32 RefusedTooFar = 0;
 	TMap<const AActor*, float> CoverageByOwner;
+	TMap<const AActor*, float> DistanceByOwner;
 	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
 	{
 		UMeshComponent* Mesh = Weak.Get();
@@ -111,6 +115,32 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 				*GetNameSafe(Owner), Coverage, MinCoveragePct);
 		}
 
+		if (MaxDistanceCm > 0.0f)
+		{
+			float Distance = 0.0f;
+			if (const float* CachedD = DistanceByOwner.Find(Owner))
+			{
+				Distance = *CachedD;
+			}
+			else
+			{
+				Distance = AnomalyViewport::GetActorPollDistanceCm(World, Owner);
+				DistanceByOwner.Add(Owner, Distance);
+				UE_LOG(LogAnomaly, Log,
+					TEXT("lod_popping: DISTANCE '%s' poll_distance_cm=%.2f (max %.2f) — the SAME metric as the poll radius (sphere-approx bounds distance from the poll origin); negative means the bounds sphere already contains the poll origin."),
+					*GetNameSafe(Owner), Distance, MaxDistanceCm);
+			}
+
+			if (Distance > MaxDistanceCm)
+			{
+				++RefusedTooFar;
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("lod_popping: REFUSED '%s' — poll_distance_cm %.2f exceeds the %.2f cm maximum. This gate is an OWNER PRODUCT PREFERENCE (pop only what the player is right next to), and it ANDs with the %.4f%% coverage gate rather than replacing it."),
+					*Mesh->GetName(), Distance, MaxDistanceCm, MinCoveragePct);
+				continue;
+			}
+		}
+
 		if (MinCoveragePct > 0.0f && Coverage < MinCoveragePct)
 		{
 			++RefusedTooSmall;
@@ -134,14 +164,15 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	if (!bActive)
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL — %d single-LOD, %d below the %.4f bounds_coverage_pct minimum. Applying nothing, so no fire is recorded and no label is written."),
-			Meshes.Num(), *Substring, RefusedSingleLod, RefusedTooSmall, MinCoveragePct);
+			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL — %d single-LOD, %d below the %.4f bounds_coverage_pct minimum, %d beyond the %.2f cm proximity maximum. Applying nothing, so no fire is recorded and no label is written."),
+			Meshes.Num(), *Substring, RefusedSingleLod, RefusedTooSmall, MinCoveragePct, RefusedTooFar, MaxDistanceCm);
 		return false;
 	}
 
 	UE_LOG(LogAnomaly, Log,
-		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) — %d qualified, %d refused (single LOD), %d refused (below %.4f bounds_coverage_pct)."),
-		Meshes.Num(), *Substring, HalfPeriodFrames, Targets.Num(), RefusedSingleLod, RefusedTooSmall, MinCoveragePct);
+		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) — %d qualified, %d refused (single LOD), %d refused (below %.4f bounds_coverage_pct), %d refused (beyond %.2f cm)."),
+		Meshes.Num(), *Substring, HalfPeriodFrames, Targets.Num(), RefusedSingleLod, RefusedTooSmall, MinCoveragePct,
+		RefusedTooFar, MaxDistanceCm);
 	return bActive;
 }
 
