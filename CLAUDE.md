@@ -15,7 +15,114 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🚧 **YOU ARE HERE — 2026-08-21 (latest, session 051). SIX COMMITS AND ONE COOK ON TOP OF THE m31
+- 🚧 **YOU ARE HERE — 2026-08-22 (latest, session 052). THE FINAL PRE-DELIVERY CHANGE SET: SEVEN
+  PLUGIN COMMITS + TWO AnomDash COMMITS, SHIPPED THE DAY BEFORE THE CLIENT BUILD. ⛔ NOTHING WAS
+  TAGGED — `m31` IS STILL THE OPEN MILESTONE AND STILL AWAITS CONCORDE V-3/V-4. Highest tag is
+  still `m30`.**
+  🧭 **COLD START: read `docs/sessions/2026-08-22-052-pre-delivery-exclusion-proximity-delivery-labels-overlay.md`
+  — it is self-contained and covers all nine commits.**
+  **Plugin HEAD `1821efc`.** Commits: `979a4d0` tick-pin probe hardening · `8ddaab6` target
+  exclusion patterns · `2b0555c` lod_popping proximity gate · `f491514` labels.jsonl in delivery ·
+  `3baa200` overlay tool ships · `ed9092c` + `1821efc` client docs.
+  **AnomDash at `21d9fae`**: `7bf62a0` watcher/manifest/Run.bat · `21d9fae` packaging no longer
+  requires a plugin repo.
+  ⏱ **1. THE TICK PIN SHIPS ON BY DEFAULT — OWNER SHIP DECISION, VALIDATED ON CONCORDE**
+  (packaged, in-round): `TICKPIN active saved=1`, 300 frames, 7 events, 5 measurable, EVERY offset
+  **+0** at start and end, 4 of 5 HIGH confidence, measurable range ±7.
+  **`ticks_per_captured_frame` 1.2000 pinned vs 1.2699 unpinned ⇒ THE PIN DOES NOT ACCELERATE
+  ANOMALIES; the pre-registered blink recalibration DID NOT FIRE and NO ANOMALY CONSTANT CHANGED.**
+  🚨 **THE `FWNetSubsystem.cpp` PROBE MARKER IS RETIRED — it came from prose, not a listing, and it
+  MISSED on Concorde.** The probe is now a CONTENT probe for the literal token
+  `sUseFixedGameTickWithVariableRenderTick_Net` (route A = the four known sites, `App.h` first;
+  B = a capped content scan of `Source/Runtime/Core`; C = fork-named files/plugin folders).
+  **ONLY THE SYMBOL DECIDES — a filename hit with no symbol is a HINT and sets nothing**, because
+  setting the define on a name alone breaks the build wherever the symbol was renamed. The fork
+  modified **CORE**, which is why a net-module filename missed. ⚠ `Engine/Plugins` is matched by
+  folder name only — a full walk measured **18.6 s per build**; probe cost is now ~0.7 s on a stock
+  miss, ~2 ms on a fork. 🔧 **BUILD-TIME OVERRIDE: an empty `ANOMINJECT_TICKPIN_FORCE_ON` /
+  `_OFF` file at the plugin root**, both targets, no source edit, never silent (probe result then an
+  `OVERRIDDEN` line). Registered as a UBT `ExternalDependency` so REMOVAL auto-invalidates the
+  makefile; **CREATION does not — delete `Intermediate`.** 🚨 **NO `TICKPIN probe` LINE IN THE BUILD
+  OUTPUT AT ALL ⇒ the makefile was cached and nothing was re-probed.** Guard proven BOTH ways
+  (forced ON on stock fails naming the symbol at both sites, exit 6; forced OFF suppresses a FOUND
+  probe) plus a **positive control**: a planted symbol makes the probe say FOUND, so its NOT FOUND
+  is a reading and not blindness. Build-graph no-op MEASURED — generated
+  `Definitions.AnomalyCapture.h` byte-identical pre/post (`1827B204256D`).
+  🚫 **2. CONFIG-DRIVEN TARGET EXCLUSION — `[AnomalyInjector] ExcludedTargetNamePatterns`**, an
+  array of case-insensitive SUBSTRING patterns matched against **ACTOR name, COMPONENT name AND
+  MESH ASSET name**, at the **`G33` chokepoint** so it reaches selector, auto-injector and capture
+  alike. Fixes the `lightblockerplane_sm` case (Bug A) and the always-in-radius **skybox** (Bug B —
+  poll radius is computed on BOUNDS and a backdrop's bounds envelope the player). **Both are
+  LABEL-QUALITY exclusions, the m27 foliage rationale.** **COMPILED DEFAULT EMPTY ⇒ byte-identical
+  when absent**; cost when unset is one `Num()==0` test. `IAI.SetExcludedTargets` added for the
+  `G88` reason (precedence **console > ini > compiled-empty**). One greppable **`EXCLUDED-TARGET`**
+  line per actor naming pattern/field/value/**source**; `run_summary` gains
+  **`pattern_excluded_targets`**; `annotation.json` unchanged. ✅ **Guard broken deliberately:
+  `IAI.SetExcludedTargets SM_rock` took MainWorld auto-pool from 13 events to 5 with ROCK EVENTS 0
+  and 155 actors refused, matching on the ASSET FIELD ONLY** — the rocks carry `SM_rock`/`SM_rock_02`
+  while their actor names are uninformative `StaticMeshActor_UAID_...`, i.e. Bug A's exact shape.
+  ⛔ **THE INI ROUTE IS UNTESTED HERE (`G88`)** — only the console route and the shared resolve/echo
+  path are proven; **Concorde's cook proves the rest, read `excludePatterns=N(ini)[...]` off the
+  StartRun line.**
+  📏 **3. `lod_popping` METRIC PROXIMITY GATE — `[AnomalyInjector] LodPoppingMaxDistanceCm`,
+  compiled default 200**, plus `IAI.Anomaly.LodMaxDistance`. Same metric as the poll radius
+  (sphere-approx bounds distance from `ResolvePollOrigin`). **IT ANDs WITH THE m30 7.0 % COVERAGE
+  GATE AND DOES NOT REPLACE IT** — coverage was CALIBRATED (visible 9.3453 / invisible 3.9045); a
+  metric distance is an owner PRODUCT PREFERENCE, and **removing a calibrated gate to install an
+  uncalibrated one is backwards.**
+  🚨 **AT 200 cm `lod_popping` FIRES ZERO ON THIS BENCH — MEASURED, REPORTED, NOT SILENTLY SHIPPED.**
+  A/B same seed/map/300 frames: gate off ⇒ 13 events / **2** lod_popping; gate at 200 ⇒ 11 events /
+  **0**. Both draws refused on DISTANCE ALONE at **863.91 cm** and **1221.19 cm**, both having
+  PASSED coverage (9.2572 %, 11.7191 %). ⚠ **This is a property of the BENCH, not evidence the
+  number is wrong** — an unattended run settles at a fixed pose and the pawn never walks up to
+  anything, so the owner's "player standing next to it" case cannot occur. ⛔ **NO VALUE
+  RECOMMENDED — the owner decides; `IAI.Anomaly.LodMaxDistance` retunes with no re-cook.**
+  📄 **4. `labels.jsonl` IS NOW WRITTEN IN DELIVERY MODE, default ON** (`m12` suppressed it while
+  still COMPUTING it, so the overlay tool could not run in the config the client ships).
+  **IT ADDS EXACTLY ONE FILE AND NOTHING ELSE** — measured: before `Actual_Frames/ annotation.json
+  run_summary.json`, after the same **plus `labels.jsonl`**. `run.json` STAYS SUPPRESSED (seed still
+  withheld) and **`annotation.json` keyset 48 vs 48 — `P6` DID NOT MOVE**. Off switch
+  `IAI.Capture.DeliveryLabels` / `bWriteLabelsInDeliveryDefault`.
+  🔍 **5. THE OVERLAY INSPECTION TOOL SHIPS — AND IT IS NOT A LABEL PRODUCER.** Engine labels stay
+  authoritative; it draws onto COPIES for HUMAN INSPECTION and never edits a frame or a label.
+  **RED** = in `annotation.json` (a shipped label); **AMBER** = candidate only, tagged
+  `OUTSIDE-SUBSET` / `VETOED` / `NON-MANIFESTED` / `UNMATCHED`.
+  📊 **PHANTOM BOXES DIAGNOSED FROM 389 BANKED SESSIONS: 12,548 shipped vs 8,790 candidate-only —
+  hide-type SPAN-vs-SUBSET 7,919 (90.1 %, BY DESIGN) · VETOED 871 (9.9 %) · NON-MANIFESTED 0.**
+  For hide types `annotation.json` carries only the HIDDEN frames while `labels.jsonl` covers the
+  whole fire-active window. Veto category cross-checks against m27's independently recorded three
+  vetoed targets. 🚨 **`G161` — THE JOIN KEY IS `session_index`, NOT `frame_index`;** my first pass
+  used `frame_index` (the arm-time `GFrameCounter`, a different space) and produced 14,399 bogus
+  hits. **The checker was wrong, not the build.**
+  🚨 **6. PACKAGING NO LONGER REQUIRES A PLUGIN REPO (`G163`).** The PLUGINFILE entry derived the
+  plugin repo from the dashboard repo's location and **broke packaging on the machine that actually
+  packages** (dashboard at `D:\AnomDashboardV1\AnomDash`, no sibling plugin tree). **The refusal was
+  CORRECT; the side-by-side assumption was wrong.** Cross-repo reach is now **OPT-IN**: without
+  `--plugin-repo` the bundle builds from the dashboard repo alone and **exits 0** with a loud
+  `ACTION REQUIRED` notice naming the omitted files and a success line reading
+  **`9/11 ... (dashboard-only; 2 plugin-side file(s) NOT included)`**; with it, a missing file
+  **FAILS LOUDLY** as before. ⛔ **`FILE`/`DIR` entries stay unconditional — verified.**
+  ⚠ **DETERMINISM: THE SUBSET GATE EXITS 1 AND WAS NOT RELABELLED A PASS.** Invariant core ALL
+  IDENTICAL, `annotation.json` keyset unchanged, and the ONLY non-labels extra is the one declared
+  `pattern_excluded_targets`. The other 15 extras are `labels.jsonl` fields → **`G162`: labels.jsonl
+  ROW ORDER varies run to run (async writer completion order) and THE CONTROL PAIR EXHIBITS IT TOO**
+  (4 vs 8 positional mismatches, **0 field diffs when sorted by `session_index`**). Verification
+  tooling, not a build defect; **deliberately NOT fixed**. ⚠ My own first check was order-BLIND
+  (`Compare-Object` compares as a SET) and disagreed with the gate until the right instrument ran.
+  📘 **CLIENT DOCS: the `labels.jsonl` ordering rule is now IN `client-readme.md`** — rows complete
+  but NOT ordered, **key or sort by `session_index`, never sort or join on `frame_index`** — plus
+  the amber-proportions table and the `camera_clipping` note (a whole-session global, so a
+  first-person/held weapon is clipped in EVERY frame; expected, not a defect, owner-confirmed).
+  ⛔ **NOT DONE, named:** no tag · ini route for the two new keys unproven here · `lod_popping`
+  zero-fire at 200 cm is the owner's call · `G162` filed not fixed · intermediate commits
+  symbol-checked not compiled (only the tip was built) · `P6` did not move ·
+  `feature/stencil-capture` untouched at `76cac74` · no force-push · no ratio, no threshold.
+  📦 **ENVIRONMENT: staged bench exe left at the m32 candidate `8F58661B`;** the as-found
+  session-051 exe `DD76385F` is archived and hash-verified at
+  `_binary_baselines\StackOBot.exe.session051-DD76385F`. **NO COOK WAS RUN THIS SESSION — the
+  container is still session 051's quartet** (utoc `E4FE9B35` · ucas `D9929F6F` · pak `BFB95333`).
+- 🟦 *(superseded as "you are here" by the entry above — still the record of session 051)*
+  **2026-08-21 (session 051). SIX COMMITS AND ONE COOK ON TOP OF THE m31
   FIX. ⛔ NO MILESTONE WAS OPENED AND NOTHING WAS TAGGED — `m31` IS STILL THE OPEN MILESTONE AND
   STILL AWAITS CONCORDE V-3/V-4 (its entry is the next bullet down and is STILL LIVE, not
   superseded). Highest tag remains `m30`.**
@@ -60,6 +167,11 @@ and is the single source of truth for the project.
   (that flag was already set), which is exactly why the owner saw a magenta weapon beside
   grid-rendered props. ⛔ **No remediation attempted — owner's call, recorded not chased.**
   ⏱ **3. CAPTURE-TIME ENGINE TICK-MODE PIN**, behind a BUILD-TIME probe for the decoupled-tick fork
+  🚨 *(⛔ **CORRECTED 2026-08-22 — THE `FWNetSubsystem.cpp` MARKER IS RETIRED. It came from prose
+  rather than a verified listing and it MISSED on Concorde. The probe is now a CONTENT probe for the
+  literal token `sUseFixedGameTickWithVariableRenderTick_Net`, and the pin now ships ON by default.
+  See the session-052 entry at the top.** The rest of this bullet — the save/force/re-apply/restore
+  behaviour, the log lines and the six `run_summary` fields — is UNCHANGED and still current.)*
   (marker `FWNetSubsystem.cpp` → `ANOMINJECT_FW_TICKPIN`); it compiles out entirely on stock and the
   probe LOGS its result either way. Save → force false → **re-apply every capture tick (a SET, never
   a toggle)** → restore at finish. **Guard proven by breaking it: forcing the define on stock FAILS

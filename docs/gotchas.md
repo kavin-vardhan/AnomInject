@@ -4226,3 +4226,78 @@ about ±2 frames. `tools/measure_label_offset.py` prints the achieved gap and `-
 nonzero below a bar — **the correction above was found because the tool PRINTED the number, not
 because anyone re-derived it.** Let the instrument enforce the precondition rather than trusting
 arithmetic about the schedule.
+
+---
+
+## G161 — a join between two artifacts needs the key they SHARE, not the one that looks like it
+
+`annotation.json`'s `affected_frames.frame_indices` and `labels.jsonl`'s `frame_index` are both
+"frame numbers" and they are NOT the same space. `labels.jsonl` carries BOTH:
+
+* **`session_index`** — the 0-based capture index. `session_index` N is
+  `Actual_Frames/frame_000NN.png`, frame N of the video, **and** frame N of `annotation.json`'s
+  frame indices. This is the join key.
+* **`frame_index`** — the ARM-TIME `GFrameCounter`. It starts elsewhere and counts elsewhere.
+
+Diagnosing the overlay's "phantom boxes" (2026-08-22) the first pass joined on `frame_index` and
+produced **14,399 bogus "outside window" hits plus 15 annotation frames with no label row at all** —
+a result that looked like a real product defect. Re-keyed on `session_index`, annotation is a
+**strict subset** of the label rows with **zero orphans**, and the true distribution is
+90.1 % by-design / 9.9 % vetoed.
+
+🚨 **The tell was the impossible direction:** annotation claiming frames `labels.jsonl` did not
+have at all. A label file that is missing rows the annotation cites is a much bigger claim than the
+one being investigated — **when a diagnostic produces a finding LARGER than the bug you went looking
+for, suspect the diagnostic first.** `G142`'s shape: the CHECKER was wrong, not the build.
+
+---
+
+## G162 — `labels.jsonl` ROW ORDER IS NOT DETERMINISTIC, and a positional comparison will call that a regression
+
+The async writer appends rows in COMPLETION order, not `session_index` order. Neighbouring frames
+routinely swap. Measured on two runs of the SAME binary: **4 positional mismatches**; across a
+binary change: **8**. In both cases **0 field differences once sorted by `session_index`** — the
+content is identical, only the order moves.
+
+`CaptureBench/tools/subset_gate.py` compares `labels.jsonl` LINE BY LINE, so it reads that jitter as
+differing fields. On the m32 change set it produced **15 `labels.jsonl` extras** and exited 1 while
+the only real artifact change was one declared `run_summary` field. **The control pair exhibits the
+same phenomenon — it had simply under-sampled it.**
+
+⛔ **Filed, deliberately NOT fixed** (verification tooling, not a build defect). Rules:
+* Compare `labels.jsonl` **keyed or sorted by `session_index`**, never positionally.
+* ⚠ **And do not check it with a SET comparison either.** PowerShell `Compare-Object` treats its
+  inputs as sets and reported "0 differing lines" on files the gate called different — it was blind
+  to order in the exact place order was the whole question. Two instruments disagreeing meant one of
+  them was wrong about what it measured, not that the data was ambiguous.
+* This is now CLIENT-VISIBLE: `labels.jsonl` ships in delivery mode from m32, so `client-readme.md`
+  states the ordering rule for data consumers.
+
+---
+
+## G163 — a cross-repo build input must never be derived from the repo you happen to be standing in
+
+`make_delivery.py` resolved its `PLUGINFILE` entries from
+`<dashboard repo>/../StackOBot/Plugins/AnomalyInjector`. That path is correct **on the development
+box and nowhere else.** The machine that actually packages client bundles has the dashboard at
+`D:\AnomDashboardV1\AnomDash` and **no plugin tree at all**, so packaging refused to build the night
+before a delivery.
+
+**The refusal was CORRECT** — an allowlist entry that cannot be resolved must not silently vanish
+from a bundle. **The defect was the derived default**, which encoded "these two repos are
+siblings" as if it were a fact about the world rather than a fact about one workstation.
+
+Rule: **a dependency on a SECOND repository is opt-in and explicit, never inferred from the first
+one's location.**
+* Not given ⇒ do the work you can, **exit 0**, and say loudly and specifically what is missing,
+  where it belongs and where to get it. The success line itself must carry the caveat
+  (`9/11 ... dashboard-only; 2 plugin-side file(s) NOT included`) so nobody reads "success" and
+  infers completeness they do not have.
+* Given ⇒ resolve it, and **fail loudly** if it cannot be satisfied. An explicit request that
+  cannot be met is still an error.
+* ⛔ Never invent a placeholder, never create the directory, never keep a second copy in the first
+  repo "to be safe" — a second copy is a second thing to drift.
+
+Same family as `G88` (a loose ini beside a package is a no-op) and `G119` (read it back out of the
+artifact): **an assumption about the filesystem layout is an assumption about a machine you are not
+standing on.**

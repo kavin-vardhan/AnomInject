@@ -49,7 +49,18 @@
 > fidelity, byte-identical to m11 except the D3 annotation change below). **ON writes ONLY**
 > `Actual_Frames/` + `Video_Clip/` (host mp4) + `run_summary.json` + `annotation.json`, and **suppresses**
 > `labels.jsonl` + `run.json` (never created — the label record is still COMPUTED, just not written; the
-> path is uniform). run_summary.json is kept because the host encode_watcher keys off it (its
+> path is uniform).
+> 🚨 **AMENDED 2026-08-22 — `labels.jsonl` IS NOW WRITTEN IN DELIVERY MODE BY DEFAULT.** m12
+> suppressed it while still COMPUTING it, which meant the overlay INSPECTION tool — which draws its
+> boxes from that file — could not run in the config the client actually ships. The delivered set is
+> therefore `Actual_Frames/` + `Video_Clip/` + `run_summary.json` + `annotation.json` **+
+> `labels.jsonl`** (measured: exactly one file added, nothing else changed;
+> `annotation.json` keyset 48 vs 48, so **`P6` did not move**). **`run.json` STAYS SUPPRESSED, so the
+> seed is still withheld and a delivered session is still NOT client-reproducible.** Restore the
+> pre-2026-08-22 minimal set with `IAI.Capture.DeliveryLabels 0` or
+> `[AnomalyCapture] bWriteLabelsInDeliveryDefault=False`. ⚠ **`labels.jsonl`'s ROW ORDER is not
+> deterministic (`G162`) and it is now a CLIENT-PARSED file — consumers must key or sort by
+> `session_index` and must never join on `frame_index`;** `client-readme.md` states this. run_summary.json is kept because the host encode_watcher keys off it (its
 > done-signal); annotation.json is the client's primary artifact. Because `run.json` holds the seed,
 > delivery mode also withholds the seed → a delivered session is intentionally NOT client-reproducible
 > (repro metadata stays owner-side; G68). Toggle: `IAI.Capture.Delivery <0|1>` (mid-run guarded like the
@@ -420,6 +431,26 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
   `<= 0` disables it. **Default `6` %, i.e. the cull is ON out of the box (m19).** Affects the selector / auto-injector /
   dashboard set (all consume the live renderable-visible poll). No argument → prints the current value. Registered in
   `AnomalyViewport.cpp` as a plain world-independent `FAutoConsoleCommand` (like `IAI.SetPollRadius`).
+- `IAI.SetExcludedTargets <pattern> [pattern...] | clear` — set the **target-exclusion patterns** for the session
+  (2026-08-22). A candidate is refused at the shared renderable chokepoint (`IsRenderableComponent`, the same place
+  `AInstancedFoliageActor` is excluded — **G33**) if any pattern is a **case-insensitive SUBSTRING** of its **ACTOR
+  name, its COMPONENT name or its MESH ASSET name**. Precedence **console > `DefaultGame.ini [AnomalyInjector]
+  ExcludedTargetNamePatterns` > COMPILED DEFAULT (an EMPTY list)**. The console form exists for the **G88** reason a
+  loose ini beside a package is a no-op. **This is a LABEL-QUALITY exclusion** — it removes objects whose anomaly a
+  viewer cannot see, so their label would point at nothing; it is not a claim the anomaly would not occur. Every
+  excluded actor is logged ONCE per run as a greppable **`EXCLUDED-TARGET`** line naming the pattern, the field that
+  matched, the matched value and the **source**; the per-run count of DISTINCT actors refused reaches
+  `run_summary.json` as **`pattern_excluded_targets`**. Registered in `AnomalyDefaults.cpp` as a plain
+  world-independent `FAutoConsoleCommand`. **Empty list ⇒ selection is byte-identical to a build without the feature**
+  (cost when unset is one `Num()==0` test).
+- `IAI.Anomaly.LodMaxDistance <cm|default>` — set the **`lod_popping` proximity maximum** in cm (2026-08-22).
+  Precedence **console > `[AnomalyInjector] LodPoppingMaxDistanceCm` > compiled `200`**. Range `[0..1000000]`,
+  out of range **REFUSED not clamped**; `0` disables the DISTANCE gate only. See the `lod_popping` section below for
+  why it ANDs with — and does not replace — the calibrated screen-coverage gate.
+- `IAI.Capture.DeliveryLabels <0|1>` — whether `labels.jsonl` is written **when delivery mode is ON** (2026-08-22).
+  **COMPILED DEFAULT ON.** With delivery OFF the file is written regardless and this changes nothing. Precedence
+  **console > `[AnomalyCapture] bWriteLabelsInDeliveryDefault` > compiled**. Guarded mid-run. Registered in
+  `AnomalyCaptureSubsystem.cpp`.
 - **Targeting defaults + who owns them (m19).** The three targeting defaults are **hardcoded engine constants and the
   ENGINE IS AUTHORITATIVE** — a packaged client build with no dashboard starts correct on its own:
   `GPollRadius = 1800.0f` and `GMinScreenCoveragePct = 6.0f` (`AnomalyViewport.cpp`, file-scope globals — NOT
@@ -538,6 +569,31 @@ variable is **ON-SCREEN SIZE**, not LOD authoring quality.
 🚨 **Nothing downstream catches the admitted case. The m26 mask veto CANNOT** — the object still
 draws, so it reads `MEASURED_NONZERO` and the event survives; and the mask measures the
 **silhouette**, which is what a distant LOD swap barely moves. **The gate is therefore at PICK TIME.**
+
+### `lod_popping`'s SECOND gate — a METRIC PROXIMITY maximum (2026-08-22)
+
+Stacked on top of the ≥2-LOD guard and the 7.0 % coverage gate: a candidate is refused if its
+distance from the poll origin exceeds `LodPoppingMaxDistanceCm` (compiled **200**, ini-settable,
+`IAI.Anomaly.LodMaxDistance` overrides). **The metric is the SAME one the poll radius uses** —
+sphere-approx bounds distance from `ResolvePollOrigin` (`AnomalyViewport::GetActorPollDistanceCm`) —
+so the two numbers are directly comparable; a negative value means the bounds sphere already
+contains the poll origin. Refusal goes through the same AMB-2 matched-zero path: **no fire, no
+label.** Bounds only, no pixel read (`G127`-safe).
+
+⚖ **IT ANDs WITH THE COVERAGE GATE AND DOES NOT REPLACE IT, and the reason is recorded in the
+code's own log text:** the 7.0 % coverage gate was **CALIBRATED** against measured visibility
+(last visible 9.3453 %, first invisible 3.9045 %); the metric distance is an **owner PRODUCT
+PREFERENCE** ("pop only what the player is right next to", ~2 m). **Removing a calibrated gate to
+install an uncalibrated one is backwards.**
+
+🚨 **MEASURED FIRE RATE AT THE 200 cm DEFAULT: ZERO ON THIS BENCH.** A/B, same seed, same map,
+300 frames, the gate the only difference — gate off ⇒ 13 events / **2** `lod_popping`; gate at
+200 ⇒ 11 events / **0**. Both draws were refused on **distance alone** at **863.91 cm** and
+**1221.19 cm**, both having PASSED coverage (9.2572 %, 11.7191 %).
+⚠ **This is a property of the BENCH, not evidence the value is wrong:** an unattended capture
+settles at a fixed pose and the pawn never walks up to anything, so the case the gate exists for
+cannot occur in one. ⛔ **No value is recommended here — it is the owner's, and the console
+override retunes it with no re-cook.**
 
 ✅ **CLOSED AT m30 — the proximity gate.** `lod_popping` requires its own minimum
 **bounds-projected screen coverage at pick time**, `MinCoveragePct = 7.0`, stacked on the ≥2-LOD
