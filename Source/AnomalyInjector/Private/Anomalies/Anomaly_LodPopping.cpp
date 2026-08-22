@@ -75,7 +75,21 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
-	const float MaxDistanceCm = AnomalyDefaults::GetLodPoppingMaxDistanceCm();
+	const bool bAutoPool = UAnomalyInjectorSubsystem::IsAutoPoolSelection(World);
+	const float MaxDistanceCm = bAutoPool ? AnomalyDefaults::GetLodPoppingMaxDistanceCm() : 0.0f;
+	const float EffectiveMinCoveragePct = bAutoPool ? MinCoveragePct : 0.0f;
+
+	if (!bAutoPool)
+	{
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: TARGETED FIRE on '%s' — the %.4f%% screen-coverage gate and the %.2f cm proximity gate are ")
+			TEXT("BYPASSED because they govern AUTO-POOL SELECTION only. An explicitly named object fires regardless of ")
+			TEXT("distance or on-screen size: choosing the target is the operator's decision. LABELLING IS UNCHANGED and ")
+			TEXT("still discriminates per frame, so if the pop is not visible the event carries zero positive frames and ")
+			TEXT("the m23 F-LABEL guard reports it. The single-LOD guard still applies to both paths - it is not a ")
+			TEXT("proximity gate, and forcing a LOD on a single-LOD mesh pops it to itself whoever picked it."),
+			*Substring, MinCoveragePct, AnomalyDefaults::GetLodPoppingMaxDistanceCm());
+	}
 
 	Targets.Reset();
 	int32 RefusedSingleLod = 0;
@@ -111,8 +125,9 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 			Coverage = AnomalyViewport::GetActorScreenCoveragePct(World, Owner);
 			CoverageByOwner.Add(Owner, Coverage);
 			UE_LOG(LogAnomaly, Log,
-				TEXT("lod_popping: COVERAGE '%s' bounds_coverage_pct=%.4f (threshold %.4f) — bounds-projected screen coverage at PICK TIME, the same quantity the gate tests; NOT drawn extent, which is smaller."),
-				*GetNameSafe(Owner), Coverage, MinCoveragePct);
+				TEXT("lod_popping: COVERAGE '%s' bounds_coverage_pct=%.4f (threshold %.4f, %s) — bounds-projected screen coverage at PICK TIME, the same quantity the gate tests; NOT drawn extent, which is smaller."),
+				*GetNameSafe(Owner), Coverage, MinCoveragePct,
+				bAutoPool ? TEXT("ENFORCED, auto-pool selection") : TEXT("BYPASSED, targeted fire"));
 		}
 
 		if (MaxDistanceCm > 0.0f)
@@ -135,18 +150,18 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 			{
 				++RefusedTooFar;
 				UE_LOG(LogAnomaly, Warning,
-					TEXT("lod_popping: REFUSED '%s' — poll_distance_cm %.2f exceeds the %.2f cm maximum. This gate is an OWNER PRODUCT PREFERENCE (pop only what the player is right next to), and it ANDs with the %.4f%% coverage gate rather than replacing it."),
+					TEXT("lod_popping: REFUSED '%s' — poll_distance_cm %.2f exceeds the %.2f cm maximum. This gate is an OWNER PRODUCT PREFERENCE (pop only what the player is right next to), it ANDs with the %.4f%% coverage gate rather than replacing it, and it governs AUTO-POOL SELECTION only; a targeted fire on a named object is not subject to it."),
 					*Mesh->GetName(), Distance, MaxDistanceCm, MinCoveragePct);
 				continue;
 			}
 		}
 
-		if (MinCoveragePct > 0.0f && Coverage < MinCoveragePct)
+		if (EffectiveMinCoveragePct > 0.0f && Coverage < EffectiveMinCoveragePct)
 		{
 			++RefusedTooSmall;
 			UE_LOG(LogAnomaly, Warning,
-				TEXT("lod_popping: REFUSED '%s' — bounds_coverage_pct %.4f is below the %.4f minimum, so at this on-screen size its LODs do not differ visibly: forcing one would pop it to itself. Same failure as a single-LOD mesh, and the mask veto cannot catch it either (it still draws pixels)."),
-				*Mesh->GetName(), Coverage, MinCoveragePct);
+				TEXT("lod_popping: REFUSED '%s' — bounds_coverage_pct %.4f is below the %.4f minimum, so at this on-screen size its LODs do not differ visibly: forcing one would pop it to itself. Same failure as a single-LOD mesh, and the mask veto cannot catch it either (it still draws pixels). This gate governs AUTO-POOL SELECTION only; a targeted fire on a named object is not subject to it."),
+				*Mesh->GetName(), Coverage, EffectiveMinCoveragePct);
 			continue;
 		}
 
@@ -164,15 +179,17 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	if (!bActive)
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL — %d single-LOD, %d below the %.4f bounds_coverage_pct minimum, %d beyond the %.2f cm proximity maximum. Applying nothing, so no fire is recorded and no label is written."),
-			Meshes.Num(), *Substring, RefusedSingleLod, RefusedTooSmall, MinCoveragePct, RefusedTooFar, MaxDistanceCm);
+			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL [%s] — %d single-LOD, %d below the %.4f bounds_coverage_pct minimum, %d beyond the %.2f cm proximity maximum. Applying nothing, so no fire is recorded and no label is written."),
+			Meshes.Num(), *Substring, bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, proximity gates BYPASSED"),
+			RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm);
 		return false;
 	}
 
 	UE_LOG(LogAnomaly, Log,
-		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) — %d qualified, %d refused (single LOD), %d refused (below %.4f bounds_coverage_pct), %d refused (beyond %.2f cm)."),
-		Meshes.Num(), *Substring, HalfPeriodFrames, Targets.Num(), RefusedSingleLod, RefusedTooSmall, MinCoveragePct,
-		RefusedTooFar, MaxDistanceCm);
+		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) [%s] — %d qualified, %d refused (single LOD), %d refused (below %.4f bounds_coverage_pct), %d refused (beyond %.2f cm)."),
+		Meshes.Num(), *Substring, HalfPeriodFrames,
+		bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, proximity gates BYPASSED"),
+		Targets.Num(), RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm);
 	return bActive;
 }
 

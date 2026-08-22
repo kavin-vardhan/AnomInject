@@ -43,6 +43,13 @@ public:
 	static bool IsViewportScopingEnabled(UWorld* World);
 
 
+	void SetAutoPoolSelection(bool bInAutoPool);
+
+	bool IsAutoPoolSelection() const { return bAutoPoolSelection; }
+
+	static bool IsAutoPoolSelection(UWorld* World);
+
+
 	UMaterialInterface* GetMissingTextureMaterial() const;
 
 	UMaterialInterface* GetCorruptedTextureMaterial() const;
@@ -81,6 +88,8 @@ private:
 	float HeartbeatAccumulator = 0.0f;
 
 	bool bViewportScopingEnabled = false;
+
+	bool bAutoPoolSelection = false;
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> MissingTextureChecker;

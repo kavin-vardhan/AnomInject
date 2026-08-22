@@ -264,7 +264,9 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 
 	const FString TargetName = Target->GetName();
 	const FString Token = FString(TEXT("=")) + TargetName;
+	Injector->SetAutoPoolSelection(true);
 	const bool bApplied = Injector->ApplyAnomaly(Id, TArray<FString>{ Token });
+	Injector->SetAutoPoolSelection(false);
 	if (bApplied)
 	{
 		FAutoLiveFire Fire;

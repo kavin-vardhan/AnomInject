@@ -396,6 +396,23 @@ bool UAnomalyInjectorSubsystem::IsViewportScopingEnabled(UWorld* World)
 	return false;
 }
 
+void UAnomalyInjectorSubsystem::SetAutoPoolSelection(bool bInAutoPool)
+{
+	bAutoPoolSelection = bInAutoPool;
+}
+
+bool UAnomalyInjectorSubsystem::IsAutoPoolSelection(UWorld* World)
+{
+	if (World)
+	{
+		if (const UAnomalyInjectorSubsystem* Subsystem = World->GetSubsystem<UAnomalyInjectorSubsystem>())
+		{
+			return Subsystem->bAutoPoolSelection;
+		}
+	}
+	return false;
+}
+
 
 void UAnomalyInjectorSubsystem::ListAnomalies() const
 {
