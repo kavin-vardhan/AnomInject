@@ -17,6 +17,21 @@ class FViewInfo;
 
 #include "PostProcess/PostProcessMaterial.h"
 #include "ScreenPass.h"
+#include "SceneRendering.h"
+
+static FScreenPassTexture FinalizeSveAfterPassOutput(FRDGBuilder& GraphBuilder, const FSceneView& View,
+	const FPostProcessMaterialInputs& Inputs, const FScreenPassTexture& SceneColor)
+{
+	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
+	if (!Output.IsValid() || !SceneColor.IsValid())
+	{
+		return SceneColor;
+	}
+	checkSlow(View.bIsViewInfo);
+	const FViewInfo& ViewInfo = static_cast<const FViewInfo&>(View);
+	AddDrawTexturePass(GraphBuilder, ViewInfo, SceneColor, Output);
+	return MoveTemp(Output);
+}
 
 FAnomalySceneViewExtension::FAnomalySceneViewExtension(const FAutoRegister& AutoRegister,
 	const TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe>& InCapturer)
@@ -72,7 +87,7 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Cap = Capturer.Pin();
 	if (!Cap.IsValid() || !SceneColor.IsValid() || View.bIsSceneCapture || View.bIsReflectionCapture)
 	{
-		return SceneColor;
+		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	const uint32 FamilyFrame = View.Family ? View.Family->FrameNumber : 0;
@@ -86,12 +101,12 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 			TEXT("(published=%d consumed=%d missed=%d wrapped=%d, forceMiss=%d)."),
 			FamilyFrame, Counters.Published, Counters.Consumed, Counters.Missed, Counters.Wrapped,
 			AnomalySveKeyRing::IsForceMiss() ? 1 : 0);
-		return SceneColor;
+		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	if (!Entry.bWanted)
 	{
-		return SceneColor;
+		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	FRDGTextureRef Texture = SceneColor.Texture;
@@ -100,7 +115,7 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	{
 		UE_LOG(LogAnomalyCapture, Warning,
 			TEXT("Capture(sve): empty scene-colour rect for frame id=%llu — skipped."), Entry.RequestId);
-		return SceneColor;
+		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	TUniquePtr<FRHIGPUTextureReadback> Readback = MakeUnique<FRHIGPUTextureReadback>(TEXT("AnomalySveColorReadback"));
@@ -110,7 +125,7 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 
 	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, Texture->Desc.Format, MoveTemp(Readback));
 
-	return SceneColor;
+	return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }
 
 #endif

@@ -19,9 +19,24 @@ class FViewInfo;
 
 #include "ScreenPass.h"
 #include "PostProcess/PostProcessMaterial.h"
+#include "SceneRendering.h"
 
 #include "AnomalyVisibleMaskShader.h"
 #include "AnomalyMaskReduceShader.h"
+
+static FScreenPassTexture FinalizeMaskAfterPassOutput(FRDGBuilder& GraphBuilder, const FSceneView& View,
+	const FPostProcessMaterialInputs& Inputs, const FScreenPassTexture& SceneColor)
+{
+	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
+	if (!Output.IsValid() || !SceneColor.IsValid())
+	{
+		return SceneColor;
+	}
+	checkSlow(View.bIsViewInfo);
+	const FViewInfo& ViewInfo = static_cast<const FViewInfo&>(View);
+	AddDrawTexturePass(GraphBuilder, ViewInfo, SceneColor, Output);
+	return MoveTemp(Output);
+}
 
 FAnomalyMaskSceneViewExtension::FAnomalyMaskSceneViewExtension(const FAutoRegister& AutoRegister)
 	: FSceneViewExtensionBase(AutoRegister)
@@ -88,7 +103,7 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 
 	if (View.bIsSceneCapture || View.bIsReflectionCapture || View.bIsPlanarReflection || !SceneColor.IsValid())
 	{
-		return SceneColor;
+		return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	uint64 RequestId = 0;
@@ -98,7 +113,7 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		FScopeLock Lock(&StateCS);
 		if (PendingArms.Num() == 0)
 		{
-			return SceneColor;
+			return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 		}
 		RequestId = PendingArms[0];
 		PendingArms.RemoveAt(0);
@@ -110,7 +125,7 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	const FIntPoint Size = ViewRect.Size();
 	if (Size.X <= 0 || Size.Y <= 0)
 	{
-		return SceneColor;
+		return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	const FRDGTextureDesc MaskDesc = FRDGTextureDesc::Create2D(
@@ -191,7 +206,7 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	Item.CustomStencilExtent = StencilExtent;
 	InFlight.Add(MoveTemp(Item));
 
-	return SceneColor;
+	return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }
 
 void FAnomalyMaskSceneViewExtension::EnqueueDrain(bool bFinal)
