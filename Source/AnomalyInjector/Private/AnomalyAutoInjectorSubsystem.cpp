@@ -36,7 +36,6 @@ namespace
 		FName(TEXT("missing_texture")),
 		FName(TEXT("corrupted_texture")),
 		FName(TEXT("lod_popping")),
-		FName(TEXT("camera_clipping")),
 	};
 
 	UAnomalyInjectorSubsystem* ResolveInjector(UWorld* World)
