@@ -293,6 +293,33 @@ TStatId UAnomalyCaptureSubsystem::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(UAnomalyCaptureSubsystem, STATGROUP_Tickables);
 }
 
+#if ANOMALY_CAPTURE
+static EAnomalyMaskReduceMode GMaskReduceMode = EAnomalyMaskReduceMode::Gpu;
+static bool GMaskReduceFromIni = false;
+static bool GMaskReduceFromConsole = false;
+
+static bool ParseMaskReduceMode(const FString& In, EAnomalyMaskReduceMode& Out)
+{
+	if (In.Equals(TEXT("gpu"), ESearchCase::IgnoreCase)) { Out = EAnomalyMaskReduceMode::Gpu; return true; }
+	if (In.Equals(TEXT("cpu"), ESearchCase::IgnoreCase)) { Out = EAnomalyMaskReduceMode::Cpu; return true; }
+	if (In.Equals(TEXT("both"), ESearchCase::IgnoreCase)) { Out = EAnomalyMaskReduceMode::Both; return true; }
+	return false;
+}
+
+static const TCHAR* DescribeMaskReduceSource()
+{
+	if (GMaskReduceFromConsole)
+	{
+		return TEXT("IAI.Capture.MaskReduce (console)");
+	}
+	if (GMaskReduceFromIni)
+	{
+		return TEXT("DefaultGame.ini [AnomalyCapture] MaskReduceDefault");
+	}
+	return TEXT("COMPILED DEFAULT (gpu)");
+}
+#endif
+
 void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -328,6 +355,29 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bMaskMeasure = bConfigMask;
 		bMaskMeasureFromIni = true;
 	}
+	if (!GMaskReduceFromConsole)
+	{
+		GMaskReduceMode = EAnomalyMaskReduceMode::Gpu;
+		GMaskReduceFromIni = false;
+		FString ConfigMaskReduce;
+		if (GConfig && GConfig->GetString(TEXT("AnomalyCapture"), TEXT("MaskReduceDefault"), ConfigMaskReduce, GGameIni))
+		{
+			EAnomalyMaskReduceMode ParsedMode;
+			if (ParseMaskReduceMode(ConfigMaskReduce, ParsedMode))
+			{
+				GMaskReduceMode = ParsedMode;
+				GMaskReduceFromIni = true;
+			}
+			else
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(mask): m34 MaskReduceDefault '%s' is not one of gpu|cpu|both and is REFUSED ")
+					TEXT("(G144: an unrecognised value never silently becomes a default). The compiled default ")
+					TEXT("gpu stands."),
+					*ConfigMaskReduce);
+			}
+		}
+	}
 	int32 ConfigOutputHeight = 0;
 	if (GConfig && GConfig->GetInt(TEXT("AnomalyCapture"), TEXT("CaptureOutputHeightDefault"), ConfigOutputHeight, GGameIni))
 	{
@@ -362,6 +412,13 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bMaskMeasureFromIni
 			? TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault")
 			: TEXT("COMPILED DEFAULT (off); no ini key present; IAI.Capture.Mask 1 enables it for the session"));
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(mask): m34 REDUCE AT INIT - maskReduce=%s, from %s. gpu reduces the visible mask to a ")
+		TEXT("5 KB per-tag table ON THE GPU and reads back the table, not the surface; cpu is the NAMED BISECT ")
+		TEXT("(the pre-m34 full-surface readback + render-thread scan); both runs the two side by side and ")
+		TEXT("compares per armed frame (MASK-REDUCE COMPARE). The reduction is integer-atomic and BIT-EXACT ")
+		TEXT("across modes. Inert while the mask itself is off."),
+		LexToStringAnomalyMaskReduceMode(GMaskReduceMode), DescribeMaskReduceSource());
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(m28): OUTPUT HEIGHT AT INIT - ini level %s. 0 means NATIVE and the written frames are ")
 		TEXT("byte-identical to a pre-m28 build. This is the INI LEVEL ONLY; a console override or a per-run ")
@@ -1055,14 +1112,16 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	}
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture(mask): EFFECTIVE FOR THIS RUN - mask %s, default from %s === READ THIS LINE, NOT THE ")
+		TEXT("=== Capture(mask): EFFECTIVE FOR THIS RUN - mask %s, default from %s, maskReduce=%s(from %s) === ")
+		TEXT("READ THIS LINE, NOT THE ")
 		TEXT("INI. Mask off means the m26 H5 cure is INACTIVE and this session labels exactly as m25 did. In a ")
 		TEXT("packaged build the ini that counts is the COOKED DefaultGame.ini - a loose ini beside the package ")
 		TEXT("is a SILENT NO-OP (G88), which is why this line reports the EFFECTIVE value and not the file."),
 		bMaskMeasure ? TEXT("ON (measure, report and veto)") : TEXT("off"),
 		bMaskMeasureFromIni
 			? TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault")
-			: TEXT("COMPILED DEFAULT (off) or IAI.Capture.Mask"));
+			: TEXT("COMPILED DEFAULT (off) or IAI.Capture.Mask"),
+		LexToStringAnomalyMaskReduceMode(GMaskReduceMode), DescribeMaskReduceSource());
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture(m28): EFFECTIVE FOR THIS RUN - requested output height %d, from %s === READ THIS LINE, ")
@@ -1081,6 +1140,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		if (Async->MaskExtension.IsValid())
 		{
 			Async->MaskExtension->Reset();
+			Async->MaskExtension->SetReduceMode(GMaskReduceMode);
 		}
 		Async->MaskMeasure.BeginRun();
 		bMaskProbeFiredThisRun = false;
@@ -1431,6 +1491,7 @@ void UAnomalyCaptureSubsystem::EnsureCapturer()
 	if (bMaskMeasure && !Async->MaskExtension.IsValid())
 	{
 		Async->MaskExtension = FSceneViewExtensions::NewExtension<FAnomalyMaskSceneViewExtension>();
+		Async->MaskExtension->SetReduceMode(GMaskReduceMode);
 	}
 	if (!Async->Writer.IsValid())
 	{
@@ -2282,7 +2343,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		int32 MaskNoPassDiscards = 0;
 		if (bMaskMeasure && Async.IsValid() && Async->MaskExtension.IsValid())
 		{
-			Async->MaskExtension->EnqueueDrain();
+			Async->MaskExtension->EnqueueDrain(true);
 			FlushRenderingCommands();
 			Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
 			MaskProbeArms = Async->MaskMeasure.TotalProbeArms();
@@ -2488,7 +2549,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	{
 		if (!bWroteSession && Async->MaskExtension.IsValid())
 		{
-			Async->MaskExtension->EnqueueDrain();
+			Async->MaskExtension->EnqueueDrain(true);
 			FlushRenderingCommands();
 			Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
 		}
@@ -3134,6 +3195,56 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskCmd(
 				Cap->SetMaskMeasure(FCString::Atoi(*Args[0]) != 0);
 				UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.Mask: EFFECTIVE READ-BACK = %d."),
 					Cap->IsMaskMeasure() ? 1 : 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskReduceCmd(
+	TEXT("IAI.Capture.MaskReduce"),
+	TEXT("m34 - HOW the visible mask is reduced to per-tag counts+bounds. gpu (the COMPILED DEFAULT): a compute ")
+	TEXT("shader reduces the mask to a 5 KB per-tag table on the GPU and the CPU reads back the TABLE, not the ")
+	TEXT("full surface - this removes the per-armed-frame render-thread W*H scan (the owner-bisected capture ")
+	TEXT("hitch, journal 054 s7). cpu: THE NAMED BISECT (the IAI.Capture.SVE 0 / TickPin precedent) - the ")
+	TEXT("pre-m34 full-surface readback + render-thread scan, one setting away, no rebuild, no re-cook. both: ")
+	TEXT("run the two side by side and compare EVERY tag's count and bounds on EVERY armed frame, one greppable ")
+	TEXT("line each (MASK-REDUCE COMPARE id=... IDENTICAL | FIRST-DIFF tag=... field=...), result fed from the ")
+	TEXT("gpu table. The reduction is INTEGER-ATOMIC, so gpu and cpu are BIT-EXACT equal - any difference is a ")
+	TEXT("defect, no tolerance. WHAT is measured, the veto rule, FAnomalyMaskResult and every artifact are ")
+	TEXT("UNCHANGED across modes; inert while the mask itself is off. Takes effect BETWEEN RUNS. PRECEDENCE: ")
+	TEXT("this console override beats DefaultGame.ini [AnomalyCapture] MaskReduceDefault, which beats the ")
+	TEXT("compiled default (G88: a loose ini beside a package is a silent no-op, the cooked config wins). Read ")
+	TEXT("the effective value and its provenance from the StartRun echo (maskReduce=...), never from this help ")
+	TEXT("text. Usage: IAI.Capture.MaskReduce <gpu|cpu|both>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.MaskReduce <gpu|cpu|both>"));
+				return;
+			}
+			EAnomalyMaskReduceMode Parsed;
+			if (!ParseMaskReduceMode(Args[0], Parsed))
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("IAI.Capture.MaskReduce: '%s' is not one of gpu|cpu|both - REFUSED (G144: an ")
+					TEXT("unrecognised value never silently becomes a default). Current value unchanged (%s)."),
+					*Args[0], LexToStringAnomalyMaskReduceMode(GMaskReduceMode));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				if (Cap->IsCaptureActive())
+				{
+					UE_LOG(LogAnomalyCapture, Warning,
+						TEXT("IAI.Capture.MaskReduce: ignored - a capture run is in progress."));
+					return;
+				}
+				GMaskReduceMode = Parsed;
+				GMaskReduceFromConsole = true;
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("IAI.Capture.MaskReduce: EFFECTIVE READ-BACK = %s (source=%s). Takes effect at the ")
+					TEXT("next IAI.Capture.Start."),
+					LexToStringAnomalyMaskReduceMode(GMaskReduceMode), DescribeMaskReduceSource());
 			}
 		}));
 
