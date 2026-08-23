@@ -75,9 +75,13 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
+	static_assert(MinCoveragePct == AnomalyDefaults::LodPoppingMinCoverageCompiled,
+		"lod_popping's compiled screen-coverage minimum and AnomalyDefaults::LodPoppingMinCoverageCompiled have "
+		"drifted apart - the m30 calibration is one number and it must have one home");
+
 	const bool bAutoPool = UAnomalyInjectorSubsystem::IsAutoPoolSelection(World);
 	const float MaxDistanceCm = bAutoPool ? AnomalyDefaults::GetLodPoppingMaxDistanceCm() : 0.0f;
-	const float EffectiveMinCoveragePct = bAutoPool ? MinCoveragePct : 0.0f;
+	const float EffectiveMinCoveragePct = bAutoPool ? AnomalyDefaults::GetLodPoppingMinCoveragePct() : 0.0f;
 
 	if (!bAutoPool)
 	{
@@ -179,17 +183,17 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	if (!bActive)
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL [%s] — %d single-LOD, %d below the %.4f bounds_coverage_pct minimum, %d beyond the %.2f cm proximity maximum. Applying nothing, so no fire is recorded and no label is written."),
+			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL [%s] — %d single-LOD, %d below the %.4f bounds_coverage_pct minimum, %d beyond the %.2f cm proximity maximum, %d not at their highest LOD. Applying nothing, so no fire is recorded and no label is written."),
 			Meshes.Num(), *Substring, bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, proximity gates BYPASSED"),
-			RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm);
+			RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm, RefusedNotHighestLod);
 		return false;
 	}
 
 	UE_LOG(LogAnomaly, Log,
-		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) [%s] — %d qualified, %d refused (single LOD), %d refused (below %.4f bounds_coverage_pct), %d refused (beyond %.2f cm)."),
+		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) [%s] — %d qualified, %d refused (single LOD), %d refused (below %.4f bounds_coverage_pct), %d refused (beyond %.2f cm), %d refused (not at highest LOD)."),
 		Meshes.Num(), *Substring, HalfPeriodFrames,
 		bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, proximity gates BYPASSED"),
-		Targets.Num(), RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm);
+		Targets.Num(), RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm,
 	return bActive;
 }
 

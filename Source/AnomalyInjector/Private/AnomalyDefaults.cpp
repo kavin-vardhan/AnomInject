@@ -48,6 +48,18 @@ namespace
 		return bSet;
 	}
 
+	float& MinCoverageOverride()
+	{
+		static float Value = 0.0f;
+		return Value;
+	}
+
+	bool& MinCoverageOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
 	float& TriggerRadiusOverride()
 	{
 		static float Value = 0.0f;
@@ -362,6 +374,102 @@ namespace AnomalyDefaults
 			TEXT("lod_popping: console proximity override cleared; the ini value or the compiled default takes over."));
 	}
 
+	const TCHAR* LodPoppingMinCoverageKey()
+	{
+		return TEXT("LodPoppingMinCoveragePct");
+	}
+
+	float GetLodPoppingMinCoveragePct()
+	{
+		if (MinCoverageOverrideSet())
+		{
+			return MinCoverageOverride();
+		}
+		static bool bResolved = false;
+		static float Value = LodPoppingMinCoverageCompiled;
+		static const TCHAR* Source = TEXT("compiled");
+		if (bResolved)
+		{
+			return Value;
+		}
+		bResolved = true;
+
+		float FromIni = 0.0f;
+		if (GConfig && GConfig->GetFloat(SectionName(), LodPoppingMinCoverageKey(), FromIni, GGameIni))
+		{
+			if (FromIni < MinCoverageMin || FromIni > MinCoverageMax)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("lod_popping: DefaultGame.ini [%s] %s = %.4f is out of range [%.0f..%.0f]; using the ")
+					TEXT("COMPILED default %.4f. The key is REFUSED rather than clamped, so a typo cannot quietly ")
+					TEXT("discard a calibrated threshold."),
+					SectionName(), LodPoppingMinCoverageKey(), FromIni, MinCoverageMin, MinCoverageMax,
+					LodPoppingMinCoverageCompiled);
+			}
+			else
+			{
+				Value = FromIni;
+				Source = TEXT("ini");
+			}
+		}
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: screen-coverage gate = %.4f%% (%s). THE COMPILED DEFAULT %.4f IS A MEASURED NUMBER, ")
+			TEXT("not a preference: m30 calibrated it against last-visible %.4f%% and first-invisible %.4f%%, biased ")
+			TEXT("toward REFUSING because a positive label with no visible change is the dataset-poisoning direction. ")
+			TEXT("Tuning it at runtime is an operator decision; a different value is NOT a re-calibration. It gates ")
+			TEXT("AUTO-POOL selection only, and 0 disables the coverage gate alone."),
+			Value, Source, LodPoppingMinCoverageCompiled, 9.3453f, 3.9045f);
+		return Value;
+	}
+
+	bool SetLodPoppingMinCoverageOverride(float Pct)
+	{
+		if (Pct < MinCoverageMin || Pct > MinCoverageMax)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("lod_popping: screen-coverage minimum %.4f is out of range [%.0f..%.0f]; the console override is ")
+				TEXT("REFUSED and the previous value still stands."), Pct, MinCoverageMin, MinCoverageMax);
+			return false;
+		}
+		MinCoverageOverride() = Pct;
+		MinCoverageOverrideSet() = true;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: screen-coverage minimum set to %.4f%% by console override (compiled default %.4f is the ")
+			TEXT("m30-CALIBRATED value and is unchanged). This BEATS DefaultGame.ini [%s] %s (G88: a loose ini beside ")
+			TEXT("a package is a no-op). It gates AUTO-POOL selection only; a targeted fire already bypasses it."),
+			Pct, LodPoppingMinCoverageCompiled, SectionName(), LodPoppingMinCoverageKey());
+		return true;
+	}
+
+	void ClearLodPoppingMinCoverageOverride()
+	{
+		MinCoverageOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: console screen-coverage override cleared; the ini value or the m30-calibrated compiled ")
+			TEXT("default takes over again."));
+	}
+
+	FString DescribeLodPoppingMinCoverage()
+	{
+		const float V = GetLodPoppingMinCoveragePct();
+		const TCHAR* Src = TEXT("compiled");
+		if (MinCoverageOverrideSet())
+		{
+			Src = TEXT("console");
+		}
+		else
+		{
+			float FromIni = 0.0f;
+			if (GConfig && GConfig->GetFloat(SectionName(), LodPoppingMinCoverageKey(), FromIni, GGameIni)
+				&& FromIni >= MinCoverageMin && FromIni <= MinCoverageMax)
+			{
+				Src = TEXT("ini");
+			}
+		}
+		return FString::Printf(TEXT("%.4f%%(%s)"), V, Src);
+	}
+
 	const TCHAR* CameraClippingTriggerRadiusKey()
 	{
 		return TEXT("CameraClippingTriggerRadiusCm");
@@ -578,6 +686,32 @@ namespace
 			*AnomalyDefaults::DescribeLodPoppingMaxDistance());
 	}
 
+	void HandleLodMinCoverage(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Anomaly.LodMinCoverage <pct|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeLodPoppingMinCoverage());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearLodPoppingMinCoverageOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetLodPoppingMinCoverageOverride(FCString::Atof(*Args[0]));
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Anomaly.LodMinCoverage: '%s' is not a percentage (or 'default')."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Anomaly.LodMinCoverage: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeLodPoppingMinCoverage());
+	}
+
 	void HandleCameraClipTriggerRadius(const TArray<FString>& Args)
 	{
 		if (Args.Num() < 1)
@@ -604,6 +738,15 @@ namespace
 			*AnomalyDefaults::DescribeCameraClippingTriggerRadius());
 	}
 }
+
+static FAutoConsoleCommand GLodMinCoverageCmd(
+	TEXT("IAI.Anomaly.LodMinCoverage"),
+	TEXT("Set the lod_popping SCREEN-COVERAGE minimum, in PERCENT of frame, for AUTO-POOL selection. A candidate is "
+	     "refused if its bounds-projected screen coverage at pick time is below this. PRECEDENCE: console beats "
+	     "DefaultGame.ini [AnomalyInjector] LodPoppingMinCoveragePct, which beats the compiled default 7.0. Range "
+	     "[0..100]; out of range is REFUSED, never clamped. 0 disables the COVERAGE gate only - the distance gate and "
+	     "Usage: IAI.Anomaly.LodMinCoverage <pct|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleLodMinCoverage));
 
 static FAutoConsoleCommand GCameraClipTriggerRadiusCmd(
 	TEXT("IAI.Anomaly.CameraClipTriggerRadius"),
