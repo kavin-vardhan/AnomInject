@@ -233,6 +233,8 @@ Your machine renders the game at some frame rate ("native fps") — check it in 
 
 **Recommendation:** keep the capture rate at or below your machine's native fps. The default of 30 is fine on most machines.
 
+**Capture resolution.** We recommend capturing at **1920×1080** or **1280×720**. Higher resolutions (e.g. 3200×2000) produce correctly-labeled data, but frames take longer to process, so captures run slower and the review video becomes choppier. Quick health check after any settings change: time a short capture with a stopwatch — a 120-frame run should take about 4 seconds. If it takes noticeably longer, drop the resolution.
+
 **Tip — warm up first:** the very first run after launching the game is slower while it compiles shaders. Do one short throw-away capture first; your real captures will then be more consistent.
 
 ## 7. Troubleshooting

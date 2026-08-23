@@ -93,7 +93,7 @@ namespace AnomalyLabel
 
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
 		int32 ZeroMatchBursts, uint64 EndFrame,
-		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, bool bPaced, bool bDeliveryMode,
+		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, double GameClockSpeedRatio, bool bPaced, bool bDeliveryMode,
 		const FString& ContentClock, int32 NonManifestedEvents, const FString& CapturePath,
 		const FRingTelemetry* Ring = nullptr,
 		int32 MaskProbeArms = 0, int32 MaskResidualDiscards = 0, int32 MaskNoPassDiscards = 0,

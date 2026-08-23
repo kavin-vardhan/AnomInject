@@ -55,8 +55,25 @@ measures the truth and stamps it:
 
 - Every armed frame is wall-stamped (`t_wall` per row in `labels.jsonl`, next to the game-time `t`);
   the run keeps first/last armed wall stamps on both the async and sync paths.
-- At finalize: `speed_ratio = wallSpan / gameSpan` between the SAME first/last armed frames (settle
-  gaps cancel exactly); `sustained_wall_fps = VideoFps / speed_ratio`.
+- At finalize (m33): `speed_ratio = wallSpan / nominalGameSpan` between the SAME first/last armed
+  frames, where `nominalGameSpan` is **plugin-owned** — `(engine ticks between the first and last
+  armed frames) × (1/VideoFps)`, the tick count sampled at the same two stamp sites as the wall
+  clock so the operands stay paired. Settle gaps between bursts are ticks too, so they sit in both
+  spans and cancel, exactly as they did under the old denominator. `sustained_wall_fps = VideoFps /
+  speed_ratio`.
+  ⚠ **WHY THE DENOMINATOR MOVED (m33):** the old form read game time back from
+  `World->GetTimeSeconds()`, which assumes the host honors `FApp::SetUseFixedTimeStep`. The pinned
+  decoupled fork does not — its world clock tracked wall (measured: labels `t` span 34.219865 s vs
+  `t_wall` span 34.220319 s against a fixed-step prediction of 3.967 s), making the old ratio
+  **≡ 1.000 BY CONSTRUCTION at any starvation**, so mask-starved captures shipped `video.fps = 30`
+  MP4s playing 2–5.75× fast with clean-looking telemetry. A tick count is a value no host can
+  redefine (the m31 invariant applied to this instrument). On a stock fixed-step host the two
+  denominators are IDENTICAL by construction — each tick advances game time by exactly
+  `1/VideoFps`.
+- The old world-clock ratio is still computed and emitted as
+  `run_summary.game_clock_speed_ratio` — the clock-agreement diagnostic. It reads ≈ `speed_ratio`
+  on a stock host and ≈ 1.000 on a host whose game clock tracks wall: the blindness signature,
+  now visible in the artifact instead of silently defeating the honest stamp.
 - If `speed_ratio > 1.02` (couldn't hold the rate): `annotation.video.fps` is stamped with the
   **sustained** rate (fractional, 3 decimals — the encode watcher float-parses fps). The mp4 then
   plays at true speed on real-time-driven content.
@@ -154,7 +171,9 @@ feel = (frames the machine renders per real second) / VideoFps
 ```
 
 fast machine → sped-up live feel, slow machine → slow-motion. Stamping stays honest either way,
-with the one-sided rule above.
+with the one-sided rule above. (m33 note: on a decoupled host whose game clock tracks wall, a
+`Pace 0` free-run above target reads `speed_ratio < 1` under the tick-based denominator and the
+stamp stays at target — the deliberate one-sided m11 rule, unchanged.)
 
 ## Knobs
 
@@ -167,7 +186,13 @@ with the one-sided rule above.
 
 ## Operational guidance
 
-- **⛔ `speed_ratio` IS A DELIVERY GATE, not just an fps-stamp input (m21).** *(SCOPE, added at S4: the
+- **⛔ `speed_ratio` IS A DELIVERY GATE, not just an fps-stamp input (m21).** *(SCOPE, added at m33:
+  on PRE-m33 binaries running the pinned decoupled fork this gate is VACUOUS — the world game clock
+  tracks wall there, so the pre-m33 ratio reads ≈ 1.000 by construction at any starvation and the
+  rule below passes while certifying nothing. On such binaries capture health is WALL MATH ONLY:
+  `frames / VideoFps` against the `labels.jsonl` `t_wall` span. From m33 the denominator is the
+  plugin-owned tick count and the gate is meaningful again on every host; the artifact's
+  `game_clock_speed_ratio` beside it shows which regime a session ran in.)* *(SCOPE, added at S4: the
   mechanism below is a **BACKBUFFER-PATH** property — it is about what the PRESENT carries. The SVE
   default grabs scene colour before Slate and was certified ALL-ALIGNED at ratio 3.03 at `m24`. **The
   ship rule is NOT relaxed** — that certification is on a synthetic bench level (G89) at `VideoFps` 30

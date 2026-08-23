@@ -340,6 +340,20 @@ starves it. **Pinned capture runs at ratio ~1.00 — the regime in which every l
 project has was validated.** The pin was adopted for label alignment; it is also the difference
 between a starved capture and a healthy one on that host.
 
+⚠ **CORRECTION (2026-08-23, the m33 diagnosis — appended, nothing above deleted): the two PINNED
+rows in this table are CLOCK-AGREEMENT readings, not health readings.** On this host under the pin
+the world game clock advances WITH WALL (owner artifact, keyed by `session_index`: labels `t` span
+34.219865 s vs `t_wall` span 34.220319 s against a fixed-step prediction of 3.967 s), so the
+pre-m33 `speed_ratio = WallSpan / GameSpan` compares a clock with itself and reads ~1.000 at ANY
+starvation — the sped-up-video defect rode exactly this blindness. The UNPINNED rows
+(1.3627 / 1.6568) remain meaningful: the fork's decoupled mode keeps a fixed sim tick there, so the
+denominator was genuinely pinned below wall. *"Pinned capture runs at ratio ~1.00"* was therefore
+not evidence of health; the pin's perf benefit is real but must be read from wall math
+(`frames / VideoFps` vs the `t_wall` span), not from this ratio. m33 re-keys the ratio's
+denominator onto plugin-owned tick counts, after which pinned readings carry meaning again, and
+emits the old world-clock form beside it as `game_clock_speed_ratio` (≈1.000 there = this
+signature, made visible).
+
 ⚠ **A `P1` CONNECTION, RECORDED AS A CANDIDATE AND EXPLICITLY NOT A CLAIM, AND NOT TO BE
 INVESTIGATED:** the client's original never-reproduced one-frame offset (`P1`) was reported at
 `speed_ratio` **≈1.2**, and her host runs **1.36–1.66 unpinned**. That is an adjacency between two

@@ -131,6 +131,7 @@ private:
 	void FinishRun(bool bLogLine);
 	void PaceThisTick();
 	void StampArmWallClock(double NowWall);
+	double ComputeNominalGameSpan() const;
 	void CheckEarlyPacingWarning();
 	void ComputeRunPacing();
 	void SampleViewThisTick();
@@ -235,6 +236,9 @@ private:
 	double LastFrameTimeSeconds = -1.0;
 	double FirstArmWallSeconds = -1.0;
 	double LastArmWallSeconds = -1.0;
+	int32 TicksAtFirstArm = -1;
+	int32 TicksAtLastArm = -1;
+	double GameClockSpeedRatio = 1.0;
 	bool bPaceCapture = true;
 	bool bPaceInitialized = false;
 	double NextPaceWallTarget = 0.0;

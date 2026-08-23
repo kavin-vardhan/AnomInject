@@ -1017,6 +1017,9 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	LastFrameTimeSeconds = -1.0;
 	FirstArmWallSeconds = -1.0;
 	LastArmWallSeconds = -1.0;
+	TicksAtFirstArm = -1;
+	TicksAtLastArm = -1;
+	GameClockSpeedRatio = 1.0;
 	bPaceInitialized = false;
 	NextPaceWallTarget = 0.0;
 	bEarlyRatioWarned = false;
@@ -2069,6 +2072,20 @@ void UAnomalyCaptureSubsystem::StampArmWallClock(double NowWall)
 		FirstArmWallSeconds = NowWall;
 	}
 	LastArmWallSeconds = NowWall;
+	if (TicksAtFirstArm < 0)
+	{
+		TicksAtFirstArm = CaptureGameTicks;
+	}
+	TicksAtLastArm = CaptureGameTicks;
+}
+
+double UAnomalyCaptureSubsystem::ComputeNominalGameSpan() const
+{
+	if (VideoFps <= 0 || TicksAtFirstArm < 0 || TicksAtLastArm <= TicksAtFirstArm)
+	{
+		return 0.0;
+	}
+	return (double)(TicksAtLastArm - TicksAtFirstArm) * (1.0 / (double)VideoFps);
 }
 
 void UAnomalyCaptureSubsystem::CheckEarlyPacingWarning()
@@ -2077,7 +2094,7 @@ void UAnomalyCaptureSubsystem::CheckEarlyPacingWarning()
 	{
 		return;
 	}
-	const double GameSpan = LastFrameTimeSeconds - FirstFrameTimeSeconds;
+	const double GameSpan = ComputeNominalGameSpan();
 	const double WallSpan = LastArmWallSeconds - FirstArmWallSeconds;
 	if (GameSpan <= KINDA_SMALL_NUMBER || WallSpan <= KINDA_SMALL_NUMBER)
 	{
@@ -2110,9 +2127,11 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 	LastRunPacing.SustainedWallFps = (double)VideoFps;
 	LastRunPacing.SpeedRatio = 1.0;
 	LastRunPacing.StampedFps = (double)VideoFps;
+	GameClockSpeedRatio = 1.0;
 
-	const double GameSpan = LastFrameTimeSeconds - FirstFrameTimeSeconds;
+	const double GameSpan = ComputeNominalGameSpan();
 	const double WallSpan = LastArmWallSeconds - FirstArmWallSeconds;
+	const double GameClockSpan = LastFrameTimeSeconds - FirstFrameTimeSeconds;
 	if (SessionFrameIndex < 2 || FirstFrameTimeSeconds < 0.0 || FirstArmWallSeconds < 0.0
 		|| GameSpan <= KINDA_SMALL_NUMBER || WallSpan <= KINDA_SMALL_NUMBER)
 	{
@@ -2122,6 +2141,10 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 	LastRunPacing.bValid = true;
 	LastRunPacing.SpeedRatio = WallSpan / GameSpan;
 	LastRunPacing.SustainedWallFps = (double)VideoFps / LastRunPacing.SpeedRatio;
+	if (GameClockSpan > KINDA_SMALL_NUMBER)
+	{
+		GameClockSpeedRatio = WallSpan / GameClockSpan;
+	}
 
 	if (ContentClock == EContentClock::Game)
 	{
@@ -2151,10 +2174,11 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 	}
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Capture: pacing=%s | clock=%s | target=%d fps | sustained=%.3f fps | ratio=%.3f | stamped=%.3f."),
+		TEXT("Capture: pacing=%s | clock=%s | target=%d fps | sustained=%.3f fps | ratio=%.3f | stamped=%.3f | legacyRatio=%.7f | armTicks=%d."),
 		bPaceCapture ? TEXT("on") : TEXT("off"),
 		ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), VideoFps,
-		LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps);
+		LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps,
+		GameClockSpeedRatio, TicksAtLastArm - TicksAtFirstArm);
 }
 
 #if ANOMALY_CAPTURE
@@ -2408,7 +2432,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		TickPinReport.GameTicks = CaptureGameTicks;
 
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
-			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, bPaceCapture, bDeliveryMode,
+			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
 			bSveCapture ? TEXT("sve") : TEXT("backbuffer"),
 			bSveCapture ? &RingTelemetry : nullptr,
