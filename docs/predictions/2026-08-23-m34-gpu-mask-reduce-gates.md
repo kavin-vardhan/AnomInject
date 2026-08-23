@@ -171,6 +171,51 @@ has Renderer private access — any surprise dep is REPORTED, not slipped in).
 OUT OF SCOPE, NAMED: the whole-run custom-depth baseline cost (054 §7.1's second cost) · anything
 watcher/ratio-side (m33's business; `encode_watcher.py` is not touched on this branch).
 
+## AMENDMENT 1 (2026-08-24, chat-accepted verdict; written BEFORE the legs it governs)
+
+**The finding this amendment answers:** the visible mask "hitch" on the bench is a DISPLAY-ONLY
+stale-present defect — on armed frames the mask SVE's after-Tonemap callback is designated the
+chain's final writer (`AcceptOverrideIfLastPass`, OverridePassSequence.h:116-138) and ignores
+`Inputs.OverrideOutput`, so the screen target is never written and the swapchain re-presents stale
+content. Datasets/labels/videos unaffected (owner frame-reassembly control; per-engine-frame
+`t_wall` excess ≤ +0.4 ms on every leg). Chat decisions: venue = THIS branch; measurement before
+fix; the standing gate set re-run; G-R7(ii) split. Concorde's "hitch" is TWO stacked phenomena:
+this display defect + the real throughput starvation (m34's original target, unchanged).
+
+**A-I1 — the instrumentation leg (runs FIRST, converts the mechanism from source-derived to
+MEASURED):** the `M23 PASS` line gains one field, `overrideOutput=<0|1>` =
+`Inputs.OverrideOutput.IsValid()` at the mask callback. One bench leg, Mask 1, gpu default.
+**Predicted: `overrideOutput=1` on EVERY armed frame** (Tonemap is the last enabled pass in this
+packaged config: TSR/TAA, no FXAA, native SP). A `0` on any armed frame is a MIXED result:
+reported verbatim, chat rules before the fix proceeds (the R-3 shape). Unarmed frames print
+nothing (the callback is not registered — that absence is itself the clean-path half of the
+mechanism).
+
+**The fix, once A-I1 confirms (the engine's own OCIO pattern, OpenColorIODisplayExtension.cpp:139-145):**
+in `AfterTonemap_RenderThread`, when `Inputs.OverrideOutput.IsValid()`, copy SceneColor into it
+(`AddDrawTexturePass`) and return it; else return SceneColor unchanged. Applied to
+`AnomalyMaskSceneViewExtension.cpp` (the defect) AND defensively to `AnomalySceneViewExtension.cpp`
+(same latent shape, currently shielded only by its disabled-pass slot). Chat pre-authorized the
+defensive copy, same gates.
+
+**Fix gates (zero-effect on measurement BY GATE, not by construction):**
+- **G-F1 EYE GATE (owner-judged, blocking):** bench, MainWorld, paced capture, Mask 1 — the
+  rubberband is GONE by eye/OBS; a Mask 0 control run remains smooth and unchanged.
+- **G-F2 = G-R3 re-run** on the fixed binary: per-frame COMPARE IDENTICAL with zero FIRST-DIFF on
+  all five equivalence legs; `_49` band 66,843–66,878 px at the modal pose; spline MEASURED_ZERO
+  ×8; `SM_Ramp2` NOT_MEASURED ×8; probe fires on the new path.
+- **G-F3 = G-R5 re-run:** same-seed cpu/gpu kept-event pair identical; spline veto pair identical
+  (8/8, anomalies []); delivery-ON veto outcome identical; true INERT (`Mask 0`) zero mask lines.
+- **G-F4 = G-R6 re-run:** annotation keyset 48/48; run_summary keyset +0 vs the m33-binary leg.
+- **G-F5 build identity:** code-only hot-swap (G103) — the exe hash moves, the m34 container
+  (`2A66CA57`/`A7EF9B12`/`D8009AD7`) stays; A44 both-encodings scan of the staged exe for the new
+  token; predecessor exe archived before every swap.
+
+**G-R7(ii) RE-SPECIFIED (chat-accepted):** the Concorde leg splits — (display) hitch A/B by
+eye/OBS judges ONLY the stale-present fix; (throughput) is read EXCLUSIVELY from the m33 wall
+instruments (`t_wall` span vs frames/VideoFps; `speed_ratio` with `game_clock_speed_ratio` beside
+it). The eye is never again the throughput instrument. G-R7(i)'s bench null stands as explained.
+
 ## §5 Standing constraints carried into every leg
 
 - PREEMPTION IS ABSOLUTE: any Concorde-delivery item (cook, G-C, dry-run fallout) parks m34
