@@ -108,7 +108,8 @@ session_<date-time>/
   run_summary.json      a small technical summary of the run
   annotation.json       the anomaly labels for the session
   labels.jsonl          the same labels again, one line per frame
-  annotated/            copies of the frames with the labels drawn on (see Step 5)
+  annotated/            copies of the LABELLED frames with the labels drawn on — numbering
+                        has gaps because frames with nothing to draw are skipped (see Step 5)
 ```
 
 The MP4 appears a few seconds after capture finishes (as long as the Anomaly Watcher window from Step 2 is running).
@@ -117,7 +118,14 @@ The MP4 appears a few seconds after capture finishes (as long as the Anomaly Wat
 
 Some anomalies are genuinely hard to spot — a missing texture on rocks lying on the ground, for instance, can look perfectly normal until you know where to look. The **overlay inspector** exists for exactly that: it draws the capture's own bounding boxes onto **copies** of your frames so you can confirm what the dataset says about a frame instead of squinting at it.
 
-You do not have to run anything. `Run.bat` starts it, and a few seconds after each capture finishes you will find an **`annotated/`** folder inside that session with one image per frame. Open any of them.
+You do not have to run anything. `Run.bat` starts it, and a few seconds after each capture finishes you will find an **`annotated/`** folder inside that session. Open any of them.
+
+**`annotated/` holds only the frames that have something drawn on them.** On a typical session most frames carry no anomaly, and an annotated copy of such a frame would be an identical duplicate of the original — so those are skipped, which saves a large amount of disk and makes the pass much faster. Two consequences worth knowing:
+
+* **The numbering has gaps, and that is normal.** You might see `frame_00003_annotated.png`, then `frame_00026_annotated.png`. **The gaps are frames with nothing to draw, not missing data** — every captured frame is still in `Actual_Frames/`, and `annotation.json` and `labels.jsonl` still describe all of them.
+* **The number in the filename is always the original frame index.** `frame_00045.png` becomes `frame_00045_annotated.png`. Nothing is ever renumbered, so you can always line an overlay up against `annotation.json` by that number.
+
+The overlay window tells you exactly what it did after each capture, in the form *"96 frame(s) had boxes, 96 image(s) written, out of 300 total frame(s)"*, so you never have to wonder whether something went missing.
 
 **What the colours mean:**
 
@@ -174,6 +182,21 @@ Anomalies are applied to objects that are currently visible on screen. These two
 ### Capture pool panel
 
 The list of anomaly types Auto-pool mode draws from — check the ones you want in the mix. **now firing** below it shows which anomalies are live right now, on which objects, and for how much longer.
+
+**Six anomaly types are available. Four are enabled by default:**
+
+| Anomaly | Default | |
+| --- | --- | --- |
+| `blinking` | **on** | an object disappears and reappears |
+| `missing_texture` | **on** | an object's material is replaced with a checker pattern |
+| `corrupted_texture` | **on** | an object's material is replaced with solid magenta |
+| `lod_popping` | **on** | an object flips to a much lower-detail version of itself |
+| `missing_object` | **off** | an object is hidden for the whole burst, with no reappearance inside it |
+| `camera_clipping` | **off** | the camera's near-clip plane is pushed out, slicing away close geometry |
+
+The two unticked ones are **available, not disabled** — tick either whenever you want it in the mix.
+
+**`camera_clipping` is available but off by default**, because in Auto-pool mode it is held for the **whole session** rather than for a few frames — so on a first-person game the player's hands and weapon are sliced away in *every frame* of that capture. That is correct behaviour and it is what the anomaly looks like, but it is disruptive as a default. **Tick it whenever you want it** — see the explainer video and the note in section 7 first.
 
 ### Live preview
 
@@ -246,7 +269,7 @@ On locked-down corporate networks the automatic ffmpeg download can be blocked o
 * **`Video_Clip/`** holds those frames encoded to MP4 at the fps recorded in `annotation.json`.
 * **`run_summary.json`** is a small technical summary (frame counts, timing) — you can ignore it, but don't delete it before the MP4 appears; the encoder uses it to know the session is complete.
 * **`labels.jsonl`** is one line per captured frame carrying the same labels per frame, including each anomaly's bounding box. It is what the overlay inspector reads.
-* **`annotated/`** holds the overlay inspector's output — a copy of each frame with its labels drawn on. Nothing else reads this folder; it is there for you to look at, and deleting it changes nothing.
+* **`annotated/`** holds the overlay inspector's output — a copy of **each frame that has a label drawn on it**, keeping the original frame number in its filename. Frames with nothing to draw are skipped, so the numbering has gaps; that is normal and no data is missing. Nothing else reads this folder — the video is always built from `Actual_Frames/` — so it is there purely for you to look at, and deleting it changes nothing.
 
 ### Reading `labels.jsonl` — the rows are not in order
 
@@ -262,4 +285,4 @@ Nothing is missing and nothing is duplicated — it is purely an ordering proper
 
 ### A note on `camera_clipping`
 
-`camera_clipping` is a **whole-session** anomaly: it applies to the camera for the entire capture rather than to one object for a few frames. A consequence worth knowing in advance: anything permanently close to the camera — a first-person viewmodel, a held weapon — sits inside the near-clip radius for the whole run, so it will appear sliced or partly missing in **every frame** of that session. **This is expected behaviour, not a defect**, and it is what the anomaly is meant to look like.
+`camera_clipping` is **available but switched off by default** in the Capture pool panel — tick it when you want it. It is a **whole-session** anomaly: it applies to the camera for the entire capture rather than to one object for a few frames. That is why it is not on by default, and it is the consequence worth knowing in advance: anything permanently close to the camera — a first-person viewmodel, a held weapon — sits inside the near-clip radius for the whole run, so it will appear sliced or partly missing in **every frame** of that session. **This is expected behaviour, not a defect**, and it is what the anomaly is meant to look like.
