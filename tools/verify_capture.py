@@ -10,6 +10,21 @@ confirm that rather than take it on faith.
 
 It writes annotated COPIES into <dir>/annotated/ and never modifies a captured frame.
 
+ONLY FRAMES THAT CARRY AT LEAST ONE BOX ARE WRITTEN. On a typical session most frames have no
+anomaly on them, and an annotated copy of such a frame is a byte-for-byte duplicate of the original
+apart from the legend - at 3200x2000 that is a lot of disk for nothing. So the output directory is a
+SPARSE, NON-CONTIGUOUS sequence, and the gaps are frames with nothing to draw, not missing data.
+The summary line always states how many frames had boxes, how many images were written, and out of
+how many total frames, so a gap never has to be guessed at.
+
+THE OUTPUT FILENAME KEEPS THE ORIGINAL FRAME INDEX - frame_00045.png becomes
+frame_00045_annotated.png. Nothing is ever renumbered: the number IS the 0-based session index, and
+cross-referencing an overlay against annotation.json is the entire point of the tool.
+
+A frame counts as carrying a box if it has at least one RED (shipped) or AMBER (candidate) box.
+AMBER-ONLY frames ARE written - finding where a dropped or non-shipped label sat is exactly what
+this is used for. --red-only narrows it to frames with a shipped label; it is OFF by default.
+
 TWO COLOURS, and the difference is the point:
 
   RED    the event is in annotation.json for that frame. This is a SHIPPED label - it is in the
@@ -32,7 +47,7 @@ TWO COLOURS, and the difference is the point:
                            worth reporting.
 
 Usage:
-    python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet]
+    python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet] [--red-only]
 
 Requires Pillow:  pip install pillow
 """
@@ -127,6 +142,8 @@ def main():
     ap.add_argument("--dir", default=DEFAULT_DIR, help="session dir containing labels.jsonl + frames")
     ap.add_argument("--out", default=None, help="output dir for annotated copies (default: <dir>/annotated)")
     ap.add_argument("--quiet", action="store_true", help="suppress the per-frame table (keep progress + summary)")
+    ap.add_argument("--red-only", action="store_true",
+                    help="write only frames carrying a RED (shipped) box; default is RED or AMBER")
     args = ap.parse_args()
 
     cap_dir = os.path.abspath(args.dir)
@@ -162,6 +179,9 @@ def main():
     targets_by_cat = {k: set() for k in counts}
     n_boxes = 0
     n_missing_img = 0
+    n_frames_with_boxes = 0
+    n_written = 0
+    n_label_no_drawable_box = 0
 
     if events is None:
         print("NOTE: no annotation.json beside labels.jsonl - every box is drawn RED and nothing is "
@@ -192,6 +212,25 @@ def main():
                                 for a, cat, _ in classified) or "(none)"
             print(f"{frame_key:>7}  {str(rec.get('anomaly_present', False)):>7}  {summary}", flush=True)
 
+        drawable = []
+        for a, cat, colour in classified:
+            x, y, w, h = a.get("bbox_px", [0, 0, 0, 0])
+            if not a.get("bbox_valid", False):
+                colour = GREY
+            if w > 0 and h > 0:
+                drawable.append((a, cat, colour, x, y, w, h))
+
+        if classified and not drawable:
+            n_label_no_drawable_box += 1
+
+        want = bool(drawable) and (not args.red_only
+                                   or any(cat == CAT_SHIPPED for _, cat, _, _, _, _, _ in drawable))
+        if not want:
+            print(f"[progress] {i}/{total}", flush=True)
+            continue
+
+        n_frames_with_boxes += 1
+
         if not os.path.isfile(img_path):
             n_missing_img += 1
             print(f"[progress] {i}/{total} (image missing: {img_name})", flush=True)
@@ -200,13 +239,9 @@ def main():
         im = Image.open(img_path).convert("RGB")
         draw = ImageDraw.Draw(im)
         has_amber = False
-        for a, cat, colour in classified:
-            x, y, w, h = a.get("bbox_px", [0, 0, 0, 0])
-            if not a.get("bbox_valid", False):
-                colour = GREY
-            if w > 0 and h > 0:
-                draw.rectangle([x, y, x + w, y + h], outline=colour, width=3)
-                n_boxes += 1
+        for a, cat, colour, x, y, w, h in drawable:
+            draw.rectangle([x, y, x + w, y + h], outline=colour, width=3)
+            n_boxes += 1
             if colour == AMBER:
                 has_amber = True
             tag = f"{a.get('id')} {a.get('target_name')}"
@@ -217,16 +252,27 @@ def main():
         draw_legend(draw, font, im.width, has_amber)
         out_path = os.path.join(out_dir, os.path.splitext(os.path.basename(img_name))[0] + "_annotated.png")
         im.save(out_path)
+        n_written += 1
         print(f"[progress] {i}/{total}", flush=True)
 
     print("-" * 78, flush=True)
-    print(f"{total} frame(s), {n_boxes} box(es) drawn into {out_dir}", flush=True)
+    print(f"{n_frames_with_boxes} frame(s) had boxes, {n_written} image(s) written, "
+          f"out of {total} total frame(s).", flush=True)
+    print(f"  {total - n_frames_with_boxes} frame(s) had nothing to draw and were SKIPPED - the "
+          f"output is a sparse, non-contiguous sequence and the gaps are frames with no anomaly on "
+          f"them, not missing data. Filenames keep the original 0-based frame index.", flush=True)
+    if args.red_only:
+        print("  --red-only was set: AMBER-only frames were skipped as well.", flush=True)
+    print(f"{n_boxes} box(es) drawn into {out_dir}", flush=True)
     print(f"  RED   {CAT_SHIPPED:<16} {counts[CAT_SHIPPED]:>5}   {sorted(targets_by_cat[CAT_SHIPPED])}", flush=True)
     for cat in (CAT_OUTSIDE, CAT_NONMANIF, CAT_VETOED, CAT_UNMATCHED):
         if counts[cat]:
             print(f"  AMBER {cat:<16} {counts[cat]:>5}   {sorted(targets_by_cat[cat])}", flush=True)
     if n_missing_img:
-        print(f"  {n_missing_img} labelled frame(s) had no image on disk", flush=True)
+        print(f"  {n_missing_img} frame(s) with boxes had no image on disk", flush=True)
+    if n_label_no_drawable_box:
+        print(f"  {n_label_no_drawable_box} frame(s) carried a label whose bbox had zero width or "
+              f"height, so there was no box to draw and no image was written", flush=True)
     if counts[CAT_UNMATCHED]:
         print("  NOTE: UNMATCHED means a candidate box has no matching event in annotation.json and "
               "run_summary reports no vetoes. That combination is not expected - worth reporting.", flush=True)
