@@ -41,13 +41,32 @@ and is the single source of truth for the project.
   answer; run_summary read = evidence-grade closure in flight).
   🎯 **RULED AND NUMBERED (chat, 2026-08-23): `m32` is BURNED** on the pre-delivery bench legs
   (never-reuse; the hole is deliberate) · **`m33` = the GameSpan re-key + encode_watcher
-  cross-check — THE ONLY LIVE BRIEF; rides Monday's delivery cook; lives on `master`;
-  plan-before-code; gates G-A/G-B home + G-C Concorde owner-run** · **`m34` = the GPU-side mask
-  reduction — plan ACCEPTED with amendments A1–A3; ALL m34 work on branch `feature/mask-gpu-reduce`
-  cut from master HEAD, commits and pushes to that branch ONLY; its own POST-delivery cook; merge
-  to master gated on G-R7's Concorde leg; ⛔ NO m34 code before m33 is committed with G-A/G-B
-  green.** VFR is REJECTED — the "NO frame duplication, NO variable frame rate, ever" doctrine
-  line STANDS unmodified.
+  cross-check** · **`m34` = the GPU-side mask reduction — plan ACCEPTED with amendments A1–A3;
+  ALL m34 work on branch `feature/mask-gpu-reduce` cut from master HEAD, commits and pushes to
+  that branch ONLY; its own POST-delivery cook; merge to master gated on G-R7's Concorde leg;
+  ⛔ NO m34 code before m33 is committed with G-A/G-B green — that condition is NOW MET, but the
+  Monday pipeline still preempts branch work at any moment.** VFR is REJECTED — the "NO frame
+  duplication, NO variable frame rate, ever" doctrine line STANDS unmodified.
+  ✅ **m33 IS BUILT, HOME-GATED AND PUSHED (session 056, 2026-08-23): plugin `491eca5` + `03b0b7a`
+  (predictions `0298143` first), AnomDash `132d27d`. ⛔ m33 CLOSES ONLY AFTER G-C (owner-run
+  starved Concorde capture, post-cook); NO TAG.** `speed_ratio`'s denominator is now the
+  plugin-owned tick span (stamped beside the wall stamps in `StampArmWallClock`); the old
+  world-clock ratio ships beside it as **`run_summary.game_clock_speed_ratio`** (+1 field exactly,
+  P6 unmoved — subset gate exit 1 with that as the ONLY extra, invariant core ALL IDENTICAL).
+  Gates: G-A identity 1e-7, armTicks 119 (the withdrawn `(ArmedFrames−1)` form would have read
+  **1.337 on a healthy leg** — the settle-gap flag, quantified) · G-B 40 ms stall ⇒ ratio
+  **1.2374** (model 1.239), honest stamp FIRED end-to-end (`stamped 24.244 == annotation
+  video.fps`) · G-W all four fixtures as pre-declared (healthy silent at 30; ×2-stretched loud at
+  14.998). 🧭 **COLD START: journal
+  `docs/sessions/2026-08-23-056-m33-gamespan-rekey-and-watcher-crosscheck.md`.**
+  🔴 **CHAT-DECISION PENDING: the watcher ESTIMATOR deviates from the ruled expression** — the
+  ruled `(N−1)/t_wall-span` under-reads every healthy gapped session by ~23 % (measured 22.99 vs
+  30 on the fixture source; the plugin formula's settle-gap disease again), so the shipped form is
+  `1/median(consecutive t_wall delta)`; pre-registered as AMENDMENT 1 (`491eca5`), ratify or
+  revert. ⚠ Runbook §8.2's A44 example control `IsHideTypeAnomaly` is STALE (renamed at 053) —
+  flagged, not yet edited. Staged bench exe **`757A5DD4`**; predecessor archived
+  `_binary_baselines\StackOBot.exe.session055-DCF9C192`; container still the session-051 quartet
+  (the delivery cook picks m33 up by pull). Legs banked `M33_CTRL_A/B`, `M33_GA`, `M33_GB`.
   🆕 **`G164`** — a killed build task left a TRUNCATED exe (~2 MiB vs ~240 MB) and the next
   `Build.bat` said "up to date" at exit 0 in 2.8 s: **verify artifact SIZE/hash after any killed
   build; exit codes and "up to date" prove nothing about wholeness** (055 §5).
