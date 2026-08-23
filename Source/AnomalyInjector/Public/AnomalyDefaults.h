@@ -53,6 +53,14 @@ namespace AnomalyDefaults
 	ANOMALYINJECTOR_API bool SetLodPoppingMinCoverageOverride(float Pct);
 	ANOMALYINJECTOR_API void ClearLodPoppingMinCoverageOverride();
 
+	inline constexpr bool LodPoppingRequireHighestLodCompiled = true;
+
+	ANOMALYINJECTOR_API const TCHAR* LodPoppingRequireHighestLodKey();
+	ANOMALYINJECTOR_API bool GetLodPoppingRequireHighestLod();
+	ANOMALYINJECTOR_API FString DescribeLodPoppingRequireHighestLod();
+	ANOMALYINJECTOR_API void SetLodPoppingRequireHighestLodOverride(bool bRequire);
+	ANOMALYINJECTOR_API void ClearLodPoppingRequireHighestLodOverride();
+
 	inline constexpr float CameraClippingTriggerRadiusCompiled = 200.0f;
 	inline constexpr float TriggerRadiusMin = 1.0f;
 	inline constexpr float TriggerRadiusMax = 1000000.0f;

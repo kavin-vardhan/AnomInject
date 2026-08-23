@@ -8,6 +8,7 @@
 #include "Engine/SkinnedAsset.h"
 
 #include "ConvexVolume.h"
+#include "SceneManagement.h"
 #include "Camera/CameraTypes.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/PrimitiveComponent.h"
@@ -154,7 +155,7 @@ namespace
 		DrawDebugSphere(World, Center, R, 24, FColor::Yellow,  false,  -1.0f,  0,  2.0f);
 	}
 
-	FMatrix BuildViewProjectionMatrix(const FAnomalyViewInfo& View)
+	FMatrix BuildProjectionMatrix(const FAnomalyViewInfo& View)
 	{
 		FMinimalViewInfo VI;
 		VI.Location = View.Origin;
@@ -163,7 +164,12 @@ namespace
 		VI.AspectRatio = View.AspectRatio;
 		VI.ProjectionMode = ECameraProjectionMode::Perspective;
 		VI.bConstrainAspectRatio = false;
-		const FMatrix ProjectionMatrix = VI.CalculateProjectionMatrix();
+		return VI.CalculateProjectionMatrix();
+	}
+
+	FMatrix BuildViewProjectionMatrix(const FAnomalyViewInfo& View)
+	{
+		const FMatrix ProjectionMatrix = BuildProjectionMatrix(View);
 
 		const FMatrix ViewRotationMatrix = FInverseRotationMatrix(View.Rotation) * FMatrix(
 			FPlane(0, 0, 1, 0),
@@ -732,6 +738,17 @@ namespace AnomalyViewport
 			}
 		}
 		return bAny ? Best : Unmeasurable;
+	}
+
+	float ComputeBoundsScreenSizeForActiveView(UWorld* World, const FVector& BoundsOrigin, float SphereRadius)
+	{
+		FAnomalyViewInfo View;
+		if (!World || !GetActiveViewInfo(World, View))
+		{
+			return -1.0f;
+		}
+		return ComputeBoundsScreenSize(FVector4(BoundsOrigin, 1.0),
+			SphereRadius, FVector4(View.Origin, 1.0), BuildProjectionMatrix(View));
 	}
 
 	bool IsGeometryWithinNearClipRadius(UWorld* World)

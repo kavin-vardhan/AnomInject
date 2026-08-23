@@ -20,4 +20,14 @@ namespace AnomalyLod
 	ANOMALYINJECTOR_API void SetForcedLod(UMeshComponent* Component, int32 LodIndex);
 
 	ANOMALYINJECTOR_API int32 ResolveTargetLod(const UMeshComponent* Component, int32 RequestedOrSentinel);
+
+	struct FCurrentLod
+	{
+		int32 Level = -1;
+		float ScreenSize = -1.0f;
+		const TCHAR* Source = TEXT("undetermined");
+		bool bKnown = false;
+	};
+
+	ANOMALYINJECTOR_API FCurrentLod GetCurrentLod(UWorld* World, const UMeshComponent* Component);
 }

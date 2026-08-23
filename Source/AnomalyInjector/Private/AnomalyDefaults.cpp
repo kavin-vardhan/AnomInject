@@ -60,6 +60,18 @@ namespace
 		return bSet;
 	}
 
+	bool& RequireHighestLodOverride()
+	{
+		static bool bValue = true;
+		return bValue;
+	}
+
+	bool& RequireHighestLodOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
 	float& TriggerRadiusOverride()
 	{
 		static float Value = 0.0f;
@@ -470,6 +482,79 @@ namespace AnomalyDefaults
 		return FString::Printf(TEXT("%.4f%%(%s)"), V, Src);
 	}
 
+	const TCHAR* LodPoppingRequireHighestLodKey()
+	{
+		return TEXT("LodPoppingRequireHighestLod");
+	}
+
+	bool GetLodPoppingRequireHighestLod()
+	{
+		if (RequireHighestLodOverrideSet())
+		{
+			return RequireHighestLodOverride();
+		}
+		static bool bResolved = false;
+		static bool bValue = LodPoppingRequireHighestLodCompiled;
+		static const TCHAR* Source = TEXT("compiled");
+		if (bResolved)
+		{
+			return bValue;
+		}
+		bResolved = true;
+
+		bool bFromIni = false;
+		if (GConfig && GConfig->GetBool(SectionName(), LodPoppingRequireHighestLodKey(), bFromIni, GGameIni))
+		{
+			bValue = bFromIni;
+			Source = TEXT("ini");
+		}
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: highest-LOD requirement = %s (%s). The anomaly's visible magnitude is the CONTRAST ")
+			TEXT("between the LOD an object is CURRENTLY rendering and the one forced onto it, so an object already ")
+			TEXT("at a reduced LOD pops to something close to itself. Distance and screen coverage are proxies for ")
+			TEXT("that contrast; this is the contrast itself. AUTO-POOL selection only - a targeted fire warns and ")
+			TEXT("fires anyway."),
+			bValue ? TEXT("ON") : TEXT("off"), Source);
+		return bValue;
+	}
+
+	void SetLodPoppingRequireHighestLodOverride(bool bRequire)
+	{
+		RequireHighestLodOverride() = bRequire;
+		RequireHighestLodOverrideSet() = true;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: highest-LOD requirement set to %s by console override. This BEATS DefaultGame.ini [%s] ")
+			TEXT("%s (G88). Turning it OFF restores the pre-change auto-pool candidate set exactly."),
+			bRequire ? TEXT("ON") : TEXT("off"), SectionName(), LodPoppingRequireHighestLodKey());
+	}
+
+	void ClearLodPoppingRequireHighestLodOverride()
+	{
+		RequireHighestLodOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: console highest-LOD override cleared; the ini value or the compiled default takes over."));
+	}
+
+	FString DescribeLodPoppingRequireHighestLod()
+	{
+		const bool bV = GetLodPoppingRequireHighestLod();
+		const TCHAR* Src = TEXT("compiled");
+		if (RequireHighestLodOverrideSet())
+		{
+			Src = TEXT("console");
+		}
+		else
+		{
+			bool bFromIni = false;
+			if (GConfig && GConfig->GetBool(SectionName(), LodPoppingRequireHighestLodKey(), bFromIni, GGameIni))
+			{
+				Src = TEXT("ini");
+			}
+		}
+		return FString::Printf(TEXT("%s(%s)"), bV ? TEXT("on") : TEXT("off"), Src);
+	}
+
 	const TCHAR* CameraClippingTriggerRadiusKey()
 	{
 		return TEXT("CameraClippingTriggerRadiusCm");
@@ -712,6 +797,32 @@ namespace
 			*AnomalyDefaults::DescribeLodPoppingMinCoverage());
 	}
 
+	void HandleLodRequireHighestLod(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Anomaly.LodRequireHighestLod <0|1|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeLodPoppingRequireHighestLod());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearLodPoppingRequireHighestLodOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetLodPoppingRequireHighestLodOverride(FCString::Atoi(*Args[0]) != 0);
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Anomaly.LodRequireHighestLod: '%s' is not 0, 1 or 'default'."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Anomaly.LodRequireHighestLod: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeLodPoppingRequireHighestLod());
+	}
+
 	void HandleCameraClipTriggerRadius(const TArray<FString>& Args)
 	{
 		if (Args.Num() < 1)
@@ -745,8 +856,31 @@ static FAutoConsoleCommand GLodMinCoverageCmd(
 	     "refused if its bounds-projected screen coverage at pick time is below this. PRECEDENCE: console beats "
 	     "DefaultGame.ini [AnomalyInjector] LodPoppingMinCoveragePct, which beats the compiled default 7.0. Range "
 	     "[0..100]; out of range is REFUSED, never clamped. 0 disables the COVERAGE gate only - the distance gate and "
+	     "the highest-LOD requirement are untouched. A targeted fire on a named object already bypasses this gate "
+	     "entirely. THE COMPILED DEFAULT 7.0 IS A MEASURED NUMBER, NOT A PREFERENCE: m30 calibrated it against a "
+	     "last-visible anchor of 9.3453% and a first-invisible anchor of 3.9045%, with margins 1.34x below the visible "
+	     "anchor and 1.79x above the invisible one, biased toward REFUSING because a positive label with no visible "
+	     "change is the dataset-poisoning direction. Changing it at runtime is an operator decision and is NOT a "
+	     "re-calibration; the default is deliberately not moved. Pass 'default' to clear the override. "
 	     "Usage: IAI.Anomaly.LodMinCoverage <pct|default>"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleLodMinCoverage));
+
+static FAutoConsoleCommand GLodRequireHighestLodCmd(
+	TEXT("IAI.Anomaly.LodRequireHighestLod"),
+	TEXT("Require an AUTO-POOL lod_popping candidate to be rendering at its highest-detail LOD (level 0). The "
+	     "anomaly's visible magnitude is the CONTRAST between the LOD the object is currently at and the one forced "
+	     "onto it, so forcing a low LOD onto something already at a low LOD changes little or nothing - which is why "
+	     "the same anomaly reads strong on some objects and invisible on others. Distance and screen coverage are "
+	     "proxies for that contrast; this is the contrast itself. It is the GRADED form of the existing single-LOD "
+	     "guard, which refuses a mesh that cannot pop at all. AUTO-POOL SELECTION ONLY: a targeted fire on a named "
+	     "object is never blocked, but it WARNS naming the current level so a weak-looking targeted fire explains "
+	     "itself. The current level is read on the GAME THREAD - for a skinned mesh from "
+	     "USkinnedMeshComponent::GetPredictedLODLevel(), for a static mesh by the engine's own screen-size "
+	     "computation against the asset's authored per-LOD thresholds. It is NOT a 'was it rendered' read. "
+	     "PRECEDENCE: console beats DefaultGame.ini [AnomalyInjector] LodPoppingRequireHighestLod, which beats the "
+	     "compiled default ON. Setting it OFF restores the previous auto-pool candidate set exactly. "
+	     "Usage: IAI.Anomaly.LodRequireHighestLod <0|1|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleLodRequireHighestLod));
 
 static FAutoConsoleCommand GCameraClipTriggerRadiusCmd(
 	TEXT("IAI.Anomaly.CameraClipTriggerRadius"),

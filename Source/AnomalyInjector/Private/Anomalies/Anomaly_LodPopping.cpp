@@ -82,6 +82,7 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	const bool bAutoPool = UAnomalyInjectorSubsystem::IsAutoPoolSelection(World);
 	const float MaxDistanceCm = bAutoPool ? AnomalyDefaults::GetLodPoppingMaxDistanceCm() : 0.0f;
 	const float EffectiveMinCoveragePct = bAutoPool ? AnomalyDefaults::GetLodPoppingMinCoveragePct() : 0.0f;
+	const bool bRequireHighestLod = bAutoPool && AnomalyDefaults::GetLodPoppingRequireHighestLod();
 
 	if (!bAutoPool)
 	{
@@ -99,6 +100,7 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	int32 RefusedSingleLod = 0;
 	int32 RefusedTooSmall = 0;
 	int32 RefusedTooFar = 0;
+	int32 RefusedNotHighestLod = 0;
 	TMap<const AActor*, float> CoverageByOwner;
 	TMap<const AActor*, float> DistanceByOwner;
 	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
@@ -169,6 +171,38 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 			continue;
 		}
 
+		const AnomalyLod::FCurrentLod Current = AnomalyLod::GetCurrentLod(World, Mesh);
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: CURRENT-LOD '%s' level=%s screen_size=%.6f source=%s worst=%d (%s) — the anomaly's ")
+			TEXT("visible magnitude is the CONTRAST between this level and the forced one, so a candidate already at ")
+			TEXT("a reduced LOD pops to something close to itself."),
+			*Mesh->GetName(),
+			Current.bKnown ? *FString::FromInt(Current.Level) : TEXT("UNDETERMINED"),
+			Current.ScreenSize, Current.Source, AnomalyLod::GetWorstLod(Mesh),
+			bRequireHighestLod ? TEXT("ENFORCED, auto-pool selection") : TEXT("BYPASSED, targeted fire"));
+
+		if (bRequireHighestLod && Current.bKnown && Current.Level != 0)
+		{
+			++RefusedNotHighestLod;
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("lod_popping: REFUSED '%s' — it is ALREADY AT LOD %d (source %s, screen_size %.6f), not its ")
+				TEXT("highest-detail LOD 0, so forcing LOD %d onto it would change little or nothing. This is the ")
+				TEXT("GRADED form of the single-LOD guard and it gates AUTO-POOL SELECTION only; a targeted fire on ")
+				TEXT("a named object warns and fires anyway. IAI.Anomaly.LodRequireHighestLod 0 disables it."),
+				*Mesh->GetName(), Current.Level, Current.Source, Current.ScreenSize, AnomalyLod::GetWorstLod(Mesh));
+			continue;
+		}
+
+		if (!bAutoPool && Current.bKnown && Current.Level != 0)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("lod_popping: TARGETED FIRE on '%s' which is ALREADY AT LOD %d (source %s, screen_size %.6f), ")
+				TEXT("not its highest-detail LOD 0. FIRING ANYWAY — your pick wins — but the pop will be WEAKER than ")
+				TEXT("on the same object at LOD 0, because the visible magnitude is the contrast between the current ")
+				TEXT("level and the forced one. Move closer, or expect a small change."),
+				*Mesh->GetName(), Current.Level, Current.Source, Current.ScreenSize);
+		}
+
 		FPoppingTarget Target;
 		Target.Mesh = Mesh;
 		Target.BaselineLod = AnomalyLod::GetForcedLod(Mesh);
@@ -194,6 +228,7 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		Meshes.Num(), *Substring, HalfPeriodFrames,
 		bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, proximity gates BYPASSED"),
 		Targets.Num(), RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm,
+		RefusedNotHighestLod);
 	return bActive;
 }
 

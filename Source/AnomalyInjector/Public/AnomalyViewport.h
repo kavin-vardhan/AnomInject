@@ -117,6 +117,8 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API bool IsGeometryWithinNearClipRadius(UWorld* World);
 
+	ANOMALYINJECTOR_API float ComputeBoundsScreenSizeForActiveView(UWorld* World, const FVector& BoundsOrigin, float SphereRadius);
+
 	ANOMALYINJECTOR_API void ResetTargetExclusionStats();
 
 	ANOMALYINJECTOR_API int32 GetTargetExclusionCount();
