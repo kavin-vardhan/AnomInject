@@ -15,8 +15,15 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🚧 **YOU ARE HERE — 2026-08-23 (sessions 053–055 + the post-055 rulings). ⛔ STILL NO TAG —
+- 🚧 **YOU ARE HERE — 2026-08-23 (sessions 053–057). ⛔ STILL NO TAG —
   `m31` REMAINS THE OPEN MILESTONE, STILL AWAITING CONCORDE V-3/V-4. Highest tag is still `m30`.**
+  🎬 **m34 (GPU mask reduction) IS CLEARED TO START — its cold-start contract is
+  `docs/sessions/2026-08-23-057-m34-gpu-mask-reduce-approved-plan-handoff.md`. READ THAT FILE
+  FIRST if you are the m34 session: it carries the approved design, file list, gates G-R1..G-R7,
+  chat's amendments A1–A3, and the branch rule (ALL m34 work on `feature/mask-gpu-reduce`,
+  commits+pushes to that branch ONLY; master is the delivery line; merge gated on G-R7's Concorde
+  leg; the Monday delivery pipeline preempts at any moment). m34 needs a FULL COOK (G129 — a new
+  global shader cannot hot-swap) and does NOT enter the client delivery build.**
   🧭 **COLD START: journals 053 (toggling anomalies label the ACTIVE SUBSET), 054 (LOD-contrast
   gate · mask-pass hitching · tick-pin perf) and 055 (camera_clipping pool default · sparse overlay
   output) — each self-contained.** Plugin HEAD = the 055 set (`a75d601` · `6e143f2` · `4bc9739` +
