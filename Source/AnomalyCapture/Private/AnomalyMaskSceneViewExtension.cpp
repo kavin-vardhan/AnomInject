@@ -181,8 +181,11 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(mask): M23 PASS id=%llu rCustomDepth_renderThread=%d customStencilExtent=%dx%d ")
-		TEXT("viewRect=%dx%d (StencilDummy is 1x1: extent 1x1 means custom depth was NOT produced)"),
-		RequestId, ModeAtPass, StencilExtent.X, StencilExtent.Y, Size.X, Size.Y);
+		TEXT("viewRect=%dx%d overrideOutput=%d (StencilDummy is 1x1: extent 1x1 means custom depth was ")
+		TEXT("NOT produced; overrideOutput=1 means the engine designated THIS callback the chain's final ")
+		TEXT("writer for the frame)"),
+		RequestId, ModeAtPass, StencilExtent.X, StencilExtent.Y, Size.X, Size.Y,
+		Inputs.OverrideOutput.IsValid() ? 1 : 0);
 
 	Item.CustomDepthModeAtPass = ModeAtPass;
 	Item.CustomStencilExtent = StencilExtent;
