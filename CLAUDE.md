@@ -15,7 +15,44 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🚧 **YOU ARE HERE — 2026-08-22 (latest, session 052). THE FINAL PRE-DELIVERY CHANGE SET: SEVEN
+- 🚧 **YOU ARE HERE — 2026-08-23 (sessions 053–055 + the post-055 rulings). ⛔ STILL NO TAG —
+  `m31` REMAINS THE OPEN MILESTONE, STILL AWAITING CONCORDE V-3/V-4. Highest tag is still `m30`.**
+  🧭 **COLD START: journals 053 (toggling anomalies label the ACTIVE SUBSET), 054 (LOD-contrast
+  gate · mask-pass hitching · tick-pin perf) and 055 (camera_clipping pool default · sparse overlay
+  output) — each self-contained.** Plugin HEAD = the 055 set (`a75d601` · `6e143f2` · `4bc9739` +
+  this docs commit); AnomDash `dcf2004`. Staged exe `DCF9C192`; **no cook since session 051 — the
+  container is still that quartet** (utoc `E4FE9B35` · ucas `D9929F6F` · pak `BFB95333`).
+  🩹 **HITCHING = the m26/m27 mask measure pass** (054 §7, owner-bisected). ⚖ **OWNER DECISION: THE
+  MASK STAYS ON** — Mask 0 re-admits invisible-object labels (complaint #1); the hitch ships as a
+  documented limitation. The named bisect remains `IAI.Capture.Mask 0`.
+  🚨 **POST-055 (2026-08-23, chat-ACCEPTED diagnosis): THE SPED-UP-VIDEO DEFECT.** On the pinned
+  decoupled fork the WORLD GAME CLOCK ADVANCES WITH WALL — owner artifact, keyed by
+  `session_index`: labels `t` span **34.219865 s** vs `t_wall` span **34.220319 s** (equal to
+  0.45 ms) against a fixed-step prediction of **3.967 s**; `ticks_per_captured_frame` 1.35
+  (162 ticks / 120 frames — ticks STRETCHED, not multiplied). ⇒ `speed_ratio = WallSpan/GameSpan`
+  (`ComputeRunPacing`, AnomalyCaptureSubsystem.cpp:2114-2123, game side `World->GetTimeSeconds()`
+  :1680) **reads ~1.000 BY CONSTRUCTION at ANY starvation in that regime** — the m11 honest stamp
+  never fires, and a mask-starved capture ships `video.fps=30` MP4s that play **2–5.75× fast**.
+  📌 **CONSEQUENCES, RULED:** 054 §8's PINNED ratios (1.0006/1.0012) are CLOCK-AGREEMENT readings,
+  NOT health · **the m21 ship rule (`speed_ratio ≤ ~1.05` ⇒ deliver) is VACUOUS on the pinned
+  fork** — on Concorde read capture health from WALL math (frames/VideoFps vs the labels.jsonl
+  `t_wall` span), never from `speed_ratio` · fork-Core mechanism line = a CANDIDATE, one
+  office-side source read, logged NOT scheduled · content_clock override was NOT active (owner
+  answer; run_summary read = evidence-grade closure in flight).
+  🎯 **RULED AND NUMBERED (chat, 2026-08-23): `m32` is BURNED** on the pre-delivery bench legs
+  (never-reuse; the hole is deliberate) · **`m33` = the GameSpan re-key + encode_watcher
+  cross-check — THE ONLY LIVE BRIEF; rides Monday's delivery cook; lives on `master`;
+  plan-before-code; gates G-A/G-B home + G-C Concorde owner-run** · **`m34` = the GPU-side mask
+  reduction — plan ACCEPTED with amendments A1–A3; ALL m34 work on branch `feature/mask-gpu-reduce`
+  cut from master HEAD, commits and pushes to that branch ONLY; its own POST-delivery cook; merge
+  to master gated on G-R7's Concorde leg; ⛔ NO m34 code before m33 is committed with G-A/G-B
+  green.** VFR is REJECTED — the "NO frame duplication, NO variable frame rate, ever" doctrine
+  line STANDS unmodified.
+  🆕 **`G164`** — a killed build task left a TRUNCATED exe (~2 MiB vs ~240 MB) and the next
+  `Build.bat` said "up to date" at exit 0 in 2.8 s: **verify artifact SIZE/hash after any killed
+  build; exit codes and "up to date" prove nothing about wholeness** (055 §5).
+- 🟦 *(superseded as "you are here" by the entry above — still the record of session 052)*
+  **2026-08-22 (session 052). THE FINAL PRE-DELIVERY CHANGE SET: SEVEN
   PLUGIN COMMITS + TWO AnomDash COMMITS, SHIPPED THE DAY BEFORE THE CLIENT BUILD. ⛔ NOTHING WAS
   TAGGED — `m31` IS STILL THE OPEN MILESTONE AND STILL AWAITS CONCORDE V-3/V-4. Highest tag is
   still `m30`.**

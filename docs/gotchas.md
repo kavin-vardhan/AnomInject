@@ -4301,3 +4301,16 @@ one's location.**
 Same family as `G88` (a loose ini beside a package is a no-op) and `G119` (read it back out of the
 artifact): **an assumption about the filesystem layout is an assumption about a machine you are not
 standing on.**
+
+## G164 — a killed build leaves a truncated exe that the next build calls "up to date" at exit 0
+
+(2026-08-22, session 055.) A killed build task left `StackOBot.exe` TRUNCATED at ~2 MiB against the
+real ~240 MB — and the next `Build.bat` reported "up to date" at **EXIT 0 in 2.8 s**. UBT trusts the
+output's TIMESTAMP; it never checks that the artifact is whole. This is `G119`'s shape applied to
+the build system itself: **an exit code plus "up to date" is not evidence the artifact exists in
+full.**
+
+Rule: **after any killed or interrupted build task, verify the output binary's SIZE (or hash)
+against a known-good build before trusting it.** Recovery is cheap — delete the exe+pdb and rebuild
+(objects survive; ~90 s relink). The dangerous path is the silent one: a 2 MiB stub with a fresh
+timestamp satisfies every downstream step that keys on "the build succeeded".
