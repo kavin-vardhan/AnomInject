@@ -150,6 +150,32 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       Read the value; do not assume it. (Added 2026-08-06 after the CB_GateLevel work made this hazard
       real — see G87/G88/G89.)*
 
+- [ ] 🚨 **`[AnomalyInjector] ExcludedTargetNamePatterns` carries `Decal` and `_CR_`** (added
+      2026-08-24, lands at the NEXT cook — the already-shipped bundle is NOT re-cooked for it).
+      ```ini
+      +ExcludedTargetNamePatterns=Decal
+      +ExcludedTargetNamePatterns=_CR_
+      ```
+      *First FIELD receipt of route (e), and it is the case the `H6` boxes above say is HIGH HARM
+      and self-sufficient. A tester aimed at a wall; the dashboard's click-to-select was
+      depth-blind and picked the small decal mesh lying on that wall's face
+      (`Wall_Grime_F_CR_Decal_INST776`, `StaticMeshComponent`, **TRANSLUCENT**). The opaque
+      material swap then rendered **visibly, on the wall, exactly where the tester was looking**,
+      while the mask measured the decal at zero and the veto removed all 10 events — shipping an
+      `annotation.json` with **no anomalies at all** for a session whose frames plainly contain
+      one. `vetoed_events=10`, `translucent_vetoes=10`.*
+      ⚠ **The exclusion is the SELECTION half only.** It stops decals being CHOSEN; it does not
+      make a translucent target measurable, and route (e) stays **documented, not fixed**. The
+      dashboard-side half shipped separately (AnomDash `5d35cbe`, nearest-first picking).
+      📌 **The "translucent population is UNMEASURED on any delivered title" note above is no
+      longer true — this is the first measurement, and it is 10 of 10.**
+      → `docs/sessions/2026-08-24-060-field-bugs-overlay-labels-and-depth-blind-picker.md`.
+
+- [ ] **The client note for the NEXT delivery says decals / overlay meshes are excluded from
+      targeting.** *Otherwise the client sees the anomaly-type mix shift between deliveries with
+      no stated reason, and a silent change to what can be targeted is exactly the kind of thing
+      that gets read as a regression.*
+
 ## 2. Desktop app + config
 
 - [ ] **Built with the current source**: `npm run build:tauri && npm run tauri build` on a machine with
