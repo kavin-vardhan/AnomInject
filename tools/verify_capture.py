@@ -46,6 +46,18 @@ TWO COLOURS, and the difference is the point:
            UNMATCHED       no such event in annotation.json and nothing reports a veto. Unexpected;
                            worth reporting.
 
+BOX LABELS READ "<anomaly> <asset_name> (<actor_name>)". The ASSET NAME is primary because the actor
+name is frequently uninformative - a level actor placed in the editor is named StaticMeshActor_66 or
+BP_MovingPlatform_C_UAID_B42E9936..., which identifies nothing to a human looking at a frame. The
+actor name is kept, dimmed and in parentheses, because it is the join key against annotation.json and
+labels.jsonl and must stay readable off the image.
+
+⚠ THE ASSET NAME COMES FROM annotation.json's affected_objects.nodes[] (m22), SO A BOX WITH NO EVENT
+IN annotation.json HAS NO ASSET NAME TO SHOW. That is exactly the VETOED and UNMATCHED categories:
+labels.jsonl carries only target_name (the actor name), so those boxes fall back to the actor name
+alone. The summary says so explicitly when it happens, rather than leaving the reader to wonder why
+some boxes are named differently from others.
+
 Usage:
     python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet] [--red-only]
 
@@ -77,13 +89,19 @@ def client_type(engine_id):
 def load_events(cap_dir):
     path = os.path.join(cap_dir, "annotation.json")
     if not os.path.isfile(path):
-        return None
+        return None, {}
     with open(path, "r", encoding="utf-8") as f:
         ann = json.load(f)
     events = []
+    assets = {}
     for ev in ann.get("anomalies", []) or []:
         af = ev.get("affected_frames", {}) or {}
         nodes = (ev.get("affected_objects", {}) or {}).get("nodes", []) or []
+        for n in nodes:
+            actor = n.get("name", "") or ""
+            asset = n.get("asset_name", "") or ""
+            if actor and asset and actor not in assets:
+                assets[actor] = asset
         events.append({
             "type": ev.get("anomaly_type", ""),
             "names": set(n.get("name", "") for n in nodes),
@@ -92,7 +110,38 @@ def load_events(cap_dir):
             "idx": set(af.get("frame_indices", []) or []),
             "manifested": bool(ev.get("manifested", True)),
         })
-    return events
+    return events, assets
+
+
+def label_for(engine_id, actor, assets):
+    """Primary label + dimmed actor suffix. Empty asset_name falls back to the actor name alone."""
+    asset = assets.get(actor, "")
+    if asset:
+        return f"{engine_id} {asset}", f"({actor})"
+    return f"{engine_id} {actor}", ""
+
+
+def target_for(actor, assets):
+    asset = assets.get(actor, "")
+    return f"{asset} ({actor})" if asset else actor
+
+
+def draw_tag(draw, font, x, y, primary, dimmed, suffix, colour):
+    """Primary in the box colour, actor name dimmed, category suffix back in the box colour."""
+    try:
+        cx = x
+        draw.text((cx, y), primary, fill=colour, font=font)
+        cx += draw.textlength(primary, font=font)
+        if dimmed:
+            cx += 5
+            draw.text((cx, y), dimmed, fill=GREY, font=font)
+            cx += draw.textlength(dimmed, font=font)
+        if suffix:
+            cx += 5
+            draw.text((cx, y), suffix, fill=colour, font=font)
+    except Exception:
+        flat = "  ".join(p for p in (primary, dimmed, suffix) if p)
+        draw.text((x, y), flat, fill=colour, font=font)
 
 
 def load_run_summary(cap_dir):
@@ -161,7 +210,7 @@ def main():
         sys.exit("ERROR: Pillow is required for the overlay tool.\n"
                  "       Install it with:  python -m pip install --upgrade Pillow")
 
-    events = load_events(cap_dir)
+    events, assets = load_events(cap_dir)
     rs = load_run_summary(cap_dir)
     any_vetoed = int(rs.get("vetoed_events", 0) or 0) > 0
 
@@ -182,6 +231,7 @@ def main():
     n_frames_with_boxes = 0
     n_written = 0
     n_label_no_drawable_box = 0
+    n_actor_only = 0
 
     if events is None:
         print("NOTE: no annotation.json beside labels.jsonl - every box is drawn RED and nothing is "
@@ -204,11 +254,11 @@ def main():
             cat, colour = classify(frame_key, a.get("id", ""), a.get("target_name", ""),
                                    events, any_vetoed)
             counts[cat] += 1
-            targets_by_cat[cat].add(a.get("target_name", ""))
+            targets_by_cat[cat].add(target_for(a.get("target_name", ""), assets))
             classified.append((a, cat, colour))
 
         if not args.quiet:
-            summary = ", ".join(f"{a.get('id')}->{a.get('target_name')}[{cat}]"
+            summary = ", ".join(f"{a.get('id')}->{target_for(a.get('target_name', ''), assets)}[{cat}]"
                                 for a, cat, _ in classified) or "(none)"
             print(f"{frame_key:>7}  {str(rec.get('anomaly_present', False)):>7}  {summary}", flush=True)
 
@@ -244,10 +294,11 @@ def main():
             n_boxes += 1
             if colour == AMBER:
                 has_amber = True
-            tag = f"{a.get('id')} {a.get('target_name')}"
-            if cat != CAT_SHIPPED:
-                tag += f"  [{cat}]"
-            draw.text((x + 2, max(0, y - 20)), tag, fill=colour, font=font)
+            primary, dimmed = label_for(a.get("id", ""), a.get("target_name", ""), assets)
+            if not dimmed:
+                n_actor_only += 1
+            suffix = f"[{cat}]" if cat != CAT_SHIPPED else ""
+            draw_tag(draw, font, x + 2, max(0, y - 20), primary, dimmed, suffix, colour)
 
         draw_legend(draw, font, im.width, has_amber)
         out_path = os.path.join(out_dir, os.path.splitext(os.path.basename(img_name))[0] + "_annotated.png")
@@ -268,6 +319,11 @@ def main():
     for cat in (CAT_OUTSIDE, CAT_NONMANIF, CAT_VETOED, CAT_UNMATCHED):
         if counts[cat]:
             print(f"  AMBER {cat:<16} {counts[cat]:>5}   {sorted(targets_by_cat[cat])}", flush=True)
+    if n_actor_only:
+        print(f"  {n_actor_only} box(es) are labelled with the ACTOR NAME ONLY - no asset name was "
+              f"available for them. asset_name comes from annotation.json's nodes, so a box whose "
+              f"event is not in annotation.json (VETOED, UNMATCHED) has none: labels.jsonl carries "
+              f"only target_name. This is a limit of the artifacts, not a missing asset.", flush=True)
     if n_missing_img:
         print(f"  {n_missing_img} frame(s) with boxes had no image on disk", flush=True)
     if n_label_no_drawable_box:
