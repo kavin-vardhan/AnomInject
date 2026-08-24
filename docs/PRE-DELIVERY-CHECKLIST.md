@@ -164,9 +164,12 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       while the mask measured the decal at zero and the veto removed all 10 events — shipping an
       `annotation.json` with **no anomalies at all** for a session whose frames plainly contain
       one. `vetoed_events=10`, `translucent_vetoes=10`.*
-      ⚠ **The exclusion is the SELECTION half only.** It stops decals being CHOSEN; it does not
-      make a translucent target measurable, and route (e) stays **documented, not fixed**. The
-      dashboard-side half shipped separately (AnomDash `5d35cbe`, nearest-first picking).
+      ⚠ **THIS INI EXCLUSION IS NOW THE ONLY DEFENCE — the dashboard-side half was REVERTED.**
+      AnomDash `5d35cbe` made click-to-select rank nearest-first; it was reverted the same day at
+      `be5b151` **on owner report, because it made objects behind a large bounding box
+      unreachable** — the picker is depth-blind again by deliberate decision, and a click can once
+      more land on a small overlay mesh in front of what the user aimed at. It also does not make a
+      translucent target measurable: route (e) stays **documented, not fixed**.
       📌 **The "translucent population is UNMEASURED on any delivered title" note above is no
       longer true — this is the first measurement, and it is 10 of 10.**
       → `docs/sessions/2026-08-24-060-field-bugs-overlay-labels-and-depth-blind-picker.md`.
