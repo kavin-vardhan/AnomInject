@@ -138,11 +138,11 @@ bool FAnomaly_CameraClipping::IsCurrentlyAnomalous() const
 	{
 		return false;
 	}
-	if (!bTargetedMode)
+	if (bTargetedMode && !bPushed)
 	{
-		return true;
+		return false;
 	}
-	return bPushed && AnomalyViewport::IsGeometryWithinNearClipRadius(WorldWeak.Get());
+	return AnomalyViewport::IsGeometryWithinNearClipRadius(WorldWeak.Get());
 }
 
 void FAnomaly_CameraClipping::Revert()
