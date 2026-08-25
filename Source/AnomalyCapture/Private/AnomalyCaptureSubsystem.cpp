@@ -1697,6 +1697,13 @@ void UAnomalyCaptureSubsystem::SampleViewThisTick()
 
 void UAnomalyCaptureSubsystem::BeginFire()
 {
+	if (bTargetGlobalHeld)
+	{
+		Phase = ECapturePhase::SettleAfterFire;
+		PhaseFramesLeft = SettleFrames;
+		return;
+	}
+
 	UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
 	const bool bFired = Auto
 		? (bTargetedMode ? Auto->TryFireSpecific(TargetAnomalyId, TargetActorName, TargetAnomalyArgs) : Auto->TryFireOnce())
@@ -1797,9 +1804,8 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		if (Auto) { Fires = Auto->GetLiveFires(); }
 		if (ActiveSessionGlobals.Num() > 0)
 		{
-			if (IsNearClipSlicingNow())
+			if (AppendSessionGlobalFires(Fires))
 			{
-				AppendSessionGlobalFires(Fires);
 				++SessionGlobalPositiveFrames;
 			}
 			else
@@ -1929,9 +1935,8 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 	}
 	if (ActiveSessionGlobals.Num() > 0)
 	{
-		if (IsNearClipSlicingNow())
+		if (AppendSessionGlobalFires(Snap->Fires))
 		{
-			AppendSessionGlobalFires(Snap->Fires);
 			++SessionGlobalPositiveFrames;
 		}
 		else
@@ -1957,16 +1962,62 @@ void UAnomalyCaptureSubsystem::ApplySessionGlobals()
 	SessionGlobalPositiveFrames = 0;
 	SessionGlobalNegativeFrames = 0;
 	SessionGlobalBaselineNearClip = GNearClippingPlane;
+	bTargetGlobalHeld = false;
 
-	if (bTargetedMode)
+	UWorld* World = GetWorld();
+	UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	if (!Injector)
 	{
 		return;
 	}
 
-	UWorld* World = GetWorld();
-	UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	if (bTargetedMode)
+	{
+		bool bGlobalScope = false;
+		for (const FAnomalyCatalogEntry& Entry : Injector->GetAnomalyCatalog())
+		{
+			if (Entry.Id == TargetAnomalyId)
+			{
+				bGlobalScope = (Entry.Scope == EAnomalyScope::Global);
+				break;
+			}
+		}
+		if (!bGlobalScope)
+		{
+			return;
+		}
+
+		TArray<FString> Args;
+		Args.Reserve(1 + TargetAnomalyArgs.Num());
+		Args.Add(FString(TEXT("=")) + TargetActorName);
+		Args.Append(TargetAnomalyArgs);
+
+		if (Injector->ApplyAnomaly(TargetAnomalyId, Args))
+		{
+			ActiveSessionGlobals.Add(TargetAnomalyId);
+			bTargetGlobalHeld = true;
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("=== Capture(session-global): TARGETED '%s' on '%s' IS HELD FOR THE WHOLE SESSION - applied once here, ")
+				TEXT("reverted at finish, and NEVER fired per burst, so the effect no longer switches off and on with the ")
+				TEXT("burst cycle. While it is held the anomaly's own proximity trigger drives it: the near clip is pushed ")
+				TEXT("whenever the player is within range of the target and restored when the player leaves. Baseline ")
+				TEXT("near-clip was %.3f, it is now %.3f. A frame is labelled positive ONLY when the near clip is pushed ")
+				TEXT("AND geometry is actually within the near-clip radius - standing inside the trigger radius is NOT by ")
+				TEXT("itself a positive frame. ==="),
+				*TargetAnomalyId.ToString(), *TargetActorName, SessionGlobalBaselineNearClip, GNearClippingPlane);
+		}
+		else
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(session-global): TARGETED '%s' on '%s' returned false from Apply - it is NOT active for this ")
+				TEXT("session, and because global ids are held rather than fired per burst, no burst will fire it either."),
+				*TargetAnomalyId.ToString(), *TargetActorName);
+		}
+		return;
+	}
+
 	UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
-	if (!Injector || !Auto)
+	if (!Auto)
 	{
 		return;
 	}
@@ -2005,6 +2056,8 @@ void UAnomalyCaptureSubsystem::ApplySessionGlobals()
 
 void UAnomalyCaptureSubsystem::RevertSessionGlobals()
 {
+	bTargetGlobalHeld = false;
+
 	if (ActiveSessionGlobals.Num() == 0)
 	{
 		return;
@@ -2022,22 +2075,27 @@ void UAnomalyCaptureSubsystem::RevertSessionGlobals()
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture(session-global): REVERTED %d id(s). Near-clip is now %.3f (baseline at StartRun was %.3f). ")
-		TEXT("Frames labelled positive: %d, negative: %d - the split is the near-clip PROXIMITY QUERY, not the session flag. ==="),
+		TEXT("Frames labelled positive: %d, negative: %d - the split is each id's OWN per-frame anomalous test, not the ")
+		TEXT("session flag; for camera_clipping that means the near clip was pushed AND geometry was actually inside the ")
+		TEXT("near-clip radius on that frame. ==="),
 		ActiveSessionGlobals.Num(), GNearClippingPlane, SessionGlobalBaselineNearClip,
 		SessionGlobalPositiveFrames, SessionGlobalNegativeFrames);
 
 	ActiveSessionGlobals.Reset();
 }
 
-bool UAnomalyCaptureSubsystem::IsNearClipSlicingNow() const
+bool UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo>& InOutFires) const
 {
-	return AnomalyViewport::IsGeometryWithinNearClipRadius(GetWorld());
-}
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
 
-void UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo>& InOutFires) const
-{
+	bool bAny = false;
 	for (const FName& Id : ActiveSessionGlobals)
 	{
+		if (!Injector || !Injector->IsAnomalyCurrentlyAnomalous(Id))
+		{
+			continue;
+		}
 		FAutoLiveFireInfo F;
 		F.Id = Id;
 		F.Target = FString();
@@ -2046,7 +2104,9 @@ void UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo
 		F.StartFrame = (uint64)StartFrame;
 		F.bWholeFrameExtent = true;
 		InOutFires.Add(F);
+		bAny = true;
 	}
+	return bAny;
 }
 
 void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
