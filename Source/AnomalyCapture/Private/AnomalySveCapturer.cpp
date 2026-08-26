@@ -200,6 +200,14 @@ void FAnomalySveCapturer::Drain_RenderThread()
 			AnomalyReadback::NoteLayoutOnce(LayoutCS, Layout, TEXT("sve"), Item.SourceExtent, Item.Rect,
 				RowPitchInPixels, BufferHeight, Item.Format);
 
+			if (!AnomalyReadback::CheckDrainBounds(TEXT("sve"), Item.RequestId, Item.Rect, W, H,
+				RowPitchInPixels, BufferHeight, GuardDrops))
+			{
+				Item.Readback->Unlock();
+				InFlight.RemoveAt(i);
+				continue;
+			}
+
 			FAnomalyCapturedFrame Frame;
 			Frame.RequestId = Item.RequestId;
 			Frame.Width = W;
@@ -211,7 +219,7 @@ void FAnomalySveCapturer::Drain_RenderThread()
 			const uint8* Base = static_cast<const uint8*>(Src);
 			for (int32 y = 0; y < H; ++y)
 			{
-				const uint8* SrcRow = Base + ((int64)(Item.Rect.Min.Y + y) * RowPitchInPixels + Item.Rect.Min.X) * BPP;
+				const uint8* SrcRow = Base + (int64)y * RowPitchInPixels * BPP;
 				FMemory::Memcpy(Frame.RawBytes.GetData() + (int64)y * W * BPP, SrcRow, (int64)W * BPP);
 			}
 

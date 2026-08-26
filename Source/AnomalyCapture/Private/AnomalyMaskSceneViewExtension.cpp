@@ -274,7 +274,9 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 			int32 RowPitchInPixels = 0;
 			int32 BufferHeight = 0;
 			void* Src = Item.Readback->Lock(RowPitchInPixels, &BufferHeight);
-			if (Src && RowPitchInPixels > 0)
+			if (Src && RowPitchInPixels > 0
+				&& AnomalyReadback::CheckDrainBounds(TEXT("mask"), Item.RequestId, FIntRect(0, 0, W, H),
+					W, H, RowPitchInPixels, BufferHeight, GuardDrops))
 			{
 				const uint8* Base = static_cast<const uint8*>(Src);
 				for (int32 y = 0; y < H; ++y)

@@ -7,6 +7,7 @@
 #include "SceneViewExtension.h"
 #include "RHIGPUReadback.h"
 #include "AnomalyMaskTypes.h"
+#include "AnomalyFrameCapturer.h"
 
 struct FScreenPassTexture;
 struct FPostProcessMaterialInputs;
@@ -80,6 +81,8 @@ private:
 
 	mutable FCriticalSection ResultsCS;
 	TMap<uint64, FAnomalyMaskResult> Results;
+
+	FThreadSafeCounter GuardDrops;
 };
 
 #endif

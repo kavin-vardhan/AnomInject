@@ -29,6 +29,7 @@ private:
 		const FPostProcessMaterialInputs& Inputs);
 
 	TWeakPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Capturer;
+	int32 ExtentClampDrops = 0;
 };
 
 #endif

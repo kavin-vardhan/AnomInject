@@ -86,6 +86,8 @@ private:
 
 	mutable FCriticalSection LayoutCS;
 	FAnomalyReadbackLayout Layout;
+
+	FThreadSafeCounter GuardDrops;
 };
 
 #endif

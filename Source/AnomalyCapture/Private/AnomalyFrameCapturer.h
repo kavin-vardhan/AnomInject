@@ -6,6 +6,7 @@
 
 #include "RHIGPUReadback.h"
 #include "PixelFormat.h"
+#include "HAL/ThreadSafeCounter.h"
 
 class SWindow;
 
@@ -36,6 +37,9 @@ namespace AnomalyReadback
 	void NoteLayoutOnce(FCriticalSection& Guard, FAnomalyReadbackLayout& Layout, const TCHAR* PathName,
 		const FIntPoint& SourceExtent, const FIntRect& Rect, int32 RowPitchInPixels, int32 BufferHeight,
 		EPixelFormat Format);
+
+	bool CheckDrainBounds(const TCHAR* PathName, uint64 RequestId, const FIntRect& Rect,
+		int32 W, int32 H, int32 RowPitchInPixels, int32 BufferHeight, FThreadSafeCounter& DropCounter);
 }
 
 class FAnomalyFrameCapturer : public TSharedFromThis<FAnomalyFrameCapturer, ESPMode::ThreadSafe>
@@ -87,6 +91,13 @@ private:
 	mutable FCriticalSection LayoutCS;
 	FAnomalyReadbackLayout Layout;
 	FString LayoutPathName = TEXT("async");
+
+	FThreadSafeCounter GuardDrops;
+	FThreadSafeCounter ClampDrops;
+
+	FTextureRHIRef OwnSubRect;
+	FIntPoint OwnSize = FIntPoint::ZeroValue;
+	EPixelFormat OwnFormat = PF_Unknown;
 
 	FDelegateHandle BackBufferHandle;
 };
