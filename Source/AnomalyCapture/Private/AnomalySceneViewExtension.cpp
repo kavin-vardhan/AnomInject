@@ -123,7 +123,8 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	AddEnqueueCopyPass(GraphBuilder, Readback.Get(), Texture,
 		FResolveRect(Rect.Min.X, Rect.Min.Y, Rect.Max.X, Rect.Max.Y));
 
-	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, Texture->Desc.Format, MoveTemp(Readback));
+	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, Texture->Desc.Extent, Texture->Desc.Format,
+		MoveTemp(Readback));
 
 	return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }

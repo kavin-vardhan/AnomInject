@@ -100,6 +100,16 @@ void FAnomalySveCapturer::Reset()
 		FScopeLock Lock(&LatencyCS);
 		Latency = FAnomalyReadbackLatencyStats();
 	}
+	{
+		FScopeLock Lock(&LayoutCS);
+		Layout = FAnomalyReadbackLayout();
+	}
+}
+
+FAnomalyReadbackLayout FAnomalySveCapturer::GetReadbackLayout() const
+{
+	FScopeLock Lock(&LayoutCS);
+	return Layout;
 }
 
 FAnomalySveHandshakeStats FAnomalySveCapturer::GetHandshakeStats() const
@@ -120,13 +130,14 @@ FAnomalyReadbackLatencyStats FAnomalySveCapturer::GetLatencyStats() const
 	return Latency;
 }
 
-void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, EPixelFormat Format,
-	TUniquePtr<FRHIGPUTextureReadback>&& Readback)
+void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect,
+	const FIntPoint& SourceExtent, EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback)
 {
 	FInFlight Item;
 	Item.RequestId = RequestId;
 	Item.Readback = MoveTemp(Readback);
 	Item.Rect = Rect;
+	Item.SourceExtent = SourceExtent;
 	Item.Format = Format;
 	Item.SubmitRtFrame = GFrameNumberRenderThread;
 	InFlight.Add(MoveTemp(Item));
@@ -185,6 +196,9 @@ void FAnomalySveCapturer::Drain_RenderThread()
 			const int32 W = Item.Rect.Width();
 			const int32 H = Item.Rect.Height();
 			const int32 BPP = GPixelFormats[Item.Format].BlockBytes;
+
+			AnomalyReadback::NoteLayoutOnce(LayoutCS, Layout, TEXT("sve"), Item.SourceExtent, Item.Rect,
+				RowPitchInPixels, BufferHeight, Item.Format);
 
 			FAnomalyCapturedFrame Frame;
 			Frame.RequestId = Item.RequestId;

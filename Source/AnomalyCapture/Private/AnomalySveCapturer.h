@@ -44,8 +44,8 @@ public:
 	bool ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId);
 	void NoteIneligibleFamily();
 
-	void SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, EPixelFormat Format,
-		TUniquePtr<FRHIGPUTextureReadback>&& Readback);
+	void SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, const FIntPoint& SourceExtent,
+		EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback);
 
 	void EnqueueDrain();
 	bool PopCompleted(FAnomalyCapturedFrame& Out);
@@ -53,6 +53,7 @@ public:
 
 	FAnomalySveHandshakeStats GetHandshakeStats() const;
 	FAnomalyReadbackLatencyStats GetLatencyStats() const;
+	FAnomalyReadbackLayout GetReadbackLayout() const;
 
 	void Reset();
 
@@ -64,6 +65,7 @@ private:
 		uint64 RequestId = 0;
 		TUniquePtr<FRHIGPUTextureReadback> Readback;
 		FIntRect Rect;
+		FIntPoint SourceExtent = FIntPoint::ZeroValue;
 		EPixelFormat Format = PF_Unknown;
 		uint32 SubmitRtFrame = 0;
 	};
@@ -81,6 +83,9 @@ private:
 
 	mutable FCriticalSection LatencyCS;
 	FAnomalyReadbackLatencyStats Latency;
+
+	mutable FCriticalSection LayoutCS;
+	FAnomalyReadbackLayout Layout;
 };
 
 #endif

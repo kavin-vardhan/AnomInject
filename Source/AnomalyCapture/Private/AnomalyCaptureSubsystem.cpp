@@ -1111,6 +1111,11 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		Async->SveCapturer->SetActive(true);
 	}
 
+	if (Async.IsValid() && Async->Capturer.IsValid())
+	{
+		Async->Capturer->ResetReadbackLayout();
+	}
+
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture(mask): EFFECTIVE FOR THIS RUN - mask %s, default from %s, maskReduce=%s(from %s) === ")
 		TEXT("READ THIS LINE, NOT THE ")
@@ -2552,13 +2557,43 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		TickPinReport.Reasserts = TickPinReasserts;
 		TickPinReport.GameTicks = CaptureGameTicks;
 
+		FAnomalyReadbackLayout DrainLayout;
+		if (Async.IsValid())
+		{
+			if (bSveCapture && Async->SveCapturer.IsValid())
+			{
+				DrainLayout = Async->SveCapturer->GetReadbackLayout();
+			}
+			else if (Async->Capturer.IsValid())
+			{
+				DrainLayout = Async->Capturer->GetReadbackLayout();
+			}
+		}
+
+		AnomalyLabel::FReadbackLayoutTelemetry LayoutReport;
+		if (DrainLayout.bValid)
+		{
+			LayoutReport.SourceExtentX = DrainLayout.SourceExtent.X;
+			LayoutReport.SourceExtentY = DrainLayout.SourceExtent.Y;
+			LayoutReport.RectMinX = DrainLayout.Rect.Min.X;
+			LayoutReport.RectMinY = DrainLayout.Rect.Min.Y;
+			LayoutReport.RectMaxX = DrainLayout.Rect.Max.X;
+			LayoutReport.RectMaxY = DrainLayout.Rect.Max.Y;
+			LayoutReport.W = DrainLayout.W;
+			LayoutReport.H = DrainLayout.H;
+			LayoutReport.BufferHeight = DrainLayout.BufferHeight;
+			LayoutReport.RowPitchInPixels = DrainLayout.RowPitchInPixels;
+			LayoutReport.Format = DrainLayout.Format;
+		}
+
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
 			bSveCapture ? TEXT("sve") : TEXT("backbuffer"),
 			bSveCapture ? &RingTelemetry : nullptr,
 			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards, VetoedEvents,
-			TranslucentVetoes, TranslucencyUnknownVetoes, &TickPinReport, PatternExcludedTargets);
+			TranslucentVetoes, TranslucencyUnknownVetoes, &TickPinReport, PatternExcludedTargets,
+			DrainLayout.bValid ? &LayoutReport : nullptr);
 
 		if (bSveCapture)
 		{

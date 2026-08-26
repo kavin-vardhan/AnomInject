@@ -14,9 +14,61 @@
 #include "Widgets/SWindow.h"
 #include "Rendering/SlateRenderer.h"
 
+namespace AnomalyReadback
+{
+	void NoteLayoutOnce(FCriticalSection& Guard, FAnomalyReadbackLayout& Layout, const TCHAR* PathName,
+		const FIntPoint& SourceExtent, const FIntRect& Rect, int32 RowPitchInPixels, int32 BufferHeight,
+		EPixelFormat Format)
+	{
+		{
+			FScopeLock Lock(&Guard);
+			if (Layout.bValid)
+			{
+				return;
+			}
+			Layout.bValid = true;
+			Layout.SourceExtent = SourceExtent;
+			Layout.Rect = Rect;
+			Layout.W = Rect.Width();
+			Layout.H = Rect.Height();
+			Layout.BufferHeight = BufferHeight;
+			Layout.RowPitchInPixels = RowPitchInPixels;
+			Layout.Format = (int32)Format;
+		}
+
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(%s): READBACK-LAYOUT sourceExtent=%dx%d rect=(%d,%d)-(%d,%d) picture=%dx%d ")
+			TEXT("bufferHeight=%d rowPitchInPixels=%d fmt=%d — engine readback staging layout differs by UE ")
+			TEXT("version, so read it, never assume it: UE 5.1 allocates FULL-SOURCE-SIZE staging and copies ")
+			TEXT("the sub-rect to ITS OWN POSITION (expect bufferHeight == sourceExtent.y), while UE 5.2+ ")
+			TEXT("allocates RECT-SIZED staging and copies to 0,0 (expect bufferHeight == picture height). ")
+			TEXT("This line is emitted once per run, from the first drained frame."),
+			PathName, SourceExtent.X, SourceExtent.Y, Rect.Min.X, Rect.Min.Y, Rect.Max.X, Rect.Max.Y,
+			Rect.Width(), Rect.Height(), BufferHeight, RowPitchInPixels, (int32)Format);
+	}
+}
+
 FAnomalyFrameCapturer::~FAnomalyFrameCapturer()
 {
 	UnregisterBackbufferHook();
+}
+
+FAnomalyReadbackLayout FAnomalyFrameCapturer::GetReadbackLayout() const
+{
+	FScopeLock Lock(&LayoutCS);
+	return Layout;
+}
+
+void FAnomalyFrameCapturer::ResetReadbackLayout()
+{
+	FScopeLock Lock(&LayoutCS);
+	Layout = FAnomalyReadbackLayout();
+}
+
+void FAnomalyFrameCapturer::SetLayoutPathName(const FString& InName)
+{
+	FScopeLock Lock(&LayoutCS);
+	LayoutPathName = InName;
 }
 
 void FAnomalyFrameCapturer::RegisterBackbufferHook()
@@ -115,6 +167,7 @@ void FAnomalyFrameCapturer::OnBackBufferReadyToPresent_RenderThread(SWindow& Sla
 	Item.RequestId = Arm.RequestId;
 	Item.Readback = MoveTemp(Readback);
 	Item.Rect = Rect;
+	Item.SourceExtent = FIntPoint(BBW, BBH);
 	Item.Format = BackBuffer->GetFormat();
 	InFlight.Add(MoveTemp(Item));
 
@@ -155,6 +208,14 @@ void FAnomalyFrameCapturer::Drain_RenderThread()
 			const int32 W = Item.Rect.Width();
 			const int32 H = Item.Rect.Height();
 			const int32 BPP = GPixelFormats[Item.Format].BlockBytes;
+
+			FString PathName;
+			{
+				FScopeLock NameLock(&LayoutCS);
+				PathName = LayoutPathName;
+			}
+			AnomalyReadback::NoteLayoutOnce(LayoutCS, Layout, *PathName, Item.SourceExtent, Item.Rect,
+				RowPitchInPixels, BufferHeight, Item.Format);
 
 			FAnomalyCapturedFrame Frame;
 			Frame.RequestId = Item.RequestId;
