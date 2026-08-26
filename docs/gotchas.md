@@ -4613,11 +4613,28 @@ reconstruction — truncating git's canonical output by its final byte reproduce
 recorded `sha256 8479FFE7…` exactly.
 
 **RULE: let git write the patch — `git diff --output=<file>`** — never a shell redirect, `>`,
-`Out-File` or `Set-Content`. Git emits LF and no BOM regardless of `core.autocrlf`. **And verify
-insurance by APPLYING it (`git apply --check`) against a clean tree, from its final location, at the
-moment it is created.** A hash proves a file has not changed since you wrote it; it says nothing about
-whether what you wrote was ever usable. For the whole life of this fix, the recorded "insurance" was
-decorative.
+`Out-File` or `Set-Content`. Git emits LF and no BOM regardless of `core.autocrlf`.
+
+🚨 **THE REUSABLE HALF, AND IT IS BIGGER THAN PATCH FILES: A BACKUP IS VERIFIED BY RESTORING IT, NEVER
+BY INSPECTING IT.** The recorded check here was *"the diffstat matches at 192/16 over the same 8
+files"* — a true statement, carefully measured, and **evidence for the wrong proposition.** It
+established that the patch **describes** the right change. Insurance has to **apply**, and nobody
+asked. A hash proves a file has not changed since you wrote it; a diffstat proves it describes what
+you meant; **neither says the artifact can ever be used**, and only restoring it does.
+
+This is `G-M3`'s guard rule pointed at backups: *a guard that has only ever been silent is not a
+guard* ⇒ **a backup that has never been restored is not a backup.** Same family as `G96`. ⇒ **at the
+moment a backup artifact is created, restore it — `git apply --check` against a clean tree, from its
+final location — and record the exit code beside the hash.** For the whole life of this fix, the
+recorded "insurance" was decorative, and every check that had been run on it passed.
+
+⚠ **AND A SECOND-ORDER CATCH FROM THE SAME SESSION, because it nearly buried the finding:** the
+verification script printed the label **`(=> the ORIGINAL 18374 B artifact WAS valid insurance)`**
+next to the command that tested it — a label written **before** the measurement returned. It returned
+`corrupt patch at line 378`. **A label written before its measurement is a VERDICT, not a
+description**, and a reader skimming the output would have taken the sentence over the exit code.
+`G172`'s vacuity problem in the output layer rather than the logic layer: write the label from the
+result, or write no label at all.
 
 ## G182 — PowerShell 5.1: a here-string handed to `git commit -F -` becomes a pathspec
 

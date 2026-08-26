@@ -9,16 +9,21 @@
 
 ## 0. ⛔ DO NOT DO THIS — read before you run a single command
 
-1. **DO NOT PUSH THE `WIP` COMMIT.** It is **the branch TIP** — subject `WIP(m35): Build B fix
-   pre-gate - DO NOT PUSH, amend into the fix commit when G-M7/M8/M9 pass` — and the branch is
-   **ahead EXACTLY 1** of `origin/feature/mask-gpu-reduce`, and stays that way. When
-   `G-M7`/`G-M8`/`G-M9` pass, **amend** it into the real fix commit and push once. No force-push is
-   needed or permitted.
-   🚨 **NO SHA IS GIVEN FOR IT ANYWHERE IN THIS FILE, DELIBERATELY, AND MUST NOT BE ADDED.** Amending
-   changes its hash **by construction**, so a SHA recorded here is stale exactly when it matters.
-   Identify it by **subject and position** — `git -C <plugin> log --oneline -1`.
-   📎 Both commits are backed up on origin at **`wip/session-061-backup`** (scratch; delete only after
-   the fix commit lands on `feature/mask-gpu-reduce`).
+1. 🆕 **THE `WIP` COMMIT IS PUSHED. THE DO-NOT-PUSH RULE IS LIFTED (owner ruling, 2026-08-26).** The
+   branch is **fully published — `origin` == local, nothing withheld** — so the office can pull and
+   **START REBUILD-AND-COOK IMMEDIATELY**. That was the only thing this rule was holding up, and it is
+   the longest wall-clock item.
+   ⛔ **COOKABLE IS NOT MERGEABLE AND NOT TAGGABLE.** `master` is **not** merged (still `9f52cab`,
+   still carrying the crash) and **nothing is tagged** (highest is still `m30`). The merge remains
+   gated on `G-R7(ii)`; the tag order is still `m31` → `m33` → `m34` → `m35`.
+   🚨 **THE WIP CAN NO LONGER BE AMENDED.** If a remaining gate forces a change it lands as a
+   **FOLLOW-UP COMMIT** ⇒ **m35 is two commits**, deliberately overriding one-milestone-one-commit,
+   and **the tag goes on the FINAL commit**. ⛔ No re-parenting. No force-push. Ever.
+   📌 Because the amend path is closed, **this commit's SHA is now stable and may be quoted.** The
+   de-SHA rule elsewhere in these docs applies to *amendable* commits and still stands for any future
+   one (`G185`); it has simply lapsed for this one.
+   📎 `wip/session-061-backup` stays on origin until the fix lands. **The remote is the backup now** —
+   see §3: the insurance diff is no longer protection.
 2. **DO NOT `stash`, `clean` or `checkout` WITHOUT READING THE `WIP` COMMIT FIRST.** That commit *is*
    the fix. It was made specifically because a cold session's reflexive `git stash` would have
    destroyed 8 files of uncommitted work.
@@ -94,9 +99,11 @@ choice can reach us.
 ## 3. THE `WIP` COMMIT — WHAT IT CONTAINS AND HOW TO RECOVER IT
 
 Branch **`feature/mask-gpu-reduce`**, bottom to top: **`aefa971`** (the Build B gate file) →
-**`5f9cbbc`** (the first m35 docs commit) → **the session-061 close-out docs commit** → **the `WIP`
-fix commit, which is the TIP**. `origin/feature/mask-gpu-reduce` tracks the **close-out docs commit**;
-the branch is **ahead exactly 1** — the WIP — and stays that way. Master **`9f52cab`**, untouched.
+**`5f9cbbc`** (the first m35 docs commit) → **the session-061 close-out docs commit** → **the
+session-062 corrections docs commit** → **the `WIP` fix commit, which is the TIP**.
+🆕 **`origin/feature/mask-gpu-reduce` == local. THE WHOLE BRANCH IS PUSHED, INCLUDING THE WIP**
+(owner ruling, 2026-08-26 — see §0 item 1). Master **`9f52cab`**, untouched and still carrying the
+crash.
 
 🚨 **THE ORDER IS DELIBERATE AND WAS CORRECTED IN SESSION 062.** The close-out docs were first
 committed **on top of** the WIP, which made every doc in them unpublishable without also publishing a
@@ -142,9 +149,14 @@ delta is now fully counted, not reasoned:** 3 (BOM) + 378 (one CR per line; the 
 lines) + 1 (trailing newline) = **382** — confirmed by reconstruction, since truncating git's
 canonical output by its final byte reproduces `sha256 8479FFE7…` exactly. → `G181`.
 📌 The broken copy is kept beside it as `…-2026-08-26.diff.BROKEN-crlf-bom` — it is `G181`'s receipt.
-📌 The filename still says *uncommitted*; that is **historical**. The fix has been a commit since
-session 061, and the **stronger insurance is now the origin backup branch `wip/session-061-backup`**,
-which is a whole commit on a remote rather than a patch file on one disk.
+
+🚨 **AND AS OF 2026-08-26 THIS FILE IS NO LONGER LOAD-BEARING AT ALL. DO NOT TREAT IT AS PROTECTION
+AGAIN.** The WIP commit is **pushed** (§0 item 1), so **THE REMOTE IS THE BACKUP** — the fix exists on
+`origin/feature/mask-gpu-reduce` and on `wip/session-061-backup`, as whole commits, on a machine that
+is not this one. A patch file on one disk was always the weakest of the three, and this one spent its
+entire working life unusable. It is kept **only** as `G181`'s receipt.
+📌 The filename still says *uncommitted*; that is **historical** and is left alone because published
+docs point at that path.
 
 ### What each file does now (so you can review without re-deriving)
 
@@ -452,6 +464,19 @@ on the leg that ran FIRST vs **1.0123** second — a **15 % spread with the *sma
 
 ⛔ **NUMBERS ONLY. NO THRESHOLD, NO GATE, IS PROPOSED OR IMPLIED.**
 
+📌 **ORDERING vs `G-M9` — THE CONSTRAINT IS SOFT, AND HERE IS THE MEASUREMENT.** Building `G-M9`
+re-stages the exe, so `G-M6` is taken **first**; but that is **ordering hygiene, not a one-way door.**
+Both sides are copied in from `_binary_baselines`, and the B-side archive **verifies**:
+`StackOBot.exe.m35-buildb-733FE83C` = 240,890,368 B, `sha256` first-8 **`733FE83C`** — byte-complete
+and hash-identical to the staged exe. So the prior stays recoverable after a `G-M9` build.
+⚠ **CONDITIONAL ON ONE THING: `G-M9` MUST STAY CODE-ONLY.** An exe is half an artifact (`G121`), and
+the archive is exe-only — it reconstructs a build only because the **container is shared and
+unchanged**. `G-M9` adds a bench cvar, a second `FRHIGPUTextureReadback` and a CPU byte-compare, and
+**no `.usf`** (the plugin's only global shaders are `AnomalyMaskReduce.usf` and
+`AnomalyVisibleMask.usf`, both untouched) ⇒ code-only hot-swap, `G103`, container stays.
+⛔ **If `G-M9` ever grows a new global shader it needs a cook (`G129`), the container moves, and the
+constraint becomes HARD** — at that point the exe-only archive no longer reconstructs the B-side.
+
 📌 **WHAT THE A-SIDE ACTUALLY IS, since §2's "Build A vs Build B" wording overstates it.** `7F37A4AC`
 is the **m34 + display-fix predecessor — PRE-m35 entirely**, earlier than Build A (`9aec10f`). **The
 Build A exe was never archived**; it was overwritten by Build B, and a rebuild is ruled out. ⇒ this
@@ -565,6 +590,13 @@ layouts and the `bufferHeight` each predicts), which is what makes a photo suffi
 | an **`EXTENT-CLAMP FIRED`** line instead | the view rect is OUTSIDE the source texture ⇒ **D-2 CONFIRMED** — the coordinate spaces disagree on that host, and the frame was **dropped rather than silently mis-captured** |
 | **`rect.min.y > 0` with a correct picture** | the host letterboxes AND the sub-rect origin is being applied correctly — **the Bates crash condition, now handled** |
 
+✅ **FAILURE IS FAST — READ THIS BEFORE YOU SIT THROUGH A RUN.** The one observed crash of this class
+fired **22 ms after capture start**, on the **first armed frame's EXECUTION**, 0 frames written
+(§14.1). ⇒ **A run that survives its first armed frame's execution has CLEARED this failure mode.**
+So the first second of a Bates or Deimos capture is genuinely informative, and nobody should wait out
+90 frames to learn what it already told them. ⚠ **But early survival is NOT a pass** — it clears one
+failure mode, not the gate. Declaring success still needs the floor below.
+
 ⛔ **MINIMUM ARMED-FRAME COUNT — RULED, session 062: 90.** The full standard leg
 (`frame_cap = 90`), evidenced by **90 files on disk** and `total_frames = 90`, with
 `READBACK-GUARD FIRED = 0` and `EXTENT-CLAMP FIRED = 0`. **Below that, m35 is not reported working on
@@ -660,6 +692,25 @@ inference was the half that would have shaped a gate.
 📌 Consequence worth stating: **"why did frame 1 survive?" was never a real question**, so the
 transient-allocator-reuse candidate offered to answer it explains nothing. One grep replaced a
 mechanism nobody needed (`G120`).
+
+📛 **LOGGED AS CHAT ERROR #6** (continuing the numbering from `#5`, the fabricated client
+observation). **RETRACTED BY THE OWNER on the receipt**, verbatim: *"I gave inference dressed as
+testimony — the quoted submit line was accurate, the 'second armed frame' was not, and one grep beat
+it."* ⚠ **Scope of the damage, measured rather than assumed:** the false lesson was published
+**exactly once** — in `a57af4e`'s version of this section — and it was **explicitly labelled *"a
+hypothesis, not a finding"***, which is precisely why it never hardened into a gate. It is corrected
+here by APPENDING, with the retracted claim shown beside the log, rather than by a silent edit.
+⛔ **Any wording of the form "a defect that first fires on frame 2 is invisible to a smoke test" is
+FALSE and must not be reintroduced anywhere.**
+
+✅ **THE OPERATIONAL CONSEQUENCE, AND IT IS GOOD NEWS: THIS CRASH CLASS ANNOUNCES ITSELF WITHIN THE
+FIRST SECOND OF CAPTURE, NOT AFTER 90 FRAMES.** The assert fired **22 ms** after capture start, on
+the first armed frame's execution. ⇒ **a run that survives its first armed frame's EXECUTION has
+cleared this failure mode.** **The 90-frame floor governs DECLARING SUCCESS (§14.2); FAILURE IS
+FAST.** Nobody should sit through a run to learn something the first second already told them — and
+"it is still running after a few seconds" is real, early, positive information, just not sufficient
+information. This is repeated beside the three-row table in §12, where whoever takes the photo will
+actually be standing.
 
 ### 14.2 — MINIMUM ARMED-FRAME COUNT FOR A BATES / DEIMOS RUN
 

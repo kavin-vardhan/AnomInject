@@ -13,21 +13,25 @@ and is the single source of truth for the project.
 
 > 🛑🛑 **READ THIS BEFORE YOU TOUCH ANYTHING — 2026-08-26, session 061 close-out.** 🛑🛑
 >
-> **1. THERE IS A `WIP` COMMIT ON `feature/mask-gpu-reduce` AND IT MUST NOT BE PUSHED.**
-> It is **the branch TIP**, subject `WIP(m35): Build B fix pre-gate - DO NOT PUSH, amend into the fix
-> commit when G-M7/M8/M9 pass`, and **the branch is AHEAD EXACTLY 1** of
-> `origin/feature/mask-gpu-reduce`. The session-061 close-out docs commit is **PUBLISHED and sits
-> UNDER it**; the WIP is the only unpushed commit and stays that way.
-> 🚨 **NO SHA IS WRITTEN HERE, DELIBERATELY, AND MUST NOT BE ADDED.** This commit is **amended** into
-> the real fix commit when the gates pass, so its hash changes by construction and any SHA recorded
-> here would be stale exactly when it mattered. Identify it by **subject and position**
-> (`git -C <plugin> log --oneline -1`), never by hash. It exists ONLY so a cold session cannot destroy
-> the fix with `stash` / `clean` / `checkout`. When `G-M7`, `G-M8` and `G-M9` pass, **AMEND it into
-> the real fix commit and push once** — amend-before-push is clean and needs **no force-push**.
-> ⛔ Do not push it, do not rebase it away, and do not `git add -A` anywhere in this repo (the owner's
-> two untracked `docs/CHAT-HANDOFF-*.md` would be swept).
-> 📎 Both commits are backed up on origin at **`wip/session-061-backup`** (scratch branch — delete
-> only after the fix commit lands on `feature/mask-gpu-reduce`).
+> **1. 🆕 THE `WIP` COMMIT IS NOW PUSHED. THE DO-NOT-PUSH RULE IS LIFTED — OWNER RULING, 2026-08-26.**
+> `feature/mask-gpu-reduce` is **fully published: `origin` == local, nothing withheld.** ✅ **THE
+> BRANCH IS COOKABLE NOW** — the office can pull and start rebuild-and-cook immediately, which is the
+> longest wall-clock item and was the only thing this rule was blocking.
+> ⛔ **COOKABLE IS NOT MERGEABLE AND NOT TAGGABLE. `master` is NOT merged. NOTHING IS TAGGED**
+> (highest tag remains `m30`). The merge is still gated on `G-R7(ii)`; the tag sequence is still
+> `m31` → `m33` → `m34` → `m35`.
+> 🚨 **CONSEQUENCE, STATED RATHER THAN DISCOVERED: THE WIP CAN NO LONGER BE AMENDED.** If a remaining
+> gate forces a change it lands as a **FOLLOW-UP COMMIT**, so **m35 is two commits**. That
+> deliberately overrides one-milestone-one-commit for m35, and **the tag goes on the FINAL commit.**
+> ⛔ No re-parenting, no force-push, ever.
+> 📌 **AND SO THE SHA IS NOW STABLE AND IS GIVEN.** The de-SHA rule elsewhere in these docs existed
+> because an *amendable* commit's hash changes by construction; the amend path is closed, so that
+> reason has lapsed **for this commit only**. The rule itself stands for any future amendable commit
+> (`G185`). ⛔ Still do not `git add -A` anywhere in this repo — the owner's two untracked
+> `docs/CHAT-HANDOFF-*.md` would be swept.
+> 📎 `wip/session-061-backup` stays on origin until the fix lands. **The remote is now the backup:**
+> the insurance diff is **NO LONGER LOAD-BEARING** and must not be treated as protection again — it
+> survives only as `G181`'s receipt.
 >
 > **2. `master` IS UNTOUCHED AND STILL CARRIES THE READBACK CRASH.** Tip **`9f52cab`**.
 > ⛔ **DO NOT CUT A DELIVERY BUILD FROM `master` BEFORE THE BRANCH MERGE.** A build cut from master
@@ -97,6 +101,19 @@ and is the single source of truth for the project.
   account is refuted, and so is "a one-frame smoke test would have passed" — it would have CRASHED.**
   "Why did frame 1 survive?" was never a real question, so the transient-reuse candidate explains
   nothing. → `G187`; detail in journal §14.1.
+  📛 **LOGGED AS CHAT ERROR #6** (the numbering continues `#5`, the fabricated client observation).
+  **RETRACTED BY THE OWNER on the receipt**, in his words: *"I gave inference dressed as testimony —
+  the quoted submit line was accurate, the 'second armed frame' was not, and one grep beat it."*
+  ⚠ Scope of the damage, measured rather than assumed: the false lesson was published **exactly
+  once**, in `a57af4e`'s journal §14, and **it was explicitly labelled *"a hypothesis, not a
+  finding"*** — the label is why it never hardened. It is corrected in the current tip by APPENDING
+  (the retracted claim is shown beside the log), not by silent edit. ⛔ **Any wording of the form
+  "a defect that first fires on frame 2 is invisible to a smoke test" is FALSE and must not be
+  reintroduced.**
+  ✅ **OPERATIONAL CONSEQUENCE, AND IT IS GOOD NEWS: THIS CRASH CLASS ANNOUNCES ITSELF WITHIN THE
+  FIRST SECOND OF CAPTURE, NOT AFTER 90 FRAMES.** A Bates/Deimos run that survives its first armed
+  frame's **EXECUTION** has cleared this failure mode. **The 90-frame floor governs DECLARING SUCCESS;
+  FAILURE IS FAST.** Nobody should wait out a run to learn what the first second already told them.
   **(vii) MINIMUM ARMED-FRAME COUNT FOR BATES / DEIMOS = 90** — the full standard leg, evidenced by
   **90 files on disk** and `total_frames = 90`, guard 0, clamp 0. Below that m35 is **not reported
   working on that host**; not an `IAI.Capture.Shot`. ⚠ **A declared FLOOR, not a derivation** — 90 is
