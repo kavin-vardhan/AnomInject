@@ -87,6 +87,21 @@ and is the single source of truth for the project.
   STOP BLOCK:** it is the exe **every m34 home gate leg (`G-R1`..`G-R6`, `G-R7`'s StackOBot half)
   ran on** (journal 058). ⛔ **No archived baseline is deleted until the docs say what gate depends
   on it.**
+  **(vi) THE "FRAME-2 LESSON" GAP IS CLOSED FROM THE LOG — AND THE LOG CORRECTED THE ACCOUNT.** The
+  crash run's log survives (`Saved\Logs\StackOBot-backup-2026.08.26-10.27.55.log`, matched by UTC
+  start, viewport and seed). ✅ **The defensible lesson: SUBMISSION SUCCEEDING PROVES NOTHING ABOUT
+  EXECUTION** — `keyed frame id=1 submitted` printed with a **correct** rect (`821x344`) and format,
+  and the process died **22 ms later on the RHI THREAD** in the D3D12 transient allocator.
+  🚨 **The assert fired on the FIRST armed frame's execution, BEFORE arm 2 was ever submitted** (arm
+  2's `submitted` line is 6.5 s later, inside crash handling) ⇒ **the "it landed on armed frame 2"
+  account is refuted, and so is "a one-frame smoke test would have passed" — it would have CRASHED.**
+  "Why did frame 1 survive?" was never a real question, so the transient-reuse candidate explains
+  nothing. → `G187`; detail in journal §14.1.
+  **(vii) MINIMUM ARMED-FRAME COUNT FOR BATES / DEIMOS = 90** — the full standard leg, evidenced by
+  **90 files on disk** and `total_frames = 90`, guard 0, clamp 0. Below that m35 is **not reported
+  working on that host**; not an `IAI.Capture.Shot`. ⚠ **A declared FLOOR, not a derivation** — 90 is
+  the only count with a control behind it (every passing home leg ran it, and the guard leg confirmed
+  90 arms for a 90-frame cap). Journal §14.2; it belongs beside §12's three-row table.
   🕳 **NAMED JOURNAL GAP — 2026-08-25 has NO session journal.** `master`'s tip `9f52cab`
   (*fix(capture): hold a targeted global anomaly for the whole capture, not per burst*) landed that
   day between session 060 (2026-08-24) and session 061 (2026-08-26). It is nonetheless **recorded**:
@@ -171,8 +186,17 @@ and is the single source of truth for the project.
   MainWorld.** Other bench cvars DO reach a packaged leg.
   📦 **IDENTITY (`G121`): staged exe `733FE83C` (archived), predecessor `7F37A4AC` (archived,
   hash-verified before the swap — it is `G-M6`'s A-side), container UNCHANGED m34 quartet
-  (`2A66CA57`/`A7EF9B12`/`D8009AD7`), NO COOK.** Insurance diff of the uncommitted fix at
-  `_binary_baselines\m35-buildb-uncommitted-2026-08-26.diff` (18,756 B, `sha256 7A0CC269…`).
+  (`2A66CA57`/`A7EF9B12`/`D8009AD7`), NO COOK.**
+  🚨 **THE INSURANCE DIFF DID NOT APPLY AND WAS REGENERATED (session 062).** Both previously recorded
+  copies were **unusable** — `7A0CC269…` (18,756 B, BOM + CRLF) failed `git apply --check` on **all 8
+  files**, and `8479FFE7…` (18,374 B, LF but **no trailing newline**) was a **`corrupt patch`**. The
+  recorded check had been "the diffstat matches", which is true and irrelevant; **insurance is
+  verified by APPLYING it**. Now `_binary_baselines\m35-buildb-uncommitted-2026-08-26.diff`,
+  **18,375 B, `sha256 1069B190…`, LF, no BOM**, written by `git diff --output=` and **`apply --check`
+  exit 0 from its final location**. CRLF was the sole cause; the BOM is inert to `git apply`. The
+  382-byte delta counts out exactly as 3 (BOM) + 378 (one CR per line) + 1 (trailing newline) → `G181`.
+  📌 The stronger insurance is now the origin backup branch **`wip/session-061-backup`** — a whole
+  commit on a remote, not a patch file on one disk.
   ⛔ **OWNER RULINGS, VERBATIM WHERE GIVEN:** *"Do NOT checkout master. The checkout lift I authorised
   last turn is WITHDRAWN"* (never exercised) · *"ONE ROUTE ONLY: m35 must not ALSO be cherry-picked
   onto master in parallel"* — master reaches the fix by the branch **MERGE** · *"Stop rule unchanged:

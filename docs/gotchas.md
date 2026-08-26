@@ -4589,6 +4589,36 @@ file list), and treat a moved hash on an unchanged input as an encoding question
 otherwise. Same family as `G141` (PowerShell `-Encoding utf8` writes a BOM) and `G115` (a shell
 round-trip re-encodes a whole file while the text still reads correctly).
 
+🚨 **UPDATE 2026-08-26 — THE ENCODING QUESTION WAS THE WRONG QUESTION, AND THE RIGHT ONE HAD A WORSE
+ANSWER: NEITHER COPY EVER APPLIED.** "The diffstat matches, so the code is the same" was true and
+**irrelevant**. The question insurance has to answer is *does it apply*, and it was never asked.
+Measured, `git apply --check` against the pre-fix tree:
+
+| artifact | bytes | form | `git apply --check` |
+|---|---|---|---|
+| the surviving copy | 18,756 | **BOM + CRLF** + trailing NL | ❌ `patch does not apply`, **all 8 files** |
+| same, BOM stripped | 18,753 | CRLF | ❌ all 8 files |
+| same, BOM kept, CRLF→LF | 18,378 | BOM + LF | ✅ applies |
+| same, BOM + CRLF stripped | 18,375 | LF | ✅ applies |
+| **the earlier copy**, reproduced exactly | **18,374** | LF, **no trailing newline** | ❌ **`corrupt patch at line 378`** |
+| `git diff --output=` | 18,375 | LF + trailing NL | ✅ applies |
+
+⇒ **CRLF is the sole killer of an otherwise valid patch** — the BOM is inert to `git apply`, which was
+the opposite of the expected culprit. And **the earlier 18,374-byte copy was broken too**, by a
+*missing final newline*: a patch whose last line is unterminated is `corrupt`, not merely untidy.
+
+**The 382-byte delta is now fully accounted for by counting, not reasoning:** 3 (BOM) + 378 (one CR
+per line, and the file has exactly 378 lines) + 1 (trailing newline) = **382**. Confirmed by
+reconstruction — truncating git's canonical output by its final byte reproduces the earlier artifact's
+recorded `sha256 8479FFE7…` exactly.
+
+**RULE: let git write the patch — `git diff --output=<file>`** — never a shell redirect, `>`,
+`Out-File` or `Set-Content`. Git emits LF and no BOM regardless of `core.autocrlf`. **And verify
+insurance by APPLYING it (`git apply --check`) against a clean tree, from its final location, at the
+moment it is created.** A hash proves a file has not changed since you wrote it; it says nothing about
+whether what you wrote was ever usable. For the whole life of this fix, the recorded "insurance" was
+decorative.
+
 ## G182 — PowerShell 5.1: a here-string handed to `git commit -F -` becomes a pathspec
 
 `git commit -F - @'…'@` does **not** pipe. PowerShell passes the here-string as an *argument*, git
@@ -4685,14 +4715,65 @@ a difference smaller than that spread is *unresolved*, not *absent* (`G169`).
 "fair", and a design that is biased toward the null is the hardest kind to notice from inside its own
 clean-looking output.
 
-## NAMED GAP — the "frame-2 lesson" is NOT recorded here, deliberately
+## G187 — "SUBMITTED" IS A GAME-THREAD CLAIM; THE FAILURE LANDS ONE HOP LATER ON THE RHI THREAD
 
-The close-out brief names a *frame-2 lesson* arising from the Build B crash. **I cannot reconstruct
-its content from what is on disk without guessing, so it is not written down as fact** (`G120`).
+**The named gap this replaces is now CLOSED FROM THE LOG, not from recollection.** The Build B crash
+run's log survives as `Saved\Logs\StackOBot-backup-2026.08.26-10.27.55.log` — matched to the banked
+crash session by UTC start (`run.json` `start_time_utc` `10:27:49.239Z` against the first capture line
+at `10.27.49:265`), viewport `821x869`, seed `4242`. The sequence, verbatim and in order:
 
-What is on disk: the crash leg, banked as
-`session_20260826-155749_DEAD_PARTIAL_BUILDB_CRASH_0_FRAMES` — **0 frames written**, partial session.
-**The question to put to that log:** on which captured-frame index did the access violation land, and
-did any frame drain successfully first? If frame 1 drained and frame 2 crashed, the lesson is *a first
-frame that works proves nothing about a drain fault* — **but that is a hypothesis, not a finding.**
-Recover the ruled wording chat-side, or re-read the crash log and then write it.
+```
+[135] 10.27.49:265  Capture(sve): keyed frame id=1 submitted (rtframe=1136, fmt=18, rect=821x344).
+[136] 10.27.49:287  SVE-WANT-TRACE arm 2/64 requestId=2 gameFrame=1135
+[136] 10.27.49:287  Error: appError called: Assertion failed: State != D3D12_RESOURCE_STATE_COMMON
+[137] 10.27.55:784  Capture(sve): keyed frame id=2 submitted (...)        <- 6.5 s later, crash handling
+       Callstack: GetInitialResourceState() <- HandleTransientAliasing() <- RHIEndTransitions()
+       LogThreadingWindows: Error: Runnable thread RHIThread crashed.
+```
+
+**THE LESSON THAT SURVIVES, and it is the strong one: a `submitted` line proves nothing about
+execution.** `keyed frame id=1 submitted` printed cleanly, with the **correct** sub-rect
+(`821x344` — the clamp passed) and the correct format (`fmt=18`), and the process died **22 ms later**
+on the **RHI thread**, executing that same graph, in the D3D12 **transient** allocator. Submission is
+a game/render-thread statement; the RHI thread is one hop further on, and everything that matters
+about a GPU resource contract happens there. ⇒ **never read a submit/enqueue log line as evidence a
+path works. The evidence is the artifact on disk** — here, `run.json` alone and **zero frames**.
+
+🚨 **SECOND LESSON, AND IT COST A CORRECTION: A RECOLLECTION OF A LOG IS NOT THE LOG.** The account
+carried into the next session was that the assert fired **on the second armed frame**, from which
+followed *"a smoke test capped at one armed frame would have passed."* **The log refutes both.** The
+assert fired after arm 1 was submitted and **before arm 2 was ever submitted** — arm 2's `submitted`
+line is timestamped 6.5 s later, inside crash handling, with the modal dialog already up. A
+one-armed-frame smoke test **would have crashed**. The factual half of the account was exact (the
+quoted line is correct to the character); the **frame index and the inference built on it were not**,
+and the inference was the part that would have shaped a gate. **Re-read the log; do not re-run the
+memory of it.** Note also what this removes: "why did frame 1 survive?" was never a real question, so
+the transient-allocator-reuse candidate offered to answer it explains nothing — `G120`, avoided by one
+grep.
+
+*(Root cause itself is unchanged and is recorded at `G165`: the RDG texture was created with
+`TexCreate_ShaderResource` alone, so the transient allocator could derive no initial state.)*
+
+## G188 — PowerShell variable names are CASE-INSENSITIVE, so `$r` silently destroys `$R`
+
+Measured here while checking the insurance diff. A script held the repo path in `$R` and captured a
+command's output into `$r`:
+
+```powershell
+$R = 'D:\...\AnomalyInjector'
+$r = git -C $R apply --check --cached -- $diff     # <- this is the SAME variable
+git -C $R diff ...                                 # fatal: cannot change to '--no-pager'
+```
+
+**`$r` and `$R` are one variable.** The capture overwrote the path; and because the successful check
+produced *no output*, `$R` became empty, so every later `git -C $R <verb>` silently read its own verb
+as the path. The tell is the shape of the error — `cannot change to 'read-tree'`, `cannot change to
+'apply'` — a git verb appearing where a directory belongs **always** means the `-C` argument expanded
+to nothing.
+
+Two riders. **Never use a single letter and its own case-variant in one script** — the collision is
+invisible and PowerShell issues no warning. And the failure mode is worst on the *success* path: a
+command that fails leaves stderr in the variable and the script limps on; a command that succeeds
+leaves it **empty**, which is when the damage is total. Same environment family as `G182` (here-string
+becomes a pathspec) and `G183` (Bash-tool git hangs): **in this workspace, assume the shell is a
+defect surface and verify what a command actually received.**
