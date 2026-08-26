@@ -2842,6 +2842,19 @@ tool. And note the near-miss: G87's own headline rule, "check the level NAME, ne
 correct and was never in question. The defect is entirely in the paragraph that explains why.)*
 (2026-08-19.)
 
+🆕 **INSTANCE (2026-08-26, owner-ruled) — THE POSITIVE FORM OF THE SAME RULE: A NAMED GAP IS A FACT;
+A RECONSTRUCTED RECORD IS A FABRICATION.** `master`'s tip `9f52cab` landed on **2026-08-25**, a day
+with **no session journal** — sessions run 060 (08-24) then 061 (08-26). The tidy move is to write the
+missing journal from the commit and the surrounding record. **Ruled: do not.** What went in instead
+was an explicit gap entry — *no journal for this commit; it is nonetheless recorded in the m34 gate
+file's A2.1 table and in `CLAUDE.md`'s four-item staging line; its branch twin is `5495aa6`.*
+
+A reconstructed journal is indistinguishable, to every later reader, from one written at the time —
+so it inherits full trust while carrying none of the evidence, which is `G120`'s foreclosure failure
+with the polarity flipped: instead of stopping people looking, it stops them **knowing they should**.
+**Write the absence down and say where the commit IS recorded.** A named gap can be closed later by
+someone with the evidence; a fabrication cannot even be detected.
+
 ---
 
 ### G122 — an ASSET census and a RUNTIME census are DIFFERENT NAMESPACES; a claim proven in one is UNPROVEN in the other until they are joined by an exact key
@@ -4314,3 +4327,372 @@ Rule: **after any killed or interrupted build task, verify the output binary's S
 against a known-good build before trusting it.** Recovery is cheap — delete the exe+pdb and rebuild
 (objects survive; ~90 s relink). The dangerous path is the silent one: a 2 MiB stub with a fresh
 timestamp satisfies every downstream step that keys on "the build succeeded".
+
+---
+
+# Session 061 (2026-08-26) — the m35 readback sub-rect lessons
+
+⚠ **HONEST NOTE ON THE COUNT.** The close-out brief asked for "all nineteen lessons". The canonical
+numbering is maintained chat-side; what follows is **every lesson this session established with a
+receipt on this box**, written out in full. Where a lesson reinforces an existing gotcha it is
+recorded as an instance of that gotcha rather than minted as a new number, and where the brief names
+a lesson I cannot reconstruct without guessing it is recorded as a **named gap**, not filled in
+(`G120`: never write an unverified mechanism as fact). Expect the numbering here to differ from
+chat's; the substance is what travels.
+
+## G165 — a crash inside a new code path is an implementation error, not a verdict on the design
+
+m35's first Build B leg died at capture start with `State != D3D12_RESOURCE_STATE_COMMON`. The
+temptation is to read that as "the design does not work". It was one missing creation flag: the
+**D3D12 transient resource allocator derives a resource's initial state solely from RenderTarget,
+DepthStencil and UAV flags**, so an RDG texture created with `TexCreate_ShaderResource` alone has no
+derivable initial state. Adding `TexCreate_RenderTargetable` fixed it outright.
+
+Two things travel. First, **classify a crash before reacting to it** — an allocator-contract error and
+a design refutation demand opposite responses, and only one of them means stop. Second, **the fix
+created a deliberate asymmetry that must not be tidied away**: the flag is added to the RDG (SVE)
+texture only, because the backbuffer path's texture is a *persistent* `FTextureRHIRef` that declares
+`SetInitialState(ERHIAccess::CopyDest)` directly and needs no render-target flag. That asymmetry is
+now named in the backbuffer path's own log line, precisely so a future reader does not "harmonise" the
+two and reintroduce the crash on the path that was never broken.
+
+## G166 — a guard leg that writes ZERO frames is the PASS, and zero frames without drops is the FAIL
+
+`G-M3` proved the new readback bounds guard by breaking it on purpose
+(`IAI.Bench.ReadbackGuardInflate 1`). The result: **90 `READBACK-GUARD FIRED` lines, 0 frames on
+disk, `total_frames 0`, no crash, and the run completed and wrote its artifacts.** An empty output
+folder is exactly what a *successful* guard test looks like.
+
+The trap is that an empty output folder is also what a *broken build* looks like. **The discriminator
+is the drop count, never the emptiness** — 0 frames *with* 90 drops is a pass; 0 frames *without*
+drops is a failure. The gate text was written that way before the leg ran, which is the only reason
+the reading was unambiguous. Knob back to 0 restored silence, so the guard is proven **both ways**
+(`G96`); a guard that has only ever been silent is not a guard.
+
+## G167 — pre-declare the number that will look like a regression, or it will be read as one
+
+Under m35 the plugin owns the readback texture, so `bufferHeight` stops reporting the engine's
+staging height (869) and reports the picture height (344). **That drop is the fix working.** Read cold,
+it looks exactly like "this became a 5.2+ engine", which is the misreading that would have sent
+someone chasing an engine-version hypothesis through a working build.
+
+The gate file carried the sentence *"`bufferHeight` WILL NOW READ 344, NOT 869, AND THAT IS THE FIX
+WORKING"* **before any Build B leg ran**. Generalisation: when a change will move an observable in a
+direction that resembles a defect, **write down the expected new value and its meaning in advance**.
+A prediction made before the measurement costs one line; the same claim made afterwards is
+indistinguishable from rationalising a result.
+
+## G168 — `G158`'s THIRD INSTANCE, now with the noise floor quantified
+
+`G158` already says frame byte-identity is unavailable between two runs of the same binary. This
+session measured how unavailable, which is what makes it actionable:
+
+- **MainWorld:** mean |Δ| **4.42**, max **225**, **78 %** of pixels differ. Unusable for any frame
+  comparison.
+- **CB_GateLevel, same binary** (`M33_CTRL_A` vs `M33_CTRL_B`): mean |Δ| **0.00117**, max **3**,
+  **0.116 %** of pixels — concentrated in the **lower half**, **top four grid rows exactly 0.000**,
+  and **no corner box**, so it is **not** `G125`'s CaptureBench frame marker.
+
+Consequence adopted: the m35 pixel gates are reported **NOT OBTAINED, never FAILED**, and the
+replacement instrument compares **two readbacks of the same frame inside one run** (`G-M9`) instead of
+two runs. **A pose-matched pair is necessary and not sufficient for byte identity** — and the
+control pair is what turns "the frames differ" from a finding into a noise reading, which is why it
+must never be deleted.
+
+## G169 — the m11 pacer makes a capture hook's cost unmeasurable, so perf must be asked with pacing OFF
+
+`G-M6` wanted the cost of m35's added per-frame copy. There is **no hook-cost field in any artifact**,
+so the available proxy is the median consecutive `t_wall` delta from `labels.jsonl` — and it read
+**0.03334 on all five legs with `paced=True`**. That is `1/30` to four decimals. The **m11 pacer pins
+each tick to `1/VideoFps`**, so it absorbs any sub-budget hook cost completely.
+
+⇒ **A paced leg cannot measure a sub-budget hook, and no rebuild changes that.** Any perf question
+about a capture-path hook must be asked with **pacing OFF**, or it is being asked of the pacer instead
+of the code. Corollary that saved a rebuild here: the prior is obtainable by **swapping an archived
+predecessor exe** against the current one, order-matched, hashes re-verified at each swap — which is
+why archived exes are load-bearing artefacts and not housekeeping.
+
+🆕 **SECOND INSTANCE, SAME DISEASE IN A DIFFERENT COSTUME (2026-08-26, owner-ruled).** Turning pacing
+OFF removes the pacer, but it does not make the instrument infinitely sensitive — and the failure mode
+on the other side is identical in shape. **`G-M6` must report the WITHIN-BUILD SPREAD ACROSS POSITIONS
+beside the BETWEEN-BUILD DIFFERENCE, and if the A/B difference is not larger than that spread, the
+honest statement is "BELOW THE RESOLUTION OF THIS INSTRUMENT" — never "no cost".**
+
+The two mistakes are the same mistake: above, a number produced by the pacer was nearly read as a
+number about the code; here, a difference smaller than the instrument's own noise would be read as an
+absence. **A null is a statement about the instrument until it is shown to be a statement about the
+world.** ⇒ never report an unresolved difference as zero, and never let a perf null harden into "free"
+without the spread printed next to it.
+
+## G170 — a lever that silently no-ops produces a clean null indistinguishable from a clean result
+
+This is `G114`'s principle, hit again on a new lever. The packaged letterbox leg returned
+**`LETTERBOX REFUSED - view target 'SpectatorPawn_2147482483' has no UCameraComponent`**, and that
+refusal is the only reason the leg was not read as a pass: its `READBACK-LAYOUT` reported
+`rect=(0,0)-(1280,720)` and its bbox was **identical to the un-letterboxed leg**. Had the lever
+shrugged and done nothing, the artifacts would have been a perfectly clean un-letterboxed run
+presented as evidence about letterboxing.
+
+**Rule: a lever must refuse loudly and name the reason, never no-op.** The leg is banked **VOID by the
+pre-declared rule**, not as a pass. Environmental fact worth carrying: **the packaged bench pawn under
+`-unattended` is a `SpectatorPawn` and has no `UCameraComponent`**, so any lever that acts on a camera
+component is structurally unavailable in the unattended harness and its gate must run in PIE.
+
+## G171 — a row-only checker is blind to a horizontal defect
+
+The letterbox lever moves `Rect.Min.Y`, so every checker built for it examines **rows**. `Rect.Min.X`
+has been **zero in every leg ever run**, which means the X half of the sub-rect origin has never been
+tested and a row checker could not detect a failure there if it were.
+
+The fix is not a better row checker; it is **a column checker, and a pillarboxed leg to point it at**.
+Written down because the coverage gap was invisible from inside the passing gates — every gate was
+green and half the parameter space was untouched.
+
+## G172 — a checker can print "MATCHED" while comparing nothing, and that is how a vacuous gate ships
+
+My pose checker read `annotation["camera"]`. That key does not exist at the top level — camera data
+lives under `anomalies[]`. So it compared `None` against `None`, found them equal, and printed
+**"MATCHED"** on every leg. The verdict was not wrong about the data; there was no data.
+
+Corrected to read `view.rot` / `view.origin` from `labels.jsonl`. This is the receipt behind the
+standing owner rule that now governs everything here: **EVERY CHECKER IS PROVEN AGAINST A KNOWN ANSWER
+BEFORE ITS VERDICT IS READ.** `G146`'s vacuity problem, arriving through a missing key rather than an
+empty result set — and note that the vacuous output was *the answer I expected*, which is what stops
+it being noticed.
+
+## G173 — when a probe reads empty, suspect the probe's key before the build
+
+A probe of mine reported `max_frames` empty and I nearly read that as a config not being applied. The
+real key is **`frame_cap`** — `max_frames` does not exist. **The checker was wrong, not the build.**
+
+Same family as `G161` (join on the key the artifacts share) and `G142` (a verification script is a
+defect surface of its own). The cost asymmetry is what makes it worth a number: a false failure here
+teaches the owner to distrust a gate that was working, which is more expensive than the missing
+measurement.
+
+## G174 — a bare class-name target matches nothing on UAID actors, and the leg reads as a clean empty run
+
+Firing at `SM_Ramp2` produced `zero_match_bursts = 8` and `positive_frames = 0`. Nothing errored. The
+run completed, wrote its artifacts, and looked like a session in which simply nothing happened. It is
+**INVALID — not a pass and not a failure** — because it sits below the ≥3-counted-events validity
+floor.
+
+**Why only some targets need the long form:** `CB_GateLevel`'s actors were script-spawned with only
+`set_actor_label()`, so their `GetName()` genuinely is `StaticMeshActor_<n>` and a bare name matches.
+MainWorld's editor-placed and Blueprint actors carry a runtime `_UAID_…` suffix, so a bare class name
+matches nothing there. The replayable tokens are:
+
+```
+SM_Ramp2_UAID_B42E9936F5429ADA00_2086822137
+BP_SplineSpawn_C_UAID_A85E45CFE40412DE00_1511100424
+```
+
+🚨 **They existed in replayable form ONLY inside banked `run.json` files** — a discovery problem for
+every future session, which is why they are now in the journal, the gate file §12 and the runbook.
+**Grep the bank for a target token before designing a leg around it** (`G116`'s habit, applied to
+targets).
+
+## G175 — attribute code to commits per file, never per branch
+
+I reported that m34 had touched four files, including the one m35's fix rewrites around. Per-file
+`git log` said otherwise: **`AnomalySceneViewExtension.cpp` was touched by `b05066f` — the
+stale-present display fix — and m34 (`0fc00ef`) never touched it at all.**
+
+That matters because `feature/mask-gpu-reduce` is **not "the m34 branch"**; it is a four-item staging
+line (m34 · `b05066f` · `5495aa6` · m35). Reading a shared branch as one milestone's work misattributes
+every interaction on it, and here it would have pointed a gate at the wrong milestone. **On a shared
+branch, `git log --follow <file>` is the only sound attribution.**
+
+## G176 — "per armed frame" and "per captured frame" are different rates in this codebase
+
+The added sub-rect copy was described for several turns as a **per-armed-frame** cost. It is
+**per CAPTURED frame**. `CaptureCurrentFrame()` (`AnomalyCaptureSubsystem.cpp:1736`, called at
+`:569`/`:579`/`:589`) mints one RequestId (`:1752`), arms one readback (`:1769` SVE / `:1773`
+backbuffer) and increments `SessionFrameIndex` (`:1777`) — which **names the output PNG** at `:1790`
+and is what `FrameCap` is tested against at `:551`. ⇒ **one arm == one captured frame == one PNG,
+1:1**, i.e. 30× per second at 30 fps.
+
+The phrase was true of a *different* subsystem: **the MASK arms a few times per burst.** This
+session's own legs separate the rates — **90** `READBACK-GUARD FIRED` for a 90-frame cap against
+**29** `M23 PASS` mask arms on the same family of leg. **When two subsystems in one file arm at
+different rates, name the subsystem in the sentence**, or the cost estimate silently changes by 3×.
+
+## G177 — an engine check that exists can still be absent, because it is compiled out
+
+Asked whether the backbuffer copy would catch a format mismatch, the answer looked like yes:
+`FValidationRHIUtils::ValidateCopyTexture` (`RHIValidationUtils.h:10-45`) carries
+`checkf(bValidCopyFormats, ...)` plus source and destination bounds checks. **But the whole file sits
+behind `#if ENABLE_RHI_VALIDATION` (line 5), which is OFF in a default Development build**, and
+D3D12's own `RHICopyTexture` (`D3D12Texture.cpp:2868+`) checks only block alignment — **no format
+check at all.**
+
+⇒ on the shipped path a format mismatch is **undefined behaviour**: no assert, no loud drop, no
+graceful failure. This inverts the conclusion: the structural guarantee (read the format from
+`BackBuffer->GetFormat()` every frame; recreate the owned texture *before* the copy in the same
+straight-line block; hand the drain `Item.Format = SrcFormat`) is not belt-and-braces — **it is the
+only protection there is.** `G119`'s rule pointed at the engine: **finding the check in source is not
+evidence the check runs.** Check its compile gate.
+
+## G178 — verify an instrument's premise before you build the instrument, not after it disagrees
+
+`G-M9` compares two readbacks of the same frame, which is only sound if both passes observe identical
+source contents. That rests on RDG executing passes in handle order without reordering. **That was
+verified from source before a line of the comparator was written** — RDG has no sort or reorder, and
+both passes are added consecutively and are read-only with respect to the source.
+
+The payoff is in the failure mode: a non-zero diff now has **two** possible causes — the owned copy is
+wrong, or the added pass broke the adjacency the premise rests on — and **a broken premise makes the
+comparison meaningless rather than failing**. So the comparator's output line is required to name both
+causes and instruct the reader to **check adjacency first**. An instrument that cannot distinguish "I
+found a defect" from "I am no longer measuring" sends people hunting defects in working code.
+**The comparator is its own guard.**
+
+## G179 — the padding in a row pitch can be ZERO, which is what kills a pitch-based layout sniff
+
+The rejected design would have sniffed the engine's staging layout by comparing `bufferHeight` and
+`rowPitchInPixels` against the picture's dimensions. Measured here: `rowPitch 832` against
+`width 821` = **11 px of padding** (832 × 4 = 3328 = 13 × 256, D3D12 256-byte row alignment).
+
+🚨 **At any width whose byte stride is already 256-aligned, the padding is ZERO and `rowPitch ==
+width`.** So at a narrow pillarbox, and at every aligned width, the two candidate engine layouts are
+**numerically indistinguishable** and the sniff **fails silently inside its own blind spot** — the
+dangerous direction, because it returns a confident answer. ⚠ A literal `rowPitch == 0` has never been
+observed here; the finding is about the *padding*, and the distinction is recorded so nobody
+"corrects" it later.
+
+Adopted consequence: **do not detect the environment; make the environment irrelevant.** The shipped
+design copies the sub-rect into a plugin-owned texture at (0,0) and reads back the whole texture with
+no rect, so `bufferHeight == picture height` on every engine and there is nothing left to sniff.
+
+## G180 — compiling against three engine versions is not evidence their semantics agree
+
+The readback staging layout **changed at UE 5.2** (5.1 allocates full-source-size staging and copies
+the sub-rect to its own position; 5.2+ allocates rect-sized staging with dest 0,0). **UE 5.3 keeps a
+`FResolveRect` compatibility overload, so the call sites compile unchanged on 5.1, 5.2 and 5.3.**
+
+That is the whole trap: the code builds everywhere and is correct in only one place. A field report of
+"it works on our 5.3 host with the offset removed" and a field report of "it crashes on our 5.1 host"
+were **both true simultaneously**, and neither was a build problem. **When a host reports
+version-dependent behaviour, check whether the API kept a compat shim** — a silent semantic change
+behind a stable signature is invisible to every compiler in the chain.
+
+## G181 — hashing a redirected file may hash the redirection, not the content
+
+The insurance diff of the uncommitted fix was written twice from the same working tree and produced
+**18,374 B / `sha256 8479FFE7…`** and then **18,756 B / `sha256 7A0CC269…`** — different sizes,
+different hashes, **identical content** (both are the same 8 files at 192 insertions / 16 deletions).
+The delta comes from how the shell wrote the file, not from what git produced.
+
+⇒ **A hash of a shell-redirected artifact certifies the byte stream, which includes the shell's
+encoding decisions.** Verify *content* identity with a content instrument (here: the diffstat and the
+file list), and treat a moved hash on an unchanged input as an encoding question until proven
+otherwise. Same family as `G141` (PowerShell `-Encoding utf8` writes a BOM) and `G115` (a shell
+round-trip re-encodes a whole file while the text still reads correctly).
+
+## G182 — PowerShell 5.1: a here-string handed to `git commit -F -` becomes a pathspec
+
+`git commit -F - @'…'@` does **not** pipe. PowerShell passes the here-string as an *argument*, git
+takes it as a pathspec, and the commit fails with `pathspec '<your entire commit message>' did not
+match any file(s) known to git` — measured this session, exit 1, no commit made.
+
+**Write the message to a file and use `git commit -F <file>`.** Same family as the already-recorded
+trap where a `git commit -m` message containing embedded double quotes silently becomes pathspecs. Two
+instances now: **in PowerShell 5.1, never construct a git commit message inline.**
+
+## G183 — the Bash tool's git can hang in this workspace; PowerShell is the working form
+
+`git` invoked through the Bash tool hung to the 2-minute timeout and then reported
+`/c/Users/.../claude-…-cwd: No such file or directory` — the tool's working-directory file had
+vanished, and `D:\IntrusiveAnomalies\StackOBot` (the shell's cwd) is not itself a git repository.
+Plain `pwd` worked; a `git`-leading compound command did not, and an attempted heredoc append wrote
+nothing at all (the target file was verified untouched afterwards).
+
+**Use `git -C <plugin-path> --no-pager …` from PowerShell in this workspace, and verify that any
+shell-driven file write actually landed before assuming it did.** The second half is the real lesson:
+the failed heredoc reported an error *after* printing earlier output, which reads like partial
+success. It wasn't — but only checking the file established that.
+
+## G184 — a leg payload transcribed by hand into a doc is a defect surface with no known-answer control on it
+
+The session-061 journal recorded an `ExecCmds` payload for re-running the `StaticMeshActor_73`
+known-answer leg, and named `M34_R3_CYL73` as the datum it would be graded against. Reading that
+banked leg's own `_leg_geometry.json` and `run.json` instead of the prose, the two disagree on **four
+axes**: anomaly `missing_texture` vs **`blinking`**, seed `4242` vs **`777`**, `=StaticMeshActor_73`
+vs the **bare** form, and — the one that matters — **`IAI.Capture.MaskReduce both` omitted entirely**.
+
+🚨 **THAT LAST OMISSION MAKES THE LEG UNGRADEABLE RATHER THAN WRONG, WHICH IS WORSE.**
+`IAI.Capture.Mask 1` measures the mask; only `MaskReduce both` runs the CPU and GPU reductions side by
+side and emits the `MASK-REDUCE COMPARE` line the gate reads. Without it the leg **does not fail** —
+it completes, writes its artifacts, and simply has **no verdict available on it**. That is `G174`'s
+shape arriving through a missing *command* instead of a missing *target*, and `G142`'s point — a
+verification script is a defect surface of its own — applied to **launch lines**.
+
+**RULE: a re-run leg's payload is DERIVED FROM THE BANKED LEG'S OWN RECORDED CONFIG, never transcribed
+by hand into a doc.** A doc payload has no control on it; the banked record is the known answer and
+carries its own conditions. ⇒ **Before running ANY leg graded against a banked datum, diff the
+intended payload against that datum's recorded config on EVERY axis and report the diff — including
+when it is empty.** An empty diff reported is evidence; an unreported diff is an assumption.
+
+⚠ **AND THE BANKED RECORD ITSELF HAS A BLIND SPOT, so "derive it" is not automatically complete.** The
+two files are complementary and **both** are needed: `_leg_geometry.json` (19 fields) holds
+anomaly / target / map / geometry / `extra_execcmds`, `run.json` holds `seed` / `frame_cap` / `paced` /
+`start_frame` — and `run.json`'s own `target_anomaly` and `target_actor` are **empty**. **`CaptureBench.Marker`
+is in NEITHER**, so it is an un-diffable axis: harmless for a log-line verdict, live for anything
+graded by pixels, where `G125` says the marker changes every frame by construction.
+
+## G185 — "protect the work first" must never put UNPUSHABLE work beneath PUBLISHABLE work
+
+Session 061 closed by protecting an uncommitted 8-file fix as a `WIP` commit that must not be pushed,
+and then writing the close-out docs **on top of it**. Both instincts were right; the **order** was
+wrong. The result: the docs — the cold-start contract a fresh session depends on — could not be
+published without also publishing a commit explicitly marked *do not push*, and the WIP was no longer
+the tip, so amending it into the real fix commit would have needed a rebase.
+
+**RULE: when a `WIP` commit that must not be pushed coexists with docs, the WIP GOES ON TOP.** Docs
+then publish freely, and the WIP stays a trivially amendable tip needing no force-push. The paths were
+disjoint (8 source files vs `docs/` + `CLAUDE.md`), so the correction was conflict-free — but that was
+luck of the layout, not of the sequencing.
+
+🚨 **THE SECOND LESSON IS THE ONE THAT NEARLY GOT MISSED.** Re-parenting the WIP **changes its SHA by
+construction** — and the docs commit being published named that SHA in **five places**, including a
+parent-chain sentence that was wrong post-reorder regardless of hash. There is no arrangement in which
+docs published *beneath* an amendable commit can name it correctly: its hash depends on them.
+⇒ **identify an amendable commit by SUBJECT AND POSITION — `git log --oneline -1`, "the tip", "ahead
+exactly 1" — never by SHA**, and say *in the doc* why the SHA is deliberately absent, or a later reader
+helpfully restores one. Same family as the stale-`master`-SHA incidents: **a hash written into prose is
+a fact with an expiry date and no expiry stamp.**
+
+## G186 — `A,B,A,B` is BIASED when the disturbance is monotonic; counterbalance as `A,B,B,A`
+
+Asking for an A/B hook cost with a repeat of each build, the obvious ordering is `A,B,A,B`. It is
+wrong here, and the reason generalises. **Warm-up (`G66`) makes EARLIER legs slower.** In `A,B,A,B` the
+A-side occupies positions {1,3}, mean **2.0**, and B occupies {2,4}, mean **3.0** — so **A sits
+earlier on average, a monotonic slow→fast gradient inflates A and flatters B, and the design
+systematically hides the very cost the measurement exists to find.** In `A,B,B,A` both builds sit at
+mean position **2.5** and any monotonic order effect cancels.
+
+The gradient here is measured, not assumed: Build A's own two legs read `speed_ratio` **1.1677** on the
+leg that ran FIRST against **1.0123** on the second — a **15 % spread, with the *smaller* copy on the
+*slower* leg**, i.e. the ordering effect was larger than and opposite to the effect under test.
+
+Two riders. **Precede the series with one leg DECLARED A DISCARD BEFORE IT RUNS** — never banked as a
+measurement — to flatten the steepest part of the gradient; declaring it in advance is what keeps it
+from being a result someone later chooses to drop. And **counterbalancing removes the bias, not the
+noise**: report the within-build spread across positions beside the between-build difference, because
+a difference smaller than that spread is *unresolved*, not *absent* (`G169`).
+
+⚠ Owner-ruled, 2026-08-26. Recorded because the flawed ordering is the one that looks most obviously
+"fair", and a design that is biased toward the null is the hardest kind to notice from inside its own
+clean-looking output.
+
+## NAMED GAP — the "frame-2 lesson" is NOT recorded here, deliberately
+
+The close-out brief names a *frame-2 lesson* arising from the Build B crash. **I cannot reconstruct
+its content from what is on disk without guessing, so it is not written down as fact** (`G120`).
+
+What is on disk: the crash leg, banked as
+`session_20260826-155749_DEAD_PARTIAL_BUILDB_CRASH_0_FRAMES` — **0 frames written**, partial session.
+**The question to put to that log:** on which captured-frame index did the access violation land, and
+did any frame drain successfully first? If frame 1 drained and frame 2 crashed, the lesson is *a first
+frame that works proves nothing about a drain fault* — **but that is a hypothesis, not a finding.**
+Recover the ruled wording chat-side, or re-read the crash log and then write it.

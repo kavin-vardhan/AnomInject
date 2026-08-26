@@ -323,3 +323,90 @@ The leg is **VOID by the pre-declared rule**, not a pass.
 ⛔ Cvars ARE reachable packaged — the Letterbox command EXECUTED and failed on a semantic
 precondition, not on being unknown. `IAI.Capture.SVE`, `IAI.Bench.ReadbackGuardInflate`,
 `IAI.Capture.MaskReduce` and the future `G-M9` cvar all reach a packaged leg.
+
+---
+
+## 14. AMENDMENT — 2026-08-26, session 062, owner rulings. APPENDED; NOTHING ABOVE IS REWRITTEN.
+
+**WHY AMENDING IS PERMITTED HERE, and where the boundary is.** Everything below touches gates against
+which **NO MEASUREMENT EXISTS YET**: `G-M5`'s last two legs have not run, `G-M6`'s prior has not been
+taken, and `G-M9` has not been built. Amending a method before any result exists is a specification
+change; the same edit made after the legs land would be re-specifying a gate against a result, which
+is the laundering shape however legitimate each step looks. **`G-M1`–`G-M4` are FROZEN and nothing
+here touches them.**
+
+### A14.1 — THE `G-M5` LEG PAYLOADS IN THE JOURNAL ARE A DOCS DEFECT (`G184`)
+
+The session-061 journal §7 records two `ExecCmds` payloads for the outstanding `G-M5` legs. Measured
+against `M34_R3_CYL73` — the banked leg whose known answer they cite — using that leg's own
+`_leg_geometry.json` and `run.json`:
+
+| axis | journal §7 payload | `M34_R3_CYL73` as it ran | consequence |
+|---|---|---|---|
+| anomaly | `missing_texture` | **`blinking`** | the 8/8 `MEASURED_NONZERO` / ~5.27 % datum does not apply |
+| seed | `4242` | **`777`** | different selection / burst placement; not comparable |
+| target form | `=StaticMeshActor_73` | **`StaticMeshActor_73`** (bare) | both match on `CB_GateLevel`; only the bare form is the banked one |
+| mask reduce | *(absent)* | **`IAI.Capture.MaskReduce both`** | 🚨 **DISQUALIFYING — no `MASK-REDUCE COMPARE` line is emitted at all** |
+
+🚨 **THE LAST ROW MAKES THE LEG UNGRADEABLE RATHER THAN WRONG**, which is worse: it completes, writes
+artifacts, and offers no verdict — `G174`'s shape arriving through a missing *command* instead of a
+missing *target*. `IAI.Capture.Mask 1` measures the mask; only `MaskReduce both` runs the CPU and GPU
+reductions side by side and emits the comparison `G-M5` reads.
+
+**RULED: the banked config is authoritative.** The authoritative commands are in the journal at
+**§7.1**, derived from the banked record rather than transcribed. The `MaskProbe` leg targets
+**`StaticMeshActor_49`**, not `_73` — every banked probe leg on this box used `_49`, its comparators
+exist, and `_49` is the only target for which the `B1` pose gate has scope at all (`G117`).
+
+⚖ **STANDING RULE:** a re-run leg's payload is **derived from the banked leg's own recorded config**,
+never hand-transcribed. **Before running ANY leg graded against a banked datum, diff the intended
+payload against that datum's recorded config on every axis and report the diff, even when it is
+empty.** ⚠ Known blind spot, named: `CaptureBench.Marker` is recorded in **neither** file, so it is
+un-diffable — irrelevant to `G-M5` (a log-line verdict) but live for any pixel-graded leg (`G125`).
+
+### A14.2 — `G-M6`'s ORDER IS `A,B,B,A`, NOT `A,B,A,B` (`G186`)
+
+§10's method stands in substance — predecessor exe vs staged Build B, pacing OFF, hashes re-verified
+at every swap — and gains its **order**, which was previously only "order-matched":
+
+**one DISCARD leg declared a discard BEFORE it runs, then `A, B, B, A`.**
+
+🚨 Warm-up (`G66`) makes **earlier** legs slower. In `A,B,A,B` the A-side holds positions {1,3}
+(mean 2.0) against B's {2,4} (mean 3.0), so **A sits earlier on average and a monotonic gradient
+inflates A while flattering B — it would systematically hide the cost this prior exists to size.** In
+`A,B,B,A` both builds sit at mean position 2.5 and a monotonic effect cancels. Receipt for the
+gradient: Build A's two legs, `speed_ratio` **1.1677** (ran FIRST) vs **1.0123** (second) — a 15 %
+spread with the *smaller* copy on the *slower* leg.
+
+**Reporting, added:** all four measured legs individually **and** the A/B means; per-captured-frame ms
+**and** per-megapixel; Concorde figures labelled **EXTRAPOLATION**; and 🚨 **the within-build spread
+across positions REPORTED BESIDE the between-build difference. If the A/B difference is not larger
+than the within-build spread, the honest statement is "BELOW THE RESOLUTION OF THIS INSTRUMENT",
+never "no cost"** — a null reported as zero is the paced-leg mistake in a different costume (`G169`).
+⛔ **NUMBERS ONLY. NO THRESHOLD, NO GATE.**
+
+📌 **CORRECTION TO §2's WORDING, not to its substance:** §2 says the prior is "Build A vs Build B".
+The A-side is `7F37A4AC`, the **m34 + display-fix predecessor — PRE-m35 entirely**, earlier than Build
+A (`9aec10f`). **The Build A exe was never archived**; it was overwritten by Build B and a rebuild is
+ruled out. ⇒ the prior measures **m35 in its entirety**, telemetry and lever included — strictly
+larger than Build B's copy alone, and the more useful quantity for `G-R7(ii)`, but not what §2's
+phrasing promises.
+
+### A14.3 — `G-M9`'s CVAR IS NAMED
+
+**`IAI.Bench.DualPathReadback <0|1>`, default OFF.** 🚨 **It must ECHO ITS EFFECTIVE STATE at
+`StartRun`, the way the mask key does (`A48`)** — a diagnostic that can be silently off is a clean
+null waiting to be misread, which is `G114`/`G170` pointed at an instrument instead of at a lever.
+Its three verifications (a)/(b)/(c) in §8 are unchanged.
+
+### A14.4 — BUILD IDENTITY, AND A LOAD-BEARING BASELINE NOBODY NAMED
+
+- **Every 8-hex identity in this project is the FIRST 8 HEX OF SHA-256** —
+  `(Get-FileHash <path> -Algorithm SHA256).Hash.Substring(0,8)`. Verified against the archived
+  predecessor (`7F37A4AC` reproduces; MD5 and SHA-1 do not). It was stated only in
+  `_binary_baselines\README.md`, **outside version control** (`G112`), and never in the runbook; it is
+  now in `setup-runbook.md` §8.1.
+- **`_binary_baselines\StackOBot.exe.m34-candidate-17DEAA74` is load-bearing and appears in no stop
+  block.** Journal 058 identifies it as the staged exe **every m34 home gate leg ran on**
+  (`G-R1`..`G-R6`, `G-R7`'s StackOBot half — the 145/145 `COMPARE` IDENTICAL set). ⛔ **No archived
+  baseline is deleted until the docs say what gate depends on it.**

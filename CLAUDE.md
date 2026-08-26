@@ -10,15 +10,95 @@ This file is the **canonical entry point**. The folder it lives in is its own gi
 and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
+
+> 🛑🛑 **READ THIS BEFORE YOU TOUCH ANYTHING — 2026-08-26, session 061 close-out.** 🛑🛑
+>
+> **1. THERE IS A `WIP` COMMIT ON `feature/mask-gpu-reduce` AND IT MUST NOT BE PUSHED.**
+> It is **the branch TIP**, subject `WIP(m35): Build B fix pre-gate - DO NOT PUSH, amend into the fix
+> commit when G-M7/M8/M9 pass`, and **the branch is AHEAD EXACTLY 1** of
+> `origin/feature/mask-gpu-reduce`. The session-061 close-out docs commit is **PUBLISHED and sits
+> UNDER it**; the WIP is the only unpushed commit and stays that way.
+> 🚨 **NO SHA IS WRITTEN HERE, DELIBERATELY, AND MUST NOT BE ADDED.** This commit is **amended** into
+> the real fix commit when the gates pass, so its hash changes by construction and any SHA recorded
+> here would be stale exactly when it mattered. Identify it by **subject and position**
+> (`git -C <plugin> log --oneline -1`), never by hash. It exists ONLY so a cold session cannot destroy
+> the fix with `stash` / `clean` / `checkout`. When `G-M7`, `G-M8` and `G-M9` pass, **AMEND it into
+> the real fix commit and push once** — amend-before-push is clean and needs **no force-push**.
+> ⛔ Do not push it, do not rebase it away, and do not `git add -A` anywhere in this repo (the owner's
+> two untracked `docs/CHAT-HANDOFF-*.md` would be swept).
+> 📎 Both commits are backed up on origin at **`wip/session-061-backup`** (scratch branch — delete
+> only after the fix commit lands on `feature/mask-gpu-reduce`).
+>
+> **2. `master` IS UNTOUCHED AND STILL CARRIES THE READBACK CRASH.** Tip **`9f52cab`**.
+> ⛔ **DO NOT CUT A DELIVERY BUILD FROM `master` BEFORE THE BRANCH MERGE.** A build cut from master
+> today ships the crash to any host that letterboxes or pillarboxes. m35 reaches master by the
+> **MERGE — ONE ROUTE ONLY**, never also by cherry-pick.
+>
+> **3. THE PACKAGED BENCH BUILD IS CURRENTLY m35 BUILD B — exe `733FE83C`** on the **unchanged m34
+> container** (utoc `2A66CA57` · ucas `A7EF9B12` · pak `D8009AD7`). Code-only hot-swap (`G103`); **no
+> cook this session.**
+>
+> **4. ⛔ DO NOT DELETE `_binary_baselines\StackOBot.exe.m34-fix-candidate-7F37A4AC`.** That archived
+> pre-m35 exe **IS `G-M6`'s A-SIDE** — the hook-cost prior is taken by swapping it against `733FE83C`
+> with pacing OFF, and it cannot be rebuilt from the current tree once the WIP commit is amended.
+> Deleting it makes `G-M6` unobtainable without a rebuild the owner has explicitly ruled out.
+>
+> **5. THE BRANCH IS A FOUR-ITEM STAGING LINE, NOT "the m34 branch".** In merge order:
+> **m34** (the GPU mask reduction, `0fc00ef`) · **`b05066f`** (the stale-present display fix) ·
+> **`5495aa6`** (targeted global anomaly held for the whole capture) · **m35** (`9aec10f` Build A +
+> the WIP fix). The cook that gates it is therefore a **four-item cook**, and `G-R7(ii)`'s display
+> half judges **`b05066f`**, not m34. Per-file attribution is in the m34 gate file **A2.1**.
+>
+> 🧭 **COLD START: `docs/sessions/2026-08-26-061-m35-readback-sub-rect-copy-handoff.md`.** It opens
+> with a **DO NOT DO THIS** list and is self-contained.
+
 - **STANDING CONVENTION (owner directive, 2026-07-29): this Current-status block is REFRESHED AT EVERY MILESTONE
   CLOSE — same discipline as the session journals.** It is the cold-start contract: if it says "in flight / not
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🚧 **YOU ARE HERE — 2026-08-26 (session 061). `m35` IS IN FLIGHT ON BRANCH
+- 🚧 **YOU ARE HERE — 2026-08-26 (sessions 061–062). `m35` IS IN FLIGHT ON BRANCH
   `feature/mask-gpu-reduce`: THE FIX IS BUILT, STAGED AND GREEN ON EVERY GATE THAT HAS RUN, AND IT IS
-  STILL UNCOMMITTED (8 files in the working tree). NO LEG HAS FAILED. ⛔ NO TAG — highest tag is still
-  `m30`, and `m31` is still the open milestone awaiting Concorde V-3/V-4.**
+  COMMITTED LOCALLY AS THE UNPUSHED `WIP` TIP** (8 files, **192 insertions / 16 deletions** — the
+  stop block above is the operating contract for it). **NO LEG HAS FAILED. ⛔ NO TAG — highest tag is
+  still `m30`, and `m31` is still the open milestone awaiting Concorde V-3/V-4.**
+  📌 **SESSION 062 RULINGS — read these before designing any remaining leg:**
+  **(i) A RE-RUN LEG'S PAYLOAD IS DERIVED FROM THE BANKED LEG'S OWN RECORDED CONFIG**
+  (`_leg_geometry.json` / `run.json`), **never hand-transcribed into a doc.** The two outstanding
+  `G-M5` payloads written into the session-061 journal diverged from their own known-answer leg
+  (`M34_R3_CYL73`) on **four axes**, one of which (`IAI.Capture.MaskReduce both` omitted) makes the
+  leg **ungradeable — no `MASK-REDUCE COMPARE` line is emitted at all**. The banked config is
+  authoritative; the journal payload is a **docs defect**, corrected by APPENDING (journal §7.1, gate
+  file §14) so the divergence stays visible. **Before running ANY leg graded against a banked datum,
+  diff the intended payload against that datum's recorded config on every axis and report the diff,
+  even when it is empty.** → `G184`.
+  **(ii) `G-M6`'s ORDER IS `A,B,B,A`, NOT `A,B,A,B`,** preceded by ONE leg **declared a discard before
+  it runs**. Warm-up (`G66`) makes earlier legs slower, and in `A,B,A,B` the A-side occupies the
+  earlier mean position, which **biases the reading toward "B is not slower" — it would hide the very
+  cost the prior exists to size.** → `G186`. **A difference not larger than the within-build spread
+  across positions is "BELOW THE RESOLUTION OF THIS INSTRUMENT", never "no cost"** → `G169`.
+  **(iii) `G-M9`'s cvar is `IAI.Bench.DualPathReadback <0|1>`, default OFF**, and it **must echo its
+  effective state at `StartRun`** the way the mask key does (`A48`) — a diagnostic that can be
+  silently off is a clean null waiting to be misread.
+  **(iv) BUILD IDENTITY IS THE FIRST 8 HEX OF SHA-256** — `(Get-FileHash <exe> -Algorithm
+  SHA256).Hash.Substring(0,8)`. Stated in `_binary_baselines\README.md`, **never in the runbook**;
+  verified this session against the archived predecessor and now in `setup-runbook.md` §8.1.
+  **(v) `_binary_baselines\StackOBot.exe.m34-candidate-17DEAA74` IS LOAD-BEARING AND IS NAMED IN NO
+  STOP BLOCK:** it is the exe **every m34 home gate leg (`G-R1`..`G-R6`, `G-R7`'s StackOBot half)
+  ran on** (journal 058). ⛔ **No archived baseline is deleted until the docs say what gate depends
+  on it.**
+  🕳 **NAMED JOURNAL GAP — 2026-08-25 has NO session journal.** `master`'s tip `9f52cab`
+  (*fix(capture): hold a targeted global anomaly for the whole capture, not per burst*) landed that
+  day between session 060 (2026-08-24) and session 061 (2026-08-26). It is nonetheless **recorded**:
+  in the m34 gate file's **A2.1** table and in this block's four-item staging line, under its branch
+  twin **`5495aa6`**. **The gap is named, not filled — a reconstructed journal would be a fabrication**
+  (`G120`).
+  🔗 **`master` AND THE BRANCH CARRY FOUR CHERRY-PICK TWIN PAIRS** — `9f52cab`↔`5495aa6` ·
+  `e9bf96d`↔`3363d5f` · `20c6a4e`↔`3be67fc` · `962dd29`↔`f5e3f0f`, **identical `git patch-id --stable`
+  per pair**. ⇒ nothing exists on `master` IN CONTENT that the branch does not already carry, those
+  four collapse at the merge, and `git merge-tree --write-tree master feature/mask-gpu-reduce`
+  forecasts **CLEAN (exit 0, no conflict list)**. Merge-base `1a3b1eb`. Recorded so the office pass
+  does not rediscover it.
   🧭 **COLD START: read `docs/sessions/2026-08-26-061-m35-readback-sub-rect-copy-handoff.md` — it is
   SELF-CONTAINED (the defect, the dead first design, the shipped design, the uncommitted file list and
   how to recover it, every gate result with numbers, the owner's ordered remaining sequence, and the
@@ -100,11 +180,12 @@ and is the single source of truth for the project.
   KNOWN ANSWER BEFORE ITS VERDICT IS READ"** — minted after a pose checker of mine read
   `annotation["camera"]` (which lives under `anomalies[]`), got `None == None`, and printed
   **"MATCHED"**.
-  ⛔ **NOT DONE, named:** `G-M5`'s last two legs (`StaticMeshActor_73`, the `MaskProbe` leg) ·
-  `G-M6`'s fine prior · **`G-M9` NOT BUILT** (premise (a) passed; (b) prove-it-can-fail and (c)
-  cvar-OFF-reproduces are unrun because the code does not exist) · the `G-M8` column checker (its
-  known-answer datum is recorded) · `G-M7`/`G-M8` PIE legs · **the fix commit + push** · this status
-  block's own close-out refresh. **Master untouched and STILL CARRIES THE CRASH.**
+  ⛔ **NOT DONE, named:** `G-M5`'s last two legs (`StaticMeshActor_73` and the `MaskProbe` leg —
+  **run them from the banked configs in journal §7.1, NOT from the §7 payloads**) · `G-M6`'s fine
+  prior (**`A,B,B,A` after a declared discard leg**) · **`G-M9` NOT BUILT** (premise (a) passed; (b)
+  prove-it-can-fail and (c) cvar-OFF-reproduces are unrun because the code does not exist) · the
+  `G-M8` column checker (its known-answer datum is recorded) · `G-M7`/`G-M8` PIE legs · **the fix
+  commit + push**. **Master untouched and STILL CARRIES THE CRASH.**
 - 🟦 *(superseded as "you are here" by the m35 entry above — still the record of sessions 053–057)*
   **2026-08-23 (sessions 053–057). ⛔ STILL NO TAG —
   `m31` REMAINS THE OPEN MILESTONE, STILL AWAITING CONCORDE V-3/V-4. Highest tag is still `m30`.**
