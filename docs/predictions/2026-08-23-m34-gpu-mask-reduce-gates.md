@@ -225,3 +225,81 @@ it). The eye is never again the throughput instrument. G-R7(i)'s bench null stan
 - No ratio, no threshold, anywhere (journal §209).
 - Teardown-printed telemetry never survives a harness kill (m33 G-B): every gate above reads
   mid-run lines or on-disk artifacts, never an exit-time counter.
+
+## AMENDMENT 2 (2026-08-26, owner ruling; APPENDED, nothing above is rewritten)
+
+**Why appending is permitted here and would not be later: NO MEASUREMENT AGAINST `G-R7(ii)` EXISTS
+YET.** The Concorde leg has not run. Once it has, this gate is frozen — an amendment after the legs
+land would be re-specifying a gate against a result, which is the laundering shape however
+legitimate each step looks. Recorded so the boundary is explicit rather than assumed.
+
+### A2.1 — WHAT IS ACTUALLY ON THIS BRANCH (record correction)
+
+`feature/mask-gpu-reduce` is **not "the m34 branch"** in content; it is the post-delivery staging
+line and it carries four separate pieces of work. Enumerated from `git log master..HEAD`:
+
+| commit | what | milestone |
+|---|---|---|
+| `3e20032` | this gate file | m34 |
+| `0fc00ef` | the GPU mask reduction | **m34** |
+| `73ebffc` | session-058 journal | m34 |
+| `ead7764` | AMENDMENT 1 + `G-R7(ii)` split | stale-present arc |
+| `310a87f` | `A-I1` instrument (`OverrideOutput.IsValid()` read-back) | stale-present arc |
+| `b05066f` | **honour `OverrideOutput` in both after-pass SVE callbacks** | **stale-present fix** |
+| `d3b9f08` | session-059 journal | — |
+| `f5e3f0f` | overlay boxes label the asset name | field fix |
+| `3be67fc` | session-060 journal | — |
+| `3363d5f` | picker-fix revert record | — |
+| `5495aa6` | **targeted global anomaly held for the whole capture** | field fix (session 060) |
+| `9aec10f` | m35 Build A — readback-layout telemetry + letterbox lever | **m35** |
+
+🚨 **ATTRIBUTION CORRECTED BEFORE IT COULD MISLEAD A GATE READER.** `FinalizeSveAfterPassOutput` in
+`AnomalySceneViewExtension.cpp` — the function m35's fix commit rewrites around — was introduced by
+**`b05066f`, the STALE-PRESENT FIX, not by m34.** m34 (`0fc00ef`) never touched that file at all.
+Per-file attribution, measured:
+
+- `AnomalySceneViewExtension.cpp` → `b05066f` only (+ m35's `9aec10f`)
+- `AnomalyMaskSceneViewExtension.cpp` → `0fc00ef` (m34), `310a87f`, `b05066f`
+- `AnomalyMaskSceneViewExtension.h` → `0fc00ef` (m34) only
+- `AnomalyCaptureSubsystem.cpp` → `0fc00ef` (m34), `5495aa6`, `9aec10f` (m35)
+
+⇒ **m35 interacts with the STALE-PRESENT FIX on the colour path and with m34 on the mask path.**
+Reading `G-R7(ii)`'s display half as "m34's display gate" is wrong on the label and right on the
+substance: the eye/OBS half judges **`b05066f`**, which is what `AMENDMENT 1` already said.
+
+### A2.2 — `G-R7(ii)` AS IT NOW STANDS (the original text above is UNCHANGED and still governs)
+
+- **The branch under gate now contains m34 AND m35**, plus `b05066f` and the two field fixes. The
+  cook that runs this gate is therefore a **four-item cook**, not an m34 cook.
+- **(display) half — UNCHANGED IN SUBSTANCE.** Hitch A/B by eye/OBS still judges the stale-present
+  fix (`b05066f`) and **only** that. m35 must not move it: the fix commit keeps
+  `FinalizeSveAfterPassOutput` and its `OverrideOutput` handling on **every** return path, and routes
+  the readback change **around** it, never through it.
+- **(throughput) half — UNCHANGED IN INSTRUMENT, NEW IN BASELINE.** Still read EXCLUSIVELY from the
+  m33 wall instruments (`t_wall` span vs frames/VideoFps; `speed_ratio` beside
+  `game_clock_speed_ratio`). ⚠ **But it now carries a SECOND variable**: m35 adds a per-armed-frame
+  sub-rect copy on both capture paths. `G-R7(ii)`'s throughput half was pre-declared to isolate m34;
+  it can no longer do that unaided. ⇒ **it is now read against a HOME HOOK-COST PRIOR** measured on
+  this branch, Build A vs Build B, both capture paths, and stated BEFORE the branch goes to Concorde.
+  **Without that prior a throughput reading on Concorde cannot be attributed to either milestone**,
+  and an unattributable throughput number is not evidence about m34.
+
+### A2.3 — TWO ITEMS ADDED TO THE SAME COOK (m35, additive; they do not touch m34's gates)
+
+- **m35 frame-identity check** — the delivered frames are the picture's size (not the window's), no
+  letterbox band, guard silent, dropped counter 0. Not-crashing is not the pass condition.
+- **A PHOTO OF THE `READBACK-LAYOUT` LINE.** One line per run, first drained frame, carrying
+  `sourceExtent / rect / picture WxH / bufferHeight / rowPitchInPixels / fmt`. It is self-describing
+  by construction — it names both known engine layouts and the `bufferHeight` each predicts — so a
+  camera photograph off a screen we cannot reach is sufficient evidence. **This is the standing
+  instrument for the whole readback-layout class**, and it is how Bates and Deimos report without
+  anything leaving those machines.
+
+### A2.4 — FALLBACK COST, STATED NOW SO NOBODY LATER ASSUMES IT IS FREE
+
+If `G-R7(ii)` fails, **m35 does not reach master by cherry-pick.** Master has no
+`FinalizeSveAfterPassOutput`, so m35's SVE edit would have to be **re-authored against master's
+version of `AfterPass_RenderThread`, rebuilt, and re-gated at home** — the full three-leg set plus
+the display re-run. m35 is therefore kept as its own separable commits on this branch so that path
+stays open. ⛔ **ONE ROUTE ONLY: m35 must NOT also be cherry-picked onto master in parallel.** Master
+is untouched this session and **still carries the crash.**
