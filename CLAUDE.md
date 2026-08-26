@@ -15,7 +15,98 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🚧 **YOU ARE HERE — 2026-08-23 (sessions 053–057). ⛔ STILL NO TAG —
+- 🚧 **YOU ARE HERE — 2026-08-26 (session 061). `m35` IS IN FLIGHT ON BRANCH
+  `feature/mask-gpu-reduce`: THE FIX IS BUILT, STAGED AND GREEN ON EVERY GATE THAT HAS RUN, AND IT IS
+  STILL UNCOMMITTED (8 files in the working tree). NO LEG HAS FAILED. ⛔ NO TAG — highest tag is still
+  `m30`, and `m31` is still the open milestone awaiting Concorde V-3/V-4.**
+  🧭 **COLD START: read `docs/sessions/2026-08-26-061-m35-readback-sub-rect-copy-handoff.md` — it is
+  SELF-CONTAINED (the defect, the dead first design, the shipped design, the uncommitted file list and
+  how to recover it, every gate result with numbers, the owner's ordered remaining sequence, and the
+  traps).** Then `docs/predictions/2026-08-26-m35-build-b-gates.md` (pre-declared gates **and** the
+  full results ledger, §12) and `docs/predictions/2026-08-26-m35-readback-layout-build-a.md`.
+  🎯 **`m35` = a hotfix for a capture-readback crash observed on a SECOND HOST** ("Bates", a
+  Callisto-fork UE 5.1 game): an access violation reading past a mapped readback buffer at a **non-zero
+  view-rect origin** (letterboxed, `Rect.Min.Y = 104`, view rect 1389×581, `fmt = PF_A2B10G10R10`).
+  🛑 **THE FIRST DESIGN IS DEAD AND ITS STOP CONDITION FIRED — do not resurrect it.** Measured on this
+  box, both legs: `bufferHeight 869 == sourceExtent.y 869` ⇒ **stock UE 5.1 allocates FULL-SOURCE-SIZE
+  staging and copies the sub-rect to its OWN position**; the layout changed at **UE 5.2**. So the
+  unconditional offset removal is refuted by measurement AND by source, and the pre-m35 indexing is
+  CORRECT here. ⛔ **A `bufferHeight`/pitch SNIFF IS ALSO REJECTED, AND THE REJECTION IS MEASURED:**
+  `rowPitch 832` vs `width 821` = **11 px of padding** (832×4 = 3328 = 13×256, D3D12 256-byte
+  alignment), so at a pillarbox narrower than the padding the two engine layouts are **numerically
+  indistinguishable** and the sniff **fails silently inside its own blind spot**.
+  ✅ **THE SHIPPED DESIGN MAKES THE ENGINE'S STAGING LAYOUT IRRELEVANT BY CONSTRUCTION:** copy the view
+  sub-rect into a **plugin-owned W×H texture at (0,0)**, enqueue a **whole-texture** readback with **no
+  rect at all**, and index the drain **sub-rect-locally**. We own the texture, so `bufferHeight ==
+  picture height` on every engine. ⚠ **This REMOVES the discriminator a Bates/Deimos `READBACK-LAYOUT`
+  photo used to provide** — what the photo decides now is tabulated in the Build B gate file §4.
+  ✅ **GREEN SO FAR:** `G-M1` letterboxed — **exactly one field moved, `buffer_height 869 → 344`, and
+  that IS the fix working** (written into the gate file BEFORE the leg, because it is precisely the
+  misreading that would fire) · `G-M2` un-letterboxed — **NOTHING moved**, the leg that proves the
+  shipped path did not move · `G-M3` guard proven **BOTH ways** (`G96`): inflate 1 ⇒ 90
+  `READBACK-GUARD FIRED`, **0 frames on disk, no crash, run completed and wrote artifacts**; inflate 0
+  ⇒ silent · **`G-M4` the display fix REPRODUCES** — `A-I1` 29/29 `overrideOutput=1` and `G-F2`
+  **29 IDENTICAL / 0 FIRST-DIFF**, all 8 events in band with both endpoints (66,843 / 66,878) exact ⇒
+  m35 has NOT disturbed `b05066f` · `G-M5` 3 of 5 legs — `SM_Ramp2` NOT_MEASURED ×8 with
+  MEASURED_ZERO **0**, `BP_SplineSpawn_C` MEASURED_ZERO ×8 / 8 `VETOED-OBJECT` / annotation anomalies
+  **0**, and m34's `COMPARE` **29 IDENTICAL / 0 FIRST-DIFF across two maps** · guard 0 / clamp 0 on
+  every non-guard leg · **`P6` MEASURED unmoved (48 keys); `run_summary` gains `readback_layout` and
+  nothing else.**
+  🚨 **A CRASH FIRED AND WAS NOT A DESIGN FAILURE:** Build B's first leg died on
+  `State != D3D12_RESOURCE_STATE_COMMON` — the D3D12 **transient** allocator derives an initial state
+  ONLY from RT/DS/UAV flags, so the RDG texture needed `TexCreate_RenderTargetable`. ⚠ **The flag is
+  added to the RDG texture ONLY** — the backbuffer texture is persistent and declares
+  `SetInitialState(ERHIAccess::CopyDest)` directly. **The asymmetry is deliberate and is named in that
+  path's own log line so nobody "tidies" the two into agreement.**
+  🚨 **STRICT CROSS-RUN FRAME BYTE-IDENTITY IS UNOBTAINABLE IN EVERY ENVIRONMENT MEASURED** — even a
+  same-binary control pair (`M33_CTRL_A` vs `M33_CTRL_B`) differs: mean |Δ| **0.00117**, max 3,
+  **0.116 %** of pixels, concentrated in the lower half, top four grid rows exactly 0.000, **no corner
+  box so it is NOT `G125`'s marker**; MainWorld is far worse (mean |Δ| 4.42, 78 % of pixels). ⇒
+  `G-M1c`/`G-M2c` are **NOT OBTAINED, never FAILED**, and the replacement instrument is **`G-M9`, a
+  WITHIN-FRAME DUAL-PATH COMPARATOR** (owner-designed, NOT YET BUILT — its premise, that RDG executes
+  passes in handle order and never reorders, was **verified before building it**).
+  🚨 **THE m11 PACER MASKS HOOK COST — median `t_wall` delta `0.03334` on ALL FIVE paced legs**, so a
+  paced leg structurally cannot measure a sub-budget hook and **a rebuild cannot answer `G-M6`.** The
+  prior is taken with **pacing OFF** by swapping the archived predecessor exe. ⛔ **NUMBERS ONLY, NO
+  THRESHOLD**, reported per-captured-frame ms **and** per-megapixel, with any Concorde figure labelled
+  an **EXTRAPOLATION**.
+  📌 **CORRECTION CARRIED, OWNER-RAISED: the added copy is PER CAPTURED FRAME, NOT per armed frame** —
+  confirmed from the call site (`CaptureCurrentFrame()` `AnomalyCaptureSubsystem.cpp:1736` mints one
+  RequestId, arms one readback, and increments the index that NAMES the PNG) ⇒ **one arm == one
+  captured frame == one PNG, 1:1.** The slip came from the MASK, which really does arm a few times per
+  burst — this session's own receipts separate the rates (**90** guard fires for a 90-frame cap vs
+  **29** `M23 PASS` mask arms).
+  🚨 **THE BACKBUFFER PATH HAS NO FORMAT ASSERT AND NO GRACEFUL FAILURE BY DEFAULT:**
+  `FValidationRHIUtils::ValidateCopyTexture` DOES carry a format `checkf` — behind
+  `#if ENABLE_RHI_VALIDATION`, **OFF in a default Development build** — and D3D12's `RHICopyTexture`
+  checks only block alignment. ⇒ a format mismatch there is **undefined behaviour**, and the structural
+  guarantee (read the format from `BackBuffer->GetFormat()` every frame, recreate before the copy in
+  the same block) is the **only** protection. Contrast the SVE path, whose `checkf` is unconditional.
+  ⛔ **`IAI.Bench.Letterbox` CANNOT BITE PACKAGED — MEASURED, NOT ASSUMED:** the `-unattended` bench
+  pawn is a **SpectatorPawn with no `UCameraComponent`** and the lever **REFUSED BY NAME**. 🎯 That
+  refusal path is what stopped the leg becoming a false pass — its bbox and `READBACK-LAYOUT` were
+  identical to an un-letterboxed run, so a silent no-op would have read GREEN. The leg is **VOID by the
+  pre-declared rule.** ⇒ **`G-M7` (backbuffer), `G-M8` (pillarbox / non-zero `Rect.Min.X`, the origin
+  half that has been ZERO in every leg ever run) and `G-M9`'s both-origins half must run in PIE on
+  MainWorld.** Other bench cvars DO reach a packaged leg.
+  📦 **IDENTITY (`G121`): staged exe `733FE83C` (archived), predecessor `7F37A4AC` (archived,
+  hash-verified before the swap — it is `G-M6`'s A-side), container UNCHANGED m34 quartet
+  (`2A66CA57`/`A7EF9B12`/`D8009AD7`), NO COOK.** Insurance diff of the uncommitted fix at
+  `_binary_baselines\m35-buildb-uncommitted-2026-08-26.diff` (18,756 B, `sha256 7A0CC269…`).
+  ⛔ **OWNER RULINGS, VERBATIM WHERE GIVEN:** *"Do NOT checkout master. The checkout lift I authorised
+  last turn is WITHDRAWN"* (never exercised) · *"ONE ROUTE ONLY: m35 must not ALSO be cherry-picked
+  onto master in parallel"* — master reaches the fix by the branch **MERGE** · *"Stop rule unchanged:
+  any leg fails, report and stop, do not fix in the same turn"* · **"EVERY CHECKER IS PROVEN AGAINST A
+  KNOWN ANSWER BEFORE ITS VERDICT IS READ"** — minted after a pose checker of mine read
+  `annotation["camera"]` (which lives under `anomalies[]`), got `None == None`, and printed
+  **"MATCHED"**.
+  ⛔ **NOT DONE, named:** `G-M5`'s last two legs (`StaticMeshActor_73`, the `MaskProbe` leg) ·
+  `G-M6`'s fine prior · **`G-M9` NOT BUILT** (premise (a) passed; (b) prove-it-can-fail and (c)
+  cvar-OFF-reproduces are unrun because the code does not exist) · the `G-M8` column checker (its
+  known-answer datum is recorded) · `G-M7`/`G-M8` PIE legs · **the fix commit + push** · this status
+  block's own close-out refresh. **Master untouched and STILL CARRIES THE CRASH.**
+- 🟦 *(superseded as "you are here" by the m35 entry above — still the record of sessions 053–057)*
+  **2026-08-23 (sessions 053–057). ⛔ STILL NO TAG —
   `m31` REMAINS THE OPEN MILESTONE, STILL AWAITING CONCORDE V-3/V-4. Highest tag is still `m30`.**
   🎬 **m34 (GPU mask reduction) IS CLEARED TO START — its cold-start contract is
   `docs/sessions/2026-08-23-057-m34-gpu-mask-reduce-approved-plan-handoff.md`. READ THAT FILE

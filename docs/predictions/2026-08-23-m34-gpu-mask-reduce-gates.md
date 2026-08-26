@@ -303,3 +303,25 @@ version of `AfterPass_RenderThread`, rebuilt, and re-gated at home** — the ful
 the display re-run. m35 is therefore kept as its own separable commits on this branch so that path
 stays open. ⛔ **ONE ROUTE ONLY: m35 must NOT also be cherry-picked onto master in parallel.** Master
 is untouched this session and **still carries the crash.**
+
+### A2.5 — CORRECTION TO A2.2: THE COPY IS **PER CAPTURED FRAME**, NOT PER ARMED FRAME
+
+A2.2 above says m35 "adds a **per-armed-frame** sub-rect copy on both capture paths." That wording is
+**WRONG and is corrected here, not edited above.** Confirmed from the call site rather than taken on
+trust: `CaptureCurrentFrame()` (`AnomalyCaptureSubsystem.cpp:1736`, called at `:569`/`:579`/`:589`)
+mints **one** RequestId (`:1752`), arms **one** readback (`:1769` SVE / `:1773` backbuffer) and
+increments `SessionFrameIndex` (`:1777`) — which names the output PNG at `:1790` and is what
+`FrameCap` is tested against at `:551`.
+
+⇒ **ONE ARM == ONE CAPTURED FRAME == ONE OUTPUT PNG, strictly 1:1.** The copy runs **once per
+CAPTURED frame** — 30× per second at 30 fps, for the whole capture.
+
+📌 **WHERE THE SLIP CAME FROM, so it is not repeated:** the **MASK** arms a few times per burst, and
+"per armed frame" was accurate for the mask. This session's own receipts separate the two rates —
+guard leg `READBACK-GUARD FIRED` = **90** for a 90-frame cap against `M23 PASS` = **29** mask arms on
+the CTRL49 leg.
+
+⇒ **A2.2's substance is UNCHANGED** — the throughput half still carries a second variable and still
+needs the home prior. Only the cost's **magnitude** moves, and it moves upward, which is why `G-M6`'s
+prior is taken with **pacing OFF** (a paced leg cannot see a sub-budget hook cost at all; see the m35
+Build B gate file §10).
