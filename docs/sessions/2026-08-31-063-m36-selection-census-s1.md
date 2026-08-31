@@ -101,8 +101,21 @@ Knobs, all G139-echoed at StartRun with provenance: `IAI.Capture.Census` (+ ini
   8.2 ms TOTAL across the pre-fix run (~0.11 ms/tick, 1,594 flag flips) and 10.1 ms across the
   post-fix run (77 census frames, 24 cycles, 1,821 flag flips). Render-side cost is NOT sighted
   here — that is exactly what S3's A/B exists for.
+  ⚠ **THE TAG-BLOCK MS EXCLUDES THE DEFERRED PROXY RECREATES BY CONSTRUCTION** (chat ruling,
+  2026-08-31): `SetRenderCustomDepth` only QUEUES the recreate (`MarkForNeededEndOfFrameRecreate`);
+  the actual destroy/create runs later inside `SendAllEndOfFrameUpdates`, outside the timed block.
+  **The ~0.13 ms/tick figure is the QUEUING cost only and MUST NOT be quoted as the census's cost**
+  — the recreate cost is exactly what S3's A/B with pacing OFF exists to capture. The flag-flip
+  counter is the size of the excluded work, not its price.
 
 ## §3 A bring-up defect, found by the leg and fixed IN S1 (not a failed gate — no S1 gate binds it)
+
+**⚖ CHAT RULING (2026-08-31, S1 verdict): the fix below is ACCEPTED as a design correction
+(frame-honest allowed set), and its event-drain half is recorded as a DECLARED DEVIATION from
+constraint 6 ("the armed-frame mask + zero-only veto: unchanged"): the event drain's assigned-tag
+set now includes the census's recently-released grace set. Measured INERT with census OFF (P-C7 —
+the grace set is empty when the census is inactive, and the control pair is artifact-identical);
+its live half is EXERCISED IN S2 (P-C8 and its back-to-back-events companion).**
 
 First census-ON leg read `framesPolluted=16`: the census flagged tags of its own SIBLING batch as
 "assigned to no batch". Cause, from the log's own tag values (222/250 = exactly the other
@@ -143,7 +156,82 @@ Both leg attempts banked (`M36_S1HYG` pre-fix, `M36_S1HYG2` post-fix).
    `SetRenderCustomDepth` is a FULL PROXY RECREATE deferred to end-of-frame and flushed the same
    frame (`SceneRendering.cpp:4528`) — tag cost is CPU, not latency, and only on flag FLIPS.
 
-## §6 Evidence bank
+## §6 m35 HOME GATES RUN THIS SESSION (chat order, 2026-08-31 — S2's re-specified precondition)
+
+**Run on the PARENT's binaries with NO code change anywhere: G-M5 legs on staged `733FE83C`;
+G-M6 by hash-verified swaps between the archived `7F37A4AC` (A) and `733FE83C` (B). The parent
+branch itself is untouched — its gate file's results ledger is NOT edited from this branch; this
+section and the report are the record until chat settles the branch strategy.**
+
+- **G-M5 leg 4 (`M35_GM5_CYL73`) PASS** — payload derived from the banked `M34_R3_CYL73` config,
+  G184 diff EMPTY on every axis. 8/8 `MEASURED_NONZERO`, maxCounts **48,590–48,597 — the banked
+  band exactly, both endpoints present**, 5.2724–5.2731 %, every discard bucket zero,
+  `MASK-REDUCE COMPARE` **29 IDENTICAL / 0 FIRST-DIFF**, guard/clamp 0, 90 frames.
+- **G-M5 leg 5 (`M35_GM5_PROBE49`) PASS** — ONE deliberate known-hidden probe arm;
+  `detector255Fired=1`, `confirmationReadHidden=1`, frame bucketed PROBE,
+  `run_summary.mask_probe_arms=1`; the other 8 events 8/8 `MEASURED_NONZERO`, COMPARE 29/0,
+  guard/clamp 0. **G-M5 is now 5/5.**
+- **G-M7 (`M35_GM7_MW_LB` + `M35_GM7_MW_PLAIN`) PASS as written — via the §13 "untested and
+  cheap" route: PACKAGED MainWorld supplies a camera-bearing view target and
+  `IAI.Bench.Letterbox` APPLIED** (`bConstrainAspectRatio 0->1, aspect 1.7778->2.3900` on the
+  spawn-pad intro camera) — the PIE-only constraint is RETIRED BY MEASUREMENT for this lever.
+  Both legs: `capture_path=backbuffer`, 90 frames, 8 events, guard/clamp silent,
+  `bufferHeight == picture height` (720), frames are the picture's size, and the frames were
+  LOOKED AT (bars top/bottom baked into the letterboxed frames — 157–173 near-black rows vs 0 on
+  the plain leg — game UI present, no pitch/smear artifacts). ⚠ **SCOPE, stated:** the bench
+  backbuffer grab is WINDOW-scoped, so its rect stays (0,0)–(1280,720) with the bars INSIDE the
+  picture — a non-zero-origin backbuffer case is not producible on this bench; the non-zero
+  origins are exercised on the SVE path (G-M1's Y, G-M8's X below). Bates' non-zero-origin
+  condition arises host-side.
+- **G-M8 (`M35_GM8_MW_PILLAR`) PASS, with its shape stated** — SVE path, `Letterbox 1.0`:
+  `READBACK-LAYOUT rect=(280,0)-(1000,720) picture=720x720` — **`rect_min_x=280`, the first
+  non-zero X origin ever exercised.** Column checker (`m35_gm8_column_check.py`) proven BOTH ways
+  first (known frame: 0 near-black cols, no collapsed band, left col alive; synthetic 40-px black
+  pillar: caught) then read: PASS on the pillarboxed frames (frame 0: 0 near-black cols, left col
+  50.01, no collapsed band); frame looked at — bar-free coherent picture. ⚠ **The leg is
+  HETEROGENEOUS:** MainWorld's intro-camera→Bot switch drops the constraint mid-run — 16 frames
+  at 720×720, then the view blend walks the aspect through EIGHT more widths (782..1218, i.e.
+  eight further distinct non-zero X origins), then 66 frames at 1280×720 — with guard/clamp
+  SILENT and every written frame matching its own rect throughout. That is a DYNAMIC-rect
+  robustness result beyond the pre-declared static leg; the uniform static pillarbox leg remains
+  obtainable in PIE (console re-issue after possession) if chat wants it — flagged, not run.
+  ⚠ Artifact note: `annotation.video.resolution` reads 720×720 (m28: first written frame) while
+  the session is mixed-size — the m28 contract meeting a mid-run rect change; bench-lever
+  induced; labels carry per-frame sizes.
+  ⚠ Checker datum note: the owner's POINT values (~50 left / ~87 right) did not reproduce on the
+  CB un-letterboxed frame by any channel method tried (reads 85.75/141.67); the BINDING
+  categorical conditions (0 near-black cols, min 5.0, no collapsed band) reproduced exactly, and
+  left≈50 appears on the MainWorld pillar frames — the datum's venue was likely a
+  MainWorld-shaped frame. Reported, not smoothed.
+- **G-M6 PRIOR TAKEN** (instrument, not pass/fail) — declared discard leg first, then
+  **A,B,B,A**, hashes verified at every swap, pacing OFF, mask ON, same map/seed/config
+  (blinking `_49`, seed 777, CB_GateLevel, 90 frames): per-captured-frame
+  **A₁ 12.0365 · B₁ 11.6327 · B₂ 11.5437 · A₂ 11.5744 ms** (per-MP 13.06/12.62/12.53/12.56);
+  A mean 11.8055 (spread 0.4621), B mean 11.5882 (spread 0.0890); **B−A = −0.2172 ms/frame
+  (−0.2357 ms/MP) — NOT larger than the within-build spread ⇒ BELOW THE RESOLUTION OF THIS
+  INSTRUMENT** (G169; never "no cost"). The warm-up gradient landed inside A's own spread (A₁
+  first and slowest) — the A,B,B,A design doing its job (G186). Concorde 6.4 MP figure would be
+  −1.51 ms/frame and is an EXTRAPOLATION under a linear-scaling assumption. NUMBERS ONLY.
+- **G-M9 — NOT BUILT, and it CANNOT be harness-only:** the second old-form readback + byte
+  compare live inside the SVE capture path (`AnomalySveCapturer`/`AnomalySceneViewExtension`,
+  both files the m35 WIP itself edits) plus a cvar in `AnomalyCaptureSubsystem` — ALL PARENT
+  (AnomalyCapture module) code. Per the chat ruling's branch: **STOPPED; chat rules
+  twin-vs-rebase.** m35 is therefore NOT yet home-closed (everything runnable is green; G-M9 is
+  the only open home item) and S2 remains blocked on that ruling.
+
+Evidence: `M35_GM5_CYL73` · `M35_GM5_PROBE49` · `M35_GM7_MW_LB` · `M35_GM7_MW_PLAIN` ·
+`M35_GM8_MW_PILLAR` · `M35_GM6_DISCARD` (declared discard) · `M35_GM6_A1/B1/B2/A2` — all banked
+with their process logs matched by session id. New harness tools:
+`CaptureBench/tools/m35_gm8_column_check.py`, `CaptureBench/tools/m35_gm6_prior.py`.
+
+S2 prep recorded now: bench floor for S2 legs = `IAI.Capture.CensusFloor 0.5` (from the S1HYG2
+histogram: ~14 candidates ≥0.5 % vs 9–10 at 1.0 and 2 at 6.0 — the ≥10-pool rule), default stays
+6.0; run_summary census keys will also carry `census_batches_lost` and `census_frames_polluted`;
+the census needs a per-batch COLLECT log line so the grace-window latency stat (worst
+tag→collect ticks vs the 8-tick constant) can be READ rather than inferred — S1's logs cannot
+supply it and it is not reconstructed (A60).
+
+## §7 Evidence bank (S1)
 
 `M36_S1CTRLA` · `M36_S1CTRLB` (+ leg log) · `M36_S1HYG` (pre-fix, + leg log) · `M36_S1HYG2`
 (post-fix, + leg log) · `M36_S1PROBE` (leak-probe, + leg log) — all under
