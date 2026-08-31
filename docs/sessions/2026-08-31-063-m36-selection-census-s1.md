@@ -145,6 +145,16 @@ Both leg attempts banked (`M36_S1HYG` pre-fix, `M36_S1HYG2` post-fix).
   banked auto-pool run becomes non-comparable across that boundary. The S1 build changes NO
   selection behaviour (P-C7 is the receipt).
 
+## §4.1 Host label normalized to codename Bates (owner directive, 2026-08-31)
+
+Host label normalized to the codename **Bates** across this branch's docs, predictions, journal
+and commit messages, and the standing rule added to `CLAUDE.md`'s Invariants: **office hosts are
+referred to by codename only (Concorde, Bates, Deimos); never a title.** This is a REDACTION, not
+an amendment — no gate text, number, verdict or prediction changed, and `Source/` is byte-identical
+across it (verified against a pre-scrub backup ref). Scrub instrument:
+`CaptureBench/tools/m36_scrub_hostname.py`, which reports residual matches rather than assuming
+success.
+
 ## §5 Gotcha candidates (filed at milestone end per the verdict; listed here so they survive)
 
 1. Tag-reuse/attribution hazard: a readback consumer's "allowed set" must be the set AT THE

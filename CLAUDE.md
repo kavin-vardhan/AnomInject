@@ -3888,6 +3888,10 @@ and is the single source of truth for the project.
   **interface + registry is the M1 design** (see Current status + journal 002), not yet in code.
 
 ## Invariants (do not violate)
+- 🔒 **OFFICE HOSTS ARE REFERRED TO BY CODENAME ONLY (Concorde, Bates, Deimos); NEVER A TITLE.**
+  This covers code, docs, journals, predictions, commit messages, logs and chat reports alike, and
+  it applies to abbreviations of a title as well as to the title itself. (Owner directive,
+  2026-08-31.)
 - 🚨 **AN OBSERVATION AND ITS EXPLANATION ARE SEPARATE CLAIMS, RECORDED SEPARATELY. NEVER DERIVE A
   SCOPE DECISION — *"X is impossible"*, *"that approach is dead"*, *"do not try Y"* — FROM AN
   UNVERIFIED MECHANISM.** Write the observation as fact; write the mechanism as a hypothesis with its
