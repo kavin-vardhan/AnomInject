@@ -6,6 +6,8 @@
 
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
+#include "EngineUtils.h"
+#include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 
 namespace
@@ -22,10 +24,64 @@ namespace
 	int32 GSavedCustomDepthValue = 0;
 }
 
+bool FAnomalyStencilTagLedger::IsAssignable(uint8 Value) const
+{
+	return Value >= (uint8)AnomalyStencilTag::ReservedStencilBase
+		&& Value <= (uint8)AnomalyStencilTag::AssignableStencilMax
+		&& !HostReserved.Contains(Value);
+}
+
+bool FAnomalyStencilTagLedger::IsFree(uint8 Value) const
+{
+	return IsAssignable(Value) && !EventClaimed.Contains(Value) && !CensusClaimed.Contains(Value);
+}
+
+int32 FAnomalyStencilTagLedger::NumFree() const
+{
+	int32 N = 0;
+	for (int32 V = AnomalyStencilTag::ReservedStencilBase; V <= AnomalyStencilTag::AssignableStencilMax; ++V)
+	{
+		if (IsFree((uint8)V))
+		{
+			++N;
+		}
+	}
+	return N;
+}
+
+int32 FAnomalyStencilTagLedger::NumAssignable() const
+{
+	int32 N = 0;
+	for (int32 V = AnomalyStencilTag::ReservedStencilBase; V <= AnomalyStencilTag::AssignableStencilMax; ++V)
+	{
+		if (IsAssignable((uint8)V))
+		{
+			++N;
+		}
+	}
+	return N;
+}
+
+void FAnomalyStencilTagLedger::Reset()
+{
+	HostReserved.Reset();
+	EventClaimed.Reset();
+	CensusClaimed.Reset();
+}
+
 namespace AnomalyStencilTag
 {
 	int32 TagActor(AActor* Actor, int32 StencilValue)
 	{
+		return TagActor(Actor, StencilValue, nullptr);
+	}
+
+	int32 TagActor(AActor* Actor, int32 StencilValue, int32* OutFlagFlips)
+	{
+		if (OutFlagFlips)
+		{
+			*OutFlagFlips = 0;
+		}
 		if (!Actor)
 		{
 			return 0;
@@ -52,6 +108,10 @@ namespace AnomalyStencilTag
 				GTaggedComponents.Add(Key, Prior);
 			}
 
+			if (OutFlagFlips && !Prim->bRenderCustomDepth)
+			{
+				++(*OutFlagFlips);
+			}
 			Prim->SetCustomDepthStencilValue(Value);
 			Prim->SetRenderCustomDepth(true);
 			++Tagged;
@@ -137,6 +197,177 @@ namespace AnomalyStencilTag
 	bool IsAnyTagged()
 	{
 		return GTaggedComponents.Num() > 0;
+	}
+
+	bool IsAnyComponentTagged(const AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+		TInlineComponentArray<UPrimitiveComponent*> Prims;
+		const_cast<AActor*>(Actor)->GetComponents(Prims);
+		for (UPrimitiveComponent* Prim : Prims)
+		{
+			if (GTaggedComponents.Contains(TWeakObjectPtr<UPrimitiveComponent>(Prim)))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	FString ForgetOneTaggedComponentOfActor(AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return FString();
+		}
+		TInlineComponentArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents(Prims);
+		for (UPrimitiveComponent* Prim : Prims)
+		{
+			const TWeakObjectPtr<UPrimitiveComponent> Key(Prim);
+			if (GTaggedComponents.Contains(Key))
+			{
+				GTaggedComponents.Remove(Key);
+				return Prim->GetName();
+			}
+		}
+		return FString();
+	}
+
+	void GetTaggedComponents(TSet<TWeakObjectPtr<UPrimitiveComponent>>& Out)
+	{
+		Out.Reset();
+		for (const TPair<TWeakObjectPtr<UPrimitiveComponent>, FPriorStencilState>& Pair : GTaggedComponents)
+		{
+			Out.Add(Pair.Key);
+		}
+	}
+
+	TSet<uint8> SnapshotHostReservedValues(UWorld* World)
+	{
+		TSet<uint8> Reserved;
+		if (!World)
+		{
+			return Reserved;
+		}
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (!Actor)
+			{
+				continue;
+			}
+			TInlineComponentArray<UPrimitiveComponent*> Prims;
+			Actor->GetComponents(Prims);
+			for (const UPrimitiveComponent* Prim : Prims)
+			{
+				if (!Prim || !Prim->bRenderCustomDepth)
+				{
+					continue;
+				}
+				const int32 V = Prim->CustomDepthStencilValue;
+				if (V < ReservedStencilBase || V > AssignableStencilMax)
+				{
+					continue;
+				}
+				if (GTaggedComponents.Contains(TWeakObjectPtr<UPrimitiveComponent>(const_cast<UPrimitiveComponent*>(Prim))))
+				{
+					continue;
+				}
+				Reserved.Add((uint8)V);
+			}
+		}
+		return Reserved;
+	}
+
+	void SnapshotCustomDepthEnabled(UWorld* World, TMap<TWeakObjectPtr<UPrimitiveComponent>, int32>& Out)
+	{
+		Out.Reset();
+		if (!World)
+		{
+			return;
+		}
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (!Actor)
+			{
+				continue;
+			}
+			TInlineComponentArray<UPrimitiveComponent*> Prims;
+			Actor->GetComponents(Prims);
+			for (UPrimitiveComponent* Prim : Prims)
+			{
+				if (Prim && Prim->bRenderCustomDepth)
+				{
+					Out.Add(TWeakObjectPtr<UPrimitiveComponent>(Prim), Prim->CustomDepthStencilValue);
+				}
+			}
+		}
+	}
+
+	int32 DiffCustomDepthSnapshots(
+		const TMap<TWeakObjectPtr<UPrimitiveComponent>, int32>& Before,
+		const TMap<TWeakObjectPtr<UPrimitiveComponent>, int32>& After,
+		const TSet<TWeakObjectPtr<UPrimitiveComponent>>* Exclude,
+		FString& OutFirstDiff)
+	{
+		OutFirstDiff.Reset();
+		int32 Diffs = 0;
+
+		auto NameOf = [](const TWeakObjectPtr<UPrimitiveComponent>& Key) -> FString
+		{
+			if (const UPrimitiveComponent* Prim = Key.Get())
+			{
+				const AActor* Owner = Prim->GetOwner();
+				return FString::Printf(TEXT("%s/%s"), Owner ? *Owner->GetName() : TEXT("?"), *Prim->GetName());
+			}
+			return TEXT("(stale component)");
+		};
+
+		for (const TPair<TWeakObjectPtr<UPrimitiveComponent>, int32>& Pair : Before)
+		{
+			if (!Pair.Key.IsValid() || (Exclude && Exclude->Contains(Pair.Key)))
+			{
+				continue;
+			}
+			const int32* NowValue = After.Find(Pair.Key);
+			if (!NowValue)
+			{
+				++Diffs;
+				if (OutFirstDiff.IsEmpty())
+				{
+					OutFirstDiff = FString::Printf(TEXT("%s lost bRenderCustomDepth (was value %d)"), *NameOf(Pair.Key), Pair.Value);
+				}
+			}
+			else if (*NowValue != Pair.Value)
+			{
+				++Diffs;
+				if (OutFirstDiff.IsEmpty())
+				{
+					OutFirstDiff = FString::Printf(TEXT("%s stencil value %d -> %d"), *NameOf(Pair.Key), Pair.Value, *NowValue);
+				}
+			}
+		}
+		for (const TPair<TWeakObjectPtr<UPrimitiveComponent>, int32>& Pair : After)
+		{
+			if (!Pair.Key.IsValid() || (Exclude && Exclude->Contains(Pair.Key)))
+			{
+				continue;
+			}
+			if (!Before.Contains(Pair.Key))
+			{
+				++Diffs;
+				if (OutFirstDiff.IsEmpty())
+				{
+					OutFirstDiff = FString::Printf(TEXT("%s gained bRenderCustomDepth (value %d)"), *NameOf(Pair.Key), Pair.Value);
+				}
+			}
+		}
+		return Diffs;
 	}
 
 	void EnableCustomStencil()

@@ -106,6 +106,8 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> GetVisibleRenderableActors(UWorld* World);
 
+	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> GetCensusPrefilterActors(UWorld* World);
+
 	ANOMALYINJECTOR_API TArray<FRenderableActorInfo> GetVisibleRenderableActorInfos(UWorld* World);
 
 	ANOMALYINJECTOR_API bool ProjectActorBoundsToScreenRect(

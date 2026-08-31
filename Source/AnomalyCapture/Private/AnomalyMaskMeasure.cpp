@@ -21,7 +21,7 @@ namespace
 	}
 }
 
-void FAnomalyMaskMeasure::BeginRun()
+void FAnomalyMaskMeasure::BeginRun(FAnomalyStencilTagLedger* InLedger)
 {
 	Records.Reset();
 	ArmedRequestToRecord.Reset();
@@ -29,6 +29,8 @@ void FAnomalyMaskMeasure::BeginRun()
 	ProbeRequests.Reset();
 	EndFrameSample.Reset();
 	ArmedThisFrame.Reset();
+	ExtraAssignedTags.Reset();
+	Ledger = InLedger;
 	NextTagOffset = 0;
 
 	const int32 Before = ReadCustomDepthCVar();
@@ -39,6 +41,13 @@ void FAnomalyMaskMeasure::BeginRun()
 		TEXT("Capture(mask): M23 CVAR beginRun rCustomDepth before=%d after=%d (3 = EnabledWithStencil; ")
 		TEXT("1 = Enabled WITHOUT stencil writes, which is the engine default)"),
 		Before, After);
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(mask): M36 TAG POOL assignable %d..%d (255 is NEVER mintable by any allocator - it stays ")
+		TEXT("the residual StencilDummy detector), hostReserved=%d, assignable=%d."),
+		AnomalyStencilTag::ReservedStencilBase, AnomalyStencilTag::AssignableStencilMax,
+		Ledger ? Ledger->HostReserved.Num() : 0,
+		Ledger ? Ledger->NumAssignable() : (AnomalyStencilTag::AssignableStencilMax - AnomalyStencilTag::ReservedStencilBase + 1));
 }
 
 void FAnomalyMaskMeasure::EndRun()
@@ -53,6 +62,12 @@ void FAnomalyMaskMeasure::EndRun()
 	ProbeRequests.Reset();
 	EndFrameSample.Reset();
 	ArmedThisFrame.Reset();
+	ExtraAssignedTags.Reset();
+	if (Ledger)
+	{
+		Ledger->EventClaimed.Reset();
+	}
+	Ledger = nullptr;
 	NextTagOffset = 0;
 }
 
@@ -63,10 +78,39 @@ void FAnomalyMaskMeasure::UntagAll()
 
 int32 FAnomalyMaskMeasure::AllocateTag()
 {
-	const int32 Span = AnomalyStencilTag::ReservedStencilMax - AnomalyStencilTag::ReservedStencilBase + 1;
-	const int32 Tag = AnomalyStencilTag::ReservedStencilBase + (NextTagOffset % Span);
+	const int32 Span = AnomalyStencilTag::AssignableStencilMax - AnomalyStencilTag::ReservedStencilBase + 1;
+	int32 Skipped = 0;
+	for (int32 i = 0; i < Span; ++i)
+	{
+		const int32 Tag = AnomalyStencilTag::ReservedStencilBase + ((NextTagOffset + i) % Span);
+		if (!Ledger || Ledger->IsFree((uint8)Tag))
+		{
+			if (Ledger)
+			{
+				Ledger->EventClaimed.Add((uint8)Tag);
+			}
+			NextTagOffset = (NextTagOffset + i + 1) % Span;
+			if (Skipped > 0)
+			{
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(mask): M36 event tag allocator skipped %d reserved/claimed value(s) and assigned %d."),
+					Skipped, Tag);
+			}
+			check(Tag >= AnomalyStencilTag::ReservedStencilBase && Tag <= AnomalyStencilTag::AssignableStencilMax);
+			return Tag;
+		}
+		++Skipped;
+	}
+
+	const int32 Fallback = AnomalyStencilTag::ReservedStencilBase + (NextTagOffset % Span);
 	++NextTagOffset;
-	return Tag;
+	UE_LOG(LogAnomalyCapture, Error,
+		TEXT("Capture(mask): M36 TAG-POOL EXHAUSTED - every assignable stencil value %d..%d is reserved or ")
+		TEXT("claimed. Re-assigning %d; the collision detectors (verify read-back + unassigned-tag) are the ")
+		TEXT("backstop and affected frames discard toward NOT_MEASURED, which ADMITS."),
+		AnomalyStencilTag::ReservedStencilBase, AnomalyStencilTag::AssignableStencilMax, Fallback);
+	check(Fallback >= AnomalyStencilTag::ReservedStencilBase && Fallback <= AnomalyStencilTag::AssignableStencilMax);
+	return Fallback;
 }
 
 FAnomalyMaskRecord* FAnomalyMaskMeasure::FindRecord(FName Id, const FString& Target, uint64 StartFrame)
@@ -98,13 +142,20 @@ FAnomalyMaskRecord* FAnomalyMaskMeasure::FindOrAddRecord(FName Id, const FString
 	return &Records[Index];
 }
 
-TSet<uint8> FAnomalyMaskMeasure::BuildAssignedTagSet() const
+TSet<uint8> FAnomalyMaskMeasure::BuildBaseTagSet() const
 {
 	TSet<uint8> Out;
 	for (const FAnomalyMaskRecord& R : Records)
 	{
 		Out.Add(R.Tag);
 	}
+	return Out;
+}
+
+TSet<uint8> FAnomalyMaskMeasure::BuildAssignedTagSet() const
+{
+	TSet<uint8> Out = BuildBaseTagSet();
+	Out.Append(ExtraAssignedTags);
 	return Out;
 }
 

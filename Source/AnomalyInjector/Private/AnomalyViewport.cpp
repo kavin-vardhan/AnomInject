@@ -861,6 +861,54 @@ namespace AnomalyViewport
 		return Result;
 	}
 
+	TArray<TWeakObjectPtr<AActor>> GetCensusPrefilterActors(UWorld* World)
+	{
+		TArray<TWeakObjectPtr<AActor>> Result;
+
+		FAnomalyViewInfo View;
+		if (!GetActiveViewInfo(World, View))
+		{
+			return Result;
+		}
+
+		const FConvexVolume Frustum = BuildFrustum(View);
+		const FVector PollOrigin = ResolvePollOrigin(World, View.Origin);
+		const float PollRadius = GPollRadius;
+
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (!Actor)
+			{
+				continue;
+			}
+			TArray<UPrimitiveComponent*> Prims;
+			Actor->GetComponents<UPrimitiveComponent>(Prims);
+			for (const UPrimitiveComponent* Prim : Prims)
+			{
+				if (!IsRenderableComponent(Prim))
+				{
+					continue;
+				}
+				if (PollRadius > 0.0f)
+				{
+					const FBoxSphereBounds& B = Prim->Bounds;
+					if ((float)FVector::Dist(PollOrigin, B.Origin) - (float)B.SphereRadius > PollRadius)
+					{
+						continue;
+					}
+				}
+				if (!IsInFrustum(Frustum, Prim))
+				{
+					continue;
+				}
+				Result.Add(Actor);
+				break;
+			}
+		}
+		return Result;
+	}
+
 	TArray<FRenderableActorInfo> GetVisibleRenderableActorInfos(UWorld* World)
 	{
 		TArray<FRenderableActorInfo> Result;

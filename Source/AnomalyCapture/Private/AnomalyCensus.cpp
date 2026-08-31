@@ -1,0 +1,665 @@
+#include "AnomalyCensus.h"
+
+#if ANOMALY_CAPTURE
+
+#include "AnomalyCaptureLog.h"
+#include "AnomalyStencilTag.h"
+#include "AnomalyMaskSceneViewExtension.h"
+#include "AnomalyViewport.h"
+
+#include "GameFramework/Actor.h"
+#include "Components/PrimitiveComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/World.h"
+#include "SceneInterface.h"
+#include "RenderUtils.h"
+#include "RHI.h"
+#include "Materials/MaterialInterface.h"
+#include "MaterialShared.h"
+#include "HAL/PlatformTime.h"
+
+const TCHAR* LexToStringAnomalyCensusVerdict(EAnomalyCensusVerdict V)
+{
+	switch (V)
+	{
+	case EAnomalyCensusVerdict::MeasuredZero:           return TEXT("MEASURED_ZERO");
+	case EAnomalyCensusVerdict::MeasuredNonZero:        return TEXT("MEASURED_NONZERO");
+	case EAnomalyCensusVerdict::NotMeasurableNanite:    return TEXT("NOT_MEASURABLE(nanite)");
+	case EAnomalyCensusVerdict::NotMeasurableTagFailed: return TEXT("NOT_MEASURABLE(tag_failed)");
+	case EAnomalyCensusVerdict::NotMeasurableHidden:    return TEXT("NOT_MEASURABLE(hidden)");
+	case EAnomalyCensusVerdict::ExcludedTranslucent:    return TEXT("EXCLUDED(translucent)");
+	default:                                            return TEXT("NOT_MEASURABLE(not_yet_measured)");
+	}
+}
+
+namespace
+{
+	constexpr uint64 GCensusRequestBit = 1ull << 62;
+
+	bool ComponentSlotsAllTranslucentWithoutOptIn(const UPrimitiveComponent* Prim)
+	{
+		const int32 NumSlots = Prim->GetNumMaterials();
+		if (NumSlots <= 0)
+		{
+			return false;
+		}
+		for (int32 Slot = 0; Slot < NumSlots; ++Slot)
+		{
+			UMaterialInterface* M = const_cast<UPrimitiveComponent*>(Prim)->GetMaterial(Slot);
+			if (!M)
+			{
+				return false;
+			}
+			if (!IsTranslucentBlendMode(M->GetBlendMode()))
+			{
+				return false;
+			}
+			if (M->IsTranslucencyWritingCustomDepth())
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	enum class ECensusClass : uint8 { Measurable, Nanite, Translucent, Hidden, HeldElsewhere };
+
+	bool ComponentRendersAsNanite(const UStaticMeshComponent* SMC, EShaderPlatform ShaderPlatform)
+	{
+		if (SMC->bDisallowNanite)
+		{
+			return false;
+		}
+#if WITH_EDITORONLY_DATA
+		if (SMC->bDisplayNaniteFallbackMesh)
+		{
+			return false;
+		}
+#endif
+		const UStaticMesh* Mesh = SMC->GetStaticMesh();
+		return Mesh && Mesh->HasValidNaniteData() && UseNanite(ShaderPlatform);
+	}
+
+	ECensusClass ClassifyCandidate(const AActor* Actor, bool bExcludeTranslucent, EShaderPlatform ShaderPlatform)
+	{
+		if (Actor->IsHidden())
+		{
+			return ECensusClass::Hidden;
+		}
+		if (AnomalyStencilTag::IsAnyComponentTagged(Actor))
+		{
+			return ECensusClass::HeldElsewhere;
+		}
+
+		TInlineComponentArray<UPrimitiveComponent*> Prims;
+		const_cast<AActor*>(Actor)->GetComponents(Prims);
+
+		int32 Renderable = 0;
+		int32 NaniteOnly = 0;
+		int32 TranslucentOnly = 0;
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (!AnomalyViewport::IsRenderableComponent(Prim))
+			{
+				continue;
+			}
+			++Renderable;
+
+			if (bExcludeTranslucent && ComponentSlotsAllTranslucentWithoutOptIn(Prim))
+			{
+				++TranslucentOnly;
+				continue;
+			}
+
+			if (const UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(Prim))
+			{
+				if (ComponentRendersAsNanite(SMC, ShaderPlatform))
+				{
+					++NaniteOnly;
+					continue;
+				}
+			}
+		}
+
+		if (Renderable == 0)
+		{
+			return ECensusClass::HeldElsewhere;
+		}
+		if (bExcludeTranslucent && TranslucentOnly == Renderable)
+		{
+			return ECensusClass::Translucent;
+		}
+		if (NaniteOnly + TranslucentOnly == Renderable)
+		{
+			return ECensusClass::Nanite;
+		}
+		return ECensusClass::Measurable;
+	}
+}
+
+void FAnomalyCensus::Begin(UWorld* World, FAnomalyStencilTagLedger* InLedger, const FAnomalyCensusParams& InParams)
+{
+	bActive = true;
+	bCycleOpen = false;
+	bCycleJustCompleted = false;
+	bLeakProbeFired = false;
+	Params = InParams;
+	Ledger = InLedger;
+	Counters = FAnomalyCensusCounters();
+	Entries.Reset();
+	CycleQueue.Reset();
+	InFlight.Reset();
+	WorldPtr = World;
+	CensusIdSerial = 0;
+	CycleStartTick = GFrameCounter;
+	CycleNumber = 0;
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Census: BEGIN floor=%.2f%% maxVerdictAgeTicks=%d excludeTranslucent=%d leakProbe=%d coArmOnly=%d ")
+		TEXT("hostReserved=%d assignable=%d. The census is UPSTREAM of selection only; the armed-frame ")
+		TEXT("measurement and the zero-only veto are unchanged and remain the backstop."),
+		Params.FloorPct, Params.MaxVerdictAgeTicks, Params.bExcludeTranslucent ? 1 : 0,
+		Params.bLeakProbe ? 1 : 0, Params.bCoArmOnly ? 1 : 0,
+		Ledger ? Ledger->HostReserved.Num() : 0, Ledger ? Ledger->NumAssignable() : 55);
+}
+
+void FAnomalyCensus::End(UWorld* World)
+{
+	if (!bActive)
+	{
+		return;
+	}
+	for (FBatch& Batch : InFlight)
+	{
+		ReleaseBatch(Batch, false);
+	}
+	InFlight.Reset();
+	if (bCycleOpen)
+	{
+		CloseCycle();
+	}
+	bActive = false;
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Census: SUMMARY frames=%d cycles=%d candidates=%d zero=%d nonzero=%d belowFloor=%d ")
+		TEXT("excludedTranslucent=%d nanite=%d tagFailed=%d hidden=%d notYetMeasured=%d firesFallbackAll=%d ")
+		TEXT("framesNoPass=%d framesPolluted=%d batchesLost=%d tagOvertaken=%d proxyRecreatesQueued=%d ")
+		TEXT("tagBlockMsTotal=%.3f"),
+		Counters.CensusFrames, Counters.Cycles, Counters.Candidates, Counters.Zero, Counters.NonZero,
+		Counters.BelowFloor, Counters.ExcludedTranslucent, Counters.UnmeasurableNanite,
+		Counters.UnmeasurableTagFailed, Counters.UnmeasurableHidden, Counters.NotYetMeasured,
+		Counters.FiresFallbackAll, Counters.FramesNoPass, Counters.FramesPolluted, Counters.BatchesLost,
+		Counters.TagOvertaken, Counters.ProxyRecreatesQueued, Counters.TagBlockMsTotal);
+}
+
+TSet<uint8> FAnomalyCensus::GetInFlightTags() const
+{
+	TSet<uint8> Out;
+	for (const FBatch& Batch : InFlight)
+	{
+		for (uint8 Tag : Batch.Tags)
+		{
+			Out.Add(Tag);
+		}
+	}
+	return Out;
+}
+
+TSet<uint8> FAnomalyCensus::GetLegitTags() const
+{
+	TSet<uint8> Out = GetInFlightTags();
+	for (const TPair<uint8, uint64>& Pair : RecentlyReleased)
+	{
+		Out.Add(Pair.Key);
+	}
+	return Out;
+}
+
+bool FAnomalyCensus::ConsumeCycleJustCompleted()
+{
+	const bool bWas = bCycleJustCompleted;
+	bCycleJustCompleted = false;
+	return bWas;
+}
+
+void FAnomalyCensus::Tick(UWorld* World, FAnomalyMaskSceneViewExtension* Sve, bool bEventArmedThisTick, const TSet<uint8>& EventTags)
+{
+	if (!bActive || !Sve || !World)
+	{
+		return;
+	}
+
+	const double T0 = FPlatformTime::Seconds();
+
+	RecentlyReleased.RemoveAll([](const TPair<uint8, uint64>& Pair)
+	{
+		return GFrameCounter > Pair.Value + (uint64)LostAfterTicks;
+	});
+
+	CollectBatches(Sve, EventTags);
+
+	if (CycleQueue.Num() == 0 && InFlight.Num() == 0)
+	{
+		if (bCycleOpen)
+		{
+			CloseCycle();
+			bCycleJustCompleted = true;
+		}
+		StartCycle(World);
+	}
+
+	if (CycleQueue.Num() > 0 && (!Params.bCoArmOnly || bEventArmedThisTick))
+	{
+		ArmNextBatch(Sve, EventTags);
+	}
+
+	Counters.TagBlockMsTotal += (FPlatformTime::Seconds() - T0) * 1000.0;
+}
+
+void FAnomalyCensus::StartCycle(UWorld* World)
+{
+	TMap<const AActor*, FAnomalyCensusEntry> Carry;
+	for (FAnomalyCensusEntry& E : Entries)
+	{
+		if (const AActor* A = E.Actor.Get())
+		{
+			Carry.Add(A, MoveTemp(E));
+		}
+	}
+
+	Entries.Reset();
+	CycleQueue.Reset();
+
+	const TArray<TWeakObjectPtr<AActor>> Prefiltered = AnomalyViewport::GetCensusPrefilterActors(World);
+	if (Prefiltered.Num() == 0)
+	{
+		bCycleOpen = false;
+		return;
+	}
+
+	for (const TWeakObjectPtr<AActor>& Weak : Prefiltered)
+	{
+		AActor* Actor = Weak.Get();
+		if (!Actor)
+		{
+			continue;
+		}
+
+		FAnomalyCensusEntry Entry;
+		if (const FAnomalyCensusEntry* Prev = Carry.Find(Actor))
+		{
+			Entry = *Prev;
+		}
+		Entry.Actor = Actor;
+		Entry.ActorName = Actor->GetName();
+		Entry.AttemptsThisCycle = 0;
+
+		const EShaderPlatform ShaderPlatform = World->Scene ? World->Scene->GetShaderPlatform() : GMaxRHIShaderPlatform;
+		const ECensusClass Class = ClassifyCandidate(Actor, Params.bExcludeTranslucent, ShaderPlatform);
+		switch (Class)
+		{
+		case ECensusClass::Translucent:
+			Entry.Verdict = EAnomalyCensusVerdict::ExcludedTranslucent;
+			break;
+		case ECensusClass::Nanite:
+			Entry.Verdict = EAnomalyCensusVerdict::NotMeasurableNanite;
+			break;
+		case ECensusClass::Hidden:
+			Entry.Verdict = EAnomalyCensusVerdict::NotMeasurableHidden;
+			break;
+		case ECensusClass::HeldElsewhere:
+			break;
+		default:
+			CycleQueue.Add(Entries.Num());
+			break;
+		}
+		Entries.Add(MoveTemp(Entry));
+	}
+
+	CycleStartTick = GFrameCounter;
+	++CycleNumber;
+	bCycleOpen = true;
+	HalfCap = FMath::Max(1, (Ledger ? Ledger->NumFree() : 55) / 2);
+}
+
+void FAnomalyCensus::CreditEntryFromResult(int32 EntryIndex, uint8 Tag, const FAnomalyMaskResult& Result)
+{
+	if (!Entries.IsValidIndex(EntryIndex))
+	{
+		return;
+	}
+	FAnomalyCensusEntry& Entry = Entries[EntryIndex];
+	int32 Count = 0;
+	if (const FAnomalyMaskTagResult* Found = Result.TagResults.Find(Tag))
+	{
+		Count = Found->Count;
+	}
+	Entry.DrawnPx = Count;
+	Entry.FramePx = Result.ViewRectSize.X * Result.ViewRectSize.Y;
+	Entry.Verdict = (Count > 0) ? EAnomalyCensusVerdict::MeasuredNonZero : EAnomalyCensusVerdict::MeasuredZero;
+	Entry.MeasuredAtTick = GFrameCounter;
+	++Entry.TimesMeasured;
+}
+
+void FAnomalyCensus::ReleaseBatch(FBatch& Batch, bool bRequeue)
+{
+	for (int32 k = 0; k < Batch.EntryIdx.Num(); ++k)
+	{
+		const int32 EntryIndex = Batch.EntryIdx[k];
+		const uint8 Tag = Batch.Tags[k];
+		AActor* Actor = Entries.IsValidIndex(EntryIndex) ? Entries[EntryIndex].Actor.Get() : nullptr;
+		if (Actor)
+		{
+			FString Detail;
+			if (AnomalyStencilTag::VerifyActorStillTagged(Actor, (int32)Tag, Detail))
+			{
+				if (Params.bLeakProbe && !bLeakProbeFired)
+				{
+					const FString Forgotten = AnomalyStencilTag::ForgetOneTaggedComponentOfActor(Actor);
+					if (!Forgotten.IsEmpty())
+					{
+						bLeakProbeFired = true;
+						UE_LOG(LogAnomalyCapture, Warning,
+							TEXT("Census: LEAK PROBE fired (gate use only) - component '%s' of '%s' was ")
+							TEXT("DELIBERATELY dropped from the restore map with tag %d still applied. The ")
+							TEXT("final CENSUS-HYGIENE check MUST report a DIFF naming it; a clean final ")
+							TEXT("hygiene read on this leg means the instrument is blind (G96)."),
+							*Forgotten, *Entries[EntryIndex].ActorName, (int32)Tag);
+					}
+				}
+				AnomalyStencilTag::RestoreActor(Actor);
+			}
+			else
+			{
+				++Counters.TagOvertaken;
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Census: TAG-OVERTAKEN '%s' tag=%d (%s) - another writer re-tagged this actor while the ")
+					TEXT("census batch was in flight (the event mask tagging a fresh fire is the expected case). ")
+					TEXT("No credit taken, no restore performed here; the run-end RestoreAll covers the prior."),
+					*Entries[EntryIndex].ActorName, (int32)Tag, *Detail);
+			}
+		}
+		if (Ledger)
+		{
+			Ledger->CensusClaimed.Remove(Tag);
+		}
+		RecentlyReleased.Add(TPair<uint8, uint64>(Tag, GFrameCounter));
+		if (bRequeue && Entries.IsValidIndex(EntryIndex)
+			&& Entries[EntryIndex].AttemptsThisCycle < MaxAttemptsPerCycle)
+		{
+			CycleQueue.Add(EntryIndex);
+		}
+	}
+	Batch.EntryIdx.Reset();
+	Batch.Tags.Reset();
+}
+
+void FAnomalyCensus::CollectBatches(FAnomalyMaskSceneViewExtension* Sve, const TSet<uint8>& EventTags)
+{
+	for (int32 i = InFlight.Num() - 1; i >= 0; --i)
+	{
+		FBatch& Batch = InFlight[i];
+
+		FAnomalyMaskResult Result;
+		if (Sve->TakeMaskResult(Batch.RequestId, Result))
+		{
+			const bool bPassRan = Result.CustomStencilExtent.X > 1 && Result.CustomStencilExtent.Y > 1;
+
+			bool bPolluted = false;
+			uint8 PollutingTag = 0;
+			if (bPassRan)
+			{
+				TSet<uint8> Allowed = EventTags;
+				Allowed.Append(Batch.CensusTagsAtArm);
+				Allowed.Append(GetLegitTags());
+				if (Ledger)
+				{
+					Allowed.Append(Ledger->CensusClaimed);
+					Allowed.Append(Ledger->HostReserved);
+				}
+				for (const TPair<uint8, FAnomalyMaskTagResult>& Pair : Result.TagResults)
+				{
+					if (!Allowed.Contains(Pair.Key))
+					{
+						bPolluted = true;
+						PollutingTag = Pair.Key;
+						break;
+					}
+				}
+			}
+
+			if (!bPassRan)
+			{
+				++Counters.FramesNoPass;
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Census: NO-PASS batch id=%llu customStencilExtent=%dx%d - the frame carries no evidence ")
+					TEXT("about any candidate (view-level; the frame is discarded and the batch re-queued; this ")
+					TEXT("NEVER classifies a candidate - per-candidate NOT_MEASURABLE comes only from per-candidate ")
+					TEXT("evidence, the H6 rule)."),
+					Batch.RequestId, Result.CustomStencilExtent.X, Result.CustomStencilExtent.Y);
+				ReleaseBatch(Batch, true);
+			}
+			else if (bPolluted)
+			{
+				++Counters.FramesPolluted;
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Census: OBSERVED - batch id=%llu carried reserved-range tag %d assigned to no batch, no ")
+					TEXT("event record and no host reservation. CAUSE NOT ESTABLISHED. The frame is discarded and ")
+					TEXT("the batch re-queued; candidates keep their prior verdicts."),
+					Batch.RequestId, (int32)PollutingTag);
+				ReleaseBatch(Batch, true);
+			}
+			else
+			{
+				for (int32 k = 0; k < Batch.EntryIdx.Num(); ++k)
+				{
+					const int32 EntryIndex = Batch.EntryIdx[k];
+					const uint8 Tag = Batch.Tags[k];
+					AActor* Actor = Entries.IsValidIndex(EntryIndex) ? Entries[EntryIndex].Actor.Get() : nullptr;
+					FString Detail;
+					if (Actor && AnomalyStencilTag::VerifyActorStillTagged(Actor, (int32)Tag, Detail))
+					{
+						CreditEntryFromResult(EntryIndex, Tag, Result);
+					}
+				}
+				ReleaseBatch(Batch, false);
+			}
+			InFlight.RemoveAt(i);
+		}
+		else if (GFrameCounter > Batch.ArmedAtTick + (uint64)LostAfterTicks)
+		{
+			++Counters.BatchesLost;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Census: BATCH LOST id=%llu armedAtTick=%llu (+%d ticks, no readback) - tags released, ")
+				TEXT("candidates re-queued, no verdict changed. Expected count on this bench: ZERO."),
+				Batch.RequestId, Batch.ArmedAtTick, LostAfterTicks);
+			ReleaseBatch(Batch, true);
+			InFlight.RemoveAt(i);
+		}
+	}
+}
+
+void FAnomalyCensus::ArmNextBatch(FAnomalyMaskSceneViewExtension* Sve, const TSet<uint8>& EventTags)
+{
+	if (InFlight.Num() >= MaxInFlightBatches || !Ledger)
+	{
+		return;
+	}
+
+	FBatch Batch;
+	Batch.RequestId = GCensusRequestBit | (++CensusIdSerial);
+	Batch.ArmedAtTick = GFrameCounter;
+
+	int32 TotalFlips = 0;
+	int32 Cursor = AnomalyStencilTag::ReservedStencilBase;
+
+	while (Batch.EntryIdx.Num() < HalfCap && CycleQueue.Num() > 0)
+	{
+		uint8 Tag = 0;
+		bool bFound = false;
+		for (; Cursor <= AnomalyStencilTag::AssignableStencilMax; ++Cursor)
+		{
+			if (Ledger->IsFree((uint8)Cursor))
+			{
+				Tag = (uint8)Cursor;
+				++Cursor;
+				bFound = true;
+				break;
+			}
+		}
+		if (!bFound)
+		{
+			break;
+		}
+
+		const int32 EntryIndex = CycleQueue[0];
+		CycleQueue.RemoveAt(0);
+		if (!Entries.IsValidIndex(EntryIndex))
+		{
+			continue;
+		}
+		FAnomalyCensusEntry& Entry = Entries[EntryIndex];
+		++Entry.AttemptsThisCycle;
+
+		AActor* Actor = Entry.Actor.Get();
+		if (!Actor)
+		{
+			continue;
+		}
+		if (Actor->IsHidden())
+		{
+			Entry.Verdict = EAnomalyCensusVerdict::NotMeasurableHidden;
+			continue;
+		}
+		if (AnomalyStencilTag::IsAnyComponentTagged(Actor))
+		{
+			continue;
+		}
+
+		int32 Flips = 0;
+		const int32 Tagged = AnomalyStencilTag::TagActor(Actor, (int32)Tag, &Flips);
+		if (Tagged <= 0)
+		{
+			Entry.Verdict = EAnomalyCensusVerdict::NotMeasurableTagFailed;
+			continue;
+		}
+
+		TotalFlips += Flips;
+		Ledger->CensusClaimed.Add(Tag);
+		Batch.EntryIdx.Add(EntryIndex);
+		Batch.Tags.Add(Tag);
+	}
+
+	if (Batch.EntryIdx.Num() == 0)
+	{
+		return;
+	}
+
+	Batch.CensusTagsAtArm = Ledger->CensusClaimed;
+
+	Counters.ProxyRecreatesQueued += TotalFlips;
+	Batch.PendingBefore = Sve->NumPendingArms();
+
+	TSet<uint8> Assigned = EventTags;
+	Assigned.Append(GetLegitTags());
+	for (uint8 Tag : Batch.Tags)
+	{
+		Assigned.Add(Tag);
+	}
+	Sve->SetAssignedTags(Assigned);
+	Sve->ArmMask(Batch.RequestId);
+
+	++Counters.CensusFrames;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Census: ARM cycle=%d batch id=%llu size=%d tags=%d..%d pendingBefore=%d flagFlips=%d queueLeft=%d"),
+		CycleNumber, Batch.RequestId, Batch.EntryIdx.Num(),
+		(int32)Batch.Tags[0], (int32)Batch.Tags.Last(), Batch.PendingBefore, TotalFlips, CycleQueue.Num());
+
+	InFlight.Add(MoveTemp(Batch));
+}
+
+void FAnomalyCensus::CloseCycle()
+{
+	bCycleOpen = false;
+	++Counters.Cycles;
+
+	int32 Zero = 0, NonZero = 0, BelowFloor = 0, Translucent = 0, Nanite = 0, TagFailed = 0, Hidden = 0, NotYet = 0;
+	TArray<const FAnomalyCensusEntry*> Measured;
+	for (const FAnomalyCensusEntry& Entry : Entries)
+	{
+		switch (Entry.Verdict)
+		{
+		case EAnomalyCensusVerdict::MeasuredZero:
+			++Zero;
+			Measured.Add(&Entry);
+			break;
+		case EAnomalyCensusVerdict::MeasuredNonZero:
+		{
+			++NonZero;
+			Measured.Add(&Entry);
+			const double Pct = (Entry.FramePx > 0) ? (100.0 * (double)Entry.DrawnPx / (double)Entry.FramePx) : 0.0;
+			if (Pct < (double)Params.FloorPct)
+			{
+				++BelowFloor;
+			}
+			break;
+		}
+		case EAnomalyCensusVerdict::ExcludedTranslucent:    ++Translucent; break;
+		case EAnomalyCensusVerdict::NotMeasurableNanite:    ++Nanite; break;
+		case EAnomalyCensusVerdict::NotMeasurableTagFailed: ++TagFailed; break;
+		case EAnomalyCensusVerdict::NotMeasurableHidden:    ++Hidden; break;
+		default:                                            ++NotYet; break;
+		}
+	}
+
+	Counters.Candidates = Entries.Num();
+	Counters.Zero = Zero;
+	Counters.NonZero = NonZero;
+	Counters.BelowFloor = BelowFloor;
+	Counters.ExcludedTranslucent = Translucent;
+	Counters.UnmeasurableNanite = Nanite;
+	Counters.UnmeasurableTagFailed = TagFailed;
+	Counters.UnmeasurableHidden = Hidden;
+	Counters.NotYetMeasured = NotYet;
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Census: CYCLE %d DONE ticks=%llu candidates=%d zero=%d nonzero=%d belowFloor=%d(floor %.2f%%) ")
+		TEXT("excludedTranslucent=%d nanite=%d tagFailed=%d hidden=%d notYetMeasured=%d"),
+		CycleNumber, GFrameCounter - CycleStartTick, Entries.Num(), Zero, NonZero, BelowFloor, Params.FloorPct,
+		Translucent, Nanite, TagFailed, Hidden, NotYet);
+
+	Measured.Sort([](const FAnomalyCensusEntry& A, const FAnomalyCensusEntry& B)
+	{
+		return A.DrawnPx > B.DrawnPx;
+	});
+
+	int32 Buckets[7] = {};
+	FString Rows;
+	int32 Listed = 0;
+	for (const FAnomalyCensusEntry* Entry : Measured)
+	{
+		const double Pct = (Entry->FramePx > 0) ? (100.0 * (double)Entry->DrawnPx / (double)Entry->FramePx) : 0.0;
+		int32 Bucket = 0;
+		if (Pct <= 0.0) { Bucket = 0; }
+		else if (Pct <= 1.0) { Bucket = 1; }
+		else if (Pct <= 3.0) { Bucket = 2; }
+		else if (Pct <= 6.0) { Bucket = 3; }
+		else if (Pct <= 12.0) { Bucket = 4; }
+		else if (Pct <= 25.0) { Bucket = 5; }
+		else { Bucket = 6; }
+		++Buckets[Bucket];
+		if (Listed < 60)
+		{
+			Rows += FString::Printf(TEXT(" %s=%d(%.3f%%)"), *Entry->ActorName, Entry->DrawnPx, Pct);
+			++Listed;
+		}
+	}
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Census: CYCLE %d DRAWN-COVERAGE histogram zero=%d (0,1]=%d (1,3]=%d (3,6]=%d (6,12]=%d ")
+		TEXT("(12,25]=%d >25=%d |%s%s"),
+		CycleNumber, Buckets[0], Buckets[1], Buckets[2], Buckets[3], Buckets[4], Buckets[5], Buckets[6],
+		*Rows, (Measured.Num() > Listed) ? *FString::Printf(TEXT(" (+%d more)"), Measured.Num() - Listed) : TEXT(""));
+}
+
+#endif

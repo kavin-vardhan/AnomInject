@@ -74,6 +74,18 @@ public:
 	void SetMaskProbe(bool bInProbe);
 	bool IsMaskProbe() const { return bMaskProbe; }
 
+	void SetCensus(bool bInCensus);
+	bool IsCensus() const { return bCensus; }
+	void SetCensusFloorPct(float InPct);
+	float GetCensusFloorPct() const { return CensusFloorPct; }
+	void SetCensusMaxVerdictAgeTicks(int32 InTicks);
+	int32 GetCensusMaxVerdictAgeTicks() const { return CensusMaxVerdictAgeTicks; }
+	void SetCensusExcludeTranslucent(bool bInExclude);
+	bool IsCensusExcludeTranslucent() const { return bCensusExcludeTranslucent; }
+	void SetCensusReservation(bool bInReserve);
+	void SetCensusLeakProbe(bool bInProbe);
+	void SetCensusCoArm(bool bInCoArm);
+
 	void SetTickPin(bool bInPin);
 	bool IsTickPinEnabled() const { return bTickPinEnabled; }
 	const TCHAR* DescribeTickPinSource() const;
@@ -119,6 +131,9 @@ private:
 	};
 
 	void BeginActualRun();
+	void RunStencilHygieneCheck(bool bFinal);
+	const TCHAR* DescribeCensusSource() const;
+	const TCHAR* DescribeCensusFloorSource() const;
 	void OnEndFrameMaskSample();
 	void OnWorldTickEndMask(UWorld* World, ELevelTick TickType, float DeltaSeconds);
 	bool HasGameWindow(UWorld* World) const;
@@ -262,6 +277,21 @@ private:
 	bool bMaskMeasureFromIni = false;
 	bool bMaskProbe = false;
 	bool bMaskProbeFiredThisRun = false;
+	bool bCensus = false;
+	bool bCensusFromIni = false;
+	bool bCensusEffective = false;
+	float CensusFloorPct = 6.0f;
+	bool bCensusFloorFromIni = false;
+	bool bCensusFloorFromConsole = false;
+	int32 CensusMaxVerdictAgeTicks = 12;
+	bool bCensusMaxAgeFromIni = false;
+	bool bCensusMaxAgeFromConsole = false;
+	bool bCensusExcludeTranslucent = true;
+	bool bCensusTranslucentFromIni = false;
+	bool bCensusTranslucentFromConsole = false;
+	bool bCensusReservation = true;
+	bool bCensusLeakProbe = false;
+	bool bCensusCoArm = false;
 	FDelegateHandle MaskEndFrameHandle;
 	FDelegateHandle MaskWorldTickEndHandle;
 	bool bRectDeltaLogged = false;
