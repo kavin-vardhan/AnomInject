@@ -1178,7 +1178,7 @@ The module depends only on `Core`/`CoreUObject`/`Engine`/`InputCore`/**`Foliage`
 it is "NEVER LET CORRECTNESS DEPEND ON ANYTHING A HOST CAN REDEFINE."** The m31 defect was this invariant
 violated through an ENGINE GLOBAL rather than a host type: the SVE capture handshake compared two
 independent reads of `GFrameCounter` (game-side arm vs publish-side check), a pairing that holds only
-under the stock engine loop's increment placement. The first host running a forked loop (Firewalk:
+under the stock engine loop's increment placement. The first host running a forked loop (Concorde:
 fixed sim + variable render) redefined that global's cadence — as a fork is entitled to — and the
 shipping capture path silently wrote zero frames. **The cure class is structural, not compensatory:
 mint identity ONCE at a site the plugin owns, carry it BY VALUE, pair by ORDER — never by comparing two

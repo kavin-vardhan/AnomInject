@@ -46,7 +46,7 @@ that box is a DESIGN ERROR.
 
 ## §5 The symptom (relayed) and the office diagnosis (relayed — EVIDENCE TO VERIFY, NOT GOSPEL)
 
-Concorde, UE 5.1 source-built, packaged name FWChaos, m27 build, delivery ON, cooked ini
+Concorde, UE 5.1 source-built, packaged exe name deliberately withheld (codename-only invariant; visible on the office box itself), m27 build, delivery ON, cooked ini
 confirmed applied. SVE default: session folder + annotation.json + run_summary written,
 `Actual_Frames/` created and EMPTY, `total_frames 0`, 9 bursts fired, pacer clean (29.78 vs 30).
 `IAI.Capture.SVE 0`: PNGs written normally, same build, same machine.

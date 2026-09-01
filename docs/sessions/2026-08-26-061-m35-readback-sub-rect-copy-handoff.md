@@ -49,7 +49,7 @@
 
 ## 1. YOU ARE HERE, in one paragraph
 
-**m35 is a hotfix for a capture-readback crash observed on a SECOND HOST** — "Bates", a Callisto-fork
+**m35 is a hotfix for a capture-readback crash observed on a SECOND HOST** — "Bates", a Bates-lineage
 UE 5.1 game: an access violation reading past a mapped readback buffer at a **non-zero view-rect
 origin**. Letterboxed picture, `Rect.Min.Y = 104`, view rect 1389×581, `fmt = PF_A2B10G10R10`.
 **The fix is BUILT, STAGED, GREEN on every gate that has run, and is committed LOCALLY as a `WIP`

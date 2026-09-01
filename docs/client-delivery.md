@@ -122,7 +122,7 @@ to normal capture except that annotation.json no longer carries the internal `sc
 ## Content clock (m15) — default is wall (client titles are wall-clock, RESOLVED)
 
 The shipped default is `IAI.Capture.ContentClock wall`. Owner-tested wall vs game on the actual office
-machine (m15, 2026-07-13): the client titles (Until Dawn, Concorde) are **wall-clock** — wall produces
+machine (m15, 2026-07-13): the client titles (Bates, Concorde) are **wall-clock** — wall produces
 correct-SPEED videos for them. Their video LENGTH varies with the real capture duration, which is
 correct for wall-clock content (natural playback speed is the criterion). This RESOLVES the m14
 open question (it briefly shipped as game pending this test).

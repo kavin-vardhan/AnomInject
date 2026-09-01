@@ -24,7 +24,7 @@ Read from the Epic remote's release tags in `D:\UESource\UnrealEngine`:
 forwards to the new signature, and `AddEnqueueCopyPass` still takes `FResolveRect` in 5.3, so
 our call sites compile unchanged on 5.1/5.2/5.3.
 
-⛔ **NOT ESTABLISHED AND NOT GUESSED:** why a 5.1-based fork (Bates/Callisto) behaves like 5.2+.
+⛔ **NOT ESTABLISHED AND NOT GUESSED:** why a 5.1-based fork (Bates) behaves like 5.2+.
 Back-port, vendored RHI, something else — **cause not established**, and the design deliberately
 does not depend on the answer.
 
