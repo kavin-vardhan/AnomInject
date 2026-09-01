@@ -352,6 +352,32 @@ verify the exe EXISTS and is whole (size + sha8) before assuming you can just re
 📌 **STRUCTURAL FIX IN PLACE:** `StackOBot\Binaries` is now a **junction onto `E:`**, matching
 `Intermediate` and `Saved`, so link output no longer lands on the small volume.
 
+### 🗄 ARCHIVES LIVE ON `E:` BEHIND JUNCTIONS AT THE HISTORICAL PATHS (2026-09-01)
+
+⛔ **`D:` IS NOT A STORAGE VOLUME FOR EVIDENCE.** Every archive path used by this project is now a
+**junction**; the historical path still works and every recorded path in every journal stays valid.
+
+| path you use (unchanged) | real location |
+|---|---|
+| `D:\IntrusiveAnomalies\_binary_baselines` | `E:\IA_BuildCache\_binary_baselines` |
+| `D:\IntrusiveAnomalies\_bench_sessions_bank` | `E:\IA_BuildCache\_bench_sessions_bank` |
+| `D:\IntrusiveAnomalies\StackOBot\Builds` | `E:\IA_BuildCache\StackOBot\Builds` |
+| `D:\IntrusiveAnomalies\StackOBot\Binaries` | `E:\IA_BuildCache\StackOBot\Binaries` |
+| `D:\IntrusiveAnomalies\StackOBot\Intermediate` | `E:\IA_BuildCache\StackOBot\Intermediate` |
+| `D:\IntrusiveAnomalies\StackOBot\Saved` | `E:\IA_BuildCache\StackOBot\Saved` |
+
+⚠ **A future reader must NOT find ~100 GB "missing" from `D:` and conclude something is broken** — the
+same warning §3.6 already carries for `Intermediate` and `Saved`, now extended.
+
+**HOW THE MOVE WAS DONE, because the method is the point:** copy → verify categorically → **RENAME the
+original aside, never delete it** → junction → re-read every manifest **through the junction**.
+Verification was per-file count **and** per-file size, plus `sha8` on every `.exe`: baselines 75/75,
+bank 69,340/69,340, Builds 15,421/15,421, **0 missing and 0 mismatched in all three**, and every
+archived exe's `sha8` equals the value written in its own filename.
+⛔ **Nothing was deleted.** The originals sit in `D:\IntrusiveAnomalies\_TRASH_pending_owner_delete\`
+awaiting an explicit owner deletion. The **named-gate-before-deletion rule stands** — no archived
+baseline is removed until the docs say what gate depends on it.
+
 📐 **THE IDENTITY INSTRUMENT (added 2026-08-26, session 062) — every 8-hex hash in this project is the
 FIRST 8 HEX CHARACTERS OF SHA-256.** exe, `.utoc`, `.ucas`, `.pak`, all of them:
 
