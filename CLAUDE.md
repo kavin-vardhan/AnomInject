@@ -17,9 +17,21 @@ and is the single source of truth for the project.
 > `feature/mask-gpu-reduce` is **fully published: `origin` == local, nothing withheld.** ✅ **THE
 > BRANCH IS COOKABLE NOW** — the office can pull and start rebuild-and-cook immediately, which is the
 > longest wall-clock item and was the only thing this rule was blocking.
-> ⛔ **COOKABLE IS NOT MERGEABLE AND NOT TAGGABLE. `master` is NOT merged. NOTHING IS TAGGED**
-> (highest tag remains `m30`). The merge is still gated on `G-R7(ii)`; the tag sequence is still
-> `m31` → `m33` → `m34` → `m35`.
+> 🆕 **MERGE RULE CHANGED, OWNER RULING 2026-09-01 — THE MERGE MOVED EARLIER, THE CONCORDE GATE MOVED
+> LATER.** `feature/mask-gpu-reduce` **MERGES TO MASTER WHEN m35 IS HOME-CLOSED (`G-M9` GREEN)**.
+> `G-R7(ii)` is **unchanged in content** and keeps AMENDMENT 1 and 2 in full, but it is now a
+> **DELIVERY precondition, not a merge precondition**: office visit A pulls and cooks **master** and
+> runs the gate **there**. ⛔ This RELOCATES the gate, it does not weaken it — **nothing ships to the
+> client off master until `G-R7(ii)` passes on master's own build.** Full ordered sequence, including
+> the inert-merge proof and the `-m 1` revert handle, is journal 061 **§12.0**.
+> ⛔ **STILL NOTHING IS TAGGED** (highest remains `m30`); the tag sequence is still
+> `m31` → `m33` → `m34` → `m35`, and it runs at the END of office visit A.
+> 📌 **CODENAME-ONLY INVARIANT (2026-09-01):** hosts and their engine lineage are written as **Bates**
+> and **Concorde** everywhere. All three refs verified clean by the scrub instrument, which proves
+> itself against a synthetic known-answer fixture before every verdict. One permanent, printed
+> exclusion: `Source/AnomalyCapture/AnomalyCapture.Build.cs` — **never altered** (its strings are the
+> build-time fork-detection needles, and this box cannot tell a working probe from a broken one).
+> Session 064 journal has the ledger and the receipts.
 > 🚨 **CONSEQUENCE, STATED RATHER THAN DISCOVERED: THE WIP CAN NO LONGER BE AMENDED.** If a remaining
 > gate forces a change it lands as a **FOLLOW-UP COMMIT**, so **m35 is two commits**. That
 > deliberately overrides one-milestone-one-commit for m35, and **the tag goes on the FINAL commit.**

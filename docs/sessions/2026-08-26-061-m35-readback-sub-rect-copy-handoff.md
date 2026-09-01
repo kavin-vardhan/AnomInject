@@ -542,7 +542,52 @@ unknown one.
 
 ## 12. THE OFFICE PASS, AS REVISED AND RULED
 
-**Order is fixed. The hand-resolved-conflict step is DELETED — it existed only for the withdrawn
+> 🆕 **SUPERSEDED IN PART — OWNER RULING 2026-09-01. READ §12.0 FIRST.** The gate below is unchanged
+> **in content**, but it is no longer the MERGE precondition. Steps 1–4 as written describe cooking and
+> gating **the branch**; that now happens on **master**, after the merge. §12.0 is the current order.
+
+### §12.0 — THE MERGE MOVED EARLIER; THE CONCORDE GATE MOVED LATER (2026-09-01)
+
+**`feature/mask-gpu-reduce` MERGES TO MASTER WHEN m35 IS HOME-CLOSED — that is, when `G-M9` is
+green.** `G-R7(ii)` is **unchanged in content** and keeps every clause of AMENDMENT 1 and AMENDMENT 2,
+but it moves from **merge precondition** to **DELIVERY precondition**: office visit A pulls and cooks
+**master** and runs the gate there.
+
+⛔ **THIS DOES NOT WEAKEN THE GATE. IT RELOCATES IT.** Nothing ships to the client off master until
+`G-R7(ii)` passes on master's own build.
+
+**AFTER `G-M9` GREEN, IN THIS ORDER:**
+
+1. **MERGE**, in a **master worktree** — shared-tree rule, stay checked out on m36:
+   `git merge --no-ff feature/mask-gpu-reduce`. **Pre-check `merge-tree` is conflict-free at the
+   ACTUAL tip** (measured clean once already, but the tips move). The merge commit message names
+   **m34 + m35** and states **"office gate pending on master"**.
+2. **PROVE THE MERGE IS INERT.** Build master-tip; run the banked control pair (same seed, same map)
+   against the **parent-tip** build. `annotation.json` and `run_summary` must be IDENTICAL outside the
+   declared run-unique set (the `P-C7` shape; payloads derived from the banked config, `G184`).
+   ⛔ **Differ ⇒ STOP, do not push.**
+3. **PUSH master (normal push). ⛔ DO NOT TAG.** Keep `feature/mask-gpu-reduce` until the office
+   validation passes.
+4. **THEN `E` REBASES `feature/selection-census` ONTO MASTER** — **not** onto the parent tip. Same
+   re-verification: scrub verify clean, rebuild, `P-C7` re-run against the **new master-tip** build
+   (the comparison target moved), then a lease-checked force push of **m36 only**. Then `S2`.
+5. **OFFICE CHECKLIST, VISIT A:** pull **master** → rebuild the editor target → **read the tick-pin
+   probe echo and record which route fired** (runbook §8.6, the baseline) → cook → `G-R7(ii)` split on
+   **master's** build → Bates hotfix validation → `m31` V-3/V-4 → custom-depth census → **then tags
+   `m31` → `m33` → `m34` → `m35`**.
+   🎯 **IF `G-R7(ii)` FAILS THERE, THE FIX IS FORWARD ON MASTER**, and the merge commit is revertable
+   with `-m 1` as the **named bisect**. That is the whole reason the merge is `--no-ff`: it keeps a
+   single revertable handle for four items.
+
+📌 **CLOSE-OUT CHECKLIST — `wip/session-061-backup`:** delete it **from origin and local** once the
+Bates office validation of the hotfix passes. It is the last deliberate pre-scrub copy on the remote
+(it holds the host and lineage labels this project now writes as codenames), and it is kept only until
+the fix it backs up is validated in the field.
+
+---
+
+**The text below is the ORIGINAL §12. Its gate content still governs; only its VENUE and ORDER moved
+(see §12.0). The hand-resolved-conflict step is DELETED — it existed only for the withdrawn
 cherry-pick route.**
 
 1. **REBUILD, THEN COOK THE BRANCH.** A full cook of `feature/mask-gpu-reduce` carrying all four

@@ -3832,6 +3832,31 @@ are exposed.)*
 4. A parser rejecting a BOM is reporting a REAL defect in the file. Fix the file, not the parser.
 (2026-08-20.)
 
+🆕 **THIRD SURFACE (2026-09-01): COMMIT MESSAGES.** A message written with
+`Set-Content -Encoding utf8` and handed to `git commit -F` put a literal BOM at the **start of the
+commit subject**, which then went to origin. The two messages authored through the editor tool in the
+same session were clean; the one written by PowerShell was not. **Commit messages go through the
+editor path only — never a PowerShell-written file.**
+
+🚨 **AND THE PART THAT MAKES THIS WORSE THAN AN UGLY SUBJECT: THE SHELL THAT WROTE THE BOM STRIPS IT
+WHEN READING IT BACK, SO IT HIDES THE DEFECT FROM ITS OWN TEST.** The check
+`git log -1 --format=%s <sha>` piped into PowerShell and byte-tested returned **BOM = False** — a
+false negative — because PowerShell removes U+FEFF while decoding git's stdout. The BOM was only
+visible by reading the raw object outside the shell:
+
+```
+git cat-file commit <sha>   ->  body starts b'\xef\xbb\xbfdocs(r'
+```
+
+⇒ **Verify message bytes with `git cat-file commit`, never with a shell-decoded `git log`.** The
+general form is the one that keeps recurring here: *a producing tool is not a witness to its own
+output.* Same family as `G183`/`G188`/`G190` — in this workspace the shell is a defect surface, and
+the defect and the blindness to it can come from the same place.
+📌 Fix path used: `commit --amend` (message only — the tree OID was captured before and compared
+after, identical) plus a lease-checked force push of that one branch. Standing rule now: chat may
+authorise a lease-checked amend of an **unmerged branch's TIP** until the office has pulled it;
+**master and tags never; anything deeper is STOP.**
+
 ### G142 — a VERIFICATION SCRIPT is a defect surface of its own, and its failures wear the costume of a BUILD failure
 
 🚨 **BOTH DEFECTS BELOW WERE IN THE CHECKER, NOT IN THE BUILD, AND EITHER WOULD HAVE
@@ -4794,3 +4819,60 @@ command that fails leaves stderr in the variable and the script limps on; a comm
 leaves it **empty**, which is when the damage is total. Same environment family as `G182` (here-string
 becomes a pathspec) and `G183` (Bash-tool git hangs): **in this workspace, assume the shell is a
 defect surface and verify what a command actually received.**
+
+## G189 — A FIXER REUSED AS A VERIFIER IS VACUOUS BY CONSTRUCTION
+
+The hostname/codename scrub tool substitutes forbidden terms and then reports whether any remain. Run
+as the **verifier** that licensed deleting the only pre-scrub backup, it passed everything. Its check
+was:
+
+```python
+out = raw
+for pat, rep in SUBS:
+    out, n = pat.subn(rep, out)     # runs even in DRY RUN
+residual = RESIDUAL.findall(out)    # <-- the SUBSTITUTED text
+```
+
+It answered *"would my substitutions leave residue?"* — always no, for any file it can fix — instead of
+*"does this file contain the terms?"*. **It could not fail on anything it was capable of fixing.**
+Pointed at the known-positive pre-scrub tree it printed the substitution counts AND `[CLEAN]`,
+`no residual`, **exit 0**.
+
+**RULE: a fix step and a check step must read DIFFERENT inputs.** The fixer reads the input and
+produces output; the verifier must read **the artifact as it stands**, not the fixer's projection of
+what it would become. One line: `subject = out if apply_changes else raw`.
+
+Generalisation, and it is the reusable half: **substitution-then-check answers a different question
+from check-only, and the difference is invisible because both print the same words.** `G172`'s
+vacuity, arriving through a reused code path rather than a missing key. This is also why `G96`'s
+prove-it-both-ways rule is written as *before its verdict is read* — it is the only thing that catches
+an instrument whose green means nothing.
+
+## G190 — AN EXIT CODE SURVIVES A COMMAND THAT NEVER RAN
+
+Verifying a scrubbed tree, the file list was passed as absolute paths under a long scratch directory.
+Windows rejected the command line as too long, python **never launched**, and the wrapper still
+printed `exit=0`. `$LASTEXITCODE` held a value from an **earlier** command.
+
+The only reason it was caught: the run was supposed to print a `VERDICT:` line and there wasn't one.
+
+⇒ **Assert on a POSITIVE ARTIFACT OF THE RUN — a line the run must emit, a file it must write, a
+counter it must move — never on the exit code alone.** An exit code is a claim about a process that
+may not exist. Corollary for this workspace: prefer relative paths from inside the tree under test;
+the same 192 files passed relatively fit comfortably.
+
+## G191 — AN EXTENSION LIST IS A BLIND SPOT; SCAN THE WHOLE TREE
+
+The first scrub pass built its work-list with `git grep -- '*.md' '*.py' '*.cpp' '*.h' '*.ini' '*.txt'`.
+It missed **`Source/AnomalyCapture/AnomalyCapture.Build.cs`**, which held three hits, because `.cs` was
+not in the list. The tree-wide pass caught it; the hand-written glob never would have.
+
+⚠ **The miss was not random — it was in the one file where the strings were LOAD-BEARING** (build-time
+fork-detection needles), so the blind spot and the highest-stakes hit coincided. That is the usual
+shape: the file you forgot to include is the one nobody thinks of as documentation.
+
+**RULE: enumerate from the repository, not from a guess** — every tracked file plus the untracked docs,
+decide text-vs-binary by attempting the decode rather than by extension, and **print the counts**
+(`scanned N; skipped M binary; K exclusions`) so a shrinking denominator is visible. Any file
+deliberately out of scope is an explicit, dated, **printed** exclusion — never an absence from a glob.
+Silence and exemption must not look the same.
