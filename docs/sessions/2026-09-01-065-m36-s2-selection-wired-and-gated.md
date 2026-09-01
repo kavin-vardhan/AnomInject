@@ -172,10 +172,69 @@ and applying it to a map that settles at `(0,-40,0)` would be G117's error on a 
    directory** — a reader that looks only in the accepted dir finds no log and can conclude the leg
    produced none.
 
+## §7.5 S3 — P-C9, THE COST. NUMBERS ONLY. NO THRESHOLD, AND NONE IS PROPOSED.
+
+**The instrument had to be finished first.** P-C9 names a **per-cycle** line and only a run TOTAL
+existed; a total over cycles is a MEAN, and a mean would hide exactly the spikiness worth looking
+for (the mask pass has a recorded hitching finding, session 054). `CloseCycle` now emits
+`tagBlockMs / overTicks / perTickMs / flagFlips` per cycle as deltas of the existing cumulative
+counters. Log-only, inside `CloseCycle`, so it cannot execute with the census off. Binary
+**`70F6B72C`** (archived), and **`P-C7` was RE-ANCHORED to it before any S3 leg ran** — census OFF
+still byte-identical to the pre-S2 leg.
+
+**Leg set, declared before execution:** 1920×1080 · CB_GateLevel · auto-pool · pose controlled by
+`-RequireModalRotZero` · **A = census OFF, B = census ON at floor 0.5** · order **DISCARD, A₁, B₁,
+B₂, A₂** (G186) · **pacing OFF** on all five · **both sides carry `IAI.Capture.Mask 1` and only
+`IAI.Capture.Census` differs**, so the delta is the CENSUS and not the mask. 77 candidates,
+`framesNoPass / framesPolluted / batchesLost` all 0 on every census leg.
+
+| leg | per captured frame | per engine frame | per MP | sustained fps | speed_ratio | game_clock_ratio |
+|---|---|---|---|---|---|---|
+| DISCARD (declared) | 15.5531 | 11.1631 | 7.5005 | 85.97 | 0.3490 | 0.3490 |
+| A₁ OFF | 16.4389 | 11.7989 | 7.9277 | 81.34 | 0.3688 | 0.3688 |
+| B₁ ON | 18.8494 | 13.5290 | 9.0902 | 70.93 | 0.4229 | 0.4229 |
+| B₂ ON | 18.8727 | 13.5457 | 9.1014 | 70.85 | 0.4234 | 0.4234 |
+| A₂ OFF | 17.0051 | 12.2053 | 8.2008 | 78.63 | 0.3815 | 0.3815 |
+
+- **Per CAPTURED frame:** A mean **16.7220** (spread 0.5662) · B mean **18.8610** (spread 0.0233) ·
+  **B−A = +2.1390 ms**, against a worst within-build spread of 0.5662 ⇒ **the difference EXCEEDS
+  the instrument's resolution.** Unlike `G-M6`, this cost is MEASURABLE.
+- **Per ENGINE frame:** A **12.0021** · B **13.5373** · **B−A = +1.5352 ms**, worst spread 0.4064.
+- **Per MEGAPIXEL:** A 8.0643 · B 9.0958 · **B−A = +1.0316 ms/MP.**
+- ⚠ **EXTRAPOLATION, LABELLED AS ONE AND NOT A MEASUREMENT:** at Concorde's 3200×2000 (6.40 MP)
+  that is **6.60 ms per captured frame IF the cost scaled linearly with pixels.** It is an
+  assumption — the reduce is per-pixel but the tag block is per-candidate, so the two halves cannot
+  both scale that way.
+- ✅ **The A,B,B,A design earned its keep (G186).** The box drifted slower across the session
+  (15.55 → 16.44 → 18.85 → 18.87 → 17.01), so A's two legs bracket B's two in time and A's mean is
+  centred rather than biased. In `A,B,A,B` the drift would have flattered B.
+
+🚨 **THE COMPONENT ACCOUNTING IS THE FINDING, AND IT VINDICATES S1'S WARNING EXACTLY.** The timed
+tag block totals **9.64 ms per run** = **0.0778 ms per engine frame**, against a measured cost of
+**1.5352 ms per engine frame**. ⇒ **only 5.1 % of the census's cost is INSIDE the block the
+instrument times; 94.9 % is OUTSIDE it** — the deferred proxy recreates (1,187–1,259 flag flips per
+run) and the extra render-side mask passes. **Quoting `tagBlockMs` as "the census's cost" would
+under-read it about twentyfold.** Per-cycle distribution, census-ON legs: `tagBlockMs` min 0.2998 /
+median 0.5610–0.6063 / max 0.9067; `perTickMs` min 0.0333 / median ~0.078 / max 0.2244 — **no spike
+of hitching scale in the timed block.**
+
+✅ **THE PACED PAIR ANSWERS THE DELIVERY QUESTION, AND IT ANSWERS IT CLEANLY.** Same box, same
+resolution, `Pace 1`: per-captured-frame **44.5693 ms on BOTH legs, identical to four decimals**;
+per engine frame **32.7824 on both**; `speed_ratio` 1.0000005 vs 1.0000006. ⇒ **at the shipped
+30 fps the pacer absorbs the census entirely — it costs nothing observable in wall time.** That
+reproduces journal 061 finding 1 exactly and is why the measuring legs had to run pacing OFF.
+⛔ It does **not** mean the census is free: it means the box had headroom at 1920×1080. A host
+without that headroom would show it in `speed_ratio`, which is the existing instrument for it.
+
+📌 **Observation recorded, CAUSE NOT ESTABLISHED:** cycles per engine frame differ between the two
+pacing regimes — 16–17 cycles / 124 engine frames unpaced vs 26 / 121 paced. Reported as a number;
+no mechanism is claimed.
+
 ## §8 NOT done, named
 
-- **NOT PUSHED. NO TAG. NO COOK.** Branch `feature/selection-census` local tip `72d6dd5`.
-- **S3 (P-C9, the cost A/B) NOT started** — numbers to chat, no threshold, per the predictions file.
+- **NO TAG. NO COOK.**
+- **P-C9 is REPORTED, NOT GATED, exactly as pre-declared. No threshold exists anywhere in the
+  tooling or the docs, and none is recommended.**
 - The Bates reading sheet is unrun (it is owner-run on a sealed host; the RDP card covers it).
 - `master` untouched. `feature/stencil-capture` untouched. No force-push. No ratio, no threshold.
 - Binary chain this session: `02C1DFA2` (pre-S2, archived) → `E046D1CA` (S2 pre-instrument,
@@ -183,7 +242,10 @@ and applying it to a map that settles at `(0,-40,0)` would be G117's error on a 
   `_binary_baselines\StackOBot.exe.m36-s2-CBBF6644`, 241,025,536 B). Container UNCHANGED — code-only
   hot-swap, G103. A44 green both encodings on the staged artifact, with pre-existing tokens as the
   positive control.
-- Harness: CaptureBench `e8ff25d`.
+  → **`70F6B72C`** (S3 per-cycle cost line; archived as
+  `_binary_baselines\StackOBot.exe.m36-s3-70F6B72C`, 241,026,048 B). `P-C7` re-anchored to it.
+- Harness: CaptureBench `28249c5` (`m36_pc9_cost.py` added).
+- Commits: `72d6dd5` S2 (**the G140 boundary**) · `dd5ed05` docs · `f9cb764` S3 cost line.
 
 ## §9 Evidence bank
 

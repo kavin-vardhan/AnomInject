@@ -128,7 +128,19 @@ and is the single source of truth for the project.
 > NOT APPLICABLE there, which left the bifurcation uncontrolled on exactly the legs whose candidate
 > set depends on the settled camera). ⛔ **It is for `CB_GateLevel` only — MainWorld settles at
 > `(0,-40,0)` and applying it there would be `G117`'s error on a new axis.**
-> ⛔ **S3 (`P-C9`, the cost A/B) NOT STARTED.** Numbers to chat, **no threshold, ever.**
+> ✅ **S3 (`P-C9`) IS DONE — REPORTED, NOT GATED, and there is NO THRESHOLD anywhere.** 1920×1080,
+> `A,B,B,A` after a declared discard, pacing OFF, **both sides mask-ON so only the census differs**.
+> **B−A = +2.1390 ms per captured frame** (A spread 0.5662, B spread 0.0233) and **+1.5352 ms per
+> ENGINE frame** ⇒ unlike `G-M6` this cost is **ABOVE the instrument's resolution**. Per-MP
+> **+1.0316**; the Concorde figure **6.60 ms/frame is an EXTRAPOLATION, not a measurement**.
+> 🚨 **THE COMPONENT SPLIT IS THE FINDING: the timed tag block is 0.0778 ms/engine frame against a
+> measured 1.5352 — only 5 % of the cost is inside it, 95 % is the DEFERRED PROXY RECREATES and the
+> render-side passes. ⛔ NEVER quote `tagBlockMs` as "the census's cost"; it under-reads it about
+> twentyfold.** ✅ **Paced pair at the shipped 30 fps: per-captured-frame IDENTICAL TO FOUR DECIMALS
+> (44.5693 ms both), `speed_ratio` 1.0000005 vs 1.0000006 — the pacer absorbs it entirely.** That is
+> journal 061 finding 1 reproduced, and it is why the measuring legs ran pacing OFF. ⚠ It does NOT
+> mean the census is free — it means this box had headroom at 1080p; a host without it shows up in
+> `speed_ratio`. Binary **`70F6B72C`**, `P-C7` re-anchored to it. Journal 065 §7.5.
 
 - **STANDING CONVENTION (owner directive, 2026-07-29): this Current-status block is REFRESHED AT EVERY MILESTONE
   CLOSE — same discipline as the session journals.** It is the cold-start contract: if it says "in flight / not
