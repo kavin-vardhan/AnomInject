@@ -338,6 +338,41 @@ Copy-Item "D:\IntrusiveAnomalies\StackOBot\Binaries\Win64\StackOBot.exe" $staged
 ⚠ **`Builds\BenchGate\Windows\StackOBot.exe` (217 KB) is the LAUNCHER STUB** — never scan or run it as
 the binary under test (**G90**). The real one is under `...\StackOBot\Binaries\Win64\`.
 
+🚨 **DISK FLOOR APPLIES TO ANY LINK, NOT ONLY A COOK (added 2026-09-01).** §8.6 STEP 0's
+**≥15 GB GO / <10 GB NO-GO** must be checked **on the volume holding `Binaries`** before *every* build.
+Measured failure: a game-target link at 2 GB free died with
+`LINK : fatal error LNK1201: error writing to program database` — `StackOBot.pdb` alone is **1.76 GB**.
+
+⚠ **AND THE FAILED LINK HAD ALREADY DELETED THE PREVIOUS EXE — `G164`'s SECOND FORM.** `G164` records a
+killed build leaving a 2 MiB exe that the next `Build.bat` called "up to date"; this is the other half:
+the link removes the old exe *before* it writes the new one, so a link that dies leaves
+`Binaries\Win64` with a `.pdb`, an `.exp`, a `.lib` and **no `.exe` at all**. **After any failed build,
+verify the exe EXISTS and is whole (size + sha8) before assuming you can just re-run.**
+
+📌 **STRUCTURAL FIX IN PLACE:** `StackOBot\Binaries` is now a **junction onto `E:`**, matching
+`Intermediate` and `Saved`, so link output no longer lands on the small volume.
+
+📐 **THE IDENTITY INSTRUMENT (added 2026-08-26, session 062) — every 8-hex hash in this project is the
+FIRST 8 HEX CHARACTERS OF SHA-256.** exe, `.utoc`, `.ucas`, `.pak`, all of them:
+
+```powershell
+(Get-FileHash <path> -Algorithm SHA256).Hash.Substring(0,8)
+```
+
+Verified against an archived baseline: `StackOBot.exe.m34-fix-candidate-7F37A4AC` returns `7F37A4AC`;
+MD5 (`56B3128A…`) and SHA-1 (`86766AFE…`) do not. ⚠ **This was stated only in
+`_binary_baselines\README.md`, which is OUTSIDE version control (`G112`), and never here** — so every
+"re-verify its hash" instruction in this file and in the gate files was, until now, missing its
+instrument. Re-verify **at both ends of every exe swap** (`A62` — a copy that ran is not a copy that
+landed).
+
+⛔ **NO ARCHIVED BASELINE IS DELETED UNTIL THE DOCS SAY WHAT GATE DEPENDS ON IT.** "It looks old" is
+not an answer; a named gate, or an explicit *"nothing depends on it"*, is. Two live examples:
+`StackOBot.exe.m34-fix-candidate-7F37A4AC` is `G-M6`'s A-side, and
+`StackOBot.exe.m34-candidate-17DEAA74` — named in no stop block — is the exe **every m34 home gate leg
+ran on** (journal 058). Counter-example on the record: `64568A5D` was overwritten without archiving
+(journal 059).
+
 ### 8.2 A44 provenance — scan the STAGED artifact, BOTH encodings
 
 The hot-swap **is** the stage step, so *compiled ≠ staged* still applies.
@@ -403,6 +438,69 @@ it, and **do not read its diff**. *A leg is discarded for how it ran, never for 
 
 **A62:** verify the session **on disk after the process has exited** — directory present, file count
 right. A log line saying `FINISHED` is not evidence a file exists.
+
+### 8.4b 🎯 KNOWN-ANSWER LEG TARGETS — the replayable tokens (added 2026-08-26, session 061)
+
+🚨 **A BARE CLASS NAME MATCHES NOTHING ON A UAID ACTOR, AND THE LEG READS AS A CLEAN EMPTY RUN.**
+Firing at `SM_Ramp2` gave `zero_match_bursts = 8`, `positive_frames = 0`, no error, artifacts written
+— **INVALID, not a pass and not a failure** (below the ≥3-counted-events validity floor). Until this
+entry existed, the replayable forms lived **only inside banked `run.json` files**, which made every
+re-run of a known-answer leg a discovery exercise.
+
+**Copy these verbatim:**
+
+```
+SM_Ramp2_UAID_B42E9936F5429ADA00_2086822137
+BP_SplineSpawn_C_UAID_A85E45CFE40412DE00_1511100424
+```
+
+**Why only some targets need the long form:** `CB_GateLevel`'s actors were script-spawned with only
+`set_actor_label()`, so their `GetName()` really is `StaticMeshActor_<n>` and a **bare name matches**
+(use the `=` sentinel for an exact hit, e.g. `=StaticMeshActor_49`, `=StaticMeshActor_73`).
+MainWorld's editor-placed and Blueprint actors carry a runtime `_UAID_…` suffix, so a bare class name
+matches nothing there.
+
+**Their known answers, so a leg is judged and not merely run:**
+
+| target | known answer |
+|---|---|
+| `=StaticMeshActor_49` | the calibration control; in-bbox band **66,843–66,878 px** at the modal pose |
+| `=StaticMeshActor_73` | `Cylinder`, **non-Nanite** — 8/8 `MEASURED_NONZERO` at ~**5.27 %** of frame against its own claimed 6.87 %, all discard buckets clean |
+| `SM_Ramp2_UAID_…` | the **known-Nanite** control — must read `NOT_MEASURED` **×8**, `MEASURED_ZERO` **0**, `vetoed 0` (`G134`) |
+| `BP_SplineSpawn_C_UAID_…` | the **zero-only veto** demonstration — `MEASURED_ZERO` ×8, 8 `VETOED-OBJECT` lines, `vetoed_events = 8`, `annotation.json` anomalies **[]**, and all 90 PNGs still on disk (`L1`) |
+
+⚠ **Grep the bank for a target token BEFORE designing a leg around it** (`G116`'s habit applied to
+targets). See `docs/gotchas.md` **G174**.
+
+### 8.4c ⚖ DERIVE A RE-RUN'S PAYLOAD FROM THE BANKED LEG, NEVER FROM A DOC (added 2026-08-26, s062)
+
+🚨 **A LEG PAYLOAD HAND-TRANSCRIBED INTO A DOC IS A DEFECT SURFACE WITH NO KNOWN-ANSWER CONTROL ON
+IT.** Measured: the session-061 journal's payload for the `StaticMeshActor_73` known-answer leg
+diverged from `M34_R3_CYL73` — the leg it cites — on **four axes** (anomaly `missing_texture` vs
+**`blinking`**, seed `4242` vs **`777`**, `=StaticMeshActor_73` vs the bare form, and
+**`IAI.Capture.MaskReduce both` omitted entirely**). The last one is disqualifying: without `both`,
+**no `MASK-REDUCE COMPARE` line is emitted at all**, so the leg completes, writes artifacts, and has
+no verdict available on it. `G142`'s shape applied to launch lines. See **G184**.
+
+**THE RULE:** read the banked leg's own record and derive the payload from it.
+
+```powershell
+$b = "D:\IntrusiveAnomalies\_bench_sessions_bank\<BANKED_LEG>"
+Get-Content "$b\_leg_geometry.json" -Raw | ConvertFrom-Json     # anomaly · target · map · geometry · extra_execcmds
+Get-ChildItem $b -Recurse -Filter run.json | Select-Object -First 1 |
+  ForEach-Object { Get-Content $_.FullName -Raw | ConvertFrom-Json } # seed · frame_cap · paced · start_frame
+```
+
+⇒ **Before running ANY leg graded against a banked datum, diff the intended payload against that
+datum's recorded config on every axis and REPORT THE DIFF — even when it is empty.**
+
+⚠ **THE TWO FILES ARE COMPLEMENTARY AND BOTH ARE REQUIRED**, and together they still have a blind
+spot. `_leg_geometry.json` (19 fields) carries anomaly / target / map / geometry / `extra_execcmds`;
+`run.json` carries `seed` / `frame_cap` / `paced` / `start_frame` — and `run.json`'s own
+`target_anomaly` and `target_actor` are **empty**. 🚨 **`CaptureBench.Marker` is recorded in NEITHER**,
+so it is an **un-diffable axis**. Harmless for a log-line verdict; live for anything graded by pixels,
+where **G125** says the marker changes every frame by construction. **Run marker OFF for any frame
+comparison and put it in the label.**
 
 ### 8.5 Run the gate — do not hand-roll a comparator
 
@@ -524,6 +622,23 @@ foreach($p in @("<new symbol>","IsHideTypeAnomaly")){ "{0,-32} utf16={1}" -f $p,
 
 📏 **Measured 2026-08-20: 45 s / 22 actions**, dll 473,600 B → 590,336 B. Cheap; skipping it cost a
 39-minute cook that produced an unbootable build.
+
+🔎 **THEN READ THE TICK-PIN PROBE ECHO AND RECORD WHICH ROUTE FIRED (added 2026-08-31; do this from
+visit A onward).** The probe runs at build time and prints its result to the build log:
+
+```
+AnomalyCapture: TICKPIN probe   route C fork-named files: ...
+```
+
+**Write down which route fired, or that none did.** That reading is the BASELINE — it is what makes a
+later change in tick-pin behaviour attributable instead of merely noticed. ⚠ **This is a LOG READ, not
+a code change.** ⛔ `AnomalyCapture.Build.cs` is **never altered** (owner ruling) — the probe's
+fork-name needles are load-bearing and the scrub instrument carries a permanent, printed exclusion for
+that file.
+🚨 **WHY THE OFFICE IS THE ONLY PLACE THIS READING IS WORTH ANYTHING:** the home box has no forked
+engine loop, so route C correctly reports *not fired* here **whether the detector works or not**. A
+home run cannot distinguish a working probe from a broken one; the office box is the only positive
+control this project has.
 
 ### 3.6 🗺 CURRENT DISK TOPOLOGY — `Intermediate` and `Saved` LIVE ON `E:` VIA JUNCTIONS
 

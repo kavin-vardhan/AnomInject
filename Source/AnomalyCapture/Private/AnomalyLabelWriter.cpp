@@ -479,7 +479,8 @@ namespace AnomalyLabel
 		const FRingTelemetry* Ring,
 		int32 MaskProbeArms, int32 MaskResidualDiscards, int32 MaskNoPassDiscards,
 		int32 VetoedEvents, int32 TranslucentVetoes, int32 TranslucencyUnknownVetoes,
-		const FTickPinTelemetry* TickPin, int32 PatternExcludedTargets)
+		const FTickPinTelemetry* TickPin, int32 PatternExcludedTargets,
+		const FReadbackLayoutTelemetry* ReadbackLayout)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -528,6 +529,23 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("capture_game_ticks"), TickPin->GameTicks);
 			Root->SetNumberField(TEXT("ticks_per_captured_frame"),
 				TotalFrames > 0 ? ((double)TickPin->GameTicks / (double)TotalFrames) : 0.0);
+		}
+
+		if (ReadbackLayout)
+		{
+			TSharedRef<FJsonObject> L = MakeShared<FJsonObject>();
+			L->SetNumberField(TEXT("source_extent_w"), ReadbackLayout->SourceExtentX);
+			L->SetNumberField(TEXT("source_extent_h"), ReadbackLayout->SourceExtentY);
+			L->SetNumberField(TEXT("rect_min_x"), ReadbackLayout->RectMinX);
+			L->SetNumberField(TEXT("rect_min_y"), ReadbackLayout->RectMinY);
+			L->SetNumberField(TEXT("rect_max_x"), ReadbackLayout->RectMaxX);
+			L->SetNumberField(TEXT("rect_max_y"), ReadbackLayout->RectMaxY);
+			L->SetNumberField(TEXT("picture_w"), ReadbackLayout->W);
+			L->SetNumberField(TEXT("picture_h"), ReadbackLayout->H);
+			L->SetNumberField(TEXT("buffer_height"), ReadbackLayout->BufferHeight);
+			L->SetNumberField(TEXT("row_pitch_in_pixels"), ReadbackLayout->RowPitchInPixels);
+			L->SetNumberField(TEXT("pixel_format"), ReadbackLayout->Format);
+			Root->SetObjectField(TEXT("readback_layout"), L);
 		}
 
 		FString Out;

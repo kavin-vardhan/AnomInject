@@ -44,8 +44,12 @@ public:
 	bool ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId);
 	void NoteIneligibleFamily();
 
-	void SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, EPixelFormat Format,
-		TUniquePtr<FRHIGPUTextureReadback>&& Readback);
+	void SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, const FIntPoint& SourceExtent,
+		EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
+		TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback = TUniquePtr<FRHIGPUTextureReadback>());
+
+	int32 GetDualPathComparisons() const;
+	int32 GetDualPathMismatches() const;
 
 	void EnqueueDrain();
 	bool PopCompleted(FAnomalyCapturedFrame& Out);
@@ -53,6 +57,7 @@ public:
 
 	FAnomalySveHandshakeStats GetHandshakeStats() const;
 	FAnomalyReadbackLatencyStats GetLatencyStats() const;
+	FAnomalyReadbackLayout GetReadbackLayout() const;
 
 	void Reset();
 
@@ -63,10 +68,14 @@ private:
 	{
 		uint64 RequestId = 0;
 		TUniquePtr<FRHIGPUTextureReadback> Readback;
+		TUniquePtr<FRHIGPUTextureReadback> LegacyReadback;
 		FIntRect Rect;
+		FIntPoint SourceExtent = FIntPoint::ZeroValue;
 		EPixelFormat Format = PF_Unknown;
 		uint32 SubmitRtFrame = 0;
 	};
+
+	void CompareDualPath_RenderThread(FInFlight& Item, const FAnomalyCapturedFrame& OwnedFrame);
 
 	mutable FCriticalSection StateCS;
 	TArray<uint64> PendingWanted;
@@ -81,6 +90,13 @@ private:
 
 	mutable FCriticalSection LatencyCS;
 	FAnomalyReadbackLatencyStats Latency;
+
+	mutable FCriticalSection LayoutCS;
+	FAnomalyReadbackLayout Layout;
+
+	FThreadSafeCounter GuardDrops;
+	FThreadSafeCounter DualPathComparisons;
+	FThreadSafeCounter DualPathMismatches;
 };
 
 #endif

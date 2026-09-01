@@ -91,6 +91,21 @@ namespace AnomalyLabel
 		int32 GameTicks = 0;
 	};
 
+	struct FReadbackLayoutTelemetry
+	{
+		int32 SourceExtentX = 0;
+		int32 SourceExtentY = 0;
+		int32 RectMinX = 0;
+		int32 RectMinY = 0;
+		int32 RectMaxX = 0;
+		int32 RectMaxY = 0;
+		int32 W = 0;
+		int32 H = 0;
+		int32 BufferHeight = 0;
+		int32 RowPitchInPixels = 0;
+		int32 Format = 0;
+	};
+
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
 		int32 ZeroMatchBursts, uint64 EndFrame,
 		int32 TargetFps, double SustainedWallFps, double SpeedRatio, double StampedFps, double GameClockSpeedRatio, bool bPaced, bool bDeliveryMode,
@@ -98,7 +113,8 @@ namespace AnomalyLabel
 		const FRingTelemetry* Ring = nullptr,
 		int32 MaskProbeArms = 0, int32 MaskResidualDiscards = 0, int32 MaskNoPassDiscards = 0,
 		int32 VetoedEvents = 0, int32 TranslucentVetoes = 0, int32 TranslucencyUnknownVetoes = 0,
-		const FTickPinTelemetry* TickPin = nullptr, int32 PatternExcludedTargets = 0);
+		const FTickPinTelemetry* TickPin = nullptr, int32 PatternExcludedTargets = 0,
+		const FReadbackLayoutTelemetry* ReadbackLayout = nullptr);
 
 
 	struct FSessionVideo

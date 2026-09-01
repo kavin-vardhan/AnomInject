@@ -19,8 +19,24 @@ class FViewInfo;
 
 #include "ScreenPass.h"
 #include "PostProcess/PostProcessMaterial.h"
+#include "SceneRendering.h"
 
 #include "AnomalyVisibleMaskShader.h"
+#include "AnomalyMaskReduceShader.h"
+
+static FScreenPassTexture FinalizeMaskAfterPassOutput(FRDGBuilder& GraphBuilder, const FSceneView& View,
+	const FPostProcessMaterialInputs& Inputs, const FScreenPassTexture& SceneColor)
+{
+	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
+	if (!Output.IsValid() || !SceneColor.IsValid())
+	{
+		return SceneColor;
+	}
+	checkSlow(View.bIsViewInfo);
+	const FViewInfo& ViewInfo = static_cast<const FViewInfo&>(View);
+	AddDrawTexturePass(GraphBuilder, ViewInfo, SceneColor, Output);
+	return MoveTemp(Output);
+}
 
 FAnomalyMaskSceneViewExtension::FAnomalyMaskSceneViewExtension(const FAutoRegister& AutoRegister)
 	: FSceneViewExtensionBase(AutoRegister)
@@ -43,6 +59,12 @@ void FAnomalyMaskSceneViewExtension::SetAssignedTags(const TSet<uint8>& InAssign
 {
 	FScopeLock Lock(&StateCS);
 	AssignedTags = InAssignedTags;
+}
+
+void FAnomalyMaskSceneViewExtension::SetReduceMode(EAnomalyMaskReduceMode InMode)
+{
+	FScopeLock Lock(&StateCS);
+	ReduceMode = InMode;
 }
 
 int32 FAnomalyMaskSceneViewExtension::NumPendingArms() const
@@ -81,27 +103,29 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 
 	if (View.bIsSceneCapture || View.bIsReflectionCapture || View.bIsPlanarReflection || !SceneColor.IsValid())
 	{
-		return SceneColor;
+		return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	uint64 RequestId = 0;
 	float Bias = 1.0e-5f;
+	EAnomalyMaskReduceMode Mode = EAnomalyMaskReduceMode::Gpu;
 	{
 		FScopeLock Lock(&StateCS);
 		if (PendingArms.Num() == 0)
 		{
-			return SceneColor;
+			return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 		}
 		RequestId = PendingArms[0];
 		PendingArms.RemoveAt(0);
 		Bias = DepthBias;
+		Mode = ReduceMode;
 	}
 
 	const FIntRect ViewRect = SceneColor.ViewRect;
 	const FIntPoint Size = ViewRect.Size();
 	if (Size.X <= 0 || Size.Y <= 0)
 	{
-		return SceneColor;
+		return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	const FRDGTextureDesc MaskDesc = FRDGTextureDesc::Create2D(
@@ -120,8 +144,39 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	FPixelShaderUtils::AddFullscreenPass(GraphBuilder, ShaderMap, RDG_EVENT_NAME("AnomalyVisibleMask"),
 		PixelShader, P, FIntRect(0, 0, Size.X, Size.Y));
 
-	TUniquePtr<FRHIGPUTextureReadback> Readback = MakeUnique<FRHIGPUTextureReadback>(TEXT("AnomalyMaskReadback"));
-	AddEnqueueCopyPass(GraphBuilder, Readback.Get(), MaskRT);
+	FMaskInFlight Item;
+	Item.RequestId = RequestId;
+	Item.Mode = Mode;
+	Item.ViewRectSize = Size;
+
+	if (Mode != EAnomalyMaskReduceMode::Cpu)
+	{
+		FRDGBufferRef TableBuffer = GraphBuilder.CreateBuffer(
+			FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1280), TEXT("AnomalyMaskReduceTable"));
+		FRDGBufferUAVRef TableUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(TableBuffer, PF_R32_UINT));
+		AddClearUAVPass(GraphBuilder, TableUAV, 0u);
+
+		FAnomalyMaskReduceCS::FParameters* CSP = GraphBuilder.AllocParameters<FAnomalyMaskReduceCS::FParameters>();
+		CSP->MaskTexture = MaskRT;
+		CSP->OutTable = TableUAV;
+		CSP->MaskSize = Size;
+
+		TShaderMapRef<FAnomalyMaskReduceCS> ComputeShader(ShaderMap);
+		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("AnomalyMaskReduce"),
+			ComputeShader, CSP, FComputeShaderUtils::GetGroupCount(Size, 8));
+
+		TUniquePtr<FRHIGPUBufferReadback> BufferReadback =
+			MakeUnique<FRHIGPUBufferReadback>(TEXT("AnomalyMaskReduceReadback"));
+		AddEnqueueCopyPass(GraphBuilder, BufferReadback.Get(), TableBuffer, 1280u * sizeof(uint32));
+		Item.BufferReadback = MoveTemp(BufferReadback);
+	}
+
+	if (Mode != EAnomalyMaskReduceMode::Gpu)
+	{
+		TUniquePtr<FRHIGPUTextureReadback> Readback = MakeUnique<FRHIGPUTextureReadback>(TEXT("AnomalyMaskReadback"));
+		AddEnqueueCopyPass(GraphBuilder, Readback.Get(), MaskRT);
+		Item.Readback = MoveTemp(Readback);
+	}
 
 	int32 ModeAtPass = -1;
 	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth")))
@@ -141,35 +196,34 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(mask): M23 PASS id=%llu rCustomDepth_renderThread=%d customStencilExtent=%dx%d ")
-		TEXT("viewRect=%dx%d (StencilDummy is 1x1: extent 1x1 means custom depth was NOT produced)"),
-		RequestId, ModeAtPass, StencilExtent.X, StencilExtent.Y, Size.X, Size.Y);
+		TEXT("viewRect=%dx%d overrideOutput=%d (StencilDummy is 1x1: extent 1x1 means custom depth was ")
+		TEXT("NOT produced; overrideOutput=1 means the engine designated THIS callback the chain's final ")
+		TEXT("writer for the frame)"),
+		RequestId, ModeAtPass, StencilExtent.X, StencilExtent.Y, Size.X, Size.Y,
+		Inputs.OverrideOutput.IsValid() ? 1 : 0);
 
-	FMaskInFlight Item;
-	Item.RequestId = RequestId;
-	Item.Readback = MoveTemp(Readback);
-	Item.ViewRectSize = Size;
 	Item.CustomDepthModeAtPass = ModeAtPass;
 	Item.CustomStencilExtent = StencilExtent;
 	InFlight.Add(MoveTemp(Item));
 
-	return SceneColor;
+	return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }
 
-void FAnomalyMaskSceneViewExtension::EnqueueDrain()
+void FAnomalyMaskSceneViewExtension::EnqueueDrain(bool bFinal)
 {
 	TWeakPtr<FAnomalyMaskSceneViewExtension, ESPMode::ThreadSafe> WeakSelf =
 		StaticCastSharedRef<FAnomalyMaskSceneViewExtension>(AsShared());
 	ENQUEUE_RENDER_COMMAND(AnomalyMaskDrain)(
-		[WeakSelf](FRHICommandListImmediate&)
+		[WeakSelf, bFinal](FRHICommandListImmediate&)
 		{
 			if (TSharedPtr<FAnomalyMaskSceneViewExtension, ESPMode::ThreadSafe> Self = WeakSelf.Pin())
 			{
-				Self->Drain_RenderThread();
+				Self->Drain_RenderThread(bFinal);
 			}
 		});
 }
 
-void FAnomalyMaskSceneViewExtension::Drain_RenderThread()
+void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 {
 	TSet<uint8> LocalAssigned;
 	{
@@ -180,48 +234,140 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread()
 	for (int32 i = InFlight.Num() - 1; i >= 0; --i)
 	{
 		FMaskInFlight& Item = InFlight[i];
-		if (!Item.Readback.IsValid() || !Item.Readback->IsReady())
+		const bool bNeedCpu = Item.Mode != EAnomalyMaskReduceMode::Gpu;
+		const bool bNeedGpu = Item.Mode != EAnomalyMaskReduceMode::Cpu;
+		if (bNeedCpu && (!Item.Readback.IsValid() || !Item.Readback->IsReady()))
+		{
+			continue;
+		}
+		if (bNeedGpu && (!Item.BufferReadback.IsValid() || !Item.BufferReadback->IsReady()))
 		{
 			continue;
 		}
 
-		int32 RowPitchInPixels = 0;
-		int32 BufferHeight = 0;
-		void* Src = Item.Readback->Lock(RowPitchInPixels, &BufferHeight);
-		if (Src && RowPitchInPixels > 0)
+		const int32 W = Item.ViewRectSize.X;
+		const int32 H = Item.ViewRectSize.Y;
+
+		int32 CpuCounts[256] = {};
+		int32 CpuMinXs[256];
+		int32 CpuMinYs[256];
+		int32 CpuMaxXs[256];
+		int32 CpuMaxYs[256];
+		int32 GpuCounts[256] = {};
+		int32 GpuMinXs[256];
+		int32 GpuMinYs[256];
+		int32 GpuMaxXs[256];
+		int32 GpuMaxYs[256];
+		for (int32 t = 0; t < 256; ++t)
 		{
-			const int32 W = Item.ViewRectSize.X;
-			const int32 H = Item.ViewRectSize.Y;
-			const uint8* Base = static_cast<const uint8*>(Src);
+			CpuMinXs[t] = MAX_int32; CpuMinYs[t] = MAX_int32;
+			CpuMaxXs[t] = MIN_int32; CpuMaxYs[t] = MIN_int32;
+			GpuMinXs[t] = MAX_int32; GpuMinYs[t] = MAX_int32;
+			GpuMaxXs[t] = MIN_int32; GpuMaxYs[t] = MIN_int32;
+		}
 
-			int32 Counts[256] = {};
-			int32 MinXs[256];
-			int32 MinYs[256];
-			int32 MaxXs[256];
-			int32 MaxYs[256];
-			for (int32 t = 0; t < 256; ++t)
-			{
-				MinXs[t] = MAX_int32; MinYs[t] = MAX_int32;
-				MaxXs[t] = MIN_int32; MaxYs[t] = MIN_int32;
-			}
+		bool bHaveCpu = false;
+		bool bHaveGpu = false;
 
-			for (int32 y = 0; y < H; ++y)
+		if (bNeedCpu)
+		{
+			int32 RowPitchInPixels = 0;
+			int32 BufferHeight = 0;
+			void* Src = Item.Readback->Lock(RowPitchInPixels, &BufferHeight);
+			if (Src && RowPitchInPixels > 0
+				&& AnomalyReadback::CheckDrainBounds(TEXT("mask"), Item.RequestId, FIntRect(0, 0, W, H),
+					W, H, RowPitchInPixels, BufferHeight, GuardDrops))
 			{
-				const uint8* Row = Base + (int64)y * RowPitchInPixels;
-				for (int32 x = 0; x < W; ++x)
+				const uint8* Base = static_cast<const uint8*>(Src);
+				for (int32 y = 0; y < H; ++y)
 				{
-					const uint8 V = Row[x];
-					if (V == 0)
+					const uint8* Row = Base + (int64)y * RowPitchInPixels;
+					for (int32 x = 0; x < W; ++x)
 					{
-						continue;
+						const uint8 V = Row[x];
+						if (V == 0)
+						{
+							continue;
+						}
+						++CpuCounts[V];
+						if (x < CpuMinXs[V]) { CpuMinXs[V] = x; }
+						if (y < CpuMinYs[V]) { CpuMinYs[V] = y; }
+						if (x > CpuMaxXs[V]) { CpuMaxXs[V] = x; }
+						if (y > CpuMaxYs[V]) { CpuMaxYs[V] = y; }
 					}
-					++Counts[V];
-					if (x < MinXs[V]) { MinXs[V] = x; }
-					if (y < MinYs[V]) { MinYs[V] = y; }
-					if (x > MaxXs[V]) { MaxXs[V] = x; }
-					if (y > MaxYs[V]) { MaxYs[V] = y; }
+				}
+				bHaveCpu = true;
+			}
+			if (Src)
+			{
+				Item.Readback->Unlock();
+			}
+		}
+
+		if (bNeedGpu)
+		{
+			const void* BufSrc = Item.BufferReadback->Lock(1280u * sizeof(uint32));
+			if (BufSrc)
+			{
+				const uint32* T = static_cast<const uint32*>(BufSrc);
+				for (int32 t = 0; t < 256; ++t)
+				{
+					const uint32 C = T[t * 5 + 0];
+					GpuCounts[t] = (int32)C;
+					if (C > 0)
+					{
+						GpuMinXs[t] = (int32)~T[t * 5 + 1];
+						GpuMinYs[t] = (int32)~T[t * 5 + 2];
+						GpuMaxXs[t] = (int32)T[t * 5 + 3];
+						GpuMaxYs[t] = (int32)T[t * 5 + 4];
+					}
+				}
+				bHaveGpu = true;
+				Item.BufferReadback->Unlock();
+			}
+		}
+
+		if (Item.Mode == EAnomalyMaskReduceMode::Both && bHaveCpu && bHaveGpu)
+		{
+			int32 DiffTag = -1;
+			const TCHAR* DiffField = TEXT("");
+			int32 DiffCpu = 0;
+			int32 DiffGpu = 0;
+			for (int32 t = 0; t < 256 && DiffTag < 0; ++t)
+			{
+				if (CpuCounts[t] != GpuCounts[t])
+				{
+					DiffTag = t; DiffField = TEXT("count"); DiffCpu = CpuCounts[t]; DiffGpu = GpuCounts[t];
+				}
+				else if (CpuCounts[t] > 0)
+				{
+					if (CpuMinXs[t] != GpuMinXs[t]) { DiffTag = t; DiffField = TEXT("minx"); DiffCpu = CpuMinXs[t]; DiffGpu = GpuMinXs[t]; }
+					else if (CpuMinYs[t] != GpuMinYs[t]) { DiffTag = t; DiffField = TEXT("miny"); DiffCpu = CpuMinYs[t]; DiffGpu = GpuMinYs[t]; }
+					else if (CpuMaxXs[t] != GpuMaxXs[t]) { DiffTag = t; DiffField = TEXT("maxx"); DiffCpu = CpuMaxXs[t]; DiffGpu = GpuMaxXs[t]; }
+					else if (CpuMaxYs[t] != GpuMaxYs[t]) { DiffTag = t; DiffField = TEXT("maxy"); DiffCpu = CpuMaxYs[t]; DiffGpu = GpuMaxYs[t]; }
 				}
 			}
+			if (DiffTag < 0)
+			{
+				UE_LOG(LogAnomalyCapture, Log, TEXT("MASK-REDUCE COMPARE id=%llu IDENTICAL"), Item.RequestId);
+			}
+			else
+			{
+				UE_LOG(LogAnomalyCapture, Error,
+					TEXT("MASK-REDUCE COMPARE id=%llu FIRST-DIFF tag=%d field=%s cpu=%d gpu=%d"),
+					Item.RequestId, DiffTag, DiffField, DiffCpu, DiffGpu);
+			}
+		}
+
+		const bool bUseGpu = Item.Mode != EAnomalyMaskReduceMode::Cpu;
+		const bool bHaveResult = bUseGpu ? bHaveGpu : bHaveCpu;
+		if (bHaveResult)
+		{
+			const int32* Counts = bUseGpu ? GpuCounts : CpuCounts;
+			const int32* MinXs = bUseGpu ? GpuMinXs : CpuMinXs;
+			const int32* MinYs = bUseGpu ? GpuMinYs : CpuMinYs;
+			const int32* MaxXs = bUseGpu ? GpuMaxXs : CpuMaxXs;
+			const int32* MaxYs = bUseGpu ? GpuMaxYs : CpuMaxYs;
 
 			FAnomalyMaskResult Result;
 			Result.ViewRectSize = Item.ViewRectSize;
@@ -253,25 +399,38 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread()
 			const int32 ViewPixels = W * H;
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(mask): M23 REDUCE id=%llu mode=%d stencilExtent=%dx%d totalMasked=%d ")
-				TEXT("unassignedTag=%d unassignedCount=%d viewPixels=%d unassignedPctOfFrame=%.2f"),
+				TEXT("unassignedTag=%d unassignedCount=%d viewPixels=%d unassignedPctOfFrame=%.2f reduce=%s"),
 				Item.RequestId, Item.CustomDepthModeAtPass, Item.CustomStencilExtent.X,
 				Item.CustomStencilExtent.Y, Result.TotalMaskedPixels,
 				(int32)Result.FirstUnassignedTag, Result.UnassignedTagCount, ViewPixels,
-				ViewPixels > 0 ? (100.0 * (double)Result.UnassignedTagCount / (double)ViewPixels) : -1.0);
-
-			Item.Readback->Unlock();
+				ViewPixels > 0 ? (100.0 * (double)Result.UnassignedTagCount / (double)ViewPixels) : -1.0,
+				LexToStringAnomalyMaskReduceMode(Item.Mode));
 
 			{
 				FScopeLock Lock(&ResultsCS);
 				Results.Add(Item.RequestId, MoveTemp(Result));
 			}
 		}
-		else if (Src)
-		{
-			Item.Readback->Unlock();
-		}
 
 		InFlight.RemoveAt(i);
+	}
+
+	if (bFinal && InFlight.Num() > 0)
+	{
+		FString Ids;
+		for (const FMaskInFlight& Item : InFlight)
+		{
+			Ids += FString::Printf(TEXT(" %llu"), Item.RequestId);
+		}
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(mask): M34 LOST-IN-FLIGHT lostInFlight=%d requestIds=[%s ] - these armed frames' ")
+			TEXT("readbacks were still not ready at the run's FINAL bounded drain (one EnqueueDrain + ")
+			TEXT("FlushRenderingCommands; poll, never wait). Each is a LOST MEASUREMENT: its arm resolves ")
+			TEXT("nothing and reads as resolved < arms on the M26S1 EVENT line. The veto consumes only ")
+			TEXT("COMPLETE results - an event whose armed frames were all lost stays NOT_MEASURED, which ")
+			TEXT("ADMITS. Expected count on this bench: ZERO (readback latency is one render frame and the ")
+			TEXT("drain tail precedes FinishRun)."),
+			InFlight.Num(), *Ids);
 	}
 }
 

@@ -16,6 +16,7 @@ namespace
 FAnomalyPreviewTee::FAnomalyPreviewTee()
 {
 	Capturer = MakeShared<FAnomalyFrameCapturer, ESPMode::ThreadSafe>();
+	Capturer->SetLayoutPathName(TEXT("preview-tee"));
 	Capturer->RegisterBackbufferHook();
 	Slot = MakeShared<FSlot, ESPMode::ThreadSafe>();
 }

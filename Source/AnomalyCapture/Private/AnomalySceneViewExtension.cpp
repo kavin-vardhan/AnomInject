@@ -17,6 +17,21 @@ class FViewInfo;
 
 #include "PostProcess/PostProcessMaterial.h"
 #include "ScreenPass.h"
+#include "SceneRendering.h"
+
+static FScreenPassTexture FinalizeSveAfterPassOutput(FRDGBuilder& GraphBuilder, const FSceneView& View,
+	const FPostProcessMaterialInputs& Inputs, const FScreenPassTexture& SceneColor)
+{
+	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
+	if (!Output.IsValid() || !SceneColor.IsValid())
+	{
+		return SceneColor;
+	}
+	checkSlow(View.bIsViewInfo);
+	const FViewInfo& ViewInfo = static_cast<const FViewInfo&>(View);
+	AddDrawTexturePass(GraphBuilder, ViewInfo, SceneColor, Output);
+	return MoveTemp(Output);
+}
 
 FAnomalySceneViewExtension::FAnomalySceneViewExtension(const FAutoRegister& AutoRegister,
 	const TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe>& InCapturer)
@@ -72,7 +87,7 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Cap = Capturer.Pin();
 	if (!Cap.IsValid() || !SceneColor.IsValid() || View.bIsSceneCapture || View.bIsReflectionCapture)
 	{
-		return SceneColor;
+		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	const uint32 FamilyFrame = View.Family ? View.Family->FrameNumber : 0;
@@ -86,12 +101,12 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 			TEXT("(published=%d consumed=%d missed=%d wrapped=%d, forceMiss=%d)."),
 			FamilyFrame, Counters.Published, Counters.Consumed, Counters.Missed, Counters.Wrapped,
 			AnomalySveKeyRing::IsForceMiss() ? 1 : 0);
-		return SceneColor;
+		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	if (!Entry.bWanted)
 	{
-		return SceneColor;
+		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	FRDGTextureRef Texture = SceneColor.Texture;
@@ -100,17 +115,51 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	{
 		UE_LOG(LogAnomalyCapture, Warning,
 			TEXT("Capture(sve): empty scene-colour rect for frame id=%llu — skipped."), Entry.RequestId);
-		return SceneColor;
+		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
+
+	const FIntPoint SourceExtent = Texture->Desc.Extent;
+	if (Rect.Min.X < 0 || Rect.Min.Y < 0 || Rect.Max.X > SourceExtent.X || Rect.Max.Y > SourceExtent.Y)
+	{
+		++ExtentClampDrops;
+		UE_LOG(LogAnomalyCapture, Error,
+			TEXT("Capture(sve): EXTENT-CLAMP FIRED — FRAME DROPPED, NOT WRITTEN (clamp drop %d this run). ")
+			TEXT("id=%llu viewRect=(%d,%d)-(%d,%d) is NOT INSIDE sceneColour extent %dx%d. Capturing the ")
+			TEXT("clamped region instead would silently deliver a DIFFERENT picture than the label describes, ")
+			TEXT("so the frame is dropped. This means the view rect and the scene-colour texture disagree ")
+			TEXT("about their coordinate space on this host — report these numbers, they are the discriminator."),
+			ExtentClampDrops, Entry.RequestId, Rect.Min.X, Rect.Min.Y, Rect.Max.X, Rect.Max.Y,
+			SourceExtent.X, SourceExtent.Y);
+		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+	}
+
+	const int32 W = Rect.Width();
+	const int32 H = Rect.Height();
+
+	const FRDGTextureDesc OwnDesc = FRDGTextureDesc::Create2D(
+		FIntPoint(W, H), Texture->Desc.Format, FClearValueBinding::None,
+		TexCreate_ShaderResource | TexCreate_RenderTargetable);
+	FRDGTextureRef OwnTexture = GraphBuilder.CreateTexture(OwnDesc, TEXT("AnomalySveColorSubRect"));
+
+	AddCopyTexturePass(GraphBuilder, Texture, OwnTexture,
+		FIntPoint(Rect.Min.X, Rect.Min.Y), FIntPoint::ZeroValue, FIntPoint(W, H));
 
 	TUniquePtr<FRHIGPUTextureReadback> Readback = MakeUnique<FRHIGPUTextureReadback>(TEXT("AnomalySveColorReadback"));
 
-	AddEnqueueCopyPass(GraphBuilder, Readback.Get(), Texture,
-		FResolveRect(Rect.Min.X, Rect.Min.Y, Rect.Max.X, Rect.Max.Y));
+	AddEnqueueCopyPass(GraphBuilder, Readback.Get(), OwnTexture);
 
-	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, Texture->Desc.Format, MoveTemp(Readback));
+	TUniquePtr<FRHIGPUTextureReadback> LegacyReadback;
+	if (AnomalyReadback::IsDualPathReadbackEnabled())
+	{
+		LegacyReadback = MakeUnique<FRHIGPUTextureReadback>(TEXT("AnomalySveColorReadbackLegacy"));
+		AddEnqueueCopyPass(GraphBuilder, LegacyReadback.Get(), Texture,
+			FResolveRect(Rect.Min.X, Rect.Min.Y, Rect.Max.X, Rect.Max.Y));
+	}
 
-	return SceneColor;
+	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, SourceExtent, Texture->Desc.Format,
+		MoveTemp(Readback), MoveTemp(LegacyReadback));
+
+	return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }
 
 #endif
