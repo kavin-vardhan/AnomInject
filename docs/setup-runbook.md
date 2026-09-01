@@ -609,6 +609,23 @@ foreach($p in @("<new symbol>","IsHideTypeAnomaly")){ "{0,-32} utf16={1}" -f $p,
 📏 **Measured 2026-08-20: 45 s / 22 actions**, dll 473,600 B → 590,336 B. Cheap; skipping it cost a
 39-minute cook that produced an unbootable build.
 
+🔎 **THEN READ THE TICK-PIN PROBE ECHO AND RECORD WHICH ROUTE FIRED (added 2026-08-31; do this from
+visit A onward).** The probe runs at build time and prints its result to the build log:
+
+```
+AnomalyCapture: TICKPIN probe   route C fork-named files: ...
+```
+
+**Write down which route fired, or that none did.** That reading is the BASELINE — it is what makes a
+later change in tick-pin behaviour attributable instead of merely noticed. ⚠ **This is a LOG READ, not
+a code change.** ⛔ `AnomalyCapture.Build.cs` is **never altered** (owner ruling) — the probe's
+fork-name needles are load-bearing and the scrub instrument carries a permanent, printed exclusion for
+that file.
+🚨 **WHY THE OFFICE IS THE ONLY PLACE THIS READING IS WORTH ANYTHING:** the home box has no forked
+engine loop, so route C correctly reports *not fired* here **whether the detector works or not**. A
+home run cannot distinguish a working probe from a broken one; the office box is the only positive
+control this project has.
+
 ### 3.6 🗺 CURRENT DISK TOPOLOGY — `Intermediate` and `Saved` LIVE ON `E:` VIA JUNCTIONS
 
 ⚠ **A future reader must NOT find ~21 GB "missing" from `D:` and conclude something is broken.**
