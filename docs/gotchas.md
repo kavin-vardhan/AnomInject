@@ -916,7 +916,7 @@ at 5.16× slow; correct is 60 → 2.0 s natural — the owner's own hand-patch t
 game` (or the `[AnomalyCapture] ContentClockDefault=game` ini key) makes game mode stamp TARGET at any ratio.
 **Default is `wall`** (RESOLVED m15, 2026-07-13; the member default + the GConfig-absent fallback both resolve to wall). It
 briefly shipped as `game` in m14 pending validation; the owner then tested wall vs game on the ACTUAL office machine and
-settled it: **the client titles (Until Dawn, Concorde) are WALL-clock** — wall produces correct-SPEED videos for them (their
+settled it: **the client titles (Bates, Concorde) are WALL-clock** — wall produces correct-SPEED videos for them (their
 LENGTH varies with real capture duration, which is correct for wall-clock content; natural playback SPEED is the criterion).
 The earlier `Fps` 120/240 "slow motion" was an extreme-forced-ratio artifact, not game-clock evidence. **StackOBot is
 GAME-clock** — set `game` in its build's ini. **Do NOT flip the default to game "to be helpful":** for the client's
@@ -4052,7 +4052,7 @@ not just the test's assertions.
 
 ## G153 — console arg quotes survive into the path: a quoted outDir becomes literal quote characters in RunDir
 
-Relayed from the first Concorde/FWChaos run (m31, office box): `IAI.Capture.Start` with outDir
+Relayed from the first Concorde run (m31, office box): `IAI.Capture.Start` with outDir
 `"E:\Captures"` carried the QUOTE CHARACTERS into `RunDir` as literal path characters, and the run
 ended with `Warning: Capture: failed to write annotation.json`. A CLIENT-FACING SHARP EDGE: quoting a
 path is the natural thing to type, the run appears to proceed, and the failure surfaces only at

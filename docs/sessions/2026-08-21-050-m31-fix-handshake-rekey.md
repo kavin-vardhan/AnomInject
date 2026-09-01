@@ -10,7 +10,7 @@ StackOBot (the only locally testable host) on BOTH capture paths, pushed for off
 
 **FIRST DEFECT EVER FOUND BY A SECOND HOST, AND THE SHIPPING DEFAULT CAPTURE PATH WAS THE BROKEN
 ONE.** The SVE path — default since m25, certified across ten configs, every ratio regime, both
-delivery modes, four milestones — wrote ZERO frames on Concorde (Firewalk fork: FIXED game sim +
+delivery modes, four milestones — wrote ZERO frames on Concorde (forked engine loop: FIXED game sim +
 VARIABLE render, engaged by the owner's ordinary networked-client workflow). The backbuffer path
 wrote 120/120 across three sessions on the same build. **StackOBot could never have caught this:
 every certification leg ran on one host with a lockstep engine loop. Fourth instance in five days

@@ -340,7 +340,7 @@ and is the single source of truth for the project.
   says nothing about a second axis** — second instance in three days (`m27`'s settled camera was the
   first). ⚠ **Milestone numbering verified at cold start: m28/m29/m30 ALL EXIST, highest tag is
   `m30`; chat's "last tag m27" record was stale by three. m31 is the correct next number — NO gap.**
-  🎯 **THE SYMPTOM (Concorde/FWChaos, UE 5.1 source-built, m27 build, delivery ON):** SVE default ⇒
+  🎯 **THE SYMPTOM (Concorde, UE 5.1 source-built, m27 build, delivery ON):** SVE default ⇒
   session folder + `annotation.json` + `run_summary` written, `Actual_Frames/` EMPTY, `total_frames
   0`, 9 bursts fired, pacer clean · `IAI.Capture.SVE 0` ⇒ PNGs written normally, same build, same
   machine. **THE OFFICE DIAGNOSIS (relayed, then INDEPENDENTLY VERIFIED FROM SOURCE HERE — journal
@@ -3291,7 +3291,7 @@ and is the single source of truth for the project.
 - **Prior milestone (as-built): Content-clock default reverted to WALL — COMPLETE (tagged `m15`) (2026-07-13).**
   Small settle-milestone on top of m14: flips the `IAI.Capture.ContentClock` **default back to `wall`** (m14 had briefly
   shipped `game` on an owner override pending validation). RESOLVED by the owner testing wall vs game on the actual office
-  machine: **the client titles (Until Dawn/Concorde) are WALL-clock** — wall gives correct-SPEED video (length varies with
+  machine: **the client titles (Bates/Concorde) are WALL-clock** — wall gives correct-SPEED video (length varies with
   real capture duration = correct for wall-clock content); the earlier Fps 120/240 "slow motion" was an extreme-forced-ratio
   artifact, not game-clock evidence. Wall default is client-safe (a `game` default would play their real-time-clock videos
   ~2× FAST = the Issue-2 regression). **StackOBot is game-clock → set `game` via its build's `DefaultGame.ini [AnomalyCapture]

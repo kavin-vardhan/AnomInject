@@ -5,7 +5,7 @@ run exists.** Restate this table verbatim before any result is read.
 
 ## Context, one paragraph
 
-First run of the plugin on a second host (Concorde, UE 5.1 source-built, packaged name FWChaos,
+First run of the plugin on a second host (Concorde, UE 5.1 source-built, packaged exe name deliberately withheld (codename-only invariant; visible on the office box itself),
 m27 build): the SVE path — the shipping default since m25 — produced ZERO frames while the
 backbuffer path (`IAI.Capture.SVE 0`) wrote PNGs normally on the same build and machine. The
 office-side diagnosis (relayed, treated as evidence to verify): zero `Capture(sve): keyed frame

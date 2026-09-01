@@ -8,7 +8,7 @@ FAST-risk open" to the settled state. Small, focused: one-line default + doc cor
 m14 shipped the default as `game` on an owner override, pending validation, with the client titles'
 clock behavior marked UNRESOLVED (mixed-clock hypothesis: they showed a FAST signature at ratio ≈ 2 and
 a SLOW signature at `Fps` 120/240). The owner has now **tested wall vs game on the actual office
-machine** (Until Dawn, Concorde):
+machine** (Bates, Concorde):
 
 - **WALL produces correct-SPEED videos** for those titles. The video LENGTH varies with the real capture
   time — which is CORRECT for wall-clock content (natural playback SPEED is the criterion, and wall

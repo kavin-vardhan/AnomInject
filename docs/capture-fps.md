@@ -135,7 +135,7 @@ its `video.fps` already encodes the decision).
 The default is **wall**. This was tested and settled on the actual office machine (it briefly shipped as
 `game` in m14 pending that test — now closed):
 
-- **The client titles (Until Dawn, Concorde) are WALL-clock.** Owner-tested wall vs game on the office
+- **The client titles (Bates, Concorde) are WALL-clock.** Owner-tested wall vs game on the office
   machine: **wall** produces correct-SPEED videos for them. Their video LENGTH varies with the real
   capture duration — that is CORRECT for wall-clock content (natural playback SPEED is the criterion,
   and wall passes it), not a defect. The earlier `Fps` 120/240 "slow motion" was an
