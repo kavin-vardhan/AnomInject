@@ -45,7 +45,11 @@ public:
 	void NoteIneligibleFamily();
 
 	void SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, const FIntPoint& SourceExtent,
-		EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback);
+		EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
+		TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback = TUniquePtr<FRHIGPUTextureReadback>());
+
+	int32 GetDualPathComparisons() const;
+	int32 GetDualPathMismatches() const;
 
 	void EnqueueDrain();
 	bool PopCompleted(FAnomalyCapturedFrame& Out);
@@ -64,11 +68,14 @@ private:
 	{
 		uint64 RequestId = 0;
 		TUniquePtr<FRHIGPUTextureReadback> Readback;
+		TUniquePtr<FRHIGPUTextureReadback> LegacyReadback;
 		FIntRect Rect;
 		FIntPoint SourceExtent = FIntPoint::ZeroValue;
 		EPixelFormat Format = PF_Unknown;
 		uint32 SubmitRtFrame = 0;
 	};
+
+	void CompareDualPath_RenderThread(FInFlight& Item, const FAnomalyCapturedFrame& OwnedFrame);
 
 	mutable FCriticalSection StateCS;
 	TArray<uint64> PendingWanted;
@@ -88,6 +95,8 @@ private:
 	FAnomalyReadbackLayout Layout;
 
 	FThreadSafeCounter GuardDrops;
+	FThreadSafeCounter DualPathComparisons;
+	FThreadSafeCounter DualPathMismatches;
 };
 
 #endif

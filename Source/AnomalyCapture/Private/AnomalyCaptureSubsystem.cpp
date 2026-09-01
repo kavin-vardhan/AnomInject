@@ -1261,6 +1261,17 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 			TEXT("touches the engine tick mode and behaves exactly as it did before the pin existed."));
 	}
 
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("=== Capture(G-M9): EFFECTIVE FOR THIS RUN - dualPathReadback=%s. off is the shipped path ")
+		TEXT("and is byte-for-byte what it is without the instrument. on enqueues a SECOND readback in ")
+		TEXT("the PRE-m35 form alongside the m35 owned-copy readback ON THE SAME FRAME and byte-compares ")
+		TEXT("the two drained pictures; the comparison is sound ONLY because both passes are added ")
+		TEXT("consecutively and are read-only with respect to scene colour, so they observe identical ")
+		TEXT("contents. A non-zero diff has TWO causes and the output line names both - check ADJACENCY ")
+		TEXT("first. Mode 2 corrupts the legacy picture on purpose so the comparator can be proven to ")
+		TEXT("fire, and never touches what is written to disk. ==="),
+		*AnomalyReadback::DescribeDualPathReadback());
+
 	AnomalyViewport::SetOverlaysSuppressed(true);
 
 	Phase = ECapturePhase::LeadIn;

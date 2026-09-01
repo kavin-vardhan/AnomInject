@@ -40,6 +40,11 @@ namespace AnomalyReadback
 
 	bool CheckDrainBounds(const TCHAR* PathName, uint64 RequestId, const FIntRect& Rect,
 		int32 W, int32 H, int32 RowPitchInPixels, int32 BufferHeight, FThreadSafeCounter& DropCounter);
+
+	int32 GetDualPathReadbackMode();
+	bool IsDualPathReadbackEnabled();
+	bool IsDualPathForcedMismatch();
+	FString DescribeDualPathReadback();
 }
 
 class FAnomalyFrameCapturer : public TSharedFromThis<FAnomalyFrameCapturer, ESPMode::ThreadSafe>

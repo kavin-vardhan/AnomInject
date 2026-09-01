@@ -4876,3 +4876,47 @@ decide text-vs-binary by attempting the decode rather than by extension, and **p
 (`scanned N; skipped M binary; K exclusions`) so a shrinking denominator is visible. Any file
 deliberately out of scope is an explicit, dated, **printed** exclusion — never an absence from a glob.
 Silence and exemption must not look the same.
+
+## G192 — A DIFFERENTIAL TEST RUN WHERE THE TWO PATHS REDUCE TO THE SAME EXPRESSION PROVES NOTHING
+
+`G-M9` compares the m35 owned-copy readback against the pre-m35 whole-source readback on the same
+frame. Its first comparator leg reported **90 frames, 3,686,400 bytes each, zero differing** — a clean,
+categorical, completely uninformative pass. The leg ran at `rect=(0,0)-(1280,720)`, and at a **zero
+origin** the two drains are the *same arithmetic*:
+
+```
+new     Base +  (int64)y                  * RowPitch          * BPP
+legacy  Base + ((int64)(Rect.Min.Y + y)   * RowPitch + Rect.Min.X) * BPP
+```
+
+With `Rect.Min == (0,0)` the second collapses into the first. **The instrument was comparing an
+expression to itself** and would have returned IDENTICAL even if the offset handling were wholly wrong
+— which is the entire defect m35 exists to fix.
+
+The gate was only discharged by driving the origin off zero: `rect=(0,92)-(1280,628)` and
+`rect=(280,0)-(1000,720)`, the latter the first non-zero `Rect.Min.X` ever produced in this project.
+
+**RULE: for any differential test, identify the parameter values at which the two sides DEGENERATE
+into one, and make sure the gate is not standing on them.** A differential passes trivially at its
+degenerate point, and the degenerate point is usually the default — zero offset, empty list, single
+element, identity transform — so it is exactly where a leg lands if nobody chose otherwise. Ask what
+value would make the comparison vacuous, then check whether that is the value you ran.
+
+## G193 — A NEGATIVE RESULT CAN BE A PROPERTY OF THE FIXTURE, NOT OF THE HARNESS
+
+`G170` measured that `IAI.Bench.Letterbox` refuses under `-unattended`:
+**`LETTERBOX REFUSED - view target 'SpectatorPawn_2147482483' has no UCameraComponent`**. True, and
+correctly recorded. The **inference** attached to it — *"`G-M7`, `G-M8` and `G-M9`'s both-origins half
+must run in PIE"* — was wrong, and it stood for a week, scoping work onto a scarce manual session.
+
+The refusal was a property of **`CB_GateLevel`**, whose `-unattended` pawn is a `SpectatorPawn`. Run
+the same packaged harness against **`MainWorld`** and the view target is camera-bearing:
+**`LETTERBOX APPLIED on BP_SpawnPad_C_… / Camera`**, giving `rect=(0,92)` and `rect=(280,0)` unattended.
+The note *"UNTESTED AND CHEAP: a packaged MainWorld leg might supply a camera-bearing pawn"* was sitting
+in the same section the whole time.
+
+**RULE: when a capability is declared unavailable, name the FIXTURE the negative was measured on, and
+vary it before accepting the scope decision.** `G120`'s foreclosure failure with a new face: an
+observation about one map became a claim about the whole harness. Cheapest guard: any "X is impossible
+here" line must carry the map, the pawn, the target and the config it was measured under — then the
+next reader can see which of those to change.

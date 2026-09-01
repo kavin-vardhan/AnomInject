@@ -338,6 +338,20 @@ Copy-Item "D:\IntrusiveAnomalies\StackOBot\Binaries\Win64\StackOBot.exe" $staged
 ⚠ **`Builds\BenchGate\Windows\StackOBot.exe` (217 KB) is the LAUNCHER STUB** — never scan or run it as
 the binary under test (**G90**). The real one is under `...\StackOBot\Binaries\Win64\`.
 
+🚨 **DISK FLOOR APPLIES TO ANY LINK, NOT ONLY A COOK (added 2026-09-01).** §8.6 STEP 0's
+**≥15 GB GO / <10 GB NO-GO** must be checked **on the volume holding `Binaries`** before *every* build.
+Measured failure: a game-target link at 2 GB free died with
+`LINK : fatal error LNK1201: error writing to program database` — `StackOBot.pdb` alone is **1.76 GB**.
+
+⚠ **AND THE FAILED LINK HAD ALREADY DELETED THE PREVIOUS EXE — `G164`'s SECOND FORM.** `G164` records a
+killed build leaving a 2 MiB exe that the next `Build.bat` called "up to date"; this is the other half:
+the link removes the old exe *before* it writes the new one, so a link that dies leaves
+`Binaries\Win64` with a `.pdb`, an `.exp`, a `.lib` and **no `.exe` at all**. **After any failed build,
+verify the exe EXISTS and is whole (size + sha8) before assuming you can just re-run.**
+
+📌 **STRUCTURAL FIX IN PLACE:** `StackOBot\Binaries` is now a **junction onto `E:`**, matching
+`Intermediate` and `Saved`, so link output no longer lands on the small volume.
+
 📐 **THE IDENTITY INSTRUMENT (added 2026-08-26, session 062) — every 8-hex hash in this project is the
 FIRST 8 HEX CHARACTERS OF SHA-256.** exe, `.utoc`, `.ucas`, `.pak`, all of them:
 

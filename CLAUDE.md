@@ -26,6 +26,29 @@ and is the single source of truth for the project.
 > the inert-merge proof and the `-m 1` revert handle, is journal 061 **§12.0**.
 > ⛔ **STILL NOTHING IS TAGGED** (highest remains `m30`); the tag sequence is still
 > `m31` → `m33` → `m34` → `m35`, and it runs at the END of office visit A.
+> ✅ **`G-M9` IS GREEN — m35 IS HOME-CLOSED (2026-09-01).** Binary **`6B579F91`** = Build B + `G-M9`,
+> code-only, container unchanged. Exe chain **`733FE83C` → `6B579F91`**, both archived and verified.
+> Self-proof both ways: forced-mismatch fires on 90/90 with **one-byte** sensitivity; cvar-OFF
+> reproduces the banked `733FE83C` leg (`run_summary` 34/37 identical, the 3 differing being the
+> declared run-unique timing fields). Comparator **270 frames, ZERO byte differences**, at
+> `rect=(0,0)`, `rect=(0,92)` and **`rect=(280,0)`** — the first non-zero `Rect.Min.X` ever run here.
+> ⚠ The zero-origin leg is necessary and **not** sufficient — at zero origin the two indexings are the
+> same expression (`G192`). The gate rests on the two non-zero-origin legs. Journal 061 **§18**.
+> 🆕 **§10's "must run in PIE" is REFUTED** — the lever refuses on `CB_GateLevel` (SpectatorPawn) but
+> **APPLIES on packaged `MainWorld`** (`G193`). `G-M8`'s pillarbox gap is closed unattended.
+> ⛔ **`G-M7` (backbuffer path) is still OPEN** — `G-M9` instruments the SVE path only.
+> ⇒ **NEXT: the merge sequence in journal 061 §12.0**, starting with a fresh `merge-tree` pre-check.
+>
+> 🔧 **SHARED-TREE RULE, REFINED (2026-09-01, supersedes the scrub-era wording):**
+> **1.** Builds come **ONLY** from the main checkout. Switching the main checkout to another branch to
+> build it is **PERMITTED** when `git status` shows **no tracked modifications** and the branch being
+> left is **== its origin** (or its exact state is recorded first). **Every switch is stated in the
+> report, both directions, with the SHAs.**
+> **2.** Worktrees are for **read-only inspection and doc-only commits** on other branches while a
+> build-bearing branch stays checked out. **Never for builds.**
+> **3.** Path-scoped adds everywhere; **`git add -A` stays banned**; untracked owner docs are never
+> staged.
+>
 > 📌 **CODENAME-ONLY INVARIANT (2026-09-01):** hosts and their engine lineage are written as **Bates**
 > and **Concorde** everywhere. All three refs verified clean by the scrub instrument, which proves
 > itself against a synthetic known-answer fixture before every verdict. One permanent, printed

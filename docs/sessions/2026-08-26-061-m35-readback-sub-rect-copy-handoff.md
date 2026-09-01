@@ -492,6 +492,13 @@ pacer absorbing the cost.
 
 ## 10. THE BENCH COMMAND INVENTORY — packaged vs PIE-only
 
+> 🆕 **THIS SECTION'S CONCLUSION IS SUPERSEDED — SEE §18.** Its measurement stands (the `-unattended`
+> **`CB_GateLevel`** pawn is a `SpectatorPawn` with no `UCameraComponent`, so the lever refuses there),
+> but the inference drawn from it — *"`G-M7`, `G-M8` and `G-M9`'s both-origins half must run in PIE"* —
+> is **REFUTED BY MEASUREMENT**. A packaged **`MainWorld`** leg supplies a camera-bearing view target
+> and the lever APPLIES. The "UNTESTED AND CHEAP" note at the end of this section was correct and has
+> now been tested.
+
 **Reachable in a packaged `-unattended` leg:**
 `IAI.Capture.SVE <0|1>` · `IAI.Capture.Mask <0|1>` · `IAI.Capture.MaskProbe <0|1>` ·
 `IAI.Capture.MaskReduce <gpu|cpu|both>` · `IAI.Capture.Delivery <0|1>` ·
@@ -842,3 +849,70 @@ supports 90:
 - The bench cooked ini has **`bMaskMeasureDefault=True`** — a leg with no mask command runs mask
   **ON**; true inert needs an explicit `IAI.Capture.Mask 0`.
 - Full lesson set with receipts: `docs/gotchas.md`, session-061 block.
+
+---
+
+## 18. `G-M9` — BUILT, SELF-PROVEN, AND GREEN ON BOTH ORIGINS (2026-09-01)
+
+**Binary: `6B579F91`** = m35 Build B + `G-M9`, code-only (no `.usf`), container UNCHANGED
+(`2A66CA57` / `A7EF9B12` / `D8009AD7`, `G103`). Exe chain **`733FE83C` → `6B579F91`**; both archived
+and hash-verified at the destination. `A44` on the staged artifact: new symbols present at utf16 with
+the pre-existing `IAI.Bench.ReadbackGuardInflate` as the positive control (ascii 0 everywhere is
+expected — UE literals are UTF-16).
+
+**The instrument.** `IAI.Bench.DualPathReadback` — **0 = OFF (default)**, 1 = compare, 2 = compare
+with a deliberate one-byte corruption of the legacy picture. When on, the SVE path enqueues a second,
+independent readback in the **exact PRE-m35 form**, recovered verbatim from Build A `9aec10f` rather
+than reconstructed, and drained with the old offset indexing. Both `AddEnqueueCopyPass` calls are
+**adjacent, with only our own copy pass between them and nothing writing scene colour** — premise (a)
+is now a source-level fact as well as a source read. `A48` echo at `StartRun` names the effective mode.
+
+| leg | map | origin measured | frames | IDENTICAL | MISMATCH | UNAVAILABLE |
+|---|---|---|---|---|---|---|
+| **(b)** forced mismatch | CB_GateLevel | `(0,0)` | 90 | 0 | **90** ✅ | 0 |
+| **(c)** cvar OFF | CB_GateLevel | `(0,0)` | 90 (dualPath=0) | — | — | — |
+| **CMP zero origin** | CB_GateLevel | `rect=(0,0)-(1280,720)` | 90 | **90** | **0** | 0 |
+| **CMP non-zero Y** | MainWorld | `rect=(0,92)-(1280,628)` | 90 | **90** | **0** | 0 |
+| **CMP non-zero X** | MainWorld | `rect=(280,0)-(1000,720)` | 90 | **90** | **0** | 0 |
+
+✅ **(b) PROVE-IT-CAN-FAIL — the comparator's sensitivity is ONE BYTE.** The forced leg reported
+`1 of 3686400 bytes differ, firstDiff at byte 1843200 (row 360, col 0)` on **all 90** frames — exactly
+the injected XOR at the midpoint, and `forcedMismatch=1` is printed in the line so its fire cannot be
+misread as a defect. A comparator that has only ever reported zero is not a comparator (`G96`).
+
+✅ **(c) cvar-OFF REPRODUCES THE BANKED `733FE83C` LEG.** Instrument fully inert: `dualPath=1` **0**,
+`DUAL-PATH COMPARE` lines **0**, echo `off`. Known answers hit exactly — `A-I1` **29/29**
+`overrideOutput=1` with **0** at zero, `MASK-REDUCE COMPARE IDENTICAL` **29**, `FIRST-DIFF` **0**,
+guard **0**, clamp **0**. `run_summary` field-by-field against the banked leg: **34 of 37 identical**,
+the only three differing being `speed_ratio`, `game_clock_speed_ratio` and `sustained_wall_fps` — the
+declared run-unique timing set, differing in the seventh decimal.
+
+🚨 **AND THE ONE THAT ACTUALLY TESTS m35.** At **zero** origin the two indexings are the *same
+arithmetic expression* — the `Rect.Min` terms vanish — so `90/90 IDENTICAL` there is necessary and
+proves almost nothing. The gate is discharged by the two **non-zero-origin** legs, which is the first
+time in this project that **`Rect.Min.X > 0` has ever been exercised** (`G171`'s named coverage gap).
+Across all three comparator legs: **270 frames, ~995 MB of pixels, ZERO byte differences.**
+
+⇒ **`G-M9` IS GREEN. m35 IS HOME-CLOSED.**
+
+### 18.1 §10's PIE CONCLUSION IS REFUTED — the lever works PACKAGED on MainWorld
+
+§10 measured that the lever refuses under `-unattended` and concluded `G-M7`/`G-M8`/`G-M9`-both-origins
+"must run in PIE". **The measurement was right and the inference was wrong**, and §10's own
+"UNTESTED AND CHEAP" note said where to look. Measured:
+
+```
+Capture(bench): LETTERBOX APPLIED on BP_SpawnPad_C_UAID_… / Camera - bConstrainAspectRatio 0->1
+Capture(sve): READBACK-LAYOUT … rect=(0,92)-(1280,628)   picture=1280x536  bufferHeight=536
+Capture(sve): READBACK-LAYOUT … rect=(280,0)-(1000,720)  picture=720x720   bufferHeight=720 rowPitch=768
+```
+
+**`CB_GateLevel` under `-unattended` gives a `SpectatorPawn` with no camera; `MainWorld` gives a
+camera-bearing view target and the lever applies.** The refusal was a property of the MAP, not of the
+packaged harness. ⇒ **`G-M8`'s pillarbox coverage gap is closed packaged and unattended**, and
+`bufferHeight == picture height` on both — the m35 owned-texture behaviour — while the legacy readback
+used the engine's full-source staging and the offset, and they agreed byte-for-byte.
+📌 `rowPitchInPixels=768` against picture width 720 is **48 px of padding** (768×4 = 3072 = 12×256),
+a second instance of `G179`'s alignment arithmetic at a different width.
+⚠ **`G-M7` (the BACKBUFFER path, `IAI.Capture.SVE 0`) is NOT covered by any of this** — `G-M9`
+instruments the SVE path only. It remains open, and is now probably reachable packaged on MainWorld.

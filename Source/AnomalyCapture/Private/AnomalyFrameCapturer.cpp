@@ -26,6 +26,21 @@ static FAutoConsoleVariableRef GAnomalyReadbackGuardInflateCVar(
 	TEXT("rest of AnomalyCapture."),
 	ECVF_Default);
 
+static int32 GAnomalyDualPathReadback = 0;
+static FAutoConsoleVariableRef GAnomalyDualPathReadbackCVar(
+	TEXT("IAI.Bench.DualPathReadback"),
+	GAnomalyDualPathReadback,
+	TEXT("BENCH INSTRUMENT, not a product setting - G-M9. 0 = OFF (default, and the shipped path is ")
+	TEXT("then byte-for-byte what it is without this instrument). 1 = ON: the SVE path enqueues a ")
+	TEXT("SECOND, independent readback in the PRE-m35 form (whole source texture, engine-chosen ")
+	TEXT("staging, sub-rect indexed with the Rect.Min.Y offset) alongside the m35 owned-copy readback ")
+	TEXT("ON THE SAME FRAME, and byte-compares the two drained pictures. 2 = ON plus a DELIBERATE ")
+	TEXT("one-byte corruption of the legacy picture after it is drained, so the comparator can be ")
+	TEXT("proven to FIRE - a comparator that has only ever reported zero is not a comparator (G96). ")
+	TEXT("Mode 2 never touches the picture that is written to disk. Compiled out of Shipping with the ")
+	TEXT("rest of AnomalyCapture."),
+	ECVF_Default);
+
 namespace AnomalyReadback
 {
 	void NoteLayoutOnce(FCriticalSection& Guard, FAnomalyReadbackLayout& Layout, const TCHAR* PathName,
@@ -100,6 +115,31 @@ namespace AnomalyReadback
 			CheckedH, RowPitchInPixels, BufferHeight, InflateRows, bHeightOk ? 1 : 0, bPitchOk ? 1 : 0);
 
 		return false;
+	}
+
+	int32 GetDualPathReadbackMode()
+	{
+		return FMath::Clamp(GAnomalyDualPathReadback, 0, 2);
+	}
+
+	bool IsDualPathReadbackEnabled()
+	{
+		return GetDualPathReadbackMode() != 0;
+	}
+
+	bool IsDualPathForcedMismatch()
+	{
+		return GetDualPathReadbackMode() == 2;
+	}
+
+	FString DescribeDualPathReadback()
+	{
+		switch (GetDualPathReadbackMode())
+		{
+		case 1:  return TEXT("on(compare)");
+		case 2:  return TEXT("on(compare)+FORCED-MISMATCH");
+		default: return TEXT("off");
+		}
 	}
 }
 
