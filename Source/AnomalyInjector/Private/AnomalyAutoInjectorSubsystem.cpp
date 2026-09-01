@@ -1,4 +1,5 @@
 #include "AnomalyAutoInjectorSubsystem.h"
+#include "AnomalyCensusProvider.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
@@ -208,6 +209,31 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		return false;
 	}
 
+	if (CensusQuery && !bCensusFirstFireResolved)
+	{
+		const bool bReady = CensusReady ? CensusReady() : true;
+		if (!bReady)
+		{
+			if (CensusWaitTicksUsed < CensusWaitBudgetTicks)
+			{
+				++CensusWaitTicksUsed;
+				UE_LOG(LogAnomaly, Verbose,
+					TEXT("Auto.Fire: WaitCensus DEFERRING the first fire (%d/%d ticks) - census cycle 1 ")
+					TEXT("has not completed, so no verdict exists to select on yet."),
+					CensusWaitTicksUsed, CensusWaitBudgetTicks);
+				return false;
+			}
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("Auto.Fire: WaitCensus BUDGET EXHAUSTED - %d tick(s) elapsed without a completed ")
+				TEXT("census cycle. Firing on the BOUNDS path this once rather than stalling the run ")
+				TEXT("forever. This is the loud path, not the quiet one: a run that reaches here has a ")
+				TEXT("census that is not cycling, and that is worth investigating before its numbers are ")
+				TEXT("read."),
+				CensusWaitBudgetTicks);
+		}
+		bCensusFirstFireResolved = true;
+	}
+
 	TArray<FName> Eligible;
 	Eligible.Reserve(GNumAutoPool);
 	for (const FName& Id : GAutoPool)
@@ -245,16 +271,74 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 
 	TArray<AActor*> Candidates;
 	Candidates.Reserve(Visible.Num());
+	int32 CensusConsulted = 0;
+	int32 CensusFallback = 0;
+	int32 CensusExcluded = 0;
 	for (const TWeakObjectPtr<AActor>& Weak : Visible)
 	{
 		AActor* Actor = Weak.Get();
-		if (Actor && !IsActorLive(Actor))
+		if (!Actor || IsActorLive(Actor))
 		{
-			Candidates.Add(Actor);
+			continue;
+		}
+
+		if (CensusQuery)
+		{
+			const FAnomalyCensusOpinion Opinion = CensusQuery(Actor);
+			if (Opinion.Decision != EAnomalyCensusDecision::NoOpinion)
+			{
+				++CensusConsulted;
+				UE_LOG(LogAnomaly, Verbose,
+					TEXT("Auto.Fire: CENSUS '%s' -> %s (reason=%s ageTicks=%d drawnPct=%.3f)"),
+					*Actor->GetName(), LexToStringAnomalyCensusDecision(Opinion.Decision),
+					Opinion.Reason, Opinion.AgeTicks, Opinion.DrawnPct);
+
+				if (Opinion.Decision == EAnomalyCensusDecision::ExcludedZero
+					|| Opinion.Decision == EAnomalyCensusDecision::ExcludedBelowFloor
+					|| Opinion.Decision == EAnomalyCensusDecision::ExcludedTranslucent)
+				{
+					++CensusExcluded;
+					continue;
+				}
+				if (Opinion.Decision == EAnomalyCensusDecision::FallbackBounds)
+				{
+					++CensusFallback;
+				}
+			}
+		}
+
+		Candidates.Add(Actor);
+	}
+
+	if (CensusQuery && CensusConsulted > 0)
+	{
+		const bool bAllFallback = (CensusFallback == CensusConsulted);
+		if (bAllFallback)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("Auto.Fire: CENSUS ALL-FALLBACK - every one of %d consulted candidate(s) was ")
+				TEXT("not_yet_measured or EXPIRED, so this fire was decided entirely by the BOUNDS path ")
+				TEXT("and the census contributed nothing to it. The fire is still valid; what is not ")
+				TEXT("valid is reading it as evidence the census selected anything. Report this count ")
+				TEXT("rather than re-running to a green."),
+				CensusConsulted);
+		}
+		if (CensusFireReport)
+		{
+			CensusFireReport(bAllFallback);
 		}
 	}
+
 	if (Candidates.Num() == 0)
 	{
+		if (CensusQuery && CensusExcluded > 0)
+		{
+			UE_LOG(LogAnomaly, Log,
+				TEXT("Auto.Fire: no candidate survived the census (%d consulted, %d excluded, %d fallback) ")
+				TEXT("- firing nothing this tick. An empty selection here is the census REFUSING, which is ")
+				TEXT("the point of it, not a failure to find work."),
+				CensusConsulted, CensusExcluded, CensusFallback);
+		}
 		return false;
 	}
 
@@ -284,6 +368,39 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	UE_LOG(LogAnomaly, Log, TEXT("Auto.Fire: '%s' on '%s' -> %s."),
 		*Id.ToString(), *TargetName, bApplied ? TEXT("applied") : TEXT("0 matched"));
 	return bApplied;
+}
+
+void UAnomalyAutoInjectorSubsystem::SetCensusProvider(FAnomalyCensusQueryFn InQuery,
+	FAnomalyCensusReadyFn InReady, FAnomalyCensusFireReportFn InFireReport, int32 InWaitBudgetTicks)
+{
+	CensusQuery = MoveTemp(InQuery);
+	CensusReady = MoveTemp(InReady);
+	CensusFireReport = MoveTemp(InFireReport);
+	CensusWaitBudgetTicks = FMath::Max(0, InWaitBudgetTicks);
+	CensusWaitTicksUsed = 0;
+	bCensusFirstFireResolved = false;
+
+	UE_LOG(LogAnomaly, Log,
+		TEXT("Auto: CENSUS PROVIDER REGISTERED - selection now consults measured drawn pixels before ")
+		TEXT("the bounds path. WaitCensus budget %d tick(s) for the FIRST fire only; every later fire ")
+		TEXT("consumes the rolling table and never defers."),
+		CensusWaitBudgetTicks);
+}
+
+void UAnomalyAutoInjectorSubsystem::ClearCensusProvider()
+{
+	const bool bHad = (bool)CensusQuery;
+	CensusQuery.Reset();
+	CensusReady.Reset();
+	CensusFireReport.Reset();
+	CensusWaitTicksUsed = 0;
+	bCensusFirstFireResolved = false;
+	if (bHad)
+	{
+		UE_LOG(LogAnomaly, Log,
+			TEXT("Auto: census provider CLEARED - selection is back on the bounds path, byte-identical ")
+			TEXT("to a build without the census."));
+	}
 }
 
 bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& ActorName, const TArray<FString>& ExtraArgs)

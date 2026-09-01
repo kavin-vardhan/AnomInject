@@ -4,6 +4,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "InputCoreTypes.h"
 #include "Math/RandomStream.h"
+#include "AnomalyCensusProvider.h"
 #include "AnomalyAutoInjectorSubsystem.generated.h"
 
 class UCanvas;
@@ -57,6 +58,11 @@ public:
 	bool TryFireOnce();
 
 	bool TryFireSpecific(FName Id, const FString& ActorName, const TArray<FString>& ExtraArgs = TArray<FString>());
+
+	void SetCensusProvider(FAnomalyCensusQueryFn InQuery, FAnomalyCensusReadyFn InReady,
+		FAnomalyCensusFireReportFn InFireReport, int32 InWaitBudgetTicks);
+	void ClearCensusProvider();
+	bool HasCensusProvider() const { return (bool)CensusQuery; }
 
 	int32 RevertAllLiveFires();
 
@@ -135,6 +141,13 @@ private:
 	bool bRunning = false;
 
 	FDelegateHandle DebugDrawHandle;
+
+	FAnomalyCensusQueryFn CensusQuery;
+	FAnomalyCensusReadyFn CensusReady;
+	FAnomalyCensusFireReportFn CensusFireReport;
+	int32 CensusWaitBudgetTicks = 12;
+	int32 CensusWaitTicksUsed = 0;
+	bool bCensusFirstFireResolved = false;
 
 	FKey KeyPool[NumPoolKeys];
 	FKey KeyRun;

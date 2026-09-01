@@ -5,6 +5,7 @@
 #if ANOMALY_CAPTURE
 
 #include "UObject/WeakObjectPtr.h"
+#include "AnomalyCensusProvider.h"
 
 class AActor;
 class UWorld;
@@ -73,6 +74,7 @@ public:
 	static constexpr int32 LostAfterTicks = 8;
 	static constexpr int32 MaxAttemptsPerCycle = 3;
 	static constexpr int32 MaxInFlightBatches = 2;
+	static constexpr int32 CycleListingCap = 512;
 
 	void Begin(UWorld* World, FAnomalyStencilTagLedger* InLedger, const FAnomalyCensusParams& InParams);
 	void End(UWorld* World);
@@ -85,6 +87,10 @@ public:
 	TSet<uint8> GetInFlightTags() const;
 	TSet<uint8> GetLegitTags() const;
 	bool ConsumeCycleJustCompleted();
+
+	FAnomalyCensusOpinion QueryActor(const AActor* Actor) const;
+	bool HasCompletedACycle() const { return CycleNumber > 0 && Counters.Cycles > 0; }
+	void NoteFireAllFallback(bool bAllFallback);
 
 private:
 	struct FBatch

@@ -7,6 +7,7 @@
 #include "AnomalyPreviewCapture.h"
 #include "AnomalyViewport.h"
 #include "AnomalyAutoInjectorSubsystem.h"
+#include "AnomalyCensus.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -480,7 +481,8 @@ namespace AnomalyLabel
 		int32 MaskProbeArms, int32 MaskResidualDiscards, int32 MaskNoPassDiscards,
 		int32 VetoedEvents, int32 TranslucentVetoes, int32 TranslucencyUnknownVetoes,
 		const FTickPinTelemetry* TickPin, int32 PatternExcludedTargets,
-		const FReadbackLayoutTelemetry* ReadbackLayout)
+		const FReadbackLayoutTelemetry* ReadbackLayout,
+		const ::FAnomalyCensusCounters* Census)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -509,6 +511,21 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("translucent_vetoes"), TranslucentVetoes);
 		Root->SetNumberField(TEXT("translucency_unknown_vetoes"), TranslucencyUnknownVetoes);
 		Root->SetNumberField(TEXT("pattern_excluded_targets"), PatternExcludedTargets);
+
+		if (Census)
+		{
+			Root->SetNumberField(TEXT("census_frames"), Census->CensusFrames);
+			Root->SetNumberField(TEXT("census_cycles"), Census->Cycles);
+			Root->SetNumberField(TEXT("census_candidates"), Census->Candidates);
+			Root->SetNumberField(TEXT("census_zero"), Census->Zero);
+			Root->SetNumberField(TEXT("census_below_floor"), Census->BelowFloor);
+			Root->SetNumberField(TEXT("census_excluded_translucent"), Census->ExcludedTranslucent);
+			Root->SetNumberField(TEXT("census_fires_fallback_all"), Census->FiresFallbackAll);
+			Root->SetNumberField(TEXT("census_unmeasurable_nanite"), Census->UnmeasurableNanite);
+			Root->SetNumberField(TEXT("census_unmeasurable_tag_failed"), Census->UnmeasurableTagFailed);
+			Root->SetNumberField(TEXT("census_unmeasurable_hidden"), Census->UnmeasurableHidden);
+			Root->SetNumberField(TEXT("census_unmeasurable_not_yet_measured"), Census->NotYetMeasured);
+		}
 
 		if (Ring)
 		{

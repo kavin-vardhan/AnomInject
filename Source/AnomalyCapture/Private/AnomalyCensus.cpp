@@ -223,6 +223,101 @@ bool FAnomalyCensus::ConsumeCycleJustCompleted()
 	return bWas;
 }
 
+void FAnomalyCensus::NoteFireAllFallback(bool bAllFallback)
+{
+	if (bAllFallback)
+	{
+		++Counters.FiresFallbackAll;
+	}
+}
+
+FAnomalyCensusOpinion FAnomalyCensus::QueryActor(const AActor* Actor) const
+{
+	FAnomalyCensusOpinion Out;
+	if (!bActive || !Actor)
+	{
+		return Out;
+	}
+
+	const FAnomalyCensusEntry* Found = nullptr;
+	for (const FAnomalyCensusEntry& Entry : Entries)
+	{
+		if (Entry.Actor.Get() == Actor)
+		{
+			Found = &Entry;
+			break;
+		}
+	}
+
+	if (!Found)
+	{
+		Out.Decision = EAnomalyCensusDecision::FallbackBounds;
+		Out.Reason = TEXT("not_yet_measured");
+		return Out;
+	}
+
+	if (Found->Verdict == EAnomalyCensusVerdict::ExcludedTranslucent)
+	{
+		Out.Decision = Params.bExcludeTranslucent
+			? EAnomalyCensusDecision::ExcludedTranslucent
+			: EAnomalyCensusDecision::FallbackBounds;
+		Out.Reason = TEXT("translucent");
+		return Out;
+	}
+
+	if (Found->Verdict == EAnomalyCensusVerdict::NotMeasurableNanite)
+	{
+		Out.Decision = EAnomalyCensusDecision::FallbackBounds;
+		Out.Reason = TEXT("nanite");
+		return Out;
+	}
+	if (Found->Verdict == EAnomalyCensusVerdict::NotMeasurableTagFailed)
+	{
+		Out.Decision = EAnomalyCensusDecision::FallbackBounds;
+		Out.Reason = TEXT("tag_failed");
+		return Out;
+	}
+	if (Found->Verdict == EAnomalyCensusVerdict::NotMeasurableHidden)
+	{
+		Out.Decision = EAnomalyCensusDecision::FallbackBounds;
+		Out.Reason = TEXT("hidden");
+		return Out;
+	}
+	if (Found->Verdict == EAnomalyCensusVerdict::NotYetMeasured || Found->TimesMeasured <= 0)
+	{
+		Out.Decision = EAnomalyCensusDecision::FallbackBounds;
+		Out.Reason = TEXT("not_yet_measured");
+		return Out;
+	}
+
+	const int32 Age = (int32)(GFrameCounter - Found->MeasuredAtTick);
+	Out.AgeTicks = Age;
+	if (Age > Params.MaxVerdictAgeTicks)
+	{
+		Out.Decision = EAnomalyCensusDecision::FallbackBounds;
+		Out.Reason = TEXT("expired");
+		return Out;
+	}
+
+	if (Found->Verdict == EAnomalyCensusVerdict::MeasuredZero)
+	{
+		Out.Decision = EAnomalyCensusDecision::ExcludedZero;
+		Out.Reason = TEXT("measured_zero");
+		Out.DrawnPct = 0.0f;
+		return Out;
+	}
+
+	const float Pct = (Found->FramePx > 0)
+		? (100.0f * (float)Found->DrawnPx / (float)Found->FramePx)
+		: 0.0f;
+	Out.DrawnPct = Pct;
+	Out.Decision = (Pct >= Params.FloorPct)
+		? EAnomalyCensusDecision::Eligible
+		: EAnomalyCensusDecision::ExcludedBelowFloor;
+	Out.Reason = (Pct >= Params.FloorPct) ? TEXT("measured_nonzero") : TEXT("below_floor");
+	return Out;
+}
+
 void FAnomalyCensus::Tick(UWorld* World, FAnomalyMaskSceneViewExtension* Sve, bool bEventArmedThisTick, const TSet<uint8>& EventTags)
 {
 	if (!bActive || !Sve || !World)
@@ -649,7 +744,7 @@ void FAnomalyCensus::CloseCycle()
 		else if (Pct <= 25.0) { Bucket = 5; }
 		else { Bucket = 6; }
 		++Buckets[Bucket];
-		if (Listed < 60)
+		if (Listed < CycleListingCap)
 		{
 			Rows += FString::Printf(TEXT(" %s=%d(%.3f%%)"), *Entry->ActorName, Entry->DrawnPx, Pct);
 			++Listed;
@@ -660,6 +755,30 @@ void FAnomalyCensus::CloseCycle()
 		TEXT("(12,25]=%d >25=%d |%s%s"),
 		CycleNumber, Buckets[0], Buckets[1], Buckets[2], Buckets[3], Buckets[4], Buckets[5], Buckets[6],
 		*Rows, (Measured.Num() > Listed) ? *FString::Printf(TEXT(" (+%d more)"), Measured.Num() - Listed) : TEXT(""));
+
+	FString NotMeasuredRows;
+	int32 NotMeasuredListed = 0;
+	int32 NotMeasuredTotal = 0;
+	for (const FAnomalyCensusEntry& Entry : Entries)
+	{
+		if (Entry.Verdict == EAnomalyCensusVerdict::MeasuredZero
+			|| Entry.Verdict == EAnomalyCensusVerdict::MeasuredNonZero)
+		{
+			continue;
+		}
+		++NotMeasuredTotal;
+		if (NotMeasuredListed < CycleListingCap)
+		{
+			NotMeasuredRows += FString::Printf(TEXT(" %s=%s(measured %dx)"),
+				*Entry.ActorName, LexToStringAnomalyCensusVerdict(Entry.Verdict), Entry.TimesMeasured);
+			++NotMeasuredListed;
+		}
+	}
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Census: CYCLE %d NOT-MEASURED n=%d |%s%s"),
+		CycleNumber, NotMeasuredTotal, NotMeasuredRows.IsEmpty() ? TEXT(" (none)") : *NotMeasuredRows,
+		(NotMeasuredTotal > NotMeasuredListed)
+			? *FString::Printf(TEXT(" (+%d more)"), NotMeasuredTotal - NotMeasuredListed) : TEXT(""));
 }
 
 #endif

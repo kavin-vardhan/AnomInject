@@ -41,7 +41,6 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
-#include "Components/PrimitiveComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "MaterialShared.h"
@@ -425,12 +424,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bLabelsInDelivery = bConfigLabelsInDelivery;
 		bLabelsInDeliveryFromIni = true;
 	}
-	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s), default from %s."),
+	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle Ã¢â‚¬â€ use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s), default from %s."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
 		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
 		bFocusGate ? TEXT("on (start waits for game-window focus)") : TEXT("off (start begins immediately)"),
 		DescribeGrabPoint(),
-		bSveCapture ? TEXT("scene colour, pre-Slate — UI EXCLUDED") : TEXT("presented backbuffer — UI INCLUDED"),
+		bSveCapture ? TEXT("scene colour, pre-Slate Ã¢â‚¬â€ UI EXCLUDED") : TEXT("presented backbuffer Ã¢â‚¬â€ UI INCLUDED"),
 		bSveFromIni
 			? TEXT("DefaultGame.ini [AnomalyCapture] bSveCaptureDefault")
 			: TEXT("S4 COMPILED-IN DEFAULT (SVE, UI-free); no ini key present; IAI.Capture.SVE 0 selects the backbuffer/UI-on path"));
@@ -567,11 +566,11 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		if (NowWall - LastArmWaitLogWall >= 2.0)
 		{
 			LastArmWaitLogWall = NowWall;
-			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture armed — still waiting for game-window focus (%.0fs)."), NowWall - ArmWaitStartWall);
+			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture armed Ã¢â‚¬â€ still waiting for game-window focus (%.0fs)."), NowWall - ArmWaitStartWall);
 		}
 		if (FocusWaitTimeoutSeconds > 0.0 && NowWall - ArmWaitStartWall >= FocusWaitTimeoutSeconds)
 		{
-			UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture armed — game-window focus not acquired after %.0fs; starting anyway (IAI.Capture.Stop to cancel)."), FocusWaitTimeoutSeconds);
+			UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture armed Ã¢â‚¬â€ game-window focus not acquired after %.0fs; starting anyway (IAI.Capture.Stop to cancel)."), FocusWaitTimeoutSeconds);
 			BeginActualRun();
 		}
 		return;
@@ -1189,7 +1188,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	if (CleanBaseDir.Contains(TEXT("\"")))
 	{
 		UE_LOG(LogAnomalyCapture, Error,
-			TEXT("IAI.Capture.Start: CAP-RUNDIR-REFUSED outDir %s still contains a quote character after unwrapping — ")
+			TEXT("IAI.Capture.Start: CAP-RUNDIR-REFUSED outDir %s still contains a quote character after unwrapping Ã¢â‚¬â€ ")
 			TEXT("REFUSING TO START rather than failing silently at annotation-write time. Pass the path without ")
 			TEXT("embedded quotes."),
 			*CleanBaseDir);
@@ -1221,7 +1220,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	if ((bHasAnomaly || bHasActor) && !bTargetedMode)
 	{
 		UE_LOG(LogAnomalyCapture, Warning,
-			TEXT("IAI.Capture.Start: targeted mode needs BOTH an anomaly and a target actor (got only one) — falling back to auto-pool."));
+			TEXT("IAI.Capture.Start: targeted mode needs BOTH an anomaly and a target actor (got only one) Ã¢â‚¬â€ falling back to auto-pool."));
 	}
 
 	bFormatPng = bPng;
@@ -1265,7 +1264,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	if (!IFileManager::Get().MakeDirectory(*FPaths::Combine(RunDir, TEXT("Actual_Frames")), true))
 	{
 		UE_LOG(LogAnomalyCapture, Error,
-			TEXT("IAI.Capture.Start: CAP-RUNDIR-REFUSED could not create run directory %s — REFUSING TO START ")
+			TEXT("IAI.Capture.Start: CAP-RUNDIR-REFUSED could not create run directory %s Ã¢â‚¬â€ REFUSING TO START ")
 			TEXT("rather than failing silently at annotation-write time. Check the outDir argument."),
 			*RunDir);
 		RunDir.Reset();
@@ -1539,7 +1538,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	else
 	{
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture(tickpin): TICKPIN not-compiled (no decoupled-tick fork detected) — this build never ")
+			TEXT("Capture(tickpin): TICKPIN not-compiled (no decoupled-tick fork detected) Ã¢â‚¬â€ this build never ")
 			TEXT("touches the engine tick mode and behaves exactly as it did before the pin existed."));
 	}
 
@@ -1569,6 +1568,45 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		CensusParams.bLeakProbe = bCensusLeakProbe && !bDeliveryMode;
 		CensusParams.bCoArmOnly = bCensusCoArm && !bDeliveryMode;
 		Async->Census.Begin(GetWorld(), &Async->TagLedger, CensusParams);
+
+		if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
+		{
+			TWeakObjectPtr<UAnomalyCaptureSubsystem> WeakSelf(this);
+			Auto->SetCensusProvider(
+				[WeakSelf](const AActor* Actor) -> FAnomalyCensusOpinion
+				{
+					if (UAnomalyCaptureSubsystem* Self = WeakSelf.Get())
+					{
+						if (Self->Async.IsValid())
+						{
+							return Self->Async->Census.QueryActor(Actor);
+						}
+					}
+					return FAnomalyCensusOpinion();
+				},
+				[WeakSelf]() -> bool
+				{
+					if (UAnomalyCaptureSubsystem* Self = WeakSelf.Get())
+					{
+						if (Self->Async.IsValid())
+						{
+							return Self->Async->Census.HasCompletedACycle();
+						}
+					}
+					return true;
+				},
+				[WeakSelf](bool bAllFallback)
+				{
+					if (UAnomalyCaptureSubsystem* Self = WeakSelf.Get())
+					{
+						if (Self->Async.IsValid())
+						{
+							Self->Async->Census.NoteFireAllFallback(bAllFallback);
+						}
+					}
+				},
+				CensusMaxVerdictAgeTicks);
+		}
 	}
 
 	ApplySessionGlobals();
@@ -1845,7 +1883,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			FIntRect SlateRect;
 			const bool bHaveSlateRect = ComputeGameViewportCapture(GetWorld(), DeltaWindow, SlateRect);
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture: RESOLUTION DELTA (3-rect) — grab=%s | grabbed %dx%d | slate-window %s | viewport-size %dx%d ")
+				TEXT("Capture: RESOLUTION DELTA (3-rect) Ã¢â‚¬â€ grab=%s | grabbed %dx%d | slate-window %s | viewport-size %dx%d ")
 				TEXT("| dW_slate=%s dH_slate=%s | dW_vp=%d dH_vp=%d. ")
 				TEXT("GRABBED is the delivered image (SVE takes the VIEW rect, backbuffer takes the Slate WINDOW rect); ")
 				TEXT("VIEWPORT-SIZE is GetViewportSize() and is what annotation.video.resolution and run.json viewport report, ")
@@ -1863,7 +1901,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		if (!Snap)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture(async): CAP-PAIR-DROP completed frame id=%llu has no pending snapshot — frame DROPPED, ")
+				TEXT("Capture(async): CAP-PAIR-DROP completed frame id=%llu has no pending snapshot Ã¢â‚¬â€ frame DROPPED, ")
 				TEXT("never labelled by guess (pendingSnapshots=%d). This drop used to log at Verbose, which made a ")
 				TEXT("broken pairing indistinguishable from a path that never submitted."),
 				Frame.RequestId, Async->PendingSnapshots.Num());
@@ -2020,7 +2058,7 @@ void UAnomalyCaptureSubsystem::BeginFire()
 	if (!bFired)
 	{
 		++ZeroMatchBursts;
-		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: burst %d fired nothing (zero-match / empty) — negatives only."),
+		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: burst %d fired nothing (zero-match / empty) Ã¢â‚¬â€ negatives only."),
 			BurstsDone + 1);
 	}
 	Phase = ECapturePhase::SettleAfterFire;
@@ -2084,7 +2122,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		}
 
 		UE_LOG(LogAnomalyCapture, Verbose,
-			TEXT("Capture(async): could not resolve the game-viewport rect this tick — falling back to sync grab."));
+			TEXT("Capture(async): could not resolve the game-viewport rect this tick Ã¢â‚¬â€ falling back to sync grab."));
 	}
 
 	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
@@ -2537,13 +2575,13 @@ void UAnomalyCaptureSubsystem::CheckEarlyPacingWarning()
 		if (ContentClock == EContentClock::Game)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: live capture running slow (~%.1f of %d fps, ratio %.2f) — the video will be stamped at target %d and plays natural; this is a capture-time perf issue only. Lower IAI.Capture.Fps or run packaged to speed the live capture."),
+				TEXT("Capture: live capture running slow (~%.1f of %d fps, ratio %.2f) Ã¢â‚¬â€ the video will be stamped at target %d and plays natural; this is a capture-time perf issue only. Lower IAI.Capture.Fps or run packaged to speed the live capture."),
 				(double)VideoFps / Ratio, VideoFps, Ratio, VideoFps);
 		}
 		else
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: sustaining ~%.1f of %d fps (ratio %.2f) — the video will be stamped at the true rate; lower IAI.Capture.Fps or run a packaged build."),
+				TEXT("Capture: sustaining ~%.1f of %d fps (ratio %.2f) Ã¢â‚¬â€ the video will be stamped at the true rate; lower IAI.Capture.Fps or run a packaged build."),
 				(double)VideoFps / Ratio, VideoFps, Ratio);
 		}
 	}
@@ -2582,7 +2620,7 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 		if (LastRunPacing.SpeedRatio > 1.0 + GFpsStampTolerance)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: live capture ran slow (sustained %.3f of target %d fps, ratio %.3f) — video.fps stamped at target %d and plays natural; the slowness is a capture-time performance issue, not a video defect."),
+				TEXT("Capture: live capture ran slow (sustained %.3f of target %d fps, ratio %.3f) Ã¢â‚¬â€ video.fps stamped at target %d and plays natural; the slowness is a capture-time performance issue, not a video defect."),
 				LastRunPacing.SustainedWallFps, VideoFps, LastRunPacing.SpeedRatio, VideoFps);
 		}
 	}
@@ -2592,13 +2630,13 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 		{
 			LastRunPacing.StampedFps = FMath::RoundToDouble(LastRunPacing.SustainedWallFps * 1000.0) / 1000.0;
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: could not hold %d fps wall-clock (sustained %.3f fps, ratio %.3f) — video.fps stamped at the true rate %.3f."),
+				TEXT("Capture: could not hold %d fps wall-clock (sustained %.3f fps, ratio %.3f) Ã¢â‚¬â€ video.fps stamped at the true rate %.3f."),
 				VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps);
 		}
 		else if (LastRunPacing.SpeedRatio < 1.0 - GFpsStampTolerance)
 		{
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture: ran faster than %d fps wall-clock (ratio %.3f, pace=%s) — video.fps stays %d."),
+				TEXT("Capture: ran faster than %d fps wall-clock (ratio %.3f, pace=%s) Ã¢â‚¬â€ video.fps stays %d."),
 				VideoFps, LastRunPacing.SpeedRatio, bPaceCapture ? TEXT("on") : TEXT("off"), VideoFps);
 		}
 	}
@@ -2848,7 +2886,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		{
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture: %d distinct actor(s) were REFUSED as injection candidates by the target-exclusion ")
-				TEXT("patterns (%s) during this run — see the EXCLUDED-TARGET lines above for which, and which ")
+				TEXT("patterns (%s) during this run Ã¢â‚¬â€ see the EXCLUDED-TARGET lines above for which, and which ")
 				TEXT("pattern matched each. This counts DISTINCT ACTORS refused at the selection chokepoint, not ")
 				TEXT("anomalies that would otherwise have fired."),
 				PatternExcludedTargets, *AnomalyDefaults::DescribeExcludedTargetPatterns());
@@ -2897,13 +2935,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			bSveCapture ? &RingTelemetry : nullptr,
 			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards, VetoedEvents,
 			TranslucentVetoes, TranslucencyUnknownVetoes, &TickPinReport, PatternExcludedTargets,
-			DrainLayout.bValid ? &LayoutReport : nullptr);
+			DrainLayout.bValid ? &LayoutReport : nullptr,
+			(bCensusEffective && Async.IsValid()) ? &Async->Census.GetCounters() : nullptr);
 
 		if (bSveCapture)
 		{
 			const AnomalySveKeyRing::FCounters Ring = AnomalySveKeyRing::GetCounters();
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture(sve): key ring — published=%d consumed=%d missed=%d wrapped=%d corrupted=%d (forceMiss=%d)."),
+				TEXT("Capture(sve): key ring Ã¢â‚¬â€ published=%d consumed=%d missed=%d wrapped=%d corrupted=%d (forceMiss=%d)."),
 				Ring.Published, Ring.Consumed, Ring.Missed, Ring.Wrapped, Ring.Corrupted,
 				AnomalySveKeyRing::GetForceMissMode());
 
@@ -2915,7 +2954,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 					TEXT("submitsIssued=%d framesWritten=%d pendingWantedAtEnd=%d maxPendingDepth=%d ")
 					TEXT("(traced %d arm / %d publish event(s) of first %d each; the per-event lines above carry ")
 					TEXT("their own token). The handshake is CONNECTED when marksIssued, wantedMatches, submitsIssued ")
-					TEXT("and framesWritten agree; a gap between ADJACENT numbers names the stage that missed — ")
+					TEXT("and framesWritten agree; a gap between ADJACENT numbers names the stage that missed Ã¢â‚¬â€ ")
 					TEXT("marks>matches: arms never met an eligible publish; matches>submits: the render pass dropped ")
 					TEXT("keyed frames; submits>frames: readback or snapshot pairing lost them (pairing losses now ")
 					TEXT("warn per frame with their own token)."),
@@ -2997,6 +3036,10 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		}
 		if (bCensusEffective)
 		{
+			if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
+			{
+				Auto->ClearCensusProvider();
+			}
 			Async->Census.End(GetWorld());
 		}
 		Async->MaskMeasure.EndRun();
@@ -3202,7 +3245,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		if (!bKnownId)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: anomaly id '%s' is not registered in the active-state table — falling back to the whole fire ")
+				TEXT("Capture: anomaly id '%s' is not registered in the active-state table Ã¢â‚¬â€ falling back to the whole fire ")
 				TEXT("window. If this anomaly TOGGLES its anomalous state inside its own fire window it MUST be added to ")
 				TEXT("ResolveAnomalyActiveSource, or every frame of the window is labelled positive whether or not the ")
 				TEXT("anomaly was actually showing."),
@@ -3221,7 +3264,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 			{
 				++NonManifestedEvents;
 				UE_LOG(LogAnomalyCapture, Warning,
-					TEXT("Capture: '%s' event on '%s' NEVER MANIFESTED — no captured frame sampled the anomaly as active ")
+					TEXT("Capture: '%s' event on '%s' NEVER MANIFESTED Ã¢â‚¬â€ no captured frame sampled the anomaly as active ")
 					TEXT("(state source: %s). Writing zero positive frames and manifested=false (previously this emitted %d ")
 					TEXT("on-screen frames as positives)."),
 					*Ev.Id.ToString(), *Ev.NodeName, DescribeActiveSource(Source), Ev.AffectedFrames.Num());
@@ -3236,7 +3279,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		if (Source != EAnomalyActiveSource::FireWindow && Out.bManifested)
 		{
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture: TOGGLING-SUBSET id=%s target=%s source=%s positives=%d of %d fire-active frame(s) — ")
+				TEXT("Capture: TOGGLING-SUBSET id=%s target=%s source=%s positives=%d of %d fire-active frame(s) Ã¢â‚¬â€ ")
 				TEXT("annotation.json carries the ACTIVE SUBSET (gapped), never the whole fire window. labels.jsonl still ")
 				TEXT("covers the whole window, which is why the overlay tool shows AMBER OUTSIDE-SUBSET boxes there."),
 				*Ev.Id.ToString(), *Ev.NodeName, DescribeActiveSource(Source),
@@ -3526,8 +3569,8 @@ static FAutoConsoleCommandWithWorldAndArgs GCapturePaceCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryCmd(
 	TEXT("IAI.Capture.Delivery"),
-	TEXT("Toggle client-delivery mode (default OFF). ON: a run writes ONLY the client-facing artifacts — ")
-	TEXT("Actual_Frames/ + Video_Clip/ + run_summary.json + annotation.json — and suppresses labels.jsonl ")
+	TEXT("Toggle client-delivery mode (default OFF). ON: a run writes ONLY the client-facing artifacts Ã¢â‚¬â€ ")
+	TEXT("Actual_Frames/ + Video_Clip/ + run_summary.json + annotation.json Ã¢â‚¬â€ and suppresses labels.jsonl ")
 	TEXT("and run.json (so the seed is not shipped and the session is not client-reproducible). Ground-truth ")
 	TEXT("is still computed, just not written. OFF: full fidelity (all artifacts). The packaged default is ")
 	TEXT("read at startup from DefaultGame.ini [AnomalyCapture] bDeliveryModeDefault; this command overrides ")
@@ -3712,10 +3755,10 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskProbeCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureSveCmd(
 	TEXT("IAI.Capture.SVE"),
-	TEXT("Select the capture grab point (default OFF = backbuffer). ON: capture via a SceneViewExtension — scene ")
+	TEXT("Select the capture grab point (default OFF = backbuffer). ON: capture via a SceneViewExtension Ã¢â‚¬â€ scene ")
 	TEXT("colour after tonemap and BEFORE Slate composites the UI, so the frame is UI-free, and the frame/state key ")
 	TEXT("is recovered by IDENTITY through the view-family ring instead of by arm-to-present ORDER. OFF: the m21 ")
-	TEXT("backbuffer path — the presented frame including game UI. Mid-run changes are ignored (stop first). The ")
+	TEXT("backbuffer path Ã¢â‚¬â€ the presented frame including game UI. Mid-run changes are ignored (stop first). The ")
 	TEXT("packaged default is read at startup from DefaultGame.ini [AnomalyCapture] bSveCaptureDefault; this command ")
 	TEXT("overrides it for the session. Usage: IAI.Capture.SVE <0|1>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
@@ -3738,9 +3781,9 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureContentClockCmd(
 	TEXT("IAI.Capture.ContentClock"),
 	TEXT("Select which clock the game's visible content advances on, so the honest fps stamp picks the right ")
 	TEXT("rate on a slow run (default WALL). game: content follows the GAME clock (StackOBot world under fixed ")
-	TEXT("step) — every frame is an exact 1/target game-time slice, so video.fps is stamped at TARGET at any ")
+	TEXT("step) Ã¢â‚¬â€ every frame is an exact 1/target game-time slice, so video.fps is stamped at TARGET at any ")
 	TEXT("ratio and plays natural; a slow run is a capture-time perf issue, not a video defect. wall: content ")
-	TEXT("follows the WALL clock (sequencer/real-time titles) — a run slower than target stamps the sustained ")
+	TEXT("follows the WALL clock (sequencer/real-time titles) Ã¢â‚¬â€ a run slower than target stamps the sustained ")
 	TEXT("rate so the video plays at true speed (the m11 office fix). Packaged default: DefaultGame.ini ")
 	TEXT("[AnomalyCapture] ContentClockDefault=game|wall; this command overrides it for the session. ")
 	TEXT("Usage: IAI.Capture.ContentClock <game|wall>"),
@@ -3764,14 +3807,14 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureContentClockCmd(
 			}
 			else
 			{
-				UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.ContentClock: unknown token '%s' — expected 'game' or 'wall'. No change."), *Args[0]);
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.ContentClock: unknown token '%s' Ã¢â‚¬â€ expected 'game' or 'wall'. No change."), *Args[0]);
 			}
 		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureFocusGateCmd(
 	TEXT("IAI.Capture.FocusGate"),
 	TEXT("Gate the first captured frame on game-window focus (default ON). ON: a capture Start ARMS immediately ")
-	TEXT("but holds the first frame until the game window has foreground focus — so clicking Start in the ")
+	TEXT("but holds the first frame until the game window has foreground focus Ã¢â‚¬â€ so clicking Start in the ")
 	TEXT("external dashboard (browser) does not record idle frames during the click-and-move-back gap; focus the ")
 	TEXT("game window to begin, or IAI.Capture.Stop to cancel the armed run. The gate is skipped when there is no ")
 	TEXT("game window at all (headless / Simulate), and a safety timeout starts the run anyway if focus never ")
