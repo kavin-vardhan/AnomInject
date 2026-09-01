@@ -413,6 +413,8 @@ void FAnomalyCensus::StartCycle(UWorld* World)
 	}
 
 	CycleStartTick = GFrameCounter;
+	CycleStartTagBlockMs = Counters.TagBlockMsTotal;
+	CycleStartFlips = Counters.ProxyRecreatesQueued;
 	++CycleNumber;
 	bCycleOpen = true;
 	HalfCap = FMath::Max(1, (Ledger ? Ledger->NumFree() : 55) / 2);
@@ -718,11 +720,23 @@ void FAnomalyCensus::CloseCycle()
 	Counters.UnmeasurableHidden = Hidden;
 	Counters.NotYetMeasured = NotYet;
 
+	const uint64 CycleTicks = GFrameCounter - CycleStartTick;
+	const double CycleMs = Counters.TagBlockMsTotal - CycleStartTagBlockMs;
+	const int32 CycleFlips = Counters.ProxyRecreatesQueued - CycleStartFlips;
+
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Census: CYCLE %d DONE ticks=%llu candidates=%d zero=%d nonzero=%d belowFloor=%d(floor %.2f%%) ")
 		TEXT("excludedTranslucent=%d nanite=%d tagFailed=%d hidden=%d notYetMeasured=%d"),
-		CycleNumber, GFrameCounter - CycleStartTick, Entries.Num(), Zero, NonZero, BelowFloor, Params.FloorPct,
+		CycleNumber, CycleTicks, Entries.Num(), Zero, NonZero, BelowFloor, Params.FloorPct,
 		Translucent, Nanite, TagFailed, Hidden, NotYet);
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Census: CYCLE %d COST tagBlockMs=%.4f overTicks=%llu perTickMs=%.4f flagFlips=%d ")
+		TEXT("(GAME-THREAD QUEUING COST ONLY - SetRenderCustomDepth only QUEUES the proxy recreate; ")
+		TEXT("the destroy/create runs later inside SendAllEndOfFrameUpdates, OUTSIDE this timed block. ")
+		TEXT("flagFlips is the SIZE of the excluded work, never its price.)"),
+		CycleNumber, CycleMs, CycleTicks,
+		(CycleTicks > 0) ? (CycleMs / (double)CycleTicks) : 0.0, CycleFlips);
 
 	Measured.Sort([](const FAnomalyCensusEntry& A, const FAnomalyCensusEntry& B)
 	{

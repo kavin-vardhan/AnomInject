@@ -126,6 +126,8 @@ private:
 	uint64 CycleStartTick = 0;
 	int32 HalfCap = 1;
 	int32 CycleNumber = 0;
+	double CycleStartTagBlockMs = 0.0;
+	int32 CycleStartFlips = 0;
 };
 
 #endif
