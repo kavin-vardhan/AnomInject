@@ -90,6 +90,45 @@ and is the single source of truth for the project.
 >
 > 🧭 **COLD START: `docs/sessions/2026-08-26-061-m35-readback-sub-rect-copy-handoff.md`.** It opens
 > with a **DO NOT DO THIS** list and is self-contained.
+>
+> 🆕🆕 **2026-09-01, SESSION 065 — `m36` S2 IS THE ACTIVE WORK AND IT IS COMMITTED. GO STRAIGHT TO
+> `docs/sessions/2026-09-01-065-m36-s2-selection-wired-and-gated.md`; it is self-contained.**
+> Branch `feature/selection-census` tip **`72d6dd5`** (parent `344a9c9`), **NOT PUSHED, NO TAG, NO
+> COOK.** Selection now consults MEASURED DRAWN PIXELS before the bounds path. **Every S2 gate ran
+> and none failed** — `P-C1`·`P-C2`·`P-C3`+comp·`P-C4`+comps·`P-C5`·`P-C8`·`P-C10`·`P-C11`+comp·
+> `P-C12`+comp·`P-C13`, plus the `run_summary` subset gate (delta **exactly** the 11 `census_*`
+> keys) and **`P6` unmoved, measured (annotation keyset 48/48 with the census ON and OFF alike)**.
+> 🔑 **`72d6dd5` IS THE `G140` BOUNDARY SHA.** Wiring the census changes the candidate set, so the
+> same seed picks different targets across it ⇒ **banked auto-pool runs are non-comparable to any
+> census-ON leg from here on.** ⛔ **What is NOT lost, and this is the whole point: census OFF stays
+> BYTE-IDENTICAL to the old picker** (`P-C7` re-verified post-S2 on a pose-matched pair), so every
+> banked run stays comparable to any census-OFF leg. **Census-ON is a NEW baseline starting at this
+> commit, not a lost one. If `P-C7` ever fails after `72d6dd5`, THAT is the door closing, and it is
+> a STOP.**
+> 🚨 **THE PROVIDER IS INVERTED AND MUST STAY THAT WAY:** `AnomalyCapture` **depends on**
+> `AnomalyInjector`, so `TryFireOnce` cannot call the census — that edge does not exist and adding
+> it is a dependency CYCLE. Capture **registers** a provider at census `Begin` and **clears** it at
+> `End`; the contract lives in the LOWER module (`AnomalyCensusProvider.h`). ⛔ Do not "simplify"
+> this into a direct call.
+> ⚠ **TWO PREDICTIONS ARE DEFECTIVE AS WRITTEN — neither is a build defect, neither was relabelled,
+> and NOTHING was appended to the predictions file (measurements against S2 now exist, so that file
+> is closed to amendment).** Both are in journal 065 §5 for a chat ruling: **(1) `P-C2` asks for
+> `MEASURED_NONZERO` on EVERY cycle AND for the control to be SELECTABLE — mutually exclusive,
+> because selection fires on it and firing HIDES it (8/91 measured on the main leg; the conjunct is
+> demonstrated **30/30** on P-C2's own floor-10 companion, where the floor refuses it so nothing
+> fires). MEASURED_ZERO occurred **0 of 91** — the dangerous direction never fired. **(2) `P-C13`
+> conjunct 3 predicts the drawn share RISES under pillarbox; it FELL** (3.183→1.792 %, 2.263→1.648 %)
+> because the pillarbox CROPS as well as shrinking the denominator. **P-C13's actual claim rests on
+> conjunct 1, which is decisive: derived `frame_px` 518,400 on the offset leg vs 921,600 on the
+> zero-origin control — the census is RECT-RELATIVE.**
+> 📦 Binary **`CBBF6644`** staged and archived (`_binary_baselines\StackOBot.exe.m36-s2-CBBF6644`);
+> chain `02C1DFA2` → `E046D1CA` → `CBBF6644`; **container UNCHANGED, code-only hot-swap (G103)**.
+> Harness CaptureBench **`e8ff25d`** — `run_leg.ps1` gains **`-RequireModalRotZero`**, an A47
+> ROTATION validity gate for AUTO-POOL legs (B1 is scoped to `StaticMeshActor_49` and honestly says
+> NOT APPLICABLE there, which left the bifurcation uncontrolled on exactly the legs whose candidate
+> set depends on the settled camera). ⛔ **It is for `CB_GateLevel` only — MainWorld settles at
+> `(0,-40,0)` and applying it there would be `G117`'s error on a new axis.**
+> ⛔ **S3 (`P-C9`, the cost A/B) NOT STARTED.** Numbers to chat, **no threshold, ever.**
 
 - **STANDING CONVENTION (owner directive, 2026-07-29): this Current-status block is REFRESHED AT EVERY MILESTONE
   CLOSE — same discipline as the session journals.** It is the cold-start contract: if it says "in flight / not
