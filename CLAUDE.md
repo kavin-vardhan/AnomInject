@@ -68,10 +68,21 @@ and is the single source of truth for the project.
 > the insurance diff is **NO LONGER LOAD-BEARING** and must not be treated as protection again — it
 > survives only as `G181`'s receipt.
 >
-> **2. `master` IS UNTOUCHED AND STILL CARRIES THE READBACK CRASH.** Tip **`9f52cab`**.
-> ⛔ **DO NOT CUT A DELIVERY BUILD FROM `master` BEFORE THE BRANCH MERGE.** A build cut from master
-> today ships the crash to any host that letterboxes or pillarboxes. m35 reaches master by the
-> **MERGE — ONE ROUTE ONLY**, never also by cherry-pick.
+> ✅ **2. SUPERSEDED 2026-09-01 — `master` NO LONGER CARRIES THE READBACK CRASH.** This item used to
+> read *"`master` IS UNTOUCHED AND STILL CARRIES THE READBACK CRASH, tip `9f52cab`"*, and a cold
+> reader acting on it today would refuse a build that is now correct. **`master` is `9c94c55`** and
+> carries **m35 (the readback fix) AND m36 (the selection census)**, both by **MERGE — ONE ROUTE
+> ONLY**, never also by cherry-pick. The m36 merge is `0f35d7a`, with `merge-tree` predicting its
+> tree exactly and an inert-merge proof on both halves: `Source/` byte-identical to the branch, and
+> master's own build census-OFF artifact-identical to the branch build's.
+> ⛔ **STILL NO TAG** — highest remains `m30`, and the order `m31` → `m33` → `m34` → `m35` runs at
+> the end of the physical office visit, after `G-R7(ii)`.
+> ⚠ **A DELIVERY BUILD FROM `master` IS NOW THE CORRECT THING TO CUT** as far as the crash is
+> concerned — but it is **still gated on `G-R7(ii)` passing on master's own build**, which is a
+> DELIVERY precondition and is unchanged.
+> 📌 **m36 is INERT on `master` for the client:** the census's compiled default is **OFF**, and with
+> no provider registered the selection path is byte-identical to the pre-census picker — **measured
+> (`P-C7`), not asserted.**
 >
 > **3. THE PACKAGED BENCH BUILD IS CURRENTLY m35 BUILD B — exe `733FE83C`** on the **unchanged m34
 > container** (utoc `2A66CA57` · ucas `A7EF9B12` · pak `D8009AD7`). Code-only hot-swap (`G103`); **no
