@@ -914,5 +914,20 @@ packaged harness. ⇒ **`G-M8`'s pillarbox coverage gap is closed packaged and u
 used the engine's full-source staging and the offset, and they agreed byte-for-byte.
 📌 `rowPitchInPixels=768` against picture width 720 is **48 px of padding** (768×4 = 3072 = 12×256),
 a second instance of `G179`'s alignment arithmetic at a different width.
-⚠ **`G-M7` (the BACKBUFFER path, `IAI.Capture.SVE 0`) is NOT covered by any of this** — `G-M9`
-instruments the SVE path only. It remains open, and is now probably reachable packaged on MainWorld.
+### 18.2 `G-M7` — A RECORDED SCOPE LIMIT, NOT AN OVERSIGHT (owner ruling, 2026-09-01)
+
+⚠ **`G-M9` INSTRUMENTS THE SVE PATH ONLY.** The **backbuffer** path (`IAI.Capture.SVE 0`, the UI-on
+route) at a **non-zero view-rect origin** is **NOT covered** by anything above, and saying so plainly
+is the point of this section.
+
+⛔ **RULED: this stays a RECORDED SCOPE LIMIT.** A backbuffer dual-path comparator is **QUEUED, NOT
+BUILT**, and is worth building **only if the UI-on path is ever exercised on a letterboxed host.**
+It is not queued behind m36, and no work is scheduled against it.
+
+**Why that is the right call rather than a gap being tolerated:** the SVE path is the **default and
+shipped** grab point (UI-free by construction, `S4`/`m25`), so the backbuffer path is a bisect lever
+rather than a delivery route. Building a second comparator to cover a path no delivery uses would buy
+coverage of a configuration nobody ships. ⚠ **But the limit is real**, and the backbuffer path carries
+a sharper hazard than the SVE one: `G177` — its format mismatch has **no assert and no graceful
+failure in a default Development build**, so a wrong picture there is the only signal. If that path is
+ever pointed at a letterboxed host, this is the first thing to build.

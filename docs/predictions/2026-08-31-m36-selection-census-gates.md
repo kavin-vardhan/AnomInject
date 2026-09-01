@@ -150,3 +150,35 @@ The Bates leg cannot run any home checker. What it CAN return, and what each rea
 Bench-only by construction (cannot be typed back): P-C1–C4 controls, P-C6 hygiene byte-diff,
 P-C7 control pair, P-C8 COMPARE lines, P-C10 attribution — these certify at home; Bates certifies
 the product outcome via the sheet above.
+
+---
+
+## AMENDMENT — 2026-09-01, BEFORE ANY `S2` LEG RUNS. Tightening, nothing above withdrawn.
+
+**Why appending is permitted:** no measurement against `S2` exists yet. `P-C1`–`P-C12` are unchanged.
+
+### P-C13 [BENCH, and the shape of the Bates host] — the census must be RECT-RELATIVE, not viewport-relative
+
+On a **packaged `MainWorld` leg with the pillarbox lever** (`G193` — the lever applies there because
+the view target is camera-bearing, unlike `CB_GateLevel`'s `SpectatorPawn`):
+
+1. **`frame_px` equals the VIEW-RECT area, not the viewport's.** At `IAI.Bench.Letterbox 1.0` on a
+   1280×720 viewport the measured rect is `(280,0)-(1000,720)` ⇒ **`frame_px` = 720×720 = 518,400**,
+   **NOT** 1280×720 = 921,600. A census that reports the viewport's area is measuring a frame it did
+   not capture, and every share it computes is wrong by the ratio of the two.
+2. **Every drawn bbox lies INSIDE the rect** — no box may extend into the pillarbox bars, in
+   rect-local coordinates.
+3. **The known-visible control's drawn share is computed AGAINST THE RECT**, so its share *rises*
+   relative to the same object on an un-letterboxed leg, by construction. A share that is unchanged
+   between the two legs is the tell that the denominator never moved.
+
+🚨 **COMPANION, AND IT IS THE POINT OF PUTTING THIS IN WRITING (`G192`'s shape):** **the same leg at
+origin `(0,0)` is NOT GATE-BEARING for this prediction.** At a zero origin the rect and the viewport
+are the same rectangle, so rect-relative and viewport-relative arithmetic **produce identical
+numbers** — a passing zero-origin leg would be comparing an expression to itself and would pass
+whether the census is rect-relative or not. **Only the offset leg counts.** This is `G-M9`'s lesson
+carried forward before it can be repeated: identify where the two candidate behaviours degenerate
+into one, and make sure the gate is not standing on that point.
+
+⇒ Run `P-C13` on the **pillarbox** leg. The zero-origin leg may be run alongside as a control, and it
+is reported as a control, never as the pass.
