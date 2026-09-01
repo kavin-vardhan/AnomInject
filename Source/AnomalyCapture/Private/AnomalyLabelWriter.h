@@ -7,6 +7,7 @@
 #include "AnomalyAutoInjectorSubsystem.h"
 
 class UWorld;
+struct FAnomalyCensusCounters;
 
 namespace AnomalyLabel
 {
@@ -114,7 +115,8 @@ namespace AnomalyLabel
 		int32 MaskProbeArms = 0, int32 MaskResidualDiscards = 0, int32 MaskNoPassDiscards = 0,
 		int32 VetoedEvents = 0, int32 TranslucentVetoes = 0, int32 TranslucencyUnknownVetoes = 0,
 		const FTickPinTelemetry* TickPin = nullptr, int32 PatternExcludedTargets = 0,
-		const FReadbackLayoutTelemetry* ReadbackLayout = nullptr);
+		const FReadbackLayoutTelemetry* ReadbackLayout = nullptr,
+		const ::FAnomalyCensusCounters* Census = nullptr);
 
 
 	struct FSessionVideo

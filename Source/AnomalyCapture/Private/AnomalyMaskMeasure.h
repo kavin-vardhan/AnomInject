@@ -9,6 +9,7 @@
 
 class AActor;
 class FAnomalyMaskSceneViewExtension;
+struct FAnomalyStencilTagLedger;
 
 struct FAnomalyMaskRecord
 {
@@ -42,7 +43,7 @@ class FAnomalyMaskMeasure
 public:
 	static constexpr int32 MaxArmsPerEvent = 4;
 
-	void BeginRun();
+	void BeginRun(FAnomalyStencilTagLedger* InLedger = nullptr);
 	void EndRun();
 
 	FAnomalyMaskRecord* FindOrAddRecord(FName Id, const FString& Target, uint64 StartFrame, AActor* TargetActor);
@@ -57,6 +58,8 @@ public:
 
 	const TArray<FAnomalyMaskRecord>& GetRecords() const { return Records; }
 	TSet<uint8> BuildAssignedTagSet() const;
+	TSet<uint8> BuildBaseTagSet() const;
+	void SetExtraAssignedTags(const TSet<uint8>& InExtra) { ExtraAssignedTags = InExtra; }
 	int32 NumUnmeasured() const;
 	int32 TotalProbeArms() const;
 	int32 TotalResidualDiscards() const;
@@ -71,6 +74,8 @@ private:
 	TSet<uint64> ProbeRequests;
 	TMap<uint64, uint8> EndFrameSample;
 	TArray<uint64> ArmedThisFrame;
+	TSet<uint8> ExtraAssignedTags;
+	FAnomalyStencilTagLedger* Ledger = nullptr;
 	int32 NextTagOffset = 0;
 };
 

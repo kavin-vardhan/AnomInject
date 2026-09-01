@@ -23,6 +23,7 @@
 #include "AnomalyMaskSceneViewExtension.h"
 #include "AnomalyMaskMeasure.h"
 #include "AnomalyStencilTag.h"
+#include "AnomalyCensus.h"
 #include "AnomalySveKeyRing.h"
 #include "AnomalyAsyncWriter.h"
 #include "Misc/CoreDelegates.h"
@@ -34,12 +35,12 @@
 
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
+#include "EngineUtils.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/App.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
-#include "Components/PrimitiveComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "MaterialShared.h"
@@ -139,6 +140,9 @@ struct FAnomalyCaptureAsyncState
 	TMap<uint64, AnomalyLabel::FCaptureSnapshot> PendingSnapshots;
 	TArray<FSessionEventAccum> SessionEvents;
 	FAnomalyMaskMeasure MaskMeasure;
+	FAnomalyStencilTagLedger TagLedger;
+	FAnomalyCensus Census;
+	TMap<TWeakObjectPtr<UPrimitiveComponent>, int32> PreRunStencilSnapshot;
 #endif
 };
 
@@ -355,6 +359,30 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bMaskMeasure = bConfigMask;
 		bMaskMeasureFromIni = true;
 	}
+	bool bConfigCensus = false;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bSelectionCensusDefault"), bConfigCensus, GGameIni))
+	{
+		bCensus = bConfigCensus;
+		bCensusFromIni = true;
+	}
+	float ConfigCensusFloor = 0.0f;
+	if (GConfig && GConfig->GetFloat(TEXT("AnomalyCapture"), TEXT("CensusMinDrawnCoveragePctDefault"), ConfigCensusFloor, GGameIni))
+	{
+		CensusFloorPct = FMath::Clamp(ConfigCensusFloor, 0.0f, 100.0f);
+		bCensusFloorFromIni = true;
+	}
+	int32 ConfigCensusAge = 0;
+	if (GConfig && GConfig->GetInt(TEXT("AnomalyCapture"), TEXT("CensusMaxVerdictAgeTicksDefault"), ConfigCensusAge, GGameIni))
+	{
+		CensusMaxVerdictAgeTicks = FMath::Clamp(ConfigCensusAge, 0, 600);
+		bCensusMaxAgeFromIni = true;
+	}
+	bool bConfigCensusTranslucent = true;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bCensusExcludeTranslucentDefault"), bConfigCensusTranslucent, GGameIni))
+	{
+		bCensusExcludeTranslucent = bConfigCensusTranslucent;
+		bCensusTranslucentFromIni = true;
+	}
 	if (!GMaskReduceFromConsole)
 	{
 		GMaskReduceMode = EAnomalyMaskReduceMode::Gpu;
@@ -396,12 +424,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bLabelsInDelivery = bConfigLabelsInDelivery;
 		bLabelsInDeliveryFromIni = true;
 	}
-	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle — use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s), default from %s."),
+	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle Ã¢â‚¬â€ use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s), default from %s."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
 		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
 		bFocusGate ? TEXT("on (start waits for game-window focus)") : TEXT("off (start begins immediately)"),
 		DescribeGrabPoint(),
-		bSveCapture ? TEXT("scene colour, pre-Slate — UI EXCLUDED") : TEXT("presented backbuffer — UI INCLUDED"),
+		bSveCapture ? TEXT("scene colour, pre-Slate Ã¢â‚¬â€ UI EXCLUDED") : TEXT("presented backbuffer Ã¢â‚¬â€ UI INCLUDED"),
 		bSveFromIni
 			? TEXT("DefaultGame.ini [AnomalyCapture] bSveCaptureDefault")
 			: TEXT("S4 COMPILED-IN DEFAULT (SVE, UI-free); no ini key present; IAI.Capture.SVE 0 selects the backbuffer/UI-on path"));
@@ -419,6 +447,15 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		TEXT("compares per armed frame (MASK-REDUCE COMPARE). The reduction is integer-atomic and BIT-EXACT ")
 		TEXT("across modes. Inert while the mask itself is off."),
 		LexToStringAnomalyMaskReduceMode(GMaskReduceMode), DescribeMaskReduceSource());
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(census): m36 AT INIT - census %s (from %s), floor=%.2f%% (from %s), maxVerdictAgeTicks=%d, ")
+		TEXT("excludeTranslucent=%d. The census measures DRAWN PIXELS per selection candidate through the m26 ")
+		TEXT("mask + m34 reduce, UPSTREAM of selection; the armed-frame measurement and the zero-only veto are ")
+		TEXT("unchanged and remain the backstop. It requires the mask and async capture; the EFFECTIVE value ")
+		TEXT("for a run is echoed at IAI.Capture.Start."),
+		bCensus ? TEXT("ON") : TEXT("off"), DescribeCensusSource(),
+		CensusFloorPct, DescribeCensusFloorSource(),
+		CensusMaxVerdictAgeTicks, bCensusExcludeTranslucent ? 1 : 0);
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(m28): OUTPUT HEIGHT AT INIT - ini level %s. 0 means NATIVE and the written frames are ")
 		TEXT("byte-identical to a pre-m28 build. This is the INI LEVEL ONLY; a console override or a per-run ")
@@ -529,11 +566,11 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		if (NowWall - LastArmWaitLogWall >= 2.0)
 		{
 			LastArmWaitLogWall = NowWall;
-			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture armed — still waiting for game-window focus (%.0fs)."), NowWall - ArmWaitStartWall);
+			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture armed Ã¢â‚¬â€ still waiting for game-window focus (%.0fs)."), NowWall - ArmWaitStartWall);
 		}
 		if (FocusWaitTimeoutSeconds > 0.0 && NowWall - ArmWaitStartWall >= FocusWaitTimeoutSeconds)
 		{
-			UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture armed — game-window focus not acquired after %.0fs; starting anyway (IAI.Capture.Stop to cancel)."), FocusWaitTimeoutSeconds);
+			UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture armed Ã¢â‚¬â€ game-window focus not acquired after %.0fs; starting anyway (IAI.Capture.Stop to cancel)."), FocusWaitTimeoutSeconds);
 			BeginActualRun();
 		}
 		return;
@@ -636,6 +673,8 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 		return;
 	}
 
+	Async->MaskMeasure.SetExtraAssignedTags(
+		(bCensusEffective && Async->Census.IsActive()) ? Async->Census.GetLegitTags() : TSet<uint8>());
 	Async->MaskMeasure.VerifyPendingTags();
 	Async->MaskExtension->EnqueueDrain();
 	Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
@@ -647,6 +686,51 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 		{
 			bMaskProbeFiredThisRun = true;
 		}
+	}
+
+	if (bCensusEffective && Async->Census.IsActive())
+	{
+		Async->Census.Tick(World, Async->MaskExtension.Get(), bArmedNormal, Async->MaskMeasure.BuildBaseTagSet());
+		if (Async->Census.ConsumeCycleJustCompleted())
+		{
+			RunStencilHygieneCheck(false);
+		}
+	}
+#endif
+}
+
+void UAnomalyCaptureSubsystem::RunStencilHygieneCheck(bool bFinal)
+{
+#if ANOMALY_CAPTURE
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	TMap<TWeakObjectPtr<UPrimitiveComponent>, int32> Now;
+	AnomalyStencilTag::SnapshotCustomDepthEnabled(GetWorld(), Now);
+	TSet<TWeakObjectPtr<UPrimitiveComponent>> Exclude;
+	if (!bFinal)
+	{
+		AnomalyStencilTag::GetTaggedComponents(Exclude);
+	}
+	FString FirstDiff;
+	const int32 Diffs = AnomalyStencilTag::DiffCustomDepthSnapshots(
+		Async->PreRunStencilSnapshot, Now, bFinal ? nullptr : &Exclude, FirstDiff);
+	if (Diffs == 0)
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Census: CENSUS-HYGIENE %s identical=1 excluded=%d - the set of components with ")
+			TEXT("bRenderCustomDepth and their stencil values matches the pre-run snapshot%s."),
+			bFinal ? TEXT("final") : TEXT("cycle"), Exclude.Num(),
+			bFinal ? TEXT("") : TEXT(" (components currently and legitimately tagged are excluded from the cycle check)"));
+	}
+	else
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Census: CENSUS-HYGIENE %s DIFF n=%d first=%s - host-visible custom-depth state does NOT match ")
+			TEXT("the pre-run snapshot. With the leak probe ON this is the G96 proof firing as designed; ")
+			TEXT("otherwise it is a hygiene defect and the leg FAILS P-C6."),
+			bFinal ? TEXT("final") : TEXT("cycle"), Diffs, *FirstDiff);
 	}
 #endif
 }
@@ -777,6 +861,157 @@ void UAnomalyCaptureSubsystem::SetMaskMeasure(bool bInMask)
 		TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault for this session. The full banner prints at ")
 		TEXT("IAI.Capture.Start."),
 		bMaskMeasure ? TEXT("ON") : TEXT("off"));
+}
+
+void UAnomalyCaptureSubsystem::SetCensus(bool bInCensus)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Census: ignored - a capture run is in progress."));
+		return;
+	}
+	bCensus = bInCensus;
+	bCensusFromIni = false;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.Census: %s - takes effect BETWEEN RUNS. Overrides DefaultGame.ini [AnomalyCapture] ")
+		TEXT("bSelectionCensusDefault for this session. It requires the mask (IAI.Capture.Mask) and async capture; ")
+		TEXT("read the EFFECTIVE value and its provenance from the StartRun echo, never from here."),
+		bCensus ? TEXT("ON") : TEXT("off"));
+}
+
+void UAnomalyCaptureSubsystem::SetCensusFloorPct(float InPct)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.CensusFloor: ignored - a capture run is in progress."));
+		return;
+	}
+	if (InPct < 0.0f || InPct > 100.0f)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Capture.CensusFloor: %.2f is outside [0,100] and is REFUSED (out-of-range is refused, ")
+			TEXT("never clamped). Current value unchanged (%.2f)."), InPct, CensusFloorPct);
+		return;
+	}
+	CensusFloorPct = InPct;
+	bCensusFloorFromIni = false;
+	bCensusFloorFromConsole = true;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.CensusFloor: %.2f%% - the census eligibility floor on MEASURED DRAWN coverage ")
+		TEXT("(drawn_px/frame_px). DELIBERATELY a separate knob from IAI.SetMinScreenCoverage, whose operand ")
+		TEXT("stays the BOUNDS rect and which still governs the NOT_MEASURABLE fallback path - one knob driving ")
+		TEXT("two operands would couple the fallback to the future floor decision. Takes effect BETWEEN RUNS."),
+		CensusFloorPct);
+}
+
+void UAnomalyCaptureSubsystem::SetCensusMaxVerdictAgeTicks(int32 InTicks)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.CensusMaxAge: ignored - a capture run is in progress."));
+		return;
+	}
+	if (InTicks < 0 || InTicks > 600)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Capture.CensusMaxAge: %d is outside [0,600] and is REFUSED. Current value unchanged (%d)."),
+			InTicks, CensusMaxVerdictAgeTicks);
+		return;
+	}
+	CensusMaxVerdictAgeTicks = InTicks;
+	bCensusMaxAgeFromIni = false;
+	bCensusMaxAgeFromConsole = true;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.CensusMaxAge: %d tick(s) - a census verdict older than this at fire time is EXPIRED ")
+		TEXT("and the candidate re-measures before regaining eligibility. 0 makes every verdict expired, which ")
+		TEXT("is the P-C11 loud-inert control. Takes effect BETWEEN RUNS."),
+		CensusMaxVerdictAgeTicks);
+}
+
+void UAnomalyCaptureSubsystem::SetCensusExcludeTranslucent(bool bInExclude)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.CensusTranslucent: ignored - a capture run is in progress."));
+		return;
+	}
+	bCensusExcludeTranslucent = bInExclude;
+	bCensusTranslucentFromIni = false;
+	bCensusTranslucentFromConsole = true;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.CensusTranslucent: %s - R2 ruling: a candidate whose EVERY renderable slot is ")
+		TEXT("translucent without AllowTranslucentCustomDepthWrites is EXCLUDED from selection (owner ruled ")
+		TEXT("such targets unusable; they also cannot write custom depth, so a census measurement of them ")
+		TEXT("would be a false zero - the H6 route-e shape). OFF exists so the route-e v2 experiment needs ")
+		TEXT("no cook. Takes effect BETWEEN RUNS."),
+		bCensusExcludeTranslucent ? TEXT("ON (exclude)") : TEXT("off (translucent candidates are measured)"));
+}
+
+void UAnomalyCaptureSubsystem::SetCensusReservation(bool bInReserve)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.CensusReservation: ignored - a capture run is in progress."));
+		return;
+	}
+	bCensusReservation = bInReserve;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Capture.CensusReservation: %s - R10 host stencil reservation. OFF is a GATE LEVER for the ")
+		TEXT("P-C12 companion ONLY (proving the instrument can fail, G96); it must be ON in any real leg, or ")
+		TEXT("host-set custom-depth pixels can be COUNTED under a plugin tag. Takes effect BETWEEN RUNS."),
+		bCensusReservation ? TEXT("ON") : TEXT("OFF"));
+}
+
+void UAnomalyCaptureSubsystem::SetCensusLeakProbe(bool bInProbe)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.CensusLeakProbe: ignored - a capture run is in progress."));
+		return;
+	}
+	bCensusLeakProbe = bInProbe;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Capture.CensusLeakProbe: %s - GATE ARTEFACT, default OFF, MUST be OFF in any build that ships. ")
+		TEXT("ON: the census DELIBERATELY leaves exactly one tagged component un-restored so the final ")
+		TEXT("CENSUS-HYGIENE check is proven able to report a DIFF (P-C6 companion, G96). Takes effect BETWEEN RUNS."),
+		bCensusLeakProbe ? TEXT("ON") : TEXT("off"));
+}
+
+void UAnomalyCaptureSubsystem::SetCensusCoArm(bool bInCoArm)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.CensusCoArm: ignored - a capture run is in progress."));
+		return;
+	}
+	bCensusCoArm = bInCoArm;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Capture.CensusCoArm: %s - GATE ARTEFACT, default OFF. ON: the census arms ONLY on ticks where ")
+		TEXT("the event mask also armed, forcing the census arm to queue BEHIND the event arm and pop on the ")
+		TEXT("NEXT view family - the P-C10 delayed-pop attribution control (R4). Takes effect BETWEEN RUNS."),
+		bCensusCoArm ? TEXT("ON") : TEXT("off"));
+}
+
+const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusSource() const
+{
+	if (bCensusFromIni)
+	{
+		return TEXT("DefaultGame.ini [AnomalyCapture] bSelectionCensusDefault");
+	}
+	return TEXT("COMPILED DEFAULT (off) or IAI.Capture.Census");
+}
+
+const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusFloorSource() const
+{
+	if (bCensusFloorFromConsole)
+	{
+		return TEXT("IAI.Capture.CensusFloor (console)");
+	}
+	if (bCensusFloorFromIni)
+	{
+		return TEXT("DefaultGame.ini [AnomalyCapture] CensusMinDrawnCoveragePctDefault");
+	}
+	return TEXT("COMPILED DEFAULT (6.0)");
 }
 
 const TCHAR* UAnomalyCaptureSubsystem::DescribeTickPinSource() const
@@ -953,7 +1188,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	if (CleanBaseDir.Contains(TEXT("\"")))
 	{
 		UE_LOG(LogAnomalyCapture, Error,
-			TEXT("IAI.Capture.Start: CAP-RUNDIR-REFUSED outDir %s still contains a quote character after unwrapping — ")
+			TEXT("IAI.Capture.Start: CAP-RUNDIR-REFUSED outDir %s still contains a quote character after unwrapping Ã¢â‚¬â€ ")
 			TEXT("REFUSING TO START rather than failing silently at annotation-write time. Pass the path without ")
 			TEXT("embedded quotes."),
 			*CleanBaseDir);
@@ -985,7 +1220,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	if ((bHasAnomaly || bHasActor) && !bTargetedMode)
 	{
 		UE_LOG(LogAnomalyCapture, Warning,
-			TEXT("IAI.Capture.Start: targeted mode needs BOTH an anomaly and a target actor (got only one) — falling back to auto-pool."));
+			TEXT("IAI.Capture.Start: targeted mode needs BOTH an anomaly and a target actor (got only one) Ã¢â‚¬â€ falling back to auto-pool."));
 	}
 
 	bFormatPng = bPng;
@@ -1029,7 +1264,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	if (!IFileManager::Get().MakeDirectory(*FPaths::Combine(RunDir, TEXT("Actual_Frames")), true))
 	{
 		UE_LOG(LogAnomalyCapture, Error,
-			TEXT("IAI.Capture.Start: CAP-RUNDIR-REFUSED could not create run directory %s — REFUSING TO START ")
+			TEXT("IAI.Capture.Start: CAP-RUNDIR-REFUSED could not create run directory %s Ã¢â‚¬â€ REFUSING TO START ")
 			TEXT("rather than failing silently at annotation-write time. Check the outDir argument."),
 			*RunDir);
 		RunDir.Reset();
@@ -1140,6 +1375,30 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		TEXT("ACTUAL output size is measured from the first written frame and logged separately."),
 		EffectiveOutputHeight, DescribeOutputHeightSource());
 
+	bCensusEffective = bCensus && bMaskMeasure && bAsyncCapture;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("=== Capture(census): EFFECTIVE FOR THIS RUN - census %s (requested %s, from %s), floor=%.2f%%(from %s), ")
+		TEXT("maxVerdictAgeTicks=%d(%s), excludeTranslucent=%d(%s), reservation=%d === READ THIS LINE, NOT THE INI. ")
+		TEXT("The census measures DRAWN PIXELS per selection candidate (m26 mask + m34 reduce, rolling batches ")
+		TEXT("upstream of selection); the armed-frame measurement and the ZERO-ONLY veto are unchanged and remain ")
+		TEXT("the backstop; annotation.json's field set does not move."),
+		bCensusEffective ? TEXT("ON") : TEXT("off"),
+		bCensus ? TEXT("on") : TEXT("off"), DescribeCensusSource(),
+		CensusFloorPct, DescribeCensusFloorSource(),
+		CensusMaxVerdictAgeTicks,
+		bCensusMaxAgeFromConsole ? TEXT("console") : (bCensusMaxAgeFromIni ? TEXT("ini") : TEXT("compiled")),
+		bCensusExcludeTranslucent ? 1 : 0,
+		bCensusTranslucentFromConsole ? TEXT("console") : (bCensusTranslucentFromIni ? TEXT("ini") : TEXT("compiled")),
+		bCensusReservation ? 1 : 0);
+	if (bCensus && !bCensusEffective)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(census): census was REQUESTED but is INACTIVE for this run - it requires the mask ")
+			TEXT("(IAI.Capture.Mask, currently %d) and async capture (currently %d). A census that silently did ")
+			TEXT("not run would read as a clean null, so this line is a WARNING, not a note."),
+			bMaskMeasure ? 1 : 0, bAsyncCapture ? 1 : 0);
+	}
+
 	if (bMaskMeasure && Async.IsValid())
 	{
 		if (Async->MaskExtension.IsValid())
@@ -1147,7 +1406,29 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 			Async->MaskExtension->Reset();
 			Async->MaskExtension->SetReduceMode(GMaskReduceMode);
 		}
-		Async->MaskMeasure.BeginRun();
+		Async->TagLedger.Reset();
+		if (bCensusReservation)
+		{
+			Async->TagLedger.HostReserved = AnomalyStencilTag::SnapshotHostReservedValues(World);
+		}
+		{
+			TArray<uint8> ReservedSorted = Async->TagLedger.HostReserved.Array();
+			ReservedSorted.Sort();
+			FString ReservedList;
+			for (uint8 V : ReservedSorted)
+			{
+				ReservedList += FString::Printf(TEXT(" %d"), (int32)V);
+			}
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(mask): M36 STENCIL RESERVATION %s - reserved=%d [%s ]. Host-set bRenderCustomDepth ")
+				TEXT("with a stencil value in 200..254, snapshotted at StartRun, is never assigned by the census ")
+				TEXT("OR the event allocator this run: hygiene restores host values AFTER, this prevents host ")
+				TEXT("pixels being COUNTED under a plugin tag DURING. No per-cycle rescan in v1."),
+				bCensusReservation ? TEXT("ON") : TEXT("OFF (gate lever - P-C12 companion only)"),
+				Async->TagLedger.HostReserved.Num(), *ReservedList);
+		}
+		AnomalyStencilTag::SnapshotCustomDepthEnabled(World, Async->PreRunStencilSnapshot);
+		Async->MaskMeasure.BeginRun(&Async->TagLedger);
 		bMaskProbeFiredThisRun = false;
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(mask): m26 SLICES 1+2+3 ACTIVE - MEASURE, REPORT AND VETO. annotation.json's ")
@@ -1257,7 +1538,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	else
 	{
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture(tickpin): TICKPIN not-compiled (no decoupled-tick fork detected) — this build never ")
+			TEXT("Capture(tickpin): TICKPIN not-compiled (no decoupled-tick fork detected) Ã¢â‚¬â€ this build never ")
 			TEXT("touches the engine tick mode and behaves exactly as it did before the pin existed."));
 	}
 
@@ -1277,6 +1558,56 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	Phase = ECapturePhase::LeadIn;
 	PhaseFramesLeft = PreFrames;
 	bRunBegun = true;
+
+	if (bCensusEffective && Async.IsValid() && Async->MaskExtension.IsValid())
+	{
+		FAnomalyCensusParams CensusParams;
+		CensusParams.FloorPct = CensusFloorPct;
+		CensusParams.MaxVerdictAgeTicks = CensusMaxVerdictAgeTicks;
+		CensusParams.bExcludeTranslucent = bCensusExcludeTranslucent;
+		CensusParams.bLeakProbe = bCensusLeakProbe && !bDeliveryMode;
+		CensusParams.bCoArmOnly = bCensusCoArm && !bDeliveryMode;
+		Async->Census.Begin(GetWorld(), &Async->TagLedger, CensusParams);
+
+		if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
+		{
+			TWeakObjectPtr<UAnomalyCaptureSubsystem> WeakSelf(this);
+			Auto->SetCensusProvider(
+				[WeakSelf](const AActor* Actor) -> FAnomalyCensusOpinion
+				{
+					if (UAnomalyCaptureSubsystem* Self = WeakSelf.Get())
+					{
+						if (Self->Async.IsValid())
+						{
+							return Self->Async->Census.QueryActor(Actor);
+						}
+					}
+					return FAnomalyCensusOpinion();
+				},
+				[WeakSelf]() -> bool
+				{
+					if (UAnomalyCaptureSubsystem* Self = WeakSelf.Get())
+					{
+						if (Self->Async.IsValid())
+						{
+							return Self->Async->Census.HasCompletedACycle();
+						}
+					}
+					return true;
+				},
+				[WeakSelf](bool bAllFallback)
+				{
+					if (UAnomalyCaptureSubsystem* Self = WeakSelf.Get())
+					{
+						if (Self->Async.IsValid())
+						{
+							Self->Async->Census.NoteFireAllFallback(bAllFallback);
+						}
+					}
+				},
+				CensusMaxVerdictAgeTicks);
+		}
+	}
 
 	ApplySessionGlobals();
 
@@ -1552,7 +1883,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			FIntRect SlateRect;
 			const bool bHaveSlateRect = ComputeGameViewportCapture(GetWorld(), DeltaWindow, SlateRect);
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture: RESOLUTION DELTA (3-rect) — grab=%s | grabbed %dx%d | slate-window %s | viewport-size %dx%d ")
+				TEXT("Capture: RESOLUTION DELTA (3-rect) Ã¢â‚¬â€ grab=%s | grabbed %dx%d | slate-window %s | viewport-size %dx%d ")
 				TEXT("| dW_slate=%s dH_slate=%s | dW_vp=%d dH_vp=%d. ")
 				TEXT("GRABBED is the delivered image (SVE takes the VIEW rect, backbuffer takes the Slate WINDOW rect); ")
 				TEXT("VIEWPORT-SIZE is GetViewportSize() and is what annotation.video.resolution and run.json viewport report, ")
@@ -1570,7 +1901,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		if (!Snap)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture(async): CAP-PAIR-DROP completed frame id=%llu has no pending snapshot — frame DROPPED, ")
+				TEXT("Capture(async): CAP-PAIR-DROP completed frame id=%llu has no pending snapshot Ã¢â‚¬â€ frame DROPPED, ")
 				TEXT("never labelled by guess (pendingSnapshots=%d). This drop used to log at Verbose, which made a ")
 				TEXT("broken pairing indistinguishable from a path that never submitted."),
 				Frame.RequestId, Async->PendingSnapshots.Num());
@@ -1727,7 +2058,7 @@ void UAnomalyCaptureSubsystem::BeginFire()
 	if (!bFired)
 	{
 		++ZeroMatchBursts;
-		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: burst %d fired nothing (zero-match / empty) — negatives only."),
+		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: burst %d fired nothing (zero-match / empty) Ã¢â‚¬â€ negatives only."),
 			BurstsDone + 1);
 	}
 	Phase = ECapturePhase::SettleAfterFire;
@@ -1791,7 +2122,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		}
 
 		UE_LOG(LogAnomalyCapture, Verbose,
-			TEXT("Capture(async): could not resolve the game-viewport rect this tick — falling back to sync grab."));
+			TEXT("Capture(async): could not resolve the game-viewport rect this tick Ã¢â‚¬â€ falling back to sync grab."));
 	}
 
 	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
@@ -2244,13 +2575,13 @@ void UAnomalyCaptureSubsystem::CheckEarlyPacingWarning()
 		if (ContentClock == EContentClock::Game)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: live capture running slow (~%.1f of %d fps, ratio %.2f) — the video will be stamped at target %d and plays natural; this is a capture-time perf issue only. Lower IAI.Capture.Fps or run packaged to speed the live capture."),
+				TEXT("Capture: live capture running slow (~%.1f of %d fps, ratio %.2f) Ã¢â‚¬â€ the video will be stamped at target %d and plays natural; this is a capture-time perf issue only. Lower IAI.Capture.Fps or run packaged to speed the live capture."),
 				(double)VideoFps / Ratio, VideoFps, Ratio, VideoFps);
 		}
 		else
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: sustaining ~%.1f of %d fps (ratio %.2f) — the video will be stamped at the true rate; lower IAI.Capture.Fps or run a packaged build."),
+				TEXT("Capture: sustaining ~%.1f of %d fps (ratio %.2f) Ã¢â‚¬â€ the video will be stamped at the true rate; lower IAI.Capture.Fps or run a packaged build."),
 				(double)VideoFps / Ratio, VideoFps, Ratio);
 		}
 	}
@@ -2289,7 +2620,7 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 		if (LastRunPacing.SpeedRatio > 1.0 + GFpsStampTolerance)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: live capture ran slow (sustained %.3f of target %d fps, ratio %.3f) — video.fps stamped at target %d and plays natural; the slowness is a capture-time performance issue, not a video defect."),
+				TEXT("Capture: live capture ran slow (sustained %.3f of target %d fps, ratio %.3f) Ã¢â‚¬â€ video.fps stamped at target %d and plays natural; the slowness is a capture-time performance issue, not a video defect."),
 				LastRunPacing.SustainedWallFps, VideoFps, LastRunPacing.SpeedRatio, VideoFps);
 		}
 	}
@@ -2299,13 +2630,13 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 		{
 			LastRunPacing.StampedFps = FMath::RoundToDouble(LastRunPacing.SustainedWallFps * 1000.0) / 1000.0;
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: could not hold %d fps wall-clock (sustained %.3f fps, ratio %.3f) — video.fps stamped at the true rate %.3f."),
+				TEXT("Capture: could not hold %d fps wall-clock (sustained %.3f fps, ratio %.3f) Ã¢â‚¬â€ video.fps stamped at the true rate %.3f."),
 				VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps);
 		}
 		else if (LastRunPacing.SpeedRatio < 1.0 - GFpsStampTolerance)
 		{
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture: ran faster than %d fps wall-clock (ratio %.3f, pace=%s) — video.fps stays %d."),
+				TEXT("Capture: ran faster than %d fps wall-clock (ratio %.3f, pace=%s) Ã¢â‚¬â€ video.fps stays %d."),
 				VideoFps, LastRunPacing.SpeedRatio, bPaceCapture ? TEXT("on") : TEXT("off"), VideoFps);
 		}
 	}
@@ -2555,7 +2886,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		{
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture: %d distinct actor(s) were REFUSED as injection candidates by the target-exclusion ")
-				TEXT("patterns (%s) during this run — see the EXCLUDED-TARGET lines above for which, and which ")
+				TEXT("patterns (%s) during this run Ã¢â‚¬â€ see the EXCLUDED-TARGET lines above for which, and which ")
 				TEXT("pattern matched each. This counts DISTINCT ACTORS refused at the selection chokepoint, not ")
 				TEXT("anomalies that would otherwise have fired."),
 				PatternExcludedTargets, *AnomalyDefaults::DescribeExcludedTargetPatterns());
@@ -2604,13 +2935,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			bSveCapture ? &RingTelemetry : nullptr,
 			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards, VetoedEvents,
 			TranslucentVetoes, TranslucencyUnknownVetoes, &TickPinReport, PatternExcludedTargets,
-			DrainLayout.bValid ? &LayoutReport : nullptr);
+			DrainLayout.bValid ? &LayoutReport : nullptr,
+			(bCensusEffective && Async.IsValid()) ? &Async->Census.GetCounters() : nullptr);
 
 		if (bSveCapture)
 		{
 			const AnomalySveKeyRing::FCounters Ring = AnomalySveKeyRing::GetCounters();
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture(sve): key ring — published=%d consumed=%d missed=%d wrapped=%d corrupted=%d (forceMiss=%d)."),
+				TEXT("Capture(sve): key ring Ã¢â‚¬â€ published=%d consumed=%d missed=%d wrapped=%d corrupted=%d (forceMiss=%d)."),
 				Ring.Published, Ring.Consumed, Ring.Missed, Ring.Wrapped, Ring.Corrupted,
 				AnomalySveKeyRing::GetForceMissMode());
 
@@ -2622,7 +2954,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 					TEXT("submitsIssued=%d framesWritten=%d pendingWantedAtEnd=%d maxPendingDepth=%d ")
 					TEXT("(traced %d arm / %d publish event(s) of first %d each; the per-event lines above carry ")
 					TEXT("their own token). The handshake is CONNECTED when marksIssued, wantedMatches, submitsIssued ")
-					TEXT("and framesWritten agree; a gap between ADJACENT numbers names the stage that missed — ")
+					TEXT("and framesWritten agree; a gap between ADJACENT numbers names the stage that missed Ã¢â‚¬â€ ")
 					TEXT("marks>matches: arms never met an eligible publish; matches>submits: the render pass dropped ")
 					TEXT("keyed frames; submits>frames: readback or snapshot pairing lost them (pairing losses now ")
 					TEXT("warn per frame with their own token)."),
@@ -2702,8 +3034,18 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 						: TEXT(""));
 			}
 		}
+		if (bCensusEffective)
+		{
+			if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
+			{
+				Auto->ClearCensusProvider();
+			}
+			Async->Census.End(GetWorld());
+		}
 		Async->MaskMeasure.EndRun();
+		RunStencilHygieneCheck(true);
 	}
+	bCensusEffective = false;
 
 	if (Async.IsValid() && Async->SveCapturer.IsValid())
 	{
@@ -2903,7 +3245,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		if (!bKnownId)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture: anomaly id '%s' is not registered in the active-state table — falling back to the whole fire ")
+				TEXT("Capture: anomaly id '%s' is not registered in the active-state table Ã¢â‚¬â€ falling back to the whole fire ")
 				TEXT("window. If this anomaly TOGGLES its anomalous state inside its own fire window it MUST be added to ")
 				TEXT("ResolveAnomalyActiveSource, or every frame of the window is labelled positive whether or not the ")
 				TEXT("anomaly was actually showing."),
@@ -2922,7 +3264,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 			{
 				++NonManifestedEvents;
 				UE_LOG(LogAnomalyCapture, Warning,
-					TEXT("Capture: '%s' event on '%s' NEVER MANIFESTED — no captured frame sampled the anomaly as active ")
+					TEXT("Capture: '%s' event on '%s' NEVER MANIFESTED Ã¢â‚¬â€ no captured frame sampled the anomaly as active ")
 					TEXT("(state source: %s). Writing zero positive frames and manifested=false (previously this emitted %d ")
 					TEXT("on-screen frames as positives)."),
 					*Ev.Id.ToString(), *Ev.NodeName, DescribeActiveSource(Source), Ev.AffectedFrames.Num());
@@ -2937,7 +3279,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		if (Source != EAnomalyActiveSource::FireWindow && Out.bManifested)
 		{
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture: TOGGLING-SUBSET id=%s target=%s source=%s positives=%d of %d fire-active frame(s) — ")
+				TEXT("Capture: TOGGLING-SUBSET id=%s target=%s source=%s positives=%d of %d fire-active frame(s) Ã¢â‚¬â€ ")
 				TEXT("annotation.json carries the ACTIVE SUBSET (gapped), never the whole fire window. labels.jsonl still ")
 				TEXT("covers the whole window, which is why the overlay tool shows AMBER OUTSIDE-SUBSET boxes there."),
 				*Ev.Id.ToString(), *Ev.NodeName, DescribeActiveSource(Source),
@@ -3227,8 +3569,8 @@ static FAutoConsoleCommandWithWorldAndArgs GCapturePaceCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryCmd(
 	TEXT("IAI.Capture.Delivery"),
-	TEXT("Toggle client-delivery mode (default OFF). ON: a run writes ONLY the client-facing artifacts — ")
-	TEXT("Actual_Frames/ + Video_Clip/ + run_summary.json + annotation.json — and suppresses labels.jsonl ")
+	TEXT("Toggle client-delivery mode (default OFF). ON: a run writes ONLY the client-facing artifacts Ã¢â‚¬â€ ")
+	TEXT("Actual_Frames/ + Video_Clip/ + run_summary.json + annotation.json Ã¢â‚¬â€ and suppresses labels.jsonl ")
 	TEXT("and run.json (so the seed is not shipped and the session is not client-reproducible). Ground-truth ")
 	TEXT("is still computed, just not written. OFF: full fidelity (all artifacts). The packaged default is ")
 	TEXT("read at startup from DefaultGame.ini [AnomalyCapture] bDeliveryModeDefault; this command overrides ")
@@ -3413,10 +3755,10 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskProbeCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureSveCmd(
 	TEXT("IAI.Capture.SVE"),
-	TEXT("Select the capture grab point (default OFF = backbuffer). ON: capture via a SceneViewExtension — scene ")
+	TEXT("Select the capture grab point (default OFF = backbuffer). ON: capture via a SceneViewExtension Ã¢â‚¬â€ scene ")
 	TEXT("colour after tonemap and BEFORE Slate composites the UI, so the frame is UI-free, and the frame/state key ")
 	TEXT("is recovered by IDENTITY through the view-family ring instead of by arm-to-present ORDER. OFF: the m21 ")
-	TEXT("backbuffer path — the presented frame including game UI. Mid-run changes are ignored (stop first). The ")
+	TEXT("backbuffer path Ã¢â‚¬â€ the presented frame including game UI. Mid-run changes are ignored (stop first). The ")
 	TEXT("packaged default is read at startup from DefaultGame.ini [AnomalyCapture] bSveCaptureDefault; this command ")
 	TEXT("overrides it for the session. Usage: IAI.Capture.SVE <0|1>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
@@ -3439,9 +3781,9 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureContentClockCmd(
 	TEXT("IAI.Capture.ContentClock"),
 	TEXT("Select which clock the game's visible content advances on, so the honest fps stamp picks the right ")
 	TEXT("rate on a slow run (default WALL). game: content follows the GAME clock (StackOBot world under fixed ")
-	TEXT("step) — every frame is an exact 1/target game-time slice, so video.fps is stamped at TARGET at any ")
+	TEXT("step) Ã¢â‚¬â€ every frame is an exact 1/target game-time slice, so video.fps is stamped at TARGET at any ")
 	TEXT("ratio and plays natural; a slow run is a capture-time perf issue, not a video defect. wall: content ")
-	TEXT("follows the WALL clock (sequencer/real-time titles) — a run slower than target stamps the sustained ")
+	TEXT("follows the WALL clock (sequencer/real-time titles) Ã¢â‚¬â€ a run slower than target stamps the sustained ")
 	TEXT("rate so the video plays at true speed (the m11 office fix). Packaged default: DefaultGame.ini ")
 	TEXT("[AnomalyCapture] ContentClockDefault=game|wall; this command overrides it for the session. ")
 	TEXT("Usage: IAI.Capture.ContentClock <game|wall>"),
@@ -3465,14 +3807,14 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureContentClockCmd(
 			}
 			else
 			{
-				UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.ContentClock: unknown token '%s' — expected 'game' or 'wall'. No change."), *Args[0]);
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.ContentClock: unknown token '%s' Ã¢â‚¬â€ expected 'game' or 'wall'. No change."), *Args[0]);
 			}
 		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureFocusGateCmd(
 	TEXT("IAI.Capture.FocusGate"),
 	TEXT("Gate the first captured frame on game-window focus (default ON). ON: a capture Start ARMS immediately ")
-	TEXT("but holds the first frame until the game window has foreground focus — so clicking Start in the ")
+	TEXT("but holds the first frame until the game window has foreground focus Ã¢â‚¬â€ so clicking Start in the ")
 	TEXT("external dashboard (browser) does not record idle frames during the click-and-move-back gap; focus the ")
 	TEXT("game window to begin, or IAI.Capture.Stop to cancel the armed run. The gate is skipped when there is no ")
 	TEXT("game window at all (headless / Simulate), and a safety timeout starts the run anyway if focus never ")
@@ -3490,6 +3832,210 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureFocusGateCmd(
 			{
 				Cap->SetFocusGate(FCString::Atoi(*Args[0]) != 0);
 			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusCmd(
+	TEXT("IAI.Capture.Census"),
+	TEXT("m36 SELECTION CENSUS - candidate selection based on PIXELS ACTUALLY DRAWN, not bounds. The COMPILED ")
+	TEXT("default is OFF; [AnomalyCapture] bSelectionCensusDefault in DefaultGame.ini carries delivered ")
+	TEXT("behaviour, and this switch overrides whichever applies, for the session, BETWEEN RUNS. Read the ")
+	TEXT("effective value and its provenance from the StartRun echo, never from this help text. ON: during a ")
+	TEXT("capture run the m26 mask pass + m34 per-tag reduce run as a rolling multi-target CENSUS over the ")
+	TEXT("prefiltered candidate set (frustum + poll radius + renderable type + exclusion patterns - NO bounds ")
+	TEXT("occlusion trace, NO bounds coverage), up to 55 tags per census frame, batched until every candidate ")
+	TEXT("is measured. Selection rule: MEASURED_ZERO is excluded categorically; MEASURED_NONZERO is eligible ")
+	TEXT("iff measured drawn coverage >= IAI.Capture.CensusFloor; NOT_MEASURABLE falls back to the bounds path ")
+	TEXT("per reason (nanite/tag_failed/hidden/not_yet_measured), except translucent-without-opt-in which is ")
+	TEXT("EXCLUDED (IAI.Capture.CensusTranslucent). Requires the mask (IAI.Capture.Mask) and async capture. ")
+	TEXT("The armed-frame measurement and the ZERO-ONLY veto are UNCHANGED and remain the backstop; ")
+	TEXT("annotation.json's field set does not move. Usage: IAI.Capture.Census <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.Census <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetCensus(FCString::Atoi(*Args[0]) != 0);
+				UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.Census: EFFECTIVE READ-BACK = %d."),
+					Cap->IsCensus() ? 1 : 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusFloorCmd(
+	TEXT("IAI.Capture.CensusFloor"),
+	TEXT("m36 - the census eligibility floor, as a PERCENT of the viewport area of MEASURED DRAWN pixels ")
+	TEXT("(drawn_px/frame_px), compiled default 6.0. A MEASURED_NONZERO candidate below the floor is not ")
+	TEXT("selectable. DELIBERATELY a separate knob from IAI.SetMinScreenCoverage (whose operand stays the ")
+	TEXT("BOUNDS rect and which still governs the NOT_MEASURABLE fallback path). Out-of-range is REFUSED, ")
+	TEXT("never clamped. PRECEDENCE: console > DefaultGame.ini [AnomalyCapture] ")
+	TEXT("CensusMinDrawnCoveragePctDefault > compiled 6.0. Takes effect BETWEEN RUNS; the effective value ")
+	TEXT("echoes at StartRun. Usage: IAI.Capture.CensusFloor <pct>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.CensusFloor <pct>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetCensusFloorPct(FCString::Atof(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusMaxAgeCmd(
+	TEXT("IAI.Capture.CensusMaxAge"),
+	TEXT("m36 - maximum census verdict age at fire time, in GAME TICKS (compiled default 12, ini ")
+	TEXT("[AnomalyCapture] CensusMaxVerdictAgeTicksDefault). A verdict older than this is EXPIRED: the ")
+	TEXT("candidate re-measures before regaining eligibility and counts as not_yet_measured meanwhile. 0 ")
+	TEXT("expires everything and is the P-C11 loud-inert control: every fire then logs the all-fallback ")
+	TEXT("WARNING and increments census_fires_fallback_all. Out-of-range is REFUSED. Takes effect BETWEEN ")
+	TEXT("RUNS. Usage: IAI.Capture.CensusMaxAge <ticks>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.CensusMaxAge <ticks>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetCensusMaxVerdictAgeTicks(FCString::Atoi(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusTranslucentCmd(
+	TEXT("IAI.Capture.CensusTranslucent"),
+	TEXT("m36 R2 - whether a candidate whose EVERY renderable slot is translucent WITHOUT ")
+	TEXT("AllowTranslucentCustomDepthWrites is EXCLUDED from selection (compiled default ON, ini ")
+	TEXT("[AnomalyCapture] bCensusExcludeTranslucentDefault). Such a target cannot write custom depth ")
+	TEXT("(CustomDepthRendering.cpp ignores translucent materials without the opt-in), so measuring it would ")
+	TEXT("produce a FALSE ZERO - the H6 route-e shape - and the owner ruled such targets unusable anyway ")
+	TEXT("(the decal case, journal 060). OFF measures them instead (the route-e v2 experiment, no cook ")
+	TEXT("needed). Counted in census_excluded_translucent. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Capture.CensusTranslucent <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.CensusTranslucent <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetCensusExcludeTranslucent(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusReservationCmd(
+	TEXT("IAI.Capture.CensusReservation"),
+	TEXT("m36 R10 - host stencil reservation (default ON). At StartRun, every stencil value in 200..254 found ")
+	TEXT("on a component with bRenderCustomDepth that the plugin did not tag is RESERVED for the run and never ")
+	TEXT("assigned by the census or the event allocator, so host pixels cannot be COUNTED under a plugin tag. ")
+	TEXT("OFF is a GATE LEVER for the P-C12 companion only (proving the instrument can fail, G96) and must be ")
+	TEXT("ON in any real leg. Takes effect BETWEEN RUNS. Usage: IAI.Capture.CensusReservation <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.CensusReservation <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetCensusReservation(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusLeakProbeCmd(
+	TEXT("IAI.Capture.CensusLeakProbe"),
+	TEXT("GATE ARTEFACT - default OFF, MUST be OFF in any build that ships. ON: the census DELIBERATELY leaves ")
+	TEXT("exactly one tagged component un-restored, so the final CENSUS-HYGIENE check is proven able to report ")
+	TEXT("a DIFF (P-C6 companion, G96 - a clean pass from an instrument never proven able to fail is not a ")
+	TEXT("pass). Inert in delivery mode by guard. Usage: IAI.Capture.CensusLeakProbe <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.CensusLeakProbe <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetCensusLeakProbe(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusCoArmCmd(
+	TEXT("IAI.Capture.CensusCoArm"),
+	TEXT("GATE ARTEFACT - default OFF, MUST be OFF in any build that ships. ON: the census arms ONLY on ticks ")
+	TEXT("where the event mask also armed, forcing the census arm to queue BEHIND the event arm on the SVE and ")
+	TEXT("pop on the NEXT view family - the P-C10 delayed-pop attribution control (R4: tags stay on until ")
+	TEXT("collected, values never reused in flight, so a delayed pop must still attribute every count to the ")
+	TEXT("right candidate). Inert in delivery mode by guard. Usage: IAI.Capture.CensusCoArm <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.CensusCoArm <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetCensusCoArm(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusHostTagCmd(
+	TEXT("IAI.Capture.CensusHostTag"),
+	TEXT("GATE ARTEFACT - default absent, MUST NOT be used outside a gate leg. Sets bRenderCustomDepth plus ")
+	TEXT("the given CustomDepthStencilValue on every primitive component of the exact-named actor, DIRECTLY ")
+	TEXT("and OUTSIDE the plugin's tag map - simulating HOST-set custom depth for the P-C12 reservation ")
+	TEXT("control. The plugin will treat that value as host-owned: with reservation ON it must appear in the ")
+	TEXT("StartRun reserved set and never be assigned. This command does NOT restore anything; the state ")
+	TEXT("persists for the process. Usage: IAI.Capture.CensusHostTag <ActorName> <value>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 2 || !World)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.CensusHostTag <ActorName> <value>"));
+				return;
+			}
+			const int32 Value = FMath::Clamp(FCString::Atoi(*Args[1]), 0, 255);
+			int32 Touched = 0;
+			for (TActorIterator<AActor> It(World); It; ++It)
+			{
+				AActor* Actor = *It;
+				if (!Actor || !Actor->GetName().Equals(Args[0], ESearchCase::IgnoreCase))
+				{
+					continue;
+				}
+				TInlineComponentArray<UPrimitiveComponent*> Prims;
+				Actor->GetComponents(Prims);
+				for (UPrimitiveComponent* Prim : Prims)
+				{
+					Prim->SetCustomDepthStencilValue(Value);
+					Prim->SetRenderCustomDepth(true);
+					++Touched;
+				}
+				break;
+			}
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("IAI.Capture.CensusHostTag: actor '%s' value %d -> %d component(s) set OUTSIDE the plugin ")
+				TEXT("tag map (GATE USE ONLY - simulates host-set custom depth; 0 components means the actor was ")
+				TEXT("not found by exact name)."),
+				*Args[0], Value, Touched);
 		}));
 
 #endif
