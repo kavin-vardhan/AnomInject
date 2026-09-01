@@ -172,68 +172,162 @@ Passing A-6 on Bates **is the m35 close-out condition**. On that result:
 
 # SECTION B — ONCE m36 IS BENCH-GREEN
 
-⛔ **Do not run Section B until m36's home gates pass.** A census leg on an unproven build produces
-numbers that look like data.
+✅ **UNLOCKED 2026-09-01 — m36's home gates have passed and the branch is merged to `master`
+(`0f35d7a`).** The rule that gated this section stands and is why it was gated: a census leg on an
+unproven build produces numbers that look like data. That condition is now met, so Section B is
+runnable — **pull `master` first** (A-2's step, which now brings m36 with it).
 
-### B-1. The leg
+📌 **`master` IS INERT FOR THE CLIENT.** The census's compiled default is **OFF**, and with no
+provider registered the selection path is byte-identical to the pre-census picker — measured, not
+asserted. So merging m36 changed nothing about a delivered build unless someone turns the census on,
+which is what Section B does deliberately.
 
-Same as A-5, with the census on:
+🚨 **SECTION B IS A PAIR OF LEGS, NOT ONE.** Leg 1 runs the **shipped default floor (6.0)**; leg 2
+runs a **pool-bearing floor (0.5)**. **Both are needed and neither is the pass.** On the bench,
+floor 6.0 left exactly ONE eligible candidate out of 77 while floor 0.5 left about fourteen — so a
+single leg at either floor tells you almost nothing about the other, and **the two legs' histograms
+together are the INPUT TO THE FLOOR DECIDE.**
+⛔ **Neither leg decides the floor and no number on this card recommends one.** You are collecting
+the two distributions; the value is a later, separate decision.
 
+### B-1. The two legs
+
+Run leg 1, read everything in B-2…B-6, **then** run leg 2 and read the same things again.
+⚠ **Restart the game between them.** `IAI.Capture.CensusFloor` is read at `StartRun`, and running
+them back-to-back in one process is fine — but a restart is what makes each leg's **provenance**
+echo independent, which is half of what B-2 is for.
+
+**LEG 1 — shipped default floor. Do NOT issue `CensusFloor`; the point is that the compiled
+default is what runs.**
 ```
+IAI.Capture.Mask 1
 IAI.Capture.Census 1
 IAI.Capture.Config 2 4 8 4 0
-IAI.Capture.Start "" png 4242 90 blinking
+IAI.Capture.Start "" png 4242 90
 ```
 
-### B-2. StartRun echo — read it BEFORE anything else
+**LEG 2 — pool-bearing floor.**
+```
+IAI.Capture.Mask 1
+IAI.Capture.Census 1
+IAI.Capture.CensusFloor 0.5
+IAI.Capture.Config 2 4 8 4 0
+IAI.Capture.Start "" png 4242 90
+```
+
+🚨 **`IAI.Capture.Mask 1` IS NOT OPTIONAL AND IS THE EASIEST THING ON THIS CARD TO GET WRONG.** The
+census is only active when the mask AND async capture are both on (`bCensusEffective = census &&
+mask && async`). Without it the run completes, writes every artifact, and **emits no census at
+all** — which reads exactly like a clean census result. The build says so out loud if it happens
+(`census was REQUESTED but is INACTIVE for this run`); B-2 is where you catch it.
+
+📌 **`IAI.Capture.Start "" png 4242 90` has FOUR arguments on purpose.** Naming an anomaly without
+also naming a target actor is refused as an incomplete targeted run; and a **targeted** run would
+bypass selection entirely, which is the one thing Section B exists to exercise. Four arguments =
+auto-pool = the selector choosing its own targets, which is the thing under test.
+
+### B-2. StartRun echo — read it BEFORE anything else, on BOTH legs
 
 ```
-=== Capture(census): EFFECTIVE FOR THIS RUN - census on ... floor=6.00% ... maxVerdictAgeTicks=12 ... excludeTranslucent=1 ... reservation=1 reserved=N [values]
+=== Capture(census): EFFECTIVE FOR THIS RUN - census ON (requested on, from ...), floor=6.00%(from ...), maxVerdictAgeTicks=12(...), excludeTranslucent=1(...), reservation=1 ===
+Capture(mask): M36 STENCIL RESERVATION ON - reserved=N [ ... ]
 ```
 
-**Read back:** `census on/off`, `floor`, `maxVerdictAgeTicks`, `excludeTranslucent`, and
-**`reserved=N` plus the list of values**.
-🚨 **If this line is absent, or says `census off`, the leg is VOID — not a pass.** A census that
-silently did not run reads exactly like a clean result (`G139`).
+**Read back per leg:** `census ON/off`, **`floor` AND the bracketed source next to it**,
+`maxVerdictAgeTicks`, `excludeTranslucent`, `reservation`, and **`reserved=N` plus the list of
+values**.
+
+🚨 **If the line is absent, or says `census off`, THAT LEG IS VOID — not a pass** (`G139`).
+✅ **The floor's PROVENANCE is a free correctness check across the pair:** leg 1 must read
+`floor=6.00%` from a **compiled/ini** source and leg 2 must read `floor=0.50%` from **console**. If
+leg 2 still says 6.00, the command did not take and **the leg is void**, not a low-pool result.
 📌 **`reserved=N [values]` IS the full custom-depth census** A-7 could only partly answer: every
 component on that host already writing custom depth in 200–254 that the plugin did not tag.
-**Read it for both hosts.**
+**Read it on both hosts.** It should be **identical across the two legs** — it is a property of the
+host, not of the floor.
 
-### B-3. The typed counters
+### B-3. The eleven counters, per leg
 
-From `run_summary.json`:
+From `run_summary.json`. **All eleven exist only when the census actually ran** — if any are
+missing, re-read B-2 rather than reporting zeros.
 
-| field | expected on a healthy Bates leg |
+| field | what to expect on a healthy Bates leg |
 |---|---|
+| `census_frames` | a number |
+| `census_cycles` | a number — **compare it against `census_candidates`; see B-4** |
 | `census_candidates` | **≥ 1** — below that the leg counts toward **no** prediction |
-| `census_unmeasurable_nanite` | **0** — Bates has no Nanite at all. **Non-zero means the classifier is misfiring; report it, do not re-run to a green** |
 | `census_zero` | a number |
-| `census_below_floor` | a number |
+| `census_below_floor` | a number — **expected MUCH larger on leg 1 than leg 2** |
 | `census_excluded_translucent` | a number |
 | `census_fires_fallback_all` | **0** on a healthy leg. Non-zero = the loud-inert path fired — **report it, do not re-run** |
-| `vetoed_events` | banked Bates band is **12–15** per run. Census-ON expectation is a **marked drop**. ⚠ **This is REPORTED, NOT GATED** — the veto is the backstop and residual vetoes are it working |
+| `census_unmeasurable_nanite` | **0** — Bates has no Nanite at all. **Non-zero means the classifier is misfiring; report it, do not re-run to a green** |
+| `census_unmeasurable_tag_failed` | **0** expected. Non-zero is a tagging problem — report the number |
+| `census_unmeasurable_hidden` | a small number — a candidate is unmeasurable while an anomaly is hiding it, which is normal |
+| `census_unmeasurable_not_yet_measured` | a number |
 
-**Read back: seven numbers.**
+**Plus, from the same file:**
 
-### B-4. The histogram read
+| field | reading |
+|---|---|
+| `vetoed_events` | banked Bates band is **12–15** per run. Census-ON expectation is a **marked drop**. ⚠ **REPORTED, NOT GATED** — the veto is the backstop and residual vetoes are it working |
 
-The census logs a per-cycle summary. **Read back, for the run:**
-1. **number of census cycles** completed;
-2. **candidates per cycle** — the low and the high (two numbers, not every cycle);
-3. **the verdict split** — how many `MEASURED_ZERO`, `MEASURED_NONZERO`, `NOT_MEASURABLE` in total.
+**Read back: twelve numbers per leg, twenty-four in total.**
 
-That is five numbers and it is enough to see the shape: a census whose candidate count collapses
-after cycle 1, or whose split is nearly all `NOT_MEASURABLE`, is measuring almost nothing even
-though every counter is populated.
+### B-4. The five-number histogram — this is the floor-decide input
 
-### B-5. The eye judgment — the product definition
+The census logs a per-cycle line:
 
-**Type a list: each fired target's name, and `visible: yes/no`** — could a viewer see that object
-change?
+```
+Census: CYCLE n DRAWN-COVERAGE histogram zero=A (0,1]=B (1,3]=C (3,6]=D (6,12]=E (12,25]=F >25=G | <names and counts>
+```
+
+**Take ONE settled cycle (any cycle after the first two) and read back these FIVE numbers — the
+count of candidates that would SURVIVE each candidate floor.** Each is a running total from the
+right-hand end of that line:
+
+| floor | how many survive | arithmetic from the printed buckets |
+|---|---|---|
+| **≥ 0.5 %** | *number* | B + C + D + E + F + G *(the `(0,1]` bucket straddles 0.5, so this slightly over-counts — say so, do not correct it)* |
+| **≥ 1 %** | *number* | C + D + E + F + G |
+| **≥ 3 %** | *number* | D + E + F + G |
+| **≥ 6 %** | *number* | E + F + G |
+| **≥ 12 %** | *number* | F + G |
+
+**Five numbers per leg. Ten in total. These ten ARE the floor decision's evidence** — the whole
+point is to see where the pool falls off a cliff on the host that matters, rather than on the bench.
+
+⚠ **Also read `zero=A`** and say it separately. A large `zero` is not a problem — it is the census
+finding objects that draw nothing, which is the entire reason it exists.
+🚨 **A census whose candidate count collapses after cycle 1, or whose split is nearly all
+`NOT_MEASURABLE`, is measuring almost nothing even though every counter is populated.** That is why
+B-3 asks for `census_cycles` and `census_candidates` together.
+
+### B-5. The `READBACK-LAYOUT` line — one line, four numbers
+
+Search the log for `READBACK-LAYOUT` and copy the line. What matters is:
+
+```
+rect=(X0,Y0)-(X1,Y1) picture=WxH
+```
+
+**Read back: the rect and the picture size.** ✅ **`picture` must equal `X1-X0` by `Y1-Y0`.**
+📌 **A non-zero `X0` or `Y0` is the whole reason m35 exists** — it is the condition that crashed
+this host — so if either is non-zero, say so explicitly; it means the host is letterboxing or
+pillarboxing and the fix is being exercised for real rather than in a bench simulation.
+⛔ If the line is absent, do not infer anything from its absence — report that it did not appear.
+
+### B-6. The eye judgment — the product definition
+
+**Type a list per leg: each fired target's name, and `visible: yes/no`** — could a viewer see that
+object change?
 
 ✅ **This one IS RDP-valid.** It judges *what was selected*, not how smoothly it rendered. A target
 either is or is not a thing a viewer can see change, and RDP does not alter that.
 ⛔ Do not use this to judge stutter. That is the physical-only gate.
+📌 **The comparison between the two legs is the interesting part:** leg 1 (floor 6.0) should fire on
+a small number of large, obvious objects; leg 2 (floor 0.5) on a wider and smaller set. **If leg 2's
+extra targets are things a viewer cannot see change, that is the floor being too low — and it is
+exactly the judgement the bench cannot make for you.**
 
 ---
 
