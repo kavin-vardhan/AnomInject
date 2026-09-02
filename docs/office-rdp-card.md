@@ -682,6 +682,55 @@ n+6` while the recorded cadence is `n, n+1, n+5, n+6` — one frame later, **for
 **are** `frame_indices`, and printing that array once tells us which reading was right. ⛔ **Nobody
 needs to look at the overlay again to settle it.**
 
+#### 🆕 C-3 READ GUIDE — how to READ the bundle. ⛔ No new steps, no new commands.
+
+*(Added 2026-09-02 from the transition-driver source read, journal 068 §1. **Nothing here changes what
+you run.** It changes what to look at afterwards, and it names the one thing that can quietly make the
+bundle unanswerable.)*
+
+**1. 🚨 THE TOGGLE LINE CARRIES NO INDEX OF ITS OWN. ITS ONLY ANCHOR IS THE `[…]` PREFIX.** The line is
+literally `blinking toggle -> HIDDEN (1 actors).` and nothing more — no frame number, no session
+index. What identifies it is the **engine's own prefix**, which should look like:
+
+```
+[2026.09.02-10.07.33:125][  4]LogAnomaly: Verbose: blinking toggle -> HIDDEN (1 actors).
+```
+
+That `[  4]` is the engine frame counter mod 1000, **and it is the same counter `labels.jsonl` calls
+`frame_index`.** ⇒ **join `(a)` to `(b)` on the bracketed number, not on `session_index`.**
+⚠ **If the toggle lines come out with NO `[…][…]` prefix, say so explicitly in the reply** — that
+build has log timestamps switched off, the exact-frame join is gone, and only line ORDER survives.
+Nothing to fix on the box; we just need to know.
+
+**2. READ `(b)` FOR `frame_index`, NOT ONLY `session_index`.** The `(b)` command already prints both
+(`session_index  frame_index  image`). `frame_index` is the join key to `(a)`; `session_index` is the
+key to the PNG name and to `(c)`.
+
+**3. `SVE-WANT-TRACE arm … gameFrame=…` STOPS AFTER 64 FRAMES.** It is a useful second anchor sitting
+next to the toggle lines, but only for captured frames up to ~64. Beyond that its absence is normal.
+The `keyed frame id=N submitted` lines continue for the whole run, but they come from the **render
+thread** — use their `id=` field, **never** their position in the file or their `[…]` prefix.
+
+**4. TWO FREE CROSS-CHECKS ON THE OVERLAY, both expected from the code:**
+- **`n − 1` should carry an AMBER box** (it has a label row for the fire but is not in
+  `frame_indices`).
+- **`n + 7` should carry NO BOX AT ALL — neither red nor amber.** The last frame of each burst is
+  dropped from the event by construction. **If you see a box at `n+7`, or no box at `n−1`, write it
+  down and send it raw** — that is a finding, not a mistake.
+
+**5. EXPECT EXACTLY THREE TOGGLE LINES PER EVENT, in the order `HIDDEN · VISIBLE · HIDDEN`,** followed
+by `IAI.Revert 'blinking' -> reverted.` (which is the event's end). The first hide has no
+`labels.jsonl` row on its own frame — it happens on a tick that is deliberately not captured, and
+that is expected. A different count or order means the half-period differs; the line
+`blinking: matched 1 actor(s) for '…' at half-period N frame(s).` in the same log reports that value —
+**copy that line too.**
+
+**6. WHAT THE COMPARISON THEN ASKS, in one sentence each.** For the mid-event show (labels `n+2`, eye
+`n+3`) and the second hide (labels `n+5`, eye `n+6`): find the frame the toggle line lands on.
+**Lands on the LABELS' frame ⇒ the pixels are the outlier on this host. Lands on the EYE's frame ⇒ the
+sampling/labelling side is the outlier. Anything else, or no usable anchor ⇒ report raw and classify
+nothing.** ⛔ These name WHERE, never WHY, and no branch is expected in advance.
+
 ### Standing
 
 ⛔ **Blinking stays UNTICKED on any Bates run that is not `C-1`, `C-2` or `C-3`.**

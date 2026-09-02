@@ -43,6 +43,39 @@ and is the single source of truth for the project.
 > tick ratio, letterbox — so (B) is LOCALIZED TO THE BATES HOST BUILD + CONTENT.** ⛔ **NO MECHANISM
 > CLAIMED.** **Next evidence: RDP card `C-3`** (fresh run, `Log LogAnomaly Verbose` set first, AA off;
 > a pre-declared three-way comparison that names WHERE the divergence sits, never why).
+> ✅ **THE TRANSITION-DRIVER + TOGGLE-LINE-ANCHOR SOURCE READ IS DONE (2026-09-02, session 068 TASK 1 —
+> journal `docs/sessions/2026-09-02-068-p9-transition-drivers-and-toggle-anchor.md` §1).** It had
+> **NEVER BEEN EXECUTED** (the brief carrying it was never delivered), and journal 067 §17.6 and the
+> `p9-bates-localized` handoff §4 both list it as outstanding — **those are RECORDS and are not
+> retro-edited; read them as DONE.** Findings, factual mapping only, **NO MECHANISM**:
+> **`Apply` NEVER HIDES** (`Anomaly_Blinking.cpp:10-71`) ⇒ flips **1, 2 and 3 are all the SAME
+> statement**, the `Tick` toggle at **`:91`**; **flip 4 (final show) is `Revert()` at `:106`**, reached
+> `BeginRevert` `AnomalyCaptureSubsystem.cpp:623` → `RevertAllLiveFires` → `RevertAnomaly`. ⇒ the
+> call-site partition `{1,2,3}·{4}` and the observed-agreement partition `{1,4}·{2,3}` **DO NOT
+> COINCIDE** — stated, with **no inference drawn.**
+> 🔑 **TWO CLOCKS, NEVER CONVERTED:** `FramesSinceToggle` counts **world-tick CALLS** (`:80`; the
+> `DeltaSeconds` parameter is ignored) · `SessionFrameIndex` counts **armed captured frames**
+> (`AnomalyCaptureSubsystem.cpp:2180`). They meet at **one sample, not a conversion** —
+> `SampleDeferredActiveState`'s `IsHidden()` read at `:2558`. ⚠ **`ticks_per_captured_frame` 1.3556 is
+> a RUN-AVERAGE and is NOT a per-window conversion factor — inside the Positives phase every tick
+> captures, so the local ratio is exactly 1.0.**
+> 🎯 **THE ANCHOR EXISTS AND IS EXACT: the toggle line stamps ONLY the phase word and the actor count
+> (`:95-96`), but the ENGINE PREFIX carries `GFrameCounter % 1000`** (`OutputDeviceHelper.cpp:30`;
+> `log.Timestamp` default **1 = UTC**, `LaunchEngineLoop.cpp:5678-5687`), and **`GFrameCounter`
+> increments AFTER the world tick** (`LaunchEngineLoop.cpp:5568` vs `:5363`) ⇒ **the toggle line's
+> `[fff]` == `labels.jsonl.frame_index % 1000` of the frame armed on that same tick.** Measured on this
+> box's packaged log. ⚠ **If Bates prints no prefix, the exact-frame join is gone and only ORDER
+> survives — that is a READ, and the bundle shows it directly.**
+> 📌 **`n+7` IS NOT "LABELLED VISIBLE" — IT CARRIES NO ANOMALY ROW AT ALL** (`BeginRevert` at `:623`
+> precedes `FinalizeArmedLabel` at `:670`), so the overlay should show **NO box at `n+7`** and an
+> **AMBER box at `n−1`**. Verified in a banked leg (`session_index 23`, `anomaly_present=false`).
+> ⚠ **`SVE-WANT-TRACE arm` STOPS AT 64 FRAMES** (`AnomalySveCapturer.h:38`).
+> ⇒ **Card `C-3` gained a READ GUIDE subsection (read instructions only; no new steps, no new
+> commands).**
+> ⚠ **Journal 067 §15's `AnomalyCaptureSubsystem.cpp` line numbers were correct at `d257f7b^` and are
+> now `+6` (early file) / `+61` (from `m37`'s ceiling knob onward) — the stamping trio is `:1978` /
+> `:1980` / `:1982-1983`, `ActiveByIndex.Add` is `:3232`. Facts unchanged; the mapping table is journal
+> 068 §1.0.**
 > 📌 **Standing mitigation unchanged: `blinking` stays UNTICKED on any Bates run that is not
 > `C-1`..`C-3`.**
 >
