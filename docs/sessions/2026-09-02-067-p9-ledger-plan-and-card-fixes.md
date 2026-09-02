@@ -1299,6 +1299,14 @@ r.ScreenPercentage
 Typed bare in the console, each prints its current value. ✅ **All three are stock UE 5.1 cvars and
 are confirmed present** (`r.AntiAliasingMethod` at `SceneView.cpp:210`).
 
+🔺 **§15.3 UPDATE — THE BUNDLE IS NOW A FILE, NOT A SET OF PHOTOS.** Every `C-3` command additionally
+appends to `$r\p9_bundle.txt` via `Tee-Object -FilePath … -Append` (**verified present and working on
+this box's PowerShell 5.1**; it writes a UTF-8 BOM, noted on the card). `C-3` opens with **run these
+immediately after the capture, before relaunching** — the engine rotates its log on the next launch,
+so item (a) exists only until the title restarts. The log path is a **codename-safe placeholder**,
+`<TITLE-SAVED-LOGS>`, defined on the card as *the host project's own `Saved\Logs\<its>.log`* and
+never written out.
+
 🚨 **FSR3 UPSCALER AND FSR3 FRAME-INTERPOLATION CVAR NAMES: I CANNOT CONFIRM THEM AND I AM NOT
 GUESSING.** The FSR3 plugin **is not present in this engine tree** — the only FSR here is
 `Engine/Plugins/Runtime/MobileFSR`, a different plugin — so any name I wrote would be invented.
