@@ -641,7 +641,7 @@ SOURCE, AND IT IS CONDITIONAL. The chain, cited:
 
 | | |
 |---|---|
-| **status** | 🔴 **OPEN.** Owner-observed. **A bench reproduction was ATTEMPTED 2026-09-02 and returned `UNDECIDABLE` on all five legs — neither reproduced nor refuted** (journal 067 §11). ⛔ **That is NOT a "not reproduced".** Nothing here is upgraded and nothing is discarded. |
+| **status** | 🔴 **OPEN.** Owner-observed. **Two bench reproduction attempts, 2026-09-02.** v1 (`MainWorld`) returned `UNDECIDABLE` on all five legs — a **fixture** failure, not a `P9` result (journal 067 §11, `G206`). **v2 (a letterboxed `CB_GateLevel`, settled camera) GRADED 16 EVENTS ACROSS FOUR LEGS: ALL ALIGNED, `k=0`, both differences empty, ZERO `P9`-SHAPE**; 8 further events UNDECIDABLE (journal 067 §12). ⛔ **That is still NOT the pre-declared "NOT REPRODUCED"**, which required *every* event graded. **Neither reproduced nor refuted. Nothing here is upgraded and nothing is discarded.** |
 | **class** | **Labelling ↔ manifestation mismatch at hide BOUNDARIES.** `blinking` only. |
 | **scope** | ⚠ **`missing_object` is NOT reported affected** — that is the owner's report, not a measured exclusion. |
 | **evidence** | **OWNER-OBSERVED (eye), Bates, over RDP.** **3 instances**, spread across **both** m36 Section B legs (floor 6.0 and floor 0.5). |

@@ -464,7 +464,14 @@ this plugin ships is single-state, so none of them has a hide boundary inside it
 land on. **The cost is one anomaly type on one host; the benefit is a Bates dataset with no known
 open labelling question in it.**
 
-### C-(g). Bates' EFFECTIVE delivery setting — two reads, because Section B's is UNRECORDED
+### C-(g). Bates' EFFECTIVE delivery setting — ⬇ **DEMOTED TO TIDY, 2026-09-02**
+
+🔽 **This was load-bearing when written and is no longer.** Delivery mode has since been **excluded
+as a `P9` factor by measurement**: bench leg C ran `delivery_mode = True` and produced an identical
+event structure and near-identical separations to the delivery-OFF leg A (0.011701 against
+0.011758) — journal 067 §11.8. So Bates' unrecorded setting **cannot account for `P9`**.
+**Still worth two seconds if you are already in the log** — it closes an unrecorded config axis —
+but nothing waits on it.
 
 Nobody wrote down whether Section B ran with delivery mode on or off. The B-1 payload never issues
 `IAI.Capture.Delivery`, so those legs ran on **whatever that host's ini or compiled default is** —

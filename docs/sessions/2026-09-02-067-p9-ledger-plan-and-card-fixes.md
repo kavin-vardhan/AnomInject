@@ -762,3 +762,206 @@ still claims none.
    unrecorded delivery setting **cannot** account for `P9`, and RDP card item **C-(g)** drops from
    load-bearing to merely tidy.
 2. ✅ **`ticks_per_captured_frame` is closed as a non-finding** (§11.4).
+
+---
+
+## §12 FIXTURE-V2 — a letterboxed `CB_GateLevel`, and the legs that ran on it
+
+**Predictions-v2: `docs/predictions/2026-09-03-p9-fixture-v2-letterboxed-gatelevel.md`, commit
+`f767a21`, committed before any leg on the new fixture.** v1 is not amended.
+
+### §12.1 🎯 `R3` WON — THE ZERO-COOK ROUTE. NO SOURCE CHANGE, NO COOK, NO NEW EXE.
+
+**`CB_GateLevel` letterboxed by two engine console commands in the leg's `ExecCmds`:**
+
+```
+Set PlayerCameraManager bDefaultConstrainAspectRatio true
+Set PlayerCameraManager DefaultAspectRatio 2.39
+```
+
+⇒ `READBACK-LAYOUT sourceExtent=1280x720 rect=(0,92)-(1280,628) picture=1280x536` — **the identical
+rect the lever produced on `MainWorld`**, now on the settled-camera fixture.
+
+⇒ **Route A (teach the lever a fallback) and Route B (a copied level) are BOTH UNBUILT.** The lever
+is untouched, **no plugin module recompiles**, and **the exe stays `D2BB25A5`** — so fixture-v2 legs
+sit on the **same binary as v1** and the fixture is the only variable that moved. **The cook the
+ruling authorised was not needed and was not performed**, so there is no new baseline entry, no
+container re-verify and no `G164` step.
+
+**`R1`** — lever at `Source/AnomalyCapture/Private/AnomalyCaptureLetterbox.cpp`, module
+`AnomalyCapture`, **no callers**; refusal is `ResolveViewTargetCamera:46` requiring
+`FindComponentByClass<UCameraComponent>()`, refusing at `:49-51`.
+**`R2`** (UE 5.1.1) — `UpdateViewTarget` sets `POV.AspectRatio` / `POV.bConstrainAspectRatio` from the
+defaults at `PlayerCameraManager.cpp:354-355`, **unconditionally and before any view-target work**;
+`CameraStyle = NAME_Default` (`:58`) reaches `CalcCamera` (`:434`, `:335`); `AActor::CalcCamera`
+without a camera component sets **location and rotation only** (`Actor.cpp:3085`). **The equivalence
+is exact:** `UCameraComponent::GetCameraView` sets the **same two** `FMinimalViewInfo` fields
+(`CameraComponent.cpp:392-393`), so both paths converge on one POV and everything downstream cannot
+tell them apart.
+**`R3`** — `Set` is `Obj.cpp:3937-3941` → `PerformSetCommand` (`:3435`) → `GlobalSetProperty`, applying
+to **live instances**, and **not shipping-gated** (`#if !UE_BUILD_SHIPPING` starts at `:3947`, after
+`SET`). ⚠ **Bench device only — never in a client-facing payload.**
+
+### §12.2 The harness change, and why it is not a bypass
+
+`-LetterboxedFixture` (CaptureBench `d0b5d7e`, **harness only**). `B1` compares a pixel bbox against
+`CALIB_BBOX`, frozen against an **unconstrained** 1280×720 view; constrain the aspect and the bbox
+moves **by construction** — measured `(0.0, 361.2, 306.1, 174.8)` against calib
+`(0.0, 485.2, 306.1, 234.8)`, ratio `(–, 0.7444, 1.0, 0.7445)`: **width ratio exactly 1.0**, y and h
+at 536/720. That is the harness's own **RESOLUTION-SCOPE** branch, not an `A47` bifurcation. So `B1`
+is **DECLARED NOT APPLICABLE** (`G117` on a new axis), never "passed".
+
+🚨 **AND THE SWITCH MUST SHOW ITS RECEIPT.** After the run it reads `readback_layout` from
+`run_summary.json` and **INVALIDATES the attempt unless the origin is non-zero** (a missing
+`readback_layout` is also invalid). A switch that asserted nothing would be a licence to launder a
+pose failure. Observed firing correctly: *"constraint PROVEN from the artifact; B1 declared NOT
+APPLICABLE"*. **`A47` via `-RequireModalRotZero` is the gate this fixture uses** — it reads the
+camera only, and a letterbox does not move the camera. It read **`modal_rot (0.0, 0.0, 0.0) → AT
+REST`** on every leg.
+
+### §12.3 The fixture, measured against `MainWorld`
+
+| | fixture-v2 (`CB_GateLevel` letterboxed) | v1 (`MainWorld` letterboxed) |
+|---|---|---|
+| view rect | `(0,92)-(1280,628)` | `(0,92)-(1280,628)` |
+| settle | `settle_start=0  dropped=0` | `settle_start=24  dropped=24` |
+| **bbox stability** | 🎯 **`distinct=1`, modal `100.0%`** | `distinct=28–29`, modal `14–17%` |
+| census candidates | **77**, nanite **0** | 38, nanite 29 |
+
+**Both halves of the conjunction, at last, in one fixture.**
+
+### §12.4 ✅ IN-REGIME CONTROLS — ALL THREE PASS. GATE OPEN.
+
+Run on leg A's **own** banked data, because the reader's four banked controls were gated on
+**un-letterboxed** pixels.
+
+| # | required | measured | |
+|---|---|---|---|
+| **(i)** | the reader must COUNT its events | **5 counted, all ALIGNED**, `k=0`, differences empty; **zero `A56` failures** | ✅ |
+| **(ii)** | `--synth-move` → `P9`-SHAPE, one-in/one-out, every readable event | **5/5 `P9`-SHAPE**, exactly one missing + one extra each | ✅ |
+| **(iii)** | zero `P9`-SHAPE | **0 `P9`-SHAPE**; 5 anchor refusals **naming the hidden flank**, 2 separation refusals | ✅ |
+
+**Flush-boundary statement, from the annotation and not assumed:** claimed sets are `{4,5,9,10}`,
+`{16,17,21,22}`, … — the same 2-hidden / 3-visible / 2-hidden cadence as `R30`, first claimed frame
+at the window's leading edge ⇒ **flush**, so (iii)'s anchor refusals are the **expected** result and
+`SHIFTED(k)` is unreachable here. `A54`'s banked `R30 --shift 1` control (12/12 `SHIFTED`) is
+**cited, not re-run**.
+
+### §12.5 The legs — per-leg validity, all four VALID
+
+Every `_leg_geometry.json` verified per leg against the intended config on every axis (`G205`):
+map `CB_GateLevel`, seed 4242, 90 frames, `letterboxed_fixture=True`, `require_modal_rot_zero=True`,
+targets/pacing as designed.
+
+| | A | A′ | B | B′ |
+|---|---|---|---|---|
+| targeting / pacing | targeted / paced | targeted / unpaced | auto-pool / paced | auto-pool / unpaced |
+| rect | `(0,92)-(1280,628)` on all four; picture `1280x536` | | | |
+| frames on disk / zero-byte | 90 / 0 | 90 / 0 | 90 / 0 | 90 / 0 |
+| key ring pub/cons/missed | 121/121/0 | 123/123/0 | 121/121/0 | 123/123/0 |
+| `wanted_matches` | 90 | 90 | 90 | 90 |
+| guard / clamp | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| `vetoed_events` | 0 | 0 | 0 | 0 |
+| **`census_fires_fallback_all`** | **0** | **0** | 🔴 **3** | 🔴 **3** |
+| ticks / frames | 122/90 = 1.3556 | 124/90 = 1.3778 | 122/90 = 1.3556 | 124/90 = 1.3778 |
+
+🔴 **`census_fires_fallback_all = 3` ON BOTH AUTO-POOL LEGS — REPORTED, NOT RE-RUN.** Three fires on
+each had a pool that was **entirely** unmeasured or expired, so the census contributed nothing to
+those selections and they fell through to the bounds path. ⛔ **It does not void the legs**, but it
+qualifies what B/B′ demonstrate: some of their fires were **not** census-selected. The targeted legs
+carry **0**.
+
+### §12.6 THE READER — 16 COUNTED EVENTS, **ALL ALIGNED, ZERO `P9`-SHAPE**
+
+```
+LEG A   5 counted: ALIGNED 5, UNDECIDABLE 2, TRUNCATED 1
+  0 [4,5,9,10]      -> [4,5,9,10]      k+0  miss[] extra[]  sep/spr 23.605  minMrg 0.9646
+  1 [16,17,21,22]   UNDECIDABLE  separation 0.107041 below 5.0 x spread 0.051352   (ratio 2.08)
+  2 [28,29,33,34]   -> [28,29,33,34]   k+0  miss[] extra[]  sep/spr 11.895  minMrg 0.9514
+  3 [40,41,45,46]   -> [40,41,45,46]   k+0  miss[] extra[]  sep/spr 14.601  minMrg 0.9339
+  4 [52,53,57,58]   UNDECIDABLE  separation 0.103630 below 5.0 x spread 0.059932   (ratio 1.73)
+  5 [64,65,69,70]   -> [64,65,69,70]   k+0  miss[] extra[]  sep/spr 16.193  minMrg 0.9422
+  6 [76,77,81,82]   -> [76,77,81,82]   k+0  miss[] extra[]  sep/spr 16.870  minMrg 0.9600
+  7 [88,89]         TRUNCATED
+
+LEG A'  5 counted: ALIGNED 5, UNDECIDABLE 2, TRUNCATED 1
+  0 [4,5,9,10]      UNDECIDABLE  separation 0.117143 below 5.0 x spread 0.032055   (ratio 3.65)
+  1 [16,17,21,22]   -> [16,17,21,22]   k+0  miss[] extra[]  sep/spr 12.699  minMrg 0.9312
+  2 [28,29,33,34]   UNDECIDABLE  separation 0.111568 below 5.0 x spread 0.037027   (ratio 3.01)
+  3 [40,41,45,46]   -> [40,41,45,46]   k+0  miss[] extra[]  sep/spr 12.748  minMrg 0.9368
+  4 [52,53,57,58]   -> [52,53,57,58]   k+0  miss[] extra[]  sep/spr 15.366  minMrg 0.9416
+  5 [64,65,69,70]   -> [64,65,69,70]   k+0  miss[] extra[]  sep/spr 17.586  minMrg 0.9554
+  6 [76,77,81,82]   -> [76,77,81,82]   k+0  miss[] extra[]  sep/spr 17.932  minMrg 0.9716
+  7 [88,89]         TRUNCATED
+
+LEG B   3 counted: ALIGNED 3, UNDECIDABLE 2, TRUNCATED 1
+  0 [16,17,21,22]         UNDECIDABLE  separation 0.006401 below 5.0 x spread 0.007647  (ratio 0.84)
+  1 [27..34] (8 frames)   -> identical  k+0  miss[] extra[]  sep/spr 37.486  minMrg 0.9733
+  2 [40,41,45,46]         UNDECIDABLE  separation 0.147913 below 5.0 x spread 0.030877  (ratio 4.79)
+  3 [51..58] (8 frames)   -> identical  k+0  miss[] extra[]  sep/spr  5.531  minMrg 0.7508  <- NEAR FLOOR
+  4 [63..70] (8 frames)   -> identical  k+0  miss[] extra[]  sep/spr 19.033  minMrg 0.9445
+  5 [87,88,89]            TRUNCATED
+
+LEG B'  3 counted: ALIGNED 3, UNDECIDABLE 2, TRUNCATED 1
+  0 [16,17,21,22]         UNDECIDABLE  separation 0.017512 below 5.0 x spread 0.012507  (ratio 1.40)
+  1 [27..34]              UNDECIDABLE  separation 0.019520 below 5.0 x spread 0.006189  (ratio 3.15)
+  2 [40,41,45,46]         -> identical  k+0  miss[] extra[]  sep/spr  9.094  minMrg 0.8697
+  3 [51..58]              -> identical  k+0  miss[] extra[]  sep/spr  5.548  minMrg 0.7687  <- NEAR FLOOR
+  4 [63..70]              -> identical  k+0  miss[] extra[]  sep/spr 18.444  minMrg 0.9458
+  5 [87,88,89]            TRUNCATED
+```
+
+⚠ **TWO EVENTS LAND NEAR THE FROZEN FLOOR — ANNOTATED, NEVER RECLASSIFIED** (`A55`/`A57`): leg B
+event 3 at **5.531** and leg B′ event 3 at **5.548**, against `SEP_RATIO` **5.0**. Both read ALIGNED
+with empty differences and their per-frame margins (0.7508, 0.7687) clear `MARGIN_FLOOR` 0.5. ⛔ **The
+constant is untouched.**
+
+### §12.7 The `A54` companion — IT DECLINES, AND THE REASON MATTERS
+
+All four legs: `VERDICT: NOT-A54-CERTIFIABLE`. ⚠ **But the reason has CHANGED from v1 and the tool's
+message misattributes it.** On the targeted legs `A56` reads **modal 100.0 % of 59 rows, 1
+distinct** — its coverage and distinctness conjuncts **PASS**. What fails is the **`B1` pose-match
+conjunct**, for exactly the `CALIB_BBOX`-is-unconstrained reason above. The oracle then prints
+*"P8: this leg's camera settled in a pose TAU was NOT calibrated on"* — **which names a cause it has
+not established here: the camera did not move, the VIEW was constrained.** `A54`'s message is
+generic and this is `G193`/`G117`'s shape inside the tool's own prose. ⛔ **`a54_oracle.py` is NOT
+edited** (any edit re-triggers `A53`); recorded instead.
+
+⇒ **CONSEQUENCE: `A54` CANNOT ANSWER THE `P1` QUESTION ON THIS FIXTURE.** The `P1` exclusion
+therefore rests on **the reader's own best-`k` search**, which is a constant-shift test over
+−6…+6 and returned **`k = 0` with an empty residual on all 16 counted events.** Stated so the
+support is not overclaimed.
+
+### §12.8 VERDICT AGAINST THE PRE-DECLARED DISCRIMINATORS
+
+| discriminator | met? |
+|---|---|
+| **`P9` REPRODUCED** | ⛔ **NO.** Zero events on any leg show a two-directional difference. 16/16 counted events have **both differences empty**. |
+| **NOT `P9` (constant shift)** | ⛔ **NO.** No `SHIFTED(k)` anywhere; best `k = 0` on all 16. |
+| **ONE-DIRECTIONAL** | ⛔ **NO.** |
+| **NOT REPRODUCED** | ⛔ **NOT SATISFIED AS WRITTEN — and this is the honest reading.** It requires **every** blinking event ALIGNED. **8 events (2 per leg) are UNDECIDABLE**, so "every" does not hold. |
+| **UNDECIDABLE** | ✅ on those **8** events specifically (separation below the frozen floor). |
+
+🎯 **THE PRECISE RESULT, stated without rounding either way: on all 16 events the instrument could
+grade, across four legs and both pacings, the observed hidden set EQUALS the claimed set exactly —
+`k = 0`, both differences empty. `P9`-SHAPE appeared ZERO times. On 8 further events the instrument
+declined.**
+
+⛔ **This is NOT the pre-declared "NOT REPRODUCED", and it must not be reported as one.** That
+verdict was defined to require every event graded, and 8 were not. **What can be said is the
+stronger-than-v1 negative it actually is: `P9` did not appear on any event that could be read, on a
+fixture that satisfies both halves of the conjunction and whose instrument passed three in-regime
+controls on its own data.**
+
+⛔ **NO MECHANISM, LEAD OR LIKELY CAUSE IS OFFERED.** The `P9` ledger entry still claims none, and
+`P9` remains OPEN: an owner-observed phenomenon on Bates that this bench has not reproduced and has
+not refuted.
+
+### §12.9 B/B′ pool availability — the condition was MET
+
+The census at floor 0.5 on this fixture offers **77 candidates**, of which a settled cycle shows
+**many non-target eligible actors**: `StaticMeshActor_0` 6.06 %, `_73` 5.07 %, `_86` 3.80 %, `_62`
+2.67 %, `_98` 2.28 %, `_50` 1.83 %, `_16` 1.56 %, `_51` 1.33 %, plus a dozen more above 0.5 %. All
+are `StaticMeshActor`s and all are blinking-capable. ⇒ **B/B′ were RUN, not skipped**, and their
+events fired on non-target actors as intended. ⚠ Qualified by the `fires_fallback_all = 3` reading
+in §12.5.

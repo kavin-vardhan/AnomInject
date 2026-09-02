@@ -5147,3 +5147,75 @@ conspicuous. On a first run it would have been believed.
 ⇒ And the reason it belongs beside `G190`: **assert on a POSITIVE artifact of the run.** This tool
 now prints a `summary` line unconditionally, so a run that produces no rows still has to say so in
 words. Absence of output is not a reading. (2026-09-02, session 067.)
+
+## G205 — `& script.ps1 @{...}` PASSES THE HASHTABLE POSITIONALLY, AND THE LEG LOOKS FINE
+
+Two `P9` legs were launched as:
+
+```powershell
+& .\run_leg.ps1 @{ Label='P9_Ap'; Map='/Game/StackOBot/Maps/MainWorld'; Anomaly='blinking'; ... }
+```
+
+**Splatting requires a VARIABLE.** `@{...}` written inline is a hashtable **literal**, so `@` is not
+the splat operator there — the whole hashtable is passed as **one positional argument**, landing in
+`$Label`. Every other parameter silently took its **default**.
+
+🚨 **AND THE RUN SUCCEEDED.** Both legs completed, passed `A63`, passed the `B1` pose gate — of
+course they did, they were running the harness's default `CB_GateLevel` / `StaticMeshActor_49`
+calibration leg — and **banked a plausible-looking session** under the label
+`System.Collections.Hashtable`. Nothing errored. The only visible tell was the label, and a label is
+easy to skim past.
+
+⚠ **The same shape bites `-File`, differently and more loudly:**
+`powershell -File .\run_leg.ps1 -Anomaly '' ...` **drops empty-string arguments entirely** and fails
+with *"Missing an argument for parameter 'Anomaly'"*. That one is safe because it is loud. The
+splat-literal is dangerous **because it is quiet**.
+
+**RULES:**
+1. **Splat from a variable, always:** `$p = @{...}; & .\script.ps1 @p`. Never `& .\script.ps1 @{...}`.
+2. **THE LEG'S OWN `_leg_geometry.json` IS THE ARTIFACT THAT CONVICTS IT — verify it PER LEG, EVERY
+   LEG**, against the intended config on every axis. It is written by the harness from the
+   parameters it actually received, so it cannot repeat the caller's mistake. That file is why the
+   two bad legs were provably not the legs they claimed to be (`map=CB_GateLevel`,
+   `target=StaticMeshActor_49`) rather than merely suspected.
+3. **Record every axis a leg can be wrong on in that file.** It now carries `letterboxed_fixture`,
+   `require_modal_rot_zero`, `seed`, `max_frames` and `bank_prefix` as well — a guard that only
+   covers some axes lets the rest through.
+
+**Generalises:** any launcher that accepts a permissive first positional parameter will absorb a
+malformed argument bundle and run *something*. **Ask what a wrong invocation would produce, and make
+the run write down what it actually ran.** (2026-09-02, session 067 — caught by the label, confirmed
+by the geometry files, both legs discarded and re-run.)
+
+## G206 — EVERY REQUIREMENT SATISFIABLE ALONE, THE CONJUNCTION SATISFIABLE BY NOTHING
+
+The `P9` v1 plan needed a fixture with **two** properties:
+
+| requirement | fixture that supplies it |
+|---|---|
+| a **non-zero view-rect origin** (Bates letterboxes; the whole point) | `MainWorld` — the letterbox lever refuses `CB_GateLevel`'s `SpectatorPawn` (`G193`) |
+| a **settled camera** (every certified pixel result this project owns) | `CB_GateLevel` — its unattended camera is motionless |
+
+**Each requirement was individually satisfied, checked, and written into the plan. The CONJUNCTION
+was satisfied by neither fixture, and nobody asked.** Five legs ran and returned `UNDECIDABLE` on
+every event: `MainWorld`'s intro camera moves during capture (32 distinct origins over 90 frames,
+pitch −20°→0°), so the per-event bbox changed every frame and `A56` collapsed to modal 1-in-8.
+
+⚠ **The warning was already in the record and was misfiled.** Journal 065 §11 noted `MainWorld`'s
+"intro-camera→Bot switch" heterogeneity — carried forward as a *bbox* caveat for `P-C13`, not as a
+*blocker* for any bbox-scoped oracle. **A caveat about one gate is a blocker for another.**
+
+**RULE: check requirements as a CONJUNCTION, against a NAMED fixture, at plan time.** Write the
+fixture's name beside the requirement list and ask *"does THIS ONE satisfy ALL of them?"* — a list of
+individually-satisfied requirements is not a fixture, and a plan that never names one has not been
+checked. `G135`'s family: the instrument environment could not exhibit the case, and the blindness
+presented as a plan that read perfectly well.
+
+✅ **The resolution is worth carrying too, because it inverts the usual move:** rather than making
+the moving-camera fixture hold still, give the **settled** fixture the missing property. Two engine
+console commands (`Set PlayerCameraManager bDefaultConstrainAspectRatio true` /
+`Set PlayerCameraManager DefaultAspectRatio 2.39`) letterbox `CB_GateLevel` with **no source change
+and no cook**, because `APlayerCameraManager::UpdateViewTarget` applies those defaults
+**view-target-agnostically** (`PlayerCameraManager.cpp:352-355`) and a camera-less `CalcCamera` never
+overwrites them (`Actor.cpp:3085`). **Ask which half of the conjunction is cheaper to ADD, not which
+is easier to work around.** (2026-09-02/03, session 067.)

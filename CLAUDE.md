@@ -158,13 +158,27 @@ and is the single source of truth for the project.
 > REPRODUCED NOR REFUTED.** ⛔ **Do NOT read this as "not reproduced"** — that verdict requires every
 > event graded ALIGNED, and **zero events were graded**. Both instruments *refused*: the new
 > `p9_hidden_set` reader and `a54_oracle` independently, on the same cause.
-> 🚨 **THE CAUSE IS A STRUCTURAL FIXTURE CONFLICT, MEASURED:** a non-zero view-rect origin needs the
+> 🚨 **v1's CAUSE WAS A STRUCTURAL FIXTURE CONFLICT, MEASURED:** a non-zero view-rect origin needs the
 > letterbox lever, which refuses on `CB_GateLevel`'s `SpectatorPawn` and so forces **`MainWorld`**
 > (`G193`) — but `MainWorld`'s intro camera **MOVES during capture** (32 distinct origins over 90
 > frames, pitch −20°→0°), so the per-event bbox changes every frame and `A56` collapses to
-> modal 1-in-8. **A settled camera means `CB_GateLevel`; a non-zero origin means `MainWorld`. NO
-> FIXTURE SATISFIES BOTH TODAY.** `G135`'s shape, caught by refusal rather than by a false pass.
-> Journal 067 §11.
+> modal 1-in-8. `G135`'s shape → **`G206`**. Journal 067 §11.
+> ✅ **FIXTURE-V2 SOLVED IT WITH NO SOURCE CHANGE AND NO COOK (journal 067 §12).** Two engine console
+> commands letterbox `CB_GateLevel` itself —
+> `Set PlayerCameraManager bDefaultConstrainAspectRatio true` + `Set PlayerCameraManager
+> DefaultAspectRatio 2.39` — giving `rect=(0,92)-(1280,628)` on the **settled-camera** fixture
+> (`distinct=1` bbox at `modal 100 %`). Works because `UpdateViewTarget` applies those defaults
+> **view-target-agnostically** (`PlayerCameraManager.cpp:352-355`) and a camera-less `CalcCamera`
+> never overwrites them (`Actor.cpp:3085`). ⚠ **BENCH DEVICE ONLY — never in a client payload.**
+> ⛔ **The lever is UNTOUCHED, no module recompiled, the exe is STILL `D2BB25A5`.**
+> 🔴 **FIXTURE-V2 RESULT: `P9` DID NOT APPEAR ON ANY GRADEABLE EVENT.** Four legs (A/A′/B/B′), **16
+> counted events, ALL ALIGNED, `k=0`, both differences empty, ZERO `P9`-SHAPE**; 8 further events
+> UNDECIDABLE on separation. ⛔ **This is NOT the pre-declared "NOT REPRODUCED"** — that required
+> *every* event graded, and 8 were not. **`P9` stays OPEN: owner-observed on Bates, not reproduced
+> and not refuted here.** Instrument passed three **in-regime** controls on the leg's own data.
+> ⚠ `A54` **cannot answer the `P1` question on this fixture** (its `B1` conjunct fails because
+> `CALIB_BBOX` is frozen unconstrained, and its message misattributes that to pose); the `P1`
+> exclusion rests on the reader's own best-`k` search returning `k=0` on all 16.
 > ✅ **`ticks_per_captured_frame` — CLOSED AS A NON-FINDING.** Bates' **1.3556** is reproduced
 > **exactly** on three paced legs here (122 ticks / 90 frames); the counter jitters 122↔124 run to
 > run. ⇒ **NOT a discriminator.** It is simply `capture_game_ticks / total_frames`
