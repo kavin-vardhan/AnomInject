@@ -827,3 +827,194 @@ Staged bench exe **`5C073AC9`** (241,122,816 B). Predecessor **`C0AD3F91`** arch
 before the swap — it is **`m41`'s A-side** and stays load-bearing. Container quartet **UNCHANGED**
 (`2A66CA57` / `A7EF9B12` / `D8009AD7`) — code-only hot-swap, **no cook** (`G103`). Legs banked under
 `_bench_sessions_bank\M41_*` (11 dirs, every attempt kept). **No tag.**
+
+---
+
+# §3. `m43` — TARGET ID MASK: PLAN, AND WHY IT STOPS AT THE PLAN
+
+**Date:** 2026-09-03 · **Bootstrap:** `HEAD == origin/master == db2f49b`, verified · **Mode:** plan → gate.
+**Owner ruling being planned against:** the client wants an instance mask of the **anomaly targets only**,
+in this week's Bates delivery.
+
+⛔ **VERDICT: STOPPED AT THE PLAN. The spec is sound in shape but FOUR of its assumptions are refuted or
+contradicted by the source, and two of those change what the client actually receives.** Per the brief's
+own rule — *any assumption the source refutes → STOP, do not implement around it* — nothing was built.
+No predictions file was written either: the gate set cannot be pre-declared until D1 and D6 are ruled,
+because two of the gates as written are unsatisfiable against the design as written.
+
+---
+
+## §3.1 What the spec gets RIGHT — verified, so it is not re-litigated
+
+| spec | verified against source | verdict |
+|---|---|---|
+| S1 pixel source | `AnomalyVisibleMask.usf` → `MaskRT`, created `PF_R8_UINT` at `SceneColor.ViewRect.Size()` (`AnomalyMaskSceneViewExtension.cpp:124-133`) | ✅ R8, view-rect sized, occlusion-correct by construction |
+| S1 "no new shader" | the pass and shader already exist; only a readback + a writer are added | ✅ |
+| S2 filter is NEEDED | the shader emits **any** stencil `>= ReservedBase` (`AnomalyVisibleMask.usf:26-30`); only the CPU reduce filters by assigned set. So census tags **do** land in an event frame's RT | ✅ S2 is necessary, not belt-and-braces |
+| S2 host values excluded | shader floor at `ReservedBase` + the m36 host reservation | ✅ |
+| S3 rect | mask RT size == view rect; the m35 readback copies the view sub-rect into a plugin-owned W×H texture at (0,0), so picture == view rect | ✅ **at native output height** (see D4) |
+| S5 requires mask ON | `bMaskMeasure` gates the whole block (`AnomalyCaptureSubsystem.cpp:734`) | ✅ and it is ON by `m41` default |
+| gate (ii) feasibility | the m34 GPU table and the surface are both derivable on one armed frame | ✅ and it is the right load-bearing gate |
+
+---
+
+## §3.2 🚨 D1 — COVERAGE. The mask arms PER EVENT, NOT PER FRAME. Measured: ~21 masks for 90 frames.
+
+**`FAnomalyMaskMeasure::MaxArmsPerEvent = 4`** (`AnomalyMaskMeasure.h:44`), and `ArmIfMeasurable`
+returns after arming **one** record per tick (`AnomalyMaskMeasure.cpp:205-250`). The mask was never a
+per-frame instrument — `m26` sized it to answer *"did this target draw anything during its window"*,
+which needs a handful of samples, not ninety.
+
+**Measured on the banked `m41` leg `M41_M41_ON_A` (90 captured frames, 6 events):**
+
+| quantity | value |
+|---|---|
+| captured frames | **90** |
+| `M23 PASS` render-pass executions | **99** |
+| `Census: ARM` (census batches) | **78** |
+| ⇒ **event mask arms** | **≈ 21** |
+
+⇒ **Under S3 as written, `target_mask/` would hold ~21 PNGs for a 90-frame session — about 23 % coverage
+— and ~69 rows would carry `mask_file: null`.**
+
+🚨 **Gate (i) as written is UNSATISFIABLE.** It requires `frames_unavailable == 0 on a healthy async
+leg`; on a healthy leg that counter is **~69 by construction**. The gate and the design contradict each
+other, so one of them is wrong and it is not for me to pick which.
+
+⚠ **And this is the part that reaches the client.** They asked for an instance mask to train on. A
+directory covering 23 % of frames, with the gaps unexplained, is not what "an instance mask of the
+anomaly targets" means to someone building a segmentation set.
+
+**Three resolutions, with their real costs — chat/owner's call:**
+
+- **(a) Arm the mask on every fire-active captured frame** (raise/remove `MaxArmsPerEvent` for this
+  path). 🚨 **This is the dangerous one and I will not take it unprompted:** the number of frames
+  contributing to the `m26` measurement feeds `MEASURED_ZERO` / `MEASURED_NONZERO`, which feeds **the
+  veto**. Changing the arming cadence changes the inputs of a **shipped labelling path** — a behaviour
+  change wearing an artifact change's clothes.
+- **(b) Keep the cadence; ship masks only where they exist**, and document the coverage honestly
+  (`mask_file: null` is already the honest signal). Cheapest, zero risk to the veto, and probably not
+  what the client wants.
+- **(c) A SEPARATE arm budget for the target mask**, independent of `m26`'s: same shader, same pass,
+  its own `RequestId` space and its own counter, so `m26`'s `framesContributed` is untouched.
+  ⚠ It costs one mask pass + one full-surface readback **per captured frame** rather than ≤4 per event.
+  **Recommended if the client wants real coverage** — it is the only option that gives per-frame masks
+  without touching the veto's inputs.
+
+---
+
+## §3.3 🚨 D6 — A HIDDEN TARGET PRODUCES NO FILE, NOT A BLANK ONE. Gate (iii) contradicts S3.
+
+`ArmIfMeasurable` refuses on a hidden target — `if (Actor->IsHidden()) { ++R.SkippedHidden; continue; }`
+(`AnomalyMaskMeasure.cpp:225-229`). That is **`LOCK-1`, a deliberate and proven guard**: a hidden target
+must never be measured, or `m26` would manufacture a `MEASURED_ZERO` and the veto would delete a good
+event.
+
+⇒ On a `blinking`-hidden or `missing_object` frame there is **no mask arm, therefore no readback,
+therefore — per S3 — no PNG at all.**
+
+**Gate (iii) expects a PNG containing zero pixels of that value. The design as written produces no
+file.** Those are different artifacts and they mean different things to a consumer:
+- **blank PNG** = "measured, and the target was not visible" — real ground truth, and for a hide-type
+  anomaly it is *the most informative frame in the dataset*;
+- **no file / `null`** = "not measured" — an absence of evidence.
+
+🔑 **This is the same distinction `m26` fought for at the event level (`NOT_MEASURED` ≠ `MEASURED_ZERO`)
+and it now recurs at the frame level.** ⚠ **A hide-type anomaly's hidden frames are exactly the frames a
+segmentation consumer needs**, so under S3 the client would get masks for the frames where the target is
+visible and nothing for the frames where it vanished — the inverse of what the anomaly is about.
+
+**Resolution requires a ruling:** emit an explicit **all-zero PNG** on fire-active frames where the
+target is known-hidden (cheap — no readback needed, the state is already known game-side and `m40`
+already samples it at `OnWorldTickEnd`), or accept the gap and re-word gate (iii). ⛔ **Do NOT arm the
+mask on a hidden tick to obtain it — that is precisely what `LOCK-1` forbids.**
+
+---
+
+## §3.4 D2 — the surface readback is NOT enqueued under the shipped default. Cost, not a blocker.
+
+`if (Mode != EAnomalyMaskReduceMode::Gpu) { … FRHIGPUTextureReadback … }`
+(`AnomalyMaskSceneViewExtension.cpp:174-178`). The shipped default is **`gpu`**, which by design reads
+back a **5 KB per-tag table, not the surface** — that is exactly what `m34` was built to achieve.
+
+S1 says "ALSO enqueue the texture readback", so this is **not a deviation** — but it must be stated
+plainly: **`m43` re-introduces a full W×H `PF_R8_UINT` surface readback per armed frame, which is the
+cost `m34` removed.** At 1280×720 that is ~0.9 MB per armed frame; at the client's resolution,
+proportionally more. S7's cost measurement is therefore mandatory, not optional, and it interacts with
+D1: under resolution (c) it is paid on **every** captured frame.
+
+## §3.5 D3 — the join key is `GFrameCounter`, not the capture's RequestId. Wording, not design.
+
+Event arms use **`ArmIfMeasurable(Sve, GFrameCounter)`** (`AnomalyCaptureSubsystem.cpp:744`) — the
+mask's `RequestId` **is `GFrameCounter`**. The captured frame's `RequestId` is a **plugin-owned monotonic
+serial** minted at the capture arm site (`m31`'s fix). **They are different id spaces.**
+
+✅ The join nonetheless exists and is exact: `labels.jsonl.frame_index` **is** the arm-time
+`GFrameCounter`, so `mask RequestId == frame_index`. That is the same join `P9` used and proved
+(704/704). **S1 should read "keyed by `GFrameCounter`, joined to the label row by `frame_index`"** — the
+current wording would send an implementer to the wrong id.
+
+## §3.6 D4 — `m28` output height silently breaks the rect equality. Latent, must be handled or refused.
+
+The mask RT is **view-rect sized**; `Actual_Frames` are **resampled on write** when
+`CaptureOutputHeightDefault != 0` (`m28`). The client ini carries no such key today, so picture == view
+rect and S3 holds — **but the moment anyone sets an output height, the mask and the picture disagree in
+size and the artifact is silently wrong.**
+
+⚠ **A label mask must never be filtered.** If it is resampled at all it must be **nearest-neighbour**;
+bilinear would invent stencil values that were never assigned to anything. **`m43` must either implement
+nearest-neighbour resampling for the mask or REFUSE LOUDLY when `EffectiveOutputHeight != 0`.** Refusing
+is the safer default and is one line.
+
+## §3.7 D7 — "multiple live targets keep their distinct values" is UNVERIFIED, and may be structurally rare
+
+`ArmIfMeasurable` arms **one record per tick** and `RestoreActor` untags after collection, so on a
+typical armed frame **only one event's target carries a tag**. Two targets can overlap only while a
+second event's tag is still applied awaiting its own collection. **S2's multi-value claim is therefore
+not wrong, but it is not the common case and it has not been measured.** It should not be written into
+client documentation as a feature until a leg shows two distinct non-zero values in one PNG.
+
+---
+
+## §3.8 What `m43` would look like once D1/D6 are ruled — the parts that are NOT in doubt
+
+Recorded so the next brief starts from here rather than re-deriving it.
+
+- **New file `AnomalyTargetMask.{h,cpp}`** in `AnomalyCapture`: owns the per-frame R8 buffer, the
+  event-tag filter (S2), the `mask_map.json` accumulator and the PNG encode hand-off. No new shader, no
+  new render pass.
+- **`AnomalyMaskSceneViewExtension`**: enqueue the surface readback additionally when the target mask is
+  on (one `if`, joining the existing `Mode != Gpu` condition); carry the drained R8 buffer out through
+  `FAnomalyMaskResult` (it already carries `ViewRectSize` and the per-tag table).
+- **`AnomalyAsyncWriter`**: a second encode job type — 8-bit grayscale PNG, `target_mask/frame_NNNNN.png`,
+  numbered by **`session_index`** so it sorts with `Actual_Frames` (⚠ **not** by `frame_index`; `G161`
+  and `client-readme.md` already forbid joining on `frame_index`).
+- **`AnomalyLabelWriter`**: `mask_value` on the anomaly row, `mask_file` (string or `null`) on the frame
+  row — **exactly two keys**, `annotation.json` untouched; `run_summary` gains exactly
+  `target_mask_frames_written` and `target_mask_frames_unavailable`.
+- **Knob** `bTargetMaskDefault` / `IAI.Capture.TargetMask` with the three-branch provenance echo the
+  `m41` describers already establish; **delivery mode does not suppress it**; when the mask pass is off
+  the echo reads `TARGET MASK OFF (mask off)` and nothing is written.
+- **OFF is byte-inert** and is gated by `P-C7 v2`, the comparator `m41` established.
+- **Gate (ii) stays the load-bearing one**: per armed frame, per live event, the PNG's pixel count for
+  that value **==** the `m34` GPU table's `Count` for that tag. It ties the delivered mask to the exact
+  silhouette the labels were judged on, and nothing weaker should be accepted in its place.
+
+---
+
+## §3.9 NEEDS-DECISION — four, and the first two are blocking
+
+1. 🚨 **Coverage (D1).** ~21 masks per 90 frames under the spec as written, and gate (i) is
+   unsatisfiable. Pick (a) raise `m26`'s arm budget — **⛔ touches the veto's inputs**, (b) accept 23 %
+   and document, or (c) **a separate arm budget for the target mask** (recommended: full coverage,
+   `m26` untouched, cost paid per frame).
+2. 🚨 **Hidden frames (D6).** A hidden target produces **no file**, not a blank one, because `LOCK-1`
+   refuses to arm on a hidden tick — and hidden frames are the ones a hide-type anomaly is *about*.
+   Emit an explicit all-zero PNG from the known game-side hidden state, or re-word gate (iii).
+3. **`m28` interaction (D4).** Implement nearest-neighbour mask resampling, or refuse loudly when
+   `EffectiveOutputHeight != 0`. **Refusing is recommended.**
+4. **Cost (D2/S7).** `m43` re-introduces the full-surface readback `m34` removed. Confirm that is
+   accepted, and note it compounds with resolution (c) of D1.
+
+📌 **Not blocking, for the record:** D3 (join is `frame_index`, fix the wording) and D7 (the multi-value
+claim is unmeasured — keep it out of client docs until a leg shows it).
