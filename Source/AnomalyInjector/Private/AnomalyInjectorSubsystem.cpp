@@ -12,6 +12,11 @@
 #include "AnomalyViewport.h"
 #include "AnomalyTargeting.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "GameFramework/PlayerController.h"
+#include "MaterialShared.h"
+#include "SceneTypes.h"
 
 #include "Anomalies/Anomaly_MissingObject.h"
 #include "Anomalies/Anomaly_Blinking.h"
@@ -777,6 +782,159 @@ static FAutoConsoleCommandWithWorldAndArgs GSynthTickOrderCmd(
 			{
 				Subsystem->SetSynthTickOrder(FCString::Atoi(*Args[0]) != 0);
 			}
+		}));
+
+static TWeakObjectPtr<AActor> GBenchTranslucentProbe;
+
+static void BenchReportMaterialCandidate(const TCHAR* Path, UMaterialInterface* M)
+{
+	if (!M)
+	{
+		UE_LOG(LogAnomaly, Log,
+			TEXT("Bench.TranslucentProbe: candidate '%s' -> NOT PRESENT in this container."), Path);
+		return;
+	}
+	UE_LOG(LogAnomaly, Log,
+		TEXT("Bench.TranslucentProbe: candidate '%s' -> present, blendMode=%d translucent=%d ")
+		TEXT("writesCustomDepth=%d"),
+		Path, (int32)M->GetBlendMode(),
+		IsTranslucentBlendMode(M->GetBlendMode()) ? 1 : 0,
+		M->IsTranslucencyWritingCustomDepth() ? 1 : 0);
+}
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchSpawnTranslucentProbeCmd(
+	TEXT("IAI.Bench.SpawnTranslucentProbe"),
+	TEXT("BENCH DEVICE, default absent, console only - no ini key, never in a client payload. Spawns ONE ")
+	TEXT("probe actor in front of the current view carrying a TRANSLUCENT material, so B-G1 can read the m41 "
+	     "translucent rule off a real candidate without touching the FROZEN CB_GateLevel (G99). It prints a "
+	     "CANDIDATE TABLE first - every material it considered, with that material's blend mode and its "
+	     "IsTranslucencyWritingCustomDepth() - because the ON direction of B-G1 needs a material that is "
+	     "translucent AND opts into custom-depth writes, and that flag is a COMPILE-TIME UMaterial property "
+	     "a UMaterialInstanceDynamic inherits and cannot change. If no such material exists in the staged "
+	     "container the lever says so BY NAME and the ON direction is UNOBTAINABLE on this bench - declared, "
+	     "not a pass and not a failure; it rides the next cook with C-G1b. ")
+	TEXT("Usage: IAI.Bench.SpawnTranslucentProbe <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() == 0)
+			{
+				UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.SpawnTranslucentProbe <0|1>"));
+				return;
+			}
+			if (!World)
+			{
+				return;
+			}
+
+			if (FCString::Atoi(*Args[0]) == 0)
+			{
+				if (AActor* Existing = GBenchTranslucentProbe.Get())
+				{
+					Existing->Destroy();
+					UE_LOG(LogAnomaly, Warning, TEXT("Bench.TranslucentProbe: DESPAWNED."));
+				}
+				GBenchTranslucentProbe.Reset();
+				return;
+			}
+
+			static const TCHAR* Candidates[] =
+			{
+				TEXT("/AnomalyInjector/Materials/M_MissingTexture_Checker.M_MissingTexture_Checker"),
+				TEXT("/AnomalyInjector/Materials/M_CorruptedTexture_Pink.M_CorruptedTexture_Pink"),
+				TEXT("/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"),
+				TEXT("/Engine/EngineDebugMaterials/VertexColorMaterial.VertexColorMaterial"),
+				TEXT("/Engine/EngineMaterials/EditorBrushMaterial.EditorBrushMaterial"),
+			};
+
+			UMaterialInterface* Chosen = nullptr;
+			UMaterialInterface* ChosenWriter = nullptr;
+			const TCHAR* ChosenPath = nullptr;
+			const TCHAR* ChosenWriterPath = nullptr;
+			for (const TCHAR* Path : Candidates)
+			{
+				UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, Path);
+				BenchReportMaterialCandidate(Path, M);
+				if (!M || !IsTranslucentBlendMode(M->GetBlendMode()))
+				{
+					continue;
+				}
+				if (!Chosen)
+				{
+					Chosen = M;
+					ChosenPath = Path;
+				}
+				if (!ChosenWriter && M->IsTranslucencyWritingCustomDepth())
+				{
+					ChosenWriter = M;
+					ChosenWriterPath = Path;
+				}
+			}
+
+			if (!Chosen)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("Bench.TranslucentProbe: REFUSED - NO TRANSLUCENT MATERIAL was found in this staged ")
+					TEXT("container among the %d candidates listed above. B-G1 is UNOBTAINABLE on this bench in ")
+					TEXT("BOTH directions and rides the next cook alongside C-G1b. This refusal is the ")
+					TEXT("measurement; nothing was spawned and no fixture was improvised."),
+					(int32)UE_ARRAY_COUNT(Candidates));
+				return;
+			}
+
+			UMaterialInterface* Use = ChosenWriter ? ChosenWriter : Chosen;
+			const TCHAR* UsePath = ChosenWriter ? ChosenWriterPath : ChosenPath;
+
+			UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+			if (!Mesh)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("Bench.TranslucentProbe: REFUSED - /Engine/BasicShapes/Cube is not in this container, ")
+					TEXT("so the probe has no mesh. Nothing spawned."));
+				return;
+			}
+
+			FVector Origin(0.0f);
+			FRotator Rotation(0.0f);
+			if (APlayerController* PC = World->GetFirstPlayerController())
+			{
+				PC->GetPlayerViewPoint(Origin, Rotation);
+			}
+			const FVector Location = Origin + Rotation.Vector() * 400.0f;
+
+			if (AActor* Existing = GBenchTranslucentProbe.Get())
+			{
+				Existing->Destroy();
+			}
+
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			AActor* Probe = World->SpawnActor<AActor>(AActor::StaticClass(), Location, FRotator::ZeroRotator, SpawnParams);
+			if (!Probe)
+			{
+				UE_LOG(LogAnomaly, Warning, TEXT("Bench.TranslucentProbe: REFUSED - SpawnActor failed."));
+				return;
+			}
+
+			UStaticMeshComponent* Comp = NewObject<UStaticMeshComponent>(Probe);
+			Probe->SetRootComponent(Comp);
+			Comp->RegisterComponent();
+			Comp->SetStaticMesh(Mesh);
+			Comp->SetMaterial(0, Use);
+			Comp->SetWorldScale3D(FVector(2.0f));
+			Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			GBenchTranslucentProbe = Probe;
+
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("Bench.TranslucentProbe: SPAWNED '%s' at %s with material '%s' (translucent=1 ")
+				TEXT("writesCustomDepth=%d). %s NEVER ship a capture taken with this probe present."),
+				*Probe->GetName(), *Location.ToCompactString(), UsePath,
+				Use->IsTranslucencyWritingCustomDepth() ? 1 : 0,
+				ChosenWriter
+					? TEXT("BOTH directions of B-G1 are testable on this container.")
+					: TEXT("NO custom-depth-writing translucent material exists in this container, so ONLY the "
+					       "OFF direction of B-G1 is testable here; the ON direction is UNOBTAINABLE and rides "
+					       "the next cook with C-G1b. Declared, not a pass and not a failure."));
 		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GTestVisibilityCmd(

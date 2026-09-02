@@ -43,8 +43,12 @@ struct FAnomalyCensusParams
 	float CeilingPct = 25.0f;
 	int32 MaxVerdictAgeTicks = 12;
 	bool bExcludeTranslucent = true;
+	bool bIncludeTranslucentCustomDepthWriters = false;
 	bool bLeakProbe = false;
 	bool bCoArmOnly = false;
+	bool bBenchFixedExpiry = false;
+	int32 BenchBatchCap = 0;
+	int32 BenchDropEveryNth = 0;
 };
 
 struct FAnomalyCensusCounters
@@ -62,6 +66,9 @@ struct FAnomalyCensusCounters
 	int32 UnmeasurableHidden = 0;
 	int32 NotYetMeasured = 0;
 	int32 FiresFallbackAll = 0;
+	int32 FiresPartialFallback = 0;
+	int32 FiresUnseenCandidates = 0;
+	int32 HostPpCustomDepthReaders = 0;
 	int32 FramesNoPass = 0;
 	int32 FramesPolluted = 0;
 	int32 BatchesLost = 0;
@@ -93,7 +100,9 @@ public:
 	FAnomalyCensusOpinion QueryActor(const AActor* Actor) const;
 	bool IsCeilingEnabled() const { return Params.CeilingPct > 0.0f; }
 	bool HasCompletedACycle() const { return CycleNumber > 0 && Counters.Cycles > 0; }
-	void NoteFireAllFallback(bool bAllFallback);
+	void NoteFire(int32 Consulted, int32 Fallback, int32 Unseen);
+	void NoteHostPpReaders(int32 InCount) { Counters.HostPpCustomDepthReaders = InCount; }
+	int32 GetFreshnessWindowTicks() const;
 
 private:
 	struct FBatch
@@ -127,6 +136,7 @@ private:
 	TWeakObjectPtr<UWorld> WorldPtr;
 	uint64 CensusIdSerial = 0;
 	uint64 CycleStartTick = 0;
+	uint64 LastCompletedCycleTicks = 0;
 	int32 HalfCap = 1;
 	int32 CycleNumber = 0;
 	double CycleStartTagBlockMs = 0.0;

@@ -274,6 +274,10 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	int32 CensusConsulted = 0;
 	int32 CensusFallback = 0;
 	int32 CensusExcluded = 0;
+	int32 CensusEligible = 0;
+	int32 CensusExpired = 0;
+	int32 CensusUnseen = 0;
+	int32 CensusWindow = -1;
 	for (const TWeakObjectPtr<AActor>& Weak : Visible)
 	{
 		AActor* Actor = Weak.Get();
@@ -288,6 +292,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 			if (Opinion.Decision != EAnomalyCensusDecision::NoOpinion)
 			{
 				++CensusConsulted;
+				CensusWindow = Opinion.WindowTicks;
 				UE_LOG(LogAnomaly, Verbose,
 					TEXT("Auto.Fire: CENSUS '%s' -> %s (reason=%s ageTicks=%d drawnPct=%.3f)"),
 					*Actor->GetName(), LexToStringAnomalyCensusDecision(Opinion.Decision),
@@ -301,9 +306,21 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 					++CensusExcluded;
 					continue;
 				}
+				if (Opinion.Decision == EAnomalyCensusDecision::Eligible)
+				{
+					++CensusEligible;
+				}
 				if (Opinion.Decision == EAnomalyCensusDecision::FallbackBounds)
 				{
 					++CensusFallback;
+					if (Opinion.bExpired)
+					{
+						++CensusExpired;
+					}
+					if (Opinion.bUnseen)
+					{
+						++CensusUnseen;
+					}
 				}
 			}
 		}
@@ -314,6 +331,15 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	if (CensusQuery && CensusConsulted > 0)
 	{
 		const bool bAllFallback = (CensusFallback == CensusConsulted);
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("Auto.Fire: census consulted=%d eligible=%d excluded=%d fallback=%d expired=%d unseen=%d ")
+			TEXT("(window=%d ticks) - fallback is the BOUNDS path deciding this candidate, not the census; ")
+			TEXT("expired and unseen are its two silent shapes and are counted here so a partial fallback ")
+			TEXT("cannot hide behind an all-fallback warning that never fires."),
+			CensusConsulted, CensusEligible, CensusExcluded, CensusFallback, CensusExpired, CensusUnseen,
+			CensusWindow);
+
 		if (bAllFallback)
 		{
 			UE_LOG(LogAnomaly, Warning,
@@ -326,7 +352,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		}
 		if (CensusFireReport)
 		{
-			CensusFireReport(bAllFallback);
+			CensusFireReport(CensusConsulted, CensusFallback, CensusUnseen);
 		}
 	}
 

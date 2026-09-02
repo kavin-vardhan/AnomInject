@@ -37,7 +37,7 @@ namespace
 {
 	constexpr uint64 GCensusRequestBit = 1ull << 62;
 
-	bool ComponentSlotsAllTranslucentWithoutOptIn(const UPrimitiveComponent* Prim)
+	bool ComponentSlotsAllTranslucent(const UPrimitiveComponent* Prim, bool bAllowCustomDepthOptIn)
 	{
 		const int32 NumSlots = Prim->GetNumMaterials();
 		if (NumSlots <= 0)
@@ -55,7 +55,7 @@ namespace
 			{
 				return false;
 			}
-			if (M->IsTranslucencyWritingCustomDepth())
+			if (bAllowCustomDepthOptIn && M->IsTranslucencyWritingCustomDepth())
 			{
 				return false;
 			}
@@ -81,7 +81,8 @@ namespace
 		return Mesh && Mesh->HasValidNaniteData() && UseNanite(ShaderPlatform);
 	}
 
-	ECensusClass ClassifyCandidate(const AActor* Actor, bool bExcludeTranslucent, EShaderPlatform ShaderPlatform)
+	ECensusClass ClassifyCandidate(const AActor* Actor, bool bExcludeTranslucent, bool bAllowCustomDepthOptIn,
+		EShaderPlatform ShaderPlatform)
 	{
 		if (Actor->IsHidden())
 		{
@@ -106,7 +107,7 @@ namespace
 			}
 			++Renderable;
 
-			if (bExcludeTranslucent && ComponentSlotsAllTranslucentWithoutOptIn(Prim))
+			if (bExcludeTranslucent && ComponentSlotsAllTranslucent(Prim, bAllowCustomDepthOptIn))
 			{
 				++TranslucentOnly;
 				continue;
@@ -153,10 +154,12 @@ void FAnomalyCensus::Begin(UWorld* World, FAnomalyStencilTagLedger* InLedger, co
 	WorldPtr = World;
 	CensusIdSerial = 0;
 	CycleStartTick = GFrameCounter;
+	LastCompletedCycleTicks = 0;
 	CycleNumber = 0;
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Census: BEGIN floor=%.2f%% ceiling=%s maxVerdictAgeTicks=%d excludeTranslucent=%d leakProbe=%d ")
+		TEXT("Census: BEGIN floor=%.2f%% ceiling=%s maxVerdictAgeTicks=%d excludeTranslucent=%d ")
+		TEXT("includeTranslucentWriters=%d leakProbe=%d ")
 		TEXT("coArmOnly=%d hostReserved=%d assignable=%d. The band is INCLUSIVE: eligible iff ")
 		TEXT("floor <= coverage <= ceiling. The census is UPSTREAM of selection only; the armed-frame ")
 		TEXT("measurement and the zero-only veto are unchanged and remain the backstop."),
@@ -165,8 +168,30 @@ void FAnomalyCensus::Begin(UWorld* World, FAnomalyStencilTagLedger* InLedger, co
 			? *FString::Printf(TEXT("%.2f%%"), Params.CeilingPct)
 			: TEXT("DISABLED (<=0; NO upper bound, scenery-scale targets ARE eligible)"),
 		Params.MaxVerdictAgeTicks, Params.bExcludeTranslucent ? 1 : 0,
+		Params.bIncludeTranslucentCustomDepthWriters ? 1 : 0,
 		Params.bLeakProbe ? 1 : 0, Params.bCoArmOnly ? 1 : 0,
 		Ledger ? Ledger->HostReserved.Num() : 0, Ledger ? Ledger->NumAssignable() : 55);
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Census: BEGIN m41 EXPIRY - a verdict is fresh iff its age <= max(maxVerdictAgeTicks=%d, ")
+		TEXT("lastCompletedCycleTicks + %d). The knob is the FLOOR of that window, never a cap that can ")
+		TEXT("shrink it below one cycle - a host whose cycle exceeds the knob would otherwise expire its ")
+		TEXT("earliest-measured candidates before the cycle closed, biasing selection toward whatever was ")
+		TEXT("measured last, silently. A knob of 0 STILL expires everything (the P-C11 loud-inert control ")
+		TEXT("is preserved by construction). Effective window right now: %d tick(s)%s."),
+		Params.MaxVerdictAgeTicks, LostAfterTicks, GetFreshnessWindowTicks(),
+		Params.bBenchFixedExpiry
+			? TEXT(" [IAI.Bench.CensusFixedExpiry ON - BENCH LEVER forcing the pre-m41 FIXED window]")
+			: TEXT(""));
+
+	if (Params.BenchBatchCap > 0 || Params.BenchDropEveryNth > 0 || Params.bBenchFixedExpiry)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Census: BENCH LEVERS ACTIVE - batchCap=%d dropEveryNth=%d fixedExpiry=%d. These are ")
+			TEXT("GATE ARTEFACTS (console-only, no ini key, default off, never in a client payload). A ")
+			TEXT("capture taken with any of them on is a GATE LEG, not a dataset."),
+			Params.BenchBatchCap, Params.BenchDropEveryNth, Params.bBenchFixedExpiry ? 1 : 0);
+	}
 }
 
 void FAnomalyCensus::End(UWorld* World)
@@ -189,12 +214,14 @@ void FAnomalyCensus::End(UWorld* World)
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Census: SUMMARY frames=%d cycles=%d candidates=%d zero=%d nonzero=%d belowFloor=%d aboveCeiling=%d ")
 		TEXT("excludedTranslucent=%d nanite=%d tagFailed=%d hidden=%d notYetMeasured=%d firesFallbackAll=%d ")
+		TEXT("firesPartialFallback=%d firesUnseenCandidates=%d hostPpCustomDepthReaders=%d ")
 		TEXT("framesNoPass=%d framesPolluted=%d batchesLost=%d tagOvertaken=%d proxyRecreatesQueued=%d ")
 		TEXT("tagBlockMsTotal=%.3f"),
 		Counters.CensusFrames, Counters.Cycles, Counters.Candidates, Counters.Zero, Counters.NonZero,
 		Counters.BelowFloor, Counters.AboveCeiling, Counters.ExcludedTranslucent, Counters.UnmeasurableNanite,
 		Counters.UnmeasurableTagFailed, Counters.UnmeasurableHidden, Counters.NotYetMeasured,
-		Counters.FiresFallbackAll, Counters.FramesNoPass, Counters.FramesPolluted, Counters.BatchesLost,
+		Counters.FiresFallbackAll, Counters.FiresPartialFallback, Counters.FiresUnseenCandidates,
+		Counters.HostPpCustomDepthReaders, Counters.FramesNoPass, Counters.FramesPolluted, Counters.BatchesLost,
 		Counters.TagOvertaken, Counters.ProxyRecreatesQueued, Counters.TagBlockMsTotal);
 }
 
@@ -228,12 +255,35 @@ bool FAnomalyCensus::ConsumeCycleJustCompleted()
 	return bWas;
 }
 
-void FAnomalyCensus::NoteFireAllFallback(bool bAllFallback)
+void FAnomalyCensus::NoteFire(int32 Consulted, int32 Fallback, int32 Unseen)
 {
-	if (bAllFallback)
+	if (Consulted > 0 && Fallback == Consulted)
 	{
 		++Counters.FiresFallbackAll;
 	}
+	if (Fallback > 0)
+	{
+		++Counters.FiresPartialFallback;
+	}
+	if (Unseen > 0)
+	{
+		++Counters.FiresUnseenCandidates;
+	}
+}
+
+int32 FAnomalyCensus::GetFreshnessWindowTicks() const
+{
+	if (Params.MaxVerdictAgeTicks <= 0)
+	{
+		return 0;
+	}
+	if (Params.bBenchFixedExpiry)
+	{
+		return Params.MaxVerdictAgeTicks;
+	}
+	const uint64 CycleTerm = LastCompletedCycleTicks + (uint64)LostAfterTicks;
+	const int32 CycleTermClamped = (int32)FMath::Min<uint64>(CycleTerm, 600ull);
+	return FMath::Max(Params.MaxVerdictAgeTicks, CycleTermClamped);
 }
 
 FAnomalyCensusOpinion FAnomalyCensus::QueryActor(const AActor* Actor) const
@@ -243,6 +293,8 @@ FAnomalyCensusOpinion FAnomalyCensus::QueryActor(const AActor* Actor) const
 	{
 		return Out;
 	}
+
+	Out.WindowTicks = GetFreshnessWindowTicks();
 
 	const FAnomalyCensusEntry* Found = nullptr;
 	for (const FAnomalyCensusEntry& Entry : Entries)
@@ -257,7 +309,8 @@ FAnomalyCensusOpinion FAnomalyCensus::QueryActor(const AActor* Actor) const
 	if (!Found)
 	{
 		Out.Decision = EAnomalyCensusDecision::FallbackBounds;
-		Out.Reason = TEXT("not_yet_measured");
+		Out.Reason = TEXT("unseen");
+		Out.bUnseen = true;
 		return Out;
 	}
 
@@ -297,10 +350,11 @@ FAnomalyCensusOpinion FAnomalyCensus::QueryActor(const AActor* Actor) const
 
 	const int32 Age = (int32)(GFrameCounter - Found->MeasuredAtTick);
 	Out.AgeTicks = Age;
-	if (Age > Params.MaxVerdictAgeTicks)
+	if (Age > Out.WindowTicks)
 	{
 		Out.Decision = EAnomalyCensusDecision::FallbackBounds;
 		Out.Reason = TEXT("expired");
+		Out.bExpired = true;
 		return Out;
 	}
 
@@ -389,11 +443,20 @@ void FAnomalyCensus::StartCycle(UWorld* World)
 		return;
 	}
 
+	int32 PrefilterIndex = 0;
+	int32 BenchDropped = 0;
 	for (const TWeakObjectPtr<AActor>& Weak : Prefiltered)
 	{
 		AActor* Actor = Weak.Get();
 		if (!Actor)
 		{
+			continue;
+		}
+
+		const int32 ThisIndex = PrefilterIndex++;
+		if (Params.BenchDropEveryNth > 0 && (ThisIndex % Params.BenchDropEveryNth) == 0)
+		{
+			++BenchDropped;
 			continue;
 		}
 
@@ -407,7 +470,8 @@ void FAnomalyCensus::StartCycle(UWorld* World)
 		Entry.AttemptsThisCycle = 0;
 
 		const EShaderPlatform ShaderPlatform = World->Scene ? World->Scene->GetShaderPlatform() : GMaxRHIShaderPlatform;
-		const ECensusClass Class = ClassifyCandidate(Actor, Params.bExcludeTranslucent, ShaderPlatform);
+		const ECensusClass Class = ClassifyCandidate(Actor, Params.bExcludeTranslucent,
+			Params.bIncludeTranslucentCustomDepthWriters, ShaderPlatform);
 		switch (Class)
 		{
 		case ECensusClass::Translucent:
@@ -428,12 +492,26 @@ void FAnomalyCensus::StartCycle(UWorld* World)
 		Entries.Add(MoveTemp(Entry));
 	}
 
+	if (BenchDropped > 0)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Census: BENCH DROP-ENTRY omitted %d of %d prefiltered actor(s) from cycle %d ")
+			TEXT("(IAI.Bench.CensusDropEntry %d). Those actors are still SEEN BY THE FIRE PATH and now have ")
+			TEXT("NO census entry, so they must read 'unseen' at fire time - this is E-G2's positive control ")
+			TEXT("(G96), not a defect."),
+			BenchDropped, PrefilterIndex, CycleNumber + 1, Params.BenchDropEveryNth);
+	}
+
 	CycleStartTick = GFrameCounter;
 	CycleStartTagBlockMs = Counters.TagBlockMsTotal;
 	CycleStartFlips = Counters.ProxyRecreatesQueued;
 	++CycleNumber;
 	bCycleOpen = true;
 	HalfCap = FMath::Max(1, (Ledger ? Ledger->NumFree() : 55) / 2);
+	if (Params.BenchBatchCap > 0)
+	{
+		HalfCap = FMath::Max(1, FMath::Min(HalfCap, Params.BenchBatchCap));
+	}
 }
 
 void FAnomalyCensus::CreditEntryFromResult(int32 EntryIndex, uint8 Tag, const FAnomalyMaskResult& Result)
@@ -749,11 +827,17 @@ void FAnomalyCensus::CloseCycle()
 	const double CycleMs = Counters.TagBlockMsTotal - CycleStartTagBlockMs;
 	const int32 CycleFlips = Counters.ProxyRecreatesQueued - CycleStartFlips;
 
+	const int32 WindowBefore = GetFreshnessWindowTicks();
+	LastCompletedCycleTicks = CycleTicks;
+	const int32 WindowAfter = GetFreshnessWindowTicks();
+
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Census: CYCLE %d DONE ticks=%llu candidates=%d zero=%d nonzero=%d belowFloor=%d(floor %.2f%%) ")
+		TEXT("Census: CYCLE %d DONE ticks=%llu window=%d(was %d) candidates=%d zero=%d nonzero=%d ")
+		TEXT("belowFloor=%d(floor %.2f%%) ")
 		TEXT("aboveCeiling=%d(ceiling %s) excludedTranslucent=%d nanite=%d tagFailed=%d hidden=%d ")
 		TEXT("notYetMeasured=%d"),
-		CycleNumber, CycleTicks, Entries.Num(), Zero, NonZero, BelowFloor, Params.FloorPct,
+		CycleNumber, CycleTicks, WindowAfter, WindowBefore, Entries.Num(), Zero, NonZero,
+		BelowFloor, Params.FloorPct,
 		AboveCeiling,
 		IsCeilingEnabled() ? *FString::Printf(TEXT("%.2f%%"), Params.CeilingPct) : TEXT("DISABLED"),
 		Translucent, Nanite, TagFailed, Hidden, NotYet);

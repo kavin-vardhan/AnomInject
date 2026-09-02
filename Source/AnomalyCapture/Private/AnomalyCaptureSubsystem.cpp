@@ -46,6 +46,10 @@
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "MaterialShared.h"
+#include "Engine/PostProcessVolume.h"
+#include "Camera/PlayerCameraManager.h"
+#include "SceneInterface.h"
+#include "RHI.h"
 
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SWindow.h"
@@ -392,6 +396,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bCensusExcludeTranslucent = bConfigCensusTranslucent;
 		bCensusTranslucentFromIni = true;
 	}
+	bool bConfigCensusTranslucentWriters = false;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bCensusIncludeTranslucentCustomDepthWritersDefault"), bConfigCensusTranslucentWriters, GGameIni))
+	{
+		bCensusIncludeTranslucentWriters = bConfigCensusTranslucentWriters;
+		bCensusTranslucentWritersFromIni = true;
+	}
 	if (!GMaskReduceFromConsole)
 	{
 		GMaskReduceMode = EAnomalyMaskReduceMode::Gpu;
@@ -455,12 +465,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			? TEXT("DefaultGame.ini [AnomalyCapture] bSveCaptureDefault")
 			: TEXT("S4 COMPILED-IN DEFAULT (SVE, UI-free); no ini key present; IAI.Capture.SVE 0 selects the backbuffer/UI-on path"));
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Capture(mask): m27 EFFECTIVE AT INIT - mask %s, default from %s. Mask off means the m26 H5 cure ")
-		TEXT("is INACTIVE and this build labels exactly as m25 did."),
+		TEXT("Capture(mask): m27/m41 EFFECTIVE AT INIT - mask %s, from %s. m41 flipped the COMPILED default ON: ")
+		TEXT("a missing ini key now DOWNGRADES PROVENANCE rather than silently restoring m25 labelling, which ")
+		TEXT("is the failure G139 exists to make visible. Mask off means the m26 H5 cure is INACTIVE and this ")
+		TEXT("build labels exactly as m25 did."),
 		bMaskMeasure ? TEXT("ON (measure, report and veto)") : TEXT("off"),
-		bMaskMeasureFromIni
-			? TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault")
-			: TEXT("COMPILED DEFAULT (off); no ini key present; IAI.Capture.Mask 1 enables it for the session"));
+		DescribeMaskSource());
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(mask): m34 REDUCE AT INIT - maskReduce=%s, from %s. gpu reduces the visible mask to a ")
 		TEXT("5 KB per-tag table ON THE GPU and reads back the table, not the surface; cpu is the NAMED BISECT ")
@@ -469,14 +479,16 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		TEXT("across modes. Inert while the mask itself is off."),
 		LexToStringAnomalyMaskReduceMode(GMaskReduceMode), DescribeMaskReduceSource());
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Capture(census): m36/m37 AT INIT - census %s (from %s), floor=%.2f%% (from %s), maxVerdictAgeTicks=%d, ")
-		TEXT("excludeTranslucent=%d. The census measures DRAWN PIXELS per selection candidate through the m26 ")
-		TEXT("mask + m34 reduce, UPSTREAM of selection; the armed-frame measurement and the zero-only veto are ")
-		TEXT("unchanged and remain the backstop. It requires the mask and async capture; the EFFECTIVE value ")
-		TEXT("for a run is echoed at IAI.Capture.Start."),
+		TEXT("Capture(census): m36/m37/m41 AT INIT - census %s (from %s), floor=%.2f%% (from %s), ")
+		TEXT("maxVerdictAgeTicks=%d, excludeTranslucent=%d, includeTranslucentWriters=%d (from %s). m41 ")
+		TEXT("flipped the COMPILED default ON. The census measures DRAWN PIXELS per selection candidate ")
+		TEXT("through the m26 mask + m34 reduce, UPSTREAM of selection; the armed-frame measurement and the ")
+		TEXT("zero-only veto are unchanged and remain the backstop. It requires the mask and async capture; ")
+		TEXT("the EFFECTIVE value for a run is echoed at IAI.Capture.Start."),
 		bCensus ? TEXT("ON") : TEXT("off"), DescribeCensusSource(),
 		CensusFloorPct, DescribeCensusFloorSource(),
-		CensusMaxVerdictAgeTicks, bCensusExcludeTranslucent ? 1 : 0);
+		CensusMaxVerdictAgeTicks, bCensusExcludeTranslucent ? 1 : 0,
+		bCensusIncludeTranslucentWriters ? 1 : 0, DescribeCensusTranslucentWritersSource());
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(m28): OUTPUT HEIGHT AT INIT - ini level %s. 0 means NATIVE and the written frames are ")
 		TEXT("byte-identical to a pre-m28 build. This is the INI LEVEL ONLY; a console override or a per-run ")
@@ -905,6 +917,7 @@ void UAnomalyCaptureSubsystem::SetMaskMeasure(bool bInMask)
 	}
 	bMaskMeasure = bInMask;
 	bMaskMeasureFromIni = false;
+	bMaskMeasureFromConsole = true;
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("IAI.Capture.Mask: %s - THE BISECT SWITCH, and it takes effect BETWEEN RUNS, not mid-run. It gates ")
 		TEXT("m26 slices 1+2+3 together: MEASURE, mask{provided}, and the VETO. Setting it 0 and re-capturing ")
@@ -923,6 +936,7 @@ void UAnomalyCaptureSubsystem::SetCensus(bool bInCensus)
 	}
 	bCensus = bInCensus;
 	bCensusFromIni = false;
+	bCensusFromConsole = true;
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("IAI.Capture.Census: %s - takes effect BETWEEN RUNS. Overrides DefaultGame.ini [AnomalyCapture] ")
 		TEXT("bSelectionCensusDefault for this session. It requires the mask (IAI.Capture.Mask) and async capture; ")
@@ -998,6 +1012,92 @@ void UAnomalyCaptureSubsystem::SetCensusExcludeTranslucent(bool bInExclude)
 		bCensusExcludeTranslucent ? TEXT("ON (exclude)") : TEXT("off (translucent candidates are measured)"));
 }
 
+void UAnomalyCaptureSubsystem::SetCensusIncludeTranslucentWriters(bool bInInclude)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.CensusTranslucentWriters: ignored - a capture run is in progress."));
+		return;
+	}
+	bCensusIncludeTranslucentWriters = bInInclude;
+	bCensusTranslucentWritersFromIni = false;
+	bCensusTranslucentWritersFromConsole = true;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.CensusTranslucentWriters: %s - m41. TWO KNOBS, ONE QUESTION EACH: ")
+		TEXT("IAI.Capture.CensusTranslucent decides WHETHER translucent-only candidates are excluded at all; ")
+		TEXT("this one decides WHETHER a translucent slot that opts into custom-depth writes still counts as ")
+		TEXT("translucent-only. It is consulted only when the first is ON. m41 default OFF: a translucent-only ")
+		TEXT("candidate is EXCLUDED regardless of AllowTranslucentCustomDepthWrites, because the opt-in makes ")
+		TEXT("the census measure a GEOMETRIC SILHOUETTE for a target that contributes no visible colour - and ")
+		TEXT("the armed-frame veto reads THE SAME custom-depth silhouette, so on that class the two are not ")
+		TEXT("independent checks. ON restores the pre-m41 behaviour for hosts that want glass-type targets. ")
+		TEXT("Takes effect BETWEEN RUNS."),
+		bCensusIncludeTranslucentWriters
+			? TEXT("ON (custom-depth-writing translucents are MEASURED, pre-m41 behaviour)")
+			: TEXT("off (translucent-only is EXCLUDED regardless of the opt-in)"));
+}
+
+void UAnomalyCaptureSubsystem::SetBenchCensusFixedExpiry(bool bInFixed)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Bench.CensusFixedExpiry: ignored - a capture run is in progress."));
+		return;
+	}
+	bBenchCensusFixedExpiry = bInFixed;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.CensusFixedExpiry -> %s. BENCH DEVICE, console only, no ini key, never in a client ")
+		TEXT("payload. ON forces the PRE-m41 FIXED expiry window (the knob alone, cycle length ignored) so ")
+		TEXT("D-G1's A-side and B-side can run on ONE binary. NEVER ship a capture taken with this ON."),
+		bBenchCensusFixedExpiry ? TEXT("ON") : TEXT("OFF"));
+}
+
+void UAnomalyCaptureSubsystem::SetBenchCensusBatchCap(int32 InCap)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Bench.CensusBatchCap: ignored - a capture run is in progress."));
+		return;
+	}
+	if (InCap < 0 || InCap > 55)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Bench.CensusBatchCap: %d is outside [0,55] and is REFUSED. Current value unchanged (%d)."),
+			InCap, BenchCensusBatchCap);
+		return;
+	}
+	BenchCensusBatchCap = InCap;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.CensusBatchCap -> %d. BENCH DEVICE, console only, no ini key, never in a client ")
+		TEXT("payload. 0 = off. A small cap stretches a census cycle over many more ticks, which is how ")
+		TEXT("D-G1 manufactures a cycle longer than the expiry knob without needing a 300-candidate host."),
+		BenchCensusBatchCap);
+}
+
+void UAnomalyCaptureSubsystem::SetBenchCensusDropEveryNth(int32 InN)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Bench.CensusDropEntry: ignored - a capture run is in progress."));
+		return;
+	}
+	if (InN < 0 || InN > 64)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Bench.CensusDropEntry: %d is outside [0,64] and is REFUSED. Current value unchanged (%d)."),
+			InN, BenchCensusDropEveryNth);
+		return;
+	}
+	BenchCensusDropEveryNth = InN;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.CensusDropEntry -> %d. BENCH DEVICE, console only, no ini key, never in a client ")
+		TEXT("payload. 0 = off. N omits every Nth prefiltered actor from the census's own candidate list ")
+		TEXT("while leaving it visible to the fire path, so census_fires_unseen_candidates is PROVEN ABLE TO ")
+		TEXT("BE NON-ZERO (E-G2, G96) - without that its zero on a client host would be blindness, not a ")
+		TEXT("reading. NEVER ship a capture taken with this ON."),
+		BenchCensusDropEveryNth);
+}
+
 void UAnomalyCaptureSubsystem::SetCensusReservation(bool bInReserve)
 {
 	if (bRunning)
@@ -1045,11 +1145,170 @@ void UAnomalyCaptureSubsystem::SetCensusCoArm(bool bInCoArm)
 
 const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusSource() const
 {
+	if (bCensusFromConsole)
+	{
+		return TEXT("IAI.Capture.Census (console)");
+	}
 	if (bCensusFromIni)
 	{
 		return TEXT("DefaultGame.ini [AnomalyCapture] bSelectionCensusDefault");
 	}
-	return TEXT("COMPILED DEFAULT (off) or IAI.Capture.Census");
+	return TEXT("COMPILED DEFAULT (on)");
+}
+
+const TCHAR* UAnomalyCaptureSubsystem::DescribeMaskSource() const
+{
+	if (bMaskMeasureFromConsole)
+	{
+		return TEXT("IAI.Capture.Mask (console)");
+	}
+	if (bMaskMeasureFromIni)
+	{
+		return TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault");
+	}
+	return TEXT("COMPILED DEFAULT (on)");
+}
+
+const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusTranslucentWritersSource() const
+{
+	if (bCensusTranslucentWritersFromConsole)
+	{
+		return TEXT("IAI.Capture.CensusTranslucentWriters (console)");
+	}
+	if (bCensusTranslucentWritersFromIni)
+	{
+		return TEXT("DefaultGame.ini [AnomalyCapture] bCensusIncludeTranslucentCustomDepthWritersDefault");
+	}
+	return TEXT("COMPILED DEFAULT (off)");
+}
+
+int32 UAnomalyCaptureSubsystem::ScanHostPostProcessCustomDepthReaders(UWorld* World) const
+{
+	int32 Volumes = 0;
+	int32 CameraBlends = 0;
+	int32 BlendableEntries = 0;
+	int32 MaterialsSeen = 0;
+	int32 Readers = 0;
+	int32 SceneTextureUsers = 0;
+	FString Names;
+
+	const ERHIFeatureLevel::Type FeatureLevel =
+		(World && World->Scene) ? World->Scene->GetFeatureLevel() : GMaxRHIFeatureLevel;
+
+	auto ConsiderBlendable = [&](UObject* Object)
+	{
+		UMaterialInterface* MI = Cast<UMaterialInterface>(Object);
+		if (!MI)
+		{
+			return;
+		}
+		++MaterialsSeen;
+
+		const FMaterialResource* Resource = MI->GetMaterialResource(FeatureLevel);
+		if (!Resource)
+		{
+			return;
+		}
+		FMaterialShaderMap* ShaderMap = Resource->GetGameThreadShaderMap();
+		if (!ShaderMap)
+		{
+			return;
+		}
+
+		if (ShaderMap->UsesSceneTexture(PPI_PostProcessInput0)
+			|| ShaderMap->UsesSceneTexture(PPI_SceneColor)
+			|| ShaderMap->UsesSceneTexture(PPI_SceneDepth))
+		{
+			++SceneTextureUsers;
+		}
+
+		const bool bDepth = ShaderMap->UsesSceneTexture(PPI_CustomDepth);
+		const bool bStencil = ShaderMap->UsesSceneTexture(PPI_CustomStencil);
+		if (bDepth || bStencil)
+		{
+			++Readers;
+			Names += FString::Printf(TEXT(" %s(%s)"), *MI->GetName(),
+				(bDepth && bStencil) ? TEXT("depth+stencil") : (bDepth ? TEXT("depth") : TEXT("stencil")));
+		}
+	};
+
+	auto ConsiderSettings = [&](const FPostProcessSettings& Settings)
+	{
+		for (const FWeightedBlendable& Blendable : Settings.WeightedBlendables.Array)
+		{
+			++BlendableEntries;
+			ConsiderBlendable(Blendable.Object);
+		}
+	};
+
+	if (World)
+	{
+		for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+		{
+			if (APostProcessVolume* Volume = *It)
+			{
+				++Volumes;
+				ConsiderSettings(Volume->Settings);
+			}
+		}
+
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			if (APlayerCameraManager* CameraManager = PC->PlayerCameraManager)
+			{
+				TArray<FPostProcessSettings> const* BlendSettings = nullptr;
+				TArray<float> const* BlendWeights = nullptr;
+				CameraManager->GetCachedPostProcessBlends(BlendSettings, BlendWeights);
+				if (BlendSettings)
+				{
+					for (const FPostProcessSettings& Settings : *BlendSettings)
+					{
+						++CameraBlends;
+						ConsiderSettings(Settings);
+					}
+				}
+
+				++CameraBlends;
+				ConsiderSettings(CameraManager->GetCameraCacheView().PostProcessSettings);
+			}
+		}
+	}
+
+	if (Readers > 0)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(census): HOST-PP CUSTOM-DEPTH READERS = %d [%s ] (scanned %d volume(s), %d camera ")
+			TEXT("blend(s), %d blendable entr(ies), %d material(s), %d of which read some scene texture). The census tags candidates ")
+			TEXT("with CUSTOM DEPTH on captured frames, so a host post-process that READS custom depth or ")
+			TEXT("custom stencil can tint or outline census-tagged objects in frames the labels call CLEAN - ")
+			TEXT("an unlabelled artifact no counter can see. THIS IS A 'LOOK AT THIS', NOT A DEFECT: the ")
+			TEXT("bitmask says the material SAMPLES the texture, never that the sample changes a pixel."),
+			Readers, *Names, Volumes, CameraBlends, BlendableEntries, MaterialsSeen, SceneTextureUsers);
+	}
+	else
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(census): HOST-PP CUSTOM-DEPTH READERS = 0 (scanned %d volume(s), %d camera blend(s), ")
+			TEXT("%d blendable entr(ies), %d material(s), %d of which read some scene texture). ")
+			TEXT("THE DISCRIMINATOR IS 'blendable entries' vs 'materials': entries 0 means the scanned ")
+			TEXT("post-process settings CARRY NO BLENDABLE AT ALL (they only tune exposure/bloom-style ")
+			TEXT("values), which is the ordinary case and makes a 0 here a TRUE zero; entries > 0 with ")
+			TEXT("materials 0 would mean the walk found blendables it could not resolve, which would be a ")
+			TEXT("DEFECT IN THIS SCAN. READ THE SCANNED COUNTS, NOT JUST THE ")
+			TEXT("ZERO: a zero with nothing scanned is BLINDNESS, not a clean read (G96) - a synthetic level ")
+			TEXT("with no post-process volume and a camera-less pawn reads 0/0/0 legitimately, and the ")
+			TEXT("instrument for that case is IAI.Bench.ProbeSceneTextureUsage, not this line. The three ")
+			TEXT("sources scanned are the engine's own three (LocalPlayer.cpp:866-881): post-process VOLUMES, ")
+			TEXT("the camera manager's CACHED BLENDS (camera modifiers), and the view target's CAMERA POV ")
+			TEXT("OVERRIDE. Source of truth per material is its SERIALIZED UsedSceneTextures bitmask, so this ")
+			TEXT("works in a cooked build with no editor-only data. ")
+			TEXT("LIMITS: it cannot see a reader OUTSIDE the material system (a host scene-view extension, a ")
+			TEXT("custom pass, Niagara, UMG, a decal), and it is a snapshot taken now, so a blendable added ")
+			TEXT("later is missed. ZERO DOES NOT MEAN 'NOTHING ON THIS HOST READS CUSTOM DEPTH'."),
+			Volumes, CameraBlends, BlendableEntries, MaterialsSeen, SceneTextureUsers);
+	}
+
+	return Readers;
 }
 
 const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusFloorSource() const
@@ -1460,9 +1719,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		TEXT("packaged build the ini that counts is the COOKED DefaultGame.ini - a loose ini beside the package ")
 		TEXT("is a SILENT NO-OP (G88), which is why this line reports the EFFECTIVE value and not the file."),
 		bMaskMeasure ? TEXT("ON (measure, report and veto)") : TEXT("off"),
-		bMaskMeasureFromIni
-			? TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault")
-			: TEXT("COMPILED DEFAULT (off) or IAI.Capture.Mask"),
+		DescribeMaskSource(),
 		LexToStringAnomalyMaskReduceMode(GMaskReduceMode), DescribeMaskReduceSource());
 
 	UE_LOG(LogAnomalyCapture, Log,
@@ -1481,7 +1738,9 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture(census): EFFECTIVE FOR THIS RUN - census %s (requested %s, from %s), floor=%.2f%%(from %s), ")
 		TEXT("ceiling=%s(from %s) [band is INCLUSIVE: eligible iff floor <= coverage <= ceiling], ")
-		TEXT("maxVerdictAgeTicks=%d(%s), excludeTranslucent=%d(%s), reservation=%d === READ THIS LINE, NOT THE INI. ")
+		TEXT("maxVerdictAgeTicks=%d(%s, m41: the FLOOR of the freshness window, not a fixed age), ")
+		TEXT("excludeTranslucent=%d(%s), includeTranslucentWriters=%d(%s), reservation=%d ")
+		TEXT("=== READ THIS LINE, NOT THE INI. ")
 		TEXT("The census measures DRAWN PIXELS per selection candidate (m26 mask + m34 reduce, rolling batches ")
 		TEXT("upstream of selection); the armed-frame measurement and the ZERO-ONLY veto are unchanged and remain ")
 		TEXT("the backstop; annotation.json's field set does not move."),
@@ -1496,14 +1755,18 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		bCensusMaxAgeFromConsole ? TEXT("console") : (bCensusMaxAgeFromIni ? TEXT("ini") : TEXT("compiled")),
 		bCensusExcludeTranslucent ? 1 : 0,
 		bCensusTranslucentFromConsole ? TEXT("console") : (bCensusTranslucentFromIni ? TEXT("ini") : TEXT("compiled")),
+		bCensusIncludeTranslucentWriters ? 1 : 0, DescribeCensusTranslucentWritersSource(),
 		bCensusReservation ? 1 : 0);
 	if (bCensus && !bCensusEffective)
 	{
 		UE_LOG(LogAnomalyCapture, Warning,
-			TEXT("Capture(census): census was REQUESTED but is INACTIVE for this run - it requires the mask ")
-			TEXT("(IAI.Capture.Mask, currently %d) and async capture (currently %d). A census that silently did ")
-			TEXT("not run would read as a clean null, so this line is a WARNING, not a note."),
-			bMaskMeasure ? 1 : 0, bAsyncCapture ? 1 : 0);
+			TEXT("Capture(census): THE MASK IS OFF, so the census is INACTIVE for this run - it requires the ")
+			TEXT("mask (currently %d, from %s) and async capture (currently %d). m41 ships BOTH compiled ")
+			TEXT("defaults ON, so reaching this line means something TURNED THE MASK OFF: console ")
+			TEXT("(IAI.Capture.Mask 0) or an ini key setting bMaskMeasureDefault=False. It is never the ")
+			TEXT("shipped default and must never read as routine noise. A census that silently did not run ")
+			TEXT("would look like a clean null, which is why this is a WARNING."),
+			bMaskMeasure ? 1 : 0, DescribeMaskSource(), bAsyncCapture ? 1 : 0);
 	}
 
 	if (bMaskMeasure && Async.IsValid())
@@ -1835,12 +2098,18 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	{
 		FAnomalyCensusParams CensusParams;
 		CensusParams.FloorPct = CensusFloorPct;
-	CensusParams.CeilingPct = CensusCeilingPct;
+		CensusParams.CeilingPct = CensusCeilingPct;
 		CensusParams.MaxVerdictAgeTicks = CensusMaxVerdictAgeTicks;
 		CensusParams.bExcludeTranslucent = bCensusExcludeTranslucent;
+		CensusParams.bIncludeTranslucentCustomDepthWriters = bCensusIncludeTranslucentWriters;
 		CensusParams.bLeakProbe = bCensusLeakProbe && !bDeliveryMode;
 		CensusParams.bCoArmOnly = bCensusCoArm && !bDeliveryMode;
+		CensusParams.bBenchFixedExpiry = bBenchCensusFixedExpiry;
+		CensusParams.BenchBatchCap = BenchCensusBatchCap;
+		CensusParams.BenchDropEveryNth = BenchCensusDropEveryNth;
 		Async->Census.Begin(GetWorld(), &Async->TagLedger, CensusParams);
+
+		Async->Census.NoteHostPpReaders(ScanHostPostProcessCustomDepthReaders(GetWorld()));
 
 		if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 		{
@@ -1868,13 +2137,13 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 					}
 					return true;
 				},
-				[WeakSelf](bool bAllFallback)
+				[WeakSelf](int32 Consulted, int32 Fallback, int32 Unseen)
 				{
 					if (UAnomalyCaptureSubsystem* Self = WeakSelf.Get())
 					{
 						if (Self->Async.IsValid())
 						{
-							Self->Async->Census.NoteFireAllFallback(bAllFallback);
+							Self->Async->Census.NoteFire(Consulted, Fallback, Unseen);
 						}
 					}
 				},
@@ -4166,9 +4435,10 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureFocusGateCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusCmd(
 	TEXT("IAI.Capture.Census"),
-	TEXT("m36 SELECTION CENSUS - candidate selection based on PIXELS ACTUALLY DRAWN, not bounds. The COMPILED ")
-	TEXT("default is OFF; [AnomalyCapture] bSelectionCensusDefault in DefaultGame.ini carries delivered ")
-	TEXT("behaviour, and this switch overrides whichever applies, for the session, BETWEEN RUNS. Read the ")
+	TEXT("m36/m41 SELECTION CENSUS - candidate selection based on PIXELS ACTUALLY DRAWN, not bounds. m41 ")
+	TEXT("flipped the COMPILED default to ON (with the mask's, since the census requires it); ")
+	TEXT("[AnomalyCapture] bSelectionCensusDefault in DefaultGame.ini remains as an explicit provenance ")
+	TEXT("readout, and this switch overrides whichever applies, for the session, BETWEEN RUNS. Read the ")
 	TEXT("effective value and its provenance from the StartRun echo, never from this help text. ON: during a ")
 	TEXT("capture run the m26 mask pass + m34 per-tag reduce run as a rolling multi-target CENSUS over the ")
 	TEXT("prefiltered candidate set (frustum + poll radius + renderable type + exclusion patterns - NO bounds ")
@@ -4245,11 +4515,17 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusCeilingCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusMaxAgeCmd(
 	TEXT("IAI.Capture.CensusMaxAge"),
-	TEXT("m36 - maximum census verdict age at fire time, in GAME TICKS (compiled default 12, ini ")
-	TEXT("[AnomalyCapture] CensusMaxVerdictAgeTicksDefault). A verdict older than this is EXPIRED: the ")
-	TEXT("candidate re-measures before regaining eligibility and counts as not_yet_measured meanwhile. 0 ")
-	TEXT("expires everything and is the P-C11 loud-inert control: every fire then logs the all-fallback ")
-	TEXT("WARNING and increments census_fires_fallback_all. Out-of-range is REFUSED. Takes effect BETWEEN ")
+	TEXT("m36/m41 - the FLOOR OF THE FRESHNESS WINDOW for a census verdict at fire time, in GAME TICKS ")
+	TEXT("(compiled default 12, ini [AnomalyCapture] CensusMaxVerdictAgeTicksDefault). m41 CHANGED THE ")
+	TEXT("SEMANTICS: the window is max(this knob, lastCompletedCycleTicks + 8), so it can never be shorter ")
+	TEXT("than one census cycle. A fixed 12 on a host whose cycle exceeds 12 ticks expires the ")
+	TEXT("EARLIEST-MEASURED candidates before the cycle even closes, biasing selection toward whatever was ")
+	TEXT("measured last, and the only loud signal fires on ALL-fallback so a PARTIAL bias was silent. A ")
+	TEXT("verdict older than the window is EXPIRED: the candidate falls back to the bounds path meanwhile. ")
+	TEXT("0 STILL expires everything and is still the P-C11 loud-inert control (special-cased, so m41 does ")
+	TEXT("not retire that lever by accident): every fire then logs the all-fallback WARNING and increments ")
+	TEXT("census_fires_fallback_all. Read the EFFECTIVE window from the StartRun echo and from each ")
+	TEXT("'Auto.Fire: census consulted=' line. Out-of-range is REFUSED. Takes effect BETWEEN ")
 	TEXT("RUNS. Usage: IAI.Capture.CensusMaxAge <ticks>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
@@ -4286,6 +4562,177 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusTranslucentCmd(
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
 			{
 				Cap->SetCensusExcludeTranslucent(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusTranslucentWritersCmd(
+	TEXT("IAI.Capture.CensusTranslucentWriters"),
+	TEXT("m41 - whether a translucent slot that opts into AllowTranslucentCustomDepthWrites still counts as ")
+	TEXT("translucent-only (compiled default OFF, ini [AnomalyCapture] ")
+	TEXT("bCensusIncludeTranslucentCustomDepthWritersDefault). TWO KNOBS, ONE QUESTION EACH: ")
+	TEXT("IAI.Capture.CensusTranslucent decides WHETHER translucent-only candidates are excluded at all; this ")
+	TEXT("one decides WHETHER the custom-depth opt-in rescues them. It is consulted only when the first is ON. ")
+	TEXT("OFF (the m41 default) EXCLUDES translucent-only candidates REGARDLESS of the opt-in: with the opt-in ")
+	TEXT("the census measures a GEOMETRIC SILHOUETTE for a target that contributes no visible colour (a fog ")
+	TEXT("card), it passes the floor, it is selected, it is hidden, and nothing visibly changes - and the ")
+	TEXT("armed-frame veto reads THE SAME custom-depth silhouette, so on that class the census and the veto ")
+	TEXT("are NOT independent checks. ON restores the pre-m41 behaviour for hosts that want glass-type ")
+	TEXT("targets. Counted in census_excluded_translucent. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Capture.CensusTranslucentWriters <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.CensusTranslucentWriters <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetCensusIncludeTranslucentWriters(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchProbeSceneTextureUsageCmd(
+	TEXT("IAI.Bench.ProbeSceneTextureUsage"),
+	TEXT("BENCH DEVICE, console only - no ini key, never in a client payload, touches no level and no ")
+	TEXT("capture. Resolves ONE named material through EXACTLY the code path the m41 host-PP preflight ")
+	TEXT("uses (GetMaterialResource -> GetGameThreadShaderMap -> UsesSceneTexture) and prints the scene ")
+	TEXT("textures it finds. It exists because a synthetic level with no post-process volume and a ")
+	TEXT("camera-less pawn makes the preflight read 0 volumes / 0 blends / 0 materials, which is a TRUE ")
+	TEXT("answer on that fixture and simultaneously proves nothing about the query - blindness and a clean ")
+	TEXT("read are the same number there (G96). This probe separates them WITHOUT depending on any level. ")
+	TEXT("Usage: IAI.Bench.ProbeSceneTextureUsage <object path>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Usage: IAI.Bench.ProbeSceneTextureUsage <object path>"));
+				return;
+			}
+
+			const FString Path = Args[0];
+			UMaterialInterface* MI = LoadObject<UMaterialInterface>(nullptr, *Path);
+			if (!MI)
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Bench.ProbeSceneTextureUsage: '%s' -> NOT PRESENT IN THIS CONTAINER. That is a ")
+					TEXT("MEASUREMENT, not a failure, and no substitute material is chosen for you."),
+					*Path);
+				return;
+			}
+
+			const ERHIFeatureLevel::Type FeatureLevel =
+				(World && World->Scene) ? World->Scene->GetFeatureLevel() : GMaxRHIFeatureLevel;
+
+			const FMaterialResource* Resource = MI->GetMaterialResource(FeatureLevel);
+			FMaterialShaderMap* ShaderMap = Resource ? Resource->GetGameThreadShaderMap() : nullptr;
+			if (!ShaderMap)
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Bench.ProbeSceneTextureUsage: '%s' -> resource=%d shaderMap=0. The material is ")
+					TEXT("present but carries no game-thread shader map at this feature level, so the query ")
+					TEXT("has nothing to read. Reported, not worked around."),
+					*Path, Resource ? 1 : 0);
+				return;
+			}
+
+			struct FProbeId { const TCHAR* Name; ESceneTextureId Id; };
+			static const FProbeId Ids[] =
+			{
+				{ TEXT("CustomDepth"),       PPI_CustomDepth },
+				{ TEXT("CustomStencil"),     PPI_CustomStencil },
+				{ TEXT("PostProcessInput0"), PPI_PostProcessInput0 },
+				{ TEXT("SceneColor"),        PPI_SceneColor },
+				{ TEXT("SceneDepth"),        PPI_SceneDepth },
+				{ TEXT("WorldNormal"),       PPI_WorldNormal },
+				{ TEXT("Velocity"),          PPI_Velocity },
+			};
+
+			FString Found;
+			int32 NumFound = 0;
+			for (const FProbeId& Probe : Ids)
+			{
+				if (ShaderMap->UsesSceneTexture((uint32)Probe.Id))
+				{
+					Found += FString::Printf(TEXT(" %s"), Probe.Name);
+					++NumFound;
+				}
+			}
+
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Bench.ProbeSceneTextureUsage: '%s' -> domain=%d blendMode=%d sceneTextures=%d [%s ] ")
+				TEXT("customDepth=%d customStencil=%d. Read through the SAME path as the preflight, so a ")
+				TEXT("bit that lights here is a bit the preflight can see."),
+				*Path, (int32)MI->GetMaterial()->MaterialDomain, (int32)MI->GetBlendMode(),
+				NumFound, Found.IsEmpty() ? TEXT(" none") : *Found,
+				ShaderMap->UsesSceneTexture(PPI_CustomDepth) ? 1 : 0,
+				ShaderMap->UsesSceneTexture(PPI_CustomStencil) ? 1 : 0);
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchCensusFixedExpiryCmd(
+	TEXT("IAI.Bench.CensusFixedExpiry"),
+	TEXT("BENCH DEVICE, default OFF, console only - no ini key, never in a client payload. ON forces the ")
+	TEXT("PRE-m41 FIXED census expiry window (IAI.Capture.CensusMaxAge alone, cycle length ignored) instead ")
+	TEXT("of m41's max(knob, lastCompletedCycleTicks + 8). It exists so D-G1's A-side and B-side run on ONE ")
+	TEXT("BINARY - m40's L2 leg needed an unarchived intermediate build for exactly this reason and that is ")
+	TEXT("not repeated. Takes effect BETWEEN RUNS. Usage: IAI.Bench.CensusFixedExpiry <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.CensusFixedExpiry <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchCensusFixedExpiry(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchCensusBatchCapCmd(
+	TEXT("IAI.Bench.CensusBatchCap"),
+	TEXT("BENCH DEVICE, default 0 (off), console only - no ini key, never in a client payload. Caps the ")
+	TEXT("number of candidates tagged per census batch, which stretches one census cycle over many more ")
+	TEXT("ticks. D-G1 uses it to manufacture a cycle longer than the expiry knob without needing a host with ")
+	TEXT("hundreds of candidates. Out-of-range is REFUSED. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Bench.CensusBatchCap <0..55>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.CensusBatchCap <0..55>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchCensusBatchCap(FCString::Atoi(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchCensusDropEntryCmd(
+	TEXT("IAI.Bench.CensusDropEntry"),
+	TEXT("BENCH DEVICE, default 0 (off), console only - no ini key, never in a client payload. N omits every ")
+	TEXT("Nth prefiltered actor from the census's own candidate list while leaving it fully visible to the ")
+	TEXT("FIRE path, so those actors reach selection with NO census entry and must read 'unseen'. This is ")
+	TEXT("E-G2, the positive control for census_fires_unseen_candidates: without it a zero on a client host ")
+	TEXT("would be blindness rather than a reading (G96). Out-of-range is REFUSED. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Bench.CensusDropEntry <0..64>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.CensusDropEntry <0..64>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchCensusDropEveryNth(FCString::Atoi(*Args[0]));
 			}
 		}));
 

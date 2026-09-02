@@ -85,9 +85,14 @@ public:
 	int32 GetCensusMaxVerdictAgeTicks() const { return CensusMaxVerdictAgeTicks; }
 	void SetCensusExcludeTranslucent(bool bInExclude);
 	bool IsCensusExcludeTranslucent() const { return bCensusExcludeTranslucent; }
+	void SetCensusIncludeTranslucentWriters(bool bInInclude);
+	bool IsCensusIncludeTranslucentWriters() const { return bCensusIncludeTranslucentWriters; }
 	void SetCensusReservation(bool bInReserve);
 	void SetCensusLeakProbe(bool bInProbe);
 	void SetCensusCoArm(bool bInCoArm);
+	void SetBenchCensusFixedExpiry(bool bInFixed);
+	void SetBenchCensusBatchCap(int32 InCap);
+	void SetBenchCensusDropEveryNth(int32 InN);
 
 	void SetTickPin(bool bInPin);
 	bool IsTickPinEnabled() const { return bTickPinEnabled; }
@@ -143,7 +148,10 @@ private:
 	void EndRunLog();
 	bool ResolveRunLogEffective(FString& OutSource) const;
 	void RunStencilHygieneCheck(bool bFinal);
+	int32 ScanHostPostProcessCustomDepthReaders(UWorld* World) const;
 	const TCHAR* DescribeCensusSource() const;
+	const TCHAR* DescribeMaskSource() const;
+	const TCHAR* DescribeCensusTranslucentWritersSource() const;
 	const TCHAR* DescribeCensusFloorSource() const;
 	const TCHAR* DescribeCensusCeilingSource() const;
 	void OnEndFrameMaskSample();
@@ -286,12 +294,14 @@ private:
 
 	bool bAsyncCapture = true;
 	bool bSveCapture = true;
-	bool bMaskMeasure = false;
+	bool bMaskMeasure = true;
 	bool bMaskMeasureFromIni = false;
+	bool bMaskMeasureFromConsole = false;
 	bool bMaskProbe = false;
 	bool bMaskProbeFiredThisRun = false;
-	bool bCensus = false;
+	bool bCensus = true;
 	bool bCensusFromIni = false;
+	bool bCensusFromConsole = false;
 	bool bCensusEffective = false;
 	float CensusFloorPct = 0.5f;
 	bool bCensusFloorFromIni = false;
@@ -305,9 +315,15 @@ private:
 	bool bCensusExcludeTranslucent = true;
 	bool bCensusTranslucentFromIni = false;
 	bool bCensusTranslucentFromConsole = false;
+	bool bCensusIncludeTranslucentWriters = false;
+	bool bCensusTranslucentWritersFromIni = false;
+	bool bCensusTranslucentWritersFromConsole = false;
 	bool bCensusReservation = true;
 	bool bCensusLeakProbe = false;
 	bool bCensusCoArm = false;
+	bool bBenchCensusFixedExpiry = false;
+	int32 BenchCensusBatchCap = 0;
+	int32 BenchCensusDropEveryNth = 0;
 	FDelegateHandle MaskEndFrameHandle;
 	FDelegateHandle MaskWorldTickEndHandle;
 	FDelegateHandle SampleWorldTickEndHandle;
