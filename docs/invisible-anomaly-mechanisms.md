@@ -820,6 +820,66 @@ SEPARATE switch from the FSR3 upscaler.** ⇒ **THE TEST MOVED FROM ONE TEMPORAL
 NEVER REACHED A NON-TEMPORAL STATE** (`0` or `1`). ⛔ It therefore does **not** clear temporal
 accumulation for (A). **Decisive leg queued: RDP card `C-1`.**
 
+### 🔺 THE MENU-OFF TEST — 2026-09-02, owner. **(A) IS CLOSED. (B) SURVIVES, CLEAN.**
+
+**All anti-aliasing and motion blur disabled via the title's own settings menu**, then the same read:
+
+1. ✅ **THE PARTIAL-OPACITY FRAMES ARE GONE.**
+2. 🔴 **THE DISPLACEMENT PERSISTS**, and is now a **clean binary** read:
+   **observed hidden `{n, n+1, n+2, n+6}` vs claimed `{n, n+1, n+5, n+6}`.**
+
+📌 **That is the SAME STRUCTURE as the original transcription** — `{42,43,44,48}` observed against
+`{42,43,47,48}` claimed maps onto it exactly at `n = 42`. The first report and this one describe one
+phenomenon.
+
+**(A) BOUNDARY SMEAR — ✅ CLOSED. ATTRIBUTED TO TEMPORAL ACCUMULATION**, by `C-1`'s **pre-declared**
+discriminator: *partials vanish ⇒ (A) is temporal accumulation on Bates' pipeline.* They vanished.
+
+⚠ **CAVEAT, RECORDED RATHER THAN GLOSSED: the settings were changed through the title's MENU, so the
+EFFECTIVE cvar values were never captured.** The attribution rests on the menu labels doing what they
+say. **`C-3(e)` collects the actual values for the record.** ⛔ Not a reason to reopen (A); a reason
+not to call it measured to the cvar.
+
+⚠ **AND ONE EARLIER READING IS SUPERSEDED:** the AA-on ladder recorded **`n+3` still gone**; the AA-off
+binary read has **`n+3` VISIBLE**. **The difference is filed under (A)** — that frame's darkness was
+smear, not absence. **Both readings are kept.**
+
+**(B) PHASE DISPLACEMENT — 🔴 STILL OPEN**, and now cleaner than when it was found: **deterministic
+across events, present with AA ON and with AA OFF.**
+
+### 🎯 THE AXIS TABLE FOR (B) — what is excluded, and what is left
+
+| axis | status | on what evidence |
+|---|---|---|
+| **AA / temporal method** | ⛔ **EXCLUDED, BOTH DIRECTIONS** | bench runs **TSR ON** (measured: `r.AntiAliasingMethod = 4`, LastSetBy Constructor) and reads **16/16 ALIGNED**; Bates is **displaced with AA ON *and* AA OFF** |
+| census + mask | ⛔ EXCLUDED | the no-flags reproduction — census OFF, mask OFF |
+| delivery mode | ⛔ EXCLUDED | v1 leg **C**, `delivery_mode = True`, identical structure to leg A |
+| pacing | ⛔ EXCLUDED | both pacings ALIGNED on the bench; Bates is paced |
+| tick ratio | ⛔ EXCLUDED | closed as a non-finding — 1.3556 reproduces exactly here |
+| letterbox / non-zero view-rect origin | ⛔ EXCLUDED | the v2 fixture **is** letterboxed and reads ALIGNED |
+| 🔴 **Bates host build + content** | **REMAINING** | everything else is eliminated |
+
+### TRANSITION ARITHMETIC — arithmetic of the observed sets only. ⛔ NO MECHANISM.
+
+**Four flips per event.** Writing the claimed set `{n, n+1, n+5, n+6}` and the observed set
+`{n, n+1, n+2, n+6}` as transitions:
+
+| flip | labels say | eye says | |
+|---|---|---|---|
+| 1 — **first hide** | at **n** | at **n** | ✅ **match** |
+| 2 — mid-event show | at **n+2** | at **n+3** | ⚠ **+1 late in pixels** |
+| 3 — second hide | at **n+5** | at **n+6** | ⚠ **+1 late in pixels** |
+| 4 — **final show** | at **n+7** | at **n+7** | ✅ **match** |
+
+Three readings follow from that and nothing else:
+
+- 🎯 **THE OUTER PAIR MATCHES EXACTLY, ON BOTH OWNER OBSERVATIONS (AA on and AA off).**
+- ⚠ **THE INTERIOR PAIR IS EACH +1 FRAME LATE IN PIXELS.**
+- ✅ **HIDDEN-FRAME COUNT IS CONSERVED — 4 against 4 ⇒ NO DROPPED FRAMES.**
+- ✅ **OUTER-PINNED ⇒ NO WHOLE-EVENT OFFSET** (which is also why this was never `P1`).
+
+⛔ **WHICH CODE PATH DRIVES EACH FLIP IS THE NEXT SESSION'S SOURCE READ, NOT THIS ENTRY'S CLAIM.**
+
 ### Localization — arithmetic only, no mechanism
 
 **Labels are host-independent** (the same (n, n+1, n+5, n+6) cadence on both hosts).

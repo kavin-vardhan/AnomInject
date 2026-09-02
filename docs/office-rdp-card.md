@@ -115,13 +115,13 @@ From the run's `run_summary.json` and the Output Log:
 the run has finished**, with the project path filled in:
 
 ```
-$log = "<plugin-path>\..\..\Saved\Logs\StackOBot.log"; "LOG  $log"; "MTIME $((Get-Item $log).LastWriteTime)"; foreach ($p in 'READBACK-GUARD FIRED','EXTENT-CLAMP FIRED') { "{0,-22} = {1}" -f $p, @(Select-String -Path $log -Pattern $p -SimpleMatch).Count }
+$log = "<TITLE-SAVED-LOGS>"; "LOG  $log"; "MTIME $((Get-Item $log).LastWriteTime)"; foreach ($p in 'READBACK-GUARD FIRED','EXTENT-CLAMP FIRED') { "{0,-22} = {1}" -f $p, @(Select-String -Path $log -Pattern $p -SimpleMatch).Count }
 ```
 
 **Expected output — exactly four lines, and it prints them even when both counts are zero:**
 
 ```
-LOG  D:\...\StackOBot\Saved\Logs\StackOBot.log
+LOG  <TITLE-SAVED-LOGS>
 MTIME 09/02/2026 14:31:07
 READBACK-GUARD FIRED   = 0
 EXTENT-CLAMP FIRED     = 0
@@ -131,9 +131,10 @@ EXTENT-CLAMP FIRED     = 0
 counts can be tied to the run you just did — a zero read off yesterday's log is not a zero.
 ⚠ **`= 0` and "I did not look" are different results and must never be reported the same way.** If
 the command errors, report the error; **a missing count is UNREAD, not zero** (`G197`).
-📌 The paths differ by how you launched: **PIE / editor** writes to `<project>\Saved\Logs\StackOBot.log`;
-a **packaged** run writes to `<Build>\Windows\StackOBot\Saved\Logs\StackOBot.log`. A-5 is a PIE run,
-so use the first.
+📌 **`<TITLE-SAVED-LOGS>` = the host project's own `Saved\Logs\<its>.log`.** You know that path; **it
+is deliberately not written on this card and never should be.** ⚠ It differs by how you launched: a
+**PIE / editor** run writes under `<project>\Saved\Logs\`, a **packaged** run under
+`<Build>\…\Saved\Logs\`. A-5 is a PIE run, so use the first.
 ⚠ **1 and 2 are both asked for on purpose.** A log line saying the run finished is not evidence a
 file exists (`A62`), and the crash this milestone exists for wrote a clean-looking session with
 **zero** frames on disk.
@@ -178,7 +179,7 @@ scrollback rather than the log file.**
 signal even when every count is zero:
 
 ```
-$log = "<plugin-path>\..\..\Saved\Logs\StackOBot.log"; "LOG  $log"; foreach ($p in 'OBSERVED - the stencil tag did not read back','OBSERVED - the mask carried reserved-range tag','OBSERVED - batch id=','CENSUS-HYGIENE final DIFF','CENSUS-HYGIENE cycle DIFF','TAG-POOL EXHAUSTED') { "{0,-52} = {1}" -f $p, @(Select-String -Path $log -Pattern $p -SimpleMatch).Count }
+$log = "<TITLE-SAVED-LOGS>"; "LOG  $log"; foreach ($p in 'OBSERVED - the stencil tag did not read back','OBSERVED - the mask carried reserved-range tag','OBSERVED - batch id=','CENSUS-HYGIENE final DIFF','CENSUS-HYGIENE cycle DIFF','TAG-POOL EXHAUSTED') { "{0,-52} = {1}" -f $p, @(Select-String -Path $log -Pattern $p -SimpleMatch).Count }
 ```
 
 **Read back: six labelled numbers. Expected: all zero.**
@@ -306,7 +307,7 @@ the FRONT.** Do not photograph the console. Run this instead, which prints **onl
 matters, plus an independent second read of the same quantity:
 
 ```
-$log = "<plugin-path>\..\..\Saved\Logs\StackOBot.log"; Select-String -Path $log -Pattern 'M36 STENCIL RESERVATION' -SimpleMatch | ForEach-Object { ($_.Line -replace '^.*(M36 STENCIL RESERVATION.*?\]).*$','$1') }; Select-String -Path $log -Pattern 'M36 TAG POOL' -SimpleMatch | ForEach-Object { ($_.Line -replace '^.*(M36 TAG POOL.*?)\.\s*$','$1') }
+$log = "<TITLE-SAVED-LOGS>"; Select-String -Path $log -Pattern 'M36 STENCIL RESERVATION' -SimpleMatch | ForEach-Object { ($_.Line -replace '^.*(M36 STENCIL RESERVATION.*?\]).*$','$1') }; Select-String -Path $log -Pattern 'M36 TAG POOL' -SimpleMatch | ForEach-Object { ($_.Line -replace '^.*(M36 TAG POOL.*?)\.\s*$','$1') }
 ```
 
 **Expected: two short lines per run, both photographable in one shot:**
@@ -490,7 +491,24 @@ You moved from one temporal method to another. **`C-1` is the leg that actually 
 non-temporal state.** Also: **the FSR3 upscaler and FSR3 frame interpolation are SEPARATE
 switches** — turning off the upscaler does not turn off interpolation.
 
-### C-1. THE AA-OFF LEG — the decisive one
+### C-1. THE AA-OFF LEG — ✅ **SUBSTANTIVELY DONE BY THE OWNER, 2026-09-02**
+
+🔻 **RESULT, AND THE PRE-DECLARED DISCRIMINATOR FIRED.** With **all anti-aliasing and motion blur
+disabled through the title's own settings menu**: **the partial-opacity frames are GONE**, and **the
+displacement PERSISTS** as a clean binary read —
+**observed hidden `{n, n+1, n+2, n+6}` vs claimed `{n, n+1, n+5, n+6}`.**
+
+⇒ ✅ **(A) BOUNDARY SMEAR IS CLOSED — temporal accumulation**, exactly as the discriminator below
+pre-declared. 🔴 **(B) PHASE DISPLACEMENT IS OPEN and is now the whole question.**
+
+📌 **RESIDUE, and it is small: the three bare-cvar read-backs and the frame-generation switch lookup
+were never captured** — the settings were changed by MENU, so the effective values are unrecorded.
+**They live in `C-3(e)` now. Do them there; there is no need to re-run `C-1`.**
+
+*(The full procedure is kept below as the record of what was pre-declared and why the result means
+what it does. ⛔ Do not re-run it unless something below is contradicted.)*
+
+#### C-1 as it was pre-declared
 
 **Set all four and CONFIRM EACH BY READ-BACK *BEFORE* starting the run.** Type each bare name to
 print its current value:
@@ -547,9 +565,37 @@ IAI.Capture.Start "" png 4242 90 blinking StaticMeshActor_1246
 
 **Read back: does (B) appear on BOTH?** One line each is enough — *"displaced yes/no"*.
 
-### C-3. THE TEXT BUNDLE — for ONE `C-1` event
+### C-3. 🔴 **THE DECISIVE ITEM — the text bundle for ONE event**
 
-🚨 **RUN THESE IMMEDIATELY AFTER THE CAPTURE, BEFORE RELAUNCHING ANYTHING.** The engine **rotates
+🚨 **THIS IS NOW THE MOST IMPORTANT THING ON THE CARD.** `C-1` closed **(A)**. Every other axis for
+**(B)** is excluded — AA in both directions, census, mask, delivery, pacing, tick ratio, letterbox.
+**What is left is the Bates host path, and `C-3` is what reads it.**
+
+**PREREQUISITES — all three, or the bundle cannot answer the question:**
+
+1. 🚨 **A FRESH RUN. Every banked run lacks the toggle lines.** They are **Verbose-only**
+   (`Anomaly_Blinking.cpp:95`), so no existing session has them, however carefully you read it.
+2. 🚨 **TYPE `Log LogAnomaly Verbose` IN THE CONSOLE BEFORE STARTING THE RUN.**
+   ⚠ **If the toggle lines still do not appear afterwards, THAT IS A READ, NOT A FAILURE** — record
+   it exactly as *"`Log LogAnomaly Verbose` was set and no `blinking toggle ->` line appeared"*, and
+   send the bundle anyway. An absent line that was never asked for and an absent line that was asked
+   for are different results (`G197` family).
+3. **AA + motion blur OFF**, as you already established in `C-1`.
+
+**THE PRE-DECLARED THREE-WAY COMPARISON.** For **each interior flip** — the mid-event show (labels
+`n+2`, eye `n+3`) and the second hide (labels `n+5`, eye `n+6`) — ask **which frame the toggle log's
+timing sides with**:
+
+| what the log shows | what it says |
+|---|---|
+| **log + LABELS agree** | the **PIXELS** are the outlier on this host |
+| **log + EYE agree** | the **SAMPLING / LABELLING** side is the outlier on this host |
+| **mixed, or neither** | ⛔ **report raw. Classify nothing.** |
+
+⛔ **NO BRANCH IS ASSERTED AND NONE IS PREFERRED.** ⛔ **These outcomes name WHERE the divergence
+sits. They never name WHY.**
+
+🚨 **RUN THE COMMANDS IMMEDIATELY AFTER THE CAPTURE, BEFORE RELAUNCHING ANYTHING.** The engine **rotates
 its log on the next launch**, so the toggle lines in (a) exist only until the title starts again.
 Everything else is on disk and safe, but (a) is not.
 
@@ -597,12 +643,34 @@ Four commands, each capped to be photo-friendly.
 "== (d) label rows ==" | Tee-Object -FilePath $r\p9_bundle.txt -Append; (Get-Content $r\labels.jsonl | Select-Object -Skip 41 -First 10) | ForEach-Object { $o=$_|ConvertFrom-Json; "{0,4} present={1,-5} {2}" -f $o.session_index,$o.anomaly_present,(($o.anomalies|ForEach-Object{ "$($_.target_name) bbox_valid=$($_.bbox_valid)" }) -join ' | ') } | Tee-Object -FilePath $r\p9_bundle.txt -Append
 ```
 
-**(e) the three effective render settings** — type each bare name in the game console and copy what
-it prints; then record them into the bundle:
+**(e) the effective render settings — `C-1`'s RESIDUE, because those were set by MENU and the actual
+values were never captured.** Type each bare name in the game console and copy what it prints, then
+record them into the bundle:
+
+```
+r.AntiAliasingMethod
+r.MotionBlurQuality
+r.ScreenPercentage
+```
 
 ```
 "== (e) render settings: r.AntiAliasingMethod / r.MotionBlurQuality / r.ScreenPercentage ==" | Tee-Object -FilePath $r\p9_bundle.txt -Append
 ```
+
+**PLUS the frame-generation switch, which still has no confirmed name.** 🚨 **I cannot give it to you
+and I will not guess it** — the FSR3 plugin is not in the bench engine, so any name I wrote would be
+invented. **Find it on that box:** type
+
+```
+fidelityfx.
+```
+
+in the console and read what **completion** offers; the frame-generation / frame-interpolation entry
+is the one wanted, separately from the upscaler. ⛔ **A cvar that answers `Unrecognized command` is
+UNREAD, NOT OFF** (`G197`). Record the name you used and exactly what it printed.
+
+📌 **For the record only.** `C-1`'s result already stands on the menu settings doing what they say;
+this pins the numbers behind it.
 
 **Then send `p9_bundle.txt`.** ✅ One file, whole thing, survives a relaunch.
 

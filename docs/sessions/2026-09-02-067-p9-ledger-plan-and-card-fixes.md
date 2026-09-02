@@ -1152,7 +1152,90 @@ for the predictions file **before** any code, per the standing rule.
 
 ---
 
+## §17 CLOSE-OUT
+
+### §17.1 Goal
+
+Verify session 066's wrap-up; open and measure `P9`; fix the RDP card; land the owner's floor/ceiling
+DECIDE. **All four moved, and `P9` turned out to be a bigger and cleaner phenomenon than it was
+filed as.**
+
+### §17.2 What was done
+
+| | |
+|---|---|
+| **verification** | 066's wrap-up checked item by item; two records were stale and were fixed; the scrub re-verified over every origin ref |
+| **`P9`** | ledger entry opened · reader built and gated · **two bench campaigns** (v1 `MainWorld`, v2 letterboxed `CB_GateLevel`) · owner reproduced it on Bates **with no flags** · **(A) closed, (B) open and localized** |
+| **`m37`** | census defaults **implemented, gated (a)–(d), shipped** — floor `0.5`, ceiling `25.0` inclusive, `census_above_ceiling`, `ABOVE-CEILING` token, `DISABLED` echo |
+| **`m38`** | run-scoped session log — **PLAN APPROVED at close, NOT implemented** |
+| **card** | counters command · collision question fixed · `reserved=` line · Section C rebuilt as the `P9` Bates protocol · bundle file · codename-safe log path everywhere |
+| **numbering** | `P9` (not P8) · `A65` (not A59) · `G202`–`G208` · milestones renumbered **twice** |
+| **housekeeping** | two dirty local-only branches deleted · `"no reachable ref"` restored · baselines README brought current |
+
+### §17.3 Problems → resolutions
+
+| problem | resolution |
+|---|---|
+| The reader's `A53` gate failed at `SEP_RATIO 10.0` | **Reported, not retuned.** Chat calibrated 5.0 from two known-answer populations; re-gate passed 4/4 + `d-unit` |
+| Control (d) unreachable — the anchor guard refuses any uniform shift on flush geometry | Guard kept; **division of labour recorded**, `d-unit` added to prove the branch on literal sets |
+| v1's five legs all `UNDECIDABLE` | **Fixture conjunction failure (`G206`), not a `P9` result.** v2 built a fixture satisfying both halves |
+| The letterbox lever refuses `CB_GateLevel` | **`R3`: two engine console commands, no source change and no cook.** Route A and B unbuilt |
+| `B1` fails on a constrained view | **`A65`** — declared `N/A`, never "failed"; harness switch **self-polices** by invalidating a leg whose rect origin is zero |
+| A crash printed an empty table and exit 1 | **`G204`** — stderr redirect + a guard on the wrong key; fixed |
+| Two legs silently ran harness defaults | **`G205`** — `& script.ps1 @{...}` is positional; the leg's own `_leg_geometry.json` convicts it |
+| The overlay's one-frame report | **Resolved from code**: red/amber cannot drift; only the anchor is open |
+| `LogAnomaly` lines lost to log rotation | **Card `2a`** (bundle file) + **harness `2b`** (excerpt written before anything can relaunch); **`m38`** does it in-plugin |
+
+### §17.4 Deviations, all stated at the time
+
+- **`P8` → `P9`** and **`A59` → `A65`**: both instructed numbers were already taken. Numbers are never
+  reused; both deviations were flagged in the same turn they arose.
+- **The predictions-file join spec was factually wrong** (`"blink"` vs `"blinking"`); corrected in the
+  implementation and annotated, **the file itself not edited** (`P-C2`/`P-C13` route).
+- **The `m37` cook was authorised and not performed** — `R3` removed the need for one.
+- **`m37` touched two files beyond the plan's list**, forced by the m36 provider inversion; no logic
+  change, and gate (a) covered the whole surface. **Accepted by chat.**
+- **Commit `6fb1215` carries a BOM in its subject** — annotated forward at `e66fb1b`, never
+  force-push-fixed.
+
+### §17.5 State at close
+
+**`master` carries m34 + m35 + m36 + m37.** Working tree clean apart from the owner's untracked
+handoff docs. **Staged bench exe `6C80E872`**; `D2BB25A5` **stays load-bearing** as gate (a)'s A-side
+and its freeze is **retired**. Container unchanged throughout — **no cook this session**.
+⛔ **NO TAG** — highest remains `m30`. CaptureBench at `dcc056a`, local-only.
+Local refs: `master`, `feature/mask-gpu-reduce`, `feature/selection-census`,
+`feature/stencil-capture` (local-only, verifier-clean, never push).
+
+### §17.6 Hand-off — **NEXT SESSION**
+
+🔴 **TASK 1 — THE SOURCE READ THAT WAS NEVER EXECUTED.** The brief containing it **was not
+delivered**, so it never ran: **which code path drives each of the four flips**, and **what the toggle
+line is anchored to** (tick? frame? the sampled bit?). §15.1's enumeration is the map; this is the
+next layer down, and it is what turns `C-3`'s three-way comparison into an attribution.
+🔵 **TASK 2 — implement `m38`**, plan approved at §16. **The first implementation task of the session.**
+🟢 Then: the `C-3` bundle when it arrives · the office tag batch · `m39` honest bbox.
+
+📌 **Hand-off doc: `docs/CHAT-HANDOFF-p9-bates-localized-m37-shipped.md`** — the owner saves it, and
+it stays **untracked** by convention like its predecessors. ⛔ Never staged.
+
+### §17.7 🆕 STANDING OWNER-COMMS RULES, adopted this session
+
+1. **ONE BRIEF IN FLIGHT.** A second brief issued before the first is answered can silently replace
+   context that was never delivered — which is exactly how Task 1 above went missing.
+2. **MARK EVERY ITEM `DONE` / `QUEUED` / `FUTURE`.** The `C-1` residue survived only because the item
+   was marked done-with-residue rather than simply done.
+3. **OWNER ERRANDS ONLY AGAINST VERIFIED TOOLING.** Never send the owner a command, a cvar name or a
+   path that has not been confirmed to exist. This session withheld the FSR3 cvar names for exactly
+   this reason and told him how to find them instead.
+
+---
+
 ## §16 `m38` — THE RUN-SCOPED SESSION LOG. **PLAN ONLY. NOTHING IMPLEMENTED.**
+
+> ✅ **APPROVED AT SESSION CLOSE, 2026-09-02. Implementation is the NEXT session's first
+> implementation task** (§17.6 Task 2). The plan below is unchanged from the version that was
+> approved.
 
 **Posted for approval.** ⛔ No source, no build, no leg. Predictions are pre-declared **after**
 approval, before any code.

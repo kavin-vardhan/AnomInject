@@ -11,6 +11,43 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🏁🏁 **SESSION 067 CLOSE-OUT, 2026-09-02 — THIS IS THE CURRENT "YOU ARE HERE". Everything below it
+> is older and is superseded wherever they disagree.** 🏁🏁
+> **Cold start: `docs/sessions/2026-09-02-067-p9-ledger-plan-and-card-fixes.md` §17.**
+>
+> **`master` carries m34 + m35 + m36 + m37**, all by merge or direct commit on master.
+> ⚠ **SHA-INVARIANT PHRASING ON PURPOSE:** the tip moves with every docs commit — **`git rev-parse
+> origin/master` is the authority**, never a SHA written here.
+> 📦 **Staged bench exe `6C80E872`** (m37). ⛔ **`D2BB25A5` STAYS LOAD-BEARING** — it is the `P-C7`
+> A-side for m37's gate (a) and the exe every `P9` bench leg ran on; **its freeze is RETIRED**.
+> Container unchanged throughout — **no cook**. ⚠ `6C80E872` is a **new `G140` boundary for
+> census-ON legs**; census-OFF stays comparable.
+>
+> 🔢 **MILESTONE MAP — renumbered twice, both deliberate:**
+> **`m37` = census selection defaults — ✅ DONE** (floor `0.5`, ceiling `25.0` inclusive,
+> above-ceiling EXCLUDED with counter + token, `≤ 0` DISABLES with a loud echo; census compiled
+> default stays **OFF** ⇒ client-inert, measured).
+> **`m38` = the run-scoped session log — ✅ PLAN APPROVED, ⛔ NOT IMPLEMENTED** (journal 067 §16;
+> next session's first implementation task).
+> **`m39` = honest bbox** — **`P-C13` conjunct 2 rides it**, regardless of number.
+> ⛔ **NO TAG.** Highest remains `m30`; the office batch is now
+> `m31 → m33 → m34 → m35 → m36 → m37` (**+ `m38` if it has landed by then**).
+>
+> 🔴 **`P9`, IN ONE PARAGRAPH.** Owner **reproduced it on Bates with NO FLAGS** (census OFF, mask
+> OFF), deterministic across events. **Two phenomena, kept apart: (A) BOUNDARY SMEAR is CLOSED** —
+> attributed to **temporal accumulation**, because with AA and motion blur off via the title's menu
+> the partial-opacity frames **vanished**, which is what `C-1` pre-declared. **(B) PHASE DISPLACEMENT
+> is OPEN**, now a clean binary read — observed `{n,n+1,n+2,n+6}` vs claimed `{n,n+1,n+5,n+6}`, the
+> outer flips matching exactly and **both interior flips +1 frame late in pixels**, hidden-frame count
+> conserved. **Every other axis is excluded — AA in BOTH directions, census, mask, delivery, pacing,
+> tick ratio, letterbox — so (B) is LOCALIZED TO THE BATES HOST BUILD + CONTENT.** ⛔ **NO MECHANISM
+> CLAIMED.** **Next evidence: RDP card `C-3`** (fresh run, `Log LogAnomaly Verbose` set first, AA off;
+> a pre-declared three-way comparison that names WHERE the divergence sits, never why).
+> 📌 **Standing mitigation unchanged: `blinking` stays UNTICKED on any Bates run that is not
+> `C-1`..`C-3`.**
+>
+> ---
+>
 > 🛑🛑 **READ THIS BEFORE YOU TOUCH ANYTHING — 2026-08-26, session 061 close-out.** 🛑🛑
 >
 > **1. 🆕 THE `WIP` COMMIT IS NOW PUSHED. THE DO-NOT-PUSH RULE IS LIFTED — OWNER RULING, 2026-08-26.**
