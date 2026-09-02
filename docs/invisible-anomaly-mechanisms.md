@@ -1162,3 +1162,105 @@ typed bundle now rides `C-3`.
 | **`P1`** | client's one-frame shift at ratio ≈ 1.2, 30 fps — **OPEN, never reproduced.** A **constant** shift; §8.2 says why `P9` is not it. |
 | **`P3`** | a labelled hide that never manifests — **FIXED at `m23`.** Same family (labelling vs manifestation), already cured, and the reason the `manifested` flag and the zero-positive-frame guard exist. |
 | **`P5`** | single-frame alignment undecidable ≥ 90 fps — **queued.** ⚠ Bates ran at **30 fps**, so `P5` is **not in play here unless a leg measures it into play**. |
+
+---
+
+# 9. `m41` — three entries the census work put on this ledger (2026-09-03, session 069)
+
+## 9.1 ⛔ PERSIST-TAGS: the "TSR shimmer" motivation is **NOT SUPPORTED** — correction, not a finding
+
+The named optimisation **PERSIST-TAGS** (keep candidates tagged across census batches and rotate
+stencil VALUES in place, instead of flipping `bRenderCustomDepth` per batch) was, during `m41`
+planning, promoted from a **cost** item to a **correctness** item on this reasoning: *"each tag flips
+the render proxy → motion vectors reset for a frame → a one-frame TSR ghost/shimmer."*
+
+**That mechanism does not survive a 5.1 source read.**
+
+- ✅ **The cost half is CONFIRMED.** `UPrimitiveComponent::SetRenderCustomDepth` →
+  `MarkRenderStateDirty()`, **and only when the value actually changes**
+  (`PrimitiveComponent.cpp:4075-4082`) — a full render-state recreate.
+  `UPrimitiveComponent::SetCustomDepthStencilValue` → `SceneProxy->SetCustomDepthStencilValue_GameThread`
+  (`:4084-4097`) → an `ENQUEUE_RENDER_COMMAND` writing **one scalar** on the proxy
+  (`PrimitiveSceneProxy.cpp:964-984`). **No recreate.** Rotating values really is cheap; flipping the
+  flag really is not.
+- ❌ **The correctness half is NOT SUPPORTED.** Previous-transform / velocity state lives in
+  **`FSceneVelocityData`**, keyed by **`FPrimitiveComponentId`** — stable across a recreate — and the
+  class's own comment reads: *"Tracks primitive transforms so they will be persistent across rendering
+  state recreates."* (`ScenePrivate.h:2410-2413`; `GetComponentPreviousLocalToWorld:2425`,
+  `UpdateTransform:2443`). `UpdateTransform` is additionally guarded by
+  `check(Proxy->HasDynamicTransform())` — **most census candidates are STATIC and have no velocity to
+  lose in the first place.** And `m26`'s banked `F-1` finding already established that the deferred
+  recreate is flushed **inside the same frame's** `BeginRenderingViewFamilies`, so the primitive is
+  **not missing** from the frame.
+
+⛔ **This is NOT a refutation of the SYMPTOM.** GPU-Scene and static-draw-list churn on a recreate are
+real, and their per-frame pixel effect **has never been measured here**. Per the observation-vs-mechanism
+invariant (`G120`): **the concern stands as UNMEASURED; the mechanism does NOT stand as stated.**
+
+🎯 **CONSEQUENCE — `m42` IS MEASUREMENT-FIRST.** Its first task is not an implementation: *does a census
+flag flip on a captured frame move a pixel?* Two legs on **one** binary, census-ON vs
+census-ON-with-flips-suppressed, at a matched pose, read with the grid/luma instrument under `G125`'s
+marker discipline (strict cross-run byte identity is known-unobtainable here). ⛔ **Building a
+tag-lifetime redesign on an unmeasured correctness premise is the `ReservedStencilMax` mistake in a new
+place.** Two further reasons `m42` is not `m41`: it reverses `m36`'s closed tag-lifetime ruling (with
+tags persisted, `IsAnyComponentTagged` — the `HeldElsewhere` guard — degenerates to always-true), and it
+makes §9.3's hazard **permanent instead of intermittent**, so **§9.3 must read `= 0` on the target host
+before `m42` is even safe to consider.**
+
+## 9.2 🔴 OPEN — the fog-card actor on Bates: something on it draws into custom depth, and we do not know what
+
+**Owner observation (eyeball-level, real, NOT explained):** with the census and mask ON, an actor whose
+material is **surface-translucent WITHOUT custom-depth writes** was nonetheless **selected and
+annotated**, and nothing visible changed. The owner is mitigating **by name exception** for now.
+
+⚠ **That combination should not happen under `m41`'s rule.** A translucent-only candidate is
+`EXCLUDED(translucent)` regardless of the opt-in, and a candidate that writes no custom depth cannot be
+measured non-zero by the mask. **So something on that actor IS drawing into custom depth** — a second
+component, a second material slot, an opaque or masked slot alongside the translucent one, or a writer
+we have not enumerated.
+
+⛔ **NO MECHANISM IS CLAIMED, and none should be written into a brief before it is measured.** The
+candidate list above is a list of things to look at, not an explanation.
+
+🔎 **THE READ THAT SETTLES IT, and it is small:** the actor's **`DRAWN-COVERAGE` histogram entry** (is it
+`MEASURED_NONZERO`, and at what drawn %?) **plus its component / material-slot list**. Those two
+together say whether the census measured a real silhouette and which slot produced it. Card `SECTION E`
+carries it with **no expected value stated**, deliberately — an expected value here would bias the read
+of the one observation we have.
+
+📌 **Recorded OPEN.** It is not `H5`, not `H6` and not `P9`; it is a census-selection question about one
+actor class on one host.
+
+## 9.3 🚨 THE HOST POST-PROCESS HAZARD, and the defect found while instrumenting it
+
+**The hazard (why the preflight exists):** the census tags candidates with **custom depth on captured
+frames**. A host post-process that **reads** `CustomDepth` or `CustomStencil` would therefore tint or
+outline census-tagged objects **in frames the labels call CLEAN** — an unlabelled artifact that **no
+counter can see**. Bates is known to write host custom stencil on some actors, so such a reader is not
+hypothetical.
+
+**The instrument:** at `StartRun`, with the census effective, enumerate the engine's **three** own
+post-process sources (`LocalPlayer.cpp:866-881`) — volumes · the camera manager's cached blends ·
+**the view target's `// CAMERA OVERRIDE`** — resolve each blendable material through its **serialized
+`UsedSceneTextures` bitmask** (`FMaterialShaderMap::UsesSceneTexture`, works in a cooked build, no
+editor-only data) and print one loud line either way, carrying its own `scanned` counts.
+
+🚨 **THE DEFECT, AND HOW IT WAS CAUGHT.** The first cut scanned only sources 1 and 2 and **missed the
+CAMERA OVERRIDE — which is where a `UCameraComponent`'s `PostProcessSettings` actually arrive, i.e. the
+most ordinary way a host applies a full-screen effect.** It was caught because the gate demanded
+`scanned` counts alongside the verdict: a `= 0` with `scanned 0/0/0` was pre-declared as **BLINDNESS,
+NOT A CLEAN READ**, the gate failed, the campaign stopped, and the diagnosis found the missing source.
+📌 **A preflight printing only `READERS = 0` would have been green on every level and would have shipped
+it.** ⇒ **`G96` is usually about proving a detector CAN fire; here it caught a detector looking in the
+wrong place.**
+
+**Stated limits — these travel with every `= 0`:** it detects a material that **samples** the texture,
+not that the sample changes a pixel; it **cannot see a reader outside the material system** (a host
+scene-view extension, a custom pass, Niagara, UMG, a decal); it is a **`StartRun` snapshot**, so a
+blendable added later is missed. ⛔ **`N = 0` DOES NOT MEAN "nothing on this host reads custom depth."**
+
+**Watch item for a real host (`D-G1`'s residual):** census verdict freshness is
+`max(knob, lastCompletedCycleTicks + LostAfterTicks(8))`. On a synthetic 41–47-tick cycle the `8` margin
+does **not** fully cover cycle-to-cycle variance, and some verdicts still expire. **Deliberately NOT
+tuned on a bench regime.** ⇒ **if a real host reports `expired > 0` with `window > 12` on the
+`Auto.Fire: census consulted=` line, that margin is the first knob to look at.**

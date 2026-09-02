@@ -300,9 +300,29 @@ Paste into the **host project's** `Config/DefaultGame.ini` **before the cook**:
 [AnomalyCapture]
 bMaskMeasureDefault=True
 bDeliveryModeDefault=True
+bSelectionCensusDefault=True
+CensusMinDrawnCoveragePctDefault=0.5
+CensusMaxDrawnCoveragePctDefault=25.0
+CensusMaxVerdictAgeTicksDefault=12
+bCensusExcludeTranslucentDefault=True
 ```
 
-Those are the only two keys whose delivered value differs from the compiled default.
+🆕 **`m41` CHANGED WHAT THIS BLOCK IS FOR. READ THIS BEFORE DELETING A "REDUNDANT" KEY.**
+At `m41` the **compiled** defaults for BOTH the mask and the selection census are `true`
+(`bCensusEffective = census && mask && async`, so shipping the census ON requires the mask ON). So
+`bMaskMeasureDefault` and `bSelectionCensusDefault` **no longer change behaviour — they are now a
+PROVENANCE READOUT.** Keeping them is what makes the run's own echo say `from DefaultGame.ini …`
+rather than `from COMPILED DEFAULT (on)`, and that echo is the only way to confirm the key reached the
+cook. ⛔ **Do not "tidy away" a key because it matches the compiled default — that removes the only
+evidence the cook consumed your config and re-opens `G88`.**
+🔑 **The safety this buys: before `m41`, a cooked ini that lost `bMaskMeasureDefault` silently reverted
+the build to `m25` labelling — invisible anomalies back, with no artifact difference at all. Now a lost
+key downgrades PROVENANCE, never behaviour.**
+⚠ **`CensusMaxVerdictAgeTicksDefault` is the FLOOR of the freshness window at `m41`, not a fixed age** —
+the effective window is `max(this, lastCompletedCycleTicks + 8)`. Setting it to `0` still expires
+everything (that is a deliberate diagnostic lever, not a tuning value).
+
+Those keys, plus `bDeliveryModeDefault`, are the delivered configuration.
 `bSveCaptureDefault` is deliberately **omitted** — the compiled default is already the UI-free SVE
 path since `S4`, and leaving the key absent is what makes the grab point immune to `G88`.
 `bFocusGateDefault` and `ContentClockDefault` are already correct for client titles.

@@ -1000,3 +1000,76 @@ IAI.Capture.Start "" png 4242 90
 Anything on this card that fails is a result. The most useful thing you can send back is the
 numbers you actually saw plus the line that surprised you — not a second attempt that looked
 better. Several findings in this project came from a leg that failed once and was reported verbatim.
+
+---
+
+# SECTION E — `m41` VALIDATION ON BATES (census ON by default)
+
+⛔ **RDP-valid.** Editor/PIE only, same route as Section D. The packaged Bates build stays sealed.
+🔻 **`D-5` (the `m37` ceiling read) is SUPERSEDED by `E-3` step 3 — do not run it separately.**
+
+## E-0. THE PASS CONDITIONS — pre-declared. Read them before you run anything.
+
+**(a)** the StartRun echo reads **census ON** and **mask ON**, and **names a source for each** — one
+source, never a disjunction. ⚠ **Either `COMPILED DEFAULT (on)` or the ini key is a PASS.** Which one
+appears tells you whether the Bates project's ini carries the keys, and that is worth knowing either
+way — the bench container has them, so it reads `ini` there.
+**(b)** the **`HOST-PP CUSTOM-DEPTH READERS =`** line is present **with NON-ZERO `scanned` counts**.
+🔑 **Read the scanned counts, not just the number.** A `= 0` with `scanned 0/0/0` is **BLINDNESS, not a
+clean read**, and on this host it would mean the enumeration found nothing to look at.
+**(c)** `aboveCeiling >= 1` with an `ABOVE-CEILING` line naming the landscape-class actor.
+**(d)** 🔴 **the fog-card actor: report its CLASSIFICATION, and if it is MEASURED, its DRAWN %.**
+⛔ **NO EXPECTED VALUE IS STATED HERE, DELIBERATELY.** The owner has observed a surface-translucent
+material **without** custom-depth writes being selected, which under `m41`'s rule should not happen —
+so something on that actor draws into custom depth and we do not know what. **An expected value would
+bias the one observation we have.** Whatever it says is the result.
+**(e)** an `Auto.Fire: census consulted=…` line on **every** fire.
+**(f)** eye list: anomaly visible at **≥ the m36 leg-2 rate (~90 %)**, **no repetition of the same 2–3
+targets**, **no pitch-black frames**.
+
+⚠ **(c) can come back different and still be a RESULT:** `aboveCeiling = 0` means the landscape actor's
+drawn coverage moved (a different window/letterbox) — report the histogram verbatim, do not re-run.
+
+## E-1. Update the box
+
+Mirrors `D-1`: `git status` clean → pull → **confirm the SHA** → rebuild the **EDITOR** target.
+⚠ **Runbook §8.6 STEP 3.5 is not optional** — the cook/editor binaries are what actually run (`G47`).
+
+## E-2. The run
+
+**`blinking` TICKED** — `P9` is closed and the standing mitigation is lifted.
+
+```
+IAI.Capture.RunLog 1
+IAI.Capture.Config 2 4 8 4 0
+IAI.Capture.Start "" png 4242 90
+```
+
+🚨 **`IAI.Capture.RunLog 1` FIRST, and it is not optional here.** The Bates project runs **delivery
+mode**, so `m38`'s run log is **auto-OFF** there (`G210`); forcing it puts this entire read into
+`anomaly_log.txt` beside `annotation.json` instead of console scrollback, which is where the last
+Section-A read got lost.
+
+## E-3. The reads, in this order
+
+1. the two **`EFFECTIVE FOR THIS RUN`** lines (mask, then census) — **whole lines**;
+2. the **`HOST-PP CUSTOM-DEPTH READERS =`** line — **whole line, including the `scanned` counts**;
+3. from **one settled cycle**: `CYCLE n DONE` · `DRAWN-COVERAGE histogram` · any `ABOVE-CEILING` line ·
+   the `NOT-MEASURED` listing *(this replaces `D-5`)*;
+4. **every** `Auto.Fire: census consulted=` line;
+5. the **15 `census_*` keys** from `run_summary.json`;
+6. the **eye list — target name + visible yes/no, per event, written down DURING the run.**
+
+## E-4. Two things that must not happen
+
+⛔ **Do not type `IAI.Capture.Census` or `IAI.Capture.Mask`.** The entire point of this leg is that the
+**compiled defaults** do it; typing either destroys `E-0(a)` and there is no way to recover it after
+the fact.
+⛔ **Do not re-run to a green.** Anything that fails here is a result; send the numbers you saw.
+
+## E-5. What Section E is NOT
+
+It is **not** `C-G1b` and **not** `B-G1` — those need an authored custom-depth-reading post-process
+material and an authored translucent-with-custom-depth-writes material respectively, and both are
+**cook-time gates on the client build** (`PRE-DELIVERY-CHECKLIST.md` §1.1). Section E reads what the
+shipped defaults do on a real host; it does not manufacture a fixture.

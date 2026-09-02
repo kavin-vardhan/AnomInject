@@ -11,8 +11,109 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🏁🏁 **SESSION 067 CLOSE-OUT, 2026-09-02 — THIS IS THE CURRENT "YOU ARE HERE". Everything below it
-> is older and is superseded wherever they disagree.** 🏁🏁
+> 🏁🏁 **SESSION 069 CLOSE-OUT, 2026-09-03 — `m41` IS SHIPPED. THIS IS THE CURRENT "YOU ARE HERE";
+> EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` — §1 the plan, §2 the
+> implementation, gates and rulings.**
+>
+> 🎯 **`m41` = THE CENSUS SHIPS ON BY DEFAULT, AND THE MASK'S COMPILED DEFAULT FLIPS WITH IT.**
+> `master` == `origin/master` == the `m41` line; the feat commit is the ONE
+> `feat(census): m41 - census on by default (+ translucent rule, host-PP preflight, cycle-relative
+> expiry, coverage assertion)`. ⚠ **SHA-INVARIANT PHRASING ON PURPOSE — `git rev-parse origin/master`
+> is the authority, never a SHA written here.** ⛔ **NO TAG.** Office batch is now
+> **`m31 → m33 → m34 → m35 → m36 → m37 → m38 → m40 → m41`** (`m39` slots in when it ships; numbers are
+> identities, not an order).
+> 📦 **Staged bench exe `5C073AC9`** (241,122,816 B). Predecessor **`C0AD3F91`** archived,
+> hash-verified before the swap, and it is **`m41`'s A-SIDE — load-bearing, do not delete.**
+> **Container quartet UNCHANGED** (`2A66CA57` / `A7EF9B12` / `D8009AD7`) — code-only hot-swap, **NO
+> COOK** (`G103`). ⚠ Two intermediate exes (`2BF9E1B9`, `7616F144`) were overwritten in staging without
+> being archived — **stated, not hidden**; bounded and rebuildable, receipt in
+> `_binary_baselines\README.md`.
+>
+> 🔑 **`bCensusEffective = census && mask && async`, so shipping the census ON REQUIRES the mask ON.**
+> Both compiled defaults are now `true`. The client ini has carried `bMaskMeasureDefault=True` since
+> `m27`, so the delivered cook already ran the mask; **the flip means a LOST INI KEY DOWNGRADES
+> PROVENANCE instead of silently restoring `m25` labelling** — the exact failure `G139` exists to make
+> visible. ⚠ **The ini keys stay in the client block and are now REDUNDANT-BUT-EXPLICIT: they are what
+> makes the StartRun echo read `ini`, which is the only way to confirm a key reached the cook. Do not
+> "clean up" a redundant key — that re-opens `G88`.**
+> 🚨 **`G-R7(ii)` IS NOW A HARD DELIVERY PRECONDITION for the next client cook** (physical-only hitch +
+> throughput gate on master's own build). ⛔ **Never quote S3's `+1.5352 ms/engine frame` as the MASK's
+> cost** — both S3 sides ran mask-ON, so it is the census ABOVE an already-ON mask; the mask's own cost
+> has never been isolated on any host (`G-M6` was never run).
+> 🔢 **`run_summary` census block is 12 → 15 keys** (`census_host_pp_customdepth_readers`,
+> `census_fires_partial_fallback`, `census_fires_unseen_candidates`), emitted **only when the census is
+> effective**. 📌 **CORRECTION: this file previously said "+11 `census_*` keys" in two places — `m37`
+> had already made it 12 by adding `census_above_ceiling`.** ⛔ **`annotation.json` DOES NOT MOVE —
+> `P6` measured 48 keys, added 0, removed 0.**
+>
+> 🔒 **`P-C7` IS RE-ANCHORED ON THE ON CONFIGURATION UNDER A NEW, STRONGER COMPARATOR — `P-C7 v2`**
+> (journal 069 §2.3; the predictions file was NOT edited). Absolute counters (`t`, `frame_index`) are
+> compared as **DELTAS and must be ONE constant across every row**; `view` and pose-derived fields must
+> be identical after that constant is removed, or differ by a **single constant** pose delta; the
+> run-unique set stays **`{t_wall}`**. 🔑 **This FORBIDS DRIFT, which "0 row diffs" only forbade
+> incidentally — it is stronger, not looser, and it is NOT a widening of the excusable set.**
+> ✅ **Against a pose-matched pre-`m41` control on the `m40` binary, every `labels.jsonl` field is
+> BYTE-IDENTICAL except `t_wall`** — `frame_index` Δ **0**, `t` Δ **0**, `view` identical, `anomalies`
+> **0/90** differing. **The event set is identical across ALL FIVE census-OFF legs on BOTH binaries and
+> DIFFERS on the census-ON leg** — census OFF ≡ the pre-census picker, census ON changes selection.
+> ⚠ **A second control pair was NOT pose-matched** (`A47` yaw still drifting through the settle tail)
+> and by `A64` the comparison does not run there; **both legs are banked, neither discarded, and the
+> `−4` `frame_index` offset was MEASURED to be run-to-run STARTUP VARIANCE present WITHIN the `m40`
+> binary itself** (that exe produced arm@si0 of both **5** and **1**; arm span **119** on all five
+> legs). ⛔ **Re-running a control until it agreed was REFUSED** — `P30`'s laundering shape.
+>
+> 🚨 **THE `C-G1a` GATE FAILED ONCE, THE CAMPAIGN STOPPED, AND THAT STOP FOUND A REAL DEFECT THAT WOULD
+> OTHERWISE HAVE SHIPPED BEHIND A GREEN TICK.** The host-PP preflight returned `= 0` with
+> `scanned 0/0/0` on `CB_GateLevel`; the gate's own pre-declared clause calls that **BLINDNESS, NOT A
+> CLEAN READ**. Diagnosis gave **two** findings: **(i) FIXTURE** — `CB_GateLevel` authors no
+> `APostProcessVolume` and the `-unattended` `SpectatorPawn` pushes no camera blend, so `V=0`/`C=0` are
+> TRUE there; **(ii) CODE** — the scan covered only two of the engine's THREE post-process sources
+> (`LocalPlayer.cpp:866-881`) and **missed the `// CAMERA OVERRIDE` one, which is where a
+> `UCameraComponent`'s `PostProcessSettings` actually arrive — the most ordinary way a host applies a
+> full-screen effect.** 📌 **THE TRANSFERABLE LESSON: the `scanned` counts are what turned a confident
+> zero into a question. A preflight printing only `READERS = 0` would have been green on both levels
+> and would have shipped the missing source.** ⇒ `G96` normally proves a detector CAN fire; here it
+> caught one **looking in the wrong place**.
+> ⚠ **`MainWorld` then read `V=1 C=1 M=0`, which the addendum had pre-declared as a code defect — and
+> that was NOT asserted. A discriminator was added first** (blendable ENTRIES reported separately from
+> resolved MATERIALS) and returned **`entries = 0`** ⇒ those settings carry no blendable at all,
+> **content, not a broken walk. The pre-declared failure branch was REFUTED BY MEASUREMENT.**
+>
+> ⚠ **TWO GATE HALVES ARE UNRUNNABLE ON THIS CONTAINER AND RIDE THE CLIENT COOK — RECORDED AS
+> UNRUNNABLE, NEVER AS PASSED:** **`B-G1`'s translucent fixture** (`IAI.Bench.SpawnTranslucentProbe`
+> **REFUSED** — the three materials in the container are all `blendMode=0 translucent=0`; nothing was
+> spawned and no fixture was improvised) and **`C-G1b`** (no material in this container lights any
+> `UsesSceneTexture` bit; the engine's `BufferVisualization/*` are not cooked in). **Both are required
+> pre-delivery gates at the next cook — see `PRE-DELIVERY-CHECKLIST.md`.**
+>
+> 🧪 **`D` and `E` are decisive on one binary.** `D-G1` A-side (`IAI.Bench.CensusFixedExpiry 1`,
+> pre-`m41` semantics): 5/5 fires `expired=3/3`, `eligible=0`, **`census_fires_fallback_all=5`** at a
+> 41–47-tick cycle — the defect reproduced. B-side (cycle-relative): **`fires_fallback_all=0`**,
+> `window=49/55` (= cycle+8), eligibility **10/15 vs 0/15**. ⚠ **CORRECTED PREDICTION:** `expired=0 on
+> every fire` was predicted and 3 of 5 fires show 1–2 — **residual named and DELIBERATELY NOT TUNED on a
+> synthetic bench regime**: at a 41–47-tick cycle the `LostAfterTicks = 8` margin does not cover
+> cycle-to-cycle variance. **Watch item: if a REAL host shows `expired>0` with `window>12`, that margin
+> is the first knob to look at.** `E-G2` (`IAI.Bench.CensusDropEntry 2`): **7/7 fires `unseen=3/3`** —
+> the counter is proven able to fire, so its zero elsewhere is a reading and not blindness.
+> 🔑 **`IAI.Capture.CensusMaxAge 0` STILL EXPIRES EVERYTHING.** A bare `max()` would have silently
+> retired `P-C11`'s loud-inert lever; knob `<= 0` is special-cased to window 0. **A shipped gate lever
+> was one line away from being retired by accident.**
+> 🧰 **New bench levers — console-only, no ini key, default off, loudly echoed, NEVER in a client
+> payload:** `IAI.Bench.ProbeSceneTextureUsage` · `IAI.Bench.CensusFixedExpiry` ·
+> `IAI.Bench.CensusBatchCap` · `IAI.Bench.CensusDropEntry` · `IAI.Bench.SpawnTranslucentProbe`.
+>
+> 🎯 **NEXT: `m43` = THE TARGET-ID MASK** (plan arrives as its own brief). **`m42` = PERSIST-TAGS, and
+> its FIRST TASK IS A MEASUREMENT, NOT AN IMPLEMENTATION** — chat's "TSR shimmer" motivation is **NOT
+> SUPPORTED** by 5.1 source (`FSceneVelocityData` is keyed by `FPrimitiveComponentId` and is designed
+> to persist across render-state recreates; static candidates have no velocity to lose), so the concern
+> stays **unmeasured** and the mechanism **does not stand**. **`m39` (honest bbox) still waits on
+> nothing.** ⛔ Do not start any of them unprompted.
+>
+> ---
+>
+> 🏁 **SESSION 067 CLOSE-OUT, 2026-09-02 — superseded as "you are here" by the `m41` block above; still
+> the record of `P9`'s closure and the `m37`/`m38`/`m40` line.** 🏁
 > **Cold start: `docs/sessions/2026-09-02-067-p9-ledger-plan-and-card-fixes.md` §17.**
 >
 > **`master` carries m34 + m35 + m36 + m37**, all by merge or direct commit on master.

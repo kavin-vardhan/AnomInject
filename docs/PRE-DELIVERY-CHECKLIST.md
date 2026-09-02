@@ -179,6 +179,51 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       no stated reason, and a silent change to what can be targeted is exactly the kind of thing
       that gets read as a regression.*
 
+### 1.1 🆕 `m41` — THE CENSUS SHIPS ON. THREE BOXES, AND TWO OF THEM CAN ONLY BE TICKED AT THE COOK.
+
+- [ ] 🚨 **`G-R7(ii)` IS A HARD DELIVERY PRECONDITION FOR THIS COOK — it is no longer a merge gate and
+      it is not optional.** Physical-only (RDP invalidates both halves): the eye/OBS hitch read and the
+      throughput read, run on **master's own build**. *`m41` turns the census on for every delivered
+      capture. The census's measured cost is **+1.5352 ms per engine frame** (1080p, unpaced, dev box)
+      **above an already-ON mask** — the dev box absorbed it entirely at the shipped paced 30 fps, but
+      that is **headroom, not free**, and the client's box is not this box. `speed_ratio` is the
+      instrument.* ⛔ **Nothing ships off master until this passes on master's own cook.**
+
+- [ ] 🚨 **`C-G1b` — THE HOST-PP PREFLIGHT'S POSITIVE DIRECTION, BOTH WAYS.** Author (or point at) a
+      host-project post-process material that **samples `SceneTexture: CustomDepth`**, apply it as a
+      blendable, and read the `Capture(census): HOST-PP CUSTOM-DEPTH READERS =` line:
+      **present ⇒ `= 1`, named, at Warning; removed ⇒ `= 0` at Log with NON-ZERO `scanned` counts.**
+      *Why it is owed: **no material in the bench container lights any `UsesSceneTexture` bit**, so on
+      the bench the detector's `0` has never been shown to be a reading rather than blindness. The
+      enumeration, the resolution, the entries-vs-materials discriminator and the negative control are
+      all proven (journal 069 §2.2); only the lit bit is not.* ⚠ **A `= 0` with `scanned 0/0/0` is
+      BLINDNESS, not a clean read — read the scanned counts, never just the zero.**
+
+- [ ] 🚨 **`B-G1` — THE TRANSLUCENT RULE, BOTH DIRECTIONS.** Needs one actor whose material is
+      **translucent-blend AND opts into custom-depth writes**. With
+      `IAI.Capture.CensusTranslucentWriters` **OFF** (the shipped default) it must read
+      **`EXCLUDED(translucent)`** in the cycle's `NOT-MEASURED` listing and increment
+      `census_excluded_translucent`; with it **ON** the same actor must read **`MEASURED_NONZERO`**.
+      *Why it is owed: `IAI.Bench.SpawnTranslucentProbe` **REFUSED** on the bench — the three materials
+      in that container are all opaque — so the rule that motivated the whole item has never been
+      exercised on a real instance. **Recorded as UNRUNNABLE, never as passed.*** ⚠ That flag is a
+      **compile-time `UMaterial` property**; a `UMaterialInstanceDynamic` inherits it and cannot change
+      it, so this fixture cannot be improvised at runtime.
+
+- [ ] **Read back the census keys from the delivered `run_summary.json`: there must be exactly
+      15 `census_*` keys** (`census_frames`, `_cycles`, `_candidates`, `_zero`, `_below_floor`,
+      `_above_ceiling`, `_excluded_translucent`, `_fires_fallback_all`, `_fires_partial_fallback`,
+      `_fires_unseen_candidates`, `_host_pp_customdepth_readers`, `_unmeasurable_nanite`,
+      `_unmeasurable_tag_failed`, `_unmeasurable_hidden`, `_unmeasurable_not_yet_measured`) **and
+      `annotation.json` must still be 48 keys.** *A 16th key, or any movement in `annotation.json`, is
+      a contract change the client was not told about.*
+
+- [ ] ⛔ **No bench lever is on in anything that ships.** Grep the delivered log for
+      `IAI.Bench.` — `ProbeSceneTextureUsage`, `CensusFixedExpiry`, `CensusBatchCap`,
+      `CensusDropEntry`, `SpawnTranslucentProbe`, `SynthTickOrder`. *All are console-only with no ini
+      key, so they cannot be on by accident — but a capture taken with one on is a GATE LEG, not a
+      dataset, and `CensusDropEntry` in particular deliberately hides candidates from the census.*
+
 ## 2. Desktop app + config
 
 - [ ] **Built with the current source**: `npm run build:tauri && npm run tauri build` on a machine with

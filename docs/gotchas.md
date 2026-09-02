@@ -5370,3 +5370,126 @@ explainable from something that IS present.
 📌 **AND IT IS A LIVE DATA POINT, NOT ONLY A GOTCHA:** the run log's **client** default is still an
 open owner question, and the first real delivery-shaped host needed it **forced**. Recorded, not
 decided. (2026-09-02, session 068.)
+
+---
+
+## G211 — an ini key that duplicates the compiled default stops being a correctness dependency and becomes a PROVENANCE READOUT. Say so, or someone deletes it.
+
+**2026-09-03, `m41`.** Before `m41`, `bMaskMeasureDefault=True` in the client's cooked ini was
+load-bearing: without it the delivered build silently reverted to `m25` labelling — invisible anomalies
+back, **with no artifact difference at all**. `m41` flipped the compiled default to `true`, so the key
+now changes nothing about behaviour.
+
+⚠ **The tempting conclusion — "it's redundant, delete it" — removes the only evidence the cook consumed
+your config.** The run's echo says `from DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault` when the
+key is present and `from COMPILED DEFAULT (on)` when it is not; with the key gone, `G88` (a loose ini
+beside a package is a silent no-op) becomes unanswerable again from the log alone.
+
+🔑 **RULE: when a compiled default is raised to match the shipped ini value, KEEP THE KEY and write down
+that it is now a provenance readout.** The safety gained is real and worth stating too: **a lost key now
+downgrades provenance, never behaviour.**
+
+---
+
+## G212 — a "requested but inactive" WARNING becomes noise the moment the requested state is the compiled default
+
+**2026-09-03, `m41`.** `bCensusEffective = census && mask && async`. Before `m41` a warning fired when
+the census was requested but the mask was off — a genuine, rare event, because requesting the census
+meant someone had typed a command or set a key.
+
+**Flipping the census's compiled default ON would have made that warning fire on every run of the
+shipped default on any host without an ini** — which inverts the loud-inert rule into noise. **A warning
+that always fires is a warning nobody reads**, and the next real one is invisible inside it.
+
+Two fixes exist and only one is right: gate the warning (it then cannot say what it means), or **flip
+the sibling default too so the state it warns about is genuinely exceptional.** `m41` did the second and
+reworded the line to name the cause — *"THE MASK IS OFF … reaching this line means something TURNED THE
+MASK OFF: console or an ini key"*.
+
+🔑 **RULE: before flipping a default ON, grep for every diagnostic that fires on that state and ask what
+it will say on a default run.**
+
+---
+
+## G213 — a synthetic level with no post-process reads `0/0/0` on a preflight, and blindness looks exactly like a clean read. THE SCANNED COUNTS ARE THE INSTRUMENT.
+
+**2026-09-03, `m41`, and it caught a real defect.** The `m41` host-PP preflight reports
+`HOST-PP CUSTOM-DEPTH READERS = N` **plus the counts of what it scanned**. On `CB_GateLevel` it read
+`= 0 (scanned 0 volume(s), 0 camera blend(s), 0 material(s))`.
+
+**Both halves of that are true and they mean different things.** `CB_GateLevel` authors **no**
+`APostProcessVolume` (its build script spawns only meshes, lights, sky and a `PlayerStart`), and the
+`-unattended` `SpectatorPawn` pushes no camera blend — `ClearCachedPPBlends()` runs at the top of
+`ApplyCameraModifiers` (`PlayerCameraManager.cpp:281`) and only modifier code ever calls
+`AddCachedPPBlend`. So `V = 0` and `C = 0` are the **true** answers there: **blindness by fixture.**
+
+🚨 **AND THE SAME INVESTIGATION FOUND THE SCAN WAS INCOMPLETE.** The engine builds a view's
+post-process from **THREE** sources (`LocalPlayer.cpp:866-881`): volumes · the cached blends it labels
+*"CameraAnim override"* · and **`View->OverridePostProcessSettings(ViewInfo.PostProcessSettings, …)`
+under `// CAMERA OVERRIDE`** — where a `UCameraComponent`'s `PostProcessSettings` actually arrive, i.e.
+**the most ordinary way a host applies a full-screen effect.** The first cut scanned two of the three.
+
+📌 **A preflight printing only `READERS = 0` would have been GREEN on every level and would have shipped
+the missing source.** The gate failed only because it demanded the scanned counts, and the pre-declared
+clause called `0/0/0` **blindness, not a clean read**.
+
+🔑 **TWO RULES:**
+1. **Any "I looked and found nothing" instrument must report HOW MUCH IT LOOKED AT.** A count of zero
+   findings beside a count of zero things examined is not a result.
+2. **When a fixture cannot exercise an instrument, build a LEVEL-INDEPENDENT probe rather than trusting
+   the fixture's silence** — here `IAI.Bench.ProbeSceneTextureUsage`, which drives one named material
+   through the identical code path and prints the bits.
+⚠ **And do not attribute the shortfall before measuring it:** `MainWorld` then read `V=1 C=1 M=0`, which
+had been pre-declared as a code defect. Adding a discriminator first — **blendable ENTRIES reported
+separately from resolved MATERIALS** — returned `entries = 0` ⇒ those settings carry no blendable at
+all. **Content, not a broken walk. The pre-declared failure branch was refuted by measurement.**
+
+---
+
+## G214 — comparing two binaries: compare absolute counters as DELTAS that must be ONE CONSTANT. "Zero differences" fails for the wrong reason.
+
+**2026-09-03, `m41`'s `P-C7` re-anchor.** The gate demanded `labels.jsonl` **0 row diffs** between the
+new binary (census OFF) and a pre-change control. Measured: **90/90 rows differing**, on `t`,
+`frame_index`, `view` and `anomalies` — while the **event set was string-identical** (same types, same
+targets, same spans, same `frame_indices`).
+
+**Cause, measured not argued:** the first control leg's whole run was **rigidly translated by 4 engine
+frames**. Launch-to-first-arm over five legs — **m41: 1, 1, 1 · m40: 5, 1** — i.e. **the OLD binary
+produced BOTH values**, so the offset is **run-to-run startup variance, not a property of the change**.
+The arm **span was 119 on all five**.
+
+⛔ **Widening the run-unique set to excuse it was refused** (`P30`'s laundering shape), and so was
+re-running the control until it agreed.
+
+🔑 **THE REPLACEMENT RULE (`P-C7 v2`), and it is STRONGER, not looser:**
+- absolute counters (`t`, `frame_index`) are compared as **deltas** that must be **ONE constant across
+  every row**;
+- `view` and pose-derived fields must be identical after that constant is removed, **or differ by a
+  single constant pose delta that is itself constant across rows**;
+- everything else byte-identical; the run-unique set stays `{t_wall}`.
+
+**It forbids DRIFT, which "0 row diffs" only forbade incidentally.** In the event, the pose-matched
+cross-binary pair came back with **every delta zero** — byte-identity except `t_wall` — while the
+non-pose-matched pair showed a **yaw drifting 0 → −0.175 → −0.35 → −0.525** and correctly failed the
+pose conjunct (`A64`: pose match is a **precondition** of the pair comparison, not part of its verdict).
+⚠ **Report both pairs and keep both legs. Reporting only the matching one is picking, however sound the
+rule you applied afterwards.**
+
+---
+
+## G215 — check what a shipped GATE LEVER does under your new semantics before you change them
+
+**2026-09-03, `m41`.** `IAI.Capture.CensusMaxAge` was a fixed verdict-age limit and its help text says
+*"0 expires everything and is the `P-C11` loud-inert control"* — a documented, shipped diagnostic lever.
+
+`m41` changed the semantics to `Window = max(knob, lastCompletedCycleTicks + 8)`. **Under a bare
+`max()`, a knob of 0 yields a window of `cycleTicks + 8`, and `P-C11`'s lever silently stops working** —
+no error, no warning, just a gate lever that quietly no longer does the thing its own help text
+promises.
+
+Caught by re-reading the knob's help text while editing it; fixed by special-casing knob `<= 0` to a
+window of 0, and pre-declared in the predictions addendum **before** it was measured.
+
+🔑 **RULE: when you change the semantics of a knob, enumerate its documented special values and check
+each one still means what the docs say.** A lever that has silently stopped working is worse than one
+that is gone: the next person to use it gets a clean-looking null.

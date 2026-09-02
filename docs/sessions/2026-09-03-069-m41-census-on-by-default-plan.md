@@ -631,3 +631,199 @@ prefilter's predicate · persist tags · tag anything.
 4. **D's "absolute cap"** — floor (`max()`, recommended) or upper bound (undoes the fix). (§1.4.2)
 5. **`census_fires_unseen_candidates`** — fire count (recommended, consistent trio) or candidate count.
    (§1.4.3)
+
+---
+
+# Session 069 §2 — `m41` IMPLEMENTED, GATED AND SHIPPED
+
+**Continues** `2026-09-03-069-m41-census-on-by-default-plan.md` (§1 = the plan, `47acfe6`).
+Covers briefs 069-02 (implement) and 069-03 (diagnose) and 069-04 (close).
+**Pre-declared gates:** `docs/predictions/2026-09-03-m41-census-on-by-default.md` (`2543674`) +
+**ADDENDUM 1** (`8fa807d`, written and committed BEFORE the runs it describes).
+
+---
+
+## §2.0 Outcome in one paragraph
+
+`m41` ships the selection census **ON by compiled default**, with the mask's compiled default flipped
+with it, the translucent custom-depth loophole closed, a host post-process preflight added, verdict
+expiry made cycle-relative, and a coverage assertion that counts candidates the census never saw. It
+changes **no rendered pixel** and **no `annotation.json` field**; `run_summary`'s census block goes
+**12 → 15 keys**, emitted only when the census is effective. The campaign stopped once on a failed
+gate, and **that stop paid for itself**: it exposed a real defect (§2.2) that a gate written without
+`scanned` counts would have shipped behind a green tick.
+
+---
+
+## §2.1 The five rulings, as implemented
+
+1. **Both compiled defaults flip ON.** The client ini has carried `bMaskMeasureDefault=True` since
+   `m27`, so the delivered cook already ran the mask; flipping the compiled default means a lost ini
+   key **downgrades provenance** instead of silently restoring `m25` labelling. The three provenance
+   describers now have **three exact branches each** and the pre-`m41`
+   `"COMPILED DEFAULT (off) or IAI.Capture.X"` disjunction is deleted — after the flip it was *false*,
+   and it was `G139`'s own failure mode living inside `G139`'s fix.
+2. **B's fixture is a bench-only runtime spawn.** It **refused** — see §2.4.
+3. **`C-G1b` defers to the client cook** as a required pre-delivery gate; `C-G1a` ran here.
+4. **`Window = max(knob, LastCompletedCycleTicks + LostAfterTicks)`**, knob = floor.
+   🚨 **Carve-out found while implementing, and pre-declared before it was measured:**
+   `IAI.Capture.CensusMaxAge 0` is documented as *"0 expires everything and is the `P-C11` loud-inert
+   control"*. Under a bare `max()` a knob of 0 would have yielded a window of `cycleTicks + 8` and
+   **`P-C11`'s lever would have silently stopped working.** `m41` special-cases knob `<= 0` to a
+   window of 0. **A shipped gate lever was one line away from being retired by accident.**
+5. **`census_fires_unseen_candidates` is a FIRE count**, so the three `census_fires_*` fields read as
+   a consistent trio; the candidate count lives in the per-fire log line.
+
+---
+
+## §2.2 🚨 THE `C-G1a` STOP FOUND A REAL DEFECT — the G96 discipline paying for itself
+
+`C-G1a` was written with an explicit clause: *a `= 0` with `scanned 0/0/0` is **BLINDNESS, NOT A CLEAN
+READ** and is a FAILURE.* On `CB_GateLevel` the preflight returned exactly that, the gate failed on its
+own written terms, and the campaign stopped without a fix in the same turn.
+
+**Diagnosing it produced two findings, and only one of them was the fixture.**
+
+**(i) FIXTURE — measured first, by two reads that do not use the suspect scan.**
+`CB_GateLevel` authors **no `APostProcessVolume`** (its authoring script `make_gate_level.py` spawns
+only `StaticMeshActor`, one skeletal actor, `DirectionalLight`, `SkyLight`, `SkyAtmosphere`,
+`PointLight`, `PlayerStart`), and the camera blend cache **only ever holds camera-MODIFIER pushes and
+is emptied every update** (`ApplyCameraModifiers` calls `ClearCachedPPBlends()` as its first statement,
+`PlayerCameraManager.cpp:281`; `AddCachedPPBlend` at `:300-305` is called only from modifier code),
+while the `-unattended` pawn is a `SpectatorPawn` with no camera component running no modifier.
+⇒ **`V = 0` and `C = 0` are the TRUE answers on that level. Fixture, not code.**
+
+**(ii) 🚨 CODE — and it would have shipped.** The engine assembles a view's post-process from **THREE**
+sources (`LocalPlayer.cpp:866-881`): volumes · the cached blends the engine itself comments as
+*"CameraAnim override"* (`:870-878`) · and **`View->OverridePostProcessSettings(ViewInfo.PostProcessSettings,
+ViewInfo.PostProcessBlendWeight)` under the comment `// CAMERA OVERRIDE` (`:881`)**. The first cut of
+the preflight scanned sources 1 and 2 and **missed source 3 — which is where a `UCameraComponent`'s
+`PostProcessSettings` actually arrive, i.e. the most ordinary way a host applies a full-screen
+effect.** A host doing exactly that would have been reported as a confident `= 0`.
+
+📌 **The lesson, and it is the transferable one: the `scanned` counts are what turned a confident zero
+into a question.** A preflight that had printed only `READERS = 0` would have been green on both
+levels and would have shipped the missing source. **`G96` is usually about proving a detector can
+fire; here it caught a detector that was looking in the wrong place.**
+
+**(iii) The `M = 0` follow-up was NOT attributed until it was measured.** `MainWorld` returned
+`V=1, C=1, M=0`, and the addendum had pre-declared that shape as a code defect. Rather than assert it,
+a **discriminator** was added — *blendable ENTRIES* reported separately from resolved *MATERIALS* — and
+it returned **`entries = 0`**: those settings carry no blendable at all. ⇒ **content, not a broken
+walk.** The pre-declared failure branch was **refuted by measurement**, which is a better outcome than
+being confirmed by assumption.
+
+---
+
+## §2.3 `P-C7 v2` — the comparator rule, and why it is stronger than "0 row diffs"
+
+**The problem.** `A-G1` demanded `labels.jsonl` **0 row diffs** against a pre-`m41` control. Measured
+**90/90 rows differing**, with extras beyond the same-binary run-unique set (`t_wall` alone):
+`t`, `frame_index`, `view`, `anomalies`.
+
+⛔ **Widening the run-unique set to excuse this was REFUSED** — `P30` already ruled that route the
+laundering shape, and re-running the control until it agreed would have been exactly
+"re-run to agreement".
+
+**`P-C7 v2`, journaled here, predictions file untouched:**
+- absolute counters (`t`, `frame_index`) are compared as **DELTAS** and must be **ONE constant across
+  every row**;
+- `view` and pose-derived label fields must be **identical after that constant is removed**, OR differ
+  by a **single constant pose delta** that is itself constant across rows;
+- everything else **byte-identical**; the run-unique set stays **`{t_wall}`**.
+
+🔑 **This is STRONGER than "0 row diffs", not weaker: it forbids DRIFT, which "0 row diffs" only
+forbids incidentally.** A drifting settle pose passes neither, but a rigid translation — which carries
+no information about behaviour — passes v2 and fails v1 for the wrong reason.
+
+**§2.3.1 Where the offset came from — measured, not argued.**
+The source diff contains nothing that consumes ticks before the first arm (the preflight is inside the
+`bCensusEffective` guard and its absence from the census-OFF leg's log is the confirmation; the new
+per-fire line is inside `if (CensusQuery …)`; console registration and log strings consume no ticks).
+So the ruling's fallback applied: **a variance read, one extra launch of each binary, all values
+reported, no leg discarded, no matching pair picked.**
+
+| leg | binary | `start_frame` | arm@si0 | arm@si89 | span |
+|---|---|---|---|---|---|
+| `M41_OFF` | m41 `5C073AC9` | 1 | 1 | 120 | **119** |
+| `M41_OFF_B` | m41 `5C073AC9` | 1 | 1 | 120 | **119** |
+| `M41_OFF_C` | m41 `5C073AC9` | 1 | 1 | 120 | **119** |
+| `M41_M40_CTRL` | m40 `C0AD3F91` | 4 | **5** | 124 | **119** |
+| `M41_M40_CTRL_B` | m40 `C0AD3F91` | 1 | **1** | 120 | **119** |
+
+🔑 **The m40 binary produced BOTH 5 and 1. The `−4` offset is run-to-run STARTUP VARIANCE present
+WITHIN the m40 binary itself — it is not a property of `m41` and not a code difference.** The arm
+**span is 119 on all five legs**: the whole run is rigidly translated, its internal structure identical.
+
+**§2.3.2 The verdict, both pairs reported.**
+
+| pair | `frame_index` Δ | `t` Δ | `view.rot` Δ | other fields | `anomalies` rows differing | v2 |
+|---|---|---|---|---|---|---|
+| `M41_OFF` vs `M41_M40_CTRL` | **−4**, one constant ✅ | **−0.164644**, one constant ✅ | **5 distinct values**, yaw drifting 0 → −0.175 → −0.35 → −0.525 ❌ | byte-identical ✅ | 48/90 | **FAIL on the pose conjunct** |
+| `M41_OFF` vs `M41_M40_CTRL_B` | **0** ✅ | **0.000000** ✅ | **0,0,0** ✅ | byte-identical ✅ | **0/90** | ✅ **PASS** |
+| `M41_OFF` vs `M41_OFF_C` (same binary) | 0 ✅ | 0 ✅ | 0,0,0 ✅ | byte-identical ✅ | 0/90 | ✅ PASS |
+
+⚠ **The failing pair is NOT pose-matched, and `A64` already governs that case:** two legs can each pass
+their own gate and still sit in different admissible poses, and the pair-level pose match is a
+**precondition of the comparison**, not part of its verdict. The `CTRL` leg's camera was still yawing
+through the settle tail — the `A47` rotation axis. **Both legs are banked; neither was discarded.**
+
+🎯 **The pose-matched cross-binary pair returns BYTE-IDENTITY of `labels.jsonl` except `t_wall`.** That
+is a stronger result than `A-G1` originally asked for. ⇒ **`A-G1` PASSES.**
+
+**§2.3.3 The substance, recorded separately from the comparator.** The **event set is IDENTICAL across
+all five census-OFF legs on BOTH binaries** — same six events, same types, same targets, same spans,
+same `frame_indices`, string-equal — **and DIFFERS on the census-ON leg.** Census OFF ≡ the pre-census
+picker; census ON changes selection. That pairing is the census's own positive control and it costs
+nothing extra to state.
+
+---
+
+## §2.4 Gates — predicted vs measured
+
+| gate | predicted | measured | verdict |
+|---|---|---|---|
+| `A-G1` / `m40` L4-shape | 0 row diffs | v2: all deltas **0** on the pose-matched pair; event sets identical | ✅ **PASS** (v2) |
+| `A-G2(a)` census | `COMPILED DEFAULT (on)` | exactly that, single source | ✅ |
+| `A-G2(a)` mask | ini reading satisfies it (ruling 2) | `from DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault` | ✅ |
+| `A-G2(b)` | `off` from `IAI.Capture.Census (console)` | exactly that, single string | ✅ |
+| `A-G3` | exactly 15 `census_*` | ON 52 keys vs OFF 37 = **+15, all `census_*`**, non-census extras **NONE**, removed **NONE** | ✅ |
+| `A-G4` (`P6`) | added 0 / removed 0 | identical | ✅ |
+| census-OFF inertness | no keys, no lines | 0 keys · 0 per-fire lines · no HOST-PP line | ✅ |
+| `B-G1` | both directions or honest absence | lever **REFUSED**: 3 materials present, all `blendMode=0 translucent=0`; 2 absent | ⚠ **UNRUNNABLE HERE** — rides the cook |
+| `C-G1a(b)` probe | 3 targets | engine `BufferVisualization/*` **NOT PRESENT in this container**; opaque control `sceneTextures=0` | ⚠ **PARTIAL** — positive bit folded into `C-G1b` |
+| `C-G1a(a)` MainWorld | `V/C ≥ 1` and `M ≥ 1` | `V=1 C=1 entries=0 M=0`, readers 0 | ⚠ prediction not met; **its failure branch REFUTED** (content, not code) |
+| `D-G1` A-side | `expired>0`, window 12 | 5/5 fires `expired=3/3`, `eligible=0`, `fires_fallback_all=**5**`, cycle 41–47 ticks | ✅ defect reproduced |
+| `D-G1` B-side | `expired=0` every fire | `window=49/55` (=cycle+8) ✅, `fires_fallback_all=**0**` ✅, eligible **10/15** vs 0/15 ✅; `expired>0` on 3 of 5 | ⚠ **corrected prediction** (§2.5) |
+| `D-G2` | window 12 | 12–14 on 4–6-tick cycles | ⚠ corrected prediction, by design |
+| `E-G1` | unseen 0 | **0** | ✅ |
+| `E-G2` | unseen ≈ half consulted | **7/7 fires `unseen=3/3`**, counter=7, lever omitted 39 of 77 | ✅ counter proven able to fire |
+| `m38` run log | closes cleanly | present + close marker on **all legs** | ✅ |
+| `A44` both encodings | all new strings | all present utf16, ascii 0; positive and negative controls both correct | ✅ |
+
+---
+
+## §2.5 Corrected predictions and named residuals
+
+- **`D-G2`**: the window reads **12–14**, not a flat 12 — the bench's cycles are 4–6 ticks and the rule
+  is `max(12, cycle+8)`. **My prediction was wrong; the code is right.**
+- **`D-G1` B-side**: `expired = 0 on every fire` was predicted; 3 of 5 fires show 1–2. The decisive
+  statistic moved as designed (`fires_fallback_all` **5 → 0**, eligibility **0/15 → 10/15**, one
+  binary, one cap, one seed). **Residual, named and NOT tuned:** at a synthetic 41–47-tick cycle the
+  `LostAfterTicks = 8` margin does not cover cycle-to-cycle variance. ⛔ **It is not tuned on a bench
+  regime manufactured by `CensusBatchCap 2`.** → ledger watch item: **if a real host shows `expired>0`
+  with `window>12`, that margin is the first knob to look at.**
+- **`B-G1` and `C-G1a`'s positive halves are UNRUNNABLE on this container** and ride the client cook as
+  `C-G1b` + the translucent-probe fixture. **Recorded as unrunnable, never as passed.**
+- **Exe archiving gap:** `2BF9E1B9` and `7616F144` were overwritten in staging without being archived.
+  Stated, not hidden; bounded (rebuildable from history, and the only result taken on `2BF9E1B9` is
+  banked in `M41_M41_ON_A`'s own log). Recorded in `_binary_baselines\README.md`.
+
+---
+
+## §2.6 Environment at close
+
+Staged bench exe **`5C073AC9`** (241,122,816 B). Predecessor **`C0AD3F91`** archived and hash-verified
+before the swap — it is **`m41`'s A-side** and stays load-bearing. Container quartet **UNCHANGED**
+(`2A66CA57` / `A7EF9B12` / `D8009AD7`) — code-only hot-swap, **no cook** (`G103`). Legs banked under
+`_bench_sessions_bank\M41_*` (11 dirs, every attempt kept). **No tag.**
