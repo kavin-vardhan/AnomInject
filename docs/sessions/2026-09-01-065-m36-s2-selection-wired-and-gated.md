@@ -257,3 +257,64 @@ no mechanism is claimed.
 `M36_PC13_PILLAR` — all under `_bench_sessions_bank\` with their process logs.
 Checkers: `m36_s1_pc7_check.py` (self-proving, reused for the door) and the new
 `m36_s2_census_check.py` (self-proving on every invocation).
+S3 evidence: `M36_S3_DOOR_70F6` (door re-anchor) · `M36_PC9_DISCARD` (declared discard) ·
+`M36_PC9_A1/B1/B2/A2` · `M36_PC9_PACED_A/PACED_B` · `M36_MERGE_INERT_MASTER` (the merge's
+behavioural proof). Extractor: `m36_pc9_cost.py` (self-proving parser).
+
+## §10 CLOSE-OUT — m36's BENCH PHASE IS DONE (owner verdicts, 2026-09-01/02)
+
+**S2 ACCEPTED — all gates stand as ledgered. S3, THE MERGE AND THE RDP CARD ACCEPTED.** The bench
+phase of m36 is closed; what remains is owner-run (the Section A + B reads on Bates) and is not
+bench work.
+
+**Rulings recorded, verbatim in substance:**
+
+- **P-C2 = PASS-WITH-READING, ratified exactly as §5.1 recorded it.** The prediction assumed a
+  control can be selected and measured on the same leg; firing on it hides it, so the two conjuncts
+  belong to DIFFERENT legs — and each was demonstrated on its own leg, with the dangerous direction
+  (`MEASURED_ZERO`) at **0/91**. → **G195**, and a standing input to m37's predictions (below).
+- **P-C13: conjunct 1 PASS and DECISIVE** (the denominator moved with the rect). **Conjunct 3
+  REFUTED AS A PREDICTION** — its premise (drawn px invariant under crop) was wrong; *write geometry
+  predictions as measurements, not directions* → **G196**. **Conjunct 2 at n=1: NOT CERTIFIED.**
+  ⛔ **It becomes a REQUIRED GATE FOR m37 (honest bbox), and its instrument is the UNIFORM PIE
+  PILLARBOX LEG** — console re-issue after possession, so the rect holds one offset value for the
+  whole leg instead of MainWorld's 16-frames-then-blend heterogeneity. Not needed for m36's
+  behaviour.
+- **The B1 six-attempt streak stands as recorded: CAUSE NOT ESTABLISHED.** The A47 rotation gate
+  (`-RequireModalRotZero`) is **accepted** as a harness control.
+- **The inert-merge proof FORM is ratified:** an artifact hash is NOT content identity across two
+  links; the proof is **SOURCE identity + BEHAVIOURAL identity**. → **G201**.
+- **Cycles-per-engine-frame difference across pacing regimes:** observation, cause not established,
+  **no chase.**
+
+🎯 **THE NAMED OPTIMISATION — RECORDED, NOT BUILT, AND NOT TO BE BUILT UNPROMPTED:** if a host shows
+no headroom in `speed_ratio` with the census on, the lever is **PERSIST-TAGS** — leave
+`bRenderCustomDepth` ON across census batches and **rotate only the stencil VALUES in place**
+(`SetCustomDepthStencilValue` updates the proxy in place; it is `SetRenderCustomDepth` that queues
+the full proxy recreate — session 063 §5.3). The S3 numbers say why this is the right lever to name:
+**95 % of the measured census cost sits in the deferred recreates and render passes, not the timed
+block**, and the flag flips (1,187–1,960 per run) are the size of that excluded work. ⛔ **MEASURED
+THERE FIRST, NOT BUILT** — it exists as a name so the next session does not re-derive it, and it is
+built only if a real host's `speed_ratio` says so.
+
+**Gotchas MINTED this close-out: G194–G201** (capped-sorted listing hides the tail class ·
+measured-control ≠ selected-control on one leg · geometry predictions as measurements not
+directions · truncated search = unread surface · namespaced `struct` forward-decl · a runbook step
+that never enables its own precondition · inline `-m` quoting swallows a commit · artifact hash ≠
+content identity across links).
+
+## §11 CARRIED INTO m37's PREDICTIONS — record for the author of that file
+
+m37 (honest bbox) does not exist yet; when its predictions are pre-declared, they MUST carry:
+
+1. **The P-C2 lesson (G195):** any prediction that asks one control to be both OBSERVED-STABLE and
+   ACTED-UPON is self-contradictory on a selection-wired build. Split it across two legs or two
+   actors AT WRITING TIME.
+2. **P-C13 conjunct 2 as a REQUIRED gate:** *every drawn bbox lies inside the view rect, in
+   rect-local coordinates, at a NON-ZERO origin* — certified here at only **n=1** box on a genuinely
+   offset frame, because packaged MainWorld's pillarbox is heterogeneous (the intro-camera→Bot
+   switch). **The instrument is the uniform PIE pillarbox leg** (`IAI.Bench.Letterbox 1.0` re-issued
+   after possession), which holds `rect=(280,0)-(1000,720)` for the whole leg and gives every event's
+   boxes at the offset origin. The zero-origin control runs alongside and is never the pass (G192).
+3. **Geometry predictions as measurements (G196):** predict quantities (`frame_px`, box bounds),
+   never directions whose unstated premises can invert them.

@@ -102,13 +102,36 @@ and is the single source of truth for the project.
 > 🧭 **COLD START: `docs/sessions/2026-08-26-061-m35-readback-sub-rect-copy-handoff.md`.** It opens
 > with a **DO NOT DO THIS** list and is self-contained.
 >
-> 🆕🆕 **2026-09-01, SESSION 065 — `m36` S2 IS THE ACTIVE WORK AND IT IS COMMITTED. GO STRAIGHT TO
-> `docs/sessions/2026-09-01-065-m36-s2-selection-wired-and-gated.md`; it is self-contained.**
-> Branch `feature/selection-census` tip **`72d6dd5`** (parent `344a9c9`), **NOT PUSHED, NO TAG, NO
-> COOK.** Selection now consults MEASURED DRAWN PIXELS before the bounds path. **Every S2 gate ran
-> and none failed** — `P-C1`·`P-C2`·`P-C3`+comp·`P-C4`+comps·`P-C5`·`P-C8`·`P-C10`·`P-C11`+comp·
+> 🆕🆕 **2026-09-02 — `m36`'s BENCH PHASE IS CLOSED, ACCEPTED, AND ON `master`. GO STRAIGHT TO
+> `docs/sessions/2026-09-01-065-m36-s2-selection-wired-and-gated.md`; it is self-contained (§10 is
+> the close-out, §11 is what m37's predictions must carry).**
+> **`master` = the m36 merge line** (branch `feature/selection-census` merged `--no-ff` at
+> `0f35d7a`, both refs pushed; the branch tip `7f82d52` stays == origin). **NO TAG, NO COOK.**
+> 🎯 **WHAT REMAINS ON m36 IS OWNER-RUN, NOT BENCH WORK: the RDP card's Section A (m35 close-out)
+> and Section B TWO-LEG PAIR on Bates (floor 6.0 + floor 0.5) — the two legs' histograms are the
+> input to the FLOOR DECIDE, which is a chat decision, not a bench one.** Do not start m37
+> unprompted; do not re-run bench gates while waiting.
+> 📌 **SHIPPED SHAPE:** census **compiled default OFF** (master is INERT for the client — with no
+> provider registered the selection path is byte-identical to the pre-census picker, measured via
+> `P-C7`, re-anchored twice) · **floor default 6.0** (`CensusMinDrawnCoveragePct`; 0.5 is a LEG
+> parameter, never a default) · `run_summary` +11 `census_*` keys ONLY when the census ran ·
+> **`P6` unmoved, measured 48/48.**
+> Selection consults MEASURED DRAWN PIXELS before the bounds path. **Every S2 gate ran and none
+> failed** — `P-C1`·`P-C2`·`P-C3`+comp·`P-C4`+comps·`P-C5`·`P-C8`·`P-C10`·`P-C11`+comp·
 > `P-C12`+comp·`P-C13`, plus the `run_summary` subset gate (delta **exactly** the 11 `census_*`
-> keys) and **`P6` unmoved, measured (annotation keyset 48/48 with the census ON and OFF alike)**.
+> keys). **Owner rulings: P-C2 = PASS-WITH-READING (→`G195`); P-C13 conjunct 1 decisive, conjunct 3
+> REFUTED AS A PREDICTION (→`G196`), conjunct 2 NOT CERTIFIED at n=1 and now a REQUIRED m37 GATE
+> with the uniform PIE pillarbox leg as its instrument** (journal 065 §11).
+> 🎯 **THE NAMED OPTIMISATION — recorded, NOT built, never built unprompted: PERSIST-TAGS** (leave
+> `bRenderCustomDepth` ON across census batches, rotate stencil VALUES in place — the value-set is
+> an in-place proxy update; the flag flip is the full recreate). Named because S3 measured **95 % of
+> the census's cost OUTSIDE the timed block**, in the deferred recreates and render passes. ⛔ It is
+> built only if a REAL HOST shows no headroom in `speed_ratio` — **measured there first.**
+> 📚 **Gotchas minted at close: `G194`–`G201`** (capped-sorted listing hides its tail class ·
+> measured-control ≠ selected-control on one leg · geometry predictions as measurements not
+> directions · truncated search = unread surface · namespaced `struct` forward-decl · a runbook
+> step that never enables its own precondition · inline `-m` quoting swallows a commit · artifact
+> hash ≠ content identity across links).
 > 🔑 **`72d6dd5` IS THE `G140` BOUNDARY SHA.** Wiring the census changes the candidate set, so the
 > same seed picks different targets across it ⇒ **banked auto-pool runs are non-comparable to any
 > census-ON leg from here on.** ⛔ **What is NOT lost, and this is the whole point: census OFF stays
@@ -121,9 +144,9 @@ and is the single source of truth for the project.
 > it is a dependency CYCLE. Capture **registers** a provider at census `Begin` and **clears** it at
 > `End`; the contract lives in the LOWER module (`AnomalyCensusProvider.h`). ⛔ Do not "simplify"
 > this into a direct call.
-> ⚠ **TWO PREDICTIONS ARE DEFECTIVE AS WRITTEN — neither is a build defect, neither was relabelled,
-> and NOTHING was appended to the predictions file (measurements against S2 now exist, so that file
-> is closed to amendment).** Both are in journal 065 §5 for a chat ruling: **(1) `P-C2` asks for
+> ⚠ **TWO PREDICTIONS WERE DEFECTIVE AS WRITTEN — neither a build defect, neither relabelled, and
+> NOTHING appended to the closed predictions file. BOTH NOW RULED (journal 065 §10); the detail
+> stays in §5:** **(1) `P-C2` asks for
 > `MEASURED_NONZERO` on EVERY cycle AND for the control to be SELECTABLE — mutually exclusive,
 > because selection fires on it and firing HIDES it (8/91 measured on the main leg; the conjunct is
 > demonstrated **30/30** on P-C2's own floor-10 companion, where the floor refuses it so nothing
@@ -132,9 +155,13 @@ and is the single source of truth for the project.
 > because the pillarbox CROPS as well as shrinking the denominator. **P-C13's actual claim rests on
 > conjunct 1, which is decisive: derived `frame_px` 518,400 on the offset leg vs 921,600 on the
 > zero-origin control — the census is RECT-RELATIVE.**
-> 📦 Binary **`CBBF6644`** staged and archived (`_binary_baselines\StackOBot.exe.m36-s2-CBBF6644`);
-> chain `02C1DFA2` → `E046D1CA` → `CBBF6644`; **container UNCHANGED, code-only hot-swap (G103)**.
-> Harness CaptureBench **`e8ff25d`** — `run_leg.ps1` gains **`-RequireModalRotZero`**, an A47
+> 📦 Binary chain: `02C1DFA2` (pre-S2) → `E046D1CA` (S2) → `CBBF6644` (S2+instruments) →
+> `70F6B72C` (S3 cost line) → **`D2BB25A5` (master's own post-merge build, STAGED on the bench)** —
+> all five archived under `_binary_baselines\StackOBot.exe.m36-*`; **container UNCHANGED throughout,
+> code-only hot-swap (G103)**. ⚠ `70F6B72C` vs `D2BB25A5` is `G201` in action: byte-identical
+> `Source/`, different exe hashes — a hash is not content identity across two links.
+> Harness CaptureBench **`28249c5`** (⚠ LOCAL-ONLY — that repo has NO remote; its commits live on
+> this box) — `run_leg.ps1` gains **`-RequireModalRotZero`**, an A47
 > ROTATION validity gate for AUTO-POOL legs (B1 is scoped to `StaticMeshActor_49` and honestly says
 > NOT APPLICABLE there, which left the bifurcation uncontrolled on exactly the legs whose candidate
 > set depends on the settled camera). ⛔ **It is for `CB_GateLevel` only — MainWorld settles at
@@ -158,7 +185,9 @@ and is the single source of truth for the project.
   committed", a fresh session believes it. Rationale: stale docs have now caused a real miss twice (the m20 "Bug A"
   slipped because annotation.json's path sat outside validation scope; and this block claimed m21 was uncommitted
   for six commits after it had shipped). A status refresh is a standalone `docs:` commit, never folded into feature work.
-- 🚧 **YOU ARE HERE — 2026-08-26 (sessions 061–062). `m35` IS IN FLIGHT ON BRANCH
+- 🟦 *(superseded as "you are here" by the 2026-09-02 m36 close-out in the stop block above — m35 is
+  MERGED to master and home-closed; kept as the record of sessions 061–062)*
+  **2026-08-26 (sessions 061–062). `m35` IS IN FLIGHT ON BRANCH
   `feature/mask-gpu-reduce`: THE FIX IS BUILT, STAGED AND GREEN ON EVERY GATE THAT HAS RUN, AND IT IS
   COMMITTED LOCALLY AS THE UNPUSHED `WIP` TIP** (8 files, **192 insertions / 16 deletions** — the
   stop block above is the operating contract for it). **NO LEG HAS FAILED. ⛔ NO TAG — highest tag is

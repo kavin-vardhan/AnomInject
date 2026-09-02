@@ -4920,3 +4920,131 @@ vary it before accepting the scope decision.** `G120`'s foreclosure failure with
 observation about one map became a claim about the whole harness. Cheapest guard: any "X is impossible
 here" line must carry the map, the pawn, the target and the config it was measured under — then the
 next reader can see which of those to change.
+
+## G194 — A CAPPED, SORTED LISTING HIDES EXACTLY THE CLASS AT ITS TAIL
+
+The census's per-cycle `DRAWN-COVERAGE` listing capped at 60 entries **sorted by drawn pixels
+DESCENDING**. On the 77-candidate bench the truncated tail was therefore not a random sample — it
+was **every `MEASURED_ZERO` candidate**, because zeros sort last by construction. `P-C1`'s control
+IS a zero, so the one listing that could show its verdict structurally could not show it, and the
+line ended `(+17 more)` while looking complete enough to read.
+
+**RULE: an absence read off a capped listing is not a reading, and a SORTED cap is worse than a
+random one — the sort key decides WHICH class is systematically hidden, and it is usually the
+extreme class, which is usually the interesting one.** Before reading absence from any listing,
+check for the truncation marker; before trusting a listing at all, ask what the sort order pushes
+into the tail. The fix here was to raise the cap AND add a companion line that names the
+non-measured classes explicitly, so absence became decidable from either direction. (2026-09-01,
+m36 S2 pre-flight — caught by reading a banked log BEFORE the gate ran, which is the only reason it
+is a gotcha and not a false pass.)
+
+## G195 — A MEASURED-CONTROL AND A SELECTED-CONTROL CANNOT BE THE SAME ACTOR ON ONE LEG
+
+`P-C2` asked one control (`StaticMeshActor_49`) to be `MEASURED_NONZERO` **on every census cycle**
+AND to be **selectable by the seeded draw**. Once selection was wired, those became mutually
+exclusive: selection fires on the control, the fired anomaly HIDES it, and a hidden actor is
+`NOT_MEASURABLE` — so the act of satisfying the second conjunct destroys the first. Measured, not
+argued: on the main leg the Cube was measured on 8/91 cycles (fired on continuously, sole eligible
+candidate at floor 6.0); on the companion leg, where the floor refused it so nothing fired,
+**30/30**; and on the same legs `StaticMeshActor_100`, which is never fired on, read 91/91 and
+26/26.
+
+**RULE: when a prediction asks a control to be both OBSERVED-STABLE and ACTED-UPON, split it into
+two legs (or two actors) at writing time — the action is usually what perturbs the observation.**
+The wider shape: an instrument's control must not be the system's own consumable. (2026-09-01,
+m36 S2, ruled PASS-WITH-READING; the wording is corrected for m37, not retro-edited into the
+closed predictions file.)
+
+## G196 — WRITE GEOMETRY PREDICTIONS AS MEASUREMENTS, NOT DIRECTIONS
+
+`P-C13` conjunct 3 predicted the known-visible control's drawn SHARE would **rise** under a
+pillarbox, reasoning: same drawn pixels, smaller denominator. The share **fell** (3.183 → 1.792 %,
+2.263 → 1.648 %), because the pillarbox also CROPS — the drawn pixel counts fell by 0.317× and
+0.410×, harder than the denominator's 0.5625×. The premise "drawn px invariant under crop" was
+never stated, so it was never examined.
+
+**RULE: a geometry prediction that names a DIRECTION quietly asserts every term it did not
+mention is constant. Predict the MEASURABLE QUANTITY instead** — here, `frame_px == rect area`,
+which conjunct 1 pinned at 518,400 vs the zero-origin control's 921,600 and which carried the whole
+gate on its own. A direction is the RATIO of two predictions; get either denominator-side premise
+wrong and the direction inverts while the mechanism under test is perfectly healthy. (2026-09-01,
+m36 P-C13 — conjunct 3 refuted as a prediction while the gate's actual claim passed decisively.)
+
+## G197 — A TRUNCATED SEARCH RESULT IS AN UNREAD SURFACE (G136'S SHAPE, PAGINATION EDITION)
+
+A repo grep for the census host-tag command truncated at 25 results — with the pagination notice
+printed right in the output — and the absence of the command from those 25 was read as "item 5 is
+missing". A second implementation was then written, and the build caught it as a symbol
+redefinition (`C2374`) because S1 had already shipped `IAI.Capture.CensusHostTag`.
+
+**RULE: an absence-of-finding is only as good as the surface actually read, and a paginated result
+IS a partial surface — the tool said so.** Before acting on "X does not exist", confirm the search
+was exhaustive: no result cap hit, no pagination marker, no extension filter (G191's half of the
+same lesson). The cheap discipline: any conclusion of the form "absent" must cite a COMPLETE
+enumeration, not the first page of one. This is the same failure as G194 wearing a different tool —
+there the log line truncated, here the search result did. (2026-09-01, m36 S2; cost one reverted
+duplicate implementation and would have cost a redefinition on every future build.)
+
+## G198 — `struct Foo*` INSIDE A NAMESPACE DECLARES A NEW TYPE, NOT A REFERENCE TO THE GLOBAL ONE
+
+Writing `const struct FAnomalyCensusCounters* Census` in a parameter list **inside
+`namespace AnomalyLabel`** compiled clean at the declaration — because it silently declared a NEW
+incomplete type `AnomalyLabel::FAnomalyCensusCounters` — and failed only at the point of use, as
+`use of undefined type`, in a different file, pointing at code that looked correct.
+
+**RULE: an elaborated-type-specifier (`struct X`) in a scope where `X` is not yet declared
+DECLARES `X` in that scope. Inside a namespace that means a namespace-local type that shadows the
+global one you meant.** Fix: forward-declare at GLOBAL scope before the namespace opens, and
+qualify the use (`::FAnomalyCensusCounters`). The trap's signature is the distance between cause
+and symptom: the declaration is legal, so the error surfaces wherever the pointer is first
+dereferenced, which can be another translation unit entirely. (2026-09-01, m36 S2, run_summary
+census plumbing.)
+
+## G199 — A RUNBOOK STEP THAT NEVER ENABLES ITS OWN PRECONDITION READS LIKE A CLEAN RESULT
+
+The RDP card's Section B told the office to run a census leg with `IAI.Capture.Census 1` — and
+never issued `IAI.Capture.Mask 1`. The census is only effective when the mask AND async capture are
+both on (`bCensusEffective = census && mask && async`), so the leg would have completed, written
+every artifact, and emitted **no census at all**: no echo, no counters, no histogram. On a sealed
+host read over RDP by a non-technical operator, that is indistinguishable from a clean null —
+`G139`'s exact failure mode, printed on the card that exists to prevent it.
+
+**RULE: a runbook is code and its preconditions are dependencies — audit every card/recipe step by
+asking "what would the operator see if the thing under test never ran?", and if the answer is "what
+they would see on success", the card is broken.** The build's own warning line
+(`census was REQUESTED but is INACTIVE`) is the backstop, but only if the card tells the reader to
+look for it — the correction added both the missing command and the read that catches its absence.
+(2026-09-01, caught while rewriting Section B, before any office leg ran.)
+
+## G200 — AN INLINE `-m` COMMIT MESSAGE WITH QUOTES CAN SWALLOW THE COMMIT WHOLE
+
+A `git commit -m "..."` issued through PowerShell with embedded double quotes broke the argument
+quoting mid-message: git received the message's own words as separate arguments, interpreted them
+as PATHSPECS (`error: pathspec 'how' did not match any file(s)`), and **the commit did not
+happen** — while the surrounding script carried on. The staged state survived, so the failure was
+recoverable, but a script that read only the last exit line would have reported a commit that does
+not exist.
+
+**RULE: commit messages go through a FILE (`git commit -F`), written by the editor tool, verified
+by `git cat-file commit` — never inline `-m` through a shell, and never a shell-written file
+(G141's BOM).** This was already the standing rule; the instance is recorded because the rule was
+broken by the person who wrote it down, on the very next long message, which is the strongest
+argument that it must be mechanical rather than remembered. (2026-09-01, RDP-card commit; redone
+via the file path, byte-verified.)
+
+## G201 — AN ARTIFACT HASH IS NOT CONTENT IDENTITY ACROSS TWO LINKS
+
+The inert-merge proof was first attempted as "master's built exe should hash equal to the branch's
+exe". It does not: `D2BB25A5` vs `70F6B72C` at **byte-identical size** (241,026,048), from
+**byte-identical `Source/`** — MSVC embeds timestamps/build ids, so two links of the same source
+differ. A hash-equality proof would have read as a FAILED merge on a merge that was perfect; and
+its mirror image is worse — G121 already records two DIFFERENT builds sharing one exe hash. The
+hash can miss in both directions.
+
+**RULE: an exe hash identifies a BUILD ARTIFACT (G121's quartet role: "is this file the file I
+staged/archived?"), never SOURCE CONTENT across separate links. An inert-merge proof is two other
+things: SOURCE identity (`git diff branchA branchB -- Source/` empty, tree OIDs matching the
+`merge-tree` prediction) plus BEHAVIOURAL identity (the two builds' artifacts compared by the
+established control-pair method).** Both halves ran here and both passed; the hash comparison is
+recorded only so nobody reaches for it next time. (2026-09-01, m36 merge to master; proof form
+ratified by the owner.)
