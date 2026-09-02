@@ -2018,3 +2018,105 @@ nothing dangles.**
 - ⛔ **Certified at ONE configuration only** — `2 4 8 4 0`, 30 fps, 1280×720, targeted `blinking`.
 - ⛔ **The sync-fallback path is still one tick stale**, by decision (ruling 2 of brief 5).
 - ⛔ **No tag.** No cook. No client-facing setting. `P6` did not move.
+
+---
+
+## §12 🏁 `m40` VALIDATED ON BATES. **`P9` (B) IS CLOSED.**
+
+**Owner, 2026-09-02 ~16:10 box clock. Bates EDITOR build at `2f16bf7` (`m37` + `m38` + `m40`); the
+packaged build on that box untouched.** Card `SECTION D`, prerequisites exactly as `C-3`.
+
+**The facts, the join table and the closure wording are in the ledger — `docs/invisible-anomaly-mechanisms.md`
+§8.6a, the closure block at its head.** That is where a reader arriving at `P9` will be, so it is not
+duplicated here. In one line:
+
+> **`D-0` PASS on the STRONG ROW: `apply → first toggle` still reads `Δ = +3` (Bates' tick order
+> UNCHANGED, injector-first), and `frame_indices {28,29,30,34}` equals the eye exactly. Toggles
+> `[863]`/`[866]`/`[869]` join to frames `28`/`31`/`34`. labels == code == eye.**
+
+🎯 **WHY THE STRONG ROW MATTERS, and it is the whole reason `D-0` named two rows in advance.** Had the
+`Δ` come back `+2`, the labels would also have agreed — but only because that build's tick order had
+moved too, which would have validated nothing. **It read `+3`: the disorder is still there, and the
+labels are correct anyway.** The pre-declaration is what makes that distinction available *after* the
+measurement instead of being argued into existence.
+
+📌 **`m40` REMOVED THE DEPENDENCY RATHER THAN CONFIRMING THE CAUSE.** ⛔ **The tick order on Bates was
+never observed directly, and it does not need to be.** Journal §8's reading — *"consistent with the
+two subsystems ticking in opposite relative order"* — **stands exactly as written, as history, and is
+still not a mechanism.** It fitted every number on both hosts with no free parameters and nothing
+contradicted it; it was never promoted, and closing `P9` does not promote it. **A fix that makes the
+question moot is a better outcome than a fix that needed the answer** — and it is also why `m40` is
+safe on hosts nobody here has ever seen.
+
+### §12.1 A FINDING EN ROUTE — `G210`
+
+`anomaly_log.txt` was **ABSENT on the first attempt.** Cause: **the Bates project runs DELIVERY MODE**,
+and `m38`'s run-log default is **auto = mirrors `run.json`**, so it was auto-OFF there.
+⚠ **`IAI.Capture.RunLogVerbose 1` does not turn the log ON** — it only raises `LogAnomaly` for the
+run. The owner read the **`Capture(runlog)` echo**, which states the effective value and its
+provenance unconditionally, forced it with **`IAI.Capture.RunLog 1`**, and re-ran.
+🎯 **`m38`'s loud-inert echo is why this cost minutes rather than a second office visit** — `G139`/`A48`
+earning their keep on a host nobody here can inspect. **Card `D-2` now carries the line; `G210`
+records the general shape** (a default derived from an unrelated switch is invisible at the site
+where it bites). 📌 **It is also a live data point for the STILL-OPEN question of the run log's
+CLIENT default: the first real delivery-shaped host needed it forced. Owner's call, not decided
+here.**
+
+### §12.2 Consequences, executed
+
+- ✅ **THE STANDING MITIGATION IS LIFTED — `blinking` is back in the Bates pool**, and card `C-(e)` is
+  marked superseded (kept, not deleted: it was correct for every day it stood). **It lifted because
+  the fix is VALIDATED there, not because it shipped.**
+- ✅ **Nothing further is owed to Bates for `P9`.** Card `SECTION D` is marked done with its result.
+- ⛔ **`m40` stays certified at ONE configuration** (`2 4 8 4 0`, 30 fps) — now on two hosts.
+- ⛔ **`IAI.Bench.SynthTickOrder` is still never typed on a host.**
+- ⛔ **The sync-fallback path is still one tick stale, by decision.** Unchanged by this closure.
+
+---
+
+## §13 SESSION 068 — CLOSE-OUT
+
+### §13.1 State at close
+
+**`master` = `2f16bf7` + this commit.** ⛔ **NO TAG** — highest remains `m30`; the office batch is
+**`m31 → m33 → m34 → m35 → m36 → m37 → m38 → m40`**, with **`m39` slotting in when it ships.**
+📦 **Staged bench exe `C0AD3F91`** (`m40`); predecessor **`F2FA6BCD`** archived and **load-bearing as
+`m40`'s A-side**. **Container quartet unchanged all session — no cook.**
+
+### §13.2 What shipped
+
+| | |
+|---|---|
+| **`m38`** | the run-scoped session log (`anomaly_log.txt` beside `annotation.json`). Gates (i)–(v) all pass; no artifact field moved |
+| **`m40`** | order-independent label sampling + the bench-only `IAI.Bench.SynthTickOrder` lever. Four legs + a graceful-shutdown leg; **validated on Bates the same day** |
+| **`P9`** | **(A) closed earlier; (B) CLOSED tonight.** The phenomenon that opened as an eyeball observation on 2026-09-02 closed as a validated fix on 2026-09-02 |
+| **docs** | the adversarial re-read of §1 (§6), the `C-3` result (§7), the tick-order source read (§8), the fix plan (§9–§10), the implementation (§11), this closure (§12–§13); card `SECTION D`; `G209`, `G210` |
+
+### §13.3 Open, named
+
+- 🎯 **`m39` — HONEST BBOX is next**, carrying **`P-C13` conjunct 2**. Waits on nothing here.
+- 🔴 **The `m38` run log's CLIENT default is an OPEN OWNER QUESTION.** Tonight's data point: on a
+  delivery-shaped host it had to be **forced** (`G210`).
+- ⛔ **The sync-fallback sample** (`AnomalyCaptureSubsystem.cpp:2439`) remains one tick stale —
+  follow-up item, detected via `SVE-WANT-SUMMARY` `marksIssued < framesWritten`.
+- ⛔ **No tag has been cut**; the batch tags at the physical office visit.
+- 📌 Card `D-5` (the `m37` ceiling read) was **optional and is not a gate**; if it was not taken
+  tonight it simply carries forward.
+
+### §13.4 🆕 THE MAILBOX IS THE COMMS CHANNEL NOW — and it had two incidents, both closed
+
+Briefs arrive as files through **`D:\IntrusiveAnomalies\_mailbox`**, which sits **outside every
+repo**. ⛔ **Never write into it and never stage anything from it.** Two incidents this session, both
+**fixed watcher-side with NOTHING changed in this repo**, recorded so neither is rediscovered:
+
+1. **The 7× duplicate loop.** One brief was delivered seven times. Root cause was `G209` —
+   `Get-Content -Raw` on a **0-byte** file returns `$null`, not `''`, so the watcher's completion
+   check threw, swallowed its own output, and re-issued. ⚠ **The expensive half is the second-order
+   lesson: when a harness swallows its own output, the work looks UNDONE** — `CLAUDE.md`, `git log`
+   and the staged exe hash all said otherwise, three commits earlier. **Before re-issuing a task that
+   appears not to have been done, check whether it was done.**
+2. **The Excel-locked ledger.** A tracking file held open by Excel blocked a write. Watcher-side,
+   outside the repo, no plugin code involved.
+
+⛔ **Neither incident touched a measurement, an artifact or a commit.** They are recorded because a
+comms channel that fails quietly is the one failure mode this project has already paid for twice.

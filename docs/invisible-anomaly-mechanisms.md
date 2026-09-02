@@ -740,6 +740,75 @@ a **mitigation, not a fix**, and it is on the RDP card as a standing item (Secti
 > **per-frame opacity ladder**. Everything below is that evidence. ⛔ **NO MECHANISM IS CLAIMED FOR
 > EITHER PHENOMENON.**
 
+---
+
+# 🏁🏁 `P9` **(B) IS CLOSED.** `m40` VALIDATED ON BATES, 2026-09-02.
+
+> 🎯 **READ THIS FIRST. Everything below it is the investigation that got here, and is kept as
+> history.** `P9` (A) closed on 2026-09-02 by the menu-off test (temporal accumulation). **`P9` (B) —
+> the phase displacement — is now CLOSED by a fix validated on the host it was found on.**
+
+**The validating run.** Owner, 2026-09-02 ~16:10 box clock, Bates **editor** build at `2f16bf7`
+(carrying `m37` + `m38` + `m40`); the packaged build on that box untouched. Card `SECTION D`,
+prerequisites exactly as `C-3`: fresh editor · AA + motion blur off via the title's menu ·
+`blinking` ticked · `Log LogAnomaly Verbose` · config `2 4 8 4 0` ·
+`IAI.Capture.Start "" png 4242 90 blinking`.
+
+| read | value |
+|---|---|
+| `frame_indices` (c) | `blink StaticMeshActor_155` **`{4, 5, 6, 10}`** · `blink StaticMeshActor_1246` **`{28, 29, 30, 34}`** |
+| index map (b) | 26→41859 · **27→41860** · **28→41863** · 29→41864 … 34→41869 · 35→41870 · 36→41873 |
+| toggle lines (a), event 2 | **`[863]` HIDDEN · `[866]` VISIBLE · `[869]` HIDDEN** |
+| toggle lines, event 1 | `[831]` · `[834]` · `[837]` — same shape at `n = 4` |
+| eye (owner) | `StaticMeshActor_1246` **gone at 28, 29, 30, 34**, visible otherwise — *"labels match the disappearance"* |
+
+**THE JOIN, event 2 (`n = 28`):**
+
+| flip | toggle tick | = `frame_index` of | code says | eye says | label says |
+|---|---|---|---|---|---|
+| 1 — first hide | `41863` | **`28` = `n`** | hidden from 28 | gone 28 ✅ | in `frame_indices` ✅ |
+| 2 — mid-event show | `41866` | **`31` = `n+3`** | visible from 31 | visible 31 ✅ | absent ✅ |
+| 3 — second hide | `41869` | **`34` = `n+6`** | hidden at 34 | gone 34 ✅ | in `frame_indices` ✅ |
+
+⇒ **`labels {28,29,30,34}` == `code` == `eye`. THREE-WAY AGREEMENT, frame for frame.**
+
+## ✅ `D-0` PASS — AND IT IS THE **STRONG ROW**
+
+**`apply → first toggle` still reads `Δ = +3`** (`n−1` = frame 27 = tick 41860; first toggle 41863),
+and **the first toggle still lands ON `n`, a captured tick.** ⇒ 🎯 **BATES' TICK ORDER IS
+UNCHANGED — the injector still ticks first there, exactly as at `C-3` — AND THE LABELS ARE NOW RIGHT
+ANYWAY.** That is the strongest of the two admissible outcomes pre-declared at card `D-0`: the
+disorder is still present and no longer reaches the labels. **`Δ = +2` would also have passed but
+would not have exercised the fix; it did not occur.**
+
+📌 **What `m40` did, stated precisely: it REMOVED THE DEPENDENCY rather than confirming the cause.**
+The label's active bit is now sampled at `FWorldDelegates::OnWorldTickEnd`, after every tickable and
+before the draw, so it is what the renderer will draw for that frame **whatever order the subsystems
+ticked in**. ⛔ **THE TICK ORDER ON BATES WAS NEVER OBSERVED DIRECTLY, AND IT DOES NOT NEED TO BE.**
+Every *"consistent with, not asserted"* line below **STANDS AS WRITTEN AND IS KEPT AS HISTORY** — the
+one-tick-offset reading fitted every number on both hosts with no free parameters and nothing
+contradicted it, but it was never promoted to a mechanism and it is not promoted now. **A fix that
+makes the question moot is a better outcome than a fix that needed the answer.**
+
+⚠ **A FINDING EN ROUTE, AND `m38`'s LOUD-INERT ECHO IS WHY IT COST MINUTES INSTEAD OF A RE-VISIT:**
+`anomaly_log.txt` was **ABSENT on the first attempt** — **the Bates project runs DELIVERY MODE, so
+the `m38` run log is auto-OFF there** (its default mirrors `run.json`). **The `Capture(runlog)` echo
+said so in its own words**, the owner forced it with **`IAI.Capture.RunLog 1`** and re-ran. ⇒ `G210`,
+and card `D-2` now carries the line. 📌 **This is also a live data point for the still-open question
+of what the run log's CLIENT default should be** — on a delivery-shaped build it had to be forced.
+
+**Consequences, executed:**
+- ⛔→✅ **THE STANDING MITIGATION IS LIFTED. `blinking` is back in the Bates pool**, and card `C-(e)`
+  is superseded. It lifted because the fix is *validated there*, not because it shipped.
+- ✅ **Nothing further is owed to Bates for `P9`.**
+- ⛔ **`m40` remains certified at one configuration** (`2 4 8 4 0`, 30 fps) on two hosts, and
+  ⛔ **`IAI.Bench.SynthTickOrder` is still never typed on a host.**
+- ⛔ **The sync-fallback path is still one tick stale by decision** — unchanged by this closure.
+
+🧭 Implementation and the four bench legs: journal 068 §11. This validation: journal 068 §12.
+
+---
+
 ### It is NOT a census or mask phenomenon
 
 **Reproduced with `census OFF` and `mask OFF` — plain `blinking` + capture, no flags.**
@@ -1012,12 +1081,12 @@ read on any host, and a fix plan awaiting a ruling.**
 > ⛔ **NO MECHANISM IS ASSERTED FOR BATES. The lever synthesises the SYMPTOM by a different mechanism
 > (a delegate), so "consistent with, not asserted" — the language of this entry — STANDS UNCHANGED
 > until an `m40` build is validated on that host.**
-> 🔴 **`m40` LANDED ON THE BENCH (`0864e7a`, exe `C0AD3F91`); BATES VALIDATION = RDP CARD
-> `SECTION D`, PENDING OWNER.** Pre-declared pass condition: **`frame_indices` equals the eye
-> whether `apply → first toggle` reads `+2` or `+3`** — `+3` with agreement is the strongest result,
-> `+2` with agreement passes but does not exercise the fix. Instrument: the `C-3` reads, now taken
-> from the `m38` run log inside the session folder. ⛔ **`blinking` stays UNTICKED on Bates until
-> `D-3` reads YES**, and ⛔ **`IAI.Bench.SynthTickOrder` is NEVER typed on a host.**
+> ✅ **`m40` LANDED ON THE BENCH (`0864e7a`, exe `C0AD3F91`) AND IS NOW VALIDATED ON BATES
+> (2026-09-02, card `SECTION D`) — `D-0` PASS on the STRONG ROW.** Pre-declared pass condition was
+> **`frame_indices` equals the eye whether `apply → first toggle` reads `+2` or `+3`**; it read
+> **`+3`**, so the disorder is still present there and the labels are right anyway. **See the
+> closure block at the head of §8.6a.** ✅ **The `blinking` mitigation on Bates is LIFTED.**
+> ⛔ **`IAI.Bench.SynthTickOrder` is still NEVER typed on a host.**
 > 🧭 Implementation and all leg results: journal 068 §11.
 
 ### ✅ FIX APPROVED — option 2, milestone **`m40`** (2026-09-02). *(the plan, kept as the record)*

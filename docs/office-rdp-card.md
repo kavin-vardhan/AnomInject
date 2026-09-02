@@ -454,7 +454,13 @@ Open **any pitch-black PNG from Section B leg 1** (floor 6.0) in `Actual_Frames\
 from the counters alone** — which is why the frame itself has to be looked at. Not urgent; very
 cheap.
 
-### C-(e). 🔴 STANDING MITIGATION — blinking stays UNTICKED on Bates until `P9` closes
+### C-(e). ✅🔻 **SUPERSEDED 2026-09-02 — `P9` CLOSED, MITIGATION LIFTED. DO NOT APPLY THIS.**
+
+> 🏁 **`blinking` IS BACK IN THE BATES POOL.** `m40` was validated on Bates by `SECTION D` on
+> 2026-09-02 (`D-0` PASS, strong row): labels == code == eye. **The condition this item waited on —
+> *"until `P9` closes"* — is met.** Closure: `docs/invisible-anomaly-mechanisms.md` §8.6a.
+> 📌 **Kept, not deleted**: it was correct for the whole time it stood, and the text below is what it
+> said.
 
 **`P9` is open** (`docs/invisible-anomaly-mechanisms.md` §8): on Bates, `blinking` events have been
 observed ×3 where the labelled hidden frames and the visible ones do not agree. **No mechanism is
@@ -794,10 +800,12 @@ would point a reader at the wrong place. ⛔ **Do not write "the sampler is brok
 > (`0864e7a`, exe `C0AD3F91`), so the errand it was waiting for is live. **`C-1` closed (A); `C-3`
 > located (B); `SECTION D` validates the fix.** ⛔ **Still do not re-run `C-1` or `C-3`.**
 
-⛔ **Blinking stays UNTICKED on any Bates run that is not `C-1`, `C-2`, `C-3` or `SECTION D`.**
-📌 **That mitigation STANDS UNTIL `D-3` READS `YES`** — `C-3` explained the mismatch, it did not
-remove it, and `m40` is unvalidated on that host until `SECTION D` runs. A `blinking` capture on
-Bates still ships labels two frames out of phase until then.
+✅🏁 **THE MITIGATION IS LIFTED (2026-09-02). `blinking` IS BACK IN THE BATES POOL.**
+`SECTION D` read **YES**: labels == code == eye, on the strong row. **It lifted because `m40` is
+VALIDATED on that host, not because it shipped.**
+🔻 *(superseded, kept as history: "Blinking stays UNTICKED on any Bates run that is not `C-1`, `C-2`,
+`C-3` or `SECTION D`" — that mitigation stood from the day `P9` was minted until `D-3` answered.)*
+⛔ **Still never on a host: `IAI.Bench.SynthTickOrder`.**
 
 ### C-(f). OPTIONAL — a clean Bates dataset
 
@@ -806,11 +814,18 @@ reads. That yields a Bates census dataset carrying no `P9` exposure at all.
 ⛔ **Optional. Not a gate, and nothing waits on it.**
 ---
 
-# SECTION D — `m40` VALIDATION ON BATES. **RDP-VALID, TONIGHT.**
+# SECTION D — `m40` VALIDATION ON BATES. ✅ **DONE BY OWNER 2026-09-02. IT PASSED.**
 
-> 🎯 **THIS CLOSES `P9` ON THE HOST IT WAS FOUND ON.** `m40` landed on the bench 2026-09-02
-> (`0864e7a`, exe `C0AD3F91`) and passed four legs there, including a **bench reproduction of `P9`
-> (B)** and its removal. **The bench cannot validate it for Bates — only Bates can.**
+> 🏁 **RESULT, one line: `D-0` PASS on the STRONG ROW — `apply → first toggle` still reads `Δ = +3`
+> (Bates' tick order UNCHANGED) and `frame_indices {28,29,30,34}` equals the eye exactly. `P9` (B)
+> IS CLOSED.** Toggles `[863]`/`[866]`/`[869]` → frames `28`/`31`/`34`; eye gone at 28, 29, 30, 34.
+> Full result: `docs/invisible-anomaly-mechanisms.md` §8.6a (closure block at the head).
+> ✅ **CONSEQUENCE: the `blinking` mitigation on Bates is LIFTED — see Standing.**
+> 📌 **Everything below is kept as the record of what was run**; a future host validates the same way.
+
+> 🎯 *(as briefed)* **THIS CLOSES `P9` ON THE HOST IT WAS FOUND ON.** `m40` landed on the bench
+> 2026-09-02 (`0864e7a`, exe `C0AD3F91`) and passed four legs there, including a **bench reproduction
+> of `P9` (B)** and its removal. **The bench cannot validate it for Bates — only Bates can.**
 > ⏱ **Budget: one pull, one editor rebuild, one capture, five reads.**
 
 ---
@@ -888,10 +903,17 @@ client would receive is altered by Section D.**
 
 ```
 Log LogAnomaly Verbose
+IAI.Capture.RunLog 1
 IAI.Capture.RunLogVerbose 1
 IAI.Capture.Config 2 4 8 4 0
 IAI.Capture.Start "" png 4242 90 blinking
 ```
+
+🚨 **`IAI.Capture.RunLog 1` IS REQUIRED ON BATES AND WAS LEARNED THE HARD WAY (2026-09-02):
+that project runs DELIVERY MODE, and the `m38` run log's default MIRRORS `run.json` — so on a
+delivery-shaped build it is AUTO-OFF and `anomaly_log.txt` is never written.** The first attempt
+produced no run log for exactly this reason. **The `Capture(runlog)` echo tells you which way it
+went, in its own words, on every run — read it, and force the log when you want one** (`G210`).
 
 🆕 **`IAI.Capture.RunLogVerbose 1` IS THE NEW LINE, AND IT IS WHY THIS IS EASIER THAN `C-3` WAS.** On
 an `m38`+ build the plugin writes its own run-scoped log **into the session folder**, so after the

@@ -70,12 +70,21 @@ and is the single source of truth for the project.
 > reconstructible by moving one call. ⛔ **The closed predictions file was NOT edited** — the
 > correction rides journal 068 §11.1 (`P-C2` route).
 > ⛔ **STILL NO MECHANISM ASSERTED FOR BATES** — the lever synthesises the SYMPTOM by a different
-> mechanism. 🔴 **`m40` LANDED ON THE BENCH (`0864e7a`, exe `C0AD3F91`); BATES VALIDATION = RDP CARD
-> `SECTION D`, PENDING OWNER.** Pass condition pre-declared there: **`frame_indices` equals the eye
-> whether `apply → first toggle` reads `+2` or `+3`** (`+3` with agreement is the strongest result;
-> `+2` with agreement passes but does not exercise the fix). ⛔ **`blinking` stays UNTICKED on Bates
-> until `D-3` reads YES**, and ⛔ **`IAI.Bench.SynthTickOrder` is NEVER typed on a host — it would
-> synthesise the symptom on top of whatever that host really does.**
+> mechanism. 🏁🏁 **`P9` (B) IS CLOSED — `m40` (`0864e7a`, exe `C0AD3F91`) WAS VALIDATED ON BATES,
+> 2026-09-02, CARD `SECTION D`. `D-0` PASS ON THE STRONG ROW.** Toggles `[863]`/`[866]`/`[869]` join
+> to frames **`28`/`31`/`34`**; `frame_indices` **`{28,29,30,34}`**; eye **gone at 28, 29, 30, 34**.
+> ⇒ **labels == code == eye, frame for frame.** 🎯 **`apply → first toggle` STILL READS `+3` there —
+> Bates' tick order is UNCHANGED and the labels are right anyway**, which is the stronger of the two
+> pre-declared outcomes. 📌 **`m40` REMOVED THE DEPENDENCY rather than confirming the cause: the tick
+> order on Bates was never observed directly and does not need to be.** Every *"consistent with, not
+> asserted"* line stands as history. ✅ **THE `blinking` MITIGATION ON BATES IS LIFTED — it is back in
+> the pool; card `C-(e)` is superseded.** ⛔ **`IAI.Bench.SynthTickOrder` is still NEVER typed on a
+> host.** Closure: ledger §8.6a head; journal 068 §12.
+> ⚠ **EN ROUTE: `anomaly_log.txt` was ABSENT on the first attempt — the Bates project runs DELIVERY
+> MODE, so `m38`'s run log is AUTO-OFF there (its default mirrors `run.json`). The `Capture(runlog)`
+> echo said so; the owner forced it with `IAI.Capture.RunLog 1` and re-ran.** → **`G210`**, and card
+> `D-2` carries the line. 📌 **This is a live data point for the STILL-OPEN question of the run log's
+> CLIENT default — on a delivery-shaped build it had to be forced. Owner's call; not decided here.**
 > 🎯 **No rendered pixel changes on any host; no artifact
 > field; no client-facing setting; byte-inert where the order already agrees.** Prove-it-can-fail is a
 > **bench-only, default-OFF, console-only lever `IAI.Bench.SynthTickOrder`** that relocates the
@@ -85,8 +94,8 @@ and is the single source of truth for the project.
 > ⛔ **The sync-fallback path (`:2439`) is deliberately NOT fixed by `m40`** — known limitation, detect
 > via `SVE-WANT-SUMMARY` `marksIssued < framesWritten`. 🧭 Plan journal 068 §10; pre-declared gates
 > `docs/predictions/2026-09-02-m40-order-independent-label-sampling.md`.
-> 🔢 **`m40` MAY SHIP BEFORE `m39` — MILESTONE NUMBERS ARE IDENTITIES, NOT AN ORDER.** `m39` stays
-> honest bbox and waits on nothing here.
+> 🔢 **`m40` SHIPPED BEFORE `m39` — MILESTONE NUMBERS ARE IDENTITIES, NOT AN ORDER.**
+> 🎯 **`m39` (HONEST BBOX) IS NEXT**, carrying `P-C13` conjunct 2. It waits on nothing here.
 > ⛔ **NO TAG.** Highest remains `m30`; the office batch is now
 > **`m31 → m33 → m34 → m35 → m36 → m37 → m38 → m40`**, with **`m39` slotting in when it ships.**
 >

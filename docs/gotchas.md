@@ -5334,3 +5334,39 @@ re-issuing a task that appears not to have been done, check whether it was done*
 `CLAUDE.md`'s status block, `git log`, and the staged exe hash all said it had been, three commits
 earlier. `G142`'s family: a defect in the tooling around a result, wearing the result's clothes.
 (2026-09-02, session 068.)
+
+---
+
+## G210 — DELIVERY MODE SILENTLY MIRRORS THE RUN LOG **OFF**, AND THE ECHO IS THE ONLY TELL
+
+**Measured on Bates, 2026-09-02, during the `m40` validation (card `SECTION D`).** The owner ran the
+leg exactly as carded and `anomaly_log.txt` **was not there**. Nothing failed, nothing warned, and
+the capture itself was perfect.
+
+**Cause, and it is by design.** `m38`'s run log defaults to **auto**, and *auto* **MIRRORS
+`run.json`** — on when delivery is OFF, off when delivery is ON. **The Bates project runs DELIVERY
+MODE**, so the run log was auto-OFF and the file was never written. `IAI.Capture.RunLogVerbose 1`
+does **not** turn the log on; it only raises `LogAnomaly` to Verbose for the run, so setting it on a
+delivery-shaped build buys nothing on its own.
+
+**The fix on the box is one line, typed before `IAI.Capture.Start`:**
+
+```
+IAI.Capture.RunLog 1
+```
+
+🎯 **WHY THIS COST MINUTES INSTEAD OF A SECOND OFFICE VISIT: the `Capture(runlog)` echo states the
+EFFECTIVE value AND its provenance, unconditionally, on every run** — including when the answer is
+*off*. The owner read it, forced the log, and re-ran. **That is `G139`/`A48` earning its keep on a
+host nobody here can inspect: an absent artifact that explains its own absence is a reading, not a
+mystery.**
+
+⚠ **THE GENERAL SHAPE, which is what travels: A DEFAULT THAT IS DERIVED FROM ANOTHER SETTING IS
+INVISIBLE AT THE SITE WHERE IT BITES.** Nobody typing `IAI.Capture.RunLogVerbose 1` is thinking about
+delivery mode. **When a diagnostic's default is a function of an unrelated switch, the diagnostic
+must say so out loud every time it resolves** — and if it can be absent, its absence must be
+explainable from something that IS present.
+
+📌 **AND IT IS A LIVE DATA POINT, NOT ONLY A GOTCHA:** the run log's **client** default is still an
+open owner question, and the first real delivery-shaped host needed it **forced**. Recorded, not
+decided. (2026-09-02, session 068.)
