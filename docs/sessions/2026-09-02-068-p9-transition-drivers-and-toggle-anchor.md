@@ -1906,6 +1906,12 @@ built — **`DC16710D`, the lever-only intermediate**: the full `m40` lever with
 `UAnomalyCaptureSubsystem::Tick`). `L2` ran on it. It was then moved to the new hook and the real
 `m40` binary `C0AD3F91` built for `L3`/`L4`.
 
+✅ **RATIFIED BY CHAT (brief 7):** *"a pre-lever binary cannot run a lever leg; the lever-only
+intermediate `DC16710D` is the honest execution of `L2`'s substance, the closed predictions file
+stays unedited, journal §11.1 carries the correction (`P-C2` route)."* **`m40` is ACCEPTED** —
+commit `0864e7a`, exe `C0AD3F91`, all four legs plus the graceful-shutdown leg, with **`L3` as the
+proof**.
+
 ⛔ **THE PREDICTIONS FILE WAS NOT EDITED.** It is closed, and a prediction is not amended after the
 fact — the correction rides here, the `P-C2`/`P-C13` route. 📌 `DC16710D` is **not archived**, by
 decision: it is a gate build, never committed and never shipped, and it is reconstructible from the

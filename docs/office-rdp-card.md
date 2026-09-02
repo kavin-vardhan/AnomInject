@@ -789,15 +789,15 @@ would point a reader at the wrong place. ⛔ **Do not write "the sampler is brok
 
 ### Standing
 
-> 🏁 **NOTHING FURTHER IS NEEDED FROM BATES FOR `P9` UNTIL A FIX BUILD EXISTS (2026-09-02).**
-> `C-1` closed **(A)**. `C-3` located **(B)** and got everything the card asked for. **The box is
-> sealed, so the next `P9` errand there is a re-read AFTER its build is next updated** — and that
-> re-read is cheap: `apply → first toggle`, `frame_indices`, and one eye pass over `n−1 … n+7`.
-> ⛔ **Do not queue further `P9` reads on Bates in the meantime, and do not re-run `C-3`.**
+> 🔻 **SUPERSEDED — THE FIX BUILD NOW EXISTS. GO TO `SECTION D`.** This block said *"nothing further
+> is needed from Bates for `P9` until a fix build exists"*; `m40` landed on the bench 2026-09-02
+> (`0864e7a`, exe `C0AD3F91`), so the errand it was waiting for is live. **`C-1` closed (A); `C-3`
+> located (B); `SECTION D` validates the fix.** ⛔ **Still do not re-run `C-1` or `C-3`.**
 
-⛔ **Blinking stays UNTICKED on any Bates run that is not `C-1`, `C-2` or `C-3`.**
-📌 **That mitigation STANDS** — `C-3` explained the mismatch, it did not remove it. A `blinking`
-capture on Bates still ships labels two frames out of phase until the fix lands.
+⛔ **Blinking stays UNTICKED on any Bates run that is not `C-1`, `C-2`, `C-3` or `SECTION D`.**
+📌 **That mitigation STANDS UNTIL `D-3` READS `YES`** — `C-3` explained the mismatch, it did not
+remove it, and `m40` is unvalidated on that host until `SECTION D` runs. A `blinking` capture on
+Bates still ships labels two frames out of phase until then.
 
 ### C-(f). OPTIONAL — a clean Bates dataset
 
@@ -806,7 +806,172 @@ reads. That yields a Bates census dataset carrying no `P9` exposure at all.
 ⛔ **Optional. Not a gate, and nothing waits on it.**
 ---
 
-## D. IF SOMETHING FAILS
+# SECTION D — `m40` VALIDATION ON BATES. **RDP-VALID, TONIGHT.**
+
+> 🎯 **THIS CLOSES `P9` ON THE HOST IT WAS FOUND ON.** `m40` landed on the bench 2026-09-02
+> (`0864e7a`, exe `C0AD3F91`) and passed four legs there, including a **bench reproduction of `P9`
+> (B)** and its removal. **The bench cannot validate it for Bates — only Bates can.**
+> ⏱ **Budget: one pull, one editor rebuild, one capture, five reads.**
+
+---
+
+## D-0. THE PASS CONDITION — **pre-declared, and it is the whole point. Read it before you run anything.**
+
+> ### On the `m40` build, for ONE `blinking` event in the first five bursts:
+> # **`annotation.json`'s `frame_indices` MUST EQUAL the set your eye reads — whichever tick order this host has.**
+
+**That is the entire test.** `m40`'s claim is that the label no longer depends on the tick order, so
+the order is now a *report*, not a gate. Concretely, the two admissible outcomes:
+
+| if the toggle lines read | i.e. | then EXPECT `frame_indices` | and the eye gone at |
+|---|---|---|---|
+| **Δ = +3** — `blinking: matched` at `[a]`, first `blinking toggle ->` at `[a+3]` | this host still ticks the injector first | **`{n, n+1, n+2, n+6}`** | **`n, n+1, n+2, n+6`** |
+| **Δ = +2** — first toggle at `[a+2]` | this host's order also changed | **`{n, n+1, n+5, n+6}`** | **`n, n+1, n+5, n+6`** |
+
+✅ **PASS = labels and eye agree, in EITHER row.** 🎯 **Δ = +3 with agreement is the STRONGEST result**
+— the disorder is still there and the labels are right anyway.
+⚠ **Δ = +2 with agreement is a PASS but a WEAKER one** — that build's order also moved, so it does not
+exercise the fix. **Say so; do not report it as the strong result.**
+🔴 **FAIL = labels ≠ eye, in any row. Report raw and classify nothing.** Do not re-run to a green and
+do not change anything on the box.
+
+**Two free cross-checks, unchanged from `C-3` and both expected to hold either way:**
+**AMBER box on `n − 1`** · **NO box at all on `n + 7`**.
+
+---
+
+## D-1. UPDATE THE BOX
+
+Exactly the `A-1` / `A-2` / `A-3` steps, with one new expectation.
+
+**D-1a — clean tree first** (`A-1`): `git -C <plugin-path> status --short`
+**Expected: 0 lines, or only lines starting `??`.** ⛔ Any ` M`/`M ` line ⇒ STOP and report.
+
+**D-1b — pull** (`A-2`):
+
+```
+git -C <plugin-path> pull --ff-only
+git -C <plugin-path> log --oneline -1
+```
+
+**Read back: the one subject line.**
+**Expected: `0864e7a feat(capture): m40 - order-independent label sampling (+ bench-only synth tick-order lever)`, or later.**
+⛔ If `pull --ff-only` refuses, STOP — do not merge or rebase on that box.
+
+**D-1c — rebuild the EDITOR target** (`A-3`): check free space on the volume holding `Binaries`
+first — **≥15 GB GO, <10 GB NO-GO** (`G164`) — then
+
+```
+& "D:\UESource\UnrealEngine\Engine\Build\BatchFiles\Build.bat" StackOBotEditor Win64 Development -project="<path>\StackOBot.uproject" -waitmutex
+```
+
+**Expected: exit 0.**
+
+📌 **STATED PLAINLY, so nobody wonders what just changed on that box: this pull brings `m37`
+(census selection defaults) + `m38` (the run-scoped session log) + `m40` (this fix) to Bates'
+EDITOR build. The PACKAGED build on that box is UNTOUCHED — nothing is cooked and nothing the
+client would receive is altered by Section D.**
+
+---
+
+## D-2. THE RUN
+
+**Prerequisites — exactly `C-3`'s, no additions except one:**
+
+1. **A FRESH editor session** (the run log and the toggle lines are per-run).
+2. **AA + motion blur OFF via the title's own settings menu**, as established in `C-1`.
+3. **`blinking` TICKED** — Section D is one of the four runs where it is allowed.
+4. **Anchor on an event in the first five bursts.** At this config the windows are
+   **burst 1 = `4-11` · 2 = `16-23` · 3 = `28-35` · 4 = `40-47` · 5 = `52-59`.**
+
+**Type these in the editor console, in this order:**
+
+```
+Log LogAnomaly Verbose
+IAI.Capture.RunLogVerbose 1
+IAI.Capture.Config 2 4 8 4 0
+IAI.Capture.Start "" png 4242 90 blinking
+```
+
+🆕 **`IAI.Capture.RunLogVerbose 1` IS THE NEW LINE, AND IT IS WHY THIS IS EASIER THAN `C-3` WAS.** On
+an `m38`+ build the plugin writes its own run-scoped log **into the session folder**, so after the
+run:
+
+```
+$r   = "<the session directory just written>"
+$log = "$r\anomaly_log.txt"
+```
+
+⇒ **no editor-log hunting and no rotation risk** — the file travels with the session and survives a
+relaunch. **The `C-3` commands `(a)`–`(d)` then work UNCHANGED with those two variables set.**
+
+⚠ **FALLBACK: if `$r\anomaly_log.txt` is ABSENT**, point `$log` at the host project's own
+`Saved\Logs\<its>.log` exactly as `C-3` did, and **run the reads immediately, before relaunching
+anything.** 📌 **Its absence is a READING, not a failure:** the run log is on by default when
+delivery is off, and the build says why in its own words — grep `Capture(runlog)` in the log and copy
+that line. **Send it either way.**
+
+---
+
+## D-3. THE READS — in this order
+
+| # | what | command / action |
+|---|---|---|
+| 1 | **`(c)` the event list** — pick your event, note `n` | `C-3` command `(c)` |
+| 2 | **`(b)` the index map** — run it with **skip = `n − 2`** | `C-3` command `(b)` |
+| 3 | **`(a)` the toggle lines** | `C-3` command `(a)` |
+| 4 | **the apply bracket** | `Select-String -Path $log -Pattern 'blinking: matched'` — note the `[fff]` |
+| 5 | **the eye** | open `Actual_Frames\` and read frames **`n−1` … `n+8`**: gone or visible, one per frame |
+| 6 | **compare against `D-0`** | — |
+
+**Send back one line, plus the numbers behind it:**
+
+```
+labels == eye: YES / NO
+delta (apply -> first toggle): +N
+frame_indices: {...}
+eye gone at:   {...}
+amber on n-1: yes/no      box on n+7: yes/no
+```
+
+---
+
+## D-4. 🚨 TWO THINGS THAT MUST NOT HAPPEN
+
+⛔ **NEVER TYPE `IAI.Bench.SynthTickOrder` ON BATES — NOT EVEN `0`.** It is a **bench device**. On a
+host it would synthesise the symptom *on top of whatever that host really does*, and the validation
+would measure the lever instead of the fix. **It is default-OFF and console-only, so simply never
+issue it.** *(If it were ever set, the `Capture(bench): m40 SYNTH TICK ORDER = ...` line at `StartRun`
+would say `ON` — check that it says `off` and copy that line.)*
+
+⛔ **`blinking` stays UNTICKED on every other Bates run until `D-3` reads `YES`.** The old mitigation
+does not lift because the fix shipped; it lifts because the fix is *validated there*.
+
+---
+
+## D-5. OPTIONAL, SAME BUILD, IF THERE IS TIME — the `m37` ceiling read
+
+⛔ **NOT a gate for tonight. Data for the census-ON decision, nothing waits on it.** A `B-1`
+leg-2-style census run, **`blinking` UNTICKED**:
+
+```
+IAI.Capture.Mask 1
+IAI.Capture.Census 1
+IAI.Capture.Config 2 4 8 4 0
+IAI.Capture.Start "" png 4242 90
+```
+
+**Read back two things:**
+1. from the **`StartRun` echo**: the **ceiling value and its SOURCE** (the `Capture(census): m36/m37`
+   line names both);
+2. from the **`CYCLE` lines**: **`aboveCeiling=N`** and the **named candidate(s) over 25 %**.
+
+**Expected:** the landscape-class actor **EXCLUDED**, with an **ABOVE-CEILING** line naming it.
+⚠ **A different number is a result, not a fault — report it verbatim.**
+
+---
+
+## IF SOMETHING FAILS (any section)
 
 **Report and stop. Do not re-run to a green, and do not fix on the box.**
 

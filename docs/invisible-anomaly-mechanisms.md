@@ -1012,9 +1012,12 @@ read on any host, and a fix plan awaiting a ruling.**
 > ⛔ **NO MECHANISM IS ASSERTED FOR BATES. The lever synthesises the SYMPTOM by a different mechanism
 > (a delegate), so "consistent with, not asserted" — the language of this entry — STANDS UNCHANGED
 > until an `m40` build is validated on that host.**
-> 🔴 **BATES VALIDATION PENDING the next build update there.** Pre-declared pass condition: **the
-> labels equal the eye whether `apply → first toggle` reads `+2` or `+3`.** Instrument: a re-run of
-> the `C-3` bundle. ⛔ **`blinking` stays UNTICKED on Bates until then.**
+> 🔴 **`m40` LANDED ON THE BENCH (`0864e7a`, exe `C0AD3F91`); BATES VALIDATION = RDP CARD
+> `SECTION D`, PENDING OWNER.** Pre-declared pass condition: **`frame_indices` equals the eye
+> whether `apply → first toggle` reads `+2` or `+3`** — `+3` with agreement is the strongest result,
+> `+2` with agreement passes but does not exercise the fix. Instrument: the `C-3` reads, now taken
+> from the `m38` run log inside the session folder. ⛔ **`blinking` stays UNTICKED on Bates until
+> `D-3` reads YES**, and ⛔ **`IAI.Bench.SynthTickOrder` is NEVER typed on a host.**
 > 🧭 Implementation and all leg results: journal 068 §11.
 
 ### ✅ FIX APPROVED — option 2, milestone **`m40`** (2026-09-02). *(the plan, kept as the record)*

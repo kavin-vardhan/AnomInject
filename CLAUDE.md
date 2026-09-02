@@ -70,9 +70,13 @@ and is the single source of truth for the project.
 > reconstructible by moving one call. ⛔ **The closed predictions file was NOT edited** — the
 > correction rides journal 068 §11.1 (`P-C2` route).
 > ⛔ **STILL NO MECHANISM ASSERTED FOR BATES** — the lever synthesises the SYMPTOM by a different
-> mechanism. 🔴 **BATES VALIDATION PENDING the next build update there**, pass condition pre-declared:
-> **labels equal the eye whether `apply → first toggle` reads `+2` or `+3`.** ⛔ **`blinking` stays
-> UNTICKED on Bates until then.** 🎯 **No rendered pixel changes on any host; no artifact
+> mechanism. 🔴 **`m40` LANDED ON THE BENCH (`0864e7a`, exe `C0AD3F91`); BATES VALIDATION = RDP CARD
+> `SECTION D`, PENDING OWNER.** Pass condition pre-declared there: **`frame_indices` equals the eye
+> whether `apply → first toggle` reads `+2` or `+3`** (`+3` with agreement is the strongest result;
+> `+2` with agreement passes but does not exercise the fix). ⛔ **`blinking` stays UNTICKED on Bates
+> until `D-3` reads YES**, and ⛔ **`IAI.Bench.SynthTickOrder` is NEVER typed on a host — it would
+> synthesise the symptom on top of whatever that host really does.**
+> 🎯 **No rendered pixel changes on any host; no artifact
 > field; no client-facing setting; byte-inert where the order already agrees.** Prove-it-can-fail is a
 > **bench-only, default-OFF, console-only lever `IAI.Bench.SynthTickOrder`** that relocates the
 > injector's dispatch to `OnWorldPreActorTick` and **synthesises the SYMPTOM, not the cause.**
