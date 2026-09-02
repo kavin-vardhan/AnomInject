@@ -42,8 +42,24 @@ and is the single source of truth for the project.
 > anchor — is present whatever a host's `log.Timestamp` says.** ⚠ Per-line write-through flush: a
 > hard-killed process leaves everything logged before the kill, with **no** close marker.
 > **`m39` = honest bbox** — **`P-C13` conjunct 2 rides it**, regardless of number.
+> **`m40` = ORDER-INDEPENDENT LABEL SAMPLING — ✅ APPROVED AND PLANNED, ⛔ NOT BUILT (2026-09-02,
+> session 068 brief 5).** The `P9` (B) fix: the per-frame label's active bit moves from the top of the
+> next capture `Tick` to **`FWorldDelegates::OnWorldTickEnd`** (`LevelTick.cpp:1814`, after every
+> tickable at `:1606`, still pre-draw), so it is **what the renderer will draw for that same frame
+> whatever order the subsystems ticked in**. 🎯 **No rendered pixel changes on any host; no artifact
+> field; no client-facing setting; byte-inert where the order already agrees.** Prove-it-can-fail is a
+> **bench-only, default-OFF, console-only lever `IAI.Bench.SynthTickOrder`** that relocates the
+> injector's dispatch to `OnWorldPreActorTick` and **synthesises the SYMPTOM, not the cause.**
+> ⚠ **The mechanism first suggested for that lever — "the injector does not count the apply tick" —
+> was REFUTED BY DERIVATION before any code: it moves pixels and labels together and reads ALIGNED.**
+> ⛔ **The sync-fallback path (`:2439`) is deliberately NOT fixed by `m40`** — known limitation, detect
+> via `SVE-WANT-SUMMARY` `marksIssued < framesWritten`. 🧭 Plan journal 068 §10; pre-declared gates
+> `docs/predictions/2026-09-02-m40-order-independent-label-sampling.md`.
+> 🔢 **`m40` MAY SHIP BEFORE `m39` — MILESTONE NUMBERS ARE IDENTITIES, NOT AN ORDER.** `m39` stays
+> honest bbox and waits on nothing here.
 > ⛔ **NO TAG.** Highest remains `m30`; the office batch is now
-> `m31 → m33 → m34 → m35 → m36 → m37 → m38`.
+> `m31 → m33 → m34 → m35 → m36 → m37 → m38`, **gaining `m40` when it lands, with `m39` slotting in
+> when it ships.**
 >
 > 🔴 **`P9`, IN ONE PARAGRAPH.** Owner **reproduced it on Bates with NO FLAGS** (census OFF, mask
 > OFF), deterministic across events. **Two phenomena, kept apart: (A) BOUNDARY SMEAR is CLOSED** —

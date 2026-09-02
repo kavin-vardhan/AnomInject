@@ -998,6 +998,30 @@ read on any host, and a fix plan awaiting a ruling.**
 ⛔ **Nothing further is needed from Bates for `P9` until a fix build exists** — the box is sealed and
 `C-3` got everything the card asked for.
 
+### ✅ FIX APPROVED — option 2, milestone **`m40`** (2026-09-02). ⛔ PLANNED, NOT BUILT.
+
+**`m40` = order-independent label sampling.** The per-frame label's active bit moves from *"the top of
+the next capture `Tick`"* to **`FWorldDelegates::OnWorldTickEnd`** (`LevelTick.cpp:1814`) — **after
+every tickable (`:1606`) and still before the draw** — so the sampled bit is what the renderer will
+draw for that same frame **whatever order the subsystems ticked in**.
+🎯 **It changes NO rendered pixel on any host, adds NO artifact field and NO client-facing setting**,
+and it **removes** the dependency rather than pinning it. ⛔ Pinning the tick order was considered and
+**rejected**: it would change what one host renders (journal 068 §9).
+🧭 **Plan: journal 068 §10. Pre-declared gates:
+`docs/predictions/2026-09-02-m40-order-independent-label-sampling.md`.**
+🔑 **Prove-it-can-fail is a BENCH-ONLY, DEFAULT-OFF lever** (`IAI.Bench.SynthTickOrder`, console only,
+no ini key, echoed at `StartRun` whether on or off) that relocates the injector's dispatch to
+`OnWorldPreActorTick` and so **synthesises the SYMPTOM — not the cause — of the other order.** Four
+pre-declared legs: control · **bench reproduction of `P9` (B)** · fix-with-lever-still-on · inertness.
+⚠ **The ledger's language stays "consistent with, not asserted" until an `m40` build is validated on
+Bates**, and that validation's pass condition is pre-declared: **the labels equal the eye whether
+`apply → first toggle` reads `+2` or `+3`.**
+⛔ **KNOWN LIMITATION CARRIED BY `m40` BY DECISION:** the **sync-fallback** capture path
+(`AnomalyCaptureSubsystem.cpp:2439`) samples inline and **remains one tick stale**. No gate exercises
+it today and one variable at a time. **Detect it from `SVE-WANT-SUMMARY`: `marksIssued` below
+`framesWritten`.** ⚠ Its own fallback notice is on `LogAnomalyCapture`, so a `LogAnomaly`-only Verbose
+run will not show it.
+
 ---
 
 ## 8.6b 🔻 BENCH CAMPAIGN RECORD — superseded as the close-out, kept as the measurement

@@ -1728,3 +1728,142 @@ its own gates — not this fix.**
 
 ⛔ **NOTHING IS AUTHORISED. No file was changed, nothing was built, no milestone was opened, and no
 number was assigned to this work.**
+> 🔻 **SUPERSEDED THE SAME DAY BY BRIEF 5 — §9.4's recommendation was APPROVED and the work is now
+> `m40`.** The plan is §10 below. **This section is the RECORD of the options as they were put.**
+
+---
+
+## §10 `m40` — ORDER-INDEPENDENT LABEL SAMPLING. THE PLAN. ⛔ PLAN ONLY
+
+> ✅ **APPROVED (session 068, brief 5):** option 2 of §9 — sample the label's active state at
+> `FWorldDelegates::OnWorldTickEnd`. **Numbered `m40`**, *"order-independent label sampling"*.
+> ⛔ **NO SOURCE WAS EDITED, NOTHING WAS BUILT, NO LEG WAS RUN.** Implementation is the next brief.
+> 🧭 **Pre-declared gates: `docs/predictions/2026-09-02-m40-order-independent-label-sampling.md`,
+> committed WITH this section and BEFORE any `m40` source exists.**
+
+### §10.0 Rulings this plan is built on
+
+| ruling | effect here |
+|---|---|
+| **R1** prove-it-can-fail = **Route A**, a bench-only default-OFF lever synthesising the symptom | §10.2 — ⚠ **and the mechanism named in the ruling had to be changed; see §10.2.1** |
+| **R2** the **sync fallback stays as it is** in `m40` | out of scope, documented as a known limitation with its detection route (§10.5) |
+| **R3** milestone = **`m40`**; `m39` stays honest bbox; **`m40` may ship before `m39`** | numbers are identities, not an order — recorded in `CLAUDE.md`'s milestone map |
+
+### §10.1 FILE-BY-FILE
+
+| # | file | function / site | change |
+|---|---|---|---|
+| 1 | `AnomalyCapture/Public/AnomalyCaptureSubsystem.h` | private section, beside `MaskWorldTickEndHandle` | **+1 handle** `FDelegateHandle SampleWorldTickEndHandle;` **+1 method** `void OnWorldTickEndSample(UWorld*, ELevelTick, float);`. ⛔ No new artifact field, no new config member |
+| 2 | `AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp` | `Initialize`, beside **`:334`** | **register** `SampleWorldTickEndHandle = FWorldDelegates::OnWorldTickEnd.AddUObject(this, &UAnomalyCaptureSubsystem::OnWorldTickEndSample);` — a **second, independent** handle, not a fold into the mask one (§10.4 trap 1) |
+| 3 | ″ | `Deinitialize`, beside **`:527`** | **unregister** `FWorldDelegates::OnWorldTickEnd.Remove(SampleWorldTickEndHandle);` — symmetric with 2, the `m26` lifecycle pattern |
+| 4 | ″ | **`Tick` `:591`** | **REMOVE** the `SampleDeferredActiveState();` call from the top of `Tick`. ⛔ This is the whole behavioural change; leaving it would consume the pending flag before the new hook runs |
+| 5 | ″ | **new** `OnWorldTickEndSample`, placed beside `OnWorldTickEndMask` (**`:704`**) | body: `if (World != GetWorld() \|\| !bRunning) return;` then `SampleDeferredActiveState();`. **Nothing else. No logging.** The `World` guard mirrors **`:707`** |
+| 6 | ″ | `SampleDeferredActiveState` (**`:2717-2759`**) | **BODY UNCHANGED.** It keeps its `bHasDeferredActive` gate (`:2719-2723`), its `PendingSnapshots.Find(DeferredActiveRequestId)` (`:2729`), its `EAnomalyActiveSource` switch (`:2744-2756`) and its `IsHidden()` read (`:2755`). 🎯 **Only its CALL SITE moves.** That is what keeps the blast radius at one line of behaviour |
+| 7 | ″ | `FinishRun` (**`:2986`**) | **KEEP** the existing `SampleDeferredActiveState()` call, now a **no-op safety net** — the sample for the last armed frame already happened at that tick's `OnWorldTickEnd` |
+| 8 | ″ | `FinalizeArmedLabel` (**`:2519-2562`**) | **UNCHANGED.** It still sets `DeferredActiveRequestId` / `bHasDeferredActive` at `:2560-2561`; the consumer simply moved later **within the same world tick** |
+| 9 | ″ | `StartRun`, beside the `m28`/`m36`/`m38` echoes | **+1 unconditional echo line** for the lever (§10.2.3). ⛔ Log only — **no `run_summary` field** |
+| 10 | `AnomalyInjector/Public/AnomalyInjectorSubsystem.h` | | **+1 member** `bool bSynthTickOrder = false;` **+1 static** `static bool IsSynthTickOrderEnabled(UWorld* World);` (the `IsViewportScopingEnabled` pattern, **`:43`**) **+1 method** `void DispatchAnomalyTicks(float DeltaTime);` |
+| 11 | `AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp` | `Tick` **`:193-199`** | **extract** the dispatch loop verbatim into `DispatchAnomalyTicks`; `Tick` calls it **only when the lever is OFF** |
+| 12 | ″ | **new** `OnWorldPreActorTickSynth(UWorld*, ELevelTick, float)` + its handle, registered in `Initialize` / removed in `Deinitialize` | when the lever is ON and `World == GetWorld()`, calls `DispatchAnomalyTicks(DeltaSeconds)`. **Returns immediately when the lever is OFF** |
+| 13 | ″ | console-command block (beside `IAI.SetViewportScoping`, **`:687-700`**) | **+1** `FAutoConsoleCommandWithWorldAndArgs` for `IAI.Bench.SynthTickOrder`, with the loud set-time echo (§10.2.3) |
+
+**Consumption path, unchanged and re-stated so the blast radius is visible:**
+`SampleDeferredActiveState` → `Snap->FireActive` (`:2757`) → `AccumulateFrameEvents(… Snap->FireActive …)`
+(`:2179-2180`) → `Ev->ActiveByIndex.Add(SessionIndex, Active)` (`:3432`) → at `FinishRun`, the keys with
+`Active == 1`, sorted, become `frame_indices`.
+⛔ **`labels.jsonl`'s per-frame `anomaly_present` comes from `Snap->Fires`, NOT from `FireActive`, and
+is untouched.**
+
+### §10.2 THE LEVER
+
+#### §10.2.1 🔻 R1's SUGGESTED MECHANISM DOES NOT REPRODUCE `P9`. WORKED THROUGH BEFORE ANY CODE.
+
+`R1` offered, as an example, *"the injector does not count the tick on which `Apply` ran"*. **Carried
+through the tick reconstruction, that lever lands ALIGNED:**
+
+| lever | pixels | labels | reproduces? |
+|---|---|---|---|
+| **A** — skip the apply tick | `{n, n+1, n+2, n+6}` | `{n, n+1, n+2, n+6}` | ❌ **ALIGNED** |
+| **B** — dispatch relocated to `OnWorldPreActorTick` | `{n, n+1, n+2, n+6}` | `{n, n+1, n+5, n+6}` | ✅ **exact Bates reproduction** |
+
+🎯 **Why A fails, and it is the same insight as §6's order-invariance result seen from the other
+side.** Skipping the apply tick moves every toggle one tick later, so the **pixels** move — but the
+shipped sampler reads *"state after the injector's tick of `T`"*, which moves by exactly the same one
+tick. **Both sides of the comparison shift together and nothing misaligns.** ⇒ **the
+`apply → first toggle` `Δ` is a CO-SYMPTOM of the reordering, not the label-side cause.** A lever built
+on the `Δ` synthesises the wrong half of the phenomenon.
+
+✅ **Why B works.** `OnWorldPreActorTick` (`LevelTick.cpp:1468`) fires **before** `TickObjects`
+(`:1606`), so the dispatch genuinely precedes the capture subsystem on **every** tick. That reproduces
+**both** consequences at once: `Apply` now happens after the dispatch on `T0` (⇒ the apply tick goes
+uncounted, `Δ = +3`), **and** the shipped sampler at the top of the capture `Tick` now sits *after*
+that tick's dispatch (⇒ labels stay at `{n, n+1, n+5, n+6}` while pixels move to
+`{n, n+1, n+2, n+6}`). **All four numbers, including the revert boundary at `n+6`, which A and every
+sampler-only variant get wrong.**
+
+#### §10.2.2 What it is
+
+`IAI.Bench.SynthTickOrder <0|1>` · compiled default **OFF** · **console only — no ini key, no
+dashboard command, no client-facing surface** · lives in `AnomalyInjector`, read cross-module through
+a `static` accessor. **When OFF the dispatch loop runs exactly where it does today and the delegate
+handler returns immediately ⇒ behaviourally byte-inert, which `L4` measures rather than asserts.**
+
+#### §10.2.3 The two echoes — `A48` shape, both unconditional
+
+**At set time** (console): a paragraph naming it a **bench-only SYNTHESIS OF THE SYMPTOM**, stating
+that it does not reproduce the other host's cause, that labels and pixels will disagree by design, and
+that a capture taken with it ON must never ship. **At `StartRun`**: one line **whether it is on or
+off** — ⚠ **the `off` line is the load-bearing one**, because it is what distinguishes a normal run
+from one that silently had the lever on (`G139`). Exact wording: predictions §1.3.
+
+### §10.3 THE FOUR LEGS — summary only; the pre-declaration is the predictions file
+
+| leg | binary | lever | predicted reader | predicted sets | predicted `Δ` |
+|---|---|---|---|---|---|
+| **L1** control | `F2FA6BCD` | OFF | **all counted `ALIGNED`, exit 0** | `{n,n+1,n+5,n+6}` both | **+2** |
+| **L2** 🎯 reproduction | `F2FA6BCD` | **ON** | **all counted `P9-SHAPE`, exit 1** | claimed `{n,n+1,n+5,n+6}` · observed `{n,n+1,n+2,n+6}` · residual `{n+2, n+5}` | **+3** |
+| **L3** the fix | post-fix | **ON** | **all counted `ALIGNED`, exit 0** | `{n,n+1,n+2,n+6}` both | **+3, unchanged** |
+| **L4** inertness | post-fix | OFF | **all counted `ALIGNED`, exit 0** | `{n,n+1,n+5,n+6}` both, **byte-identical to `L1`** | **+2** |
+
+🎯 **`L3`'s `Δ` staying at `+3` is what makes it a proof rather than a coincidence: the lever is still
+on, the toggles have NOT moved back, and the labels moved anyway.** ⇒ **the LABEL SAMPLE is what
+changed.**
+🛑 **If `L2` does not reproduce, the LEVER is wrong, not the theory — STOP and report.** Do not retune
+in the same turn; ⛔ **`SEP_RATIO = 5.0` is frozen in every branch.**
+
+### §10.4 THREE TRAPS, NAMED BEFORE THEY CAN FIRE
+
+1. 🚨 **DO NOT FOLD THE SAMPLE INTO THE EXISTING MASK HANDLER.** `OnWorldTickEndMask` returns early
+   unless `bMaskMeasure` (**`:707`**). **The mask is OFF on a no-flags client-shaped run — which is
+   exactly the configuration `P9` was reproduced in.** Folding them would make `m40` inert precisely
+   where it is needed, and it would look like a clean pass. **Separate handle, separate handler.**
+2. ⚠ **THIS IS NOT `m18` RETURNING.** `m18` sampled at the end of **our own `Tick`** — mid-world-tick,
+   *before* the injector — and `m20` measured that as one tick stale. `m40` samples at the end of the
+   **world tick**, after every tickable. **It is strictly later than both m18's point and today's.**
+   The commit message says this; a reader who skims will otherwise reach for `m20`.
+3. ⚠ **The delegate is global and engine-lifetime.** Dangling-handle risk across world transitions is
+   handled the way `m26` handles it — register in `Initialize`, remove in `Deinitialize`, bind with
+   `AddUObject` (weak against the `UObject`), guard `World != GetWorld()` first. **Predicted teardown
+   behaviour is written down in predictions §4 so it can be checked, not assumed.**
+
+### §10.5 OUT OF SCOPE, NAMED (R2)
+
+⛔ **The sync-fallback path is NOT moved.** `CaptureCurrentFrame`'s inline read at **`:2439`** is one
+tick stale by the same arithmetic and stays that way in `m40` — no gate exercises that path today, and
+one variable at a time. **It becomes a follow-up item and a ledger limitation.**
+🔎 **Detection, for a reader who needs it:** a sync frame mints no `RequestId`, so
+**`SVE-WANT-SUMMARY`'s `marksIssued` drops below `framesWritten`** (`:3211`, `Log` verbosity, present
+with no flags). ⚠ **Its own `falling back to sync grab` notice is on `LogAnomalyCapture`
+(`:2382-2383`), so a run that raised only `LogAnomaly` to `Verbose` will NOT show it** — journal 068
+§6.4.1.
+⛔ **Also out of scope:** pinning the tick order (§9's option 1 — it changes rendered pixels), any
+`P6` movement, the census, the mask, selection, and any cook.
+
+### §10.6 COMMIT SHAPE AND WHAT SHIPS
+
+**Commit 1 (this one):** `docs(m40): plan and predictions - order-independent label sampling` — the
+predictions file, this section, and the ledger's `FIX APPROVED` line. **Lands before any source
+exists.** **Commit 2:** `feat(capture): m40 - order-independent label sampling` — fix, lever, both
+echoes, one commit. **A gate-forced change lands as a FOLLOW-UP commit, never an amend** (`m35`
+precedent). ⛔ **NO TAG**; the office batch becomes `m31 → m33 → m34 → m35 → m36 → m37 → m38 → m40`,
+**`m39` slotting in when it ships.**
