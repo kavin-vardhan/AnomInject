@@ -965,3 +965,21 @@ The census at floor 0.5 on this fixture offers **77 candidates**, of which a set
 are `StaticMeshActor`s and all are blinking-capable. ⇒ **B/B′ were RUN, not skipped**, and their
 events fired on non-target actors as intended. ⚠ Qualified by the `fires_fallback_all = 3` reading
 in §12.5.
+
+### §12.10 ⚠ A COSMETIC DEFECT IN COMMIT `6fb1215`'s SUBJECT — recorded, NOT rewritten
+
+That commit's subject line begins with an invisible **UTF-8 BOM**: `git log --oneline` renders it as
+`6fb1215 ﻿docs(067): fixture-v2 legs …`. Cause: the message file was written with PowerShell 5.1's
+`Set-Content -Encoding UTF8`, **which emits a BOM**, and `git commit -F` took the BOM as the first
+character of the subject.
+
+⛔ **NOT FIXED, and the reason is a rule rather than laziness: the commit is PUSHED, and amending it
+would require a force-push, which is forbidden here.** A cosmetic mark in one subject line is a far
+smaller cost than rewriting published history.
+
+📌 **The avoidance, for next time:** write commit-message files with the `Write` tool (no BOM), or
+use `[System.IO.File]::WriteAllText` / `Out-File -Encoding utf8NoBOM` where available. ⚠ Note the
+trap has **two sides**: `Set-Content` without `-Encoding` defaults to the system ANSI codepage and
+mangles non-ASCII, while `-Encoding UTF8` in PowerShell 5.1 adds the BOM. Neither default is right
+for a file another tool parses. Same family as `G188` (a PowerShell surprise that survives review
+because the command looks correct).
