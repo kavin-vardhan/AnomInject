@@ -5076,3 +5076,74 @@ detects — a scrubber, a secret scanner, a credential linter, a PII detector �
 material as part of its passing output.** The safer the instrument, the louder its receipts. Ask of
 every self-proving check: *what does its success message contain, and where does that message end
 up?* (2026-09-02, session 067 — found by running the verifier, not by reading it.)
+
+## G203 — THE SAME THING HAS TWO NAMES IN TWO ARTIFACTS, AND A JOIN ON THE NAME RETURNS NOTHING
+
+The `P9` reader had to join `annotation.json` events to `labels.jsonl` rows. The natural key looked
+like the anomaly's identity, and the predictions file specified exactly that:
+
+```
+anomalies[].id == anomaly_type   AND   target_name == nodes[primary].name
+```
+
+**The first conjunct is FALSE IN THE DATA.** Measured on banked `M23\R30_regress`:
+
+```
+annotation.json   "anomaly_type": "blink"        <- the CLIENT-FACING vocabulary
+labels.jsonl      "id": "blinking"               <- the INTERNAL anomaly id
+```
+
+Two vocabularies **by design** — `annotation.json` is the delivered artifact and goes through the
+client mapping; `labels.jsonl` carries the internal id. Requiring equality **joins nothing**, and
+every event would have landed `UNDECIDABLE`.
+
+⚠ **The failure is SAFE, and that is the trap rather than the consolation.** It fails to
+*undecidable*, never to a wrong answer — so it produces a full page of plausible output with a
+uniform verdict, and "every event undecidable" reads like a property of the DATA rather than a
+broken join. A wrong answer would have been caught faster.
+
+**RULE: before joining two artifacts on a name, PRINT BOTH SIDES OF THE KEY FROM REAL DATA.** One
+`json.dumps` of one row from each file settles it. Never infer that two fields describing the same
+thing hold the same string — especially across a delivered/internal boundary, which exists precisely
+to rename things. Join on the identity that is not translated: here, the **target actor name**, which
+both sides take verbatim from `AActor::GetName()`.
+
+**Corollary for this project:** `MapAnomalyToClient` is a translation layer, so **any** join, filter
+or grep that crosses `annotation.json` ↔ `labels.jsonl` on an anomaly identifier inherits this.
+(2026-09-02, session 067 — caught while implementing, before any measurement; the spec defect was
+annotated in the tool header and the journal, and the predictions file was NOT edited.)
+
+## G204 — A SWALLOWED TRACEBACK PLUS A GUARD ON THE WRONG KEY PRINTS AN EMPTY TABLE AND EXIT 1
+
+Second instance in two sessions of `G190`'s family, and this one is worth its own entry because the
+failure looked like a *result*.
+
+The `P9` reader's control run was invoked as `python p9_hidden_set.py <dir> --synth-shift 1 2>$null`
+— stderr redirected, because the run was otherwise noisy with a Pillow `DeprecationWarning`. Inside,
+`read_event` set `out["observed"]` **before** the anchor check returned early, so an
+anchor-unreliable event carried `observed` but no `best_k`; the printer's guard tested
+`"observed" not in r` and fell through to `r["best_k"]`. `KeyError`.
+
+**What the operator saw:** the header lines, the column header, **then nothing**, then exit 1.
+
+```
+  ev  outcome          k   claimed   observed   missing  extra  sep/spr  minMrg
+exit=1
+```
+
+**An empty table under a correct header reads exactly like "no events matched" — a clean negative.**
+It was only caught because a *different* control had just produced twelve rows, so zero rows was
+conspicuous. On a first run it would have been believed.
+
+**RULES, three, and the third is the general one:**
+1. **Never redirect stderr on a run whose result you are about to trust.** Filter the known-noisy
+   lines instead — `Where-Object { $_ -notmatch 'DeprecationWarning' }` keeps tracebacks visible.
+2. **Guard on the key the consumer actually dereferences**, not on a proxy for it. The printer needs
+   `best_k`, so `best_k` is the guard. A guard on `observed` was testing a *different* question.
+3. **An early return must not leave a half-populated record behind.** Publish the fields that make a
+   record readable **after** every gate that can reject it, never before — otherwise downstream code
+   cannot distinguish "rejected" from "complete".
+
+⇒ And the reason it belongs beside `G190`: **assert on a POSITIVE artifact of the run.** This tool
+now prints a `summary` line unconditionally, so a run that produces no rows still has to say so in
+words. Absence of output is not a reading. (2026-09-02, session 067.)

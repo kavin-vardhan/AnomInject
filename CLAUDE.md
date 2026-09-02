@@ -85,12 +85,14 @@ and is the single source of truth for the project.
 > without a clean scrub-verifier pass first.**
 > ✅ *(2026-09-02, later the same day: it HAS now had a verifier pass — `clean over 98 file(s)`. The
 > "cleanliness unknown" caveat is retired for this branch.)*
-> 🔴 **BUT THE SAME PASS FOUND TWO OTHER LOCAL-ONLY BRANCHES THAT ARE NOT CLEAN:**
+> 🔴 **THE SAME PASS FOUND TWO OTHER LOCAL-ONLY BRANCHES THAT WERE NOT CLEAN** —
 > `m29-GATE-FAILED-lod-popping-invisible` (`ab2fb41`) and `s3a-2-GATE-FAILED-do-not-merge`
-> (`087f4d9`) both read **`TERMS PRESENT`**. Both are dead ends with `[gone]` upstreams and are
-> unreachable from any live branch. ⛔ **NO ACTION TAKEN — chat rules.** ⚠ Until then, **"no
-> reachable ref, origin OR local" is NOT true**: it holds for origin (re-verified 198/196/189
-> clean) and fails on those two local refs. Journal 067 §9.5.
+> (`087f4d9`), both reading `TERMS PRESENT`. ✅ **OWNER-RULED AND EXECUTED 2026-09-02: BOTH
+> DELETED.** Dead by name, `[gone]` upstreams, never merged, unreachable from any live branch, and
+> their findings already journaled. ⇒ **`"no reachable ref, origin OR local"` IS RESTORED**, and it
+> now rests on a verifier pass over **every** remaining ref. Surviving local refs: `master`,
+> `feature/mask-gpu-reduce`, `feature/selection-census`, `feature/stencil-capture`. Journal 067
+> §9.5 and §10.4.
 > 📌 **THE SHA IN THIS ITEM MOVES WITH EVERY DOCS COMMIT AND HAS DONE SO TWICE.** It read `9c94c55`
 > until 2026-09-02; the merge line itself is unchanged and the invariant is the one to read —
 > **`master` is the m34+m35+m36 merge line, and its tip is whatever `git rev-parse origin/master`
@@ -141,9 +143,15 @@ and is the single source of truth for the project.
 > player 7 %), pitch-black frames + the same 2–3 objects repeating; floor 0.5 → **8** eligible,
 > **~90 % of anomalies eye-visible**; **`vetoed_events` 0 on BOTH legs vs the banked 12–15 band** —
 > the census removes at selection what the veto used to delete after the fact.
-> 🔴 **FLOOR DECIDE: PENDING WITH THE OWNER** — chat rec is **0.5 plus a CEILING of 25** (the 34 %
-> landscape is the black-frame producer). ⛔ **The ceiling is UNBUILT** — no knob exists; adopting it
-> is gated work, not a tweak.
+> ✅ **FLOOR/CEILING DECIDE — LANDED 2026-09-02. OWNER RULED: floor `0.5` + a coverage CEILING of
+> `25`.** Concretely: `CensusMinDrawnCoveragePct` default → **0.5**, and a **NEW**
+> `CensusMaxDrawnCoveragePct` default **25.0** excluding scenery-scale targets (the 34 % landscape
+> blueprint is the pitch-black-frame producer).
+> ⛔ **BUILD QUEUED UNTIL AFTER THE `P9` LEGS — the exe stays `D2BB25A5` for the entire `P9` read.
+> ONE VARIABLE AT A TIME.** ⛔ **No source change to the census has been made.** The ceiling gets its
+> own milestone and its own plan next session; the ini-block updates (Bates, Concorde, client keys)
+> ride that milestone. 📌 Interim Bates guidance unchanged: **console floor 0.5, blinking unticked**
+> until `P9` closes.
 > 🆕 **P9 minted** (blinking annotation-vs-observed mismatch on Bates, owner-observed ×3, NO
 > mechanism claimed — see the phenomenon ledger; **its MEASUREMENT is the next session's first
 > candidate**, a pixel-ground-truth leg). ⚠ `ticks_per_captured_frame` **1.3556 on Bates —

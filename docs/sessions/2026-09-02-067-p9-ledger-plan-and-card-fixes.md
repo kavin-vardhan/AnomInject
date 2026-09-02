@@ -449,3 +449,143 @@ only** (`G202`):
 - ✅ **`feature/stencil-capture` is clean**, which retires the concern recorded in `CLAUDE.md` this
   morning that its cleanliness was *unknown*. ⛔ The **never-check-out** rule is unchanged, and it is
   still never pushed without a fresh pass.
+
+---
+
+## §10 RULINGS 1–3 EXECUTED — the gate PASSES, and the two dirty refs are gone
+
+### §10.1 Ruling 1 — `SEP_RATIO := 5.0`, calibrated from two known-answer populations
+
+⚠ **This is calibration, not post-hoc re-thresholding, and the distinction is the whole point.**
+Two **known-answer** populations set the value — the same pattern by which A54's `TAU` was frozen
+from its own controls — rather than one leg's results being used to pick a number that flatters
+them:
+
+```
+known-ABSENT  (I10HF\HF1_nat120)   sep/spread tops out at   2.54
+known-ALIGNED (M23\R30_regress)    sep/spread bottoms at    8.96
+5.0 ~ geometric middle: sqrt(2.54 * 8.96) = 4.77
+     ~2.0x above the ABSENT maximum, ~1.8x below the ALIGNED minimum
+```
+
+The bias is deliberate and it is **away from the dangerous direction — publishing a confident set on
+noise.**
+
+🎯 **THE RATIO FORM IS CONFIRMED BY THE SAME DATA, and this is the part worth carrying forward:**
+the **absolute** separations **OVERLAP** — a known-ABSENT event reaches **0.080** while a
+known-ALIGNED event sits at **0.105** — while the **ratios are cleanly disjoint** (2.54 against
+8.96). **The normalisation by within-cluster spread is doing the discriminating work, not the raw
+separation.** That is also, independently, why `TAU` — an absolute difference — is the wrong tool
+here (`P8`).
+
+⛔ **FROZEN. NEVER RETUNED AFTER ANY LEG.** A leg event landing near 5.0 gets its margins reported
+and **annotated**; it is **never reclassified** (`A55`/`A57`). ⛔ **The predictions file is NOT
+edited** — the derivation lives in the tool header and here, the same annotation route used for the
+join correction.
+
+### §10.2 THE RE-GATE — ✅ **ALL FOUR CONTROLS PASS, PLUS `d-unit`**
+
+CaptureBench `4319a9e`. `TRUNCATED` excluded per `A50`'s addendum.
+
+| # | control | required | measured | |
+|---|---|---|---|---|
+| **(a)** | known-ALIGNED | 12/12 ALIGNED, `k=0`, differences empty | **12/12 ALIGNED**, all `k=0`, all empty | ✅ |
+| **(b)** | known-ABSENT | 12/12 UNDECIDABLE, **any** confident verdict voids the threshold | **12/12 UNDECIDABLE** — zero confident verdicts | ✅ |
+| **(c)** | synthetic `P9` | 12/12 `P9`-SHAPE, one-in/one-out each | **12/12 `P9`-SHAPE**, exactly one missing + one extra each | ✅ |
+| **(d)** | synthetic shift | zero `P9`-SHAPE; every readable event refused on **ANCHOR**, naming the hidden flank | **12/12 UNDECIDABLE, ALL on ANCHOR**, each naming its hidden flank; **zero `P9`-SHAPE** | ✅ |
+| **d-unit** | set-level branch logic | 3/3 | **PASS 3/3** | ✅ |
+
+🚨 **(b) IS THE ONE THAT MATTERED MOST AND IT HELD.** Lowering a separation floor is exactly the move
+that can start manufacturing confident answers out of noise. It did not: the known-ABSENT control's
+ceiling is **2.54**, still a factor of two below the new floor, and it refused **all twelve** events
+just as decisively at 5.0 as at 10.0.
+
+📌 **(a)'s four previously-refused events now read `sep/spread` 8.96, 9.32, 9.45, 9.92 — every one
+ALIGNED with empty differences and `k=0`.** They were never wrong; they were **refused**, which is
+the behaviour the floor is for.
+
+📌 **(d) changed shape under the new floor and that is the correct direction:** at 10.0 four of its
+events were refused on *separation*, masking the real reason. At 5.0 **all twelve** are refused on
+the **ANCHOR**, each naming the hidden flank frame — so the control now demonstrates exactly the one
+thing it exists to demonstrate.
+
+**`d-unit`, on literal sets with no pixels** — required because (d) cannot reach the branch through
+pixels once the anchor guard refuses:
+
+```
+(i)   uniform +1     observed [4,5,9,10]     claimed [5,6,10,11]   -> SHIFTED(+1)      residual []        PASS
+(ii)  Bates pair     observed [42,43,44,48]  claimed [42,43,47,48] -> P9-SHAPE         residual [44,47]   PASS
+      residual size by k (-6..+6): [6,6,8,8,6,2,2,6,8,6,4,4,6]   non-empty at EVERY k: True
+(iii) one-direction  observed [4,5,9,10]     claimed [4,5,9]       -> ONE-DIRECTIONAL  residual [10]      PASS
+```
+
+⚠ **Case (ii) carries a reading worth keeping: the residual ties at 2 for `k=0` AND `k=-1`.** The
+tie-break toward the smaller `|k|` is what lands it on `P9`-SHAPE rather than a near-miss shift, and
+the full `residual_by_k` row is printed so that tie is visible rather than hidden inside a verdict.
+
+### §10.3 Ruling 2 — the division of labour, recorded
+
+The anchor guard is **untouched**. On a fixture whose hidden runs sit flush against the claim
+boundary, **any** uniform shift puts truth under a flank, so:
+
+- **this reader never certifies `SHIFTED` on flush geometry** — `SHIFTED(k)` is reachable only when
+  the window slack is `>= |k|`, now stated in the tool header as a limit of the instrument;
+- **an anchor-refusal that NAMES A HIDDEN FLANK is itself the `P1`-suggestive signature**, and is
+  reported as one;
+- **`a54_oracle.py` is the constant-shift instrument**, and its already-run `A53` positive control
+  (`R30 --shift 1` → **12/12 `SHIFTED(-1)`**, margins collapsing 0.105 → 0.050) is **CITED as the
+  companion proof. It was not re-run.**
+
+### §10.4 Ruling 3 — the two dirty local-only branches, DELETED
+
+Recorded **before** deletion, so the refs are described in the durable record rather than only in a
+verdict line:
+
+| branch | SHA | what it was |
+|---|---|---|
+| `m29-GATE-FAILED-lod-popping-invisible` | `ab2fb41` | *"m29 ships corrupted_texture only; lod_popping pool membership defers to m30"* — the branch where `lod_popping` **failed its own visibility gate**; the finding it produced (the LOD-CONTRAST gate, session 054) is already journaled and shipped |
+| `s3a-2-GATE-FAILED-do-not-merge` | `087f4d9` | *"S3a-2 wiring — FAILS ITS OWN GATE `G-S3a-1`, DO NOT MERGE"* — the SVE wiring attempt that failed its own gate; superseded by the `S3a`/`S4` work that shipped at `m24`/`m25` |
+
+Both were **dead by name**, both had **`[gone]` upstreams** (they were on origin once and were
+deleted there), **neither was ever merged**, and **neither was reachable from any live branch**.
+⛔ **No scrub, no checkout, no `gc`, and `feature/stencil-capture` untouched.**
+
+```
+Deleted branch m29-GATE-FAILED-lod-popping-invisible (was ab2fb41).
+Deleted branch s3a-2-GATE-FAILED-do-not-merge (was 087f4d9).
+```
+
+**`git branch -a` afterwards, verbatim and complete:**
+
+```
+  feature/mask-gpu-reduce
+  feature/selection-census
+  feature/stencil-capture
+* master
+  remotes/origin/feature/mask-gpu-reduce
+  remotes/origin/feature/selection-census
+  remotes/origin/master
+```
+
+**Four local refs and three remote-tracking refs survive.** `master` (`8f3a387`) ·
+`feature/mask-gpu-reduce` (`7151875`) · `feature/selection-census` (`7f82d52`) — all three ==
+origin — and **`feature/stencil-capture` (`76cac74`), LOCAL-ONLY, never pushed, never checked out,
+verifier-clean over 98 files.**
+
+✅ **CONSEQUENCE: `"no reachable ref, origin OR local"` IS RESTORED**, and it now rests on a verifier
+pass over **every** remaining ref rather than on an assumption about which refs matter.
+
+### §10.5 🔴 THE FLOOR/CEILING DECIDE HAS LANDED — RECORDED ONLY, NOTHING BUILT
+
+**Owner ruled 2026-09-02:**
+
+- `CensusMinDrawnCoveragePct` **default → 0.5**
+- **NEW** `CensusMaxDrawnCoveragePct`, **default 25.0** — a coverage **CEILING** excluding
+  scenery-scale targets (the 34 % landscape blueprint is the pitch-black-frame producer)
+- ⛔ **BUILD QUEUED UNTIL AFTER THE `P9` LEGS.** The exe stays **`D2BB25A5`** for the **entire `P9`
+  read** — **one variable at a time.**
+
+⛔ **NO SOURCE CHANGE TO THE CENSUS THIS TURN.** The ceiling gets its **own milestone and its own
+plan next session**; the ini-block updates (Bates, Concorde, the client keys) ride that milestone.
+📌 **Interim Bates guidance is unchanged:** console floor **0.5**, **blinking unticked** until `P9`
+closes.
