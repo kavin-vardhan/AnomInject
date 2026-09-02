@@ -858,3 +858,541 @@ because it explains the proof to a reader who has only the file.
   `bMaskMeasureDefault`). The auto and console branches are both measured; the ini branch is the same
   code path with a different source string.
 - ⚠ **Runbook §8.2's A44 example control `IsHideTypeAnomaly` is STALE** — filed, not fixed.
+
+---
+
+## §6 ADVERSARIAL RE-READ OF §1
+
+> 🧭 **What this section is.** §1 is now **load-bearing**: the owner's Bates `C-3` bundle will be
+> interpreted through it, and through the `C-3` READ GUIDE it produced. This section is a deliberate
+> attempt to **BREAK** §1, claim by claim, from source — not to restate it. Each item R1–R5 ends in
+> **REFUTED** with a concrete counter-example at `file:line`, or **COULD NOT REFUTE** with the
+> specific evidence checked.
+>
+> ⛔ **DISCIPLINE, RESTATED AND HELD: NO MECHANISM FOR `P9` (B) IS PROPOSED, IMPLIED OR PREFERRED
+> ANYWHERE BELOW.** This audits a **mapping**, not the bug. Where a structural fact sits close to
+> something that could be read as a mechanism it is marked ⛔ and the reason it is not one is given.
+> `G120` governs: an observation and its explanation are separate claims, and a scope decision may
+> rest only on the observation. **Nothing here changes what `C-3` runs.**
+>
+> ⛔ **NO SOURCE FILE WAS EDITED. NOTHING WAS BUILT, COOKED, RUN OR TAGGED.** Every measurement below
+> is a read of an artifact that already existed on this box.
+
+### §6.0 Provenance, and a SECOND line-number drift — §1's citations no longer resolve on `master`
+
+**Tree audited: `master` at `970bf1d`** (`git rev-parse HEAD` == `git rev-parse origin/master`), working
+tree clean apart from the owner's four untracked `docs/CHAT-HANDOFF-*.md`.
+
+⚠ **§1 was written at `be4dd1b` and says so. `m38` (`7c06c6c`) then added 247 lines to
+`AnomalyCaptureSubsystem.cpp` and 18 to its header, so §1's citations into that file are now stale on
+`master` — exactly the situation §1.0's own drift table was written to fix, recurring one commit
+later.** ⛔ **§1 is a RECORD and is NOT retro-edited.** This is the forward mapping.
+
+🚨 **THE OFFSET IS NOT UNIFORM (+30 … +204). Do not add a constant — grep the token.**
+
+| token | §1 said (`be4dd1b`) | `970bf1d` |
+|---|---|---|
+| `void UAnomalyCaptureSubsystem::Tick` | `:539` | **`:569`** |
+| `++CaptureGameTicks` | `:550` | **`:580`** |
+| `SampleDeferredActiveState();` (in `Tick`) | `:561` | **`:591`** |
+| `CaptureCurrentFrame()` — LeadIn · Positives · PostGap | `:612` · `:622` · `:632` | **`:642` · `:652` · `:662`** |
+| `BeginFire()` call sites | `:613` · `:650` | **`:643` · `:680`** |
+| `BeginRevert()` call site | `:623` | **`:653`** |
+| `FinalizeArmedLabel();` (in `Tick`) | `:670` | **`:700`** |
+| `SessionFrameIndex = 0` (`StartRun`) | `:1357` | **`:1389`** |
+| `grab point EFFECTIVE` | `:1509` | **`:1542`** |
+| `=== Capture run STARTED` | `:1675` | **`:1873`** |
+| `Capture(m28): MEASURED FROM THE FIRST WRITTEN FRAME` | `:1850` | **`:2048`** |
+| `RESOLUTION DELTA (3-rect)` | `:1946` | **`:2144`** |
+| PNG name · labels record · `AccumulateFrameEvents` | `:1978` · `:1980` · `:1982-1983` | **`:2175` · `:2177` · `:2179-2180`** |
+| `BeginFire()` definition | `:2106-2127` | **`:2303-2324`** |
+| `BeginRevert()` definition | `:2129-2137` (`:2133`) | **`:2326-2334` (`:2330`)** |
+| `RequestId = ++CaptureRequestSerial` · `Snap.FrameCounter` · `Snap.SessionIndex` | `:2155` · `:2157` · `:2158` | **`:2352` · `:2354` · `:2355`** |
+| `SveCapturer->ArmWanted(RequestId)` | `:2172` | **`:2369`** |
+| `++SessionFrameIndex` (async) | `:2180` | **`:2377`** |
+| sync-fallback notice | `:2185` | **`:2382`** |
+| sync `Fires = Auto->GetLiveFires()` | `:2211-2212` | **`:2408-2409`** |
+| `++SessionFrameIndex` (sync) | `:2255` | **`:2452`** |
+| `Auto->GetLiveFires()` in `FinalizeArmedLabel` | `:2342` | **`:2539`** |
+| `Snap->FirePos.Reset()` | `:2355` | **`:2552`** |
+| `FinalizeArmedLabel` definition | — | **`:2519-2562`** |
+| `SampleDeferredActiveState` definition · the `IsHidden()` read | `:2520-2562` · `:2558` | **`:2717-2759` · `:2755`** |
+| `Capture(sve): key ring` · `SVE-WANT-SUMMARY` | `:3005` · `:3013` | **`:3203` · `:3211`** |
+| `=== Capture run FINISHED` | `:3030` | **`:3228`** |
+| `Ev->ActiveByIndex.Add(...)` | `:3232` | **`:3432`** |
+| `TOGGLING-SUBSET` log | `:3342-3347` | **`:3543-…`** |
+| `CaptureRequestSerial` member (header) | `.h:222` | **`.h:231`** |
+| `UAnomalyCaptureSubsystem : public UTickableWorldSubsystem` | `.h:14` | **`.h:15`** |
+
+✅ **Every `AnomalyInjector`-module citation in §1 is UNCHANGED** — that module was not touched by
+`m38`. Spot-verified at `970bf1d`: `Anomaly_Blinking.cpp:91` (the toggle), `:95-96` (the log line),
+`:106` (the `Revert` hide-clear), `:68-69` (the matched line); `Anomaly_Blinking.h:28` / `:29`;
+`AnomalyInjectorSubsystem.cpp:184-218` with the dispatch loop `:193-199` and the call `:197`, `:468`
+(`IAI.Apply`), `:488` (`IAI.Revert … reverted`); `AnomalyAutoInjectorSubsystem.cpp:369-370`,
+`:473-474`, `:697-710` with `:705`. ✅ **Every ENGINE citation in §1 verified exactly at UE 5.1** —
+`OutputDeviceHelper.cpp:10-76`, `:29`, `:30`, `:53-63`; `OutputDeviceFile.cpp:535`, `:557`;
+`CoreGlobals.cpp:386`; `LaunchEngineLoop.cpp:5156`, `:5363`, `:5568`, `:5678`, `:5680`, `:5713`,
+`:5731`; `Actor.cpp:4556-4563`; `AnomalySveCapturer.h:38`.
+
+---
+
+### §6.1 R1 — THE FLIP TABLE AND THE TICK-ORDER CLAIM
+
+#### §6.1.1 The table itself, under the stated order — **COULD NOT REFUTE**
+
+The §1.1.1 reconstruction was re-derived from the FSM at `970bf1d` (`:639-698`) rather than from §1's
+prose, and it reproduces §1's table statement for statement:
+
+- `BeginFire` sets `Phase = SettleAfterFire; PhaseFramesLeft = SettleFrames` (`:2322-2323`), `SettleFrames`
+  default **2** (`AnomalyCaptureSubsystem.h:277`), `PreFrames` 4 / `PositiveFrames` 8 / `PostFrames` 4
+  (`.h:278-280`). `BeginRevert` is the same shape (`:2332-2333`).
+- **`SettleAfterFire` never captures** — the case body is `--PhaseFramesLeft` then the transition
+  (`:646-649`); `CaptureCurrentFrame()` appears at **exactly three sites**, `:642` (LeadIn), `:652`
+  (Positives), `:662` (PostGap). ⇒ **T1 and T2 are uncaptured, and the tick that flips `Phase` to
+  `Positives` is itself uncaptured.** §1's T2 is correct.
+- `SampleDeferredActiveState()` is at `:591`, **before** the `ArmedPending` gate and before the switch,
+  so it runs on **every** world tick while `bRunning` — the sample for a frame armed at `T` lands on
+  world tick `T+1` whether or not `T+1` captures. §1's sample column is correct.
+- Flip 4's chain re-walked in full: `:653 BeginRevert()` → `:2330 Auto->RevertAllLiveFires()` →
+  `AnomalyAutoInjectorSubsystem.cpp:697-710` (`:705 Injector->RevertAnomaly`) → `Anomaly_Blinking.cpp:106`.
+  `LiveFires.Reset()` at `:708` precedes `FinalizeArmedLabel()` at `:700`-of-the-next-statement order,
+  so `Snap->Fires` for `n+7` is empty. **Verified in the artifact** (`session_20260902-112711`,
+  `session_index 23`, `anomaly_present=false`).
+
+⚠ **One completeness gap, not a defect.** §1.1.0 says there are "exactly two sites in the whole file
+that change actor visibility" — true — but `Apply` itself calls `Revert()` at `Anomaly_Blinking.cpp:24`
+when `bActive`, so `:106` has a **second reachable caller**. It cannot fire during a capture run:
+`StartRun` calls `Auto->SetRunning(false)` (`:1286`), which stops `AdvanceTime`/`ServiceReverts`
+(`AnomalyAutoInjectorSubsystem.cpp:121-123`, `:185-187`), and the FSM always reverts before the next
+`BeginFire`. ⇒ **no competing flip-4 driver during a run. Could not refute; the table is complete on
+that axis.**
+
+#### §6.1.2 ⛔ Alternative orderings — flip 1 CAN land on a captured tick
+
+The brief asks whether any ordering puts flip 1 somewhere other than an uncaptured settle tick. **Two
+concrete cases:**
+
+1. **`SettleFrames = 0`.** `BeginFire` leaves `PhaseFramesLeft = 0`; the next tick's
+   `SettleAfterFire` case takes neither `if` branch and transitions immediately, still without
+   capturing — so the injector has accumulated only `1 + 1 = 2` ticks by the first Positives tick and
+   **flip 1 lands on the arm tick of `n`.** ⛔ **Outside `C-3`'s config** (`K = 2`), and §1.1.4 already
+   states the general point ("at any other `(K, half-period)` pair flip 1 lands somewhere else").
+2. **Reversed subsystem tick order** — see §6.1.3.
+
+#### §6.1.3 🔻 **REFUTED — §1.4.5's EVIDENCE (b). The labels CANNOT see the tick order.**
+
+§1.4.5 says the evidence that capture ticks first is *"(a) `m20` … and (b) this turn's reconstruction,
+which reproduces `[16,17,21,22]`, `[27..34]` and the empty `session_index 23` row **only under that
+order**."*
+
+**Conjunct (b) is false. All three artifact facts hold under EITHER order.** Re-derived from the same
+code, generally (not for one config):
+
+- Reversing the two subsystems moves the injector's first counted tick from `T0` to `T1`, so **every
+  flip shifts by exactly +1 tick.**
+- `SampleDeferredActiveState` runs at the **top** of the capture `Tick`. Under capture-first it
+  therefore samples *before* that tick's injector tick; under injector-first it samples *after* it.
+  Writing `S_cf(T)` for the hidden state after injector tick `T` under capture-first:
+  `label(frame armed at T)` is `S_cf(T)` under capture-first, and `S_rev(T+1) = S_cf(T)` under
+  injector-first. **Identical, for every `T`, at every config.**
+- ⇒ **`frame_indices` is EXACTLY ORDER-INVARIANT. The deferred sampler is order-compensating.**
+- `[27..34]` (the `corrupted_texture` `FireWindow` window) and the empty `session_index 23` are decided
+  **entirely inside `UAnomalyCaptureSubsystem::Tick`** — by `BeginFire` at `:643`/`:680` and
+  `BeginRevert` at `:653` running before `FinalizeArmedLabel` at `:700` — and never consult the
+  injector at all. **Neither carries any information about the order either.**
+
+🚨 **AND THE PIXEL COLUMN IS *NOT* ORDER-INVARIANT.** A rendered frame shows the state at the end of
+its own world tick, so reversing the order shifts the rendered transitions by one frame while leaving
+every label untouched. Because flip 1 fires on an uncaptured tick and flip 4 fires inside the capture
+`Tick` in both orders, **the two OUTER flips are unaffected and only the two INTERIOR flips move.**
+
+⛔⛔ **THIS IS NOT A MECHANISM FOR `P9` (B), IS NOT A LEAD, AND IS NOT A PRIOR ON ANY `C-3` BRANCH.
+Bates' tick order is UNMEASURED and nothing here says anything about it.** Two reasons it must not be
+read that way, both from this project's own record:
+
+- **The `{n, n+1, n+2, n+6}` shape is GENERIC TO ANY ONE-TICK OFFSET ANYWHERE IN THE CHAIN and
+  therefore carries NO location information.** `m20` measured a pre-fix *label* set of exactly
+  `{4,5,6,10}` — the same shape — from an entirely different cause (a sample taken one tick early;
+  journal 026 §Bug B). A shape that many causes produce is not evidence for one of them.
+- **Whatever the order is, it is a property of the plugin+engine present on BOTH hosts**, and this
+  box reads 16/16 ALIGNED (journal 067 §12.6).
+
+**What the refutation actually changes — and it is narrow and useful:**
+
+| | before | after |
+|---|---|---|
+| what establishes the tick order | (a) `m20` **and** (b) the three artifact facts | **(a) alone.** (b) is vacuous |
+| what CAN establish it | — | **only a pixel↔label comparison** — `m20`'s measurement, and the v1/v2 bench legs' 16/16 |
+| where it is established | implied: "here" | **exactly and only where pixels have been compared to labels — i.e. this box.** It is **not** established on Bates |
+
+✅ **Evidence (a) is decisive on this box, and stronger than §1 claims.** `m20` measured, in a package,
+`annotation(G) == pixels(G−1)` with pre-fix annotation `{4,5,6,10}` against pixels `{4,5,9,10}`
+(journal 026 §Bug B, `session_20260715-183542`). Under injector-first the pre-`m20` sample would have
+been taken *after* the toggle and the labels would have **matched** the pixels — there would have been
+no `m20` bug at all. **The bug's existence uniquely determines capture-before-injector here.**
+⇒ **the mechanism §1.4.5 names — `FTickableGameObject` registration order — could not be refuted
+either.** `FTickableStatics::NewTickableObjects` is a `TSet` (`Tickable.cpp:15`) drained in a batch at
+`Tickable.cpp:119-123`, and `TSet` iterates its `TSparseArray Elements` in index order
+(`Set.h:1397-1400`, `:1582-1636`), i.e. **insertion order** for an add-only set — so "registration
+order" is the correct description and my first suspicion (that it was pointer-hash order) is **wrong
+and is recorded as refuted.** No subsystem overrides `GetTickableTickType`, a tick group or a priority
+(checked across all five: `AnomalyCaptureSubsystem.h:15`, `AnomalyInjectorSubsystem.h:12`,
+`AnomalyAutoInjectorSubsystem.h:35`, `AnomalySelectorSubsystem.h:12`,
+`AnomalyControlServerSubsystem.h:22`).
+
+🎯 **THE CONSEQUENCE FOR THE BUNDLE, AND IT IS A FREE READ ALREADY IN IT.** §1.5.1 and READ GUIDE
+item 5 both present flip 1's position as an **expectation**: *"the first hide … happens on a tick that
+is deliberately not captured, and that is expected."* **It is not an invariant — it is a
+DISCRIMINATOR.** If flip 1's toggle line `[fff]` falls in the `K`-tick gap between `frame_index(n−1)`
+and `frame_index(n)`, the reading is one thing; if it lands **on** `frame_index(n)`, it is another.
+**Both are readings, neither is a fault, and the card currently tells the reader that only the first
+is worth noting.** ⇒ **§1.5.1's flip-1 bullet and READ GUIDE item 5's last sentence need re-wording
+(exact text in §6.6).**
+
+---
+
+### §6.2 R2 — THE TWO CLOCKS
+
+#### §6.2.1 🔻 **REFUTED (as worded) — there are THREE meeting points, and one IS an arithmetic conversion**
+
+§1.2(iii) states: *"**Where are A and B reconciled? NOWHERE ARITHMETICALLY.** … They meet at exactly
+**one** place, and it is a **sample, not a conversion**."*
+
+**Counter-example 1 — an arithmetic tick→frame-period conversion.**
+`UAnomalyCaptureSubsystem::ComputeNominalGameSpan()`, **`AnomalyCaptureSubsystem.cpp:2808-2815`**:
+
+```
+return (double)(TicksAtLastArm - TicksAtFirstArm) * (1.0 / (double)VideoFps);
+```
+
+`TicksAtFirstArm` / `TicksAtLastArm` are snapshots of **`CaptureGameTicks`** (§1's clock C, one per
+world tick, `:580`) taken **at arm moments** by `StampArmWallClock` (`:2794-2806`, called from
+`:2365` async / `:2450` sync). They are then multiplied by `1/VideoFps` — **the per-CAPTURED-FRAME
+period**. ⇒ **this converts world ticks into seconds using the frame period as the tick period.** It
+is the `m33` re-key; it feeds `speed_ratio`, `CheckEarlyPacingWarning` (`:2817-2833`) and the fps
+stamp. ⚠ **§1's sentence carries the qualifier "for labelling purposes", and under that qualifier it
+survives** — this conversion never reaches `frame_indices`. **The unqualified opening clause and the
+"exactly one place" claim do not.**
+
+**Counter-example 2 — a second sample point, and this one DOES reach a label field.**
+`ProjectionView()`, **`:2280-2288`**: `const int32 Idx = ViewRing.Num() - 1 - ViewLagFrames;`.
+`ViewRing` is fed once per **world tick** by `SampleViewThisTick()` (`:2290-2301`, called from `:617`,
+including on non-capturing settle ticks), and `ProjectionView()`'s result is written straight into the
+label snapshot at **`:2358`** (`Snap.View = ProjView`) where it drives the projected bbox,
+`bbox_valid` and `coverage_ratio`. ⇒ **a TICK-indexed ring consumed at a FRAME-clock moment, and the
+lag knob is counted in ticks while its console command calls them frames** —
+`IAI.Capture.ViewLag: L=%d frame(s).` (`:810`). ⚠ **Inert today: `ViewLagFrames` default is `0`**
+(`AnomalyCaptureSubsystem.h:283`), so `Idx` degenerates to the current tick's view. **The coupling is
+structural, not currently active.**
+
+⇒ **Verdict: REFUTED on the wording; the labelling-scoped claim survives.** The correct statement is
+in §6.6.
+
+#### §6.2.2 🔻 **REFUTED (narrowly) — "inside the Positives phase every tick captures" has ONE exception, and it is inside `C-3`'s own config**
+
+§1.2(iv): *"**Inside the Positives phase every tick captures, so the local ratio is exactly `1.0`.**"*
+
+The frame-cap check at **`:624-637`** runs **before** the phase switch:
+`if (FrameCap > 0 && SessionFrameIndex >= FrameCap && Phase != Idle && Phase != DrainTail)` →
+`Phase = DrainTail`. ⇒ **a Positives tick on which the cap trips does not capture, and `BeginRevert` is
+never reached for that burst.** With `C-3`'s `IAI.Capture.Start "" png 4242 90 blinking …` and
+`IAI.Capture.Config 2 4 8 4 0`, `BurstCount` is **0** (`.h:281`, unlimited) so the run **is** terminated
+by the cap, and the eighth burst is the one that trips it. See §6.4 — the same fact refutes R4.
+
+⛔ **This does not disturb §1.2(iv)'s headline**, which is that `ticks_per_captured_frame` (**`1.3556`**;
+`AnomalyLabelWriter.cpp:547-549`, verified at `970bf1d`) is a **run average** and not a per-window
+conversion factor. **That stands, and is the load-bearing half.**
+
+---
+
+### §6.3 R3 — THE PREFIX ANCHOR
+
+#### §6.3.1 ✅ **COULD NOT REFUTE — and the one un-measured link is now MEASURED**
+
+§1.3.3 derives the anchor from source: `GFrameCounter++` at `LaunchEngineLoop.cpp:5568` is **after**
+`GEngine->Tick(...)` at `:5363`, so everything inside one `UWorld::Tick` sees one value. ✅ **Both
+lines verified verbatim at UE 5.1, and `:5568` is the ONLY mutation of `GFrameCounter` in that file.**
+A Runtime-wide sweep found only three other mutation sites, none reachable in a capture run:
+`UnrealClient.cpp:1289` (`HighResScreenshotBeginFrame`, gated on `GIsHighResScreenshot`),
+`PreLoadScreenManager.cpp:480`, `Commandlet.cpp:89`.
+
+✅ **No capture arm happens outside `UWorld::Tick`:** `CaptureCurrentFrame()` has exactly three call
+sites, all inside the phase switch (`:642`, `:652`, `:662`).
+
+🚨 **BUT §1.3.3's ACTUAL JOIN — `[fff]` == `labels.jsonl.frame_index % 1000` — WAS NEVER MEASURED.**
+§1.3.2 measured only that *a prefix exists*; §1.3.3's "✅ Cross-checked against the artifact"
+(15→20, 16→23 …) is `labels.jsonl`'s **own internal** series, not a log-to-labels join. The join was
+derived, not read.
+
+✅ **IT IS NOW MEASURED, AND §1'S OWN §1.4.1 TABLE CONTAINS THE KNOWN-ANSWER CONTROL IT DID NOT USE.**
+`Capture(sve): SVE-WANT-TRACE arm … gameFrame=%llu` (`AnomalySveCapturer.cpp:39-41`) is `Log`
+verbosity, on the **game thread**, and prints `(uint64)GFrameCounter` **as a field of its own message**
+while also receiving the engine's `[fff]` prefix. ⇒ **`[fff]` must equal `gameFrame % 1000` on that
+line, or the prefix was not stamped at log time.** Measured over **all 11 packaged logs** under
+`Builds\BenchGate\Windows\StackOBot\Saved\Logs\`:
+
+> **704 arm lines · `[fff] == gameFrame % 1000` on 704 · 0 divergent · 0 without a prefix.**
+
+⇒ **the anchor holds on this box as a measurement, not as a derivation** — and the same one-line check
+runs on the Bates bundle for free, for every captured frame up to 64. **`A53`/`G96` shape: it turns a
+silent failure mode into a read.**
+
+#### §6.3.2 ⚠ **A REAL DEFERRAL PATH EXISTS, and a deferred line's `[fff]` IS WRONG**
+
+The prefix is composed by `FOutputDeviceHelper::AppendFormatLogLine`, which reads the **global**
+`GFrameCounter` **at format time** (`OutputDeviceHelper.cpp:24`, `:30`, `:35`, `:39`). Format time is
+the *device's* `Serialize`, not the `UE_LOG` call. Two facts follow:
+
+- ✅ `FOutputDeviceFile::Serialize` (`OutputDeviceFile.cpp:535`) formats on the **calling** thread and
+  hands bytes to its `AsyncWriter` (`:557`) — **the async writer defers the byte write, not the
+  formatting.** No hazard there.
+- 🚨 `FOutputDeviceRedirector::Serialize` **queues** a line when the caller is not the primary logging
+  thread, or when the primary lock is contended (`OutputDeviceRedirector.cpp:595-611` is the immediate
+  path; **`:614`** is the queue). The queued payload, `FOutputDeviceLine` (**`:73-83`**), carries
+  `Data`, `Category`, `Verbosity` and **`Time` — but NO frame counter.** A queued line is later
+  serialized by `FlushBufferedLines` (`:443-453`) and stamped with `GFrameCounter` **as of the
+  flush.** ⇒ **the timestamp survives a deferral; the frame bracket does not.**
+- 🚨 The redirector can also run a **dedicated thread that makes itself the primary logging thread**
+  (`ThreadLoop`, `:420-441`, the `PrimaryThreadId.store` at **`:426`**) — under which **game-thread
+  lines take the queued path.**
+
+✅ **Why it does not bite here, stated as a reading and not as a guarantee:** `TryStartWriterThread`
+(`:557`) has **no caller anywhere in the engine source**, and the game thread is made primary at
+`LaunchEngineLoop.cpp:1531`. Combined with the 704/704 measurement above, **the deferral path is not
+active in a stock UE 5.1 packaged Windows build.** ⛔ It is recorded because §1 offers **no way to
+detect it on a host we cannot instrument**, and §6.3.1's control is exactly that detector.
+
+#### §6.3.3 🔻 **REFUTED (narrowly) — §1.3.2's "expected shape" is over-specific, and §1.5.1 mode 1 is under-specified**
+
+§1.3.2 gives the expected Bates line as `[YYYY.MM.DD-HH.MM.SS:mmm][fff]LogAnomaly: Verbose: …`, and
+the READ GUIDE repeats it with a dated example. **`AppendFormatLogLine` prints the `[%3llu]` frame
+bracket in FOUR of the five `ELogTimes` modes** — `SinceGStartTime` `:24`, `UTC` `:30`, `Local` `:35`,
+`Timecode` `:39` — and omits it only in `default:` (`None`, `:42-43`). The five values are
+`0 None · 1 UTC · 2 SinceGStartTime · 3 Local · 4 Timecode` (`LaunchEngineLoop.cpp:5712-5716`).
+
+⇒ **Two corrections, opposite in sign:**
+- ✅ **§1.5.1 failure-mode 1 is CORRECT and in fact stronger than stated** — only `LogTimes=None` /
+  `-NOLOGTIMES` removes the anchor; `-LOCALLOGTIMES`, `-LOGTIMESINCESTART` and `-LOGTIMECODE` all keep it.
+- 🔻 **but the FIRST bracket is then a float (`[0012.34]`) or a timecode, not a date.** A reader
+  matching the documented shape could report *"no prefix"* on a line whose anchor is present.
+  **The rule that survives every mode is: the anchor is the LAST bracket before the category.**
+
+⚠ **Two further prefix elements are host-switchable and §1 does not name them:** `GPrintLogCategory`
+(`OutputDeviceHelper.cpp:46`) can drop `LogAnomaly: `, and `GPrintLogVerbosity` (`:58`, `:64`) can drop
+`Verbose: `. Neither touches the bracket, and the payload `blinking toggle ->` survives both.
+⚠ **And `log.Timestamp` is a console variable** (`LaunchEngineLoop.cpp:5678-5687`), so §1.3.2's
+override list — ini + command line — misses the **console / `-ExecCmds`** route.
+
+---
+
+### §6.4 R4 — THE `n+7` CLAIM AND "EXACTLY THREE TOGGLE LINES"
+
+#### §6.4.1 ✅ **`n+7` carries no row for the fire — COULD NOT REFUTE on the async path**
+
+Re-verified: `BeginRevert()` at `:653` → `LiveFires.Reset()` (`AnomalyAutoInjectorSubsystem.cpp:708`);
+`FinalizeArmedLabel()` at `:700` then reads `Auto->GetLiveFires()` at `:2539`, now empty. **There is no
+`return` between `:653` and `:700`**, so the ordering cannot be bypassed. ⚠ **One scoped caveat §1
+does not state:** `AppendSessionGlobalFires(Snap->Fires)` at **`:2543`** can repopulate `Snap->Fires`
+for `n+7` **if a session-global anomaly is held** — the row would then exist for the *global*, not for
+the blinking fire, and an overlay could draw a box at `n+7`. ⛔ **Not applicable to `C-3`** (targeted
+`blinking`, no global), but the READ GUIDE's *"a box at `n+7` … is a finding"* should say
+*"with no session-global held"*.
+
+✅ §1's sync-fallback caveat is correct: the sync path builds `Fires` at `:2408-2409` from inside
+`CaptureCurrentFrame` (called at `:652`, **before** `BeginRevert` at `:653`), so `n+7` **would** carry
+a row there.
+
+🆕 **AND THE SYNC PATH IS WORSE THAN §1 SAYS, IN A WAY THAT MATTERS FOR `C-3`.** Its active bit is read
+**inline at `:2439`** (`ActiveNow.Add((FActor && FActor->IsHidden()) ? 1 : 0)`), i.e. **inside the
+capture `Tick`, before that tick's injector tick** — it never sets `bHasArmedLabel` (`:2376` is
+async-only) and so never uses `FinalizeArmedLabel`/`SampleDeferredActiveState`. ⇒ **a sync frame
+reproduces the pre-`m20` one-tick-stale hidden set.** 🚨 **And its announcement at `:2382-2383` is
+`LogAnomalyCapture, Verbose`, while `C-3` raises `LogAnomaly` — a DIFFERENT category. ⇒ on a `C-3`
+bundle a per-frame sync fallback is SILENT.**
+✅ **Bounded, and detectable anyway:** with SVE on, `:2350` reads `if (bUseSve || ComputeGameViewportCapture(...))`,
+so the fallback needs a structural failure of `Async`/`SveCapturer`, not a transient rect miss; and
+`SVE-WANT-SUMMARY` (`:3211`) is `Log` verbosity and reports `marksIssued` beside `framesWritten`.
+⇒ **`marksIssued < framesWritten` is the in-bundle detector, and it is already collected.**
+
+#### §6.4.2 🔻 **REFUTED — "EXACTLY THREE TOGGLE LINES PER EVENT" IS FALSE FOR THE LAST EVENT OF `C-3`'s OWN RUN**
+
+`C-3` runs `IAI.Capture.Start "" png 4242 90 blinking StaticMeshActor_1246` at `2 4 8 4 0`.
+Captured frames `0..89`; lead-in `0-3`; bursts every 12 frames ⇒ burst 8's Positives window would be
+`88-95`. After arming `si = 89`, `SessionFrameIndex == 90 == FrameCap`, so the **next** tick takes
+`:624-631` into `DrainTail` — **`BeginRevert` is never reached from the FSM for that burst.**
+Consequences, all of which break the stated rule:
+
+- the event has **2 frames, not the 4-frame `(n, n+1, n+5, n+6)` cadence**;
+- there is **no `n+7`**, so §1.5.2's `n+7` cross-check is inapplicable to it;
+- `bActive` stays true, so the injector **keeps toggling through `DrainTail`** and emits further
+  `blinking toggle ->` lines that are anchored to **no captured frame at all**;
+- flip 4 arrives from `FinishRun` (`:2984-2991`: `SampleDeferredActiveState()` then
+  `RevertAllLiveFires()`), so the `IAI.Revert 'blinking' -> reverted.` receipt lands **after**
+  `DrainTail`, not one tick after the last captured frame.
+
+✅ **MEASURED, NOT ONLY DERIVED.** Scanning the banked session bank for 90-frame runs with an event
+reaching index ≥ 87: **235 matches, and every blink one reads `frame_indices = [88,89]`** — a 2-frame
+final event, across sessions from 2026-08-16 through 2026-09-02. (`FireWindow` anomalies read
+`[87,88,89]`, i.e. `n−1` plus the two survivors, which independently confirms the `n−1` row exists.)
+
+🚨 **THE HAZARD IS THE DIAGNOSTIC ATTACHED TO THE RULE, NOT THE COUNT.** §1.4.2 and READ GUIDE item 5
+both say *"a different count or order means the half-period or the burst config differs from the
+assumption"* — which, met on the final event, would send the reader to conclude **Bates' half-period
+differs**, a false finding about the host.
+✅ **Bounded in practice:** the card's `(a)` prints `Select-Object -First 20` toggle lines ≈ events 1–6
+plus two lines of event 7, and prerequisite 4 already directs the anchor event into bursts 1–5. ⚠ **But
+the last printed event is truncated by `-First 20`, so it too will show fewer than three.**
+
+#### §6.4.3 ⚠ Two smaller R4 items
+
+- **Half-period ≠ 3** genuinely changes the count, and §1's mitigation is correct: the effective value
+  is reported by `blinking: matched … at half-period %d frame(s).` (`Anomaly_Blinking.cpp:68-69`),
+  resolved through `AnomalyDefaults::GetHalfPeriodFrames` (`:35-37`). **Could not refute.**
+- **Auto-pool vs targeted:** `C-3` is targeted, so every burst fires the same anomaly on the same
+  actor. Under auto-pool a burst may fire a different id or none (`Capture: burst %d fired nothing`,
+  `:2319-2320`) and the "3 lines per event" expectation would not even be well-posed. **Outside
+  `C-3`'s case.**
+
+---
+
+### §6.5 R5 — AN OUTCOME §1.5.3 NAMES ONLY ONE READING FOR
+
+The brief asks for an outcome the table classifies wrongly. **One exists, and it is in row 2.**
+
+| row | `f_toggle` | §1.5.3's structural clause | §1.5.3's naming |
+|---|---|---|---|
+| 1 | `n+2` / `n+5` | divergence **downstream of the visibility call** | "the **PIXELS** are the outlier" |
+| 2 | `n+3` / `n+6` | divergence **between the toggle and the label** | "the **SAMPLING / LABELLING** side is the outlier" |
+
+🔻 **Row 2's structural clause survives; its NAMING does not.** §6.1.3 shows that a one-tick change in
+*when the toggle runs relative to the arm* produces `f_toggle = n+3` **while the labelling code
+behaves identically to the bench, byte for byte** — the deferred sampler is order-compensating, so
+nothing about "sampling/labelling" would be anomalous. A reader given row 2 as written would be
+pointed at the label pipeline, and the code admits at least one other reading in which the label
+pipeline is not implicated at all. ⇒ **row 2 should name the LOCATION (an interval), not a SUBSYSTEM.**
+
+⛔ **This is not an argument that row 2 will fire, nor a mechanism, nor a prior.** It is a statement
+that row 2's label is narrower than its own evidence supports.
+
+🎯 **AND THE BUNDLE ALREADY CONTAINS THE READ THAT SEPARATES THEM, AT ZERO EXTRA COST: flip 1's
+anchor** (§6.1.3). §1.5.1 currently spends it as an "expected" check.
+
+⚠ **One presentational trap, `G161`'s exact shape.** §1.5.3 compares `f_toggle` with `n+2` / `n+5`
+without naming a space conversion, but the join in §1.5.1 is *"toggle `[fff]` against
+`labels.jsonl.frame_index`"* while `n` lives in **`session_index`** space (`frame_indices` are session
+indices). ✅ **READ GUIDE item 2 already says this explicitly** and is the safer text; **§1.5.3 alone
+does not.**
+
+⚠ **And one completeness item for §1.5.1 failure-mode 3.** Raising `LogAnomaly` to `Verbose` also
+unmasks `Heartbeat; active anomalies: %d/%d; scoping: %s` every 2 s
+(`AnomalyInjectorSubsystem.cpp:215`) — the only other `LogAnomaly, Verbose` line reachable on a
+no-flags targeted `blinking` run (the other four are census/`camera_clipping`/`lod_popping`, all
+absent). 🎯 **That makes it a free known-answer control on the verbosity switch itself:** it
+distinguishes *"`Verbose` took and no toggle line appeared"* from *"`Verbose` did not take"* — which
+§1.5.1 mode 3 asks the owner to record but gives no way to tell apart.
+
+---
+
+### §6.6 CORRECTIONS §1 NEEDS — exact wording
+
+⛔ **§1 is a RECORD. Nothing above is retro-edited into it.** These are the replacement sentences, to
+be carried wherever §1 is next used — and, for the two marked 🔴, into `docs/office-rdp-card.md`'s
+`C-3` READ GUIDE, which is what the owner actually reads.
+
+1. **§1.4.5, evidence list — replace conjunct (b).**
+   > The evidence that capture ticks first is **`m20`, which measured `annotation(G) == pixels(G−1)`
+   > on every blink edge in a package** — a comparison of **pixels against labels**, and the only kind
+   > that can see the order. ⛔ **The reconstruction's agreement with `[16,17,21,22]`, `[27..34]` and
+   > the empty `session_index 23` row is NOT evidence of the order: all three are order-invariant.**
+   > **`frame_indices` is exactly order-invariant** — the deferred sampler at `:591` compensates —
+   > **while the PIXEL column is not.** ⇒ **the order is established only where pixels have been
+   > compared to labels, i.e. on this box. It is not established on Bates.**
+
+2. 🔴 **§1.5.1, the flip-1 bullet, and READ GUIDE item 5's last sentence — reclassify.**
+   > **Flip 1 fires on an uncaptured settle tick under the order measured here, so its `[fff]` should
+   > match NO `labels.jsonl` row — it should fall in the `K`-tick gap, and
+   > `frame_index(n) − frame_index(n−1)` should be `K + 1 = 3`. ⚠ THIS IS A DISCRIMINATOR, NOT AN
+   > INVARIANT. If flip 1's `[fff]` instead lands ON `frame_index(n)`, that is a READING and not a
+   > fault — record it and send it raw.**
+
+3. 🔴 **§1.4.2 / §1.5.2 / READ GUIDE item 5 — bound the "three toggle lines" rule.**
+   > **Exactly three toggle lines per event, `HIDDEN · VISIBLE · HIDDEN`, holds for every FULL burst.
+   > ⛔ It does NOT hold for the LAST event of a 90-frame run: the frame cap (`:624-631`) sends the
+   > run to `DrainTail` mid-Positives, `BeginRevert` never runs for that burst, its `frame_indices`
+   > read `[88,89]` (measured on 235 banked sessions), and the injector keeps toggling into
+   > `DrainTail` with no captured frame behind those lines. Anchor on bursts 1–5, as prerequisite 4
+   > already requires, and do not count toggle lines on the last event or on an event truncated by
+   > `-First 20`.**
+
+4. **§1.3.2 / READ GUIDE item 1 — generalise the shape.**
+   > **The anchor is the LAST bracket before the category, whatever precedes it.** The frame bracket
+   > is printed in four of the five `ELogTimes` modes (`UTC`, `Local`, `SinceGStartTime`, `Timecode`)
+   > and omitted only by `None`; under `SinceGStartTime` the first bracket is a seconds float, not a
+   > date. **Report "no prefix" only if there is no bracket at all.** `log.Timestamp` is also settable
+   > from the console / `-ExecCmds`, not just ini and command line.
+
+5. **§1.3.3 — add the known-answer control, and say what it is for.**
+   > **`[fff]` is stamped by the log device at SERIALIZE time from the global `GFrameCounter`
+   > (`OutputDeviceHelper.cpp:30`), not captured at `UE_LOG` time.** `FOutputDeviceRedirector` can
+   > queue a line (`OutputDeviceRedirector.cpp:614`) whose payload carries `Time` but no frame counter
+   > (`:73-83`), in which case the bracket is stamped at flush. **Verify, do not assume:
+   > `SVE-WANT-TRACE arm … gameFrame=N` self-reports its own frame, so `[fff] == gameFrame % 1000` on
+   > that line is a direct check of the anchor. Measured here: 704/704 over 11 packaged logs, 0
+   > divergent. Run the same check on the first arm line in the Bates bundle before trusting any
+   > toggle-line join.**
+
+6. **§1.2(iii) — restate precisely.**
+   > **Clocks A and B are never reconciled FOR LABELLING PURPOSES.** They meet at **two** sample
+   > points — `SampleDeferredActiveState`'s `IsHidden()` read (`:2755`) and `ProjectionView()`'s
+   > tick-indexed `ViewRing` read (`:2280-2288`, inert at the default `ViewLagFrames = 0`) — and there
+   > **is** one arithmetic tick→seconds conversion outside labelling,
+   > `ComputeNominalGameSpan()` (`:2808-2815`), which multiplies a world-tick count by `1/VideoFps`.
+
+7. **§1.5.3 row 2 — name the interval, not the subsystem.**
+   > **`f_toggle` = `n+3` / `n+6` ⇒ the toggle executed one tick later than the labels imply, and the
+   > divergence lies in the interval BETWEEN THE TOGGLE CALL AND THE LABEL SAMPLE.** ⛔ **That
+   > interval contains more than the sampling code, so do not name a subsystem.**
+
+8. **§1.5.1 failure-mode 3 — add the control.**
+   > If no `blinking toggle ->` line appears, **check for `Heartbeat; active anomalies:` in the same
+   > log** (`AnomalyInjectorSubsystem.cpp:215`, `LogAnomaly, Verbose`, every 2 s). **Present ⇒
+   > `Verbose` took and the toggle lines are genuinely absent. Absent ⇒ `Verbose` did not take.**
+
+9. **§1.5.2 `n+7` row — scope it.** Add *"with no session-global anomaly held"* (`:2543`).
+
+---
+
+### §6.7 WHAT COULD NOT BE REFUTED — the positive list
+
+Stated explicitly, because a review that reports only its hits is not a review.
+
+| §1 claim | checked against | verdict |
+|---|---|---|
+| `Apply` never hides; flips 1–3 are the same statement at `Anomaly_Blinking.cpp:91` | whole file re-read at `970bf1d` | ✅ holds |
+| flip 4 is `:106`, reached `:653` → `:2330` → `AnomalyAutoInjectorSubsystem.cpp:705` → `AnomalyInjectorSubsystem.cpp:486` | chain re-walked | ✅ holds |
+| the call-site partition `{1,2,3}·{4}` and the observed-agreement partition `{1,4}·{2,3}` do not coincide, **with no inference drawn** | — | ✅ holds, and the ⛔ is correctly placed |
+| `FramesSinceToggle` counts world-tick CALLS; `DeltaSeconds` ignored | `Anomaly_Blinking.cpp:73-81` | ✅ holds |
+| the toggle loop body runs at most once per tick at `HalfPeriodFrames ≥ 1` | `:80-97`, `Anomaly_Blinking.h:29` | ✅ holds |
+| the toggle line stamps only the phase word and the actor count | `:95-96` | ✅ holds |
+| `labels.jsonl.frame_index` **is** `GFrameCounter` at arm time | `:2354` beside `:2355`, `:2377` | ✅ holds |
+| the three stamping statements are consecutive in one loop iteration over one `Snap` | `:2175` / `:2177` / `:2179-2180` | ✅ holds |
+| `GFrameCounter++` is after `GEngine->Tick`, and is the sole mutation in the loop | `LaunchEngineLoop.cpp:5568` vs `:5363`; Runtime-wide sweep | ✅ holds |
+| `log.Timestamp` default is `1` = UTC | `:5678-5687`, `:5713` | ✅ holds |
+| a render-thread line's `[fff]` is not its own render frame; use `id=` / `requestId=` | `AnomalySveCapturer.cpp:68-70`, `:151-153` | ✅ holds |
+| `SVE-WANT-TRACE arm` stops at 64 | `AnomalySveCapturer.h:38` | ✅ holds |
+| `SetActorHiddenInGame` to the held value is a no-op | `Actor.cpp:4556-4563` | ✅ holds |
+| no subsystem overrides `GetTickableTickType`, a tick group or a priority | all five headers | ✅ holds |
+| "registration order" is the right description of tickable order | `Tickable.cpp:15`, `:119-123`; `Set.h:1397-1400`, `:1582-1636` | ✅ holds — **my own pointer-hash counter-claim is REFUTED and recorded as such** |
+| §1.1.4's asymmetry is arithmetic of `(K=2, half-period 3)`, not a designed property, and is **not** a lead | re-derived | ✅ holds |
+| `ticks_per_captured_frame` is a run average, not a per-window factor | `AnomalyLabelWriter.cpp:547-549` | ✅ holds |
+| no competing flip-4 driver during a run (auto-injector paused) | `:1286`; `AnomalyAutoInjectorSubsystem.cpp:121-123`, `:185-187` | ✅ holds |
+
+### §6.8 What this section does NOT do
+
+- ⛔ **No mechanism, lead or likely-cause for `P9` (B).** The axis table in ledger §8.6a is unchanged;
+  nothing is added to it and nothing is removed.
+- ⛔ **No scope decision changes. `C-3` runs exactly as carded** — same steps, same commands, same
+  prerequisites. Every correction in §6.6 is a change to **what to look at afterwards**.
+- ⛔ **Nothing about Bates' tick order, log configuration or half-period is claimed.** All three are
+  unmeasured here and all three are answered by the bundle itself.
+- ⛔ **No source edit, no build, no leg, no cook, no tag.** Staged bench exe unchanged.
