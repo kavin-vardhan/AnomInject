@@ -295,6 +295,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 
 				if (Opinion.Decision == EAnomalyCensusDecision::ExcludedZero
 					|| Opinion.Decision == EAnomalyCensusDecision::ExcludedBelowFloor
+					|| Opinion.Decision == EAnomalyCensusDecision::ExcludedAboveCeiling
 					|| Opinion.Decision == EAnomalyCensusDecision::ExcludedTranslucent)
 				{
 					++CensusExcluded;

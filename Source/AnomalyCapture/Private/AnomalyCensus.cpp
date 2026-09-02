@@ -156,10 +156,15 @@ void FAnomalyCensus::Begin(UWorld* World, FAnomalyStencilTagLedger* InLedger, co
 	CycleNumber = 0;
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Census: BEGIN floor=%.2f%% maxVerdictAgeTicks=%d excludeTranslucent=%d leakProbe=%d coArmOnly=%d ")
-		TEXT("hostReserved=%d assignable=%d. The census is UPSTREAM of selection only; the armed-frame ")
+		TEXT("Census: BEGIN floor=%.2f%% ceiling=%s maxVerdictAgeTicks=%d excludeTranslucent=%d leakProbe=%d ")
+		TEXT("coArmOnly=%d hostReserved=%d assignable=%d. The band is INCLUSIVE: eligible iff ")
+		TEXT("floor <= coverage <= ceiling. The census is UPSTREAM of selection only; the armed-frame ")
 		TEXT("measurement and the zero-only veto are unchanged and remain the backstop."),
-		Params.FloorPct, Params.MaxVerdictAgeTicks, Params.bExcludeTranslucent ? 1 : 0,
+		Params.FloorPct,
+		IsCeilingEnabled()
+			? *FString::Printf(TEXT("%.2f%%"), Params.CeilingPct)
+			: TEXT("DISABLED (<=0; NO upper bound, scenery-scale targets ARE eligible)"),
+		Params.MaxVerdictAgeTicks, Params.bExcludeTranslucent ? 1 : 0,
 		Params.bLeakProbe ? 1 : 0, Params.bCoArmOnly ? 1 : 0,
 		Ledger ? Ledger->HostReserved.Num() : 0, Ledger ? Ledger->NumAssignable() : 55);
 }
@@ -182,12 +187,12 @@ void FAnomalyCensus::End(UWorld* World)
 	bActive = false;
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Census: SUMMARY frames=%d cycles=%d candidates=%d zero=%d nonzero=%d belowFloor=%d ")
+		TEXT("Census: SUMMARY frames=%d cycles=%d candidates=%d zero=%d nonzero=%d belowFloor=%d aboveCeiling=%d ")
 		TEXT("excludedTranslucent=%d nanite=%d tagFailed=%d hidden=%d notYetMeasured=%d firesFallbackAll=%d ")
 		TEXT("framesNoPass=%d framesPolluted=%d batchesLost=%d tagOvertaken=%d proxyRecreatesQueued=%d ")
 		TEXT("tagBlockMsTotal=%.3f"),
 		Counters.CensusFrames, Counters.Cycles, Counters.Candidates, Counters.Zero, Counters.NonZero,
-		Counters.BelowFloor, Counters.ExcludedTranslucent, Counters.UnmeasurableNanite,
+		Counters.BelowFloor, Counters.AboveCeiling, Counters.ExcludedTranslucent, Counters.UnmeasurableNanite,
 		Counters.UnmeasurableTagFailed, Counters.UnmeasurableHidden, Counters.NotYetMeasured,
 		Counters.FiresFallbackAll, Counters.FramesNoPass, Counters.FramesPolluted, Counters.BatchesLost,
 		Counters.TagOvertaken, Counters.ProxyRecreatesQueued, Counters.TagBlockMsTotal);
@@ -311,10 +316,21 @@ FAnomalyCensusOpinion FAnomalyCensus::QueryActor(const AActor* Actor) const
 		? (100.0f * (float)Found->DrawnPx / (float)Found->FramePx)
 		: 0.0f;
 	Out.DrawnPct = Pct;
-	Out.Decision = (Pct >= Params.FloorPct)
-		? EAnomalyCensusDecision::Eligible
-		: EAnomalyCensusDecision::ExcludedBelowFloor;
-	Out.Reason = (Pct >= Params.FloorPct) ? TEXT("measured_nonzero") : TEXT("below_floor");
+
+	if (Pct < Params.FloorPct)
+	{
+		Out.Decision = EAnomalyCensusDecision::ExcludedBelowFloor;
+		Out.Reason = TEXT("below_floor");
+		return Out;
+	}
+	if (IsCeilingEnabled() && Pct > Params.CeilingPct)
+	{
+		Out.Decision = EAnomalyCensusDecision::ExcludedAboveCeiling;
+		Out.Reason = TEXT("above_ceiling");
+		return Out;
+	}
+	Out.Decision = EAnomalyCensusDecision::Eligible;
+	Out.Reason = TEXT("measured_nonzero");
 	return Out;
 }
 
@@ -681,7 +697,7 @@ void FAnomalyCensus::CloseCycle()
 	bCycleOpen = false;
 	++Counters.Cycles;
 
-	int32 Zero = 0, NonZero = 0, BelowFloor = 0, Translucent = 0, Nanite = 0, TagFailed = 0, Hidden = 0, NotYet = 0;
+	int32 Zero = 0, NonZero = 0, BelowFloor = 0, AboveCeiling = 0, Translucent = 0, Nanite = 0, TagFailed = 0, Hidden = 0, NotYet = 0;
 	TArray<const FAnomalyCensusEntry*> Measured;
 	for (const FAnomalyCensusEntry& Entry : Entries)
 	{
@@ -700,6 +716,14 @@ void FAnomalyCensus::CloseCycle()
 			{
 				++BelowFloor;
 			}
+			else if (IsCeilingEnabled() && Pct > (double)Params.CeilingPct)
+			{
+				++AboveCeiling;
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Census: ABOVE-CEILING '%s' drawn=%dpx (%.3f%%) > ceiling %.2f%% - EXCLUDED (label ")
+					TEXT("unusable at scenery scale, not a failed anomaly)."),
+					*Entry.ActorName, Entry.DrawnPx, Pct, Params.CeilingPct);
+			}
 			break;
 		}
 		case EAnomalyCensusVerdict::ExcludedTranslucent:    ++Translucent; break;
@@ -714,6 +738,7 @@ void FAnomalyCensus::CloseCycle()
 	Counters.Zero = Zero;
 	Counters.NonZero = NonZero;
 	Counters.BelowFloor = BelowFloor;
+	Counters.AboveCeiling = AboveCeiling;
 	Counters.ExcludedTranslucent = Translucent;
 	Counters.UnmeasurableNanite = Nanite;
 	Counters.UnmeasurableTagFailed = TagFailed;
@@ -726,8 +751,11 @@ void FAnomalyCensus::CloseCycle()
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Census: CYCLE %d DONE ticks=%llu candidates=%d zero=%d nonzero=%d belowFloor=%d(floor %.2f%%) ")
-		TEXT("excludedTranslucent=%d nanite=%d tagFailed=%d hidden=%d notYetMeasured=%d"),
+		TEXT("aboveCeiling=%d(ceiling %s) excludedTranslucent=%d nanite=%d tagFailed=%d hidden=%d ")
+		TEXT("notYetMeasured=%d"),
 		CycleNumber, CycleTicks, Entries.Num(), Zero, NonZero, BelowFloor, Params.FloorPct,
+		AboveCeiling,
+		IsCeilingEnabled() ? *FString::Printf(TEXT("%.2f%%"), Params.CeilingPct) : TEXT("DISABLED"),
 		Translucent, Nanite, TagFailed, Hidden, NotYet);
 
 	UE_LOG(LogAnomalyCapture, Log,
@@ -769,6 +797,16 @@ void FAnomalyCensus::CloseCycle()
 		TEXT("(12,25]=%d >25=%d |%s%s"),
 		CycleNumber, Buckets[0], Buckets[1], Buckets[2], Buckets[3], Buckets[4], Buckets[5], Buckets[6],
 		*Rows, (Measured.Num() > Listed) ? *FString::Printf(TEXT(" (+%d more)"), Measured.Num() - Listed) : TEXT(""));
+
+	if (IsCeilingEnabled())
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Census: CYCLE %d HISTOGRAM NOTE - the '>25' bucket edge and the DEFAULT ceiling coincide at ")
+			TEXT("25, so at ceiling %.2f%% that bucket is the ceiling's population only when the ceiling IS 25. ")
+			TEXT("aboveCeiling=%d is what the ceiling ACTUALLY excluded and is the number to read; the bucket is ")
+			TEXT("the distribution."),
+			CycleNumber, Params.CeilingPct, AboveCeiling);
+	}
 
 	FString NotMeasuredRows;
 	int32 NotMeasuredListed = 0;

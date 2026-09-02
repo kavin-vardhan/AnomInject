@@ -39,7 +39,8 @@ struct FAnomalyCensusEntry
 
 struct FAnomalyCensusParams
 {
-	float FloorPct = 6.0f;
+	float FloorPct = 0.5f;
+	float CeilingPct = 25.0f;
 	int32 MaxVerdictAgeTicks = 12;
 	bool bExcludeTranslucent = true;
 	bool bLeakProbe = false;
@@ -54,6 +55,7 @@ struct FAnomalyCensusCounters
 	int32 Zero = 0;
 	int32 NonZero = 0;
 	int32 BelowFloor = 0;
+	int32 AboveCeiling = 0;
 	int32 ExcludedTranslucent = 0;
 	int32 UnmeasurableNanite = 0;
 	int32 UnmeasurableTagFailed = 0;
@@ -89,6 +91,7 @@ public:
 	bool ConsumeCycleJustCompleted();
 
 	FAnomalyCensusOpinion QueryActor(const AActor* Actor) const;
+	bool IsCeilingEnabled() const { return Params.CeilingPct > 0.0f; }
 	bool HasCompletedACycle() const { return CycleNumber > 0 && Counters.Cycles > 0; }
 	void NoteFireAllFallback(bool bAllFallback);
 

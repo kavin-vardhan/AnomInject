@@ -371,6 +371,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		CensusFloorPct = FMath::Clamp(ConfigCensusFloor, 0.0f, 100.0f);
 		bCensusFloorFromIni = true;
 	}
+	float ConfigCensusCeiling = 0.0f;
+	if (GConfig && GConfig->GetFloat(TEXT("AnomalyCapture"), TEXT("CensusMaxDrawnCoveragePctDefault"), ConfigCensusCeiling, GGameIni))
+	{
+		CensusCeilingPct = FMath::Clamp(ConfigCensusCeiling, -1.0f, 100.0f);
+		bCensusCeilingFromIni = true;
+	}
 	int32 ConfigCensusAge = 0;
 	if (GConfig && GConfig->GetInt(TEXT("AnomalyCapture"), TEXT("CensusMaxVerdictAgeTicksDefault"), ConfigCensusAge, GGameIni))
 	{
@@ -448,7 +454,7 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		TEXT("across modes. Inert while the mask itself is off."),
 		LexToStringAnomalyMaskReduceMode(GMaskReduceMode), DescribeMaskReduceSource());
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Capture(census): m36 AT INIT - census %s (from %s), floor=%.2f%% (from %s), maxVerdictAgeTicks=%d, ")
+		TEXT("Capture(census): m36/m37 AT INIT - census %s (from %s), floor=%.2f%% (from %s), maxVerdictAgeTicks=%d, ")
 		TEXT("excludeTranslucent=%d. The census measures DRAWN PIXELS per selection candidate through the m26 ")
 		TEXT("mask + m34 reduce, UPSTREAM of selection; the armed-frame measurement and the zero-only veto are ")
 		TEXT("unchanged and remain the backstop. It requires the mask and async capture; the EFFECTIVE value ")
@@ -1011,7 +1017,56 @@ const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusFloorSource() const
 	{
 		return TEXT("DefaultGame.ini [AnomalyCapture] CensusMinDrawnCoveragePctDefault");
 	}
-	return TEXT("COMPILED DEFAULT (6.0)");
+	return TEXT("COMPILED DEFAULT (0.5)");
+}
+
+const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusCeilingSource() const
+{
+	if (bCensusCeilingFromConsole)
+	{
+		return TEXT("IAI.Capture.CensusCeiling (console)");
+	}
+	if (bCensusCeilingFromIni)
+	{
+		return TEXT("DefaultGame.ini [AnomalyCapture] CensusMaxDrawnCoveragePctDefault");
+	}
+	return TEXT("COMPILED DEFAULT (25.0)");
+}
+
+void UAnomalyCaptureSubsystem::SetCensusCeilingPct(float InPct)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.CensusCeiling: ignored - a capture run is in progress."));
+		return;
+	}
+	if (InPct > 100.0f)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Capture.CensusCeiling: %.2f is above 100 and is REFUSED (out-of-range is refused, never ")
+			TEXT("clamped). Current value unchanged (%.2f)."), InPct, CensusCeilingPct);
+		return;
+	}
+	CensusCeilingPct = InPct;
+	bCensusCeilingFromIni = false;
+	bCensusCeilingFromConsole = true;
+	if (InPct > 0.0f)
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("IAI.Capture.CensusCeiling: %.2f%% - the census eligibility CEILING on MEASURED DRAWN coverage. ")
+			TEXT("The band is INCLUSIVE: a candidate is eligible iff floor <= coverage <= ceiling. A MEASURED ")
+			TEXT("NON-ZERO candidate ABOVE the ceiling is EXCLUDED CATEGORICALLY, because at scenery scale the ")
+			TEXT("LABEL is unusable - not because the anomaly fails. Takes effect BETWEEN RUNS."),
+			CensusCeilingPct);
+	}
+	else
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Capture.CensusCeiling: %.2f - the ceiling is DISABLED (<= 0). NO upper bound is applied and ")
+			TEXT("scenery-scale targets ARE eligible. This is a real setting, not an error, and StartRun says so ")
+			TEXT("out loud so a disabled ceiling can never read like a healthy one."),
+			CensusCeilingPct);
+	}
 }
 
 const TCHAR* UAnomalyCaptureSubsystem::DescribeTickPinSource() const
@@ -1378,6 +1433,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	bCensusEffective = bCensus && bMaskMeasure && bAsyncCapture;
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture(census): EFFECTIVE FOR THIS RUN - census %s (requested %s, from %s), floor=%.2f%%(from %s), ")
+		TEXT("ceiling=%s(from %s) [band is INCLUSIVE: eligible iff floor <= coverage <= ceiling], ")
 		TEXT("maxVerdictAgeTicks=%d(%s), excludeTranslucent=%d(%s), reservation=%d === READ THIS LINE, NOT THE INI. ")
 		TEXT("The census measures DRAWN PIXELS per selection candidate (m26 mask + m34 reduce, rolling batches ")
 		TEXT("upstream of selection); the armed-frame measurement and the ZERO-ONLY veto are unchanged and remain ")
@@ -1385,6 +1441,10 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		bCensusEffective ? TEXT("ON") : TEXT("off"),
 		bCensus ? TEXT("on") : TEXT("off"), DescribeCensusSource(),
 		CensusFloorPct, DescribeCensusFloorSource(),
+		(CensusCeilingPct > 0.0f)
+			? *FString::Printf(TEXT("%.2f%%"), CensusCeilingPct)
+			: TEXT("DISABLED (<=0; NO upper bound is applied and scenery-scale targets ARE eligible)"),
+		DescribeCensusCeilingSource(),
 		CensusMaxVerdictAgeTicks,
 		bCensusMaxAgeFromConsole ? TEXT("console") : (bCensusMaxAgeFromIni ? TEXT("ini") : TEXT("compiled")),
 		bCensusExcludeTranslucent ? 1 : 0,
@@ -1563,6 +1623,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	{
 		FAnomalyCensusParams CensusParams;
 		CensusParams.FloorPct = CensusFloorPct;
+	CensusParams.CeilingPct = CensusCeilingPct;
 		CensusParams.MaxVerdictAgeTicks = CensusMaxVerdictAgeTicks;
 		CensusParams.bExcludeTranslucent = bCensusExcludeTranslucent;
 		CensusParams.bLeakProbe = bCensusLeakProbe && !bDeliveryMode;
@@ -3872,8 +3933,8 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusFloorCmd(
 	TEXT("selectable. DELIBERATELY a separate knob from IAI.SetMinScreenCoverage (whose operand stays the ")
 	TEXT("BOUNDS rect and which still governs the NOT_MEASURABLE fallback path). Out-of-range is REFUSED, ")
 	TEXT("never clamped. PRECEDENCE: console > DefaultGame.ini [AnomalyCapture] ")
-	TEXT("CensusMinDrawnCoveragePctDefault > compiled 6.0. Takes effect BETWEEN RUNS; the effective value ")
-	TEXT("echoes at StartRun. Usage: IAI.Capture.CensusFloor <pct>"),
+	TEXT("CensusMinDrawnCoveragePctDefault > compiled 0.5 (m37 lowered it from 6.0). Takes effect BETWEEN ")
+	TEXT("RUNS; the effective value echoes at StartRun. Usage: IAI.Capture.CensusFloor <pct>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
@@ -3885,6 +3946,31 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusFloorCmd(
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
 			{
 				Cap->SetCensusFloorPct(FCString::Atof(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusCeilingCmd(
+	TEXT("IAI.Capture.CensusCeiling"),
+	TEXT("m37 - the census eligibility CEILING, as a PERCENT of the view-rect area of MEASURED DRAWN pixels ")
+	TEXT("(drawn_px/frame_px), compiled default 25.0. The band is INCLUSIVE: a candidate is eligible iff ")
+	TEXT("floor <= coverage <= ceiling. A MEASURED_NONZERO candidate ABOVE the ceiling is EXCLUDED ")
+	TEXT("CATEGORICALLY - at scenery scale the LABEL is unusable, which is NOT the same as the anomaly ")
+	TEXT("failing (a landscape hide blacks the frame and boxes half of it). SET <= 0 TO DISABLE the ceiling ")
+	TEXT("entirely; StartRun says DISABLED out loud so a disabled ceiling can never read like a healthy one. ")
+	TEXT("Above 100 is REFUSED, never clamped. PRECEDENCE: console > DefaultGame.ini [AnomalyCapture] ")
+	TEXT("CensusMaxDrawnCoveragePctDefault > compiled 25.0. Takes effect BETWEEN RUNS; the effective value ")
+	TEXT("echoes at StartRun. Usage: IAI.Capture.CensusCeiling <pct>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.CensusCeiling <pct>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetCensusCeilingPct(FCString::Atof(*Args[0]));
 			}
 		}));
 

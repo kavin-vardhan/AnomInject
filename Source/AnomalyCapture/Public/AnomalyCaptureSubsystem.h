@@ -78,6 +78,8 @@ public:
 	bool IsCensus() const { return bCensus; }
 	void SetCensusFloorPct(float InPct);
 	float GetCensusFloorPct() const { return CensusFloorPct; }
+	void SetCensusCeilingPct(float InPct);
+	float GetCensusCeilingPct() const { return CensusCeilingPct; }
 	void SetCensusMaxVerdictAgeTicks(int32 InTicks);
 	int32 GetCensusMaxVerdictAgeTicks() const { return CensusMaxVerdictAgeTicks; }
 	void SetCensusExcludeTranslucent(bool bInExclude);
@@ -134,6 +136,7 @@ private:
 	void RunStencilHygieneCheck(bool bFinal);
 	const TCHAR* DescribeCensusSource() const;
 	const TCHAR* DescribeCensusFloorSource() const;
+	const TCHAR* DescribeCensusCeilingSource() const;
 	void OnEndFrameMaskSample();
 	void OnWorldTickEndMask(UWorld* World, ELevelTick TickType, float DeltaSeconds);
 	bool HasGameWindow(UWorld* World) const;
@@ -280,9 +283,12 @@ private:
 	bool bCensus = false;
 	bool bCensusFromIni = false;
 	bool bCensusEffective = false;
-	float CensusFloorPct = 6.0f;
+	float CensusFloorPct = 0.5f;
 	bool bCensusFloorFromIni = false;
 	bool bCensusFloorFromConsole = false;
+	float CensusCeilingPct = 25.0f;
+	bool bCensusCeilingFromIni = false;
+	bool bCensusCeilingFromConsole = false;
 	int32 CensusMaxVerdictAgeTicks = 12;
 	bool bCensusMaxAgeFromIni = false;
 	bool bCensusMaxAgeFromConsole = false;

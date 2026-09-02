@@ -519,6 +519,7 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("census_candidates"), Census->Candidates);
 			Root->SetNumberField(TEXT("census_zero"), Census->Zero);
 			Root->SetNumberField(TEXT("census_below_floor"), Census->BelowFloor);
+			Root->SetNumberField(TEXT("census_above_ceiling"), Census->AboveCeiling);
 			Root->SetNumberField(TEXT("census_excluded_translucent"), Census->ExcludedTranslucent);
 			Root->SetNumberField(TEXT("census_fires_fallback_all"), Census->FiresFallbackAll);
 			Root->SetNumberField(TEXT("census_unmeasurable_nanite"), Census->UnmeasurableNanite);

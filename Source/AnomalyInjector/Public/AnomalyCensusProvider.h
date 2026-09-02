@@ -11,6 +11,7 @@ enum class EAnomalyCensusDecision : uint8
 	Eligible,
 	ExcludedZero,
 	ExcludedBelowFloor,
+	ExcludedAboveCeiling,
 	ExcludedTranslucent,
 	FallbackBounds
 };
