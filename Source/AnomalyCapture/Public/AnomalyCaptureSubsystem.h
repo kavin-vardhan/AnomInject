@@ -9,6 +9,7 @@
 
 struct FAnomalyCaptureAsyncState;
 class FAnomalyPreviewTee;
+class FAnomalyRunLog;
 
 UCLASS()
 class ANOMALYCAPTURE_API UAnomalyCaptureSubsystem : public UTickableWorldSubsystem
@@ -97,6 +98,11 @@ public:
 	void SetLabelsInDelivery(bool bInWrite);
 	bool GetLabelsInDelivery() const { return bLabelsInDelivery; }
 
+	void SetRunLog(int32 InState);
+	int32 GetRunLogOverride() const { return RunLogOverride; }
+	void SetRunLogVerbose(bool bInVerbose);
+	bool IsRunLogVerbose() const { return bRunLogVerbose; }
+
 	void SetOutputHeightOverride(int32 InHeight);
 	int32 GetOutputHeightOverride() const { return OutputHeightOverride; }
 	int32 GetEffectiveOutputHeight() const { return EffectiveOutputHeight; }
@@ -133,6 +139,9 @@ private:
 	};
 
 	void BeginActualRun();
+	void StartRunLog();
+	void EndRunLog();
+	bool ResolveRunLogEffective(FString& OutSource) const;
 	void RunStencilHygieneCheck(bool bFinal);
 	const TCHAR* DescribeCensusSource() const;
 	const TCHAR* DescribeCensusFloorSource() const;
@@ -309,6 +318,15 @@ private:
 	EContentClock ContentClock = EContentClock::Wall;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;
 	TUniquePtr<FAnomalyPreviewTee> PreviewTee;
+
+	TUniquePtr<FAnomalyRunLog> RunLog;
+	int32 RunLogOverride = -1;
+	int32 RunLogIni = -1;
+	bool bRunLogFromIni = false;
+	bool bRunLogVerbose = false;
+	bool bRunLogVerboseFromIni = false;
+	bool bRunLogVerbosityRaised = false;
+	uint8 RunLogSavedVerbosity = 0;
 
 #if WITH_EDITOR
 	bool bSavedShowMouseControlLabel = false;

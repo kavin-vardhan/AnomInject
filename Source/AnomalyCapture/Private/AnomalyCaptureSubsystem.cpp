@@ -16,7 +16,9 @@
 #include "AnomalyPreviewTee.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyDefaults.h"
+#include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
+#include "AnomalyRunLog.h"
 #include "AnomalyFrameCapturer.h"
 #include "AnomalySveCapturer.h"
 #include "AnomalySceneViewExtension.h"
@@ -430,6 +432,18 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bLabelsInDelivery = bConfigLabelsInDelivery;
 		bLabelsInDeliveryFromIni = true;
 	}
+	int32 ConfigRunLog = -1;
+	if (GConfig && GConfig->GetInt(TEXT("AnomalyCapture"), TEXT("RunLogDefault"), ConfigRunLog, GGameIni))
+	{
+		RunLogIni = FMath::Clamp(ConfigRunLog, -1, 1);
+		bRunLogFromIni = true;
+	}
+	bool bConfigRunLogVerbose = false;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bRunLogVerboseDefault"), bConfigRunLogVerbose, GGameIni))
+	{
+		bRunLogVerbose = bConfigRunLogVerbose;
+		bRunLogVerboseFromIni = true;
+	}
 	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (idle Ã¢â‚¬â€ use IAI.Capture.Start). Delivery mode: %s. Content clock: %s. Focus gate: %s. Grab point: %s (%s), default from %s."),
 		bDeliveryMode ? TEXT("ON (client-facing output only)") : TEXT("off (full fidelity)"),
 		ContentClock == EContentClock::Game ? TEXT("game (stamp target fps)") : TEXT("wall (stamp sustained on slow runs)"),
@@ -469,6 +483,21 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bOutputHeightFromIni
 			? *FString::Printf(TEXT("%d, from DefaultGame.ini [AnomalyCapture] CaptureOutputHeightDefault"), OutputHeightIni)
 			: TEXT("not set; no ini key present, so the compiled default 0 (native) stands unless overridden"));
+	{
+		FString RunLogInitSource;
+		const bool bRunLogInitEffective = ResolveRunLogEffective(RunLogInitSource);
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(runlog): m38 AT INIT - run log would be %s (%s), verboseKnob=%d (from %s). The run log is a ")
+			TEXT("run-scoped copy of LogAnomaly + LogAnomalyCapture written to anomaly_log.txt beside annotation.json, ")
+			TEXT("so a capture carries its own explanation and survives a log rotation. Three-state: -1 auto (mirrors ")
+			TEXT("run.json - on when delivery is off), 0 off, 1 on. This is the INIT LEVEL ONLY; the EFFECTIVE value ")
+			TEXT("for a run is echoed at IAI.Capture.Start."),
+			bRunLogInitEffective ? TEXT("ON") : TEXT("OFF"), *RunLogInitSource,
+			bRunLogVerbose ? 1 : 0,
+			bRunLogVerboseFromIni
+				? TEXT("DefaultGame.ini [AnomalyCapture] bRunLogVerboseDefault")
+				: TEXT("COMPILED DEFAULT (off); IAI.Capture.RunLogVerbose 1 raises LogAnomaly to Verbose FOR ONE RUN and restores it"));
+	}
 #if WITH_EDITOR
 	if (ULevelEditorPlaySettings* PlaySettings = GetMutableDefault<ULevelEditorPlaySettings>())
 	{
@@ -487,6 +516,7 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 	bDeinitializing = true;
 	StopRun();
 #if ANOMALY_CAPTURE
+	EndRunLog();
 	if (MaskEndFrameHandle.IsValid())
 	{
 		FCoreDelegates::OnEndFrame.Remove(MaskEndFrameHandle);
@@ -1333,6 +1363,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	}
 	LastRunDir = RunDir;
 
+	StartRunLog();
+
 	int32 VW = 0, VH = 0;
 	if (UGameViewportClient* GV = World->GetGameViewport())
 	{
@@ -1530,6 +1562,171 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	}
 #else
 	UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: capture compiled out (ANOMALY_CAPTURE=0)."));
+#endif
+}
+
+bool UAnomalyCaptureSubsystem::ResolveRunLogEffective(FString& OutSource) const
+{
+#if ANOMALY_CAPTURE
+	if (RunLogOverride >= 0)
+	{
+		OutSource = FString::Printf(TEXT("forced %s, from IAI.Capture.RunLog"),
+			RunLogOverride != 0 ? TEXT("ON") : TEXT("OFF"));
+		return RunLogOverride != 0;
+	}
+	if (bRunLogFromIni && RunLogIni >= 0)
+	{
+		OutSource = FString::Printf(TEXT("forced %s, from DefaultGame.ini [AnomalyCapture] RunLogDefault"),
+			RunLogIni != 0 ? TEXT("ON") : TEXT("OFF"));
+		return RunLogIni != 0;
+	}
+	OutSource = FString::Printf(TEXT("auto, from delivery=%s"), bDeliveryMode ? TEXT("on") : TEXT("off"));
+	return !bDeliveryMode;
+#else
+	OutSource = TEXT("compiled out");
+	return false;
+#endif
+}
+
+void UAnomalyCaptureSubsystem::StartRunLog()
+{
+#if ANOMALY_CAPTURE
+	FString Source;
+	const bool bWant = ResolveRunLogEffective(Source);
+
+	if (bWant)
+	{
+		const FString Path = FPaths::Combine(RunDir, TEXT("anomaly_log.txt"));
+		const FString Header = FString::Printf(
+			TEXT("# anomaly_log.txt - LogAnomaly + LogAnomalyCapture for THIS RUN ONLY. session=%s dir=%s ")
+			TEXT("| timestamps are forced UTC and the bracketed number is GFrameCounter modulo 1000, regardless of ")
+			TEXT("this build's log.Timestamp setting, so a line here joins to labels.jsonl frame_index. ")
+			TEXT("| written and flushed ONE LINE AT A TIME, so a process killed mid-run still leaves everything ")
+			TEXT("logged before the kill."),
+			*SessionId, *RunDir);
+
+		RunLog = MakeUnique<FAnomalyRunLog>();
+		if (RunLog->Open(Path, Header))
+		{
+			GLog->AddOutputDevice(RunLog.Get());
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(runlog): EFFECTIVE FOR THIS RUN - run log ON (%s) -> %s"), *Source, *Path);
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(runlog): this file carries LogAnomaly and LogAnomalyCapture ONLY, for this run only. ")
+				TEXT("It is CLOSED at FinishRun, so any async-writer tail lines emitted after that point are in the ")
+				TEXT("MAIN log ONLY and will not appear here."));
+		}
+		else
+		{
+			RunLog.Reset();
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(runlog): EFFECTIVE FOR THIS RUN - run log was ON (%s) but the file could NOT be opened ")
+				TEXT("at %s, so NO anomaly_log.txt will be written. Reported rather than silently degraded: a run ")
+				TEXT("with no run log must never read like a run that was not asked for one."),
+				*Source, *Path);
+		}
+	}
+	else
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(runlog): EFFECTIVE FOR THIS RUN - run log OFF (%s) - NO anomaly_log.txt will be written."),
+			*Source);
+	}
+
+	if (bRunLogVerbose && !bRunLogVerbosityRaised)
+	{
+		RunLogSavedVerbosity = (uint8)LogAnomaly.GetVerbosity();
+		LogAnomaly.SetVerbosity(ELogVerbosity::Verbose);
+		bRunLogVerbosityRaised = true;
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(runlog): VERBOSITY RAISED - LogAnomaly %s(%d) -> Verbose(%d) FOR THIS RUN ONLY, and it is ")
+			TEXT("RESTORED at FinishRun. The blinking toggle line is Verbose (Anomaly_Blinking.cpp:95) and is absent ")
+			TEXT("from any run that did not ask for it. The device FILTERS; this knob is the only thing that RAISES, ")
+			TEXT("and it never leaves the level changed."),
+			::ToString((ELogVerbosity::Type)RunLogSavedVerbosity), (int32)RunLogSavedVerbosity,
+			(int32)ELogVerbosity::Verbose);
+		UE_LOG(LogAnomaly, Verbose, TEXT("Capture(runlog): RUNLOG-VERBOSE-PROBE raised=1"));
+	}
+#endif
+}
+
+void UAnomalyCaptureSubsystem::EndRunLog()
+{
+#if ANOMALY_CAPTURE
+	if (bRunLogVerbosityRaised)
+	{
+		LogAnomaly.SetVerbosity((ELogVerbosity::Type)RunLogSavedVerbosity);
+		bRunLogVerbosityRaised = false;
+		UE_LOG(LogAnomaly, Verbose, TEXT("Capture(runlog): RUNLOG-VERBOSE-PROBE raised=0"));
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(runlog): VERBOSITY RESTORED - LogAnomaly is back to %s(%d). The paired probe is the proof ")
+			TEXT("BOTH WAYS: RUNLOG-VERBOSE-PROBE raised=1 is present because the raise took, and raised=0 is ABSENT ")
+			TEXT("because the restore took. A restore never shown to suppress anything is not a restore."),
+			::ToString((ELogVerbosity::Type)RunLogSavedVerbosity), (int32)RunLogSavedVerbosity);
+	}
+
+	if (!RunLog.IsValid())
+	{
+		return;
+	}
+
+	const FString Path = RunLog->GetFilePath();
+	const int32 Lines = RunLog->GetLinesWritten();
+
+	GLog->RemoveOutputDevice(RunLog.Get());
+	RunLog->Close(TEXT("# closed at FinishRun; any writer tail lines after this point are in the main log only."));
+	RunLog.Reset();
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(runlog): CLOSED %s (%d line(s) plus the close marker). This line itself is in the MAIN log only ")
+		TEXT("- the device was already removed when it was emitted, which is the same reason the writer's tail lines ")
+		TEXT("are."),
+		*Path, Lines);
+#endif
+}
+
+void UAnomalyCaptureSubsystem::SetRunLog(int32 InState)
+{
+#if ANOMALY_CAPTURE
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.RunLog: ignored - a capture run is in progress."));
+		return;
+	}
+	if (InState < -1 || InState > 1)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Capture.RunLog: %d is outside [-1..1] and is REFUSED (out-of-range is refused, never clamped). ")
+			TEXT("Current value unchanged (%d)."),
+			InState, RunLogOverride);
+		return;
+	}
+	RunLogOverride = InState;
+	FString Source;
+	const bool bEff = ResolveRunLogEffective(Source);
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.RunLog: EFFECTIVE READ-BACK = %s (%s). -1 auto mirrors run.json (ON when delivery is off), ")
+		TEXT("0 off, 1 on. Takes effect at the next IAI.Capture.Start, not mid-run. It adds ONE FILE, ")
+		TEXT("anomaly_log.txt; no artifact field moves."),
+		bEff ? TEXT("ON") : TEXT("OFF"), *Source);
+#endif
+}
+
+void UAnomalyCaptureSubsystem::SetRunLogVerbose(bool bInVerbose)
+{
+#if ANOMALY_CAPTURE
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.RunLogVerbose: ignored - a capture run is in progress."));
+		return;
+	}
+	bRunLogVerbose = bInVerbose;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.RunLogVerbose: EFFECTIVE READ-BACK = %d. ON raises LogAnomaly to Verbose FOR THE DURATION ")
+		TEXT("OF ONE RUN and RESTORES the prior level at FinishRun, echoing both transitions. It is SEPARATE from ")
+		TEXT("the run log itself, which only ever FILTERS and never raises. Takes effect at the next ")
+		TEXT("IAI.Capture.Start."),
+		bRunLogVerbose ? 1 : 0);
 #endif
 }
 
@@ -3035,6 +3232,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 	if (!bWroteSession)
 	{
+		EndRunLog();
 		IFileManager::Get().DeleteDirectory(*RunDir, false, true);
 		if (bLogLine)
 		{
@@ -3155,6 +3353,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		}
 		bAutoWasRunning = false;
 	}
+
+	EndRunLog();
 }
 
 void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireInfo>& Fires,
@@ -3668,6 +3868,53 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureDeliveryLabelsCmd(
 				return;
 			}
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetLabelsInDelivery(FCString::Atoi(*Args[0]) != 0); }
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureRunLogCmd(
+	TEXT("IAI.Capture.RunLog"),
+	TEXT("m38 THE RUN-SCOPED SESSION LOG. Writes anomaly_log.txt beside annotation.json holding this run's ")
+	TEXT("LogAnomaly and LogAnomalyCapture lines and NOTHING ELSE, so a capture carries its own explanation and ")
+	TEXT("survives the engine rotating its main log on the next launch. THREE-STATE: -1 AUTO, 0 OFF, 1 ON. AUTO ")
+	TEXT("MIRRORS run.json - on when delivery mode is off, off when it is on - so a client-facing capture stays ")
+	TEXT("minimal unless you force it. Out-of-range is REFUSED, never clamped. It adds ONE FILE and moves NO ")
+	TEXT("artifact field: annotation.json and run_summary.json keysets are unchanged. The device FILTERS by ")
+	TEXT("category and NEVER changes verbosity - IAI.Capture.RunLogVerbose is the separate knob that does that. ")
+	TEXT("The packaged default is read at startup from DefaultGame.ini [AnomalyCapture] RunLogDefault; this ")
+	TEXT("command overrides it for the session, BETWEEN RUNS. Read the effective value and its provenance from ")
+	TEXT("the StartRun echo (Capture(runlog): EFFECTIVE FOR THIS RUN ...), never from this help text. ")
+	TEXT("Usage: IAI.Capture.RunLog <-1|0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.RunLog <-1|0|1>  (-1 auto, 0 off, 1 on)"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetRunLog(FCString::Atoi(*Args[0])); }
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureRunLogVerboseCmd(
+	TEXT("IAI.Capture.RunLogVerbose"),
+	TEXT("m38 RAISE LogAnomaly TO Verbose FOR THE DURATION OF ONE RUN, AND RESTORE IT AT FinishRun. Default OFF. ")
+	TEXT("This is DELIBERATELY SEPARATE from IAI.Capture.RunLog: the run log only ever FILTERS lines that are ")
+	TEXT("already being emitted, and a run that silently changed global log verbosity and left it changed would be ")
+	TEXT("a defect, not a feature. Both transitions are echoed - a VERBOSITY RAISED line naming the level being ")
+	TEXT("saved, and a VERBOSITY RESTORED line naming the level put back - and a paired RUNLOG-VERBOSE-PROBE line ")
+	TEXT("proves it BOTH WAYS inside the same run: raised=1 appears, raised=0 does not. The reason to want it is ")
+	TEXT("the blinking toggle line, which is Verbose (Anomaly_Blinking.cpp:95) and is therefore absent from every ")
+	TEXT("run that did not ask for it. Takes effect at the next IAI.Capture.Start, not mid-run. The packaged ")
+	TEXT("default is read at startup from DefaultGame.ini [AnomalyCapture] bRunLogVerboseDefault. ")
+	TEXT("Usage: IAI.Capture.RunLogVerbose <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.RunLogVerbose <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World)) { Cap->SetRunLogVerbose(FCString::Atoi(*Args[0]) != 0); }
 		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GCaptureMaskCmd(

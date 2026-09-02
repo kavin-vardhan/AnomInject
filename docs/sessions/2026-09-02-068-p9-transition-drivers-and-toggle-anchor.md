@@ -624,3 +624,237 @@ per-run and not per-process.
 Two lines under the workflow rules: briefs arrive as files via
 **`D:\IntrusiveAnomalies\_mailbox`** (outside every repo, never written into, never staged), and in
 a headless run **the final message is the report**.
+
+---
+
+## §5 `m38` — THE RUN-SCOPED SESSION LOG. **BUILT, GATED, SHIPPED.**
+
+> **Pre-declared gates: `docs/predictions/2026-09-02-m38-run-log.md`, commit `ba0982c`, written and
+> committed BEFORE any source existed.** Read that file before reading any result here.
+> **Plan: journal 067 §16**, unchanged except gate (i)'s marker set (§4.1) and the new gate (v).
+
+### §5.1 Build identity — `G121`'s quartet, and only the exe half moves
+
+| | |
+|---|---|
+| **predecessor** | **`6C80E872`** (m37), 241,036,800 B — already archived as `_binary_baselines\StackOBot.exe.m37-census-defaults-6C80E872` and **re-hashed at the archive before the swap** (`A62`): reads `6C80E872`. |
+| **new staged exe** | **`F2FA6BCD`**, 241,061,376 B, archived as `_binary_baselines\StackOBot.exe.m38-runlog-F2FA6BCD`, hash-verified **at the archive** after the copy. |
+| **container** | ⛔ **UNCHANGED. NO COOK.** Code-only hot-swap (`G103`). |
+| **census** | still **compiled OFF**; `master` stays client-inert. |
+
+**A44 on the STAGED artifact, both encodings** (`§8.2`):
+
+| symbol | ascii | utf16 |
+|---|---|---|
+| `anomaly_log.txt` | 0 | **7** |
+| `IAI.Capture.RunLogVerbose` | 0 | **7** |
+| `RUNLOG-VERBOSE-PROBE` | 0 | **4** |
+| `Capture(runlog)` | 0 | **11** |
+| `RunLogDefault` | 0 | **3** |
+| *`IsHideTypeAnomaly`* (the runbook's example control) | 0 | **0** |
+
+⚠ **The control reads 0 because it is the KNOWN-STALE one** — renamed at session 053 and already flagged
+in the status block. The scan is **not blind**: five new symbols match in UTF-16 and none in ASCII,
+which is the expected shape. 📌 The runbook's §8.2 example control should be replaced with a live
+symbol; **filed, not fixed** (it is a docs edit inside a gating turn).
+
+### §5.2 Requirements (1)–(8), each with where it is met
+
+| # | requirement | met at |
+|---|---|---|
+| 1 | `FOutputDevice`, filters **`LogAnomaly` + `LogAnomalyCapture` only**, writes `anomaly_log.txt` beside `annotation.json` | class `AnomalyRunLog.h:10`; filter `AnomalyRunLog.cpp:23-26` (`AcceptsCategory`) applied at `:100`; path built `AnomalyCaptureSubsystem.cpp:1594` |
+| 2 | registered at `StartRun` **after `RunDir` exists** | `StartRunLog()` called at `AnomalyCaptureSubsystem.cpp:1339`, immediately after `LastRunDir = RunDir;` and **after** the `MakeDirectory` success check at `:1319-1333`; `GLog->AddOutputDevice` at `:1606` |
+| 3 | flush + `GLog->RemoveOutputDevice` on **every** teardown path | `EndRunLog()` at `:1652`; `RemoveOutputDevice` **before** `Close()` at `:1678-1679`. Four call sites: `FinishRun` cancelled branch `:3300` (before `DeleteDirectory` `:3301`) · `FinishRun` last statement `:3423` · `Deinitialize` `:503` · destructor `AnomalyRunLog.cpp:19-22` |
+| 4 | `FCriticalSection` around the write, callable from any thread | `AnomalyRunLog.h:34` (`CS`); `CanBeUsedOnAnyThread`/`CanBeUsedOnMultipleThreads` both true at `:26-27`; every entry point takes `FScopeLock` |
+| 5 | verbosity never silently changed; separate knob raises **and restores**, both echoed | raise `AnomalyCaptureSubsystem.cpp:1636-1648`; restore `:1655-1667`; the knob is `SetRunLogVerbose` `:1712` |
+| 6 | delivery default mirrors `run.json` (auto = `!bDeliveryMode`), three-state `−1/0/1`, console **and** ini | `ResolveRunLogEffective` `:1521-1542` (auto branch `:1539-1540`); ini `RunLogDefault` `:441-446`; console `IAI.Capture.RunLog` `:3874` |
+| 7 | `StartRun` echo states **state + path**, loud both ways | ON `:1608-1609`; OFF `:1629-1631`; open-failure `:1620-1625` |
+| 8 | post-`EndRun` writer lines go to the main log only — stated | in the echo `:1610-1613`; as the file's **last line** `:1679`; and in the CLOSED line `:1683-1687`, which itself says it is in the main log only |
+
+⛔ **NO ARTIFACT FIELD WAS ADDED.** Gate (iv) measures it: `annotation.json` **48 keys** and
+`run_summary.json` **48 keys**, both **IDENTICAL** across the binary change. `P6` does not move.
+
+🎯 **ONE IMPLEMENTATION CHOICE THE PLAN DID NOT SPECIFY, MADE DELIBERATELY AND STATED IN THE FILE
+ITSELF: the run log formats every line with `ELogTimes::UTC` rather than with `GPrintLogTimes`**
+(`AnomalyRunLog.cpp:100`). ⇒ **the `[GFrameCounter % 1000]` prefix is present in `anomaly_log.txt`
+unconditionally, whatever a host's `log.Timestamp` is set to.** That is `P9`'s anchor (journal 068
+§1.3.3), and this makes it survive a host that has log timestamps switched off. It changes **no global
+state** — it is this file's own format — and the file's header line says so in words.
+
+### §5.3 GATE (i) — normal leg, NO-FLAGS. ✅ **PASS**
+
+⚠ **A finding, and `A48` is what caught it.** The first attempt at this gate issued **no console
+commands at all** — and the `EFFECTIVE FOR THIS RUN` echo read **`mask ON … from DefaultGame.ini
+[AnomalyCapture] bMaskMeasureDefault`**. **On this bench, "issue no flags" and "the no-flags
+configuration" are DIFFERENT THINGS**, because the project ini turns the mask on. That leg
+(`M38_G1_NOFLAGS`) is kept as a **mask-ON** observation; the gate was re-run with
+`IAI.Capture.Mask 0` to reach the ruled state. 📌 **Read the echo, never the invocation.**
+
+**Leg `M38_G1_MASKOFF`** — census OFF, mask OFF, delivery OFF, run log auto ⇒ ON.
+`pose_match=True`, bbox exactly `CALIB_BBOX`, accepted attempt 1. File **48,245 B, 287 lines.**
+
+| required marker | count | |
+|---|---|---|
+| `=== Capture run STARTED` | 1 | ✅ |
+| `Capture: grab point EFFECTIVE` | 1 | ✅ |
+| fire line (`Auto.FireSpecific` / `IAI.Apply`) | 8 / 8 | ✅ |
+| `IAI.Revert` | 8 | ✅ |
+| close marker **as the file's own last line** | 1, and it **is** line 287 | ✅ |
+
+**Also as predicted:** first line is the `#` header · categories present are **exactly**
+`LogAnomalyCapture` (246) and `LogAnomaly` (39) and nothing else · `Census: BEGIN`, `M23 PASS`,
+`M23 REDUCE`, `M26S*`, `M27 VETO`, `M36 STENCIL` all **0**.
+
+🎯 **OBSERVATION `P-FIN` — CONFIRMED. `=== Capture run FINISHED` IS INSIDE THE FILE** (count 1), as
+predicted from the close ordering. Recorded, **not graded**.
+
+✅ **OPTIONAL ITEM, DONE BECAUSE IT WAS CHEAP — leg `M38_OBS_CENSUS_ON`** (`IAI.Capture.Census 1`,
+mask ON from the ini): **810 lines, 241,587 B**, containing `Census: BEGIN` ×1, `Census: SUMMARY` ×1,
+`M36 STENCIL RESERVATION` ×1, `M23 PASS` ×105, and the close marker. ⇒ journal 067 §16.4's two
+surviving markers **do** appear — they were **conditional**, exactly as §4.1 recorded, and that is why
+they could not gate a no-flags run.
+
+### §5.4 GATE (ii) — delivery, both directions (`G96`). ✅ **PASS**
+
+| leg | echo, read from the log | file set | verdict |
+|---|---|---|---|
+| **`M38_G2A_DELIV_AUTO`** | `run log OFF (auto, from delivery=on) - NO anomaly_log.txt will be written.` | `annotation.json` · `labels.jsonl` · `run_summary.json` — **no `anomaly_log.txt`** | ✅ **ABSENT** |
+| **`M38_G2B_DELIV_FORCED`** | `run log ON (forced ON, from IAI.Capture.RunLog) -> …\anomaly_log.txt` | the same three **+ `anomaly_log.txt` (87,753 B)** | ✅ **PRESENT** |
+
+⚠ Both legs also confirm the rest of the delivery set is untouched: `run.json` and
+`selection_provenance.json` stay suppressed, `labels.jsonl` is still written.
+
+### §5.5 GATE (iii) — the handle-leak test, **done by literally deleting the folder**. ✅ **PASS, both legs**
+
+New harness `CaptureBench/tools/m38_gate3_abort.ps1` (local-only repo). **The session is banked BEFORE
+the delete**, so proving the folder can be removed never destroys the artifact that proves it.
+
+| leg | how it ended | file | close marker | `run FINISHED` | **`Remove-Item -Recurse -Force`** |
+|---|---|---|---|---|---|
+| **`M38_G3_STOP`** | `capture_stop` over the control server's WebSocket, **162 frames in**, reply `{"type":"capture_stopped","running":false,…}` | 63,419 B / **391 lines**, readable | ✅ present, **and it is the last line** | ✅ present | ✅ **SUCCEEDED** |
+| **`M38_G3_KILL`** | **hard `Stop-Process -Force`, 152 frames in.** `FinishRun` never ran | 54,273 B / **356 lines**, readable | ⛔ **ABSENT — correctly** | ⛔ absent | ✅ **SUCCEEDED** |
+
+🎯 **The kill leg's last line is a COMPLETE, UNTORN line** (`Capture(sve): keyed frame id=156
+submitted …`) — the per-line write-through policy (§0.1 of the predictions) doing exactly what it was
+declared to do. **Nothing logged before the kill was lost.**
+
+### §5.6 GATE (iv) — `P-C7` shape, re-anchored at `F2FA6BCD`. ✅ **PASS**
+
+**Pair, pose-matched and same-config:** `M38_BASE` (pre-m38 **`6C80E872`**) vs `M38_G1_NOFLAGS`
+(m38 **`F2FA6BCD`**). Both `pose_match=True`, `modal_rot=(0,0,0)`, bbox **exactly**
+`(0.0, 485.2, 306.1, 234.8)` = `CALIB_BBOX`, both accepted on attempt 1.
+
+**`m36_s1_pc7_check.py` — and it PROVED ITSELF AGAINST A KNOWN ANSWER FIRST (`A53`/`G96`):** proof 1
+(A vs A) clean, proof 2 (A vs perturbed-A) reported 2 differences. Then:
+
+| # | check | result |
+|---|---|---|
+| 1 | `annotation.json` keyset | **IDENTICAL, 48 keys** — the client key set did not move |
+| 2 | event set | **IDENTICAL, 8 events** |
+| 3 | `run_summary.json` keyset | **IDENTICAL, 48 keys — zero added keys** |
+| 4 | `run_summary` values outside the run-unique set | **identical** |
+| 5 | frame count | **identical, 90** |
+| 6 | `census_*` keys | **none either side** |
+
+**`compare_sessions.py`:** `annotation.json` differs on `/session_id` + `/video/path` **only**;
+`run_summary.json` on `speed_ratio`, `game_clock_speed_ratio`, `sustained_wall_fps` **only**;
+`run.json` on `session_id` + `start_time_utc` **only**. All six are in the declared run-unique set.
+`Actual_Frames`: **90 vs 90, names EQUAL**, bytes differ on 90/90 — **REPORTED, NOT GATED**, and
+expected twice over (`A47`, plus the CaptureBench marker changes every frame by construction).
+
+⚠ **`labels.jsonl` FIRST READ SHOWED 98 DIFFERING FIELDS, AND THAT WAS THE INSTRUMENT, NOT THE
+BUILD.** `compare_sessions.py` compares **positionally**, and `G162` records that labels.jsonl **row
+order varies run to run** (async writer completion order) — *the control pair exhibits it too*. The
+sound instrument is `G161`'s: **key by `session_index`**. Re-read that way:
+
+> **90 rows both sides · key sets IDENTICAL · total field differences across all 90 rows = 90, and
+> every one of them is `/t_wall`.**
+
+🎯 **That is TIGHTER than pre-declared.** The predictions allowed `frame_index`, `t` and `t_wall`;
+the measurement shows **only `t_wall`** — `frame_index` and `t` are identical, because both legs
+started at `start_frame=1` under a paced fixed timestep.
+
+**THE COMPARATOR HALF — ✅ NO COMPARATOR NEEDED EDITING, AND THE BASELINE IS RE-VERIFIED.** Every
+`.py`/`.ps1` in `CaptureBench/tools` was re-checked for directory enumeration: `compare_sessions.py:67`
+lists **`Actual_Frames` only**; `m36_s1_pc7_check.py:65` globs `Actual_Frames/frame_*.png`;
+`a54_oracle.py:213`, `p9_hidden_set.py:224`, `h5_pixel_change.py:40`, `cure_measurement_table.py:52`,
+`frame_stats.py:26`, `decode_marker.py:42`, `compare_traces.py:9` glob `Actual_Frames`;
+`resolution_delta.py:57` lists a frames dir; the bank sweeps glob for named files;
+`run_leg.ps1` banks with `Copy-Item -Recurse` (the new file rides along) and counts `Actual_Frames`
+only; `prune_verify.ps1` builds a **symmetric** manifest of two copies. **Nothing enumerates a session
+ROOT.**
+✅ **And it was exercised, not just read:** `m36_s1_pc7_check.py`, `compare_sessions.py`,
+`p9_hidden_set.py`, and (via `run_leg.ps1`) `eval_leg.py` and `check_pose.py` all ran **on sessions
+that contain `anomaly_log.txt`**, and all behaved normally.
+
+### §5.7 GATE (v) — the verbosity knob, both directions, in one leg. ✅ **PASS**
+
+**Leg `M38_G5_VERBOSE`** — mask OFF, `IAI.Capture.RunLogVerbose 1`, targeted `blinking`.
+⛔ Deliberately **not** run with the harness's `-VerboseAnomalyLog`, which would have raised
+`LogAnomaly` externally and made the restore probe meaningless.
+
+**PART 1 — the toggle lines, and this is TASK 1's PRE-DECLARED EXPECTATION MEETING A MEASUREMENT FOR
+THE FIRST TIME.** 23 `blinking toggle ->` lines. Interleaved with the fire and revert lines the
+sequence is:
+
+```
+APPLY HIDDEN VISIBLE HIDDEN REVERT   x 7
+APPLY HIDDEN VISIBLE        REVERT   x 1   (the frame-cap-truncated 8th burst)
+```
+
+🎯 **Seven complete events, each exactly `HIDDEN · VISIBLE · HIDDEN` followed by
+`IAI.Revert 'blinking' -> reverted.` — 21 lines — plus 2 from the truncated burst = 23.** The
+prediction was "21 graded, plus 0–2 read-not-graded"; the measurement is **21 + 2**. ⇒ **journal 068
+§1.1's driver map is CONFIRMED IN A LOG: three `Tick`-driven toggles at `Anomaly_Blinking.cpp:91`,
+then `Revert()` at `:106`.** ⛔ Still no mechanism for `P9` (B) — this is the bench, and the bench
+agrees with its labels.
+
+**PART 2 — the restore, proven BOTH WAYS.** Echoes:
+`VERBOSITY RAISED - LogAnomaly Log(5) -> Verbose(6) FOR THIS RUN ONLY` and
+`VERBOSITY RESTORED - LogAnomaly is back to Log(5)`.
+
+⚠ **A NAIVE `Select-String` COUNTED `RUNLOG-VERBOSE-PROBE raised=1` TWICE, AND THE PREDICTION SAID
+ONCE. THE BUILD IS RIGHT AND MY FIRST COUNT WAS WRONG** — `G142`'s shape, a defect in the checker
+found while reporting a pass. The second hit is line **314**, which is **my own `VERBOSITY RESTORED`
+echo quoting the token in its explanatory text**. Counting only lines whose message **is** the probe:
+
+| probe | emissions | means |
+|---|---|---|
+| `RUNLOG-VERBOSE-PROBE raised=1` (line 5, `LogAnomaly: Verbose:`) | **1** | the raise took |
+| `RUNLOG-VERBOSE-PROBE raised=0` | **0** | **the restore took** — the identical call is suppressed |
+
+📌 **Lesson, and it is mine: an echo that QUOTES its own evidence token corrupts the naive count of
+that token.** The fix is to count emissions, not mentions; the wording is otherwise worth keeping,
+because it explains the proof to a reader who has only the file.
+
+### §5.8 Two environmental findings, recorded without attribution
+
+1. ⚠ **THE GATE-(iv) BASELINE LEG FAILED `B1` THREE TIMES, THEN PASSED ON ATTEMPT 1.** The three
+   failures ran with **~3.6 GB physical memory free** (an editor at 4.56 GB resident — `G97`'s
+   permanent environmental fact); the accepted run was after the build, at **~8.1 GB free**, and
+   landed on `modal_rot=(0,0,0)` with the bbox **exactly** equal to `CALIB_BBOX`. **Every attempt is
+   banked** (`M38_BASE_try1..try3` from the first invocation). ⛔ **ASSOCIATION ONLY — THE CAUSE IS
+   NOT ESTABLISHED AND IS NOT ATTRIBUTED** (`G123`: a gate that fails safe still misleads if its
+   label names a cause it has not established). The discriminator print showed non-uniform ratios
+   with `modal_rot` displaced, which the harness's own table calls the A47 shape rather than
+   resolution scope — **that is a reading of the numbers, not a mechanism.**
+2. ⚠ **`G141` FIRED ON ME, AND THE MECHANICAL DIFFSTAT CHECK IS THE ONLY REASON IT DID NOT SHIP.**
+   Fixing a compile error with `Get-Content -Raw … | Set-Content -Encoding utf8` **added a UTF-8 BOM**
+   to `AnomalyCaptureSubsystem.cpp` (first bytes `239,187,191`), and the diffstat went from pure
+   insertions to `248 insertions / 1 deletion`. Stripped with `File.WriteAllBytes`; the diffstat
+   returned to **247 insertions / 0 deletions**. **The rule already existed and I broke it anyway;
+   the pre-commit diffstat habit (`G115`) is what caught it.**
+
+### §5.9 What was NOT done, named
+
+- ⛔ **NO TAG.** Highest remains `m30`. The office batch is now
+  `m31 → m33 → m34 → m35 → m36 → m37 → m38`.
+- ⛔ **No cook.** Container unchanged; `m38` reaches an office host only when that host's build is next
+  updated, and **Bates is sealed**.
+- ⛔ **No ini key was added to any shipping config.** `RunLogDefault` and `bRunLogVerboseDefault` are
+  *read* if present; neither is written into `DefaultGame.ini` here.
+- ⚠ **The `[AnomalyCapture] RunLogDefault` INI ROUTE IS UNTESTED** — only the console route and the
+  shared resolve/echo path are proven (`G88`'s standing caveat, the same one `m27` carried for
+  `bMaskMeasureDefault`). The auto and console branches are both measured; the ini branch is the same
+  code path with a different source string.
+- ⚠ **Runbook §8.2's A44 example control `IsHideTypeAnomaly` is STALE** — filed, not fixed.

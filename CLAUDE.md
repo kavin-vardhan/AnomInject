@@ -18,7 +18,9 @@ and is the single source of truth for the project.
 > **`master` carries m34 + m35 + m36 + m37**, all by merge or direct commit on master.
 > ⚠ **SHA-INVARIANT PHRASING ON PURPOSE:** the tip moves with every docs commit — **`git rev-parse
 > origin/master` is the authority**, never a SHA written here.
-> 📦 **Staged bench exe `6C80E872`** (m37). ⛔ **`D2BB25A5` STAYS LOAD-BEARING** — it is the `P-C7`
+> 📦 **Staged bench exe `F2FA6BCD`** (m38, 241,061,376 B, archived
+> `_binary_baselines\StackOBot.exe.m38-runlog-F2FA6BCD`). Predecessor **`6C80E872`** (m37) archived and
+> re-hashed at the archive before the swap. ⛔ **`D2BB25A5` STAYS LOAD-BEARING** — it is the `P-C7`
 > A-side for m37's gate (a) and the exe every `P9` bench leg ran on; **its freeze is RETIRED**.
 > Container unchanged throughout — **no cook**. ⚠ `6C80E872` is a **new `G140` boundary for
 > census-ON legs**; census-OFF stays comparable.
@@ -27,11 +29,21 @@ and is the single source of truth for the project.
 > **`m37` = census selection defaults — ✅ DONE** (floor `0.5`, ceiling `25.0` inclusive,
 > above-ceiling EXCLUDED with counter + token, `≤ 0` DISABLES with a loud echo; census compiled
 > default stays **OFF** ⇒ client-inert, measured).
-> **`m38` = the run-scoped session log — ✅ PLAN APPROVED, ⛔ NOT IMPLEMENTED** (journal 067 §16;
-> next session's first implementation task).
+> **`m38` = the run-scoped session log — ✅ BUILT, GATED AND SHIPPED (2026-09-02, session 068;
+> journal 068 §5, predictions `docs/predictions/2026-09-02-m38-run-log.md`).** `FAnomalyRunLog`, an
+> `FOutputDevice` filtering **`LogAnomaly` + `LogAnomalyCapture` only** into **`anomaly_log.txt`**
+> beside `annotation.json`. **Gates (i)–(v) ALL PASS.** ⛔ **NO ARTIFACT FIELD MOVED** —
+> `annotation.json` **48 keys** and `run_summary.json` **48 keys**, both IDENTICAL across the binary
+> change; it adds one FILE, not a field. Delivery default **mirrors `run.json`** (auto = `!delivery`),
+> three-state `−1/0/1` via `IAI.Capture.RunLog` and ini `RunLogDefault`. 🔑 **`IAI.Capture.RunLogVerbose`
+> raises `LogAnomaly` to Verbose FOR ONE RUN AND RESTORES IT**, both transitions echoed and proven
+> BOTH WAYS by a paired probe (`raised=1` emitted once, `raised=0` zero times).
+> 🎯 **It formats with `ELogTimes::UTC` DELIBERATELY, so the `[GFrameCounter % 1000]` prefix — `P9`'s
+> anchor — is present whatever a host's `log.Timestamp` says.** ⚠ Per-line write-through flush: a
+> hard-killed process leaves everything logged before the kill, with **no** close marker.
 > **`m39` = honest bbox** — **`P-C13` conjunct 2 rides it**, regardless of number.
 > ⛔ **NO TAG.** Highest remains `m30`; the office batch is now
-> `m31 → m33 → m34 → m35 → m36 → m37` (**+ `m38` if it has landed by then**).
+> `m31 → m33 → m34 → m35 → m36 → m37 → m38`.
 >
 > 🔴 **`P9`, IN ONE PARAGRAPH.** Owner **reproduced it on Bates with NO FLAGS** (census OFF, mask
 > OFF), deterministic across events. **Two phenomena, kept apart: (A) BOUNDARY SMEAR is CLOSED** —
