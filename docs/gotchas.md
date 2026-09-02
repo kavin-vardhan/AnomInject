@@ -5285,3 +5285,52 @@ because `UpdateViewTarget` applies those defaults view-target-agnostically
 
 ⚠ **And the general lesson: a capability you assumed was editor-only may be live in your packaged
 build.** Check the guard, not the reputation. (2026-09-02/03, session 067.)
+
+## G209 — `Get-Content -Raw` ON A **0-BYTE** FILE RETURNS `$null`, NOT `''`, AND `Test-Path` DOES NOT SAVE YOU
+
+The idiom looks safe and is not:
+
+```powershell
+$stderr = if (Test-Path $err) { Get-Content $err -Raw -Encoding UTF8 } else { '' }
+...
+if ($stderr.Trim().Length -gt 0) { ... }        # <-- throws
+```
+
+`Test-Path` is **true** for a 0-byte file, so the `else { '' }` branch never runs — and
+`Get-Content -Raw` on an **empty** file returns **`$null`**, not the empty string. The next `.Trim()`
+throws *"You cannot call a method on a null-valued expression."*
+
+**Measured, both directions:**
+
+| probe | `Get-Content -Raw` is `$null` | `.Trim()` |
+|---|---|---|
+| 0-byte file | **True** | **THROWS** |
+| non-empty control | False | returns the string |
+
+🚨 **THE DANGEROUS PART IS *WHICH* CASE IS EMPTY: IT IS THE HEALTHY ONE.** The file that is reliably
+0 bytes is a **stderr capture from a run that succeeded**. So the guard fires on **clean** runs and
+never on failing ones — the exact inverse of what anybody testing it would try first, and it means
+the failure only appears once everything else is working.
+
+📌 **MEASURED INSTANCE, and it cost seven duplicated headless sessions.** The `_mailbox` watcher's
+`run_brief.ps1` reads its stderr capture this way. Claude Code exited **`rc=0`**, the final message
+was captured to `_final_<name>.txt` (5,107 B, intact), and then post-processing threw on the empty
+stderr file — **before** the line that writes `to_chat\<name>.report.md` and **before** the line that
+moves the brief to `processed\`. The brief therefore stayed in `to_code\` and the watcher re-fired
+the identical brief six more times, each one a full session at high effort. **Nothing was wrong with
+the work; the report simply never reached its reader, and the same brief kept arriving.**
+
+**RULES:**
+1. **Normalise immediately after the read**, never at the point of use:
+   `if ($null -eq $s) { $s = '' }`.
+2. Or make the call null-safe: `if ($s -and $s.Trim().Length -gt 0)`.
+3. `Test-Path` answers *"does it exist"*, **not** *"is there anything in it"*. When the next thing
+   you do is call a method, guard on **content**, not existence.
+
+⚠ **And the second-order lesson, which is the expensive one: WHEN A HARNESS SWALLOWS ITS OWN OUTPUT,
+THE WORK LOOKS UNDONE.** The failure presents as *"the task was never completed"* to whoever is
+reading downstream, because the only channel that could say otherwise is the broken one. **Before
+re-issuing a task that appears not to have been done, check whether it was done** — here,
+`CLAUDE.md`'s status block, `git log`, and the staged exe hash all said it had been, three commits
+earlier. `G142`'s family: a defect in the tooling around a result, wearing the result's clothes.
+(2026-09-02, session 068.)
