@@ -1152,6 +1152,91 @@ for the predictions file **before** any code, per the standing rule.
 
 ---
 
+## §16 `m38` — THE RUN-SCOPED SESSION LOG. **PLAN ONLY. NOTHING IMPLEMENTED.**
+
+**Posted for approval.** ⛔ No source, no build, no leg. Predictions are pre-declared **after**
+approval, before any code.
+
+**Why it exists:** the owner needs the `LogAnomaly` lines that explain a run to **live in the session
+folder and survive a relaunch**. `2a` (card) and `2b` (harness, shipped at CaptureBench `dcc056a`)
+get that on the bench and over RDP **today**; `m38` is the plugin doing it **itself**, so a client
+capture carries its own explanation without a harness.
+
+### §16.1 Scope
+
+**One run-scoped output device and its lifecycle. Nothing else.** ⛔ No change to frames, labels,
+`annotation.json`, `run_summary`, selection, census, mask or veto.
+
+### §16.2 Files, expected
+
+| file | change |
+|---|---|
+| **NEW** `Source/AnomalyCapture/Private/AnomalyRunLog.{h,cpp}` | `FAnomalyRunLog : public FOutputDevice` — category filter, `FCriticalSection`, open/flush/close |
+| `AnomalyCaptureSubsystem.{h,cpp}` | own the device; register at `StartRun` after `RunDir` exists; flush+unregister on **every** exit path; the three-state knob, its ini read and console command; the `StartRun` echo line |
+
+### §16.3 The requirements, each with how the plan meets it
+
+1. **Run-scoped, category-filtered.** `FOutputDevice::Serialize(const TCHAR*, ELogVerbosity::Type,
+   const FName& Category)` — write only when `Category == "LogAnomaly"` (and, named now rather than
+   discovered later, **`LogAnomalyCapture`**, which is where most of the run's own lines go). Output
+   `anomaly_log.txt` beside `annotation.json`.
+2. **Registered after the folder exists.** `GLog->AddOutputDevice(Device)` at `StartRun`, **after**
+   `RunDir` is created — a device that opens a file in a directory that does not exist yet is a
+   silent no-op.
+3. 🚨 **Flushed and unregistered on EVERY teardown path, not just the happy one.** `FinishRun` (both
+   the completed and the cancelled branch), `Deinitialize`, and world teardown.
+   ⛔ **`GLog->RemoveOutputDevice` MUST run before the object dies** or `GLog` holds a dangling
+   pointer. **No handle leak, and the run folder must stay deletable** — a held file handle on
+   Windows blocks `Remove-Item`, which would break every harness that re-runs a leg into the same
+   directory.
+4. **Thread-safe.** `Serialize` is called from **any** thread — game, render, RHI, the async PNG
+   writer. One `FCriticalSection` around the file write; no allocation assumptions.
+5. ⛔ **VERBOSITY IS NOT SILENTLY CHANGED.** The device **filters**, it does not raise. A **separate**
+   knob (`IAI.Capture.RunLogVerbose`) raises `LogAnomaly` to `Verbose` for the run and **restores the
+   prior verbosity at `FinishRun`** — because the blinking toggle line is `Verbose`
+   (`Anomaly_Blinking.cpp:95`) and is otherwise absent. **A run that silently changed global log
+   verbosity and left it changed would be a defect, not a feature.**
+6. **Delivery default MIRRORS `run.json`.** `run.json` is written `if (!bDeliveryMode)`
+   (`AnomalyCaptureSubsystem.cpp:1501-1504`), so **auto = `!bDeliveryMode`**. Three-state override,
+   console **and** ini: **`-1` auto · `0` off · `1` on**. Forcing it **ON** in delivery is allowed
+   and is what gate (ii) exercises.
+7. **The `StartRun` echo states the state AND the path**, so a disabled run-log can never read like a
+   healthy one (the loud-inert rule, `G139`'s shape):
+   ```
+   Capture(runlog): EFFECTIVE FOR THIS RUN - run log ON (auto, from delivery=off) -> <RunDir>\anomaly_log.txt
+   Capture(runlog): EFFECTIVE FOR THIS RUN - run log OFF (auto, from delivery=on) - NO anomaly_log.txt will be written
+   ```
+8. ⚠ **PNG-worker lines emitted AFTER `EndRun` go to the main log only — STATED, NOT HIDDEN.** The
+   async writer flushes after `FinishRun` (`AnomalyLabelWriter.cpp:374-411`), so its tail lines land
+   after the device is closed. **The echo says so**, and the file's own last line records it:
+   *"closed at FinishRun; any writer tail lines after this point are in the main log only."*
+   ⛔ Closing later instead would mean holding a handle into teardown, which requirement 3 forbids.
+
+### §16.4 Gates to propose
+
+| # | gate |
+|---|---|
+| **(i)** | normal leg → `anomaly_log.txt` **present, non-empty**, and contains **named marker lines** (`Census: BEGIN`, `M36 STENCIL RESERVATION`, `M23 ARM`) |
+| **(ii)** | delivery **ON** + auto → **ABSENT**; delivery **ON** + forced **ON** → **PRESENT**. Both directions, one leg each (`G96`) |
+| **(iii)** | **mid-run abort** (`IAI.Capture.Stop`, and a second leg killed by the harness) → file **closed and flushed**, content readable, **and the run folder deletes cleanly** — the handle-leak test, done by actually deleting it |
+| **(iv)** | **frames and labels byte-identical** to a pre-`m38` run at the same seed/config (`P-C7`-shaped, re-anchored at the new binary), **and every artifact-set comparator updated for the new file** |
+
+📌 **Gate (iv)'s second half is a real task, not a formality.** Today **no** checker enumerates a
+session or bank folder — verified this turn for `m36_s1_pc7_check.py`, `compare_sessions.py`,
+`m36_s2_census_check.py`, `m35_gm8_column_check.py`, `eval_leg.py` and `p9_hidden_set.py`, all of
+which open files **by name** and glob only inside `Actual_Frames`. ⇒ **the new file breaks nothing
+today**, and the gate is there to keep that true rather than to fix something.
+
+### §16.5 Effort and commit shape
+
+**Effort: small-to-moderate** — one new class, a lifecycle with four exit paths, one three-state
+knob. **The risk is entirely in the lifecycle** (requirement 3), not the writing.
+**One milestone = one commit**, scope `feat(capture)`, preceded by its predictions commit.
+
+⏸ **AWAITING APPROVAL.**
+
+---
+
 ## §15 `P9` REPRODUCED ON BATES WITH NO FLAGS — enumeration, overlay semantics, and the Bates protocol
 
 **Owner observation 2026-09-02: `P9` reproduces with `census OFF` and `mask OFF`**, plus a per-frame
