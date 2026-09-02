@@ -355,3 +355,97 @@ here and in the predictions file until then.
 
 ⚠ The `A53` gate itself is untouched by this: it turns on ALIGNED-versus-ABSENT, and that separation
 is total (0.105 against 0.0001).
+
+---
+
+## §9 STEPS 1–3 — the reader is BUILT and GATED, and 🔴 **THE GATE FAILED. HARD STOP.**
+
+**No dry leg ran. No `P9` leg ran.** `p9_hidden_set.py` is committed to CaptureBench
+(`02452ae`, fix `14b8bca`) **before** it graded anything (`G106`).
+
+### §9.1 The four controls — results in full
+
+| # | control | required | **measured** | |
+|---|---|---|---|---|
+| **(a)** | `M23\R30_regress` known-ALIGNED | **12/12 ALIGNED**, differences empty, `k=0` | **8 ALIGNED + 4 UNDECIDABLE** | 🔴 **FAIL** |
+| **(b)** | `I10HF\HF1_nat120` known-ABSENT | no clean split, **UNDECIDABLE 12/12** | **UNDECIDABLE 12/12** | ✅ **PASS** |
+| **(c)** | synthetic `P9` (`--synth-move`) | that one-in/one-out on every counted event | **8 `P9`-SHAPE + 4 UNDECIDABLE** | 🔴 **FAIL as written** |
+| **(d)** | synthetic shift (`--synth-shift 1`) | **`SHIFTED(1)`, residual empty**, never `P9`-SHAPE | **UNDECIDABLE 12/12** — 8 anchor, 4 separation | 🔴 **FAIL** |
+
+✅ **What the readable events prove, and it is not nothing.** On **every** event the reader could
+read: (a) returned the claimed set **exactly**, `k=0`, both differences empty; (c) returned
+**exactly one missing and exactly one extra**, `k=0`, on all 8 — *the reader SEES the `P9` shape*;
+and **(d) produced ZERO `P9`-SHAPE verdicts.** So the discrimination property (d) exists to test
+holds **in the safe direction — the reader REFUSES rather than misclassifying `P1` as `P9`** — it
+simply never got to *demonstrate* `SHIFTED(1)`.
+
+### §9.2 Root cause 1 — `SEP_RATIO = 10.0` sits inside the control's own spread
+
+The separations are strong and consistent (**0.105–0.112**, matching A54's ~0.10 scores on the same
+leg). What varies is the **within-cluster spread** (0.009–0.012), and the ratio straddles the floor:
+
+| | `sep / spread` |
+|---|---|
+| (a)'s **readable** events | **10.10 – 14.25** |
+| (a)'s **refused** events | **8.96 – 9.92** |
+| (b)'s events (known-ABSENT, all correctly refused) | **≈ 0.99 – 2.54** |
+
+📌 **The measured gap is stated and NO NUMBER IS PROPOSED.** Between the known-ABSENT control's
+**maximum (≈2.54)** and the known-ALIGNED control's **minimum (8.96)** there is a wide empty band.
+⛔ **This session does not propose a `SEP_RATIO`** — the standing prohibition on proposing a
+ratio or threshold (journal §209) applies, and re-picking a constant after seeing which events it
+refused is building the ruler to fit the object. **The constant is untouched. Chat rules.**
+
+### §9.3 Root cause 2 — the anchor rule and a constant-shift injection interact BY CONSTRUCTION
+
+`--synth-shift 1` moves the **claim**, and the window is derived from the claim, so the leading
+flank slides by one — onto a genuinely hidden frame. `R30` event 0's true hidden set is
+`{4,5,9,10}`; the shifted claim `{5,6,10,11}` gives window `[3,13]`, and **flank frame 4 is
+hidden**. The reader refuses: *"anchor unreliable — flank frame(s) [4] read HIDDEN"*.
+
+🚨 **THAT IS THE GUARD WORKING, NOT FAILING.** `R30`'s hidden runs sit flush against the claim
+boundary, so **any** non-zero shift drags a hidden frame into a flank. ⇒ **control (d) cannot
+demonstrate `SHIFTED(1)` on this fixture by this construction.** ⛔ Reported, **not worked around**;
+the construction is chat's to rule on.
+
+### §9.4 Two instrument defects found by RUNNING, not by reading
+
+1. 🚨 **A CRASH THAT WORE THE COSTUME OF A CLEAN NEGATIVE.** `read_event` set `observed` **before**
+   the anchor check returned early, so an anchor-unreliable event carried `observed` without
+   `best_k`, and the printer's guard tested for `observed`. `KeyError` — and because the control
+   run redirected `stderr`, the traceback was swallowed and **the table printed EMPTY with exit 1**.
+   An empty table reads exactly like "no events matched". Fixed at `14b8bca`: the guard now tests
+   `best_k`, and the anchor check runs before any set is published. **`G190`'s family — assert on a
+   positive artifact of the run, never on the absence of output.**
+2. **A spec defect corrected in the implementation, not laundered.** The predictions file joins
+   events to rows on `anomalies[].id == anomaly_type` **and** target name. **The first conjunct is
+   false in the data:** `annotation.json` carries `anomaly_type` **`"blink"`** while `labels.jsonl`
+   rows carry `id` **`"blinking"`** — two vocabularies by design. Requiring equality joins nothing
+   and lands **every** event UNDECIDABLE. ⚠ **That failure is SAFE** (undecidable, never a wrong
+   answer), which is why this is a defect correction and **not a loosened gate**. The join used is
+   **target name + window overlap**. ⛔ **The predictions file is NOT edited** — the correction lives
+   in the tool's header and here, which is how `m36` handled `P-C2` and `P-C13`.
+
+### §9.5 🔴 Confidentiality — TWO LOCAL-ONLY BRANCHES ARE NOT CLEAN
+
+The scrub's *"nowhere"* was defined as **no reachable ref, origin OR local**, and these three had
+never been through a verifier run. Read-only worktrees, removed and pruned after; **`VERDICT` lines
+only** (`G202`):
+
+| branch | HEAD | verdict |
+|---|---|---|
+| `feature/stencil-capture` | `76cac74` | ✅ `VERDICT: clean over 98 file(s)` |
+| `m29-GATE-FAILED-lod-popping-invisible` | `ab2fb41` | 🔴 `VERDICT: TERMS PRESENT over 160 file(s)` |
+| `s3a-2-GATE-FAILED-do-not-merge` | `087f4d9` | 🔴 `VERDICT: TERMS PRESENT over 126 file(s)` |
+
+⛔ **NO ACTION TAKEN — not scrubbed, not deleted, not touched.** Chat rules next turn.
+
+**What this does and does not change:**
+- ⛔ **The "no reachable ref, origin OR local" claim is NOT currently true.** It holds for **origin**
+  — re-verified today, 198/196/189 clean — and **fails locally on two refs.**
+- 📌 Both are **dead ends by their own names**, both have `[gone]` upstreams (they were on origin
+  once and were deleted), and neither is reachable from any live branch. **Deleting them would close
+  the gap outright with no scrub** — an option, **not a recommendation, and not done.**
+- ✅ **`feature/stencil-capture` is clean**, which retires the concern recorded in `CLAUDE.md` this
+  morning that its cleanliness was *unknown*. ⛔ The **never-check-out** rule is unchanged, and it is
+  still never pushed without a fresh pass.

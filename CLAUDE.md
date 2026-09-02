@@ -82,9 +82,15 @@ and is the single source of truth for the project.
 > 📌 **`feature/stencil-capture` IS LOCAL-ONLY, at `76cac74`, AND HAS NEVER BEEN PUSHED** (verified
 > 2026-09-02: it is absent from `git ls-remote --heads origin`, which lists only `master` and the two
 > feature branches). ⛔ **Never check it out** — that rule is unchanged. ⛔ **And never push it
-> without a clean scrub-verifier pass first**: it predates the codename scrub and **has never been
-> through a verifier run**, so its cleanliness is UNKNOWN rather than established. Pushing it would
-> reverse the "no reachable ref" property the scrub bought.
+> without a clean scrub-verifier pass first.**
+> ✅ *(2026-09-02, later the same day: it HAS now had a verifier pass — `clean over 98 file(s)`. The
+> "cleanliness unknown" caveat is retired for this branch.)*
+> 🔴 **BUT THE SAME PASS FOUND TWO OTHER LOCAL-ONLY BRANCHES THAT ARE NOT CLEAN:**
+> `m29-GATE-FAILED-lod-popping-invisible` (`ab2fb41`) and `s3a-2-GATE-FAILED-do-not-merge`
+> (`087f4d9`) both read **`TERMS PRESENT`**. Both are dead ends with `[gone]` upstreams and are
+> unreachable from any live branch. ⛔ **NO ACTION TAKEN — chat rules.** ⚠ Until then, **"no
+> reachable ref, origin OR local" is NOT true**: it holds for origin (re-verified 198/196/189
+> clean) and fails on those two local refs. Journal 067 §9.5.
 > 📌 **THE SHA IN THIS ITEM MOVES WITH EVERY DOCS COMMIT AND HAS DONE SO TWICE.** It read `9c94c55`
 > until 2026-09-02; the merge line itself is unchanged and the invariant is the one to read —
 > **`master` is the m34+m35+m36 merge line, and its tip is whatever `git rev-parse origin/master`
