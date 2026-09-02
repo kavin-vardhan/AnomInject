@@ -251,10 +251,13 @@ ALIGNED-vs-ABSENT and that separation is total. ⛔ Nobody should cite 0.10737 a
 
 ---
 
-## §5 DRAFT — the one-event typed ask for Bates. ⛔ NOT SENT. NOT ON THE CARD.
+## §5 THE ONE-EVENT TYPED ASK FOR BATES — 🔺 **SURFACED 2026-09-02/03. NOW LIVE.**
 
-**Used only if the bench cannot reproduce `P9`.** Asking the owner to hand-transcribe what the bench
-could produce is the wrong order of work, and the owner is worn out on this bug class. Held here.
+*(Originally drafted here as "NOT SENT, NOT ON THE CARD", to be used only if the bench could not
+reproduce `P9`. **Two bench campaigns have now run and neither reproduced it** — §11, §12 — so the
+condition is met and the ask is surfaced. It is now **RDP card Section C item (h)**, marked one-off.)*
+
+📌 **Source: the BANKED Section B leg-2 artifacts (floor 0.5). NO RE-RUN IS REQUIRED.**
 
 > **One `blinking` event, from either Section B leg. Four things, all from files already on that box
 > — no new run.**
