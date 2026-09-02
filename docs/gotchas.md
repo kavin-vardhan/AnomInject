@@ -5048,3 +5048,31 @@ things: SOURCE identity (`git diff branchA branchB -- Source/` empty, tree OIDs 
 established control-pair method).** Both halves ran here and both passed; the hash comparison is
 recorded only so nobody reaches for it next time. (2026-09-01, m36 merge to master; proof form
 ratified by the owner.)
+
+## G202 — A SELF-PROVING INSTRUMENT ECHOES THE SECRET IT PROVES ITSELF AGAINST
+
+The codename scrub verifier runs a **mandatory self-test on every invocation**: it writes a synthetic
+fixture containing every forbidden term, requires the check to FIRE, then requires the mapping to
+CLEAR it. That design is exactly right — it is what made deleting the pre-scrub backup branch safe
+(`G189`).
+
+🚨 **AND IT PRINTS THE DECODED TERM TABLE TO STDOUT WHILE DOING SO.** The fixture's before/after
+lines name every term in plaintext, along with the substitution patterns. The term table is stored
+**base64-encoded on disk** precisely so no plaintext copy exists in any file — so journal 064's claim
+is intact for FILES and silently untrue for **the tool's own output**.
+
+**RULE: never paste raw verifier output into any doc, journal, commit message, handoff, OR a reply to
+the owner.** ⚠ **The reply is the one people forget, and it is the widest channel** — replies get
+pasted into chat, chat gets pasted into handoffs, and handoffs get committed. **Quote the
+`SELFTEST ok` line and the `VERDICT:` line only.** Both are counts and adjectives; neither carries a
+term.
+
+⛔ **NO FIX TO THE VERIFIER IS PROPOSED, and that is deliberate:** suppressing the echo would weaken
+the only evidence that the check can fail, which is the whole reason the self-test exists. **The
+containment is a handling rule, not a code change.**
+
+**Generalises past this tool:** any instrument that proves itself by *exhibiting* the thing it
+detects — a scrubber, a secret scanner, a credential linter, a PII detector — **emits the sensitive
+material as part of its passing output.** The safer the instrument, the louder its receipts. Ask of
+every self-proving check: *what does its success message contain, and where does that message end
+up?* (2026-09-02, session 067 — found by running the verifier, not by reading it.)

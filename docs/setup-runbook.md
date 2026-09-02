@@ -374,9 +374,13 @@ original aside, never delete it** → junction → re-read every manifest **thro
 Verification was per-file count **and** per-file size, plus `sha8` on every `.exe`: baselines 75/75,
 bank 69,340/69,340, Builds 15,421/15,421, **0 missing and 0 mismatched in all three**, and every
 archived exe's `sha8` equals the value written in its own filename.
-⛔ **Nothing was deleted.** The originals sit in `D:\IntrusiveAnomalies\_TRASH_pending_owner_delete\`
-awaiting an explicit owner deletion. The **named-gate-before-deletion rule stands** — no archived
-baseline is removed until the docs say what gate depends on it.
+⛔ **Nothing was deleted by the move.** The originals sat in
+`D:\IntrusiveAnomalies\_TRASH_pending_owner_delete\` awaiting an explicit owner deletion.
+✅ **CLOSED — `_TRASH_pending_owner_delete` WAS DELETED BY THE OWNER, and its absence was verified
+2026-09-02** (session 067: no `*TRASH*` directory anywhere under `D:\`, `D:\IntrusiveAnomalies` or
+`E:\IA_BuildCache`). **Expect it to be gone; do not go looking for it.**
+The **named-gate-before-deletion rule stands** — no archived baseline is removed until the docs say
+what gate depends on it.
 
 📐 **THE IDENTITY INSTRUMENT (added 2026-08-26, session 062) — every 8-hex hash in this project is the
 FIRST 8 HEX CHARACTERS OF SHA-256.** exe, `.utoc`, `.ucas`, `.pak`, all of them:

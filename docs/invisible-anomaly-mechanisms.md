@@ -627,3 +627,110 @@ SOURCE, AND IT IS CONDITIONAL. The chain, cited:
   ⚠ The same fallback governs Nanite being unsupported for ANY other reason — the
   r.Nanite cvar, missing 64-bit atomics, or forward shading (RenderUtils.h, UseNanite /
   DoesRuntimeSupportNanite). The decision rests on the fallback, not on the checkbox.
+
+---
+
+# 8. `P9` — the blinking hidden set the label claims is not the one the eye saw
+
+> 🔢 **THE NUMBER IS `P9`, NOT `P8`, AND THE DEVIATION IS DELIBERATE.** The instruction that opened
+> this entry said *"P8"*. **`P8` has been taken since 2026-08-18** — TAU is not camera-pose
+> invariant — and phenomenon numbers are **NEVER reused**. `P9` was minted in journal 066 §3 and is
+> already carried in `CLAUDE.md`'s phenomenon ledger, so this entry completes that mint rather than
+> opening a second one. The two chat handoffs that say "P8 — blinking label offset" are referring
+> to **this** entry; they are wrong about the number only.
+
+| | |
+|---|---|
+| **status** | 🔴 **OPEN.** Owner-observed, **not measured**. Nothing here is upgraded and nothing is discarded. |
+| **class** | **Labelling ↔ manifestation mismatch at hide BOUNDARIES.** `blinking` only. |
+| **scope** | ⚠ **`missing_object` is NOT reported affected** — that is the owner's report, not a measured exclusion. |
+| **evidence** | **OWNER-OBSERVED (eye), Bates, over RDP.** **3 instances**, spread across **both** m36 Section B legs (floor 6.0 and floor 0.5). |
+| **mechanism** | ⛔ **NONE CLAIMED.** See §8.4. |
+
+## 8.1 The run configuration it was seen under
+
+Both Section B legs, per the RDP card's payload and the StartRun echo typed back:
+
+| axis | value |
+|---|---|
+| mask | **ON** (`IAI.Capture.Mask 1`) |
+| census | **ON**; `excludeTranslucent=1`, `reservation=1`, `maxVerdictAgeTicks=12` |
+| floor | leg 1 **6.0** (compiled default) · leg 2 **0.5** (console) |
+| view rect | **letterboxed, non-zero `Rect.Min.Y`** — `(0,138)` and `(0,69)` |
+| `tickpin_compiled` | **false** |
+| burst schedule | `IAI.Capture.Config 2 4 8 4 0`, 90-frame cap, auto-pool |
+
+📌 **THE OWNER-OBSERVATION RULE APPLIES IN FULL: the observation STANDS regardless of what the bench
+later shows.** A bench that fails to reproduce it has failed to reproduce it — that is a fact about
+the bench, not a retraction of what was seen on the host. This project has been wrong in that
+direction before (`G135`: the bench legs structurally could not exhibit the case, and the blindness
+presented as a clean pass).
+
+## 8.2 The one instance that was transcribed frame by frame
+
+```
+annotation.json  frame_indices (claimed hidden) : { 42, 43, 47, 48 }
+owner, watching the frames (observed hidden)    : { 42, 43, 44, 48 }
+```
+
+Two differences, **in opposite directions**, inside one event window:
+
+- **44** is observed hidden and is **absent** from the claim.
+- **47** is observed visible and is **present** in the claim.
+
+**47 − 44 = 3**, and **3 is exactly one half-period at the blinking default** — `DefaultHalfPeriodFrames = 3`,
+source-verified at `Source/AnomalyInjector/Private/Anomalies/Anomaly_Blinking.h:28`, with a
+`static_assert` binding it to `AnomalyDefaults::BlinkingHalfPeriodCompiled`
+(`Anomaly_Blinking.cpp:27-30`) so the echoed number and the used number cannot silently disagree.
+⚠ **That arithmetic is RECORDED AS AN ARITHMETIC COINCIDENCE OF THE OBSERVED NUMBERS. It is not
+offered as a mechanism, and "one half-period" names no code path in this entry.**
+
+🚨 **THIS IS NOT `P1`'s SHAPE.** `P1` is a **constant** shift — every claimed frame off by the same
+amount. No single shift maps `{42,43,47,48}` onto `{42,43,44,48}`: the first two frames agree
+exactly, so the set is not displaced, it is **wrong in one position in each direction**. Filing this
+under `P1` would merge two different signatures.
+
+⚠ **THE OTHER TWO INSTANCES WERE NOT TRANSCRIBED FRAME BY FRAME.** Recorded as *same shape, frames
+not recorded*. ⛔ **No numbers are invented for them.**
+
+## 8.3 What is NOT known
+
+- ⛔ **Whether the LABELS are wrong or the PIXELS are wrong.** Both remain open. A mislabelled frame
+  and a mis-rendered frame produce the same complaint from the eye.
+- ⛔ Whether the **bench reproduces it at all**.
+- ⛔ Whether it depends on **pacing**, on the **letterbox**, on the **census** being on, or on the
+  **tick ratio**. Four axes, none eliminated.
+
+## 8.4 Mechanism — NONE CLAIMED
+
+**Frame-saga discipline: measure, then design.** Candidate mechanisms exist in this repo's record —
+`m20`'s one-game-tick-stale hidden state (**FIXED**), the `m31` arm→present pairing family — and
+**not one of them is asserted here** (`G120`). No mechanism goes into any brief, plan or handoff for
+this phenomenon before a measurement exists. The measurement plan is
+`docs/predictions/2026-09-02-p9-blinking-boundary-repro.md`, pre-declared before any leg runs.
+
+## 8.5 An UNEXPLAINED CO-OBSERVATION — not a cause
+
+`ticks_per_captured_frame` **is** `capture_game_ticks / total_frames` **by construction**
+(`AnomalyLabelWriter.cpp:546-548`) — on Bates, **122/90**. So the ratio itself is not the open
+question. **The unmeasured quantity is the 32 surplus game ticks**, enumerated in
+`docs/predictions/2026-09-02-p9-blinking-boundary-repro.md` §5 and **not attributed**.
+
+It is recorded **beside** `P9`, not **under** it: it was observed on the same runs and nothing
+connects the two. ⛔ **Do not write it as a cause, a lead, or a discriminator until a leg says it is
+one.**
+
+## 8.6 Mitigation AVAILABLE NOW
+
+**Untick `blinking` on Bates runs until `P9` closes.** Every other anomaly this plugin ships is
+single-state, so no other anomaly has a hide *boundary* inside its window for a boundary defect to
+land on. That yields a clean Bates dataset immediately and costs one anomaly type on one host. It is
+a **mitigation, not a fix**, and it is on the RDP card as a standing item (Section C-(e)).
+
+## 8.7 Related entries
+
+| | |
+|---|---|
+| **`P1`** | client's one-frame shift at ratio ≈ 1.2, 30 fps — **OPEN, never reproduced.** A **constant** shift; §8.2 says why `P9` is not it. |
+| **`P3`** | a labelled hide that never manifests — **FIXED at `m23`.** Same family (labelling vs manifestation), already cured, and the reason the `manifested` flag and the zero-positive-frame guard exist. |
+| **`P5`** | single-frame alignment undecidable ≥ 90 fps — **queued.** ⚠ Bates ran at **30 fps**, so `P5` is **not in play here unless a leg measures it into play**. |

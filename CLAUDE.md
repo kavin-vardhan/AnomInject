@@ -79,6 +79,12 @@ and is the single source of truth for the project.
 > ONLY**, never also by cherry-pick. The m36 merge is `0f35d7a`, with `merge-tree` predicting its
 > tree exactly and an inert-merge proof on both halves: `Source/` byte-identical to the branch, and
 > master's own build census-OFF artifact-identical to the branch build's.
+> 📌 **`feature/stencil-capture` IS LOCAL-ONLY, at `76cac74`, AND HAS NEVER BEEN PUSHED** (verified
+> 2026-09-02: it is absent from `git ls-remote --heads origin`, which lists only `master` and the two
+> feature branches). ⛔ **Never check it out** — that rule is unchanged. ⛔ **And never push it
+> without a clean scrub-verifier pass first**: it predates the codename scrub and **has never been
+> through a verifier run**, so its cleanliness is UNKNOWN rather than established. Pushing it would
+> reverse the "no reachable ref" property the scrub bought.
 > 📌 **THE SHA IN THIS ITEM MOVES WITH EVERY DOCS COMMIT AND HAS DONE SO TWICE.** It read `9c94c55`
 > until 2026-09-02; the merge line itself is unchanged and the invariant is the one to read —
 > **`master` is the m34+m35+m36 merge line, and its tip is whatever `git rev-parse origin/master`

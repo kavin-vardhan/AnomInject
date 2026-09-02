@@ -105,10 +105,35 @@ From the run's `run_summary.json` and the Output Log:
 |---|---|---|---|
 | 1 | `total_frames` | `run_summary.json` | **90** |
 | 2 | files in `Actual_Frames\` | file explorer, count them | **90** |
-| 3 | `READBACK-GUARD FIRED` line count | Output Log search | **0** |
-| 4 | `EXTENT-CLAMP FIRED` line count | Output Log search | **0** |
+| 3 | `READBACK-GUARD FIRED` line count | **the one command below** | **0** |
+| 4 | `EXTENT-CLAMP FIRED` line count | **the same command** | **0** |
 
 **Read back: four numbers.** That is the entire m35 hotfix result.
+
+🆕 **NUMBERS 3 AND 4 ARE ONE COMMAND, NOT A SEARCH.** They were left UNREAD on 2026-09-02 because
+"search the Output Log" is a scrolling job that is easy to skip. Paste this into PowerShell **after
+the run has finished**, with the project path filled in:
+
+```
+$log = "<plugin-path>\..\..\Saved\Logs\StackOBot.log"; "LOG  $log"; "MTIME $((Get-Item $log).LastWriteTime)"; foreach ($p in 'READBACK-GUARD FIRED','EXTENT-CLAMP FIRED') { "{0,-22} = {1}" -f $p, @(Select-String -Path $log -Pattern $p -SimpleMatch).Count }
+```
+
+**Expected output — exactly four lines, and it prints them even when both counts are zero:**
+
+```
+LOG  D:\...\StackOBot\Saved\Logs\StackOBot.log
+MTIME 09/02/2026 14:31:07
+READBACK-GUARD FIRED   = 0
+EXTENT-CLAMP FIRED     = 0
+```
+
+📸 **Photograph all four lines, not just the two counts.** The path and MTIME are there so the
+counts can be tied to the run you just did — a zero read off yesterday's log is not a zero.
+⚠ **`= 0` and "I did not look" are different results and must never be reported the same way.** If
+the command errors, report the error; **a missing count is UNREAD, not zero** (`G197`).
+📌 The paths differ by how you launched: **PIE / editor** writes to `<project>\Saved\Logs\StackOBot.log`;
+a **packaged** run writes to `<Build>\Windows\StackOBot\Saved\Logs\StackOBot.log`. A-5 is a PIE run,
+so use the first.
 ⚠ **1 and 2 are both asked for on purpose.** A log line saying the run finished is not evidence a
 file exists (`A62`), and the crash this milestone exists for wrote a clean-looking session with
 **zero** frames on disk.
@@ -138,17 +163,33 @@ failure mode. Surviving is not a pass on its own; the four numbers above are the
 ⚠ **Honest limit: there is no one-liner for this on `master`.** The full enumeration arrives with
 m36 (Section B, B-2), where the StartRun echo lists it for free.
 
-What `master` **can** answer, from the same A-5 capture, is the part that actually bites:
+What `master` **can** answer, from the same A-5 capture, is the part that actually bites: **did
+anything on this host collide with the plugin's stencil range 200–254 during the run?**
 
-Search the Output Log for `bRenderCustomDepth`.
-**Read back: yes/no — did any line appear?**
-- **No line** ⇒ nothing on that host collided with the plugin's stencil range (200–254) during the
-  run. That is the answer that matters for tagging correctness.
-- **A line appeared** ⇒ copy it. It names a component the plugin did **not** tag that is writing
-  custom depth into our range — a host writer, and exactly what the census is for.
+🚨 **CORRECTED 2026-09-02 — THE OLD INSTRUCTION HERE WAS "search the Output Log for
+`bRenderCustomDepth`", AND THAT SEARCH CANNOT ANSWER THE QUESTION.** On `master` the reservation
+line itself contains the words *"Host-set `bRenderCustomDepth`"*
+(`AnomalyCaptureSubsystem.cpp:1423`), so **the bare word matches on every healthy run** — a "yes"
+means nothing and a "no" means the search never reached the log at all. ⚠ **On 2026-09-02 that read
+came back "no line seen", which on this build is itself the tell that the search hit console
+scrollback rather than the log file.**
 
-⛔ Do **not** infer "the host writes no custom depth" from a silent log. This detects **collisions**,
-not all writers. The complete census is B-2.
+**Search for the COLLISION LINES BY NAME instead.** One command, printing a labelled count per
+signal even when every count is zero:
+
+```
+$log = "<plugin-path>\..\..\Saved\Logs\StackOBot.log"; "LOG  $log"; foreach ($p in 'OBSERVED - the stencil tag did not read back','OBSERVED - the mask carried reserved-range tag','OBSERVED - batch id=','CENSUS-HYGIENE final DIFF','CENSUS-HYGIENE cycle DIFF','TAG-POOL EXHAUSTED') { "{0,-52} = {1}" -f $p, @(Select-String -Path $log -Pattern $p -SimpleMatch).Count }
+```
+
+**Read back: six labelled numbers. Expected: all zero.**
+- **All zero** ⇒ nothing on that host collided with the plugin's range during the run. That is the
+  answer that matters for tagging correctness.
+- **Any non-zero** ⇒ **copy that whole line out of the log.** Each one names what it saw, and each
+  says *CAUSE NOT ESTABLISHED* on purpose. Report it verbatim; **do not re-run to a green.**
+
+⛔ Do **not** infer "the host writes no custom depth" from six zeros. This detects **collisions**,
+not writers. The complete enumeration is the `reserved=` line in **B-2**, which lists every host
+component already writing into 200–254.
 
 ### A-8. What Section A satisfies
 
@@ -159,7 +200,11 @@ Passing A-6 on Bates **is the m35 close-out condition**. On that result:
   (it is the last deliberate pre-scrub copy on the remote, kept only until this validation passed).
 
 ⛔ **Still NO TAG.** Tagging is the end of the physical visit, after `G-R7(ii)`. The order is
-`m31` → `m33` → `m34` → `m35`, and nothing is tagged before that gate.
+`m31` → `m33` → `m34` → `m35` → `m36`, and nothing is tagged before that gate.
+
+✅ **DONE 2026-09-02: A-5/A-6 PASSED ON BATES** — 90/90 frames, `rect` origins `(0,138)` and `(0,69)`,
+no crash — **and the consequence was executed**: `wip/session-061-backup` is deleted from origin and
+local. ⚠ **Counters 3 and 4 were NOT read on that run** — they are Section C item (a).
 
 ### A-9. Also RDP-valid while you are there
 
@@ -246,6 +291,37 @@ component on that host already writing custom depth in 200–254 that the plugin
 **Read it on both hosts.** It should be **identical across the two legs** — it is a property of the
 host, not of the floor.
 
+🆕 **THE `reserved=` LINE, EXACTLY — and how to capture it whole (added 2026-09-02: on the first
+Bates run this line was CUT OFF IN THE PHOTO, so the host's custom-depth answer was lost).**
+
+**Exact text.** One line, `LogAnomalyCapture` at `Log` verbosity, emitted **at `StartRun`** — i.e.
+the moment you press enter on `IAI.Capture.Start`, *before* any frame is captured. It reads:
+
+```
+Capture(mask): M36 STENCIL RESERVATION ON - reserved=3 [ 200 201 250 ]. Host-set bRenderCustomDepth with a stencil value in 200..254, snapshotted at StartRun, is never assigned by the census OR the event allocator this run: hygiene restores host values AFTER, this prevents host pixels being COUNTED under a plugin tag DURING. No per-cycle rescan in v1.
+```
+
+⚠ **The prose after the `]` is why the photo failed — it is long, and the numbers you need are at
+the FRONT.** Do not photograph the console. Run this instead, which prints **only** the part that
+matters, plus an independent second read of the same quantity:
+
+```
+$log = "<plugin-path>\..\..\Saved\Logs\StackOBot.log"; Select-String -Path $log -Pattern 'M36 STENCIL RESERVATION' -SimpleMatch | ForEach-Object { ($_.Line -replace '^.*(M36 STENCIL RESERVATION.*?\]).*$','$1') }; Select-String -Path $log -Pattern 'M36 TAG POOL' -SimpleMatch | ForEach-Object { ($_.Line -replace '^.*(M36 TAG POOL.*?)\.\s*$','$1') }
+```
+
+**Expected: two short lines per run, both photographable in one shot:**
+
+```
+M36 STENCIL RESERVATION ON - reserved=3 [ 200 201 250 ]
+M36 TAG POOL assignable 200..254 (255 is NEVER mintable by any allocator - it stays the residual StencilDummy detector), hostReserved=3, assignable=52
+```
+
+✅ **The two lines are an `A48` cross-check and that is the point of asking for both:** `reserved=N`
+and `hostReserved=N` are written by **different** code paths and **must agree**. If they disagree,
+report both numbers and stop — do not pick one.
+🚨 **`reserved=0 [ ]` is a REAL AND EXPECTED ANSWER on a host that writes no custom depth.** It is
+not a failed read. **A MISSING LINE is the failed read**, and it means the leg is void by `G139`.
+
 ### B-3. The eleven counters, per leg
 
 From `run_summary.json`. **All eleven exist only when the census actually ran** — if any are
@@ -331,7 +407,100 @@ exactly the judgement the bench cannot make for you.**
 
 ---
 
-## C. IF SOMETHING FAILS
+# SECTION C — THE NEXT RDP VISIT
+
+> **Added 2026-09-02, after the first Bates run.** Everything here is short, all of it is RDP-valid,
+> and none of it needs a rebuild, a cook or a new build. **Sections A and B are DONE** — this is the
+> list of what those runs left unread, plus one standing rule.
+>
+> 🚨 **THIS IS NOT A RE-RUN OF SECTION A OR B.** Items (a)–(c) read the logs **already on that box**
+> from the runs already done. Only (d) is a new capture, and it is optional.
+
+### C-(a). The two counters Section A left UNREAD — one command
+
+Run the **A-6 command** (the four-line one) against the Section A run's log.
+**Read back: all four lines.** Expected `READBACK-GUARD FIRED = 0` and `EXTENT-CLAMP FIRED = 0`.
+
+⚠ **These are currently recorded as UNREAD, NOT ZERO.** m35's Bates pass rests on frames, origins
+and no-crash; **these two counters are the part of that verdict nobody has seen.** A non-zero is a
+finding, not a failure — the guard exists to drop a frame rather than mis-capture it.
+
+### C-(b). The `reserved=` line, captured whole
+
+Run the **B-2 command** (the two-short-lines one) against a Section B leg's log.
+**Read back: both lines** — `reserved=N [ … ]` and `hostReserved=N`, which must agree.
+
+📌 **This is the host's complete custom-depth answer** and it was lost to a cropped photo last time.
+`reserved=0 [ ]` is a real answer; a **missing** line is not.
+
+### C-(c). The custom-depth collision question, asked properly
+
+Run the **A-7 command** (six labelled counts). **Read back: six numbers. Expected all zero.**
+
+⚠ The previous instruction here could not have answered the question — see A-7's correction. This
+one can.
+
+### C-(d). ONE GLANCE at a banked leg-1 black frame — the cheapest item on this card
+
+Open **any pitch-black PNG from Section B leg 1** (floor 6.0) in `Actual_Frames\` and look at it.
+
+| what you see | what it means |
+|---|---|
+| **character and/or sky still visible**, a large scenery object missing | a **landscape hide** — the expected consequence of floor 6.0 leaving the landscape blueprint eligible. **Nothing is wrong.** |
+| **the frame is FULLY black**, nothing at all | a **readback defect** — a different problem entirely, and it would mean m35's Bates pass needs re-reading |
+
+**Read back: which of the two.** ⛔ **One word settles it, and the two causes are indistinguishable
+from the counters alone** — which is why the frame itself has to be looked at. Not urgent; very
+cheap.
+
+### C-(e). 🔴 STANDING MITIGATION — blinking stays UNTICKED on Bates until `P9` closes
+
+**`P9` is open** (`docs/invisible-anomaly-mechanisms.md` §8): on Bates, `blinking` events have been
+observed ×3 where the labelled hidden frames and the visible ones do not agree. **No mechanism is
+claimed and none is implied by this instruction.**
+
+⇒ **Leave `blinking` out of the auto pool on Bates runs until `P9` closes.** Every other anomaly
+this plugin ships is single-state, so none of them has a hide boundary inside its window for this to
+land on. **The cost is one anomaly type on one host; the benefit is a Bates dataset with no known
+open labelling question in it.**
+
+### C-(g). Bates' EFFECTIVE delivery setting — two reads, because Section B's is UNRECORDED
+
+Nobody wrote down whether Section B ran with delivery mode on or off. The B-1 payload never issues
+`IAI.Capture.Delivery`, so those legs ran on **whatever that host's ini or compiled default is** —
+and it changes which artifacts exist. **Two independent reads, both cheap:**
+
+**1. The ini key** (the source of the default):
+
+```
+Select-String -Path "<plugin-path>\..\..\Config\DefaultGame.ini" -Pattern 'bDeliveryModeDefault|bWriteLabelsInDeliveryDefault'
+```
+
+**Read back: the matching lines, or "no match".** ⚠ **"No match" is a real answer** — it means no ini
+override, so the compiled default (**delivery OFF**) is what ran.
+
+**2. The `StartRun` echo** (the value that actually took effect — `A48`, and it beats the ini):
+
+```
+$log = "<plugin-path>\..\..\Saved\Logs\StackOBot.log"; Select-String -Path $log -Pattern 'Delivery mode:' -SimpleMatch | Select-Object -Last 1 | ForEach-Object { $_.Line }
+```
+
+**Read back: that one line.** It reads `Delivery mode: ON (client-facing output only)` or
+`Delivery mode: off (full fidelity)`.
+
+🚨 **REPORT BOTH, EVEN WHEN THEY AGREE.** The ini says what was *configured*; the echo says what
+*ran*. This project's standing rule is to report the effective value from a read-back, never the
+value someone believes was set.
+
+### C-(f). OPTIONAL — a clean Bates dataset
+
+If there is time, **repeat Section B with `blinking` unticked**. Same two legs, same payloads, same
+reads. That yields a Bates census dataset carrying no `P9` exposure at all.
+⛔ **Optional. Not a gate, and nothing waits on it.**
+
+---
+
+## D. IF SOMETHING FAILS
 
 **Report and stop. Do not re-run to a green, and do not fix on the box.**
 
