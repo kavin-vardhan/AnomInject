@@ -25,7 +25,9 @@ and is the single source of truth for the project.
 > client off master until `G-R7(ii)` passes on master's own build.** Full ordered sequence, including
 > the inert-merge proof and the `-m 1` revert handle, is journal 061 **§12.0**.
 > ⛔ **STILL NOTHING IS TAGGED** (highest remains `m30`); the tag sequence is still
-> `m31` → `m33` → `m34` → `m35`, and it runs at the END of office visit A.
+> `m31` → `m33` → `m34` → `m35` → `m36`, and it runs at the END of office visit A.
+> *(2026-09-02: `m36` appended to the sequence — it is merged to `master` and its bench phase is
+> closed, so it tags with the rest at the physical visit.)*
 > ✅ **`G-M9` IS GREEN — m35 IS HOME-CLOSED (2026-09-01).** Binary **`6B579F91`** = Build B + `G-M9`,
 > code-only, container unchanged. Exe chain **`733FE83C` → `6B579F91`**, both archived and verified.
 > Self-proof both ways: forced-mismatch fires on 90/90 with **one-byte** sensitivity; cvar-OFF
@@ -72,13 +74,17 @@ and is the single source of truth for the project.
 >
 > ✅ **2. SUPERSEDED 2026-09-01 — `master` NO LONGER CARRIES THE READBACK CRASH.** This item used to
 > read *"`master` IS UNTOUCHED AND STILL CARRIES THE READBACK CRASH, tip `9f52cab`"*, and a cold
-> reader acting on it today would refuse a build that is now correct. **`master` is `9c94c55`** and
-> carries **m35 (the readback fix) AND m36 (the selection census)**, both by **MERGE — ONE ROUTE
+> reader acting on it today would refuse a build that is now correct. **`master` is `a73f87f`** and
+> carries **m34 (the GPU mask reduce), m35 (the readback fix) AND m36 (the selection census)**, all by **MERGE — ONE ROUTE
 > ONLY**, never also by cherry-pick. The m36 merge is `0f35d7a`, with `merge-tree` predicting its
 > tree exactly and an inert-merge proof on both halves: `Source/` byte-identical to the branch, and
 > master's own build census-OFF artifact-identical to the branch build's.
-> ⛔ **STILL NO TAG** — highest remains `m30`, and the order `m31` → `m33` → `m34` → `m35` runs at
-> the end of the physical office visit, after `G-R7(ii)`.
+> 📌 **THE SHA IN THIS ITEM MOVES WITH EVERY DOCS COMMIT AND HAS DONE SO TWICE.** It read `9c94c55`
+> until 2026-09-02; the merge line itself is unchanged and the invariant is the one to read —
+> **`master` is the m34+m35+m36 merge line, and its tip is whatever `git rev-parse origin/master`
+> says.** Recorded here so the next stale-SHA reading is a known shape, not a surprise.
+> ⛔ **STILL NO TAG** — highest remains `m30`, and the order `m31` → `m33` → `m34` → `m35` → `m36`
+> runs at the end of the physical office visit, after `G-R7(ii)`.
 > ⚠ **A DELIVERY BUILD FROM `master` IS NOW THE CORRECT THING TO CUT** as far as the crash is
 > concerned — but it is **still gated on `G-R7(ii)` passing on master's own build**, which is a
 > DELIVERY precondition and is unchanged.
