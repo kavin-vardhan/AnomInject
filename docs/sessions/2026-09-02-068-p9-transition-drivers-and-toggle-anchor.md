@@ -1396,3 +1396,335 @@ Stated explicitly, because a review that reports only its hits is not a review.
 - ⛔ **Nothing about Bates' tick order, log configuration or half-period is claimed.** All three are
   unmeasured here and all three are answered by the bundle itself.
 - ⛔ **No source edit, no build, no leg, no cook, no tag.** Staged bench exe unchanged.
+
+---
+
+## §7 BRIEF 4 — THE BATES `C-3` RESULT LANDS
+
+### §7.1 Rulings carried in from §6
+
+| §6 item | ruling |
+|---|---|
+| §6 as a whole (commit `92c186a`) | ✅ **ACCEPTED** |
+| NEEDS-DECISION 1 — amend the `C-3` READ GUIDE with §6.6 corrections 1 and 2 | ✅ **YES** — landed in `docs/office-rdp-card.md` this turn |
+| NEEDS-DECISION 2 — add the `SVE-WANT-TRACE arm` prefix check | ✅ **YES, as a CONDITIONAL step** — *"if `SVE-WANT-TRACE arm` lines exist, check `[fff] == gameFrame % 1000`; Bates' installed build prints no such line (measured 2026-09-02, 0 hits), and absence there is expected."* Landed |
+| §6.5 — row 2 names the INTERVAL, not a subsystem | ✅ **ADOPTED** and used throughout below |
+
+🎯 **§6's `R1` is what made the bundle readable.** It predicted, before the result existed, that
+`frame_indices` is **exactly invariant** under a one-tick shift of the toggle relative to the arm while
+the **pixels move by one frame**, and that the two **outer** flips are insensitive. **That is the
+observed Bates signature, term for term.**
+
+### §7.2 The result — recorded in the ledger, not duplicated here
+
+**The `C-3` bundle, its join table, the `apply → first toggle` arithmetic and the `R5`-named verdict
+are in `docs/invisible-anomaly-mechanisms.md` §8.6a**, under *"THE `C-3` RESULT"*. That is where a
+reader arriving at `P9` will be. ⛔ **Not restated here.** The one-line summary:
+
+> **Toggle log sides with the EYE on both interior flips; the LABELS are the outlier. Pixels, AA,
+> capture path and overlay semantics are CLEARED. On Bates the injector does not count the apply tick
+> (`apply → first toggle` = `+3`); on the bench it does (`+2`).**
+
+⚠ **Provenance:** transcription at `D:\IntrusiveAnomalies\_bates_reads\` — **outside every repo,
+chat-owned, read-only.** Nothing from it is staged; the facts were copied into the ledger.
+
+### §7.3 (b) THE BENCH HALF — measured, and it does NOT show the Bates shape
+
+**Artifact read only. No leg was run.** Source: the `m38` gate-(v) session
+`_bench_sessions_bank\M38_G5_VERBOSE\session_20260902-183933`, whose `anomaly_log.txt` carries the
+toggle lines **with** the engine prefix. `run.json`: `settle_frames 2 · pre_frames 4 ·
+positive_frames 8 · post_frames 4 · burst_count 0 · frame_cap 90 · mode targeted ·
+target_anomaly blinking · target_actor StaticMeshActor_49 · target_fps 30 · paced true` —
+**byte-for-byte `C-3`'s configuration.**
+
+**Expected (journal 068 §1.1.1, capture-first): apply on `frame_index(n−1)`'s tick · flip 1 on an
+UNCAPTURED settle tick · flip 2 on `frame_index(n+2)` · flip 3 on `frame_index(n+5)` · revert on
+`frame_index(n+7)`.** Measured, all eight bursts:
+
+| burst | `n` | apply `[fff]` | `frame_index(n−1)` | T1 | uncaptured? | T2 | `frame_index(n+2)` | T3 | `frame_index(n+5)` | revert | `frame_index(n+7)` | verdict |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 4 | 4 | **4** ✅ | 6 | ✅ (5,6 uncaptured) | 9 | **9** ✅ | 12 | **12** ✅ | 14 | **14** ✅ | **as expected** |
+| 2 | 16 | 20 | **20** ✅ | 22 | ✅ (21,22) | 25 | **25** ✅ | 28 | **28** ✅ | 30 | **30** ✅ | **as expected** |
+| 3 | 28 | 36 | **36** ✅ | 38 | ✅ (37,38) | 41 | **41** ✅ | 44 | **44** ✅ | 46 | **46** ✅ | **as expected** |
+| 4 | 40 | 52 | **52** ✅ | 54 | ✅ (53,54) | 57 | **57** ✅ | 60 | **60** ✅ | 62 | **62** ✅ | **as expected** |
+| 5 | 52 | 68 | **68** ✅ | 70 | ✅ (69,70) | 73 | **73** ✅ | 76 | **76** ✅ | 78 | **78** ✅ | **as expected** |
+| 6 | 64 | 84 | **84** ✅ | 86 | ✅ (85,86) | 89 | **89** ✅ | 92 | **92** ✅ | 94 | **94** ✅ | **as expected** |
+| 7 | 76 | 100 | **100** ✅ | 102 | ✅ (101,102) | 105 | **105** ✅ | 108 | **108** ✅ | 110 | **110** ✅ | **as expected** |
+| 8 | 88 | 116 | **116** ✅ | 118 | ✅ (117,118) | 121 | **no frame** | — | — | 122 | **none** | **cap-truncated — see below** |
+
+> 🚨 **THE LOUD ANSWER THE BRIEF ASKED FOR: THE BENCH DOES *NOT* SHOW `n / n+3 / n+6`. It shows
+> `uncaptured / n+2 / n+5` on every full burst, exactly as modelled.** ⇒ the story does **not**
+> change; the two hosts genuinely differ, on the same plugin and the same configuration, and the
+> difference is one tick at the apply.
+
+✅ **§6.4.2's truncation finding is now MEASURED LIVE, not only inferred from banked artifacts.**
+Burst 8: `frame_indices` `[88,89]`, `frame_index(88) = 119`, `frame_index(89) = 120`, **max
+`frame_index` in the whole run = 120** — so the third toggle at **`[121]` has NO `labels.jsonl` row at
+all**: it fires on a `DrainTail` tick. `IAI.Revert` lands at `[122]`, from `FinishRun`
+(`AnomalyCaptureSubsystem.cpp:2984-2991`), not one tick after the last captured frame. ⚠ The run's own
+banner reads `7 burst(s)` while `annotation.json` holds **8** blink events — `BurstsDone` counts
+completed `PostGap`s. **Both numbers are correct; they count different things.**
+
+### §7.4 (c) CROSS-CHECK — is the apply tick counted?
+
+**The discriminator is two log lines, on any host, at no cost: `blinking: matched …` and the first
+`blinking toggle ->` after it.**
+
+| host | apply `[fff]` → first toggle `[fff]` | Δ | reading |
+|---|---|---|---|
+| **bench**, all 8 bursts | 4→6 · 20→22 · 36→38 · 52→54 · 68→70 · 84→86 · 100→102 · 116→118 | **+2** | **the apply tick IS counted** |
+| **Bates**, both events | 35→38 · 3→6 | **+3** | **the apply tick is NOT counted** |
+
+⇒ **`Δ = 2` ⇔ the injector's `Tick` ran AFTER `Apply` on the apply tick. `Δ = 3` ⇔ it did not.** With
+`HalfPeriodFrames = 3` there is no other value the arithmetic admits.
+📌 **This is now a permanent, one-line host probe, and it is worth more than the whole `C-3` bundle
+was expensive.**
+
+---
+
+## §8 (d) SOURCE READ — WHAT DETERMINES THE SUBSYSTEM TICK ORDER
+
+⛔ **Factual mapping with `file:line`. Mechanism language stays at "consistent with".** Engine
+citations are the source build at `D:\UESource\UnrealEngine\Engine\Source`, UE 5.1.
+
+### §8.1 The chain, end to end
+
+| step | what | `file:line` |
+|---|---|---|
+| 1 | `UWorld::Tick` ticks all tickables in one call | `Runtime/Engine/Private/LevelTick.cpp:1606` — `FTickableGameObject::TickObjects(this, TickType, bIsPaused, DeltaSeconds)` |
+| 2 | `TickObjects` iterates **`Statics.TickableObjects` in ARRAY ORDER** and calls `Tick` | `Runtime/Engine/Private/Tickable.cpp:134-164`, the call at `:150` |
+| 3 | that array is filled by draining `Statics.NewTickableObjects` at the top of **every** `TickObjects` | `Tickable.cpp:117-124`; `AddTickableObject` **appends** at `:38-46` |
+| 4 | `NewTickableObjects` is a **`TSet<FTickableGameObject*>`**; objects enqueue in the **constructor** and dequeue in the **destructor** | `Tickable.cpp:15`; ctor `:83-95`; dtor `:97-103` → `:25-29` |
+| 5 | `TSet` iterates its `TSparseArray Elements` in **index order** | `Core/Public/Containers/Set.h:1397-1400`, `:1582-1636` |
+| 6 | 🚨 **but `TSet::Emplace` REUSES THE LIFO FREE LIST when `NumFreeIndices > 0`** | `Set.h:723-736` → `Core/Public/Containers/SparseArray.h:115-136` (`FirstFreeIndex`, `NextFreeIndex`) |
+| 7 | subsystem construction order is set by the world's collection init | `Runtime/Engine/Private/World.cpp:8615` (`SubsystemCollection.Initialize(this)`); teardown `World.cpp:5085` |
+| 8 | which iterates `GetDerivedClasses(UWorldSubsystem::StaticClass(), …, true)` and constructs in that order | `Runtime/Engine/Private/Subsystems/SubsystemCollection.cpp:135-141` |
+| 9 | `GetDerivedClasses` is a **breadth-first walk** of `ClassToChildListMap`, each level a `TSet<UClass*>` | `Runtime/CoreUObject/Private/UObject/UObjectHash.cpp:1417-1434`, `:1314-1343`; map at `:361`, populated on class registration `:955`, removed `:1022-1032` |
+
+⇒ **the order is a chain of two `TSet` iterations and one class-registration order, and NOTHING in it
+is declared, documented or overridable by a plugin.**
+
+### §8.2 There is no ordering control on the API these subsystems use
+
+- **None of the five plugin subsystems overrides `GetTickableTickType`, a tick group, or a priority** —
+  verified at `970bf1d`: `AnomalyCaptureSubsystem.h:15`, `AnomalyInjectorSubsystem.h:12`,
+  `AnomalyAutoInjectorSubsystem.h:35`, `AnomalySelectorSubsystem.h:12`,
+  `AnomalyControlServerSubsystem.h:22`.
+- 🚨 **`FTickableGameObject` HAS NO PREREQUISITE API AT ALL.** The dependency mechanism in UE lives on
+  **`FTickFunction`** — `AddPrerequisite(UObject*, FTickFunction&)`,
+  `Runtime/Engine/Classes/Engine/EngineBaseTypes.h:349` (`FTickFunction` at `:171`) — and a
+  `UTickableWorldSubsystem` **is not a tick function**. ⇒ **an ordering guarantee cannot be requested;
+  it can only be constructed** (§9).
+
+### §8.3 🚨 THE MEASURED CONTRADICTION — construction order is NOT the tick order, on THIS box
+
+**Construction/initialisation order, read directly from this box's packaged log** (subsystems are
+constructed and `Initialize`d in one loop, `SubsystemCollection.cpp:138-140`, so the order of these
+lines **is** the construction order):
+
+```
+LogAnomaly:        AutoInjector subsystem initialized for world 'CB_GateLevel' …
+LogAnomaly:        Subsystem initialized for world 'CB_GateLevel'. 9 anomaly type(s) registered.   <-- UAnomalyInjectorSubsystem
+LogAnomaly:        Selector subsystem initialized for world 'CB_GateLevel' …
+LogAnomalyCapture: AnomalyCapture subsystem initialized (idle …)                                    <-- UAnomalyCaptureSubsystem
+LogAnomalyServer:  AnomalyControlServer subsystem initialized …
+```
+
+⇒ **`UAnomalyInjectorSubsystem` is constructed BEFORE `UAnomalyCaptureSubsystem` on the bench.**
+**But the bench TICKS capture first** — `Δ = +2` on all eight bursts (§7.4), and `m20`'s independent
+pixel-vs-label measurement (journal 026 §Bug B).
+
+🔻 **THEREFORE JOURNAL 068 §1.4.5's "the relative order is `FTickableGameObject` registration order"
+IS INCOMPLETE, and this box is its own counter-example.** Registration order is the **input** to step
+3, but step 6 means the drain reorders whenever a tickable has been **destroyed** since the last
+`Empty()` — and a world transition destroys a whole collection (`World.cpp:5085`) while the next one
+is being created (`:8615`). The bench log shows exactly that: subsystems initialise for **`Untitled`
+first, then `CB_GateLevel`**.
+
+⛔ **I did NOT isolate which removal produced this box's particular order.** That needs a live
+per-subsystem ordering probe, which is out of scope for a docs turn and is not proposed here.
+✅ **What IS established, and it is the answer the brief asked for:**
+
+> **The tick order is not declared anywhere, is not a simple function of construction order, and is
+> demonstrably NOT construction order on the one box where both are measured.**
+
+### §8.4 Can it differ between the bench project and a host? — **YES, and it already differs from construction order here**
+
+Every input is host-owned and none is under the plugin's control:
+
+| input | owned by |
+|---|---|
+| which modules load, and in what order (LoadingPhase, `.uplugin` module list, link dependencies) | the host build |
+| how many `UWorldSubsystem` classes exist at all — the host's own plus **every enabled plugin's** | the host |
+| UHT emission order within each module | the toolchain |
+| how many other `FTickableGameObject`s are created and **destroyed** around world transitions (step 6's free-list churn) | the host |
+| how many worlds are created and torn down before the capture world | the host |
+
+⇒ **a host with its own subsystems, its own plugin set and its own load order can land on either
+order, and nothing in the plugin would notice.** ⛔ That is a statement about the engine API, not a
+claim about Bates.
+
+### §8.5 THE ARITHMETIC, against both hosts
+
+**Under injector-BEFORE-capture on the apply tick `T0`:** the injector's `Tick` runs while
+`bActive == false` — `Apply` has not happened yet, because it runs *inside* the capture subsystem's
+`Tick` (`AnomalyCaptureSubsystem.cpp:643`/`:680` → `:2314` → `AnomalyInjectorSubsystem.cpp:454`) — so
+`FAnomaly_Blinking::Tick` returns at `Anomaly_Blinking.cpp:75-78` and **`T0` is not counted.** Then
+`T1 → 1`, `T2 → 2`, `T3 → 3` ⇒ **first toggle at `T3`**, which is `n`'s own arm tick (`T0` arms `n−1`;
+`T1`, `T2` are the two settle ticks).
+
+| prediction | Bates measurement | fit |
+|---|---|---|
+| apply at `T0` = `frame_index(n−1)` | `[35]`, and `frame_index(27) = 30035` | ✅ |
+| `T1`, `T2` uncaptured | `30036`, `30037` absent from `labels.jsonl` | ✅ |
+| first toggle at `T3` = `frame_index(n)` | **`[38]`**, `frame_index(28) = 30038` | ✅ |
+| second at `T3+3` = `frame_index(n+3)` | **`[41]`** = `frame_index(31)` | ✅ |
+| third at `T3+6` = `frame_index(n+6)` | **`[44]`** = `frame_index(34)` | ✅ |
+| pixels hidden `{n, n+1, n+2, n+6}` (a toggle inside tick `T` reaches `T`'s render — the `F-1` guarantee, `SceneRendering.cpp:4528`) | eye: **gone 28, 29, 30, 34** | ✅ |
+| labels unchanged at `{n, n+1, n+5, n+6}` (§6.1.3's order-invariance) | **`{28,29,33,34}`** | ✅ |
+| `n−1` amber, `n+7` no box | **amber 27, no box 35** | ✅ |
+
+**Under capture-BEFORE-injector on `T0`** (the bench): `Apply` runs inside the capture `Tick`, then the
+injector ticks with `bActive == true` ⇒ **`T0` IS counted**; `T1 → 2`, `T2 → 3` ⇒ **first toggle at
+`T2`, an uncaptured settle tick**, then `n+2` and `n+5`. **Matched on all eight bursts (§7.3).**
+
+> ✅ **ONE HYPOTHESIS — the two subsystems tick in opposite relative order on the two hosts — FITS
+> EVERY MEASURED NUMBER ON BOTH HOSTS, WITH NO FREE PARAMETERS. NOTHING CONTRADICTS IT.**
+> ⛔ **"CONSISTENT WITH", NOT ASSERTED.** The tick order on Bates was **not observed** — no
+> per-subsystem ordering probe exists and the box is sealed.
+
+⚠ **AND ONE ALTERNATIVE THE NUMBERS CANNOT EXCLUDE, STATED SO NOBODY LATER MISTAKES THE FIT FOR A
+PROOF: `apply → first toggle` cannot distinguish "the injector ticked BEFORE `Apply`" from "the
+injector did not tick on that tick at all."** Both yield `+3`. Anything that costs the injector its
+first counted tick produces the same arithmetic. ⇒ **the OBSERVATION is "the apply tick is not
+counted on Bates"; "injector-before-capture" is one reading of it and is recorded as such.**
+
+---
+
+## §9 (e) PLAN ONLY — FIX OPTIONS. ⛔ NO CODE, NOTHING BUILT, NOTHING AUTHORISED
+
+**The requirement, in one sentence:** *the labels must reflect what was rendered, on every host,
+whatever the tick order turns out to be.*
+
+📌 **Note what is NOT broken.** The pixels are correct on both hosts — Bates renders exactly what its
+code commanded. **This is a labelling defect, and the deliverable defect is that a delivered dataset
+would carry a `blinking` label two frames out of phase on such a host.**
+
+### §9.1 The options
+
+#### Option 1 — PIN THE ORDER
+
+Make the relative order deterministic instead of emergent. Three shapes, none free:
+
+| shape | how | note |
+|---|---|---|
+| **1a** capture drives the injector | `UAnomalyCaptureSubsystem::Tick` calls the injector's anomaly dispatch directly while a run is active; the injector's own `Tick` no-ops for the duration | deterministic by construction; no engine ordering dependency |
+| **1b** real tick functions | move one or both off `UTickableWorldSubsystem` onto an `FTickFunction` and use `AddPrerequisite` (`EngineBaseTypes.h:349`) | the only *engine-sanctioned* ordering API — but it is a structural change to two subsystems |
+| **1c** delegate-anchored | drive the injector from `FWorldDelegates::OnWorldTickStart` (`LevelTick.cpp:1328`) or `OnWorldPreActorTick` (`:1468`) so its position is fixed by the engine's own sequence | cheaper than 1b, still changes when anomalies apply |
+
+**Pros.** Makes the **pixels** host-invariant too: the shipped blink cadence becomes the same on every
+host, which is a real product property for a dataset generator.
+🚨 **Cons / risk — and this is decisive.** Pinning necessarily **CHANGES WHAT ONE HOST RENDERS.**
+Whichever host currently disagrees with the pin gets different pixels. It is therefore **not a label
+fix; it is a behaviour change to the product**, and it lands on a client-facing build. It also reaches
+**every self-ticking anomaly, not just `blinking`** (`lod_popping` ticks too,
+`Anomaly_LodPopping.cpp:257`), and it must not disturb `m6` auto-injection outside capture.
+**Blast radius: the injector's tick for all anomalies, on all hosts, in and out of capture.**
+
+#### Option 2 — SAMPLE THE LABEL AT END-OF-WORLD-TICK ✅
+
+Move the active-state sample from *"the top of the next capture `Tick`"*
+(`AnomalyCaptureSubsystem.cpp:591` → `SampleDeferredActiveState`, `:2717-2759`) to a point **after
+every tickable has ticked, in the same world tick** — `FWorldDelegates::OnWorldTickEnd`,
+**`LevelTick.cpp:1814`**, which is strictly after `TickObjects` at `:1606` and after
+`OnWorldPostActorTick` at `:1672`, and still **before the draw** (the `m26` finding, journal §176-§180:
+post-toggle by position, pre-draw same frame). Then the sampled bit **is what the renderer will draw
+for that frame, whatever order the subsystems ticked in.**
+
+**Pros.**
+- ✅ **Fixes the actual defect** — the labels — **on every host, without changing a single rendered
+  pixel on any host.**
+- ✅ **Makes the ordering IRRELEVANT rather than pinned.** Nothing has to be assumed about a host again,
+  and the `apply → first toggle` probe becomes a curiosity rather than a risk.
+- ✅ **The hook is already wired and already proven in this plugin for exactly this reason:**
+  `FWorldDelegates::OnWorldTickEnd` is registered at `AnomalyCaptureSubsystem.cpp:334`, handler
+  `:704`, with the necessary `World != GetWorld()` guard at `:707` — the `m26` mask block chose it on
+  the identical "post-toggle by position" argument.
+- ✅ **Small blast radius.** `SampleDeferredActiveState` feeds `Snap->FireActive` → `ActiveByIndex`
+  (`:3432`) → `frame_indices` **and nothing else**. `labels.jsonl`'s per-frame `anomaly_present` comes
+  from `Snap->Fires`, which is untouched.
+
+**Cons / risk.**
+- ⚠ **This is NOT a return to `m18`, and the distinction must be stated loudly in the commit**, or a
+  future reader will think the `m20` bug is being reintroduced. `m18` sampled at the end of **our own
+  `Tick`** — mid-world-tick, *before* the injector. This samples at the end of the **world tick**,
+  after every tickable. `m20`'s bug was the former; this is strictly later than both.
+- ⚠ The sample moves from *"one tick later"* to *"same tick, at the end"*. The `AnomalyState`-sourced
+  anomalies (`lod_popping`, `camera_clipping`, via `IsAnomalyCurrentlyAnomalous`, `:2747-2751`) and
+  the `ActorHidden` ones (`blinking`, `missing_object`) must both be re-checked.
+- ⚠ `n+7`'s "no row" behaviour must not move: `BeginRevert` at `:653` still precedes
+  `FinalizeArmedLabel` at `:700`, and both precede `OnWorldTickEnd`. **To be verified, not assumed.**
+- ⚠ The **sync fallback** path samples inline at `:2439` and would still be one tick stale (§6.4.1).
+  Either it moves too, or the limitation is stated.
+
+#### Option 3 — BOTH
+
+Option 2 plus option 1 as a later hardening. **Not recommended as one change**: 1 changes pixels and 2
+does not, so bundling them makes the pixel change unattributable — and this project has a rule about
+that (`m24`'s control-pair discipline).
+
+### §9.2 Gates each option must re-pass
+
+| gate | why it bites |
+|---|---|
+| **`m20`'s pixel-vs-label measurement** (journal 026 §Bug B) | the founding gate for the deferred sampler. **Both options must reproduce `annotation == pixels` on every blink edge**, and a regression here is the `m20` bug returning |
+| **the 16/16 bench alignment** (journal 067 §12.6) | the certified pixel↔label agreement on this box |
+| **the certified `(n, n+1, n+5, n+6)` cadence, byte-identical** | 🎯 **the discriminating gate.** Option 2 must leave the BENCH cadence **unchanged** (there `Δ = +2`, and the end-of-tick sample equals today's deferred sample), i.e. **proven INERT where the order already agrees.** Option 1, by construction, may change it |
+| **`P6` 48/48** (`annotation.json` and `run_summary.json` key sets) | neither option may move a field; both change a **value** on an affected host, not a **shape** |
+| **`P-C7`** (census-OFF byte-identity) | neither option touches selection; **`P-C7` must still pass** as the standing proof that the selection path is untouched — a cheap, already-built regression |
+| **`G-M9`-class within-frame checks** | not implicated; recorded so nobody re-runs them |
+| 🚨 **prove-it-can-fail (`G96`)** | see §9.3 — **this is the hard one** |
+
+### §9.3 🚨 HOW BATES VALIDATION WORKS, AND THE PROBLEM IT CREATES
+
+**Bates is sealed.** A fix reaches it only when that host's build is next updated. Two consequences:
+
+1. **On the bench, option 2 can only be proven INERT** — the bench is a `Δ = +2` environment, where
+   the new sample point and the old one agree by construction. **A gate that can only pass is not a
+   gate** (`G96`, three prior instances in this project).
+2. **To prove it can FIX, a `Δ = +3` environment is needed** — and the bench cannot produce one
+   naturally, because its tick order is not ours to choose.
+
+**Two routes, and they are the decision:**
+
+| route | shape | cost | risk |
+|---|---|---|---|
+| **A — a bench-only lever** | a default-OFF cvar that makes the injector's dispatch skip the apply tick (or run from a pre-tick delegate), **synthesising `Δ = +3` on this box** | small; it is a test construct, not a product change | must be **default-OFF and echoed at `StartRun`** (`A48`), or it becomes a diagnostic that can be silently on. It synthesises the SYMPTOM, not the cause — **say so in the gate file** |
+| **B — wait for the Bates build update** | ship the fix proven inert, validate on the host when its build moves | zero build cost now | the fix ships **unproven in the direction it exists for**, and the next `C-3`-shaped read is the first evidence |
+
+📌 **The post-fix Bates read is already cheap either way**: `apply → first toggle` plus
+`frame_indices` plus one eye pass. **If the fix works, `Δ` may still read `+3` there and the labels
+must nonetheless equal the eye** — that is the pass condition, and it should be **pre-declared before
+the build ships**, not after.
+
+### §9.4 RECOMMENDATION
+
+> 🎯 **OPTION 2 — sample the label's active state at `FWorldDelegates::OnWorldTickEnd`.**
+
+**Why, in four lines.**
+1. It fixes **the thing that is actually wrong** (the labels) and leaves **the thing that is actually
+   right** (the pixels) untouched on every host — option 1 does the reverse on one host.
+2. It **removes the dependency** instead of pinning it: no future host's subsystem set, plugin list or
+   load order can reintroduce this, and no assumption about tick order survives in the code.
+3. The hook, the guard and the argument for it are **already in this codebase and already proven**
+   (`m26`, `AnomalyCaptureSubsystem.cpp:334`/`:704`/`:707`; `LevelTick.cpp:1814`).
+4. Its blast radius is **one function** feeding **one field**, with `P6` unmoved.
+
+⛔ **Option 1 is NOT recommended and should not be added "for safety":** it changes rendered output on
+whichever host disagrees with the pin, which converts a label fix into a product-behaviour change on a
+client-facing build, and it would make the bench's own certified cadence a moving target.
+📌 **If a deterministic cadence is later wanted as a product property, that is its own milestone with
+its own gates — not this fix.**
+
+⛔ **NOTHING IS AUTHORISED. No file was changed, nothing was built, no milestone was opened, and no
+number was assigned to this work.**

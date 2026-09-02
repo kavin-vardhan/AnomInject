@@ -565,11 +565,21 @@ IAI.Capture.Start "" png 4242 90 blinking StaticMeshActor_1246
 
 **Read back: does (B) appear on BOTH?** One line each is enough — *"displaced yes/no"*.
 
-### C-3. 🔴 **THE DECISIVE ITEM — the text bundle for ONE event**
+### C-3. ✅ **DONE BY OWNER 2026-09-02 (run 13:57). IT ANSWERED. DO NOT RE-RUN.**
 
-🚨 **THIS IS NOW THE MOST IMPORTANT THING ON THE CARD.** `C-1` closed **(A)**. Every other axis for
-**(B)** is excluded — AA in both directions, census, mask, delivery, pacing, tick ratio, letterbox.
-**What is left is the Bates host path, and `C-3` is what reads it.**
+> ✅ **RESULT, one line: the toggle log sides with the EYE on both interior flips — HIDDEN `[38]` =
+> frame 28 = `n` · VISIBLE `[41]` = `n+3` · HIDDEN `[44]` = `n+6`, with the eye gone at 28, 29, 30, 34
+> — so PIXELS, AA, the capture path and the overlay are CLEARED, and the LABELS `{28,29,33,34}` are
+> the outlier.** The apply tick is not counted by the injector there (`apply [35] → first toggle
+> [38]` = **+3**, against **+2** on the bench). Full result, join table and arithmetic:
+> `docs/invisible-anomaly-mechanisms.md` §8.6a. Fix plan (no code): journal 068 §9.
+> ✅ **AMBER on `n−1` and NO box on `n+7` both confirmed on Bates**, as the code predicted.
+> 📌 **Everything below is kept as the record of what was run and how it was read** — a post-fix
+> re-read will use the same four commands.
+
+🔻 *(Was: "THIS IS NOW THE MOST IMPORTANT THING ON THE CARD.")* `C-1` closed **(A)**. Every other axis
+for **(B)** was excluded — AA in both directions, census, mask, delivery, pacing, tick ratio,
+letterbox — **and `C-3` then located the remainder.**
 
 **PREREQUISITES — all three, or the bundle cannot answer the question:**
 
@@ -692,9 +702,18 @@ needs to look at the overlay again to settle it.**
 
 #### 🆕 C-3 READ GUIDE — how to READ the bundle. ⛔ No new steps, no new commands.
 
+> 🏁 **`C-3` WAS RUN AND IT ANSWERED — owner, 2026-09-02, 13:57. NOTHING BELOW NEEDS RUNNING AGAIN.**
+> **Result in one line: the toggle log sides with the EYE on both interior flips (HIDDEN `[38]` =
+> frame 28 = `n` · VISIBLE `[41]` = `n+3` · HIDDEN `[44]` = `n+6`), so pixels, AA, capture path and
+> overlay semantics are CLEARED and the LABELS `{28,29,33,34}` are the outlier.** Full result and join
+> table: `docs/invisible-anomaly-mechanisms.md` §8.6a. **The guide is kept as the record of how it was
+> read, and because a post-fix re-read will use it again.**
+
 *(Added 2026-09-02 from the transition-driver source read, journal 068 §1. **Nothing here changes what
 you run.** It changes what to look at afterwards, and it names the one thing that can quietly make the
 bundle unanswerable.)*
+*(⚠ **Amended 2026-09-02 after the adversarial re-read, journal 068 §6.6.** Items 1, 3, 5 and 6
+carried errors that would have mis-read a correct bundle. The corrections are marked 🔻.)*
 
 **1. 🚨 THE TOGGLE LINE CARRIES NO INDEX OF ITS OWN. ITS ONLY ANCHOR IS THE `[…]` PREFIX.** The line is
 literally `blinking toggle -> HIDDEN (1 actors).` and nothing more — no frame number, no session
@@ -706,9 +725,14 @@ index. What identifies it is the **engine's own prefix**, which should look like
 
 That `[  4]` is the engine frame counter mod 1000, **and it is the same counter `labels.jsonl` calls
 `frame_index`.** ⇒ **join `(a)` to `(b)` on the bracketed number, not on `session_index`.**
-⚠ **If the toggle lines come out with NO `[…][…]` prefix, say so explicitly in the reply** — that
-build has log timestamps switched off, the exact-frame join is gone, and only line ORDER survives.
-Nothing to fix on the box; we just need to know.
+🔻 **CORRECTION — do NOT match on the date.** The frame bracket is **the LAST bracket before the
+category**, and the engine prints it in four of its five timestamp modes. The bracket in front of it
+may be a date (`[2026.09.02-…]`), a **seconds float** (`[0012.34]`) or a timecode, depending on the
+build. **All of those are fine and the anchor is present.**
+⚠ **Report "no prefix" ONLY if there is no bracket at all** — that is the single mode
+(`LogTimes=None` / `-NOLOGTIMES`) that removes the anchor, and then only line ORDER survives. Nothing
+to fix on the box; we just need to know.
+✅ *(On the actual `C-3` run the prefix was PRESENT and the exact-frame join worked.)*
 
 **2. READ `(b)` FOR `frame_index`, NOT ONLY `session_index`.** The `(b)` command already prints both
 (`session_index  frame_index  image`). `frame_index` is the join key to `(a)`; `session_index` is the
@@ -718,6 +742,14 @@ key to the PNG name and to `(c)`.
 next to the toggle lines, but only for captured frames up to ~64. Beyond that its absence is normal.
 The `keyed frame id=N submitted` lines continue for the whole run, but they come from the **render
 thread** — use their `id=` field, **never** their position in the file or their `[…]` prefix.
+🔻 **AND IT IS MORE THAN A SECOND ANCHOR — IT IS THE CHECK ON THE FIRST ONE. CONDITIONAL STEP:** *if*
+`SVE-WANT-TRACE arm` lines exist in the log, **verify `[fff] == gameFrame % 1000` on the first one.**
+That line reports its own frame as a field *and* receives the prefix, so the two must agree; if they
+disagree, the prefix was not stamped when the line was logged and **every toggle-line join in the
+bundle is void.** Measured on the bench: **704 of 704 across 11 packaged logs, 0 divergent.**
+⚠ **Bates' installed build prints NO such line** (measured 2026-09-02: `gameFrame=30038` and
+`gameFrame=30041` both returned **0 hits**). **Its absence there is EXPECTED and is not a fault** —
+the prefix anchor alone sufficed, and it did.
 
 **4. TWO FREE CROSS-CHECKS ON THE OVERLAY, both expected from the code:**
 - **`n − 1` should carry an AMBER box** (it has a label row for the fire but is not in
@@ -727,21 +759,45 @@ thread** — use their `id=` field, **never** their position in the file or thei
   down and send it raw** — that is a finding, not a mistake.
 
 **5. EXPECT EXACTLY THREE TOGGLE LINES PER EVENT, in the order `HIDDEN · VISIBLE · HIDDEN`,** followed
-by `IAI.Revert 'blinking' -> reverted.` (which is the event's end). The first hide has no
-`labels.jsonl` row on its own frame — it happens on a tick that is deliberately not captured, and
-that is expected. A different count or order means the half-period differs; the line
-`blinking: matched 1 actor(s) for '…' at half-period N frame(s).` in the same log reports that value —
-**copy that line too.**
+by `IAI.Revert 'blinking' -> reverted.` (which is the event's end). The line
+`blinking: matched 1 actor(s) for '…' at half-period N frame(s).` in the same log reports the
+half-period — **copy that line too.**
+🔻 **CORRECTION — THE RULE IS BOUNDED, AND TWO SENTENCES OF IT WERE WRONG.**
+- **It holds for every FULL burst only.** ⛔ It does **NOT** hold for the **LAST** event of a 90-frame
+  run: the frame cap ends the run mid-burst, the revert comes from run shutdown instead, and that
+  event reads `frame_indices [88,89]` with fewer than three toggle lines. **Measured on 235 banked
+  90-frame sessions and live on the bench.** ⚠ The `-First 20` cap in `(a)` also truncates the last
+  event it prints. ⇒ **count toggle lines only on an event from bursts 1–5**, as prerequisite 4
+  already requires — and **a short count there is NOT evidence that the half-period differs.**
+- 🚨 **THE FIRST HIDE'S POSITION IS A DISCRIMINATOR, NOT AN EXPECTATION.** Under the tick order this
+  box has, flip 1 lands on a tick that is deliberately **not** captured, so its `[fff]` matches **no**
+  `labels.jsonl` row and `frame_index(n) − frame_index(n−1)` reads `3`. **If flip 1's `[fff]` instead
+  lands ON `frame_index(n)`, that is a READING, not a fault — write it down and send it raw. It is the
+  single most informative line in the bundle.** *(On the actual `C-3` run it DID land on
+  `frame_index(n)` — `[38]` = 30038 = session 28 — and that is what located the divergence.)*
 
 **6. WHAT THE COMPARISON THEN ASKS, in one sentence each.** For the mid-event show (labels `n+2`, eye
 `n+3`) and the second hide (labels `n+5`, eye `n+6`): find the frame the toggle line lands on.
 **Lands on the LABELS' frame ⇒ the pixels are the outlier on this host. Lands on the EYE's frame ⇒ the
-sampling/labelling side is the outlier. Anything else, or no usable anchor ⇒ report raw and classify
-nothing.** ⛔ These name WHERE, never WHY, and no branch is expected in advance.
+divergence lies in the INTERVAL BETWEEN THE TOGGLE CALL AND THE LABEL SAMPLE. Anything else, or no
+usable anchor ⇒ report raw and classify nothing.** ⛔ These name WHERE, never WHY, and no branch is
+expected in advance.
+🔻 **CORRECTION — row 2 used to say "the SAMPLING / LABELLING side is the outlier". It now names the
+INTERVAL, not a subsystem** (journal 068 §6.5): a one-tick change in *when the toggle runs relative to
+the arm* produces the same reading with the labelling code behaving identically, so naming a subsystem
+would point a reader at the wrong place. ⛔ **Do not write "the sampler is broken on this host".**
 
 ### Standing
 
+> 🏁 **NOTHING FURTHER IS NEEDED FROM BATES FOR `P9` UNTIL A FIX BUILD EXISTS (2026-09-02).**
+> `C-1` closed **(A)**. `C-3` located **(B)** and got everything the card asked for. **The box is
+> sealed, so the next `P9` errand there is a re-read AFTER its build is next updated** — and that
+> re-read is cheap: `apply → first toggle`, `frame_indices`, and one eye pass over `n−1 … n+7`.
+> ⛔ **Do not queue further `P9` reads on Bates in the meantime, and do not re-run `C-3`.**
+
 ⛔ **Blinking stays UNTICKED on any Bates run that is not `C-1`, `C-2` or `C-3`.**
+📌 **That mitigation STANDS** — `C-3` explained the mismatch, it did not remove it. A `blinking`
+capture on Bates still ships labels two frames out of phase until the fix lands.
 
 ### C-(f). OPTIONAL — a clean Bates dataset
 

@@ -53,8 +53,33 @@ and is the single source of truth for the project.
 > outer flips matching exactly and **both interior flips +1 frame late in pixels**, hidden-frame count
 > conserved. **Every other axis is excluded — AA in BOTH directions, census, mask, delivery, pacing,
 > tick ratio, letterbox — so (B) is LOCALIZED TO THE BATES HOST BUILD + CONTENT.** ⛔ **NO MECHANISM
-> CLAIMED.** **Next evidence: RDP card `C-3`** (fresh run, `Log LogAnomaly Verbose` set first, AA off;
-> a pre-declared three-way comparison that names WHERE the divergence sits, never why).
+> CLAIMED.**
+> 🏁🏁 **`C-3` RAN ON BATES 2026-09-02 (13:57) AND ANSWERED. ⛔ DO NOT RE-RUN IT; NOTHING FURTHER IS
+> NEEDED FROM BATES FOR `P9` UNTIL A FIX BUILD EXISTS.** Prefix present; toggle lines
+> **HIDDEN `[38]` · VISIBLE `[41]` · HIDDEN `[44]`**, joining to `frame_index` as **`n` · `n+3` ·
+> `n+6`** — **CODE == EYE, frame for frame** (eye gone at 28, 29, 30, 34), while the labels read
+> `{28,29,33,34}`. ⇒ 🎯 **PIXELS, AA, THE CAPTURE PATH AND THE OVERLAY ARE CLEARED; THE LABELS ARE THE
+> OUTLIER.** Both free cross-checks passed on Bates (**AMBER on `n−1`, NO box on `n+7`**).
+> 🔑 **THE DISCRIMINATOR IS TWO LOG LINES AND IT IS NOW A PERMANENT HOST PROBE: `apply → first toggle`
+> reads `+3` on Bates (the apply tick is NOT counted by the injector) against `+2` on the bench (it
+> IS), measured on ALL EIGHT bursts of the `m38` gate-(v) session at `C-3`'s byte-identical config.**
+> **The bench does NOT show the Bates shape** — it shows `uncaptured / n+2 / n+5` exactly as modelled.
+> ⇒ **the divergence is LOCATED: the INTERVAL BETWEEN THE TOGGLE CALL AND THE LABEL SAMPLE**, at the
+> toggle-relative-to-arm end. ⛔ **STILL NO MECHANISM ASSERTED** — "consistent with the two subsystems
+> ticking in opposite relative order on the two hosts", which fits every number on both hosts with no
+> free parameters, and **nothing contradicts it**; the tick order on Bates was **not observed**.
+> ⚠ **`apply → first toggle` CANNOT distinguish "the injector ticked before `Apply`" from "it did not
+> tick at all" — both give `+3`.** Ledger `docs/invisible-anomaly-mechanisms.md` §8.6a; the tick-order
+> source read is journal 068 §8; **the fix is a PLAN ONLY at journal 068 §9 — recommended option:
+> sample the label's active state at `FWorldDelegates::OnWorldTickEnd` (`LevelTick.cpp:1814`), which
+> fixes the labels on every host and changes no rendered pixel. NOT AUTHORISED, NOT NUMBERED.**
+> 🚨 **THE ORDER IS NOT DECLARED ANYWHERE AND IS NOT CONSTRUCTION ORDER — MEASURED ON THIS BOX:** the
+> injector subsystem is *constructed* BEFORE the capture subsystem (Initialize log order) yet *ticks*
+> AFTER it. `FTickableGameObject` has **no prerequisite API at all** (`FTickFunction::AddPrerequisite`
+> is the tick-*function* mechanism, `EngineBaseTypes.h:349`), and the drain of `NewTickableObjects`
+> reuses a LIFO free list (`SparseArray.h:115-136`), so a world transition can reorder it. ⇒ **an
+> ordering guarantee cannot be requested, only constructed** — and journal 068 §1.4.5's "registration
+> order" is **INCOMPLETE**, with this box as its own counter-example.
 > ✅ **THE TRANSITION-DRIVER + TOGGLE-LINE-ANCHOR SOURCE READ IS DONE (2026-09-02, session 068 TASK 1 —
 > journal `docs/sessions/2026-09-02-068-p9-transition-drivers-and-toggle-anchor.md` §1).** It had
 > **NEVER BEEN EXECUTED** (the brief carrying it was never delivered), and journal 067 §17.6 and the
@@ -3250,6 +3275,11 @@ and is the single source of truth for the project.
   by the NEXT session** — a pixel-ground-truth leg, the m18/m20 instrument class. ⚠ Minted as P9
   because the minting instruction said "P8" and **P8 is taken** — numbers are never reused; the
   deviation is stated in journal 066 §3.
+  🔻 **SUPERSEDED 2026-09-02 — `P9` IS MEASURED, NOT EYEBALL-LEVEL, AND ITS DIVERGENCE IS LOCATED.**
+  `C-3` on Bates joined the toggle log to `labels.jsonl` by the engine frame prefix: **code == eye;
+  the LABELS are the outlier**, and the interval is **between the toggle call and the label sample**.
+  `(A)` closed earlier. **This bullet is the MINTING RECORD and is kept as written**; the live state
+  is the `P9` block at the top of this file and ledger §8.6a. ⛔ **Still no mechanism asserted.**
 - **HYPOTHESIS LEDGER:** **H1** GPU-load starvation — **OPEN, no lever exists, and now `P1`'s ONLY named
   lead — if it comes back clean, P1 has NO named leads.** **H2 — RETIRED-UNKNOWN**
   (appears nowhere in this repo; history unrecoverable; **never re-mint this number** — the entry exists only so

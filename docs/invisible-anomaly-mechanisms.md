@@ -887,12 +887,116 @@ Three readings follow from that and nothing else:
 ⇒ **THE DISCRIMINATOR LIES ON THE HOST PATH FROM "visibility set on tick t" TO "pixels in captured
 frame f".** ⛔ That is a statement about where to look, **not** a mechanism, and it names no step.
 
+> 🔻 **SUPERSEDED BY `C-3`, 2026-09-02 — read the block below before acting on the line above.** `C-3`
+> measured the toggle call itself and found **code == eye, frame for frame, on Bates**. ⇒ **the path
+> from "visibility set on tick t" to "pixels" is CLEAN on both hosts**; the divergence is between the
+> **toggle call and the LABEL SAMPLE**, i.e. one step earlier than this line points. ⛔ **The line is
+> kept, not deleted — it was the correct reading of the evidence that existed when it was written.**
+
 ### What the bench campaigns are still worth
 
 v1 and v2 stay recorded exactly as taken. They established the **matched-axis clearance**: with
 letterbox, census, pacing, tick ratio and delivery all matched or excluded, the bench's labels and
 pixels agree 16/16. ⇒ **None of those axes is the discriminator**, which is what makes the
 localization line above sayable at all.
+
+### 🔴🔴 THE `C-3` RESULT — Bates, owner, 2026-09-02, run at 13:57. **THE DIVERGENCE IS LOCATED.**
+
+> 🚨 **`C-3` IS DONE AND IT ANSWERED.** The pre-declared three-way comparison fired its **row 2**. The
+> toggle log **sides with the EYE on both interior flips**; the **labels are the outlier**. ⛔ **NO
+> MECHANISM IS ASSERTED HERE.** What is recorded is a measurement plus the arithmetic that follows
+> from it. Source read at journal 068 §8; the fix options are a PLAN only, journal 068 §9.
+
+**The bundle, as measured.** Prefix **PRESENT** (`[timestamp][GFrameCounter%1000]`), so the exact-frame
+join was available and no fallback was needed. ⚠ `SVE-WANT-TRACE arm … gameFrame=` returned **0 hits**
+on that build — the backup anchor does not exist there; **its absence is expected and is not a fault.**
+
+| what | value |
+|---|---|
+| apply line `blinking: matched` | `[35]` |
+| toggle lines | **HIDDEN `[38]` · VISIBLE `[41]` · HIDDEN `[44]`** (~100 ms apart ⇒ paced 30 fps, half-period 3) |
+| `session_index → frame_index` | 26→30034 · **27→30035** · **28→30038** · 29→30039 … 35→30045 · 36→30048 |
+| `frame_indices` (labels) | **`{28, 29, 33, 34}`** — the certified `(n, n+1, n+5, n+6)` cadence at `n = 28` |
+| eye, AA OFF | **gone `28, 29, 30, 34`** · visible `27, 31, 32, 33, 35, 36` |
+| overlay | **AMBER on 27** (`n−1`) · **NO box on 35** (`n+7`) |
+| event 1 of the same run | apply `[3]`, toggles `[6] · [9] · [12]` — the same pattern |
+
+**THE JOIN, and it is exact:**
+
+| flip | toggle tick | = `frame_index` of | eye |
+|---|---|---|---|
+| 1 — first hide | `30038` | **`session_index 28` = `n`** | gone from 28 ✅ |
+| 2 — mid-event show | `30041` | **`31` = `n+3`** | visible from 31 ✅ |
+| 3 — second hide | `30044` | **`34` = `n+6`** | gone at 34 ✅ |
+| 4 — final show | revert on `n+7`'s tick | **`35`** | visible at 35 ✅ |
+
+⇒ **CODE == EYE, frame for frame. LABELS `{28,29,33,34}` ARE THE OUTLIER.**
+✅ **Two free cross-checks from journal 068 §1 both PASSED on Bates: AMBER on `n−1`, and NO box at
+`n+7`.** The label pipeline's *shape* is intact on that host; only its *phase* differs.
+
+**THE ARITHMETIC — the apply tick is not counted.** ⛔ Arithmetic only.
+
+- The model (journal 068 §1.1.1) predicts the injector counts the **apply tick itself**, so with
+  `half-period 3` the first toggle lands on `apply + 2` — here `30035 + 2 = 30037`, an **uncaptured
+  settle tick**.
+- **Measured on Bates: `30035 → 30038` = `apply + 3`.** The injector counted ticks **30036, 30037,
+  30038 — NOT the apply tick.** Same on event 1 (`[3]` → `[6]`).
+- ⇒ **all three toggles are exactly ONE TICK LATE relative to the arm**, which moves flip 1 off the
+  uncaptured settle tick and **onto `n`'s own arm tick**.
+
+🎯 **AND THE BENCH IS THE OTHER HALF OF THE SAME MEASUREMENT — SAME LINE PAIR, SAME CONFIG, OPPOSITE
+ANSWER.** From the `m38` gate-(v) session (`M38_G5_VERBOSE\session_20260902-183933`, `run.json`
+`settle 2 / pre 4 / positive 8 / post 4`, `frame_cap 90`, targeted `blinking` — **byte-for-byte
+`C-3`'s config**), whose `anomaly_log.txt` carries the toggle lines *with* the prefix:
+
+> **apply → first toggle = `+2` on ALL EIGHT bursts of the bench run, against `+3` on Bates.**
+
+| burst | `n` | apply tick | = `frame_index(n−1)` | first toggle | on | second toggle | = `frame_index(n+2)` | third toggle | = `frame_index(n+5)` | revert | = `frame_index(n+7)` |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 4 | 4 | ✅ 4 | 6 | **uncaptured settle tick** | 9 | ✅ 9 | 12 | ✅ 12 | 14 | ✅ 14 |
+| 2 | 16 | 20 | ✅ 20 | 22 | ✅ uncaptured | 25 | ✅ 25 | 28 | ✅ 28 | 30 | ✅ 30 |
+| 3 | 28 | 36 | ✅ 36 | 38 | ✅ uncaptured | 41 | ✅ 41 | 44 | ✅ 44 | 46 | ✅ 46 |
+| 4 | 40 | 52 | ✅ 52 | 54 | ✅ uncaptured | 57 | ✅ 57 | 60 | ✅ 60 | 62 | ✅ 62 |
+| 5 | 52 | 68 | ✅ 68 | 70 | ✅ uncaptured | 73 | ✅ 73 | 76 | ✅ 76 | 78 | ✅ 78 |
+| 6 | 64 | 84 | ✅ 84 | 86 | ✅ uncaptured | 89 | ✅ 89 | 92 | ✅ 92 | 94 | ✅ 94 |
+| 7 | 76 | 100 | ✅ 100 | 102 | ✅ uncaptured | 105 | ✅ 105 | 108 | ✅ 108 | 110 | ✅ 110 |
+| 8 (cap-truncated) | 88 | 116 | ✅ 116 | 118 | ✅ uncaptured | 121 | **no captured frame** | — | — | 122 | — |
+
+🚨 **THE BENCH MATCHES JOURNAL 068 §1.1.1 EXACTLY, ON EVERY FULL BURST — and Bates does not. Same
+plugin, same config, same two log lines; the ONLY thing that differs is whether the apply tick is
+counted.** ⇒ the loud alternative is **excluded by measurement**: the bench does **not** show
+`n / n+3 / n+6`, so this is not a plugin-wide property that the bench had simply never been asked
+about.
+
+📌 **Journal 068 §6 (`R1`) predicted this shape before the bundle arrived, and it is why the result is
+readable at all: `frame_indices` is EXACTLY invariant under a one-tick shift of the toggle relative to
+the arm, while the PIXELS move by one frame, and the two OUTER flips are insensitive** (flip 1 lands
+on an uncaptured tick either way; flip 4 fires inside the capture `Tick` either way). **That is
+precisely the observed signature — outer pair matches, interior pair each +1 late in pixels,
+hidden-frame count conserved, labels host-identical.** ⇒ **the labels being host-identical was never
+evidence that the label path is healthy; it is what a shift of this family predicts.**
+
+**RESTATED IN `R5`'s TERMS, which is how it must travel.** The pre-declared row 2 said *"the
+SAMPLING / LABELLING side is the outlier"*. **That naming is superseded** (journal 068 §6.5): the
+divergence lies **in the INTERVAL BETWEEN THE TOGGLE CALL AND THE LABEL SAMPLE**, and on this
+evidence the interval opens at the **apply tick / toggle-relative-to-arm** end, not inside the
+sampling code — the deferred sampler at `AnomalyCaptureSubsystem.cpp:591` behaves identically on both
+hosts and is order-compensating by construction. ⛔ **Do not write "the sampler is broken on Bates".**
+
+**What this closes, and what it does not.**
+
+| | |
+|---|---|
+| ✅ **PIXELS, AA, capture path, overlay semantics** | **CLEARED.** Code and eye agree frame for frame; the overlay's `n−1` / `n+7` checks both pass |
+| ✅ **the divergence is LOCATED** | between the toggle call and the label sample, at the toggle-relative-to-arm end |
+| 🔴 **WHY the apply tick is counted here and not there** | **OPEN — this is the tick-order question.** Source read: journal 068 §8. ⛔ **"consistent with", never asserted** |
+| ⛔ **no mechanism is entered in the axis table above** | the `Bates host build + content` row stands as written |
+
+📌 **`(B)` IS NO LONGER "OPEN WITH NOTHING TO LOOK AT". It is open with a located interval, a measured
+two-host discriminator (`apply → first toggle`: bench `+2`, Bates `+3`) that costs two log lines to
+read on any host, and a fix plan awaiting a ruling.**
+⛔ **Nothing further is needed from Bates for `P9` until a fix build exists** — the box is sealed and
+`C-3` got everything the card asked for.
 
 ---
 
