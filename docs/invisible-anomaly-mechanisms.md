@@ -998,7 +998,26 @@ read on any host, and a fix plan awaiting a ruling.**
 ⛔ **Nothing further is needed from Bates for `P9` until a fix build exists** — the box is sealed and
 `C-3` got everything the card asked for.
 
-### ✅ FIX APPROVED — option 2, milestone **`m40`** (2026-09-02). ⛔ PLANNED, NOT BUILT.
+### 🏁 FIX LANDED — **`m40`**, 2026-09-02. **BATES VALIDATION PENDING.**
+
+> ✅ **BUILT, GATED AND SHIPPED.** Staged bench exe **`C0AD3F91`**; container unchanged, no cook.
+> 🎯 **`P9` (B) IS NOW REPRODUCIBLE ON THE BENCH AND THE FIX REMOVES IT.** With the bench-only lever
+> ON against the SHIPPED sampler, leg `L2` read **`P9-SHAPE` on 7 of 7 counted events** with the
+> **exact Bates sets** — claimed `{n, n+1, n+5, n+6}` against observed `{n, n+1, n+2, n+6}`, missing
+> `[n+5]` / extra `[n+2]` — and `apply → first toggle` at **`+3`**. With the fix and **the lever still
+> ON**, leg `L3` read **7/7 ALIGNED** at `{n, n+1, n+2, n+6}` while the toggle lines **still read
+> `+3`** ⇒ **the LABEL SAMPLE moved, not the toggles.** Leg `L4` (fix, lever OFF) is
+> **byte-identical** to the pre-fix control: `frame_indices` identical, `labels.jsonl` 0 row
+> differences, `P6` 48/48.
+> ⛔ **NO MECHANISM IS ASSERTED FOR BATES. The lever synthesises the SYMPTOM by a different mechanism
+> (a delegate), so "consistent with, not asserted" — the language of this entry — STANDS UNCHANGED
+> until an `m40` build is validated on that host.**
+> 🔴 **BATES VALIDATION PENDING the next build update there.** Pre-declared pass condition: **the
+> labels equal the eye whether `apply → first toggle` reads `+2` or `+3`.** Instrument: a re-run of
+> the `C-3` bundle. ⛔ **`blinking` stays UNTICKED on Bates until then.**
+> 🧭 Implementation and all leg results: journal 068 §11.
+
+### ✅ FIX APPROVED — option 2, milestone **`m40`** (2026-09-02). *(the plan, kept as the record)*
 
 **`m40` = order-independent label sampling.** The per-frame label's active bit moves from *"the top of
 the next capture `Tick`"* to **`FWorldDelegates::OnWorldTickEnd`** (`LevelTick.cpp:1814`) — **after

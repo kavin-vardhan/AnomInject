@@ -157,12 +157,20 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Register(MakeUnique<FAnomaly_MissingTexture>());
 	Register(MakeUnique<FAnomaly_CorruptedTexture>());
 
+	SynthPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddUObject(
+		this, &UAnomalyInjectorSubsystem::OnWorldPreActorTickSynth);
+
 	UE_LOG(LogAnomaly, Log, TEXT("Subsystem initialized for world '%s'. %d anomaly type(s) registered."),
 		*GetNameSafe(GetWorld()), Anomalies.Num());
 }
 
 void UAnomalyInjectorSubsystem::Deinitialize()
 {
+	if (SynthPreActorTickHandle.IsValid())
+	{
+		FWorldDelegates::OnWorldPreActorTick.Remove(SynthPreActorTickHandle);
+		SynthPreActorTickHandle.Reset();
+	}
 	const int32 Reverted = RevertAllActive();
 	if (Reverted > 0)
 	{
@@ -190,12 +198,9 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 		GEngine->RemoveOnScreenDebugMessage(GAnomalyHeartbeatKey);
 	}
 
-	for (const TPair<FName, TUniquePtr<IAnomaly>>& Pair : Anomalies)
+	if (!bSynthTickOrder)
 	{
-		if (Pair.Value && Pair.Value->IsActive())
-		{
-			Pair.Value->Tick(DeltaTime);
-		}
+		DispatchAnomalyTicks(DeltaTime);
 	}
 
 	HeartbeatAccumulator += DeltaTime;
@@ -217,6 +222,26 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 	}
 }
 
+
+void UAnomalyInjectorSubsystem::DispatchAnomalyTicks(float DeltaTime)
+{
+	for (const TPair<FName, TUniquePtr<IAnomaly>>& Pair : Anomalies)
+	{
+		if (Pair.Value && Pair.Value->IsActive())
+		{
+			Pair.Value->Tick(DeltaTime);
+		}
+	}
+}
+
+void UAnomalyInjectorSubsystem::OnWorldPreActorTickSynth(UWorld* World, ELevelTick TickType, float DeltaSeconds)
+{
+	if (!bSynthTickOrder || World != GetWorld())
+	{
+		return;
+	}
+	DispatchAnomalyTicks(DeltaSeconds);
+}
 
 void UAnomalyInjectorSubsystem::ListActors() const
 {
@@ -403,6 +428,38 @@ bool UAnomalyInjectorSubsystem::IsViewportScopingEnabled(UWorld* World)
 		if (const UAnomalyInjectorSubsystem* Subsystem = World->GetSubsystem<UAnomalyInjectorSubsystem>())
 		{
 			return Subsystem->bViewportScopingEnabled;
+		}
+	}
+	return false;
+}
+
+void UAnomalyInjectorSubsystem::SetSynthTickOrder(bool bEnabled)
+{
+	bSynthTickOrder = bEnabled;
+	if (bEnabled)
+	{
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("IAI.Bench.SynthTickOrder -> ON. BENCH-ONLY SYNTHESIS. The injector's anomaly dispatch now runs at ")
+			TEXT("OnWorldPreActorTick, i.e. BEFORE the capture subsystem, for every world tick. This SYNTHESISES THE ")
+			TEXT("SYMPTOM of a host on which the two subsystems tick in the opposite relative order; it does NOT ")
+			TEXT("reproduce that host's cause and is NOT evidence about it. Labels and pixels will disagree by design. ")
+			TEXT("NEVER ship a capture taken with this ON."));
+	}
+	else
+	{
+		UE_LOG(LogAnomaly, Log,
+			TEXT("IAI.Bench.SynthTickOrder -> OFF. The injector's anomaly dispatch is back in its own Tick, i.e. in ")
+			TEXT("whatever order this host ticks the subsystems."));
+	}
+}
+
+bool UAnomalyInjectorSubsystem::IsSynthTickOrderEnabled(UWorld* World)
+{
+	if (World)
+	{
+		if (const UAnomalyInjectorSubsystem* Subsystem = World->GetSubsystem<UAnomalyInjectorSubsystem>())
+		{
+			return Subsystem->bSynthTickOrder;
 		}
 	}
 	return false;
@@ -698,6 +755,27 @@ static FAutoConsoleCommandWithWorldAndArgs GSetViewportScopingCmd(
 			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
 			{
 				Subsystem->SetViewportScoping(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GSynthTickOrderCmd(
+	TEXT("IAI.Bench.SynthTickOrder"),
+	TEXT("BENCH DEVICE, default OFF, console only - no ini key, never in a client payload. "
+		 "When ON, the injector's anomaly dispatch is relocated to OnWorldPreActorTick so it runs BEFORE the "
+		 "capture subsystem on every world tick. That SYNTHESISES THE SYMPTOM of a host whose subsystems tick in "
+		 "the opposite relative order; it does NOT reproduce that host's cause. A session captured with this ON "
+		 "has labels that deliberately disagree with its pixels. Usage: IAI.Bench.SynthTickOrder <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() == 0)
+			{
+				UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.SynthTickOrder <0|1>"));
+				return;
+			}
+			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
+			{
+				Subsystem->SetSynthTickOrder(FCString::Atoi(*Args[0]) != 0);
 			}
 		}));
 

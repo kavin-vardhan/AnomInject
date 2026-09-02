@@ -42,11 +42,37 @@ and is the single source of truth for the project.
 > anchor — is present whatever a host's `log.Timestamp` says.** ⚠ Per-line write-through flush: a
 > hard-killed process leaves everything logged before the kill, with **no** close marker.
 > **`m39` = honest bbox** — **`P-C13` conjunct 2 rides it**, regardless of number.
-> **`m40` = ORDER-INDEPENDENT LABEL SAMPLING — ✅ APPROVED AND PLANNED, ⛔ NOT BUILT (2026-09-02,
-> session 068 brief 5).** The `P9` (B) fix: the per-frame label's active bit moves from the top of the
-> next capture `Tick` to **`FWorldDelegates::OnWorldTickEnd`** (`LevelTick.cpp:1814`, after every
-> tickable at `:1606`, still pre-draw), so it is **what the renderer will draw for that same frame
-> whatever order the subsystems ticked in**. 🎯 **No rendered pixel changes on any host; no artifact
+> **`m40` = ORDER-INDEPENDENT LABEL SAMPLING — ✅ BUILT, GATED AND SHIPPED (2026-09-02, session 068
+> brief 6; journal 068 §11, predictions `docs/predictions/2026-09-02-m40-order-independent-label-sampling.md`).**
+> 📦 **Staged bench exe `C0AD3F91`; container quartet UNCHANGED (`2A66CA57`/`A7EF9B12`/`D8009AD7`),
+> code-only hot-swap, NO COOK.** Predecessor **`F2FA6BCD`** archived and ⛔ **STAYS LOAD-BEARING as
+> `m40`'s A-SIDE** (the control leg `L1` ran on it).
+> 🎯 **`P9` (B) IS NOW REPRODUCIBLE ON THE BENCH AND THE FIX REMOVES IT. ALL FOUR LEGS AND ALL NINE
+> SUPPORTING GATES PASS.** `L1` control 7/7 ALIGNED (Δ`+2`) · **`L2` 7/7 `P9-SHAPE` with the EXACT
+> Bates sets** — claimed `{n,n+1,n+5,n+6}` vs observed `{n,n+1,n+2,n+6}`, missing `[n+5]` extra
+> `[n+2]`, Δ`+3` · **`L3` 7/7 ALIGNED at `{n,n+1,n+2,n+6}` WITH THE LEVER STILL ON AND Δ STILL `+3`**
+> ⇒ **the label sample moved, not the toggles** · `L4` 7/7 ALIGNED and **byte-identical to `L1`**
+> (`frame_indices` identical, `labels.jsonl` 0 row diffs). **`P6` 48/48**, `run_summary` 37/37,
+> `P-C7` **re-anchored to `C0AD3F91`**, `A44` both encodings, `m38` run log closes cleanly on all four.
+> 🔑 **The fix: the per-frame label's active bit moves from the top of the next capture `Tick` to
+> `FWorldDelegates::OnWorldTickEnd`** (`LevelTick.cpp:1814`, after every tickable at `:1606`, still
+> pre-draw), so it is **what the renderer will draw for that same frame whatever order the subsystems
+> ticked in**. **No `TickType` filter — the `bHasDeferredActive` flag is the structural guard, and a
+> `LEVELTICK_TimeOnly` tick runs no tickable at all (`Tickable.cpp:143-148`), so nothing is ever
+> armed on one.**
+> 🚨 **A GATE-SET GAP WAS FOUND AND CLOSED, NOT BY A FAILING LEG: `run_leg.ps1` FORCE-KILLS the
+> process, so `Deinitialize` — where both new delegate handles are removed — was UNTESTED by all four
+> legs.** A fifth graceful-shutdown leg closes it: exit code **0**, `Object subsystem successfully
+> closed.`, and **zero** Fatal/Assertion/Ensure lines.
+> ⚠ **`L2` COULD NOT RUN ON `F2FA6BCD` AS THE PREDICTIONS FILE SPECIFIED** — the lever is `m40` code,
+> so that binary has none. A third, **ephemeral lever-only intermediate `DC16710D`** (lever present,
+> sampler at its shipped call site) was built for `L2` and is **NOT archived**, by decision;
+> reconstructible by moving one call. ⛔ **The closed predictions file was NOT edited** — the
+> correction rides journal 068 §11.1 (`P-C2` route).
+> ⛔ **STILL NO MECHANISM ASSERTED FOR BATES** — the lever synthesises the SYMPTOM by a different
+> mechanism. 🔴 **BATES VALIDATION PENDING the next build update there**, pass condition pre-declared:
+> **labels equal the eye whether `apply → first toggle` reads `+2` or `+3`.** ⛔ **`blinking` stays
+> UNTICKED on Bates until then.** 🎯 **No rendered pixel changes on any host; no artifact
 > field; no client-facing setting; byte-inert where the order already agrees.** Prove-it-can-fail is a
 > **bench-only, default-OFF, console-only lever `IAI.Bench.SynthTickOrder`** that relocates the
 > injector's dispatch to `OnWorldPreActorTick` and **synthesises the SYMPTOM, not the cause.**
@@ -58,8 +84,7 @@ and is the single source of truth for the project.
 > 🔢 **`m40` MAY SHIP BEFORE `m39` — MILESTONE NUMBERS ARE IDENTITIES, NOT AN ORDER.** `m39` stays
 > honest bbox and waits on nothing here.
 > ⛔ **NO TAG.** Highest remains `m30`; the office batch is now
-> `m31 → m33 → m34 → m35 → m36 → m37 → m38`, **gaining `m40` when it lands, with `m39` slotting in
-> when it ships.**
+> **`m31 → m33 → m34 → m35 → m36 → m37 → m38 → m40`**, with **`m39` slotting in when it ships.**
 >
 > 🔴 **`P9`, IN ONE PARAGRAPH.** Owner **reproduced it on Bates with NO FLAGS** (census OFF, mask
 > OFF), deterministic across events. **Two phenomena, kept apart: (A) BOUNDARY SMEAR is CLOSED** —

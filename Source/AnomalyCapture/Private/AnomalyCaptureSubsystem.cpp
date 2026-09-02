@@ -332,6 +332,7 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 #if ANOMALY_CAPTURE
 	MaskEndFrameHandle = FCoreDelegates::OnEndFrame.AddUObject(this, &UAnomalyCaptureSubsystem::OnEndFrameMaskSample);
 	MaskWorldTickEndHandle = FWorldDelegates::OnWorldTickEnd.AddUObject(this, &UAnomalyCaptureSubsystem::OnWorldTickEndMask);
+	SampleWorldTickEndHandle = FWorldDelegates::OnWorldTickEnd.AddUObject(this, &UAnomalyCaptureSubsystem::OnWorldTickEndSample);
 	bool bConfigDelivery = false;
 	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bDeliveryModeDefault"), bConfigDelivery, GGameIni))
 	{
@@ -527,6 +528,11 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 		FWorldDelegates::OnWorldTickEnd.Remove(MaskWorldTickEndHandle);
 		MaskWorldTickEndHandle.Reset();
 	}
+	if (SampleWorldTickEndHandle.IsValid())
+	{
+		FWorldDelegates::OnWorldTickEnd.Remove(SampleWorldTickEndHandle);
+		SampleWorldTickEndHandle.Reset();
+	}
 	PreviewTee.Reset();
 	if (Async.IsValid())
 	{
@@ -587,8 +593,6 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 			AnomalyTickPin::Write(false);
 		}
 	}
-
-	SampleDeferredActiveState();
 
 	if (Phase == ECapturePhase::ArmedPending)
 	{
@@ -698,6 +702,17 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 	}
 
 	FinalizeArmedLabel();
+#endif
+}
+
+void UAnomalyCaptureSubsystem::OnWorldTickEndSample(UWorld* World, ELevelTick TickType, float DeltaSeconds)
+{
+#if ANOMALY_CAPTURE
+	if (World != GetWorld() || !bRunning)
+	{
+		return;
+	}
+	SampleDeferredActiveState();
 #endif
 }
 
@@ -1888,6 +1903,13 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		*AnomalyDefaults::DescribeCameraClippingTriggerRadius(),
 		*AnomalyDefaults::DescribeExcludedTargetPatterns(),
 		*DescribeLabelsInDelivery());
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(bench): m40 SYNTH TICK ORDER = %s (compiled default off). When ON, the injector's anomaly ")
+		TEXT("dispatch is relocated to OnWorldPreActorTick to synthesise the SYMPTOM of a reversed subsystem tick ")
+		TEXT("order. It is a bench device: console-only, no ini key, never in a client payload. A session captured ")
+		TEXT("with it ON has labels that deliberately disagree with its pixels."),
+		UAnomalyInjectorSubsystem::IsSynthTickOrderEnabled(GetWorld()) ? TEXT("ON") : TEXT("off"));
 #endif
 }
 

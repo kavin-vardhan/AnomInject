@@ -1867,3 +1867,148 @@ exists.** **Commit 2:** `feat(capture): m40 - order-independent label sampling` 
 echoes, one commit. **A gate-forced change lands as a FOLLOW-UP commit, never an amend** (`m35`
 precedent). ⛔ **NO TAG**; the office batch becomes `m31 → m33 → m34 → m35 → m36 → m37 → m38 → m40`,
 **`m39` slotting in when it ships.**
+
+---
+
+## §11 `m40` — IMPLEMENTED AND GATED. **ALL LEGS AND ALL SUPPORTING GATES PASS.**
+
+> ✅ **`P9` (B) IS NOW REPRODUCIBLE ON THIS BENCH AND THE FIX REMOVES IT.** Leg `L2` produced the exact
+> Bates sets — claimed `{n, n+1, n+5, n+6}` against observed `{n, n+1, n+2, n+6}` — on 7 of 7 counted
+> events, and `L3` returned them to ALIGNED **with the synthesised disorder still switched on**.
+> ⛔ **Still no mechanism asserted for Bates.** The lever synthesises the SYMPTOM; ledger §8.6a's
+> "consistent with, not asserted" language is unchanged until an `m40` build is validated there.
+>
+> 📦 **Staged bench exe `C0AD3F91`. Container quartet UNCHANGED** (`utoc 2A66CA57` · `ucas A7EF9B12` ·
+> `pak D8009AD7`) — **code-only hot-swap, NO COOK (`G103`).** ⛔ **NO TAG.**
+
+### §11.0 AMENDMENT 1 — RATIFIED
+
+**Pre-registered in §10.2.1 and in the predictions file §1.1 BEFORE any code existed, in the `m33`
+AMENDMENT-1 shape; ✅ RATIFIED by chat (brief 6, ruling 1).** The lever mechanism named in brief 5's
+`R1` — *"the injector does not count the tick on which `Apply` ran"* — was refuted by derivation: it
+shifts the toggles **and** the shipped sample by the same one tick, so both sides of the comparison
+move together and the reader stays `ALIGNED`. The lever that shipped instead **relocates the
+injector's anomaly dispatch to `OnWorldPreActorTick`**, reproducing the *ordering* rather than one of
+its co-symptoms. ✅ **`L2` confirms the derivation empirically: the relocation reproduces, on 7 of 7
+events, sets identical to Bates'.**
+
+### §11.1 ⚠ A PLAN DEFECT, FOUND BEFORE `L2` RAN, AND WHAT WAS DONE ABOUT IT
+
+**The predictions file specifies `L2` as *"pre-fix binary `F2FA6BCD`, lever ON"*. That leg is not
+executable as written: `F2FA6BCD` is the `m38` binary and the lever is new `m40` code, so there is no
+lever to turn on.** The defect is in the leg's *binary identity*, not in its substance — `L2`'s claim
+is *"the lever ON, against the SHIPPED sampler position, reproduces `P9`"*, and that is exactly what
+was run.
+
+**Resolution, and it is the only one that satisfies Route A at all:** a **third, ephemeral binary** was
+built — **`DC16710D`, the lever-only intermediate**: the full `m40` lever with the single
+`SampleDeferredActiveState()` call still at its shipped position (top of
+`UAnomalyCaptureSubsystem::Tick`). `L2` ran on it. It was then moved to the new hook and the real
+`m40` binary `C0AD3F91` built for `L3`/`L4`.
+
+⛔ **THE PREDICTIONS FILE WAS NOT EDITED.** It is closed, and a prediction is not amended after the
+fact — the correction rides here, the `P-C2`/`P-C13` route. 📌 `DC16710D` is **not archived**, by
+decision: it is a gate build, never committed and never shipped, and it is reconstructible from the
+`m40` commit by moving one call. **It is recorded in `_binary_baselines\README.md` so the `L2` result
+can be attributed to a build** (`A44`/`G121`).
+
+### §11.2 LEVELTICK_TimeOnly — THE READING, AND THE CHOICE
+
+**Ruling 2 said settle it by reading. Read:**
+
+- `FWorldDelegates::OnWorldTickEnd.Broadcast(this, TickType, DeltaSeconds)` is the **last statement of
+  `UWorld::Tick`** and is broadcast **unconditionally, for every `TickType`** —
+  `LevelTick.cpp:1814`. The four values are `LEVELTICK_TimeOnly = 0` · `ViewportsOnly = 1` ·
+  `All = 2` · `PauseTick = 3` (`EngineBaseTypes.h:68-77`).
+- **A tickable does NOT tick when `TickType == LEVELTICK_TimeOnly`** —
+  `Tickable.cpp:143-148`, the clause `(!bIsPaused && TickType != LEVELTICK_TimeOnly)`.
+  ⇒ **on such a tick neither `UAnomalyCaptureSubsystem::Tick` nor `UAnomalyInjectorSubsystem::Tick`
+  runs**, so nothing is armed, `FinalizeArmedLabel` does not run, and `bHasDeferredActive` is never
+  set.
+- The flag is set (`FinalizeArmedLabel`, `:2560-2561`) and consumed (`OnWorldTickEnd`) **inside one
+  `UWorld::Tick` call**, so there is no cross-tick leakage a filter could prevent.
+
+🎯 **CHOICE: NO `TickType` FILTER.** `SampleDeferredActiveState`'s own
+`if (!bHasDeferredActive) { return; }` (`:2719-2723`) already makes the handler a no-op on exactly the
+ticks a filter would exclude — **the guard is structural rather than conditional, which is the
+stronger form.** It also matches the `m26` mask handler, which has carried no `TickType` filter since
+it shipped and has never been recorded as mattering.
+✅ **And the choice is not left as an argument: `L1 ↔ L4` byte-identity is its proof.** If a
+`TimeOnly` tick had ever reached the sampler and moved a bit, `L4` could not be byte-identical to a
+pre-`m40` leg. It is.
+
+### §11.3 WHAT WAS BUILT — as-built against §10.1
+
+All thirteen rows implemented as planned, **no other source change**. Final call-site state in
+`AnomalyCaptureSubsystem.cpp`: `SampleDeferredActiveState()` appears at **`:715`** (the new
+`OnWorldTickEndSample` handler), **`:2739`** (its definition) and **`:3008`**
+(`FinishRun`'s retained safety net) — **and nowhere in `Tick`.** The comment stripper ran clean
+(**0 changed / 93 no-change**); the source stays comment-free.
+
+⛔ **Out of scope and untouched, as ruled:** the **sync-fallback** inline sample. It remains one tick
+stale by the same arithmetic; detect it from `SVE-WANT-SUMMARY`'s `marksIssued` falling below
+`framesWritten`.
+
+### §11.4 THE FOUR LEGS — predicted vs measured
+
+**Reader `p9_hidden_set.py`, unmodified, `SEP_RATIO = 5.0` untouched. Config `2 4 8 4 0`, 90 frames,
+seed 4242, targeted `blinking` on `StaticMeshActor_49`, paced 30 fps, census OFF,
+`Log LogAnomaly Verbose`. `B1` NOT APPLICABLE, declared (`G117`).** Every attempt banked, including
+the two `A63` pose-gate discards (`L1` try 1, `L4` try 1).
+
+| leg | binary | lever | predicted | **measured** | Δ | verdict |
+|---|---|---|---|---|---|---|
+| **L1** control | `F2FA6BCD` | OFF | all counted `ALIGNED`, exit 0, `{n,n+1,n+5,n+6}` | **7/7 `ALIGNED`, exit 0**, `[4,5,9,10]` `[16,17,21,22]` `[28,29,33,34]` `[40,41,45,46]` `[52,53,57,58]` `[64,65,69,70]` `[76,77,81,82]` | **+2** ×8 | ✅ **PASS** |
+| **L2** 🎯 reproduction | `DC16710D` (§11.1) | **ON** | all counted `P9-SHAPE`, `k=0`, residual both directions, exit 1 | **7/7 `P9-SHAPE`, exit 1**, `k=+0`, claimed `{n,n+1,n+5,n+6}` · observed `{n,n+1,n+2,n+6}`, **missing `[n+5]` extra `[n+2]` on every event** | **+3** ×8 | ✅ **PASS** |
+| **L3** the fix | `C0AD3F91` | **ON** | all counted `ALIGNED`, exit 0, `{n,n+1,n+2,n+6}` | **7/7 `ALIGNED`, exit 0**, `[4,5,6,10]` `[16,17,18,22]` `[28,29,30,34]` `[40,41,42,46]` `[52,53,54,58]` `[64,65,66,70]` `[76,77,78,82]` | **+3** ×8 | ✅ **PASS** |
+| **L4** inertness | `C0AD3F91` | OFF | all counted `ALIGNED`, exit 0, **byte-identical to L1** | **7/7 `ALIGNED`, exit 0**, sets identical to `L1`; `frame_indices` **IDENTICAL**; `labels.jsonl` **0 row differences** sorted by `session_index` (`G162`) | **+2** ×8 | ✅ **PASS** |
+
+✅ **The pre-declared 8th event landed `TRUNCATED` on all four legs** — the reader's own bucket, one
+step cleaner than the `UNDECIDABLE` the predictions allowed for. **7 counted per leg, above the ≥3
+validity floor.** ⛔ No cap change, per ruling 3.
+
+🎯 **`L3` IS THE LOAD-BEARING ONE AND ITS `Δ` IS WHY.** The lever was still ON and the toggle lines
+still read **`+3`** — the toggles did **not** move back — yet the labels followed the pixels to
+`{n, n+1, n+2, n+6}`. ⇒ **what changed is the LABEL SAMPLE, not the lever.** Without that column
+`L3` would be indistinguishable from "the lever stopped working".
+
+### §11.5 SUPPORTING GATES
+
+| gate | condition | measured | verdict |
+|---|---|---|---|
+| **`m20` pixel-vs-label** | annotation hidden set == pixels hidden set on every blink edge, new exe | **`L4`, 7/7 `ALIGNED`** — that comparison *is* `m20`'s gate, run on `C0AD3F91` | ✅ PASS |
+| **`P6`** | `annotation.json` **48/48** flattened keys, `run_summary.json` unchanged | **48 = 48, identical**; `run_summary` **37 = 37, identical**, 0 added / 0 removed | ✅ PASS |
+| **`P-C7`** re-anchor | census OFF, lever OFF, artifacts identical across the binary change | `L1` ↔ `L4`: `frame_indices` identical, `labels.jsonl` **0** row differences | ✅ PASS, re-anchored to `C0AD3F91` |
+| **client-inert** | no new ini key, no new artifact field, lever console-only | no `GConfig` read added; `run_summary` 37 keys unchanged; lever is `FAutoConsoleCommandWithWorldAndArgs` only | ✅ PASS |
+| **`A44`** both encodings, staged artifact | new symbols present | `SynthTickOrder` **ascii 0 / utf16 5** · `SYNTH TICK ORDER` **ascii 0 / utf16 1** — the project's known UTF-16 shape, so the scan is sound and not blind | ✅ PASS |
+| **`G139` echo** | `StartRun` line present and reading `off` on every lever-OFF post-fix leg | `L4` reads **`= off (compiled default off)`**; `L2`/`L3` read **`= ON`** | ✅ PASS |
+| **`m38` run log** | closes cleanly, close marker is the file's last line | **all four legs**: last line `# closed at FinishRun …`, one `Capture run FINISHED` each | ✅ PASS |
+| **`G103`** | container quartet unchanged, no cook | `utoc 2A66CA57` · `ucas A7EF9B12` · `pak D8009AD7` — unchanged | ✅ PASS |
+| **built == staged** | `G121` | SHA-256 equal; staged **`C0AD3F91`**, 241,069,056 B | ✅ PASS |
+
+### §11.6 🚨 A GAP IN THE GATE SET, FOUND AND CLOSED — the teardown leg
+
+**`run_leg.ps1` force-kills the process after the flush wait (`:293`, `A46`). ⇒ `Deinitialize` never
+ran in any of `L1`–`L4`, so the path that REMOVES the two new delegate handles was UNTESTED by the
+four legs** — and that is precisely the lifecycle risk §10.4 trap 3 and predictions §4 named.
+**Caught by asking what the harness actually does, not by a leg failing.**
+
+**Closed with a fifth, graceful leg** (`M40_TEARDOWN_GRACEFUL`, banked): the packaged build launched
+directly with the lever ON, a 30-frame capture, then `CloseMainWindow()` rather than a kill.
+**Result: `Capture run FINISHED` written, 30 PNGs + artifacts on disk, then `LogExit: Preparing to
+exit.` → `Game engine shut down` → `Object subsystem successfully closed.` → `Exiting.`, process
+EXIT CODE 0, and a scan for `Fatal error` / `Assertion failed` / `Ensure condition failed` /
+`Critical error` returns NONE.** ⇒ **both `Deinitialize` paths run, both handles are removed, and
+nothing dangles.**
+
+### §11.7 WHAT IS NOT CLAIMED
+
+- ⛔ **No mechanism for Bates.** The lever reproduces the *ordering consequence* by a different
+  mechanism (a delegate) than whatever Bates does. Ledger §8.6a stays *"consistent with, not
+  asserted"*.
+- ⛔ **Bates validation is PENDING** and happens only when that host's build is next updated. The
+  pass condition is pre-declared (predictions §6): **the labels equal the eye whether
+  `apply → first toggle` reads `+2` or `+3`.** ⛔ `blinking` stays UNTICKED on Bates until then.
+- ⛔ **Certified at ONE configuration only** — `2 4 8 4 0`, 30 fps, 1280×720, targeted `blinking`.
+- ⛔ **The sync-fallback path is still one tick stale**, by decision (ruling 2 of brief 5).
+- ⛔ **No tag.** No cook. No client-facing setting. `P6` did not move.

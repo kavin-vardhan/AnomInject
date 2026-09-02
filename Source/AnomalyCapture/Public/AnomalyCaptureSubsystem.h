@@ -148,6 +148,7 @@ private:
 	const TCHAR* DescribeCensusCeilingSource() const;
 	void OnEndFrameMaskSample();
 	void OnWorldTickEndMask(UWorld* World, ELevelTick TickType, float DeltaSeconds);
+	void OnWorldTickEndSample(UWorld* World, ELevelTick TickType, float DeltaSeconds);
 	bool HasGameWindow(UWorld* World) const;
 	bool IsGameWindowFocused(UWorld* World) const;
 	void BeginFire();
@@ -309,6 +310,7 @@ private:
 	bool bCensusCoArm = false;
 	FDelegateHandle MaskEndFrameHandle;
 	FDelegateHandle MaskWorldTickEndHandle;
+	FDelegateHandle SampleWorldTickEndHandle;
 	bool bRectDeltaLogged = false;
 	bool bDeliveryMode = false;
 	bool bLabelsInDelivery = true;

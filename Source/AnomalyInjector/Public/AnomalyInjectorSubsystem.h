@@ -50,6 +50,13 @@ public:
 	static bool IsAutoPoolSelection(UWorld* World);
 
 
+	void SetSynthTickOrder(bool bEnabled);
+
+	bool IsSynthTickOrderEnabled() const { return bSynthTickOrder; }
+
+	static bool IsSynthTickOrderEnabled(UWorld* World);
+
+
 	UMaterialInterface* GetMissingTextureMaterial() const;
 
 	UMaterialInterface* GetCorruptedTextureMaterial() const;
@@ -76,6 +83,10 @@ protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
 private:
+	void DispatchAnomalyTicks(float DeltaTime);
+
+	void OnWorldPreActorTickSynth(UWorld* World, ELevelTick TickType, float DeltaSeconds);
+
 	TMap<FName, TUniquePtr<IAnomaly>> Anomalies;
 
 	struct FActiveRecord
@@ -90,6 +101,10 @@ private:
 	bool bViewportScopingEnabled = false;
 
 	bool bAutoPoolSelection = false;
+
+	bool bSynthTickOrder = false;
+
+	FDelegateHandle SynthPreActorTickHandle;
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> MissingTextureChecker;
