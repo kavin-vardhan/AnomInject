@@ -549,33 +549,62 @@ IAI.Capture.Start "" png 4242 90 blinking StaticMeshActor_1246
 
 ### C-3. THE TEXT BUNDLE — for ONE `C-1` event
 
-*(This is the former `C-(h)`, now taken on a `C-1` leg so the numbers line up with the ladder.)*
-Four commands, each capped to be photo-friendly. `<run>` = the session directory.
+🚨 **RUN THESE IMMEDIATELY AFTER THE CAPTURE, BEFORE RELAUNCHING ANYTHING.** The engine **rotates
+its log on the next launch**, so the toggle lines in (a) exist only until the title starts again.
+Everything else is on disk and safe, but (a) is not.
+
+✅ **EACH COMMAND ALSO APPENDS ITS OUTPUT TO `$r\p9_bundle.txt` IN THE RUN FOLDER while still
+printing to the screen**, so the bundle survives a relaunch and travels with the session. Run all
+four and the file holds the whole thing — **nothing to photograph line by line.**
+*(`Tee-Object -FilePath … -Append` — verified present and working on PowerShell 5.1. ⚠ It writes a
+UTF-8 BOM at the head of the file; harmless to read, worth knowing if anything ever parses it.)*
+
+**Set these two first**, then run the four commands in order:
+
+```
+$r = "<run>"
+$log = "<TITLE-SAVED-LOGS>"
+```
+
+📌 **`<run>`** = the session directory (`…\Saved\…\session_<timestamp>`).
+📌 **`<TITLE-SAVED-LOGS>`** = **the host project's own `Saved\Logs\<its>.log`.** You know that path;
+**it is deliberately not written on this card** and never should be.
+
+Four commands, each capped to be photo-friendly.
 
 **(a) toggle lines** — ⚠ **`Verbose`, so ABSENT unless the run enabled it.** Add
 `Log LogAnomaly Verbose` to the `C-1` run's `ExecCmds`. **Nothing printed is a READ, not a failure:**
 
 ```
-$log="<plugin>\..\..\Saved\Logs\StackOBot.log"; Select-String -Path $log -Pattern 'blinking toggle ->' -SimpleMatch | Select-Object -First 20 | ForEach-Object { $_.Line }
+"== (a) toggle lines ==" | Tee-Object -FilePath $r\p9_bundle.txt -Append; Select-String -Path $log -Pattern 'blinking toggle ->' -SimpleMatch | Select-Object -First 20 | ForEach-Object { $_.Line } | Tee-Object -FilePath $r\p9_bundle.txt -Append
 ```
 
 **(b) `session_index` ↔ `frame_index` for the span** (replace `40` with `n-2`):
 
 ```
-$r="<run>"; (Get-Content $r\labels.jsonl | Select-Object -Skip 40 -First 12) | ForEach-Object { $o=$_|ConvertFrom-Json; "{0,4}  {1,8}  {2}" -f $o.session_index,$o.frame_index,$o.image }
+"== (b) index map ==" | Tee-Object -FilePath $r\p9_bundle.txt -Append; (Get-Content $r\labels.jsonl | Select-Object -Skip 40 -First 12) | ForEach-Object { $o=$_|ConvertFrom-Json; "{0,4}  {1,8}  {2}" -f $o.session_index,$o.frame_index,$o.image } | Tee-Object -FilePath $r\p9_bundle.txt -Append
 ```
 
 **(c) the event's `frame_indices`:**
 
 ```
-$r="<run>"; (Get-Content $r\annotation.json -Raw|ConvertFrom-Json).anomalies | ForEach-Object { "{0,-12} {1,-28} {2}" -f $_.anomaly_type,$_.affected_objects.nodes[0].name,($_.affected_frames.frame_indices -join ',') }
+"== (c) frame_indices ==" | Tee-Object -FilePath $r\p9_bundle.txt -Append; (Get-Content $r\annotation.json -Raw|ConvertFrom-Json).anomalies | ForEach-Object { "{0,-12} {1,-28} {2}" -f $_.anomaly_type,$_.affected_objects.nodes[0].name,($_.affected_frames.frame_indices -join ',') } | Tee-Object -FilePath $r\p9_bundle.txt -Append
 ```
 
 **(d) `labels.jsonl` rows `n-1` … `n+8`** (replace `41` with `n-1`):
 
 ```
-$r="<run>"; (Get-Content $r\labels.jsonl | Select-Object -Skip 41 -First 10) | ForEach-Object { $o=$_|ConvertFrom-Json; "{0,4} present={1,-5} {2}" -f $o.session_index,$o.anomaly_present,(($o.anomalies|ForEach-Object{ "$($_.target_name) bbox_valid=$($_.bbox_valid)" }) -join ' | ') }
+"== (d) label rows ==" | Tee-Object -FilePath $r\p9_bundle.txt -Append; (Get-Content $r\labels.jsonl | Select-Object -Skip 41 -First 10) | ForEach-Object { $o=$_|ConvertFrom-Json; "{0,4} present={1,-5} {2}" -f $o.session_index,$o.anomaly_present,(($o.anomalies|ForEach-Object{ "$($_.target_name) bbox_valid=$($_.bbox_valid)" }) -join ' | ') } | Tee-Object -FilePath $r\p9_bundle.txt -Append
 ```
+
+**(e) the three effective render settings** — type each bare name in the game console and copy what
+it prints; then record them into the bundle:
+
+```
+"== (e) render settings: r.AntiAliasingMethod / r.MotionBlurQuality / r.ScreenPercentage ==" | Tee-Object -FilePath $r\p9_bundle.txt -Append
+```
+
+**Then send `p9_bundle.txt`.** ✅ One file, whole thing, survives a relaunch.
 
 🚨 **(c) IS THE ONE THAT SETTLES THE OVERLAY QUESTION.** You reported red boxes at `n+1, n+2, n+5,
 n+6` while the recorded cadence is `n, n+1, n+5, n+6` — one frame later, **for the first pair only**.

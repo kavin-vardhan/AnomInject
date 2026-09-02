@@ -1028,6 +1028,11 @@ coverage is still OWED** — no leg has yet produced a genuinely displaced label
 **Owner-ruled.** `m37` = **census selection defaults** (floor 0.5 + coverage ceiling 25).
 `m38` = **honest bbox** (drawn-box labels).
 
+> 🔢 **SUPERSEDED LATER THE SAME DAY — SECOND RENUMBER, CHAT-OWNED AND DELIBERATE.**
+> **`m38` = THE RUN-SCOPED SESSION LOG**; **honest bbox moves to `m39`.** `P-C13` conjunct 2 still
+> rides honest bbox regardless of its number. ⛔ This paragraph is **not** rewritten — it is the
+> record of the first renumber. `CLAUDE.md` carries the live map. See §16.
+
 ⛔ **`P-C13` conjunct 2 — *every drawn bbox lies inside the view rect, in rect-local coordinates, at
 a NON-ZERO origin*, instrument the uniform PIE pillarbox leg — RIDES HONEST BBOX REGARDLESS OF ITS
 NUMBER.** It is not weakened, not dropped, and not attached to `m37`.

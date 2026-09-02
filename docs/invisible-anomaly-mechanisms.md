@@ -787,12 +787,28 @@ visible; fully visible at n+5 where the labels say hidden.**
 DISABLED object at FULL opacity, nor erase an ENABLED one.** A smear moves opacity toward its
 neighbours; it does not invert presence. So the two are on different axes and must not be collapsed.
 
-### ⚠ Overlay discrepancy — UNRESOLVED, resolved by reading, not by asking
+### ✅ Overlay semantics — RESOLVED FROM CODE. Only the anchor is open.
 
-The owner reports the overlay drawing **red at n+1, n+2, n+5, n+6** and **amber at n+3, n+4** —
-**one frame later than the `frame_indices` sequence, for the FIRST PAIR ONLY.** Either two artifacts
-disagree (**a finding**) or it is a transcription slip. ⛔ **Not resolved by asking the owner again**
-— resolved by the code read and the one-event bundle. See journal 067 §15.2 and §15.3.
+**RED = the frame IS in `annotation.json`'s `frame_indices`. AMBER = the frame has a `labels.jsonl`
+row for that fire and is NOT in `frame_indices`** (`overlay_watcher.py:18-19`; the plugin says the
+same from the other side at `AnomalyCaptureSubsystem.cpp:3281-3286`).
+
+🎯 **A ONE-FRAME DRIFT BETWEEN THE TWO IS IMPOSSIBLE BY CONSTRUCTION.** Both are stamped from the
+**same `Snap->SessionIndex`**, one line apart — the labels row at `:1917`/`:1919`, the
+`frame_indices` accumulation at `:1921-1922`. There is no second counter and no second stamping
+site. ⇒ Red and amber are **two readings of one comparison**, not two artifacts, so *"the two
+artifacts disagree"* is **not available as an explanation.**
+
+⚠ **THE ONLY OPEN ITEM IS WHICH EVENT ANCHORED THE OWNER'S `n`** — the red set is `frame_indices` by
+definition, so the reported `{n+1, n+2, n+5, n+6}` against the recorded cadence
+`{n, n+1, n+5, n+6}` is an anchor question, not an artifact question. **`C-3(c)` prints the array and
+settles it.** ⛔ **Never by re-asking the owner.**
+
+🚨 **AND THE CONSEQUENCE IS LOAD-BEARING: THE OVERLAY READING ALONE EVIDENCES (B), IN BOTH
+DIRECTIONS, INDEPENDENT OF THE ANCHOR QUESTION.** A **RED** box sits on `n+5`, which the eye saw
+**FULLY VISIBLE** — a frame the labels call hidden. An **AMBER** box sits on `n+3`, which the eye saw
+**FULLY GONE** — a frame the labels do not call hidden. **Both directions, from the overlay alone,
+whatever `n` is anchored to.** ⇒ **(B) does not depend on the transcription being right.**
 
 ### The owner's config test, recorded with what it did and did not reach
 

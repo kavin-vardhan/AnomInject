@@ -186,12 +186,16 @@ and is the single source of truth for the project.
 > ✅ **Delivery mode is EXCLUDED as a `P9` factor by measurement** — leg C ran `delivery_mode=True`
 > and matched leg A's structure and separations.
 > Do not start the next milestone unprompted; do not re-run bench gates while waiting.
-> 🔢 **MILESTONE RENUMBER, OWNER-RULED 2026-09-02 — READ THIS BEFORE ANY DOC THAT SAYS "m37".**
+> 🔢 **MILESTONE NUMBERING — RENUMBERED TWICE, DELIBERATELY. THIS BLOCK IS THE LIVE MAP; READ IT
+> BEFORE ANY DOC THAT SAYS "m37" OR "m38".**
 > **`m37` = THE CENSUS SELECTION DEFAULTS** (floor `0.5` + coverage ceiling `25`).
-> **`m38` = HONEST BBOX** (drawn-box labels).
+> **`m38` = THE RUN-SCOPED SESSION LOG** (the plugin writes a `LogAnomaly` excerpt into the capture
+> folder itself). 🆕 *(second renumber, chat-owned, 2026-09-02.)*
+> **`m39` = HONEST BBOX** (drawn-box labels).
 > ⛔ **`P-C13` conjunct 2 RIDES HONEST BBOX REGARDLESS OF ITS NUMBER** — not weakened, not dropped,
-> not attached to `m37`. 📌 Journals 065/066 and the m36 handoff say *"m37 (honest bbox)"*; they are
-> **records and are NOT retro-edited** — read them as "the honest-bbox milestone", now `m38`.
+> not attached to `m37` or `m38`. 📌 Journals 065/066 and the m36 handoff say *"m37 (honest bbox)"*;
+> journal 067 §13.2 says *"m38 (honest bbox)"*. **All are RECORDS and are NOT retro-edited** — read
+> them as "the honest-bbox milestone", now **`m39`**.
 > 🔢 **AMENDMENT `A65` MINTED** (`A59` was already taken — MCP-bridge provenance): **`A54` requires
 > the unconstrained calibration pose; on an aspect-constrained fixture it is `N/A`, DECLARED, never
 > "failed", and its `P8`/pose message there is a KNOWN MISATTRIBUTION** (the view was constrained,
