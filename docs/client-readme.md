@@ -288,3 +288,76 @@ Nothing is missing and nothing is duplicated — it is purely an ordering proper
 ### A note on `camera_clipping`
 
 `camera_clipping` is **available but switched off by default** in the Capture pool panel — tick it when you want it. It is a **whole-session** anomaly: it applies to the camera for the entire capture rather than to one object for a few frames. That is why it is not on by default, and it is the consequence worth knowing in advance: anything permanently close to the camera — a first-person viewmodel, a held weapon — sits inside the near-clip radius for the whole run, so it will appear sliced or partly missing in **every frame** of that session. **This is expected behaviour, not a defect**, and it is what the anomaly is meant to look like.
+
+---
+
+## `m43` — THE TARGET ID MASK: what ships, and how to read it
+
+Every captured frame gets an **8-bit grayscale PNG** at `target_mask/frame_NNNNN.png`, numbered by the
+same **`session_index`** as `Actual_Frames/`, at **exactly the picture size**.
+
+- **pixel value 0** = background.
+- **any non-zero value** = an **anomaly target** visible in that frame, identified by that value.
+- **`mask_map.json`** (session root) maps `mask_value` + event → `target_name`, `anomaly_type`,
+  `first_frame`, `last_frame`. ⚠ **Values are REUSED across events**, so key on `mask_value` *together
+  with* the frame range, never on the value alone.
+- **`labels.jsonl`** gains **two** keys: `mask_file` on the frame row, `mask_value` on each anomaly row.
+- **`run_summary.json`** gains **three**: `target_mask_frames_measured`, `_hidden_blank`,
+  `_unavailable`.
+- ⛔ **`annotation.json` is unchanged.**
+
+### 🔑 A BLANK MASK AND A NULL `mask_file` ARE DIFFERENT FACTS. This is the most important line here.
+
+- **An all-zero PNG** = *"measured, and no anomaly target was visible in this frame."* That is **real
+  ground truth** — for a `blinking` or `missing_object` anomaly the hidden frames are exactly the ones
+  the anomaly is *about*, and they are labelled correctly.
+- **`mask_file: null`** = *"not measured."* No file exists. It carries **no** claim about visibility.
+
+The run's own echo states it, and this line prints on every run:
+
+```
+=== Capture(m43): TARGET MASK ON FOR THIS RUN - requested on, from COMPILED DEFAULT (on), output dir
+'<session>/target_mask' === READ THIS LINE, NOT THE INI. One 8-bit grayscale PNG per captured frame,
+numbered by SESSION INDEX; non-zero pixel values are the stencil tags of the ANOMALY TARGETS visible in
+that frame and 0 is background. mask_map.json maps value+event to target and anomaly type. A BLANK png
+means MEASURED AND NOTHING VISIBLE (a hidden blinking target); mask_file:null in labels.jsonl means NOT
+MEASURED - they are different facts. It reuses the m26 pass and does NOT change the m26 measurement, the
+veto, or annotation.json. Delivery mode does NOT suppress it.
+```
+
+### ⛔ SCOPE — what the mask is NOT
+
+- **It is a mask of the ANOMALY TARGETS ONLY**, not of every object in the scene. Everything else is
+  background by design.
+- **Translucent targets never appear.** They are excluded from selection and cannot write custom depth.
+- **Nanite-rendered targets never appear** — the same limit the anomaly measurement has.
+- **Multi-target frames are unverified.** Read it as *"one value per anomaly target present in the
+  frame"*; no capture here has yet shown two distinct values in one PNG.
+
+### The mask is provably the silhouette the labels were judged on
+
+Per measured frame and per target, the PNG's pixel count for that value is checked against the same
+per-tag reduce table the anomaly veto reads. On the shipping gate: **29 checks, 0 mismatches.**
+
+### ⚠ COST — and the first knob to turn off
+
+The mask adds a **GPU→CPU readback per fire-active frame** (**921,600 bytes** at 1280×720; it scales
+with your capture resolution) plus one PNG encode on a worker thread. On the dev box at the shipped
+paced 30 fps the pacer absorbed it entirely (`speed_ratio` 1.0000001 against a control's 1.0000009) —
+⚠ **that is HEADROOM, NOT FREE.**
+
+**`run_summary.speed_ratio` is the instrument.** If it rises on your machine, or capture hitches,
+**the target mask is the FIRST thing to turn off**:
+
+```
+IAI.Capture.TargetMask 0
+```
+
+It takes effect **between runs**, writes no directory and adds no keys.
+
+### The output-height refusal
+
+If `IAI.Capture.OutputHeight` is non-zero the mask is **refused outright** and says so, because the mask
+is view-rect sized while the written frame is resampled — and **a label mask must never be filtered**
+(interpolation would invent values that identify no target). `mask_file` is `null` on every row and
+`target_mask_frames_unavailable` equals the frame count. Set the output height to `0` to get masks.

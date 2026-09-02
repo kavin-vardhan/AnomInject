@@ -1264,3 +1264,79 @@ blendable added later is missed. ⛔ **`N = 0` DOES NOT MEAN "nothing on this ho
 does **not** fully cover cycle-to-cycle variance, and some verdicts still expire. **Deliberately NOT
 tuned on a bench regime.** ⇒ **if a real host reports `expired > 0` with `window > 12` on the
 `Auto.Fire: census consulted=` line, that margin is the first knob to look at.**
+
+---
+
+# 10. The shared mask pass — a latent defect in shipped `m41`, and `m43`'s limitations
+
+**2026-09-03, session 069.** Found while building `m43`; **it is a defect in code that was already
+delivered**, not in the new feature.
+
+## 10.1 🚨 `m26`'s ARMS WERE STARVED BY THE CENSUS THROUGH A ONE-SLOT FIFO
+
+The `m26` visible-mask pass renders **once per frame** and consumed **exactly one** pending arm
+(`RequestId = PendingArms[0]`, `AnomalyMaskSceneViewExtension.cpp`). Since `m41` shipped the census ON
+by default, two consumers shared that slot: `m26`'s ≤4 arms per event and the census's ~0.8 arms per
+frame.
+
+**Measured, per arm, as the tick armed vs the tick the pass served it (the `M23 PASS` line's own
+`[GFrameCounter % 1000]` prefix):**
+
+| leg | census arms | `m26` arms | served | **UNSERVED** | lag min/max/mean |
+|---|---|---|---|---|---|
+| `m41`, census **ON** (the shipped default) | 78 | 24 | 22 | **2** | 1 / **3** / 1.86 |
+| `m41`, census **OFF** | 0 | 24 | 24 | 0 | 1 / 1 / 1.00 |
+| `m41`, census **OFF** (second leg) | 0 | 24 | 24 | 0 | 1 / 1 / 1.00 |
+| **`m43`**, census **ON** | 97 | 24 | **24** | **0** | **1 / 1 / 1.00** |
+
+🔑 **The census-OFF pair is the control and it is clean: with no census every arm is served on the very
+next render. With the census ON, 2 of 24 arms were NEVER SERVED and the rest ran up to 3 frames late.**
+
+⇒ **`framesContributed` — an input to the `m26` measurement and therefore to the ZERO-ONLY VETO — was
+coupled to census cycle length.** Measured effect on one event: `StaticMeshActor_49@116`
+**`framesContributed` 2 → 4** once fixed.
+
+⚠ **LATENT. NO VERDICT WAS EVER OBSERVED TO CHANGE.** Both `m41` legs produced identical event sets and
+`vetoed_events` 0, and every event read `MEASURED_NONZERO` on both. ⛔ **"The veto was wrong" is NOT
+established and must not be written.** What is established is the coupling.
+
+**The fix (`m43`): one render serves every pending arm.** Semantically exact rather than a
+prioritisation — the RT's content depends only on which actors are tagged at render time, and each
+consumer already filters the result by its own tag set, so one render is the *same answer* delivered to
+each asker. Verified: **max one mask pass per frame across 103 frames**, `servedArms` 1/2/3.
+
+📌 **Why it was invisible for two milestones:** nothing counts arms against passes. Every counter the
+mask keeps is per-event or per-batch, and a starved arm simply never appears. It surfaced only because a
+third consumer made the contention bad enough to notice. → `G217`.
+
+## 10.2 `m43`'s named limitations
+
+- **Anomaly targets only** — not a mask of every object in the scene.
+- **Translucent-only targets never appear** (excluded at selection, and cannot write custom depth);
+  **Nanite targets never appear** (`G134`), the same blind spot the `m26` measurement has.
+- **Multi-target frames UNVERIFIED** (`D7`) — no leg has yet shown two distinct non-zero values in one
+  PNG. Client docs say "one value per anomaly target present in the frame".
+- **Output height ≠ 0 refuses outright** — a label mask must never be filtered. Nearest-neighbour mask
+  resampling is a named follow-up, not built.
+- ⚠ **Per-frame tag/restore churn on a live target** queues a deferred render-proxy recreate.
+  **Measured `tagFlips = 0` on every bench leg** — `m26` already had the live target tagged whenever the
+  target mask armed — so the churn is **zero on this bench**, and **its effect on pixels is UNMEASURED,
+  not shown harmless**. **`m42` (persist tags, rotate values in place) is its fix and is
+  measurement-first** (see §9.1: `m42`'s own TSR-shimmer motivation is NOT SUPPORTED by 5.1 source and
+  stays unmeasured).
+
+## 10.3 Census `tagOvertaken` — PASS-WITH-READING, and a mechanism of mine refuted
+
+With the target mask ON the census's `tagOvertaken` reads **1** where `m41` read **0**. Attributed by
+control: **the same `m43` binary with the target mask OFF reads 0.** Everything the counter guards
+stayed put — `framesPolluted` **0**, `batchesLost` **0**, cycle histogram identical
+(`zero=13 nonzero=64 belowFloor=49`), verdict set identical.
+
+⚖ **Ruled PASS-WITH-READING (`P-C2` precedent):** the counter is the one the census built for exactly
+this class, its own text calling a re-tag by the event mask *"the expected case"*. The gate predicate
+*"unchanged or lower"* was **over-strict for an observation counter**; the corrected predicate is
+*"`tagOvertaken` may rise; `framesPolluted`, `batchesLost` and the verdict set must not move."*
+
+⚠ **I attributed the rise to the target mask's tag/restore cycle opening windows. The `tagFlips` counter
+added afterwards reads 0 on every leg, so THAT MECHANISM DOES NOT STAND** — the perturbation comes from
+the extra arms changing census batch timing. **Recorded as refuted rather than dropped** (`G120`).

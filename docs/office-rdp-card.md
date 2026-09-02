@@ -1073,3 +1073,42 @@ It is **not** `C-G1b` and **not** `B-G1` — those need an authored custom-depth
 material and an authored translucent-with-custom-depth-writes material respectively, and both are
 **cook-time gates on the client build** (`PRE-DELIVERY-CHECKLIST.md` §1.1). Section E reads what the
 shipped defaults do on a real host; it does not manufacture a fixture.
+
+## E-6. `m43` — THE TARGET MASK, TWO PAIRS AND ONE LINE
+
+⛔ **RDP-valid.** Same leg as `E-2` — no extra run needed; these are reads off the session it produced.
+
+**Read the run's summary line first:**
+
+```
+Capture(m43): TARGET MASK SUMMARY measured=? hiddenBlank=? unavailable=? tagFlips=?
+```
+
+**Report all four numbers.** `measured + hiddenBlank` should equal the captured frame count and
+`unavailable` should be **0**. ⚠ **A non-zero `unavailable` is a result, not a fault** — it means those
+frames' readbacks never arrived and their `labels.jsonl` rows say `mask_file: null`. `tagFlips` is the
+target mask's own stencil churn; it read **0** on every bench leg and a non-zero value on a real host is
+worth knowing.
+
+**Then open TWO PAIRS, side by side, and say what you see. No expected value is stated for the pixels —
+describe them.**
+
+**Pair 1 — a MEASURED frame.** Pick any `session_index` whose `labels.jsonl` row has a non-empty
+`anomalies` array and a non-null `mask_file`. Open `Actual_Frames/frame_NNNNN.png` and
+`target_mask/frame_NNNNN.png` together.
+→ **Read back: does the mask's non-zero region sit on the anomaly target in the colour frame?**
+"silhouette matches" / "silhouette is offset" / "mask is blank but the target is visible" — whichever it
+is.
+
+**Pair 2 — a HIDDEN-BLANK frame.** Pick a `session_index` inside a `blinking` event's hidden set (the
+`frame_indices` in `annotation.json`, joined by `session_index`). Open the same two files.
+→ **Read back: is the mask all black, and is the target absent from the colour frame?**
+"blank as expected" / "blank but the target is visible" / "not blank".
+
+🔑 **Why both pairs:** the first checks the mask points at the right pixels; the second checks that a
+**blank** mask means *"measured, nothing visible"* and not *"we failed to measure"*. Those two are
+different facts and the whole artifact rests on keeping them apart.
+
+⚠ **If `target_mask/` is absent entirely**, read the `Capture(m43): TARGET MASK` echo — it names the
+reason on its own line (requested off / the mask pass is off / refused because the output height is
+non-zero).

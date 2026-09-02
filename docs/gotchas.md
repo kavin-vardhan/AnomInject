@@ -5493,3 +5493,113 @@ window of 0, and pre-declared in the predictions addendum **before** it was meas
 🔑 **RULE: when you change the semantics of a knob, enumerate its documented special values and check
 each one still means what the docs say.** A lever that has silently stopped working is worse than one
 that is gone: the next person to use it gets a clean-looking null.
+
+---
+
+## G216 — a WRONG BLANK is worse than a MISSING FILE. An artifact that states something false beats one that states nothing.
+
+**2026-09-03, `m43` attempt 1.** The target mask wrote a blank (all-zero) PNG on every captured frame
+where `m26` had declined to arm. A blank mask **asserts** *"measured, and no target was visible"* —
+real ground truth for a hide-type anomaly. But `m26` declines for its **own budget** reasons
+(`MaxArmsPerEvent = 4`), not because anything is hidden, so **71 of 90 frames were written as blank
+while most of them had a plainly visible target.**
+
+⚠ **A consumer cannot tell a wrong blank from a right one.** A *missing* file says "no information" and
+is self-announcing; a *blank* file says something specific, and if it is wrong it is indistinguishable
+from correct ground truth. **The absence was the safer artifact and the code chose the assertion.**
+
+🔑 **RULE: before writing a value that ASSERTS something, check that the condition you are asserting is
+the one you actually measured — not a proxy that happens to correlate.** *"The measurement subsystem
+declined"* is not *"the object is not visible"*.
+📌 Same family as `m26`'s `NOT_MEASURED` ≠ `MEASURED_ZERO`, one level down: there it is per event, here
+it is per frame.
+
+---
+
+## G217 — a single render served FIFO STARVES whichever consumer arrives last, and the starvation is invisible until you count arms against passes
+
+**2026-09-03, `m43` attempts 2–3, and it found a defect in ALREADY-SHIPPED code.** The `m26` visible-mask
+pass renders **once per frame** and consumed **exactly one** pending arm (`RequestId = PendingArms[0]`).
+By `m41` there were three consumers: `m26`'s ≤4 arms per event, the census's ~0.8 arms per frame, and
+the new target mask.
+
+**The arithmetic is the whole diagnosis:** 90 captured frames · **106** mask passes · `m26` **24** arms
+· census **72** arms ⇒ 96 of 106 slots already spoken for, and the newcomer got **10**.
+
+🚨 **And it was not only the newcomer.** On shipped `m41` with the census ON, **2 of 24 `m26` arms were
+never served at all** and the rest ran up to **3 frames late**; with the census OFF, **24/24 at lag 1**
+(two control legs). ⇒ **`framesContributed` — a VETO INPUT — was coupled to census cycle length.** One
+event measured `fc 2 → 4` once fixed. ⚠ **Latent: no verdict was observed to change.**
+
+🔑 **TWO RULES:**
+1. **When several subsystems share one per-frame resource, count REQUESTS against SERVICES.** A queue
+   that never drains looks identical to one that is merely busy.
+2. **If the served result does not depend on who asked, SERVE EVERY PENDING REQUEST FROM ONE
+   PRODUCTION.** Here the RT's content depends only on which actors are tagged at render time and each
+   consumer already filters by its own tag set, so one render is the *same answer* delivered to each
+   asker — exact, not an approximation, and it removes the contention rather than prioritising within it.
+
+---
+
+## G218 — a derived artifact must take its LIVENESS from the same source as the labels it accompanies
+
+**2026-09-03, `m43` attempt 3.** The target mask decided "is a target live this frame?" from *"did `m26`
+arm?"*. But `m26`'s records **outlive their fire window** — it keeps arming to spend its budget — so on
+2 frames the mask carried a target silhouette while the label row for that same frame read
+`anomalies = 0`.
+
+⚠ **A mask that contradicts its own labels is worse than a missing mask**, and it is the only failure a
+segmentation consumer cannot detect: both files are present and internally well-formed.
+
+✅ **The fix is not "add a check" — it is to READ THE SAME THING.** Liveness and the write filter now
+come from `Auto->GetLiveFires()`, the identical call `FinalizeArmedLabel` builds the label row from, in
+the same tick, with the underlying state mutated only in the injector's `Tick` which has already run.
+**So the two cannot disagree by construction** — and, deliberately, **without depending on the
+`OnWorldTickEnd` multicast order**, which is precisely the undeclared-ordering assumption `P9` was made
+of.
+
+🔑 **RULE: when artifact B must agree with artifact A, derive B from A's source, not from something
+that usually tracks it.** A second source is a second chance to be wrong, and the disagreement will be
+silent.
+
+---
+
+## G219 — a gate predicate can be OVER-STRICT on a counter that exists to absorb the thing you are measuring
+
+**2026-09-03, `m43` gate D.** The predicate was *"`tagOvertaken` unchanged or lower"*. It read **0 → 1**,
+fully attributed (same binary, target mask the only variable) — and `tagOvertaken` is precisely the
+counter the census built for this class, its own log text calling a re-tag by the event mask *"the
+expected case"*. Everything the counter guards stayed put: `framesPolluted` 0, `batchesLost` 0, cycle
+histogram identical, verdict set identical.
+
+⚖ Ruled **PASS-WITH-READING** (`P-C2` precedent), with the corrected predicate recorded in the journal
+and **the closed predictions file left unedited**.
+
+⚠ **The trap this is NOT:** the fix is not "loosen the gate when it fires". It is that the predicate
+named the wrong quantity — it constrained an *observation counter* instead of the *outcomes* that
+counter exists to protect. **Write gate predicates against what must not change, not against every
+number that might move.**
+📌 **And a mechanism of mine was refuted the same day:** I attributed the rise to the target mask's
+tag/restore cycle; the `tagFlips` counter added afterwards read **0 on every leg**, so that mechanism
+does not stand. **Recorded as refuted rather than quietly dropped** (`G120`).
+
+---
+
+## G220 — `-testexit` matches the engine's OWN echoed command line, so a self-naming trigger quits instantly
+
+**2026-09-03, `m43` gate (x).** A graceful-shutdown leg was launched with
+`-testexit="Capture run FINISHED"`. The process exited with code **0**, zero asserts — and **had
+captured nothing**: `LogInit: Command Line:` echoes the full argument string, which *contains the
+trigger*, so the engine quit on its own first log line.
+
+🚨 **It would have read as a clean pass.** Exit 0, no asserts, no session — the emptiest possible run
+producing the greenest possible result (`G146`'s shape again, and `G96`'s: the check never ran).
+⚠ A second attempt with a multi-word trigger failed the same way, because the unquoted spaces split the
+argument.
+
+🔑 **RULES:** never use a `-testexit` / log-trigger string that appears in the command line itself;
+prefer a marker the *work* emits. And **always confirm the run produced its artifact before reading its
+exit code** — an exit code describes how a process ended, never whether it did anything.
+📌 The leg that finally counted ran the capture to completion, polled for `run_summary.json`, then
+closed the window (`WM_CLOSE`): exit **0**, `Object subsystem successfully closed.`, **0** asserts,
+**30/30** masks flushed, folder **deletable**.

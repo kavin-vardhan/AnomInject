@@ -11,7 +11,63 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🏁🏁 **SESSION 069 CLOSE-OUT, 2026-09-03 — `m41` IS SHIPPED. THIS IS THE CURRENT "YOU ARE HERE";
+> 🏁🏁 **SESSION 069, 2026-09-03 — `m43` IS SHIPPED. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING
+> BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` — §1 the `m41` plan,
+> §2 `m41`'s implementation, §3 the `m43` plan, §4 `m43` attempts 1–4 and every stop's lesson.**
+>
+> 🎯 **`m43` = THE TARGET ID MASK, AND A FIX TO THE SHARED MASK PASS THAT LANDS WITH IT.**
+> One `feat(capture): m43 - target ID mask; one mask render serves all pending arms` on `master`.
+> ⚠ **SHA-INVARIANT PHRASING — `git rev-parse origin/master` is the authority.** ⛔ **NO TAG.** Office
+> batch is now **`m31 → m33 → m34 → m35 → m36 → m37 → m38 → m40 → m41 → m43`** (`m39` slots in when it
+> ships; numbers are identities, not an order).
+> 📦 **Staged bench exe `AD543F42`** (241,169,920 B). **`5C073AC9` = `m43`'s A-SIDE and the validated
+> `m41` exe — load-bearing, do not delete.** Container quartet UNCHANGED
+> (`2A66CA57` / `A7EF9B12` / `D8009AD7`) — code-only hot-swap, **NO COOK** (`G103`).
+>
+> 🚨 **THE PART THAT MATTERS EVEN IF THE MASK DID NOT: `m43` FIXES A LATENT DEFECT IN SHIPPED `m41`.**
+> The mask pass rendered once per frame and served **exactly one** pending arm (`PendingArms[0]`), so
+> `m26`, the census and the target mask contended for one slot. **Measured with its control:** `m41`
+> census **ON** → 24 `m26` arms, **22 served, 2 NEVER SERVED**, lag max **3**; `m41` census **OFF** →
+> 24/24, lag **1/1** (two legs). ⇒ **`framesContributed`, a VETO INPUT, was coupled to census cycle
+> length.** `m43` makes **one render serve every pending arm** — semantically exact, because the RT's
+> content depends only on which actors are tagged at render time and every consumer already filters by
+> its own tag set. After: **24/24 served, lag 1/1**, and one event goes **`fc` 2 → 4**.
+> ⚠ **LATENT — no verdict was ever observed to change** (both `m41` legs had identical event sets and
+> `vetoed_events` 0). ⛔ **Do not write that the veto was wrong.**
+>
+> 🖼 **THE ARTIFACT:** one **8-bit grayscale PNG per captured frame** at
+> `target_mask/frame_NNNNN.png`, numbered by **`session_index`** (`G161`), whose non-zero values are the
+> **stencil tags of the anomaly targets visible in that frame**; 0 is background. `mask_map.json` maps
+> value+event → target and anomaly type. **`labels.jsonl` gains exactly two keys** — `mask_file` (frame
+> row) and `mask_value` (anomaly row); **`run_summary` gains exactly three** —
+> `target_mask_frames_measured` / `_hidden_blank` / `_unavailable`. ⛔ **`annotation.json` DOES NOT
+> MOVE.** Knob `IAI.Capture.TargetMask` / ini `bTargetMaskDefault`, **compiled default ON**,
+> three-branch provenance echo; **delivery mode does NOT suppress it**; **REFUSED when
+> `IAI.Capture.OutputHeight` is non-zero** (a label mask must never be filtered).
+> 🔑 **A BLANK PNG MEANS "MEASURED AND NOTHING VISIBLE"; `mask_file: null` MEANS "NOT MEASURED". They
+> are different facts and the code keeps them apart** — this is `m26`'s `MEASURED_ZERO` ≠ `NOT_MEASURED`
+> recurring at the frame level, and getting it wrong is what stopped attempts 1 and 3.
+>
+> 🧪 **Gates:** `(ii)` the **bit-exact tie** is the load-bearing one — 29 `MASK-TIE` lines, **0
+> MISMATCH**: the delivered PNG's pixel count per tag equals the reduce table's count the veto reads.
+> `(vii)` letterboxed **1280×536**: mask rect == picture rect, tie still 0. `(x)` graceful shutdown:
+> **exit 0**, subsystem closed, **0** asserts, **30/30 masks flushed, folder deletable**. `(ix)` cost:
+> `speed_ratio` **1.0000001** vs the control's 1.0000009 — **the pacer absorbs it at 30 fps, which is
+> HEADROOM, NOT FREE**; readback **921,600 B** per armed frame.
+> ⚖ **`D` is PASS-WITH-READING (`P-C2` precedent):** census `tagOvertaken` **0 → 1**, fully attributed
+> (same binary, target mask the only variable), landing in the counter the census built for exactly
+> this class; `framesPolluted` 0, `batchesLost` 0, histogram and verdict set identical. **The
+> "unchanged or lower" predicate was over-strict; the corrected one is "`tagOvertaken` may rise;
+> polluted/lost/verdicts must not move" (journal 069 §4).**
+> ⚠ **NAMED LIMITATION:** the target mask may tag/restore a live target per frame, queuing a deferred
+> proxy recreate. **Measured `tagFlips = 0` on every bench leg** (`m26` had the target tagged already),
+> so the churn is zero here and **its effect on pixels is UNMEASURED, not shown harmless**. **`m42`
+> (persist tags, rotate values in place) is its fix and is MEASUREMENT-FIRST.**
+>
+> ---
+>
+> 🏁 **SESSION 069, 2026-09-03 — `m41` IS SHIPPED. THIS IS THE CURRENT "YOU ARE HERE";
 > EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
 > **Cold start: `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` — §1 the plan, §2 the
 > implementation, gates and rulings.**

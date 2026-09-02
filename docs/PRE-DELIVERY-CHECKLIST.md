@@ -224,6 +224,22 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       key, so they cannot be on by accident — but a capture taken with one on is a GATE LEG, not a
       dataset, and `CensusDropEntry` in particular deliberately hides candidates from the census.*
 
+
+### 🆕 `m43` — THE TARGET ID MASK: three boxes for this cook
+
+- [ ] **The mask is PRESENT in the smoke run.** `target_mask/` exists, holds **one PNG per captured
+      frame**, and the run's `Capture(m43): TARGET MASK` echo names `ON` with a source.
+      *A missing directory means the knob or the mask pass is off; a partial directory means frames
+      went unmeasured — read `target_mask_frames_unavailable`, which must be `0`.*
+- [ ] 🚨 **`MASK-TIE` shows ZERO mismatches** in the smoke run's log
+      (`Select-String -Pattern 'MASK-TIE' | Where-Object { \ -match 'MISMATCH' }` must be empty).
+      *This is the check that the delivered mask is the same silhouette the labels were judged on. It is
+      the load-bearing one; a mismatch means the artifact and the label disagree about the same pixels.*
+- [ ] ⚠ **Read `speed_ratio` on the smoke run and compare it to a target-mask-OFF run.**
+      *The mask adds a GPU→CPU readback per fire-active frame (921,600 B at 720p, scaling with capture
+      resolution). The dev box absorbed it at paced 30 fps — that is HEADROOM, NOT FREE. If the client
+      box hitches, `IAI.Capture.TargetMask 0` is the FIRST knob to turn off, and `G-R7(ii)` is the
+      gate that catches it here.*
 ## 2. Desktop app + config
 
 - [ ] **Built with the current source**: `npm run build:tauri && npm run tauri build` on a machine with

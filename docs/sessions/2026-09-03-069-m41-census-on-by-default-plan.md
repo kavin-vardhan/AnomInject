@@ -1018,3 +1018,131 @@ Recorded so the next brief starts from here rather than re-deriving it.
 
 📌 **Not blocking, for the record:** D3 (join is `frame_index`, fix the wording) and D7 (the multi-value
 claim is unmeasured — keep it out of client docs until a leg shows it).
+
+---
+
+# §4. `m43` — TARGET ID MASK: FOUR ATTEMPTS, AND WHAT EACH STOP BOUGHT
+
+**Shipped 2026-09-03.** One `feat(capture): m43 - target ID mask; one mask render serves all pending
+arms` on `master`. Pre-declared gates: `docs/predictions/2026-09-03-m43-target-mask.md` +
+**ADDENDUM 2** (the shared pass) + **ADDENDUM 3** (the race and liveness). ⛔ None of the three was
+edited after a measurement existed.
+
+---
+
+## §4.0 The headline, and it is not the mask
+
+`m43` delivers a per-frame instance mask of the anomaly targets. **But the change that matters most is
+the one it needed in order to work at all:** the shared mask pass now serves **every** pending arm from
+**one** render, and that repairs a **latent defect in shipped `m41`** where the census starved `m26`'s
+arms through a single-slot FIFO — coupling **`framesContributed`, a veto input**, to census cycle
+length. See §4.5.
+
+---
+
+## §4.1 Attempt 1 — the wrong-blank stop. **A WRONG BLANK IS WORSE THAN A MISSING FILE.**
+
+Gate `(i)` failed: `16 + 71 = 87` of 90. Cause: only the *shared-arm* half of ruling `R1` was built, so
+`m26`'s `MaxArmsPerEvent = 4` capped coverage, and **every frame `m26` declined was written as a BLANK
+mask.**
+
+🚨 **A blank asserts MEASURED AND NOTHING VISIBLE.** 71 frames were written that way and most had a
+visible target, so the artifact would have stated ground truth that is **false**. ⇒ **the lesson that
+travels: a wrong blank is worse than a missing file** — an absent file says "no information", a blank
+file says something specific and untrue, and a segmentation consumer cannot tell the difference.
+
+## §4.2 Attempt 2 — the single-pass FIFO starvation, found by arithmetic
+
+Adding a per-frame own arm moved coverage only 16 → 26. The arithmetic said why:
+**90 captured frames · 106 mask passes · `m26` 24 arms · census 72 arms.** The pass renders once per
+frame and consumed exactly one arm, so `96` of the `106` slots were already spoken for and the target
+mask got **10**. Confirmed to the unit by attempt 1 (16 shared) + 10 own = 26.
+
+🔑 **Lesson: a single pass served FIFO starves whichever consumer arrives last, and the starvation is
+invisible unless you count arms against passes.**
+
+## §4.3 Attempt 3 — the peek/take race, and a mask that contradicted its own labels
+
+The shared pass (ruling **(a)**) landed and proved itself — but two residuals remained.
+
+**(1)** `unavailable = 3` at `session_index` 29, 43, 89. All three had `M23 ARM` on their own tick, so
+the render happened. **The shared path was the cause:** the block ran
+`EnqueueDrain()` → `ServiceTargetMask()` (peek) → `CollectResults()` (take, removes), and if the render
+thread published between the peek and the take, the target mask never saw its own result. Sporadic by
+construction — hence three scattered frames.
+
+**(2) 🚨 `session_index` 23 and 47 carried mask CONTENT while their label row said `anomalies = 0`.**
+`m26`'s records **outlive their fire window**, so "`m26` armed" is not "a target is live", and the
+filter used `BuildBaseTagSet()` — every record tag ever — so an ended event's lingering tag was never
+zeroed.
+
+⇒ **the same failure family as attempt 1: the artifact stating something untrue.** A mask that
+contradicts its own labels is worse than a missing mask.
+
+## §4.4 Attempt 4 — liveness from the labels' own source; the own-arm always
+
+- **The race is removed, not timed around:** the target mask **always arms its own `RequestId`**, which
+  costs nothing once one render serves every arm. `unavailable` **3 → 0**.
+- **Liveness and the filter come from `Auto->GetLiveFires()` — the same call `FinalizeArmedLabel`
+  builds the label row from**, in the same tick, with `LiveFires` mutated only in the injector's `Tick`
+  which has already run. ⇒ **mask and labels cannot disagree by construction, WITHOUT depending on the
+  `OnWorldTickEnd` multicast order** — that is the assumption `P9` was made of and it is not repeated.
+  Frames with `anomalies = 0` carrying content: **2 → 0**.
+
+## §4.5 🚨 THE LATENT `m41` DEFECT — measured, controlled, fixed
+
+| leg | census arms | `m26` arms | served | **UNSERVED** | lag min/max/mean |
+|---|---|---|---|---|---|
+| `m41`, census **ON** (shipped default) | 78 | 24 | 22 | **2** | 1 / **3** / 1.86 |
+| `m41`, census **OFF** | 0 | 24 | 24 | 0 | 1 / 1 / 1.00 |
+| `m41`, census OFF (2nd) | 0 | 24 | 24 | 0 | 1 / 1 / 1.00 |
+| **`m43`**, census **ON** | 97 | 24 | **24** | **0** | **1 / 1 / 1.00** |
+
+The census-OFF pair is the control that proves the cause. Effect on a veto input, measured:
+`StaticMeshActor_49@116` **`framesContributed` 2 → 4**.
+
+⚠ **LATENT — no verdict was ever observed to change.** Both `m41` legs had identical event sets and
+`vetoed_events` 0. ⛔ **"The veto was wrong" is NOT established and must not be written.** What is
+established is that a veto input was coupled to an unrelated subsystem's cadence.
+
+## §4.6 Gate `D` — PASS-WITH-READING, and the predicate that was over-strict
+
+Census `tagOvertaken` **0 → 1**, attributed by the same-binary control (target mask OFF → 0).
+`framesPolluted` **0**, `batchesLost` **0**, cycle histogram identical, verdict set identical.
+
+⚖ **Ruling (`P-C2` precedent): PASS-WITH-READING.** The counter is the one the census built for exactly
+this class — its own text calls a re-tag by the event mask *"the expected case"*.
+📌 **My predicate "`tagOvertaken` unchanged or lower" was OVER-STRICT for a counter designed to absorb
+this. The corrected predicate: "`tagOvertaken` may rise by the number of live-target re-tags;
+`framesPolluted`, `batchesLost` and the verdict set must not move."** The addendum is **not edited**;
+the correction lives here (`P-C2` route).
+
+⚠ **And a mechanism of mine was refuted by a later measurement.** I attributed gate `D` to *"the target
+mask's tag/restore cycle opens windows in which a live target is untagged"*. The `tagFlips` counter
+added afterwards reads **0 on every bench leg** — the target mask never tagged anything itself, because
+`m26` already had the live target tagged. ⇒ **that mechanism does not stand**; the perturbation comes
+from the extra arms changing census batch timing. **Recorded as refuted, not quietly dropped.**
+
+## §4.7 Limitations shipped with `m43`, stated
+
+- **Only anomaly targets appear.** Not a mask of every object in the scene.
+- **Translucent-only targets never appear** — excluded at selection (`m41` item B) and unable to write
+  custom depth.
+- **Nanite targets are invisible to it** (`G134`), the same limit the `m26` measurement has.
+- **Multi-target frames are UNVERIFIED** (`D7`): no bench leg has shown two distinct non-zero values in
+  one PNG. Client docs say "one value per anomaly target present in the frame".
+- **Output height ≠ 0 refuses outright.** Nearest-neighbour mask resampling is a named follow-up.
+- **Per-frame tag/restore churn on a live target** queues a deferred proxy recreate. **`tagFlips = 0`
+  measured on every bench leg**, so it is zero here; **its pixel effect is UNMEASURED, not shown
+  harmless.** `m42` is its fix, measurement-first.
+
+## §4.8 What each stop bought, in one line each
+
+1. **The wrong blank** — caught before it shipped an artifact asserting a falsehood about 71 frames.
+2. **The FIFO starvation** — found a latent defect in the *client's current build*, not just in `m43`.
+3. **The peek/take race + the label-contradicting mask** — caught 2 frames whose mask disagreed with
+   their own labels.
+4. **The over-strict predicate** — corrected in the open, and a mechanism of mine refuted by its own
+   follow-up measurement.
+
+⇒ **Four stops, four findings, and two of them were in shipped code rather than in the new feature.**
