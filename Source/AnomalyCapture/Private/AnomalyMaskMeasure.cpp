@@ -202,7 +202,7 @@ int32 FAnomalyMaskMeasure::TotalNoPassDiscards() const
 	return N;
 }
 
-bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId)
+bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId, bool bWantPixels)
 {
 	if (!Sve)
 	{
@@ -236,7 +236,7 @@ bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, u
 		}
 
 		Sve->SetAssignedTags(BuildAssignedTagSet());
-		Sve->ArmMask(RequestId);
+		Sve->ArmMask(RequestId, bWantPixels);
 		++R.ArmsIssued;
 		ArmedRequestToRecord.Add(RequestId, i);
 		ArmedThisFrame.Add(RequestId);

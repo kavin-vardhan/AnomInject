@@ -77,6 +77,37 @@ namespace AnomalyPreview
 		return true;
 	}
 
+	bool EncodeGray8Png(const TArray<uint8>& Gray, int32 Width, int32 Height, TArray<uint8>& OutBytes)
+	{
+		OutBytes.Reset();
+
+		if (Width <= 0 || Height <= 0 || Gray.Num() < (int64)Width * (int64)Height)
+		{
+			return false;
+		}
+
+		IImageWrapperModule& Module = FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
+		TSharedPtr<IImageWrapper> Wrapper = Module.CreateImageWrapper(::EImageFormat::PNG);
+		if (!Wrapper.IsValid())
+		{
+			return false;
+		}
+		if (!Wrapper->SetRaw(Gray.GetData(), (int64)Width * (int64)Height, Width, Height, ERGBFormat::Gray, 8))
+		{
+			return false;
+		}
+
+		const TArray64<uint8>& Compressed = Wrapper->GetCompressed(0);
+		if (Compressed.Num() == 0)
+		{
+			return false;
+		}
+
+		OutBytes.SetNumUninitialized(Compressed.Num());
+		FMemory::Memcpy(OutBytes.GetData(), Compressed.GetData(), Compressed.Num());
+		return true;
+	}
+
 	bool CaptureGameViewportEncoded(UWorld* World, EImageFormat Format, TArray<uint8>& OutBytes,
 		int32& OutWidth, int32& OutHeight, int32 JpegQuality)
 	{

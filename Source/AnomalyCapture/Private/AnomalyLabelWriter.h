@@ -22,6 +22,9 @@ namespace AnomalyLabel
 		float  NearClip = 0.0f;
 		FAnomalyViewInfo View;
 		TArray<FAutoLiveFireInfo> Fires;
+		bool bTargetMask = false;
+		FString MaskFileRel;
+		TArray<int32> MaskValues;
 		TArray<uint8>   FireActive;
 		TArray<FVector> FirePos;
 	};
@@ -116,7 +119,27 @@ namespace AnomalyLabel
 		int32 VetoedEvents = 0, int32 TranslucentVetoes = 0, int32 TranslucencyUnknownVetoes = 0,
 		const FTickPinTelemetry* TickPin = nullptr, int32 PatternExcludedTargets = 0,
 		const FReadbackLayoutTelemetry* ReadbackLayout = nullptr,
-		const ::FAnomalyCensusCounters* Census = nullptr);
+		const ::FAnomalyCensusCounters* Census = nullptr,
+		const struct FTargetMaskTelemetry* TargetMask = nullptr);
+
+	struct FTargetMaskTelemetry
+	{
+		int32 Measured = 0;
+		int32 HiddenBlank = 0;
+		int32 Unavailable = 0;
+	};
+
+	struct FTargetMaskMapEntry
+	{
+		int32 MaskValue = 0;
+		FString EventId;
+		FString TargetName;
+		FString AnomalyType;
+		int32 FirstFrame = 0;
+		int32 LastFrame = 0;
+	};
+
+	bool WriteTargetMaskMap(const FString& RunDir, const TArray<FTargetMaskMapEntry>& Entries);
 
 
 	struct FSessionVideo

@@ -85,6 +85,9 @@ public:
 	int32 GetCensusMaxVerdictAgeTicks() const { return CensusMaxVerdictAgeTicks; }
 	void SetCensusExcludeTranslucent(bool bInExclude);
 	bool IsCensusExcludeTranslucent() const { return bCensusExcludeTranslucent; }
+	void SetTargetMask(bool bInOn);
+	bool IsTargetMask() const { return bTargetMask; }
+	const TCHAR* DescribeTargetMaskSource() const;
 	void SetCensusIncludeTranslucentWriters(bool bInInclude);
 	bool IsCensusIncludeTranslucentWriters() const { return bCensusIncludeTranslucentWriters; }
 	void SetCensusReservation(bool bInReserve);
@@ -149,6 +152,10 @@ private:
 	bool ResolveRunLogEffective(FString& OutSource) const;
 	void RunStencilHygieneCheck(bool bFinal);
 	int32 ScanHostPostProcessCustomDepthReaders(UWorld* World) const;
+	void ServiceTargetMask();
+	void ReleaseTargetMaskSelfTags();
+	bool ArmTargetMaskOwn(int32 SessionIndex);
+	void EnqueueTargetMaskPng(int32 SessionIndex, const TArray<uint8>& Gray, int32 W, int32 H);
 	const TCHAR* DescribeCensusSource() const;
 	const TCHAR* DescribeMaskSource() const;
 	const TCHAR* DescribeCensusTranslucentWritersSource() const;
@@ -321,6 +328,25 @@ private:
 	bool bCensusReservation = true;
 	bool bCensusLeakProbe = false;
 	bool bCensusCoArm = false;
+	bool bTargetMask = true;
+	bool bTargetMaskFromIni = false;
+	bool bTargetMaskFromConsole = false;
+	bool bTargetMaskEffective = false;
+	int32 TargetMaskMeasured = 0;
+	int32 TargetMaskHiddenBlank = 0;
+	int32 TargetMaskUnavailable = 0;
+	uint64 TargetMaskArmedTick = 0;
+	int32 TargetMaskArmedSessionIndex = -1;
+	TMap<uint64, int32> TargetMaskPendingSessionIndex;
+	TMap<uint64, TSet<uint8>> TargetMaskPendingTags;
+	TArray<int32> TargetMaskDeferredBlanks;
+	TArray<TWeakObjectPtr<AActor>> TargetMaskSelfTagged;
+	uint64 TargetMaskOwnSerial = 0;
+	int32 TargetMaskTagFlips = 0;
+	int32 TargetMaskW = 0;
+	int32 TargetMaskH = 0;
+	TMap<uint8, int32> TargetMaskFirstFrame;
+	TMap<uint8, int32> TargetMaskLastFrame;
 	bool bBenchCensusFixedExpiry = false;
 	int32 BenchCensusBatchCap = 0;
 	int32 BenchCensusDropEveryNth = 0;

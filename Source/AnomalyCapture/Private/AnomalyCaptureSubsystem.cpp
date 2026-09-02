@@ -396,6 +396,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bCensusExcludeTranslucent = bConfigCensusTranslucent;
 		bCensusTranslucentFromIni = true;
 	}
+	bool bConfigTargetMask = true;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bTargetMaskDefault"), bConfigTargetMask, GGameIni))
+	{
+		bTargetMask = bConfigTargetMask;
+		bTargetMaskFromIni = true;
+	}
 	bool bConfigCensusTranslucentWriters = false;
 	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bCensusIncludeTranslucentCustomDepthWritersDefault"), bConfigCensusTranslucentWriters, GGameIni))
 	{
@@ -740,8 +746,38 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 		(bCensusEffective && Async->Census.IsActive()) ? Async->Census.GetLegitTags() : TSet<uint8>());
 	Async->MaskMeasure.VerifyPendingTags();
 	Async->MaskExtension->EnqueueDrain();
+	ReleaseTargetMaskSelfTags();
+	ServiceTargetMask();
 	Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
-	const bool bArmedNormal = Async->MaskMeasure.ArmIfMeasurable(Async->MaskExtension.Get(), GFrameCounter);
+
+	const bool bCapturedThisTick = bTargetMaskEffective && (TargetMaskArmedTick == GFrameCounter)
+		&& (TargetMaskArmedSessionIndex >= 0);
+	const bool bArmedNormal = Async->MaskMeasure.ArmIfMeasurable(Async->MaskExtension.Get(), GFrameCounter, false);
+
+	if (bCapturedThisTick)
+	{
+		if (!ArmTargetMaskOwn(TargetMaskArmedSessionIndex))
+		{
+			int32 W = TargetMaskW;
+			int32 H = TargetMaskH;
+			if (W <= 0 || H <= 0)
+			{
+				Async->Writer->GetFirstWrittenSize(W, H);
+			}
+			if (W > 0 && H > 0)
+			{
+				TArray<uint8> Blank;
+				Blank.SetNumZeroed((int32)((int64)W * (int64)H));
+				EnqueueTargetMaskPng(TargetMaskArmedSessionIndex, Blank, W, H);
+				++TargetMaskHiddenBlank;
+			}
+			else
+			{
+				TargetMaskDeferredBlanks.Add(TargetMaskArmedSessionIndex);
+			}
+		}
+		TargetMaskArmedSessionIndex = -1;
+	}
 
 	if (!bArmedNormal && bMaskProbe && !bMaskProbeFiredThisRun && !bDeliveryMode)
 	{
@@ -760,6 +796,204 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 		}
 	}
 #endif
+}
+
+static constexpr uint64 GTargetMaskRequestBit = 1ull << 61;
+
+void UAnomalyCaptureSubsystem::EnqueueTargetMaskPng(int32 SessionIndex, const TArray<uint8>& Gray, int32 W, int32 H)
+{
+	if (!Async.IsValid() || !Async->Writer.IsValid() || SessionIndex < 0 || W <= 0 || H <= 0)
+	{
+		return;
+	}
+	FAnomalyAsyncWriter::FJob Job;
+	Job.bGrayMask = true;
+	Job.OutputDir = RunDir;
+	Job.ImageRelPath = FString::Printf(TEXT("target_mask/frame_%05d.png"), SessionIndex);
+	Job.RawBytes = Gray;
+	Job.Width = W;
+	Job.Height = H;
+	Async->Writer->Enqueue(MoveTemp(Job));
+}
+
+void UAnomalyCaptureSubsystem::ReleaseTargetMaskSelfTags()
+{
+	if (TargetMaskSelfTagged.Num() == 0)
+	{
+		return;
+	}
+	for (const TWeakObjectPtr<AActor>& Weak : TargetMaskSelfTagged)
+	{
+		if (AActor* Actor = Weak.Get())
+		{
+			AnomalyStencilTag::RestoreActor(Actor);
+			++TargetMaskTagFlips;
+		}
+	}
+	TargetMaskSelfTagged.Reset();
+}
+
+bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
+{
+	if (!Async.IsValid() || !Async->MaskExtension.IsValid())
+	{
+		return false;
+	}
+
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	if (!Auto)
+	{
+		return false;
+	}
+
+	TArray<AActor*> Visible;
+	TArray<uint8> Tags;
+	TSet<uint8> LiveTags;
+	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+	{
+		AActor* Actor = F.TargetActor.Get();
+		if (!Actor)
+		{
+			continue;
+		}
+		for (const FAnomalyMaskRecord& R : Async->MaskMeasure.GetRecords())
+		{
+			if (R.Id == F.Id && R.Target == F.Target && R.StartFrame == F.StartFrame && R.Tag != 0)
+			{
+				LiveTags.Add(R.Tag);
+				if (!Actor->IsHidden())
+				{
+					Visible.Add(Actor);
+					Tags.Add(R.Tag);
+				}
+				break;
+			}
+		}
+	}
+
+	if (Visible.Num() == 0)
+	{
+		return false;
+	}
+
+	int32 TaggedCount = 0;
+	for (int32 i = 0; i < Visible.Num(); ++i)
+	{
+		if (AnomalyStencilTag::IsAnyComponentTagged(Visible[i]))
+		{
+			++TaggedCount;
+			continue;
+		}
+		if (AnomalyStencilTag::TagActor(Visible[i], (int32)Tags[i]) > 0)
+		{
+			TargetMaskSelfTagged.Add(Visible[i]);
+			++TaggedCount;
+			++TargetMaskTagFlips;
+		}
+	}
+
+	if (TaggedCount == 0)
+	{
+		return false;
+	}
+
+	const uint64 RequestId = GTargetMaskRequestBit | (++TargetMaskOwnSerial);
+	Async->MaskExtension->SetAssignedTags(Async->MaskMeasure.BuildAssignedTagSet());
+	Async->MaskExtension->ArmMask(RequestId, true);
+	TargetMaskPendingSessionIndex.Add(RequestId, SessionIndex);
+	TargetMaskPendingTags.Add(RequestId, LiveTags);
+	return true;
+}
+
+void UAnomalyCaptureSubsystem::ServiceTargetMask()
+{
+	if (!bTargetMaskEffective || !Async.IsValid() || !Async->MaskExtension.IsValid()
+		|| TargetMaskPendingSessionIndex.Num() == 0)
+	{
+		return;
+	}
+
+	TArray<uint64> Ready;
+	for (const TPair<uint64, int32>& Pair : TargetMaskPendingSessionIndex)
+	{
+		FAnomalyMaskResult Result;
+		if (!Async->MaskExtension->TakeMaskResult(Pair.Key, Result, true))
+		{
+			continue;
+		}
+		Ready.Add(Pair.Key);
+
+		const TSet<uint8>* LiveTagsPtr = TargetMaskPendingTags.Find(Pair.Key);
+		const TSet<uint8> EventTags = LiveTagsPtr ? *LiveTagsPtr : TSet<uint8>();
+
+		const int32 W = Result.ViewRectSize.X;
+		const int32 H = Result.ViewRectSize.Y;
+		if (W <= 0 || H <= 0 || Result.MaskPixels.Num() < (int64)W * (int64)H)
+		{
+			++TargetMaskUnavailable;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(m43): TARGET MASK UNAVAILABLE for session_index %d (id=%llu, %dx%d, pixels=%d). ")
+				TEXT("The labels row for this frame carries mask_file:null - NOT MEASURED, which is a different ")
+				TEXT("fact from a blank mask."),
+				Pair.Value, Pair.Key, W, H, Result.MaskPixels.Num());
+			continue;
+		}
+
+		TargetMaskW = W;
+		TargetMaskH = H;
+
+		TArray<uint8> Gray = MoveTemp(Result.MaskPixels);
+		const int32 N = W * H;
+		for (int32 i = 0; i < N; ++i)
+		{
+			const uint8 V = Gray[i];
+			if (V != 0 && !EventTags.Contains(V))
+			{
+				Gray[i] = 0;
+			}
+		}
+
+		for (uint8 Tag : EventTags)
+		{
+			if (const FAnomalyMaskTagResult* R = Result.TagResults.Find(Tag))
+			{
+				if (R->Count > 0)
+				{
+					if (!TargetMaskFirstFrame.Contains(Tag))
+					{
+						TargetMaskFirstFrame.Add(Tag, Pair.Value);
+					}
+					TargetMaskLastFrame.Add(Tag, Pair.Value);
+				}
+			}
+		}
+
+		for (uint8 Tag : EventTags)
+		{
+			const FAnomalyMaskTagResult* R = Result.TagResults.Find(Tag);
+			const int32 TableCount = R ? R->Count : 0;
+			int32 PngCount = 0;
+			for (int32 i = 0; i < N; ++i)
+			{
+				if (Gray[i] == Tag) { ++PngCount; }
+			}
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m43): MASK-TIE session_index=%d tag=%d tableCount=%d pngCount=%d %s - the ")
+				TEXT("delivered mask is counted against the SAME reduce table the veto reads, so the shipped ")
+				TEXT("silhouette is provably the one the labels were judged on."),
+				Pair.Value, (int32)Tag, TableCount, PngCount,
+				(TableCount == PngCount) ? TEXT("MATCH") : TEXT("*** MISMATCH ***"));
+		}
+
+		EnqueueTargetMaskPng(Pair.Value, Gray, W, H);
+		++TargetMaskMeasured;
+	}
+
+	for (uint64 Id : Ready)
+	{
+		TargetMaskPendingSessionIndex.Remove(Id);
+		TargetMaskPendingTags.Remove(Id);
+	}
 }
 
 void UAnomalyCaptureSubsystem::RunStencilHygieneCheck(bool bFinal)
@@ -1167,6 +1401,38 @@ const TCHAR* UAnomalyCaptureSubsystem::DescribeMaskSource() const
 		return TEXT("DefaultGame.ini [AnomalyCapture] bMaskMeasureDefault");
 	}
 	return TEXT("COMPILED DEFAULT (on)");
+}
+
+const TCHAR* UAnomalyCaptureSubsystem::DescribeTargetMaskSource() const
+{
+	if (bTargetMaskFromConsole)
+	{
+		return TEXT("IAI.Capture.TargetMask (console)");
+	}
+	if (bTargetMaskFromIni)
+	{
+		return TEXT("DefaultGame.ini [AnomalyCapture] bTargetMaskDefault");
+	}
+	return TEXT("COMPILED DEFAULT (on)");
+}
+
+void UAnomalyCaptureSubsystem::SetTargetMask(bool bInOn)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.TargetMask: ignored - a capture run is in progress."));
+		return;
+	}
+	bTargetMask = bInOn;
+	bTargetMaskFromIni = false;
+	bTargetMaskFromConsole = true;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.TargetMask: %s - m43. Takes effect BETWEEN RUNS. It writes one 8-bit grayscale PNG ")
+		TEXT("per captured frame at target_mask/frame_NNNNN.png (numbered by SESSION INDEX, so it sorts with ")
+		TEXT("Actual_Frames), whose non-zero values are the stencil tags of the ANOMALY TARGETS visible in ")
+		TEXT("that frame. It reuses the m26 visible-mask pass - no new shader, no new render pass - and it ")
+		TEXT("does NOT touch the m26 measurement or the veto. Requires the mask (IAI.Capture.Mask)."),
+		bTargetMask ? TEXT("ON") : TEXT("off"));
 }
 
 const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusTranslucentWritersSource() const
@@ -1733,6 +1999,39 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		TEXT("SILENT NO-OP (G88), which is why this line reports the EFFECTIVE value and not the file. The ")
 		TEXT("ACTUAL output size is measured from the first written frame and logged separately."),
 		EffectiveOutputHeight, DescribeOutputHeightSource());
+
+	bTargetMaskEffective = bTargetMask && bMaskMeasure && bAsyncCapture && (EffectiveOutputHeight == 0);
+	TargetMaskMeasured = 0;
+	TargetMaskHiddenBlank = 0;
+	TargetMaskUnavailable = 0;
+	TargetMaskPendingSessionIndex.Reset();
+	TargetMaskPendingTags.Reset();
+	TargetMaskFirstFrame.Reset();
+	TargetMaskLastFrame.Reset();
+	TargetMaskDeferredBlanks.Reset();
+	TargetMaskSelfTagged.Reset();
+	TargetMaskOwnSerial = 0;
+	TargetMaskTagFlips = 0;
+	TargetMaskW = 0;
+	TargetMaskH = 0;
+	TargetMaskArmedSessionIndex = -1;
+	{
+		const TCHAR* Why = TEXT("");
+		if (!bTargetMask)                 { Why = TEXT(" (requested off)"); }
+		else if (!bMaskMeasure)           { Why = TEXT(" (THE MASK IS OFF - the target mask reuses the m26 visible-mask pass, so it cannot run without it)"); }
+		else if (!bAsyncCapture)          { Why = TEXT(" (async capture is off)"); }
+		else if (EffectiveOutputHeight != 0) { Why = TEXT(" (REFUSED: IAI.Capture.OutputHeight is non-zero. The mask is view-rect sized while m28 RESAMPLES the written frame, so the two would disagree in size, and a LABEL MASK MUST NEVER BE FILTERED - bilinear would invent stencil values that were never assigned to anything. Nearest-neighbour mask resampling is a named follow-up, NOT built. Set the output height to 0 to get masks.)"); }
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("=== Capture(m43): TARGET MASK %s FOR THIS RUN%s - requested %s, from %s, output dir '%s/target_mask' === ")
+			TEXT("READ THIS LINE, NOT THE INI. One 8-bit grayscale PNG per captured frame, numbered by SESSION ")
+			TEXT("INDEX; non-zero pixel values are the stencil tags of the ANOMALY TARGETS visible in that frame ")
+			TEXT("and 0 is background. mask_map.json maps value+event to target and anomaly type. A BLANK png ")
+			TEXT("means MEASURED AND NOTHING VISIBLE (a hidden blinking target); mask_file:null in labels.jsonl ")
+			TEXT("means NOT MEASURED - they are different facts. It reuses the m26 pass and does NOT change the ")
+			TEXT("m26 measurement, the veto, or annotation.json. Delivery mode does NOT suppress it."),
+			bTargetMaskEffective ? TEXT("ON") : TEXT("OFF"), Why,
+			bTargetMask ? TEXT("on") : TEXT("off"), DescribeTargetMaskSource(), *RunDir);
+	}
 
 	bCensusEffective = bCensus && bMaskMeasure && bAsyncCapture;
 	UE_LOG(LogAnomalyCapture, Log,
@@ -2654,6 +2953,13 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			LastFrameTimeSeconds = Snap.TimeSeconds;
 			Snap.WallSeconds = FPlatformTime::Seconds();
 			StampArmWallClock(Snap.WallSeconds);
+			Snap.bTargetMask = bTargetMask;
+			if (bTargetMaskEffective)
+			{
+				Snap.MaskFileRel = FString::Printf(TEXT("target_mask/frame_%05d.png"), Snap.SessionIndex);
+				TargetMaskArmedTick = GFrameCounter;
+				TargetMaskArmedSessionIndex = Snap.SessionIndex;
+			}
 			Async->PendingSnapshots.Add(RequestId, MoveTemp(Snap));
 			if (bUseSve)
 			{
@@ -2846,6 +3152,25 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 	{
 		const AActor* FActor = F.TargetActor.Get();
 		Snap->FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
+	}
+
+	if (Snap->bTargetMask)
+	{
+		Snap->MaskValues.Reset();
+		Snap->MaskValues.Reserve(Snap->Fires.Num());
+		for (const FAutoLiveFireInfo& F : Snap->Fires)
+		{
+			int32 Value = 0;
+			for (const FAnomalyMaskRecord& R : Async->MaskMeasure.GetRecords())
+			{
+				if (R.Id == F.Id && R.Target == F.Target && R.StartFrame == F.StartFrame)
+				{
+					Value = (int32)R.Tag;
+					break;
+				}
+			}
+			Snap->MaskValues.Add(Value);
+		}
 	}
 
 	DeferredActiveRequestId = ArmedLabelRequestId;
@@ -3477,6 +3802,104 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LayoutReport.Format = DrainLayout.Format;
 		}
 
+		AnomalyLabel::FTargetMaskTelemetry TargetMaskReport;
+		if (bTargetMaskEffective)
+		{
+			if (Async.IsValid() && Async->MaskExtension.IsValid())
+			{
+				ReleaseTargetMaskSelfTags();
+				for (int32 Attempt = 0; Attempt < 8 && TargetMaskPendingSessionIndex.Num() > 0; ++Attempt)
+				{
+					Async->MaskExtension->EnqueueDrain(true);
+					FlushRenderingCommands();
+					ServiceTargetMask();
+				}
+			}
+			for (int32 Idx : TargetMaskDeferredBlanks)
+			{
+				if (TargetMaskW > 0 && TargetMaskH > 0)
+				{
+					TArray<uint8> Blank;
+					Blank.SetNumZeroed((int32)((int64)TargetMaskW * (int64)TargetMaskH));
+					EnqueueTargetMaskPng(Idx, Blank, TargetMaskW, TargetMaskH);
+					++TargetMaskHiddenBlank;
+				}
+				else
+				{
+					++TargetMaskUnavailable;
+				}
+			}
+			TargetMaskDeferredBlanks.Reset();
+			if (TargetMaskPendingSessionIndex.Num() > 0)
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m43): %d target-mask readback(s) were STILL PENDING after the bounded final ")
+					TEXT("drain (8 attempts, each EnqueueDrain(final) + FlushRenderingCommands). Those frames ")
+					TEXT("carry mask_file:null - NOT MEASURED, which is a different fact from a blank mask. ")
+					TEXT("The number is reported rather than forced: holding a handle into teardown to chase it ")
+					TEXT("is the leak shape m38 gate (iii) exists to catch."),
+					TargetMaskPendingSessionIndex.Num());
+			}
+			for (const TPair<uint64, int32>& Pair : TargetMaskPendingSessionIndex)
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m43): UNAVAILABLE session_index %d (id=%llu) - its mask readback never ")
+					TEXT("arrived. Its labels row says mask_file:null - NOT MEASURED, which is a different ")
+					TEXT("fact from a blank mask."),
+					Pair.Value, Pair.Key);
+			}
+			TargetMaskUnavailable += TargetMaskPendingSessionIndex.Num();
+			TargetMaskPendingSessionIndex.Reset();
+			TargetMaskPendingTags.Reset();
+
+			const int32 Residual = FramesWritten - (TargetMaskMeasured + TargetMaskHiddenBlank + TargetMaskUnavailable);
+			if (Residual > 0)
+			{
+				TargetMaskUnavailable += Residual;
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m43): %d captured frame(s) never reached a target-mask decision at all - a sync ")
+					TEXT("fallback grab, or a captured frame whose tick did not run the mask block. Counted as ")
+					TEXT("UNAVAILABLE, never as blank: a blank asserts MEASURED AND NOTHING VISIBLE, and asserting ")
+					TEXT("that about a frame we did not measure is worse than writing no file at all."),
+					Residual);
+			}
+
+			TArray<AnomalyLabel::FTargetMaskMapEntry> MapEntries;
+			if (Async.IsValid())
+			{
+				for (const FAnomalyMaskRecord& R : Async->MaskMeasure.GetRecords())
+				{
+					AnomalyLabel::FTargetMaskMapEntry E;
+					E.MaskValue = (int32)R.Tag;
+					E.EventId = FString::Printf(TEXT("%s@%llu"), *R.Id.ToString(), R.StartFrame);
+					E.TargetName = R.Target;
+					E.AnomalyType = R.Id.ToString();
+					E.FirstFrame = TargetMaskFirstFrame.Contains(R.Tag) ? TargetMaskFirstFrame[R.Tag] : -1;
+					E.LastFrame = TargetMaskLastFrame.Contains(R.Tag) ? TargetMaskLastFrame[R.Tag] : -1;
+					MapEntries.Add(E);
+				}
+			}
+			AnomalyLabel::WriteTargetMaskMap(RunDir, MapEntries);
+
+			TargetMaskReport.Measured = TargetMaskMeasured;
+			TargetMaskReport.HiddenBlank = TargetMaskHiddenBlank;
+			TargetMaskReport.Unavailable = TargetMaskUnavailable;
+
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m43): TARGET MASK SUMMARY measured=%d hiddenBlank=%d unavailable=%d tagFlips=%d ")
+				TEXT("(measured + hiddenBlank should equal the captured frame count; unavailable is frames whose ")
+				TEXT("readback never arrived and whose labels row says mask_file:null). tagFlips counts the ")
+				TEXT("target mask's OWN stencil tag applications and restores on live targets - one flip queues a ")
+				TEXT("deferred render-proxy recreate. NAMED LIMITATION of m43: that churn is per fire-active ")
+				TEXT("frame, and m42 (persist tags, rotate values in place) is its fix. Its effect on PIXELS is ")
+				TEXT("UNMEASURED - the count is reported so the cost is visible, not so it can be claimed harmless."),
+				TargetMaskMeasured, TargetMaskHiddenBlank, TargetMaskUnavailable, TargetMaskTagFlips);
+		}
+		else if (bTargetMask)
+		{
+			TargetMaskReport.Unavailable = FramesWritten;
+		}
+
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
@@ -3485,7 +3908,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			MaskProbeArms, MaskResidualDiscards, MaskNoPassDiscards, VetoedEvents,
 			TranslucentVetoes, TranslucencyUnknownVetoes, &TickPinReport, PatternExcludedTargets,
 			DrainLayout.bValid ? &LayoutReport : nullptr,
-			(bCensusEffective && Async.IsValid()) ? &Async->Census.GetCounters() : nullptr);
+			(bCensusEffective && Async.IsValid()) ? &Async->Census.GetCounters() : nullptr,
+			bTargetMask ? &TargetMaskReport : nullptr);
 
 		if (bSveCapture)
 		{
@@ -4590,6 +5014,34 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusTranslucentWritersCmd(
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
 			{
 				Cap->SetCensusIncludeTranslucentWriters(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureTargetMaskCmd(
+	TEXT("IAI.Capture.TargetMask"),
+	TEXT("m43 TARGET ID MASK - one 8-bit grayscale PNG per captured frame at target_mask/frame_NNNNN.png, ")
+	TEXT("numbered by SESSION INDEX so it sorts with Actual_Frames. Non-zero pixel values are the stencil ")
+	TEXT("tags of the ANOMALY TARGETS visible in that frame; 0 is background. mask_map.json maps ")
+	TEXT("value+event to target name and anomaly type; labels.jsonl gains mask_file on the frame row and ")
+	TEXT("mask_value on each anomaly row. THIS IS NOT A MASK OF EVERY OBJECT IN THE SCENE - only anomaly ")
+	TEXT("targets appear, by design. A BLANK png means MEASURED AND NOTHING VISIBLE (a hidden blinking ")
+	TEXT("target, which is real ground truth); mask_file:null means NOT MEASURED. It reuses the m26 ")
+	TEXT("visible-mask pass - no new shader, no new render pass - and does NOT change the m26 measurement, ")
+	TEXT("the veto or annotation.json. Requires IAI.Capture.Mask. REFUSED when IAI.Capture.OutputHeight is ")
+	TEXT("non-zero, because a label mask must never be filtered. COMPILED default ON; ini ")
+	TEXT("[AnomalyCapture] bTargetMaskDefault. Takes effect BETWEEN RUNS; delivery mode does NOT suppress ")
+	TEXT("it. Usage: IAI.Capture.TargetMask <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.TargetMask <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetTargetMask(FCString::Atoi(*Args[0]) != 0);
 			}
 		}));
 

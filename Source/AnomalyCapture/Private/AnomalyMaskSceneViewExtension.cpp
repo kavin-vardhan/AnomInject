@@ -49,10 +49,11 @@ bool FAnomalyMaskSceneViewExtension::IsActiveThisFrame_Internal(const FSceneView
 	return PendingArms.Num() > 0;
 }
 
-void FAnomalyMaskSceneViewExtension::ArmMask(uint64 RequestId)
+void FAnomalyMaskSceneViewExtension::ArmMask(uint64 RequestId, bool bWantPixels)
 {
 	FScopeLock Lock(&StateCS);
 	PendingArms.Add(RequestId);
+	PendingArmWantsPixels.Add(bWantPixels ? 1 : 0);
 }
 
 void FAnomalyMaskSceneViewExtension::SetAssignedTags(const TSet<uint8>& InAssignedTags)
@@ -78,6 +79,7 @@ void FAnomalyMaskSceneViewExtension::Reset()
 	{
 		FScopeLock Lock(&StateCS);
 		PendingArms.Reset();
+		PendingArmWantsPixels.Reset();
 		AssignedTags.Reset();
 	}
 	{
@@ -108,6 +110,9 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 
 	uint64 RequestId = 0;
 	float Bias = 1.0e-5f;
+	bool bWantPixels = false;
+	TArray<uint64> ServedIds;
+	TArray<uint8> ServedWantsPixels;
 	EAnomalyMaskReduceMode Mode = EAnomalyMaskReduceMode::Gpu;
 	{
 		FScopeLock Lock(&StateCS);
@@ -115,8 +120,16 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		{
 			return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 		}
-		RequestId = PendingArms[0];
-		PendingArms.RemoveAt(0);
+		ServedIds = MoveTemp(PendingArms);
+		ServedWantsPixels = MoveTemp(PendingArmWantsPixels);
+		PendingArms.Reset();
+		PendingArmWantsPixels.Reset();
+		ServedWantsPixels.SetNumZeroed(ServedIds.Num());
+		RequestId = ServedIds[0];
+		for (uint8 W : ServedWantsPixels)
+		{
+			bWantPixels |= (W != 0);
+		}
 		Bias = DepthBias;
 		Mode = ReduceMode;
 	}
@@ -171,7 +184,10 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		Item.BufferReadback = MoveTemp(BufferReadback);
 	}
 
-	if (Mode != EAnomalyMaskReduceMode::Gpu)
+	Item.bWantPixels = bWantPixels;
+	Item.RequestIds = ServedIds;
+	Item.WantsPixels = ServedWantsPixels;
+	if (Mode != EAnomalyMaskReduceMode::Gpu || bWantPixels)
 	{
 		TUniquePtr<FRHIGPUTextureReadback> Readback = MakeUnique<FRHIGPUTextureReadback>(TEXT("AnomalyMaskReadback"));
 		AddEnqueueCopyPass(GraphBuilder, Readback.Get(), MaskRT);
@@ -194,13 +210,22 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		}
 	}
 
+	FString ServedList;
+	for (uint64 Id : ServedIds)
+	{
+		ServedList += FString::Printf(TEXT(" %llu"), Id);
+	}
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Capture(mask): M23 PASS id=%llu rCustomDepth_renderThread=%d customStencilExtent=%dx%d ")
-		TEXT("viewRect=%dx%d overrideOutput=%d (StencilDummy is 1x1: extent 1x1 means custom depth was ")
-		TEXT("NOT produced; overrideOutput=1 means the engine designated THIS callback the chain's final ")
-		TEXT("writer for the frame)"),
-		RequestId, ModeAtPass, StencilExtent.X, StencilExtent.Y, Size.X, Size.Y,
-		Inputs.OverrideOutput.IsValid() ? 1 : 0);
+		TEXT("Capture(mask): M23 PASS id=%llu servedArms=%d ids=[%s ] rCustomDepth_renderThread=%d ")
+		TEXT("customStencilExtent=%dx%d viewRect=%dx%d overrideOutput=%d (m43: ONE render per frame serves ")
+		TEXT("EVERY pending arm - the RT's content depends only on which actors are tagged at render time, ")
+		TEXT("and each consumer filters by its own tag set, so one render is the same answer delivered to ")
+		TEXT("each asker. Every arm is therefore served on the NEXT render after it was armed, and no ")
+		TEXT("consumer can be starved by another's cadence. StencilDummy is 1x1: extent 1x1 means custom ")
+		TEXT("depth was NOT produced; overrideOutput=1 means the engine designated THIS callback the ")
+		TEXT("chain's final writer for the frame)"),
+		RequestId, ServedIds.Num(), *ServedList, ModeAtPass, StencilExtent.X, StencilExtent.Y,
+		Size.X, Size.Y, Inputs.OverrideOutput.IsValid() ? 1 : 0);
 
 	Item.CustomDepthModeAtPass = ModeAtPass;
 	Item.CustomStencilExtent = StencilExtent;
@@ -236,7 +261,8 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 		FMaskInFlight& Item = InFlight[i];
 		const bool bNeedCpu = Item.Mode != EAnomalyMaskReduceMode::Gpu;
 		const bool bNeedGpu = Item.Mode != EAnomalyMaskReduceMode::Cpu;
-		if (bNeedCpu && (!Item.Readback.IsValid() || !Item.Readback->IsReady()))
+		const bool bNeedSurface = bNeedCpu || Item.bWantPixels;
+		if (bNeedSurface && (!Item.Readback.IsValid() || !Item.Readback->IsReady()))
 		{
 			continue;
 		}
@@ -268,8 +294,9 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 
 		bool bHaveCpu = false;
 		bool bHaveGpu = false;
+		TArray<uint8> TightPixels;
 
-		if (bNeedCpu)
+		if (bNeedSurface)
 		{
 			int32 RowPitchInPixels = 0;
 			int32 BufferHeight = 0;
@@ -279,24 +306,36 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 					W, H, RowPitchInPixels, BufferHeight, GuardDrops))
 			{
 				const uint8* Base = static_cast<const uint8*>(Src);
-				for (int32 y = 0; y < H; ++y)
+				if (Item.bWantPixels)
 				{
-					const uint8* Row = Base + (int64)y * RowPitchInPixels;
-					for (int32 x = 0; x < W; ++x)
+					TightPixels.SetNumUninitialized((int32)((int64)W * (int64)H));
+					for (int32 y = 0; y < H; ++y)
 					{
-						const uint8 V = Row[x];
-						if (V == 0)
-						{
-							continue;
-						}
-						++CpuCounts[V];
-						if (x < CpuMinXs[V]) { CpuMinXs[V] = x; }
-						if (y < CpuMinYs[V]) { CpuMinYs[V] = y; }
-						if (x > CpuMaxXs[V]) { CpuMaxXs[V] = x; }
-						if (y > CpuMaxYs[V]) { CpuMaxYs[V] = y; }
+						FMemory::Memcpy(TightPixels.GetData() + (int64)y * W,
+							Base + (int64)y * RowPitchInPixels, (SIZE_T)W);
 					}
 				}
-				bHaveCpu = true;
+				if (bNeedCpu)
+				{
+					for (int32 y = 0; y < H; ++y)
+					{
+						const uint8* Row = Base + (int64)y * RowPitchInPixels;
+						for (int32 x = 0; x < W; ++x)
+						{
+							const uint8 V = Row[x];
+							if (V == 0)
+							{
+								continue;
+							}
+							++CpuCounts[V];
+							if (x < CpuMinXs[V]) { CpuMinXs[V] = x; }
+							if (y < CpuMinYs[V]) { CpuMinYs[V] = y; }
+							if (x > CpuMaxXs[V]) { CpuMaxXs[V] = x; }
+							if (y > CpuMaxYs[V]) { CpuMaxYs[V] = y; }
+						}
+					}
+					bHaveCpu = true;
+				}
 			}
 			if (Src)
 			{
@@ -408,7 +447,32 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 
 			{
 				FScopeLock Lock(&ResultsCS);
-				Results.Add(Item.RequestId, MoveTemp(Result));
+				if (Item.RequestIds.Num() == 0)
+				{
+					Result.MaskPixels = MoveTemp(TightPixels);
+					Results.Add(Item.RequestId, MoveTemp(Result));
+				}
+				else
+				{
+					int32 PixelOwner = INDEX_NONE;
+					for (int32 k = 0; k < Item.RequestIds.Num(); ++k)
+					{
+						if (Item.WantsPixels.IsValidIndex(k) && Item.WantsPixels[k] != 0)
+						{
+							PixelOwner = k;
+							break;
+						}
+					}
+					for (int32 k = 0; k < Item.RequestIds.Num(); ++k)
+					{
+						FAnomalyMaskResult Copy = Result;
+						if (k == PixelOwner)
+						{
+							Copy.MaskPixels = MoveTemp(TightPixels);
+						}
+						Results.Add(Item.RequestIds[k], MoveTemp(Copy));
+					}
+				}
 			}
 		}
 
@@ -434,13 +498,20 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 	}
 }
 
-bool FAnomalyMaskSceneViewExtension::TakeMaskResult(uint64 RequestId, FAnomalyMaskResult& Out)
+bool FAnomalyMaskSceneViewExtension::TakeMaskResult(uint64 RequestId, FAnomalyMaskResult& Out, bool bRemove)
 {
 	FScopeLock Lock(&ResultsCS);
 	if (FAnomalyMaskResult* R = Results.Find(RequestId))
 	{
-		Out = MoveTemp(*R);
-		Results.Remove(RequestId);
+		if (bRemove)
+		{
+			Out = MoveTemp(*R);
+			Results.Remove(RequestId);
+		}
+		else
+		{
+			Out = *R;
+		}
 		return true;
 	}
 	return false;

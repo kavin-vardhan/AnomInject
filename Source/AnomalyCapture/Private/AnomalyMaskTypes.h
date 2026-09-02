@@ -21,6 +21,7 @@ struct FAnomalyMaskResult
 	int32 UnassignedTagCount = 0;
 	int32 CustomDepthModeAtPass = -1;
 	FIntPoint CustomStencilExtent = FIntPoint::ZeroValue;
+	TArray<uint8> MaskPixels;
 };
 
 enum class EAnomalyMaskState : uint8

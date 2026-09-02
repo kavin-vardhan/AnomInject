@@ -47,11 +47,11 @@ protected:
 	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const override;
 
 public:
-	void ArmMask(uint64 RequestId);
+	void ArmMask(uint64 RequestId, bool bWantPixels = false);
 	void SetAssignedTags(const TSet<uint8>& InAssignedTags);
 	void SetReduceMode(EAnomalyMaskReduceMode InMode);
 	void EnqueueDrain(bool bFinal = false);
-	bool TakeMaskResult(uint64 RequestId, FAnomalyMaskResult& Out);
+	bool TakeMaskResult(uint64 RequestId, FAnomalyMaskResult& Out, bool bRemove = true);
 	int32 NumPendingArms() const;
 	void Reset();
 
@@ -63,16 +63,20 @@ private:
 	struct FMaskInFlight
 	{
 		uint64 RequestId = 0;
+		TArray<uint64> RequestIds;
+		TArray<uint8> WantsPixels;
 		TUniquePtr<FRHIGPUTextureReadback> Readback;
 		TUniquePtr<FRHIGPUBufferReadback> BufferReadback;
 		EAnomalyMaskReduceMode Mode = EAnomalyMaskReduceMode::Gpu;
 		FIntPoint ViewRectSize = FIntPoint::ZeroValue;
 		int32 CustomDepthModeAtPass = -1;
 		FIntPoint CustomStencilExtent = FIntPoint::ZeroValue;
+		bool bWantPixels = false;
 	};
 
 	mutable FCriticalSection StateCS;
 	TArray<uint64> PendingArms;
+	TArray<uint8> PendingArmWantsPixels;
 	TSet<uint8> AssignedTags;
 	EAnomalyMaskReduceMode ReduceMode = EAnomalyMaskReduceMode::Gpu;
 	float DepthBias = 1.0e-5f;

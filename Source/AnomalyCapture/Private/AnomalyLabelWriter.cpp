@@ -37,7 +37,8 @@ namespace
 
 	FString BuildFrameLabelRecord(const TArray<FAutoLiveFireInfo>& Fires,
 		const FAnomalyViewInfo& View, int32 W, int32 H, uint64 FrameIndex, int32 SessionIndex, double TimeSeconds,
-		double WallSeconds, const FString& ImageName, int32& OutNumLabels)
+		double WallSeconds, const FString& ImageName, int32& OutNumLabels,
+		bool bTargetMask = false, const FString& MaskFileRel = FString(), const TArray<int32>* MaskValues = nullptr)
 	{
 		OutNumLabels = 0;
 
@@ -52,11 +53,19 @@ namespace
 		Root->SetBoolField(TEXT("anomaly_present"), Fires.Num() > 0);
 
 		TArray<TSharedPtr<FJsonValue>> Anoms;
+		int32 FireIndex = -1;
 		for (const FAutoLiveFireInfo& F : Fires)
 		{
+			++FireIndex;
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			O->SetStringField(TEXT("id"), F.Id.ToString());
 			O->SetStringField(TEXT("target_name"), F.Target);
+			if (bTargetMask)
+			{
+				const int32 MaskValue =
+					(MaskValues && MaskValues->IsValidIndex(FireIndex)) ? (*MaskValues)[FireIndex] : 0;
+				O->SetNumberField(TEXT("mask_value"), MaskValue);
+			}
 			O->SetNumberField(TEXT("seconds_remaining"), F.SecondsRemaining);
 			O->SetNumberField(TEXT("start_frame"), (double)F.StartFrame);
 
@@ -92,6 +101,18 @@ namespace
 		Root->SetArrayField(TEXT("anomalies"), Anoms);
 
 		Root->SetBoolField(TEXT("visible_positive"), (Fires.Num() > 0) && (OutNumLabels > 0));
+
+		if (bTargetMask)
+		{
+			if (MaskFileRel.IsEmpty())
+			{
+				Root->SetField(TEXT("mask_file"), MakeShared<FJsonValueNull>());
+			}
+			else
+			{
+				Root->SetStringField(TEXT("mask_file"), MaskFileRel);
+			}
+		}
 
 		TSharedRef<FJsonObject> V = MakeShared<FJsonObject>();
 		V->SetArrayField(TEXT("origin"), LabelVec3(View.Origin.X, View.Origin.Y, View.Origin.Z));
@@ -368,7 +389,8 @@ namespace AnomalyLabel
 		const FString& ImageName, int32& OutNumLabels)
 	{
 		return BuildFrameLabelRecord(Snapshot.Fires, Snapshot.View, Width, Height,
-			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, Snapshot.WallSeconds, ImageName, OutNumLabels);
+			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, Snapshot.WallSeconds, ImageName, OutNumLabels,
+			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -408,6 +430,39 @@ namespace AnomalyLabel
 		}
 
 		return true;
+	}
+
+	bool WriteTargetMaskMap(const FString& RunDir, const TArray<FTargetMaskMapEntry>& Entries)
+	{
+		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+		Root->SetStringField(TEXT("type"), TEXT("target_mask_map"));
+		Root->SetStringField(TEXT("note"),
+			TEXT("One entry per (mask_value, event). Stencil tag values are REUSED across events, so a "
+				 "value alone does not identify an event - key on mask_value together with the frame range. "
+				 "Values are the 8-bit pixel values in target_mask/frame_NNNNN.png; 0 is background. Only "
+				 "ANOMALY TARGETS appear - this is not a mask of every object in the scene."));
+
+		TArray<TSharedPtr<FJsonValue>> Arr;
+		for (const FTargetMaskMapEntry& E : Entries)
+		{
+			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+			O->SetNumberField(TEXT("mask_value"), E.MaskValue);
+			O->SetStringField(TEXT("event_id"), E.EventId);
+			O->SetStringField(TEXT("target_name"), E.TargetName);
+			O->SetStringField(TEXT("anomaly_type"), E.AnomalyType);
+			O->SetNumberField(TEXT("first_frame"), E.FirstFrame);
+			O->SetNumberField(TEXT("last_frame"), E.LastFrame);
+			Arr.Add(MakeShared<FJsonValueObject>(O));
+		}
+		Root->SetArrayField(TEXT("entries"), Arr);
+
+		FString Out;
+		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+		FJsonSerializer::Serialize(Root, Writer);
+
+		IFileManager::Get().MakeDirectory(*RunDir, true);
+		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("mask_map.json")),
+			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	}
 
 	bool WriteSelectionProvenance(const FString& RunDir, const TArray<FProvenanceRecord>& Records)
@@ -482,7 +537,8 @@ namespace AnomalyLabel
 		int32 VetoedEvents, int32 TranslucentVetoes, int32 TranslucencyUnknownVetoes,
 		const FTickPinTelemetry* TickPin, int32 PatternExcludedTargets,
 		const FReadbackLayoutTelemetry* ReadbackLayout,
-		const ::FAnomalyCensusCounters* Census)
+		const ::FAnomalyCensusCounters* Census,
+		const FTargetMaskTelemetry* TargetMask)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -529,6 +585,13 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("census_unmeasurable_tag_failed"), Census->UnmeasurableTagFailed);
 			Root->SetNumberField(TEXT("census_unmeasurable_hidden"), Census->UnmeasurableHidden);
 			Root->SetNumberField(TEXT("census_unmeasurable_not_yet_measured"), Census->NotYetMeasured);
+		}
+
+		if (TargetMask)
+		{
+			Root->SetNumberField(TEXT("target_mask_frames_measured"), TargetMask->Measured);
+			Root->SetNumberField(TEXT("target_mask_frames_hidden_blank"), TargetMask->HiddenBlank);
+			Root->SetNumberField(TEXT("target_mask_frames_unavailable"), TargetMask->Unavailable);
 		}
 
 		if (Ring)

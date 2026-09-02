@@ -26,6 +26,7 @@ public:
 		FString Record;
 		bool bPositive = false;
 		bool bWriteLabels = true;
+		bool bGrayMask = false;
 	};
 
 	void Enqueue(FJob&& Job);
@@ -37,6 +38,8 @@ public:
 	int32 GetPending() const { return Pending.GetValue(); }
 	int32 GetDropped() const { return Dropped.GetValue(); }
 
+	int32 GetMasksWritten() const { return MasksWritten.GetValue(); }
+	int32 GetMasksDropped() const { return MasksDropped.GetValue(); }
 	int32 GetResamplesPerformed() const { return ResamplesPerformed.GetValue(); }
 	int32 GetDimMismatches() const { return DimMismatches.GetValue(); }
 	void GetFirstWrittenSize(int32& OutW, int32& OutH) const;
@@ -51,6 +54,8 @@ private:
 	FThreadSafeCounter Dropped;
 	FThreadSafeCounter ResamplesPerformed;
 	FThreadSafeCounter DimMismatches;
+	FThreadSafeCounter MasksWritten;
+	FThreadSafeCounter MasksDropped;
 	FCriticalSection JsonlCS;
 
 	mutable FCriticalSection DimCS;

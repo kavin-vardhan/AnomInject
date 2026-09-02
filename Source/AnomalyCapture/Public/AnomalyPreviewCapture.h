@@ -15,4 +15,7 @@ namespace AnomalyPreview
 
 	ANOMALYCAPTURE_API bool CaptureGameViewportEncoded(UWorld* World, EImageFormat Format, TArray<uint8>& OutBytes,
 		int32& OutWidth, int32& OutHeight, int32 JpegQuality = 90);
+
+	ANOMALYCAPTURE_API bool EncodeGray8Png(const TArray<uint8>& Gray, int32 Width, int32 Height,
+		TArray<uint8>& OutBytes);
 }

@@ -5,9 +5,14 @@
 #include "AnomalyLabelWriter.h"
 #include "AnomalyCaptureLog.h"
 
+#include "AnomalyPreviewCapture.h"
+
 #include "Async/Async.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 void FAnomalyAsyncWriter::Enqueue(FJob&& Job)
 {
@@ -23,6 +28,30 @@ void FAnomalyAsyncWriter::Enqueue(FJob&& Job)
 
 void FAnomalyAsyncWriter::Run(FJob& Job)
 {
+	if (Job.bGrayMask)
+	{
+		TArray<uint8> Png;
+		const bool bEncoded = AnomalyPreview::EncodeGray8Png(Job.RawBytes, Job.Width, Job.Height, Png);
+		const FString FullPath = FPaths::Combine(Job.OutputDir, Job.ImageRelPath);
+		if (bEncoded)
+		{
+			IFileManager::Get().MakeDirectory(*FPaths::GetPath(FullPath), true);
+		}
+		if (bEncoded && FFileHelper::SaveArrayToFile(Png, *FullPath))
+		{
+			MasksWritten.Increment();
+		}
+		else
+		{
+			MasksDropped.Increment();
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(m43): TARGET MASK WRITE FAILED for '%s' (%dx%d, encoded=%d). The labels row for ")
+				TEXT("this frame names a file that does not exist; target_mask_frames_unavailable counts it."),
+				*Job.ImageRelPath, Job.Width, Job.Height, bEncoded ? 1 : 0);
+		}
+		return;
+	}
+
 	bool bResampled = false;
 	const bool bOk = AnomalyLabel::EncodeAndWriteFrame(Job.OutputDir, Job.OutFormat, Job.RawBytes,
 		Job.SrcFormat, Job.BytesPerPixel, Job.Width, Job.Height, Job.OutWidth, Job.OutHeight,
@@ -104,6 +133,8 @@ void FAnomalyAsyncWriter::ResetCounters()
 	Dropped.Reset();
 	ResamplesPerformed.Reset();
 	DimMismatches.Reset();
+	MasksWritten.Reset();
+	MasksDropped.Reset();
 	FScopeLock Lock(&DimCS);
 	FirstWrittenW = 0;
 	FirstWrittenH = 0;

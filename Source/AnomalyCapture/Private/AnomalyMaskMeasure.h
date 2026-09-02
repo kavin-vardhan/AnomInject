@@ -49,7 +49,7 @@ public:
 	FAnomalyMaskRecord* FindOrAddRecord(FName Id, const FString& Target, uint64 StartFrame, AActor* TargetActor);
 	FAnomalyMaskRecord* FindRecord(FName Id, const FString& Target, uint64 StartFrame);
 
-	bool ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId);
+	bool ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId, bool bWantPixels = false);
 	bool ArmProbeOnHidden(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId);
 	void VerifyPendingTags();
 	void CollectResults(FAnomalyMaskSceneViewExtension* Sve);
