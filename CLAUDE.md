@@ -153,10 +153,24 @@ and is the single source of truth for the project.
 > ride that milestone. 📌 Interim Bates guidance unchanged: **console floor 0.5, blinking unticked**
 > until `P9` closes.
 > 🆕 **P9 minted** (blinking annotation-vs-observed mismatch on Bates, owner-observed ×3, NO
-> mechanism claimed — see the phenomenon ledger; **its MEASUREMENT is the next session's first
-> candidate**, a pixel-ground-truth leg). ⚠ `ticks_per_captured_frame` **1.3556 on Bates —
-> UNEXPLAINED, QUEUED** (numerically equal to this bench's unpinned baseline; a coincidence to
-> check, not an explanation).
+> mechanism claimed — see the phenomenon ledger).
+> 🔴 **P9 MEASURED 2026-09-02 (session 067) — VERDICT `UNDECIDABLE` ON ALL FIVE LEGS. NEITHER
+> REPRODUCED NOR REFUTED.** ⛔ **Do NOT read this as "not reproduced"** — that verdict requires every
+> event graded ALIGNED, and **zero events were graded**. Both instruments *refused*: the new
+> `p9_hidden_set` reader and `a54_oracle` independently, on the same cause.
+> 🚨 **THE CAUSE IS A STRUCTURAL FIXTURE CONFLICT, MEASURED:** a non-zero view-rect origin needs the
+> letterbox lever, which refuses on `CB_GateLevel`'s `SpectatorPawn` and so forces **`MainWorld`**
+> (`G193`) — but `MainWorld`'s intro camera **MOVES during capture** (32 distinct origins over 90
+> frames, pitch −20°→0°), so the per-event bbox changes every frame and `A56` collapses to
+> modal 1-in-8. **A settled camera means `CB_GateLevel`; a non-zero origin means `MainWorld`. NO
+> FIXTURE SATISFIES BOTH TODAY.** `G135`'s shape, caught by refusal rather than by a false pass.
+> Journal 067 §11.
+> ✅ **`ticks_per_captured_frame` — CLOSED AS A NON-FINDING.** Bates' **1.3556** is reproduced
+> **exactly** on three paced legs here (122 ticks / 90 frames); the counter jitters 122↔124 run to
+> run. ⇒ **NOT a discriminator.** It is simply `capture_game_ticks / total_frames`
+> (`AnomalyLabelWriter.cpp:546-548`).
+> ✅ **Delivery mode is EXCLUDED as a `P9` factor by measurement** — leg C ran `delivery_mode=True`
+> and matched leg A's structure and separations.
 > Do not start m37 unprompted; do not re-run bench gates while waiting.
 > 📌 **SHIPPED SHAPE:** census **compiled default OFF** (master is INERT for the client — with no
 > provider registered the selection path is byte-identical to the pre-census picker, measured via

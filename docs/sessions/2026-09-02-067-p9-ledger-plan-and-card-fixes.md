@@ -589,3 +589,176 @@ pass over **every** remaining ref rather than on an assumption about which refs 
 plan next session**; the ini-block updates (Bates, Concorde, the client keys) ride that milestone.
 📌 **Interim Bates guidance is unchanged:** console floor **0.5**, **blinking unticked** until `P9`
 closes.
+
+---
+
+## §11 THE `P9` LEGS — 🔴 **VERDICT: UNDECIDABLE ON ALL FIVE. `P9` IS NEITHER REPRODUCED NOR REFUTED.**
+
+Exe **`D2BB25A5`** throughout, container `utoc 2A66CA57 / ucas A7EF9B12 / pak D8009AD7`, verified by
+hash before the first leg. Six runs total: one dry leg and five `P9` legs, all accepted by `A63`.
+
+### §11.1 The dry leg, and the target
+
+`P9_DRY` — packaged `MainWorld`, auto-pool, letterbox 2.39, census ON floor 0.5, seed 4242, 90
+frames. Read-backs (`A48`), all from the run's own echo:
+
+```
+LETTERBOX APPLIED on BP_SpawnPad_C_.../Camera - aspect 1.7778->2.3900
+LETTERBOX predicted view rect - viewport 1280x720, constrained (0,92)-(1280,628) = 1280x536, minY=92
+READBACK-LAYOUT sourceExtent=1280x720 rect=(0,92)-(1280,628) picture=1280x536 bufferHeight=536 rowPitchInPixels=1280 fmt=18
+census ON, floor=0.50%(from IAI.Capture.CensusFloor (console)), maxVerdictAgeTicks=12, excludeTranslucent=1, reservation=1
+M36 STENCIL RESERVATION ON - reserved=0 [ ]      M36 TAG POOL ... hostReserved=0, assignable=55
+```
+
+✅ **`minY = 92 > 0` — the letterbox is exercising a real non-zero origin, not insulating the leg**
+(`G192`; the lever's own line says so). ✅ `reserved=0` and `hostReserved=0` **agree** — the
+cross-read this session added to the RDP card, working.
+
+**Settled-cycle histogram (cycle 10, and cycle 30 agrees):**
+
+```
+zero=4  (0,1]=1  (1,3]=2  (3,6]=0  (6,12]=0  (12,25]=0  >25=0
+StaticMeshActor_UAID_A036BC6AB247EBF902_2048592804 = 24729 px (2.683%)   <- highest drawn
+BP_Bot_C_2147482434                                = 10722 px (1.163%)
+1M_Cube_Chamfer6_..._2086827159                    =   128 px (0.014%)
+... 4 more at 0.000%
+```
+
+🎯 **TARGET CHOSEN AND RECORDED BEFORE ANY `P9` LEG RAN:
+`StaticMeshActor_UAID_A036BC6AB247EBF902_2048592804`, drawn 2.683 % (cycle 10) / 2.779 % (cycle
+30).** Highest-drawn ✅ · **non-scenery-scale** ✅ (nothing on this map exceeds 3 %, far below the
+newly-ruled 25 % ceiling) · **non-Nanite** ✅ (it is `MEASURED`; the 29 Nanite candidates all read
+`NOT_MEASURABLE(nanite)`).
+
+### §11.2 ⚠ TWO LEGS WERE VOID BY MY OWN INVOCATION ERROR, AND ARE REPORTED AS SUCH
+
+The first attempts at `A′` and `B` were launched as `& .\run_leg.ps1 @{...}`, which passes the
+hashtable **positionally** instead of splatting it. Both ran the harness **defaults** — map
+`CB_GateLevel`, target `StaticMeshActor_49`, label `System.Collections.Hashtable` — proven by their
+own `_leg_geometry.json`. ⛔ **They are not `A′`/`B` at any config axis**, they were deleted from the
+bank rather than kept as attempts of a leg they never were, and both were re-run correctly. Recorded
+because a deletion from the bank must never be silent.
+
+### §11.3 Per-leg config read-backs — every leg valid on every gate
+
+| | A | A′ | B | B′ | C |
+|---|---|---|---|---|---|
+| targeting | targeted | targeted | auto-pool | auto-pool | targeted |
+| `paced` | **True** | **False** | **True** | **False** | **True** |
+| `delivery_mode` | False | False | False | False | **True** |
+| letterbox `minY` | 92 | 92 | 92 | 92 | 92 |
+| readback rect | (0,92)-(1280,628) | same | same | same | same |
+| census floor / source | 0.50 console | same | same | same | same |
+| `total_frames` / on disk | 90 / 90 | 90 / 90 | 90 / 90 | 90 / 90 | 90 / 90 |
+| zero-byte frames | 0 | 0 | 0 | 0 | 0 |
+| key ring pub/cons/missed | 121/121/0 | 123/123/0 | 121/121/0 | 123/123/0 | 121/121/0 |
+| `wanted_matches` | 90 | 90 | 90 | 90 | 90 |
+| `mask_nopass_discards` | 0 | 0 | 0 | 0 | 0 |
+| `census_fires_fallback_all` | 0 | 0 | 0 | 0 | 0 |
+| `vetoed_events` | 0 | 0 | 3 | 3 | 0 |
+| `READBACK-GUARD` / `EXTENT-CLAMP` | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+
+✅ **No leg is VOID.** `A45`, the frame count, the key ring, the loud-inert counter and the flush
+wait all pass on all five.
+
+### §11.4 🎯 `ticks_per_captured_frame` — ANSWERED, AND IT IS **NOT** A DISCRIMINATOR
+
+| leg | `capture_game_ticks` | `total_frames` | `ticks_per_captured_frame` |
+|---|---|---|---|
+| **A** (paced) | 122 | 90 | **1.3556** |
+| **B** (paced) | 122 | 90 | **1.3556** |
+| **C** (paced) | 122 | 90 | **1.3556** |
+| A′ (unpaced) | 124 | 90 | 1.3778 |
+| B′ (unpaced) | 124 | 90 | 1.3778 |
+| dry (paced) | 124 | 90 | 1.3778 |
+
+🚨 **BATES' `1.3556` IS REPRODUCED EXACTLY, ON THREE INDEPENDENT LEGS OF THIS BENCH.** ⇒ **STATED
+PLAINLY: `ticks_per_captured_frame` IS NOT A DISCRIMINATOR between this bench and Bates.** A value
+two hosts share cannot separate them, and the queued question opened in journal 066 §4 is
+**CLOSED — as a non-finding.**
+
+⚠ **And the mechanism was never exotic:** it is `capture_game_ticks / total_frames`
+(`AnomalyLabelWriter.cpp:546-548`). The counter took **122** or **124** across six runs here — a
+±2-tick run-to-run jitter in the non-writing phases (settle, `DrainTail`) — and Bates simply landed
+on 122. ⛔ **The paced/unpaced split in the table above is NOT the cause: the dry leg was PACED and
+read 124.** ⛔ **No mechanism is claimed and none is needed.**
+
+### §11.5 🔴 THE READER ON ALL FIVE LEGS — **ZERO COUNTED EVENTS**
+
+```
+LEG A   (targeted, paced)     8 events:  UNDECIDABLE 7, TRUNCATED 1
+  ev 0  [4,5,9,10]            separation 0.011758 below SEP_RATIO 5.0 x spread 0.004296   (ratio 2.74)
+  ev 1  [16,17,21,22]         A56 failed per event (modal 0.125, 8 distinct)
+  ev 2  [28,29,33,34]         A56 failed per event (modal 0.125, 8 distinct)
+  ev 3  [40,41,45,46]         A56 failed per event (modal 0.125, 8 distinct)
+  ev 4  [52,53,57,58]         A56 failed per event (modal 0.250, 6 distinct)
+  ev 5  [64,65,69,70]         A56 failed per event (modal 0.375, 4 distinct)
+  ev 6  [76,77,81,82]         A56 failed per event (modal 0.625, 2 distinct)
+  ev 7  [88,89]               TRUNCATED - window frames absent: [90, 91]
+
+LEG A'  (targeted, unpaced)   identical structure; ev 0 separation 0.011733 / spread 0.004584
+LEG C   (targeted, delivery)  identical structure; ev 0 separation 0.011701 / spread 0.003929
+LEG B   (auto-pool, paced)    3 events, ALL "A56 failed per event (modal 0.125, 8 distinct)"
+LEG B'  (auto-pool, unpaced)  3 events, ALL "A56 failed per event (modal 0.125, 8 distinct)"
+```
+
+**A54 companion, the `P1` question only — it DECLINES on all five:** `VERDICT:
+NOT-A54-CERTIFIABLE`, `A56 modal 14.0–17.1 % of 35–43 rows, 28–29 distinct`. ✅ **Both instruments
+refuse, independently, on the same cause, and neither invented a verdict.** That is the admit-bias
+working.
+
+### §11.6 🚨 THE CAUSE, MEASURED: **THE `MainWorld` CAMERA IS IN MOTION DURING CAPTURE**
+
+Per-frame `bbox_px` for leg A's event 1, beside the camera:
+
+```
+idx 15  bbox=[12.8,   0.0, 441.5, 195.5]   view.origin=[2982.1, 4412.6, 1742.1]  rot=[-20.0, -40, 0]
+idx 17  bbox=[17.1,   5.1, 436.8, 219.4]   view.origin=[2997.0, 4400.1, 1730.2]  rot=[-17.8, -40, 0]
+idx 19  bbox=[24.0,  44.3, 428.4, 230.4]   view.origin=[3024.9, 4376.7, 1706.3]  rot=[-13.3, -40, 0]
+idx 21  bbox=[29.0,  86.5, 421.2, 245.0]   view.origin=[3050.9, 4354.9, 1682.3]  rot= [-8.9, -40, 0]
+idx 22  bbox=[30.8, 109.0, 418.0, 253.6]   view.origin=[3063.2, 4344.6, 1670.4]  rot= [-6.7, -40, 0]
+```
+
+**32 distinct camera origins over 90 frames.** The intro camera pitches from **−20° to 0°** and
+translates ~150 units across the event window, so **every frame yields a different bbox** and the
+per-event modal coverage collapses to **1-in-8**. Events 5 and 6 improve (0.375, 0.625) exactly as
+the camera settles — the trend confirms the cause rather than merely fitting it.
+
+🚨 **AND IT IS A STRUCTURAL CONFLICT IN THE PLAN, NOT A BAD DRAW:**
+
+| requirement | fixture it forces |
+|---|---|
+| a **non-zero view-rect origin** (the whole point — Bates letterboxes) | **`MainWorld`**, because the lever refuses on `CB_GateLevel`'s `SpectatorPawn` (`G193`) |
+| a **settled camera** (every certified pixel result this project owns) | **`CB_GateLevel`**, whose unattended camera is motionless |
+
+⛔ **NO FIXTURE CURRENTLY SATISFIES BOTH.** This is `G135`'s shape once more — the instrument
+environment cannot exhibit the case — and this time it was caught by the instrument **refusing**
+rather than by a clean-looking pass.
+
+### §11.7 THE VERDICT, AGAINST THE PRE-DECLARED DISCRIMINATORS
+
+| discriminator | met? |
+|---|---|
+| **`P9` REPRODUCED** | ⛔ **NO** — zero counted events, so no event exhibits a two-directional difference |
+| **NOT `P9` (constant shift)** | ⛔ **NO** — no `SHIFTED(k)` verdict on any leg |
+| **ONE-DIRECTIONAL** | ⛔ **NO** |
+| **NOT REPRODUCED** | ⛔ **NO — and this is the one that must not be claimed.** It requires every event ALIGNED with margin ≥ TAU **and** empty differences on both legs. **Zero events were graded.** |
+| **UNDECIDABLE** | ✅ **YES. This is the verdict.** |
+
+🔴 **`P9` IS NEITHER REPRODUCED NOR REFUTED BY THESE LEGS.** ⛔ **No re-thresholding after the
+fact**, no constant retuned, and **`SEP_RATIO` is untouched** — note that on the one event that
+reached the separation test the ratio was **2.74**, which fails **10.0 and 5.0 alike**, so no
+choice of the ruled constant would have changed this outcome.
+
+⛔ **NO MECHANISM, LEAD OR LIKELY CAUSE FOR `P9` IS OFFERED.** The `P9` ledger entry is unchanged and
+still claims none.
+
+### §11.8 Two things these legs DID establish
+
+1. ✅ **THE DELIVERY BRACKET IS ANSWERED EMPIRICALLY.** Leg **C** ran `delivery_mode = True` and
+   produced an **identical event structure and near-identical measurements** to leg A (event 0
+   separation 0.011701 against A's 0.011758). The reader loaded `labels.jsonl` and found its bbox
+   rows on a delivery-ON leg — **the source read of §1.2 is now confirmed by measurement.** ⇒ Bates'
+   unrecorded delivery setting **cannot** account for `P9`, and RDP card item **C-(g)** drops from
+   load-bearing to merely tidy.
+2. ✅ **`ticks_per_captured_frame` is closed as a non-finding** (§11.4).

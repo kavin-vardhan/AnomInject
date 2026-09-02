@@ -641,7 +641,7 @@ SOURCE, AND IT IS CONDITIONAL. The chain, cited:
 
 | | |
 |---|---|
-| **status** | 🔴 **OPEN.** Owner-observed, **not measured**. Nothing here is upgraded and nothing is discarded. |
+| **status** | 🔴 **OPEN.** Owner-observed. **A bench reproduction was ATTEMPTED 2026-09-02 and returned `UNDECIDABLE` on all five legs — neither reproduced nor refuted** (journal 067 §11). ⛔ **That is NOT a "not reproduced".** Nothing here is upgraded and nothing is discarded. |
 | **class** | **Labelling ↔ manifestation mismatch at hide BOUNDARIES.** `blinking` only. |
 | **scope** | ⚠ **`missing_object` is NOT reported affected** — that is the owner's report, not a measured exclusion. |
 | **evidence** | **OWNER-OBSERVED (eye), Bates, over RDP.** **3 instances**, spread across **both** m36 Section B legs (floor 6.0 and floor 0.5). |
@@ -697,9 +697,14 @@ not recorded*. ⛔ **No numbers are invented for them.**
 
 - ⛔ **Whether the LABELS are wrong or the PIXELS are wrong.** Both remain open. A mislabelled frame
   and a mis-rendered frame produce the same complaint from the eye.
-- ⛔ Whether the **bench reproduces it at all**.
-- ⛔ Whether it depends on **pacing**, on the **letterbox**, on the **census** being on, or on the
-  **tick ratio**. Four axes, none eliminated.
+- ⛔ Whether the **bench reproduces it at all.** ⚠ **STILL OPEN AFTER THE 2026-09-02 ATTEMPT** — the
+  legs returned `UNDECIDABLE`, so the question was not answered in either direction. The blocker is
+  a **fixture** one, not a `P9` one: a non-zero view-rect origin forces `MainWorld`, whose intro
+  camera moves during capture, and a moving camera defeats every bbox-scoped pixel oracle this
+  project owns (journal 067 §11.6).
+- ⛔ Whether it depends on **pacing**, on the **letterbox**, or on the **census** being on. ✅
+  **DELIVERY MODE IS ELIMINATED** as a factor — measured, leg C (journal 067 §11.8). ✅ The **tick
+  ratio** is eliminated as a *discriminator* — 1.3556 reproduces exactly on this bench (§11.4).
 
 ## 8.4 Mechanism — NONE CLAIMED
 
