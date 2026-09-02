@@ -64,7 +64,9 @@ and is the single source of truth for the project.
 > reason has lapsed **for this commit only**. The rule itself stands for any future amendable commit
 > (`G185`). ⛔ Still do not `git add -A` anywhere in this repo — the owner's two untracked
 > `docs/CHAT-HANDOFF-*.md` would be swept.
-> 📎 `wip/session-061-backup` stays on origin until the fix lands. **The remote is now the backup:**
+> 📎 ✅ *(closed 2026-09-02: `wip/session-061-backup` is DELETED from origin and local per RDP card
+> A-8, after the Bates Section A pass — journal 066 §1. The line below is history.)*
+> `wip/session-061-backup` stays on origin until the fix lands. **The remote is now the backup:**
 > the insurance diff is **NO LONGER LOAD-BEARING** and must not be treated as protection again — it
 > survives only as `G181`'s receipt.
 >
@@ -107,10 +109,29 @@ and is the single source of truth for the project.
 > the close-out, §11 is what m37's predictions must carry).**
 > **`master` = the m36 merge line** (branch `feature/selection-census` merged `--no-ff` at
 > `0f35d7a`, both refs pushed; the branch tip `7f82d52` stays == origin). **NO TAG, NO COOK.**
-> 🎯 **WHAT REMAINS ON m36 IS OWNER-RUN, NOT BENCH WORK: the RDP card's Section A (m35 close-out)
-> and Section B TWO-LEG PAIR on Bates (floor 6.0 + floor 0.5) — the two legs' histograms are the
-> input to the FLOOR DECIDE, which is a chat decision, not a bench one.** Do not start m37
-> unprompted; do not re-run bench gates while waiting.
+> 🆕 **2026-09-02, SESSION 066 — THE BATES READS ARE IN (journal
+> `docs/sessions/2026-09-02-066-m36-bates-results-and-m35-closeout.md`; the owner's own write-up
+> arrives as the untracked `docs/CHAT-HANDOFF-m36-census-and-bates-results.md` — NEVER staged).**
+> ✅ **Section A: m35 VALIDATED ON BATES — PASS.** 90/90 frames, rect Y-origins **69 AND 138** (two
+> real non-zero letterbox origins on the crash host), no crash. ⚠ guard/clamp counters **UNREAD, not
+> zero** — stated, not claimed. **Consequence executed: `wip/session-061-backup` DELETED from origin
+> AND local** (no `wip` ref reachable anywhere), and the scrub verifier re-ran over ALL remaining
+> origin refs via read-only worktrees: master 197 / selection-census 196 / mask-gpu-reduce 189 files,
+> **all CLEAN** (a first 0-file vacuous read was discarded and re-run) ⇒ **"no reachable ref"
+> ACHIEVED for the codename invariant.**
+> ✅ **Section B: THE BATES YIELD PROBLEM IS CURED.** Floor 6.0 → **2** eligible (SnowLandscape 34 %,
+> player 7 %), pitch-black frames + the same 2–3 objects repeating; floor 0.5 → **8** eligible,
+> **~90 % of anomalies eye-visible**; **`vetoed_events` 0 on BOTH legs vs the banked 12–15 band** —
+> the census removes at selection what the veto used to delete after the fact.
+> 🔴 **FLOOR DECIDE: PENDING WITH THE OWNER** — chat rec is **0.5 plus a CEILING of 25** (the 34 %
+> landscape is the black-frame producer). ⛔ **The ceiling is UNBUILT** — no knob exists; adopting it
+> is gated work, not a tweak.
+> 🆕 **P9 minted** (blinking annotation-vs-observed mismatch on Bates, owner-observed ×3, NO
+> mechanism claimed — see the phenomenon ledger; **its MEASUREMENT is the next session's first
+> candidate**, a pixel-ground-truth leg). ⚠ `ticks_per_captured_frame` **1.3556 on Bates —
+> UNEXPLAINED, QUEUED** (numerically equal to this bench's unpinned baseline; a coincidence to
+> check, not an explanation).
+> Do not start m37 unprompted; do not re-run bench gates while waiting.
 > 📌 **SHIPPED SHAPE:** census **compiled default OFF** (master is INERT for the client — with no
 > provider registered the selection path is byte-identical to the pre-census picker, measured via
 > `P-C7`, re-anchored twice) · **floor default 6.0** (`CensusMinDrawnCoveragePct`; 0.5 is a LEG
@@ -3070,6 +3091,13 @@ and is the single source of truth for the project.
   fix is **B2** (a scale-free separability statistic) — **filed, not built**, now gateable against **eight**
   controls incl. `L3_client39`. ⚠ **P8's axis is POSE, so the blend-ladder does NOT serve it** — its
   missing control was L3 and we now have it. → **G107**.
+  🆕 **P9** (2026-09-02, Bates, **owner-observed — eyeball-level, NOT yet measured; do not upgrade,
+  do not discard**): `blinking` only, 3 instances across both m36 Section B legs — annotation hidden
+  set **{42,43,47,48}** vs observed **{42,43,44,48}**, one frame differing INSIDE the window (an
+  observation about the SIGNATURE only; **NO mechanism claimed**, G120). **The measurement is owned
+  by the NEXT session** — a pixel-ground-truth leg, the m18/m20 instrument class. ⚠ Minted as P9
+  because the minting instruction said "P8" and **P8 is taken** — numbers are never reused; the
+  deviation is stated in journal 066 §3.
 - **HYPOTHESIS LEDGER:** **H1** GPU-load starvation — **OPEN, no lever exists, and now `P1`'s ONLY named
   lead — if it comes back clean, P1 has NO named leads.** **H2 — RETIRED-UNKNOWN**
   (appears nowhere in this repo; history unrecoverable; **never re-mint this number** — the entry exists only so
