@@ -499,6 +499,33 @@ $log = "<plugin-path>\..\..\Saved\Logs\StackOBot.log"; Select-String -Path $log 
 *ran*. This project's standing rule is to report the effective value from a read-back, never the
 value someone believes was set.
 
+### C-(h). 🆕 `P9` ONE-EVENT BUNDLE — **ONE-OFF. REMOVE THIS ITEM ONCE COLLECTED.**
+
+**A TYPED READ FROM FILES ALREADY ON THAT BOX. NO RE-RUN.** Use the **banked Section B leg-2**
+artifacts (floor 0.5) — the run is already done and its files are still there.
+
+Pick **one `blinking` event** and send four things. The exact wording of the ask is in
+**journal 067 §5**; the short form:
+
+1. From `annotation.json`, that event's **whole object** — `anomaly_type`,
+   `affected_frames.start_frame` / `end_frame` / `frame_count` / the full `frame_indices` array, and
+   the `nodes[]` entry's `name`.
+2. From `labels.jsonl`, **every row in that span plus one row either side** — whole lines, copied,
+   not summarised.
+3. From the Output Log, every line mentioning that target between the fire and the revert.
+4. The **`session_index` ↔ `frame_index` mapping** for the span: each PNG's filename in
+   `Actual_Frames\` beside the `frame_index` in its matching `labels.jsonl` row.
+
+🚨 **ITEM 4 IS THE ONE THAT MATTERS.** Everything else is meaningless if the frame the label calls
+44 is not the PNG we think it is. `frame_count` is a **span**, not a count (m20), and this project
+has already been bitten once by 0-based versus 1-based numbering.
+
+📌 **Why this is worth your time and the bench is not:** two bench campaigns have now failed to
+reproduce `P9` — the second on a fixture that satisfies every requirement, with an instrument that
+passed three in-regime controls, reading **16 of 16 readable events as correctly labelled**. ⛔ That
+does **not** overturn what you saw; the owner-observation rule stands. **It means the next evidence
+has to come from the host that showed it, not from here.**
+
 ### C-(f). OPTIONAL — a clean Bates dataset
 
 If there is time, **repeat Section B with `blinking` unticked**. Same two legs, same payloads, same

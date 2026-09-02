@@ -185,7 +185,19 @@ and is the single source of truth for the project.
 > (`AnomalyLabelWriter.cpp:546-548`).
 > ✅ **Delivery mode is EXCLUDED as a `P9` factor by measurement** — leg C ran `delivery_mode=True`
 > and matched leg A's structure and separations.
-> Do not start m37 unprompted; do not re-run bench gates while waiting.
+> Do not start the next milestone unprompted; do not re-run bench gates while waiting.
+> 🔢 **MILESTONE RENUMBER, OWNER-RULED 2026-09-02 — READ THIS BEFORE ANY DOC THAT SAYS "m37".**
+> **`m37` = THE CENSUS SELECTION DEFAULTS** (floor `0.5` + coverage ceiling `25`).
+> **`m38` = HONEST BBOX** (drawn-box labels).
+> ⛔ **`P-C13` conjunct 2 RIDES HONEST BBOX REGARDLESS OF ITS NUMBER** — not weakened, not dropped,
+> not attached to `m37`. 📌 Journals 065/066 and the m36 handoff say *"m37 (honest bbox)"*; they are
+> **records and are NOT retro-edited** — read them as "the honest-bbox milestone", now `m38`.
+> 🔢 **AMENDMENT `A65` MINTED** (`A59` was already taken — MCP-bridge provenance): **`A54` requires
+> the unconstrained calibration pose; on an aspect-constrained fixture it is `N/A`, DECLARED, never
+> "failed", and its `P8`/pose message there is a KNOWN MISATTRIBUTION** (the view was constrained,
+> the camera did not move). ⛔ `a54_oracle.py` stays untouched — any edit re-triggers `A53`. On such
+> fixtures the constant-shift question is carried by the `P9` reader's best-`k` over −6…+6.
+> Journal 067 §13.1.
 > 📌 **SHIPPED SHAPE:** census **compiled default OFF** (master is INERT for the client — with no
 > provider registered the selection path is byte-identical to the pre-census picker, measured via
 > `P-C7`, re-anchored twice) · **floor default 6.0** (`CensusMinDrawnCoveragePct`; 0.5 is a LEG

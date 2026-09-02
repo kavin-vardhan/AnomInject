@@ -5219,3 +5219,69 @@ and no cook**, because `APlayerCameraManager::UpdateViewTarget` applies those de
 **view-target-agnostically** (`PlayerCameraManager.cpp:352-355`) and a camera-less `CalcCamera` never
 overwrites them (`Actor.cpp:3085`). **Ask which half of the conjunction is cheaper to ADD, not which
 is easier to work around.** (2026-09-02/03, session 067.)
+
+## G207 — PowerShell 5.1's `-Encoding UTF8` WRITES A BOM, AND `git commit -F` EATS IT AS THE SUBJECT
+
+A commit message was written with `Set-Content -Encoding UTF8` and passed to `git commit -F`. **PS
+5.1's `UTF8` means UTF-8 *with BOM*.** Git took the BOM as the first character of the **subject
+line**, so `git log --oneline` renders:
+
+```
+6fb1215 ﻿docs(067): fixture-v2 legs - P9 did not appear on any gradeable event...
+```
+
+— an invisible mark before `docs(`. Every subject-line grep, changelog scrape and
+`--grep='^docs'` now misses that commit.
+
+🚨 **THE TRAP HAS TWO SIDES AND NEITHER DEFAULT IS RIGHT:** `Set-Content` **without** `-Encoding`
+falls back to the **system ANSI codepage** and mangles non-ASCII; `Set-Content -Encoding UTF8`
+**adds the BOM**. The obvious fix for one is the cause of the other.
+
+**RULE: write commit messages with `-m`, or with a genuinely BOM-free writer** —
+`[System.IO.File]::WriteAllText(path, text, [System.Text.UTF8Encoding]::new($false))`, or
+`Out-File -Encoding utf8NoBOM` on PS 6+, or a non-PowerShell file writer. **Then read the subject
+back** (`git log -1 --format=%s | Format-Hex | Select-Object -First 1`) before pushing anything whose
+subject matters.
+
+⛔ **A PUSHED BOM IS ANNOTATED FORWARD, NEVER FORCE-PUSH-FIXED.** Amending a pushed commit means
+rewriting published history, which costs far more than one cosmetic mark. `e66fb1b` records it.
+`G188`'s family — a PowerShell behaviour that survives review because the command reads correctly.
+(2026-09-02, session 067.)
+
+## G208 — `Set <class> <prop> <value>` REACHES LIVE INSTANCES AND IS NOT SHIPPING-GATED
+
+The engine's `Set` exec command is a **legitimate zero-cook bench lever**, and it is worth knowing
+precisely because it looks like an editor-only convenience:
+
+```
+Obj.cpp:3937   else if( FParse::Command(&Str,TEXT("SET")) )
+Obj.cpp:3939       PerformSetCommand( Str, Ar, true );
+Obj.cpp:3435   PerformSetCommand -> GlobalSetProperty(Str, Class, Property, ...)
+```
+
+Two properties that make it powerful:
+
+1. **It applies to LIVE INSTANCES**, via `GlobalSetProperty` — not merely to a CDO, so it changes the
+   behaviour of objects already ticking.
+2. 🚨 **IT IS NOT SHIPPING-GATED.** The `#if !UE_BUILD_SHIPPING` block begins at `Obj.cpp:3947`,
+   **after** `SET` and `SETNOPEC`. So it is live in Development and Test configurations.
+
+✅ **What it bought here:** `Set PlayerCameraManager bDefaultConstrainAspectRatio true` +
+`Set PlayerCameraManager DefaultAspectRatio 2.39` letterboxed `CB_GateLevel` — a fixture the
+purpose-built lever **refuses** (`G193`) — with **no source change, no recompile and no cook**,
+because `UpdateViewTarget` applies those defaults view-target-agnostically
+(`PlayerCameraManager.cpp:352-355`) and a camera-less `CalcCamera` never overwrites them
+(`Actor.cpp:3085`). It saved an entire cook and kept the legs on the same binary.
+
+⛔ **RULES, AND THE FIRST IS NOT NEGOTIABLE:**
+- **NEVER in a client-facing payload, config, ini, delivery script or client-facing doc.** It is a
+  bench device. It edits engine state by name at runtime and depends on a non-Shipping build.
+- **Every use is NAMED IN THE LEG'S READ-BACKS.** A fixture produced by a console command is
+  invisible in the artifact unless something echoes it — here the `READBACK-LAYOUT` rect and the
+  harness's own `-LetterboxedFixture` assertion carry it, and the assertion **invalidates the leg**
+  if the rect origin is zero.
+- **Reach for the purpose-built lever first.** This is the fallback for when the lever's precondition
+  cannot be met, not a shortcut around writing one.
+
+⚠ **And the general lesson: a capability you assumed was editor-only may be live in your packaged
+build.** Check the guard, not the reputation. (2026-09-02/03, session 067.)

@@ -983,3 +983,161 @@ trap has **two sides**: `Set-Content` without `-Encoding` defaults to the system
 mangles non-ASCII, while `-Encoding UTF8` in PowerShell 5.1 adds the BOM. Neither default is right
 for a file another tool parses. Same family as `G188` (a PowerShell surprise that survives review
 because the command looks correct).
+
+---
+
+## §13 `P9` CAMPAIGN CLOSE-OUT — the amendment, the renumber, and what is left open
+
+### §13.1 🔢 AMENDMENT **`A65`** — NOT `A59`. **`A59` HAS BEEN TAKEN SINCE THE m24 HANDOFF.**
+
+> 🚨 **THE RULING SAID "MINT A59". `A59` IS ALREADY *MCP-BRIDGE PROVENANCE*** — *no measurement over
+> the bridge is attributed to this project until `Paths.project_dir()` and the engine version are
+> verified* (`CHAT-HANDOFF-s3-m24-capture-migration.md:258`, `CHAT-HANDOFF-s3a-sve-landed.md:81`,
+> `gotchas.md:1975`). **`A44`–`A64` are ALL in use; `A65` is the next free number**, verified by
+> sweeping every `A<nn>` reference in `docs/`, `docs/sessions/`, `docs/predictions/` and
+> `CLAUDE.md`. ⛔ **Amendment numbers are never reused** — the same rule that made the `P8`→`P9`
+> correction, and **the second time in this session that a minting instruction has named a taken
+> number.** Deviation stated, not silent.
+
+**`A65` — `A54` REQUIRES THE UNCONSTRAINED CALIBRATION POSE; ON AN ASPECT-CONSTRAINED FIXTURE IT IS
+`N/A`, DECLARED, NEVER "FAILED".**
+
+`CALIB_BBOX` is a pixel bbox frozen against an **unconstrained** 1280×720 view. Constrain the aspect
+and the target's bbox moves **by construction** — measured `(0.0, 361.2, 306.1, 174.8)` against
+calib `(0.0, 485.2, 306.1, 234.8)`, ratio `(–, 0.7444, 1.0, 0.7445)`: **width ratio exactly 1.0**,
+`y` and `h` at 536/720. So `A54`'s `B1` conjunct fails for a **geometry** reason, and the leg is
+**`NOT-A54-CERTIFIABLE` by declaration** — the same shape as `G117`'s off-target and off-resolution
+cases.
+
+🚨 **AND ITS MESSAGE THERE IS A KNOWN MISATTRIBUTION.** The oracle prints *"P8: this leg's camera
+settled in a pose TAU was NOT calibrated on."* **On a constrained fixture that is false: the camera
+did not move — the VIEW was constrained.** ⛔ **Do not read that line as evidence of an `A47`
+bifurcation.** ⛔ **`a54_oracle.py` STAYS UNTOUCHED — any edit to the oracle re-triggers `A53`**, so
+a one-line comment fix would invalidate the control run every downstream result rests on. The
+misattribution is contained by this amendment, not by code.
+
+⇒ **On such fixtures the constant-shift (`P1`) question is carried by the `P9` reader's best-`k`
+search over −6…+6**, which is control-proven at **`d-unit` case (i)**. ⚠ **Real-shifted-pixel
+coverage is still OWED** — no leg has yet produced a genuinely displaced label set for it to catch.
+
+### §13.2 The renumber — **m37 IS NOW THE CENSUS DEFAULTS; HONEST BBOX BECOMES m38**
+
+**Owner-ruled.** `m37` = **census selection defaults** (floor 0.5 + coverage ceiling 25).
+`m38` = **honest bbox** (drawn-box labels).
+
+⛔ **`P-C13` conjunct 2 — *every drawn bbox lies inside the view rect, in rect-local coordinates, at
+a NON-ZERO origin*, instrument the uniform PIE pillarbox leg — RIDES HONEST BBOX REGARDLESS OF ITS
+NUMBER.** It is not weakened, not dropped, and not attached to `m37`.
+
+📌 **Superseded, and NOT retro-edited** (journals are records): journal 065 §11, journal 066 §4 and
+the m36 handoff all say *"m37 (honest bbox)"*. **Read them as "the honest-bbox milestone", which is
+now `m38`.** `CLAUDE.md`'s open items carry the live numbering.
+
+### §13.3 ⚠ OPEN OBSERVATION, RECORDED AND EXPLICITLY OUT OF m37's SCOPE
+
+**`census_fires_fallback_all = 3` on BOTH fixture-v2 auto-pool legs** (`B` and `B′`), on a
+**77-candidate** map — while **Bates read 0**. Three fires per leg had a pool that was **entirely**
+unmeasured or expired, so the census contributed nothing to those selections and they fell through
+to the bounds path.
+
+⛔ **NO MECHANISM CLAIMED.** It is a **census-cadence** observation: how often a fire arrives before
+the rolling census has a fresh verdict for anything in its pool. ⛔ **NOT in `m37`'s scope** — `m37`
+changes two threshold defaults and touches no cadence, no selection and no veto logic. **Revisit
+when census-ON shipping is planned**, where it becomes a real question about what a client build's
+first fires are selected on.
+
+---
+
+## §14 `m37` — CENSUS SELECTION DEFAULTS. **PLAN ONLY. NOTHING IMPLEMENTED THIS TURN.**
+
+**Posted for approval.** ⛔ No source changed, no build, no cook, no leg. Predictions are
+pre-declared **after** approval, before any code.
+
+### §14.1 Scope, and the one sentence that bounds it
+
+**Two threshold defaults and the echo/counter surface that reports them. Nothing else.**
+⛔ **NO selection logic, NO veto logic, NO mask logic, NO cadence, NO tag lifetime.** The census
+already computes a per-candidate drawn-coverage percentage and already compares it to a floor; `m37`
+changes what that floor is and adds a symmetric ceiling beside it.
+
+**Owner-ruled design (locked, reproduced so the plan can be checked against it):**
+
+- `CensusMinDrawnCoveragePct` compiled default **6.0 → 0.5**.
+- **NEW** `CensusMaxDrawnCoveragePct`, compiled default **25.0**, **INCLUSIVE**: eligible **iff**
+  `floor ≤ coverage ≤ ceiling`.
+- `MEASURED_NONZERO` **above** the ceiling → **EXCLUDED categorically.** The reason is the
+  `InstancedFoliageActor` family's reason: **at scenery scale the LABEL is unusable, not the
+  anomaly** — a 34 % landscape hide blacks the frame and boxes half of it.
+- New counter **`census_above_ceiling`** + **one greppable per-exclusion log token**; the counter
+  reaches `run_summary`; the `>25` histogram bin **already exists** and gains a note.
+- **Ceiling ≤ 0 ⇒ DISABLED**, and **that must be stated in the `StartRun` census echo**, so a
+  disabled ceiling can never read like a healthy one (`G139`'s shape).
+
+**Client posture:** the census's compiled default stays **OFF**, so a defaults change inside a
+compiled-OFF feature is **client-inert**. ⛔ The ini keys for Bates / Concorde / client land **only
+when the census ships ON** — a delivery-precondition lane, **not this milestone**.
+
+### §14.2 Files touched — census-module-scoped
+
+| file | change |
+|---|---|
+| `Source/AnomalyCapture/Private/AnomalyCensus.h` | `FAnomalyCensusParams`: `FloorPct` default `6.0f → 0.5f`; **add** `CeilingPct = 25.0f`. `FAnomalyCensusCounters`: **add** `AboveCeiling`. |
+| `Source/AnomalyCapture/Private/AnomalyCensus.cpp` | `QueryActor`: the eligibility comparison becomes the inclusive band. `CloseCycle`: count `AboveCeiling`; extend the `CYCLE n DONE` line and add the histogram note. `Begin`: echo the ceiling and its disabled state. |
+| `Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp` | a `CensusCeiling` console command beside `CensusFloor`; the ceiling + its provenance + `DISABLED` in the `StartRun` census echo; ini read for the new key. |
+| `Source/AnomalyCapture/Private/AnomalyLabelWriter.{h,cpp}` | `census_above_ceiling` into `run_summary`. |
+| `docs/` | capture docs note the band; RDP card gains an **optional future** "ceiling validation on Bates" line. |
+
+⛔ **NOT touched:** `AnomalyMaskMeasure`, `AnomalyStencilTag`, `AnomalyViewport`,
+`AnomalyAutoInjectorSubsystem`, the provider contract, the armed-frame mask, the zero-only veto.
+⛔ `AnomalyCapture.Build.cs` untouched.
+
+### §14.3 Every echo line and counter, named
+
+**`StartRun` census echo** gains the ceiling with provenance and an explicit disabled state:
+
+```
+Capture(census): EFFECTIVE FOR THIS RUN - census ON (...), floor=0.50%(from ...),
+  ceiling=25.00%(from COMPILED DEFAULT) [band is INCLUSIVE: eligible iff floor <= coverage <= ceiling],
+  maxVerdictAgeTicks=12(...), excludeTranslucent=1(...), reservation=1
+```
+
+and when disabled — ⛔ **it must SAY so, never just omit the number:**
+
+```
+  ceiling=DISABLED (set <= 0; NO upper bound is applied and scenery-scale targets ARE eligible)
+```
+
+**Per-exclusion token**, one greppable string, at the same site the below-floor decision is made:
+
+```
+Census: ABOVE-CEILING '<actor>' drawn=<n>px (<pct>%) > ceiling <c>% - EXCLUDED (label unusable at scenery scale, not a failed anomaly)
+```
+
+**Counters:** `census_above_ceiling` in `run_summary` and in the `CYCLE n DONE` line;
+the `DRAWN-COVERAGE` histogram's existing `>25` bin gains *"(the `>25` bin is the ceiling's
+population at the default)"*.
+
+### §14.4 Gates
+
+| # | gate | why it is the right shape |
+|---|---|---|
+| **(a)** | **`P-C7` census-OFF byte-identity, RE-ANCHORED at the new build boundary.** Any source change ⇒ new exe ⇒ re-anchor; **the new SHA is recorded.** | The whole client-inert claim rests on it, and `P-C7` is anchored to a binary, not to an intention. |
+| **(b)** | **MECHANISM control for the ceiling on `CB_GateLevel`:** console-set the ceiling **BELOW a known candidate** — e.g. **5.0** against `StaticMeshActor_0` at **≈6.06 %** — and require it **EXCLUDED**, with `census_above_ceiling` incremented **and** the per-exclusion token in the log. | 🚨 **This tests the MECHANISM, not the default.** The bench map's largest candidate is ~6.06 %, so **nothing on it exceeds 25 % and the DEFAULT IS UNTESTABLE HERE** — a bench that cannot exhibit the case would give a clean pass that means nothing (`G96` / `G135`). **The default 25 is Bates-validated LATER**, on the host whose landscape reads 34 %. Said out loud in the plan and in the predictions file. |
+| **(c)** | **Floor-behaviour spot-check at 0.5** against the fixture-v2 histogram: the eligible set at the new default must match what a floor of 0.5 predicts from the banked `P9V2` cycle listing. | A default change that silently fails to take is the failure mode; the banked histogram is the known answer. |
+| **(d)** | **Disabled-ceiling echo check:** ceiling ≤ 0 ⇒ the echo says `DISABLED`, no candidate is excluded above-ceiling, `census_above_ceiling == 0`. | Proves the off-switch is loud, both directions (`G96`). |
+
+**Comparability:** ⚠ **a census-ON defaults change is a NEW `G140`-family baseline boundary** — the
+same seed selects a different candidate set across it, so census-ON legs banked before it are **not
+comparable** to legs after. ✅ **Census-OFF legs stay comparable** (that is gate (a)). **The boundary
+SHA is recorded in the journal when it lands.**
+
+### §14.5 Effort and commit shape
+
+**Effort: small.** Two defaults, one new knob, one comparison, one counter, three log surfaces. The
+risk is entirely in the **echo/reporting** discipline, not the arithmetic. Estimate: implementation
+under an hour; gates (a)–(d) are one build plus four short legs.
+
+**Commit shape: ONE MILESTONE = ONE COMMIT**, scope `feat(census)`, plus a separate `docs:` commit
+for the predictions file **before** any code, per the standing rule.
+
+⏸ **AWAITING APPROVAL. Nothing above is implemented.**

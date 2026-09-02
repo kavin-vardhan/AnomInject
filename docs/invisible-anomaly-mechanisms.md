@@ -732,6 +732,43 @@ single-state, so no other anomaly has a hide *boundary* inside its window for a 
 land on. That yields a clean Bates dataset immediately and costs one anomaly type on one host. It is
 a **mitigation, not a fix**, and it is on the RDP card as a standing item (Section C-(e)).
 
+## 8.6a 🔻 BENCH CAMPAIGN CLOSE-OUT — 2026-09-02/03. **STATUS STAYS `OPEN`.**
+
+Two bench reproduction attempts ran. **Neither reproduced `P9` and neither refuted it.**
+
+**v1 — `MainWorld`, letterboxed by the lever.** `UNDECIDABLE` on **all five legs, every event**.
+⛔ **Not a `P9` result at all:** the fixture could not satisfy the conjunction the measurement
+needed — a non-zero view-rect origin forced `MainWorld`, whose intro camera **moves during capture**
+(32 distinct origins over 90 frames), so the per-event bbox changed every frame and `A56` collapsed
+to modal 1-in-8. → **`G206`**. Journal 067 §11.
+
+**v2 — a letterboxed `CB_GateLevel`, via the R3 zero-cook route, on the SAME exe `D2BB25A5`.** The
+fixture satisfies both halves: settled camera (`distinct=1` bbox at `modal 100 %`) **and**
+`rect=(0,92)-(1280,628)`. The reader passed **three in-regime controls on the leg's own data** before
+anything was graded.
+
+> **16 of 16 readable events, across 4 legs and both pacings, read `ALIGNED` with `k = 0` and BOTH
+> DIFFERENCES EMPTY. `P9`-SHAPE appeared ZERO times. 8 further events were `UNDECIDABLE` on
+> separation.**
+
+⛔ **THE PRE-DECLARED `NOT REPRODUCED` IS *NOT* SATISFIED, AND IT WAS *NOT* LOOSENED.** That verdict
+required **every** blinking event `ALIGNED`; 8 were not graded. The amendment rule holds — the
+discriminator stands as written and no measurement was rounded up to meet it.
+
+**Two caveats, stated because they bound what the negative is worth:**
+
+1. ⚠ **Events below the separation floor are UNREADABLE, so "`P9` lives only in low-contrast events"
+   is NOT excluded by this campaign.** ✅ **But the Bates instances were owner-EYE-VISIBLE, i.e.
+   high-contrast — so the readable class is the diagnostic one**, and it is the class that came back
+   clean.
+2. ⚠ **The `SHIFTED` division of labour remains untested on real shifted pixels.** It is proven at
+   `d-unit` on literal sets and refused correctly on synthetic shifts; no leg has yet produced a
+   genuinely displaced label set for it to catch. → **`A65`**.
+
+📌 **The owner-observation rule stands in full: the Bates observation is unaffected by any of this.**
+**Next evidence is the Bates one-event typed read** (journal 067 §5; RDP card Section C item **(h)**),
+not another bench leg.
+
 ## 8.7 Related entries
 
 | | |
