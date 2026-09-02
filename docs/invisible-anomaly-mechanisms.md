@@ -732,7 +732,95 @@ single-state, so no other anomaly has a hide *boundary* inside its window for a 
 land on. That yields a clean Bates dataset immediately and costs one anomaly type on one host. It is
 a **mitigation, not a fix**, and it is on the RDP card as a standing item (Section C-(e)).
 
-## 8.6a 🔻 BENCH CAMPAIGN CLOSE-OUT — 2026-09-02/03. **STATUS STAYS `OPEN`.**
+## 8.6a 🔺 **SUPERSEDED — OWNER REPRODUCED `P9` ON BATES WITH NO FLAGS, 2026-09-02.**
+
+> 🚨 **THIS BLOCK REPLACES THE BENCH CLOSE-OUT THAT PRECEDED IT. DO NOT APPLY THE OLD ONE.** The
+> earlier close-out framed `P9` as "not reproduced on the bench, next evidence is a typed read". The
+> owner then reproduced it **directly, on Bates, with every plugin flag off**, and measured a
+> **per-frame opacity ladder**. Everything below is that evidence. ⛔ **NO MECHANISM IS CLAIMED FOR
+> EITHER PHENOMENON.**
+
+### It is NOT a census or mask phenomenon
+
+**Reproduced with `census OFF` and `mask OFF` — plain `blinking` + capture, no flags.**
+⇒ ⛔ **`P9` IS NOT A CENSUS PHENOMENON AND NOT A MASK PHENOMENON.** The source read at §6 — that the
+census never touches the fired target — **stays on the record but is MOOT for `P9`**: it answers a
+question `P9` turned out not to depend on.
+
+### Incidence — deterministic, not occasional
+
+**Every reviewed `blinking` event, on both legs.** ⚠ The earlier *"3 instances"* was **the full
+reviewed population, not a sample** — so the correct reading is **deterministic on Bates**, not
+intermittent. That is a materially different phenomenon from the one the first ledger entry
+described.
+
+### The label cadence is the fixed, certified shape
+
+`frame_indices` follow **(n, n+1, n+5, n+6)** — the 30 fps **sampled** shape, and it is
+**identical on both hosts**. ⚠ **The labels are host-INDEPENDENT.**
+
+### The per-frame opacity ladder — Bates, owner eye
+
+⚠ **This supersedes the earlier hidden-set transcription where the two disagree. BOTH ARE KEPT.**
+
+| frame | what the eye sees |
+|---|---|
+| **n** | ≈ **20 %** opacity |
+| **n+1** | ≈ **10 %** opacity |
+| **n+2** | **fully gone** |
+| **n+3** | **still gone** |
+| **n+4** | *not recorded* |
+| **n+5** | **FULLY VISIBLE** |
+| **n+6** | ≈ **20 %** opacity |
+| **n+7** | fully visible |
+
+### 🚨 TWO PHENOMENA, RECORDED SEPARATELY
+
+**(A) BOUNDARY SMEAR.** Partial opacity on the first frames after a disable (**n** ≈20 %, **n+1**
+≈10 %) and again at **n+6** ≈20 %. A **temporal-accumulation signature**. ⛔ **CAUSE NOT
+ESTABLISHED.**
+
+**(B) PHASE DISPLACEMENT — this is `P9` proper.** **Fully gone at n+2 and n+3 where the labels say
+visible; fully visible at n+5 where the labels say hidden.**
+
+🎯 **(A) CANNOT PRODUCE (B), AND THAT IS THE LOAD-BEARING SEPARATION: history blending cannot hold a
+DISABLED object at FULL opacity, nor erase an ENABLED one.** A smear moves opacity toward its
+neighbours; it does not invert presence. So the two are on different axes and must not be collapsed.
+
+### ⚠ Overlay discrepancy — UNRESOLVED, resolved by reading, not by asking
+
+The owner reports the overlay drawing **red at n+1, n+2, n+5, n+6** and **amber at n+3, n+4** —
+**one frame later than the `frame_indices` sequence, for the FIRST PAIR ONLY.** Either two artifacts
+disagree (**a finding**) or it is a transcription slip. ⛔ **Not resolved by asking the owner again**
+— resolved by the code read and the one-event bundle. See journal 067 §15.2 and §15.3.
+
+### The owner's config test, recorded with what it did and did not reach
+
+`r.AntiAliasingMethod 2` · motion blur `0` · FSR3 upscaler off ⇒ **no change.**
+
+⚠ **Recorded with its scope: method `2` is `TAA`, which RETAINS HISTORY** (`SceneView.cpp:209-218`:
+`0` off · `1` FXAA · `2` TAA · `3` MSAA · `4` TSR, engine default). **FSR3 frame interpolation is a
+SEPARATE switch from the FSR3 upscaler.** ⇒ **THE TEST MOVED FROM ONE TEMPORAL METHOD TO ANOTHER AND
+NEVER REACHED A NON-TEMPORAL STATE** (`0` or `1`). ⛔ It therefore does **not** clear temporal
+accumulation for (A). **Decisive leg queued: RDP card `C-1`.**
+
+### Localization — arithmetic only, no mechanism
+
+**Labels are host-independent** (the same (n, n+1, n+5, n+6) cadence on both hosts).
+**Pixels are host-dependent** (bench **16/16 ALIGNED**; Bates **100 % displaced**).
+⇒ **THE DISCRIMINATOR LIES ON THE HOST PATH FROM "visibility set on tick t" TO "pixels in captured
+frame f".** ⛔ That is a statement about where to look, **not** a mechanism, and it names no step.
+
+### What the bench campaigns are still worth
+
+v1 and v2 stay recorded exactly as taken. They established the **matched-axis clearance**: with
+letterbox, census, pacing, tick ratio and delivery all matched or excluded, the bench's labels and
+pixels agree 16/16. ⇒ **None of those axes is the discriminator**, which is what makes the
+localization line above sayable at all.
+
+---
+
+## 8.6b 🔻 BENCH CAMPAIGN RECORD — superseded as the close-out, kept as the measurement
 
 Two bench reproduction attempts ran. **Neither reproduced `P9` and neither refuted it.**
 
@@ -766,8 +854,11 @@ discriminator stands as written and no measurement was rounded up to meet it.
    genuinely displaced label set for it to catch. → **`A65`**.
 
 📌 **The owner-observation rule stands in full: the Bates observation is unaffected by any of this.**
-**Next evidence is the Bates one-event typed read** (journal 067 §5; RDP card Section C item **(h)**),
-not another bench leg.
+
+⚠ **SUPERSEDED AS THE "WHAT NEXT" LINE.** This block said the next evidence was a typed read. The
+owner has since **reproduced `P9` directly on Bates with no flags** and measured the opacity ladder
+— see **§8.6a**, which is the current entry. The next evidence is the **`C-1` AA-off leg**, and the
+typed bundle now rides `C-3`.
 
 ## 8.7 Related entries
 

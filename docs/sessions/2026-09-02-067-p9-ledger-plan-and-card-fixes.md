@@ -1144,3 +1144,160 @@ under an hour; gates (a)–(d) are one build plus four short legs.
 for the predictions file **before** any code, per the standing rule.
 
 ⏸ **AWAITING APPROVAL. Nothing above is implemented.**
+
+---
+
+## §15 `P9` REPRODUCED ON BATES WITH NO FLAGS — enumeration, overlay semantics, and the Bates protocol
+
+**Owner observation 2026-09-02: `P9` reproduces with `census OFF` and `mask OFF`**, plus a per-frame
+opacity ladder. The ledger entry (§8.6a of `docs/invisible-anomaly-mechanisms.md`) is rewritten
+around it. ⛔ **NO MECHANISM, LEAD OR LIKELY-CAUSE FOR (A) OR (B) ANYWHERE IN THIS SECTION.**
+
+### §15.1 ENUMERATION — every step from the visibility call to the written PNG
+
+⛔ **THIS IS AN ENUMERATION, NOT AN ATTRIBUTION** — the `ticks_per_captured_frame` pattern. There is
+deliberately **no "likely cause" column.** Rows are ordered as they execute.
+
+| # | step | file:line | thread | crosses a frame boundary? | **HOST-DEPENDENT?** governing setting |
+|---|---|---|---|---|---|
+| 1 | `FAnomaly_Blinking::Tick` counts **engine ticks**; every `HalfPeriodFrames` (default **3**) it flips `bHiddenPhase` and calls `SetActorHiddenInGame` | `Anomaly_Blinking.cpp:80-97`; default `Anomaly_Blinking.h:28` | game | no | **NO** — pure tick counting |
+| 2 | the anomaly is ticked by the injector subsystem, a `UTickableWorldSubsystem` | `AnomalyInjectorSubsystem.cpp:184-197`; class `AnomalyInjectorSubsystem.h:12` | game | no | **NO** |
+| 3 | `SetActorHiddenInGame` marks components' render state dirty; the change reaches the render thread at the next `SendAllEndOfFrameUpdates` | engine | game → render | **YES, one boundary** | **NO** (engine-fixed ordering) |
+| 4 | capture subsystem `Tick` (also `UTickableWorldSubsystem`) increments `CaptureGameTicks` | `AnomalyCaptureSubsystem.cpp:533-553`; class `AnomalyCaptureSubsystem.h:14` | game | no | **NO** |
+| 5 | **`SampleDeferredActiveState()` runs FIRST in that Tick** and fills the PREVIOUS frame's snapshot `FireActive` from `FActor->IsHidden()` **now** | `:555`, `:2459-2500` (`IsHidden()` at `:2497`) | game | **YES — reads state one tick AFTER the frame it labels** | **NO** — deliberate (the m18 fix) |
+| 6 | the frame is armed: `Snap.FrameCounter = GFrameCounter`, **`Snap.SessionIndex = SessionFrameIndex`**, then `++SessionFrameIndex` | `:2094-2119` | game | no | **NO** |
+| 7 | `ArmWanted(RequestId)` publishes the wanted key against the view-family frame number | `:2111`; ring `AnomalySveKeyRing.cpp` | game → render | **YES** | **NO** (m31 re-keyed off `GFrameCounter` onto a plugin serial) |
+| 8 | `FinalizeArmedLabel` snapshots `Fires`/`FirePos` and sets `DeferredActiveRequestId` | `:664`, `:2294-2303` | game | no | **NO** |
+| 9 | **THE GRAB.** SVE `AfterPass_RenderThread` at `EPostProcessingPass::VisualizeDepthOfField` — **the LAST pass in the enum** (`SSRInput, MotionBlur, Tonemap, FXAA, VisualizeDepthOfField, MAX`) | `AnomalySceneViewExtension.cpp:69-90`; enum `SceneViewExtension.h:103-111` | render | no | 🚨 **YES.** The grab is **AFTER all post-processing**, so **whatever the AA/upscale method produced IS the captured pixel**. Governing: **`r.AntiAliasingMethod`** (`SceneView.cpp:209-218`; `0` off · `1` FXAA · `2` TAA · `3` MSAA · `4` **TSR = engine default**), `r.MotionBlurQuality`, and any **upscaler / frame-interpolation plugin** that installs itself in or after this chain |
+| 10 | rect + copy into a plugin-owned texture, whole-texture readback enqueued | `AnomalySceneViewExtension.cpp:112-162`; `AnomalyFrameCapturer.cpp` | render → RHI | **YES** | ⚠ **YES** — RHI-thread and frame-lag settings govern how many frames the readback trails (`r.RHIThread.Enable`, `rhi.SyncInterval`, `r.OneFrameThreadLag`) |
+| 11 | **the grab is BEFORE Slate/UI composition and BEFORE `Present`** — that is why delivered frames carry no game UI (m24/m25) | `AnomalySceneViewExtension.cpp:69-80` (pass position); capture-method evaluation, m25 | render | — | **NO** for UI; the *pixel content* dependence is row 9 |
+| 12 | drain: readback polled, resolved frame matched to its snapshot by `RequestId` | `AnomalyCaptureSubsystem.cpp:1900-1909` | game | **YES — a later tick** | **YES** — same governors as row 10 |
+| 13 | **the PNG name and the labels row are stamped from `Snap->SessionIndex`** | name `:1917`; record `:1919` (`BuildLabelRecordForSnapshot`) | game | no | **NO** |
+| 14 | **`AccumulateFrameEvents(..., Snap->SessionIndex, ...)`** — one line after row 13, from the **same** `Snap` | `:1921-1922` | game | no | **NO** |
+| 15 | per-frame label fields written: `frame_index` (= `Snap.FrameCounter`), `session_index`, `anomalies[]`, `view` | `AnomalyLabelWriter.cpp:45-46`, `:54-92`, `:96-102` | game | no | **NO** |
+| 16 | `Ev->ActiveByIndex.Add(SessionIndex, Active)` — the per-frame active bit | `AnomalyCaptureSubsystem.cpp:3171` | game | no | **NO** |
+| 17 | at `FinishRun`, `frame_indices` = **the ACTIVE SUBSET** for a toggling anomaly, else the whole fire window | `:3255-3278`; toggling-subset log `:3281-3286` | game | no | **NO** |
+| 18 | PNG encoded and written by the async writer | `AnomalyLabelWriter.cpp:374-411`; `AnomalyAsyncWriter.cpp` | worker | **YES** | **NO** |
+
+**Where `frame_index` is stamped, stated plainly because the ruling asks for it:**
+`annotation.json` `frame_indices` and the `labels.jsonl` per-frame row are **BOTH stamped from the
+SAME `Snap->SessionIndex`, one line apart** (`:1917`/`:1919` and `:1921-1922`). ⇒ **They cannot drift
+relative to each other. §15.2 turns on this.**
+
+**Backbuffer read relative to `Present`:** the shipped path **never reads the backbuffer** — it grabs
+scene colour at the end of post-processing, **before** Slate and **before** `Present` (row 9/11). The
+backbuffer path exists only as the `IAI.Capture.SVE 0` bisect switch.
+
+#### §15.1a Is the (n, n+1, n+5, n+6) cadence SCHEDULED or OBSERVED? — **OBSERVED. Cited.**
+
+⛔ **It is not derived from the tick schedule.** The anomaly toggles on a **tick** count
+(`Anomaly_Blinking.cpp:80-97`, half-period 3 **ticks**), while `frame_indices` is the set of
+**captured frames whose sampled active bit was 1** (`:3171` → `:3255-3261`). The cadence is therefore
+**whatever the sampler saw**, and its shape follows from ticks-per-captured-frame: at ≈**1.3556**
+ticks per frame a 3-tick hidden phase spans ≈2.2 captured frames, which is the observed 2-hidden /
+3-visible / 2-hidden shape. **Consistent with "the certified 30 fps sampled shape".**
+
+#### §15.1b The BENCH's own AA / upscaler axis
+
+| | value | source |
+|---|---|---|
+| `DefaultEngine.ini` AA / upscaler / motion-blur entries | **NONE — no entry at all** | `Config/DefaultEngine.ini`, grepped for `AntiAliasing`/`TemporalAA`/`Upscal`/`FSR`/`DLSS`/`MotionBlur`/`ScreenPercentage` |
+| ⇒ effective `r.AntiAliasingMethod` | **`4` = TSR**, the engine default | `SceneView.cpp:209-218` |
+| upscaler / frame-interpolation plugin | 🚨 **NONE on the bench.** The project enables `AnomalyInjector`, `CaptureBench`, `RoomGenerator`, `unreal-mcp` + stock engine plugins. The only FSR in the engine tree is `Engine/Plugins/Runtime/**MobileFSR**`, a different, mobile plugin | `StackOBot.uproject`; engine plugin tree |
+
+⚠ **OWED: a run-time read-back of the effective value.** The ini is silent, so the number above is a
+**source-read default**, not a measured one. ⛔ Not measured this turn (no legs). The command is in
+§15.3.
+
+🚨 **AND THE COMPARISON THIS ENABLES: the bench runs a TEMPORAL method (TSR) by default and still
+reads 16/16 ALIGNED.** ⛔ **That is stated as an axis reading, NOT as an argument about (A) or (B)** —
+the two hosts differ on more than this row.
+
+### §15.2 OVERLAY SEMANTICS — resolved from code
+
+**The overlay is `anomaly-dashboard/host-tools/overlay_watcher.py`**, and it states its own contract:
+
+```
+overlay_watcher.py:18   RED means the event is in annotation.json for that frame: a shipped label.
+overlay_watcher.py:19   AMBER means the box is in labels.jsonl but not in annotation.json for that
+                        frame - a candidate that did not ship.
+```
+
+The plugin says the same thing from the other side, in the log it emits when a toggling anomaly
+finishes: *"annotation.json carries the ACTIVE SUBSET (gapped), never the whole fire window.
+labels.jsonl still covers the whole window, **which is why the overlay tool shows AMBER
+OUTSIDE-SUBSET boxes there**"* — `AnomalyCaptureSubsystem.cpp:3281-3286`.
+
+⇒ **RED = `f ∈ frame_indices`. AMBER = `f` has a `labels.jsonl` row for that fire and
+`f ∉ frame_indices`.**
+
+🎯 **CAN THE TWO ARTIFACTS DISAGREE BY ONE FRAME BY CONSTRUCTION? — NO.** Both are stamped from the
+**same** `Snap->SessionIndex` in the same loop iteration, one line apart (`:1917`/`:1919` writes the
+labels row; `:1921-1922` accumulates into `frame_indices`). There is **no second counter and no
+second stamping site** for the async path. Red and amber are **two readings of one comparison**, not
+two artifacts.
+
+🚨 **SO THE OWNER'S REPORT IS NOT "TWO ARTIFACTS DISAGREEING", AND THAT IS ITSELF THE FINDING.** Red
+at `{n+1, n+2, n+5, n+6}` **is** `frame_indices` — it cannot be anything else. Set beside the
+recorded cadence `{n, n+1, n+5, n+6}`, the **second pair matches exactly and the first pair differs
+by one**, which no single stamping site can produce for one event. ⇒ **the two readings are of
+DIFFERENT THINGS — most likely different events, or one transcription slip.** ⛔ **Not resolvable by
+asking the owner to look again**; resolved by reading the array. That is `C-3`'s item 1.
+
+⚠ **One genuine one-frame asymmetry DOES exist in the pipeline and is NOT this:** the active bit for
+frame *f* is sampled on the tick **after** *f* was armed (row 5). ⛔ **But it applies to
+`frame_indices` ONLY — `labels.jsonl` carries no active bit** — so it shifts red-vs-truth, never
+red-vs-amber.
+
+### §15.3 The Bates text bundle and read-backs — exact commands
+
+**Sealed host, text-only.** One copy-paste command per item, each capped so the output is
+photo-friendly. Paths: `<plugin>` = the plugin repo, `<run>` = the session directory.
+
+**(a) toggle lines with tick/frame stamps** — ⚠ **the toggle log is `Verbose`
+(`Anomaly_Blinking.cpp:95`), so it is ABSENT unless the run enabled it.** Add
+`Log LogAnomaly Verbose` to the run's `ExecCmds`; on an existing log this returns nothing and **that
+is a read, not a failure**:
+
+```
+$log="<plugin>\..\..\Saved\Logs\StackOBot.log"; Select-String -Path $log -Pattern 'blinking toggle ->' -SimpleMatch | Select-Object -First 20 | ForEach-Object { $_.Line }
+```
+
+**(b) frame-write lines, `session_index` ↔ `frame_index`** — from the artifact, not the log, because
+the log has no per-frame write line:
+
+```
+$r="<run>"; (Get-Content $r\labels.jsonl | Select-Object -Skip 40 -First 12) | ForEach-Object { $o=$_|ConvertFrom-Json; "{0,4}  {1,8}  {2}" -f $o.session_index,$o.frame_index,$o.image }
+```
+
+**(c) the event's `frame_indices`:**
+
+```
+$r="<run>"; (Get-Content $r\annotation.json -Raw|ConvertFrom-Json).anomalies | ForEach-Object { "{0,-12} {1,-28} {2}" -f $_.anomaly_type,$_.affected_objects.nodes[0].name,($_.affected_frames.frame_indices -join ',') }
+```
+
+**(d) `labels.jsonl` rows n-1 .. n+8 — the fields to read** (`session_index`, `anomaly_present`,
+and per anomaly `target_name` + `bbox_valid`); replace `41` with `n-1`:
+
+```
+$r="<run>"; (Get-Content $r\labels.jsonl | Select-Object -Skip 41 -First 10) | ForEach-Object { $o=$_|ConvertFrom-Json; "{0,4} present={1,-5} {2}" -f $o.session_index,$o.anomaly_present,(($o.anomalies|ForEach-Object{ "$($_.target_name) bbox_valid=$($_.bbox_valid)" }) -join ' | ') }
+```
+
+**Effective-config read-backs — and one of them I will not guess at:**
+
+```
+r.AntiAliasingMethod
+r.MotionBlurQuality
+r.ScreenPercentage
+```
+
+Typed bare in the console, each prints its current value. ✅ **All three are stock UE 5.1 cvars and
+are confirmed present** (`r.AntiAliasingMethod` at `SceneView.cpp:210`).
+
+🚨 **FSR3 UPSCALER AND FSR3 FRAME-INTERPOLATION CVAR NAMES: I CANNOT CONFIRM THEM AND I AM NOT
+GUESSING.** The FSR3 plugin **is not present in this engine tree** — the only FSR here is
+`Engine/Plugins/Runtime/MobileFSR`, a different plugin — so any name I wrote would be invented.
+**Get them from the plugin itself on that box:** in the console type `FidelityFX` and then `FSR` and
+read what tab-completion / `DumpConsoleCommands` offers, or open
+`Engine/Plugins/Marketplace/FSR3/Config/` there. ⛔ **Do not accept a cvar that prints
+`Unrecognized command` as "off" — an unrecognised name is UNREAD, not disabled** (`G197`).

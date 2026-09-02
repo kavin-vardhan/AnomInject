@@ -464,74 +464,136 @@ this plugin ships is single-state, so none of them has a hide boundary inside it
 land on. **The cost is one anomaly type on one host; the benefit is a Bates dataset with no known
 open labelling question in it.**
 
-### C-(g). Bates' EFFECTIVE delivery setting — ⬇ **DEMOTED TO TIDY, 2026-09-02**
+### C-(g) and C-(h) — 🔻 **REPLACED 2026-09-02 by the `P9` Bates protocol below.**
 
-🔽 **This was load-bearing when written and is no longer.** Delivery mode has since been **excluded
-as a `P9` factor by measurement**: bench leg C ran `delivery_mode = True` and produced an identical
-event structure and near-identical separations to the delivery-OFF leg A (0.011701 against
-0.011758) — journal 067 §11.8. So Bates' unrecorded setting **cannot account for `P9`**.
-**Still worth two seconds if you are already in the log** — it closes an unrecorded config axis —
-but nothing waits on it.
+*(Both are superseded. `C-(g)`, the delivery read, was already demoted to tidy — delivery is
+excluded as a `P9` factor by bench measurement. `C-(h)`, the one-event typed bundle, is **not
+dropped**: it survives as **`C-3`**, and it is now taken on a `C-1` leg rather than on a banked one.)*
 
-Nobody wrote down whether Section B ran with delivery mode on or off. The B-1 payload never issues
-`IAI.Capture.Delivery`, so those legs ran on **whatever that host's ini or compiled default is** —
-and it changes which artifacts exist. **Two independent reads, both cheap:**
+---
 
-**1. The ini key** (the source of the default):
+# 🔴 THE `P9` BATES PROTOCOL — `C-1`, `C-2`, `C-3`
+
+**Why this exists:** you reproduced `P9` on Bates **with every plugin flag off** — no census, no
+mask, plain `blinking` + capture — and measured a per-frame opacity ladder. That makes it **not a
+census or mask phenomenon**, and it puts two separate things on the table:
+
+- **(A) BOUNDARY SMEAR** — partial opacity at `n` (≈20 %), `n+1` (≈10 %) and `n+6` (≈20 %).
+- **(B) PHASE DISPLACEMENT** — fully gone at `n+2`/`n+3` where the labels say visible, fully visible
+  at `n+5` where the labels say hidden. **This is `P9` proper.**
+
+⛔ **NO CAUSE IS CLAIMED FOR EITHER.** These legs are built to separate them, not to explain them.
+
+📌 **Your `r.AntiAliasingMethod 2` test does not settle (A), and here is the honest reason:**
+**method `2` is TAA, which RETAINS HISTORY** — `0` off · `1` FXAA · `2` TAA · `3` MSAA · `4` TSR.
+You moved from one temporal method to another. **`C-1` is the leg that actually reaches a
+non-temporal state.** Also: **the FSR3 upscaler and FSR3 frame interpolation are SEPARATE
+switches** — turning off the upscaler does not turn off interpolation.
+
+### C-1. THE AA-OFF LEG — the decisive one
+
+**Set all four and CONFIRM EACH BY READ-BACK *BEFORE* starting the run.** Type each bare name to
+print its current value:
 
 ```
-Select-String -Path "<plugin-path>\..\..\Config\DefaultGame.ini" -Pattern 'bDeliveryModeDefault|bWriteLabelsInDeliveryDefault'
+r.AntiAliasingMethod 0
+r.MotionBlurQuality 0
 ```
 
-**Read back: the matching lines, or "no match".** ⚠ **"No match" is a real answer** — it means no ini
-override, so the compiled default (**delivery OFF**) is what ran.
+then, for the two FSR3 switches — 🚨 **I CANNOT GIVE YOU THE EXACT CVAR NAMES AND I AM NOT GUESSING
+THEM.** The FSR3 plugin is not in the bench engine, so any name I wrote would be invented. **Find
+them on that box:** type `FidelityFX` then `FSR` in the console and read what completion offers, or
+look in the FSR3 plugin's own `Config/`. You need **both** the **upscaler** switch and the **frame
+interpolation** switch, each set OFF.
+⛔ **A cvar that answers `Unrecognized command` is UNREAD, NOT OFF.** Report the name you used and
+what it printed.
 
-**2. The `StartRun` echo** (the value that actually took effect — `A48`, and it beats the ini):
+**Read back all four before the run and copy the four lines.** Then:
 
 ```
-$log = "<plugin-path>\..\..\Saved\Logs\StackOBot.log"; Select-String -Path $log -Pattern 'Delivery mode:' -SimpleMatch | Select-Object -Last 1 | ForEach-Object { $_.Line }
+IAI.Capture.Config 2 4 8 4 0
+IAI.Capture.Start "" png 4242 90 blinking <target>
 ```
 
-**Read back: that one line.** It reads `Delivery mode: ON (client-facing output only)` or
-`Delivery mode: off (full fidelity)`.
+⛔ **No census, no mask** — do not issue `IAI.Capture.Census` or `IAI.Capture.Mask`.
 
-🚨 **REPORT BOTH, EVEN WHEN THEY AGREE.** The ini says what was *configured*; the echo says what
-*ran*. This project's standing rule is to report the effective value from a read-back, never the
-value someone believes was set.
+**Then, for ONE event, the opacity ladder `n` … `n+7`** — the same reading you already did: for each
+frame, **fully visible / partial (≈ what %) / fully gone**.
 
-### C-(h). 🆕 `P9` ONE-EVENT BUNDLE — **ONE-OFF. REMOVE THIS ITEM ONCE COLLECTED.**
+**PRE-DECLARED, so the leg means something either way:**
 
-**A TYPED READ FROM FILES ALREADY ON THAT BOX. NO RE-RUN.** Use the **banked Section B leg-2**
-artifacts (floor 0.5) — the run is already done and its files are still there.
+| what you see | what it establishes |
+|---|---|
+| **the partial-opacity frames VANISH** (every frame now fully visible or fully gone) | **(A) is temporal accumulation on Bates' pipeline** |
+| **the partial-opacity frames PERSIST** | **(A) is host-side fading on a DIFFERENT axis** — not temporal accumulation |
 
-Pick **one `blinking` event** and send four things. The exact wording of the ask is in
-**journal 067 §5**; the short form:
+🎯 **AND (B) IS READ ON THE SAME LEG, INDEPENDENTLY:** with (A) removed, write down **hidden or
+visible for each frame `n` … `n+7`**. **If fully-gone still lands at `n+2`/`n+3` and fully-visible
+still lands at `n+5`, (B) stands on its own** — that is the whole point of doing both readings on
+one leg.
 
-1. From `annotation.json`, that event's **whole object** — `anomaly_type`,
-   `affected_frames.start_frame` / `end_frame` / `frame_count` / the full `frame_indices` array, and
-   the `nodes[]` entry's `name`.
-2. From `labels.jsonl`, **every row in that span plus one row either side** — whole lines, copied,
-   not summarised.
-3. From the Output Log, every line mentioning that target between the fire and the revert.
-4. The **`session_index` ↔ `frame_index` mapping** for the span: each PNG's filename in
-   `Actual_Frames\` beside the `frame_index` in its matching `labels.jsonl` row.
+### C-2. THE TARGET-CLASS LEG — does (B) depend on what the target is?
 
-🚨 **ITEM 4 IS THE ONE THAT MATTERS.** Everything else is meaningless if the frame the label calls
-44 is not the PNG we think it is. `frame_count` is a **span**, not a count (m20), and this project
-has already been bitten once by 0-based versus 1-based numbering.
+**Same config as `C-1`** (all four switches off, confirmed by read-back, no census, no mask).
+Run it **twice**, targeted:
 
-📌 **Why this is worth your time and the bench is not:** two bench campaigns have now failed to
-reproduce `P9` — the second on a fixture that satisfies every requirement, with an instrument that
-passed three in-regime controls, reading **16 of 16 readable events as correctly labelled**. ⛔ That
-does **not** overturn what you saw; the owner-observation rule stands. **It means the next evidence
-has to come from the host that showed it, not from here.**
+1. on a **plain `StaticMeshActor`** — from the census histogram, `StaticMeshActor_1246` or
+   `StaticMeshActor_1158` are known to draw;
+2. on a **Blueprint actor**.
+
+```
+IAI.Capture.Start "" png 4242 90 blinking StaticMeshActor_1246
+```
+
+**Read back: does (B) appear on BOTH?** One line each is enough — *"displaced yes/no"*.
+
+### C-3. THE TEXT BUNDLE — for ONE `C-1` event
+
+*(This is the former `C-(h)`, now taken on a `C-1` leg so the numbers line up with the ladder.)*
+Four commands, each capped to be photo-friendly. `<run>` = the session directory.
+
+**(a) toggle lines** — ⚠ **`Verbose`, so ABSENT unless the run enabled it.** Add
+`Log LogAnomaly Verbose` to the `C-1` run's `ExecCmds`. **Nothing printed is a READ, not a failure:**
+
+```
+$log="<plugin>\..\..\Saved\Logs\StackOBot.log"; Select-String -Path $log -Pattern 'blinking toggle ->' -SimpleMatch | Select-Object -First 20 | ForEach-Object { $_.Line }
+```
+
+**(b) `session_index` ↔ `frame_index` for the span** (replace `40` with `n-2`):
+
+```
+$r="<run>"; (Get-Content $r\labels.jsonl | Select-Object -Skip 40 -First 12) | ForEach-Object { $o=$_|ConvertFrom-Json; "{0,4}  {1,8}  {2}" -f $o.session_index,$o.frame_index,$o.image }
+```
+
+**(c) the event's `frame_indices`:**
+
+```
+$r="<run>"; (Get-Content $r\annotation.json -Raw|ConvertFrom-Json).anomalies | ForEach-Object { "{0,-12} {1,-28} {2}" -f $_.anomaly_type,$_.affected_objects.nodes[0].name,($_.affected_frames.frame_indices -join ',') }
+```
+
+**(d) `labels.jsonl` rows `n-1` … `n+8`** (replace `41` with `n-1`):
+
+```
+$r="<run>"; (Get-Content $r\labels.jsonl | Select-Object -Skip 41 -First 10) | ForEach-Object { $o=$_|ConvertFrom-Json; "{0,4} present={1,-5} {2}" -f $o.session_index,$o.anomaly_present,(($o.anomalies|ForEach-Object{ "$($_.target_name) bbox_valid=$($_.bbox_valid)" }) -join ' | ') }
+```
+
+🚨 **(c) IS THE ONE THAT SETTLES THE OVERLAY QUESTION.** You reported red boxes at `n+1, n+2, n+5,
+n+6` while the recorded cadence is `n, n+1, n+5, n+6` — one frame later, **for the first pair only**.
+**From the code, red and amber CANNOT disagree by one frame:** red means *"this frame is in
+`annotation.json`"*, amber means *"this frame has a `labels.jsonl` row but is not in
+`annotation.json`"*, and **both are stamped from the same counter one line apart**. So the red boxes
+**are** `frame_indices`, and printing that array once tells us which reading was right. ⛔ **Nobody
+needs to look at the overlay again to settle it.**
+
+### Standing
+
+⛔ **Blinking stays UNTICKED on any Bates run that is not `C-1`, `C-2` or `C-3`.**
 
 ### C-(f). OPTIONAL — a clean Bates dataset
 
-If there is time, **repeat Section B with `blinking` unticked**. Same two legs, same payloads, same
+If there is time, repeat Section B with `blinking` unticked. Same two legs, same payloads, same
 reads. That yields a Bates census dataset carrying no `P9` exposure at all.
 ⛔ **Optional. Not a gate, and nothing waits on it.**
-
 ---
 
 ## D. IF SOMETHING FAILS
