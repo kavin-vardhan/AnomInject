@@ -4196,6 +4196,12 @@ and is the single source of truth for the project.
 - **Two-Claude split.** Design decisions come from an orchestrating "chat Claude" and are
   ferried by Kavin (project owner). The implementing Claude implements. Genuine design forks
   or ambiguities are surfaced back (listed standalone), not improvised.
+- 🆕 **HOW BRIEFS ARRIVE, AND WHERE THE REPORT GOES (2026-09-02, session 068).** Briefs are delivered
+  as files through the mailbox **`D:\IntrusiveAnomalies\_mailbox`**, which sits **OUTSIDE every repo**
+  — ⛔ **never write into it and never stage anything from it.**
+  In a headless run **the FINAL MESSAGE IS THE REPORT** chat reads; nothing else is seen, so
+  everything that matters goes there, and a blocked fork is reported as `NEEDS-DECISION` rather than
+  waited on.
 - ⚠ **CONVENTIONS IN SHARED DOCS MUST NAME THEIR ADDRESSEE — and this one does.**
   `docs/CHAT-HANDOFF-s3-m24-capture-migration.md` §13 "Working agreements" describes
   **chat-Claude's** output conventions to the owner. **Claude Code does NOT emit the 🔴 marker and does

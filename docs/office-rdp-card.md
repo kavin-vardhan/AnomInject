@@ -581,6 +581,14 @@ IAI.Capture.Start "" png 4242 90 blinking StaticMeshActor_1246
    send the bundle anyway. An absent line that was never asked for and an absent line that was asked
    for are different results (`G197` family).
 3. **AA + motion blur OFF**, as you already established in `C-1`.
+4. 🆕 **ANCHOR ON AN EVENT INSIDE THE FIRST ~64 CAPTURED FRAMES — two independent anchors instead of
+   one.** The `SVE-WANT-TRACE arm … gameFrame=` line stops after 64 arms (`AnomalySveCapturer.h:38`),
+   and it is the backup anchor for the toggle line; past frame 63 the engine `[frame]` prefix is the
+   *only* anchor left. With this card's run config (`IAI.Capture.Config 2 4 8 4 0`, 90 frames) the
+   captured frames run `0..89`, the lead-in is `0-3`, and each burst's event window is 8 frames:
+   **burst 1 = `4-11` · burst 2 = `16-23` · burst 3 = `28-35` · burst 4 = `40-47` · burst 5 =
+   `52-59`** (burst 6 starts at `64` and is already outside). ⇒ **pick your event from any of the
+   first five bursts.**
 
 **THE PRE-DECLARED THREE-WAY COMPARISON.** For **each interior flip** — the mid-event show (labels
 `n+2`, eye `n+3`) and the second hide (labels `n+5`, eye `n+6`) — ask **which frame the toggle log's

@@ -554,9 +554,73 @@ predicts neither branch.
 - ⚠ **Half-period on Bates was not measured.** §1.4.2's `blinking: matched … at half-period N` line
   reports it in the bundle.
 
-## §3 COMMIT
+## §3 COMMIT (TASK 1)
 
-Docs-only, one commit: `docs(p9): transition-driver and toggle-line anchor source read`.
+Docs-only, one commit: **`3e14385`** `docs(p9): transition-driver and toggle-line anchor source read`.
 Files: this journal · `docs/office-rdp-card.md` (a **C-3 READ GUIDE** subsection — read instructions
 only, no new steps and no new commands) · `CLAUDE.md` (the TASK-1 pointer flipped to DONE).
-**No tag.**
+**No tag.** ✅ **ACCEPTED by chat, no changes.**
+
+---
+
+## §4 BRIEF 2 — THE TWO DECISIONS, RULED
+
+### §4.1 🔻 JOURNAL 067 §16.4's GATE-(i) MARKER SET IS **SUPERSEDED**
+
+⛔ **Journal 067 is a RECORD and is NOT edited.** The supersession is recorded here, which is where a
+reader arriving at `m38` will be.
+
+**What §16.4 asked for and why it could not stand, measured at `be4dd1b`:**
+
+| §16.4 marker | exists? | evidence |
+|---|---|---|
+| `Census: BEGIN` | ✅ exists — but **only when the census is ON** | `AnomalyCensus.cpp:159`, inside `FAnomalyCensus::Begin` |
+| `M36 STENCIL RESERVATION` | ✅ exists — but **inside the mask/census setup block** | `AnomalyCaptureSubsystem.cpp:1483` |
+| **`M23 ARM`** | 🔴 **DOES NOT EXIST ANYWHERE** | the mask tokens are `M23 CVAR` (`AnomalyMaskMeasure.cpp:56`), `M23 PASS` (`AnomalyMaskSceneViewExtension.cpp:198`), `M23 REDUCE` (`:401`) |
+
+⇒ as written, gate (i) named one token that does not exist and two that a **no-flags** run does not
+emit. **Chat ruled the replacement**, and the ruling also fixes the configuration:
+
+> **Gate (i) runs on the NO-FLAGS configuration — census OFF, mask OFF.** That is the client-shaped
+> run, which is what `m38` exists for. **Required markers, all unconditional there:**
+> `=== Capture run STARTED` · `grab point EFFECTIVE` · at least one fire line
+> (`Auto.Fire` / `Auto.FireSpecific` / `IAI.Apply`) · at least one `IAI.Revert` · and, **as the file's
+> own last line**, the close marker.
+> Whether **`=== Capture run FINISHED`** lands INSIDE the file depends on the close ordering chosen —
+> **PREDICT it from the code before the leg and record the outcome; it is an observation, not a
+> pass/fail.**
+> A second observation leg with census ON confirming `Census: BEGIN` appears is **optional, recorded
+> if cheap, not a gate.**
+
+### §4.2 ✅ `C-3` GAINS AN EARLY-EVENT ANCHOR PREREQUISITE
+
+Ruled **ADD IT**. Card `C-3` prerequisite **4** now says: anchor on an event inside the first ~64
+captured frames, so both anchors are available instead of one.
+
+**Computed from the card's actual run config** (`IAI.Capture.Config 2 4 8 4 0`, 90 frames), rather
+than assumed. Captured frames `0..89`; lead-in `0-3`; each burst's Positives window is 8 frames:
+
+| burst | event window (session index) | inside the 64-arm trace? |
+|---|---|---|
+| 1 | **4-11** | ✅ |
+| 2 | **16-23** | ✅ |
+| 3 | **28-35** | ✅ |
+| 4 | **40-47** | ✅ |
+| 5 | **52-59** | ✅ |
+| 6 | 64-71 | ⛔ entirely outside |
+| 7 | 76-83 | ⛔ |
+| 8 | 88-89 (frame-cap truncated) | ⛔ |
+
+📌 **The brief said "the first three bursts"; the computed answer is the first FIVE**, and the card
+carries the computed one because the brief asked for it to be computed. The bound is
+`Handshake.TracedArms < HandshakeTraceLimit` with `HandshakeTraceLimit = 64`
+(`AnomalySveCapturer.h:38`, gate `AnomalySveCapturer.cpp:32-35`), and arm *k* is session index
+*k−1*, so arms 1..64 cover session indices **0..63**. ✅ `Handshake` is reset per run
+(`AnomalySveCapturer.cpp:87-93`, called from `AnomalyCaptureSubsystem.cpp:1400`), so the budget is
+per-run and not per-process.
+
+### §4.3 CLAUDE.md gains the mailbox / headless note
+
+Two lines under the workflow rules: briefs arrive as files via
+**`D:\IntrusiveAnomalies\_mailbox`** (outside every repo, never written into, never staged), and in
+a headless run **the final message is the report**.
