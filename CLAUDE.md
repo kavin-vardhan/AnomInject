@@ -11,8 +11,62 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🏁🏁 **SESSION 069, 2026-09-03 — `m43` IS SHIPPED. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING
-> BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> 🏁🏁 **SESSION 069, 2026-09-03 — `m44` IS SHIPPED AND MERGED. THIS IS THE CURRENT "YOU ARE HERE";
+> EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: journal `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` §7–§12 —
+> §7 the Bates reproduction, §8 the first (failed) attempt, §9 and §10 two REFUTED hypotheses and a
+> retraction, §11 the fix, §12 the merge.**
+>
+> 🎯 **`m44` = THE TARGET MASK'S ONSET IS FIXED, AND THE FIX IS AN OWNERSHIP RULE.** Merged to `master`
+> as a **merge commit** (the branch had diverged); `master` == `origin/master`. ⛔ **NO TAG.** Office
+> batch is now **`m31 → m33 → m34 → m35 → m36 → m37 → m38 → m40 → m41 → m43 → m44`**.
+> 📦 Staged bench exe **`635A615A`** (the binary every `m44` gate ran on, archived
+> `_binary_baselines\StackOBot.exe.m44-tagownership-635A615A`). ⚠ **`master`'s own post-merge build is
+> `06657B35` and is NOT staged** — `G201`: identical `Source/`, different exe hash across two links.
+> ⛔ **`0EF535DC` IS LOAD-BEARING** — `m43`+export-fix, `m44`'s A-side and the binary both reproduction
+> legs ran on. Container quartet **UNCHANGED, no cook**.
+>
+> 🚨 **WHAT SHIPPED, AND THE ONE SENTENCE THAT MATTERS: an actor under a live fire belongs to its
+> event.** `ArmTargetMaskOwn` accepted "already tagged" as "tagged for me" and skipped retagging, so on
+> an event's FIRST labelled frame the target could still carry a foreign stencil value and the reduce —
+> which filters on the event's own tag — found nothing. **Measured: `204`/`242` came from the census,
+> `224`/`226` were THE PREVIOUS EVENT'S TAG ON THE SAME ACTOR.** Census-off cured 2 of 4; the ownership
+> rule cures 4 of 4. Also in `m44`: records exist at `OnWorldTickEnd` of a fire's first frame instead of
+> being born in the readback drain; **`mask_state`** (`present`/`empty`/`unmeasured`) on every frame
+> row; **no all-zero PNG is ever written** (a file exists iff it has content); and **masks appear only
+> on frames labelled for that event** — `blinking` used to write masks on its VISIBLE in-between
+> frames, which the labels call clean, and that is the defect the owner saw on Bates.
+>
+> 🧪 **GATES, BOTH TICK ORDERS:** `G1` onset **4/4 delta 0** (was 0/4) · `G2` **0 blank PNGs** (was 61
+> of 90) · `G3` **27+0+63 = 90** · `G7` **0 stray** · `G6` **all six veto counters identical to the
+> `m43` control**, event set / `manifested` / `positive_frames` unchanged · `MASK-TIE` **27 lines,
+> 0 MISMATCH** · `m26` probe fires (`mask_probe_arms 1`) · `P-C7 v2` `frame_index` delta **one
+> constant**, `mask_value` the only other differing field · both build targets exit 0.
+> ⚖ **`census tagOvertaken` 0–1 → 2–3 is PASS-WITH-READING (`m43` gate-`D` precedent):** it is the
+> ownership rule made visible — the target mask takes back an actor the census had tagged — landing in
+> the counter the census built for exactly this class, with `framesPolluted 0`, `batchesLost 0` and no
+> verdict moved.
+>
+> 🚨 **THREE HYPOTHESES WERE REFUTED BY MEASUREMENT BEFORE THE REAL ONE LANDED, AND ALL THREE STOPS
+> WERE CORRECT:** `SynthTickOrder` (identical `+1` in both orders) · the missing frame handshake
+> (`PREVIOUS = 0` on every decidable frame; `r.OneFrameThreadLag 0` a no-op) · internal-vs-output
+> resolution (rects equal on all 51 passes at the bench default). ⚠ **The third is a REAL DEFECT that
+> simply was not this one** — at `r.ScreenPercentage 50` the probe reads 0 correct of 26. **Its fix is
+> built, UNVALIDATED, on branch `m44-f1-resolution-mapping-UNVALIDATED` and needs a COOK (`G129`); the
+> cook is authorised as its own sequenced operation AFTER `m45`'s measurement legs (`G118`).**
+> ⛔ **Until it lands, masks / the census / `m26` are correct only at 100 % screen percentage.**
+>
+> 🚨 **AND ONE FINDING WAS RETRACTED — IT WAS THE INSTRUMENT, NOT THE PRODUCT** (`G226`): a probe with
+> stencil tag `250` (inside the allocator's range) and the same magenta material `corrupted_texture`
+> uses produced a confident, detailed, entirely false *"the mask is wrong on a quarter of frames"*.
+> Corrected probe: **40/40 correct, both orders.**
+>
+> ⛔ **`m45` (hidden-class masks) IS NEXT AND IS NOT STARTED.** `blinking`/`missing_object` frames are
+> `unmeasured` and the client docs say so in as many words.
+>
+> ---
+>
+> 🏁🏁 **SESSION 069, 2026-09-03 — `m43` IS SHIPPED. (Superseded as "you are here" by `m44` above.)** 🏁🏁
 > **Cold start: `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` — §1 the `m41` plan,
 > §2 `m41`'s implementation, §3 the `m43` plan, §4 `m43` attempts 1–4 and every stop's lesson.**
 >
@@ -4473,6 +4527,38 @@ and is the single source of truth for the project.
   "report back" deliverable.
 - **Plan-before-code.** A new milestone's first response is a file-by-file plan only; no
   implementation until approved.
+- 🔒 **TAG OWNERSHIP (m44, 2026-09-03): AN ACTOR UNDER A LIVE FIRE BELONGS TO ITS EVENT for the
+  event's duration. Every consumer that tags ASSERTS its own value — it must never test
+  `IsAnyComponentTagged` and treat "somebody has tagged this" as "it is tagged for me".** `m26`'s
+  `ArmIfMeasurable` always did this; the target mask did not, and that was the whole of the shipped
+  `+1`. **Measured:** on the four `+1` events the actor carried `204`/`242` (census) and `224`/`226`
+  (**the previous event's tag on the same actor**) — two independent sources, which is why turning the
+  census off cured only half.
+  ⛔ **DO NOT RE-PROPOSE PARTITIONING THE STENCIL POOL.** It was considered and refused with numbers:
+  **55 assignable values (`200..254`) against 77 census candidates in a single 90-frame leg** — a split
+  trades a fixed bug for tag exhaustion. Ownership is the fix; capacity is not the problem.
+- 🔒 **RECORD BIRTH (m44): the records a fire's mask work keys off EXIST AT `OnWorldTickEnd` OF ITS
+  FIRST FRAME — they are never born in a readback drain.** A structure created as a side effect of
+  consuming an async result makes every synchronous reader one cycle late, by construction (`G223`).
+- 🔒 **ANY PASS THAT READS SCENE TEXTURES MUST MAP THROUGH THE INTERNAL VIEW RECT** — a post-tonemap
+  pass is in OUTPUT space while the scene textures are at INTERNAL resolution. ⚠ **PENDING: the mask
+  pass does NOT yet do this. The fix is built and unvalidated on branch
+  `m44-f1-resolution-mapping-UNVALIDATED`; it needs a cook (`G129`). Until it lands, masks, the census
+  and `m26` are correct ONLY at 100 % screen percentage** — demonstrated at `r.ScreenPercentage 50`,
+  0 of 26 frames correct (`G225`).
+- 🚨 **STANDING RULE (m44): EVERY CAPTURE-SIDE GATE THAT ASSERTS A PER-FRAME ALIGNMENT — labels, masks,
+  onset, bbox — RUNS IN BOTH TICK ORDERS (native and `IAI.Bench.SynthTickOrder`).** 📌 `m43` was gated
+  in the bench's native order only. ⚠ **But the gap was not the missing order — it was that no gate
+  compared first-label to first-mask at all** (`G224`); both halves belong to the rule.
+- 🚨 **TWO PERMANENT GATES, added to the milestone template:**
+  **(1) ONSET** — first-mask frame == first-label frame == first-differing-picture frame, **per anomaly
+  type**, both orders. Instrument `CaptureBench/tools/m44_gates.py`.
+  **(2) MASK-PICTURE-PAIRING** — the collision-proof probe (`IAI.Bench.MaskPairingProbe`, tag
+  `ReservedStencilMax`, which the allocator can never hand out): **`NEITHER == 0` AND `PREVIOUS == 0`
+  over decidable frames**, both orders; the no-data count is reported, not required to be zero (the
+  census legitimately tags the probe on some cycles). Instrument
+  `CaptureBench/tools/m44_pairing_probe.py`. **The 50 % screen-percentage leg joins this gate when F1
+  lands.**
 - 🚨 **MILESTONE GATE TEMPLATE — EVERY FEAT MILESTONE BUILDS **BOTH** TARGETS ON THE BENCH, AND BOTH
   MUST EXIT 0:** the **packaged** `StackOBot Win64 Development` **and** the **Editor**
   `StackOBotEditor Win64 Development`. ⚠ **The packaged build is MONOLITHIC, so it CANNOT SEE a missing

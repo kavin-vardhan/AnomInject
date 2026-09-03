@@ -220,17 +220,31 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 
 - [ ] ⛔ **No bench lever is on in anything that ships.** Grep the delivered log for
       `IAI.Bench.` — `ProbeSceneTextureUsage`, `CensusFixedExpiry`, `CensusBatchCap`,
-      `CensusDropEntry`, `SpawnTranslucentProbe`, `SynthTickOrder`. *All are console-only with no ini
+      `CensusDropEntry`, `SpawnTranslucentProbe`, `SynthTickOrder`, `MaskPairingProbe`. *All are console-only with no ini
       key, so they cannot be on by accident — but a capture taken with one on is a GATE LEG, not a
       dataset, and `CensusDropEntry` in particular deliberately hides candidates from the census.*
 
 
 ### 🆕 `m43` — THE TARGET ID MASK: three boxes for this cook
 
-- [ ] **The mask is PRESENT in the smoke run.** `target_mask/` exists, holds **one PNG per captured
-      frame**, and the run's `Capture(m43): TARGET MASK` echo names `ON` with a source.
-      *A missing directory means the knob or the mask pass is off; a partial directory means frames
-      went unmeasured — read `target_mask_frames_unavailable`, which must be `0`.*
+- [ ] **The mask is PRESENT in the smoke run.** `target_mask/` exists and the run's
+      `Capture(m43): TARGET MASK` echo names `ON` with a source.
+      ⚠ **m44 CHANGED WHAT "COMPLETE" MEANS: there is one PNG per frame that HAS CONTENT, not one per
+      captured frame.** A file exists iff it has content. Reconcile with `run_summary` instead:
+      `target_mask_frames_measured` == the PNG count, and measured + `_hidden_blank` + `_unavailable`
+      == the captured frame count. *Hidden-object anomalies contribute `unmeasured` frames by design
+      until the follow-up build lands, so `_unavailable` is NOT expected to be 0.*
+- [ ] 🆕 **ONSET, BOTH TICK ORDERS.** For every non-hidden event the first mask frame == the first
+      labelled frame == the first frame whose picture differs. Instrument
+      `CaptureBench/tools/m44_gates.py`; run native and with `IAI.Bench.SynthTickOrder 1`.
+      *m43 shipped a systematic one-frame lag behind a green gate set because nothing compared the
+      first labelled frame to the first mask frame.*
+- [ ] 🆕 **ZERO all-zero PNGs**, and **no `mask_file` on any frame not labelled for its event**
+      (`m44_gates.py` reports both as G2 and G7).
+- [ ] 🆕 **MASK-PICTURE-PAIRING (100 % leg).** `IAI.Bench.MaskPairingProbe 1` + the analyser
+      `CaptureBench/tools/m44_pairing_probe.py`: `NEITHER == 0` and `PREVIOUS == 0` over decidable
+      frames, both orders. ⚠ **The 50 % screen-percentage leg joins this box when F1 lands** — until
+      then the mask is correct only at 100 % screen percentage.
 - [ ] 🚨 **`MASK-TIE` shows ZERO mismatches** in the smoke run's log
       (`Select-String -Pattern 'MASK-TIE' | Where-Object { \ -match 'MISMATCH' }` must be empty).
       *This is the check that the delivered mask is the same silhouette the labels were judged on. It is

@@ -1340,3 +1340,74 @@ this class, its own text calling a re-tag by the event mask *"the expected case"
 ⚠ **I attributed the rise to the target mask's tag/restore cycle opening windows. The `tagFlips` counter
 added afterwards reads 0 on every leg, so THAT MECHANISM DOES NOT STAND** — the perturbation comes from
 the extra arms changing census batch timing. **Recorded as refuted rather than dropped** (`G120`).
+
+---
+
+# §11 — `m44`: THE TARGET MASK'S ONSET, AND WHAT THE FOUR BATES OBSERVATIONS BECAME
+
+**2026-09-03. Shipped on `master` as `m44`.** Journal 069 §7–§12.
+
+## 11.1 The four observations, and where each one went
+
+| | observation | outcome |
+|---|---|---|
+| **O1** | first mask frame is one after the labelled frame | ✅ **FIXED** — tag ownership (§11.2). Gate `G1` 4/4 delta 0, both tick orders |
+| **O2** | hidden-class frames carry no mask | ⛔ **NOT FIXED — it is `m45`.** Those frames are now honestly `mask_state: "unmeasured"`, and the client docs say so in as many words |
+| **O3** | blank PNGs everywhere | ✅ **FIXED** — a file exists iff it has content; 61 of 90 blanks became 0 |
+| **O4** | CorruptedTexture's effect starts at `n+1` | ❌ **NOT REPRODUCED** — the picture already differs at `n` by 5.9–8.2 % against a ~0.5 % baseline. Shipped as **documentation**: temporal AA settles over the following frames, so the first labelled frame can look subtle while the pixels have already moved |
+
+⚠ **A fifth defect was found that nobody reported:** masks were being written on frames the labels call
+clean (`blinking`'s visible in-between frames). Gate `G7` now forbids it; 0 stray in both orders.
+
+## 11.2 The mechanism, in one sentence, with its numbers
+
+**An actor under a live fire belongs to its event.** `ArmTargetMaskOwn` tested
+`IsAnyComponentTagged` and treated "somebody has tagged this" as "it is tagged for me", so on an
+event's first labelled frame the target could still carry a foreign stencil value while the reduce
+filtered on the event's own tag. `m26`'s `ArmIfMeasurable` never had the hole — it asserts its value
+unconditionally. **Two consumers of one shared attribute, only one of them asserting ownership**
+(`G227`).
+
+**Measured, on exactly the four `+1` events and no other armed frame (4 of 27):**
+
+| session_index | event tag | value on the actor | owner |
+|---|---|---|---|
+| 27 | 222 | 204 | census |
+| 51 | 224 | 242 | census |
+| 63 | 226 | **224** | the previous event on that same actor |
+| 87 | 229 | **226** | the previous event on that same actor |
+
+⇒ **two independent sources.** Turning the census off cured 2 of 4 and would have shipped a half fix.
+
+## 11.3 ⛔ THE STENCIL POOL WAS NOT PARTITIONED — do not re-propose it
+
+Splitting the pool into disjoint census and event ranges was considered and **refused with numbers**:
+the assignable range is **55 values (`200..254`)** and the census tagged **77 candidates in a single
+90-frame leg**. A split trades a fixed bug for **tag exhaustion**. Ownership is the fix; capacity was
+never the problem.
+
+## 11.4 `census tagOvertaken` 0–1 → 2–3 — PASS-WITH-READING
+
+The `m43` gate-`D` precedent, cited deliberately. It is the ownership rule **made visible**: the target
+mask now takes back an actor the census had tagged, and it lands in the counter the census built for
+exactly this class. `framesPolluted 0`, `batchesLost 0`, the verdict histogram, the event set, every
+`manifested` and `positive_frames` all unchanged. ⛔ **Not "the census got worse".**
+
+## 11.5 Three refuted hypotheses, one line each — every stop was correct
+
+- **`IAI.Bench.SynthTickOrder`** — refuted: the `+1` is identical in both orders, with the lever proven
+  engaged (it moved the blink hidden set).
+- **The missing frame handshake** — refuted: `PREVIOUS = 0` on every decidable frame of four legs and
+  `r.OneFrameThreadLag 0` changes nothing. ⚠ **The gap is real and is deferred as hygiene** — the mask
+  SVE has no frame key where the capturer has one (`m31`).
+- **Internal-vs-output resolution** — refuted *as this cause* (rects equal on all 51 passes at the
+  bench default) but **CONFIRMED as a separate real defect**: at `r.ScreenPercentage 50` the probe
+  reads 0 correct of 26. Fix built and unvalidated on `m44-f1-resolution-mapping-UNVALIDATED`,
+  pending a cook. **Until then masks, the census and `m26` are correct only at 100 % screen
+  percentage** (`G225`).
+
+## 11.6 And one finding was retracted — it was the instrument (`G226`)
+
+A probe using stencil tag `250` (inside the allocator's range) and the same magenta material
+`corrupted_texture` swaps to produced a confident, detailed and **entirely false** *"the mask carries
+content the picture does not on a quarter of frames"*. Corrected probe: **40/40 correct, both orders.**

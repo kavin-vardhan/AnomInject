@@ -1109,3 +1109,61 @@ different facts and the whole artifact rests on keeping them apart.
 ⚠ **If `target_mask/` is absent entirely**, read the `Capture(m43): TARGET MASK` echo — it names the
 reason on its own line (requested off / the mask pass is off / refused because the output height is
 non-zero).
+
+---
+
+# SECTION F — `m44` RE-READ ON BATES (target mask onset)
+
+⛔ **RDP-valid.** Editor/PIE only, same route as Sections D and E. The packaged Bates build stays
+sealed. **Minimal by design: one run, six reads.**
+
+## F-0. Update the box
+
+Mirrors `E-1`: `git status` clean → pull → **confirm the SHA** → rebuild the **EDITOR** target.
+⚠ Runbook §8.6 STEP 3.5 is not optional (`G47`).
+
+## F-1. The run — `blinking` TICKED
+
+```
+IAI.Capture.RunLog 1
+IAI.Capture.Config 2 4 8 4 0
+IAI.Capture.Start "" png 4242 90
+```
+
+## F-2. The reads
+
+**(a) NO all-zero PNG exists.** In the session folder:
+
+```
+python D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools\m44_gates.py <session-dir> BATES
+```
+
+**EXPECTED: `G2 blank PNGs: 0 PASS`.**
+
+**(b) First mask frame == first labelled frame, for one non-hidden event.**
+Same command as (a) — read the per-event table's `1stLbl` / `1stMsk` / `delta` columns.
+**EXPECTED: `delta` is `0` on every `corrupted_texture` and `missing_texture` row, and
+`G1 delta==0 ... PASS`.**
+
+**(c) No `mask_file` on any frame not labelled for its event.**
+Same command as (a).
+**EXPECTED: `G7 mask frames subset of labelled frames: ... stray=0 PASS`.**
+
+**(d) The three counters reconcile.** Same command as (a).
+**EXPECTED: `G3 ... present==PNGs True | sum==rows True -> PASS`.** ⚠ `unavailable` is NOT expected to
+be 0 — `blinking` frames are `unmeasured` by design until the follow-up build.
+
+**(e) 🆕 A READING, NOT A PASS — internal vs output view rect.** In the run log:
+
+```
+Select-String -Path <session-dir>\anomaly_log.txt -Pattern 'M23 PASS' | Select-Object -First 1
+```
+
+**Report the two numbers `viewRect=WxH` and `internalViewRect=... WxH` and nothing else.**
+⛔ **No expected value is stated, deliberately.** If they are EQUAL on that host, the mask is fine as
+shipped. If they DIFFER, this host runs a screen percentage other than 100 (dynamic resolution or a
+temporal upsampler) and **the `F1` fix must land before the client cook** — that is the whole purpose
+of this read.
+
+**(f) 🔴 A READING — the fog-card actor.** As in `E-0(d)`: report whether it is still selected, and its
+census classification line verbatim. ⛔ **No expected value.**

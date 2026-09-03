@@ -458,17 +458,27 @@ same **`session_index`** as `Actual_Frames/`, at **exactly the picture size**.
 - **`mask_map.json`** (session root) maps `mask_value` + event → `target_name`, `anomaly_type`,
   `first_frame`, `last_frame`. ⚠ **Values are REUSED across events**, so key on `mask_value` *together
   with* the frame range, never on the value alone.
-- **`labels.jsonl`** gains **two** keys: `mask_file` on the frame row, `mask_value` on each anomaly row.
+- **`labels.jsonl`** gains **three** keys: `mask_file` and `mask_state` on the frame row, `mask_value` on each anomaly row.
 - **`run_summary.json`** gains **three**: `target_mask_frames_measured`, `_hidden_blank`,
   `_unavailable`.
 - ⛔ **`annotation.json` is unchanged.**
 
-### 🔑 A BLANK MASK AND A NULL `mask_file` ARE DIFFERENT FACTS. This is the most important line here.
+### 🔑 `mask_state` — three values, and a file exists IFF it has content (m44)
 
-- **An all-zero PNG** = *"measured, and no anomaly target was visible in this frame."* That is **real
-  ground truth** — for a `blinking` or `missing_object` anomaly the hidden frames are exactly the ones
-  the anomaly is *about*, and they are labelled correctly.
-- **`mask_file: null`** = *"not measured."* No file exists. It carries **no** claim about visibility.
+| `mask_state` | file | meaning |
+|---|---|---|
+| **`present`** | yes | measured, a target was visible; `mask_file` names it |
+| **`empty`** | **no** | measured, the target drew nothing |
+| **`unmeasured`** | **no** | **no measurement exists**; no claim about visibility |
+
+🚨 **`empty` and `unmeasured` must not be merged** — one is a measurement whose answer is zero, the
+other is the absence of a measurement. ⛔ **No all-zero PNG is ever written**, and `mask_map.json`
+lists only masks that exist.
+📌 `target_mask_frames_hidden_blank` counts `empty` rows — **the name is kept deliberately** (renaming
+a key silently breaks a reader) — and `target_mask_frames_unavailable` counts `unmeasured` rows. The
+three counters sum to the captured frame count.
+⛔ **Hidden-object anomalies (missing object, blinking) have no mask yet; their frames are
+`unmeasured`. A follow-up build adds a where-the-object-should-be mask.**
 
 The run's own echo states it, and this line prints on every run:
 
@@ -476,8 +486,8 @@ The run's own echo states it, and this line prints on every run:
 === Capture(m43): TARGET MASK ON FOR THIS RUN - requested on, from COMPILED DEFAULT (on), output dir
 '<session>/target_mask' === READ THIS LINE, NOT THE INI. One 8-bit grayscale PNG per captured frame,
 numbered by SESSION INDEX; non-zero pixel values are the stencil tags of the ANOMALY TARGETS visible in
-that frame and 0 is background. mask_map.json maps value+event to target and anomaly type. A BLANK png
-means MEASURED AND NOTHING VISIBLE (a hidden blinking target); mask_file:null in labels.jsonl means NOT
+that frame and 0 is background. mask_map.json maps value+event to target and anomaly type. m44: A FILE
+EXISTS IF AND ONLY IF IT HAS CONTENT; mask_state is present|empty|unmeasured. mask_file:null means NOT
 MEASURED - they are different facts. It reuses the m26 pass and does NOT change the m26 measurement, the
 veto, or annotation.json. Delivery mode does NOT suppress it.
 ```

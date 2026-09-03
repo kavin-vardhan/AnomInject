@@ -1902,3 +1902,46 @@ proven to run.**
 📦 Staged bench exe **`635A615A`** (Task A only; bootable). `57B132A4` was the F1 build and **does not
 boot** — not archived as a baseline for that reason. Container **unchanged, no cook**.
 ⛔ Client docs, the ledger's `m44` entry and card Section F still wait for the merge ruling.
+
+---
+
+# §12. `m44` MERGED — what landed, what deliberately did not
+
+**2026-09-03, session 069 brief 18.** Owner ruling `D2 = (a)`: Task A is `m44` and merges now; `F1`
+does not.
+
+- **Merge shape: a MERGE COMMIT, not a fast-forward** — `master` (`62bd287`) and the branch had
+  diverged at `42061dc`, because master took the "G1 FAILED" docs commit while the branch carried on.
+  Three doc files conflicted (`gotchas.md`, the predictions file, this journal); all three were pure
+  appends on both sides and were resolved as **ours + the branch's added tail**, giving
+  `G222 → G223 → G224 → G225 → G226 → G227` and `§7 → §8 → §9 → §10 → §11` in order, with
+  `APPENDIX` → `APPENDIX 2` → `3` → `4`.
+- ✅ **`F1` IS NOT IN MASTER, verified two ways:** `git diff 62bd287 master --
+  Shaders/Private/AnomalyVisibleMask.usf Source/AnomalyShaders/Public/AnomalyVisibleMaskShader.h` is
+  **empty**, and `git merge-base --is-ancestor 2d66b90 master` exits **1**. It lives on
+  **`m44-f1-resolution-mapping-UNVALIDATED`** — the branch name carries the status.
+- ⛔ **`m44-GATE-G1-FAILED-do-not-merge` is deleted** (local and origin) now that its content is either
+  merged or moved. Its name was accurate to the end and it was never merged under it.
+- ⛔ **NO TAG.** Office batch: `… m41 → m43 → m44`.
+- 📦 Staged bench exe stays **`635A615A`** — the binary every `m44` gate ran on. ⚠ **`master`'s own
+  post-merge build is `06657B35` and is NOT staged**: identical `Source/`, different exe hash across
+  two links (`G201`). The gated binary is the one that stays on the bench.
+
+## §12.1 Two log lines were CORRECTED, not just the docs
+
+The `IAI.Capture.TargetMask` help string and the `StartRun` echo both still said *"A BLANK png means
+MEASURED AND NOTHING VISIBLE"*. **After `m44` no blank PNG is ever written, so both lines asserted
+something false.** They now state the `present`/`empty`/`unmeasured` contract and that a file exists
+iff it has content. 📌 **The run's own echo is the client-facing contract (`G139`); leaving it stale
+while fixing only the README would have been the worse half of the fix.**
+
+## §12.2 Docs landed with the merge
+
+`CLAUDE.md` (status block refreshed per the standing convention; the tag-ownership, record-birth and
+internal-view-rect invariants; the both-tick-orders standing rule; the two permanent gates ONSET and
+MASK-PICTURE-PAIRING, added to the milestone template) · `client-readme.md` (the `mask_state` table,
+no-file-unless-content, the counter-name note, the temporal-AA sentence, and the hidden-class
+limitation in the words the brief specified) · `client-delivery.md` · `PRE-DELIVERY-CHECKLIST.md`
+(§1.1 mask boxes rewritten — **"one PNG per captured frame" was the old completeness test and is now
+WRONG**; plus `MaskPairingProbe` added to the bench-lever grep) · card **Section F** · ledger **§11** ·
+`_binary_baselines\README.md`.
