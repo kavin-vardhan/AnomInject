@@ -111,3 +111,28 @@ tick orders (native and `IAI.Bench.SynthTickOrder`), and the onset instrument is
 📌 `m43` was gated in the bench's native order only; it shipped a systematic `+1` that **both** orders
 would have shown. ⚠ **The gap was not the missing order — it was that no gate compared first-label to
 first-mask at all.** Both halves of that lesson belong in the rule.
+
+---
+
+## APPENDIX - RESULTS, 2026-09-03 (appended; nothing above was edited)
+
+`m44` was built and gated in BOTH tick orders. **`M44-G1` FAILED and the milestone STOPPED.**
+
+| gate | result |
+|---|---|
+| `M44-G1` onset | FAIL **0/4, `delta = +1` in both orders** |
+| `M44-G2` no blank PNGs | PASS (0; was 61 of 90) |
+| `M44-G3` count identity | PASS (23 present / 4 empty / 63 unmeasured = 90) |
+| `M44-G4` schema additive | PASS - `mask_state` added; `mask_file` still `string|null` |
+| `M44-G6` veto inputs unmoved | **PASS** - all six counters, the event set, every `manifested` and `positive_frames` identical to the `m43` control |
+| `M44-G7` masks subset of labelled frames | PASS (0 stray; this is the defect the owner saw on the host) |
+
+**`M44-G5` (`P-C7 v2`) WAS NOT RUN** - it certifies a shipping build, and `m44` does not ship.
+
+**THE PREDICTION IN SECTION 1 WAS INCOMPLETE AND IS CORRECTED BY MEASUREMENT, NOT REWRITTEN:**
+"creating the record earlier fixes the delta" is **false**. It is necessary and not sufficient. On the
+first labelled frame the mask is armed and measured and the reduce table reads **`tableCount = 0`** for
+that tag (`MASK-TIE MATCH`), rising to 48,587-66,862 on the next frame, so **a newly applied stencil
+tag is not in that same frame custom-depth pass.** Tagging during `Tick` instead was tried and made it
+**worse** (0/4 vs 1/4), so the lag is not about placement inside frame n. No mechanism asserted.
+Journal 069 section 8.3.

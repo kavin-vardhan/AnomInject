@@ -1459,3 +1459,122 @@ mask file and it is not blank (O1 closed); **(F-2)** for one `blinking` and one 
 confirm the hidden frames carry a mask showing where the object should be (O2 closed) — or, if `m45`
 did not ship, confirm those frames have **no file and `mask_state: "empty"`**, which is the documented
 limitation rather than a defect.
+
+---
+
+# §8. `m44` — BUILT AND GATED; **`M44-G1` FAILED AND THE MILESTONE IS STOPPED**
+
+**2026-09-03, session 069 briefs 14 and 14R.** ⛔ **`m44` DID NOT SHIP. `master` is unchanged at
+`42061dc`.** The source is preserved and pushed on **`m44-GATE-G1-FAILED-do-not-merge` (`dc1282b`)**.
+Pre-declared gates: `docs/predictions/2026-09-03-m44-m45-target-mask-onset-and-hidden-class.md`.
+
+## §8.0 A HOST CRASH INTERRUPTED THE IMPLEMENTATION — recorded, not smoothed
+
+The owner's machine crashed at ~11:38 mid-edit; the watcher restarted at 11:44. The tree was found
+with **partial, uncommitted edits in exactly four files** and **no build had run**. Reconciled against
+the plan before continuing: all three completed edits (`AnomalyLabelWriter.{h,cpp}`,
+`AnomalyCaptureSubsystem.h`) and the last in-flight edit were **complete and consistent** — the final
+`Edit` had applied cleanly rather than being truncated. **Nothing was discarded and the plan was not
+restarted.** No `.git/index.lock`, no orphaned UBT/editor/bench processes, no partial `Intermediate`.
+
+## §8.1 WHAT WAS BUILT
+
+| change | file |
+|---|---|
+| records created from the live-fire set at `OnWorldTickEnd`, not only in the async drain | `EnsureMaskRecordsForCapturedFrame`, `AnomalyCaptureSubsystem.cpp` |
+| **placed AFTER `ArmIfMeasurable`** so `m26`'s arm decision is byte-unchanged **by construction, not by gate** | same |
+| `mask_state` = `present` \| `empty` \| `unmeasured` on the frame row; `mask_file` null unless `present` | `AnomalyLabelWriter.{h,cpp}` |
+| blank PNGs never written; the deferred-blank list and its FinishRun flush deleted | `AnomalyCaptureSubsystem.cpp` |
+| the mask liveness filter is the **label classification** (`IsFireLabelledThisFrame`), not "the event is live" | same |
+| completed frames are **held** until their mask outcome is known (bounded, 4 ticks, then `unmeasured`) | `ProcessCompletedFrames` |
+| a `NOT ARMED` diagnostic printing `scanned fires/labelled/withRecord/visible` | `ArmTargetMaskOwn` |
+
+## §8.2 GATE RESULTS — both tick orders, identical in both
+
+| gate | native | synth | verdict |
+|---|---|---|---|
+| **G2** zero blank PNGs | 0 blank | 0 blank | ✅ **PASS** (was 61 of 90 blank) |
+| **G3** `present == PNGs`, `present+empty+unmeasured == rows` | 23/4/63 = 90 | 23/4/63 = 90 | ✅ **PASS** |
+| **G3b** `mask_file` non-null iff `present` | 0 bad | 0 bad | ✅ **PASS** |
+| **G3c** `run_summary` reconciles with the row states | 23/4/63 | 23/4/63 | ✅ **PASS** |
+| **G7** mask frames ⊆ labelled frames | 0 stray | 0 stray | ✅ **PASS** |
+| **G6** veto inputs unmoved vs the `m43` control | identical | — | ✅ **PASS** |
+| **G1** first mask frame == first labelled frame | **0/4** | **0/4** | ❌ **FAIL, `delta = +1`** |
+
+🚨 **G7 IS THE ONE THE OWNER SAW ON THE HOST, AND IT IS FIXED:** `blinking` used to write masks on the
+VISIBLE in-between frames, which the labels mark clean. It now writes none — 0 stray files in both
+orders.
+
+✅ **`M44-G6` — the STOP gate — PASSES.** Against the `m43` control (`0EF535DC`, banked
+`M44_M44_EXPORT`): `vetoed_events` · `translucent_vetoes` · `translucency_unknown_vetoes` ·
+`mask_probe_arms` · `mask_residual_discards` · `mask_nopass_discards` **all identical (0)**; the event
+set, every `manifested`, every `frame_indices` count and `positive_frames` (43) **identical**.
+⚠ `census_frames` 96→97, `census_cycles` 31→32, `census_zero` 12→13, `census_below_floor` 50→49 —
+**one extra census frame, no verdict and no veto moved.** Under the `P-C2` / gate-`D` precedent that is
+a **reading**, not a regression.
+
+## §8.3 WHY `G1` DID NOT PASS — measured, and the plan's premise was incomplete
+
+`069-13`'s root cause was **correct but not sufficient**. Creating the record earlier is necessary; it
+is not enough.
+
+**Measured on the first labelled frame, after the fix:** the mask **is armed and IS measured**, and the
+reduce table reads **`tableCount = 0`** for that event's tag, while the next frame reads **48,587 /
+66,832 / 66,837 / 66,862**. `MASK-TIE` says `MATCH` on all of them — the PNG and the table agree. So
+the instrument is right and the *stencil* is empty:
+
+```
+session_index=27 tag=222 tableCount=0      pngCount=0      MATCH
+session_index=28 tag=222 tableCount=48587  pngCount=48587  MATCH
+session_index=63 tag=252 tableCount=0      pngCount=0      MATCH
+session_index=64 tag=252 tableCount=66837  pngCount=66837  MATCH
+```
+
+⇒ **A STENCIL TAG THAT IS NEWLY APPLIED IS NOT PRESENT IN THAT SAME FRAME'S CUSTOM-DEPTH PASS.**
+
+🚨 **AND THE OBVIOUS FIX WAS TRIED AND REFUTED BY MEASUREMENT.** Tagging earlier — during `Tick`, at
+the arm site in `CaptureCurrentFrame`, whose render-state marks are flushed by the end-of-`Tick`
+`SendAllEndOfFrameUpdates` — made it **WORSE: 0 of 4 instead of 1 of 4**. ⇒ **the lag is NOT about
+where inside frame *n* the tag is set**, and the one event that passed in the intermediate attempt
+(`missing_texture` @51, `delta 0`) passed because its target was **already tagged from earlier**, not
+because of anything the fix did. **That experiment is reverted; only its measurement is kept.**
+⛔ **NO MECHANISM IS ASSERTED** beyond the observation. `SendAllEndOfFrameUpdates`
+(`SceneRendering.cpp:4528`) guarantees the proxy *recreate* is flushed before
+`BeginRenderViewFamily`; whether a **newly created** proxy joins that same frame's visibility — and so
+`bHasCustomDepthPrimitives` — was **not** established and must not be guessed (`G120`).
+
+📌 **THE CONSEQUENCE FOR THE FIX TURN, STATED PLAINLY:** the remaining fix is a **design** question —
+the target must be custom-depth-enabled **before** the frame it is first labelled on, which means
+tagging at selection/pre-fire time or persisting tags (`m42`'s territory). That changes when stencil
+tags exist relative to the census and `m26`, which is squarely `M44-G6` ground. **It is not something
+to improvise inside a gate-failure turn.**
+
+⚠ **AND SHIPPING AS-IS WOULD BE WRONG, NOT MERELY INCOMPLETE:** the first labelled frame would carry
+`mask_state: "empty"` — *measured, and the target drew nothing* — while the target is plainly visible
+in the picture (onset at `n` is 5.9–8.2 % of frame). **That is a false measurement claim**, and it is
+worse than `m43`'s blank PNG, which at least claimed nothing.
+
+## §8.4 TWO WRONG PREDICATES, BOTH FOUND BY THE DIAGNOSTIC RATHER THAN BY A GATE
+
+The first build produced **zero masks and 90 `unmeasured` rows — and every gate said PASS**, because
+G1 was `0/0`, G2 had no files to be blank and G7 had no files to be stray. **The emptiest possible
+result produced the cleanest tick** — `G146` exactly, four milestones later.
+
+The `NOT ARMED` diagnostic (`scanned fires=1 labelled=0 withRecord=0 visible=0`, ×35) located it:
+**(i)** `ComputeFireActive` is the *hidden-state* sampler, and for `FireWindow`-sourced anomalies it
+reads 0 — those events' `frame_indices` never depended on it. **(ii)** The replacement then treated
+`FireWindow` as hidden-based too. `ResolveAnomalyActiveSource` has **three** sources
+(`ActorHidden` · `AnomalyState` · `FireWindow`), and only mirroring all three gave the label's own
+answer. ⇒ *"use the same liveness the label row is built from"* was the right instruction; **there was
+more than one such source and the first two readings of it were both wrong.**
+
+## §8.5 STATE
+
+📦 Staged bench exe **`15A31043`**, archived as
+`_binary_baselines\StackOBot.exe.m44-GATE-G1-FAILED-unvalidated-15A31043`.
+⛔ **`0EF535DC` IS NOW LOAD-BEARING** — it is `m44`'s A-side and the binary both `069-13` reproduction
+legs ran on; archived as `StackOBot.exe.m43-logexport-0EF535DC`. Container quartet **unchanged, no
+cook**. Both targets build at exit 0 (game and editor).
+⛔ **NOT DONE, named:** `client-readme`, `client-delivery`, the ledger's `m44` entry and card Section F
+are **deliberately unwritten** — they would describe shipped behaviour, and `m44` did not ship.
+`G223`/`G224` are minted below because they are lessons, not release notes.

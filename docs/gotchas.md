@@ -5678,3 +5678,30 @@ unverified attribute, and deleting the entity has to delete the attribute too, n
 name is eventually questioned; a duplicate quietly doubles the apparent size of the world, and every
 plan written against it budgets for work that does not exist. **When a codename is minted, check it is
 not a second label for something already named.**
+
+## G223 - a record born in the drain is one frame late, and anything keyed off it inherits the lag
+`m43`'s target mask tags off an `FAnomalyMaskRecord`. Records were created ONLY by `FindOrAddRecord`,
+called ONLY from `AccumulateFrameEvents`, called on the async path ONLY from the readback DRAIN - one
+frame after the arm. So on a fire's FIRST frame no record and no tag existed, and the mask was blank
+BY CONSTRUCTION, in any tick order. The shipped symptom was a systematic `+1` between the first
+labelled frame and the first mask frame.
+**The general shape: when a structure is created as a side effect of consuming an async result, every
+consumer that reads it synchronously is silently one cycle behind.** Ask where a structure is BORN,
+not only where it is read.
+**And the fix is not automatic:** creating the record earlier is NECESSARY and NOT SUFFICIENT here -
+a newly applied stencil tag is not in that same frame's custom-depth pass (journal 069 section 8.3),
+measured, mechanism deliberately not asserted.
+
+## G224 - a tie gate and a count gate are both satisfied by a uniformly late artifact
+`m43` shipped the `+1` above behind a green gate set. Gate (ii) proved the delivered PNG's per-tag
+pixel count equals the reduce table's count the veto reads - BIT-EXACT, 29 lines, 0 mismatch. Gate
+(iii) proved the frame counts reconcile. **Both are true of a mask that is uniformly one frame late,
+because both compare the artifact against ITSELF.** Nothing compared the artifact against the LABELS.
+**A per-frame artifact needs a gate that joins it to the thing it claims to describe** - here,
+first-labelled-frame vs first-mask-frame vs first-differing-picture-frame. Self-consistency is not
+alignment.
+**Corollary, and it fired immediately:** the first `m44` build produced ZERO masks and 90
+`unmeasured` rows, and every gate still said PASS - the onset gate was `0/0`, the blank-PNG gate had
+no files to be blank, the subset gate had no files to be stray. `G146` again: the emptiest possible
+result produced the cleanest tick. **A gate whose subject can be empty needs a non-empty
+precondition.**
