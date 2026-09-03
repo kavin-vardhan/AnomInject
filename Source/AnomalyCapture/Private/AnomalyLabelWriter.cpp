@@ -39,7 +39,8 @@ namespace
 		const FAnomalyViewInfo& View, int32 W, int32 H, uint64 FrameIndex, int32 SessionIndex, double TimeSeconds,
 		double WallSeconds, const FString& ImageName, int32& OutNumLabels,
 		bool bTargetMask = false, const FString& MaskFileRel = FString(), const TArray<int32>* MaskValues = nullptr,
-		AnomalyLabel::EAnomalyMaskState MaskState = AnomalyLabel::EAnomalyMaskState::Unmeasured)
+		AnomalyLabel::EAnomalyMaskState MaskState = AnomalyLabel::EAnomalyMaskState::Unmeasured,
+		int32 ShadersPending = 0, int32 AnomalyMaterialsIncomplete = 0)
 	{
 		OutNumLabels = 0;
 
@@ -115,6 +116,13 @@ namespace
 				Root->SetField(TEXT("mask_file"), MakeShared<FJsonValueNull>());
 			}
 			Root->SetStringField(TEXT("mask_state"), AnomalyLabel::DescribeMaskState(MaskState));
+		}
+
+		if (AnomalyMaterialsIncomplete > 0)
+		{
+			Root->SetStringField(TEXT("render_state"), TEXT("shaders_pending"));
+			Root->SetNumberField(TEXT("anomaly_materials_incomplete"), AnomalyMaterialsIncomplete);
+			Root->SetNumberField(TEXT("shader_jobs_pending"), ShadersPending);
 		}
 
 		TSharedRef<FJsonObject> V = MakeShared<FJsonObject>();
@@ -393,7 +401,8 @@ namespace AnomalyLabel
 	{
 		return BuildFrameLabelRecord(Snapshot.Fires, Snapshot.View, Width, Height,
 			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, Snapshot.WallSeconds, ImageName, OutNumLabels,
-			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues, Snapshot.MaskState);
+			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues, Snapshot.MaskState,
+			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -541,7 +550,8 @@ namespace AnomalyLabel
 		const FTickPinTelemetry* TickPin, int32 PatternExcludedTargets,
 		const FReadbackLayoutTelemetry* ReadbackLayout,
 		const ::FAnomalyCensusCounters* Census,
-		const FTargetMaskTelemetry* TargetMask)
+		const FTargetMaskTelemetry* TargetMask,
+		const FShaderReadinessTelemetry* ShaderReadiness)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -588,6 +598,13 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("census_unmeasurable_tag_failed"), Census->UnmeasurableTagFailed);
 			Root->SetNumberField(TEXT("census_unmeasurable_hidden"), Census->UnmeasurableHidden);
 			Root->SetNumberField(TEXT("census_unmeasurable_not_yet_measured"), Census->NotYetMeasured);
+		}
+
+		if (ShaderReadiness)
+		{
+			Root->SetNumberField(TEXT("shader_prewarm_ms"), ShaderReadiness->PrewarmMs);
+			Root->SetNumberField(TEXT("shader_prewarm_incomplete"), ShaderReadiness->PrewarmIncomplete);
+			Root->SetNumberField(TEXT("frames_shaders_pending"), ShaderReadiness->FramesShadersPending);
 		}
 
 		if (TargetMask)

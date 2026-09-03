@@ -35,6 +35,7 @@
 #include "HAL/PlatformTime.h"
 #include "RenderingThread.h"
 #include "Modules/ModuleManager.h"
+#include "ShaderCompiler.h"
 
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
@@ -412,6 +413,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		bTargetMask = bConfigTargetMask;
 		bTargetMaskFromIni = true;
+	}
+	bool bConfigShaderPrewarm = true;
+	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bShaderPrewarmDefault"), bConfigShaderPrewarm, GGameIni))
+	{
+		bShaderPrewarm = bConfigShaderPrewarm;
+		bShaderPrewarmFromIni = true;
 	}
 	bool bConfigCensusTranslucentWriters = false;
 	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bCensusIncludeTranslucentCustomDepthWritersDefault"), bConfigCensusTranslucentWriters, GGameIni))
@@ -1629,6 +1636,163 @@ void UAnomalyCaptureSubsystem::SetTargetMask(bool bInOn)
 		bTargetMask ? TEXT("ON") : TEXT("off"));
 }
 
+int32 UAnomalyCaptureSubsystem::GetShaderJobsPending()
+{
+#if ANOMALY_CAPTURE
+	return GShaderCompilingManager ? GShaderCompilingManager->GetNumRemainingJobs() : 0;
+#else
+	return 0;
+#endif
+}
+
+void UAnomalyCaptureSubsystem::GatherAnomalySwapMaterials(TArray<UMaterialInterface*>& Out) const
+{
+#if ANOMALY_CAPTURE
+	Out.Reset();
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	if (!Injector)
+	{
+		return;
+	}
+	if (UMaterialInterface* Checker = Injector->GetMissingTextureMaterial()) { Out.Add(Checker); }
+	if (UMaterialInterface* Pink = Injector->GetCorruptedTextureMaterial())  { Out.Add(Pink); }
+#endif
+}
+
+int32 UAnomalyCaptureSubsystem::CountIncompleteAnomalyMaterials() const
+{
+#if ANOMALY_CAPTURE
+	TArray<UMaterialInterface*> Materials;
+	GatherAnomalySwapMaterials(Materials);
+	int32 Incomplete = 0;
+	for (const UMaterialInterface* Material : Materials)
+	{
+		if (Material && !Material->IsComplete())
+		{
+			++Incomplete;
+		}
+	}
+	return Incomplete;
+#else
+	return 0;
+#endif
+}
+
+const TCHAR* UAnomalyCaptureSubsystem::DescribeShaderPrewarmSource() const
+{
+	if (bShaderPrewarmFromConsole)
+	{
+		return TEXT("IAI.Capture.ShaderPrewarm (console)");
+	}
+	if (bShaderPrewarmFromIni)
+	{
+		return TEXT("DefaultGame.ini [AnomalyCapture] bShaderPrewarmDefault");
+	}
+	return TEXT("COMPILED DEFAULT (on)");
+}
+
+void UAnomalyCaptureSubsystem::SetShaderPrewarm(bool bInOn)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.ShaderPrewarm: ignored - a capture run is in progress."));
+		return;
+	}
+	bShaderPrewarm = bInOn;
+	bShaderPrewarmFromIni = false;
+	bShaderPrewarmFromConsole = true;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.ShaderPrewarm: %s - m47. Takes effect BETWEEN RUNS. Before the first armed frame it ")
+		TEXT("calls UMaterialInterface::EnsureIsComplete() on every material this plugin can swap in, which ")
+		TEXT("submits any missing shader jobs at ForceLocal priority and BLOCKS until they land. That body is ")
+		TEXT("WITH_EDITOR only in the engine, so a packaged build reaches it and does nothing - the cost and ")
+		TEXT("the benefit are both editor-side. OFF is the CONTROL leg: it reproduces the pre-m47 behaviour ")
+		TEXT("where the first draw of an uncompiled material renders the engine fallback."),
+		bShaderPrewarm ? TEXT("ON") : TEXT("off"));
+}
+
+void UAnomalyCaptureSubsystem::BenchForceAnomalyShaderRecompile()
+{
+#if ANOMALY_CAPTURE
+	TArray<UMaterialInterface*> Materials;
+	GatherAnomalySwapMaterials(Materials);
+
+#if WITH_EDITOR
+	const int32 Before = CountIncompleteAnomalyMaterials();
+	for (UMaterialInterface* Material : Materials)
+	{
+		if (Material)
+		{
+			Material->ForceRecompileForRendering();
+		}
+	}
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.ForceAnomalyShaderRecompile: BENCH DEVICE - cleared the shader cache of %d anomaly ")
+		TEXT("material(s) and asked for a recompile. incomplete BEFORE=%d AFTER=%d, jobs pending=%d. This ")
+		TEXT("SYNTHESISES the editor's on-demand-compile condition on purpose: until those maps land, a draw ")
+		TEXT("resolves through FMaterialRenderProxy::GetMaterialWithFallback and the target renders the ENGINE ")
+		TEXT("FALLBACK. It exists so the m47 counter is proven ABLE TO FIRE - a zero from an instrument that ")
+		TEXT("has never fired is blindness, not a reading (G96). NEVER in a client payload."),
+		Materials.Num(), Before, CountIncompleteAnomalyMaterials(), GetShaderJobsPending());
+#else
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.ForceAnomalyShaderRecompile: REFUSED - UMaterialInterface::ForceRecompileForRendering ")
+		TEXT("is WITH_EDITOR only, so this build (%d anomaly material(s) resolved) cannot synthesise the ")
+		TEXT("condition. That refusal is itself the point: a packaged build carries precompiled shader maps ")
+		TEXT("and CANNOT enter the on-demand-compile path, which is exactly why the editor and packaged legs ")
+		TEXT("read differently."),
+		Materials.Num());
+#endif
+#endif
+}
+
+void UAnomalyCaptureSubsystem::PrewarmAnomalyShaders()
+{
+#if ANOMALY_CAPTURE
+	ShaderPrewarmMs = -1.0;
+	ShaderPrewarmMaterials = 0;
+	ShaderPrewarmIncomplete = 0;
+
+	if (!bShaderPrewarm)
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m47): PREWARM SKIPPED - IAI.Capture.ShaderPrewarm is off (from %s). This is the ")
+			TEXT("CONTROL configuration; pending=%d at this point."),
+			DescribeShaderPrewarmSource(), GetShaderJobsPending());
+		return;
+	}
+
+	TArray<UMaterialInterface*> Materials;
+	GatherAnomalySwapMaterials(Materials);
+
+	const int32 PendingBefore = GetShaderJobsPending();
+	const double T0 = FPlatformTime::Seconds();
+
+	for (UMaterialInterface* Material : Materials)
+	{
+		++ShaderPrewarmMaterials;
+		if (!Material->IsComplete())
+		{
+			++ShaderPrewarmIncomplete;
+		}
+		Material->EnsureIsComplete();
+	}
+
+	ShaderPrewarmMs = (FPlatformTime::Seconds() - T0) * 1000.0;
+	const int32 PendingAfter = GetShaderJobsPending();
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m47): PREWARM shaders materials=%d incomplete=%d waited=%.1fms pendingBefore=%d ")
+		TEXT("pendingAfter=%d (from %s). incomplete counts materials whose shader map was NOT complete when the ")
+		TEXT("run began - the count a host reports is the honest measure of how much on-demand compilation this ")
+		TEXT("run would otherwise have done at draw time. It is STRUCTURALLY ZERO in a packaged build, where ")
+		TEXT("EnsureIsComplete's body is compiled out, so a zero there is a READING and not a test."),
+		ShaderPrewarmMaterials, ShaderPrewarmIncomplete, ShaderPrewarmMs, PendingBefore, PendingAfter,
+		DescribeShaderPrewarmSource());
+#endif
+}
+
 const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusTranslucentWritersSource() const
 {
 	if (bCensusTranslucentWritersFromConsole)
@@ -2235,6 +2399,16 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 			bTargetMask ? TEXT("on") : TEXT("off"), DescribeTargetMaskSource(), *RunDir);
 	}
 
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("=== Capture(m47): SHADER PREWARM %s FOR THIS RUN - requested %s, from %s === READ THIS LINE, ")
+		TEXT("NOT THE INI. When on, every material this plugin can swap in is driven to a complete shader map ")
+		TEXT("BEFORE the first armed frame, so an anomaly's first frames cannot draw the engine fallback while ")
+		TEXT("the label says the anomaly is present. The engine body it calls is WITH_EDITOR only: on a ")
+		TEXT("packaged build this runs and does nothing, which is why frames_shaders_pending == 0 there is a ")
+		TEXT("READING and the black-frame pixel gate is what actually tests a packaged cook."),
+		bShaderPrewarm ? TEXT("ON") : TEXT("OFF"),
+		bShaderPrewarm ? TEXT("on") : TEXT("off"), DescribeShaderPrewarmSource());
+
 	bCensusEffective = bCensus && bMaskMeasure && bAsyncCapture;
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture(census): EFFECTIVE FOR THIS RUN - census %s (requested %s, from %s), floor=%.2f%%(from %s), ")
@@ -2547,6 +2721,9 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 
 	AnomalyViewport::ResetTargetExclusionStats();
 	PatternExcludedTargets = 0;
+
+	FramesShadersPending = 0;
+	PrewarmAnomalyShaders();
 
 	TickPinReasserts = 0;
 	CaptureGameTicks = 0;
@@ -3203,6 +3380,16 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			LastFrameTimeSeconds = Snap.TimeSeconds;
 			Snap.WallSeconds = FPlatformTime::Seconds();
 			StampArmWallClock(Snap.WallSeconds);
+			Snap.ShadersPending = GetShaderJobsPending();
+			Snap.AnomalyMaterialsIncomplete = CountIncompleteAnomalyMaterials();
+			if (Snap.AnomalyMaterialsIncomplete > 0)
+			{
+				++FramesShadersPending;
+			}
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m47): SHADERS pending=%d incomplete=%d si=%d gfc=%llu"),
+				Snap.ShadersPending, Snap.AnomalyMaterialsIncomplete, Snap.SessionIndex,
+				(unsigned long long)GFrameCounter);
 			Snap.bTargetMask = bTargetMask;
 			if (bTargetMaskEffective)
 			{
@@ -4161,6 +4348,25 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TargetMaskReport.Unavailable = FramesWritten;
 		}
 
+		AnomalyLabel::FShaderReadinessTelemetry ShaderReadinessReport;
+		ShaderReadinessReport.PrewarmMs = ShaderPrewarmMs;
+		ShaderReadinessReport.PrewarmMaterials = ShaderPrewarmMaterials;
+		ShaderReadinessReport.PrewarmIncomplete = ShaderPrewarmIncomplete;
+		ShaderReadinessReport.FramesShadersPending = FramesShadersPending;
+		if (FramesShadersPending > 0)
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(m47): %d of %d captured frame(s) were ARMED WHILE AN ANOMALY SWAP MATERIAL'S ")
+				TEXT("SHADER MAP WAS INCOMPLETE (labels.jsonl render_state='shaders_pending'). On such a frame ")
+				TEXT("the target resolves through the engine fallback instead of the material the label names, ")
+				TEXT("so an anomaly labelled present may not look the way the label says. These frames are ")
+				TEXT("COUNTED, never silently labelled clean. NOTE the counter keys on THIS PLUGIN'S materials, ")
+				TEXT("not on the global compile queue: GetNumRemainingJobs() is process-wide and is routinely ")
+				TEXT("non-zero for the whole of an editor run while our materials are perfectly complete, so ")
+				TEXT("gating on it would mark every frame of every editor leg."),
+				FramesShadersPending, FramesWritten);
+		}
+
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
@@ -4170,7 +4376,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TranslucentVetoes, TranslucencyUnknownVetoes, &TickPinReport, PatternExcludedTargets,
 			DrainLayout.bValid ? &LayoutReport : nullptr,
 			(bCensusEffective && Async.IsValid()) ? &Async->Census.GetCounters() : nullptr,
-			bTargetMask ? &TargetMaskReport : nullptr);
+			bTargetMask ? &TargetMaskReport : nullptr,
+			&ShaderReadinessReport);
 
 		if (bSveCapture)
 		{
@@ -5306,6 +5513,54 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureTargetMaskCmd(
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
 			{
 				Cap->SetTargetMask(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureShaderPrewarmCmd(
+	TEXT("IAI.Capture.ShaderPrewarm"),
+	TEXT("m47 SHADER READINESS PREWARM. Before the first armed frame of a run, calls ")
+	TEXT("UMaterialInterface::EnsureIsComplete() on every material this plugin can swap in - the ")
+	TEXT("missing_texture checker and the corrupted_texture pink - which submits any missing shader jobs at ")
+	TEXT("ForceLocal priority and BLOCKS until they land. WHY IT EXISTS: in the EDITOR a material whose ")
+	TEXT("shader map is incomplete does not draw itself. FMaterialRenderProxy::GetMaterialWithFallback walks ")
+	TEXT("to a complete fallback - terminating at the engine default material - and kicks the compile from ")
+	TEXT("the RENDER THREAD at draw time, so the first frames of an anomaly can show the fallback while the ")
+	TEXT("label says the anomaly is present. The engine body of EnsureIsComplete is WITH_EDITOR only, so a ")
+	TEXT("packaged build reaches this and does nothing: the cost and the benefit are both editor-side, and ")
+	TEXT("a packaged zero is a READING, not a test that passed. run_summary gains shader_prewarm_ms, ")
+	TEXT("shader_prewarm_incomplete and frames_shaders_pending. COMPILED default ON; ini [AnomalyCapture] ")
+	TEXT("bShaderPrewarmDefault. Takes effect BETWEEN RUNS. OFF is the CONTROL leg. ")
+	TEXT("Usage: IAI.Capture.ShaderPrewarm <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.ShaderPrewarm <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetShaderPrewarm(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorld GBenchForceAnomalyShaderRecompileCmd(
+	TEXT("IAI.Bench.ForceAnomalyShaderRecompile"),
+	TEXT("BENCH DEVICE, console only - no ini key, never in a client payload. Clears the shader cache of ")
+	TEXT("both anomaly swap materials and asks for a recompile, so their shader maps go INCOMPLETE and the ")
+	TEXT("next draws resolve to the engine fallback. It exists to prove the m47 counter can FIRE: this bench's ")
+	TEXT("derived-data cache is warm, so an honest editor leg reads incomplete=0 throughout, and a zero from ")
+	TEXT("an instrument never shown to fire is blindness rather than a reading (G96). It is also the ")
+	TEXT("DISCRIMINATOR for what the fallback looks like - measure the target's pixels while it is incomplete ")
+	TEXT("and you learn the fallback's actual colour instead of assuming one. WITH_EDITOR only; a packaged ")
+	TEXT("build REFUSES BY NAME, which is itself the measurement that a cooked build cannot enter this path."),
+	FConsoleCommandWithWorldDelegate::CreateLambda(
+		[](UWorld* World)
+		{
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->BenchForceAnomalyShaderRecompile();
 			}
 		}));
 

@@ -40,6 +40,8 @@ namespace AnomalyLabel
 		FAnomalyViewInfo View;
 		TArray<FAutoLiveFireInfo> Fires;
 		bool bTargetMask = false;
+		int32 ShadersPending = 0;
+		int32 AnomalyMaterialsIncomplete = 0;
 		FString MaskFileRel;
 		TArray<int32> MaskValues;
 		EAnomalyMaskState MaskState = EAnomalyMaskState::Unmeasured;
@@ -138,7 +140,16 @@ namespace AnomalyLabel
 		const FTickPinTelemetry* TickPin = nullptr, int32 PatternExcludedTargets = 0,
 		const FReadbackLayoutTelemetry* ReadbackLayout = nullptr,
 		const ::FAnomalyCensusCounters* Census = nullptr,
-		const struct FTargetMaskTelemetry* TargetMask = nullptr);
+		const struct FTargetMaskTelemetry* TargetMask = nullptr,
+		const struct FShaderReadinessTelemetry* ShaderReadiness = nullptr);
+
+	struct FShaderReadinessTelemetry
+	{
+		double PrewarmMs = -1.0;
+		int32 PrewarmMaterials = 0;
+		int32 PrewarmIncomplete = 0;
+		int32 FramesShadersPending = 0;
+	};
 
 	struct FTargetMaskTelemetry
 	{

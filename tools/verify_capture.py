@@ -58,8 +58,50 @@ labels.jsonl carries only target_name (the actor name), so those boxes fall back
 alone. The summary says so explicitly when it happens, rather than leaving the reader to wonder why
 some boxes are named differently from others.
 
+--------------------------------------------------------------------------------------------------
+m47 BLACK-FRAME GATE  (--black-frame-gate, a SEPARATE mode; the overlay path is untouched)
+--------------------------------------------------------------------------------------------------
+Two readings, reported separately because they fail for different reasons:
+
+  (1) WHOLE-FRAME BLACK - any captured frame whose mean luminance is below the threshold FAILS the
+      run and is listed by index. This is the session-ruining artifact: a burst of black frames
+      carrying positive labels.
+  (2) DARK FIRST FRAME - per event, the target-region luminance on its FIRST labelled frame against
+      that event's own mean. Scored against the event, never an absolute, because the absolute
+      depends on the scene. REPORTED; a gate only where it must be zero (a packaged cook).
+
+WHERE THE THRESHOLD COMES FROM - it is DERIVED from this bench's own DARKEST LEGITIMATE FRAME, not
+chosen. Measured over the m47 legs on CB_GateLevel at 1280x720, marker off, auto-exposure off, whole
+frame mean luminance on the 0..255 scale:
+
+    editor, first run after a build      min  60.111   (E1 attempt 1 - a cold shader cache)
+    editor, cold material DDC            min  59.992   (E2b, the strongest form of the condition)
+    editor, warm cache                   min 100.787   (E1 attempt 2)
+    packaged, prewarm off / on           min  99.467 / 99.611   (P1 / P2)
+
+The two dark legs are the ones whose shader cache was cold: the level's lighting has not converged
+while the compiler is busy, and the session brightens from about 60 to about 105 across its 90
+frames. A warm editor leg and both packaged legs never go below 99. So the darkest frame this fixture
+legitimately produces sits at about 60, or 23.5% of full scale, while the state this gate exists to
+catch - "the whole picture is black for a burst of frames and then recovers" - reads essentially 0.
+The two are not close, and the threshold is placed an ORDER OF MAGNITUDE below the legitimate floor:
+
+    BLACK_FRAME_LUMA_DEFAULT = 6.0
+
+A legitimate frame would have to lose 90% of its brightness before this fires. That margin is the
+point: a gate that sits just under the observed floor fails on the first darker level somebody
+captures, and a gate that has to be re-tuned per level is not a gate. ON A DARKER TITLE THE NUMBER IS
+WRONG AND MUST BE RE-DERIVED ON THAT HOST'S OWN FRAMES - --black-threshold exists for exactly that,
+and the derivation rule ("an order of magnitude below the darkest legitimate frame") travels even
+though the number does not.
+
+--selftest PROVES THE GATE CAN FAIL, both directions, against a synthetic mid-grey frame and a
+synthetic all-black one. A gate that has never fired is not a gate (G96).
+
 Usage:
     python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet] [--red-only]
+    python verify_capture.py --dir <sessionDir> --black-frame-gate [--black-threshold N]
+    python verify_capture.py --selftest
 
 Requires Pillow:  pip install pillow
 """
@@ -80,6 +122,10 @@ CAT_OUTSIDE = "OUTSIDE-SUBSET"
 CAT_NONMANIF = "NON-MANIFESTED"
 CAT_VETOED = "VETOED"
 CAT_UNMATCHED = "UNMATCHED"
+
+BLACK_FRAME_LUMA_DEFAULT = 6.0
+
+DARK_FIRST_FRAME_RATIO_DEFAULT = 0.5
 
 
 def client_type(engine_id):
@@ -185,6 +231,180 @@ def draw_legend(draw, font, width, has_amber):
         y += 20
 
 
+def _mean_luma(path):
+    from PIL import Image
+    hist = Image.open(path).convert("L").histogram()
+    n = sum(hist)
+    return (sum(i * c for i, c in enumerate(hist)) / float(n)) if n else 0.0
+
+
+def _region_mean_luma(frame_path, mask_path, wanted_values):
+    from PIL import Image
+    fr = Image.open(frame_path).convert("L")
+    mk = Image.open(mask_path).convert("L")
+    if mk.size != fr.size:
+        mk = mk.resize(fr.size, Image.NEAREST)
+    fp, mp = fr.load(), mk.load()
+    w, h = fr.size
+    want = set(int(v) for v in wanted_values if int(v) > 0)
+    tot = n = 0
+    for y in range(h):
+        for x in range(w):
+            m = mp[x, y]
+            if m and (not want or m in want):
+                tot += fp[x, y]
+                n += 1
+    return (tot / float(n)) if n else None
+
+
+def black_frame_gate(cap_dir, threshold, dark_ratio, quiet=False):
+    """m47 BLACK-FRAME GATE. Returns (ok, lines).
+
+    Two independent readings, reported separately because they fail for different reasons:
+
+      (1) WHOLE-FRAME BLACK. Any captured frame whose mean luminance is below `threshold`
+          FAILS the run and is listed by index. This is the session-ruining artifact: a
+          burst of black frames carrying positive labels.
+
+      (2) DARK FIRST FRAME. For each event, the target-region luminance on its FIRST
+          labelled frame is compared against that event's own mean. A first frame below
+          `dark_ratio` of the event mean is counted and listed. This is the shape a
+          material that has not finished compiling produces: the target draws the engine
+          fallback for a frame or two and then snaps to the right appearance.
+
+    Reading (2) is REPORTED, and is a gate only where the count must be zero - a packaged
+    cook. In an editor build it can be legitimately non-zero, and calling that a failure
+    would make the gate meaningless on the very builds it is diagnosing.
+    """
+    lines = []
+    labels = os.path.join(cap_dir, "labels.jsonl")
+    if not os.path.isfile(labels):
+        return False, [f"BLACK-FRAME GATE: CANNOT RUN - no labels.jsonl in {cap_dir}. "
+                       f"That is an UNREAD SURFACE, not a pass."]
+
+    rows = []
+    with open(labels, "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    rows.sort(key=lambda r: r.get("session_index", 0))
+    if not rows:
+        return False, ["BLACK-FRAME GATE: CANNOT RUN - labels.jsonl is empty. Not a pass."]
+
+    black = []
+    lumas = []
+    per_index = {}
+    for r in rows:
+        img = os.path.join(cap_dir, r.get("image", "").replace("/", os.sep))
+        if not os.path.isfile(img):
+            continue
+        lum = _mean_luma(img)
+        lumas.append(lum)
+        per_index[r["session_index"]] = (r, img, lum)
+        if lum < threshold:
+            black.append((r["session_index"], lum, r.get("image", "")))
+
+    if not lumas:
+        return False, ["BLACK-FRAME GATE: CANNOT RUN - no frame images found on disk. Not a pass."]
+
+    events, cur = [], []
+    for si in sorted(per_index):
+        r = per_index[si][0]
+        if r.get("anomalies"):
+            cur.append(si)
+        elif cur:
+            events.append(cur); cur = []
+    if cur:
+        events.append(cur)
+
+    dark_first = []
+    for ev in events:
+        vals = {}
+        for si in ev:
+            r, img, _ = per_index[si]
+            mf = r.get("mask_file")
+            if not mf:
+                continue
+            mp = os.path.join(cap_dir, mf.replace("/", os.sep))
+            if os.path.isfile(mp):
+                v = _region_mean_luma(img, mp, [a.get("mask_value", 0) for a in r.get("anomalies", [])])
+                if v is not None:
+                    vals[si] = v
+        if len(vals) < 2 or ev[0] not in vals:
+            continue
+        mean = sum(vals.values()) / float(len(vals))
+        first = vals[ev[0]]
+        if mean > 0 and (first / mean) < dark_ratio:
+            dark_first.append((ev[0], first, mean, first / mean))
+
+    lines.append("m47 BLACK-FRAME GATE")
+    lines.append(f"  frames read              {len(lumas)}")
+    lines.append(f"  whole-frame luminance    min {min(lumas):.3f}  max {max(lumas):.3f}  "
+                 f"mean {sum(lumas) / len(lumas):.3f}   (0..255)")
+    lines.append(f"  threshold                {threshold:.3f}")
+    lines.append(f"  BLACK FRAMES             {len(black)}")
+    if black and not quiet:
+        for si, lum, img in black:
+            lines.append(f"      si={si:<5d} luma={lum:.3f}   {img}")
+    lines.append(f"  events scored            {len(events)}")
+    lines.append(f"  DARK FIRST FRAMES        {len(dark_first)}   "
+                 f"(first-frame target luminance below {dark_ratio:.2f} x that event's own mean)")
+    for si, first, mean, ratio in dark_first:
+        lines.append(f"      si={si:<5d} first={first:.3f} event_mean={mean:.3f} ratio={ratio:.3f}")
+
+    ok = len(black) == 0
+    lines.append(f"  VERDICT                  {'PASS' if ok else 'FAIL'}"
+                 f"{'' if ok else '  - the run carries whole-frame-black captured frames'}")
+    return ok, lines
+
+
+def _selftest():
+    """Prove the gate can FAIL. A gate that has never fired is not a gate (G96).
+
+    Builds two synthetic one-frame sessions - one mid-grey, one all black - and asserts
+    the gate PASSES the first and FAILS the second. Both directions, every run.
+    """
+    import shutil
+    import tempfile
+    try:
+        from PIL import Image
+    except ImportError:
+        print("SELFTEST: ERROR - Pillow is required.", flush=True)
+        return 2
+
+    root = tempfile.mkdtemp(prefix="m47_selftest_")
+    rc = 0
+    try:
+        results = {}
+        for name, value in (("grey", 128), ("black", 0)):
+            d = os.path.join(root, name)
+            os.makedirs(os.path.join(d, "Actual_Frames"))
+            Image.new("RGB", (64, 48), (value, value, value)).save(
+                os.path.join(d, "Actual_Frames", "frame_00000.png"))
+            with open(os.path.join(d, "labels.jsonl"), "w", encoding="utf-8") as fh:
+                fh.write(json.dumps({"session_index": 0, "image": "Actual_Frames/frame_00000.png",
+                                     "anomalies": []}) + "\n")
+            ok, lines = black_frame_gate(d, BLACK_FRAME_LUMA_DEFAULT,
+                                         DARK_FIRST_FRAME_RATIO_DEFAULT, quiet=True)
+            results[name] = ok
+            print(f"SELFTEST {name:<6} -> {'PASS' if ok else 'FAIL'}", flush=True)
+
+        if results.get("grey") is not True:
+            print("SELFTEST: BROKEN - the gate failed a legitimate mid-grey frame.", flush=True)
+            rc = 3
+        if results.get("black") is not False:
+            print("SELFTEST: BROKEN - the gate PASSED an all-black frame. It cannot fire, so any "
+                  "green verdict it gives is blindness rather than a reading.", flush=True)
+            rc = 4
+        if rc == 0:
+            print("SELFTEST: OK - the gate passes a legitimate frame and FAILS an all-black one, "
+                  "so its zero is a reading.", flush=True)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+    return rc
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Draw capture bboxes onto copies of the frames for human inspection (never edits labels).")
@@ -193,9 +413,37 @@ def main():
     ap.add_argument("--quiet", action="store_true", help="suppress the per-frame table (keep progress + summary)")
     ap.add_argument("--red-only", action="store_true",
                     help="write only frames carrying a RED (shipped) box; default is RED or AMBER")
+    ap.add_argument("--black-frame-gate", action="store_true",
+                    help="m47: run the black-frame gate INSTEAD of the overlay and exit nonzero if "
+                         "any captured frame is whole-frame black")
+    ap.add_argument("--black-threshold", type=float, default=BLACK_FRAME_LUMA_DEFAULT,
+                    help=f"whole-frame mean luminance (0..255) below which a frame FAILS the gate "
+                         f"(default {BLACK_FRAME_LUMA_DEFAULT}, derived from this bench's darkest "
+                         f"legitimate frame; re-derive it on a darker title)")
+    ap.add_argument("--dark-first-frame-ratio", type=float, default=DARK_FIRST_FRAME_RATIO_DEFAULT,
+                    help=f"an event's first labelled frame counts as DARK when its target-region "
+                         f"luminance is below this fraction of that event's own mean "
+                         f"(default {DARK_FIRST_FRAME_RATIO_DEFAULT})")
+    ap.add_argument("--selftest", action="store_true",
+                    help="m47: prove the black-frame gate can FAIL, against a synthetic black frame")
     args = ap.parse_args()
 
+    if args.selftest:
+        sys.exit(_selftest())
+
     cap_dir = os.path.abspath(args.dir)
+
+    if args.black_frame_gate:
+        try:
+            import PIL
+        except ImportError:
+            sys.exit("ERROR: Pillow is required for the black-frame gate.")
+        ok, lines = black_frame_gate(cap_dir, args.black_threshold,
+                                     args.dark_first_frame_ratio, args.quiet)
+        for line in lines:
+            print(line, flush=True)
+        sys.exit(0 if ok else 1)
+
     out_dir = os.path.abspath(args.out) if args.out else os.path.join(cap_dir, "annotated")
     sidecar = os.path.join(cap_dir, "labels.jsonl")
 

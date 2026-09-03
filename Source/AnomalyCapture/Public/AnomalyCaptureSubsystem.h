@@ -88,6 +88,12 @@ public:
 	void SetTargetMask(bool bInOn);
 	bool IsTargetMask() const { return bTargetMask; }
 	const TCHAR* DescribeTargetMaskSource() const;
+	void SetShaderPrewarm(bool bInOn);
+	bool IsShaderPrewarm() const { return bShaderPrewarm; }
+	const TCHAR* DescribeShaderPrewarmSource() const;
+	static int32 GetShaderJobsPending();
+	int32 CountIncompleteAnomalyMaterials() const;
+	void BenchForceAnomalyShaderRecompile();
 	void SetCensusIncludeTranslucentWriters(bool bInInclude);
 	bool IsCensusIncludeTranslucentWriters() const { return bCensusIncludeTranslucentWriters; }
 	void SetCensusReservation(bool bInReserve);
@@ -149,6 +155,10 @@ private:
 	};
 
 	void BeginActualRun();
+
+	void PrewarmAnomalyShaders();
+
+	void GatherAnomalySwapMaterials(TArray<class UMaterialInterface*>& Out) const;
 	void StartRunLog();
 	void EndRunLog();
 	bool ResolveRunLogEffective(FString& OutSource) const;
@@ -336,6 +346,13 @@ private:
 	bool bCensusReservation = true;
 	bool bCensusLeakProbe = false;
 	bool bCensusCoArm = false;
+	bool bShaderPrewarm = true;
+	bool bShaderPrewarmFromIni = false;
+	bool bShaderPrewarmFromConsole = false;
+	double ShaderPrewarmMs = -1.0;
+	int32 ShaderPrewarmMaterials = 0;
+	int32 ShaderPrewarmIncomplete = 0;
+	int32 FramesShadersPending = 0;
 	bool bTargetMask = true;
 	bool bTargetMaskFromIni = false;
 	bool bTargetMaskFromConsole = false;
