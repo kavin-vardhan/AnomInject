@@ -1306,3 +1306,156 @@ fault that is not there, and the cost of that is a real finding being distrusted
 duplicate quietly doubles the apparent size of the world. Here it produced a card item planning work on
 a host that did not exist, carrying an engine-version claim that could never have been checked.
 ⇒ **When a codename is minted, confirm it is not a second label for something already named.**
+
+---
+
+# §7. BATES SECTION-E FINDINGS ON THE TARGET MASK — reproduction, root cause, and the `m44`/`m45` plan
+
+**2026-09-03, session 069 brief 13. Plan only — no source change, no feat commit.**
+Pre-declared gates: `docs/predictions/2026-09-03-m44-m45-target-mask-onset-and-hidden-class.md`.
+⛔ **Bates was not touched. Everything below is bench-only.**
+
+---
+
+## §7.1 TASK A — reproduction, both tick orders
+
+Legs on one binary (`0EF535DC`), standard config, auto-pool, seed 4242, 90 frames, `CB_GateLevel`:
+`M44_EXPORT` (native order) and `M45_SYNTH2` (`IAI.Bench.SynthTickOrder 1`).
+⚠ The first SynthTickOrder attempt was **rejected by the harness** on its own pacing check and re-run;
+both attempts are banked (`A63`).
+
+### A1 — first labelled frame vs first non-blank mask
+
+| type | target | labelled frames | 1st label | 1st mask | **delta** |
+|---|---|---|---|---|---|
+| **NATIVE** | | | | | |
+| `blink` | `StaticMeshActor_85` | 16,17,21,22 | 16 | **NONE** | n/a |
+| `corrupted_texture` | `StaticMeshActor_73` | 27…34 | 27 | 28 | **+1** |
+| `blink` | `StaticMeshActor_73` | 40,41,45,46 | 40 | **NONE** | n/a |
+| `missing_texture` | `StaticMeshActor_49` | 51…58 | 51 | 52 | **+1** |
+| `corrupted_texture` | `StaticMeshActor_49` | 63…70 | 63 | 64 | **+1** |
+| `missing_texture` | `StaticMeshActor_49` | 87,88,89 | 87 | 88 | **+1** |
+| **SYNTH TICK ORDER** | | | | | |
+| `blink` | `StaticMeshActor_85` | 16,17,**18**,22 | 16 | **NONE** | n/a |
+| `corrupted_texture` | `StaticMeshActor_73` | 27…34 | 27 | 28 | **+1** |
+| `blink` | `StaticMeshActor_73` | 40,41,**42**,46 | 40 | **NONE** | n/a |
+| `missing_texture` | `StaticMeshActor_49` | 51…58 | 51 | 52 | **+1** |
+| `corrupted_texture` | `StaticMeshActor_49` | 63…70 | 63 | 64 | **+1** |
+| `missing_texture` | `StaticMeshActor_49` | 87,88,89 | 87 | 88 | **+1** |
+
+✅ **O1 REPRODUCES — and in BOTH orders, identically.**
+✅ **O2 REPRODUCES** — neither `blink` event has mask content on any labelled (hidden) frame.
+
+🚨 **`SynthTickOrder` IS REFUTED AS O1'S MECHANISM.** It was the brief's first suspect. The lever
+engaged — its echo is in the log and it moved the blink hidden set (`21`→`18`, `45`→`42`, the `P9`
+interior-flip shape) — so the null is a **reading, not a misfire**. The mask delta is `+1` either way.
+
+📌 **And m43's own gate set would not have caught this in EITHER order.** The gap was not the missing
+tick order; **no gate ever compared first-label to first-mask.** Gate `(ii)` checked the bit-exact tie on
+frames that *were* measured, and `(iii)` checked a count identity — both are satisfied by a mask that is
+uniformly one frame late. **That is the predicate lesson, and it is the more important half.**
+
+### A2 — onset: % of pixels differing by >8/255 from a clean reference (`firstLabel − 2`)
+
+| type | target | n−1 | **n** | n+1 | n+2 | n+3 |
+|---|---|---|---|---|---|---|
+| `corrupted_texture` `_73` | native | 0.471 | **5.935** | 6.175 | 6.192 | 6.695 |
+| `corrupted_texture` `_49` | native | 0.500 | **8.157** | 8.521 | 8.929 | 9.633 |
+| `missing_texture` `_49` | native | 0.461 | **2.725** | 2.861 | 2.818 | 3.243 |
+| `missing_texture` `_49` | native | 0.438 | **2.727** | 2.841 | 2.851 | — |
+| `corrupted_texture` `_73` | synth | 0.587 | **6.008** | 6.188 | 6.154 | 6.652 |
+| `corrupted_texture` `_49` | synth | 0.500 | **8.162** | 8.409 | 8.773 | 9.468 |
+
+❌ **O4 IS NOT REPRODUCED ON THE BENCH.** The picture already differs at frame **n** by **5.9–8.2 %**
+(CorruptedTexture) against a **~0.5 %** baseline — a factor of 12–16. The label at `n` is right and the
+pixels at `n` are right.
+
+⚠ **There IS a small blend-in, and it is reported rather than dismissed:** `n → n+1` grows by ~4 %
+relative (5.935→6.175; 8.157→8.521). That is consistent with temporal AA settling and, per the brief's
+own framing, is **a labelling-policy question for chat, not a bug.**
+⛔ **No mechanism is asserted for the owner's Bates observation.** The bench says the effect is present
+at `n`; a host whose AA blends in more slowly could make `n` look subtle **to the eye** while the pixels
+have already moved. **That is a candidate, not a finding**, and the read that would settle it is the same
+onset table run on Bates — which is **not** requested here.
+📌 Because the picture onset is `n`, the brief's conditional read of `Anomaly_CorruptedTexture.cpp`
+(material/render-resource readiness at apply time) **was not triggered and was not performed.**
+
+---
+
+## §7.2 ROOT CAUSE OF O1 — one sentence, with the line
+
+> **The target mask's tag comes from an `FAnomalyMaskRecord`, and records are created only by
+> `FindOrAddRecord` (`AnomalyMaskMeasure.cpp:124`), which is called only from `AccumulateFrameEvents`
+> (`AnomalyCaptureSubsystem.cpp:4123`), which on the async path is called only from the DRAIN
+> (`AnomalyCaptureSubsystem.cpp:2769`) when a captured frame's readback completes — one frame after the
+> arm. So on a fire's first frame `ArmTargetMaskOwn` (`AnomalyCaptureSubsystem.cpp:836`) finds no record
+> with `R.Tag != 0`, returns false, and the frame takes the blank path.**
+
+⇒ `+1` **by construction, in any tick order.** The label is sampled at `OnWorldTickEnd` (`m40`) and is
+correct at `n`; **the mask side is keyed off a structure that does not exist yet.**
+
+✅ **Nothing in the render timing blocks the fix:** a stencil tag applied at `OnWorldTickEnd` of frame
+*N* is live for frame *N*'s render — `World->SendAllEndOfFrameUpdates()` runs inside
+`FRendererModule::BeginRenderingViewFamily` (`SceneRendering.cpp:4528`), under the engine's own comment
+*"Guarantee that all render proxies are up to date before kicking off a BeginRenderViewFamily."*
+
+---
+
+## §7.3 `m44` — FILE-BY-FILE (ship-blocking for this week's delivery)
+
+**The invariant to be stated in code and in `CLAUDE.md`:**
+> **The target mask's arm, liveness and tag decision are taken from the SAME per-frame snapshot as the
+> labels (`OnWorldTickEnd`, `m40`'s sample). No tick order, and no readback latency, may split the mask
+> from the label.**
+
+| file | change |
+|---|---|
+| `AnomalyMaskMeasure.{h,cpp}` | expose record creation so it can be driven from the live-fire set at `OnWorldTickEnd` — i.e. `FindOrAddRecord` becomes reachable without waiting for the drain. **No change to arming, budgets, `framesContributed` or verdicts.** |
+| `AnomalyCaptureSubsystem.cpp` `OnWorldTickEndMask` (~`:737`) | before `ArmTargetMaskOwn`, ensure a record exists for **every live fire on this frame's snapshot** (same `Auto->GetLiveFires()` source `FinalizeArmedLabel` uses). This is the O1 fix. |
+| `AnomalyCaptureSubsystem.cpp` `:2769` / `:4123` | unchanged — the drain still calls `AccumulateFrameEvents`; `FindOrAddRecord` is idempotent, so the drain finds the record already present |
+| `AnomalyCaptureSubsystem.cpp` `ServiceTargetMask` / `EnqueueTargetMaskPng` | **do not write a file when the filtered mask is all-zero** (O3). Count it `empty`. |
+| `AnomalyCaptureSubsystem.cpp` blank path | stop synthesising all-zero PNGs entirely; the deferred-blank list and its FinishRun flush are deleted |
+| `AnomalyLabelWriter.{h,cpp}` | `mask_state` on the frame row; `mask_file` stays `string\|null` and is `null` unless `present`; `mask_map.json` lists only files that exist |
+| `run_summary` | ⚠ **`target_mask_frames_hidden_blank` KEPT under its name**, re-documented as the count of `empty` rows — a rename is a silent schema break and the value's meaning has not changed |
+| `client-readme.md` / `client-delivery.md` | the three `mask_state` values; **"a mask file exists only when it has content"**; blank-vs-null becomes present/empty/unmeasured |
+| `CLAUDE.md` | the invariant above + the new both-orders gate rule |
+
+⚠ **The one real risk, named:** creating records a frame earlier changes when tags are allocated, which
+could shift `framesContributed`. `M44-G6` exists for exactly that and **a movement there is a stop.**
+
+## §7.4 `m45` — HIDDEN-CLASS MASKS (attempt; ships only on its identity gate)
+
+**Candidate mechanism (chat's), to be evaluated honestly:** replace `SetActorHiddenInGame` with a hide
+that removes the target from the main and depth passes while **keeping `bRenderCustomDepth`**, so the
+would-be region still writes custom depth and the existing mask compare against scene depth yields the
+would-be-visible region.
+
+**Every path that must also be silenced for the picture to stay identical — enumerate and verify each:**
+`bRenderInMainPass` · `bRenderInDepthPass` · `CastShadow` and `bCastDynamicShadow` /
+`bCastStaticShadow` / `bCastContactShadow` / `bCastVolumetricTranslucentShadow` · **velocity** (must be
+confirmed to drop when the primitive leaves the main/depth passes, not assumed) ·
+`bAffectDynamicIndirectLighting` (Lumen scene / mesh cards) · `bAffectDistanceFieldLighting` ·
+`bVisibleInRayTracing` · translucency · decals · **HISM/ISM** and **skeletal** components (the flags
+live on `UPrimitiveComponent`, so they apply, but each class needs its own check).
+
+🚨 **A HARD LIMIT, KNOWN BEFORE ANY CODE: a NANITE target cannot produce a custom-depth mask at all on
+5.1** — `Nanite::FSceneProxy::GetViewRelevance` never sets `bRenderCustomDepth` (`G134`). **`m45`
+therefore cannot give hidden-class masks for Nanite targets**, and the office title's Nanite posture
+decides how much of the fleet that removes. **This must be stated in the client docs, not discovered.**
+⚠ **Also to be verified before implementing, not assumed:** that a primitive with `bRenderInMainPass =
+false` is still gathered into the custom-depth pass at all.
+
+**Census interaction, and how it is guaranteed:** selection already refuses an actor with a live fire
+(`IsActorLive` in the auto-injector), so a hidden-class target cannot be re-selected. The open risk is
+the **measurement**: a target that now writes custom depth while hidden could be read
+`MEASURED_NONZERO` by the census and by `m26`, changing a veto input. `M45-G3` gates it, and the
+intended guarantee is an explicit exclusion of live-fire targets from census classification rather than
+reliance on the tag-collision guard.
+
+## §7.5 Card — Section F, minimal, for after `m44`/`m45`
+
+One leg, then two reads: **(F-1)** for one non-hidden event, confirm the first labelled frame **has** a
+mask file and it is not blank (O1 closed); **(F-2)** for one `blinking` and one `missing_object` event,
+confirm the hidden frames carry a mask showing where the object should be (O2 closed) — or, if `m45`
+did not ship, confirm those frames have **no file and `mask_state: "empty"`**, which is the documented
+limitation rather than a defect.

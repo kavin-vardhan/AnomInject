@@ -1,0 +1,113 @@
+# `m44` / `m45` — TARGET-MASK ONSET AND HIDDEN-CLASS MASKS: PRE-DECLARED GATES
+
+**Written BEFORE any `m44`/`m45` source change.** Reproduction and root cause: journal 069 §7.
+⛔ **Plan only — nothing implemented.** ⛔ Never amended once a measurement exists (`P-C2` route).
+
+---
+
+## 0. WHAT THE REPRODUCTION ESTABLISHED — read this before the gates
+
+| observation | status on the bench |
+|---|---|
+| **O1** first mask frame is `n+1`, label says `n` | ✅ **REPRODUCED — in BOTH tick orders**, `delta = +1` on all four non-hidden events |
+| **O2** hidden-class frames carry no mask | ✅ **REPRODUCED** — both `blink` events have **no** mask content on any labelled (hidden) frame |
+| **O4** CorruptedTexture's effect starts at `n+1` | ❌ **NOT REPRODUCED** — the picture already differs by **5.9–8.2 %** at `n` against a 0.5 % baseline |
+
+🚨 **`IAI.Bench.SynthTickOrder` is REFUTED as O1's mechanism.** It was the stated first suspect. Both
+orders give the identical `+1`. The lever *did* engage (its echo is in the log, and it moved the blink
+hidden set from `16,17,21,22` to `16,17,18,22` — the `P9` shape), so the null is a reading, not a
+misfire.
+
+**Root cause, and it is tick-order independent by construction:** `ArmTargetMaskOwn`
+(`AnomalyCaptureSubsystem.cpp:836`) needs an `FAnomalyMaskRecord` with `R.Tag != 0`. Records are created
+**only** by `FindOrAddRecord` (`AnomalyMaskMeasure.cpp:124`), called **only** from
+`AccumulateFrameEvents` (`AnomalyCaptureSubsystem.cpp:4123`), which on the async path is called **only
+from the drain** (`AnomalyCaptureSubsystem.cpp:2769`) — when a captured frame's **readback completes**,
+one frame after the arm. On a fire's first frame there is no record, no tag, and the frame takes the
+blank path.
+
+✅ **No render-timing obstacle to fixing it:** a stencil tag applied at `OnWorldTickEnd` of frame *N* is
+live for frame *N*'s render — `World->SendAllEndOfFrameUpdates()` runs inside
+`FRendererModule::BeginRenderingViewFamily` (`SceneRendering.cpp:4528`), under the engine's own comment
+*"Guarantee that all render proxies are up to date before kicking off a BeginRenderViewFamily."*
+
+---
+
+## 1. `m44` — ONSET ALIGNMENT AND NO BLANK FILES (ship-blocking)
+
+### `M44-G1` — ONSET, THE PERMANENT GATE, BOTH TICK ORDERS
+For **every** event, in **native and `SynthTickOrder`**:
+**first-mask-frame == first-label-frame == first-differing-picture-frame.**
+
+**PREDICTED after the fix:** `delta = 0` on every non-hidden event in both orders (measured today: `+1`
+on 4 of 4, both orders). The picture-onset column is already `n` and must not move.
+**FAILURE:** any non-zero delta, or a picture onset that moves — the second would mean the fix changed
+what renders, which it must not.
+
+### `M44-G2` — NO BLANK PNGs EXIST
+**PREDICTED:** `Get-ChildItem target_mask -Filter *.png` contains **zero** all-zero images; a file
+exists **iff** it has content.
+Today: **61 of 90 files are blank** on a standard leg. ⇒ file count should fall from 90 to ≈29.
+
+### `M44-G3` — THE COUNT IDENTITY
+**PREDICTED:** `count(mask_state == "present") == number of PNGs on disk`, and
+`present + empty + unmeasured == captured frames`.
+
+### `M44-G4` — SCHEMA, ADDITIVE ONLY
+**PREDICTED:** `labels.jsonl` gains exactly **`mask_state`** (`"present" | "empty" | "unmeasured"`);
+`mask_file` keeps its `string|null` type and is `null` whenever `mask_state != "present"`.
+`annotation.json` **unmoved**. `run_summary`: `target_mask_frames_measured` unchanged in meaning;
+**`target_mask_frames_hidden_blank` is KEPT under its existing name and re-documented as the count of
+`mask_state == "empty"` rows** — ⚠ **kept, not renamed**: a renamed key is a silent schema break for any
+consumer already reading it, and the value's meaning is unchanged (it always counted exactly these
+frames; only the file stopped being written).
+
+### `M44-G5` — `P-C7 v2` WITH MASKS AS INTENDED CONTENT
+**PREDICTED:** against the `m43` control, the ONLY differences are (a) blank PNGs absent, (b) the new
+`mask_state` key, (c) `mask_file` becoming `null` where it was a blank file. Everything else — pictures,
+`annotation.json`, every other label field — byte-identical bar `t_wall`.
+
+### `M44-G6` — `m26` AND THE VETO UNTOUCHED
+**PREDICTED:** `vetoed_events`, `translucent_vetoes`, `translucency_unknown_vetoes`, `mask_probe_arms`,
+`mask_residual_discards`, `mask_nopass_discards`, per-event `framesContributed` and every
+`MEASURED_*` verdict **identical** to the `m43` control in both orders.
+⚠ The fix creates mask records **earlier**, which is exactly the kind of change that can move
+`framesContributed`. **If it moves, that is a finding, not a rounding — report and stop.**
+
+---
+
+## 2. `m45` — HIDDEN-CLASS MASKS (ships only if its identity gate passes)
+
+### `M45-G1` — THE ARBITER IS BYTE-IDENTITY OF THE PICTURE
+A `blinking` leg and a `missing_object` leg under the new hide must produce pictures **byte-identical**
+(`P-C7 v2`) to the same leg under `SetActorHiddenInGame`, **in both tick orders**.
+🚨 **This is the gate that decides whether `m45` ships at all.** ⛔ **Any pixel difference on any frame
+means the hide is no longer a hide, and `m45` does NOT ship** — it becomes a documented limitation with
+the fallback below.
+
+### `M45-G2` — THE MASK ON HIDDEN FRAMES
+**PREDICTED:** on every hidden frame the mask is **non-empty** and equals the would-be-visible region;
+the bit-exact tie (`MASK-TIE`, 0 mismatches) still holds.
+
+### `M45-G3` — THE CENSUS DOES NOT SEE THE HIDDEN TARGET AS VISIBLE
+**PREDICTED:** a hidden-class target under anomaly is **never** a selection candidate and **never**
+counted `MEASURED_NONZERO` by the census while its fire is live; `census_*` counters and the verdict
+histogram unchanged vs the `m43`/`m44` control.
+
+### `M45-G4` — PROVE-IT-CAN-FAIL
+**PREDICTED:** with the new hide deliberately mis-applied (one silencing flag omitted), `M45-G1`
+**fails** and names the frame. ⛔ A `G1` that has only ever passed is not evidence.
+
+**FALLBACK, pre-declared so it is not invented later:** if byte-identity cannot be reached, hidden-class
+frames get a **projected-bbox** mask from `m39`'s bounds, marked **`"coarse": true`** in
+`mask_map.json` and documented as such. ⚠ **A coarse mask must never be presented as a silhouette.**
+
+---
+
+## 3. THE NEW STANDING RULE (goes in the milestone template)
+
+**Every capture-side gate that asserts a per-frame alignment — labels, masks, onset, bbox — runs in BOTH
+tick orders (native and `IAI.Bench.SynthTickOrder`), and the onset instrument is permanent.**
+📌 `m43` was gated in the bench's native order only; it shipped a systematic `+1` that **both** orders
+would have shown. ⚠ **The gap was not the missing order — it was that no gate compared first-label to
+first-mask at all.** Both halves of that lesson belong in the rule.
