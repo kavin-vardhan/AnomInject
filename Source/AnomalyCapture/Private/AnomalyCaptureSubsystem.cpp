@@ -163,6 +163,10 @@ namespace
 {
 	constexpr int32 GTargetMaskMaxHoldTicks = 4;
 
+	constexpr int32 GExposureDipWindowFrames = 8;
+	constexpr int32 GExposureDipSampleStride = 3;
+	constexpr double GExposureDipDropFraction = 0.04;
+
 	constexpr int32 GMaskPairingProbeTag = AnomalyStencilTag::ReservedStencilMax;
 	const FVector GMaskPairingProbePosA(-900.0, -250.0, 260.0);
 	const FVector GMaskPairingProbePosB(-900.0,  250.0, 260.0);
@@ -2368,6 +2372,9 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	TargetMaskLastFrame.Reset();
 	TargetMaskOutcome.Reset();
 	TargetMaskHoldTicks = 0;
+	ExposureLumBySessionIndex.Reset();
+	FramesExposureDip = 0;
+	ExposureDipFirstIndex = -1;
 	if (Async.IsValid())
 	{
 		Async->TargetMaskHeldFrames.Reset();
@@ -3118,6 +3125,21 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		}
 	}
 
+	for (const FAnomalyCapturedFrame& LumFrame : Batch)
+	{
+		const AnomalyLabel::FCaptureSnapshot* LumSnap = Async->PendingSnapshots.Find(LumFrame.RequestId);
+		if (!LumSnap)
+		{
+			continue;
+		}
+		const double Luma = AnomalyLabel::ComputeSubsampledMeanLuma(LumFrame.Format, LumFrame.BytesPerPixel,
+			LumFrame.RawBytes, LumFrame.Width, LumFrame.Height, GExposureDipSampleStride);
+		if (Luma >= 0.0)
+		{
+			ExposureLumBySessionIndex.Add(LumSnap->SessionIndex, Luma);
+		}
+	}
+
 	for (int32 BatchIndex = 0; BatchIndex < Batch.Num(); ++BatchIndex)
 	{
 		FAnomalyCapturedFrame& Frame = Batch[BatchIndex];
@@ -3188,6 +3210,42 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		bool bNeedsResample = false;
 		AnomalyLabel::DeriveOutputSize(Frame.Width, Frame.Height, EffectiveOutputHeight, OutW, OutH, bNeedsResample);
 		LogFirstFrameMeasuredLine(Frame.Width, Frame.Height, OutW, OutH, bNeedsResample);
+
+		if (const double* ThisLuma = ExposureLumBySessionIndex.Find(Snap->SessionIndex))
+		{
+			double WindowSum = 0.0;
+			int32 WindowN = 0;
+			for (int32 Back = 1; Back <= GExposureDipWindowFrames; ++Back)
+			{
+				if (const double* Prev = ExposureLumBySessionIndex.Find(Snap->SessionIndex - Back))
+				{
+					WindowSum += *Prev;
+					++WindowN;
+				}
+			}
+			if (WindowN == GExposureDipWindowFrames)
+			{
+				const double WindowMean = WindowSum / (double)GExposureDipWindowFrames;
+				if (WindowMean > 0.0 && ((WindowMean - *ThisLuma) / WindowMean) > GExposureDipDropFraction)
+				{
+					Snap->bExposureDip = true;
+					++FramesExposureDip;
+					if (ExposureDipFirstIndex < 0)
+					{
+						ExposureDipFirstIndex = Snap->SessionIndex;
+						UE_LOG(LogAnomalyCapture, Warning,
+							TEXT("Capture(m48): EXPOSURE DIP at session_index %d - whole-picture mean luminance %.3f is ")
+							TEXT("%.2f%% below the rolling mean %.3f of the previous %d captured frames (threshold %.1f%%). ")
+							TEXT("This is the GAME's auto-exposure re-adapting; the plugin never overrides exposure. The ")
+							TEXT("row carries exposure_dip:true and run_summary counts every such frame in ")
+							TEXT("frames_exposure_dip. This line prints ONCE per run - the counter is the reading."),
+							Snap->SessionIndex, *ThisLuma,
+							100.0 * (WindowMean - *ThisLuma) / WindowMean, WindowMean,
+							GExposureDipWindowFrames, 100.0 * GExposureDipDropFraction);
+					}
+				}
+			}
+		}
 
 		const FString ImageName = FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), Snap->SessionIndex, Ext);
 		int32 NumLabels = 0;
@@ -4377,7 +4435,19 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			DrainLayout.bValid ? &LayoutReport : nullptr,
 			(bCensusEffective && Async.IsValid()) ? &Async->Census.GetCounters() : nullptr,
 			bTargetMask ? &TargetMaskReport : nullptr,
-			&ShaderReadinessReport);
+			&ShaderReadinessReport,
+			FramesExposureDip);
+
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")
+			TEXT("session_index %s. A frame is marked when its whole-picture mean luminance falls more than %.1f%% ")
+			TEXT("below the rolling mean of the previous %d CAPTURED frames, so the first %d frames of a session ")
+			TEXT("can never be marked. ZERO is the expected reading on an exposure-pinned leg and is a READING, ")
+			TEXT("not a test that passed - the detector is proven able to fire only on a leg with the game's own ")
+			TEXT("auto-exposure live."),
+			FramesExposureDip, FramesWritten,
+			ExposureDipFirstIndex >= 0 ? *FString::FromInt(ExposureDipFirstIndex) : TEXT("none"),
+			100.0 * GExposureDipDropFraction, GExposureDipWindowFrames, GExposureDipWindowFrames);
 
 		if (bSveCapture)
 		{

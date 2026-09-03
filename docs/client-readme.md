@@ -315,6 +315,21 @@ same **`session_index`** as `Actual_Frames/`, at **exactly the picture size**.
   silently labelled clean. **If you ever see that key in a delivered dataset, tell us** — it should
   not be reachable in a packaged build.
 
+### 🆕 `exposure_dip` — the game's auto-exposure, made visible (m48)
+
+The game's auto-exposure re-adapts for roughly a second at session start and after a large texture
+anomaly appears. Frames whose whole-picture brightness drops more than 4% against the preceding
+frames carry **`exposure_dip: true`**; **`frames_exposure_dip`** in `run_summary.json` counts them.
+**The plugin never overrides the game's exposure — the dataset looks like the game.**
+
+- The key is **additive and emitted only when true**, so a run with no dip gains no key at all.
+- The comparison is against the **rolling mean of the previous 8 CAPTURED frames**, so **the first
+  8 frames of a session can never be marked**. A session that opens mid-adaptation therefore reports
+  fewer marked frames than the eye would count — a stated limit, not a defect.
+- ⚠ **The mark is not a defect flag.** It says the picture got darker than its own recent history,
+  which is the game's eye adapting. Use it to explain a dark-looking frame; do not treat a marked
+  frame as unusable.
+
 ### 🔑 `mask_state` — the three values, and what each one claims
 
 Every frame row carries **`mask_state`**, and it is the field to branch on:

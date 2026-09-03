@@ -571,3 +571,40 @@ nearest and clamped. **At 100 % this is the identity; at any other ratio it is t
 ⚠ **This change is a GLOBAL SHADER parameter-struct change: it needs a FULL COOK (`G129`).** A
 code-only hot-swap against a stale container is fatal at engine init with
 `parameter structure has changed without recompilation`.
+
+## 🆕 `m48` — EXPOSURE-DIP MARKING, AND THE ONE SMOKE LEG THAT MUST RUN AT THE GAME'S OWN EXPOSURE
+
+🚨 **EVERY BENCH LEG THIS PROJECT HAS EVER RUN FORCED AUTO-EXPOSURE OFF; THE DELIVERED BUILD RUNS IT
+ON.** The plugin never touches exposure and the project ini sets no exposure key, so a delivered cook
+runs the engine default `r.DefaultFeature.AutoExposure = 1` with `Min 0.03 < Max 8.0` — adaptive.
+Measured on a matched packaged pair with only those two cvars differing: whole-frame mean
+**102.5 → 77.9 (−24 %)**, spread **7.1 → 32.0 (4.5×)**, and the same anomaly's own target luminance
+falling from a pinned 123.7–128.1 to 117.8 → 90.5 across one session.
+⇒ **Every luminance figure in this project's history was taken at PINNED exposure and does not
+describe the delivered configuration.**
+
+**What `m48` ships:** a frame row gains **`exposure_dip: true`** — additive, emitted only when true —
+when its whole-picture mean luminance falls more than **4.0 %** below the rolling mean of the
+**previous 8 CAPTURED frames**; `run_summary.json` gains **`frames_exposure_dip`**. The threshold is
+**DERIVED TWO-SIDED, not chosen**: every exposure-pinned leg's maximum drop is **≤ 2.39 %** and every
+auto-exposure-ON leg reaches **7.27–9.01 %**.
+⛔ **THE PLUGIN MUST NOT FORCE EXPOSURE — the dataset should look like the game.** Do not "fix" the
+dip by pinning exposure in a delivered build; that would ship a dataset the client's own game never
+produces.
+
+### The cook-time smoke run gains ONE leg at the game's own exposure defaults
+
+🔑 **All other gate legs stay exposure-pinned, deliberately — determinism is what makes them
+comparable.** But a gate set that pins exposure everywhere is structurally blind to the delivered
+configuration, so **exactly one leg runs with auto-exposure at the game's defaults** and three things
+are read off it:
+
+| read | expected |
+|---|---|
+| `run_summary.frames_exposure_dip` | **> 0**, and typically a handful clustered near session start. **A 0 here with auto-exposure proven live means the DETECTOR is broken, not that the game is steady** — that is a FAIL. |
+| black-frame gate (`verify_capture.py --black-frame-gate`) | **BLACK FRAMES 0** |
+| DARK FIRST FRAMES | **0** |
+
+**Auto-exposure must be proven LIVE on that leg before its dip count is read**, and the black-frame
+gate's own luminance line is the proof: a pinned leg spans ~7 units of whole-frame mean, an
+auto-exposure-ON leg spans ~32. **A dip count read without that proof is a number, not a reading.**

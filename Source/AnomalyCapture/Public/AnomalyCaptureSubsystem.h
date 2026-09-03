@@ -366,6 +366,9 @@ private:
 	TMap<uint64, TSet<uint8>> TargetMaskPendingTags;
 	TMap<int32, uint8> TargetMaskOutcome;
 	int32 TargetMaskHoldTicks = 0;
+	TMap<int32, double> ExposureLumBySessionIndex;
+	int32 FramesExposureDip = 0;
+	int32 ExposureDipFirstIndex = -1;
 	TArray<TWeakObjectPtr<AActor>> TargetMaskSelfTagged;
 	uint64 TargetMaskSelfTaggedTick = 0;
 	bool bBenchMaskPairingProbe = false;

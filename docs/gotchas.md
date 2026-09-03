@@ -5887,3 +5887,26 @@ event fired. Any "first frame differs" reading taken with AE live must control f
 product.** If the shipped default differs, every number you have is from a regime the client never
 runs. The tell is cheap and permanent - **echo the EFFECTIVE value (A48) on BOTH sides of the switch**,
 so a leg's regime is read off its own log rather than inferred from the flag that was passed.
+
+## G234 - AN ONSET READING TAKEN UNDER LIVE AUTO-EXPOSURE MUST CONTROL FOR SESSION POSITION
+
+`m47b` measured the game's own auto-exposure and found the dominant effect is a **session-start
+convergence transient** - whole-frame mean falls 103.9 -> ~74 over the first ~30-40 captured frames -
+not an event-locked dip. The steady-state sawtooth is only 1.4-2.1%.
+
+The consequence is a trap for every "does the anomaly look different on its first frame?" reading:
+under live auto-exposure **the first event of a session fires while exposure is still converging**,
+so its target reads 117.8 against a session mean of 95.0. **That looks like an onset effect and is
+not one.** The same anomaly, same material, same target, later in the same session reads 90.5.
+
+`m48` inherits the shape and states its own version of it: `exposure_dip` compares a frame against
+the rolling mean of the previous 8 CAPTURED frames, so **the first 8 frames of a session can never
+be marked**, and the marks that do appear cluster at session start because that is where the
+transient is - measured on the `m48` AE-ON gate leg, 10 marks at session_index 8-19.
+
+RULE: an onset or first-frame appearance claim measured with auto-exposure live is only sound if the
+compared frames sit at COMPARABLE SESSION POSITIONS, or if exposure is pinned for that comparison and
+the pinning is stated. Every exposure-pinned bench leg is a valid instrument for onset and an invalid
+description of the delivered configuration; the AE-ON leg is the reverse. Neither alone is enough.
+
+See also G233 (the standing asymmetry), G135 (a null bounded by what the fixture can exhibit).

@@ -1153,6 +1153,27 @@ healthy run's `labels.jsonl` field set is unchanged. **`annotation.json` does no
 materials' shader caches; it **refuses by name in a packaged build**, which is itself the measurement
 that a cooked build cannot enter this path.
 
+## `m48` — exposure-dip marking
+
+The capture drain computes each captured frame's **whole-picture mean luminance** from its own raw
+readback bytes, before any resample: `AnomalyCaptureSubsystem::ProcessCompletedFrames` calls
+`AnomalyLabel::ComputeSubsampledMeanLuma`, a **stride-3** subsampled Rec.601 mean (1 pixel in 9, one
+pass, no allocation). The per-pixel decode is shared with `ConvertTightToBGRA` through a single
+`DecodeTightPixel` helper, so the luminance and the delivered image cannot disagree about what a
+pixel is.
+
+A frame is marked **`exposure_dip: true`** when its mean falls more than **4.0 %** below the rolling
+mean of the **previous 8 CAPTURED frames**; `run_summary` gains **`frames_exposure_dip`**. The key is
+additive and emitted only when true, so a healthy run's `labels.jsonl` field set is unchanged, and
+**`annotation.json` does not move**. **The first 8 frames of a session can never be marked.**
+
+The detector is a **two-pass loop over the drained batch** — pass one fills the per-session-index
+luminance map, pass two decides — because the render-thread drain appends in reverse and a single
+pass would evaluate a frame before its own predecessors existed.
+
+⛔ **The plugin never writes an exposure cvar.** The mark records the game's own auto-exposure
+adapting; it is not a defect flag and is not a fix for a target rendering black.
+
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:
 - **Capture exactly the state you mutate, before mutating it.** Globals: one baseline (e.g.

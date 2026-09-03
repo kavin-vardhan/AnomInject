@@ -47,10 +47,14 @@ namespace AnomalyLabel
 		EAnomalyMaskState MaskState = EAnomalyMaskState::Unmeasured;
 		TArray<uint8>   FireActive;
 		TArray<FVector> FirePos;
+		bool bExposureDip = false;
 	};
 
 	void ConvertTightToBGRA(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
 		int32 W, int32 H, TArray<FColor>& OutPixels);
+
+	double ComputeSubsampledMeanLuma(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
+		int32 W, int32 H, int32 Stride);
 
 	void DeriveOutputSize(int32 SrcW, int32 SrcH, int32 TargetH, int32& OutW, int32& OutH, bool& bOutNeedsResample);
 
@@ -141,7 +145,8 @@ namespace AnomalyLabel
 		const FReadbackLayoutTelemetry* ReadbackLayout = nullptr,
 		const ::FAnomalyCensusCounters* Census = nullptr,
 		const struct FTargetMaskTelemetry* TargetMask = nullptr,
-		const struct FShaderReadinessTelemetry* ShaderReadiness = nullptr);
+		const struct FShaderReadinessTelemetry* ShaderReadiness = nullptr,
+		int32 FramesExposureDip = 0);
 
 	struct FShaderReadinessTelemetry
 	{

@@ -11,6 +11,67 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🏁🏁 **SESSION 069, 2026-09-03 — `m48` IS SHIPPED AND ON `master`. THIS IS THE CURRENT
+> "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: journal `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` §19.**
+>
+> 🎯 **`m48` = THE GAME'S AUTO-EXPOSURE IS MARKED, NEVER SUPPRESSED.** A frame row gains
+> **`exposure_dip: true`** — **additive, emitted only when true**, so a healthy run gains no key
+> (`m47` precedent) — when its whole-picture mean luminance falls more than **4.0 %** below the
+> **rolling mean of the previous 8 CAPTURED frames**; `run_summary` gains **`frames_exposure_dip`**.
+> ⛔ **NO TAG.** Office batch: **`… m46 → m47 → m48`**. 📦 Staged bench exe **`DE65F84A`**;
+> predecessor **`F309D836`** archived as `StackOBot.exe.m47-shaderprewarm-F309D836`, hash-verified at
+> the archive, and **LOAD-BEARING as `m48`'s pairing A-side**. **Container quartet UNCHANGED**
+> (`EF8EB23C`/`A8BFFF88`/`3C026A8D`) — code-only hot-swap, **NO COOK** (`G103`).
+>
+> ⛔ **THE PLUGIN MUST NOT FORCE EXPOSURE — the dataset should look like the game.** Proposal item
+> (iii) was refused on purpose, and the delivery docs now say so in as many words. `m48` is items
+> (i)+(ii) only.
+>
+> 🚨 **THE THRESHOLD IS DERIVED TWO-SIDED, NOT CHOSEN:** every exposure-pinned leg's max drop is
+> **≤ 2.39 %**; every AE-ON leg reaches **7.27–9.01 %**. 4.0 % sits in that gap with 1.67× / 1.82×
+> margins. ⚠ **The DERIVATION travels to another title; the NUMBER may not.**
+> 🔑 **THE FIRST 8 FRAMES OF A SESSION CAN NEVER BE MARKED** — stated in the log line, the client
+> README and the ledger; a session opening mid-adaptation under-reports.
+>
+> 🎯 **THE LOAD-BEARING GATE IS PROVE-IT-CAN-FIRE (`G96`), AND IT PASSED WITH ITS PROOF ATTACHED.**
+> Pinned legs read `frames_exposure_dip` **0** in **both tick orders**; the **AE-ON leg reads 10**, at
+> `session_index` **8,9,10,12,13,15,16,17,18,19** — inside 069-26's predicted **9–12** and sitting on
+> the session-start convergence transient. **Auto-exposure was proven LIVE on that leg INDEPENDENTLY
+> of the detector**, from the black-frame gate's own luminance line: spread **31.7 (74.2–105.9)** vs
+> the pinned legs' **7.2 (102.3–109.6)**, mean **80.0 vs 105.7 (−24 %)**. ⛔ **A 0 there is a
+> pre-declared FAIL of the detector; a 0 read WITHOUT the exposure proof is blindness, not a result.**
+>
+> 🧪 **GATES — six packaged legs, all A63-accepted on attempt 1:** black-frame gate **0** and
+> **DARK FIRST FRAMES 0** on all three graded legs · **ONSET 8/8 delta 0** and **G7 stray 0** in both
+> orders and on the AE-ON leg · **`P-C7 v2` additive: `run_summary` 58 → 59, exactly
+> `frames_exposure_dip`, 0 removed; `labels.jsonl` field set 21 → 21 IDENTICAL;
+> `annotation.json` diff EMPTY** · ✅ **both build targets exit 0.**
+>
+> ⚠ **THE PAIRING PROBE IS REPORTED WITH ITS A-SIDE AND ITS LITERAL CLAUSE DOES NOT PASS.** On this
+> fixture with the census on, `NEITHER` is **not** 0 — so an A-side leg was run **on the archived m47
+> exe**: m47 `PREVIOUS 0 / NEITHER 54`, m48 native `0 / 54`, m48 synth `0 / 53`. 🔑 **`PREVIOUS == 0`
+> — the half that detects a one-frame mis-pairing — holds on all three, and the `NEITHER` band is
+> IDENTICAL on the pre-`m48` binary ⇒ `m48` MOVED NOTHING.** ⛔ **That is NOT a claim the
+> `NEITHER == 0` clause passed** — it did not, including on the control. Reported, **not attributed**.
+>
+> ⚠ **THIS BRIEF DIED TWICE ON ANTHROPIC API 500s AND WAS RESUMED, NOT RESTARTED.** The first dead
+> session left `master` at `b6e5588` with partial uncommitted edits in four files and a game-target
+> build failing at **exit 6**. The partial work was diffed against the spec, found consistent, and
+> **kept**; the single defect was `if (Snapshot.bExposureDip)` inside a function that takes explicit
+> parameters (`AnomalyLabelWriter.cpp:121`, `C2065`), fixed by threading one parameter.
+>
+> 📌 **`m47_lum_table.py`'s latent `bbox_px` bug WAS ALREADY FIXED, and NOT in `b6e5588`** — it
+> lives in the **`CaptureBench`** repo (local-only), corrected at `d0d8643`. The plugin repo does not
+> contain that file.
+>
+> ⛔ **`(2)` "the target renders BLACK" IS STILL UNEXPLAINED and `m48` IS NOT A FIX FOR IT** —
+> `m47b` refuted AE for it structurally, and `m48` marks a GLOBAL dip. ⚠ **`G135` guard carried:** the
+> AE-ON leg's `DARK FIRST FRAMES = 0` is a null on a target that is 7.2–7.8 % of frame.
+> 🆕 **`G234`** — an onset reading taken under live auto-exposure must control for session position.
+>
+> ---
+>
 > 🆕🚨 **SESSION 069, 2026-09-03, brief 26 (`m47b`) — AUTO-EXPOSURE IS MEASURED, AND IT CHANGES HOW
 > EVERY LUMINANCE NUMBER IN THIS PROJECT MUST BE READ. ⛔ NO SOURCE CHANGE, NO MILESTONE, NO TAG —
 > docs + harness only.** Journal §18; ledger §11; **`G233`**; pre-declaration

@@ -2532,3 +2532,144 @@ Because **A3 shows the dip in packaged**, the brief's contingency selects **(i) 
 surface-cache invalidation**, the other candidate `m47` named — and, for (2) specifically, a fixture
 that actually produces a dark target, since without one the lit-no-emissive candidate has nothing to
 discriminate.
+
+
+---
+
+# §19 — `m48`: EXPOSURE-DIP MARKING (brief 27, and its two dead sessions)
+
+## §19.0 THE RESUME — stated first, because the tree was not clean when this session opened
+
+⚠ **BRIEF 27 WAS ATTEMPTED THREE TIMES. THE FIRST TWO SESSIONS DIED ON ANTHROPIC API 500s** (18:54
+and 18:55 local), the first of them **mid-implementation**. It left `master` at `b6e5588` with
+**PARTIAL, UNCOMMITTED edits in exactly four files** and a **game-target build FAILING at exit 6**.
+Nothing was committed and nothing was staged.
+
+**This session did NOT restart the milestone.** It read the dead session's live feed, diffed the four
+files against the brief, found the partial work **consistent with the spec in every respect**, and
+carried it forward. **Nothing was discarded.** The single defect was the build error the dead session
+was already reading when it died: the per-frame key had been written as
+`if (Snapshot.bExposureDip)` inside `BuildFrameLabelRecord`, which takes explicit parameters and has
+no `Snapshot` in scope (`AnomalyLabelWriter.cpp:121`, `error C2065`). Fixed by threading
+`bool bExposureDip = false` as that function's last parameter and passing `Snapshot.bExposureDip`
+from `BuildLabelRecordForSnapshot`. **One parameter, three lines.**
+
+📌 Recorded because it is the kind of thing that reads as drift later: **a resumed brief must
+diff the partial work against the spec before touching it, and say what it kept.** Re-implementing
+from scratch would have been the wasteful answer and would have destroyed nothing — but it would also
+have hidden that the dead session's design was sound.
+
+## §19.1 WHAT SHIPPED
+
+Exactly (i)+(ii) of the 069-26 §8 proposal. **(iii) was refused as briefed — the plugin does NOT
+force exposure, because the dataset should look like the game.**
+
+**The detector, and where it lives.** Luminance is computed in the **capture drain**, not in the
+writer thread: `AnomalyCaptureSubsystem.cpp:3128-3142` (`ProcessCompletedFrames`), on the frame's own
+raw readback bytes before any resample. It calls the new
+`AnomalyLabel::ComputeSubsampledMeanLuma` (`AnomalyLabelWriter.cpp:187-241`), a **stride-3**
+subsampled Rec.601 mean — so **1 pixel in 9**, 102,400 samples of a 921,600-pixel frame, one pass, no
+allocation. Cost is negligible against the readback and the PNG encode that already run on that
+frame.
+
+🔑 **The decoder was EXTRACTED, not duplicated.** `ConvertTightToBGRA`'s per-pixel switch became
+`DecodeTightPixel` (`AnomalyLabelWriter.cpp:180-207`) and both the delivered image and the luminance
+now go through **one** definition. A second copy would have been a second chance to disagree about
+what a pixel is.
+
+**The rule.** A frame is marked when its whole-picture mean falls more than **4.0%** below the
+**rolling mean of the previous 8 CAPTURED frames**. **The first 8 frames of a session can never be
+marked**, stated in the log line, the client README and the ledger.
+
+🚨 **THE THRESHOLD IS DERIVED TWO-SIDED, NOT CHOSEN.** From 069-26's eight legs: every
+exposure-pinned leg's maximum drop is **≤ 2.39%**; every AE-ON leg reaches **7.27–9.01%**. 4.0% sits
+in a gap with margins of 1.67× below and 1.82× above. ⚠ **The DERIVATION travels to another title;
+the NUMBER may not.**
+
+**The detector is a TWO-PASS loop over the drained batch** (`:3128` then `:3214`), and that is
+deliberate: the render-thread drain appends in reverse, so a single pass would evaluate a frame
+before its own predecessors' luminance existed. Pass one fills the map; pass two decides.
+
+**Artifacts:** `labels.jsonl` frame row gains **`exposure_dip: true`**, emitted only when true;
+`run_summary.json` gains **`frames_exposure_dip`**. ⛔ **`annotation.json` DOES NOT MOVE.**
+
+## §19.2 GATES — six legs, packaged, both tick orders
+
+| leg | exposure | order | `frames_exposure_dip` | black frames | dark first frames | ONSET | G7 |
+|---|---|---|---|---|---|---|---|
+| `M48_P1_pinned_native` | pinned | native | **0** | 0 | 0 | 8/8 delta 0 | stray 0 |
+| `M48_P2_pinned_synth` | pinned | `SynthTickOrder` | **0** | 0 | 0 | 8/8 delta 0 | stray 0 |
+| `M48_P3_aeon_native` | **game defaults (ON)** | native | **10** | 0 | 0 | 8/8 delta 0 | stray 0 |
+| `M48_P4_probe_native` | pinned | native | 0 | — | — | — | pairing |
+| `M48_P5_probe_synth` | pinned | `SynthTickOrder` | 0 | — | — | — | pairing |
+| `M48_A1_m47probe_native` | pinned | native | **n/a (m47 exe)** | — | — | — | pairing A-side |
+
+All six A63-accepted on **attempt 1**, `pose_match=True`, `modal_rot (0,0,0)`, `distinct=1`,
+`modal 100%`, `speed_ratio` 1.0000016–1.0000023.
+
+🎯 **THE LOAD-BEARING GATE IS PROVE-IT-CAN-FIRE (`G96`), AND IT PASSED WITH THE PROOF ATTACHED.**
+`frames_exposure_dip = 10` on P3, at `session_index` **8,9,10,12,13,15,16,17,18,19** — inside the
+**9–12** range 069-26 predicted, and sitting exactly on the session-start convergence transient
+§11.2 measured. **Auto-exposure was proven LIVE on that leg independently of the detector**, from the
+black-frame gate's own luminance line: whole-frame mean spread **31.7** (74.2–105.9) against the
+pinned legs' **7.2** (102.3–109.6), mean **80.0 vs 105.7 (−24%)**. ⛔ **A 0 there would have been a
+FAIL of the detector, pre-declared; and a 0 read WITHOUT the exposure proof would have been
+blindness rather than a clean result.**
+
+**`P-C7 v2`, additive, against the banked `m47` P1 leg:** `run_summary` **58 → 59**, added exactly
+`frames_exposure_dip`, **0 removed**. **`labels.jsonl` field set 21 → 21 IDENTICAL** — the m47
+precedent holds, a healthy run gains no key. **`annotation.json` diff EMPTY.**
+
+✅ **Both build targets exit 0** — packaged `StackOBot Win64 Development` and editor
+`StackOBotEditor Win64 Development` (the modular link, the only configuration that can see a missing
+`MODULE_API`; `G221`).
+
+## §19.3 ⚠ THE PAIRING PROBE IS REPORTED WITH ITS A-SIDE, BECAUSE ITS LITERAL GATE CLAUSE DOES NOT PASS
+
+The standing rule reads `NEITHER == 0` **AND** `PREVIOUS == 0` over decidable frames. On this fixture
+with the census on, `NEITHER` is **not** 0 — and rather than read that as an `m48` regression or wave
+it through, an **A-side control leg was run on the archived `m47` exe `F309D836`**, staged and
+re-staged around it:
+
+| leg | binary | decidable | CURRENT | **PREVIOUS** | NEITHER | no-data |
+|---|---|---|---|---|---|---|
+| `M48_A1_m47probe_native` | **m47 `F309D836`** | 79 | 25 | **0** | 54 | 11 |
+| `M48_P4_probe_native` | m48 `DE65F84A` | 80 | 26 | **0** | 54 | 10 |
+| `M48_P5_probe_synth` | m48 `DE65F84A` | 79 | 26 | **0** | 53 | 11 |
+
+🔑 **`PREVIOUS == 0` — the half that detects a one-frame mis-pairing — holds on all three, and the
+`NEITHER` band is IDENTICAL on the m47 binary.** So **`m48` moved nothing**, which is what "pairing
+unchanged" asked for. ⛔ **This is NOT a claim that the `NEITHER == 0` clause passed.** It did not,
+on any of the three, including the pre-`m48` control. That band is a pre-existing property of this
+fixture and is **reported, not attributed** — naming a cause for it here would be exactly the
+foreclosure this project's first invariant forbids.
+
+## §19.4 BINARIES AND TOOLING
+
+📦 Staged bench exe **`DE65F84A`** (241,236,992 B). Predecessor **`F309D836`** archived FIRST as
+`_binary_baselines\StackOBot.exe.m47-shaderprewarm-F309D836` and hash-verified at the archive; it is
+**load-bearing** as the pairing A-side above. **Container quartet UNCHANGED** (`EF8EB23C` /
+`A8BFFF88` / `3C026A8D`) — code-only hot-swap, **NO COOK** (`G103`): `m48` adds no shader and no
+shader parameter.
+
+**A44, both encodings, on the STAGED artifact:** `exposure_dip` ascii 0 / utf16 **5**,
+`frames_exposure_dip` 0/**3**, `EXPOSURE DIP` 0/**2**, `EXPOSURE DIP SUMMARY` 0/**1**, alongside
+pre-existing `shaders_pending` 0/**5** and `IAI.Capture.ShaderPrewarm` 0/**7** ⇒ **the change reached
+the package AND the scan is sound, not blind.**
+
+📌 **`m47_lum_table.py`'s latent `bbox_px` bug was ALREADY FIXED, and not in `b6e5588`** — that
+tool lives in the **`CaptureBench`** repo (local-only, no remote), corrected at `d0d8643`
+*"tools(m47b): auto-exposure switch, the A48 echo, and the dip instruments"*. The brief asked
+whether it was fixed in `b6e5588`; it could not have been, because the plugin repo does not contain
+that file. Stated rather than silently satisfied. The harness's `-AutoExposure` switch was likewise
+already in place from 069-26, so **no harness change was needed for the AE-ON leg**.
+
+## §19.5 WHAT `m48` DOES NOT DO
+
+⛔ **`(2)` "the target renders BLACK" is STILL UNEXPLAINED.** `m47b` refuted auto-exposure for it
+structurally — eye adaptation is global and cannot darken one object alone — and `m48` marks a
+global dip. **It is not a fix for (2) and must never be read as one.**
+⛔ **The mark is not a defect flag.** It says the picture got darker than its own recent history.
+⛔ **The plugin still does not touch exposure**, and the delivery docs now say why in as many words.
+⚠ **`G135` guard, carried:** the AE-ON leg's `DARK FIRST FRAMES = 0` is a null on a target that is
+7.2–7.8% of frame. It does not exclude auto-exposure acting on the owner's own content.

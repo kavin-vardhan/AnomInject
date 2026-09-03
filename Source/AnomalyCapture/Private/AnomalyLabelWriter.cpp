@@ -40,7 +40,7 @@ namespace
 		double WallSeconds, const FString& ImageName, int32& OutNumLabels,
 		bool bTargetMask = false, const FString& MaskFileRel = FString(), const TArray<int32>* MaskValues = nullptr,
 		AnomalyLabel::EAnomalyMaskState MaskState = AnomalyLabel::EAnomalyMaskState::Unmeasured,
-		int32 ShadersPending = 0, int32 AnomalyMaterialsIncomplete = 0)
+		int32 ShadersPending = 0, int32 AnomalyMaterialsIncomplete = 0, bool bExposureDip = false)
 	{
 		OutNumLabels = 0;
 
@@ -118,6 +118,11 @@ namespace
 			Root->SetStringField(TEXT("mask_state"), AnomalyLabel::DescribeMaskState(MaskState));
 		}
 
+		if (bExposureDip)
+		{
+			Root->SetBoolField(TEXT("exposure_dip"), true);
+		}
+
 		if (AnomalyMaterialsIncomplete > 0)
 		{
 			Root->SetStringField(TEXT("render_state"), TEXT("shaders_pending"));
@@ -172,6 +177,36 @@ namespace
 
 namespace AnomalyLabel
 {
+	static FColor DecodeTightPixel(EPixelFormat Format, const uint8* P)
+	{
+		switch (Format)
+		{
+		case PF_B8G8R8A8:
+			return FColor(P[2], P[1], P[0], 255);
+		case PF_R8G8B8A8:
+			return FColor(P[0], P[1], P[2], 255);
+		case PF_A2B10G10R10:
+		{
+			const uint32 V = *reinterpret_cast<const uint32*>(P);
+			const uint8 R = (uint8)(((V >> 0) & 0x3FF) >> 2);
+			const uint8 G = (uint8)(((V >> 10) & 0x3FF) >> 2);
+			const uint8 B = (uint8)(((V >> 20) & 0x3FF) >> 2);
+			return FColor(R, G, B, 255);
+		}
+		case PF_FloatRGBA:
+		{
+			const FFloat16* H16 = reinterpret_cast<const FFloat16*>(P);
+			auto ToByte = [](const FFloat16& In) -> uint8
+			{
+				return (uint8)FMath::Clamp(FMath::RoundToInt(In.GetFloat() * 255.0f), 0, 255);
+			};
+			return FColor(ToByte(H16[0]), ToByte(H16[1]), ToByte(H16[2]), 255);
+		}
+		default:
+			return FColor(0, 0, 0, 255);
+		}
+	}
+
 	void ConvertTightToBGRA(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
 		int32 W, int32 H, TArray<FColor>& OutPixels)
 	{
@@ -180,41 +215,36 @@ namespace AnomalyLabel
 
 		for (int32 i = 0; i < W * H; ++i)
 		{
-			const uint8* P = Base + (int64)i * BytesPerPixel;
-			FColor& Out = OutPixels[i];
+			OutPixels[i] = DecodeTightPixel(Format, Base + (int64)i * BytesPerPixel);
+		}
+	}
 
-			switch (Format)
+	double ComputeSubsampledMeanLuma(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
+		int32 W, int32 H, int32 Stride)
+	{
+		if (W <= 0 || H <= 0 || BytesPerPixel <= 0 || Stride <= 0)
+		{
+			return -1.0;
+		}
+		if ((int64)RawBytes.Num() < (int64)W * (int64)H * (int64)BytesPerPixel)
+		{
+			return -1.0;
+		}
+
+		const uint8* Base = RawBytes.GetData();
+		double Sum = 0.0;
+		int64 N = 0;
+		for (int32 y = 0; y < H; y += Stride)
+		{
+			const uint8* Row = Base + (int64)y * (int64)W * (int64)BytesPerPixel;
+			for (int32 x = 0; x < W; x += Stride)
 			{
-			case PF_B8G8R8A8:
-				Out = FColor(P[2], P[1], P[0], 255);
-				break;
-			case PF_R8G8B8A8:
-				Out = FColor(P[0], P[1], P[2], 255);
-				break;
-			case PF_A2B10G10R10:
-			{
-				const uint32 V = *reinterpret_cast<const uint32*>(P);
-				const uint8 R = (uint8)(((V >> 0) & 0x3FF) >> 2);
-				const uint8 G = (uint8)(((V >> 10) & 0x3FF) >> 2);
-				const uint8 B = (uint8)(((V >> 20) & 0x3FF) >> 2);
-				Out = FColor(R, G, B, 255);
-				break;
-			}
-			case PF_FloatRGBA:
-			{
-				const FFloat16* H16 = reinterpret_cast<const FFloat16*>(P);
-				auto ToByte = [](const FFloat16& In) -> uint8
-				{
-					return (uint8)FMath::Clamp(FMath::RoundToInt(In.GetFloat() * 255.0f), 0, 255);
-				};
-				Out = FColor(ToByte(H16[0]), ToByte(H16[1]), ToByte(H16[2]), 255);
-				break;
-			}
-			default:
-				Out = FColor(0, 0, 0, 255);
-				break;
+				const FColor C = DecodeTightPixel(Format, Row + (int64)x * BytesPerPixel);
+				Sum += 0.299 * (double)C.R + 0.587 * (double)C.G + 0.114 * (double)C.B;
+				++N;
 			}
 		}
+		return (N > 0) ? (Sum / (double)N) : -1.0;
 	}
 	void DeriveOutputSize(int32 SrcW, int32 SrcH, int32 TargetH, int32& OutW, int32& OutH, bool& bOutNeedsResample)
 	{
@@ -402,7 +432,7 @@ namespace AnomalyLabel
 		return BuildFrameLabelRecord(Snapshot.Fires, Snapshot.View, Width, Height,
 			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, Snapshot.WallSeconds, ImageName, OutNumLabels,
 			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues, Snapshot.MaskState,
-			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete);
+			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete, Snapshot.bExposureDip);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -551,7 +581,8 @@ namespace AnomalyLabel
 		const FReadbackLayoutTelemetry* ReadbackLayout,
 		const ::FAnomalyCensusCounters* Census,
 		const FTargetMaskTelemetry* TargetMask,
-		const FShaderReadinessTelemetry* ShaderReadiness)
+		const FShaderReadinessTelemetry* ShaderReadiness,
+		int32 FramesExposureDip)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -580,6 +611,7 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("translucent_vetoes"), TranslucentVetoes);
 		Root->SetNumberField(TEXT("translucency_unknown_vetoes"), TranslucencyUnknownVetoes);
 		Root->SetNumberField(TEXT("pattern_excluded_targets"), PatternExcludedTargets);
+		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);
 
 		if (Census)
 		{

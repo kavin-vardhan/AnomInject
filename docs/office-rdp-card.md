@@ -1172,3 +1172,21 @@ Same command as (a) — read the per-event table and the `G7` line.
 **EXPECTED: every `blink` row has a `1stMsk` equal to its `1stLbl` (not `NONE`), and
 `G7 ... files=N labelled=N stray=0` with the two counts EQUAL.** ⚠ A `blink` row still reading `NONE`
 means the hidden-class hide did not take on this host; report it, do not re-run.
+
+**(h) 🆕 `m48` — the exposure dip, and it is a READING plus one EXPECTED value.**
+In the session folder:
+
+```
+python -c "import json;d=json.load(open(r'<session-dir>\run_summary.json'));print('frames_exposure_dip =', d.get('frames_exposure_dip'))"
+python D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector\tools\verify_capture.py --dir <session-dir> --black-frame-gate --quiet
+```
+
+**Report `frames_exposure_dip` verbatim — no expected value, this is the first reading of it on that
+host.** 🔑 **EXPECTED, and this half IS a pass condition: `BLACK FRAMES 0` and
+`DARK FIRST FRAMES 0`.**
+⚠ **Report the gate's `whole-frame luminance min/max` line too** — it is what says whether that host
+had auto-exposure live at all. A span of roughly 7 units means exposure was effectively pinned and a
+`frames_exposure_dip` of 0 there is expected and carries no information; a span nearer 30 means
+auto-exposure was adapting, and **a 0 in that case is a finding worth reporting, not a clean result.**
+⛔ **Do not change any exposure setting on that box to make this read tidier** — the point of the
+number is that it describes the host as the client runs it.

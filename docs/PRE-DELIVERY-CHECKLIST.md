@@ -376,3 +376,18 @@ removes the only defence against arbitrary local web origins.
 - [ ] ⚠ **Do not attempt pixel identity at the delivered configuration** — the cross-run floor is ~9 %
       of pixels between two runs of the SAME build (`G228`). No claim is made there and none should be
       recorded.
+
+### 🆕 `m48` — exposure-dip marking: two boxes, and one of them can only be ticked at the cook
+
+- [ ] **`run_summary.json` carries `frames_exposure_dip`** and the client README's `exposure_dip`
+      paragraph is in the bundle. (`m48` adds **one** `run_summary` key and **one** conditional frame
+      key; `annotation.json` does **not** move.)
+- [ ] 🚨 **THE AUTO-EXPOSURE SMOKE LEG RAN, AND ITS DIP COUNT IS NOT ZERO.** One leg of the
+      cook-time smoke run executes at **the game's own exposure defaults** (every other gate leg stays
+      exposure-pinned). On that leg read **`frames_exposure_dip` > 0**, **BLACK FRAMES 0** and
+      **DARK FIRST FRAMES 0**. ⛔ **`frames_exposure_dip` = 0 on a leg where auto-exposure is proven
+      live is a FAILURE OF THE DETECTOR and blocks delivery** — prove exposure is live first, from the
+      black-frame gate's own luminance spread (~32 units ON vs ~7 pinned), or the zero means nothing.
+- [ ] ⛔ **The build does NOT force exposure.** The plugin never writes an exposure cvar and the
+      shipped ini sets no exposure key. If a delivered build pins exposure, the dataset stops looking
+      like the game — that is a regression, not a stabilisation.

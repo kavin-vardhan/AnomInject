@@ -1588,3 +1588,32 @@ threshold `6.0`, a 12× margin, **0 black frames, 0 dark first frames**), and it
 grey session and fails an all-black one, so that PASS is a reading and not blindness. **The m47
 threshold survives the regime change — but by luck of direction, not because AE was considered when it
 was derived.**
+
+## 11.6 `m48` - the dip is MARKED, never suppressed
+
+Shipped 2026-09-03 as `m48`, implementing exactly (i)+(ii) of the 069-26 proposal. **(iii) was
+refused on purpose and the refusal is the design: the plugin must NOT force exposure, because the
+dataset should look like the game.**
+
+- Per-frame **`exposure_dip: true`**, additive and emitted only when true (the `m47` precedent - a
+  healthy run gains no key at all).
+- Threshold **4.0%** of the rolling mean of the **previous 8 CAPTURED frames**. **DERIVED TWO-SIDED,
+  not chosen**: every exposure-pinned leg's maximum drop is <= **2.39%**; every AE-ON leg reaches
+  **7.27-9.01%**. The gap is wide enough that the number is not on a knife edge, and the DERIVATION
+  RULE travels to a darker or flatter title even though the number may not.
+- `run_summary` **`frames_exposure_dip`** (+1 key; `labels.jsonl` field set and `annotation.json`
+  both UNMOVED).
+- **The first 8 frames of a session can never be marked.** Stated, not hidden: a session that opens
+  mid-adaptation under-reports.
+
+**PROVEN ABLE TO FIRE (G96), and that is the load-bearing gate.** Exposure-pinned legs read
+`frames_exposure_dip` **0** in both tick orders; the AE-ON leg reads **10**, at session_index
+8,9,10,12,13,15,16,17,18,19 - the session-start convergence transient, exactly where 11.2 said it
+lives. Auto-exposure was proven live on that leg independently, from the black-frame gate's own
+luminance line: whole-frame mean spread **31.7** (74.2-105.9) against the pinned legs' **7.2**
+(102.3-109.6), mean 80.0 vs 105.7 (-24%). **A zero read without that proof would have been
+blindness, not a clean result.**
+
+⛔ **The mark is not a defect flag and the docs say so.** It records that the picture got darker
+than its own recent history - the game's eye adapting. `(2)` "the target renders BLACK" remains
+UNEXPLAINED and is NOT what this marks.
