@@ -11,8 +11,43 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🏁🏁 **SESSION 069, 2026-09-03 — `m44` IS SHIPPED AND MERGED. THIS IS THE CURRENT "YOU ARE HERE";
+> 🏁🏁 **SESSION 069, 2026-09-03 — `m45` IS SHIPPED AND MERGED. THIS IS THE CURRENT "YOU ARE HERE";
 > EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: journal `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` §13–§15.**
+>
+> 🎯 **`m45` = HIDDEN-CLASS ANOMALIES NOW GET MASKS.** `blinking` and `missing_object` no longer call
+> `SetActorHiddenInGame`; they drop the target from the **main and depth passes** and silence shadows,
+> Lumen, distance fields, ray tracing and decals **while keeping `bRenderCustomDepth`**, so every
+> labelled hidden frame carries the target's **would-be silhouette**, occlusion-aware, from the
+> existing `m26` pass — **no new shader**. Merged to `master` as a merge commit. ⛔ **NO TAG.** Office
+> batch: **`… m41 → m43 → m44 → m45`**. ⛔ **F1 IS STILL OUT OF MASTER** — `AnomalyVisibleMask.usf` is
+> byte-identical to `62bd287`; it waits on the cook, on `m44-f1-resolution-mapping-UNVALIDATED`.
+>
+> 🔑 **THE DESIGN POINT: the labels' notion of "hidden" was `AActor::IsHidden()`.** A hide that does
+> not set that flag would silently empty `blinking`'s hidden set **while the pixels stayed right**. The
+> **logical-hidden registry** is now the single source of that fact for the labels, `m26`'s `LOCK-1`
+> guard and its siblings, and the census — which also now skips live-fire targets, counted.
+>
+> 🧪 **GATES:** `M45-G3` would-be-silhouette **IoU 0.9987 (`blinking`) and 0.9969 (`missing_object`)**,
+> camera delta exactly zero, both orders · **G7 becomes EQUALITY** for hidden-class (`35 = 35`,
+> stray 0) · ONSET **6/6** · MASK-TIE **35 lines, 0 MISMATCH** · `G6` all six veto counters, the event
+> set, `manifested` and `positive_frames` unchanged · census `framesPolluted 0`, `batchesLost 0` ·
+> both build targets exit 0. **Moved counters: `target_mask_frames_measured` 27 → 35 and
+> `_unavailable` 63 → 55 — +8/−8, exactly the eight `blink` hidden frames.**
+>
+> 🚨 **THE IDENTITY ARBITER, AND THE TWO LEVERS IT TOOK.** At the **AA-off configuration**, native
+> order: control **0 of 60** differing, test **0 of 60**, can-fail **20 of 60** (worst 4.69 %).
+> ⚠ **The FIRST can-fail lever (omit shadow silencing) COULD NOT FIRE** — this fixture's target casts
+> no shadow into frame (`G135`) — **and that is why `m45` did not merge on its first attempt.** The
+> shipped lever, `IAI.Bench.HideOmitDepthPassSilencing`, is fixture-independent.
+> ⚠ **HONEST LIMIT: at the DELIVERED configuration two runs of the SAME build differ by ~9 % of
+> pixels** (`G228`), so identity is proven at the AA-off arbiter and **no pixel claim is made at the
+> delivered configuration**. `SynthTickOrder` cannot host a pixel arbiter either (`G230`).
+>
+> ---
+>
+> 🏁🏁 **SESSION 069, 2026-09-03 — `m44` IS SHIPPED AND MERGED. (Superseded as "you are here" by `m45`
+> above.)** 🏁🏁
 > **Cold start: journal `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` §7–§12 —
 > §7 the Bates reproduction, §8 the first (failed) attempt, §9 and §10 two REFUTED hypotheses and a
 > retraction, §11 the fix, §12 the merge.**
@@ -4546,8 +4581,30 @@ and is the single source of truth for the project.
   `m44-f1-resolution-mapping-UNVALIDATED`; it needs a cook (`G129`). Until it lands, masks, the census
   and `m26` are correct ONLY at 100 % screen percentage** — demonstrated at `r.ScreenPercentage 50`,
   0 of 26 frames correct (`G225`).
-- 🚨 **STANDING RULE (m44): EVERY CAPTURE-SIDE GATE THAT ASSERTS A PER-FRAME ALIGNMENT — labels, masks,
-  onset, bbox — RUNS IN BOTH TICK ORDERS (native and `IAI.Bench.SynthTickOrder`).** 📌 `m43` was gated
+- 🔒 **HIDDEN-CLASS HIDE (m45): `blinking` and `missing_object` DO NOT call `SetActorHiddenInGame`.**
+  They drop the target from the **main and depth passes** and silence shadows, Lumen, distance fields,
+  ray tracing and decals, **while KEEPING `bRenderCustomDepth`** — so the would-be silhouette stays
+  measurable and every labelled hidden frame gets a mask. ⛔ **Nanite targets still get none** (`G134`).
+- 🔒 **THE LOGICAL-HIDDEN REGISTRY (`AnomalyHiddenClass::IsLogicallyHidden`) IS THE SINGLE SOURCE OF
+  "HIDDEN"** for the label paths, `m26`'s `LOCK-1` guard and its siblings, and the census. ⚠ **The
+  labels' notion of hidden used to be `AActor::IsHidden()`; a hide that does not set that flag would
+  silently empty `blinking`'s hidden set while the pixels stayed right.** Never re-point any of those
+  consumers at `IsHidden()`.
+- 🚨 **THE IDENTITY ARBITER AND ITS CAN-FAIL LEVER ARE PERMANENT.** "Does this change what renders?" is
+  answered by comparing legs at the **AA-off configuration** (`r.AntiAliasingMethod 0` +
+  Lumen/GI/reflections off) in the **native tick order**, and the reading counts only when the
+  **control reads 0 frames differing**. Its can-fail leg is **`IAI.Bench.HideOmitDepthPassSilencing`**,
+  which is fixture-independent. ⚠ **The earlier shadow-omission lever could not fire in `CB_GateLevel`
+  and that is why `m45` did not merge on its first attempt.**
+- 🚨 **STANDING RULE (m44), WITH ITS SCOPE (m45): EVERY CAPTURE-SIDE GATE THAT ASSERTS A PER-FRAME
+  ALIGNMENT — labels, masks, onset, pairing, bbox — RUNS IN BOTH TICK ORDERS (native and
+  `IAI.Bench.SynthTickOrder`); a PIXEL ARBITER runs NATIVE ORDER at the AA-off configuration.**
+  ⚠ **That is a scope rule, not an exemption:** `SynthTickOrder` is nondeterministic even at AA-off —
+  its own old-hide control differs on **60 of 60 frames** — so it can host an alignment gate and never
+  a pixel comparison (`G230`).
+- ⛔ **GIT ADDS ARE PATH-SCOPED TO NAMED FILES.** `git add -A` is banned and **`git add <directory>` is
+  equally banned** — it swept the owner's untracked `docs/CHAT-HANDOFF-*.md` into a commit once and had
+  to be undone. List the files. 📌 `m43` was gated
   in the bench's native order only. ⚠ **But the gap was not the missing order — it was that no gate
   compared first-label to first-mask at all** (`G224`); both halves belong to the rule.
 - 🚨 **TWO PERMANENT GATES, added to the milestone template:**

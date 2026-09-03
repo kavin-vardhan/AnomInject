@@ -1411,3 +1411,58 @@ exactly this class. `framesPolluted 0`, `batchesLost 0`, the verdict histogram, 
 A probe using stencil tag `250` (inside the allocator's range) and the same magenta material
 `corrupted_texture` swaps to produced a confident, detailed and **entirely false** *"the mask carries
 content the picture does not on a quarter of frames"*. Corrected probe: **40/40 correct, both orders.**
+---
+
+# §12 — `m45`: HIDDEN-CLASS MASKS. What shipped, and the two levers it took to prove it
+
+**2026-09-03, on `master`.** Journal 069 §13–§15.
+
+## 12.1 What shipped
+
+`blinking` and `missing_object` no longer call `SetActorHiddenInGame`. They drop the target from the
+**main and depth passes** and silence shadows, Lumen, distance fields, ray tracing and decals, **while
+keeping `bRenderCustomDepth`** — so the target still writes custom depth and the existing `m26` compare
+against scene depth yields **the would-be-visible region**, occlusion-aware, with no new shader.
+
+🔑 **The design point that is easy to miss: the labels' notion of "hidden" was `AActor::IsHidden()`.**
+Stop calling `SetActorHiddenInGame` and `blinking`'s hidden set silently empties — the labels break
+while the pixels stay right. A **logical-hidden registry** is now the single source of that fact for
+the two label paths, `m26`'s `LOCK-1` guard and its three siblings, and the census.
+
+**Measured:** `target_mask_frames_measured` **27 → 35** and `_unavailable` **63 → 55** — **+8 / −8, and
+the eight are exactly the eight `blink` hidden frames (4+4)**. Mask files == labelled frames exactly
+(`35 = 35`, stray 0). Every veto counter, the event set, `manifested` and `positive_frames` unchanged.
+
+**`M45-G3`, the would-be-silhouette check** — hidden-frame mask against the same actor's mask while
+visible, same run, camera delta exactly zero: **blinking IoU 0.9987 · missing_object IoU 0.9969**, both
+tick orders. 48,590 vs 48,591 pixels.
+
+## 12.2 The shadow lever that could not fire, and why that mattered
+
+The first prove-it-can-fail lever omitted **shadow** silencing. It engaged (echoed in the engine log)
+and the picture still did not move — **`CB_GateLevel`'s target casts no shadow that reaches the
+frame**, so the fixture could not exhibit the class. ⛔ **That is not a passing gate**; it is `G135`'s
+shape, and it is why `m45` did not merge on its first attempt.
+
+**The replacement lever is fixture-independent:** `IAI.Bench.HideOmitDepthPassSilencing` leaves
+`bRenderInDepthPass` true while the main pass is off, so the target **still writes the depth prepass
+and occludes what is behind it while drawing nothing itself**. It fires anywhere: **20 of 60 frames,
+worst 4.69 %**.
+
+## 12.3 The arbiter, and the honest limit
+
+| leg (AA-off, native) | frames differing |
+|---|---|
+| CONTROL old-vs-old | **0 of 60** — a zero floor is what makes the reading mean anything |
+| TEST old-vs-new hide | **0 of 60** |
+| CAN-FAIL depth-omitted | **20 of 60** |
+
+⚠ **At the DELIVERED configuration this comparison is impossible: two runs of the same build differ by
+~9 % of pixels** (`G228`). **Identity is therefore proven at the AA-off arbiter and no pixel claim is
+made at the delivered configuration.** ⚠ **`SynthTickOrder` cannot host a pixel arbiter either** — its
+own old-hide control differs on 60 of 60 frames (`G230`).
+
+## 12.4 What is still not covered
+
+⛔ **Nanite targets get no hidden-class mask** — `Nanite::FSceneProxy::GetViewRelevance` never sets
+`bRenderCustomDepth` (`G134`). Unchanged by `m45` and stated in the client docs.

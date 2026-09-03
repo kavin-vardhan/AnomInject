@@ -2143,3 +2143,64 @@ that one of the two required orders cannot host the identity arbiter, **for a re
 independent of `m45`** (the old hide is equally nondeterministic there). ⛔ **I did not merge**: the
 standing rule says both orders, and inventing an exemption for my own change is exactly the shape this
 project stops for. **The merge is chat's ruling.**
+
+---
+
+# §15. `m45` MERGED — the ruling, `M45-G3`, and what shipped
+
+**2026-09-03, session 069 brief 21.** Owner ruling `(a)`.
+
+## §15.1 THE RULING, RECORDED AS A SCOPE RULE
+
+> **Identity/pixel arbiters run native-order at the AA-off configuration; alignment gates run both
+> orders.**
+
+`IAI.Bench.SynthTickOrder` perturbs injector dispatch and is nondeterministic by its **own old-hide
+control** (60 of 60 frames differ, mean 5.95 %, at AA-off where the native control is 0 of 60), so it
+cannot host a pixel arbiter — and it never ships. ⛔ **This is the rule's scope, not an exemption for
+`m45`**; `G230` carries it, and the both-orders requirement is untouched for the alignment gates
+(labels, masks, onset, pairing), all of which passed in both orders.
+
+## §15.2 `M45-G3` — the would-be silhouette, measured
+
+Hidden-frame mask against **the same actor's mask while visible**, same settled camera:
+
+| event | hidden frame | visible reference | pixels | **IoU** | camera delta |
+|---|---|---|---|---|---|
+| `blinking` `StaticMeshActor_73` | si 40 | si 27 (`corrupted_texture`) | 48,590 vs 48,591 | **0.9987** | `(0,0,0) / (0,0,0)` |
+| `missing_object` `StaticMeshActor_73` | si 3 | si 27 (`corrupted_texture`) | 48,568 vs 48,591 | **0.9969** | `(0,0,0) / (0,0,0)` |
+
+**Both tick orders, identical to four decimals.** Pass bar was 0.9.
+
+📌 **The reference had to be chosen, and the choice is the point:** there is no mask on a blink's
+visible in-between frames **by design** (`G7` forbids it), so "the last visible frame's mask" does not
+exist within a hidden-class event. The sound reference is **the same actor's silhouette from a
+non-hidden event in the same run at the same camera** — which `StaticMeshActor_73` provides, having
+both a `corrupted_texture` and a `blinking` event.
+
+⚠ **One measurement was thrown away before it was read.** The first `missing_object` legs ran on the
+**m44** binary — I had restored the bench to the shipped exe at the end of the previous brief and did
+not re-stage. They produced `visible=0` on all 40 frames and no masks, which is exactly what the m44
+hide should produce. **Diagnosed from the leg's own `NOT ARMED` counters, not guessed**, and re-run on
+`8A895272`.
+
+## §15.3 THE MERGE
+
+Merge commit on `master`; the branch was renamed `m45-hidden-class-masks` first so the merge does not
+carry `GATE-FAILED`, and the old name is deleted from `origin`.
+✅ **`F1` verified still out of `master` two ways:** `git diff 62bd287 master --
+Shaders/Private/AnomalyVisibleMask.usf …` is **empty**, and the F1 commit is not an ancestor. It waits
+on the cook, on `m44-f1-resolution-mapping-UNVALIDATED`.
+⛔ **NO TAG.** Office batch: `… m41 → m43 → m44 → m45`.
+
+## §15.4 DOCS
+
+`client-readme` — the hidden-class limitation paragraph is **removed** and replaced by the mask
+semantics (would-be silhouette, occlusion-aware, none on a blink's visible frames, Nanite excluded,
+the measured IoU range). `client-delivery` — the identity arbiter and its can-fail leg as cook-time
+gates, `G7`-equality, ONSET 6/6, and the delivered-configuration limitation stated in as many words.
+`PRE-DELIVERY-CHECKLIST` §1.1 — three `m45` boxes; the bench-lever grep now covers `HideMode`,
+`HideOmitShadowSilencing` and `HideOmitDepthPassSilencing`. Card **Section F read (g)**. `CLAUDE.md` —
+the hidden-class hide, the logical-hidden registry, the permanent arbiter and lever, the scope rule,
+and **`git add <directory>` banned alongside `git add -A`** after it swept the owner's untracked
+handoffs once. Gotchas **`G228`–`G230`**. Ledger **§12**.

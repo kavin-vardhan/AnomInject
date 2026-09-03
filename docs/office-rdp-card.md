@@ -1167,3 +1167,8 @@ of this read.
 
 **(f) 🔴 A READING — the fog-card actor.** As in `E-0(d)`: report whether it is still selected, and its
 census classification line verbatim. ⛔ **No expected value.**
+**(g) 🆕 `m45` — a blinking event's hidden frames carry masks, its visible frames do not.**
+Same command as (a) — read the per-event table and the `G7` line.
+**EXPECTED: every `blink` row has a `1stMsk` equal to its `1stLbl` (not `NONE`), and
+`G7 ... files=N labelled=N stray=0` with the two counts EQUAL.** ⚠ A `blink` row still reading `NONE`
+means the hidden-class hide did not take on this host; report it, do not re-run.

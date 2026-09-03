@@ -528,3 +528,30 @@ If `IAI.Capture.OutputHeight` is non-zero the mask is **refused outright** and s
 is view-rect sized while the written frame is resampled — and **a label mask must never be filtered**
 (interpolation would invent values that identify no target). `mask_file` is `null` on every row and
 `target_mask_frames_unavailable` equals the frame count. Set the output height to `0` to get masks.
+
+### 🆕 `m45` — hidden-class masks, and the identity arbiter that gates them
+
+For **missing object** and **blinking**, every labelled frame now carries the target's **would-be
+silhouette** (occlusion-aware). The hide keeps custom depth while dropping the target from the main and
+depth passes and silencing shadows, Lumen, distance fields, ray tracing and decals.
+
+**COOK-TIME GATES (all of these, at the next cook):**
+
+- [ ] **IDENTITY ARBITER — the new hide changes NOT ONE PIXEL.** Run the leg twice under
+      `IAI.Bench.HideMode 0` and once under `1`, at the **AA-off configuration**
+      (`r.AntiAliasingMethod 0, r.Lumen.DiffuseIndirect.Allow 0, r.DynamicGlobalIlluminationMethod 0,
+      r.ReflectionMethod 0`), **native tick order**. **Control must be 0 frames differing** — that is
+      what makes the reading mean anything — **and the test must be 0.**
+- [ ] 🚨 **ITS CAN-FAIL LEG, in the same session.** `IAI.Bench.HideOmitDepthPassSilencing 1` must make
+      the identity comparison **FAIL** (bench: 20 of 60 frames, worst 4.69 %). *A gate that has only
+      ever passed is not a gate.*
+- [ ] **G7 becomes EQUALITY for hidden-class:** mask files == labelled frames exactly, stray 0.
+- [ ] **ONSET 6/6** — every event, hidden-class included, first mask == first label.
+
+⚠ **A LIMITATION, STATED RATHER THAN IMPLIED: identity is proven at the AA-off arbiter. At the
+DELIVERED configuration a cross-run picture comparison has a nondeterminism floor (~9 % of pixels
+between two runs of the SAME build), so NO pixel-identity claim is made there.** The AA-off arbiter
+answers "does the hide change what renders", which is the question; it does not certify the delivered
+temporal-AA frames.
+⚠ **`IAI.Bench.SynthTickOrder` cannot host a pixel arbiter** — it is nondeterministic even at AA-off
+(its own old-hide control differs on 60 of 60 frames). It hosts ALIGNMENT gates only.

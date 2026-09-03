@@ -5783,3 +5783,15 @@ command slot really is created. It is `FBasePassMeshProcessor` that refuses it, 
 dangerous direction** - it would have said "the object still draws" and killed a design that works.
 Same shape on the depth side: `ShouldRenderInDepthPass() = bRenderInMainPass || bRenderInDepthPass`
 (`PrimitiveSceneProxy.h:613`), so ONE flag silences two passes and the second flag is not redundant.
+## G230 - `IAI.Bench.SynthTickOrder` can host an ALIGNMENT gate but never a PIXEL arbiter
+The lever relocates the injector's dispatch to `OnWorldPreActorTick`. Measured: with it on, two runs of
+the SAME configuration and the SAME hide differ on **60 of 60 frames (mean 5.95%)** even at the AA-off
+configuration where the native order's control is **0 of 60**. Poses, origins and `frame_index` are
+identical across those legs, so it is not `A47` - the lever itself makes the run nondeterministic.
+**Consequence, and it is a SCOPE rule rather than an exemption:**
+- **alignment gates** (labels, masks, onset, mask-picture pairing - "is frame N's artifact about frame
+  N?") run in **BOTH** orders, because that is exactly the class of defect the lever exists to expose;
+- **pixel arbiters** ("does this change what renders?") run **native order, at the AA-off
+  configuration**, because no cross-run pixel comparison can decide anything under that lever.
+⛔ Do not read this as "m45 skipped a gate". The old hide is equally nondeterministic there - proven by
+its own control - so the blindness belongs to the lever, and the lever never ships.

@@ -338,10 +338,19 @@ anti-aliasing settles over the following frames; the pixels already differ on th
 (bench: 6–8 % of the picture differs against a ~0.5 % baseline). **The label and the mask are both
 correct on that frame.**
 
-### ⛔ Hidden-object anomalies have no mask yet
+### 🆕 Hidden-object anomalies DO get masks
 
-Masks are not yet provided for the two hidden-object anomaly types (missing object, blinking); their
-frames are marked not measured. A follow-up build adds a where-the-object-should-be mask for these.
+For the two hidden-object types — **missing object** and **blinking** — every labelled frame carries a
+mask of **where the object would have been**: its **would-be silhouette**, occlusion-aware, so anything
+genuinely in front of it still cuts it away. It is not a bounding box.
+
+- **Every labelled hidden frame has a mask file with content.**
+- **The visible in-between frames of a blink carry NO mask** — those frames are labelled clean, and a
+  mask there would contradict the label.
+- ⛔ **Nanite-rendered targets are excluded**, the same limit the anomaly measurement has.
+
+*Measured on the bench: the hidden-frame mask matches the same object's silhouette while visible, at
+the same camera, to an IoU of **0.9969–0.9987**.*
 
 The run's own echo states it, and this line prints on every run:
 

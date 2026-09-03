@@ -220,7 +220,7 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 
 - [ ] ⛔ **No bench lever is on in anything that ships.** Grep the delivered log for
       `IAI.Bench.` — `ProbeSceneTextureUsage`, `CensusFixedExpiry`, `CensusBatchCap`,
-      `CensusDropEntry`, `SpawnTranslucentProbe`, `SynthTickOrder`, `MaskPairingProbe`. *All are console-only with no ini
+      `CensusDropEntry`, `SpawnTranslucentProbe`, `SynthTickOrder`, `MaskPairingProbe`, `HideMode`, `HideOmitShadowSilencing`, `HideOmitDepthPassSilencing`. *All are console-only with no ini
       key, so they cannot be on by accident — but a capture taken with one on is a GATE LEG, not a
       dataset, and `CensusDropEntry` in particular deliberately hides candidates from the census.*
 
@@ -349,3 +349,16 @@ not per-session-random. It exists because browser `ws://` connections ignore COR
 the client visits while the game runs could drive the control server and pull viewport JPEGs. Localhost
 only, one client, private artifacts — accepted. **Do not disable auth to make auto-connect simpler**; that
 removes the only defence against arbitrary local web origins.
+
+### 🆕 `m45` — hidden-class masks: three boxes
+
+- [ ] 🚨 **IDENTITY ARBITER + ITS CAN-FAIL LEG.** At the AA-off configuration
+      (`r.AntiAliasingMethod 0, r.Lumen.DiffuseIndirect.Allow 0, r.DynamicGlobalIlluminationMethod 0,
+      r.ReflectionMethod 0`), **native tick order**: control (`IAI.Bench.HideMode 0` twice) **0**
+      frames differing, test (`HideMode 1`) **0**, and `IAI.Bench.HideOmitDepthPassSilencing 1`
+      **> 0** (bench: 20 of 60, worst 4.69 %). *All three, or the gate proves nothing.*
+- [ ] **G7 EQUALITY:** mask files == labelled frames exactly for hidden-class events; a blink's visible
+      in-between frames carry **no** mask.
+- [ ] ⚠ **Do not attempt pixel identity at the delivered configuration** — the cross-run floor is ~9 %
+      of pixels between two runs of the SAME build (`G228`). No claim is made there and none should be
+      recorded.
