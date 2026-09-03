@@ -923,17 +923,42 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 	int32 TaggedCount = 0;
 	for (int32 i = 0; i < Visible.Num(); ++i)
 	{
-		if (AnomalyStencilTag::IsAnyComponentTagged(Visible[i]))
+		FString Before;
+		bool bForeign = false;
+		for (const UActorComponent* AC : Visible[i]->GetComponents())
 		{
-			++TaggedCount;
-			continue;
+			if (const UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(AC))
+			{
+				Before += FString::Printf(TEXT(" %d/%d"),
+					Prim->bRenderCustomDepth ? 1 : 0, Prim->CustomDepthStencilValue);
+				if (Prim->bRenderCustomDepth && Prim->CustomDepthStencilValue != (int32)Tags[i])
+				{
+					bForeign = true;
+				}
+			}
 		}
+		const bool bWasTagged = AnomalyStencilTag::IsAnyComponentTagged(Visible[i]);
+		if (bForeign)
+		{
+			++TargetMaskEventRetags;
+		}
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m44): TAG-OWNERSHIP session_index=%d actor=%s eventTag=%d alreadyTagged=%d ")
+			TEXT("foreignValue=%d before(customDepth/stencil)=[%s ]. An actor under a live fire belongs ")
+			TEXT("to its EVENT: a foreign value here means the reduce, which filters on eventTag, would ")
+			TEXT("have found nothing for this event on this frame."),
+			SessionIndex, *Visible[i]->GetName(), (int32)Tags[i], bWasTagged ? 1 : 0,
+			bForeign ? 1 : 0, *Before);
+
 		if (AnomalyStencilTag::TagActor(Visible[i], (int32)Tags[i]) > 0)
 		{
-			TargetMaskSelfTagged.Add(Visible[i]);
+			if (!bWasTagged)
+			{
+				TargetMaskSelfTagged.Add(Visible[i]);
 				TargetMaskSelfTaggedTick = GFrameCounter;
+				++TargetMaskTagFlips;
+			}
 			++TaggedCount;
-			++TargetMaskTagFlips;
 		}
 	}
 
@@ -2185,6 +2210,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	TargetMaskSelfTagged.Reset();
 	TargetMaskOwnSerial = 0;
 	TargetMaskTagFlips = 0;
+	TargetMaskEventRetags = 0;
 	TargetMaskW = 0;
 	TargetMaskH = 0;
 	TargetMaskArmedSessionIndex = -1;

@@ -153,3 +153,30 @@ took it and re-tagged the probe; and the probe used the same magenta material co
 to, so the picture-side detector merged two objects. With both removed the mask is CURRENT on 40 of 40
 frames in BOTH tick orders. Appendix 2's REFUTATION of the frame-handshake hypothesis is unaffected
 and stands. Journal 069 section 10.
+---
+
+## APPENDIX 4 - TAG OWNERSHIP: THE +1 IS FIXED (2026-09-03, brief 17)
+
+Hypothesis #4 as stated (census vs event tags share one pool) is HALF RIGHT. The mechanism is real -
+an actor under a live fire could carry a foreign stencil value and ArmTargetMaskOwn accepted it
+without retagging - but the foreign value comes from a PREVIOUS EVENT on the same actor as often as
+from the census. Census OFF cured 2 of 4; the fix cures 4 of 4.
+
+A2 instrument, on exactly the four +1 events and no others (4 of 27 armed frames):
+  si=27 eventTag=222 actor carried 204 (census)
+  si=51 eventTag=224 actor carried 242 (census)
+  si=63 eventTag=226 actor carried 224 (the previous event on that actor)
+  si=87 eventTag=229 actor carried 226 (the previous event on that actor)
+
+FIX: an actor under a live fire belongs to its event - ArmTargetMaskOwn retags unconditionally, as
+m26's ArmIfMeasurable already did. The pool was deliberately NOT partitioned: 55 assignable values
+against 77 census candidates per leg, so a split would make exhaustion more likely, not less.
+
+GATES both orders: G1 4/4 delta 0, G2 0 blanks, G3 27+0+63=90, G7 0 stray, G6 all six veto counters
+identical to the m43 control, MASK-TIE 27 lines 0 MISMATCH, m26 probe fires (mask_probe_arms=1),
+P-C7 v2 frame_index delta one constant with mask_value the only other differing field, both build
+targets exit 0.
+
+F1 (resolution mapping) is BUILT AND UNVALIDATED: changing the shader's parameter struct is fatal
+against the cooked container ("parameter structure has changed without recompilation"), so it needs a
+COOK, which is owner-sequenced. B2's 50% gate was NOT run.

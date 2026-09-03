@@ -1663,3 +1663,123 @@ remains **open and unexplained**. ⛔ No mechanism asserted (`G120`).
    arm batching ever changes what a consumer sees. On these legs it did not.
 3. **The `P3` defect on its own terms:** it needs no further discrimination — it is demonstrated. It
    needs a **decision**, not a measurement.
+
+---
+
+# §11. THE `+1` IS FIXED — TAG OWNERSHIP. And `F1` is built but **CANNOT BE VALIDATED WITHOUT A COOK**.
+
+**2026-09-03, session 069 brief 17.** `master` untouched at `62bd287`. Work on
+`m44-GATE-G1-FAILED-do-not-merge`.
+
+## §11.1 HYPOTHESIS #4 — THE MECHANISM IS CONFIRMED, ITS STATED SOURCE WAS TOO NARROW
+
+> **One sentence:** an actor under a live fire could already be carrying somebody else's stencil value,
+> `ArmTargetMaskOwn` accepted "already tagged" as good enough and never retagged it, so the reduce —
+> which filters on the event's own tag — found nothing on that frame; **but the foreign value comes
+> from a previous EVENT on the same actor as often as from the census**, which is why turning the
+> census off cured only half of it.
+
+**A1 — census OFF does NOT cure it.** Native order, 90-frame auto-pool legs:
+
+| leg | delta 0 | failures |
+|---|---|---|
+| census **ON** | 1/4 | `corrupted@27 +1`, `corrupted@63 +1`, `missing@87 +1` |
+| census **OFF** | 2/4 | `corrupted@51 +1`, `missing@75 +1` |
+
+⇒ The brief's stop rule (*"if census OFF does not cure it, hypothesis #4 is dead"*) fired **on the
+hypothesis as written**. The instrument then showed why the reading was half-right.
+
+**A2 — the instrument, and it is unambiguous.** `TAG-OWNERSHIP` logs each armed target's actual
+component state before tagging. On **exactly the four events that read `+1`**, and on no others
+(4 of 27 armed frames):
+
+| session_index | actor | eventTag | value actually on the actor | owner |
+|---|---|---|---|---|
+| 27 | `StaticMeshActor_73` | 222 | **204** | census |
+| 51 | `StaticMeshActor_49` | 224 | **242** | census |
+| 63 | `StaticMeshActor_49` | 226 | **224** | **the previous event on the same actor** (si 51's tag) |
+| 87 | `StaticMeshActor_49` | 229 | **226** | **the previous event on the same actor** (si 63's tag) |
+
+**Two sources, not one.** That is the whole of the wobble, measured: census-off removes rows 1–2 and
+leaves rows 3–4.
+
+**A3 — the asymmetry, read from source.** `m26`'s `ArmIfMeasurable` calls
+`AnomalyStencilTag::TagActor(Actor, R.Tag)` **unconditionally** (`AnomalyMaskMeasure.cpp:231`) — it has
+**no** accept-any-tag hole and always asserts its own value. `ArmTargetMaskOwn` had
+`if (IsAnyComponentTagged(Actor)) { ++TaggedCount; continue; }`. **The two consumers of one pass
+disagreed about who owns a tag**, and only one of them was right. The census skips already-tagged
+actors (`AnomalyCensus.cpp:726`), so its protection is *"already tagged"*, not *"under a live fire"* —
+on a fire's first frame the target is not yet tagged and the census can take it.
+
+## §11.2 THE FIX — the ownership rule
+
+**An actor under a live fire belongs to its event for the event's duration.** `ArmTargetMaskOwn` now
+retags unconditionally, exactly as `ArmIfMeasurable` already did; the foreign-value case is counted
+(`TargetMaskEventRetags`) and logged with the value it displaced. Self-tag bookkeeping is only
+recorded when the actor was previously untagged, so the restore ledger stays correct.
+
+⛔ **The pool was NOT partitioned (`F-A1`).** It is unnecessary once ownership is asserted, and it
+would have cost real capacity: the assignable range is **55 values** (`200..254`) against a census that
+tagged **77 candidates** in a 90-frame leg. Splitting it would have made tag exhaustion more likely,
+not less, to fix a problem that a one-line ownership rule removes. **Stated as a deliberate deviation
+from the brief.**
+
+## §11.3 GATE TABLE — both tick orders
+
+| gate | native | synth |
+|---|---|---|
+| **M44-G1** onset delta 0 | ✅ **4/4** | ✅ **4/4** |
+| **M44-G2** no blank PNGs | ✅ 0 | ✅ 0 |
+| **M44-G3 / 3b / 3c** count identity | ✅ 27 + 0 + 63 = 90 | ✅ 27 + 0 + 63 = 90 |
+| **M44-G7** masks ⊆ labelled frames | ✅ 0 stray | ✅ 0 stray |
+| **M44-G6** veto inputs vs the `m43` control | ✅ all six identical (0) | — |
+| **MASK-TIE** | ✅ 27 lines, **0 MISMATCH** | ✅ 27 lines, **0 MISMATCH** |
+| **m26 known-answer control** | ✅ `mask_probe_arms = 1` — the detector fires, so its zeros elsewhere are readings | |
+| **census health** | ✅ `framesPolluted 0`, `batchesLost 0`, `tagFailed 0` | ✅ same |
+| **P-C7 v2** | ✅ `frame_index` delta **one constant (0)**; the ONLY field differing outside `t_wall` is `mask_value`, itself a declared mask key | |
+| **both build targets** | ✅ game 0, editor 0 | |
+
+📌 **`present = 27` is exactly the number of labelled frames of the four non-hidden events (8+8+8+3).**
+The `m43` control wrote **29**, i.e. two frames of content that were *not* labelled for their event —
+the old `G7` violation, now gone.
+
+**MOVED COUNTERS, each with its reason:**
+
+| counter | m43 control → m44 | explanation |
+|---|---|---|
+| `target_mask_frames_hidden_blank` | 61 → **0** | intended: blank PNGs are no longer written |
+| `target_mask_frames_unavailable` | 0 → **63** | intended: unarmed/hidden frames are now `unmeasured`, not blank |
+| `target_mask_frames_measured` | 29 → **27** | intended: the two unlabelled-frame masks are gone |
+| `mask_value` (labels) | differs on 30 rows | intended: it *is* the value being corrected |
+| `census_frames` / `census_cycles` | 96→100 / 31→32 | the census's "already tagged" skip now sees a different set because live-fire targets are retagged; cycle boundaries shift. Run-to-run scale, `P-C2` precedent |
+| `census tagOvertaken` | 0–1 → **2–3** | ⚠ **the ownership rule made visible**: the target mask now takes back an actor the census had tagged. It lands in the counter the census built for exactly this class; `framesPolluted 0`, `batchesLost 0`, verdicts and the event set unchanged |
+
+⛔ **No unexplained movement.** The event set, every `manifested`, `positive_frames` (43),
+`non_manifested_events` (0) and all six veto counters are **identical to the control**.
+
+## §11.4 🚨 `F1` (RESOLUTION MAPPING) IS BUILT AND IS **BLOCKED ON A COOK**
+
+`AnomalyVisibleMask.usf` now maps output → internal explicitly
+(`P_in = InternalRectMin + clamp(round(P_out × InternalSize / OutputSize), 0, InternalSize-1)`), with
+three new shader parameters. It compiles. **It cannot run on this bench:**
+
+```
+Shader FAnomalyVisibleMaskPS's parameter structure has changed without recompilation of the shader
+```
+
+— a **fatal at engine init**. Global shaders live in the **cooked container**, which a code-only
+hot-swap does not touch (`G129`). ⛔ **A cook retires the container quartet every `m41`/`m43`/`m44`
+measurement was taken on, and cooks in this project are owner-sequenced (`G118`: never inside a
+measurement sequence). I did not run one.**
+
+**Consequence, stated plainly: `F1` is committed UNVALIDATED and `B2`'s 50 % gate was NOT run.** The
+staged bench exe is deliberately left at the **Task-A** build so the bench stays usable.
+⚠ The mapping is nearest-by-construction, so **if it validates** it also retires the
+nearest-neighbour mask-resampling follow-up — **stated as a consequence of a fix that has not yet been
+proven to run.**
+
+## §11.5 STATE
+
+📦 Staged bench exe **`635A615A`** (Task A only; bootable). `57B132A4` was the F1 build and **does not
+boot** — not archived as a baseline for that reason. Container **unchanged, no cook**.
+⛔ Client docs, the ledger's `m44` entry and card Section F still wait for the merge ruling.

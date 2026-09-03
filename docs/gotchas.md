@@ -5713,3 +5713,19 @@ fixture.**
 also produces.** The corrected probe reads 40/40 correct in both tick orders.
 The tell was available and was nearly missed: the probe's own telemetry showed the census tagging 78
 candidates out of a 55-value pool while the probe held a fixed value inside it.
+## G227 - two consumers of one resource disagreeing about ownership, and only one of them asserting it
+The mask pass feeds three consumers. `m26`'s ArmIfMeasurable always calls TagActor with its own value,
+so it ASSERTS ownership every frame. The target mask's ArmTargetMaskOwn instead did
+`if (IsAnyComponentTagged(Actor)) { ++TaggedCount; continue; }` - it accepted "somebody has tagged
+this" as "it is tagged for me". The census, a third writer, skips actors that are already tagged, so
+its guard is "already tagged" and not "under a live fire", and on a fire's FIRST frame the target is
+not yet tagged and the census can take it.
+Result: on the first labelled frame of an event the actor could be carrying a census value, or the
+PREVIOUS event's value on that same actor, and the reduce - which filters on the event's own tag -
+found nothing. That is a systematic one-frame-late mask, shipped behind a green gate set.
+**When several subsystems write one shared per-object attribute, exactly one must own it at a time and
+the owner must ASSERT the value, never test for "is it set".** "Already set" cannot distinguish "set
+by me" from "set by someone else".
+Measured: 4 of 4 events, two carrying a census value (204, 242) and two carrying the previous event's
+value (224, 226). Turning the census off cured only the first two - which is why the census-only
+reading of this was half right and would have shipped a half fix.

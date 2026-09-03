@@ -356,6 +356,7 @@ private:
 	int32 MaskPairingProbePos = 0;
 	uint64 TargetMaskOwnSerial = 0;
 	int32 TargetMaskTagFlips = 0;
+	int32 TargetMaskEventRetags = 0;
 	int32 TargetMaskW = 0;
 	int32 TargetMaskH = 0;
 	TMap<uint8, int32> TargetMaskFirstFrame;
