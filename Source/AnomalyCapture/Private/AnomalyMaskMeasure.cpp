@@ -5,6 +5,7 @@
 #include "AnomalyCaptureLog.h"
 #include "AnomalyMaskSceneViewExtension.h"
 #include "AnomalyStencilTag.h"
+#include "AnomalyHiddenClass.h"
 
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
@@ -222,7 +223,7 @@ bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, u
 		{
 			continue;
 		}
-		if (Actor->IsHidden())
+		if (AnomalyHiddenClass::IsLogicallyHidden(Actor))
 		{
 			++R.SkippedHidden;
 			continue;
@@ -268,7 +269,7 @@ bool FAnomalyMaskMeasure::ArmProbeOnHidden(FAnomalyMaskSceneViewExtension* Sve, 
 		}
 
 		AActor* Actor = R.TargetActor.Get();
-		if (!Actor || !Actor->IsHidden())
+		if (!Actor || !AnomalyHiddenClass::IsLogicallyHidden(Actor))
 		{
 			continue;
 		}
@@ -311,7 +312,7 @@ void FAnomalyMaskMeasure::VerifyPendingTags()
 			continue;
 		}
 		AActor* Actor = R.TargetActor.Get();
-		if (!Actor || Actor->IsHidden())
+		if (!Actor || AnomalyHiddenClass::IsLogicallyHidden(Actor))
 		{
 			continue;
 		}
@@ -502,7 +503,7 @@ void FAnomalyMaskMeasure::SampleEndOfFrame()
 		}
 		const FAnomalyMaskRecord& R = Records[*IndexPtr];
 		const AActor* Actor = R.TargetActor.Get();
-		const bool bHiddenNow = !Actor || Actor->IsHidden();
+		const bool bHiddenNow = !Actor || AnomalyHiddenClass::IsLogicallyHidden(Actor);
 		const bool bProbe = ProbeRequests.Contains(RequestId);
 		EndFrameSample.Add(RequestId, bHiddenNow ? (uint8)0 : (uint8)1);
 		UE_LOG(LogAnomalyCapture, Log,

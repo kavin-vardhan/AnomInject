@@ -4,6 +4,7 @@
 #include "AnomalyViewport.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
+#include "AnomalyHiddenClass.h"
 #include "GameFramework/Actor.h"
 
 bool FAnomaly_MissingObject::Apply(UWorld* World, const TArray<FString>& Args)
@@ -32,7 +33,7 @@ bool FAnomaly_MissingObject::Apply(UWorld* World, const TArray<FString>& Args)
 	{
 		if (AActor* Actor = Weak.Get())
 		{
-			Actor->SetActorHiddenInGame(true);
+			AnomalyHiddenClass::Hide(Actor);
 			HiddenActors.AddUnique(Weak);
 			UE_LOG(LogAnomaly, Log, TEXT("Hid actor '%s' (class '%s')."),
 				*Actor->GetName(), *Actor->GetClass()->GetName());
@@ -50,7 +51,7 @@ void FAnomaly_MissingObject::Revert()
 	{
 		if (AActor* Actor = Weak.Get())
 		{
-			Actor->SetActorHiddenInGame(false);
+			AnomalyHiddenClass::Show(Actor);
 		}
 	}
 	HiddenActors.Reset();

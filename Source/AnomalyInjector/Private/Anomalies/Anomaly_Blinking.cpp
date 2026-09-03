@@ -5,6 +5,7 @@
 #include "AnomalyDefaults.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
+#include "AnomalyHiddenClass.h"
 #include "GameFramework/Actor.h"
 
 bool FAnomaly_Blinking::Apply(UWorld* World, const TArray<FString>& Args)
@@ -88,7 +89,7 @@ void FAnomaly_Blinking::Tick(float DeltaSeconds)
 		{
 			if (AActor* Actor = Weak.Get())
 			{
-				Actor->SetActorHiddenInGame(bHiddenPhase);
+				if (bHiddenPhase) { AnomalyHiddenClass::Hide(Actor); } else { AnomalyHiddenClass::Show(Actor); }
 				++Affected;
 			}
 		}
@@ -103,7 +104,7 @@ void FAnomaly_Blinking::Revert()
 	{
 		if (AActor* Actor = Weak.Get())
 		{
-			Actor->SetActorHiddenInGame(false);
+			AnomalyHiddenClass::Show(Actor);
 		}
 	}
 	Targets.Reset();

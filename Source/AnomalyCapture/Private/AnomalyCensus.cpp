@@ -4,6 +4,7 @@
 
 #include "AnomalyCaptureLog.h"
 #include "AnomalyStencilTag.h"
+#include "AnomalyHiddenClass.h"
 #include "AnomalyMaskSceneViewExtension.h"
 #include "AnomalyViewport.h"
 
@@ -84,7 +85,7 @@ namespace
 	ECensusClass ClassifyCandidate(const AActor* Actor, bool bExcludeTranslucent, bool bAllowCustomDepthOptIn,
 		EShaderPlatform ShaderPlatform)
 	{
-		if (Actor->IsHidden())
+		if (Actor->IsHidden() || AnomalyHiddenClass::IsLogicallyHidden(Actor))
 		{
 			return ECensusClass::Hidden;
 		}
@@ -718,7 +719,7 @@ void FAnomalyCensus::ArmNextBatch(FAnomalyMaskSceneViewExtension* Sve, const TSe
 		{
 			continue;
 		}
-		if (Actor->IsHidden())
+		if (Actor->IsHidden() || AnomalyHiddenClass::IsLogicallyHidden(Actor))
 		{
 			Entry.Verdict = EAnomalyCensusVerdict::NotMeasurableHidden;
 			continue;

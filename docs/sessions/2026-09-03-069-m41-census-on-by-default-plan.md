@@ -1945,3 +1945,123 @@ limitation in the words the brief specified) · `client-delivery.md` · `PRE-DEL
 (§1.1 mask boxes rewritten — **"one PNG per captured frame" was the old completeness test and is now
 WRONG**; plus `MaskPairingProbe` added to the bench-lever grep) · card **Section F** · ledger **§11** ·
 `_binary_baselines\README.md`.
+---
+
+# §13. `m45` — THE MECHANISM EXISTS AND WORKS; **`M45-G4` IS NOT OBTAINED, SO IT DOES NOT MERGE**
+
+**2026-09-03, session 069 brief 19.** ⛔ **`master` untouched at `d48e1ba`.** Work on
+`m45-hidden-class-masks-GATE-FAILED`.
+
+## §13.1 TASK A — the source read, and it says YES
+
+**A1 — does a `bRenderInMainPass = false` primitive still reach the custom-depth pass? YES,
+end-to-end:**
+
+| step | file:line | what it establishes |
+|---|---|---|
+| relevance | `SceneVisibility.cpp:2470-2473` | `bRenderCustomDepth` ⇒ `bHasCustomDepthPrimitives = true` **and** the stencil value is registered. **No main-pass test.** |
+| static gather | `:2634` | `(bUseForMaterial \|\| bUseAsOccluder) && (bRenderInMainPass \|\| bRenderCustomDepth \|\| bRenderInDepthPass)` — an **OR** |
+| custom-depth add | `:2727-2730` | `if (ViewRelevance.bRenderCustomDepth)` → `AddCommandsForMesh(..., EMeshPass::CustomDepth)` |
+| dynamic gather | `:3161`, `:3166` | the same OR |
+| the pass runs | `CustomDepthRendering.cpp:148` | `View.bHasCustomDepthPrimitives` |
+| the processor accepts | `CustomDepthRendering.cpp:263-265` | gates **only** on `PrimitiveSceneProxy->ShouldRenderCustomDepth()` |
+| the base pass REFUSES | `BasePassRendering.cpp:1831` | `&& (!PrimitiveSceneProxy \|\| PrimitiveSceneProxy->ShouldRenderInMainPass())` |
+| the depth pass refuses | `PrimitiveSceneProxy.h:613` + `DepthRendering.cpp:883,887` | `ShouldRenderInDepthPass() = bRenderInMainPass \|\| bRenderInDepthPass` — **both false ⇒ off** |
+
+⚠ **A trap worth naming:** `:2708` adds the mesh to `EMeshPass::BasePass` *even when main-pass is off*,
+because the enclosing condition is an OR. **The command slot is created; the base-pass PROCESSOR then
+refuses it** at `BasePassRendering.cpp:1831`. Reading only the gather would have said "the object still
+draws".
+
+**A2 — the other paths and what silences each:** shadows `CastShadow` +
+`bCastContactShadow` (`FPrimitiveSceneProxy::IsShadowCast`, `PrimitiveSceneProxy.cpp:1280-1283`
+returns false when neither static nor dynamic shadow is cast — note the **old** hide relied instead on
+`!DrawInGame` at `:1288`) · Lumen / mesh cards `bAffectDynamicIndirectLighting` (`:1161`) · distance
+fields `bAffectDistanceFieldLighting` (`:1166`) · ray tracing `bVisibleInRayTracing` (`:1118`) ·
+decals `bReceivesDecals` (`:1083`) · velocity — falls out with the main pass
+(`SceneVisibility.cpp:2639` gates velocity on `bRenderInMainPass`). 🚨 **Nanite targets remain
+impossible (`G134`)** — a Nanite proxy never sets `bRenderCustomDepth`, so hidden-class masks cannot
+exist for them and that limit is unchanged.
+
+**A3 — occlusion semantics: correct by construction.** `AnomalyVisibleMask.usf:37` outputs the tag iff
+`CustomDeviceZ >= SceneDeviceZ - DepthBias`. With the target absent from scene depth, `SceneDeviceZ` is
+whatever is actually behind it; reversed-Z makes the (nearer) target's `CustomDeviceZ` larger, so the
+test passes exactly where the target *would* have been the front-most surface, and fails where
+something real occludes it. **That is the would-be-visible region, occlusion-aware, with no new code.**
+
+**A4 — the census could have taken a main-pass-off target** (it is no longer `IsHidden`). Hardened:
+`AnomalyCensus.cpp:88` and `:722` now also test the logical hidden state.
+
+## §13.2 THE BUILD, and the one design point that matters
+
+`AnomalyHiddenClass` (new, `AnomalyInjector`) owns the hide: a per-component ledger of the eight flags
+it touches, `Hide`/`Show`, and a **logical hidden registry**.
+
+🚨 **THE NON-OBVIOUS PART: the labels' notion of "hidden" was `AActor::IsHidden()`.** Stop calling
+`SetActorHiddenInGame` and `blinking`'s entire hidden set silently empties — the labels would break
+while the pixels stayed right. Every consumer of that test now asks
+`AnomalyHiddenClass::IsLogicallyHidden`: the two label paths
+(`AnomalyCaptureSubsystem.cpp:3619,3647`), **`m26`'s `LOCK-1` guard and its three siblings**
+(`AnomalyMaskMeasure.cpp:226,272,315,506` — without this `m26` would start arming on hidden ticks and
+`framesContributed` would move), and the census (`AnomalyCensus.cpp:88,722`).
+
+Bench levers, console-only, never in a client payload: **`IAI.Bench.HideMode 0|1`** (default 1) and
+**`IAI.Bench.HideOmitShadowSilencing`** (default off) — the deliberate mis-application for the
+prove-it-can-fail leg.
+
+## §13.3 🚨 THE IDENTITY GATE — and why the FIRST instrument was blind
+
+**At the delivered configuration the comparator cannot answer the question.** Two runs of the **same
+configuration** differ by **9.1612 %** of pixels (>8/255), worst frame 15.40 %:
+
+| pair | mean % differing | worst % |
+|---|---|---|
+| **CONTROL** old-vs-old2 (identical config) | **9.1612** | 15.3992 |
+| TEST old-vs-NEW | 8.5619 | 11.8074 |
+| **CAN-FAIL** old-vs-NOSHADOW (shadows deliberately left on) | **9.5381** | 16.4272 |
+
+⇒ **the deliberate violation sits INSIDE the control's own band, and the correct fix reads LOWER than
+the control.** Pose, frame alignment, event sets and blink hidden sets are **identical** across all
+three legs, so this is not `A47` and not misalignment — it is genuine per-run rendering
+nondeterminism, and it dwarfs the effect. **`G169`: below the resolution of this instrument, never
+"no difference".**
+
+**Removing the temporal confound makes the comparator exact.** With
+`r.AntiAliasingMethod 0, r.Lumen.DiffuseIndirect.Allow 0, r.DynamicGlobalIlluminationMethod 0,
+r.ReflectionMethod 0`:
+
+| pair | frames differing |
+|---|---|
+| **CONTROL** old-vs-old2 | **0 of 60** — the floor is genuinely ZERO, so the sensitivity is one pixel |
+| **TEST** old-vs-NEW | **0 of 60** ✅ |
+| **CAN-FAIL** old-vs-NOSHADOW | **0 of 60** ⚠ |
+
+✅ **`M45-G1` PASSES on a zero-floor control**: the new hide changes not one pixel across 60 frames.
+⚠ **`M45-G4` (prove-it-can-fail) IS NOT OBTAINED.** Both levers are **proven engaged** — the engine log
+echoes `IAI.Bench.HideMode -> 1` and `IAI.Bench.HideOmitShadowSilencing -> ON` at frame 1 — so the
+omission really happened and the picture still did not move. ⇒ **this target casts no shadow that
+reaches the frame in `CB_GateLevel`**, so the fixture cannot exhibit the class the gate exists to
+catch. **`G135`'s shape: a fixture that structurally cannot show the defect produces a clean pass.**
+
+✅ **The mechanism does work:** the same legs produce **20 mask files under the new hide and 0 under the
+old one.**
+
+## §13.4 WHY IT DOES NOT MERGE
+
+The brief makes `M45-G4` a required gate, and this project has fired `G96` four times on exactly this
+shape: **a guard that has never been shown to fire is not a guard.** The identity claim is also
+narrower than it looks — it is proven **at AA/GI/reflections OFF**, which is *not* the delivered
+configuration; at the delivered configuration the instrument is blind. ⛔ **So `m45` branches and does
+not merge, and I did not run the remaining gates (G2 detail, G3 IoU, G6, MASK-TIE, ONSET,
+MASK-PICTURE-PAIRING) — a milestone that cannot ship does not need them, and running them would
+manufacture a green table around an unproven safety argument.**
+
+## §13.5 WHAT WOULD DECIDE IT
+
+1. **A fixture that casts a visible shadow from the target** — then the can-fail leg becomes decisive
+   at AA-off and `M45-G4` is obtainable. This is the cheapest route and needs no product change.
+2. **Identity at the DELIVERED configuration** needs a within-frame comparator (`G-M9`'s shape, m35),
+   because cross-run temporal accumulation is 9 % here. Alternatively, declare that the identity
+   arbiter runs at AA-off **by design** and say so in the gate.
+3. The fallback if identity ever fails: coarse projected-bbox masks flagged `"coarse": true`, which
+   needs `m39`'s honest bbox first.

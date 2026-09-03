@@ -1,5 +1,6 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
+#include "AnomalyHiddenClass.h"
 
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
@@ -801,6 +802,51 @@ static void BenchReportMaterialCandidate(const TCHAR* Path, UMaterialInterface* 
 		IsTranslucentBlendMode(M->GetBlendMode()) ? 1 : 0,
 		M->IsTranslucencyWritingCustomDepth() ? 1 : 0);
 }
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchHideModeCmd(
+	TEXT("IAI.Bench.HideMode"),
+	TEXT("BENCH DEVICE, console only - no ini key, never in a client payload. Selects how the ")
+	TEXT("hidden-class anomalies (blinking, missing_object) hide their target. 1 = m45 DEFAULT: drop ")
+	TEXT("the target from the main and depth passes and silence shadows, Lumen, distance fields, ray ")
+	TEXT("tracing and decals, while KEEPING custom depth, so the would-be silhouette is still ")
+	TEXT("measurable and hidden frames get a mask. 0 = the pre-m45 SetActorHiddenInGame, which removes ")
+	TEXT("the target from custom depth too and so yields no mask. It exists so the IDENTITY gate can ")
+	TEXT("run both legs on ONE binary: the picture must be byte-identical either way. ")
+	TEXT("Usage: IAI.Bench.HideMode <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.HideMode <0|1>"));
+				return;
+			}
+			AnomalyHiddenClass::SetHideMode(FCString::Atoi(*Args[0]));
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Bench.HideMode -> %s. BENCH DEVICE, console only, never in a client payload."),
+				AnomalyHiddenClass::DescribeHideMode());
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchHideOmitShadowCmd(
+	TEXT("IAI.Bench.HideOmitShadowSilencing"),
+	TEXT("BENCH DEVICE, console only, default OFF - never in a client payload. ON deliberately OMITS ")
+	TEXT("the shadow-silencing half of the m45 hide, so the target keeps casting a shadow while being ")
+	TEXT("absent from the main pass. It exists ONLY to prove the IDENTITY gate can FAIL (G96/G114): a ")
+	TEXT("gate that has only ever passed is not evidence. Usage: IAI.Bench.HideOmitShadowSilencing <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.HideOmitShadowSilencing <0|1>"));
+				return;
+			}
+			AnomalyHiddenClass::SetOmitShadowSilencing(FCString::Atoi(*Args[0]) != 0);
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Bench.HideOmitShadowSilencing -> %s. BENCH DEVICE. This is the deliberate ")
+				TEXT("mis-application the identity gate must CATCH."),
+				AnomalyHiddenClass::IsOmitShadowSilencing() ? TEXT("ON") : TEXT("off"));
+		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GBenchSpawnTranslucentProbeCmd(
 	TEXT("IAI.Bench.SpawnTranslucentProbe"),

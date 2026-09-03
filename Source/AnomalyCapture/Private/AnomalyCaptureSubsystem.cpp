@@ -18,6 +18,7 @@
 #include "AnomalyDefaults.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
+#include "AnomalyHiddenClass.h"
 #include "AnomalyRunLog.h"
 #include "AnomalyFrameCapturer.h"
 #include "AnomalySveCapturer.h"
@@ -3615,7 +3616,7 @@ bool UAnomalyCaptureSubsystem::IsFireLabelledThisFrame(const FAutoLiveFireInfo& 
 	switch (Source)
 	{
 	case EAnomalyActiveSource::ActorHidden:
-		return FActor && FActor->IsHidden();
+		return FActor && AnomalyHiddenClass::IsLogicallyHidden(FActor);
 	case EAnomalyActiveSource::AnomalyState:
 	{
 		UWorld* World = GetWorld();
@@ -3643,7 +3644,7 @@ uint8 UAnomalyCaptureSubsystem::ComputeFireActive(const FAutoLiveFireInfo& F) co
 			? 1
 			: ((Injector && Injector->IsAnomalyCurrentlyAnomalous(F.Id)) ? 1 : 0);
 	}
-	return (FActor && FActor->IsHidden()) ? 1 : 0;
+	return (FActor && AnomalyHiddenClass::IsLogicallyHidden(FActor)) ? 1 : 0;
 }
 
 void UAnomalyCaptureSubsystem::PaceThisTick()
