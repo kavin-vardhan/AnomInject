@@ -149,12 +149,15 @@ struct FAnomalyCaptureAsyncState
 	FAnomalyStencilTagLedger TagLedger;
 	FAnomalyCensus Census;
 	TMap<TWeakObjectPtr<UPrimitiveComponent>, int32> PreRunStencilSnapshot;
+	TArray<FAnomalyCapturedFrame> TargetMaskHeldFrames;
 #endif
 };
 
 #if ANOMALY_CAPTURE
 namespace
 {
+	constexpr int32 GTargetMaskMaxHoldTicks = 4;
+
 	constexpr float GAnomalyDefaultFarPlane = 1000000.0f;
 
 	constexpr double GFpsStampTolerance = 0.02;
@@ -756,25 +759,11 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 
 	if (bCapturedThisTick)
 	{
+		EnsureMaskRecordsForCapturedFrame();
 		if (!ArmTargetMaskOwn(TargetMaskArmedSessionIndex))
 		{
-			int32 W = TargetMaskW;
-			int32 H = TargetMaskH;
-			if (W <= 0 || H <= 0)
-			{
-				Async->Writer->GetFirstWrittenSize(W, H);
-			}
-			if (W > 0 && H > 0)
-			{
-				TArray<uint8> Blank;
-				Blank.SetNumZeroed((int32)((int64)W * (int64)H));
-				EnqueueTargetMaskPng(TargetMaskArmedSessionIndex, Blank, W, H);
-				++TargetMaskHiddenBlank;
-			}
-			else
-			{
-				TargetMaskDeferredBlanks.Add(TargetMaskArmedSessionIndex);
-			}
+			TargetMaskOutcome.Add(TargetMaskArmedSessionIndex, (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured);
+			++TargetMaskUnavailable;
 		}
 		TargetMaskArmedSessionIndex = -1;
 	}
@@ -818,7 +807,7 @@ void UAnomalyCaptureSubsystem::EnqueueTargetMaskPng(int32 SessionIndex, const TA
 
 void UAnomalyCaptureSubsystem::ReleaseTargetMaskSelfTags()
 {
-	if (TargetMaskSelfTagged.Num() == 0)
+	if (TargetMaskSelfTagged.Num() == 0 || TargetMaskSelfTaggedTick == GFrameCounter)
 	{
 		return;
 	}
@@ -831,6 +820,23 @@ void UAnomalyCaptureSubsystem::ReleaseTargetMaskSelfTags()
 		}
 	}
 	TargetMaskSelfTagged.Reset();
+}
+
+void UAnomalyCaptureSubsystem::EnsureMaskRecordsForCapturedFrame()
+{
+	if (!Async.IsValid() || !bMaskMeasure)
+	{
+		return;
+	}
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	if (!Auto)
+	{
+		return;
+	}
+	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+	{
+		Async->MaskMeasure.FindOrAddRecord(F.Id, F.Target, F.StartFrame, const_cast<AActor*>(F.TargetActor.Get()));
+	}
 }
 
 bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
@@ -849,17 +855,27 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 	TArray<AActor*> Visible;
 	TArray<uint8> Tags;
 	TSet<uint8> LiveTags;
+	int32 ScanFires = 0;
+	int32 ScanLabelled = 0;
+	int32 ScanWithRecord = 0;
 	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
 	{
+		++ScanFires;
 		AActor* Actor = F.TargetActor.Get();
 		if (!Actor)
 		{
 			continue;
 		}
+		if (!IsFireLabelledThisFrame(F))
+		{
+			continue;
+		}
+		++ScanLabelled;
 		for (const FAnomalyMaskRecord& R : Async->MaskMeasure.GetRecords())
 		{
 			if (R.Id == F.Id && R.Target == F.Target && R.StartFrame == F.StartFrame && R.Tag != 0)
 			{
+				++ScanWithRecord;
 				LiveTags.Add(R.Tag);
 				if (!Actor->IsHidden())
 				{
@@ -873,6 +889,15 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 
 	if (Visible.Num() == 0)
 	{
+		if (ScanFires > 0)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m44): TARGET MASK NOT ARMED session_index=%d scanned fires=%d labelled=%d ")
+				TEXT("withRecord=%d visible=%d. A bare 'not armed' cannot be diagnosed; these counts say ")
+				TEXT("WHICH stage refused. Silent when there are no live fires, because not arming is ")
+				TEXT("then the correct behaviour."),
+				SessionIndex, ScanFires, ScanLabelled, ScanWithRecord, Visible.Num());
+		}
 		return false;
 	}
 
@@ -887,6 +912,7 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 		if (AnomalyStencilTag::TagActor(Visible[i], (int32)Tags[i]) > 0)
 		{
 			TargetMaskSelfTagged.Add(Visible[i]);
+				TargetMaskSelfTaggedTick = GFrameCounter;
 			++TaggedCount;
 			++TargetMaskTagFlips;
 		}
@@ -931,6 +957,7 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 		if (W <= 0 || H <= 0 || Result.MaskPixels.Num() < (int64)W * (int64)H)
 		{
 			++TargetMaskUnavailable;
+			TargetMaskOutcome.Add(Pair.Value, (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured);
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture(m43): TARGET MASK UNAVAILABLE for session_index %d (id=%llu, %dx%d, pixels=%d). ")
 				TEXT("The labels row for this frame carries mask_file:null - NOT MEASURED, which is a different ")
@@ -944,12 +971,17 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 
 		TArray<uint8> Gray = MoveTemp(Result.MaskPixels);
 		const int32 N = W * H;
+		int32 KeptPixels = 0;
 		for (int32 i = 0; i < N; ++i)
 		{
 			const uint8 V = Gray[i];
 			if (V != 0 && !EventTags.Contains(V))
 			{
 				Gray[i] = 0;
+			}
+			else if (V != 0)
+			{
+				++KeptPixels;
 			}
 		}
 
@@ -985,8 +1017,23 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 				(TableCount == PngCount) ? TEXT("MATCH") : TEXT("*** MISMATCH ***"));
 		}
 
-		EnqueueTargetMaskPng(Pair.Value, Gray, W, H);
-		++TargetMaskMeasured;
+		if (KeptPixels > 0)
+		{
+			EnqueueTargetMaskPng(Pair.Value, Gray, W, H);
+			++TargetMaskMeasured;
+			TargetMaskOutcome.Add(Pair.Value, (uint8)AnomalyLabel::EAnomalyMaskState::Present);
+		}
+		else
+		{
+			++TargetMaskHiddenBlank;
+			TargetMaskOutcome.Add(Pair.Value, (uint8)AnomalyLabel::EAnomalyMaskState::Empty);
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m44): TARGET MASK EMPTY for session_index %d - the mask was MEASURED and the ")
+				TEXT("target contributed zero pixels, so NO file is written and the labels row reads ")
+				TEXT("mask_state:\"empty\" with mask_file:null. That is a different fact from ")
+				TEXT("mask_state:\"unmeasured\", which means no measurement exists."),
+				Pair.Value);
+		}
 	}
 
 	for (uint64 Id : Ready)
@@ -2008,7 +2055,12 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	TargetMaskPendingTags.Reset();
 	TargetMaskFirstFrame.Reset();
 	TargetMaskLastFrame.Reset();
-	TargetMaskDeferredBlanks.Reset();
+	TargetMaskOutcome.Reset();
+	TargetMaskHoldTicks = 0;
+	if (Async.IsValid())
+	{
+		Async->TargetMaskHeldFrames.Reset();
+	}
 	TargetMaskSelfTagged.Reset();
 	TargetMaskOwnSerial = 0;
 	TargetMaskTagFlips = 0;
@@ -2721,9 +2773,25 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		bFormatPng ? AnomalyPreview::EImageFormat::PNG : AnomalyPreview::EImageFormat::JPEG;
 	const TCHAR* Ext = bFormatPng ? TEXT("png") : TEXT("jpg");
 
-	FAnomalyCapturedFrame Frame;
-	while (bUseSve ? Async->SveCapturer->PopCompleted(Frame) : Async->Capturer->PopCompleted(Frame))
+	if (bTargetMaskEffective && Async->MaskExtension.IsValid())
 	{
+		Async->MaskExtension->EnqueueDrain();
+		ServiceTargetMask();
+	}
+
+	TArray<FAnomalyCapturedFrame> Batch = MoveTemp(Async->TargetMaskHeldFrames);
+	Async->TargetMaskHeldFrames.Reset();
+	{
+		FAnomalyCapturedFrame Popped;
+		while (bUseSve ? Async->SveCapturer->PopCompleted(Popped) : Async->Capturer->PopCompleted(Popped))
+		{
+			Batch.Add(MoveTemp(Popped));
+		}
+	}
+
+	for (int32 BatchIndex = 0; BatchIndex < Batch.Num(); ++BatchIndex)
+	{
+		FAnomalyCapturedFrame& Frame = Batch[BatchIndex];
 		if (!bRectDeltaLogged)
 		{
 			bRectDeltaLogged = true;
@@ -2745,7 +2813,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 				Frame.Width - ViewportW,
 				Frame.Height - ViewportH);
 		}
-		const AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(Frame.RequestId);
+		AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(Frame.RequestId);
 		if (!Snap)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
@@ -2754,6 +2822,36 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 				TEXT("broken pairing indistinguishable from a path that never submitted."),
 				Frame.RequestId, Async->PendingSnapshots.Num());
 			continue;
+		}
+
+		if (Snap->bTargetMask)
+		{
+			const uint8* Outcome = TargetMaskOutcome.Find(Snap->SessionIndex);
+			if (!Outcome && TargetMaskHoldTicks < GTargetMaskMaxHoldTicks)
+			{
+				++TargetMaskHoldTicks;
+				for (int32 k = BatchIndex; k < Batch.Num(); ++k)
+				{
+					Async->TargetMaskHeldFrames.Add(MoveTemp(Batch[k]));
+				}
+				break;
+			}
+			TargetMaskHoldTicks = 0;
+			if (Outcome)
+			{
+				Snap->MaskState = (AnomalyLabel::EAnomalyMaskState)*Outcome;
+			}
+			else
+			{
+				Snap->MaskState = AnomalyLabel::EAnomalyMaskState::Unmeasured;
+				++TargetMaskUnavailable;
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m44): TARGET MASK NEVER RESOLVED for session_index %d after %d held ticks - ")
+					TEXT("the row reads mask_state:\"unmeasured\", which is the honest reading. It is NOT ")
+					TEXT("\"empty\": no measurement exists for this frame."),
+					Snap->SessionIndex, GTargetMaskMaxHoldTicks);
+			}
+			TargetMaskOutcome.Remove(Snap->SessionIndex);
 		}
 
 		int32 OutW = Frame.Width;
@@ -3154,25 +3252,6 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 		Snap->FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 	}
 
-	if (Snap->bTargetMask)
-	{
-		Snap->MaskValues.Reset();
-		Snap->MaskValues.Reserve(Snap->Fires.Num());
-		for (const FAutoLiveFireInfo& F : Snap->Fires)
-		{
-			int32 Value = 0;
-			for (const FAnomalyMaskRecord& R : Async->MaskMeasure.GetRecords())
-			{
-				if (R.Id == F.Id && R.Target == F.Target && R.StartFrame == F.StartFrame)
-				{
-					Value = (int32)R.Tag;
-					break;
-				}
-			}
-			Snap->MaskValues.Add(Value);
-		}
-	}
-
 	DeferredActiveRequestId = ArmedLabelRequestId;
 	bHasDeferredActive = true;
 }
@@ -3348,30 +3427,71 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 		return;
 	}
 
-	UWorld* World = GetWorld();
-	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
-
 	Snap->FireActive.Reset();
 	Snap->FireActive.Reserve(Snap->Fires.Num());
 	for (const FAutoLiveFireInfo& F : Snap->Fires)
 	{
-		const AActor* FActor = F.TargetActor.Get();
-		bool bKnownId = false;
-		const EAnomalyActiveSource Source = ResolveAnomalyActiveSource(F.Id, bKnownId);
-
-		uint8 Active = 0;
-		if (Source == EAnomalyActiveSource::AnomalyState)
-		{
-			Active = !FActor
-				? 1
-				: ((Injector && Injector->IsAnomalyCurrentlyAnomalous(F.Id)) ? 1 : 0);
-		}
-		else
-		{
-			Active = (FActor && FActor->IsHidden()) ? 1 : 0;
-		}
-		Snap->FireActive.Add(Active);
+		Snap->FireActive.Add(ComputeFireActive(F));
 	}
+
+	if (Snap->bTargetMask)
+	{
+		Snap->MaskValues.Reset();
+		Snap->MaskValues.Reserve(Snap->Fires.Num());
+		for (const FAutoLiveFireInfo& F : Snap->Fires)
+		{
+			int32 Value = 0;
+			for (const FAnomalyMaskRecord& R : Async->MaskMeasure.GetRecords())
+			{
+				if (R.Id == F.Id && R.Target == F.Target && R.StartFrame == F.StartFrame)
+				{
+					Value = (int32)R.Tag;
+					break;
+				}
+			}
+			Snap->MaskValues.Add(Value);
+		}
+	}
+}
+
+bool UAnomalyCaptureSubsystem::IsFireLabelledThisFrame(const FAutoLiveFireInfo& F) const
+{
+	bool bKnownId = false;
+	const EAnomalyActiveSource Source = ResolveAnomalyActiveSource(F.Id, bKnownId);
+	const AActor* FActor = F.TargetActor.Get();
+
+	switch (Source)
+	{
+	case EAnomalyActiveSource::ActorHidden:
+		return FActor && FActor->IsHidden();
+	case EAnomalyActiveSource::AnomalyState:
+	{
+		UWorld* World = GetWorld();
+		const UAnomalyInjectorSubsystem* Injector =
+			World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		return Injector && Injector->IsAnomalyCurrentlyAnomalous(F.Id);
+	}
+	default:
+		return true;
+	}
+}
+
+uint8 UAnomalyCaptureSubsystem::ComputeFireActive(const FAutoLiveFireInfo& F) const
+{
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+
+	const AActor* FActor = F.TargetActor.Get();
+	bool bKnownId = false;
+	const EAnomalyActiveSource Source = ResolveAnomalyActiveSource(F.Id, bKnownId);
+
+	if (Source == EAnomalyActiveSource::AnomalyState)
+	{
+		return !FActor
+			? 1
+			: ((Injector && Injector->IsAnomalyCurrentlyAnomalous(F.Id)) ? 1 : 0);
+	}
+	return (FActor && FActor->IsHidden()) ? 1 : 0;
 }
 
 void UAnomalyCaptureSubsystem::PaceThisTick()
@@ -3815,21 +3935,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 					ServiceTargetMask();
 				}
 			}
-			for (int32 Idx : TargetMaskDeferredBlanks)
-			{
-				if (TargetMaskW > 0 && TargetMaskH > 0)
-				{
-					TArray<uint8> Blank;
-					Blank.SetNumZeroed((int32)((int64)TargetMaskW * (int64)TargetMaskH));
-					EnqueueTargetMaskPng(Idx, Blank, TargetMaskW, TargetMaskH);
-					++TargetMaskHiddenBlank;
-				}
-				else
-				{
-					++TargetMaskUnavailable;
-				}
-			}
-			TargetMaskDeferredBlanks.Reset();
+			ProcessCompletedFrames();
 			if (TargetMaskPendingSessionIndex.Num() > 0)
 			{
 				UE_LOG(LogAnomalyCapture, Warning,

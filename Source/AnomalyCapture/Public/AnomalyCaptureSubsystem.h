@@ -155,6 +155,7 @@ private:
 	void ServiceTargetMask();
 	void ReleaseTargetMaskSelfTags();
 	bool ArmTargetMaskOwn(int32 SessionIndex);
+	void EnsureMaskRecordsForCapturedFrame();
 	void EnqueueTargetMaskPng(int32 SessionIndex, const TArray<uint8>& Gray, int32 W, int32 H);
 	const TCHAR* DescribeCensusSource() const;
 	const TCHAR* DescribeMaskSource() const;
@@ -171,6 +172,8 @@ private:
 	void CaptureCurrentFrame();
 	void FinalizeArmedLabel();
 	void SampleDeferredActiveState();
+	uint8 ComputeFireActive(const struct FAutoLiveFireInfo& F) const;
+	bool IsFireLabelledThisFrame(const struct FAutoLiveFireInfo& F) const;
 	void FinishRun(bool bLogLine);
 	void PaceThisTick();
 	void StampArmWallClock(double NowWall);
@@ -339,8 +342,10 @@ private:
 	int32 TargetMaskArmedSessionIndex = -1;
 	TMap<uint64, int32> TargetMaskPendingSessionIndex;
 	TMap<uint64, TSet<uint8>> TargetMaskPendingTags;
-	TArray<int32> TargetMaskDeferredBlanks;
+	TMap<int32, uint8> TargetMaskOutcome;
+	int32 TargetMaskHoldTicks = 0;
 	TArray<TWeakObjectPtr<AActor>> TargetMaskSelfTagged;
+	uint64 TargetMaskSelfTaggedTick = 0;
 	uint64 TargetMaskOwnSerial = 0;
 	int32 TargetMaskTagFlips = 0;
 	int32 TargetMaskW = 0;

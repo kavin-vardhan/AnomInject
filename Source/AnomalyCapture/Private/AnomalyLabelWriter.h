@@ -13,6 +13,23 @@ namespace AnomalyLabel
 {
 	static constexpr int32 SchemaVersion = 1;
 
+	enum class EAnomalyMaskState : uint8
+	{
+		Unmeasured = 0,
+		Empty      = 1,
+		Present    = 2
+	};
+
+	inline const TCHAR* DescribeMaskState(EAnomalyMaskState State)
+	{
+		switch (State)
+		{
+		case EAnomalyMaskState::Present: return TEXT("present");
+		case EAnomalyMaskState::Empty:   return TEXT("empty");
+		default:                         return TEXT("unmeasured");
+		}
+	}
+
 	struct FCaptureSnapshot
 	{
 		uint64 FrameCounter = 0;
@@ -25,6 +42,7 @@ namespace AnomalyLabel
 		bool bTargetMask = false;
 		FString MaskFileRel;
 		TArray<int32> MaskValues;
+		EAnomalyMaskState MaskState = EAnomalyMaskState::Unmeasured;
 		TArray<uint8>   FireActive;
 		TArray<FVector> FirePos;
 	};
