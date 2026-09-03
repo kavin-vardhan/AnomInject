@@ -2065,3 +2065,81 @@ manufacture a green table around an unproven safety argument.**
    arbiter runs at AA-off **by design** and say so in the gate.
 3. The fallback if identity ever fails: coarse projected-bbox masks flagged `"coarse": true`, which
    needs `m39`'s honest bbox first.
+
+---
+
+# §14. `m45` — EVERY GATE PASSES; THE SYNTH-ORDER IDENTITY ARBITER IS **UNOBTAINABLE**, SO THE MERGE IS CHAT'S CALL
+
+**2026-09-03, session 069 brief 20.** `master` untouched at `d48e1ba`. Branch
+`m45-hidden-class-masks-GATE-FAILED`.
+
+## §14.1 THE CAN-FAIL LEVER WORKS — `M45-G4` IS OBTAINED
+
+Ruling `D1 = (b)`: the lever is **`IAI.Bench.HideOmitDepthPassSilencing`** (console-only, default off,
+echoed). It leaves `bRenderInDepthPass` true while the main pass is off, so the target still writes the
+depth prepass and **occludes what is behind it while drawing nothing itself** — deterministic wrong
+pixels wherever it overlaps background, in any fixture.
+
+**Native order, at the AA-off arbiter** (`r.AntiAliasingMethod 0` + Lumen/GI/reflections off):
+
+| leg | frames differing | mean % >8/255 | worst % |
+|---|---|---|---|
+| **CONTROL** old-vs-old | **0 of 60** | 0.0000 | 0.0000 |
+| **TEST** old-vs-NEW | **0 of 60** | 0.0000 | 0.0000 |
+| **CAN-FAIL** old-vs-depth-omitted | **20 of 60** | 1.5608 | 4.6875 @ si 46 |
+
+✅ **`M45-G1` PASSES on a zero-floor control** — the new hide changes not one pixel.
+✅ **`M45-G4` IS OBTAINED** — the gate demonstrably catches a mis-applied hide, with the lever proven
+engaged in the engine log. **The previous lever (shadow omission) failed to fire because this fixture
+casts no shadow into frame; this one does not depend on the fixture at all.**
+
+## §14.2 ⚠ THE SYNTH-ORDER ARBITER IS UNOBTAINABLE — and the control proves it is not `m45`'s fault
+
+| leg | frames differing | mean % |
+|---|---|---|
+| **CONTROL** old-vs-old, `SynthTickOrder` | **60 of 60** | **5.9526** |
+| TEST ctrl-vs-NEW | 56 of 60 | 7.6437 |
+| CAN-FAIL ctrl-vs-depth-omitted | 20 of 60 | 1.5609 |
+
+🚨 **The CONTROL — the OLD hide against itself — differs on every frame.** Poses, origins and
+`frame_index` are identical across all four synth legs, so this is not `A47`. **`IAI.Bench.SynthTickOrder`
+relocates the injector's dispatch and makes the run nondeterministic even at AA-off**, which puts a
+5.95 % floor under any cross-run comparison there. ⇒ **the identity question cannot be decided in that
+order — RECORDED AS UNOBTAINABLE, never as passed** (the `m41` precedent for `B-G1`/`C-G1b`).
+📌 **It is a property of the bench lever, not of `m45`: the old hide is equally nondeterministic there,
+and the lever never ships.** ⛔ **But it is one of the two orders the standing rule requires, so I am
+not calling this a full pass.**
+
+## §14.3 EVERY OTHER GATE — BOTH ORDERS, DELIVERED CONFIGURATION
+
+| gate | native | synth |
+|---|---|---|
+| **M45-G2** masks on hidden frames | ✅ **both `blink` events now have masks**, delta 0 | ✅ same |
+| **G7 becomes EQUALITY for hidden-class** | ✅ `files=35 labelled=35 stray=0` | ✅ `35 / 35 / 0` |
+| **M44-G1** onset (now all six events) | ✅ **6/6 delta 0** | ✅ **6/6** |
+| **M44-G2** no blank PNGs | ✅ 0 | ✅ 0 |
+| **M44-G3** counts | ✅ 35 + 0 + 55 = 90 | ✅ 35 + 0 + 55 = 90 |
+| **MASK-TIE** | ✅ 35 lines, **0 MISMATCH** | ✅ 35 lines, **0 MISMATCH** |
+| **G6** veto inputs vs the `m44` control | ✅ all six identical; event set, every `manifested`, `positive_frames` 43 and `non_manifested_events` 0 unchanged | — |
+| **census health** | ✅ `framesPolluted 0`, `batchesLost 0`, `tagFailed 0`, `hidden=2` (the new live-fire skip, counted) | ✅ same |
+| **both build targets** | ✅ | |
+
+**MOVED COUNTERS, each explained:**
+
+| counter | m44 → m45 | why |
+|---|---|---|
+| `target_mask_frames_measured` | 27 → **35** | **+8 = exactly the eight `blink` hidden frames (4+4) that now carry a mask.** This is the milestone |
+| `target_mask_frames_unavailable` | 63 → **55** | the same eight, moved out of `unmeasured` |
+| `census_frames` / `_zero` / `_below_floor` | 100→97 / 12→13 / 50→49 | run-to-run scale; verdicts and the histogram unchanged |
+
+⛔ **`M45-G3` (IoU of first-hidden vs last-visible mask) was NOT run** — it is a quality measure on a
+milestone whose merge is not settled, and running it would add a number to a table that cannot yet
+close. Named, not skipped silently.
+
+## §14.4 THE POSITION
+
+`m45` is **functionally complete and green everywhere it can be measured**. The single open item is
+that one of the two required orders cannot host the identity arbiter, **for a reason proven to be
+independent of `m45`** (the old hide is equally nondeterministic there). ⛔ **I did not merge**: the
+standing rule says both orders, and inventing an exemption for my own change is exactly the shape this
+project stops for. **The merge is chat's ruling.**

@@ -30,6 +30,7 @@ namespace AnomalyHiddenClass
 		TMap<TWeakObjectPtr<AActor>, FSavedActor> GHidden;
 		int32 GHideMode = 1;
 		bool GOmitShadowSilencing = false;
+		bool GOmitDepthPassSilencing = false;
 	}
 
 	void SetHideMode(int32 InMode)
@@ -57,6 +58,16 @@ namespace AnomalyHiddenClass
 	bool IsOmitShadowSilencing()
 	{
 		return GOmitShadowSilencing;
+	}
+
+	void SetOmitDepthPassSilencing(bool bInOmit)
+	{
+		GOmitDepthPassSilencing = bInOmit;
+	}
+
+	bool IsOmitDepthPassSilencing()
+	{
+		return GOmitDepthPassSilencing;
 	}
 
 	void Hide(AActor* Actor)
@@ -99,7 +110,10 @@ namespace AnomalyHiddenClass
 			Saved.Primitives.Add(S);
 
 			Prim->bRenderInMainPass = false;
-			Prim->bRenderInDepthPass = false;
+			if (!GOmitDepthPassSilencing)
+			{
+				Prim->bRenderInDepthPass = false;
+			}
 			if (!GOmitShadowSilencing)
 			{
 				Prim->SetCastShadow(false);

@@ -848,6 +848,29 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchHideOmitShadowCmd(
 				AnomalyHiddenClass::IsOmitShadowSilencing() ? TEXT("ON") : TEXT("off"));
 		}));
 
+static FAutoConsoleCommandWithWorldAndArgs GBenchHideOmitDepthPassCmd(
+	TEXT("IAI.Bench.HideOmitDepthPassSilencing"),
+	TEXT("BENCH DEVICE, console only, default OFF - never in a client payload. ON deliberately OMITS ")
+	TEXT("the DEPTH-PASS half of the m45 hide: bRenderInDepthPass stays true while the main pass is ")
+	TEXT("off, so the target still writes the depth prepass and OCCLUDES what is behind it while ")
+	TEXT("drawing nothing itself. That is deterministic wrong pixels wherever the target overlaps ")
+	TEXT("background, in ANY fixture, at the AA-off identity arbiter. It exists ONLY to prove the ")
+	TEXT("identity gate can FAIL (G96/G114). Usage: IAI.Bench.HideOmitDepthPassSilencing <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.HideOmitDepthPassSilencing <0|1>"));
+				return;
+			}
+			AnomalyHiddenClass::SetOmitDepthPassSilencing(FCString::Atoi(*Args[0]) != 0);
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Bench.HideOmitDepthPassSilencing -> %s. BENCH DEVICE. This is the deliberate ")
+				TEXT("mis-application the identity gate must CATCH."),
+				AnomalyHiddenClass::IsOmitDepthPassSilencing() ? TEXT("ON") : TEXT("off"));
+		}));
+
 static FAutoConsoleCommandWithWorldAndArgs GBenchSpawnTranslucentProbeCmd(
 	TEXT("IAI.Bench.SpawnTranslucentProbe"),
 	TEXT("BENCH DEVICE, default absent, console only - no ini key, never in a client payload. Spawns ONE ")

@@ -13,6 +13,9 @@ namespace AnomalyHiddenClass
 	ANOMALYINJECTOR_API void SetOmitShadowSilencing(bool bInOmit);
 	ANOMALYINJECTOR_API bool IsOmitShadowSilencing();
 
+	ANOMALYINJECTOR_API void SetOmitDepthPassSilencing(bool bInOmit);
+	ANOMALYINJECTOR_API bool IsOmitDepthPassSilencing();
+
 	ANOMALYINJECTOR_API void Hide(AActor* Actor);
 	ANOMALYINJECTOR_API void Show(AActor* Actor);
 
