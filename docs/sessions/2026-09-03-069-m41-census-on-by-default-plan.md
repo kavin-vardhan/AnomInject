@@ -2204,3 +2204,69 @@ gates, `G7`-equality, ONSET 6/6, and the delivered-configuration limitation stat
 the hidden-class hide, the logical-hidden registry, the permanent arbiter and lever, the scope rule,
 and **`git add <directory>` banned alongside `git add -A`** after it swept the owner's untracked
 handoffs once. Gotchas **`G228`–`G230`**. Ledger **§12**.
+---
+
+# §16. TWO COOKS, AND `m46` — F1 IS VALIDATED AND MERGED
+
+**2026-09-03, session 069 brief 22.** Both cooks run as their own sequenced operations (`G118`).
+
+## §16.1 The first cook — re-baselining `master` at `m45`
+
+Followed runbook §8.6 verbatim. **STEP 0** disk 188 GB free (floor: ≥15 GB GO). **Step 1 re-bank
+(`G92`): 16 unbanked sessions found BY SESSION ID** in the package tree — including three
+`M43G_LBOX` attempts, `M45_SYNTH_try1` and a 2026-08-23 `AnomalyCaptures` session — copied to
+`B22_PRECOOK_RESCUE`, 16/16 with per-file counts matching. **Step 2** the quartet archived and
+**hash-verified at the new location** (`A62`). **Step 3 map set declared in writing BEFORE the cook:**
+`CB_GateLevel` + `MainMenu` + `MainWorld` (+ `Entry`, engine default). **Step 3.5** editor target
+rebuilt and A44-scanned — `HideOmitDepthPassSilencing` ×4, `IAI.Bench.HideMode` ×4, control `blinking`
+×9, so the scan is sound and not blind. ⚠ **The runbook's example control `IsHideTypeAnomaly` reads 0
+— it is STALE (renamed at session 053) and `blinking` was used instead.**
+
+`BUILD SUCCESSFUL`, exit 0, 1 m 6 s. **Map gate PASS exit 0**, all four maps read **out of the
+container index** (`G119`). **Token read-back: 64 characters, from `DefaultGame.ini`, not the
+placeholder** (`G118`). No `Missing global shader`.
+
+| | exe | `.utoc` | `.ucas` | `.pak` |
+|---|---|---|---|---|
+| pre-cook | `8A895272` | `2A66CA57` | `A7EF9B12` | `D8009AD7` |
+| **`m45` post-cook** | `38A55169` | `4621F571` | `513F4D35` | `2163A13A` |
+
+## §16.2 `A4` — the cook changed NO behaviour (`G103`)
+
+Re-baselined on the new container, both tick orders: **ONSET 6/6 · G7 equality 35 = 35 stray 0 · G2 0
+blanks · G3 35+0+55 = 90 · MASK-TIE 35 lines 0 MISMATCH · MASK-PICTURE-PAIRING NEITHER 0 / PREVIOUS 0
+(33/33 native, 35/35 synth) · `m26` known-answer control fires (`mask_probe_arms 1`) · census
+`candidates 77 · zero 13 · nonzero 62 · belowFloor 49 · tagFailed 0 · hidden 2 · framesPolluted 0 ·
+batchesLost 0 · tagOvertaken 3`** — **every one identical to the pre-cook container.** Only
+`census_frames`/`cycles` move at run-to-run scale. **These are `master`'s new `P-C7` controls.**
+
+## §16.3 The second cook and `m46`
+
+F1 cherry-picked onto `m46-f1-resolution-mapping`; the `A4` quartet archived first; editor rebuilt;
+second cook `BUILD SUCCESSFUL` exit 0, 2 m 25 s, map gate PASS.
+**`m46` quartet: exe `60AE8C61` · `.utoc` `EF8EB23C` · `.ucas` `A8BFFF88` · `.pak` `3C026A8D`.**
+
+**THE DECISIVE GATE, against the banked prove-it-can-fail leg:**
+
+| `r.ScreenPercentage 50` (internal 640×360 vs output 1280×720) | pairing |
+|---|---|
+| BEFORE (`069-16`) | **CURRENT 0 of 26, NEITHER 25** |
+| AFTER | **CURRENT 35 of 35, NEITHER 0, PREVIOUS 0** |
+
+100 % unchanged (33 of 33). ONSET 6/6, G7 equality, MASK-TIE 0, `m26` probe fires, census clean, every
+veto counter and `positive_frames` identical — all both orders.
+
+🚨 **`P-C7 v2` LOOKED LIKE A FINDING AND WAS NOT, AND THE CONTROL IS WHY.** 5 of 35 mask silhouettes
+differ against the pre-`m46` control, one by **23,198 pixels** at `session_index 52`. **A same-build
+control reproduces it EXACTLY** — the same 5 frames, the same frame, the same 23,198-pixel symmetric
+difference, with the two pixel counts merely swapped (66,635 ↔ 89,833). ⇒ **census run-to-run variance,
+not `m46`** (`G169`). ⛔ **Without that control this would have been reported as a defect.**
+
+## §16.4 State
+
+`master` carries `m45` + `m46`. ⛔ **NO TAG** — office batch `… m43 → m44 → m45 → m46`.
+`m44-f1-resolution-mapping-UNVALIDATED` is deleted; its content is on `master`.
+📦 Three container quartets archived: `m45-precook-container-d204598`,
+`m45-postcook-container-A4`, and the live `m46` one.
+✅ **The nearest-neighbour mask-resampling follow-up is RETIRED** — the mapping is nearest by
+construction.

@@ -20,8 +20,16 @@ and is the single source of truth for the project.
 > Lumen, distance fields, ray tracing and decals **while keeping `bRenderCustomDepth`**, so every
 > labelled hidden frame carries the target's **would-be silhouette**, occlusion-aware, from the
 > existing `m26` pass — **no new shader**. Merged to `master` as a merge commit. ⛔ **NO TAG.** Office
-> batch: **`… m41 → m43 → m44 → m45`**. ⛔ **F1 IS STILL OUT OF MASTER** — `AnomalyVisibleMask.usf` is
-> byte-identical to `62bd287`; it waits on the cook, on `m44-f1-resolution-mapping-UNVALIDATED`.
+> batch: **`… m41 → m43 → m44 → m45 → m46`**.
+>
+> 🆕 **AND `m46` LANDED IMMEDIATELY AFTER, ON A FRESHLY COOKED CONTAINER.** The mask pass now maps
+> output pixels through the **internal view rect**, so masks, the census and `m26` are correct at **any
+> screen percentage** — measured at `r.ScreenPercentage 50`: **CURRENT 0 of 26 BEFORE → 35 of 35
+> AFTER**, 100 % unchanged. 📦 **TWO COOKS THIS SESSION, each its own sequenced operation:** the first
+> re-baselined `master` (`m45`) and the second carried `m46`'s shader change (`G129`). **Container
+> quartets: pre-cook `2A66CA57`/`A7EF9B12`/`D8009AD7` → `m45` `4621F571`/`513F4D35`/`2163A13A` →
+> `m46` `EF8EB23C`/`A8BFFF88`/`3C026A8D`.** All three archived. ✅ **The `m45` re-baseline proved the
+> cook changed NO behaviour** (`G103`): every alignment gate read identically across it.
 >
 > 🔑 **THE DESIGN POINT: the labels' notion of "hidden" was `AActor::IsHidden()`.** A hide that does
 > not set that flag would silently empty `blinking`'s hidden set **while the pixels stayed right**. The
@@ -4576,11 +4584,13 @@ and is the single source of truth for the project.
   FIRST FRAME — they are never born in a readback drain.** A structure created as a side effect of
   consuming an async result makes every synchronous reader one cycle late, by construction (`G223`).
 - 🔒 **ANY PASS THAT READS SCENE TEXTURES MUST MAP THROUGH THE INTERNAL VIEW RECT** — a post-tonemap
-  pass is in OUTPUT space while the scene textures are at INTERNAL resolution. ⚠ **PENDING: the mask
-  pass does NOT yet do this. The fix is built and unvalidated on branch
-  `m44-f1-resolution-mapping-UNVALIDATED`; it needs a cook (`G129`). Until it lands, masks, the census
-  and `m26` are correct ONLY at 100 % screen percentage** — demonstrated at `r.ScreenPercentage 50`,
-  0 of 26 frames correct (`G225`).
+  pass is in OUTPUT space while the scene textures are at INTERNAL resolution. ✅ **LANDED as `m46`
+  (2026-09-03):** the mask pass maps `P_out → InternalRectMin + clamp(round(P_out × InternalSize /
+  OutputSize), 0, InternalSize−1)`, nearest by construction and clamped. **Measured at
+  `r.ScreenPercentage 50`: CURRENT 0 of 26 BEFORE → 35 of 35 AFTER**; 100 % unchanged. ⇒ **masks, the
+  census and `m26` are now correct at ANY screen percentage, dynamic resolution or temporal
+  upsampler** (`G225`, fixed). ⚠ **It needed a FULL COOK (`G129`)** — a global shader parameter-struct
+  change is fatal against a stale container, and that is why it could not ship with `m44`.
 - 🔒 **HIDDEN-CLASS HIDE (m45): `blinking` and `missing_object` DO NOT call `SetActorHiddenInGame`.**
   They drop the target from the **main and depth passes** and silence shadows, Lumen, distance fields,
   ray tracing and decals, **while KEEPING `bRenderCustomDepth`** — so the would-be silhouette stays

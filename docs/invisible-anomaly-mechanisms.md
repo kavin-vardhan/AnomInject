@@ -1466,3 +1466,36 @@ own old-hide control differs on 60 of 60 frames (`G230`).
 
 ⛔ **Nanite targets get no hidden-class mask** — `Nanite::FSceneProxy::GetViewRelevance` never sets
 `bRenderCustomDepth` (`G134`). Unchanged by `m45` and stated in the client docs.
+---
+
+# §13 — `m46`: the mask pass maps through the internal view rect
+
+**2026-09-03, on `master`, on a freshly cooked container.** Journal 069 §16.
+
+The mask pass runs **after tonemap**, so `SvPosition` is in **OUTPUT** space, while the scene textures
+it samples are at **INTERNAL** resolution. It sampled them with unscaled coordinates. At 100 % screen
+percentage the two spaces coincide and nothing looks wrong; at any other ratio every sample lands in
+the wrong place, and the region beyond the internal rect reads whatever the pooled texture still holds.
+
+**Measured, with the banked prove-it-can-fail leg as the A-side** (`r.ScreenPercentage 50`, internal
+640×360 against output 1280×720):
+
+| | mask-picture pairing |
+|---|---|
+| BEFORE | **CURRENT 0 of 26 decidable, NEITHER 25** |
+| AFTER | **CURRENT 35 of 35, NEITHER 0, PREVIOUS 0** |
+
+100 % unchanged (33 of 33). ⇒ **masks, the census and `m26` are now correct under dynamic resolution,
+any screen percentage and any temporal upsampler** — all ordinary shipped-game settings.
+
+⚠ **RETIRES THE NEAREST-NEIGHBOUR MASK-RESAMPLING FOLLOW-UP.** The mapping is nearest by construction
+(integer, rounded, clamped), so there is no separate resample step to add and none should be proposed.
+
+📌 **`P-C7 v2` reading, and the control that settled it:** 5 of 35 mask silhouettes differ against the
+pre-`m46` control — **and a SAME-BUILD control reproduces it exactly** (same 5 frames, same frame 52,
+same 23,198-pixel symmetric difference with the two values merely swapped). It is **census run-to-run
+variance, not `m46`** (`G169`). Every veto counter, `positive_frames` and the three `target_mask_*`
+counters are identical.
+
+⚠ **It could not ship with `m44` because a global shader parameter-struct change is fatal against a
+stale cooked container (`G129`).** It needed a full cook, which is an owner-sequenced operation.

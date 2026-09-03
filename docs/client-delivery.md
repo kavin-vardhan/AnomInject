@@ -555,3 +555,19 @@ answers "does the hide change what renders", which is the question; it does not 
 temporal-AA frames.
 ⚠ **`IAI.Bench.SynthTickOrder` cannot host a pixel arbiter** — it is nondeterministic even at AA-off
 (its own old-hide control differs on 60 of 60 frames). It hosts ALIGNMENT gates only.
+### 🆕 `m46` — the mask pass maps through the internal view rect
+
+The pass runs after tonemap (OUTPUT space) and samples scene textures at INTERNAL resolution. It now
+maps `P_out → InternalRectMin + clamp(round(P_out × InternalSize / OutputSize), 0, InternalSize−1)`,
+nearest and clamped. **At 100 % this is the identity; at any other ratio it is the fix.**
+
+- [ ] 🆕 **MASK-PICTURE-PAIRING gains a 50 % leg.** Run the probe at
+      `r.ScreenPercentage 50, r.DynamicRes.OperationMode 0`: **NEITHER 0 and PREVIOUS 0**, and the
+      `M23 PASS` line must show `internalViewRect` **differing** from `viewRect` (otherwise the leg
+      did not exercise the mapping at all and its pass is vacuous).
+      *Bench: 35 of 35 CURRENT after; 0 of 26 CURRENT with 25 NEITHER before.*
+- [ ] The 100 % leg must be **unchanged**.
+
+⚠ **This change is a GLOBAL SHADER parameter-struct change: it needs a FULL COOK (`G129`).** A
+code-only hot-swap against a stale container is fatal at engine init with
+`parameter structure has changed without recompilation`.

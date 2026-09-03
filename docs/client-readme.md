@@ -348,6 +348,8 @@ genuinely in front of it still cuts it away. It is not a bounding box.
 - **The visible in-between frames of a blink carry NO mask** — those frames are labelled clean, and a
   mask there would contradict the label.
 - ⛔ **Nanite-rendered targets are excluded**, the same limit the anomaly measurement has.
+- ✅ **Masks are correct at any screen percentage**, including dynamic resolution and temporal
+  upsamplers — the mask pass maps its samples through the render's internal view rect.
 
 *Measured on the bench: the hidden-frame mask matches the same object's silhouette while visible, at
 the same camera, to an IoU of **0.9969–0.9987**.*

@@ -5707,6 +5707,10 @@ result produced the cleanest tick. **A gate whose subject can be empty needs a n
 precondition.**
 
 ## G225 - a post-upscale pass that samples pre-upscale scene textures with unscaled coordinates
+**FIXED IN `m46` (2026-09-03)** - the pass now maps output pixels through the internal view rect,
+nearest and clamped. Measured at `r.ScreenPercentage 50`: pairing CURRENT **0 of 26 before, 35 of 35
+after**. It needed a FULL COOK (`G129`). The lesson below stands as written; only the defect is closed.
+
 `AnomalyVisibleMask.usf:23` computes `P = SvPosition.xy + ViewRectMin` and loads CustomStencil,
 CustomDepth and SceneDepth at `P`. The pass runs AFTER tonemap, so `SvPosition` is in OUTPUT space,
 while the scene textures are at INTERNAL (pre-upscale) resolution. At 100% screen percentage the two
