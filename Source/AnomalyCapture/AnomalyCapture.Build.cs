@@ -337,7 +337,10 @@ public class AnomalyCapture : ModuleRules
 			"Json"
 		});
 
-		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		bool bEnableCapture = Target.Configuration != UnrealTargetConfiguration.Shipping
+			&& Target.Version.MajorVersion >= 5;
+
+		if (bEnableCapture)
 		{
 			PublicDefinitions.Add("ANOMALY_CAPTURE=1");
 
@@ -352,7 +355,9 @@ public class AnomalyCapture : ModuleRules
 				"AnomalyShaders"
 			});
 
+#if UE_5_0_OR_LATER
 			PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
+#endif
 		}
 		else
 		{

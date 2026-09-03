@@ -102,7 +102,9 @@ namespace AnomalyHiddenClass
 			S.bRenderInMainPass = Prim->bRenderInMainPass ? 1 : 0;
 			S.bRenderInDepthPass = Prim->bRenderInDepthPass ? 1 : 0;
 			S.bCastShadow = Prim->CastShadow ? 1 : 0;
+#if ANOMALY_HAS_CONTACT_SHADOW
 			S.bCastContactShadow = Prim->bCastContactShadow ? 1 : 0;
+#endif
 			S.bAffectDynamicIndirectLighting = Prim->bAffectDynamicIndirectLighting ? 1 : 0;
 			S.bAffectDistanceFieldLighting = Prim->bAffectDistanceFieldLighting ? 1 : 0;
 			S.bVisibleInRayTracing = Prim->bVisibleInRayTracing ? 1 : 0;
@@ -117,7 +119,9 @@ namespace AnomalyHiddenClass
 			if (!GOmitShadowSilencing)
 			{
 				Prim->SetCastShadow(false);
+#if ANOMALY_HAS_CONTACT_SHADOW
 				Prim->bCastContactShadow = false;
+#endif
 			}
 			Prim->bAffectDynamicIndirectLighting = false;
 			Prim->bAffectDistanceFieldLighting = false;
@@ -162,7 +166,9 @@ namespace AnomalyHiddenClass
 			Prim->bRenderInMainPass = S.bRenderInMainPass != 0;
 			Prim->bRenderInDepthPass = S.bRenderInDepthPass != 0;
 			Prim->SetCastShadow(S.bCastShadow != 0);
+#if ANOMALY_HAS_CONTACT_SHADOW
 			Prim->bCastContactShadow = S.bCastContactShadow != 0;
+#endif
 			Prim->bAffectDynamicIndirectLighting = S.bAffectDynamicIndirectLighting != 0;
 			Prim->bAffectDistanceFieldLighting = S.bAffectDistanceFieldLighting != 0;
 			Prim->bVisibleInRayTracing = S.bVisibleInRayTracing != 0;

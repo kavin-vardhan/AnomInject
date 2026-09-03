@@ -567,6 +567,20 @@ arbiter, any alignment gate. **Step 6 changes the label anchor on 4.25 and E1 do
 there are no labels in E1 to certify it with. 🚨 **Re-running `m40`'s alignment gate on 4.25 is an E2
 entry condition and must be written into E2's pre-declaration, not discovered there.**
 
+### E.2a 🚨 E2 ENTRY CONDITIONS — PRE-DECLARED HERE, AS GATES WITH PREDICATES
+
+**Ruled 2026-09-03 (session 070 brief 02, ruling 4). These are not notes. E2 does not begin until each is
+either PASSED or explicitly waived in writing, and none may be graded after the fact.**
+
+| gate | predicate | why it exists |
+|---|---|---|
+| **E2-E1 — the anchor re-gate** | 🚨 **`m40`'s label-alignment gate is re-run ON 4.25 and passes there, in BOTH tick orders, BEFORE any label or capture output is graded on that engine.** Pass = for every counted event, the first frame labelled positive equals the first frame whose picture differs, delta **0**, on both the native order and `IAI.Bench.SynthTickOrder`; with the in-leg positive control (a deliberate ±1 shift) reading SHIFTED so the instrument is proven able to fail. | 5.1 anchors the per-frame label at `FWorldDelegates::OnWorldTickEnd`; **4.25 has no such delegate** and must bind `OnWorldPostActorTick` instead. The two occupy the same *structural* position — `LevelTick.cpp:1694` sits after `TickObjects` at `:1630` under the same `bDoingActorTicks` guard (`:1545`/`:1690`) — but **that is an argument from engine source, not a measurement of our labels.** `P9` is the standing proof that an anchor argument which "obviously holds" can be wrong on a host we did not measure. |
+| **E2-E2 — the contact-shadow residue** | On 4.25, a hidden-class target is compared against its 5.1 counterpart on the same fixture and **either** shows no contact-shadow residue, **or** the residue is measured and stated as a named 4.25 limitation. | `bCastContactShadow` is **absent** from 4.25's `UPrimitiveComponent` (measured), so `m45`'s hide cannot silence that shadowing path there. ⛔ Do not assume it is off by default — measure it. |
+| **E2-E3 — the artifact contract** | For one fixture and one seed, `labels.jsonl` / `annotation.json` / `mask_map.json` are compared across the two engines and **every field except the declared run-unique set is identical**. | §B-4's engine-independent artifact contract is the cheapest cross-engine gate and the strongest available proof the port did not change *meaning* rather than just compiling. |
+
+⛔ **E2-E1 is the blocking one.** Until it passes, **no label produced on 4.25 may be shipped, quoted, or
+used to grade anything** — an unvalidated anchor is exactly the dataset-poisoning shape `P3` and `P9` were.
+
 ### E.3 Residual risks
 
 **Accepted — I would start E1 with these open:**

@@ -11,7 +11,10 @@ public class AnomalyShaders : ModuleRules
 			"Core"
 		});
 
-		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		bool bEnableShaders = Target.Configuration != UnrealTargetConfiguration.Shipping
+			&& Target.Version.MajorVersion >= 5;
+
+		if (bEnableShaders)
 		{
 			PublicDefinitions.Add("ANOMALY_SHADERS=1");
 

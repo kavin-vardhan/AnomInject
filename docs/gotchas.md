@@ -5799,3 +5799,90 @@ identical across those legs, so it is not `A47` - the lever itself makes the run
   configuration**, because no cross-run pixel comparison can decide anything under that lever.
 ⛔ Do not read this as "m45 skipped a gate". The old hide is equally nondeterministic there - proven by
 its own control - so the blindness belongs to the lever, and the lever never ships.
+
+## G231 - 🚨 DELETING A DIRECTORY JUNCTION WITH `rmdir /S` RECURSES INTO THE TARGET AND DESTROYS IT
+The 4.25 host mounts the plugin as a **Windows directory junction**:
+`mklink /J "E:\Unreal Projects\StylizedParisStreet\Plugins\AnomalyInjector" "D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector"`
+✅ **Creating it needs NO elevation** (only `/D` symlinks do) - measured 2026-09-03, created and verified by
+reading `AnomalyInjector.uplugin` through the 4.25-side path; `(Get-Item).LinkType` reads `Junction`.
+🚨 **REMOVING IT IS THE FOOTGUN. `rmdir /S` FOLLOWS THE REPARSE POINT AND DELETES THE TARGET'S CONTENTS -
+THAT IS THE ENTIRE GIT WORKING TREE.** The same applies to `Remove-Item -Recurse` and to anything that
+walks the tree.
+**CORRECT REMOVAL, either of:**
+- `rmdir "E:\Unreal Projects\StylizedParisStreet\Plugins\AnomalyInjector"` (NO `/S` - removes the link only)
+- `fsutil reparsepoint delete "E:\Unreal Projects\StylizedParisStreet\Plugins\AnomalyInjector"` then `rmdir`
+⚠ **And the same hazard reaches ordinary cleanup:** a "delete the project's Intermediate/Saved" sweep that
+starts above `Plugins\` will descend the junction. **Never recursive-delete a directory that contains a
+junction without removing the junction first.**
+📌 Related, already recorded: `Intermediate\` and `Saved\` are shared by BOTH engines in the plugin tree
+(4.25 writes `UE4Editor`/`UE4` subdirs, 5.1 writes `UnrealEditor`), so a hand-deletion there destroys both
+engines' state at once. UBT's own clean is engine-scoped and safe.
+
+## G232 - 🚨 A UObject BASE CLASS CANNOT BE MADE ENGINE-VERSION-CONDITIONAL IN A SHARED HEADER
+Measured 2026-09-03 while porting the three `UTickableWorldSubsystem` subsystems to 4.25 (which does not
+have that class - its `UWorldSubsystem.h` is 24 lines). **Both escape hatches were tried and BOTH are
+refused by UHT, on the 5.1 build, in under three minutes each:**
+1. **UCLASS inside a preprocessor block** ⇒ `AnomalyTickableWorldSubsystem.h(12): Error: 'UCLASS' must not
+   be inside preprocessor blocks, except for WITH_EDITORONLY_DATA`. This is an explicit, hard rule; it
+   applies to `#if` **and** `#ifdef`.
+2. **A macro as the base class** ⇒ `Error: Unable to find parent class type for 'UAnomalySelectorSubsystem'
+   named 'ANOMALY_TICKABLE_WORLD_SUBSYSTEM'`. **UHT does not expand macros in base-class lists.**
+⇒ **The base-class token must be literal and IDENTICAL on both engines.** Combined with "5.1 must keep
+`UTickableWorldSubsystem`" that leaves only one option - point all five subsystems at a shim class defined
+unconditionally - **and that changes 5.1's subsystem base class**, i.e. shared logic.
+⚠ **Also measured, and it bites BEFORE the above on a 4.25 build:** the two UHTs treat an unknown `#if`
+**differently and asymmetrically**.
+- 5.1 (C# UHT, `UhtHeaderFileParser.cs:888`): an unrecognized directive is treated like `#if 0` - the block
+  is **silently SKIPPED**.
+- 4.25 (C++ UHT, `HeaderParser.cpp:3517`): an unknown define is a **HARD ERROR** -
+  `Unknown define '#if %s' in class or global scope`.
+⇒ **On 4.25, NO header containing a reflected type may use `#if <anything>` except `WITH_EDITOR` /
+`WITH_EDITORONLY_DATA` / `1` / `!CPP`.** Headers with no `UCLASS`/`USTRUCT`/`UENUM` are never passed to
+UHT, so their `#if ANOMALY_CAPTURE` guards are safe - which is why the existing capture headers are fine.
+
+## G233 - `Build.cs` IS C#, SO A RUNTIME `if` DOES NOT PROTECT AN API THAT DOES NOT EXIST ON THE OTHER ENGINE
+The `ANOMALY_CAPTURE=0` compile-out pattern works for C++ because the preprocessor removes the code. **It
+does NOT work in `Build.cs`, where the whole file must COMPILE before any branch is evaluated.**
+Measured 2026-09-03 on the first 4.25 build:
+`AnomalyCapture.Build.cs(358,41): error CS0103: The name 'GetModuleDirectory' does not exist in the current
+context` - **even though it sits inside `if (bEnableCapture)` and `bEnableCapture` is false on 4.25.**
+📌 `GetModuleDirectory` is a **UE5 addition**; the Phase 0 audit predicted it exists in 4.25 and that
+prediction is **REFUTED**.
+✅ **The supported fix is the C# PREPROCESSOR, and both engines define the symbols:** UBT emits
+`UE_4_<minor>_OR_LATER` on 4.25 (`RulesAssembly.cs:206`) and additionally `UE_5_<minor>_OR_LATER` on 5.1
+(`RulesAssembly.cs:235,239`). So:
+```csharp
+#if UE_5_0_OR_LATER
+    PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
+#endif
+```
+🔑 **Rule: use `Target.Version.MajorVersion` for VALUES; use `#if UE_5_0_OR_LATER` for API REFERENCES.**
+
+## G234 - 🚨 `BuildConfiguration.xml` IS PER-USER AND PER-MACHINE, NOT PER-ENGINE, AND IT BEATS `Target.cs`
+`%APPDATA%\Unreal Engine\UnrealBuildTool\BuildConfiguration.xml` applies to **every engine installed on the
+box**. This project's copy pins `<CompilerVersion>14.38.33130</CompilerVersion>` - load-bearing for **5.1**,
+which fails to compile engine `Core` on MSVC 14.42.
+🚨 **That pin silently breaks every 4.25 build**, because 14.38 is a VS2022 toolset and 4.25 cannot use one.
+**Measured precedence, three legs (2026-09-03):**
+- `Target.cs` `WindowsPlatform.CompilerVersion` - **LOSES** to the AppData file.
+- `-2017` on the command line - **WINS** for `Compiler` (there is a `[CommandLine]` attribute,
+  `UEBuildWindows.cs:118`), but **`CompilerVersion` has NO command-line form**, only `[XmlConfigFile]`.
+- `<EngineDir>\Engine\Saved\UnrealBuildTool\BuildConfiguration.xml` (the only ENGINE-scoped location,
+  `XmlConfig.cs:215`) - **LOSES** to AppData, which is read later (`:227`). Written, tested, proven inert,
+  and deleted again rather than left lying around as a file that looks like it does something.
+⇒ **On 4.25 there is NO scoped override.** The only fixes are to change the global file (which changes the
+5.1 build) or to move the 5.1 pin out of the global file and into StackOBot's own `Target.cs`, where it
+belongs. **That is an owner decision about the delivery build, not an implementation detail.**
+
+## G235 - AN MSVC TOOLSET'S FOLDER NAME IS NOT ITS VERSION
+`C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Tools\MSVC\14.16.27023` reports
+**`Version=14.16.27051`** in UBT's own log. Microsoft services these toolsets **in place**, so the directory
+keeps its original number while the contents move on - 4.25's own source says so at
+`UEBuildWindows.cs:621` (*"microsoft updates these in places"*).
+⇒ **Pinning `WindowsPlatform.CompilerVersion` to the FOLDER NAME fails** with
+`ERROR: Visual Studio 2017 (14.16.27023) must be installed in order to build this target.`
+✅ **Read the real number out of UBT's log** (`%LOCALAPPDATA%\UnrealBuildTool\Log.txt`,
+`FindToolChainDirs: Found Visual Studio toolchain: ... (Version=...)`) **and pin that** - or omit
+`CompilerVersion` entirely when only one toolchain of that generation is installed.
+📌 It also means 4.25's `PreferredVisualCppVersions` list (which contains `14.16.27023`) will **not** match
+this install, so UBT falls back to "newest within the selected compiler generation".

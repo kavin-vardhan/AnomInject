@@ -17,17 +17,21 @@ public class AnomalyControlServer : ModuleRules
 		{
 			"AnomalyInjector",
 			"AnomalyCapture",
-			"WebSocketNetworking",
 			"Json"
 		});
 
-		if (Target.Configuration == UnrealTargetConfiguration.Shipping)
+		bool bEnableControlServer = Target.Configuration != UnrealTargetConfiguration.Shipping
+			&& Target.Version.MajorVersion >= 5;
+
+		if (bEnableControlServer)
 		{
-			PublicDefinitions.Add("ANOMALY_CONTROL_SERVER=0");
+			PublicDefinitions.Add("ANOMALY_CONTROL_SERVER=1");
+
+			PrivateDependencyModuleNames.Add("WebSocketNetworking");
 		}
 		else
 		{
-			PublicDefinitions.Add("ANOMALY_CONTROL_SERVER=1");
+			PublicDefinitions.Add("ANOMALY_CONTROL_SERVER=0");
 		}
 	}
 }
