@@ -5846,3 +5846,44 @@ scope errors and this one change contained both.
   structurally zero, because the engine body it depends on is `WITH_EDITOR`. That is a READING, never
   a gate that passed (`G146`'s vacuity shape). The packaged evidence is the m47 BLACK-FRAME PIXEL GATE
   (`verify_capture.py --black-frame-gate`), per m19's standing "gate on PIXELS, not on a counter".
+
+## G233 - EVERY BENCH LEG EVER RUN FORCED AUTO-EXPOSURE OFF; THE DELIVERED BUILD RUNS IT ON
+
+**Measured 2026-09-03, session 069 brief 26 (`m47b`), eight legs, editor and packaged.**
+
+Every leg this project has ever run issued `r.DefaultFeature.AutoExposure 0, r.EyeAdaptationQuality 0`
+(`run_leg.ps1:187`, `run_leg_editor.ps1:78`, `verify_lastrundir.ps1:61`). **Nothing the plugin ships
+does that** - `grep -i exposure Source/` finds one log string and no code - and **StackOBot's
+`DefaultEngine.ini` sets no exposure key at all**, so a delivered build runs the ENGINE DEFAULT, which
+is `r.DefaultFeature.AutoExposure = 1` (`SceneView.cpp:165-170`) with `Min 0.03 < Max 8.0`
+(`Scene.cpp:468-469`), i.e. genuinely adaptive rather than the `Min == Max` fake-manual case.
+
+🚨 **THE ASYMMETRY IS LARGE, AND IT WAS NEVER MEASURED UNTIL NOW.** Matched packaged pair, same
+binary / seed / target / config, only those two cvars differing:
+
+| | AE OFF (every historical leg) | AE ON (what ships) |
+|---|---|---|
+| whole-frame mean luminance | 102.488 | **77.907** (−24 %) |
+| whole-frame spread over 90 frames | 7.100 | **32.020** (4.5×) |
+| max drop vs the previous 8 frames | 2.04 % | **9.01 %** |
+| the SAME anomaly's own target luminance | 123.7 – 128.1 (pinned) | **117.8 → 90.5** (−23 % across one session) |
+
+**Four AE-OFF legs produced ZERO frames dropping more than 3 % below their own recent mean; four
+AE-ON legs produced 13-21 each.** No overlap on any statistic.
+
+🔑 **THE CONSEQUENCE FOR READING ANY OLD NUMBER: every luminance, black-frame and "dark first frame"
+figure in this project's history was taken at PINNED exposure.** They are correct for what they
+measured and they do NOT describe the delivered configuration. The m47 black-frame threshold 6.0 was
+derived from a pinned-exposure darkest frame of 59.992; under AE the darkest legitimate frame is
+72.419, so the threshold still holds with 12× margin - **that one survives, but it survives by luck of
+direction, not because the regime was considered.**
+
+⚠ **AND IT CONFOUNDS ONSET READINGS.** Under AE the first event of a session fires while exposure is
+still converging, so its target reads **117.8 against a session mean of 95.0** - brightest first,
+falling. That looks exactly like an onset effect and **is not one**: it is where in the session the
+event fired. Any "first frame differs" reading taken with AE live must control for session position.
+
+**General form: a cvar your harness sets on every leg is part of your fixture, not part of the
+product.** If the shipped default differs, every number you have is from a regime the client never
+runs. The tell is cheap and permanent - **echo the EFFECTIVE value (A48) on BOTH sides of the switch**,
+so a leg's regime is read off its own log rather than inferred from the flag that was passed.

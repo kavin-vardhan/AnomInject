@@ -11,6 +11,38 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🆕🚨 **SESSION 069, 2026-09-03, brief 26 (`m47b`) — AUTO-EXPOSURE IS MEASURED, AND IT CHANGES HOW
+> EVERY LUMINANCE NUMBER IN THIS PROJECT MUST BE READ. ⛔ NO SOURCE CHANGE, NO MILESTONE, NO TAG —
+> docs + harness only.** Journal §18; ledger §11; **`G233`**; pre-declaration
+> `docs/predictions/2026-09-03-m47b-auto-exposure.md` (written before any leg ran).
+>
+> 🔑 **EVERY BENCH LEG EVER RUN FORCED AE OFF (`run_leg.ps1:187`, `run_leg_editor.ps1:78`,
+> `verify_lastrundir.ps1:61`); THE DELIVERED BUILD RUNS IT ON.** The plugin never touches exposure and
+> StackOBot's ini sets no exposure key, so the shipped configuration is the ENGINE DEFAULT
+> `r.DefaultFeature.AutoExposure = 1` with `Min 0.03 < Max 8.0` — adaptive, **confirmed by an A48 echo
+> in the PACKAGED build, not just the editor.** Matched packaged pair, only those two cvars differing:
+> whole-frame mean **102.5 → 77.9 (−24 %)**, spread **7.1 → 32.0 (4.5×)**, and **the same anomaly's own
+> target luminance goes from pinned 123.7–128.1 to 117.8 → 90.5 across one session.**
+> ⇒ **every luminance / black-frame / "dark first frame" figure in this project's history was taken at
+> PINNED exposure and does not describe the delivered configuration.** `m47`'s black-frame threshold
+> 6.0 still holds (darkest AE-ON frame **72.4**, 12× margin) — **but by luck of direction.**
+>
+> 🎯 **VERDICTS.** **(3) "whole picture black for a burst" = `AE-PARTIAL`** — real, large, in BOTH
+> builds, **but nothing approaches black** (darkest 72.4/255, deepest drop 9.01 %); the dominant effect
+> is a **session-start convergence transient** (103.9 → ~74 over ~30-40 frames), not an event-locked
+> dip. **(2) "target renders BLACK" = AE REFUTED STRUCTURALLY** — eye adaptation is GLOBAL and cannot
+> darken one object alone; `DARK FIRST FRAMES = 0` on every leg. ⚠ **`G135` GUARD, pre-declared: the
+> target is 7.2–7.8 % of frame, so this null does NOT exclude AE on the owner's content.**
+> ⚠ **AND IT CONFOUNDS ONSET READINGS** — under AE the first event fires while exposure is still
+> converging, so its target reads 117.8 against a session mean of 95.0. **That looks like an onset
+> effect and is not one.**
+> 🧭 **`m48` PROPOSED, NOT BUILT:** additive `exposure_dip` frame key + `frames_exposure_dip`, threshold
+> **4.0 % DERIVED TWO-SIDED** (every AE-OFF leg's max drop ≤ **2.39 %**, every AE-ON leg reaches
+> **7.27–9.01 %**), plus one client-readme paragraph. ⛔ **The plugin must NOT force exposure — the
+> dataset should look like the game.** Chat decides.
+>
+> ---
+>
 > 🏁🏁 **SESSION 069, 2026-09-03 — `m47` IS SHIPPED AND MERGED. THIS IS THE CURRENT "YOU ARE HERE";
 > EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
 > **Cold start: journal `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` §17.**

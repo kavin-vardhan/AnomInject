@@ -2412,3 +2412,123 @@ round of edits: `IAI.Bench.ForceAnomalyShaderRecompile` and `anomaly_materials_i
 while `IAI.Capture.ShaderPrewarm` read 7 and the pre-existing `IAI.Bench.MaskPairingProbe` read 5 —
 **so the scan was sound, not blind**, and it named the missing half. Rebuilt and re-staged.
 ✅ **BOTH BUILD TARGETS exit 0** (`G221`): packaged `StackOBot` and editor `StackOBotEditor`.
+
+---
+
+## §18 `m47b` — AUTO-EXPOSURE: MEASURED, LARGE, NOT EDITOR-ONLY, AND NOT THE SYMPTOM
+
+**Brief 069-26** (chat thread A), the `ND-B (iii)` option from `m47`'s close. ⛔ **NO SOURCE CHANGE —
+docs and harness only.** Pre-declaration `docs/predictions/2026-09-03-m47b-auto-exposure.md`, written
+and committed **before any leg ran**; nothing in it was edited afterwards.
+
+### §18.0 The checkout (shared-tree rule clause 4)
+
+| | branch | SHA | state |
+|---|---|---|---|
+| **IN** | `europa-e1` → `master` | `1f5e305` → `93c2b65` | `europa-e1 == origin/europa-e1`, tracked tree clean |
+| **OUT** | `master` → `europa-e1` | `93c2b65` → `1f5e305` | left exactly as found |
+
+`master == origin/master == 93c2b65`. **Staged exe verified BEFORE any leg: `F309D836`**, matching
+`_binary_baselines/README`'s LIVE entry; container quartet `EF8EB23C` / `A8BFFF88` / `3C026A8D`
+unchanged. Editor DLLs on disk were master's (`m47` build, 17:44-17:53) so **no rebuild was needed**.
+
+### §18.1 The premise was checked before it was tested — and it held
+
+`m47` named auto-exposure as a candidate on the grounds that *"every bench leg forces it off; the
+owner's editor runs the game's defaults"*. Both halves were verified by reading first:
+
+- The AE-off pair is issued by `run_leg.ps1:187`, `run_leg_editor.ps1:78`, `verify_lastrundir.ps1:61`.
+- The plugin never touches exposure — one log string, no code.
+- **StackOBot's `DefaultEngine.ini` sets no exposure key, and neither does `BaseEngine.ini`** ⇒ the
+  game's defaults ARE the engine defaults: `r.DefaultFeature.AutoExposure = 1`, Histogram, Bias 1.0,
+  legacy range, `Min 0.03 < Max 8.0` — adaptive, not fake-manual.
+- **It reaches the pixels**: the capture SVE subscribes AFTER `Tonemap`
+  (`AnomalySceneViewExtension.cpp:72`), and eye adaptation lives in the tonemapper.
+
+An **A48 echo was added to both runners on BOTH sides of the switch**, so a leg's AE regime is read off
+its own log rather than inferred from the flag passed. It confirmed `AutoExposure = "1" LastSetBy:
+Constructor` / `EyeAdaptationQuality = "2" LastSetBy: Scalability` **in the packaged build too.**
+
+### §18.2 A1/A2 — the measurement, and the `AE-LIVE` control that licenses it
+
+Full eight-leg table: **ledger §11.2**. Matched packaged pair, same binary/seed/target/config:
+
+| | AE OFF | AE ON |
+|---|---|---|
+| whole-frame mean | 102.488 | **77.907** (−24 %) |
+| spread over 90 frames | 7.100 | **32.020** (4.5×) |
+| max drop vs previous 8 frames | 2.04 % | **9.01 %** |
+| the same anomaly's target luminance | 123.7 – 128.1 pinned | **117.8 → 90.5** in one session |
+
+**Four AE-OFF legs: ZERO frames dropping >3 % below their own recent mean. Four AE-ON legs: 13-21
+each.** No overlap on any statistic, across two anomaly types and both build targets.
+⇒ `AE-LIVE` (`G96`) **PASSES**, so the dip readings are evidence rather than blindness.
+
+🔑 **The dominant effect is a session-start convergence transient (103.9 → ~74 over ~30-40 frames), not
+an event-locked dip; the steady-state sawtooth is 1.4-2.1 %.** The long-window leg bounds recovery at
+**>39 frames and still rising**, matching `SpeedDown = 1.0` (τ = 1 s).
+
+### §18.3 A3 — 🚨 THE DIP IS **NOT** EDITOR-ONLY
+
+The packaged AE-ON leg **reproduces the editor leg almost exactly** — spread 32.020 vs 31.258, max dip
+9.01 % vs 8.61 %, target 90.5-117.8 vs 90.6-117.5. **The client would see this.** That is the answer
+that decides the recommendation, and it contradicts the working assumption that these symptoms were an
+editor-side artefact.
+
+### §18.4 A4 — the black-frame gate does NOT fire, and that is correct
+
+`--selftest` passes a grey session and **fails** an all-black one, so the gate can fire. On the deepest
+AE-ON leg: **min 72.419 against threshold 6.0 — 0 black frames, 0 dark first frames, VERDICT PASS**, a
+12× margin. **A legitimate exposure dip is the game's own rendering and must not be gated away.**
+⚠ The `m47` threshold was derived from a **pinned-exposure** darkest frame (59.992). It survives the
+regime change, **but by luck of direction** — the regime was not considered when it was derived.
+
+### §18.5 The verdicts
+
+- **(3) whole picture black** — **`AE-PARTIAL`.** Real, large, previously unmeasured, in both builds;
+  ⛔ **but nothing approaches black at this stimulus (darkest 72.4/255).** NOT reproduced.
+- **(2) target renders black** — 🚨 **AE REFUTED as a standalone explanation, STRUCTURALLY**: eye
+  adaptation is global and cannot darken one object alone. Remaining named candidate (lit material,
+  no emissive) is still **UNTESTED** — no dark target has ever occurred to attribute.
+- ⚠ **`G135` GUARD, pre-declared in §4 of the prediction file:** the target is **7.2-7.8 % of frame**.
+  ⛔ **This null does NOT exclude auto-exposure on the owner's content**, where coverage and the
+  brightness gap may be far larger. Do not upgrade it.
+
+### §18.6 Two corrections, both recorded rather than smoothed
+
+**(a) The prediction was right for the wrong reason.** §1 of the prediction file argued the target's
+first frame would be BRIGHTER (contradicting the brief's clause, which said darker) on the premise that
+the swap material is brighter than the scene. The direction was **correct** — but a pinned-exposure
+measurement then showed the swap is **DARKER** (`corrupted_texture` **−17.7 %**, `missing_texture`
+**−3.5 %**). The real driver is **session position under a converging exposure**, not per-event
+response. ⛔ **No mechanism is asserted for the sign of the per-event swing** (`G120`).
+
+**(b) A checker defect, caught before its verdict was read (`G142`).** `bbox_px` is
+**`[x, y, WIDTH, HEIGHT]`** (`AnomalyLabelWriter.cpp:95` emits `{X0, Y0, X1-X0, Y1-Y0}`). Read as
+`(x0,y0,x1,y1)` it degenerates on this fixture — `(0, 485, 306, 235)` gives `y1 < y0` — to a 1-pixel
+strip, and it returned a **confident wrong number** (region mean 240 instead of 131). Found by checking
+the source when the value disagreed with the mask-derived one. **`m47_lum_table.py` carried the same
+bug**; it is corrected, and it was **LATENT ONLY** — every `m47` leg resolved `region='mask'`, so the
+fallback never ran and **no `m47` number came through it.**
+
+### §18.7 `m48` RECOMMENDATION — PROPOSED, NOT BUILT (Task B)
+
+Because **A3 shows the dip in packaged**, the brief's contingency selects **(i) + (ii)**:
+
+- **(i)** a per-frame labels-side reading **`exposure_dip: true`** (emitted only when true, so a healthy
+  run gains no key — the `m47` precedent that kept `labels.jsonl` at 21 fields), derived from
+  `100 × (mean(lum[i−8..i−1]) − lum[i]) / mean(...)`, plus `run_summary.frames_exposure_dip`.
+  🔢 **THRESHOLD, DERIVED AND TWO-SIDED — 4.0 %.** The highest drop any exposure-pinned leg produced
+  across four legs and two anomaly types is **2.39 %**; the AE-driven legs reach **7.27-9.01 %**. Any
+  value in `(2.39, 7.27)` separates them perfectly; **4.0 % sits 1.67× above the control ceiling and
+  1.82× below the lowest AE-ON maximum.** Expected yield ≈ **9-12 frames of 90**, concentrated in the
+  session-start convergence. *(Stronger than `m47`'s black-frame 6.0, which is bracketed on one side
+  only.)*
+- **(ii)** one paragraph in `client-readme.md`: the game's auto-exposure re-adapts for roughly a second
+  after a large texture anomaly and at session start; those frames are marked, not removed.
+- **(iii)** ⛔ **the plugin must NOT force exposure.** The dataset should look like the game.
+
+⛔ **NONE OF THIS IS IMPLEMENTED.** Chat decides. **NEXT DISCRIMINATOR if (2)/(3) stay open: Lumen
+surface-cache invalidation**, the other candidate `m47` named — and, for (2) specifically, a fixture
+that actually produces a dark target, since without one the lit-no-emissive candidate has nothing to
+discriminate.

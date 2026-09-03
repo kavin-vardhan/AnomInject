@@ -1499,3 +1499,92 @@ counters are identical.
 
 ⚠ **It could not ship with `m44` because a global shader parameter-struct change is fatal against a
 stale cooked container (`G129`).** It needed a full cook, which is an owner-sequenced operation.
+
+---
+
+# 11. AUTO-EXPOSURE — the game's own rendering, measured, and it is NOT editor-only
+
+**2026-09-03, session 069 brief 26 (`m47b`). Eight legs, editor AND packaged, both texture-swap
+anomaly types. Pre-declaration: `docs/predictions/2026-09-03-m47b-auto-exposure.md`, written before
+any leg ran. ⛔ NO SOURCE CHANGE — docs and harness only.**
+
+This entry exists because `m47` left the owner's symptoms **(2) "target renders BLACK"** and
+**(3) "whole picture black for a burst, recovers"** UNEXPLAINED, and named auto-exposure as the
+cheapest untested candidate (§17.6 of journal 069). It is now measured.
+
+## 11.1 THE STANDING ASYMMETRY — every bench leg forced AE OFF; the delivered build runs it ON
+
+Established by reading, before any leg: the plugin never touches exposure (one log string, no code);
+StackOBot's `DefaultEngine.ini` and the engine's `BaseEngine.ini` set **no exposure key at all**; so
+the delivered configuration is the engine default, **`r.DefaultFeature.AutoExposure = 1`**
+(`SceneView.cpp:165-170`), Histogram method, Bias 1.0, legacy luminance range, with
+**`Min 0.03 < Max 8.0`** (`Scene.cpp:468-469`) — genuinely adaptive, not the `Min == Max` fake-manual
+degenerate case. **Confirmed at runtime by an A48 echo in BOTH the editor and the packaged build:**
+`AutoExposure = "1" LastSetBy: Constructor`, `EyeAdaptationQuality = "2" LastSetBy: Scalability`.
+
+**And it reaches the written pixels**: eye adaptation is applied inside the tonemapper and the capture
+SVE subscribes at `EPostProcessingPass::VisualizeDepthOfField` (`AnomalySceneViewExtension.cpp:72`),
+which is **after `Tonemap`**. → **`G233`.**
+
+## 11.2 THE MEASUREMENT — matched pairs, only the two cvars differing
+
+| leg | build | anomaly | AE | lum min | lum max | spread | max dip | target lum |
+|---|---|---|---|---|---|---|---|---|
+| AE1 | editor | `corrupted_texture` | **ON** | 72.662 | 103.920 | **31.258** | **8.61 %** | 90.6 – 117.5 |
+| AE2 | editor | `corrupted_texture` | OFF | 100.490 | 106.240 | 5.750 | 1.73 % | 123.4 – 124.7 |
+| AE3 | **packaged** | `corrupted_texture` | **ON** | 72.419 | 104.439 | **32.020** | **9.01 %** | 90.5 – 117.8 |
+| AE4 | **packaged** | `corrupted_texture` | OFF | 99.552 | 106.652 | 7.100 | 2.04 % | 123.7 – 128.1 |
+| AE5 | editor | `missing_texture` | **ON** | 74.524 | 103.923 | **29.398** | **7.27 %** | 115.7 – 149.3 |
+| AE6 | editor | `missing_texture` | OFF | 102.739 | 106.240 | 3.501 | 0.97 % | 148.4 – 149.9 |
+| AE7 | editor | `corrupted_texture`, 40-frame window | **ON** | 73.094 | 103.924 | **30.830** | 8.61 % | 90.8 – 117.5 |
+| AE8 | editor | `corrupted_texture`, 40-frame window | OFF | 100.138 | 106.240 | 6.103 | 2.39 % | 123.4 – 173.1 |
+
+`AE-LIVE` positive control (`G96`) **PASSES decisively** on the matched packaged pair: mean luminance
+**77.907 vs 102.488**, spread **32.020 vs 7.100**. The AE-ON "dip" readings are evidence, not blindness.
+
+🔑 **The dominant effect is a SESSION-START CONVERGENCE TRANSIENT, not an event-locked dip.** Whole-frame
+luminance falls monotonically **103.9 → ~74 over the first ~30-40 frames (≈ 1.0-1.3 s)** and then holds.
+The steady-state per-event sawtooth is only **1.4-2.1 %**. The long-window leg (AE7) bounds the
+recovery: after a revert at `si=43` the frame rises 75.06 → 77.44 over **39 frames and is still
+rising**, which is `SpeedDown = 1.0` (τ = 1 s, `Scene.cpp:479`) behaving exactly as specified.
+
+## 11.3 THE VERDICTS — and one of them is a REFUTATION
+
+- **Symptom (3) "whole picture black for a burst"** — **`AE-PARTIAL`.** Auto-exposure is confirmed as a
+  large, real, previously-unmeasured effect on captured pixels in **both** editor and packaged. ⛔ **But
+  nothing on this fixture approaches black**: the darkest frame is **72.4 of 255**, and the deepest
+  single-frame drop is **9.01 %**. AE **did not reproduce** the symptom at this stimulus size.
+- **Symptom (2) "target renders BLACK"** — 🚨 **AUTO-EXPOSURE IS REFUTED AS A STANDALONE EXPLANATION,
+  and it is refuted structurally rather than by a null.** Eye adaptation is a **global** operator; it
+  cannot darken one object while leaving the frame alone. A dark target with no corresponding
+  whole-frame dip is therefore **not** AE, whatever the fixture. **`DARK FIRST FRAMES = 0` on every leg.**
+- ⚠ **AND A CONFOUND WAS FOUND FOR ANY ONSET READING.** Under AE the first event of a session fires
+  while exposure is still converging, so its target reads **117.8 against a session mean of 95.0** —
+  brightest first, falling monotonically. **That looks like an onset effect and is not one.** It is
+  where in the session the event fired. The brief predicted "first frame darker than the event mean";
+  the measurement gives the **opposite sign**, and the pre-declaration called that direction in
+  advance — though **for the wrong reason**, which is recorded rather than smoothed: §1 argued from
+  "the swap is brighter than the scene", and a pinned-exposure measurement then showed the swap is
+  **DARKER** (`corrupted_texture` **−17.7 %**, `missing_texture` **−3.5 %**). **Right prediction, wrong
+  premise; the real driver is session position, not per-event response.**
+- ⛔ **NO MECHANISM IS ASSERTED FOR THE SIGN OF THE PER-EVENT SWING** (`G120`). At pinned exposure the
+  swap darkens the region, yet under AE the whole frame reads *darker* during positives rather than
+  brighter. The histogram response was **not** derived and is not claimed. What is claimed is only what
+  was measured: the excursion grows ~3-5× and the whole level drops 24 %.
+
+## 11.4 ⚠ THE `G135` GUARD — WHAT THIS NULL DOES NOT MEAN
+
+The target is **≈ 7.2-7.8 % of frame**. A 7 % stimulus may simply not move the 10th-90th percentile
+log-luminance histogram far. ⇒ **`AE-PARTIAL` for symptom (3) DOES NOT EXCLUDE auto-exposure on the
+owner's content**, where coverage and the brightness gap can both be far larger and the exposure
+excursion scales with them. This is `G135` in its exact shape and it was pre-declared in §4 of the
+prediction file, before the number existed. **Do not upgrade this into "auto-exposure is excluded".**
+
+## 11.5 IT IS NOT A CAPTURE DEFECT
+
+The dip is the **game's own rendering**, correctly captured. The dataset should look like the game.
+`verify_capture.py --black-frame-gate` **PASSES** on the deepest AE-ON leg (`min 72.419` against
+threshold `6.0`, a 12× margin, **0 black frames, 0 dark first frames**), and its `--selftest` passes a
+grey session and fails an all-black one, so that PASS is a reading and not blindness. **The m47
+threshold survives the regime change — but by luck of direction, not because AE was considered when it
+was derived.**
