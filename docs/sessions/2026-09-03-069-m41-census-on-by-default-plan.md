@@ -1558,3 +1558,108 @@ That is a stronger reason not to ship `m43`/`m44` masks than the `+1` ever was, 
 ⛔ **`master` untouched at `62bd287`. No fix. `G225` was NOT minted** — chat's draft wording asserts the
 refuted mechanism. Four legs banked: `A1_A1_NAT2`, `A1_A2_LAG0`, `A1_A1_SYNTH`, `A1_A2_SYNTH_LAG0`
 (plus the discarded first probe build `A1_A1_NATIVE`, kept per `A63`).
+
+---
+
+# §10. HYPOTHESIS #3 (INTERNAL-vs-OUTPUT RESOLUTION) — **DEAD AS THE EXPLANATION, CONFIRMED AS A REAL DEFECT**, and §9's finding is **RETRACTED**
+
+**2026-09-03, session 069 brief 16.** ⛔ **No fix was written** — `F1` was gated on `P1`–`P3` all holding
+and two of them failed. `master` untouched at `62bd287`.
+
+## §10.1 THE THREE PREDICTIONS
+
+| | prediction | result |
+|---|---|---|
+| **P1** | on NEITHER/no-mask frames the internal view rect differs from the output rect | ❌ **FAILED** |
+| **P2** | forcing `r.ScreenPercentage 100` + `r.DynamicRes.OperationMode 0` gives 0 NEITHER, 0 no-mask | ❌ **FAILED** |
+| **P3** | forcing `r.ScreenPercentage 50` makes every decidable frame NEITHER | ✅ **HELD** |
+
+**P1, measured.** `View.ViewRect` (the `FViewInfo` internal rect) was added to the `M23 PASS` line. On
+the default bench configuration it reads, on **all 51 passes of the leg, without exception**:
+
+```
+viewRect=1280x720  internalViewRect=(0,0)-(1280,720) 1280x720  unscaledViewRect=1280x720
+```
+
+**Internal == output == unscaled on every pass, including every pass that served a NEITHER frame.**
+There is no mismatch to explain anything. The bench runs at 100 % screen percentage.
+
+**P2, measured.** Forcing 100 % explicitly changed nothing (it was already 100 %): NEITHER stayed at 8.
+
+**P3, measured — and this is the prove-it-can-fail leg (`G96`), which fired exactly as written.** At
+`r.ScreenPercentage 50` the same line reads `internalViewRect=(0,0)-(640,360) 640x360` against
+`viewRect=1280x720`, and the probe returns **CURRENT 0 / NEITHER 25 of 26 decidable frames**.
+
+🚨 **SO THE MECHANISM IS REAL AND IS NOW DEMONSTRATED — IT IS SIMPLY NOT ACTIVE AT THE BENCH'S
+DEFAULT.** `AnomalyVisibleMask.usf:23` samples the scene textures at `SvPosition + ViewRectMin` with
+`SvPosition` in **output** space while the scene textures are at **internal** resolution. Whenever a
+host runs dynamic resolution, a screen percentage ≠ 100, or any temporal upsampler, **every mask is
+wrong** — and that is measured, not argued. ⛔ **It is NOT the cause of anything observed on this
+bench, and must not be written up as if it were.**
+
+## §10.2 🚨 RETRACTION — §9.4's "EXTRA SILHOUETTE / ABSENT MASK" WAS MY INSTRUMENT, TWICE OVER
+
+Chasing `P1` turned up the actual cause of the §9 readings, and it is **not in the product**.
+
+**Artifact 1 — the probe's tag collided with the census.** The probe hardcoded stencil value **250**,
+which is inside the allocator's range (`ReservedStencilBase 200` … `AssignableStencilMax 254`). The
+census tagged **78 candidates over 16 cycles** in that leg, so it both (a) handed 250 to some other
+actor, and (b) re-tagged the probe itself, which is an ordinary visible static mesh and therefore an
+ordinary census candidate. **Measured: with `IAI.Capture.Census 0` the no-data frames went 10 → 0.**
+
+**Artifact 2 — the probe's colour collided with an anomaly.** The probe used
+`M_CorruptedTexture_Pink`, **the same material `corrupted_texture` swaps its target to**. On exactly
+the frames where that anomaly was live, the picture-side magenta detector merged two objects — `picN`
+~8,000 → **16,341–17,321** on `session_index 15–22`, dragging the picture centroid to 546–857. The
+**mask** on those frames was a single clean cluster at the correct position (e.g. `si=1` bands
+`[(720,216) (800,3457) (880,3640) (960,2730)]`, centroid 908 against a commanded ~907).
+
+**With both artifacts removed — census off, non-magenta anomaly — the result is unambiguous:**
+
+| leg | order | decidable | CURRENT | PREVIOUS | NEITHER | no-data |
+|---|---|---|---|---|---|---|
+| `P5_CLEAN_NAT` | native | 40 | **40** | 0 | **0** | **0** |
+| `P5_CLEAN_SYNTH` | synth | 40 | **40** | 0 | **0** | **0** |
+
+⇒ **THE TARGET MASK IS CORRECTLY PAIRED WITH THE PICTURE, FRAME FOR FRAME, AT THE BENCH'S DEFAULT
+SETTINGS, IN BOTH TICK ORDERS.** §9.4's *"wrong in content on a quarter of frames and absent on
+another quarter"* is **WITHDRAWN**. ⛔ **Do not carry it forward.**
+
+✅ **§9's LOAD-BEARING CONCLUSION IS UNAFFECTED AND STANDS:** the frame-handshake hypothesis is still
+refuted — `PREVIOUS = 0` everywhere (a tag collision cannot manufacture a *previous-position*
+silhouette) and `r.OneFrameThreadLag 0` is still a no-op.
+
+## §10.3 THE INSTRUMENT IS NOW COLLISION-PROOF BY CONSTRUCTION
+
+The probe tag is now **`AnomalyStencilTag::ReservedStencilMax` (255)**, which `AllocateTag` can never
+hand out because it allocates only up to `AssignableStencilMax` (254). Re-verified **with the census
+ON**, which is the configuration that produced the false reading:
+
+| leg | order | decidable | CURRENT | PREVIOUS | NEITHER | no-data |
+|---|---|---|---|---|---|---|
+| `P6_CENSUS_ON_NAT` | native | 33 | **33** | 0 | **0** | 7 |
+| `P6_CENSUS_ON_SYN` | synth | 31 | **31** | 0 | **0** | 9 |
+
+⚠ **The residual no-data is real and is not a defect:** the probe is an ordinary visible static mesh,
+so the census legitimately tags it as a candidate on some cycles and its own tag is overwritten for
+those frames. **The gate's predicate is therefore `NEITHER == 0 AND PREVIOUS == 0` over decidable
+frames, with the no-data count reported** — not "40 of 40", which would only be obtainable by
+excluding the probe from census candidacy, i.e. by making the fixture special.
+
+## §10.4 WHAT THIS NARROWS
+
+The pipeline is correctly paired, so the §8 `+1` is **not** a pairing fault. It is specifically about a
+**newly applied tag not being present in that frame's custom depth** — the probe, tagged once at spawn,
+never exercises that path and is correct on every frame. The two facts are consistent and the `+1`
+remains **open and unexplained**. ⛔ No mechanism asserted (`G120`).
+
+## §10.5 NEXT DISCRIMINATORS (listed, not run — no cause is being named)
+
+1. **Tag-application latency, measured directly:** extend the probe with a second actor that is tagged
+   at `OnWorldTickEnd` of frame *n* (rather than at spawn) and read its `tableCount` at *n* and *n+1*.
+   That isolates §8's `+1` from everything else, with the same trusted picture reference.
+2. **The per-served-arm join** (brief 15 D2, folded here as cheap): the `M23 PASS` line now carries the
+   internal rect and `servedArms`; joining `servedArms > 1` against frame indices would show whether
+   arm batching ever changes what a consumer sees. On these legs it did not.
+3. **The `P3` defect on its own terms:** it needs no further discrimination — it is demonstrated. It
+   needs a **decision**, not a measurement.

@@ -210,6 +210,9 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		}
 	}
 
+	const FViewInfo& ViewInfo = static_cast<const FViewInfo&>(View);
+	const FIntRect InternalRect = ViewInfo.ViewRect;
+
 	FString ServedList;
 	for (uint64 Id : ServedIds)
 	{
@@ -217,7 +220,8 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	}
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(mask): M23 PASS id=%llu servedArms=%d ids=[%s ] rCustomDepth_renderThread=%d ")
-		TEXT("customStencilExtent=%dx%d viewRect=%dx%d overrideOutput=%d (m43: ONE render per frame serves ")
+		TEXT("customStencilExtent=%dx%d viewRect=%dx%d internalViewRect=(%d,%d)-(%d,%d) %dx%d ")
+		TEXT("unscaledViewRect=%dx%d overrideOutput=%d (m43: ONE render per frame serves ")
 		TEXT("EVERY pending arm - the RT's content depends only on which actors are tagged at render time, ")
 		TEXT("and each consumer filters by its own tag set, so one render is the same answer delivered to ")
 		TEXT("each asker. Every arm is therefore served on the NEXT render after it was armed, and no ")
@@ -225,7 +229,11 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		TEXT("depth was NOT produced; overrideOutput=1 means the engine designated THIS callback the ")
 		TEXT("chain's final writer for the frame)"),
 		RequestId, ServedIds.Num(), *ServedList, ModeAtPass, StencilExtent.X, StencilExtent.Y,
-		Size.X, Size.Y, Inputs.OverrideOutput.IsValid() ? 1 : 0);
+		Size.X, Size.Y,
+		InternalRect.Min.X, InternalRect.Min.Y, InternalRect.Max.X, InternalRect.Max.Y,
+		InternalRect.Width(), InternalRect.Height(),
+		View.UnscaledViewRect.Width(), View.UnscaledViewRect.Height(),
+		Inputs.OverrideOutput.IsValid() ? 1 : 0);
 
 	Item.CustomDepthModeAtPass = ModeAtPass;
 	Item.CustomStencilExtent = StencilExtent;

@@ -5678,3 +5678,38 @@ unverified attribute, and deleting the entity has to delete the attribute too, n
 name is eventually questioned; a duplicate quietly doubles the apparent size of the world, and every
 plan written against it budgets for work that does not exist. **When a codename is minted, check it is
 not a second label for something already named.**
+
+## G225 - a post-upscale pass that samples pre-upscale scene textures with unscaled coordinates
+`AnomalyVisibleMask.usf:23` computes `P = SvPosition.xy + ViewRectMin` and loads CustomStencil,
+CustomDepth and SceneDepth at `P`. The pass runs AFTER tonemap, so `SvPosition` is in OUTPUT space,
+while the scene textures are at INTERNAL (pre-upscale) resolution. At 100% screen percentage the two
+are the same and nothing is visibly wrong. **At any other ratio every sample lands in the wrong
+place** - measured on the bench with `r.ScreenPercentage 50`: internal rect 640x360 against an output
+rect of 1280x720, and the mask probe reads WRONG on 25 of 26 decidable frames (0 correct).
+**Dynamic resolution, a non-100 screen percentage and temporal upsamplers are all ordinary
+shipped-game settings**, so this is a host-configuration landmine, not a bench curiosity. It also
+means the region beyond the internal rect reads whatever the POOLED texture still holds, which is not
+cleared outside the current view rect.
+**The general rule: any pass that reads scene textures must map its coordinates through the INTERNAL
+view rect, and must never assume its own output space matches.**
+Not the cause of the bench observations it was hypothesised to explain (journal 069 section 10) - it
+is a separate real defect found while falsifying that hypothesis.
+
+## G226 - a bench fixture that shares a namespace with the system under test will be mistaken for it
+A mask-pairing probe was given stencil tag **250** and the plugin's magenta anomaly material. Both
+choices collided with the system it was measuring:
+- 250 is inside the tag allocator's range (`ReservedStencilBase 200` .. `AssignableStencilMax 254`),
+  so the census - which tagged 78 candidates over 16 cycles - both handed 250 to another actor AND
+  re-tagged the probe, because the probe is an ordinary visible static mesh and therefore an ordinary
+  census candidate.
+- the magenta material is the one `corrupted_texture` swaps its target to, so the picture-side
+  detector merged the probe with the anomaly target (pixel count 8,000 -> 17,000 on exactly those
+  frames).
+Together they produced a confident, detailed and entirely false reading: "the mask carries content
+the picture does not, on a quarter of frames, and is absent on another quarter." **It was the
+fixture.**
+**Pick fixture identifiers OUTSIDE every range the system can allocate** - here `ReservedStencilMax`
+(255), which `AllocateTag` can never return - **and do not reuse an appearance the system under test
+also produces.** The corrected probe reads 40/40 correct in both tick orders.
+The tell was available and was nearly missed: the probe's own telemetry showed the census tagging 78
+candidates out of a 55-value pool while the probe held a fixed value inside it.

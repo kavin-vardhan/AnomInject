@@ -161,7 +161,7 @@ namespace
 {
 	constexpr int32 GTargetMaskMaxHoldTicks = 4;
 
-	constexpr int32 GMaskPairingProbeTag = 250;
+	constexpr int32 GMaskPairingProbeTag = AnomalyStencilTag::ReservedStencilMax;
 	const FVector GMaskPairingProbePosA(-900.0, -250.0, 260.0);
 	const FVector GMaskPairingProbePosB(-900.0,  250.0, 260.0);
 
@@ -1404,7 +1404,10 @@ void UAnomalyCaptureSubsystem::SpawnMaskPairingProbe()
 	UE_LOG(LogAnomalyCapture, Warning,
 		TEXT("Capture(bench): MASK-PAIRING PROBE SPAWNED tag=%d posA=(%s) posB=(%s) - tagged ONCE at spawn, ")
 		TEXT("Movable, position alternates per captured tick via SetActorLocation (a transform update, NOT a ")
-		TEXT("render-state recreate)."),
+		TEXT("render-state recreate). The tag is ReservedStencilMax, which AllocateTag can NEVER hand out ")
+		TEXT("(it allocates up to AssignableStencilMax), so the census cannot overtake the probe and no ")
+		TEXT("other actor can appear under the probe's value. An earlier build used 250 and the census ")
+		TEXT("silently took it - that produced a false 'the mask is wrong' reading."),
 		GMaskPairingProbeTag, *GMaskPairingProbePosA.ToString(), *GMaskPairingProbePosB.ToString());
 }
 

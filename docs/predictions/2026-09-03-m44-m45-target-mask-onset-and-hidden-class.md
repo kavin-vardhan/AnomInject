@@ -132,3 +132,24 @@ blindness. **HYPOTHESIS REFUTED.** No fix was written.
 
 What the probe DID show: the mask is correct on ~18-20 of 40 frames, carries an EXTRA silhouette the
 picture does not contain on ~10, and is absent on ~10-12. No mechanism asserted. Journal 069 section 9.
+---
+
+## APPENDIX 3 - HYPOTHESIS #3 (INTERNAL-vs-OUTPUT RESOLUTION), 2026-09-03 brief 16
+
+| | prediction | result |
+|---|---|---|
+| P1 | internal view rect differs from output rect on NEITHER/no-mask frames | **FAILED** - internal == output == unscaled == 1280x720 on ALL 51 passes |
+| P2 | forcing ScreenPercentage 100 + DynamicRes off gives 0 NEITHER / 0 no-mask | **FAILED** - already 100%, NEITHER unchanged |
+| P3 | forcing ScreenPercentage 50 makes every decidable frame NEITHER | **HELD** - internal 640x360 vs output 1280x720, CURRENT 0 / NEITHER 25 of 26 |
+
+**HYPOTHESIS DEAD AS THE EXPLANATION** (all three were required). **CONFIRMED AS A REAL, SEPARATE
+DEFECT**: whenever internal resolution differs from output - dynamic resolution, screen percentage
+other than 100, any temporal upsampler - every mask is wrong. Demonstrated, not argued. It is simply
+not active at the bench default.
+
+**RETRACTION.** Appendix 2's "extra silhouette / absent mask" was TWO artifacts in the probe itself:
+the probe's tag 250 sat inside the allocator range and the census (78 candidates / 16 cycles) both
+took it and re-tagged the probe; and the probe used the same magenta material corrupted_texture swaps
+to, so the picture-side detector merged two objects. With both removed the mask is CURRENT on 40 of 40
+frames in BOTH tick orders. Appendix 2's REFUTATION of the frame-handshake hypothesis is unaffected
+and stands. Journal 069 section 10.
