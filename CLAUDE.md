@@ -11,8 +11,68 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🏁🏁 **SESSION 069, 2026-09-03 — `m48` IS SHIPPED AND ON `master`. THIS IS THE CURRENT
-> "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> 🏁🏁 **SESSION 069, 2026-09-03, BRIEF 28 — `MASK-PICTURE-PAIRING` IS GREEN AGAIN AND `m48`'s GATE
+> SET IS CLOSED. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED
+> WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: journal `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` §20.**
+>
+> 🎯 **THE `NEITHER 54` WAS THE LEG RECIPE. THE BINARY AND THE ANALYSER WERE BOTH INNOCENT, AND THE
+> CLIENT COOK IS UNBLOCKED.** ⛔ **NO PLUGIN SOURCE CHANGED · NO REBUILD · NO COOK · NO TAG.** Staged
+> exe **`DE65F84A`** and the container quartet (`EF8EB23C`/`A8BFFF88`/`3C026A8D`) are **exactly as
+> found**. `master` carries **docs + one `CaptureBench` instrument fix**.
+>
+> 🔑 **THE 2×2 — the reading tracks the RECIPE, not the binary. The anti-diagonal is exact:**
+> m46 `60AE8C61` + `blinking`/4242/40 → **33/33 · N0 · P0** (banked) · m46 `60AE8C61` +
+> **`corrupted_texture`/777/90 → 25/79 · N54 · P0** 🆕 · m48 `DE65F84A` + `blinking`/4242/40 →
+> **33/33 · N0 · P0** 🆕 · m48 + `corrupted_texture` → 26/80 · N54 · P0 (banked).
+> 🚨 **`B28_B1` reproduces `79·25·0·54·11` FRAME FOR FRAME on `60AE8C61` — THE VERY BINARY THAT
+> PRODUCED THE PASSING BASELINE.**
+>
+> 🚨 **THE CAUSE, WITH ITS FILE:LINE — `AnomalyCaptureSubsystem.cpp:1408-1409`. The probe wears
+> `M_CorruptedTexture_Pink`, which is LITERALLY the material `corrupted_texture` swaps its target
+> to, and the probe's picture detector finds the probe BY THAT MAGENTA.** Two magenta objects ⇒ the
+> centroid is their average ⇒ `NEITHER` on exactly the `anomaly_present` frames. **This is `G226`
+> recurring on the COLOUR axis:** 069-16 fixed the **TAG** half structurally (`ReservedStencilMax`,
+> which the allocator can never hand out) and the **COLOUR** half only by *choosing a non-magenta
+> fixture anomaly* — a choice that **lived nowhere but in whoever typed the leg command.**
+>
+> 🧪 **ALL FOUR NAMED CANDIDATES REFUTED BY MEASUREMENT, NOT BY ARGUMENT:** exposure cvars — read
+> from the leg's **own log echo**, `r.DefaultFeature.AutoExposure = "0" LastSetBy: Console` and
+> `r.EyeAdaptationQuality = "0" LastSetBy: Console`, so the pair **was** issued · the `m47`
+> luminance/stride refactor — refuted by an **in-leg control**, the failing leg's own **clean** frames
+> read `CURRENT` at Δ 12–30 px · probe tagging — `tag=255` spawn line identical, `tagFlips = 0` **on
+> the passing baseline too** · the 069-26 bbox fix — **different tool**; this analyser reads no bbox.
+> 📌 **`m44_pairing_probe.py` was BYTE-UNCHANGED since `eea1a31` and reproduces every banked baseline
+> exactly** — the instrument was exonerated without running anything.
+>
+> 🔧 **THE FIX IS HARNESS-SIDE AND IT REFUSES RATHER THAN REPORTS.** The gate now establishes its
+> fixture **from the leg's own `run.json` and run log** (`G119`) and exits non-zero with **no number
+> printed** when it cannot see its subject: `2` no `run.json` · `3` colliding fixture · `4` no probe.
+> ⛔ **The 40 px tolerance was NOT widened.** ✅ **Proven BOTH ways (`G96`):** fires on the banked
+> `corrupted_texture` leg, silent on all four passing baselines, whose verdicts return
+> **byte-identical** to the pre-fix analyser. 🔑 **A name list is not the only guard** — the magenta
+> count is **always** printed split by `anomaly_present` (coincident bands **8,109 vs 8,040** on a
+> clean fixture; **8,493 vs 11,497** on a colliding one), so an *unlisted* magenta anomaly is visible.
+> ⛔ **FILED, NOT BUILT: give the probe a colour no anomaly uses** — the true analogue of 069-16's tag
+> fix, but a **binary** change that would retire the exe every other `m48` gate ran on.
+>
+> 📌 **THE BASELINE RECIPE IS PART OF THE GATE AND IS NOW WRITTEN DOWN:
+> `-Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 40`, BOTH tick orders.**
+> 🆕 **`G235`** — *"it moved nothing vs the previous binary" is NOT a gate result; the baseline is the
+> last **PASSING** reading, and an A-side is only a control if the A-side is itself on-baseline.*
+>
+> ⚠ **CARRIED LIMIT, MEASURED HERE FOR THE FIRST TIME: the SYNTH-order clause is marginal at
+> `si=8`.** Δ reads **33.6 / 38.9** on m46 and **38.2 / 40.7** on m48 against a **40 px** tolerance, so
+> it can read `NEITHER 1` by ordinary run-to-run variance **on either binary**. Resolved to **branch
+> (a)** of a rule fixed **before** the deciding legs ran (`CaptureBench/tools/b28_si8_predeclared.md`):
+> the bands **overlap** ⇒ **not binary-attributable**. `PREVIOUS == 0` on all four legs. ⛔ **NO
+> MECHANISM ASSERTED** (`G120`). **All four legs banked and reported; none discarded for what it
+> showed.** A future `NEITHER 1` at `si=8` is **this**, not a new finding.
+>
+> ---
+>
+> 🏁🏁 **SESSION 069, 2026-09-03 — `m48` IS SHIPPED AND ON `master`. (Superseded as "you are here" by
+> the brief-28 block above; still the record of `m48`.)** 🏁🏁
 > **Cold start: journal `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` §19.**
 >
 > 🎯 **`m48` = THE GAME'S AUTO-EXPOSURE IS MARKED, NEVER SUPPRESSED.** A frame row gains
@@ -48,12 +108,15 @@ and is the single source of truth for the project.
 > `frames_exposure_dip`, 0 removed; `labels.jsonl` field set 21 → 21 IDENTICAL;
 > `annotation.json` diff EMPTY** · ✅ **both build targets exit 0.**
 >
-> ⚠ **THE PAIRING PROBE IS REPORTED WITH ITS A-SIDE AND ITS LITERAL CLAUSE DOES NOT PASS.** On this
+> 🔻 **SUPERSEDED BY THE BLOCK AT THE TOP OF THIS FILE (brief 28) — KEPT AS THE RECORD.** ⚠ **THE
+> PAIRING PROBE IS REPORTED WITH ITS A-SIDE AND ITS LITERAL CLAUSE DOES NOT PASS.** On this
 > fixture with the census on, `NEITHER` is **not** 0 — so an A-side leg was run **on the archived m47
 > exe**: m47 `PREVIOUS 0 / NEITHER 54`, m48 native `0 / 54`, m48 synth `0 / 53`. 🔑 **`PREVIOUS == 0`
 > — the half that detects a one-frame mis-pairing — holds on all three, and the `NEITHER` band is
 > IDENTICAL on the pre-`m48` binary ⇒ `m48` MOVED NOTHING.** ⛔ **That is NOT a claim the
 > `NEITHER == 0` clause passed** — it did not, including on the control. Reported, **not attributed**.
+> ⛔ **AND THE "pre-existing property of this FIXTURE" READING IS NOW WRONG: it was the LEG RECIPE,
+> and both binaries were already off-baseline, so this A-side compared two FAILING cells** (`G235`).
 >
 > ⚠ **THIS BRIEF DIED TWICE ON ANTHROPIC API 500s AND WAS RESUMED, NOT RESTARTED.** The first dead
 > session left `master` at `b6e5588` with partial uncommitted edits in four files and a game-target

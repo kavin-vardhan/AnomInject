@@ -228,3 +228,61 @@ shadow silencing and the picture still did not move: this target casts no shadow
 CB_GateLevel. The FIXTURE cannot exhibit the class (G135). A guard never shown to fire is not a guard
 (G96), so m45 does NOT merge. The mechanism works - 20 mask files under the new hide against 0 under
 the old. Journal 069 section 13.
+
+---
+
+## APPENDIX 6 - THE GATE'S RECIPE AND ITS INSTRUMENT ARE PART OF THE GATE (2026-09-03, brief 28)
+
+Appended; nothing above was edited.
+
+### What happened
+
+At brief 27 MASK-PICTURE-PAIRING read `NEITHER 54` of 79 decidable against a recorded baseline of
+`NEITHER 0`. An A-side on the previous binary read `NEITHER 54` too, so it was reported as "moved
+nothing". **Both cells were already off-baseline.** Bisected at brief 28:
+
+|  | recipe `blinking`/4242/40 | recipe `corrupted_texture`/777/90 |
+|---|---|---|
+| m46 `60AE8C61` | `A4_PAIR_NAT` **33/33 N0 P0** | `B28_B1` **25/79 N54 P0** |
+| m48 `DE65F84A` | `B28_B4` **33/33 N0 P0** | `M48_P4` **26/80 N54 P0** |
+
+The reading tracks the **RECIPE**, not the binary. `m44_pairing_probe.py` was byte-unchanged since
+`eea1a31` and reproduces every banked baseline exactly. Cause: the probe wears
+`M_CorruptedTexture_Pink` (`AnomalyCaptureSubsystem.cpp:1408-1409`) and `picture_centroid()` finds it
+by that magenta - which is the same asset `corrupted_texture` swaps its target to. G226 on the colour
+axis; 069-16 fixed the TAG half structurally and the COLOUR half only by fixture choice, which lived
+nowhere but in the typed command.
+
+### THE RULE THIS ADDS TO SECTION 3
+
+**A gate's INSTRUMENT and its FIXTURE RECIPE are versioned WITH the gate, and the gate reads its
+fixture back out of the leg's own artifacts rather than trusting the command.**
+
+Concretely, for MASK-PICTURE-PAIRING:
+
+- **The recipe is part of the predicate.** The baseline recipe is
+  `-Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 40`, in BOTH tick orders. A
+  leg on any other anomaly is a different instrument until shown otherwise.
+- **The instrument REFUSES rather than reports** when it cannot see its subject:
+  exit `2` no `run.json` (fixture unknowable - delivery legs can never be read by this gate),
+  exit `3` colliding fixture, exit `4` no probe in the leg. A refusal is **not** a pass, a fail, or a
+  `NEITHER` count.
+- **Proven both ways (G96):** fires on the banked `corrupted_texture` leg; silent on all four passing
+  baselines, whose verdicts return byte-identical to the pre-fix analyser.
+- **A name list is not the only guard.** The magenta pixel count is always printed split by
+  `anomaly_present`: coincident bands on a clean fixture (8,109 vs 8,040), separated on a colliding
+  one (8,493 vs 11,497). An unlisted magenta anomaly is visible even though it would not refuse.
+- **The tolerance was NOT widened.** 40 px stands.
+
+### CARRIED LIMIT, MEASURED HERE FOR THE FIRST TIME
+
+The **synth-order** clause is marginal at **si=8**: Delta reads 33.6 / 38.9 on m46 and 38.2 / 40.7 on
+m48 against a 40 px tolerance, so it can read `NEITHER 1` by ordinary run-to-run variance **on either
+binary**. Branch (a) of a rule fixed before the deciding legs ran (`CaptureBench/tools/
+b28_si8_predeclared.md`): the bands overlap, so it is NOT binary-attributable. `PREVIOUS == 0` on all
+four legs. NO MECHANISM ASSERTED (G120). A future `NEITHER 1` at si=8 is this, not a new finding.
+
+### FILED, NOT BUILT
+
+Give the probe a colour no anomaly uses - the true analogue of 069-16's tag fix. It is a binary
+change and would retire the exe every other `m48` gate ran on, so it was not started unprompted.

@@ -2673,3 +2673,169 @@ global dip. **It is not a fix for (2) and must never be read as one.**
 ⛔ **The plugin still does not touch exposure**, and the delivery docs now say why in as many words.
 ⚠ **`G135` guard, carried:** the AE-ON leg's `DARK FIRST FRAMES = 0` is a null on a target that is
 7.2–7.8% of frame. It does not exclude auto-exposure acting on the owner's own content.
+
+---
+
+## §20 THE `NEITHER 54` REGRESSION — BISECTED. IT WAS THE LEG RECIPE, AND BOTH THE BINARY AND THE INSTRUMENT WERE INNOCENT.
+
+🚨 **§19.3 IS CORRECTED HERE, AND THE CORRECTION IS THE POINT.** That section reported
+`NEITHER 54` beside an m47 A-side, concluded *"`m48` moved nothing"*, and called the band
+**"a pre-existing property of this fixture, reported not attributed"**. The restraint was
+right; **the fact was wrong.** It is not a property of the fixture — it is a property of the
+**LEG RECIPE**, and it is now attributed by measurement. §19.3 stands as written (append, never
+retro-edit); read it with this section.
+
+⛔ **`m48`'s shipped behaviour is UNCHANGED by all of this. No plugin source was touched.**
+The fix is in the gate's instrument, in `CaptureBench`.
+
+### §20.1 WHAT THE BASELINE ACTUALLY IS — and this is the whole mistake in one line
+
+The permanent gate's baseline is the **LAST PASSING READING**, not the last binary:
+
+| reading | binary | recipe | result |
+|---|---|---|---|
+| 069-16 `P6_CENSUS_ON_NAT` | m44-era | `blinking` / 4242 / 40 | **33/33 · N0 · P0** |
+| 069-22 `A4_PAIR_NAT` | m46 `60AE8C61` | `blinking` / 4242 / 40 | **33/33 · N0 · P0** |
+| 069-22 `A4_PAIR_SYN` | m46 `60AE8C61` | `blinking` / 4242 / 40 · synth | **35/35 · N0 · P0** |
+| 069-27 `M48_A1` | m47 `F309D836` | **`corrupted_texture` / 777 / 90** | 25/79 · **N54** · P0 |
+| 069-27 `M48_P4` | m48 `DE65F84A` | **`corrupted_texture` / 777 / 90** | 26/80 · **N54** · P0 |
+
+**"m48 moved nothing vs m47" is true and it is not a gate result.** Both m47 and m48 were
+already off-baseline; comparing them to each other compared two failing cells and found them
+equal. → **`G235`.**
+
+### §20.2 THE 2×2 — the reading tracks the RECIPE, not the binary
+
+Two new legs fill the empty cells. The anti-diagonal is exact:
+
+| | recipe `blinking`/4242/40 | recipe `corrupted_texture`/777/90 |
+|---|---|---|
+| **m46 `60AE8C61`** | `A4_PAIR_NAT` **33/33 N0 P0** (banked) | **`B28_B1`  25/79 · N54 · P0** 🆕 |
+| **m48 `DE65F84A`** | **`B28_B4`  33/33 N0 P0** 🆕 | `M48_P4` 26/80 · N54 · P0 (banked) |
+
+🔑 **`B28_B1` reproduces `79 · 25 · 0 · 54 · 11` — IDENTICAL, frame for frame, to the m47
+A-side — on `60AE8C61`, THE VERY BINARY THAT PRODUCED THE PASSING BASELINE.** The binary is
+exonerated from both sides at once.
+
+### §20.3 THE INSTRUMENT IS EXONERATED WITHOUT RUNNING ANYTHING
+
+`m44_pairing_probe.py` has been **byte-unchanged since `eea1a31`** (069-16's tag-255 fix);
+`1496fcc` and `d0d8643` touched `m47_lum_table.py`, `m47b_*`, `run_leg_editor.ps1` and
+`run_leg.ps1`, never this file. Re-run today over the **banked** baselines it reproduces every
+number exactly: `33/33 N0`, `35/35 N0`, `33/33 N0`, `31/31 N0`. **The `069-26` bbox fix was in
+a different tool — this analyser reads no bbox at all.**
+
+### §20.4 THE FOUR NAMED CANDIDATES, EACH REFUTED BY A MEASUREMENT
+
+- **(a) the exposure cvars.** ⛔ **REFUTED FROM THE LEG'S OWN LOG ECHO**, not from the script:
+  `r.DefaultFeature.AutoExposure = "0" LastSetBy: Console` and
+  `r.EyeAdaptationQuality = "0" LastSetBy: Console`, with Method 0 / Bias 1 /
+  ExtendDefaultLuminanceRange 0 / MethodOverride −1 from Constructor. `-AutoExposure` defaults
+  to `0` and the historical pair **was** issued. A48 satisfied.
+- **(b) `m47`'s `ComputeSubsampledMeanLuma` / `DecodeTightPixel` refactor shifting the picture
+  or its stride.** ⛔ **REFUTED BY AN IN-LEG CONTROL:** the failing leg's own **clean** frames
+  (si 0,1,2,11,12,14,26,36,37,38) read `CURRENT` at Δ 12–30 px. A stride or decode shift moves
+  **every** frame, not only the anomaly-present ones.
+- **(c) the probe being tagged or retagged by the census or prewarm.** ⛔ **REFUTED:** the
+  `MASK-PAIRING PROBE SPAWNED tag=255` line is identical in all legs, `tagFailed 0`, and
+  `tagFlips = 0` on the failing legs **and on the passing baseline** — so 0 is the expected
+  reading here, not a defect. The tag half of the collision stays structurally closed.
+- **(d) the analyser's `069-26` bbox fix.** ⛔ **NOT APPLICABLE** — different tool (§20.3).
+
+### §20.5 THE CAUSE, NAMED, WITH ITS MECHANISM AND ITS DISCRIMINATOR
+
+📌 **`Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp:1408-1409` — the probe wears
+`/AnomalyInjector/Materials/M_CorruptedTexture_Pink`, which is LITERALLY the material the
+`corrupted_texture` anomaly swaps its target to.** `picture_centroid()` finds the probe **by
+that magenta**. Fire `corrupted_texture` in a probe leg and there are **two** magenta objects;
+the centroid is their average.
+
+**MECHANISM, measured:** the target's bbox is `[0, 485.2, 306.1, 234.8]` — bottom-**left** — so
+the extra magenta drags `picCx` **left**, past the 40 px tolerance, on exactly the
+anomaly-present frames.
+
+**DISCRIMINATORS, all four positive:**
+1. the `NEITHER` frames are **exactly** the `anomaly_present` frames (si 3–10, 15–22, …);
+2. `picN` inflates from ~8,000 (clean) to **13,600** and grows within each burst, while
+   `maskN` is rock-stable at ~10,230–10,330 and `maskCx` is correct on **every** frame —
+   **the mask half was never in question**;
+3. **excluding the target's own bbox** from the picture centroid collapses `picN` back into the
+   clean band (~8,000–9,100) and every Δ to 12–33 px ⇒ `CURRENT`;
+4. the magenta-count bands, split by `anomaly_present`: **clean 8,493 vs positive 11,497** on
+   the colliding leg, against **8,109 vs 8,040** on the baseline (coincident within ~1 %).
+
+🚨 **THIS IS `G226` RECURRING ON THE COLOUR AXIS.** 069-16 retracted a confident, detailed,
+entirely false *"the mask is wrong on a quarter of frames"* for this exact reason and fixed the
+**TAG** half structurally — `ReservedStencilMax`, which the allocator can never hand out. The
+**COLOUR** half was fixed only by *choosing a non-magenta fixture anomaly*, and **that choice
+lived nowhere but in whoever typed the leg command.** So it regressed the moment a brief picked
+a different anomaly. Twelve days, two sessions, one instrument, same collision.
+
+### §20.6 THE FIX — harness-side, and it REFUSES rather than reports
+
+`m44_pairing_probe.py` now establishes the fixture **from the leg's own artifacts** (`run.json`
+for `target_anomaly`, the run log for the probe spawn — G119: read it back, never trust the
+command you believe you typed) and **refuses**, with a non-zero exit and **no number printed**,
+when it cannot see its subject: `2` no `run.json` · `3` colliding fixture · `4` no probe in the
+leg. ⛔ **The 40 px tolerance was NOT widened** — that would be laundering.
+
+✅ **PROVEN BOTH WAYS (`G96`):** it **FIRES** (exit 3) on the banked `corrupted_texture` leg and
+is **SILENT** (exit 0) on all four passing baselines, whose verdicts come back **byte-identical**
+to the pre-fix analyser. With the name guard disabled as a known-answer test the numeric path
+also reproduces `M48_P4`'s `80/26/0/54/10` exactly ⇒ **the edit changed no arithmetic.**
+
+🔑 **THE NAME LIST IS NOT THE ONLY GUARD** — a rename or a *new* magenta anomaly would slip past
+it silently, which is precisely the failure `CLAUDE.md`'s `Foliage` ruling warns about. So the
+magenta count is **always** printed split by `anomaly_present`; on a clean fixture the two bands
+coincide and a second magenta object separates them, listed or not (§20.5 discriminator 4).
+
+⛔ **FILED, NOT BUILT — the structural fix: give the probe a colour no anomaly uses.** That is
+the true analogue of 069-16's tag fix, but it is a **binary** change and would retire the exe
+every other `m48` gate ran on. Not started unprompted.
+
+### §20.7 THE RE-RUN GATE ON `m48 DE65F84A`, BOTH ORDERS
+
+| leg | order | decidable | CURRENT | **PREVIOUS** | **NEITHER** | no-data |
+|---|---|---|---|---|---|---|
+| `B28_B4_m48_blink_native` | native | 33 | 33 | **0** | **0** | 7 |
+| `B28_B4_m48_blink_synth` | synth | 33 | 32 | **0** | **1** | 7 |
+| `B28_L1_m48_blink_synth2` | synth | 34 | 34 | **0** | **0** | 6 |
+
+✅ **Native matches the m46 baseline exactly (33/33 · N0 · P0). `PREVIOUS == 0` everywhere.**
+
+### §20.8 ⚠ THE ONE `NEITHER` — RESOLVED BY A RULE FIXED BEFORE THE DECIDING LEGS RAN
+
+`B28_B4_..._synth` reads `NEITHER 1` at **si=8**, Δ **40.7** against a **40 px** tolerance — a
+**0.7 px** crossing. `maskCx` 355.6 and `maskN` 10333 are **identical** to the m46 baseline on
+that frame, so the excursion is **picture-side**. The branch table was written to
+`CaptureBench/tools/b28_si8_predeclared.md` **before** either deciding leg ran:
+
+| leg | binary | si8 `picCx` | si8 `picN` | si8 Δ | totals |
+|---|---|---|---|---|---|
+| `B22_A4_PAIR_SYN` | m46 | 322.0 | 8351 | **33.6** | 35/35 N0 |
+| `B28_L2_m46_blink_synth` | m46 | 316.7 | 8545 | **38.9** | 33/33 N0 |
+| `B28_B4_m48_blink_synth` | m48 | 314.9 | 8653 | **40.7** | 32/33 **N1** |
+| `B28_L1_m48_blink_synth2` | m48 | 317.4 | 8543 | **38.2** | 34/34 N0 |
+
+🔑 **BRANCH (a): the m48 readings STRADDLE 40 (38.2 and 40.7) and the m46 band reaches 38.9, so
+the two binaries' bands OVERLAP.** Run-to-run variance at a marginal frame; **NOT attributable
+to the binary**, and not a pairing fault — `PREVIOUS == 0` on all four legs, and `PREVIOUS` is
+the half that detects mis-pairing. **si=8 is the same frame in every leg and always its most
+extreme**, so the excursion is deterministic in POSITION and variable in MAGNITUDE. ⛔ **NO
+MECHANISM ASSERTED** (`G120`).
+
+⚠ **NAMED CONSEQUENCE, FILED NOT FIXED:** the **synth-order** clause sits about **2 px** from
+its tolerance at si=8 on this fixture and can read `NEITHER 1` by ordinary run-to-run variance
+**on either binary**. That is a newly-measured property **of the gate**, it is not what brief 28
+was chasing, and it is recorded so a future `NEITHER 1` at si=8 is *recognised* rather than
+re-investigated. ⛔ **All four legs are banked and reported; none was discarded for what it
+showed.**
+
+### §20.9 BINARIES, AND WHAT WAS TOUCHED
+
+📦 Staged exe **`DE65F84A`**, left exactly as found. **`DE65F84A` archived FIRST** as
+`_binary_baselines\StackOBot.exe.m48-exposuredip-DE65F84A`, hash-verified **at the archive**
+before any swap (A62) — it had been staged but never archived. `60AE8C61` was staged for `B28_B1`
+and `B28_L2` and **restaged back to `DE65F84A`, hash-verified both directions.** **Container
+quartet UNCHANGED** (`EF8EB23C` / `A8BFFF88` / `3C026A8D`) — **NO COOK, NO REBUILD, NO PLUGIN
+SOURCE CHANGE.** ⛔ **No tag** — `m48` remains the milestone; this is its gate closure.

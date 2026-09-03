@@ -5910,3 +5910,43 @@ the pinning is stated. Every exposure-pinned bench leg is a valid instrument for
 description of the delivered configuration; the AE-ON leg is the reverse. Neither alone is enough.
 
 See also G233 (the standing asymmetry), G135 (a null bounded by what the fixture can exhibit).
+
+## G235 - "IT MOVED NOTHING vs THE PREVIOUS BINARY" IS NOT A GATE RESULT. THE BASELINE IS THE LAST **PASSING** READING.
+
+A permanent gate had a recorded passing baseline: MASK-PICTURE-PAIRING, `NEITHER == 0` AND
+`PREVIOUS == 0`, read as **33/33 N0 P0** (native) and **35/35 N0 P0** (synth) at 069-22 A4 on the
+m46 container, and **33/33 N0 P0** at 069-16 P6 before that.
+
+Two milestones later the same gate read **`NEITHER 54` of 79 decidable**. The response was to run
+an A-side on the **previous** binary. It read `NEITHER 54` too — so the change was reported as
+*"m48 moved nothing, which is what 'pairing unchanged' asked for"*, with the band called *"a
+pre-existing property of this fixture, reported not attributed"*.
+
+**Both binaries were already off-baseline. The A-side compared two failing cells and found them
+equal.** A bisect (069-28) then put the m46 binary — **the very binary that had produced the passing
+33/33 N0** — in front of the newer leg recipe, and it reproduced `79 · 25 · 0 · 54 · 11` frame for
+frame. The binary was innocent, the analyser was byte-unchanged, and **the LEG RECIPE had moved**:
+the probe leg had begun firing `corrupted_texture`, whose material is the *same magenta asset the
+probe itself wears*, so the picture centroid averaged two objects (G226 on the colour axis).
+
+**RULE.** For any gate with a recorded passing reading:
+
+1. **The baseline is the last reading that PASSED, on the recipe that passed** — never "the previous
+   binary" and never "the last thing we built". Quote it with its leg recipe, not just its number.
+2. **An A-side is only a control if the A-side itself is on-baseline.** Verify that before reading
+   the comparison; otherwise "unchanged" is a statement about two unknowns.
+3. **A gate clause that does not pass is a STOP, even when the delta is zero.** "Unchanged and
+   failing" and "unchanged and passing" are different facts and must not share a sentence.
+4. **The FIXTURE and the INSTRUMENT are part of the gate and are versioned with it.** If which
+   anomaly, seed or frame-cap the leg fires can change the verdict, that recipe belongs in the
+   gate's own artifact — not in whoever types the command. It regressed here precisely because it
+   lived nowhere.
+
+**AND THE HONEST HALF:** 069-27's restraint was *correct* — it refused to call the band an m48
+regression and it refused to wave it through, and it said in as many words that the clause did not
+pass. That is why the bisect was possible at all. **The defect was not the caution; it was accepting
+a same-as-last-binary reading as evidence that a FAILING clause was fine.**
+
+See also G226 (a fixture sharing a namespace with the system under test), G169 (a difference inside
+the instrument's spread is below its resolution, never "no cost"), G121 (an exe hash does not
+identify a build), G119 (read it back out of the artifact, do not trust the input you edited).
