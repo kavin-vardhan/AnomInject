@@ -93,6 +93,8 @@ public:
 	void SetCensusReservation(bool bInReserve);
 	void SetCensusLeakProbe(bool bInProbe);
 	void SetCensusCoArm(bool bInCoArm);
+	void SetBenchMaskPairingProbe(bool bInOn);
+	bool IsBenchMaskPairingProbe() const { return bBenchMaskPairingProbe; }
 	void SetBenchCensusFixedExpiry(bool bInFixed);
 	void SetBenchCensusBatchCap(int32 InCap);
 	void SetBenchCensusDropEveryNth(int32 InN);
@@ -156,6 +158,9 @@ private:
 	void ReleaseTargetMaskSelfTags();
 	bool ArmTargetMaskOwn(int32 SessionIndex);
 	void EnsureMaskRecordsForCapturedFrame();
+	void SpawnMaskPairingProbe();
+	void StepMaskPairingProbe(int32 SessionIndex);
+	void DestroyMaskPairingProbe();
 	void EnqueueTargetMaskPng(int32 SessionIndex, const TArray<uint8>& Gray, int32 W, int32 H);
 	const TCHAR* DescribeCensusSource() const;
 	const TCHAR* DescribeMaskSource() const;
@@ -346,6 +351,9 @@ private:
 	int32 TargetMaskHoldTicks = 0;
 	TArray<TWeakObjectPtr<AActor>> TargetMaskSelfTagged;
 	uint64 TargetMaskSelfTaggedTick = 0;
+	bool bBenchMaskPairingProbe = false;
+	TWeakObjectPtr<AActor> MaskPairingProbe;
+	int32 MaskPairingProbePos = 0;
 	uint64 TargetMaskOwnSerial = 0;
 	int32 TargetMaskTagFlips = 0;
 	int32 TargetMaskW = 0;

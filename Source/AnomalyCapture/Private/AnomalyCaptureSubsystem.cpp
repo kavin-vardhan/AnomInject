@@ -43,6 +43,9 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "MaterialShared.h"
@@ -157,6 +160,10 @@ struct FAnomalyCaptureAsyncState
 namespace
 {
 	constexpr int32 GTargetMaskMaxHoldTicks = 4;
+
+	constexpr int32 GMaskPairingProbeTag = 250;
+	const FVector GMaskPairingProbePosA(-900.0, -250.0, 260.0);
+	const FVector GMaskPairingProbePosB(-900.0,  250.0, 260.0);
 
 	constexpr float GAnomalyDefaultFarPlane = 1000000.0f;
 
@@ -745,8 +752,13 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 		return;
 	}
 
-	Async->MaskMeasure.SetExtraAssignedTags(
-		(bCensusEffective && Async->Census.IsActive()) ? Async->Census.GetLegitTags() : TSet<uint8>());
+	TSet<uint8> ExtraTags =
+		(bCensusEffective && Async->Census.IsActive()) ? Async->Census.GetLegitTags() : TSet<uint8>();
+	if (bBenchMaskPairingProbe && MaskPairingProbe.IsValid())
+	{
+		ExtraTags.Add((uint8)GMaskPairingProbeTag);
+	}
+	Async->MaskMeasure.SetExtraAssignedTags(ExtraTags);
 	Async->MaskMeasure.VerifyPendingTags();
 	Async->MaskExtension->EnqueueDrain();
 	ReleaseTargetMaskSelfTags();
@@ -887,7 +899,14 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 		}
 	}
 
-	if (Visible.Num() == 0)
+	bool bProbeForcesArm = false;
+	if (bBenchMaskPairingProbe && MaskPairingProbe.IsValid())
+	{
+		LiveTags.Add((uint8)GMaskPairingProbeTag);
+		bProbeForcesArm = true;
+	}
+
+	if (Visible.Num() == 0 && !bProbeForcesArm)
 	{
 		if (ScanFires > 0)
 		{
@@ -918,7 +937,7 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 		}
 	}
 
-	if (TaggedCount == 0)
+	if (TaggedCount == 0 && !bProbeForcesArm)
 	{
 		return false;
 	}
@@ -1316,6 +1335,105 @@ void UAnomalyCaptureSubsystem::SetCensusIncludeTranslucentWriters(bool bInInclud
 		bCensusIncludeTranslucentWriters
 			? TEXT("ON (custom-depth-writing translucents are MEASURED, pre-m41 behaviour)")
 			: TEXT("off (translucent-only is EXCLUDED regardless of the opt-in)"));
+}
+
+void UAnomalyCaptureSubsystem::SetBenchMaskPairingProbe(bool bInOn)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Bench.MaskPairingProbe: ignored - a capture run is in progress."));
+		return;
+	}
+	bBenchMaskPairingProbe = bInOn;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.MaskPairingProbe -> %s. BENCH DEVICE, console only, no ini key, never in a client ")
+		TEXT("payload. ON spawns a MOVABLE magenta cube in front of the settled bench camera, tags it ONCE ")
+		TEXT("at spawn (so no render-state recreate is ever involved) and alternates its position every ")
+		TEXT("captured tick. The picture is the trusted reference (m31-paired); the mask centroid for the ")
+		TEXT("probe tag is compared against it. If the mask shows the PREVIOUS tick's position, the mask ")
+		TEXT("arm is being served by the previous render. NEVER ship a capture taken with this ON."),
+		bBenchMaskPairingProbe ? TEXT("ON") : TEXT("OFF"));
+}
+
+void UAnomalyCaptureSubsystem::SpawnMaskPairingProbe()
+{
+	if (!bBenchMaskPairingProbe || MaskPairingProbe.IsValid())
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	UMaterialInterface* Pink = LoadObject<UMaterialInterface>(
+		nullptr, TEXT("/AnomalyInjector/Materials/M_CorruptedTexture_Pink.M_CorruptedTexture_Pink"));
+	if (!Cube)
+	{
+		UE_LOG(LogAnomalyCapture, Error,
+			TEXT("Capture(bench): MASK-PAIRING PROBE REFUSED - /Engine/BasicShapes/Cube did not load. ")
+			TEXT("Nothing was spawned and no fixture was improvised."));
+		return;
+	}
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AStaticMeshActor* Probe = World->SpawnActor<AStaticMeshActor>(
+		AStaticMeshActor::StaticClass(), FTransform(GMaskPairingProbePosA), Params);
+	if (!Probe)
+	{
+		UE_LOG(LogAnomalyCapture, Error, TEXT("Capture(bench): MASK-PAIRING PROBE REFUSED - spawn failed."));
+		return;
+	}
+
+	UStaticMeshComponent* Comp = Probe->GetStaticMeshComponent();
+	Comp->SetMobility(EComponentMobility::Movable);
+	Comp->SetStaticMesh(Cube);
+	if (Pink)
+	{
+		Comp->SetMaterial(0, Pink);
+	}
+	Comp->SetWorldScale3D(FVector(1.5f, 1.5f, 1.5f));
+	Comp->SetRenderCustomDepth(true);
+	Comp->SetCustomDepthStencilValue(GMaskPairingProbeTag);
+
+	MaskPairingProbe = Probe;
+	MaskPairingProbePos = 0;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("Capture(bench): MASK-PAIRING PROBE SPAWNED tag=%d posA=(%s) posB=(%s) - tagged ONCE at spawn, ")
+		TEXT("Movable, position alternates per captured tick via SetActorLocation (a transform update, NOT a ")
+		TEXT("render-state recreate)."),
+		GMaskPairingProbeTag, *GMaskPairingProbePosA.ToString(), *GMaskPairingProbePosB.ToString());
+}
+
+void UAnomalyCaptureSubsystem::StepMaskPairingProbe(int32 SessionIndex)
+{
+	if (!bBenchMaskPairingProbe)
+	{
+		return;
+	}
+	AActor* Probe = MaskPairingProbe.Get();
+	if (!Probe)
+	{
+		return;
+	}
+	MaskPairingProbePos = (SessionIndex % 2);
+	const FVector Where = (MaskPairingProbePos == 0) ? GMaskPairingProbePosA : GMaskPairingProbePosB;
+	Probe->SetActorLocation(Where);
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(bench): MASK-PAIRING PROBE STEP session_index=%d pos=%s y=%.1f gameFrame=%llu"),
+		SessionIndex, (MaskPairingProbePos == 0) ? TEXT("A") : TEXT("B"), Where.Y, (uint64)GFrameCounter);
+}
+
+void UAnomalyCaptureSubsystem::DestroyMaskPairingProbe()
+{
+	if (AActor* Probe = MaskPairingProbe.Get())
+	{
+		Probe->Destroy();
+	}
+	MaskPairingProbe = nullptr;
 }
 
 void UAnomalyCaptureSubsystem::SetBenchCensusFixedExpiry(bool bInFixed)
@@ -2445,6 +2563,8 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	PhaseFramesLeft = PreFrames;
 	bRunBegun = true;
 
+	SpawnMaskPairingProbe();
+
 	if (bCensusEffective && Async.IsValid() && Async->MaskExtension.IsValid())
 	{
 		FAnomalyCensusParams CensusParams;
@@ -3057,6 +3177,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				Snap.MaskFileRel = FString::Printf(TEXT("target_mask/frame_%05d.png"), Snap.SessionIndex);
 				TargetMaskArmedTick = GFrameCounter;
 				TargetMaskArmedSessionIndex = Snap.SessionIndex;
+				StepMaskPairingProbe(Snap.SessionIndex);
 			}
 			Async->PendingSnapshots.Add(RequestId, MoveTemp(Snap));
 			if (bUseSve)
@@ -3921,6 +4042,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LayoutReport.RowPitchInPixels = DrainLayout.RowPitchInPixels;
 			LayoutReport.Format = DrainLayout.Format;
 		}
+
+		DestroyMaskPairingProbe();
 
 		AnomalyLabel::FTargetMaskTelemetry TargetMaskReport;
 		if (bTargetMaskEffective)
@@ -5228,6 +5351,29 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchProbeSceneTextureUsageCmd(
 				NumFound, Found.IsEmpty() ? TEXT(" none") : *Found,
 				ShaderMap->UsesSceneTexture(PPI_CustomDepth) ? 1 : 0,
 				ShaderMap->UsesSceneTexture(PPI_CustomStencil) ? 1 : 0);
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchMaskPairingProbeCmd(
+	TEXT("IAI.Bench.MaskPairingProbe"),
+	TEXT("BENCH DEVICE, default OFF, console only - no ini key, never in a client payload. ON spawns a ")
+	TEXT("MOVABLE magenta cube in front of the settled bench camera, tags it ONCE at spawn (so no ")
+	TEXT("render-state recreate can confound the reading) and alternates its position every captured tick. ")
+	TEXT("The picture is the trusted reference because the capturer has the m31 frame handshake; the mask ")
+	TEXT("centroid for the probe's tag is compared against it. A mask that shows the PREVIOUS tick's ")
+	TEXT("position is a mask arm served by the PREVIOUS render. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Bench.MaskPairingProbe <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.MaskPairingProbe <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchMaskPairingProbe(FCString::Atoi(*Args[0]) != 0);
+			}
 		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GBenchCensusFixedExpiryCmd(

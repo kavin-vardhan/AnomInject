@@ -1459,3 +1459,102 @@ mask file and it is not blank (O1 closed); **(F-2)** for one `blinking` and one 
 confirm the hidden frames carry a mask showing where the object should be (O2 closed) — or, if `m45`
 did not ship, confirm those frames have **no file and `mask_state: "empty"`**, which is the documented
 limitation rather than a defect.
+
+---
+
+# §9. THE "NO FRAME HANDSHAKE" HYPOTHESIS — TESTED AND **REFUTED**
+
+**2026-09-03, session 069 brief 15.** ⛔ **No fix was written. Task B was NOT entered**, because the
+brief's own stop rule fired: *"If neither prediction holds, the hypothesis is refuted — say so, keep
+the numbers, stop, and report; do not improvise a different fix."* Both predictions failed.
+
+## §9.1 THE SOURCE READ IS CONFIRMED — the mask really has no frame key
+
+Chat's reading of the tree is **correct as a fact about the code**:
+
+- `FAnomalyMaskSceneViewExtension::ArmMask` (`AnomalyMaskSceneViewExtension.cpp:52`) pushes onto a bare
+  `PendingArms` array under `StateCS` from the **game** thread. There is no frame number.
+- `AfterTonemap_RenderThread` (`:101`, taking arms at `:119-126`) takes **all** pending arms whenever it
+  next runs on the **render** thread. Nothing binds an arm to a family.
+- `FAnomalyMaskSceneViewExtension::BeginRenderViewFamily` is an **empty override**
+  (`AnomalyMaskSceneViewExtension.h:41`) — the exact hook `m31` uses for the capturer.
+- The capturer's handshake is real but is **not** `ConsumeWantedForPublish`'s parameter: that function
+  is a **FIFO** and only *logs* `FamilyFrameNumber` (`AnomalySveCapturer.cpp:45-73`). The actual keying
+  is the **key ring** — `PublishKey(InViewFamily.FrameNumber, RequestId, bWanted)` on the game thread at
+  `BeginRenderViewFamily` (`AnomalySceneViewExtension.cpp:66`), recovered on the render thread by
+  `LookupKey(View.Family->FrameNumber)` (`:93-96`). **The binding is made game-side at family setup and
+  recovered by the family's own number.** That is what the mask lacks.
+
+⇒ **The structural gap is real.** What the measurement refutes is that this gap is the cause of the
+`+1`.
+
+## §9.2 THE INSTRUMENT — `IAI.Bench.MaskPairingProbe`
+
+Console-only, default OFF, loudly echoed, never in a client payload. It spawns a **movable magenta
+cube** 600 units in front of the settled bench camera, **tags it ONCE at spawn**
+(`SetRenderCustomDepth` + `SetCustomDepthStencilValue(250)`), and alternates its position every
+captured tick between `Y = -250` and `Y = +250` via `SetActorLocation` — **a transform update, never a
+render-state recreate**, so the recreate question cannot confound the reading.
+
+⚠ **The first build of the probe was WRONG and its own telemetry said so:** the probe was pushed into
+`Visible`/`Tags` and so entered the tag/restore machinery — `tagFlips = 80` on a 40-frame leg, two per
+frame, i.e. it was being re-tagged every frame. That is exactly the confound the probe exists to avoid,
+and it produced 39 empty masks. Corrected so the probe only contributes its **tag** to the filter and
+**forces the arm**; `tagFlips = 2` after.
+
+📌 **The analyser is not blind, shown from its own output:** on frames it calls `CURRENT` the distance
+to the current picture centroid is **~15–30 px** while the distance to the previous position is
+**~596 px** — a 20× separation. A `PREVIOUS` would have been identified with enormous margin. Its
+silence is a reading.
+
+## §9.3 THE RESULT — four legs, both tick orders, both thread-lag settings
+
+| leg | tick order | `r.OneFrameThreadLag` | decidable | CURRENT | **PREVIOUS** | NEITHER | no-mask |
+|---|---|---|---|---|---|---|---|
+| `A1_NAT2` | native | default (1) | 28 | 18 | **0** | 10 | 12 |
+| `A2_LAG0` | native | **0** | 28 | 17 | **0** | 11 | 12 |
+| `A1_SYNTH` | synth | default (1) | 30 | 20 | **0** | 10 | 10 |
+| `A2_SYNTH_LAG0` | synth | **0** | 29 | 19 | **0** | 10 | 11 |
+
+🚨 **PREDICTION 1 FAILED: `PREVIOUS = 0` on every decidable frame of every leg.** The mask never shows
+the previous tick's position.
+🚨 **PREDICTION 2 FAILED: `r.OneFrameThreadLag 0` changes nothing** — the same session indices, the same
+verdicts, the same pixel counts to the digit (16005 / 16130 / 16016 / 16123 on the `NEITHER` rows of
+both native legs).
+
+✅ **BOTH LEVERS ARE PROVEN TO HAVE ENGAGED, so these are readings and not blindness** (`G114`): the
+engine echoed `r.OneFrameThreadLag = "0"` at frame 1 of the A2 leg, and the probe echoed
+`MASK-PAIRING PROBE SPAWNED tag=250` plus 40 `PROBE STEP` lines per leg.
+
+⇒ **VERDICT: THE ONE-FRAME-THREAD-LAG / UNKEYED-ARM HYPOTHESIS IS REFUTED AS THE CAUSE OF THE `+1`.**
+
+## §9.4 WHAT THE PROBE DID FIND — sharper than the `+1`, and NOT a lag
+
+The failure is **not** a uniform one-frame shift. Per leg, of 40 captured frames:
+
+- **~18–20 frames: the mask is CORRECT** — centroid within ~15–30 px of the picture.
+- **~10 frames: the mask contains an EXTRA silhouette the picture does not contain.** By x-band count
+  (80-px bands, every 2nd pixel sampled), `session_index 1`:
+  `[(320,384) (400,2476) (480,2602) (560,315)] and [(800,3130) (880,3640) (960,3458)]`
+  — the correct cluster at position B **plus** a second cluster centred ~470, which is **neither**
+  commanded position. The picture on that frame is a clean single silhouette (`picN 8008`,
+  `picCx 951.0`).
+- **~10–12 frames: no mask at all** for that `session_index`.
+
+⛔ **NO MECHANISM IS ASSERTED FOR THIS** (`G120`). It is not the thread lag (A2), it is not the tick
+order (both orders identical), and it is not a proxy recreate (the probe is tagged once at spawn and
+`tagFlips = 2`). Naming a cause here would be the third guess in a row on this defect, and the previous
+two were both refuted by the next measurement.
+
+📌 **CONSEQUENCE THAT DOES SURVIVE, AND IT IS THE USEFUL PART: the target mask is not merely one frame
+late — on roughly a quarter of frames it is WRONG IN CONTENT, and on another quarter it is ABSENT.**
+That is a stronger reason not to ship `m43`/`m44` masks than the `+1` ever was, and it is measured.
+⚠ It also means the `+1` seen at event onset in §8 may be a *symptom* of this, not a separate fact —
+**stated as a possibility, not a claim.**
+
+## §9.5 STATE
+
+📦 Staged bench exe **`4EB2EA5C`** (probe lever; the corrected build). Both targets exit 0.
+⛔ **`master` untouched at `62bd287`. No fix. `G225` was NOT minted** — chat's draft wording asserts the
+refuted mechanism. Four legs banked: `A1_A1_NAT2`, `A1_A2_LAG0`, `A1_A1_SYNTH`, `A1_A2_SYNTH_LAG0`
+(plus the discarded first probe build `A1_A1_NATIVE`, kept per `A63`).

@@ -111,3 +111,24 @@ tick orders (native and `IAI.Bench.SynthTickOrder`), and the onset instrument is
 📌 `m43` was gated in the bench's native order only; it shipped a systematic `+1` that **both** orders
 would have shown. ⚠ **The gap was not the missing order — it was that no gate compared first-label to
 first-mask at all.** Both halves of that lesson belong in the rule.
+
+---
+
+## APPENDIX 2 - THE FRAME-HANDSHAKE HYPOTHESIS, TESTED AND REFUTED (2026-09-03, brief 15)
+
+Pre-declared in brief 15: (1) the mask centroid matches the PREVIOUS frame's probe position on nearly
+every frame; (2) `r.OneFrameThreadLag 0` makes the masks align.
+
+| leg | order | lag | decidable | CURRENT | PREVIOUS | NEITHER | no-mask |
+|---|---|---|---|---|---|---|---|
+| A1_NAT2 | native | default | 28 | 18 | **0** | 10 | 12 |
+| A2_LAG0 | native | **0** | 28 | 17 | **0** | 11 | 12 |
+| A1_SYNTH | synth | default | 30 | 20 | **0** | 10 | 10 |
+| A2_SYNTH_LAG0 | synth | **0** | 29 | 19 | **0** | 10 | 11 |
+
+**BOTH PREDICTIONS FAILED.** PREVIOUS is 0 everywhere; the lag cvar changes nothing (identical
+verdicts and identical pixel counts). Both levers are proven engaged, so this is a reading and not
+blindness. **HYPOTHESIS REFUTED.** No fix was written.
+
+What the probe DID show: the mask is correct on ~18-20 of 40 frames, carries an EXTRA silhouette the
+picture does not contain on ~10, and is absent on ~10-12. No mechanism asserted. Journal 069 section 9.
