@@ -150,6 +150,9 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	P->DepthBias = Bias;
 	P->ReservedBase = (uint32)AnomalyStencilTag::ReservedStencilBase;
 	P->ViewRectMin = ViewRect.Min;
+	P->InternalRectMin = static_cast<const FViewInfo&>(View).ViewRect.Min;
+	P->InternalRectSize = static_cast<const FViewInfo&>(View).ViewRect.Size();
+	P->OutputRectSize = Size;
 	P->RenderTargets[0] = FRenderTargetBinding(MaskRT, ERenderTargetLoadAction::EClear);
 
 	const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(View.GetFeatureLevel());

@@ -19,6 +19,9 @@ public:
 		SHADER_PARAMETER(float, DepthBias)
 		SHADER_PARAMETER(uint32, ReservedBase)
 		SHADER_PARAMETER(FIntPoint, ViewRectMin)
+		SHADER_PARAMETER(FIntPoint, InternalRectMin)
+		SHADER_PARAMETER(FIntPoint, InternalRectSize)
+		SHADER_PARAMETER(FIntPoint, OutputRectSize)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
