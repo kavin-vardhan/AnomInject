@@ -5756,3 +5756,30 @@ by me" from "set by someone else".
 Measured: 4 of 4 events, two carrying a census value (204, 242) and two carrying the previous event's
 value (224, 226). Turning the census off cured only the first two - which is why the census-only
 reading of this was half right and would have shipped a half fix.
+
+## G228 - at the delivered configuration, cross-run picture comparison has a ~9% floor
+Two runs of the SAME configuration, same binary, same seed, identical camera pose, identical frame
+alignment and identical event sets differ by **9.1612%** of pixels (>8/255), worst frame 15.40%. A
+deliberate violation read 9.5381% and the correct fix 8.5619% - all one band, so the comparator could
+not tell a correct hide from a broken one. Cause: temporal accumulation (TSR/TAA, Lumen) whose history
+depends on startup timing. G169's shape at a much larger scale than journal 061's 0.116%.
+**The cure is to remove the temporal confound, not to widen the tolerance:** with
+`r.AntiAliasingMethod 0, r.Lumen.DiffuseIndirect.Allow 0, r.DynamicGlobalIlluminationMethod 0,
+r.ReflectionMethod 0` the control floor collapses to **ZERO of 60 frames**, so the sensitivity becomes
+one pixel and the gate can decide.
+**Therefore: any gate asking "did this change what renders" runs at the AA-off arbiter BY DESIGN.** It
+answers that question exactly; it does NOT prove identity of the delivered temporal-AA picture, and no
+such claim is made. A within-frame comparator (G-M9's shape) is what would.
+⚠ `IAI.Bench.SynthTickOrder` is nondeterministic even at AA-off (control 5.95%), so the arbiter is
+UNOBTAINABLE in that order - proven to be the lever's property, because the OLD hide is equally
+nondeterministic there.
+
+## G229 - the base-pass gather accepts a main-pass-off mesh; the PROCESSOR is what refuses it
+Reading `SceneVisibility.cpp:2708` alone says a `bRenderInMainPass=false` primitive is still added to
+`EMeshPass::BasePass` - the enclosing condition at `:2634` is an OR with `bRenderCustomDepth`, so the
+command slot really is created. It is `FBasePassMeshProcessor` that refuses it, at
+`BasePassRendering.cpp:1831` (`!PrimitiveSceneProxy || PrimitiveSceneProxy->ShouldRenderInMainPass()`).
+**Gather and processor are two different filters and only reading the first one misleads in the
+dangerous direction** - it would have said "the object still draws" and killed a design that works.
+Same shape on the depth side: `ShouldRenderInDepthPass() = bRenderInMainPass || bRenderInDepthPass`
+(`PrimitiveSceneProxy.h:613`), so ONE flag silences two passes and the second flag is not redundant.

@@ -205,3 +205,26 @@ targets exit 0.
 F1 (resolution mapping) is BUILT AND UNVALIDATED: changing the shader's parameter struct is fatal
 against the cooked container ("parameter structure has changed without recompilation"), so it needs a
 COOK, which is owner-sequenced. B2's 50% gate was NOT run.
+
+---
+
+## APPENDIX 5 - m45 HIDDEN-CLASS MASKS: MECHANISM CONFIRMED, M45-G4 NOT OBTAINED (brief 19)
+
+A1 = YES: a bRenderInMainPass=false primitive still reaches the custom-depth pass. The custom-depth
+processor gates only on ShouldRenderCustomDepth (CustomDepthRendering.cpp:265); the base pass refuses
+on ShouldRenderInMainPass (BasePassRendering.cpp:1831); the depth pass refuses because
+ShouldRenderInDepthPass = bRenderInMainPass || bRenderInDepthPass (PrimitiveSceneProxy.h:613).
+
+M45-G1 IDENTITY - the delivered configuration CANNOT answer it. Two runs of the SAME config differ by
+9.1612% of pixels; the deliberate violation reads 9.5381% and the correct fix 8.5619% - all one band.
+Pose, alignment and event sets identical, so this is per-run rendering nondeterminism, not A47.
+With AA/Lumen/GI/reflections OFF the floor collapses to ZERO and:
+  CONTROL old-vs-old2   0 of 60 differ  (floor is zero; sensitivity one pixel)
+  TEST    old-vs-NEW    0 of 60 differ  -> M45-G1 PASSES
+  CAN-FAIL old-vs-NOSH  0 of 60 differ  -> M45-G4 NOT OBTAINED
+
+Both levers are PROVEN ENGAGED (engine log echoes both at frame 1), so the can-fail leg really omitted
+shadow silencing and the picture still did not move: this target casts no shadow reaching the frame in
+CB_GateLevel. The FIXTURE cannot exhibit the class (G135). A guard never shown to fire is not a guard
+(G96), so m45 does NOT merge. The mechanism works - 20 mask files under the new hide against 0 under
+the old. Journal 069 section 13.
