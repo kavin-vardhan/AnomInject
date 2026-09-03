@@ -136,3 +136,72 @@ that tag (`MASK-TIE MATCH`), rising to 48,587-66,862 on the next frame, so **a n
 tag is not in that same frame custom-depth pass.** Tagging during `Tick` instead was tried and made it
 **worse** (0/4 vs 1/4), so the lag is not about placement inside frame n. No mechanism asserted.
 Journal 069 section 8.3.
+
+---
+
+## APPENDIX 2 - THE FRAME-HANDSHAKE HYPOTHESIS, TESTED AND REFUTED (2026-09-03, brief 15)
+
+Pre-declared in brief 15: (1) the mask centroid matches the PREVIOUS frame's probe position on nearly
+every frame; (2) `r.OneFrameThreadLag 0` makes the masks align.
+
+| leg | order | lag | decidable | CURRENT | PREVIOUS | NEITHER | no-mask |
+|---|---|---|---|---|---|---|---|
+| A1_NAT2 | native | default | 28 | 18 | **0** | 10 | 12 |
+| A2_LAG0 | native | **0** | 28 | 17 | **0** | 11 | 12 |
+| A1_SYNTH | synth | default | 30 | 20 | **0** | 10 | 10 |
+| A2_SYNTH_LAG0 | synth | **0** | 29 | 19 | **0** | 10 | 11 |
+
+**BOTH PREDICTIONS FAILED.** PREVIOUS is 0 everywhere; the lag cvar changes nothing (identical
+verdicts and identical pixel counts). Both levers are proven engaged, so this is a reading and not
+blindness. **HYPOTHESIS REFUTED.** No fix was written.
+
+What the probe DID show: the mask is correct on ~18-20 of 40 frames, carries an EXTRA silhouette the
+picture does not contain on ~10, and is absent on ~10-12. No mechanism asserted. Journal 069 section 9.
+---
+
+## APPENDIX 3 - HYPOTHESIS #3 (INTERNAL-vs-OUTPUT RESOLUTION), 2026-09-03 brief 16
+
+| | prediction | result |
+|---|---|---|
+| P1 | internal view rect differs from output rect on NEITHER/no-mask frames | **FAILED** - internal == output == unscaled == 1280x720 on ALL 51 passes |
+| P2 | forcing ScreenPercentage 100 + DynamicRes off gives 0 NEITHER / 0 no-mask | **FAILED** - already 100%, NEITHER unchanged |
+| P3 | forcing ScreenPercentage 50 makes every decidable frame NEITHER | **HELD** - internal 640x360 vs output 1280x720, CURRENT 0 / NEITHER 25 of 26 |
+
+**HYPOTHESIS DEAD AS THE EXPLANATION** (all three were required). **CONFIRMED AS A REAL, SEPARATE
+DEFECT**: whenever internal resolution differs from output - dynamic resolution, screen percentage
+other than 100, any temporal upsampler - every mask is wrong. Demonstrated, not argued. It is simply
+not active at the bench default.
+
+**RETRACTION.** Appendix 2's "extra silhouette / absent mask" was TWO artifacts in the probe itself:
+the probe's tag 250 sat inside the allocator range and the census (78 candidates / 16 cycles) both
+took it and re-tagged the probe; and the probe used the same magenta material corrupted_texture swaps
+to, so the picture-side detector merged two objects. With both removed the mask is CURRENT on 40 of 40
+frames in BOTH tick orders. Appendix 2's REFUTATION of the frame-handshake hypothesis is unaffected
+and stands. Journal 069 section 10.
+---
+
+## APPENDIX 4 - TAG OWNERSHIP: THE +1 IS FIXED (2026-09-03, brief 17)
+
+Hypothesis #4 as stated (census vs event tags share one pool) is HALF RIGHT. The mechanism is real -
+an actor under a live fire could carry a foreign stencil value and ArmTargetMaskOwn accepted it
+without retagging - but the foreign value comes from a PREVIOUS EVENT on the same actor as often as
+from the census. Census OFF cured 2 of 4; the fix cures 4 of 4.
+
+A2 instrument, on exactly the four +1 events and no others (4 of 27 armed frames):
+  si=27 eventTag=222 actor carried 204 (census)
+  si=51 eventTag=224 actor carried 242 (census)
+  si=63 eventTag=226 actor carried 224 (the previous event on that actor)
+  si=87 eventTag=229 actor carried 226 (the previous event on that actor)
+
+FIX: an actor under a live fire belongs to its event - ArmTargetMaskOwn retags unconditionally, as
+m26's ArmIfMeasurable already did. The pool was deliberately NOT partitioned: 55 assignable values
+against 77 census candidates per leg, so a split would make exhaustion more likely, not less.
+
+GATES both orders: G1 4/4 delta 0, G2 0 blanks, G3 27+0+63=90, G7 0 stray, G6 all six veto counters
+identical to the m43 control, MASK-TIE 27 lines 0 MISMATCH, m26 probe fires (mask_probe_arms=1),
+P-C7 v2 frame_index delta one constant with mask_value the only other differing field, both build
+targets exit 0.
+
+F1 (resolution mapping) is BUILT AND UNVALIDATED: changing the shader's parameter struct is fatal
+against the cooked container ("parameter structure has changed without recompilation"), so it needs a
+COOK, which is owner-sequenced. B2's 50% gate was NOT run.

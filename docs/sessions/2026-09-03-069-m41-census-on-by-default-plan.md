@@ -1578,3 +1578,327 @@ cook**. Both targets build at exit 0 (game and editor).
 ⛔ **NOT DONE, named:** `client-readme`, `client-delivery`, the ledger's `m44` entry and card Section F
 are **deliberately unwritten** — they would describe shipped behaviour, and `m44` did not ship.
 `G223`/`G224` are minted below because they are lessons, not release notes.
+
+---
+
+# §9. THE "NO FRAME HANDSHAKE" HYPOTHESIS — TESTED AND **REFUTED**
+
+**2026-09-03, session 069 brief 15.** ⛔ **No fix was written. Task B was NOT entered**, because the
+brief's own stop rule fired: *"If neither prediction holds, the hypothesis is refuted — say so, keep
+the numbers, stop, and report; do not improvise a different fix."* Both predictions failed.
+
+## §9.1 THE SOURCE READ IS CONFIRMED — the mask really has no frame key
+
+Chat's reading of the tree is **correct as a fact about the code**:
+
+- `FAnomalyMaskSceneViewExtension::ArmMask` (`AnomalyMaskSceneViewExtension.cpp:52`) pushes onto a bare
+  `PendingArms` array under `StateCS` from the **game** thread. There is no frame number.
+- `AfterTonemap_RenderThread` (`:101`, taking arms at `:119-126`) takes **all** pending arms whenever it
+  next runs on the **render** thread. Nothing binds an arm to a family.
+- `FAnomalyMaskSceneViewExtension::BeginRenderViewFamily` is an **empty override**
+  (`AnomalyMaskSceneViewExtension.h:41`) — the exact hook `m31` uses for the capturer.
+- The capturer's handshake is real but is **not** `ConsumeWantedForPublish`'s parameter: that function
+  is a **FIFO** and only *logs* `FamilyFrameNumber` (`AnomalySveCapturer.cpp:45-73`). The actual keying
+  is the **key ring** — `PublishKey(InViewFamily.FrameNumber, RequestId, bWanted)` on the game thread at
+  `BeginRenderViewFamily` (`AnomalySceneViewExtension.cpp:66`), recovered on the render thread by
+  `LookupKey(View.Family->FrameNumber)` (`:93-96`). **The binding is made game-side at family setup and
+  recovered by the family's own number.** That is what the mask lacks.
+
+⇒ **The structural gap is real.** What the measurement refutes is that this gap is the cause of the
+`+1`.
+
+## §9.2 THE INSTRUMENT — `IAI.Bench.MaskPairingProbe`
+
+Console-only, default OFF, loudly echoed, never in a client payload. It spawns a **movable magenta
+cube** 600 units in front of the settled bench camera, **tags it ONCE at spawn**
+(`SetRenderCustomDepth` + `SetCustomDepthStencilValue(250)`), and alternates its position every
+captured tick between `Y = -250` and `Y = +250` via `SetActorLocation` — **a transform update, never a
+render-state recreate**, so the recreate question cannot confound the reading.
+
+⚠ **The first build of the probe was WRONG and its own telemetry said so:** the probe was pushed into
+`Visible`/`Tags` and so entered the tag/restore machinery — `tagFlips = 80` on a 40-frame leg, two per
+frame, i.e. it was being re-tagged every frame. That is exactly the confound the probe exists to avoid,
+and it produced 39 empty masks. Corrected so the probe only contributes its **tag** to the filter and
+**forces the arm**; `tagFlips = 2` after.
+
+📌 **The analyser is not blind, shown from its own output:** on frames it calls `CURRENT` the distance
+to the current picture centroid is **~15–30 px** while the distance to the previous position is
+**~596 px** — a 20× separation. A `PREVIOUS` would have been identified with enormous margin. Its
+silence is a reading.
+
+## §9.3 THE RESULT — four legs, both tick orders, both thread-lag settings
+
+| leg | tick order | `r.OneFrameThreadLag` | decidable | CURRENT | **PREVIOUS** | NEITHER | no-mask |
+|---|---|---|---|---|---|---|---|
+| `A1_NAT2` | native | default (1) | 28 | 18 | **0** | 10 | 12 |
+| `A2_LAG0` | native | **0** | 28 | 17 | **0** | 11 | 12 |
+| `A1_SYNTH` | synth | default (1) | 30 | 20 | **0** | 10 | 10 |
+| `A2_SYNTH_LAG0` | synth | **0** | 29 | 19 | **0** | 10 | 11 |
+
+🚨 **PREDICTION 1 FAILED: `PREVIOUS = 0` on every decidable frame of every leg.** The mask never shows
+the previous tick's position.
+🚨 **PREDICTION 2 FAILED: `r.OneFrameThreadLag 0` changes nothing** — the same session indices, the same
+verdicts, the same pixel counts to the digit (16005 / 16130 / 16016 / 16123 on the `NEITHER` rows of
+both native legs).
+
+✅ **BOTH LEVERS ARE PROVEN TO HAVE ENGAGED, so these are readings and not blindness** (`G114`): the
+engine echoed `r.OneFrameThreadLag = "0"` at frame 1 of the A2 leg, and the probe echoed
+`MASK-PAIRING PROBE SPAWNED tag=250` plus 40 `PROBE STEP` lines per leg.
+
+⇒ **VERDICT: THE ONE-FRAME-THREAD-LAG / UNKEYED-ARM HYPOTHESIS IS REFUTED AS THE CAUSE OF THE `+1`.**
+
+## §9.4 WHAT THE PROBE DID FIND — sharper than the `+1`, and NOT a lag
+
+The failure is **not** a uniform one-frame shift. Per leg, of 40 captured frames:
+
+- **~18–20 frames: the mask is CORRECT** — centroid within ~15–30 px of the picture.
+- **~10 frames: the mask contains an EXTRA silhouette the picture does not contain.** By x-band count
+  (80-px bands, every 2nd pixel sampled), `session_index 1`:
+  `[(320,384) (400,2476) (480,2602) (560,315)] and [(800,3130) (880,3640) (960,3458)]`
+  — the correct cluster at position B **plus** a second cluster centred ~470, which is **neither**
+  commanded position. The picture on that frame is a clean single silhouette (`picN 8008`,
+  `picCx 951.0`).
+- **~10–12 frames: no mask at all** for that `session_index`.
+
+⛔ **NO MECHANISM IS ASSERTED FOR THIS** (`G120`). It is not the thread lag (A2), it is not the tick
+order (both orders identical), and it is not a proxy recreate (the probe is tagged once at spawn and
+`tagFlips = 2`). Naming a cause here would be the third guess in a row on this defect, and the previous
+two were both refuted by the next measurement.
+
+📌 **CONSEQUENCE THAT DOES SURVIVE, AND IT IS THE USEFUL PART: the target mask is not merely one frame
+late — on roughly a quarter of frames it is WRONG IN CONTENT, and on another quarter it is ABSENT.**
+That is a stronger reason not to ship `m43`/`m44` masks than the `+1` ever was, and it is measured.
+⚠ It also means the `+1` seen at event onset in §8 may be a *symptom* of this, not a separate fact —
+**stated as a possibility, not a claim.**
+
+## §9.5 STATE
+
+📦 Staged bench exe **`346ED33F`** (probe lever, the CORRECTED build - all four legs ran on it). `4EB2EA5C` was the first, wrong probe build and produced only the discarded `A1_A1_NATIVE` leg. Both targets exit 0.
+⛔ **`master` untouched at `62bd287`. No fix. `G225` was NOT minted** — chat's draft wording asserts the
+refuted mechanism. Four legs banked: `A1_A1_NAT2`, `A1_A2_LAG0`, `A1_A1_SYNTH`, `A1_A2_SYNTH_LAG0`
+(plus the discarded first probe build `A1_A1_NATIVE`, kept per `A63`).
+
+---
+
+# §10. HYPOTHESIS #3 (INTERNAL-vs-OUTPUT RESOLUTION) — **DEAD AS THE EXPLANATION, CONFIRMED AS A REAL DEFECT**, and §9's finding is **RETRACTED**
+
+**2026-09-03, session 069 brief 16.** ⛔ **No fix was written** — `F1` was gated on `P1`–`P3` all holding
+and two of them failed. `master` untouched at `62bd287`.
+
+## §10.1 THE THREE PREDICTIONS
+
+| | prediction | result |
+|---|---|---|
+| **P1** | on NEITHER/no-mask frames the internal view rect differs from the output rect | ❌ **FAILED** |
+| **P2** | forcing `r.ScreenPercentage 100` + `r.DynamicRes.OperationMode 0` gives 0 NEITHER, 0 no-mask | ❌ **FAILED** |
+| **P3** | forcing `r.ScreenPercentage 50` makes every decidable frame NEITHER | ✅ **HELD** |
+
+**P1, measured.** `View.ViewRect` (the `FViewInfo` internal rect) was added to the `M23 PASS` line. On
+the default bench configuration it reads, on **all 51 passes of the leg, without exception**:
+
+```
+viewRect=1280x720  internalViewRect=(0,0)-(1280,720) 1280x720  unscaledViewRect=1280x720
+```
+
+**Internal == output == unscaled on every pass, including every pass that served a NEITHER frame.**
+There is no mismatch to explain anything. The bench runs at 100 % screen percentage.
+
+**P2, measured.** Forcing 100 % explicitly changed nothing (it was already 100 %): NEITHER stayed at 8.
+
+**P3, measured — and this is the prove-it-can-fail leg (`G96`), which fired exactly as written.** At
+`r.ScreenPercentage 50` the same line reads `internalViewRect=(0,0)-(640,360) 640x360` against
+`viewRect=1280x720`, and the probe returns **CURRENT 0 / NEITHER 25 of 26 decidable frames**.
+
+🚨 **SO THE MECHANISM IS REAL AND IS NOW DEMONSTRATED — IT IS SIMPLY NOT ACTIVE AT THE BENCH'S
+DEFAULT.** `AnomalyVisibleMask.usf:23` samples the scene textures at `SvPosition + ViewRectMin` with
+`SvPosition` in **output** space while the scene textures are at **internal** resolution. Whenever a
+host runs dynamic resolution, a screen percentage ≠ 100, or any temporal upsampler, **every mask is
+wrong** — and that is measured, not argued. ⛔ **It is NOT the cause of anything observed on this
+bench, and must not be written up as if it were.**
+
+## §10.2 🚨 RETRACTION — §9.4's "EXTRA SILHOUETTE / ABSENT MASK" WAS MY INSTRUMENT, TWICE OVER
+
+Chasing `P1` turned up the actual cause of the §9 readings, and it is **not in the product**.
+
+**Artifact 1 — the probe's tag collided with the census.** The probe hardcoded stencil value **250**,
+which is inside the allocator's range (`ReservedStencilBase 200` … `AssignableStencilMax 254`). The
+census tagged **78 candidates over 16 cycles** in that leg, so it both (a) handed 250 to some other
+actor, and (b) re-tagged the probe itself, which is an ordinary visible static mesh and therefore an
+ordinary census candidate. **Measured: with `IAI.Capture.Census 0` the no-data frames went 10 → 0.**
+
+**Artifact 2 — the probe's colour collided with an anomaly.** The probe used
+`M_CorruptedTexture_Pink`, **the same material `corrupted_texture` swaps its target to**. On exactly
+the frames where that anomaly was live, the picture-side magenta detector merged two objects — `picN`
+~8,000 → **16,341–17,321** on `session_index 15–22`, dragging the picture centroid to 546–857. The
+**mask** on those frames was a single clean cluster at the correct position (e.g. `si=1` bands
+`[(720,216) (800,3457) (880,3640) (960,2730)]`, centroid 908 against a commanded ~907).
+
+**With both artifacts removed — census off, non-magenta anomaly — the result is unambiguous:**
+
+| leg | order | decidable | CURRENT | PREVIOUS | NEITHER | no-data |
+|---|---|---|---|---|---|---|
+| `P5_CLEAN_NAT` | native | 40 | **40** | 0 | **0** | **0** |
+| `P5_CLEAN_SYNTH` | synth | 40 | **40** | 0 | **0** | **0** |
+
+⇒ **THE TARGET MASK IS CORRECTLY PAIRED WITH THE PICTURE, FRAME FOR FRAME, AT THE BENCH'S DEFAULT
+SETTINGS, IN BOTH TICK ORDERS.** §9.4's *"wrong in content on a quarter of frames and absent on
+another quarter"* is **WITHDRAWN**. ⛔ **Do not carry it forward.**
+
+✅ **§9's LOAD-BEARING CONCLUSION IS UNAFFECTED AND STANDS:** the frame-handshake hypothesis is still
+refuted — `PREVIOUS = 0` everywhere (a tag collision cannot manufacture a *previous-position*
+silhouette) and `r.OneFrameThreadLag 0` is still a no-op.
+
+## §10.3 THE INSTRUMENT IS NOW COLLISION-PROOF BY CONSTRUCTION
+
+The probe tag is now **`AnomalyStencilTag::ReservedStencilMax` (255)**, which `AllocateTag` can never
+hand out because it allocates only up to `AssignableStencilMax` (254). Re-verified **with the census
+ON**, which is the configuration that produced the false reading:
+
+| leg | order | decidable | CURRENT | PREVIOUS | NEITHER | no-data |
+|---|---|---|---|---|---|---|
+| `P6_CENSUS_ON_NAT` | native | 33 | **33** | 0 | **0** | 7 |
+| `P6_CENSUS_ON_SYN` | synth | 31 | **31** | 0 | **0** | 9 |
+
+⚠ **The residual no-data is real and is not a defect:** the probe is an ordinary visible static mesh,
+so the census legitimately tags it as a candidate on some cycles and its own tag is overwritten for
+those frames. **The gate's predicate is therefore `NEITHER == 0 AND PREVIOUS == 0` over decidable
+frames, with the no-data count reported** — not "40 of 40", which would only be obtainable by
+excluding the probe from census candidacy, i.e. by making the fixture special.
+
+## §10.4 WHAT THIS NARROWS
+
+The pipeline is correctly paired, so the §8 `+1` is **not** a pairing fault. It is specifically about a
+**newly applied tag not being present in that frame's custom depth** — the probe, tagged once at spawn,
+never exercises that path and is correct on every frame. The two facts are consistent and the `+1`
+remains **open and unexplained**. ⛔ No mechanism asserted (`G120`).
+
+## §10.5 NEXT DISCRIMINATORS (listed, not run — no cause is being named)
+
+1. **Tag-application latency, measured directly:** extend the probe with a second actor that is tagged
+   at `OnWorldTickEnd` of frame *n* (rather than at spawn) and read its `tableCount` at *n* and *n+1*.
+   That isolates §8's `+1` from everything else, with the same trusted picture reference.
+2. **The per-served-arm join** (brief 15 D2, folded here as cheap): the `M23 PASS` line now carries the
+   internal rect and `servedArms`; joining `servedArms > 1` against frame indices would show whether
+   arm batching ever changes what a consumer sees. On these legs it did not.
+3. **The `P3` defect on its own terms:** it needs no further discrimination — it is demonstrated. It
+   needs a **decision**, not a measurement.
+
+---
+
+# §11. THE `+1` IS FIXED — TAG OWNERSHIP. And `F1` is built but **CANNOT BE VALIDATED WITHOUT A COOK**.
+
+**2026-09-03, session 069 brief 17.** `master` untouched at `62bd287`. Work on
+`m44-GATE-G1-FAILED-do-not-merge`.
+
+## §11.1 HYPOTHESIS #4 — THE MECHANISM IS CONFIRMED, ITS STATED SOURCE WAS TOO NARROW
+
+> **One sentence:** an actor under a live fire could already be carrying somebody else's stencil value,
+> `ArmTargetMaskOwn` accepted "already tagged" as good enough and never retagged it, so the reduce —
+> which filters on the event's own tag — found nothing on that frame; **but the foreign value comes
+> from a previous EVENT on the same actor as often as from the census**, which is why turning the
+> census off cured only half of it.
+
+**A1 — census OFF does NOT cure it.** Native order, 90-frame auto-pool legs:
+
+| leg | delta 0 | failures |
+|---|---|---|
+| census **ON** | 1/4 | `corrupted@27 +1`, `corrupted@63 +1`, `missing@87 +1` |
+| census **OFF** | 2/4 | `corrupted@51 +1`, `missing@75 +1` |
+
+⇒ The brief's stop rule (*"if census OFF does not cure it, hypothesis #4 is dead"*) fired **on the
+hypothesis as written**. The instrument then showed why the reading was half-right.
+
+**A2 — the instrument, and it is unambiguous.** `TAG-OWNERSHIP` logs each armed target's actual
+component state before tagging. On **exactly the four events that read `+1`**, and on no others
+(4 of 27 armed frames):
+
+| session_index | actor | eventTag | value actually on the actor | owner |
+|---|---|---|---|---|
+| 27 | `StaticMeshActor_73` | 222 | **204** | census |
+| 51 | `StaticMeshActor_49` | 224 | **242** | census |
+| 63 | `StaticMeshActor_49` | 226 | **224** | **the previous event on the same actor** (si 51's tag) |
+| 87 | `StaticMeshActor_49` | 229 | **226** | **the previous event on the same actor** (si 63's tag) |
+
+**Two sources, not one.** That is the whole of the wobble, measured: census-off removes rows 1–2 and
+leaves rows 3–4.
+
+**A3 — the asymmetry, read from source.** `m26`'s `ArmIfMeasurable` calls
+`AnomalyStencilTag::TagActor(Actor, R.Tag)` **unconditionally** (`AnomalyMaskMeasure.cpp:231`) — it has
+**no** accept-any-tag hole and always asserts its own value. `ArmTargetMaskOwn` had
+`if (IsAnyComponentTagged(Actor)) { ++TaggedCount; continue; }`. **The two consumers of one pass
+disagreed about who owns a tag**, and only one of them was right. The census skips already-tagged
+actors (`AnomalyCensus.cpp:726`), so its protection is *"already tagged"*, not *"under a live fire"* —
+on a fire's first frame the target is not yet tagged and the census can take it.
+
+## §11.2 THE FIX — the ownership rule
+
+**An actor under a live fire belongs to its event for the event's duration.** `ArmTargetMaskOwn` now
+retags unconditionally, exactly as `ArmIfMeasurable` already did; the foreign-value case is counted
+(`TargetMaskEventRetags`) and logged with the value it displaced. Self-tag bookkeeping is only
+recorded when the actor was previously untagged, so the restore ledger stays correct.
+
+⛔ **The pool was NOT partitioned (`F-A1`).** It is unnecessary once ownership is asserted, and it
+would have cost real capacity: the assignable range is **55 values** (`200..254`) against a census that
+tagged **77 candidates** in a 90-frame leg. Splitting it would have made tag exhaustion more likely,
+not less, to fix a problem that a one-line ownership rule removes. **Stated as a deliberate deviation
+from the brief.**
+
+## §11.3 GATE TABLE — both tick orders
+
+| gate | native | synth |
+|---|---|---|
+| **M44-G1** onset delta 0 | ✅ **4/4** | ✅ **4/4** |
+| **M44-G2** no blank PNGs | ✅ 0 | ✅ 0 |
+| **M44-G3 / 3b / 3c** count identity | ✅ 27 + 0 + 63 = 90 | ✅ 27 + 0 + 63 = 90 |
+| **M44-G7** masks ⊆ labelled frames | ✅ 0 stray | ✅ 0 stray |
+| **M44-G6** veto inputs vs the `m43` control | ✅ all six identical (0) | — |
+| **MASK-TIE** | ✅ 27 lines, **0 MISMATCH** | ✅ 27 lines, **0 MISMATCH** |
+| **m26 known-answer control** | ✅ `mask_probe_arms = 1` — the detector fires, so its zeros elsewhere are readings | |
+| **census health** | ✅ `framesPolluted 0`, `batchesLost 0`, `tagFailed 0` | ✅ same |
+| **P-C7 v2** | ✅ `frame_index` delta **one constant (0)**; the ONLY field differing outside `t_wall` is `mask_value`, itself a declared mask key | |
+| **both build targets** | ✅ game 0, editor 0 | |
+
+📌 **`present = 27` is exactly the number of labelled frames of the four non-hidden events (8+8+8+3).**
+The `m43` control wrote **29**, i.e. two frames of content that were *not* labelled for their event —
+the old `G7` violation, now gone.
+
+**MOVED COUNTERS, each with its reason:**
+
+| counter | m43 control → m44 | explanation |
+|---|---|---|
+| `target_mask_frames_hidden_blank` | 61 → **0** | intended: blank PNGs are no longer written |
+| `target_mask_frames_unavailable` | 0 → **63** | intended: unarmed/hidden frames are now `unmeasured`, not blank |
+| `target_mask_frames_measured` | 29 → **27** | intended: the two unlabelled-frame masks are gone |
+| `mask_value` (labels) | differs on 30 rows | intended: it *is* the value being corrected |
+| `census_frames` / `census_cycles` | 96→100 / 31→32 | the census's "already tagged" skip now sees a different set because live-fire targets are retagged; cycle boundaries shift. Run-to-run scale, `P-C2` precedent |
+| `census tagOvertaken` | 0–1 → **2–3** | ⚠ **the ownership rule made visible**: the target mask now takes back an actor the census had tagged. It lands in the counter the census built for exactly this class; `framesPolluted 0`, `batchesLost 0`, verdicts and the event set unchanged |
+
+⛔ **No unexplained movement.** The event set, every `manifested`, `positive_frames` (43),
+`non_manifested_events` (0) and all six veto counters are **identical to the control**.
+
+## §11.4 🚨 `F1` (RESOLUTION MAPPING) IS BUILT AND IS **BLOCKED ON A COOK**
+
+`AnomalyVisibleMask.usf` now maps output → internal explicitly
+(`P_in = InternalRectMin + clamp(round(P_out × InternalSize / OutputSize), 0, InternalSize-1)`), with
+three new shader parameters. It compiles. **It cannot run on this bench:**
+
+```
+Shader FAnomalyVisibleMaskPS's parameter structure has changed without recompilation of the shader
+```
+
+— a **fatal at engine init**. Global shaders live in the **cooked container**, which a code-only
+hot-swap does not touch (`G129`). ⛔ **A cook retires the container quartet every `m41`/`m43`/`m44`
+measurement was taken on, and cooks in this project are owner-sequenced (`G118`: never inside a
+measurement sequence). I did not run one.**
+
+**Consequence, stated plainly: `F1` is committed UNVALIDATED and `B2`'s 50 % gate was NOT run.** The
+staged bench exe is deliberately left at the **Task-A** build so the bench stays usable.
+⚠ The mapping is nearest-by-construction, so **if it validates** it also retires the
+nearest-neighbour mask-resampling follow-up — **stated as a consequence of a fix that has not yet been
+proven to run.**
+
+## §11.5 STATE
+
+📦 Staged bench exe **`635A615A`** (Task A only; bootable). `57B132A4` was the F1 build and **does not
+boot** — not archived as a baseline for that reason. Container **unchanged, no cook**.
+⛔ Client docs, the ledger's `m44` entry and card Section F still wait for the merge ruling.

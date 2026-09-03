@@ -38,7 +38,8 @@ namespace
 	FString BuildFrameLabelRecord(const TArray<FAutoLiveFireInfo>& Fires,
 		const FAnomalyViewInfo& View, int32 W, int32 H, uint64 FrameIndex, int32 SessionIndex, double TimeSeconds,
 		double WallSeconds, const FString& ImageName, int32& OutNumLabels,
-		bool bTargetMask = false, const FString& MaskFileRel = FString(), const TArray<int32>* MaskValues = nullptr)
+		bool bTargetMask = false, const FString& MaskFileRel = FString(), const TArray<int32>* MaskValues = nullptr,
+		AnomalyLabel::EAnomalyMaskState MaskState = AnomalyLabel::EAnomalyMaskState::Unmeasured)
 	{
 		OutNumLabels = 0;
 
@@ -104,14 +105,16 @@ namespace
 
 		if (bTargetMask)
 		{
-			if (MaskFileRel.IsEmpty())
-			{
-				Root->SetField(TEXT("mask_file"), MakeShared<FJsonValueNull>());
-			}
-			else
+			const bool bPresent = (MaskState == AnomalyLabel::EAnomalyMaskState::Present) && !MaskFileRel.IsEmpty();
+			if (bPresent)
 			{
 				Root->SetStringField(TEXT("mask_file"), MaskFileRel);
 			}
+			else
+			{
+				Root->SetField(TEXT("mask_file"), MakeShared<FJsonValueNull>());
+			}
+			Root->SetStringField(TEXT("mask_state"), AnomalyLabel::DescribeMaskState(MaskState));
 		}
 
 		TSharedRef<FJsonObject> V = MakeShared<FJsonObject>();
@@ -390,7 +393,7 @@ namespace AnomalyLabel
 	{
 		return BuildFrameLabelRecord(Snapshot.Fires, Snapshot.View, Width, Height,
 			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, Snapshot.WallSeconds, ImageName, OutNumLabels,
-			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues);
+			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues, Snapshot.MaskState);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,

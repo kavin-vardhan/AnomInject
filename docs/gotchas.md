@@ -5705,3 +5705,54 @@ alignment.
 no files to be blank, the subset gate had no files to be stray. `G146` again: the emptiest possible
 result produced the cleanest tick. **A gate whose subject can be empty needs a non-empty
 precondition.**
+
+## G225 - a post-upscale pass that samples pre-upscale scene textures with unscaled coordinates
+`AnomalyVisibleMask.usf:23` computes `P = SvPosition.xy + ViewRectMin` and loads CustomStencil,
+CustomDepth and SceneDepth at `P`. The pass runs AFTER tonemap, so `SvPosition` is in OUTPUT space,
+while the scene textures are at INTERNAL (pre-upscale) resolution. At 100% screen percentage the two
+are the same and nothing is visibly wrong. **At any other ratio every sample lands in the wrong
+place** - measured on the bench with `r.ScreenPercentage 50`: internal rect 640x360 against an output
+rect of 1280x720, and the mask probe reads WRONG on 25 of 26 decidable frames (0 correct).
+**Dynamic resolution, a non-100 screen percentage and temporal upsamplers are all ordinary
+shipped-game settings**, so this is a host-configuration landmine, not a bench curiosity. It also
+means the region beyond the internal rect reads whatever the POOLED texture still holds, which is not
+cleared outside the current view rect.
+**The general rule: any pass that reads scene textures must map its coordinates through the INTERNAL
+view rect, and must never assume its own output space matches.**
+Not the cause of the bench observations it was hypothesised to explain (journal 069 section 10) - it
+is a separate real defect found while falsifying that hypothesis.
+
+## G226 - a bench fixture that shares a namespace with the system under test will be mistaken for it
+A mask-pairing probe was given stencil tag **250** and the plugin's magenta anomaly material. Both
+choices collided with the system it was measuring:
+- 250 is inside the tag allocator's range (`ReservedStencilBase 200` .. `AssignableStencilMax 254`),
+  so the census - which tagged 78 candidates over 16 cycles - both handed 250 to another actor AND
+  re-tagged the probe, because the probe is an ordinary visible static mesh and therefore an ordinary
+  census candidate.
+- the magenta material is the one `corrupted_texture` swaps its target to, so the picture-side
+  detector merged the probe with the anomaly target (pixel count 8,000 -> 17,000 on exactly those
+  frames).
+Together they produced a confident, detailed and entirely false reading: "the mask carries content
+the picture does not, on a quarter of frames, and is absent on another quarter." **It was the
+fixture.**
+**Pick fixture identifiers OUTSIDE every range the system can allocate** - here `ReservedStencilMax`
+(255), which `AllocateTag` can never return - **and do not reuse an appearance the system under test
+also produces.** The corrected probe reads 40/40 correct in both tick orders.
+The tell was available and was nearly missed: the probe's own telemetry showed the census tagging 78
+candidates out of a 55-value pool while the probe held a fixed value inside it.
+## G227 - two consumers of one resource disagreeing about ownership, and only one of them asserting it
+The mask pass feeds three consumers. `m26`'s ArmIfMeasurable always calls TagActor with its own value,
+so it ASSERTS ownership every frame. The target mask's ArmTargetMaskOwn instead did
+`if (IsAnyComponentTagged(Actor)) { ++TaggedCount; continue; }` - it accepted "somebody has tagged
+this" as "it is tagged for me". The census, a third writer, skips actors that are already tagged, so
+its guard is "already tagged" and not "under a live fire", and on a fire's FIRST frame the target is
+not yet tagged and the census can take it.
+Result: on the first labelled frame of an event the actor could be carrying a census value, or the
+PREVIOUS event's value on that same actor, and the reduce - which filters on the event's own tag -
+found nothing. That is a systematic one-frame-late mask, shipped behind a green gate set.
+**When several subsystems write one shared per-object attribute, exactly one must own it at a time and
+the owner must ASSERT the value, never test for "is it set".** "Already set" cannot distinguish "set
+by me" from "set by someone else".
+Measured: 4 of 4 events, two carrying a census value (204, 242) and two carrying the previous event's
+value (224, 226). Turning the census off cured only the first two - which is why the census-only
+reading of this was half right and would have shipped a half fix.
