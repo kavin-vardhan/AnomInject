@@ -1554,7 +1554,7 @@ That is a stronger reason not to ship `m43`/`m44` masks than the `+1` ever was, 
 
 ## §9.5 STATE
 
-📦 Staged bench exe **`4EB2EA5C`** (probe lever; the corrected build). Both targets exit 0.
+📦 Staged bench exe **`346ED33F`** (probe lever, the CORRECTED build - all four legs ran on it). `4EB2EA5C` was the first, wrong probe build and produced only the discarded `A1_A1_NATIVE` leg. Both targets exit 0.
 ⛔ **`master` untouched at `62bd287`. No fix. `G225` was NOT minted** — chat's draft wording asserts the
 refuted mechanism. Four legs banked: `A1_A1_NAT2`, `A1_A2_LAG0`, `A1_A1_SYNTH`, `A1_A2_SYNTH_LAG0`
 (plus the discarded first probe build `A1_A1_NATIVE`, kept per `A63`).
