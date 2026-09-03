@@ -1250,3 +1250,59 @@ from the shared ledger and depends on census claim ordering, which is timing-sen
 session and NOT stable across sessions**. That is exactly why `mask_map.json` is per-session and why the
 client docs say to key on `mask_value` **together with** the event/frame range, never on the value
 alone. The doc line was written on principle at `m43`; it is now backed by a measurement.
+
+---
+
+# §6. THE "DEIMOS" CODENAME IS RETIRED — there were always only two office hosts
+
+**Owner correction, 2026-09-03: "Bates and Deimos are one and the same."** `Deimos` was a **second
+codename for the Bates host**. There are exactly **TWO** office hosts: **Concorde** and **Bates**.
+Nothing else about either host changes, and no real title, studio or fork name is recorded anywhere.
+
+## §6.1 What changed — living docs only
+
+- **`CLAUDE.md`** — the codename invariant reads **`(Concorde, Bates)`**, with one added sentence
+  telling a reader that historical journals and predictions saying *Deimos* mean *Bates*. Three
+  incidental usages corrected: `A Bates/Deimos run` → `A Bates run`; `FOR BATES / DEIMOS = 90` →
+  `FOR BATES = 90`; `a Bates/Deimos READBACK-LAYOUT` → `a Bates READBACK-LAYOUT`.
+- **`docs/office-rdp-card.md`** — the `A-9` bullet *"**Deimos**, if reachable: same A-5/A-6 sequence …
+  **Being 5.2+**, it is the host where the pre-`m35` code would have been wrong at a non-zero origin"*
+  is **DELETED, not re-pointed.**
+  ⚠ **Why deleted rather than migrated:** it described a **third host that does not exist**, and its
+  engine-version claim (`5.2+`) rested on that host being a *different* machine. Re-aiming the bullet at
+  Bates would silently transfer an unverified property onto a host whose lineage is recorded elsewhere.
+  **Deleting the entity has to delete its attribute too** (`G120`'s shape).
+- **`docs/gotchas.md`** — **`G222`** minted.
+- ⛔ **Not touched:** `docs/sessions/*` and `docs/predictions/*` (append-only history — `G222` is how
+  they are read), and the untracked `docs/CHAT-HANDOFF-*.md` (chat-owned).
+- ✅ **No source change, no build, no leg.**
+
+## §6.2 Post-edit survivor list — `git grep -l -i deimos`
+
+```
+CLAUDE.md                                                  <- the RETIREMENT NOTICE itself
+docs/gotchas.md                                            <- G222 itself
+docs/predictions/2026-08-23-m34-gpu-mask-reduce-gates.md    <- history
+docs/predictions/2026-08-26-m35-build-b-gates.md            <- history
+docs/sessions/2026-08-26-061-m35-readback-sub-rect-copy-handoff.md   <- history
+docs/sessions/2026-08-31-063-m36-selection-census-s1.md     <- history
+```
+
+**No defect.** The first two are the notice and the gotcha that *retire* the name — they must mention it
+to be readable. Every other survivor is append-only history. Checked and clean at **0 hits**:
+`setup-runbook.md`, `PRE-DELIVERY-CHECKLIST.md`, `client-readme.md`, `client-delivery.md`,
+`architecture.md`, `onboarding.md`, `invisible-anomaly-mechanisms.md`; `office-rdp-card.md` is now **0**.
+
+📌 **A note on the check itself:** the first sweep flagged `CLAUDE.md` and `gotchas.md` as defects,
+because the predicate was *"any living doc mentioning Deimos"* — which is satisfied by the very text
+that retires it. **The predicate was too crude, not the docs.** The correct one is *"any living doc
+**using** Deimos as a host name"*, and by that predicate the count is **zero**. Recorded because it is
+the same shape as `m43`'s over-strict gate `D`: a check written against the wrong quantity reports a
+fault that is not there, and the cost of that is a real finding being distrusted next time.
+
+## §6.3 The lesson, which is not about this codename
+
+**A duplicate name for one thing is worse than a wrong name for it.** A wrong name gets questioned; a
+duplicate quietly doubles the apparent size of the world. Here it produced a card item planning work on
+a host that did not exist, carrying an engine-version claim that could never have been checked.
+⇒ **When a codename is minted, confirm it is not a second label for something already named.**

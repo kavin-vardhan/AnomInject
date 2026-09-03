@@ -646,10 +646,10 @@ and is the single source of truth for the project.
   "a defect that first fires on frame 2 is invisible to a smoke test" is FALSE and must not be
   reintroduced.**
   ✅ **OPERATIONAL CONSEQUENCE, AND IT IS GOOD NEWS: THIS CRASH CLASS ANNOUNCES ITSELF WITHIN THE
-  FIRST SECOND OF CAPTURE, NOT AFTER 90 FRAMES.** A Bates/Deimos run that survives its first armed
+  FIRST SECOND OF CAPTURE, NOT AFTER 90 FRAMES.** A Bates run that survives its first armed
   frame's **EXECUTION** has cleared this failure mode. **The 90-frame floor governs DECLARING SUCCESS;
   FAILURE IS FAST.** Nobody should wait out a run to learn what the first second already told them.
-  **(vii) MINIMUM ARMED-FRAME COUNT FOR BATES / DEIMOS = 90** — the full standard leg, evidenced by
+  **(vii) MINIMUM ARMED-FRAME COUNT FOR BATES = 90** — the full standard leg, evidenced by
   **90 files on disk** and `total_frames = 90`, guard 0, clamp 0. Below that m35 is **not reported
   working on that host**; not an `IAI.Capture.Shot`. ⚠ **A declared FLOOR, not a derivation** — 90 is
   the only count with a control behind it (every passing home leg ran it, and the guard leg confirmed
@@ -685,7 +685,7 @@ and is the single source of truth for the project.
   ✅ **THE SHIPPED DESIGN MAKES THE ENGINE'S STAGING LAYOUT IRRELEVANT BY CONSTRUCTION:** copy the view
   sub-rect into a **plugin-owned W×H texture at (0,0)**, enqueue a **whole-texture** readback with **no
   rect at all**, and index the drain **sub-rect-locally**. We own the texture, so `bufferHeight ==
-  picture height` on every engine. ⚠ **This REMOVES the discriminator a Bates/Deimos `READBACK-LAYOUT`
+  picture height` on every engine. ⚠ **This REMOVES the discriminator a Bates `READBACK-LAYOUT`
   photo used to provide** — what the photo decides now is tabulated in the Build B gate file §4.
   ✅ **GREEN SO FAR:** `G-M1` letterboxed — **exactly one field moved, `buffer_height 869 → 344`, and
   that IS the fix working** (written into the gate file BEFORE the leg, because it is precisely the
@@ -4400,7 +4400,10 @@ and is the single source of truth for the project.
   **interface + registry is the M1 design** (see Current status + journal 002), not yet in code.
 
 ## Invariants (do not violate)
-- 🔒 **OFFICE HOSTS ARE REFERRED TO BY CODENAME ONLY (Concorde, Bates, Deimos); NEVER A TITLE.**
+- 🔒 **OFFICE HOSTS ARE REFERRED TO BY CODENAME ONLY (Concorde, Bates); NEVER A TITLE.**
+  ⚠ **"Deimos" was a SECOND codename for Bates and is RETIRED as of 2026-09-03 — there are exactly TWO
+  office hosts. Historical journals and predictions that say Deimos mean Bates** (`G222`); those files
+  are append-only history and are deliberately NOT retro-edited.
   This covers code, docs, journals, predictions, commit messages, logs and chat reports alike, and
   it applies to abbreviations of a title as well as to the title itself. (Owner directive,
   2026-08-31.)

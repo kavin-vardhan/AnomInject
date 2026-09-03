@@ -210,9 +210,6 @@ local. ⚠ **Counters 3 and 4 were NOT read on that run** — they are Section C
 ### A-9. Also RDP-valid while you are there
 
 - **`m31` V-3 / V-4** — counter and artifact reads, no eye judgment.
-- **Deimos**, if reachable: same A-5/A-6 sequence. Expected `bufferHeight == picture height` and a
-  correct picture. Being 5.2+, it is the host where the **pre-m35** code would have been wrong at a
-  non-zero origin, so it confirms the fix rather than the layout.
 
 ---
 

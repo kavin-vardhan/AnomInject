@@ -5648,3 +5648,33 @@ anything ever runs it.
 rest of the surface was already exported — **but the decisive check is the linker, not the grep.** The
 pre-fix editor link reported **exactly one** unresolved external and the post-fix link reported none;
 that is the tool whose job it is, answering directly.
+
+---
+
+## G222 — "Deimos" was a DUPLICATE codename for Bates. There are exactly TWO office hosts: Concorde and Bates.
+
+**Owner correction, 2026-09-03: "Bates and Deimos are one and the same."**
+
+For several milestones this project's docs read as though there were **three** office hosts. There were
+always **two**. `Deimos` was a second codename that entered the record for the machine already called
+`Bates`, and it is **RETIRED as of 2026-09-03**.
+
+🔑 **HOW TO READ THE HISTORY: "Deimos" in any journal or predictions file MEANS BATES.** Those files are
+**append-only history and are deliberately NOT retro-edited** — the same rule that keeps every other
+superseded claim visible. Only the **living** docs were corrected (`CLAUDE.md`, `office-rdp-card.md`);
+`docs/sessions/*` and `docs/predictions/*` still say Deimos and are correct as records.
+
+⛔ **Never reintroduce the name.** The codename-only invariant now reads **(Concorde, Bates)**.
+
+⚠ **One claim was WITHDRAWN with it, not migrated.** The RDP card's `A-9` carried a bullet reading
+*"**Deimos**, if reachable: same A-5/A-6 sequence … **Being 5.2+**, it is the host where the pre-`m35`
+code would have been wrong at a non-zero origin."* That bullet **described a third host that does not
+exist**, and its engine-version claim rested on that host being a different machine. **It is deleted
+rather than re-pointed at Bates** — re-pointing it would silently transfer an unverified property
+(`5.2+`) onto a host whose lineage is recorded elsewhere. 📌 **`G120`'s shape: a stale entity carried an
+unverified attribute, and deleting the entity has to delete the attribute too, not relocate it.**
+
+🔑 **THE TRANSFERABLE PART: a duplicate name for one thing is worse than a wrong name for it.** A wrong
+name is eventually questioned; a duplicate quietly doubles the apparent size of the world, and every
+plan written against it budgets for work that does not exist. **When a codename is minted, check it is
+not a second label for something already named.**
