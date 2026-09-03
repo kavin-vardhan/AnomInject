@@ -240,6 +240,15 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       resolution). The dev box absorbed it at paced 30 fps — that is HEADROOM, NOT FREE. If the client
       box hitches, `IAI.Capture.TargetMask 0` is the FIRST knob to turn off, and `G-R7(ii)` is the
       gate that catches it here.*
+
+- [ ] 🚨 **THE EDITOR TARGET BUILDS, EXIT 0 — RUN IT BEFORE THE COOK, NOT AFTER.**
+      `Build.bat StackOBotEditor Win64 Development -Project=<uproject> -WaitMutex`
+      *The cook runs on EDITOR binaries (`G47`, runbook §8.6 step 3.5), and the editor target is
+      MODULAR while every bench gate runs the MONOLITHIC packaged build. A missing `MODULE_API`
+      export is therefore **invisible to every test this project runs** and surfaces for the first time
+      as a link failure inside the cook window.* **Measured instance: `LogAnomaly` was unexported from
+      `m38` through `m43` — five milestones, every bench gate green, and the next cook would have
+      failed at link.** → `G221`, journal 069 §5.
 ## 2. Desktop app + config
 
 - [ ] **Built with the current source**: `npm run build:tauri && npm run tauri build` on a machine with

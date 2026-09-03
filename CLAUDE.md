@@ -4470,6 +4470,14 @@ and is the single source of truth for the project.
   "report back" deliverable.
 - **Plan-before-code.** A new milestone's first response is a file-by-file plan only; no
   implementation until approved.
+- 🚨 **MILESTONE GATE TEMPLATE — EVERY FEAT MILESTONE BUILDS **BOTH** TARGETS ON THE BENCH, AND BOTH
+  MUST EXIT 0:** the **packaged** `StackOBot Win64 Development` **and** the **Editor**
+  `StackOBotEditor Win64 Development`. ⚠ **The packaged build is MONOLITHIC, so it CANNOT SEE a missing
+  `MODULE_API` export — the symbol never crosses a DLL boundary and the macro expands to nothing.** The
+  editor target is modular and is the only configuration that links module-to-module. **It is also the
+  configuration the COOK runs on** (`G47`, runbook §8.6 step 3.5), so a missing export blocks delivery
+  rather than the bench. Measured instance: `LogAnomaly` shipped unexported from `m38` through `m43`,
+  invisible to every bench gate, found by the owner on an editor build (`G221`, journal 069 §5).
 - ⚠ **PRE-COMMIT HABIT (standing, 2026-08-19): read `git diff --stat` BEFORE every commit. A diffstat
   wildly larger than the intended change HALTS the commit** — it is almost always an **encoding smell**
   (**G115**): a shell round-trip (`Get-Content -Raw` → `Out-File`/`Set-Content`) re-encodes the whole

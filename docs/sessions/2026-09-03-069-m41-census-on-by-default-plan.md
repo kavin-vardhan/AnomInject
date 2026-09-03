@@ -1146,3 +1146,107 @@ from the extra arms changing census batch timing. **Recorded as refuted, not qui
    follow-up measurement.
 
 ⇒ **Four stops, four findings, and two of them were in shipped code rather than in the new feature.**
+
+---
+
+# §5. OWNER-FOUND BUILD DEFECT — `LogAnomaly` was never exported, and the bench structurally could not see it
+
+**2026-09-03, session 069 brief 11.** Found by the owner on the Bates **editor** build, not here.
+
+## §5.1 The defect
+
+`Source/AnomalyInjector/Public/AnomalyInjectorLog.h` declared:
+
+```cpp
+DECLARE_LOG_CATEGORY_EXTERN(LogAnomaly, Log, All);
+```
+
+with **no module export**. Since **`m38` (`7c06c6c`)** the `AnomalyCapture` module logs to `LogAnomaly`
+(the run-log probe lines and `AnomalyRunLog.cpp`), and `m38`'s verbosity raise references the category
+**object** across the module boundary. `AnomalyCapture.Build.cs:335` does list `"AnomalyInjector"` as a
+dependency — the dependency was never the problem; the **symbol visibility** was.
+
+**Measured, pre-fix, on the working tree at `8bd32a0`:**
+
+```
+Module.AnomalyCapture.cpp.obj : error LNK2001: unresolved external symbol
+"struct FLogCategoryLogAnomaly LogAnomaly" (?LogAnomaly@@3UFLogCategoryLogAnomaly@@A)
+D:\...\UnrealEditor-AnomalyCapture.dll : fatal error LNK1120: 1 unresolved externals
+```
+
+`StackOBotEditor Win64 Development` → **exit code 6**.
+
+**Fix — one line, the standard UE idiom** (`CORE_API DECLARE_LOG_CATEGORY_EXTERN` in `CoreGlobals.h`):
+
+```cpp
+ANOMALYINJECTOR_API DECLARE_LOG_CATEGORY_EXTERN(LogAnomaly, Log, All);
+```
+
+`StackOBotEditor Win64 Development` → **exit code 0**.
+
+## §5.2 🚨 WHY THE BENCH COULD NOT HAVE CAUGHT IT — and why that matters more than the fix
+
+**Every bench gate in this project runs the PACKAGED Development build, which is MONOLITHIC.** In a
+monolithic link there are no DLL boundaries, so `ANOMALYINJECTOR_API` expands to nothing and a missing
+export is **invisible by construction**. The **editor** target is **modular** — one DLL per module —
+and is the only configuration in which the symbol has to cross a boundary.
+
+⇒ **This class of defect cannot be caught by any amount of packaged-build gating.** Not "was not
+caught" — **could not be**.
+
+🚨 **And it would have blocked the client cook.** The cook runs on **editor** binaries (`G47`, card
+`A-3` step 3.5), so the next cook would have failed at link, after the cook window had opened.
+**`m38` shipped it, and `m40`, `m41` and `m43` all shipped on top of it, none of them able to see it.**
+
+## §5.3 THE NEW PERMANENT GATE — both targets, every feat milestone
+
+**Every feat milestone now builds BOTH the packaged Development target AND the Editor target on the
+bench, and both must exit 0.** Added to the milestone gate template in `CLAUDE.md`, to
+`PRE-DELIVERY-CHECKLIST.md` §1.1 (editor build exit 0 *before* the cook), and as `G221`.
+
+**The gate is proven BOTH WAYS on this tree** (`G96`), which is why the pre-fix build was run first and
+its linker line captured: **fail at the pre-fix tree (exit 6, LNK2001/LNK1120), pass with the one-line
+fix (exit 0)**. ⛔ A gate that has only ever passed would not have been worth adding.
+
+## §5.4 The other cross-module symbols — audited, and the linker is the authority
+
+Grepped the injector module's public surface: **79 `ANOMALYINJECTOR_API` occurrences across 10 headers**.
+`UAnomalyInjectorSubsystem` and `UAnomalyAutoInjectorSubsystem` carry `class ANOMALYINJECTOR_API`;
+`AnomalyViewport.h` exports 28 symbols including `IsRenderableComponent`,
+`GetVisibleRenderableActors`, `GetCensusPrefilterActors` and `ProjectActorBoundsToScreenRect`;
+`AnomalyDefaults.h` 35; `AnomalyArgs`, `AnomalyLod`, `AnomalyTargeting`, `AnomalyCensusProvider` and
+`AnomalySelectorSubsystem` all export what the capture module uses.
+
+🔑 **But the decisive check is not the grep — it is the linker.** The pre-fix editor link reported
+**exactly ONE** unresolved external, and the post-fix link reported none. ⇒ **every other cross-module
+symbol the capture module touches was already exported, proven by the tool whose job that is.**
+
+## §5.5 `P-C7` — the packaged build is inert, shown by behaviour rather than by hash
+
+The packaged target is monolithic, so the macro expands to nothing there and the change should be a
+true no-op. ⚠ **The exe hash moved anyway** — `AD543F42` → `0EF535DC`, **identical size
+(241,169,920 B)** — which is `G201` in action: an artifact hash is not content identity.
+
+**So inertness was shown by behaviour.** Against the `m43` control leg under `P-C7 v2`:
+`frame_index` Δ **0**, `t` Δ **0**, `view` **identical**, and every label field byte-identical
+**except `anomalies`** — where the **only** differing sub-field was **`mask_value`** (223 vs 227 on the
+first event).
+
+**That was not accepted as an explanation; it was controlled.** A second leg on the *same* post-fix
+binary was run and compared to the first:
+
+| leg | binary | first-event tag set |
+|---|---|---|
+| `M43G_BASE` | `AD543F42` (pre-fix) | `223,225,226,227,228,254` |
+| `M44_EXPORT` | `0EF535DC` (post-fix) | `223,**224**,226,227,228,254` |
+| `M44_EXPORT_B` | `0EF535DC` (post-fix) | `223,**225**,226,227,228,254` |
+
+⇒ **the same-binary pair differs in `mask_value` by the same 23 rows, and the post-fix second run
+reproduces the PRE-FIX tag set exactly.** `mask_value` is **run-unique**: stencil tag allocation draws
+from the shared ledger and depends on census claim ordering, which is timing-sensitive.
+**The export change is exonerated.**
+
+📌 **Client-facing consequence, now measured rather than assumed:** `mask_value` is **stable within a
+session and NOT stable across sessions**. That is exactly why `mask_map.json` is per-session and why the
+client docs say to key on `mask_value` **together with** the event/frame range, never on the value
+alone. The doc line was written on principle at `m43`; it is now backed by a measurement.

@@ -5603,3 +5603,48 @@ exit code** — an exit code describes how a process ended, never whether it did
 📌 The leg that finally counted ran the capture to completion, polled for `run_summary.json`, then
 closed the window (`WM_CLOSE`): exit **0**, `Object subsystem successfully closed.`, **0** asserts,
 **30/30** masks flushed, folder **deletable**.
+
+---
+
+## G221 — a MONOLITHIC packaged build cannot see a missing `MODULE_API`. The EDITOR target is the modular control, and it is the one the cook runs on.
+
+**2026-09-03, owner-found on the Bates editor build; five milestones after it was introduced.**
+
+`AnomalyInjectorLog.h` declared `DECLARE_LOG_CATEGORY_EXTERN(LogAnomaly, Log, All);` **without a module
+export**. From `m38` onward the `AnomalyCapture` module logs to `LogAnomaly` and references the category
+**object** across the module boundary. The dependency was correctly declared
+(`AnomalyCapture.Build.cs` lists `"AnomalyInjector"`); what was missing was **symbol visibility**.
+
+**Measured, pre-fix:**
+```
+Module.AnomalyCapture.cpp.obj : error LNK2001: unresolved external symbol
+"struct FLogCategoryLogAnomaly LogAnomaly" (?LogAnomaly@@3UFLogCategoryLogAnomaly@@A)
+UnrealEditor-AnomalyCapture.dll : fatal error LNK1120: 1 unresolved externals   [exit 6]
+```
+**Fix:** `ANOMALYINJECTOR_API DECLARE_LOG_CATEGORY_EXTERN(LogAnomaly, Log, All);` — the standard idiom
+(`CORE_API DECLARE_LOG_CATEGORY_EXTERN` in `CoreGlobals.h`). **exit 0.**
+
+🚨 **THE PART THAT GENERALISES: THE BENCH COULD NOT HAVE CAUGHT THIS.** Every gate here runs the
+**PACKAGED Development** build, which is **MONOLITHIC** — no DLL boundaries, so `MODULE_API` expands to
+nothing and a missing export is **invisible by construction**. The **editor** target is **modular**, one
+DLL per module, and is the only configuration where the symbol must cross a boundary.
+⇒ **Not "we forgot to check". No amount of packaged-build gating could have found it.**
+
+🚨 **And it was on a collision course with the client cook: the cook runs on EDITOR binaries** (`G47`,
+runbook §8.6 step 3.5). The next cook would have failed at link, inside the delivery window, five
+milestones downstream of the commit that caused it.
+
+🔑 **RULE, now permanent: every feat milestone builds BOTH the packaged Development target AND the
+Editor target on the bench, and both must exit 0.** In `CLAUDE.md`'s milestone gate template and in
+`PRE-DELIVERY-CHECKLIST.md` §1.1.
+
+🔑 **THE WIDER LESSON: when two build configurations differ STRUCTURALLY, a gate that only ever runs one
+of them is blind to a whole defect class — and its blindness looks exactly like a pass.** Same family as
+`G213` (a preflight that scanned nothing reporting zero) and `G119` (reading the source instead of what
+the artifact enforces). Ask what the *other* configuration would have to do differently, and whether
+anything ever runs it.
+
+📌 **Audit note:** the grep found 79 `ANOMALYINJECTOR_API` occurrences across 10 public headers, so the
+rest of the surface was already exported — **but the decisive check is the linker, not the grep.** The
+pre-fix editor link reported **exactly one** unresolved external and the post-fix link reported none;
+that is the tool whose job it is, answering directly.
