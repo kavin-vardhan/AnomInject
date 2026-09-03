@@ -11,8 +11,81 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🏁🏁 **SESSION 069, 2026-09-03 — `m45` IS SHIPPED AND MERGED. THIS IS THE CURRENT "YOU ARE HERE";
+> 🏁🏁 **SESSION 069, 2026-09-03 — `m47` IS SHIPPED AND MERGED. THIS IS THE CURRENT "YOU ARE HERE";
 > EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: journal `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` §17.**
+>
+> 🎯 **`m47` = SHADER-READINESS PREWARM + AN ANOMALY-SPECIFIC PENDING MARK + A BLACK-FRAME PIXEL
+> GATE.** ⛔ **NO TAG.** Office batch: **`… m44 → m45 → m46 → m47`**. 📦 Staged bench exe
+> **`F309D836`**; predecessor **`60AE8C61`** archived as `StackOBot.exe.m46-resolution-60AE8C61` and
+> hash-verified at the archive. **Container quartet UNCHANGED** (`EF8EB23C`/`A8BFFF88`/`3C026A8D`) —
+> code-only hot-swap, **NO COOK** (`G103`): m47 adds no shader and no shader parameter.
+>
+> 🚨 **THE HEADLINE IS A NEGATIVE RESULT, AND IT IS THE STRONG KIND.** Chat's hypothesis — the owner's
+> editor-only *"the swap is not visible / the target is black on the first frame(s)"* is on-demand
+> shader compilation — **IS REAL AS A MECHANISM** (`GetMaterialWithFallback` walks to a complete
+> fallback and kicks the compile from the render thread; source-confirmed) **AND DID NOT REPRODUCE
+> HERE EVEN AT MAXIMUM FORCING.** Under `-nomaterialshaderddc` both swap materials were **incomplete
+> on 90 of 90 armed frames with 3760 jobs outstanding**, and `corrupted_texture` still drew correct
+> magenta on **every frame including every event's first** (target luminance 106.9–124.7 vs a warm
+> control's 106.9–127.0). **Zero black frames on every leg, editor and packaged.**
+> 🔑 **THE REASON IS THE FINDING: completeness is a WHOLE-SHADER-MAP property, a draw needs ONE VERTEX
+> FACTORY, and `FLocalVertexFactory` compiles first** (`G231`). ⇒ the fallback window is wide only for
+> VFs that compile LATE — **skeletal, Nanite, cloth** — which is where the owner's Concorde symptom
+> (a held weapon) sat and where `m30`'s usage-flag defect sat. ⚠ **That skeletal leg was ATTEMPTED
+> TWICE AND DID NOT RUN** (`MainWorld` target `Bot` → `0 matched`; `MainMenu` failed to load under
+> `-game`) — **UNTESTED, recorded as such, and it is the named next discriminator.**
+> ⛔ **SYMPTOMS (2) "target renders BLACK" AND (3) "whole picture black for a burst" ARE UNEXPLAINED.**
+> The mechanism's fallback is the engine **GREY** grid, not black. The lit-with-no-emissive candidate
+> and the auto-exposure candidate are **NAMED AND UNTESTED — no black frame ever occurred to
+> attribute.** ⛔ **NO MECHANISM ASSERTED.**
+>
+> ✅ **ND-4 ANSWERED BY A READ: the usage flags were ALREADY CORRECT ON DISK** — 14 of 14
+> (7 × 2 materials) `True` before and after, *"already correct - no change made"*, exit 0. ⇒ the
+> `m30`/Concorde *"missing `bUsedWith…` ⇒ default material"* route is **EXCLUDED on this bench**.
+> ⚠ The script saves unconditionally, so the two `.uasset`s came back byte-different with identical
+> flag values; **that re-serialisation churn was REVERTED** so the tree still matches the bytes the
+> `m46` cook was made from.
+>
+> 🚨 **TWO GATE-DESIGN DEFECTS WERE FOUND AND FIXED BEFORE SHIPPING (`G232`). (a) The briefed counter
+> is PROCESS-GLOBAL:** `GetNumRemainingJobs()` read **157→73 across all 90 frames** of a healthy
+> editor leg, so `render_state` keyed on it would have marked **90 of 90 good frames**. The shipped
+> mark keys on **this plugin's own two materials**; the global number ships beside it as a reading.
+> **(b) Even that predicate OVER-FIRES** — `IsComplete()` was false on all 90 `E2b` frames while the
+> drawing VF was ready. It errs toward marking good frames suspect (the safe direction) and the log
+> says so. ⇒ **ND-2 accepted AND measured:** in packaged, `EnsureIsComplete`'s body is `WITH_EDITOR`,
+> the prewarm costs **0.0017 ms**, and `frames_shaders_pending == 0` there is a **READING**, not a
+> gate that passed — **the packaged claim rests on the pixel gate** (`G146`, m19).
+>
+> 🧪 **GATES — three packaged legs, BOTH TICK ORDERS.** P1 prewarm OFF · P2 prewarm ON · P3 prewarm ON
+> + `SynthTickOrder`: all **90 frames / 59 positive / vetoed 0 / non-manifested 0 / speed_ratio
+> 1.0000 / target-mask 59**, **ONSET 8/8 delta 0**, **G7 stray 0**, B1 pose gate PASS
+> (`modal_rot (0,0,0)`, `distinct=1`, `modal 100 %`), A63 accepted on attempt 1.
+> **`P-C7 v2`: `run_summary` 55 → 58 — exactly `shader_prewarm_ms` / `shader_prewarm_incomplete` /
+> `frames_shaders_pending`, 0 removed. `labels.jsonl` field set 21 → 21 IDENTICAL** (the two m47 frame
+> keys appear only when a swap material is incomplete, so a healthy run gains no key).
+> ⛔ **`annotation.json` 48 keys, IDENTICAL — `P6` DID NOT MOVE.** ✅ **BOTH build targets exit 0.**
+>
+> 🖼 **THE BLACK-FRAME GATE: `tools/verify_capture.py --black-frame-gate`, threshold 6.0 on the 0..255
+> whole-frame mean, DERIVED NOT CHOSEN** — the darkest legitimate frame this fixture produces is
+> **59.992**, and the gate fires an order of magnitude below it. **The derivation rule travels to a
+> darker title even though the number does not** (`--black-threshold`). ✅ **PROVEN BOTH WAYS:
+> `--selftest` asserts PASS on a synthetic mid-grey frame and FAIL on an all-black one**, and says
+> *"the gate PASSED an all-black frame"* if it ever cannot fire. A second reading, **DARK FIRST
+> FRAMES**, scores each event's first labelled frame against **that event's own mean**, and is
+> REPORTED — a gate only where it must be zero (a packaged cook).
+>
+> ⚠ **A44 CAUGHT A REAL STALENESS:** the first staged exe was linked before the second round of edits
+> — two new symbols read 0 while `IAI.Capture.ShaderPrewarm` read 7 and the pre-existing
+> `IAI.Bench.MaskPairingProbe` read 5, **so the scan was sound, not blind.** Rebuilt and re-staged.
+> ⚠ **`IAI.Bench.ForceAnomalyShaderRecompile` CANNOT FIRE ON A WARM DDC** (`incomplete BEFORE=0
+> AFTER=0`); the lever that worked is the ENGINE switch **`-nomaterialshaderddc`**. The plugin lever
+> ships anyway because its **packaged REFUSAL is its own measurement.**
+>
+> ---
+>
+> 🏁🏁 **SESSION 069, 2026-09-03 — `m45` IS SHIPPED AND MERGED. (Superseded as "you are here" by `m47`
+> above.)** 🏁🏁
 > **Cold start: journal `docs/sessions/2026-09-03-069-m41-census-on-by-default-plan.md` §13–§15.**
 >
 > 🎯 **`m45` = HIDDEN-CLASS ANOMALIES NOW GET MASKS.** `blinking` and `missing_object` no longer call
@@ -465,6 +538,14 @@ and is the single source of truth for the project.
 > build-bearing branch stays checked out. **Never for builds.**
 > **3.** Path-scoped adds everywhere; **`git add -A` stays banned**; untracked owner docs are never
 > staged.
+> **4. 🆕 TWO CHAT THREADS SHARE THIS TREE (added 2026-09-03, session 069 brief 25).** **Every brief
+> BEGINS by checking out the ref it needs — it never assumes the checkout — verifies that ref
+> `== origin`, and LEAVES THE CHECKOUT AS IT FOUND IT.** State both directions with SHAs in the
+> report. **Bench legs never run while another brief is running** (the mailbox watcher's serial queue
+> is the guarantee, and it is what makes rule 1's "no tracked modifications" test meaningful). ⚠
+> **Before any leg, verify the staged exe hash against `_binary_baselines/README` and re-stage if
+> another thread moved it** — a hot-swap is one file copy, so a leg can silently run on a foreign
+> binary and `G121` says the exe hash alone does not identify a build.
 >
 > 📌 **CODENAME-ONLY INVARIANT (2026-09-01):** hosts and their engine lineage are written as **Bates**
 > and **Concorde** everywhere. All three refs verified clean by the scrub instrument, which proves

@@ -5799,3 +5799,50 @@ identical across those legs, so it is not `A47` - the lever itself makes the run
   configuration**, because no cross-run pixel comparison can decide anything under that lever.
 ⛔ Do not read this as "m45 skipped a gate". The old hide is equally nondeterministic there - proven by
 its own control - so the blindness belongs to the lever, and the lever never ships.
+## G231 - editor on-demand shader compilation is REAL, and its trigger is PER VERTEX FACTORY
+`FMaterialRenderProxy::GetMaterialWithFallback` (`MaterialShared.cpp:4207-4229`): if a material's
+shader map is not complete it walks `GetFallback()` until one IS, and calls
+`SubmitCompileJobs_RenderThread`. So in an EDITOR build a material really can draw the engine fallback
+while it compiles, kicked from the render thread at draw time. The chain terminates at
+`UMaterial::GetDefaultMaterial(Domain)` - the **grey grid**, not black.
+**But completeness is asked of the WHOLE shader map while a draw needs ONE vertex factory.** Our two
+swap materials carry 7 usage flags, so they compile for ~7 VF families; `FLocalVertexFactory` (a plain
+static mesh) is compiled first. Measured on `m47`'s `E2b` leg with `-nomaterialshaderddc`: both
+materials `IsComplete() == false` on **90 of 90 armed frames** with **3760 jobs outstanding**, and the
+`corrupted_texture` target still drew correct magenta on every frame including every event's first -
+target luminance 106.9-124.7 against a warm control's 106.9-127.0, zero black frames.
+**So the mechanism is SUPPORTED and the symptom is NOT REPRODUCED at maximum forcing, and the
+difference between those two statements is the VF.** The consequence is a prediction, not a claim: the
+fallback window is wide for the VFs that compile LATE - skeletal, Nanite, cloth, morph - which is
+where a host's symptom would sit, and it is where `m30`'s usage-flag defect sat too.
+A packaged build cannot enter the path at all: `IAI.Bench.ForceAnomalyShaderRecompile` REFUSES BY NAME
+there, because `ForceRecompileForRendering` is `WITH_EDITOR` only.
+**The prewarm (`IAI.Capture.ShaderPrewarm`, `UMaterialInterface::EnsureIsComplete()`) is likewise
+`WITH_EDITOR` in its body - measured cost in a packaged run 0.0017 ms. It is an editor fix.**
+- A warm derived-data cache defeats a lever that only clears the in-memory map:
+  `ForceRecompileForRendering()` gave `incomplete BEFORE=0 AFTER=0`. The lever that worked was the
+  ENGINE switch `-nomaterialshaderddc`, which simulates a cold DDC on first encounter - which is also
+  the owner's reported shape ("first use per combination, cached afterwards"). Keep the plugin lever
+  anyway: its packaged REFUSAL is its own measurement.
+
+## G232 - a process-global counter is not a per-frame gate input, and "IsComplete" is not "will draw"
+`m47` was briefed to mark a frame `render_state: "shaders_pending"` when
+`GShaderCompilingManager->GetNumRemainingJobs() > 0`. That counter is **process-wide**. Measured: on
+the first editor run after a build it read **157 falling to 73 across all 90 captured frames** while
+this plugin's materials were complete and every pixel was correct. The briefed gate would have marked
+**90 of 90 frames** of a perfectly healthy leg - true, useless, and it teaches the reader to ignore
+the key, which is worse than not having it.
+**So the shipped gate keys on THIS PLUGIN'S OWN materials** (`CountIncompleteAnomalyMaterials()`), and
+the global number ships beside it as a reported reading.
+⚠ **And even the specific predicate over-fires, which is stated rather than papered over.**
+`UMaterial::IsComplete()` checks `IsGameThreadShaderMapComplete()` per feature level - the whole map -
+so it reads false while the vertex factory that actually draws is ready (G231). It means "something
+about this material is still compiling", NOT "this draw will fall back". It errs toward marking good
+frames suspect, which is the safe direction, and the log line says so in its own words.
+**General form: before keying a gate on a counter, ask what SCOPE the counter has and whether that
+scope is the thing the gate is about.** Global-vs-mine and whole-map-vs-this-draw are two different
+scope errors and this one change contained both.
+- Second half, from the same milestone: `frames_shaders_pending == 0` in a PACKAGED build is
+  structurally zero, because the engine body it depends on is `WITH_EDITOR`. That is a READING, never
+  a gate that passed (`G146`'s vacuity shape). The packaged evidence is the m47 BLACK-FRAME PIXEL GATE
+  (`verify_capture.py --black-frame-gate`), per m19's standing "gate on PIXELS, not on a counter".

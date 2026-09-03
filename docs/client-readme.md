@@ -306,6 +306,14 @@ same **`session_index`** as `Actual_Frames/`, at **exactly the picture size**.
 - **`run_summary.json`** gains **three**: `target_mask_frames_measured`, `_hidden_blank`,
   `_unavailable`.
 - ⛔ **`annotation.json` is unchanged.**
+- **`run_summary.json` also carries three shader-readiness keys** — `shader_prewarm_ms`,
+  `shader_prewarm_incomplete` and `frames_shaders_pending`. **On a delivered (packaged) capture all
+  three read 0**, and a frame row carries **no** extra key. They exist because in an *editor* build a
+  material can be asked to draw before its shaders have finished compiling, and such a frame would
+  show the engine's placeholder appearance while the label says an anomaly is present; when that
+  happens the frame row gains **`render_state: "shaders_pending"`** so it is visible rather than
+  silently labelled clean. **If you ever see that key in a delivered dataset, tell us** — it should
+  not be reachable in a packaged build.
 
 ### 🔑 `mask_state` — the three values, and what each one claims
 

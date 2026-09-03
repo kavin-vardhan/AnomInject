@@ -2270,3 +2270,145 @@ not `m46`** (`G169`). ⛔ **Without that control this would have been reported a
 `m45-postcook-container-A4`, and the live `m46` one.
 ✅ **The nearest-neighbour mask-resampling follow-up is RETIRED** — the mapping is nearest by
 construction.
+## §17 `m47` — SHADER READINESS: THE MECHANISM IS REAL, THE SYMPTOM DID NOT FOLLOW
+
+**Brief 069-25** (chat thread A), after 069-24 halted at its repo-state gate. Chat ruled the checkout:
+`europa-e1 1f5e305` → `master 489c29d` at the start, back at the end. Both directions stated.
+
+### §17.1 What the owner reported, and what was actually asked
+
+Bates AND Concorde, **editor target only, never packaged**: (1) in ~5–10 % of `corrupted_texture` /
+`missing_texture` events the swapped material is not visible on the first frame(s); (2) in some of
+those the target renders BLACK; (3) occasionally the WHOLE picture is black for a burst and recovers.
+Chat's hypothesis: **on-demand shader compilation in the editor** — the first use of an anomaly
+material per mesh usage compiles its shader map and the object draws the fallback until it lands.
+
+### §17.2 Step 0 (ND-4) — the usage flags were ALREADY correct on disk
+
+`tools/set_material_usage_flags.py`, headless: **14 of 14 flags (7 × 2 materials) read `True` BEFORE`,
+`True` AFTER, "already correct - no change made", EXITCODE=0.** ⇒ the `m30`/Concorde
+"missing `bUsedWith…` ⇒ forcing default material" route is **EXCLUDED on this bench's assets**, and it
+is excluded by a read rather than by assumption (`G159` closes the string-scan route, so the editor
+was the only instrument).
+⚠ The script saves unconditionally, so the two `.uasset` files came back byte-different with
+**identical flag values**. That is re-serialisation, not a change. **The churn was REVERTED** so the
+tree still matches the bytes the `m46` cook was made from; committing it would have put a binary diff
+with no semantic content into `m47` and raised a re-cook question for nothing.
+
+### §17.3 The mechanism IS real — and its trigger is PER VERTEX FACTORY
+
+`FMaterialRenderProxy::GetMaterialWithFallback` (`MaterialShared.cpp:4207-4229`) walks to a complete
+fallback and calls `SubmitCompileJobs_RenderThread` — on-demand compilation at draw time, confirmed
+from source (069-24). The chain terminates at the engine default material, i.e. the **grey grid**.
+
+**But `IsGameThreadShaderMapComplete()` is a WHOLE-shader-map predicate and a draw needs ONE vertex
+factory.** With 7 usage flags a material must compile for ~7 VF families; the one a plain
+`StaticMeshActor` uses (`FLocalVertexFactory`) is compiled first. That is the reason for §17.4.
+
+### §17.5 A1 — measured on the EDITOR target (`run_leg_editor.ps1`, new)
+
+| leg | condition | pending | incomplete | frame_lum min | target_lum on labelled frames | black | dark 1st |
+|---|---|---|---|---|---|---|---|
+| E1 (1st run after build) | warm-ish, prewarm OFF | 157 → 73 | (not yet instrumented) | 60.111 | 106.894 – 127.000 | 0 | 0 |
+| E1 (2nd run) | warm DDC, prewarm OFF | **0** throughout | **0** | 100.787 | — | 0 | 0 |
+| E2 | `IAI.Bench.ForceAnomalyShaderRecompile` | 0 | **0 — LEVER DID NOT FIRE** | — | — | 0 | 0 |
+| **E2b** | **`-nomaterialshaderddc` (cold material DDC)** | **3760 → 3672** | **2 on 90/90 frames** | **59.992** | **106.883 – 124.727** | **0** | **0** |
+
+🚨 **§17.4 THE RESULT: THE CONDITION WAS FORCED TO ITS MAXIMUM AND THE SYMPTOM DID NOT APPEAR.** On
+`E2b` both anomaly materials were incomplete on **every one of 90 armed frames** with **3760 shader
+jobs outstanding**, and the `corrupted_texture` target still rendered correct magenta on every frame
+**including every event's first frame** — target luminance 106.9–124.7 against the warm control's
+106.9–127.0. **No black frames. No dark first frames. No dark target regions anywhere.**
+⇒ **The hypothesis is SUPPORTED AS A MECHANISM and NOT REPRODUCED AS A SYMPTOM on this fixture.**
+That is stronger than "we could not make it happen": we made it happen at full strength.
+
+⚠ **`IAI.Bench.ForceAnomalyShaderRecompile` COULD NOT FIRE** — `ForceRecompileForRendering()` clears
+the in-memory map and the warm DDC refills it before the next query (`incomplete BEFORE=0 AFTER=0`).
+The lever that worked is an ENGINE switch, `-nomaterialshaderddc`, which simulates a cold DDC on
+first encounter — i.e. **exactly the owner's "first use per combination, cached afterwards" shape.**
+The plugin-side lever is kept because it names the refusal in a packaged build, which is its own
+measurement; **its inability to fire on a warm cache is recorded, not hidden** (`m45`'s shadow-lever
+shape recurring — a can-fail lever that a fixture defeats).
+
+### §17.6 What symptom (2) and (3) land on — HONEST ANSWER: UNKNOWN, with the next discriminator named
+
+- **(1) "swap not visible on first frame(s)"** — CONSISTENT with the mechanism, NOT observed here.
+- **(2) "target renders BLACK"** — **NOT EXPLAINED.** The mechanism's fallback is the engine GREY
+  grid, not black, and no dark target region occurred on any leg. The competing candidate (both
+  materials are `MSM_DEFAULT_LIT` with no emissive, so zero light renders black) is **NOT TESTED** —
+  it could not be, because no black target ever appeared to attribute.
+- **(3) "whole picture black for a burst"** — **NOT EXPLAINED and NOT REPRODUCED.** A per-material
+  fallback cannot blacken a whole frame. Named but untested candidates: auto-exposure response (the
+  bench runs `r.DefaultFeature.AutoExposure 0`, the owner's editor does not) and Lumen surface-cache
+  invalidation on a large re-materialised surface. ⛔ **NO MECHANISM ASSERTED for either.**
+- 🚨 **NEXT DISCRIMINATOR, and it follows from §17.3: fire at a SKELETAL or Nanite target under a
+  cold material DDC.** Those VFs compile later than `FLocalVertexFactory`, so they are where the
+  fallback window is wide — and the owner's Concorde symptom was on a **held weapon (skeletal)**,
+  which is the same axis `m30`'s usage-flag defect sat on. ⚠ **ATTEMPTED TWICE AND NOT RUN:**
+  `MainWorld` + target `Bot` returned **`-> 0 matched`** (no actor name or class contains it), and
+  `MainMenu` **failed to load** under `-game` (`Failed to enter /Game/StackOBot/Maps/MainMenu`).
+  Recorded as UNTESTED, not as a null.
+
+### §17.7 TWO GATE-DESIGN DEFECTS FOUND BEFORE THEY SHIPPED
+
+**(a) The briefed counter is GLOBAL.** `GShaderCompilingManager->GetNumRemainingJobs()` is
+process-wide. On the first editor run after a build it read **157 falling to 73 across all 90 frames**
+while our materials were perfectly complete and every pixel was right. A `render_state` keyed on it
+would have marked **90 of 90 frames** of that leg "shaders_pending" — true, useless, and it would
+train the reader to ignore the key. **So the shipped gate keys on `CountIncompleteAnomalyMaterials()`
+— THIS PLUGIN'S two swap materials — and the global count ships beside it as a reading.**
+
+**(b) Even the specific predicate over-fires**, and that is stated rather than papered over:
+`IsComplete()` was `false` on all 90 `E2b` frames while the drawing VF was complete. It means
+"something about this material is still compiling", not "this draw will fall back". It errs toward
+marking good frames suspect — the safe direction — and the log line says so in as many words.
+
+⇒ **ND-2 ACCEPTED AND NOW MEASURED, not merely argued:** `frames_shaders_pending == 0` in a packaged
+build is a **READING** (`EnsureIsComplete`'s body is `WITH_EDITOR` only, and the prewarm costs
+**0.0017 ms** there — the number that proves it is a no-op). The packaged claim rests on **B3's pixel
+gate**.
+
+### §17.8 A2 — packaged legs, and the gate table
+
+| leg | prewarm | prewarm_ms | incomplete | frames_shaders_pending | frame_lum min | black | dark 1st | ONSET | G7 |
+|---|---|---|---|---|---|---|---|---|---|
+| P1 | OFF | −1 (skipped) | 0 / 90 | 0 | 99.467 | 0 | 0 | 8/8 Δ0 | stray 0 |
+| P2 | ON | **0.0017** | 0 / 90 | 0 | 99.611 | 0 | 0 | 8/8 Δ0 | stray 0 |
+| P3 | ON + `SynthTickOrder` | 0.0019 | 0 / 90 | 0 | 99.312 | 0 | 0 | 8/8 Δ0 | stray 0 |
+
+All three: 90 frames, 59 positive, `vetoed_events` 0, `non_manifested_events` 0, `speed_ratio` 1.0000,
+`target_mask_frames_measured` 59, B1 pose gate **PASS** (`modal_rot (0,0,0)`, `distinct=1`,
+`modal=100.0 %`), A63 accepted on attempt 1.
+**Both tick orders run, per the standing rule.**
+
+### §17.9 `P-C7 v2` and `P6`
+
+`run_summary` **55 → 58 keys, added exactly `shader_prewarm_ms` / `shader_prewarm_incomplete` /
+`frames_shaders_pending`, removed 0.** `labels.jsonl` field set **21 → 21, IDENTICAL** on a packaged
+leg — the two m47 frame keys are emitted only when a swap material is incomplete, so a healthy run
+carries no new key at all. ⛔ **`annotation.json` 48 keys, IDENTICAL — `P6` DID NOT MOVE.**
+
+### §17.10 B3 — the black-frame gate, and its threshold
+
+`tools/verify_capture.py --black-frame-gate`, plus `--selftest`. **Threshold 6.0 on the 0..255
+whole-frame mean, DERIVED not chosen:** the darkest legitimate frame this fixture produces is
+**59.992** (E2b) and the gate fires an order of magnitude below it, so a frame would have to lose 90 %
+of its brightness to trip. The derivation rule travels to a darker title even though the number does
+not; `--black-threshold` exists for that.
+✅ **PROVEN BOTH WAYS (`G96`):** `--selftest` builds a synthetic mid-grey session and an all-black one
+and asserts **PASS then FAIL**. It reports `SELFTEST: BROKEN - the gate PASSED an all-black frame` if
+the black case ever passes, because a gate that cannot fire is blindness.
+The second reading, **DARK FIRST FRAMES**, scores each event's first labelled frame against **that
+event's own mean** rather than an absolute, and is REPORTED — a gate only where it must be zero.
+
+### §17.11 Build identity
+
+📦 Staged bench exe **`F309D836`**; predecessor **`60AE8C61`** (the m46 quartet's exe) archived FIRST
+as `StackOBot.exe.m46-resolution-60AE8C61` and **hash-verified at the archive**. **Container quartet
+UNCHANGED** (`EF8EB23C` / `A8BFFF88` / `3C026A8D`) — code-only hot-swap, **NO COOK** (`G103`); m47
+adds no shader and no shader parameter.
+⚠ **A44 CAUGHT A REAL STALENESS.** The first staged exe (`2C167ADE`) was linked BEFORE the second
+round of edits: `IAI.Bench.ForceAnomalyShaderRecompile` and `anomaly_materials_incomplete` read **0**
+while `IAI.Capture.ShaderPrewarm` read 7 and the pre-existing `IAI.Bench.MaskPairingProbe` read 5 —
+**so the scan was sound, not blind**, and it named the missing half. Rebuilt and re-staged.
+✅ **BOTH BUILD TARGETS exit 0** (`G221`): packaged `StackOBot` and editor `StackOBotEditor`.

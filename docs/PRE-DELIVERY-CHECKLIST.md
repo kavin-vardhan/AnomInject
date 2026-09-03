@@ -245,6 +245,20 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       `CaptureBench/tools/m44_pairing_probe.py`: `NEITHER == 0` and `PREVIOUS == 0` over decidable
       frames, both orders. ⚠ **The 50 % screen-percentage leg joins this box when F1 lands** — until
       then the mask is correct only at 100 % screen percentage.
+- [ ] 🆕 **`m47` BLACK-FRAME PIXEL GATE — RUN IT ON THE COOK'S OWN SMOKE SESSION.**
+      `python tools/verify_capture.py --dir <session> --black-frame-gate` must exit **0** with
+      **BLACK FRAMES 0** and **DARK FIRST FRAMES 0**.
+      *This is the box that actually tests a packaged cook for the shader-readiness class. Do NOT tick
+      it from `frames_shaders_pending == 0`: that counter is STRUCTURALLY zero in a packaged build,
+      because the engine body the prewarm calls is `WITH_EDITOR` only, so a zero there is a READING and
+      not a test that passed (`G232`, `G146`). Gate on the pixels (m19).*
+      ⚠ **The threshold (6.0 on the 0..255 whole-frame mean) is derived from THIS bench's darkest
+      legitimate frame (59.992). On a darker title re-derive it on that host's own frames** — the rule
+      is "an order of magnitude below the darkest legitimate frame", and `--black-threshold` takes the
+      new number. **Prove the gate can still fail first: `python tools/verify_capture.py --selftest`.**
+- [ ] 🆕 **`shader_prewarm_ms` is present in `run_summary.json` and `frames_shaders_pending` reads 0.**
+      *Reported, not gated — see the box above for why. A non-zero `frames_shaders_pending` on a
+      PACKAGED cook would be genuinely surprising and is worth stopping for.*
 - [ ] 🚨 **`MASK-TIE` shows ZERO mismatches** in the smoke run's log
       (`Select-String -Pattern 'MASK-TIE' | Where-Object { \ -match 'MISMATCH' }` must be empty).
       *This is the check that the delivered mask is the same silhouette the labels were judged on. It is

@@ -1117,6 +1117,42 @@ behaviour under stall, and marker-verified frame identity were certified at **S3
 > windowed. Exclusion of Slate/UMG follows from compositing order and is REASONED, NOT MEASURED.
 > Not verified in a gameplay level.**
 
+## Shader readiness — prewarm, the pending mark, the black-frame gate (`m47`)
+
+The two material-swap anomalies (`missing_texture`, `corrupted_texture`) drop a plugin-shipped
+material onto a component. In an **editor** build a material whose shader map is not complete does not
+draw itself: `FMaterialRenderProxy::GetMaterialWithFallback` walks to a complete fallback — ending at
+the engine default material — and kicks the compile from the render thread at draw time. A frame
+captured in that window shows the placeholder while the label says the anomaly is present.
+
+Three pieces, all additive:
+
+- **PREWARM.** `IAI.Capture.ShaderPrewarm <0|1>` · ini `[AnomalyCapture] bShaderPrewarmDefault` ·
+  **compiled default ON** · three-branch provenance echo at `StartRun`. Before the first armed frame
+  `BeginActualRun` calls `UMaterialInterface::EnsureIsComplete()` on both swap materials, which
+  submits missing jobs at `ForceLocal` priority and blocks. **The engine body of that call is
+  `WITH_EDITOR` only**, so a packaged build reaches it and does nothing — measured cost there
+  **0.0017 ms**. It is an editor fix and the docs say so everywhere it is mentioned.
+- **THE PENDING MARK.** Per armed frame the capture records how many of *this plugin's* swap materials
+  report `IsComplete() == false`. When that is non-zero the frame row gains
+  `render_state: "shaders_pending"` plus `anomaly_materials_incomplete` and `shader_jobs_pending`,
+  and `run_summary.frames_shaders_pending` counts it. ⚠ **It deliberately does NOT key on
+  `GShaderCompilingManager->GetNumRemainingJobs()`, which is PROCESS-GLOBAL and routinely non-zero for
+  a whole editor session while our materials are fine** (`G232`); that number ships beside it as a
+  reading only. ⚠ **And `IsComplete()` is a whole-shader-map predicate while a draw needs one vertex
+  factory, so it over-fires** — the safe direction, stated in the log line.
+- **THE BLACK-FRAME GATE.** `tools/verify_capture.py --black-frame-gate` fails a run that contains a
+  whole-frame-black captured frame, and reports a per-event "dark first frame" count. `--selftest`
+  proves it fails on a synthetic black frame. **This is the check that tests a packaged cook**, because
+  the counter above is structurally zero there.
+
+`run_summary` gains exactly three keys (`shader_prewarm_ms`, `shader_prewarm_incomplete`,
+`frames_shaders_pending`); the two frame-row keys appear only when a material is incomplete, so a
+healthy run's `labels.jsonl` field set is unchanged. **`annotation.json` does not move.**
+`IAI.Bench.ForceAnomalyShaderRecompile` is a bench-only, console-only lever that clears both
+materials' shader caches; it **refuses by name in a packaged build**, which is itself the measurement
+that a cooked build cannot enter this path.
+
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:
 - **Capture exactly the state you mutate, before mutating it.** Globals: one baseline (e.g.
