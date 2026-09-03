@@ -15,12 +15,18 @@
 float DepthBias;
 uint ReservedBase;
 int2 ViewRectMin;
+int2 InternalRectMin;
+int2 InternalRectSize;
+int2 OutputRectSize;
 
 void MainPS(float4 SvPosition : SV_POSITION, out uint OutMask : SV_Target0)
 {
-	// The mask RT is the view-rect size (0-based); the scene textures are full-extent with the view
-	// at ViewRectMin -> offset the scene-texture lookup.
-	int2 P = int2(SvPosition.xy) + ViewRectMin;
+	// The mask RT is the OUTPUT view-rect size (0-based) because this pass runs after tonemap, but the
+	// scene textures are at INTERNAL (pre-upscale) resolution. Map output -> internal explicitly and
+	// clamp inside the internal rect, so no sample can land on pooled content left by an earlier frame
+	// outside it. At 100% screen percentage this is the identity mapping.
+	int2 Scaled = (int2(SvPosition.xy) * InternalRectSize + OutputRectSize / 2) / OutputRectSize;
+	int2 P = InternalRectMin + clamp(Scaled, int2(0, 0), InternalRectSize - int2(1, 1));
 
 	uint Stencil = CalcSceneCustomStencil((uint2)P);
 	if (Stencil < ReservedBase)
