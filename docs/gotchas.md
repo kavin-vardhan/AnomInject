@@ -6206,6 +6206,15 @@ that fixture, and the MECHANISM comes from the census's log, not from the proxy.
 Consequences to carry: `target_pixels` and `bbox_drawn_px` both inherit it, and any future
 "the mask is over-claiming" report should check the component count before blaming the mask pass.
 
+🔻 **AMENDED 2026-09-04, session 075 - THE OBSERVATION STANDS, THE MECHANISM DOES NOT.** The
+`tags=200..226` line above prints `Batch.Tags[0]` and `Batch.Tags.Last()`, i.e. **FIRST and LAST, not
+the set** (`AnomalyCensus.cpp:794-797`), and the allocator skips non-free values inside that range -
+so it does not show that a live event's value was issued. The census allocator DOES consult
+`FAnomalyStencilTagLedger::IsFree`, which excludes `EventClaimed`, and `EventClaimed` is never
+released mid-run. **The two components, the 4.9 % and the MASK-TIE blindness are unchanged and still
+stand; "the census hands out a value a live event holds" is WITHDRAWN as established and is now one
+candidate among four.** See `G249` and journal 075 §3.1.
+
 ---
 
 ## G247 - when a schema TIGHTENS a set, every gate keyed on that set is now asking a different question (2026-09-04, session 074)
@@ -6252,3 +6261,71 @@ orders.
 **Before designing a can-fail lever, ask which CLASS of id can even exhibit the shape you are
 trying to force** - three mechanisms (the projector, the m26 veto, observability) can each remove a
 frame, and only the last one is the one under test.
+---
+
+## G249 - a log line that summarises a SET as a RANGE cannot be read as a set, and a mechanism built on that reading is an over-read (2026-09-04, session 075)
+
+`G246` attributed a real, measured defect - one stencil value carrying two objects - to "the census
+hands out the whole reserved range, including live event values", on the strength of its own log:
+
+    Census: ARM cycle=1 batch id=... size=27 tags=200..226 ...
+
+That line is `FString::Printf(... "tags=%d..%d" ..., Batch.Tags[0], Batch.Tags.Last())`
+(`AnomalyCensus.cpp:794-797`). It prints the FIRST and LAST value issued. The allocator walks a
+cursor and **skips every value that is not free**, so the printed endpoints say nothing about which
+values inside them were handed out. Reading `200..226` as "all of 200 through 226" is reading a
+summary as an enumeration.
+
+**The reading was wrong in the direction that matters: it made a fix look obvious.** The proposed fix
+- give the allocator an ownership ledger so it cannot take a value a live fire holds - was already
+implemented and had been for milestones: `FAnomalyStencilTagLedger` carries `EventClaimed` and
+`CensusClaimed`, `IsFree()` excludes both, both allocators call it, and `EventClaimed` is never
+released mid-run. **Building the "fix" would have changed no behaviour and shipped a green tick over
+a live defect** - `G118`'s shape, reached through a log line rather than through a guard.
+
+Two rules, and the second is the one that generalises:
+
+1. **When a log line is load-bearing for a MECHANISM, print the set.** A range, a count, a min/max or
+   a "first and last" is a summary; it answers "how big" and never "which". One `FString::Join` is
+   the difference between a diagnostic and a guess.
+2. 🚨 **Before building a fix, READ THE CODE THE FIX IS SUPPOSED TO CHANGE AND CONFIRM IT IS NOT
+   ALREADY THERE.** The observation was real, the incidence was measured on two binaries, the gate
+   blindness was real - everything except the causal sentence held up, and the causal sentence was
+   the only part the fix depended on. **An observation and its explanation are separate claims**
+   (the standing invariant, `G120`): here the observation survived and the explanation did not, which
+   is exactly the split that invariant exists to make cheap.
+
+⚠ **The tell that should have prompted the re-read: the proposed fix was one line and the defect had
+survived two milestones of a project that gates everything.** A defect that cheap to fix, in code
+this heavily instrumented, is more likely to be a misread than an oversight.
+
+---
+
+## G250 - a released resource is not a free resource, and the record that says so is often already in the codebase, wired to the wrong consumer (2026-09-04, session 075)
+
+Chasing `G246`'s real cause turned up this shape. The census releases a stencil value at collect:
+
+    AnomalyCensus.cpp:550-554
+        Ledger->CensusClaimed.Remove(Tag);
+        RecentlyReleased.Add(TPair<uint8, uint64>(Tag, GFrameCounter));
+
+`RecentlyReleased` exists **because the project already knew a released tag lingers** - the restore
+is a deferred proxy recreate, so the value can still be in the pixels for a few frames. But it is
+consumed by `GetLegitTags()` only (`:217-225`), which feeds the POLLUTION DETECTOR's allowed set. It
+stops the detector complaining about the lingering value. **It does not stop the value being
+re-issued.** `IsFree()` never sees it.
+
+So the codebase contained the fact "this value is not really free yet", correctly derived and
+correctly expiring, wired to a consumer that only needed it to stay QUIET - and not wired to the
+consumer that needed it to stay CORRECT.
+
+**The transferable check:** whenever you find a "recently released" / "in flight" / "pending
+teardown" list, ask **which consumers read it**, and then ask **which consumers make DECISIONS that
+depend on the same fact**. If those two sets differ, the gap between them is a defect waiting for the
+timing to line up. A quarantine that suppresses a warning and a quarantine that blocks reallocation
+are the same fact serving two purposes, and only one of them was implemented.
+
+⚠ **And price the fix before writing it:** folding the quarantine into `IsFree` shrinks the usable
+pool (here: 55 assignable values against a census that has run 77 candidates in one leg). The
+allocator's exhaustion path exists and is loud, but **a gate must read it**, or the fix trades a rare
+wrong number for a frequent one.

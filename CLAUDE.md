@@ -11,10 +11,123 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🏁🏁 **SESSION 074, 2026-09-04 — `m49` PHASE A2's CODE HALF IS SHIPPED ON `master` (`eb3506e` +
+> 🏁🏁 **SESSION 075, 2026-09-04 — `m49` PHASE A2 IS DONE, CODE **AND** DOCS. `m50` IS PLANNED AND
+> AWAITING CHAT APPROVAL. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS
+> SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: `docs/sessions/2026-09-04-075-m49-a2b-docs-m50-plan.md` (self-contained — §1 the three
+> rulings, §2 the docs, §3 the `m50` plan, §4 NEEDS-DECISION), then the 074 block below.**
+>
+> ⛔ **NO SOURCE EDIT · NO BUILD · NO LEG · NO COOK · NO TAG THIS SESSION.** `master` was `0d05c4b`
+> and moves only by this session's docs commits. Staged bench exe stays **`8839D806`**; the container
+> quartet was not touched.
+>
+> 🎯 **A2b = THE CLIENT-FACING HALF OF `m49`.** `client-readme.md` **§8 is rewritten as the full
+> schema-v2 label reference** — a complete field table for `annotation.json` (root, `video`, every
+> event key) and for a `labels.jsonl` row, each with type / since-version / meaning, plus **§8.5, the
+> v1→v2 changelog table**. Every name and semantic was read out of `AnomalyLabelWriter.cpp` and
+> `AnomalyCaptureSubsystem.cpp`, not recalled.
+> 🔑 **THE ONE MIGRATION LINE, AND IT IS THE WHOLE POINT: `affected_frames` CHANGED MEANING** (same
+> key, now the OBSERVABLE subset), so **v1 code that read `affected_frames` points at
+> `injected_frames` and nothing changes.** The changelog marks that row ⚠ **MEANING CHANGED** rather
+> than burying it among the additions. `frame_count` is a COUNT and `span_frame_count` is the span;
+> **`-1` and `null` are NOT zero**, said three times on purpose.
+>
+> 📣 **`client-delivery.md` gains the CHANGELOG PARAGRAPH FOR THE NEXT DROP** (paste-ready: the
+> timing-class fixes in plain words, the observability layer, schema v2 + its migration line, the
+> translucent exclusion, the verifier command and its exit codes) — and it carries **its own
+> instruction that the `m50` paragraph is REMOVED if `m50` is not in the build being shipped.**
+>
+> ⚖ **THE THREE RULINGS. (1) `MPP_Outline`: NO REFUSE-OR-WARN RULE** — Leg B's like-for-like control
+> found no detectable effect, so the honest default is no rule; the reader NAMES stay in
+> `run_summary` (`LG-3`) and one client paragraph says a host with such a material is detected and
+> named, with the census knob as the escape hatch. ⛔ **`G120` wording shipped verbatim.**
+> **(2) `G246` → `m50`, before any client cook. (3) `I11-A` on Nanite hosts → `m50`**: a target known
+> unmeasurable is `NOT_MEASURED` at arm, ADMITTED by the veto, and labelled `target_pixels -1` /
+> `observable null` / `observability_measured false` / `affected_frames == injected_frames` /
+> `bbox_source "projected"`. 🔑 **Honest labels without pixel evidence beat no labels** — stated as a
+> judgement, not dressed as a derivation, and the client doc says it.
+>
+> 🚨 **THE PLAN-TIME FINDING THAT REDIRECTS `m50`, AND IT IS THE MOST IMPORTANT LINE HERE: THE
+> OWNERSHIP LEDGER RULING 2 ASKS FOR ALREADY EXISTS AND ALREADY GUARDS BOTH DIRECTIONS.**
+> `FAnomalyStencilTagLedger` (`AnomalyStencilTag.h:10-21`) carries `EventClaimed` + `CensusClaimed`;
+> `IsFree()` excludes both (`AnomalyStencilTag.cpp:34-37`); **both** allocators call it
+> (`AnomalyMaskMeasure.cpp:80-115`, `AnomalyCensus.cpp:715-723`); and `EventClaimed` is **never
+> released mid-run** (`AnomalyMaskMeasure.cpp:67-70`). ⇒ **implementing ruling 2 as worded would
+> change no behaviour and ship a "fix" that leaves the defect behind a green tick — `G118`'s shape.**
+> 🔑 **What is NOT excluded, and is the leading candidate: a value the census released THIS TICK.**
+> `ReleaseBatch` drops it from `CensusClaimed` and records it in `RecentlyReleased`
+> (`AnomalyCensus.cpp:550-554`) — but `RecentlyReleased` feeds only the POLLUTION DETECTOR's allowed
+> set (`:217-225`) and **is not consulted by `IsFree`**, so the value is immediately re-issuable while
+> the previous owner's restore may not have reached the pixels. **The project's own record that a
+> released tag lingers was never wired into allocation.**
+> 🚨 **AND JOURNAL 074 §4's MECHANISM SENTENCE IS WITHDRAWN AS ESTABLISHED** (the observation is NOT):
+> it rests on `Census: ARM … tags=%d..%d`, which prints **`Batch.Tags[0]` and `Batch.Tags.Last()` — a
+> RANGE, not the set** (`AnomalyCensus.cpp:794-797`), while the allocator skips non-free values inside
+> it. **The two connected components and the 22-of-448 (4.9 %) incidence on BOTH binaries stand
+> unchanged; the cause attributed to them does not follow from that line.** ⇒ **`m50` STEP 0 IS A
+> DIAGNOSIS with a pre-declared branch table `D1`–`D4`, not an implementation** — and step 0's one
+> product change (print the ARM's tag SET, and `EventClaimed` at the same tick) is worth making
+> whatever the branch.
+>
+> 🎯 **`m50`, PLANNED NOT BUILT (journal 075 §3): NO COOK** (no shader, no shader parameter struct —
+> `G103`, and that is the distinction `G129` turns on). **≈ 3 sessions.** Ruling 2 = a `Quarantined`
+> map folded into `IsFree` with `RecentlyReleased` COLLAPSED onto it (one predicate, two consumers —
+> the A2 shape); ⚠ **priced: the quarantine SHRINKS a 55-value pool against a 77-candidate census, so
+> `TAG-POOL EXHAUSTED`, `tagOvertaken` and the `census_fires_*` counters are pre-declared reads on
+> every leg.** Ruling 3 = promote `ComponentRendersAsNanite` to a shared `AnomalyMeasurability` header
+> **inside `AnomalyCapture`** (⛔ never `AnomalyViewport` — `G127`), classify at record creation, and
+> **SKIP THE ARM**, which leaves `R.State` at `NotMeasured` so the veto admits **without the veto or
+> the label writer being touched at all.** ⚠ **THE `G96` TRAP IS DECLARED IN ADVANCE, BECAUSE A2 HIT
+> ITS TWIN: the predicate must NOT go to the `G33` chokepoint or `census_unmeasurable_nanite` reads a
+> permanent 0.** 🧪 **10 gates, both orders**, incl. **`G2` the can-fail collision lever** (⛔ without
+> it the new gate is worthless — it replaces `MASK-TIE`, which passed this defect for two milestones),
+> **`G8` the BEFORE picture on `8839D806`** (⛔ if the bench cannot reproduce the `LG-9` shape, `G7`
+> proves nothing and must say so), and **`G9` the real-host gate: `LG-9` must deliver 6 events with
+> `observability_measured: false` instead of `anomalies: []`.**
+> ⚠ **`P-C7 v3`: `run_summary` 64 → 65, added exactly `unmeasurable_targets_admitted`; `labels.jsonl`
+> and `annotation.json` add 0 and remove 0. 🚨 BUT `frame_indices` is NOT expected identical on legs
+> where either path bit — that is the milestone's point, and it is declared PER LEG in advance or it
+> reads as a regression.** ⚠ **`G140` BOUNDARY on `mask_value` again.**
+> 🌍 **Per host:** ruling 2 is host-independent · **ruling 3 is INERT on Concorde as configured**
+> (Support Nanite disabled at project level — the fix costs nothing there and protects against the
+> checkbox being flipped, which is the `H6` risk) · **on Bates the Nanite status has NEVER BEEN READ**
+> and `census_unmeasurable_nanite` is the reading that answers it — **a named read, not an assumption.**
+>
+> 🗂 **`office-rdp-card.md` GAINS SECTION G, AND IT EXISTS BECAUSE THE `m49` VERIFIER GATE HAS BEEN
+> REPORTED UNRUNNABLE THREE SESSIONS RUNNING** (072-02, 073, 074 — never as passed) while waiting for
+> a session folder to be copied here. **G moves the read onto the host box: `--label-pixel-gate
+> --report-only` there, `--selftest` first (`G96`), and ONLY THE TRANSCRIBED NUMBERS come back to
+> `_bates_reads\`.** ⛔ No session, frame, log or screenshot leaves that machine. The pre-declared
+> reading (`ONSET-SHIFT(-1)` on the two flagged texture events, PASS elsewhere) is written **before**
+> the step, with the sign convention spelled out and **four alternative readings enumerated in advance
+> — including "all PASS", which is a finding to report loudly, not a quiet success.** ⛔ The
+> pre-`m47` shader-compile explanation is named a **CANDIDATE ONLY** (`G120`). ⚠ **The card cannot
+> name the session** — it identifies it by its properties and tells the owner to STOP rather than run
+> the gate on the wrong one.
+>
+> ✅ **`PRE-DELIVERY-CHECKLIST.md`: the `m49` verifier box now routes through Section G; two schema-v2
+> boxes and two `run_summary` read-backs added; two ⛔ `m50` placeholders added (explicitly not
+> tickable yet).** 🚨 **AND A STALE CHECK THAT WOULD NOW FAIL A CORRECT BUILD WAS FIXED:** §1.1 said
+> *"`annotation.json` must still be 48 keys"* — schema v2 deliberately adds keys, so re-phrased
+> **categorically against the README's own field table**, which is the discipline that file already
+> demands for the anomaly count, for the same reason.
+> ✅ Two other stale lines corrected in place, both marked 🔻 rather than deleted: `client-delivery.md`
+> still claimed hidden-object anomalies have no mask (**`m45` shipped it**), and the README's mask
+> SCOPE claimed translucent targets *"cannot write custom depth"* (**they can, if they opt in — which
+> is exactly why A2's two consumers pass different arguments**).
+>
+> 🎯 **NEXT: `m50` — AWAITING CHAT APPROVAL, and §4's four NEEDS-DECISION items gate it**, the first
+> being that ruling 2's briefed wording is already implemented so step 0 is a diagnosis. **THEN `m49`
+> PHASE B** (the GPU drawn-count shader + a full cook, `G129`), **THEN the delivery gates.**
+> ⛔ **Do not start any of it unprompted.**
+> ⏳ **OPEN AND NOT OURS:** the Bates delivery window. **Section G is now the route** — the read runs
+> on the host box and only numbers return.
+>
+> ---
+>> 🏁🏁 **SESSION 074, 2026-09-04 — `m49` PHASE A2's CODE HALF IS SHIPPED ON `master` (`eb3506e` +
 > `328ca28`). EVERY STACKOBOT GATE PASSES IN BOTH TICK ORDERS ON ONE BINARY, `OBS-2`/`OBS-3`/`OBS-4`
-> ALL FIRED THEIR CAN-FAIL DIRECTION, AND LYRA ANSWERED LEG B AND `LG-9`. THIS IS THE CURRENT
-> "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> ALL FIRED THEIR CAN-FAIL DIRECTION, AND LYRA ANSWERED LEG B AND `LG-9`. (Superseded as "you are
+> here" by the 075 block above; still the record of `m49` A2's code half.)** 🏁🏁
 > **Cold start: `docs/sessions/2026-09-04-074-m49-a2.md` (self-contained), then
 > `docs/predictions/2026-09-04-m49-phase-a2.md`.**
 >
