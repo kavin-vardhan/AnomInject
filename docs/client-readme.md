@@ -136,7 +136,7 @@ The overlay window tells you exactly what it did after each capture, in the form
 
 | Amber category | Share | What it means |
 | --- | --- | --- |
-| **`OUTSIDE-SUBSET`** | **90.1 %** | **Expected, by design.** For anomalies that hide an object (blink, missing object), `annotation.json` lists only the frames where the object was actually **hidden**. The overlay additionally marks the rest of that anomaly's window — the lead-in frame and the “visible again” halves of a blink. The label is correct; these frames are simply ones where the object was on screen normally. This is the dominant amber category by a wide margin. |
+| **`OUTSIDE-SUBSET`** | **90.1 %** | **Expected, by design.** For anomalies that hide an object (blink, missing object), `annotation.json` lists only the frames where the object was actually **hidden**. The overlay additionally marks the rest of that anomaly's window — the lead-in frame and the “visible again” halves of a blink. The label is correct; these frames are simply ones where the object was on screen normally. This is the dominant amber category by a wide margin. 🆕 **Under schema v2 this category also picks up frames the anomaly was applied on but could not be SEEN on** (the object left the screen, something moved in front of it): they are in `injected_frames` but not in `affected_frames`, so they draw amber rather than red. **That is the observability layer working, and it means you will see slightly more amber than the share below — which was measured on v1 sessions.** |
 | **`VETOED`** | **9.9 %** | An event the plugin **removed** from `annotation.json` because the object was measured to draw **no visible pixels** in that view. This is the invisible-anomaly cure doing its job: rather than ship a label pointing at nothing, the event is dropped. These boxes are useful — they show you **where** something was dropped, so you can judge whether dropping it was right. |
 | **`NON-MANIFESTED`** | ~0 % | The anomaly was triggered but never reached the picture, so it carries no positive frames. Not seen in any measured session; the tool reports it if it ever occurs. |
 | **`UNMATCHED`** | ~0 % | Unexpected. If you see this, it is worth telling us. |
@@ -264,14 +264,231 @@ On locked-down corporate networks the automatic ffmpeg download can be blocked o
 
 (Alternative: if ffmpeg's `bin` folder is on your system PATH, `Setup.bat` finds it there too — no copying needed.) Once ffmpeg is in place and the watcher is running, it encodes any sessions it missed while ffmpeg was absent.
 
-## 8. What's in a session (for reference)
+## 8. What's in a session — the full label reference
 
-* **`annotation.json`** describes the session: a `video` block (path, resolution, fps, frame count) and an `anomalies` array — one entry per anomaly event, each with which frames it affected, the affected object(s), and the camera/engine state at that moment.
+This section is the reference for everything the labels contain. It is written to be read straight
+through once, and then used as a lookup table.
+
+### 8.0 The files
+
+* **`annotation.json`** — the session's ground truth: a `video` block and an `anomalies` array, one entry per anomaly **event**. This is the primary artifact.
 * **`Actual_Frames/`** holds the source images, numbered from `frame_00000` in capture order — frame N in the folder is frame N in the video and frame N in the annotation's frame indices.
 * **`Video_Clip/`** holds those frames encoded to MP4 at the fps recorded in `annotation.json`.
 * **`run_summary.json`** is a small technical summary (frame counts, timing) — you can ignore it, but don't delete it before the MP4 appears; the encoder uses it to know the session is complete.
 * **`labels.jsonl`** is one line per captured frame carrying the same labels per frame, including each anomaly's bounding box. It is what the overlay inspector reads.
+* **`target_mask/`** and **`mask_map.json`** — one 8-bit grayscale PNG per frame that has content, marking exactly which pixels belong to an anomaly target. Full description in the target-mask section further down.
 * **`annotated/`** holds the overlay inspector's output — a copy of **each frame that has a label drawn on it**, keeping the original frame number in its filename. Frames with nothing to draw are skipped, so the numbering has gaps; that is normal and no data is missing. Nothing else reads this folder — the video is always built from `Actual_Frames/` — so it is there purely for you to look at, and deleting it changes nothing.
+
+### 8.1 🆕 Schema version 2 — read this first if you already have a parser
+
+`annotation.json` now carries a root key **`label_schema`**, and its value is **`2`**.
+
+* **A file with `label_schema: 2` is a version-2 file.**
+* **A file with no `label_schema` key at all is a version-1 file** — that is every session delivered
+  before this drop. There is no `label_schema: 1`; its absence is the version.
+
+**Branch on that key, not on the delivery date.** The v1 → v2 changelog is §8.5, and the one change
+that can silently alter a number you were already reading is **`affected_frames`** — read that row
+first.
+
+### 8.2 `annotation.json` — every field
+
+**Root**
+
+| Field | Type | Since | Meaning |
+| --- | --- | --- | --- |
+| `label_schema` | int | **v2** | Always `2`. Absent in v1 files. |
+| `session_id` | string | v1 | The session folder's name. |
+| `video` | object | v1 | See below. |
+| `anomalies` | array | v1 | One object per anomaly **event**. May be empty — see §8.4. |
+
+**`video`**
+
+| Field | Type | Since | Meaning |
+| --- | --- | --- | --- |
+| `path` | string | v1 | Where the MP4 is written. |
+| `frames_dir` | string | v1 | Where the source frames are (`Actual_Frames`). |
+| `resolution` | `[w, h]` | v1 | The size of the **written frames**, read from the first frame actually written — not from the window size. |
+| `fps` | number | v1 | The frame rate the MP4 is stamped at. May be fractional if the machine could not sustain the requested rate; the video still plays at natural speed. |
+| `target_fps` | number | v1 | The rate that was *requested* (`IAI.Capture.Fps`). |
+| `total_frames` | int | v1 | How many frames were captured. |
+
+**Each entry of `anomalies` — one anomaly event**
+
+| Field | Type | Since | Meaning |
+| --- | --- | --- | --- |
+| `anomaly_type` | string | v1 | `blinking`, `missing_texture`, `corrupted_texture`, `lod_popping`, `missing_object`, `camera_clipping`. |
+| `anomaly_subtype` | string | v1 | A finer label for the same event, e.g. `disappear_reappear` for `blinking`. |
+| **`affected_frames`** | object | v1, **meaning changed in v2** | **The frames on which the anomaly is judged to be VISIBLE.** See §8.3. |
+| **`injected_frames`** | object | **v2** | **The frames on which the anomaly was APPLIED**, whether or not it could be seen. Same shape as `affected_frames`. This is exactly what `affected_frames` meant in v1. |
+| **`bbox_source`** | string | **v2** | `"drawn"` = the boxes for this event come from measured drawn pixels. `"projected"` = they come from the object's projected bounds only. |
+| **`observable_frame_count`** | int | **v2** | How many injected frames were measured **and** judged visible. Equals `affected_frames.frame_count` whenever `observability_measured` is `true`. |
+| **`unmeasured_frame_count`** | int | **v2** | How many injected frames carry **no** visibility measurement at all. |
+| **`observability_measured`** | bool | **v2** | `true` = at least one injected frame was measured, so `affected_frames` is a real measurement. `false` = **none** were, so `affected_frames` falls back to `injected_frames`. See §8.4. |
+| `manifested` | bool | v1 | `false` = the anomaly was triggered but no captured frame ever sampled it as active; such an event carries zero frames. |
+| `coverage_ratio` | number | v1 | Mean fraction of the picture the target's projected box covered while the event ran (0–1). |
+| `coverage_pct` | number | v1 | The target's screen coverage at selection time, as a percentage. **`-1` means "not recorded"**, not "zero". |
+| `affected_objects` | object | v1 | `count`, `primary_index`, and `nodes[]`. |
+| `affected_objects.nodes[]` | array | v1 | Per object: `name`, `path`, `global_position[3]`, `asset_name`, `component_class`, `bounds{origin[3], extent[3]}`. ⚠ `bounds` is the **whole actor's** bounding box and can be much larger than the drawn object; use the per-frame boxes in `labels.jsonl` for geometry. |
+| `camera` | object | v1 | `path`, `global_position[3]`, `near`, `far`, `rotation[3]` (pitch, yaw, roll), `fov_deg`, `aspect` — sampled at the event's first captured frame. |
+| `engine` | object | v1 | `ticks_msec`, `name`, `version`, `project`. |
+| `mask` | object | v1 | `provided`: `true` = the target's drawn pixels **were measured** for this event; `false` = **no measurement exists**. 🚨 `false` never means "the target drew nothing". |
+| `depth` | object | v1 | `provided` — always `false`; reserved. |
+
+### 8.3 `affected_frames` and `injected_frames` — the two frame lists
+
+Both objects have **exactly the same five fields**:
+
+| Field | Type | Since | Meaning |
+| --- | --- | --- | --- |
+| `frame_indices` | `[int, …]` | v1 | **The authoritative list.** Sorted, 0-based, and it may have GAPS. |
+| `start_frame` | int | v1 | The **first** entry of `frame_indices` (`0` when the list is empty). |
+| `end_frame` | int | v1 | The **last** entry of `frame_indices` (`0` when the list is empty). |
+| `frame_count` | int | v1 | **The NUMBER OF ENTRIES in `frame_indices`.** It is a count, **not** a span. |
+| **`span_frame_count`** | int | **v2** | `end_frame − start_frame + 1` — the width of the window, i.e. what you would get by counting from first to last inclusive. `0` when the list is empty. |
+
+🚨 **`frame_count` and `span_frame_count` differ whenever the list has gaps, and that is normal.**
+For `frame_indices: [4, 5, 9, 10]` → `start_frame 4`, `end_frame 10`, **`frame_count 4`**,
+**`span_frame_count 7`**. Four frames are affected; they lie inside a seven-frame window.
+*(`span_frame_count` exists because v1 gave you no way to say "the window" without recomputing it,
+and `frame_count` was being read as the span. Both numbers are now stated.)*
+
+**The difference between the two lists:**
+
+* **`injected_frames`** = *"the anomaly was applied on these frames."* It is what the engine did.
+* **`affected_frames`** = *"the anomaly is judged VISIBLE on these frames."* It is a subset of
+  `injected_frames` — never larger, and often equal.
+
+They differ when the anomaly was applied but could not be seen: the object walked off the edge of the
+screen mid-window, something moved in front of it, or the game re-applied its own material over ours.
+Those frames stay in `injected_frames` and drop out of `affected_frames`.
+
+✅ **If you want "frames that show the bug", use `affected_frames`.**
+✅ **If you want "frames the bug was switched on for", use `injected_frames`.**
+✅ **In v1 there was only one list and it meant `injected_frames`.**
+
+### 8.4 Visibility — `observable`, `target_pixels`, and the honest "we don't know"
+
+Every anomaly entry in `labels.jsonl` now carries two extra numbers, and the event-level fields above
+are simply those numbers summarised.
+
+**`target_pixels`** (int, per frame, per anomaly) — how many pixels of that frame the anomaly's target
+actually drew, front-most, occlusion-aware.
+
+| Value | Meaning |
+| --- | --- |
+| `> 0` | measured; the target drew this many pixels |
+| `0` | **measured, and it drew nothing** — fully hidden, occluded, or off-screen |
+| **`-1`** | **NOT MEASURED.** No measurement exists for this frame. It is **not** zero. |
+
+**`observable`** (per frame, per anomaly) — the verdict `target_pixels` produces:
+
+| Value | Meaning |
+| --- | --- |
+| `true` | the frame is labelled for this anomaly, the anomaly's visual condition still holds, and `target_pixels` is at or above the threshold |
+| `false` | measured, and one of those three is not satisfied |
+| **`null`** | **unmeasured** (`target_pixels` is `-1`). It carries no claim either way. |
+
+🚨 **`false` and `null` are different facts and must not be merged.** `false` is a measurement whose
+answer is "not visible"; `null` is the absence of a measurement.
+
+**The threshold** is `run_summary.json` → **`observable_min_pixels`**, and it is **absolute pixels**,
+not a percentage. It ships at **1**, meaning *"any drawn pixel at all counts as observable"*. Raise it
+with `IAI.Capture.ObservableMinPixels <n>` in the console (between runs, not mid-run) if you want to
+exclude slivers — e.g. at 1920×1080, `2074` pixels is one tenth of one percent of the picture.
+
+**When nothing could be measured.** If **not one** injected frame of an event carried a measurement,
+the event reports `observability_measured: false` and **`affected_frames` falls back to
+`injected_frames`** — the v1 behaviour, unchanged. That is the honest reading, not a claim that the
+anomaly was visible. The common causes are the target mask being off, and target geometry the
+measurement cannot see (see the scope notes in the target-mask section).
+
+**An event with an empty `affected_frames` STAYS IN THE FILE.** It is not deleted. `injected_frames`
+still tells you what was applied, and `observable_frame_count` reads `0`.
+
+📌 **`run_summary.json` also gains `observable_frames`** (how many frame-anomaly pairs across the whole
+session were judged observable) and **`frames_condition_lost`** (how many labelled frames lost the
+anomaly's visual condition — e.g. the game re-applied its own material).
+
+### 8.4.1 One `blinking` event = one burst, which may contain more than one flicker
+
+**One fire is one record.** A `blinking` event covers a single burst of the anomaly, and inside that
+burst the object typically hides, reappears, and hides again. **That is one entry in `anomalies`, not
+two**, and `frame_indices` lists exactly the frames on which the object was hidden.
+
+So `frame_indices: [4, 5, 9, 10]` is **one blinking event containing two hide/show cycles**: hidden on
+4–5, visible on 6–8, hidden again on 9–10. Each run of consecutive indices is one flicker. If you need
+per-flicker records, split `frame_indices` on the gaps — the gaps are meaningful and are not missing
+data.
+
+The same applies to `missing_object`, which hides for the whole burst and therefore usually yields a
+single unbroken run.
+
+### 8.5 v1 → v2 changelog
+
+| Key | v1 meaning | v2 meaning | Additive? |
+| --- | --- | --- | --- |
+| `label_schema` (root) | *absent* | `2` — the version marker | **Added** |
+| `affected_frames` | the frames the anomaly was **applied** on | the frames the anomaly is judged **visible** on (a subset of `injected_frames`) | ⚠ **MEANING CHANGED** — same key, narrower set |
+| `affected_frames.frame_indices` | applied frames | visible frames | ⚠ **MEANING CHANGED** |
+| `affected_frames.start_frame` / `end_frame` | first / last **applied** frame | first / last **visible** frame | ⚠ **MEANING CHANGED** |
+| `affected_frames.frame_count` | number of entries in `frame_indices` | number of entries in `frame_indices` | Unchanged (it was never a span) |
+| `affected_frames.span_frame_count` | *absent* | `end_frame − start_frame + 1` | **Added** |
+| `injected_frames` | *absent* | **exactly what `affected_frames` meant in v1** | **Added** |
+| `observable_frame_count` | *absent* | count of injected frames measured **and** visible | **Added** |
+| `unmeasured_frame_count` | *absent* | count of injected frames with no measurement | **Added** |
+| `observability_measured` | *absent* | whether `affected_frames` is a measurement or a fallback | **Added** |
+| `bbox_source` | *absent* | `"drawn"` or `"projected"` | **Added** |
+| `labels.jsonl` → `target_pixels` | *absent* | measured drawn pixels, `-1` = unmeasured | **Added** |
+| `labels.jsonl` → `observable` | *absent* | `true` / `false` / `null` | **Added** |
+| `labels.jsonl` → `bbox_drawn_px` | *absent* | measured drawn box, or `null` | **Added** |
+| `run_summary.json` → `observable_frames`, `frames_condition_lost`, `observable_min_pixels` | *absent* | see §8.4 | **Added** |
+| everything else | — | — | Unchanged |
+
+🔑 **The one-line migration:** *if your v1 code read `affected_frames`, point it at `injected_frames`
+and nothing changes.* Then adopt `affected_frames` when you want the visible subset.
+
+⛔ **Nothing was removed and nothing was renamed.** Every v1 key is still present with its v1 type.
+
+### 8.6 `labels.jsonl` — every field
+
+One JSON object per line, one line per captured frame.
+
+| Field | Type | Since | Meaning |
+| --- | --- | --- | --- |
+| `session_index` | int | v1 | **The frame number, and the only join key.** `session_index` N is `Actual_Frames/frame_000NN.png`, frame N of the video, and frame N in `annotation.json`'s frame indices. |
+| `frame_index` | int | v1 | The game engine's own internal frame counter. **Never join on this** — see the ordering note below. |
+| `t` | number | v1 | Game-clock seconds since the run started. |
+| `t_wall` | number | v1 | Real-world seconds since the run started. |
+| `image` | string | v1 | The frame's filename. |
+| `width`, `height` | int | v1 | The written frame's size in pixels. |
+| `anomaly_present` | bool | v1 | Whether any anomaly was active on this frame. |
+| `visible_positive` | bool | v1 | An anomaly was active **and** at least one had a valid box. |
+| `anomalies` | array | v1 | One object per active anomaly — see below. |
+| `mask_file` | string \| null | since target masks | The mask PNG for this frame, or `null` if there is none. |
+| `mask_state` | string | since target masks | `present` / `empty` / `unmeasured`. |
+| `exposure_dip` | `true` | since exposure marking | **Only present when true.** The picture darkened more than 4% below its recent average — the game's auto-exposure adapting. |
+| `view` | object | v1 | `origin[3]`, `rot[3]`, `fovDeg`, `aspect`, `valid` — the camera for this frame. |
+| `render_state`, `anomaly_materials_incomplete`, `shader_jobs_pending` | — | — | **Editor-build diagnostics; should never appear in a delivered session.** If you see them, tell us. |
+
+**Each entry of `anomalies`**
+
+| Field | Type | Since | Meaning |
+| --- | --- | --- | --- |
+| `id` | string | v1 | The anomaly type (matches `anomaly_type` in `annotation.json`). |
+| `target_name` | string | v1 | The object it was applied to. |
+| `start_frame` | int | v1 | The engine frame counter when this fire began — an event identifier, **not** a `session_index`. |
+| `seconds_remaining` | number | v1 | How long the fire had left at this frame. |
+| `bbox_valid` | bool | v1 | Whether the projected box could be computed for this frame. |
+| `bbox_norm` | `[x0,y0,x1,y1]` | v1 | The projected box, normalised 0–1, as **corners**. |
+| `bbox_px` | `[x,y,w,h]` | v1 | The projected box in pixels, as **origin + size**. Derived from the object's bounds, so it can be larger than what is drawn. |
+| **`bbox_drawn_px`** | `[x,y,w,h]` \| null | **v2** | The box around the pixels the target **actually drew** on this frame, from the mask. `null` when nothing was drawn or nothing was measured. ⛔ **It does not replace `bbox_px`** — both ship. |
+| **`target_pixels`** | int | **v2** | See §8.4. `-1` = unmeasured. |
+| **`observable`** | bool \| null | **v2** | See §8.4. `null` = unmeasured. |
+| `mask_value` | int | since target masks | This anomaly's pixel value in `target_mask/`. |
+
+⚠ **The two box fields use different conventions on purpose and always have:** `bbox_norm` is
+`[x0, y0, x1, y1]` (corners, 0–1); `bbox_px` and `bbox_drawn_px` are `[x, y, width, height]` (pixels).
 
 ### Reading `labels.jsonl` — the rows are not in order
 
@@ -395,7 +612,11 @@ NOT suppress it.
 
 - **It is a mask of the ANOMALY TARGETS ONLY**, not of every object in the scene. Everything else is
   background by design.
-- **Translucent targets never appear.** They are excluded from selection and cannot write custom depth.
+- **Objects made entirely of translucent materials are never targeted at all.** They are excluded when
+  the anomaly picks its target, because they cannot be measured, so they never reach a mask. *(A
+  translucent material that explicitly opts into writing custom depth CAN be measured and is not
+  excluded.)* You can turn the exclusion off with `IAI.Select.AllowTranslucentOnlyTargets 1`, and
+  `run_summary.json` → `translucent_only_excluded_targets` counts how many objects it refused.
 - **Nanite-rendered targets never appear** — the same limit the anomaly measurement has.
 - **Multi-target frames are unverified.** Read it as *"one value per anomaly target present in the
   frame"*; no capture here has yet shown two distinct values in one PNG.

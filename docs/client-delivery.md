@@ -477,8 +477,10 @@ lists only masks that exist.
 📌 `target_mask_frames_hidden_blank` counts `empty` rows — **the name is kept deliberately** (renaming
 a key silently breaks a reader) — and `target_mask_frames_unavailable` counts `unmeasured` rows. The
 three counters sum to the captured frame count.
-⛔ **Hidden-object anomalies (missing object, blinking) have no mask yet; their frames are
-`unmeasured`. A follow-up build adds a where-the-object-should-be mask.**
+🔻 **SUPERSEDED BY `m45` (below): "hidden-object anomalies have no mask yet" was true when this
+section was written and is FALSE now.** `missing object` and `blinking` get the target's would-be
+silhouette on every labelled hidden frame. Corrected in place rather than deleted, because the
+sentence shipped once and a reader may have it.
 
 The run's own echo states it, and this line prints on every run:
 
@@ -636,3 +638,116 @@ running degraded. Masks are used as the region when the session has them; withou
 **Prove it can fail before trusting a green run:**
 `python host-tools/verify_capture.py --label-pixel-gate --selftest` — seven synthetic cases covering
 both edges in both directions plus a `NOT-VISIBLE` case; it must print `SELFTEST: OK`.
+
+---
+
+# 📣 THE CHANGELOG PARAGRAPH FOR THE NEXT DROP
+
+**Paste this into the delivery note.** It is written for the client, in the client's terms, and it
+covers everything that changed since the last bundle. ⚠ **The `m50` paragraph is marked as such and
+must be REMOVED if `m50` is not in the build being shipped** — a changelog that describes a fix the
+binary does not carry is worse than no changelog.
+
+> **What changed in this build**
+>
+> **1. Label timing is fixed on every host.** Several separate causes could make a label sit one
+> frame away from the pixels it describes. They are all addressed: the per-frame label is now sampled
+> at the end of the game tick, so it describes what the renderer is about to draw whatever order the
+> game's subsystems happen to tick in; the target mask now belongs to the event that owns the object,
+> so an event's first labelled frame carries its own mask instead of the previous event's; the first
+> frame of a material swap is no longer at the mercy of on-demand shader compilation; and a frame
+> whose whole picture darkens because the game's auto-exposure is re-adapting is now marked rather
+> than left to look like a defect.
+>
+> **2. Labels now say whether the anomaly could actually be SEEN, per frame.** Every frame of every
+> anomaly carries a measured pixel count and a visible/not-visible verdict, derived from that frame's
+> own render. `annotation.json`'s `affected_frames` therefore now means *"the frames the anomaly is
+> visible on"*, and a new `injected_frames` carries *"the frames it was applied on"* — which is
+> exactly what `affected_frames` meant before. **If your tooling read `affected_frames`, point it at
+> `injected_frames` and nothing changes.**
+>
+> **3. The label format is versioned.** `annotation.json` carries a root key `label_schema` whose
+> value is `2`. A file with no such key is the previous format. **Nothing was removed and nothing was
+> renamed** — every field you already read is still there, with its previous type. The full field
+> table and a v1→v2 changelog are in section 8 of the README.
+>
+> **4. Objects that could never show a visible anomaly are no longer targeted.** Objects made
+> entirely of translucent materials are excluded when the anomaly picks its target.
+>
+> **5. You can check the labels against the pixels yourself.** One command, on the machine that
+> captured the session:
+> `python host-tools\verify_capture.py --label-pixel-gate --dir <sessionDir>`
+> For every anomaly it checks that the first labelled frame is the first frame whose picture changes,
+> and that the frame after the last labelled one is clean. It prints one line per anomaly and exits
+> **0** when nothing disagrees, **2** when something does, **3** when the session cannot be read.
+> Add `--report-only` to print the readings without a failing exit code.
+> ⚠ **`NOT-MEASURABLE` on a line is neither a pass nor a failure** — it means that anomaly could not
+> be judged (a truncated final event, too few clean frames to measure against), and the reason is
+> printed on the line itself.
+
+## Ruling 1 — host post-process materials that read custom depth: DETECTED AND NAMED, NO RULE
+
+Ruled 2026-09-04 (session 075) after the `m49` A2 measurement. **Include this paragraph in the
+delivery note only if the client asks about outline/highlight effects; it is otherwise owner-facing.**
+
+The plugin identifies its anomaly targets by writing a value into the custom **stencil** buffer. A
+host game whose own post-processing **reads** custom depth or custom stencil — an outline system, a
+selection highlight, a post-process mask — is sharing that buffer with us, and the question was
+whether tagging an object could make such an effect draw on it and change the delivered picture.
+
+**What ships:** the census counts those materials and **names them** in `run_summary.json` →
+`census_host_pp_customdepth_readers` and `census_host_pp_customdepth_reader_names`, so a delivered
+session states whether the host has any. On a real host with an outline post-process, that read is
+**non-zero and correctly names the material.**
+
+**What does NOT ship: any refuse-or-warn rule.** It was measured on that host with a purpose-built
+fixture (`IAI.Bench.CensusMaskDump`) giving a tagged-vs-untagged comparison on ordinary scene objects
+with **no anomaly anywhere in the comparison** — 21 treatment pairs against 25 controls, pose-matched,
+one reference silhouette used for both classes. The two profiles agree within 7 % at every radius
+from the silhouette edge, and in **both** classes the ring around the object is *dimmer* than the
+ambient picture. On an armed frame 14 objects are tagged at once including a sky sphere covering a
+third of the screen, so an outline would move the whole picture — and the ambient measure is **lower**
+on the treatment side. ⇒ **NO DETECTABLE EFFECT, so no rule.**
+
+⛔ **That is a statement about the measurement, not a claim that such a material never draws on our
+tags.** It was measured on one host with one outline material. **If a client's host shows an effect,
+the census is the thing to turn off** — `IAI.Capture.Census 0`, between runs — and the reader names in
+`run_summary.json` are how you find out whether that host has such a material at all.
+
+## Ruling 3 — Nanite and other unmeasurable targets: ADMITTED AS UNMEASURED (lands with `m50`)
+
+⚠ **THIS DESCRIBES `m50`, WHICH IS PLANNED AND NOT BUILT. Do not ship this paragraph in a build that
+does not carry it** — see `docs/sessions/2026-09-04-075-m49-a2b-docs-m50-plan.md` §3.
+
+**The problem, measured on a real Nanite-heavy game (session 074, `LG-9`):** on UE 5.1 a Nanite
+primitive cannot write custom depth, so the measurement cannot see it. That was believed safe,
+because an unmeasured target is admitted rather than deleted. **It is not safe when something ELSE in
+the scene writes custom depth**, which is the ordinary case: the pass then runs, the Nanite target
+contributes nothing to it, and the zero-pixel veto reads that as *"measured, drew nothing"* and
+**deletes the event.** Measured: **87 % of that map's candidates were Nanite**, all six fired events
+were vetoed, and a 90-frame capture with 43 positive frames delivered **`anomalies: []`** — no labels
+at all, from a session that plainly contained anomalies.
+
+**What `m50` changes:** a target that is *known* to be unmeasurable before the fire — Nanite today,
+the same test the census already uses — is classified **NOT MEASURED at arm time** rather than being
+allowed to reach a measured zero. Such an event is **admitted**, and its labels say exactly what is
+known and nothing more:
+
+| field | value | meaning |
+| --- | --- | --- |
+| `target_pixels` (per frame) | `-1` | no measurement exists |
+| `observable` (per frame) | `null` | no claim either way |
+| `observability_measured` | `false` | the visibility layer could not run for this event |
+| `affected_frames` | == `injected_frames` | the honest fallback: what was applied |
+| `bbox_source` | `"projected"` | the boxes come from bounds, not from measured pixels |
+| `mask.provided` | `false` | unchanged meaning: **not measured**, never "drew nothing" |
+
+🔑 **The reasoning, stated because it is a judgement and not a derivation: honest labels without pixel
+evidence beat no labels at all.** A dataset of correctly-boxed anomalies marked *"visibility not
+measured"* is usable; an empty `anomalies` array is not. **It is not a claim the anomaly was
+visible** — `observability_measured: false` is the field that says so, and a consumer who needs
+pixel-confirmed labels should filter on it.
+
+⚠ **Scoped to UE 5.1.** A later engine with Nanite custom-depth support makes those targets measurable
+and this path stops being reached for them. The classification is by *measurability*, not by "Nanite",
+so it follows the engine rather than a hard-coded list.
