@@ -5950,3 +5950,95 @@ a same-as-last-binary reading as evidence that a FAILING clause was fine.**
 See also G226 (a fixture sharing a namespace with the system under test), G169 (a difference inside
 the instrument's spread is below its resolution, never "no cost"), G121 (an exe hash does not
 identify a build), G119 (read it back out of the artifact, do not trust the input you edited).
+
+---
+
+## G236 - a SHARED-ENGINE second host must mount by `git worktree`, not by junction, and the mount point must be EMPTY of `.uplugin` (2026-09-04, session 072)
+
+**MEASURED.** Lyra's `.uproject` carries `EngineAssociation {B34F356C-4AE7-256A-F0E1-318A632BB902}`
+- **the same GUID as StackOBot**, i.e. the same source-built UE 5.1. The 4.25 host may keep its
+junction because its build outputs cannot collide with 5.1's; a SAME-ENGINE host is the opposite
+case. Junctioning the plugin folder into a second 5.1 project makes both projects write the **same**
+`Plugins/AnomalyInjector/Binaries` and `Intermediate`, so a build for host B can invalidate host A's
+byte-identity anchors (`P-C7`) with nobody attributing it.
+
+=> `git worktree add --detach <host>/Plugins/AnomalyInjector <sha>`. **Detached, deliberately:** a
+second worktree cannot check out `master` while the main checkout holds it, and a detached HEAD
+cannot be committed to in a way that moves a branch.
+
+**AND THE TRAP THAT IS NOT ABOUT GIT AT ALL: UE SCANS `Plugins/` RECURSIVELY FOR `.uplugin`.**
+A pre-existing copy parked *aside within* `Plugins/` is a **fatal duplicate-plugin-name error**, not
+a harmless leftover. Move it OUT of the project tree. (Session 072 found a June-2026 clone already
+sitting at the mount point - a real `.git` **directory**, no remote, 14 dirty paths. It was moved,
+not deleted, only after its HEAD was proved an ancestor of `master` and every dirty path proved
+present in `master` today - one had merely been **renamed**
+(`create_missing_texture_materials.py` -> `create_anomaly_materials.py` at `1ccfca1`). `G92`: check
+before you clear, the check is cheap.)
+
+Precondition to verify BEFORE mounting: the plugin's `.gitignore` must already cover `Binaries/` and
+`Intermediate/`, or the host's build output becomes untracked churn in a shared repo.
+
+---
+
+## G237 - a pre/post SNAPSHOT check cannot attribute a difference, and on a host that legitimately writes the same state it reports OUR failure (2026-09-04, session 072)
+
+**MEASURED, on Lyra, with the discriminator already printed and simply not used.**
+`CENSUS-HYGIENE final DIFF n=3 first=B_Hero_ShooterMannequin_C_12/CharacterMesh0 gained
+bRenderCustomDepth (value 0) ... otherwise it is a hygiene defect and the leg FAILS P-C6.`
+The leak probe was OFF, so by its own wording the leg failed. **It almost certainly leaked nothing:
+the stencil value is `0`, and the plugin only ever writes `200..254`.** Lyra's hero characters enable
+custom depth themselves, for the outline system - the host's own designed behaviour.
+
+=> **A check built as "compare the world to a snapshot taken before we started" answers *did this
+change?*, never *did WE change it?*** On a fixture that never touches the state (StackOBot) the two
+questions coincide and the gap is invisible; on a host that writes the same state as part of playing
+the game they diverge, and the check accuses the plugin. **The fix is not a wider tolerance - it is
+to use the evidence already in hand** (here: the VALUE, which is outside our reserved range).
+
+**Transferable form:** whenever a guard's evidence is "state differs from before", ask what else in
+the process is entitled to write that state. If anything is, the guard needs an **attribution**
+term, and a guard that fires on the host's legitimate behaviour will be trained away as noise -
+which is worse than not having it. Cf. `G118` (a guard that passes the unsafe case), `G226` (a
+fixture sharing a namespace with the system under test), `G120` (observation vs mechanism).
+
+---
+
+## G238 - "the map is in that plugin's folder" is an INFERENCE; the package path is a fact the project's own ini already carried (2026-09-04, session 072)
+
+Session 072 launched Lyra at `/ShooterMaps/Maps/L_ShooterGym` because a recursive `.umap` listing had
+been read as putting the file under `ShooterMaps`. The engine answered
+`LogUObjectGlobals: Warning: Failed to load '/ShooterMaps/Maps/L_ShooterGym': Can't find file.`
+**`L_ShooterGym` lives in `ShooterCore`.** Lyra's own `DefaultGame.ini` said so verbatim
+(`+CommonEditorMaps=/ShooterCore/Maps/L_ShooterGym.L_ShooterGym`) and that line had been read and
+**dismissed as stale** in favour of the inference.
+
+=> A plugin mounts at `/<uplugin filename>/`, so the package path is derivable - but derive it from
+the `.uplugin`'s own location, and **prefer the host project's own recorded path over any
+derivation.** This is `G87`'s rule from the other side: judge by the name the host writes down, not
+by the picture you assembled. Cost here: one 15-minute cold shader-compile cycle.
+
+**Second lesson from the same failure, and it is about our harness:** a runner that DELETES the
+previous log at launch destroys the evidence of the run that just failed. `lyra_leg.ps1` did, and
+attempt 2's log - which held the map error, the plugin's clean init lines and a Lyra shutdown
+callstack - survived only because it had already been read into the report. **Archive, never delete.**
+
+---
+
+## G239 - a process-global counter reads 7,301 on a real game; keying the mark on OUR OWN materials is what makes it usable (2026-09-04, session 072)
+
+`m47` section `G232(a)` rejected the briefed shader-readiness predicate because
+`GetNumRemainingJobs()` is **process-global**: on a healthy StackOBot editor leg it read 157->73
+across all 90 frames, so a mark keyed on it would have flagged **90 of 90 good frames**. The shipped
+mark instead keys on this plugin's own two swap materials, with the global number printed beside it
+as a reading.
+
+**Lyra puts a number on how large that mistake would have been:** `SHADERS pending=7301
+incomplete=0` on **all 90 captured frames**, with `frames_shaders_pending = 0` and
+`shader_prewarm_ms = 33,195` (StackOBot packaged: 0.0017 ms). A real game with TSR, Lumen, hardware
+ray tracing and Nanite keeps thousands of shader jobs outstanding for the whole session as ordinary
+background work.
+
+=> **A counter that aggregates the whole process cannot answer a question about one subsystem's
+objects, and the gap between the two grows with the size of the host - which is exactly the
+direction in which the reading matters.** Corroborates `G232(a)` on an independent host, at roughly
+50x the magnitude that motivated it.
