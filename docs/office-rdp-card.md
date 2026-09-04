@@ -1190,3 +1190,157 @@ had auto-exposure live at all. A span of roughly 7 units means exposure was effe
 auto-exposure was adapting, and **a 0 in that case is a finding worth reporting, not a clean result.**
 ⛔ **Do not change any exposure setting on that box to make this read tidier** — the point of the
 number is that it describes the host as the client runs it.
+
+---
+
+# SECTION G — `m49` LABEL-vs-PIXEL VERIFIER, RUN ON THE HOST BOX
+
+✅ **RDP-valid.** Four steps, one of them optional-until-later. **Nothing is copied off that machine.**
+
+## G-0. WHY THIS SECTION EXISTS, AND THE ONE RULE THAT SHAPES IT
+
+The `m49` verifier answers the question the client actually asks: **does the first labelled frame
+match the first frame whose pixels change, and is the frame after the last labelled one clean?**
+
+🚨 **THE SESSION NEVER LEAVES THE HOST MACHINE. THE ONLY THING THAT COMES BACK IS NUMBERS THE OWNER
+TYPES.** That is why the tool runs *there* rather than the session being copied *here*.
+
+⚠ **THIS IS THE THIRD ATTEMPT AND THE FIRST TWO WERE NOT FAILURES — THEY WERE UNRUNNABLE.** The
+`m49` A1 and A2 campaigns both declared this gate a required read and both had to report **UNRUNNABLE,
+never passed**, because they were waiting for a session folder to arrive at
+`D:\IntrusiveAnomalies\_bates_reads\` and none ever did (journals 072-02 §, 073 §, 074 §6). **Section G
+removes that dependency: the reading is produced where the data already is.**
+
+📌 **A reading is the deliverable. A PASS is not required for this section to have done its job** —
+an `ONSET-SHIFT` here is exactly the finding the whole `m49` milestone was built to surface.
+
+## G-1. Update the box
+
+`git status` clean → pull → **confirm the SHA**. As in `E-1`/`F-0`.
+
+```
+git -C <plugin-repo> status --short
+git -C <plugin-repo> pull
+git -C <plugin-repo> log --oneline -1
+```
+
+**REQUIRED: the tip is `0d05c4b` or later.** *(That commit is `m49` phase A2's docs close-out; the
+verifier itself has shipped since `b062832`, but the A2 tip is what this card was written against.)*
+⚠ **No rebuild is needed for G-2 or G-3** — the verifier is a Python script and reads an
+already-captured session. A rebuild is only needed for **G-4**.
+
+## G-2. Run the verifier, READ-ONLY, on the session the owner flagged
+
+**Which session.** The one the owner flagged as *"the anomaly appears one frame before the label
+says"* — the session containing **two texture-type events early in the run**
+(`missing_texture` / `corrupted_texture`).
+
+⚠ **NAMING IT IS THE OWNER'S STEP AND THIS CARD CANNOT DO IT** — this box has never seen either
+host's disk. If you cannot identify that session with confidence, **say so and stop**; running the
+gate on the wrong session produces a confident number about the wrong thing, which is worse than no
+number. If more than one candidate exists, run it on each and label the readings.
+
+**The command.** Use whichever copy of the tool that box has:
+
+```
+:: from a delivered bundle
+python <delivery-root>\host-tools\verify_capture.py --label-pixel-gate --report-only --dir <sessionDir>
+
+:: from the plugin checkout you just pulled
+python <plugin-repo>\tools\verify_capture.py --label-pixel-gate --report-only --dir <sessionDir>
+```
+
+🚨 **`--report-only` IS NOT OPTIONAL HERE.** It prints every reading and **always exits 0**, so the
+step cannot end early on a non-zero exit before the per-event lines have been read. The exit code is
+not what this section is collecting; **the lines are.**
+
+⚠ **PROVE IT CAN FAIL FIRST — one extra command, and it takes seconds:**
+
+```
+python <same path>\verify_capture.py --label-pixel-gate --selftest
+```
+
+**It must print `SELFTEST: OK`.** *A gate that has never been shown to fire cannot make a clean read
+mean anything (`G96`). If the selftest does not print OK, everything below is void — report that
+instead.*
+
+⚠ **If it refuses with a message about `measure_label_offset.py`, that file is missing beside it.**
+The gate REFUSES rather than running degraded, on purpose. Copy `measure_label_offset.py` from the
+same `tools/` or `host-tools/` folder and re-run. **Do not work around it.**
+
+## G-3. Transcribe the reading — numbers only
+
+Write into a NEW file on **this box's** shared folder:
+
+```
+D:\IntrusiveAnomalies\_bates_reads\2026-09-0X-bates-verifier-read.md
+```
+
+*(Replace `X` with the day. If the session came from the other office host, name the file for that
+host instead — the folder is the drop point, not a claim about which host produced the read.)*
+
+**Transcribe, verbatim and complete:**
+
+1. the **header block** — the `session`, `frames / labels / events`, `masks present`,
+   `diff threshold`, `edge search window` and **`MEASURABLE RANGE`** lines;
+2. the **`baseline frames`** line;
+3. **EVERY per-event line, in full.** Each is one line and looks like:
+   `idx=<n> <anomaly_type> <target_name>  <VERDICT>  [HIGH|LOW] tau=<n> base=<n> [CONTAMINATED=<n>] [appearance=<n>]`
+   — where `<VERDICT>` is one of `PASS`, `ONSET-SHIFT(±n)`, `END-SHIFT(±n)`, `NOT-VISIBLE`,
+   `NOT-MEASURABLE(<why>)`. **Include the bracketed reason on any non-PASS line.**
+4. the **summary** line — `PASS n   SHIFT n   NOT-VISIBLE n   NOT-MEASURABLE n   (of n event(s))`;
+5. the **`VERDICT`** line.
+
+⛔ **Do NOT copy the session folder, any frame, `annotation.json`, `labels.jsonl`, a log, or a
+screenshot of the game.** The transcription is the entire channel.
+⛔ **Do NOT re-run to get a tidier reading.** Whatever it says the first time is the result; if you
+run it twice, report both.
+
+### 🔴 THE PRE-DECLARED READING — read this BEFORE running G-2, and do not adjust it afterwards
+
+**PRE-DECLARED, 2026-09-04, before any run of this card:**
+
+| line | expected |
+| --- | --- |
+| the two flagged texture events | **`ONSET-SHIFT(-1)`** — the pixels changed ONE FRAME BEFORE the label said so |
+| every other event | **`PASS`** |
+| a truncated FINAL event, if the run has one | **`NOT-MEASURABLE`**, with its reason printed |
+| summary | `SHIFT 2`, and `NOT-VISIBLE 0` |
+
+🔑 **The sign matters and is easy to get backwards: `n` is SIGNED and NEGATIVE means the PIXELS moved
+FIRST.** `ONSET-SHIFT(-1)` = the anomaly is visible on frame `start_frame − 1`.
+
+⛔ **NO MECHANISM IS ASSERTED HERE.** A first-use shader-compile stall on that build (it predates
+`m47`'s shader-readiness work) is a **CANDIDATE explanation and nothing more** — it has not been
+measured on that host, and an observation and its explanation are separate claims (`G120`).
+**Whatever the tool prints is the result; the candidate is not a reason to prefer one reading.**
+
+⚠ **ANY OTHER READING IS A RESULT, NOT A FAILURE OF THE STEP, AND IS NOT RE-RUN:**
+
+- **All `PASS`** ⇒ the flagged events do not reproduce under a pixel-ground-truth reading. That is a
+  finding: it would mean the original observation was a numbering or playback difference rather than a
+  label offset, and it must be reported as loudly as a shift.
+- **`NOT-MEASURABLE` on the flagged events** ⇒ the gate could not judge them, usually because the
+  clean gap between windows is too small to measure the offset (`MEASURABLE RANGE` says how small) or
+  the camera was moving. **That is an unread surface, not a pass** — transcribe the reason.
+- **`CONTAMINATED=n` / `[LOW]` on a line** ⇒ that row's baseline had frames above threshold, so its
+  confidence is low. **Transcribe it; do not drop the row and do not promote it.**
+- **A shift on an event nobody flagged** ⇒ report it. It is new information.
+
+## G-4. AFTER an `m47`-or-later build exists on that box — the same recipe again
+
+⛔ **DO NOT DO THIS IN THE SAME SITTING AS G-2.** G-2 reads the build the owner already has; G-4 reads
+a NEW build. Running them together makes the comparison meaningless — **one variable at a time.**
+
+1. Rebuild the **EDITOR** target on that box (runbook §8.6 STEP 3.5 is not optional — `G47`).
+2. Capture again with **the same recipe as the flagged session** — same map, same anomaly, same
+   `IAI.Capture.Config`, same frame count, same seed if it is known. ⚠ **If the original recipe is
+   not known, say so** — an unmatched re-capture is a different experiment and cannot answer G-4.
+3. Run the same G-2 command on the new session and transcribe it the same way, into a file named for
+   the new date, **beside the G-3 file and never overwriting it.**
+
+**PRE-DECLARED for G-4: `PASS` on every event, `SHIFT 0`, `NOT-VISIBLE 0`.**
+⚠ **A remaining shift there is the more valuable outcome of the two** — it would say the timing class
+is not what the newer build fixed, and that is a finding this project has no other way to obtain.
+🚨 **Keep the G-3 reading. It is the BEFORE picture and there is no way to reconstruct it once the box
+is rebuilt.**

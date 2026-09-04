@@ -215,8 +215,16 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       `_above_ceiling`, `_excluded_translucent`, `_fires_fallback_all`, `_fires_partial_fallback`,
       `_fires_unseen_candidates`, `_host_pp_customdepth_readers`, `_unmeasurable_nanite`,
       `_unmeasurable_tag_failed`, `_unmeasurable_hidden`, `_unmeasurable_not_yet_measured`) **and
-      `annotation.json` must still be 48 keys.** *A 16th key, or any movement in `annotation.json`, is
-      a contract change the client was not told about.*
+      `annotation.json`'s key set matches the field table in `client-readme.md` §8.2/§8.3 exactly.**
+      *A 16th census key, or any `annotation.json` key not in that table, is a contract change the
+      client was not told about.*
+      🔻 **CORRECTED 2026-09-04: this box used to read "`annotation.json` must still be 48 keys" and
+      that is now WRONG — schema v2 deliberately adds keys** (`label_schema`, `injected_frames` and
+      its five sub-keys, `affected_frames.span_frame_count`, `bbox_source`, `observable_frame_count`,
+      `unmeasured_frame_count`, `observability_measured`). *A literal count here would now FAIL on a
+      correct build, which is the same staleness failure this file already calls out for the anomaly
+      count — so it is phrased against a single source, the client's own field table, for the same
+      reason.*
 
 - [ ] ⛔ **No bench lever is on in anything that ships.** Grep the delivered log for
       `IAI.Bench.` — `ProbeSceneTextureUsage`, `CensusFixedExpiry`, `CensusBatchCap`,
@@ -256,13 +264,22 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       legitimate frame (59.992). On a darker title re-derive it on that host's own frames** — the rule
       is "an order of magnitude below the darkest legitimate frame", and `--black-threshold` takes the
       new number. **Prove the gate can still fail first: `python tools/verify_capture.py --selftest`.**
-- [ ] 🆕🚨 **`m49` LABEL-vs-PIXEL GATE — RUN IT ON THE HOST'S OWN SMOKE SESSION.**
+- [ ] 🆕🚨 **`m49` LABEL-vs-PIXEL GATE — RUN IT ON THE HOST'S OWN SMOKE SESSION, ON THE HOST'S OWN
+      MACHINE, AND TRANSCRIBE THE READINGS TO THE CARD.**
       `python tools/verify_capture.py --label-pixel-gate --dir <session>` must exit **0** with
       **SHIFT 0** and **NOT-VISIBLE 0**.
       *This is the box that answers the question the client actually asks: does the first labelled
       frame match the first frame whose pixels change, and is the frame after `end_frame` clean. It
       is a HOST-side box on purpose — every label/pixel desync found so far (P9 on Bates, the onset
       readings on Concorde) was host-specific and invisible on the bench.*
+      🚨 **IT RUNS ON THE HOST BOX, NOT HERE, AND ONLY THE NUMBERS COME BACK.** Host session data
+      never leaves the host machine, so the gate is executed there and its **per-event lines and
+      summary are transcribed by hand** into `_bates_reads\<date>-<host>-verifier-read.md`. The
+      runnable step is **`office-rdp-card.md` SECTION G** — do not invent a second route.
+      ⚠ **This box has been UNRUNNABLE here for three sessions in a row** because it was waiting on a
+      session folder to be copied across, which never happened (journals 072-02, 073, 074 all record
+      it as UNRUNNABLE, never as passed). **Section G exists to remove that dependency.** Reported as
+      unrunnable is a valid outcome; reported as passed without a reading is not.
       **Prove the gate can still fail first: `python tools/verify_capture.py --label-pixel-gate
       --selftest`** — seven cases, both edges, both directions (`G96`).
       ⚠ **`NOT-MEASURABLE` is neither a pass nor a failure** — it is an unread surface and the reason
@@ -270,6 +287,47 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       tested; read the reasons before ticking this box.
       ⚠ **It needs `measure_label_offset.py` beside it** (it imports the region/baseline/threshold
       code); both ship via `bundle_manifest.txt`. Without masks it runs in bbox-only mode and says so.
+
+### 🆕 `m49` — SCHEMA v2: two boxes, and both are documentation
+
+- [ ] 🚨 **`client-readme.md` §8 IS IN THE BUNDLE AND CARRIES THE v2 FIELD TABLES AND THE v1→v2
+      CHANGELOG.** *`annotation.json`'s `affected_frames` changed MEANING at v2 — same key, narrower
+      set — and a client parser that was reading it now silently reads a different quantity. The
+      README's §8.5 changelog and its one-line migration (`affected_frames` → `injected_frames`) are
+      the only thing standing between that and a silent data change. **The delivered README ships as
+      a bundle file; confirm the copy in the bundle is the current one, not a stale duplicate.***
+- [ ] 🚨 **THE DELIVERY NOTE CARRIES THE CHANGELOG PARAGRAPH** from `client-delivery.md`
+      → *"THE CHANGELOG PARAGRAPH FOR THE NEXT DROP"*, and **the `m50` paragraph in that file is
+      REMOVED if `m50` is not in the build being shipped.** *A changelog describing a fix the binary
+      does not carry is worse than no changelog.*
+- [ ] **`run_summary.json` carries `observable_frames`, `frames_condition_lost` and
+      `observable_min_pixels`, and `observable_min_pixels` reads the value you intended** (compiled
+      default **1** = *"any drawn pixel counts as observable"*).
+      *Read it from the run's own echo line, not from the ini — the echo prints the value, its source
+      and its size as a per-mille of the picture, and says that the stored field is absolute pixels.*
+- [ ] **`translucent_only_excluded_targets` is present in `run_summary.json`, and the selection echo
+      names the rule and its source.** *`0` is a valid reading — it means no candidate on that map was
+      translucent-only — but the echo must be there whether or not the rule ever fired, or a lost ini
+      key is indistinguishable from a rule that never bit (`G139`).*
+
+### ⛔ `m50` — PLACEHOLDERS. THESE ARE NOT TICKABLE YET AND THE BUILD DOES NOT CARRY THEM.
+
+*Both are consequences of measurements taken in session 074 and are planned in
+`docs/sessions/2026-09-04-075-m49-a2b-docs-m50-plan.md` §3. They are listed here so that a cook run
+before `m50` lands cannot silently skip them, and so that the cook AFTER `m50` has its gates written
+down in advance.* 🚨 **Chat has ruled that `m50` lands BEFORE any client cook.**
+
+- [ ] ⛔ **`m50` STENCIL SINGLE-OWNER GATE (not built).** Per captured frame, every non-zero value in
+      the delivered mask PNG must belong to **exactly one** owner in that frame's log — one live event
+      OR one census batch, never both. **Bench incidence before the fix: 22 of 448 tag-instances
+      (4.9 %) carried two connected components.** ⚠ **`MASK-TIE` STRUCTURALLY CANNOT SEE THIS** — the
+      intruder is in the reduce table *and* in the PNG, so the tie reads MATCH. **A green MASK-TIE is
+      not evidence for this box.**
+- [ ] ⛔ **`m50` UNMEASURABLE-TARGET ADMISSION (not built).** On a Nanite-heavy host, a capture that
+      fires N events must deliver N events with `observability_measured: false` — **not
+      `anomalies: []`**. *Measured on a real Nanite-heavy game: 6 of 6 events vetoed, 90 frames and 43
+      positive frames delivering an empty `anomalies` array.* **Read `vetoed_events` and the event
+      count together; an empty array with a non-zero fire count is the failure this box exists for.*
 - [ ] 🆕 **`shader_prewarm_ms` is present in `run_summary.json` and `frames_shaders_pending` reads 0.**
       *Reported, not gated — see the box above for why. A non-zero `frames_shaders_pending` on a
       PACKAGED cook would be genuinely surprising and is worth stopping for.*
