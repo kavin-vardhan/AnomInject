@@ -256,6 +256,20 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       legitimate frame (59.992). On a darker title re-derive it on that host's own frames** — the rule
       is "an order of magnitude below the darkest legitimate frame", and `--black-threshold` takes the
       new number. **Prove the gate can still fail first: `python tools/verify_capture.py --selftest`.**
+- [ ] 🆕🚨 **`m49` LABEL-vs-PIXEL GATE — RUN IT ON THE HOST'S OWN SMOKE SESSION.**
+      `python tools/verify_capture.py --label-pixel-gate --dir <session>` must exit **0** with
+      **SHIFT 0** and **NOT-VISIBLE 0**.
+      *This is the box that answers the question the client actually asks: does the first labelled
+      frame match the first frame whose pixels change, and is the frame after `end_frame` clean. It
+      is a HOST-side box on purpose — every label/pixel desync found so far (P9 on Bates, the onset
+      readings on Concorde) was host-specific and invisible on the bench.*
+      **Prove the gate can still fail first: `python tools/verify_capture.py --label-pixel-gate
+      --selftest`** — seven cases, both edges, both directions (`G96`).
+      ⚠ **`NOT-MEASURABLE` is neither a pass nor a failure** — it is an unread surface and the reason
+      is printed on the event's own line. A session whose events are ALL `NOT-MEASURABLE` has not been
+      tested; read the reasons before ticking this box.
+      ⚠ **It needs `measure_label_offset.py` beside it** (it imports the region/baseline/threshold
+      code); both ship via `bundle_manifest.txt`. Without masks it runs in bbox-only mode and says so.
 - [ ] 🆕 **`shader_prewarm_ms` is present in `run_summary.json` and `frames_shaders_pending` reads 0.**
       *Reported, not gated — see the box above for why. A non-zero `frames_shaders_pending` on a
       PACKAGED cook would be genuinely surprising and is worth stopping for.*

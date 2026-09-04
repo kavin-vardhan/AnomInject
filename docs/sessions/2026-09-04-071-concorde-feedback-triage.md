@@ -763,3 +763,164 @@ written for the recommended alternative with the strict rule as a one-line switc
   session (`git worktree remove`), and the removal is stated in the final report.
 - No other file was touched. The main checkout stayed on `europa-e1` throughout.
 - The eight untracked `docs/CHAT-HANDOFF-*.md` files in the main checkout were never staged.
+
+---
+
+# §11. BRIEF 071-02 — `m49` STEP 1: THE LABEL-vs-PIXEL VERIFIER IS BUILT, SELF-PROVEN AND RUN
+
+**Date:** 2026-09-04 · **Scope:** Python only. No C++ change, no build, no cook, no CaptureBench lever,
+no G-EDGE leg. Phase A stays QUEUED. **Checkout:** switched `europa-e1` (`1f5e305`, == origin) →
+`master` (`9682b2c`, == origin) under shared-tree rule 1, tree clean of tracked modifications at the
+switch; **left on `master`**, because Europa is parked and the `m49` campaign builds from master.
+
+## §11.1 Chat rulings recorded (they bind `m49`; §9's questions are answered)
+
+- **Q3** — `observable` is `true | false | null`, `null` = unmeasured (`target_pixels == -1`); the
+  event gains `unmeasured_frame_count`. If EVERY frame of an event is unmeasured, `affected_frames`
+  falls back to the injected subset and the event carries `observability_measured: false`; otherwise
+  `affected_frames` = the frames with `observable == true`. ⇒ **§9 Q3's recommended alternative is the
+  ruling**, and a mask-blind host keeps today's labels while saying how much of them is measured.
+- **Q4** — an event with an empty observable set STAYS in the file (`observable_frame_count: 0`,
+  `injected_frames` populated). The veto is untouched.
+- **Q5** — T3(i) picker-level exclusion of translucent-only targets for **ALL** types, default ON,
+  knob to restore. ⇒ §6's recommendation is adopted in full, not narrowed to texture types.
+- **Q6** — root key `label_schema: 2`; the README carries a v1→v2 field table.
+- **m39 is FOLDED INTO `m49`** (§8.2's recommendation approved). **G-EDGE (§3.7) is approved as an
+  `m49` gate**, both orders, to run once the instrument exists — this brief builds the instrument.
+- **Q7 (the Bates delivery window) is the owner's and is PENDING.** Q1/Q2/Q8 are with the client.
+- **Sequencing:** the verifier comes FIRST so it exists when the client's session folder arrives.
+
+## §11.2 What shipped
+
+`tools/verify_capture.py` gains `--label-pixel-gate` (+ `--diff-threshold`, `--edge-window`,
+`--min-visible-px`, `--report-only`), and `--selftest` now proves THAT gate when `--label-pixel-gate`
+is also given. **The m47 black-frame gate and the overlay path are untouched** — `--selftest` alone
+still runs the m47 self-test, verified (`grey -> PASS`, `black -> FAIL`), so the existing checklist box
+reads exactly as before.
+
+**Reused by import, not copied** (`_offset_module()` inserts the tool's own directory on `sys.path`):
+`FrameCache`, `clamp_box`, `box_area`, `bbox_from_label_entry`, `match_label_entry`, `read_labels`,
+`read_json`, `event_indices`, `event_node_name`, `median_or_none`, `classify_patch`, `FRAME_RE`,
+`MIN_REGION_PX`, `TEXTURE_TYPES`, and the two threshold constants **`K_SIGMA = 6.0`** and
+**`SIGNAL_FLOOR = 0.0040`**. **Newly written:** the one metric the module does not carry —
+`d(k)` = the FRACTION of region pixels differing by more than `8/255` from frame `k-1` (the O4 metric
+`m44_gates.py` prints whole-frame; here region-scoped so a small target is not averaged away) — plus
+the edge rule, the run splitting and the verdicts. ⛔ The gate REFUSES to run without
+`measure_label_offset.py` beside it rather than running degraded.
+
+**Semantics.** τ = `median + K_SIGMA·MAD` of `d` over clean frames, floored at `SIGNAL_FLOOR`; any
+clean frame above τ counts as CONTAMINATED and drops the row to LOW confidence. Region = the delivered
+mask's pixels for the event's `mask_value` when a mask exists, else `bbox_px`. `n` is SIGNED: **`n < 0`
+means the PIXELS changed BEFORE the label said so** — F1's shape. Exit **0** all PASS/NOT-MEASURABLE,
+**2** any shift or NOT-VISIBLE, **3** malformed.
+
+📌 **An artifact quirk the region rule had to absorb, MEASURED:** on banked m45 legs a row can carry
+`mask_value: 0` while its mask PNG carries the event's real tag (`session_index 27` reads
+`mask_value 0` against a PNG containing only value `222`). The rule therefore falls back to the PNG's
+sole non-zero value when the row says 0, and REFUSES (dropping to the bbox) when the frame carries
+several — it never guesses between two events' silhouettes. Reported, not fixed: it is a `mask_value`
+resolution gap in the product, and Phase A's `target_pixels` join must not inherit it.
+
+## §11.3 THREE INSTRUMENT DEFECTS FOUND BY THE KNOWN-ANSWER RUNS, ALL MINE, ALL FIXED BEFORE ANY VERDICT WAS READ
+
+The first run of the m45 known-answer leg returned **4 of 6 events NOT-MEASURABLE and a ±0 measurable
+range**, and the second returned a **confident `ONSET-SHIFT(+2)` on a leg whose onset the m45 gates
+had already measured 6/6 aligned**. Neither was the product. Recorded because each is a shape that
+would have produced a false finding on the client's session:
+
+1. **The ceiling counted the session TAIL as a clean gap.** An event ending on the final frame gave
+   `min gap 0` ⇒ ceiling ±0 ⇒ every non-zero reading became "beyond the measurable range". Fixed to
+   the module's own rule (`measurement_ceiling`): gaps BETWEEN windows, with head/tail used only when
+   a single window is all there is. The m45 leg then reads ±2 (min clean gap 4).
+2. **"First frame above τ" reads the temporal-AA ghost, not the edge.** On a hidden-class run the
+   frame AFTER the hide still differs from its predecessor because accumulation is still decaying the
+   object out; the first-above-τ rule took that as the edge and reported an END shift that is not
+   there. Replaced by **the DOMINANT change in the neighbourhood** (`_dominant_edge`) — the transition
+   is the biggest difference, the ghost is a fraction of it, and this is robust at both edges.
+   📌 This is the ledger §8 re-appearance ladder appearing in an instrument rather than in a label,
+   and it is why §3.8's F6 candidate (1) needs the per-frame series and not a threshold crossing.
+3. **An edge search reaching into ANOTHER transition.** Two shapes, both measured on the same leg:
+   a blink run's onset window contained its own reappear (argmax picked `42` over `40` by
+   **0.8932 vs 0.8899** — a 0.4 % margin deciding a verdict), and a `missing_texture` event's end
+   window reached into the NEXT event's swap **on the same actor eight frames later** and read `+4`.
+   Fixed by bounding every edge search to its own run (`onset ≤ run end`) and excluding frames
+   belonging to any OTHER event (`foreign`).
+
+A fourth was a defect in the **fixture, not the gate**: shifting only `annotation.json` left the
+anchor frame's `labels.jsonl` row without a matching entry, so the −1 direction silently degraded to
+NOT-MEASURABLE on 5 of 6 events (1 of 6 detected). The anchor now takes the first frame of the claim
+whose row actually carries the event, which is also the right behaviour on a real session where the
+two artifacts disagree — the disagreement is what the gate exists to measure, so it must not refuse to
+run because of it. Both directions then read 5 of 6.
+
+⚠ **All three product-side readings that these defects produced were WITHDRAWN, not carried:** the m45
+leg has **0 shifts**.
+
+## §11.4 Self-test — seven cases, both edges, both directions (`G96`/`G142`)
+
+`python tools/verify_capture.py --label-pixel-gate --selftest`, exit **0**:
+
+| case | expected | read |
+|---|---|---|
+| clean | PASS | PASS |
+| clean_masked (mask region path) | PASS | PASS |
+| label_late_1 | ONSET-SHIFT(-1) | ONSET-SHIFT(-1) |
+| label_early_1 | ONSET-SHIFT(+1) | ONSET-SHIFT(+1) |
+| end_late_1 | END-SHIFT(-1) | END-SHIFT(-1) |
+| end_early_1 | END-SHIFT(+1) | END-SHIFT(+1) |
+| blank_region | NOT-VISIBLE | NOT-VISIBLE |
+
+The synthetic cases need nothing but this file, `measure_label_offset.py` and Pillow, so **the client
+can run the proof on their own machine** — that is why the shipped self-test is synthetic rather than
+bank-dependent. With `--dir <session>` it ADDITIONALLY shifts a real banked session's labels on a
+copy (labels and annotation copied, frames symlinked, **the bank never written to**): on the m45 leg
+`+1` reads back as `ONSET-SHIFT(-1)` on **5 of 6** events and `-1` as `ONSET-SHIFT(+1)` on **5 of 6**;
+the sixth is the truncated final event, which is NOT-MEASURABLE in both directions and in the
+unshifted control.
+
+## §11.5 Known-answer runs (read-only on the bank)
+
+| session | era / masks | result | exit |
+|---|---|---|---|
+| `B20_M45_FULL_NAT` | m45, masks, native order | PASS 5 · SHIFT 0 · NOT-VIS 0 · NOT-MEAS 1 | 0 |
+| `B20_M45_FULL_SYN` | m45, masks, **synth tick order** | PASS 5 · SHIFT 0 · NOT-VIS 0 · NOT-MEAS 1 | 0 |
+| `B28_..._m46_ctex_native` | m46, masks | PASS 7 · SHIFT 0 · NOT-VIS 0 · NOT-MEAS 1 | 0 |
+| `CM_CM_CTRL49` | pre-m43, **no masks** | PASS 7 · SHIFT 0 · NOT-VIS 0 · NOT-MEAS 1 | 0 |
+| `H4_H4_CTRL_49` | pre-m43, **no masks** | PASS 7 · SHIFT 0 · NOT-VIS 0 · NOT-MEAS 1 | 0 |
+
+Every `NOT-MEASURABLE` above is the SAME reason — the session's last event ends on the final frame, so
+its end edge has no frame after it (the `A50` TRUNCATED precedent). The two pre-m43 legs are 8 blink
+events × 2 runs = **14 edge pairs each, all aligned, in bbox-only mode**, which is the mode the M2
+bundle's sessions will run in.
+
+🚨 **AND IT FIRES ON THE KNOWN-BAD TARGETS, WHICH IS THE HALF THAT MATTERS (`G96` on real data, not
+only synthetic):**
+
+| session | target | result |
+|---|---|---|
+| `CM_CM_SPLINE2` | `BP_SplineSpawn_C` — the m26 `MEASURED_ZERO` case | **NOT-VISIBLE ×3**, SHIFT ×4, exit 2 |
+| `H5_H5_FOLIAGE_NOMARK` | `InstancedFoliageActor_0_0_0` — the `H5` over-claim (claims the whole frame, ~1.4 % changes) | **NOT-VISIBLE ×4**, SHIFT ×2, exit 2 |
+
+⚠ **Read those two carefully and do not over-claim them.** Every row on both is **LOW confidence with
+a CONTAMINATED baseline**, which is the instrument correctly saying its own baseline is polluted — for
+these targets the "clean" frames are not clean, because the claimed region is huge and the real change
+is tiny and diffuse. **The trustworthy signal on those two sessions is `NOT-VISIBLE`; their `SHIFT`
+readings are LOW-confidence readings on a contaminated baseline and are NOT findings about label
+timing.** That is precisely the F5/F7 shape (§4.2) reproduced on banked data, and precisely why
+`target_pixels` (§4.4) is needed to settle it rather than a pixel-difference argument.
+
+## §11.6 Ship path, and what a v1 (M2 bundle) session can conclude
+
+`bundle_manifest.txt` gains `PLUGINFILE tools/measure_label_offset.py → host-tools/`; without it the
+gate refuses, so the two ship together or the gate ships broken. `PRE-DELIVERY-CHECKLIST.md` §1.2
+gains the `m49` box (host's own smoke session, exit 0, SHIFT 0, NOT-VISIBLE 0, prove-it-can-fail
+first, and `NOT-MEASURABLE` is not a pass). `client-delivery.md` gains the one-line client command and
+how to read the verdicts. ⛔ **`client-readme.md` is deliberately untouched** — the schema v2 text
+lands with Phase A.
+
+**On a v1 session (no masks) it CAN** read onset and end shifts per event from the bbox region, and
+say that nothing inside the claimed box changes anywhere near the claim (`NOT-VISIBLE` — the F5/F7
+shape). **It CANNOT** separate a sliver from an occluded target from a collapsed checker (that is
+`target_pixels`, Phase A), judge per-frame observability inside a window (F4's "leaves the frame at
+69" appears only as the region's `d` collapsing), or hold its threshold steady under camera motion —
+a fast pan raises τ and the event reads `NOT-MEASURABLE` rather than passing silently.

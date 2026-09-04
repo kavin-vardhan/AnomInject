@@ -608,3 +608,31 @@ are read off it:
 **Auto-exposure must be proven LIVE on that leg before its dip count is read**, and the black-frame
 gate's own luminance line is the proof: a pinned leg spans ~7 units of whole-frame mean, an
 auto-exposure-ON leg spans ~32. **A dip count read without that proof is a number, not a reading.**
+
+
+## The label-vs-pixel gate (`m49`) — run it on the HOST's own smoke session
+
+One command, on the machine that captured the session:
+
+```
+python host-tools/verify_capture.py --label-pixel-gate --dir <sessionDir>
+```
+
+It reads `annotation.json`, `labels.jsonl` and the frames, and for every event checks two things
+against the pixels: that the **first labelled frame is the first frame whose picture changes**, and
+that the **frame after `end_frame` is the first clean one**. One line per event —
+`PASS`, `ONSET-SHIFT(±n)`, `END-SHIFT(±n)`, `NOT-VISIBLE` or `NOT-MEASURABLE(<why>)` — then a summary
+and an exit code: **0** when nothing disagrees, **2** on any shift or `NOT-VISIBLE`, **3** when the
+session is unreadable. `--report-only` prints the readings and always exits 0.
+
+🚨 **`NOT-MEASURABLE` is NOT a pass.** It is an unread surface — a truncated final event, a baseline
+with too few clean frames, a missing region — and the reason is printed on the event's own line.
+
+⚠ **It ships with `measure_label_offset.py` beside it and imports it** (one implementation of the
+region/baseline/threshold code, not two). If that file is missing the gate REFUSES rather than
+running degraded. Masks are used as the region when the session has them; without them it runs in
+**bbox-only mode**, which still reads edge shifts but cannot tell a sliver from an occluded target.
+
+**Prove it can fail before trusting a green run:**
+`python host-tools/verify_capture.py --label-pixel-gate --selftest` — seven synthetic cases covering
+both edges in both directions plus a `NOT-VISIBLE` case; it must print `SELFTEST: OK`.
