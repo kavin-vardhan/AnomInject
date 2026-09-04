@@ -72,6 +72,18 @@ namespace
 		return bSet;
 	}
 
+	bool& AllowTranslucentOnlyOverride()
+	{
+		static bool bValue = false;
+		return bValue;
+	}
+
+	bool& AllowTranslucentOnlyOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
 	float& TriggerRadiusOverride()
 	{
 		static float Value = 0.0f;
@@ -555,6 +567,81 @@ namespace AnomalyDefaults
 		return FString::Printf(TEXT("%s(%s)"), bV ? TEXT("on") : TEXT("off"), Src);
 	}
 
+	const TCHAR* AllowTranslucentOnlyTargetsKey()
+	{
+		return TEXT("AllowTranslucentOnlyTargets");
+	}
+
+	bool GetAllowTranslucentOnlyTargets()
+	{
+		if (AllowTranslucentOnlyOverrideSet())
+		{
+			return AllowTranslucentOnlyOverride();
+		}
+		static bool bResolved = false;
+		static bool bValue = AllowTranslucentOnlyTargetsCompiled;
+		static const TCHAR* Source = TEXT("compiled");
+		if (bResolved)
+		{
+			return bValue;
+		}
+		bResolved = true;
+
+		bool bFromIni = false;
+		if (GConfig && GConfig->GetBool(SectionName(), AllowTranslucentOnlyTargetsKey(), bFromIni, GGameIni))
+		{
+			bValue = bFromIni;
+			Source = TEXT("ini");
+		}
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("selection: translucent-only targets are %s (%s). An actor whose every renderable-visible component ")
+			TEXT("draws ONLY through translucent material slots writes no depth and no custom depth, so the target ")
+			TEXT("mask cannot measure it: target_pixels reads -1 and observable reads null on every frame of its ")
+			TEXT("event, which m49 then reports as observability_measured=false. Excluding it at the PICKER is the ")
+			TEXT("only place the dataset never gains the event at all. This mirrors the census's own translucent ")
+			TEXT("rule and shares its predicate. ALLOWING them restores the pre-m49-A2 candidate set exactly - a ")
+			TEXT("G140 boundary: the same seed picks different targets across this change."),
+			bValue ? TEXT("ALLOWED") : TEXT("EXCLUDED"), Source);
+		return bValue;
+	}
+
+	void SetAllowTranslucentOnlyTargetsOverride(bool bAllow)
+	{
+		AllowTranslucentOnlyOverride() = bAllow;
+		AllowTranslucentOnlyOverrideSet() = true;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("selection: translucent-only targets set to %s by console override. This BEATS DefaultGame.ini [%s] ")
+			TEXT("%s (G88). Setting it ALLOWED restores the pre-m49-A2 candidate set exactly."),
+			bAllow ? TEXT("ALLOWED") : TEXT("EXCLUDED"), SectionName(), AllowTranslucentOnlyTargetsKey());
+	}
+
+	void ClearAllowTranslucentOnlyTargetsOverride()
+	{
+		AllowTranslucentOnlyOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("selection: console translucent-only override cleared; the ini value or the compiled default takes over."));
+	}
+
+	FString DescribeAllowTranslucentOnlyTargets()
+	{
+		const bool bV = GetAllowTranslucentOnlyTargets();
+		const TCHAR* Src = TEXT("compiled");
+		if (AllowTranslucentOnlyOverrideSet())
+		{
+			Src = TEXT("console");
+		}
+		else
+		{
+			bool bFromIni = false;
+			if (GConfig && GConfig->GetBool(SectionName(), AllowTranslucentOnlyTargetsKey(), bFromIni, GGameIni))
+			{
+				Src = TEXT("ini");
+			}
+		}
+		return FString::Printf(TEXT("%s(%s)"), bV ? TEXT("allowed") : TEXT("excluded"), Src);
+	}
+
 	const TCHAR* CameraClippingTriggerRadiusKey()
 	{
 		return TEXT("CameraClippingTriggerRadiusCm");
@@ -823,6 +910,33 @@ namespace
 			*AnomalyDefaults::DescribeLodPoppingRequireHighestLod());
 	}
 
+	void HandleAllowTranslucentOnlyTargets(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("Usage: IAI.Select.AllowTranslucentOnlyTargets <0|1|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeAllowTranslucentOnlyTargets());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearAllowTranslucentOnlyTargetsOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetAllowTranslucentOnlyTargetsOverride(FCString::Atoi(*Args[0]) != 0);
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Select.AllowTranslucentOnlyTargets: '%s' is not 0, 1 or 'default'."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Select.AllowTranslucentOnlyTargets: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeAllowTranslucentOnlyTargets());
+	}
+
 	void HandleCameraClipTriggerRadius(const TArray<FString>& Args)
 	{
 		if (Args.Num() < 1)
@@ -881,6 +995,26 @@ static FAutoConsoleCommand GLodRequireHighestLodCmd(
 	     "compiled default ON. Setting it OFF restores the previous auto-pool candidate set exactly. "
 	     "Usage: IAI.Anomaly.LodRequireHighestLod <0|1|default>"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleLodRequireHighestLod));
+
+static FAutoConsoleCommand GAllowTranslucentOnlyTargetsCmd(
+	TEXT("IAI.Select.AllowTranslucentOnlyTargets"),
+	TEXT("Allow the picker to select an actor whose every renderable-visible component draws ONLY through translucent "
+	     "material slots. DEFAULT: EXCLUDED. Such a target writes no depth and no custom depth, so the m43 target mask "
+	     "measures nothing for it: every frame of its event reads target_pixels -1 and observable null, and m49 then "
+	     "writes observability_measured=false and falls affected_frames back to the injected subset. That is an event "
+	     "the dataset cannot verify, so it is refused at the PICKER - the only place it never enters the dataset at "
+	     "all. The predicate is the SAME shared test the census uses for its EXCLUDED(translucent) verdict "
+	     "(AnomalyViewport::IsTranslucentOnlyComponent), so selection and the census cannot drift apart. A component "
+	     "whose material opts in via IsTranslucencyWritingCustomDepth() is NOT translucent-only for this purpose - it "
+	     "is measurable. ACTOR-LEVEL: an actor with any opaque renderable-visible component is admitted unchanged. "
+	     "TARGETED FIRE IS NEVER BLOCKED - this gates AUTO-POOL selection only. Excluded actors are logged once per "
+	     "run as EXCLUDED-TRANSLUCENT and counted in run_summary.translucent_only_excluded_targets. PRECEDENCE: "
+	     "console beats DefaultGame.ini [AnomalyInjector] AllowTranslucentOnlyTargets, which beats the compiled "
+	     "default (excluded). Setting it to 1 restores the pre-m49-A2 candidate set exactly. G140 BOUNDARY: the same "
+	     "seed picks different targets across this change, so banked auto-pool runs are non-comparable to a run with "
+	     "a different setting. Pass 'default' to clear the override. "
+	     "Usage: IAI.Select.AllowTranslucentOnlyTargets <0|1|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleAllowTranslucentOnlyTargets));
 
 static FAutoConsoleCommand GCameraClipTriggerRadiusCmd(
 	TEXT("IAI.Anomaly.CameraClipTriggerRadius"),

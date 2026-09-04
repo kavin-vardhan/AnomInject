@@ -83,6 +83,9 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API bool IsRenderableGeometryComponent(const UPrimitiveComponent* Component);
 
+	ANOMALYINJECTOR_API bool IsTranslucentOnlyComponent(const UPrimitiveComponent* Component,
+		bool bAllowCustomDepthOptIn);
+
 	ANOMALYINJECTOR_API bool GetActorRenderableBounds(const AActor* Actor, FBox& OutBox);
 
 	ANOMALYINJECTOR_API bool IsActorRenderableVisible(const FAnomalyViewInfo& View, UWorld* World, const AActor* Actor);
@@ -124,6 +127,8 @@ namespace AnomalyViewport
 	ANOMALYINJECTOR_API void ResetTargetExclusionStats();
 
 	ANOMALYINJECTOR_API int32 GetTargetExclusionCount();
+
+	ANOMALYINJECTOR_API int32 GetTranslucentOnlyExclusionCount();
 
 	template <typename T>
 	TArray<TWeakObjectPtr<T>> FindVisibleComponentsMatching(UWorld* World, const FString& Substring)

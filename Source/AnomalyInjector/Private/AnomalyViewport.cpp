@@ -16,6 +16,8 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "InstancedFoliageActor.h"
+#include "Materials/MaterialInterface.h"
+#include "MaterialShared.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -40,6 +42,12 @@ namespace
 	float GMinScreenCoveragePct = 6.0f;
 
 	TSet<FString>& ExcludedActorsSeen()
+	{
+		static TSet<FString> Seen;
+		return Seen;
+	}
+
+	TSet<FString>& TranslucentOnlyActorsSeen()
 	{
 		static TSet<FString> Seen;
 		return Seen;
@@ -447,6 +455,63 @@ namespace
 		return Passed;
 	}
 
+	bool IsActorRenderableTranslucentOnly(const FConvexVolume& Frustum, const FVector& ViewOrigin,
+		const FVector& PollOrigin, float PollRadius, UWorld* World, const AActor* Actor)
+	{
+		TArray<UPrimitiveComponent*> Prims;
+		const_cast<AActor*>(Actor)->GetComponents<UPrimitiveComponent>(Prims);
+		int32 Renderable = 0;
+		for (UPrimitiveComponent* Prim : Prims)
+		{
+			if (!IsComponentRenderableVisibleInternal(Frustum, ViewOrigin, PollOrigin, PollRadius, World, Prim))
+			{
+				continue;
+			}
+			++Renderable;
+			if (!AnomalyViewport::IsTranslucentOnlyComponent(Prim, true))
+			{
+				return false;
+			}
+		}
+		return Renderable > 0;
+	}
+
+	bool RefusedAsTranslucentOnly(const FConvexVolume& Frustum, const FVector& ViewOrigin,
+		const FVector& PollOrigin, float PollRadius, UWorld* World, const AActor* Actor,
+		const UPrimitiveComponent* FirstMatch)
+	{
+		if (AnomalyDefaults::GetAllowTranslucentOnlyTargets())
+		{
+			return false;
+		}
+		if (!FirstMatch || !AnomalyViewport::IsTranslucentOnlyComponent(FirstMatch, true))
+		{
+			return false;
+		}
+		if (!IsActorRenderableTranslucentOnly(Frustum, ViewOrigin, PollOrigin, PollRadius, World, Actor))
+		{
+			return false;
+		}
+
+		const FString ActorName = Actor->GetName();
+		bool bAlready = false;
+		TranslucentOnlyActorsSeen().Add(ActorName, &bAlready);
+		if (!bAlready)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("EXCLUDED-TRANSLUCENT actor='%s' class=%s firstComponent='%s' asset='%s' source=%s - refused as ")
+				TEXT("an AUTO-POOL injection candidate. Every renderable-visible component draws only through ")
+				TEXT("translucent slots that do not opt into custom depth, so the m43 target mask can measure NO ")
+				TEXT("pixels for it: every frame of such an event would read target_pixels -1 / observable null and ")
+				TEXT("the event would ship with observability_measured=false. This is a MEASURABILITY exclusion - the ")
+				TEXT("anomaly would still occur, it just could not be verified. A TARGETED fire is never blocked, and ")
+				TEXT("IAI.Select.AllowTranslucentOnlyTargets 1 restores the previous candidate set."),
+				*ActorName, *Actor->GetClass()->GetName(), *FirstMatch->GetName(),
+				*MeshAssetNameOf(FirstMatch), *AnomalyDefaults::DescribeAllowTranslucentOnlyTargets());
+		}
+		return true;
+	}
+
 	bool ClassifyRenderableVisibleLive(const FConvexVolume& Frustum, const FMatrix& ViewProj, const FVector& ViewOrigin,
 		const FVector& PollOrigin, float PollRadius, float MinCoveragePct, UWorld* World, const AActor* Actor,
 		UPrimitiveComponent*& OutFirstMatch)
@@ -454,7 +519,11 @@ namespace
 		if (MinCoveragePct <= 0.0f)
 		{
 			OutFirstMatch = FirstRenderableVisibleComponent(Frustum, ViewOrigin, PollOrigin, PollRadius, World, Actor);
-			return OutFirstMatch != nullptr;
+			if (!OutFirstMatch)
+			{
+				return false;
+			}
+			return !RefusedAsTranslucentOnly(Frustum, ViewOrigin, PollOrigin, PollRadius, World, Actor, OutFirstMatch);
 		}
 
 		FBox Union(ForceInit);
@@ -463,7 +532,11 @@ namespace
 		{
 			return false;
 		}
-		return PassesScreenCoverage(ViewProj, Union, MinCoveragePct);
+		if (!PassesScreenCoverage(ViewProj, Union, MinCoveragePct))
+		{
+			return false;
+		}
+		return !RefusedAsTranslucentOnly(Frustum, ViewOrigin, PollOrigin, PollRadius, World, Actor, OutFirstMatch);
 	}
 }
 
@@ -612,6 +685,36 @@ namespace AnomalyViewport
 	{
 		return Component
 			&& (Component->IsA<UStaticMeshComponent>() || Component->IsA<USkinnedMeshComponent>());
+	}
+
+	bool IsTranslucentOnlyComponent(const UPrimitiveComponent* Component, bool bAllowCustomDepthOptIn)
+	{
+		if (!Component)
+		{
+			return false;
+		}
+		const int32 NumSlots = Component->GetNumMaterials();
+		if (NumSlots <= 0)
+		{
+			return false;
+		}
+		for (int32 Slot = 0; Slot < NumSlots; ++Slot)
+		{
+			UMaterialInterface* M = const_cast<UPrimitiveComponent*>(Component)->GetMaterial(Slot);
+			if (!M)
+			{
+				return false;
+			}
+			if (!IsTranslucentBlendMode(M->GetBlendMode()))
+			{
+				return false;
+			}
+			if (bAllowCustomDepthOptIn && M->IsTranslucencyWritingCustomDepth())
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 
 	bool GetActorRenderableBounds(const AActor* Actor, FBox& OutBox)
@@ -786,11 +889,17 @@ namespace AnomalyViewport
 	void ResetTargetExclusionStats()
 	{
 		ExcludedActorsSeen().Reset();
+		TranslucentOnlyActorsSeen().Reset();
 	}
 
 	int32 GetTargetExclusionCount()
 	{
 		return ExcludedActorsSeen().Num();
+	}
+
+	int32 GetTranslucentOnlyExclusionCount()
+	{
+		return TranslucentOnlyActorsSeen().Num();
 	}
 
 	float GetActorScreenCoveragePct(UWorld* World, const AActor* Actor)
