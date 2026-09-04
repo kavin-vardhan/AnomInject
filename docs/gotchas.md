@@ -6151,3 +6151,104 @@ those two. B1's pixel bbox comparison caught them; the rotation criterion did no
 When a pose check disagrees with `modal_rot`, **read `view.origin` before attributing anything** -
 the harness prints the ratio and the discriminator precisely so the reader attributes rather than the
 gate (`G123`).
+---
+
+## G245 - a STATIC actor silently refuses SetActorLocation, and a lever that logs its INTENT instead of reading the result produces a clean null (2026-09-04, session 074)
+
+`IAI.Bench.TeleportTargetOffscreenAt` was built to make m49's OBS-2 gate able to FAIL: move the
+live fire's target off screen mid-window so target_pixels reads a MEASURED ZERO. It logged a
+confident line naming the actor, the old position and `-> +1,000,000 cm in Z` - and produced an
+artifact **identical to the OFF control**, because `StaticMeshActor_49` is STATIC mobility and
+`SetActorLocation` on a static component does nothing.
+
+**The gate would have read GREEN on a lever that had done nothing.** Every row still had pixels,
+every event still read observable, and the only thing saying otherwise was a log line asserting an
+outcome nobody had checked.
+
+The fix is not "remember that actors can be static". It is: **a lever must READ BACK the state it
+claims to have changed and report the measurement, not the request.** The shipped line now prints
+`from=`, `to=`, `promotedToMovable=` and **`MOVED=`**, with `MOVED=0` declared in the
+lever's own text to mean *the leg is INVALID, not passed*.
+
+This is `G119`'s rule ("read it back out of the running system") applied to a TEST LEVER rather
+than to a build artifact, and `G114`'s failure mode ("a lever that does nothing produces a clean
+null indistinguishable from a clean result") on a new axis. **A can-fail lever is itself something
+that must be proven to fire.**
+
+---
+
+## G246 - the census hands out stencil values a LIVE EVENT is holding, and MASK-TIE structurally cannot see it (2026-09-04, session 074)
+
+Found by `P-C7 v3` reporting `anomalies.target_pixels` differing across two runs on rows with the
+SAME `mask_value`. Ground truth from the delivered mask PNGs: on those frames the event's tag has
+**TWO connected components** - the target (66,837 px) plus a second object (18,330 px).
+
+The census's own log says why:
+
+    Census: ARM cycle=1 batch id=... size=27 tags=200..226 ...
+    Census: ARM cycle=1 batch id=... size=27 tags=227..253 ...
+
+**It allocates across the whole reserved range 200..254, including the value a live event currently
+holds.** `m44`'s ownership rule is not violated on the anomaly side - that leg logs
+`TAG-OWNERSHIP ... alreadyTagged=1 foreignValue=0` - the census simply gave the same value to
+somebody else, and the per-tag reduce then counts both.
+
+🚨 **MASK-TIE CANNOT CATCH IT.** The tie compares the reduce table's count against the delivered
+PNG's own count of that value; the intruder is in BOTH, so it reads `tableCount=85167
+pngCount=85167 MATCH`. A gate that compares two things which share a fault is self-consistent, not
+correct - `G96` in a passing gate rather than a silent one.
+
+Measured incidence across 16 legs / 448 tag-instances: **22 (4.9 %), 12 on one binary and 10 on the
+next** => pre-existing and not binary-attributable. ⚠ "more than one connected component" is a
+PROXY - a legitimately disjoint silhouette reads the same way - so the number is an upper bound on
+that fixture, and the MECHANISM comes from the census's log, not from the proxy.
+
+Consequences to carry: `target_pixels` and `bbox_drawn_px` both inherit it, and any future
+"the mask is over-claiming" report should check the component count before blaming the mask pass.
+
+---
+
+## G247 - when a schema TIGHTENS a set, every gate keyed on that set is now asking a different question (2026-09-04, session 074)
+
+`m49` redefined `annotation.json`'s `affected_frames` from "the injected subset" to "the
+OBSERVABLE subset", and added `injected_frames` carrying the old meaning. `m44`'s **G7** - "a
+mask file may exist only on a frame labelled anomalous" - keys on `affected_frames`. The target
+mask is armed on every frame the event is INJECTED on, so from schema v2 on, a frame that is
+injected-but-not-observable **legitimately** carries a mask file and G7 calls it stray.
+
+It stayed invisible through every settled-bench leg (stray 0 everywhere, because nothing was ever
+dropped) and fired the moment a leg deliberately dropped frames: `FAILED G7, stray 5`, all five
+inside the injected window of the event whose visual condition a lever had just removed.
+
+🔑 **The repair is to point the gate at the set it always MEANT.** `injected_frames` IS the pre-m49
+`affected_frames`, unchanged, so re-keying **RESTORES** the original predicate - it does not loosen
+it. Keying G7 on the observable subset would be a NEW and stricter predicate the code was never
+designed to satisfy, and it would fail every correct run that drops a frame.
+
+**Generalises:** a field that changes MEANING while keeping its NAME breaks consumers silently, and
+it breaks them in the direction of a FALSE FAILURE on a correct build - which is expensive because
+it teaches the reader to distrust a gate that was right (`G142`). When a schema tightens a set,
+enumerate every gate reading it and ask, for each, *which of the two sets was it always about?*
+
+---
+
+## G248 - `injected_frames` is projector-gated for FireWindow ids and projector-independent for ActorHidden ids, so a can-fail lever's shape depends on the class it fires on (2026-09-04, session 074)
+
+OBS-2 teleports a live target off screen and expects the frames to leave `affected_frames` while
+STAYING in `injected_frames`. On a `missing_texture` leg the lever worked - rows read
+`target_pixels 0` / `observable false` exactly as pre-declared - and **`injected_frames`
+shrank too**, while three later events vanished entirely, vetoed by `m26` as MEASURED_ZERO.
+
+Not a defect. For **FireWindow** ids `injected_frames` IS the pre-m49 `AffectedFrames`, which is
+appended only when `ProjectActorBoundsToScreenRect` succeeds; a target moved wholly off screen is
+therefore removed by the PROJECTOR and then by the zero veto, both **upstream of observability**.
+For **ActorHidden** ids it comes from `ActiveByIndex` and never consults the projector.
+
+That is exactly why Lyra's `blinking` event kept `injected_frames [4,5,9,10]` while
+`affected_frames` shrank to `[4,5]`, and why the same lever on a texture swap cannot show that
+shape. Re-run on `blinking`, OBS-2 reproduced the Lyra result on the settled bench in both tick
+orders.
+
+**Before designing a can-fail lever, ask which CLASS of id can even exhibit the shape you are
+trying to force** - three mechanisms (the projector, the m26 veto, observability) can each remove a
+frame, and only the last one is the one under test.

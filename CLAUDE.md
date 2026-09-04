@@ -11,7 +11,151 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🏁🏁 **SESSION 073, 2026-09-04 — `m49` PHASE A1 IS SHIPPED AND MERGED TO `master` AS `b0cbf1d`.
+> 🏁🏁 **SESSION 074, 2026-09-04 — `m49` PHASE A2's CODE HALF IS SHIPPED ON `master` (`eb3506e` +
+> `328ca28`). EVERY STACKOBOT GATE PASSES IN BOTH TICK ORDERS ON ONE BINARY, `OBS-2`/`OBS-3`/`OBS-4`
+> ALL FIRED THEIR CAN-FAIL DIRECTION, AND LYRA ANSWERED LEG B AND `LG-9`. THIS IS THE CURRENT
+> "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: `docs/sessions/2026-09-04-074-m49-a2.md` (self-contained), then
+> `docs/predictions/2026-09-04-m49-phase-a2.md`.**
+>
+> 🎯 **A2 CODE HALF = TRANSLUCENT-ONLY PICKER EXCLUSION + THE `m39` BBOX FOLD-IN + THREE CAN-FAIL
+> LEVERS.** ⛔ **NO TAG · NO COOK.** 📦 Staged bench exe **`8839D806`**; container quartet
+> BYTE-UNCHANGED (`EF8EB23C`/`A8BFFF88`/`3C026A8D` + `A16A18A8`/`C70ECDAA`) — code-only
+> hot-swap (`G103`). Predecessor **`EC60E9B9` STAYS LOAD-BEARING** (`P-C7 v3`'s A-side).
+> ✅ Both build targets exit 0, ZERO warnings, first attempt, twice. `A44` both encodings, controls sound.
+>
+> 🔑 **THE PICKER EXCLUSION SHARES THE CENSUS'S PREDICATE AND MUST NOT SIT AT THE `G33` CHOKEPOINT.**
+> `AnomalyViewport::IsTranslucentOnlyComponent` is now shared (the census dropped its private copy);
+> the rule is applied in **`ClassifyRenderableVisibleLive`**, because putting it in
+> `IsRenderableComponent` would make translucent components stop counting as `Renderable` for the
+> census and drive **`census_excluded_translucent` to a permanent 0** — a live diagnostic silently
+> retired (`G96`). ⚠ **The two consumers pass a DIFFERENT ARGUMENT on purpose** (census: its policy
+> flag; picker: `true`), because a translucent material that writes custom depth CAN be measured.
+> Knob `IAI.Select.AllowTranslucentOnlyTargets` / ini, **compiled default EXCLUDED**, `G139` echo,
+> `run_summary.translucent_only_excluded_targets`. ⚠ **`G140` BOUNDARY on auto-pool legs.**
+>
+> 🖼 **`m39` FOLDED IN, ADDITIVE:** rows gain **`bbox_drawn_px`** from the reduce table's own
+> bounds joined by the SAME `mask_value` the row emits; events gain **`bbox_source`**
+> (`"drawn"`/`"projected"`). ⛔ **`bbox_px` IS NOT REPLACED.** Measured on every leg:
+> **non-null on exactly the rows with `target_pixels > 0`, null everywhere else, 0 boxes outside the
+> frame rect.** ⚠ It is in the MASK's pixel space, which coincides with the written frame only because
+> **`m43` REFUSES the mask when `IAI.Capture.OutputHeight` is non-zero.**
+>
+> 🧪 **STACKOBOT — EVERY GATE ON ONE BINARY, BOTH ORDERS.** `OBS-1` **6 of 6 delta 0** ·
+> **G-EDGE 8 legs `PASS 4 · SHIFT 0 · NOT-VISIBLE 0 · NOT-MEASURABLE 0`** · `m44_gates` **ALL PASS
+> on 15 legs, stray 0** · **MASK-TIE 0 MISMATCH · TARGET-PIXELS TIE 0 MISMATCH** · onset-join **both
+> halves 0 failing** · **black-frame PASS, DARK FIRST 0** · **`P-C7 v3` vs `EC60E9B9`: 40 of 40
+> checks declared-only, `frame_indices` IDENTICAL 4 of 4 on all 8 legs**, added = exactly
+> `bbox_drawn_px` + `bbox_source` + `translucent_only_excluded_targets` (`run_summary` 63 → 64).
+>
+> 🎯 **THE THREE CAN-FAIL GATES ALL FIRED.** **`OBS-3`** (`RetakeMaterialAfter`):
+> `frames_condition_lost` **5** vs **0** OFF, event 0 `affected [3,4,5]` against
+> `injected [3..10]` ⇒ **AMENDMENT 1 §A1.3's ruling validated by measurement.**
+> **`OBS-2`** (`TeleportTargetOffscreenAt`, hide class, both orders): **`affected [4,5]` ⊊
+> `injected [4,5,9,10]`** — **the Lyra shape reproduced DELIBERATELY on the settled bench for the
+> first time.** **`OBS-4`**: `observable_frames` **32/32/32/0** across 1/64/4096/**100,000** with
+> `injected_frames` identical on all four, and at 100,000 every event keeps an EMPTY observable set
+> **and stays in the file** (§11.1's ruling, confirmed by the knob).
+> ⚠ **THE BRIEF'S OWN SWEEP 1/64/4096 IS VACUOUS HERE** — `target_pixels` is a flat **66,837 px**, so
+> all three rungs sit below the signal and monotonicity passes for free. **The 100,000 rung was added
+> and IS the proof the knob is live** (`G96`). Both readings reported; neither dressed up.
+>
+> 🚨 **`OBS-2`'s LEVER WAS WRONG TWICE AND BOTH ARE RECORDED (`G245`, `G248`).** v1 logged a
+> teleport it had NOT achieved — the target is STATIC mobility, `SetActorLocation` silently refused,
+> and the artifact was **identical to the control**: a clean OBS-2 that was blindness. It now promotes
+> to Movable and **READS THE LOCATION BACK**, printing `MOVED=` with `MOVED=0` declared to mean
+> INVALID. v2 then showed the gate's event-level clause is **unexercisable on a `FireWindow` id** —
+> there `injected_frames` IS the projector-gated pre-m49 set, so an off-screen target is removed by
+> the PROJECTOR and the `m26` veto, both upstream of observability. **Only `ActorHidden` ids can
+> show the shape**, which is exactly why Lyra's `blinking` event could.
+>
+> 🚨 **A REAL PRE-EXISTING DEFECT FOUND BY `P-C7 v3`, MEASURED AND NOT FIXED (`G246`): THE CENSUS
+> HANDS OUT STENCIL VALUES A LIVE EVENT IS HOLDING.** `target_pixels` differed across runs on rows
+> with the SAME `mask_value`; the delivered PNG shows **TWO connected components** for that tag
+> (66,837 + 18,330 px), and the census's own log shows it arming `tags=200..226` / `227..253` —
+> **the whole reserved range, including live event values.** Incidence **22 of 448 tag-instances
+> (4.9 %), 12 on the A1 binary and 10 on A2 ⇒ PRE-EXISTING, not binary-attributable.**
+> ⚠ **`MASK-TIE` STRUCTURALLY CANNOT SEE IT** — the intruder is in both the table and the PNG, so it
+> reads `MATCH`. ⚠ **`target_pixels` and `bbox_drawn_px` both inherit it.** ⛔ Not fixed: it is a
+> census-allocator change with its own gate set.
+>
+> 🏁 **LYRA — LEG A, LEG B AND `LG-9`.** Worktree `fe89e11` → `328ca28` (detached, clean both
+> ways); main checkout stayed on `master`. **LyraEditor exit 0, ZERO warnings.** Banked
+> `A2L_LEGA`/`A2L_LEGB`/`A2L_LG9`, 0 size mismatches.
+> **`LG-1` PASS** (0 of 7 / 0 of 6; **TIE MATCH 40 / MISMATCH 0**) · **`LG-3` PASS**
+> (`MaterialInstanceDynamic_193(depth+stencil)` in the artifact) · **`LG-5` PASS** (occlusion
+> **5/2/2/3/1/1/3 of 9**, the 1-of-9 boundary twice) · **`LG-6`/`LG-8` PASS**
+> (`PASS 6 · SHIFT 0 · NOT-VISIBLE 0 · NOT-MEASURABLE 1`, every confidence annotation quoted) ·
+> **`LG-7` PASS** (`frames_shaders_pending 0` against a process-global `pending=6784`).
+> ⚠ **`LG-4` (BLOCKING) DID NOT FIRE THIS RUN — `NOT EXERCISED`, SAID SO, NOT CLAIMED:** the host
+> wrote no custom depth, so hygiene read `identical=1 excluded=0`. It fired on the 073 leg and **A2
+> does not touch `RunStencilHygieneCheck`.** ⚠ **`LG-2` DID NOT OCCUR NATURALLY AGAIN** —
+> `unmeasured_frame_count` 0 on all 7 events. Not faked, second session running.
+>
+> 🔬 **LEG B IS ANSWERED, AND THE FIXTURE IS WHY.** `IAI.Bench.CensusMaskDump` gave the first
+> tagged-vs-untagged pair this project has ever had **with no anomaly anywhere in the comparison**:
+> 36 batches × 14 tagged actors with silhouettes and bounds. On 21 TAG-CHANGE vs 25 control pairs,
+> pose-matched, both sides negative, **using ONE reference silhouette for both classes**:
+> RING2 **0.9836 vs 0.9204**, RING6 0.6383 vs 0.6064, RING12 0.5486 vs 0.5251, RING20 0.5141 vs
+> 0.4939, AMBIENT **1.0609 vs 1.0777**. **The profiles agree within 7 % at every radius and the ring
+> sits BELOW ambient in BOTH classes** (DRAWS needed ≥3×). 🔑 **And a proxy-independent argument: 14
+> actors are tagged at once including a 733,944 px SkySphere, so an outline would move the WHOLE
+> picture — AMBIENT is LOWER on the treatment side.** ⇒ **VERDICT: NO DETECTABLE EFFECT.**
+> ⛔ **`G120`: that is a statement about the measurement, not a claim `MPP_Outline` never draws.**
+> ⚠ **Limit stated: "tagged" is inferred from a census ARM at that tick — a PROXY**; the artifact
+> carries no per-frame stencil read and none was manufactured. Instrument proven both ways first.
+>
+> 🚨 **`LG-9`: THE PRE-DECLARED READING IS `NOT EXERCISED` AND WHAT HAPPENED INSTEAD IS BIGGER —
+> `I11-A` REPRODUCED ON A REAL GAME, NATURALLY, AT SCALE.** `L_Convolution_Blockout` (map name
+> confirmed from the engine's own `Bringing World` line): **`census_candidates` 63,
+> `census_unmeasurable_nanite` 55 (87 %)**, 7 bursts, **6 events ALL VETOED as `MEASURED_ZERO
+> maxCount=0`, and ALL SIX TARGETS CARRY THE NANITE SIGNATURE** (verified per asset offline) ⇒
+> **`anomalies: []` from 90 frames and 43 positive frames.** The census correctly says
+> `NOT_MEASURABLE(nanite)` (which ADMITS, the `H6` safe direction); the picker fires anyway; the
+> custom-depth pass runs because OTHER actors are tagged; the Nanite target draws nothing; and `m26`
+> reads that as a MEASURED zero and **deletes the event.** ⇒ **on a Nanite-heavy host the `m26`
+> veto fires BEFORE `m49`'s unmeasured fallback can, so the fallback is not what protects the
+> dataset there — and the dataset gets NOTHING.** ⛔ Not fixed; it is `I11-A`'s open question.
+> 🎯 **AND IT IS WHERE THE TRANSLUCENT EXCLUSION FIRED — the `G96` positive proof, on a REAL host
+> actor:** `BakedStaticMeshActor_C_UAID_…1750161557` / `MeshA_17F7D1`, **not Nanite**, so the two
+> exclusions are disjoint classes. `T3-PROBE` was UNRUNNABLE on StackOBot (all three container
+> materials `blendMode=0 translucent=0`, the lever REFUSED BY NAME and spawned nothing) and the
+> predictions file said the proof would have to ride Lyra. **It did.**
+>
+> ⚠ **`m44`'s `G7` WAS READING THE WRONG SET UNDER SCHEMA v2 — A CHECKER DEFECT, NOT A BUILD ONE
+> (`G247`).** It keys on `affected_frames`, which under v2 is the OBSERVABLE subset, while the mask
+> is armed on the INJECTED set — so `OBS-3` read `FAILED G7 stray 5` on a correct build. Re-keyed
+> to `injected_frames`, which **RESTORES `m44`'s original predicate rather than loosening it**, with
+> a v1 fallback. ✅ **Proven both ways: PASS on the real legs, `FAIL stray 2 [9,10]` on a truncated
+> copy.**
+>
+> 🚨 **A MISTAKE I MADE AND REPAIRED:** the first A2 binary `5D40BA28` carried a full gate set and I
+> **deleted its archive** while staging the lever fix. **The repair was to RE-RUN THE ENTIRE CAMPAIGN
+> on the final `8839D806`**, so every reading rests on one binary — better provenance than what the
+> deletion destroyed. Every `5D40BA28`-era leg was KEPT, renamed `X5D40_*`, never overwritten.
+> ⚠ **`A2G_BL_SYN` HALTED after 4 `A63` discards** (3 × genuine `A47` rotation bifurcation, 1 ×
+> `A56` self-consistency at the exact calibration bbox) **and my summary script silently printed the
+> PREVIOUS leg's numbers for it** (`G142` again). Caught, re-run, accepted on attempt 1, all gates
+> green; every discard banked.
+> ⚠ **The `si=8` synth pairing excursion recurred: `NEITHER 1` at `si=8`, Δ 49.3** against banked
+> 49.5 (`EC60E9B9`) and 41.2 (`DE65F84A`) **on the same frame** ⇒ branch (a) of
+> `b28_si8_predeclared.md`, not binary-attributable. **`PREVIOUS == 0` on all four legs.**
+> ⛔ Tolerance NOT widened.
+>
+> 🎯 **NEXT IS `m49` PHASE A2b, AND ITS LIST IS: `docs/client-readme.md` schema-v2 field table +
+> a v1→v2 changelog · `client-delivery.md` (the two ini keys, the verifier command) ·
+> `PRE-DELIVERY-CHECKLIST.md` · the `MPP_Outline` refuse-or-warn rule DECIDED FROM `LG-9`/Leg B's
+> reading (which is NO DETECTABLE EFFECT, so the honest default is probably NO RULE — chat decides) ·
+> then PHASE B (the GPU drawn-count shader + a full cook, `G129`).** ⛔ **Do not start it unprompted.**
+> 📌 **FILED, NOT BUILT, EACH WITH ITS OWN GATES: (1)** the census stencil-range collision (`G246`);
+> **(2)** `I11-A` on Nanite hosts — `MEASURED_ZERO` vs `NOT_MEASURED` when the pass ran for other
+> actors (`LG-9` §5.3); **(3)** `LG-2` still unexercised on two Lyra sessions; **(4)** `LG-4`'s
+> branch needs a Lyra leg where the host writes custom depth.
+> ⏳ **OPEN AND NOT OURS:** the Bates delivery window — `_bates_reads\` still holds **no session
+> folder**, so the known-answer gate is **UNRUNNABLE**, reported as such and never as passed.
+>
+> ---
+>> 🏁🏁 **SESSION 073, 2026-09-04 — `m49` PHASE A1 IS SHIPPED AND MERGED TO `master` AS `b0cbf1d`.
 > `OBS-1` PASSES, EVERY STACKOBOT GATE PASSES IN BOTH TICK ORDERS, AND EVERY LYRA LEG-A GATE PASSES
 > INCLUDING THE BLOCKING `LG-4`. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND
 > IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁

@@ -410,7 +410,35 @@ boxes, editor billboards, landscape, debug/streaming actors), which must never b
   threshold would cull. All types are in `Core`/`Engine` → no new dep. **Also exposed on the Tier-2 dashboard** via the
   control-server WS command `set_min_screen_coverage {pct}` → `SetMinScreenCoveragePct`, plus the `session.minScreenCoverage`
   snapshot field (percent; 0 = OFF) for the live slider — mirroring poll-radius (`set_poll_radius` / `session.pollRadius`).
-- All types are in `Engine` → **still no new module dependency**.
+- **Translucent-only candidate exclusion (m49 phase A2; default ON, knob to restore).** A third
+  actor-level gate on the same shared classifier `ClassifyRenderableVisibleLive`, so both live entry points apply it
+  identically and the `IAI.DumpVisible` set-identity property holds. An actor is REFUSED iff it has at least one
+  renderable-visible component and **every** one of them is translucent-only. The predicate is
+  `AnomalyViewport::IsTranslucentOnlyComponent(Comp, bAllowCustomDepthOptIn)` — every material slot present, every slot
+  `IsTranslucentBlendMode`, and (when `bAllowCustomDepthOptIn`) no slot opting in via
+  `IsTranslucencyWritingCustomDepth()`. **It is SHARED with the census**, which dropped its private
+  `ComponentSlotsAllTranslucent` and now calls it, so selection and the census's `EXCLUDED(translucent)` verdict cannot
+  drift apart. ⚠ **The two consumers pass a DIFFERENT ARGUMENT on purpose:** the census passes its configured
+  `bIncludeTranslucentCustomDepthWriters` (default `false`), the picker passes `true` — the census asks "is this in my
+  measurable population under my policy", the picker asks "can the target mask measure this at all", and a translucent
+  material that writes custom depth **can** be measured.
+  **Why it exists:** such a target writes no depth and no custom depth, so `m43`'s target mask measures nothing for it —
+  every frame of its event reads `target_pixels: -1` / `observable: null` and the event ships with
+  `observability_measured: false`. The picker is the only place the dataset never gains that event at all.
+  **Where it is applied and why NOT at `IsRenderableComponent`:** putting it at the `G33` chokepoint (where the foliage
+  exclusion lives) would make the census stop COUNTING translucent components as renderable, so its
+  `TranslucentOnly == Renderable` test could never hold and `census_excluded_translucent` would read a permanent 0 —
+  a silent regression of an existing diagnostic (`G96`).
+  **Cost when ON is bounded:** the full component pass runs only for actors whose FIRST renderable-visible component is
+  itself translucent-only; everything else short-circuits on that one cheap material read and traces nothing extra.
+  **OFF is byte-identical in result and cost.** Knob `IAI.Select.AllowTranslucentOnlyTargets <0|1|default>` / ini
+  `[AnomalyInjector] AllowTranslucentOnlyTargets`, compiled default **excluded**, `G139` three-branch provenance echo.
+  **AUTO-POOL selection only — a targeted fire is never blocked.** One `EXCLUDED-TRANSLUCENT` line per actor per run;
+  `run_summary.translucent_only_excluded_targets` counts DISTINCT ACTORS refused. ⚠ **`G140` boundary:** the same seed
+  picks different targets across this change, so banked auto-pool runs are non-comparable to a run with a different
+  setting; targeted legs are unaffected.
+- All types are in `Engine` → **still no new module dependency** (`MaterialShared.h` / `Materials/MaterialInterface.h`
+  are `Engine` public headers, and `RenderCore`/`RHI` are public dependencies of `Engine`).
 
 ## Control surface (console commands)
 Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's world, null-guarded
@@ -471,6 +499,11 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
 - `IAI.TestVisibility <substring> <ox oy oz> <pitch yaw roll> [fovDeg] [aspect]` — **diagnostic** (not an
   anomaly): test the `AnomalyViewport` core against a **synthetic** view and log per-component
   `frustum / unoccluded / visible`. The deterministic synthetic-view state-gate driver.
+- `IAI.Select.AllowTranslucentOnlyTargets <0|1|default>` (m49 phase A2) — restore translucent-only actors to the
+  AUTO-POOL candidate set. Registered in `AnomalyDefaults.cpp` as a plain world-independent `FAutoConsoleCommand`;
+  prints an `EFFECTIVE READ-BACK`. **PRECEDENCE: console > `DefaultGame.ini` `[AnomalyInjector]`
+  `AllowTranslucentOnlyTargets` > the compiled default (excluded).** See the exclusion's entry above for what it does
+  and why it sits on the classifier rather than on `IsRenderableComponent`.
 - `IAI.Anomaly.BlinkHalfPeriod <frames|default>` / `IAI.Anomaly.LodHalfPeriod <frames|default>` (session 051) —
   set the **AUTO-POOL** default half-period for `blinking` / `lod_popping`, in FRAMES. Registered in
   `AnomalyDefaults.cpp` as plain world-independent `FAutoConsoleCommand`s. Range `[1..600]`; an out-of-range
@@ -1173,6 +1206,68 @@ pass would evaluate a frame before its own predecessors existed.
 
 ⛔ **The plugin never writes an exposure cvar.** The mark records the game's own auto-exposure
 adapting; it is not a defect flag and is not a fix for a target rendering black.
+
+## `m49` — per-frame observability (phase A1) and the drawn bbox (phase A2)
+
+**The measurement.** `ServiceTargetMask` already computed a per-tag `Count` (and per-tag bounds) for its
+`MASK-TIE` line and threw them away. `FTargetMaskOutcome` now carries `{ State, Counts, Bounds }` per session
+index, and the **drain join** — the one that already joins by `SessionIndex` — fills
+`Snap->TargetPixels[i]` from `Counts[(uint8)Snap->MaskValues[i]]` and `Snap->DrawnBounds[i]` from
+`Bounds[...]`. **Indexed by the SAME `mask_value` the row emits**, so the label's number and the delivered
+mask PNG cannot disagree by construction — that is the `MASK-TIE` guarantee made client-visible, and it is
+what the `TARGET-PIXELS TIE` gate asserts against the PNG's own pixel count. `-1` when there is no outcome,
+no mask, or `mask_value == 0`.
+
+**`observable`** is `true | false | null`. `null` ⇔ `target_pixels == -1` (unmeasured). Otherwise
+`observable = IsFireLabelledThisFrame(F) && ConditionHeld && target_pixels >= ObservableMinPixels`.
+🔑 **The active term is `IsFireLabelledThisFrame`, NOT `FireActive`** — `ComputeFireActive`'s fallthrough
+returns `IsLogicallyHidden`, which is **false for a texture swap** (`G242`), and `IsFireLabelledThisFrame` is
+already the predicate `ArmTargetMaskOwn` consults **in the same tick-end** to decide whether that frame's
+mask is armed at all. It is **SAMPLED** into `Snap->FireLabelled` in `SampleDeferredActiveState`, never read
+late in the drain — that would be the stale-read class A1 had just fixed (`G241`).
+`ConditionHeld` comes from `IAnomaly::IsVisualConditionHeld()` (default `IsCurrentlyAnomalous()`), overridden
+by `missing_texture` / `corrupted_texture` to "every captured slot still holds our checker".
+`FramesConditionLost` counts from its own two per-frame samples (**labelled AND not held**) **above** the
+unmeasured early-out, so a mask-blind frame cannot hide a lost condition. ⚠ It is **structurally zero** for
+`ActorHidden` and `AnomalyState` ids — only the two texture types have a real override — and that is where
+its zero is a reading rather than blindness.
+
+**`annotation.json` schema v2** (root `label_schema: 2`): `affected_frames` is the **OBSERVABLE subset**
+(+ `span_frame_count`); **`injected_frames`** keeps the pre-m49 subset unchanged; plus
+`observable_frame_count`, `unmeasured_frame_count`, `observability_measured`. When nothing in an event was
+measured, `observability_measured` is `false` and `affected_frames` **falls back to the injected subset**
+with a loud `OBSERVABILITY UNMEASURED` warning — the honest reading on a mask-blind host (mask off, Nanite,
+translucent-only target, sync fallback), not a claim of visibility. **An event with an empty observable set
+STAYS in the file.** `run_summary` gains `observable_frames`, `frames_condition_lost`,
+`observable_min_pixels`. Knob `IAI.Capture.ObservableMinPixels` / ini `[AnomalyCapture] ObservableMinPixels`,
+compiled default **1** = "any drawn pixel", with a `G139` echo that also prints the per-mille equivalent for
+the written size. ⛔ **1 is not a tuned constant** — it is the only value here that is not a guess (`G135`).
+
+**Phase A2 — the `m39` fold-in, ADDITIVE.** Each anomaly row gains **`bbox_drawn_px`** `[x, y, w, h]`, the
+reduce table's own bounds for that row's tag, or `null` when there is no drawn box. Each event gains
+**`bbox_source`**: `"drawn"` iff at least one of its frames carried a drawn box, else `"projected"`.
+⛔ **`bbox_px` is NOT replaced** — the projected box still ships and still means what it meant.
+⚠ **`bbox_drawn_px` is in the MASK's pixel space** (`SceneColor.ViewRect.Size()`, mapped through the internal
+view rect per `m46`), while `bbox_px` is in the WRITTEN frame's space. They coincide in every configuration
+that can produce a mask at all, because **`m43` REFUSES the target mask when `IAI.Capture.OutputHeight` is
+non-zero**; if that refusal is ever relaxed the two boxes stop sharing a space.
+
+**`mask_map.json` (A2 fix).** `first_frame` / `last_frame` are scoped to the **EVENT**, resolved through a
+per-request `tag -> event_id` map recorded at arm time. Before A2 they were keyed on the stencil VALUE alone,
+so two events sharing a reused value reported one merged range for both — which broke the very
+disambiguation the file's own `note` tells a reader to perform.
+
+**Bench levers (console-only, default off, loudly echoed, byte-inert when off, never in a client payload).**
+`IAI.Bench.TeleportTargetOffscreenAt <si>` moves every live fire's target off screen from `si` and restores
+at `FinishRun`; it promotes components to Movable first and **reads the location back**, reporting `MOVED=0`
+rather than asserting a move it did not achieve. `IAI.Bench.RetakeMaterialAfter <si>` clears every mesh slot
+override to the mesh default, which is what a host re-taking its own materials looks like from here.
+`IAI.Bench.CensusMaskDump <n>` writes the census batch's own mask PNG for the first `n` collected batches to
+`census_mask/tick_<armTick>.png` plus a `census_mask/census_mask_map.jsonl` row per batch — **a PNG write,
+not a new pass**, since the census already does a full readback and per-tag reduce every cycle. It exists
+because the census is the only thing here that tags a **non-anomalous** object, which is what a
+tagged-vs-untagged differential needs. `armTick` is `GFrameCounter` at arm and joins to `labels.jsonl`
+`frame_index`.
 
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:
