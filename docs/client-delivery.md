@@ -714,10 +714,17 @@ tags.** It was measured on one host with one outline material. **If a client's h
 the census is the thing to turn off** — `IAI.Capture.Census 0`, between runs — and the reader names in
 `run_summary.json` are how you find out whether that host has such a material at all.
 
-## Ruling 3 — Nanite and other unmeasurable targets: ADMITTED AS UNMEASURED (lands with `m50`)
+## Ruling 3 — Nanite and other unmeasurable targets: ADMITTED AS UNMEASURED (`m50`)
 
-⚠ **THIS DESCRIBES `m50`, WHICH IS PLANNED AND NOT BUILT. Do not ship this paragraph in a build that
-does not carry it** — see `docs/sessions/2026-09-04-075-m49-a2b-docs-m50-plan.md` §3.
+✅ **`m50` IS BUILT AND MERGED (2026-09-04, `7ecdf5f`). This paragraph is shippable in any build at
+or after that commit.** Verified A/B on two hosts: on the bench the same leg went `anomalies: []` →
+**4 events delivered**; on a real Nanite-heavy game, **0 → 6 events**, all
+`observability_measured: false`, `vetoed_events` **0**.
+⚠ **Still remove it if you ship a build older than `m50`** — a changelog describing a fix the binary
+does not carry is worse than no changelog.
+📌 `run_summary.json` gains one key, **`unmeasurable_targets_admitted`**: how many events shipped
+labelled-but-unmeasured rather than being deleted. **A zero is a reading, not a problem** — on a
+project with Nanite disabled it is the correct answer.
 
 **The problem, measured on a real Nanite-heavy game (session 074, `LG-9`):** on UE 5.1 a Nanite
 primitive cannot write custom depth, so the measurement cannot see it. That was believed safe,

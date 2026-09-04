@@ -6329,3 +6329,118 @@ are the same fact serving two purposes, and only one of them was implemented.
 pool (here: 55 assignable values against a census that has run 77 candidates in one leg). The
 allocator's exhaustion path exists and is loud, but **a gate must read it**, or the fix trades a rare
 wrong number for a frequent one.
+
+---
+
+## G251 - a "last resort" that re-issues a resource it has just proven is unavailable is not a fallback, it is the defect (2026-09-04, session 076)
+
+`G246` measured one stencil value carrying two objects, so `target_pixels` and `bbox_drawn_px`
+described two objects. `m50` step 0 found the whole of it in one line:
+
+    AnomalyMaskMeasure.cpp, AllocateTag
+      for every assignable value: if (IsFree(Tag)) { claim it; return Tag; }
+      // no value was free:
+      const int32 Fallback = ReservedStencilBase + (NextTagOffset % Span);
+      UE_LOG(..., "TAG-POOL EXHAUSTED - ... Re-assigning %d; the collision detectors are the
+             backstop and affected frames discard toward NOT_MEASURED, which ADMITS.")
+      return Fallback;
+
+The loop's entire job is to establish that no value is free. The line after it hands one out anyway.
+**The comment even names the safe outcome it believes will follow - and that outcome does not
+follow**, because the named backstops (verify read-back, unassigned-tag detection) both check that
+the value is *ours*, and it is: it belongs to the census. The reduce then counts both objects and
+the label ships a confident wrong number.
+
+Measured, three ways, in increasing directness: the exhaustion count tracks the defect count leg for
+leg across 16 banked legs (2->5, 1->5, 1->2, 0->0 x13); every one of the 12 affected tag-instances
+carries a value that line re-issued, exactly 3 ticks later; and once the line was made to print the
+ledger, it read **`Re-assigning 230, which is NOT FREE: censusClaimed=[...,230,...]`**.
+
+**The transferable check: when a guard proves a precondition false and the code proceeds anyway,
+the guard is a comment.** Grep for the shape - a validity loop that falls through to an
+unconditional assignment - and ask what the caller does with the value. If the honest answer is
+"nothing, it just uses it", the guard is decoration. **The repair is not a better fallback value;
+there isn't one. It is to return failure and let the system take its already-existing safe path** -
+here, no tag, no arm, state stays `NOT_MEASURED`, the veto ADMITS, and the event ships labelled
+"not measured" instead of measured-wrongly.
+
+---
+
+## G252 - a gate built on a system's BOOKKEEPING inherits the bookkeeping's blind spots; gate on the live state (2026-09-04, session 076)
+
+`m50`'s single-owner gate was first built as an **ownership-log join**: parse the allocator's own
+ARM / RELEASE / assign lines, reconstruct who held each stencil value when, and assert one owner per
+value per frame. It selftested green in both directions on synthetic logs.
+
+Then the can-fail lever fired - a non-target actor deliberately given a live event's stencil value -
+and the gate read:
+
+    si=26 value=227 ncomp=2 sizes=[66837, 48578]  SINGLE-OWNER ::
+      exactly one owner (event 'StaticMeshActor_49') - the extra component is that owner's
+      own disjoint silhouette, not a collision
+
+**It was correct about its own data and wrong about the world.** The intruder was tagged *outside*
+the allocator, so it appears in no allocator line. Every log the gate reads was accurate; the union
+of them was not the truth.
+
+The rebuilt gate reads `FAnomalyStencilTagLedger`'s live tag map - the actual `bRenderCustomDepth`
+value on the actual components at the moment the frame renders - and emits one `TAG-OWNERS` line per
+captured frame. It sees a collision **however it was produced**, and it turned out to be **~7x more
+sensitive** than the connected-component proxy as well (22 violated frames vs 4 on the same leg).
+
+**Two rules:**
+
+1. **Prefer the system's own live state over its records of that state.** Records are written by the
+   code paths you know about; the state is written by all of them.
+2. 🚨 **This is why a can-fail lever must BYPASS the mechanism under test, not exercise it.** A lever
+   that produced the collision *through* the allocator would have been caught by the log join and
+   the blind spot would have shipped behind a green tick. `G96` says prove the detector can fire;
+   this adds: **prove it can fire on an input the detector's own instrumentation never saw.**
+
+---
+
+## G253 - pricing a fix before writing it can REFUTE it, not merely qualify it (2026-09-04, session 076)
+
+`G250` closed with *"price the fix before writing it: folding the quarantine into `IsFree` shrinks
+the usable pool (55 assignable values against a census that has run 77 candidates in one leg)"*, and
+the `m50` plan carried that forward as a pre-declared read on every leg: `TAG-POOL EXHAUSTED`,
+`tagOvertaken`, `census_fires_*`.
+
+Step 0 then measured that read **already non-zero on the A-side**, and measured the exhaustion path
+to be the *entire* defect. ⇒ **the quarantine would have shrunk the pool that was already being
+exhausted, and made the defect it was meant to fix more frequent.** It was not built.
+
+**The price was not a caveat to attach to the fix. It was the argument against it, and it had been
+written down before the measurement existed.** A cost stated in advance is a falsifier: if the
+measurement lands on the cost rather than on the benefit, the design is refuted and a note in the
+"known limitations" section is the wrong response.
+
+⚠ **And the shape recurs: this is the second consecutive session in which a fix was stopped by
+reading the code it was supposed to change** (`G249` was the first - the ownership ledger already
+existed). Both stops were cheap. Both would have shipped a green tick over a live defect.
+
+---
+
+## G254 - when two consumers share a fixed pool, the ELASTIC one must leave headroom for the INELASTIC one (2026-09-04, session 076)
+
+The stencil pool has 55 assignable values and two consumers:
+
+  - the **census**, which tags dozens of candidates per batch and can always arm fewer and requeue -
+    it already had that path, and short batches are ordinary;
+  - the **event allocator**, which needs exactly one value per anomaly event and has **no** graceful
+    smaller request: an event either gets a tag or cannot be measured.
+
+They were competing symmetrically, first-come-first-served, and the census - arriving in batches of
+27 against 55 - routinely took the lot. The fix is one test in the census's allocation loop
+(`NumFree() <= EventTagHeadroom` -> stop, requeue) and it changed no census semantics.
+
+**The asymmetry to look for is not "who is more important" but "who can take less".** A consumer
+that can degrade gracefully should be the one that degrades; a consumer whose only failure mode is
+total should never be the one that hits the wall. Partitioning the pool was considered at `m44` and
+correctly rejected (55 values against 77 candidates), and **headroom is not partitioning** - the
+census may still use every value, it just may not take the last N.
+
+⚠ **Price it and gate it.** Here: headroom 8 of 55, the census cut short 9-16 times per normal leg
+and 108 times at a deliberately narrowed pool, `census_fires_*` unchanged, cycle length not
+measurably affected, and `TAG-POOL EXHAUSTED` is a gate read on every leg rather than a log line
+nobody looks at.

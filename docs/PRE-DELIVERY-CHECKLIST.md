@@ -310,24 +310,40 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       translucent-only — but the echo must be there whether or not the rule ever fired, or a lost ini
       key is indistinguishable from a rule that never bit (`G139`).*
 
-### ⛔ `m50` — PLACEHOLDERS. THESE ARE NOT TICKABLE YET AND THE BUILD DOES NOT CARRY THEM.
+### ✅ `m50` — SHIPPED 2026-09-04 (session 076, `7ecdf5f`). THESE ARE NOW TICKABLE.
 
-*Both are consequences of measurements taken in session 074 and are planned in
-`docs/sessions/2026-09-04-075-m49-a2b-docs-m50-plan.md` §3. They are listed here so that a cook run
-before `m50` lands cannot silently skip them, and so that the cook AFTER `m50` has its gates written
-down in advance.* 🚨 **Chat has ruled that `m50` lands BEFORE any client cook.**
+🔻 *These two were placeholders written in session 075 against a plan. `m50` shipped, so they are
+live boxes now — and **both of their figures were corrected by the measurement that fixed them**,
+which is recorded in place rather than silently overwritten.*
+🚨 **Chat's ruling that `m50` lands BEFORE any client cook is DISCHARGED: it has landed.**
 
-- [ ] ⛔ **`m50` STENCIL SINGLE-OWNER GATE (not built).** Per captured frame, every non-zero value in
-      the delivered mask PNG must belong to **exactly one** owner in that frame's log — one live event
-      OR one census batch, never both. **Bench incidence before the fix: 22 of 448 tag-instances
-      (4.9 %) carried two connected components.** ⚠ **`MASK-TIE` STRUCTURALLY CANNOT SEE THIS** — the
-      intruder is in the reduce table *and* in the PNG, so the tie reads MATCH. **A green MASK-TIE is
-      not evidence for this box.**
-- [ ] ⛔ **`m50` UNMEASURABLE-TARGET ADMISSION (not built).** On a Nanite-heavy host, a capture that
-      fires N events must deliver N events with `observability_measured: false` — **not
-      `anomalies: []`**. *Measured on a real Nanite-heavy game: 6 of 6 events vetoed, 90 frames and 43
-      positive frames delivering an empty `anomalies` array.* **Read `vetoed_events` and the event
-      count together; an empty array with a non-zero fire count is the failure this box exists for.*
+- [ ] 🚨 **`m50` STENCIL SINGLE-OWNER GATE.** On every captured frame, each stencil value must be
+      carried by **exactly one actor**. The build asserts this itself and logs
+      `Capture(mask): TAG-OWNERS si=… shared=N` per captured frame plus a run-end
+      `Capture(m50): TAG-OWNER VIOLATIONS = N`. **Read that run-end line: it must be 0.**
+      *Offline: `python Plugins/CaptureBench/tools/m50_tag_owner.py --gate <session>` (exit 1 on any
+      violation, and it REFUSES rather than passing on a log with no `TAG-OWNERS` line).*
+      🔻 **CORRECTED FIGURE: the pre-fix bench incidence is 12 of 448 tag-instances (2.7 %), all of
+      them on one binary — NOT the 22 / 4.9 % this box previously carried from journal 074.** And the
+      connected-component count that produced that figure **under-reads the real incidence by about
+      7×**, so it is a proxy and gates nothing.
+      ⚠ **`MASK-TIE` STRUCTURALLY CANNOT SEE THIS** — the intruder is in the reduce table *and* in
+      the PNG, so the tie reads MATCH. **A green MASK-TIE is not evidence for this box.**
+- [ ] 🚨 **`m50` ALLOCATOR HEADROOM — `TAG-POOL EXHAUSTED` must not appear in the run log.** It is an
+      `Error` line and it is the tripwire for the defect above. *Its presence does not corrupt a
+      label any more — the event is admitted unmeasured instead — but it means the pool ran out, and
+      on a long capture that is the structural ceiling described in the `m50` journal §5.*
+- [ ] 🚨 **`m50` UNMEASURABLE-TARGET ADMISSION.** On a Nanite-heavy host, a capture that fires N
+      events must deliver N events with `observability_measured: false` — **not `anomalies: []`**.
+      *Measured on a real Nanite-heavy game BEFORE the fix: 6 of 6 events vetoed, 90 frames and 43
+      positive frames delivering an empty `anomalies` array. AFTER: the same leg delivers 6 events,
+      all `observability_measured: false`, `vetoed_events 0`.* **Read `vetoed_events` and the event
+      count TOGETHER; an empty array with a non-zero fire count is the failure this box exists for.**
+- [ ] **`run_summary.json` carries `unmeasurable_targets_admitted`** (the `m50` key, `64 → 65`).
+      *A non-zero value is NOT a defect — it is the count of events that shipped honestly labelled
+      instead of being deleted. **A zero is a READING, not a pass**: on a host with Nanite disabled
+      it is the correct answer, and `census_unmeasurable_nanite` is the field that says whether such
+      a target existed at all.*
 - [ ] 🆕 **`shader_prewarm_ms` is present in `run_summary.json` and `frames_shaders_pending` reads 0.**
       *Reported, not gated — see the box above for why. A non-zero `frames_shaders_pending` on a
       PACKAGED cook would be genuinely surprising and is worth stopping for.*

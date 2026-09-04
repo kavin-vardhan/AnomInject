@@ -11,9 +11,117 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🏁🏁 **SESSION 075, 2026-09-04 — `m49` PHASE A2 IS DONE, CODE **AND** DOCS. `m50` IS PLANNED AND
-> AWAITING CHAT APPROVAL. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS
-> SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> 🏁🏁 **SESSION 076, 2026-09-04 — `m50` IS SHIPPED AND ON `master` (`7ecdf5f`, pushed). ALL TEN
+> GATES PASS IN BOTH TICK ORDERS, THE CAN-FAIL LEVER FIRES 22 TIMES IN EACH, AND THE `LG-9` SHAPE IS
+> REPRODUCED **AND REMOVED** ON BOTH A BENCH FIXTURE AND A REAL GAME. THIS IS THE CURRENT "YOU ARE
+> HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: `docs/sessions/2026-09-04-076-m50.md` (self-contained — §2 the diagnosis, §3 the fix,
+> §4 the gates), then `docs/predictions/2026-09-04-m50.md`, then the 075 block below.**
+>
+> ⛔ **NO TAG · NO COOK.** 📦 Staged bench exe **`A159EDFD`**; container quartet **BYTE-UNCHANGED**
+> (`EF8EB23C`/`A8BFFF88`/`3C026A8D` + `A16A18A8`/`C70ECDAA`) — code-only hot-swap (`G103`), exactly
+> as the `m50` plan predicted (no shader, no shader parameter struct). Predecessor **`8839D806`
+> STAYS LOAD-BEARING** — it is `P-C7 v3`'s A-side **and** `G8`'s BEFORE picture. Step-0 instrument
+> binary **`9FAF70D5`** archived and load-bearing as the pre-fix A-side.
+>
+> 🚨 **STEP 0 RETURNED `D1`, NOT THE `D2` THE PLAN LED WITH, AND THAT REDIRECTED THE WHOLE FIX.**
+> `G246`'s stencil collision is produced by **ONE LINE**: `AllocateTag`'s `TAG-POOL EXHAUSTED`
+> fallback **re-issuing a value it has just proven is NOT FREE** (`AnomalyMaskMeasure.cpp`).
+> Proven three ways, in increasing directness: **(1)** the exhaustion count tracks the defect count
+> leg for leg across the 16 banked G-EDGE legs (2→5, 1→5, 1→2, **0→0 on the other thirteen**);
+> **(2)** every one of the 12 affected tag-instances carries a value that line re-issued, **exactly
+> 3 ticks earlier** (82→85 v227 · 30→33 v224 ×2 · 56→59 v225); **(3)** 🎯 once the line printed the
+> ledger it read **`Re-assigning 230, which is NOT FREE: censusClaimed=[…,230,…]`** — no inference at
+> all. **`D2`/`D3`/`D4` are REFUTED, not merely unused**: `tagOvertaken` **0** on every step-0 leg.
+>
+> 🚨 **⇒ THE 075 PLAN'S QUARANTINE IS NOT BUILT, AND THE REASON IS A MEASUREMENT: it shrinks the very
+> pool that was already being exhausted, so it would make this defect MORE frequent.** The plan had
+> **pre-declared that exact cost** (`G250`) and the measurement landed on it. 🔑 **Pricing a fix
+> before writing it can REFUTE it, not merely qualify it** (`G253`) — and this is the **second
+> consecutive session** in which a fix was stopped by reading the code it was supposed to change.
+>
+> 🎯 **THE FIX IS TWO HALVES, one mechanism between them.** **(A)** the census leaves
+> **`EventTagHeadroom = 8`** values free: it is the **ELASTIC** consumer (short batch → requeue,
+> a path it already had) while the event allocator is **INELASTIC** (an event must have a tag), so
+> **the elastic consumer yields** (`G254`). **(B)** the exhaustion path **issues NO tag** — the
+> record is marked unmeasurable, no arm is made, `R.State` stays `NotMeasured`, the `m26` veto
+> **ADMITS**, and the event ships `target_pixels -1` / `observable null` /
+> `observability_measured false`. **A confident wrong number became an honest absence.**
+>
+> 🎯 **RULING 3 SHIPPED AND IS MEASURED A/B ON TWO HOSTS.** `ComponentRendersAsNanite` is promoted
+> into a shared **`AnomalyMeasurability`** header **inside `AnomalyCapture`** (⛔ never
+> `AnomalyViewport` — `G127`); a target known unmeasurable is classified at record creation and
+> **SKIPS THE ARM**, which is what leaves the veto and the label writer **untouched**.
+> **Bench (`SM_Ramp2`, census ON): `vetoed_events` 4 → 0, `anomalies: []` → 4 EVENTS DELIVERED.**
+> **Lyra `L_Convolution_Blockout`: `vetoed_events` 6 → 0, `anomalies: []` → 6 EVENTS DELIVERED**,
+> all `observability_measured false`, `affected == injected`, `bbox_source "projected"`.
+> ⚠ **The `G96` trap the plan declared in advance was avoided** — the predicate is NOT pushed to the
+> `G33` chokepoint, so `census_unmeasurable_nanite` still fires (**29** bench, **61** Lyra).
+>
+> 🧪 **GATES — ALL TEN, BOTH TICK ORDERS.** **`G1` 0 violations over 1,180 owner-checked frames**
+> (+90 on Lyra) · 🚨 **`G2` the can-fail lever REPORTS 22 violations NATIVE and 22 SYNTH**, so G1's
+> zeros are readings · **`G3` 0 exhaustions / 0 violations / 0 multi-component** against **1
+> exhaustion and 7 violated frames on the natural pre-fix leg** · **`G4` TARGET-PIXELS TIE 0
+> MISMATCH** (pre-declared as **NOT** evidence for G1) · **`G5` `m44_gates` ALL PASS stray 0 on 10
+> legs · onset-join 0 failing · `OBS-1` delta 0 · pairing `NEITHER 0 · PREVIOUS 0` on all four legs
+> incl. SP50 · black-frame PASS, DARK FIRST 0 · `A44` both encodings · both build targets exit 0,
+> ZERO warnings** · **`G6` 0 `TAG-POOL EXHAUSTED` on every leg — including at `TagPoolLimit 8`, where
+> headroom cut the census short 108 times, so the rule is LIVE not inert** · **`G7`/`G8`/`G9` above**
+> · **`G10` `P-C7 v3` on all 8 pairs: labels and annotation added 0 removed 0, `run_summary` 64 → 65
+> adding EXACTLY `unmeasurable_targets_admitted`, and `frame_indices` IDENTICAL value-for-value 4 of
+> 4 on every pair.**
+>
+> 🚨 **THE FIRST VERSION OF THE GATE EXONERATED A REAL COLLISION, AND THAT IS THE SESSION'S BEST
+> LESSON (`G252`).** The single-owner gate was first an **ownership-log join**; the can-fail lever
+> then produced a genuine two-object frame and the gate read *"exactly one owner — the extra
+> component is that owner's own disjoint silhouette"*. **It was right about its own data and wrong
+> about the world**: the intruder was tagged OUTSIDE the allocator and appears in no allocator line.
+> ⇒ the gate now reads **`FAnomalyStencilTagLedger`'s LIVE TAG MAP** (`Capture(mask): TAG-OWNERS`,
+> one line per captured frame), so it sees a collision **however produced** — and it is **~7× more
+> sensitive** than the connected-component proxy (22 violated frames vs 4 on the same leg).
+> 🔑 **A can-fail lever must BYPASS the mechanism under test, not exercise it.**
+>
+> 🔻 **TWO CORRECTIONS TO THE RECORD, both declared before any gate reading.** **(1) `G246`'s
+> "22 of 448 (4.9 %), 12 on one binary and 10 on the next" DOES NOT REPRODUCE.** The denominator
+> reproduces exactly (**448**); the numerator is **12, ALL of them on the A1 binary `EC60E9B9`, and
+> 0 of 224 on `8839D806`**. Three of journal 074 §4's four named rows reproduce **to the pixel**
+> (incl. the `66,837 + 18,330` split); the fourth reads 1 component, not 2. ⛔ **The OBSERVATION and
+> the mechanism CLASS are untouched — only the count.** **(2) 12-vs-0 is NOT immunity** — `m49` A2
+> touched neither allocator, and a **natural, lever-free** leg on the instrumented pre-fix binary
+> exhausted once and produced **7 violated frames**. ⚠ **(3) And the proxy that produced the original
+> figure UNDER-READS by ~7×** — a collision is invisible to it whenever the intruder is occluded,
+> off-screen or coincidentally adjacent. **The component count now gates nothing and is reported
+> beside the verdict as the proxy it is.**
+>
+> ⚠ **ONE FIELD ATTRIBUTED RATHER THAN WAVED THROUGH:** `P-C7 v3` flagged `exposure_dip` on two of
+> eight pairs. **NOT `m50`** — `frames_exposure_dip` is non-zero on BOTH sides (5 vs 7, 3 vs 7) and
+> **0 on both sides for the non-hide type**. 📌 **The reading underneath it, filed NOT fixed: on
+> hide-class anomalies at PINNED exposure, `m48`'s detector fires because the hide itself removes a
+> bright object and drops whole-picture luminance >4 % — that is the anomaly, not the game's
+> auto-exposure, which is what the key is named for.** Pre-existing, out of `m50`'s scope.
+>
+> ⚠ **NAMED LIMITATION, DECLARED IN THE PREDICTIONS FILE RATHER THAN DISCOVERED: `EventClaimed` is
+> never released mid-run BY DESIGN** (`mask_map.json` maps value → event for the whole session, so
+> re-use would make two events ambiguous). With **55 assignable values and one permanent value per
+> event**, a long enough run still exhausts the pool. **The headroom removes the MEASURED cause; it
+> cannot remove that ceiling. What `m50` changes is what happens AT the ceiling.**
+> ⚠ **`G140` BOUNDARY: `mask_value` moves across `7ecdf5f` on auto-pool legs** — the census now stops
+> short of the last 8 values, so the relabelling is bijective but different.
+>
+> 🗂 **Section G's host is RULED: BATES** (one added paragraph on the card). ⛔ **The Concorde
+> findings are the CLIENT's M2 review and are read only through the verifier that host runs.**
+> ✅ **`PRE-DELIVERY-CHECKLIST.md`'s two `m50` placeholders are now TICKABLE**, with both of their
+> figures corrected in place; `client-delivery.md`'s ruling-3 paragraph is marked SHIPPABLE.
+>
+> 🎯 **NEXT: `m49` PHASE B** (the GPU drawn-count shader + a **full cook**, `G129`), **THEN the
+> delivery gates on Lyra, THEN card Sections G and F on Bates.** ⛔ **Do not start any of it
+> unprompted.**
+> ⏳ **OPEN AND NOT OURS:** the Bates delivery window — Section G is the route and it runs on that box.
+>
+> ---
+>> 🏁🏁 **SESSION 075, 2026-09-04 — `m49` PHASE A2 IS DONE, CODE **AND** DOCS. `m50` WAS PLANNED HERE
+> AND HAS SINCE SHIPPED (see the 076 block above, which supersedes this one wherever they disagree —
+> in particular the `m50` branch, the fix shape and the 4.9 % figure).** 🏁🏁
 > **Cold start: `docs/sessions/2026-09-04-075-m49-a2b-docs-m50-plan.md` (self-contained — §1 the three
 > rulings, §2 the docs, §3 the `m50` plan, §4 NEEDS-DECISION), then the 074 block below.**
 >
