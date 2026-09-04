@@ -49,6 +49,7 @@ namespace AnomalyLabel
 		TArray<FVector> FirePos;
 		bool bExposureDip = false;
 		TArray<int32>   TargetPixels;
+		TArray<uint8>   FireLabelled;
 		TArray<uint8>   ConditionHeld;
 		TArray<uint8>   Observable;
 	};

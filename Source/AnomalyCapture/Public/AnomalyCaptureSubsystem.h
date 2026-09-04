@@ -166,7 +166,7 @@ private:
 	void EndRunLog();
 	bool ResolveRunLogEffective(FString& OutSource) const;
 	void RunStencilHygieneCheck(bool bFinal);
-	int32 ScanHostPostProcessCustomDepthReaders(UWorld* World) const;
+	int32 ScanHostPostProcessCustomDepthReaders(UWorld* World, TArray<FString>* OutNames = nullptr) const;
 	void ServiceTargetMask();
 	void ReleaseTargetMaskSelfTags();
 	bool ArmTargetMaskOwn(int32 SessionIndex);

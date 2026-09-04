@@ -1881,7 +1881,7 @@ const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusTranslucentWritersSource() 
 	return TEXT("COMPILED DEFAULT (off)");
 }
 
-int32 UAnomalyCaptureSubsystem::ScanHostPostProcessCustomDepthReaders(UWorld* World) const
+int32 UAnomalyCaptureSubsystem::ScanHostPostProcessCustomDepthReaders(UWorld* World, TArray<FString>* OutNames) const
 {
 	int32 Volumes = 0;
 	int32 CameraBlends = 0;
@@ -1926,8 +1926,13 @@ int32 UAnomalyCaptureSubsystem::ScanHostPostProcessCustomDepthReaders(UWorld* Wo
 		if (bDepth || bStencil)
 		{
 			++Readers;
-			Names += FString::Printf(TEXT(" %s(%s)"), *MI->GetName(),
+			const FString Entry = FString::Printf(TEXT("%s(%s)"), *MI->GetName(),
 				(bDepth && bStencil) ? TEXT("depth+stencil") : (bDepth ? TEXT("depth") : TEXT("stencil")));
+			Names += TEXT(" ") + Entry;
+			if (OutNames)
+			{
+				OutNames->Add(Entry);
+			}
 		}
 	};
 
@@ -2869,7 +2874,11 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		CensusParams.BenchDropEveryNth = BenchCensusDropEveryNth;
 		Async->Census.Begin(GetWorld(), &Async->TagLedger, CensusParams);
 
-		Async->Census.NoteHostPpReaders(ScanHostPostProcessCustomDepthReaders(GetWorld()));
+		{
+		TArray<FString> HostPpReaderNames;
+		const int32 HostPpReaders = ScanHostPostProcessCustomDepthReaders(GetWorld(), &HostPpReaderNames);
+		Async->Census.NoteHostPpReaders(HostPpReaders, MoveTemp(HostPpReaderNames));
+	}
 
 		if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 		{
@@ -3301,6 +3310,13 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Snap->Observable.AddUninitialized(Snap->Fires.Num());
 		for (int32 i = 0; i < Snap->Fires.Num(); ++i)
 		{
+			const bool bLabelled = Snap->FireLabelled.IsValidIndex(i) && Snap->FireLabelled[i] != 0;
+			const bool bHeld = !Snap->ConditionHeld.IsValidIndex(i) || Snap->ConditionHeld[i] != 0;
+			if (bLabelled && !bHeld)
+			{
+				++FramesConditionLost;
+			}
+
 			const int32 Px = Snap->TargetPixels.IsValidIndex(i)
 				? Snap->TargetPixels[i] : AnomalyLabel::GTargetPixelsUnmeasured;
 			if (Px == AnomalyLabel::GTargetPixelsUnmeasured)
@@ -3308,15 +3324,9 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 				Snap->Observable[i] = (uint8)AnomalyLabel::EObservable::Unmeasured;
 				continue;
 			}
-			const bool bActive = Snap->FireActive.IsValidIndex(i) && Snap->FireActive[i] != 0;
-			const bool bHeld = !Snap->ConditionHeld.IsValidIndex(i) || Snap->ConditionHeld[i] != 0;
-			Snap->Observable[i] = (bActive && bHeld && Px >= ObservableMinPixels)
+			Snap->Observable[i] = (bLabelled && bHeld && Px >= ObservableMinPixels)
 				? (uint8)AnomalyLabel::EObservable::True
 				: (uint8)AnomalyLabel::EObservable::False;
-			if (bActive && !bHeld)
-			{
-				++FramesConditionLost;
-			}
 			if (Snap->Observable[i] == (uint8)AnomalyLabel::EObservable::True)
 			{
 				++ObservableFramesTotal;
@@ -3948,6 +3958,13 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 	for (const FAutoLiveFireInfo& F : Snap->Fires)
 	{
 		Snap->FireActive.Add(ComputeFireActive(F));
+	}
+
+	Snap->FireLabelled.Reset();
+	Snap->FireLabelled.Reserve(Snap->Fires.Num());
+	for (const FAutoLiveFireInfo& F : Snap->Fires)
+	{
+		Snap->FireLabelled.Add(IsFireLabelledThisFrame(F) ? 1 : 0);
 	}
 
 	{

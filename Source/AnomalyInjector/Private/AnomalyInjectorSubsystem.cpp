@@ -589,6 +589,7 @@ bool UAnomalyInjectorSubsystem::IsAnomalyVisualConditionHeld(const FName& Id) co
 	}
 	return (*Found)->IsVisualConditionHeld();
 }
+
 bool UAnomalyInjectorSubsystem::IsAnomalyCurrentlyAnomalous(const FName& Id) const
 {
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);

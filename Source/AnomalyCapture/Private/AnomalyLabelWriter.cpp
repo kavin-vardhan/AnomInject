@@ -651,6 +651,14 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("census_fires_partial_fallback"), Census->FiresPartialFallback);
 			Root->SetNumberField(TEXT("census_fires_unseen_candidates"), Census->FiresUnseenCandidates);
 			Root->SetNumberField(TEXT("census_host_pp_customdepth_readers"), Census->HostPpCustomDepthReaders);
+			{
+				TArray<TSharedPtr<FJsonValue>> ReaderNames;
+				for (const FString& Name : Census->HostPpCustomDepthReaderNames)
+				{
+					ReaderNames.Add(MakeShared<FJsonValueString>(Name));
+				}
+				Root->SetArrayField(TEXT("census_host_pp_customdepth_reader_names"), ReaderNames);
+			}
 			Root->SetNumberField(TEXT("census_unmeasurable_nanite"), Census->UnmeasurableNanite);
 			Root->SetNumberField(TEXT("census_unmeasurable_tag_failed"), Census->UnmeasurableTagFailed);
 			Root->SetNumberField(TEXT("census_unmeasurable_hidden"), Census->UnmeasurableHidden);
