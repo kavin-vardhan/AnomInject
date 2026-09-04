@@ -11,6 +11,126 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🏁🏁 **SESSION 073, 2026-09-04 — `m49` PHASE A1 IS SHIPPED AND MERGED TO `master` AS `b0cbf1d`.
+> `OBS-1` PASSES, EVERY STACKOBOT GATE PASSES IN BOTH TICK ORDERS, AND EVERY LYRA LEG-A GATE PASSES
+> INCLUDING THE BLOCKING `LG-4`. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND
+> IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: `docs/sessions/2026-09-04-073-m49-a1-fix.md` (self-contained), then
+> `docs/predictions/2026-09-04-m49-phase-a1.md` INCLUDING ITS AMENDMENT 1.**
+>
+> 🎯 **`m49` PHASE A1 = PER-FRAME OBSERVABILITY DERIVED FROM THE FRAME'S OWN RENDER.** Every anomaly
+> row carries **`target_pixels`** (front-most drawn pixels, `-1` = unmeasured) and **`observable`**
+> (`true | false | null`); `annotation.json` gains **`label_schema: 2`**, `affected_frames` becomes
+> the **OBSERVABLE** subset, `injected_frames` keeps today's subset unchanged, plus
+> `observable_frame_count` / `unmeasured_frame_count` / `observability_measured` and
+> `affected_frames.span_frame_count`. Knob `IAI.Capture.ObservableMinPixels`, **compiled default 1**.
+> ⛔ **NO TAG · NO COOK.** 📦 Staged bench exe **`EC60E9B9`**; container quartet BYTE-UNCHANGED
+> (`EF8EB23C`/`A8BFFF88`/`3C026A8D` + `A16A18A8`/`C70ECDAA`), hashed before AND after — code-only
+> hot-swap (`G103`). Predecessor **`DE65F84A` STAYS LOAD-BEARING** (P-C7 v3's A-side).
+>
+> 🔑 **THE FIX WAS ONE TERM. `observable`'s active term is `IsFireLabelledThisFrame`, NOT
+> `FireActive`** — `ComputeFireActive`'s fallthrough returns `IsLogicallyHidden`, which is **false for
+> a texture swap**, so 072-02 shipped `affected_frames` EMPTY on all four `FireWindow` events. The
+> correct predicate is the one `ArmTargetMaskOwn` already uses **in the same tick-end** to decide
+> whether that frame's mask is armed at all, and it is **SAMPLED per frame** (`Snap->FireLabelled`),
+> never read late in the drain — which would be the stale-read class A1 had just fixed (`G241`).
+> ⚠ **`FramesConditionLost` was hiding behind that same dead term and its `0` was BLINDNESS** — it now
+> counts from its own two samples, above the unmeasured early-out (`G242`).
+>
+> 🚨 **THE CAN-FAIL NEGATIVE IS A BANKED ARTIFACT, NOT A SYNTHETIC LEVER.** The gate-miss binary
+> `1C859DC9` (`_binary_baselines`, leg `A1_A1_NAT`) reads **2 of 6 events correct**; `EC60E9B9` reads
+> **5 of 5 native and 6 of 6 synth, delta 0** — and **the synth leg reproduces the EXACT six-event set
+> that failed 4-of-6.** ⇒ `G96` is satisfied by history. **Do not delete `1C859DC9`.**
+>
+> 🧪 **STACKOBOT — 14 LEGS, BOTH TICK ORDERS, EVERY ATTEMPT BANKED.** `A1-ONSET-JOIN` **0 zeros** on
+> first fire-active frames (was 6 of 6) · first-LABELLED frame carries its own tag AND
+> `target_pixels >= 0` **0 failing** · **TARGET-PIXELS TIE `MATCH 32/35, MISMATCH 0`** — the label's
+> number equals the mask PNG's own count of that tag · `frames_condition_lost` **0** ·
+> `m44_gates` **G2/G3/G3b/G3c/G7/G1 ALL PASS**, stray 0 · **MASK-TIE 0 MISMATCH** · **black-frame gate
+> PASS**, DARK FIRST 0 · **G-EDGE 8 legs `PASS 4 · SHIFT 0 · NOT-VISIBLE 0 · NOT-MEASURABLE 0`,
+> all accepted on attempt 1** · **`A44` 18 new symbols + 3 pre-existing controls, both encodings** ·
+> ✅ **both build targets exit 0, ZERO warnings.**
+>
+> 🔒 **`OBS-5` / `P-C7 v3` IS DECIDED ON THE 8 G-EDGE PAIRS, AND THE OBVIOUS A-SIDE WAS WRONG.**
+> `B20_M45_FULL_*` carries **55** `run_summary` keys — it pre-dates `m47`/`m48` — so it cannot host
+> v3; the banked **`M49_GEDGE_*` legs ARE on `DE65F84A`** and are TARGETED, so they carry no auto-pool
+> selection variance. On all 8 pairs: `labels.jsonl` adds **exactly `target_pixels` + `observable`**,
+> `annotation.json` adds **exactly** the v2 keys, `run_summary` **59 → 63** adding **exactly**
+> `observable_frames` / `frames_condition_lost` / `observable_min_pixels` /
+> `census_host_pp_customdepth_reader_names`, and **`frame_indices` is IDENTICAL VALUE-FOR-VALUE on
+> 4 of 4 events on every leg.** The only differing shared field is **`mask_value`**, fully attributed:
+> **the A-side carries exactly 4 zeros per leg (one per event), the B-side 0** — the onset fix — with
+> the rest a **bijective tag relabelling** by the census allocator. ⚠ `MO_SYN` also moves
+> `frame_index`/`t`, and `P-C7 v2`'s **single-constant** clause is met exactly (**+4 on 90 of 90**,
+> `t` **+0.161216 on 90 of 90**) — the `m41` startup variance, not drift.
+>
+> 🏁 **LYRA IS NOW A GATING HOST AND `LG-4` FIRED THE BRANCH IT WAS BUILT FOR.**
+> `L_ShooterGym`, census at its **COMPILED DEFAULT (ON)**, Lyra's own render defaults (TSR, Lumen,
+> AE ON — deliberately unpinned). Banked `_bench_sessions_bank\A1L_LEGA` (127 files, verified).
+> **`LG-1` PASS** (0 of 7 / 0 of 5; **TIE MATCH 40 / MISMATCH 0**) · **`LG-3` PASS** —
+> `census_host_pp_customdepth_reader_names: ["MaterialInstanceDynamic_162(depth+stencil)"]` reaches
+> the delivered artifact · **`LG-4` PASS (BLOCKING)** — `CENSUS-HYGIENE final HOST-ATTRIBUTED n=3
+> (ours=0 host=3)`, `B_Hero_ShooterMannequin_C_9/CharacterMesh0` gained `bRenderCustomDepth`
+> **value 0**, and **THE LEG DOES NOT FAIL `P-C6`** ⇒ **`G237` closed in code** · **`LG-5` PASS**
+> (occlusion 3/4/4/**1**/3/3 of 9) · **`LG-6`/`LG-8` PASS** (`PASS 4 · SHIFT 0 · NOT-VISIBLE 0 ·
+> NOT-MEASURABLE 2`, every row's `[LOW] … CONTAMINATED=n` quoted) · **`LG-7` PASS**
+> (`frames_shaders_pending 0` against a process-global `pending=7031`).
+> ⚠ **`LG-2` DID NOT OCCUR NATURALLY — SAID SO, NOT FAKED:** `unmeasured_frame_count` is **0 on all
+> six events**. ⛔ StackOBot cannot exercise `LG-4` at all (it writes no host custom depth), so Lyra is
+> the only fixture that can gate it.
+>
+> 🎯 **THE MILESTONE'S POINT, DEMONSTRATED ON A REAL GAME.** Lyra event 0, `blinking` on `Cube7`:
+> **`injected_frames [4,5,9,10]` but `affected_frames [4,5]`** — and the reason is MEASURED. The camera
+> slides right and the target walks off the right edge: `bbox_px` width goes **386 → 349 → 0**,
+> `target_pixels` **14,957 → 3,458 → 0**, `mask_state` **present → empty**, `observable`
+> **true → false**. ⇒ **first time in this project that `affected_frames ⊊ injected_frames` for a
+> measured reason.** 📌 **`OBS-1` is a SETTLED-BENCH gate and is NOT a Lyra gate** — on a
+> moving-camera host `affected ≠ injected` is the correct output, not a failure.
+>
+> ⚠ **`target_pixels 0` + `mask_file: null` + `mask_state: empty` IS CORRECT** (`m44` writes no
+> all-zero PNG), and on a probe leg **`mask_state: present` + `target_pixels: -1` is ALSO correct**
+> (the probe forces the arm; the event's tag was not live that frame). **My checker called the first
+> one 10 MISMATCHes and was wrong; it was fixed before any verdict was read** → **`G243`**.
+>
+> 🔬 **LEG B — "does `MPP_Outline` draw on OUR tags?" — IS *NOT ANSWERED*, AND THAT IS THE HONEST
+> RESULT.** The tag-vs-untag differential (the only design that isolates tagging) found **3 treatment
+> pairs against 2 control pairs, with the CONTROL NOISIER than the treatment** (ratio 0.48) on a
+> TSR + moving-camera noise floor of 1–3.5 mean |Δ| ⇒ **NO POWER, and the limit is STRUCTURAL, not
+> statistical.** The three-region decomposition ran and is **proven against a known answer**
+> (INTERIOR **97.78**, 99.35 % of px, on a `missing_texture` onset — **its first version returned
+> 0.0000 everywhere because PIL's `multiply` is `a*b/255`**), and reads **RING/AMBIENT ≈ 18–21**;
+> ⛔ **but the ring decays only 21.5 → 15.4 from r=2 to r=20 px, which is far too slow for a thin
+> outline and is consistent with the anomaly's own Lumen response — and the pair differs in BOTH
+> tagging and appearance, so it cannot separate the two.** ⛔ **`G120`: nothing here says
+> `MPP_Outline` drew a pixel, or that it did not.**
+> 🧭 **CHEAPEST FIXTURE, PROPOSED NOT BUILT: `IAI.Bench.CensusMaskDump`** — the census already does a
+> full mask readback and a per-tag reduce every cycle; writing that batch's PNG on N frames is **a PNG
+> write, not a new pass**, and it yields a tagged-vs-untagged pair on a NON-anomalous object with the
+> anomaly confound absent. **A2 decides the refuse-or-warn rule from that reading, not from this one.**
+>
+> ⚠ **`A1-ONSET-JOIN`'S PRE-DECLARED CONJUNCT IS UNSATISFIABLE FOR HIDE-CLASS IDS, AND THAT IS A
+> DEFECT IN THE PRE-DECLARATION, NOT THE BUILD.** A `blinking` fire's first fire-active frame is a
+> VISIBLE frame, and by `m44`'s own rule masks appear only on frames labelled for that event, so
+> `target_pixels` is `-1` there by design. Both halves are reported separately (see journal §3.2).
+> ⛔ **The closed predictions file was NOT edited for this** — it rides the journal (`P-C2` route).
+>
+> ⚠ **THE `si=8` SYNTH PAIRING EXCURSION RECURRED AND IS STILL NOT BINARY-ATTRIBUTABLE.**
+> `EC60E9B9` read `NEITHER 1` (Δ **49.5**) and `NEITHER 0` (Δ **33.6**) on two runs of the SAME
+> binary, and **`DE65F84A` — master's own binary — read `NEITHER 1` (Δ 41.2) on the same frame in a
+> fresh run.** That is branch **(a)** of `b28_si8_predeclared.md`, and `PREVIOUS == 0` on every leg.
+> ⚠ **49.5 is LARGER than any previously banked value; stated, not smoothed. The tolerance was NOT
+> widened.** The other three pairing legs (native 100 %, both 50 %) read **`NEITHER 0 · PREVIOUS 0`**.
+>
+> 🎯 **NEXT IS `m49` PHASE A2, AND ITS LIST IS: translucent-only picker exclusion (all types, default
+> ON with a knob) · `m39` honest bbox FOLDED IN · bench levers + `OBS-2`/`OBS-3`/`OBS-4` can-fail legs
+> · `LG-9` (Nanite reach on Lyra — `L_Convolution_Blockout` or a targeted fire at
+> `SM_Rifle`/`SM_Pistol`) · `docs/client-readme.md` schema-v2 text · the `MPP_Outline` rule, decided
+> from a `CensusMaskDump` fixture rather than from Leg B · `mask_map.json last_frame` · `lyra_leg.ps1`
+> must ARCHIVE its log, not delete it.** ⛔ **Do not start it unprompted.**
+> ⏳ **OPEN AND NOT OURS:** the Bates delivery window (owner's; `_bates_reads\` still holds no session
+> folder, so the known-answer Bates gate is **UNRUNNABLE**, reported as such and never as passed).
+>
+> ---
 > 🏁🏁 **SESSION 072, 2026-09-04 — A SECOND BENCH FIXTURE EXISTS: THE PLUGIN IS MOUNTED, BUILT AND
 > CAPTURING IN LYRA. `m49` PHASE A IS STILL THE NEXT WORK AND IS STILL NOT STARTED. THIS IS THE
 > CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHERE THEY DISAGREE.** 🏁🏁

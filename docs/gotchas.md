@@ -6042,3 +6042,112 @@ background work.
 objects, and the gap between the two grows with the size of the host - which is exactly the
 direction in which the reading matters.** Corroborates `G232(a)` on an independent host, at roughly
 50x the magnitude that motivated it.
+---
+
+## G240 - `FMulticastDelegateBase::Broadcast` iterates in REVERSE registration order, so two handlers on ONE delegate run back-to-front (2026-09-04, session 072/073)
+
+Two handlers were bound to `FWorldDelegates::OnWorldTickEnd` in `Initialize`: the MASK block first,
+the SAMPLE block second. The sample block searched the mask records the mask block creates - and on
+every fire's FIRST captured frame it found none, defaulting `mask_value` to `0`.
+
+The cause is in the engine and it says so itself:
+
+    // call bound functions in reverse order, so we ignore any instances that may be added by callees
+    MulticastDelegateBase.h:163
+
+**Bound first == invoked LAST.** So "I registered A before B, therefore A runs first" is exactly
+backwards for a multicast delegate. Measured: the `mask_value == 0` entry was each fire's first
+fire-active captured frame **and no other entry** - 6 of 6 on Lyra, 6 of 6 on StackOBot, in every
+banked session since `m43`, i.e. systematic rather than the "sporadic" journal 071 called it.
+
+**THE FIX IS NOT TO SWAP THE TWO `AddUObject` CALLS.** That would work by relying on
+reverse-broadcast continuing to hold, and this project has already ruled - journal 068 section 8, the
+`P9` tick-order finding - that **an ordering guarantee cannot be requested, only constructed.** One
+handler now calls the two blocks in explicit written order; the bodies are unchanged. The ordering
+became a statement in our own code instead of a property of the engine's delegate container.
+
+**Generalises:** any time two callbacks on the SAME delegate have a producer/consumer relationship,
+that relationship is invisible at the registration site, silent at compile time, and reversed from
+what the reading order suggests. If one must run before the other, put them in one handler.
+
+---
+
+## G241 - a per-frame predicate must be SAMPLED on its frame; the same read taken later in the drain is the stale read you just fixed (2026-09-04, session 073)
+
+`observable`'s active term needed `IsFireLabelledThisFrame`. That function reads LIVE state
+(`IsLogicallyHidden`, the anomaly's own state), and the natural place to call it - the loop that
+builds the label row - runs in `ProcessCompletedFrames`, i.e. **in the async readback drain, several
+ticks after the frame it describes.** Calling it there compiles, reads plausibly, and answers a
+question about the WRONG FRAME.
+
+It is sampled into `Snap->FireLabelled` in `SampleDeferredActiveState`, beside `FireActive`, at the
+same tick-end where `ArmTargetMaskOwn` consults the same predicate to decide whether that frame's
+mask is armed at all. **So the term that decides `observable` is the same term, on the same frame,
+that decided whether `target_pixels` could exist.**
+
+**The trap is that the fix and the defect look alike.** The onset-join defect (`G240`) was a
+too-early read of a per-frame fact; the tempting implementation of its fix was a too-late read of a
+different per-frame fact, one function over. Ask of every per-frame field: **on which tick was this
+value true?**
+
+---
+
+## G242 - a term that is MEANINGLESS for a class is not merely unused; the moment you consult it, it is FALSE (2026-09-04, session 073)
+
+`ComputeFireActive`'s fallthrough returns `IsLogicallyHidden(actor)`. For `FireWindow` ids (the
+texture swaps) the actor is never hidden, so it returns **false** - and journal 071 section 3.1 had
+already written that the value "is never consulted for them". A1 consulted it. Result:
+`affected_frames` EMPTY on all four `FireWindow` events while `injected_frames` was correct, on a
+build whose every other gate was green.
+
+**Two lessons, and the second is the expensive one.**
+
+1. A field documented as "not consulted for X" is a **latent false**, not a blank. Documentation that
+   a value is unused does not make it safe to use; it marks it as a trap. If a value is meaningless
+   for a class, the honest shapes are an assert, a `TOptional`, or a name that says so.
+
+2. **A dead term takes its downstream counters with it.** `FramesConditionLost` was incremented
+   inside `if (bActive && !bHeld)`, so the same false `bActive` made it **unable to fire for exactly
+   the two types whose `IsVisualConditionHeld` override exists**. Its `0` on the failing leg was
+   BLINDNESS, not a clean read (`G96`), and it read `0` beside the failure it was supposed to
+   explain. **When a predicate is found to be wrong, audit everything guarded by it before trusting
+   any of their zeros.**
+
+---
+
+## G243 - `target_pixels 0` with `mask_file: null` is CORRECT, and a checker that calls it a mismatch is the checker's bug (2026-09-04, session 073)
+
+`m44` shipped the rule "no all-zero PNG is ever written - a file exists iff it has content". So a
+frame whose target was MEASURED and drew nothing carries `mask_state: "empty"`, `mask_file: null`
+and `target_pixels: 0`. My tie-checker asserted "a positive-or-zero `target_pixels` implies a mask
+file" and reported **10 MISMATCHes on Lyra** - a confident, detailed, entirely false finding about a
+build that was correct.
+
+Also correct and equally confusing, on a probe leg: **`mask_state: "present"` with
+`target_pixels: -1`.** `mask_state` is a FRAME-level fact and the bench pairing probe (tag 255) forces
+the arm, so the frame's mask is present because of the PROBE, while the event's own tag was not in
+`EventTags` that frame and therefore has no count. **The two fields answer different questions - one
+about the frame, one about the anomaly - and they are allowed to disagree.**
+
+Both were caught only because the numbers were read against what the code actually guarantees.
+`G142`'s rule again: a verification script is a defect surface of its own, and a FALSE failure is
+expensive because it teaches the reader to distrust a gate that was right.
+
+---
+
+## G244 - `A47` says the eye POSITION is invariant; that is a claim about a settled camera, not about every accepted leg (2026-09-04, session 073)
+
+`A47` was amended on measured evidence: camera eye position invariant at `(-1500,0,260)` on
+**369/369** banked gate samples, with the bifurcation living in ROTATION. Two `r.ScreenPercentage 50`
+attempts this session failed the B1 pose gate with `rot` exactly `(0,0,0)` and eye origin
+**Z = 273.3 against the settled 260** - a POSITION difference on a leg the rotation criterion would
+have called clean.
+
+They were still-settling legs, so this does not overturn `A47`: the invariance holds for a SETTLED
+camera, which is what the 369 samples were. **But "modal_rot is (0,0,0)" is not by itself evidence
+that a leg is at the calibration pose**, and a pose gate keyed on rotation alone would have accepted
+those two. B1's pixel bbox comparison caught them; the rotation criterion did not.
+
+When a pose check disagrees with `modal_rot`, **read `view.origin` before attributing anything** -
+the harness prints the ratio and the discriminator precisely so the reader attributes rather than the
+gate (`G123`).
