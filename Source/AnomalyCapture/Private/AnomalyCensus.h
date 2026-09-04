@@ -75,6 +75,7 @@ struct FAnomalyCensusCounters
 	int32 TagOvertaken = 0;
 	int32 ProxyRecreatesQueued = 0;
 	double TagBlockMsTotal = 0.0;
+	TArray<FString> HostPpCustomDepthReaderNames;
 };
 
 class FAnomalyCensus
@@ -101,7 +102,11 @@ public:
 	bool IsCeilingEnabled() const { return Params.CeilingPct > 0.0f; }
 	bool HasCompletedACycle() const { return CycleNumber > 0 && Counters.Cycles > 0; }
 	void NoteFire(int32 Consulted, int32 Fallback, int32 Unseen);
-	void NoteHostPpReaders(int32 InCount) { Counters.HostPpCustomDepthReaders = InCount; }
+	void NoteHostPpReaders(int32 InCount, TArray<FString> InNames)
+	{
+		Counters.HostPpCustomDepthReaders = InCount;
+		Counters.HostPpCustomDepthReaderNames = MoveTemp(InNames);
+	}
 	int32 GetFreshnessWindowTicks() const;
 
 private:

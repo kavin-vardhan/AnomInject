@@ -251,3 +251,31 @@ void FAnomaly_CorruptedTexture::Revert()
 	AppliedPink.Reset();
 	bActive = false;
 }
+
+bool FAnomaly_CorruptedTexture::IsVisualConditionHeld() const
+{
+	if (!bActive)
+	{
+		return false;
+	}
+	const UMaterialInterface* Pink = AppliedPink.Get();
+	if (!Pink)
+	{
+		return false;
+	}
+	int32 Live = 0;
+	for (const FCapturedSlot& Slot : Captured)
+	{
+		const UMeshComponent* Mesh = Slot.Mesh.Get();
+		if (!Mesh)
+		{
+			continue;
+		}
+		++Live;
+		if (!AnomalyCorruptedTextureLocal::IsPinkDerived(Mesh->GetMaterial(Slot.SlotIndex), Pink))
+		{
+			return false;
+		}
+	}
+	return Live > 0;
+}

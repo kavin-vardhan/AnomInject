@@ -24,4 +24,6 @@ public:
 	virtual bool IsActive() const = 0;
 
 	virtual bool IsCurrentlyAnomalous() const { return IsActive(); }
+
+	virtual bool IsVisualConditionHeld() const { return IsCurrentlyAnomalous(); }
 };
