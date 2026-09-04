@@ -11,6 +11,89 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🏁🏁 **SESSION 071, 2026-09-04 — `m49` IS IN PROGRESS. STEP 1 (THE VERIFIER) AND STEP 2 (G-EDGE) ARE
+> DONE AND GREEN; **PHASE A IS NEXT AND IS NOT STARTED.** THIS IS THE CURRENT "YOU ARE HERE";
+> EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+> **Cold start: `docs/sessions/2026-09-04-071-concorde-feedback-triage.md` — it OPENS with a
+> "COLD START FOR 072" block naming exactly which sections to read, in order.**
+>
+> 🎯 **`m49` = PER-FRAME OBSERVABILITY DERIVED FROM THE FRAME'S OWN RENDER**, in answer to eight
+> client findings on the Concorde M2 build (journal 071 §1–§2). ⛔ **NO SOURCE CHANGE HAS BEEN MADE
+> FOR `m49` YET** — steps 1 and 2 are a Python tool and bench legs. `master` is **`ae54812` + the
+> 071-03 docs commits**; `git diff 20db6e5..HEAD -- Source Shaders` is **EMPTY**, so the staged bench
+> exe **`DE65F84A` (m48)** IS master's binary and the container quartet
+> (`EF8EB23C`/`A8BFFF88`/`3C026A8D`) is unchanged. **NO BUILD, NO COOK, NO TAG.**
+> 📌 **Checkout is on `master`** (switched off the parked `europa-e1` `1f5e305` under shared-tree
+> rule 1, tree clean at the switch). Europa is PARKED; the `m49` campaign builds from master.
+>
+> ✅ **STEP 1 — THE LABEL-vs-PIXEL VERIFIER IS SHIPPED (`b062832`).**
+> `tools/verify_capture.py --label-pixel-gate`: per event it asserts the first labelled frame is the
+> first frame whose pixels change AND the frame after `end_frame` is the first clean one. It
+> **IMPORTS** `measure_label_offset.py`'s region/baseline/threshold code rather than copying it, and
+> **REFUSES to run without it**. `--label-pixel-gate --selftest` proves it can fail: **7 cases, both
+> edges, both directions** (`G96`). ⚠ **The m47 black-frame gate and the overlay path are UNTOUCHED**
+> — bare `--selftest` still runs the m47 one. Client command and the delivery box are in
+> `client-delivery.md` and `PRE-DELIVERY-CHECKLIST.md`; **`client-readme.md` is deliberately
+> untouched — schema v2 text lands with Phase A.**
+> 🚨 **THE KNOWN-ANSWER RUNS FOUND THREE DEFECTS IN THE INSTRUMENT, ALL MINE, ALL FIXED BEFORE ANY
+> VERDICT WAS READ** (journal 071 §11.3): a ceiling that counted the session TAIL as a clean gap
+> (±0 ⇒ everything UNMEASURABLE); an edge rule that read the **temporal-AA ghost** instead of the
+> transition; and an edge search that reached into **another event's transition on the same actor**
+> (argmax picked the wrong frame by a 0.4 % margin). **Every product-side reading they produced was
+> WITHDRAWN.** ⇒ read §11.3 before trusting any edge reading.
+> ✅ **It PASSES five known-good banked sessions across both artifact eras and both tick orders, and
+> FIRES `NOT-VISIBLE` on both known-bad targets** (`BP_SplineSpawn_C`, the m26 measured-zero case;
+> the `H5` foliage over-claim) — both directions proven on REAL data, not only synthetic. ⚠ **Those
+> two sessions' `SHIFT` rows are LOW-confidence on a CONTAMINATED baseline and are NOT findings about
+> label timing.**
+>
+> 🏁 **STEP 2 — G-EDGE PASSES. 8 LEGS, BOTH TICK ORDERS, 32 EVENTS, 40 EDGE PAIRS: `SHIFT 0`,
+> `NOT-VISIBLE 0`, `NOT-MEASURABLE 0`, every leg exit 0, every leg HIGH confidence.**
+> Pre-declared `docs/predictions/2026-09-04-m49-g-edge.md` (**`94d461c`, committed BEFORE any leg**).
+> Recipe: `DE65F84A` · `CB_GateLevel` · TARGETED `StaticMeshActor_49` · `IAI.Capture.Config 2 4 8 14 0`
+> (**ceiling ±7**) · marker OFF · 90 frames · pose+`A47` gates ON · AA-off arbiter taken **verbatim
+> from the banked `B19_M45_AA_*` datum** (`G184`). Banked `_bench_sessions_bank\M49_GEDGE_*`.
+> 🔑 **IT CLOSES ALL THREE GAPS journal §3.7 FOUND ON MASTER:** `missing_object` now appears in an
+> edge gate (8 events, both orders); **the END side is asserted for the first time on master**, for
+> all four types; and the picture clause is a **VERDICT**, not the printed reading `m44_gates.py`
+> emits. ⚠ **`NOT-MEASURABLE` came out ZERO where the prediction expected one per leg** — at
+> `post=14` no event is truncated. **The prediction was CONSERVATIVE, not wrong; the gate is stronger
+> than pre-declared.**
+> 🚨 **THE `P9` SIGNATURE IS REPRODUCED ON THE BENCH AND BOTH SETS ARE CORRECT AGAINST THE PIXELS.**
+> `blinking` native labels `{4,5,9,10}` and synth labels `{4,5,6,10}` — `{n,n+1,n+5,n+6}` vs
+> `{n,n+1,n+2,n+6}`, the ledger §8.6a signature exactly, hidden count **conserved at 4**, on all four
+> events of both legs and in both configurations — **and BOTH legs read PASS 4/4 at every edge.**
+> ⇒ **the set difference is NOT a labelling error: it is a real difference in which frames rendered
+> hidden, correctly labelled in both orders.** 📌 **New evidence, not a re-run of `m40`:** `m40`
+> compared hidden SETS across orders; G-EDGE compares the label against **PIXEL GROUND TRUTH** at both
+> edges. ⛔ **NO MECHANISM ASSERTED** (`G120`), and ⛔ **it says NOTHING about the host codenamed
+> Bates** — the lever synthesises the symptom and that host's tick order was never observed.
+> 📊 **Delivered-configuration legs: the same 8, REPORT-ONLY (`G228`), all reading PASS**; the two
+> synth hide-type legs read **LOW / CONTAMINATED=1**, which is `G228` appearing exactly where it
+> should and is why the gate runs at the AA-off arbiter. **No pixel claim at the delivered config.**
+> ⚠ **MEASURED PROPERTY OF THE ARBITER ITSELF: AA-off REDUCES the signal** (GI/reflections no longer
+> respond) — `missing_texture` **0.0229 at AA-off vs 0.2627 delivered**, i.e. **5.7×τ, the thinnest
+> margin in the whole gate set** against 136–167× for the others. Decisive today (37 clean baseline
+> frames, no contamination); **the one to watch if the threshold, target or arbiter recipe changes.**
+> ⛔ Not tuned, not compensated — reported.
+>
+> 🎯 **NEXT: `m49` PHASE A — ITS FILE LIST IS journal 071 §8.1 AND THAT IS THE NEXT BRIEF'S
+> CONTRACT.** ⛔ **Do not start it unprompted.** **CHAT RULINGS THAT BIND IT** (journal 071 §11.1):
+> **`observable` is `true | false | null`** (`null` = unmeasured, `target_pixels == -1`) with
+> `unmeasured_frame_count`, and an all-unmeasured event falls back to the injected subset with
+> `observability_measured: false` · an event with an **empty observable set STAYS in the file** ·
+> **translucent-only picker exclusion for ALL types**, default ON with a knob · root key
+> **`label_schema: 2`** · **`m39` (honest bbox) is FOLDED INTO `m49`**.
+> 🚨 **PHASE A PRECONDITION, MEASURED AND NOT YET FIXED:** a labels row can carry **`mask_value: 0`
+> while its mask PNG carries the event's real tag** (banked m45 leg, `session_index 27`: `mask_value 0`
+> against a PNG containing only `222`). The verifier absorbs it (falls back to the PNG's sole non-zero
+> value, REFUSES when several are present); **`target_pixels`'s join must NOT inherit it.**
+> ⏳ **OPEN AND NOT OURS:** the Bates delivery window (owner's, pending); and three client questions
+> chat has asked — F1's selection route, MP4-vs-PNG + viewer base, and `mask.provided` for the two
+> not-visible events (journal 071 §9 Q1/Q2/Q8).
+>
+> ---
+>
 > 🏁🏁 **SESSION 069, 2026-09-03, BRIEF 28 — `MASK-PICTURE-PAIRING` IS GREEN AGAIN AND `m48`'s GATE
 > SET IS CLOSED. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED
 > WHEREVER THEY DISAGREE.** 🏁🏁

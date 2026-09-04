@@ -1,3 +1,25 @@
+# COLD START FOR 072 — read these, in this order, then stop
+
+1. **`CLAUDE.md` → the Current-status block at the top.** It is the "you are here": `m49` in
+   progress, step 1 and step 2 DONE, Phase A NEXT.
+2. **This file §8** — the `m49` plan: file-by-file list, gates, sequencing, the m39 fold-in.
+   **§8.1 is Phase A's file list and is the next brief's contract.**
+3. **This file §11** — step 1: the verifier, what it imports, and the three instrument defects it
+   flushed out (read §11.3 before trusting any edge reading).
+4. **This file §12** — step 2: G-EDGE, 8 legs, PASS; §12.5 is the P9 signature reproduced on the
+   bench with both sets correct against the pixels; §12.7 is the thin `missing_texture` margin.
+5. **`docs/predictions/2026-09-04-m49-g-edge.md`** — the pre-declared gate, if you need to re-run it.
+6. **This file §4.4 and §5** — the Phase A design (`target_pixels`, `observable`, the schema v2 keys)
+   as amended by **§11.1's rulings**, which BIND: `observable` is tri-state, an empty observable set
+   keeps the event, translucent-only exclusion is all-types, root key `label_schema: 2`.
+7. **`docs/gotchas.md` tail** — the standing rules the gates rest on (`G96`, `G120`, `G135`, `G184`,
+   `G228`).
+⛔ **Do NOT start Phase A implementation without a brief.** ⚠ **Phase A precondition:** the
+`mask_value: 0` vs mask-PNG-tag defect recorded in §11.2 must be settled in the `target_pixels` join —
+do not inherit it.
+
+---
+
 # Session 071 — Concorde M2 feedback: triage, mechanism reads, and the `m49` plan (READ-ONLY)
 
 **Date:** 2026-09-04 · **Brief:** 071-01 · **Effort:** xhigh · **Scope:** source reads and a plan.
@@ -924,3 +946,159 @@ shape). **It CANNOT** separate a sliver from an occluded target from a collapsed
 `target_pixels`, Phase A), judge per-frame observability inside a window (F4's "leaves the frame at
 69" appears only as the region's `d` collapsing), or hold its threshold steady under camera motion —
 a fast pan raises τ and the event reads `NOT-MEASURABLE` rather than passing silently.
+
+---
+
+# §12. BRIEF 071-03 — `m49` STEP 2: G-EDGE **PASSES**, 8 LEGS, BOTH TICK ORDERS
+
+**Date:** 2026-09-04 · **Scope:** bench legs only. No `Source/` or `Shaders/` edit, no build, no cook.
+Pre-declaration `docs/predictions/2026-09-04-m49-g-edge.md`, committed **`94d461c`, BEFORE any leg**.
+
+## §12.1 The binary, proven rather than assumed
+
+`git diff --stat 20db6e5..HEAD -- Source Shaders` is **EMPTY** — every commit since `m48` (`9682b2c`,
+`b062832`, `ae54812`, `94d461c`) is docs or `tools/` only. ⇒ **the staged bench exe `DE65F84A` (m48)
+IS master's binary for this gate and no build was required.** Container quartet UNCHANGED
+(`EF8EB23C` / `A8BFFF88` / `3C026A8D`), no cook. Verified at the staged path before the first leg:
+`DE65F84A`, 241,236,992 B.
+
+## §12.2 The instrument re-proved itself first
+
+`python tools/verify_capture.py --label-pixel-gate --selftest` → `SELFTEST: OK`, **exit 0**, seven
+cases, both edges, both directions (`G96`/`G142`). Quoted here because a gate whose instrument has not
+re-proved it can fail is blindness (071-02 §11.3 found three instrument defects this way).
+
+## §12.3 Recipe (as run)
+
+Packaged `DE65F84A` · `CB_GateLevel` · TARGETED on `StaticMeshActor_49` · delivery OFF · marker OFF ·
+**`IAI.Capture.Config 2 4 8 14 0`** · 90 frames · 1280×720 windowed · seed 777 · SVE on · paced 30 fps
+· auto-exposure pinned off · pose gate + `A47` rotation gate ON.
+AA-off arbiter, **verbatim from the banked `B19_M45_AA_*` datum** (`G184`):
+`r.AntiAliasingMethod 0, r.Lumen.DiffuseIndirect.Allow 0, r.DynamicGlobalIlluminationMethod 0,
+r.ReflectionMethod 0`. Synth legs add `IAI.Bench.SynthTickOrder 1`.
+
+📌 **The harness hardcodes `IAI.Capture.Config 2 4 8 4 0` at `run_leg.ps1:220` and appends
+`-ExtraExecCmds` AFTER it and before `IAI.Capture.Start`**, so the gate's `2 4 8 14 0` overrides it.
+Confirmed in the artifacts: every leg reports **min clean gap 14** (15 for `blinking`) ⇒ **ceiling ±7**
+as designed, against the shipped config's ≈±2.
+⚠ **DECLARED DEVIATION:** the brief's prose says "motion blur off"; the banked arbiter recipe contains
+**no motion-blur cvar** and `G184` makes the banked datum the authority, so none was issued. Inert here
+(`CB_GateLevel` is static and the camera is measured at rest), but omitted for comparability, not on
+that argument.
+
+## §12.4 THE GATE — 8 legs, ALL PASS
+
+| leg | order | events | PASS | SHIFT | NOT-VIS | NOT-MEAS | exit |
+|---|---|---|---|---|---|---|---|
+| `MT_NAT` missing_texture | native | 4 | 4 | **0** | **0** | 0 | 0 |
+| `CT_NAT` corrupted_texture | native | 4 | 4 | **0** | **0** | 0 | 0 |
+| `MO_NAT` missing_object | native | 4 | 4 | **0** | **0** | 0 | 0 |
+| `BL_NAT` blinking | native | 4 | 4 | **0** | **0** | 0 | 0 |
+| `MT_SYN` missing_texture | synth | 4 | 4 | **0** | **0** | 0 | 0 |
+| `CT_SYN` corrupted_texture | synth | 4 | 4 | **0** | **0** | 0 | 0 |
+| `MO_SYN` missing_object | synth | 4 | 4 | **0** | **0** | 0 | 0 |
+| `BL_SYN` blinking | synth | 4 | 4 | **0** | **0** | 0 | 0 |
+
+🏁 **G-EDGE PASSES.** 32 events, **40 edge pairs** (blinking contributes two runs per event),
+**0 shifts, 0 NOT-VISIBLE, 0 NOT-MEASURABLE**, every leg exit 0, every leg `[HIGH]` confidence with an
+uncontaminated baseline of 37–41 clean frames.
+
+🔑 **AND `NOT-MEASURABLE` CAME OUT ZERO, WHICH THE PREDICTION DID NOT EXPECT.** §6 predicted "exactly
+one `NOT-MEASURABLE` per leg (the truncated final event)". At `post=14` the fourth event ends at 76
+with 13 captured frames after it, so **no event is truncated** and every event is fully measurable.
+**The prediction was CONSERVATIVE, not wrong** — it was written against the shipped `post=4` schedule
+where the last event runs into the frame cap. Recorded rather than quietly enjoyed: the gate is
+STRONGER than pre-declared, and the `A50` TRUNCATED allowance was simply not needed.
+
+**What this closes, from journal §3.7's three gaps:** (1) `missing_object` now appears as an event in
+an edge gate, on 8 events across both orders; (2) **the END side is asserted for the first time on
+master**, for all four types; (3) the picture clause is a VERDICT here, not a printed reading.
+
+## §12.5 🚨 THE P9 SIGNATURE IS REPRODUCED ON THE BENCH — AND BOTH SETS ARE CORRECT AGAINST THE PIXELS
+
+The two `blinking` legs differ in exactly the way ledger §8.6a records for the host codenamed Bates,
+on **all four events of both legs**, in **both** the AA-off and the delivered configuration:
+
+| leg | event 1 | event 2 | event 3 | event 4 |
+|---|---|---|---|---|
+| `BL_NAT` (native) | `{4,5,9,10}` | `{26,27,31,32}` | `{48,49,53,54}` | `{70,71,75,76}` |
+| `BL_SYN` (synth) | `{4,5,6,10}` | `{26,27,28,32}` | `{48,49,50,54}` | `{70,71,72,76}` |
+
+Native is `{n, n+1, n+5, n+6}`; synth is `{n, n+1, n+2, n+6}` — **the ledger's claimed-vs-observed
+signature exactly**, with the **hidden-frame count CONSERVED at 4** in every event of both legs.
+
+🎯 **AND BOTH LEGS READ `PASS` AGAINST THE PIXELS, 4/4, at every edge.** ⇒ **the set difference is not
+a labelling error. It is a real difference in WHICH FRAMES WERE RENDERED HIDDEN — the lever relocates
+the injector's dispatch, so the toggle lands one tick differently relative to the arm — and the labels
+follow the pixels correctly in BOTH orders.**
+
+📌 **This is new evidence, not a re-run of `m40`.** `m40`'s legs compared hidden SETS (label against
+label across orders); **G-EDGE compares the label against PIXEL GROUND TRUTH at both edges in both
+orders.** It is the first time `m40`'s guarantee — the sampled bit is what the renderer will draw for
+that frame whatever order the subsystems ticked in — has been checked against the pixels themselves.
+⛔ **NO MECHANISM IS ASSERTED** (`G120`), and ⛔ **this says nothing about the host codenamed Bates**:
+the lever synthesises the SYMPTOM, and the tick order on that host was never observed.
+
+## §12.6 The delivered configuration — REPORT-ONLY, no pass or fail (`G228`)
+
+The same 8 legs without the AA-off cvars. **Readings, not verdicts:**
+
+| leg | PASS | SHIFT | NOT-VIS | NOT-MEAS | confidence | exit |
+|---|---|---|---|---|---|---|
+| `MT_NAT_DEL` | 4 | 0 | 0 | 0 | HIGH | 0 |
+| `CT_NAT_DEL` | 4 | 0 | 0 | 0 | HIGH | 0 |
+| `MO_NAT_DEL` | 4 | 0 | 0 | 0 | HIGH | 0 |
+| `BL_NAT_DEL` | 4 | 0 | 0 | 0 | HIGH | 0 |
+| `MT_SYN_DEL` | 4 | 0 | 0 | 0 | HIGH | 0 |
+| `CT_SYN_DEL` | 4 | 0 | 0 | 0 | HIGH | 0 |
+| `MO_SYN_DEL` | 4 | 0 | 0 | 0 | **LOW, CONTAMINATED=1** | 0 |
+| `BL_SYN_DEL` | 4 | 0 | 0 | 0 | **LOW, CONTAMINATED=1** | 0 |
+
+⚠ **The two LOW rows are `G228` showing up exactly where it should:** at the delivered configuration
+temporal accumulation makes a "clean" frame not perfectly clean, so one baseline frame exceeds τ and
+the instrument says so. That is the reason these eight are report-only, and it is why the gate runs at
+the AA-off arbiter. **No pixel claim is made at the delivered configuration.**
+
+## §12.7 A MEASURED PROPERTY OF THE ARBITER ITSELF, worth carrying
+
+The AA-off arbiter **REDUCES** the measured pixel change, for every type (first event, `d(onset)`):
+
+| type | AA-off | delivered | ratio |
+|---|---|---|---|
+| `missing_texture` | **0.0229** | 0.2627 | 0.09× |
+| `corrupted_texture` | 0.6681 | 0.9968 | 0.67× |
+| `missing_object` | 0.5442 | 0.8186 | 0.66× |
+| `blinking` | 0.5445 | 0.8276 | 0.66× |
+
+Turning off Lumen diffuse indirect, GI and reflections removes the indirect-lighting response to the
+change, so the total delta shrinks. **Every reading is still decisive** — τ is 0.0040 throughout, so
+the thinnest margin is **`missing_texture` at 5.7×τ** and the others are 136–167×.
+🚨 **`missing_texture` at AA-off is the thinnest signal in the whole gate set and is the one to watch**
+if the threshold, the target or the arbiter recipe ever changes. It is not marginal today (37 clean
+baseline frames, no contamination, HIGH confidence) but it has an order of magnitude less headroom
+than every other cell. ⛔ **Not tuned, not compensated** — reported.
+
+📌 Also measured: `corrupted_texture` classifies as `appearance=MAGENTA` at the delivered
+configuration and `appearance=OTHER` at AA-off. The classifier is lighting-dependent; it is REPORTED
+by the verifier and never judged, which is why this changes no verdict.
+
+## §12.8 Leg hygiene (`A63`, every attempt recorded)
+
+14 of 16 legs accepted on attempt 1. Two were discarded and re-run by the harness, both banked:
+`CT_NAT` attempt 1 — **POSE GATE FAILED (B1) — CAUSE NOT ESTABLISHED**; `BL_NAT_DEL` attempt 1 —
+**A47 ROTATION GATE FAILED, `modal_rot (0.0, 0.35, 0.0)` — CAUSE NOT ESTABLISHED**. Both re-ran clean
+on attempt 2 at `modal_rot (0,0,0)`, `distinct=1`, `modal 100 %`, `pose_match=True`.
+⛔ **No leg was re-run because of the number it produced**; both discards are pre-fixed `A63`
+conditions read before any verdict. Every leg banked under
+`_bench_sessions_bank\M49_GEDGE_<label>[_try<n>]`.
+
+## §12.9 What G-EDGE does NOT establish
+
+- ⛔ **Nothing about the client's host.** Every leg is `CB_GateLevel` on this box at 1280×720. Journal
+  §3.6 derives that NO tick order produces F1/F3/F6; G-EDGE neither reproduces nor refutes them and
+  was not run for that purpose.
+- ⛔ **Nothing at the delivered configuration** beyond readings (`G228`).
+- ⛔ **Nothing about observability** — `target_pixels`/`observable` do not exist yet (Phase A).
+- ⛔ **Nothing about `blinking`'s interior frames** (F6's 499–500 shape). The gate reads EDGES.
+- ⛔ **One target only** (`StaticMeshActor_49`) and one fixture. `G135`: a gate set built from one
+  asset class cannot exhibit defects outside it, and the blindness presents as a clean pass.
