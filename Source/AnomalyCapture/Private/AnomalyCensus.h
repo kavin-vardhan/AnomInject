@@ -49,6 +49,7 @@ struct FAnomalyCensusParams
 	bool bBenchFixedExpiry = false;
 	int32 BenchBatchCap = 0;
 	int32 BenchDropEveryNth = 0;
+	int32 BenchMaskDumpFrames = 0;
 };
 
 struct FAnomalyCensusCounters
@@ -109,6 +110,9 @@ public:
 	}
 	int32 GetFreshnessWindowTicks() const;
 
+	DECLARE_DELEGATE_FiveParams(FOnMaskDump, uint64, const TArray<uint8>&, int32, int32, const TArray<FString>&);
+	FOnMaskDump OnMaskDump;
+
 private:
 	struct FBatch
 	{
@@ -118,6 +122,7 @@ private:
 		TSet<uint8> CensusTagsAtArm;
 		uint64 ArmedAtTick = 0;
 		int32 PendingBefore = 0;
+		bool bWantPixels = false;
 	};
 
 	void StartCycle(UWorld* World);
@@ -146,6 +151,7 @@ private:
 	int32 CycleNumber = 0;
 	double CycleStartTagBlockMs = 0.0;
 	int32 CycleStartFlips = 0;
+	int32 MaskDumpsRequested = 0;
 };
 
 #endif

@@ -43,6 +43,8 @@
 #include "Misc/EngineVersion.h"
 #include "Misc/App.h"
 
+#include "Components/MeshComponent.h"
+#include "Misc/FileHelper.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
@@ -136,6 +138,7 @@ struct FSessionEventAccum
 
 	int32 InactiveFrames = 0;
 	int32 ActiveFrames = 0;
+	int32 DrawnBboxFrames = 0;
 	TMap<int32, uint8> ActiveByIndex;
 	TMap<int32, uint8> ObservableByIndex;
 };
@@ -927,6 +930,7 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 	TArray<AActor*> Visible;
 	TArray<uint8> Tags;
 	TSet<uint8> LiveTags;
+	TMap<uint8, FString> TagEvent;
 	int32 ScanFires = 0;
 	int32 ScanLabelled = 0;
 	int32 ScanWithRecord = 0;
@@ -949,6 +953,7 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 			{
 				++ScanWithRecord;
 				LiveTags.Add(R.Tag);
+				TagEvent.Add(R.Tag, FString::Printf(TEXT("%s@%llu"), *R.Id.ToString(), R.StartFrame));
 				if (!Actor->IsHidden())
 				{
 					Visible.Add(Actor);
@@ -1032,6 +1037,7 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 	Async->MaskExtension->ArmMask(RequestId, true);
 	TargetMaskPendingSessionIndex.Add(RequestId, SessionIndex);
 	TargetMaskPendingTags.Add(RequestId, LiveTags);
+	TargetMaskPendingTagEvent.Add(RequestId, MoveTemp(TagEvent));
 	return true;
 }
 
@@ -1055,6 +1061,7 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 
 		const TSet<uint8>* LiveTagsPtr = TargetMaskPendingTags.Find(Pair.Key);
 		const TSet<uint8> EventTags = LiveTagsPtr ? *LiveTagsPtr : TSet<uint8>();
+		const TMap<uint8, FString>* TagEventPtr = TargetMaskPendingTagEvent.Find(Pair.Key);
 
 		const int32 W = Result.ViewRectSize.X;
 		const int32 H = Result.ViewRectSize.Y;
@@ -1096,21 +1103,30 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 			{
 				if (R->Count > 0)
 				{
-					if (!TargetMaskFirstFrame.Contains(Tag))
+					const FString* EventId = TagEventPtr ? TagEventPtr->Find(Tag) : nullptr;
+					if (EventId)
 					{
-						TargetMaskFirstFrame.Add(Tag, Pair.Value);
+						if (!TargetMaskFirstFrame.Contains(*EventId))
+						{
+							TargetMaskFirstFrame.Add(*EventId, Pair.Value);
+						}
+						TargetMaskLastFrame.Add(*EventId, Pair.Value);
 					}
-					TargetMaskLastFrame.Add(Tag, Pair.Value);
 				}
 			}
 		}
 
 		TMap<uint8, int32> TagCounts;
+		TMap<uint8, FIntRect> TagBounds;
 		for (uint8 Tag : EventTags)
 		{
 			const FAnomalyMaskTagResult* R = Result.TagResults.Find(Tag);
 			const int32 TableCount = R ? R->Count : 0;
 			TagCounts.Add(Tag, TableCount);
+			if (R && R->Count > 0 && R->MaxX >= R->MinX && R->MaxY >= R->MinY)
+			{
+				TagBounds.Add(Tag, FIntRect(R->MinX, R->MinY, R->MaxX + 1, R->MaxY + 1));
+			}
 			int32 PngCount = 0;
 			for (int32 i = 0; i < N; ++i)
 			{
@@ -1129,13 +1145,15 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 			EnqueueTargetMaskPng(Pair.Value, Gray, W, H);
 			++TargetMaskMeasured;
 			TargetMaskOutcome.Add(Pair.Value,
-				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Present, MoveTemp(TagCounts) });
+				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Present, MoveTemp(TagCounts),
+					MoveTemp(TagBounds) });
 		}
 		else
 		{
 			++TargetMaskHiddenBlank;
 			TargetMaskOutcome.Add(Pair.Value,
-				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Empty, MoveTemp(TagCounts) });
+				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Empty, MoveTemp(TagCounts),
+					MoveTemp(TagBounds) });
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(m44): TARGET MASK EMPTY for session_index %d - the mask was MEASURED and the ")
 				TEXT("target contributed zero pixels, so NO file is written and the labels row reads ")
@@ -1149,6 +1167,7 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 	{
 		TargetMaskPendingSessionIndex.Remove(Id);
 		TargetMaskPendingTags.Remove(Id);
+		TargetMaskPendingTagEvent.Remove(Id);
 	}
 }
 
@@ -1545,6 +1564,229 @@ void UAnomalyCaptureSubsystem::DestroyMaskPairingProbe()
 		Probe->Destroy();
 	}
 	MaskPairingProbe = nullptr;
+}
+
+void UAnomalyCaptureSubsystem::SetBenchTeleportOffscreenAt(int32 InSessionIndex)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Bench.TeleportTargetOffscreenAt: ignored - a capture run is in progress."));
+		return;
+	}
+	BenchTeleportOffscreenAt = (InSessionIndex < 0) ? -1 : InSessionIndex;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.TeleportTargetOffscreenAt -> %d. BENCH DEVICE, console only, no ini key, never in a ")
+		TEXT("client payload. -1 = OFF and the run is byte-inert. Otherwise, on the tick that arms captured ")
+		TEXT("frame session_index=%d, every live fire's target actor is TELEPORTED far off screen and left ")
+		TEXT("there for the rest of the run (restored at FinishRun). It exists to make m49's OBS-2 gate ")
+		TEXT("able to FAIL (G96): from that frame on the target draws no pixels, so target_pixels reads 0, ")
+		TEXT("observable reads false, and those frames must leave affected_frames while staying in ")
+		TEXT("injected_frames. NEVER ship a capture taken with this set."),
+		BenchTeleportOffscreenAt, BenchTeleportOffscreenAt);
+}
+
+void UAnomalyCaptureSubsystem::SetBenchRetakeMaterialAfter(int32 InSessionIndex)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Bench.RetakeMaterialAfter: ignored - a capture run is in progress."));
+		return;
+	}
+	BenchRetakeMaterialAfter = (InSessionIndex < 0) ? -1 : InSessionIndex;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.RetakeMaterialAfter -> %d. BENCH DEVICE, console only, no ini key, never in a client ")
+		TEXT("payload. -1 = OFF and the run is byte-inert. Otherwise, on the tick that arms captured frame ")
+		TEXT("session_index=%d, every live fire's target has its mesh material overrides CLEARED to the ")
+		TEXT("mesh's built-in defaults - which is what a host doing its own material work looks like from ")
+		TEXT("here. It synthesises the SYMPTOM (the swap is no longer on the object) and not the cause. It ")
+		TEXT("exists to make m49's OBS-3 gate able to FAIL (G96): from that frame on the two texture types' ")
+		TEXT("IsVisualConditionHeld override reads false, so observable reads false and ")
+		TEXT("run_summary.frames_condition_lost must be > 0. NEVER ship a capture taken with this set."),
+		BenchRetakeMaterialAfter, BenchRetakeMaterialAfter);
+}
+
+void UAnomalyCaptureSubsystem::SetBenchCensusMaskDump(int32 InFrames)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Bench.CensusMaskDump: ignored - a capture run is in progress."));
+		return;
+	}
+	if (InFrames < 0 || InFrames > 4096)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Bench.CensusMaskDump: %d is outside [0,4096] and is REFUSED. Current value unchanged (%d)."),
+			InFrames, BenchCensusMaskDumpFrames);
+		return;
+	}
+	BenchCensusMaskDumpFrames = InFrames;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.CensusMaskDump -> %d. BENCH DEVICE, console only, no ini key, never in a client ")
+		TEXT("payload. 0 = off. N writes the CENSUS batch's own mask PNG for the first N collected batches ")
+		TEXT("into census_mask/tick_<armTick>.png, plus one census_mask/census_mask_map.jsonl row per batch ")
+		TEXT("naming each tag's actor, pixel count and drawn bounds. It is a PNG WRITE, NOT A NEW PASS: the ")
+		TEXT("census already performs a full mask readback and a per-tag reduce every cycle and throws the ")
+		TEXT("pixels away. It exists because the census is the ONLY thing in this system that tags a ")
+		TEXT("NON-ANOMALOUS object, which is what a tagged-vs-untagged differential needs in order to ask ")
+		TEXT("whether a host post-process stencil reader draws on our tags without the anomaly's own ")
+		TEXT("appearance change confounding it. armTick is GFrameCounter at arm, which joins to ")
+		TEXT("labels.jsonl frame_index. NEVER ship a capture taken with this set."),
+		BenchCensusMaskDumpFrames);
+}
+
+void UAnomalyCaptureSubsystem::StepBenchObservabilityLevers(int32 SessionIndex)
+{
+	if (BenchTeleportOffscreenAt >= 0 && !bBenchTeleportFired && SessionIndex == BenchTeleportOffscreenAt)
+	{
+		bBenchTeleportFired = true;
+		const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+		int32 Moved = 0;
+		if (Auto)
+		{
+			for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+			{
+				AActor* Actor = const_cast<AActor*>(F.TargetActor.Get());
+				if (!Actor)
+				{
+					continue;
+				}
+				const FVector Was = Actor->GetActorLocation();
+
+				int32 Promoted = 0;
+				TInlineComponentArray<USceneComponent*> Scenes;
+				Actor->GetComponents(Scenes);
+				for (USceneComponent* SC : Scenes)
+				{
+					if (SC && SC->Mobility != EComponentMobility::Movable)
+					{
+						SC->SetMobility(EComponentMobility::Movable);
+						++Promoted;
+					}
+				}
+
+				Actor->SetActorLocation(Was + FVector(0.0, 0.0, 1000000.0));
+				const FVector Now = Actor->GetActorLocation();
+				const bool bReallyMoved = !Now.Equals(Was, 1.0);
+
+				if (bReallyMoved)
+				{
+					BenchTeleportRestore.Add(TPair<TWeakObjectPtr<AActor>, FVector>(Actor, Was));
+					++Moved;
+				}
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(bench): TELEPORT-OFFSCREEN session_index=%d actor=%s id=%s from=(%.1f,%.1f,%.1f) ")
+					TEXT("to=(%.1f,%.1f,%.1f) promotedToMovable=%d MOVED=%s. The location is READ BACK after the ")
+					TEXT("call, never assumed: an actor whose components are STATIC silently refuses ")
+					TEXT("SetActorLocation, and the first version of this lever logged its INTENT and produced an ")
+					TEXT("artifact identical to the control - a clean OBS-2 that was blindness. MOVED=0 means the ")
+					TEXT("lever did not fire and the leg is INVALID, not passed. The target is still un-hidden and ")
+					TEXT("still tagged, so the mask IS armed and IS measured - it simply draws nothing: ")
+					TEXT("target_pixels 0 is MEASURED ZERO, not -1 UNMEASURED."),
+					SessionIndex, *Actor->GetName(), *F.Id.ToString(), Was.X, Was.Y, Was.Z,
+					Now.X, Now.Y, Now.Z, Promoted, bReallyMoved ? TEXT("1") : TEXT("0"));
+			}
+		}
+		if (Moved == 0)
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(bench): TELEPORT-OFFSCREEN session_index=%d moved NOTHING - either there was no ")
+				TEXT("live fire with a resolvable target actor on that frame, or every candidate refused the ")
+				TEXT("move. The lever did not fire; a clean OBS-2 reading here would be BLINDNESS, not a pass."),
+				SessionIndex);
+		}
+	}
+
+	if (BenchRetakeMaterialAfter >= 0 && !bBenchRetakeFired && SessionIndex == BenchRetakeMaterialAfter)
+	{
+		bBenchRetakeFired = true;
+		const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+		int32 Cleared = 0;
+		if (Auto)
+		{
+			for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+			{
+				AActor* Actor = const_cast<AActor*>(F.TargetActor.Get());
+				if (!Actor)
+				{
+					continue;
+				}
+				TInlineComponentArray<UMeshComponent*> Meshes;
+				Actor->GetComponents(Meshes);
+				for (UMeshComponent* Mesh : Meshes)
+				{
+					const int32 NumSlots = Mesh->GetNumMaterials();
+					for (int32 Slot = 0; Slot < NumSlots; ++Slot)
+					{
+						Mesh->SetMaterial(Slot, nullptr);
+						++Cleared;
+					}
+				}
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(bench): RETAKE-MATERIAL session_index=%d actor=%s id=%s - every mesh slot ")
+					TEXT("override cleared to the mesh built-in default. For missing_texture / ")
+					TEXT("corrupted_texture this makes IsVisualConditionHeld read FALSE from this frame on."),
+					SessionIndex, *Actor->GetName(), *F.Id.ToString());
+			}
+		}
+		if (Cleared == 0)
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(bench): RETAKE-MATERIAL session_index=%d cleared NOTHING - no live fire with a ")
+				TEXT("resolvable target actor and a mesh component on that frame. The lever did not fire; a ")
+				TEXT("frames_condition_lost of 0 here would be BLINDNESS, not a pass."),
+				SessionIndex);
+		}
+	}
+}
+
+void UAnomalyCaptureSubsystem::RestoreBenchTeleports()
+{
+	for (const TPair<TWeakObjectPtr<AActor>, FVector>& Pair : BenchTeleportRestore)
+	{
+		if (AActor* Actor = Pair.Key.Get())
+		{
+			Actor->SetActorLocation(Pair.Value);
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(bench): TELEPORT-OFFSCREEN RESTORED actor=%s to (%.1f,%.1f,%.1f)."),
+				*Actor->GetName(), Pair.Value.X, Pair.Value.Y, Pair.Value.Z);
+		}
+	}
+	BenchTeleportRestore.Reset();
+	bBenchTeleportFired = false;
+	bBenchRetakeFired = false;
+}
+
+void UAnomalyCaptureSubsystem::EnqueueCensusMaskDump(uint64 ArmTick, const TArray<uint8>& Gray, int32 W, int32 H,
+	const TArray<FString>& TagRows)
+{
+	if (!Async.IsValid() || !Async->Writer.IsValid() || W <= 0 || H <= 0)
+	{
+		return;
+	}
+	FAnomalyAsyncWriter::FJob Job;
+	Job.bGrayMask = true;
+	Job.OutputDir = RunDir;
+	Job.ImageRelPath = FString::Printf(TEXT("census_mask/tick_%llu.png"), (unsigned long long)ArmTick);
+	Job.RawBytes = Gray;
+	Job.Width = W;
+	Job.Height = H;
+	Async->Writer->Enqueue(MoveTemp(Job));
+	++BenchCensusMaskDumpsWritten;
+
+	FString Row = FString::Printf(
+		TEXT("{\"arm_tick\":%llu,\"file\":\"census_mask/tick_%llu.png\",\"width\":%d,\"height\":%d,\"tags\":["),
+		(unsigned long long)ArmTick, (unsigned long long)ArmTick, W, H);
+	for (int32 i = 0; i < TagRows.Num(); ++i)
+	{
+		if (i > 0) { Row += TEXT(","); }
+		Row += TagRows[i];
+	}
+	Row += TEXT("]}\n");
+	FFileHelper::SaveStringToFile(Row, *FPaths::Combine(RunDir, TEXT("census_mask/census_mask_map.jsonl")),
+		FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
 }
 
 void UAnomalyCaptureSubsystem::SetBenchCensusFixedExpiry(bool bInFixed)
@@ -2444,6 +2686,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	TargetMaskUnavailable = 0;
 	TargetMaskPendingSessionIndex.Reset();
 	TargetMaskPendingTags.Reset();
+	TargetMaskPendingTagEvent.Reset();
 	TargetMaskFirstFrame.Reset();
 	TargetMaskLastFrame.Reset();
 	TargetMaskOutcome.Reset();
@@ -2806,6 +3049,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 
 	AnomalyViewport::ResetTargetExclusionStats();
 	PatternExcludedTargets = 0;
+	TranslucentOnlyExcludedTargets = 0;
 
 	FramesShadersPending = 0;
 	PrewarmAnomalyShaders();
@@ -2872,6 +3116,16 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		CensusParams.bBenchFixedExpiry = bBenchCensusFixedExpiry;
 		CensusParams.BenchBatchCap = BenchCensusBatchCap;
 		CensusParams.BenchDropEveryNth = BenchCensusDropEveryNth;
+		CensusParams.BenchMaskDumpFrames = bDeliveryMode ? 0 : BenchCensusMaskDumpFrames;
+		BenchCensusMaskDumpsWritten = 0;
+		if (CensusParams.BenchMaskDumpFrames > 0)
+		{
+			Async->Census.OnMaskDump.BindUObject(this, &UAnomalyCaptureSubsystem::EnqueueCensusMaskDump);
+		}
+		else
+		{
+			Async->Census.OnMaskDump.Unbind();
+		}
 		Async->Census.Begin(GetWorld(), &Async->TagLedger, CensusParams);
 
 		{
@@ -3296,12 +3550,21 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 
 			Snap->TargetPixels.Reset();
 			Snap->TargetPixels.AddUninitialized(Snap->Fires.Num());
+			Snap->DrawnBounds.Reset();
+			Snap->DrawnBounds.AddDefaulted(Snap->Fires.Num());
 			for (int32 i = 0; i < Snap->Fires.Num(); ++i)
 			{
 				const int32 Tag = Snap->MaskValues.IsValidIndex(i) ? Snap->MaskValues[i] : 0;
 				const int32* Found =
 					(Outcome && Tag > 0) ? Outcome->Counts.Find((uint8)Tag) : nullptr;
 				Snap->TargetPixels[i] = Found ? *Found : AnomalyLabel::GTargetPixelsUnmeasured;
+
+				const FIntRect* Box =
+					(Outcome && Tag > 0) ? Outcome->Bounds.Find((uint8)Tag) : nullptr;
+				if (Box)
+				{
+					Snap->DrawnBounds[i] = *Box;
+				}
 			}
 			TargetMaskOutcome.Remove(Snap->SessionIndex);
 		}
@@ -3380,7 +3643,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, OutW, OutH, ImageName, NumLabels);
 
 		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePos, Snap->View, Snap->NearClip,
-			Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable);
+			Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds);
 
 		FAnomalyAsyncWriter::FJob Job;
 		Job.OutputDir = RunDir;
@@ -3584,6 +3847,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				TargetMaskArmedSessionIndex = Snap.SessionIndex;
 				StepMaskPairingProbe(Snap.SessionIndex);
 			}
+			StepBenchObservabilityLevers(Snap.SessionIndex);
 			Async->PendingSnapshots.Add(RequestId, MoveTemp(Snap));
 			if (bUseSve)
 			{
@@ -4432,6 +4696,25 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				PatternExcludedTargets, *AnomalyDefaults::DescribeExcludedTargetPatterns());
 		}
 
+		TranslucentOnlyExcludedTargets = AnomalyViewport::GetTranslucentOnlyExclusionCount();
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m49): TRANSLUCENT-ONLY EXCLUSION = %d distinct actor(s) refused as AUTO-POOL candidates ")
+			TEXT("this run, setting %s. A zero here is a READING only if the run met such an actor at all; see the ")
+			TEXT("EXCLUDED-TRANSLUCENT lines for which. The rule uses the SAME shared predicate as the census's ")
+			TEXT("EXCLUDED(translucent) verdict, so selection and the census cannot drift apart. G140 BOUNDARY: this ")
+			TEXT("changes which targets a given seed picks, so an auto-pool run is non-comparable across it."),
+			TranslucentOnlyExcludedTargets, *AnomalyDefaults::DescribeAllowTranslucentOnlyTargets());
+
+		if (BenchCensusMaskDumpFrames > 0)
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(bench): CENSUS MASK DUMP requested=%d written=%d. A written count of 0 with a ")
+				TEXT("non-zero request means NO census batch was collected with pixels this run - that is ")
+				TEXT("BLINDNESS, not a null result, and any downstream reading taken from an empty ")
+				TEXT("census_mask/ folder must be reported as unrunnable."),
+				BenchCensusMaskDumpFrames, BenchCensusMaskDumpsWritten);
+		}
+
 		AnomalyLabel::FTickPinTelemetry TickPinReport;
 		TickPinReport.bCompiled = AnomalyTickPin::bCompiled;
 		TickPinReport.bApplied = bTickPinApplied;
@@ -4469,6 +4752,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		}
 
 		DestroyMaskPairingProbe();
+		RestoreBenchTeleports();
 
 		AnomalyLabel::FTargetMaskTelemetry TargetMaskReport;
 		if (bTargetMaskEffective)
@@ -4505,6 +4789,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TargetMaskUnavailable += TargetMaskPendingSessionIndex.Num();
 			TargetMaskPendingSessionIndex.Reset();
 			TargetMaskPendingTags.Reset();
+			TargetMaskPendingTagEvent.Reset();
 
 			const int32 Residual = FramesWritten - (TargetMaskMeasured + TargetMaskHiddenBlank + TargetMaskUnavailable);
 			if (Residual > 0)
@@ -4528,8 +4813,10 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 					E.EventId = FString::Printf(TEXT("%s@%llu"), *R.Id.ToString(), R.StartFrame);
 					E.TargetName = R.Target;
 					E.AnomalyType = R.Id.ToString();
-					E.FirstFrame = TargetMaskFirstFrame.Contains(R.Tag) ? TargetMaskFirstFrame[R.Tag] : -1;
-					E.LastFrame = TargetMaskLastFrame.Contains(R.Tag) ? TargetMaskLastFrame[R.Tag] : -1;
+					const int32* First = TargetMaskFirstFrame.Find(E.EventId);
+					const int32* Last = TargetMaskLastFrame.Find(E.EventId);
+					E.FirstFrame = First ? *First : -1;
+					E.LastFrame = Last ? *Last : -1;
 					MapEntries.Add(E);
 				}
 			}
@@ -4590,7 +4877,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			bTargetMask ? &TargetMaskReport : nullptr,
 			&ShaderReadinessReport,
 			FramesExposureDip,
-			&ObservabilityReport);
+			&ObservabilityReport,
+			TranslucentOnlyExcludedTargets);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")
@@ -4766,7 +5054,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireInfo>& Fires,
 	const TArray<uint8>& FireActive, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
-	float NearClip, int32 SessionIndex, double TimeSeconds, const TArray<uint8>* Observable)
+	float NearClip, int32 SessionIndex, double TimeSeconds, const TArray<uint8>* Observable,
+	const TArray<FIntRect>* DrawnBounds)
 {
 	if (!Async.IsValid())
 	{
@@ -4841,6 +5130,15 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 		const uint8 Obs = (Observable && Observable->IsValidIndex(i))
 			? (*Observable)[i] : (uint8)AnomalyLabel::EObservable::Unmeasured;
 		Ev->ObservableByIndex.Add(SessionIndex, Obs);
+
+		if (DrawnBounds && DrawnBounds->IsValidIndex(i))
+		{
+			const FIntRect& Drawn = (*DrawnBounds)[i];
+			if (Drawn.Width() > 0 && Drawn.Height() > 0)
+			{
+				++Ev->DrawnBboxFrames;
+			}
+		}
 	}
 }
 
@@ -5000,6 +5298,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		}
 		Out.CoverageRatio = Ev.CoverageCount > 0 ? (Ev.CoverageSum / (double)Ev.CoverageCount) : 0.0;
 		Out.CoveragePct = Ev.Provenance.CoveragePct;
+		Out.BboxSource = (Ev.DrawnBboxFrames > 0) ? TEXT("drawn") : TEXT("projected");
 
 		AnomalyLabel::FSessionNode Node;
 		Node.Name = Ev.NodeName;
@@ -5955,6 +6254,84 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchMaskPairingProbeCmd(
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
 			{
 				Cap->SetBenchMaskPairingProbe(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchTeleportOffscreenAtCmd(
+	TEXT("IAI.Bench.TeleportTargetOffscreenAt"),
+	TEXT("BENCH DEVICE, default -1 (OFF), console only - no ini key, never in a client payload. On the tick ")
+	TEXT("that arms captured frame session_index=<si>, every live fire's target actor is teleported ")
+	TEXT("+1,000,000 cm in Z and left there for the rest of the run; the original locations are restored at ")
+	TEXT("FinishRun. The target is NOT hidden and stays tagged, so the mask is still armed and still ")
+	TEXT("MEASURED - it just finds nothing. This is the F4 shape from the Concorde feedback (a labelled ")
+	TEXT("window whose target is not on screen) and it is what makes m49's OBS-2 gate able to FAIL (G96): ")
+	TEXT("from <si> on, target_pixels must read 0 (not -1), observable must read false, those indices must ")
+	TEXT("leave affected_frames, and injected_frames must NOT change. With it OFF the run is byte-inert. ")
+	TEXT("Takes effect BETWEEN RUNS. Usage: IAI.Bench.TeleportTargetOffscreenAt <si|-1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.TeleportTargetOffscreenAt <si|-1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchTeleportOffscreenAt(FCString::Atoi(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchRetakeMaterialAfterCmd(
+	TEXT("IAI.Bench.RetakeMaterialAfter"),
+	TEXT("BENCH DEVICE, default -1 (OFF), console only - no ini key, never in a client payload. On the tick ")
+	TEXT("that arms captured frame session_index=<si>, every live fire's target has EVERY mesh material ")
+	TEXT("slot override cleared to the mesh's built-in default - the shape a host that re-takes ownership of ")
+	TEXT("its own materials presents to us (the m17/Concorde case). It synthesises the SYMPTOM, not the ")
+	TEXT("cause. For missing_texture and corrupted_texture, IsVisualConditionHeld then reads FALSE from ")
+	TEXT("that frame on, which is what makes m49's OBS-3 gate able to FAIL (G96): observable must go false ")
+	TEXT("and run_summary.frames_condition_lost must exceed 0. Note frames_condition_lost is STRUCTURALLY ")
+	TEXT("ZERO for hide-class and toggle-class ids, so this lever only bites on the two texture types. With ")
+	TEXT("it OFF the run is byte-inert. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Bench.RetakeMaterialAfter <si|-1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.RetakeMaterialAfter <si|-1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchRetakeMaterialAfter(FCString::Atoi(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchCensusMaskDumpCmd(
+	TEXT("IAI.Bench.CensusMaskDump"),
+	TEXT("BENCH DEVICE, default 0 (OFF), console only - no ini key, never in a client payload, and forced ")
+	TEXT("OFF in delivery mode. N writes the CENSUS batch's own mask PNG for the first N collected batches ")
+	TEXT("to census_mask/tick_<armTick>.png, plus one JSON row per batch in ")
+	TEXT("census_mask/census_mask_map.jsonl naming each tag's actor, pixel count and drawn bounds. It is a ")
+	TEXT("PNG WRITE, NOT A NEW PASS - the census already does a full mask readback and a per-tag reduce ")
+	TEXT("every cycle and discards the pixels. WHY IT EXISTS: the census is the only thing in this system ")
+	TEXT("that tags a NON-ANOMALOUS object, so it is the only way to get a tagged-vs-untagged frame pair ")
+	TEXT("whose only difference is the tag - which is what deciding whether a host post-process stencil ")
+	TEXT("reader draws on our tags requires, with the anomaly's own appearance change absent. armTick is ")
+	TEXT("GFrameCounter at arm and joins to labels.jsonl frame_index. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Bench.CensusMaskDump <n>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.CensusMaskDump <n>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchCensusMaskDump(FCString::Atoi(*Args[0]));
 			}
 		}));
 

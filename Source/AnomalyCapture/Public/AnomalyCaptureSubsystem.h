@@ -104,6 +104,9 @@ public:
 	void SetBenchCensusFixedExpiry(bool bInFixed);
 	void SetBenchCensusBatchCap(int32 InCap);
 	void SetBenchCensusDropEveryNth(int32 InN);
+	void SetBenchTeleportOffscreenAt(int32 InSessionIndex);
+	void SetBenchRetakeMaterialAfter(int32 InSessionIndex);
+	void SetBenchCensusMaskDump(int32 InFrames);
 
 	void SetTickPin(bool bInPin);
 	bool IsTickPinEnabled() const { return bTickPinEnabled; }
@@ -174,6 +177,10 @@ private:
 	void SpawnMaskPairingProbe();
 	void StepMaskPairingProbe(int32 SessionIndex);
 	void DestroyMaskPairingProbe();
+	void StepBenchObservabilityLevers(int32 SessionIndex);
+	void RestoreBenchTeleports();
+	void EnqueueCensusMaskDump(uint64 ArmTick, const TArray<uint8>& Gray, int32 W, int32 H,
+		const TArray<FString>& TagRows);
 	void EnqueueTargetMaskPng(int32 SessionIndex, const TArray<uint8>& Gray, int32 W, int32 H);
 	const TCHAR* DescribeCensusSource() const;
 	const TCHAR* DescribeMaskSource() const;
@@ -205,7 +212,7 @@ private:
 
 	void AccumulateFrameEvents(const TArray<struct FAutoLiveFireInfo>& Fires, const TArray<uint8>& FireActive,
 		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
-		const TArray<uint8>* Observable = nullptr);
+		const TArray<uint8>* Observable = nullptr, const TArray<FIntRect>* DrawnBounds = nullptr);
 	void WriteSessionAnnotationFile();
 
 	void ApplySessionGlobals();
@@ -369,10 +376,12 @@ private:
 	int32 TargetMaskArmedSessionIndex = -1;
 	TMap<uint64, int32> TargetMaskPendingSessionIndex;
 	TMap<uint64, TSet<uint8>> TargetMaskPendingTags;
+	TMap<uint64, TMap<uint8, FString>> TargetMaskPendingTagEvent;
 	struct FTargetMaskOutcome
 	{
 		uint8 State = 0;
 		TMap<uint8, int32> Counts;
+		TMap<uint8, FIntRect> Bounds;
 	};
 	TMap<int32, FTargetMaskOutcome> TargetMaskOutcome;
 	int32 TargetMaskHoldTicks = 0;
@@ -394,11 +403,18 @@ private:
 	int32 TargetMaskEventRetags = 0;
 	int32 TargetMaskW = 0;
 	int32 TargetMaskH = 0;
-	TMap<uint8, int32> TargetMaskFirstFrame;
-	TMap<uint8, int32> TargetMaskLastFrame;
+	TMap<FString, int32> TargetMaskFirstFrame;
+	TMap<FString, int32> TargetMaskLastFrame;
 	bool bBenchCensusFixedExpiry = false;
 	int32 BenchCensusBatchCap = 0;
 	int32 BenchCensusDropEveryNth = 0;
+	int32 BenchTeleportOffscreenAt = -1;
+	int32 BenchRetakeMaterialAfter = -1;
+	int32 BenchCensusMaskDumpFrames = 0;
+	int32 BenchCensusMaskDumpsWritten = 0;
+	bool bBenchTeleportFired = false;
+	bool bBenchRetakeFired = false;
+	TArray<TPair<TWeakObjectPtr<AActor>, FVector>> BenchTeleportRestore;
 	FDelegateHandle MaskEndFrameHandle;
 	FDelegateHandle MaskWorldTickEndHandle;
 	bool bRectDeltaLogged = false;
@@ -407,6 +423,7 @@ private:
 	bool bLabelsInDeliveryFromIni = false;
 	bool bLabelsInDeliveryFromConsole = false;
 	int32 PatternExcludedTargets = 0;
+	int32 TranslucentOnlyExcludedTargets = 0;
 	EContentClock ContentClock = EContentClock::Wall;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;
 	TUniquePtr<FAnomalyPreviewTee> PreviewTee;

@@ -38,32 +38,6 @@ namespace
 {
 	constexpr uint64 GCensusRequestBit = 1ull << 62;
 
-	bool ComponentSlotsAllTranslucent(const UPrimitiveComponent* Prim, bool bAllowCustomDepthOptIn)
-	{
-		const int32 NumSlots = Prim->GetNumMaterials();
-		if (NumSlots <= 0)
-		{
-			return false;
-		}
-		for (int32 Slot = 0; Slot < NumSlots; ++Slot)
-		{
-			UMaterialInterface* M = const_cast<UPrimitiveComponent*>(Prim)->GetMaterial(Slot);
-			if (!M)
-			{
-				return false;
-			}
-			if (!IsTranslucentBlendMode(M->GetBlendMode()))
-			{
-				return false;
-			}
-			if (bAllowCustomDepthOptIn && M->IsTranslucencyWritingCustomDepth())
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-
 	enum class ECensusClass : uint8 { Measurable, Nanite, Translucent, Hidden, HeldElsewhere };
 
 	bool ComponentRendersAsNanite(const UStaticMeshComponent* SMC, EShaderPlatform ShaderPlatform)
@@ -108,7 +82,7 @@ namespace
 			}
 			++Renderable;
 
-			if (bExcludeTranslucent && ComponentSlotsAllTranslucent(Prim, bAllowCustomDepthOptIn))
+			if (bExcludeTranslucent && AnomalyViewport::IsTranslucentOnlyComponent(Prim, bAllowCustomDepthOptIn))
 			{
 				++TranslucentOnly;
 				continue;
@@ -146,6 +120,7 @@ void FAnomalyCensus::Begin(UWorld* World, FAnomalyStencilTagLedger* InLedger, co
 	bCycleOpen = false;
 	bCycleJustCompleted = false;
 	bLeakProbeFired = false;
+	MaskDumpsRequested = 0;
 	Params = InParams;
 	Ledger = InLedger;
 	Counters = FAnomalyCensusCounters();
@@ -598,6 +573,53 @@ void FAnomalyCensus::CollectBatches(FAnomalyMaskSceneViewExtension* Sve, const T
 		{
 			const bool bPassRan = Result.CustomStencilExtent.X > 1 && Result.CustomStencilExtent.Y > 1;
 
+			if (Batch.bWantPixels && OnMaskDump.IsBound())
+			{
+				const int32 DumpW = Result.ViewRectSize.X;
+				const int32 DumpH = Result.ViewRectSize.Y;
+				if (DumpW > 0 && DumpH > 0 && Result.MaskPixels.Num() >= (int64)DumpW * (int64)DumpH)
+				{
+					TSet<uint8> BatchTagSet(Batch.Tags);
+					TArray<uint8> Gray = Result.MaskPixels;
+					const int32 N = DumpW * DumpH;
+					for (int32 p = 0; p < N; ++p)
+					{
+						if (Gray[p] != 0 && !BatchTagSet.Contains(Gray[p]))
+						{
+							Gray[p] = 0;
+						}
+					}
+
+					TArray<FString> TagRows;
+					for (int32 k = 0; k < Batch.EntryIdx.Num(); ++k)
+					{
+						const int32 EntryIndex = Batch.EntryIdx[k];
+						const uint8 Tag = Batch.Tags[k];
+						const FString ActorName = Entries.IsValidIndex(EntryIndex)
+							? Entries[EntryIndex].ActorName : FString(TEXT("?"));
+						const FAnomalyMaskTagResult* R = Result.TagResults.Find(Tag);
+						TagRows.Add(FString::Printf(
+							TEXT("{\"value\":%d,\"actor\":\"%s\",\"count\":%d,\"minx\":%d,\"miny\":%d,\"maxx\":%d,\"maxy\":%d}"),
+							(int32)Tag, *ActorName, R ? R->Count : 0,
+							(R && R->Count > 0) ? R->MinX : -1, (R && R->Count > 0) ? R->MinY : -1,
+							(R && R->Count > 0) ? R->MaxX : -1, (R && R->Count > 0) ? R->MaxY : -1));
+					}
+
+					OnMaskDump.Execute(Batch.ArmedAtTick, Gray, DumpW, DumpH, TagRows);
+					UE_LOG(LogAnomalyCapture, Warning,
+						TEXT("Census(bench): MASK-DUMP armTick=%llu batch id=%llu tags=%d %dx%d - the census's own ")
+						TEXT("silhouettes for a NON-ANOMALOUS batch. armTick joins to labels.jsonl frame_index."),
+						Batch.ArmedAtTick, Batch.RequestId, Batch.EntryIdx.Num(), DumpW, DumpH);
+				}
+				else
+				{
+					UE_LOG(LogAnomalyCapture, Warning,
+						TEXT("Census(bench): MASK-DUMP armTick=%llu batch id=%llu carried NO PIXELS (%dx%d, n=%d) - ")
+						TEXT("nothing written. Reported so an empty census_mask/ folder is not read as a null."),
+						Batch.ArmedAtTick, Batch.RequestId, DumpW, DumpH, Result.MaskPixels.Num());
+				}
+			}
+
 			bool bPolluted = false;
 			uint8 PollutingTag = 0;
 			if (bPassRan)
@@ -760,7 +782,13 @@ void FAnomalyCensus::ArmNextBatch(FAnomalyMaskSceneViewExtension* Sve, const TSe
 		Assigned.Add(Tag);
 	}
 	Sve->SetAssignedTags(Assigned);
-	Sve->ArmMask(Batch.RequestId);
+	const bool bWantPixels = (Params.BenchMaskDumpFrames > 0) && (MaskDumpsRequested < Params.BenchMaskDumpFrames);
+	if (bWantPixels)
+	{
+		++MaskDumpsRequested;
+	}
+	Sve->ArmMask(Batch.RequestId, bWantPixels);
+	Batch.bWantPixels = bWantPixels;
 
 	++Counters.CensusFrames;
 	UE_LOG(LogAnomalyCapture, Log,

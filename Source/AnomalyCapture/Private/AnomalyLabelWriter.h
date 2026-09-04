@@ -52,6 +52,7 @@ namespace AnomalyLabel
 		TArray<uint8>   FireLabelled;
 		TArray<uint8>   ConditionHeld;
 		TArray<uint8>   Observable;
+		TArray<FIntRect> DrawnBounds;
 	};
 
 	static constexpr int32 GTargetPixelsUnmeasured = -1;
@@ -160,7 +161,8 @@ namespace AnomalyLabel
 		const struct FTargetMaskTelemetry* TargetMask = nullptr,
 		const struct FShaderReadinessTelemetry* ShaderReadiness = nullptr,
 		int32 FramesExposureDip = 0,
-		const struct FObservabilityTelemetry* Observability = nullptr);
+		const struct FObservabilityTelemetry* Observability = nullptr,
+		int32 TranslucentOnlyExcludedTargets = 0);
 
 	struct FObservabilityTelemetry
 	{
@@ -242,6 +244,7 @@ namespace AnomalyLabel
 		int32 ObservableFrameCount = 0;
 		int32 UnmeasuredFrameCount = 0;
 		bool bObservabilityMeasured = true;
+		FString BboxSource = TEXT("projected");
 		bool bManifested = true;
 		double CoverageRatio = 0.0;
 		float CoveragePct = -1.0f;

@@ -41,7 +41,8 @@ namespace
 		bool bTargetMask = false, const FString& MaskFileRel = FString(), const TArray<int32>* MaskValues = nullptr,
 		AnomalyLabel::EAnomalyMaskState MaskState = AnomalyLabel::EAnomalyMaskState::Unmeasured,
 		int32 ShadersPending = 0, int32 AnomalyMaterialsIncomplete = 0, bool bExposureDip = false,
-		const TArray<int32>* TargetPixels = nullptr, const TArray<uint8>* Observable = nullptr)
+		const TArray<int32>* TargetPixels = nullptr, const TArray<uint8>* Observable = nullptr,
+		const TArray<FIntRect>* DrawnBounds = nullptr)
 	{
 		OutNumLabels = 0;
 
@@ -110,6 +111,19 @@ namespace
 			const double X1 = FMath::Clamp((double)Max.X * W, 0.0, (double)W);
 			const double Y1 = FMath::Clamp((double)Max.Y * H, 0.0, (double)H);
 			O->SetArrayField(TEXT("bbox_px"), { LabelNum(X0), LabelNum(Y0), LabelNum(X1 - X0), LabelNum(Y1 - Y0) });
+
+			const FIntRect Drawn = (DrawnBounds && DrawnBounds->IsValidIndex(FireIndex))
+				? (*DrawnBounds)[FireIndex] : FIntRect();
+			if (Drawn.Width() > 0 && Drawn.Height() > 0)
+			{
+				O->SetArrayField(TEXT("bbox_drawn_px"),
+					{ LabelNum(Drawn.Min.X), LabelNum(Drawn.Min.Y),
+					  LabelNum(Drawn.Width()), LabelNum(Drawn.Height()) });
+			}
+			else
+			{
+				O->SetField(TEXT("bbox_drawn_px"), MakeShared<FJsonValueNull>());
+			}
 
 			if (bValid)
 			{
@@ -450,7 +464,7 @@ namespace AnomalyLabel
 			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, Snapshot.WallSeconds, ImageName, OutNumLabels,
 			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues, Snapshot.MaskState,
 			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete, Snapshot.bExposureDip,
-			&Snapshot.TargetPixels, &Snapshot.Observable);
+			&Snapshot.TargetPixels, &Snapshot.Observable, &Snapshot.DrawnBounds);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -499,6 +513,10 @@ namespace AnomalyLabel
 		Root->SetStringField(TEXT("note"),
 			TEXT("One entry per (mask_value, event). Stencil tag values are REUSED across events, so a "
 				 "value alone does not identify an event - key on mask_value together with the frame range. "
+				 "m49-A2: first_frame/last_frame are now scoped to THIS EVENT. Before m49-A2 they were keyed "
+				 "on the stencil VALUE alone, so two events sharing a reused value reported one merged range "
+				 "for both - which broke the very disambiguation this note asks you to perform. -1 on both "
+				 "means the event's tag was never counted non-zero in any measured mask. "
 				 "Values are the 8-bit pixel values in target_mask/frame_NNNNN.png; 0 is background. Only "
 				 "ANOMALY TARGETS appear - this is not a mask of every object in the scene."));
 
@@ -600,7 +618,8 @@ namespace AnomalyLabel
 		const ::FAnomalyCensusCounters* Census,
 		const FTargetMaskTelemetry* TargetMask,
 		const FShaderReadinessTelemetry* ShaderReadiness,
-		int32 FramesExposureDip, const FObservabilityTelemetry* Observability)
+		int32 FramesExposureDip, const FObservabilityTelemetry* Observability,
+		int32 TranslucentOnlyExcludedTargets)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -629,6 +648,7 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("translucent_vetoes"), TranslucentVetoes);
 		Root->SetNumberField(TEXT("translucency_unknown_vetoes"), TranslucencyUnknownVetoes);
 		Root->SetNumberField(TEXT("pattern_excluded_targets"), PatternExcludedTargets);
+		Root->SetNumberField(TEXT("translucent_only_excluded_targets"), TranslucentOnlyExcludedTargets);
 		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);
 
 		if (Observability)
@@ -787,6 +807,7 @@ namespace AnomalyLabel
 				O->SetObjectField(TEXT("injected_frames"), IF);
 			}
 
+			O->SetStringField(TEXT("bbox_source"), E.BboxSource);
 			O->SetNumberField(TEXT("observable_frame_count"), E.ObservableFrameCount);
 			O->SetNumberField(TEXT("unmeasured_frame_count"), E.UnmeasuredFrameCount);
 			O->SetBoolField(TEXT("observability_measured"), E.bObservabilityMeasured);
