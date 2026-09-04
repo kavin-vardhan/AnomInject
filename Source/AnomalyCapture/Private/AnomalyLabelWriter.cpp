@@ -42,7 +42,8 @@ namespace
 		AnomalyLabel::EAnomalyMaskState MaskState = AnomalyLabel::EAnomalyMaskState::Unmeasured,
 		int32 ShadersPending = 0, int32 AnomalyMaterialsIncomplete = 0, bool bExposureDip = false,
 		const TArray<int32>* TargetPixels = nullptr, const TArray<uint8>* Observable = nullptr,
-		const TArray<FIntRect>* DrawnBounds = nullptr)
+		const TArray<FIntRect>* DrawnBounds = nullptr, const TArray<int32>* TargetDrawnPixels = nullptr,
+		bool bExposureDipScopeExcluded = false)
 	{
 		OutNumLabels = 0;
 
@@ -74,6 +75,10 @@ namespace
 			const int32 Px = (TargetPixels && TargetPixels->IsValidIndex(FireIndex))
 				? (*TargetPixels)[FireIndex] : AnomalyLabel::GTargetPixelsUnmeasured;
 			O->SetNumberField(TEXT("target_pixels"), Px);
+
+			const int32 DrawnPx = (TargetDrawnPixels && TargetDrawnPixels->IsValidIndex(FireIndex))
+				? (*TargetDrawnPixels)[FireIndex] : AnomalyLabel::GTargetPixelsUnmeasured;
+			O->SetNumberField(TEXT("target_drawn_pixels"), DrawnPx);
 
 			const uint8 Obs = (Observable && Observable->IsValidIndex(FireIndex))
 				? (*Observable)[FireIndex] : (uint8)AnomalyLabel::EObservable::Unmeasured;
@@ -152,6 +157,8 @@ namespace
 		if (bExposureDip)
 		{
 			Root->SetBoolField(TEXT("exposure_dip"), true);
+			Root->SetStringField(TEXT("exposure_dip_scope"),
+				bExposureDipScopeExcluded ? TEXT("frame_minus_targets") : TEXT("frame"));
 		}
 
 		if (AnomalyMaterialsIncomplete > 0)
@@ -250,32 +257,58 @@ namespace AnomalyLabel
 		}
 	}
 
-	double ComputeSubsampledMeanLuma(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
-		int32 W, int32 H, int32 Stride)
+	void ComputeSubsampledMeanLumaSplit(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
+		int32 W, int32 H, int32 Stride, const TArray<uint8>* ExclusionMask,
+		double& OutLumaAll, double& OutLumaExcl)
 	{
+		OutLumaAll = -1.0;
+		OutLumaExcl = -1.0;
+
 		if (W <= 0 || H <= 0 || BytesPerPixel <= 0 || Stride <= 0)
 		{
-			return -1.0;
+			return;
 		}
 		if ((int64)RawBytes.Num() < (int64)W * (int64)H * (int64)BytesPerPixel)
 		{
-			return -1.0;
+			return;
 		}
+
+		const bool bHaveMask = ExclusionMask && (int64)ExclusionMask->Num() >= (int64)W * (int64)H;
+		const uint8* Excl = bHaveMask ? ExclusionMask->GetData() : nullptr;
 
 		const uint8* Base = RawBytes.GetData();
 		double Sum = 0.0;
+		double SumExcl = 0.0;
 		int64 N = 0;
+		int64 NExcl = 0;
 		for (int32 y = 0; y < H; y += Stride)
 		{
 			const uint8* Row = Base + (int64)y * (int64)W * (int64)BytesPerPixel;
+			const uint8* ExclRow = Excl ? (Excl + (int64)y * (int64)W) : nullptr;
 			for (int32 x = 0; x < W; x += Stride)
 			{
 				const FColor C = DecodeTightPixel(Format, Row + (int64)x * BytesPerPixel);
-				Sum += 0.299 * (double)C.R + 0.587 * (double)C.G + 0.114 * (double)C.B;
+				const double L = 0.299 * (double)C.R + 0.587 * (double)C.G + 0.114 * (double)C.B;
+				Sum += L;
 				++N;
+				if (!ExclRow || ExclRow[x] == 0)
+				{
+					SumExcl += L;
+					++NExcl;
+				}
 			}
 		}
-		return (N > 0) ? (Sum / (double)N) : -1.0;
+		OutLumaAll = (N > 0) ? (Sum / (double)N) : -1.0;
+		OutLumaExcl = (NExcl > 0) ? (SumExcl / (double)NExcl) : OutLumaAll;
+	}
+
+	double ComputeSubsampledMeanLuma(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
+		int32 W, int32 H, int32 Stride)
+	{
+		double All = -1.0;
+		double Excl = -1.0;
+		ComputeSubsampledMeanLumaSplit(Format, BytesPerPixel, RawBytes, W, H, Stride, nullptr, All, Excl);
+		return All;
 	}
 	void DeriveOutputSize(int32 SrcW, int32 SrcH, int32 TargetH, int32& OutW, int32& OutH, bool& bOutNeedsResample)
 	{
@@ -464,7 +497,8 @@ namespace AnomalyLabel
 			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, Snapshot.WallSeconds, ImageName, OutNumLabels,
 			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues, Snapshot.MaskState,
 			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete, Snapshot.bExposureDip,
-			&Snapshot.TargetPixels, &Snapshot.Observable, &Snapshot.DrawnBounds);
+			&Snapshot.TargetPixels, &Snapshot.Observable, &Snapshot.DrawnBounds,
+			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -619,7 +653,8 @@ namespace AnomalyLabel
 		const FTargetMaskTelemetry* TargetMask,
 		const FShaderReadinessTelemetry* ShaderReadiness,
 		int32 FramesExposureDip, const FObservabilityTelemetry* Observability,
-		int32 TranslucentOnlyExcludedTargets, int32 UnmeasurableTargetsAdmitted)
+		int32 TranslucentOnlyExcludedTargets, int32 UnmeasurableTargetsAdmitted,
+		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -651,6 +686,9 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("translucent_only_excluded_targets"), TranslucentOnlyExcludedTargets);
 		Root->SetNumberField(TEXT("unmeasurable_targets_admitted"), UnmeasurableTargetsAdmitted);
 		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);
+		Root->SetNumberField(TEXT("frames_exposure_dip_suppressed"), FramesExposureDipSuppressed);
+		Root->SetNumberField(TEXT("target_drawn_pixels_measured"), TargetDrawnPixelsMeasured);
+		Root->SetNumberField(TEXT("frames_drawn_unexpected"), FramesDrawnUnexpected);
 
 		if (Observability)
 		{

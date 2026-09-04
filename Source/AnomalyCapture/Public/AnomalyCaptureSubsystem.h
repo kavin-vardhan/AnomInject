@@ -185,6 +185,8 @@ private:
 	void EnqueueCensusMaskDump(uint64 ArmTick, const TArray<uint8>& Gray, int32 W, int32 H,
 		const TArray<FString>& TagRows);
 	void EnqueueTargetMaskPng(int32 SessionIndex, const TArray<uint8>& Gray, int32 W, int32 H);
+	void FoldExposureExclusion(const TArray<uint8>& Gray, int32 W, int32 H,
+		const TMap<uint8, FString>* TagEvent);
 	const TCHAR* DescribeCensusSource() const;
 	const TCHAR* DescribeMaskSource() const;
 	const TCHAR* DescribeCensusTranslucentWritersSource() const;
@@ -385,6 +387,7 @@ private:
 		uint8 State = 0;
 		TMap<uint8, int32> Counts;
 		TMap<uint8, FIntRect> Bounds;
+		TMap<uint8, int32> DrawnCounts;
 	};
 	TMap<int32, FTargetMaskOutcome> TargetMaskOutcome;
 	int32 TargetMaskHoldTicks = 0;
@@ -393,8 +396,21 @@ private:
 	bool bObservableMinOverridden = false;
 	int32 FramesConditionLost = 0;
 	int32 ObservableFramesTotal = 0;
-	TMap<int32, double> ExposureLumBySessionIndex;
+	int32 FramesDrawnUnexpected = 0;
+	int32 TargetDrawnMeasuredRows = 0;
+	struct FExposureSample
+	{
+		double LumaAll = -1.0;
+		double LumaExcl = -1.0;
+	};
+	TMap<int32, FExposureSample> ExposureLumBySessionIndex;
+	TArray<uint8> ExposureExclusionMask;
+	TSet<FString> ExposureExclusionFolded;
+	int32 ExposureExclusionW = 0;
+	int32 ExposureExclusionH = 0;
+	int32 ExposureExclusionPx = 0;
 	int32 FramesExposureDip = 0;
+	int32 FramesExposureDipSuppressed = 0;
 	int32 ExposureDipFirstIndex = -1;
 	TArray<TWeakObjectPtr<AActor>> TargetMaskSelfTagged;
 	uint64 TargetMaskSelfTaggedTick = 0;

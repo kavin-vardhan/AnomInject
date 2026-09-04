@@ -24,6 +24,9 @@ class FViewInfo;
 #include "AnomalyVisibleMaskShader.h"
 #include "AnomalyMaskReduceShader.h"
 
+static constexpr int32 GAnomalyMaskTableStride = 6;
+static constexpr int32 GAnomalyMaskTableUints = 256 * GAnomalyMaskTableStride;
+
 static FScreenPassTexture FinalizeMaskAfterPassOutput(FRDGBuilder& GraphBuilder, const FSceneView& View,
 	const FPostProcessMaterialInputs& Inputs, const FScreenPassTexture& SceneColor)
 {
@@ -144,6 +147,7 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	const FRDGTextureDesc MaskDesc = FRDGTextureDesc::Create2D(
 		Size, PF_R8_UINT, FClearValueBinding::Black, TexCreate_RenderTargetable | TexCreate_ShaderResource);
 	FRDGTextureRef MaskRT = GraphBuilder.CreateTexture(MaskDesc, TEXT("AnomalyVisibleMask"));
+	FRDGTextureRef DrawnRT = GraphBuilder.CreateTexture(MaskDesc, TEXT("AnomalyDrawnMask"));
 
 	FAnomalyVisibleMaskPS::FParameters* P = GraphBuilder.AllocParameters<FAnomalyVisibleMaskPS::FParameters>();
 	P->SceneTextures = Inputs.SceneTextures;
@@ -154,6 +158,7 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	P->InternalRectSize = static_cast<const FViewInfo&>(View).ViewRect.Size();
 	P->OutputRectSize = Size;
 	P->RenderTargets[0] = FRenderTargetBinding(MaskRT, ERenderTargetLoadAction::EClear);
+	P->RenderTargets[1] = FRenderTargetBinding(DrawnRT, ERenderTargetLoadAction::EClear);
 
 	const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(View.GetFeatureLevel());
 	TShaderMapRef<FAnomalyVisibleMaskPS> PixelShader(ShaderMap);
@@ -168,12 +173,13 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	if (Mode != EAnomalyMaskReduceMode::Cpu)
 	{
 		FRDGBufferRef TableBuffer = GraphBuilder.CreateBuffer(
-			FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1280), TEXT("AnomalyMaskReduceTable"));
+			FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), GAnomalyMaskTableUints), TEXT("AnomalyMaskReduceTable"));
 		FRDGBufferUAVRef TableUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(TableBuffer, PF_R32_UINT));
 		AddClearUAVPass(GraphBuilder, TableUAV, 0u);
 
 		FAnomalyMaskReduceCS::FParameters* CSP = GraphBuilder.AllocParameters<FAnomalyMaskReduceCS::FParameters>();
 		CSP->MaskTexture = MaskRT;
+		CSP->DrawnTexture = DrawnRT;
 		CSP->OutTable = TableUAV;
 		CSP->MaskSize = Size;
 
@@ -183,7 +189,8 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 
 		TUniquePtr<FRHIGPUBufferReadback> BufferReadback =
 			MakeUnique<FRHIGPUBufferReadback>(TEXT("AnomalyMaskReduceReadback"));
-		AddEnqueueCopyPass(GraphBuilder, BufferReadback.Get(), TableBuffer, 1280u * sizeof(uint32));
+		AddEnqueueCopyPass(GraphBuilder, BufferReadback.Get(), TableBuffer,
+			(uint32)GAnomalyMaskTableUints * sizeof(uint32));
 		Item.BufferReadback = MoveTemp(BufferReadback);
 	}
 
@@ -291,6 +298,7 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 		int32 CpuMaxXs[256];
 		int32 CpuMaxYs[256];
 		int32 GpuCounts[256] = {};
+		int32 GpuDrawn[256] = {};
 		int32 GpuMinXs[256];
 		int32 GpuMinYs[256];
 		int32 GpuMaxXs[256];
@@ -356,20 +364,22 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 
 		if (bNeedGpu)
 		{
-			const void* BufSrc = Item.BufferReadback->Lock(1280u * sizeof(uint32));
+			const void* BufSrc = Item.BufferReadback->Lock((uint32)GAnomalyMaskTableUints * sizeof(uint32));
 			if (BufSrc)
 			{
 				const uint32* T = static_cast<const uint32*>(BufSrc);
 				for (int32 t = 0; t < 256; ++t)
 				{
-					const uint32 C = T[t * 5 + 0];
+					const int32 Base = t * GAnomalyMaskTableStride;
+					const uint32 C = T[Base + 0];
 					GpuCounts[t] = (int32)C;
+					GpuDrawn[t] = (int32)T[Base + 5];
 					if (C > 0)
 					{
-						GpuMinXs[t] = (int32)~T[t * 5 + 1];
-						GpuMinYs[t] = (int32)~T[t * 5 + 2];
-						GpuMaxXs[t] = (int32)T[t * 5 + 3];
-						GpuMaxYs[t] = (int32)T[t * 5 + 4];
+						GpuMinXs[t] = (int32)~T[Base + 1];
+						GpuMinYs[t] = (int32)~T[Base + 2];
+						GpuMaxXs[t] = (int32)T[Base + 3];
+						GpuMaxYs[t] = (int32)T[Base + 4];
 					}
 				}
 				bHaveGpu = true;
@@ -399,7 +409,11 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 			}
 			if (DiffTag < 0)
 			{
-				UE_LOG(LogAnomalyCapture, Log, TEXT("MASK-REDUCE COMPARE id=%llu IDENTICAL"), Item.RequestId);
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("MASK-REDUCE COMPARE id=%llu IDENTICAL (count and bounds only - the CPU path scans ")
+					TEXT("RT0 alone, so m49 phase B's DrawnCount has NO CPU side to compare against and is ")
+					TEXT("GPU-only by construction; in cpu reduce mode it is reported UNMEASURED, never 0)"),
+					Item.RequestId);
 			}
 			else
 			{
@@ -432,6 +446,7 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 				R.Count = Counts[t];
 				R.MinX = MinXs[t]; R.MinY = MinYs[t];
 				R.MaxX = MaxXs[t]; R.MaxY = MaxYs[t];
+				R.DrawnCount = bUseGpu ? GpuDrawn[t] : GAnomalyMaskDrawnUnmeasured;
 				Result.TagResults.Add(Tag, R);
 				Result.TotalMaskedPixels += Counts[t];
 
@@ -455,6 +470,35 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 				(int32)Result.FirstUnassignedTag, Result.UnassignedTagCount, ViewPixels,
 				ViewPixels > 0 ? (100.0 * (double)Result.UnassignedTagCount / (double)ViewPixels) : -1.0,
 				LexToStringAnomalyMaskReduceMode(Item.Mode));
+
+			{
+				FString Dist;
+				int32 SubsetViolations = 0;
+				for (const TPair<uint8, FAnomalyMaskTagResult>& TR : Result.TagResults)
+				{
+					Dist += FString::Printf(TEXT(" %d:%d/%d"), (int32)TR.Key, TR.Value.Count, TR.Value.DrawnCount);
+					if (TR.Value.DrawnCount > TR.Value.Count)
+					{
+						++SubsetViolations;
+					}
+				}
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(m49b): DRAWN-DIST id=%llu tags=%d subsetViolations=%d [%s ] - each entry is ")
+					TEXT("tag:count/drawn. count is the front-most silhouette (RT0, unchanged since m34); drawn ")
+					TEXT("is the subset where the target's OWN depth is what the scene depth buffer holds, i.e. ")
+					TEXT("the main pass drew it. drawn <= count is structural (|dZ|<=bias implies Z>=SceneZ-bias), ")
+					TEXT("so subsetViolations MUST be 0 and a non-zero one is an instrument fault, not a finding ")
+					TEXT("about the scene. An untouched opaque object reads drawn == count; a correctly hidden ")
+					TEXT("m45 target reads drawn 0 with count > 0."),
+					Item.RequestId, Result.TagResults.Num(), SubsetViolations, *Dist);
+				if (SubsetViolations > 0)
+				{
+					UE_LOG(LogAnomalyCapture, Error,
+						TEXT("Capture(m49b): DRAWN-SUBSET VIOLATION id=%llu on %d tag(s) - drawn exceeded count, ")
+						TEXT("which the shader cannot produce. Treat every DrawnCount on this frame as UNSOUND."),
+						Item.RequestId, SubsetViolations);
+				}
+			}
 
 			{
 				FScopeLock Lock(&ResultsCS);

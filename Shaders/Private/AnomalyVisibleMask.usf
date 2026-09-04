@@ -19,7 +19,7 @@ int2 InternalRectMin;
 int2 InternalRectSize;
 int2 OutputRectSize;
 
-void MainPS(float4 SvPosition : SV_POSITION, out uint OutMask : SV_Target0)
+void MainPS(float4 SvPosition : SV_POSITION, out uint OutMask : SV_Target0, out uint OutDrawn : SV_Target1)
 {
 	// The mask RT is the OUTPUT view-rect size (0-based) because this pass runs after tonemap, but the
 	// scene textures are at INTERNAL (pre-upscale) resolution. Map output -> internal explicitly and
@@ -32,6 +32,7 @@ void MainPS(float4 SvPosition : SV_POSITION, out uint OutMask : SV_Target0)
 	if (Stencil < ReservedBase)
 	{
 		OutMask = 0;
+		OutDrawn = 0;
 		return;
 	}
 
@@ -41,4 +42,11 @@ void MainPS(float4 SvPosition : SV_POSITION, out uint OutMask : SV_Target0)
 	// Reversed-Z: nearer = larger device Z. The tagged surface is visible (front-most) iff it is at
 	// least as near as the scene's front-most surface, within a small device-Z bias.
 	OutMask = (CustomDeviceZ >= SceneDeviceZ - DepthBias) ? Stencil : 0;
+
+	// m49 phase B. RT1 is the strictly stronger statement: the tagged surface IS what the scene depth
+	// buffer holds here, so the main pass drew the target at this pixel. RT0's >= admits the case where
+	// the target's depth is NEARER than the scene's front-most surface, which is precisely a target the
+	// main pass did NOT draw - m45 hides by dropping the main and depth passes while KEEPING custom
+	// depth, so a correctly hidden target has RT0 = tag and RT1 = 0. RT0 is unchanged by construction.
+	OutDrawn = (abs(CustomDeviceZ - SceneDeviceZ) <= DepthBias) ? Stencil : 0;
 }

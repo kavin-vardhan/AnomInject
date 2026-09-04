@@ -48,7 +48,9 @@ namespace AnomalyLabel
 		TArray<uint8>   FireActive;
 		TArray<FVector> FirePos;
 		bool bExposureDip = false;
+		bool bExposureDipScopeExcluded = false;
 		TArray<int32>   TargetPixels;
+		TArray<int32>   TargetDrawnPixels;
 		TArray<uint8>   FireLabelled;
 		TArray<uint8>   ConditionHeld;
 		TArray<uint8>   Observable;
@@ -69,6 +71,10 @@ namespace AnomalyLabel
 
 	double ComputeSubsampledMeanLuma(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
 		int32 W, int32 H, int32 Stride);
+
+	void ComputeSubsampledMeanLumaSplit(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
+		int32 W, int32 H, int32 Stride, const TArray<uint8>* ExclusionMask,
+		double& OutLumaAll, double& OutLumaExcl);
 
 	void DeriveOutputSize(int32 SrcW, int32 SrcH, int32 TargetH, int32& OutW, int32& OutH, bool& bOutNeedsResample);
 
@@ -163,7 +169,9 @@ namespace AnomalyLabel
 		int32 FramesExposureDip = 0,
 		const struct FObservabilityTelemetry* Observability = nullptr,
 		int32 TranslucentOnlyExcludedTargets = 0,
-		int32 UnmeasurableTargetsAdmitted = 0);
+		int32 UnmeasurableTargetsAdmitted = 0,
+		int32 TargetDrawnPixelsMeasured = 0, int32 FramesDrawnUnexpected = 0,
+		int32 FramesExposureDipSuppressed = 0);
 
 	struct FObservabilityTelemetry
 	{

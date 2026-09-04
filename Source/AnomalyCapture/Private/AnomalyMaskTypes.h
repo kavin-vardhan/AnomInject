@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 
+static constexpr int32 GAnomalyMaskDrawnUnmeasured = -1;
+
 struct FAnomalyMaskTagResult
 {
 	int32 Count = 0;
@@ -9,6 +11,7 @@ struct FAnomalyMaskTagResult
 	int32 MinY = MAX_int32;
 	int32 MaxX = MIN_int32;
 	int32 MaxY = MIN_int32;
+	int32 DrawnCount = GAnomalyMaskDrawnUnmeasured;
 };
 
 struct FAnomalyMaskResult
