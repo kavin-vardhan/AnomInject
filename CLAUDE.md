@@ -11,6 +11,85 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🏁🏁 **SESSION 072, 2026-09-04 — A SECOND BENCH FIXTURE EXISTS: THE PLUGIN IS MOUNTED, BUILT AND
+> CAPTURING IN LYRA. `m49` PHASE A IS STILL THE NEXT WORK AND IS STILL NOT STARTED. THIS IS THE
+> CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHERE THEY DISAGREE.** 🏁🏁
+> **Cold start: `docs/sessions/2026-09-04-072-lyra-fixture.md` (self-contained), THEN the 071 block
+> below, whose "COLD START FOR 072" reading order still governs Phase A.**
+>
+> ⛔ **NO PLUGIN SOURCE CHANGED · NO BUILD FROM THE MAIN CHECKOUT · NO COOK · NO TAG.** `master` is
+> `9083d95` + this session's docs commits; the staged bench exe is still **`DE65F84A`** and the
+> container quartet **`EF8EB23C`/`A8BFFF88`/`3C026A8D`** is byte-unchanged (hashed before AND after).
+>
+> 🎯 **THE FIXTURE.** `LyraStarterGame` (the owner's Epic sample, **no codename**) at
+> `E:\UEProjects\LyraStarterGame`, **the SAME source-built UE 5.1** as StackOBot (identical
+> `EngineAssociation` GUID). Mounted as a **DETACHED `git worktree`, never a junction** — shared
+> engine means a junction would make both projects write the same `Binaries`/`Intermediate` and could
+> invalidate `P-C7`. **Shared-tree rule 5 + `G236` carry the rule.** ⚠ A stale June-2026 clone was
+> already at the mount point; it was **MOVED, not deleted**, only after its HEAD was proved an
+> ancestor of `master` and every dirty path proved present today.
+> ✅ **BUILD: `LyraEditor Win64 Development`, EXIT 0, ZERO errors, ZERO warnings, all four modules.**
+> 🎯 **THE GAME-AGNOSTIC INVARIANT HELD AGAINST A SECOND, FAR MORE COMPLEX HOST** — not one line of
+> Lyra source or plugin source changed; the only host edit is one `.uproject` plugin entry (backed up).
+>
+> 🧪 **ONE 90-FRAME AUTO-POOL SMOKE, `L_ShooterGym`, 1920×1080, Lyra's OWN render defaults (TSR,
+> Lumen, HW ray tracing, auto-exposure ON — deliberately NOT pinned; this is a host-shaped leg, not
+> an arbiter).** Banked `_bench_sessions_bank\LYRA_SMOKE_01` (131 files, path+size verified).
+> **6 events · 90 PNGs · 0 zero-byte · 34 masks · MASK-TIE 34/34 MATCH 0 MISMATCH · black-frame gate
+> PASS · verifier PASS 5 · SHIFT 0 · NOT-VISIBLE 0 · NOT-MEASURABLE 1** (the truncated final event,
+> the same `A50` reason as every StackOBot known-answer run). **The verifier ran UNMODIFIED on a
+> second game.**
+>
+> 🚨 **FOUR THINGS WERE SEEN THAT STACKOBOT STRUCTURALLY CANNOT SHOW. THESE ARE THE DELIVERABLE.**
+> **(1) `HOST-PP CUSTOM-DEPTH READERS = 1` — THE FIRST NON-ZERO READING ON ANY HOST**, and it fired
+> through the **CAMERA-BLEND** source, the exact third post-process source journal 069 `C-G1a` found
+> MISSING and added: `[ MaterialInstanceDynamic_365(depth+stencil) ]` = Lyra's `MPP_Outline`.
+> ⛔ **NO ARTIFACT OBSERVED (`G120`)** — the counter says the material SAMPLES the texture, never that
+> a pixel changed.
+> **(2) `CENSUS-HYGIENE final DIFF n=3`, first `B_Hero_ShooterMannequin_C_12/CharacterMesh0` gained
+> `bRenderCustomDepth` — and by its own wording "the leg FAILS `P-C6`". IT ALMOST CERTAINLY LEAKED
+> NOTHING: the value is `0` and the plugin only ever writes `200..254`** — Lyra's heroes enable custom
+> depth themselves for the outline system. ⇒ **`G237`: a pre/post snapshot answers *did this change?*,
+> never *did WE change it?*, and on a host that legitimately writes the same state it accuses us.**
+> **(3) THE PHASE A PRECONDITION IS REPRODUCED AND IS SHARPER THAN JOURNAL 071 §11.2 RECORDED IT:
+> `mask_value: 0` fires on the FIRST LABELLED FRAME of ALL FOUR `FireWindow` events and NEITHER
+> `ActorHidden` event (4/4 vs 0/2), with the PNG carrying the correct tag every time.** It is not
+> sporadic — it is an **onset-frame join gap with a clean class split**, on the very frame F1/F3/F6
+> are about. ⛔ Class split MEASURED, mechanism NOT asserted.
+> **(4) `speed_ratio` **1.1144** WITH NO LEVER — the CLIENT BAND.** `P1` was reported near 1.2; the
+> StackOBot bench sits at 1.0000 and must be stalled to leave it. **Lyra lands there naturally**, and
+> the `m11` honest stamp fired (`stamped_fps 26.921`).
+>
+> 🔬 **ALSO MEASURED, FIRST TIME ON A REAL GAME:** `m48` exposure-dip **FIRED** (`si 35`, 4.25 % below
+> the rolling mean, AE at Lyra's default ON) · **`SHADERS pending=7301 incomplete=0` on 90/90 frames**
+> with `frames_shaders_pending 0` ⇒ **`G239`, `m47`'s `G232(a)` decision validated at ~50× the
+> magnitude that motivated it** · `shader_prewarm_ms` **33,195** (StackOBot packaged: 0.0017) ·
+> selection admitted every target at **1–4 of 9 occlusion samples** (one at the bare minimum 1/9) ⇒
+> **`P-a1` finally has a fixture that exhibits its boundary** · **`G124` reproduced on a CHARACTER**
+> (`poll_distance` negative on 3 of 6, incl. `B_Manny_C_14` at −74.06) · `firesPartialFallback` **6 of
+> 7** (StackOBot: 0) · `tagOvertaken 4`, `framesPolluted 0`, `batchesLost 0` · **the camera MOVED**
+> (1,214 cm path, one 977 cm teleport, rotation constant) which is why **4 of 6 events read
+> `[LOW] CONTAMINATED`** — the instrument degraded LOUDLY, in the safe direction.
+> ⚠ **F4's SHAPE OCCURRED NATURALLY:** event 3 (`B_Manny_C_14`, **SkeletalMeshComponent**) has `si 53`
+> INSIDE its claimed window with **no mask** — while **`bbox_valid` is TRUE on all 43 entries**, i.e.
+> the projector never signalled it, which is exactly why F4 needs `target_pixels` and not a bbox test.
+>
+> 📊 **F1–F8 ON LYRA (journal §6):** **SEEN** — F2 (reproduced exactly), F4 (partially, naturally).
+> **NOT SEEN** — F1 timing, F5, F6, F7, F8. **CANNOT SEE** — F1's target class (the auto-pool
+> structurally cannot pick an `AInstancedFoliageActor`, the m27 exclusion) and F3 (`missing_object`
+> was never drawn in 7 bursts). ⚠ **Six events on one leg is a SMOKE, not a survey: NOT SEEN ≠ ABSENT.**
+> ⚠ **AUDITED BUT UNMEASURED — `G134` on this host:** **10.0 %** of ShooterMaps static meshes carry the
+> Nanite signature **and ALL FOUR weapon meshes do** (`SM_Rifle`/`SM_Pistol`/`SM_Shotgun`/`SM_grenade`
+> — the held-weapon class the Concorde symptom sat on), yet this map's candidate set read
+> `nanite=0`, so the exposure never bit. **`LG-9` is the leg that would.**
+>
+> 🎯 **NEXT IS UNCHANGED: `m49` PHASE A, contract journal 071 §8.1, bound by §11.1's rulings.
+> ⛔ Do not start it unprompted.** Session 072 adds **nine Lyra gate proposals `LG-1`..`LG-9`**
+> (journal §7); **`LG-1` already has a reproduced negative**, and `LG-2` needs no lever.
+> ⛔ **Nothing found on Lyra was fixed — by instruction.**
+>
+> ---
+>
 > 🏁🏁 **SESSION 071, 2026-09-04 — `m49` IS IN PROGRESS. STEP 1 (THE VERIFIER) AND STEP 2 (G-EDGE) ARE
 > DONE AND GREEN; **PHASE A IS NEXT AND IS NOT STARTED.** THIS IS THE CURRENT "YOU ARE HERE";
 > EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
@@ -774,7 +853,8 @@ and is the single source of truth for the project.
 > left is **== its origin** (or its exact state is recorded first). **Every switch is stated in the
 > report, both directions, with the SHAs.**
 > **2.** Worktrees are for **read-only inspection and doc-only commits** on other branches while a
-> build-bearing branch stays checked out. **Never for builds.**
+> build-bearing branch stays checked out. **Never for builds** — ⚠ **AMENDED BY RULE 5 BELOW for
+> SECOND-HOST FIXTURE worktrees only; the ban still holds for every worktree that is not one.**
 > **3.** Path-scoped adds everywhere; **`git add -A` stays banned**; untracked owner docs are never
 > staged.
 > **4. 🆕 TWO CHAT THREADS SHARE THIS TREE (added 2026-09-03, session 069 brief 25).** **Every brief
@@ -785,6 +865,24 @@ and is the single source of truth for the project.
 > **Before any leg, verify the staged exe hash against `_binary_baselines/README` and re-stage if
 > another thread moved it** — a hot-swap is one file copy, so a leg can silently run on a foreign
 > binary and `G121` says the exe hash alone does not identify a build.
+> **5. 🆕 SECOND-HOST FIXTURES MOUNT AS A `git worktree`, NEVER A JUNCTION (chat ruling,
+> 2026-09-04, session 072).** A second bench host on the **same engine** (Lyra at
+> `E:\UEProjects\LyraStarterGame`, UE 5.1, the same `{B34F356C-…}` engine as StackOBot) must NOT be
+> mounted by junctioning the plugin folder: both projects would then write the **same**
+> `Plugins/AnomalyInjector/Binaries` and `Intermediate`, and StackOBot's byte-identity anchors
+> (`P-C7`) could be invalidated by a build nobody attributed to them. *(The 4.25 host may keep its
+> junction — its outputs cannot collide with 5.1's. The rule is about SHARED-ENGINE hosts.)*
+> ⇒ **`git worktree add --detach <host>/Plugins/AnomalyInjector <sha>`.** **DETACHED, deliberately:**
+> a second worktree cannot check out `master` while the main checkout holds it, and a detached HEAD
+> cannot be committed to in a way that moves any branch. Refresh it with
+> `git -C <path> checkout <sha>`; **never edit it, never commit from it.**
+> **This NARROWS rule 2, it does not repeal it:** the fixture worktree may build **its own host and
+> nothing else**; **bench and delivery binaries still come ONLY from the main checkout.**
+> ⚠ **Precondition, checked before mounting:** the plugin's `.gitignore` must already cover
+> `Binaries/` and `Intermediate/` (it does — `.gitignore:2-3`), or the host's build output becomes
+> untracked churn in a shared repo. ⚠ **And the mount point must be EMPTY:** UE scans `Plugins/`
+> **RECURSIVELY** for `.uplugin`, so a second copy parked anywhere under `Plugins/` is a fatal
+> duplicate-plugin-name error — move it OUT of the tree, never aside within it.
 >
 > 📌 **CODENAME-ONLY INVARIANT (2026-09-01):** hosts and their engine lineage are written as **Bates**
 > and **Concorde** everywhere. All three refs verified clean by the scrub instrument, which proves
