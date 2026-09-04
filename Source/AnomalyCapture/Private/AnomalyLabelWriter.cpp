@@ -40,7 +40,8 @@ namespace
 		double WallSeconds, const FString& ImageName, int32& OutNumLabels,
 		bool bTargetMask = false, const FString& MaskFileRel = FString(), const TArray<int32>* MaskValues = nullptr,
 		AnomalyLabel::EAnomalyMaskState MaskState = AnomalyLabel::EAnomalyMaskState::Unmeasured,
-		int32 ShadersPending = 0, int32 AnomalyMaterialsIncomplete = 0, bool bExposureDip = false)
+		int32 ShadersPending = 0, int32 AnomalyMaterialsIncomplete = 0, bool bExposureDip = false,
+		const TArray<int32>* TargetPixels = nullptr, const TArray<uint8>* Observable = nullptr)
 	{
 		OutNumLabels = 0;
 
@@ -68,6 +69,22 @@ namespace
 					(MaskValues && MaskValues->IsValidIndex(FireIndex)) ? (*MaskValues)[FireIndex] : 0;
 				O->SetNumberField(TEXT("mask_value"), MaskValue);
 			}
+
+			const int32 Px = (TargetPixels && TargetPixels->IsValidIndex(FireIndex))
+				? (*TargetPixels)[FireIndex] : AnomalyLabel::GTargetPixelsUnmeasured;
+			O->SetNumberField(TEXT("target_pixels"), Px);
+
+			const uint8 Obs = (Observable && Observable->IsValidIndex(FireIndex))
+				? (*Observable)[FireIndex] : (uint8)AnomalyLabel::EObservable::Unmeasured;
+			if (Obs == (uint8)AnomalyLabel::EObservable::Unmeasured)
+			{
+				O->SetField(TEXT("observable"), MakeShared<FJsonValueNull>());
+			}
+			else
+			{
+				O->SetBoolField(TEXT("observable"), Obs == (uint8)AnomalyLabel::EObservable::True);
+			}
+
 			O->SetNumberField(TEXT("seconds_remaining"), F.SecondsRemaining);
 			O->SetNumberField(TEXT("start_frame"), (double)F.StartFrame);
 
@@ -432,7 +449,8 @@ namespace AnomalyLabel
 		return BuildFrameLabelRecord(Snapshot.Fires, Snapshot.View, Width, Height,
 			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, Snapshot.WallSeconds, ImageName, OutNumLabels,
 			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues, Snapshot.MaskState,
-			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete, Snapshot.bExposureDip);
+			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete, Snapshot.bExposureDip,
+			&Snapshot.TargetPixels, &Snapshot.Observable);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -582,7 +600,7 @@ namespace AnomalyLabel
 		const ::FAnomalyCensusCounters* Census,
 		const FTargetMaskTelemetry* TargetMask,
 		const FShaderReadinessTelemetry* ShaderReadiness,
-		int32 FramesExposureDip)
+		int32 FramesExposureDip, const FObservabilityTelemetry* Observability)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -612,6 +630,13 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("translucency_unknown_vetoes"), TranslucencyUnknownVetoes);
 		Root->SetNumberField(TEXT("pattern_excluded_targets"), PatternExcludedTargets);
 		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);
+
+		if (Observability)
+		{
+			Root->SetNumberField(TEXT("observable_frames"), Observability->ObservableFrames);
+			Root->SetNumberField(TEXT("frames_condition_lost"), Observability->FramesConditionLost);
+			Root->SetNumberField(TEXT("observable_min_pixels"), Observability->ObservableMinPixels);
+		}
 
 		if (Census)
 		{
@@ -695,6 +720,7 @@ namespace AnomalyLabel
 	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& A)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+		Root->SetNumberField(TEXT("label_schema"), 2);
 		Root->SetStringField(TEXT("session_id"), A.SessionId);
 
 		{
@@ -727,11 +753,35 @@ namespace AnomalyLabel
 				AF->SetNumberField(TEXT("start_frame"), Start);
 				AF->SetNumberField(TEXT("end_frame"), End);
 				AF->SetNumberField(TEXT("frame_count"), Count);
+				AF->SetNumberField(TEXT("span_frame_count"), Count > 0 ? (End - Start + 1) : 0);
 				TArray<TSharedPtr<FJsonValue>> Idx;
 				for (int32 F : E.FrameIndices) { Idx.Add(LabelNum(F)); }
 				AF->SetArrayField(TEXT("frame_indices"), Idx);
 				O->SetObjectField(TEXT("affected_frames"), AF);
 			}
+
+			{
+				TSharedRef<FJsonObject> IF = MakeShared<FJsonObject>();
+				int32 Start = 0, End = 0;
+				const int32 Count = E.InjectedFrameIndices.Num();
+				if (Count > 0)
+				{
+					Start = E.InjectedFrameIndices[0];
+					End = E.InjectedFrameIndices.Last();
+				}
+				IF->SetNumberField(TEXT("start_frame"), Start);
+				IF->SetNumberField(TEXT("end_frame"), End);
+				IF->SetNumberField(TEXT("frame_count"), Count);
+				IF->SetNumberField(TEXT("span_frame_count"), Count > 0 ? (End - Start + 1) : 0);
+				TArray<TSharedPtr<FJsonValue>> Idx;
+				for (int32 F : E.InjectedFrameIndices) { Idx.Add(LabelNum(F)); }
+				IF->SetArrayField(TEXT("frame_indices"), Idx);
+				O->SetObjectField(TEXT("injected_frames"), IF);
+			}
+
+			O->SetNumberField(TEXT("observable_frame_count"), E.ObservableFrameCount);
+			O->SetNumberField(TEXT("unmeasured_frame_count"), E.UnmeasuredFrameCount);
+			O->SetBoolField(TEXT("observability_measured"), E.bObservabilityMeasured);
 			O->SetBoolField(TEXT("manifested"), E.bManifested);
 			O->SetNumberField(TEXT("coverage_ratio"), E.CoverageRatio);
 			O->SetNumberField(TEXT("coverage_pct"), E.CoveragePct);

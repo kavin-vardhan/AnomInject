@@ -137,6 +137,7 @@ struct FSessionEventAccum
 	int32 InactiveFrames = 0;
 	int32 ActiveFrames = 0;
 	TMap<int32, uint8> ActiveByIndex;
+	TMap<int32, uint8> ObservableByIndex;
 };
 #endif
 
@@ -351,8 +352,7 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 #if ANOMALY_CAPTURE
 	MaskEndFrameHandle = FCoreDelegates::OnEndFrame.AddUObject(this, &UAnomalyCaptureSubsystem::OnEndFrameMaskSample);
-	MaskWorldTickEndHandle = FWorldDelegates::OnWorldTickEnd.AddUObject(this, &UAnomalyCaptureSubsystem::OnWorldTickEndMask);
-	SampleWorldTickEndHandle = FWorldDelegates::OnWorldTickEnd.AddUObject(this, &UAnomalyCaptureSubsystem::OnWorldTickEndSample);
+	MaskWorldTickEndHandle = FWorldDelegates::OnWorldTickEnd.AddUObject(this, &UAnomalyCaptureSubsystem::OnWorldTickEndCombined);
 	bool bConfigDelivery = false;
 	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bDeliveryModeDefault"), bConfigDelivery, GGameIni))
 	{
@@ -458,6 +458,12 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		OutputHeightIni = ConfigOutputHeight;
 		bOutputHeightFromIni = true;
+	}
+	int32 ConfigObservableMin = 0;
+	if (GConfig && GConfig->GetInt(TEXT("AnomalyCapture"), TEXT("ObservableMinPixels"), ConfigObservableMin, GGameIni))
+	{
+		ObservableMinPixels = FMath::Max(1, ConfigObservableMin);
+		bObservableMinFromIni = true;
 	}
 	bool bConfigTickPin = false;
 	if (GConfig && GConfig->GetBool(TEXT("AnomalyCapture"), TEXT("bTickModePinDefault"), bConfigTickPin, GGameIni))
@@ -567,11 +573,6 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 	{
 		FWorldDelegates::OnWorldTickEnd.Remove(MaskWorldTickEndHandle);
 		MaskWorldTickEndHandle.Reset();
-	}
-	if (SampleWorldTickEndHandle.IsValid())
-	{
-		FWorldDelegates::OnWorldTickEnd.Remove(SampleWorldTickEndHandle);
-		SampleWorldTickEndHandle.Reset();
 	}
 	PreviewTee.Reset();
 	if (Async.IsValid())
@@ -745,6 +746,52 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 #endif
 }
 
+const TCHAR* UAnomalyCaptureSubsystem::DescribeObservableMinSource() const
+{
+	if (bObservableMinOverridden)
+	{
+		return TEXT("IAI.Capture.ObservableMinPixels (between-runs override)");
+	}
+	if (bObservableMinFromIni)
+	{
+		return TEXT("DefaultGame.ini [AnomalyCapture] ObservableMinPixels");
+	}
+	return TEXT("COMPILED DEFAULT (1 = any drawn pixel counts)");
+}
+
+void UAnomalyCaptureSubsystem::SetObservableMinPixels(int32 InN)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.ObservableMinPixels: ignored mid-run (stop first)."));
+		return;
+	}
+	if (InN < 1)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Capture.ObservableMinPixels: REFUSED value %d. The minimum is 1, which means 'any drawn ")
+			TEXT("pixel counts' - the only threshold here that is not a guess. A value of 0 would make every ")
+			TEXT("measured frame observable regardless of what was drawn, which is not a weaker gate but a ")
+			TEXT("meaningless one."),
+			InN);
+		return;
+	}
+	ObservableMinPixels = InN;
+	bObservableMinOverridden = true;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.ObservableMinPixels: EFFECTIVE READ-BACK = %d px, from %s. A frame's anomaly entry is ")
+		TEXT("observable only if the target drew at least this many front-most pixels on THAT frame."),
+		ObservableMinPixels, DescribeObservableMinSource());
+}
+
+void UAnomalyCaptureSubsystem::OnWorldTickEndCombined(UWorld* World, ELevelTick TickType, float DeltaSeconds)
+{
+#if ANOMALY_CAPTURE
+	OnWorldTickEndMask(World, TickType, DeltaSeconds);
+	OnWorldTickEndSample(World, TickType, DeltaSeconds);
+#endif
+}
+
 void UAnomalyCaptureSubsystem::OnWorldTickEndSample(UWorld* World, ELevelTick TickType, float DeltaSeconds)
 {
 #if ANOMALY_CAPTURE
@@ -786,7 +833,8 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 		EnsureMaskRecordsForCapturedFrame();
 		if (!ArmTargetMaskOwn(TargetMaskArmedSessionIndex))
 		{
-			TargetMaskOutcome.Add(TargetMaskArmedSessionIndex, (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured);
+			TargetMaskOutcome.Add(TargetMaskArmedSessionIndex,
+				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured, {} });
 			++TargetMaskUnavailable;
 		}
 		TargetMaskArmedSessionIndex = -1;
@@ -1013,7 +1061,8 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 		if (W <= 0 || H <= 0 || Result.MaskPixels.Num() < (int64)W * (int64)H)
 		{
 			++TargetMaskUnavailable;
-			TargetMaskOutcome.Add(Pair.Value, (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured);
+			TargetMaskOutcome.Add(Pair.Value,
+				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured, {} });
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture(m43): TARGET MASK UNAVAILABLE for session_index %d (id=%llu, %dx%d, pixels=%d). ")
 				TEXT("The labels row for this frame carries mask_file:null - NOT MEASURED, which is a different ")
@@ -1056,10 +1105,12 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 			}
 		}
 
+		TMap<uint8, int32> TagCounts;
 		for (uint8 Tag : EventTags)
 		{
 			const FAnomalyMaskTagResult* R = Result.TagResults.Find(Tag);
 			const int32 TableCount = R ? R->Count : 0;
+			TagCounts.Add(Tag, TableCount);
 			int32 PngCount = 0;
 			for (int32 i = 0; i < N; ++i)
 			{
@@ -1077,12 +1128,14 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 		{
 			EnqueueTargetMaskPng(Pair.Value, Gray, W, H);
 			++TargetMaskMeasured;
-			TargetMaskOutcome.Add(Pair.Value, (uint8)AnomalyLabel::EAnomalyMaskState::Present);
+			TargetMaskOutcome.Add(Pair.Value,
+				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Present, MoveTemp(TagCounts) });
 		}
 		else
 		{
 			++TargetMaskHiddenBlank;
-			TargetMaskOutcome.Add(Pair.Value, (uint8)AnomalyLabel::EAnomalyMaskState::Empty);
+			TargetMaskOutcome.Add(Pair.Value,
+				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Empty, MoveTemp(TagCounts) });
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(m44): TARGET MASK EMPTY for session_index %d - the mask was MEASURED and the ")
 				TEXT("target contributed zero pixels, so NO file is written and the labels row reads ")
@@ -1114,9 +1167,24 @@ void UAnomalyCaptureSubsystem::RunStencilHygieneCheck(bool bFinal)
 		AnomalyStencilTag::GetTaggedComponents(Exclude);
 	}
 	FString FirstDiff;
+	int32 OursDiffs = 0;
+	int32 HostDiffs = 0;
 	const int32 Diffs = AnomalyStencilTag::DiffCustomDepthSnapshots(
-		Async->PreRunStencilSnapshot, Now, bFinal ? nullptr : &Exclude, FirstDiff);
-	if (Diffs == 0)
+		Async->PreRunStencilSnapshot, Now, bFinal ? nullptr : &Exclude, FirstDiff, &OursDiffs, &HostDiffs);
+	if (Diffs > 0 && OursDiffs == 0)
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Census: CENSUS-HYGIENE %s HOST-ATTRIBUTED n=%d (ours=0 host=%d) first=%s - custom-depth state ")
+			TEXT("differs from the pre-run snapshot, but NOT ONE differing value is inside the plugin's reserved ")
+			TEXT("range %d..%d, which is the only range this plugin ever writes. The host changed its own ")
+			TEXT("custom-depth state while the capture ran, which a game is entitled to do (an outline or ")
+			TEXT("highlight system does exactly this). THE LEG DOES NOT FAIL P-C6 ON THIS. A pre/post snapshot ")
+			TEXT("answers 'did this change', never 'did WE change it'; the stencil VALUE is what answers the ")
+			TEXT("second question, and it is what this line reads."),
+			bFinal ? TEXT("final") : TEXT("cycle"), Diffs, HostDiffs, *FirstDiff,
+			AnomalyStencilTag::ReservedStencilBase, AnomalyStencilTag::ReservedStencilMax);
+	}
+	else if (Diffs == 0)
 	{
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Census: CENSUS-HYGIENE %s identical=1 excluded=%d - the set of components with ")
@@ -1127,10 +1195,13 @@ void UAnomalyCaptureSubsystem::RunStencilHygieneCheck(bool bFinal)
 	else
 	{
 		UE_LOG(LogAnomalyCapture, Warning,
-			TEXT("Census: CENSUS-HYGIENE %s DIFF n=%d first=%s - host-visible custom-depth state does NOT match ")
-			TEXT("the pre-run snapshot. With the leak probe ON this is the G96 proof firing as designed; ")
-			TEXT("otherwise it is a hygiene defect and the leg FAILS P-C6."),
-			bFinal ? TEXT("final") : TEXT("cycle"), Diffs, *FirstDiff);
+			TEXT("Census: CENSUS-HYGIENE %s DIFF n=%d (ours=%d host=%d) first=%s - %d differing component(s) carry ")
+			TEXT("a stencil value INSIDE the plugin's reserved range %d..%d, which only this plugin writes, so the ")
+			TEXT("difference is ATTRIBUTED TO US. With the leak probe ON this is the G96 proof firing as designed; ")
+			TEXT("otherwise it is a hygiene defect and the leg FAILS P-C6. (The host=%d component(s) whose values ")
+			TEXT("lie outside that range are the host's own custom-depth state and are NOT counted against us.)"),
+			bFinal ? TEXT("final") : TEXT("cycle"), Diffs, OursDiffs, HostDiffs, *FirstDiff, OursDiffs,
+			AnomalyStencilTag::ReservedStencilBase, AnomalyStencilTag::ReservedStencilMax, HostDiffs);
 	}
 #endif
 }
@@ -2372,6 +2443,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	TargetMaskLastFrame.Reset();
 	TargetMaskOutcome.Reset();
 	TargetMaskHoldTicks = 0;
+	FramesConditionLost = 0;
+	ObservableFramesTotal = 0;
 	ExposureLumBySessionIndex.Reset();
 	FramesExposureDip = 0;
 	ExposureDipFirstIndex = -1;
@@ -3028,6 +3101,15 @@ void UAnomalyCaptureSubsystem::LogFirstFrameMeasuredLine(int32 SrcW, int32 SrcH,
 		TEXT("annotation.video.resolution are computed from."),
 		SrcW, SrcH, OutW, OutH,
 		bResampled ? TEXT("YES") : TEXT("no - native, path unchanged"));
+
+	const double FramePx = (double)SrcW * (double)SrcH;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m49): OBSERVABLE MIN PIXELS = %d px, from %s. Against this frame's %dx%d render that is ")
+		TEXT("%.4f per-mille of the picture. The STORED field and the knob are ABSOLUTE PIXELS; the per-mille is ")
+		TEXT("printed only so the number can be compared across resolutions, and it is NOT what is stored. The ")
+		TEXT("compiled default 1 means 'any drawn pixel counts' - it is the only value here that is not a guess."),
+		ObservableMinPixels, DescribeObservableMinSource(), SrcW, SrcH,
+		FramePx > 0.0 ? (1000.0 * (double)ObservableMinPixels / FramePx) : 0.0);
 }
 
 void UAnomalyCaptureSubsystem::NoteSyncWrittenSize(int32 W, int32 H, const FString& ImageRelPath)
@@ -3177,7 +3259,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 
 		if (Snap->bTargetMask)
 		{
-			const uint8* Outcome = TargetMaskOutcome.Find(Snap->SessionIndex);
+			const FTargetMaskOutcome* Outcome = TargetMaskOutcome.Find(Snap->SessionIndex);
 			if (!Outcome && TargetMaskHoldTicks < GTargetMaskMaxHoldTicks)
 			{
 				++TargetMaskHoldTicks;
@@ -3190,7 +3272,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			TargetMaskHoldTicks = 0;
 			if (Outcome)
 			{
-				Snap->MaskState = (AnomalyLabel::EAnomalyMaskState)*Outcome;
+				Snap->MaskState = (AnomalyLabel::EAnomalyMaskState)Outcome->State;
 			}
 			else
 			{
@@ -3202,7 +3284,43 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 					TEXT("\"empty\": no measurement exists for this frame."),
 					Snap->SessionIndex, GTargetMaskMaxHoldTicks);
 			}
+
+			Snap->TargetPixels.Reset();
+			Snap->TargetPixels.AddUninitialized(Snap->Fires.Num());
+			for (int32 i = 0; i < Snap->Fires.Num(); ++i)
+			{
+				const int32 Tag = Snap->MaskValues.IsValidIndex(i) ? Snap->MaskValues[i] : 0;
+				const int32* Found =
+					(Outcome && Tag > 0) ? Outcome->Counts.Find((uint8)Tag) : nullptr;
+				Snap->TargetPixels[i] = Found ? *Found : AnomalyLabel::GTargetPixelsUnmeasured;
+			}
 			TargetMaskOutcome.Remove(Snap->SessionIndex);
+		}
+
+		Snap->Observable.Reset();
+		Snap->Observable.AddUninitialized(Snap->Fires.Num());
+		for (int32 i = 0; i < Snap->Fires.Num(); ++i)
+		{
+			const int32 Px = Snap->TargetPixels.IsValidIndex(i)
+				? Snap->TargetPixels[i] : AnomalyLabel::GTargetPixelsUnmeasured;
+			if (Px == AnomalyLabel::GTargetPixelsUnmeasured)
+			{
+				Snap->Observable[i] = (uint8)AnomalyLabel::EObservable::Unmeasured;
+				continue;
+			}
+			const bool bActive = Snap->FireActive.IsValidIndex(i) && Snap->FireActive[i] != 0;
+			const bool bHeld = !Snap->ConditionHeld.IsValidIndex(i) || Snap->ConditionHeld[i] != 0;
+			Snap->Observable[i] = (bActive && bHeld && Px >= ObservableMinPixels)
+				? (uint8)AnomalyLabel::EObservable::True
+				: (uint8)AnomalyLabel::EObservable::False;
+			if (bActive && !bHeld)
+			{
+				++FramesConditionLost;
+			}
+			if (Snap->Observable[i] == (uint8)AnomalyLabel::EObservable::True)
+			{
+				++ObservableFramesTotal;
+			}
 		}
 
 		int32 OutW = Frame.Width;
@@ -3252,7 +3370,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, OutW, OutH, ImageName, NumLabels);
 
 		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePos, Snap->View, Snap->NearClip,
-			Snap->SessionIndex, Snap->TimeSeconds);
+			Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable);
 
 		FAnomalyAsyncWriter::FJob Job;
 		Job.OutputDir = RunDir;
@@ -3830,6 +3948,19 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 	for (const FAutoLiveFireInfo& F : Snap->Fires)
 	{
 		Snap->FireActive.Add(ComputeFireActive(F));
+	}
+
+	{
+		const UWorld* CondWorld = GetWorld();
+		const UAnomalyInjectorSubsystem* Injector =
+			CondWorld ? CondWorld->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		Snap->ConditionHeld.Reset();
+		Snap->ConditionHeld.Reserve(Snap->Fires.Num());
+		for (const FAutoLiveFireInfo& F : Snap->Fires)
+		{
+			Snap->ConditionHeld.Add(
+				(Injector && Injector->IsAnomalyVisualConditionHeld(F.Id)) ? 1 : 0);
+		}
 	}
 
 	if (Snap->bTargetMask)
@@ -4425,6 +4556,11 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				FramesShadersPending, FramesWritten);
 		}
 
+		AnomalyLabel::FObservabilityTelemetry ObservabilityReport;
+		ObservabilityReport.ObservableFrames = ObservableFramesTotal;
+		ObservabilityReport.FramesConditionLost = FramesConditionLost;
+		ObservabilityReport.ObservableMinPixels = ObservableMinPixels;
+
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
@@ -4436,7 +4572,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			(bCensusEffective && Async.IsValid()) ? &Async->Census.GetCounters() : nullptr,
 			bTargetMask ? &TargetMaskReport : nullptr,
 			&ShaderReadinessReport,
-			FramesExposureDip);
+			FramesExposureDip,
+			&ObservabilityReport);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")
@@ -4612,7 +4749,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireInfo>& Fires,
 	const TArray<uint8>& FireActive, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
-	float NearClip, int32 SessionIndex, double TimeSeconds)
+	float NearClip, int32 SessionIndex, double TimeSeconds, const TArray<uint8>* Observable)
 {
 	if (!Async.IsValid())
 	{
@@ -4683,6 +4820,10 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 		const int32 Active = (FireActive.IsValidIndex(i) && FireActive[i]) ? 1 : 0;
 		if (Active) { ++Ev->ActiveFrames; } else { ++Ev->InactiveFrames; }
 		Ev->ActiveByIndex.Add(SessionIndex, (uint8)Active);
+
+		const uint8 Obs = (Observable && Observable->IsValidIndex(i))
+			? (*Observable)[i] : (uint8)AnomalyLabel::EObservable::Unmeasured;
+		Ev->ObservableByIndex.Add(SessionIndex, Obs);
 	}
 }
 
@@ -4789,6 +4930,47 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 			FrameIndices = Ev.AffectedFrames;
 		}
 		FrameIndices.Sort();
+		Out.InjectedFrameIndices = FrameIndices;
+
+		{
+			TArray<int32> ObservableIdx;
+			int32 Unmeasured = 0;
+			int32 Measured = 0;
+			for (int32 Key : Out.InjectedFrameIndices)
+			{
+				const uint8* Obs = Ev.ObservableByIndex.Find(Key);
+				const uint8 V = Obs ? *Obs : (uint8)AnomalyLabel::EObservable::Unmeasured;
+				if (V == (uint8)AnomalyLabel::EObservable::Unmeasured)
+				{
+					++Unmeasured;
+					continue;
+				}
+				++Measured;
+				if (V == (uint8)AnomalyLabel::EObservable::True)
+				{
+					ObservableIdx.Add(Key);
+				}
+			}
+			Out.UnmeasuredFrameCount = Unmeasured;
+			Out.ObservableFrameCount = ObservableIdx.Num();
+			Out.bObservabilityMeasured = (Measured > 0);
+
+			if (Out.bObservabilityMeasured)
+			{
+				FrameIndices = MoveTemp(ObservableIdx);
+			}
+			else if (Out.InjectedFrameIndices.Num() > 0)
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m49): OBSERVABILITY UNMEASURED for '%s' on '%s' - not one of its %d injected ")
+					TEXT("frame(s) carried a target-pixel measurement, so affected_frames FALLS BACK to the ")
+					TEXT("injected subset and observability_measured is false. This is the honest reading, not a ")
+					TEXT("claim that the anomaly was visible: a mask-blind host (mask off, Nanite or ")
+					TEXT("translucent-only target, sync fallback) reads exactly like this."),
+					*Ev.Id.ToString(), *Ev.NodeName, Out.InjectedFrameIndices.Num());
+			}
+		}
+
 		Out.FrameIndices = MoveTemp(FrameIndices);
 		if (Source != EAnomalyActiveSource::FireWindow && Out.bManifested)
 		{
@@ -4954,6 +5136,29 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureStartCmd(
 				const int32 Seed = !SeedStr.IsEmpty() ? FCString::Atoi(*SeedStr) : -1;
 				const int32 MaxFrames = !MaxStr.IsEmpty() ? FCString::Atoi(*MaxStr) : 0;
 				Cap->StartRun(Dir, bPng, Seed, MaxFrames, Anomaly, TargetActor, TargetArgs, PerRunOutputHeight);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureObservableMinPixelsCmd(
+	TEXT("IAI.Capture.ObservableMinPixels"),
+	TEXT("Set the minimum number of front-most drawn pixels a target must contribute on a frame for that frame's ")
+	TEXT("anomaly entry to be observable=true (default 1 = any drawn pixel). Precedence: this BETWEEN-RUNS override ")
+	TEXT("beats DefaultGame.ini [AnomalyCapture] ObservableMinPixels, which beats the compiled default. Values below ")
+	TEXT("1 are REFUSED, not clamped. Mid-run changes are ignored (stop first). Usage: ")
+	TEXT("IAI.Capture.ObservableMinPixels <n>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UAnomalyCaptureSubsystem* Sub = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
+			{
+				if (Args.Num() < 1)
+				{
+					UE_LOG(LogAnomalyCapture, Log,
+						TEXT("IAI.Capture.ObservableMinPixels: EFFECTIVE READ-BACK = %d px, from %s."),
+						Sub->GetObservableMinPixels(), Sub->DescribeObservableMinSource());
+					return;
+				}
+				Sub->SetObservableMinPixels(FCString::Atoi(*Args[0]));
 			}
 		}));
 

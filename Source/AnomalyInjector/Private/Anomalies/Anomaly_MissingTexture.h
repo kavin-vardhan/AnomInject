@@ -18,6 +18,7 @@ public:
 	virtual bool Apply(UWorld* World, const TArray<FString>& Args) override;
 	virtual void Revert() override;
 	virtual bool IsActive() const override { return bActive; }
+	virtual bool IsVisualConditionHeld() const override;
 
 private:
 	struct FCapturedSlot

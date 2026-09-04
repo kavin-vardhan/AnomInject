@@ -580,6 +580,15 @@ int32 UAnomalyInjectorSubsystem::GetActiveAnomalyCount() const
 	return Count;
 }
 
+bool UAnomalyInjectorSubsystem::IsAnomalyVisualConditionHeld(const FName& Id) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return false;
+	}
+	return (*Found)->IsVisualConditionHeld();
+}
 bool UAnomalyInjectorSubsystem::IsAnomalyCurrentlyAnomalous(const FName& Id) const
 {
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);

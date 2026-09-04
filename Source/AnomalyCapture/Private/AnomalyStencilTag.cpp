@@ -313,10 +313,28 @@ namespace AnomalyStencilTag
 		const TMap<TWeakObjectPtr<UPrimitiveComponent>, int32>& Before,
 		const TMap<TWeakObjectPtr<UPrimitiveComponent>, int32>& After,
 		const TSet<TWeakObjectPtr<UPrimitiveComponent>>* Exclude,
-		FString& OutFirstDiff)
+		FString& OutFirstDiff, int32* OutOursDiffs, int32* OutHostDiffs)
 	{
 		OutFirstDiff.Reset();
 		int32 Diffs = 0;
+		if (OutOursDiffs) { *OutOursDiffs = 0; }
+		if (OutHostDiffs) { *OutHostDiffs = 0; }
+
+		auto InReservedRange = [](int32 V)
+		{
+			return V >= ReservedStencilBase && V <= ReservedStencilMax;
+		};
+		auto Attribute = [&](int32 A, int32 B)
+		{
+			if (InReservedRange(A) || InReservedRange(B))
+			{
+				if (OutOursDiffs) { ++(*OutOursDiffs); }
+			}
+			else if (OutHostDiffs)
+			{
+				++(*OutHostDiffs);
+			}
+		};
 
 		auto NameOf = [](const TWeakObjectPtr<UPrimitiveComponent>& Key) -> FString
 		{
@@ -338,6 +356,7 @@ namespace AnomalyStencilTag
 			if (!NowValue)
 			{
 				++Diffs;
+				Attribute(Pair.Value, Pair.Value);
 				if (OutFirstDiff.IsEmpty())
 				{
 					OutFirstDiff = FString::Printf(TEXT("%s lost bRenderCustomDepth (was value %d)"), *NameOf(Pair.Key), Pair.Value);
@@ -346,6 +365,7 @@ namespace AnomalyStencilTag
 			else if (*NowValue != Pair.Value)
 			{
 				++Diffs;
+				Attribute(Pair.Value, *NowValue);
 				if (OutFirstDiff.IsEmpty())
 				{
 					OutFirstDiff = FString::Printf(TEXT("%s stencil value %d -> %d"), *NameOf(Pair.Key), Pair.Value, *NowValue);
@@ -361,6 +381,7 @@ namespace AnomalyStencilTag
 			if (!Before.Contains(Pair.Key))
 			{
 				++Diffs;
+				Attribute(Pair.Value, Pair.Value);
 				if (OutFirstDiff.IsEmpty())
 				{
 					OutFirstDiff = FString::Printf(TEXT("%s gained bRenderCustomDepth (value %d)"), *NameOf(Pair.Key), Pair.Value);

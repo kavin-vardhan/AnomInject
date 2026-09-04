@@ -46,7 +46,7 @@ namespace AnomalyStencilTag
 		const TMap<TWeakObjectPtr<UPrimitiveComponent>, int32>& Before,
 		const TMap<TWeakObjectPtr<UPrimitiveComponent>, int32>& After,
 		const TSet<TWeakObjectPtr<UPrimitiveComponent>>* Exclude,
-		FString& OutFirstDiff);
+		FString& OutFirstDiff, int32* OutOursDiffs = nullptr, int32* OutHostDiffs = nullptr);
 
 	void EnableCustomStencil();
 	void DisableCustomStencil();

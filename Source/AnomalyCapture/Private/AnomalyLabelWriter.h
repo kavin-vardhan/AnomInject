@@ -48,6 +48,18 @@ namespace AnomalyLabel
 		TArray<uint8>   FireActive;
 		TArray<FVector> FirePos;
 		bool bExposureDip = false;
+		TArray<int32>   TargetPixels;
+		TArray<uint8>   ConditionHeld;
+		TArray<uint8>   Observable;
+	};
+
+	static constexpr int32 GTargetPixelsUnmeasured = -1;
+
+	enum class EObservable : uint8
+	{
+		False = 0,
+		True = 1,
+		Unmeasured = 2,
 	};
 
 	void ConvertTightToBGRA(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
@@ -146,7 +158,15 @@ namespace AnomalyLabel
 		const ::FAnomalyCensusCounters* Census = nullptr,
 		const struct FTargetMaskTelemetry* TargetMask = nullptr,
 		const struct FShaderReadinessTelemetry* ShaderReadiness = nullptr,
-		int32 FramesExposureDip = 0);
+		int32 FramesExposureDip = 0,
+		const struct FObservabilityTelemetry* Observability = nullptr);
+
+	struct FObservabilityTelemetry
+	{
+		int32 ObservableFrames = 0;
+		int32 FramesConditionLost = 0;
+		int32 ObservableMinPixels = 1;
+	};
 
 	struct FShaderReadinessTelemetry
 	{
@@ -217,6 +237,10 @@ namespace AnomalyLabel
 		FString AnomalyType;
 		FString AnomalySubtype;
 		TArray<int32> FrameIndices;
+		TArray<int32> InjectedFrameIndices;
+		int32 ObservableFrameCount = 0;
+		int32 UnmeasuredFrameCount = 0;
+		bool bObservabilityMeasured = true;
 		bool bManifested = true;
 		double CoverageRatio = 0.0;
 		float CoveragePct = -1.0f;

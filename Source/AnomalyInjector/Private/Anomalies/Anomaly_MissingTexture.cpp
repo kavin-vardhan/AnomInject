@@ -251,3 +251,31 @@ void FAnomaly_MissingTexture::Revert()
 	AppliedChecker.Reset();
 	bActive = false;
 }
+
+bool FAnomaly_MissingTexture::IsVisualConditionHeld() const
+{
+	if (!bActive)
+	{
+		return false;
+	}
+	const UMaterialInterface* Checker = AppliedChecker.Get();
+	if (!Checker)
+	{
+		return false;
+	}
+	int32 Live = 0;
+	for (const FCapturedSlot& Slot : Captured)
+	{
+		const UMeshComponent* Mesh = Slot.Mesh.Get();
+		if (!Mesh)
+		{
+			continue;
+		}
+		++Live;
+		if (!IsCheckerDerived(Mesh->GetMaterial(Slot.SlotIndex), Checker))
+		{
+			return false;
+		}
+	}
+	return Live > 0;
+}

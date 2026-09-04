@@ -119,6 +119,9 @@ public:
 	void SetRunLogVerbose(bool bInVerbose);
 	bool IsRunLogVerbose() const { return bRunLogVerbose; }
 
+	void SetObservableMinPixels(int32 InN);
+	int32 GetObservableMinPixels() const { return ObservableMinPixels; }
+	const TCHAR* DescribeObservableMinSource() const;
 	void SetOutputHeightOverride(int32 InHeight);
 	int32 GetOutputHeightOverride() const { return OutputHeightOverride; }
 	int32 GetEffectiveOutputHeight() const { return EffectiveOutputHeight; }
@@ -178,6 +181,7 @@ private:
 	const TCHAR* DescribeCensusFloorSource() const;
 	const TCHAR* DescribeCensusCeilingSource() const;
 	void OnEndFrameMaskSample();
+	void OnWorldTickEndCombined(UWorld* World, ELevelTick TickType, float DeltaSeconds);
 	void OnWorldTickEndMask(UWorld* World, ELevelTick TickType, float DeltaSeconds);
 	void OnWorldTickEndSample(UWorld* World, ELevelTick TickType, float DeltaSeconds);
 	bool HasGameWindow(UWorld* World) const;
@@ -200,7 +204,8 @@ private:
 	class UAnomalyAutoInjectorSubsystem* ResolveAuto() const;
 
 	void AccumulateFrameEvents(const TArray<struct FAutoLiveFireInfo>& Fires, const TArray<uint8>& FireActive,
-		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds);
+		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
+		const TArray<uint8>* Observable = nullptr);
 	void WriteSessionAnnotationFile();
 
 	void ApplySessionGlobals();
@@ -364,8 +369,18 @@ private:
 	int32 TargetMaskArmedSessionIndex = -1;
 	TMap<uint64, int32> TargetMaskPendingSessionIndex;
 	TMap<uint64, TSet<uint8>> TargetMaskPendingTags;
-	TMap<int32, uint8> TargetMaskOutcome;
+	struct FTargetMaskOutcome
+	{
+		uint8 State = 0;
+		TMap<uint8, int32> Counts;
+	};
+	TMap<int32, FTargetMaskOutcome> TargetMaskOutcome;
 	int32 TargetMaskHoldTicks = 0;
+	int32 ObservableMinPixels = 1;
+	bool bObservableMinFromIni = false;
+	bool bObservableMinOverridden = false;
+	int32 FramesConditionLost = 0;
+	int32 ObservableFramesTotal = 0;
 	TMap<int32, double> ExposureLumBySessionIndex;
 	int32 FramesExposureDip = 0;
 	int32 ExposureDipFirstIndex = -1;
@@ -386,7 +401,6 @@ private:
 	int32 BenchCensusDropEveryNth = 0;
 	FDelegateHandle MaskEndFrameHandle;
 	FDelegateHandle MaskWorldTickEndHandle;
-	FDelegateHandle SampleWorldTickEndHandle;
 	bool bRectDeltaLogged = false;
 	bool bDeliveryMode = false;
 	bool bLabelsInDelivery = true;

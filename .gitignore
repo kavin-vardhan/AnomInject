@@ -13,6 +13,10 @@ DerivedDataCache/
 ANOMINJECT_TICKPIN_FORCE_ON
 ANOMINJECT_TICKPIN_FORCE_OFF
 
+# Python bytecode from tools/ - the verifier imports measure_label_offset.py, which creates it.
+__pycache__/
+*.pyc
+
 # IDE
 .vs/
 *.sln
