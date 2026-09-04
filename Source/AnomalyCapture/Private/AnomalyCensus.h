@@ -74,6 +74,7 @@ struct FAnomalyCensusCounters
 	int32 FramesPolluted = 0;
 	int32 BatchesLost = 0;
 	int32 TagOvertaken = 0;
+	int32 HeadroomStops = 0;
 	int32 ProxyRecreatesQueued = 0;
 	double TagBlockMsTotal = 0.0;
 	TArray<FString> HostPpCustomDepthReaderNames;
@@ -86,6 +87,7 @@ public:
 	static constexpr int32 MaxAttemptsPerCycle = 3;
 	static constexpr int32 MaxInFlightBatches = 2;
 	static constexpr int32 CycleListingCap = 512;
+	static constexpr int32 EventTagHeadroom = 8;
 
 	void Begin(UWorld* World, FAnomalyStencilTagLedger* InLedger, const FAnomalyCensusParams& InParams);
 	void End(UWorld* World);

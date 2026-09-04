@@ -619,7 +619,7 @@ namespace AnomalyLabel
 		const FTargetMaskTelemetry* TargetMask,
 		const FShaderReadinessTelemetry* ShaderReadiness,
 		int32 FramesExposureDip, const FObservabilityTelemetry* Observability,
-		int32 TranslucentOnlyExcludedTargets)
+		int32 TranslucentOnlyExcludedTargets, int32 UnmeasurableTargetsAdmitted)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -649,6 +649,7 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("translucency_unknown_vetoes"), TranslucencyUnknownVetoes);
 		Root->SetNumberField(TEXT("pattern_excluded_targets"), PatternExcludedTargets);
 		Root->SetNumberField(TEXT("translucent_only_excluded_targets"), TranslucentOnlyExcludedTargets);
+		Root->SetNumberField(TEXT("unmeasurable_targets_admitted"), UnmeasurableTargetsAdmitted);
 		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);
 
 		if (Observability)

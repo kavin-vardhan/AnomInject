@@ -1197,6 +1197,13 @@ number is that it describes the host as the client runs it.
 
 ✅ **RDP-valid.** Four steps, one of them optional-until-later. **Nothing is copied off that machine.**
 
+🎯 **THE HOST IS BATES, RULED 2026-09-04 (session 076).** The flagged session — two texture-type
+events labelled one frame early, masks correct — is on the **Bates** box, and the transcription goes
+to `_bates_reads\`. Journal 075 §4 left this open because the two "−1 at onset" findings on record
+were made against the other office host's M2 bundle; the owner has now stated which box holds the
+session. ⛔ **The Concorde findings are the CLIENT's M2 review and are NOT read through this section**
+— they are read only through the verifier the client runs, or through a run of it on that host.
+
 ## G-0. WHY THIS SECTION EXISTS, AND THE ONE RULE THAT SHAPES IT
 
 The `m49` verifier answers the question the client actually asks: **does the first labelled frame

@@ -6,9 +6,11 @@
 #include "AnomalyMaskSceneViewExtension.h"
 #include "AnomalyStencilTag.h"
 #include "AnomalyHiddenClass.h"
+#include "AnomalyMeasurability.h"
 
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
+#include "RHI.h"
 
 namespace
 {
@@ -100,21 +102,23 @@ int32 FAnomalyMaskMeasure::AllocateTag()
 		++Skipped;
 	}
 
-	const int32 Fallback = AnomalyStencilTag::ReservedStencilBase + (NextTagOffset % Span);
-	++NextTagOffset;
 	UE_LOG(LogAnomalyCapture, Error,
 		TEXT("Capture(mask): M36 TAG-POOL EXHAUSTED tick=%llu - every assignable stencil value %d..%d is ")
-		TEXT("reserved or claimed. Re-assigning %d, which is NOT FREE: eventClaimed=[%s] censusClaimed=[%s] ")
-		TEXT("hostReserved=[%s]. m50 step 0 measured this fallback to be the SOLE producer of the one-value/")
-		TEXT("two-objects defect (G246): every affected frame carries a value this line re-issued. It is kept ")
-		TEXT("as the last resort and as the tripwire; the census headroom rule is what stops it being reached."),
+		TEXT("reserved or claimed: eventClaimed=[%s] censusClaimed=[%s] hostReserved=[%s]. NO TAG IS ISSUED. ")
+		TEXT("m50 step 0 measured the old behaviour - re-issue a value the allocator had just proven was NOT ")
+		TEXT("free - to be the SOLE producer of the one-value/two-objects defect (G246): 12 of 12 affected ")
+		TEXT("tag-instances across 16 banked legs carried a value this line had re-issued. Returning 0 puts ")
+		TEXT("the event on the SAFE side instead: it is never armed, its state stays NOT_MEASURED, the m26 ")
+		TEXT("veto ADMITS it, and it is labelled target_pixels -1 / observable null / observability_measured ")
+		TEXT("false. Honest labels without pixel evidence beat confident wrong numbers. Reaching this line at ")
+		TEXT("all is a gate failure - the census headroom rule (EventTagHeadroom) exists to make it ")
+		TEXT("unreachable, and every m50 leg reads it."),
 		(uint64)GFrameCounter,
-		AnomalyStencilTag::ReservedStencilBase, AnomalyStencilTag::AssignableStencilMax, Fallback,
+		AnomalyStencilTag::ReservedStencilBase, AnomalyStencilTag::AssignableStencilMax,
 		Ledger ? *AnomalyStencilTag::JoinValues(Ledger->EventClaimed) : TEXT("?"),
 		Ledger ? *AnomalyStencilTag::JoinValues(Ledger->CensusClaimed) : TEXT("?"),
 		Ledger ? *AnomalyStencilTag::JoinValues(Ledger->HostReserved) : TEXT("?"));
-	check(Fallback >= AnomalyStencilTag::ReservedStencilBase && Fallback <= AnomalyStencilTag::AssignableStencilMax);
-	return Fallback;
+	return 0;
 }
 
 FAnomalyMaskRecord* FAnomalyMaskMeasure::FindRecord(FName Id, const FString& Target, uint64 StartFrame)
@@ -141,9 +145,48 @@ FAnomalyMaskRecord* FAnomalyMaskMeasure::FindOrAddRecord(FName Id, const FString
 	New.Target = Target;
 	New.StartFrame = StartFrame;
 	New.TargetActor = TargetActor;
-	New.Tag = (uint8)AllocateTag();
+
+	AnomalyMeasurability::EReason Reason = AnomalyMeasurability::EReason::None;
+	if (TargetActor && AnomalyMeasurability::IsKnownUnmeasurable(TargetActor, GMaxRHIShaderPlatform, Reason))
+	{
+		New.bKnownUnmeasurable = true;
+		New.UnmeasurableReason = AnomalyMeasurability::LexToString(Reason);
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m50): UNMEASURABLE TARGET '%s' (%s) reason=%s - this target is known BEFORE the fire ")
+			TEXT("to be invisible to the custom-depth mask, so no arm is issued for it. Its state stays ")
+			TEXT("NOT_MEASURED, the m26 zero-veto ADMITS it, and it is labelled target_pixels -1 / observable ")
+			TEXT("null / observability_measured false / bbox_source projected. Without this, the pass runs for ")
+			TEXT("OTHER actors, this target contributes nothing, and m26 reads that as a MEASURED zero and ")
+			TEXT("DELETES the event - which on L_Convolution_Blockout turned 7 bursts and 43 positive frames ")
+			TEXT("into anomalies: [] (I11-A, LG-9). It is NOT a claim the anomaly was visible; ")
+			TEXT("observability_measured false is the field that says so."),
+			*Target, *Id.ToString(), AnomalyMeasurability::LexToString(Reason));
+	}
+	else
+	{
+		New.Tag = (uint8)AllocateTag();
+		if (New.Tag == 0)
+		{
+			New.bKnownUnmeasurable = true;
+			New.UnmeasurableReason = TEXT("tag_pool_exhausted");
+		}
+	}
+
 	const int32 Index = Records.Add(MoveTemp(New));
 	return &Records[Index];
+}
+
+int32 FAnomalyMaskMeasure::NumKnownUnmeasurable() const
+{
+	int32 N = 0;
+	for (const FAnomalyMaskRecord& R : Records)
+	{
+		if (R.bKnownUnmeasurable)
+		{
+			++N;
+		}
+	}
+	return N;
 }
 
 TSet<uint8> FAnomalyMaskMeasure::BuildBaseTagSet() const
@@ -151,7 +194,10 @@ TSet<uint8> FAnomalyMaskMeasure::BuildBaseTagSet() const
 	TSet<uint8> Out;
 	for (const FAnomalyMaskRecord& R : Records)
 	{
-		Out.Add(R.Tag);
+		if (R.Tag != 0)
+		{
+			Out.Add(R.Tag);
+		}
 	}
 	return Out;
 }
@@ -220,6 +266,10 @@ bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, u
 		{
 			continue;
 		}
+		if (R.bKnownUnmeasurable || R.Tag == 0)
+		{
+			continue;
+		}
 
 		AActor* Actor = R.TargetActor.Get();
 		if (!Actor)
@@ -267,6 +317,10 @@ bool FAnomalyMaskMeasure::ArmProbeOnHidden(FAnomalyMaskSceneViewExtension* Sve, 
 	{
 		FAnomalyMaskRecord& R = Records[i];
 		if (R.ArmsIssued >= MaxArmsPerEvent)
+		{
+			continue;
+		}
+		if (R.bKnownUnmeasurable || R.Tag == 0)
 		{
 			continue;
 		}

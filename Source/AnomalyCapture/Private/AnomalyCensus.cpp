@@ -5,6 +5,7 @@
 #include "AnomalyCaptureLog.h"
 #include "AnomalyStencilTag.h"
 #include "AnomalyHiddenClass.h"
+#include "AnomalyMeasurability.h"
 #include "AnomalyMaskSceneViewExtension.h"
 #include "AnomalyViewport.h"
 
@@ -40,22 +41,6 @@ namespace
 
 	enum class ECensusClass : uint8 { Measurable, Nanite, Translucent, Hidden, HeldElsewhere };
 
-	bool ComponentRendersAsNanite(const UStaticMeshComponent* SMC, EShaderPlatform ShaderPlatform)
-	{
-		if (SMC->bDisallowNanite)
-		{
-			return false;
-		}
-#if WITH_EDITORONLY_DATA
-		if (SMC->bDisplayNaniteFallbackMesh)
-		{
-			return false;
-		}
-#endif
-		const UStaticMesh* Mesh = SMC->GetStaticMesh();
-		return Mesh && Mesh->HasValidNaniteData() && UseNanite(ShaderPlatform);
-	}
-
 	ECensusClass ClassifyCandidate(const AActor* Actor, bool bExcludeTranslucent, bool bAllowCustomDepthOptIn,
 		EShaderPlatform ShaderPlatform)
 	{
@@ -90,7 +75,7 @@ namespace
 
 			if (const UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(Prim))
 			{
-				if (ComponentRendersAsNanite(SMC, ShaderPlatform))
+				if (AnomalyMeasurability::ComponentRendersAsNanite(SMC, ShaderPlatform))
 				{
 					++NaniteOnly;
 					continue;
@@ -723,8 +708,15 @@ void FAnomalyCensus::ArmNextBatch(FAnomalyMaskSceneViewExtension* Sve, const TSe
 	int32 TotalFlips = 0;
 	int32 Cursor = AnomalyStencilTag::ReservedStencilBase;
 
+	int32 HeadroomStops = 0;
 	while (Batch.EntryIdx.Num() < HalfCap && CycleQueue.Num() > 0)
 	{
+		if (Ledger->NumFree() <= EventTagHeadroom)
+		{
+			++HeadroomStops;
+			break;
+		}
+
 		uint8 Tag = 0;
 		bool bFound = false;
 		for (; Cursor <= AnomalyStencilTag::AssignableStencilMax; ++Cursor)
@@ -778,6 +770,11 @@ void FAnomalyCensus::ArmNextBatch(FAnomalyMaskSceneViewExtension* Sve, const TSe
 		Ledger->CensusClaimed.Add(Tag);
 		Batch.EntryIdx.Add(EntryIndex);
 		Batch.Tags.Add(Tag);
+	}
+
+	if (HeadroomStops > 0)
+	{
+		++Counters.HeadroomStops;
 	}
 
 	if (Batch.EntryIdx.Num() == 0)

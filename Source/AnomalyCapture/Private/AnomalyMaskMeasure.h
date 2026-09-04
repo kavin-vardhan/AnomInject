@@ -36,6 +36,9 @@ struct FAnomalyMaskRecord
 	int32 ProbeArms = 0;
 	FString FirstCollisionDetail;
 	bool bTagFailed = false;
+
+	bool bKnownUnmeasurable = false;
+	FString UnmeasurableReason;
 };
 
 class FAnomalyMaskMeasure
@@ -61,6 +64,7 @@ public:
 	TSet<uint8> BuildBaseTagSet() const;
 	void SetExtraAssignedTags(const TSet<uint8>& InExtra) { ExtraAssignedTags = InExtra; }
 	int32 NumUnmeasured() const;
+	int32 NumKnownUnmeasurable() const;
 	int32 TotalProbeArms() const;
 	int32 TotalResidualDiscards() const;
 	int32 TotalNoPassDiscards() const;

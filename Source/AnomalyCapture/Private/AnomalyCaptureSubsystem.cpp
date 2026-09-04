@@ -4905,6 +4905,17 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TEXT("defect for two milestones."),
 			TagOwnerViolations);
 
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m50): UNMEASURABLE TARGETS ADMITTED = %d event record(s) never armed because the ")
+			TEXT("target was known unmeasurable before the fire, and censusHeadroomStops = %d batch(es) cut ")
+			TEXT("short to keep %d stencil value(s) free for the event allocator. An admitted-unmeasurable ")
+			TEXT("event ships with observability_measured false; it is NOT a claim the anomaly was visible. ")
+			TEXT("A zero on the first counter is a READING, not a pass - on a host with no Nanite it is the ")
+			TEXT("correct answer, and census_unmeasurable_nanite is what says whether such a target exists."),
+			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0,
+			(bCensusEffective && Async.IsValid()) ? Async->Census.GetCounters().HeadroomStops : 0,
+			FAnomalyCensus::EventTagHeadroom);
+
 		if (BenchCensusMaskDumpFrames > 0)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
@@ -5078,7 +5089,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			&ShaderReadinessReport,
 			FramesExposureDip,
 			&ObservabilityReport,
-			TranslucentOnlyExcludedTargets);
+			TranslucentOnlyExcludedTargets,
+			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")

@@ -162,7 +162,8 @@ namespace AnomalyLabel
 		const struct FShaderReadinessTelemetry* ShaderReadiness = nullptr,
 		int32 FramesExposureDip = 0,
 		const struct FObservabilityTelemetry* Observability = nullptr,
-		int32 TranslucentOnlyExcludedTargets = 0);
+		int32 TranslucentOnlyExcludedTargets = 0,
+		int32 UnmeasurableTargetsAdmitted = 0);
 
 	struct FObservabilityTelemetry
 	{
