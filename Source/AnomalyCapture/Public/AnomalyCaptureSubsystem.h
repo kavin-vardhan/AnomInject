@@ -107,6 +107,8 @@ public:
 	void SetBenchTeleportOffscreenAt(int32 InSessionIndex);
 	void SetBenchRetakeMaterialAfter(int32 InSessionIndex);
 	void SetBenchCensusMaskDump(int32 InFrames);
+	void SetBenchTagPoolLimit(int32 InValues);
+	void SetBenchForceTagCollision(int32 InSessionIndex);
 
 	void SetTickPin(bool bInPin);
 	bool IsTickPinEnabled() const { return bTickPinEnabled; }
@@ -178,6 +180,7 @@ private:
 	void StepMaskPairingProbe(int32 SessionIndex);
 	void DestroyMaskPairingProbe();
 	void StepBenchObservabilityLevers(int32 SessionIndex);
+	void StepBenchForceTagCollision(int32 SessionIndex);
 	void RestoreBenchTeleports();
 	void EnqueueCensusMaskDump(uint64 ArmTick, const TArray<uint8>& Gray, int32 W, int32 H,
 		const TArray<FString>& TagRows);
@@ -411,6 +414,10 @@ private:
 	int32 BenchTeleportOffscreenAt = -1;
 	int32 BenchRetakeMaterialAfter = -1;
 	int32 BenchCensusMaskDumpFrames = 0;
+	int32 TagOwnerViolations = 0;
+	int32 BenchTagPoolLimit = 0;
+	int32 BenchForceTagCollision = -1;
+	bool bBenchForceTagCollisionFired = false;
 	int32 BenchCensusMaskDumpsWritten = 0;
 	bool bBenchTeleportFired = false;
 	bool bBenchRetakeFired = false;

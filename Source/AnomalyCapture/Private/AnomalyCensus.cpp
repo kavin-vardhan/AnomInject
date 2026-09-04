@@ -511,6 +511,11 @@ void FAnomalyCensus::CreditEntryFromResult(int32 EntryIndex, uint8 Tag, const FA
 
 void FAnomalyCensus::ReleaseBatch(FBatch& Batch, bool bRequeue)
 {
+	const uint64 ReleaseId = Batch.RequestId;
+	const TArray<uint8> ReleasedTags = Batch.Tags;
+	int32 Restored = 0;
+	int32 Overtaken = 0;
+	int32 Requeued = 0;
 	for (int32 k = 0; k < Batch.EntryIdx.Num(); ++k)
 	{
 		const int32 EntryIndex = Batch.EntryIdx[k];
@@ -536,10 +541,12 @@ void FAnomalyCensus::ReleaseBatch(FBatch& Batch, bool bRequeue)
 					}
 				}
 				AnomalyStencilTag::RestoreActor(Actor);
+				++Restored;
 			}
 			else
 			{
 				++Counters.TagOvertaken;
+				++Overtaken;
 				UE_LOG(LogAnomalyCapture, Log,
 					TEXT("Census: TAG-OVERTAKEN '%s' tag=%d (%s) - another writer re-tagged this actor while the ")
 					TEXT("census batch was in flight (the event mask tagging a fresh fire is the expected case). ")
@@ -556,7 +563,15 @@ void FAnomalyCensus::ReleaseBatch(FBatch& Batch, bool bRequeue)
 			&& Entries[EntryIndex].AttemptsThisCycle < MaxAttemptsPerCycle)
 		{
 			CycleQueue.Add(EntryIndex);
+			++Requeued;
 		}
+	}
+	if (ReleasedTags.Num() > 0)
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Census: RELEASE id=%llu tick=%llu tags=[%s] restored=%d overtaken=%d requeued=%d numFreeAfter=%d"),
+			ReleaseId, (uint64)GFrameCounter, *AnomalyStencilTag::JoinValues(ReleasedTags),
+			Restored, Overtaken, Requeued, Ledger ? Ledger->NumFree() : -1);
 	}
 	Batch.EntryIdx.Reset();
 	Batch.Tags.Reset();
@@ -795,6 +810,27 @@ void FAnomalyCensus::ArmNextBatch(FAnomalyMaskSceneViewExtension* Sve, const TSe
 		TEXT("Census: ARM cycle=%d batch id=%llu size=%d tags=%d..%d pendingBefore=%d flagFlips=%d queueLeft=%d"),
 		CycleNumber, Batch.RequestId, Batch.EntryIdx.Num(),
 		(int32)Batch.Tags[0], (int32)Batch.Tags.Last(), Batch.PendingBefore, TotalFlips, CycleQueue.Num());
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Census: ARM-SET id=%llu tick=%llu tags=[%s] eventClaimed=[%s] censusClaimed=[%s] hostReserved=%d numFree=%d"),
+		Batch.RequestId, (uint64)GFrameCounter,
+		*AnomalyStencilTag::JoinValues(Batch.Tags),
+		*AnomalyStencilTag::JoinValues(Ledger->EventClaimed),
+		*AnomalyStencilTag::JoinValues(Ledger->CensusClaimed),
+		Ledger->HostReserved.Num(), Ledger->NumFree());
+
+	{
+		TArray<FString> Pairs;
+		Pairs.Reserve(Batch.Tags.Num());
+		for (int32 i = 0; i < Batch.Tags.Num(); ++i)
+		{
+			const int32 Idx = Batch.EntryIdx.IsValidIndex(i) ? Batch.EntryIdx[i] : INDEX_NONE;
+			Pairs.Add(FString::Printf(TEXT("%d=%s"), (int32)Batch.Tags[i],
+				Entries.IsValidIndex(Idx) ? *Entries[Idx].ActorName : TEXT("?")));
+		}
+		UE_LOG(LogAnomalyCapture, Log, TEXT("Census: ARM-MAP id=%llu [%s]"),
+			Batch.RequestId, *FString::Join(Pairs, TEXT(", ")));
+	}
 
 	InFlight.Add(MoveTemp(Batch));
 }

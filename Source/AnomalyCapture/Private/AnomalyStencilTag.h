@@ -13,6 +13,8 @@ struct FAnomalyStencilTagLedger
 	TSet<uint8> EventClaimed;
 	TSet<uint8> CensusClaimed;
 
+	int32 BenchPoolLimit = 0;
+
 	bool IsAssignable(uint8 Value) const;
 	bool IsFree(uint8 Value) const;
 	int32 NumFree() const;
@@ -26,6 +28,9 @@ namespace AnomalyStencilTag
 	static constexpr int32 ReservedStencilMax = 255;
 	static constexpr int32 AssignableStencilMax = 254;
 
+	FString JoinValues(const TArray<uint8>& Values);
+	FString JoinValues(const TSet<uint8>& Values);
+
 	int32 TagActor(AActor* Actor, int32 StencilValue);
 	int32 TagActor(AActor* Actor, int32 StencilValue, int32* OutFlagFlips);
 	void RestoreActor(AActor* Actor);
@@ -38,6 +43,9 @@ namespace AnomalyStencilTag
 	FString ForgetOneTaggedComponentOfActor(AActor* Actor);
 
 	void GetTaggedComponents(TSet<TWeakObjectPtr<UPrimitiveComponent>>& Out);
+
+	void GetTaggedActorsByValue(TMap<uint8, TArray<FString>>& Out);
+	FString DescribeOwnership(const TMap<uint8, TArray<FString>>& ByValue);
 
 	TSet<uint8> SnapshotHostReservedValues(UWorld* World);
 

@@ -829,11 +829,13 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 
 	const bool bCapturedThisTick = bTargetMaskEffective && (TargetMaskArmedTick == GFrameCounter)
 		&& (TargetMaskArmedSessionIndex >= 0);
+	const int32 OwnershipSessionIndex = bCapturedThisTick ? TargetMaskArmedSessionIndex : -1;
 	const bool bArmedNormal = Async->MaskMeasure.ArmIfMeasurable(Async->MaskExtension.Get(), GFrameCounter, false);
 
 	if (bCapturedThisTick)
 	{
 		EnsureMaskRecordsForCapturedFrame();
+		StepBenchForceTagCollision(TargetMaskArmedSessionIndex);
 		if (!ArmTargetMaskOwn(TargetMaskArmedSessionIndex))
 		{
 			TargetMaskOutcome.Add(TargetMaskArmedSessionIndex,
@@ -857,6 +859,42 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 		if (Async->Census.ConsumeCycleJustCompleted())
 		{
 			RunStencilHygieneCheck(false);
+		}
+	}
+
+	if (OwnershipSessionIndex >= 0)
+	{
+		TMap<uint8, TArray<FString>> ByValue;
+		AnomalyStencilTag::GetTaggedActorsByValue(ByValue);
+		int32 Shared = 0;
+		FString First;
+		for (const TPair<uint8, TArray<FString>>& Pair : ByValue)
+		{
+			if (Pair.Value.Num() > 1)
+			{
+				++Shared;
+				if (First.IsEmpty())
+				{
+					First = FString::Printf(TEXT("%d carried by %s"),
+						(int32)Pair.Key, *FString::Join(Pair.Value, TEXT(" AND ")));
+				}
+			}
+		}
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(mask): TAG-OWNERS si=%d tick=%llu values=%d shared=%d [%s]"),
+			OwnershipSessionIndex, (uint64)GFrameCounter, ByValue.Num(), Shared,
+			*AnomalyStencilTag::DescribeOwnership(ByValue));
+		if (Shared > 0)
+		{
+			++TagOwnerViolations;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(mask): TAG-OWNER VIOLATION si=%d tick=%llu - %s. One stencil value is on more ")
+				TEXT("than one actor at the moment this frame renders, so the per-tag reduce counts both and ")
+				TEXT("target_pixels / bbox_drawn_px for that value describe TWO objects (G246). This is read ")
+				TEXT("from this plugin's OWN tag map, not from allocator bookkeeping, so it sees a collision ")
+				TEXT("however it was produced. MASK-TIE cannot see this: the intruder is in the reduce table ")
+				TEXT("AND in the delivered PNG, so the tie reads MATCH."),
+				OwnershipSessionIndex, (uint64)GFrameCounter, *First);
 		}
 	}
 #endif
@@ -1635,6 +1673,157 @@ void UAnomalyCaptureSubsystem::SetBenchCensusMaskDump(int32 InFrames)
 		TEXT("appearance change confounding it. armTick is GFrameCounter at arm, which joins to ")
 		TEXT("labels.jsonl frame_index. NEVER ship a capture taken with this set."),
 		BenchCensusMaskDumpFrames);
+}
+
+void UAnomalyCaptureSubsystem::SetBenchTagPoolLimit(int32 InValues)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Bench.TagPoolLimit: ignored - a capture run is in progress."));
+		return;
+	}
+	const int32 Span = AnomalyStencilTag::AssignableStencilMax - AnomalyStencilTag::ReservedStencilBase + 1;
+	if (InValues < 0 || InValues > Span)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Bench.TagPoolLimit: %d is outside [0,%d] and is REFUSED. Current value unchanged (%d)."),
+			InValues, Span, BenchTagPoolLimit);
+		return;
+	}
+	BenchTagPoolLimit = InValues;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.TagPoolLimit -> %d. BENCH DEVICE, console only, no ini key, never in a client ")
+		TEXT("payload. 0 = OFF and the run is byte-inert. N narrows the ASSIGNABLE stencil pool to %d..%d, ")
+		TEXT("which is how m50 reproduces the G246 defect ON DEMAND instead of waiting for the census to ")
+		TEXT("exhaust the 55-value pool by chance. Step 0 measured the exhaustion fallback in ")
+		TEXT("FAnomalyMaskMeasure::AllocateTag to be the SOLE producer of one-value/two-objects frames, and ")
+		TEXT("the natural incidence is timing-dependent (12 of 448 tag-instances on one binary, 0 of 448 on ")
+		TEXT("the next), so a natural leg is NOT a reliable before-picture. This lever makes it one. NEVER ")
+		TEXT("ship a capture taken with this set."),
+		BenchTagPoolLimit, AnomalyStencilTag::ReservedStencilBase,
+		AnomalyStencilTag::ReservedStencilBase + FMath::Max(BenchTagPoolLimit, 1) - 1);
+}
+
+void UAnomalyCaptureSubsystem::SetBenchForceTagCollision(int32 InSessionIndex)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Bench.ForceTagCollision: ignored - a capture run is in progress."));
+		return;
+	}
+	BenchForceTagCollision = (InSessionIndex < 0) ? -1 : InSessionIndex;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.ForceTagCollision -> %d. BENCH DEVICE, console only, no ini key, never in a client ")
+		TEXT("payload. -1 = OFF and the run is byte-inert. Otherwise, on the tick that arms captured frame ")
+		TEXT("session_index=%d, ONE extra actor that is not a live target is tagged with a LIVE EVENT'S OWN ")
+		TEXT("stencil value, so that value carries two objects in that frame's mask. It is m50's G2 lever ")
+		TEXT("and it exists to prove the SINGLE-OWNER gate can FAIL (G96): the gate replaces MASK-TIE, ")
+		TEXT("which passed this defect for two milestones because the intruder is in the reduce table AND ")
+		TEXT("in the PNG, so the tie reads MATCH. It bypasses the allocator on purpose, so it fires ")
+		TEXT("whatever the allocator does - a green gate on a fixed binary is then a reading and not ")
+		TEXT("blindness. NEVER ship a capture taken with this set."),
+		BenchForceTagCollision, BenchForceTagCollision);
+}
+
+void UAnomalyCaptureSubsystem::StepBenchForceTagCollision(int32 SessionIndex)
+{
+#if ANOMALY_CAPTURE
+	if (BenchForceTagCollision < 0 || bBenchForceTagCollisionFired || SessionIndex != BenchForceTagCollision)
+	{
+		return;
+	}
+	bBenchForceTagCollisionFired = true;
+
+	TSet<uint8> LiveTags;
+	TSet<const AActor*> LiveTargets;
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	if (Auto)
+	{
+		for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+		{
+			AActor* Actor = F.TargetActor.Get();
+			if (!Actor || !IsFireLabelledThisFrame(F))
+			{
+				continue;
+			}
+			LiveTargets.Add(Actor);
+			for (const FAnomalyMaskRecord& R : Async->MaskMeasure.GetRecords())
+			{
+				if (R.Id == F.Id && R.Target == F.Target && R.StartFrame == F.StartFrame && R.Tag != 0)
+				{
+					LiveTags.Add(R.Tag);
+					break;
+				}
+			}
+		}
+	}
+	if (LiveTags.Num() == 0)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(bench): FORCED-COLLISION session_index=%d did NOT fire - no fire is LABELLED on that ")
+			TEXT("frame, so no tag will be in that frame's mask and there is nothing to collide with. The leg ")
+			TEXT("is INVALID, not passed. Pick a session_index inside a labelled window."),
+			SessionIndex);
+		return;
+	}
+	TArray<uint8> Sorted = LiveTags.Array();
+	Sorted.Sort();
+	const uint8 Victim = Sorted[0];
+
+	AActor* Chosen = nullptr;
+	AActor* Fallback = nullptr;
+	for (const TWeakObjectPtr<AActor>& Weak : AnomalyViewport::GetVisibleRenderableActors(GetWorld()))
+	{
+		AActor* A = Weak.Get();
+		if (!A || LiveTargets.Contains(A))
+		{
+			continue;
+		}
+		if (!AnomalyStencilTag::IsAnyComponentTagged(A))
+		{
+			Chosen = A;
+			break;
+		}
+		if (!Fallback)
+		{
+			Fallback = A;
+		}
+	}
+	const bool bTookCensusActor = (Chosen == nullptr);
+	if (!Chosen)
+	{
+		Chosen = Fallback;
+	}
+	if (!Chosen)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(bench): FORCED-COLLISION session_index=%d did NOT fire - there is no visible ")
+			TEXT("renderable non-target actor to tag. The leg is INVALID, not passed."),
+			SessionIndex);
+		return;
+	}
+	if (bTookCensusActor)
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(bench): FORCED-COLLISION is overwriting a CENSUS-held tag on '%s' because with the ")
+			TEXT("census on every visible renderable actor is already tagged. TagActor keeps the FIRST saved ")
+			TEXT("prior state, so the run-end RestoreAll still restores the actor's original value; the census ")
+			TEXT("will log TAG-OVERTAKEN for it at release, which is that path working as designed."),
+			*Chosen->GetName());
+	}
+
+	const int32 Tagged = AnomalyStencilTag::TagActor(Chosen, (int32)Victim);
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("Capture(bench): FORCED-COLLISION at si=%d tick=%llu value=%d actor='%s' taggedComponents=%d. ")
+		TEXT("This is m50's G2 can-fail lever: a NON-TARGET actor has deliberately been given a LIVE EVENT'S ")
+		TEXT("own stencil value, so that value now carries two objects in this frame's mask and the per-tag ")
+		TEXT("reduce counts both. The SINGLE-OWNER gate MUST report it. taggedComponents=0 means the lever ")
+		TEXT("did not fire and the leg is INVALID, not passed (G245). MASK-TIE will still read MATCH here, ")
+		TEXT("which is the point: the intruder is in the table AND in the PNG."),
+		SessionIndex, (uint64)GFrameCounter, (int32)Victim, *Chosen->GetName(), Tagged);
+#endif
 }
 
 void UAnomalyCaptureSubsystem::StepBenchObservabilityLevers(int32 SessionIndex)
@@ -2780,6 +2969,9 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 			Async->MaskExtension->SetReduceMode(GMaskReduceMode);
 		}
 		Async->TagLedger.Reset();
+		Async->TagLedger.BenchPoolLimit = BenchTagPoolLimit;
+		bBenchForceTagCollisionFired = false;
+		TagOwnerViolations = 0;
 		if (bCensusReservation)
 		{
 			Async->TagLedger.HostReserved = AnomalyStencilTag::SnapshotHostReservedValues(World);
@@ -4705,6 +4897,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TEXT("changes which targets a given seed picks, so an auto-pool run is non-comparable across it."),
 			TranslucentOnlyExcludedTargets, *AnomalyDefaults::DescribeAllowTranslucentOnlyTargets());
 
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m50): TAG-OWNER VIOLATIONS = %d captured frame(s) on which one stencil value was on ")
+			TEXT("more than one actor. The per-frame TAG-OWNERS lines carry the whole ownership map and are ")
+			TEXT("read by the m50 single-owner gate. A 0 here is a READING and not a pass on its own - the ")
+			TEXT("gate is proven able to fire by IAI.Bench.ForceTagCollision, because MASK-TIE passed this ")
+			TEXT("defect for two milestones."),
+			TagOwnerViolations);
+
 		if (BenchCensusMaskDumpFrames > 0)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
@@ -6332,6 +6532,52 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchCensusMaskDumpCmd(
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
 			{
 				Cap->SetBenchCensusMaskDump(FCString::Atoi(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchTagPoolLimitCmd(
+	TEXT("IAI.Bench.TagPoolLimit"),
+	TEXT("BENCH DEVICE, default 0 (OFF), console only - no ini key, never in a client payload. N narrows the ")
+	TEXT("ASSIGNABLE stencil pool to 200..200+N-1 so the event tag allocator's TAG-POOL EXHAUSTED fallback ")
+	TEXT("can be reached ON DEMAND. m50 step 0 measured that fallback to be the SOLE producer of the G246 ")
+	TEXT("one-value/two-objects defect, and the natural incidence is timing-dependent (12 of 448 ")
+	TEXT("tag-instances on the m49 A1 binary, 0 of 448 on the A2 binary), so a natural leg is not a reliable ")
+	TEXT("before-picture. Takes effect BETWEEN RUNS. Usage: IAI.Bench.TagPoolLimit <n>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.TagPoolLimit <n>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchTagPoolLimit(FCString::Atoi(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchForceTagCollisionCmd(
+	TEXT("IAI.Bench.ForceTagCollision"),
+	TEXT("BENCH DEVICE, default -1 (OFF), console only - no ini key, never in a client payload. On the tick ")
+	TEXT("that arms captured frame session_index=N, one visible non-target actor is tagged with a LIVE ")
+	TEXT("EVENT'S own stencil value, so that value carries two objects in that frame's mask. It is m50's G2 ")
+	TEXT("lever and its whole job is to prove the SINGLE-OWNER gate can FAIL (G96) - that gate replaces ")
+	TEXT("MASK-TIE, which passed this defect for two milestones because the intruder is in the reduce table ")
+	TEXT("AND in the delivered PNG, so the tie reads MATCH. It bypasses the allocator deliberately, so it ")
+	TEXT("fires whatever the allocator does. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Bench.ForceTagCollision <sessionIndex|-1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.ForceTagCollision <sessionIndex|-1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchForceTagCollision(FCString::Atoi(*Args[0]));
 			}
 		}));
 

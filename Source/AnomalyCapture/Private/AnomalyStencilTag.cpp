@@ -26,8 +26,13 @@ namespace
 
 bool FAnomalyStencilTagLedger::IsAssignable(uint8 Value) const
 {
+	const int32 Top = (BenchPoolLimit > 0)
+		? FMath::Min(AnomalyStencilTag::AssignableStencilMax,
+			AnomalyStencilTag::ReservedStencilBase + BenchPoolLimit - 1)
+		: AnomalyStencilTag::AssignableStencilMax;
+
 	return Value >= (uint8)AnomalyStencilTag::ReservedStencilBase
-		&& Value <= (uint8)AnomalyStencilTag::AssignableStencilMax
+		&& Value <= (uint8)Top
 		&& !HostReserved.Contains(Value);
 }
 
@@ -71,6 +76,24 @@ void FAnomalyStencilTagLedger::Reset()
 
 namespace AnomalyStencilTag
 {
+	FString JoinValues(const TArray<uint8>& Values)
+	{
+		TArray<FString> Parts;
+		Parts.Reserve(Values.Num());
+		for (uint8 V : Values)
+		{
+			Parts.Add(FString::FromInt((int32)V));
+		}
+		return FString::Join(Parts, TEXT(","));
+	}
+
+	FString JoinValues(const TSet<uint8>& Values)
+	{
+		TArray<uint8> Sorted = Values.Array();
+		Sorted.Sort();
+		return JoinValues(Sorted);
+	}
+
 	int32 TagActor(AActor* Actor, int32 StencilValue)
 	{
 		return TagActor(Actor, StencilValue, nullptr);
@@ -244,6 +267,42 @@ namespace AnomalyStencilTag
 		{
 			Out.Add(Pair.Key);
 		}
+	}
+
+	void GetTaggedActorsByValue(TMap<uint8, TArray<FString>>& Out)
+	{
+		Out.Reset();
+		for (const TPair<TWeakObjectPtr<UPrimitiveComponent>, FPriorStencilState>& Pair : GTaggedComponents)
+		{
+			const UPrimitiveComponent* Prim = Pair.Key.Get();
+			if (!Prim || !Prim->bRenderCustomDepth)
+			{
+				continue;
+			}
+			const int32 V = Prim->CustomDepthStencilValue;
+			if (V < ReservedStencilBase || V > ReservedStencilMax)
+			{
+				continue;
+			}
+			const AActor* Owner = Prim->GetOwner();
+			const FString Name = Owner ? Owner->GetName() : TEXT("(no owner)");
+			TArray<FString>& Names = Out.FindOrAdd((uint8)V);
+			Names.AddUnique(Name);
+		}
+	}
+
+	FString DescribeOwnership(const TMap<uint8, TArray<FString>>& ByValue)
+	{
+		TArray<uint8> Values;
+		ByValue.GetKeys(Values);
+		Values.Sort();
+		TArray<FString> Parts;
+		Parts.Reserve(Values.Num());
+		for (uint8 V : Values)
+		{
+			Parts.Add(FString::Printf(TEXT("%d=%s"), (int32)V, *FString::Join(ByValue[V], TEXT("|"))));
+		}
+		return FString::Join(Parts, TEXT(", "));
 	}
 
 	TSet<uint8> SnapshotHostReservedValues(UWorld* World)

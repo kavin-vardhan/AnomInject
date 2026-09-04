@@ -91,12 +91,9 @@ int32 FAnomalyMaskMeasure::AllocateTag()
 				Ledger->EventClaimed.Add((uint8)Tag);
 			}
 			NextTagOffset = (NextTagOffset + i + 1) % Span;
-			if (Skipped > 0)
-			{
-				UE_LOG(LogAnomalyCapture, Log,
-					TEXT("Capture(mask): M36 event tag allocator skipped %d reserved/claimed value(s) and assigned %d."),
-					Skipped, Tag);
-			}
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(mask): M36 event tag allocator tick=%llu assigned=%d skipped=%d numFreeAfter=%d"),
+				(uint64)GFrameCounter, Tag, Skipped, Ledger ? Ledger->NumFree() : -1);
 			check(Tag >= AnomalyStencilTag::ReservedStencilBase && Tag <= AnomalyStencilTag::AssignableStencilMax);
 			return Tag;
 		}
@@ -106,10 +103,16 @@ int32 FAnomalyMaskMeasure::AllocateTag()
 	const int32 Fallback = AnomalyStencilTag::ReservedStencilBase + (NextTagOffset % Span);
 	++NextTagOffset;
 	UE_LOG(LogAnomalyCapture, Error,
-		TEXT("Capture(mask): M36 TAG-POOL EXHAUSTED - every assignable stencil value %d..%d is reserved or ")
-		TEXT("claimed. Re-assigning %d; the collision detectors (verify read-back + unassigned-tag) are the ")
-		TEXT("backstop and affected frames discard toward NOT_MEASURED, which ADMITS."),
-		AnomalyStencilTag::ReservedStencilBase, AnomalyStencilTag::AssignableStencilMax, Fallback);
+		TEXT("Capture(mask): M36 TAG-POOL EXHAUSTED tick=%llu - every assignable stencil value %d..%d is ")
+		TEXT("reserved or claimed. Re-assigning %d, which is NOT FREE: eventClaimed=[%s] censusClaimed=[%s] ")
+		TEXT("hostReserved=[%s]. m50 step 0 measured this fallback to be the SOLE producer of the one-value/")
+		TEXT("two-objects defect (G246): every affected frame carries a value this line re-issued. It is kept ")
+		TEXT("as the last resort and as the tripwire; the census headroom rule is what stops it being reached."),
+		(uint64)GFrameCounter,
+		AnomalyStencilTag::ReservedStencilBase, AnomalyStencilTag::AssignableStencilMax, Fallback,
+		Ledger ? *AnomalyStencilTag::JoinValues(Ledger->EventClaimed) : TEXT("?"),
+		Ledger ? *AnomalyStencilTag::JoinValues(Ledger->CensusClaimed) : TEXT("?"),
+		Ledger ? *AnomalyStencilTag::JoinValues(Ledger->HostReserved) : TEXT("?"));
 	check(Fallback >= AnomalyStencilTag::ReservedStencilBase && Fallback <= AnomalyStencilTag::AssignableStencilMax);
 	return Fallback;
 }
