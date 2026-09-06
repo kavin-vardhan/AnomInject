@@ -34,11 +34,11 @@ inline const TCHAR* LexToStringAnomalyMaskReduceMode(EAnomalyMaskReduceMode Mode
 class FAnomalyMaskSceneViewExtension : public FSceneViewExtensionBase
 {
 public:
-	FAnomalyMaskSceneViewExtension(const FAutoRegister& AutoRegister);
+	FAnomalyMaskSceneViewExtension(const FAutoRegister& AutoRegister, UWorld* InWorld, FViewport* InViewport);
 
 	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override {}
 	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {}
-	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override {}
+	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override;
 	virtual void SubscribeToPostProcessingPass(EPostProcessingPass Pass,
 		FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled) override;
 	virtual int32 GetPriority() const override { return -1; }
@@ -63,6 +63,9 @@ private:
 	struct FMaskInFlight
 	{
 		uint64 RequestId = 0;
+		uint32 RenderFrame = 0;
+		uint32 Generation = 0;
+		TSet<uint8> Assigned;
 		TArray<uint64> RequestIds;
 		TArray<uint8> WantsPixels;
 		TUniquePtr<FRHIGPUTextureReadback> Readback;
@@ -76,6 +79,18 @@ private:
 
 	mutable FCriticalSection StateCS;
 	TArray<uint64> PendingArms;
+	TMap<uint64, uint64> PendingGameFrames;
+	struct FPublishedBatch
+	{
+		TArray<uint64> Ids;
+		TArray<uint8> WantsPixels;
+		TSet<uint8> Assigned;
+		uint32 Generation = 0;
+	};
+	TMap<uint32, FPublishedBatch> Published;
+	uint32 Generation = 0;
+	TWeakObjectPtr<UWorld> CaptureWorld;
+	FViewport* CaptureViewport = nullptr;
 	TArray<uint8> PendingArmWantsPixels;
 	TSet<uint8> AssignedTags;
 	EAnomalyMaskReduceMode ReduceMode = EAnomalyMaskReduceMode::Gpu;

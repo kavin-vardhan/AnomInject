@@ -107,6 +107,8 @@ namespace AnomalyTickPin
 #endif
 }
 
+static TWeakObjectPtr<UAnomalyCaptureSubsystem> GCaptureOwner;
+
 struct FSessionEventAccum
 {
 	FName Id = NAME_None;
@@ -141,6 +143,7 @@ struct FSessionEventAccum
 	int32 DrawnBboxFrames = 0;
 	TMap<int32, uint8> ActiveByIndex;
 	TMap<int32, uint8> ObservableByIndex;
+	TMap<int32, int32> TargetPixelsByIndex;
 };
 #endif
 
@@ -153,6 +156,7 @@ struct FAnomalyCaptureAsyncState
 	TSharedPtr<FAnomalyMaskSceneViewExtension, ESPMode::ThreadSafe> MaskExtension;
 	TSharedPtr<FAnomalyAsyncWriter, ESPMode::ThreadSafe> Writer;
 	TMap<uint64, AnomalyLabel::FCaptureSnapshot> PendingSnapshots;
+	TMap<int32, AnomalyLabel::EAnomalyMaskState> SubmittedMaskStates;
 	TArray<FSessionEventAccum> SessionEvents;
 	FAnomalyMaskMeasure MaskMeasure;
 	FAnomalyStencilTagLedger TagLedger;
@@ -506,7 +510,7 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		TEXT("a missing ini key now DOWNGRADES PROVENANCE rather than silently restoring m25 labelling, which ")
 		TEXT("is the failure G139 exists to make visible. Mask off means the m26 H5 cure is INACTIVE and this ")
 		TEXT("build labels exactly as m25 did."),
-		bMaskMeasure ? TEXT("ON (measure, report and veto)") : TEXT("off"),
+		bMaskMeasure ? TEXT("ON (per-frame measurement)") : TEXT("off"),
 		DescribeMaskSource());
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(mask): m34 REDUCE AT INIT - maskReduce=%s, from %s. gpu reduces the visible mask to a ")
@@ -598,7 +602,7 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 		Async->SveCapturer.Reset();
 		if (Async->Writer.IsValid())
 		{
-			Async->Writer->FlushPending(2.0);
+			Async->Writer->FlushPending(-1.0);
 			Async->Writer.Reset();
 		}
 	}
@@ -826,10 +830,12 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 	ReleaseTargetMaskSelfTags();
 	ServiceTargetMask();
 	Async->MaskMeasure.CollectResults(Async->MaskExtension.Get());
+	if (const auto* Auto = ResolveAuto()) { Async->MaskMeasure.RetireInactiveRecords(Auto->GetLiveFires()); }
 
 	const bool bCapturedThisTick = bTargetMaskEffective && (TargetMaskArmedTick == GFrameCounter)
 		&& (TargetMaskArmedSessionIndex >= 0);
 	const int32 OwnershipSessionIndex = bCapturedThisTick ? TargetMaskArmedSessionIndex : -1;
+	Async->TagLedger.HostReserved = AnomalyStencilTag::SnapshotHostReservedValues(World);
 	const bool bArmedNormal = Async->MaskMeasure.ArmIfMeasurable(Async->MaskExtension.Get(), GFrameCounter, false);
 
 	if (bCapturedThisTick)
@@ -864,6 +870,21 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 
 	if (OwnershipSessionIndex >= 0)
 	{
+		if (const auto* Auto = ResolveAuto())
+		{
+			for (const auto& F : Auto->GetLiveFires())
+			{
+				const auto* R = Async->MaskMeasure.FindRecord(F.Id, F.Target, F.StartFrame);
+				FString Detail;
+				if (R && R->Tag && F.TargetActor.IsValid()
+					&& (Async->TagLedger.HostReserved.Contains(R->Tag)
+						|| !AnomalyStencilTag::VerifyActorStillTagged(F.TargetActor.Get(), R->Tag, Detail)))
+				{
+					InvalidTargetMaskFrames.Add(OwnershipSessionIndex);
+				}
+			}
+		}
+
 		TMap<uint8, TArray<FString>> ByValue;
 		AnomalyStencilTag::GetTaggedActorsByValue(ByValue);
 		int32 Shared = 0;
@@ -887,6 +908,7 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 		if (Shared > 0)
 		{
 			++TagOwnerViolations;
+			InvalidTargetMaskFrames.Add(OwnershipSessionIndex);
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture(mask): TAG-OWNER VIOLATION si=%d tick=%llu - %s. One stencil value is on more ")
 				TEXT("than one actor at the moment this frame renders, so the per-tag reduce counts both and ")
@@ -980,10 +1002,6 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 		{
 			continue;
 		}
-		if (!IsFireLabelledThisFrame(F))
-		{
-			continue;
-		}
 		++ScanLabelled;
 		for (const FAnomalyMaskRecord& R : Async->MaskMeasure.GetRecords())
 		{
@@ -991,7 +1009,7 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 			{
 				++ScanWithRecord;
 				LiveTags.Add(R.Tag);
-				TagEvent.Add(R.Tag, FString::Printf(TEXT("%s@%llu"), *R.Id.ToString(), R.StartFrame));
+				TagEvent.Add(R.Tag, FString::Printf(TEXT("%s@%llu:%s"), *R.Id.ToString(), R.StartFrame, *R.Target));
 				if (!Actor->IsHidden())
 				{
 					Visible.Add(Actor);
@@ -1103,7 +1121,9 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 
 		const int32 W = Result.ViewRectSize.X;
 		const int32 H = Result.ViewRectSize.Y;
-		if (W <= 0 || H <= 0 || Result.MaskPixels.Num() < (int64)W * (int64)H)
+		if (W <= 0 || H <= 0 || Result.MaskPixels.Num() != (int64)W * H
+			|| InvalidTargetMaskFrames.Contains(Pair.Value) || Result.CustomDepthModeAtPass != 3 || Result.CustomStencilExtent.X <= 1
+			|| Result.CustomStencilExtent.Y <= 1 || Result.bSawUnassignedReservedTag)
 		{
 			++TargetMaskUnavailable;
 			TargetMaskOutcome.Add(Pair.Value,
@@ -1180,18 +1200,18 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 
 		if (KeptPixels > 0)
 		{
-			EnqueueTargetMaskPng(Pair.Value, Gray, W, H);
+
 			++TargetMaskMeasured;
 			TargetMaskOutcome.Add(Pair.Value,
 				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Present, MoveTemp(TagCounts),
-					MoveTemp(TagBounds) });
+					MoveTemp(TagBounds), MoveTemp(Gray), FIntPoint(W, H), Result.RenderFrame });
 		}
 		else
 		{
 			++TargetMaskHiddenBlank;
 			TargetMaskOutcome.Add(Pair.Value,
 				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Empty, MoveTemp(TagCounts),
-					MoveTemp(TagBounds) });
+					MoveTemp(TagBounds), MoveTemp(Gray), FIntPoint(W, H), Result.RenderFrame });
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(m44): TARGET MASK EMPTY for session_index %d - the mask was MEASURED and the ")
 				TEXT("target contributed zero pixels, so NO file is written and the labels row reads ")
@@ -2657,6 +2677,13 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	int32 InOutputHeight)
 {
 #if ANOMALY_CAPTURE
+	if (GCaptureOwner.IsValid() && GCaptureOwner.Get() != this && GCaptureOwner->IsCaptureActive())
+	{
+		UE_LOG(LogAnomalyCapture, Error, TEXT("Capture: another world owns the capture session."));
+		return;
+	}
+
+
 	if (bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: already running (stop first)."));
@@ -2665,7 +2692,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 
 	UWorld* World = GetWorld();
 	UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
-	if (!World || !Auto)
+	if (!World || !Auto || !World->GetGameViewport() || !World->GetGameViewport()->Viewport)
 	{
 		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: no world / no auto-injector (run inside a Game/PIE world)."));
 		return;
@@ -2826,11 +2853,13 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 			Async->PendingSnapshots.Empty();
 			if (Async->Writer.IsValid())
 			{
-				Async->Writer->ResetCounters();
+				Async->Writer = MakeShared<FAnomalyAsyncWriter, ESPMode::ThreadSafe>();
 			}
 		}
 	}
 
+	GCaptureOwner = this;
+	if (Injector) { Injector->SetCaptureOwnsInjection(true); }
 	bRunning = true;
 	bRunBegun = false;
 	bRectDeltaLogged = false;
@@ -2853,7 +2882,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		TEXT("INI. Mask off means the m26 H5 cure is INACTIVE and this session labels exactly as m25 did. In a ")
 		TEXT("packaged build the ini that counts is the COOKED DefaultGame.ini - a loose ini beside the package ")
 		TEXT("is a SILENT NO-OP (G88), which is why this line reports the EFFECTIVE value and not the file."),
-		bMaskMeasure ? TEXT("ON (measure, report and veto)") : TEXT("off"),
+		bMaskMeasure ? TEXT("ON (per-frame measurement)") : TEXT("off"),
 		DescribeMaskSource(),
 		LexToStringAnomalyMaskReduceMode(GMaskReduceMode), DescribeMaskReduceSource());
 
@@ -2869,7 +2898,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		TEXT("ACTUAL output size is measured from the first written frame and logged separately."),
 		EffectiveOutputHeight, DescribeOutputHeightSource());
 
-	bTargetMaskEffective = bTargetMask && bMaskMeasure && bAsyncCapture && (EffectiveOutputHeight == 0);
+	bTargetMaskEffective = bTargetMask && bMaskMeasure && bAsyncCapture && bSveCapture && (EffectiveOutputHeight == 0);
 	TargetMaskMeasured = 0;
 	TargetMaskHiddenBlank = 0;
 	TargetMaskUnavailable = 0;
@@ -2879,6 +2908,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	TargetMaskFirstFrame.Reset();
 	TargetMaskLastFrame.Reset();
 	TargetMaskOutcome.Reset();
+	if (Async.IsValid()) { Async->SubmittedMaskStates.Reset(); }
+	InvalidTargetMaskFrames.Reset();
 	TargetMaskHoldTicks = 0;
 	FramesConditionLost = 0;
 	ObservableFramesTotal = 0;
@@ -2890,7 +2921,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		Async->TargetMaskHeldFrames.Reset();
 	}
 	TargetMaskSelfTagged.Reset();
-	TargetMaskOwnSerial = 0;
+	// Request serials are monotonic for the lifetime of this subsystem.
 	TargetMaskTagFlips = 0;
 	TargetMaskEventRetags = 0;
 	TargetMaskW = 0;
@@ -2901,6 +2932,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		if (!bTargetMask)                 { Why = TEXT(" (requested off)"); }
 		else if (!bMaskMeasure)           { Why = TEXT(" (THE MASK IS OFF - the target mask reuses the m26 visible-mask pass, so it cannot run without it)"); }
 		else if (!bAsyncCapture)          { Why = TEXT(" (async capture is off)"); }
+		else if (!bSveCapture) { Why = TEXT(" (backbuffer capture has no shared scene-view identity; target masks are unmeasured)"); }
 		else if (EffectiveOutputHeight != 0) { Why = TEXT(" (REFUSED: IAI.Capture.OutputHeight is non-zero. The mask is view-rect sized while m28 RESAMPLES the written frame, so the two would disagree in size, and a LABEL MASK MUST NEVER BE FILTERED - bilinear would invent stencil values that were never assigned to anything. Nearest-neighbour mask resampling is a named follow-up, NOT built. Set the output height to 0 to get masks.)"); }
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("=== Capture(m43): TARGET MASK %s FOR THIS RUN%s - requested %s, from %s, output dir '%s/target_mask' === ")
@@ -3600,7 +3632,7 @@ void UAnomalyCaptureSubsystem::EnsureCapturer()
 		}
 		if (!Async->SveExtension.IsValid())
 		{
-			Async->SveExtension = FSceneViewExtensions::NewExtension<FAnomalySceneViewExtension>(Async->SveCapturer);
+			Async->SveExtension = FSceneViewExtensions::NewExtension<FAnomalySceneViewExtension>(Async->SveCapturer, GetWorld(), GetWorld()->GetGameViewport()->Viewport);
 		}
 	}
 	else if (!Async->Capturer.IsValid())
@@ -3610,7 +3642,7 @@ void UAnomalyCaptureSubsystem::EnsureCapturer()
 	}
 	if (bMaskMeasure && !Async->MaskExtension.IsValid())
 	{
-		Async->MaskExtension = FSceneViewExtensions::NewExtension<FAnomalyMaskSceneViewExtension>();
+		Async->MaskExtension = FSceneViewExtensions::NewExtension<FAnomalyMaskSceneViewExtension>(GetWorld(), GetWorld()->GetGameViewport()->Viewport);
 		Async->MaskExtension->SetReduceMode(GMaskReduceMode);
 	}
 	if (!Async->Writer.IsValid())
@@ -3662,10 +3694,16 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		}
 	}
 
+	Batch.Sort([&](const FAnomalyCapturedFrame& A, const FAnomalyCapturedFrame& B)
+	{
+		const auto* SA = Async->PendingSnapshots.Find(A.RequestId);
+		const auto* SB = Async->PendingSnapshots.Find(B.RequestId);
+		return (SA ? SA->SessionIndex : MAX_int32) < (SB ? SB->SessionIndex : MAX_int32);
+	});
 	for (const FAnomalyCapturedFrame& LumFrame : Batch)
 	{
 		const AnomalyLabel::FCaptureSnapshot* LumSnap = Async->PendingSnapshots.Find(LumFrame.RequestId);
-		if (!LumSnap)
+		if (!LumSnap || !LumSnap->Fires.IsEmpty())
 		{
 			continue;
 		}
@@ -3712,17 +3750,30 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			continue;
 		}
 
+		if (Frame.RenderView.bValid)
+		{
+			Snap->View = Frame.RenderView;
+			for (auto& G : Snap->TargetGeometry)
+			{
+				G.bRectValid = !G.Path.IsEmpty() && AnomalyViewport::ProjectWorldBoundsToScreenRect(Snap->View,
+					FBox(G.BoundsOrigin - G.BoundsExtent, G.BoundsOrigin + G.BoundsExtent), G.ScreenMin, G.ScreenMax);
+			}
+		}
 		if (Snap->bTargetMask)
 		{
-			const FTargetMaskOutcome* Outcome = TargetMaskOutcome.Find(Snap->SessionIndex);
-			if (!Outcome && TargetMaskHoldTicks < GTargetMaskMaxHoldTicks)
+			FTargetMaskOutcome* Outcome = TargetMaskOutcome.Find(Snap->SessionIndex);
+			if (Outcome && Outcome->State != (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured
+				&& (Outcome->RenderFrame != Frame.RenderFrame || Outcome->Size != FIntPoint(Frame.Width, Frame.Height)))
 			{
-				++TargetMaskHoldTicks;
-				for (int32 k = BatchIndex; k < Batch.Num(); ++k)
-				{
-					Async->TargetMaskHeldFrames.Add(MoveTemp(Batch[k]));
-				}
-				break;
+				UE_LOG(LogAnomalyCapture, Error, TEXT("Capture: mask/color render identity or dimensions disagree at session_index=%d."), Snap->SessionIndex);
+				*Outcome = FTargetMaskOutcome{};
+				++TargetMaskUnavailable;
+			}
+			if (!Outcome && Snap->bAwaitingTargetMask && Snap->MaskWaitTicks < GTargetMaskMaxHoldTicks)
+			{
+				++Snap->MaskWaitTicks;
+				Async->TargetMaskHeldFrames.Add(MoveTemp(Frame));
+				continue;
 			}
 			TargetMaskHoldTicks = 0;
 			if (Outcome)
@@ -3758,7 +3809,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 					Snap->DrawnBounds[i] = *Box;
 				}
 			}
-			TargetMaskOutcome.Remove(Snap->SessionIndex);
+
 		}
 
 		Snap->Observable.Reset();
@@ -3766,7 +3817,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		for (int32 i = 0; i < Snap->Fires.Num(); ++i)
 		{
 			const bool bLabelled = Snap->FireLabelled.IsValidIndex(i) && Snap->FireLabelled[i] != 0;
-			const bool bHeld = !Snap->ConditionHeld.IsValidIndex(i) || Snap->ConditionHeld[i] != 0;
+			const bool bHeld = Snap->ConditionHeld.IsValidIndex(i) && Snap->ConditionHeld[i] != 0;
 			if (bLabelled && !bHeld)
 			{
 				++FramesConditionLost;
@@ -3774,7 +3825,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 
 			const int32 Px = Snap->TargetPixels.IsValidIndex(i)
 				? Snap->TargetPixels[i] : AnomalyLabel::GTargetPixelsUnmeasured;
-			if (Px == AnomalyLabel::GTargetPixelsUnmeasured)
+			if (Px == AnomalyLabel::GTargetPixelsUnmeasured || Snap->AnomalyMaterialsIncomplete > 0)
 			{
 				Snap->Observable[i] = (uint8)AnomalyLabel::EObservable::Unmeasured;
 				continue;
@@ -3819,7 +3870,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 						UE_LOG(LogAnomalyCapture, Warning,
 							TEXT("Capture(m48): EXPOSURE DIP at session_index %d - whole-picture mean luminance %.3f is ")
 							TEXT("%.2f%% below the rolling mean %.3f of the previous %d captured frames (threshold %.1f%%). ")
-							TEXT("This is the GAME's auto-exposure re-adapting; the plugin never overrides exposure. The ")
+							TEXT("This is a luminance change on an injection-free window; it does not establish its cause. The ")
 							TEXT("row carries exposure_dip:true and run_summary counts every such frame in ")
 							TEXT("frames_exposure_dip. This line prints ONCE per run - the counter is the reading."),
 							Snap->SessionIndex, *ThisLuma,
@@ -3835,7 +3886,8 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, OutW, OutH, ImageName, NumLabels);
 
 		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePos, Snap->View, Snap->NearClip,
-			Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds);
+			Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds,
+			&Snap->TargetGeometry, &Snap->CameraPath, &Snap->TargetPixels);
 
 		FAnomalyAsyncWriter::FJob Job;
 		Job.OutputDir = RunDir;
@@ -3849,9 +3901,23 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Job.OutHeight = OutH;
 		Job.ImageRelPath = ImageName;
 		Job.Record = Record;
-		Job.bPositive = Snap->Fires.Num() > 0;
+		Job.bPositive = NumLabels > 0;
+		Job.SessionIndex = Snap->SessionIndex;
+		if (FTargetMaskOutcome* Outcome = TargetMaskOutcome.Find(Snap->SessionIndex))
+		{
+			if (Snap->MaskState == AnomalyLabel::EAnomalyMaskState::Present)
+			{
+				Job.MaskRelPath = Snap->MaskFileRel;
+				Job.MaskBytes = MoveTemp(Outcome->Pixels);
+			}
+		}
+		TargetMaskOutcome.Remove(Snap->SessionIndex);
+		InvalidTargetMaskFrames.Remove(Snap->SessionIndex);
 		Job.bWriteLabels = !bDeliveryMode || bLabelsInDelivery;
-		Async->Writer->Enqueue(MoveTemp(Job));
+		if (Async->Writer->Enqueue(MoveTemp(Job)))
+		{
+			Async->SubmittedMaskStates.Add(Snap->SessionIndex, Snap->MaskState);
+		}
 
 		Async->PendingSnapshots.Remove(Frame.RequestId);
 	}
@@ -3925,7 +3991,7 @@ void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 		Async->PendingSnapshots.Empty();
 	}
 
-	Async->Writer->FlushPending(5.0);
+	Async->Writer->FlushPending(-1.0);
 	FramesWritten = Async->Writer->GetFramesWritten();
 	PositiveFramesWritten = Async->Writer->GetPositiveWritten();
 	if (Async->Writer->GetDropped() > 0)
@@ -4003,6 +4069,12 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 
 	if (bAsyncCapture && Async.IsValid() && (Async->Capturer.IsValid() || bUseSve))
 	{
+		if (Async->PendingSnapshots.Num() >= 8)
+		{
+			UE_LOG(LogAnomalyCapture, Error, TEXT("Capture: readback capacity exceeded at session_index=%d; session is incomplete."), SessionFrameIndex);
+			++SessionFrameIndex;
+			return;
+		}
 		SWindow* TargetWindow = nullptr;
 		FIntRect CaptureRect;
 		if (bUseSve || ComputeGameViewportCapture(World, TargetWindow, CaptureRect))
@@ -4032,6 +4104,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				Snap.ShadersPending, Snap.AnomalyMaterialsIncomplete, Snap.SessionIndex,
 				(unsigned long long)GFrameCounter);
 			Snap.bTargetMask = bTargetMask;
+			Snap.bAwaitingTargetMask = bTargetMaskEffective;
 			if (bTargetMaskEffective)
 			{
 				Snap.MaskFileRel = FString::Printf(TEXT("target_mask/frame_%05d.png"), Snap.SessionIndex);
@@ -4057,7 +4130,8 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		}
 
 		UE_LOG(LogAnomalyCapture, Verbose,
-			TEXT("Capture(async): could not resolve the game-viewport rect this tick Ã¢â‚¬â€ falling back to sync grab."));
+			TEXT("Capture(async): could not resolve the game viewport; this tick is not captured."));
+		return;
 	}
 
 	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
@@ -4070,10 +4144,13 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 	int32 NumLabels = 0;
 	int32 NativeW = 0, NativeH = 0, WrittenW = 0, WrittenH = 0;
 	bool bResampled = false;
+	TArray<FAutoLiveFireInfo> SyncFires;
+	if (Auto) { SyncFires = Auto->GetLiveFires(); }
+	AppendSessionGlobalFires(SyncFires);
 	const double NowWall = FPlatformTime::Seconds();
 	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, NowWall,
 		EffectiveOutputHeight, ImagePath, SidecarPath, NumLabels, NativeW, NativeH, WrittenW, WrittenH, bResampled,
-		false, !bDeliveryMode || bLabelsInDelivery))
+		false, !bDeliveryMode || bLabelsInDelivery, &SyncFires))
 	{
 		if (bResampled)
 		{
@@ -4082,19 +4159,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		LogFirstFrameMeasuredLine(NativeW, NativeH, WrittenW, WrittenH, bResampled);
 		NoteSyncWrittenSize(WrittenW, WrittenH, ImageName);
 
-		TArray<FAutoLiveFireInfo> Fires;
-		if (Auto) { Fires = Auto->GetLiveFires(); }
-		if (ActiveSessionGlobals.Num() > 0)
-		{
-			if (AppendSessionGlobalFires(Fires))
-			{
-				++SessionGlobalPositiveFrames;
-			}
-			else
-			{
-				++SessionGlobalNegativeFrames;
-			}
-		}
+		const TArray<FAutoLiveFireInfo>& Fires = SyncFires;
 		const UAnomalyInjectorSubsystem* SyncInjector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
 		TArray<uint8> ActiveNow;
 		TArray<FVector> Pos;
@@ -4113,7 +4178,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			}
 			else
 			{
-				ActiveNow.Add((FActor && FActor->IsHidden()) ? 1 : 0);
+				ActiveNow.Add((FActor && AnomalyHiddenClass::IsLogicallyHidden(FActor)) ? 1 : 0);
 			}
 			Pos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 		}
@@ -4128,7 +4193,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 
 		++SessionFrameIndex;
 		++FramesWritten;
-		if (bPositive)
+		if (NumLabels > 0)
 		{
 			++PositiveFramesWritten;
 		}
@@ -4209,29 +4274,6 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 	if (!Snap)
 	{
 		return;
-	}
-
-	if (const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
-	{
-		Snap->Fires = Auto->GetLiveFires();
-	}
-	if (ActiveSessionGlobals.Num() > 0)
-	{
-		if (AppendSessionGlobalFires(Snap->Fires))
-		{
-			++SessionGlobalPositiveFrames;
-		}
-		else
-		{
-			++SessionGlobalNegativeFrames;
-		}
-	}
-	Snap->FirePos.Reset();
-	Snap->FirePos.Reserve(Snap->Fires.Num());
-	for (const FAutoLiveFireInfo& F : Snap->Fires)
-	{
-		const AActor* FActor = F.TargetActor.Get();
-		Snap->FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 	}
 
 	DeferredActiveRequestId = ArmedLabelRequestId;
@@ -4374,7 +4416,7 @@ bool UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo
 	bool bAny = false;
 	for (const FName& Id : ActiveSessionGlobals)
 	{
-		if (!Injector || !Injector->IsAnomalyCurrentlyAnomalous(Id))
+		if (!Injector)
 		{
 			continue;
 		}
@@ -4409,6 +4451,29 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 		return;
 	}
 
+	Snap->Fires.Reset();
+	if (const auto* Auto = ResolveAuto()) { Snap->Fires = Auto->GetLiveFires(); }
+	AppendSessionGlobalFires(Snap->Fires);
+	Snap->NearClip = GNearClippingPlane;
+	AnomalyViewport::GetActiveViewInfo(GetWorld(), Snap->View);
+	Snap->CameraPath = ResolveCameraPath(GetWorld());
+	Snap->FirePos.Reset();
+	Snap->TargetGeometry.Reset();
+	for (const FAutoLiveFireInfo& F : Snap->Fires)
+	{
+		const AActor* Actor = F.TargetActor.Get();
+		Snap->FirePos.Add(Actor ? Actor->GetActorLocation() : FVector::ZeroVector);
+		AnomalyLabel::FTargetGeometry G;
+		if (Actor)
+		{
+			G.Path = Actor->GetPathName();
+			ResolveNodeIdentity(Actor, G.AssetName, G.ComponentClass, G.BoundsOrigin, G.BoundsExtent);
+			G.bRectValid = AnomalyViewport::ProjectActorBoundsToScreenRect(Snap->View, Actor, G.ScreenMin, G.ScreenMax);
+			AnomalyViewport::EvaluateSelectionProvenance(GetWorld(), Actor, G.Provenance);
+		}
+		Snap->TargetGeometry.Add(MoveTemp(G));
+	}
+
 	Snap->FireActive.Reset();
 	Snap->FireActive.Reserve(Snap->Fires.Num());
 	for (const FAutoLiveFireInfo& F : Snap->Fires)
@@ -4432,7 +4497,9 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 		for (const FAutoLiveFireInfo& F : Snap->Fires)
 		{
 			Snap->ConditionHeld.Add(
-				(Injector && Injector->IsAnomalyVisualConditionHeld(F.Id)) ? 1 : 0);
+				(Injector && Injector->IsAnomalyVisualConditionHeld(F.Id)
+					&& ((F.Id != TEXT("missing_object") && F.Id != TEXT("blinking"))
+						|| AnomalyHiddenClass::IsHideConditionHeld(F.TargetActor.Get()))) ? 1 : 0);
 		}
 	}
 
@@ -4480,20 +4547,7 @@ bool UAnomalyCaptureSubsystem::IsFireLabelledThisFrame(const FAutoLiveFireInfo& 
 
 uint8 UAnomalyCaptureSubsystem::ComputeFireActive(const FAutoLiveFireInfo& F) const
 {
-	UWorld* World = GetWorld();
-	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
-
-	const AActor* FActor = F.TargetActor.Get();
-	bool bKnownId = false;
-	const EAnomalyActiveSource Source = ResolveAnomalyActiveSource(F.Id, bKnownId);
-
-	if (Source == EAnomalyActiveSource::AnomalyState)
-	{
-		return !FActor
-			? 1
-			: ((Injector && Injector->IsAnomalyCurrentlyAnomalous(F.Id)) ? 1 : 0);
-	}
-	return (FActor && AnomalyHiddenClass::IsLogicallyHidden(FActor)) ? 1 : 0;
+	return IsFireLabelledThisFrame(F) ? 1 : 0;
 }
 
 void UAnomalyCaptureSubsystem::PaceThisTick()
@@ -4783,87 +4837,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		VetoedEvents = 0;
 		TranslucentVetoes = 0;
 		TranslucencyUnknownVetoes = 0;
-		int32 CountedEventsBefore = Async.IsValid() ? Async->SessionEvents.Num() : 0;
-		if (bMaskMeasure && Async.IsValid())
-		{
-			for (int32 i = Async->SessionEvents.Num() - 1; i >= 0; --i)
-			{
-				const FSessionEventAccum& Ev = Async->SessionEvents[i];
-				if (!AccumEventManifested(Ev))
-				{
-					continue;
-				}
-				const FAnomalyMaskRecord* Rec =
-					Async->MaskMeasure.FindRecord(Ev.Id, Ev.Target, Ev.StartFrame);
-				if (!Rec || !MaskStateVetoes(Rec->State))
-				{
-					continue;
-				}
-				int32 TranslucentSlots = 0;
-				int32 TotalSlots = 0;
-				bool bTranslucencyKnown = false;
-				const bool bAnyTranslucent = AnyTranslucentSlotOnTaggedComponents(
-					Rec->TargetActor.Get(), TranslucentSlots, TotalSlots, bTranslucencyKnown);
-				if (!bTranslucencyKnown)
-				{
-					++TranslucencyUnknownVetoes;
-				}
-				else if (bAnyTranslucent)
-				{
-					++TranslucentVetoes;
-				}
-
-				UE_LOG(LogAnomalyCapture, Warning,
-					TEXT("VETOED-OBJECT target=%s asset=%s componentClass=%s state=%s maxCount=%d ")
-					TEXT("translucency=%s translucentSlots=%d/%d anomaly=%s startFrame=%llu"),
-					*Ev.Target,
-					Ev.NodeAssetName.IsEmpty() ? TEXT("(none)") : *Ev.NodeAssetName,
-					Ev.NodeComponentClass.IsEmpty() ? TEXT("(none)") : *Ev.NodeComponentClass,
-					LexToStringAnomalyMaskState(Rec->State),
-					Rec->MaxCount,
-					bTranslucencyKnown ? (bAnyTranslucent ? TEXT("TRANSLUCENT") : TEXT("opaque")) : TEXT("UNKNOWN"),
-					TranslucentSlots, TotalSlots,
-					*Ev.Id.ToString(), Ev.StartFrame);
-
-				UE_LOG(LogAnomalyCapture, Warning,
-					TEXT("Capture(mask): M26S3 VETO id=%s target=%s startFrame=%llu state=%s - the target was ")
-					TEXT("MEASURED and contributed ZERO drawn pixels, so this event is removed from ")
-					TEXT("annotation.json before it is written. The captured FRAMES are NOT un-written (L1). ")
-					TEXT("NOT_MEASURED is never vetoed, and a measured NON-ZERO count is never vetoed however ")
-					TEXT("small it is - the rule is zero-only and there is no ratio or threshold."),
-					*Ev.Id.ToString(), *Ev.Target, Ev.StartFrame,
-					LexToStringAnomalyMaskState(Rec->State));
-				Async->SessionEvents.RemoveAt(i);
-				++VetoedEvents;
-			}
-		}
-
-		WriteSessionAnnotationFile();
-
-		if (bMaskMeasure && Async.IsValid())
-		{
-			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture(mask): M27 VETO SUMMARY vetoedEvents=%d translucentVetoes=%d ")
-				TEXT("translucencyUnknownVetoes=%d - one line per removed object was logged above, each prefixed ")
-				TEXT("with the single grep token named in client-delivery.md; ")
-				TEXT("a vetoed event leaves NO trace in annotation.json, so those lines and vetoed_events are the ")
-				TEXT("only record. translucentVetoes counts vetoes whose target carried at least one TRANSLUCENT ")
-				TEXT("material slot: on UE 5.1 such a target cannot write custom depth unless its material ticks ")
-				TEXT("Allow Custom Depth Writes, so its zero may mean the mask could not see it rather than that ")
-				TEXT("it drew nothing. UNKNOWN is counted SEPARATELY and is NOT the same as opaque. Both counters ")
-				TEXT("are DIAGNOSTIC - they feed nothing, gate nothing, and must never become a filter."),
-				VetoedEvents, TranslucentVetoes, TranslucencyUnknownVetoes);
-			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture(mask): M26S3 G-11 countedEventsBefore=%d countedEventsAfter=%d vetoedEvents=%d ")
-				TEXT("nonManifestedEvents=%d - the two counters are DISJOINT by construction: manifested is ")
-				TEXT("evaluated FIRST and a non-manifested event is NEVER vetoed. non_manifested_events means ")
-				TEXT("'the hide never showed in pixels'; vetoed_events means 'the target contributed no pixels ")
-				TEXT("to hide'. A CERTIFYING leg with fewer than 3 counted events AFTER the veto is INVALID and ")
-				TEXT("must be reported as invalid, never graded on the reduced set. A demonstration leg that ")
-				TEXT("vetoes everything is the veto WORKING, not a validity failure - the distinction is the ")
-				TEXT("leg's ROLE, fixed before it runs."),
-				CountedEventsBefore, Async->SessionEvents.Num(), VetoedEvents, NonManifestedEvents);
-		}
+		// Per-frame evidence is authoritative. Preserve invisible and unmeasured injections.
 
 		AnomalyLabel::FRingTelemetry RingTelemetry;
 		if (bSveCapture)
@@ -5015,42 +4989,66 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			}
 
 			TArray<AnomalyLabel::FTargetMaskMapEntry> MapEntries;
+			if (Async.IsValid() && Async->Writer.IsValid())
+			{
+				Async->Writer->FlushPending(-1.0);
+				FramesWritten = Async->Writer->GetFramesWritten();
+				PositiveFramesWritten = Async->Writer->GetPositiveWritten();
+				TargetMaskMeasured = TargetMaskHiddenBlank = TargetMaskUnavailable = 0;
+				for (int32 Index : Async->Writer->GetCommittedFrames())
+				{
+					const auto* State = Async->SubmittedMaskStates.Find(Index);
+					if (State && *State == AnomalyLabel::EAnomalyMaskState::Present) { ++TargetMaskMeasured; }
+					else if (State && *State == AnomalyLabel::EAnomalyMaskState::Empty) { ++TargetMaskHiddenBlank; }
+					else { ++TargetMaskUnavailable; }
+				}
+			}
 			if (Async.IsValid())
 			{
 				for (const FAnomalyMaskRecord& R : Async->MaskMeasure.GetRecords())
 				{
 					AnomalyLabel::FTargetMaskMapEntry E;
 					E.MaskValue = (int32)R.Tag;
-					E.EventId = FString::Printf(TEXT("%s@%llu"), *R.Id.ToString(), R.StartFrame);
+					E.EventId = FString::Printf(TEXT("%s@%llu:%s"), *R.Id.ToString(), R.StartFrame, *R.Target);
 					E.TargetName = R.Target;
 					E.AnomalyType = R.Id.ToString();
-					const int32* First = TargetMaskFirstFrame.Find(E.EventId);
-					const int32* Last = TargetMaskLastFrame.Find(E.EventId);
-					E.FirstFrame = First ? *First : -1;
-					E.LastFrame = Last ? *Last : -1;
+					E.FirstFrame = E.LastFrame = -1;
+					const auto Committed = Async->Writer->GetCommittedFrames();
+					for (const auto& Ev : Async->SessionEvents)
+					{
+						if (Ev.Id != R.Id || Ev.StartFrame != R.StartFrame || Ev.Target != R.Target) { continue; }
+						for (const auto& Sample : Ev.TargetPixelsByIndex)
+						{
+							if (Sample.Value <= 0 || !Committed.Contains(Sample.Key)) { continue; }
+							E.FirstFrame = E.FirstFrame < 0 ? Sample.Key : FMath::Min(E.FirstFrame, Sample.Key);
+							E.LastFrame = FMath::Max(E.LastFrame, Sample.Key);
+						}
+					}
 					MapEntries.Add(E);
 				}
 			}
 			AnomalyLabel::WriteTargetMaskMap(RunDir, MapEntries);
 
-			TargetMaskReport.Measured = TargetMaskMeasured;
+			TargetMaskReport.Measured = Async.IsValid() && Async->Writer.IsValid() ? Async->Writer->GetMasksWritten() : 0;
 			TargetMaskReport.HiddenBlank = TargetMaskHiddenBlank;
 			TargetMaskReport.Unavailable = TargetMaskUnavailable;
 
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture(m43): TARGET MASK SUMMARY measured=%d hiddenBlank=%d unavailable=%d tagFlips=%d ")
-				TEXT("(measured + hiddenBlank should equal the captured frame count; unavailable is frames whose ")
-				TEXT("readback never arrived and whose labels row says mask_file:null). tagFlips counts the ")
-				TEXT("target mask's OWN stencil tag applications and restores on live targets - one flip queues a ")
-				TEXT("deferred render-proxy recreate. NAMED LIMITATION of m43: that churn is per fire-active ")
-				TEXT("frame, and m42 (persist tags, rotate values in place) is its fix. Its effect on PIXELS is ")
-				TEXT("UNMEASURED - the count is reported so the cost is visible, not so it can be claimed harmless."),
-				TargetMaskMeasured, TargetMaskHiddenBlank, TargetMaskUnavailable, TargetMaskTagFlips);
+				TEXT("Capture: committed target masks present=%d empty=%d unmeasured=%d; total=%d, tagFlips=%d."),
+				TargetMaskMeasured, TargetMaskHiddenBlank, TargetMaskUnavailable, FramesWritten, TargetMaskTagFlips);
 		}
 		else if (bTargetMask)
 		{
 			TargetMaskReport.Unavailable = FramesWritten;
 		}
+
+		if (bAsyncCapture && Async.IsValid() && Async->Writer.IsValid())
+		{
+			Async->Writer->FlushPending(-1.0);
+			FramesWritten = Async->Writer->GetFramesWritten();
+			PositiveFramesWritten = Async->Writer->GetPositiveWritten();
+		}
+		WriteSessionAnnotationFile();
 
 		AnomalyLabel::FShaderReadinessTelemetry ShaderReadinessReport;
 		ShaderReadinessReport.PrewarmMs = ShaderPrewarmMs;
@@ -5063,7 +5061,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				TEXT("Capture(m47): %d of %d captured frame(s) were ARMED WHILE AN ANOMALY SWAP MATERIAL'S ")
 				TEXT("SHADER MAP WAS INCOMPLETE (labels.jsonl render_state='shaders_pending'). On such a frame ")
 				TEXT("the target resolves through the engine fallback instead of the material the label names, ")
-				TEXT("so an anomaly labelled present may not look the way the label says. These frames are ")
+				TEXT("so visibility is unmeasured and no positive is emitted. These frames are ")
 				TEXT("COUNTED, never silently labelled clean. NOTE the counter keys on THIS PLUGIN'S materials, ")
 				TEXT("not on the global compile queue: GetNumRemainingJobs() is process-wide and is routinely ")
 				TEXT("non-zero for the whole of an editor run while our materials are perfectly complete, so ")
@@ -5248,6 +5246,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 	AnomalyViewport::SetOverlaysSuppressed(false);
 
+	if (auto* Injector = GetWorld() ? GetWorld()->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr) { Injector->SetCaptureOwnsInjection(false); }
 	if (bAutoWasRunning)
 	{
 		if (!bDeinitializing)
@@ -5267,7 +5266,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireInfo>& Fires,
 	const TArray<uint8>& FireActive, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
 	float NearClip, int32 SessionIndex, double TimeSeconds, const TArray<uint8>* Observable,
-	const TArray<FIntRect>* DrawnBounds)
+	const TArray<FIntRect>* DrawnBounds, const TArray<AnomalyLabel::FTargetGeometry>* Geometry,
+	const FString* CameraPath, const TArray<int32>* TargetPixels)
 {
 	if (!Async.IsValid())
 	{
@@ -5298,11 +5298,20 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			Ev->CamFov = View.HorizontalFOVDeg;
 			Ev->CamAspect = View.AspectRatio;
 			Ev->CamNear = NearClip;
-			Ev->CamPath = ResolveCameraPath(World);
+			Ev->CamPath = CameraPath ? *CameraPath : ResolveCameraPath(World);
 			Ev->TicksMsec = (int64)FMath::RoundToDouble(TimeSeconds * 1000.0);
 			Ev->NodeName = F.Target;
-			if (const AActor* FActor = F.TargetActor.Get())
+			if (Geometry && Geometry->IsValidIndex(i))
 			{
+				const auto& G = (*Geometry)[i];
+				Ev->NodePath = G.Path; Ev->NodeAssetName = G.AssetName;
+				Ev->NodeComponentClass = G.ComponentClass;
+				Ev->NodeBoundsOrigin = G.BoundsOrigin; Ev->NodeBoundsExtent = G.BoundsExtent;
+				Ev->Provenance = G.Provenance;
+			}
+			else if (!Geometry && F.TargetActor.IsValid())
+			{
+				const AActor* FActor = F.TargetActor.Get();
 				Ev->NodePath = FActor->GetPathName();
 				ResolveNodeIdentity(FActor, Ev->NodeAssetName, Ev->NodeComponentClass,
 					Ev->NodeBoundsOrigin, Ev->NodeBoundsExtent);
@@ -5311,29 +5320,16 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			Ev->NodePos = FirePos.IsValidIndex(i) ? FirePos[i] : FVector::ZeroVector;
 		}
 
-		if (bMaskMeasure)
+		// Injection membership is independent of screen coverage, occlusion, or readback delay.
+		Ev->AffectedFrames.AddUnique(SessionIndex);
+		if (Geometry && Geometry->IsValidIndex(i) && (*Geometry)[i].bRectValid)
 		{
-			Async->MaskMeasure.FindOrAddRecord(F.Id, F.Target, F.StartFrame, const_cast<AActor*>(F.TargetActor.Get()));
-		}
-
-		if (F.bWholeFrameExtent || ActiveSessionGlobals.Contains(F.Id))
-		{
-			Ev->AffectedFrames.Add(SessionIndex);
-			Ev->CoverageSum += 1.0;
+			const auto& G = (*Geometry)[i];
+			Ev->CoverageSum += FMath::Max(0.0, (double)(G.ScreenMax.X - G.ScreenMin.X))
+				* FMath::Max(0.0, (double)(G.ScreenMax.Y - G.ScreenMin.Y));
 			++Ev->CoverageCount;
 		}
-		else if (const AActor* FActor = F.TargetActor.Get())
-		{
-			FVector2D Min(FVector2D::ZeroVector), Max(FVector2D::ZeroVector);
-			if (AnomalyViewport::ProjectActorBoundsToScreenRect(View, FActor, Min, Max))
-			{
-				Ev->AffectedFrames.Add(SessionIndex);
-				const double BoxW = FMath::Clamp((double)Max.X, 0.0, 1.0) - FMath::Clamp((double)Min.X, 0.0, 1.0);
-				const double BoxH = FMath::Clamp((double)Max.Y, 0.0, 1.0) - FMath::Clamp((double)Min.Y, 0.0, 1.0);
-				Ev->CoverageSum += FMath::Max(0.0, BoxW) * FMath::Max(0.0, BoxH);
-				++Ev->CoverageCount;
-			}
-		}
+		Ev->TargetPixelsByIndex.Add(SessionIndex, TargetPixels && TargetPixels->IsValidIndex(i) ? (*TargetPixels)[i] : -1);
 
 		const int32 Active = (FireActive.IsValidIndex(i) && FireActive[i]) ? 1 : 0;
 		if (Active) { ++Ev->ActiveFrames; } else { ++Ev->InactiveFrames; }
@@ -5403,6 +5399,20 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 	A.Video.ResolutionW = ResolvedW;
 	A.Video.ResolutionH = ResolvedH;
 	A.Video.TotalFrames = FramesWritten;
+	A.RequestedFrames = SessionFrameIndex;
+	if (bAsyncCapture && Async->Writer.IsValid())
+	{
+		A.WrittenFrameIndices = Async->Writer->GetCommittedFrames().Array();
+		A.WrittenFrameIndices.Sort();
+		A.bCaptureComplete = A.WrittenFrameIndices.Num() == SessionFrameIndex
+			&& Async->Writer->GetPending() == 0 && Async->Writer->GetDropped() == 0
+			&& Async->Writer->GetMasksDropped() == 0 && Async->Writer->GetDimMismatches() == 0;
+	}
+	else
+	{
+		for (int32 I = 0; I < FramesWritten; ++I) { A.WrittenFrameIndices.Add(I); }
+		A.bCaptureComplete = FramesWritten == SessionFrameIndex && SyncDimMismatches == 0;
+	}
 
 	A.Video.Fps = LastRunPacing.StampedFps > 0.0 ? LastRunPacing.StampedFps : (double)VideoFps;
 	A.Video.TargetFps = VideoFps;
@@ -5421,6 +5431,10 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 
 		AnomalyLabel::FSessionEvent Out;
 		MapAnomalyToClient(Ev.Id, Out.AnomalyType, Out.AnomalySubtype);
+		Out.InjectionId = Ev.Id.ToString();
+		Out.EventId = FString::Printf(TEXT("%s@%llu:%s"), *Ev.Id.ToString(), Ev.StartFrame, *Ev.Target);
+		Out.TargetPixelsByIndex = Ev.TargetPixelsByIndex;
+		Out.ObservableByIndex = Ev.ObservableByIndex;
 
 		bool bKnownId = false;
 		const EAnomalyActiveSource Source = ResolveAnomalyActiveSource(Ev.Id, bKnownId);
@@ -5435,29 +5449,10 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		}
 
 		TArray<int32> FrameIndices;
-		if (Source != EAnomalyActiveSource::FireWindow)
-		{
-			Out.bManifested = ActiveIdx.Num() > 0;
-			if (Out.bManifested)
-			{
-				FrameIndices = MoveTemp(ActiveIdx);
-			}
-			else
-			{
-				++NonManifestedEvents;
-				UE_LOG(LogAnomalyCapture, Warning,
-					TEXT("Capture: '%s' event on '%s' NEVER MANIFESTED Ã¢â‚¬â€ no captured frame sampled the anomaly as active ")
-					TEXT("(state source: %s). Writing zero positive frames and manifested=false (previously this emitted %d ")
-					TEXT("on-screen frames as positives)."),
-					*Ev.Id.ToString(), *Ev.NodeName, DescribeActiveSource(Source), Ev.AffectedFrames.Num());
-			}
-		}
-		else
-		{
-			FrameIndices = Ev.AffectedFrames;
-		}
-		FrameIndices.Sort();
-		Out.InjectedFrameIndices = FrameIndices;
+		const TSet<int32> Committed = Async->Writer.IsValid() ? Async->Writer->GetCommittedFrames() : TSet<int32>();
+		Out.InjectedFrameIndices = Ev.AffectedFrames;
+		if (bAsyncCapture) { Out.InjectedFrameIndices.RemoveAll([&](int32 I) { return !Committed.Contains(I); }); }
+		Out.InjectedFrameIndices.Sort();
 
 		{
 			TArray<int32> ObservableIdx;
@@ -5480,22 +5475,11 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 			}
 			Out.UnmeasuredFrameCount = Unmeasured;
 			Out.ObservableFrameCount = ObservableIdx.Num();
-			Out.bObservabilityMeasured = (Measured > 0);
+			Out.bObservabilityMeasured = (Measured > 0 && Unmeasured == 0);
 
-			if (Out.bObservabilityMeasured)
-			{
-				FrameIndices = MoveTemp(ObservableIdx);
-			}
-			else if (Out.InjectedFrameIndices.Num() > 0)
-			{
-				UE_LOG(LogAnomalyCapture, Warning,
-					TEXT("Capture(m49): OBSERVABILITY UNMEASURED for '%s' on '%s' - not one of its %d injected ")
-					TEXT("frame(s) carried a target-pixel measurement, so affected_frames FALLS BACK to the ")
-					TEXT("injected subset and observability_measured is false. This is the honest reading, not a ")
-					TEXT("claim that the anomaly was visible: a mask-blind host (mask off, Nanite or ")
-					TEXT("translucent-only target, sync fallback) reads exactly like this."),
-					*Ev.Id.ToString(), *Ev.NodeName, Out.InjectedFrameIndices.Num());
-			}
+			FrameIndices = MoveTemp(ObservableIdx);
+			Out.bManifested = FrameIndices.Num() > 0;
+			if (!Out.bManifested) { ++NonManifestedEvents; }
 		}
 
 		Out.FrameIndices = MoveTemp(FrameIndices);
@@ -5537,26 +5521,10 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		Out.EngineProject = EngineProject;
 
 		Out.bMaskProvided = false;
-		if (bMaskMeasure)
+		for (int32 Index : Out.InjectedFrameIndices)
 		{
-			if (const FAnomalyMaskRecord* Rec = Async->MaskMeasure.FindRecord(Ev.Id, Ev.Target, Ev.StartFrame))
-			{
-				Out.bMaskProvided = MaskStateProvidesMeasurement(Rec->State);
-				UE_LOG(LogAnomalyCapture, Log,
-					TEXT("Capture(mask): M26S2 MAP id=%s target=%s startFrame=%llu state=%s -> mask.provided=%s ")
-					TEXT("(NOT_MEASURED maps to false and MUST BE ADMITTED; MEASURED_ZERO maps to TRUE and is a ")
-					TEXT("measurement, not an absence - the two zeros never share a representation)"),
-					*Ev.Id.ToString(), *Ev.Target, Ev.StartFrame,
-					LexToStringAnomalyMaskState(Rec->State),
-					Out.bMaskProvided ? TEXT("true") : TEXT("false"));
-			}
-			else
-			{
-				UE_LOG(LogAnomalyCapture, Warning,
-					TEXT("Capture(mask): M26S2 MAP id=%s target=%s startFrame=%llu - NO MASK RECORD for this event ")
-					TEXT("-> mask.provided=false (never measured, MUST BE ADMITTED)"),
-					*Ev.Id.ToString(), *Ev.Target, Ev.StartFrame);
-			}
+			const int32* Pixels = Ev.TargetPixelsByIndex.Find(Index);
+			if (Pixels && *Pixels >= 0) { Out.bMaskProvided = true; break; }
 		}
 
 		A.Events.Add(MoveTemp(Out));

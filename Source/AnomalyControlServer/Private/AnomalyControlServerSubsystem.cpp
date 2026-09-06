@@ -407,6 +407,22 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		return;
 	}
 
+	if (const UAnomalyCaptureSubsystem* Capture = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
+	{
+		if (Capture->IsCaptureActive() && (Type == TEXT("inject") || Type == TEXT("revert")
+			|| Type == TEXT("revert_all") || Type == TEXT("auto_config") || Type == TEXT("auto_run")
+			|| Type == TEXT("auto_step") || Type == TEXT("auto_fire_once") || Type == TEXT("capture_start")
+			|| Type == TEXT("set_viewport_scoping") || Type == TEXT("set_poll_radius") || Type == TEXT("set_min_screen_coverage")))
+		{
+			const TSharedRef<FJsonObject> Error = MakeShared<FJsonObject>();
+			Error->SetStringField(TEXT("type"), TEXT("error"));
+			Error->SetStringField(TEXT("code"), TEXT("capture_active"));
+			Error->SetStringField(TEXT("message"), TEXT("Stop capture before changing injection or selection state."));
+			SendJson(Conn.Socket, Error);
+			return;
+		}
+	}
+
 	if (Type == TEXT("inject"))
 	{
 		FString Anomaly, Target;

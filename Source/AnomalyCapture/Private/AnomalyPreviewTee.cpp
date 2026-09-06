@@ -7,6 +7,7 @@
 #include "AnomalyLabelWriter.h"
 #include "AnomalyPreviewCapture.h"
 #include "Async/Async.h"
+#include "HAL/PlatformTime.h"
 
 namespace
 {
@@ -50,6 +51,7 @@ void FAnomalyPreviewTee::Arm(SWindow* TargetWindow, const FIntRect& CaptureRect,
 	ArmEpochs.Add(Id, Epoch);
 	Capturer->ArmForCapture(Id, TargetWindow, CaptureRect);
 	++Outstanding;
+	ArmWallSeconds = FPlatformTime::Seconds();
 }
 
 void FAnomalyPreviewTee::Pump(bool bSuppressed)
@@ -64,6 +66,7 @@ void FAnomalyPreviewTee::Pump(bool bSuppressed)
 	FAnomalyCapturedFrame Frame;
 	while (Capturer->PopCompleted(Frame))
 	{
+		if (!ArmEpochs.Contains(Frame.RequestId)) { continue; }
 		Outstanding = FMath::Max(0, Outstanding - 1);
 
 		uint32 Epoch = 0;
@@ -113,6 +116,13 @@ void FAnomalyPreviewTee::Pump(bool bSuppressed)
 				SlotRef->EncodesInFlight.Decrement();
 			});
 	}
+	if (Outstanding > 0 && FPlatformTime::Seconds() - ArmWallSeconds > 2.0)
+	{
+		Capturer->CancelPendingRequests();
+		ArmEpochs.Reset();
+		Outstanding = 0;
+	}
+
 }
 
 bool FAnomalyPreviewTee::PollJpeg(TArray<uint8>& OutJpeg, int32& OutW, int32& OutH, uint32& OutEpoch)

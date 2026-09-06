@@ -7,6 +7,7 @@
 #include "AnomalyStencilTag.h"
 #include "AnomalyHiddenClass.h"
 #include "AnomalyMeasurability.h"
+#include "AnomalyAutoInjectorSubsystem.h"
 
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
@@ -72,6 +73,26 @@ void FAnomalyMaskMeasure::EndRun()
 	}
 	Ledger = nullptr;
 	NextTagOffset = 0;
+}
+
+void FAnomalyMaskMeasure::RetireInactiveRecords(const TArray<FAutoLiveFireInfo>& LiveFires)
+{
+	for (FAnomalyMaskRecord& R : Records)
+	{
+		if (R.bRetired) { continue; }
+		const bool bLive = LiveFires.ContainsByPredicate([&](const FAutoLiveFireInfo& F)
+		{
+			return F.Id == R.Id && F.Target == R.Target && F.StartFrame == R.StartFrame;
+		});
+		if (bLive) { continue; }
+		R.bRetired = true;
+		FString Detail;
+		if (R.TargetActor.IsValid() && AnomalyStencilTag::VerifyActorStillTagged(R.TargetActor.Get(), R.Tag, Detail))
+		{
+			AnomalyStencilTag::RestoreActor(R.TargetActor.Get());
+		}
+		if (Ledger && R.Tag != 0) { Ledger->EventClaimed.Remove(R.Tag); }
+	}
 }
 
 void FAnomalyMaskMeasure::UntagAll()
@@ -194,7 +215,7 @@ TSet<uint8> FAnomalyMaskMeasure::BuildBaseTagSet() const
 	TSet<uint8> Out;
 	for (const FAnomalyMaskRecord& R : Records)
 	{
-		if (R.Tag != 0)
+		if (R.Tag != 0 && !R.bRetired)
 		{
 			Out.Add(R.Tag);
 		}
@@ -262,7 +283,7 @@ bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, u
 	for (int32 i = 0; i < Records.Num(); ++i)
 	{
 		FAnomalyMaskRecord& R = Records[i];
-		if (R.ArmsIssued >= MaxArmsPerEvent)
+		if (R.bRetired || R.ArmsIssued >= MaxArmsPerEvent)
 		{
 			continue;
 		}
@@ -316,7 +337,7 @@ bool FAnomalyMaskMeasure::ArmProbeOnHidden(FAnomalyMaskSceneViewExtension* Sve, 
 	for (int32 i = 0; i < Records.Num(); ++i)
 	{
 		FAnomalyMaskRecord& R = Records[i];
-		if (R.ArmsIssued >= MaxArmsPerEvent)
+		if (R.bRetired || R.ArmsIssued >= MaxArmsPerEvent)
 		{
 			continue;
 		}
@@ -364,7 +385,7 @@ void FAnomalyMaskMeasure::VerifyPendingTags()
 	for (int32 RecordIndex = 0; RecordIndex < Records.Num(); ++RecordIndex)
 	{
 		FAnomalyMaskRecord& R = Records[RecordIndex];
-		if (R.ArmsIssued <= 0 || R.ArmsIssued == R.ArmsResolved)
+		if (R.bRetired || R.ArmsIssued <= 0 || R.ArmsIssued == R.ArmsResolved)
 		{
 			continue;
 		}

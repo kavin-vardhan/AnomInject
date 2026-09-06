@@ -671,6 +671,8 @@ bool UAnomalyAutoInjectorSubsystem::SetKeyBinding(FName Action, FKey Key)
 
 void UAnomalyAutoInjectorSubsystem::PollInput()
 {
+	if (const auto* Injector = ResolveInjector(GetWorld())) { if (Injector->CaptureOwnsInjection()) { return; } }
+
 	UWorld* World = GetWorld();
 	if (!World)
 	{
@@ -871,6 +873,8 @@ namespace
 {
 	UAnomalyAutoInjectorSubsystem* ResolveAuto(UWorld* World)
 	{
+		if (const auto* Injector = ResolveInjector(World)) { if (Injector->CaptureOwnsInjection()) { return nullptr; } }
+
 		if (!World)
 		{
 			UE_LOG(LogAnomaly, Warning, TEXT("No world for this command; run it from a game/PIE world."));

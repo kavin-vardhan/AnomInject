@@ -1,4 +1,5 @@
 #include "AnomalyViewport.h"
+#include "Engine/LocalPlayer.h"
 
 #include "AnomalyTargeting.h"
 #include "AnomalyInjectorLog.h"
@@ -165,6 +166,7 @@ namespace
 
 	FMatrix BuildProjectionMatrix(const FAnomalyViewInfo& View)
 	{
+		if (View.bHasProjectionMatrix) { return View.ProjectionMatrix; }
 		FMinimalViewInfo VI;
 		VI.Location = View.Origin;
 		VI.Rotation = View.Rotation;
@@ -177,6 +179,7 @@ namespace
 
 	FMatrix BuildViewProjectionMatrix(const FAnomalyViewInfo& View)
 	{
+		if (View.bHasProjectionMatrix) { return View.ViewProjectionMatrix; }
 		const FMatrix ProjectionMatrix = BuildProjectionMatrix(View);
 
 		const FMatrix ViewRotationMatrix = FInverseRotationMatrix(View.Rotation) * FMatrix(
@@ -303,75 +306,50 @@ namespace
 		return TEXT("?");
 	}
 
+	bool ProjectBoxToNormalizedRect(const FMatrix&, const FVector&, const FVector&, FVector2D&, FVector2D&);
 	bool ProjectBoundsToScreenRect(const FMatrix& ViewProj, const FBoxSphereBounds& Bounds, FVector2D& OutMin, FVector2D& OutMax)
 	{
-		const FVector C = Bounds.Origin;
-		const FVector E = Bounds.BoxExtent;
-
-		double MinX = 1.0e30, MinY = 1.0e30, MaxX = -1.0e30, MaxY = -1.0e30;
-		int32 NumInFront = 0;
-		for (int32 Corner = 0; Corner < 8; ++Corner)
-		{
-			const FVector P = C + FVector(
-				(Corner & 1) ? E.X : -E.X,
-				(Corner & 2) ? E.Y : -E.Y,
-				(Corner & 4) ? E.Z : -E.Z);
-
-			const FVector4 Clip = ViewProj.TransformFVector4(FVector4(P, 1.0));
-			if (Clip.W <= SMALL_NUMBER)
-			{
-				continue;
-			}
-			const double InvW = 1.0 / Clip.W;
-			const double Sx = (Clip.X * InvW) * 0.5 + 0.5;
-			const double Sy = 1.0 - ((Clip.Y * InvW) * 0.5 + 0.5);
-			MinX = FMath::Min(MinX, Sx); MaxX = FMath::Max(MaxX, Sx);
-			MinY = FMath::Min(MinY, Sy); MaxY = FMath::Max(MaxY, Sy);
-			++NumInFront;
-		}
-
-		if (NumInFront == 0)
-		{
-			return false;
-		}
-		OutMin = FVector2D(FMath::Clamp(MinX, 0.0, 1.0), FMath::Clamp(MinY, 0.0, 1.0));
-		OutMax = FVector2D(FMath::Clamp(MaxX, 0.0, 1.0), FMath::Clamp(MaxY, 0.0, 1.0));
-		return (OutMax.X > OutMin.X) && (OutMax.Y > OutMin.Y);
+		return ProjectBoxToNormalizedRect(ViewProj, Bounds.Origin, Bounds.BoxExtent, OutMin, OutMax);
 	}
 
 	bool ProjectBoxToNormalizedRect(const FMatrix& ViewProj, const FVector& Center, const FVector& Extent,
 		FVector2D& OutMin, FVector2D& OutMax)
 	{
-		double MinX = 1.0e30, MinY = 1.0e30, MaxX = -1.0e30, MaxY = -1.0e30;
-		int32 NumInFront = 0;
-		for (int32 Corner = 0; Corner < 8; ++Corner)
+		FVector4 Corners[8];
+		for (int32 C = 0; C < 8; ++C)
 		{
-			const FVector P = Center + FVector(
-				(Corner & 1) ? Extent.X : -Extent.X,
-				(Corner & 2) ? Extent.Y : -Extent.Y,
-				(Corner & 4) ? Extent.Z : -Extent.Z);
-
-			const FVector4 Clip = ViewProj.TransformFVector4(FVector4(P, 1.0));
-			if (Clip.W <= SMALL_NUMBER)
+			const FVector P = Center + FVector((C & 1) ? Extent.X : -Extent.X,
+				(C & 2) ? Extent.Y : -Extent.Y, (C & 4) ? Extent.Z : -Extent.Z);
+			Corners[C] = ViewProj.TransformFVector4(FVector4(P, 1.0));
+		}
+		OutMin = FVector2D(DBL_MAX, DBL_MAX); OutMax = -OutMin;
+		int32 N = 0;
+		auto Include = [&](const FVector4& P)
+		{
+			if (P.W <= SMALL_NUMBER) { return; }
+			const FVector2D S(0.5 + 0.5 * P.X / P.W, 0.5 - 0.5 * P.Y / P.W);
+			OutMin.X = FMath::Min(OutMin.X, S.X); OutMin.Y = FMath::Min(OutMin.Y, S.Y);
+			OutMax.X = FMath::Max(OutMax.X, S.X); OutMax.Y = FMath::Max(OutMax.Y, S.Y); ++N;
+		};
+		for (int32 C = 0; C < 8; ++C)
+		{
+			const double D0 = Corners[C].W - Corners[C].Z;
+			if (D0 >= 0.0) { Include(Corners[C]); }
+			for (int32 Bit = 1; Bit <= 4; Bit <<= 1)
 			{
-				continue;
+				if (C & Bit) { continue; }
+				const FVector4& B = Corners[C | Bit];
+				const double D1 = B.W - B.Z;
+				if ((D0 >= 0.0) != (D1 >= 0.0))
+				{
+					Include(Corners[C] + (B - Corners[C]) * (D0 / (D0 - D1)));
+				}
 			}
-			const double InvW = 1.0 / Clip.W;
-			const double Sx = (Clip.X * InvW) * 0.5 + 0.5;
-			const double Sy = 1.0 - ((Clip.Y * InvW) * 0.5 + 0.5);
-			MinX = FMath::Min(MinX, Sx); MaxX = FMath::Max(MaxX, Sx);
-			MinY = FMath::Min(MinY, Sy); MaxY = FMath::Max(MaxY, Sy);
-			++NumInFront;
 		}
-
-		if (NumInFront == 0)
-		{
-			OutMin = OutMax = FVector2D::ZeroVector;
-			return false;
-		}
-		OutMin = FVector2D(MinX, MinY);
-		OutMax = FVector2D(MaxX, MaxY);
-		return true;
+		if (N == 0) { OutMin = OutMax = FVector2D::ZeroVector; return false; }
+		OutMin.X = FMath::Clamp(OutMin.X, 0.0, 1.0); OutMin.Y = FMath::Clamp(OutMin.Y, 0.0, 1.0);
+		OutMax.X = FMath::Clamp(OutMax.X, 0.0, 1.0); OutMax.Y = FMath::Clamp(OutMax.Y, 0.0, 1.0);
+		return OutMax.X > OutMin.X && OutMax.Y > OutMin.Y;
 	}
 
 
@@ -542,6 +520,11 @@ namespace
 
 namespace AnomalyViewport
 {
+	bool ProjectWorldBoundsToScreenRect(const FAnomalyViewInfo& View, const FBox& Bounds, FVector2D& OutMin, FVector2D& OutMax)
+	{
+		return View.bValid && Bounds.IsValid && ProjectBoxToNormalizedRect(BuildViewProjectionMatrix(View), Bounds.GetCenter(), Bounds.GetExtent(), OutMin, OutMax);
+	}
+
 	bool GetActiveViewInfo(UWorld* World, FAnomalyViewInfo& OutView)
 	{
 		OutView = FAnomalyViewInfo{};
@@ -582,6 +565,22 @@ namespace AnomalyViewport
 			if (Size.X > 0.0f && Size.Y > 0.0f)
 			{
 				Aspect = Size.X / Size.Y;
+			}
+		}
+		if (ULocalPlayer* Player = PC->GetLocalPlayer())
+		{
+			if (UGameViewportClient* VC = World->GetGameViewport())
+			{
+				FSceneViewProjectionData Data;
+				if (VC->Viewport && Player->GetProjectionData(VC->Viewport, Data))
+				{
+					OutView.Origin = Data.ViewOrigin;
+					OutView.ProjectionMatrix = Data.ProjectionMatrix;
+					OutView.ViewProjectionMatrix = Data.ComputeViewProjectionMatrix();
+					OutView.bHasProjectionMatrix = true;
+					const FIntRect Rect = Data.GetConstrainedViewRect();
+					if (Rect.Height() > 0) { Aspect = (float)Rect.Width() / Rect.Height(); }
+				}
 			}
 		}
 		OutView.AspectRatio = Aspect;

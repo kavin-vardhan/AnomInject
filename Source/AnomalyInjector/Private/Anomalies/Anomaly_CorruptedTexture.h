@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "IAnomaly.h"
+#include "UObject/StrongObjectPtr.h"
 
 class AActor;
 class UWorld;
@@ -27,7 +28,7 @@ private:
 		TWeakObjectPtr<AActor> Owner;
 		FName ComponentName = NAME_None;
 		int32 SlotIndex = 0;
-		TWeakObjectPtr<UMaterialInterface> OriginalMaterial;
+		TStrongObjectPtr<UMaterialInterface> OriginalMaterial;
 		bool bWasExplicitOverride = false;
 	};
 	TArray<FCapturedSlot> Captured;

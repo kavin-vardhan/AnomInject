@@ -19,6 +19,8 @@ public:
 	virtual bool IsActive() const override { return bActive; }
 	virtual bool IsCurrentlyAnomalous() const override { return bActive && bPoppedPhase; }
 
+virtual bool IsVisualConditionHeld() const override;
+
 private:
 	struct FPoppingTarget
 	{

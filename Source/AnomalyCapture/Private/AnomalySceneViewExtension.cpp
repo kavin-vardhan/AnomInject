@@ -34,16 +34,17 @@ static FScreenPassTexture FinalizeSveAfterPassOutput(FRDGBuilder& GraphBuilder, 
 }
 
 FAnomalySceneViewExtension::FAnomalySceneViewExtension(const FAutoRegister& AutoRegister,
-	const TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe>& InCapturer)
+	const TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe>& InCapturer, UWorld* InWorld, FViewport* InViewport)
 	: FSceneViewExtensionBase(AutoRegister)
-	, Capturer(InCapturer)
+	, Capturer(InCapturer), CaptureWorld(InWorld), CaptureViewport(InViewport)
 {
 }
 
 bool FAnomalySceneViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
 {
 	TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Cap = Capturer.Pin();
-	return Cap.IsValid() && Cap->IsActive();
+	return Cap.IsValid() && Cap->IsActive() && CaptureWorld.IsValid()
+		&& Context.GetWorld() == CaptureWorld.Get() && Context.Viewport == CaptureViewport && !Context.IsStereoSupported();
 }
 
 void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
@@ -54,15 +55,29 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 		return;
 	}
 
-	if (InViewFamily.Views.Num() == 0 || !InViewFamily.Views[0]
-		|| InViewFamily.Views[0]->bIsSceneCapture || InViewFamily.Views[0]->bIsReflectionCapture)
+	if (InViewFamily.Views.Num() != 1 || !InViewFamily.Views[0]
+		|| InViewFamily.RenderTarget != CaptureViewport
+		|| InViewFamily.Views[0]->bIsPlanarReflection || InViewFamily.Views[0]->bIsSceneCapture || InViewFamily.Views[0]->bIsReflectionCapture)
 	{
 		Cap->NoteIneligibleFamily();
 		return;
 	}
 
 	uint64 RequestId = 0;
-	const bool bWanted = Cap->ConsumeWantedForPublish(InViewFamily.FrameNumber, RequestId);
+	const bool bWanted = Cap->ConsumeWantedForPublish(InViewFamily.FrameNumber, RequestId, GFrameCounter);
+	if (bWanted)
+	{
+		const FSceneView& V = *InViewFamily.Views[0];
+		FAnomalyViewInfo RenderView;
+		RenderView.Origin = V.ViewMatrices.GetViewOrigin();
+		RenderView.Rotation = V.ViewRotation;
+		RenderView.HorizontalFOVDeg = V.FOV;
+		RenderView.AspectRatio = (float)V.UnscaledViewRect.Width() / FMath::Max(1, V.UnscaledViewRect.Height());
+		RenderView.bValid = true; RenderView.bHasProjectionMatrix = true;
+		RenderView.ProjectionMatrix = V.ViewMatrices.GetProjectionMatrix();
+		RenderView.ViewProjectionMatrix = V.ViewMatrices.GetViewProjectionMatrix();
+		Cap->RecordRenderView(RequestId, RenderView);
+	}
 	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, RequestId, bWanted);
 }
 
@@ -85,7 +100,8 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	const FScreenPassTexture SceneColor = Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
 
 	TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Cap = Capturer.Pin();
-	if (!Cap.IsValid() || !SceneColor.IsValid() || View.bIsSceneCapture || View.bIsReflectionCapture)
+	if (!Cap.IsValid() || !SceneColor.IsValid() || !View.Family || View.Family->Views.Num() != 1
+		|| View.Family->RenderTarget != CaptureViewport || View.bIsPlanarReflection || View.bIsSceneCapture || View.bIsReflectionCapture)
 	{
 		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
@@ -157,7 +173,7 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	}
 
 	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, SourceExtent, Texture->Desc.Format,
-		MoveTemp(Readback), MoveTemp(LegacyReadback));
+		MoveTemp(Readback), MoveTemp(LegacyReadback), FamilyFrame);
 
 	return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }

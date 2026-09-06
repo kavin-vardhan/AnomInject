@@ -38,21 +38,23 @@ static FScreenPassTexture FinalizeMaskAfterPassOutput(FRDGBuilder& GraphBuilder,
 	return MoveTemp(Output);
 }
 
-FAnomalyMaskSceneViewExtension::FAnomalyMaskSceneViewExtension(const FAutoRegister& AutoRegister)
-	: FSceneViewExtensionBase(AutoRegister)
+FAnomalyMaskSceneViewExtension::FAnomalyMaskSceneViewExtension(const FAutoRegister& AutoRegister, UWorld* InWorld, FViewport* InViewport)
+	: FSceneViewExtensionBase(AutoRegister), CaptureWorld(InWorld), CaptureViewport(InViewport)
 {
 }
 
 bool FAnomalyMaskSceneViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
 {
 	FScopeLock Lock(&StateCS);
-	return PendingArms.Num() > 0;
+	return PendingArms.Num() > 0 && CaptureWorld.IsValid() && Context.GetWorld() == CaptureWorld.Get()
+		&& Context.Viewport == CaptureViewport && !Context.IsStereoSupported();
 }
 
 void FAnomalyMaskSceneViewExtension::ArmMask(uint64 RequestId, bool bWantPixels)
 {
 	FScopeLock Lock(&StateCS);
 	PendingArms.Add(RequestId);
+	PendingGameFrames.Add(RequestId, GFrameCounter);
 	PendingArmWantsPixels.Add(bWantPixels ? 1 : 0);
 }
 
@@ -78,6 +80,9 @@ void FAnomalyMaskSceneViewExtension::Reset()
 {
 	{
 		FScopeLock Lock(&StateCS);
+		++Generation;
+		Published.Reset();
+		PendingGameFrames.Reset();
 		PendingArms.Reset();
 		PendingArmWantsPixels.Reset();
 		AssignedTags.Reset();
@@ -86,6 +91,27 @@ void FAnomalyMaskSceneViewExtension::Reset()
 		FScopeLock Lock(&ResultsCS);
 		Results.Reset();
 	}
+}
+
+void FAnomalyMaskSceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& Family)
+{
+	if (Family.Views.Num() != 1 || !Family.Views[0] || Family.RenderTarget != CaptureViewport
+		|| Family.Views[0]->bIsSceneCapture || Family.Views[0]->bIsReflectionCapture || Family.Views[0]->bIsPlanarReflection) { return; }
+	FScopeLock Lock(&StateCS);
+	FPublishedBatch Batch;
+	Batch.Assigned = AssignedTags;
+	Batch.Generation = Generation;
+	for (int32 i = 0; i < PendingArms.Num(); ++i)
+	{
+		if (PendingGameFrames.FindRef(PendingArms[i]) == GFrameCounter)
+		{
+			Batch.Ids.Add(PendingArms[i]);
+			Batch.WantsPixels.Add(PendingArmWantsPixels[i]);
+		}
+	}
+	PendingArms.Reset(); PendingArmWantsPixels.Reset(); PendingGameFrames.Reset();
+	if (Published.Num() >= 64) { Published.Reset(); }
+	if (!Batch.Ids.IsEmpty()) { Published.Add(Family.FrameNumber, MoveTemp(Batch)); }
 }
 
 void FAnomalyMaskSceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass Pass,
@@ -103,7 +129,8 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 {
 	const FScreenPassTexture SceneColor = Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
 
-	if (View.bIsSceneCapture || View.bIsReflectionCapture || View.bIsPlanarReflection || !SceneColor.IsValid())
+	if (!View.Family || View.Family->Views.Num() != 1 || View.Family->RenderTarget != CaptureViewport
+		|| View.bIsSceneCapture || View.bIsReflectionCapture || View.bIsPlanarReflection || !SceneColor.IsValid())
 	{
 		return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
@@ -114,22 +141,17 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	TArray<uint64> ServedIds;
 	TArray<uint8> ServedWantsPixels;
 	EAnomalyMaskReduceMode Mode = EAnomalyMaskReduceMode::Gpu;
+	FPublishedBatch Batch;
 	{
 		FScopeLock Lock(&StateCS);
-		if (PendingArms.Num() == 0)
+		if (!Published.RemoveAndCopyValue(View.Family->FrameNumber, Batch))
 		{
 			return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 		}
-		ServedIds = MoveTemp(PendingArms);
-		ServedWantsPixels = MoveTemp(PendingArmWantsPixels);
-		PendingArms.Reset();
-		PendingArmWantsPixels.Reset();
-		ServedWantsPixels.SetNumZeroed(ServedIds.Num());
+		ServedIds = MoveTemp(Batch.Ids);
+		ServedWantsPixels = MoveTemp(Batch.WantsPixels);
 		RequestId = ServedIds[0];
-		for (uint8 W : ServedWantsPixels)
-		{
-			bWantPixels |= (W != 0);
-		}
+		for (uint8 W : ServedWantsPixels) { bWantPixels |= W != 0; }
 		Bias = DepthBias;
 		Mode = ReduceMode;
 	}
@@ -162,6 +184,9 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 
 	FMaskInFlight Item;
 	Item.RequestId = RequestId;
+	Item.RenderFrame = View.Family->FrameNumber;
+	Item.Generation = Batch.Generation;
+	Item.Assigned = MoveTemp(Batch.Assigned);
 	Item.Mode = Mode;
 	Item.ViewRectSize = Size;
 
@@ -250,10 +275,11 @@ void FAnomalyMaskSceneViewExtension::EnqueueDrain(bool bFinal)
 	TWeakPtr<FAnomalyMaskSceneViewExtension, ESPMode::ThreadSafe> WeakSelf =
 		StaticCastSharedRef<FAnomalyMaskSceneViewExtension>(AsShared());
 	ENQUEUE_RENDER_COMMAND(AnomalyMaskDrain)(
-		[WeakSelf, bFinal](FRHICommandListImmediate&)
+		[WeakSelf, bFinal](FRHICommandListImmediate& RHICmdList)
 		{
 			if (TSharedPtr<FAnomalyMaskSceneViewExtension, ESPMode::ThreadSafe> Self = WeakSelf.Pin())
 			{
+				if (bFinal) { RHICmdList.BlockUntilGPUIdle(); }
 				Self->Drain_RenderThread(bFinal);
 			}
 		});
@@ -270,6 +296,7 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 	for (int32 i = InFlight.Num() - 1; i >= 0; --i)
 	{
 		FMaskInFlight& Item = InFlight[i];
+		LocalAssigned = Item.Assigned;
 		const bool bNeedCpu = Item.Mode != EAnomalyMaskReduceMode::Gpu;
 		const bool bNeedGpu = Item.Mode != EAnomalyMaskReduceMode::Cpu;
 		const bool bNeedSurface = bNeedCpu || Item.bWantPixels;
@@ -443,6 +470,7 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 				}
 			}
 
+			Result.RenderFrame = Item.RenderFrame;
 			Result.CustomDepthModeAtPass = Item.CustomDepthModeAtPass;
 			Result.CustomStencilExtent = Item.CustomStencilExtent;
 
@@ -457,6 +485,8 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 				LexToStringAnomalyMaskReduceMode(Item.Mode));
 
 			{
+				FScopeLock StateLock(&StateCS);
+				if (Item.Generation != Generation) { InFlight.RemoveAt(i); continue; }
 				FScopeLock Lock(&ResultsCS);
 				if (Item.RequestIds.Num() == 0)
 				{
@@ -465,21 +495,12 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 				}
 				else
 				{
-					int32 PixelOwner = INDEX_NONE;
-					for (int32 k = 0; k < Item.RequestIds.Num(); ++k)
-					{
-						if (Item.WantsPixels.IsValidIndex(k) && Item.WantsPixels[k] != 0)
-						{
-							PixelOwner = k;
-							break;
-						}
-					}
 					for (int32 k = 0; k < Item.RequestIds.Num(); ++k)
 					{
 						FAnomalyMaskResult Copy = Result;
-						if (k == PixelOwner)
+						if (Item.WantsPixels.IsValidIndex(k) && Item.WantsPixels[k] != 0)
 						{
-							Copy.MaskPixels = MoveTemp(TightPixels);
+							Copy.MaskPixels = TightPixels;
 						}
 						Results.Add(Item.RequestIds[k], MoveTemp(Copy));
 					}

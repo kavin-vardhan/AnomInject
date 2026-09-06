@@ -41,12 +41,13 @@ public:
 	bool IsActive() const;
 
 	void ArmWanted(uint64 RequestId);
-	bool ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId);
+	bool ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId, uint64 GameFrame);
 	void NoteIneligibleFamily();
+	void RecordRenderView(uint64 RequestId, const FAnomalyViewInfo& View);
 
 	void SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, const FIntPoint& SourceExtent,
 		EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
-		TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback = TUniquePtr<FRHIGPUTextureReadback>());
+		TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback = TUniquePtr<FRHIGPUTextureReadback>(), uint32 RenderFrame = 0);
 
 	int32 GetDualPathComparisons() const;
 	int32 GetDualPathMismatches() const;
@@ -73,12 +74,15 @@ private:
 		FIntPoint SourceExtent = FIntPoint::ZeroValue;
 		EPixelFormat Format = PF_Unknown;
 		uint32 SubmitRtFrame = 0;
+		uint32 RenderFrame = 0;
 	};
 
 	void CompareDualPath_RenderThread(FInFlight& Item, const FAnomalyCapturedFrame& OwnedFrame);
 
 	mutable FCriticalSection StateCS;
 	TArray<uint64> PendingWanted;
+	TMap<uint64, uint64> WantedGameFrames;
+	TMap<uint64, FAnomalyViewInfo> RenderViews;
 	FAnomalySveHandshakeStats Handshake;
 	FThreadSafeCounter ActiveFlag;
 	FThreadSafeCounter Submits;

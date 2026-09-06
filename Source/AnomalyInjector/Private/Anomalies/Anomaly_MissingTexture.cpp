@@ -111,12 +111,13 @@ bool FAnomaly_MissingTexture::Apply(UWorld* World, const TArray<FString>& Args)
 
 		for (int32 i = 0; i < NumSlots; ++i)
 		{
+			if (Mesh->GetMaterial(i) == Swap) { continue; }
 			FCapturedSlot Slot;
 			Slot.Mesh = Mesh;
 			Slot.Owner = Mesh->GetOwner();
 			Slot.ComponentName = Mesh->GetFName();
 			Slot.SlotIndex = i;
-			Slot.OriginalMaterial = Mesh->GetMaterial(i);
+			Slot.OriginalMaterial.Reset(Mesh->GetMaterial(i));
 			Slot.bWasExplicitOverride = Mesh->OverrideMaterials.IsValidIndex(i) && Mesh->OverrideMaterials[i] != nullptr;
 			Captured.Add(Slot);
 

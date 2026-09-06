@@ -203,6 +203,10 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 				*Mesh->GetName(), Current.Level, Current.Source, Current.ScreenSize);
 		}
 
+		if (Current.bKnown && Current.Level + 1 == AnomalyLod::GetWorstLod(Mesh))
+		{
+			continue; // Already drawing the forced LOD: no pop can occur.
+		}
 		FPoppingTarget Target;
 		Target.Mesh = Mesh;
 		Target.BaselineLod = AnomalyLod::GetForcedLod(Mesh);
@@ -273,4 +277,20 @@ void FAnomaly_LodPopping::Revert()
 	FramesSinceToggle = 0;
 	bPoppedPhase = false;
 	bActive = false;
+}
+
+
+bool FAnomaly_LodPopping::IsVisualConditionHeld() const
+{
+	if (!bActive || !bPoppedPhase) { return false; }
+	int32 Live = 0;
+	for (const auto& Target : Targets)
+	{
+		if (const UMeshComponent* Mesh = Target.Mesh.Get())
+		{
+			++Live;
+			if (Target.BaselineLod == Target.PoppedLod || AnomalyLod::GetForcedLod(Mesh) != Target.PoppedLod) { return false; }
+		}
+	}
+	return Live > 0;
 }

@@ -66,7 +66,7 @@ namespace AnomalyMeasurability
 			}
 		}
 
-		if (Renderable > 0 && NaniteOnly == Renderable)
+		if (Renderable > 0 && NaniteOnly > 0)
 		{
 			OutReason = EReason::Nanite;
 			return true;

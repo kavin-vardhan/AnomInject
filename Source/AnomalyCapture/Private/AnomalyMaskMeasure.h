@@ -36,6 +36,7 @@ struct FAnomalyMaskRecord
 	int32 ProbeArms = 0;
 	FString FirstCollisionDetail;
 	bool bTagFailed = false;
+	bool bRetired = false;
 
 	bool bKnownUnmeasurable = false;
 	FString UnmeasurableReason;
@@ -48,6 +49,7 @@ public:
 
 	void BeginRun(FAnomalyStencilTagLedger* InLedger = nullptr);
 	void EndRun();
+	void RetireInactiveRecords(const TArray<struct FAutoLiveFireInfo>& LiveFires);
 
 	FAnomalyMaskRecord* FindOrAddRecord(FName Id, const FString& Target, uint64 StartFrame, AActor* TargetActor);
 	FAnomalyMaskRecord* FindRecord(FName Id, const FString& Target, uint64 StartFrame);

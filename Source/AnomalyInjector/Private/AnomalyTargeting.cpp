@@ -1,4 +1,5 @@
 #include "AnomalyTargeting.h"
+#include "AnomalyInjectorLog.h"
 
 #include "EngineUtils.h"
 #include "Engine/World.h"
@@ -33,7 +34,7 @@ namespace AnomalyTargeting
 			if (bExact)
 			{
 				bMatch = Actor->GetName().Equals(Needle, ESearchCase::IgnoreCase)
-					|| Actor->GetClass()->GetName().Equals(Needle, ESearchCase::IgnoreCase);
+					|| Actor->GetPathName().Equals(Needle, ESearchCase::IgnoreCase);
 			}
 			else
 			{
@@ -45,6 +46,11 @@ namespace AnomalyTargeting
 			{
 				Result.Add(Actor);
 			}
+		}
+		if (bExact && Result.Num() > 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Ambiguous exact target %s; use the full actor path."), *Needle);
+			Result.Reset();
 		}
 		return Result;
 	}

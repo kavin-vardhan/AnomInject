@@ -113,7 +113,7 @@ void FAnomalyCensus::Begin(UWorld* World, FAnomalyStencilTagLedger* InLedger, co
 	CycleQueue.Reset();
 	InFlight.Reset();
 	WorldPtr = World;
-	CensusIdSerial = 0;
+	// Keep request ids unique across captures.
 	CycleStartTick = GFrameCounter;
 	LastCompletedCycleTicks = 0;
 	CycleNumber = 0;

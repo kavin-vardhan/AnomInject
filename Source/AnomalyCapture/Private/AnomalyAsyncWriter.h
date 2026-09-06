@@ -27,11 +27,15 @@ public:
 		bool bPositive = false;
 		bool bWriteLabels = true;
 		bool bGrayMask = false;
+		int32 SessionIndex = -1;
+		FString MaskRelPath;
+		TArray<uint8> MaskBytes;
 	};
 
-	void Enqueue(FJob&& Job);
-	void FlushPending(double TimeoutSeconds);
+	bool Enqueue(FJob&& Job);
+	bool FlushPending(double TimeoutSeconds);
 	void ResetCounters();
+	TSet<int32> GetCommittedFrames() const;
 
 	int32 GetFramesWritten() const { return FramesWritten.GetValue(); }
 	int32 GetPositiveWritten() const { return PositiveWritten.GetValue(); }
@@ -46,6 +50,7 @@ public:
 
 private:
 	void Run(FJob& Job);
+	void Work();
 	void NoteWrittenSize(int32 W, int32 H, const FString& ImageRelPath);
 
 	FThreadSafeCounter FramesWritten;
@@ -57,6 +62,11 @@ private:
 	FThreadSafeCounter MasksWritten;
 	FThreadSafeCounter MasksDropped;
 	FCriticalSection JsonlCS;
+	mutable FCriticalSection QueueCS;
+	TArray<FJob> Queue;
+	TSet<int32> CommittedFrames;
+	int64 PendingBytes = 0;
+	bool bWorkerRunning = false;
 
 	mutable FCriticalSection DimCS;
 	int32 FirstWrittenW = 0;

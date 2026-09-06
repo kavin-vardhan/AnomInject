@@ -213,6 +213,15 @@ void FAnomalyFrameCapturer::ArmForCapture(uint64 RequestId, SWindow* TargetWindo
 		});
 }
 
+void FAnomalyFrameCapturer::CancelPendingRequests()
+{
+	TWeakPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> WeakSelf = AsShared();
+	ENQUEUE_RENDER_COMMAND(AnomalyCancelPending)([WeakSelf](FRHICommandListImmediate&)
+	{
+		if (auto Self = WeakSelf.Pin()) { FScopeLock Lock(&Self->StateCS); Self->PendingArms.Reset(); }
+	});
+}
+
 int32 FAnomalyFrameCapturer::NumPendingApprox() const
 {
 	FScopeLock Lock(&StateCS);

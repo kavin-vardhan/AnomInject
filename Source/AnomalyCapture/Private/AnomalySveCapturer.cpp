@@ -26,6 +26,7 @@ void FAnomalySveCapturer::ArmWanted(uint64 RequestId)
 	{
 		FScopeLock Lock(&StateCS);
 		PendingWanted.Add(RequestId);
+		WantedGameFrames.Add(RequestId, GFrameCounter);
 		DepthAfter = PendingWanted.Num();
 		++Handshake.ArmsIssued;
 		Handshake.MaxPendingDepth = FMath::Max(Handshake.MaxPendingDepth, DepthAfter);
@@ -42,7 +43,7 @@ void FAnomalySveCapturer::ArmWanted(uint64 RequestId)
 	}
 }
 
-bool FAnomalySveCapturer::ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId)
+bool FAnomalySveCapturer::ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId, uint64 GameFrame)
 {
 	OutRequestId = 0;
 	bool bWanted = false;
@@ -50,11 +51,21 @@ bool FAnomalySveCapturer::ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint
 	int32 TraceIndex = 0;
 	{
 		FScopeLock Lock(&StateCS);
+		// A tick that was never rendered cannot be relabelled as a later image.
+		for (int32 i = PendingWanted.Num() - 1; i >= 0; --i)
+		{
+			if (WantedGameFrames.FindRef(PendingWanted[i]) != GameFrame)
+			{
+				WantedGameFrames.Remove(PendingWanted[i]);
+				PendingWanted.RemoveAt(i);
+			}
+		}
 		DepthBefore = PendingWanted.Num();
 		if (DepthBefore > 0)
 		{
 			OutRequestId = PendingWanted[0];
 			PendingWanted.RemoveAt(0);
+			WantedGameFrames.Remove(OutRequestId);
 			bWanted = true;
 			++Handshake.Matches;
 		}
@@ -70,6 +81,11 @@ bool FAnomalySveCapturer::ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint
 			TraceIndex, HandshakeTraceLimit, FamilyFrameNumber, bWanted ? 1 : 0, OutRequestId, DepthBefore);
 	}
 	return bWanted;
+}
+
+void FAnomalySveCapturer::RecordRenderView(uint64 RequestId, const FAnomalyViewInfo& View)
+{
+	FScopeLock Lock(&StateCS); RenderViews.Add(RequestId, View);
 }
 
 void FAnomalySveCapturer::NoteIneligibleFamily()
@@ -89,6 +105,8 @@ void FAnomalySveCapturer::Reset()
 	{
 		FScopeLock Lock(&StateCS);
 		PendingWanted.Reset();
+		WantedGameFrames.Reset();
+		RenderViews.Reset();
 		Handshake = FAnomalySveHandshakeStats();
 	}
 	Submits.Reset();
@@ -132,12 +150,13 @@ FAnomalyReadbackLatencyStats FAnomalySveCapturer::GetLatencyStats() const
 
 void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect,
 	const FIntPoint& SourceExtent, EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
-	TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback)
+	TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback, uint32 RenderFrame)
 {
 	const bool bDual = LegacyReadback.IsValid();
 
 	FInFlight Item;
 	Item.RequestId = RequestId;
+	Item.RenderFrame = RenderFrame;
 	Item.Readback = MoveTemp(Readback);
 	Item.LegacyReadback = MoveTemp(LegacyReadback);
 	Item.Rect = Rect;
@@ -334,6 +353,7 @@ void FAnomalySveCapturer::Drain_RenderThread()
 
 			FAnomalyCapturedFrame Frame;
 			Frame.RequestId = Item.RequestId;
+		Frame.RenderFrame = Item.RenderFrame;
 			Frame.Width = W;
 			Frame.Height = H;
 			Frame.Format = Item.Format;
@@ -376,6 +396,7 @@ bool FAnomalySveCapturer::PopCompleted(FAnomalyCapturedFrame& Out)
 		return false;
 	}
 	Out = MoveTemp(Completed[0]);
+	{ FScopeLock StateLock(&StateCS); RenderViews.RemoveAndCopyValue(Out.RequestId, Out.RenderView); }
 	Completed.RemoveAt(0);
 	return true;
 }

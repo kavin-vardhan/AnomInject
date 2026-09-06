@@ -138,6 +138,7 @@ namespace AnomalySveKeyRing
 				if (Ring[i].bValid && Ring[i].FamilyFrameNumber == FamilyFrameNumber)
 				{
 					Out = Ring[i];
+					Ring[i].bValid = false;
 					Consumed.Increment();
 					return true;
 				}

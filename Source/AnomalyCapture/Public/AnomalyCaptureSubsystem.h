@@ -7,6 +7,7 @@
 #include "AnomalyViewport.h"
 #include "AnomalyCaptureSubsystem.generated.h"
 
+namespace AnomalyLabel { struct FTargetGeometry; }
 struct FAnomalyCaptureAsyncState;
 class FAnomalyPreviewTee;
 class FAnomalyRunLog;
@@ -215,7 +216,9 @@ private:
 
 	void AccumulateFrameEvents(const TArray<struct FAutoLiveFireInfo>& Fires, const TArray<uint8>& FireActive,
 		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
-		const TArray<uint8>* Observable = nullptr, const TArray<FIntRect>* DrawnBounds = nullptr);
+		const TArray<uint8>* Observable = nullptr, const TArray<FIntRect>* DrawnBounds = nullptr,
+		const TArray<AnomalyLabel::FTargetGeometry>* Geometry = nullptr, const FString* CameraPath = nullptr,
+		const TArray<int32>* TargetPixels = nullptr);
 	void WriteSessionAnnotationFile();
 
 	void ApplySessionGlobals();
@@ -385,8 +388,12 @@ private:
 		uint8 State = 0;
 		TMap<uint8, int32> Counts;
 		TMap<uint8, FIntRect> Bounds;
+		TArray<uint8> Pixels;
+		FIntPoint Size = FIntPoint::ZeroValue;
+		uint32 RenderFrame = 0;
 	};
 	TMap<int32, FTargetMaskOutcome> TargetMaskOutcome;
+	TSet<int32> InvalidTargetMaskFrames;
 	int32 TargetMaskHoldTicks = 0;
 	int32 ObservableMinPixels = 1;
 	bool bObservableMinFromIni = false;

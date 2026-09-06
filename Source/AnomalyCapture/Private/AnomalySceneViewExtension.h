@@ -12,7 +12,7 @@ class FAnomalySceneViewExtension : public FSceneViewExtensionBase
 {
 public:
 	FAnomalySceneViewExtension(const FAutoRegister& AutoRegister,
-		const TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe>& InCapturer);
+		const TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe>& InCapturer, UWorld* InWorld, FViewport* InViewport);
 
 	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override {}
 	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {}
@@ -30,6 +30,8 @@ private:
 
 	TWeakPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Capturer;
 	int32 ExtentClampDrops = 0;
+	TWeakObjectPtr<UWorld> CaptureWorld;
+	FViewport* CaptureViewport = nullptr;
 };
 
 #endif

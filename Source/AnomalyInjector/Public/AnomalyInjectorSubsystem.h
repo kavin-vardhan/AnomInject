@@ -65,6 +65,8 @@ public:
 	void ListAnomalies() const;
 
 	bool ApplyAnomaly(const FName& Id, const TArray<FString>& Args);
+	void SetCaptureOwnsInjection(bool bValue) { bCaptureOwnsInjection = bValue; }
+	bool CaptureOwnsInjection() const { return bCaptureOwnsInjection; }
 
 	bool RevertAnomaly(const FName& Id);
 
@@ -84,6 +86,7 @@ protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
 private:
+	bool bCaptureOwnsInjection = false;
 	void DispatchAnomalyTicks(float DeltaTime);
 
 	void OnWorldPreActorTickSynth(UWorld* World, ELevelTick TickType, float DeltaSeconds);

@@ -14,16 +14,68 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 
-void FAnomalyAsyncWriter::Enqueue(FJob&& Job)
+bool FAnomalyAsyncWriter::Enqueue(FJob&& Job)
 {
-	Pending.Increment();
-
-	TSharedRef<FAnomalyAsyncWriter, ESPMode::ThreadSafe> Self = AsShared();
-	Async(EAsyncExecution::ThreadPool, [Self, MovedJob = MoveTemp(Job)]() mutable
+	bool bLaunch = false;
+	const int64 Bytes = (int64)Job.RawBytes.Num() + Job.MaskBytes.Num();
+	const double Deadline = FPlatformTime::Seconds() + 10.0;
+	for (;;)
 	{
-		Self->Run(MovedJob);
-		Self->Pending.Decrement();
-	});
+		FScopeLock Lock(&QueueCS);
+		if (Pending.GetValue() >= 8 || PendingBytes + Bytes > 256ll * 1024 * 1024)
+		{
+			// Encoding has no game-thread dependency. Apply backpressure rather than
+			// dropping valid frames whenever the encoder briefly falls behind.
+			if (Bytes <= 256ll * 1024 * 1024 && FPlatformTime::Seconds() < Deadline)
+			{
+				Lock.Unlock();
+				FPlatformProcess::Sleep(0.002f);
+				continue;
+			}
+			if (Job.bGrayMask) { MasksDropped.Increment(); } else { Dropped.Increment(); }
+			UE_LOG(LogAnomalyCapture, Error, TEXT("Capture: writer capacity exceeded for session_index=%d; session is incomplete."), Job.SessionIndex);
+			return false;
+		}
+		PendingBytes += Bytes;
+		Pending.Increment();
+		Queue.Add(MoveTemp(Job));
+		bLaunch = !bWorkerRunning;
+		bWorkerRunning = true;
+		break;
+	}
+	if (bLaunch)
+	{
+		TSharedRef<FAnomalyAsyncWriter, ESPMode::ThreadSafe> Self = AsShared();
+		Async(EAsyncExecution::ThreadPool, [Self]() { Self->Work(); });
+	}
+	return true;
+}
+
+void FAnomalyAsyncWriter::Work()
+{
+	for (;;)
+	{
+		FJob Job;
+		{
+			FScopeLock Lock(&QueueCS);
+			if (Queue.IsEmpty()) { bWorkerRunning = false; return; }
+			Job = MoveTemp(Queue[0]);
+			Queue.RemoveAt(0);
+		}
+		const int64 Bytes = (int64)Job.RawBytes.Num() + Job.MaskBytes.Num();
+		Run(Job);
+		{
+			FScopeLock Lock(&QueueCS);
+			PendingBytes -= Bytes;
+			Pending.Decrement();
+		}
+	}
+}
+
+TSet<int32> FAnomalyAsyncWriter::GetCommittedFrames() const
+{
+	FScopeLock Lock(&QueueCS);
+	return CommittedFrames;
 }
 
 void FAnomalyAsyncWriter::Run(FJob& Job)
@@ -52,6 +104,21 @@ void FAnomalyAsyncWriter::Run(FJob& Job)
 		return;
 	}
 
+	// A positive mask reference is committed only after its PNG has been saved.
+	if (!Job.MaskRelPath.IsEmpty())
+	{
+		TArray<uint8> Png;
+		const FString Path = FPaths::Combine(Job.OutputDir, Job.MaskRelPath);
+		IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path), true);
+		if (!AnomalyPreview::EncodeGray8Png(Job.MaskBytes, Job.Width, Job.Height, Png)
+			|| !FFileHelper::SaveArrayToFile(Png, *Path))
+		{
+			MasksDropped.Increment();
+			Dropped.Increment();
+			return;
+		}
+	}
+
 	bool bResampled = false;
 	const bool bOk = AnomalyLabel::EncodeAndWriteFrame(Job.OutputDir, Job.OutFormat, Job.RawBytes,
 		Job.SrcFormat, Job.BytesPerPixel, Job.Width, Job.Height, Job.OutWidth, Job.OutHeight,
@@ -59,6 +126,8 @@ void FAnomalyAsyncWriter::Run(FJob& Job)
 
 	if (bOk)
 	{
+		if (!Job.MaskRelPath.IsEmpty()) { MasksWritten.Increment(); }
+		{ FScopeLock Lock(&QueueCS); CommittedFrames.Add(Job.SessionIndex); }
 		FramesWritten.Increment();
 		if (bResampled)
 		{
@@ -111,23 +180,26 @@ void FAnomalyAsyncWriter::GetFirstWrittenSize(int32& OutW, int32& OutH) const
 	OutH = FirstWrittenH;
 }
 
-void FAnomalyAsyncWriter::FlushPending(double TimeoutSeconds)
+bool FAnomalyAsyncWriter::FlushPending(double TimeoutSeconds)
 {
 	const double Start = FPlatformTime::Seconds();
 	while (Pending.GetValue() > 0)
 	{
-		if (FPlatformTime::Seconds() - Start > TimeoutSeconds)
+		if (TimeoutSeconds >= 0.0 && FPlatformTime::Seconds() - Start > TimeoutSeconds)
 		{
 			UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture(async): writer flush timed out with %d job(s) still pending."),
 				Pending.GetValue());
-			break;
+			return false;
 		}
 		FPlatformProcess::Sleep(0.002f);
 	}
+	return true;
 }
 
 void FAnomalyAsyncWriter::ResetCounters()
 {
+	check(Pending.GetValue() == 0);
+	{ FScopeLock Lock(&QueueCS); CommittedFrames.Reset(); }
 	FramesWritten.Reset();
 	PositiveWritten.Reset();
 	Dropped.Reset();

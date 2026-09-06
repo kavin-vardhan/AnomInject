@@ -6,12 +6,15 @@
 
 #include "RHIGPUReadback.h"
 #include "PixelFormat.h"
+#include "AnomalyViewport.h"
 #include "HAL/ThreadSafeCounter.h"
 
 class SWindow;
 
 struct FAnomalyCapturedFrame
 {
+	uint32 RenderFrame = 0;
+	FAnomalyViewInfo RenderView;
 	uint64 RequestId = 0;
 	int32 Width = 0;
 	int32 Height = 0;
@@ -57,6 +60,7 @@ public:
 	void UnregisterBackbufferHook();
 	void ArmForCapture(uint64 RequestId, SWindow* TargetWindow, const FIntRect& CaptureRect);
 	void EnqueueDrain();
+	void CancelPendingRequests();
 	bool PopCompleted(FAnomalyCapturedFrame& Out);
 	int32 NumPendingApprox() const;
 

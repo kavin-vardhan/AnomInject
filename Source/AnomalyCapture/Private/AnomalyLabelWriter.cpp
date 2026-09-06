@@ -28,6 +28,13 @@
 
 namespace
 {
+	bool SaveJsonAtomically(const FString& Text, const FString& Path)
+	{
+		const FString Temporary = Path + TEXT(".tmp");
+		if (!FFileHelper::SaveStringToFile(Text, *Temporary, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) { return false; }
+		return IFileManager::Get().Move(*Path, *Temporary, true, true);
+	}
+
 	TSharedPtr<FJsonValue> LabelNum(double V) { return MakeShared<FJsonValueNumber>(V); }
 
 	TArray<TSharedPtr<FJsonValue>> LabelVec3(double X, double Y, double Z)
@@ -42,7 +49,8 @@ namespace
 		AnomalyLabel::EAnomalyMaskState MaskState = AnomalyLabel::EAnomalyMaskState::Unmeasured,
 		int32 ShadersPending = 0, int32 AnomalyMaterialsIncomplete = 0, bool bExposureDip = false,
 		const TArray<int32>* TargetPixels = nullptr, const TArray<uint8>* Observable = nullptr,
-		const TArray<FIntRect>* DrawnBounds = nullptr)
+		const TArray<FIntRect>* DrawnBounds = nullptr,
+		const TArray<AnomalyLabel::FTargetGeometry>* Geometry = nullptr, const TArray<uint8>* Injected = nullptr)
 	{
 		OutNumLabels = 0;
 
@@ -54,7 +62,8 @@ namespace
 		Root->SetStringField(TEXT("image"), ImageName);
 		Root->SetNumberField(TEXT("width"), W);
 		Root->SetNumberField(TEXT("height"), H);
-		Root->SetBoolField(TEXT("anomaly_present"), Fires.Num() > 0);
+		Root->SetBoolField(TEXT("injection_present"), Fires.Num() > 0);
+		Root->SetNumberField(TEXT("schema_version"), 3);
 
 		TArray<TSharedPtr<FJsonValue>> Anoms;
 		int32 FireIndex = -1;
@@ -64,6 +73,7 @@ namespace
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			O->SetStringField(TEXT("id"), F.Id.ToString());
 			O->SetStringField(TEXT("target_name"), F.Target);
+			O->SetStringField(TEXT("event_id"), FString::Printf(TEXT("%s@%llu:%s"), *F.Id.ToString(), F.StartFrame, *F.Target));
 			if (bTargetMask)
 			{
 				const int32 MaskValue =
@@ -74,6 +84,8 @@ namespace
 			const int32 Px = (TargetPixels && TargetPixels->IsValidIndex(FireIndex))
 				? (*TargetPixels)[FireIndex] : AnomalyLabel::GTargetPixelsUnmeasured;
 			O->SetNumberField(TEXT("target_pixels"), Px);
+			O->SetBoolField(TEXT("injected"), true);
+			O->SetBoolField(TEXT("condition_requested"), Injected && Injected->IsValidIndex(FireIndex) && (*Injected)[FireIndex] != 0);
 
 			const uint8 Obs = (Observable && Observable->IsValidIndex(FireIndex))
 				? (*Observable)[FireIndex] : (uint8)AnomalyLabel::EObservable::Unmeasured;
@@ -98,9 +110,14 @@ namespace
 				Max = FVector2D(1.0, 1.0);
 				bValid = true;
 			}
-			else if (const AActor* Actor = F.TargetActor.Get())
+			else if (Geometry && Geometry->IsValidIndex(FireIndex))
 			{
-				bValid = AnomalyViewport::ProjectActorBoundsToScreenRect(View, Actor, Min, Max);
+				const auto& Frozen = (*Geometry)[FireIndex];
+				Min = Frozen.ScreenMin; Max = Frozen.ScreenMax; bValid = Frozen.bRectValid;
+			}
+			else if (!Geometry && F.TargetActor.IsValid())
+			{
+				bValid = AnomalyViewport::ProjectActorBoundsToScreenRect(View, F.TargetActor.Get(), Min, Max);
 			}
 			O->SetBoolField(TEXT("bbox_valid"), bValid);
 
@@ -125,7 +142,7 @@ namespace
 				O->SetField(TEXT("bbox_drawn_px"), MakeShared<FJsonValueNull>());
 			}
 
-			if (bValid)
+			if (Obs == (uint8)AnomalyLabel::EObservable::True)
 			{
 				++OutNumLabels;
 			}
@@ -133,7 +150,8 @@ namespace
 		}
 		Root->SetArrayField(TEXT("anomalies"), Anoms);
 
-		Root->SetBoolField(TEXT("visible_positive"), (Fires.Num() > 0) && (OutNumLabels > 0));
+		Root->SetBoolField(TEXT("visible_positive"), OutNumLabels > 0);
+		Root->SetBoolField(TEXT("anomaly_present"), OutNumLabels > 0);
 
 		if (bTargetMask)
 		{
@@ -195,8 +213,8 @@ namespace
 
 		if (bWriteLabels)
 		{
-			FFileHelper::SaveStringToFile(Record + TEXT("\n"), *SidecarPath,
-				FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+			if (!FFileHelper::SaveStringToFile(Record + TEXT("\n"), *SidecarPath,
+				FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append)) { return false; }
 		}
 
 		OutImagePath = ImagePath;
@@ -238,9 +256,18 @@ namespace AnomalyLabel
 		}
 	}
 
+	bool IsSupportedPixelLayout(EPixelFormat Format, int32 BytesPerPixel)
+	{
+		return ((Format == PF_B8G8R8A8 || Format == PF_R8G8B8A8 || Format == PF_A2B10G10R10) && BytesPerPixel == 4)
+			|| (Format == PF_FloatRGBA && BytesPerPixel == 8);
+	}
+
 	void ConvertTightToBGRA(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
 		int32 W, int32 H, TArray<FColor>& OutPixels)
 	{
+		OutPixels.Reset();
+		if (!IsSupportedPixelLayout(Format, BytesPerPixel) || W <= 0 || H <= 0
+			|| (int64)W * H > MAX_int32 || (int64)W * H * BytesPerPixel > RawBytes.Num()) { return; }
 		OutPixels.SetNumUninitialized(W * H);
 		const uint8* Base = RawBytes.GetData();
 
@@ -253,7 +280,7 @@ namespace AnomalyLabel
 	double ComputeSubsampledMeanLuma(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
 		int32 W, int32 H, int32 Stride)
 	{
-		if (W <= 0 || H <= 0 || BytesPerPixel <= 0 || Stride <= 0)
+		if (!IsSupportedPixelLayout(Format, BytesPerPixel) || W <= 0 || H <= 0 || Stride <= 0)
 		{
 			return -1.0;
 		}
@@ -396,7 +423,7 @@ namespace AnomalyLabel
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
 		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
-		bool& bOutResampled, bool bLog, bool bWriteLabels)
+		bool& bOutResampled, bool bLog, bool bWriteLabels, const TArray<FAutoLiveFireInfo>* FireOverride)
 	{
 		OutNumLabels = 0;
 		OutNativeW = 0;
@@ -414,6 +441,8 @@ namespace AnomalyLabel
 		{
 			Fires = Auto->GetLiveFires();
 		}
+
+		if (FireOverride) { Fires = *FireOverride; }
 
 		TArray<FColor> Pixels;
 		int32 W = 0, H = 0;
@@ -464,7 +493,7 @@ namespace AnomalyLabel
 			Snapshot.FrameCounter, Snapshot.SessionIndex, Snapshot.TimeSeconds, Snapshot.WallSeconds, ImageName, OutNumLabels,
 			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues, Snapshot.MaskState,
 			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete, Snapshot.bExposureDip,
-			&Snapshot.TargetPixels, &Snapshot.Observable, &Snapshot.DrawnBounds);
+			&Snapshot.TargetPixels, &Snapshot.Observable, &Snapshot.DrawnBounds, &Snapshot.TargetGeometry, &Snapshot.FireLabelled);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -474,7 +503,7 @@ namespace AnomalyLabel
 	{
 		bOutResampled = false;
 
-		if (Width <= 0 || Height <= 0 || BytesPerPixel <= 0 || RawBytes.Num() < (int64)Width * Height * BytesPerPixel)
+		if (!IsSupportedPixelLayout(SrcFormat, BytesPerPixel) || Width <= 0 || Height <= 0 || RawBytes.Num() < (int64)Width * Height * BytesPerPixel)
 		{
 			return false;
 		}
@@ -499,7 +528,7 @@ namespace AnomalyLabel
 		if (bWriteLabels)
 		{
 			FScopeLock Lock(&JsonlLock);
-			FFileHelper::SaveStringToFile(Record + TEXT("\n"), *FPaths::Combine(OutputDir, TEXT("labels.jsonl")),
+			return FFileHelper::SaveStringToFile(Record + TEXT("\n"), *FPaths::Combine(OutputDir, TEXT("labels.jsonl")),
 				FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
 		}
 
@@ -539,8 +568,7 @@ namespace AnomalyLabel
 		FJsonSerializer::Serialize(Root, Writer);
 
 		IFileManager::Get().MakeDirectory(*RunDir, true);
-		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("mask_map.json")),
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+		return SaveJsonAtomically(Out, FPaths::Combine(RunDir, TEXT("mask_map.json")));
 	}
 
 	bool WriteSelectionProvenance(const FString& RunDir, const TArray<FProvenanceRecord>& Records)
@@ -569,8 +597,7 @@ namespace AnomalyLabel
 		FJsonSerializer::Serialize(Root, Writer);
 
 		IFileManager::Get().MakeDirectory(*RunDir, true);
-		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("selection_provenance.json")),
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+		return SaveJsonAtomically(Out, FPaths::Combine(RunDir, TEXT("selection_provenance.json")));
 	}
 
 	bool WriteRunManifest(const FString& RunDir, const FRunManifest& M)
@@ -602,8 +629,7 @@ namespace AnomalyLabel
 		FJsonSerializer::Serialize(Root, Writer);
 
 		IFileManager::Get().MakeDirectory(*RunDir, true);
-		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("run.json")),
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+		return SaveJsonAtomically(Out, FPaths::Combine(RunDir, TEXT("run.json")));
 	}
 
 	bool WriteRunSummary(const FString& RunDir, int32 TotalFrames, int32 PositiveFrames, int32 BurstsDone,
@@ -742,14 +768,18 @@ namespace AnomalyLabel
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
 		FJsonSerializer::Serialize(Root, Writer);
 
-		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("run_summary.json")),
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+		return SaveJsonAtomically(Out, FPaths::Combine(RunDir, TEXT("run_summary.json")));
 	}
 
 	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& A)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-		Root->SetNumberField(TEXT("label_schema"), 2);
+		Root->SetNumberField(TEXT("label_schema"), 3);
+		Root->SetBoolField(TEXT("capture_complete"), A.bCaptureComplete);
+		Root->SetNumberField(TEXT("requested_frames"), A.RequestedFrames);
+		TArray<TSharedPtr<FJsonValue>> Written;
+		for (int32 I : A.WrittenFrameIndices) { Written.Add(LabelNum(I)); }
+		Root->SetArrayField(TEXT("written_frame_indices"), Written);
 		Root->SetStringField(TEXT("session_id"), A.SessionId);
 
 		{
@@ -769,10 +799,26 @@ namespace AnomalyLabel
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			O->SetStringField(TEXT("anomaly_type"), E.AnomalyType);
 			O->SetStringField(TEXT("anomaly_subtype"), E.AnomalySubtype);
+			O->SetStringField(TEXT("event_id"), E.EventId);
+			O->SetStringField(TEXT("injection_id"), E.InjectionId);
+			O->SetStringField(TEXT("observability_basis"), TEXT("target_mask_and_sampled_condition"));
+			TArray<TSharedPtr<FJsonValue>> Observations;
+			for (int32 Index : E.InjectedFrameIndices)
+			{
+				TSharedRef<FJsonObject> Obs = MakeShared<FJsonObject>();
+				Obs->SetNumberField(TEXT("session_index"), Index);
+				const int32* Pixels = E.TargetPixelsByIndex.Find(Index);
+				Obs->SetNumberField(TEXT("target_pixels"), Pixels ? *Pixels : -1);
+				const uint8* State = E.ObservableByIndex.Find(Index);
+				if (!State || *State == (uint8)EObservable::Unmeasured) { Obs->SetField(TEXT("observable"), MakeShared<FJsonValueNull>()); }
+				else { Obs->SetBoolField(TEXT("observable"), *State == (uint8)EObservable::True); }
+				Observations.Add(MakeShared<FJsonValueObject>(Obs));
+			}
+			O->SetArrayField(TEXT("frame_observations"), Observations);
 
 			{
 				TSharedRef<FJsonObject> AF = MakeShared<FJsonObject>();
-				int32 Start = 0, End = 0;
+				int32 Start = -1, End = -1;
 				const int32 Count = E.FrameIndices.Num();
 				if (Count > 0)
 				{
@@ -791,7 +837,7 @@ namespace AnomalyLabel
 
 			{
 				TSharedRef<FJsonObject> IF = MakeShared<FJsonObject>();
-				int32 Start = 0, End = 0;
+				int32 Start = -1, End = -1;
 				const int32 Count = E.InjectedFrameIndices.Num();
 				if (Count > 0)
 				{
@@ -880,8 +926,7 @@ namespace AnomalyLabel
 		FJsonSerializer::Serialize(Root, Writer);
 
 		IFileManager::Get().MakeDirectory(*RunDir, true);
-		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("annotation.json")),
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+		return SaveJsonAtomically(Out, FPaths::Combine(RunDir, TEXT("annotation.json")));
 	}
 }
 

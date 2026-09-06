@@ -1,6 +1,7 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyHiddenClass.h"
+#include "AnomalyDefaults.h"
 
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
@@ -514,6 +515,28 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 		return false;
 	}
 
+	if (!Args.IsEmpty() && !AnomalyDefaults::GetAllowTranslucentOnlyTargets()
+		&& Id != TEXT("camera_clipping") && Id != TEXT("time_dilation"))
+	{
+		for (const auto& Weak : AnomalyTargeting::FindActorsMatching(GetWorld(), Args[0]))
+		{
+			const AActor* Actor = Weak.Get();
+			if (!Actor) { continue; }
+			bool bGeometry = false, bOpaque = false;
+			for (const UActorComponent* AC : Actor->GetComponents())
+			{
+				const UPrimitiveComponent* P = Cast<UPrimitiveComponent>(AC);
+				if (!AnomalyViewport::IsRenderableGeometryComponent(P)) { continue; }
+				bGeometry = true;
+				bOpaque |= !AnomalyViewport::IsTranslucentOnlyComponent(P, false);
+			}
+			if (bGeometry && !bOpaque)
+			{
+				UE_LOG(LogAnomaly, Warning, TEXT("IAI.Apply refused translucent-only target %s."), *Actor->GetPathName());
+				return false;
+			}
+		}
+	}
 	const bool bApplied = (*Found)->Apply(GetWorld(), Args);
 
 	if (bApplied)
@@ -723,7 +746,7 @@ static FAutoConsoleCommandWithWorldAndArgs GApplyCmd(
 			}
 			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
 			{
-				Subsystem->ApplyAnomaly(FName(*Args[0]), TailArgs(Args));
+				if (!Subsystem->CaptureOwnsInjection()) { Subsystem->ApplyAnomaly(FName(*Args[0]), TailArgs(Args)); }
 			}
 		}));
 
@@ -740,7 +763,7 @@ static FAutoConsoleCommandWithWorldAndArgs GRevertCmd(
 			}
 			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
 			{
-				Subsystem->RevertAnomaly(FName(*Args[0]));
+				if (!Subsystem->CaptureOwnsInjection()) { Subsystem->RevertAnomaly(FName(*Args[0])); }
 			}
 		}));
 
@@ -752,7 +775,7 @@ static FAutoConsoleCommandWithWorldAndArgs GRevertAllCmd(
 		{
 			if (UAnomalyInjectorSubsystem* Subsystem = ResolveSubsystem(World))
 			{
-				const int32 Count = Subsystem->RevertAllActive();
+				const int32 Count = Subsystem->CaptureOwnsInjection() ? 0 : Subsystem->RevertAllActive();
 				UE_LOG(LogAnomaly, Log, TEXT("IAI.RevertAll -> reverted %d anomaly(ies)."), Count);
 			}
 		}));

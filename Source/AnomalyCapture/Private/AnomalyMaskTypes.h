@@ -13,6 +13,7 @@ struct FAnomalyMaskTagResult
 
 struct FAnomalyMaskResult
 {
+	uint32 RenderFrame = 0;
 	TMap<uint8, FAnomalyMaskTagResult> TagResults;
 	FIntPoint ViewRectSize = FIntPoint::ZeroValue;
 	int32 TotalMaskedPixels = 0;

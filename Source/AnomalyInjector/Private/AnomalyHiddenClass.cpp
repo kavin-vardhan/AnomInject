@@ -171,6 +171,24 @@ namespace AnomalyHiddenClass
 		}
 	}
 
+	bool IsHideConditionHeld(const AActor* Actor)
+	{
+		if (!Actor) { return false; }
+		if (Actor->IsHidden()) { return true; }
+		const auto* Saved = GHidden.Find(const_cast<AActor*>(Actor));
+		if (!Saved) { return false; }
+		int32 Live = 0;
+		for (const auto& Entry : Saved->Primitives)
+		{
+			if (const UPrimitiveComponent* P = Entry.Component.Get())
+			{
+				++Live;
+				if (P->bRenderInMainPass || P->bRenderInDepthPass) { return false; }
+			}
+		}
+		return Live > 0;
+	}
+
 	bool IsLogicallyHidden(const AActor* Actor)
 	{
 		if (!Actor)

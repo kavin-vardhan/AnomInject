@@ -38,6 +38,7 @@ private:
 	TMap<uint64, uint32> ArmEpochs;
 	uint64 NextRequestId = 1;
 	int32 Outstanding = 0;
+	double ArmWallSeconds = 0.0;
 	bool bLoggedFormat = false;
 };
 

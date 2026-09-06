@@ -19,6 +19,9 @@ struct FAnomalyViewInfo
 	float AspectRatio = 16.0f / 9.0f;
 
 	bool bValid = false;
+	bool bHasProjectionMatrix = false;
+	FMatrix ProjectionMatrix = FMatrix::Identity;
+	FMatrix ViewProjectionMatrix = FMatrix::Identity;
 };
 
 struct FRenderableActorInfo
@@ -112,6 +115,8 @@ namespace AnomalyViewport
 	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> GetCensusPrefilterActors(UWorld* World);
 
 	ANOMALYINJECTOR_API TArray<FRenderableActorInfo> GetVisibleRenderableActorInfos(UWorld* World);
+
+	ANOMALYINJECTOR_API bool ProjectWorldBoundsToScreenRect(const FAnomalyViewInfo& View, const FBox& Bounds, FVector2D& OutMin, FVector2D& OutMax);
 
 	ANOMALYINJECTOR_API bool ProjectActorBoundsToScreenRect(
 		const FAnomalyViewInfo& View, const AActor* Actor, FVector2D& OutMin, FVector2D& OutMax);

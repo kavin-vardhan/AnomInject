@@ -30,6 +30,19 @@ namespace AnomalyLabel
 		}
 	}
 
+	struct FTargetGeometry
+	{
+		FString Path;
+		FString AssetName;
+		FString ComponentClass;
+		FVector BoundsOrigin = FVector::ZeroVector;
+		FVector BoundsExtent = FVector::ZeroVector;
+		FVector2D ScreenMin = FVector2D::ZeroVector;
+		FVector2D ScreenMax = FVector2D::ZeroVector;
+		FSelectionProvenance Provenance;
+		bool bRectValid = false;
+	};
+
 	struct FCaptureSnapshot
 	{
 		uint64 FrameCounter = 0;
@@ -39,6 +52,10 @@ namespace AnomalyLabel
 		float  NearClip = 0.0f;
 		FAnomalyViewInfo View;
 		TArray<FAutoLiveFireInfo> Fires;
+		TArray<FTargetGeometry> TargetGeometry;
+		FString CameraPath;
+		bool bAwaitingTargetMask = false;
+		int32 MaskWaitTicks = 0;
 		bool bTargetMask = false;
 		int32 ShadersPending = 0;
 		int32 AnomalyMaterialsIncomplete = 0;
@@ -66,6 +83,7 @@ namespace AnomalyLabel
 
 	void ConvertTightToBGRA(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
 		int32 W, int32 H, TArray<FColor>& OutPixels);
+	bool IsSupportedPixelLayout(EPixelFormat Format, int32 BytesPerPixel);
 
 	double ComputeSubsampledMeanLuma(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
 		int32 W, int32 H, int32 Stride);
@@ -79,7 +97,8 @@ namespace AnomalyLabel
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
 		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
-		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true);
+		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true,
+		const TArray<FAutoLiveFireInfo>* FireOverride = nullptr);
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
 		const FString& ImageName, int32& OutNumLabels);
@@ -238,6 +257,10 @@ namespace AnomalyLabel
 
 	struct FSessionEvent
 	{
+		FString EventId;
+		FString InjectionId;
+		TMap<int32, int32> TargetPixelsByIndex;
+		TMap<int32, uint8> ObservableByIndex;
 		FString AnomalyType;
 		FString AnomalySubtype;
 		TArray<int32> FrameIndices;
@@ -274,6 +297,9 @@ namespace AnomalyLabel
 		FString SessionId;
 		FSessionVideo Video;
 		TArray<FSessionEvent> Events;
+		TArray<int32> WrittenFrameIndices;
+		int32 RequestedFrames = 0;
+		bool bCaptureComplete = false;
 	};
 
 	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& Annotation);
