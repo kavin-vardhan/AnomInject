@@ -1284,6 +1284,17 @@ does not contain it — and RT1 tests exactly that depth condition.
 which is dataset loss and is the direction `m26`'s admit bias forbids. ⇒ it ships as a MEASUREMENT.
 ⛔ **`observable` keeps the A1 rule unchanged**, so phase B cannot move a label in either direction and
 a host without the drawn table loses nothing.
+🚨 **AND THE ASYMMETRY WAS THEN MEASURED FROM THE OTHER SIDE, ON A REAL GAME (`G258`).** A natural
+Lyra leg — no lever — read `target_drawn_pixels > 0` on **7 of 8** hide-class rows at **0.269–0.806 %**
+of the silhouette (304–916 px against 112,922–146,168 px), while in-bbox luminance on those same
+frames read **87.4–91.0 hidden against 94.5–97.0 visible**: ⇒ **the hides took, and a positive drawn
+count still did not mean presence.** ⛔ **NO MECHANISM ASSERTED (`G120`)** — a temporal-upsampler (TSR)
+silhouette-edge residual is a **CANDIDATE ONLY**, the mask RT being at OUTPUT resolution and the scene
+depth at INTERNAL resolution, joined through `m46`'s mapping.
+⇒ **`frames_drawn_unexpected` is a DIAGNOSTIC COUNTER whose expected value is HOST-DEPENDENT:** `0` on
+StackOBot's AA-off arbiter (0 of 96 rows), a fraction of a percent on an upsampled host, and
+`drawn == count` only under the `IAI.Bench.HideOmitDepthPassSilencing` lever. ⛔ **It must never become
+a label input on any host.**
 ⚠ **It is a DEPTH statement, not a colour statement.** A target drawn with the wrong material is still
 *drawn*; that is correct for the hide class and is why texture types keep the A1 predicate. A translucent
 target that opted into custom depth reads `drawn 0` while visible, because translucency writes no scene

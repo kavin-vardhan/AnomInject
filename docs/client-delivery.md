@@ -681,13 +681,22 @@ binary does not carry is worse than no changelog.
 > picture does not contain it"* — and that verdict comes from the frame's own render rather than from
 > what the plugin asked for. `run_summary.json` carries `frames_drawn_unexpected`, which counts frames
 > where the renderer still had the object's own depth in front despite the frame being labelled as
-> hidden; **it should be `0`**.
+> hidden.
 >
 > ⚠ **Read this number in ONE direction only.** `target_drawn_pixels: 0` is strong evidence the object
 > is absent from the picture. **A value above `0` is not evidence it is present** — the measurement
 > comes from the renderer's depth buffer, and an object can leave its depth behind for a frame while
 > the picture correctly does not contain it. **It therefore does not change any label**, and it is
 > offered as a number you can audit rather than as a verdict.
+>
+> ⚠ **On some titles `frames_drawn_unexpected` will not be zero, and that is expected.** On one real
+> game we measured it at a few tenths of a percent of `target_pixels` on a small number of hidden
+> frames, while an independent check of the picture confirmed the object *was* hidden on exactly those
+> frames; the likely cause is the silhouette's edge on a title using a temporal upsampler such as TSR,
+> which we have not established. **A residual of a fraction of a percent is a property of your
+> renderer, not a failed hide.** The reading worth investigating is the opposite extreme — the drawn
+> count approaching the full `target_pixels` on a frame labelled for a disappearing anomaly — and even
+> then the picture itself is the arbiter.
 >
 > **4c. A disappearing anomaly no longer trips the exposure warning by itself.** Removing a bright
 > object darkens the whole picture, which used to be enough to set `exposure_dip` on the anomaly's own

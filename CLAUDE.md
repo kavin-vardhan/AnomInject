@@ -11,19 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🅿🅿 **SESSION 077, 2026-09-04 → RESUMED 2026-09-06 — `m49` PHASE B IS BUILT, COOKED, FULLY GATED
-> AND **PARKED, NOT MERGED**, ON BRANCH `m49-phase-b` (`8ebdfd8`, pushed). EVERY STACKOBOT GATE AND
-> EVERY LYRA GATE PASSES; **ONE PRE-DECLARED FALSIFIER (`F2`) FIRED ON LYRA AND ITS INTENT IS
-> REFUTED BY THE PIXELS**, so the branch waits on a one-line ruling rather than being merged by the
-> implementer who tripped it. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND
-> IS SUPERSEDED WHEREVER THEY DISAGREE.** 🅿🅿
+> 🏁🏁 **SESSION 077, 2026-09-04 → RESUMED 2026-09-06 → RULED AND MERGED 2026-09-06 — `m49` IS
+> **COMPLETE (A1 + A2 + PHASE B)** AND ON `master` AS THE MERGE COMMIT **`4a4bfcc`** (pushed), ON TOP
+> OF `m50`. EVERY STACKOBOT GATE AND EVERY LYRA GATE PASSES. **ONE PRE-DECLARED FALSIFIER (`F2`)
+> FIRED ON LYRA AND ITS PREMISE — NOT ITS READING — IS REFUTED BY A PIXEL MEASUREMENT**, ruled from
+> outside the session under brief 077R-02. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT
+> IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
 > **Cold start: `docs/sessions/2026-09-04-077-m49-phase-b.md` — §1 the state read, §2 the pose
-> finding, §3 the gates, §4 Lyra, §5 the disposition — then
-> `docs/predictions/2026-09-04-m49-phase-b.md` INCLUDING ITS AMENDMENT 1.**
+> finding, §3 the gates, §4 Lyra, §5 the disposition (🔻 superseded), **§8 THE RULINGS AND THE
+> MERGE** — then `docs/predictions/2026-09-04-m49-phase-b.md` INCLUDING **AMENDMENTS 1 AND 2**, then
+> **`G258`**.**
 >
-> ⚠ **THE WATCHER LOST THIS SESSION MID-TURN ON 2026-09-04 AT 21:14 AND IT WAS RESUMED ON 09-06.**
-> `master` is **`21c1e0d`, UNTOUCHED and == `origin/master`**; the checkout is back on `master` and
-> the staged bench pair is back to the `master` A-side **`A159EDFD`** + the `m46` container.
+> ⚠ **THE WATCHER LOST THIS SESSION MID-TURN ON 2026-09-04 AT 21:14; IT WAS RESUMED ON 09-06 AND
+> MERGED THE SAME DAY BY A SECOND BRIEF.** `master` was `21c1e0d` and is now **`4a4bfcc` ==
+> `origin/master`**; the merge is **INERT — `master^{tree}` == `m49-phase-b^{tree}`**, so nothing
+> entered `master` that was not on the gated branch. ⛔ **NO TAG** — tags batch at the office.
+> 📦 **Staged bench pair is now the PHASE B pair: exe `B8AC65D8` + container
+> `67EA1FE0`/`2CEFB8F4`/`E03C6610` + `A16A18A8`/`C70ECDAA`.** The `master` A-side **`A159EDFD`** + the
+> `m46` container stays archived and **LOAD-BEARING** (`P-C7 v3`'s A-side and the exposure BEFORE
+> picture).
 >
 > 🚨 **THE COOK HAPPENED AND IT IS THE FIRST SINCE `m46`.** Container quartet
 > **`67EA1FE0` / `2CEFB8F4` / `E03C6610`** + `A16A18A8` / `C70ECDAA` (both `global.*` **byte-unchanged**
@@ -71,7 +77,19 @@ and is the single source of truth for the project.
 > verifier **`PASS 5 · SHIFT 0 · NOT-VISIBLE 0 · NOT-MEASURABLE 1`**, texture-class `drawn == px`
 > exactly.
 >
-> 🅿 **WHY IT IS PARKED — `F2` FIRED ON LYRA LEG A: `frames_drawn_unexpected = 7` on a NATURAL leg.**
+> ⚖ **THE RULING THAT MERGED IT (brief 077R-02 ruling 1, journal §8.1 verbatim): `F2` IS NOT
+> DISMISSED — ITS PREMISE IS REFUTED BY A MEASUREMENT.** *"drawn > 0 on a hidden frame ⇒ the hide
+> failed"* is **FALSE on a host whose scene depth and custom depth can disagree by a few pixels**.
+> The reading `F2` produced stands unchallenged; the INFERENCE it was built on is what fell.
+> 🔑 **And it was ruled from OUTSIDE the session, which is the point** — §5 parked the branch precisely
+> so the implementer who tripped the falsifier would not be the one to reinterpret it (`G253`).
+> ⇒ **`AMENDMENT 2`** to the predictions file (measurement, not argument) restates **`PB-1`'s scope as
+> BOTH FIXTURES**: on StackOBot's arbiter the prediction is still **0**; on a temporal-upsampler host a
+> **fraction-of-a-percent residual is EXPECTED and passes**, while `drawn` approaching `count` — the
+> lever's signature — remains a FAILURE on either fixture. ⛔ **`frames_drawn_unexpected` IS A
+> DIAGNOSTIC AND MUST NEVER BECOME A LABEL INPUT** (`G258`).
+>
+> 🅿 **WHAT FIRED — `F2` ON LYRA LEG A: `frames_drawn_unexpected = 7` on a NATURAL leg.**
 > Seven hide-class rows read `drawn` **304–916 against silhouettes of 113k–146k — 0.27 % to 0.81 %**.
 > **The pixels refute `F2`'s intent on those very frames**: hidden frames read **87.4 / 87.5 / 89.1 /
 > 91.0** against a visible band of **94.5–97.0**, so **the hides took**. Three regimes now measured:
@@ -81,13 +99,13 @@ and is the single source of truth for the project.
 > sub-pixel silhouette-edge residual is a **CANDIDATE, not established**. ✅ **NO LABEL IS AFFECTED**
 > — that is exactly what the `1c3d62c` fix buys, and **had the briefed veto shipped, these seven
 > frames would have lost a TRUE positive label on a real host.**
-> 🔑 **It is reported as RED rather than reasoned away, because a falsifier that its own tripper may
-> reinterpret is not worth having (`G253`).** ⚠ Contrast `F6`, which WAS amended: `F6` contradicted
-> journal 073's **pre-existing** record that census tag relabelling is run-to-run and bijective, so
-> amending it is a correction; amending `F2` after it fired would be laundering. **Whether Lyra is
-> inside `F2`'s scope is genuinely ambiguous** — `F2`'s wording is host-agnostic, `PB-1`'s scope
-> sentence is the four StackOBot legs, and `PB-8` never mentioned the counter — **and that is a
-> ruling, not an implementer's call.**
+> 🔑 **It was reported as RED rather than reasoned away, because a falsifier that its own tripper may
+> reinterpret is not worth having (`G253`).** ⚠ Contrast `F6`, which the session DID amend: `F6`
+> contradicted journal 073's **pre-existing** record that census tag relabelling is run-to-run and
+> bijective, so amending it is a correction; amending `F2` in the same turn it fired would have been
+> laundering. ✅ **The scope ambiguity is now CLOSED by `AMENDMENT 2`, not left open** — `F2`'s wording
+> was host-agnostic while `PB-1`'s scope sentence named only the four StackOBot legs and `PB-8` never
+> mentioned the counter. **`PB-1` now says BOTH FIXTURES, with a different expected value on each.**
 >
 > 🔻 **TWO PRE-DECLARATIONS WERE MEASURED WRONG IN THE STRICT DIRECTION AND ARE AMENDED (append-only,
 > `AMENDMENT 1`): `PB-5a`'s predicted `0/0/0/0` read `1/0/0/0`** — and the one surviving mark is
@@ -117,10 +135,49 @@ and is the single source of truth for the project.
 > `census_host_pp_customdepth_reader_names`. **It would have FAILED A CORRECT BUILD**, and it is the
 > third stale literal count in that file.
 >
-> 🎯 **NEXT: `m51` — release hardening from the 2026-09-06 external review; plan brief 078-01 follows.
-> Delivery gates on Lyra, card Section G/F on Bates and the client cook come AFTER `m51`.**
-> ⛔ **Do not start any of it unprompted.** ⏳ **AWAITING A RULING: merge `m49-phase-b` or not** — the
-> branch is complete, gated and pushed; a one-line ruling flips it either way.
+> 🔻 **AND THE MERGE TURN FOUND TWO MORE OF EXACTLY THAT SHAPE, BOTH CREATED BY THE PHASE B DOCS
+> THEMSELVES AND BOTH NOW CORRECTED:** `PRE-DELIVERY-CHECKLIST` §Phase B said
+> **"`frames_drawn_unexpected` reads `0`"** and `client-delivery.md` §4b told the CLIENT **"it should
+> be `0`"** — and Lyra reads **7**. **Both would have failed a correct build on a real game, and the
+> client-facing one would have told the client their dataset was broken when it was not.** Both now
+> carry the measured bound (a fraction of a percent passes; `drawn` approaching `count` is the STOP).
+>
+> 🎯 **RULING 2 — LYRA'S RESIDUAL IS A NAMED HOST LIMITATION, NOT A CHASE. 🆕 `G258`:**
+> **`target_drawn_pixels` is evidence of ABSENCE, never of presence.** `drawn == 0` ⇒ the target is
+> not in the picture where its silhouette would be; **`drawn > 0` establishes nothing** — it can mean
+> drawn, or depth surviving a hide, or a sub-pixel upsampler residual. Measured **in both directions
+> on two fixtures**: StackOBot si 57 read `drawn == count` on a frame whose pixels proved the object
+> ABSENT; Lyra read `drawn > 0` on 7 rows whose pixels proved the hides TOOK. The same sentence is in
+> `client-readme.md` §8 in the client's own words, in `client-delivery.md` §4b, and as **§14** of
+> `docs/invisible-anomaly-mechanisms.md`. ⛔ **The mechanism chase (TSR silhouette edge — CANDIDATE
+> ONLY, `G120`) is a FUTURE item, filed at journal §8.5 and deliberately NOT started.**
+>
+> ⚠ **RULING 3 WAS EXECUTED BY INTENT, NOT LITERALLY, AND THE REASON IS A MEASUREMENT (journal §8.3).**
+> It said *move `m50_pc7v3.py` to `CaptureBench/tools/`*. **The root file is 0 BYTES and the real
+> 4,672-byte tool is ALREADY THERE AND ALREADY TRACKED (`f35949e`)** — journal §1.1's description of
+> it as *"a copy of the CaptureBench tool"* was wrong. **A literal move would have overwritten the
+> working tool with an empty file and recorded the destruction as a tidy-up.** ⇒ the 0-byte stray was
+> **deleted**, the real tool verified intact, and **no `chore(tools)` commit was made because no file
+> moved.** 🔑 **A one-line instruction to move a file is still an instruction to overwrite whatever is
+> at the destination** — second consecutive session in which reading the thing before changing it
+> stopped the change (`G253`'s shape).
+>
+> 🎯 **NEXT: `m51` — release hardening from the 2026-09-06 external review
+> (`_reviews/2026-09-06-external-release-review.md`); plan brief 078-01 follows when the owner says
+> go. Delivery gates on Lyra, card Section G/F on Bates, and the client cook come AFTER `m51`.**
+> ⛔ **Do not start any of it unprompted, and do not read `_reviews/` until 078-01 opens it.**
+>
+> 🚨 **A LOCAL-ONLY BRANCH EXISTS THAT NO BRIEF HAS DESCRIBED, AND IT COLLIDES WITH `m49` PHASE B ON
+> SIX SOURCE FILES — READ THIS BEFORE BUILDING ANYTHING.** `fix/capture-label-integrity`
+> (**`be16977`**, authored 2026-09-06 12:09, **43 files / +1,415 / −421**, message *"Fix capture frame
+> pairing and preserve auditable visibility evidence"*) sits on top of the pre-merge `21c1e0d`, is
+> **UNPUSHED and on no remote**, and was the CHECKOUT when brief 077R-02 opened. It overlaps the merge
+> on **`AnomalyCaptureSubsystem.cpp/.h`, `AnomalyLabelWriter.cpp/.h`, `AnomalyMaskSceneViewExtension.cpp`
+> and `AnomalyMaskTypes.h`**, and it adds a test target and `tools/verify_integrity.py`.
+> ⛔ **It was NOT merged, NOT rebased, NOT built and NOT read beyond its diffstat** — its shape says
+> `m51`, which brief 077R-02 fenced out. **It will need a conflict resolution against `4a4bfcc`**, and
+> its state is recorded here so the merge cannot silently orphan it. ⚠ **It was never staged** — the
+> bench binary was verified untouched before any leg (shared-tree rule 4).
 >
 > ---
 >> 🏁🏁 **SESSION 076, 2026-09-04 — `m50` IS SHIPPED AND ON `master` (`7ecdf5f`, pushed). ALL TEN

@@ -1617,3 +1617,41 @@ blindness, not a clean result.**
 ⛔ **The mark is not a defect flag and the docs say so.** It records that the picture got darker
 than its own recent history - the game's eye adapting. `(2)` "the target renders BLACK" remains
 UNEXPLAINED and is NOT what this marks.
+
+---
+
+# §14 — `m49` PHASE B: `target_drawn_pixels`, and the one-directional reading rule (`G258`)
+
+**Added 2026-09-06 (session 077, ruling 077R-02).** This is a MEASUREMENT entry, and it belongs in
+this ledger because it is the newest instrument for the question this whole file exists to answer:
+*"was the anomaly actually in the picture?"*
+
+`target_drawn_pixels` counts the target's custom-depth silhouette pixels that are ALSO front-most in
+the SCENE depth — i.e. how much of the target the renderer actually drew. It is a per-frame,
+per-anomaly label field; `-1` = unmeasured.
+
+🔑 **IT IS EVIDENCE OF ABSENCE AND NEVER OF PRESENCE, and both halves were measured:**
+
+| fixture | leg | reading | what the PIXELS said |
+|---|---|---|---|
+| StackOBot | `PB0_SMOKE_try3` si 57 | `drawn == count` (62,599 of 62,599) | in-bbox luma **191.541** vs hidden band 191.5–192.1, visible 167–168 ⇒ **object ABSENT while its depth was fully present** |
+| **Lyra** (real game) | Leg A, natural, no lever | `drawn > 0` on **7 of 8** hide rows, **0.269–0.806 %** of silhouette | hidden **87.398 / 87.519 / 89.083 / 90.982** vs visible **94.467–96.967** ⇒ **the hides TOOK** |
+| StackOBot | `HideOmitDepthPassSilencing` lever | `drawn == count`, 16 of 16 | the deliberate failure signature |
+
+⇒ **`drawn == 0` is strong evidence the target is not in the picture. `drawn > 0` establishes
+nothing** — `m45` silences the main pass and the depth pass through separate flags, so a depth
+residual is not a colour statement.
+
+⛔ **THE OPERATIONAL RULE: `frames_drawn_unexpected` is a DIAGNOSTIC COUNTER and never a label
+input.** The `observable` veto that once keyed on this condition was removed at `1c3d62c`, BEFORE
+Lyra ran. Had it shipped, Lyra's seven frames would have had a TRUE positive label deleted on a
+real game — the same failure mode as `m26`'s `MEASURED_ZERO` vs `NOT_MEASURED`, one level down.
+
+⚠ **NAMED HOST LIMITATION, MECHANISM NOT ESTABLISHED (`G120`).** The Lyra residual is observed on
+ONE real game. **CANDIDATE ONLY:** a temporal-upsampler (TSR) edge effect at the silhouette
+boundary — the mask RT is at OUTPUT resolution and the scene depth at INTERNAL resolution, joined
+through `m46`'s mapping, and the counts are a small fraction of a ~1,300 px perimeter. Consistent
+with it; not establishing it. **The chase is a FUTURE item and was deliberately not started.**
+
+🔗 `G258` · predictions `docs/predictions/2026-09-04-m49-phase-b.md` AMENDMENT 2 · journal
+`docs/sessions/2026-09-04-077-m49-phase-b.md` §4.3 and §8 · client wording in `client-readme.md` §8.

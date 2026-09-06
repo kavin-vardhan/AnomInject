@@ -365,7 +365,7 @@ which is recorded in place rather than silently overwritten.*
       box hitches, `IAI.Capture.TargetMask 0` is the FIRST knob to turn off, and `G-R7(ii)` is the
       gate that catches it here.*
 
-### 🆕 `m49` PHASE B — THE GPU DRAWN-COUNT: three boxes, and one of them needs the cook
+### 🆕 `m49` PHASE B — THE GPU DRAWN-COUNT: five boxes, and one of them needs the cook
 
 ⚠ **Phase B changes a GLOBAL SHADER and its parameter struct, so it CANNOT ride a code-only hot-swap
 (`G129`).** A build carrying phase B's source against a stale container does not merely mis-measure —
@@ -381,15 +381,33 @@ it **cannot start** (`Missing global shader … permutation 0`). The shader-pres
       WRONG — it must be `-1`.** On a Nanite target there is no custom-depth silhouette (`G134`), so
       there is no drawn count either, and `0` would assert *"measured, and absent"*, which is the
       `MEASURED_ZERO` vs `NOT_MEASURED` confusion `m26` exists to prevent.
-- [ ] 🚨 **`run_summary.json` → `frames_drawn_unexpected` reads `0`.** *It counts labelled hide-class
-      frames where the GPU still found the target's own depth front-most.* ⚠ **That is a DEPTH
-      statement and it does NOT by itself mean the hide failed** — `m45` silences the main pass and
-      the depth pass through separate flags, so the depth can linger for a frame while the picture is
-      correct (measured, session 077). **A non-zero value is a FINDING TO EXPLAIN — check the pixels
-      before concluding anything — not an automatic STOP, and never a label change.**
-      **Its can-fail proof is the bench lever
-      `IAI.Bench.HideOmitDepthPassSilencing 1`, which must drive it non-zero; without that leg having
-      been run at least once on this binary, a zero here is blindness rather than a reading (`G96`).*
+- [ ] 🚨 **`run_summary.json` → `frames_drawn_unexpected` IS READ AND ATTRIBUTED — it is NOT required
+      to be `0` on a client host.** *It counts labelled hide-class frames where the GPU still found
+      the target's own depth front-most.* ⚠ **That is a DEPTH statement and it does NOT by itself mean
+      the hide failed** — `m45` silences the main pass and the depth pass through separate flags, so
+      the depth can linger for a frame while the picture is correct (measured, session 077).
+      🔻 **CORRECTED 2026-09-06 (ruling 077R-02, `G258`): this box used to read *"reads `0`"*, and that
+      WOULD HAVE FAILED A CORRECT BUILD ON A REAL GAME.** Measured on Lyra, natural leg, no lever:
+      **7 of 8 hide rows at 0.269–0.806 % of the silhouette, with the hides confirmed on pixels**
+      (in-bbox luma 87.4–91.0 hidden vs 94.5–97.0 visible). **On StackOBot's AA-off arbiter the
+      expected value is still `0` (0 of 96 rows).** ⇒ **the gate is: a residual of a FRACTION OF A
+      PERCENT of `target_pixels` is a host property and passes; a value approaching `drawn == count`
+      — the lever's signature — is a STOP, and even then it is confirmed on pixels first.**
+      ⛔ **Never a label change, on any host.** **Its can-fail proof is the bench lever
+      `IAI.Bench.HideOmitDepthPassSilencing 1`, which must drive it to `drawn == count`; without that
+      leg having been run at least once on this binary, a zero here is blindness rather than a
+      reading (`G96`).*
+- [ ] 🚨 **THE ONE-DIRECTIONAL READING RULE IS INTACT IN THE SHIPPED BUILD (`G258`).** Three
+      properties, all checkable from one delivery-mode session:
+      **(a)** `target_drawn_pixels` is **PRESENT on every anomaly entry** of `labels.jsonl`;
+      **(b)** it reads **`-1`, never `0`, wherever no measurement exists** (Nanite targets, unarmed
+      frames) — `0` there would assert *"measured, and absent"*, the `MEASURED_ZERO` vs `NOT_MEASURED`
+      confusion `m26` exists to prevent;
+      **(c)** **`observable` is NEVER derived from `drawn > 0`** — diff a session's `observable`
+      column against one taken with the drawn-count ignored and it must be identical.
+      *⇒ `drawn == 0` is evidence of ABSENCE; `drawn > 0` is evidence of NOTHING. The veto that once
+      keyed on it was removed at `1c3d62c`, before the Lyra leg that would have lost seven TRUE
+      positive labels to it.*
 - [ ] 🚨 **`frames_exposure_dip` and `frames_exposure_dip_suppressed` ARE READ TOGETHER.**
       *`exposure_dip` now requires the drop to survive with every live target's silhouette excluded,
       so a disappearing anomaly no longer marks its own frames. **Zero-and-zero is a session with no

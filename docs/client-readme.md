@@ -410,6 +410,18 @@ its depth behind for a frame while the picture correctly does not contain it —
 exactly that on our own bench. ⛔ **So it does NOT affect `observable`, and you should not use it to
 overrule a label either.** It is a reading you can audit, not a verdict.
 
+⚠ **EXPECT A SMALL NON-ZERO RESIDUAL ON SOME TITLES, AND DO NOT READ IT AS A BROKEN LABEL.** On one
+real game we measured `target_drawn_pixels` reading **0.3–0.8 % of `target_pixels`** on a small
+number of hidden frames (about 0.3 % of rows in that run), while an independent check of the picture
+itself confirmed the object *was* hidden on exactly those frames. The likely cause is the edge of the
+silhouette on a title that uses a temporal upsampler such as TSR — **a candidate explanation, which
+we have not established.** ⛔ **A residual of a fraction of a percent is a property of the host's
+renderer, not a failed hide.** The reading that would genuinely concern us is the opposite extreme —
+`target_drawn_pixels` approaching `target_pixels` on a frame labelled for a disappearing anomaly —
+and even that we would confirm against the picture before calling it a fault. `run_summary.json`
+reports the per-run count as `frames_drawn_unexpected` so you can see it rather than guess at it;
+**it is a diagnostic, and it never changes a label.**
+
 **`observable`** (per frame, per anomaly) — the verdict `target_pixels` produces:
 
 | Value | Meaning |

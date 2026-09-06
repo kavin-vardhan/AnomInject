@@ -6550,3 +6550,56 @@ Named and not adopted - the box was at 57% CPU / 5.3 GB free immediately after a
 builds, and `G97`'s second `UnrealEditor` was resident. The milestone question was *"is this a phase B
 defect?"*, and that is answered **no**, by measurement; the cluster's own mechanism does not need to
 be answered to answer it.
+## G258 - `target_drawn_pixels` is evidence of ABSENCE, never of presence; a small non-zero residual
+on a hidden frame is a HOST property, not a failed hide (2026-09-06, session 077, ruling)
+
+`m49` phase B added `target_drawn_pixels`: the count of a target's custom-depth silhouette pixels
+that are also front-most in the SCENE depth, i.e. **how much of the target the picture actually
+drew.** The obvious reading of it - the one the gate was originally written around - is symmetric:
+`drawn == 0` means gone, `drawn > 0` means present. **The second half of that is wrong, and it was
+measured wrong twice, in opposite directions, on two different fixtures.**
+
+**StackOBot, `PB0_SMOKE_try3` si 57** - a labelled `blinking` frame read `target_pixels 62599` with
+`target_drawn_pixels 62599`, i.e. FULLY drawn, while the pixels showed in-bbox mean luminance
+**191.541** against a hidden band of 191.5-192.1 and a visible band of 167-168. **The object was
+ABSENT from the picture while its depth was fully present.** `m45` silences the main pass and the
+depth pass through separate flags, so depth presence is not colour presence. Using the count
+symmetrically deleted a TRUE positive label; the veto was removed at `1c3d62c`.
+
+**Lyra Leg A** - a natural leg on a real game, no lever - read `target_drawn_pixels > 0` on **7 of 8**
+hide-class rows, at **0.269-0.806 % of the silhouette** (304-916 px against 112,922-146,168 px). The
+pixels on those same frames say the hides took: in-bbox mean luma **87.398 / 87.519 / 89.083 /
+90.982** hidden against **94.467-96.967** visible, every hidden frame cleanly below the visible band.
+
+**Three regimes, measured, three orders of magnitude apart:**
+
+| configuration | `drawn` on a labelled hide frame |
+|---|---|
+| StackOBot, AA-off arbiter | **0** - 0 of 96 rows |
+| StackOBot, `HideOmitDepthPassSilencing` lever | **100 %** - `drawn == count`, 16 of 16 |
+| **Lyra, host defaults (TSR + Lumen + AE)** | **0.27 - 0.81 %** |
+
+**THE RULE: read the field in ONE direction only.** `drawn == 0` is strong evidence of absence - the
+target is not in the picture where its silhouette would be. `drawn > 0` establishes **nothing about
+presence**: it can mean the target is drawn, or that its depth survived a hide, or that a temporal
+upsampler left a sub-pixel residual at the silhouette boundary. **Only the lever's signature -
+`drawn` approaching `count` - is a failure indication, and even that must be confirmed on pixels
+before it is called one.**
+
+⛔ **CONSEQUENCE, AND IT IS THE OPERATIONAL HALF: `frames_drawn_unexpected` IS A DIAGNOSTIC COUNTER
+AND MUST NEVER BECOME A LABEL INPUT** - not a veto, not a gate that deletes an event, not a term in
+`observable`. It reached 7 on a real game within hours of the veto being removed. Had the veto
+shipped, seven TRUE positive labels would have been deleted on a client-shaped host.
+
+⚠ **NAMED HOST LIMITATION, NOT A CHASE.** The Lyra residual is OBSERVED on one real game and its
+mechanism is **NOT established** (`G120`). A temporal-upsampler edge effect is a **CANDIDATE ONLY**:
+Lyra runs TSR, so the mask RT (output resolution) and the scene depth it is compared against
+(internal resolution) are joined through `m46`'s output→internal mapping, and the counts are a small
+fraction of a ~1,300 px perimeter - consistent with it, and not establishing it. **The chase is a
+FUTURE item, deliberately not started**; what ships is the one-directional reading rule above, said
+in the client README under `target_drawn_pixels` in the client's own words.
+
+🔑 **The transferable shape: a measurement that is sound as a NEGATIVE can be worthless as a
+POSITIVE, and a field's name will not tell you which it is.** `m26`'s `MEASURED_ZERO` vs
+`NOT_MEASURED` is the same distinction one level down; this is that distinction applied to a count
+whose zero is trustworthy and whose non-zero is not.
