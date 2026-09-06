@@ -2944,6 +2944,15 @@ const TCHAR* UAnomalyCaptureSubsystem::DescribeTargetMaskSource() const
 	return TEXT("COMPILED DEFAULT (on)");
 }
 
+const TCHAR* UAnomalyCaptureSubsystem::DescribeTargetMaskIneffectiveReason() const
+{
+	if (!bTargetMask)                    { return TEXT(" (requested off)"); }
+	if (!bMaskMeasure)                   { return TEXT(" (THE MASK IS OFF - the target mask reuses the m26 visible-mask pass, so it cannot run without it)"); }
+	if (!bAsyncCapture)                  { return TEXT(" (async capture is off)"); }
+	if (EffectiveOutputHeight != 0)      { return TEXT(" (REFUSED: IAI.Capture.OutputHeight is non-zero. The mask is view-rect sized while m28 RESAMPLES the written frame, so the two would disagree in size, and a LABEL MASK MUST NEVER BE FILTERED - bilinear would invent stencil values that were never assigned to anything. Nearest-neighbour mask resampling is a named follow-up, NOT built. Set the output height to 0 to get masks.)"); }
+	return TEXT("");
+}
+
 void UAnomalyCaptureSubsystem::SetTargetMask(bool bInOn)
 {
 	if (bRunning)
@@ -3757,7 +3766,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	TargetMaskFirstFrame.Reset();
 	TargetMaskLastFrame.Reset();
 	TargetMaskOutcome.Reset();
-	TargetMaskHoldTicks = 0;
+	bTargetMaskUnavailableReasonLogged = false;
 	FramesConditionLost = 0;
 	ObservableFramesTotal = 0;
 	FramesDrawnUnexpected = 0;
@@ -3839,11 +3848,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	TargetMaskH = 0;
 	TargetMaskArmedSessionIndex = -1;
 	{
-		const TCHAR* Why = TEXT("");
-		if (!bTargetMask)                 { Why = TEXT(" (requested off)"); }
-		else if (!bMaskMeasure)           { Why = TEXT(" (THE MASK IS OFF - the target mask reuses the m26 visible-mask pass, so it cannot run without it)"); }
-		else if (!bAsyncCapture)          { Why = TEXT(" (async capture is off)"); }
-		else if (EffectiveOutputHeight != 0) { Why = TEXT(" (REFUSED: IAI.Capture.OutputHeight is non-zero. The mask is view-rect sized while m28 RESAMPLES the written frame, so the two would disagree in size, and a LABEL MASK MUST NEVER BE FILTERED - bilinear would invent stencil values that were never assigned to anything. Nearest-neighbour mask resampling is a named follow-up, NOT built. Set the output height to 0 to get masks.)"); }
+		const TCHAR* Why = DescribeTargetMaskIneffectiveReason();
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("=== Capture(m43): TARGET MASK %s FOR THIS RUN%s - requested %s, from %s, output dir '%s/target_mask' === ")
 			TEXT("READ THIS LINE, NOT THE INI. One 8-bit grayscale PNG per captured frame, numbered by SESSION ")
@@ -4731,19 +4736,40 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			break;
 		}
 
-		if (Snap->bTargetMask)
+		if (Snap->bTargetMask && !Snap->bAwaitingTargetMask)
+		{
+			Snap->MaskState = AnomalyLabel::EAnomalyMaskState::Unmeasured;
+			Snap->TargetPixels.Reset();
+			Snap->TargetPixels.Init(AnomalyLabel::GTargetPixelsUnmeasured, Snap->Fires.Num());
+			Snap->TargetDrawnPixels.Reset();
+			Snap->TargetDrawnPixels.Init(AnomalyLabel::GTargetPixelsUnmeasured, Snap->Fires.Num());
+			Snap->DrawnBounds.Reset();
+			Snap->DrawnBounds.AddDefaulted(Snap->Fires.Num());
+			if (!bTargetMaskUnavailableReasonLogged)
+			{
+				bTargetMaskUnavailableReasonLogged = true;
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m51/F1): TARGET MASK REQUESTED BUT NOT EFFECTIVE for this run - no frame waits ")
+					TEXT("for an outcome that cannot exist. Every row reads mask_state:\"unmeasured\", mask_file:null ")
+					TEXT("and target_pixels:-1, which is the honest reading; run_summary target_mask_frames_unavailable ")
+					TEXT("counts every captured frame. This is the m51 F1 fix: before it, the drain held each completed ")
+					TEXT("RGB frame for %d ticks against a mask that was never armed, so most of the session was ")
+					TEXT("dropped at finalize. Reason for ineffectiveness: %s"),
+					GTargetMaskMaxHoldTicks, DescribeTargetMaskIneffectiveReason());
+			}
+		}
+		else if (Snap->bAwaitingTargetMask)
 		{
 			const FTargetMaskOutcome* Outcome = TargetMaskOutcome.Find(Snap->SessionIndex);
-			if (!Outcome && TargetMaskHoldTicks < GTargetMaskMaxHoldTicks)
+			if (!Outcome && Snap->TargetMaskHeldTicks < GTargetMaskMaxHoldTicks)
 			{
-				++TargetMaskHoldTicks;
+				++Snap->TargetMaskHeldTicks;
 				for (int32 k = BatchIndex; k < Batch.Num(); ++k)
 				{
 					Async->TargetMaskHeldFrames.Add(MoveTemp(Batch[k]));
 				}
 				break;
 			}
-			TargetMaskHoldTicks = 0;
 			if (Outcome)
 			{
 				Snap->MaskState = (AnomalyLabel::EAnomalyMaskState)Outcome->State;
@@ -5390,6 +5416,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				Snap.ShadersPending, Snap.AnomalyMaterialsIncomplete, Snap.SessionIndex,
 				(unsigned long long)GFrameCounter);
 			Snap.bTargetMask = bTargetMask;
+			Snap.bAwaitingTargetMask = bTargetMaskEffective;
 			if (bTargetMaskEffective)
 			{
 				Snap.MaskFileRel = FString::Printf(TEXT("target_mask/frame_%05d.png"), Snap.SessionIndex);

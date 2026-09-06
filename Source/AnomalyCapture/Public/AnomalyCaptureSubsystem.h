@@ -150,6 +150,7 @@ public:
 	void SetTargetMask(bool bInOn);
 	bool IsTargetMask() const { return bTargetMask; }
 	const TCHAR* DescribeTargetMaskSource() const;
+	const TCHAR* DescribeTargetMaskIneffectiveReason() const;
 	void SetShaderPrewarm(bool bInOn);
 	bool IsShaderPrewarm() const { return bShaderPrewarm; }
 	const TCHAR* DescribeShaderPrewarmSource() const;
@@ -536,7 +537,7 @@ private:
 		TMap<uint8, int32> DrawnCounts;
 	};
 	TMap<int32, FTargetMaskOutcome> TargetMaskOutcome;
-	int32 TargetMaskHoldTicks = 0;
+	bool bTargetMaskUnavailableReasonLogged = false;
 	int32 ObservableMinPixels = 1;
 	bool bObservableMinFromIni = false;
 	bool bObservableMinOverridden = false;

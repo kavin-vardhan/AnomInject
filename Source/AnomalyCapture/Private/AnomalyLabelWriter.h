@@ -69,6 +69,8 @@ namespace AnomalyLabel
 		FAnomalyViewInfo View;
 		TArray<FAutoLiveFireInfo> Fires;
 		bool bTargetMask = false;
+		bool bAwaitingTargetMask = false;
+		int32 TargetMaskHeldTicks = 0;
 		int32 ShadersPending = 0;
 		int32 AnomalyMaterialsIncomplete = 0;
 		FString MaskFileRel;
