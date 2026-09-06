@@ -674,6 +674,29 @@ binary does not carry is worse than no changelog.
 > **4. Objects that could never show a visible anomaly are no longer targeted.** Objects made
 > entirely of translucent materials are excluded when the anomaly picks its target.
 >
+> **4b. For a DISAPPEARING anomaly, the renderer itself now confirms the object is gone.** Alongside
+> the pixel count in (2), every frame carries `target_drawn_pixels`: of the pixels where the object
+> would be, how many the renderer actually drew it at. A correct `blinking` or `missing_object` frame
+> reads a positive `target_pixels` with `target_drawn_pixels: 0` — *"it should be here, and the
+> picture does not contain it"* — and that verdict comes from the frame's own render rather than from
+> what the plugin asked for. `run_summary.json` carries `frames_drawn_unexpected`, which counts frames
+> where the renderer still had the object's own depth in front despite the frame being labelled as
+> hidden; **it should be `0`**.
+>
+> ⚠ **Read this number in ONE direction only.** `target_drawn_pixels: 0` is strong evidence the object
+> is absent from the picture. **A value above `0` is not evidence it is present** — the measurement
+> comes from the renderer's depth buffer, and an object can leave its depth behind for a frame while
+> the picture correctly does not contain it. **It therefore does not change any label**, and it is
+> offered as a number you can audit rather than as a verdict.
+>
+> **4c. A disappearing anomaly no longer trips the exposure warning by itself.** Removing a bright
+> object darkens the whole picture, which used to be enough to set `exposure_dip` on the anomaly's own
+> frames. The brightness comparison is now made a second time with the target's silhouette excluded,
+> and the frame is marked only if both comparisons agree — which is true of the game's exposure
+> adapting and false of an object being removed. Marked rows say which comparison applied, in
+> `exposure_dip_scope`, and `run_summary.json` counts the marks this removed in
+> `frames_exposure_dip_suppressed`.
+>
 > **5. You can check the labels against the pixels yourself.** One command, on the machine that
 > captured the session:
 > `python host-tools\verify_capture.py --label-pixel-gate --dir <sessionDir>`

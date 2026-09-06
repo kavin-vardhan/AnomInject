@@ -918,6 +918,92 @@ void UAnomalyCaptureSubsystem::EnqueueTargetMaskPng(int32 SessionIndex, const TA
 	Async->Writer->Enqueue(MoveTemp(Job));
 }
 
+void UAnomalyCaptureSubsystem::FoldExposureExclusion(const TArray<uint8>& Gray, int32 W, int32 H,
+	const TMap<uint8, FString>* TagEvent)
+{
+	if (W <= 0 || H <= 0 || !TagEvent)
+	{
+		return;
+	}
+	const int64 N = (int64)W * (int64)H;
+	if ((int64)Gray.Num() < N)
+	{
+		return;
+	}
+
+	if (ExposureExclusionW != W || ExposureExclusionH != H)
+	{
+		ExposureExclusionMask.Reset();
+		ExposureExclusionMask.SetNumZeroed((int32)N);
+		ExposureExclusionW = W;
+		ExposureExclusionH = H;
+		ExposureExclusionPx = 0;
+		ExposureExclusionFolded.Reset();
+	}
+
+	TSet<uint8> FoldTags;
+	for (const TPair<uint8, FString>& TE : *TagEvent)
+	{
+		if ((int32)TE.Key == GMaskPairingProbeTag)
+		{
+			continue;
+		}
+		if (ExposureExclusionFolded.Contains(TE.Value))
+		{
+			continue;
+		}
+		FoldTags.Add(TE.Key);
+	}
+	if (FoldTags.Num() == 0)
+	{
+		return;
+	}
+
+	int32 Added = 0;
+	TSet<uint8> SeenTags;
+	for (int64 i = 0; i < N; ++i)
+	{
+		const uint8 V = Gray[(int32)i];
+		if (V == 0 || !FoldTags.Contains(V))
+		{
+			continue;
+		}
+		SeenTags.Add(V);
+		if (ExposureExclusionMask[(int32)i] == 0)
+		{
+			ExposureExclusionMask[(int32)i] = 1;
+			++Added;
+		}
+	}
+
+	FString Names;
+	for (const TPair<uint8, FString>& TE : *TagEvent)
+	{
+		if (SeenTags.Contains(TE.Key))
+		{
+			ExposureExclusionFolded.Add(TE.Value);
+			Names += FString::Printf(TEXT(" %s(tag %d)"), *TE.Value, (int32)TE.Key);
+		}
+	}
+
+	if (Added == 0)
+	{
+		return;
+	}
+	ExposureExclusionPx += Added;
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m49b): EXPOSURE EXCLUSION GREW +%d px to %d of %lld (%.2f%% of frame) from [%s ]. ")
+		TEXT("m48's whole-picture mean is computed a SECOND time over the complement of this region, and a ")
+		TEXT("frame is marked exposure_dip only if BOTH means fall more than the threshold below their own ")
+		TEXT("rolling window. The region is STICKY for the run and is folded ONCE per event, because the ")
+		TEXT("comparison is only sound if the SAME pixels are excluded from the frame and from its window - ")
+		TEXT("excluding on the current frame alone compares A against a window of ((N-S)A + SB)/N, which is ")
+		TEXT("the same size of step as the one it was meant to remove."),
+		Added, ExposureExclusionPx, N,
+		N > 0 ? (100.0 * (double)ExposureExclusionPx / (double)N) : 0.0, *Names);
+}
+
 void UAnomalyCaptureSubsystem::ReleaseTargetMaskSelfTags()
 {
 	if (TargetMaskSelfTagged.Num() == 0 || TargetMaskSelfTaggedTick == GFrameCounter)
@@ -1156,11 +1242,14 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 
 		TMap<uint8, int32> TagCounts;
 		TMap<uint8, FIntRect> TagBounds;
+		TMap<uint8, int32> TagDrawn;
 		for (uint8 Tag : EventTags)
 		{
 			const FAnomalyMaskTagResult* R = Result.TagResults.Find(Tag);
 			const int32 TableCount = R ? R->Count : 0;
+			const int32 DrawnCount = R ? R->DrawnCount : (TableCount > 0 ? 0 : GAnomalyMaskDrawnUnmeasured);
 			TagCounts.Add(Tag, TableCount);
+			TagDrawn.Add(Tag, DrawnCount);
 			if (R && R->Count > 0 && R->MaxX >= R->MinX && R->MaxY >= R->MinY)
 			{
 				TagBounds.Add(Tag, FIntRect(R->MinX, R->MinY, R->MaxX + 1, R->MaxY + 1));
@@ -1171,12 +1260,16 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 				if (Gray[i] == Tag) { ++PngCount; }
 			}
 			UE_LOG(LogAnomalyCapture, Log,
-				TEXT("Capture(m43): MASK-TIE session_index=%d tag=%d tableCount=%d pngCount=%d %s - the ")
+				TEXT("Capture(m43): MASK-TIE session_index=%d tag=%d tableCount=%d pngCount=%d drawnCount=%d %s - the ")
 				TEXT("delivered mask is counted against the SAME reduce table the veto reads, so the shipped ")
-				TEXT("silhouette is provably the one the labels were judged on."),
-				Pair.Value, (int32)Tag, TableCount, PngCount,
+				TEXT("silhouette is provably the one the labels were judged on. drawnCount (m49 phase B) is the ")
+				TEXT("subset of tableCount where the target's own depth IS the scene's front-most depth; it does ")
+				TEXT("not enter the tie, which is RT0 against the delivered PNG."),
+				Pair.Value, (int32)Tag, TableCount, PngCount, DrawnCount,
 				(TableCount == PngCount) ? TEXT("MATCH") : TEXT("*** MISMATCH ***"));
 		}
+
+		FoldExposureExclusion(Gray, W, H, TagEventPtr);
 
 		if (KeptPixels > 0)
 		{
@@ -1184,14 +1277,14 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 			++TargetMaskMeasured;
 			TargetMaskOutcome.Add(Pair.Value,
 				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Present, MoveTemp(TagCounts),
-					MoveTemp(TagBounds) });
+					MoveTemp(TagBounds), MoveTemp(TagDrawn) });
 		}
 		else
 		{
 			++TargetMaskHiddenBlank;
 			TargetMaskOutcome.Add(Pair.Value,
 				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Empty, MoveTemp(TagCounts),
-					MoveTemp(TagBounds) });
+					MoveTemp(TagBounds), MoveTemp(TagDrawn) });
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(m44): TARGET MASK EMPTY for session_index %d - the mask was MEASURED and the ")
 				TEXT("target contributed zero pixels, so NO file is written and the labels row reads ")
@@ -2882,8 +2975,16 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	TargetMaskHoldTicks = 0;
 	FramesConditionLost = 0;
 	ObservableFramesTotal = 0;
+	FramesDrawnUnexpected = 0;
+	TargetDrawnMeasuredRows = 0;
 	ExposureLumBySessionIndex.Reset();
+	ExposureExclusionMask.Reset();
+	ExposureExclusionFolded.Reset();
+	ExposureExclusionW = 0;
+	ExposureExclusionH = 0;
+	ExposureExclusionPx = 0;
 	FramesExposureDip = 0;
+	FramesExposureDipSuppressed = 0;
 	ExposureDipFirstIndex = -1;
 	if (Async.IsValid())
 	{
@@ -3662,21 +3763,6 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		}
 	}
 
-	for (const FAnomalyCapturedFrame& LumFrame : Batch)
-	{
-		const AnomalyLabel::FCaptureSnapshot* LumSnap = Async->PendingSnapshots.Find(LumFrame.RequestId);
-		if (!LumSnap)
-		{
-			continue;
-		}
-		const double Luma = AnomalyLabel::ComputeSubsampledMeanLuma(LumFrame.Format, LumFrame.BytesPerPixel,
-			LumFrame.RawBytes, LumFrame.Width, LumFrame.Height, GExposureDipSampleStride);
-		if (Luma >= 0.0)
-		{
-			ExposureLumBySessionIndex.Add(LumSnap->SessionIndex, Luma);
-		}
-	}
-
 	for (int32 BatchIndex = 0; BatchIndex < Batch.Num(); ++BatchIndex)
 	{
 		FAnomalyCapturedFrame& Frame = Batch[BatchIndex];
@@ -3742,6 +3828,8 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 
 			Snap->TargetPixels.Reset();
 			Snap->TargetPixels.AddUninitialized(Snap->Fires.Num());
+			Snap->TargetDrawnPixels.Reset();
+			Snap->TargetDrawnPixels.AddUninitialized(Snap->Fires.Num());
 			Snap->DrawnBounds.Reset();
 			Snap->DrawnBounds.AddDefaulted(Snap->Fires.Num());
 			for (int32 i = 0; i < Snap->Fires.Num(); ++i)
@@ -3750,6 +3838,15 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 				const int32* Found =
 					(Outcome && Tag > 0) ? Outcome->Counts.Find((uint8)Tag) : nullptr;
 				Snap->TargetPixels[i] = Found ? *Found : AnomalyLabel::GTargetPixelsUnmeasured;
+
+				const int32* FoundDrawn =
+					(Outcome && Tag > 0) ? Outcome->DrawnCounts.Find((uint8)Tag) : nullptr;
+				Snap->TargetDrawnPixels[i] =
+					FoundDrawn ? *FoundDrawn : AnomalyLabel::GTargetPixelsUnmeasured;
+				if (Snap->TargetDrawnPixels[i] >= 0)
+				{
+					++TargetDrawnMeasuredRows;
+				}
 
 				const FIntRect* Box =
 					(Outcome && Tag > 0) ? Outcome->Bounds.Find((uint8)Tag) : nullptr;
@@ -3779,7 +3876,33 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 				Snap->Observable[i] = (uint8)AnomalyLabel::EObservable::Unmeasured;
 				continue;
 			}
-			Snap->Observable[i] = (bLabelled && bHeld && Px >= ObservableMinPixels)
+
+			const bool bObservable = bLabelled && bHeld && Px >= ObservableMinPixels;
+
+			bool bKnownId = false;
+			const bool bHideClass = Snap->Fires.IsValidIndex(i)
+				&& ResolveAnomalyActiveSource(Snap->Fires[i].Id, bKnownId) == EAnomalyActiveSource::ActorHidden;
+			const int32 DrawnPx = Snap->TargetDrawnPixels.IsValidIndex(i)
+				? Snap->TargetDrawnPixels[i] : AnomalyLabel::GTargetPixelsUnmeasured;
+			if (bHideClass && bLabelled && DrawnPx > 0)
+			{
+				++FramesDrawnUnexpected;
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m49b): DRAWN-UNEXPECTED session_index=%d id=%s target=%s target_pixels=%d ")
+					TEXT("target_drawn_pixels=%d - this frame is LABELLED as a hide and the target's own depth is ")
+					TEXT("STILL the scene's front-most depth there. That is a DEPTH statement and it does NOT ")
+					TEXT("establish that the target is in the PICTURE: m45 hides by dropping the MAIN pass, and ")
+					TEXT("the depth-pass silencing is a separate flag, so a frame can carry the target's depth ")
+					TEXT("while the picture correctly does not contain it. MEASURED on this bench (session 077): ")
+					TEXT("a frame reading drawn == count had in-bbox mean luminance 191.5 against a hidden band ")
+					TEXT("of 191.5-192.1 and a visible band of 167-168 - the object was ABSENT from the picture. ")
+					TEXT("SO THIS DOES NOT TOUCH observable: deleting a true positive is dataset loss, and m26's ")
+					TEXT("admit bias governs. It is a READING, and the m45 IAI.Bench.HideOmitDepthPassSilencing ")
+					TEXT("lever is what proves it can fire."),
+					Snap->SessionIndex, *Snap->Fires[i].Id.ToString(), *Snap->Fires[i].Target, Px, DrawnPx);
+			}
+
+			Snap->Observable[i] = bObservable
 				? (uint8)AnomalyLabel::EObservable::True
 				: (uint8)AnomalyLabel::EObservable::False;
 			if (Snap->Observable[i] == (uint8)AnomalyLabel::EObservable::True)
@@ -3794,37 +3917,75 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		AnomalyLabel::DeriveOutputSize(Frame.Width, Frame.Height, EffectiveOutputHeight, OutW, OutH, bNeedsResample);
 		LogFirstFrameMeasuredLine(Frame.Width, Frame.Height, OutW, OutH, bNeedsResample);
 
-		if (const double* ThisLuma = ExposureLumBySessionIndex.Find(Snap->SessionIndex))
 		{
-			double WindowSum = 0.0;
-			int32 WindowN = 0;
-			for (int32 Back = 1; Back <= GExposureDipWindowFrames; ++Back)
+			const bool bExclusionUsable = ExposureExclusionPx > 0
+				&& ExposureExclusionW == Frame.Width && ExposureExclusionH == Frame.Height;
+			double LumaAll = -1.0;
+			double LumaExcl = -1.0;
+			AnomalyLabel::ComputeSubsampledMeanLumaSplit(Frame.Format, Frame.BytesPerPixel, Frame.RawBytes,
+				Frame.Width, Frame.Height, GExposureDipSampleStride,
+				bExclusionUsable ? &ExposureExclusionMask : nullptr, LumaAll, LumaExcl);
+			if (LumaAll >= 0.0)
 			{
-				if (const double* Prev = ExposureLumBySessionIndex.Find(Snap->SessionIndex - Back))
-				{
-					WindowSum += *Prev;
-					++WindowN;
-				}
+				ExposureLumBySessionIndex.Add(Snap->SessionIndex, FExposureSample{ LumaAll, LumaExcl });
 			}
-			if (WindowN == GExposureDipWindowFrames)
+
+			if (const FExposureSample* ThisLuma = ExposureLumBySessionIndex.Find(Snap->SessionIndex))
 			{
-				const double WindowMean = WindowSum / (double)GExposureDipWindowFrames;
-				if (WindowMean > 0.0 && ((WindowMean - *ThisLuma) / WindowMean) > GExposureDipDropFraction)
+				double WindowSumAll = 0.0;
+				double WindowSumExcl = 0.0;
+				int32 WindowN = 0;
+				for (int32 Back = 1; Back <= GExposureDipWindowFrames; ++Back)
 				{
-					Snap->bExposureDip = true;
-					++FramesExposureDip;
-					if (ExposureDipFirstIndex < 0)
+					if (const FExposureSample* Prev = ExposureLumBySessionIndex.Find(Snap->SessionIndex - Back))
 					{
-						ExposureDipFirstIndex = Snap->SessionIndex;
-						UE_LOG(LogAnomalyCapture, Warning,
-							TEXT("Capture(m48): EXPOSURE DIP at session_index %d - whole-picture mean luminance %.3f is ")
-							TEXT("%.2f%% below the rolling mean %.3f of the previous %d captured frames (threshold %.1f%%). ")
-							TEXT("This is the GAME's auto-exposure re-adapting; the plugin never overrides exposure. The ")
-							TEXT("row carries exposure_dip:true and run_summary counts every such frame in ")
-							TEXT("frames_exposure_dip. This line prints ONCE per run - the counter is the reading."),
-							Snap->SessionIndex, *ThisLuma,
-							100.0 * (WindowMean - *ThisLuma) / WindowMean, WindowMean,
-							GExposureDipWindowFrames, 100.0 * GExposureDipDropFraction);
+						WindowSumAll += Prev->LumaAll;
+						WindowSumExcl += Prev->LumaExcl;
+						++WindowN;
+					}
+				}
+				if (WindowN == GExposureDipWindowFrames)
+				{
+					const double MeanAll = WindowSumAll / (double)GExposureDipWindowFrames;
+					const double MeanExcl = WindowSumExcl / (double)GExposureDipWindowFrames;
+					const bool bDipAll =
+						MeanAll > 0.0 && ((MeanAll - ThisLuma->LumaAll) / MeanAll) > GExposureDipDropFraction;
+					const bool bDipExcl =
+						MeanExcl > 0.0 && ((MeanExcl - ThisLuma->LumaExcl) / MeanExcl) > GExposureDipDropFraction;
+
+					if (bDipAll && bDipExcl)
+					{
+						Snap->bExposureDip = true;
+						Snap->bExposureDipScopeExcluded = bExclusionUsable;
+						++FramesExposureDip;
+						if (ExposureDipFirstIndex < 0)
+						{
+							ExposureDipFirstIndex = Snap->SessionIndex;
+							UE_LOG(LogAnomalyCapture, Warning,
+								TEXT("Capture(m48): EXPOSURE DIP at session_index %d - whole-picture mean luminance %.3f is ")
+								TEXT("%.2f%% below the rolling mean %.3f of the previous %d captured frames (threshold %.1f%%), ")
+								TEXT("AND the same drop survives with every live target's silhouette excluded (%.3f vs %.3f). ")
+								TEXT("This is the GAME's auto-exposure re-adapting; the plugin never overrides exposure. The ")
+								TEXT("row carries exposure_dip:true and run_summary counts every such frame in ")
+								TEXT("frames_exposure_dip. This line prints ONCE per run - the counter is the reading."),
+								Snap->SessionIndex, ThisLuma->LumaAll,
+								100.0 * (MeanAll - ThisLuma->LumaAll) / MeanAll, MeanAll,
+								GExposureDipWindowFrames, 100.0 * GExposureDipDropFraction,
+								ThisLuma->LumaExcl, MeanExcl);
+						}
+					}
+					else if (bDipAll)
+					{
+						++FramesExposureDipSuppressed;
+						UE_LOG(LogAnomalyCapture, Log,
+							TEXT("Capture(m49b): EXPOSURE DIP SUPPRESSED at session_index %d - the whole picture fell ")
+							TEXT("%.2f%% below its rolling mean, but with %d excluded pixel(s) of live-fire silhouette ")
+							TEXT("removed the same comparison reads %.2f%%. The drop is OUR anomaly removing a bright ")
+							TEXT("object, not the game's auto-exposure, which is what the key is named for. Marking it ")
+							TEXT("would have told the client their exposure moved when it did not."),
+							Snap->SessionIndex,
+							100.0 * (MeanAll - ThisLuma->LumaAll) / MeanAll, ExposureExclusionPx,
+							MeanExcl > 0.0 ? (100.0 * (MeanExcl - ThisLuma->LumaExcl) / MeanExcl) : 0.0);
 					}
 				}
 			}
@@ -5090,7 +5251,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			FramesExposureDip,
 			&ObservabilityReport,
 			TranslucentOnlyExcludedTargets,
-			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0);
+			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0,
+			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")
@@ -5102,6 +5264,17 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			FramesExposureDip, FramesWritten,
 			ExposureDipFirstIndex >= 0 ? *FString::FromInt(ExposureDipFirstIndex) : TEXT("none"),
 			100.0 * GExposureDipDropFraction, GExposureDipWindowFrames, GExposureDipWindowFrames);
+
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m49b): DRAWN SUMMARY target_drawn_pixels measured on %d row(s), ")
+			TEXT("frames_drawn_unexpected=%d, exposure exclusion %d px, frames_exposure_dip_suppressed=%d. ")
+			TEXT("frames_drawn_unexpected counts LABELLED hide-class rows where the GPU still found the ")
+			TEXT("target's own depth front-most - a hide that did not take. frames_exposure_dip_suppressed ")
+			TEXT("counts frames the whole-picture test marked and the target-excluded test did not, and it is ")
+			TEXT("the m48-on-hide-class false positive being removed. READ IT BESIDE frames_exposure_dip: a ")
+			TEXT("zero dip count with a zero suppressed count is a leg with no exposure movement at all, ")
+			TEXT("while a zero dip count with a NON-zero suppressed count is this fix doing its job."),
+			TargetDrawnMeasuredRows, FramesDrawnUnexpected, ExposureExclusionPx, FramesExposureDipSuppressed);
 
 		if (bSveCapture)
 		{
