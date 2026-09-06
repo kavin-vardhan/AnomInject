@@ -1200,9 +1200,13 @@ mean of the **previous 8 CAPTURED frames**; `run_summary` gains **`frames_exposu
 additive and emitted only when true, so a healthy run's `labels.jsonl` field set is unchanged, and
 **`annotation.json` does not move**. **The first 8 frames of a session can never be marked.**
 
-The detector is a **two-pass loop over the drained batch** — pass one fills the per-session-index
-luminance map, pass two decides — because the render-thread drain appends in reverse and a single
-pass would evaluate a frame before its own predecessors existed.
+🔻 **SUPERSEDED BY `m49` PHASE B'S RULING 1 (see below): the detector was a two-pass loop over the
+drained batch** — pass one filled the per-session-index luminance map, pass two decided. It is now a
+**single** pass, placed AFTER the frame's target-mask outcome is resolved, because the exclusion
+region must be known before that frame's means are computed. Batch order is strictly increasing
+`session_index` (held frames are re-queued in order and the loop breaks rather than reordering), so
+a frame's predecessors are always already in the map — which is what made the two-pass form
+unnecessary rather than merely redundant.
 
 ⛔ **The plugin never writes an exposure cvar.** The mark records the game's own auto-exposure
 adapting; it is not a defect flag and is not a fix for a target rendering black.
@@ -1251,6 +1255,60 @@ reduce table's own bounds for that row's tag, or `null` when there is no drawn b
 view rect per `m46`), while `bbox_px` is in the WRITTEN frame's space. They coincide in every configuration
 that can produce a mask at all, because **`m43` REFUSES the target mask when `IAI.Capture.OutputHeight` is
 non-zero**; if that refusal is ever relaxed the two boxes stop sharing a space.
+
+**Phase B — the GPU drawn-count.** `AnomalyVisibleMask.usf` gains a second output: **RT0 is unchanged**
+(`CustomDeviceZ >= SceneDeviceZ - DepthBias` — the tag where the tagged surface is FRONT-MOST) and **RT1** is
+`|CustomDeviceZ - SceneDeviceZ| <= DepthBias` — the tag where the tagged surface **IS** what the scene depth
+buffer holds, i.e. where the main pass drew it. `AnomalyMaskReduce.usf` reduces **both textures in one
+dispatch** into the same table, whose stride moved **5 → 6** with **indices 0..4 unchanged**, so every
+existing decode reads the same slot and `MASK-TIE`, the delivered PNG, `target_pixels`, `bbox_drawn_px`,
+ONSET and MASK-PICTURE-PAIRING are untouched by construction. `FAnomalyMaskTagResult` gains `DrawnCount`
+(**`-1` = unmeasured**, which is what the CPU reduce mode reports, because the CPU path scans RT0 alone and
+has no drawn side to produce).
+🔑 **RT1 ⊆ RT0 structurally** (`|dZ| <= bias` implies `Z >= SceneZ - bias`), so `DrawnCount <= Count` always;
+the `DRAWN-DIST` log line asserts it per frame and an excess is reported as an instrument fault rather than
+as a finding about the scene.
+Each anomaly row gains **`target_drawn_pixels`**, and for **hide-class ids only**
+(`ResolveAnomalyActiveSource == ActorHidden`) a LABELLED frame whose `target_drawn_pixels > 0`
+increments **`frames_drawn_unexpected`** and emits `DRAWN-UNEXPECTED`.
+🚨 **IT DOES NOT TOUCH `observable`, AND THE BRIEFED RULE THAT IT SHOULD WAS REFUTED BY THIS
+MILESTONE'S OWN GATE LEG.** `PB0_SMOKE_try3` si 57 read `target_pixels 62599` with
+`target_drawn_pixels 62599` on a labelled `blinking` frame; the pixels then showed in-bbox mean
+luminance **191.541** against a hidden band of **191.5–192.1** and a visible band of **167–168** —
+**the object was ABSENT from the picture.** `m45` drops the MAIN pass to hide and silences the depth
+pass through a *separate* flag (`bRenderInMainPass` / `bRenderInDepthPass` in
+`AnomalyHiddenClass::Hide`), so a frame can carry the target's own depth while the picture correctly
+does not contain it — and RT1 tests exactly that depth condition.
+🔑 **The predicate is therefore ASYMMETRIC: `DrawnCount == 0` is strong evidence of ABSENCE;
+`DrawnCount > 0` is NOT evidence of PRESENCE.** Using it symmetrically deleted a TRUE positive label,
+which is dataset loss and is the direction `m26`'s admit bias forbids. ⇒ it ships as a MEASUREMENT.
+⛔ **`observable` keeps the A1 rule unchanged**, so phase B cannot move a label in either direction and
+a host without the drawn table loses nothing.
+⚠ **It is a DEPTH statement, not a colour statement.** A target drawn with the wrong material is still
+*drawn*; that is correct for the hide class and is why texture types keep the A1 predicate. A translucent
+target that opted into custom depth reads `drawn 0` while visible, because translucency writes no scene
+depth — out of the shipped path since A2 excludes translucent-only targets, and named here rather than found
+later. **This is a global-shader AND parameter-struct change ⇒ a full cook (`G129`).**
+
+**Ruling 1 — `exposure_dip` no longer fires on the anomaly's own effect.** `m48` compared the whole-picture
+mean against a rolling window, and hiding a bright object drops that mean, so a hide-class anomaly at pinned
+exposure marked its own frames (measured on the `m50` binary: `frames_exposure_dip` 4 / 7 / 7 / 5 on the four
+hide-class G-EDGE legs against 0 on all four texture-class legs).
+🚨 **Excluding the silhouette on the CURRENT frame alone does not fix it, and the arithmetic is why:** with
+`N` frame pixels, `S` silhouette pixels, `A` the complement mean, `B` the object's mean and `C` the revealed
+background's, today's drop is `S(B−C)/(N·M)` and the current-frame-only exclusion gives `S(B−A)/(N·M)` —
+**the same size whenever the revealed background is representative**, which is the ordinary case. The window
+frames must be treated identically, and they are mostly *unlabelled* frames on which no mask is ever armed.
+⇒ the shipped rule computes **two means per captured frame** from one strided pass — `LumaAll` and
+`LumaExcl` over the complement of a **run-sticky union** of every live-fire target's silhouette
+(`FoldExposureExclusion`, folded once per event, probe tag excluded) — and marks `exposure_dip` **iff BOTH
+fall below their own window**. 🔑 **AND semantics can only remove marks, never add them**, which is the right
+shape for a false-positive fix. Marked rows carry `exposure_dip_scope`; `run_summary` gains
+**`frames_exposure_dip_suppressed`**, so the removal is a **paired reading** rather than a silent absence.
+⚠ **Stated cost:** a genuine dip within 8 captured frames of the union's first growth can be missed, because
+`LumaExcl`'s own window then spans two regions. ⚠ **And the region is only inert across a hide at the AA-off
+arbiter** (Lumen / GI / reflections off, `m45` shadow silencing); with GI live, hiding a bright object also
+moves light *outside* the silhouette and `LumaExcl` moves with it.
 
 **`mask_map.json` (A2 fix).** `first_frame` / `last_frame` are scoped to the **EVENT**, resolved through a
 per-request `tag -> event_id` map recorded at arm time. Before A2 they were keyed on the stencil VALUE alone,

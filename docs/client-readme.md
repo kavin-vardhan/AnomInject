@@ -381,6 +381,35 @@ actually drew, front-most, occlusion-aware.
 | `0` | **measured, and it drew nothing** — fully hidden, occluded, or off-screen |
 | **`-1`** | **NOT MEASURED.** No measurement exists for this frame. It is **not** zero. |
 
+**`target_drawn_pixels`** (int, per frame, per anomaly) — of those pixels, how many the target was
+**actually drawn into the picture** at. It is measured on the GPU in the same pass and on the same
+frame as `target_pixels`, and it is always a subset of it.
+
+| Value | Meaning |
+| --- | --- |
+| `> 0` | the target's own surface is what the renderer put on screen at this many pixels |
+| `0` | **measured, and the target was not drawn there** — the silhouette says it would have been visible, and the picture does not contain it |
+| **`-1`** | **NOT MEASURED**, exactly as for `target_pixels`. Not zero. |
+
+🔑 **Why both numbers exist, in one line: `target_pixels` says *where the target would be*, and
+`target_drawn_pixels` says *whether it is there*.** For a **disappearing** anomaly (`blinking`,
+`missing_object`) a correct frame reads `target_pixels > 0` **and** `target_drawn_pixels: 0` — that
+pairing is the renderer's own statement that the object is missing from the picture, rather than a
+statement about what the plugin asked for. For every other anomaly type the object is still drawn, so
+the two numbers are equal.
+
+⚠ **It is a statement about geometry, not about appearance.** A target drawn with the wrong material
+— which is what `missing_texture` and `corrupted_texture` do — is still *drawn*, and reads
+`target_drawn_pixels == target_pixels`. Use it to check that a **hide** took effect, not to check
+that a **texture swap** looks right.
+
+🚨 **AND IT IS ASYMMETRIC — read it in one direction only.** `target_drawn_pixels: 0` is strong
+evidence the object is **absent** from the picture. **`target_drawn_pixels > 0` is NOT evidence that
+it is present.** The measurement is taken from the renderer's *depth* buffer, and an object can leave
+its depth behind for a frame while the picture correctly does not contain it — we have measured
+exactly that on our own bench. ⛔ **So it does NOT affect `observable`, and you should not use it to
+overrule a label either.** It is a reading you can audit, not a verdict.
+
 **`observable`** (per frame, per anomaly) — the verdict `target_pixels` produces:
 
 | Value | Meaning |
@@ -409,6 +438,12 @@ still tells you what was applied, and `observable_frame_count` reads `0`.
 📌 **`run_summary.json` also gains `observable_frames`** (how many frame-anomaly pairs across the whole
 session were judged observable) and **`frames_condition_lost`** (how many labelled frames lost the
 anomaly's visual condition — e.g. the game re-applied its own material).
+
+📌 **And three more, all readings rather than settings:** `target_drawn_pixels_measured` (how many
+anomaly rows carried a real drawn count), **`frames_drawn_unexpected`** (labelled frames of a
+disappearing anomaly where the renderer still drew the target — **it should be `0`, and a non-zero
+value means those frames are labelled as a disappearance that did not happen**), and
+`frames_exposure_dip_suppressed` (see the exposure-dip section).
 
 ### 8.4.1 One `blinking` event = one burst, which may contain more than one flicker
 
@@ -442,7 +477,10 @@ single unbroken run.
 | `labels.jsonl` → `target_pixels` | *absent* | measured drawn pixels, `-1` = unmeasured | **Added** |
 | `labels.jsonl` → `observable` | *absent* | `true` / `false` / `null` | **Added** |
 | `labels.jsonl` → `bbox_drawn_px` | *absent* | measured drawn box, or `null` | **Added** |
+| `labels.jsonl` → `target_drawn_pixels` | *absent* | of `target_pixels`, how many the target was actually drawn at; `-1` = unmeasured | **Added** |
+| `labels.jsonl` → `exposure_dip_scope` | *absent* | `"frame"` or `"frame_minus_targets"`, **only on rows that carry `exposure_dip`** | **Added** |
 | `run_summary.json` → `observable_frames`, `frames_condition_lost`, `observable_min_pixels` | *absent* | see §8.4 | **Added** |
+| `run_summary.json` → `target_drawn_pixels_measured`, `frames_drawn_unexpected`, `frames_exposure_dip_suppressed` | *absent* | see §8.4 and the exposure-dip section | **Added** |
 | everything else | — | — | Unchanged |
 
 🔑 **The one-line migration:** *if your v1 code read `affected_frames`, point it at `injected_frames`
@@ -467,7 +505,8 @@ One JSON object per line, one line per captured frame.
 | `anomalies` | array | v1 | One object per active anomaly — see below. |
 | `mask_file` | string \| null | since target masks | The mask PNG for this frame, or `null` if there is none. |
 | `mask_state` | string | since target masks | `present` / `empty` / `unmeasured`. |
-| `exposure_dip` | `true` | since exposure marking | **Only present when true.** The picture darkened more than 4% below its recent average — the game's auto-exposure adapting. |
+| `exposure_dip` | `true` | since exposure marking | **Only present when true.** The picture darkened more than 4% below its recent average, **and the same drop survives with every live target's silhouette excluded** — the game's auto-exposure adapting, not the anomaly's own effect. |
+| **`exposure_dip_scope`** | string | **v2** | **Only present alongside `exposure_dip`.** `"frame_minus_targets"` if a target silhouette was excluded from the second comparison, `"frame"` if there was nothing to exclude. |
 | `view` | object | v1 | `origin[3]`, `rot[3]`, `fovDeg`, `aspect`, `valid` — the camera for this frame. |
 | `render_state`, `anomaly_materials_incomplete`, `shader_jobs_pending` | — | — | **Editor-build diagnostics; should never appear in a delivered session.** If you see them, tell us. |
 
@@ -484,6 +523,7 @@ One JSON object per line, one line per captured frame.
 | `bbox_px` | `[x,y,w,h]` | v1 | The projected box in pixels, as **origin + size**. Derived from the object's bounds, so it can be larger than what is drawn. |
 | **`bbox_drawn_px`** | `[x,y,w,h]` \| null | **v2** | The box around the pixels the target **actually drew** on this frame, from the mask. `null` when nothing was drawn or nothing was measured. ⛔ **It does not replace `bbox_px`** — both ship. |
 | **`target_pixels`** | int | **v2** | See §8.4. `-1` = unmeasured. |
+| **`target_drawn_pixels`** | int | **v2** | See §8.4. The subset of `target_pixels` the target was actually drawn at. `-1` = unmeasured. |
 | **`observable`** | bool \| null | **v2** | See §8.4. `null` = unmeasured. |
 | `mask_value` | int | since target masks | This anomaly's pixel value in `target_mask/`. |
 
@@ -546,6 +586,22 @@ frames carry **`exposure_dip: true`**; **`frames_exposure_dip`** in `run_summary
 - ⚠ **The mark is not a defect flag.** It says the picture got darker than its own recent history,
   which is the game's eye adapting. Use it to explain a dark-looking frame; do not treat a marked
   frame as unusable.
+- 🆕 **THE ANOMALY'S OWN EFFECT NO LONGER COUNTS AS A DIP.** Hiding a bright object darkens the whole
+  picture, and until this release that was enough to trip the 4% test — so a *disappearing* anomaly
+  could mark its own frames as an exposure event. The comparison is now made **twice**: once over the
+  whole picture, and once over the picture **with every live target's silhouette removed**. A frame is
+  marked only if **both** comparisons see the drop, which is true of a real exposure change (it is
+  global) and false of an object being removed (it is local). Marked rows carry
+  **`exposure_dip_scope`**: `"frame_minus_targets"` when the second comparison was available,
+  `"frame"` when there was nothing to exclude.
+- **`frames_exposure_dip_suppressed`** in `run_summary.json` counts the frames the whole-picture test
+  marked and the target-excluded test did not — i.e. the marks this rule removed. **Read it beside
+  `frames_exposure_dip`:** zero-and-zero is a session with no exposure movement at all, while
+  zero-and-non-zero is this rule doing its job.
+- ⚠ **Stated limit:** a real exposure change occurring within 8 captured frames of the *first* time a
+  target's silhouette is measured can be missed, because the second comparison's own history spans two
+  different regions there. It errs toward **not marking**, which loses a warning rather than
+  fabricating one.
 
 ### 🔑 `mask_state` — the three values, and what each one claims
 

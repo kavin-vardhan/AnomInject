@@ -6444,3 +6444,109 @@ census may still use every value, it just may not take the last N.
 and 108 times at a deliberately narrowed pool, `census_fires_*` unchanged, cycle length not
 measurably affected, and `TAG-POOL EXHAUSTED` is a gate read on every leg rather than a log line
 nobody looks at.
+
+---
+
+## G255 - a fix that changes ONE SIDE of a rolling comparison has not changed the comparison (2026-09-04, session 077)
+
+The m49 phase B brief carried a ruling in one sentence: *"the m48 detector's whole-frame mean
+EXCLUDES the pixels of every live fire target's mask on that frame"*. It reads complete. It is not,
+and the arithmetic that says so was available before a line of code was written.
+
+m48 compares **this frame's mean** against the **rolling mean of the previous 8 captured frames**.
+With `N` frame pixels, `S` silhouette pixels, `A` the complement mean, `B` the object's own
+mean and `C` the background revealed when it is hidden:
+
+    whole-frame, object visible : M_vis = ((N-S)A + S.B) / N
+    whole-frame, object hidden  : M_hid = ((N-S)A + S.C) / N
+    today's false positive      : (M_vis - M_hid) / M_vis = S(B-C) / (N.M_vis)
+    exclude on THIS frame only  : (M_vis - A)     / M_vis = S(B-A) / (N.M_vis)
+
+**Those two are the same size whenever the revealed background is representative (`C ~ A`), which
+is the ordinary case for an object standing in front of ordinary level content.** The briefed rule
+would have shipped, measured, and moved the number by roughly nothing - and the natural reading of
+that would have been *"the fix does not work"* rather than *"the fix was applied to one operand"*.
+
+The window frames are the other operand, and on this detector they are mostly frames on which **no
+mask is ever armed** (`m44`: masks appear only on frames labelled for that event), so they cannot
+be corrected retroactively. The shipped rule therefore keeps a **run-sticky** exclusion region and
+computes **both** means on **every** captured frame.
+
+**The rule: when a fix modifies a quantity that is COMPARED against something, write down what the
+other side of the comparison is made of before you write the fix.** A rolling-window detector, a
+delta, a ratio and a regression baseline all have two operands; a specification usually names one.
+This is `G253`'s discipline - price the fix before writing it - applied to a SPECIFICATION rather
+than to a design: the sentence was not wrong about what to exclude, it was silent about where.
+
+---
+
+## G256 - to fix an OVER-FIRING detector, AND a new test onto it; never replace it (2026-09-04, session 077)
+
+`exposure_dip` was firing on frames the plugin itself had darkened. Two shapes were available:
+
+  1. **replace** the whole-picture mean with a target-excluded mean;
+  2. **AND** a target-excluded test onto the existing whole-picture one.
+
+(2) shipped, and the reason is a property rather than a preference: **a conjunction can only REMOVE
+marks, never add them.** The defect was a false positive, so the fix is incapable of producing the
+class of error it exists to remove - and it inherits `m48`'s two-sided threshold derivation
+(every AE-OFF leg <= 2.39 %, every AE-ON leg 7.27-9.01 %) instead of needing a new one. (1) would
+have been a new detector with an uncalibrated threshold wearing an old key's name.
+
+The cost is bounded and in the safe direction: a real event can be MISSED where the new test's own
+history is not yet comparable. **Bound it, then count it.** `frames_exposure_dip_suppressed`
+counts exactly the marks the conjunction removed, so `frames_exposure_dip` going 4 -> 0 is read
+beside a 4 rather than as an unexplained silence.
+
+**Generalises to any detector being tightened:** AND the new evidence onto the old test, name the
+new failure mode (misses, not false alarms), and emit a counter for what the new clause removed. A
+tightening with no counter is indistinguishable from a detector that has quietly stopped working -
+which is the failure `G96` exists for, arriving through the front door.
+
+---
+
+## G257 - a control that is not CONCURRENT with the failures cannot control for a time-varying confound (2026-09-04/06, session 077)
+
+After `m49` phase B's cook, seven consecutive `A63` pose attempts were discarded on the post-cook
+build. A control leg was then run on the pre-cook build, **immediately after that window**, and it
+accepted on attempt 1 with a perfect pose. The session concluded:
+
+    "on the same box state the pre-cook build accepted on attempt 1 with a perfect pose;
+     the box is exonerated; the post-cook build behaves differently"
+
+**It was wrong.** Two days later, on a quieter box, the **byte-identical post-cook exe and container**
+accepted **4 of 4 on attempt 1** with a perfect pose, while the pre-cook build accepted 2 of 2.
+
+| binary | 2026-09-04 21:07-21:12 | 2026-09-06 10:10-10:12 |
+|---|---|---|
+| pre-cook `A159EDFD` | 2 of 2 | 2 of 2 |
+| post-cook `2AFD2DDB` | **0 of 7** | **4 of 4** |
+
+**The split was by TIME, not by BINARY** - and the control could not see that, because it was run at
+21:12 against failures that all sat in 21:07-21:10. **It answered "does the system work now?" and was
+read as answering "which side differs?".**
+
+⚠ **The arithmetic flattered the wrong answer, which is why this needs writing down.** At `A47`'s
+recorded ~2-in-5 bifurcation rate, `P(7 consecutive failures) = 0.4^7 ~ 0.16%`, which reads as
+"far too unlikely to be chance". **That computation assumes the failures are INDEPENDENT - and
+clustering was precisely the hypothesis it was being used to dismiss.** An independence assumption
+smuggled into a significance argument will always favour the hypothesis you already hold.
+
+**THE RULE: when an A/B is decided by a validity gate that is known to be environmentally flaky,
+the arms must be INTERLEAVED AND BRACKETED - `A,B,B,A` at minimum - not run as one block of B
+followed by one A.** `G186` already required that ordering to defeat *warm-up* bias in a timing
+prior; this is the same rule biting on a **pass/fail gate**, where the cost is higher: attributing a
+bench flake to the product either ships a fix for a defect that does not exist, or parks a good
+milestone behind a phantom.
+
+🔑 **And the cheap escape hatch that made the correction possible: BOTH SIDES WERE ARCHIVED.** Because
+the pre-cook quartet had been rescued before the cook (`G121`) and the post-cook quartet archived
+after it, the entire A/B could be re-run two days later **with the exact artifacts**, on the exact
+axis, with no rebuild and no reconstruction. **An archived artifact is what turns "I was wrong" into
+a measurement instead of an argument.**
+
+⛔ **What is NOT established, and was not chased (`G120`): the cause of the 09-04 cluster itself.**
+Named and not adopted - the box was at 57% CPU / 5.3 GB free immediately after a cook plus two full
+builds, and `G97`'s second `UnrealEditor` was resident. The milestone question was *"is this a phase B
+defect?"*, and that is answered **no**, by measurement; the cluster's own mechanism does not need to
+be answered to answer it.

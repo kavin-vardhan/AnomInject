@@ -357,6 +357,41 @@ which is recorded in place rather than silently overwritten.*
       box hitches, `IAI.Capture.TargetMask 0` is the FIRST knob to turn off, and `G-R7(ii)` is the
       gate that catches it here.*
 
+### 🆕 `m49` PHASE B — THE GPU DRAWN-COUNT: three boxes, and one of them needs the cook
+
+⚠ **Phase B changes a GLOBAL SHADER and its parameter struct, so it CANNOT ride a code-only hot-swap
+(`G129`).** A build carrying phase B's source against a stale container does not merely mis-measure —
+it **cannot start** (`Missing global shader … permutation 0`). The shader-presence gate in
+`setup-runbook` §8.6 step 3.7 is therefore mandatory for this cook, and it is the boot itself.
+
+- [ ] 🚨 **`target_drawn_pixels` IS PRESENT ON EVERY ANOMALY ENTRY, and on a hide-class event it
+      reads `0` while `target_pixels` reads `> 0`.** *That pairing is the renderer's own statement
+      that the object is absent from the picture.* ⛔ **It is a READING, not a veto — `observable` does
+      NOT depend on it** (session 077 measured a labelled hide frame reading `drawn == count` whose
+      pixels were nonetheless the HIDDEN value, so `drawn > 0` does not establish presence; see
+      journal 077 §2 and `architecture.md`). ⛔ **A `0` where the target is NOT measurable at all is
+      WRONG — it must be `-1`.** On a Nanite target there is no custom-depth silhouette (`G134`), so
+      there is no drawn count either, and `0` would assert *"measured, and absent"*, which is the
+      `MEASURED_ZERO` vs `NOT_MEASURED` confusion `m26` exists to prevent.
+- [ ] 🚨 **`run_summary.json` → `frames_drawn_unexpected` reads `0`.** *It counts labelled hide-class
+      frames where the GPU still found the target's own depth front-most.* ⚠ **That is a DEPTH
+      statement and it does NOT by itself mean the hide failed** — `m45` silences the main pass and
+      the depth pass through separate flags, so the depth can linger for a frame while the picture is
+      correct (measured, session 077). **A non-zero value is a FINDING TO EXPLAIN — check the pixels
+      before concluding anything — not an automatic STOP, and never a label change.**
+      **Its can-fail proof is the bench lever
+      `IAI.Bench.HideOmitDepthPassSilencing 1`, which must drive it non-zero; without that leg having
+      been run at least once on this binary, a zero here is blindness rather than a reading (`G96`).*
+- [ ] 🚨 **`frames_exposure_dip` and `frames_exposure_dip_suppressed` ARE READ TOGETHER.**
+      *`exposure_dip` now requires the drop to survive with every live target's silhouette excluded,
+      so a disappearing anomaly no longer marks its own frames. **Zero-and-zero is a session with no
+      exposure movement; zero-and-non-zero is the rule doing its job.*** ⛔ **A zero dip count on a
+      leg with the game's auto-exposure LIVE is a failure of the detector, not a quiet success** —
+      that is `m48`'s own prove-it-can-fire gate and phase B does not retire it.
+- [ ] **`run_summary` key count is 68** (`65` at `m50`, plus `target_drawn_pixels_measured`,
+      `frames_drawn_unexpected`, `frames_exposure_dip_suppressed`) **and `annotation.json`'s key set
+      matches the README's own field table.** *Phase B adds NOTHING to `annotation.json`.*
+
 - [ ] 🚨 **THE EDITOR TARGET BUILDS, EXIT 0 — RUN IT BEFORE THE COOK, NOT AFTER.**
       `Build.bat StackOBotEditor Win64 Development -Project=<uproject> -WaitMutex`
       *The cook runs on EDITOR binaries (`G47`, runbook §8.6 step 3.5), and the editor target is
