@@ -3877,7 +3877,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 				continue;
 			}
 
-			bool bObservable = bLabelled && bHeld && Px >= ObservableMinPixels;
+			const bool bObservable = bLabelled && bHeld && Px >= ObservableMinPixels;
 
 			bool bKnownId = false;
 			const bool bHideClass = Snap->Fires.IsValidIndex(i)
@@ -3886,15 +3886,19 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 				? Snap->TargetDrawnPixels[i] : AnomalyLabel::GTargetPixelsUnmeasured;
 			if (bHideClass && bLabelled && DrawnPx > 0)
 			{
-				bObservable = false;
 				++FramesDrawnUnexpected;
 				UE_LOG(LogAnomalyCapture, Warning,
 					TEXT("Capture(m49b): DRAWN-UNEXPECTED session_index=%d id=%s target=%s target_pixels=%d ")
-					TEXT("target_drawn_pixels=%d - this frame is LABELLED as a hide, the silhouette is present, ")
-					TEXT("and the GPU says the target's own depth is still the scene's front-most depth there, ")
-					TEXT("so the hide did not take. observable reads false. This counter is the only reading ")
-					TEXT("that separates 'the hide worked' from 'the label says it worked', and it is what the ")
-					TEXT("m45 IAI.Bench.HideOmitDepthPassSilencing lever exists to make fire."),
+					TEXT("target_drawn_pixels=%d - this frame is LABELLED as a hide and the target's own depth is ")
+					TEXT("STILL the scene's front-most depth there. That is a DEPTH statement and it does NOT ")
+					TEXT("establish that the target is in the PICTURE: m45 hides by dropping the MAIN pass, and ")
+					TEXT("the depth-pass silencing is a separate flag, so a frame can carry the target's depth ")
+					TEXT("while the picture correctly does not contain it. MEASURED on this bench (session 077): ")
+					TEXT("a frame reading drawn == count had in-bbox mean luminance 191.5 against a hidden band ")
+					TEXT("of 191.5-192.1 and a visible band of 167-168 - the object was ABSENT from the picture. ")
+					TEXT("SO THIS DOES NOT TOUCH observable: deleting a true positive is dataset loss, and m26's ")
+					TEXT("admit bias governs. It is a READING, and the m45 IAI.Bench.HideOmitDepthPassSilencing ")
+					TEXT("lever is what proves it can fire."),
 					Snap->SessionIndex, *Snap->Fires[i].Id.ToString(), *Snap->Fires[i].Target, Px, DrawnPx);
 			}
 
