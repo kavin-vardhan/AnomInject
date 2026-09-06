@@ -11,7 +11,119 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> 🏁🏁 **SESSION 076, 2026-09-04 — `m50` IS SHIPPED AND ON `master` (`7ecdf5f`, pushed). ALL TEN
+> 🅿🅿 **SESSION 077, 2026-09-04 → RESUMED 2026-09-06 — `m49` PHASE B IS BUILT, COOKED, FULLY GATED
+> AND **PARKED, NOT MERGED**, ON BRANCH `m49-phase-b` (`8ebdfd8`, pushed). EVERY STACKOBOT GATE AND
+> EVERY LYRA GATE PASSES; **ONE PRE-DECLARED FALSIFIER (`F2`) FIRED ON LYRA AND ITS INTENT IS
+> REFUTED BY THE PIXELS**, so the branch waits on a one-line ruling rather than being merged by the
+> implementer who tripped it. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND
+> IS SUPERSEDED WHEREVER THEY DISAGREE.** 🅿🅿
+> **Cold start: `docs/sessions/2026-09-04-077-m49-phase-b.md` — §1 the state read, §2 the pose
+> finding, §3 the gates, §4 Lyra, §5 the disposition — then
+> `docs/predictions/2026-09-04-m49-phase-b.md` INCLUDING ITS AMENDMENT 1.**
+>
+> ⚠ **THE WATCHER LOST THIS SESSION MID-TURN ON 2026-09-04 AT 21:14 AND IT WAS RESUMED ON 09-06.**
+> `master` is **`21c1e0d`, UNTOUCHED and == `origin/master`**; the checkout is back on `master` and
+> the staged bench pair is back to the `master` A-side **`A159EDFD`** + the `m46` container.
+>
+> 🚨 **THE COOK HAPPENED AND IT IS THE FIRST SINCE `m46`.** Container quartet
+> **`67EA1FE0` / `2CEFB8F4` / `E03C6610`** + `A16A18A8` / `C70ECDAA` (both `global.*` **byte-unchanged**
+> — the plugin's global shaders live in the PROJECT container, and the evidence the shader landed is
+> the cook log naming `FAnomalyVisibleMaskPS` + `FAnomalyMaskReduceCS` at 2 permutations each **and
+> THE BOOT**, not a string scan). Cooked exe **`2AFD2DDB`**; the gate binary is **`B8AC65D8`** (the
+> same container + a code-only fix). ⚠ **The PRE-cook quartet had NEVER been archived and was rescued
+> before the cook** — `m46-container-m50exe-A159EDFD\`, and it is what made §2's correction possible.
+>
+> 🎯 **PHASE B AS BUILT: `AnomalyVisibleMask.usf` gains RT1** = the tag where
+> `|CustomDeviceZ − SceneDeviceZ| ≤ DepthBias`; `AnomalyMaskReduce.usf` reduces **both textures in ONE
+> dispatch**, stride **5 → 6** with **indices 0..4 UNCHANGED**, so `MASK-TIE`, the PNG, `target_pixels`,
+> `bbox_drawn_px`, ONSET and pairing are untouched by construction. Rows gain **`target_drawn_pixels`**
+> (**`-1` = unmeasured**), `run_summary` **65 → 68**.
+>
+> 🚨🚨 **THE MILESTONE'S OWN GATE LEG REFUTED THE BRIEFED DESIGN, AND THAT IS THE HEADLINE.** The brief
+> said hide-class `observable` should require `DrawnCount == 0`. A smoke leg then read
+> `target_pixels 62599` **with `target_drawn_pixels 62599`** on a labelled `blinking` frame — and the
+> pixels said **in-bbox mean luminance 191.541 against a HIDDEN band of 191.5–192.1 and a VISIBLE band
+> of 167–168: the object was ABSENT from the picture.** `m45` silences the main pass and the depth pass
+> through **separate flags**, so a frame can carry the target's depth while the picture correctly does
+> not contain it. 🔑 **THE PREDICATE IS ASYMMETRIC: `DrawnCount == 0` is strong evidence of ABSENCE;
+> `DrawnCount > 0` is NOT evidence of PRESENCE.** Using it symmetrically **deleted a TRUE positive
+> label** — dataset loss, the direction `m26`'s admit bias forbids. ⇒ **the veto is REMOVED
+> (`1c3d62c`); `target_drawn_pixels` and `frames_drawn_unexpected` ship as MEASUREMENTS and
+> `observable` keeps the `m49` A1 rule unchanged.** Every client-facing doc now says so.
+>
+> 🧪 **GATES — 21 legs, both tick orders, on `B8AC65D8`.** **`PB-1` 96 rows, 0 violating** ·
+> **`PB-2` 128 rows, max abs diff `0`** (exactly equal, not merely inside the 1 % band) ·
+> **`PB-3` probe tag 255 `drawn == count` on 174 of 174** armed frames incl. both SP50 ·
+> 🚨 **`PB-4` the can-fail lever drives `frames_drawn_unexpected` to 16 in BOTH orders against 0 of 96
+> natural**, so the zeros are readings (`G96`) · **`PB-5c` AE-ON 9 → 6, still firing** (`F3` clean) ·
+> **`PB-5b` texture class 0/0 suppressed** (`F4` clean) · **`PB-6` `P-C7 v3` PASS on all 8 pairs** —
+> undeclared differing fields **NONE**, `frame_indices` **IDENTICAL 4 of 4 on all 8**,
+> `annotation.json` added 0 removed 0 · **`PB-7`** `m44_gates` ALL PASS on 10 legs stray 0 ·
+> **MASK-TIE 512 lines 0 MISMATCH** · **TARGET-PIXELS TIE 294 rows 0 MISMATCH** · pairing
+> **`NEITHER 0 · PREVIOUS 0` on all four incl. SP50** · `m50` **G1 0 violations, G2 lever 22 both
+> orders, G6 exhausted 0** · black-frame PASS · **both targets exit 0, ZERO warnings** ·
+> **`DRAWN-SUBSET VIOLATIONS 0`** everywhere.
+>
+> 🏁 **LYRA (worktree `1c3d62c`, LyraEditor exit 0):** **`LG-9` PASSES the gate `PB-8` was written
+> for — `target_drawn_pixels` reads `-1` on 43 of 43 rows and ZERO rows read `0`** (`F8` clean), with
+> 6 events delivered, `unmeasurable_targets_admitted 6`, `census_unmeasurable_nanite 57`. Leg A:
+> MASK-TIE 36/0, `TAG-OWNER VIOLATIONS 0` on both legs, `LG-3` reader named in the artifact,
+> verifier **`PASS 5 · SHIFT 0 · NOT-VISIBLE 0 · NOT-MEASURABLE 1`**, texture-class `drawn == px`
+> exactly.
+>
+> 🅿 **WHY IT IS PARKED — `F2` FIRED ON LYRA LEG A: `frames_drawn_unexpected = 7` on a NATURAL leg.**
+> Seven hide-class rows read `drawn` **304–916 against silhouettes of 113k–146k — 0.27 % to 0.81 %**.
+> **The pixels refute `F2`'s intent on those very frames**: hidden frames read **87.4 / 87.5 / 89.1 /
+> 91.0** against a visible band of **94.5–97.0**, so **the hides took**. Three regimes now measured:
+> **StackOBot arbiter 0 of 96 · the depth lever 100 % on 16 of 16 · Lyra 0.27–0.81 %.**
+> ⛔ **NO MECHANISM ASSERTED** — Lyra runs a temporal upsampler and the drawn test compares an
+> output-resolution RT against an internal-resolution depth buffer through `m46`'s mapping, so a
+> sub-pixel silhouette-edge residual is a **CANDIDATE, not established**. ✅ **NO LABEL IS AFFECTED**
+> — that is exactly what the `1c3d62c` fix buys, and **had the briefed veto shipped, these seven
+> frames would have lost a TRUE positive label on a real host.**
+> 🔑 **It is reported as RED rather than reasoned away, because a falsifier that its own tripper may
+> reinterpret is not worth having (`G253`).** ⚠ Contrast `F6`, which WAS amended: `F6` contradicted
+> journal 073's **pre-existing** record that census tag relabelling is run-to-run and bijective, so
+> amending it is a correction; amending `F2` after it fired would be laundering. **Whether Lyra is
+> inside `F2`'s scope is genuinely ambiguous** — `F2`'s wording is host-agnostic, `PB-1`'s scope
+> sentence is the four StackOBot legs, and `PB-8` never mentioned the counter — **and that is a
+> ruling, not an implementer's call.**
+>
+> 🔻 **TWO PRE-DECLARATIONS WERE MEASURED WRONG IN THE STRICT DIRECTION AND ARE AMENDED (append-only,
+> `AMENDMENT 1`): `PB-5a`'s predicted `0/0/0/0` read `1/0/0/0`** — and the one surviving mark is
+> **CORRECT**: the picture OUTSIDE the target box fell to **72.773** against a window mean of ~76.1,
+> a genuine **4.3 %** drop agreeing with the plugin's own 4.31 % to two decimals, while the inside-box
+> value stayed constant at 93.07. **The prediction assumed a pinned bench has no luminance excursions
+> of its own; it does.** 🔑 And the miss is worth more than the prediction: **the surviving mark IS the
+> post-fix prove-it-can-fire on a pinned leg**, which a clean four-way zero could not have supplied.
+> **`F6` was too strong** (see above); the comparator was ALSO wrong — it compared `frame_index`/`t`/
+> `start_frame` for EQUALITY, which **`P-C7 v2` explicitly forbids**; measured, each is a **single
+> constant delta** per pair and `mask_value` is **bijective on all 8**.
+>
+> 🚨 **THE POST-COOK POSE SCARE WAS THE BENCH, NOT THE BUILD — AND THIS SESSION'S OWN 21:13
+> CONCLUSION WAS WRONG (`G257`).** Seven consecutive `A63` pose discards followed the cook, and a
+> pre-cook control run **at 21:12, AFTER the 21:07–21:10 failure window closed**, accepted on attempt
+> 1 — which read as a clean A/B on the binary. **Re-run on 09-06 with the EXACT archived artifacts,
+> interleaved `A,B,B,B,B,A`: the same post-cook exe and container accepted 4 of 4 on attempt 1.**
+> ⇒ **the split is by TIME, not by binary; the cook and Phase B are both refuted as causes.** The
+> campaign then ran **21 legs with 26 attempts and ZERO halts** (~19 % discard, inside `A47`'s band).
+> 🔑 **A control that is not CONCURRENT with the failures cannot control for a time-varying confound**
+> — and the `0.4^7 ≈ 0.16 %` arithmetic that made it look decisive **assumed independence, which was
+> the very hypothesis it was being used to dismiss.** ⛔ The cluster's own cause is **NOT established
+> and was not chased** (`G120`).
+>
+> ✅ **A STALE DELIVERY GATE WAS FOUND AND FIXED WHILE READING THE CENSUS: `PRE-DELIVERY-CHECKLIST`
+> §1.1 demanded "exactly 15 `census_*` keys" and the real count is 16** — wrong since `m49` A1 added
+> `census_host_pp_customdepth_reader_names`. **It would have FAILED A CORRECT BUILD**, and it is the
+> third stale literal count in that file.
+>
+> 🎯 **NEXT: `m51` — release hardening from the 2026-09-06 external review; plan brief 078-01 follows.
+> Delivery gates on Lyra, card Section G/F on Bates and the client cook come AFTER `m51`.**
+> ⛔ **Do not start any of it unprompted.** ⏳ **AWAITING A RULING: merge `m49-phase-b` or not** — the
+> branch is complete, gated and pushed; a one-line ruling flips it either way.
+>
+> ---
+>> 🏁🏁 **SESSION 076, 2026-09-04 — `m50` IS SHIPPED AND ON `master` (`7ecdf5f`, pushed). ALL TEN
 > GATES PASS IN BOTH TICK ORDERS, THE CAN-FAIL LEVER FIRES 22 TIMES IN EACH, AND THE `LG-9` SHAPE IS
 > REPRODUCED **AND REMOVED** ON BOTH A BENCH FIXTURE AND A REAL GAME. THIS IS THE CURRENT "YOU ARE
 > HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁

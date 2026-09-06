@@ -211,10 +211,18 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       it, so this fixture cannot be improvised at runtime.
 
 - [ ] **Read back the census keys from the delivered `run_summary.json`: there must be exactly
-      15 `census_*` keys** (`census_frames`, `_cycles`, `_candidates`, `_zero`, `_below_floor`,
+      16 `census_*` keys** (`census_frames`, `_cycles`, `_candidates`, `_zero`, `_below_floor`,
       `_above_ceiling`, `_excluded_translucent`, `_fires_fallback_all`, `_fires_partial_fallback`,
-      `_fires_unseen_candidates`, `_host_pp_customdepth_readers`, `_unmeasurable_nanite`,
+      `_fires_unseen_candidates`, `_host_pp_customdepth_readers`,
+      **`_host_pp_customdepth_reader_names`**, `_unmeasurable_nanite`,
       `_unmeasurable_tag_failed`, `_unmeasurable_hidden`, `_unmeasurable_not_yet_measured`) **and
+      🔻 **CORRECTED 2026-09-06 (session 077): this box said FIFTEEN and listed fifteen, and it has
+      been WRONG SINCE `m49` A1**, which added `census_host_pp_customdepth_reader_names` (the `LG-3`
+      reader names — journal 073 records `run_summary` 59 → 63 adding it). **Measured on both sides
+      of the phase B cook: 16 and 16, added 0 removed 0.** *A literal count here would have FAILED a
+      correct build — the third time this file has carried a stale literal count, after the
+      `annotation.json` 48-key box below. **The lesson is the one already written there: phrase the
+      check against a single source, not against a number copied at the time of writing.*** **and
       `annotation.json`'s key set matches the field table in `client-readme.md` §8.2/§8.3 exactly.**
       *A 16th census key, or any `annotation.json` key not in that table, is a contract change the
       client was not told about.*
