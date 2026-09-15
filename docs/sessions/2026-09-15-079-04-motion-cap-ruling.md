@@ -1,5 +1,22 @@
 # 2026-09-15 — 079-04 — `MOTION_CAP` ruled to the margin bound; re-proved; frozen for Codex review
 
+> 🔻 **DATED CORRECTION, 2026-09-15 (079-06), AFTER CODEX'S INDEPENDENT MERGE REVIEW. THIS JOURNAL IS
+> KEPT AS WRITTEN; WHAT FOLLOWS IS WHAT IT TURNED OUT THE EVIDENCE DID NOT SUPPORT.**
+> **`MOTION_CAP = 0.040` IS WITHDRAWN AND THE CONSTANT IS DELETED FROM THE TOOL.** Both of §1.1's
+> bounds fall with it. Its positive anchor — *"`A2L_LEGA` full 6/6 at δ = 0, +1, −1"* (P3, §2) — was
+> scored on the **EVENT TOKEN**. Underneath those tokens the per-run, per-edge returns are **8/8, 7/8
+> and 6/8 correct edges**: at δ=+1 `run[29..30]` returned `(−1, +2)`, and at δ=−1 `run[8..9]` and
+> `run[27..28]` returned `(−2, −1)` and `(−4, −1)` where `(+1, +1)` was correct — the last two while
+> the EVENT printed the expected `ONSET-SHIFT(+1)` **from its other run**.
+> ⚠ **§1.1's fragility argument was RIGHT ABOUT THE WRONG THING:** it worried that (a) rested on a
+> single value; the real fault was that (a) was **not a measurement of what it claimed to measure**.
+> ⚠ **§3's "zero false shifts up to `M_med` 0.085" was also taken at the event token** and does not
+> survive as stated — the guard-disabled per-edge cohort shows **19 wrong cells in 780**.
+> ✅ **What DOES survive, unchanged:** §1.2 (no middle tier, and its argument), §1.3 (the synthetic
+> ladder is non-binding), §1.4 (mask-derived onsets are circular, so the known answer must be
+> injected), §2.2's `M50L_LG9` refusal split, and every `M49_GEDGE_*` reading.
+> **Read `docs/sessions/2026-09-15-079-06-per-edge-validity-and-honest-scoring.md` and `G262` next.**
+
 **VERDICT: GREEN.** P1, P2, P3, P5, P6 and P8 all read as predeclared.
 **One constant changed and nothing else in the tool.** `measure_label_offset.py` byte-unchanged;
 `Source/`, `Shaders/`, fixtures, schema, harness untouched; no capture, build or cook.

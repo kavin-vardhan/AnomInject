@@ -1,5 +1,18 @@
 # 2026-09-15 — 079-03 — raw-`d` gate + a MEASURED camera-motion envelope
 
+> 🔻 **DATED CORRECTION, 2026-09-15 (079-06), AFTER CODEX'S INDEPENDENT MERGE REVIEW. THIS JOURNAL IS
+> KEPT AS WRITTEN.** The **RECOVERY TABLE** it produced — and therefore the whole camera-motion
+> envelope, `MOTION_CAP` included — was scored on the **EVENT TOKEN** by `m079_shift_recovery.py` v1,
+> which also **dropped refused events from the denominator**, so losing coverage RAISED the score.
+> Re-scored per run and per edge on a fixed cohort, `A2L_LEGA`'s *"FULL (6/6, 6/6, 6/6)"* is
+> **8/8, 7/8 and 6/8 correct edges**, with two runs returning `−2` and `−4` where `+1` was correct.
+> **`MOTION_CAP` is WITHDRAWN and DELETED**; judgeability is now decided per edge on a local,
+> regional statistic (`REGION_CAP`), derived from a cohort that cannot shrink.
+> ✅ **What survives unchanged:** §1's finding that mask-derived onsets are **CIRCULAR** (`m49` A1
+> defines `affected_frames` as the observable subset), which is why the known answer is injected at
+> all; the refutation of ring subtraction; and the raw-`d` statistic itself.
+> **Read `docs/sessions/2026-09-15-079-06-per-edge-validity-and-honest-scoring.md` and `G262` next.**
+
 **VERDICT: GREEN.** P1–P7 all read as predeclared. **`tools/verify_capture.py` only;
 `measure_label_offset.py` byte-unchanged; `Source/`, `Shaders/`, fixtures, schema, harness
 untouched. No capture, build or cook.** Nothing merged — 079-04 merges after chat reads this and

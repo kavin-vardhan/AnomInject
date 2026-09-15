@@ -6676,6 +6676,23 @@ ring subtraction "stops camera motion ... from faking a manifestation". The gate
 raw, **uncompensated** one. On a pinned camera the two coincide; on a moving camera they diverge
 without bound. **Constants are calibrated against a statistic, not against a codebase.**
 
+🔻 **APPENDED 2026-09-15 (079-06), after Codex's independent review - TWO PRECISIONS, NEITHER OF
+WHICH CHANGES THE RULE.** *(Append-only: the text above stands as written.)*
+
+**(1) "tau is UNBOUNDED" is imprecise and the precise version is the useful one.** `tau = max(median +
+6*MAD, FLOOR)` over values in `[0,1]`, so the median is at most 1 and the MAD at most 0.5: **`tau` is
+bounded, at 4.0.** The fault is not that `tau` has no bound - it is that **`tau`'s bound (4.0) is
+FOUR TIMES the bound of the statistic it is compared against (1.0)**, so the comparison `d > tau` has
+an unsatisfiable region. The diagnostic question in THE RULE above is already the right one and is
+unaffected: *what is the maximum value the thresholded statistic can attain, and can the threshold
+exceed it?* **Ask it of the two bounds, not of one bound and an intuition.**
+
+**(2) The scope of what this reproduction explains.** The banked heavy-motion session supplies two
+events where `tau` exceeded 1.0, and that is a complete explanation **for those two**. It is a
+**mechanism class** for the owner's M2 field observations, **not a measurement of them**: no office
+reading of `tau` or of the regional change exists, so how many of those events this mechanism
+accounts for is **UNKNOWN and still owed**. ⛔ Do not write that the field misfire "was" this.
+
 ## G260 - a SPATIAL ring does not cancel PARALLAX motion, and subtracting it destroys signal because
 anomalies bleed outside their own bbox (2026-09-15, session 079-02/03)
 
@@ -6750,3 +6767,47 @@ AT WHATEVER PATH YOU HAND IT.** A repo-scoped convention plus a path argument is
 mass edit of a neighbouring repo, and the edit will look like compliance. **The cheapest guard is the
 one that worked here - read the tool's own count and stop when it is not the count you intended**
 (`G115`'s habit, applied to a different tool).
+
+## G262 - a SUMMARY TOKEN can hide a per-unit failure, and a scorer that reads the token inherits the
+blindness: score the FIXED COHORT of the smallest unit the tool actually decides (2026-09-15, 079-06)
+
+The `m49` label-pixel gate decides **per edge** - an anomaly's onset and its end are two separate
+searches, on two separate regions, against two separate thresholds - and then rolls several edges up
+into one run token and several runs up into one EVENT token. Its calibration checker
+(`m079_shift_recovery.py` v1) took a real session, moved every annotated window by a known +/-1, and
+scored **the event token**. On that basis 079-03 reported `A2L_LEGA` as **FULL RECOVERY, 6/6 events
+at each of three deltas**, and 079-04 shipped a constant resting on it.
+
+**Codex's independent review re-ran the identical shifts and read the per-edge returns underneath the
+tokens: 8/8, 7/8 and 6/8 correct edges, not 6/6 events.** Three concrete cells:
+
+| delta | run | correct | returned | what the EVENT printed |
+|---|---|---|---|---|
+| +1 | `[29..30]` | `(-1, -1)` | `(-1, **+2**)` | `ONSET-SHIFT(-1)` - the wrong end hidden behind the right onset |
+| -1 | `[8..9]` | `(+1, +1)` | `(**-2**, -1)` | `ONSET-SHIFT(+1)` **from the event's OTHER run** |
+| -1 | `[27..28]` | `(+1, +1)` | `(**-4**, -1)` | `ONSET-SHIFT(+1)` **from the event's OTHER run** |
+
+**Two distinct hiding mechanisms, and the second is the nastier.** Within a run, a correct onset shift
+ABSORBS an incorrect end. Across runs, an ENTIRELY UNREAD run (`shift beyond the measurable range`)
+is replaced in the summary by a sibling run's correct token - so the session reports the answer the
+test expected while a third of its units were wrong or unread.
+
+**And the scorer made it worse by DROPPING refusals from the denominator.** Events reading
+NOT-MEASURABLE were excluded from the rate, so **losing coverage RAISED the score**. That is the
+opposite of the direction a validity instrument must fail in: the harder the case, the better it
+looked.
+
+**THE RULE.** Score the **FIXED COHORT of the smallest unit the tool actually decides**, fixed from
+the UNPERTURBED input so it cannot shrink, and publish **recovered / wrong / refused separately** with
+the refusal reasons. Never let a refusal leave the denominator. If a summary token exists, it is a
+**convenience for a human**, never the unit of measurement - and if the instrument reports at a
+coarser granularity than it decides at, **make it print every unit** (this one now prints every run
+and every edge, and an event whose edges disagree about readability is `PARTIAL`, not `PASS`).
+
+⚠ **The tell that was there all along:** v1's own `score()` docstring argued carefully about how to
+treat `NOT-MEASURABLE` at the EVENT level. **The care went into the wrong granularity** - a sign the
+unit had been chosen by what the output happened to print rather than by what the code decides.
+
+🔑 **Sibling of `G146`** (a gate that can pass vacuously) and of `G96` (a detector never proven to
+fire). This is the third shape: **a gate that can pass while a MEASURABLE FRACTION of its own units
+fail, because the reporting layer is coarser than the deciding layer.**

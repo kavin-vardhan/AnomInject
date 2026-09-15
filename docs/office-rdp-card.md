@@ -1257,9 +1257,28 @@ python <delivery-root>\host-tools\verify_capture.py --label-pixel-gate --report-
 python <plugin-repo>\tools\verify_capture.py --label-pixel-gate --report-only --dir <sessionDir>
 ```
 
-🚨 **`--report-only` IS NOT OPTIONAL HERE.** It prints every reading and **always exits 0**, so the
-step cannot end early on a non-zero exit before the per-event lines have been read. The exit code is
-not what this section is collecting; **the lines are.**
+🚨 **`--report-only` IS NOT OPTIONAL HERE.** It prints every reading and **suppresses the
+disagreement exit code**, so the step cannot end early before the per-event lines have been read. The
+exit code is not what this section is collecting; **the lines are.**
+
+> 🔻 **PROSPECTIVE CORRECTION, 2026-09-15 (079-06) — THIS SECTION HAS NOT BEEN RUN SINCE, AND THESE
+> THREE ITEMS WERE STALE BEFORE IT WAS.** The section is otherwise unchanged and is still HELD.
+> **(1)** *"always exits 0"* was never true and is corrected above: `--report-only` suppresses only
+> the **verdict** code (2). A session it **cannot run at all** — no `labels.jsonl`, unreadable frames,
+> no `annotation.json` — still exits **3**, in single-session mode and, since 079-06, in `--all` too.
+> **An exit of 3 means NOTHING WAS READ; it is not a failure of the dataset and it is not a pass.**
+> **(2)** The header field names in G-3 below are from the pre-079 tool. They now read
+> **`region mode`** (not `masks present`), **`clean-frame pool`** (not `baseline frames`), plus new
+> **`judgeability`**, **`regional change cap`** and **`whole-frame change M_med`** lines.
+> **Transcribe the header block as printed** rather than looking for the old names.
+> **(3)** The verdict vocabulary in G-3 item 3 gained **`PARTIAL`** (some edges of the event read and
+> agreed, others refused — neither a pass nor a failure), and the summary/VERDICT lines now
+> distinguish `PASS (n of N events fully checked)` · `PASS-PARTIAL (…)` · **`UNREAD (0 of N events
+> checked)`** · `FAIL (…)`. **`UNREAD` must be transcribed as loudly as a failure** — it means the
+> instrument read nothing at all.
+> ⚠ **The pre-declared reading below is UNCHANGED and is NOT being adjusted.** It was written on
+> 2026-09-04 against a different build of this checker; whether it still applies is exactly what a
+> run would decide, and pre-editing it to match a newer tool would be laundering.
 
 ⚠ **PROVE IT CAN FAIL FIRST — one extra command, and it takes seconds:**
 

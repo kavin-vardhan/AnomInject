@@ -164,37 +164,64 @@ produces a lot of confident wrong lines.
 
 **What each verdict means:**
 
-* **`PASS`** — the labels and the pixels agree on where this anomaly starts and ends.
+The checker works **edge by edge** — each anomaly's start and its end are judged separately, and each
+one can be read or refused on its own. Every edge it looked at is printed.
+
+* **`PASS`** — every edge of this anomaly was read, and the labels and the pixels agree on all of them.
 * **`ONSET-SHIFT(n)` / `END-SHIFT(n)`** — they disagree, by `n` frames, signed. Negative means the
   **pixels changed before the label said so**.
-* **`NOT-VISIBLE`** — the labelled region shows no pixel change at all across the claimed window.
+* **`PARTIAL`** — some edges of this anomaly were read and agreed; others could not be read. **It is
+  neither a pass nor a failure**, and the summary counts it separately from both.
+* **`NOT-VISIBLE`** — **no detectable above-threshold change at either edge**, inside the frames the
+  checker searched, in a region it judged readable. ⚠ **This is NOT a guarantee that nothing is
+  there**: a real change smaller than that region's own learned threshold reads exactly the same way.
 * **`NOT-MEASURABLE(reason)`** — **the checker could not form an opinion, and says why, with numbers.
   This is neither a pass nor a failure; it is an unread surface.** The common reasons:
-  * **`camera motion`** — see below.
-  * **`region covers the picture`** — the label's box is ~the whole frame, so there is no "outside"
-    to compare it against and nothing can be localised.
-  * **`threshold unsatisfiable`** — the scene is changing so much that no pixel change of any size
-    could clear the detection threshold. The checker reports this as a broken instrument rather than
-    emitting a verdict.
-  * **`baseline`** — too few clean frames near that anomaly to calibrate against.
+  * **`regional image change`** — see below.
+  * **`region covers the picture`** — the label's box, as a rectangle, covers **90 % or more of the
+    frame**, so there is nothing left to localise it against.
+  * **`threshold unsatisfiable`** — the region is changing so much on its own that no pixel change of
+    any size could clear the detection threshold. The checker reports this as a broken instrument
+    rather than emitting a verdict.
+  * **`ambiguous edge`** — two frames in the search window changed by comparable amounts, so picking
+    the larger one would be a coin flip.
+  * **`baseline`** — too few clean frames near that edge to calibrate against.
+  * **`end truncated`** — the anomaly runs to the last frame of the session, so its end has nothing
+    after it to compare against.
 
-> ⚠ **THIS CHECK GIVES A VERDICT ONLY WHEN THE CAMERA IS NEARLY STILL. UNDER NORMAL GAMEPLAY MOTION
-> IT REPORTS `NOT-MEASURABLE` INSTEAD, AND PRINTS THE MOTION NUMBER IT MEASURED.** When the camera is
-> moving, *every* pixel in a region changes from frame to frame whether or not anything is wrong, and
-> the checker can no longer tell an anomaly apart from the motion.
+You will also see **`(bbox-only)`** on some lines. It means the checker used **the bounding box the
+labels supplied**, because no per-frame mask was available for that event — so anything inside that
+box counts, not just the object.
+
+> ⚠ **THIS CHECK GIVES A VERDICT ONLY WHERE THE LABELLED REGION IS NEARLY STILL WHEN NOTHING IS
+> HAPPENING. UNDER NORMAL GAMEPLAY IT REPORTS `NOT-MEASURABLE` INSTEAD, AND PRINTS THE NUMBER IT
+> MEASURED.** When the picture inside the box is already changing every frame, the checker can no
+> longer tell an anomaly apart from that change.
 >
-> We measured exactly where that happens rather than guessing: we took sessions, **deliberately moved
-> the labels by one frame**, and found the motion level at which the checker could no longer spot that
-> deliberate error. Above it the tool refuses. You will see the number in the header, e.g.
-> `camera motion M_med 0.0801   cap 0.0400`.
+> **What it measures is `m_edge`** — how much *that edge's own region* changes, on the clean frames
+> nearest *that edge*. It is a picture-change number, **not a camera-speed number**: a still camera
+> pointed at a waterfall reads high, and a slow pan across a blank wall reads low.
+>
+> We derived the cut-off rather than guessing it: we took sessions, **deliberately moved the labels by
+> one frame** (the start only, the end only, and both), and scored **every single edge** against the
+> answer we had injected. The cut-off is the level at which no edge came back with a wrong answer.
+> ⚠ **It is a provisional working figure from four sessions, not a validated acceptance limit**, and
+> it will be re-derived as more footage becomes available. You will see it in the header next to the
+> number it is compared against.
 >
 > **Why it refuses instead of just saying "looks fine":** if the checker cannot detect a one-frame
-> error at that motion level, then "no error found" tells you nothing about whether one is there.
-> Reporting a pass in that situation would be worse than reporting nothing.
+> error there, then "no error found" tells you nothing about whether one is there. Reporting a pass in
+> that situation would be worse than reporting nothing.
 >
 > **A session full of `NOT-MEASURABLE` does not mean your labels are wrong** — it means this
 > particular check could not be run on that footage. (An earlier version reported `NOT-VISIBLE` in
 > that situation, which looked like a dataset failure and was not one.)
+>
+> **Read the last line, not just the word `PASS`.** The summary distinguishes
+> `VERDICT PASS (n of N events fully checked)` from `VERDICT PASS-PARTIAL (…)` and from
+> `VERDICT UNREAD (0 of N events checked)`. **`UNREAD` is not a successful check** — it means nothing
+> in that session could be read, and it is reported as loudly as a pass so it cannot be mistaken for
+> one.
 >
 > **So for moving-camera gameplay, use the other two routes instead:** the overlay in step 5, and —
 > in M3 datasets — **the per-frame visibility fields the labels already carry from the render itself**
@@ -205,6 +232,8 @@ produces a lot of confident wrong lines.
 section 8.4), the checker prints what it found next to each event** as `bbox=… obs=…`, so you can see
 at a glance whether an event's box came from the drawn silhouette or from the object's bounds, and
 whether visibility was actually measured for it. Older sessions that carry neither print `n/a`.
+⚠ **Those two are copied straight off your labels — they are what the capture recorded about itself.
+This checker does not measure either of them and does not verify them.**
 
 ## 4. The dashboard, control by control
 
