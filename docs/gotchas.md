@@ -4181,6 +4181,17 @@ NUMBER.** An offset of 1–6 frames is NOT reliably detectable in delivery mode.
 CONFIG CANNOT SELF-VERIFY; ANY DIAGNOSTIC CAPTURE MUST SET `IAI.Capture.Delivery 0`.** This is the
 same shape as `L3` — delivery mode changes what evidence exists, not just what is convenient.
 
+🔻 **CORRECTION 2026-09-15 (session 079), APPENDED NOT REWRITTEN — THE MECHANISM ABOVE IS STALE; THE
+LESSON IS NOT.** *"Delivery mode does not write `labels.jsonl`"* was true when this was written
+(2026-08-21, session 051) and was **superseded the very next day**: session 052 shipped
+`labels.jsonl` **in delivery mode, default ON** (`IAI.Capture.DeliveryLabels` /
+`bWriteLabelsInDeliveryDefault`). A delivery-mode capture from `m12`-era onward **does** carry the
+per-frame bbox and does **not** degrade to FULLFRAME for the reason given above. ⚠ **The measured
+table and the "cannot self-verify" conclusion STAND** — and session 079 found the conclusion is right
+for a reason this entry does not name: the `m49` label-pixel gate misfires on field data because its
+**self-calibrated threshold saturates under CAMERA MOTION** (`G259`), not because the bbox is
+missing. **Do not cite the `labels.jsonl` mechanism when diagnosing a field verifier reading.**
+
 ## G157 — a project setting can make a defect STRUCTURALLY unreproducible, and the clean logs look like health
 
 Both shipped materials were missing `bUsedWithStaticLighting`. On Concorde this drew the ENGINE
@@ -6603,3 +6614,64 @@ in the client README under `target_drawn_pixels` in the client's own words.
 POSITIVE, and a field's name will not tell you which it is.** `m26`'s `MEASURED_ZERO` vs
 `NOT_MEASURED` is the same distinction one level down; this is that distinction applied to a count
 whose zero is trustworthy and whose non-zero is not.
+
+## G259 - a gate proven to FAIL is only HALF proven; it must also be proven to PASS a KNOWN-GOOD REAL
+session, or its calibration can be dead code that only wakes up in the field (2026-09-15, session 079)
+
+`G96` says prove a detector can fire. The `m49` label-pixel gate did that: `--selftest` builds a
+synthetic session, lies about the label by +/-1 at both edges, and the gate reads the shift back with
+the right sign; a region with no change reads NOT-VISIBLE. Seven cases, both directions, both edges.
+**And it was still shipped broken, because nobody ever proved it PASSES a known-good REAL session.**
+
+On the owner's field captures it marked almost every event NOT-VISIBLE or NOT-MEASURABLE. The labels
+were checked by eye and were **correct**.
+
+**The mechanism is a bounded statistic under an unbounded threshold.** The gate thresholds
+`d = fraction of region pixels differing from the previous frame`, so `d` is in **[0, 1]**. It learns
+`tau = max(median(d_clean) + 6*MAD(d_clean), 0.0040)`, which has **no upper bound**. A moving camera
+changes every region pixel every frame, so the CLEAN baseline rises toward 1 and its MAD grows -
+and `tau` climbs past what `d` can ever reach. Measured on a banked Lyra leg: **`tau` 1.0950 and
+1.1938**. At that point `d > tau` is **unsatisfiable**, and NOT-VISIBLE is emitted unconditionally,
+for every event, regardless of the pixels.
+
+**Why no test ever caught it - and this is the part that generalises:**
+
+| regime | clean-frame `d` | `tau` |
+|---|---|---|
+| selftest (`_synth_session`: static grey background, only the target changes) | exactly **0** | `0.0040` = the FLOOR |
+| bench (`CB_GateLevel`, camera pose-pinned by the `B1` gate) | ~**0.0005** | `0.0040` = the FLOOR |
+| field / Lyra (camera moving) | 0.03 - 0.50 | **0.025 - 1.19** |
+
+**`tau` read `0.0040` - `SIGNAL_FLOOR` EXACTLY - on all six historical bench legs, every event, both
+tick orders, all four anomaly types.** The learned term `median + 6*MAD` had **never once determined
+the threshold in any test ever run**. `K_SIGMA = 6.0` was dead code, and the first thing that ever
+exercised it was a client dataset.
+
+**Both test regimes were pinned-camera, and neither could have revealed it.** The synthetic fixture
+inherits its staticness from being easy to draw; the bench inherits its staticness from `B1`, which
+exists for good reasons. **The property that made the tests tractable is the property that hid the
+defect** - `G135`'s shape, now on the camera-motion axis.
+
+Two aggravations worth carrying:
+
+- **The confidence annotation is ANTI-correlated with the failure.** `contaminated` counts baseline
+  frames above `tau`; when `tau` saturates above every baseline value it reads **0**, so the fully
+  broken session printed **no contamination warning at all** while mildly affected sessions printed
+  1-7. **The one signal that would warn a reader goes silent exactly when it should shout.**
+- **The printed sentence becomes false.** An event whose pixels changed by **74 % and 80 %** of the
+  region at its two edges was reported as *"no pixel change above tau anywhere"*. Scoped by `above
+  tau` and therefore literally true; read by a human as *the anomaly is not in the picture*.
+
+**THE RULE.** A gate is validated by a CAN-FAIL proof **and** a KNOWN-GOOD-PASS proof, and the
+known-good case must be **REAL DATA from the regime the gate will actually run in**. When the two
+proofs live in the same regime, they are one proof. Ask of every self-calibrating threshold: **what
+is the maximum value the thresholded statistic can attain, and can the threshold exceed it?** If it
+can, that state is a BROKEN INSTRUMENT and must be asserted as unmeasurable - **never clamped**
+(a clamp turns an impossible test into an absurd one that still fails, and hides it).
+
+**And when a tool borrows constants, it borrows the quantity they were calibrated for.**
+`label_pixel_gate` imported `K_SIGMA`/`SIGNAL_FLOOR` from `measure_label_offset.py`, where they
+threshold `net = raw - ambient_ring` - a **motion-COMPENSATED** quantity whose own docstring says the
+ring subtraction "stops camera motion ... from faking a manifestation". The gate applied them to a
+raw, **uncompensated** one. On a pinned camera the two coincide; on a moving camera they diverge
+without bound. **Constants are calibrated against a statistic, not against a codebase.**
