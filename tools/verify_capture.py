@@ -99,10 +99,27 @@ though the number does not.
 synthetic all-black one. A gate that has never fired is not a gate (G96).
 
 --------------------------------------------------------------------------------------------------
-m49 LABEL-PIXEL GATE  (--label-pixel-gate) - and its PER-EDGE VALIDITY ENVELOPE (079-06)
+m49 LABEL-PIXEL GATE  (--label-pixel-gate) - its PER-EDGE VALIDITY ENVELOPE (079-06) and the
+MASK-MODE SCOPE BOUNDARY (079-07)
 --------------------------------------------------------------------------------------------------
-Per event it checks that the first labelled frame is the first frame whose pixels change, and that
-the frame after end_frame is the first clean one. The statistic is
+🔑 VERDICTS ARE GIVEN ONLY WHERE A PER-FRAME MASK IDENTIFIES THE TARGET'S PIXELS. That is M3
+datasets and bench captures. On a capture that carries only the producer's BOUNDING BOX, this tool
+prints READINGS for a human to look at and NEVER a verdict, and the session ends UNREAD-BBOX-ONLY at
+exit 0.
+
+WHY, AND IT IS A BOUNDARY RATHER THAN A THRESHOLD. This gate asks "did the picture change where the
+label says, when the label says". Inside a MASK the pixels being differenced are known to be the
+target's, so the answer means something. Inside a BOX they are the target AND the floor behind it
+AND whatever the camera swept past. Codex's 079-07 review built the minimal case: a 20x20 patch
+appears on frame 60, an unrelated background scroll happens ONCE at frame 61 inside the labelled
+window, and every clean baseline pair is unchanged. The burst changes 0.4960 of the box against the
+real onset's 0.1600 - so it wins the argmax by 3.1x, clears every dominance and stillness test there
+is, and the tool reported ONSET-SHIFT(+1) on CORRECT labels and PASS on a deliberately LATE one.
+Lowering the cap does not touch it: the false shift survives at cap 0, because the baseline really
+is still. NOTHING IN A BOX SAYS WHICH THING INSIDE IT MOVED, and no threshold can supply that.
+
+Per event, in mask mode, it checks that the first labelled frame is the first frame whose pixels
+change, and that the frame after end_frame is the first clean one. The statistic is
 
     d(k) = the fraction of the edge's REGION whose pixels differ from frame k-1 by > threshold
 
@@ -145,10 +162,25 @@ away and the event printed a confident shift anyway.
 WHERE REGION_CAP COMES FROM - a PROVISIONAL HEURISTIC: derived, not chosen, and NOT a validated
 client acceptance envelope. CaptureBench/tools/m079_shift_recovery.py takes banked moving-camera
 sessions, MOVES THE LABELS BY A KNOWN +/-1 (onset-only, end-only and both; labels only, frames
-untouched), and scores a FIXED COHORT of every contiguous run x both edges - so losing coverage can
-never raise a recovery rate. The cap is the largest m_edge at which that cohort produced ZERO WRONG
-offsets with the guard disabled. The table is in that tool's header; the number and its N are in
-REGION_CAP_PROVENANCE below.
+untouched), and scores a FIXED COHORT: every contiguous run x both edges of the UNSHIFTED session,
+x 7 perturbations x 2 label variants minus the redundant coherent delta 0 = 13 COMBINATIONS PER
+ORIGINAL EDGE. The denominator is published before scoring and never shrinks, so losing coverage
+can never raise a recovery rate. The cap is the largest m_edge at which that cohort produced ZERO
+WRONG offsets with the guard disabled.
+
+READ THE N BESIDE IT CAREFULLY, BECAUSE IT IS NOT WHAT IT LOOKS LIKE. N counts PERTURBATION CELLS
+THAT REACHED A BASELINE. It is not a count of independent real edges and not a count of successful
+validations - the same handful of original edges appears in it thirteen times over. In 079-06's
+cohort of 780 cells, every single retained success came from FOUR ORIGINAL EDGES of two events in
+ONE session, whose clean-pair medians ran from 0 to 0.00005820: static regions between events. And
+the cap is a statement about QUIET CLEAN PAIRS, which is not the same thing as an ATTRIBUTABLE
+change inside the labelled window - the 079-07 burst fixture has m_edge 0 at both edges and still
+had its onset hijacked, which is why attribution is now a scope rule rather than a cap.
+
+079-07 ALSO CORRECTS THE COHORT ITSELF. A bbox-only run can no longer return a verdict, so its
+cells could only ever be refusals and would dilute every rate in the table. The cohort is therefore
+MASK-MODE SESSIONS ONLY, and M50L_LG9 - bbox-only on 16 of 16 edges - leaves it. The table is in
+that tool's header; the number and its N are in REGION_CAP_PROVENANCE below.
 
 A CLAIM THIS FILE USED TO MAKE AND NO LONGER DOES. 079-03/079-04 set a whole-frame MOTION_CAP of
 0.040 on the strength of "A2L_LEGA recovers an injected +/-1 fully". It does not: that score was
@@ -169,10 +201,14 @@ HONEST LIMITS, because they decide whether a reading is worth anything:
   - The cap rests on four banked sessions. It is a PROVISIONAL HEURISTIC, to be re-derived whenever
     more masked moving-camera sessions exist, and it is not a client acceptance envelope.
   - NOT-VISIBLE means NO DETECTABLE ABOVE-THRESHOLD CHANGE AT EITHER EDGE, within the searched
-    windows, of a region judged readable. IT IS NOT A GUARANTEE OF ABSENCE - a real change smaller
-    than that region's learned tau reads exactly the same way.
-  - `(bbox-only)` on a verdict means the SUPPLIED BOUNDING BOX was used because no per-frame mask
-    was available. It is not a silhouette, so anything inside the box counts.
+    windows, of a region judged readable, EVERY FRAME PAIR OF WHICH WAS ACTUALLY OBSERVED. IT IS
+    NOT A GUARANTEE OF ABSENCE - a real change smaller than that region's learned tau reads
+    exactly the same way. Measured: a single changed pixel inside a 50x50 mask gives d = 0.0004
+    against tau = 0.0040, and the honest output for it is NOT-VISIBLE. A FAIL therefore says
+    "labels not confirmed by pixels", which is what the measurement supports; it does NOT say the
+    labels and the pixels disagree, which would claim more than a detection limit can carry.
+  - `(bbox-only)` means the SUPPLIED BOUNDING BOX was used because no per-frame mask was
+    available. Since 079-07 that is a READING and never a verdict.
   - `bbox=... obs=...` is PRODUCER METADATA copied off the labels. This checker measures neither.
   - PARTIAL means some edges of the event were read and agreed while others were refused. It is
     neither a pass nor a failure and is counted separately from both.
@@ -510,19 +546,53 @@ ATTAINABLE_MAX = 1.0
 DOMINANCE = 1.5
 
 REGION_CAP = 0.00014
-REGION_CAP_N = 736
+REGION_CAP_N = 572
 REGION_CAP_PROVENANCE = (
-    "PROVISIONAL HEURISTIC, 079-06: the largest m_edge at which a FIXED COHORT of 780 edge-cells "
-    "(A2L_LEGA, LYRA_SMOKE_01, A1L_LEGA, M50L_LG9 x 7 label perturbations x 2 variants), 736 of "
-    "which reached a baseline, produced ZERO WRONG offsets with the guard disabled. Smallest wrong "
-    "cell m_edge=0.000145 (A1L_LEGA event 0 run[4..5] onset, which inverted the SIGN of an injected "
-    "+1). NOT a validated client acceptance envelope, and NOT sufficient for correctness - see "
-    "m079_shift_recovery.py")
+    "PROVISIONAL HEURISTIC, re-derived 079-07 on the MASK-MODE cohort: 44 original run-edges of "
+    "A2L_LEGA, LYRA_SMOKE_01 and A1L_LEGA x 13 combinations (7 label perturbations x 2 variants "
+    "minus the redundant coherent delta 0) = 572 CELLS, every one of which reached a baseline. "
+    "M50L_LG9 left the cohort because it is bbox-only on 16 of 16 edges and can no longer return a "
+    "verdict. With the guard DISABLED that cohort recovers 368, refuses 175, reads 12 no-signal and "
+    "gets 17 WRONG; the cap is the largest m_edge below the smallest wrong cell, m_edge=0.00014459 "
+    "(A1L_LEGA event 0 run[4..5] onset, annotation-only both+1, which INVERTED the SIGN of the "
+    "injected shift). At the cap: 52 recovered, 0 wrong, 520 refused. "
+    "READ N AS WHAT IT IS: 572 PERTURBATION CELLS, not 572 independent edges and not 572 "
+    "validations - and all 52 retained successes come from FOUR original edges of two events in "
+    "ONE session (A2L_LEGA events 4 and 5), i.e. static regions between events. NOT a validated "
+    "client acceptance envelope and NOT sufficient for correctness - a still baseline says nothing "
+    "about whether an in-window change is ATTRIBUTABLE, which is why masks, not this number, are "
+    "what license a verdict. See m079_shift_recovery.py")
 
 V_PASS = "PASS"
 V_NOTVIS = "NOT-VISIBLE"
 V_NOTMEAS = "NOT-MEASURABLE"
 V_PARTIAL = "PARTIAL"
+V_READING = "READING"
+
+NO_ADMISSIBLE_ENVELOPE = "NO ADMISSIBLE ENVELOPE"
+
+
+def _normalise_cap(value):
+    """Turn a caller's `region_cap` into (numeric cap or None, refuse_all).
+
+    Three states, kept apart on purpose (079-07 / Codex F6):
+      a NUMBER          refuse an edge whose m_edge is GREATER than it. A number of 0.0 therefore
+                        still JUDGES a perfectly still region (m_edge == 0), which is every one of
+                        the pinned bench's 64 edges - so 0.0 must never be described as refusing
+                        everything.
+      None              the guard is inert and every edge is judged.
+      NO ADMISSIBLE
+      ENVELOPE          the calibration cohort's smallest-change cell was already wrong, so no
+                        positive cap is defensible. EVERY edge is refused. This is a state, not a
+                        number, and it is carried as one rather than smuggled in as a zero.
+    """
+    if value is None:
+        return None, False
+    if isinstance(value, str):
+        if value.strip().upper() == NO_ADMISSIBLE_ENVELOPE:
+            return None, True
+        return float(value), False
+    return float(value), False
 
 
 def _offset_module():
@@ -742,13 +812,30 @@ def _edge_search(sigfn, lo, hi, region, paths, tau, foreign=None):
     measured on a banked leg where two events fire on the SAME actor eight frames apart, and
     the second swap was read as the first one's end.
 
-    079-06 ADDS DOMINANCE, AND IT IS THE DIRECT CURE FOR "SOMETHING ELSE WON THE ARGMAX".
-    An argmax always returns something; it never says the contest was close. Codex's 079-05
-    review reproduced the consequence on a banked leg: an adjacent event's clear transition won
-    an onset search four frames away and the event still printed a confident shift. So the
-    winner must beat the RUNNER-UP by DOMINANCE (1.5x) or the answer is a refusal, not a frame
-    number: a competitor within two thirds of the winner's magnitude is not distinguishable from
-    it by this statistic, and the argmax between them is a coin flip.
+    079-06 ADDS DOMINANCE. An argmax always returns something; it never says the contest was
+    close. Codex's 079-05 review reproduced the consequence on a banked leg: an adjacent event's
+    clear transition won an onset search four frames away and the event still printed a confident
+    shift. So the winner must beat the RUNNER-UP by DOMINANCE (1.5x) or the answer is a refusal,
+    not a frame number: a competitor within two thirds of the winner's magnitude is not
+    distinguishable from it by this statistic, and the argmax between them is a coin flip.
+
+    079-07 WITHDRAWS THE CLAIM THAT DOMINANCE IS "THE DIRECT CURE FOR SOMETHING ELSE WON THE
+    ARGMAX". IT IS NOT, AND CODEX'S SECOND REVIEW MEASURED THE DIFFERENCE. Dominance decides
+    whether the contest was CLOSE. It does not decide whether the winner belongs to the TARGET.
+    In their fixture a 20x20 patch appears on frame 60 and an unrelated 10px background scroll
+    happens once at 61, inside the labelled window, with every clean pair unchanged: the burst
+    changes 0.4960 of the region against the real onset's 0.1600 and wins dominance by 3.1x, so
+    CORRECT labels read ONSET-SHIFT(+1) and a deliberately LATE label read PASS. Lowering the cap
+    does not help - the false shift survives at cap 0, because the baseline is already still.
+    ATTRIBUTION, NOT SEPARATION, IS THE MISSING INGREDIENT, and the only thing that supplies it
+    is a per-frame mask. See `attributed` in _measure_edge and the mask-mode rule in the header.
+
+    COVERAGE IS REPORTED BESIDE THE ANSWER (079-07 / Codex F3). `missing` counts frame pairs of
+    the window whose images are not on disk or could not be differenced; `excluded` counts pairs
+    deliberately dropped because they belong to ANOTHER event. They are different facts: the
+    first is an unavailable observation and refuses the edge, the second is part of the window's
+    definition. An empty search used to set status "read" and report "0 of 0 frames above tau",
+    which the run combiner then turned into NOT-VISIBLE - an absence claim from no observations.
 
     THE RUNNER-UP IS TAKEN FROM THE ELIGIBLE SET - the frames with d > tau - and NOT from the
     whole window, because that is the set the argmax actually ranges over. A frame that never
@@ -761,18 +848,24 @@ def _edge_search(sigfn, lo, hi, region, paths, tau, foreign=None):
     clean result. A loud AttributeError is the better failure.
     """
     cands = []
+    missing = []
+    excluded = []
     for k in range(lo, hi + 1):
         if k not in paths or (k - 1) not in paths:
+            missing.append(k)
             continue
         if foreign and (k in foreign or (k - 1) in foreign):
+            excluded.append(k)
             continue
         d = sigfn(k, region)
         if d is None:
+            missing.append(k)
             continue
         cands.append((k, d))
     eligible = sorted([c for c in cands if c[1] > tau], key=lambda c: (-c[1], c[0]))
     out = {"scanned": len(cands), "eligible": len(eligible), "best_k": None, "best_d": None,
-           "second_k": None, "second_d": None, "ratio": None, "dominant": None}
+           "second_k": None, "second_d": None, "ratio": None, "dominant": None,
+           "window": max(0, hi - lo + 1), "missing": missing, "excluded": excluded}
     if not eligible:
         return out
     out["best_k"], out["best_d"] = eligible[0]
@@ -888,7 +981,7 @@ def _measurable_ceiling(windows, all_idx):
 
 
 def _measure_edge(kind, nominal, region, region_fallback, frame_w, frame_h, mlo, hot, base_idx,
-                  sigfn, paths, foreign, lo, hi, region_cap, ceiling, truncated):
+                  sigfn, paths, foreign, lo, hi, region_cap, ceiling, truncated, refuse_all=False):
     """One EDGE of one contiguous run, judged on its OWN region and its OWN local clean frames.
 
     079-06 / Codex finding 1. Until this function existed, measurability was decided ONCE per
@@ -910,9 +1003,31 @@ def _measure_edge(kind, nominal, region, region_fallback, frame_w, frame_h, mlo,
     learned on the anchor's box while later runs and the end used different masks, so a target
     that moves changed the sampled content without recalibrating.
 
-    ORDER OF THE REFUSALS, and it matters: region present, region size, end-truncation, baseline
-    count, threshold satisfiable, regional change, dominance, then measurable range. The more
-    specific fault is the one reported when several hold, and each can be exercised separately.
+    ATTRIBUTION IS A SEPARATE AXIS FROM MEASURABILITY, AND 079-07 IS WHERE THEY WERE SEPARATED.
+    `attributed` is true only when the region came from the delivered PER-FRAME MASK, i.e. when
+    the pixels being differenced are known to be the target's. An edge whose region is the
+    supplied BOUNDING BOX is still measured here - every number below is computed and printed -
+    but it may not produce a verdict, because nothing identifies which of the things inside that
+    box moved. Codex's F1 fixture is the proof: a background scroll inside the box beat the real
+    onset 3.1x and turned CORRECT labels into a confident shift, at a perfectly still baseline.
+
+    ORDER OF THE REFUSALS, and it matters: region present, non-empty window, region size,
+    end-truncation, baseline count, threshold satisfiable, SEARCH COVERAGE, no-admissible-
+    envelope, regional change, dominance, then measurable range. The first group are all "the
+    observation is not available"; the next two are "this instrument will not judge here"; the
+    rest are about the quality of an answer that does exist. The more specific fault is the one
+    reported when several hold, and each can be exercised separately.
+
+    THE SEARCH RUNS BEFORE EVERY REFUSAL THAT CAN STILL BE SEARCHED (079-07 / Codex F2). `best_k`
+    bounds the dependent edge from below - a run's clear cannot precede its own onset, and the
+    next run's onset cannot precede this run's clear - and that bound must NOT depend on whether
+    the preceding edge was TRUSTED. Codex measured both directions: a whole-frame onset box was
+    refused before searching, so the end search was unbounded, re-found the onset transition and
+    returned END-SHIFT(-2) on aligned labels; and a first end that was refused OR correctly read
+    still released the second run's onset, which re-used the first run's clear as its own onset.
+    A REFUSAL MUST REMOVE AN ANSWER, NEVER A CONSTRAINT. Where tau could not be learned, or is
+    unsatisfiable, the search runs at SIGNAL_FLOOR and the result is marked `bound_only`: it is
+    used as an ordering constraint and is never promoted to an answer.
 
     Returns a dict. `status` is "read" or "refused"; a read edge carries `offset` (None when
     nothing in the window cleared tau) and `found`.
@@ -921,7 +1036,9 @@ def _measure_edge(kind, nominal, region, region_fallback, frame_w, frame_h, mlo,
            "tau": None, "m_edge": None, "mad": None, "base_n": 0, "contaminated": 0,
            "best_k": None, "best_d": None, "second_d": None, "ratio": None,
            "eligible": 0, "scanned": 0, "found": False, "offset": None,
-           "region_source": None, "region_npix": None, "d_nominal": None}
+           "region_source": None, "region_npix": None, "d_nominal": None,
+           "attributed": False, "bound_only": False, "lo": lo, "hi": hi,
+           "window": max(0, hi - lo + 1), "missing": 0, "excluded": 0}
 
     reg = region or region_fallback
     if reg is None:
@@ -929,6 +1046,35 @@ def _measure_edge(kind, nominal, region, region_fallback, frame_w, frame_h, mlo,
         return rec
     rec["region_source"] = reg["source"]
     rec["region_npix"] = reg["npix"]
+    rec["attributed"] = reg.get("bin") is not None
+
+    if lo > hi:
+        rec["reason"] = ("window emptied by the preceding edge: the ordering bound left no frame "
+                         "to search around %d" % nominal)
+        return rec
+
+    base = _nearest_baseline(base_idx, nominal, nominal, BASELINE_MAX_FRAMES)
+    vals = []
+    for k in base:
+        d = _region_frac(hot, k, reg)
+        if d is not None:
+            vals.append(d)
+    rec["base_n"] = len(vals)
+    tau = med = mad = None
+    if len(vals) >= MIN_BASELINE_FRAMES:
+        tau, med, mad = _threshold_from(vals, mlo)
+        rec["tau"], rec["m_edge"], rec["mad"] = tau, med, mad
+        rec["contaminated"] = sum(1 for v in vals if v > tau)
+
+    tau_search = tau if (tau is not None and tau < ATTAINABLE_MAX) else mlo.SIGNAL_FLOOR
+    rec["bound_only"] = (tau is None or tau >= ATTAINABLE_MAX)
+    found = _edge_search(sigfn, lo, hi, reg, paths, tau_search, foreign)
+    rec.update(scanned=found["scanned"], eligible=found["eligible"], best_k=found["best_k"],
+               best_d=found["best_d"], second_d=found["second_d"], ratio=found["ratio"],
+               window=found["window"], missing=len(found["missing"]),
+               excluded=len(found["excluded"]))
+    rec["d_nominal"] = (sigfn(nominal, reg)
+                        if nominal in paths and (nominal - 1) in paths else None)
 
     frame_px = float(frame_w * frame_h)
     region_px = mlo.box_area(reg["box"])
@@ -943,21 +1089,10 @@ def _measure_edge(kind, nominal, region, region_fallback, frame_w, frame_h, mlo,
         rec["reason"] = "end truncated by the session's last frame"
         return rec
 
-    base = _nearest_baseline(base_idx, nominal, nominal, BASELINE_MAX_FRAMES)
-    vals = []
-    for k in base:
-        d = _region_frac(hot, k, reg)
-        if d is not None:
-            vals.append(d)
-    rec["base_n"] = len(vals)
     if len(vals) < MIN_BASELINE_FRAMES:
         rec["reason"] = ("baseline: only %d clean frame(s) near frame %d, need %d"
                          % (len(vals), nominal, MIN_BASELINE_FRAMES))
         return rec
-
-    tau, med, mad = _threshold_from(vals, mlo)
-    rec["tau"], rec["m_edge"], rec["mad"] = tau, med, mad
-    rec["contaminated"] = sum(1 for v in vals if v > tau)
 
     if tau >= ATTAINABLE_MAX:
         rec["reason"] = ("threshold unsatisfiable: tau=%.4f but d can never exceed %.1f - no pixel "
@@ -965,17 +1100,24 @@ def _measure_edge(kind, nominal, region, region_fallback, frame_w, frame_h, mlo,
                          "reading" % (tau, ATTAINABLE_MAX))
         return rec
 
-    found = _edge_search(sigfn, lo, hi, reg, paths, tau, foreign)
-    rec.update(scanned=found["scanned"], eligible=found["eligible"], best_k=found["best_k"],
-               best_d=found["best_d"], second_d=found["second_d"], ratio=found["ratio"])
-    rec["d_nominal"] = (sigfn(nominal, reg)
-                        if nominal in paths and (nominal - 1) in paths else None)
+    if found["missing"]:
+        rec["reason"] = ("frames missing in window: %d of the %d frame pair(s) in %d..%d could not "
+                         "be differenced (%s) - an absence of OBSERVATIONS is not an observed "
+                         "absence" % (len(found["missing"]), found["window"], lo, hi,
+                                      mlo.compress_indices(found["missing"])))
+        return rec
 
-    # THE SEARCH RUNS BEFORE THE JUDGEABILITY REFUSAL, DELIBERATELY. `best_k` bounds the END
-    # window from below (a run's clear cannot precede its own onset), and that bound must not
-    # depend on whether the ONSET was trusted: measured here, refusing an onset for regional
-    # change unbound the end search, which then re-found the onset transition and returned a
-    # confident -1 where +1 was correct. A refusal must remove an ANSWER, never a CONSTRAINT.
+    if found["scanned"] == 0:
+        rec["reason"] = ("nothing to search in %d..%d: %d frame pair(s) all belong to another "
+                         "event and were excluded" % (lo, hi, len(found["excluded"])))
+        return rec
+
+    if refuse_all:
+        rec["reason"] = ("%s: the calibration cohort's smallest-change cell was already wrong, so "
+                         "no positive regional-change cap is defensible and EVERY edge is refused"
+                         % NO_ADMISSIBLE_ENVELOPE.lower())
+        return rec
+
     if region_cap is not None and med is not None and med > region_cap:
         rec["reason"] = ("regional image change: m=%.6f cap=%.6f over the %d clean pair(s) nearest "
                          "frame %d - this region is not still enough for a local change to be "
@@ -1006,9 +1148,30 @@ def _measure_edge(kind, nominal, region, region_fallback, frame_w, frame_h, mlo,
     return rec
 
 
+def _edge_reading(rec):
+    """One edge stated as a READING - a number and a frame, with no claim attached.
+
+    This is what a BBOX-ONLY edge produces (079-07). Every quantity the verdict path would have
+    used is printed; what is withheld is the CONCLUSION, because nothing in a bounding box says
+    which of the things inside it changed.
+    """
+    if rec["status"] == "refused":
+        return "%s: not searchable (%s)" % (rec["kind"], rec["reason"])
+    if not rec["found"]:
+        return ("%s: no above-threshold change in %d..%d (tau=%s, %d pair(s) scanned)"
+                % (rec["kind"], rec["lo"], rec["hi"],
+                   ("%.4f" % rec["tau"]) if rec["tau"] is not None else "n/a", rec["scanned"]))
+    dom = "n/a" if rec["ratio"] is None else ("%.2fx" % rec["ratio"])
+    label = "label start" if rec["kind"] == "onset" else "label end+1"
+    return ("%s: change at frame %d (d=%.4f, tau=%.4f, dominance=%s) vs %s %d (delta=%+d)"
+            % (rec["kind"], rec["best_k"], rec["best_d"], rec["tau"], dom, label,
+               rec["nominal"], rec["offset"]))
+
+
 def _edge_line(rec):
     if rec["status"] == "refused":
-        return "        %-5s  %s(%s)" % (rec["kind"], V_NOTMEAS, rec["reason"])
+        tag = V_READING if not rec["attributed"] else V_NOTMEAS
+        return "        %-5s  %s(%s)" % (rec["kind"], tag, rec["reason"])
     dom = "n/a" if rec["ratio"] is None else ("%.1fx" % rec["ratio"])
     if rec["found"]:
         verdict = "ALIGNED" if rec["offset"] == 0 else ("SHIFT(%+d)" % rec["offset"])
@@ -1016,6 +1179,8 @@ def _edge_line(rec):
     else:
         verdict = "no change above tau"
         where = "0 of %d frame(s) above tau" % rec["scanned"]
+    if not rec["attributed"]:
+        verdict = "%s  <- READING ONLY (no mask)" % verdict
     return ("        %-5s  k=%-4d d=%-7s tau=%.4f m_edge=%.6f base=%-3d dom=%-6s %-26s %s/%dpx  %s"
             % (rec["kind"], rec["nominal"],
                ("%.4f" % rec["d_nominal"]) if rec["d_nominal"] is not None else "n/a",
@@ -1032,9 +1197,19 @@ def _run_verdict(edges, only_tag):
     delta -1 two of eight runs returned offsets of -2 and -4 where +1 was correct, and the event
     still printed ONSET-SHIFT(+1) from its other run.
 
-    NOT-VISIBLE now requires BOTH edges to be judgeable and BOTH to find nothing (V4). A region
-    the instrument could not read is an UNREAD SURFACE and must not produce an absence claim.
+    NOT-VISIBLE requires BOTH edges to be judgeable and BOTH to find nothing (V4), and since
+    079-07 "judgeable" includes having actually observed every frame pair of the window. A
+    region the instrument could not read is an UNREAD SURFACE and must not produce an absence
+    claim, and neither must a window it never looked at.
+
+    079-07: A RUN IN WHICH ANY EDGE LACKS A MASK PRODUCES NO VERDICT AT ALL. The mode is decided
+    per RUN rather than per edge because the ordering constraints run BETWEEN the edges - an
+    onset's detected frame bounds its own end, and a run's detected clear bounds the next run's
+    onset. Letting an unattributed onset bound an attributed end would import exactly the
+    ambiguity the rule exists to remove.
     """
+    if any(not e["attributed"] for e in edges):
+        return V_READING, (" | ".join(_edge_reading(e) for e in edges) + " | masks=none")
     read = [e for e in edges if e["status"] == "read"]
     shifted = [e for e in read if e["found"] and e["offset"] != 0]
     aligned = [e for e in read if e["found"] and e["offset"] == 0]
@@ -1053,13 +1228,43 @@ def _run_verdict(edges, only_tag):
     return V_NOTMEAS, "neither edge could be read"
 
 
-_SEVERITY = {V_NOTVIS: 0, "SHIFT": 1, V_PARTIAL: 2, V_NOTMEAS: 3, V_PASS: 4}
+def _is_shift(v):
+    return v.startswith("ONSET-SHIFT") or v.startswith("END-SHIFT")
 
 
-def _severity(v):
-    if v.startswith("ONSET-SHIFT") or v.startswith("END-SHIFT"):
-        return _SEVERITY["SHIFT"]
-    return _SEVERITY.get(v, 1)
+def _event_token(runs):
+    """The event's token, from COVERAGE over ALL its edges (079-07 / Codex F7).
+
+    `runs` is a list of (verdict, [edge, ...]) - the RUN is the unit that carries mask mode, so an
+    edge counts toward coverage only when ITS OWN RUN is attributed. Counting attributed edges
+    individually would let a half-masked run contribute a PASS the run itself refused to give.
+
+    AMENDMENT 4's V5 took the WORST run token by a fixed severity order, and Codex measured what
+    that costs: one run fully read and aligned beside one refused run printed NOT-MEASURABLE for
+    the event and UNREAD for the session, while the detail lines correctly said `edges=2/4-read`
+    and printed the first run's PASS. That contradicts both PARTIAL's own definition and the
+    client README's statement that UNREAD means nothing could be read. AMENDMENT 5 corrects the
+    design rule as well as the implementation.
+
+    A SHIFT still wins outright, and that is deliberate rather than an exception: a shift is a
+    POSITIVE detection on an edge that was attributed, fully observed and dominant, so it stands
+    on its own evidence. NOT-VISIBLE and PASS are claims about the WHOLE event and therefore
+    require every edge of it to have been read.
+    """
+    verdicts = [v for v, _e in runs]
+    for v in verdicts:
+        if _is_shift(v):
+            return v
+    total = sum(len(e) for _v, e in runs)
+    read = [x for v, edges in runs if v != V_READING
+            for x in edges if x["status"] == "read"]
+    if all(v == V_READING for v in verdicts):
+        return V_READING
+    if not read:
+        return V_NOTMEAS
+    if len(read) == total:
+        return V_NOTVIS if V_NOTVIS in verdicts else V_PASS
+    return V_PARTIAL
 
 
 def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, region_cap=None,
@@ -1073,9 +1278,22 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
     A shift is reported SIGNED: n < 0 means the PIXELS changed BEFORE the label said so.
     Nothing is inferred about WHY; the tool reports the reading.
 
+    A VERDICT REQUIRES TARGET ATTRIBUTION, AND ONLY A PER-FRAME MASK SUPPLIES IT (079-07). Where
+    the delivered mask gives the target's silhouette, the questions above are answerable and the
+    full verdict vocabulary applies. Where the only region available is the supplied BOUNDING
+    BOX, every number is still measured and PRINTED - as a READING - and no verdict is issued,
+    because a change inside a box could be the target, the floor behind it, or the camera moving.
+    The session then ends UNREAD-BBOX-ONLY at exit 0: readings for a human, never a claim.
+
     VALIDITY ENVELOPE - what this gate can and cannot judge, stated rather than assumed. Every
     refusal below is NOT-MEASURABLE with its numbers printed, and NEVER NOT-VISIBLE: a region the
     instrument cannot read is an UNREAD SURFACE, not a failed label.
+
+      AN EDGE MUST HAVE BEEN OBSERVED BEFORE IT CAN BE JUDGED. Every frame pair of the edge's
+      FINAL search window must be on disk and differenceable; a missing one reads
+      NOT-MEASURABLE(frames missing in window). The window is narrowed deliberately - by the
+      run's own extent, by the ordering bounds, by the other-event exclusion and by the session's
+      ends - and that narrowing is the window's definition, not a gap in it.
 
       MEASURABILITY IS DECIDED PER EDGE, LOCAL IN TIME AND IN REGION (079-06). `m_edge` is the
       MEDIAN of that edge's own region's changed-pixel fraction over the clean frames NEAREST
@@ -1103,7 +1321,9 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
       NOT-MEASURABLE with the count printed.
 
     EVERY RUN AND EVERY EDGE IS PRINTED. An event whose edges disagree about whether they could
-    be read is PARTIAL, not PASS - one token per event hid real failures before 079-06 (G262).
+    be read is PARTIAL, not PASS - one token per event hid real failures before 079-06 (G262) -
+    and since 079-07 the event's token comes from COVERAGE over all its edges rather than from
+    the worst run, so a fully read run beside an unread one reads PARTIAL and not UNREAD.
 
     Constants: K_SIGMA / SIGNAL_FLOOR come from measure_label_offset, where they threshold a
     per-frame region difference - the same shape as `d`. REGION_CAP is a PROVISIONAL HEURISTIC set
@@ -1165,10 +1385,10 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
     has_masks = any(r.get("mask_file") for r in rows.values())
     hot = _HotCache(cache, thresh)
 
-    cap = region_cap if region_cap is not None else motion_cap
-    if cap is None:
-        cap = REGION_CAP
-    cap = None if cap is None else float(cap)
+    raw_cap = region_cap if region_cap is not None else motion_cap
+    if raw_cap is None:
+        raw_cap = REGION_CAP
+    cap, refuse_all = _normalise_cap(raw_cap)
 
     whole = [hot.whole_frame(k) for k in base_idx]
     whole = [v for v in whole if v is not None]
@@ -1178,15 +1398,25 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
     lines.append("  session                  %s" % cap_dir)
     lines.append("  frames / labels / events %d / %d / %d" % (len(paths), len(rows), len(events)))
     lines.append("  region mode              %s" % ("masks" if has_masks else "bbox-only"))
+    lines.append("  VERDICTS ARE GIVEN       only where a PER-FRAME MASK identifies the target's "
+                 "pixels (M3 datasets and bench captures). Without masks this tool prints")
+    lines.append("                           READINGS for human review and NEVER a verdict - a "
+                 "change inside a supplied box cannot be attributed to the target.")
     lines.append("  signal                   d = fraction of REGION pixels changed since the "
                  "previous frame (bounded 0..1)")
     lines.append("  judgeability             m_edge = median d over the %d clean pair(s) NEAREST "
                  "each edge, on that edge's own region" % BASELINE_MAX_FRAMES)
-    if cap is None:
+    if refuse_all:
+        lines.append("  regional change cap      *** %s - no positive cap is defensible from the "
+                     "calibration cohort, so EVERY edge is refused ***" % NO_ADMISSIBLE_ENVELOPE)
+    elif cap is None:
         lines.append("  regional change cap      *** NONE - the judgeability guard is INERT and "
                      "every edge will be judged ***")
     else:
-        lines.append("  regional change cap      %.6f" % cap)
+        lines.append("  regional change cap      %.6f   (an edge refuses when m_edge > this; a cap "
+                     "of 0.0 therefore STILL JUDGES a perfectly still" % cap)
+        lines.append("                           region and is NOT refuse-all - that state is "
+                     "'%s' and is printed as such)" % NO_ADMISSIBLE_ENVELOPE)
         lines.append("                           %s" % REGION_CAP_PROVENANCE)
     lines.append("  whole-frame change M_med %s   READING ONLY over all %d clean pair(s); it "
                  "gates nothing (079-06)"
@@ -1206,7 +1436,7 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
                      "this is UNDER-READ, not absent" % (ceiling, min_gap))
 
     ev_lines = []
-    n_pass = n_shift = n_notvis = n_notmeas = n_partial = 0
+    n_pass = n_shift = n_notvis = n_notmeas = n_partial = n_reading = 0
     m_seen = []
 
     for ev in events:
@@ -1275,6 +1505,7 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
         run_results = []
         ev_edges = []
         ev_runs = _runs_of(ev["indices"])
+        prev_clear = None
         for run_i, (rs, re_) in enumerate(ev_runs):
             prev_end = ev_runs[run_i - 1][1] if run_i > 0 else None
             next_start = ev_runs[run_i + 1][0] if run_i + 1 < len(ev_runs) else None
@@ -1284,25 +1515,25 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
             reg_on = _build_region(cap_dir, r_on, e_on, frame_w, frame_h, mlo) if e_on else None
             on_lo = max(min(all_idx) + 1, rs - edge_w)
             if prev_end is not None:
-                on_lo = max(on_lo, prev_end + 2)
+                on_lo = max(on_lo, (prev_clear + 1) if prev_clear is not None else (prev_end + 2))
             on_hi = min(rs + edge_w, re_)
             onset = _measure_edge("onset", rs, reg_on, region, frame_w, frame_h, mlo, hot,
                                   base_idx, sigfn, paths, foreign, on_lo, on_hi, cap, ceiling,
-                                  False)
+                                  False, refuse_all)
 
             r_end = rows.get(re_)
             e_end = mlo.match_label_entry(r_end, ev["node"], None) if r_end else None
             reg_end = _build_region(cap_dir, r_end, e_end, frame_w, frame_h, mlo) if e_end else None
             truncated = (re_ + 1) > max(all_idx)
             end_lo = max(min(all_idx) + 1, re_ + 1 - edge_w)
-            if onset["best_k"] is not None:
-                end_lo = max(end_lo, onset["best_k"] + 1)
-            end_hi = re_ + 1 + edge_w
+            end_lo = max(end_lo, (onset["best_k"] + 1) if onset["best_k"] is not None else (rs + 1))
+            end_hi = min(re_ + 1 + edge_w, max(all_idx))
             if next_start is not None:
                 end_hi = min(end_hi, next_start - 1)
             end = _measure_edge("end", re_ + 1, reg_end, region, frame_w, frame_h, mlo, hot,
                                 base_idx, sigfn, paths, foreign, end_lo, end_hi, cap, ceiling,
-                                truncated)
+                                truncated, refuse_all)
+            prev_clear = end["best_k"]
 
             for e in (onset, end):
                 ev_edges.append(e)
@@ -1315,19 +1546,17 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
                     out_detail.append(rec)
 
             verdict, why = _run_verdict([onset, end], only_tag)
-            run_results.append(verdict)
+            run_results.append((verdict, [onset, end]))
             details.append("      run[%d..%d]  %-16s - %s" % (rs, re_, verdict, why))
             details.append(_edge_line(onset))
             details.append(_edge_line(end))
 
-        worst = V_PASS
-        for v in run_results:
-            if _severity(v) < _severity(worst):
-                worst = v
+        worst = _event_token(run_results)
 
         taus = [e["tau"] for e in ev_edges if e["tau"] is not None]
         ms = [e["m_edge"] for e in ev_edges if e["m_edge"] is not None]
-        n_read = sum(1 for e in ev_edges if e["status"] == "read")
+        n_read = sum(1 for v, edges in run_results if v != V_READING
+                     for e in edges if e["status"] == "read")
         contaminated = max([0] + [e["contaminated"] for e in ev_edges])
         conf = "HIGH"
         if contaminated:
@@ -1347,10 +1576,14 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
         tau_txt = ("tau=%.4f" % taus[0]) if len(set(taus)) == 1 else (
             ("tau=%.4f..%.4f" % (min(taus), max(taus))) if taus else "tau=n/a")
         m_txt = ("m_edge<=%.6f" % max(ms)) if ms else "m_edge=n/a"
+        suffix = only_tag if worst in (V_NOTVIS, V_READING) else ""
         ev_lines.append("%s %-16s [%s] %s %s edges=%d/%d-read  %s%s%s"
-                        % (tag, worst + (only_tag if worst == V_NOTVIS else ""), conf,
+                        % (tag, worst + suffix, conf,
                            tau_txt, m_txt, n_read, len(ev_edges), _provenance(ev),
                            ("  CONTAMINATED=%d" % contaminated) if contaminated else "", extra))
+        if worst == V_READING:
+            ev_lines.append("      no per-frame mask identifies the target's pixels, so no "
+                            "transition here can be attributed to it - readings only, no verdict")
         if not quiet:
             ev_lines.extend(details)
 
@@ -1362,6 +1595,8 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
             n_notmeas += 1
         elif worst == V_PARTIAL:
             n_partial += 1
+        elif worst == V_READING:
+            n_reading += 1
         else:
             n_shift += 1
 
@@ -1380,25 +1615,37 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
                      "that reached a baseline"
                      % (min(m_seen), mlo.median_or_none(m_seen), max(m_seen), len(m_seen)))
     lines.append("  PASS %d   SHIFT %d   NOT-VISIBLE %d   PARTIAL %d   NOT-MEASURABLE %d   "
-                 "(of %d event(s))"
-                 % (n_pass, n_shift, n_notvis, n_partial, n_notmeas, len(events)))
+                 "READINGS %d   (of %d event(s))"
+                 % (n_pass, n_shift, n_notvis, n_partial, n_notmeas, n_reading, len(events)))
     bad = n_shift + n_notvis
     total = len(events)
     if bad:
-        verdict_line = "FAIL  - the labels and the pixels disagree on %d event(s)" % bad
+        verdict_line = "FAIL  - labels not confirmed by pixels on %d event(s)" % bad
     elif total and n_pass == total:
         verdict_line = "PASS  (%d of %d events fully checked)" % (n_pass, total)
+    elif total and n_reading == total:
+        verdict_line = ("UNREAD-BBOX-ONLY  (%d events; readings printed - bbox-only sessions "
+                        "cannot be verified against pixels, a reviewer must look at the named "
+                        "frames)" % total)
     elif n_pass == 0 and n_partial == 0:
-        verdict_line = ("UNREAD  (0 of %d events checked - every event is an unread surface, "
-                        "which is neither a pass nor a failure)" % total)
+        verdict_line = ("UNREAD  (0 of %d events checked - every event is an unread surface%s, "
+                        "which is neither a pass nor a failure)"
+                        % (total, (", %d of them bbox-only readings" % n_reading)
+                           if n_reading else ""))
     else:
-        verdict_line = ("PASS-PARTIAL  (%d fully, %d partly, %d unread of %d events - no "
+        verdict_line = ("PASS-PARTIAL  (%d fully, %d partly, %d unread%s of %d events - no "
                         "disagreement among the edges that could be read)"
-                        % (n_pass, n_partial, n_notmeas, total))
+                        % (n_pass, n_partial, n_notmeas + n_reading,
+                           (" incl. %d bbox-only readings" % n_reading) if n_reading else "",
+                           total))
     lines.append("  VERDICT                  %s" % verdict_line)
     if n_notmeas or n_partial:
         lines.append("  NOT-MEASURABLE is NOT a pass and NOT a failure - it is an unread surface, "
                      "and the reason is printed on the edge's own line.")
+    if n_reading:
+        lines.append("  READING is NOT a verdict - the labels were measured against a supplied "
+                     "BOX, which cannot say WHICH thing inside it changed. Look at the frames "
+                     "named on those lines.")
     return (0 if bad == 0 else 2), lines
 
 
@@ -1441,6 +1688,13 @@ def _synth_session(root, name, shift=0, end_shift=0, blank_region=False, with_ma
     moving camera the CLEAN frames change too, which is what drove the old learned threshold past
     its own statistic's ceiling (G259). The target is then drawn only while anomalous, so the
     region carries moving scene content when clean - exactly as a real session does.
+
+    079-07: `with_mask` writes the mask as the LABEL'S OWN RECTANGLE, not the true target
+    rectangle. That matters because `blank_region` and `fullframe_region` exist to make the label
+    LIE about where the target is; a mask drawn on the true target would quietly correct the lie
+    and the two cases would stop testing anything. Masks are now written for almost every case,
+    because under 079-07 a bbox-only run yields readings rather than verdicts, and a suite of
+    readings cannot prove that the gate is still able to FAIL (G96).
     """
     from PIL import Image, ImageDraw
     d = os.path.join(root, name)
@@ -1453,6 +1707,17 @@ def _synth_session(root, name, shift=0, end_shift=0, blank_region=False, with_ma
     total = 30
 
     bg = _synth_backdrop(w, h, total, pan, blocks, stripes) if pan > 0 else None
+
+    lo, hi = true_start + shift, true_end + shift + end_shift
+    idxs = list(range(lo, hi + 1))
+    if fullframe_region:
+        label_box = [0, 0, w, h]
+    elif blank_region:
+        label_box = [5, 5, 8, 8]
+    else:
+        label_box = [box[0], box[1], box[2] - box[0], box[3] - box[1]]
+    mask_rect = (label_box[0], label_box[1],
+                 label_box[0] + label_box[2] - 1, label_box[1] + label_box[3] - 1)
 
     for i in range(total):
         anomalous = true_start <= i <= true_end
@@ -1470,17 +1735,8 @@ def _synth_session(root, name, shift=0, end_shift=0, blank_region=False, with_ma
         im.save(os.path.join(d, "Actual_Frames", "frame_%05d.png" % i))
         if with_mask:
             mk = Image.new("L", (w, h), 0)
-            ImageDraw.Draw(mk).rectangle(list(box), fill=222)
+            ImageDraw.Draw(mk).rectangle(list(mask_rect), fill=222)
             mk.save(os.path.join(d, "target_mask", "frame_%05d.png" % i))
-
-    lo, hi = true_start + shift, true_end + shift + end_shift
-    idxs = list(range(lo, hi + 1))
-    if fullframe_region:
-        label_box = [0, 0, w, h]
-    elif blank_region:
-        label_box = [5, 5, 8, 8]
-    else:
-        label_box = [box[0], box[1], box[2] - box[0], box[3] - box[1]]
 
     with open(os.path.join(d, "labels.jsonl"), "w", encoding="utf-8") as fh:
         for i in reversed(range(total)):
@@ -1514,6 +1770,96 @@ def _synth_session(root, name, shift=0, end_shift=0, blank_region=False, with_ma
     with open(os.path.join(d, "annotation.json"), "w", encoding="utf-8") as fh:
         json.dump(ann, fh)
     return d
+
+
+def _codex07_fixture(root, name, runs=((60, 67),), label_runs=None, burst_at=None, onset_delta=0,
+                     full_boxes=(), total=100, patch_sides=None, mask=None, mask_runs=None,
+                     full_masks=(), drop_frames=()):
+    """The 079-07 review's counterexample fixtures, ported with attribution.
+
+    SOURCE: `_reviews/079-07-review-validation.py`, Codex's second independent merge review,
+    function `fixture`. Kept VERBATIM IN CONSTRUCTION - a 160x120 picture that is static except
+    for a 50x50 window onto a scrolling crop at (40,30), a white patch drawn over part of it on
+    the frames named by `runs`, and `burst_at` scrolling that window by 10 px ONCE and then
+    leaving it still. A paraphrase of a counterexample is not a counterexample.
+
+    Parameters that are Codex's:
+      runs         the RGB truth - which frames actually carry the patch
+      label_runs   what the labels claim, when it differs from the truth
+      burst_at     the single 10 px background scroll, the thing that hijacked the argmax
+      onset_delta  moves the first labelled run's onset only
+      full_boxes   frames whose labelled bbox is the WHOLE frame (forces a size refusal)
+      patch_sides  per-run patch side length, for a weaker second run or a sub-tau one
+
+    Parameters added here, all of them about 079-07's mask-mode rule:
+      mask         None = bbox-only; "patch" = the mask is the target patch (Codex's F1 case,
+                   where the burst is OUTSIDE the silhouette and the real onset is inside it);
+                   "region" = the mask is the whole 50x50 object, for the detection-limit case
+                   where the target IS the region and only a pixel of it changes
+      mask_runs    frames that carry a mask at all, so a session can be mask-mode on one run and
+                   bbox-only on another (the mixed case R3 names)
+      full_masks   frames whose MASK is the whole frame - an ATTRIBUTED region that is still
+                   refused on size, which is how a masked PARTIAL case is built
+      drop_frames  frames to leave off disk, for the missing-observation case (Codex's F3)
+    """
+    from PIL import Image, ImageDraw
+    p = os.path.join(root, name)
+    os.makedirs(os.path.join(p, "Actual_Frames"))
+    if mask:
+        os.makedirs(os.path.join(p, "target_mask"))
+    w, h = 160, 120
+    x, y, rw, rh = 40, 30, 50, 50
+    bg = _synth_backdrop(w, h, total, 10, 16, 0)
+    lr = [tuple(r) for r in (label_runs if label_runs is not None else runs)]
+    if onset_delta:
+        lr[0] = (lr[0][0] + onset_delta, lr[0][1])
+    idxs = [k for a, b in lr for k in range(a, b + 1)]
+    rows = []
+    for k in range(total):
+        offset = 10 if burst_at is not None and k >= burst_at else 0
+        im = Image.new("RGB", (w, h), (90, 90, 90))
+        im.paste(bg.crop((offset, 0, offset + rw, rh)).convert("RGB"), (x, y))
+        patch = None
+        for n, (a, b) in enumerate(runs):
+            if a <= k <= b:
+                side = patch_sides[n] if patch_sides else 20
+                patch = (x + 5, y + 5, x + 4 + side, y + 4 + side)
+                ImageDraw.Draw(im).rectangle(patch, fill=(255, 255, 255))
+        if k not in drop_frames:
+            im.save(os.path.join(p, "Actual_Frames", "frame_%05d.png" % k))
+        wants_mask = mask and (mask_runs is None or any(a <= k <= b for a, b in mask_runs))
+        if wants_mask:
+            side0 = patch_sides[0] if patch_sides else 20
+            rect = ((0, 0, w - 1, h - 1) if k in full_masks
+                    else ((x, y, x + rw - 1, y + rh - 1) if mask == "region"
+                          else (x + 5, y + 5, x + 4 + side0, y + 4 + side0)))
+            mk = Image.new("L", (w, h), 0)
+            ImageDraw.Draw(mk).rectangle(list(rect), fill=222)
+            mk.save(os.path.join(p, "target_mask", "frame_%05d.png" % k))
+        box = [0, 0, w, h] if k in full_boxes else [x, y, rw, rh]
+        entry = {"id": "missing_texture", "target_name": "SynthTarget",
+                 "start_frame": 1000 + min(idxs), "bbox_valid": True, "bbox_px": box}
+        if wants_mask:
+            entry["mask_value"] = 222
+        row = {"frame_index": 1000 + k, "session_index": k,
+               "image": "Actual_Frames/frame_%05d.png" % k, "width": w, "height": h,
+               "anomaly_present": k in idxs, "visible_positive": k in idxs,
+               "anomalies": [entry] if k in idxs else []}
+        if wants_mask:
+            row["mask_file"] = "target_mask/frame_%05d.png" % k
+            row["mask_state"] = "present"
+        rows.append(row)
+    with open(os.path.join(p, "labels.jsonl"), "w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    ann = {"anomalies": [{"anomaly_type": "missing_texture", "manifested": True,
+                          "affected_frames": {"start_frame": min(idxs), "end_frame": max(idxs),
+                                              "frame_count": len(idxs), "frame_indices": idxs},
+                          "affected_objects": {"primary_index": 0,
+                                               "nodes": [{"name": "SynthTarget"}]}}]}
+    with open(os.path.join(p, "annotation.json"), "w", encoding="utf-8") as fh:
+        json.dump(ann, fh)
+    return p
 
 
 def _shifted_copy_of(src_dir, dst_dir, delta):
@@ -1550,7 +1896,8 @@ def _shifted_copy_of(src_dir, dst_dir, delta):
     return dst_dir
 
 
-def _codex_fixture(root, name, local_only=False, alternating=False, burst=True, shift=0):
+def _codex_fixture(root, name, local_only=False, alternating=False, burst=True, shift=0,
+                   with_mask=False):
     """The 079-05 review's counterexample fixtures, ported with attribution.
 
     SOURCE: `_reviews/079-05-review-validation.py`, Codex's independent merge review, function
@@ -1575,11 +1922,18 @@ def _codex_fixture(root, name, local_only=False, alternating=False, burst=True, 
     could have DISABLED the verdict rather than scoping it (G96).
 
     `shift` lies about the label by that many frames, exactly as _synth_session does.
+
+    `with_mask` (079-07) writes the TARGET PATCH as the per-frame mask, so the same fixture can
+    be run in mask mode. It is what carries the two burst-free negative controls forward: under
+    079-07 a bbox-only run produces readings only, so without a masked twin the "it can still
+    fail" half of this suite would have quietly disappeared.
     """
     from PIL import Image, ImageDraw
     d = os.path.join(root, name)
     frames = os.path.join(d, "Actual_Frames")
     os.makedirs(frames)
+    if with_mask:
+        os.makedirs(os.path.join(d, "target_mask"))
     width, height = (320, 240) if local_only else (160, 120)
     total, onset, end = 100, 60, 67
     x, y, rw, rh = 40, 30, 50, 50
@@ -1587,6 +1941,8 @@ def _codex_fixture(root, name, local_only=False, alternating=False, burst=True, 
     offset = 0
     rows = []
     lo, hi = onset + shift, end + shift
+    side = 10 if alternating else 20
+    patch = (x + 12, y + 12, x + 11 + side, y + 11 + side)
     for k in range(total):
         if alternating:
             offset += 1 if k % 2 == 0 else 3
@@ -1600,16 +1956,24 @@ def _codex_fixture(root, name, local_only=False, alternating=False, burst=True, 
         else:
             im = bg.crop((offset, 0, offset + width, height)).convert("RGB")
         if onset <= k <= end:
-            side = 10 if alternating else 20
-            ImageDraw.Draw(im).rectangle((x + 12, y + 12, x + 11 + side, y + 11 + side),
-                                         fill=(255, 255, 255))
+            ImageDraw.Draw(im).rectangle(patch, fill=(255, 255, 255))
         im.save(os.path.join(frames, "frame_%05d.png" % k))
+        if with_mask:
+            mk = Image.new("L", (width, height), 0)
+            ImageDraw.Draw(mk).rectangle(patch, fill=222)
+            mk.save(os.path.join(d, "target_mask", "frame_%05d.png" % k))
         entry = {"id": "missing_texture", "target_name": "SynthTarget", "start_frame": 1000 + lo,
                  "bbox_valid": True, "bbox_px": [x, y, rw, rh]}
-        rows.append({"frame_index": 1000 + k, "session_index": k,
-                     "image": "Actual_Frames/frame_%05d.png" % k, "width": width, "height": height,
-                     "anomaly_present": lo <= k <= hi, "visible_positive": lo <= k <= hi,
-                     "anomalies": [entry] if lo <= k <= hi else []})
+        if with_mask:
+            entry["mask_value"] = 222
+        row = {"frame_index": 1000 + k, "session_index": k,
+               "image": "Actual_Frames/frame_%05d.png" % k, "width": width, "height": height,
+               "anomaly_present": lo <= k <= hi, "visible_positive": lo <= k <= hi,
+               "anomalies": [entry] if lo <= k <= hi else []}
+        if with_mask:
+            row["mask_file"] = "target_mask/frame_%05d.png" % k
+            row["mask_state"] = "present"
+        rows.append(row)
     with open(os.path.join(d, "labels.jsonl"), "w", encoding="utf-8") as fh:
         for r in rows:
             fh.write(json.dumps(r) + "\n")
@@ -1661,52 +2025,117 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
     try:
         OFF = 1.0
         SHIPPED = None
+        NOENV = NO_ADMISSIBLE_ENVELOPE
+        M = dict(with_mask=True)
         cases = [
-            ("clean", dict(shift=0), (V_PASS,), OFF),
+            ("clean", dict(shift=0, **M), (V_PASS,), OFF),
             ("clean_masked", dict(shift=0, with_mask=True), (V_PASS,), OFF),
-            ("label_late_1", dict(shift=1), ("ONSET-SHIFT(-1)",), OFF),
-            ("label_early_1", dict(shift=-1), ("ONSET-SHIFT(+1)",), OFF),
-            ("end_late_1", dict(end_shift=1), ("END-SHIFT(-1)",), OFF),
-            ("end_early_1", dict(end_shift=-1), ("END-SHIFT(+1)",), OFF),
-            ("blank_region", dict(shift=0, blank_region=True), (V_NOTVIS,), OFF),
+            ("label_late_1", dict(shift=1, **M), ("ONSET-SHIFT(-1)",), OFF),
+            ("label_early_1", dict(shift=-1, **M), ("ONSET-SHIFT(+1)",), OFF),
+            ("end_late_1", dict(end_shift=1, **M), ("END-SHIFT(-1)",), OFF),
+            ("end_early_1", dict(end_shift=-1, **M), ("END-SHIFT(+1)",), OFF),
+            ("blank_region", dict(shift=0, blank_region=True, **M), (V_NOTVIS,), OFF),
 
-            ("moving_clean", dict(shift=0, pan=2), (V_PASS,), OFF),
-            ("moving_fast", dict(shift=0, pan=8), (V_PASS,), OFF),
-            ("moving_label_late_1", dict(shift=1, pan=2), ("ONSET-SHIFT(-1)",), OFF),
-            ("moving_label_early_1", dict(shift=-1, pan=2), ("ONSET-SHIFT(+1)",), OFF),
-            ("moving_end_late_1", dict(end_shift=1, pan=2), ("END-SHIFT(-1)",), OFF),
-            ("moving_end_early_1", dict(end_shift=-1, pan=2), ("END-SHIFT(+1)",), OFF),
-            ("moving_blank_region", dict(shift=0, pan=2, blank_region=True), (V_NOTVIS,), OFF),
-            ("moving_fullframe_region", dict(shift=0, pan=2, fullframe_region=True),
+            ("moving_clean", dict(shift=0, pan=2, **M), (V_PASS,), OFF),
+            ("moving_fast", dict(shift=0, pan=8, **M), (V_PASS,), OFF),
+            ("moving_label_late_1", dict(shift=1, pan=2, **M), ("ONSET-SHIFT(-1)",), OFF),
+            ("moving_label_early_1", dict(shift=-1, pan=2, **M), ("ONSET-SHIFT(+1)",), OFF),
+            ("moving_end_late_1", dict(end_shift=1, pan=2, **M), ("END-SHIFT(-1)",), OFF),
+            ("moving_end_early_1", dict(end_shift=-1, pan=2, **M), ("END-SHIFT(+1)",), OFF),
+            ("moving_blank_region", dict(shift=0, pan=2, blank_region=True, **M),
+             (V_NOTVIS,), OFF),
+            ("moving_fullframe_region", dict(shift=0, pan=2, fullframe_region=True, **M),
              (V_NOTMEAS,), OFF),
-            ("moving_unsat", dict(shift=0, pan=4, stripes=4), (V_NOTMEAS,), OFF),
-            ("moving_over_cap", dict(shift=0, pan=2), (V_NOTMEAS,), SHIPPED),
+            ("moving_unsat", dict(shift=0, pan=4, stripes=4, **M), (V_NOTMEAS,), OFF),
+            ("moving_over_cap", dict(shift=0, pan=2, **M), (V_NOTMEAS,), SHIPPED),
+
+            ("bboxonly_clean", dict(shift=0), (V_READING,), OFF),
+            ("bboxonly_label_late_1", dict(shift=1), (V_READING,), OFF),
         ]
         codex = [
-            ("codex_quiet_prefix", dict(), (V_NOTMEAS, V_PASS), SHIPPED),
-            ("codex_small_region", dict(local_only=True), (V_NOTMEAS, V_PASS), SHIPPED),
-            ("codex_alternating", dict(local_only=True, alternating=True),
-             (V_NOTMEAS, V_PASS), SHIPPED),
-            ("codex_quiet_prefix_shift1", dict(shift=1),
-             (V_NOTMEAS, "ONSET-SHIFT(-1)"), SHIPPED),
-            ("codex_small_region_shift1", dict(local_only=True, shift=1),
-             (V_NOTMEAS, "ONSET-SHIFT(-1)"), SHIPPED),
-            ("codex_quiet_prefix_noburst_shift1", dict(shift=1, burst=False),
-             ("ONSET-SHIFT(-1)",), OFF),
+            ("codex_quiet_prefix", dict(), (V_READING,), SHIPPED),
+            ("codex_small_region", dict(local_only=True), (V_READING,), SHIPPED),
+            ("codex_alternating", dict(local_only=True, alternating=True), (V_READING,), SHIPPED),
+            ("codex_quiet_prefix_shift1", dict(shift=1), (V_READING,), SHIPPED),
+            ("codex_small_region_shift1", dict(local_only=True, shift=1), (V_READING,), SHIPPED),
+            ("codex_quiet_prefix_noburst_shift1", dict(shift=1, burst=False), (V_READING,), OFF),
             ("codex_small_region_noburst_shift1", dict(local_only=True, shift=1, burst=False),
+             (V_READING,), OFF),
+            ("codex_quiet_prefix_noburst_shift1_masked",
+             dict(shift=1, burst=False, with_mask=True), ("ONSET-SHIFT(-1)",), OFF),
+            ("codex_small_region_noburst_shift1_masked",
+             dict(local_only=True, shift=1, burst=False, with_mask=True),
              ("ONSET-SHIFT(-1)",), OFF),
         ]
-        for name, kwargs, expect, cap in cases + codex:
-            if name.startswith("codex_"):
+        codex07 = [
+            ("c07_burst_aligned", dict(burst_at=61), (V_READING,), SHIPPED),
+            ("c07_burst_aligned_masked", dict(burst_at=61, mask="patch"), (V_PASS,), SHIPPED,
+             (0, 0)),
+            ("c07_burst_late", dict(burst_at=61, onset_delta=1), (V_READING,), SHIPPED),
+            ("c07_burst_late_masked", dict(burst_at=61, onset_delta=1, mask="patch"),
+             ("ONSET-SHIFT(-1)",), SHIPPED, (-1, 0)),
+            ("c07_onset_early_refusal",
+             dict(runs=((10, 11),), burst_at=10, full_boxes=(10,)), (V_READING,), SHIPPED),
+            ("c07_onset_early_refusal_masked",
+             dict(runs=((10, 11),), burst_at=10, mask="patch", full_masks=(10,)),
+             (V_PASS, V_PARTIAL, V_NOTMEAS), SHIPPED, (None, 0)),
+            ("c07_previous_end_refusal",
+             dict(runs=((10, 12), (15, 16)), label_runs=((10, 11), (15, 16)), full_boxes=(11,),
+                  patch_sides=(40, 15)), (V_READING,), SHIPPED),
+            ("c07_previous_end_refusal_masked",
+             dict(runs=((10, 12), (15, 16)), label_runs=((10, 11), (15, 16)), full_masks=(11,),
+                  patch_sides=(40, 15), mask="patch"), (V_PASS, V_PARTIAL, V_NOTMEAS), SHIPPED,
+             (0, None, 0, 0)),
+            ("c07_previous_end_control_masked",
+             dict(runs=((10, 12), (15, 16)), label_runs=((10, 11), (15, 16)),
+                  patch_sides=(40, 15), mask="patch"), ("END-SHIFT(+1)",), SHIPPED,
+             (0, 1, 0, 0)),
+            ("c07_partial_multirun_masked",
+             dict(runs=((10, 11), (25, 26)), mask="patch", full_masks=(25, 26)),
+             (V_PARTIAL,), SHIPPED),
+            ("c07_partial_multirun_bbox",
+             dict(runs=((10, 11), (25, 26)), full_boxes=(25, 26)), (V_READING,), SHIPPED),
+            ("c07_mixed_runs",
+             dict(runs=((10, 11), (25, 26)), mask="patch", mask_runs=((10, 12),)),
+             (V_PARTIAL,), SHIPPED),
+            ("c07_missing_edge_frames_masked",
+             dict(mask="patch", drop_frames=tuple(range(55, 74))), (V_NOTMEAS,), SHIPPED),
+            ("c07_missing_edge_frames",
+             dict(drop_frames=tuple(range(55, 74))), (V_READING,), SHIPPED),
+            ("c07_below_tau_masked", dict(patch_sides=(1,), mask="region"), (V_NOTVIS,), SHIPPED),
+            ("c07_zero_cap_static_masked", dict(mask="patch"), (V_PASS,), 0.0),
+            ("c07_zero_cap_burst_masked", dict(burst_at=61, mask="patch"), (V_PASS,), 0.0),
+            ("c07_no_envelope_masked", dict(mask="patch"), (V_NOTMEAS,), NOENV),
+        ]
+        for case in cases + codex + codex07:
+            name, kwargs, expect, cap = case[:4]
+            want_edges = case[4] if len(case) > 4 else None
+            if name.startswith("c07_"):
+                d = _codex07_fixture(root, name, **kwargs)
+            elif name.startswith("codex_"):
                 d = _codex_fixture(root, name, **kwargs)
             else:
                 d = _synth_session(root, name, **kwargs)
+            detail = []
             code, lines = label_pixel_gate(d, thresh, edge_w, min_visible_px, quiet=True,
-                                           region_cap=(region_cap if cap is None else cap))
+                                           region_cap=(region_cap if cap is None else cap),
+                                           out_detail=detail)
             body = [l for l in lines if l.startswith("idx=")]
             read = body[0].split()[3] if body and len(body[0].split()) > 3 else "(none)"
             ok = any(read.startswith(e) for e in expect)
-            checks.append((name, "|".join(expect), read, ok, code))
+            shown = read
+            if want_edges is not None:
+                got = tuple(e["offset"] if e["status"] == "read" and e["found"] else None
+                            for e in detail)
+                if got != tuple(want_edges):
+                    ok = False
+                shown = "%s edges=%s" % (read, ",".join("r" if g is None else "%+d" % g
+                                                        for g in got))
+            checks.append((name, "|".join(expect) + ("" if want_edges is None else
+                                                     "  edges=%s" % ",".join(
+                                                         "r" if g is None else "%+d" % g
+                                                         for g in want_edges)),
+                           shown, ok, code))
             if not ok:
                 rc = 3
 
@@ -1743,10 +2172,13 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
                   "NOT-MEASURABLE, never as NOT-VISIBLE - when the region covers the picture, when "
                   "no measurement could clear the threshold, or when the region is changing on its "
                   "own.", flush=True)
-            print("           AND IT SURVIVES THE 079-05 COUNTEREXAMPLES: three fixtures whose "
-                  "ALIGNED labels the previous design called SHIFT or NOT-VISIBLE now read PASS or "
-                  "NOT-MEASURABLE, while the same fixtures with a genuinely wrong label still "
-                  "report the shift wherever the edge dominates.", flush=True)
+            print("           AND IT SURVIVES BOTH SETS OF COUNTEREXAMPLES: the 079-05 fixtures "
+                  "whose ALIGNED labels the older design called SHIFT or NOT-VISIBLE, and the "
+                  "079-07 burst fixture where an unrelated background scroll INSIDE the labelled "
+                  "window beat the real onset 3.1x. The second set is answered by SCOPE, not by "
+                  "a threshold: a bbox-only run yields READINGS and never a verdict, while the "
+                  "same fixture with a mask reads PASS on correct labels and ONSET-SHIFT(-1) on "
+                  "a late one.", flush=True)
         else:
             print("SELFTEST: BROKEN - see the rows marked above. A gate that cannot fail is not "
                   "a gate.", flush=True)
@@ -1785,9 +2217,20 @@ def _batch_key(root, sess):
     inventory of the bench bank found 1,409 session-shaped directories in 509 colliding basename
     groups, so this is the normal case here, not a corner one.
 
-    The key is the path RELATIVE to the batch root with separators replaced by "__", which is
-    unique by construction because two different relative paths differ somewhere.
+    079-07 finding 8. The 079-06 recipe - the relative path with separators replaced by "__" -
+    is NOT a unique encoding, and Codex produced the collision: `a__b/session_same` and
+    `a/b__session_same` both flatten to `a__b__session_same`, the summary printed that identifier
+    twice with opposite verdicts, and only the second report survived the `"w"` open. A separator
+    substitution cannot be injective when the separator is a legal character in a path component.
+
+    So the key now carries the first 8 hex of the SHA-1 OF THE RELATIVE PATH beside the flattened
+    form: the flattened part stays readable, the hash makes two different paths differ. That is
+    an argument about collision LIKELIHOOD, not a proof, which is why label_pixel_batch ALSO
+    asserts uniqueness across the whole batch before it writes anything.
+
+    Returns (key, rel) so the caller can print the path the identifier stands for.
     """
+    import hashlib
     try:
         rel = os.path.relpath(sess, root)
     except ValueError:
@@ -1798,7 +2241,8 @@ def _batch_key(root, sess):
     key = rel.replace("/", "__")
     for ch in ':*?"<>|':
         key = key.replace(ch, "_")
-    return key
+    digest = hashlib.sha1(rel.encode("utf-8")).hexdigest()[:8]
+    return "%s__%s" % (key, digest), rel
 
 
 def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, report_only,
@@ -1835,13 +2279,28 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
               "be unfounded. Fix the gate first.", flush=True)
         return 3
 
+    keys = {}
+    collisions = []
+    for sess in sessions:
+        name, rel = _batch_key(root, sess)
+        if name in keys:
+            collisions.append((name, keys[name], rel))
+        keys[name] = rel
+    if collisions:
+        print("BATCH: REFUSING TO RUN - two sessions map to the same identifier, so one report "
+              "would silently overwrite the other:", flush=True)
+        for name, a, b in collisions:
+            print("  %s  <-  %s  AND  %s" % (name, a, b), flush=True)
+        return 3
+
     summary = []
     worst = 0
     cannot_run = 0
     for sess in sessions:
-        name = _batch_key(root, sess)
+        name, rel = _batch_key(root, sess)
         if not os.path.isfile(os.path.join(sess, "labels.jsonl")):
-            line = "%-58s | CANNOT RUN | no labels.jsonl (the gate needs the per-frame bbox)" % name
+            line = ("%-58s | CANNOT RUN | no labels.jsonl (the gate needs the per-frame bbox) | %s"
+                    % (name, rel))
             summary.append(line)
             print(line, flush=True)
             worst = max(worst, 3)
@@ -1851,7 +2310,7 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
             code, lines = label_pixel_gate(sess, thresh, edge_w, min_visible_px, quiet,
                                            region_cap=region_cap)
         except Exception as exc:
-            line = "%-58s | ERROR      | %s: %s" % (name, type(exc).__name__, exc)
+            line = "%-58s | ERROR      | %s: %s | %s" % (name, type(exc).__name__, exc, rel)
             summary.append(line)
             print(line, flush=True)
             worst = max(worst, 3)
@@ -1867,16 +2326,18 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
                 counts = " ".join(l.split())
             elif l.strip().startswith("VERDICT"):
                 verdict = " ".join(l.split()[1:])
-        line = "%-58s | exit %-4d | %s | VERDICT %s" % (name, code, counts or "(no events)",
-                                                        verdict or "(none)")
+        line = "%-58s | exit %-4d | %s | VERDICT %s | %s" % (name, code, counts or "(no events)",
+                                                             verdict or "(none)", rel)
         summary.append(line)
         print(line, flush=True)
         worst = max(worst, code)
 
     with open(os.path.join(out_dir, "SUMMARY.txt"), "w", encoding="utf-8") as fh:
         fh.write("root: %s\n" % root)
-        fh.write("sessions: %d (identifiers are the path RELATIVE to the root, separators as __, "
-                 "because basenames collide)\n\n" % len(sessions))
+        fh.write("sessions: %d (identifiers are the path RELATIVE to the root with separators as "
+                 "__ plus 8 hex of its sha1, because basenames collide AND the flattened form "
+                 "collides too; uniqueness is asserted before anything is written. The relative "
+                 "path is printed as the last field of every line.)\n\n" % len(sessions))
         fh.write("\n".join(summary) + "\n")
     print("BATCH: %d session(s)%s; full per-session output in %s"
           % (len(sessions),
@@ -1923,18 +2384,31 @@ def main():
                          f"NOT-VISIBLE (default {MIN_VISIBLE_PX_DEFAULT}; needs masks)")
     ap.add_argument("--report-only", action="store_true",
                     help="label-pixel gate: print the readings and exit 0 even on a shift")
-    ap.add_argument("--region-cap", "--motion-cap", dest="region_cap", type=float,
-                    default=REGION_CAP,
+    ap.add_argument("--region-cap", "--motion-cap", dest="region_cap", type=str,
+                    default=str(REGION_CAP),
                     help=f"label-pixel gate: refuse an EDGE as NOT-MEASURABLE when the region it "
                          f"is judged on changes by more than this on its own nearby clean frames "
                          f"(default {REGION_CAP}, a PROVISIONAL HEURISTIC set by the 079-06 cohort "
                          f"procedure - see the module header). --motion-cap is a deprecated alias "
-                         f"for the same flag; pass 1.0 to disable the guard entirely.")
+                         f"for the same flag; pass 1.0 to disable the guard entirely. Pass the "
+                         f"literal '{NO_ADMISSIBLE_ENVELOPE}' to refuse EVERY edge - that state is "
+                         f"not the same as a cap of 0.0, which still judges a perfectly still "
+                         f"region.")
     ap.add_argument("--all", metavar="ROOT", default=None,
                     help="label-pixel gate: run over EVERY session folder under ROOT, one summary "
                          "line each, full output under --out. Runs --selftest first and refuses "
                          "to start if it is not OK.")
     args = ap.parse_args()
+    if isinstance(args.region_cap, str):
+        txt = args.region_cap.strip()
+        if txt.upper() == NO_ADMISSIBLE_ENVELOPE:
+            args.region_cap = NO_ADMISSIBLE_ENVELOPE
+        else:
+            try:
+                args.region_cap = float(txt)
+            except ValueError:
+                sys.exit("ERROR: --region-cap takes a number or the literal '%s', not %r"
+                         % (NO_ADMISSIBLE_ENVELOPE, args.region_cap))
 
     if args.selftest:
         if args.label_pixel_gate:
