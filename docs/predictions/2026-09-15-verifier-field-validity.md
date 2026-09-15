@@ -664,3 +664,300 @@ healthy sessions returns **0**; an unreadable session returns **3**.
   a verdict is the laundering shape and is forbidden.
 - ⛔ **NO MERGE** either way. `Source/`, `Shaders/` and `measure_label_offset.py` stay byte-unchanged;
   no capture, build or cook.
+
+---
+
+# AMENDMENT 5 — 2026-09-15 (079-07), written BEFORE a line of the correction was implemented
+
+Codex's second independent merge review (`_reviews/079-07-codex-merge-rereview.md`) returned
+**CHANGES REQUIRED** on eight findings. **Chat accepts all eight**
+(`_reviews/079-07-chat-disposition.md`). This amendment fixes the corrected design and the readings
+**before** the code exists, exactly as Amendments 1–4 did.
+
+## A5.0 WHAT IS WITHDRAWN AND WHAT IS RE-SCOPED
+
+**F1 is ruled a SCOPE BOUNDARY, not a threshold problem, and that ruling is the whole of this
+amendment.** Codex built a fixture in which a 20×20 patch appears on frames 60..67 and an unrelated
+10 px background scroll happens once at frame 61, inside the labelled window, with every clean
+baseline pair unchanged (`m_edge = 0`, `tau = 0.0040`). At the shipped cap the candidate reads
+**`ONSET-SHIFT(+1)` FAIL on CORRECT labels**, and **`PASS` on a deliberately late label**. The burst
+changes 0.4960 of the region against the real onset's 0.1600 and wins dominance by 3.1×.
+**Reproduced here before this amendment was written; both readings confirmed.**
+
+🔻 **WITHDRAWN: the `_edge_search` docstring's claim that dominance is "THE DIRECT CURE FOR
+'SOMETHING ELSE WON THE ARGMAX'".** It is not. Dominance decides whether the argmax was CLOSE; it
+does not decide whether the winner belongs to the TARGET. Lowering the cap does not help either —
+the false shift survives at cap 0, because the baseline is already perfectly still.
+
+🔑 **THE RULING: a frame-difference gate has no way to attribute an in-window transition to the
+target without a per-frame mask.** Therefore:
+
+| mode | when | what it may emit |
+|---|---|---|
+| **MASK MODE** | every edge of the run took its region from the delivered per-frame mask | `PASS` / `ONSET-SHIFT(n)` / `END-SHIFT(n)` / `NOT-VISIBLE` / `NOT-MEASURABLE` / `PARTIAL` |
+| **BBOX-ONLY** | any edge of the run fell back to the supplied bounding box | **`READING` lines only. NEVER a verdict.** |
+
+⛔ **THIS IS NOT A TUNING. It removes the F1 class outright for bbox-only data** — the region is no
+longer asked a question it cannot answer — and it makes the client sentence true: verification is
+real on M3 datasets and bench captures, and on bbox-only captures the tool points a human at named
+frames.
+
+⚠ **THE COST IS STATED, NOT DISCOVERED: `M50L_LG9` leaves the verdict surface entirely.** Measured
+before this amendment: of the ten nominated bank sessions, the six pinned `M49_GEDGE_*` legs
+(**64 edges**, correcting the 56 in 079-06's report), `A2L_LEGA` (16), `LYRA_SMOKE_01` (16) and
+`A1L_LEGA` (12) take **100 %** of their edge regions from masks; `M50L_LG9` takes **0 of 16** and is
+bbox-only on every edge. **No run anywhere in that set is mixed**, so the per-run rule has no
+awkward case in the banked data.
+
+**Mode is decided PER RUN, not per session or per edge, and the reason is a coupling, not a
+convenience:** F2's ordering constraints run BETWEEN the two edges of a run (an onset's detected
+frame bounds its own end; a run's detected clear bounds the next run's onset). An unattributed
+onset's `best_k` can be any transition in the picture, so letting it bound an attributed end would
+import exactly the ambiguity this ruling removes. A run is therefore in mask mode only if **both**
+its edges are mask-attributed.
+
+## A5.1 THE CORRECTED DESIGN — F1 to F8
+
+### F1 — R1/R2/R3/R4
+
+- **R1** In mask mode the region for every edge is the target's mask silhouette for that frame.
+  This is **already the m49 path**: `_build_region` (`verify_capture.py:606-623`) prefers
+  `row["mask_file"]` and only falls back to `mlo.bbox_from_label_entry` when there is no mask;
+  `_region_from_mask` (`:563-603`) returns a binary silhouette crop, and `_region_frac` (`:671-712`)
+  multiplies the frame's hot-pixel crop by that binary (`:708-711`). **No new region code is
+  written; what changes is what the gate is ALLOWED TO CONCLUDE from a region that is not one.**
+- **R2** In bbox-only mode every edge prints a READING line and the event token is `READING`; the
+  summary counts `READINGS n`; the session VERDICT is
+  `UNREAD-BBOX-ONLY (n events; readings printed - bbox-only sessions cannot be verified against
+  pixels, a reviewer must look at the named frames)`; **exit 0**. Exit 2 remains reachable only from
+  a mask-mode `SHIFT` or `NOT-VISIBLE`; exit 3 is unchanged. `--report-only` is unchanged.
+- **R3** Mixed sessions are handled per run; READING runs count as **unread** for F7's coverage.
+- **R4** Wording: the dominance "direct cure" claim is removed; the FAIL line becomes
+  `labels not confirmed by pixels on n event(s)`; header, `client-readme.md` Step 6 and
+  `office-rdp-card.md` Section G all carry *"verdicts are given only where per-frame masks identify
+  the target's pixels (M3 datasets and bench captures); without masks the tool reports readings for
+  human review and never a verdict."*
+
+### F2 — constraints survive refusal
+
+The search runs **before every refusal that has a region and a scannable window**, so a refused edge
+still yields a `best_k` usable purely as an ORDERING CONSTRAINT. Where `tau` could not be learned or
+is unsatisfiable, the search runs at `SIGNAL_FLOOR` and the result is marked bound-only; it is never
+promoted to an answer. The dependent window is then bounded by the **DETECTED** edge if one exists,
+**else by the LABELLED** edge:
+
+- end of run `i`: `end_lo >= (onset.best_k + 1)` if detected, else `>= (rs + 1)`;
+- onset of run `i+1`: `on_lo >= (prev_end.best_k + 1)` if detected, else `>= (prev_re_ + 2)`.
+
+🔑 **DETECTED-ELSE-LABELLED, NOT `max(detected, labelled)`** — and the difference is load-bearing.
+On a one-frame run whose labels are LATE by one, the true clear sits at the labelled onset frame
+itself; a labelled floor of `rs + 1` would exclude the correct answer in exactly the case the gate
+exists to catch. The brief's parenthetical — *"previous run's detected clear if found, else its
+labelled end"* — is the operative rule and is the sound one; the looser `max(...)` phrasing beside
+it is not adopted, and this deviation is declared here rather than discovered in a re-review.
+
+If a bound empties the window ⇒ `NOT-MEASURABLE(window emptied by the preceding edge: …)`.
+
+### F3 — coverage before judgement
+
+`end_hi` is clamped to the session's last frame (it was not; that clamp changes **no** search result,
+because `_edge_search` already skips absent frames — it makes the coverage denominator meaningful).
+An edge is `read` only if **every frame pair of its FINAL window was scannable**; any absent frame ⇒
+`NOT-MEASURABLE(frames missing in window: …)`.
+
+⚠ **"FINAL window" is load-bearing and is declared now: the window is deliberately narrowed by the
+run's own extent, by ordering bounds, by the foreign-event exclusion and by the session's ends.
+Measured before this amendment, the banked edges scan 3–8 pairs of a nominal 9 because of those
+bounds, not because of gaps.** Applying coverage to the nominal ±4 window would refuse every edge
+in the bank, including all 64 pinned-bench edges. Foreign-event exclusions are reported separately
+and are not "missing"; if they leave the window empty the edge refuses with that reason.
+
+`NOT-VISIBLE` requires both edges read, i.e. both fully covered.
+
+### F4 — immutable denominator (scorer)
+
+The eligibility cohort — session × run × edge × perturbation × variant — is published **before**
+scoring. An unsupported perturbation (a run removed or merged, a coherent payload that cannot be
+constructed) no longer skips the session/variant: its cells are retained with
+`outcome = "unsupported"` and an explicit reason. `derive_cap` ignores them (their `m_edge` is
+`None`).
+
+### F5 — no-signal is not a refusal (scorer) and the FAIL wording
+
+Outcome classes become **`recovered` / `wrong` / `refused(<reason>)` / `no-signal` / `unsupported`**.
+`no-signal` is `status=read, found=False` — the edge WAS read and nothing cleared `tau`. The 079-06
+guard-off table's **385 "refused" cells contain 130 no-signal cells**; they are re-published split.
+**"Zero wrong returned offsets" is not "zero wrong verdicts"** and the report says so.
+
+### F6 — the zero boundary
+
+`floor_2sf(0)` returns the same `(value, unit)` shape as the non-zero path (it returned a bare float
+and `derive_cap` unpacked a pair — `TypeError`). A wrong cell at `m_edge = 0` yields the explicit
+result **`NO ADMISSIBLE ENVELOPE`**, not a number. That state is a distinct sentinel the gate
+accepts, prints in its header, and honours by **refusing every edge**.
+⚠ **A numeric cap of `0.0` is NOT refuse-all and must never be described as one** — the test is
+`m_edge > cap`, so a perfectly still region (`m_edge = 0`, which is **every one of the 64 pinned
+bench edges**) still passes it. The header states that distinction explicitly.
+
+### F7 — coverage aggregation, and a correction to AMENDMENT 4
+
+🔻 **A4.1's V5 severity order (`NOT-VISIBLE → SHIFT → PARTIAL → NOT-MEASURABLE → PASS`, worst
+run wins) is CORRECTED here by a dated amendment rather than rewritten in place.** It conflicts with
+A4.1's own `PARTIAL` definition and with the client README's statement that `UNREAD` means nothing
+could be read: a fully read and aligned run beside an unread run printed `NOT-MEASURABLE` for the
+event and `UNREAD` for the session. The event token now comes from **coverage over all the event's
+edges**:
+
+```
+R = edges that are status=read AND in a mask-attributed run;  E = all the event's edges
+any run verdict is a SHIFT            -> that SHIFT          (a positive detection on a read,
+                                                              dominant, attributed edge stands alone)
+|R| == 0 and no run attributed        -> READING
+|R| == 0                              -> NOT-MEASURABLE
+|R| == |E| and any run NOT-VISIBLE    -> NOT-VISIBLE
+|R| == |E|                            -> PASS
+otherwise                             -> PARTIAL
+```
+
+⛔ Exit codes unchanged: `bad = SHIFT + NOT-VISIBLE`, exit 2 when `bad > 0`; `PARTIAL` and `READING`
+are not failures.
+
+### F8 — collision-safe identifiers
+
+The batch identifier becomes `<flattened relative path>__<first 8 hex of sha1(relative path)>`, and
+**uniqueness is asserted across the batch before anything is written**; a collision refuses with
+exit 3 and lists the offenders. The summary prints the relative path beside the identifier.
+
+### The wording corrections also required (Codex Q5)
+
+- Section G card: *"exit 3 = NOTHING WAS READ"* → *"exit 3 = at least one session could not run;
+  others may have been read."*
+- The header's `7×2` shorthand → the real cohort definition; **N** explained as PERTURBATION CELLS
+  that reached a baseline, never independent real edges; the retained positive support stated as it
+  is (079-06: four original edges of two events in one session, i.e. static regions between events).
+- Pinned-bench edge count **56 → 64**.
+
+## A5.2 THE PREDECLARED READINGS
+
+⛔ **No constant is tuned outside P4's procedure. `K_SIGMA`, `SIGNAL_FLOOR`, `MIN_BASELINE_FRAMES`,
+`BASELINE_MAX_FRAMES`, `MAX_REGION_FRAC`, `ATTAINABLE_MAX`, `DOMINANCE` are fixed here and are not
+to be moved by a result. `REGION_CAP` is re-derived by A4.2's S5 procedure, unchanged, on the
+MASK-MODE cohort only** (bbox-only cells are readings, not verdicts, so they leave the cohort).
+
+### P1 — SELFTEST: `SELFTEST: OK`, every case as tabled below
+
+**EVERY EXPECTED-STRING CHANGE, WITH ITS REASON.** The seventeen 079-06 cases are all built by
+`_synth_session`, which writes masks only when asked, so under R1/R2 all but one were bbox-only and
+would become `READING` — which would delete the suite's ability to prove the gate can fail (G96).
+**The fixtures therefore gain masks; the expectations do not move.** The mask is written as the
+LABEL's own rectangle, so `blank_region` and `fullframe_region` keep lying about the target in
+exactly the way they did.
+
+| # | case | build change | cap | expected | change vs 079-06 and why |
+|---|---|---|---|---|---|
+| 1 | `clean` | +mask | off | `PASS` | token unchanged; masked so a verdict is still permitted |
+| 2 | `clean_masked` | — | off | `PASS` | unchanged |
+| 3 | `label_late_1` | +mask | off | `ONSET-SHIFT(-1)` | token unchanged; masked |
+| 4 | `label_early_1` | +mask | off | `ONSET-SHIFT(+1)` | token unchanged; masked |
+| 5 | `end_late_1` | +mask | off | `END-SHIFT(-1)` | token unchanged; masked |
+| 6 | `end_early_1` | +mask | off | `END-SHIFT(+1)` | token unchanged; masked |
+| 7 | `blank_region` | +mask (= the label's box) | off | `NOT-VISIBLE` | token unchanged; masked |
+| 8 | `moving_clean` | +mask | off | `PASS` | token unchanged; masked |
+| 9 | `moving_fast` | +mask | off | `PASS` | token unchanged; masked |
+| 10 | `moving_label_late_1` | +mask | off | `ONSET-SHIFT(-1)` | token unchanged; masked |
+| 11 | `moving_label_early_1` | +mask | off | `ONSET-SHIFT(+1)` | token unchanged; masked |
+| 12 | `moving_end_late_1` | +mask | off | `END-SHIFT(-1)` | token unchanged; masked |
+| 13 | `moving_end_early_1` | +mask | off | `END-SHIFT(+1)` | token unchanged; masked |
+| 14 | `moving_blank_region` | +mask | off | `NOT-VISIBLE` | token unchanged; masked |
+| 15 | `moving_fullframe_region` | +mask (= whole frame) | off | `NOT-MEASURABLE` | token unchanged; masked |
+| 16 | `moving_unsat` | +mask | off | `NOT-MEASURABLE` | token unchanged; masked |
+| 17 | `moving_over_cap` | +mask | **shipped** | `NOT-MEASURABLE` | token unchanged; **this is the case that proves the per-edge regional guard still FIRES in mask mode** |
+
+| # | 079-05 Codex case | cap | expected | change and why |
+|---|---|---|---|---|
+| 18 | `codex_quiet_prefix` | shipped | **`READING`** | was `NOT-MEASURABLE\|PASS`. Bbox-only; under R2 the whole class is unattributable, which is STRICTLY STRONGER than the per-edge guard it used to test |
+| 19 | `codex_small_region` | shipped | **`READING`** | as above |
+| 20 | `codex_alternating` | shipped | **`READING`** | as above |
+| 21 | `codex_quiet_prefix_shift1` | shipped | **`READING`** | was `NOT-MEASURABLE\|ONSET-SHIFT(-1)`; bbox-only |
+| 22 | `codex_small_region_shift1` | shipped | **`READING`** | as above |
+| 23 | `codex_quiet_prefix_noburst_shift1` | off | **`READING`** | was `ONSET-SHIFT(-1)`; bbox-only. Its can-still-fail role moves to case 24 |
+| 24 | `codex_quiet_prefix_noburst_shift1_masked` | off | `ONSET-SHIFT(-1)` | **NEW.** The load-bearing negative control, carried into mask mode so refusing everything still cannot pass the suite |
+| 25 | `codex_small_region_noburst_shift1` | off | **`READING`** | was `ONSET-SHIFT(-1)`; bbox-only |
+| 26 | `codex_small_region_noburst_shift1_masked` | off | `ONSET-SHIFT(-1)` | **NEW**, same role as 24 |
+
+| # | 079-07 Codex case (all NEW) | cap | expected | what it proves |
+|---|---|---|---|---|
+| 27 | `c07_burst_aligned` | shipped | `READING` | **F1/R2.** The false `ONSET-SHIFT(+1)` becomes a reading |
+| 28 | `c07_burst_aligned_masked` | shipped | `PASS` | **F1/R1.** Chat's stated requirement |
+| 29 | `c07_burst_late` | shipped | `READING` | **F1/R2.** The false `PASS` becomes a reading |
+| 30 | `c07_burst_late_masked` | shipped | `ONSET-SHIFT(-1)` | **F1/R1.** Chat's stated requirement |
+| 31 | `c07_onset_early_refusal` | shipped | `READING` | **F2/R2** |
+| 32 | `c07_onset_early_refusal_masked` | shipped | `PASS` / `PARTIAL` / `NOT-MEASURABLE` — ⛔ **never a SHIFT, never NOT-VISIBLE** | **F2.** A refused onset must still bound its own end |
+| 33 | `c07_previous_end_refusal` | shipped | `READING` | **F2/R2** |
+| 34 | `c07_previous_end_refusal_masked` | shipped | `PASS` / `PARTIAL` / `NOT-MEASURABLE` — ⛔ **never a SHIFT, never NOT-VISIBLE** | **F2 across runs** |
+| 35 | `c07_previous_end_control_masked` | shipped | `PASS` / `PARTIAL` / `NOT-MEASURABLE` — ⛔ **never a SHIFT** | **F2** with the prior end READ, Codex's follow-up |
+| 36 | `c07_partial_multirun_masked` | shipped | `PARTIAL` | **F7.** One read+aligned run beside one refused run |
+| 37 | `c07_partial_multirun_bbox` | shipped | `READING` | **R2/R3** |
+| 38 | `c07_missing_edge_frames_masked` | shipped | `NOT-MEASURABLE` | **F3.** Never `NOT-VISIBLE` from zero observations |
+| 39 | `c07_missing_edge_frames` | shipped | `READING` | **F3/R2** |
+| 40 | `c07_below_tau_masked` | shipped | `NOT-VISIBLE` | **F5.** The detection limit, named beside the README sentence |
+| 41 | `c07_zero_cap_static_masked` | **0.0** | `PASS` | **F6.** A numeric cap of 0 is not refuse-all |
+| 42 | `c07_zero_cap_burst_masked` | **0.0** | `PASS` — ⛔ **never a SHIFT** | **F6** on the F1 burst |
+| 43 | `c07_no_envelope_masked` | **NO ADMISSIBLE ENVELOPE** | `NOT-MEASURABLE` | **F6.** The sentinel really does refuse everything |
+
+Plus the two `real±1` cases against `--dir`, unchanged in intent.
+
+⛔ **A case reading outside its declared set is a FAIL. The tables are not edited to match a result;
+NEEDS-DECISION is reported with the numbers.**
+
+### P2 — THE PINNED BENCH IS UNMOVED
+
+All six `M49_GEDGE_*` legs: **`PASS 4 / SHIFT 0 / NOT-VISIBLE 0 / PARTIAL 0 / NOT-MEASURABLE 0 /
+READINGS 0`**, `VERDICT PASS (4 of 4 events fully checked)`, `tau = 0.0040` on every edge, exit 0,
+**64 detailed edges**, every one mask-attributed with `m_edge = 0.000000` (measured before this
+amendment).
+⛔ **If any bench event drops to `PARTIAL`, `NOT-MEASURABLE` or `READING`, STOP — NEEDS-DECISION
+with the numbers. Do not move `DOMINANCE` or `REGION_CAP` to recover it.**
+
+### P3 — THE BANK SESSIONS
+
+- `A2L_LEGA`, `LYRA_SMOKE_01`, `A1L_LEGA` (mask mode on 100 % of their edges): **mask-mode readings.
+  Zero `SHIFT` and zero `NOT-VISIBLE` on all three.** Which of `PASS` / `PASS-PARTIAL` / `UNREAD` each
+  prints is **NOT predicted** — F2's new bounds and F3's coverage rule may read or refuse edges that
+  079-06 did the other way, and that is the correction working.
+- `M50L_LG9` (bbox-only on 16 of 16 edges): **`UNREAD-BBOX-ONLY`, six `READING` event lines,
+  exit 0.**
+- 🚨 **If a mask-mode edge IS fully read AND dominant AND disagrees, the frames and the numbers are
+  printed and it is reported as a FINDING about that session's labels — not as a failure of this
+  brief, and not smoothed away.**
+
+### P4 — SCORER v2.1 ON THE MASK-MODE COHORT
+
+Guard off and guard on, over `A2L_LEGA`, `LYRA_SMOKE_01`, `A1L_LEGA` only. The immutable denominator
+is published FIRST. Five classes reported separately. `REGION_CAP` re-derived by S5, or
+`NO ADMISSIBLE ENVELOPE`, with provenance in the new wording. The 079-06 780-cell tables are
+additionally re-published from the banked `cohort.json` with the 130 no-signal cells split out.
+**Predicted: the guard-disabled mask-mode cohort still shows at least one `wrong` cell** — Codex
+named the binding one (`A1L_LEGA` event 0, run[4..5], onset, annotation-only both +1, expected −1,
+returned +1, `m_edge = 0.00014459`) and `A1L_LEGA` is a masked session, so it stays in the cohort.
+**A table with zero wrong cells anywhere would mean the scorer did not reproduce the review and is
+itself a STOP.**
+
+### P5 — BATCH
+
+Codex's collision fixture (`a__b/session_same` and `a/b__session_same`) retains **two** reports with
+distinct names and two distinguishable summary lines; a batch containing a session with no
+`labels.jsonl` returns **3** under `--report-only`; a mixed batch returns 3 while still reading the
+others.
+
+## A5.3 STOP RULES
+
+- **P2 fails** ⇒ the correction has broken the pinned reference. **STOP, NEEDS-DECISION.**
+- **P1 case 28 or 30 fails** ⇒ R1 does not close F1. **STOP.**
+- **P1 cases 24/26 fail** ⇒ the suite can no longer prove the gate fails. **STOP.**
+- **P4 shows zero `wrong` cells with the guard disabled** ⇒ the scorer is not reproducing the review.
+  **STOP.**
+- ⛔ **No constant is moved to clear any of these.** Tuning a fixture so that it poses a fair question
+  is legitimate and is stated; moving a threshold to move a verdict is forbidden.
+- ⛔ **NO MERGE either way.** `Source/`, `Shaders/` and `measure_label_offset.py` stay byte-unchanged;
+  no capture, build or cook.
