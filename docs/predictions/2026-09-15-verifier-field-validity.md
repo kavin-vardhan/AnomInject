@@ -309,3 +309,104 @@ SUBTRACTION)** specifically:
   "known-good labels" was an over-claim, corrected in the 079-02 journal §4.
 
 **F-B, F-C, F-D, F-E, F-F, F-G, F-H are not implicated and should survive. Only F-A is refuted.**
+
+---
+
+# AMENDMENT 2 — 2026-09-15 (079-03), written BEFORE the revert and BEFORE any run
+
+Chat ruled: **F-A withdrawn**, statistic returns to raw `d(region)`; motion estimate becomes **global**,
+not ring-based; a **motion escape** replaces ring subtraction; F-B..F-H stand; the
+`observability_measured` / `bbox_source` pair is an **annotation, not a verdict rule**.
+
+## A2.0 🚨 BLOCKING FINDING — §1's MASK GROUND TRUTH IS CIRCULAR, AND I AM NOT RUNNING A TEST THAT CANNOT FAIL
+
+The brief asks for **MASK ONSET = the first frame in the event's span with `observable == true`**, used
+as ground truth the gate never sees. **Measured before predeclaring anything, it cannot disagree with
+the label by construction:**
+
+- **`m49` A1 DEFINES `affected_frames` AS THE OBSERVABLE SUBSET.** So "the first frame of
+  `affected_frames` where `observable == true`" is **`min(affected_frames)`** — the label's own onset.
+  Re-deriving the label from the label.
+- **The data agrees.** In `A1L_LEGA` and `A2L_LEGA` **every in-span anomaly entry reads
+  `observable: True`**. The `False` entries exist (10 in `A1L_LEGA`) but sit **outside** the span, in
+  `injected \ affected`: event 0 has `injected [4,5,9,10]` against `affected [4,5]`.
+- **And no mask evidence exists outside the span at all** — `m44`'s rule is that masks appear only on
+  frames labelled for that event, so the mask can never place an edge the label did not already claim.
+
+**Two of the four nominated sessions do not even carry the keys:** `LYRA_SMOKE_01` and the
+`M49_GEDGE_*` legs have **no `target_pixels` / `observable`** on their anomaly entries (they pre-date
+`m49` A1). Per §1's own instruction — *"say so and drop it from the set — do not substitute"* —
+**`LYRA_SMOKE_01` is DROPPED.** That leaves `A1L_LEGA` and `A2L_LEGA`, and for those the test is
+vacuous.
+
+⇒ **P3 as written would report 100 % agreement while testing nothing** (`G146`'s vacuous-pass shape),
+and **P4's cap would inherit that vacuity.** I am therefore not running it.
+
+## A2.1 THE REPLACEMENT — an INJECTED known answer, which cannot be circular
+
+🚨 **DEVIATION FROM THE BRIEF, DECLARED IN ADVANCE AND IN WRITING. Chat ratifies or rejects.**
+Instead of reading a known answer out of the producer's own labels, **we inject one ourselves** using
+the machinery already in the tool (`_shifted_copy_of`: copies a real session's LABELS ONLY, shifts
+every window by `delta`, references the frames in place, never writes to the source).
+
+> **A gate is validated by whether it can RECOVER A KNOWN LABELLING ERROR. The envelope question is
+> then exactly: at how much camera motion does that ability disappear?**
+
+This is strictly **stronger** than the specified test — the answer is ours, not the producer's, so it
+can genuinely fail — and it runs on **real moving-camera content with real parallax**.
+
+**P3′ — recovery of an injected ±1 shift.** For `A2L_LEGA` (light motion) and `A1L_LEGA` (strong):
+run the gate on `delta = 0`, `+1`, `−1`. Required: at `delta 0` **no SHIFT** on decided events; at
+`delta +1` the decided events read **`ONSET-SHIFT(-1)`**; at `delta −1`, **`ONSET-SHIFT(+1)`**.
+Tabulate per event: `M_med | delta | gate verdict | recovered? `. Events read NOT-MEASURABLE are
+listed with their reason and **excluded from the recovery rate, never counted as agreement.**
+
+**P4′ — setting `MOTION_CAP`, procedure fixed now.**
+1. **Synthetic ladder** (fully known answer, no parallax ⇒ **optimistic by construction**):
+   `_synth_session(shift=+1, pan=p, blocks=16)` for `p ∈ {0,1,2,4,6,8,12,16}`. Record `M_med` and
+   whether `ONSET-SHIFT(-1)` is recovered. `M_synth` := the largest `M_med` still recovered.
+2. **Real** (with parallax): the P3′ results. `M_real` := the largest session `M_med` with **100 %**
+   recovery on decided events.
+3. `MOTION_CAP := min(M_synth, M_real)`, **rounded DOWN to two significant figures**.
+4. **If any session/rung FAILS recovery at `M_fail`, additionally require `MOTION_CAP ≤ M_fail / 2`**
+   (the brief's 2× margin).
+5. If nothing fails anywhere, the cap is set **just above the highest `M_med` observed**, and is
+   flagged **`provisional — no disagreeing session observed`**.
+6. The cap and this provenance go in the tool header. ⛔ **No other constant is tuned.**
+
+## A2.2 The other readings, unchanged from the brief
+
+- **P1** selftest: all existing cases **re-based on raw `d`**, plus one **heavy-motion** case whose
+  known answer is `NOT-MEASURABLE(camera motion)` ⇒ `SELFTEST: OK`.
+- **P2** 🔑 **THE INERTNESS PROOF F-A FAILED.** All six `M49_GEDGE_*`: `tau = 0.0040`, **`PASS 4 /
+  SHIFT 0 / NOT-VISIBLE 0 / NOT-MEASURABLE 0`**, verdict lines identical to **079-01's** run apart
+  from the new annotation columns and `base=24`. **`MT_NAT` and `MT_SYN` must be PASS 4** — that is
+  **P7** as well.
+- **P5** `M50L_LG9` (`M_med` measured **0.2649** globally in 079-01; the gate's own header read
+  **0.3491** over its clean subset — both are reported): **every event `NOT-MEASURABLE(camera
+  motion)`, zero NOT-VISIBLE, zero SHIFT**, *provided the cap lands below that value*. If the cap
+  lands above it, the escape does not fire and **I say so rather than forcing it.**
+- **P6** batch: counts identical to the individual runs.
+- **P7** the 079-02 regression is gone (subsumed by P2).
+
+## A2.3 My prediction for `A1L_LEGA`, stated before the run
+
+079-01 (raw `d`, base=30) read **PASS 4 / NOT-MEASURABLE 2** — `idx=0` NOT-MEASURABLE with
+`CONTAMINATED=7`, `idx=5` `manifested-false-or-empty`. 079-02 (ring) turned `idx=0` into
+`ONSET-SHIFT(+1)`. **With F-A reverted I predict `A1L_LEGA` returns to PASS 4 / NOT-MEASURABLE 2**,
+i.e. the 079-02 SHIFT was a **gate error introduced by ring subtraction**, not a label defect. ⚠ F-D's
+nearest-24 baseline (vs 30) may still move `idx=0`; if a SHIFT survives the revert, **P3′'s
+`delta = 0` run is what decides whether it is real**, and it is reported either way.
+
+## A2.4 Constants
+
+`K_SIGMA = 6.0`, `SIGNAL_FLOOR = 0.0040`, `MIN_BASELINE_FRAMES = 3`, `BASELINE_MAX_FRAMES = 24`,
+`RING_MAX_REGION_FRAC = 0.90` — **all unchanged**. `M_med` is computed at **full resolution, no
+downsampling** (stated per §0.2; the cache makes it cheap). `MOTION_CAP` is the **only** new constant
+and it is set solely by A2.1's procedure.
+
+## A2.5 Stop rules
+
+**If P2 or P7 fails, STOP — NEEDS-DECISION with the numbers.** If P3′ shows the gate cannot recover an
+injected shift even on `A2L_LEGA` (light motion), **STOP** — the statistic is not fit for moving
+content at all and no cap can rescue it.
