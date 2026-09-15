@@ -6675,3 +6675,45 @@ threshold `net = raw - ambient_ring` - a **motion-COMPENSATED** quantity whose o
 ring subtraction "stops camera motion ... from faking a manifestation". The gate applied them to a
 raw, **uncompensated** one. On a pinned camera the two coincide; on a moving camera they diverge
 without bound. **Constants are calibrated against a statistic, not against a codebase.**
+
+## G260 - a SPATIAL ring does not cancel PARALLAX motion, and subtracting it destroys signal because
+anomalies bleed outside their own bbox (2026-09-15, session 079-02/03)
+
+`G259` left the label-pixel gate saturating under camera motion. The obvious cure - and it had prior
+art in this repo - was to subtract an ambient ring: threshold `net = d(region) - d(ring)` instead of
+`d(region)`, on `measure_label_offset.py:92-93`'s own words, *"a whole-frame change lifts the ring as
+much as the region and cancels."* **It was built, gated, and refuted by its own gates in both
+directions at once.**
+
+**IT DOES NOT CANCEL CAMERA MOTION.** A whole-frame change means exposure or a fade. **Camera motion
+is parallax- and content-weighted**: a region of near, detailed geometry changes far more under a
+given camera move than a ring of flat distant wall. So `net` carries a large content-dependent
+variance instead of cancelling, and `6*MAD` keeps tau high anyway - measured 0.18-0.44 on a
+heavy-motion session, against a floor of 0.0040.
+
+**AND IT DESTROYS REAL SIGNAL ON A STILL CAMERA, WHICH IS WORSE.** On a pinned bench leg the onset
+read `d_region = 0.02286` and `d_ring = 0.02872`, so **`net` went NEGATIVE at the exact frame the
+anomaly started** and no edge could ever be found. Two previously-passing legs regressed to
+NOT-VISIBLE. The cause is that the ring's premise - the anomaly is confined to the region - is false
+for these anomalies: the texture swap's bounce light landed in a ring whose area was **less than
+half** the silhouette's (28,272 vs 66,837 px, clamped because the target hugged a frame corner), so
+the ring's *fraction* exceeded the region's.
+
+🔑 **AND THIS PROJECT HAD ALREADY MEASURED THAT PREMISE FALSE, THREE MILESTONES EARLIER.** `m26`'s
+`A35`/ruling `A-4`: hiding `SM_Ramp2` changed **MORE outside its own bbox than inside** - peak-OUT
+**0.2955** against peak-IN **0.1785**. `G258` is the same family. The refutation was sitting in the
+gotchas file while the fix was being designed.
+
+**THE RULE.** Before normalising a measurement against its surroundings, ask **what the surroundings
+actually contain**. A spatial ring is only a valid control for a change that is UNIFORM across the
+frame; it is not one for motion (parallax), and it is not one for an effect that SPILLS out of the
+region (bounce light, shadow, GI). Where the ring cannot be a control, **MEASURE the confound and
+REFUSE above a threshold** rather than trying to subtract it: `verify_capture.py` now measures
+whole-frame motion and returns `NOT-MEASURABLE(camera motion: ...)`.
+
+⚠ **Corollary worth keeping: a refusal threshold has to be CALIBRATED AGAINST A KNOWN ANSWER, and
+the known answer must be INJECTED, not read from the artifact under test.** 079-03's first attempt at
+one was to take the onset from the delivered masks - which is circular, because `m49` A1 *defines*
+`affected_frames` as the observable subset, so the mask onset IS the label onset. The cap was
+instead set by **moving real labels by a known +/-1 and measuring where the gate stops recovering
+it** - an answer the artifact cannot supply and therefore one the test can fail.

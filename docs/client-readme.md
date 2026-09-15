@@ -147,6 +147,55 @@ So the short version: **red is what you were given; the overwhelming majority of
 
 If the overlay window says Pillow is missing, run the install line it prints (see section 1) and start `Run.bat` again. Nothing else is affected in the meantime.
 
+### Step 6 — Check the labels against the pixels (the label-pixel checker)
+
+The overlay in step 5 shows you *where* a label is. This one checks *when* it is: for each anomaly it
+asks whether the first labelled frame really is the first frame whose pixels change, and whether the
+frame after the last labelled one really is clean again.
+
+```
+python tools\verify_capture.py --dir <sessionFolder> --label-pixel-gate --report-only
+python tools\verify_capture.py --all <folderOfSessions> --label-pixel-gate --report-only
+```
+
+`--all` sweeps every session under a folder and prints one line each. It runs its own self-test first
+and **refuses to start if that self-test does not pass** — a sweep run with a broken instrument just
+produces a lot of confident wrong lines.
+
+**What each verdict means:**
+
+* **`PASS`** — the labels and the pixels agree on where this anomaly starts and ends.
+* **`ONSET-SHIFT(n)` / `END-SHIFT(n)`** — they disagree, by `n` frames, signed. Negative means the
+  **pixels changed before the label said so**.
+* **`NOT-VISIBLE`** — the labelled region shows no pixel change at all across the claimed window.
+* **`NOT-MEASURABLE(reason)`** — **the checker could not form an opinion, and says why, with numbers.
+  This is neither a pass nor a failure; it is an unread surface.** The common reasons:
+  * **`camera motion`** — see below.
+  * **`region covers the picture`** — the label's box is ~the whole frame, so there is no "outside"
+    to compare it against and nothing can be localised.
+  * **`threshold unsatisfiable`** — the scene is changing so much that no pixel change of any size
+    could clear the detection threshold. The checker reports this as a broken instrument rather than
+    emitting a verdict.
+  * **`baseline`** — too few clean frames near that anomaly to calibrate against.
+
+> ⚠ **UNDER HEAVY CAMERA MOTION THIS TOOL REPORTS `NOT-MEASURABLE` RATHER THAN A VERDICT, AND THAT IS
+> DELIBERATE.** When the camera is moving, *every* pixel in a region changes between frames whether
+> or not anything is wrong, and the checker can no longer tell an anomaly apart from the motion. We
+> measured where that happens — by taking known-good sessions, deliberately moving the labels by one
+> frame, and finding the point at which the checker could no longer spot the error — and the tool
+> refuses above it. **A session full of `NOT-MEASURABLE` does not mean your labels are wrong. It means
+> this particular check could not be run on that footage.** An earlier version instead reported
+> `NOT-VISIBLE` in that situation, which looked like a dataset failure and was not one.
+>
+> Practically: **this check is most informative on footage where the camera is fairly still.** For
+> moving-camera gameplay, rely on the overlay (step 5) and on the per-frame visibility fields in
+> section 8.4.
+
+🆕 **Where your build writes per-frame visibility from the render (`observable` / `target_pixels`,
+section 8.4), the checker prints what it found next to each event** as `bbox=… obs=…`, so you can see
+at a glance whether an event's box came from the drawn silhouette or from the object's bounds, and
+whether visibility was actually measured for it. Older sessions that carry neither print `n/a`.
+
 ## 4. The dashboard, control by control
 
 ### Top bar

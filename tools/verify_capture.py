@@ -52,7 +52,7 @@ BP_MovingPlatform_C_UAID_B42E9936..., which identifies nothing to a human lookin
 actor name is kept, dimmed and in parentheses, because it is the join key against annotation.json and
 labels.jsonl and must stay readable off the image.
 
-⚠ THE ASSET NAME COMES FROM annotation.json's affected_objects.nodes[] (m22), SO A BOX WITH NO EVENT
+Ã¢Å¡Â  THE ASSET NAME COMES FROM annotation.json's affected_objects.nodes[] (m22), SO A BOX WITH NO EVENT
 IN annotation.json HAS NO ASSET NAME TO SHOW. That is exactly the VETOED and UNMATCHED categories:
 labels.jsonl carries only target_name (the actor name), so those boxes fall back to the actor name
 alone. The summary says so explicitly when it happens, rather than leaving the reader to wonder why
@@ -98,9 +98,65 @@ though the number does not.
 --selftest PROVES THE GATE CAN FAIL, both directions, against a synthetic mid-grey frame and a
 synthetic all-black one. A gate that has never fired is not a gate (G96).
 
+--------------------------------------------------------------------------------------------------
+m49 LABEL-PIXEL GATE  (--label-pixel-gate) - and its CAMERA-MOTION ENVELOPE (079-03)
+--------------------------------------------------------------------------------------------------
+Per event it checks that the first labelled frame is the first frame whose pixels change, and that
+the frame after end_frame is the first clean one. The statistic is
+
+    d(k) = the fraction of the event's REGION whose pixels differ from frame k-1 by > threshold
+
+which is BOUNDED IN [0,1], and the decision threshold is tau = max(median + K_SIGMA*MAD, FLOOR)
+learned from that event's own nearest clean frames.
+
+🚨 WHY THIS TOOL REFUSES TO JUDGE A SHAKY SESSION. tau is UNBOUNDED while d is not. Under camera
+motion the CLEAN frames change too, so the learned tau climbs - and it can climb past 1.0, at which
+point `d > tau` is unsatisfiable and EVERY event reads NOT-VISIBLE no matter what the pixels show.
+That is not a hypothetical: on M2 field captures it marked almost every event NOT-VISIBLE on labels
+the owner then verified BY EYE as correct, and on a banked heavy-motion session tau measured 1.0950
+and 1.1938 (G259). So motion is MEASURED and the tool REFUSES above a cap, instead of reporting a
+verdict it cannot support.
+
+    M_med       = median over clean frames of the WHOLE-FRAME changed-pixel fraction
+    MOTION_CAP  = 0.0049
+
+WHERE THE CAP COMES FROM - it is MEASURED, not chosen. 079-03 took banked moving-camera sessions,
+MOVED EVERY ANNOTATED WINDOW BY A KNOWN +/-1 (labels only; frames untouched), and asked whether the
+gate reports that exact shift back with the opposite sign. The cap is the motion level at which that
+ability disappears. Measured:
+
+    session          M_med    injected +/-1 recovered on decided events
+    A2L_LEGA        0.0049    FULL          (6/6, 6/6, 6/6)
+    LYRA_SMOKE_01   0.0801    INCOMPLETE    (one edge misplaced, one read as -2)
+    A1L_LEGA        0.0852    INCOMPLETE    (one shift recovered with the WRONG SIGN)
+    M50L_LG9        0.3491    NONE          (3 of 3 unshifted labels read NOT-VISIBLE)
+
+plus a synthetic scroll ladder that still recovers at M_med 0.75 - and is IGNORED as the binding
+number precisely because a uniform scroll has NO PARALLAX and therefore flatters the gate. The cap
+is the largest M_med with full recovery on real content, floored to two significant figures.
+
+⚠ HONEST LIMITS OF THIS NUMBER, because they decide whether a reading is worth anything:
+  - It is derived from ONE fully-agreeing session, so A2L_LEGA sits EXACTLY on the boundary.
+  - A cap this low refuses most real gameplay footage. The tool is then HONEST (it never calls a
+    correct label NOT-VISIBLE) but it is not USEFUL on that footage - it reports NOT-MEASURABLE with
+    the numbers and stops. That trade is deliberate: a confident wrong answer about a client's
+    dataset is worse than no answer.
+  - Nothing here says a refused session's labels are wrong. NOT-MEASURABLE is an UNREAD SURFACE.
+
+🔻 CORRECTION TO A DOCUMENTED CLAIM ELSEWHERE, so nobody re-derives the dead end: 079-02 tried to
+NORMALISE the motion away instead of refusing, thresholding net = d(region) - d(ambient ring), on
+measure_label_offset.py:92-93's reasoning that "a whole-frame change lifts the ring as much as the
+region and cancels". THAT IS TRUE FOR A GENUINELY GLOBAL CHANGE (exposure, a fade) AND FALSE FOR
+CAMERA MOTION, which is parallax- and content-weighted. It also DESTROYED real signal on a still
+camera, because these anomalies bleed outside their own bbox (m26's A35: hiding SM_Ramp2 changed
+MORE outside its bbox than inside). Measured and reverted; see _region_frac.
+
 Usage:
     python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet] [--red-only]
     python verify_capture.py --dir <sessionDir> --black-frame-gate [--black-threshold N]
+    python verify_capture.py --dir <sessionDir> --label-pixel-gate [--report-only] [--motion-cap N]
+    python verify_capture.py --all <bankRoot> --label-pixel-gate --report-only [--out <dir>]
+    python verify_capture.py --label-pixel-gate --selftest
     python verify_capture.py --selftest
 
 Requires Pillow:  pip install pillow
@@ -412,7 +468,11 @@ BASELINE_GUARD_FRAMES = 2
 
 MIN_BASELINE_FRAMES = 3
 BASELINE_MAX_FRAMES = 24
-RING_MAX_REGION_FRAC = 0.90
+MAX_REGION_FRAC = 0.90
+
+ATTAINABLE_MAX = 1.0
+
+MOTION_CAP = 0.0049
 
 V_PASS = "PASS"
 V_NOTVIS = "NOT-VISIBLE"
@@ -562,26 +622,30 @@ class _HotCache(object):
         return (ImageStat.Stat(img).sum[0] / 255.0) / float(w * h)
 
 
-def _signal(hot, k, region, frame_w, frame_h, mlo):
-    """(d_region, d_ring, net) for frame k, or None.
+def _region_frac(hot, k, region):
+    """d(k): the fraction of REGION pixels differing by more than the threshold from frame k-1.
 
-        d_region = fraction of REGION pixels that changed since k-1
-        d_ring   = fraction of the AMBIENT RING pixels that changed since k-1
-        net      = d_region - d_ring
+    THE DECISION STATISTIC. Bounded in [0, 1] by construction: the numerator counts pixels inside
+    the region, the denominator is the size of that region.
 
-    `net` is the LOCAL EXCESS over whatever the whole picture is doing, and it is the quantity
-    every onset/end/visibility test reads. Raw d_region is NOT used for any decision: it rises to
-    1 under camera motion on CLEAN frames too, which drove the learned threshold past the
-    statistic's own ceiling and produced unconditional NOT-VISIBLE on field data (G259).
+    Ã°Å¸â€Â» 079-03: an earlier attempt thresholded `net = d(region) - d(ambient ring)` instead, on the
+    reasoning quoted at measure_label_offset.py:92-93 - "a whole-frame change lifts the ring as
+    much as the region and cancels". THAT REASONING IS CORRECT FOR A GENUINELY GLOBAL CHANGE
+    (exposure, a fade) AND MEASURABLY WRONG FOR CAMERA MOTION, which is parallax- and
+    content-weighted: a region of near, detailed geometry changes far more under a given camera
+    move than a ring of flat distant wall, so the subtraction leaves a large content-dependent
+    variance instead of cancelling. Measured 079-02: tau on `net` still read 0.18-0.44 on a
+    heavy-motion session.
 
-    The ring is measure_label_offset's own band - the region box dilated by RING_DILATE_PX, minus
-    the box - read through its own `ring_mean`. Applied to a BINARY image, `ring_mean` returns
-    exactly the fraction of ring pixels that are hot, i.e. the same quantity as d_region on the
-    same frame pair, so the two are directly subtractable and the ring code is REUSED rather than
-    re-implemented.
+    It also DESTROYED a real signal on a still camera, because the ring's premise - that the
+    anomaly is confined to the region - is false for these anomalies. On M49_GEDGE_MT_NAT the
+    onset turned 1528 target pixels hot AND 812 ring pixels hot (bounce light), and because the
+    clamped corner ring was less than half the silhouette's area its FRACTION was the larger, so
+    `net` went NEGATIVE at the onset. m26's A35 had already measured this: hiding SM_Ramp2 changed
+    MORE outside its own bbox than inside (peak-OUT 0.2955 vs peak-IN 0.1785).
 
-    `ring_mean` returns None when the ring is thinner than mlo.RING_MIN_PX. That is the "no
-    ambient ring" condition; it is returned as such and NEVER silently treated as zero motion.
+    Ã¢â€¡â€™ THE RING IS NOT USED AT ALL. Camera motion is handled by measuring it GLOBALLY and refusing
+    to judge above MOTION_CAP, not by trying to subtract it away.
     """
     from PIL import ImageChops, ImageStat
     img = hot.get(k)
@@ -598,11 +662,7 @@ def _signal(hot, k, region, frame_w, frame_h, mlo):
         if region["bin"].size != crop.size:
             return None
         crop = ImageChops.multiply(crop, region["bin"])
-    d_reg = (ImageStat.Stat(crop).sum[0] / 255.0) / float(npix)
-    d_ring = mlo.ring_mean(img, region["box"], frame_w, frame_h, mlo.RING_DILATE_PX)
-    if d_ring is None:
-        return (d_reg, None, None)
-    return (d_reg, d_ring, d_reg - d_ring)
+    return (ImageStat.Stat(crop).sum[0] / 255.0) / float(npix)
 
 
 def _nearest_baseline(base_idx, lo, hi, cap):
@@ -697,8 +757,26 @@ def _load_gate_events(cap_dir, mlo):
             "indices": idxs,
             "derived": derived,
             "manifested": bool(ev.get("manifested", True)),
+            "bbox_source": ev.get("bbox_source"),
+            "obs_measured": ev.get("observability_measured"),
         })
     return out
+
+
+def _provenance(ev):
+    """`bbox=<source> obs=<measured|unmeasured>` - REPORTED, never a verdict input.
+
+    An event can say `observability_measured: false` (the producer had no pixel evidence) and
+    `bbox_source: "projected"` (the box came from bounds, not from what was drawn). It is tempting
+    to read that as "unverifiable, skip it" - and it is REFUSED as a rule: the gate's job is to
+    check the labels against the pixels whatever the producer claims about them, and the whole
+    field case this tool exists for is projected boxes. Schema v1 sessions carry neither key and
+    print n/a.
+    """
+    src = ev.get("bbox_source")
+    obs = ev.get("obs_measured")
+    return "bbox=%s obs=%s" % (src if src else "n/a",
+                               "n/a" if obs is None else ("measured" if obs else "unmeasured"))
 
 
 def _threshold_from(vals, mlo):
@@ -737,7 +815,7 @@ def _measurable_ceiling(windows, all_idx):
     return None, None
 
 
-def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
+def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motion_cap=None):
     """The label-vs-pixel gate. Returns (exit_code, lines).
 
     Per event, per contiguous run of labelled frames, on the RING-NORMALISED signal
@@ -747,30 +825,35 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
     A shift is reported SIGNED: n < 0 means the PIXELS changed BEFORE the label said so.
     Nothing is inferred about WHY; the tool reports the reading.
 
-    VALIDITY ENVELOPE - what this gate can and cannot judge, stated rather than assumed:
+    VALIDITY ENVELOPE - what this gate can and cannot judge, stated rather than assumed. Every
+    refusal below is NOT-MEASURABLE with its numbers printed, and NEVER NOT-VISIBLE: a region the
+    instrument cannot read is an UNREAD SURFACE, not a failed label.
 
-      CAMERA MOTION is handled by the ring. A moving camera changes the region and the ring
-      together, so `net` stays near zero on clean frames and the threshold stays on its floor.
-      Before this normalisation the gate thresholded the raw region fraction, which is bounded in
-      [0,1], against tau = median + K*MAD, which is not - so on a moving camera tau climbed past
-      anything the statistic could reach and EVERY event read NOT-VISIBLE (G259).
+      CAMERA MOTION is MEASURED, not compensated. M_med is the median over clean frames of the
+      WHOLE-FRAME changed-pixel fraction. Above MOTION_CAP the gate refuses the session's events.
+      It does not try to subtract the motion away - 079-02 measured that a spatial ring does not
+      cancel parallax, and that subtracting it destroys small real signals (see _region_frac).
 
-      A REGION COVERING THE PICTURE cannot be judged at all: there is no outside, so no ring, so
-      no way to tell a local anomaly from a global change. Those events read
-      NOT-MEASURABLE(no ambient ring), never NOT-VISIBLE.
+      A REGION COVERING THE PICTURE is refused on its size alone (>= MAX_REGION_FRAC of the
+      frame). A label that claims most of the picture cannot be localised against the picture.
 
-      A THRESHOLD NO MEASUREMENT COULD CLEAR is an instrument fault, not a verdict. If tau reaches
-      the largest value `net` could attain for that region, the event reads
-      NOT-MEASURABLE(threshold unsatisfiable). It is ASSERTED, never clamped: clamping turns an
-      impossible test into an absurd one that still FAILs, silently.
+      A THRESHOLD NO MEASUREMENT COULD CLEAR is an instrument fault, not a verdict. `d` is a
+      fraction, so it can never exceed ATTAINABLE_MAX = 1.0; if tau reaches that, the event reads
+      NOT-MEASURABLE(threshold unsatisfiable). ASSERTED, never clamped - clamping turns an
+      impossible test into an absurd one that still FAILs, silently. This is the exact state that
+      produced six confident FAILs on field data (G259).
 
       A DENSE BURST SCHEDULE starves the baseline. Each event is calibrated on the clean frames
       NEAREST ITS OWN WINDOW (up to BASELINE_MAX_FRAMES); below MIN_BASELINE_FRAMES the event
       reads NOT-MEASURABLE with the count printed.
 
-    Constants: K_SIGMA / SIGNAL_FLOOR come from measure_label_offset (they were calibrated there
-    for a ring-subtracted quantity, which is what `net` now is); RING_DILATE_PX and RING_MIN_PX
-    likewise - one source of truth for the ring.
+    ORDER OF THE REFUSALS, and it matters: region size, then baseline, then tau, then
+    UNSATISFIABLE, then MOTION. Unsatisfiable is tested BEFORE motion so that the more specific
+    fault is the one reported when both hold, and so the selftest can exercise each separately.
+
+    Constants: K_SIGMA / SIGNAL_FLOOR come from measure_label_offset, where they threshold a
+    per-frame region difference - the same shape as `d`. MOTION_CAP is set by the 079-03
+    known-answer procedure (see the module header), not by taste.
     """
     lines = []
     try:
@@ -830,20 +913,25 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
             motion_vals.append(m)
     motion = mlo.median_or_none(motion_vals)
 
-    lines.append("LABEL-PIXEL GATE   (m49 step 1; ring-normalised since 079-02)")
+    cap = MOTION_CAP if motion_cap is None else float(motion_cap)
+    over_cap = motion is not None and motion > cap
+
+    lines.append("LABEL-PIXEL GATE   (m49 step 1; motion envelope since 079-03)")
     lines.append("  session                  %s" % cap_dir)
     lines.append("  frames / labels / events %d / %d / %d" % (len(paths), len(rows), len(events)))
     lines.append("  region mode              %s" % ("masks" if has_masks else "bbox-only"))
-    lines.append("  camera motion M_med      %s (median whole-frame changed-pixel fraction over "
-                 "clean frames)" % ("%.4f" % motion if motion is not None else "n/a"))
-    lines.append("  signal                   net = d(region) - d(ambient ring), ring = box dilated "
-                 "%dpx (min %dpx)" % (mlo.RING_DILATE_PX, mlo.RING_MIN_PX))
+    lines.append("  signal                   d = fraction of REGION pixels changed since the "
+                 "previous frame (bounded 0..1)")
+    lines.append("  camera motion M_med      %s   cap %.4f%s"
+                 % ("%.4f" % motion if motion is not None else "n/a", cap,
+                    "   *** OVER CAP - events are refused as NOT-MEASURABLE ***"
+                    if over_cap else ""))
     lines.append("  diff threshold           >%d/255 per pixel" % thresh)
     lines.append("  edge search window       +/-%d frames" % edge_w)
     lines.append("  constants                K_SIGMA=%.1f  SIGNAL_FLOOR=%.4f  baseline %d..%d "
-                 "frames  region<%.0f%% of frame"
+                 "frames  region<%.0f%% of frame  attainable<=%.1f"
                  % (mlo.K_SIGMA, mlo.SIGNAL_FLOOR, MIN_BASELINE_FRAMES, BASELINE_MAX_FRAMES,
-                    RING_MAX_REGION_FRAC * 100.0))
+                    MAX_REGION_FRAC * 100.0, ATTAINABLE_MAX))
     if ceiling is None:
         lines.append("  MEASURABLE RANGE         n/a (no annotated window)")
     else:
@@ -857,18 +945,21 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
         tag = "idx=%-3d %-18s %-22s" % (ev["i"], ev["type"], ev["node"] or "(no node)")
 
         if not ev["manifested"] or not ev["indices"]:
-            ev_lines.append("%s %s(manifested-false-or-empty)" % (tag, V_NOTMEAS))
+            ev_lines.append("%s %s(manifested-false-or-empty)  %s"
+                            % (tag, V_NOTMEAS, _provenance(ev)))
             n_notmeas += 1
             continue
         if ev["derived"]:
-            ev_lines.append("%s %s(no-frame_indices-in-annotation)" % (tag, V_NOTMEAS))
+            ev_lines.append("%s %s(no-frame_indices-in-annotation)  %s"
+                            % (tag, V_NOTMEAS, _provenance(ev)))
             n_notmeas += 1
             continue
 
         anchor, row, entry = _anchor_entry(rows, ev["indices"], ev["node"], mlo)
         if entry is None:
-            ev_lines.append("%s %s(no labels.jsonl row carries this event on frames %d..%d)"
-                            % (tag, V_NOTMEAS, ev["indices"][0], ev["indices"][-1]))
+            ev_lines.append("%s %s(no labels.jsonl row carries this event on frames %d..%d)  %s"
+                            % (tag, V_NOTMEAS, ev["indices"][0], ev["indices"][-1],
+                               _provenance(ev)))
             n_notmeas += 1
             continue
 
@@ -884,15 +975,16 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
                     mask_short = (k, reg["npix"])
                     break
         if mask_short:
-            ev_lines.append("%s %s (mask count %d < %d on frame %d)"
-                            % (tag, V_NOTVIS, mask_short[1], min_visible_px, mask_short[0]))
+            ev_lines.append("%s %s (mask count %d < %d on frame %d)  %s"
+                            % (tag, V_NOTVIS, mask_short[1], min_visible_px, mask_short[0],
+                               _provenance(ev)))
             n_notvis += 1
             continue
 
         region = _build_region(cap_dir, row, entry, frame_w, frame_h, mlo)
         if region is None:
-            ev_lines.append("%s %s(no-region: no usable mask or bbox at frame %d)"
-                            % (tag, V_NOTMEAS, anchor))
+            ev_lines.append("%s %s(no-region: no usable mask or bbox at frame %d)  %s"
+                            % (tag, V_NOTMEAS, anchor, _provenance(ev)))
             n_notmeas += 1
             continue
 
@@ -901,11 +993,11 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
         frame_px = float(frame_w * frame_h)
 
         region_px = mlo.box_area(region["box"])
-        if frame_px > 0 and region_px >= RING_MAX_REGION_FRAC * frame_px:
-            ev_lines.append("%s %s(no ambient ring: region=%dpx = %.1f%% of the %dpx frame, so "
-                            "there is no outside to compare against)"
+        if frame_px > 0 and region_px >= MAX_REGION_FRAC * frame_px:
+            ev_lines.append("%s %s(region covers the picture: %dpx = %.1f%% of the %dpx frame, so "
+                            "it cannot be localised against it)  %s"
                             % (tag, V_NOTMEAS, int(region_px), 100.0 * region_px / frame_px,
-                               int(frame_px)))
+                               int(frame_px), _provenance(ev)))
             n_notmeas += 1
             continue
 
@@ -913,40 +1005,31 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
         ev_base = _nearest_baseline(base_idx, ev_lo, ev_hi, BASELINE_MAX_FRAMES)
 
         base_vals = []
-        ring_vals = []
-        no_ring = 0
         for k in ev_base:
-            sig = _signal(hot, k, region, frame_w, frame_h, mlo)
-            if sig is None:
-                continue
-            _dreg, dring, net = sig
-            if net is None:
-                no_ring += 1
-                continue
-            base_vals.append(net)
-            ring_vals.append(dring)
-        if no_ring and not base_vals:
-            ev_lines.append("%s %s(no ambient ring: the band around a %dpx region is thinner than "
-                            "%dpx on %d clean frame(s))"
-                            % (tag, V_NOTMEAS, int(region_px), mlo.RING_MIN_PX, no_ring))
-            n_notmeas += 1
-            continue
+            d = _region_frac(hot, k, region)
+            if d is not None:
+                base_vals.append(d)
         if len(base_vals) < MIN_BASELINE_FRAMES:
-            ev_lines.append("%s %s(baseline: only %d clean frame(s) near [%d..%d], need %d)"
-                            % (tag, V_NOTMEAS, len(base_vals), ev_lo, ev_hi, MIN_BASELINE_FRAMES))
+            ev_lines.append("%s %s(baseline: only %d clean frame(s) near [%d..%d], need %d)  %s"
+                            % (tag, V_NOTMEAS, len(base_vals), ev_lo, ev_hi, MIN_BASELINE_FRAMES,
+                               _provenance(ev)))
             n_notmeas += 1
             continue
         tau, med, mad = _threshold_from(base_vals, mlo)
         contaminated = sum(1 for v in base_vals if v > tau)
 
-        ring_med = mlo.median_or_none(ring_vals)
-        attainable = 1.0 - (ring_med if ring_med is not None else 0.0)
-        if tau >= attainable:
-            ev_lines.append("%s %s(threshold unsatisfiable: tau=%.4f attainable=%.4f ring=%.4f - "
+        if tau >= ATTAINABLE_MAX:
+            ev_lines.append("%s %s(threshold unsatisfiable: tau=%.4f but d can never exceed %.1f - "
                             "no pixel change of ANY size could clear it, so this is a broken "
-                            "instrument, not a reading)"
-                            % (tag, V_NOTMEAS, tau, attainable,
-                               ring_med if ring_med is not None else 0.0))
+                            "instrument, not a reading)  %s"
+                            % (tag, V_NOTMEAS, tau, ATTAINABLE_MAX, _provenance(ev)))
+            n_notmeas += 1
+            continue
+
+        if over_cap:
+            ev_lines.append("%s %s(camera motion: M_med=%.4f cap=%.4f - the picture is changing too "
+                            "fast to attribute a local change to this label)  %s"
+                            % (tag, V_NOTMEAS, motion, cap, _provenance(ev)))
             n_notmeas += 1
             continue
 
@@ -960,8 +1043,7 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
                     foreign.add(int(v))
 
         def sigfn(k, reg):
-            s = _signal(hot, k, reg, frame_w, frame_h, mlo)
-            return None if s is None else s[2]
+            return _region_frac(hot, k, reg)
 
         verdicts = []
         details = []
@@ -1004,9 +1086,8 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
             n_end = (end_k - (re_ + 1)) if end_k is not None else None
 
             if onset_k is None and end_k is None:
-                verdicts.append((V_NOTVIS, "run[%d..%d] no LOCAL change above tau anywhere in "
-                                           "+/-%d of the claim (net = region - ring; the picture "
-                                           "may still be changing globally)%s"
+                verdicts.append((V_NOTVIS, "run[%d..%d] no pixel change above tau anywhere in "
+                                           "+/-%d of the claim%s"
                                            % (rs, re_, edge_w, only_tag)))
             elif ceiling is not None and ((n_on is not None and abs(n_on) > ceiling)
                                           or (n_end is not None and abs(n_end) > ceiling)):
@@ -1030,13 +1111,12 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
             else:
                 verdicts.append((V_PASS, "run[%d..%d] onset %d end %d" % (rs, re_, rs, re_ + 1)))
 
-            details.append("      run[%d..%d]  net(onset=%d)=%s  net(clear=%s)=%s  tau=%.4f  "
-                           "ring=%.4f  attainable=%.4f  region=%s/%dpx"
-                           % (rs, re_, rs, ("%+.4f" % d_on) if d_on is not None else "n/a",
+            details.append("      run[%d..%d]  d(onset=%d)=%s  d(clear=%s)=%s  tau=%.4f  "
+                           "region=%s/%dpx"
+                           % (rs, re_, rs, ("%.4f" % d_on) if d_on is not None else "n/a",
                               str(re_ + 1) if not end_truncated else "-",
-                              ("%+.4f" % d_off) if d_off is not None else "n/a",
-                              tau, ring_med if ring_med is not None else 0.0, attainable,
-                              reg_on["source"], reg_on["npix"]))
+                              ("%.4f" % d_off) if d_off is not None else "n/a",
+                              tau, reg_on["source"], reg_on["npix"]))
 
         worst = V_PASS
         for v, _why in verdicts:
@@ -1063,9 +1143,9 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
             except Exception:
                 extra = "  appearance=n/a"
 
-        ev_lines.append("%s %-16s [%s] tau=%.4f ring=%.4f base=%d%s%s"
+        ev_lines.append("%s %-16s [%s] tau=%.4f base=%d  %s%s%s"
                         % (tag, worst + (only_tag if worst == V_NOTVIS else ""), conf, tau,
-                           ring_med if ring_med is not None else 0.0, len(base_vals),
+                           len(base_vals), _provenance(ev),
                            ("  CONTAMINATED=%d" % contaminated) if contaminated else "", extra))
         if not quiet:
             ev_lines.extend(details)
@@ -1252,13 +1332,21 @@ def _shifted_copy_of(src_dir, dst_dir, delta):
     return dst_dir
 
 
-def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None):
+def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, motion_cap=None):
     """Prove the gate can FAIL, in BOTH directions and on BOTH edges (G96/G142).
 
     Without --dir it builds synthetic sessions, so the check is portable and a client can
     run it with nothing but this file, measure_label_offset.py and Pillow. With --dir it
     additionally shifts a REAL session's labels on a copy - the frames and the source
     session are never written to.
+
+    EACH CASE DECLARES ITS OWN MOTION CAP, and the reason is that two different things are being
+    tested. The scrolling cases exist to exercise the STATISTIC under motion, so the motion escape
+    is disabled for them - otherwise the synthetic backdrop's own scroll rate (pan/blocks, e.g.
+    0.125 at pan 2) sits above MOTION_CAP and every one of them would short-circuit to
+    NOT-MEASURABLE, testing nothing. ONE case, `moving_over_cap`, runs at the SHIPPED cap and is
+    the proof that the escape fires. Stated here rather than left to be discovered, because a
+    suite that silently refuses its own cases is the vacuous-pass shape (G146).
     """
     import shutil
     import tempfile
@@ -1272,28 +1360,31 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None):
     rc = 0
     checks = []
     try:
+        OFF = 1.0
         cases = [
-            ("clean", dict(shift=0), V_PASS),
-            ("clean_masked", dict(shift=0, with_mask=True), V_PASS),
-            ("label_late_1", dict(shift=1), "ONSET-SHIFT(-1)"),
-            ("label_early_1", dict(shift=-1), "ONSET-SHIFT(+1)"),
-            ("end_late_1", dict(end_shift=1), "END-SHIFT(-1)"),
-            ("end_early_1", dict(end_shift=-1), "END-SHIFT(+1)"),
-            ("blank_region", dict(shift=0, blank_region=True), V_NOTVIS),
+            ("clean", dict(shift=0), V_PASS, OFF),
+            ("clean_masked", dict(shift=0, with_mask=True), V_PASS, OFF),
+            ("label_late_1", dict(shift=1), "ONSET-SHIFT(-1)", OFF),
+            ("label_early_1", dict(shift=-1), "ONSET-SHIFT(+1)", OFF),
+            ("end_late_1", dict(end_shift=1), "END-SHIFT(-1)", OFF),
+            ("end_early_1", dict(end_shift=-1), "END-SHIFT(+1)", OFF),
+            ("blank_region", dict(shift=0, blank_region=True), V_NOTVIS, OFF),
 
-            ("moving_clean", dict(shift=0, pan=2), V_PASS),
-            ("moving_fast", dict(shift=0, pan=8), V_PASS),
-            ("moving_label_late_1", dict(shift=1, pan=2), "ONSET-SHIFT(-1)"),
-            ("moving_label_early_1", dict(shift=-1, pan=2), "ONSET-SHIFT(+1)"),
-            ("moving_end_late_1", dict(end_shift=1, pan=2), "END-SHIFT(-1)"),
-            ("moving_end_early_1", dict(end_shift=-1, pan=2), "END-SHIFT(+1)"),
-            ("moving_blank_region", dict(shift=0, pan=2, blank_region=True), V_NOTVIS),
-            ("moving_fullframe_region", dict(shift=0, pan=2, fullframe_region=True), V_NOTMEAS),
-            ("moving_unsat", dict(shift=0, pan=4, stripes=4), V_NOTMEAS),
+            ("moving_clean", dict(shift=0, pan=2), V_PASS, OFF),
+            ("moving_fast", dict(shift=0, pan=8), V_PASS, OFF),
+            ("moving_label_late_1", dict(shift=1, pan=2), "ONSET-SHIFT(-1)", OFF),
+            ("moving_label_early_1", dict(shift=-1, pan=2), "ONSET-SHIFT(+1)", OFF),
+            ("moving_end_late_1", dict(end_shift=1, pan=2), "END-SHIFT(-1)", OFF),
+            ("moving_end_early_1", dict(end_shift=-1, pan=2), "END-SHIFT(+1)", OFF),
+            ("moving_blank_region", dict(shift=0, pan=2, blank_region=True), V_NOTVIS, OFF),
+            ("moving_fullframe_region", dict(shift=0, pan=2, fullframe_region=True), V_NOTMEAS, OFF),
+            ("moving_unsat", dict(shift=0, pan=4, stripes=4), V_NOTMEAS, OFF),
+            ("moving_over_cap", dict(shift=0, pan=2), V_NOTMEAS, None),
         ]
-        for name, kwargs, expect in cases:
+        for name, kwargs, expect, cap in cases:
             d = _synth_session(root, name, **kwargs)
-            code, lines = label_pixel_gate(d, thresh, edge_w, min_visible_px, quiet=True)
+            code, lines = label_pixel_gate(d, thresh, edge_w, min_visible_px, quiet=True,
+                                           motion_cap=(motion_cap if cap is None else cap))
             body = [l for l in lines if l.startswith("idx=")]
             read = body[0].split()[3] if body and len(body[0].split()) > 3 else "(none)"
             ok = read.startswith(expect)
@@ -1310,7 +1401,8 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None):
                     checks.append(("real%+d" % delta, expect, "copy failed: %s" % exc, False, -1))
                     rc = 3
                     continue
-                code, lines = label_pixel_gate(dst, thresh, edge_w, min_visible_px, quiet=True)
+                code, lines = label_pixel_gate(dst, thresh, edge_w, min_visible_px, quiet=True,
+                                               motion_cap=OFF)
                 body = [l for l in lines if l.startswith("idx=")]
                 hits = sum(1 for l in body if expect in l)
                 ok = hits > 0 and code == 2
@@ -1360,7 +1452,8 @@ def _batch_sessions(root, max_depth=6):
     return sorted(set(out))
 
 
-def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, report_only):
+def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, report_only,
+                      motion_cap=None):
     """--all: run the gate over every session under `root`, one line each.
 
     The SELFTEST runs FIRST and the batch REFUSES to start if it is not OK. A sweep of a hundred
@@ -1381,7 +1474,7 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
 
     print("BATCH: proving the instrument before using it on %d session(s)..." % len(sessions),
           flush=True)
-    st = _label_pixel_selftest(thresh, edge_w, min_visible_px, None)
+    st = _label_pixel_selftest(thresh, edge_w, min_visible_px, None, motion_cap)
     if st != 0:
         print("BATCH: REFUSING TO RUN - the selftest is BROKEN, so every reading below it would "
               "be unfounded. Fix the gate first.", flush=True)
@@ -1398,7 +1491,8 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
             worst = max(worst, 3)
             continue
         try:
-            code, lines = label_pixel_gate(sess, thresh, edge_w, min_visible_px, quiet)
+            code, lines = label_pixel_gate(sess, thresh, edge_w, min_visible_px, quiet,
+                                           motion_cap=motion_cap)
         except Exception as exc:
             line = "%-46s | ERROR      | %s: %s" % (name, type(exc).__name__, exc)
             summary.append(line)
@@ -1467,6 +1561,10 @@ def main():
                          f"NOT-VISIBLE (default {MIN_VISIBLE_PX_DEFAULT}; needs masks)")
     ap.add_argument("--report-only", action="store_true",
                     help="label-pixel gate: print the readings and exit 0 even on a shift")
+    ap.add_argument("--motion-cap", type=float, default=MOTION_CAP,
+                    help=f"label-pixel gate: refuse a session as NOT-MEASURABLE when its measured "
+                         f"camera motion M_med exceeds this (default {MOTION_CAP}; set by the "
+                         f"079-03 known-answer procedure, see the module header)")
     ap.add_argument("--all", metavar="ROOT", default=None,
                     help="label-pixel gate: run over EVERY session folder under ROOT, one summary "
                          "line each, full output under --out. Runs --selftest first and refuses "
@@ -1477,7 +1575,7 @@ def main():
         if args.label_pixel_gate:
             src = os.path.abspath(args.dir) if args.dir and os.path.isdir(args.dir) else None
             sys.exit(_label_pixel_selftest(args.diff_threshold, args.edge_window,
-                                           args.min_visible_px, src))
+                                           args.min_visible_px, src, args.motion_cap))
         sys.exit(_selftest())
 
     if args.all:
@@ -1488,7 +1586,7 @@ def main():
         sys.exit(label_pixel_batch(os.path.abspath(args.all),
                                    os.path.abspath(args.out) if args.out else None,
                                    args.diff_threshold, args.edge_window, args.min_visible_px,
-                                   args.quiet, args.report_only))
+                                   args.quiet, args.report_only, args.motion_cap))
 
     cap_dir = os.path.abspath(args.dir)
 
@@ -1498,7 +1596,7 @@ def main():
         except ImportError:
             sys.exit("ERROR: Pillow is required for the label-pixel gate.")
         code, lines = label_pixel_gate(cap_dir, args.diff_threshold, args.edge_window,
-                                       args.min_visible_px, args.quiet)
+                                       args.min_visible_px, args.quiet, args.motion_cap)
         for line in lines:
             print(line, flush=True)
         sys.exit(0 if (args.report_only and code != 3) else code)
