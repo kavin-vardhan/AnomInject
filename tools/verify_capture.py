@@ -118,12 +118,15 @@ and 1.1938 (G259). So motion is MEASURED and the tool REFUSES above a cap, inste
 verdict it cannot support.
 
     M_med       = median over clean frames of the WHOLE-FRAME changed-pixel fraction
-    MOTION_CAP  = 0.0049
+    MOTION_CAP  = 0.040
+
+    cap=0.040 (2x margin below first incomplete recovery, LYRA_SMOKE_01 M_med=0.0801;
+    only full recovery observed at 0.0049, A2L_LEGA; ruling 079-04)
 
 WHERE THE CAP COMES FROM - it is MEASURED, not chosen. 079-03 took banked moving-camera sessions,
 MOVED EVERY ANNOTATED WINDOW BY A KNOWN +/-1 (labels only; frames untouched), and asked whether the
 gate reports that exact shift back with the opposite sign. The cap is the motion level at which that
-ability disappears. Measured:
+ability disappears. Measured, on REAL sessions - and the cap is set by these alone:
 
     session          M_med    injected +/-1 recovered on decided events
     A2L_LEGA        0.0049    FULL          (6/6, 6/6, 6/6)
@@ -131,16 +134,30 @@ ability disappears. Measured:
     A1L_LEGA        0.0852    INCOMPLETE    (one shift recovered with the WRONG SIGN)
     M50L_LG9        0.3491    NONE          (3 of 3 unshifted labels read NOT-VISIBLE)
 
-plus a synthetic scroll ladder that still recovers at M_med 0.75 - and is IGNORED as the binding
-number precisely because a uniform scroll has NO PARALLAX and therefore flatters the gate. The cap
-is the largest M_med with full recovery on real content, floored to two significant figures.
+A SYNTHETIC scroll ladder still recovers at M_med 0.75 and is DELIBERATELY NOT the binding number: a
+uniform scroll has NO PARALLAX and therefore flatters the gate. It stays in --selftest as the proof
+that a shift is still readable under motion at all, and it sets nothing.
 
-⚠ HONEST LIMITS OF THIS NUMBER, because they decide whether a reading is worth anything:
-  - It is derived from ONE fully-agreeing session, so A2L_LEGA sits EXACTLY on the boundary.
-  - A cap this low refuses most real gameplay footage. The tool is then HONEST (it never calls a
+⚠ WHY 0.040 AND NOT 0.0049. The measurement gives two bounds: the largest M_med that fully recovered
+(0.0049) and a 2x margin below the first that did not (0.0801/2 = 0.040). A cap resting on the single
+value it was derived from is fragile - a 0.0001 measurement drift would refuse the very session that
+set it - so the cap is placed at the margin bound. It still refuses both incomplete sessions and
+M50L_LG9.
+
+🚨 THERE IS NO MIDDLE TIER, AND THE REASON IS THE COMPLAINT THIS TOOL EXISTS FOR. Zero FALSE shifts
+were measured up to M_med 0.085 - the gate does not INVENT disagreements - and it is tempting to
+therefore trust a PASS higher up than a SHIFT. Refused: A PASS FROM A GATE THAT CANNOT READ BACK A
+ONE-FRAME SHIFT IS NOT EVIDENCE OF ALIGNMENT, IT IS THE CLIENT'S ORIGINAL COMPLAINT RESTATED. If the
+instrument provably cannot see a one-frame error at that motion level, "no error found" carries no
+information about whether one is there. Above the cap the answer is NOT-MEASURABLE, full stop.
+
+⚠ HONEST LIMITS, because they decide whether a reading is worth anything:
+  - A cap here still refuses most real gameplay footage. The tool is then HONEST (it never calls a
     correct label NOT-VISIBLE) but it is not USEFUL on that footage - it reports NOT-MEASURABLE with
     the numbers and stops. That trade is deliberate: a confident wrong answer about a client's
     dataset is worse than no answer.
+  - Only ONE real session has been observed to recover fully, so the cap rests on a thin base and
+    should be re-derived whenever more masked moving-camera sessions exist.
   - Nothing here says a refused session's labels are wrong. NOT-MEASURABLE is an UNREAD SURFACE.
 
 🔻 CORRECTION TO A DOCUMENTED CLAIM ELSEWHERE, so nobody re-derives the dead end: 079-02 tried to
@@ -472,7 +489,7 @@ MAX_REGION_FRAC = 0.90
 
 ATTAINABLE_MAX = 1.0
 
-MOTION_CAP = 0.0049
+MOTION_CAP = 0.040
 
 V_PASS = "PASS"
 V_NOTVIS = "NOT-VISIBLE"

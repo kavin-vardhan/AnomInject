@@ -6717,3 +6717,36 @@ one was to take the onset from the delivered masks - which is circular, because 
 `affected_frames` as the observable subset, so the mask onset IS the label onset. The cap was
 instead set by **moving real labels by a known +/-1 and measuring where the gate stops recovering
 it** - an answer the artifact cannot supply and therefore one the test can fail.
+
+## G261 - the comment stripper is PLUGIN-REPO-ONLY; running it in CaptureBench or the Lyra worktree
+mass-edits files another rule protects (2026-09-15, session 079-03)
+
+This repo keeps source comment-free and `_strip_comments.py` enforces it. **That convention is scoped
+to THIS repo.** `Plugins/CaptureBench` is a SEPARATE repo with a SEPARATE convention - its tools
+carry comments on purpose - and the Lyra fixture is a detached worktree of a third tree.
+
+Having added one checker to CaptureBench, 079-03 ran the stripper against CaptureBench's root. **It
+modified 26 tracked files in one pass**, among them:
+
+- **`tools/a54_oracle.py`, which `A53` explicitly protects** - *"stays untouched - any edit
+  re-triggers `A53`"*, i.e. editing it invalidates the oracle's certification against its eight
+  known-answer controls;
+- `check_pose.py` (the `B1` pose gate), `m44_gates.py`, and the `pc7v3` comparators - every one of
+  them an instrument other gates are read through.
+
+Nothing was lost: it was caught by reading the tool's own summary line (`changed: 26` where the
+intended answer was `0`) and reverted with `git -C <CaptureBench> checkout -- tools/`, leaving that
+repo tracked-clean at `472a409`. The pre-existing UNTRACKED files there kept their original mtimes,
+so the stripper had not reached them - **had it, they would have been unrecoverable, because
+untracked files have no git copy to restore from.**
+
+**THE RULE.** Run `_strip_comments.py` against **`Plugins/AnomalyInjector` and nothing else**. Before
+committing anywhere, check `git status` in **each** repo the turn touched - this tree contains three
+(`AnomalyInjector`, `CaptureBench`, and the Lyra worktree), and a tool invoked with the wrong root
+silently edits whichever one it was pointed at.
+
+⚠ **The generalisation is worth more than the instance: a house rule enforced by a script is enforced
+AT WHATEVER PATH YOU HAND IT.** A repo-scoped convention plus a path argument is one typo away from a
+mass edit of a neighbouring repo, and the edit will look like compliance. **The cheapest guard is the
+one that worked here - read the tool's own count and stop when it is not the count you intended**
+(`G115`'s habit, applied to a different tool).

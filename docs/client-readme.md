@@ -178,18 +178,28 @@ produces a lot of confident wrong lines.
     emitting a verdict.
   * **`baseline`** — too few clean frames near that anomaly to calibrate against.
 
-> ⚠ **UNDER HEAVY CAMERA MOTION THIS TOOL REPORTS `NOT-MEASURABLE` RATHER THAN A VERDICT, AND THAT IS
-> DELIBERATE.** When the camera is moving, *every* pixel in a region changes between frames whether
-> or not anything is wrong, and the checker can no longer tell an anomaly apart from the motion. We
-> measured where that happens — by taking known-good sessions, deliberately moving the labels by one
-> frame, and finding the point at which the checker could no longer spot the error — and the tool
-> refuses above it. **A session full of `NOT-MEASURABLE` does not mean your labels are wrong. It means
-> this particular check could not be run on that footage.** An earlier version instead reported
-> `NOT-VISIBLE` in that situation, which looked like a dataset failure and was not one.
+> ⚠ **THIS CHECK GIVES A VERDICT ONLY WHEN THE CAMERA IS NEARLY STILL. UNDER NORMAL GAMEPLAY MOTION
+> IT REPORTS `NOT-MEASURABLE` INSTEAD, AND PRINTS THE MOTION NUMBER IT MEASURED.** When the camera is
+> moving, *every* pixel in a region changes from frame to frame whether or not anything is wrong, and
+> the checker can no longer tell an anomaly apart from the motion.
 >
-> Practically: **this check is most informative on footage where the camera is fairly still.** For
-> moving-camera gameplay, rely on the overlay (step 5) and on the per-frame visibility fields in
-> section 8.4.
+> We measured exactly where that happens rather than guessing: we took sessions, **deliberately moved
+> the labels by one frame**, and found the motion level at which the checker could no longer spot that
+> deliberate error. Above it the tool refuses. You will see the number in the header, e.g.
+> `camera motion M_med 0.0801   cap 0.0400`.
+>
+> **Why it refuses instead of just saying "looks fine":** if the checker cannot detect a one-frame
+> error at that motion level, then "no error found" tells you nothing about whether one is there.
+> Reporting a pass in that situation would be worse than reporting nothing.
+>
+> **A session full of `NOT-MEASURABLE` does not mean your labels are wrong** — it means this
+> particular check could not be run on that footage. (An earlier version reported `NOT-VISIBLE` in
+> that situation, which looked like a dataset failure and was not one.)
+>
+> **So for moving-camera gameplay, use the other two routes instead:** the overlay in step 5, and —
+> in M3 datasets — **the per-frame visibility fields the labels already carry from the render itself**
+> (`observable` and `target_pixels`, section 8.4). Those come from the engine at capture time and do
+> not depend on this after-the-fact pixel comparison at all.
 
 🆕 **Where your build writes per-frame visibility from the render (`observable` / `target_pixels`,
 section 8.4), the checker prints what it found next to each event** as `bbox=… obs=…`, so you can see
