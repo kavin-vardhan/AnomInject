@@ -99,66 +99,84 @@ though the number does not.
 synthetic all-black one. A gate that has never fired is not a gate (G96).
 
 --------------------------------------------------------------------------------------------------
-m49 LABEL-PIXEL GATE  (--label-pixel-gate) - and its CAMERA-MOTION ENVELOPE (079-03)
+m49 LABEL-PIXEL GATE  (--label-pixel-gate) - and its PER-EDGE VALIDITY ENVELOPE (079-06)
 --------------------------------------------------------------------------------------------------
 Per event it checks that the first labelled frame is the first frame whose pixels change, and that
 the frame after end_frame is the first clean one. The statistic is
 
-    d(k) = the fraction of the event's REGION whose pixels differ from frame k-1 by > threshold
+    d(k) = the fraction of the edge's REGION whose pixels differ from frame k-1 by > threshold
 
 which is BOUNDED IN [0,1], and the decision threshold is tau = max(median + K_SIGMA*MAD, FLOOR)
-learned from that event's own nearest clean frames.
+learned from the clean frames NEAREST THAT EDGE, on THAT EDGE'S OWN REGION.
 
-🚨 WHY THIS TOOL REFUSES TO JUDGE A SHAKY SESSION. tau is UNBOUNDED while d is not. Under camera
-motion the CLEAN frames change too, so the learned tau climbs - and it can climb past 1.0, at which
-point `d > tau` is unsatisfiable and EVERY event reads NOT-VISIBLE no matter what the pixels show.
-That is not a hypothetical: on M2 field captures it marked almost every event NOT-VISIBLE on labels
-the owner then verified BY EYE as correct, and on a banked heavy-motion session tau measured 1.0950
-and 1.1938 (G259). So motion is MEASURED and the tool REFUSES above a cap, instead of reporting a
-verdict it cannot support.
+WHY THIS TOOL REFUSES TO JUDGE A REGION IT CANNOT READ. `d` is bounded by 1.0; tau is bounded only
+by its inputs (at most 1 + 6*0.5 = 4.0) - so TAU CAN EXCEED WHAT d CAN EVER REACH. When the picture
+is changing, the CLEAN frames change too, the learned tau climbs, and past 1.0 `d > tau` is
+unsatisfiable: EVERY event reads NOT-VISIBLE no matter what the pixels show. That is not a
+hypothetical. On M2 field captures it marked almost every event NOT-VISIBLE on labels the owner then
+verified BY EYE as correct, and on a banked heavy-motion session tau measured 1.0950 and 1.1938
+(G259). So judgeability is MEASURED, and an unreadable edge is REFUSED rather than given a verdict
+the measurement cannot support.
 
-    M_med       = median over clean frames of the WHOLE-FRAME changed-pixel fraction
-    MOTION_CAP  = 0.040
+WHAT IS MEASURED, AND WHERE - THIS IS THE WHOLE OF 079-06:
 
-    cap=0.040 (2x margin below first incomplete recovery, LYRA_SMOKE_01 M_med=0.0801;
-    only full recovery observed at 0.0049, A2L_LEGA; ruling 079-04)
+    m_edge = the MEDIAN of d over the clean frames NEAREST THAT EDGE, on THAT EDGE'S OWN REGION
+    an edge with m_edge > REGION_CAP reads NOT-MEASURABLE(regional image change), per edge
 
-WHERE THE CAP COMES FROM - it is MEASURED, not chosen. 079-03 took banked moving-camera sessions,
-MOVED EVERY ANNOTATED WINDOW BY A KNOWN +/-1 (labels only; frames untouched), and asked whether the
-gate reports that exact shift back with the opposite sign. The cap is the motion level at which that
-ability disappears. Measured, on REAL sessions - and the cap is set by these alone:
+It is an IMAGE-CHANGE PROXY, NOT A CAMERA-DISPLACEMENT MEASUREMENT. A still camera in front of a
+waterfall reads high; a slow pan across a flat wall reads low. It answers only "does this region
+change on its own when nothing is happening here", which is the question a local verdict needs.
 
-    session          M_med    injected +/-1 recovered on decided events
-    A2L_LEGA        0.0049    FULL          (6/6, 6/6, 6/6)
-    LYRA_SMOKE_01   0.0801    INCOMPLETE    (one edge misplaced, one read as -2)
-    A1L_LEGA        0.0852    INCOMPLETE    (one shift recovered with the WRONG SIGN)
-    M50L_LG9        0.3491    NONE          (3 of 3 unshifted labels read NOT-VISIBLE)
+THE PREVIOUS DESIGN WAS ONE WHOLE-FRAME MEDIAN OVER THE FIRST 24 CLEAN PAIRS, REUSED BY EVERY EVENT,
+AND IT WAS BLIND TWICE OVER (Codex's 079-05 review; both reproduced here as selftest cases):
+  IN TIME   a quiet opening authorised verdicts on a later moving scene. A fixture whose first 36
+            frames are still reported motion 0.0000 while the value local to its labelled window
+            was 0.1250, and the gate emitted a confident ONSET-SHIFT on a CORRECT label.
+  IN SPACE  a whole-frame fraction can be tiny while the region changes completely. A 50x50 region
+            scrolling inside a static 320x240 picture reads 0.0039 whole-frame and 0.1250
+            regionally. Lowering a whole-frame constant cannot repair that - the quantity was wrong.
+The whole-frame median is still PRINTED, now over ALL clean pairs, and it GATES NOTHING.
 
-A SYNTHETIC scroll ladder still recovers at M_med 0.75 and is DELIBERATELY NOT the binding number: a
-uniform scroll has NO PARALLAX and therefore flatters the gate. It stays in --selftest as the proof
-that a shift is still readable under motion at all, and it sets nothing.
+AN EDGE MUST ALSO DOMINATE ITS RUNNER-UP (>= 1.5x, among the frames that cleared tau) or the answer
+is a refusal rather than a frame number. An argmax always returns something and never says the
+contest was close; on a banked leg an adjacent event's transition won an onset search four frames
+away and the event printed a confident shift anyway.
 
-⚠ WHY 0.040 AND NOT 0.0049. The measurement gives two bounds: the largest M_med that fully recovered
-(0.0049) and a 2x margin below the first that did not (0.0801/2 = 0.040). A cap resting on the single
-value it was derived from is fragile - a 0.0001 measurement drift would refuse the very session that
-set it - so the cap is placed at the margin bound. It still refuses both incomplete sessions and
-M50L_LG9.
+WHERE REGION_CAP COMES FROM - a PROVISIONAL HEURISTIC: derived, not chosen, and NOT a validated
+client acceptance envelope. CaptureBench/tools/m079_shift_recovery.py takes banked moving-camera
+sessions, MOVES THE LABELS BY A KNOWN +/-1 (onset-only, end-only and both; labels only, frames
+untouched), and scores a FIXED COHORT of every contiguous run x both edges - so losing coverage can
+never raise a recovery rate. The cap is the largest m_edge at which that cohort produced ZERO WRONG
+offsets with the guard disabled. The table is in that tool's header; the number and its N are in
+REGION_CAP_PROVENANCE below.
 
-🚨 THERE IS NO MIDDLE TIER, AND THE REASON IS THE COMPLAINT THIS TOOL EXISTS FOR. Zero FALSE shifts
-were measured up to M_med 0.085 - the gate does not INVENT disagreements - and it is tempting to
-therefore trust a PASS higher up than a SHIFT. Refused: A PASS FROM A GATE THAT CANNOT READ BACK A
-ONE-FRAME SHIFT IS NOT EVIDENCE OF ALIGNMENT, IT IS THE CLIENT'S ORIGINAL COMPLAINT RESTATED. If the
-instrument provably cannot see a one-frame error at that motion level, "no error found" carries no
-information about whether one is there. Above the cap the answer is NOT-MEASURABLE, full stop.
+A CLAIM THIS FILE USED TO MAKE AND NO LONGER DOES. 079-03/079-04 set a whole-frame MOTION_CAP of
+0.040 on the strength of "A2L_LEGA recovers an injected +/-1 fully". It does not: that score was
+taken from the EVENT token, and underneath it two of eight runs returned offsets of -2 and -4 where
++1 was correct, while the event printed the expected ONSET-SHIFT(+1) from its OTHER run. The cap and
+its positive anchor are WITHDRAWN (079-06). The numbers stay in the journals as history.
 
-⚠ HONEST LIMITS, because they decide whether a reading is worth anything:
-  - A cap here still refuses most real gameplay footage. The tool is then HONEST (it never calls a
-    correct label NOT-VISIBLE) but it is not USEFUL on that footage - it reports NOT-MEASURABLE with
-    the numbers and stops. That trade is deliberate: a confident wrong answer about a client's
-    dataset is worse than no answer.
-  - Only ONE real session has been observed to recover fully, so the cap rests on a thin base and
-    should be re-derived whenever more masked moving-camera sessions exist.
-  - Nothing here says a refused session's labels are wrong. NOT-MEASURABLE is an UNREAD SURFACE.
+THERE IS NO MIDDLE TIER, AND THE REASON IS THE COMPLAINT THIS TOOL EXISTS FOR. It is tempting to
+trust a PASS in conditions where a SHIFT could not have been read. Refused: A PASS FROM A GATE THAT
+CANNOT READ BACK A ONE-FRAME SHIFT IS NOT EVIDENCE OF ALIGNMENT, IT IS THE CLIENT'S ORIGINAL
+COMPLAINT RESTATED. Where the instrument provably cannot see a one-frame error, "no error found"
+carries no information about whether one is there. The answer is NOT-MEASURABLE, full stop.
+
+HONEST LIMITS, because they decide whether a reading is worth anything:
+  - This refuses a great deal of real gameplay footage, now per EDGE rather than per session. The
+    tool is then HONEST but not USEFUL on that footage - it prints the numbers and stops. That trade
+    is deliberate: a confident wrong answer about a client's dataset is worse than no answer.
+  - The cap rests on four banked sessions. It is a PROVISIONAL HEURISTIC, to be re-derived whenever
+    more masked moving-camera sessions exist, and it is not a client acceptance envelope.
+  - NOT-VISIBLE means NO DETECTABLE ABOVE-THRESHOLD CHANGE AT EITHER EDGE, within the searched
+    windows, of a region judged readable. IT IS NOT A GUARANTEE OF ABSENCE - a real change smaller
+    than that region's learned tau reads exactly the same way.
+  - `(bbox-only)` on a verdict means the SUPPLIED BOUNDING BOX was used because no per-frame mask
+    was available. It is not a silhouette, so anything inside the box counts.
+  - `bbox=... obs=...` is PRODUCER METADATA copied off the labels. This checker measures neither.
+  - PARTIAL means some edges of the event were read and agreed while others were refused. It is
+    neither a pass nor a failure and is counted separately from both.
+  - Nothing here says a refused edge's label is wrong. NOT-MEASURABLE is an UNREAD SURFACE.
 
 🔻 CORRECTION TO A DOCUMENTED CLAIM ELSEWHERE, so nobody re-derives the dead end: 079-02 tried to
 NORMALISE the motion away instead of refusing, thresholding net = d(region) - d(ambient ring), on
@@ -171,7 +189,7 @@ MORE outside its bbox than inside). Measured and reverted; see _region_frac.
 Usage:
     python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet] [--red-only]
     python verify_capture.py --dir <sessionDir> --black-frame-gate [--black-threshold N]
-    python verify_capture.py --dir <sessionDir> --label-pixel-gate [--report-only] [--motion-cap N]
+    python verify_capture.py --dir <sessionDir> --label-pixel-gate [--report-only] [--region-cap N]
     python verify_capture.py --all <bankRoot> --label-pixel-gate --report-only [--out <dir>]
     python verify_capture.py --label-pixel-gate --selftest
     python verify_capture.py --selftest
@@ -489,11 +507,22 @@ MAX_REGION_FRAC = 0.90
 
 ATTAINABLE_MAX = 1.0
 
-MOTION_CAP = 0.040
+DOMINANCE = 1.5
+
+REGION_CAP = 0.00014
+REGION_CAP_N = 736
+REGION_CAP_PROVENANCE = (
+    "PROVISIONAL HEURISTIC, 079-06: the largest m_edge at which a FIXED COHORT of 780 edge-cells "
+    "(A2L_LEGA, LYRA_SMOKE_01, A1L_LEGA, M50L_LG9 x 7 label perturbations x 2 variants), 736 of "
+    "which reached a baseline, produced ZERO WRONG offsets with the guard disabled. Smallest wrong "
+    "cell m_edge=0.000145 (A1L_LEGA event 0 run[4..5] onset, which inverted the SIGN of an injected "
+    "+1). NOT a validated client acceptance envelope, and NOT sufficient for correctness - see "
+    "m079_shift_recovery.py")
 
 V_PASS = "PASS"
 V_NOTVIS = "NOT-VISIBLE"
 V_NOTMEAS = "NOT-MEASURABLE"
+V_PARTIAL = "PARTIAL"
 
 
 def _offset_module():
@@ -597,10 +626,10 @@ def _build_region(cap_dir, row, entry, frame_w, frame_h, mlo):
 class _HotCache(object):
     """hot(k) = the WHOLE frame, 255 where |gray(k) - gray(k-1)| > thresh, else 0.
 
-    Whole-frame on purpose: the region fraction and the ambient-ring fraction are two crops of
-    the SAME binary image, so they are measured against each other on the same frame pair rather
-    than against two independently computed diffs. Cached because every event re-reads the same
-    frame pairs and a long field session has many events.
+    Whole-frame on purpose: ONE binary difference image per frame pair serves every region that
+    asks about that pair, so two regions are never compared across two independently computed
+    diffs. Cached because a session's events, runs and per-edge baselines re-read the same frame
+    pairs many times over.
     """
 
     def __init__(self, cache, thresh, limit=48):
@@ -661,8 +690,9 @@ def _region_frac(hot, k, region):
     `net` went NEGATIVE at the onset. m26's A35 had already measured this: hiding SM_Ramp2 changed
     MORE outside its own bbox than inside (peak-OUT 0.2955 vs peak-IN 0.1785).
 
-    Ã¢â€¡â€™ THE RING IS NOT USED AT ALL. Camera motion is handled by measuring it GLOBALLY and refusing
-    to judge above MOTION_CAP, not by trying to subtract it away.
+    Ã¢â€¡â€™ THE RING IS NOT USED AT ALL. Picture change is handled by MEASURING IT WHERE THE VERDICT
+    WILL BE MADE - per edge, on that edge's own region, over the clean frames nearest it - and
+    refusing above REGION_CAP, not by trying to subtract it away.
     """
     from PIL import ImageChops, ImageStat
     img = hot.get(k)
@@ -698,36 +728,61 @@ def _nearest_baseline(base_idx, lo, hi, cap):
     return sorted(sorted(base_idx, key=lambda k: (dist(k), k))[:max(1, cap)])
 
 
-def _dominant_edge(sigfn, lo, hi, region, paths, tau, foreign=None):
-    """The edge is where the BIGGEST change in the neighbourhood is, not the first one above tau.
+def _edge_search(sigfn, lo, hi, region, paths, tau, foreign=None):
+    """Rank every candidate frame in the window and report whether the winner DOMINATES.
 
+    The edge is where the BIGGEST change in the neighbourhood is, not the first one above tau.
     Measured on banked m45 legs: the frame AFTER a hide still differs from its predecessor
     because temporal accumulation is still decaying the object out, so "the first frame above
     tau" reads the ghost and reports a one-frame shift that is not there. The frame after a
-    reappearance has the same problem in the other direction. The dominant change is the
-    transition itself in both cases, and it is what a viewer calls the edge.
+    reappearance has the same problem in the other direction.
 
     `foreign` is the set of frames belonging to OTHER events. A neighbourhood that reaches
     into another event's window would otherwise let that event's transition win the argmax -
     measured on a banked leg where two events fire on the SAME actor eight frames apart, and
     the second swap was read as the first one's end.
 
-    Returns (frame_index_of_edge, its d) or (None, None) when nothing in the window clears tau.
+    079-06 ADDS DOMINANCE, AND IT IS THE DIRECT CURE FOR "SOMETHING ELSE WON THE ARGMAX".
+    An argmax always returns something; it never says the contest was close. Codex's 079-05
+    review reproduced the consequence on a banked leg: an adjacent event's clear transition won
+    an onset search four frames away and the event still printed a confident shift. So the
+    winner must beat the RUNNER-UP by DOMINANCE (1.5x) or the answer is a refusal, not a frame
+    number: a competitor within two thirds of the winner's magnitude is not distinguishable from
+    it by this statistic, and the argmax between them is a coin flip.
+
+    THE RUNNER-UP IS TAKEN FROM THE ELIGIBLE SET - the frames with d > tau - and NOT from the
+    whole window, because that is the set the argmax actually ranges over. A frame that never
+    cleared the detection threshold was never a candidate, and counting it would make the test
+    depend on how quiet the window happened to be rather than on how close the contest was.
+    With fewer than two eligible frames the winner is dominant by construction.
+
+    Replaces `_dominant_edge`, which returned only the winner. THE NAME CHANGED ON PURPOSE: an
+    audit that monkeypatched the old function would otherwise observe nothing and read as a
+    clean result. A loud AttributeError is the better failure.
     """
-    best_k = None
-    best_d = None
+    cands = []
     for k in range(lo, hi + 1):
         if k not in paths or (k - 1) not in paths:
             continue
         if foreign and (k in foreign or (k - 1) in foreign):
             continue
         d = sigfn(k, region)
-        if d is None or d <= tau:
+        if d is None:
             continue
-        if best_d is None or d > best_d:
-            best_d = d
-            best_k = k
-    return best_k, best_d
+        cands.append((k, d))
+    eligible = sorted([c for c in cands if c[1] > tau], key=lambda c: (-c[1], c[0]))
+    out = {"scanned": len(cands), "eligible": len(eligible), "best_k": None, "best_d": None,
+           "second_k": None, "second_d": None, "ratio": None, "dominant": None}
+    if not eligible:
+        return out
+    out["best_k"], out["best_d"] = eligible[0]
+    if len(eligible) > 1:
+        out["second_k"], out["second_d"] = eligible[1]
+        out["ratio"] = (out["best_d"] / out["second_d"]) if out["second_d"] > 0 else None
+        out["dominant"] = (out["ratio"] is None) or (out["ratio"] >= DOMINANCE)
+    else:
+        out["dominant"] = True
+    return out
 
 
 def _anchor_entry(rows, indices, node, mlo):
@@ -832,13 +887,189 @@ def _measurable_ceiling(windows, all_idx):
     return None, None
 
 
-def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motion_cap=None):
+def _measure_edge(kind, nominal, region, region_fallback, frame_w, frame_h, mlo, hot, base_idx,
+                  sigfn, paths, foreign, lo, hi, region_cap, ceiling, truncated):
+    """One EDGE of one contiguous run, judged on its OWN region and its OWN local clean frames.
+
+    079-06 / Codex finding 1. Until this function existed, measurability was decided ONCE per
+    SESSION from a whole-frame changed-pixel median taken over the FIRST 24 clean pairs, and
+    every event reused it. That is blind twice over:
+
+      IN TIME   a quiet opening authorises a verdict on a later moving scene. Reproduced: a
+                fixture whose first 36 frames are still and whose labelled window sits in the
+                moving part reported motion 0.0000 while its local value was 0.1250.
+      IN SPACE  a whole-frame fraction can be tiny while the REGION changes completely. A 50x50
+                region scrolling inside a static 320x240 picture reads 0.0039 whole-frame and
+                0.1250 regionally - the same picture, a factor of 32.
+
+    So the question asked here is the only one that matters for a verdict: over the clean frames
+    NEAREST THIS EDGE, how much does THIS EDGE'S OWN REGION change when nothing is happening?
+    That number is `m_edge`, and above REGION_CAP the edge is refused.
+
+    THE REGION IS THE EDGE'S OWN, not the event's anchor region. Codex named the mismatch: tau was
+    learned on the anchor's box while later runs and the end used different masks, so a target
+    that moves changed the sampled content without recalibrating.
+
+    ORDER OF THE REFUSALS, and it matters: region present, region size, end-truncation, baseline
+    count, threshold satisfiable, regional change, dominance, then measurable range. The more
+    specific fault is the one reported when several hold, and each can be exercised separately.
+
+    Returns a dict. `status` is "read" or "refused"; a read edge carries `offset` (None when
+    nothing in the window cleared tau) and `found`.
+    """
+    rec = {"kind": kind, "nominal": nominal, "status": "refused", "reason": None,
+           "tau": None, "m_edge": None, "mad": None, "base_n": 0, "contaminated": 0,
+           "best_k": None, "best_d": None, "second_d": None, "ratio": None,
+           "eligible": 0, "scanned": 0, "found": False, "offset": None,
+           "region_source": None, "region_npix": None, "d_nominal": None}
+
+    reg = region or region_fallback
+    if reg is None:
+        rec["reason"] = "no-region: no usable mask or bbox at frame %d" % nominal
+        return rec
+    rec["region_source"] = reg["source"]
+    rec["region_npix"] = reg["npix"]
+
+    frame_px = float(frame_w * frame_h)
+    region_px = mlo.box_area(reg["box"])
+    if frame_px > 0 and region_px >= MAX_REGION_FRAC * frame_px:
+        rec["reason"] = ("region covers the picture: %dpx = %.1f%% of the %dpx frame, at or above "
+                         "the %.0f%% bounding-rectangle limit, so it cannot be localised against it"
+                         % (int(region_px), 100.0 * region_px / frame_px, int(frame_px),
+                            MAX_REGION_FRAC * 100.0))
+        return rec
+
+    if truncated:
+        rec["reason"] = "end truncated by the session's last frame"
+        return rec
+
+    base = _nearest_baseline(base_idx, nominal, nominal, BASELINE_MAX_FRAMES)
+    vals = []
+    for k in base:
+        d = _region_frac(hot, k, reg)
+        if d is not None:
+            vals.append(d)
+    rec["base_n"] = len(vals)
+    if len(vals) < MIN_BASELINE_FRAMES:
+        rec["reason"] = ("baseline: only %d clean frame(s) near frame %d, need %d"
+                         % (len(vals), nominal, MIN_BASELINE_FRAMES))
+        return rec
+
+    tau, med, mad = _threshold_from(vals, mlo)
+    rec["tau"], rec["m_edge"], rec["mad"] = tau, med, mad
+    rec["contaminated"] = sum(1 for v in vals if v > tau)
+
+    if tau >= ATTAINABLE_MAX:
+        rec["reason"] = ("threshold unsatisfiable: tau=%.4f but d can never exceed %.1f - no pixel "
+                         "change of ANY size could clear it, so this is a broken instrument, not a "
+                         "reading" % (tau, ATTAINABLE_MAX))
+        return rec
+
+    found = _edge_search(sigfn, lo, hi, reg, paths, tau, foreign)
+    rec.update(scanned=found["scanned"], eligible=found["eligible"], best_k=found["best_k"],
+               best_d=found["best_d"], second_d=found["second_d"], ratio=found["ratio"])
+    rec["d_nominal"] = (sigfn(nominal, reg)
+                        if nominal in paths and (nominal - 1) in paths else None)
+
+    # THE SEARCH RUNS BEFORE THE JUDGEABILITY REFUSAL, DELIBERATELY. `best_k` bounds the END
+    # window from below (a run's clear cannot precede its own onset), and that bound must not
+    # depend on whether the ONSET was trusted: measured here, refusing an onset for regional
+    # change unbound the end search, which then re-found the onset transition and returned a
+    # confident -1 where +1 was correct. A refusal must remove an ANSWER, never a CONSTRAINT.
+    if region_cap is not None and med is not None and med > region_cap:
+        rec["reason"] = ("regional image change: m=%.6f cap=%.6f over the %d clean pair(s) nearest "
+                         "frame %d - this region is not still enough for a local change to be "
+                         "attributed to the label" % (med, region_cap, len(vals), nominal))
+        return rec
+
+    if found["best_k"] is None:
+        rec["status"] = "read"
+        rec["found"] = False
+        return rec
+
+    if not found["dominant"]:
+        rec["reason"] = ("ambiguous edge: best d=%.4f at %d, runner-up d=%.4f at %d, ratio %.2fx "
+                         "below the %.2fx needed - the argmax between them is a coin flip"
+                         % (found["best_d"], found["best_k"], found["second_d"], found["second_k"],
+                            found["ratio"] if found["ratio"] is not None else 0.0, DOMINANCE))
+        return rec
+
+    offset = found["best_k"] - nominal
+    if ceiling is not None and abs(offset) > ceiling:
+        rec["reason"] = ("shift beyond the measurable range (+/-%d): read %+d, which is UNDER-READ "
+                         "rather than located" % (ceiling, offset))
+        return rec
+
+    rec["status"] = "read"
+    rec["found"] = True
+    rec["offset"] = offset
+    return rec
+
+
+def _edge_line(rec):
+    if rec["status"] == "refused":
+        return "        %-5s  %s(%s)" % (rec["kind"], V_NOTMEAS, rec["reason"])
+    dom = "n/a" if rec["ratio"] is None else ("%.1fx" % rec["ratio"])
+    if rec["found"]:
+        verdict = "ALIGNED" if rec["offset"] == 0 else ("SHIFT(%+d)" % rec["offset"])
+        where = "edge at %d" % rec["best_k"]
+    else:
+        verdict = "no change above tau"
+        where = "0 of %d frame(s) above tau" % rec["scanned"]
+    return ("        %-5s  k=%-4d d=%-7s tau=%.4f m_edge=%.6f base=%-3d dom=%-6s %-26s %s/%dpx  %s"
+            % (rec["kind"], rec["nominal"],
+               ("%.4f" % rec["d_nominal"]) if rec["d_nominal"] is not None else "n/a",
+               rec["tau"], rec["m_edge"], rec["base_n"], dom, where,
+               rec["region_source"], rec["region_npix"], verdict))
+
+
+def _run_verdict(edges, only_tag):
+    """Combine one run's two edges. EVERY edge is reported; none is absorbed by the other.
+
+    079-06 / Codex finding 2. Before this, a run collapsed into one token and an event collapsed
+    into one token again, so a WRONG end edge could sit behind a correct onset shift and an
+    entirely unread run could sit behind another run's expected token. Measured on A2L_LEGA: at
+    delta -1 two of eight runs returned offsets of -2 and -4 where +1 was correct, and the event
+    still printed ONSET-SHIFT(+1) from its other run.
+
+    NOT-VISIBLE now requires BOTH edges to be judgeable and BOTH to find nothing (V4). A region
+    the instrument could not read is an UNREAD SURFACE and must not produce an absence claim.
+    """
+    read = [e for e in edges if e["status"] == "read"]
+    shifted = [e for e in read if e["found"] and e["offset"] != 0]
+    aligned = [e for e in read if e["found"] and e["offset"] == 0]
+    if len(read) == len(edges) and not shifted and not aligned:
+        return V_NOTVIS, ("no change above tau at either edge of a judgeable region%s" % only_tag)
+    if shifted:
+        e = shifted[0]
+        kind = "ONSET" if e["kind"] == "onset" else "END"
+        return ("%s-SHIFT(%+d)" % (kind, e["offset"]),
+                "pixels change at %d, the label puts that edge at %d" % (e["best_k"], e["nominal"]))
+    if aligned and len(aligned) == len(edges):
+        return V_PASS, "both edges read and aligned"
+    if aligned:
+        return V_PARTIAL, ("%d edge(s) read and aligned, %d NOT read"
+                           % (len(aligned), len(edges) - len(aligned)))
+    return V_NOTMEAS, "neither edge could be read"
+
+
+_SEVERITY = {V_NOTVIS: 0, "SHIFT": 1, V_PARTIAL: 2, V_NOTMEAS: 3, V_PASS: 4}
+
+
+def _severity(v):
+    if v.startswith("ONSET-SHIFT") or v.startswith("END-SHIFT"):
+        return _SEVERITY["SHIFT"]
+    return _SEVERITY.get(v, 1)
+
+
+def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, region_cap=None,
+                     motion_cap=None, out_detail=None):
     """The label-vs-pixel gate. Returns (exit_code, lines).
 
-    Per event, per contiguous run of labelled frames, on the RING-NORMALISED signal
-    `net = d(region) - d(ambient ring)`:
-      ONSET is aligned when net(start) > tau AND net(start-1) <= tau.
-      END   is aligned when net(end+1) > tau AND net(end)     <= tau.
+    Per event, per contiguous run of labelled frames, per EDGE, on the raw region statistic
+    `d(k) = the fraction of that edge's REGION whose pixels differ from frame k-1 by > threshold`:
+      ONSET is aligned when the dominant change in the onset window sits on `start`.
+      END   is aligned when the dominant change in the end window sits on `end + 1`.
     A shift is reported SIGNED: n < 0 means the PIXELS changed BEFORE the label said so.
     Nothing is inferred about WHY; the tool reports the reading.
 
@@ -846,31 +1077,42 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motio
     refusal below is NOT-MEASURABLE with its numbers printed, and NEVER NOT-VISIBLE: a region the
     instrument cannot read is an UNREAD SURFACE, not a failed label.
 
-      CAMERA MOTION is MEASURED, not compensated. M_med is the median over clean frames of the
-      WHOLE-FRAME changed-pixel fraction. Above MOTION_CAP the gate refuses the session's events.
-      It does not try to subtract the motion away - 079-02 measured that a spatial ring does not
-      cancel parallax, and that subtracting it destroys small real signals (see _region_frac).
+      MEASURABILITY IS DECIDED PER EDGE, LOCAL IN TIME AND IN REGION (079-06). `m_edge` is the
+      MEDIAN of that edge's own region's changed-pixel fraction over the clean frames NEAREST
+      that edge; above REGION_CAP the edge is refused. It is an IMAGE-CHANGE PROXY, not a camera
+      displacement, and it is measured where the verdict will be made. A session-level whole-frame
+      median is printed as a READING ONLY and gates nothing - taken over an opening it can be
+      zero while the labelled window moves, and taken over the frame it can be tiny while a small
+      region changes completely (both reproduced, see _measure_edge).
+
+      AN EDGE MUST DOMINATE ITS RUNNER-UP by DOMINANCE (1.5x) among the frames that cleared tau,
+      or the argmax is a coin flip and the answer is a refusal rather than a frame number.
 
       A REGION COVERING THE PICTURE is refused on its size alone (>= MAX_REGION_FRAC of the
-      frame). A label that claims most of the picture cannot be localised against the picture.
+      frame, measured on the region's BOUNDING RECTANGLE). A label that claims most of the
+      picture cannot be localised against the picture.
 
       A THRESHOLD NO MEASUREMENT COULD CLEAR is an instrument fault, not a verdict. `d` is a
-      fraction, so it can never exceed ATTAINABLE_MAX = 1.0; if tau reaches that, the event reads
+      fraction, so it can never exceed ATTAINABLE_MAX = 1.0; if tau reaches that, the edge reads
       NOT-MEASURABLE(threshold unsatisfiable). ASSERTED, never clamped - clamping turns an
       impossible test into an absurd one that still FAILs, silently. This is the exact state that
       produced six confident FAILs on field data (G259).
 
-      A DENSE BURST SCHEDULE starves the baseline. Each event is calibrated on the clean frames
-      NEAREST ITS OWN WINDOW (up to BASELINE_MAX_FRAMES); below MIN_BASELINE_FRAMES the event
-      reads NOT-MEASURABLE with the count printed.
+      A DENSE BURST SCHEDULE starves the baseline. Each EDGE is calibrated on the clean frames
+      NEAREST ITSELF (up to BASELINE_MAX_FRAMES); below MIN_BASELINE_FRAMES the edge reads
+      NOT-MEASURABLE with the count printed.
 
-    ORDER OF THE REFUSALS, and it matters: region size, then baseline, then tau, then
-    UNSATISFIABLE, then MOTION. Unsatisfiable is tested BEFORE motion so that the more specific
-    fault is the one reported when both hold, and so the selftest can exercise each separately.
+    EVERY RUN AND EVERY EDGE IS PRINTED. An event whose edges disagree about whether they could
+    be read is PARTIAL, not PASS - one token per event hid real failures before 079-06 (G262).
 
     Constants: K_SIGMA / SIGNAL_FLOOR come from measure_label_offset, where they threshold a
-    per-frame region difference - the same shape as `d`. MOTION_CAP is set by the 079-03
-    known-answer procedure (see the module header), not by taste.
+    per-frame region difference - the same shape as `d`. REGION_CAP is a PROVISIONAL HEURISTIC set
+    by the 079-06 cohort procedure (see the module header), not by taste.
+
+    `motion_cap` is accepted as a deprecated alias for `region_cap` so that callers written
+    against the 079-03/079-04 signature keep working; passing 1.0 disables the guard as before.
+    `out_detail`, when a list is passed, receives one dict per EDGE - the structured form of what
+    the detail lines print, so an audit does not have to parse text.
     """
     lines = []
     try:
@@ -923,32 +1165,40 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motio
     has_masks = any(r.get("mask_file") for r in rows.values())
     hot = _HotCache(cache, thresh)
 
-    motion_vals = []
-    for k in base_idx[:BASELINE_MAX_FRAMES]:
-        m = hot.whole_frame(k)
-        if m is not None:
-            motion_vals.append(m)
-    motion = mlo.median_or_none(motion_vals)
+    cap = region_cap if region_cap is not None else motion_cap
+    if cap is None:
+        cap = REGION_CAP
+    cap = None if cap is None else float(cap)
 
-    cap = MOTION_CAP if motion_cap is None else float(motion_cap)
-    over_cap = motion is not None and motion > cap
+    whole = [hot.whole_frame(k) for k in base_idx]
+    whole = [v for v in whole if v is not None]
+    motion = mlo.median_or_none(whole)
 
-    lines.append("LABEL-PIXEL GATE   (m49 step 1; motion envelope since 079-03)")
+    lines.append("LABEL-PIXEL GATE   (m49 step 1; per-edge validity since 079-06)")
     lines.append("  session                  %s" % cap_dir)
     lines.append("  frames / labels / events %d / %d / %d" % (len(paths), len(rows), len(events)))
     lines.append("  region mode              %s" % ("masks" if has_masks else "bbox-only"))
     lines.append("  signal                   d = fraction of REGION pixels changed since the "
                  "previous frame (bounded 0..1)")
-    lines.append("  camera motion M_med      %s   cap %.4f%s"
-                 % ("%.4f" % motion if motion is not None else "n/a", cap,
-                    "   *** OVER CAP - events are refused as NOT-MEASURABLE ***"
-                    if over_cap else ""))
+    lines.append("  judgeability             m_edge = median d over the %d clean pair(s) NEAREST "
+                 "each edge, on that edge's own region" % BASELINE_MAX_FRAMES)
+    if cap is None:
+        lines.append("  regional change cap      *** NONE - the judgeability guard is INERT and "
+                     "every edge will be judged ***")
+    else:
+        lines.append("  regional change cap      %.6f" % cap)
+        lines.append("                           %s" % REGION_CAP_PROVENANCE)
+    lines.append("  whole-frame change M_med %s   READING ONLY over all %d clean pair(s); it "
+                 "gates nothing (079-06)"
+                 % ("%.4f" % motion if motion is not None else "n/a", len(whole)))
     lines.append("  diff threshold           >%d/255 per pixel" % thresh)
     lines.append("  edge search window       +/-%d frames" % edge_w)
     lines.append("  constants                K_SIGMA=%.1f  SIGNAL_FLOOR=%.4f  baseline %d..%d "
-                 "frames  region<%.0f%% of frame  attainable<=%.1f"
+                 "frames  region<%.0f%% of frame  attainable<=%.1f  dominance>=%.2fx"
                  % (mlo.K_SIGMA, mlo.SIGNAL_FLOOR, MIN_BASELINE_FRAMES, BASELINE_MAX_FRAMES,
-                    MAX_REGION_FRAC * 100.0, ATTAINABLE_MAX))
+                    MAX_REGION_FRAC * 100.0, ATTAINABLE_MAX, DOMINANCE))
+    lines.append("  bbox=.. obs=..           PRODUCER METADATA copied off the labels; this checker "
+                 "measures neither of them")
     if ceiling is None:
         lines.append("  MEASURABLE RANGE         n/a (no annotated window)")
     else:
@@ -956,7 +1206,8 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motio
                      "this is UNDER-READ, not absent" % (ceiling, min_gap))
 
     ev_lines = []
-    n_pass = n_shift = n_notvis = n_notmeas = 0
+    n_pass = n_shift = n_notvis = n_notmeas = n_partial = 0
+    m_seen = []
 
     for ev in events:
         tag = "idx=%-3d %-18s %-22s" % (ev["i"], ev["type"], ev["node"] or "(no node)")
@@ -992,7 +1243,7 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motio
                     mask_short = (k, reg["npix"])
                     break
         if mask_short:
-            ev_lines.append("%s %s (mask count %d < %d on frame %d)  %s"
+            ev_lines.append("%s %s (the delivered mask carries %d px < %d on frame %d)  %s"
                             % (tag, V_NOTVIS, mask_short[1], min_visible_px, mask_short[0],
                                _provenance(ev)))
             n_notvis += 1
@@ -1007,48 +1258,6 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motio
 
         bbox_only = region["bin"] is None
         only_tag = " (bbox-only)" if bbox_only else ""
-        frame_px = float(frame_w * frame_h)
-
-        region_px = mlo.box_area(region["box"])
-        if frame_px > 0 and region_px >= MAX_REGION_FRAC * frame_px:
-            ev_lines.append("%s %s(region covers the picture: %dpx = %.1f%% of the %dpx frame, so "
-                            "it cannot be localised against it)  %s"
-                            % (tag, V_NOTMEAS, int(region_px), 100.0 * region_px / frame_px,
-                               int(frame_px), _provenance(ev)))
-            n_notmeas += 1
-            continue
-
-        ev_lo, ev_hi = ev["indices"][0], ev["indices"][-1]
-        ev_base = _nearest_baseline(base_idx, ev_lo, ev_hi, BASELINE_MAX_FRAMES)
-
-        base_vals = []
-        for k in ev_base:
-            d = _region_frac(hot, k, region)
-            if d is not None:
-                base_vals.append(d)
-        if len(base_vals) < MIN_BASELINE_FRAMES:
-            ev_lines.append("%s %s(baseline: only %d clean frame(s) near [%d..%d], need %d)  %s"
-                            % (tag, V_NOTMEAS, len(base_vals), ev_lo, ev_hi, MIN_BASELINE_FRAMES,
-                               _provenance(ev)))
-            n_notmeas += 1
-            continue
-        tau, med, mad = _threshold_from(base_vals, mlo)
-        contaminated = sum(1 for v in base_vals if v > tau)
-
-        if tau >= ATTAINABLE_MAX:
-            ev_lines.append("%s %s(threshold unsatisfiable: tau=%.4f but d can never exceed %.1f - "
-                            "no pixel change of ANY size could clear it, so this is a broken "
-                            "instrument, not a reading)  %s"
-                            % (tag, V_NOTMEAS, tau, ATTAINABLE_MAX, _provenance(ev)))
-            n_notmeas += 1
-            continue
-
-        if over_cap:
-            ev_lines.append("%s %s(camera motion: M_med=%.4f cap=%.4f - the picture is changing too "
-                            "fast to attribute a local change to this label)  %s"
-                            % (tag, V_NOTMEAS, motion, cap, _provenance(ev)))
-            n_notmeas += 1
-            continue
 
         own = set(int(v) for v in ev["indices"])
         foreign = set()
@@ -1062,93 +1271,68 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motio
         def sigfn(k, reg):
             return _region_frac(hot, k, reg)
 
-        verdicts = []
         details = []
+        run_results = []
+        ev_edges = []
         ev_runs = _runs_of(ev["indices"])
         for run_i, (rs, re_) in enumerate(ev_runs):
             prev_end = ev_runs[run_i - 1][1] if run_i > 0 else None
             next_start = ev_runs[run_i + 1][0] if run_i + 1 < len(ev_runs) else None
+
             r_on = rows.get(rs)
             e_on = mlo.match_label_entry(r_on, ev["node"], None) if r_on else None
-            reg_on = _build_region(cap_dir, r_on, e_on, frame_w, frame_h, mlo) if e_on else region
-            reg_on = reg_on or region
-
+            reg_on = _build_region(cap_dir, r_on, e_on, frame_w, frame_h, mlo) if e_on else None
             on_lo = max(min(all_idx) + 1, rs - edge_w)
             if prev_end is not None:
                 on_lo = max(on_lo, prev_end + 2)
             on_hi = min(rs + edge_w, re_)
-            onset_k, onset_d = _dominant_edge(sigfn, on_lo, on_hi, reg_on, paths, tau, foreign)
+            onset = _measure_edge("onset", rs, reg_on, region, frame_w, frame_h, mlo, hot,
+                                  base_idx, sigfn, paths, foreign, on_lo, on_hi, cap, ceiling,
+                                  False)
 
             r_end = rows.get(re_)
             e_end = mlo.match_label_entry(r_end, ev["node"], None) if r_end else None
-            reg_end = _build_region(cap_dir, r_end, e_end, frame_w, frame_h, mlo) if e_end else region
-            reg_end = reg_end or region
+            reg_end = _build_region(cap_dir, r_end, e_end, frame_w, frame_h, mlo) if e_end else None
+            truncated = (re_ + 1) > max(all_idx)
+            end_lo = max(min(all_idx) + 1, re_ + 1 - edge_w)
+            if onset["best_k"] is not None:
+                end_lo = max(end_lo, onset["best_k"] + 1)
+            end_hi = re_ + 1 + edge_w
+            if next_start is not None:
+                end_hi = min(end_hi, next_start - 1)
+            end = _measure_edge("end", re_ + 1, reg_end, region, frame_w, frame_h, mlo, hot,
+                                base_idx, sigfn, paths, foreign, end_lo, end_hi, cap, ceiling,
+                                truncated)
 
-            end_k = None
-            end_truncated = (re_ + 1) > max(all_idx)
-            if not end_truncated:
-                lo = max(min(all_idx) + 1, re_ + 1 - edge_w)
-                if onset_k is not None:
-                    lo = max(lo, onset_k + 1)
-                hi = re_ + 1 + edge_w
-                if next_start is not None:
-                    hi = min(hi, next_start - 1)
-                end_k, _end_d = _dominant_edge(sigfn, lo, hi, reg_end, paths, tau, foreign)
+            for e in (onset, end):
+                ev_edges.append(e)
+                if e["m_edge"] is not None:
+                    m_seen.append(e["m_edge"])
+                if out_detail is not None:
+                    rec = dict(e)
+                    rec.update(event=ev["i"], run=(rs, re_), node=ev["node"], type=ev["type"],
+                               session=cap_dir)
+                    out_detail.append(rec)
 
-            d_on = sigfn(rs, reg_on) if rs in paths and (rs - 1) in paths else None
-            d_off = (sigfn(re_ + 1, reg_end)
-                     if (not end_truncated and (re_ + 1) in paths) else None)
-
-            n_on = (onset_k - rs) if onset_k is not None else None
-            n_end = (end_k - (re_ + 1)) if end_k is not None else None
-
-            if onset_k is None and end_k is None:
-                verdicts.append((V_NOTVIS, "run[%d..%d] no pixel change above tau anywhere in "
-                                           "+/-%d of the claim%s"
-                                           % (rs, re_, edge_w, only_tag)))
-            elif ceiling is not None and ((n_on is not None and abs(n_on) > ceiling)
-                                          or (n_end is not None and abs(n_end) > ceiling)):
-                verdicts.append((V_NOTMEAS, "run[%d..%d] shift beyond the measurable range "
-                                            "(+/-%d)" % (rs, re_, ceiling)))
-            elif n_on not in (None, 0):
-                verdicts.append(("ONSET-SHIFT(%+d)" % n_on,
-                                 "run[%d..%d] pixels first change at %d, label starts at %d"
-                                 % (rs, re_, onset_k, rs)))
-            elif n_end not in (None, 0):
-                verdicts.append(("END-SHIFT(%+d)" % n_end,
-                                 "run[%d..%d] pixels first clear at %d, label ends at %d"
-                                 % (rs, re_, end_k, re_)))
-            elif n_on is None:
-                verdicts.append((V_NOTMEAS, "run[%d..%d] onset not decidable" % (rs, re_)))
-            elif end_truncated:
-                verdicts.append((V_NOTMEAS, "run[%d..%d] end truncated by the session's last "
-                                            "frame" % (rs, re_)))
-            elif n_end is None:
-                verdicts.append((V_NOTMEAS, "run[%d..%d] end not decidable" % (rs, re_)))
-            else:
-                verdicts.append((V_PASS, "run[%d..%d] onset %d end %d" % (rs, re_, rs, re_ + 1)))
-
-            details.append("      run[%d..%d]  d(onset=%d)=%s  d(clear=%s)=%s  tau=%.4f  "
-                           "region=%s/%dpx"
-                           % (rs, re_, rs, ("%.4f" % d_on) if d_on is not None else "n/a",
-                              str(re_ + 1) if not end_truncated else "-",
-                              ("%.4f" % d_off) if d_off is not None else "n/a",
-                              tau, reg_on["source"], reg_on["npix"]))
+            verdict, why = _run_verdict([onset, end], only_tag)
+            run_results.append(verdict)
+            details.append("      run[%d..%d]  %-16s - %s" % (rs, re_, verdict, why))
+            details.append(_edge_line(onset))
+            details.append(_edge_line(end))
 
         worst = V_PASS
-        for v, _why in verdicts:
-            if v == V_NOTVIS:
-                worst = v
-                break
-            if v.startswith("ONSET-SHIFT") or v.startswith("END-SHIFT"):
-                worst = v
-            elif v == V_NOTMEAS and worst == V_PASS:
+        for v in run_results:
+            if _severity(v) < _severity(worst):
                 worst = v
 
+        taus = [e["tau"] for e in ev_edges if e["tau"] is not None]
+        ms = [e["m_edge"] for e in ev_edges if e["m_edge"] is not None]
+        n_read = sum(1 for e in ev_edges if e["status"] == "read")
+        contaminated = max([0] + [e["contaminated"] for e in ev_edges])
         conf = "HIGH"
         if contaminated:
             conf = "LOW"
-        elif region["bin"] is None:
+        elif bbox_only:
             conf = "MED"
 
         extra = ""
@@ -1160,15 +1344,15 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motio
             except Exception:
                 extra = "  appearance=n/a"
 
-        ev_lines.append("%s %-16s [%s] tau=%.4f base=%d  %s%s%s"
-                        % (tag, worst + (only_tag if worst == V_NOTVIS else ""), conf, tau,
-                           len(base_vals), _provenance(ev),
+        tau_txt = ("tau=%.4f" % taus[0]) if len(set(taus)) == 1 else (
+            ("tau=%.4f..%.4f" % (min(taus), max(taus))) if taus else "tau=n/a")
+        m_txt = ("m_edge<=%.6f" % max(ms)) if ms else "m_edge=n/a"
+        ev_lines.append("%s %-16s [%s] %s %s edges=%d/%d-read  %s%s%s"
+                        % (tag, worst + (only_tag if worst == V_NOTVIS else ""), conf,
+                           tau_txt, m_txt, n_read, len(ev_edges), _provenance(ev),
                            ("  CONTAMINATED=%d" % contaminated) if contaminated else "", extra))
         if not quiet:
             ev_lines.extend(details)
-            for v, why in verdicts:
-                if v != V_PASS:
-                    ev_lines.append("      %-16s %s" % (v, why))
 
         if worst == V_PASS:
             n_pass += 1
@@ -1176,11 +1360,13 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motio
             n_notvis += 1
         elif worst == V_NOTMEAS:
             n_notmeas += 1
+        elif worst == V_PARTIAL:
+            n_partial += 1
         else:
             n_shift += 1
 
     lines.append("  clean-frame pool         %d (guard %d frame(s) either side of every window%s); "
-                 "each event calibrates on the %d NEAREST of them"
+                 "each EDGE calibrates on the %d NEAREST of them, on its own region"
                  % (len(base_idx), guard_used,
                     "" if guard_used == BASELINE_GUARD_FRAMES
                     else "; RELAXED from %d - a dense burst schedule left too few clean frames"
@@ -1189,15 +1375,30 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, motio
     lines.append("-" * 78)
     lines.extend(ev_lines)
     lines.append("-" * 78)
-    lines.append("  PASS %d   SHIFT %d   NOT-VISIBLE %d   NOT-MEASURABLE %d   (of %d event(s))"
-                 % (n_pass, n_shift, n_notvis, n_notmeas, len(events)))
+    if m_seen:
+        lines.append("  regional change m_edge   min %.6f  median %.6f  max %.6f  over %d edge(s) "
+                     "that reached a baseline"
+                     % (min(m_seen), mlo.median_or_none(m_seen), max(m_seen), len(m_seen)))
+    lines.append("  PASS %d   SHIFT %d   NOT-VISIBLE %d   PARTIAL %d   NOT-MEASURABLE %d   "
+                 "(of %d event(s))"
+                 % (n_pass, n_shift, n_notvis, n_partial, n_notmeas, len(events)))
     bad = n_shift + n_notvis
-    lines.append("  VERDICT                  %s%s"
-                 % ("PASS" if bad == 0 else "FAIL",
-                    "" if bad == 0 else "  - the labels and the pixels disagree on %d event(s)" % bad))
-    if n_notmeas:
+    total = len(events)
+    if bad:
+        verdict_line = "FAIL  - the labels and the pixels disagree on %d event(s)" % bad
+    elif total and n_pass == total:
+        verdict_line = "PASS  (%d of %d events fully checked)" % (n_pass, total)
+    elif n_pass == 0 and n_partial == 0:
+        verdict_line = ("UNREAD  (0 of %d events checked - every event is an unread surface, "
+                        "which is neither a pass nor a failure)" % total)
+    else:
+        verdict_line = ("PASS-PARTIAL  (%d fully, %d partly, %d unread of %d events - no "
+                        "disagreement among the edges that could be read)"
+                        % (n_pass, n_partial, n_notmeas, total))
+    lines.append("  VERDICT                  %s" % verdict_line)
+    if n_notmeas or n_partial:
         lines.append("  NOT-MEASURABLE is NOT a pass and NOT a failure - it is an unread surface, "
-                     "and the reason is printed on the event's own line.")
+                     "and the reason is printed on the edge's own line.")
     return (0 if bad == 0 else 2), lines
 
 
@@ -1349,7 +1550,80 @@ def _shifted_copy_of(src_dir, dst_dir, delta):
     return dst_dir
 
 
-def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, motion_cap=None):
+def _codex_fixture(root, name, local_only=False, alternating=False, burst=True, shift=0):
+    """The 079-05 review's counterexample fixtures, ported with attribution.
+
+    SOURCE: `_reviews/079-05-review-validation.py`, Codex's independent merge review, function
+    `custom_motion_fixture`. They are kept here VERBATIM IN CONSTRUCTION - same geometry, same
+    scroll schedule, same patch - because they are the three cases that broke the 079-04 gate and
+    a paraphrase of a counterexample is not a counterexample.
+
+      quiet_prefix    160x120; frames 0..35 flat grey, then a textured backdrop scrolls 2 px/frame.
+                      The labelled window sits entirely in the moving part, so a whole-frame median
+                      taken over the OPENING reads 0.0000 for a region whose local value is 0.1250.
+      small_region    320x240; the picture is static except a 50x50 window onto a scrolling crop -
+                      the region is ALL of the movement, and the whole-frame fraction (0.0039) is
+                      32x smaller than the regional one (0.1250).
+      alternating     the same small region scrolling 1 px then 3 px, which lifts tau far enough
+                      that the true edges (10% of the region at BOTH of them) fall under it - the
+                      false NOT-VISIBLE, with tau satisfiable so the unsatisfiable escape cannot
+                      help.
+
+    `burst` reproduces their +10 px background jump on the frame AFTER the onset, which is what
+    hijacked the argmax. `burst=False` removes it so the true edge IS the dominant change, which
+    is what makes the shifted variants a fair NEGATIVE control: without them the new refusals
+    could have DISABLED the verdict rather than scoping it (G96).
+
+    `shift` lies about the label by that many frames, exactly as _synth_session does.
+    """
+    from PIL import Image, ImageDraw
+    d = os.path.join(root, name)
+    frames = os.path.join(d, "Actual_Frames")
+    os.makedirs(frames)
+    width, height = (320, 240) if local_only else (160, 120)
+    total, onset, end = 100, 60, 67
+    x, y, rw, rh = 40, 30, 50, 50
+    bg = _synth_backdrop(width, height, total, 10, 16, 0)
+    offset = 0
+    rows = []
+    lo, hi = onset + shift, end + shift
+    for k in range(total):
+        if alternating:
+            offset += 1 if k % 2 == 0 else 3
+        elif local_only or k >= 36:
+            offset += 10 if (burst and k == onset + 1) else 2
+        if local_only:
+            im = Image.new("RGB", (width, height), (90, 90, 90))
+            im.paste(bg.crop((offset, 0, offset + rw, rh)).convert("RGB"), (x, y))
+        elif k < 36:
+            im = Image.new("RGB", (width, height), (90, 90, 90))
+        else:
+            im = bg.crop((offset, 0, offset + width, height)).convert("RGB")
+        if onset <= k <= end:
+            side = 10 if alternating else 20
+            ImageDraw.Draw(im).rectangle((x + 12, y + 12, x + 11 + side, y + 11 + side),
+                                         fill=(255, 255, 255))
+        im.save(os.path.join(frames, "frame_%05d.png" % k))
+        entry = {"id": "missing_texture", "target_name": "SynthTarget", "start_frame": 1000 + lo,
+                 "bbox_valid": True, "bbox_px": [x, y, rw, rh]}
+        rows.append({"frame_index": 1000 + k, "session_index": k,
+                     "image": "Actual_Frames/frame_%05d.png" % k, "width": width, "height": height,
+                     "anomaly_present": lo <= k <= hi, "visible_positive": lo <= k <= hi,
+                     "anomalies": [entry] if lo <= k <= hi else []})
+    with open(os.path.join(d, "labels.jsonl"), "w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    ann = {"anomalies": [{"anomaly_type": "missing_texture", "manifested": True,
+                          "affected_frames": {"start_frame": lo, "end_frame": hi,
+                                              "frame_count": hi - lo + 1,
+                                              "frame_indices": list(range(lo, hi + 1))},
+                          "affected_objects": {"primary_index": 0, "nodes": [{"name": "SynthTarget"}]}}]}
+    with open(os.path.join(d, "annotation.json"), "w", encoding="utf-8") as fh:
+        json.dump(ann, fh)
+    return d
+
+
+def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, region_cap=None):
     """Prove the gate can FAIL, in BOTH directions and on BOTH edges (G96/G142).
 
     Without --dir it builds synthetic sessions, so the check is portable and a client can
@@ -1357,13 +1631,21 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, motio
     additionally shifts a REAL session's labels on a copy - the frames and the source
     session are never written to.
 
-    EACH CASE DECLARES ITS OWN MOTION CAP, and the reason is that two different things are being
-    tested. The scrolling cases exist to exercise the STATISTIC under motion, so the motion escape
-    is disabled for them - otherwise the synthetic backdrop's own scroll rate (pan/blocks, e.g.
-    0.125 at pan 2) sits above MOTION_CAP and every one of them would short-circuit to
-    NOT-MEASURABLE, testing nothing. ONE case, `moving_over_cap`, runs at the SHIPPED cap and is
-    the proof that the escape fires. Stated here rather than left to be discovered, because a
-    suite that silently refuses its own cases is the vacuous-pass shape (G146).
+    EACH CASE DECLARES ITS OWN JUDGEABILITY CAP, and the reason is that two different things are
+    being tested. The scrolling cases exist to exercise the STATISTIC under motion, so the guard is
+    disabled for them - otherwise the synthetic backdrop's own scroll rate (pan/blocks, e.g. 0.125
+    at pan 2) sits far above REGION_CAP and every one of them would short-circuit to
+    NOT-MEASURABLE, testing nothing. Cases that run at the SHIPPED cap prove the guard FIRES.
+    Stated here rather than left to be discovered, because a suite that silently refuses its own
+    cases is the vacuous-pass shape (G146).
+
+    THE TWO HALVES THAT MUST BOTH HOLD:
+      CAN REFUSE  the three 079-05 counterexample fixtures carry ALIGNED labels and must never
+                  read SHIFT or NOT-VISIBLE at the shipped cap; the two hijacked shifted ones must
+                  never read PASS.
+      CAN STILL FAIL  the burst-free shifted variants must still report the shift under the same
+                  regional motion with the guard off. Without those, refusing everything would
+                  pass the suite.
     """
     import shutil
     import tempfile
@@ -1378,34 +1660,53 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, motio
     checks = []
     try:
         OFF = 1.0
+        SHIPPED = None
         cases = [
-            ("clean", dict(shift=0), V_PASS, OFF),
-            ("clean_masked", dict(shift=0, with_mask=True), V_PASS, OFF),
-            ("label_late_1", dict(shift=1), "ONSET-SHIFT(-1)", OFF),
-            ("label_early_1", dict(shift=-1), "ONSET-SHIFT(+1)", OFF),
-            ("end_late_1", dict(end_shift=1), "END-SHIFT(-1)", OFF),
-            ("end_early_1", dict(end_shift=-1), "END-SHIFT(+1)", OFF),
-            ("blank_region", dict(shift=0, blank_region=True), V_NOTVIS, OFF),
+            ("clean", dict(shift=0), (V_PASS,), OFF),
+            ("clean_masked", dict(shift=0, with_mask=True), (V_PASS,), OFF),
+            ("label_late_1", dict(shift=1), ("ONSET-SHIFT(-1)",), OFF),
+            ("label_early_1", dict(shift=-1), ("ONSET-SHIFT(+1)",), OFF),
+            ("end_late_1", dict(end_shift=1), ("END-SHIFT(-1)",), OFF),
+            ("end_early_1", dict(end_shift=-1), ("END-SHIFT(+1)",), OFF),
+            ("blank_region", dict(shift=0, blank_region=True), (V_NOTVIS,), OFF),
 
-            ("moving_clean", dict(shift=0, pan=2), V_PASS, OFF),
-            ("moving_fast", dict(shift=0, pan=8), V_PASS, OFF),
-            ("moving_label_late_1", dict(shift=1, pan=2), "ONSET-SHIFT(-1)", OFF),
-            ("moving_label_early_1", dict(shift=-1, pan=2), "ONSET-SHIFT(+1)", OFF),
-            ("moving_end_late_1", dict(end_shift=1, pan=2), "END-SHIFT(-1)", OFF),
-            ("moving_end_early_1", dict(end_shift=-1, pan=2), "END-SHIFT(+1)", OFF),
-            ("moving_blank_region", dict(shift=0, pan=2, blank_region=True), V_NOTVIS, OFF),
-            ("moving_fullframe_region", dict(shift=0, pan=2, fullframe_region=True), V_NOTMEAS, OFF),
-            ("moving_unsat", dict(shift=0, pan=4, stripes=4), V_NOTMEAS, OFF),
-            ("moving_over_cap", dict(shift=0, pan=2), V_NOTMEAS, None),
+            ("moving_clean", dict(shift=0, pan=2), (V_PASS,), OFF),
+            ("moving_fast", dict(shift=0, pan=8), (V_PASS,), OFF),
+            ("moving_label_late_1", dict(shift=1, pan=2), ("ONSET-SHIFT(-1)",), OFF),
+            ("moving_label_early_1", dict(shift=-1, pan=2), ("ONSET-SHIFT(+1)",), OFF),
+            ("moving_end_late_1", dict(end_shift=1, pan=2), ("END-SHIFT(-1)",), OFF),
+            ("moving_end_early_1", dict(end_shift=-1, pan=2), ("END-SHIFT(+1)",), OFF),
+            ("moving_blank_region", dict(shift=0, pan=2, blank_region=True), (V_NOTVIS,), OFF),
+            ("moving_fullframe_region", dict(shift=0, pan=2, fullframe_region=True),
+             (V_NOTMEAS,), OFF),
+            ("moving_unsat", dict(shift=0, pan=4, stripes=4), (V_NOTMEAS,), OFF),
+            ("moving_over_cap", dict(shift=0, pan=2), (V_NOTMEAS,), SHIPPED),
         ]
-        for name, kwargs, expect, cap in cases:
-            d = _synth_session(root, name, **kwargs)
+        codex = [
+            ("codex_quiet_prefix", dict(), (V_NOTMEAS, V_PASS), SHIPPED),
+            ("codex_small_region", dict(local_only=True), (V_NOTMEAS, V_PASS), SHIPPED),
+            ("codex_alternating", dict(local_only=True, alternating=True),
+             (V_NOTMEAS, V_PASS), SHIPPED),
+            ("codex_quiet_prefix_shift1", dict(shift=1),
+             (V_NOTMEAS, "ONSET-SHIFT(-1)"), SHIPPED),
+            ("codex_small_region_shift1", dict(local_only=True, shift=1),
+             (V_NOTMEAS, "ONSET-SHIFT(-1)"), SHIPPED),
+            ("codex_quiet_prefix_noburst_shift1", dict(shift=1, burst=False),
+             ("ONSET-SHIFT(-1)",), OFF),
+            ("codex_small_region_noburst_shift1", dict(local_only=True, shift=1, burst=False),
+             ("ONSET-SHIFT(-1)",), OFF),
+        ]
+        for name, kwargs, expect, cap in cases + codex:
+            if name.startswith("codex_"):
+                d = _codex_fixture(root, name, **kwargs)
+            else:
+                d = _synth_session(root, name, **kwargs)
             code, lines = label_pixel_gate(d, thresh, edge_w, min_visible_px, quiet=True,
-                                           motion_cap=(motion_cap if cap is None else cap))
+                                           region_cap=(region_cap if cap is None else cap))
             body = [l for l in lines if l.startswith("idx=")]
             read = body[0].split()[3] if body and len(body[0].split()) > 3 else "(none)"
-            ok = read.startswith(expect)
-            checks.append((name, expect, read, ok, code))
+            ok = any(read.startswith(e) for e in expect)
+            checks.append((name, "|".join(expect), read, ok, code))
             if not ok:
                 rc = 3
 
@@ -1419,7 +1720,7 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, motio
                     rc = 3
                     continue
                 code, lines = label_pixel_gate(dst, thresh, edge_w, min_visible_px, quiet=True,
-                                               motion_cap=OFF)
+                                               region_cap=OFF)
                 body = [l for l in lines if l.startswith("idx=")]
                 hits = sum(1 for l in body if expect in l)
                 ok = hits > 0 and code == 2
@@ -1429,9 +1730,9 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, motio
                     rc = 3
 
         print("LABEL-PIXEL GATE SELFTEST", flush=True)
-        print("  %-28s %-18s %-28s %s" % ("case", "expected", "read", "exit"), flush=True)
+        print("  %-36s %-30s %-30s %s" % ("case", "expected", "read", "exit"), flush=True)
         for name, expect, read, ok, code in checks:
-            print("  %-28s %-18s %-28s %s   %s"
+            print("  %-36s %-30s %-30s %s   %s"
                   % (name, expect, read, code, "OK" if ok else "*** BROKEN ***"), flush=True)
         if rc == 0:
             print("SELFTEST: OK - the gate passes an aligned session, reads a +/-1 label shift "
@@ -1439,8 +1740,13 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, motio
                   "Its PASS is a reading, not blindness.", flush=True)
             print("           BOTH HALVES: it does that on a STILL camera and on a MOVING one, it "
                   "still FAILS a wrongly-placed label under motion, and it refuses - as "
-                  "NOT-MEASURABLE, never as NOT-VISIBLE - when the region covers the picture or "
-                  "when no measurement could clear the threshold.", flush=True)
+                  "NOT-MEASURABLE, never as NOT-VISIBLE - when the region covers the picture, when "
+                  "no measurement could clear the threshold, or when the region is changing on its "
+                  "own.", flush=True)
+            print("           AND IT SURVIVES THE 079-05 COUNTEREXAMPLES: three fixtures whose "
+                  "ALIGNED labels the previous design called SHIFT or NOT-VISIBLE now read PASS or "
+                  "NOT-MEASURABLE, while the same fixtures with a genuinely wrong label still "
+                  "report the shift wherever the edge dominates.", flush=True)
         else:
             print("SELFTEST: BROKEN - see the rows marked above. A gate that cannot fail is not "
                   "a gate.", flush=True)
@@ -1469,13 +1775,45 @@ def _batch_sessions(root, max_depth=6):
     return sorted(set(out))
 
 
+def _batch_key(root, sess):
+    """A batch identifier that is UNIQUE, because a folder basename is not.
+
+    079-05 finding 4. Both the summary identifier and the output filename used only the last path
+    component, opened with "w". Two sessions called `session_same` under different parents both
+    RAN, both printed a line, and only ONE report survived - the summary listed the same name
+    twice with different verdicts and no way to tell which path each belonged to. A read-only
+    inventory of the bench bank found 1,409 session-shaped directories in 509 colliding basename
+    groups, so this is the normal case here, not a corner one.
+
+    The key is the path RELATIVE to the batch root with separators replaced by "__", which is
+    unique by construction because two different relative paths differ somewhere.
+    """
+    try:
+        rel = os.path.relpath(sess, root)
+    except ValueError:
+        rel = sess
+    rel = rel.replace("\\", "/").strip("/")
+    if rel in ("", "."):
+        rel = os.path.basename(root.rstrip(os.sep)) or "root"
+    key = rel.replace("/", "__")
+    for ch in ':*?"<>|':
+        key = key.replace(ch, "_")
+    return key
+
+
 def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, report_only,
-                      motion_cap=None):
+                      region_cap=None):
     """--all: run the gate over every session under `root`, one line each.
 
     The SELFTEST runs FIRST and the batch REFUSES to start if it is not OK. A sweep of a hundred
     sessions with a broken instrument produces a hundred confident wrong lines, and the cost of
     finding that out later is the whole sweep.
+
+    --report-only SUPPRESSES ONLY THE VERDICT-FAILURE CODE (2), exactly as single-session mode
+    does. 079-05 finding 5: it used to return 0 after a session with no labels.jsonl, an
+    unreadable input or an exception, so a batch that read NOTHING reported success to its caller
+    while single-session mode on the same folder returned 3. CANNOT-RUN and ERROR are execution
+    failures, not verdicts, and they survive --report-only.
     """
     import datetime
     sessions = _batch_sessions(root)
@@ -1491,7 +1829,7 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
 
     print("BATCH: proving the instrument before using it on %d session(s)..." % len(sessions),
           flush=True)
-    st = _label_pixel_selftest(thresh, edge_w, min_visible_px, None, motion_cap)
+    st = _label_pixel_selftest(thresh, edge_w, min_visible_px, None, region_cap)
     if st != 0:
         print("BATCH: REFUSING TO RUN - the selftest is BROKEN, so every reading below it would "
               "be unfounded. Fix the gate first.", flush=True)
@@ -1499,22 +1837,25 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
 
     summary = []
     worst = 0
+    cannot_run = 0
     for sess in sessions:
-        name = os.path.basename(sess.rstrip(os.sep)) or sess
+        name = _batch_key(root, sess)
         if not os.path.isfile(os.path.join(sess, "labels.jsonl")):
-            line = "%-46s | CANNOT RUN | no labels.jsonl (the gate needs the per-frame bbox)" % name
+            line = "%-58s | CANNOT RUN | no labels.jsonl (the gate needs the per-frame bbox)" % name
             summary.append(line)
             print(line, flush=True)
             worst = max(worst, 3)
+            cannot_run += 1
             continue
         try:
             code, lines = label_pixel_gate(sess, thresh, edge_w, min_visible_px, quiet,
-                                           motion_cap=motion_cap)
+                                           region_cap=region_cap)
         except Exception as exc:
-            line = "%-46s | ERROR      | %s: %s" % (name, type(exc).__name__, exc)
+            line = "%-58s | ERROR      | %s: %s" % (name, type(exc).__name__, exc)
             summary.append(line)
             print(line, flush=True)
             worst = max(worst, 3)
+            cannot_run += 1
             continue
         with open(os.path.join(out_dir, "%s.txt" % name), "w", encoding="utf-8") as fh:
             fh.write(sess + "\n")
@@ -1526,7 +1867,7 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
                 counts = " ".join(l.split())
             elif l.strip().startswith("VERDICT"):
                 verdict = " ".join(l.split()[1:])
-        line = "%-46s | exit %-4d | %s | VERDICT %s" % (name, code, counts or "(no events)",
+        line = "%-58s | exit %-4d | %s | VERDICT %s" % (name, code, counts or "(no events)",
                                                         verdict or "(none)")
         summary.append(line)
         print(line, flush=True)
@@ -1534,11 +1875,15 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
 
     with open(os.path.join(out_dir, "SUMMARY.txt"), "w", encoding="utf-8") as fh:
         fh.write("root: %s\n" % root)
-        fh.write("sessions: %d\n\n" % len(sessions))
+        fh.write("sessions: %d (identifiers are the path RELATIVE to the root, separators as __, "
+                 "because basenames collide)\n\n" % len(sessions))
         fh.write("\n".join(summary) + "\n")
-    print("BATCH: %d session(s); full per-session output in %s" % (len(sessions), out_dir),
-          flush=True)
-    return 0 if report_only else worst
+    print("BATCH: %d session(s)%s; full per-session output in %s"
+          % (len(sessions),
+             ("; %d COULD NOT RUN" % cannot_run) if cannot_run else "", out_dir), flush=True)
+    if report_only:
+        return 3 if worst == 3 else 0
+    return worst
 
 
 def main():
@@ -1578,10 +1923,13 @@ def main():
                          f"NOT-VISIBLE (default {MIN_VISIBLE_PX_DEFAULT}; needs masks)")
     ap.add_argument("--report-only", action="store_true",
                     help="label-pixel gate: print the readings and exit 0 even on a shift")
-    ap.add_argument("--motion-cap", type=float, default=MOTION_CAP,
-                    help=f"label-pixel gate: refuse a session as NOT-MEASURABLE when its measured "
-                         f"camera motion M_med exceeds this (default {MOTION_CAP}; set by the "
-                         f"079-03 known-answer procedure, see the module header)")
+    ap.add_argument("--region-cap", "--motion-cap", dest="region_cap", type=float,
+                    default=REGION_CAP,
+                    help=f"label-pixel gate: refuse an EDGE as NOT-MEASURABLE when the region it "
+                         f"is judged on changes by more than this on its own nearby clean frames "
+                         f"(default {REGION_CAP}, a PROVISIONAL HEURISTIC set by the 079-06 cohort "
+                         f"procedure - see the module header). --motion-cap is a deprecated alias "
+                         f"for the same flag; pass 1.0 to disable the guard entirely.")
     ap.add_argument("--all", metavar="ROOT", default=None,
                     help="label-pixel gate: run over EVERY session folder under ROOT, one summary "
                          "line each, full output under --out. Runs --selftest first and refuses "
@@ -1592,7 +1940,7 @@ def main():
         if args.label_pixel_gate:
             src = os.path.abspath(args.dir) if args.dir and os.path.isdir(args.dir) else None
             sys.exit(_label_pixel_selftest(args.diff_threshold, args.edge_window,
-                                           args.min_visible_px, src, args.motion_cap))
+                                           args.min_visible_px, src, args.region_cap))
         sys.exit(_selftest())
 
     if args.all:
@@ -1603,7 +1951,7 @@ def main():
         sys.exit(label_pixel_batch(os.path.abspath(args.all),
                                    os.path.abspath(args.out) if args.out else None,
                                    args.diff_threshold, args.edge_window, args.min_visible_px,
-                                   args.quiet, args.report_only, args.motion_cap))
+                                   args.quiet, args.report_only, args.region_cap))
 
     cap_dir = os.path.abspath(args.dir)
 
@@ -1613,7 +1961,8 @@ def main():
         except ImportError:
             sys.exit("ERROR: Pillow is required for the label-pixel gate.")
         code, lines = label_pixel_gate(cap_dir, args.diff_threshold, args.edge_window,
-                                       args.min_visible_px, args.quiet, args.motion_cap)
+                                       args.min_visible_px, args.quiet,
+                                       region_cap=args.region_cap)
         for line in lines:
             print(line, flush=True)
         sys.exit(0 if (args.report_only and code != 3) else code)
