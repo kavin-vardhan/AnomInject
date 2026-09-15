@@ -410,3 +410,79 @@ and it is set solely by A2.1's procedure.
 **If P2 or P7 fails, STOP — NEEDS-DECISION with the numbers.** If P3′ shows the gate cannot recover an
 injected shift even on `A2L_LEGA` (light motion), **STOP** — the statistic is not fit for moving
 content at all and no cap can rescue it.
+
+---
+
+# AMENDMENT 3 — 2026-09-15 (079-04), chat's rulings and the predeclared re-readings
+
+Written before the constant is changed and before any re-run.
+
+## A3.1 `MOTION_CAP = 0.040` — ruled, not re-derived
+
+P4′ produced **two** constraints and 079-03 took their minimum:
+
+| constraint | value |
+|---|---|
+| largest `M_med` with FULL recovery of an injected ±1 | **0.0049** (`A2L_LEGA`) |
+| ≥ 2× margin below the first INCOMPLETE session | **0.040** (`LYRA_SMOKE_01` 0.0801 ÷ 2) |
+
+**Chat rules the cap sits at the MARGIN BOUND, 0.040.** The reason is the fragility 079-03 reported:
+a cap resting on the single value it was derived from means a **0.0001 measurement drift refuses the
+very session that set it**. The margin bound is the constraint that carries a safety factor, and it
+still refuses both incomplete sessions (0.0801, 0.0852) and `M50L_LG9` (0.3491).
+
+The header provenance line must read **exactly**:
+
+```
+cap=0.040 (2x margin below first incomplete recovery, LYRA_SMOKE_01 M_med=0.0801;
+only full recovery observed at 0.0049, A2L_LEGA; ruling 079-04)
+```
+
+## A3.2 NO TWO-TIER POLICY — and the reason is the client's own complaint
+
+079-03 measured **zero false shifts up to `M_med` 0.085** and proposed that `PASS` might be trusted
+higher than `SHIFT`. **Chat rejects the middle tier**, and the argument is the decisive one:
+
+> 🔑 **A `PASS` from a gate that cannot read back a one-frame shift is not evidence of alignment — it
+> is the client's `F1` complaint restated.** If the instrument provably cannot see a one-frame error
+> at that motion level, then "no error found" carries no information about whether one is there.
+
+⇒ Above the cap the answer stays `NOT-MEASURABLE(camera motion: M_med=… cap=0.040)`. The measurement
+is recorded as a **fact** in the journal and as the **stated reason there is no middle tier** in the
+tool header.
+
+## A3.3 The synthetic ladder stays NON-BINDING
+
+It recovers to `M_med` 0.75 because a uniform scroll has **no parallax**. It stays in the selftest as
+the *"the gate can still read a shift under motion"* proof, and the header must say that **the real
+cap is set by real sessions only.**
+
+## A3.4 The known-answer method is now settled for this gate
+
+079-03's §1 finding is accepted: mask-derived onsets are **circular** (`m49` A1 defines
+`affected_frames` as the observable subset). **`CaptureBench/tools/m079_shift_recovery.py` — move real
+labels by a known ±1 and require the gate to report it back — is the known-answer method for this gate
+from here on.**
+
+## A3.5 Predeclared re-readings
+
+- **P1** selftest **17/17 OK**.
+- **P2** the six `M49_GEDGE_*` legs: **verdict lines byte-identical to 079-03** — `PASS 4 / SHIFT 0 /
+  NOT-VISIBLE 0 / NOT-MEASURABLE 0`, `tau=0.0040`, `M_med=0.0005`. Unaffected: 0.0005 ≪ 0.040.
+- **P3** `A2L_LEGA` (0.0049) shift recovery: **full 6/6 at δ = 0, +1, −1**, as in 079-03.
+- **P5** `M50L_LG9` (0.3491): unchanged — **six refusals, zero NOT-VISIBLE, zero SHIFT**; the three
+  `camera motion` lines now print `cap=0.040`.
+- **P8** `LYRA_SMOKE_01` (0.0801) and `A1L_LEGA` (0.0852): **zero PASS, zero SHIFT, zero
+  NOT-VISIBLE — every event NOT-MEASURABLE.**
+  ⚠ **ONE DEPARTURE FROM THE BRIEF'S WORDING, DECLARED IN ADVANCE:** the brief says *every* event
+  reads `(camera motion …)`. It will not, and that is correct behaviour, not a miss —
+  **`A1L_LEGA` `idx=5` (`lod_popping`) is `manifested: false`**, and the manifested check sits at the
+  top of the event loop, before the region, baseline, threshold and motion checks. It will read
+  `NOT-MEASURABLE(manifested-false-or-empty)`. Expected split: **`A1L_LEGA` 5 × camera motion + 1 ×
+  manifested-false-or-empty; `LYRA_SMOKE_01` 6 × camera motion.** The load-bearing predicate is
+  **zero PASS / zero SHIFT / zero NOT-VISIBLE**, and that is what P8 is judged on.
+- **P6** batch counts **identical** to the individual runs.
+
+⛔ **Nothing else in the tool changes.** `K_SIGMA`, `SIGNAL_FLOOR`, `MIN_BASELINE_FRAMES`,
+`BASELINE_MAX_FRAMES`, `MAX_REGION_FRAC`, `ATTAINABLE_MAX` all unchanged; `measure_label_offset.py`
+byte-unchanged; no `Source/` or `Shaders/` change; no capture, build or cook.
