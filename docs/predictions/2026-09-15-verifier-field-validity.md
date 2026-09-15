@@ -486,3 +486,181 @@ from here on.**
 ⛔ **Nothing else in the tool changes.** `K_SIGMA`, `SIGNAL_FLOOR`, `MIN_BASELINE_FRAMES`,
 `BASELINE_MAX_FRAMES`, `MAX_REGION_FRAC`, `ATTAINABLE_MAX` all unchanged; `measure_label_offset.py`
 byte-unchanged; no `Source/` or `Shaders/` change; no capture, build or cook.
+
+---
+
+# AMENDMENT 4 — 2026-09-15 (079-06), written BEFORE a line of the correction was implemented
+
+Codex's independent merge review (`_reviews/079-05-codex-merge-review.md`) returned **CHANGES
+REQUIRED** on five findings. **Chat accepts all five.** This amendment fixes the corrected design and
+the readings **before** the code exists, exactly as Amendments 1–3 did.
+
+## A4.0 What is WITHDRAWN from the 079-03/079-04 record
+
+🔻 **"`A2L_LEGA` FULL RECOVERY" IS WITHDRAWN AS A CLAIM.** `m079_shift_recovery.py` v1 scored the
+**event token** — the fourth whitespace field of each `idx=` line — and called a session FULL when
+every non-refused event token matched. Codex re-ran the same shifts and read the **per-run, per-edge**
+returns underneath that token:
+
+| label delta | published event score | correct ONSET offsets | correct END offsets |
+|---|---|---:|---:|
+| 0 | 6/6 | 8/8 runs | 8/8 runs |
+| +1 | 6/6 | 8/8 runs | **7/8 runs** |
+| −1 | 6/6 | **6/8 runs** | **6/8 runs** |
+
+Named counterexamples, all on `A2L_LEGA/session_20260904-180418`: **δ=+1 run[29..30]** returned
+`(−1, +2)` where `(−1, −1)` was correct; **δ=−1 run[8..9]** returned `(−2, −1)` where `(+1, +1)` was
+correct; **δ=−1 run[27..28]** returned `(−4, −1)` where `(+1, +1)` was correct. In the last two the
+detailed run reads `shift beyond the measurable range` while the EVENT reports the expected
+`ONSET-SHIFT(+1)` **from its other run** — an unread run hidden behind a correct-looking token.
+
+⇒ **the only session ever observed to "recover fully" does not recover every run and edge.**
+**`MOTION_CAP = 0.040`'s positive anchor therefore falls**, and the constant is withdrawn with it.
+⛔ The 079-03/079-04 numbers are **kept as history with a dated correction**, never edited away.
+
+## A4.1 The corrected design — measurability becomes PER EDGE, local in time AND in region
+
+**F1 accepted:** one whole-frame median taken over the **first** 24 clean pairs and reused by every
+event is not a measurability test. It is blind in **time** (a quiet opening authorises a later moving
+scene) and in **space** (a small region can change strongly while the whole frame barely moves).
+
+⇒ **`MOTION_CAP` and the session-level refusal are DELETED.** The whole-frame `M_med` survives only
+as a **printed reading**, computed over **all** clean pairs rather than the opening 24, and labelled
+as a reading in the output. **Judgeability is decided per event, per contiguous run, per edge:**
+
+| # | rule | refusal |
+|---|---|---|
+| **V1** | **Local regional baseline.** `tau_edge`/`base_edge` are learned from the `BASELINE_MAX_FRAMES` clean pairs NEAREST THAT EDGE, evaluated on **that edge's own region** — the box/mask actually used for the edge, not the event's anchor region. | `NOT-MEASURABLE(baseline: only N clean frame(s) near <edge frame>, need 3)` |
+| **V2** | **Local regional change.** `m_edge` := the MEDIAN of that region's clean-pair `d` over that same local window. | `NOT-MEASURABLE(regional image change: m=… cap=… at <edge>)` |
+| **V3** | **Edge dominance.** The chosen frame's `d` must exceed `tau_edge` **and** exceed the second-largest `d` **among the frames the argmax actually ranges over** (i.e. those with `d > tau_edge`) by **`DOMINANCE = 1.5`×**. | `NOT-MEASURABLE(ambiguous edge: best=… at k, second=… at k, ratio=… needs >=1.5x)` |
+| **V4** | **NOT-VISIBLE only from a judgeable region.** Emitted only when V1–V3 hold for BOTH edges of the run, the end is not truncated, and NO frame in either searched window exceeds its own `tau_edge`. | otherwise the edge reads `NOT-MEASURABLE(no change above tau at this edge)` |
+| **V5** | **Event verdict = worst run/edge, with EVERY run and EVERY edge printed.** | a run with one read edge and one refused edge prints both and makes the event `PARTIAL` |
+| **V6** | **Unsatisfiable threshold and whole-frame region stay** — now evaluated PER EDGE. | unchanged wording, per edge |
+
+**`DOMINANCE = 1.5` and the reason it is 1.5, stated before any reading:** a competitor within two
+thirds of the chosen edge's magnitude is not distinguishable from it by this statistic, so the argmax
+is a coin flip and the honest answer is a refusal rather than a frame number. **The second-largest is
+taken over the ELIGIBLE set (`d > tau_edge`) and not over the whole window**, because that is the set
+`_dominant_edge` actually chooses from — a frame that never cleared the detection threshold was never
+a candidate. With fewer than two eligible frames the chosen edge is dominant by construction.
+
+**Event-token severity order (worst first):** `NOT-VISIBLE` → `SHIFT` → `PARTIAL` → `NOT-MEASURABLE`
+→ `PASS`. ⛔ **Exit codes are UNCHANGED**: `bad = SHIFT + NOT-VISIBLE`, exit 2 when `bad > 0`, else 0;
+`3` for CANNOT-RUN. **`PARTIAL` is not a failure.**
+
+## A4.2 The honest scorer — `m079_shift_recovery.py` v2
+
+**F2 accepted.** The unit of scoring becomes the **(contiguous run × edge × perturbation) CELL**.
+
+- **S1 FIXED COHORT.** The denominator is every contiguous run × both edges of every event of the
+  **UNSHIFTED** session. **It never shrinks under perturbation**, so losing coverage can never raise a
+  recovery rate.
+- **S2 PERTURBATIONS.** `δ = 0`; **onset-only ±1**; **end-only ±1**; **both ±1** — each in two
+  variants, reported separately: **annotation-only** (as today) and **coherent**, which also moves the
+  per-frame `labels.jsonl` payload so region selection and clean-frame membership follow the
+  annotation. **The RGB frames are never touched in either variant.**
+- **S3 PER CELL:** `recovered` (the returned offset equals the expected one for that edge),
+  `wrong` (an offset was returned and it is not the expected one), `refused` (NOT-MEASURABLE, with the
+  reason). Recovery, wrong and refusal rates are published **separately**, with a reason histogram.
+- **S4** runs `A2L_LEGA`, `LYRA_SMOKE_01`, `A1L_LEGA`, `M50L_LG9`, **guard DISABLED** (the raw gate)
+  and **ENABLED** (the shipped behaviour), recording `m_edge` for every cell.
+- **S5 `REGION_CAP` :=** the largest `m_edge` at which the **guard-disabled** cohort shows **ZERO
+  `wrong` cells across all real sessions**, floored to two significant figures, and reduced by one
+  unit in the last significant place if the floor would not be strictly below the smallest `wrong`
+  cell's `m_edge`. Printed as **`provisional heuristic — from N real edges`** in header and lines.
+  **If no cell is ever wrong**, the cap is the largest observed `m_edge`, flagged
+  `provisional — no disagreeing cell observed`. **If the smallest-`m_edge` cell is already wrong**,
+  say so plainly and set the cap so everything above the signal floor is refused — honesty over
+  usefulness.
+- ⛔ **`REGION_CAP` IS THE ONLY CONSTANT SET BY MEASUREMENT, AND ONLY BY THIS PROCEDURE.**
+  `K_SIGMA`, `SIGNAL_FLOOR`, `MIN_BASELINE_FRAMES`, `BASELINE_MAX_FRAMES`, `MAX_REGION_FRAC`,
+  `ATTAINABLE_MAX`, `DOMINANCE` are fixed here and are **not** to be moved by a result.
+
+## A4.3 Wording, batch and the card (F3, F4, F5 — all accepted)
+
+- `NOT-VISIBLE` is redefined everywhere as **"no detectable above-threshold change at either edge
+  within the searched windows of a judgeable region; NOT a guarantee of absence."**
+- `(bbox-only)` is explained: **the supplied box was used; no per-frame mask.**
+- `camera motion` → **`regional image change`**, with its sampled scope stated. It is an
+  image-change proxy, never a camera-displacement measurement.
+- `region covers the picture` states the configured **90 % bounding-rectangle** rule.
+- The cap is a **provisional heuristic** with its cohort provenance. ⛔ **"measured exactly"** and
+  **"never calls a correct label NOT-VISIBLE"** are removed; the stale ring-normalised docstring at
+  `verify_capture.py:838-841` is corrected.
+- `bbox=… obs=…` is labelled **producer metadata** in the header legend.
+- Summary gains **`PARTIAL n`**; the VERDICT line distinguishes
+  **`PASS (n of N events fully checked)`** · **`PASS-PARTIAL (n fully, p partially, u unread)`** ·
+  **`UNREAD (0 of N events checked)`** · **`FAIL (…)`**.
+- **Batch:** identifier and output filename become the **relative path from the `--all` root** with
+  separators replaced by `__`; `--report-only` **preserves CANNOT-RUN/error status** (returns 3 if any
+  session read 3 or raised) and suppresses only the verdict-failure code.
+- `docs/office-rdp-card.md` Section G gets a **prospective dated correction**: the stale header names,
+  the stale verdict list, and the **"always exits 0"** sentence.
+- `G259` gets a **dated append**: `tau` is bounded by its inputs (`d ∈ [0,1]` ⇒ `tau ≤ 4.0`), so the
+  fault is that **`tau` can exceed `d`'s ceiling**, not that `tau` is mathematically unbounded. The
+  home reproduction explains the two banked unsatisfiable events and the mechanism class — **not every
+  office reading; those are still owed.**
+
+## A4.4 THE PREDECLARED READINGS
+
+**P1 — SELFTEST.** All 17 existing cases still pass, **plus** the V7 controls ported from
+`_reviews/079-05-review-validation.py` with attribution:
+
+| new case | cap | expected |
+|---|---|---|
+| `codex_quiet_prefix` (aligned; quiet opening, motion from frame 36, background burst at onset+1) | **shipped** | `NOT-MEASURABLE` or `PASS` — ⛔ never `SHIFT`, never `NOT-VISIBLE` |
+| `codex_small_region` (aligned; 50×50 moving region in a static 320×240 picture) | **shipped** | `NOT-MEASURABLE` or `PASS` |
+| `codex_alternating` (aligned; same region, alternating 1/3 px scroll; both true edges 10 % of region) | **shipped** | `NOT-MEASURABLE` or `PASS` |
+| `codex_quiet_prefix_shift1` (label +1, hijack burst PRESENT) | **shipped** | `NOT-MEASURABLE` or `ONSET-SHIFT(-1)` — ⛔ never `PASS`, never `NOT-VISIBLE` |
+| `codex_small_region_shift1` (label +1, hijack burst PRESENT) | **shipped** | `NOT-MEASURABLE` or `ONSET-SHIFT(-1)` |
+| `codex_quiet_prefix_noburst_shift1` (label +1, burst REMOVED ⇒ the true edge IS dominant) | **off** | **`ONSET-SHIFT(-1)`** |
+| `codex_small_region_noburst_shift1` (label +1, burst REMOVED) | **off** | **`ONSET-SHIFT(-1)`** |
+
+🔑 **The last two are the load-bearing negative controls.** Without them V2/V3 could have *disabled*
+the verdict rather than *scoped* it, and the suite would pass by refusing everything (`G96`/`G146`).
+
+**Predicted existing-case changes: NONE of the 17 verdict TOKENS moves.** The two `NOT-VISIBLE` cases
+survive — `blank_region` has `m_edge = 0` and `moving_blank_region` runs with the judgeability guard
+**explicitly disabled**, which is an operator override and is printed as one. `moving_over_cap`'s
+printed REASON changes from `camera motion` to `regional image change`; the token does not. ⚠ **Any
+token that does move is listed in the result with the rule that moved it and why.**
+
+**P2 — THE PINNED BENCH IS UNMOVED.** All six `M49_GEDGE_*` legs read **`PASS 4 / SHIFT 0 /
+NOT-VISIBLE 0 / NOT-MEASURABLE 0 / PARTIAL 0`**, `VERDICT PASS (4 of 4 events fully checked)`,
+`tau = 0.0040` on every edge, exit 0. Every edge measurable and dominant; `m_edge ≈ 0.0005`.
+⛔ **If any bench event drops to `PARTIAL` or `NOT-MEASURABLE`, STOP — NEEDS-DECISION with the
+numbers. Do not move `DOMINANCE` or `REGION_CAP` to recover it.**
+
+**P3 — THE SCORER v2 TABLES.** For each of the four real sessions, guard **off** and **on**: the fixed
+cohort size, and per perturbation cell the `recovered` / `wrong` / `refused` counts with the reason
+histogram, for **both** the annotation-only and the coherent variant. Then `REGION_CAP` and the **N**
+of real edges behind it. **Predicted, and this is the one that matters: the guard-disabled cohort
+shows at least one `wrong` cell on `A2L_LEGA`** — Codex already named three. A table with zero wrong
+cells anywhere would mean the scorer did not reproduce the review and is itself a **STOP**.
+
+**P4 — CODEX'S FIXTURES THROUGH THE SHIPPED GATE.** The three aligned fixtures read **`PASS` or
+`NOT-MEASURABLE` only**. ⛔ **A `SHIFT` or a `NOT-VISIBLE` on any of them is a FAIL of the correction —
+STOP, NEEDS-DECISION with the numbers.**
+
+**P5 — THE MOVING SESSIONS.** `M50L_LG9`, `A1L_LEGA`, `LYRA_SMOKE_01`: **zero `NOT-VISIBLE`, zero
+`SHIFT`**. Their VERDICT lines read `UNREAD` or `PASS-PARTIAL` as the data dictate — **which one is
+NOT predicted**, because per-edge judgeability may now read some edges that the session-level cap
+refused wholesale. `A2L_LEGA` is likewise not predicted to stay `PASS 6`: per-edge refusal may turn
+events `PARTIAL`, and **that is the correction working, not a regression.**
+
+**P6 — BATCH.** Two sessions named `session_same` under different parents produce **two retained
+reports** with distinct names and two distinguishable summary lines. `--report-only` over a batch
+containing a session with no `labels.jsonl` returns **3**, matching single-session mode; a batch of
+healthy sessions returns **0**; an unreadable session returns **3**.
+
+## A4.5 Stop rules
+
+- **P2 fails** ⇒ the correction has broken the pinned reference. **STOP.**
+- **P4 fails** ⇒ the correction does not close finding 1. **STOP.**
+- **P3 shows zero `wrong` cells with the guard disabled** ⇒ the scorer is not reproducing the review.
+  **STOP.**
+- ⛔ **No constant is moved to clear any of these.** Tuning a fixture so that it poses a fair question
+  is legitimate and is stated; moving `DOMINANCE`, `K_SIGMA`, `SIGNAL_FLOOR` or a derived cap to move
+  a verdict is the laundering shape and is forbidden.
+- ⛔ **NO MERGE** either way. `Source/`, `Shaders/` and `measure_label_offset.py` stay byte-unchanged;
+  no capture, build or cook.
