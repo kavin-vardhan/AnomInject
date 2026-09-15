@@ -6811,3 +6811,65 @@ unit had been chosen by what the output happened to print rather than by what th
 🔑 **Sibling of `G146`** (a gate that can pass vacuously) and of `G96` (a detector never proven to
 fire). This is the third shape: **a gate that can pass while a MEASURABLE FRACTION of its own units
 fail, because the reporting layer is coarser than the deciding layer.**
+
+
+## G263 - a difference gate has NO VERDICT without target ATTRIBUTION: masks or nothing (2026-09-15, session 079-07)
+
+**The symptom.** `verify_capture.py --label-pixel-gate` answers "did the picture change where the
+label says, when the label says" by differencing consecutive frames inside the label's region and
+taking the biggest change in a window. Codex's second merge review built the minimal counterexample:
+a 160x120 picture, static except a 50x50 window onto a scrollable crop; a white 20x20 patch present
+on frames 60..67, which is the real anomaly; and ONE unrelated 10 px background scroll at frame 61,
+inside the labelled window. **Every clean baseline pair is unchanged - `m_edge = 0.000000`,
+`tau = 0.0040`, 24 baseline frames.** The tool read:
+
+| labels | required | candidate `bff1b00` |
+|---|---|---|
+| 60..67, CORRECT | alignment or refusal | **`ONSET-SHIFT(+1)`, FAIL, exit 2** |
+| 61..67, one frame LATE | `ONSET-SHIFT(-1)` or refusal | **`PASS`, exit 0** |
+
+The burst changes **0.4960** of the region; the real onset changes **0.1600**. The burst wins by
+**3.1x**, which clears the 1.5x dominance test comfortably.
+
+**Why no threshold fixes it.** Every guard in that gate measures SEPARATION or STILLNESS:
+- the learned `tau` asks "is this bigger than the region's own noise" - the burst is, hugely;
+- `m_edge` asks "is this region still when nothing is happening" - it is, exactly zero;
+- `DOMINANCE` asks "was the contest close" - it was not, 3.1x.
+
+All three are satisfied, and the answer is still wrong. **Measured: the false shift survives at
+`REGION_CAP = 0`.** There is no number to lower, because the missing quantity is not a magnitude.
+A separation test cannot answer an IDENTITY question.
+
+**THE RULE.** *A frame-difference gate can say THAT something changed. It cannot say WHAT changed.
+Where the region is a BOUNDING BOX, the pixels it compares are the target AND everything else the
+box contains, so no verdict about the target is available at any threshold. Give verdicts only where
+a per-frame MASK identifies the target's pixels; everywhere else, print the numbers and the frame
+numbers as a READING and let a human look.*
+
+**Why this is worth a number of its own rather than another tolerance.** The three previous rounds
+of this same workstream all reached for a threshold - ring subtraction (`G260`), a whole-frame motion
+cap, then a per-edge regional cap - and each was correct about a real blindness and still left this
+case standing, because each was answering "how much" when the question was "of what". **The fix that
+finally held is a SCOPE BOUNDARY: the tool declares where it is entitled to have an opinion.** That
+is cheaper, provable and does not decay: masks are a property of the capture, not a calibration to
+re-derive.
+
+**What it costs, stated rather than discovered.** One of the four banked moving-camera sessions
+(`M50L_LG9`) is bbox-only on 16 of 16 edges and leaves the verdict surface entirely - it now reads
+`UNREAD-BBOX-ONLY` where it used to print confident verdicts. **That is the point.** The six pinned
+bench legs and the three masked Lyra sessions take 100 % of their edge regions from masks and are
+untouched, which is what made the boundary affordable.
+
+**The sibling failure this also closed.** The same review found the gate calling an edge "read" and
+reporting `0 of 0 frames above tau` when **every frame of its search window was missing from disk**,
+and then combining two of those into `NOT-VISIBLE` and a FAIL. **An absence of OBSERVATIONS is not
+an observed absence.** Coverage of the final search window is now a precondition of judging - and
+the "final" matters: the window is deliberately narrowed by the run's extent, the ordering bounds,
+the other-event exclusion and the session's ends, and applying coverage to the NOMINAL window would
+have refused all 64 pinned-bench edges whose narrow scans are those bounds working correctly.
+
+🔑 **Family: `G96`** (a detector never proven to fire), **`G146`** (a gate that can pass vacuously),
+**`G262`** (a summary token hiding a per-unit failure), and now **`G263`** - **a gate answering a
+question its instrument cannot address, with every one of its own guards satisfied.** The first
+three are about a test that never ran; this one is about a test that ran perfectly on the wrong
+question.

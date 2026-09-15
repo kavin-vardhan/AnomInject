@@ -162,6 +162,19 @@ python tools\verify_capture.py --all <folderOfSessions> --label-pixel-gate --rep
 and **refuses to start if that self-test does not pass** — a sweep run with a broken instrument just
 produces a lot of confident wrong lines.
 
+> 🔑 **IT GIVES VERDICTS ONLY WHERE PER-FRAME MASKS IDENTIFY THE TARGET'S PIXELS** — that is M3
+> datasets and bench captures. **Without masks it reports READINGS for human review and never a
+> verdict**, and the session ends `UNREAD-BBOX-ONLY`.
+>
+> **Why.** The check asks whether the picture changed where the label says, when the label says.
+> Inside a **mask**, the pixels it compares are known to be the object's, so the answer means
+> something. Inside a **bounding box**, they are the object *and* the floor behind it *and* whatever
+> the camera swept past. A background movement inside the box can be larger than the anomaly itself
+> — we built exactly that case and the old version reported a one-frame error on labels that were
+> correct, and no error at all on labels that were wrong. **Nothing in a box says which thing inside
+> it moved**, so on box-only captures the tool now shows you the numbers and the frame numbers and
+> lets you look, instead of guessing.
+
 **What each verdict means:**
 
 The checker works **edge by edge** — each anomaly's start and its end are judged separately, and each
@@ -175,9 +188,16 @@ one can be read or refused on its own. Every edge it looked at is printed.
 * **`NOT-VISIBLE`** — **no detectable above-threshold change at either edge**, inside the frames the
   checker searched, in a region it judged readable. ⚠ **This is NOT a guarantee that nothing is
   there**: a real change smaller than that region's own learned threshold reads exactly the same way.
+* **`READING`** — **no per-frame mask was available for that anomaly, so nothing can be attributed to
+  the object and no verdict is possible.** The line still prints what it measured: which frame
+  changed most, by how much, and how far that is from where the label puts the edge. **It is not a
+  pass, not a failure and not an opinion — it is a pointer to frames for you to look at.**
 * **`NOT-MEASURABLE(reason)`** — **the checker could not form an opinion, and says why, with numbers.
   This is neither a pass nor a failure; it is an unread surface.** The common reasons:
   * **`regional image change`** — see below.
+  * **`frames missing in window`** — some of the frames it needed to compare are not on disk, so it
+    never observed the thing it would be judging. **An absence of observations is not an observed
+    absence**, and it will not report one as the other.
   * **`region covers the picture`** — the label's box, as a rectangle, covers **90 % or more of the
     frame**, so there is nothing left to localise it against.
   * **`threshold unsatisfiable`** — the region is changing so much on its own that no pixel change of
@@ -191,7 +211,13 @@ one can be read or refused on its own. Every edge it looked at is printed.
 
 You will also see **`(bbox-only)`** on some lines. It means the checker used **the bounding box the
 labels supplied**, because no per-frame mask was available for that event — so anything inside that
-box counts, not just the object.
+box counts, not just the object. **Those lines are `READING`s, never verdicts.**
+
+⚠ **`NOT-VISIBLE` is a detection limit, not a proof of absence.** A change smaller than that region's
+own learned threshold reads exactly the same as no change at all: a single changed pixel inside a
+50×50 mask measures 0.0004 against a threshold of 0.0040. That is why a failing session says
+**`labels not confirmed by pixels`** rather than "the labels and the pixels disagree" — the second
+would claim more than the measurement can carry.
 
 > ⚠ **THIS CHECK GIVES A VERDICT ONLY WHERE THE LABELLED REGION IS NEARLY STILL WHEN NOTHING IS
 > HAPPENING. UNDER NORMAL GAMEPLAY IT REPORTS `NOT-MEASURABLE` INSTEAD, AND PRINTS THE NUMBER IT
@@ -218,10 +244,12 @@ box counts, not just the object.
 > that situation, which looked like a dataset failure and was not one.)
 >
 > **Read the last line, not just the word `PASS`.** The summary distinguishes
-> `VERDICT PASS (n of N events fully checked)` from `VERDICT PASS-PARTIAL (…)` and from
-> `VERDICT UNREAD (0 of N events checked)`. **`UNREAD` is not a successful check** — it means nothing
-> in that session could be read, and it is reported as loudly as a pass so it cannot be mistaken for
-> one.
+> `VERDICT PASS (n of N events fully checked)` from `VERDICT PASS-PARTIAL (…)`, from
+> `VERDICT UNREAD (0 of N events checked)` and from
+> `VERDICT UNREAD-BBOX-ONLY (n events; readings printed)`. **Neither `UNREAD` form is a successful
+> check** — the first means nothing in that session could be read, the second means the session
+> carries no masks so nothing in it can be verified against pixels at all. Both are reported as
+> loudly as a pass so they cannot be mistaken for one.
 >
 > **So for moving-camera gameplay, use the other two routes instead:** the overlay in step 5, and —
 > in M3 datasets — **the per-frame visibility fields the labels already carry from the render itself**

@@ -950,6 +950,55 @@ distinct names and two distinguishable summary lines; a batch containing a sessi
 `labels.jsonl` returns **3** under `--report-only`; a mixed batch returns 3 while still reading the
 others.
 
+## A5.4 CORRECTION TO A5.2's P1 TABLE, appended 2026-09-15 the moment the fixture answered
+
+🔻 **CASE 35's PREDECLARED EXPECTATION SET WAS DEFECTIVE AS WRITTEN, AND THE BUILD IS NOT AT
+FAULT.** `c07_previous_end_control_masked` was declared `PASS / PARTIAL / NOT-MEASURABLE — never a
+SHIFT`. It reads **`END-SHIFT(+1)`**, and that is the CORRECT answer: the fixture's RGB carries its
+first patch on frames 10..12 while its labels claim 10..11, so its first end really is one frame
+early. Codex's own prediction for this control says so in as many words — *"first end +1, second
+onset 0"*. **I forbade the fixture's own known answer**, which would have made the case fail
+whatever the tool did. This is the same shape as journal 073's `A1-ONSET-JOIN` conjunct: **a defect
+in the PRE-DECLARATION, not in the build.**
+
+⛔ **The table above is NOT edited.** The correction rides here, dated and appended.
+
+**AND THE REPAIR IS A STRENGTHENING, NOT A RELAXATION — because the event TOKEN could not have
+answered the question this case exists to ask.** `_event_token` returns the FIRST run's shift, so
+`END-SHIFT(+1)` would have printed identically whether the SECOND run's onset was right or wrong —
+which is `G262`'s exact shape, a token hiding a per-unit failure, inside the correction for it.
+The five F1/F2 cases therefore gain a **PER-EDGE** expectation checked against `out_detail`, and
+that is now what they are judged on:
+
+| case | expected per-edge offsets (`r` = refused) | what it pins |
+|---|---|---|
+| `c07_burst_aligned_masked` | `+0, +0` | the burst does not become an onset |
+| `c07_burst_late_masked` | `-1, +0` | the real onset is still found through the burst |
+| `c07_onset_early_refusal_masked` | `r, +0` | a REFUSED onset still bounds its own end — it read `-2` before |
+| `c07_previous_end_refusal_masked` | `+0, r, +0, +0` | a REFUSED end still bounds the NEXT run's onset — `-2` before |
+| `c07_previous_end_control_masked` | `+0, +1, +0, +0` | a READ end bounds it too, and the real `+1` is still reported |
+
+**Measured: all five hold.** The two `-2` readings Codex reproduced are gone, and the fixture's
+genuine `+1` survives — the constraint removed an ANSWER only where the answer was unfounded.
+
+## A5.5 ONE CASE ADDED AFTER THE AMENDMENT, ITS EXPECTATION FIXED BEFORE IT RAN
+
+**`c07_mixed_runs` — expected `PARTIAL`, at the shipped cap. Written here before the fixture
+existed.** A5.1's **R3** says mixed sessions are handled per run and that READING runs count as
+UNREAD for F7's coverage, and nothing in the P1 table tested it: **every banked session is wholly
+masked or wholly bbox-only, so the mixed case has no natural example.** The fixture is Codex's
+`partial_multirun` geometry with masks written on the FIRST run's frames only — run `[10..11]`
+attributed and readable, run `[25..26]` bbox-only. Required: the event reads **`PARTIAL`** and the
+session **`PASS-PARTIAL`**; ⛔ **never `PASS`** (which would credit the unattributable run) and
+⛔ **never `UNREAD`** (which would discard the run that WAS read).
+
+⚠ **It also guards a latent inconsistency found while writing the correction and fixed before any
+result was read: `_event_token` counted ATTRIBUTED EDGES individually while mask mode is a
+property of the RUN**, so a run with one masked and one unmasked edge could have contributed a
+verdict that the run itself had refused to give. The token now counts only the edges of runs that
+are in mask mode. **No banked session exercises that path**, which is precisely why it needed a
+fixture rather than a reading.
+
 ## A5.3 STOP RULES
 
 - **P2 fails** ⇒ the correction has broken the pinned reference. **STOP, NEEDS-DECISION.**
