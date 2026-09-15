@@ -288,3 +288,24 @@ the actual field data — P1–P5 are home evidence and cannot substitute for it
   Report as such; do not call it GREEN.
 - **The eye-check contradicts a label** ⇒ report it as an `m50` labelling finding; it does not
   change the gate's verdict either way.
+
+## RESULT (appended 2026-09-15 after the run — see `docs/sessions/2026-09-15-079-02-verifier-ring-normalised-gate.md`)
+
+**P1 PASS (16/16) · P5 PASS · P2 FAIL · P3 FAIL · P4 FAIL ⇒ NEEDS-DECISION, the predeclared stop.**
+No constant was tuned. `tau` still read `0.0040` on every pinned bench leg and `base=` dropped
+37 → 24 exactly as declared, so **the failures are not threshold drift** — they refute **F-A (ring
+SUBTRACTION)** specifically:
+
+- **P2:** `MT_NAT`/`MT_SYN` PASS → NOT-VISIBLE. At the onset `d_region = 0.02286` but
+  `d_ring = 0.02872` ⇒ `net = -0.00586`. The anomaly's GI bounce lands in a ring that is **less than
+  half the silhouette's area** (28,272 vs 66,837 px, clamped by a corner-hugging bbox), so the ring's
+  *fraction* exceeds the region's. **`m26`'s `A35` already measured that these anomalies change
+  pixels outside their own bbox**, and journal 071 named this exact leg as the thinnest margin in the
+  set and "the one to watch".
+- **P3/P4:** ring subtraction does **not** cancel camera motion — it is parallax/content-weighted, so
+  `tau` on `net` still reads 0.18–0.44 on `M50L_LG9`.
+- 🔻 **P3's PREMISE IS WITHDRAWN:** all six `M50L_LG9` events carry `observability_measured: false`
+  and `bbox_source: "projected"` — **the producer declares it has no pixel evidence**. 079-01's
+  "known-good labels" was an over-claim, corrected in the 079-02 journal §4.
+
+**F-B, F-C, F-D, F-E, F-F, F-G, F-H are not implicated and should survive. Only F-A is refuted.**
