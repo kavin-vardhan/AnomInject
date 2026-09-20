@@ -12,9 +12,11 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/StreamableRenderAsset.h"
 #include "Engine/Texture2D.h"
+#include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
 #include "SceneTypes.h"
+#include "UObject/UObjectIterator.h"
 #include "UnrealClient.h"
 
 namespace
@@ -358,6 +360,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 
 	Held.Reset();
+	HeldOwners.Reset();
 	CapturedFramesSeen = 0;
 	OnsetLatencyFrames = -1;
 	int32 RefusedVirtual = 0;
@@ -365,6 +368,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	int32 RefusedGroup = 0;
 	int32 RefusedShared = 0;
 	int32 RefusedImperceptible = 0;
+	int32 RefusedTooSmallForRatio = 0;
 
 	for (UTexture2D* Tex : Candidates)
 	{
@@ -416,30 +420,56 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		const int32 FloorMips = (int32)S.NumNonStreamingLODs;
 		const int32 FullMips = Tex->GetNumMips();
 		const int32 BaselineResident = Tex->GetNumResidentMips();
-		const int32 TargetMips = (Levels < 0)
-			? FloorMips
+
+		const int32 DeepestMips = FMath::Max(FloorMips, AnomalyDefaults::StuckMipMinResidentMips);
+		const bool bDepthFromRatioRule = (Levels < 0);
+		const int32 TargetMips = bDepthFromRatioRule
+			? DeepestMips
 			: FMath::Clamp(BaselineResident - Levels, FloorMips, (int32)S.MaxNumLODs);
 		if (TargetMips >= BaselineResident)
 		{
 			++RefusedNotStreamable;
 			UE_LOG(LogAnomaly, Log,
 				TEXT("stuck_low_mip: SKIPPED '%s' - it is already at or below the requested resident mip count ")
-				TEXT("(resident %d, target %d, floor %d). Holding it would change nothing."),
-				*GetNameSafe(Tex), BaselineResident, TargetMips, FloorMips);
+				TEXT("(resident %d, target %d, engine floor %d, deepest this lever can reach %d). Holding it would ")
+				TEXT("change nothing."),
+				*GetNameSafe(Tex), BaselineResident, TargetMips, FloorMips, DeepestMips);
 			continue;
 		}
 
 		const int32 TopResidentPx = TopMipWidthAt(Tex, TargetMips);
-		if (MinTexelRatio > 0.0f && PrimaryBboxPx > 0.0f && PrimaryBboxPx < MinTexelRatio * (float)TopResidentPx)
+		const float RatioAtPick = (PrimaryBboxPx > 0.0f && TopResidentPx > 0)
+			? PrimaryBboxPx / (float)TopResidentPx
+			: -1.0f;
+
+		if (MinTexelRatio > 0.0f && RatioAtPick >= 0.0f && RatioAtPick < MinTexelRatio)
 		{
-			++RefusedImperceptible;
-			UE_LOG(LogAnomaly, Warning,
-				TEXT("stuck_low_mip: REFUSED TEXTURE '%s' - at the held mip its top resident level is %d px wide ")
-				TEXT("while the target's longest on-screen side is %.1f px, i.e. below the %.2fx ratio the gate ")
-				TEXT("requires. The object would not LOOK blurry, and a positive label with no visible change is the ")
-				TEXT("dataset-poisoning direction. THIS IS A PICK-TIME FILTER ONLY and never decides observable: it ")
-				TEXT("assumes the texture maps roughly once across the object, which a tiling texture does not."),
-				*GetNameSafe(Tex), TopResidentPx, PrimaryBboxPx, MinTexelRatio);
+			if (bDepthFromRatioRule)
+			{
+				++RefusedTooSmallForRatio;
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: REFUSED TEXTURE '%s' too_small_for_ratio - the DEEPEST hold this lever can ")
+					TEXT("ever reach on it leaves a %d px top resident mip, while the target's longest on-screen side ")
+					TEXT("is only %.1f px: ratio %.2f against the %.2fx the gate requires. THE DEPTH IS NOT THE ")
+					TEXT("BINDING CONSTRAINT AND CANNOT BE MADE ONE - the streamer clamps MaxAllowedMips to ")
+					TEXT("NumNonStreamingLODs (%d here) and asserts it (StreamingTexture.cpp:229/233, check at :236), ")
+					TEXT("so no bias can drive this texture below %d resident mips. The object is simply too small on ")
+					TEXT("screen for any achievable blur, and a positive label with no visible change is the ")
+					TEXT("dataset-poisoning direction. NO CAUSE IS CLAIMED beyond the arithmetic."),
+					*GetNameSafe(Tex), TopResidentPx, PrimaryBboxPx, RatioAtPick, MinTexelRatio, FloorMips, DeepestMips);
+			}
+			else
+			{
+				++RefusedImperceptible;
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: REFUSED TEXTURE '%s' imperceptible - the EXPLICITLY REQUESTED depth leaves a ")
+					TEXT("%d px top resident mip while the target's longest on-screen side is %.1f px: ratio %.2f ")
+					TEXT("against the %.2fx the gate requires. A DEEPER hold would satisfy it (the engine floor is %d ")
+					TEXT("resident mips), so this is the requested depth being too shallow, not the object being too ")
+					TEXT("small. THIS IS A PICK-TIME FILTER ONLY and never decides observable: it assumes the texture ")
+					TEXT("maps roughly once across the object, which a tiling texture does not."),
+					*GetNameSafe(Tex), TopResidentPx, PrimaryBboxPx, RatioAtPick, MinTexelRatio, DeepestMips);
+			}
 			continue;
 		}
 
@@ -453,6 +483,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		H.TargetMips = TargetMips;
 		H.TopResidentPxAtTarget = TopResidentPx;
 		H.CoAffectedVisible = CoAffected;
+		H.RatioAtPick = RatioAtPick;
 
 		if (!bNoHoldLever)
 		{
@@ -491,9 +522,10 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 
 		UE_LOG(LogAnomaly, Log,
 			TEXT("stuck_low_mip: HOLD '%s' full_mips=%d floor_mips=%d baseline_resident=%d target_resident=%d ")
-			TEXT("top_resident_px=%d cinematic_mips %d->%d predicted_max_allowed=%d co_affected_visible=%d [%s]."),
+			TEXT("top_resident_px=%d ratio_at_pick=%.2f cinematic_mips %d->%d predicted_max_allowed=%d ")
+			TEXT("co_affected_visible=%d [%s]."),
 			*H.TextureName, H.FullMips, H.FloorMips, H.BaselineResidentMips, H.TargetMips, H.TopResidentPxAtTarget,
-			H.SavedCinematicMips, H.AppliedCinematicMips, H.PredictedMaxAllowedMips, H.CoAffectedVisible,
+			H.RatioAtPick, H.SavedCinematicMips, H.AppliedCinematicMips, H.PredictedMaxAllowedMips, H.CoAffectedVisible,
 			bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, selection gates BYPASSED"));
 
 		Held.Add(H);
@@ -504,6 +536,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	GStuckMipStats.RefusedNotStreamable += RefusedNotStreamable + RefusedGroup;
 	GStuckMipStats.RefusedShared += RefusedShared;
 	GStuckMipStats.RefusedImperceptible += RefusedImperceptible;
+	GStuckMipStats.RefusedTooSmallForRatio += RefusedTooSmallForRatio;
 
 	PrimaryOwner = const_cast<AActor*>(PrimaryActor);
 	PrimaryOwnerName = PrimaryActor ? PrimaryActor->GetName() : FString();
@@ -525,30 +558,117 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		UE_LOG(LogAnomaly, Warning,
 			TEXT("stuck_low_mip: matched %d component(s) for '%s' with %d candidate texture(s) but HELD NONE [%s] - ")
 			TEXT("%d virtual, %d not streamable or already at the floor, %d excluded LOD group, %d shared with a ")
-			TEXT("visible component, %d imperceptible at this on-screen size. Applying nothing, so no fire is ")
-			TEXT("recorded and no label is written."),
+			TEXT("visible component, %d too small for the ratio at the deepest achievable hold, %d imperceptible at ")
+			TEXT("the explicitly requested depth. Applying nothing, so no fire is recorded and no label is written."),
 			Meshes.Num(), *Substring, Candidates.Num(),
 			bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, selection gates BYPASSED"),
-			RefusedVirtual, RefusedNotStreamable, RefusedGroup, RefusedShared, RefusedImperceptible);
+			RefusedVirtual, RefusedNotStreamable, RefusedGroup, RefusedShared, RefusedTooSmallForRatio,
+			RefusedImperceptible);
 		return false;
 	}
 
 	++GStuckMipStats.FiresApplied;
 	GStuckMipStats.TexturesHeld += Held.Num();
 
+	HeldWorld = World;
+	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
+	{
+		if (UMeshComponent* Mesh = Weak.Get())
+		{
+			if (AActor* Owner = Mesh->GetOwner())
+			{
+				HeldOwners.AddUnique(Owner);
+			}
+		}
+	}
+	if (UAnomalyInjectorSubsystem* Injector = World->GetSubsystem<UAnomalyInjectorSubsystem>())
+	{
+		for (const TWeakObjectPtr<AActor>& Weak : HeldOwners)
+		{
+			Injector->WatchTargetForAnomaly(Weak.Get(), GetId());
+		}
+	}
+
 	UE_LOG(LogAnomaly, Log,
 		TEXT("stuck_low_mip: matched %d component(s) for '%s' - HOLDING %d of %d candidate texture(s) [%s]; ")
-		TEXT("%d virtual, %d not streamable, %d excluded group, %d shared, %d imperceptible. The label is driven by ")
-		TEXT("the MEASURED resident mip count, so frames before the streamer completes the stream-out are NOT ")
-		TEXT("labelled."),
+		TEXT("%d virtual, %d not streamable, %d excluded group, %d shared, %d too small for the ratio, %d ")
+		TEXT("imperceptible at an explicit depth. %d owning actor(s) are WATCHED for destruction via ")
+		TEXT("AActor::OnEndPlay. The label is driven by the MEASURED resident mip count, so frames before the ")
+		TEXT("streamer completes the stream-out are NOT labelled."),
 		Meshes.Num(), *Substring, Held.Num(), Candidates.Num(),
 		bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, selection gates BYPASSED"),
-		RefusedVirtual, RefusedNotStreamable, RefusedGroup, RefusedShared, RefusedImperceptible);
+		RefusedVirtual, RefusedNotStreamable, RefusedGroup, RefusedShared, RefusedTooSmallForRatio,
+		RefusedImperceptible, HeldOwners.Num());
 	return bActive;
+}
+
+void FAnomaly_StuckLowMip::ReleaseTargetWatch()
+{
+	if (UWorld* World = HeldWorld.Get())
+	{
+		if (UAnomalyInjectorSubsystem* Injector = World->GetSubsystem<UAnomalyInjectorSubsystem>())
+		{
+			Injector->ClearTargetWatchForAnomaly(GetId());
+		}
+	}
+	HeldOwners.Reset();
+	HeldWorld.Reset();
+}
+
+void FAnomaly_StuckLowMip::OnTargetLost(AActor* Actor, bool bWorldEnding)
+{
+	if (!bActive)
+	{
+		return;
+	}
+
+	if (!bWorldEnding)
+	{
+		++GStuckMipStats.RevertOnDestroy;
+	}
+
+	UE_LOG(LogAnomaly, Warning,
+		TEXT("stuck_low_mip: TARGET LOST - '%s' ended play (%s) while %d texture(s) were held for it. Reverting NOW ")
+		TEXT("rather than at the scheduled end of the window. This matters because the anomaly holds a TEXTURE ASSET, ")
+		TEXT("not the actor: the mip stays down after the actor is gone, so IsCurrentlyAnomalous() would keep ")
+		TEXT("returning true and the capture would keep labelling frames positive for an object that is no longer in ")
+		TEXT("the scene. After this revert the anomaly is inactive, so NO FRAME AFTER THIS TICK IS LABELLED for it."),
+		*GetNameSafe(Actor), bWorldEnding ? TEXT("world ending") : TEXT("destroyed or removed from the level"),
+		Held.Num());
+
+	Revert();
+}
+
+void FAnomaly_StuckLowMip::OnWorldTeardown()
+{
+	const int32 Unverified = Restoring.Num();
+	GStuckMipStats.UnverifiedAtTeardown = Unverified;
+	if (Unverified <= 0)
+	{
+		return;
+	}
+
+	FString Names;
+	for (const FRestoringTexture& R : Restoring)
+	{
+		Names += FString::Printf(TEXT("'%s'(waited %d) "), *R.TextureName, R.FramesWaited);
+	}
+
+	UE_LOG(LogAnomaly, Warning,
+		TEXT("stuck_low_mip: UNVERIFIED AT TEARDOWN - %d texture(s) still awaiting a read-back confirmation when the ")
+		TEXT("world ended: %s. THE BIAS IS CLEARED ON EVERY ONE OF THEM - nothing is holding the mip down - but ")
+		TEXT("nothing ticks after the world is gone, so the restore is NOT VERIFIED the way every other exit path ")
+		TEXT("verifies it. That is a weaker piece of evidence than 'RESTORE VERIFIED', and it is counted in ")
+		TEXT("run_summary.stuck_mip_unverified_at_teardown rather than folded into the restored count."),
+		Unverified, *Names);
+
+	Restoring.Reset();
 }
 
 void FAnomaly_StuckLowMip::Revert()
 {
+	ReleaseTargetWatch();
+
 	int32 Restored = 0;
 	int32 LeftToGame = 0;
 	int32 Unresolved = 0;
@@ -663,6 +783,19 @@ bool FAnomaly_StuckLowMip::IsAwaitingRestore(const UTexture2D* Tex) const
 
 void FAnomaly_StuckLowMip::TickAlways(float DeltaSeconds)
 {
+	if (bActive && HeldOwners.Num() > 0 && !PrimaryOwner.IsValid())
+	{
+		++GStuckMipStats.RevertOnDestroy;
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("stuck_low_mip: TARGET LOST (weak-pointer backstop) - the labelled target '%s' is no longer a valid ")
+			TEXT("object and no OnEndPlay reached us, which is the garbage-collected / streamed-out route rather than ")
+			TEXT("the Destroy() one. Reverting NOW. The backstop exists because AActor::OnEndPlay covers explicit ")
+			TEXT("destruction and level removal but is not a guarantee against every disappearance; a poll of the weak ")
+			TEXT("pointer is."),
+			*PrimaryOwnerName);
+		Revert();
+	}
+
 	if (Restoring.Num() == 0)
 	{
 		return;
@@ -816,6 +949,8 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddInt(TEXT("stuck_mip.floor_mips"), P.FloorMips);
 	Out.AddInt(TEXT("stuck_mip.forced_mips"), P.TargetMips);
 	Out.AddInt(TEXT("stuck_mip.top_resident_px"), PrimaryTex ? TopMipWidthAt(PrimaryTex, FMath::Max(Resident, 1)) : -1);
+	Out.AddInt(TEXT("stuck_mip.forced_top_px"), P.TopResidentPxAtTarget);
+	Out.AddFloat(TEXT("stuck_mip.ratio_at_pick"), (double)P.RatioAtPick);
 	Out.AddInt(TEXT("stuck_mip.textures_held"), HeldNow);
 	Out.AddInt(TEXT("stuck_mip.textures_armed"), Held.Num());
 	Out.AddInt(TEXT("stuck_mip.co_affected_visible"), P.CoAffectedVisible);
@@ -832,6 +967,8 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 		Rec.AddString(TEXT("name"), H.TextureName);
 		Rec.AddInt(TEXT("baseline_mips"), H.BaselineResidentMips);
 		Rec.AddInt(TEXT("forced_mips"), H.TargetMips);
+		Rec.AddInt(TEXT("forced_top_px"), H.TopResidentPxAtTarget);
+		Rec.AddFloat(TEXT("ratio_at_pick"), (double)H.RatioAtPick);
 		Rec.AddInt(TEXT("resident_mips"), Now);
 		Rec.AddInt(TEXT("resident_mips_at_onset"), H.ResidentAtOnset);
 		Rec.AddInt(TEXT("co_affected_visible"), H.CoAffectedVisible);
@@ -883,6 +1020,125 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchStuckMipNoHoldCmd(
 				TEXT("IAI.Bench.StuckMipNoHold -> %s. BENCH DEVICE. This is the deliberate non-application the ")
 				TEXT("can-fail gate must CATCH."),
 				GStuckMipNoHold ? TEXT("ON") : TEXT("off"));
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchStuckMipVirtualProbeCmd(
+	TEXT("IAI.Bench.StuckMipVirtualProbe"),
+	TEXT("BENCH DEVICE, console only, read-only - never in a client payload. Exercises the F-e / NOT_APPLICABLE ")
+	TEXT("branch of stuck_low_mip's eligibility test, which no gate leg on either fixture has ever reached: ")
+	TEXT("stuck_mip_refused_virtual has read 0 everywhere, and a 0 from a branch that was never reachable is ")
+	TEXT("BLINDNESS, not a reading. It does three things and reports all three. (1) A CENSUS of every loaded ")
+	TEXT("UTexture2D: how many serialise VirtualTextureStreaming=true, and how many answer TRUE to the runtime ")
+	TEXT("predicate IsCurrentlyVirtualTextured(), which additionally requires cooked VT page data ")
+	TEXT("(Texture2D.cpp:1219). (2) For every texture that IS currently virtual it runs the SHIPPED eligibility ")
+	TEXT("classifier and asserts the verdict is NOT_APPLICABLE(virtual), incrementing the same counter a fire ")
+	TEXT("would. (3) A SYNTHETIC CONTROL: a transient UTexture2D with VirtualTextureStreaming forced true, to show ")
+	TEXT("whether the branch can be reached without cooked content at all. If no currently-virtual texture exists ")
+	TEXT("the probe says the path is UNEXERCISED IN THIS FIXTURE and names why, rather than reporting a clean zero. ")
+	TEXT("Usage: IAI.Bench.StuckMipVirtualProbe"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			int32 Total = 0;
+			int32 FlagSet = 0;
+			int32 RuntimeVirtual = 0;
+			int32 ClassifiedVirtual = 0;
+			int32 ClassifiedOther = 0;
+			FString Names;
+
+			for (TObjectIterator<UTexture2D> It; It; ++It)
+			{
+				UTexture2D* Tex = *It;
+				if (!Tex || Tex->HasAnyFlags(RF_ClassDefaultObject))
+				{
+					continue;
+				}
+				++Total;
+				if (Tex->VirtualTextureStreaming)
+				{
+					++FlagSet;
+				}
+				if (!Tex->IsCurrentlyVirtualTextured())
+				{
+					continue;
+				}
+				++RuntimeVirtual;
+
+				const EEligibility Verdict = ClassifyTexture(Tex);
+				if (Verdict == EEligibility::Virtual)
+				{
+					++ClassifiedVirtual;
+					++GStuckMipStats.RefusedVirtual;
+					if (Names.Len() < 400)
+					{
+						Names += FString::Printf(TEXT("'%s' "), *Tex->GetName());
+					}
+					UE_LOG(LogAnomaly, Warning,
+						TEXT("stuck_low_mip: NOT_APPLICABLE '%s' - IsCurrentlyVirtualTextured() is TRUE, so it is not ")
+						TEXT("in the render-asset streamer at all and GetNumResidentMips() returns a virtual-resource ")
+						TEXT("constant rather than a streaming state. Counted in stuck_mip_refused_virtual by the ")
+						TEXT("probe exactly as a fire would count it."),
+						*Tex->GetName());
+				}
+				else
+				{
+					++ClassifiedOther;
+					UE_LOG(LogAnomaly, Error,
+						TEXT("stuck_low_mip: PROBE DISAGREEMENT '%s' - IsCurrentlyVirtualTextured() is TRUE but the ")
+						TEXT("shipped classifier returned %d instead of Virtual. That is a defect in the classifier, ")
+						TEXT("not in the probe, and it is reported rather than counted."),
+						*Tex->GetName(), (int32)Verdict);
+				}
+			}
+
+			UTexture2D* Synthetic = UTexture2D::CreateTransient(4, 4, PF_B8G8R8A8);
+			bool bSyntheticVirtual = false;
+			if (Synthetic)
+			{
+				Synthetic->VirtualTextureStreaming = true;
+				bSyntheticVirtual = Synthetic->IsCurrentlyVirtualTextured();
+			}
+
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("stuck_low_mip: VIRTUAL-TEXTURE PROBE CENSUS - %d loaded UTexture2D, %d serialise ")
+				TEXT("VirtualTextureStreaming=true, %d answer TRUE to the RUNTIME predicate ")
+				TEXT("IsCurrentlyVirtualTextured(). The two counts differ because the runtime predicate ALSO requires ")
+				TEXT("cooked VT page data (Texture2D.cpp:1219: VirtualTextureStreaming && GetPlatformData() && ")
+				TEXT("GetPlatformData()->VTData), and the per-texture runtime answer is what the anomaly reads - ")
+				TEXT("never the project's r.VirtualTextures feature flag."),
+				Total, FlagSet, RuntimeVirtual);
+
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("stuck_low_mip: VIRTUAL-TEXTURE PROBE SYNTHETIC CONTROL - a transient UTexture2D with ")
+				TEXT("VirtualTextureStreaming forced true reads IsCurrentlyVirtualTextured() = %s. %s"),
+				bSyntheticVirtual ? TEXT("TRUE") : TEXT("FALSE"),
+				bSyntheticVirtual
+					? TEXT("The branch is therefore reachable synthetically.")
+					: TEXT("The branch is therefore NOT reachable synthetically, and the reason is structural rather ")
+					  TEXT("than incidental: CreateTransient builds platform data with no VTData, which the runtime ")
+					  TEXT("predicate requires. Only genuinely cooked virtual-textured content can reach it."));
+
+			if (ClassifiedVirtual > 0)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: VIRTUAL-TEXTURE PROBE VERDICT = EXERCISED. %d texture(s) reached the ")
+					TEXT("NOT_APPLICABLE(virtual) branch and were counted: %s. stuck_mip_refused_virtual is now a ")
+					TEXT("PROVEN counter on this fixture, so a zero from it on a capture leg means absence rather ")
+					TEXT("than blindness."),
+					ClassifiedVirtual, *Names);
+			}
+			else
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: VIRTUAL-TEXTURE PROBE VERDICT = UNEXERCISED IN THIS FIXTURE. Of %d loaded ")
+					TEXT("textures, %d carry the serialised flag and NONE answers TRUE at runtime (%d classifier ")
+					TEXT("disagreements), and the synthetic control cannot reach the branch either. ")
+					TEXT("stuck_mip_refused_virtual's zero on this host is therefore NOT a proven counter - it is a ")
+					TEXT("branch that has never been reached, and it must be recorded as UNEXERCISED rather than as a ")
+					TEXT("clean read. Reaching it needs a host whose cooked content contains a virtual-textured ")
+					TEXT("material actually applied to a candidate target."),
+					Total, FlagSet, ClassifiedOther);
+			}
 		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GBenchStuckMipUnlinkLockCmd(

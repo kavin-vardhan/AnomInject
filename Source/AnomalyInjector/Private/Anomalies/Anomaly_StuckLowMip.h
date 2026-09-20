@@ -22,6 +22,9 @@ public:
 	virtual bool HasDeferredOnset() const override { return true; }
 	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) override;
 	virtual bool GetTelemetry(FAnomalyTelemetry& Out) const override;
+	virtual bool WantsTargetLostNotification() const override { return true; }
+	virtual void OnTargetLost(AActor* Actor, bool bWorldEnding) override;
+	virtual void OnWorldTeardown() override;
 
 private:
 	struct FHeldTexture
@@ -38,6 +41,7 @@ private:
 		int32 TopResidentPxAtTarget = 0;
 		int32 CoAffectedVisible = 0;
 		int32 ResidentAtOnset = -1;
+		float RatioAtPick = -1.0f;
 		bool bUnlinked = false;
 	};
 
@@ -54,8 +58,12 @@ private:
 
 	bool IsAwaitingRestore(const UTexture2D* Tex) const;
 
+	void ReleaseTargetWatch();
+
 	TArray<FHeldTexture> Held;
 	TArray<FRestoringTexture> Restoring;
+	TArray<TWeakObjectPtr<AActor>> HeldOwners;
+	TWeakObjectPtr<UWorld> HeldWorld;
 	TWeakObjectPtr<AActor> PrimaryOwner;
 	FString PrimaryOwnerName;
 	int32 PrimaryIndex = 0;

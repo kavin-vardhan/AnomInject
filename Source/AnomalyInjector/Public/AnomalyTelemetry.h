@@ -5,17 +5,19 @@
 struct FAnomalyTelemetryFields
 {
 	TArray<TPair<FString, int32>> Ints;
+	TArray<TPair<FString, double>> Floats;
 	TArray<TPair<FString, bool>> Bools;
 	TArray<TPair<FString, FString>> Strings;
 
 	bool IsEmpty() const
 	{
-		return Ints.Num() == 0 && Bools.Num() == 0 && Strings.Num() == 0;
+		return Ints.Num() == 0 && Floats.Num() == 0 && Bools.Num() == 0 && Strings.Num() == 0;
 	}
 
 	void Reset()
 	{
 		Ints.Reset();
+		Floats.Reset();
 		Bools.Reset();
 		Strings.Reset();
 	}
@@ -23,6 +25,11 @@ struct FAnomalyTelemetryFields
 	void AddInt(const FString& Key, int32 Value)
 	{
 		Ints.Emplace(Key, Value);
+	}
+
+	void AddFloat(const FString& Key, double Value)
+	{
+		Floats.Emplace(Key, Value);
 	}
 
 	void AddBool(const FString& Key, bool bValue)

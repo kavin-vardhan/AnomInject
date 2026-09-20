@@ -656,9 +656,11 @@ namespace AnomalyDefaults
 
 		UE_LOG(LogAnomaly, Log,
 			TEXT("stuck_low_mip: perceptibility ratio = %.2f (%s). The target's longest on-screen side must be at ")
-			TEXT("least this many times the held mip's width in pixels, or the object would not LOOK blurry. IT IS A ")
-			TEXT("PICK-TIME FILTER ONLY and never decides observable: it assumes the texture maps roughly once across ")
-			TEXT("the object, which a tiling texture does not. 0 disables it."),
+			TEXT("least this many times the held mip's width in pixels, or the object would not LOOK blurry. The ")
+			TEXT("compiled default was raised 4.00 -> 8.00 for m52 because two auto-pool events at ratio 6.27 were ")
+			TEXT("read by the label-vs-pixel verifier as NO-TRACE: labelled, held, observable, and carrying no change ")
+			TEXT("above the noise floor. IT REMAINS A PICK-TIME FILTER ONLY and never decides observable: it assumes ")
+			TEXT("the texture maps roughly once across the object, which a tiling texture does not. 0 disables it."),
 			Value, Source);
 		return Value;
 	}

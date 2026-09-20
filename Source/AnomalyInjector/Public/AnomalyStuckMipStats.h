@@ -13,6 +13,7 @@ namespace AnomalyStuckMip
 		int32 RefusedNotStreamable = 0;
 		int32 RefusedShared = 0;
 		int32 RefusedImperceptible = 0;
+		int32 RefusedTooSmallForRatio = 0;
 		int32 RefusedNotRestored = 0;
 		int32 RefusedAlreadyHeld = 0;
 		int32 CandidateTexturesSeen = 0;
@@ -21,6 +22,8 @@ namespace AnomalyStuckMip
 		int32 RestoreStreamInReissues = 0;
 		int32 RestoreSkippedPending = 0;
 		int32 TexturesAwaitingRestore = 0;
+		int32 RevertOnDestroy = 0;
+		int32 UnverifiedAtTeardown = 0;
 	};
 
 	ANOMALYINJECTOR_API void ResetRunStats();

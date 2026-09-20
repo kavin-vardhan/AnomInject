@@ -4814,9 +4814,11 @@ uint8 UAnomalyCaptureSubsystem::ComputeFireActive(const FAutoLiveFireInfo& F) co
 
 	if (Source == EAnomalyActiveSource::AnomalyState)
 	{
-		return !FActor
-			? 1
-			: ((Injector && Injector->IsAnomalyCurrentlyAnomalous(F.Id)) ? 1 : 0);
+		if (!FActor)
+		{
+			return F.bWholeFrameExtent ? 1 : 0;
+		}
+		return (Injector && Injector->IsAnomalyCurrentlyAnomalous(F.Id)) ? 1 : 0;
 	}
 	return (FActor && AnomalyHiddenClass::IsLogicallyHidden(FActor)) ? 1 : 0;
 }
@@ -5410,6 +5412,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	StuckMipReport.RefusedNotStreamable = StuckMipStats.RefusedNotStreamable;
 	StuckMipReport.RefusedVirtual = StuckMipStats.RefusedVirtual;
 	StuckMipReport.RefusedImperceptible = StuckMipStats.RefusedImperceptible;
+	StuckMipReport.RefusedTooSmallForRatio = StuckMipStats.RefusedTooSmallForRatio;
 	StuckMipReport.RefusedNoEligibleTextures = StuckMipStats.RefusedNoEligibleTextures;
 	StuckMipReport.RefusedNotRestored = StuckMipStats.RefusedNotRestored;
 	StuckMipReport.RefusedAlreadyHeld = StuckMipStats.RefusedAlreadyHeld;
@@ -5418,6 +5421,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	StuckMipReport.TexturesAwaitingRestore = StuckMipStats.TexturesAwaitingRestore;
 	StuckMipReport.HoldTimeouts = DeferredOnsetTimeouts;
 	StuckMipReport.OnsetPrerollMax = DeferredOnsetPrerollMax;
+	StuckMipReport.RevertOnDestroy = StuckMipStats.RevertOnDestroy;
+	StuckMipReport.UnverifiedAtTeardown = StuckMipStats.UnverifiedAtTeardown;
 
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,

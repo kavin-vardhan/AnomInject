@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "AnomalyTelemetry.h"
 
+class AActor;
 class UWorld;
 
 class IAnomaly
@@ -35,4 +36,10 @@ public:
 	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) {}
 
 	virtual bool GetTelemetry(FAnomalyTelemetry& Out) const { return false; }
+
+	virtual bool WantsTargetLostNotification() const { return false; }
+
+	virtual void OnTargetLost(AActor* Actor, bool bWorldEnding) {}
+
+	virtual void OnWorldTeardown() {}
 };

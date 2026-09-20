@@ -54,9 +54,9 @@ def report(session):
 
     if stuck_rows:
         print()
-        print("  %-5s %-9s %-9s %-8s %-6s %-6s %-8s %-6s %-6s %-6s %-10s %s"
+        print("  %-5s %-9s %-9s %-8s %-6s %-6s %-8s %-6s %-6s %-6s %-10s %-9s %-7s %s"
               % ("si", "pri_res", "pri_base", "forced", "floor", "held", "held_all", "armed",
-                 "obs", "tgtpx", "topres_px", "flags"))
+                 "obs", "tgtpx", "topres_px", "forced_px", "ratio", "flags"))
         held_true = 0
         held_all_true = 0
         first_held = None
@@ -71,11 +71,14 @@ def report(session):
                     first_held = si
             if a.get("stuck_mip.held_all"):
                 held_all_true += 1
-            print("  %-5s %-9s %-9s %-8s %-6s %-6s %-8s %-6s %-6s %-6s %-10s %s"
+            ratio = a.get("stuck_mip.ratio_at_pick")
+            print("  %-5s %-9s %-9s %-8s %-6s %-6s %-8s %-6s %-6s %-6s %-10s %-9s %-7s %s"
                   % (si, a.get("stuck_mip.primary_resident_mips"), a.get("stuck_mip.primary_baseline_mips"),
                      a.get("stuck_mip.forced_mips"), a.get("stuck_mip.floor_mips"),
                      held, a.get("stuck_mip.held_all"), a.get("stuck_mip.textures_armed"),
                      obs, a.get("target_pixels"), a.get("stuck_mip.top_resident_px"),
+                     a.get("stuck_mip.forced_top_px"),
+                     ("%.2f" % ratio) if isinstance(ratio, (int, float)) else ratio,
                      ",".join(flags) if flags else "-"))
         print()
         print("  HELD true on %d of %d frames carrying an entry; held_all true on %d"
@@ -90,8 +93,11 @@ def report(session):
             if isinstance(per, list) and per:
                 print("  per-texture at si=%s (%d entr%s):" % (si, len(per), "y" if len(per) == 1 else "ies"))
                 for t in per:
-                    print("    %-34s baseline=%-3s forced=%-3s resident=%-3s at_onset=%-3s co=%-3s held=%s"
+                    tr = t.get("ratio_at_pick")
+                    print("    %-34s baseline=%-3s forced=%-3s fpx=%-5s ratio=%-7s resident=%-3s at_onset=%-3s co=%-3s held=%s"
                           % (t.get("name"), t.get("baseline_mips"), t.get("forced_mips"),
+                             t.get("forced_top_px"),
+                             ("%.2f" % tr) if isinstance(tr, (int, float)) else tr,
                              t.get("resident_mips"), t.get("resident_mips_at_onset"),
                              t.get("co_affected_visible"), t.get("held")))
                 break

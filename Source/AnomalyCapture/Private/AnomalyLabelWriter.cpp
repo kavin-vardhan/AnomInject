@@ -137,6 +137,10 @@ namespace
 				{
 					O->SetNumberField(KV.Key, (double)KV.Value);
 				}
+				for (const TPair<FString, double>& KV : T.Floats)
+				{
+					O->SetNumberField(KV.Key, KV.Value);
+				}
 				for (const TPair<FString, bool>& KV : T.Bools)
 				{
 					O->SetBoolField(KV.Key, KV.Value);
@@ -155,6 +159,10 @@ namespace
 						for (const TPair<FString, int32>& RV : Rec.Ints)
 						{
 							E->SetNumberField(RV.Key, (double)RV.Value);
+						}
+						for (const TPair<FString, double>& RV : Rec.Floats)
+						{
+							E->SetNumberField(RV.Key, RV.Value);
 						}
 						for (const TPair<FString, bool>& RV : Rec.Bools)
 						{
@@ -735,6 +743,7 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("stuck_mip_refused_not_streamable"), StuckMip->RefusedNotStreamable);
 			Root->SetNumberField(TEXT("stuck_mip_refused_virtual"), StuckMip->RefusedVirtual);
 			Root->SetNumberField(TEXT("stuck_mip_refused_imperceptible"), StuckMip->RefusedImperceptible);
+			Root->SetNumberField(TEXT("stuck_mip_refused_too_small_for_ratio"), StuckMip->RefusedTooSmallForRatio);
 			Root->SetNumberField(TEXT("stuck_mip_refused_no_eligible_textures"), StuckMip->RefusedNoEligibleTextures);
 			Root->SetNumberField(TEXT("stuck_mip_refused_not_restored"), StuckMip->RefusedNotRestored);
 			Root->SetNumberField(TEXT("stuck_mip_refused_already_held"), StuckMip->RefusedAlreadyHeld);
@@ -743,6 +752,8 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("stuck_mip_restore_frames_max"), StuckMip->RestoreFramesMax);
 			Root->SetNumberField(TEXT("stuck_mip_textures_awaiting_restore"), StuckMip->TexturesAwaitingRestore);
 			Root->SetNumberField(TEXT("stuck_mip_onset_preroll_max"), StuckMip->OnsetPrerollMax);
+			Root->SetNumberField(TEXT("stuck_mip_revert_on_destroy"), StuckMip->RevertOnDestroy);
+			Root->SetNumberField(TEXT("stuck_mip_unverified_at_teardown"), StuckMip->UnverifiedAtTeardown);
 		}
 		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);
 		Root->SetNumberField(TEXT("frames_exposure_dip_suppressed"), FramesExposureDipSuppressed);
