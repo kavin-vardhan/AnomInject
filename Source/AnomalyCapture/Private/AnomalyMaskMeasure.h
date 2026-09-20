@@ -39,6 +39,11 @@ struct FAnomalyMaskRecord
 
 	bool bKnownUnmeasurable = false;
 	FString UnmeasurableReason;
+
+	bool bAwaitLabelled = false;
+	bool bLabelledThisTick = false;
+	int32 ArmsDeferred = 0;
+	TArray<int32> PerArmCounts;
 };
 
 class FAnomalyMaskMeasure
@@ -51,6 +56,11 @@ public:
 
 	FAnomalyMaskRecord* FindOrAddRecord(FName Id, const FString& Target, uint64 StartFrame, AActor* TargetActor);
 	FAnomalyMaskRecord* FindRecord(FName Id, const FString& Target, uint64 StartFrame);
+
+	void SetArmWindowGate(bool bInGate);
+	bool IsArmWindowGateOn() const { return bArmWindowGate; }
+	void ClearLabelledThisTick();
+	void SetRecordLabelledThisTick(FName Id, const FString& Target, uint64 StartFrame, bool bLabelled);
 
 	bool ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId, bool bWantPixels = false);
 	bool ArmProbeOnHidden(FAnomalyMaskSceneViewExtension* Sve, uint64 RequestId);
@@ -81,6 +91,7 @@ private:
 	TSet<uint8> ExtraAssignedTags;
 	FAnomalyStencilTagLedger* Ledger = nullptr;
 	int32 NextTagOffset = 0;
+	bool bArmWindowGate = true;
 };
 
 #endif

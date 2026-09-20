@@ -109,6 +109,8 @@ public:
 	void SetBenchCensusMaskDump(int32 InFrames);
 	void SetBenchTagPoolLimit(int32 InValues);
 	void SetBenchForceTagCollision(int32 InSessionIndex);
+	void SetBenchVetoArmUngated(bool bInUngated);
+	bool IsBenchVetoArmUngated() const { return bBenchVetoArmUngated; }
 
 	void SetTickPin(bool bInPin);
 	bool IsTickPinEnabled() const { return bTickPinEnabled; }
@@ -179,6 +181,7 @@ private:
 	void ReleaseTargetMaskSelfTags();
 	bool ArmTargetMaskOwn(int32 SessionIndex);
 	void EnsureMaskRecordsForCapturedFrame();
+	void UpdateMaskRecordLabelledWindow();
 	void SpawnMaskPairingProbe();
 	void StepMaskPairingProbe(int32 SessionIndex);
 	void DestroyMaskPairingProbe();
@@ -446,6 +449,7 @@ private:
 	int32 BenchTagPoolLimit = 0;
 	int32 BenchForceTagCollision = -1;
 	bool bBenchForceTagCollisionFired = false;
+	bool bBenchVetoArmUngated = false;
 	int32 BenchCensusMaskDumpsWritten = 0;
 	bool bBenchTeleportFired = false;
 	bool bBenchRetakeFired = false;
