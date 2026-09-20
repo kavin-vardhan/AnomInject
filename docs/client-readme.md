@@ -147,121 +147,97 @@ So the short version: **red is what you were given; the overwhelming majority of
 
 If the overlay window says Pillow is missing, run the install line it prints (see section 1) and start `Run.bat` again. Nothing else is affected in the meantime.
 
-### Step 6 — Check the labels against the pixels (the label-pixel checker)
+### Step 6 — Read pixel consistency around the labels
 
-The overlay in step 5 shows you *where* a label is. This one checks *when* it is: for each anomaly it
-asks whether the first labelled frame really is the first frame whose pixels change, and whether the
-frame after the last labelled one really is clean again.
+The checker reports **where a change was observed near a labelled frame**. No output
+certifies that a label is correct. Even an exact target mask identifies the pixels,
+not the cause: lighting, occlusion or animation can change those same pixels.
 
 ```
 python tools\verify_capture.py --dir <sessionFolder> --label-pixel-gate --report-only
 python tools\verify_capture.py --all <folderOfSessions> --label-pixel-gate --report-only
 ```
 
-`--all` sweeps every session under a folder and prints one line each. It runs its own self-test first
-and **refuses to start if that self-test does not pass** — a sweep run with a broken instrument just
-produces a lot of confident wrong lines.
+`--all` proves the instrument with its self-test first, then saves each session's
+complete reading under a unique name and prints a summary. Read the coverage and
+individual observations as well as the last line.
 
-> 🔑 **IT GIVES VERDICTS ONLY WHERE PER-FRAME MASKS IDENTIFY THE TARGET'S PIXELS** — that is M3
-> datasets and bench captures. **Without masks it reports READINGS for human review and never a
-> verdict**, and the session ends `UNREAD-BBOX-ONLY`.
->
-> **Why.** The check asks whether the picture changed where the label says, when the label says.
-> Inside a **mask**, the pixels it compares are known to be the object's, so the answer means
-> something. Inside a **bounding box**, they are the object *and* the floor behind it *and* whatever
-> the camera swept past. A background movement inside the box can be larger than the anomaly itself
-> — we built exactly that case and the old version reported a one-frame error on labels that were
-> correct, and no error at all on labels that were wrong. **Nothing in a box says which thing inside
-> it moved**, so on box-only captures the tool now shows you the numbers and the frame numbers and
-> lets you look, instead of guessing.
+**Every run has an onset and an end observation:**
 
-**What each verdict means:**
+- `TRANSITION k d=… tau=… label s delta=…`: the largest above-threshold, dominant
+  change was at frame `k`; `delta` is `k − s`. `d` is the fraction of region pixels
+  with a change greater than the configured pixel threshold in any RGB channel.
+- `NO-TRANSITION [a..b]`: every pair in this window was observed, and none exceeded
+  that edge's learned threshold `tau`.
+- `UNASSESSABLE(reason)`: the observation was unavailable or ambiguous. The line
+  says why: missing RGB or masks, an absent mask ID, too little baseline evidence,
+  excessive regional change, an unsatisfiable threshold, an oversized region, or
+  competing transitions. Missing observations are never evidence of absence.
 
-The checker works **edge by edge** — each anomaly's start and its end are judged separately, and each
-one can be read or refused on its own. Every edge it looked at is printed.
+There is **no verdict at an edge**. Runs are summarised as follows:
 
-* **`PASS`** — every edge of this anomaly was read, and the labels and the pixels agree on all of them.
-* **`ONSET-SHIFT(n)` / `END-SHIFT(n)`** — they disagree, by `n` frames, signed. Negative means the
-  **pixels changed before the label said so**.
-* **`PARTIAL`** — some edges of this anomaly were read and agreed; others could not be read. **It is
-  neither a pass nor a failure**, and the summary counts it separately from both.
-* **`NOT-VISIBLE`** — **no detectable above-threshold change at either edge**, inside the frames the
-  checker searched, in a region it judged readable. ⚠ **This is NOT a guarantee that nothing is
-  there**: a real change smaller than that region's own learned threshold reads exactly the same way.
-* **`READING`** — **no per-frame mask was available for that anomaly, so nothing can be attributed to
-  the object and no verdict is possible.** The line still prints what it measured: which frame
-  changed most, by how much, and how far that is from where the label puts the edge. **It is not a
-  pass, not a failure and not an opinion — it is a pointer to frames for you to look at.**
-* **`NOT-MEASURABLE(reason)`** — **the checker could not form an opinion, and says why, with numbers.
-  This is neither a pass nor a failure; it is an unread surface.** The common reasons:
-  * **`regional image change`** — see below.
-  * **`frames missing in window`** — some of the frames it needed to compare are not on disk, so it
-    never observed the thing it would be judging. **An absence of observations is not an observed
-    absence**, and it will not report one as the other.
-  * **`region covers the picture`** — the label's box, as a rectangle, covers **90 % or more of the
-    frame**, so there is nothing left to localise it against.
-  * **`threshold unsatisfiable`** — the region is changing so much on its own that no pixel change of
-    any size could clear the detection threshold. The checker reports this as a broken instrument
-    rather than emitting a verdict.
-  * **`ambiguous edge`** — two frames in the search window changed by comparable amounts, so picking
-    the larger one would be a coin flip.
-  * **`baseline`** — too few clean frames near that edge to calibrate against.
-  * **`end truncated`** — the anomaly runs to the last frame of the session, so its end has nothing
-    after it to compare against.
+| Run outcome | What the reading means |
+|---|---|
+| `CONSISTENT` | Both transitions sit on the two labelled edges. **Consistent with the label; does not establish cause.** |
+| `OFFSET-NOTE(…)` | Both edges were observed and at least one transition sits off its label. A possible label offset **or an unrelated change**: look at frames `k−1..k+1`. This does not fail the session. |
+| `PARTIAL` | Only one edge was observable, or one zero-delta transition accompanies a `NO-TRANSITION` observation. It cannot become CONSISTENT. |
+| `UNASSESSABLE` | Neither edge was observable, or two NO-TRANSITION observations could not support the whole-span check. The run prints the reason. |
+| `READING` | A run lacks boundary masks and uses bounding boxes. The same observation lines are printed with `(bbox-only)`; it cannot become CONSISTENT or NO-TRACE. |
+| `NO-TRACE` | The complete run span **and both windows** had valid, resolved masks and RGB pairs, but no target change exceeded the thresholds. This is the only failing outcome. |
 
-You will also see **`(bbox-only)`** on some lines. It means the checker used **the bounding box the
-labels supplied**, because no per-frame mask was available for that event — so anything inside that
-box counts, not just the object. **Those lines are `READING`s, never verdicts.**
+**What NO-TRACE proves is limited by the printed thresholds.** Its message says
+“the label claims a visible change on this target …; the pixels contain none”,
+qualified by “above tau; pixel threshold applies”. It establishes the absence of
+an **above-threshold** change over the observed span and windows. It does not
+establish pixel-for-pixel equality: for example, one changed pixel in a 2,500-pixel
+region gives `d=0.0004`, below the default `tau` floor of `0.004`.
 
-⚠ **`NOT-VISIBLE` is a detection limit, not a proof of absence.** A change smaller than that region's
-own learned threshold reads exactly the same as no change at all: a single changed pixel inside a
-50×50 mask measures 0.0004 against a threshold of 0.0040. That is why a failing session says
-**`labels not confirmed by pixels`** rather than "the labels and the pixels disagree" — the second
-would claim more than the measurement can carry.
+NO-TRACE is restricted to the producer's pixel-changing class IDs:
+`missing_object`, `blink` (`blinking` injector alias), `missing_texture`,
+`corrupted_texture`, `lod_popping`, and `lod_corruption`. These come from the
+injectors' `GetId()` methods and the producer's ID/active-source mapping in
+`Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp`
+(`MapAnomalyToClient`, `ResolveAnomalyActiveSource`). Hidden runs of
+blink are represented as separate active runs. `time_dilation`,
+`lighting_mismatch`, `camera_clipping` and unknown classes cannot produce NO-TRACE.
+Class membership is a producer contract, not an independent proof of visible effect.
 
-> ⚠ **THIS CHECK GIVES A VERDICT ONLY WHERE THE LABELLED REGION IS NEARLY STILL WHEN NOTHING IS
-> HAPPENING. UNDER NORMAL GAMEPLAY IT REPORTS `NOT-MEASURABLE` INSTEAD, AND PRINTS THE NUMBER IT
-> MEASURED.** When the picture inside the box is already changing every frame, the checker can no
-> longer tell an anomaly apart from that change.
->
-> **What it measures is `m_edge`** — how much *that edge's own region* changes, on the clean frames
-> nearest *that edge*. It is a picture-change number, **not a camera-speed number**: a still camera
-> pointed at a waterfall reads high, and a slow pan across a blank wall reads low.
->
-> We derived the cut-off rather than guessing it: we took sessions, **deliberately moved the labels by
-> one frame** (the start only, the end only, and both), and scored **every single edge** against the
-> answer we had injected. The cut-off is the level at which no edge came back with a wrong answer.
-> ⚠ **It is a provisional working figure from four sessions, not a validated acceptance limit**, and
-> it will be re-derived as more footage becomes available. You will see it in the header next to the
-> number it is compared against.
->
-> **Why it refuses instead of just saying "looks fine":** if the checker cannot detect a one-frame
-> error there, then "no error found" tells you nothing about whether one is there. Reporting a pass in
-> that situation would be worse than reporting nothing.
->
-> **A session full of `NOT-MEASURABLE` does not mean your labels are wrong** — it means this
-> particular check could not be run on that footage. (An earlier version reported `NOT-VISIBLE` in
-> that situation, which looked like a dataset failure and was not one.)
->
-> **Read the last line, not just the word `PASS`.** The summary distinguishes
-> `VERDICT PASS (n of N events fully checked)` from `VERDICT PASS-PARTIAL (…)`, from
-> `VERDICT UNREAD (0 of N events checked)` and from
-> `VERDICT UNREAD-BBOX-ONLY (n events; readings printed)`. **Neither `UNREAD` form is a successful
-> check** — the first means nothing in that session could be read, the second means the session
-> carries no masks so nothing in it can be verified against pixels at all. Both are reported as
-> loudly as a pass so they cannot be mistaken for one.
->
-> **So for moving-camera gameplay, use the other two routes instead:** the overlay in step 5, and —
-> in M3 datasets — **the per-frame visibility fields the labels already carry from the render itself**
-> (`observable` and `target_pixels`, section 8.4). Those come from the engine at capture time and do
-> not depend on this after-the-fact pixel comparison at all.
+**Coverage and association:** each compared pair uses the union of the actual
+masks from **both** frames, including clean baseline pairs. Missing, empty or
+unreadable masks invalidate a window. A positive `mask_value` absent from a PNG is
+an error; the sole-value fallback is allowed only for an unresolved ID and is
+printed explicitly. An unresolved ID can never support NO-TRACE. Search bounds
+come from labelled frames, and a transition claimed by two edges invalidates both.
+Bounding-box runs impose no bounds on masked runs.
 
-🆕 **Where your build writes per-frame visibility from the render (`observable` / `target_pixels`,
-section 8.4), the checker prints what it found next to each event** as `bbox=… obs=…`, so you can see
-at a glance whether an event's box came from the drawn silhouette or from the object's bounds, and
-whether visibility was actually measured for it. Older sessions that carry neither print `n/a`.
-⚠ **Those two are copied straight off your labels — they are what the capture recorded about itself.
-This checker does not measure either of them and does not verify them.**
+Every transition also prints the change fraction in a ten-pixel ring around its
+region. `note: whole-region change (lighting/camera?)` helps a person inspect the
+frames. It is diagnostic only and never changes an outcome.
+
+**The local baseline and regional cap limit assessability.** `m_edge` measures
+regional change on the nearest 3–24 valid clean pairs; `tau` is learned separately
+for each edge. Excess regional change produces UNASSESSABLE. The configured cap
+`0.00014` is retained from the earlier experiment. **079-09 recalibration on three
+masked sessions is UNDETERMINED: no eligible cell reached a usable baseline.**
+It is not a newly validated acceptance limit. In the six pinned bench sessions,
+strict per-pair mask coverage left all 64 edges unassessable; their previous
+boundary-mask readings cannot establish current coverage.
+
+Each event prints counts of its runs. The session counts `CONSISTENT`,
+`OFFSET-NOTE`, `NO-TRACE`, `PARTIAL`, `UNASSESSABLE` and `READING` events. A session
+with any NO-TRACE ends `FAIL: NO-TRACE …`; otherwise it ends **`NO FAILURE FOUND
+(c consistent, o offset-notes for human review, p partial, u unassessable,
+r readings)`**. That wording does not certify labels or mean every edge was read.
+An all-bbox session additionally prints **`UNREAD-BBOX-ONLY`**.
+
+Normal exit codes: `0` for no NO-TRACE, `2` for NO-TRACE, `3` when execution cannot
+complete. `--report-only` suppresses only `2`; execution errors remain `3`, also
+in a batch whose other sessions may have produced valid readings.
+
+M3 `observable`, `target_pixels`, and bbox provenance are **the producer's own
+recorded evidence**. The checker copies their provenance into its output; it does
+not independently measure or confirm those fields. Use the overlay in step 5 and
+the source frames for human review when this instrument is unassessable.
 
 ## 4. The dashboard, control by control
 

@@ -6873,3 +6873,59 @@ have refused all 64 pinned-bench edges whose narrow scans are those bounds worki
 question its instrument cannot address, with every one of its own guards satisfied.** The first
 three are about a test that never ran; this one is about a test that ran perfectly on the wrong
 question.
+
+
+### G263 — dated correction, 2026-09-20 (079-09)
+
+The original entry above is retained as history. Its claim that masks provide
+causal attribution or justify label verdicts is withdrawn. **Masks identify the
+pixels, not the cause — no label-correctness verdict; consistency and readings
+only.** Lighting, occlusion and animation can change perfectly identified target
+pixels. An on-label transition is CONSISTENT with a label and does not establish
+cause; an off-label transition is an OFFSET-NOTE for human inspection, not a failure.
+
+The 079-08 accurate-mask lighting fixture makes this concrete: the fault begins
+at 60, the larger lighting step occurs at 61, and labels start at 61. Both selected
+transitions have zero delta, so the fixed 079-09 rule yields CONSISTENT despite the
+known late onset. No threshold or ring diagnostic converts that observation into
+causal evidence. The spec's P1 prediction of OFFSET-NOTE conflicts with its rule;
+the implementation report preserves the disagreement for Chat.
+
+Every pair now uses BOTH actual frame masks, including baseline pairs. This
+withdraws the old entry's claim that the six pinned legs are unaffected: strict
+coverage leaves all 64 edges UNASSESSABLE. No missing clean-frame mask is replaced
+by a boundary snapshot. The three-session scorer retains 572 planned keys, but
+has zero eligible scored cells; v3 cap derivation is UNDETERMINED.
+
+NO-TRACE is the only failing outcome, requiring complete resolved mask/RGB coverage
+of the span plus both windows and no above-threshold target change for an eligible
+producer class. It is a **thresholded** absence, not proof that no pixel changed.
+The retained one-pixel fixture returns NO-TRACE at d=0.0004 < tau=0.004; P6's
+absolute wording therefore also requires a decision. M3 observable flags are
+producer evidence and are not independently verified by this tool.
+
+## G264 — a target transition can serve at most one edge (2026-09-20, 079-09)
+
+**The symptom.** Two short labelled runs share a target. With the second onset
+moved from 15 to 16, the older detector let the first run's end claim frame 15,
+then used that detected frame to clip the second onset's search. The first claim
+hid the evidence needed to discover the second claim was wrong. A bbox-only run
+could also narrow a masked run's window.
+
+**The rule.** Construct all windows from LABELLED frame bounds before examining
+pixels. Within a target, keep masked and bbox-only windows separate. If multiple
+edges select the same transition, invalidate every claimant symmetrically:
+`UNASSESSABLE(transition k claimed by two edges)`. Never let processing order turn
+one claimant into trusted evidence and erase the other's candidate.
+
+The permanent `adjacent_late_second_onset` fixture verifies both competing edges
+are unassessable at k=15; `mixed_late_second_onset` verifies a bbox-only neighbour
+cannot impose masked bounds. This conservative association also loses coverage:
+the exact short-run control is unassessable when both windows select the same
+candidate. It is a reported limitation, not evidence that the labels are wrong.
+
+Sibling of G262: summaries must retain edge/run eligibility. READING and
+UNASSESSABLE runs supply zero scored cells, while a separate unscored ledger keeps
+every immutable planned key visible in the denominator. **Chat review REQUIRED**
+for the specification conflicts and independent review before merge; the next
+checkpoint is the 079-09 implementation report and Claude Code's review.

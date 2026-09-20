@@ -1258,39 +1258,30 @@ python <plugin-repo>\tools\verify_capture.py --label-pixel-gate --report-only --
 ```
 
 🚨 **`--report-only` IS NOT OPTIONAL HERE.** It prints every reading and **suppresses the
-disagreement exit code**, so the step cannot end early before the per-event lines have been read. The
+NO-TRACE exit code**, so the step cannot end early before the per-event lines have been read. The
 exit code is not what this section is collecting; **the lines are.**
 
-> 🔻 **PROSPECTIVE CORRECTION, 2026-09-15 (079-06) — THIS SECTION HAS NOT BEEN RUN SINCE, AND THESE
-> THREE ITEMS WERE STALE BEFORE IT WAS.** The section is otherwise unchanged and is still HELD.
-> **(1)** *"always exits 0"* was never true and is corrected above: `--report-only` suppresses only
-> the **verdict** code (2). A session it **cannot run at all** — no `labels.jsonl`, unreadable frames,
-> no `annotation.json` — still exits **3**, in single-session mode and, since 079-06, in `--all` too.
-> 🔻 **CORRECTED 079-07: an exit of 3 means AT LEAST ONE SESSION COULD NOT RUN — in a batch the
-> others may well have been read, and their lines are on screen.** The earlier wording
-> *"NOTHING WAS READ"* is true only of a single-session run. It is not a failure of the dataset and
-> it is not a pass; read the per-session lines rather than the exit code.
-> **(2)** The header field names in G-3 below are from the pre-079 tool. They now read
-> **`region mode`** (not `masks present`), **`clean-frame pool`** (not `baseline frames`), plus new
-> **`judgeability`**, **`regional change cap`** and **`whole-frame change M_med`** lines.
-> **Transcribe the header block as printed** rather than looking for the old names.
-> **(3)** The verdict vocabulary in G-3 item 3 gained **`PARTIAL`** (some edges of the event read and
-> agreed, others refused — neither a pass nor a failure), and the summary/VERDICT lines now
-> distinguish `PASS (n of N events fully checked)` · `PASS-PARTIAL (…)` · **`UNREAD (0 of N events
-> checked)`** · `FAIL (…)`. **`UNREAD` must be transcribed as loudly as a failure** — it means the
-> instrument read nothing at all.
-> 🆕 **(4) 079-07 — THE MOST LIKELY READING THIS STEP WILL NOW PRODUCE, AND IT IS NOT A VERDICT.**
-> **Verdicts are given only where per-frame masks identify the target's pixels** (M3 datasets and
-> bench captures); without masks the tool prints **`READING`** lines for human review and never a
-> verdict. A box-only session ends **`VERDICT UNREAD-BBOX-ONLY (n events; readings printed)`** at
-> **exit 0**, the summary gains a **`READINGS n`** column, and a FAIL now reads **`labels not
-> confirmed by pixels`** rather than "the labels and the pixels disagree".
-> ⚠ **IF THE M2 CAPTURES CARRY NO `target_mask` FOLDER, THIS STEP CANNOT REACH THE PRE-DECLARED
-> READING AT ALL** — it will print readings and stop. **That is a result, and it is transcribed as
-> one.** Do not read it as a pass, and do not go looking for a switch to make it give a verdict.
-> ⚠ **The pre-declared reading below is UNCHANGED and is NOT being adjusted.** It was written on
-> 2026-09-04 against a different build of this checker; whether it still applies is exactly what a
-> run would decide, and pre-editing it to match a newer tool would be laundering.
+> 🔻 **CURRENT PROSPECTIVE CORRECTION, 2026-09-20 (079-09).** Section G remains
+> **HELD**; this is a tool-reading correction, not an office run or release approval.
+> Transcribe the entire header, run/edge observations, counts and final line as printed.
+> Current outcomes are **CONSISTENT, OFFSET-NOTE, NO-TRACE, PARTIAL, UNASSESSABLE,
+> READING**. No output certifies label correctness. Masks identify pixels, not cause.
+> CONSISTENT does not establish cause; OFFSET-NOTE asks for human inspection at
+> the printed `k-1..k+1` frames and never causes failure. NO-TRACE alone fails: it
+> requires complete resolved masks and RGB coverage over the span and both windows,
+> and establishes no change **above the printed thresholds**, not bitwise equality.
+> The normal final line is **NO FAILURE FOUND (...coverage counts...)**, never PASS.
+> All-bbox sessions additionally print **UNREAD-BBOX-ONLY** and have READING runs.
+> Missing masks within a masked window or unresolved identity remain visible in
+> UNASSESSABLE reasons. The stricter coverage rules left all 64 pinned bench edges
+> unassessable; the legacy cap is retained, and v3 calibration is UNDETERMINED.
+> **`--report-only` suppresses only NO-TRACE code 2.** Code 3 means at least one
+> session could not run; in a batch other sessions may still have been read.
+> M3 visibility flags are the producer's own evidence and are not confirmed here.
+> **The G-3/G-4 predeclared reading below is retained as history, unchanged.**
+> It was written on 2026-09-04 for a different checker and is not a current promise.
+> **Chat review REQUIRED before releasing Section G or merging this verifier.**
+> Next checkpoint: the 079-09 implementation evidence and independent Code review.
 
 ⚠ **PROVE IT CAN FAIL FIRST — one extra command, and it takes seconds:**
 

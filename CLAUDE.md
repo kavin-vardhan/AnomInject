@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **079-09 verifier implementation, 2026-09-20 — NEEDS-DECISION, UNMERGED.**
+> Owner-authorized role swap for this unit: Codex implements, Claude Code independently
+> reviews afterward, Chat orchestrates. Feature `fix/verifier-field-validity` starts at
+> `1cbc07e`; predictions were committed first at `2a38d15`. Read
+> `docs/sessions/2026-09-20-079-09-codex-implementation.md`, then the implementation
+> report `D:/IntrusiveAnomalies/_reviews/079-09-codex-implementation-report.md` and its
+> frozen evidence. CONSISTENT/OFFSET-NOTE describe observations, never label truth;
+> strict per-pair mask coverage leaves all 64 pinned edges unassessable. Calibration
+> on three masked sessions has 572 planned keys, zero eligible scored cells and no
+> derived cap. P1 lighting and P6 below-threshold absence wording conflict with the
+> fixed rules; original predictions remain unchanged. Source/Shaders and
+> measure_label_offset.py are unchanged. No merge, tag, build, capture or mailbox use.
+> Master remains `ac13700`; m51 remains `53bf725` and the original checkout is restored
+> at the completed boundary. Earlier campaign/session claims below are historical.
+> **Chat review REQUIRED** for conflicts, independent Code review and evidence before
+> merge. This is the next mandatory checkpoint; client/Section G and campaign holds remain.
+
 > 🏁🏁 **SESSION 077, 2026-09-04 → RESUMED 2026-09-06 → RULED AND MERGED 2026-09-06 — `m49` IS
 > **COMPLETE (A1 + A2 + PHASE B)** AND ON `master` AS THE MERGE COMMIT **`4a4bfcc`** (pushed), ON TOP
 > OF `m50`. EVERY STACKOBOT GATE AND EVERY LYRA GATE PASSES. **ONE PRE-DECLARED FALSIFIER (`F2`)
