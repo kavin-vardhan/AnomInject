@@ -121,6 +121,27 @@ int32 FAnomalyMaskMeasure::AllocateTag()
 	return 0;
 }
 
+void FAnomalyMaskMeasure::SetArmWindowGate(bool bInGate)
+{
+	bArmWindowGate = bInGate;
+}
+
+void FAnomalyMaskMeasure::ClearLabelledThisTick()
+{
+	for (FAnomalyMaskRecord& R : Records)
+	{
+		R.bLabelledThisTick = false;
+	}
+}
+
+void FAnomalyMaskMeasure::SetRecordLabelledThisTick(FName Id, const FString& Target, uint64 StartFrame, bool bLabelled)
+{
+	if (FAnomalyMaskRecord* R = FindRecord(Id, Target, StartFrame))
+	{
+		R->bLabelledThisTick = bLabelled;
+	}
+}
+
 FAnomalyMaskRecord* FAnomalyMaskMeasure::FindRecord(FName Id, const FString& Target, uint64 StartFrame)
 {
 	return Records.FindByPredicate([&](const FAnomalyMaskRecord& R)
@@ -268,6 +289,27 @@ bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, u
 		}
 		if (R.bKnownUnmeasurable || R.Tag == 0)
 		{
+			continue;
+		}
+		if (bArmWindowGate && R.bAwaitLabelled && !R.bLabelledThisTick)
+		{
+			++R.ArmsDeferred;
+			if (R.ArmsDeferred == 1)
+			{
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(mask): M26 ARM-DEFERRED target=%s id=%s tag=%d startFrame=%llu tick=%llu - this ")
+					TEXT("anomaly has a DEFERRED ONSET, so its labelled window has not opened yet and no arm is ")
+					TEXT("issued on this tick. The %d-arm budget is NOT consumed here; it starts at the first ")
+					TEXT("LABELLED tick. Before this gate the whole budget was spent on the four ticks after the ")
+					TEXT("record was created, which for a deferred-onset anomaly is ENTIRELY PRE-ROLL - so the m26 ")
+					TEXT("veto decided whether to delete an event using frames that were, by construction, not the ")
+					TEXT("event's frames. This line is logged ONCE per record; the total is reported as ")
+					TEXT("armsDeferred on the M26S1 EVENT and M26 VETO-READ lines. It does NOT claim any past zero ")
+					TEXT("was wrong (080-05 section 5: that mechanism is NOT ESTABLISHED) - it makes the evidence ")
+					TEXT("come from the right frames. IAI.Bench.VetoArmUngated 1 restores the ungated arm."),
+					*R.Target, *R.Id.ToString(), (int32)R.Tag, R.StartFrame, (uint64)GFrameCounter,
+					MaxArmsPerEvent);
+			}
 			continue;
 		}
 
@@ -541,6 +583,34 @@ void FAnomalyMaskMeasure::CollectResults(FAnomalyMaskSceneViewExtension* Sve)
 			Count = Found->Count;
 		}
 
+		{
+			TArray<uint8> PresentTags;
+			Mask.TagResults.GetKeys(PresentTags);
+			PresentTags.Sort();
+			FString Table;
+			for (uint8 T : PresentTags)
+			{
+				const FAnomalyMaskTagResult& Entry = Mask.TagResults[T];
+				Table += FString::Printf(TEXT("%s%d:%d"), Table.IsEmpty() ? TEXT("") : TEXT(" "),
+					(int32)T, Entry.Count);
+			}
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(mask): M26 REDUCE-TABLE id=%llu target=%s tag=%d ourCount=%d present=%d ")
+				TEXT("totalMasked=%d table=[%s] - the CONTENTS of the per-tag reduce this contributing frame ")
+				TEXT("produced, which is the datum the m26 veto reads and which NOTHING logged before now. ")
+				TEXT("080-05 section 5 excluded five candidates for a MEASURED_ZERO on an actor that read 32,534 ")
+				TEXT("pixels 50 ticks earlier and could not go further, because no line anywhere said which tags ")
+				TEXT("the reduce actually contained. It is emitted on EVERY contributing frame, not only on ")
+				TEXT("zeros, DELIBERATELY: that comparison was a NONZERO event against a ZERO event on the same ")
+				TEXT("actor, and a zero-only log supplies one half of it. ourCount=0 with our tag ABSENT from the ")
+				TEXT("table and other tags PRESENT means the pass ran and produced for others but not for this ")
+				TEXT("target; ourCount=0 with the table EMPTY means the reduce produced nothing at all. NO CAUSE ")
+				TEXT("IS CLAIMED HERE - this line is evidence, not a verdict."),
+				RequestId, *R.Target, (int32)R.Tag, Count, PresentTags.Num(),
+				Mask.TotalMaskedPixels, *Table);
+		}
+
+		R.PerArmCounts.Add(Count);
 		++R.FramesContributed;
 		R.MaxCount = FMath::Max(R.MaxCount, Count);
 		R.State = (R.MaxCount > 0) ? EAnomalyMaskState::MeasuredNonZero : EAnomalyMaskState::MeasuredZero;

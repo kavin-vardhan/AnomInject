@@ -891,6 +891,7 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 	const bool bCapturedThisTick = bTargetMaskEffective && (TargetMaskArmedTick == GFrameCounter)
 		&& (TargetMaskArmedSessionIndex >= 0);
 	const int32 OwnershipSessionIndex = bCapturedThisTick ? TargetMaskArmedSessionIndex : -1;
+	UpdateMaskRecordLabelledWindow();
 	const bool bArmedNormal = Async->MaskMeasure.ArmIfMeasurable(Async->MaskExtension.Get(), GFrameCounter, false);
 
 	if (bCapturedThisTick)
@@ -1093,9 +1094,34 @@ void UAnomalyCaptureSubsystem::EnsureMaskRecordsForCapturedFrame()
 	{
 		return;
 	}
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
 	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
 	{
-		Async->MaskMeasure.FindOrAddRecord(F.Id, F.Target, F.StartFrame, const_cast<AActor*>(F.TargetActor.Get()));
+		FAnomalyMaskRecord* Rec =
+			Async->MaskMeasure.FindOrAddRecord(F.Id, F.Target, F.StartFrame, const_cast<AActor*>(F.TargetActor.Get()));
+		if (Rec)
+		{
+			Rec->bAwaitLabelled = Injector && Injector->DoesAnomalyHaveDeferredOnset(F.Id);
+		}
+	}
+}
+
+void UAnomalyCaptureSubsystem::UpdateMaskRecordLabelledWindow()
+{
+	if (!Async.IsValid() || !bMaskMeasure)
+	{
+		return;
+	}
+	Async->MaskMeasure.ClearLabelledThisTick();
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	if (!Auto)
+	{
+		return;
+	}
+	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+	{
+		Async->MaskMeasure.SetRecordLabelledThisTick(F.Id, F.Target, F.StartFrame, IsFireLabelledThisFrame(F));
 	}
 }
 
@@ -1672,6 +1698,27 @@ void UAnomalyCaptureSubsystem::SetBenchMaskPairingProbe(bool bInOn)
 		TEXT("probe tag is compared against it. If the mask shows the PREVIOUS tick's position, the mask ")
 		TEXT("arm is being served by the previous render. NEVER ship a capture taken with this ON."),
 		bBenchMaskPairingProbe ? TEXT("ON") : TEXT("OFF"));
+}
+
+void UAnomalyCaptureSubsystem::SetBenchVetoArmUngated(bool bInUngated)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Bench.VetoArmUngated: ignored - a capture run is in progress."));
+		return;
+	}
+	bBenchVetoArmUngated = bInUngated;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.VetoArmUngated -> %s. BENCH DEVICE, console only, no ini key, never in a client ")
+		TEXT("payload. OFF (the default) means a DEFERRED-ONSET record is armed only on ticks inside its ")
+		TEXT("LABELLED window, so the m26 veto's evidence comes from the frames the event actually claims. ")
+		TEXT("ON restores the pre-fix ungated arm EXACTLY - the whole 4-arm budget is spent on the four ticks ")
+		TEXT("after the record is created, which for a deferred-onset anomaly is entirely PRE-ROLL. It exists ")
+		TEXT("so the gated leg can FAIL (G96): without it, 'every arm lies inside injected_frames' is ")
+		TEXT("unfalsifiable. It changes NOTHING for any other anomaly, because bAwaitLabelled is set from ")
+		TEXT("HasDeferredOnset() and stuck_low_mip is the only anomaly that overrides it. NEVER ship a ")
+		TEXT("capture taken with this ON."),
+		bBenchVetoArmUngated ? TEXT("ON (UNGATED - pre-fix behaviour)") : TEXT("off (gated on the labelled window)"));
 }
 
 void UAnomalyCaptureSubsystem::SpawnMaskPairingProbe()
@@ -3162,6 +3209,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		}
 		AnomalyStencilTag::SnapshotCustomDepthEnabled(World, Async->PreRunStencilSnapshot);
 		Async->MaskMeasure.BeginRun(&Async->TagLedger);
+		Async->MaskMeasure.SetArmWindowGate(!bBenchVetoArmUngated);
 		bMaskProbeFiredThisRun = false;
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(mask): m26 SLICES 1+2+3 ACTIVE - MEASURE, REPORT AND VETO. annotation.json's ")
@@ -3563,6 +3611,19 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		TEXT("stream-in is re-asserted before the shortfall is COUNTED AND NAMED. Both are EFFECTIVE READ-BACKS, not ")
 		TEXT("the values requested."),
 		DeferredOnsetTimeoutFrames, *AnomalyDefaults::DescribeStuckMipRestoreTimeout());
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m52): VETO ARM WINDOW = %s. EFFECTIVE READ-BACK, not the value requested. A ")
+		TEXT("deferred-onset anomaly's labelled window opens only once its hold is measurably down, so with ")
+		TEXT("the gate OFF the m26 veto's entire %d-arm budget lands in the PRE-ROLL and the veto judges an ")
+		TEXT("event on frames that are not the event's frames. The gate is scoped by HasDeferredOnset() and ")
+		TEXT("stuck_low_mip is the only anomaly that overrides it, so every other anomaly is byte-unchanged. ")
+		TEXT("It does NOT claim any past MEASURED_ZERO was wrong; that mechanism is NOT ESTABLISHED ")
+		TEXT("(080-05 section 5)."),
+		bBenchVetoArmUngated
+			? TEXT("UNGATED (IAI.Bench.VetoArmUngated 1 - BENCH LEVER, pre-fix behaviour)")
+			: TEXT("gated on the LABELLED window (compiled default)"),
+		FAnomalyMaskMeasure::MaxArmsPerEvent);
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(bench): m40 SYNTH TICK ORDER = %s (compiled default off). When ON, the injector's anomaly ")
@@ -5116,12 +5177,42 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			for (int32 i = Async->SessionEvents.Num() - 1; i >= 0; --i)
 			{
 				const FSessionEventAccum& Ev = Async->SessionEvents[i];
-				if (!AccumEventManifested(Ev))
+				const bool bManifested = AccumEventManifested(Ev);
+				const FAnomalyMaskRecord* Rec =
+					Async->MaskMeasure.FindRecord(Ev.Id, Ev.Target, Ev.StartFrame);
+
+				FString ArmCounts;
+				if (Rec)
+				{
+					for (int32 c : Rec->PerArmCounts)
+					{
+						ArmCounts += FString::Printf(TEXT("%s%d"), ArmCounts.IsEmpty() ? TEXT("") : TEXT(","), c);
+					}
+				}
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(mask): M26 VETO-READ id=%s target=%s startFrame=%llu manifested=%d record=%d ")
+					TEXT("tag=%d state=%s arms=%d resolved=%d contributed=%d armsDeferred=%d awaitLabelled=%d ")
+					TEXT("maxCount=%d counts=[%s] vetoes=%d - the numbers the m26 veto decides on, printed for ")
+					TEXT("EVERY event and not only for removed ones, because the comparison that matters is a ")
+					TEXT("zero against a non-zero on the same actor. counts is this tag's count on each ")
+					TEXT("CONTRIBUTING frame in order; maxCount is their MAX and is the only value the rule reads. ")
+					TEXT("The veto is ZERO-ONLY: it fires iff the event is manifested AND its state is ")
+					TEXT("MEASURED_ZERO. There is no ratio and no threshold. armsDeferred counts ticks on which ")
+					TEXT("the labelled window was not open and no arm was issued - it is a DIAGNOSTIC and gates ")
+					TEXT("nothing. record=0 means no mask record exists for this event at all, which is ")
+					TEXT("NOT_MEASURED and ADMITS."),
+					*Ev.Id.ToString(), *Ev.Target, Ev.StartFrame, bManifested ? 1 : 0, Rec ? 1 : 0,
+					Rec ? (int32)Rec->Tag : 0,
+					Rec ? LexToStringAnomalyMaskState(Rec->State) : TEXT("NO_RECORD"),
+					Rec ? Rec->ArmsIssued : 0, Rec ? Rec->ArmsResolved : 0, Rec ? Rec->FramesContributed : 0,
+					Rec ? Rec->ArmsDeferred : 0, (Rec && Rec->bAwaitLabelled) ? 1 : 0,
+					Rec ? Rec->MaxCount : 0, *ArmCounts,
+					(bManifested && Rec && MaskStateVetoes(Rec->State)) ? 1 : 0);
+
+				if (!bManifested)
 				{
 					continue;
 				}
-				const FAnomalyMaskRecord* Rec =
-					Async->MaskMeasure.FindRecord(Ev.Id, Ev.Target, Ev.StartFrame);
 				if (!Rec || !MaskStateVetoes(Rec->State))
 				{
 					continue;
@@ -5530,7 +5621,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				TEXT("Capture(mask): M26S1 EVENT id=%s target=%s startFrame=%llu tag=%d state=%s ")
 				TEXT("maxCount=%d viewportPx=%d pctOfFrame=%.4f arms=%d resolved=%d framesDiscarded=%d ")
 				TEXT("framesResidual=%d framesUnconfirmed=%d framesNoPass=%d framesContributed=%d probeArms=%d ")
-				TEXT("skippedHidden=%d collisions=%d tagFailed=%d%s%s"),
+				TEXT("skippedHidden=%d collisions=%d tagFailed=%d armsDeferred=%d awaitLabelled=%d%s%s"),
 				*R.Id.ToString(), *R.Target, R.StartFrame, (int32)R.Tag,
 				LexToStringAnomalyMaskState(R.State),
 				R.MaxCount, R.ViewportPixels, PctOfFrame,
@@ -5539,6 +5630,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				R.FramesContributed, R.ProbeArms,
 				R.SkippedHidden,
 				R.CollisionHits, R.bTagFailed ? 1 : 0,
+				R.ArmsDeferred, R.bAwaitLabelled ? 1 : 0,
 				R.FirstCollisionDetail.IsEmpty() ? TEXT("") : TEXT(" detail="),
 				*R.FirstCollisionDetail);
 
@@ -6956,6 +7048,31 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchTagPoolLimitCmd(
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
 			{
 				Cap->SetBenchTagPoolLimit(FCString::Atoi(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchVetoArmUngatedCmd(
+	TEXT("IAI.Bench.VetoArmUngated"),
+	TEXT("BENCH DEVICE, default 0 (OFF = gated), console only - no ini key, never in a client payload. ")
+	TEXT("OFF, a DEFERRED-ONSET record is armed for the m26 veto only on ticks inside its LABELLED window. ")
+	TEXT("ON restores the pre-fix ungated arm EXACTLY: the whole 4-arm budget is spent on the four ticks ")
+	TEXT("after the record is created, which for a deferred-onset anomaly is entirely PRE-ROLL (measured ")
+	TEXT("19-22 captured frames), so the veto judges an event on frames that are not the event's frames. ")
+	TEXT("Its job is to make the gated leg able to FAIL (G96) - without it, 'every arm lies inside ")
+	TEXT("injected_frames' is unfalsifiable. It is byte-inert for every anomaly that is not deferred-onset, ")
+	TEXT("and stuck_low_mip is the only one. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Bench.VetoArmUngated <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.VetoArmUngated <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchVetoArmUngated(FCString::Atoi(*Args[0]) != 0);
 			}
 		}));
 
