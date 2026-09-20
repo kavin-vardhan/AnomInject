@@ -1261,7 +1261,7 @@ python <plugin-repo>\tools\verify_capture.py --label-pixel-gate --report-only --
 NO-TRACE exit code**, so the step cannot end early before the per-event lines have been read. The
 exit code is not what this section is collecting; **the lines are.**
 
-> 🔻 **CURRENT PROSPECTIVE CORRECTION, 2026-09-20 (079-10).** Section G remains
+> 🔻 **CURRENT PROSPECTIVE CORRECTION, 2026-09-20 (079-12).** Section G remains
 > **HELD**; the verifier delta does not authorize an office run or release.
 > Transcribe all header, run/edge, event-count and run-coverage lines as printed.
 > Outcomes are CONSISTENT, OFFSET-NOTE, NO-TRACE, PARTIAL, UNASSESSABLE, READING.
@@ -1277,11 +1277,19 @@ exit code is not what this section is collecting; **the lines are.**
 > extrapolated edge pairs are permitted and explicitly tagged. It does not mean
 > bitwise equality. Producer class and M3 visibility flags remain producer evidence.
 > Events take the worst assessable RUN outcome; unread/READING runs remain in
-> coverage numbers and cannot promote an event through their edges. Short-run
-> ambiguity/duplicate-claim coverage losses remain accepted and printed.
+> coverage numbers and cannot promote an event through their edges. Each edge
+> now takes its nearest unused local peak in labelled order within target/mode.
+> Preserve `other peaks in window` and run `assignment` disclosures. All peaks
+> already used means UNASSESSABLE; no local peak means NO-TRANSITION, which can
+> still contain above-tau changes and cannot alone establish NO-TRACE. The walk
+> ensures unique assignments, not cause or increasing frames across different
+> regions. Missing transitions can cause later peaks to be assigned early.
 > `--report-only` suppresses only code2; execution errors still return3. The
 > non-failing final line is NO FAILURE FOUND with counts, never label approval;
 > all-bbox sessions also print UNREAD-BBOX-ONLY. Read the actual cap provenance.
+> 079-12 derives **NO ADMISSIBLE ENVELOPE** from wrong recoveries at a zero baseline
+> median. The default refuses every otherwise-assessable edge; zero scored cells
+> do not validate the instrument. Earlier-cap diagnostic readings are separate.
 > **The historical G-3/G-4 predeclared reading below is retained unchanged.**
 > **Chat review REQUIRED** for completed evidence and independent review before
 > merge or releasing Section G. That is the next mandatory checkpoint.

@@ -6964,3 +6964,46 @@ CONSISTENT sibling can determine the event token, while separate run coverage
 preserves the unread run. The original predictions and 079-09 evidence above
 remain unchanged history. **Chat review REQUIRED** for the completed delta and
 independent review before merge; no client or campaign gate is released.
+
+
+### G264 — third dated correction: local peaks and ordered nearest assignment (2026-09-20, 079-12)
+
+079-12 withdraws 079-11's gap-only proposal and explicitly replaces the old
+global single-winner/dominance and duplicate-claim refusals. Within the existing
+inclusive labelled window, a peak must exceed tau and be at least 1.5 times
+both neighbours (outside the observed window counts as zero). Walk all labelled
+edges in each target/mode group, nearest unused peak first, ties earlier. Input,
+identity, baseline, cap and coverage refusals still take precedence. Bbox and
+mask groups remain separate. Print alternative peaks and multi-peak assignments.
+
+**Exclusion guarantees uniqueness, not temporal monotonicity in general.** If an
+earlier edge's region admits only15 and a later edge's region admits only12,
+the prescribed walk can assign15 then12 in windows[10..15] and[12..17]. The
+contract test preserves that exact reading for separate runs10..11 and15..16: the
+ruling explicitly forbids adding a separate ordering constraint. Do not describe
+an assigned peak as the independently established cause of a labelled edge.
+
+**An absent transition can consume a later run's peak.** With labels4..5/8..9
+and only peaks4/8/10, the ruled walk assigns4/8/10/none: A OFFSET-NOTE, B PARTIAL.
+The supplied A PARTIAL/B CONSISTENT prediction conflicts with the algorithm.
+AMENDMENT 2 disclosed that conflict before implementation; the test/report retain
+it rather than reserving a future nominal peak without authorization.
+
+**Adjacent changes can fail local-peak membership even when both exceed tau.**
+M49_GEDGE_BL_SYN's one-frame second runs have nearly equal adjacent changes;
+neither is 1.5 times the other. Their onset has only an already-consumed earlier
+peak and refuses; their end has no local peak. The events are PARTIAL. The natural
+blink leg is CONSISTENT. This P2-prime miss is not grounds to tune the ratio.
+NO-TRANSITION now means no qualifying local peak, not no above-tau change.
+The whole-span/window above-tau check still prevents a false NO-TRACE.
+
+The full 079-12 report records all changed fixture expectations and the new
+calibration. Wrong recovery cells occur even at baseline median0, so the unchanged
+calibration rule now derives NO ADMISSIBLE ENVELOPE. The final default refuses
+all otherwise-assessable edges. Old-cap readings remain diagnostic; a guard-on
+table with zero wrong AND zero scored cells provides no recovery validation.
+Earlier paragraphs above are historical where superseded.
+**Chat review NOT REQUIRED** for this authorized implementation and push.
+**Chat review REQUIRED** for the P2-prime miss, prediction/monotonicity conflicts,
+completed evidence and independent Code review before merge; that is the next
+mandatory checkpoint. Section G, client, campaign and release holds remain.

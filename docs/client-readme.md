@@ -164,15 +164,16 @@ individual observations as well as the last line.
 
 **Every run has an onset and an end observation:**
 
-- `TRANSITION k d=… tau=… label s delta=…`: the largest above-threshold, dominant
-  change was at frame `k`; `delta` is `k − s`. `d` is the fraction of region pixels
+- `TRANSITION k d=… tau=… label s delta=…`: the nearest available local peak
+  was at frame `k`; `delta` is `k − s`. `d` is the fraction of region pixels
   with a change greater than the configured pixel threshold in any RGB channel.
-- `NO-TRANSITION [a..b]`: every pair in this window was observed, and none exceeded
-  that edge's learned threshold `tau`.
-- `UNASSESSABLE(reason)`: the observation was unavailable or ambiguous. The line
+- `NO-TRANSITION [a..b]`: every pair in this window was observed, and none qualified
+  as a local peak. Above-threshold changes can exist without a local peak; the
+  separate whole-span check must still pass before a run can report NO-TRACE.
+- `UNASSESSABLE(reason)`: the observation was unavailable. The line
   says why: missing RGB or masks, an absent mask ID, too little baseline evidence,
   excessive regional change, an unsatisfiable threshold, an oversized region, or
-  competing transitions. Missing observations are never evidence of absence.
+  peaks already assigned to earlier edges. Missing observations are never evidence of absence.
 
 There is **no verdict at an edge**. Runs are summarised as follows:
 
@@ -227,11 +228,20 @@ may trigger the bounded fallback. ID 0/unresolved may use a sole value, visibly
 tagged, but cannot support NO-TRACE. NO-TRACE is permitted with extrapolated edge
 pairs and explicitly says `edge pairs use extrapolated masks` when that occurs.
 
-Search windows remain bounded by labelled frames, inclusively. A transition
-claimed by two edges invalidates both. Bbox-only runs do not constrain masked
-runs. **Short runs can therefore remain unassessable even with complete regions:**
-one transition may be selected by several overlapping edge windows. This accepted
-coverage cost is printed in the header and was measured on both pinned blink legs.
+Search windows remain bounded by labelled frames, inclusively. A local peak must
+exceed `tau` and be at least 1.5 times each immediately neighbouring pair's change;
+neighbours outside the window count as zero. For each target and mode, edges in
+labelled order take the nearest peak that an earlier edge has not used; ties go
+to the earlier frame. Bbox-only runs do not constrain masked runs. A window whose
+peaks were all used reports UNASSESSABLE with those frame numbers. A selected
+transition lists its other available peaks, and a run with any multi-peak window
+prints `assignment: onset … (nearest of {…}), end … (nearest of {…})`.
+
+This ordered walk prevents duplicate assignments but does not establish cause
+or guarantee increasing assigned frames when different regions admit different
+peaks. A missing transition can make an earlier edge take a later run's peak;
+adjacent equal changes may suppress each other as peaks. Inspect the disclosed
+candidates and frame neighbourhoods when an association is in doubt.
 
 Every transition also prints the change fraction in a ten-pixel ring around its
 region. `note: whole-region change (lighting/camera?)` helps a person inspect the
@@ -244,6 +254,12 @@ the current cap and its three-session calibration result; the fixed denominator
 includes every planned perturbation key, including keys excluded by run eligibility.
 A numeric cap of zero still admits a perfectly still region. `NO ADMISSIBLE
 ENVELOPE` is a separate state that refuses every edge, not another spelling of zero.
+
+The 079-12 calibration found wrong recovery readings even at a zero baseline
+median, so its default is **NO ADMISSIBLE ENVELOPE**. Default reports currently
+provide no assessable masked edges. A zero-error guard-on table with zero scored
+cells is a coverage failure, not validation. The report preserves the previous-cap
+readings separately for diagnosing the assignment rule; Section G remains held.
 
 Events now use **run outcomes only**, taking the worst of NO-TRACE, OFFSET-NOTE,
 PARTIAL, CONSISTENT in that order. UNASSESSABLE and READING runs contribute coverage

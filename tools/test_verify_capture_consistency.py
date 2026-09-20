@@ -1,4 +1,4 @@
-"""079-09/10 batch, per-pair region and boundary-mask regressions.
+"""079-09/10/12 batch, region, boundary-mask and peak-assignment regressions.
 
 The batch preflight is stubbed here because the complete image-fixture selftest is
 run separately; batch tests exercise real sessions, report files and exit codes.
@@ -148,6 +148,109 @@ class ConsistencyContracts(unittest.TestCase):
         code, _lines = vc.label_pixel_gate(str(source), 8, 4, 1, region_cap=1.0, out_detail=detail)
         self.assertEqual(code, 0)
         self.assertEqual([e["run_outcome"] for e in detail], [vc.R_CONSISTENT, vc.R_CONSISTENT])
+
+
+class PeakAssignmentContracts(unittest.TestCase):
+    class Signal:
+        """Known per-pair readings isolate assignment from PNG/identity mechanics."""
+        mode = "mask"
+
+        def __init__(self, values, missing=()):
+            self.values, self.missing = values, missing
+            self.mlo = vc._offset_module()
+
+        def pair(self, k):
+            return {"d": self.values.get(k, 0.0), "error": "missing pair" if k in self.missing else None,
+                    "unresolved": False, "mask_extrapolations": [],
+                    "region": {"source": "known region", "npix": 100}}
+
+        def ring(self, k, _region):
+            return k / 100.0
+
+    def run_record(self, start, end, values, node="target", mode="mask", event=0, missing=()):
+        signal = self.Signal(values, missing)
+        signal.mode = mode
+        return {"start": start, "end": end, "node": node, "mode": mode, "event": event,
+                "ordinal": 0, "type": "blinking", "signal": signal, "edges": []}
+
+    def observe(self, runs, **kwargs):
+        vc._observe_windows(runs, 0, 100, 4, list(range(70, 94)),
+                            kwargs.get("cap", 1.0), kwargs.get("refuse_all", False))
+
+    def test_local_peak_ratio_threshold_and_observed_endpoints(self):
+        def peaks(values):
+            return vc._local_peaks(list(enumerate({"d": d} for d in values)), 0.004)
+        self.assertEqual(peaks([0.004, 0, 0.75, 0.5, 0, 0.2, 0.2]), [2])
+        self.assertEqual(peaks([0.5, 0, 0.75]), [0, 2])
+        self.assertEqual(peaks([0.5, 0.5]), [])
+
+    def test_nearest_tie_chooses_earlier_even_when_later_peak_is_stronger(self):
+        run = self.run_record(12, 19, {10: 0.5, 14: 1.0, 20: 0.5})
+        self.observe([run])
+        onset = run["edges"][0]
+        self.assertEqual(onset["best_k"], 10)
+        self.assertEqual(onset["available_peaks"], [10, 14])
+        self.assertEqual(onset["other_peaks"], [14])
+        self.assertEqual(onset["best_d"], 0.5)
+        self.assertEqual(onset["ring_d"], 0.1)
+        self.assertIn("other peaks in window: 14", vc._edge_line(onset))
+
+    def test_consumed_peak_is_unassessable_and_absence_is_no_transition(self):
+        run = self.run_record(10, 11, {11: 0.5})
+        empty = self.run_record(10, 11, {}, node="other")
+        self.observe([run, empty])
+        self.assertEqual([e["best_k"] for e in run["edges"]], [11, None])
+        self.assertEqual(run["edges"][1]["reason"],
+                         "all peaks in window assigned to earlier edges: 11")
+        self.assertEqual(run["edges"][1]["consumed_peaks"], [11])
+        self.assertEqual([e["observation"] for e in empty["edges"]], [vc.O_NONE] * 2)
+
+    def test_grouping_isolates_target_and_mode(self):
+        runs = [self.run_record(10, 11, {11: 0.5}, node=node, mode=mode)
+                for node, mode in (("a", "mask"), ("b", "mask"), ("a", "bbox"))]
+        self.observe(runs)
+        self.assertEqual([r["edges"][0]["best_k"] for r in runs], [11, 11, 11])
+
+    def test_missing_or_truncated_edge_does_not_consume_a_peak(self):
+        missing = self.run_record(10, 11, {11: 0.5}, missing=(9,))
+        truncated = self.run_record(0, 0, {1: 0.5}, node="other")
+        self.observe([missing, truncated])
+        for run, chosen, reason in ((missing, 11, "missing pair"),
+                                     (truncated, 1, "edge truncated by the session boundary")):
+            self.assertEqual(run["edges"][0]["reason"], reason)
+            self.assertEqual(run["edges"][1]["best_k"], chosen)
+
+    def test_refusal_cap_precedes_assignment(self):
+        run = self.run_record(10, 11, {10: 0.5, 12: 0.5})
+        self.observe([run], refuse_all=True)
+        self.assertTrue(all(e["reason"] == vc.NO_ADMISSIBLE_ENVELOPE for e in run["edges"]))
+        self.assertTrue(all(e["best_k"] is None and not e["available_peaks"] for e in run["edges"]))
+
+    def test_all_runs_follow_label_order_not_input_or_event_order(self):
+        values = {4: 0.5, 6: 0.5, 8: 0.5, 10: 0.5}
+        early = self.run_record(4, 5, values, event=9)
+        late = self.run_record(8, 9, values, event=0)
+        self.observe([late, early])
+        self.assertEqual([e["best_k"] for r in (early, late) for e in r["edges"]], [4, 6, 8, 10])
+
+    def test_tied_label_onset_precedes_end_and_single_frame_onset_goes_first(self):
+        single = self.run_record(10, 10, {10: 0.5}, node="other")
+        # A missing earlier input leaves10 free for the tied onset/end labels.
+        early = self.run_record(8, 9, {10: 0.5}, event=0, missing=(5,))
+        late = self.run_record(10, 11, {10: 0.5}, event=9)
+        self.observe([early, late, single])
+        self.assertEqual(late["edges"][0]["best_k"], 10)
+        self.assertIn("assigned to earlier edges", early["edges"][1]["reason"])
+        self.assertEqual([e["best_k"] for e in single["edges"]], [10, None])
+
+    def test_exclusion_does_not_impose_unrequested_monotonic_floor(self):
+        # Different per-run regions may admit different peaks. The specified
+        # greedy walk guarantees uniqueness, not globally increasing assignments.
+        early = self.run_record(10, 11, {15: 0.5})
+        late = self.run_record(15, 16, {12: 0.5}, event=1)
+        self.observe([late, early])
+        self.assertEqual(early["edges"][1]["best_k"], 15)
+        self.assertEqual(late["edges"][0]["best_k"], 12)
 
 
 if __name__ == "__main__":
