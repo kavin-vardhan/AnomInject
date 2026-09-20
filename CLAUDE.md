@@ -11,6 +11,92 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🏁🏁 **SESSION 080-06, 2026-09-20 — THE `m26` VETO'S ARMS ARE GATED ON THE LABELLED WINDOW AND
+> THE REDUCE TABLE IS LOGGED. MERGED TO `master`, PUSHED, NO TAG. THIS IS THE CURRENT "YOU ARE
+> HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+>
+> **Cold start: `docs/sessions/2026-09-20-080-06-m52-veto-arm-window.md` — self-contained: §2 the
+> change, §3 the predictions (written and committed BEFORE the code), §4 the results, **§4.2 a
+> checker defect of mine**, **§4.3 the zero that is now readable**, §4.4 what is still open — then
+> `docs/sessions/2026-09-20-080-05-m52-merge-and-veto-diagnosis.md` §4–§6 (the diagnosis this
+> implements), then the 080-05 block below.** ⛔ **No tag · no cook · no artifact field · no default
+> flipped · no `IAnomaly` change.** `m51` **`53bf725` UNTOUCHED**, its `CLAUDE.md` divergence still
+> unresolved.
+>
+> 🎯 **THE DEFECT, AND IT WAS `R1`'s OWN:** `ArmIfMeasurable` was called every tick-end and armed the
+> first eligible record, so an event's whole **4-arm** budget was spent on the four ticks after its
+> record was created. A **deferred-onset** anomaly's labelled window opens only once its hold is
+> measurably down — **measured 19–22 captured frames later** — so **100 % of the veto's evidence came
+> from frames on which the anomaly had not engaged**, while `m49`'s per-row `target_pixels` came from
+> frames on which it had. ⇒ **the veto deleted events using frames that were, by construction, not
+> the event's frames.** A record now carries `bAwaitLabelled` (from `DoesAnomalyHaveDeferredOnset`)
+> and `bLabelledThisTick` (from the **same** `IsFireLabelledThisFrame` the label snapshot uses), and
+> the arm is skipped outside the window. 🔑 **`ArmsIssued` only increments on a real arm, so the skip
+> IS the deferral** — no budget arithmetic. ⚠ **Gated at BOTH ends on purpose:** a fire that has
+> ENDED is not labelled either, so leftover budget cannot be spent on a **restored** object.
+> **Scoped to `stuck_low_mip` by construction** — `HasDeferredOnset()` is overridden in exactly one
+> place.
+>
+> 🧪 **GATES ALL GREEN.** Both targets **exit 0, ZERO warnings** · `A44` both encodings with two
+> pre-existing controls non-zero (**sound, not blind**) · **`G-A` `blinking` 116 fields, `G-B`
+> `lod_popping` 158 fields: the cross-binary difference set is a strict SUBSET of a same-binary
+> CONTROL PAIR, `EXTRAS 0`** (`G-B` reads **0 differences either way**) · **`G-C` arm window
+> `INSIDE 24 · OUTSIDE 0 · UNJOINED 0`** · veto-vs-rows **0 contradicting `m49`** · verifier
+> **`NO-TRACE 0`, exit 0** after a **98-case** selftest · **`G-E` identical in the SYNTH tick order**
+> · `P6` **NOT MOVED** (annotation 4/16 keys, `run_summary` 86, identical across binaries) ·
+> contracts **25/25**.
+> 🚨 **`G-D` CAN-FAIL FIRED: with `IAI.Bench.VetoArmUngated 1` the pre-roll arm set REAPPEARS —
+> `INSIDE 0 · OUTSIDE 14 · UNJOINED 14`.** Same record: ungated arms at ticks **21–24**, gated at
+> **42–45 = si 35–38**, which are **the first four frames of its own labelled window**
+> (`onset_latency_frames: 20`).
+>
+> 🎯 **THE ZERO 080-05 COULD NOT READ IS NOW READABLE, AND IT AGREES WITH `m49`.** `M26 REDUCE-TABLE`
+> prints the per-tag reduce contents on **every contributing frame**; on the one vetoed event
+> (`BP_SpawnPad_C`, tag 209) it reads **`ourCount=0 present=5 totalMasked=66839 table=[200:4 201:327
+> 202:32430 203:24091 207:9987]`** against a passing event's **`210:34388`** ⇒ **the pass RAN and
+> produced for five other values; our tag is simply not in the table.** `TAG-OWNERS` shows the actor
+> carrying 209 **uncontested** (`shared=0`) with `taggedComponents=2` **stable on all four arms**.
+> 🔑 **And `m49`'s rows on those same seven labelled frames read `target_pixels [0,0,0,0,0,0,0]` —
+> the veto's zero is CORROBORATED, not contradicted.** 080-05's *"two measurements of different
+> frames"* is now one measurement both instruments agree on.
+> ⛔ **NO CAUSE CLAIMED (`G120`).** Recorded instead: of **9** assigned values live on those frames,
+> only **5** appear — **204, 205, 206 and 209 are ALL absent**, so three census-tagged actors are
+> equally missing and `BP_SpawnPad_C` is one of four. ⚠ **080-05's `taggedComponents` churn lead
+> (3,3,2,2) is WEAKENED, not refuted** — here it is a stable `2,2,2,2` and the zero happens anyway.
+> ⚠ **PREDICTED IN ADVANCE AND CORRECT: the fix did NOT eliminate the zero and was never going to.**
+> One event is still vetoed; what changed is that it is now interpretable.
+>
+> 🚨 **A CHECKER DEFECT OF MINE, CAUGHT BEFORE ITS VERDICT WAS READ (§4.2, third instance of
+> `G142`/`G243`).** The first run read **`OUTSIDE=4`** and would have been reported as a product RED.
+> **A VETOED event is removed from `annotation.json` BEFORE it is written**, so the one event the
+> gate is about was the one it could not judge. Fixed by changing the window **SOURCE** — `labels.jsonl`
+> is written in a delivery-OFF leg and the veto does not retro-edit it (`L3`) — **still the LABEL
+> path, not the arm path** — and **that route was proved against the known answer first (`A53`):
+> `{si : held}` == `injected_frames` EXACTLY on 5 of 5 surviving events, mismatched 0**, with the
+> tool refusing a verdict if the precondition fails and its `--selftest` proven to FAIL a pre-roll
+> arm set (`G96`).
+>
+> 📦 Staged exe **`0844220E`**, archived `_binary_baselines\StackOBot.exe.m52-veto-arm-window-0844220E`;
+> predecessor **`5588F6FB`** hash-verified at its archive **before** the swap and **still
+> LOAD-BEARING** (it is `G-A`/`G-B`'s A-side). **Container quintet BYTE-UNCHANGED**
+> (`67EA1FE0`/`2CEFB8F4`/`E03C6610` + `A16A18A8`/`C70ECDAA`) — code-only hot-swap, **no cook**
+> (`G103`). Legs banked `M52F_A_*` (4) and `M52F_B_*` (5), **all accepted on attempt 1**, `B1`
+> **NOT APPLICABLE** and declared (`G117`). New instruments (CaptureBench, local-only):
+> `m52f_arm_window.py`, `m52f_subset.py`, `m52f_window_from_labels.py`. 🆕 **`G271`.**
+>
+> ⚠ **`G-B` NEEDED `IAI.Anomaly.LodMaxDistance 50000` TO FIRE AT ALL** — at the compiled **200 cm**
+> default this bench produces **zero** `lod_popping` events (`m30`), so the leg would have been
+> VACUOUS. The lever was declared in §3 **before** the leg ran, not reached for afterwards.
+>
+> ⛔ **STILL OPEN, NAMED:** whether `BP_SpawnPad_C` was genuinely invisible on those frames is **NOT
+> ANSWERED** — both instruments agree it drew no pixels under its own tag, and neither is a statement
+> about the picture · **the 080-05 §5 mechanism stays OPEN**, now a sharper question, and
+> `M26 REDUCE-TABLE` is what a future session reads first · `m55` and S2′ still named and not built ·
+> the `GAutoPoolDefaultEnabled` decision is still the owner's.
+> 🎯 **NEXT: the owner's call. ⛔ Do not start anything unprompted.**
+>
+> ---
+>
 > 🏁🏁 **SESSION 080-05, 2026-09-20 — `m52` IS COMPLETE AND ON `master` AS THE MERGE COMMIT
 > **`4af249f`** (pushed). `stuck_low_mip` IS THE TENTH ANOMALY. THE MERGE IS **INERT** —
 > `master^{tree}` == `feat/m52-stuck-mip^{tree}` == `ec2ff258…`, the exact tree `merge-tree` forecast
