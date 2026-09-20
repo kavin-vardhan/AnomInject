@@ -302,3 +302,98 @@ protected/unrelated files. No mailbox, brief, build, cook, capture, merge or tag
 **Chat review REQUIRED** for the resulting evidence, prediction conflicts and
 independent Code review before merge; this is the next mandatory checkpoint.
 Client/Section G, m51 campaign and release holds remain.
+
+
+## AMENDMENT 3 — 079-13 motion readings, stronger ties and one-sided peaks (2026-09-20, before implementation/results)
+
+Authority: owner supplied `D:/IntrusiveAnomalies/_reviews/079-13-codex-ruling-cap-decoupled-peaks-ties.md`.
+079-12 is accepted as implemented. Base `53e6e5154d4f36e3cfbcfa5ad524eac2fa092852`,
+same feature branch and protected scope. Codex implements; Claude Code independently
+reviews next; Chat orchestrates. This amendment is committed before edits/results.
+
+### R7-R10 and implementation interpretations
+
+1. R7 removes regional-motion refusal entirely: no numeric cap, refuse-all state,
+   cap derivation or guard-OFF/ON sweep. Remove verifier API cap parameters and CLI
+   --region-cap/--motion-cap options; update its callers/tests. m_edge remains an
+   observation. Preserve the 0.42 value only as HIGH_REGIONAL_CHANGE_MARKER, a
+   documented historical marker without any effect on detection or eligibility.
+   Preserve unsatisfiable tau, whole-frame region, minimum baseline, RGB/mask/
+   identity and session-coverage refusals. NO-TRACE/exit semantics are unchanged.
+2. Any run with an available edge m_edge > 0.42 prints the high regional change
+   caveat using its maximum edge median, even if another guard refuses an edge.
+   Print it alongside the existing lighting caveat. Count an event as CONSISTENT
+   with caveat when it contains a CONSISTENT run with either caveat; unread sibling
+   runs do not manufacture that count. The marker comparison is strictly >.
+3. The supplied generic prediction that former cap refusals become readings
+   "with caveat" is subject to R7's explicit marker condition. Existing evidence
+   records moving_over_cap m_edge=0.12 and c07_no_envelope_masked m_edge=0; these
+   become CONSISTENT without a HIGH-MOTION caveat, not a fabricated >0.42 reading.
+   moving_fast m_edge=0.52 remains CONSISTENT and gains the motion caveat. Preserve
+   the old fixture names as history, with the retired cap arguments removed.
+4. R8 chooses by distance, then larger d, then earlier frame. Disclose both
+   equally near candidates and their d values, including equal-strength ties.
+   Retain full structured peak values so the scorer can print competing peaks.
+   ASCII -> may render the example arrow on console output; the meaning is unchanged.
+5. R9 uses d(k)>tau and d(k)>=1.5*min(d(k-1),d(k+1)), with neighbours outside
+   this edge's existing observed window counted as zero. Equal adjacent changes
+   both qualify; a positive flat plateau has qualifying edges and no interior
+   peaks. Existing per-pair regions, labelled windows and ordered exclusion remain.
+6. R10 withdraws the claim that exclusion implies monotonically increasing frames.
+   Compare consecutive selected frames in each target/mode's labelled walk,
+   carrying the last selection across unread edges. On a decrease, annotate the
+   later edge's RUN with `note: assigned frames out of label order (k1 > k2)`;
+   preserve the selection and outcome. This covers within-run and cross-run
+   inversions. Same-target/mode scope remains; do not add an ordering floor.
+7. Chat's old missing6 prediction was wrong: A.end's [4..8] window contains free8
+   after4 is consumed, so it must choose8; B.onset then takes10 and B.end refuses.
+   The accepted known answer is OFFSET-NOTE / PARTIAL, selections4/8/10/none.
+   Keep that fixture unchanged. Earlier predictions/readings stay historical.
+8. Scorer v3 becomes characterisation: one immutable 572-key sweep, no cap or
+   guard classification. Keep scored/unscored reconciliation and the five scored
+   classes. Publish per-session tables, all wrong cells with expected/observed
+   offsets, m_edge and competing peaks in docs/verifier-characterisation.md.
+   Re-list all22 prior guard-OFF wrong cells with their new statuses, even when
+   now unscored or unrecovered. Header points to that document in two lines.
+
+### Predeclared P1-P5
+
+P1: retain94 fixtures and the existing coverage/exit contracts; update cap/tie/
+peak contracts to the new rules and add checks for high-motion caveats, plateau
+edges, equal-strength ties and inversion disclosure. Every changed old event,
+run or edge expected reading will be listed with its reason. Before adjusting
+any additional known answer, preserve the first mismatch and explain it.
+
+Expected changed event strings: moving_over_cap and c07_no_envelope_masked,
+UNASSESSABLE -> CONSISTENT; c08_one_frame_aligned UNASSESSABLE -> CONSISTENT;
+r6_blink_one_frame_second PARTIAL -> CONSISTENT (both runs). R9 also permits the
+small true onset adjacent to a larger disturbance, so c08_lighting_aligned,
+c08_occluder_aligned, c08_dilated_mask_ring_burst and c08_precise_mask_target_move
+are expected OFFSET-NOTE -> CONSISTENT. Lighting late-onset stays CONSISTENT with
+its diagnostic caveat. One-frame late/early cases stay OFFSET-NOTE but may gain
+observed edges. A2L-style stronger late candidates win equidistant ties. The
+controlled15-then12 contract still reads out of order and must print its note.
+
+P2-prime: all six pinned legs, 64/64 edges observed, four CONSISTENT events per
+leg (caveats as observed), including BL_SYN's one-frame runs; tau=0.0040.
+No peak, marker or bound tuning to manufacture agreement.
+P3: rerun A2L_LEGA, LYRA_SMOKE_01 and A1L_LEGA; show all readings, motion caveats
+where m_edge>0.42 and no NO-TRACE expected. M50L_LG9 remains six READING events.
+P4: one characterisation sweep, per-session tables, all wrong cells and all22
+former wrong cells' new status. Preserve572 planned keys regardless of coverage.
+No derived cap and no claim that offset recovery establishes label correctness.
+P5: batch collision/coverage contracts and direct CLI NO-TRACE2, report-only0,
+execution-error3 remain. Removing cap options is intentional; no silent alias.
+
+Report `_reviews/079-13-codex-delta-report.md`, per-P evidence, changed-expectation
+table, source/artifact hashes, diff summary and measured wall time. GREEN only if
+P1/P2-prime read under these explicit rules; otherwise NEEDS-DECISION. GREEN is
+not merge/client/campaign/release approval. Commit/push feature only, restore m51,
+preserve079-11/12 reports and protected/unrelated files. CaptureBench changes only
+its already-untracked scorer. No mailbox, new Code brief, build, cook, capture,
+merge, tag, Source/Shaders/measure_label_offset edit, office transfer or owner-app change.
+
+**Chat review NOT REQUIRED** for this authorized implementation and feature push.
+**Chat review REQUIRED** for completed evidence and independent Code review before
+merge; this is the next mandatory checkpoint. Client/Section G, m51 campaign and
+release holds remain. This is intended as the last delta before independent review.
