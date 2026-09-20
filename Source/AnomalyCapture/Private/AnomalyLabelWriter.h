@@ -186,6 +186,13 @@ namespace AnomalyLabel
 		int32 RefusedVirtual = 0;
 		int32 RefusedImperceptible = 0;
 		int32 RefusedNoEligibleTextures = 0;
+		int32 RefusedNotRestored = 0;
+		int32 RefusedAlreadyHeld = 0;
+		int32 HoldTimeouts = 0;
+		int32 RestoreTimeouts = 0;
+		int32 RestoreFramesMax = 0;
+		int32 TexturesAwaitingRestore = 0;
+		int32 OnsetPrerollMax = -1;
 	};
 
 	struct FObservabilityTelemetry

@@ -246,6 +246,13 @@ void UAnomalyInjectorSubsystem::DispatchAnomalyTicks(float DeltaTime)
 			Pair.Value->Tick(DeltaTime);
 		}
 	}
+	for (const TPair<FName, TUniquePtr<IAnomaly>>& Pair : Anomalies)
+	{
+		if (Pair.Value)
+		{
+			Pair.Value->TickAlways(DeltaTime);
+		}
+	}
 }
 
 void UAnomalyInjectorSubsystem::OnWorldPreActorTickSynth(UWorld* World, ELevelTick TickType, float DeltaSeconds)
@@ -616,6 +623,26 @@ bool UAnomalyInjectorSubsystem::IsAnomalyCurrentlyAnomalous(const FName& Id) con
 		return false;
 	}
 	return (*Found)->IsCurrentlyAnomalous();
+}
+
+bool UAnomalyInjectorSubsystem::DoesAnomalyHaveDeferredOnset(const FName& Id) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid())
+	{
+		return false;
+	}
+	return (*Found)->HasDeferredOnset();
+}
+
+void UAnomalyInjectorSubsystem::NoteAnomalyCapturedFrame(const FName& Id, bool bAnomalousThisFrame)
+{
+	TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return;
+	}
+	(*Found)->NoteCapturedFrame(bAnomalousThisFrame);
 }
 
 TArray<FAnomalyCatalogEntry> UAnomalyInjectorSubsystem::GetAnomalyCatalog() const

@@ -127,6 +127,9 @@ public:
 	void SetObservableMinPixels(int32 InN);
 	int32 GetObservableMinPixels() const { return ObservableMinPixels; }
 	const TCHAR* DescribeObservableMinSource() const;
+
+	void SetDeferredOnsetTimeoutFrames(int32 InFrames);
+	int32 GetDeferredOnsetTimeoutFrames() const;
 	void SetOutputHeightOverride(int32 InHeight);
 	int32 GetOutputHeightOverride() const { return OutputHeightOverride; }
 	int32 GetEffectiveOutputHeight() const { return EffectiveOutputHeight; }
@@ -205,6 +208,8 @@ private:
 	void SampleDeferredActiveState();
 	uint8 ComputeFireActive(const struct FAutoLiveFireInfo& F) const;
 	bool IsFireLabelledThisFrame(const struct FAutoLiveFireInfo& F) const;
+	bool BurstAwaitsDeferredOnset(int32& OutPendingFires) const;
+	void NoteDeferredOnsetTimeout();
 	void FinishRun(bool bLogLine);
 	void PaceThisTick();
 	void StampArmWallClock(double NowWall);
@@ -330,6 +335,12 @@ private:
 	int32 PositiveFrames = 8;
 	int32 PostFrames = 4;
 	int32 BurstCount = 0;
+
+	int32 DeferredOnsetTimeoutFrames = 30;
+	bool bDeferredOnsetWindowStarted = false;
+	int32 DeferredOnsetWaitFrames = 0;
+	int32 DeferredOnsetTimeouts = 0;
+	int32 DeferredOnsetPrerollMax = -1;
 
 	int32 ViewLagFrames = 0;
 	TArray<FAnomalyViewInfo> ViewRing;

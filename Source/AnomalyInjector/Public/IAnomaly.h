@@ -20,6 +20,8 @@ public:
 
 	virtual void Tick(float DeltaSeconds) {}
 
+	virtual void TickAlways(float DeltaSeconds) {}
+
 	virtual void Revert() = 0;
 
 	virtual bool IsActive() const = 0;
@@ -27,6 +29,10 @@ public:
 	virtual bool IsCurrentlyAnomalous() const { return IsActive(); }
 
 	virtual bool IsVisualConditionHeld() const { return IsCurrentlyAnomalous(); }
+
+	virtual bool HasDeferredOnset() const { return false; }
+
+	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) {}
 
 	virtual bool GetTelemetry(FAnomalyTelemetry& Out) const { return false; }
 };

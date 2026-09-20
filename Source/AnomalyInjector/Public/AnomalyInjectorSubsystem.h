@@ -76,6 +76,10 @@ public:
 	bool IsAnomalyVisualConditionHeld(const FName& Id) const;
 	bool GetAnomalyTelemetry(const FName& Id, FAnomalyTelemetry& Out) const;
 
+	bool DoesAnomalyHaveDeferredOnset(const FName& Id) const;
+
+	void NoteAnomalyCapturedFrame(const FName& Id, bool bAnomalousThisFrame);
+
 
 	TArray<FAnomalyCatalogEntry> GetAnomalyCatalog() const;
 

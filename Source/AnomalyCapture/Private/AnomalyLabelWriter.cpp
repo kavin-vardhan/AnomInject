@@ -133,17 +133,40 @@ namespace
 			if (Telemetry && Telemetry->IsValidIndex(FireIndex))
 			{
 				const FAnomalyTelemetry& T = (*Telemetry)[FireIndex];
-				for (const TPair<FName, int32>& KV : T.Ints)
+				for (const TPair<FString, int32>& KV : T.Ints)
 				{
-					O->SetNumberField(KV.Key.ToString(), (double)KV.Value);
+					O->SetNumberField(KV.Key, (double)KV.Value);
 				}
-				for (const TPair<FName, bool>& KV : T.Bools)
+				for (const TPair<FString, bool>& KV : T.Bools)
 				{
-					O->SetBoolField(KV.Key.ToString(), KV.Value);
+					O->SetBoolField(KV.Key, KV.Value);
 				}
-				for (const TPair<FName, FString>& KV : T.Strings)
+				for (const TPair<FString, FString>& KV : T.Strings)
 				{
-					O->SetStringField(KV.Key.ToString(), KV.Value);
+					O->SetStringField(KV.Key, KV.Value);
+				}
+				for (const TPair<FString, TArray<FAnomalyTelemetryFields>>& KV : T.Arrays)
+				{
+					TArray<TSharedPtr<FJsonValue>> Entries;
+					Entries.Reserve(KV.Value.Num());
+					for (const FAnomalyTelemetryFields& Rec : KV.Value)
+					{
+						TSharedRef<FJsonObject> E = MakeShared<FJsonObject>();
+						for (const TPair<FString, int32>& RV : Rec.Ints)
+						{
+							E->SetNumberField(RV.Key, (double)RV.Value);
+						}
+						for (const TPair<FString, bool>& RV : Rec.Bools)
+						{
+							E->SetBoolField(RV.Key, RV.Value);
+						}
+						for (const TPair<FString, FString>& RV : Rec.Strings)
+						{
+							E->SetStringField(RV.Key, RV.Value);
+						}
+						Entries.Add(MakeShared<FJsonValueObject>(E));
+					}
+					O->SetArrayField(KV.Key, Entries);
 				}
 			}
 
@@ -713,6 +736,13 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("stuck_mip_refused_virtual"), StuckMip->RefusedVirtual);
 			Root->SetNumberField(TEXT("stuck_mip_refused_imperceptible"), StuckMip->RefusedImperceptible);
 			Root->SetNumberField(TEXT("stuck_mip_refused_no_eligible_textures"), StuckMip->RefusedNoEligibleTextures);
+			Root->SetNumberField(TEXT("stuck_mip_refused_not_restored"), StuckMip->RefusedNotRestored);
+			Root->SetNumberField(TEXT("stuck_mip_refused_already_held"), StuckMip->RefusedAlreadyHeld);
+			Root->SetNumberField(TEXT("stuck_mip_hold_timeouts"), StuckMip->HoldTimeouts);
+			Root->SetNumberField(TEXT("stuck_mip_restore_timeout"), StuckMip->RestoreTimeouts);
+			Root->SetNumberField(TEXT("stuck_mip_restore_frames_max"), StuckMip->RestoreFramesMax);
+			Root->SetNumberField(TEXT("stuck_mip_textures_awaiting_restore"), StuckMip->TexturesAwaitingRestore);
+			Root->SetNumberField(TEXT("stuck_mip_onset_preroll_max"), StuckMip->OnsetPrerollMax);
 		}
 		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);
 		Root->SetNumberField(TEXT("frames_exposure_dip_suppressed"), FramesExposureDipSuppressed);

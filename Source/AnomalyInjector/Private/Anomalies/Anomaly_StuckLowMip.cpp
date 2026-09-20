@@ -209,11 +209,6 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
-	if (bActive)
-	{
-		Revert();
-	}
-
 	const int32 EffectiveLevels = AnomalyDefaults::GetStuckMipLevels();
 	int32 Levels = EffectiveLevels;
 	if (Args.Num() >= 2)
@@ -251,6 +246,32 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	{
 		UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: matched 0 mesh component(s) for '%s'."), *Substring);
 		return false;
+	}
+
+	const AActor* RequestedActor = nullptr;
+	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
+	{
+		if (UMeshComponent* Mesh = Weak.Get())
+		{
+			RequestedActor = Mesh->GetOwner();
+			break;
+		}
+	}
+
+	if (bActive)
+	{
+		if (RequestedActor && RequestedActor == PrimaryOwner.Get())
+		{
+			++GStuckMipStats.RefusedAlreadyHeld;
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("stuck_low_mip: REFUSED already_held - '%s' resolves to '%s', which is the target this anomaly is ")
+				TEXT("HOLDING RIGHT NOW (%d texture(s)). Reverting and re-applying in one call would restart the hold ")
+				TEXT("with a baseline read from the ALREADY-HELD state, so the second event would record a baseline ")
+				TEXT("that is itself the anomaly. No fire is recorded and nothing is changed."),
+				*Substring, *PrimaryOwnerName, Held.Num());
+			return false;
+		}
+		Revert();
 	}
 
 	bNoHoldLever = GStuckMipNoHold;
@@ -295,16 +316,8 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		BuildVisibleTextureUserCounts(World, IgnoreActors, VisibleUsers);
 	}
 
-	const AActor* PrimaryActor = nullptr;
+	const AActor* PrimaryActor = RequestedActor;
 	float PrimaryBboxPx = -1.0f;
-	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
-	{
-		if (UMeshComponent* Mesh = Weak.Get())
-		{
-			PrimaryActor = Mesh->GetOwner();
-			break;
-		}
-	}
 	if (PrimaryActor)
 	{
 		PrimaryBboxPx = LongestBboxSidePx(World, PrimaryActor);
@@ -316,7 +329,37 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		CollectComponentTextures(Weak.Get(), Candidates);
 	}
 
+	for (UTexture2D* Tex : Candidates)
+	{
+		if (!IsAwaitingRestore(Tex))
+		{
+			continue;
+		}
+		++GStuckMipStats.RefusedNotRestored;
+		const int32 Resident = Tex ? Tex->GetNumResidentMips() : -1;
+		int32 Baseline = -1;
+		int32 Waited = -1;
+		for (const FRestoringTexture& R : Restoring)
+		{
+			if (R.Texture.Get() == Tex)
+			{
+				Baseline = R.BaselineResidentMips;
+				Waited = R.FramesWaited;
+				break;
+			}
+		}
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("stuck_low_mip: REFUSED not_restored - '%s' uses texture '%s', which a PREVIOUS hold has not given ")
+			TEXT("back yet (resident %d, baseline %d, %d frame(s) of re-asserted stream-in so far). Firing now would ")
+			TEXT("record the still-depressed count as this event's baseline, so the event could never read held:true ")
+			TEXT("and would produce no labelled frame at all. REFUSING is what makes that visible instead of silent."),
+			*Substring, *GetNameSafe(Tex), Resident, Baseline, Waited);
+		return false;
+	}
+
 	Held.Reset();
+	CapturedFramesSeen = 0;
+	OnsetLatencyFrames = -1;
 	int32 RefusedVirtual = 0;
 	int32 RefusedNotStreamable = 0;
 	int32 RefusedGroup = 0;
@@ -463,6 +506,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	GStuckMipStats.RefusedImperceptible += RefusedImperceptible;
 
 	PrimaryOwner = const_cast<AActor*>(PrimaryActor);
+	PrimaryOwnerName = PrimaryActor ? PrimaryActor->GetName() : FString();
 	PrimaryIndex = 0;
 	int32 WidestPx = -1;
 	for (int32 i = 0; i < Held.Num(); ++i)
@@ -509,6 +553,8 @@ void FAnomaly_StuckLowMip::Revert()
 	int32 LeftToGame = 0;
 	int32 Unresolved = 0;
 	int32 Relinked = 0;
+	int32 AlreadyBack = 0;
+	int32 Tracked = 0;
 
 	for (const FHeldTexture& H : Held)
 	{
@@ -543,24 +589,171 @@ void FAnomaly_StuckLowMip::Revert()
 		Tex->UpdateCachedLODBias();
 
 		UStreamableRenderAsset* Asset = Tex;
-		if (!Asset->HasPendingInitOrStreaming())
+		const bool bBusy = Asset->HasPendingInitOrStreaming();
+		if (!bBusy)
 		{
 			Asset->StreamIn(H.BaselineResidentMips, true);
 		}
 		++Restored;
+
+		if (Tex->GetNumResidentMips() >= H.BaselineResidentMips)
+		{
+			++AlreadyBack;
+			continue;
+		}
+
+		FRestoringTexture R;
+		R.Texture = Tex;
+		R.TextureName = H.TextureName;
+		R.BaselineResidentMips = H.BaselineResidentMips;
+		R.StreamInRequests = bBusy ? 0 : 1;
+		R.SkippedPending = bBusy ? 1 : 0;
+		Restoring.Add(R);
+		++Tracked;
+		if (bBusy)
+		{
+			++GStuckMipStats.RestoreSkippedPending;
+			UE_LOG(LogAnomaly, Log,
+				TEXT("stuck_low_mip: revert of '%s' found a stream operation ALREADY IN FLIGHT, so StreamIn(%d) was ")
+				TEXT("NOT issued this frame - HasPendingInitOrStreaming() guards it. That is the silent skip: a single ")
+				TEXT("request at revert time is the likeliest one to be dropped, because a bias change is exactly what ")
+				TEXT("puts the asset in flight. It is now TRACKED and re-asserted every frame until the resident count ")
+				TEXT("reaches the baseline."),
+				*H.TextureName, H.BaselineResidentMips);
+		}
+		else
+		{
+			++GStuckMipStats.RestoreStreamInReissues;
+		}
 	}
 
 	UE_LOG(LogAnomaly, Log,
-		TEXT("stuck_low_mip: revert of %d held texture(s) - restored=%d left-to-game=%d unresolved=%d relinked=%d. ")
-		TEXT("The stream-in request agrees with what the streamer itself wants, so it is not a request the ")
-		TEXT("cancellation path can turn against us."),
-		Held.Num(), Restored, LeftToGame, Unresolved, Relinked);
+		TEXT("stuck_low_mip: revert of %d held texture(s) - restored=%d left-to-game=%d unresolved=%d relinked=%d ")
+		TEXT("already-back=%d awaiting-restore=%d (total tracked %d). The bias is cleared on every restored texture; ")
+		TEXT("a texture whose resident count is not yet back at its baseline is POLLED every frame until it is, and ")
+		TEXT("while it is pending, any fire on a target that uses it is refused as not_restored."),
+		Held.Num(), Restored, LeftToGame, Unresolved, Relinked, AlreadyBack, Tracked, Restoring.Num());
 
 	Held.Reset();
 	PrimaryOwner.Reset();
+	PrimaryOwnerName.Reset();
 	PrimaryIndex = 0;
+	CapturedFramesSeen = 0;
+	OnsetLatencyFrames = -1;
 	bNoHoldLever = false;
 	bActive = false;
+	GStuckMipStats.TexturesAwaitingRestore = Restoring.Num();
+}
+
+bool FAnomaly_StuckLowMip::IsAwaitingRestore(const UTexture2D* Tex) const
+{
+	if (!Tex)
+	{
+		return false;
+	}
+	for (const FRestoringTexture& R : Restoring)
+	{
+		if (R.Texture.Get() == Tex)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void FAnomaly_StuckLowMip::TickAlways(float DeltaSeconds)
+{
+	if (Restoring.Num() == 0)
+	{
+		return;
+	}
+
+	const int32 Timeout = AnomalyDefaults::GetStuckMipRestoreTimeout();
+
+	for (int32 i = Restoring.Num() - 1; i >= 0; --i)
+	{
+		FRestoringTexture& R = Restoring[i];
+		UTexture2D* Tex = R.Texture.Get();
+		if (!Tex)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("stuck_low_mip: restore watch dropped '%s' - the texture was destroyed or garbage collected after ")
+				TEXT("%d frame(s) of waiting. The asset no longer exists, so nothing is left held and nothing further ")
+				TEXT("can be asserted about it."),
+				*R.TextureName, R.FramesWaited);
+			Restoring.RemoveAt(i);
+			continue;
+		}
+
+		const int32 Resident = Tex->GetNumResidentMips();
+		if (Resident >= R.BaselineResidentMips)
+		{
+			GStuckMipStats.RestoreFramesMax = FMath::Max(GStuckMipStats.RestoreFramesMax, R.FramesWaited);
+			UE_LOG(LogAnomaly, Log,
+				TEXT("stuck_low_mip: RESTORE VERIFIED '%s' resident %d >= baseline %d after %d frame(s), %d ")
+				TEXT("re-asserted stream-in request(s) and %d frame(s) where the engine was already busy. This is a ")
+				TEXT("READ-BACK of the engine's own resident count, not an assumption that the revert took."),
+				*R.TextureName, Resident, R.BaselineResidentMips, R.FramesWaited, R.StreamInRequests, R.SkippedPending);
+			Restoring.RemoveAt(i);
+			continue;
+		}
+
+		++R.FramesWaited;
+
+		UStreamableRenderAsset* Asset = Tex;
+		if (Asset->HasPendingInitOrStreaming())
+		{
+			++R.SkippedPending;
+			++GStuckMipStats.RestoreSkippedPending;
+		}
+		else
+		{
+			Asset->StreamIn(R.BaselineResidentMips, true);
+			++R.StreamInRequests;
+			++GStuckMipStats.RestoreStreamInReissues;
+		}
+
+		if (R.FramesWaited >= Timeout && !R.bTimeoutReported)
+		{
+			R.bTimeoutReported = true;
+			++GStuckMipStats.RestoreTimeouts;
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("stuck_low_mip: RESTORE TIMEOUT '%s' - resident %d is still below baseline %d after %d frame(s), ")
+				TEXT("%d re-asserted stream-in request(s) and %d frame(s) skipped because the engine was already busy. ")
+				TEXT("POLLING CONTINUES: the timeout is a REPORT, not a give-up, and the texture stays tracked so any ")
+				TEXT("fire on a target that uses it is refused as not_restored. NO CAUSE IS CLAIMED for the shortfall."),
+				*R.TextureName, Resident, R.BaselineResidentMips, R.FramesWaited, R.StreamInRequests, R.SkippedPending);
+		}
+	}
+
+	for (const FRestoringTexture& R : Restoring)
+	{
+		GStuckMipStats.RestoreFramesMax = FMath::Max(GStuckMipStats.RestoreFramesMax, R.FramesWaited);
+	}
+	GStuckMipStats.TexturesAwaitingRestore = Restoring.Num();
+}
+
+void FAnomaly_StuckLowMip::NoteCapturedFrame(bool bAnomalousThisFrame)
+{
+	if (!bActive)
+	{
+		return;
+	}
+	if (OnsetLatencyFrames >= 0)
+	{
+		return;
+	}
+	if (bAnomalousThisFrame)
+	{
+		OnsetLatencyFrames = CapturedFramesSeen;
+		for (FHeldTexture& H : Held)
+		{
+			const UTexture2D* Tex = H.Texture.Get();
+			H.ResidentAtOnset = Tex ? Tex->GetNumResidentMips() : -1;
+		}
+		return;
+	}
+	++CapturedFramesSeen;
 }
 
 bool FAnomaly_StuckLowMip::IsCurrentlyAnomalous() const
@@ -588,6 +781,7 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 	}
 
 	int32 HeldNow = 0;
+	int32 Resolved = 0;
 	bool bForceResident = false;
 	bool bRelinked = false;
 	for (const FHeldTexture& H : Held)
@@ -597,6 +791,7 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 		{
 			continue;
 		}
+		++Resolved;
 		if (Tex->GetNumResidentMips() < H.BaselineResidentMips)
 		{
 			++HeldNow;
@@ -615,8 +810,8 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 	const UTexture2D* PrimaryTex = P.Texture.Get();
 	const int32 Resident = PrimaryTex ? PrimaryTex->GetNumResidentMips() : -1;
 
-	Out.AddInt(TEXT("stuck_mip.resident_mips"), Resident);
-	Out.AddInt(TEXT("stuck_mip.baseline_mips"), P.BaselineResidentMips);
+	Out.AddInt(TEXT("stuck_mip.primary_resident_mips"), Resident);
+	Out.AddInt(TEXT("stuck_mip.primary_baseline_mips"), P.BaselineResidentMips);
 	Out.AddInt(TEXT("stuck_mip.full_mips"), P.FullMips);
 	Out.AddInt(TEXT("stuck_mip.floor_mips"), P.FloorMips);
 	Out.AddInt(TEXT("stuck_mip.forced_mips"), P.TargetMips);
@@ -624,8 +819,24 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddInt(TEXT("stuck_mip.textures_held"), HeldNow);
 	Out.AddInt(TEXT("stuck_mip.textures_armed"), Held.Num());
 	Out.AddInt(TEXT("stuck_mip.co_affected_visible"), P.CoAffectedVisible);
+	Out.AddInt(TEXT("stuck_mip.onset_latency_frames"), OnsetLatencyFrames);
 	Out.AddBool(TEXT("stuck_mip.held"), HeldNow > 0);
+	Out.AddBool(TEXT("stuck_mip.held_all"), Resolved > 0 && HeldNow == Resolved);
 	Out.AddString(TEXT("stuck_mip.texture"), P.TextureName);
+
+	for (const FHeldTexture& H : Held)
+	{
+		const UTexture2D* Tex = H.Texture.Get();
+		const int32 Now = Tex ? Tex->GetNumResidentMips() : -1;
+		FAnomalyTelemetryFields& Rec = Out.AddArrayEntry(TEXT("stuck_mip.textures"));
+		Rec.AddString(TEXT("name"), H.TextureName);
+		Rec.AddInt(TEXT("baseline_mips"), H.BaselineResidentMips);
+		Rec.AddInt(TEXT("forced_mips"), H.TargetMips);
+		Rec.AddInt(TEXT("resident_mips"), Now);
+		Rec.AddInt(TEXT("resident_mips_at_onset"), H.ResidentAtOnset);
+		Rec.AddInt(TEXT("co_affected_visible"), H.CoAffectedVisible);
+		Rec.AddBool(TEXT("held"), Tex != nullptr && Now < H.BaselineResidentMips);
+	}
 
 	if (bNoHoldLever)
 	{

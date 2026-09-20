@@ -60,6 +60,18 @@ namespace
 		return bSet;
 	}
 
+	int32& StuckMipRestoreTimeoutOverride()
+	{
+		static int32 Value = AnomalyDefaults::StuckMipRestoreTimeoutCompiled;
+		return Value;
+	}
+
+	bool& StuckMipRestoreTimeoutOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
 	int32& StuckMipMaxCoAffectedOverride()
 	{
 		static int32 Value = 0;
@@ -519,6 +531,89 @@ namespace AnomalyDefaults
 		StuckMipMaxCoAffectedOverrideSet() = false;
 		UE_LOG(LogAnomaly, Log,
 			TEXT("stuck_low_mip: console co-affected override cleared; the ini value or the compiled default 0 takes over."));
+	}
+
+	const TCHAR* StuckMipRestoreTimeoutKey()
+	{
+		return TEXT("StuckMipRestoreTimeoutFrames");
+	}
+
+	int32 GetStuckMipRestoreTimeout()
+	{
+		if (StuckMipRestoreTimeoutOverrideSet())
+		{
+			return StuckMipRestoreTimeoutOverride();
+		}
+		static bool bResolved = false;
+		static int32 Value = StuckMipRestoreTimeoutCompiled;
+		static const TCHAR* Source = TEXT("compiled");
+		if (bResolved)
+		{
+			return Value;
+		}
+		bResolved = true;
+
+		int32 FromIni = 0;
+		if (GConfig && GConfig->GetInt(SectionName(), StuckMipRestoreTimeoutKey(), FromIni, GGameIni))
+		{
+			if (FromIni < StuckMipRestoreTimeoutMin || FromIni > StuckMipRestoreTimeoutMax)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: DefaultGame.ini [%s] %s = %d is out of range [%d..%d]; using the COMPILED ")
+					TEXT("default %d. REFUSED rather than clamped."),
+					SectionName(), StuckMipRestoreTimeoutKey(), FromIni, StuckMipRestoreTimeoutMin,
+					StuckMipRestoreTimeoutMax, StuckMipRestoreTimeoutCompiled);
+			}
+			else
+			{
+				Value = FromIni;
+				Source = TEXT("ini");
+			}
+		}
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: restore timeout = %d frame(s) (%s). The revert re-asserts the stream-in every frame ")
+			TEXT("until the resident mip count reaches the recorded baseline; past this many frames the texture is ")
+			TEXT("COUNTED as a restore timeout and named in the log, and it STAYS TRACKED so a later fire on it is ")
+			TEXT("refused as not_restored rather than silently producing nothing."),
+			Value, Source);
+		return Value;
+	}
+
+	FString DescribeStuckMipRestoreTimeout()
+	{
+		const int32 V = GetStuckMipRestoreTimeout();
+		const TCHAR* Source = StuckMipRestoreTimeoutOverrideSet() ? TEXT("console") : TEXT("ini-or-compiled");
+		return FString::Printf(TEXT("%d(%s)"), V, Source);
+	}
+
+	bool SetStuckMipRestoreTimeoutOverride(int32 Frames)
+	{
+		if (Frames < StuckMipRestoreTimeoutMin || Frames > StuckMipRestoreTimeoutMax)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("stuck_low_mip: restore timeout %d is out of range [%d..%d]; the console override is REFUSED and ")
+				TEXT("the previous value still stands."),
+				Frames, StuckMipRestoreTimeoutMin, StuckMipRestoreTimeoutMax);
+			return false;
+		}
+		StuckMipRestoreTimeoutOverride() = Frames;
+		StuckMipRestoreTimeoutOverrideSet() = true;
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("stuck_low_mip: restore timeout set to %d frame(s) by console override. This changes ONLY when the ")
+			TEXT("timeout is COUNTED AND LOGGED - polling continues either way until the baseline is reached - and it ")
+			TEXT("BEATS DefaultGame.ini [%s] %s."),
+			Frames, SectionName(), StuckMipRestoreTimeoutKey());
+		return true;
+	}
+
+	void ClearStuckMipRestoreTimeoutOverride()
+	{
+		StuckMipRestoreTimeoutOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: console restore-timeout override cleared; the ini value or the compiled default %d ")
+			TEXT("takes over."),
+			StuckMipRestoreTimeoutCompiled);
 	}
 
 	const TCHAR* StuckMipMinTexelRatioKey()
@@ -1265,6 +1360,32 @@ namespace
 			*AnomalyDefaults::DescribeStuckMipMaxCoAffected());
 	}
 
+	void HandleStuckMipRestoreTimeout(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Anomaly.StuckMipRestoreTimeout <frames|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeStuckMipRestoreTimeout());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearStuckMipRestoreTimeoutOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetStuckMipRestoreTimeoutOverride(FCString::Atoi(*Args[0]));
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Anomaly.StuckMipRestoreTimeout: '%s' is not a whole number (or 'default')."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Anomaly.StuckMipRestoreTimeout: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeStuckMipRestoreTimeout());
+	}
+
 	void HandleStuckMipMinTexelRatio(const TArray<FString>& Args)
 	{
 		if (Args.Num() < 1)
@@ -1346,6 +1467,21 @@ static FAutoConsoleCommand GStuckMipMaxCoAffectedCmd(
 	     "DefaultGame.ini [AnomalyInjector] StuckMipMaxCoAffected, which beats the compiled default 0. Range "
 	     "[0..4096]; out of range is REFUSED. Usage: IAI.Anomaly.StuckMipMaxCoAffected <n|default>"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleStuckMipMaxCoAffected));
+
+static FAutoConsoleCommand GStuckMipRestoreTimeoutCmd(
+	TEXT("IAI.Anomaly.StuckMipRestoreTimeout"),
+	TEXT("Set how many frames stuck_low_mip keeps re-asserting a reverted texture's stream-in before it COUNTS AND "
+	     "NAMES a restore timeout. COMPILED DEFAULT 120. The revert clears the streaming bias and then polls every "
+	     "frame until the resident mip count reaches the baseline recorded at Apply, re-issuing StreamIn on each "
+	     "poll the engine is not already busy with - because a single request at revert time is SILENTLY DROPPED "
+	     "when a stream operation is already in flight, which is the likely state right after a bias change and is "
+	     "the measured cause of a later fire on the same target finding nothing left to hold. THE TIMEOUT DOES NOT "
+	     "STOP THE POLLING: the texture stays tracked until it actually reaches its baseline, and while it is "
+	     "tracked any fire on a target using it is refused as not_restored rather than producing an event with no "
+	     "frames. PRECEDENCE: console beats DefaultGame.ini [AnomalyInjector] StuckMipRestoreTimeoutFrames, which "
+	     "beats the compiled default. Range [1..100000]; out of range is REFUSED. "
+	     "Usage: IAI.Anomaly.StuckMipRestoreTimeout <frames|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleStuckMipRestoreTimeout));
 
 static FAutoConsoleCommand GStuckMipMinTexelRatioCmd(
 	TEXT("IAI.Anomaly.StuckMipMinTexelRatio"),

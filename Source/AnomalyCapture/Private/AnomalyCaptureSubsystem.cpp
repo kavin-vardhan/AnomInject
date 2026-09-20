@@ -699,7 +699,37 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		break;
 
 	case ECapturePhase::Positives:
-		if (PhaseFramesLeft > 0) { CaptureCurrentFrame(); --PhaseFramesLeft; }
+		if (PhaseFramesLeft > 0)
+		{
+			int32 DeferredFires = 0;
+			if (!bDeferredOnsetWindowStarted && BurstAwaitsDeferredOnset(DeferredFires))
+			{
+				CaptureCurrentFrame();
+				++DeferredOnsetWaitFrames;
+				if (DeferredOnsetWaitFrames >= DeferredOnsetTimeoutFrames)
+				{
+					NoteDeferredOnsetTimeout();
+					BeginRevert();
+				}
+				break;
+			}
+			if (!bDeferredOnsetWindowStarted)
+			{
+				bDeferredOnsetWindowStarted = true;
+				if (DeferredFires > 0)
+				{
+					DeferredOnsetPrerollMax = FMath::Max(DeferredOnsetPrerollMax, DeferredOnsetWaitFrames);
+					UE_LOG(LogAnomalyCapture, Log,
+						TEXT("Capture(m52): DEFERRED-ONSET window opens after %d pre-roll frame(s). A deferred-onset ")
+						TEXT("anomaly's positive window starts at the FIRST frame its condition is measurably HELD, not ")
+						TEXT("at the frame it was applied, so the engine's own latency is a captured NEGATIVE pre-roll ")
+						TEXT("instead of silently eating labelled frames. The window is still %d frame(s) long."),
+						DeferredOnsetWaitFrames, PositiveFrames);
+				}
+			}
+			CaptureCurrentFrame();
+			--PhaseFramesLeft;
+		}
 		if (PhaseFramesLeft <= 0) { BeginRevert(); }
 		break;
 
@@ -787,6 +817,35 @@ void UAnomalyCaptureSubsystem::SetObservableMinPixels(int32 InN)
 		TEXT("IAI.Capture.ObservableMinPixels: EFFECTIVE READ-BACK = %d px, from %s. A frame's anomaly entry is ")
 		TEXT("observable only if the target drew at least this many front-most pixels on THAT frame."),
 		ObservableMinPixels, DescribeObservableMinSource());
+}
+
+int32 UAnomalyCaptureSubsystem::GetDeferredOnsetTimeoutFrames() const
+{
+	return DeferredOnsetTimeoutFrames;
+}
+
+void UAnomalyCaptureSubsystem::SetDeferredOnsetTimeoutFrames(int32 InFrames)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.DeferredOnsetTimeout: ignored mid-run (stop first)."));
+		return;
+	}
+	if (InFrames < 1)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Capture.DeferredOnsetTimeout: REFUSED value %d. The minimum is 1: a value of 0 would abandon ")
+			TEXT("every deferred-onset burst before the engine had a single frame in which to act, which reads as ")
+			TEXT("'the anomaly never works' rather than as a configuration error."),
+			InFrames);
+		return;
+	}
+	DeferredOnsetTimeoutFrames = InFrames;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("IAI.Capture.DeferredOnsetTimeout: EFFECTIVE READ-BACK = %d captured pre-roll frame(s). A deferred-onset ")
+		TEXT("fire that has not reached its anomalous condition by then is reverted, written manifested=false, and ")
+		TEXT("counted as a hold timeout."),
+		DeferredOnsetTimeoutFrames);
 }
 
 void UAnomalyCaptureSubsystem::OnWorldTickEndCombined(UWorld* World, ELevelTick TickType, float DeltaSeconds)
@@ -2980,6 +3039,10 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	FramesDrawnUnexpected = 0;
 	TargetDrawnMeasuredRows = 0;
 	StuckMipFramesHeld = 0;
+	DeferredOnsetTimeouts = 0;
+	DeferredOnsetPrerollMax = -1;
+	bDeferredOnsetWindowStarted = false;
+	DeferredOnsetWaitFrames = 0;
 	AnomalyStuckMip::ResetRunStats();
 	ExposureLumBySessionIndex.Reset();
 	ExposureExclusionMask.Reset();
@@ -3492,6 +3555,14 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		*AnomalyDefaults::DescribeCameraClippingTriggerRadius(),
 		*AnomalyDefaults::DescribeExcludedTargetPatterns(),
 		*DescribeLabelsInDelivery());
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m52): DEFERRED-ONSET TIMEOUT = %d captured pre-roll frame(s); stuck_low_mip RESTORE TIMEOUT = ")
+		TEXT("%s frame(s). The first governs how long a burst waits for a deferred-onset anomaly to become measurably ")
+		TEXT("anomalous before it is abandoned as manifested=false; the second governs how long a reverted texture's ")
+		TEXT("stream-in is re-asserted before the shortfall is COUNTED AND NAMED. Both are EFFECTIVE READ-BACKS, not ")
+		TEXT("the values requested."),
+		DeferredOnsetTimeoutFrames, *AnomalyDefaults::DescribeStuckMipRestoreTimeout());
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(bench): m40 SYNTH TICK ORDER = %s (compiled default off). When ON, the injector's anomaly ")
@@ -4123,8 +4194,70 @@ void UAnomalyCaptureSubsystem::SampleViewThisTick()
 	}
 }
 
+bool UAnomalyCaptureSubsystem::BurstAwaitsDeferredOnset(int32& OutDeferredFires) const
+{
+	OutDeferredFires = 0;
+
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	if (!Auto)
+	{
+		return false;
+	}
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	if (!Injector)
+	{
+		return false;
+	}
+
+	bool bAnyHeld = false;
+	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+	{
+		if (!Injector->DoesAnomalyHaveDeferredOnset(F.Id))
+		{
+			continue;
+		}
+		++OutDeferredFires;
+		if (IsFireLabelledThisFrame(F))
+		{
+			bAnyHeld = true;
+		}
+	}
+	return OutDeferredFires > 0 && !bAnyHeld;
+}
+
+void UAnomalyCaptureSubsystem::NoteDeferredOnsetTimeout()
+{
+	++DeferredOnsetTimeouts;
+
+	FString Names;
+	if (const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
+	{
+		UWorld* World = GetWorld();
+		const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+		{
+			if (Injector && Injector->DoesAnomalyHaveDeferredOnset(F.Id))
+			{
+				Names += FString::Printf(TEXT("%s on '%s' "), *F.Id.ToString(), *F.Target);
+			}
+		}
+	}
+
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("Capture(m52): HOLD TIMEOUT after %d pre-roll frame(s) - %sdid not reach its anomalous condition, so the ")
+		TEXT("burst is reverted WITHOUT opening a positive window. The event is written with manifested=false and zero ")
+		TEXT("injected frames, exactly as an anomaly that never showed must be. The reason is hold_timeout and it is ")
+		TEXT("counted in run_summary.stuck_mip_hold_timeouts; it is NOT written into annotation.json, because that ")
+		TEXT("file's field set does not move (P6). NO CAUSE IS CLAIMED for the failure to engage."),
+		DeferredOnsetWaitFrames, Names.IsEmpty() ? TEXT("the deferred-onset fire ") : *Names);
+}
+
 void UAnomalyCaptureSubsystem::BeginFire()
 {
+	bDeferredOnsetWindowStarted = false;
+	DeferredOnsetWaitFrames = 0;
+
 	if (bTargetGlobalHeld)
 	{
 		Phase = ECapturePhase::SettleAfterFire;
@@ -4602,15 +4735,22 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 
 		Snap->Telemetry.Reset();
 		Snap->Telemetry.AddDefaulted(Snap->Fires.Num());
-		static const FName GStuckMipHeldKey(TEXT("stuck_mip.held"));
+		UWorld* NoteWorld = GetWorld();
+		UAnomalyInjectorSubsystem* NoteInjector =
+			NoteWorld ? NoteWorld->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		static const FString GStuckMipHeldKey(TEXT("stuck_mip.held"));
 		for (int32 i = 0; i < Snap->Fires.Num(); ++i)
 		{
 			if (!Injector)
 			{
 				continue;
 			}
+			if (NoteInjector && Snap->FireLabelled.IsValidIndex(i))
+			{
+				NoteInjector->NoteAnomalyCapturedFrame(Snap->Fires[i].Id, Snap->FireLabelled[i] != 0);
+			}
 			Injector->GetAnomalyTelemetry(Snap->Fires[i].Id, Snap->Telemetry[i]);
-			for (const TPair<FName, bool>& KV : Snap->Telemetry[i].Bools)
+			for (const TPair<FString, bool>& KV : Snap->Telemetry[i].Bools)
 			{
 				if (KV.Key == GStuckMipHeldKey && KV.Value)
 				{
@@ -5271,6 +5411,13 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	StuckMipReport.RefusedVirtual = StuckMipStats.RefusedVirtual;
 	StuckMipReport.RefusedImperceptible = StuckMipStats.RefusedImperceptible;
 	StuckMipReport.RefusedNoEligibleTextures = StuckMipStats.RefusedNoEligibleTextures;
+	StuckMipReport.RefusedNotRestored = StuckMipStats.RefusedNotRestored;
+	StuckMipReport.RefusedAlreadyHeld = StuckMipStats.RefusedAlreadyHeld;
+	StuckMipReport.RestoreTimeouts = StuckMipStats.RestoreTimeouts;
+	StuckMipReport.RestoreFramesMax = StuckMipStats.RestoreFramesMax;
+	StuckMipReport.TexturesAwaitingRestore = StuckMipStats.TexturesAwaitingRestore;
+	StuckMipReport.HoldTimeouts = DeferredOnsetTimeouts;
+	StuckMipReport.OnsetPrerollMax = DeferredOnsetPrerollMax;
 
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
@@ -5895,6 +6042,36 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureObservableMinPixelsCmd(
 					return;
 				}
 				Sub->SetObservableMinPixels(FCString::Atoi(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureDeferredOnsetTimeoutCmd(
+	TEXT("IAI.Capture.DeferredOnsetTimeout"),
+	TEXT("Set how many captured PRE-ROLL frames a burst will wait for a DEFERRED-ONSET anomaly to reach its ")
+	TEXT("anomalous condition before the burst is abandoned (default 30). A deferred-onset anomaly is one whose ")
+	TEXT("effect is produced by an engine subsystem on its own schedule rather than by the Apply call itself - ")
+	TEXT("stuck_low_mip is the first, because the texture streamer performs the stream-out and ticks AFTER the ")
+	TEXT("world tick that set the bias. For such a fire the positive window STARTS AT THE FIRST FRAME THE ")
+	TEXT("CONDITION IS MEASURABLY HELD: the frames before that are still captured, are labelled NEGATIVE exactly ")
+	TEXT("as they were, and no longer consume the window, so the event gets its full frame count instead of a ")
+	TEXT("truncated one. A fire that never holds within this many frames is reverted with manifested=false and ")
+	TEXT("counted in run_summary.stuck_mip_hold_timeouts. EVERY OTHER ANOMALY IS UNAFFECTED BY CONSTRUCTION - ")
+	TEXT("IAnomaly::HasDeferredOnset() is false unless an anomaly overrides it, so the wait is never entered. ")
+	TEXT("Values below 1 are REFUSED, not clamped. Mid-run changes are ignored (stop first). Usage: ")
+	TEXT("IAI.Capture.DeferredOnsetTimeout <frames>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UAnomalyCaptureSubsystem* Sub = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
+			{
+				if (Args.Num() < 1)
+				{
+					UE_LOG(LogAnomalyCapture, Log,
+						TEXT("IAI.Capture.DeferredOnsetTimeout: EFFECTIVE READ-BACK = %d frame(s)."),
+						Sub->GetDeferredOnsetTimeoutFrames());
+					return;
+				}
+				Sub->SetDeferredOnsetTimeoutFrames(FCString::Atoi(*Args[0]));
 			}
 		}));
 

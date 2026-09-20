@@ -89,6 +89,16 @@ namespace AnomalyDefaults
 	ANOMALYINJECTOR_API bool SetStuckMipMaxCoAffectedOverride(int32 Max);
 	ANOMALYINJECTOR_API void ClearStuckMipMaxCoAffectedOverride();
 
+	inline constexpr int32 StuckMipRestoreTimeoutCompiled = 120;
+	inline constexpr int32 StuckMipRestoreTimeoutMin = 1;
+	inline constexpr int32 StuckMipRestoreTimeoutMax = 100000;
+
+	ANOMALYINJECTOR_API const TCHAR* StuckMipRestoreTimeoutKey();
+	ANOMALYINJECTOR_API int32 GetStuckMipRestoreTimeout();
+	ANOMALYINJECTOR_API FString DescribeStuckMipRestoreTimeout();
+	ANOMALYINJECTOR_API bool SetStuckMipRestoreTimeoutOverride(int32 Frames);
+	ANOMALYINJECTOR_API void ClearStuckMipRestoreTimeoutOverride();
+
 	inline constexpr float StuckMipMinTexelRatioCompiled = 4.0f;
 	inline constexpr float StuckMipMinTexelRatioMin = 0.0f;
 	inline constexpr float StuckMipMinTexelRatioMax = 4096.0f;
