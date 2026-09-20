@@ -11,37 +11,77 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **079-13 motion/peak/tie delta, 2026-09-20 — NEEDS-DECISION, UNMERGED.**
-> Authorized role swap: Codex implements, Claude Code independently reviews next,
-> Chat orchestrates. Feature `fix/verifier-field-validity`, base `53e6e51`;
-> AMENDMENT 3 committed first at `d088997`. Read the full external report
-> `D:/IntrusiveAnomalies/_reviews/079-13-codex-delta-report.md`, its frozen evidence,
-> `docs/sessions/2026-09-20-079-13-codex-delta.md` and
-> `docs/verifier-characterisation.md`. The report carries exact final SHAs.
-> Regional motion no longer refuses an edge: m_edge remains a reading; >0.42
-> adds a run caveat counted for CONSISTENT events. No cap is derived. Threshold,
-> region, baseline, mask/RGB/identity and session-coverage refusals remain.
-> Peaks exceed tau and >=1.5 times the smaller neighbouring change (outside the
-> window=0). Adjacent equal on/off changes qualify. Nearest unused selection
-> retains labelled order and bounds; equal-distance ties prefer larger d, then
-> earlier frame. Both tied strengths and any assignment inversion are printed.
-> Exclusion ensures uniqueness, not monotonic assignments across different regions.
-> All94 fixture and22 contract checks pass after one measured correction:
-> `c08_one_frame_late` is PARTIAL, contrary to predeclared OFFSET-NOTE. Onset61
-> takes61, then the end's only peak61 is consumed. The first mismatch is retained;
-> passing corrected regression expectations does not erase this prediction miss.
-> The accepted missing6 fixture remains OFFSET-NOTE/PARTIAL, selections4/8/10/none.
-> One fixed572-key sweep characterises recovery; every wrong cell and all22 prior
-> wrong cells' current statuses are published. No recovery result approves labels.
-> Complete pinned/gameplay bank readings and per-P disposition are in the report.
-> Source/Shaders and measure_label_offset.py remain unchanged. CaptureBench's
-> permitted scorer remains local/untracked with no remote. Feature alone is pushed;
-> m51 `53bf725` is restored at the safe boundary. Master stays `ac13700`.
-> **Chat review NOT REQUIRED** for this authorized implementation and feature push.
-> **Chat review REQUIRED** for the prediction miss, completed evidence and independent
-> Code review before merge; this is the next mandatory checkpoint. Client/Section G,
-> m51 campaign and release holds remain. No mailbox, build, capture, merge or tag.
-> Earlier campaign/session claims below are historical where they disagree.
+> 🏁🏁 **079-15, 2026-09-20 — THE VERIFIER CONSISTENCY UNIT IS COMPLETE AND MERGED TO `master` AS
+> THE MERGE COMMIT `0e7569c` (pushed). THE TOOL REPORTS PIXEL EVIDENCE AND ONE SOUND NEGATIVE;
+> **NO OUTPUT CERTIFIES A LABEL.** THIS IS THE CURRENT "YOU ARE HERE" FOR `master`; EVERYTHING BELOW
+> IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+>
+> **Cold start: `docs/sessions/2026-09-20-079-15-doc-fixes-and-merge.md` (self-contained), then
+> `docs/verifier-characterisation.md` — the measured-limitations record — then `docs/client-readme.md`
+> Step 6. The implementation rounds are `docs/sessions/2026-09-20-079-09/-10/-12/-13-*.md` with
+> `docs/predictions/2026-09-20-verifier-consistency-semantics.md` (AMENDMENTS 1–3); the reviews are
+> `_reviews/079-05..079-14-*`.** The merge is **INERT — `master^{tree}` == the branch's tree**, so
+> nothing entered `master` that was not on the reviewed branch.
+>
+> 🎯 **THE SEMANTICS IN ONE LINE. Per edge: `TRANSITION k d=… tau=… label s delta=…` /
+> `NO-TRANSITION [a..b]` / `UNASSESSABLE(<reason>)`. Per run: `CONSISTENT` (consistent with the
+> label; **DOES NOT ESTABLISH CAUSE**) / `OFFSET-NOTE` (a reading for a person, **NEVER a failure**) /
+> `NO-TRACE` (the **ONLY** failure, exit 2 — masks and RGB over the whole span AND both edge windows,
+> and no change above the noise floor on the target anywhere in it) / `PARTIAL` / `UNASSESSABLE` /
+> `READING` (bbox-only). ⛔ `PASS`, `SHIFT` and `NOT-VISIBLE` NO LONGER EXIST.**
+> 🔑 **Masks identify the PIXELS, not the CAUSE** (`G263`'s dated correction) — lighting, occlusion
+> and animation move the same pixels, which is why there is no verdict. **A transition serves at most
+> one edge** (`G264`); peaks are one-sided (`> tau` and `>= 1.5x` the SMALLER neighbour) and each edge
+> takes the nearest unused peak in labelled order, ties to larger `d` then earlier frame. Regional
+> motion `m_edge` is a READING and never refuses an edge; `> 0.42` only adds a caveat.
+>
+> 🚨 **THE NUMBER THAT DECIDES WHAT A `CONSISTENT` LINE IS WORTH, NOW PUBLISHED WHERE A READER MEETS
+> IT: 24 OF THE 314 SCORED CELLS READ `CONSISTENT` WHILE CARRYING A KNOWN ONE-FRAME LABEL SHIFT.**
+> It lived only in an out-of-repo report until 079-15. `docs/verifier-characterisation.md` now carries
+> it plus a **`Run outcome` column on every one of the 55 wrong cells**, and `client-readme.md` Step 6
+> says the same in the client's own words. **A CONSISTENT run does not confirm the label.**
+>
+> 👥 **ROLES, BECAUSE THE SPLIT IS THE POINT: Codex IMPLEMENTED the semantics (079-09 → 079-13);
+> Claude Code REVIEWED INDEPENDENTLY (079-14) with its own 35 fixtures, every expectation predeclared
+> before running; chat orchestrated.** The review found **NO BLOCKING DEFECT** — in particular **it
+> could not produce a false NO-TRACE**, and a **143-session bank sweep produced none**. It found two
+> documentation defects, one corrupted character and one test-suite gap, all fixed at 079-15.
+> 🔑 **THE GAP IS THE INTERESTING ONE: reordering `_event_token`'s precedence so `NO-TRACE` was checked
+> LAST passed ALL 94 fixtures AND ALL 22 contracts** — a fabricated label beside a healthy one would
+> have read `CONSISTENT` and exited 0. Now pinned by `event_mixed_fabricated_run` plus three
+> `EventAggregationContracts`, and **PROVEN BOTH WAYS (`G96`)**: shipped code 95 selftest / 25
+> contracts green; the same mutation ⇒ selftest **MISMATCH exit 2** AND contracts **FAILED**.
+>
+> 🧪 **GATE AT THE MERGE: selftest 95 OK · contracts 25 OK · pinned bench ×6 = 64 edges, 64
+> `delta=+0`, `tau=0.0040`, 4 CONSISTENT events per leg, exit 0 · the four Lyra/M50 bank sessions
+> differ from 079-14's banked readings by EXACTLY 2 LINES EACH — the reworded header — and nothing
+> else · CLI exits NO-TRACE 2 / `--report-only` 0 / clean 0 / cannot-run 3 / cannot-run
+> `--report-only` 3 · batch 2 / 0.** The characterisation sweep was re-run end to end and reproduces
+> 079-14's ledger **cell for cell, zero reclassified**.
+>
+> 🚨 **A CONVENTION VIOLATION WAS CAUGHT BY THE PRE-COMMIT STEP, ON THE LAST COMMIT BEFORE A MERGE TO
+> `master`: the 079 unit had accumulated 21 `#` comments in `tools/verify_capture.py` and 4 in the new
+> test file, across four implementation rounds and an independent review.** `master`'s `tools/*.py`
+> carry ZERO — `measure_label_offset.py` proves the rule is live there. The stripper (`changed 2,
+> nochange 96`) restored it; docstrings survive, so no explanation was lost.
+> ⚠ **`tools/verify_capture.py:55`'s `⚠` had been TRIPLE-encoded** (12 bytes — `G115`/`G141`'s shape
+> with one extra round) and was the file's ONLY non-ASCII; repaired at byte level with UTF-8 validity,
+> absence of BOM and CRLF counts all asserted after.
+>
+> ⛔ **WHAT THIS MERGE DOES NOT RELEASE — UNCHANGED: the CLIENT hold · `docs/office-rdp-card.md`
+> Section G (still HELD; its note carries the new outcome names and the historical predeclared reading
+> is retained) · the `m51` campaign · the release hold. NO TAG (tags batch at the office) · no cook ·
+> no build · no capture.** The verifier is an INSTRUMENT, not a release.
+> ⛔ **`m51` IS UNTOUCHED at `53bf725`** and the checkout was returned to it. The branch was cut from
+> the `master` lineage, so `git merge-tree 53bf725 <branch>` reports a `CLAUDE.md` conflict — **that
+> resolution belongs to the `m51` resume, together with the OPERATING-CONTRACT entry whose text is
+> parked in journal 079-15 §5** (the contract file lives on `m51`, not here).
+> 📌 `fix/verifier-field-validity` is **KEPT, not deleted**, at `f5e43c9` == `origin`. CaptureBench
+> stays `472a409` tracked-clean; its scorer `tools/m079_shift_recovery.py` remains local and untracked.
+> ⚠ **Two errors of mine are recorded in journal 079-15 §6 rather than buried**: the comment strip
+> landed mid-sweep, so that characterisation run was DISCARDED and re-run against the final bytes; and
+> stopping it I killed every `python` process on this SHARED box instead of by PID (`A46`). The mailbox
+> watcher is PowerShell and was unaffected; no build, cook or capture existed at any point.
 
 > 🏁🏁 **SESSION 077, 2026-09-04 → RESUMED 2026-09-06 → RULED AND MERGED 2026-09-06 — `m49` IS
 > **COMPLETE (A1 + A2 + PHASE B)** AND ON `master` AS THE MERGE COMMIT **`4a4bfcc`** (pushed), ON TOP

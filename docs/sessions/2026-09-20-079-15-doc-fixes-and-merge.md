@@ -183,6 +183,12 @@ by eye: every one of the ten reported `differing lines=2, header-only=True`.
 the branch's own base, so the merge is a fast-forward in content and `--no-ff` is what keeps the
 unit's history as one commit. **No tag** — tags batch at the office. The branch is **kept**.
 
+**Merge commit `0e7569c`, parents `ac13700` + `f5e43c9`, 20 files, +6,154 / −482.** The merge is
+**INERT, and that is measured rather than asserted: `master^{tree}` == `fix/verifier-field-validity^{tree}`
+== `9a9cfbe1…`,** so nothing entered `master` that was not on the reviewed branch. The selftest and
+contracts were re-run from master's own checkout afterwards (95 OK / 25 OK), and
+`git diff ac13700 master -- Source Shaders tools/measure_label_offset.py` is **empty**.
+
 ⛔ **`m51` is NOT touched.** The branch was cut from the `master` lineage, so
 `git merge-tree 53bf725 c1945b6` reports a `CLAUDE.md` conflict; that resolution belongs to the
 `m51` resume, not here. The checkout was returned to `m51` `53bf725` at the end of this unit.
