@@ -205,6 +205,12 @@ blink are represented as separate active runs. `time_dilation`,
 `lighting_mismatch`, `camera_clipping` and unknown classes cannot produce NO-TRACE.
 Class membership is a producer contract, not an independent proof of visible effect.
 
+`stuck_low_mip` is a **conditional** member of that class: it can earn NO-TRACE only
+on runs where the producer's own `stuck_mip.held` flag is true on **every** labelled
+frame. A run with an unheld frame, or with the flag absent, is left UNASSESSABLE —
+the verdict the class had before it was admitted. The flag is the producer's, so this
+narrows the tool rather than trusting it.
+
 **Coverage and boundary masks:** each pair uses the union of its two target
 masks, including the clean pairs used for the baseline. **Actual target masks
 always take precedence.** The producer may write masks only on labelled frames.
@@ -328,7 +334,7 @@ Anomalies are applied to objects that are currently visible on screen. These two
 
 The list of anomaly types Auto-pool mode draws from — check the ones you want in the mix. **now firing** below it shows which anomalies are live right now, on which objects, and for how much longer.
 
-**Six anomaly types are available. Four are enabled by default:**
+**Seven anomaly types are available. Four are enabled by default:**
 
 | Anomaly | Default | |
 | --- | --- | --- |
@@ -338,10 +344,13 @@ The list of anomaly types Auto-pool mode draws from — check the ones you want 
 | `lod_popping` | **on** | an object flips to a much lower-detail version of itself |
 | `missing_object` | **off** | an object is hidden for the whole burst, with no reappearance inside it |
 | `camera_clipping` | **off** | the camera's near-clip plane is pushed out, slicing away close geometry |
+| `stuck_low_mip` | **off** | an object's textures stay stuck at a low-resolution level, so it looks blurry while everything around it stays sharp |
 
-The two unticked ones are **available, not disabled** — tick either whenever you want it in the mix.
+The three unticked ones are **available, not disabled** — tick any of them whenever you want it in the mix.
 
 **`camera_clipping` is available but off by default**, because in Auto-pool mode it is held for the **whole session** rather than for a few frames — so on a first-person game the player's hands and weapon are sliced away in *every frame* of that capture. That is correct behaviour and it is what the anomaly looks like, but it is disruptive as a default. **Tick it whenever you want it** — see the explainer video and the note in section 7 first.
+
+**`stuck_low_mip` is available but off by default** for a different reason: its reach depends on how your game's textures are shared. It only ever holds a texture that no *other* visible object is using, so on content where one material is reused across a scene it will decline most targets and produce few events — and it declines them loudly, with a counted reason in `run_summary`, rather than producing labels you cannot see. On content with per-object textures it fires readily. **Tick it and read the `stuck_mip_refused_*` counters** in `run_summary.json` to see what your content gives it before relying on it for volume.
 
 ### Live preview
 
@@ -462,7 +471,7 @@ first.
 
 | Field | Type | Since | Meaning |
 | --- | --- | --- | --- |
-| `anomaly_type` | string | v1 | `blinking`, `missing_texture`, `corrupted_texture`, `lod_popping`, `missing_object`, `camera_clipping`. |
+| `anomaly_type` | string | v1 | `blinking`, `missing_texture`, `corrupted_texture`, `lod_popping`, `missing_object`, `camera_clipping`, `stuck_low_mip`. |
 | `anomaly_subtype` | string | v1 | A finer label for the same event, e.g. `disappear_reappear` for `blinking`. |
 | **`affected_frames`** | object | v1, **meaning changed in v2** | **The frames on which the anomaly is judged to be VISIBLE.** See §8.3. |
 | **`injected_frames`** | object | **v2** | **The frames on which the anomaly was APPLIED**, whether or not it could be seen. Same shape as `affected_frames`. This is exactly what `affected_frames` meant in v1. |

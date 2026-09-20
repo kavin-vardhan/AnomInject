@@ -11,11 +11,86 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🏁🏁 **SESSION 080-05, 2026-09-20 — `m52` IS COMPLETE AND ON `master` AS THE MERGE COMMIT
+> **`4af249f`** (pushed). `stuck_low_mip` IS THE TENTH ANOMALY. THE MERGE IS **INERT** —
+> `master^{tree}` == `feat/m52-stuck-mip^{tree}` == `ec2ff258…`, the exact tree `merge-tree` forecast
+> BEFORE it ran — so nothing entered `master` that was not on the gated branch. ⛔ **NO TAG** — tags
+> batch at the office. THIS IS THE CURRENT "YOU ARE HERE"; EVERYTHING BELOW IT IS OLDER AND IS
+> SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁
+>
+> **Cold start: `docs/sessions/2026-09-20-080-04-m52-ratio-destroy-vt.md` (self-contained — §2 the
+> gate table, §4 the pre-existing defect `G4e` found, §5 the VT probe, **§6 THE NAMED LIMITATION**),
+> then `docs/sessions/2026-09-20-080-05-m52-merge-and-veto-diagnosis.md` (the merge and the
+> `m26`/`m49` diagnosis), then `docs/predictions/2026-09-20-m52-stuck-low-mip.md` — `AMENDMENT 3`
+> FIRST (its §A3.2 corrects `R1`'s premise, its §A3.6 is the S2′ proposal), then `AMENDMENT 2`,
+> `AMENDMENT 1`, then §§0–10.** Branch `feat/m52-stuck-mip` `791f8c8` is **KEPT, not deleted**.
+> **`m51` `53bf725` is UNTOUCHED and still carries an unmerged `CLAUDE.md` divergence — resuming
+> `m51` means resolving that conflict against `master`, and it was deliberately not pre-resolved
+> here.** Pre-merge gate: verifier contracts **25/25**, `--label-pixel-gate --selftest` **98 cases**,
+> black-frame `--selftest` both ways — all exit 0 on the branch tip; **nothing else re-run.**
+> ⛔ Revert handle: `git revert -m 1 4af249f`.
+>
+> 🎯 **`m52` = `stuck_low_mip`, the TENTH anomaly** (catalogue is now 10; `GAutoPool` has 7 ids).
+> A target's textures are held at a LOW resident mip for the event span — the object looks blurry
+> while the scene stays sharp — then given back **and confirmed given back**. **Lever `L4′`:** the
+> public runtime `NumCinematicMipLevels` + `UpdateCachedLODBias()`, whose term is added OUTSIDE the
+> cooked gate, so **the streamer performs the stream-out itself and holds it** and the cancellation
+> race it applies to foreign requests is false by construction (`G265`, `G266`). **Policy `S4`:**
+> per-TEXTURE gating on the VISIBLE set, `MaxCoAffected` compiled **0**. **Window opens at the first
+> measurably-held frame**, pre-roll captured and labelled NEGATIVE. **Restore is VERIFIED** by
+> polling the engine's own resident count. **Destruction reverts immediately** (`AActor::OnEndPlay`
+> + a weak-pointer backstop). **Ratio gate 8.0** refuses a target too small for any achievable blur.
+> ⛔ **`annotation.json` DID NOT MOVE — `P6` intact, `label_schema` still 2**; all evidence rides
+> `labels.jsonl` (16 `stuck_mip.*` keys, emitted only on a `stuck_low_mip` entry) and `run_summary`
+> (18 `stuck_mip_*` counters).
+> ⚠ **`stuck_low_mip` is in `GAutoPool` and NOT in `GAutoPoolDefaultEnabled`. THE POOL DEFAULT LIST
+> IS UNCHANGED** — still `blinking`, `missing_texture`, `corrupted_texture`, `lod_popping`.
+> **Default-on is the OWNER'S DECISION and is deferred pending `m55`**, despite 15 manifested events
+> from 16 applied fires on the 600-frame MainWorld retest, because of the limitation below.
+>
+> 🚨 **THE NAMED LIMITATION THAT SHIPS WITH IT (`G270`): THE PERCEPTIBILITY RATIO IS A SIZE TEST AND
+> CANNOT SEE TEXTURE CONTENT.** On Lyra, events at ratio **26.76–31.59** — three to four times the
+> gate — still read `NO-TRACE` from the label-vs-pixel verifier, because a low-frequency paint or
+> normal map is imperceptible at any achievable mip. ✅ **Pre-existing, not a regression** (the
+> banked 080-03 leg reads the same on the old binary; it was never verified). ✅ **Unreachable at the
+> shipped configuration** — those events carry `co_affected_visible = 4` and `MaxCoAffected 0`
+> refuses them, so **`MaxCoAffected 0` is excluding that class by LUCK rather than by design.**
+> ⇒ **`m55` — an in-engine per-frame measurement of the target's own change fraction from the mask
+> pass, which would make `observable` mean *measured visible change* for every anomaly class — is
+> NAMED AND NOT BUILT, and it is what the default-on decision waits on.**
+> 📐 **S2′ (one hold → one event per visible co-affected actor) is DESIGNED AND COSTED, NOT BUILT**
+> (`AMENDMENT 3` §A3.6): at cap 4 a comparable 600-frame session spends **50–80 stencil tags against
+> a ceiling of 47** ⇒ pool exhaustion, which is a **stop, not a caveat** — against the fact that all
+> 21 of Lyra's shared refusals sit inside that cap and it would take `L_ShooterGym` from 0 to a real
+> yield.
+>
+> 🚨 **`G269` — A PRE-EXISTING CAPTURE DEFECT FOUND BY `m52`'s NEW DESTROY GATE AND FIXED IN IT.**
+> `ComputeFireActive` returned **ACTIVE** for any `AnomalyState` fire with **no target actor**,
+> without consulting the anomaly — correct for the GLOBAL `camera_clipping`, and exactly backwards
+> for an object-scoped fire whose target had just been destroyed: *"the object has ceased to exist,
+> therefore the anomaly is present."* It put five frames into `injected_frames` that carried **no
+> anomaly entry in `labels.jsonl` at all**. Discriminated on **`F.bWholeFrameExtent`** ⇒ every global
+> fire byte-unchanged, and **the only reachable behaviour change is an object-scoped `AnomalyState`
+> fire with a dead target** — only two anomalies are `AnomalyState` and one is the global.
+>
+> 📦 **Staged bench exe `5588F6FB`** (241,546,752 B, archived
+> `_binary_baselines\StackOBot.exe.m52-firewindow-fix-5588F6FB`). ⛔ **`F65A8C90` STAYS LOAD-BEARING**
+> — it is the only binary that exhibits the `G269` over-claim and is that A/B's A-side.
+> **Container quintet BYTE-UNCHANGED** (`67EA1FE0`/`2CEFB8F4`/`E03C6610` + `A16A18A8`/`C70ECDAA`) —
+> code-only hot-swap, **NO COOK** (`G103`). ⚠ **The staged exe is an `m52` binary; verify its hash
+> before any leg** (shared-tree rule 4). CaptureBench `472a409` tracked-clean.
+>
+> 🎯 **NEXT: `m55` is the named next unit and the default-on decision waits on it.** ⛔ **Do not tag,
+> do not flip `GAutoPoolDefaultEnabled`, do not raise `MaxCoAffected`, do not tune the perceptibility
+> ratio, and do not build S2′ — none of them unprompted.**
+>
+> ---
+>
 > 🧾 **SESSION 080-04, 2026-09-20 — `m52`'s SIX RULINGS ARE BUILT AND MEASURED. THE `G11` FAILURE IS
 > GONE, THE TARGET-DESTROYED EXIT IS NO LONGER UNRUN, AND THE VIRTUAL PATH IS EXERCISED ON BOTH
 > FIXTURES. VERDICT: GREEN ON THE TWO PRE-FIXED CONDITIONS — AND THE SESSION'S MOST IMPORTANT
-> FINDING IS A NEGATIVE ONE THAT NEITHER CONDITION COVERS. THIS IS THE CURRENT "YOU ARE HERE" FOR
-> `feat/m52-stuck-mip`; the 080-03 block below is SUPERSEDED where they differ.** 🧾
+> FINDING IS A NEGATIVE ONE THAT NEITHER CONDITION COVERS. (Superseded as "you are here" by the
+> 080-05 merge block above; still the record of the gate campaign that closed `m52`.)** 🧾
 >
 > **Cold start: `docs/sessions/2026-09-20-080-04-m52-ratio-destroy-vt.md` (self-contained — §2 the
 > gate table, §4 the pre-existing defect `G4e` found, §5 the VT probe, **§6 THE FINDING**), then
