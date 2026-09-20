@@ -652,3 +652,110 @@ implementation sessions after this plan is ruled.
 - ⛔ **No claim that the chosen lever holds on a host we have not run.** F-a…F-e are the
   named ways it can fail, and each one is detected rather than assumed absent.
 - ⛔ **Nothing here is a verdict about `m51`**, which stays HELD at `53bf725`.
+
+---
+
+# AMENDMENT 1 — chat rulings and the pre-declared gate readings
+
+**Appended 2026-09-20, session 080-02, BEFORE any gate leg ran and BEFORE any result was read.**
+Nothing above this line is edited; the plan stands as written and this amendment records what
+chat ruled, what the implementation actually did, and what each gate must read.
+
+## A1.1 Rulings on §8, verbatim in effect
+
+1. **Pool:** `stuck_low_mip` goes into `GAutoPool`; it is **NOT** in `GAutoPoolDefaultEnabled` until
+   `G7` yields a number. Owner decides default-on after; chat's steer is default-on if **>= 25 %** of
+   visible targets are eligible on MainWorld. ⛔ That 25 % is a FUTURE DECISION RULE, not a gate
+   threshold, and `G7` passes or fails on nothing — it prints.
+2. **Fixture:** route (a) — StackOBot **MainWorld** + **Lyra**. No `CB_MipLevel` cook now. If MainWorld
+   yield proves too low to gate reliably, `CB_MipLevel` is the named future bench fixture.
+3. **`label_schema` stays 2.** The new keys live inside the `stuck_low_mip` anomaly object only;
+   m51's schema-3 bump absorbs them later. Recorded here as the schema note.
+4. **`MaxCoAffected` default 0 — kept.**
+5. **S2 multi-node disclosure — Tier-2 only, not built.**
+6. **Hold ALL eligible textures of the target** (not just the largest).
+
+Lever `L4'`, sharing policy `S4`, and `AnomalyState` with `IsCurrentlyAnomalous()` = *mip measurably
+below baseline* are ACCEPTED. Console names follow the shipped convention. Gates are packaged-only
+(Development, the capture build; capture is compiled out of Shipping).
+
+**Each of the five failure modes F-a..F-e must have a label/telemetry field AND a gate that
+exercises it** — that is a ruling, and A1.4 below records which gate exercises which.
+
+## A1.2 Deviations the implementation made from §9, stated
+
+1. **`AnomalyViewport` is UNCHANGED.** §9 planned an additive
+   `CountVisibleComponentsUsingTexture` helper there. It was not needed:
+   `AnomalyViewport::GetVisibleRenderableActors(World)` is already public
+   (`AnomalyViewport.h:113`), so the visible-set co-user map is built inside the anomaly's own
+   translation unit. Smaller blast radius than planned, and it keeps the `G33` chokepoint untouched
+   — which is what §9's own warning was about.
+2. **Telemetry is a GENERIC bag, not stuck-mip-specific plumbing.** `IAnomaly` gains one defaulted
+   virtual `GetTelemetry(FAnomalyTelemetry&)` (the `m49` `IsVisualConditionHeld` precedent), and
+   `FAnomalyTelemetry` is an int/bool/string key-value bag the label writer emits verbatim into the
+   anomaly object. The writer needs no per-anomaly knowledge and `m53`/`m54` reuse it. A run with no
+   `stuck_low_mip` event emits no key, because an inactive anomaly returns false.
+3. **The unlink lock is a BENCH LEVER, not an ini knob.** §5 listed
+   `StuckMipUnlinkLockDefault`. It is a fallback mechanism, not client-facing tuning, so it ships as
+   `IAI.Bench.StuckMipUnlinkLock` — **and it is DELIBERATELY INERT**: §1.2 proves neither ordering
+   works, so enabling it changes nothing today. The command exists to hold the place and to say so.
+4. **Three knobs, not four:** `IAI.Anomaly.StuckMipLevels` (int, compiled `-1` = to the floor),
+   `IAI.Anomaly.StuckMipMaxCoAffected` (int, compiled `0`), `IAI.Anomaly.StuckMipMinTexelRatio`
+   (float, compiled `4.0`). Each with its ini key under `[AnomalyInjector]` and console > ini >
+   compiled precedence; out of range REFUSED, never clamped.
+5. **The bias is applied by SEARCH, not by algebra.** The needed
+   `NumCinematicMipLevels` delta is computed, written, `UpdateCachedLODBias()` called, and the
+   resulting `MaxAllowedMips` **read back** and corrected in a bounded loop (<= 8 steps). The group
+   `MinLODSize` clamp and any other bias term therefore cannot silently change the achieved depth,
+   and the achieved value is logged beside the requested one.
+
+## A1.3 What already happened this session, before any gate leg
+
+- **Both targets built, exit 0, ZERO warnings.** `StackOBotEditor Win64 Development` (modular — the
+  only configuration that links module-to-module and therefore the only one that can catch the
+  devirtualisation/missing-export hazard of §7) and `StackOBot Win64 Development` (monolithic).
+- **Binary identity (`G121`):** built == staged == archived, **`A8742A4A`**, 241,468,416 B.
+  Predecessor **`D50DDE78`** (the m51 F1 candidate) was hash-verified AT ITS ARCHIVE
+  (`_binary_baselines\StackOBot.exe.m51-f1-candidate-D50DDE78`) **before** the staged copy was
+  overwritten, per `A62`. New archive: `StackOBot.exe.m52-stuckmip-A8742A4A`.
+- **Container quintet BYTE-UNCHANGED across the swap** — `67EA1FE0` / `2CEFB8F4` / `E03C6610` +
+  `A16A18A8` / `C70ECDAA`, hashed before AND after. Code-only hot-swap, **no cook** (`G103`): m52
+  adds no shader and no shader parameter struct.
+- **`A44` scan of the STAGED artifact, both encodings:** eleven new symbols present in UTF-16 and
+  absent in ASCII; three pre-existing controls also present (so the scan is SOUND, not blind); two
+  invented symbols absent (so it DISCRIMINATES).
+
+## A1.4 Pre-declared gate readings
+
+⚠ **Gate numbering follows the 080-02 brief, which differs from §6's.** §6's `G0` (precondition
+read-back) is folded into `G1` here. Where §6 and this amendment disagree on a NUMBER, this
+amendment governs; where they disagree on a READING, that is a finding and must be reported.
+
+| id | what it exercises | PRE-DECLARED reading |
+|---|---|---|
+| **G1** | unit + registry + precondition read-back | catalog lists **10** anomaly types (was 9) with `stuck_low_mip` scope `object` and one int arg `mip_levels` default `-1`; `GAutoPool` has **7** entries; the default-enabled pool still has **4** and does **NOT** contain `stuck_low_mip`; `r.TextureStreaming` reads **1** and `r.Streaming.UseAllMips` reads **0**, both READ BACK from the live console and echoed at Apply |
+| **G2** | 🚨 **can-fail (`G96`)** — `IAI.Bench.StuckMipNoHold 1` | `stuck_mip.held` **false on every frame**, `observable` **false on every frame**, **zero labelled frames** for the event, `stuck_mip.bench_no_hold` true. **A `G3` pass without this is not a result.** |
+| **G3** | hold through the span on MainWorld, under a camera sweep that would normally stream the mip back in | `stuck_mip.held` **true** on every captured span frame after onset; `stuck_mip.resident_mips` constant at `stuck_mip.forced_mips`; **zero** frames where the streamer wins. Any frame where it does win is REPORTED with its co-affected count and cvar read-back, not smoothed. Exercises **F-c** (`fail_force_resident`) and **F-d** (`fail_host_changed_bias`) — both expected **absent**, and both have a field so their absence is a reading rather than silence |
+| **G4** | restore on every exit: normal revert · `FinishRun` · cancel before focus · target destroyed mid-span · level change | resident mip count returns to `stuck_mip.baseline_mips` in **all five**, and `NumCinematicMipLevels` is byte-restored to its saved value. Post-revert restore latency measured; if it exceeds `SettleAfterRevert`, **the config changes, not the gate** |
+| **G5** | onset — m44 ONSET satisfied by construction | the **first labelled frame** has `stuck_mip.resident_mips < stuck_mip.baseline_mips`. Frames between Apply and the drop are **UNLABELLED**, and their `stuck_mip.*` keys are absent because an unlabelled frame carries no anomaly entry. *No latency value is predicted* — it is measured and reported |
+| **G6** | hitch | **max frame time with the anomaly <= baseline + 2 ms** at 1280x720 on the bench recipe. ⚠ A difference not larger than the within-build spread is *below the resolution of this instrument* (`G169`), never *no cost* |
+| **G7** | yield on the visible set, MainWorld and Lyra, 600-frame session | **PRINTED, NO THRESHOLD.** eligible/visible targets per frame, plus the five `run_summary` refusal counters. This is the number the pool-membership decision needs |
+| **G8** | Lyra hold + restore | the anomaly fires or refuses **for a named reason**; `NOT_APPLICABLE` counts reported. Exercises **F-e** (`stuck_mip_refused_virtual`) — Lyra sets `r.VirtualTextures=True`, but that is the FEATURE flag and the per-texture `IsCurrentlyVirtualTextured()` is what decides |
+| **G9** | schema additive + client-readme field test | `labels.jsonl` field set **UNCHANGED** on a run with no `stuck_low_mip` event; `run_summary` adds exactly the **eight** `stuck_mip_*` keys; **`annotation.json` diff EMPTY (`P6` does not move)**; `label_schema` still **2** |
+| **G10** | both tick orders | native and `IAI.Bench.SynthTickOrder` both produce the same per-frame alignment: first labelled frame == first frame with `held` true, in both |
+| **G11** | verifier consistency read (079 tool) | **READINGS ONLY.** Expected `CONSISTENT` / `OFFSET-NOTE`, **zero `NO-TRACE`**. 🚨 **If a `NO-TRACE` appears that is a FINDING about m52's labels — report it, do not tune.** A `CONSISTENT` run never confirms a label (`docs/verifier-characterisation.md`) |
+| **G0-BUILD** | both build targets | **ALREADY READ, A1.3: exit 0, zero warnings, both targets.** |
+
+**F-a (`fail_use_all_mips`) and F-b (`fail_streaming_off`)** are exercised by `G1`'s read-back: the
+cvars are read from the live console at every Apply, and either one non-default sets its per-frame
+flag. ⛔ They are not forced on a gate leg, because forcing `r.TextureStreaming 0` changes the whole
+fixture's streaming behaviour and would make every other reading on that leg incomparable. **Their
+detection path is proven by construction (the flag is written from the same read the log echoes);
+their FIRING is not gated, and that is stated rather than implied.**
+
+## A1.5 What this amendment does not do
+
+- ⛔ It sets **no new threshold**. `G6`'s +2 ms is chat's, fixed here before the measurement.
+- ⛔ It predicts **no onset latency**, **no yield**, and **no refusal counts**.
+- ⛔ It does not permit tuning any default after a reading. A gate that misses is a NEEDS-DECISION
+  with numbers.
