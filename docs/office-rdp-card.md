@@ -1261,38 +1261,41 @@ python <plugin-repo>\tools\verify_capture.py --label-pixel-gate --report-only --
 NO-TRACE exit code**, so the step cannot end early before the per-event lines have been read. The
 exit code is not what this section is collecting; **the lines are.**
 
-> 🔻 **CURRENT PROSPECTIVE CORRECTION, 2026-09-20 (079-12).** Section G remains
-> **HELD**; the verifier delta does not authorize an office run or release.
+> 🔻 **CURRENT PROSPECTIVE CORRECTION, 2026-09-20 (079-13).** Section G remains
+> **HELD**; this verifier delta does not authorize an office run or release.
 > Transcribe all header, run/edge, event-count and run-coverage lines as printed.
 > Outcomes are CONSISTENT, OFFSET-NOTE, NO-TRACE, PARTIAL, UNASSESSABLE, READING.
-> CONSISTENT does not establish cause. A coincident whole-region change adds a
-> **run caveat** and is counted in `CONSISTENT n (c with caveat)`; inspect the
-> printed neighbouring frames. OFFSET-NOTE also requests inspection and never fails.
+> CONSISTENT does not establish cause. Lighting and high-regional-change caveats
+> appear on run lines; a caveated CONSISTENT run contributes to `n with caveat`.
+> `m_edge > 0.42` adds the motion caveat. This historical marker never refuses an
+> edge. Read the header's two-line pointer to `docs/verifier-characterisation.md`
+> for per-session recovery tables and every measured wrong recovery.
 > Missing OUTSIDE-span masks may use the same run's nearest labelled boundary,
 > at most window+24 frames away (default28). Actual masks always take precedence;
-> in-span missing masks remain unassessable. Source/distance tags and each run's
-> `masks: in-span actual, edges extrapolated <=…` line disclose the assumption.
+> in-span missing masks remain unassessable. Preserve source/distance tags and
+> each run's `masks: in-span actual, edges extrapolated <=…` disclosure.
 > **NO-TRACE means no change above the printed noise floor**, a fraction of the
 > target-region pixels, across the whole span/windows. It is the only failure;
-> extrapolated edge pairs are permitted and explicitly tagged. It does not mean
-> bitwise equality. Producer class and M3 visibility flags remain producer evidence.
+> extrapolated edge pairs are permitted and tagged. It does not mean bitwise
+> equality. Producer class and M3 visibility flags remain producer evidence.
 > Events take the worst assessable RUN outcome; unread/READING runs remain in
-> coverage numbers and cannot promote an event through their edges. Each edge
-> now takes its nearest unused local peak in labelled order within target/mode.
-> Preserve `other peaks in window` and run `assignment` disclosures. All peaks
-> already used means UNASSESSABLE; no local peak means NO-TRANSITION, which can
-> still contain above-tau changes and cannot alone establish NO-TRACE. The walk
-> ensures unique assignments, not cause or increasing frames across different
-> regions. Missing transitions can cause later peaks to be assigned early.
+> coverage counts and cannot promote an event through their edges. Each edge
+> takes its nearest unused peak in labelled order within target/mode. Peaks use
+> one-sided prominence: >tau and >=1.5 times the smaller neighbouring change.
+> Outside-window neighbours count as zero; adjacent equal on/off peaks qualify.
+> Equal-distance ties prefer larger d, then earlier frame. Preserve printed tie
+> strengths, alternatives and run assignments. All peaks used means UNASSESSABLE;
+> no peak means NO-TRANSITION, which alone cannot establish NO-TRACE. Uniqueness
+> does not guarantee increasing frames across different regions. Preserve any
+> `note: assigned frames out of label order (k1 > k2)`. Missing transitions or a
+> shifted one-frame label can leave a later edge without an unused peak.
 > `--report-only` suppresses only code2; execution errors still return3. The
 > non-failing final line is NO FAILURE FOUND with counts, never label approval;
-> all-bbox sessions also print UNREAD-BBOX-ONLY. Read the actual cap provenance.
-> 079-12 derives **NO ADMISSIBLE ENVELOPE** from wrong recoveries at a zero baseline
-> median. The default refuses every otherwise-assessable edge; zero scored cells
-> do not validate the instrument. Earlier-cap diagnostic readings are separate.
+> all-bbox sessions also print UNREAD-BBOX-ONLY. Threshold, region, baseline and
+> input-coverage refusals remain. Regional motion itself has no refusal state.
 > **The historical G-3/G-4 predeclared reading below is retained unchanged.**
-> **Chat review REQUIRED** for completed evidence and independent review before
-> merge or releasing Section G. That is the next mandatory checkpoint.
+> **Chat review REQUIRED** for completed evidence and independent Code review
+> before merge or releasing Section G. That is the next mandatory checkpoint.
 
 ⚠ **PROVE IT CAN FAIL FIRST — one extra command, and it takes seconds:**
 

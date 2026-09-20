@@ -11,35 +11,37 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **079-12 ordered-nearest peak delta, 2026-09-20 — NEEDS-DECISION, UNMERGED.**
-> Owner-authorized role swap for this unit: Codex implements, Claude Code independently
-> reviews afterward, Chat orchestrates. Feature `fix/verifier-field-validity` starts
-> this delta at `e6351ce`; AMENDMENT 2 was committed first at `1ea7624`. Read
-> `docs/sessions/2026-09-20-079-12-codex-delta.md`, then
-> `D:/IntrusiveAnomalies/_reviews/079-12-codex-delta-report.md` and its frozen evidence.
-> R6-prime selects local peaks (>tau, >=1.5 times both neighbours), then walks
-> all labelled edges per target/mode and takes the nearest unused peak, tie earlier.
-> Existing labelled bounds, mask/identity/baseline/coverage guards remain. Alternatives
-> and multi-peak run assignments are printed. No separate monotonicity constraint.
-> Calibration now finds22 wrong recovery cells, including baseline median0:
-> the unchanged derivation requires **NO ADMISSIBLE ENVELOPE**, the new default.
-> Final default readings refuse every otherwise-assessable edge. Guard-off has
-> 296/572 scored cells,230 recovered; zero scored cells under the refuse-all guard
-> do not validate recovery. The full final tables and hashes are in the report.
-> At the previous numeric cap0.42,60/64 pinned edges are observed (56 transitions):
-> BL_NAT and the four non-blink legs have4 CONSISTENT events each; BL_SYN has4 PARTIAL
-> events because its one-frame runs' adjacent changes suppress each other's peaks.
-> These diagnostic readings are separate from the final default. Missing-peak6
-> also contradicts the supplied prediction; uniqueness does not prove monotonicity.
-> Both were disclosed before implementation. 079-11's clarification note is preserved.
-> Source/Shaders and measure_label_offset.py are unchanged. No merge, tag, build,
-> capture or mailbox use. CaptureBench's scorer remains local/untracked (no remote).
-> Master remains `ac13700`; m51 remains `53bf725` and the original checkout is restored
-> at the completed boundary. Earlier campaign/session claims below are historical.
-> **Chat review NOT REQUIRED** for the authorized implementation/feature push.
-> **Chat review REQUIRED** for the refuse-all calibration, P2-prime/prediction conflicts,
-> independent Code review and evidence before
-> merge. This is the next mandatory checkpoint; client/Section G and campaign holds remain.
+> **079-13 motion/peak/tie delta, 2026-09-20 — NEEDS-DECISION, UNMERGED.**
+> Authorized role swap: Codex implements, Claude Code independently reviews next,
+> Chat orchestrates. Feature `fix/verifier-field-validity`, base `53e6e51`;
+> AMENDMENT 3 committed first at `d088997`. Read the full external report
+> `D:/IntrusiveAnomalies/_reviews/079-13-codex-delta-report.md`, its frozen evidence,
+> `docs/sessions/2026-09-20-079-13-codex-delta.md` and
+> `docs/verifier-characterisation.md`. The report carries exact final SHAs.
+> Regional motion no longer refuses an edge: m_edge remains a reading; >0.42
+> adds a run caveat counted for CONSISTENT events. No cap is derived. Threshold,
+> region, baseline, mask/RGB/identity and session-coverage refusals remain.
+> Peaks exceed tau and >=1.5 times the smaller neighbouring change (outside the
+> window=0). Adjacent equal on/off changes qualify. Nearest unused selection
+> retains labelled order and bounds; equal-distance ties prefer larger d, then
+> earlier frame. Both tied strengths and any assignment inversion are printed.
+> Exclusion ensures uniqueness, not monotonic assignments across different regions.
+> All94 fixture and22 contract checks pass after one measured correction:
+> `c08_one_frame_late` is PARTIAL, contrary to predeclared OFFSET-NOTE. Onset61
+> takes61, then the end's only peak61 is consumed. The first mismatch is retained;
+> passing corrected regression expectations does not erase this prediction miss.
+> The accepted missing6 fixture remains OFFSET-NOTE/PARTIAL, selections4/8/10/none.
+> One fixed572-key sweep characterises recovery; every wrong cell and all22 prior
+> wrong cells' current statuses are published. No recovery result approves labels.
+> Complete pinned/gameplay bank readings and per-P disposition are in the report.
+> Source/Shaders and measure_label_offset.py remain unchanged. CaptureBench's
+> permitted scorer remains local/untracked with no remote. Feature alone is pushed;
+> m51 `53bf725` is restored at the safe boundary. Master stays `ac13700`.
+> **Chat review NOT REQUIRED** for this authorized implementation and feature push.
+> **Chat review REQUIRED** for the prediction miss, completed evidence and independent
+> Code review before merge; this is the next mandatory checkpoint. Client/Section G,
+> m51 campaign and release holds remain. No mailbox, build, capture, merge or tag.
+> Earlier campaign/session claims below are historical where they disagree.
 
 > 🏁🏁 **SESSION 077, 2026-09-04 → RESUMED 2026-09-06 → RULED AND MERGED 2026-09-06 — `m49` IS
 > **COMPLETE (A1 + A2 + PHASE B)** AND ON `master` AS THE MERGE COMMIT **`4a4bfcc`** (pushed), ON TOP

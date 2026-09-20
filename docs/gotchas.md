@@ -7007,3 +7007,40 @@ Earlier paragraphs above are historical where superseded.
 **Chat review REQUIRED** for the P2-prime miss, prediction/monotonicity conflicts,
 completed evidence and independent Code review before merge; that is the next
 mandatory checkpoint. Section G, client, campaign and release holds remain.
+
+
+### G264 — fourth dated correction: motion readings, one-sided peaks and stronger ties (2026-09-20, 079-13)
+
+This correction supersedes the 079-12 cap, two-sided peak and earlier-tie rules.
+Regional-motion refusal and cap derivation are removed. m_edge remains a reading;
+above the historical0.42 marker a run prints a high-regional-change caveat, counted
+when a CONSISTENT event includes a caveated CONSISTENT run. Threshold, whole-frame
+region, baseline floor, RGB/mask/identity and session-coverage refusals remain.
+
+Peak membership is now d(k)>tau and d(k)>=1.5*min(d(k-1),d(k+1)), with outside-window
+neighbours zero. Adjacent equal on/off transitions both qualify; positive plateau
+edges qualify while interiors do not. The nearest unused peak still wins; an
+equal-distance tie prefers larger d, then earlier k. Print both tied strengths.
+The target/mode walk, labelled bounds and exclusion semantics are unchanged.
+
+The monotonicity claim is withdrawn. A decrease between successive assignments
+prints `note: assigned frames out of label order (k1 > k2)` on the affected run;
+it does not force a different choice. Chat accepts missing6 as OFFSET-NOTE/PARTIAL
+(4/8/10/none): the former prediction was wrong because A.end can take free peak8.
+
+**New measured prediction miss: c08_one_frame_late is PARTIAL, not OFFSET-NOTE.**
+The true one-frame change has equal peaks60/61, now both admitted. Labelled onset61
+takes the nearest peak61. The end62 window[61..66] contains only consumed61, so it
+is unassessable. The initial output is preserved before correcting the known answer.
+The literal R9 walk is retained; no look-ahead or future-peak reservation is added.
+
+Scorer v3 now publishes a single fixed-cohort characterisation, with no derived
+cap. `docs/verifier-characterisation.md` holds per-session five-class tables,
+every wrong recovery and competing peaks, and the status of all22 prior wrong
+cells. A wrong recovery may produce OFFSET-NOTE or even coincident CONSISTENT;
+neither certifies the association. All572 planned keys remain scored or unscored.
+
+**Chat review NOT REQUIRED** for this authorized implementation and feature push.
+**Chat review REQUIRED** for the prediction miss, completed evidence and independent
+Code review before merge; this is the next mandatory checkpoint. Section G, client,
+campaign and release holds remain. Earlier dated observations stay historical.

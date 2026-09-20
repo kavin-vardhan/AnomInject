@@ -228,38 +228,46 @@ may trigger the bounded fallback. ID 0/unresolved may use a sole value, visibly
 tagged, but cannot support NO-TRACE. NO-TRACE is permitted with extrapolated edge
 pairs and explicitly says `edge pairs use extrapolated masks` when that occurs.
 
-Search windows remain bounded by labelled frames, inclusively. A local peak must
-exceed `tau` and be at least 1.5 times each immediately neighbouring pair's change;
-neighbours outside the window count as zero. For each target and mode, edges in
-labelled order take the nearest peak that an earlier edge has not used; ties go
-to the earlier frame. Bbox-only runs do not constrain masked runs. A window whose
-peaks were all used reports UNASSESSABLE with those frame numbers. A selected
-transition lists its other available peaks, and a run with any multi-peak window
-prints `assignment: onset … (nearest of {…}), end … (nearest of {…})`.
+Search windows remain bounded by labelled frames, inclusively. A peak must exceed
+`tau` and be at least 1.5 times the **smaller** immediately neighbouring pair's
+change; neighbours outside the scanned window count as zero. Adjacent equal
+on/off changes both qualify. A positive flat plateau has qualifying edges but
+no interior peaks. For each target and mode, edges in labelled order take the
+nearest peak that an earlier edge has not used. Equidistant candidates prefer
+the larger change `d`, then the earlier frame if strengths are equal; the edge
+line prints both tied strengths and the choice. Bbox-only runs do not constrain
+masked runs. All peaks already used means UNASSESSABLE with those frame numbers.
+Selected transitions list alternative peaks, and multi-peak windows also print
+the run's onset/end assignments.
 
-This ordered walk prevents duplicate assignments but does not establish cause
-or guarantee increasing assigned frames when different regions admit different
-peaks. A missing transition can make an earlier edge take a later run's peak;
-adjacent equal changes may suppress each other as peaks. Inspect the disclosed
-candidates and frame neighbourhoods when an association is in doubt.
+This walk ensures unique assignments but does not establish cause or guarantee
+increasing assigned frames when regions admit different peaks. A decrease prints
+`note: assigned frames out of label order (k1 > k2)` on the affected run. A missing
+transition can make an earlier edge take a later run's peak. A delayed one-frame
+label can assign its actual end transition to its onset and leave its end unread.
+Inspect the disclosed candidates and frame neighbourhoods when an association is
+in doubt. NO-TRANSITION means no qualifying peak, not no above-tau change.
 
 Every transition also prints the change fraction in a ten-pixel ring around its
 region. `note: whole-region change (lighting/camera?)` helps a person inspect the
-frames. It is diagnostic only and never changes an outcome.
+frames. It is diagnostic only and never changes an outcome. A CONSISTENT run
+with that diagnostic carries a lighting caveat.
 
-**The local baseline and regional cap limit assessability.** `m_edge` measures
-regional change on the nearest 3–24 valid clean pairs; `tau` is learned separately
-for each edge. Excess regional change produces UNASSESSABLE. The header records
-the current cap and its three-session calibration result; the fixed denominator
-includes every planned perturbation key, including keys excluded by run eligibility.
-A numeric cap of zero still admits a perfectly still region. `NO ADMISSIBLE
-ENVELOPE` is a separate state that refuses every edge, not another spelling of zero.
+**Regional motion is a reading.** `m_edge` measures regional change on the nearest
+3–24 valid clean pairs; `tau` is learned separately for each edge. There is no
+regional-motion refusal or derived cap. If any edge has `m_edge > 0.42`, its run
+prints `caveat: high regional change m=… — readings under motion are less reliable`,
+using the largest available edge median. The historical 0.42 marker does not
+affect detection or eligibility. Lighting and motion caveats can appear together.
+Unsatisfiable thresholds, whole-frame regions, too few baseline pairs and missing
+or invalid RGB/mask/identity coverage still prevent an observation.
 
-The 079-12 calibration found wrong recovery readings even at a zero baseline
-median, so its default is **NO ADMISSIBLE ENVELOPE**. Default reports currently
-provide no assessable masked edges. A zero-error guard-on table with zero scored
-cells is a coverage failure, not validation. The report preserves the previous-cap
-readings separately for diagnosing the assignment rule; Section G remains held.
+The header links [verifier-characterisation.md](verifier-characterisation.md):
+per-session recovery tables, every wrong cell and competing peaks from a fixed
+perturbation cohort. All planned keys remain in scored or unscored ledgers.
+These are measured limitations; recovery does not certify label correctness.
+The retired `--region-cap`/`--motion-cap` options are no longer accepted.
+Section G remains held pending evidence and independent review.
 
 Events now use **run outcomes only**, taking the worst of NO-TRACE, OFFSET-NOTE,
 PARTIAL, CONSISTENT in that order. UNASSESSABLE and READING runs contribute coverage

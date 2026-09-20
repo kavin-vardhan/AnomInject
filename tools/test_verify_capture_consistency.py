@@ -1,4 +1,4 @@
-"""079-09/10/12 batch, region, boundary-mask and peak-assignment regressions.
+"""079-09..13 batch, region, boundary-mask and peak-assignment regressions.
 
 The batch preflight is stubbed here because the complete image-fixture selftest is
 run separately; batch tests exercise real sessions, report files and exit codes.
@@ -39,7 +39,7 @@ class ConsistencyContracts(unittest.TestCase):
     def batch(self, source, name, report_only=False):
         output = self.root / name
         with patch.object(vc, "_label_pixel_selftest", return_value=0), contextlib.redirect_stdout(self.log):
-            code = vc.label_pixel_batch(str(source), str(output), 8, 4, 1, False, report_only, region_cap=1.0)
+            code = vc.label_pixel_batch(str(source), str(output), 8, 4, 1, False, report_only)
         return code, output
 
     def test_flattened_path_collision_keeps_both_reports(self):
@@ -145,9 +145,27 @@ class ConsistencyContracts(unittest.TestCase):
         rows[40]["anomalies"] = [{"target_name": "OtherTarget", "mask_value": 111}]
         (source / "labels.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
         detail = []
-        code, _lines = vc.label_pixel_gate(str(source), 8, 4, 1, region_cap=1.0, out_detail=detail)
+        code, _lines = vc.label_pixel_gate(str(source), 8, 4, 1, out_detail=detail)
         self.assertEqual(code, 0)
         self.assertEqual([e["run_outcome"] for e in detail], [vc.R_CONSISTENT, vc.R_CONSISTENT])
+
+    def test_high_motion_is_observed_with_run_and_summary_caveats(self):
+        source = vc._synth_session(str(self.root), "high_motion", with_mask=True, pan=8)
+        detail = []
+        code, lines = vc.label_pixel_gate(source, 8, 4, 1, out_detail=detail)
+        self.assertEqual(code, 0)
+        self.assertTrue(all(e["run_outcome"] == vc.R_CONSISTENT and e["run_motion_caveat"] for e in detail))
+        self.assertTrue(all(e["m_edge"] == 0.52 for e in detail))
+        self.assertTrue(any("caveat: high regional change m=0.5200" in s for s in lines))
+        self.assertTrue(any("CONSISTENT 1 (1 with caveat)" in s for s in lines))
+
+    def test_low_motion_does_not_get_a_motion_caveat(self):
+        source = vc._synth_session(str(self.root), "low_motion", with_mask=True, pan=2)
+        detail = []
+        code, lines = vc.label_pixel_gate(source, 8, 4, 1, out_detail=detail)
+        self.assertEqual(code, 0)
+        self.assertTrue(all(e["run_outcome"] == vc.R_CONSISTENT and not e["run_motion_caveat"] for e in detail))
+        self.assertFalse(any("caveat: high regional change" in s for s in lines))
 
 
 class PeakAssignmentContracts(unittest.TestCase):
@@ -173,27 +191,41 @@ class PeakAssignmentContracts(unittest.TestCase):
         return {"start": start, "end": end, "node": node, "mode": mode, "event": event,
                 "ordinal": 0, "type": "blinking", "signal": signal, "edges": []}
 
-    def observe(self, runs, **kwargs):
-        vc._observe_windows(runs, 0, 100, 4, list(range(70, 94)),
-                            kwargs.get("cap", 1.0), kwargs.get("refuse_all", False))
+    def observe(self, runs):
+        vc._observe_windows(runs, 0, 100, 4, list(range(70, 94)))
 
     def test_local_peak_ratio_threshold_and_observed_endpoints(self):
         def peaks(values):
             return vc._local_peaks(list(enumerate({"d": d} for d in values)), 0.004)
-        self.assertEqual(peaks([0.004, 0, 0.75, 0.5, 0, 0.2, 0.2]), [2])
+        self.assertEqual(peaks([0.004, 0, 0.75, 0.5, 0, 0.2, 0.2]), [2, 3, 5, 6])
         self.assertEqual(peaks([0.5, 0, 0.75]), [0, 2])
-        self.assertEqual(peaks([0.5, 0.5]), [])
+        self.assertEqual(peaks([0.5, 0.5]), [0, 1])
+        self.assertEqual(peaks([0.5, 0.5, 0.5, 0.5]), [0, 3])
+        self.assertEqual(peaks([0.5, 0.75, 0.5]), [0, 1, 2])
+        self.assertEqual(peaks([0.5, 0.74, 0.5]), [0, 2])
 
-    def test_nearest_tie_chooses_earlier_even_when_later_peak_is_stronger(self):
+    def test_nearest_tie_chooses_stronger_and_prints_both_candidates(self):
         run = self.run_record(12, 19, {10: 0.5, 14: 1.0, 20: 0.5})
         self.observe([run])
         onset = run["edges"][0]
-        self.assertEqual(onset["best_k"], 10)
+        self.assertEqual(onset["best_k"], 14)
         self.assertEqual(onset["available_peaks"], [10, 14])
-        self.assertEqual(onset["other_peaks"], [14])
-        self.assertEqual(onset["best_d"], 0.5)
-        self.assertEqual(onset["ring_d"], 0.1)
-        self.assertIn("other peaks in window: 14", vc._edge_line(onset))
+        self.assertEqual(onset["other_peaks"], [10])
+        self.assertEqual(onset["best_d"], 1.0)
+        self.assertEqual(onset["ring_d"], 0.14)
+        self.assertIn("tie: 10 d=0.500000 vs 14 d=1.000000 -> 14", vc._edge_line(onset))
+
+    def test_equal_strength_tie_chooses_earlier(self):
+        run = self.run_record(12, 19, {10: 0.5, 14: 0.5, 20: 0.5})
+        self.observe([run])
+        self.assertEqual(run["edges"][0]["best_k"], 10)
+        self.assertIn("tie: 10 d=0.500000 vs 14 d=0.500000 -> 10", vc._edge_line(run["edges"][0]))
+
+    def test_nearer_weaker_peak_still_wins_without_a_tie(self):
+        run = self.run_record(11, 19, {10: 0.25, 14: 1.0, 20: 0.5})
+        self.observe([run])
+        self.assertEqual(run["edges"][0]["best_k"], 10)
+        self.assertEqual(run["edges"][0]["tie_peaks"], [])
 
     def test_consumed_peak_is_unassessable_and_absence_is_no_transition(self):
         run = self.run_record(10, 11, {11: 0.5})
@@ -220,11 +252,13 @@ class PeakAssignmentContracts(unittest.TestCase):
             self.assertEqual(run["edges"][0]["reason"], reason)
             self.assertEqual(run["edges"][1]["best_k"], chosen)
 
-    def test_refusal_cap_precedes_assignment(self):
-        run = self.run_record(10, 11, {10: 0.5, 12: 0.5})
-        self.observe([run], refuse_all=True)
-        self.assertTrue(all(e["reason"] == vc.NO_ADMISSIBLE_ENVELOPE for e in run["edges"]))
-        self.assertTrue(all(e["best_k"] is None and not e["available_peaks"] for e in run["edges"]))
+    def test_regional_motion_does_not_refuse_an_otherwise_usable_edge(self):
+        values = {k: 0.5 for k in range(70, 94)}
+        values.update({10: 1.0, 12: 1.0})
+        run = self.run_record(10, 11, values)
+        self.observe([run])
+        self.assertEqual([e["best_k"] for e in run["edges"]], [10, 12])
+        self.assertTrue(all(e["m_edge"] == 0.5 and e["reason"] is None for e in run["edges"]))
 
     def test_all_runs_follow_label_order_not_input_or_event_order(self):
         values = {4: 0.5, 6: 0.5, 8: 0.5, 10: 0.5}
@@ -251,6 +285,8 @@ class PeakAssignmentContracts(unittest.TestCase):
         self.observe([late, early])
         self.assertEqual(early["edges"][1]["best_k"], 15)
         self.assertEqual(late["edges"][0]["best_k"], 12)
+        self.assertEqual(late["edges"][0]["assignment_inversion"], (15, 12))
+        self.assertIn("note: assigned frames out of label order (15 > 12)", vc._assignment_notes(late["edges"]))
 
 
 if __name__ == "__main__":

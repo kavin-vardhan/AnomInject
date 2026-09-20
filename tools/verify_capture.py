@@ -99,7 +99,7 @@ though the number does not.
 synthetic all-black one. A gate that has never fired is not a gate (G96).
 
 --------------------------------------------------------------------------------------------------
-LABEL-PIXEL CONSISTENCY OBSERVATIONS (079-12)
+LABEL-PIXEL CONSISTENCY OBSERVATIONS (079-13)
 --------------------------------------------------------------------------------------------------
 Masks identify pixels, not cause. No output certifies a label or independently confirms producer
 observable flags. Each pair uses the union of its two target masks. Actual masks take precedence.
@@ -114,11 +114,11 @@ An unresolved ID can use a sole value, visibly tagged, but cannot support NO-TRA
 
 Edges report TRANSITION k d=... tau=... label s delta=k-s, NO-TRANSITION [a..b], or
 UNASSESSABLE(reason). Labelled bounds are inclusive. A local peak exceeds tau and is at
-least 1.5 times both neighbours (outside this edge's window counts as zero). Within each
+least 1.5 times the smaller neighbour (outside this edge's window counts as zero). Within each
 target/mode group, process edges in labelled order and choose the nearest unused peak,
-tie earlier. Print remaining alternatives and multi-peak run assignments. An empty peak
+tie larger d, then earlier. Print tied strengths, alternatives and multi-peak run assignments. An empty peak
 set gives NO-TRANSITION; an entirely consumed set gives UNASSESSABLE. Exclusion ensures
-unique assignments, not a proof of temporal monotonicity across different regions/tau.
+unique assignments; a decrease in assigned frames is noted on the later edge's run.
 Bbox-only runs never constrain masked runs. Input/coverage refusals take precedence.
 
 CONSISTENT means two zero-delta transitions and does not establish cause. A coincident high ring
@@ -136,15 +136,16 @@ outcomes NO-TRACE > OFFSET-NOTE > PARTIAL > CONSISTENT. UNASSESSABLE/READING run
 only; their observed edges cannot promote an event. With no assessable run, the event is
 UNASSESSABLE, or READING when all runs are bbox-only. Separate run coverage remains visible.
 
-The cap is rederived on three masked sessions: two-significant-figure cut-off strictly below the
-smallest observed wrong-cell m_edge. N counts perturbation cells, not independent edges. The fixed
-planned denominator includes an unscored ledger for ineligible runs. Numeric cap0 admits a still
-region; NO ADMISSIBLE ENVELOPE refuses every edge. Calibration status is printed in the header.
+Regional motion m_edge remains a reading and never refuses an edge. Values above the historical
+0.42 marker add a run caveat; CONSISTENT counts either motion or lighting caveats. Unsatisfiable
+tau and other coverage guards still apply. docs/verifier-characterisation.md records per-session
+recovery classes and all wrong cells with competing peaks; the fixed planned denominator includes
+an unscored ledger for ineligible runs. Recovery agreement does not establish label correctness.
 
 Usage:
     python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet] [--red-only]
     python verify_capture.py --dir <sessionDir> --black-frame-gate [--black-threshold N]
-    python verify_capture.py --dir <sessionDir> --label-pixel-gate [--report-only] [--region-cap N]
+    python verify_capture.py --dir <sessionDir> --label-pixel-gate [--report-only]
     python verify_capture.py --all <bankRoot> --label-pixel-gate --report-only [--out <dir>]
     python verify_capture.py --label-pixel-gate --selftest
     python verify_capture.py --selftest
@@ -464,15 +465,8 @@ ATTAINABLE_MAX = 1.0
 
 PEAK_NEIGHBOUR_RATIO = 1.5
 
-REGION_CAP = "NO ADMISSIBLE ENVELOPE"
-REGION_CAP_N = 268
-REGION_CAP_PROVENANCE = (
-    "079-12 v3 default: NO ADMISSIBLE ENVELOPE; smallest wrong-cell m_edge=0. "
-    "Three masked sessions; N=268 baseline-bearing perturbation cells, not independent edges. "
-    "Guard off: 296/572 scored, 22 wrong; guard on: 0/572 scored, all 572 unscored. "
-    "Zero scored cells do not validate recovery. The unchanged rule requires a "
-    "two-significant-figure cut-off strictly below the smallest wrong-cell m_edge; "
-    "no positive cap is defensible, so every otherwise-assessable edge is refused.")
+# Historical 079-10 provisional value: disclosure only, never an eligibility boundary.
+HIGH_REGIONAL_CHANGE_MARKER = 0.42
 
 O_TRANSITION = "TRANSITION"
 O_NONE = "NO-TRANSITION"
@@ -484,30 +478,6 @@ R_PARTIAL = "PARTIAL"
 R_UNASSESSABLE = "UNASSESSABLE"
 R_READING = "READING"
 RUN_OUTCOMES = (R_CONSISTENT, R_OFFSET, R_NO_TRACE, R_PARTIAL, R_UNASSESSABLE, R_READING)
-
-NO_ADMISSIBLE_ENVELOPE = "NO ADMISSIBLE ENVELOPE"
-
-
-def _normalise_cap(value):
-    """Turn a caller's `region_cap` into (numeric cap or None, refuse_all).
-
-    Three states, kept apart on purpose (079-07 / Codex F6):
-      a NUMBER          refuse an otherwise observable edge whose m_edge is GREATER than it.
-                        Zero still admits an otherwise observable, perfectly still region.
-      None              the regional guard is inert; coverage and other guards still apply.
-      NO ADMISSIBLE
-      ENVELOPE          the calibration cohort's smallest-change cell was already wrong, so no
-                        positive cap is defensible. EVERY edge is refused. This is a state, not a
-                        number, and it is carried as one rather than smuggled in as a zero.
-    """
-    if value is None:
-        return None, False
-    if isinstance(value, str):
-        if value.strip().upper() == NO_ADMISSIBLE_ENVELOPE:
-            return None, True
-        return float(value), False
-    return float(value), False
-
 
 def _offset_module():
     """Import measure_label_offset.py from beside this file.
@@ -842,19 +812,19 @@ class _PairSignal:
 
 
 def _local_peaks(window, tau):
-    """079-12: neighbours outside this edge's observed window count as zero."""
+    """079-13 one-sided prominence; outside this observed window counts as zero."""
     values = {k: p["d"] for k, p in window}
     return [k for k, d in sorted(values.items()) if d > tau
-            and d >= PEAK_NEIGHBOUR_RATIO * values.get(k - 1, 0.0)
-            and d >= PEAK_NEIGHBOUR_RATIO * values.get(k + 1, 0.0)]
+            and d >= PEAK_NEIGHBOUR_RATIO * min(values.get(k - 1, 0.0), values.get(k + 1, 0.0))]
 
 
-def _measure_edge(kind, nominal, signal, base_idx, lo, hi, cap, refuse_all):
+def _measure_edge(kind, nominal, signal, base_idx, lo, hi):
     rec = {"kind": kind, "nominal": nominal, "observation": O_UNASSESSABLE,
            "status": "unassessable", "reason": None, "tau": None, "m_edge": None,
            "mad": None, "base_n": 0, "baseline_missing": 0, "best_k": None,
            "best_d": None, "eligible": 0, "peaks": [], "available_peaks": [],
            "consumed_peaks": [], "other_peaks": [],
+           "peak_values": [], "tie_peaks": [], "assignment_inversion": None,
            "scanned": 0, "found": False, "offset": None, "lo": lo, "hi": hi,
            "window": max(0, hi - lo + 1), "missing": 0, "mode": signal.mode,
            "mask_id_unresolved": False, "mask_extrapolations": [], "ring_d": None, "ring_note": False,
@@ -892,14 +862,9 @@ def _measure_edge(kind, nominal, signal, base_idx, lo, hi, cap, refuse_all):
     if tau >= ATTAINABLE_MAX:
         rec["reason"] = "threshold unsatisfiable: tau=%.4f >= %.1f" % (tau, ATTAINABLE_MAX)
         return rec
-    if refuse_all:
-        rec["reason"] = NO_ADMISSIBLE_ENVELOPE
-        return rec
-    if cap is not None and med > cap:
-        rec["reason"] = "regional change m=%.6f > cap=%.6f" % (med, cap)
-        return rec
     rec["d_nominal"] = next((p["d"] for k, p in window if k == nominal), None)
     rec["peaks"] = _local_peaks(window, tau)
+    rec["peak_values"] = [{"k": k, "d": p["d"]} for k, p in window if k in rec["peaks"]]
     rec["eligible"] = len(rec["peaks"])
     if not rec["peaks"]:
         rec.update(observation=O_NONE, status="observed")
@@ -919,7 +884,12 @@ def _assign_edge(rec, signal, assigned):
                        reason="all peaks in window assigned to earlier edges: " +
                        ", ".join(map(str, rec["consumed_peaks"])))
         return
-    k = min(available, key=lambda k: (abs(k - rec["nominal"]), k))
+    values = {p["k"]: p["d"] for p in rec["peak_values"]}
+    distance = min(abs(k - rec["nominal"]) for k in available)
+    nearest = [k for k in available if abs(k - rec["nominal"]) == distance]
+    k = min(nearest, key=lambda k: (-values[k], k))
+    if len(nearest) > 1:
+        rec["tie_peaks"] = [{"k": other, "d": values[other]} for other in nearest]
     p = signal.pair(k)
     assigned.add(k)
     rec["other_peaks"] = [other for other in available if other != k]
@@ -930,7 +900,7 @@ def _assign_edge(rec, signal, assigned):
                ring_d=ring, ring_note=ring is not None and ring > rec["tau"])
 
 
-def _observe_windows(runs, first, last, edge_w, base_idx, cap, refuse_all):
+def _observe_windows(runs, first, last, edge_w, base_idx):
     """Label-only bounds, then ordered nearest unused peaks within each target/mode."""
     grouped = {}
     for run in runs:
@@ -940,17 +910,22 @@ def _observe_windows(runs, first, last, edge_w, base_idx, cap, refuse_all):
         ordered = sorted(group, key=lambda item: (item[0], item[1] != "onset",
                                                  item[2]["event"], item[2]["ordinal"]))
         assigned = set()
+        previous_selected = None
         for i, (nominal, kind, run) in enumerate(ordered):
             lo, hi = max(first + 1, nominal - edge_w), min(last, nominal + edge_w)
             if i:
                 lo = max(lo, ordered[i - 1][0])
             if i + 1 < len(ordered):
                 hi = min(hi, ordered[i + 1][0])
-            rec = _measure_edge(kind, nominal, run["signal"], base_idx, lo, hi, cap, refuse_all)
+            rec = _measure_edge(kind, nominal, run["signal"], base_idx, lo, hi)
             if nominal <= first or nominal > last:
                 rec.update(observation=O_UNASSESSABLE, status="unassessable", found=False,
                            offset=None, reason="edge truncated by the session boundary")
             _assign_edge(rec, run["signal"], assigned)
+            if rec["found"]:
+                if previous_selected is not None and rec["best_k"] < previous_selected:
+                    rec["assignment_inversion"] = (previous_selected, rec["best_k"])
+                previous_selected = rec["best_k"]
             rec.update(event=run["event"], ordinal=run["ordinal"], run=(run["start"], run["end"]),
                        node=run["node"], type=run["type"])
             run["edges"].append(rec)
@@ -1030,6 +1005,9 @@ def _edge_line(rec):
             text += " note: whole-region change (lighting/camera?)"
         if rec["other_peaks"]:
             text += "; other peaks in window: " + ", ".join(map(str, rec["other_peaks"]))
+        if rec["tie_peaks"]:
+            text += "; tie: " + " vs ".join("%d d=%.6f" % (p["k"], p["d"])
+                                           for p in rec["tie_peaks"]) + " -> %d" % rec["best_k"]
     elif obs == O_NONE:
         text = "NO-TRANSITION [%d..%d] tau=%s label %d" % (rec["lo"], rec["hi"],
                                                            fmt(rec["tau"]), rec["nominal"])
@@ -1049,8 +1027,12 @@ def _edge_line(rec):
     return "        %-5s %s" % (rec["kind"], text)
 
 
-def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, region_cap=None,
-                     motion_cap=None, out_detail=None):
+def _assignment_notes(edges):
+    return "".join("; note: assigned frames out of label order (%d > %d)" % e["assignment_inversion"]
+                   for e in edges if e["assignment_inversion"] is not None)
+
+
+def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, out_detail=None):
     """Return observations/consistency counts. Only whole-span NO-TRACE returns2."""
     from collections import Counter
     try:
@@ -1075,8 +1057,6 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
     session_indices = set(rows) | set(paths)
     first, last = min(session_indices), max(session_indices)
     hot = _HotCache(cache, thresh)
-    cap, refuse_all = _normalise_cap(region_cap if region_cap is not None else
-                                    (motion_cap if motion_cap is not None else REGION_CAP))
     windows = [(min(e["indices"]), max(e["indices"])) for e in events if e["indices"]]
     for guard in range(BASELINE_GUARD_FRAMES, -1, -1):
         blocked = {k for a, b in windows for k in range(a - guard, b + guard + 1)}
@@ -1107,19 +1087,24 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
                                          hot, paths, size, mlo, min_visible_px, (a, b), edge_w)
             runs.append(run)
             by_event[ev["i"]].append(run)
-    _observe_windows(runs, first, last, edge_w, base_idx, cap, refuse_all)
+    _observe_windows(runs, first, last, edge_w, base_idx)
     for run in runs:
         run["outcome"], run["reason"] = _run_outcome(run)
-        run["caveat"] = run["outcome"] == R_CONSISTENT and any(e["ring_note"] for e in run["edges"])
+        run["lighting_caveat"] = run["outcome"] == R_CONSISTENT and any(e["ring_note"] for e in run["edges"])
+        run["max_m_edge"] = max((e["m_edge"] for e in run["edges"] if e["m_edge"] is not None), default=None)
+        run["motion_caveat"] = run["max_m_edge"] is not None and run["max_m_edge"] > HIGH_REGIONAL_CHANGE_MARKER
+        run["caveat"] = run["lighting_caveat"] or run["motion_caveat"]
         run["mask_extrapolation_max"] = max((abs(d) for e in run["edges"]
                                              for _s, d in e["mask_extrapolations"]), default=0)
         for rec in run["edges"]:
             rec.update(run_outcome=run["outcome"], run_reason=run["reason"],
                        run_eligible=run["outcome"] not in (R_READING, R_UNASSESSABLE),
-                       run_caveat=run["caveat"], run_mask_extrapolation_max=run["mask_extrapolation_max"], session=cap_dir)
+                       run_caveat=run["caveat"], run_lighting_caveat=run["lighting_caveat"],
+                       run_motion_caveat=run["motion_caveat"], run_max_m_edge=run["max_m_edge"],
+                       run_mask_extrapolation_max=run["mask_extrapolation_max"], session=cap_dir)
             if out_detail is not None:
                 out_detail.append(dict(rec))
-    lines = ["LABEL-PIXEL CONSISTENCY OBSERVATIONS (079-12)",
+    lines = ["LABEL-PIXEL CONSISTENCY OBSERVATIONS (079-13)",
              "  session                  %s" % cap_dir,
              "  frames / labels / events %d / %d / %d" % (len(paths), len(rows), len(events)),
              "  semantics                masks identify pixels, not cause; no output certifies a label as correct",
@@ -1127,11 +1112,12 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
              "  boundary masks           missing OUTSIDE the span only: extrapolate same-run boundary <=%d frames (window+N_BASE=%d+%d)" % (edge_w + BASELINE_MAX_FRAMES, edge_w, BASELINE_MAX_FRAMES),
              "                           This is not 079-08 F2's boundary-mask reuse: there, real per-frame masks existed and were ignored; here, none exist.",
              "  signal                   fraction with an RGB-channel difference >%d/255; edge tau=max(median+6*MAD,0.004)" % thresh,
-             "  assessability cap        %s" % (NO_ADMISSIBLE_ENVELOPE if refuse_all else str(cap)),
-             "                           " + REGION_CAP_PROVENANCE,
+             "  regional change          m_edge is a reading; >%.2f adds a caveat (historical marker, not a boundary)" % HIGH_REGIONAL_CHANGE_MARKER,
+             "  characterisation         docs/verifier-characterisation.md",
+             "                           Per-session recovery readings and all wrong cells with competing peaks; known limitations, not label approval.",
              "  clean-frame pool         %d (guard %d); nearest 3..24 valid per-pair regions for EACH edge" % (len(base_idx), guard),
-             "  search                   +/-%d, inclusive labelled bounds only; local peaks >=1.5 x both neighbours (outside window=0)" % edge_w,
-             "  assignment               per target/mode, labelled order: nearest unused peak; tie earlier; no separate ordering constraint",
+             "  search                   +/-%d, inclusive labelled bounds; peaks >tau and >=1.5 x min(neighbours), outside window=0" % edge_w,
+             "  assignment               per target/mode, labelled order: nearest unused peak; tie larger d, then earlier; inversions disclosed",
              "  producer metadata        bbox/observable flags are reported, not confirmed by this tool",
              "  NO-TRACE scope           no change above the noise floor (tau) over the complete span AND edge windows",
              "  detection limit          tau is a fraction of target-region pixels; RGB-channel threshold also applies",
@@ -1142,7 +1128,7 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
         ev_runs = by_event[ev["i"]]
         token = _event_token(ev_runs)
         counts[token] += 1
-        consistent_caveats += token == R_CONSISTENT and any(r["caveat"] for r in ev_runs)
+        consistent_caveats += token == R_CONSISTENT and any(r["outcome"] == R_CONSISTENT and r["caveat"] for r in ev_runs)
         rc = Counter(r["outcome"] for r in ev_runs)
         summary = " ".join("%s=%d" % (name, rc[name]) for name in RUN_OUTCOMES)
         lines.append("idx=%-3d %-18s %-22s %s runs{%s} %s" % (
@@ -1151,11 +1137,13 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
             lines.append("      UNASSESSABLE(%s)" % event_errors[ev["i"]])
         for run in ev_runs:
             label = run["outcome"]
-            if run["caveat"]:
+            if run["lighting_caveat"]:
                 label += " (caveat: edge coincides with a whole-region change - inspect frames k-1..k+1)"
             if label == R_OFFSET:
                 label += "(%s)" % ",".join("%+d" % e["offset"] if e["offset"] is not None else
                                             "no-transition" for e in run["edges"])
+            if run["motion_caveat"]:
+                label += " (caveat: high regional change m=%.4f - readings under motion are less reliable)" % run["max_m_edge"]
             mask_note = ""
             if run["mode"] == "mask":
                 mask_note = "; masks: in-span actual, edges " + (
@@ -1166,6 +1154,7 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
                     "%s %s (nearest of {%s})" % (e["kind"],
                         str(e["best_k"]) if e["found"] else "none",
                         ", ".join(map(str, e["available_peaks"]))) for e in run["edges"])
+            mask_note += _assignment_notes(run["edges"])
             lines.append("      run[%d..%d] %s%s%s" % (run["start"], run["end"], label,
                 " (bbox-only)" if run["mode"] == "bbox" else " - " + run["reason"], mask_note))
             # --quiet affects the overlay, not the evidence required to interpret a run.
@@ -1590,17 +1579,17 @@ def _codex08_fixture(root, name, true_runs=((60, 67),), label_runs=None, lightin
     (p / "annotation.json").write_text(json.dumps(ann), encoding="utf-8")
     return str(p)
 
-def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, region_cap=None):
+def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None):
     """Permanent review regressions, with per-edge checks and whole-span negatives."""
     import tempfile
     import pathlib
     checks = []
     print("LABEL-PIXEL OBSERVATIONS SELFTEST", flush=True)
 
-    def check(name, path, expected, cap=None, verify=None):
+    def check(name, path, expected, verify=None):
         detail = []
         code, lines = label_pixel_gate(str(path), thresh, edge_w, min_visible_px,
-                                       out_detail=detail, region_cap=1.0 if cap is None else cap)
+                                       out_detail=detail)
         tokens = [line.split()[3] for line in lines if line.startswith("idx=")]
         ok = bool(tokens) and all(token in expected for token in tokens)
         ok &= code == (2 if R_NO_TRACE in tokens else 0)
@@ -1620,28 +1609,28 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
 
     with tempfile.TemporaryDirectory(prefix="m49_consistency_selftest_") as root:
         original = [
-            ("clean", {}, (R_CONSISTENT,), 1.0),
-            ("clean_masked", {}, (R_CONSISTENT,), 1.0),
-            ("label_late_1", {"shift": 1}, (R_OFFSET,), 1.0),
-            ("label_early_1", {"shift": -1}, (R_OFFSET,), 1.0),
-            ("end_late_1", {"end_shift": 1}, (R_OFFSET,), 1.0),
-            ("end_early_1", {"end_shift": -1}, (R_OFFSET,), 1.0),
-            ("blank_region", {"blank_region": True}, (R_NO_TRACE,), 1.0),
-            ("moving_clean", {"pan": 2}, (R_CONSISTENT,), 1.0),
-            ("moving_fast", {"pan": 8}, (R_CONSISTENT,), 1.0),
-            ("moving_label_late_1", {"pan": 2, "shift": 1}, (R_OFFSET,), 1.0),
-            ("moving_label_early_1", {"pan": 2, "shift": -1}, (R_OFFSET,), 1.0),
-            ("moving_end_late_1", {"pan": 2, "end_shift": 1}, (R_OFFSET,), 1.0),
-            ("moving_end_early_1", {"pan": 2, "end_shift": -1}, (R_OFFSET,), 1.0),
-            ("moving_blank_region", {"pan": 2, "blank_region": True}, (R_NO_TRACE,), 1.0),
-            ("moving_fullframe_region", {"pan": 2, "fullframe_region": True}, (R_UNASSESSABLE,), 1.0),
-            ("moving_unsat", {"pan": 4, "stripes": 4}, (R_UNASSESSABLE,), 1.0),
-            ("moving_over_cap", {"pan": 2}, (R_UNASSESSABLE,), 0.00014),
+            ("clean", {}, (R_CONSISTENT,)),
+            ("clean_masked", {}, (R_CONSISTENT,)),
+            ("label_late_1", {"shift": 1}, (R_OFFSET,)),
+            ("label_early_1", {"shift": -1}, (R_OFFSET,)),
+            ("end_late_1", {"end_shift": 1}, (R_OFFSET,)),
+            ("end_early_1", {"end_shift": -1}, (R_OFFSET,)),
+            ("blank_region", {"blank_region": True}, (R_NO_TRACE,)),
+            ("moving_clean", {"pan": 2}, (R_CONSISTENT,)),
+            ("moving_fast", {"pan": 8}, (R_CONSISTENT,)),
+            ("moving_label_late_1", {"pan": 2, "shift": 1}, (R_OFFSET,)),
+            ("moving_label_early_1", {"pan": 2, "shift": -1}, (R_OFFSET,)),
+            ("moving_end_late_1", {"pan": 2, "end_shift": 1}, (R_OFFSET,)),
+            ("moving_end_early_1", {"pan": 2, "end_shift": -1}, (R_OFFSET,)),
+            ("moving_blank_region", {"pan": 2, "blank_region": True}, (R_NO_TRACE,)),
+            ("moving_fullframe_region", {"pan": 2, "fullframe_region": True}, (R_UNASSESSABLE,)),
+            ("moving_unsat", {"pan": 4, "stripes": 4}, (R_UNASSESSABLE,)),
+            ("moving_over_cap", {"pan": 2}, (R_CONSISTENT,)),
         ]
-        for name, args, expected, cap in original:
-            check(name, _synth_session(root, name, with_mask=True, **args), expected, cap)
+        for name, args, expected in original:
+            check(name, _synth_session(root, name, with_mask=True, **args), expected)
         for name, shift in (("bboxonly_clean", 0), ("bboxonly_label_late_1", 1)):
-            check(name, _synth_session(root, name, shift=shift), (R_READING,), 1.0)
+            check(name, _synth_session(root, name, shift=shift), (R_READING,))
         older = [
             ("codex_quiet_prefix", {}),
             ("codex_small_region", {"local_only": True}),
@@ -1652,11 +1641,11 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
             ("codex_small_region_noburst_shift1", {"local_only": True, "shift": 1, "burst": False}),
         ]
         for name, args in older:
-            check(name, _codex_fixture(root, name, **args), (R_READING,), 1.0)
+            check(name, _codex_fixture(root, name, **args), (R_READING,))
         for local in (False, True):
             name = "codex_masked_negative_%s" % local
             check(name, _codex_fixture(root, name, local_only=local, burst=False, shift=1,
-                                       with_mask=True), (R_OFFSET,), 1.0)
+                                       with_mask=True), (R_OFFSET,))
 
         cases07 = [
             ("burst_aligned", {"burst_at": 61}),
@@ -1676,57 +1665,64 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
         for name, args in cases07:
             check("c07_" + name, _codex07_fixture(root, "c07_" + name, **args), (R_READING,))
         masked07 = [
-            ("burst_aligned_masked", {"burst_at": 61}, (R_CONSISTENT,), None),
-            ("burst_late_masked", {"burst_at": 61, "onset_delta": 1}, (R_OFFSET,), None),
+            ("burst_aligned_masked", {"burst_at": 61}, (R_CONSISTENT,)),
+            ("burst_late_masked", {"burst_at": 61, "onset_delta": 1}, (R_OFFSET,)),
             ("onset_early_refusal_masked", {"runs": ((10, 11),), "burst_at": 10,
-                                           "full_masks": (10,)}, (R_UNASSESSABLE,), None),
+                                           "full_masks": (10,)}, (R_UNASSESSABLE,)),
             ("previous_end_refusal_masked", {"runs": ((10, 12), (15, 16)),
                 "label_runs": ((10, 11), (15, 16)), "full_masks": (11,), "patch_sides": (40, 15)},
-                (R_PARTIAL,), None),
+                (R_PARTIAL,)),
             ("previous_end_control_masked", {"runs": ((10, 12), (15, 16)),
-                "label_runs": ((10, 11), (15, 16)), "patch_sides": (40, 15)}, (R_OFFSET,), None),
+                "label_runs": ((10, 11), (15, 16)), "patch_sides": (40, 15)}, (R_OFFSET,)),
             ("partial_multirun_masked", {"runs": ((10, 11), (25, 26)), "full_masks": (25, 26)},
-                (R_CONSISTENT,), None),
+                (R_CONSISTENT,)),
             ("mixed_runs", {"runs": ((10, 11), (25, 26)), "mask_runs": ((10, 11),)},
-                (R_CONSISTENT,), None),
-            ("missing_edge_frames_masked", {"drop_frames": tuple(range(55, 74))}, (R_UNASSESSABLE,), None),
-            ("below_tau_masked", {"mask": "region", "patch_sides": (1,)}, (R_NO_TRACE,), None),
-            ("zero_cap_static_masked", {}, (R_CONSISTENT,), 0.0),
-            ("zero_cap_burst_masked", {"burst_at": 61}, (R_CONSISTENT,), 0.0),
-            ("no_envelope_masked", {}, (R_UNASSESSABLE,), NO_ADMISSIBLE_ENVELOPE),
+                (R_CONSISTENT,)),
+            ("missing_edge_frames_masked", {"drop_frames": tuple(range(55, 74))}, (R_UNASSESSABLE,)),
+            ("below_tau_masked", {"mask": "region", "patch_sides": (1,)}, (R_NO_TRACE,)),
+            ("zero_cap_static_masked", {}, (R_CONSISTENT,)),
+            ("zero_cap_burst_masked", {"burst_at": 61}, (R_CONSISTENT,)),
+            ("no_envelope_masked", {}, (R_CONSISTENT,)),
         ]
-        for name, args, expected, cap in masked07:
+        for name, args, expected in masked07:
             args = dict(args)
             args.setdefault("mask", "patch")
-            check("c07_" + name, _codex07_fixture(root, "c07_" + name, **args), expected, cap)
+            check("c07_" + name, _codex07_fixture(root, "c07_" + name, **args), expected)
 
         cases08 = [
-            ("lighting_aligned", {"lighting": True}, (R_OFFSET,)),
+            ("lighting_aligned", {"lighting": True}, (R_CONSISTENT,)),
             ("lighting_late_onset", {"lighting": True, "label_runs": ((61, 67),)}, (R_CONSISTENT,)),
-            ("occluder_aligned", {"occluder": True}, (R_OFFSET,)),
+            ("occluder_aligned", {"occluder": True}, (R_CONSISTENT,)),
             ("static_aligned", {}, (R_CONSISTENT,)),
             ("static_late_onset", {"label_runs": ((61, 67),)}, (R_OFFSET,)),
             ("missing_mask61", {"missing_masks": (61,)}, (R_PARTIAL,)),
             ("missing_rgb61", {"missing_rgb": (61,)}, (R_PARTIAL,)),
             ("precise_mask_ring_burst", {"ring_burst": True}, (R_CONSISTENT,)),
-            ("dilated_mask_ring_burst", {"ring_burst": True, "mask_mode": "dilated"}, (R_OFFSET,)),
-            ("precise_mask_target_move", {"move": True}, (R_OFFSET,)),
+            ("dilated_mask_ring_burst", {"ring_burst": True, "mask_mode": "dilated"}, (R_CONSISTENT,)),
+            ("precise_mask_target_move", {"move": True}, (R_CONSISTENT,)),
             ("lagged_mask_target_move", {"move": True, "mask_mode": "lag", "label_runs": ((61, 67),)},
                 (R_CONSISTENT,)),
             ("foreign_mask_value", {"mask_mode": "foreign"}, (R_UNASSESSABLE,)),
             ("no_detected_end", {"true_runs": ((60, 90),), "label_runs": ((60, 67),)}, (R_PARTIAL,)),
             ("mixed_run", {"missing_masks": (67,)}, (R_PARTIAL,)),
-            ("one_frame_aligned", {"true_runs": ((60, 60),)}, (R_UNASSESSABLE,)),
-            ("one_frame_late", {"true_runs": ((60, 60),), "label_runs": ((61, 61),)}, (R_OFFSET,)),
+            ("one_frame_aligned", {"true_runs": ((60, 60),)}, (R_CONSISTENT,)),
+            # R9 admits both60/61; nearest onset61 consumes the end window's only peak.
+            # First 079-13 result preserved before correcting its OFFSET-NOTE prediction.
+            ("one_frame_late", {"true_runs": ((60, 60),), "label_runs": ((61, 61),)}, (R_PARTIAL,)),
             ("one_frame_early", {"true_runs": ((60, 60),), "label_runs": ((59, 59),)}, (R_OFFSET,)),
         ]
         for name, args, expected in cases08:
             def verify(detail, lines, name=name):
-                if name.startswith("lighting"):
+                if name == "lighting_late_onset":
                     return (any(e["ring_note"] for e in detail) and all(e["run_outcome"] != R_NO_TRACE for e in detail)
-                            and (name != "lighting_late_onset" or
-                                 (all(e["run_caveat"] for e in detail) and any("CONSISTENT (caveat:" in s for s in lines)
-                                  and any("CONSISTENT 1 (1 with caveat)" in s for s in lines))))
+                            and all(e["run_caveat"] for e in detail)
+                            and any("CONSISTENT (caveat:" in s for s in lines)
+                            and any("CONSISTENT 1 (1 with caveat)" in s for s in lines))
+                if name == "one_frame_late":
+                    return ([e["best_k"] for e in detail] == [61, None]
+                            and detail[0]["peaks"] == [60, 61]
+                            and detail[1]["consumed_peaks"] == [61]
+                            and detail[1]["reason"] == "all peaks in window assigned to earlier edges: 61")
                 if name == "missing_mask61":
                     return detail[0]["observation"] == O_UNASSESSABLE and "mask missing at frame 61" in detail[0]["reason"]
                 if name == "foreign_mask_value":
@@ -1775,16 +1771,13 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
                          "all peaks in window assigned to earlier edges: 8, 10"))
             check(name, path, (expected,), verify=verify)
 
-        # Measured P2-prime miss: the synthetic bench has a one-frame second run.
-        # Equal adjacent10/11 changes fail local-peak membership in both windows;
-        # the onset's remaining peak7 was consumed by the first run's end.
+        # R9 makes adjacent10/11 changes peaks; each is assigned once.
         name = "r6_blink_one_frame_second"
         path = _codex07_fixture(root, name, runs=((4, 6), (10, 10)), mask="patch")
-        check(name, path, (R_PARTIAL,), verify=lambda d, _l:
-              [e["best_k"] for e in d] == [4, 7, None, None] and
-              [e["observation"] for e in d] == [O_TRANSITION, O_TRANSITION, O_UNASSESSABLE, O_NONE] and
-              d[2]["consumed_peaks"] == [7] and d[3]["peaks"] == [] and
-              [e["run_outcome"] for e in d] == [R_CONSISTENT] * 2 + [R_PARTIAL] * 2)
+        check(name, path, (R_CONSISTENT,), verify=lambda d, _l:
+              [e["best_k"] for e in d] == [4, 7, 10, 11] and
+              [e["offset"] for e in d] == [0, 0, 0, 0] and
+              [e["run_outcome"] for e in d] == [R_CONSISTENT] * 4)
 
         blank = _codex08_fixture(root, "blank_whole_span", true_runs=(), label_runs=((40, 70),))
         check("blank_whole_span", blank, (R_NO_TRACE,))
@@ -1934,8 +1927,7 @@ def _batch_key(root, sess):
     return "%s__%s" % (key, digest), rel
 
 
-def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, report_only,
-                      region_cap=None):
+def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, report_only):
     """--all: run the gate over every session under `root`, one line each.
 
     The SELFTEST runs FIRST and the batch REFUSES to start if it is not OK. A sweep of a hundred
@@ -1962,7 +1954,7 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
 
     print("BATCH: proving the instrument before using it on %d session(s)..." % len(sessions),
           flush=True)
-    st = _label_pixel_selftest(thresh, edge_w, min_visible_px, None, region_cap)
+    st = _label_pixel_selftest(thresh, edge_w, min_visible_px)
     if st != 0:
         print("BATCH: REFUSING TO RUN - the selftest is BROKEN, so every reading below it would "
               "be unfounded. Fix the gate first.", flush=True)
@@ -1996,8 +1988,7 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
             cannot_run += 1
             continue
         try:
-            code, lines = label_pixel_gate(sess, thresh, edge_w, min_visible_px, quiet,
-                                           region_cap=region_cap)
+            code, lines = label_pixel_gate(sess, thresh, edge_w, min_visible_px, quiet)
         except Exception as exc:
             line = "%-58s | ERROR      | %s: %s | %s" % (name, type(exc).__name__, exc, rel)
             summary.append(line)
@@ -2072,37 +2063,17 @@ def main():
                          f"UNASSESSABLE (default {MIN_VISIBLE_PX_DEFAULT}; needs masks)")
     ap.add_argument("--report-only", action="store_true",
                     help="label-pixel observations: suppress NO-TRACE exit2, preserve execution error3")
-    ap.add_argument("--region-cap", "--motion-cap", dest="region_cap", type=str,
-                    default=str(REGION_CAP),
-                    help=f"label-pixel gate: mark an EDGE UNASSESSABLE when the region it "
-                         f"is judged on changes by more than this on its own nearby clean frames "
-                         f"(default {REGION_CAP}; three-session calibration is stated in the "
-                         f"printed header). --motion-cap is a deprecated alias "
-                         f"for the same flag; pass 1.0 to disable the guard entirely. Pass the "
-                         f"literal '{NO_ADMISSIBLE_ENVELOPE}' to refuse EVERY edge - that state is "
-                         f"not the same as a cap of 0.0, which still judges a perfectly still "
-                         f"region.")
     ap.add_argument("--all", metavar="ROOT", default=None,
                     help="label-pixel gate: run over EVERY session folder under ROOT, one summary "
                          "line each, full output under --out. Runs --selftest first and refuses "
                          "to start if it is not OK.")
     args = ap.parse_args()
-    if isinstance(args.region_cap, str):
-        txt = args.region_cap.strip()
-        if txt.upper() == NO_ADMISSIBLE_ENVELOPE:
-            args.region_cap = NO_ADMISSIBLE_ENVELOPE
-        else:
-            try:
-                args.region_cap = float(txt)
-            except ValueError:
-                sys.exit("ERROR: --region-cap takes a number or the literal '%s', not %r"
-                         % (NO_ADMISSIBLE_ENVELOPE, args.region_cap))
 
     if args.selftest:
         if args.label_pixel_gate:
             src = os.path.abspath(args.dir) if args.dir and os.path.isdir(args.dir) else None
             sys.exit(_label_pixel_selftest(args.diff_threshold, args.edge_window,
-                                           args.min_visible_px, src, args.region_cap))
+                                           args.min_visible_px, src))
         sys.exit(_selftest())
 
     if args.all:
@@ -2113,7 +2084,7 @@ def main():
         sys.exit(label_pixel_batch(os.path.abspath(args.all),
                                    os.path.abspath(args.out) if args.out else None,
                                    args.diff_threshold, args.edge_window, args.min_visible_px,
-                                   args.quiet, args.report_only, args.region_cap))
+                                   args.quiet, args.report_only))
 
     cap_dir = os.path.abspath(args.dir)
 
@@ -2123,8 +2094,7 @@ def main():
         except ImportError:
             sys.exit("ERROR: Pillow is required for the label-pixel gate.")
         code, lines = label_pixel_gate(cap_dir, args.diff_threshold, args.edge_window,
-                                       args.min_visible_px, args.quiet,
-                                       region_cap=args.region_cap)
+                                       args.min_visible_px, args.quiet)
         for line in lines:
             print(line, flush=True)
         sys.exit(0 if (args.report_only and code != 3) else code)
