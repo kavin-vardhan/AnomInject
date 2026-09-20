@@ -7044,3 +7044,72 @@ neither certifies the association. All 572 planned keys remain scored or unscore
 **Chat review REQUIRED** for the prediction miss, completed evidence and independent
 Code review before merge; this is the next mandatory checkpoint. Section G, client,
 campaign and release holds remain. Earlier dated observations stay historical.
+
+## G265 — `UTexture::LODBias` is IGNORED on a cooked platform, so the obvious mip lever is a silent no-op in the client's build (2026-09-20, m52 080-01/02)
+
+`UTexture::LODBias` is a runtime, public, `BlueprintReadWrite` UPROPERTY
+(`Texture.h:1292-1294`, explicitly under the "Properties needed at runtime below"
+banner at `:1277-1279`) and `UpdateCachedLODBias()` is `ENGINE_API` and NOT inside a
+`WITH_EDITOR` guard (`TextureDerivedData.cpp:2765-2768`). So
+`Tex->LODBias = N; Tex->UpdateCachedLODBias();` compiles and runs in a packaged game.
+
+It does nothing there:
+
+    UTextureLODSettings::CalculateLODBias        TextureLODSettings.cpp:176-186
+        if (!FPlatformProperties::RequiresCookedData())
+        {
+            // When cooking, LODBias and LODGroupInfo.LODBias are taken into account
+            // to strip the top mips. Considering them again here would apply them twice.
+            UsedLODBias += LODBias;
+
+⇒ **it works in the editor and is inert in the configuration the client receives.**
+G119 (read it back out of the artifact, not out of the source) and G114 (a lever that
+does nothing produces a clean null indistinguishable from a clean result) in one place.
+A PIE smoke would have been green while every packaged client capture carried positive
+labels for frames nothing happened on.
+
+**What DOES survive cooking** is the cinematic-mip term at `TextureLODSettings.cpp:171-175`,
+which is outside that gate. m52 uses `NumCinematicMipLevels` (a public runtime UPROPERTY,
+`StreamableRenderAsset.h:253-256`) + `UpdateCachedLODBias()` for exactly this reason.
+
+⛔ **Consequence adopted as a rule: every m52-class gate is PACKAGED-ONLY (`G76`), and the
+achieved bias is READ BACK from `GetCachedLODBias()` rather than computed and trusted.**
+`UTexture2D::TemporarilyDisableStreaming()`, the editor-side "hold the current mips"
+helper, is `#if WITH_EDITOR` only (`Texture2D.cpp:1178-1187`) and does not exist in a
+packaged game either - worth knowing before reaching for it.
+
+## G266 — the texture streamer does not merely undo a foreign stream request, it CANCELS it (2026-09-20, m52 080-01)
+
+    FRenderAssetStreamingMipCalcTask::UpdateLoadAndCancelationRequests_Async
+        else if (RequestedMips > max(ResidentMips, WantedMips + 1) ||
+                 RequestedMips < min(ResidentMips, WantedMips))
+        {  CancelationRequests.Add(AssetIndex);  }   AsyncTextureStreaming.cpp:803-808
+
+executed on the game thread at `StreamingManagerTexture.cpp:1333-1339` ->
+`FStreamingRenderAsset::CancelStreamingRequest` (`StreamingTexture.cpp:536-543`) ->
+`CancelPendingStreamingRequest` -> `PendingUpdate->Abort()` (`StreamableRenderAsset.cpp:221-227`).
+
+A manual `StreamOut(floor)` on a VISIBLE texture sets `RequestedMips = floor` while
+`WantedMips` is high, so the second clause is TRUE by construction. The request is
+therefore RACED FOR CANCELLATION before it completes - not merely re-streamed afterwards.
+
+**And that kills the obvious workaround too.** `UnlinkStreaming()` is `ENGINE_API`, but
+neither ordering works: unlink-then-StreamOut STALLS, because the only thing that advances
+a pending update is `FStreamingRenderAsset::UpdateStreamingStatus` ->
+`RenderAsset->TickStreaming(...)` (`StreamingTexture.cpp:262-278`, call at `:268`) and an
+unlinked asset is not in the manager's array; a plugin cannot tick it itself because
+`UStreamableRenderAsset::TickStreaming` is NOT `ENGINE_API` (`StreamableRenderAsset.h:201`),
+and `WaitForStreaming()` is exported but BLOCKS the game thread. StreamOut-then-unlink is
+the cancellation race above.
+
+🔑 **The way through is to stop fighting the streamer and make it the enforcer**: reduce
+the per-texture `MaxAllowedMips` (via the cinematic-mip bias, G265) so the streamer's OWN
+`WantedMips` is the floor. Then `RequestedMips == WantedMips`, the cancellation predicate
+is false, the streamer performs the stream-out itself and holds it, and every wanted-mips
+path is clamped by `MaxAllowedMips` including under force-fully-load
+(`StreamingTexture.cpp:310, 346-348, 361, 366`).
+
+⚠ **What this does NOT buy, measured at 080-02:** the streamer performs the stream-out on
+ITS OWN SCHEDULE, so onset is latent by 1-4 captured frames and sometimes longer than an
+8-frame positive window. See journal 080-02 for the numbers and for the second, unexplained
+failure mode (a re-fire on an already-held target reads "already at the floor" and refuses).
