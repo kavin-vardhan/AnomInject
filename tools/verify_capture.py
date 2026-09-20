@@ -98,9 +98,56 @@ though the number does not.
 --selftest PROVES THE GATE CAN FAIL, both directions, against a synthetic mid-grey frame and a
 synthetic all-black one. A gate that has never fired is not a gate (G96).
 
+--------------------------------------------------------------------------------------------------
+LABEL-PIXEL CONSISTENCY OBSERVATIONS (079-13)
+--------------------------------------------------------------------------------------------------
+Masks identify pixels, not cause. No output certifies a label or independently confirms producer
+observable flags. Each pair uses the union of its two target masks. Actual masks take precedence.
+When an OUT-OF-SPAN frame lacks a target mask, use this run's nearest labelled boundary mask, at
+most edge_window + N_BASE frames away (N_BASE = BASELINE_MAX_FRAMES = 24; default limit 28).
+Masks outside the labelled span are extrapolated from the nearest labelled frame and disclosed on
+each line. A real per-frame mask is never replaced by an extrapolated one.
+In-span missing masks, unreadable masks, identity errors and missing RGB remain unassessable.
+Every affected observation tags its extrapolation sources/max signed distance, including baseline
+use; structured detail retains every source/delta. The run reports its maximum extrapolation.
+An unresolved ID can use a sole value, visibly tagged, but cannot support NO-TRACE.
+
+Edges report TRANSITION k d=... tau=... label s delta=k-s, NO-TRANSITION [a..b], or
+UNASSESSABLE(reason). Labelled bounds are inclusive. A local peak exceeds tau and is at
+least 1.5 times the smaller neighbour (outside this edge's window counts as zero). Within each
+target/mode group, process edges in labelled order and choose the nearest unused peak,
+tie larger d, then earlier. Print tied strengths, alternatives and multi-peak run assignments. An empty peak
+set gives NO-TRANSITION; an entirely consumed set gives UNASSESSABLE. Exclusion ensures
+unique assignments; a decrease in assigned frames is noted on the later edge's run.
+Bbox-only runs never constrain masked runs. Input/coverage refusals take precedence.
+
+CONSISTENT means two zero-delta transitions and does not establish cause. A coincident high ring
+change adds a RUN caveat asking for inspection of k-1..k+1; the summary counts caveated consistent
+events. OFFSET-NOTE is a reading for human inspection, never a failure. Ring change is diagnostic.
+NO-TRACE means: no change above the noise floor (tau=...) on this target across frames s..e;
+the label claims a visible change. This requires coverage of the entire span AND both windows,
+resolved identity and an eligible producer-class contract. Extrapolated edge pairs are permitted
+and disclosed. Tau is a fraction of the target-region pixels; 1/2500 = 0.0004 is below the default
+floor 0.004 (0.4%). Each pixel also must change by more than the configured RGB-channel threshold.
+
+Only NO-TRACE returns exit 2. Otherwise the session reports NO FAILURE FOUND, not label approval.
+--report-only suppresses 2 but retains execution error 3. Event outcomes are worst-of the RUN
+outcomes NO-TRACE > OFFSET-NOTE > PARTIAL > CONSISTENT. UNASSESSABLE/READING runs affect coverage
+only; their observed edges cannot promote an event. With no assessable run, the event is
+UNASSESSABLE, or READING when all runs are bbox-only. Separate run coverage remains visible.
+
+Regional motion m_edge remains a reading and never refuses an edge. Values above the historical
+0.42 marker add a run caveat; CONSISTENT counts either motion or lighting caveats. Unsatisfiable
+tau and other coverage guards still apply. docs/verifier-characterisation.md records per-session
+recovery classes and all wrong cells with competing peaks; the fixed planned denominator includes
+an unscored ledger for ineligible runs. Recovery agreement does not establish label correctness.
+
 Usage:
     python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet] [--red-only]
     python verify_capture.py --dir <sessionDir> --black-frame-gate [--black-threshold N]
+    python verify_capture.py --dir <sessionDir> --label-pixel-gate [--report-only]
+    python verify_capture.py --all <bankRoot> --label-pixel-gate --report-only [--out <dir>]
+    python verify_capture.py --label-pixel-gate --selftest
     python verify_capture.py --selftest
 
 Requires Pillow:  pip install pillow
@@ -410,10 +457,26 @@ EDGE_WINDOW_DEFAULT = 4
 MIN_VISIBLE_PX_DEFAULT = 1
 BASELINE_GUARD_FRAMES = 2
 
-V_PASS = "PASS"
-V_NOTVIS = "NOT-VISIBLE"
-V_NOTMEAS = "NOT-MEASURABLE"
+MIN_BASELINE_FRAMES = 3
+BASELINE_MAX_FRAMES = 24
+MAX_REGION_FRAC = 0.90
 
+ATTAINABLE_MAX = 1.0
+
+PEAK_NEIGHBOUR_RATIO = 1.5
+
+HIGH_REGIONAL_CHANGE_MARKER = 0.42
+
+O_TRANSITION = "TRANSITION"
+O_NONE = "NO-TRANSITION"
+O_UNASSESSABLE = "UNASSESSABLE"
+R_CONSISTENT = "CONSISTENT"
+R_OFFSET = "OFFSET-NOTE"
+R_NO_TRACE = "NO-TRACE"
+R_PARTIAL = "PARTIAL"
+R_UNASSESSABLE = "UNASSESSABLE"
+R_READING = "READING"
+RUN_OUTCOMES = (R_CONSISTENT, R_OFFSET, R_NO_TRACE, R_PARTIAL, R_UNASSESSABLE, R_READING)
 
 def _offset_module():
     """Import measure_label_offset.py from beside this file.
@@ -450,126 +513,66 @@ def _frame_paths(cap_dir, mlo):
     return paths
 
 
-def _region_from_mask(path, wanted, frame_w, frame_h):
-    """Region = the delivered mask's pixels for this event's value.
+class _HotCache(object):
+    """hot(k) = 255 where ANY RGB channel changes by more than thresh, else 0.
 
-    `mask_value` is 0 on a row whose per-fire record was not resolved, while the PNG still
-    carries the event's tag - observed in banked m45 sessions. So a value of 0 falls back to
-    the PNG's sole non-zero value when there is exactly one, and refuses (returns None, which
-    drops the caller to the bbox) when the frame carries several. It never guesses between
-    two events' silhouettes.
+    Whole-frame on purpose: ONE binary difference image per frame pair serves every region that
+    asks about that pair, so two regions are never compared across two independently computed
+    diffs. Cached because a session's events, runs and per-edge baselines re-read the same frame
+    pairs many times over.
     """
-    from PIL import Image, ImageStat
-    try:
-        im = Image.open(path).convert("L")
-    except Exception:
-        return None
-    if im.size != (frame_w, frame_h):
-        return None
-    hist = im.histogram()
-    present = [i for i in range(1, 256) if hist[i] > 0]
-    if not present:
-        return None
-    try:
-        want = int(wanted) if wanted is not None else 0
-    except Exception:
-        want = 0
-    if want > 0 and want in present:
-        vals = set([want])
-        note = "mask(v%d)" % want
-    elif len(present) == 1:
-        vals = set(present)
-        note = "mask(sole v%d)" % present[0]
-    else:
-        return None
-    binary = im.point(lambda v: 255 if v in vals else 0)
-    bb = binary.getbbox()
-    if not bb:
-        return None
-    crop = binary.crop(bb)
-    npix = int(round(ImageStat.Stat(crop).sum[0] / 255.0))
-    if npix < 1:
-        return None
-    return {"bin": crop, "box": bb, "npix": npix, "source": note}
 
+    def __init__(self, cache, thresh, limit=48):
+        self.cache = cache
+        self.thresh = thresh
+        self.limit = max(4, limit)
+        self.hot = {}
 
-def _build_region(cap_dir, row, entry, frame_w, frame_h, mlo):
-    if row is not None and entry is not None:
-        mf = row.get("mask_file")
-        if mf:
-            mpath = os.path.join(cap_dir, str(mf).replace("/", os.sep))
-            if os.path.isfile(mpath):
-                reg = _region_from_mask(mpath, entry.get("mask_value"), frame_w, frame_h)
-                if reg:
-                    return reg
-    if entry is None:
-        return None
-    box, src = mlo.bbox_from_label_entry(entry, frame_w, frame_h)
-    if not box:
-        return None
-    cb = mlo.clamp_box(box, frame_w, frame_h)
-    if mlo.box_area(cb) < mlo.MIN_REGION_PX:
-        return None
-    return {"bin": None, "box": cb, "npix": mlo.box_area(cb), "source": src or "bbox"}
-
-
-def _frac_above(cache, k, thresh, region):
-    """d(k): the fraction of REGION pixels differing by more than `thresh` from frame k-1.
-
-    This is the O4 metric (m44_gates.py prints the same quantity at 8/255 over the whole
-    frame); here it is region-scoped so a small target is not averaged away.
-    """
-    from PIL import ImageChops, ImageStat
-    try:
-        a = cache.gray_of(k)
-        b = cache.gray_of(k - 1)
-    except Exception:
-        return None
-    if a.size != b.size:
-        return None
-    try:
-        diff = ImageChops.difference(a, b).crop(region["box"])
-    except Exception:
-        return None
-    hot = diff.point(lambda v: 255 if v > thresh else 0)
-    if region["bin"] is not None:
-        if region["bin"].size != hot.size:
+    def get(self, k):
+        hit = self.hot.get(k)
+        if hit is not None:
+            return hit
+        from PIL import ImageChops
+        try:
+            a = self.cache.rgb(k)
+            b = self.cache.rgb(k - 1)
+        except Exception:
             return None
-        hot = ImageChops.multiply(hot, region["bin"])
-    s = ImageStat.Stat(hot).sum[0] / 255.0
-    return (s / float(region["npix"])) if region["npix"] > 0 else None
+        if a.size != b.size:
+            return None
+        t = self.thresh
+        channels = ImageChops.difference(a, b).split()
+        magnitude = ImageChops.lighter(ImageChops.lighter(channels[0], channels[1]), channels[2])
+        img = magnitude.point(lambda v: 255 if v > t else 0)
+        while len(self.hot) >= self.limit:
+            self.hot.pop(next(iter(self.hot)))
+        self.hot[k] = img
+        return img
+
+def _region_frac(hot, k, region):
+    """Fraction of changed pixels in the supplied per-pair mask union or bbox."""
+    from PIL import ImageChops, ImageStat
+    img = hot.get(k)
+    if img is None:
+        return None
+    npix = region.get("npix") or 0
+    if npix <= 0:
+        return None
+    try:
+        crop = img.crop(region["box"])
+    except Exception:
+        return None
+    if region["bin"] is not None:
+        if region["bin"].size != crop.size:
+            return None
+        crop = ImageChops.multiply(crop, region["bin"])
+    return (ImageStat.Stat(crop).sum[0] / 255.0) / float(npix)
 
 
-def _dominant_edge(cache, lo, hi, thresh, region, paths, tau, foreign=None):
-    """The edge is where the BIGGEST change in the neighbourhood is, not the first one above tau.
-
-    Measured on banked m45 legs: the frame AFTER a hide still differs from its predecessor
-    because temporal accumulation is still decaying the object out, so "the first frame above
-    tau" reads the ghost and reports a one-frame shift that is not there. The frame after a
-    reappearance has the same problem in the other direction. The dominant change is the
-    transition itself in both cases, and it is what a viewer calls the edge.
-
-    `foreign` is the set of frames belonging to OTHER events. A neighbourhood that reaches
-    into another event's window would otherwise let that event's transition win the argmax -
-    measured on a banked leg where two events fire on the SAME actor eight frames apart, and
-    the second swap was read as the first one's end.
-
-    Returns (frame_index_of_edge, its d) or (None, None) when nothing in the window clears tau.
-    """
-    best_k = None
-    best_d = None
-    for k in range(lo, hi + 1):
-        if k not in paths or (k - 1) not in paths:
-            continue
-        if foreign and (k in foreign or (k - 1) in foreign):
-            continue
-        d = _frac_above(cache, k, thresh, region)
-        if d is None or d <= tau:
-            continue
-        if best_d is None or d > best_d:
-            best_d = d
-            best_k = k
-    return best_k, best_d
+def _target_entry(row, node):
+    """A sole unrelated label entry cannot supply the requested target's identity."""
+    return next((e for e in (row.get("anomalies") or [])
+                 if isinstance(e, dict) and node and str(e.get("target_name") or "") == node), None)
 
 
 def _anchor_entry(rows, indices, node, mlo):
@@ -584,7 +587,7 @@ def _anchor_entry(rows, indices, node, mlo):
         r = rows.get(int(k))
         if not r:
             continue
-        e = mlo.match_label_entry(r, node, None)
+        e = _target_entry(r, node)
         if e is not None:
             return int(k), r, e
     return None, None, None
@@ -616,8 +619,26 @@ def _load_gate_events(cap_dir, mlo):
             "indices": idxs,
             "derived": derived,
             "manifested": bool(ev.get("manifested", True)),
+            "bbox_source": ev.get("bbox_source"),
+            "obs_measured": ev.get("observability_measured"),
         })
     return out
+
+
+def _provenance(ev):
+    """`bbox=<source> obs=<measured|unmeasured>` - REPORTED, never a verdict input.
+
+    An event can say `observability_measured: false` (the producer had no pixel evidence) and
+    `bbox_source: "projected"` (the box came from bounds, not from what was drawn). It is tempting
+    to read that as "unverifiable, skip it" - and it is REFUSED as a rule: the gate's job is to
+    check the labels against the pixels whatever the producer claims about them, and the whole
+    field case this tool exists for is projected boxes. Schema v1 sessions carry neither key and
+    print n/a.
+    """
+    src = ev.get("bbox_source")
+    obs = ev.get("obs_measured")
+    return "bbox=%s obs=%s" % (src if src else "n/a",
+                               "n/a" if obs is None else ("measured" if obs else "unmeasured"))
 
 
 def _threshold_from(vals, mlo):
@@ -630,310 +651,564 @@ def _threshold_from(vals, mlo):
     return max(med + mlo.K_SIGMA * mad, mlo.SIGNAL_FLOOR), med, mad
 
 
-def _measurable_ceiling(windows, all_idx):
-    """N = G//2 for the smallest CLEAN GAP BETWEEN annotated windows (G160).
+class _PairSignal:
+    """Read actual frame pairs; masks identify pixels, never the cause of a change."""
 
-    The session's head and tail are deliberately NOT gaps between windows: an event that
-    ends on the session's final frame would otherwise drive the ceiling to zero and turn
-    every reading in the session into UNMEASURABLE. They are used only when a single window
-    is all there is, which is the module's own rule (measure_label_offset.measurement_ceiling).
-    """
-    if not windows:
-        return None, None
-    ordered = sorted(windows)
-    if len(ordered) >= 2:
-        gaps = [b[0] - a[1] - 1 for a, b in zip(ordered, ordered[1:])]
-        gaps = [g for g in gaps if g >= 0]
-        if not gaps:
-            return None, None
-        g = min(gaps)
-        return g // 2, g
-    if all_idx:
-        head = ordered[0][0] - min(all_idx)
-        tail = max(all_idx) - ordered[0][1]
-        g = max(0, min(head, tail))
-        return g // 2, g
-    return None, None
+    def __init__(self, cap_dir, rows, node, entry, mode, hot, paths, size, mlo, min_px,
+                 span=None, edge_w=EDGE_WINDOW_DEFAULT):
+        self.cap_dir, self.rows, self.node = cap_dir, rows, node
+        self.entry, self.mode, self.hot, self.paths = entry, mode, hot, paths
+        self.w, self.h = size
+        self.mlo, self.min_px = mlo, min_px
+        self.span = span
+        self.extrapolation_limit = edge_w + BASELINE_MAX_FRAMES
+        self.actual_masks = {}
+        self.masks = {}
+        self.pairs = {}
+
+    def _actual_mask(self, k):
+        """Return (region, error, unresolved, absent); corrupt evidence is not absence."""
+        if k in self.actual_masks:
+            return self.actual_masks[k]
+        from PIL import Image, ImageStat
+        row = self.rows.get(k) or {}
+        entry = _target_entry(row, self.node) or self.entry
+        try:
+            wanted = int(entry.get("mask_value") or 0)
+        except (ValueError, TypeError):
+            wanted = 0
+        mf = row.get("mask_file")
+        result = (None, "mask missing at frame %d" % k, False, True)
+        if mf:
+            try:
+                with Image.open(os.path.join(self.cap_dir, str(mf))) as src:
+                    im = src.convert("L")
+                if im.size != (self.w, self.h):
+                    result = (None, "mask unreadable at frame %d (dimensions)" % k, False, False)
+                else:
+                    present = [v for v, n in enumerate(im.histogram()) if v and n]
+                    if not present:
+                        result = (None, "mask missing at frame %d (empty)" % k, False, True)
+                    elif wanted != 0 and wanted not in present:
+                        result = (None, "mask id %d not present at frame %d" % (wanted, k), False, True)
+                    elif wanted == 0 and len(present) != 1:
+                        result = (None, "mask id unresolved at frame %d (multiple values)" % k, False, False)
+                    else:
+                        value = wanted if wanted != 0 else present[0]
+                        binary = im.point(lambda v: 255 if v == value else 0)
+                        box = binary.getbbox()
+                        crop = binary.crop(box)
+                        npix = int(round(ImageStat.Stat(crop).sum[0] / 255.0))
+                        reg = {"bin": crop, "box": box, "npix": npix,
+                               "source": "mask(v%d)" % value}
+                        result = (reg, None, wanted == 0, False)
+            except FileNotFoundError:
+                pass
+            except (OSError, ValueError):
+                result = (None, "mask unreadable at frame %d" % k, False, False)
+        while len(self.actual_masks) >= 64:
+            self.actual_masks.pop(next(iter(self.actual_masks)))
+        self.actual_masks[k] = result
+        return result
+
+    def mask(self, k):
+        if k in self.masks:
+            return self.masks[k]
+        reg, error, unresolved, absent = self._actual_mask(k)
+        extrapolated = []
+        if absent and self.span and not self.span[0] <= k <= self.span[1]:
+            source = self.span[0] if k < self.span[0] else self.span[1]
+            delta = k - source
+            if abs(delta) > self.extrapolation_limit:
+                error += "; extrapolation distance %d > limit %d" % (abs(delta), self.extrapolation_limit)
+            else:
+                template, template_error, template_unresolved, _absent = self._actual_mask(source)
+                if template_error:
+                    error += "; boundary mask unavailable: " + template_error
+                else:
+                    reg, error, unresolved = template, None, template_unresolved
+                    extrapolated = [(source, delta)]
+        result = (reg, error, unresolved, extrapolated)
+        while len(self.masks) >= 64:
+            self.masks.pop(next(iter(self.masks)))
+        self.masks[k] = result
+        return result
+
+    def pair(self, k):
+        if k in self.pairs:
+            return self.pairs[k]
+        from PIL import Image, ImageChops, ImageStat
+        reg, error, unresolved, extrapolated = None, None, False, []
+        if k not in self.paths or k - 1 not in self.paths:
+            error = "RGB missing for pair %d..%d" % (k - 1, k)
+        elif self.mode == "mask":
+            left, le, lu, lx = self.mask(k - 1)
+            right, re, ru, rx = self.mask(k)
+            error, unresolved = le or re, lu or ru
+            extrapolated = sorted(set(lx + rx))
+            if error is None:
+                box = (min(left["box"][0], right["box"][0]),
+                       min(left["box"][1], right["box"][1]),
+                       max(left["box"][2], right["box"][2]),
+                       max(left["box"][3], right["box"][3]))
+                a = Image.new("L", (box[2] - box[0], box[3] - box[1]))
+                b = Image.new("L", a.size)
+                a.paste(left["bin"], (left["box"][0] - box[0], left["box"][1] - box[1]))
+                b.paste(right["bin"], (right["box"][0] - box[0], right["box"][1] - box[1]))
+                union = ImageChops.lighter(a, b)
+                reg = {"bin": union, "box": box,
+                       "npix": int(round(ImageStat.Stat(union).sum[0] / 255.0)),
+                       "source": "mask union(%d,%d)" % (k - 1, k)}
+        else:
+            row = self.rows.get(k) or self.rows.get(k - 1) or {}
+            entry = self.mlo.match_label_entry(row, self.node, None) or self.entry
+            box, source = self.mlo.bbox_from_label_entry(entry, self.w, self.h)
+            box = self.mlo.clamp_box(box, self.w, self.h) if box else None
+            if box and self.mlo.box_area(box):
+                reg = {"bin": None, "box": box, "npix": self.mlo.box_area(box),
+                       "source": source or "bbox"}
+            else:
+                error = "no usable bbox at frame %d" % k
+        d = None
+        if error is None:
+            if self.mlo.box_area(reg["box"]) >= MAX_REGION_FRAC * self.w * self.h:
+                error = "region covers the picture at frame %d" % k
+            elif reg["npix"] < self.min_px:
+                error = "mask too small at frame %d (%d px < %d)" % (k, reg["npix"], self.min_px)
+            else:
+                hot = self.hot.get(k)
+                if hot is None:
+                    error = "RGB unreadable for pair %d..%d" % (k - 1, k)
+                elif hot.size != (self.w, self.h):
+                    error = "RGB dimensions changed for pair %d..%d" % (k - 1, k)
+                else:
+                    d = _region_frac(self.hot, k, reg)
+        result = {"d": d, "region": reg, "error": error, "unresolved": unresolved,
+                  "mask_extrapolations": extrapolated}
+        while len(self.pairs) >= 64:
+            self.pairs.pop(next(iter(self.pairs)))
+        self.pairs[k] = result
+        return result
+
+    def ring(self, k, reg):
+        """Ten-pixel bounding ring, excluding the union mask. Diagnostic only."""
+        from PIL import Image, ImageChops, ImageStat
+        hot = self.hot.get(k)
+        if hot is None or reg is None:
+            return None
+        x0, y0, x1, y1 = reg["box"]
+        outer = (max(0, x0 - 10), max(0, y0 - 10), min(self.w, x1 + 10), min(self.h, y1 + 10))
+        ring = Image.new("L", (outer[2] - outer[0], outer[3] - outer[1]), 255)
+        if reg["bin"] is not None:
+            ring.paste(ImageChops.invert(reg["bin"]), (x0 - outer[0], y0 - outer[1]))
+        else:
+            ring.paste(0, (x0 - outer[0], y0 - outer[1], x1 - outer[0], y1 - outer[1]))
+        count = ImageStat.Stat(ring).sum[0] / 255.0
+        if count < 1:
+            return None
+        return ImageStat.Stat(ImageChops.multiply(hot.crop(outer), ring)).sum[0] / (255.0 * count)
 
 
-def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False):
-    """The label-vs-pixel gate. Returns (exit_code, lines).
+def _local_peaks(window, tau):
+    """079-13 one-sided prominence; outside this observed window counts as zero."""
+    values = {k: p["d"] for k, p in window}
+    return [k for k, d in sorted(values.items()) if d > tau
+            and d >= PEAK_NEIGHBOUR_RATIO * min(values.get(k - 1, 0.0), values.get(k + 1, 0.0))]
 
-    Per event, per contiguous run of labelled frames:
-      ONSET is aligned when d(start) > tau AND d(start-1) <= tau.
-      END   is aligned when d(end+1) > tau AND d(end)     <= tau.
-    A shift is reported SIGNED: n < 0 means the PIXELS changed BEFORE the label said so.
-    Nothing is inferred about WHY; the tool reports the reading.
-    """
-    lines = []
+
+def _measure_edge(kind, nominal, signal, base_idx, lo, hi):
+    rec = {"kind": kind, "nominal": nominal, "observation": O_UNASSESSABLE,
+           "status": "unassessable", "reason": None, "tau": None, "m_edge": None,
+           "mad": None, "base_n": 0, "baseline_missing": 0, "best_k": None,
+           "best_d": None, "eligible": 0, "peaks": [], "available_peaks": [],
+           "consumed_peaks": [], "other_peaks": [],
+           "peak_values": [], "tie_peaks": [], "assignment_inversion": None,
+           "scanned": 0, "found": False, "offset": None, "lo": lo, "hi": hi,
+           "window": max(0, hi - lo + 1), "missing": 0, "mode": signal.mode,
+           "mask_id_unresolved": False, "mask_extrapolations": [], "ring_d": None, "ring_note": False,
+           "region_source": None, "region_npix": None, "d_nominal": None}
+    if lo > hi:
+        rec["reason"] = "empty labelled search window"
+        return rec
+    window = [(k, signal.pair(k)) for k in range(lo, hi + 1)]
+    bad = [p["error"] for _k, p in window if p["error"]]
+    rec["scanned"], rec["missing"] = len(window) - len(bad), len(bad)
+    rec["mask_id_unresolved"] = any(p["unresolved"] for _k, p in window)
+    rec["mask_extrapolations"] = sorted({x for _k, p in window for x in p["mask_extrapolations"]})
+    if bad:
+        rec["reason"] = bad[0]
+        return rec
+    values = []
+    for k in sorted(base_idx, key=lambda k: (abs(k - nominal), k)):
+        p = signal.pair(k)
+        if p["error"]:
+            rec["baseline_missing"] += 1
+            continue
+        values.append(p["d"])
+        rec["mask_id_unresolved"] |= p["unresolved"]
+        rec["mask_extrapolations"] = sorted(set(rec["mask_extrapolations"]) | set(p["mask_extrapolations"]))
+        if len(values) == BASELINE_MAX_FRAMES:
+            break
+    rec["base_n"] = len(values)
+    if len(values) < MIN_BASELINE_FRAMES:
+        rec["reason"] = "baseline: only %d valid clean pairs, need %d (%d unavailable)" % (
+            len(values), MIN_BASELINE_FRAMES, rec["baseline_missing"])
+        return rec
+    tau, med, mad = _threshold_from(values, signal.mlo)
+    rec.update(tau=tau, m_edge=med, mad=mad)
+    if tau >= ATTAINABLE_MAX:
+        rec["reason"] = "threshold unsatisfiable: tau=%.4f >= %.1f" % (tau, ATTAINABLE_MAX)
+        return rec
+    rec["d_nominal"] = next((p["d"] for k, p in window if k == nominal), None)
+    rec["peaks"] = _local_peaks(window, tau)
+    rec["peak_values"] = [{"k": k, "d": p["d"]} for k, p in window if k in rec["peaks"]]
+    rec["eligible"] = len(rec["peaks"])
+    if not rec["peaks"]:
+        rec.update(observation=O_NONE, status="observed")
+    return rec
+
+
+def _assign_edge(rec, signal, assigned):
+    """Greedy nearest unused peak; hard refusals consume no frames (079-12)."""
+    if rec["reason"] is not None:
+        return
+    available = [k for k in rec["peaks"] if k not in assigned]
+    rec["available_peaks"] = available
+    rec["consumed_peaks"] = [k for k in rec["peaks"] if k in assigned]
+    if not available:
+        if rec["peaks"]:
+            rec.update(observation=O_UNASSESSABLE, status="unassessable",
+                       reason="all peaks in window assigned to earlier edges: " +
+                       ", ".join(map(str, rec["consumed_peaks"])))
+        return
+    values = {p["k"]: p["d"] for p in rec["peak_values"]}
+    distance = min(abs(k - rec["nominal"]) for k in available)
+    nearest = [k for k in available if abs(k - rec["nominal"]) == distance]
+    k = min(nearest, key=lambda k: (-values[k], k))
+    if len(nearest) > 1:
+        rec["tie_peaks"] = [{"k": other, "d": values[other]} for other in nearest]
+    p = signal.pair(k)
+    assigned.add(k)
+    rec["other_peaks"] = [other for other in available if other != k]
+    rec.update(best_k=k, best_d=p["d"], region_source=p["region"]["source"],
+               region_npix=p["region"]["npix"])
+    ring = signal.ring(k, p["region"])
+    rec.update(observation=O_TRANSITION, status="observed", found=True, offset=k - rec["nominal"],
+               ring_d=ring, ring_note=ring is not None and ring > rec["tau"])
+
+
+def _observe_windows(runs, first, last, edge_w, base_idx):
+    """Label-only bounds, then ordered nearest unused peaks within each target/mode."""
+    grouped = {}
+    for run in runs:
+        for kind, nominal in (("onset", run["start"]), ("end", run["end"] + 1)):
+            grouped.setdefault((run["node"], run["mode"]), []).append((nominal, kind, run))
+    for group in grouped.values():
+        ordered = sorted(group, key=lambda item: (item[0], item[1] != "onset",
+                                                 item[2]["event"], item[2]["ordinal"]))
+        assigned = set()
+        previous_selected = None
+        for i, (nominal, kind, run) in enumerate(ordered):
+            lo, hi = max(first + 1, nominal - edge_w), min(last, nominal + edge_w)
+            if i:
+                lo = max(lo, ordered[i - 1][0])
+            if i + 1 < len(ordered):
+                hi = min(hi, ordered[i + 1][0])
+            rec = _measure_edge(kind, nominal, run["signal"], base_idx, lo, hi)
+            if nominal <= first or nominal > last:
+                rec.update(observation=O_UNASSESSABLE, status="unassessable", found=False,
+                           offset=None, reason="edge truncated by the session boundary")
+            _assign_edge(rec, run["signal"], assigned)
+            if rec["found"]:
+                if previous_selected is not None and rec["best_k"] < previous_selected:
+                    rec["assignment_inversion"] = (previous_selected, rec["best_k"])
+                previous_selected = rec["best_k"]
+            rec.update(event=run["event"], ordinal=run["ordinal"], run=(run["start"], run["end"]),
+                       node=run["node"], type=run["type"])
+            run["edges"].append(rec)
+    for run in runs:
+        run["edges"].sort(key=lambda e: e["kind"] != "onset")
+
+
+NO_TRACE_TYPES = frozenset(("missing_object", "blink", "blinking", "missing_texture",
+                            "corrupted_texture", "lod_popping", "lod_corruption"))
+
+
+def _run_outcome(run):
+    edges = run["edges"]
+    if run["mode"] == "bbox":
+        return R_READING, "bbox-only observations"
+    observed = [e for e in edges if e["observation"] != O_UNASSESSABLE]
+    transitions = [e for e in observed if e["observation"] == O_TRANSITION]
+    if not observed:
+        return R_UNASSESSABLE, "neither edge observed"
+    if len(observed) != 2:
+        return R_PARTIAL, "one edge observed; the other is unassessable"
+    if any(e["offset"] != 0 for e in transitions):
+        return R_OFFSET, ("a target transition sits off the label - possible label offset OR an unrelated "
+                          "change (lighting, occlusion, neighbouring event); a person must look at "
+                          "the listed frames k-1..k+1; does not establish cause")
+    if len(transitions) == 2:
+        return R_CONSISTENT, "consistent with the label; does not establish cause"
+    if transitions:
+        return R_PARTIAL, "one zero-delta transition; the other edge has NO-TRANSITION"
+    lo = min([run["start"]] + [e["lo"] for e in edges])
+    hi = max([run["end"]] + [e["hi"] for e in edges])
+    span = [(k, run["signal"].pair(k)) for k in range(lo, hi + 1)]
+    errors = [p["error"] for _k, p in span if p["error"]]
+    if errors:
+        return R_UNASSESSABLE, "whole-span check: " + errors[0]
+    if any(e["mask_id_unresolved"] for e in edges) or any(p["unresolved"] for _k, p in span):
+        return R_UNASSESSABLE, "NO-TRACE unavailable: mask id unresolved - sole value used"
+    if run["type"] not in NO_TRACE_TYPES:
+        return R_UNASSESSABLE, "NO-TRACE unavailable for class %s" % run["type"]
+    tau = min(e["tau"] for e in edges)
+    changed = [(k, p["d"]) for k, p in span if p["d"] > tau]
+    if changed:
+        return R_UNASSESSABLE, "whole-span change at frame %d d=%.4f > tau=%.4f" % (
+            changed[0][0], changed[0][1], tau)
+    reason = ("no change above the noise floor (tau=%.4f) on this target across frames %d..%d; "
+              "the label claims a visible change" % (tau, run["start"], run["end"]))
+    if any(p["mask_extrapolations"] for _k, p in span):
+        reason += "; edge pairs use extrapolated masks"
+    return R_NO_TRACE, reason
+
+
+def _event_token(runs):
+    outcomes = [r["outcome"] for r in runs]
+    for outcome in (R_NO_TRACE, R_OFFSET, R_PARTIAL, R_CONSISTENT):
+        if outcome in outcomes:
+            return outcome
+    if outcomes and all(v == R_READING for v in outcomes):
+        return R_READING
+    return R_UNASSESSABLE
+
+
+def _edge_line(rec):
+    fmt = lambda x: "n/a" if x is None else "%.4f" % x
+    obs = rec["observation"]
+    if obs == O_TRANSITION:
+        text = "TRANSITION %d d=%s tau=%s label %d delta=%+d ring d=%s" % (
+            rec["best_k"], fmt(rec["best_d"]), fmt(rec["tau"]), rec["nominal"],
+            rec["offset"], fmt(rec["ring_d"]))
+        text += " look at frames %d..%d" % (rec["best_k"] - 1, rec["best_k"] + 1)
+        if rec["ring_note"]:
+            text += " note: whole-region change (lighting/camera?)"
+        if rec["other_peaks"]:
+            text += "; other peaks in window: " + ", ".join(map(str, rec["other_peaks"]))
+        if rec["tie_peaks"]:
+            text += "; tie: " + " vs ".join("%d d=%.6f" % (p["k"], p["d"])
+                                           for p in rec["tie_peaks"]) + " -> %d" % rec["best_k"]
+    elif obs == O_NONE:
+        text = "NO-TRANSITION [%d..%d] tau=%s label %d" % (rec["lo"], rec["hi"],
+                                                           fmt(rec["tau"]), rec["nominal"])
+    else:
+        text = "UNASSESSABLE(%s) label %d" % (rec["reason"], rec["nominal"])
+    text += " m_edge=%s base=%d pairs=%d/%d" % (fmt(rec["m_edge"]), rec["base_n"],
+                                               rec["scanned"], rec["window"])
+    if rec["mask_id_unresolved"]:
+        text += " (mask id unresolved - sole value used)"
+    for source in sorted({s for s, _d in rec["mask_extrapolations"]}):
+        deltas = [d for s, d in rec["mask_extrapolations"] if s == source]
+        worst = max(deltas, key=abs)
+        text += " (mask extrapolated from frame %d, delta=%+d; max distance, %d frames incl baseline)" % (
+            source, worst, len(deltas))
+    if rec["mode"] == "bbox":
+        text += " (bbox-only)"
+    return "        %-5s %s" % (rec["kind"], text)
+
+
+def _assignment_notes(edges):
+    return "".join("; note: assigned frames out of label order (%d > %d)" % e["assignment_inversion"]
+                   for e in edges if e["assignment_inversion"] is not None)
+
+
+def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, out_detail=None):
+    """Return observations/consistency counts. Only whole-span NO-TRACE returns 2."""
+    from collections import Counter
     try:
         mlo = _offset_module()
     except RuntimeError as exc:
-        return 3, ["LABEL-PIXEL GATE: CANNOT RUN - %s" % exc]
-
+        return 3, ["LABEL-PIXEL: CANNOT RUN - %s" % exc]
     events = _load_gate_events(cap_dir, mlo)
     if events is None:
-        return 3, ["LABEL-PIXEL GATE: CANNOT RUN - no readable annotation.json in %s. "
-                   "That is an UNREAD SURFACE, not a pass." % cap_dir]
-
-    rows, labels_state = mlo.read_labels(os.path.join(cap_dir, "labels.jsonl"))
-    if labels_state == "absent":
-        return 3, ["LABEL-PIXEL GATE: CANNOT RUN - no labels.jsonl in %s. The gate needs the "
-                   "per-frame bbox. In delivery mode this file is written by default "
-                   "(IAI.Capture.DeliveryLabels). Not a pass." % cap_dir]
-
+        return 3, ["LABEL-PIXEL: CANNOT RUN - no readable annotation.json"]
+    rows, state = mlo.read_labels(os.path.join(cap_dir, "labels.jsonl"))
+    if state == "absent" or not rows:
+        return 3, ["LABEL-PIXEL: CANNOT RUN - no readable labels.jsonl"]
     paths = _frame_paths(cap_dir, mlo)
     if len(paths) < 3:
-        return 3, ["LABEL-PIXEL GATE: CANNOT RUN - fewer than 3 frames found under "
-                   "Actual_Frames in %s. Not a pass." % cap_dir]
-
+        return 3, ["LABEL-PIXEL: CANNOT RUN - fewer than 3 RGB frames"]
     cache = mlo.FrameCache(paths, 0, limit=64)
     size = cache.frame_size()
     if not size:
-        return 3, ["LABEL-PIXEL GATE: CANNOT RUN - the frames could not be opened. Not a pass."]
-    frame_w, frame_h = size
-    all_idx = sorted(paths.keys())
-
-    windows = []
-    for ev in events:
-        if ev["indices"]:
-            windows.append((min(ev["indices"]), max(ev["indices"])))
-    ceiling, min_gap = _measurable_ceiling(windows, all_idx)
-
-    base_idx = []
-    guard_used = BASELINE_GUARD_FRAMES
+        return 3, ["LABEL-PIXEL: CANNOT RUN - unreadable RGB frames"]
+    session_indices = set(rows) | set(paths)
+    first, last = min(session_indices), max(session_indices)
+    hot = _HotCache(cache, thresh)
+    windows = [(min(e["indices"]), max(e["indices"])) for e in events if e["indices"]]
     for guard in range(BASELINE_GUARD_FRAMES, -1, -1):
-        blocked = set()
-        for s, e in windows:
-            for k in range(s - guard, e + guard + 1):
-                blocked.add(k)
-        base_idx = [k for k in all_idx
-                    if k not in blocked and (k - 1) not in blocked and (k - 1) in paths]
-        guard_used = guard
-        if len(base_idx) >= 3:
+        blocked = {k for a, b in windows for k in range(a - guard, b + guard + 1)}
+        base_idx = [k for k in sorted(paths) if k not in blocked and k - 1 not in blocked and k - 1 in paths]
+        if len(base_idx) >= MIN_BASELINE_FRAMES:
             break
-
-    has_masks = any(r.get("mask_file") for r in rows.values())
-
-    lines.append("LABEL-PIXEL GATE   (m49 step 1)")
-    lines.append("  session                  %s" % cap_dir)
-    lines.append("  frames / labels / events %d / %d / %d" % (len(paths), len(rows), len(events)))
-    lines.append("  masks present            %s" % ("yes" if has_masks else "no (bbox-only mode)"))
-    lines.append("  diff threshold           >%d/255 per pixel, region-scoped" % thresh)
-    lines.append("  edge search window       +/-%d frames" % edge_w)
-    if ceiling is None:
-        lines.append("  MEASURABLE RANGE         n/a (no annotated window)")
-    else:
-        lines.append("  MEASURABLE RANGE         +/-%d frames (min clean gap %d) - a shift beyond "
-                     "this is UNDER-READ, not absent" % (ceiling, min_gap))
-
-    ev_lines = []
-    n_pass = n_shift = n_notvis = n_notmeas = 0
-
+    runs, by_event, event_errors = [], {}, {}
     for ev in events:
-        tag = "idx=%-3d %-18s %-22s" % (ev["i"], ev["type"], ev["node"] or "(no node)")
-
-        if not ev["manifested"] or not ev["indices"]:
-            ev_lines.append("%s %s(manifested-false-or-empty)" % (tag, V_NOTMEAS))
-            n_notmeas += 1
+        by_event[ev["i"]] = []
+        if not ev["manifested"] or not ev["indices"] or ev["derived"]:
+            event_errors[ev["i"]] = "non-manifested/empty event or no explicit frame_indices"
             continue
-        if ev["derived"]:
-            ev_lines.append("%s %s(no-frame_indices-in-annotation)" % (tag, V_NOTMEAS))
-            n_notmeas += 1
-            continue
-
-        anchor, row, entry = _anchor_entry(rows, ev["indices"], ev["node"], mlo)
+        _anchor, _row, entry = _anchor_entry(rows, ev["indices"], ev["node"], mlo)
         if entry is None:
-            ev_lines.append("%s %s(no labels.jsonl row carries this event on frames %d..%d)"
-                            % (tag, V_NOTMEAS, ev["indices"][0], ev["indices"][-1]))
-            n_notmeas += 1
+            event_errors[ev["i"]] = "no matching labels.jsonl entry"
             continue
+        for ordinal, (a, b) in enumerate(_runs_of(ev["indices"])):
+            def present(k):
+                mf = (rows.get(k) or {}).get("mask_file")
+                return bool(mf and os.path.isfile(os.path.join(cap_dir, str(mf))))
+            mode = "mask" if any(present(k) for k in range(a, b + 1)) else "bbox"
+            row = rows.get(a) or {}
+            run_entry = _target_entry(row, ev["node"]) or entry
+            run = {"event": ev["i"], "ordinal": ordinal, "start": a, "end": b,
+                   "node": ev["node"], "type": ev["type"], "mode": mode, "edges": []}
+            run["signal"] = _PairSignal(cap_dir, rows, ev["node"], run_entry, mode,
+                                         hot, paths, size, mlo, min_visible_px, (a, b), edge_w)
+            runs.append(run)
+            by_event[ev["i"]].append(run)
+    _observe_windows(runs, first, last, edge_w, base_idx)
+    for run in runs:
+        run["outcome"], run["reason"] = _run_outcome(run)
+        run["lighting_caveat"] = run["outcome"] == R_CONSISTENT and any(e["ring_note"] for e in run["edges"])
+        run["max_m_edge"] = max((e["m_edge"] for e in run["edges"] if e["m_edge"] is not None), default=None)
+        run["motion_caveat"] = run["max_m_edge"] is not None and run["max_m_edge"] > HIGH_REGIONAL_CHANGE_MARKER
+        run["caveat"] = run["lighting_caveat"] or run["motion_caveat"]
+        run["mask_extrapolation_max"] = max((abs(d) for e in run["edges"]
+                                             for _s, d in e["mask_extrapolations"]), default=0)
+        for rec in run["edges"]:
+            rec.update(run_outcome=run["outcome"], run_reason=run["reason"],
+                       run_eligible=run["outcome"] not in (R_READING, R_UNASSESSABLE),
+                       run_caveat=run["caveat"], run_lighting_caveat=run["lighting_caveat"],
+                       run_motion_caveat=run["motion_caveat"], run_max_m_edge=run["max_m_edge"],
+                       run_mask_extrapolation_max=run["mask_extrapolation_max"], session=cap_dir)
+            if out_detail is not None:
+                out_detail.append(dict(rec))
+    lines = ["LABEL-PIXEL CONSISTENCY OBSERVATIONS (079-13)",
+             "  session                  %s" % cap_dir,
+             "  frames / labels / events %d / %d / %d" % (len(paths), len(rows), len(events)),
+             "  semantics                masks identify pixels, not cause; no output certifies a label as correct",
+             "  region                   union of both masks; actual target masks take precedence; bbox-only runs are READING",
+             "  boundary masks           missing OUTSIDE the span only: extrapolate same-run boundary <=%d frames (window+N_BASE=%d+%d)" % (edge_w + BASELINE_MAX_FRAMES, edge_w, BASELINE_MAX_FRAMES),
+             "                           A real per-frame mask is never replaced; extrapolation is used only where the producer wrote none, and every affected line says so.",
+             "  signal                   fraction with an RGB-channel difference >%d/255; edge tau=max(median+6*MAD,0.004)" % thresh,
+             "  regional change          m_edge is a reading; >%.2f adds a caveat (historical marker, not a boundary)" % HIGH_REGIONAL_CHANGE_MARKER,
+             "  characterisation         docs/verifier-characterisation.md",
+             "                           Per-session recovery readings and all wrong cells with competing peaks; known limitations, not label approval.",
+             "  clean-frame pool         %d (guard %d); nearest 3..24 valid per-pair regions for EACH edge" % (len(base_idx), guard),
+             "  search                   +/-%d, inclusive labelled bounds; peaks >tau and >=1.5 x min(neighbours), outside window=0" % edge_w,
+             "  assignment               per target/mode, labelled order: nearest unused peak; tie larger d, then earlier; inversions disclosed",
+             "  producer metadata        bbox/observable flags are reported, not confirmed by this tool",
+             "  NO-TRACE scope           no change above the noise floor (tau) over the complete span AND edge windows",
+             "  detection limit          tau is a fraction of target-region pixels; RGB-channel threshold also applies",
+             "-" * 78]
+    counts = Counter()
+    consistent_caveats = 0
+    for ev in events:
+        ev_runs = by_event[ev["i"]]
+        token = _event_token(ev_runs)
+        counts[token] += 1
+        consistent_caveats += token == R_CONSISTENT and any(r["outcome"] == R_CONSISTENT and r["caveat"] for r in ev_runs)
+        rc = Counter(r["outcome"] for r in ev_runs)
+        summary = " ".join("%s=%d" % (name, rc[name]) for name in RUN_OUTCOMES)
+        lines.append("idx=%-3d %-18s %-22s %s runs{%s} %s" % (
+            ev["i"], ev["type"], ev["node"] or "(no node)", token, summary, _provenance(ev)))
+        if ev["i"] in event_errors:
+            lines.append("      UNASSESSABLE(%s)" % event_errors[ev["i"]])
+        for run in ev_runs:
+            label = run["outcome"]
+            if run["lighting_caveat"]:
+                label += " (caveat: edge coincides with a whole-region change - inspect frames k-1..k+1)"
+            if label == R_OFFSET:
+                label += "(%s)" % ",".join("%+d" % e["offset"] if e["offset"] is not None else
+                                            "no-transition" for e in run["edges"])
+            if run["motion_caveat"]:
+                label += " (caveat: high regional change m=%.4f - readings under motion are less reliable)" % run["max_m_edge"]
+            mask_note = ""
+            if run["mode"] == "mask":
+                mask_note = "; masks: in-span actual, edges " + (
+                    "extrapolated <=%d (including baseline)" % run["mask_extrapolation_max"]
+                    if run["mask_extrapolation_max"] else "actual")
+            if any(len(e["peaks"]) > 1 for e in run["edges"]):
+                mask_note += "; assignment: " + ", ".join(
+                    "%s %s (nearest of {%s})" % (e["kind"],
+                        str(e["best_k"]) if e["found"] else "none",
+                        ", ".join(map(str, e["available_peaks"]))) for e in run["edges"])
+            mask_note += _assignment_notes(run["edges"])
+            lines.append("      run[%d..%d] %s%s%s" % (run["start"], run["end"], label,
+                " (bbox-only)" if run["mode"] == "bbox" else " - " + run["reason"], mask_note))
+            lines.extend(_edge_line(e) for e in run["edges"])
+    lines.extend(["-" * 78, "  " + "  ".join(("%s %d (%d with caveat)" % (name, counts[name], consistent_caveats)
+                  if name == R_CONSISTENT else "%s %d" % (name, counts[name])) for name in RUN_OUTCOMES)
+                  + "  (of %d events)" % len(events)])
+    run_counts = Counter(r["outcome"] for r in runs)
+    lines.append("  run coverage             " + "  ".join("%s %d" % (name, run_counts[name]) for name in RUN_OUTCOMES)
+                 + "  (of %d runs; unassessable/readings never promote an event)" % len(runs))
+    if counts[R_NO_TRACE]:
+        lines.append("  VERDICT                  FAIL: NO-TRACE on %d event(s) - no change above the noise floor; labels claim visible changes" % counts[R_NO_TRACE])
+    else:
+        lines.append("  VERDICT                  NO FAILURE FOUND (%d consistent (%d with caveat), %d offset-notes for human review, %d partial, %d unassessable, %d readings)" %
+                     (counts[R_CONSISTENT], consistent_caveats, counts[R_OFFSET], counts[R_PARTIAL], counts[R_UNASSESSABLE], counts[R_READING]))
+        if events and counts[R_READING] == len(events):
+            lines.append("  coverage                 UNREAD-BBOX-ONLY")
+    return (2 if counts[R_NO_TRACE] else 0), lines
 
-        mask_short = None
-        if has_masks:
-            for k in ev["indices"]:
-                r = rows.get(k)
-                if not r or not r.get("mask_file"):
-                    continue
-                e2 = mlo.match_label_entry(r, ev["node"], None)
-                reg = _build_region(cap_dir, r, e2, frame_w, frame_h, mlo) if e2 else None
-                if reg and reg["bin"] is not None and reg["npix"] < min_visible_px:
-                    mask_short = (k, reg["npix"])
-                    break
-        if mask_short:
-            ev_lines.append("%s %s (mask count %d < %d on frame %d)"
-                            % (tag, V_NOTVIS, mask_short[1], min_visible_px, mask_short[0]))
-            n_notvis += 1
-            continue
 
-        region = _build_region(cap_dir, row, entry, frame_w, frame_h, mlo)
-        if region is None:
-            ev_lines.append("%s %s(no-region: no usable mask or bbox at frame %d)"
-                            % (tag, V_NOTMEAS, anchor))
-            n_notmeas += 1
-            continue
+def _synth_backdrop(w, h, total, pan, blocks, stripes):
+    """A backdrop wide enough to be SCROLLED for `total` frames at `pan` px/frame.
 
-        base_vals = []
-        for k in base_idx:
-            d = _frac_above(cache, k, thresh, region)
-            if d is not None:
-                base_vals.append(d)
-        if len(base_vals) < 3:
-            ev_lines.append("%s %s(baseline: only %d clean frame(s), need 3)"
-                            % (tag, V_NOTMEAS, len(base_vals)))
-            n_notmeas += 1
-            continue
-        tau, med, mad = _threshold_from(base_vals, mlo)
-        contaminated = sum(1 for v in base_vals if v > tau)
-
-        own = set(int(v) for v in ev["indices"])
-        foreign = set()
-        for other in events:
-            if other is ev:
-                continue
-            for v in other["indices"]:
-                if int(v) not in own:
-                    foreign.add(int(v))
-
-        verdicts = []
-        details = []
-        ev_runs = _runs_of(ev["indices"])
-        for run_i, (rs, re_) in enumerate(ev_runs):
-            prev_end = ev_runs[run_i - 1][1] if run_i > 0 else None
-            next_start = ev_runs[run_i + 1][0] if run_i + 1 < len(ev_runs) else None
-            r_on = rows.get(rs)
-            e_on = mlo.match_label_entry(r_on, ev["node"], None) if r_on else None
-            reg_on = _build_region(cap_dir, r_on, e_on, frame_w, frame_h, mlo) if e_on else region
-            reg_on = reg_on or region
-
-            on_lo = max(min(all_idx) + 1, rs - edge_w)
-            if prev_end is not None:
-                on_lo = max(on_lo, prev_end + 2)
-            on_hi = min(rs + edge_w, re_)
-            onset_k, onset_d = _dominant_edge(cache, on_lo, on_hi, thresh, reg_on,
-                                              paths, tau, foreign)
-
-            r_end = rows.get(re_)
-            e_end = mlo.match_label_entry(r_end, ev["node"], None) if r_end else None
-            reg_end = _build_region(cap_dir, r_end, e_end, frame_w, frame_h, mlo) if e_end else region
-            reg_end = reg_end or region
-
-            end_k = None
-            end_truncated = (re_ + 1) > max(all_idx)
-            if not end_truncated:
-                lo = max(min(all_idx) + 1, re_ + 1 - edge_w)
-                if onset_k is not None:
-                    lo = max(lo, onset_k + 1)
-                hi = re_ + 1 + edge_w
-                if next_start is not None:
-                    hi = min(hi, next_start - 1)
-                end_k, _end_d = _dominant_edge(cache, lo, hi, thresh, reg_end, paths, tau,
-                                               foreign)
-
-            d_on = _frac_above(cache, rs, thresh, reg_on) if rs in paths and (rs - 1) in paths else None
-            d_off = (_frac_above(cache, re_ + 1, thresh, reg_end)
-                     if (not end_truncated and (re_ + 1) in paths) else None)
-
-            n_on = (onset_k - rs) if onset_k is not None else None
-            n_end = (end_k - (re_ + 1)) if end_k is not None else None
-
-            if onset_k is None and end_k is None:
-                verdicts.append((V_NOTVIS, "run[%d..%d] no pixel change above tau anywhere in "
-                                           "+/-%d of the claim" % (rs, re_, edge_w)))
-            elif ceiling is not None and ((n_on is not None and abs(n_on) > ceiling)
-                                          or (n_end is not None and abs(n_end) > ceiling)):
-                verdicts.append((V_NOTMEAS, "run[%d..%d] shift beyond the measurable range "
-                                            "(+/-%d)" % (rs, re_, ceiling)))
-            elif n_on not in (None, 0):
-                verdicts.append(("ONSET-SHIFT(%+d)" % n_on,
-                                 "run[%d..%d] pixels first change at %d, label starts at %d"
-                                 % (rs, re_, onset_k, rs)))
-            elif n_end not in (None, 0):
-                verdicts.append(("END-SHIFT(%+d)" % n_end,
-                                 "run[%d..%d] pixels first clear at %d, label ends at %d"
-                                 % (rs, re_, end_k, re_)))
-            elif n_on is None:
-                verdicts.append((V_NOTMEAS, "run[%d..%d] onset not decidable" % (rs, re_)))
-            elif end_truncated:
-                verdicts.append((V_NOTMEAS, "run[%d..%d] end truncated by the session's last "
-                                            "frame" % (rs, re_)))
-            elif n_end is None:
-                verdicts.append((V_NOTMEAS, "run[%d..%d] end not decidable" % (rs, re_)))
+    Two textures, both deterministic:
+      stripes > 0 - hard 0/255 vertical bars of that width. Scrolling by exactly one bar width
+                    flips EVERY pixel, so the changed fraction is 1.0 and nothing local can ever
+                    exceed it. That is the "threshold unsatisfiable" fixture.
+      otherwise   - blocky pseudo-random, block size `blocks`. Scrolling by `pan` changes the
+                    pixels within `pan` of a block edge, i.e. a changed fraction of pan/blocks -
+                    a dial for "how much is the camera moving".
+    """
+    from PIL import Image
+    unit = max(blocks, stripes, 1)
+    width = w + pan * total + unit * 2
+    px = []
+    for y in range(h):
+        by = y // max(1, blocks)
+        for x in range(width):
+            if stripes > 0:
+                px.append(255 if (x // stripes) % 2 == 0 else 0)
             else:
-                verdicts.append((V_PASS, "run[%d..%d] onset %d end %d" % (rs, re_, rs, re_ + 1)))
-
-            details.append("      run[%d..%d]  d(onset=%d)=%s  d(clear=%s)=%s  tau=%.4f  "
-                           "region=%s/%dpx"
-                           % (rs, re_, rs, ("%.4f" % d_on) if d_on is not None else "n/a",
-                              str(re_ + 1) if not end_truncated else "-",
-                              ("%.4f" % d_off) if d_off is not None else "n/a",
-                              tau, reg_on["source"], reg_on["npix"]))
-
-        worst = V_PASS
-        for v, _why in verdicts:
-            if v == V_NOTVIS:
-                worst = v
-                break
-            if v.startswith("ONSET-SHIFT") or v.startswith("END-SHIFT"):
-                worst = v
-            elif v == V_NOTMEAS and worst == V_PASS:
-                worst = v
-
-        conf = "HIGH"
-        if contaminated:
-            conf = "LOW"
-        elif region["bin"] is None:
-            conf = "MED"
-
-        extra = ""
-        if ev["type"] in mlo.TEXTURE_TYPES:
-            try:
-                patch = cache.rgb(anchor).crop(region["box"])
-                cls, _detail = mlo.classify_patch(patch)
-                extra = "  appearance=%s" % cls
-            except Exception:
-                extra = "  appearance=n/a"
-
-        ev_lines.append("%s %-16s [%s] tau=%.4f base=%d%s%s"
-                        % (tag, worst, conf, tau, len(base_vals),
-                           ("  CONTAMINATED=%d" % contaminated) if contaminated else "", extra))
-        if not quiet:
-            ev_lines.extend(details)
-            for v, why in verdicts:
-                if v != V_PASS:
-                    ev_lines.append("      %-16s %s" % (v, why))
-
-        if worst == V_PASS:
-            n_pass += 1
-        elif worst == V_NOTVIS:
-            n_notvis += 1
-        elif worst == V_NOTMEAS:
-            n_notmeas += 1
-        else:
-            n_shift += 1
-
-    lines.append("  baseline frames          %d (guard %d frame(s) either side of every window%s)"
-                 % (len(base_idx), guard_used,
-                    "" if guard_used == BASELINE_GUARD_FRAMES
-                    else "; RELAXED from %d - a dense burst schedule left too few clean frames"
-                         % BASELINE_GUARD_FRAMES))
-    lines.append("-" * 78)
-    lines.extend(ev_lines)
-    lines.append("-" * 78)
-    lines.append("  PASS %d   SHIFT %d   NOT-VISIBLE %d   NOT-MEASURABLE %d   (of %d event(s))"
-                 % (n_pass, n_shift, n_notvis, n_notmeas, len(events)))
-    bad = n_shift + n_notvis
-    lines.append("  VERDICT                  %s%s"
-                 % ("PASS" if bad == 0 else "FAIL",
-                    "" if bad == 0 else "  - the labels and the pixels disagree on %d event(s)" % bad))
-    if n_notmeas:
-        lines.append("  NOT-MEASURABLE is NOT a pass and NOT a failure - it is an unread surface, "
-                     "and the reason is printed on the event's own line.")
-    return (0 if bad == 0 else 2), lines
+                px.append((((x // max(1, blocks)) * 73 + by * 151) * 37) % 256)
+    im = Image.new("L", (width, h))
+    im.putdata(px)
+    return im
 
 
-def _synth_session(root, name, shift=0, end_shift=0, blank_region=False, with_mask=False):
-    """Build a synthetic session with a KNOWN onset and end, then optionally lie about it."""
+def _synth_session(root, name, shift=0, end_shift=0, blank_region=False, with_mask=False,
+                   pan=0, blocks=16, stripes=0, fullframe_region=False):
+    """Build a synthetic session with a KNOWN onset and end, then optionally lie about it.
+
+    `pan == 0` keeps the ORIGINAL static fixture byte-for-byte: flat grey, a fixed dark square,
+    and the target rectangle drawn on every frame. Those seven cases must go on reading exactly
+    what they read before the ring normalisation.
+
+    `pan > 0` scrolls a textured backdrop, which is the regime that had never been tested: on a
+    moving camera the CLEAN frames change too, which is what drove the old learned threshold past
+    its own statistic's ceiling (G259). The target is then drawn only while anomalous, so the
+    region carries moving scene content when clean - exactly as a real session does.
+
+    079-07: `with_mask` writes the mask as the LABEL'S OWN RECTANGLE, not the true target
+    rectangle. That matters because `blank_region` and `fullframe_region` exist to make the label
+    LIE about where the target is; a mask drawn on the true target would quietly correct the lie
+    and the two cases would stop testing anything. Masks are now written for almost every case,
+    because under 079-07 a bbox-only run yields readings rather than verdicts, and a suite of
+    readings cannot prove that the gate is still able to FAIL (G96).
+    """
     from PIL import Image, ImageDraw
     d = os.path.join(root, name)
     os.makedirs(os.path.join(d, "Actual_Frames"))
@@ -944,21 +1219,37 @@ def _synth_session(root, name, shift=0, end_shift=0, blank_region=False, with_ma
     true_start, true_end = 10, 17
     total = 30
 
-    for i in range(total):
-        im = Image.new("RGB", (w, h), (90, 90, 90))
-        dr = ImageDraw.Draw(im)
-        dr.rectangle([10, 10, 30, 30], fill=(60, 60, 60))
-        anomalous = true_start <= i <= true_end
-        dr.rectangle(list(box), fill=(230, 230, 230) if anomalous else (70, 70, 70))
-        im.save(os.path.join(d, "Actual_Frames", "frame_%05d.png" % i))
-        if with_mask:
-            mk = Image.new("L", (w, h), 0)
-            ImageDraw.Draw(mk).rectangle(list(box), fill=222)
-            mk.save(os.path.join(d, "target_mask", "frame_%05d.png" % i))
+    bg = _synth_backdrop(w, h, total, pan, blocks, stripes) if pan > 0 else None
 
     lo, hi = true_start + shift, true_end + shift + end_shift
     idxs = list(range(lo, hi + 1))
-    label_box = [5, 5, 8, 8] if blank_region else [box[0], box[1], box[2] - box[0], box[3] - box[1]]
+    if fullframe_region:
+        label_box = [0, 0, w, h]
+    elif blank_region:
+        label_box = [5, 5, 8, 8]
+    else:
+        label_box = [box[0], box[1], box[2] - box[0], box[3] - box[1]]
+    mask_rect = (label_box[0], label_box[1],
+                 label_box[0] + label_box[2] - 1, label_box[1] + label_box[3] - 1)
+
+    for i in range(total):
+        anomalous = true_start <= i <= true_end
+        if pan > 0:
+            off = pan * i
+            im = bg.crop((off, 0, off + w, h)).convert("RGB")
+            dr = ImageDraw.Draw(im)
+            if anomalous:
+                dr.rectangle(list(box), fill=(230, 230, 230))
+        else:
+            im = Image.new("RGB", (w, h), (90, 90, 90))
+            dr = ImageDraw.Draw(im)
+            dr.rectangle([10, 10, 30, 30], fill=(60, 60, 60))
+            dr.rectangle(list(box), fill=(230, 230, 230) if anomalous else (70, 70, 70))
+        im.save(os.path.join(d, "Actual_Frames", "frame_%05d.png" % i))
+        if with_mask:
+            mk = Image.new("L", (w, h), 0)
+            ImageDraw.Draw(mk).rectangle(list(mask_rect), fill=222)
+            mk.save(os.path.join(d, "target_mask", "frame_%05d.png" % i))
 
     with open(os.path.join(d, "labels.jsonl"), "w", encoding="utf-8") as fh:
         for i in reversed(range(total)):
@@ -992,6 +1283,96 @@ def _synth_session(root, name, shift=0, end_shift=0, blank_region=False, with_ma
     with open(os.path.join(d, "annotation.json"), "w", encoding="utf-8") as fh:
         json.dump(ann, fh)
     return d
+
+
+def _codex07_fixture(root, name, runs=((60, 67),), label_runs=None, burst_at=None, onset_delta=0,
+                     full_boxes=(), total=100, patch_sides=None, mask=None, mask_runs=None,
+                     full_masks=(), drop_frames=()):
+    """The counterexample fixtures from the 079-07 review.
+
+    SOURCE: `_reviews/079-07-review-validation.py`, Codex's second independent merge review,
+    function `fixture`. Kept VERBATIM IN CONSTRUCTION - a 160x120 picture that is static except
+    for a 50x50 window onto a scrolling crop at (40,30), a white patch drawn over part of it on
+    the frames named by `runs`, and `burst_at` scrolling that window by 10 px ONCE and then
+    leaving it still. A paraphrase of a counterexample is not a counterexample.
+
+    Parameters that are Codex's:
+      runs         the RGB truth - which frames actually carry the patch
+      label_runs   what the labels claim, when it differs from the truth
+      burst_at     the single 10 px background scroll, the thing that hijacked the argmax
+      onset_delta  moves the first labelled run's onset only
+      full_boxes   frames whose labelled bbox is the WHOLE frame (forces a size refusal)
+      patch_sides  per-run patch side length, for a weaker second run or a sub-tau one
+
+    Parameters added here, all of them about 079-07's mask-mode rule:
+      mask         None = bbox-only; "patch" = the mask is the target patch (Codex's F1 case,
+                   where the burst is OUTSIDE the silhouette and the real onset is inside it);
+                   "region" = the mask is the whole 50x50 object, for the detection-limit case
+                   where the target IS the region and only a pixel of it changes
+      mask_runs    frames that carry a mask at all, so a session can be mask-mode on one run and
+                   bbox-only on another (the mixed case R3 names)
+      full_masks   frames whose MASK is the whole frame - an ATTRIBUTED region that is still
+                   refused on size, which is how a masked PARTIAL case is built
+      drop_frames  frames to leave off disk, for the missing-observation case (Codex's F3)
+    """
+    from PIL import Image, ImageDraw
+    p = os.path.join(root, name)
+    os.makedirs(os.path.join(p, "Actual_Frames"))
+    if mask:
+        os.makedirs(os.path.join(p, "target_mask"))
+    w, h = 160, 120
+    x, y, rw, rh = 40, 30, 50, 50
+    bg = _synth_backdrop(w, h, total, 10, 16, 0)
+    lr = [tuple(r) for r in (label_runs if label_runs is not None else runs)]
+    if onset_delta:
+        lr[0] = (lr[0][0] + onset_delta, lr[0][1])
+    idxs = [k for a, b in lr for k in range(a, b + 1)]
+    rows = []
+    for k in range(total):
+        offset = 10 if burst_at is not None and k >= burst_at else 0
+        im = Image.new("RGB", (w, h), (90, 90, 90))
+        im.paste(bg.crop((offset, 0, offset + rw, rh)).convert("RGB"), (x, y))
+        patch = None
+        for n, (a, b) in enumerate(runs):
+            if a <= k <= b:
+                side = patch_sides[n] if patch_sides else 20
+                patch = (x + 5, y + 5, x + 4 + side, y + 4 + side)
+                ImageDraw.Draw(im).rectangle(patch, fill=(255, 255, 255))
+        if k not in drop_frames:
+            im.save(os.path.join(p, "Actual_Frames", "frame_%05d.png" % k))
+        wants_mask = mask and (mask_runs is None or any(a <= k <= b for a, b in mask_runs))
+        if wants_mask:
+            side0 = patch_sides[0] if patch_sides else 20
+            rect = ((0, 0, w - 1, h - 1) if k in full_masks
+                    else ((x, y, x + rw - 1, y + rh - 1) if mask == "region"
+                          else (x + 5, y + 5, x + 4 + side0, y + 4 + side0)))
+            mk = Image.new("L", (w, h), 0)
+            ImageDraw.Draw(mk).rectangle(list(rect), fill=222)
+            mk.save(os.path.join(p, "target_mask", "frame_%05d.png" % k))
+        box = [0, 0, w, h] if k in full_boxes else [x, y, rw, rh]
+        entry = {"id": "missing_texture", "target_name": "SynthTarget",
+                 "start_frame": 1000 + min(idxs), "bbox_valid": True, "bbox_px": box}
+        if wants_mask:
+            entry["mask_value"] = 222
+        row = {"frame_index": 1000 + k, "session_index": k,
+               "image": "Actual_Frames/frame_%05d.png" % k, "width": w, "height": h,
+               "anomaly_present": k in idxs, "visible_positive": k in idxs,
+               "anomalies": [entry] if k in idxs else []}
+        if wants_mask:
+            row["mask_file"] = "target_mask/frame_%05d.png" % k
+            row["mask_state"] = "present"
+        rows.append(row)
+    with open(os.path.join(p, "labels.jsonl"), "w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    ann = {"anomalies": [{"anomaly_type": "missing_texture", "manifested": True,
+                          "affected_frames": {"start_frame": min(idxs), "end_frame": max(idxs),
+                                              "frame_count": len(idxs), "frame_indices": idxs},
+                          "affected_objects": {"primary_index": 0,
+                                               "nodes": [{"name": "SynthTarget"}]}}]}
+    with open(os.path.join(p, "annotation.json"), "w", encoding="utf-8") as fh:
+        json.dump(ann, fh)
+    return p
 
 
 def _shifted_copy_of(src_dir, dst_dir, delta):
@@ -1028,78 +1409,607 @@ def _shifted_copy_of(src_dir, dst_dir, delta):
     return dst_dir
 
 
-def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None):
-    """Prove the gate can FAIL, in BOTH directions and on BOTH edges (G96/G142).
+def _codex_fixture(root, name, local_only=False, alternating=False, burst=True, shift=0,
+                   with_mask=False):
+    """The counterexample fixtures from the 079-05 review.
 
-    Without --dir it builds synthetic sessions, so the check is portable and a client can
-    run it with nothing but this file, measure_label_offset.py and Pillow. With --dir it
-    additionally shifts a REAL session's labels on a copy - the frames and the source
-    session are never written to.
+    SOURCE: `_reviews/079-05-review-validation.py`, Codex's independent merge review, function
+    `custom_motion_fixture`. They are kept here VERBATIM IN CONSTRUCTION - same geometry, same
+    scroll schedule, same patch - because they are the three cases that broke the 079-04 gate and
+    a paraphrase of a counterexample is not a counterexample.
+
+      quiet_prefix    160x120; frames 0..35 flat grey, then a textured backdrop scrolls 2 px/frame.
+                      The labelled window sits entirely in the moving part, so a whole-frame median
+                      taken over the OPENING reads 0.0000 for a region whose local value is 0.1250.
+      small_region    320x240; the picture is static except a 50x50 window onto a scrolling crop -
+                      the region is ALL of the movement, and the whole-frame fraction (0.0039) is
+                      32x smaller than the regional one (0.1250).
+      alternating     the same small region scrolling 1 px then 3 px, which lifts tau far enough
+                      that the true edges (10% of the region at BOTH of them) fall under it - the
+                      false NOT-VISIBLE, with tau satisfiable so the unsatisfiable escape cannot
+                      help.
+
+    `burst` reproduces their +10 px background jump on the frame AFTER the onset, which is what
+    hijacked the argmax. `burst=False` removes it so the true edge IS the dominant change, which
+    is what makes the shifted variants a fair NEGATIVE control: without them the new refusals
+    could have DISABLED the verdict rather than scoping it (G96).
+
+    `shift` lies about the label by that many frames, exactly as _synth_session does.
+
+    `with_mask` (079-07) writes the TARGET PATCH as the per-frame mask, so the same fixture can
+    be run in mask mode. It is what carries the two burst-free negative controls forward: under
+    079-07 a bbox-only run produces readings only, so without a masked twin the "it can still
+    fail" half of this suite would have quietly disappeared.
     """
-    import shutil
-    import tempfile
-    try:
-        from PIL import Image
-    except ImportError:
-        print("SELFTEST: ERROR - Pillow is required.", flush=True)
-        return 2
-
-    root = tempfile.mkdtemp(prefix="m49_labelpixel_selftest_")
-    rc = 0
-    checks = []
-    try:
-        cases = [
-            ("clean", dict(shift=0), V_PASS),
-            ("clean_masked", dict(shift=0, with_mask=True), V_PASS),
-            ("label_late_1", dict(shift=1), "ONSET-SHIFT(-1)"),
-            ("label_early_1", dict(shift=-1), "ONSET-SHIFT(+1)"),
-            ("end_late_1", dict(end_shift=1), "END-SHIFT(-1)"),
-            ("end_early_1", dict(end_shift=-1), "END-SHIFT(+1)"),
-            ("blank_region", dict(shift=0, blank_region=True), V_NOTVIS),
-        ]
-        for name, kwargs, expect in cases:
-            d = _synth_session(root, name, **kwargs)
-            code, lines = label_pixel_gate(d, thresh, edge_w, min_visible_px, quiet=True)
-            body = [l for l in lines if l.startswith("idx=")]
-            read = body[0].split()[3] if body and len(body[0].split()) > 3 else "(none)"
-            ok = read.startswith(expect)
-            checks.append((name, expect, read, ok, code))
-            if not ok:
-                rc = 3
-
-        if source_dir and os.path.isdir(source_dir):
-            for delta, expect in ((1, "ONSET-SHIFT(-1)"), (-1, "ONSET-SHIFT(+1)")):
-                dst = os.path.join(root, "real_%+d" % delta)
-                try:
-                    _shifted_copy_of(source_dir, dst, delta)
-                except Exception as exc:
-                    checks.append(("real%+d" % delta, expect, "copy failed: %s" % exc, False, -1))
-                    rc = 3
-                    continue
-                code, lines = label_pixel_gate(dst, thresh, edge_w, min_visible_px, quiet=True)
-                body = [l for l in lines if l.startswith("idx=")]
-                hits = sum(1 for l in body if expect in l)
-                ok = hits > 0 and code == 2
-                checks.append(("real%+d (%d event lines)" % (delta, len(body)),
-                               expect, "%d event(s) read it" % hits, ok, code))
-                if not ok:
-                    rc = 3
-
-        print("LABEL-PIXEL GATE SELFTEST", flush=True)
-        print("  %-28s %-18s %-28s %s" % ("case", "expected", "read", "exit"), flush=True)
-        for name, expect, read, ok, code in checks:
-            print("  %-28s %-18s %-28s %s   %s"
-                  % (name, expect, read, code, "OK" if ok else "*** BROKEN ***"), flush=True)
-        if rc == 0:
-            print("SELFTEST: OK - the gate passes an aligned session, reads a +/-1 label shift "
-                  "back with the opposite sign, and calls a region with no change NOT-VISIBLE. "
-                  "Its PASS is a reading, not blindness.", flush=True)
+    from PIL import Image, ImageDraw
+    d = os.path.join(root, name)
+    frames = os.path.join(d, "Actual_Frames")
+    os.makedirs(frames)
+    if with_mask:
+        os.makedirs(os.path.join(d, "target_mask"))
+    width, height = (320, 240) if local_only else (160, 120)
+    total, onset, end = 100, 60, 67
+    x, y, rw, rh = 40, 30, 50, 50
+    bg = _synth_backdrop(width, height, total, 10, 16, 0)
+    offset = 0
+    rows = []
+    lo, hi = onset + shift, end + shift
+    side = 10 if alternating else 20
+    patch = (x + 12, y + 12, x + 11 + side, y + 11 + side)
+    for k in range(total):
+        if alternating:
+            offset += 1 if k % 2 == 0 else 3
+        elif local_only or k >= 36:
+            offset += 10 if (burst and k == onset + 1) else 2
+        if local_only:
+            im = Image.new("RGB", (width, height), (90, 90, 90))
+            im.paste(bg.crop((offset, 0, offset + rw, rh)).convert("RGB"), (x, y))
+        elif k < 36:
+            im = Image.new("RGB", (width, height), (90, 90, 90))
         else:
-            print("SELFTEST: BROKEN - see the rows marked above. A gate that cannot fail is not "
-                  "a gate.", flush=True)
-    finally:
-        shutil.rmtree(root, ignore_errors=True)
-    return rc
+            im = bg.crop((offset, 0, offset + width, height)).convert("RGB")
+        if onset <= k <= end:
+            ImageDraw.Draw(im).rectangle(patch, fill=(255, 255, 255))
+        im.save(os.path.join(frames, "frame_%05d.png" % k))
+        if with_mask:
+            mk = Image.new("L", (width, height), 0)
+            ImageDraw.Draw(mk).rectangle(patch, fill=222)
+            mk.save(os.path.join(d, "target_mask", "frame_%05d.png" % k))
+        entry = {"id": "missing_texture", "target_name": "SynthTarget", "start_frame": 1000 + lo,
+                 "bbox_valid": True, "bbox_px": [x, y, rw, rh]}
+        if with_mask:
+            entry["mask_value"] = 222
+        row = {"frame_index": 1000 + k, "session_index": k,
+               "image": "Actual_Frames/frame_%05d.png" % k, "width": width, "height": height,
+               "anomaly_present": lo <= k <= hi, "visible_positive": lo <= k <= hi,
+               "anomalies": [entry] if lo <= k <= hi else []}
+        if with_mask:
+            row["mask_file"] = "target_mask/frame_%05d.png" % k
+            row["mask_state"] = "present"
+        rows.append(row)
+    with open(os.path.join(d, "labels.jsonl"), "w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    ann = {"anomalies": [{"anomaly_type": "missing_texture", "manifested": True,
+                          "affected_frames": {"start_frame": lo, "end_frame": hi,
+                                              "frame_count": hi - lo + 1,
+                                              "frame_indices": list(range(lo, hi + 1))},
+                          "affected_objects": {"primary_index": 0, "nodes": [{"name": "SynthTarget"}]}}]}
+    with open(os.path.join(d, "annotation.json"), "w", encoding="utf-8") as fh:
+        json.dump(ann, fh)
+    return d
+
+
+def _codex08_fixture(root, name, true_runs=((60, 67),), label_runs=None, lighting=False, occluder=False,
+            move=False, mask_mode="precise", ring_burst=False, missing_masks=(), missing_rgb=()):
+    """Target exists throughout. A 10x10 texture fault occupies its right side only on true_runs.
+
+    Precise masks contain exactly visible target pixels on EVERY frame, including during occlusion.
+    Deliberately invalid masks (lag/dilated/foreign) are explicit fault-injection variants.
+    """
+    from PIL import Image, ImageDraw
+    import pathlib
+    p = pathlib.Path(root) / name
+    (p / "Actual_Frames").mkdir(parents=True)
+    (p / "target_mask").mkdir()
+    w, h, y, side = 180, 120, 30, 40
+    total = 100
+    lr = label_runs if label_runs is not None else true_runs
+    idx = [k for a, b in lr for k in range(a, b + 1)]
+    rows = []
+    def xpos(k):
+        return 70 if move and k >= 61 else 40
+    for k in range(total):
+        x = xpos(k)
+        im = Image.new("RGB", (w, h), (90, 90, 90))
+        draw = ImageDraw.Draw(im)
+        if ring_burst and k >= 61:
+            draw.rectangle((x-10, y-10, x+side+9, y+side+9), fill=(150, 150, 150))
+        draw.rectangle((x, y, x+side-1, y+side-1), fill=(80, 80, 80))
+        if any(a <= k <= b for a, b in true_runs):
+            draw.rectangle((x+28, y+5, x+37, y+14), fill=(230, 230, 230))
+        occluded = occluder and 61 <= k <= 65
+        if occluded:
+            draw.rectangle((x, y, x+19, y+side-1), fill=(180, 180, 180))
+        if mask_mode == "foreign":
+            c = 230 if 61 <= k <= 67 else 70
+            draw.rectangle((130, 30, 149, 49), fill=(c, c, c))
+        if lighting and k >= 61:
+            im = im.point(lambda value: min(255, value+40))
+        if k not in missing_rgb:
+            im.save(p / "Actual_Frames" / ("frame_%05d.png" % k))
+        mk = Image.new("L", (w, h), 0)
+        md = ImageDraw.Draw(mk)
+        mx = xpos(k-1) if mask_mode == "lag" else x
+        box = (mx+(20 if occluded else 0), y, mx+side-1, y+side-1)
+        if mask_mode == "dilated":
+            box = (mx-10, y-10, mx+side+9, y+side+9)
+        elif mask_mode == "foreign":
+            box = (130, 30, 149, 49)
+        md.rectangle(box, fill=111 if mask_mode == "foreign" else 222)
+        if mask_mode != "none" and k not in missing_masks:
+            mk.save(p / "target_mask" / ("frame_%05d.png" % k))
+        entry = {"id": "missing_texture", "target_name": "SynthTarget", "start_frame": 1000+min(idx),
+                 "bbox_valid": True, "bbox_px": [x, y, side, side], "mask_value": 222}
+        row = {"frame_index": 1000+k, "session_index": k, "width": w, "height": h,
+               "image": "Actual_Frames/frame_%05d.png" % k, "anomaly_present": k in idx,
+               "visible_positive": k in idx, "anomalies": [entry] if k in idx else []}
+        if mask_mode != "none":
+            row.update(mask_file="target_mask/frame_%05d.png" % k, mask_state="present")
+        rows.append(row)
+    (p / "labels.jsonl").write_text("".join(json.dumps(r)+"\n" for r in rows), encoding="utf-8")
+    ann = {"anomalies": [{"anomaly_type": "missing_texture", "manifested": True,
+        "affected_frames": {"start_frame": min(idx), "end_frame": max(idx), "frame_count": len(idx),
+                            "frame_indices": idx},
+        "affected_objects": {"primary_index": 0, "nodes": [{"name": "SynthTarget"}]}}]}
+    (p / "annotation.json").write_text(json.dumps(ann), encoding="utf-8")
+    return str(p)
+
+def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None):
+    """Permanent review regressions, with per-edge checks and whole-span negatives."""
+    import tempfile
+    import pathlib
+    checks = []
+    print("LABEL-PIXEL OBSERVATIONS SELFTEST", flush=True)
+
+    def check(name, path, expected, verify=None):
+        detail = []
+        code, lines = label_pixel_gate(str(path), thresh, edge_w, min_visible_px,
+                                       out_detail=detail)
+        tokens = [line.split()[3] for line in lines if line.startswith("idx=")]
+        ok = bool(tokens) and all(token in expected for token in tokens)
+        ok &= code == (2 if R_NO_TRACE in tokens else 0)
+        ok &= not any(word in line for line in lines for word in ("PASS ", "SHIFT(", "NOT-VISIBLE"))
+        if verify:
+            ok &= bool(verify(detail, lines))
+        checks.append(ok)
+        print("  %-43s %-32s exit%d %s" % (name, ",".join(tokens), code, "OK" if ok else "MISMATCH"), flush=True)
+        if not ok:
+            print("    expected %s" % (expected,), flush=True)
+            for line in lines:
+                print(line, flush=True)
+        return detail, lines
+
+    def all_unassessed(detail, _lines):
+        return all(e["observation"] == O_UNASSESSABLE for e in detail)
+
+    with tempfile.TemporaryDirectory(prefix="m49_consistency_selftest_") as root:
+        original = [
+            ("clean", {}, (R_CONSISTENT,)),
+            ("clean_masked", {}, (R_CONSISTENT,)),
+            ("label_late_1", {"shift": 1}, (R_OFFSET,)),
+            ("label_early_1", {"shift": -1}, (R_OFFSET,)),
+            ("end_late_1", {"end_shift": 1}, (R_OFFSET,)),
+            ("end_early_1", {"end_shift": -1}, (R_OFFSET,)),
+            ("blank_region", {"blank_region": True}, (R_NO_TRACE,)),
+            ("moving_clean", {"pan": 2}, (R_CONSISTENT,)),
+            ("moving_fast", {"pan": 8}, (R_CONSISTENT,)),
+            ("moving_label_late_1", {"pan": 2, "shift": 1}, (R_OFFSET,)),
+            ("moving_label_early_1", {"pan": 2, "shift": -1}, (R_OFFSET,)),
+            ("moving_end_late_1", {"pan": 2, "end_shift": 1}, (R_OFFSET,)),
+            ("moving_end_early_1", {"pan": 2, "end_shift": -1}, (R_OFFSET,)),
+            ("moving_blank_region", {"pan": 2, "blank_region": True}, (R_NO_TRACE,)),
+            ("moving_fullframe_region", {"pan": 2, "fullframe_region": True}, (R_UNASSESSABLE,)),
+            ("moving_unsat", {"pan": 4, "stripes": 4}, (R_UNASSESSABLE,)),
+            ("moving_over_cap", {"pan": 2}, (R_CONSISTENT,)),
+        ]
+        for name, args, expected in original:
+            check(name, _synth_session(root, name, with_mask=True, **args), expected)
+        for name, shift in (("bboxonly_clean", 0), ("bboxonly_label_late_1", 1)):
+            check(name, _synth_session(root, name, shift=shift), (R_READING,))
+        older = [
+            ("codex_quiet_prefix", {}),
+            ("codex_small_region", {"local_only": True}),
+            ("codex_alternating", {"local_only": True, "alternating": True}),
+            ("codex_quiet_prefix_shift1", {"shift": 1}),
+            ("codex_small_region_shift1", {"local_only": True, "shift": 1}),
+            ("codex_quiet_prefix_noburst_shift1", {"shift": 1, "burst": False}),
+            ("codex_small_region_noburst_shift1", {"local_only": True, "shift": 1, "burst": False}),
+        ]
+        for name, args in older:
+            check(name, _codex_fixture(root, name, **args), (R_READING,))
+        for local in (False, True):
+            name = "codex_masked_negative_%s" % local
+            check(name, _codex_fixture(root, name, local_only=local, burst=False, shift=1,
+                                       with_mask=True), (R_OFFSET,))
+
+        cases07 = [
+            ("burst_aligned", {"burst_at": 61}),
+            ("burst_late", {"burst_at": 61, "onset_delta": 1}),
+            ("static_aligned", {}),
+            ("static_late", {"onset_delta": 1}),
+            ("onset_early_refusal", {"runs": ((10, 11),), "burst_at": 10, "full_boxes": (10,)}),
+            ("previous_end_refusal", {"runs": ((10, 12), (15, 16)), "label_runs": ((10, 11), (15, 16)),
+                                       "full_boxes": (11,), "patch_sides": (40, 15)}),
+            ("partial_multirun", {"runs": ((10, 11), (25, 26)), "full_boxes": (25, 26)}),
+            ("missing_edge_frames", {"drop_frames": tuple(range(55, 74))}),
+            ("early_refusal_control", {"runs": ((10, 11),), "burst_at": 10}),
+            ("previous_end_control", {"runs": ((10, 12), (15, 16)), "label_runs": ((10, 11), (15, 16)),
+                                       "patch_sides": (40, 15)}),
+            ("below_tau", {"patch_sides": (1,)}),
+        ]
+        for name, args in cases07:
+            check("c07_" + name, _codex07_fixture(root, "c07_" + name, **args), (R_READING,))
+        masked07 = [
+            ("burst_aligned_masked", {"burst_at": 61}, (R_CONSISTENT,)),
+            ("burst_late_masked", {"burst_at": 61, "onset_delta": 1}, (R_OFFSET,)),
+            ("onset_early_refusal_masked", {"runs": ((10, 11),), "burst_at": 10,
+                                           "full_masks": (10,)}, (R_UNASSESSABLE,)),
+            ("previous_end_refusal_masked", {"runs": ((10, 12), (15, 16)),
+                "label_runs": ((10, 11), (15, 16)), "full_masks": (11,), "patch_sides": (40, 15)},
+                (R_PARTIAL,)),
+            ("previous_end_control_masked", {"runs": ((10, 12), (15, 16)),
+                "label_runs": ((10, 11), (15, 16)), "patch_sides": (40, 15)}, (R_OFFSET,)),
+            ("partial_multirun_masked", {"runs": ((10, 11), (25, 26)), "full_masks": (25, 26)},
+                (R_CONSISTENT,)),
+            ("mixed_runs", {"runs": ((10, 11), (25, 26)), "mask_runs": ((10, 11),)},
+                (R_CONSISTENT,)),
+            ("missing_edge_frames_masked", {"drop_frames": tuple(range(55, 74))}, (R_UNASSESSABLE,)),
+            ("below_tau_masked", {"mask": "region", "patch_sides": (1,)}, (R_NO_TRACE,)),
+            ("zero_cap_static_masked", {}, (R_CONSISTENT,)),
+            ("zero_cap_burst_masked", {"burst_at": 61}, (R_CONSISTENT,)),
+            ("no_envelope_masked", {}, (R_CONSISTENT,)),
+        ]
+        for name, args, expected in masked07:
+            args = dict(args)
+            args.setdefault("mask", "patch")
+            check("c07_" + name, _codex07_fixture(root, "c07_" + name, **args), expected)
+
+        cases08 = [
+            ("lighting_aligned", {"lighting": True}, (R_CONSISTENT,)),
+            ("lighting_late_onset", {"lighting": True, "label_runs": ((61, 67),)}, (R_CONSISTENT,)),
+            ("occluder_aligned", {"occluder": True}, (R_CONSISTENT,)),
+            ("static_aligned", {}, (R_CONSISTENT,)),
+            ("static_late_onset", {"label_runs": ((61, 67),)}, (R_OFFSET,)),
+            ("missing_mask61", {"missing_masks": (61,)}, (R_PARTIAL,)),
+            ("missing_rgb61", {"missing_rgb": (61,)}, (R_PARTIAL,)),
+            ("precise_mask_ring_burst", {"ring_burst": True}, (R_CONSISTENT,)),
+            ("dilated_mask_ring_burst", {"ring_burst": True, "mask_mode": "dilated"}, (R_CONSISTENT,)),
+            ("precise_mask_target_move", {"move": True}, (R_CONSISTENT,)),
+            ("lagged_mask_target_move", {"move": True, "mask_mode": "lag", "label_runs": ((61, 67),)},
+                (R_CONSISTENT,)),
+            ("foreign_mask_value", {"mask_mode": "foreign"}, (R_UNASSESSABLE,)),
+            ("no_detected_end", {"true_runs": ((60, 90),), "label_runs": ((60, 67),)}, (R_PARTIAL,)),
+            ("mixed_run", {"missing_masks": (67,)}, (R_PARTIAL,)),
+            ("one_frame_aligned", {"true_runs": ((60, 60),)}, (R_CONSISTENT,)),
+            ("one_frame_late", {"true_runs": ((60, 60),), "label_runs": ((61, 61),)}, (R_PARTIAL,)),
+            ("one_frame_early", {"true_runs": ((60, 60),), "label_runs": ((59, 59),)}, (R_OFFSET,)),
+        ]
+        for name, args, expected in cases08:
+            def verify(detail, lines, name=name):
+                if name == "lighting_late_onset":
+                    return (any(e["ring_note"] for e in detail) and all(e["run_outcome"] != R_NO_TRACE for e in detail)
+                            and all(e["run_caveat"] for e in detail)
+                            and any("CONSISTENT (caveat:" in s for s in lines)
+                            and any("CONSISTENT 1 (1 with caveat)" in s for s in lines))
+                if name == "one_frame_late":
+                    return ([e["best_k"] for e in detail] == [61, None]
+                            and detail[0]["peaks"] == [60, 61]
+                            and detail[1]["consumed_peaks"] == [61]
+                            and detail[1]["reason"] == "all peaks in window assigned to earlier edges: 61")
+                if name == "missing_mask61":
+                    return detail[0]["observation"] == O_UNASSESSABLE and "mask missing at frame 61" in detail[0]["reason"]
+                if name == "foreign_mask_value":
+                    return all("mask id 222 not present" in e["reason"] for e in detail)
+                if name == "mixed_run":
+                    return all(e["run_eligible"] and e["run_outcome"] == R_PARTIAL for e in detail)
+                if name == "no_detected_end":
+                    return [e["observation"] for e in detail] == [O_TRANSITION, O_NONE]
+                return True
+            check("c08_" + name, _codex08_fixture(root, "c08_" + name, **args), expected, verify=verify)
+
+        for name, labels, mask_runs in (
+            ("adjacent_control", ((10, 11), (15, 16)), None),
+            ("adjacent_late_second_onset", ((10, 11), (16, 16)), None),
+            ("adjacent_early_second_onset", ((10, 11), (14, 16)), None),
+            ("mixed_late_second_onset", ((10, 11), (16, 16)), ((15, 99),))):
+            path = _codex07_fixture(root, name, runs=((10, 11), (15, 16)), label_runs=labels,
+                                    patch_sides=(10, 30), mask="region", mask_runs=mask_runs)
+            def verify(detail, _lines, name=name):
+                if name == "adjacent_late_second_onset":
+                    return ([e["best_k"] for e in detail] == [10, 12, 15, 17] and
+                            [e["offset"] for e in detail] == [0, 0, -1, 0])
+                return True
+            expected = (R_CONSISTENT,) if name == "adjacent_control" else (R_OFFSET,)
+            check(name, path, expected, verify=verify)
+
+        for name, truth, labels, expected, selected, offsets, outcomes in (
+            ("r6_blink_aligned", ((4, 5), (8, 9)), ((4, 5), (8, 9)), R_CONSISTENT,
+             [4, 6, 8, 10], [0, 0, 0, 0], [R_CONSISTENT] * 4),
+            ("r6_blink_late_second_onset", ((4, 5), (8, 9)), ((4, 5), (9, 9)), R_OFFSET,
+             [4, 6, 8, 10], [0, 0, -1, 0], [R_CONSISTENT] * 2 + [R_OFFSET] * 2),
+            ("r6_blink_missing_peak6", ((4, 7), (10, 99)), ((4, 5), (8, 9)), R_OFFSET,
+             [4, 8, 10, None], [0, 2, 2, None], [R_OFFSET] * 2 + [R_PARTIAL] * 2)):
+            path = _codex07_fixture(root, name, runs=truth, label_runs=labels, mask="patch")
+            def verify(detail, lines, selected=selected, offsets=offsets, outcomes=outcomes):
+                return ([e["best_k"] for e in detail] == selected and
+                        [e["offset"] for e in detail] == offsets and
+                        [e["run_outcome"] for e in detail] == outcomes and
+                        any("assignment: onset" in s for s in lines) and
+                        (not any(e["other_peaks"] for e in detail) or
+                         any("other peaks in window:" in s for s in lines)) and
+                        (selected[-1] is not None or detail[-1]["reason"] ==
+                         "all peaks in window assigned to earlier edges: 8, 10"))
+            check(name, path, (expected,), verify=verify)
+
+        name = "r6_blink_one_frame_second"
+        path = _codex07_fixture(root, name, runs=((4, 6), (10, 10)), mask="patch")
+        check(name, path, (R_CONSISTENT,), verify=lambda d, _l:
+              [e["best_k"] for e in d] == [4, 7, 10, 11] and
+              [e["offset"] for e in d] == [0, 0, 0, 0] and
+              [e["run_outcome"] for e in d] == [R_CONSISTENT] * 4)
+
+        blank = _codex08_fixture(root, "blank_whole_span", true_runs=(), label_runs=((40, 70),))
+        check("blank_whole_span", blank, (R_NO_TRACE,))
+        missing = _codex08_fixture(root, "blank_missing_interior", true_runs=(),
+                                   label_runs=((40, 70),), missing_masks=(55,))
+        check("blank_missing_interior", missing, (R_UNASSESSABLE,),
+              verify=lambda d, _l: all(e["run_outcome"] == R_UNASSESSABLE and
+                                       "mask missing at frame 55" in e["run_reason"] for e in d))
+        interior = _codex08_fixture(root, "interior_change", true_runs=((55, 56),), label_runs=((40, 70),))
+        check("interior_change", interior, (R_UNASSESSABLE,),
+              verify=lambda d, _l: all(e["run_outcome"] == R_UNASSESSABLE for e in d))
+        for variant in ("unresolved", "unsupported_class", "empty_mask", "unreadable_mask"):
+            path = pathlib.Path(_codex08_fixture(root, variant, true_runs=(), label_runs=((40, 70),)))
+            if variant in ("unresolved", "unsupported_class"):
+                rows = [json.loads(line) for line in (path / "labels.jsonl").read_text().splitlines()]
+                for row in rows:
+                    for entry in row["anomalies"]:
+                        if variant == "unresolved":
+                            entry["mask_value"] = 0
+                        else:
+                            entry["id"] = "time_dilation"
+                (path / "labels.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+                if variant == "unsupported_class":
+                    ann = json.loads((path / "annotation.json").read_text())
+                    ann["anomalies"][0]["anomaly_type"] = "time_dilation"
+                    (path / "annotation.json").write_text(json.dumps(ann), encoding="utf-8")
+            elif variant == "empty_mask":
+                from PIL import Image
+                Image.new("L", (180, 120)).save(path / "target_mask/frame_00041.png")
+            else:
+                (path / "target_mask/frame_00041.png").write_bytes(b"invalid image")
+            expected = (R_UNASSESSABLE,) if variant in ("unresolved", "unsupported_class") else (R_PARTIAL,)
+            check(variant, path, expected, verify=lambda d, _l: all(e["run_outcome"] != R_NO_TRACE for e in d))
+        dimensions = pathlib.Path(_codex08_fixture(root, "rgb_dimensions", true_runs=(),
+                                                    label_runs=((40, 70),)))
+        from PIL import Image, ImageDraw
+        for k in range(35, 45):
+            Image.new("RGB", (200, 130), (90, 90, 90)).save(
+                dimensions / "Actual_Frames" / ("frame_%05d.png" % k))
+        check("rgb_dimensions", dimensions, (R_PARTIAL,),
+              verify=lambda d, _l: d[0]["observation"] == O_UNASSESSABLE and
+              "RGB dimensions changed" in d[0]["reason"])
+        colour = pathlib.Path(_codex08_fixture(root, "equal_luma_colour"))
+        assert Image.new("RGB", (1, 1), (255, 0, 0)).convert("L").getpixel((0, 0)) == \
+               Image.new("RGB", (1, 1), (0, 130, 0)).convert("L").getpixel((0, 0))
+        for k in range(100):
+            im = Image.new("RGB", (180, 120), (90, 90, 90))
+            ImageDraw.Draw(im).rectangle((40, 30, 79, 69),
+                fill=(0, 130, 0) if 60 <= k <= 67 else (255, 0, 0))
+            im.save(colour / "Actual_Frames" / ("frame_%05d.png" % k))
+        check("equal_luma_colour", colour, (R_CONSISTENT,),
+              verify=lambda d, _l: all(e["observation"] == O_TRANSITION and e["best_d"] == 1 for e in d))
+        for name, span, missing, edge in (("missing_first_rgb", (3, 8), 0, 0),
+                                          ("missing_last_rgb", (90, 97), 99, 1)):
+            path = _codex08_fixture(root, name, true_runs=(), label_runs=(span,), missing_rgb=(missing,))
+            check(name, path, (R_PARTIAL,),
+                  verify=lambda d, _l, edge=edge: d[edge]["observation"] == O_UNASSESSABLE and
+                  "RGB missing" in d[edge]["reason"] and d[1-edge]["observation"] == O_NONE)
+        outside = tuple(k for k in range(100) if not 40 <= k <= 70)
+        for name, true_runs, expected in (("span_masks_control", ((40, 70),), (R_CONSISTENT,)),
+                                           ("span_masks_blank", (), (R_NO_TRACE,))):
+            path = _codex08_fixture(root, name, true_runs=true_runs, label_runs=((40, 70),), missing_masks=outside)
+            check(name, path, expected, verify=lambda d, lines, name=name:
+                  all(e["mask_extrapolations"] and e["run_mask_extrapolation_max"] <= edge_w + BASELINE_MAX_FRAMES
+                      for e in d) and any("masks: in-span actual, edges extrapolated" in s for s in lines)
+                  and (name != "span_masks_blank" or any("edge pairs use extrapolated masks" in s for s in lines)))
+        for name, missing_frames, expected in (
+            ("span_masks_missing_interior", outside + (55,), (R_UNASSESSABLE,)),
+            ("span_masks_missing_onset", outside + (40,), (R_PARTIAL,)),
+            ("span_masks_missing_end", outside + (70,), (R_PARTIAL,))):
+            path = _codex08_fixture(root, name, true_runs=(), label_runs=((40, 70),), missing_masks=missing_frames)
+            check(name, path, expected, verify=lambda d, _l: all(e["run_outcome"] != R_NO_TRACE for e in d))
+        for name, missing_frames, expected in (
+            ("consistent_with_unassessable_run", (41, 46), (R_CONSISTENT,)),
+            ("consistent_with_partial_run", (41,), (R_PARTIAL,))):
+            path = _codex08_fixture(root, name, true_runs=((10, 17), (40, 47)), missing_masks=missing_frames)
+            check(name, path, expected, verify=lambda d, lines, name=name:
+                  any(e["run_outcome"] == R_CONSISTENT for e in d) and
+                  (name != "consistent_with_unassessable_run" or
+                   any("run coverage" in s and "UNASSESSABLE 1" in s for s in lines)))
+        check("event_mixed_fabricated_run",
+              _codex08_fixture(root, "event_mixed_fabricated_run",
+                               true_runs=((24, 24),), label_runs=((10, 15), (24, 24))),
+              (R_NO_TRACE,),
+              verify=lambda d, lines: sorted({e["run_outcome"] for e in d}) == [R_CONSISTENT, R_NO_TRACE] and
+              any("run coverage" in s and "CONSISTENT 1" in s and "NO-TRACE 1" in s for s in lines))
+        if source_dir:
+            for delta in (-1, 1):
+                dst = os.path.join(root, "real_%+d" % delta)
+                _shifted_copy_of(source_dir, dst, delta)
+                check("real_%+d" % delta, dst, (R_CONSISTENT, R_OFFSET, R_PARTIAL, R_UNASSESSABLE, R_READING))
+    print("SELFTEST: %s - %d cases; observations, whole-span coverage and run eligibility" %
+          ("OK" if all(checks) else "MISMATCH", len(checks)), flush=True)
+    return 0 if all(checks) else 2
+
+
+def _batch_sessions(root, max_depth=6):
+    """Every directory under `root` that LOOKS like a capture session.
+
+    A session is anything carrying annotation.json or an Actual_Frames folder - deliberately NOT
+    "anything carrying labels.jsonl", so that a session MISSING labels.jsonl is FOUND and reported
+    CANNOT RUN instead of quietly not existing. An unread surface has to be visible to be read.
+    """
+    out = []
+    root = os.path.abspath(root)
+    base_depth = root.rstrip(os.sep).count(os.sep)
+    for cur, dirs, files in os.walk(root):
+        if cur.rstrip(os.sep).count(os.sep) - base_depth >= max_depth:
+            dirs[:] = []
+        names = set(files)
+        if "annotation.json" in names or os.path.isdir(os.path.join(cur, "Actual_Frames")):
+            out.append(cur)
+            dirs[:] = [d for d in dirs if d not in ("Actual_Frames", "target_mask", "annotated")]
+    return sorted(set(out))
+
+
+def _batch_key(root, sess):
+    """A batch identifier that is UNIQUE, because a folder basename is not.
+
+    079-05 finding 4. Both the summary identifier and the output filename used only the last path
+    component, opened with "w". Two sessions called `session_same` under different parents both
+    RAN, both printed a line, and only ONE report survived - the summary listed the same name
+    twice with different verdicts and no way to tell which path each belonged to. A read-only
+    inventory of the bench bank found 1,409 session-shaped directories in 509 colliding basename
+    groups, so this is the normal case here, not a corner one.
+
+    079-07 finding 8. The 079-06 recipe - the relative path with separators replaced by "__" -
+    is NOT a unique encoding, and Codex produced the collision: `a__b/session_same` and
+    `a/b__session_same` both flatten to `a__b__session_same`, the summary printed that identifier
+    twice with opposite verdicts, and only the second report survived the `"w"` open. A separator
+    substitution cannot be injective when the separator is a legal character in a path component.
+
+    So the key now carries the first 8 hex of the SHA-1 OF THE RELATIVE PATH beside the flattened
+    form: the flattened part stays readable, the hash makes two different paths differ. That is
+    an argument about collision LIKELIHOOD, not a proof, which is why label_pixel_batch ALSO
+    asserts uniqueness across the whole batch before it writes anything.
+
+    Returns (key, rel) so the caller can print the path the identifier stands for.
+    """
+    import hashlib
+    try:
+        rel = os.path.relpath(sess, root)
+    except ValueError:
+        rel = sess
+    rel = rel.replace("\\", "/").strip("/")
+    if rel in ("", "."):
+        rel = os.path.basename(root.rstrip(os.sep)) or "root"
+    key = rel.replace("/", "__")
+    for ch in ':*?"<>|':
+        key = key.replace(ch, "_")
+    digest = hashlib.sha1(rel.encode("utf-8")).hexdigest()[:8]
+    return "%s__%s" % (key, digest), rel
+
+
+def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, report_only):
+    """--all: run the gate over every session under `root`, one line each.
+
+    The SELFTEST runs FIRST and the batch REFUSES to start if it is not OK. A sweep of a hundred
+    sessions with a broken instrument produces a hundred confident wrong lines, and the cost of
+    finding that out later is the whole sweep.
+
+    --report-only SUPPRESSES ONLY THE VERDICT-FAILURE CODE (2), exactly as single-session mode
+    does. 079-05 finding 5: it used to return 0 after a session with no labels.jsonl, an
+    unreadable input or an exception, so a batch that read NOTHING reported success to its caller
+    while single-session mode on the same folder returned 3. CANNOT-RUN and ERROR are execution
+    failures, not verdicts, and they survive --report-only.
+    """
+    import datetime
+    sessions = _batch_sessions(root)
+    if not sessions:
+        print("BATCH: no session-shaped folder under %s - nothing to read. Not a pass." % root,
+              flush=True)
+        return 3
+
+    if not out_dir:
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        out_dir = os.path.join(root, "verifier-batch-%s" % stamp)
+    os.makedirs(out_dir, exist_ok=True)
+
+    print("BATCH: proving the instrument before using it on %d session(s)..." % len(sessions),
+          flush=True)
+    st = _label_pixel_selftest(thresh, edge_w, min_visible_px)
+    if st != 0:
+        print("BATCH: REFUSING TO RUN - the selftest is BROKEN, so every reading below it would "
+              "be unfounded. Fix the gate first.", flush=True)
+        return 3
+
+    keys = {}
+    collisions = []
+    for sess in sessions:
+        name, rel = _batch_key(root, sess)
+        if name in keys:
+            collisions.append((name, keys[name], rel))
+        keys[name] = rel
+    if collisions:
+        print("BATCH: REFUSING TO RUN - two sessions map to the same identifier, so one report "
+              "would silently overwrite the other:", flush=True)
+        for name, a, b in collisions:
+            print("  %s  <-  %s  AND  %s" % (name, a, b), flush=True)
+        return 3
+
+    summary = []
+    worst = 0
+    cannot_run = 0
+    for sess in sessions:
+        name, rel = _batch_key(root, sess)
+        if not os.path.isfile(os.path.join(sess, "labels.jsonl")):
+            line = ("%-58s | CANNOT RUN | no labels.jsonl (the gate needs the per-frame bbox) | %s"
+                    % (name, rel))
+            summary.append(line)
+            print(line, flush=True)
+            worst = max(worst, 3)
+            cannot_run += 1
+            continue
+        try:
+            code, lines = label_pixel_gate(sess, thresh, edge_w, min_visible_px, quiet)
+        except Exception as exc:
+            line = "%-58s | ERROR      | %s: %s | %s" % (name, type(exc).__name__, exc, rel)
+            summary.append(line)
+            print(line, flush=True)
+            worst = max(worst, 3)
+            cannot_run += 1
+            continue
+        with open(os.path.join(out_dir, "%s.txt" % name), "w", encoding="utf-8") as fh:
+            fh.write(sess + "\n")
+            fh.write("\n".join(lines) + "\n")
+        counts = ""
+        verdict = ""
+        for l in lines:
+            if l.strip().startswith("CONSISTENT "):
+                counts = " ".join(l.split())
+            elif l.strip().startswith("VERDICT"):
+                verdict = " ".join(l.split()[1:])
+        line = "%-58s | exit %-4d | %s | VERDICT %s | %s" % (name, code, counts or "(no events)",
+                                                             verdict or "(none)", rel)
+        summary.append(line)
+        print(line, flush=True)
+        worst = max(worst, code)
+
+    with open(os.path.join(out_dir, "SUMMARY.txt"), "w", encoding="utf-8") as fh:
+        fh.write("root: %s\n" % root)
+        fh.write("sessions: %d (identifiers are the path RELATIVE to the root with separators as "
+                 "__ plus 8 hex of its sha1, because basenames collide AND the flattened form "
+                 "collides too; uniqueness is asserted before anything is written. The relative "
+                 "path is printed as the last field of every line.)\n\n" % len(sessions))
+        fh.write("\n".join(summary) + "\n")
+    print("BATCH: %d session(s)%s; full per-session output in %s"
+          % (len(sessions),
+             ("; %d COULD NOT RUN" % cannot_run) if cannot_run else "", out_dir), flush=True)
+    if report_only:
+        return 3 if worst == 3 else 0
+    return worst
 
 
 def main():
@@ -1125,9 +2035,8 @@ def main():
                     help="m47: prove the black-frame gate can FAIL, against a synthetic black frame. "
                          "With --label-pixel-gate it proves THAT gate can fail instead.")
     ap.add_argument("--label-pixel-gate", action="store_true",
-                    help="m49: run the label-vs-pixel gate INSTEAD of the overlay. Per event it "
-                         "checks that the first labelled frame is the first frame whose pixels "
-                         "change, and that the frame after end_frame is the first clean one.")
+                    help="Report per-pair pixel observations and consistency. Only a complete "
+                         "whole-span NO-TRACE returns 2; offsets are notes for human inspection.")
     ap.add_argument("--diff-threshold", type=int, default=DIFF_THRESH_DEFAULT,
                     help=f"a pixel COUNTS as changed when it differs from the previous frame by "
                          f"more than this, 0..255 (default {DIFF_THRESH_DEFAULT})")
@@ -1135,10 +2044,14 @@ def main():
                     help=f"how many frames either side of a claimed edge to search "
                          f"(default {EDGE_WINDOW_DEFAULT})")
     ap.add_argument("--min-visible-px", type=int, default=MIN_VISIBLE_PX_DEFAULT,
-                    help=f"a positive frame whose mask carries fewer than this many pixels is "
-                         f"NOT-VISIBLE (default {MIN_VISIBLE_PX_DEFAULT}; needs masks)")
+                    help=f"a pair whose mask carries fewer than this many pixels is "
+                         f"UNASSESSABLE (default {MIN_VISIBLE_PX_DEFAULT}; needs masks)")
     ap.add_argument("--report-only", action="store_true",
-                    help="label-pixel gate: print the readings and exit 0 even on a shift")
+                    help="label-pixel observations: suppress NO-TRACE exit 2, preserve execution error 3")
+    ap.add_argument("--all", metavar="ROOT", default=None,
+                    help="label-pixel gate: run over EVERY session folder under ROOT, one summary "
+                         "line each, full output under --out. Runs --selftest first and refuses "
+                         "to start if it is not OK.")
     args = ap.parse_args()
 
     if args.selftest:
@@ -1147,6 +2060,16 @@ def main():
             sys.exit(_label_pixel_selftest(args.diff_threshold, args.edge_window,
                                            args.min_visible_px, src))
         sys.exit(_selftest())
+
+    if args.all:
+        try:
+            import PIL
+        except ImportError:
+            sys.exit("ERROR: Pillow is required for the label-pixel gate.")
+        sys.exit(label_pixel_batch(os.path.abspath(args.all),
+                                   os.path.abspath(args.out) if args.out else None,
+                                   args.diff_threshold, args.edge_window, args.min_visible_px,
+                                   args.quiet, args.report_only))
 
     cap_dir = os.path.abspath(args.dir)
 

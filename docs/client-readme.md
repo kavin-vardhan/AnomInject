@@ -147,6 +147,151 @@ So the short version: **red is what you were given; the overwhelming majority of
 
 If the overlay window says Pillow is missing, run the install line it prints (see section 1) and start `Run.bat` again. Nothing else is affected in the meantime.
 
+### Step 6 — Read pixel consistency around the labels
+
+The checker reports **where a change was observed near a labelled frame**. No output
+certifies that a label is correct. Even an exact target mask identifies the pixels,
+not the cause: lighting, occlusion or animation can change those same pixels.
+
+```
+python tools\verify_capture.py --dir <sessionFolder> --label-pixel-gate --report-only
+python tools\verify_capture.py --all <folderOfSessions> --label-pixel-gate --report-only
+```
+
+`--all` proves the instrument with its self-test first, then saves each session's
+complete reading under a unique name and prints a summary. Read the coverage and
+individual observations as well as the last line.
+
+**Every run has an onset and an end observation:**
+
+- `TRANSITION k d=… tau=… label s delta=…`: the nearest available local peak
+  was at frame `k`; `delta` is `k − s`. `d` is the fraction of region pixels
+  with a change greater than the configured pixel threshold in any RGB channel.
+- `NO-TRANSITION [a..b]`: every pair in this window was observed, and none qualified
+  as a local peak. Above-threshold changes can exist without a local peak; the
+  separate whole-span check must still pass before a run can report NO-TRACE.
+- `UNASSESSABLE(reason)`: the observation was unavailable. The line
+  says why: missing RGB or masks, an absent mask ID, too little baseline evidence,
+  excessive regional change, an unsatisfiable threshold, an oversized region, or
+  peaks already assigned to earlier edges. Missing observations are never evidence of absence.
+
+There is **no verdict at an edge**. Runs are summarised as follows:
+
+| Run outcome | What the reading means |
+|---|---|
+| `CONSISTENT` | Both transitions sit on the two labelled edges. **Consistent with the label; does not establish cause.** **24 of the 314 scored cells read CONSISTENT while carrying a known one-frame label shift — a CONSISTENT run does not confirm the label.** A coincident whole-region change adds a caveat on the run line and asks you to inspect the neighbouring frames. |
+| `OFFSET-NOTE(…)` | Both edges were observed and at least one transition sits off its label. A possible label offset **or an unrelated change**: look at frames `k−1..k+1`. This does not fail the session. |
+| `PARTIAL` | Only one edge was observable, or one zero-delta transition accompanies a `NO-TRANSITION` observation. It cannot become CONSISTENT. |
+| `UNASSESSABLE` | Neither edge was observable, or two NO-TRANSITION observations could not support the whole-span check. The run prints the reason. |
+| `READING` | A run has no delivered in-span masks and uses bounding boxes. The same observation lines are printed with `(bbox-only)`; it cannot become CONSISTENT or NO-TRACE. A partly masked run retains mask mode, so a missing boundary inside its span remains unassessable. |
+| `NO-TRACE` | The complete run span **and both windows** had usable, resolved masks and RGB pairs, but no target change exceeded the noise floor. In-span masks must be actual; missing outside-span masks may be extrapolated as described below. This is the only failing outcome. |
+
+**NO-TRACE means:** “no change above the noise floor (tau=…) on this target
+across frames s..e; the label claims a visible change”. The whole run span and
+both edge windows were checked. This is a thresholded absence: `tau` is a
+**fraction of the pixels in the compared target region** (the union of the two
+frame masks). For example, one changed pixel in a 2,500-pixel region gives
+`d=0.0004`, below the default `tau` floor `0.004` (0.4%). That case remains
+NO-TRACE. A pixel must also exceed the configured RGB-channel difference threshold.
+A wrong NO-TRACE means a compared in-span or edge-window pair exceeded `tau`.
+
+NO-TRACE is restricted to the producer's pixel-changing class IDs:
+`missing_object`, `blink` (`blinking` injector alias), `missing_texture`,
+`corrupted_texture`, `lod_popping`, and `lod_corruption`. These come from the
+injectors' `GetId()` methods and the producer's ID/active-source mapping in
+`Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp`
+(`MapAnomalyToClient`, `ResolveAnomalyActiveSource`). Hidden runs of
+blink are represented as separate active runs. `time_dilation`,
+`lighting_mismatch`, `camera_clipping` and unknown classes cannot produce NO-TRACE.
+Class membership is a producer contract, not an independent proof of visible effect.
+
+**Coverage and boundary masks:** each pair uses the union of its two target
+masks, including the clean pairs used for the baseline. **Actual target masks
+always take precedence.** The producer may write masks only on labelled frames.
+When a frame outside this run has no target mask, the checker uses the nearest
+labelled boundary of the same run: onset before the span, last labelled frame
+after it. The distance is bounded by `edge_window + N_BASE`, where this verifier's
+`N_BASE` is 24, giving 28 frames with the default window.
+
+A real per-frame mask is never replaced by an extrapolated one: extrapolation is
+used only where the producer wrote no mask at all, and every line it affects says
+so. Extrapolation assumes the boundary silhouette
+still represents the target's region; it cannot establish target geometry outside
+the delivered masks. Every affected observation shows its boundary source and
+largest signed distance (including baseline use); structured output retains all
+source/delta pairs. The run summarises the maximum distance used.
+
+Missing masks **inside the span**, including a missing onset or last-labelled
+mask in a partly masked run, remain unassessable. Corrupt masks and invalid
+dimensions are errors, not permission to extrapolate. An explicit absent ID is
+an error inside the span; outside it, a valid PNG containing only other targets
+may trigger the bounded fallback. ID 0/unresolved may use a sole value, visibly
+tagged, but cannot support NO-TRACE. NO-TRACE is permitted with extrapolated edge
+pairs and explicitly says `edge pairs use extrapolated masks` when that occurs.
+
+Search windows remain bounded by labelled frames, inclusively. A peak must exceed
+`tau` and be at least 1.5 times the **smaller** immediately neighbouring pair's
+change; neighbours outside the scanned window count as zero. Adjacent equal
+on/off changes both qualify. A positive flat plateau has qualifying edges but
+no interior peaks. For each target and mode, edges in labelled order take the
+nearest peak that an earlier edge has not used. Equidistant candidates prefer
+the larger change `d`, then the earlier frame if strengths are equal; the edge
+line prints both tied strengths and the choice. Bbox-only runs do not constrain
+masked runs. All peaks already used means UNASSESSABLE with those frame numbers.
+Selected transitions list alternative peaks, and multi-peak windows also print
+the run's onset/end assignments.
+
+This walk ensures unique assignments but does not establish cause or guarantee
+increasing assigned frames when regions admit different peaks. A decrease prints
+`note: assigned frames out of label order (k1 > k2)` on the affected run. A missing
+transition can make an earlier edge take a later run's peak. A delayed one-frame
+label can assign its actual end transition to its onset and leave its end unread.
+Inspect the disclosed candidates and frame neighbourhoods when an association is
+in doubt. NO-TRANSITION means no qualifying peak, not no above-tau change.
+
+Every transition also prints the change fraction in a ten-pixel ring around its
+region. `note: whole-region change (lighting/camera?)` helps a person inspect the
+frames. It is diagnostic only and never changes an outcome. A CONSISTENT run
+with that diagnostic carries a lighting caveat.
+
+**Regional motion is a reading.** `m_edge` measures regional change on the nearest
+3–24 valid clean pairs; `tau` is learned separately for each edge. There is no
+regional-motion refusal or derived cap. If any edge has `m_edge > 0.42`, its run
+prints `caveat: high regional change m=… — readings under motion are less reliable`,
+using the largest available edge median. The historical 0.42 marker does not
+affect detection or eligibility. Lighting and motion caveats can appear together.
+Unsatisfiable thresholds, whole-frame regions, too few baseline pairs and missing
+or invalid RGB/mask/identity coverage still prevent an observation.
+
+The header links [verifier-characterisation.md](verifier-characterisation.md):
+per-session recovery tables, every wrong cell and competing peaks from a fixed
+perturbation cohort. All planned keys remain in scored or unscored ledgers.
+These are measured limitations; recovery does not certify label correctness.
+The retired `--region-cap`/`--motion-cap` options are no longer accepted.
+
+Events now use **run outcomes only**, taking the worst of NO-TRACE, OFFSET-NOTE,
+PARTIAL, CONSISTENT in that order. UNASSESSABLE and READING runs contribute coverage
+counts but cannot promote an event through their edge observations. With no
+assessable run, the event is UNASSESSABLE, or READING if every run is bbox-only.
+Every event prints its run counts; a separate session run-coverage line makes an
+unread sibling run visible even when the event has a CONSISTENT run.
+
+The session counts `CONSISTENT n (c with caveat)`, `OFFSET-NOTE`, `NO-TRACE`,
+`PARTIAL`, `UNASSESSABLE` and `READING` events. The caveat count is the subset of
+CONSISTENT events containing a caveated consistent run. Any NO-TRACE ends
+`FAIL: NO-TRACE …`; otherwise the last line is **NO FAILURE FOUND** with coverage
+counts. That wording does not certify labels or mean every edge was observed.
+An all-bbox session also prints **UNREAD-BBOX-ONLY**.
+
+Normal exit codes: `0` for no NO-TRACE, `2` for NO-TRACE, `3` when execution cannot
+complete. `--report-only` suppresses only `2`; execution errors remain `3`, also
+in a batch whose other sessions may have produced valid readings.
+
+M3 `observable`, `target_pixels`, and bbox provenance are **the producer's own
+recorded evidence**. The checker copies their provenance into its output; it does
+not independently measure or confirm those fields. Use the overlay in step 5 and
+the source frames for human review when this instrument is unassessable.
+
 ## 4. The dashboard, control by control
 
 ### Top bar

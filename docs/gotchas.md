@@ -4181,6 +4181,17 @@ NUMBER.** An offset of 1–6 frames is NOT reliably detectable in delivery mode.
 CONFIG CANNOT SELF-VERIFY; ANY DIAGNOSTIC CAPTURE MUST SET `IAI.Capture.Delivery 0`.** This is the
 same shape as `L3` — delivery mode changes what evidence exists, not just what is convenient.
 
+🔻 **CORRECTION 2026-09-15 (session 079), APPENDED NOT REWRITTEN — THE MECHANISM ABOVE IS STALE; THE
+LESSON IS NOT.** *"Delivery mode does not write `labels.jsonl`"* was true when this was written
+(2026-08-21, session 051) and was **superseded the very next day**: session 052 shipped
+`labels.jsonl` **in delivery mode, default ON** (`IAI.Capture.DeliveryLabels` /
+`bWriteLabelsInDeliveryDefault`). A delivery-mode capture from `m12`-era onward **does** carry the
+per-frame bbox and does **not** degrade to FULLFRAME for the reason given above. ⚠ **The measured
+table and the "cannot self-verify" conclusion STAND** — and session 079 found the conclusion is right
+for a reason this entry does not name: the `m49` label-pixel gate misfires on field data because its
+**self-calibrated threshold saturates under CAMERA MOTION** (`G259`), not because the bbox is
+missing. **Do not cite the `labels.jsonl` mechanism when diagnosing a field verifier reading.**
+
 ## G157 — a project setting can make a defect STRUCTURALLY unreproducible, and the clean logs look like health
 
 Both shipped materials were missing `bUsedWithStaticLighting`. On Concorde this drew the ENGINE
@@ -6603,3 +6614,433 @@ in the client README under `target_drawn_pixels` in the client's own words.
 POSITIVE, and a field's name will not tell you which it is.** `m26`'s `MEASURED_ZERO` vs
 `NOT_MEASURED` is the same distinction one level down; this is that distinction applied to a count
 whose zero is trustworthy and whose non-zero is not.
+
+## G259 - a gate proven to FAIL is only HALF proven; it must also be proven to PASS a KNOWN-GOOD REAL
+session, or its calibration can be dead code that only wakes up in the field (2026-09-15, session 079)
+
+`G96` says prove a detector can fire. The `m49` label-pixel gate did that: `--selftest` builds a
+synthetic session, lies about the label by +/-1 at both edges, and the gate reads the shift back with
+the right sign; a region with no change reads NOT-VISIBLE. Seven cases, both directions, both edges.
+**And it was still shipped broken, because nobody ever proved it PASSES a known-good REAL session.**
+
+On the owner's field captures it marked almost every event NOT-VISIBLE or NOT-MEASURABLE. The labels
+were checked by eye and were **correct**.
+
+**The mechanism is a bounded statistic under an unbounded threshold.** The gate thresholds
+`d = fraction of region pixels differing from the previous frame`, so `d` is in **[0, 1]**. It learns
+`tau = max(median(d_clean) + 6*MAD(d_clean), 0.0040)`, which has **no upper bound**. A moving camera
+changes every region pixel every frame, so the CLEAN baseline rises toward 1 and its MAD grows -
+and `tau` climbs past what `d` can ever reach. Measured on a banked Lyra leg: **`tau` 1.0950 and
+1.1938**. At that point `d > tau` is **unsatisfiable**, and NOT-VISIBLE is emitted unconditionally,
+for every event, regardless of the pixels.
+
+**Why no test ever caught it - and this is the part that generalises:**
+
+| regime | clean-frame `d` | `tau` |
+|---|---|---|
+| selftest (`_synth_session`: static grey background, only the target changes) | exactly **0** | `0.0040` = the FLOOR |
+| bench (`CB_GateLevel`, camera pose-pinned by the `B1` gate) | ~**0.0005** | `0.0040` = the FLOOR |
+| field / Lyra (camera moving) | 0.03 - 0.50 | **0.025 - 1.19** |
+
+**`tau` read `0.0040` - `SIGNAL_FLOOR` EXACTLY - on all six historical bench legs, every event, both
+tick orders, all four anomaly types.** The learned term `median + 6*MAD` had **never once determined
+the threshold in any test ever run**. `K_SIGMA = 6.0` was dead code, and the first thing that ever
+exercised it was a client dataset.
+
+**Both test regimes were pinned-camera, and neither could have revealed it.** The synthetic fixture
+inherits its staticness from being easy to draw; the bench inherits its staticness from `B1`, which
+exists for good reasons. **The property that made the tests tractable is the property that hid the
+defect** - `G135`'s shape, now on the camera-motion axis.
+
+Two aggravations worth carrying:
+
+- **The confidence annotation is ANTI-correlated with the failure.** `contaminated` counts baseline
+  frames above `tau`; when `tau` saturates above every baseline value it reads **0**, so the fully
+  broken session printed **no contamination warning at all** while mildly affected sessions printed
+  1-7. **The one signal that would warn a reader goes silent exactly when it should shout.**
+- **The printed sentence becomes false.** An event whose pixels changed by **74 % and 80 %** of the
+  region at its two edges was reported as *"no pixel change above tau anywhere"*. Scoped by `above
+  tau` and therefore literally true; read by a human as *the anomaly is not in the picture*.
+
+**THE RULE.** A gate is validated by a CAN-FAIL proof **and** a KNOWN-GOOD-PASS proof, and the
+known-good case must be **REAL DATA from the regime the gate will actually run in**. When the two
+proofs live in the same regime, they are one proof. Ask of every self-calibrating threshold: **what
+is the maximum value the thresholded statistic can attain, and can the threshold exceed it?** If it
+can, that state is a BROKEN INSTRUMENT and must be asserted as unmeasurable - **never clamped**
+(a clamp turns an impossible test into an absurd one that still fails, and hides it).
+
+**And when a tool borrows constants, it borrows the quantity they were calibrated for.**
+`label_pixel_gate` imported `K_SIGMA`/`SIGNAL_FLOOR` from `measure_label_offset.py`, where they
+threshold `net = raw - ambient_ring` - a **motion-COMPENSATED** quantity whose own docstring says the
+ring subtraction "stops camera motion ... from faking a manifestation". The gate applied them to a
+raw, **uncompensated** one. On a pinned camera the two coincide; on a moving camera they diverge
+without bound. **Constants are calibrated against a statistic, not against a codebase.**
+
+🔻 **APPENDED 2026-09-15 (079-06), after Codex's independent review - TWO PRECISIONS, NEITHER OF
+WHICH CHANGES THE RULE.** *(Append-only: the text above stands as written.)*
+
+**(1) "tau is UNBOUNDED" is imprecise and the precise version is the useful one.** `tau = max(median +
+6*MAD, FLOOR)` over values in `[0,1]`, so the median is at most 1 and the MAD at most 0.5: **`tau` is
+bounded, at 4.0.** The fault is not that `tau` has no bound - it is that **`tau`'s bound (4.0) is
+FOUR TIMES the bound of the statistic it is compared against (1.0)**, so the comparison `d > tau` has
+an unsatisfiable region. The diagnostic question in THE RULE above is already the right one and is
+unaffected: *what is the maximum value the thresholded statistic can attain, and can the threshold
+exceed it?* **Ask it of the two bounds, not of one bound and an intuition.**
+
+**(2) The scope of what this reproduction explains.** The banked heavy-motion session supplies two
+events where `tau` exceeded 1.0, and that is a complete explanation **for those two**. It is a
+**mechanism class** for the owner's M2 field observations, **not a measurement of them**: no office
+reading of `tau` or of the regional change exists, so how many of those events this mechanism
+accounts for is **UNKNOWN and still owed**. ⛔ Do not write that the field misfire "was" this.
+
+## G260 - a SPATIAL ring does not cancel PARALLAX motion, and subtracting it destroys signal because
+anomalies bleed outside their own bbox (2026-09-15, session 079-02/03)
+
+`G259` left the label-pixel gate saturating under camera motion. The obvious cure - and it had prior
+art in this repo - was to subtract an ambient ring: threshold `net = d(region) - d(ring)` instead of
+`d(region)`, on `measure_label_offset.py:92-93`'s own words, *"a whole-frame change lifts the ring as
+much as the region and cancels."* **It was built, gated, and refuted by its own gates in both
+directions at once.**
+
+**IT DOES NOT CANCEL CAMERA MOTION.** A whole-frame change means exposure or a fade. **Camera motion
+is parallax- and content-weighted**: a region of near, detailed geometry changes far more under a
+given camera move than a ring of flat distant wall. So `net` carries a large content-dependent
+variance instead of cancelling, and `6*MAD` keeps tau high anyway - measured 0.18-0.44 on a
+heavy-motion session, against a floor of 0.0040.
+
+**AND IT DESTROYS REAL SIGNAL ON A STILL CAMERA, WHICH IS WORSE.** On a pinned bench leg the onset
+read `d_region = 0.02286` and `d_ring = 0.02872`, so **`net` went NEGATIVE at the exact frame the
+anomaly started** and no edge could ever be found. Two previously-passing legs regressed to
+NOT-VISIBLE. The cause is that the ring's premise - the anomaly is confined to the region - is false
+for these anomalies: the texture swap's bounce light landed in a ring whose area was **less than
+half** the silhouette's (28,272 vs 66,837 px, clamped because the target hugged a frame corner), so
+the ring's *fraction* exceeded the region's.
+
+🔑 **AND THIS PROJECT HAD ALREADY MEASURED THAT PREMISE FALSE, THREE MILESTONES EARLIER.** `m26`'s
+`A35`/ruling `A-4`: hiding `SM_Ramp2` changed **MORE outside its own bbox than inside** - peak-OUT
+**0.2955** against peak-IN **0.1785**. `G258` is the same family. The refutation was sitting in the
+gotchas file while the fix was being designed.
+
+**THE RULE.** Before normalising a measurement against its surroundings, ask **what the surroundings
+actually contain**. A spatial ring is only a valid control for a change that is UNIFORM across the
+frame; it is not one for motion (parallax), and it is not one for an effect that SPILLS out of the
+region (bounce light, shadow, GI). Where the ring cannot be a control, **MEASURE the confound and
+REFUSE above a threshold** rather than trying to subtract it: `verify_capture.py` now measures
+whole-frame motion and returns `NOT-MEASURABLE(camera motion: ...)`.
+
+⚠ **Corollary worth keeping: a refusal threshold has to be CALIBRATED AGAINST A KNOWN ANSWER, and
+the known answer must be INJECTED, not read from the artifact under test.** 079-03's first attempt at
+one was to take the onset from the delivered masks - which is circular, because `m49` A1 *defines*
+`affected_frames` as the observable subset, so the mask onset IS the label onset. The cap was
+instead set by **moving real labels by a known +/-1 and measuring where the gate stops recovering
+it** - an answer the artifact cannot supply and therefore one the test can fail.
+
+## G261 - the comment stripper is PLUGIN-REPO-ONLY; running it in CaptureBench or the Lyra worktree
+mass-edits files another rule protects (2026-09-15, session 079-03)
+
+This repo keeps source comment-free and `_strip_comments.py` enforces it. **That convention is scoped
+to THIS repo.** `Plugins/CaptureBench` is a SEPARATE repo with a SEPARATE convention - its tools
+carry comments on purpose - and the Lyra fixture is a detached worktree of a third tree.
+
+Having added one checker to CaptureBench, 079-03 ran the stripper against CaptureBench's root. **It
+modified 26 tracked files in one pass**, among them:
+
+- **`tools/a54_oracle.py`, which `A53` explicitly protects** - *"stays untouched - any edit
+  re-triggers `A53`"*, i.e. editing it invalidates the oracle's certification against its eight
+  known-answer controls;
+- `check_pose.py` (the `B1` pose gate), `m44_gates.py`, and the `pc7v3` comparators - every one of
+  them an instrument other gates are read through.
+
+Nothing was lost: it was caught by reading the tool's own summary line (`changed: 26` where the
+intended answer was `0`) and reverted with `git -C <CaptureBench> checkout -- tools/`, leaving that
+repo tracked-clean at `472a409`. The pre-existing UNTRACKED files there kept their original mtimes,
+so the stripper had not reached them - **had it, they would have been unrecoverable, because
+untracked files have no git copy to restore from.**
+
+**THE RULE.** Run `_strip_comments.py` against **`Plugins/AnomalyInjector` and nothing else**. Before
+committing anywhere, check `git status` in **each** repo the turn touched - this tree contains three
+(`AnomalyInjector`, `CaptureBench`, and the Lyra worktree), and a tool invoked with the wrong root
+silently edits whichever one it was pointed at.
+
+⚠ **The generalisation is worth more than the instance: a house rule enforced by a script is enforced
+AT WHATEVER PATH YOU HAND IT.** A repo-scoped convention plus a path argument is one typo away from a
+mass edit of a neighbouring repo, and the edit will look like compliance. **The cheapest guard is the
+one that worked here - read the tool's own count and stop when it is not the count you intended**
+(`G115`'s habit, applied to a different tool).
+
+## G262 - a SUMMARY TOKEN can hide a per-unit failure, and a scorer that reads the token inherits the
+blindness: score the FIXED COHORT of the smallest unit the tool actually decides (2026-09-15, 079-06)
+
+The `m49` label-pixel gate decides **per edge** - an anomaly's onset and its end are two separate
+searches, on two separate regions, against two separate thresholds - and then rolls several edges up
+into one run token and several runs up into one EVENT token. Its calibration checker
+(`m079_shift_recovery.py` v1) took a real session, moved every annotated window by a known +/-1, and
+scored **the event token**. On that basis 079-03 reported `A2L_LEGA` as **FULL RECOVERY, 6/6 events
+at each of three deltas**, and 079-04 shipped a constant resting on it.
+
+**Codex's independent review re-ran the identical shifts and read the per-edge returns underneath the
+tokens: 8/8, 7/8 and 6/8 correct edges, not 6/6 events.** Three concrete cells:
+
+| delta | run | correct | returned | what the EVENT printed |
+|---|---|---|---|---|
+| +1 | `[29..30]` | `(-1, -1)` | `(-1, **+2**)` | `ONSET-SHIFT(-1)` - the wrong end hidden behind the right onset |
+| -1 | `[8..9]` | `(+1, +1)` | `(**-2**, -1)` | `ONSET-SHIFT(+1)` **from the event's OTHER run** |
+| -1 | `[27..28]` | `(+1, +1)` | `(**-4**, -1)` | `ONSET-SHIFT(+1)` **from the event's OTHER run** |
+
+**Two distinct hiding mechanisms, and the second is the nastier.** Within a run, a correct onset shift
+ABSORBS an incorrect end. Across runs, an ENTIRELY UNREAD run (`shift beyond the measurable range`)
+is replaced in the summary by a sibling run's correct token - so the session reports the answer the
+test expected while a third of its units were wrong or unread.
+
+**And the scorer made it worse by DROPPING refusals from the denominator.** Events reading
+NOT-MEASURABLE were excluded from the rate, so **losing coverage RAISED the score**. That is the
+opposite of the direction a validity instrument must fail in: the harder the case, the better it
+looked.
+
+**THE RULE.** Score the **FIXED COHORT of the smallest unit the tool actually decides**, fixed from
+the UNPERTURBED input so it cannot shrink, and publish **recovered / wrong / refused separately** with
+the refusal reasons. Never let a refusal leave the denominator. If a summary token exists, it is a
+**convenience for a human**, never the unit of measurement - and if the instrument reports at a
+coarser granularity than it decides at, **make it print every unit** (this one now prints every run
+and every edge, and an event whose edges disagree about readability is `PARTIAL`, not `PASS`).
+
+⚠ **The tell that was there all along:** v1's own `score()` docstring argued carefully about how to
+treat `NOT-MEASURABLE` at the EVENT level. **The care went into the wrong granularity** - a sign the
+unit had been chosen by what the output happened to print rather than by what the code decides.
+
+🔑 **Sibling of `G146`** (a gate that can pass vacuously) and of `G96` (a detector never proven to
+fire). This is the third shape: **a gate that can pass while a MEASURABLE FRACTION of its own units
+fail, because the reporting layer is coarser than the deciding layer.**
+
+
+## G263 - a difference gate has NO VERDICT without target ATTRIBUTION: masks or nothing (2026-09-15, session 079-07)
+
+**The symptom.** `verify_capture.py --label-pixel-gate` answers "did the picture change where the
+label says, when the label says" by differencing consecutive frames inside the label's region and
+taking the biggest change in a window. Codex's second merge review built the minimal counterexample:
+a 160x120 picture, static except a 50x50 window onto a scrollable crop; a white 20x20 patch present
+on frames 60..67, which is the real anomaly; and ONE unrelated 10 px background scroll at frame 61,
+inside the labelled window. **Every clean baseline pair is unchanged - `m_edge = 0.000000`,
+`tau = 0.0040`, 24 baseline frames.** The tool read:
+
+| labels | required | candidate `bff1b00` |
+|---|---|---|
+| 60..67, CORRECT | alignment or refusal | **`ONSET-SHIFT(+1)`, FAIL, exit 2** |
+| 61..67, one frame LATE | `ONSET-SHIFT(-1)` or refusal | **`PASS`, exit 0** |
+
+The burst changes **0.4960** of the region; the real onset changes **0.1600**. The burst wins by
+**3.1x**, which clears the 1.5x dominance test comfortably.
+
+**Why no threshold fixes it.** Every guard in that gate measures SEPARATION or STILLNESS:
+- the learned `tau` asks "is this bigger than the region's own noise" - the burst is, hugely;
+- `m_edge` asks "is this region still when nothing is happening" - it is, exactly zero;
+- `DOMINANCE` asks "was the contest close" - it was not, 3.1x.
+
+All three are satisfied, and the answer is still wrong. **Measured: the false shift survives at
+`REGION_CAP = 0`.** There is no number to lower, because the missing quantity is not a magnitude.
+A separation test cannot answer an IDENTITY question.
+
+**THE RULE.** *A frame-difference gate can say THAT something changed. It cannot say WHAT changed.
+Where the region is a BOUNDING BOX, the pixels it compares are the target AND everything else the
+box contains, so no verdict about the target is available at any threshold. Give verdicts only where
+a per-frame MASK identifies the target's pixels; everywhere else, print the numbers and the frame
+numbers as a READING and let a human look.*
+
+**Why this is worth a number of its own rather than another tolerance.** The three previous rounds
+of this same workstream all reached for a threshold - ring subtraction (`G260`), a whole-frame motion
+cap, then a per-edge regional cap - and each was correct about a real blindness and still left this
+case standing, because each was answering "how much" when the question was "of what". **The fix that
+finally held is a SCOPE BOUNDARY: the tool declares where it is entitled to have an opinion.** That
+is cheaper, provable and does not decay: masks are a property of the capture, not a calibration to
+re-derive.
+
+**What it costs, stated rather than discovered.** One of the four banked moving-camera sessions
+(`M50L_LG9`) is bbox-only on 16 of 16 edges and leaves the verdict surface entirely - it now reads
+`UNREAD-BBOX-ONLY` where it used to print confident verdicts. **That is the point.** The six pinned
+bench legs and the three masked Lyra sessions take 100 % of their edge regions from masks and are
+untouched, which is what made the boundary affordable.
+
+**The sibling failure this also closed.** The same review found the gate calling an edge "read" and
+reporting `0 of 0 frames above tau` when **every frame of its search window was missing from disk**,
+and then combining two of those into `NOT-VISIBLE` and a FAIL. **An absence of OBSERVATIONS is not
+an observed absence.** Coverage of the final search window is now a precondition of judging - and
+the "final" matters: the window is deliberately narrowed by the run's extent, the ordering bounds,
+the other-event exclusion and the session's ends, and applying coverage to the NOMINAL window would
+have refused all 64 pinned-bench edges whose narrow scans are those bounds working correctly.
+
+🔑 **Family: `G96`** (a detector never proven to fire), **`G146`** (a gate that can pass vacuously),
+**`G262`** (a summary token hiding a per-unit failure), and now **`G263`** - **a gate answering a
+question its instrument cannot address, with every one of its own guards satisfied.** The first
+three are about a test that never ran; this one is about a test that ran perfectly on the wrong
+question.
+
+
+### G263 — dated correction, 2026-09-20 (079-09)
+
+The original entry above is retained as history. Its claim that masks provide
+causal attribution or justify label verdicts is withdrawn. **Masks identify the
+pixels, not the cause — no label-correctness verdict; consistency and readings
+only.** Lighting, occlusion and animation can change perfectly identified target
+pixels. An on-label transition is CONSISTENT with a label and does not establish
+cause; an off-label transition is an OFFSET-NOTE for human inspection, not a failure.
+
+The 079-08 accurate-mask lighting fixture makes this concrete: the fault begins
+at 60, the larger lighting step occurs at 61, and labels start at 61. Both selected
+transitions have zero delta, so the fixed 079-09 rule yields CONSISTENT despite the
+known late onset. No threshold or ring diagnostic converts that observation into
+causal evidence. The spec's P1 prediction of OFFSET-NOTE conflicts with its rule;
+the implementation report preserves the disagreement for Chat.
+
+Every pair now uses BOTH actual frame masks, including baseline pairs. This
+withdraws the old entry's claim that the six pinned legs are unaffected: strict
+coverage leaves all 64 edges UNASSESSABLE. No missing clean-frame mask is replaced
+by a boundary snapshot. The three-session scorer retains 572 planned keys, but
+has zero eligible scored cells; v3 cap derivation is UNDETERMINED.
+
+NO-TRACE is the only failing outcome, requiring complete resolved mask/RGB coverage
+of the span plus both windows and no above-threshold target change for an eligible
+producer class. It is a **thresholded** absence, not proof that no pixel changed.
+The retained one-pixel fixture returns NO-TRACE at d=0.0004 < tau=0.004; P6's
+absolute wording therefore also requires a decision. M3 observable flags are
+producer evidence and are not independently verified by this tool.
+
+## G264 — a target transition can serve at most one edge (2026-09-20, 079-09)
+
+**The symptom.** Two short labelled runs share a target. With the second onset
+moved from 15 to 16, the older detector let the first run's end claim frame 15,
+then used that detected frame to clip the second onset's search. The first claim
+hid the evidence needed to discover the second claim was wrong. A bbox-only run
+could also narrow a masked run's window.
+
+**The rule.** Construct all windows from LABELLED frame bounds before examining
+pixels. Within a target, keep masked and bbox-only windows separate. If multiple
+edges select the same transition, invalidate every claimant symmetrically:
+`UNASSESSABLE(transition k claimed by two edges)`. Never let processing order turn
+one claimant into trusted evidence and erase the other's candidate.
+
+The permanent `adjacent_late_second_onset` fixture verifies both competing edges
+are unassessable at k=15; `mixed_late_second_onset` verifies a bbox-only neighbour
+cannot impose masked bounds. This conservative association also loses coverage:
+the exact short-run control is unassessable when both windows select the same
+candidate. It is a reported limitation, not evidence that the labels are wrong.
+
+Sibling of G262: summaries must retain edge/run eligibility. READING and
+UNASSESSABLE runs supply zero scored cells, while a separate unscored ledger keeps
+every immutable planned key visible in the denominator. **Chat review REQUIRED**
+for the specification conflicts and independent review before merge; the next
+checkpoint is the 079-09 implementation report and Claude Code's review.
+
+
+### G263/G264 — second dated correction: explicit boundary extrapolation (2026-09-20, 079-10)
+
+079-10 accepts 079-09's implementation and changes the masked-region contract.
+The producer may deliver target masks only on labelled frames. If a target mask
+is absent OUTSIDE a run, its nearest labelled boundary may supply the silhouette,
+within edge_window + N_BASE (the verifier's N_BASE=24; default distance28).
+Actual masks always win; missing in-span masks remain unassessable, including a
+missing boundary of a partly masked run. Unreadable PNGs are not absence.
+
+**This is not 079-08 F2's boundary-mask reuse: there, real per-frame masks existed
+and were ignored; here, none exist.** Extrapolation still assumes the boundary
+shape represents the target at another frame, so disclose source/distance on each
+observation and maximum distance on the run. NO-TRACE can use extrapolated edge
+pairs and names that assumption. The noise-floor fraction and RGB threshold
+remain detection limits; NO-TRACE does not mean no pixel changed at all.
+
+The original P1 lighting prediction is withdrawn by the ruling: a stronger
+lighting step exactly on a label is CONSISTENT under the observation rule, with
+a whole-region-change caveat on the run and in the consistent-event count.
+P6's falsifier is now an in-span/window pair above tau, not any nonzero pixel
+change. These rulings change meanings and predictions, not the historical readings.
+
+G264's inclusive labelled bounds and duplicate-claim refusal remain. Boundary
+extrapolation restores regions, not unique associations: the pinned blink legs
+still select ambiguous/duplicate transitions in their short runs. Do not remove
+those guards or tune dominance to manufacture the requested 64-edge agreement.
+
+Aggregation now uses run outcomes only. A whole-span UNASSESSABLE run cannot
+become a PARTIAL event merely because its two edge windows were observed. A
+CONSISTENT sibling can determine the event token, while separate run coverage
+preserves the unread run. The original predictions and 079-09 evidence above
+remain unchanged history. **Chat review REQUIRED** for the completed delta and
+independent review before merge; no client or campaign gate is released.
+
+
+### G264 — third dated correction: local peaks and ordered nearest assignment (2026-09-20, 079-12)
+
+079-12 withdraws 079-11's gap-only proposal and explicitly replaces the old
+global single-winner/dominance and duplicate-claim refusals. Within the existing
+inclusive labelled window, a peak must exceed tau and be at least 1.5 times
+both neighbours (outside the observed window counts as zero). Walk all labelled
+edges in each target/mode group, nearest unused peak first, ties earlier. Input,
+identity, baseline, cap and coverage refusals still take precedence. Bbox and
+mask groups remain separate. Print alternative peaks and multi-peak assignments.
+
+**Exclusion guarantees uniqueness, not temporal monotonicity in general.** If an
+earlier edge's region admits only 15 and a later edge's region admits only 12,
+the prescribed walk can assign 15 then 12 in windows [10..15] and [12..17]. The
+contract test preserves that exact reading for separate runs 10..11 and 15..16: the
+ruling explicitly forbids adding a separate ordering constraint. Do not describe
+an assigned peak as the independently established cause of a labelled edge.
+
+**An absent transition can consume a later run's peak.** With labels 4..5/8..9
+and only peaks 4/8/10, the ruled walk assigns 4/8/10/none: A OFFSET-NOTE, B PARTIAL.
+The supplied A PARTIAL/B CONSISTENT prediction conflicts with the algorithm.
+AMENDMENT 2 disclosed that conflict before implementation; the test/report retain
+it rather than reserving a future nominal peak without authorization.
+
+**Adjacent changes can fail local-peak membership even when both exceed tau.**
+M49_GEDGE_BL_SYN's one-frame second runs have nearly equal adjacent changes;
+neither is 1.5 times the other. Their onset has only an already-consumed earlier
+peak and refuses; their end has no local peak. The events are PARTIAL. The natural
+blink leg is CONSISTENT. This P2-prime miss is not grounds to tune the ratio.
+NO-TRANSITION now means no qualifying local peak, not no above-tau change.
+The whole-span/window above-tau check still prevents a false NO-TRACE.
+
+The full 079-12 report records all changed fixture expectations and the new
+calibration. Wrong recovery cells occur even at baseline median0, so the unchanged
+calibration rule now derives NO ADMISSIBLE ENVELOPE. The final default refuses
+all otherwise-assessable edges. Old-cap readings remain diagnostic; a guard-on
+table with zero wrong AND zero scored cells provides no recovery validation.
+Earlier paragraphs above are historical where superseded.
+**Chat review NOT REQUIRED** for this authorized implementation and push.
+**Chat review REQUIRED** for the P2-prime miss, prediction/monotonicity conflicts,
+completed evidence and independent Code review before merge; that is the next
+mandatory checkpoint. Section G, client, campaign and release holds remain.
+
+
+### G264 — fourth dated correction: motion readings, one-sided peaks and stronger ties (2026-09-20, 079-13)
+
+This correction supersedes the 079-12 cap, two-sided peak and earlier-tie rules.
+Regional-motion refusal and cap derivation are removed. m_edge remains a reading;
+above the historical0.42 marker a run prints a high-regional-change caveat, counted
+when a CONSISTENT event includes a caveated CONSISTENT run. Threshold, whole-frame
+region, baseline floor, RGB/mask/identity and session-coverage refusals remain.
+
+Peak membership is now d(k)>tau and d(k)>=1.5*min(d(k-1),d(k+1)), with outside-window
+neighbours zero. Adjacent equal on/off transitions both qualify; positive plateau
+edges qualify while interiors do not. The nearest unused peak still wins; an
+equal-distance tie prefers larger d, then earlier k. Print both tied strengths.
+The target/mode walk, labelled bounds and exclusion semantics are unchanged.
+
+The monotonicity claim is withdrawn. A decrease between successive assignments
+prints `note: assigned frames out of label order (k1 > k2)` on the affected run;
+it does not force a different choice. Chat accepts missing 6 as OFFSET-NOTE/PARTIAL
+(4/8/10/none): the former prediction was wrong because A.end can take free peak 8.
+
+**New measured prediction miss: c08_one_frame_late is PARTIAL, not OFFSET-NOTE.**
+The true one-frame change has equal peaks 60/61, now both admitted. Labelled onset 61
+takes the nearest peak 61. The end 62 window [61..66] contains only consumed 61, so it
+is unassessable. The initial output is preserved before correcting the known answer.
+The literal R9 walk is retained; no look-ahead or future-peak reservation is added.
+
+Scorer v3 now publishes a single fixed-cohort characterisation, with no derived
+cap. `docs/verifier-characterisation.md` holds per-session five-class tables,
+every wrong recovery and competing peaks, and the status of all 22 prior wrong
+cells. A wrong recovery may produce OFFSET-NOTE or even coincident CONSISTENT;
+neither certifies the association. All 572 planned keys remain scored or unscored.
+
+**Chat review NOT REQUIRED** for this authorized implementation and feature push.
+**Chat review REQUIRED** for the prediction miss, completed evidence and independent
+Code review before merge; this is the next mandatory checkpoint. Section G, client,
+campaign and release holds remain. Earlier dated observations stay historical.
