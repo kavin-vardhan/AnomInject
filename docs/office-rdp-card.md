@@ -1261,27 +1261,30 @@ python <plugin-repo>\tools\verify_capture.py --label-pixel-gate --report-only --
 NO-TRACE exit code**, so the step cannot end early before the per-event lines have been read. The
 exit code is not what this section is collecting; **the lines are.**
 
-> 🔻 **CURRENT PROSPECTIVE CORRECTION, 2026-09-20 (079-09).** Section G remains
-> **HELD**; this is a tool-reading correction, not an office run or release approval.
-> Transcribe the entire header, run/edge observations, counts and final line as printed.
-> Current outcomes are **CONSISTENT, OFFSET-NOTE, NO-TRACE, PARTIAL, UNASSESSABLE,
-> READING**. No output certifies label correctness. Masks identify pixels, not cause.
-> CONSISTENT does not establish cause; OFFSET-NOTE asks for human inspection at
-> the printed `k-1..k+1` frames and never causes failure. NO-TRACE alone fails: it
-> requires complete resolved masks and RGB coverage over the span and both windows,
-> and establishes no change **above the printed thresholds**, not bitwise equality.
-> The normal final line is **NO FAILURE FOUND (...coverage counts...)**, never PASS.
-> All-bbox sessions additionally print **UNREAD-BBOX-ONLY** and have READING runs.
-> Missing masks within a masked window or unresolved identity remain visible in
-> UNASSESSABLE reasons. The stricter coverage rules left all 64 pinned bench edges
-> unassessable; the legacy cap is retained, and v3 calibration is UNDETERMINED.
-> **`--report-only` suppresses only NO-TRACE code 2.** Code 3 means at least one
-> session could not run; in a batch other sessions may still have been read.
-> M3 visibility flags are the producer's own evidence and are not confirmed here.
-> **The G-3/G-4 predeclared reading below is retained as history, unchanged.**
-> It was written on 2026-09-04 for a different checker and is not a current promise.
-> **Chat review REQUIRED before releasing Section G or merging this verifier.**
-> Next checkpoint: the 079-09 implementation evidence and independent Code review.
+> 🔻 **CURRENT PROSPECTIVE CORRECTION, 2026-09-20 (079-10).** Section G remains
+> **HELD**; the verifier delta does not authorize an office run or release.
+> Transcribe all header, run/edge, event-count and run-coverage lines as printed.
+> Outcomes are CONSISTENT, OFFSET-NOTE, NO-TRACE, PARTIAL, UNASSESSABLE, READING.
+> CONSISTENT does not establish cause. A coincident whole-region change adds a
+> **run caveat** and is counted in `CONSISTENT n (c with caveat)`; inspect the
+> printed neighbouring frames. OFFSET-NOTE also requests inspection and never fails.
+> Missing OUTSIDE-span masks may use the same run's nearest labelled boundary,
+> at most window+24 frames away (default28). Actual masks always take precedence;
+> in-span missing masks remain unassessable. Source/distance tags and each run's
+> `masks: in-span actual, edges extrapolated <=…` line disclose the assumption.
+> **NO-TRACE means no change above the printed noise floor**, a fraction of the
+> target-region pixels, across the whole span/windows. It is the only failure;
+> extrapolated edge pairs are permitted and explicitly tagged. It does not mean
+> bitwise equality. Producer class and M3 visibility flags remain producer evidence.
+> Events take the worst assessable RUN outcome; unread/READING runs remain in
+> coverage numbers and cannot promote an event through their edges. Short-run
+> ambiguity/duplicate-claim coverage losses remain accepted and printed.
+> `--report-only` suppresses only code2; execution errors still return3. The
+> non-failing final line is NO FAILURE FOUND with counts, never label approval;
+> all-bbox sessions also print UNREAD-BBOX-ONLY. Read the actual cap provenance.
+> **The historical G-3/G-4 predeclared reading below is retained unchanged.**
+> **Chat review REQUIRED** for completed evidence and independent review before
+> merge or releasing Section G. That is the next mandatory checkpoint.
 
 ⚠ **PROVE IT CAN FAIL FIRST — one extra command, and it takes seconds:**
 

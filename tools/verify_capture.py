@@ -99,34 +99,42 @@ though the number does not.
 synthetic all-black one. A gate that has never fired is not a gate (G96).
 
 --------------------------------------------------------------------------------------------------
-LABEL-PIXEL CONSISTENCY OBSERVATIONS (079-09)
+LABEL-PIXEL CONSISTENCY OBSERVATIONS (079-10)
 --------------------------------------------------------------------------------------------------
-Masks identify pixels, not the cause of a change. This tool does not certify a label as correct or
-incorrect and does not independently confirm producer observable flags.
+Masks identify pixels, not cause. No output certifies a label or independently confirms producer
+observable flags. Each pair uses the union of its two target masks. Actual masks take precedence.
+When an OUT-OF-SPAN frame lacks a target mask, use this run's nearest labelled boundary mask, at
+most edge_window + N_BASE frames away (N_BASE = BASELINE_MAX_FRAMES = 24; default limit28).
+This is not 079-08 F2's boundary-mask reuse: there, real per-frame masks existed and were ignored;
+here, none exist.
+In-span missing masks, unreadable masks, identity errors and missing RGB remain unassessable.
+Every affected observation tags its extrapolation sources/max signed distance, including baseline
+use; structured detail retains every source/delta. The run reports its maximum extrapolation.
+An unresolved ID can use a sole value, visibly tagged, but cannot support NO-TRACE.
 
-Every compared masked pair uses the union of BOTH frame masks, including the local clean baseline.
-Missing/empty/unreadable masks, explicit ID mismatch, unavailable RGB, insufficient clean pairs,
-whole-frame regions, excessive regional change and ambiguous candidates are UNASSESSABLE. An
-unresolved ID can use a sole mask value, visibly tagged, but can never support NO-TRACE.
+Edges report TRANSITION k d=... tau=... label s delta=k-s, NO-TRANSITION [a..b], or
+UNASSESSABLE(reason). Labelled bounds are inclusive; duplicate claims refuse all claimants.
+Their short-run coverage cost is retained. Bbox-only runs never constrain masked runs.
 
-Each edge reports TRANSITION k d=... tau=... label s delta=k-s, NO-TRANSITION [a..b], or
-UNASSESSABLE(reason). A ring change fraction is diagnostic only; it never changes an observation.
-Windows depend only on labelled edges. Competing claims on the same transition invalidate every
-claimant. Bbox-only runs do not constrain masked runs and print READING observations only.
+CONSISTENT means two zero-delta transitions and does not establish cause. A coincident high ring
+change adds a RUN caveat asking for inspection of k-1..k+1; the summary counts caveated consistent
+events. OFFSET-NOTE is a reading for human inspection, never a failure. Ring change is diagnostic.
+NO-TRACE means: no change above the noise floor (tau=...) on this target across frames s..e;
+the label claims a visible change. This requires coverage of the entire span AND both windows,
+resolved identity and an eligible producer-class contract. Extrapolated edge pairs are permitted
+and disclosed. Tau is a fraction of the target-region pixels; 1/2500 = 0.0004 is below the default
+floor0.004 (0.4%). Each pixel also must change by more than the configured RGB-channel threshold.
 
-Run outcomes: CONSISTENT (two zero-delta transitions; does not establish cause), OFFSET-NOTE
-(two observed edges with an off-label transition; human inspection required), PARTIAL,
-UNASSESSABLE, READING, or NO-TRACE. NO-TRACE requires an eligible pixel-changing producer class,
-resolved masks and RGB over the ENTIRE span and both edge windows, and no d > tau anywhere.
-It is a thresholded absence of trace, not proof of bitwise equality. Only NO-TRACE returns exit2.
-Session summaries say NO FAILURE FOUND otherwise; that is not certification of labels.
---report-only suppresses2 but retains execution error3.
+Only NO-TRACE returns exit2. Otherwise the session reports NO FAILURE FOUND, not label approval.
+--report-only suppresses2 but retains execution error3. Event outcomes are worst-of the RUN
+outcomes NO-TRACE > OFFSET-NOTE > PARTIAL > CONSISTENT. UNASSESSABLE/READING runs affect coverage
+only; their observed edges cannot promote an event. With no assessable run, the event is
+UNASSESSABLE, or READING when all runs are bbox-only. Separate run coverage remains visible.
 
-The assessability cap is a provisional heuristic. The derivation rule is a two-significant-figure
-cut-off strictly below the smallest observed wrong-cell m_edge, on three masked sessions. N counts
-perturbation cells, not independent edges. The calibration producer retains a fixed planned key set
-and records unscored run-ineligible keys separately. No baseline data means no derived cap.
-A numeric cap0 permits a still region; NO ADMISSIBLE ENVELOPE explicitly refuses every edge.
+The cap is rederived on three masked sessions: two-significant-figure cut-off strictly below the
+smallest observed wrong-cell m_edge. N counts perturbation cells, not independent edges. The fixed
+planned denominator includes an unscored ledger for ineligible runs. Numeric cap0 admits a still
+region; NO ADMISSIBLE ENVELOPE refuses every edge. Calibration status is printed in the header.
 
 Usage:
     python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet] [--red-only]
@@ -451,12 +459,14 @@ ATTAINABLE_MAX = 1.0
 
 DOMINANCE = 1.5
 
-REGION_CAP = 0.00014
-REGION_CAP_N = 0
+REGION_CAP = 0.42
+REGION_CAP_N = 162
 REGION_CAP_PROVENANCE = (
-    "PROVISIONAL legacy cut-off 0.00014 from 079-07; v3 UNDETERMINED (N=0 eligible baseline cells). "
-    "Rule: two-significant-figure cut-off strictly below the smallest observed wrong-cell m_edge; "
-    "three masked sessions; N cells = perturbation cells, not independent edges.")
+    "079-10 v3 default cap 0.42 is PROVISIONAL: NO DISAGREEING CELL OBSERVED; "
+    "floored from max m_edge=0.42753695, extrapolation not a boundary. "
+    "Three masked sessions; N=162 perturbation cells, not independent edges; "
+    "178/572 scored with guard off, 164/572 with guard on. "
+    "With wrong cells the rule is a two-significant-figure cut-off strictly below their smallest m_edge.")
 
 O_TRANSITION = "TRANSITION"
 O_NONE = "NO-TRANSITION"
@@ -584,6 +594,12 @@ def _region_frac(hot, k, region):
     return (ImageStat.Stat(crop).sum[0] / 255.0) / float(npix)
 
 
+def _target_entry(row, node):
+    """A sole unrelated label entry cannot supply the requested target's identity."""
+    return next((e for e in (row.get("anomalies") or [])
+                 if isinstance(e, dict) and node and str(e.get("target_name") or "") == node), None)
+
+
 def _anchor_entry(rows, indices, node, mlo):
     """The first frame of the claim whose labels.jsonl row actually carries this event.
 
@@ -596,7 +612,7 @@ def _anchor_entry(rows, indices, node, mlo):
         r = rows.get(int(k))
         if not r:
             continue
-        e = mlo.match_label_entry(r, node, None)
+        e = _target_entry(r, node)
         if e is not None:
             return int(k), r, e
     return None, None, None
@@ -663,40 +679,46 @@ def _threshold_from(vals, mlo):
 class _PairSignal:
     """Read actual frame pairs; masks identify pixels, never the cause of a change."""
 
-    def __init__(self, cap_dir, rows, node, entry, mode, hot, paths, size, mlo, min_px):
+    def __init__(self, cap_dir, rows, node, entry, mode, hot, paths, size, mlo, min_px,
+                 span=None, edge_w=EDGE_WINDOW_DEFAULT):
         self.cap_dir, self.rows, self.node = cap_dir, rows, node
         self.entry, self.mode, self.hot, self.paths = entry, mode, hot, paths
         self.w, self.h = size
         self.mlo, self.min_px = mlo, min_px
+        self.span = span
+        self.extrapolation_limit = edge_w + BASELINE_MAX_FRAMES
+        self.actual_masks = {}
         self.masks = {}
         self.pairs = {}
 
-    def mask(self, k):
-        if k in self.masks:
-            return self.masks[k]
+    def _actual_mask(self, k):
+        """Return (region, error, unresolved, absent); corrupt evidence is not absence."""
+        if k in self.actual_masks:
+            return self.actual_masks[k]
         from PIL import Image, ImageStat
         row = self.rows.get(k) or {}
-        entry = self.mlo.match_label_entry(row, self.node, None) or self.entry
+        # A sole unrelated entry is not this target, especially on off-span frames.
+        entry = _target_entry(row, self.node) or self.entry
         try:
             wanted = int(entry.get("mask_value") or 0)
         except (ValueError, TypeError):
             wanted = 0
         mf = row.get("mask_file")
-        result = (None, "mask missing at frame %d" % k, False)
+        result = (None, "mask missing at frame %d" % k, False, True)
         if mf:
             try:
                 with Image.open(os.path.join(self.cap_dir, str(mf))) as src:
                     im = src.convert("L")
                 if im.size != (self.w, self.h):
-                    result = (None, "mask unreadable at frame %d (dimensions)" % k, False)
+                    result = (None, "mask unreadable at frame %d (dimensions)" % k, False, False)
                 else:
                     present = [v for v, n in enumerate(im.histogram()) if v and n]
                     if not present:
-                        result = (None, "mask missing at frame %d (empty)" % k, False)
+                        result = (None, "mask missing at frame %d (empty)" % k, False, True)
                     elif wanted != 0 and wanted not in present:
-                        result = (None, "mask id %d not present at frame %d" % (wanted, k), False)
+                        result = (None, "mask id %d not present at frame %d" % (wanted, k), False, True)
                     elif wanted == 0 and len(present) != 1:
-                        result = (None, "mask id unresolved at frame %d (multiple values)" % k, False)
+                        result = (None, "mask id unresolved at frame %d (multiple values)" % k, False, False)
                     else:
                         value = wanted if wanted != 0 else present[0]
                         binary = im.point(lambda v: 255 if v == value else 0)
@@ -705,11 +727,34 @@ class _PairSignal:
                         npix = int(round(ImageStat.Stat(crop).sum[0] / 255.0))
                         reg = {"bin": crop, "box": box, "npix": npix,
                                "source": "mask(v%d)" % value}
-                        result = (reg, None, wanted == 0)
+                        result = (reg, None, wanted == 0, False)
             except FileNotFoundError:
                 pass
             except (OSError, ValueError):
-                result = (None, "mask unreadable at frame %d" % k, False)
+                result = (None, "mask unreadable at frame %d" % k, False, False)
+        while len(self.actual_masks) >= 64:
+            self.actual_masks.pop(next(iter(self.actual_masks)))
+        self.actual_masks[k] = result
+        return result
+
+    def mask(self, k):
+        if k in self.masks:
+            return self.masks[k]
+        reg, error, unresolved, absent = self._actual_mask(k)
+        extrapolated = []
+        if absent and self.span and not self.span[0] <= k <= self.span[1]:
+            source = self.span[0] if k < self.span[0] else self.span[1]
+            delta = k - source
+            if abs(delta) > self.extrapolation_limit:
+                error += "; extrapolation distance %d > limit %d" % (abs(delta), self.extrapolation_limit)
+            else:
+                template, template_error, template_unresolved, _absent = self._actual_mask(source)
+                if template_error:
+                    error += "; boundary mask unavailable: " + template_error
+                else:
+                    reg, error, unresolved = template, None, template_unresolved
+                    extrapolated = [(source, delta)]
+        result = (reg, error, unresolved, extrapolated)
         while len(self.masks) >= 64:
             self.masks.pop(next(iter(self.masks)))
         self.masks[k] = result
@@ -719,13 +764,14 @@ class _PairSignal:
         if k in self.pairs:
             return self.pairs[k]
         from PIL import Image, ImageChops, ImageStat
-        reg, error, unresolved = None, None, False
+        reg, error, unresolved, extrapolated = None, None, False, []
         if k not in self.paths or k - 1 not in self.paths:
             error = "RGB missing for pair %d..%d" % (k - 1, k)
         elif self.mode == "mask":
-            left, le, lu = self.mask(k - 1)
-            right, re, ru = self.mask(k)
+            left, le, lu, lx = self.mask(k - 1)
+            right, re, ru, rx = self.mask(k)
             error, unresolved = le or re, lu or ru
+            extrapolated = sorted(set(lx + rx))
             if error is None:
                 box = (min(left["box"][0], right["box"][0]),
                        min(left["box"][1], right["box"][1]),
@@ -763,7 +809,8 @@ class _PairSignal:
                     error = "RGB dimensions changed for pair %d..%d" % (k - 1, k)
                 else:
                     d = _region_frac(self.hot, k, reg)
-        result = {"d": d, "region": reg, "error": error, "unresolved": unresolved}
+        result = {"d": d, "region": reg, "error": error, "unresolved": unresolved,
+                  "mask_extrapolations": extrapolated}
         while len(self.pairs) >= 64:
             self.pairs.pop(next(iter(self.pairs)))
         self.pairs[k] = result
@@ -795,7 +842,7 @@ def _measure_edge(kind, nominal, signal, base_idx, lo, hi, cap, refuse_all):
            "best_d": None, "second_d": None, "ratio": None, "eligible": 0,
            "scanned": 0, "found": False, "offset": None, "lo": lo, "hi": hi,
            "window": max(0, hi - lo + 1), "missing": 0, "mode": signal.mode,
-           "mask_id_unresolved": False, "ring_d": None, "ring_note": False,
+           "mask_id_unresolved": False, "mask_extrapolations": [], "ring_d": None, "ring_note": False,
            "region_source": None, "region_npix": None, "d_nominal": None}
     if lo > hi:
         rec["reason"] = "empty labelled search window"
@@ -804,11 +851,12 @@ def _measure_edge(kind, nominal, signal, base_idx, lo, hi, cap, refuse_all):
     bad = [p["error"] for _k, p in window if p["error"]]
     rec["scanned"], rec["missing"] = len(window) - len(bad), len(bad)
     rec["mask_id_unresolved"] = any(p["unresolved"] for _k, p in window)
+    rec["mask_extrapolations"] = sorted({x for _k, p in window for x in p["mask_extrapolations"]})
     if bad:
         rec["reason"] = bad[0]
         return rec
     values = []
-    # Select the nearest valid clean pairs; never substitute a boundary mask.
+    # Select nearest valid clean pairs under the same bounded mask policy as the window.
     for k in sorted(base_idx, key=lambda k: (abs(k - nominal), k)):
         p = signal.pair(k)
         if p["error"]:
@@ -816,6 +864,7 @@ def _measure_edge(kind, nominal, signal, base_idx, lo, hi, cap, refuse_all):
             continue
         values.append(p["d"])
         rec["mask_id_unresolved"] |= p["unresolved"]
+        rec["mask_extrapolations"] = sorted(set(rec["mask_extrapolations"]) | set(p["mask_extrapolations"]))
         if len(values) == BASELINE_MAX_FRAMES:
             break
     rec["base_n"] = len(values)
@@ -934,23 +983,20 @@ def _run_outcome(run):
     if changed:
         return R_UNASSESSABLE, "whole-span change at frame %d d=%.4f > tau=%.4f" % (
             changed[0][0], changed[0][1], tau)
-    return R_NO_TRACE, ("the label claims a visible change on this target across frames %d..%d; "
-                        "the pixels contain none (above tau=%.4f; pixel threshold applies)" %
-                        (run["start"], run["end"], tau))
+    reason = ("no change above the noise floor (tau=%.4f) on this target across frames %d..%d; "
+              "the label claims a visible change" % (tau, run["start"], run["end"]))
+    if any(p["mask_extrapolations"] for _k, p in span):
+        reason += "; edge pairs use extrapolated masks"
+    return R_NO_TRACE, reason
 
 
 def _event_token(runs):
     outcomes = [r["outcome"] for r in runs]
-    if R_NO_TRACE in outcomes:
-        return R_NO_TRACE
-    if R_OFFSET in outcomes:
-        return R_OFFSET
-    if outcomes and all(v == R_CONSISTENT for v in outcomes):
-        return R_CONSISTENT
+    for outcome in (R_NO_TRACE, R_OFFSET, R_PARTIAL, R_CONSISTENT):
+        if outcome in outcomes:
+            return outcome
     if outcomes and all(v == R_READING for v in outcomes):
         return R_READING
-    if any(e["observation"] != O_UNASSESSABLE for r in runs for e in r["edges"]):
-        return R_PARTIAL
     return R_UNASSESSABLE
 
 
@@ -973,6 +1019,11 @@ def _edge_line(rec):
                                                rec["scanned"], rec["window"])
     if rec["mask_id_unresolved"]:
         text += " (mask id unresolved - sole value used)"
+    for source in sorted({s for s, _d in rec["mask_extrapolations"]}):
+        deltas = [d for s, d in rec["mask_extrapolations"] if s == source]
+        worst = max(deltas, key=abs)
+        text += " (mask extrapolated from frame %d, delta=%+d; max distance, %d frames incl baseline)" % (
+            source, worst, len(deltas))
     if rec["mode"] == "bbox":
         text += " (bbox-only)"
     return "        %-5s %s" % (rec["kind"], text)
@@ -1026,41 +1077,51 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
             def present(k):
                 mf = (rows.get(k) or {}).get("mask_file")
                 return bool(mf and os.path.isfile(os.path.join(cap_dir, str(mf))))
-            mode = "mask" if present(a) and present(b) else "bbox"
+            # A partly masked run must not hide a missing in-span boundary in bbox mode.
+            mode = "mask" if any(present(k) for k in range(a, b + 1)) else "bbox"
             row = rows.get(a) or {}
-            run_entry = mlo.match_label_entry(row, ev["node"], None) or entry
+            run_entry = _target_entry(row, ev["node"]) or entry
             run = {"event": ev["i"], "ordinal": ordinal, "start": a, "end": b,
                    "node": ev["node"], "type": ev["type"], "mode": mode, "edges": []}
             run["signal"] = _PairSignal(cap_dir, rows, ev["node"], run_entry, mode,
-                                         hot, paths, size, mlo, min_visible_px)
+                                         hot, paths, size, mlo, min_visible_px, (a, b), edge_w)
             runs.append(run)
             by_event[ev["i"]].append(run)
     _observe_windows(runs, first, last, edge_w, base_idx, cap, refuse_all)
     for run in runs:
         run["outcome"], run["reason"] = _run_outcome(run)
+        run["caveat"] = run["outcome"] == R_CONSISTENT and any(e["ring_note"] for e in run["edges"])
+        run["mask_extrapolation_max"] = max((abs(d) for e in run["edges"]
+                                             for _s, d in e["mask_extrapolations"]), default=0)
         for rec in run["edges"]:
             rec.update(run_outcome=run["outcome"], run_reason=run["reason"],
-                       run_eligible=run["outcome"] not in (R_READING, R_UNASSESSABLE), session=cap_dir)
+                       run_eligible=run["outcome"] not in (R_READING, R_UNASSESSABLE),
+                       run_caveat=run["caveat"], run_mask_extrapolation_max=run["mask_extrapolation_max"], session=cap_dir)
             if out_detail is not None:
                 out_detail.append(dict(rec))
-    lines = ["LABEL-PIXEL CONSISTENCY OBSERVATIONS (079-09)",
+    lines = ["LABEL-PIXEL CONSISTENCY OBSERVATIONS (079-10)",
              "  session                  %s" % cap_dir,
              "  frames / labels / events %d / %d / %d" % (len(paths), len(rows), len(events)),
              "  semantics                masks identify pixels, not cause; no output certifies a label as correct",
-             "  region                   union of BOTH actual masks for every compared pair; bbox-only runs are READING",
+             "  region                   union of both masks; actual target masks take precedence; bbox-only runs are READING",
+             "  boundary masks           missing OUTSIDE the span only: extrapolate same-run boundary <=%d frames (window+N_BASE=%d+%d)" % (edge_w + BASELINE_MAX_FRAMES, edge_w, BASELINE_MAX_FRAMES),
+             "                           This is not 079-08 F2's boundary-mask reuse: there, real per-frame masks existed and were ignored; here, none exist.",
              "  signal                   fraction with an RGB-channel difference >%d/255; edge tau=max(median+6*MAD,0.004)" % thresh,
              "  assessability cap        %s" % (NO_ADMISSIBLE_ENVELOPE if refuse_all else str(cap)),
              "                           " + REGION_CAP_PROVENANCE,
              "  clean-frame pool         %d (guard %d); nearest 3..24 valid per-pair regions for EACH edge" % (len(base_idx), guard),
-             "  search                   +/-%d, labelled bounds only; a transition serves at most one edge" % edge_w,
+             "  search                   +/-%d, inclusive labelled bounds only; duplicate claims refuse both edges (short-run coverage cost retained)" % edge_w,
              "  producer metadata        bbox/observable flags are reported, not confirmed by this tool",
-             "  NO-TRACE scope           no above-threshold target change over the complete span AND edge windows",
+             "  NO-TRACE scope           no change above the noise floor (tau) over the complete span AND edge windows",
+             "  detection limit          tau is a fraction of target-region pixels; RGB-channel threshold also applies",
              "-" * 78]
     counts = Counter()
+    consistent_caveats = 0
     for ev in events:
         ev_runs = by_event[ev["i"]]
         token = _event_token(ev_runs)
         counts[token] += 1
+        consistent_caveats += token == R_CONSISTENT and any(r["caveat"] for r in ev_runs)
         rc = Counter(r["outcome"] for r in ev_runs)
         summary = " ".join("%s=%d" % (name, rc[name]) for name in RUN_OUTCOMES)
         lines.append("idx=%-3d %-18s %-22s %s runs{%s} %s" % (
@@ -1069,20 +1130,31 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, regio
             lines.append("      UNASSESSABLE(%s)" % event_errors[ev["i"]])
         for run in ev_runs:
             label = run["outcome"]
+            if run["caveat"]:
+                label += " (caveat: edge coincides with a whole-region change - inspect frames k-1..k+1)"
             if label == R_OFFSET:
                 label += "(%s)" % ",".join("%+d" % e["offset"] if e["offset"] is not None else
                                             "no-transition" for e in run["edges"])
-            lines.append("      run[%d..%d] %s%s" % (run["start"], run["end"], label,
-                " (bbox-only)" if run["mode"] == "bbox" else " - " + run["reason"]))
+            mask_note = ""
+            if run["mode"] == "mask":
+                mask_note = "; masks: in-span actual, edges " + (
+                    "extrapolated <=%d (including baseline)" % run["mask_extrapolation_max"]
+                    if run["mask_extrapolation_max"] else "actual")
+            lines.append("      run[%d..%d] %s%s%s" % (run["start"], run["end"], label,
+                " (bbox-only)" if run["mode"] == "bbox" else " - " + run["reason"], mask_note))
             # --quiet affects the overlay, not the evidence required to interpret a run.
             lines.extend(_edge_line(e) for e in run["edges"])
-    lines.extend(["-" * 78, "  " + "  ".join("%s %d" % (name, counts[name]) for name in RUN_OUTCOMES)
+    lines.extend(["-" * 78, "  " + "  ".join(("%s %d (%d with caveat)" % (name, counts[name], consistent_caveats)
+                  if name == R_CONSISTENT else "%s %d" % (name, counts[name])) for name in RUN_OUTCOMES)
                   + "  (of %d events)" % len(events)])
+    run_counts = Counter(r["outcome"] for r in runs)
+    lines.append("  run coverage             " + "  ".join("%s %d" % (name, run_counts[name]) for name in RUN_OUTCOMES)
+                 + "  (of %d runs; unassessable/readings never promote an event)" % len(runs))
     if counts[R_NO_TRACE]:
-        lines.append("  VERDICT                  FAIL: NO-TRACE on %d event(s) - labels claim changes the pixels do not contain (above the printed thresholds)" % counts[R_NO_TRACE])
+        lines.append("  VERDICT                  FAIL: NO-TRACE on %d event(s) - no change above the noise floor; labels claim visible changes" % counts[R_NO_TRACE])
     else:
-        lines.append("  VERDICT                  NO FAILURE FOUND (%d consistent, %d offset-notes for human review, %d partial, %d unassessable, %d readings)" %
-                     (counts[R_CONSISTENT], counts[R_OFFSET], counts[R_PARTIAL], counts[R_UNASSESSABLE], counts[R_READING]))
+        lines.append("  VERDICT                  NO FAILURE FOUND (%d consistent (%d with caveat), %d offset-notes for human review, %d partial, %d unassessable, %d readings)" %
+                     (counts[R_CONSISTENT], consistent_caveats, counts[R_OFFSET], counts[R_PARTIAL], counts[R_UNASSESSABLE], counts[R_READING]))
         if events and counts[R_READING] == len(events):
             lines.append("  coverage                 UNREAD-BBOX-ONLY")
     return (2 if counts[R_NO_TRACE] else 0), lines
@@ -1502,7 +1574,7 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
     def check(name, path, expected, cap=None, verify=None):
         detail = []
         code, lines = label_pixel_gate(str(path), thresh, edge_w, min_visible_px,
-                                       out_detail=detail, region_cap=cap)
+                                       out_detail=detail, region_cap=1.0 if cap is None else cap)
         tokens = [line.split()[3] for line in lines if line.startswith("idx=")]
         ok = bool(tokens) and all(token in expected for token in tokens)
         ok &= code == (2 if R_NO_TRACE in tokens else 0)
@@ -1538,7 +1610,7 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
             ("moving_blank_region", {"pan": 2, "blank_region": True}, (R_NO_TRACE,), 1.0),
             ("moving_fullframe_region", {"pan": 2, "fullframe_region": True}, (R_UNASSESSABLE,), 1.0),
             ("moving_unsat", {"pan": 4, "stripes": 4}, (R_UNASSESSABLE,), 1.0),
-            ("moving_over_cap", {"pan": 2}, (R_UNASSESSABLE,), None),
+            ("moving_over_cap", {"pan": 2}, (R_UNASSESSABLE,), 0.00014),
         ]
         for name, args, expected, cap in original:
             check(name, _synth_session(root, name, with_mask=True, **args), expected, cap)
@@ -1617,7 +1689,7 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
                 (R_CONSISTENT,)),
             ("foreign_mask_value", {"mask_mode": "foreign"}, (R_UNASSESSABLE,)),
             ("no_detected_end", {"true_runs": ((60, 90),), "label_runs": ((60, 67),)}, (R_PARTIAL,)),
-            ("mixed_run", {"missing_masks": (67,)}, (R_READING,)),
+            ("mixed_run", {"missing_masks": (67,)}, (R_PARTIAL,)),
             ("one_frame_aligned", {"true_runs": ((60, 60),)}, (R_UNASSESSABLE,)),
             ("one_frame_late", {"true_runs": ((60, 60),), "label_runs": ((61, 61),)}, (R_PARTIAL,)),
             ("one_frame_early", {"true_runs": ((60, 60),), "label_runs": ((59, 59),)}, (R_UNASSESSABLE,)),
@@ -1625,13 +1697,16 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
         for name, args, expected in cases08:
             def verify(detail, lines, name=name):
                 if name.startswith("lighting"):
-                    return any(e["ring_note"] for e in detail) and all(e["run_outcome"] != R_NO_TRACE for e in detail)
+                    return (any(e["ring_note"] for e in detail) and all(e["run_outcome"] != R_NO_TRACE for e in detail)
+                            and (name != "lighting_late_onset" or
+                                 (all(e["run_caveat"] for e in detail) and any("CONSISTENT (caveat:" in s for s in lines)
+                                  and any("CONSISTENT 1 (1 with caveat)" in s for s in lines))))
                 if name == "missing_mask61":
                     return detail[0]["observation"] == O_UNASSESSABLE and "mask missing at frame 61" in detail[0]["reason"]
                 if name == "foreign_mask_value":
                     return all("mask id 222 not present" in e["reason"] for e in detail)
                 if name == "mixed_run":
-                    return all(not e["run_eligible"] and e["run_outcome"] == R_READING for e in detail)
+                    return all(e["run_eligible"] and e["run_outcome"] == R_PARTIAL for e in detail)
                 if name == "no_detected_end":
                     return [e["observation"] for e in detail] == [O_TRANSITION, O_NONE]
                 return True
@@ -1656,11 +1731,11 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
         check("blank_whole_span", blank, (R_NO_TRACE,))
         missing = _codex08_fixture(root, "blank_missing_interior", true_runs=(),
                                    label_runs=((40, 70),), missing_masks=(55,))
-        check("blank_missing_interior", missing, (R_PARTIAL,),
+        check("blank_missing_interior", missing, (R_UNASSESSABLE,),
               verify=lambda d, _l: all(e["run_outcome"] == R_UNASSESSABLE and
                                        "mask missing at frame 55" in e["run_reason"] for e in d))
         interior = _codex08_fixture(root, "interior_change", true_runs=((55, 56),), label_runs=((40, 70),))
-        check("interior_change", interior, (R_PARTIAL,),
+        check("interior_change", interior, (R_UNASSESSABLE,),
               verify=lambda d, _l: all(e["run_outcome"] == R_UNASSESSABLE for e in d))
         for variant in ("unresolved", "unsupported_class", "empty_mask", "unreadable_mask"):
             path = pathlib.Path(_codex08_fixture(root, variant, true_runs=(), label_runs=((40, 70),)))
@@ -1682,7 +1757,8 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
                 Image.new("L", (180, 120)).save(path / "target_mask/frame_00041.png")
             else:
                 (path / "target_mask/frame_00041.png").write_bytes(b"invalid image")
-            check(variant, path, (R_PARTIAL,), verify=lambda d, _l: all(e["run_outcome"] != R_NO_TRACE for e in d))
+            expected = (R_UNASSESSABLE,) if variant in ("unresolved", "unsupported_class") else (R_PARTIAL,)
+            check(variant, path, expected, verify=lambda d, _l: all(e["run_outcome"] != R_NO_TRACE for e in d))
         dimensions = pathlib.Path(_codex08_fixture(root, "rgb_dimensions", true_runs=(),
                                                     label_runs=((40, 70),)))
         from PIL import Image, ImageDraw
@@ -1709,6 +1785,28 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None, regio
             check(name, path, (R_PARTIAL,),
                   verify=lambda d, _l, edge=edge: d[edge]["observation"] == O_UNASSESSABLE and
                   "RGB missing" in d[edge]["reason"] and d[1-edge]["observation"] == O_NONE)
+        outside = tuple(k for k in range(100) if not 40 <= k <= 70)
+        for name, true_runs, expected in (("span_masks_control", ((40, 70),), (R_CONSISTENT,)),
+                                           ("span_masks_blank", (), (R_NO_TRACE,))):
+            path = _codex08_fixture(root, name, true_runs=true_runs, label_runs=((40, 70),), missing_masks=outside)
+            check(name, path, expected, verify=lambda d, lines, name=name:
+                  all(e["mask_extrapolations"] and e["run_mask_extrapolation_max"] <= edge_w + BASELINE_MAX_FRAMES
+                      for e in d) and any("masks: in-span actual, edges extrapolated" in s for s in lines)
+                  and (name != "span_masks_blank" or any("edge pairs use extrapolated masks" in s for s in lines)))
+        for name, missing_frames, expected in (
+            ("span_masks_missing_interior", outside + (55,), (R_UNASSESSABLE,)),
+            ("span_masks_missing_onset", outside + (40,), (R_PARTIAL,)),
+            ("span_masks_missing_end", outside + (70,), (R_PARTIAL,))):
+            path = _codex08_fixture(root, name, true_runs=(), label_runs=((40, 70),), missing_masks=missing_frames)
+            check(name, path, expected, verify=lambda d, _l: all(e["run_outcome"] != R_NO_TRACE for e in d))
+        for name, missing_frames, expected in (
+            ("consistent_with_unassessable_run", (41, 46), (R_CONSISTENT,)),
+            ("consistent_with_partial_run", (41,), (R_PARTIAL,))):
+            path = _codex08_fixture(root, name, true_runs=((10, 17), (40, 47)), missing_masks=missing_frames)
+            check(name, path, expected, verify=lambda d, lines, name=name:
+                  any(e["run_outcome"] == R_CONSISTENT for e in d) and
+                  (name != "consistent_with_unassessable_run" or
+                   any("run coverage" in s and "UNASSESSABLE 1" in s for s in lines)))
         if source_dir:
             for delta in (-1, 1):
                 dst = os.path.join(root, "real_%+d" % delta)
@@ -1919,8 +2017,8 @@ def main():
                     default=str(REGION_CAP),
                     help=f"label-pixel gate: mark an EDGE UNASSESSABLE when the region it "
                          f"is judged on changes by more than this on its own nearby clean frames "
-                         f"(default {REGION_CAP}, a PROVISIONAL legacy heuristic; v3 recalibration "
-                         f"is undetermined - see the module header). --motion-cap is a deprecated alias "
+                         f"(default {REGION_CAP}, PROVISIONAL: no wrong-cell boundary observed on "
+                         f"three masked sessions - see the module header). --motion-cap is a deprecated alias "
                          f"for the same flag; pass 1.0 to disable the guard entirely. Pass the "
                          f"literal '{NO_ADMISSIBLE_ENVELOPE}' to refuse EVERY edge - that state is "
                          f"not the same as a cap of 0.0, which still judges a perfectly still "

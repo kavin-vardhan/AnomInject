@@ -11,21 +11,29 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **079-09 verifier implementation, 2026-09-20 — NEEDS-DECISION, UNMERGED.**
+> **079-10 boundary-mask delta, 2026-09-20 — NEEDS-DECISION, UNMERGED.**
 > Owner-authorized role swap for this unit: Codex implements, Claude Code independently
-> reviews afterward, Chat orchestrates. Feature `fix/verifier-field-validity` starts at
-> `1cbc07e`; predictions were committed first at `2a38d15`. Read
-> `docs/sessions/2026-09-20-079-09-codex-implementation.md`, then the implementation
-> report `D:/IntrusiveAnomalies/_reviews/079-09-codex-implementation-report.md` and its
-> frozen evidence. CONSISTENT/OFFSET-NOTE describe observations, never label truth;
-> strict per-pair mask coverage leaves all 64 pinned edges unassessable. Calibration
-> on three masked sessions has 572 planned keys, zero eligible scored cells and no
-> derived cap. P1 lighting and P6 below-threshold absence wording conflict with the
-> fixed rules; original predictions remain unchanged. Source/Shaders and
-> measure_label_offset.py are unchanged. No merge, tag, build, capture or mailbox use.
+> reviews afterward, Chat orchestrates. Feature `fix/verifier-field-validity` starts
+> this delta at `7d5b6e9`; AMENDMENT 1 was committed first at `97a94ef`. Read
+> `docs/sessions/2026-09-20-079-10-codex-delta.md`, then
+> `D:/IntrusiveAnomalies/_reviews/079-10-codex-delta-report.md` and its frozen evidence.
+> Missing OUT-OF-SPAN target masks may use the same run's boundary within 28 frames;
+> actual masks take precedence, and missing in-span masks remain unassessable.
+> Lighting coincidence stays CONSISTENT with a caveat; NO-TRACE means no change
+> above tau. Event tokens use run outcomes only, with separate run coverage.
+> P2 still misses: 32/64 pinned edges observed; both blink legs retain four
+> UNASSESSABLE events under inclusive-window ambiguity/duplicate-claim rules.
+> The three-session calibration scores cells again: guard-off 178/572, 134 recovered,
+> zero wrong. The derived 0.42 cap is PROVISIONAL (N=162 perturbation cells), floored
+> from maximum observed baseline change; no wrong-cell boundary was observed.
+> The report records both tables and final default-cap bank readings. Earlier
+> P1/P6 conflicts are resolved by 079-10; original predictions remain history.
+> Source/Shaders and measure_label_offset.py are unchanged. No merge, tag, build,
+> capture or mailbox use. CaptureBench's scorer remains local/untracked (no remote).
 > Master remains `ac13700`; m51 remains `53bf725` and the original checkout is restored
 > at the completed boundary. Earlier campaign/session claims below are historical.
-> **Chat review REQUIRED** for conflicts, independent Code review and evidence before
+> **Chat review NOT REQUIRED** for the authorized implementation/feature push.
+> **Chat review REQUIRED** for the P2 miss, independent Code review and evidence before
 > merge. This is the next mandatory checkpoint; client/Section G and campaign holds remain.
 
 > 🏁🏁 **SESSION 077, 2026-09-04 → RESUMED 2026-09-06 → RULED AND MERGED 2026-09-06 — `m49` IS

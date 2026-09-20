@@ -178,19 +178,21 @@ There is **no verdict at an edge**. Runs are summarised as follows:
 
 | Run outcome | What the reading means |
 |---|---|
-| `CONSISTENT` | Both transitions sit on the two labelled edges. **Consistent with the label; does not establish cause.** |
+| `CONSISTENT` | Both transitions sit on the two labelled edges. **Consistent with the label; does not establish cause.** A coincident whole-region change adds a caveat on the run line and asks you to inspect the neighbouring frames. |
 | `OFFSET-NOTE(…)` | Both edges were observed and at least one transition sits off its label. A possible label offset **or an unrelated change**: look at frames `k−1..k+1`. This does not fail the session. |
 | `PARTIAL` | Only one edge was observable, or one zero-delta transition accompanies a `NO-TRANSITION` observation. It cannot become CONSISTENT. |
 | `UNASSESSABLE` | Neither edge was observable, or two NO-TRANSITION observations could not support the whole-span check. The run prints the reason. |
-| `READING` | A run lacks boundary masks and uses bounding boxes. The same observation lines are printed with `(bbox-only)`; it cannot become CONSISTENT or NO-TRACE. |
-| `NO-TRACE` | The complete run span **and both windows** had valid, resolved masks and RGB pairs, but no target change exceeded the thresholds. This is the only failing outcome. |
+| `READING` | A run has no delivered in-span masks and uses bounding boxes. The same observation lines are printed with `(bbox-only)`; it cannot become CONSISTENT or NO-TRACE. A partly masked run retains mask mode, so a missing boundary inside its span remains unassessable. |
+| `NO-TRACE` | The complete run span **and both windows** had usable, resolved masks and RGB pairs, but no target change exceeded the noise floor. In-span masks must be actual; missing outside-span masks may be extrapolated as described below. This is the only failing outcome. |
 
-**What NO-TRACE proves is limited by the printed thresholds.** Its message says
-“the label claims a visible change on this target …; the pixels contain none”,
-qualified by “above tau; pixel threshold applies”. It establishes the absence of
-an **above-threshold** change over the observed span and windows. It does not
-establish pixel-for-pixel equality: for example, one changed pixel in a 2,500-pixel
-region gives `d=0.0004`, below the default `tau` floor of `0.004`.
+**NO-TRACE means:** “no change above the noise floor (tau=…) on this target
+across frames s..e; the label claims a visible change”. The whole run span and
+both edge windows were checked. This is a thresholded absence: `tau` is a
+**fraction of the pixels in the compared target region** (the union of the two
+frame masks). For example, one changed pixel in a 2,500-pixel region gives
+`d=0.0004`, below the default `tau` floor `0.004` (0.4%). That case remains
+NO-TRACE. A pixel must also exceed the configured RGB-channel difference threshold.
+A wrong NO-TRACE means a compared in-span or edge-window pair exceeded `tau`.
 
 NO-TRACE is restricted to the producer's pixel-changing class IDs:
 `missing_object`, `blink` (`blinking` injector alias), `missing_texture`,
@@ -202,13 +204,34 @@ blink are represented as separate active runs. `time_dilation`,
 `lighting_mismatch`, `camera_clipping` and unknown classes cannot produce NO-TRACE.
 Class membership is a producer contract, not an independent proof of visible effect.
 
-**Coverage and association:** each compared pair uses the union of the actual
-masks from **both** frames, including clean baseline pairs. Missing, empty or
-unreadable masks invalidate a window. A positive `mask_value` absent from a PNG is
-an error; the sole-value fallback is allowed only for an unresolved ID and is
-printed explicitly. An unresolved ID can never support NO-TRACE. Search bounds
-come from labelled frames, and a transition claimed by two edges invalidates both.
-Bounding-box runs impose no bounds on masked runs.
+**Coverage and boundary masks:** each pair uses the union of its two target
+masks, including the clean pairs used for the baseline. **Actual target masks
+always take precedence.** The producer may write masks only on labelled frames.
+When a frame outside this run has no target mask, the checker uses the nearest
+labelled boundary of the same run: onset before the span, last labelled frame
+after it. The distance is bounded by `edge_window + N_BASE`, where this verifier's
+`N_BASE` is 24, giving 28 frames with the default window.
+
+This is not 079-08 F2's boundary-mask reuse: there, real per-frame masks existed
+and were ignored; here, none exist. Extrapolation assumes the boundary silhouette
+still represents the target's region; it cannot establish target geometry outside
+the delivered masks. Every affected observation shows its boundary source and
+largest signed distance (including baseline use); structured output retains all
+source/delta pairs. The run summarises the maximum distance used.
+
+Missing masks **inside the span**, including a missing onset or last-labelled
+mask in a partly masked run, remain unassessable. Corrupt masks and invalid
+dimensions are errors, not permission to extrapolate. An explicit absent ID is
+an error inside the span; outside it, a valid PNG containing only other targets
+may trigger the bounded fallback. ID 0/unresolved may use a sole value, visibly
+tagged, but cannot support NO-TRACE. NO-TRACE is permitted with extrapolated edge
+pairs and explicitly says `edge pairs use extrapolated masks` when that occurs.
+
+Search windows remain bounded by labelled frames, inclusively. A transition
+claimed by two edges invalidates both. Bbox-only runs do not constrain masked
+runs. **Short runs can therefore remain unassessable even with complete regions:**
+one transition may be selected by several overlapping edge windows. This accepted
+coverage cost is printed in the header and was measured on both pinned blink legs.
 
 Every transition also prints the change fraction in a ten-pixel ring around its
 region. `note: whole-region change (lighting/camera?)` helps a person inspect the
@@ -216,19 +239,25 @@ frames. It is diagnostic only and never changes an outcome.
 
 **The local baseline and regional cap limit assessability.** `m_edge` measures
 regional change on the nearest 3–24 valid clean pairs; `tau` is learned separately
-for each edge. Excess regional change produces UNASSESSABLE. The configured cap
-`0.00014` is retained from the earlier experiment. **079-09 recalibration on three
-masked sessions is UNDETERMINED: no eligible cell reached a usable baseline.**
-It is not a newly validated acceptance limit. In the six pinned bench sessions,
-strict per-pair mask coverage left all 64 edges unassessable; their previous
-boundary-mask readings cannot establish current coverage.
+for each edge. Excess regional change produces UNASSESSABLE. The header records
+the current cap and its three-session calibration result; the fixed denominator
+includes every planned perturbation key, including keys excluded by run eligibility.
+A numeric cap of zero still admits a perfectly still region. `NO ADMISSIBLE
+ENVELOPE` is a separate state that refuses every edge, not another spelling of zero.
 
-Each event prints counts of its runs. The session counts `CONSISTENT`,
-`OFFSET-NOTE`, `NO-TRACE`, `PARTIAL`, `UNASSESSABLE` and `READING` events. A session
-with any NO-TRACE ends `FAIL: NO-TRACE …`; otherwise it ends **`NO FAILURE FOUND
-(c consistent, o offset-notes for human review, p partial, u unassessable,
-r readings)`**. That wording does not certify labels or mean every edge was read.
-An all-bbox session additionally prints **`UNREAD-BBOX-ONLY`**.
+Events now use **run outcomes only**, taking the worst of NO-TRACE, OFFSET-NOTE,
+PARTIAL, CONSISTENT in that order. UNASSESSABLE and READING runs contribute coverage
+counts but cannot promote an event through their edge observations. With no
+assessable run, the event is UNASSESSABLE, or READING if every run is bbox-only.
+Every event prints its run counts; a separate session run-coverage line makes an
+unread sibling run visible even when the event has a CONSISTENT run.
+
+The session counts `CONSISTENT n (c with caveat)`, `OFFSET-NOTE`, `NO-TRACE`,
+`PARTIAL`, `UNASSESSABLE` and `READING` events. The caveat count is the subset of
+CONSISTENT events containing a caveated consistent run. Any NO-TRACE ends
+`FAIL: NO-TRACE …`; otherwise the last line is **NO FAILURE FOUND** with coverage
+counts. That wording does not certify labels or mean every edge was observed.
+An all-bbox session also prints **UNREAD-BBOX-ONLY**.
 
 Normal exit codes: `0` for no NO-TRACE, `2` for NO-TRACE, `3` when execution cannot
 complete. `--report-only` suppresses only `2`; execution errors remain `3`, also

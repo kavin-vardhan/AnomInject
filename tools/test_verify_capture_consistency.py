@@ -1,4 +1,4 @@
-"""079-09 batch/region regressions. Run alongside verify_capture.py --selftest.
+"""079-09/10 batch, per-pair region and boundary-mask regressions.
 
 The batch preflight is stubbed here because the complete image-fixture selftest is
 run separately; batch tests exercise real sessions, report files and exit codes.
@@ -6,6 +6,7 @@ run separately; batch tests exercise real sessions, report files and exit codes.
 
 import contextlib
 import io
+import json
 import pathlib
 import tempfile
 import unittest
@@ -22,10 +23,23 @@ class ConsistencyContracts(unittest.TestCase):
         self.root = pathlib.Path(self.tmp.name)
         self.log = io.StringIO()
 
+    def signal(self, source, span=(40, 70)):
+        mlo = vc._offset_module()
+        rows, _state = mlo.read_labels(str(source / "labels.jsonl"))
+        paths = vc._frame_paths(str(source), mlo)
+        hot = vc._HotCache(mlo.FrameCache(paths, 0, limit=8), 8)
+        entry = mlo.match_label_entry(rows[span[0]], "SynthTarget", None)
+        return vc._PairSignal(str(source), rows, "SynthTarget", entry, "mask", hot,
+                               paths, (180, 120), mlo, 1, span, 4)
+
+    def span_masks(self, name):
+        outside = tuple(k for k in range(100) if not 40 <= k <= 70)
+        return pathlib.Path(vc._codex08_fixture(self.root, name, true_runs=((40, 70),), missing_masks=outside))
+
     def batch(self, source, name, report_only=False):
         output = self.root / name
         with patch.object(vc, "_label_pixel_selftest", return_value=0), contextlib.redirect_stdout(self.log):
-            code = vc.label_pixel_batch(str(source), str(output), 8, 4, 1, False, report_only)
+            code = vc.label_pixel_batch(str(source), str(output), 8, 4, 1, False, report_only, region_cap=1.0)
         return code, output
 
     def test_flattened_path_collision_keeps_both_reports(self):
@@ -84,6 +98,56 @@ class ConsistencyContracts(unittest.TestCase):
         self.assertIsNone(pair["error"])
         self.assertEqual(pair["region"]["npix"], 2)
         self.assertEqual(pair["d"], 0.5)
+
+    def test_extrapolation_distance_is_bounded_on_both_sides(self):
+        signal = self.signal(self.span_masks("distance"))
+        self.assertEqual(signal.mask(12)[3], [(40, -28)])
+        self.assertIn("distance 29 > limit 28", signal.mask(11)[1])
+        self.assertEqual(signal.mask(98)[3], [(70, 28)])
+        self.assertIn("distance 29 > limit 28", signal.mask(99)[1])
+
+    def test_actual_mask_overrides_the_boundary_template(self):
+        source = self.span_masks("actual_priority")
+        actual = Image.new("L", (180, 120))
+        actual.paste(222, (120, 30, 130, 40))
+        actual.save(source / "target_mask/frame_00039.png")
+        signal = self.signal(source)
+        region, error, _unresolved, extra = signal.mask(39)
+        self.assertIsNone(error)
+        self.assertEqual(region["box"], (120, 30, 130, 40))
+        self.assertEqual(extra, [])
+        self.assertEqual(signal.mask(38)[3], [(40, -2)])
+
+    def test_unrelated_off_span_entry_does_not_supply_target_identity(self):
+        source = self.span_masks("other_target")
+        other = Image.new("L", (180, 120))
+        other.paste(111, (120, 30, 130, 40))
+        other.save(source / "target_mask/frame_00039.png")
+        rows = [json.loads(s) for s in (source / "labels.jsonl").read_text(encoding="utf-8").splitlines()]
+        rows[39]["anomalies"] = [{"target_name": "OtherTarget", "mask_value": 111}]
+        (source / "labels.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        region, error, _unresolved, extra = self.signal(source).mask(39)
+        self.assertIsNone(error)
+        self.assertEqual(region["box"], (40, 30, 80, 70))
+        self.assertEqual(extra, [(40, -1)])
+
+    def test_unreadable_off_span_mask_is_not_extrapolated(self):
+        source = self.span_masks("corrupt_outside")
+        (source / "target_mask/frame_00039.png").write_bytes(b"not a PNG")
+        region, error, _unresolved, extra = self.signal(source).mask(39)
+        self.assertIsNone(region)
+        self.assertIn("mask unreadable at frame 39", error)
+        self.assertEqual(extra, [])
+
+    def test_boundary_identity_comes_from_the_named_target(self):
+        source = self.span_masks("named_anchor")
+        rows = [json.loads(s) for s in (source / "labels.jsonl").read_text(encoding="utf-8").splitlines()]
+        rows[40]["anomalies"] = [{"target_name": "OtherTarget", "mask_value": 111}]
+        (source / "labels.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        detail = []
+        code, _lines = vc.label_pixel_gate(str(source), 8, 4, 1, region_cap=1.0, out_detail=detail)
+        self.assertEqual(code, 0)
+        self.assertEqual([e["run_outcome"] for e in detail], [vc.R_CONSISTENT, vc.R_CONSISTENT])
 
 
 if __name__ == "__main__":

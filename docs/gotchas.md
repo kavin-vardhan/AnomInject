@@ -6929,3 +6929,38 @@ UNASSESSABLE runs supply zero scored cells, while a separate unscored ledger kee
 every immutable planned key visible in the denominator. **Chat review REQUIRED**
 for the specification conflicts and independent review before merge; the next
 checkpoint is the 079-09 implementation report and Claude Code's review.
+
+
+### G263/G264 — second dated correction: explicit boundary extrapolation (2026-09-20, 079-10)
+
+079-10 accepts 079-09's implementation and changes the masked-region contract.
+The producer may deliver target masks only on labelled frames. If a target mask
+is absent OUTSIDE a run, its nearest labelled boundary may supply the silhouette,
+within edge_window + N_BASE (the verifier's N_BASE=24; default distance28).
+Actual masks always win; missing in-span masks remain unassessable, including a
+missing boundary of a partly masked run. Unreadable PNGs are not absence.
+
+**This is not 079-08 F2's boundary-mask reuse: there, real per-frame masks existed
+and were ignored; here, none exist.** Extrapolation still assumes the boundary
+shape represents the target at another frame, so disclose source/distance on each
+observation and maximum distance on the run. NO-TRACE can use extrapolated edge
+pairs and names that assumption. The noise-floor fraction and RGB threshold
+remain detection limits; NO-TRACE does not mean no pixel changed at all.
+
+The original P1 lighting prediction is withdrawn by the ruling: a stronger
+lighting step exactly on a label is CONSISTENT under the observation rule, with
+a whole-region-change caveat on the run and in the consistent-event count.
+P6's falsifier is now an in-span/window pair above tau, not any nonzero pixel
+change. These rulings change meanings and predictions, not the historical readings.
+
+G264's inclusive labelled bounds and duplicate-claim refusal remain. Boundary
+extrapolation restores regions, not unique associations: the pinned blink legs
+still select ambiguous/duplicate transitions in their short runs. Do not remove
+those guards or tune dominance to manufacture the requested 64-edge agreement.
+
+Aggregation now uses run outcomes only. A whole-span UNASSESSABLE run cannot
+become a PARTIAL event merely because its two edge windows were observed. A
+CONSISTENT sibling can determine the event token, while separate run coverage
+preserves the unread run. The original predictions and 079-09 evidence above
+remain unchanged history. **Chat review REQUIRED** for the completed delta and
+independent review before merge; no client or campaign gate is released.
