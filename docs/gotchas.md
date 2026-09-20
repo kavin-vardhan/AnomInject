@@ -7113,3 +7113,50 @@ path is clamped by `MaxAllowedMips` including under force-fully-load
 ITS OWN SCHEDULE, so onset is latent by 1-4 captured frames and sometimes longer than an
 8-frame positive window. See journal 080-02 for the numbers and for the second, unexplained
 failure mode (a re-fire on an already-held target reads "already at the floor" and refuses).
+## G267 — an `FName` used as a JSON key silently ships the case of its FIRST registration anywhere in the process (2026-09-20, m52 080-03)
+
+`FAnomalyTelemetry` keyed its bag with `FName` and the label writer emitted
+`KV.Key.ToString()`. Every key came out right except one: the per-texture record's `name`
+field shipped as **`"Name"`**.
+
+`FName` comparison is case-INSENSITIVE, and `FName::ToString()` returns the **display string
+of the first registration of that name in the process**. `"Name"` is registered by the engine
+long before any plugin runs, so `FName(TEXT("name"))` resolves to the existing entry and
+prints `Name`. Nothing warns. The value is correct, the type is correct, the key is a
+different string from the one in the source.
+
+🔑 **The bug is not in the code that writes the key — it is in code that ran earlier and
+somewhere else entirely.** A key that is safe today becomes wrong the day an unrelated module
+registers the same word with a different case first, and the failure surface is a client's
+parser, not a build.
+
+⇒ **Do not use `FName` as a serialisation key.** `FAnomalyTelemetryFields` now keys on
+`FString`, which preserves the bytes the source wrote. The cost is one small allocation per
+key per captured frame, which is nothing beside the PNG encode the same frame performs.
+
+⚠ **How it was caught, and why it nearly was not:** the readout printed `None` for the
+texture name while every other field in the same record was correct. The keys that survived
+(`baseline_mips`, `forced_mips`, `resident_mips`, `held`, …) survived only because no earlier
+registration happened to claim them. **A scan of the shipped artifact would have shown the
+same thing**, which is `G119`'s rule — read the key back out of the written file, not out of
+the source that wrote it. The `A44` string scan now carries the retired key names as
+must-be-ABSENT entries for exactly this reason.
+
+## G268 — a second-fixture runner's map path is a CONTENT fact and goes stale without anything failing to compile (2026-09-20, m52 080-03)
+
+`CaptureBench/tools/lyra_leg.ps1` defaults to `-Map "/ShooterMaps/Maps/L_ShooterGym"`.
+`L_ShooterGym` lives in the **`ShooterCore`** game-feature plugin, so the correct mount path is
+`/ShooterCore/Maps/L_ShooterGym`. The wrong path does not fail loudly: the engine reports
+`Failed to load ... Can't find file`, offers the default map, gets `Cancel` under
+`-unattended`, requests exit — and then **crashes in `ULyraPerformanceStatSubsystem::Deinitialize`
+during shutdown**, so the first thing the log shows is a fatal callstack in the host's own
+code. The runner's own message was *"control server never announced a token"*.
+
+⇒ **Three misleading surfaces stacked on one stale string**, and the true cause was 1,230
+lines above the crash. `G87`'s rule again: when a map does not load, check whether the map is
+where the command says it is BEFORE reading anything into the failure.
+
+⛔ The default was NOT edited: `CaptureBench` is deliberately tracked-clean while `m51`'s
+frozen campaign depends on it, so the correct path was passed explicitly per leg and the stale
+default is recorded here instead. **Anyone fixing it later should also check whether the other
+map paths in that file moved with it.**

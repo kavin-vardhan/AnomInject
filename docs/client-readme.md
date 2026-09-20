@@ -524,37 +524,61 @@ event, so the object looks blurry while the rest of the scene stays sharp. The k
 
 | key | type | meaning |
 | --- | --- | --- |
-| `stuck_mip.resident_mips` | int | how many mip levels of the primary held texture are resident THIS FRAME |
-| `stuck_mip.baseline_mips` | int | how many were resident immediately before the anomaly was applied |
-| `stuck_mip.full_mips` | int | the texture's total mip count |
-| `stuck_mip.floor_mips` | int | the lowest count the engine permits for this texture (its non-streaming LODs) |
+| `stuck_mip.textures` | array | **one row per held texture** — `name`, `baseline_mips`, `forced_mips`, `resident_mips`, `resident_mips_at_onset`, `co_affected_visible`, `held`. This is the complete per-frame fact; every scalar below is a summary of it |
+| `stuck_mip.held` | bool | **the authoritative per-frame fact: is ANY held texture below its baseline right now** |
+| `stuck_mip.held_all` | bool | are they ALL below baseline. `held` true with `held_all` false means the hold engaged on some textures and not others, and `stuck_mip.textures` says which |
+| `stuck_mip.primary_resident_mips` | int | how many mip levels of the **primary** held texture are resident THIS FRAME |
+| `stuck_mip.primary_baseline_mips` | int | how many were resident immediately before the anomaly was applied |
+| `stuck_mip.full_mips` | int | the primary texture's total mip count |
+| `stuck_mip.floor_mips` | int | the lowest count the engine permits for it (its non-streaming LODs) |
 | `stuck_mip.forced_mips` | int | the count the anomaly asked the streamer to hold |
 | `stuck_mip.top_resident_px` | int | the width in pixels of the largest resident mip this frame — the number that decides how blurry it looks |
-| `stuck_mip.held` | bool | **the authoritative per-frame fact: is the mip actually below baseline right now** |
 | `stuck_mip.textures_armed` | int | how many of the target's textures the anomaly is holding |
 | `stuck_mip.textures_held` | int | how many of them are measurably below baseline this frame |
 | `stuck_mip.co_affected_visible` | int | other visible components sampling the primary held texture (0 under the shipped default) |
+| `stuck_mip.onset_latency_frames` | int | captured frames between the anomaly being applied and the first frame it was measurably held. `-1` until the hold engages |
 | `stuck_mip.texture` | string | the primary held texture's name |
 
-⚠ **`stuck_mip.resident_mips` and `stuck_mip.baseline_mips` describe the PRIMARY texture,
-while `stuck_mip.held` is true if ANY armed texture is below its baseline.** When
-`textures_armed > 1` you can therefore see `held: true` with the primary's two numbers equal.
-That is not a contradiction — it means a non-primary texture is the one that dropped.
+⚠ **The `primary_*` scalars describe ONE texture; `held` is an ANY-of over all of them.**
+That is why they are named `primary_`: on a target with several textures you can legitimately
+see `held: true` while the primary's own two numbers are equal, because a different texture is
+the one that dropped. **Read `stuck_mip.textures` when the two look like they disagree** — it
+names every texture and says which ones held. Measured example from the bench: 6 textures
+armed, 4 held at the target mip and 2 still at baseline, `held: true`, `held_all: false`.
 
-🔑 **A frame is labelled for this anomaly only while the mip is actually down.** The hold is
-performed by the engine's own texture streamer on its own schedule, so it can take a few
-frames to engage after the anomaly is applied. Frames before it engages are **not** labelled,
-and an event whose hold never engaged is written with `manifested: false`, empty
-`injected_frames` and empty `affected_frames` — the dataset never claims a frame that did
-not change.
+🔑 **A frame is labelled for this anomaly only while the mip is actually down**, and **the
+labelled window STARTS at the first such frame.** The hold is performed by the engine's own
+texture streamer on its own schedule, so it takes a number of frames to engage after the
+anomaly is applied — measured at up to 19 captured frames on the bench and 19 on a second
+game. Those frames are still captured and are labelled NEGATIVE; they do not consume the
+event's window, so an event gets its frames rather than a truncated set. An event whose hold
+never engaged is written with `manifested: false`, empty `injected_frames` and empty
+`affected_frames` — the dataset never claims a frame that did not change.
+
+🔑 **The anomaly restores what it held, and VERIFIES it.** On revert the streaming bias is
+cleared and the plugin then re-asserts the stream-in every frame until the engine's own
+resident-mip count is back at the baseline it recorded. Measured: up to 7 frames on the bench
+fixture and up to **75** on a second game. While a texture is still climbing back, any new
+anomaly on a target that uses it is REFUSED and counted in
+`run_summary.stuck_mip_refused_not_restored`, so a later event can never record the
+still-depressed count as its own baseline.
 
 ⛔ **Not applicable to virtual textures.** A target whose textures are virtual-textured is
 refused and counted in `run_summary.stuck_mip_refused_virtual`; it produces no event.
+⚠ On the two fixtures tested that counter read **0** — no candidate texture resolved as
+virtual-textured at runtime — so it is reported as **never exercised**, not as a proven guard.
 
 `run_summary` carries the per-session totals: `stuck_mip_fires_applied`,
-`stuck_mip_textures_held`, `stuck_mip_frames_held`, and the refusal counters
-`stuck_mip_refused_shared` / `_not_streamable` / `_virtual` / `_imperceptible` /
-`_no_eligible_textures`.
+`stuck_mip_textures_held`, `stuck_mip_frames_held`, `stuck_mip_onset_preroll_max`,
+`stuck_mip_hold_timeouts`, `stuck_mip_restore_timeout`, `stuck_mip_restore_frames_max`,
+`stuck_mip_textures_awaiting_restore`, and the refusal counters `stuck_mip_refused_shared` /
+`_not_streamable` / `_virtual` / `_imperceptible` / `_no_eligible_textures` /
+`_not_restored` / `_already_held`.
+
+⚠ `stuck_mip_onset_preroll_max` and `stuck_mip.onset_latency_frames` measure **adjacent but
+different intervals** and will normally differ by one. The per-frame key counts every captured
+frame from the one the anomaly was applied on; the run counter counts only the frames the
+WINDOW skipped, which begins one frame later.
 ### 8.4 Visibility — `observable`, `target_pixels`, and the honest "we don't know"
 
 Every anomaly entry in `labels.jsonl` now carries two extra numbers, and the event-level fields above

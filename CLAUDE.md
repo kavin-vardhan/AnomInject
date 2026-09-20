@@ -11,6 +11,97 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **SESSION 080-03, 2026-09-20 — `m52`'s FOUR RULINGS ARE BUILT AND MEASURED, AND THE ONE GATE THAT
+> COULD NOT FAIL BEFORE NOW CAN — AND IT FIRES. VERDICT: NEEDS-DECISION. THIS IS THE CURRENT
+> "YOU ARE HERE" FOR `feat/m52-stuck-mip`; the 080-01/02 block below is SUPERSEDED where they differ.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-20-080-03-m52-window-restore-telemetry.md` (self-contained —
+> §2 the gate table, §4 the F1 mechanism, §9 the G11 failure, §10 two defects of mine), then
+> `docs/predictions/2026-09-20-m52-stuck-low-mip.md` — read `AMENDMENT 2` FIRST, then `AMENDMENT 1`,
+> then §§0–10 — then journals 080-01/080-02.** Branch `feat/m52-stuck-mip`; `master` `3ff88db` and
+> `m51` `53bf725` both UNTOUCHED. ⛔ No merge · no tag · no cook · no default flipped · no threshold
+> tuned. Binary **`DC8BA0C1`** built == staged == archived; container quintet BYTE-UNCHANGED.
+>
+> 🎯 **R1 — THE LABELLED WINDOW NOW STARTS AT THE FIRST HELD FRAME.** `IAnomaly::HasDeferredOnset()`
+> is **false by default**, so the other nine anomalies' phase code is the pre-m52 statement —
+> **structural inertness, and the blinking control reads it back: row keys 13 → 13, anomaly keys
+> 12 → 12, added 0 removed 0.** The frames between Apply and the hold engaging are still captured and
+> still labelled NEGATIVE; they no longer consume the window. A fire that never holds within
+> `IAI.Capture.DeferredOnsetTimeout` (compiled **30**) is reverted, written `manifested:false`, and
+> counted. **Measured: every manifested event is a CONTIGUOUS run of held frames starting at the first
+> held frame, on 4 legs, BOTH tick orders, TWO fixtures; `non_manifested_events` 0 on every stuck-mip
+> leg against 3 of 7 before.**
+> 🎯 **R2 — THE RESTORE IS VERIFIED, NOT ASSUMED.** Revert clears the bias, then re-asserts the
+> stream-in every frame from the new `IAnomaly::TickAlways` until the engine's own
+> `GetNumResidentMips()` reaches the recorded baseline. **7 frames on StackOBot, up to 75 on Lyra;
+> `restore_timeout` 0 everywhere — the compiled 120 was fixed before either measurement and survived
+> a host ten times slower, with 1.6× margin, not a comfortable one.**
+> 🎯 **R3 — `not_restored` fired 2 on the bench and 4 on Lyra.** A fire whose textures are still
+> climbing back is refused BY NAME instead of silently producing nothing.
+> 🔑 **F1's MECHANISM IS LATENCY, AND 080-02's DIAGNOSIS IS CORRECTED.** The revert-time `StreamIn`
+> **was issued** — the `!HasPendingInitOrStreaming()` guard did not skip it — but `already-back=0`:
+> not one of six textures was back when the revert returned. ⛔ **The "silently skipped StreamIn"
+> candidate is WITHDRAWN as the explanation.** 🔻 **And 080-02's `already at or below` attribution is
+> corrected: that line fired on the FIRST TWO fires of a session, before any hold ever happened** —
+> the textures simply had not streamed in yet. The observation stands; the cause does not.
+> ✅ **G3b A/B IS DECISIVE: the banked `A8742A4A` A-side read ZERO held frames and 24 × "already at or
+> below"; the same recipe on `DC8BA0C1` reads 4 fires, 4 manifested events, 28 held frames, and NOT
+> ONE such line.**
+>
+> 🚨 **G11 FAILS, AND THAT IS THE HEADLINE.** `verify_capture.py`'s NO-TRACE contract gains a
+> HELD-GATED tier: `stuck_low_mip` is eligible **only** where `stuck_mip.held` is true on EVERY
+> labelled frame; unheld or missing leaves it UNASSESSABLE — the verdict it already had. Proven both
+> ways in `--selftest` (**98 cases**). Targeted legs: **NO-TRACE 0, exit 0.** 🚨 **The auto-pool leg:
+> `NO-TRACE on 2 event(s)`, exit 2** — both on `SM_rock`, 401×269 px on screen, 3 textures held
+> 10 → 7, `held_all true`, `observable true`, and **no pixel change above tau=0.053/0.087 across the
+> whole span.** `stuck_mip_refused_imperceptible` read **0**, so the perceptibility gate never fired.
+> ⛔ **CAUSE NOT ESTABLISHED AND NOT CHASED (`G120`); the ratio was NOT tuned.** ✅ The instrument is
+> not blind there — the same leg's `SM_rock_02` events return OFFSET-NOTE.
+> 🔑 **080-02's G11 zero was blindness and said so in writing; the route is reachable now and the first
+> thing it did was find two labelled events the pixels do not support.**
+>
+> 📊 **G7 YIELD RE-MEASURED: 6 → 16 manifested events per 600 frames; 18.75 % → 88.9 % of applied
+> fires.** ⚠ R1 trades bursts for correct windows — 49 bursts became 23 — and the number that matters
+> for a dataset is events, which nearly tripled. **Against chat's ≥ 25 % steer this clears it by a
+> wide margin; ⛔ NO DEFAULT WAS FLIPPED — it is REPORTED, and it must be read beside G11 and G8.**
+> ⚠ **G8 LYRA: under the shipped `MaxCoAffected 0` m52 yields NOTHING on ShooterGym** — all 27
+> candidate textures have visible co-users. With a bench override it delivers **3 manifested events
+> including a SKELETAL target (`SKM_Manny`)**, so hold and verified restore both work on a second host.
+> ⛔ **`stuck_mip_refused_virtual` reads 0 on both Lyra legs ⇒ the virtual-texture `NOT_APPLICABLE`
+> path is UNEXERCISED, not a proven counter** (332 Lyra assets serialise `VirtualTextureStreaming`
+> and four of them were HELD by that leg, i.e. they resolve NOT-virtual at runtime).
+> ✅ **G6 GETS A REAL INSTRUMENT (R7): max and p99 frame time from `t_wall`, PACING OFF** — the pacer
+> absorbs exactly the variance a hitch test looks for. m52 **64.089 ms max / 52.656 p99** vs the
+> blinking control's **68.711 / 59.183**; faster on every statistic in both windows. ⚠ **The spread is
+> 17 → 69 ms, so a +2 ms effect is NOT resolvable here** — this says no LARGE hitch, never "no cost"
+> (`G169`). ✅ **G4: 4 of 5 exits measured**, including a live hold at world teardown
+> (`reverted 1 active anomaly(ies)`, exit 0, zero asserts); **target-destroyed is UNRUN with its
+> structural reason** (m52 holds texture ASSETS, which outlive the actor).
+> ✅ **G9: `annotation.json` root 4 → 4 AND per-event keys 16 → 16 — `P6` DOES NOT MOVE.**
+>
+> 🔻 **TWO DEFECTS OF MINE, FOUND BY READING THE ARTIFACT, FIXED MID-SESSION.** **(1) 🚨 `G267` — an
+> `FName` used as a JSON key ships the case of its FIRST registration anywhere in the process.**
+> `FName(TEXT("name"))` emitted **`"Name"`**, because the engine registered that word first. Nothing
+> warns; the value and type are right and the KEY is a different string from the source. The telemetry
+> bag now keys on `FString`. **(2)** `onset_latency_frames` and the run counter disagreed by one and
+> were not the same quantity — the run counter is now `stuck_mip_onset_preroll_max` and both intervals
+> are defined in `client-readme.md`. 🔻 **AND TWO DEFECTS IN MY OWN PRE-DECLARATION, recorded not
+> reconciled: the achievable window is 7 frames, not 8** (the 8th `Positives` tick is spent on
+> `BeginRevert`, a pre-existing FSM property every anomaly obeys) **and `run_summary` gains 15
+> `stuck_mip_*` keys, not 16** (the list was right, the total was arithmetic).
+>
+> ⚠ **OBSERVED, NOT CHASED: the `m26` veto and the `m49` observability measurement disagreed about one
+> event** — deleted as `MEASURED_ZERO maxCount=0` while its own rows carry `target_pixels` 16,020–16,184
+> and `observable:true`. **2 vetoes across 25 applied fires on the new binary against 0 across 46 on the
+> banked ones — an ASSOCIATION only.** ⛔ **NOT attributed to R1 and R1 NOT excluded.**
+> 📌 New gotchas **`G267`** (FName as a JSON key) and **`G268`** (`lyra_leg.ps1`'s map default is stale —
+> `L_ShooterGym` lives under `/ShooterCore/`, and CaptureBench was NOT edited for it).
+> 🎯 **NEXT: chat rules on the G11 NO-TRACE pair, and on whether 88.9 % takes default-on to the owner.**
+> ⛔ **Do not merge, do not tag, do not flip the pool default, and do not tune the perceptibility ratio
+> to make G11 green.**
+>
+> ---
+> 🟦 *(SUPERSEDED as "you are here" by the 080-03 block above — kept as the record of what 080-01/02 built and found. Where the two disagree, 080-03 governs: its §4 corrects this block's F1 attribution, its §9 replaces this block's G11 reading, and its G7 number supersedes the 18.75 %.)*
 > 🧪 **SESSION 080 (080-01 → 080-02), 2026-09-20 — `m52` `stuck_low_mip` IS BUILT, STAGED AND GATED ON
 > STACKOBOT. NINE GATES PASS, ONE IS PARTIAL, TWO ARE UNRUN. ⛔ NOT MERGED, NOT TAGGED, NOT
 > DEFAULT-ENABLED. VERDICT: NEEDS-DECISION. THIS IS THE CURRENT "YOU ARE HERE" FOR `feat/m52-stuck-mip`;
