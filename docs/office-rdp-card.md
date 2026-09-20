@@ -1271,7 +1271,7 @@ exit code is not what this section is collecting; **the lines are.**
 > edge. Read the header's two-line pointer to `docs/verifier-characterisation.md`
 > for per-session recovery tables and every measured wrong recovery.
 > Missing OUTSIDE-span masks may use the same run's nearest labelled boundary,
-> at most window+24 frames away (default28). Actual masks always take precedence;
+> at most window+24 frames away (default 28). Actual masks always take precedence;
 > in-span missing masks remain unassessable. Preserve source/distance tags and
 > each run's `masks: in-span actual, edges extrapolated <=…` disclosure.
 > **NO-TRACE means no change above the printed noise floor**, a fraction of the
@@ -1289,7 +1289,7 @@ exit code is not what this section is collecting; **the lines are.**
 > does not guarantee increasing frames across different regions. Preserve any
 > `note: assigned frames out of label order (k1 > k2)`. Missing transitions or a
 > shifted one-frame label can leave a later edge without an unused peak.
-> `--report-only` suppresses only code2; execution errors still return3. The
+> `--report-only` suppresses only code 2; execution errors still return 3. The
 > non-failing final line is NO FAILURE FOUND with counts, never label approval;
 > all-bbox sessions also print UNREAD-BBOX-ONLY. Threshold, region, baseline and
 > input-coverage refusals remain. Regional motion itself has no refusal state.

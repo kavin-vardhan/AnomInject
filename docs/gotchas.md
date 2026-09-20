@@ -6977,14 +6977,14 @@ identity, baseline, cap and coverage refusals still take precedence. Bbox and
 mask groups remain separate. Print alternative peaks and multi-peak assignments.
 
 **Exclusion guarantees uniqueness, not temporal monotonicity in general.** If an
-earlier edge's region admits only15 and a later edge's region admits only12,
-the prescribed walk can assign15 then12 in windows[10..15] and[12..17]. The
-contract test preserves that exact reading for separate runs10..11 and15..16: the
+earlier edge's region admits only 15 and a later edge's region admits only 12,
+the prescribed walk can assign 15 then 12 in windows [10..15] and [12..17]. The
+contract test preserves that exact reading for separate runs 10..11 and 15..16: the
 ruling explicitly forbids adding a separate ordering constraint. Do not describe
 an assigned peak as the independently established cause of a labelled edge.
 
-**An absent transition can consume a later run's peak.** With labels4..5/8..9
-and only peaks4/8/10, the ruled walk assigns4/8/10/none: A OFFSET-NOTE, B PARTIAL.
+**An absent transition can consume a later run's peak.** With labels 4..5/8..9
+and only peaks 4/8/10, the ruled walk assigns 4/8/10/none: A OFFSET-NOTE, B PARTIAL.
 The supplied A PARTIAL/B CONSISTENT prediction conflicts with the algorithm.
 AMENDMENT 2 disclosed that conflict before implementation; the test/report retain
 it rather than reserving a future nominal peak without authorization.
@@ -7025,20 +7025,20 @@ The target/mode walk, labelled bounds and exclusion semantics are unchanged.
 
 The monotonicity claim is withdrawn. A decrease between successive assignments
 prints `note: assigned frames out of label order (k1 > k2)` on the affected run;
-it does not force a different choice. Chat accepts missing6 as OFFSET-NOTE/PARTIAL
-(4/8/10/none): the former prediction was wrong because A.end can take free peak8.
+it does not force a different choice. Chat accepts missing 6 as OFFSET-NOTE/PARTIAL
+(4/8/10/none): the former prediction was wrong because A.end can take free peak 8.
 
 **New measured prediction miss: c08_one_frame_late is PARTIAL, not OFFSET-NOTE.**
-The true one-frame change has equal peaks60/61, now both admitted. Labelled onset61
-takes the nearest peak61. The end62 window[61..66] contains only consumed61, so it
+The true one-frame change has equal peaks 60/61, now both admitted. Labelled onset 61
+takes the nearest peak 61. The end 62 window [61..66] contains only consumed 61, so it
 is unassessable. The initial output is preserved before correcting the known answer.
 The literal R9 walk is retained; no look-ahead or future-peak reservation is added.
 
 Scorer v3 now publishes a single fixed-cohort characterisation, with no derived
 cap. `docs/verifier-characterisation.md` holds per-session five-class tables,
-every wrong recovery and competing peaks, and the status of all22 prior wrong
+every wrong recovery and competing peaks, and the status of all 22 prior wrong
 cells. A wrong recovery may produce OFFSET-NOTE or even coincident CONSISTENT;
-neither certifies the association. All572 planned keys remain scored or unscored.
+neither certifies the association. All 572 planned keys remain scored or unscored.
 
 **Chat review NOT REQUIRED** for this authorized implementation and feature push.
 **Chat review REQUIRED** for the prediction miss, completed evidence and independent

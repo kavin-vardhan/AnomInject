@@ -179,7 +179,7 @@ There is **no verdict at an edge**. Runs are summarised as follows:
 
 | Run outcome | What the reading means |
 |---|---|
-| `CONSISTENT` | Both transitions sit on the two labelled edges. **Consistent with the label; does not establish cause.** A coincident whole-region change adds a caveat on the run line and asks you to inspect the neighbouring frames. |
+| `CONSISTENT` | Both transitions sit on the two labelled edges. **Consistent with the label; does not establish cause.** **24 of the 314 scored cells read CONSISTENT while carrying a known one-frame label shift — a CONSISTENT run does not confirm the label.** A coincident whole-region change adds a caveat on the run line and asks you to inspect the neighbouring frames. |
 | `OFFSET-NOTE(…)` | Both edges were observed and at least one transition sits off its label. A possible label offset **or an unrelated change**: look at frames `k−1..k+1`. This does not fail the session. |
 | `PARTIAL` | Only one edge was observable, or one zero-delta transition accompanies a `NO-TRANSITION` observation. It cannot become CONSISTENT. |
 | `UNASSESSABLE` | Neither edge was observable, or two NO-TRANSITION observations could not support the whole-span check. The run prints the reason. |
@@ -213,8 +213,9 @@ labelled boundary of the same run: onset before the span, last labelled frame
 after it. The distance is bounded by `edge_window + N_BASE`, where this verifier's
 `N_BASE` is 24, giving 28 frames with the default window.
 
-This is not 079-08 F2's boundary-mask reuse: there, real per-frame masks existed
-and were ignored; here, none exist. Extrapolation assumes the boundary silhouette
+A real per-frame mask is never replaced by an extrapolated one: extrapolation is
+used only where the producer wrote no mask at all, and every line it affects says
+so. Extrapolation assumes the boundary silhouette
 still represents the target's region; it cannot establish target geometry outside
 the delivered masks. Every affected observation shows its boundary source and
 largest signed distance (including baseline use); structured output retains all
@@ -267,7 +268,6 @@ per-session recovery tables, every wrong cell and competing peaks from a fixed
 perturbation cohort. All planned keys remain in scored or unscored ledgers.
 These are measured limitations; recovery does not certify label correctness.
 The retired `--region-cap`/`--motion-cap` options are no longer accepted.
-Section G remains held pending evidence and independent review.
 
 Events now use **run outcomes only**, taking the worst of NO-TRACE, OFFSET-NOTE,
 PARTIAL, CONSISTENT in that order. UNASSESSABLE and READING runs contribute coverage

@@ -78,7 +78,6 @@ class ConsistencyContracts(unittest.TestCase):
 
     def test_union_retains_pixels_only_in_previous_mask(self):
         source = pathlib.Path(vc._codex08_fixture(self.root, "moving_mask"))
-        # One pixel leaves the current silhouette. Its change must remain in the union.
         for k, x in ((59, 40), (60, 41)):
             mask = Image.new("L", (180, 120))
             mask.putpixel((x, 30), 222)
@@ -269,7 +268,6 @@ class PeakAssignmentContracts(unittest.TestCase):
 
     def test_tied_label_onset_precedes_end_and_single_frame_onset_goes_first(self):
         single = self.run_record(10, 10, {10: 0.5}, node="other")
-        # A missing earlier input leaves10 free for the tied onset/end labels.
         early = self.run_record(8, 9, {10: 0.5}, event=0, missing=(5,))
         late = self.run_record(10, 11, {10: 0.5}, event=9)
         self.observe([early, late, single])
@@ -278,8 +276,6 @@ class PeakAssignmentContracts(unittest.TestCase):
         self.assertEqual([e["best_k"] for e in single["edges"]], [10, None])
 
     def test_exclusion_does_not_impose_unrequested_monotonic_floor(self):
-        # Different per-run regions may admit different peaks. The specified
-        # greedy walk guarantees uniqueness, not globally increasing assignments.
         early = self.run_record(10, 11, {15: 0.5})
         late = self.run_record(15, 16, {12: 0.5}, event=1)
         self.observe([late, early])
@@ -287,6 +283,32 @@ class PeakAssignmentContracts(unittest.TestCase):
         self.assertEqual(late["edges"][0]["best_k"], 12)
         self.assertEqual(late["edges"][0]["assignment_inversion"], (15, 12))
         self.assertIn("note: assigned frames out of label order (15 > 12)", vc._assignment_notes(late["edges"]))
+
+
+class EventAggregationContracts(unittest.TestCase):
+    """079-14 M15: the event token is worst-of, so a healthy sibling run can never
+    hide a NO-TRACE run. Reordering the precedence tuple turns a fabricated label
+    into a silent pass, and every fixture kept passing when it was broken."""
+
+    def token(self, *outcomes):
+        return vc._event_token([{"outcome": o} for o in outcomes])
+
+    def test_no_trace_outranks_every_other_run_outcome(self):
+        for other in (vc.R_CONSISTENT, vc.R_OFFSET, vc.R_PARTIAL,
+                      vc.R_UNASSESSABLE, vc.R_READING):
+            self.assertEqual(self.token(other, vc.R_NO_TRACE), vc.R_NO_TRACE)
+            self.assertEqual(self.token(vc.R_NO_TRACE, other), vc.R_NO_TRACE)
+
+    def test_precedence_is_strictly_worst_of(self):
+        self.assertEqual(self.token(vc.R_CONSISTENT, vc.R_OFFSET), vc.R_OFFSET)
+        self.assertEqual(self.token(vc.R_CONSISTENT, vc.R_PARTIAL), vc.R_PARTIAL)
+        self.assertEqual(self.token(vc.R_OFFSET, vc.R_PARTIAL), vc.R_OFFSET)
+
+    def test_unassessable_and_reading_runs_never_promote_or_demote(self):
+        self.assertEqual(self.token(vc.R_CONSISTENT, vc.R_UNASSESSABLE), vc.R_CONSISTENT)
+        self.assertEqual(self.token(vc.R_UNASSESSABLE, vc.R_READING), vc.R_UNASSESSABLE)
+        self.assertEqual(self.token(vc.R_READING, vc.R_READING), vc.R_READING)
+        self.assertEqual(self.token(), vc.R_UNASSESSABLE)
 
 
 if __name__ == "__main__":
