@@ -87,3 +87,116 @@ the remaining P1 class named by the supplied spec.
 for specification conflicts, independent Claude Code review and evidence before
 merge.** The next mandatory Chat checkpoint is disposition of the implementation
 report and independent review. Client/Section G, m51 and campaign holds remain.
+
+
+## AMENDMENT 1 — 079-10 rulings and predictions (2026-09-20, before implementation/results)
+
+Authority: the owner requested implementation of
+`D:/IntrusiveAnomalies/_reviews/079-10-codex-delta-boundary-masks-and-rulings.md`.
+Base `7d5b6e919f9bca3506b9057a56a4349ea300ae64`, same feature branch and scope;
+Codex implements, Claude Code independently reviews next, Chat orchestrates.
+The original predictions and their measured misses above remain historical.
+
+### Rulings now governing the computation
+
+- R1 permits a missing target mask OUTSIDE a run to be extrapolated from that
+  same run's nearest labelled boundary: onset before the span, last labelled
+  frame after it. Actual delivered target masks always take precedence. Missing
+  masks inside the span are still unassessable. Both members of a compared pair
+  independently select their actual/extrapolated masks; their union remains the
+  measurement region. Every observation records each extrapolation source and
+  signed frame delta, including masks used to learn its baseline. A run prints
+  the largest absolute extrapolation used. NO-TRACE may use extrapolated edge
+  pairs, with that fact stated on its line.
+- R2 accepts CONSISTENT when a zero-delta transition coincides with a high ring
+  change, with a run-level caveat and a count of consistent events with a caveat.
+  **P1's original "lighting_late_onset never CONSISTENT" prediction was wrong:**
+  the rule selects the stronger lighting transition at the labelled frame; it
+  cannot identify which cause produced that transition. The ring is diagnostic.
+- R3 defines NO-TRACE as no target change ABOVE the printed noise floor over the
+  full span/windows. The one-pixel fixture remains NO-TRACE: 1/2500=0.0004, below
+  tau=0.004. P6's wrong-NO-TRACE class now means an in-span or edge-window pair
+  exceeded tau, not merely that a nonzero number of pixels changed.
+- R4 derives the event token from run outcomes only: NO-TRACE > OFFSET-NOTE >
+  PARTIAL > CONSISTENT. UNASSESSABLE/READING runs remain visible in coverage
+  counts but cannot promote an event on the strength of their edge observations.
+  With no assessable outcome, all-reading events are READING; otherwise they are
+  UNASSESSABLE. `blank_missing_interior` is now an UNASSESSABLE event.
+- R5 retains the class allowlist as a producer contract, inclusive labelled
+  bounds/duplicate-claim refusal and their coverage cost, RGB-channel differences,
+  session extent from labels plus RGB files, and batch/exit contracts.
+
+### Implementation interpretations declared before tests
+
+1. `N_BASE` is the verifier's existing `BASELINE_MAX_FRAMES = 24`, not the separate
+   measure_label_offset tool's baseline count. Maximum extrapolation distance is
+   `edge_window + 24` (default 28) from this run's span, inclusive. No boundary
+   template is used beyond that distance; unavailable baseline pairs are skipped,
+   and the existing minimum of three valid baseline pairs still applies.
+2. Missing files/references, an empty valid PNG, or a valid PNG without this
+   target's requested ID constitute absence outside the span. Corrupt/unreadable
+   PNGs or invalid dimensions remain errors, not permission to replace evidence.
+   An unresolved ID with multiple possible values remains unassessable. A real
+   target mask that exists is never replaced, even if it disagrees with the
+   boundary shape. A boundary template must itself be valid; no recursive fallback.
+3. Target identity for actual/boundary masks is matched to the SAME target/run.
+   A sole unrelated event entry on an off-span row must not supply that target's
+   mask ID. Explicit in-span ID mismatch remains unassessable; unresolved
+   sole-value fallback remains tagged and excludes NO-TRACE.
+4. If a run has some delivered in-span masks, it stays in mask mode even when one
+   boundary file is missing: the missing in-span frame must refuse that edge under
+   R1. Thus the old `mixed_run` fixture with only frame67 missing becomes PARTIAL,
+   with two eligible edge cells (one unassessable). A truly bbox-only run remains
+   READING and supplies zero scored cells. This is a disclosed change to the old
+   boundary-based mode selector, required by R1's in-span rule.
+5. Summary CONSISTENT n (c with caveat) counts events whose final token is
+   CONSISTENT and which contain a caveated CONSISTENT run. Every run still prints
+   its own caveat. A separate session run-coverage line prevents a CONSISTENT event
+   with an UNASSESSABLE sibling run from hiding that missing coverage under R4.
+6. The calibration procedure and immutable planned key set stay unchanged. The
+   rederived numeric cap or NO ADMISSIBLE ENVELOPE becomes the configured default;
+   if derivation has no usable data, retain an explicitly unvalidated old value
+   and report NEEDS-DECISION. No threshold is chosen to make the bench pass.
+   Final bank readings use the final configured default. Semantic fixture controls
+   use an explicit permissive cap (1.0), with separate numeric/zero/sentinel guard
+   regressions, so they test the observation rules even if calibration refuses all.
+
+### P1–P6 for this delta
+
+**P1:** Keep the permanent 83 fixtures with R1–R4's changed known answers and add
+regressions for boundary-only masks; actual masks overriding extrapolation;
+missing interior/onset/end masks; the exact extrapolation distance boundary;
+an unrelated off-span target; unreadable masks; CONSISTENT with a lighting caveat;
+and aggregation of CONSISTENT plus UNASSESSABLE / PARTIAL siblings. The entire
+self-test and batch/exit contracts must pass. Wrong-NO-TRACE above tau is forbidden.
+
+**P2 (supplied, unchanged):** Six pinned legs: every edge observed (64), each
+leg has four CONSISTENT events, tau=0.0040, NO FAILURE FOUND (4 consistent ...),
+exit0. Extrapolation is printed, never passed off as an actual delivered mask.
+Inclusive windows and duplicate-claim guards remain enabled; their accepted
+short-run coverage cost may still conflict with this prediction. Report a miss;
+do not change the bounds or dominance threshold to force agreement.
+
+**P3:** A2L_LEGA, LYRA_SMOKE_01 and A1L_LEGA: full per-edge lines, no NO-TRACE
+expected. Also retain the M50L_LG9 bbox-only reading as a regression.
+
+**P4:** Three-session scorer v3: print immutable 572-key denominator before
+scoring, retain scored and unscored ledgers, report all five scored classes,
+positive support and refusal reasons. Cells are expected to score now. Rederive
+and report the cap or NO ADMISSIBLE ENVELOPE exactly as measured; no tuning.
+
+**P5:** Report-name collision protection and execution-error precedence remain;
+NO-TRACE alone produces2, report-only suppresses2 and preserves3.
+
+**P6:** Independent Code review remains pending; the negative's falsifier is an
+above-tau in-span/window pair under the selected actual/extrapolated regions.
+The documented producer-class assumption and extrapolation limitation remain.
+
+**Disposition rule from 079-10:** GREEN only if P2 reads as supplied AND the
+self-test passes; NEEDS-DECISION otherwise. GREEN for this delta is not merge,
+client, campaign or release approval.
+
+**Chat review NOT REQUIRED** for this authorized delta implementation and push.
+**Chat review REQUIRED** for the completed evidence and independent review before
+merge; that is the next mandatory checkpoint. No mailbox, merge, tag, build,
+capture, Source/Shaders/measure_label_offset edit or m51/master edit.
