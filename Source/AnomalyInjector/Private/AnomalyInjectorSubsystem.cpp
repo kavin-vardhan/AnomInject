@@ -10,6 +10,7 @@
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
 
+#include "AnomalyDefaults.h"
 #include "AnomalyViewport.h"
 #include "AnomalyTargeting.h"
 #include "Components/PrimitiveComponent.h"
@@ -28,8 +29,17 @@
 #include "Anomalies/Anomaly_CameraClipping.h"
 #include "Anomalies/Anomaly_MissingTexture.h"
 #include "Anomalies/Anomaly_CorruptedTexture.h"
+#include "Anomalies/Anomaly_StuckLowMip.h"
 
 static constexpr uint64 GAnomalyHeartbeatKey = 0x47445048;
+
+namespace
+{
+	bool GBenchDestroyArmed = false;
+	FString GBenchDestroyQuery;
+	int32 GBenchDestroyHoldFrames = 2;
+	int32 GBenchDestroyAnomalousTicks = 0;
+}
 
 UAnomalyInjectorSubsystem::~UAnomalyInjectorSubsystem() = default;
 
@@ -135,6 +145,11 @@ namespace
 		{
 			OutScope = EAnomalyScope::Object;
 		}
+		else if (Id == FName(TEXT("stuck_low_mip")))
+		{
+			OutScope = EAnomalyScope::Object;
+			OutArgs.Add(IntArg(TEXT("mip_levels"), TEXT("-1"), (double)AnomalyDefaults::StuckMipLevelsMin));
+		}
 		else
 		{
 			OutScope = EAnomalyScope::Object;
@@ -162,6 +177,7 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Register(MakeUnique<FAnomaly_CameraClipping>());
 	Register(MakeUnique<FAnomaly_MissingTexture>());
 	Register(MakeUnique<FAnomaly_CorruptedTexture>());
+	Register(MakeUnique<FAnomaly_StuckLowMip>());
 
 	SynthPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddUObject(
 		this, &UAnomalyInjectorSubsystem::OnWorldPreActorTickSynth);
@@ -182,7 +198,169 @@ void UAnomalyInjectorSubsystem::Deinitialize()
 	{
 		UE_LOG(LogAnomaly, Log, TEXT("Subsystem deinitializing; reverted %d active anomaly(ies)."), Reverted);
 	}
+
+	for (const FTargetWatch& W : TargetWatches)
+	{
+		if (AActor* Actor = W.Actor.Get())
+		{
+			Actor->OnEndPlay.RemoveDynamic(this, &UAnomalyInjectorSubsystem::OnWatchedTargetEndPlay);
+		}
+	}
+	TargetWatches.Reset();
+
+	for (const TPair<FName, TUniquePtr<IAnomaly>>& Pair : Anomalies)
+	{
+		if (Pair.Value)
+		{
+			Pair.Value->OnWorldTeardown();
+		}
+	}
+
 	Super::Deinitialize();
+}
+
+void UAnomalyInjectorSubsystem::ServiceBenchDestroyLatch()
+{
+	if (!GBenchDestroyArmed)
+	{
+		return;
+	}
+
+	bool bAnyAnomalous = false;
+	for (const TPair<FName, TUniquePtr<IAnomaly>>& Pair : Anomalies)
+	{
+		if (Pair.Value && Pair.Value->IsActive() && Pair.Value->IsCurrentlyAnomalous())
+		{
+			bAnyAnomalous = true;
+			break;
+		}
+	}
+	if (!bAnyAnomalous)
+	{
+		return;
+	}
+
+	++GBenchDestroyAnomalousTicks;
+	if (GBenchDestroyAnomalousTicks <= GBenchDestroyHoldFrames)
+	{
+		return;
+	}
+
+	const TArray<TWeakObjectPtr<AActor>> Matches = AnomalyTargeting::FindActorsMatching(GetWorld(), GBenchDestroyQuery);
+	AActor* Victim = nullptr;
+	for (const TWeakObjectPtr<AActor>& Weak : Matches)
+	{
+		if (AActor* Candidate = Weak.Get())
+		{
+			Victim = Candidate;
+			break;
+		}
+	}
+
+	if (!Victim)
+	{
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("IAI.Bench.DestroyTarget: the latch fired after %d anomalous tick(s) but '%s' matched NO live actor, ")
+			TEXT("so NOTHING WAS DESTROYED and the latch stays armed. A lever that silently matches nothing is a clean ")
+			TEXT("null, so this says so instead."),
+			GBenchDestroyAnomalousTicks, *GBenchDestroyQuery);
+		return;
+	}
+
+	GBenchDestroyArmed = false;
+	const FString VictimName = Victim->GetName();
+	UE_LOG(LogAnomaly, Warning,
+		TEXT("IAI.Bench.DestroyTarget: DESTROYING '%s' now - it matched '%s' and an anomaly has been measurably ")
+		TEXT("anomalous for %d tick(s), so this destruction lands MID-WINDOW, which is the only condition that tests ")
+		TEXT("the target-destroyed exit. BENCH DEVICE: it exists so the exit path can be MEASURED rather than argued ")
+		TEXT("for structurally."),
+		*VictimName, *GBenchDestroyQuery, GBenchDestroyAnomalousTicks);
+	Victim->Destroy();
+	UE_LOG(LogAnomaly, Warning,
+		TEXT("IAI.Bench.DestroyTarget: Destroy() returned for '%s'; the latch is now DISARMED."), *VictimName);
+}
+
+void UAnomalyInjectorSubsystem::WatchTargetForAnomaly(AActor* Actor, const FName& Id)
+{
+	if (!Actor)
+	{
+		return;
+	}
+	for (const FTargetWatch& W : TargetWatches)
+	{
+		if (W.Actor.Get() == Actor && W.AnomalyId == Id)
+		{
+			return;
+		}
+	}
+	Actor->OnEndPlay.AddDynamic(this, &UAnomalyInjectorSubsystem::OnWatchedTargetEndPlay);
+	FTargetWatch& New = TargetWatches.AddDefaulted_GetRef();
+	New.Actor = Actor;
+	New.AnomalyId = Id;
+}
+
+void UAnomalyInjectorSubsystem::ClearTargetWatchForAnomaly(const FName& Id)
+{
+	for (int32 i = TargetWatches.Num() - 1; i >= 0; --i)
+	{
+		if (TargetWatches[i].AnomalyId != Id)
+		{
+			continue;
+		}
+		AActor* Actor = TargetWatches[i].Actor.Get();
+		TargetWatches.RemoveAt(i);
+
+		if (!Actor)
+		{
+			continue;
+		}
+		int32 StillWatched = 0;
+		for (const FTargetWatch& W : TargetWatches)
+		{
+			if (W.Actor.Get() == Actor)
+			{
+				++StillWatched;
+			}
+		}
+		if (StillWatched == 0)
+		{
+			Actor->OnEndPlay.RemoveDynamic(this, &UAnomalyInjectorSubsystem::OnWatchedTargetEndPlay);
+		}
+	}
+}
+
+void UAnomalyInjectorSubsystem::OnWatchedTargetEndPlay(AActor* Actor, EEndPlayReason::Type EndPlayReason)
+{
+	if (!Actor)
+	{
+		return;
+	}
+
+	const bool bWorldEnding =
+		EndPlayReason == EEndPlayReason::LevelTransition ||
+		EndPlayReason == EEndPlayReason::EndPlayInEditor ||
+		EndPlayReason == EEndPlayReason::Quit;
+
+	TArray<FName> Ids;
+	for (int32 i = TargetWatches.Num() - 1; i >= 0; --i)
+	{
+		if (TargetWatches[i].Actor.Get() == Actor)
+		{
+			Ids.AddUnique(TargetWatches[i].AnomalyId);
+			TargetWatches.RemoveAt(i);
+		}
+	}
+
+	Actor->OnEndPlay.RemoveDynamic(this, &UAnomalyInjectorSubsystem::OnWatchedTargetEndPlay);
+
+	for (const FName& Id : Ids)
+	{
+		TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+		if (Found && Found->IsValid())
+		{
+			(*Found)->OnTargetLost(Actor, bWorldEnding);
+		}
+	}
 }
 
 bool UAnomalyInjectorSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
@@ -208,6 +386,8 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 	{
 		DispatchAnomalyTicks(DeltaTime);
 	}
+
+	ServiceBenchDestroyLatch();
 
 	HeartbeatAccumulator += DeltaTime;
 	if (HeartbeatAccumulator >= 2.0f)
@@ -236,6 +416,13 @@ void UAnomalyInjectorSubsystem::DispatchAnomalyTicks(float DeltaTime)
 		if (Pair.Value && Pair.Value->IsActive())
 		{
 			Pair.Value->Tick(DeltaTime);
+		}
+	}
+	for (const TPair<FName, TUniquePtr<IAnomaly>>& Pair : Anomalies)
+	{
+		if (Pair.Value)
+		{
+			Pair.Value->TickAlways(DeltaTime);
 		}
 	}
 }
@@ -590,6 +777,16 @@ bool UAnomalyInjectorSubsystem::IsAnomalyVisualConditionHeld(const FName& Id) co
 	return (*Found)->IsVisualConditionHeld();
 }
 
+bool UAnomalyInjectorSubsystem::GetAnomalyTelemetry(const FName& Id, FAnomalyTelemetry& Out) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return false;
+	}
+	return (*Found)->GetTelemetry(Out);
+}
+
 bool UAnomalyInjectorSubsystem::IsAnomalyCurrentlyAnomalous(const FName& Id) const
 {
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
@@ -598,6 +795,26 @@ bool UAnomalyInjectorSubsystem::IsAnomalyCurrentlyAnomalous(const FName& Id) con
 		return false;
 	}
 	return (*Found)->IsCurrentlyAnomalous();
+}
+
+bool UAnomalyInjectorSubsystem::DoesAnomalyHaveDeferredOnset(const FName& Id) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid())
+	{
+		return false;
+	}
+	return (*Found)->HasDeferredOnset();
+}
+
+void UAnomalyInjectorSubsystem::NoteAnomalyCapturedFrame(const FName& Id, bool bAnomalousThisFrame)
+{
+	TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return;
+	}
+	(*Found)->NoteCapturedFrame(bAnomalousThisFrame);
 }
 
 TArray<FAnomalyCatalogEntry> UAnomalyInjectorSubsystem::GetAnomalyCatalog() const
@@ -879,6 +1096,39 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchHideOmitDepthPassCmd(
 				TEXT("IAI.Bench.HideOmitDepthPassSilencing -> %s. BENCH DEVICE. This is the deliberate ")
 				TEXT("mis-application the identity gate must CATCH."),
 				AnomalyHiddenClass::IsOmitDepthPassSilencing() ? TEXT("ON") : TEXT("off"));
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchDestroyTargetCmd(
+	TEXT("IAI.Bench.DestroyTarget"),
+	TEXT("BENCH DEVICE, console only, default DISARMED - never in a client payload. ARMS a one-shot latch that ")
+	TEXT("destroys the first live actor matching <substring> as soon as some anomaly has been MEASURABLY ANOMALOUS ")
+	TEXT("for [hold_frames] injector ticks (default 2). It is a LATCH and not an immediate destroy on purpose: an ")
+	TEXT("unattended packaged leg can only type console commands at startup, and destroying the target then would ")
+	TEXT("test 'destroyed before the fire' rather than the exit path that matters, which is DESTROYED MID-WINDOW. ")
+	TEXT("If the substring matches no live actor when the latch fires, NOTHING is destroyed, the latch STAYS ARMED, ")
+	TEXT("and it says so - a lever that silently matches nothing is a clean null indistinguishable from a clean ")
+	TEXT("result. Usage: IAI.Bench.DestroyTarget <substring> [hold_frames]"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1 || Args[0].IsEmpty())
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("Usage: IAI.Bench.DestroyTarget <substring> [hold_frames]  (currently %s%s)"),
+					GBenchDestroyArmed ? TEXT("ARMED on '") : TEXT("DISARMED"),
+					GBenchDestroyArmed ? *(GBenchDestroyQuery + TEXT("'")) : TEXT(""));
+				return;
+			}
+			GBenchDestroyQuery = Args[0];
+			GBenchDestroyHoldFrames = (Args.Num() >= 2 && Args[1].IsNumeric()) ? FMath::Max(0, FCString::Atoi(*Args[1])) : 2;
+			GBenchDestroyAnomalousTicks = 0;
+			GBenchDestroyArmed = true;
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Bench.DestroyTarget -> ARMED on '%s' after %d anomalous tick(s). BENCH DEVICE. Nothing is ")
+				TEXT("destroyed until an anomaly is measurably anomalous, so the destruction lands inside a live ")
+				TEXT("window. This is the lever the target-destroyed exit gate needs; 080-03 reported that exit UNRUN ")
+				TEXT("because no such lever existed."),
+				*GBenchDestroyQuery, GBenchDestroyHoldFrames);
 		}));
 
 static FAutoConsoleCommandWithWorldAndArgs GBenchSpawnTranslucentProbeCmd(

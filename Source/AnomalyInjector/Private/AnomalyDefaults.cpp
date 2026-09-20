@@ -48,6 +48,54 @@ namespace
 		return bSet;
 	}
 
+	int32& StuckMipLevelsOverride()
+	{
+		static int32 Value = 0;
+		return Value;
+	}
+
+	bool& StuckMipLevelsOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
+	int32& StuckMipRestoreTimeoutOverride()
+	{
+		static int32 Value = AnomalyDefaults::StuckMipRestoreTimeoutCompiled;
+		return Value;
+	}
+
+	bool& StuckMipRestoreTimeoutOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
+	int32& StuckMipMaxCoAffectedOverride()
+	{
+		static int32 Value = 0;
+		return Value;
+	}
+
+	bool& StuckMipMaxCoAffectedOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
+	float& StuckMipMinTexelRatioOverride()
+	{
+		static float Value = 0.0f;
+		return Value;
+	}
+
+	bool& StuckMipMinTexelRatioOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
 	float& MinCoverageOverride()
 	{
 		static float Value = 0.0f;
@@ -323,6 +371,331 @@ namespace AnomalyDefaults
 				: FString(TEXT("none(COMPILED DEFAULT; no ini key)"));
 		}
 		return FString::Printf(TEXT("%d(%s)[%s]"), Patterns.Num(), Source, *FString::Join(Patterns, TEXT("|")));
+	}
+
+	const TCHAR* StuckMipLevelsKey()
+	{
+		return TEXT("StuckMipLevels");
+	}
+
+	int32 GetStuckMipLevels()
+	{
+		if (StuckMipLevelsOverrideSet())
+		{
+			return StuckMipLevelsOverride();
+		}
+		static bool bResolved = false;
+		static int32 Value = StuckMipLevelsCompiled;
+		static const TCHAR* Source = TEXT("compiled");
+		if (bResolved)
+		{
+			return Value;
+		}
+		bResolved = true;
+
+		int32 FromIni = 0;
+		if (GConfig && GConfig->GetInt(SectionName(), StuckMipLevelsKey(), FromIni, GGameIni))
+		{
+			if (FromIni < StuckMipLevelsMin || FromIni > StuckMipLevelsMax)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: DefaultGame.ini [%s] %s = %d is out of range [%d..%d]; using the COMPILED ")
+					TEXT("default %d. The key is REFUSED rather than clamped, so a typo cannot quietly become a ")
+					TEXT("different blur depth."),
+					SectionName(), StuckMipLevelsKey(), FromIni, StuckMipLevelsMin, StuckMipLevelsMax,
+					StuckMipLevelsCompiled);
+			}
+			else
+			{
+				Value = FromIni;
+				Source = TEXT("ini");
+			}
+		}
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: mip levels to drop = %d (%s). -1 means HOLD AT THE FLOOR, i.e. the resource's own ")
+			TEXT("NumNonStreamingLODs, which is the blurriest state the streamer can reach and is READ from the ")
+			TEXT("texture rather than assumed."),
+			Value, Source);
+		return Value;
+	}
+
+	FString DescribeStuckMipLevels()
+	{
+		const int32 V = GetStuckMipLevels();
+		const TCHAR* Source = StuckMipLevelsOverrideSet() ? TEXT("console") : TEXT("ini-or-compiled");
+		return FString::Printf(TEXT("%d(%s)"), V, Source);
+	}
+
+	bool SetStuckMipLevelsOverride(int32 Levels)
+	{
+		if (Levels < StuckMipLevelsMin || Levels > StuckMipLevelsMax)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("stuck_low_mip: mip levels %d is out of range [%d..%d]; the console override is REFUSED and the ")
+				TEXT("previous value still stands."),
+				Levels, StuckMipLevelsMin, StuckMipLevelsMax);
+			return false;
+		}
+		StuckMipLevelsOverride() = Levels;
+		StuckMipLevelsOverrideSet() = true;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: mip levels to drop set to %d by console override. This BEATS DefaultGame.ini [%s] %s ")
+			TEXT("(G88: a loose ini beside a package is a no-op)."),
+			Levels, SectionName(), StuckMipLevelsKey());
+		return true;
+	}
+
+	void ClearStuckMipLevelsOverride()
+	{
+		StuckMipLevelsOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: console mip-levels override cleared; the ini value or the compiled default takes over."));
+	}
+
+	const TCHAR* StuckMipMaxCoAffectedKey()
+	{
+		return TEXT("StuckMipMaxCoAffected");
+	}
+
+	int32 GetStuckMipMaxCoAffected()
+	{
+		if (StuckMipMaxCoAffectedOverrideSet())
+		{
+			return StuckMipMaxCoAffectedOverride();
+		}
+		static bool bResolved = false;
+		static int32 Value = StuckMipMaxCoAffectedCompiled;
+		static const TCHAR* Source = TEXT("compiled");
+		if (bResolved)
+		{
+			return Value;
+		}
+		bResolved = true;
+
+		int32 FromIni = 0;
+		if (GConfig && GConfig->GetInt(SectionName(), StuckMipMaxCoAffectedKey(), FromIni, GGameIni))
+		{
+			if (FromIni < StuckMipMaxCoAffectedMin || FromIni > StuckMipMaxCoAffectedMax)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: DefaultGame.ini [%s] %s = %d is out of range [%d..%d]; using the COMPILED ")
+					TEXT("default %d. REFUSED rather than clamped."),
+					SectionName(), StuckMipMaxCoAffectedKey(), FromIni, StuckMipMaxCoAffectedMin,
+					StuckMipMaxCoAffectedMax, StuckMipMaxCoAffectedCompiled);
+			}
+			else
+			{
+				Value = FromIni;
+				Source = TEXT("ini");
+			}
+		}
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: co-affected maximum = %d other VISIBLE component(s) per texture (%s). A texture ")
+			TEXT("sampled by more than this is REFUSED, PER TEXTURE, so the target's other textures stay eligible. 0 ")
+			TEXT("is the only value that guarantees no unlabelled blurry object in a labelled frame."),
+			Value, Source);
+		return Value;
+	}
+
+	FString DescribeStuckMipMaxCoAffected()
+	{
+		const int32 V = GetStuckMipMaxCoAffected();
+		const TCHAR* Source = StuckMipMaxCoAffectedOverrideSet() ? TEXT("console") : TEXT("ini-or-compiled");
+		return FString::Printf(TEXT("%d(%s)"), V, Source);
+	}
+
+	bool SetStuckMipMaxCoAffectedOverride(int32 Max)
+	{
+		if (Max < StuckMipMaxCoAffectedMin || Max > StuckMipMaxCoAffectedMax)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("stuck_low_mip: co-affected maximum %d is out of range [%d..%d]; the console override is REFUSED ")
+				TEXT("and the previous value still stands."),
+				Max, StuckMipMaxCoAffectedMin, StuckMipMaxCoAffectedMax);
+			return false;
+		}
+		StuckMipMaxCoAffectedOverride() = Max;
+		StuckMipMaxCoAffectedOverrideSet() = true;
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("stuck_low_mip: co-affected maximum set to %d by console override. RAISING THIS ABOVE 0 ADMITS ")
+			TEXT("EVENTS WHOSE FRAMES CONTAIN BLURRY OBJECTS THE LABEL DOES NOT NAME. That is a dataset decision, ")
+			TEXT("not a tuning knob, and it BEATS DefaultGame.ini [%s] %s."),
+			Max, SectionName(), StuckMipMaxCoAffectedKey());
+		return true;
+	}
+
+	void ClearStuckMipMaxCoAffectedOverride()
+	{
+		StuckMipMaxCoAffectedOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: console co-affected override cleared; the ini value or the compiled default 0 takes over."));
+	}
+
+	const TCHAR* StuckMipRestoreTimeoutKey()
+	{
+		return TEXT("StuckMipRestoreTimeoutFrames");
+	}
+
+	int32 GetStuckMipRestoreTimeout()
+	{
+		if (StuckMipRestoreTimeoutOverrideSet())
+		{
+			return StuckMipRestoreTimeoutOverride();
+		}
+		static bool bResolved = false;
+		static int32 Value = StuckMipRestoreTimeoutCompiled;
+		static const TCHAR* Source = TEXT("compiled");
+		if (bResolved)
+		{
+			return Value;
+		}
+		bResolved = true;
+
+		int32 FromIni = 0;
+		if (GConfig && GConfig->GetInt(SectionName(), StuckMipRestoreTimeoutKey(), FromIni, GGameIni))
+		{
+			if (FromIni < StuckMipRestoreTimeoutMin || FromIni > StuckMipRestoreTimeoutMax)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: DefaultGame.ini [%s] %s = %d is out of range [%d..%d]; using the COMPILED ")
+					TEXT("default %d. REFUSED rather than clamped."),
+					SectionName(), StuckMipRestoreTimeoutKey(), FromIni, StuckMipRestoreTimeoutMin,
+					StuckMipRestoreTimeoutMax, StuckMipRestoreTimeoutCompiled);
+			}
+			else
+			{
+				Value = FromIni;
+				Source = TEXT("ini");
+			}
+		}
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: restore timeout = %d frame(s) (%s). The revert re-asserts the stream-in every frame ")
+			TEXT("until the resident mip count reaches the recorded baseline; past this many frames the texture is ")
+			TEXT("COUNTED as a restore timeout and named in the log, and it STAYS TRACKED so a later fire on it is ")
+			TEXT("refused as not_restored rather than silently producing nothing."),
+			Value, Source);
+		return Value;
+	}
+
+	FString DescribeStuckMipRestoreTimeout()
+	{
+		const int32 V = GetStuckMipRestoreTimeout();
+		const TCHAR* Source = StuckMipRestoreTimeoutOverrideSet() ? TEXT("console") : TEXT("ini-or-compiled");
+		return FString::Printf(TEXT("%d(%s)"), V, Source);
+	}
+
+	bool SetStuckMipRestoreTimeoutOverride(int32 Frames)
+	{
+		if (Frames < StuckMipRestoreTimeoutMin || Frames > StuckMipRestoreTimeoutMax)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("stuck_low_mip: restore timeout %d is out of range [%d..%d]; the console override is REFUSED and ")
+				TEXT("the previous value still stands."),
+				Frames, StuckMipRestoreTimeoutMin, StuckMipRestoreTimeoutMax);
+			return false;
+		}
+		StuckMipRestoreTimeoutOverride() = Frames;
+		StuckMipRestoreTimeoutOverrideSet() = true;
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("stuck_low_mip: restore timeout set to %d frame(s) by console override. This changes ONLY when the ")
+			TEXT("timeout is COUNTED AND LOGGED - polling continues either way until the baseline is reached - and it ")
+			TEXT("BEATS DefaultGame.ini [%s] %s."),
+			Frames, SectionName(), StuckMipRestoreTimeoutKey());
+		return true;
+	}
+
+	void ClearStuckMipRestoreTimeoutOverride()
+	{
+		StuckMipRestoreTimeoutOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: console restore-timeout override cleared; the ini value or the compiled default %d ")
+			TEXT("takes over."),
+			StuckMipRestoreTimeoutCompiled);
+	}
+
+	const TCHAR* StuckMipMinTexelRatioKey()
+	{
+		return TEXT("StuckMipMinTexelRatio");
+	}
+
+	float GetStuckMipMinTexelRatio()
+	{
+		if (StuckMipMinTexelRatioOverrideSet())
+		{
+			return StuckMipMinTexelRatioOverride();
+		}
+		static bool bResolved = false;
+		static float Value = StuckMipMinTexelRatioCompiled;
+		static const TCHAR* Source = TEXT("compiled");
+		if (bResolved)
+		{
+			return Value;
+		}
+		bResolved = true;
+
+		float FromIni = 0.0f;
+		if (GConfig && GConfig->GetFloat(SectionName(), StuckMipMinTexelRatioKey(), FromIni, GGameIni))
+		{
+			if (FromIni < StuckMipMinTexelRatioMin || FromIni > StuckMipMinTexelRatioMax)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: DefaultGame.ini [%s] %s = %.2f is out of range [%.0f..%.0f]; using the ")
+					TEXT("COMPILED default %.2f. REFUSED rather than clamped."),
+					SectionName(), StuckMipMinTexelRatioKey(), FromIni, StuckMipMinTexelRatioMin,
+					StuckMipMinTexelRatioMax, StuckMipMinTexelRatioCompiled);
+			}
+			else
+			{
+				Value = FromIni;
+				Source = TEXT("ini");
+			}
+		}
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: perceptibility ratio = %.2f (%s). The target's longest on-screen side must be at ")
+			TEXT("least this many times the held mip's width in pixels, or the object would not LOOK blurry. The ")
+			TEXT("compiled default was raised 4.00 -> 8.00 for m52 because two auto-pool events at ratio 6.27 were ")
+			TEXT("read by the label-vs-pixel verifier as NO-TRACE: labelled, held, observable, and carrying no change ")
+			TEXT("above the noise floor. IT REMAINS A PICK-TIME FILTER ONLY and never decides observable: it assumes ")
+			TEXT("the texture maps roughly once across the object, which a tiling texture does not. 0 disables it."),
+			Value, Source);
+		return Value;
+	}
+
+	FString DescribeStuckMipMinTexelRatio()
+	{
+		const float V = GetStuckMipMinTexelRatio();
+		const TCHAR* Source = StuckMipMinTexelRatioOverrideSet() ? TEXT("console") : TEXT("ini-or-compiled");
+		return FString::Printf(TEXT("%.2f(%s)"), V, Source);
+	}
+
+	bool SetStuckMipMinTexelRatioOverride(float Ratio)
+	{
+		if (Ratio < StuckMipMinTexelRatioMin || Ratio > StuckMipMinTexelRatioMax)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("stuck_low_mip: perceptibility ratio %.2f is out of range [%.0f..%.0f]; the console override is ")
+				TEXT("REFUSED and the previous value still stands."),
+				Ratio, StuckMipMinTexelRatioMin, StuckMipMinTexelRatioMax);
+			return false;
+		}
+		StuckMipMinTexelRatioOverride() = Ratio;
+		StuckMipMinTexelRatioOverrideSet() = true;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: perceptibility ratio set to %.2f by console override. This BEATS DefaultGame.ini ")
+			TEXT("[%s] %s. 0 disables the perceptibility gate only; the co-affected gate is untouched."),
+			Ratio, SectionName(), StuckMipMinTexelRatioKey());
+		return true;
+	}
+
+	void ClearStuckMipMinTexelRatioOverride()
+	{
+		StuckMipMinTexelRatioOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: console perceptibility override cleared; the ini value or the compiled default takes over."));
 	}
 
 	const TCHAR* LodPoppingMaxDistanceKey()
@@ -937,6 +1310,110 @@ namespace
 			*AnomalyDefaults::DescribeAllowTranslucentOnlyTargets());
 	}
 
+	void HandleStuckMipLevels(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Anomaly.StuckMipLevels <levels|-1|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeStuckMipLevels());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearStuckMipLevelsOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetStuckMipLevelsOverride(FCString::Atoi(*Args[0]));
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Anomaly.StuckMipLevels: '%s' is not a whole number of mip levels (or 'default')."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Anomaly.StuckMipLevels: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeStuckMipLevels());
+	}
+
+	void HandleStuckMipMaxCoAffected(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Anomaly.StuckMipMaxCoAffected <n|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeStuckMipMaxCoAffected());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearStuckMipMaxCoAffectedOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetStuckMipMaxCoAffectedOverride(FCString::Atoi(*Args[0]));
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Anomaly.StuckMipMaxCoAffected: '%s' is not a whole number (or 'default')."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Anomaly.StuckMipMaxCoAffected: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeStuckMipMaxCoAffected());
+	}
+
+	void HandleStuckMipRestoreTimeout(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Anomaly.StuckMipRestoreTimeout <frames|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeStuckMipRestoreTimeout());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearStuckMipRestoreTimeoutOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetStuckMipRestoreTimeoutOverride(FCString::Atoi(*Args[0]));
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Anomaly.StuckMipRestoreTimeout: '%s' is not a whole number (or 'default')."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Anomaly.StuckMipRestoreTimeout: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeStuckMipRestoreTimeout());
+	}
+
+	void HandleStuckMipMinTexelRatio(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Anomaly.StuckMipMinTexelRatio <ratio|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeStuckMipMinTexelRatio());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearStuckMipMinTexelRatioOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetStuckMipMinTexelRatioOverride(FCString::Atof(*Args[0]));
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Anomaly.StuckMipMinTexelRatio: '%s' is not a ratio (or 'default')."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Anomaly.StuckMipMinTexelRatio: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeStuckMipMinTexelRatio());
+	}
+
 	void HandleCameraClipTriggerRadius(const TArray<FString>& Args)
 	{
 		if (Args.Num() < 1)
@@ -963,6 +1440,65 @@ namespace
 			*AnomalyDefaults::DescribeCameraClippingTriggerRadius());
 	}
 }
+
+static FAutoConsoleCommand GStuckMipLevelsCmd(
+	TEXT("IAI.Anomaly.StuckMipLevels"),
+	TEXT("Set how many mip levels stuck_low_mip drops below the target texture's CURRENT resident count. -1 (the "
+	     "compiled default) means HOLD AT THE FLOOR - the resource's own NumNonStreamingLODs, read from the texture "
+	     "and never assumed - which is the blurriest state the streamer can reach; on a cooked streaming texture that "
+	     "is typically 7 resident mips, i.e. a 64 px top level. The hold is applied by raising the texture's own "
+	     "NumCinematicMipLevels and calling UpdateCachedLODBias(), which lowers MaxAllowedMips so THE STREAMER "
+	     "PERFORMS THE STREAM-OUT ITSELF and then holds it there; nothing races us, because RequestedMips equals "
+	     "WantedMips. PRECEDENCE: console beats DefaultGame.ini [AnomalyInjector] StuckMipLevels, which beats the "
+	     "compiled default. Range [-1..15]; out of range is REFUSED, never clamped. A targeted fire's own second "
+	     "argument still beats this. Pass 'default' to clear the override. "
+	     "Usage: IAI.Anomaly.StuckMipLevels <levels|-1|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleStuckMipLevels));
+
+static FAutoConsoleCommand GStuckMipMaxCoAffectedCmd(
+	TEXT("IAI.Anomaly.StuckMipMaxCoAffected"),
+	TEXT("Set how many OTHER currently-VISIBLE primitive components may sample a texture before stuck_low_mip "
+	     "refuses to hold it. COMPILED DEFAULT 0, and 0 is the only value that guarantees no unlabelled blurry object "
+	     "in a labelled frame: a texture is an ASSET, so holding it blurs every component that samples it while the "
+	     "label names one target, and an unlabelled blurry object teaches a model that blurry is normal - worse than "
+	     "a missing label. THE GATE IS PER TEXTURE, NOT PER TARGET: a target whose distinctive textures are exclusive "
+	     "still fires with its shared utility textures left alone, which is why this is not simply an eligibility "
+	     "filter. MEASURED on the bench fixtures at plan time: level-wide, 0 of 18 StackOBot targets have every "
+	     "texture exclusive while 7 have a least-shared texture of at most 1, and 4 of 5 Lyra targets are at most 1. "
+	     "AUTO-POOL SELECTION ONLY - a targeted fire on a named object is never blocked. PRECEDENCE: console beats "
+	     "DefaultGame.ini [AnomalyInjector] StuckMipMaxCoAffected, which beats the compiled default 0. Range "
+	     "[0..4096]; out of range is REFUSED. Usage: IAI.Anomaly.StuckMipMaxCoAffected <n|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleStuckMipMaxCoAffected));
+
+static FAutoConsoleCommand GStuckMipRestoreTimeoutCmd(
+	TEXT("IAI.Anomaly.StuckMipRestoreTimeout"),
+	TEXT("Set how many frames stuck_low_mip keeps re-asserting a reverted texture's stream-in before it COUNTS AND "
+	     "NAMES a restore timeout. COMPILED DEFAULT 120. The revert clears the streaming bias and then polls every "
+	     "frame until the resident mip count reaches the baseline recorded at Apply, re-issuing StreamIn on each "
+	     "poll the engine is not already busy with - because a single request at revert time is SILENTLY DROPPED "
+	     "when a stream operation is already in flight, which is the likely state right after a bias change and is "
+	     "the measured cause of a later fire on the same target finding nothing left to hold. THE TIMEOUT DOES NOT "
+	     "STOP THE POLLING: the texture stays tracked until it actually reaches its baseline, and while it is "
+	     "tracked any fire on a target using it is refused as not_restored rather than producing an event with no "
+	     "frames. PRECEDENCE: console beats DefaultGame.ini [AnomalyInjector] StuckMipRestoreTimeoutFrames, which "
+	     "beats the compiled default. Range [1..100000]; out of range is REFUSED. "
+	     "Usage: IAI.Anomaly.StuckMipRestoreTimeout <frames|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleStuckMipRestoreTimeout));
+
+static FAutoConsoleCommand GStuckMipMinTexelRatioCmd(
+	TEXT("IAI.Anomaly.StuckMipMinTexelRatio"),
+	TEXT("Set the stuck_low_mip PERCEPTIBILITY ratio for AUTO-POOL selection: the target's longest on-screen side "
+	     "must be at least this many times the held mip's width in pixels, or the texture is refused. A low mip only "
+	     "LOOKS blurry if the object out-resolves it; without this gate the anomaly ships 'injected but invisible' "
+	     "labels, which is the dataset-poisoning direction. COMPILED DEFAULT 4.0, i.e. one held texel must cover at "
+	     "least four screen pixels. IT IS A PICK-TIME FILTER ONLY AND NEVER DECIDES observable - observable stays the "
+	     "m49 measurement (labelled AND condition held AND target_pixels >= the minimum). Its stated weakness is "
+	     "real: it assumes the texture maps roughly once across the object, so a TILING texture repeats N times and "
+	     "the rule over-admits; UV density is not available at pick time. Evaluated on projected bounds only, no "
+	     "pixel read. 0 disables it. PRECEDENCE: console beats DefaultGame.ini [AnomalyInjector] "
+	     "StuckMipMinTexelRatio, which beats the compiled default. Range [0..4096]; out of range is REFUSED. "
+	     "Usage: IAI.Anomaly.StuckMipMinTexelRatio <ratio|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleStuckMipMinTexelRatio));
 
 static FAutoConsoleCommand GLodMinCoverageCmd(
 	TEXT("IAI.Anomaly.LodMinCoverage"),

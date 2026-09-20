@@ -7044,3 +7044,178 @@ neither certifies the association. All 572 planned keys remain scored or unscore
 **Chat review REQUIRED** for the prediction miss, completed evidence and independent
 Code review before merge; this is the next mandatory checkpoint. Section G, client,
 campaign and release holds remain. Earlier dated observations stay historical.
+
+## G265 — `UTexture::LODBias` is IGNORED on a cooked platform, so the obvious mip lever is a silent no-op in the client's build (2026-09-20, m52 080-01/02)
+
+`UTexture::LODBias` is a runtime, public, `BlueprintReadWrite` UPROPERTY
+(`Texture.h:1292-1294`, explicitly under the "Properties needed at runtime below"
+banner at `:1277-1279`) and `UpdateCachedLODBias()` is `ENGINE_API` and NOT inside a
+`WITH_EDITOR` guard (`TextureDerivedData.cpp:2765-2768`). So
+`Tex->LODBias = N; Tex->UpdateCachedLODBias();` compiles and runs in a packaged game.
+
+It does nothing there:
+
+    UTextureLODSettings::CalculateLODBias        TextureLODSettings.cpp:176-186
+        if (!FPlatformProperties::RequiresCookedData())
+        {
+            // When cooking, LODBias and LODGroupInfo.LODBias are taken into account
+            // to strip the top mips. Considering them again here would apply them twice.
+            UsedLODBias += LODBias;
+
+⇒ **it works in the editor and is inert in the configuration the client receives.**
+G119 (read it back out of the artifact, not out of the source) and G114 (a lever that
+does nothing produces a clean null indistinguishable from a clean result) in one place.
+A PIE smoke would have been green while every packaged client capture carried positive
+labels for frames nothing happened on.
+
+**What DOES survive cooking** is the cinematic-mip term at `TextureLODSettings.cpp:171-175`,
+which is outside that gate. m52 uses `NumCinematicMipLevels` (a public runtime UPROPERTY,
+`StreamableRenderAsset.h:253-256`) + `UpdateCachedLODBias()` for exactly this reason.
+
+⛔ **Consequence adopted as a rule: every m52-class gate is PACKAGED-ONLY (`G76`), and the
+achieved bias is READ BACK from `GetCachedLODBias()` rather than computed and trusted.**
+`UTexture2D::TemporarilyDisableStreaming()`, the editor-side "hold the current mips"
+helper, is `#if WITH_EDITOR` only (`Texture2D.cpp:1178-1187`) and does not exist in a
+packaged game either - worth knowing before reaching for it.
+
+## G266 — the texture streamer does not merely undo a foreign stream request, it CANCELS it (2026-09-20, m52 080-01)
+
+    FRenderAssetStreamingMipCalcTask::UpdateLoadAndCancelationRequests_Async
+        else if (RequestedMips > max(ResidentMips, WantedMips + 1) ||
+                 RequestedMips < min(ResidentMips, WantedMips))
+        {  CancelationRequests.Add(AssetIndex);  }   AsyncTextureStreaming.cpp:803-808
+
+executed on the game thread at `StreamingManagerTexture.cpp:1333-1339` ->
+`FStreamingRenderAsset::CancelStreamingRequest` (`StreamingTexture.cpp:536-543`) ->
+`CancelPendingStreamingRequest` -> `PendingUpdate->Abort()` (`StreamableRenderAsset.cpp:221-227`).
+
+A manual `StreamOut(floor)` on a VISIBLE texture sets `RequestedMips = floor` while
+`WantedMips` is high, so the second clause is TRUE by construction. The request is
+therefore RACED FOR CANCELLATION before it completes - not merely re-streamed afterwards.
+
+**And that kills the obvious workaround too.** `UnlinkStreaming()` is `ENGINE_API`, but
+neither ordering works: unlink-then-StreamOut STALLS, because the only thing that advances
+a pending update is `FStreamingRenderAsset::UpdateStreamingStatus` ->
+`RenderAsset->TickStreaming(...)` (`StreamingTexture.cpp:262-278`, call at `:268`) and an
+unlinked asset is not in the manager's array; a plugin cannot tick it itself because
+`UStreamableRenderAsset::TickStreaming` is NOT `ENGINE_API` (`StreamableRenderAsset.h:201`),
+and `WaitForStreaming()` is exported but BLOCKS the game thread. StreamOut-then-unlink is
+the cancellation race above.
+
+🔑 **The way through is to stop fighting the streamer and make it the enforcer**: reduce
+the per-texture `MaxAllowedMips` (via the cinematic-mip bias, G265) so the streamer's OWN
+`WantedMips` is the floor. Then `RequestedMips == WantedMips`, the cancellation predicate
+is false, the streamer performs the stream-out itself and holds it, and every wanted-mips
+path is clamped by `MaxAllowedMips` including under force-fully-load
+(`StreamingTexture.cpp:310, 346-348, 361, 366`).
+
+⚠ **What this does NOT buy, measured at 080-02:** the streamer performs the stream-out on
+ITS OWN SCHEDULE, so onset is latent by 1-4 captured frames and sometimes longer than an
+8-frame positive window. See journal 080-02 for the numbers and for the second, unexplained
+failure mode (a re-fire on an already-held target reads "already at the floor" and refuses).
+## G267 — an `FName` used as a JSON key silently ships the case of its FIRST registration anywhere in the process (2026-09-20, m52 080-03)
+
+`FAnomalyTelemetry` keyed its bag with `FName` and the label writer emitted
+`KV.Key.ToString()`. Every key came out right except one: the per-texture record's `name`
+field shipped as **`"Name"`**.
+
+`FName` comparison is case-INSENSITIVE, and `FName::ToString()` returns the **display string
+of the first registration of that name in the process**. `"Name"` is registered by the engine
+long before any plugin runs, so `FName(TEXT("name"))` resolves to the existing entry and
+prints `Name`. Nothing warns. The value is correct, the type is correct, the key is a
+different string from the one in the source.
+
+🔑 **The bug is not in the code that writes the key — it is in code that ran earlier and
+somewhere else entirely.** A key that is safe today becomes wrong the day an unrelated module
+registers the same word with a different case first, and the failure surface is a client's
+parser, not a build.
+
+⇒ **Do not use `FName` as a serialisation key.** `FAnomalyTelemetryFields` now keys on
+`FString`, which preserves the bytes the source wrote. The cost is one small allocation per
+key per captured frame, which is nothing beside the PNG encode the same frame performs.
+
+⚠ **How it was caught, and why it nearly was not:** the readout printed `None` for the
+texture name while every other field in the same record was correct. The keys that survived
+(`baseline_mips`, `forced_mips`, `resident_mips`, `held`, …) survived only because no earlier
+registration happened to claim them. **A scan of the shipped artifact would have shown the
+same thing**, which is `G119`'s rule — read the key back out of the written file, not out of
+the source that wrote it. The `A44` string scan now carries the retired key names as
+must-be-ABSENT entries for exactly this reason.
+
+## G268 — a second-fixture runner's map path is a CONTENT fact and goes stale without anything failing to compile (2026-09-20, m52 080-03)
+
+`CaptureBench/tools/lyra_leg.ps1` defaults to `-Map "/ShooterMaps/Maps/L_ShooterGym"`.
+`L_ShooterGym` lives in the **`ShooterCore`** game-feature plugin, so the correct mount path is
+`/ShooterCore/Maps/L_ShooterGym`. The wrong path does not fail loudly: the engine reports
+`Failed to load ... Can't find file`, offers the default map, gets `Cancel` under
+`-unattended`, requests exit — and then **crashes in `ULyraPerformanceStatSubsystem::Deinitialize`
+during shutdown**, so the first thing the log shows is a fatal callstack in the host's own
+code. The runner's own message was *"control server never announced a token"*.
+
+⇒ **Three misleading surfaces stacked on one stale string**, and the true cause was 1,230
+lines above the crash. `G87`'s rule again: when a map does not load, check whether the map is
+where the command says it is BEFORE reading anything into the failure.
+
+⛔ The default was NOT edited: `CaptureBench` is deliberately tracked-clean while `m51`'s
+frozen campaign depends on it, so the correct path was passed explicitly per leg and the stale
+default is recorded here instead. **Anyone fixing it later should also check whether the other
+map paths in that file moved with it.**
+
+## G269 — a "no target actor" shortcut that is correct for a GLOBAL anomaly is exactly backwards for an OBJECT-scoped one whose target was destroyed (2026-09-20, m52 080-04)
+
+`ComputeFireActive` decided a frame was ACTIVE like this:
+
+    if (Source == EAnomalyActiveSource::AnomalyState)
+    {
+        return !FActor ? 1 : (Injector->IsAnomalyCurrentlyAnomalous(F.Id) ? 1 : 0);
+    }
+
+`!FActor ? 1` is CORRECT for `camera_clipping`: a global anomaly has no target actor by design,
+so "no actor" means "do not look for one". On an object-scoped anomaly whose target has just been
+DESTROYED it reads *"the object has ceased to exist, therefore the anomaly is present"*, and it
+does so WITHOUT CONSULTING THE ANOMALY AT ALL.
+
+Measured on the first run of the gate built to test destruction: `injected_frames`
+`[35,36,37,38,39,40,41]` against `affected_frames` `[35,36]`, with frames 37-41 carrying **no
+anomaly entry in `labels.jsonl` whatsoever**. The per-frame labelling was already right; only the
+event-level claim in `annotation.json` was wrong, and it over-claimed, which is the
+dataset-poisoning direction.
+
+The discriminator already existed one function away: **`F.bWholeFrameExtent`**, which the event
+accumulator uses for exactly this global-vs-object distinction. With it, every global fire is
+byte-unchanged and the only reachable behaviour change is an object-scoped `AnomalyState` fire
+with a dead target - a blast radius that is STRUCTURAL rather than argued, because only two
+anomalies are `AnomalyState` and one of them is the global.
+
+🔑 **The transferable part: a null-check used as a proxy for a CATEGORY.** `!FActor` was standing
+in for "this is a global anomaly", and the two coincided until an object-scoped anomaly learned to
+outlive its target. **When a shortcut's correctness depends on a category, test the category, not
+the symptom that usually accompanies it.** And note what found it: not a failing assertion but a
+NEW EXIT PATH being gated for the first time. The defect had shipped through m52's whole gate set
+because nothing had ever destroyed a target mid-window.
+
+## G270 — an on-screen-size gate cannot see what a texture CONTAINS, and a large ratio is not evidence of visibility (2026-09-20, m52 080-04)
+
+`stuck_low_mip`'s perceptibility rule compares the target's longest on-screen side against the
+width of the mip it will be held at. It is a SIZE test, and its declared weakness was tiling: a
+texture that repeats N times has a true texel size N times smaller than the rule assumes.
+
+The measured failure is a DIFFERENT one and it is worse. On Lyra, three events with
+`ratio_at_pick` of **26.76, 26.76 and 31.59** - three to four times the gate - were read
+`NO-TRACE` by the label-vs-pixel verifier: large objects (968-1537 px on screen), held to a 64 px
+top mip, 131k-146k measured target pixels, `held:true` on every labelled frame, and no change
+above the noise floor. The held texture was a low-frequency paint/normal map. **A flat surface is
+imperceptible at ANY mip, and no predicate computed from BOUNDS and MIP SIZES can know that.**
+
+⚠ The same session raised that ratio from 4.0 to 8.0 and it DID remove the failures on the other
+fixture, where the failing targets sat at 6.27. Both readings are true, and together they say the
+ratio is a useful filter and not a discriminator. ⛔ Raising it further would not reach 26.76.
+
+🔑 **The rule this leaves: a pick-time geometric predicate can decide what to REFUSE; only a
+measurement of the rendered frame can decide what MANIFESTED.** Anywhere a gate is computed from
+geometry and then read as evidence about pixels, the gap is a place a clean number hides an
+invisible anomaly - `m19`'s "gate on PIXELS" in its newest form.
+
+⚠ And it went unreported for a session: the leg that shows it existed in 080-03 and reads
+`NO-TRACE 2` on that binary too. **It was never run through the verifier.** A gate you own but do
+not point at an artifact produces no reading at all, which is indistinguishable from a clean one.

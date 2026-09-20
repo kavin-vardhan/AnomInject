@@ -11,6 +11,308 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **SESSION 080-04, 2026-09-20 — `m52`'s SIX RULINGS ARE BUILT AND MEASURED. THE `G11` FAILURE IS
+> GONE, THE TARGET-DESTROYED EXIT IS NO LONGER UNRUN, AND THE VIRTUAL PATH IS EXERCISED ON BOTH
+> FIXTURES. VERDICT: GREEN ON THE TWO PRE-FIXED CONDITIONS — AND THE SESSION'S MOST IMPORTANT
+> FINDING IS A NEGATIVE ONE THAT NEITHER CONDITION COVERS. THIS IS THE CURRENT "YOU ARE HERE" FOR
+> `feat/m52-stuck-mip`; the 080-03 block below is SUPERSEDED where they differ.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-20-080-04-m52-ratio-destroy-vt.md` (self-contained — §2 the
+> gate table, §4 the pre-existing defect `G4e` found, §5 the VT probe, **§6 THE FINDING**), then
+> `docs/predictions/2026-09-20-m52-stuck-low-mip.md` — read `AMENDMENT 3` FIRST (its §A3.2 corrects
+> `R1`'s premise and its §A3.6 is the S2′ proposal), then `AMENDMENT 2`, `AMENDMENT 1`, then §§0–10 —
+> then journals 080-01/02/03.** Branch `feat/m52-stuck-mip`; `master` `3ff88db` and `m51` `53bf725`
+> both UNTOUCHED; CaptureBench `472a409` tracked-clean. ⛔ No merge · no tag · no cook · no pool
+> default flipped · no threshold tuned after a reading. Binary **`5588F6FB`** built == staged ==
+> archived; container quintet BYTE-UNCHANGED (code-only hot-swap, `G103`).
+>
+> ✅ **`R2`'s PREDECLARED RETEST PASSES: `NO-TRACE 0`, exit 0** on the SAME 600-frame auto-pool
+> recipe and seed that read **`NO-TRACE 2`, exit 2** in 080-03. 🔑 **And the route to zero is a
+> REFUSAL, read from the log rather than inferred:** the nine new `too_small_for_ratio` refusals are
+> three fires × three textures on `StaticMeshActor_…_2048592804` / `SM_rock` — **the exact actor
+> 080-03 §9 named for both NO-TRACEs**, at its exact bbox 401.4 px and ratio **6.27 against the
+> 8.00** the gate now requires. ⚠ **That band contains both failures AND one non-failure** (the same
+> actor fired three times in 080-03 and only two failed), so the gate is a **conservative filter, not
+> a discriminator calibrated at 6.27** — stated, not smoothed.
+>
+> 🔻 **`R1`'s PREMISE IS CORRECTED, IN WRITING, BEFORE THE RETEST RAN (`AMENDMENT 3` §A3.2).**
+> *"As deep as the ratio rule requires, floored at 4 mips"* **cannot reach 4 mips on cooked content
+> and no bias can make it**: `MaxAllowedMips` is clamped to `NumNonStreamingLODs` and then ASSERTED
+> (`StreamingTexture.cpp:229/233`, `check` at `:236`). The floor is **7** on every candidate measured
+> ⇒ the deepest top mip is **64 px**, so a 401 px target tops out at ratio 6.27 however deep the
+> request. ⇒ **the depth half of `R1` cannot bite here; what bites is the FILTER.** `-1` now means
+> `max(engineFloor, StuckMipMinResidentMips = 4)`, and that guard is **INERT on both fixtures**.
+> ⛔ `-1` is deliberately NOT read as *"back off to exactly the ratio"* — holding a large object
+> shallower because the ratio is already met would cut the signal, the opposite of the ruling's aim.
+> **`StuckMipMinTexelRatio` 4.0 → 8.0 is the one default that moved, directed by chat BEFORE the
+> retest** — 080-03's rule was *"do not tune the ratio to make `G11` green"*, and this is chat
+> changing the predicate in advance instead.
+>
+> 🚨 **THE FINDING, AND IT IS A NEGATIVE ONE: THE RATIO IS A SIZE TEST AND CANNOT SEE TEXTURE
+> CONTENT (journal §6, `G270`).** On Lyra at the bench override `MaxCoAffected 8`, **three events
+> read `NO-TRACE` with ratios of 26.76 / 26.76 / 31.59** — three to four times the gate — on objects
+> 968–1537 px on screen, 131k–146k measured target pixels, `held:true` on every labelled frame. The
+> held texture is a low-frequency paint/normal map: **imperceptible at any achievable mip**, and no
+> predicate computed from bounds and mip sizes can know that. ✅ **NOT a regression, measured:** the
+> 080-03 banked Lyra CO8 leg reads **`NO-TRACE 2` on the OLD binary too** — 080-03 simply never ran
+> the verifier on its Lyra legs. ✅ **NOT reachable at the shipped configuration:** all three carry
+> `co_affected_visible = 4`, so `MaxCoAffected 0` refuses them, and **Lyra leg 1 at the shipped
+> default reads 1 event, `NO-TRACE 0`, exit 0. Nothing this session produced a NO-TRACE at a
+> configuration the client would receive.** ⇒ **`R2`'s escalation target `m55` (an in-engine
+> per-frame change fraction) is now supported by direct measurement**, the shipped `MaxCoAffected 0`
+> is excluding that class **by luck rather than design**, and this bears directly on S2′, whose whole
+> point is to admit those very actors. ⛔ **CAUSE NOT ESTABLISHED BEYOND THE ARITHMETIC AND NOT
+> CHASED** (`G120`); the ratio was not tuned and no default moved on it.
+>
+> 🚨 **`G4e` WORKED ON ITS FIRST RUN AND THE FIRST THING IT FOUND WAS A PRE-EXISTING DEFECT
+> (`G269`).** `ComputeFireActive` returned **ACTIVE** for any `AnomalyState` fire with **no target
+> actor**, without consulting the anomaly — correct for the GLOBAL `camera_clipping`, and exactly
+> backwards for an object-scoped fire whose target was just destroyed: *"the object has ceased to
+> exist, therefore the anomaly is present."* A-side `F65A8C90` read `injected=[35..41]` against
+> `affected=[35,36]`, **frames 37–41 carrying no anomaly entry in `labels.jsonl` at all** — the
+> per-frame labelling was already right, only `annotation.json` over-claimed. Discriminated on
+> **`F.bWholeFrameExtent`**, the flag the accumulator one function away already uses for exactly this
+> distinction ⇒ every global fire byte-unchanged and **the only reachable behaviour change is an
+> object-scoped `AnomalyState` fire with a dead target** (only two anomalies are `AnomalyState`, one
+> is the global). B-side `5588F6FB` reads `injected == affected`, `unheld-in-window` **none**.
+> ⚠ **The two legs are NOT frame-matched** — the destroy latch fires once a hold is live and the
+> streamer's schedule varies — so the decisive quantity is **internal to each leg**. ⛔ **`F65A8C90`
+> is LOAD-BEARING as that A-side; do not delete it.**
+>
+> ✅ **`R4` AS BUILT:** `AActor::OnEndPlay` (`Actor.h:2016`, broadcast `Actor.cpp:2652` from
+> `Destroyed()` `:2692` ← `UWorld::DestroyActor` `LevelActor.cpp:872`) through ONE defaulted
+> `IAnomaly` hook, plus a weak-pointer poll for the garbage-collected route no delegate covers.
+> `OnEndPlay` beats `OnDestroyed` because it is **strictly more general and fires earlier**. Bench
+> lever **`IAI.Bench.DestroyTarget <substring> [hold_frames]`** ARMS a latch that fires once an
+> anomaly is measurably anomalous — a latch and not an immediate destroy because `-ExecCmds` is
+> startup-only, and destroying at startup would test the wrong thing. Measured in one engine frame:
+> DESTROYING → TARGET LOST → `restored=6 left-to-game=0 unresolved=0` → `RESTORE VERIFIED` per
+> texture after 4 frames → `revert_on_destroy` **1**, `awaiting_restore` **0**, exit 0.
+>
+> ✅ **`R6` — THE VIRTUAL PATH IS EXERCISED ON BOTH FIXTURES, AND LYRA NAMES THE TEXTURES:**
+> StackOBot 188 loaded / 2 runtime-virtual / 2 classified; **Lyra 338 / 3 / 3, named
+> `ultkedqjw_4K_Albedo` · `_Normal_LOD0` · `_Roughness` — authored Megascans content, not engine
+> scratch** ⇒ **`stuck_mip_refused_virtual` is now a PROVEN counter**, so its zero on a capture leg
+> means ABSENCE, not blindness. ⚠ StackOBot's two are both named literally `Texture` and their
+> **provenance is NOT established** (`G120`). 🔑 **The synthetic control CLOSES a route:** a transient
+> texture with the flag forced true reads `IsCurrentlyVirtualTextured() = FALSE`, structurally — the
+> predicate also needs cooked VT page data (`Texture2D.cpp:1219`) — so only real cooked content can
+> ever reach the branch.
+>
+> 🧪 **EVERY OTHER GATE, all on ONE binary, all accepted on attempt 1:** **`G0`** both targets exit 0
+> **zero warnings**, twice · **`A44`** 13 new symbols utf16-present/ascii-absent, **4 pre-existing
+> controls present** (SOUND), **3 invented absent** (DISCRIMINATES) · **`G2`** held false everywhere,
+> `observable` **null**, 3 events `manifested:false` with empty windows, and 🚨 **`hold_timeouts` = 2
+> of 3 fires**, which is AMENDMENT 2's test that `R1`'s wait is wired · **`G3`** 2 fires, 2 windows of
+> **7 contiguous held frames**, `unheld-in-window` none, restore verified in 7 · **`G5`/`G10`** native
+> and `SynthTickOrder` **IDENTICAL** (first held si **35** in both, n=7 in both) · **`G7`** 16 fires,
+> 15 events, **15 manifested, 0 non-manifested** · **`G9`** a run with no stuck-mip event: rows
+> **13 → 13**, anomaly keys **12 → 12**, added 0 removed 0; `run_summary` **68 → 86** adding exactly
+> the **18** `stuck_mip_*` keys; with an event, anomaly keys **12 → 28** adding exactly the **16**
+> `stuck_mip.*` keys; **`annotation.json` root 4 → 4 AND per-event 16 → 16 — `P6` DOES NOT MOVE**;
+> `label_schema` **2** · **`G11` selftest 98 cases OK**, and every targeted leg `NO-TRACE 0` exit 0.
+> 📊 **`G8` Lyra:** shipped default **1 event / `NO-TRACE 0`**, `refused_shared` **21, all at
+> `co_affected = 3`**; override 8 → 4 events / `NO-TRACE 3`. 🚨 **`restore_frames_max` **79** against
+> the compiled 120 — StackOBot restores in 7, so the timeout survives an 11×-slower host with 1.5× of
+> margin, thinner than 080-03's 1.6×.** Watch it; do not adjust it.
+>
+> 📐 **S2′ IS DESIGNED, NOT BUILT (`AMENDMENT 3` §A3.6), AND ITS ARITHMETIC IS A STOP.** One hold →
+> one event per visible co-affected actor, each with its own tag / mask / observability and a shared
+> `stuck_mip.shared_hold_id` (in `labels.jsonl` — it cannot go in `annotation.json` without moving
+> `P6`). 🚨 **Stencil pool: 55 assignable values, `m50` reserves 8, `EventClaimed` is never released
+> mid-run.** Measured co-affected distribution — StackOBot 80 shared refusals with **52 at `co ≤ 4`**;
+> Lyra **21, ALL at `co = 3`**. A comparable 600-frame session would spend **~50–80 tags against a
+> ceiling of 47** ⇒ **S2′ at cap 4 EXHAUSTS THE POOL WITHIN ONE SESSION.** ✅ Against that: **it would
+> take Lyra's `L_ShooterGym` from 0 events to a real yield**, since every one of its 21 refusals sits
+> inside a cap of 4. ~320 lines plus its own gate campaign. **Chat decides.**
+>
+> ⛔ **NOT DONE, named:** no pool default flipped and `MaxCoAffected` stays **0** · **`R5`'s
+> `stuck_mip_unverified_at_teardown` is emitted but reads 0 on every leg — IMPLEMENTED AND
+> UNEXERCISED**, because no leg ended with a live hold at teardown · `StuckMipMinResidentMips = 4` is
+> **INERT** on both fixtures and has no ini key or console override (a deliberate smaller surface,
+> flagged so it is a decision) · **the `m26`/`m49` veto-vs-observability disagreement is UNTOUCHED and
+> still queued as 080-05** (this leg vetoed 1 of 16, which neither reproduces nor refutes it) ·
+> `G7`'s `textures_awaiting_restore` reads **1** at `FinishRun` with `restore_timeout` 0 · Lyra leg 1
+> produced 1 event where 080-03's equivalent produced 0 — **reported as run-to-run variance, NOT
+> claimed as an improvement** · `CaptureBench/tools/lyra_leg.ps1`'s map default is still stale
+> (`G268`) and was passed explicitly per leg; **CaptureBench was not edited.**
+> 🆕 **`G269`** (a null-check standing in for a CATEGORY) · **`G270`** (a geometric gate cannot decide
+> what manifested — and a gate you own but never point at an artifact produces no reading at all).
+> 🎯 **NEXT: chat rules on §6 — whether the Lyra `Cube*` class escalates the perceptibility line to
+> `m55` now — and on S2′ given its pool arithmetic. ⛔ Do not merge, do not tag, do not flip the pool
+> default, do not raise `MaxCoAffected`, and do not tune the perceptibility ratio.**
+>
+> ---
+>
+> 🧾 **SESSION 080-03, 2026-09-20 — `m52`'s FOUR RULINGS ARE BUILT AND MEASURED, AND THE ONE GATE THAT
+> COULD NOT FAIL BEFORE NOW CAN — AND IT FIRES. VERDICT: NEEDS-DECISION. (Superseded as "you are here"
+> by the 080-04 block above; still the record of the window/restore/telemetry rulings.)** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-20-080-03-m52-window-restore-telemetry.md` (self-contained —
+> §2 the gate table, §4 the F1 mechanism, §9 the G11 failure, §10 two defects of mine), then
+> `docs/predictions/2026-09-20-m52-stuck-low-mip.md` — read `AMENDMENT 2` FIRST, then `AMENDMENT 1`,
+> then §§0–10 — then journals 080-01/080-02.** Branch `feat/m52-stuck-mip`; `master` `3ff88db` and
+> `m51` `53bf725` both UNTOUCHED. ⛔ No merge · no tag · no cook · no default flipped · no threshold
+> tuned. Binary **`DC8BA0C1`** built == staged == archived; container quintet BYTE-UNCHANGED.
+>
+> 🎯 **R1 — THE LABELLED WINDOW NOW STARTS AT THE FIRST HELD FRAME.** `IAnomaly::HasDeferredOnset()`
+> is **false by default**, so the other nine anomalies' phase code is the pre-m52 statement —
+> **structural inertness, and the blinking control reads it back: row keys 13 → 13, anomaly keys
+> 12 → 12, added 0 removed 0.** The frames between Apply and the hold engaging are still captured and
+> still labelled NEGATIVE; they no longer consume the window. A fire that never holds within
+> `IAI.Capture.DeferredOnsetTimeout` (compiled **30**) is reverted, written `manifested:false`, and
+> counted. **Measured: every manifested event is a CONTIGUOUS run of held frames starting at the first
+> held frame, on 4 legs, BOTH tick orders, TWO fixtures; `non_manifested_events` 0 on every stuck-mip
+> leg against 3 of 7 before.**
+> 🎯 **R2 — THE RESTORE IS VERIFIED, NOT ASSUMED.** Revert clears the bias, then re-asserts the
+> stream-in every frame from the new `IAnomaly::TickAlways` until the engine's own
+> `GetNumResidentMips()` reaches the recorded baseline. **7 frames on StackOBot, up to 75 on Lyra;
+> `restore_timeout` 0 everywhere — the compiled 120 was fixed before either measurement and survived
+> a host ten times slower, with 1.6× margin, not a comfortable one.**
+> 🎯 **R3 — `not_restored` fired 2 on the bench and 4 on Lyra.** A fire whose textures are still
+> climbing back is refused BY NAME instead of silently producing nothing.
+> 🔑 **F1's MECHANISM IS LATENCY, AND 080-02's DIAGNOSIS IS CORRECTED.** The revert-time `StreamIn`
+> **was issued** — the `!HasPendingInitOrStreaming()` guard did not skip it — but `already-back=0`:
+> not one of six textures was back when the revert returned. ⛔ **The "silently skipped StreamIn"
+> candidate is WITHDRAWN as the explanation.** 🔻 **And 080-02's `already at or below` attribution is
+> corrected: that line fired on the FIRST TWO fires of a session, before any hold ever happened** —
+> the textures simply had not streamed in yet. The observation stands; the cause does not.
+> ✅ **G3b A/B IS DECISIVE: the banked `A8742A4A` A-side read ZERO held frames and 24 × "already at or
+> below"; the same recipe on `DC8BA0C1` reads 4 fires, 4 manifested events, 28 held frames, and NOT
+> ONE such line.**
+>
+> 🚨 **G11 FAILS, AND THAT IS THE HEADLINE.** `verify_capture.py`'s NO-TRACE contract gains a
+> HELD-GATED tier: `stuck_low_mip` is eligible **only** where `stuck_mip.held` is true on EVERY
+> labelled frame; unheld or missing leaves it UNASSESSABLE — the verdict it already had. Proven both
+> ways in `--selftest` (**98 cases**). Targeted legs: **NO-TRACE 0, exit 0.** 🚨 **The auto-pool leg:
+> `NO-TRACE on 2 event(s)`, exit 2** — both on `SM_rock`, 401×269 px on screen, 3 textures held
+> 10 → 7, `held_all true`, `observable true`, and **no pixel change above tau=0.053/0.087 across the
+> whole span.** `stuck_mip_refused_imperceptible` read **0**, so the perceptibility gate never fired.
+> ⛔ **CAUSE NOT ESTABLISHED AND NOT CHASED (`G120`); the ratio was NOT tuned.** ✅ The instrument is
+> not blind there — the same leg's `SM_rock_02` events return OFFSET-NOTE.
+> 🔑 **080-02's G11 zero was blindness and said so in writing; the route is reachable now and the first
+> thing it did was find two labelled events the pixels do not support.**
+>
+> 📊 **G7 YIELD RE-MEASURED: 6 → 16 manifested events per 600 frames; 18.75 % → 88.9 % of applied
+> fires.** ⚠ R1 trades bursts for correct windows — 49 bursts became 23 — and the number that matters
+> for a dataset is events, which nearly tripled. **Against chat's ≥ 25 % steer this clears it by a
+> wide margin; ⛔ NO DEFAULT WAS FLIPPED — it is REPORTED, and it must be read beside G11 and G8.**
+> ⚠ **G8 LYRA: under the shipped `MaxCoAffected 0` m52 yields NOTHING on ShooterGym** — all 27
+> candidate textures have visible co-users. With a bench override it delivers **3 manifested events
+> including a SKELETAL target (`SKM_Manny`)**, so hold and verified restore both work on a second host.
+> ⛔ **`stuck_mip_refused_virtual` reads 0 on both Lyra legs ⇒ the virtual-texture `NOT_APPLICABLE`
+> path is UNEXERCISED, not a proven counter** (332 Lyra assets serialise `VirtualTextureStreaming`
+> and four of them were HELD by that leg, i.e. they resolve NOT-virtual at runtime).
+> ✅ **G6 GETS A REAL INSTRUMENT (R7): max and p99 frame time from `t_wall`, PACING OFF** — the pacer
+> absorbs exactly the variance a hitch test looks for. m52 **64.089 ms max / 52.656 p99** vs the
+> blinking control's **68.711 / 59.183**; faster on every statistic in both windows. ⚠ **The spread is
+> 17 → 69 ms, so a +2 ms effect is NOT resolvable here** — this says no LARGE hitch, never "no cost"
+> (`G169`). ✅ **G4: 4 of 5 exits measured**, including a live hold at world teardown
+> (`reverted 1 active anomaly(ies)`, exit 0, zero asserts); **target-destroyed is UNRUN with its
+> structural reason** (m52 holds texture ASSETS, which outlive the actor).
+> ✅ **G9: `annotation.json` root 4 → 4 AND per-event keys 16 → 16 — `P6` DOES NOT MOVE.**
+>
+> 🔻 **TWO DEFECTS OF MINE, FOUND BY READING THE ARTIFACT, FIXED MID-SESSION.** **(1) 🚨 `G267` — an
+> `FName` used as a JSON key ships the case of its FIRST registration anywhere in the process.**
+> `FName(TEXT("name"))` emitted **`"Name"`**, because the engine registered that word first. Nothing
+> warns; the value and type are right and the KEY is a different string from the source. The telemetry
+> bag now keys on `FString`. **(2)** `onset_latency_frames` and the run counter disagreed by one and
+> were not the same quantity — the run counter is now `stuck_mip_onset_preroll_max` and both intervals
+> are defined in `client-readme.md`. 🔻 **AND TWO DEFECTS IN MY OWN PRE-DECLARATION, recorded not
+> reconciled: the achievable window is 7 frames, not 8** (the 8th `Positives` tick is spent on
+> `BeginRevert`, a pre-existing FSM property every anomaly obeys) **and `run_summary` gains 15
+> `stuck_mip_*` keys, not 16** (the list was right, the total was arithmetic).
+>
+> ⚠ **OBSERVED, NOT CHASED: the `m26` veto and the `m49` observability measurement disagreed about one
+> event** — deleted as `MEASURED_ZERO maxCount=0` while its own rows carry `target_pixels` 16,020–16,184
+> and `observable:true`. **2 vetoes across 25 applied fires on the new binary against 0 across 46 on the
+> banked ones — an ASSOCIATION only.** ⛔ **NOT attributed to R1 and R1 NOT excluded.**
+> 📌 New gotchas **`G267`** (FName as a JSON key) and **`G268`** (`lyra_leg.ps1`'s map default is stale —
+> `L_ShooterGym` lives under `/ShooterCore/`, and CaptureBench was NOT edited for it).
+> 🎯 **NEXT: chat rules on the G11 NO-TRACE pair, and on whether 88.9 % takes default-on to the owner.**
+> ⛔ **Do not merge, do not tag, do not flip the pool default, and do not tune the perceptibility ratio
+> to make G11 green.**
+>
+> ---
+> 🟦 *(SUPERSEDED as "you are here" by the 080-03 block above — kept as the record of what 080-01/02 built and found. Where the two disagree, 080-03 governs: its §4 corrects this block's F1 attribution, its §9 replaces this block's G11 reading, and its G7 number supersedes the 18.75 %.)*
+> 🧪 **SESSION 080 (080-01 → 080-02), 2026-09-20 — `m52` `stuck_low_mip` IS BUILT, STAGED AND GATED ON
+> STACKOBOT. NINE GATES PASS, ONE IS PARTIAL, TWO ARE UNRUN. ⛔ NOT MERGED, NOT TAGGED, NOT
+> DEFAULT-ENABLED. VERDICT: NEEDS-DECISION. THIS IS THE CURRENT "YOU ARE HERE" FOR `feat/m52-stuck-mip`;
+> `master`'s own marker is the 079-15 block below and is UNCHANGED.** 🧪
+>
+> **Cold start: `docs/sessions/2026-09-20-080-02-m52-implemented-and-gated.md` (self-contained — §2 the
+> gate table, §3 the yield, §5 the findings), then `docs/predictions/2026-09-20-m52-stuck-low-mip.md`
+> — ⚠ read `AMENDMENT 1` FIRST (the rulings + pre-declared readings); §§0–10 are the 080-01 plan —
+> then `G265`/`G266`.** Branch `feat/m52-stuck-mip` == `origin/feat/m52-stuck-mip`.
+> `master` **`3ff88db`** UNCHANGED; `m51` **`53bf725`** UNCHANGED; CaptureBench untouched at `472a409`.
+>
+> 🎯 **`m52` = A TARGET'S TEXTURES ARE HELD AT A LOW RESIDENT MIP — the object goes blurry while the
+> scene stays sharp.** The lever raises the texture's own public runtime `NumCinematicMipLevels` and
+> calls `UpdateCachedLODBias()`, lowering `MaxAllowedMips` so **THE STREAMER PERFORMS THE STREAM-OUT
+> ITSELF AND HOLDS IT.** No RHI resource recreation, no blocking wait, no global cvar, nothing races us.
+> Measured: resident **11/12 → 7**, top mip **2048/1024 → 64 px**, `observable true`, `target_pixels`
+> 32k–38k.
+> 🚨 **`G265` — THE OBVIOUS LEVER IS A TRAP: `UTexture::LODBias` IS IGNORED ON A COOKED PLATFORM**
+> (`TextureLODSettings.cpp:176-186`). It works in the editor and is a **silent no-op in the client's
+> build** — `G119` and `G114` in one place. **Every m52 gate is PACKAGED-ONLY because of it.**
+> 🚨 **`G266` — the streamer CANCELS a foreign stream request** (`AsyncTextureStreaming.cpp:803-808`),
+> and `UnlinkStreaming` cannot be ordered around it either. Making the streamer the ENFORCER is the way
+> through.
+>
+> ✅ **GATES.** Both build targets **exit 0, ZERO warnings** (the modular editor target is what catches
+> the devirtualisation hazard) · catalog **10** entries, default pool still **4** without it ·
+> 🚨 **CAN-FAIL PASSES: `IAI.Bench.StuckMipNoHold 1` ⇒ `held` false on 51/51 and ALL 7 events
+> `injected=[] affected=[] manifested=false`** — so the held:true readings are results, not blindness ·
+> **ONSET SATISFIED BY CONSTRUCTION: the first labelled frame has `held:true` on EVERY manifested
+> event, in BOTH tick orders** (which are otherwise identical) · revert **7/7 restored, left-to-game 0**
+> · schema **row keys 13→13, anomaly keys 12→23 adding exactly the 11 `stuck_mip.*` keys ONLY inside a
+> `stuck_low_mip` entry, `run_summary` +8, `annotation.json` 4→4 so `P6` DOES NOT MOVE, `label_schema`
+> still 2** · verifier **`NO FAILURE FOUND`, exit 0, NO-TRACE 0** · pacing **1.0000017 / 29.99995 fps**
+> against a blinking control's **1.0020464 / 29.93873** — m52 is *faster*, which is `G169`'s "below the
+> resolution of this instrument", never "no cost".
+> ⚠ **TWO DECLARED LIMITS ON GATES THAT PASSED: the hitch gate measures PACING, not max frame time; and
+> 🚨 THE VERIFIER CANNOT FAIL FOR THIS CLASS AT ALL** — it printed *"NO-TRACE unavailable for class
+> `stuck_low_mip`"*, so its only failure verdict is unreachable here and that zero is weaker than it
+> looks.
+>
+> 📊 **YIELD (`G7`), MainWorld, 600 frames, pool = `stuck_low_mip` only: 32 fires, 6 manifested =
+> 18.75 %**; 29 of 256 window frames held; refusals **shared 177** (the per-texture visible-set gate,
+> dominant) · not-streamable 133 · no-eligible 17 · virtual 0 · imperceptible 0.
+> ⇒ **BELOW chat's 25 % steer, so `stuck_low_mip` is in `GAutoPool` but NOT in
+> `GAutoPoolDefaultEnabled`.** ⛔ No default flipped, no threshold tuned to reach that number.
+> ⚠ **`G140`/`G150` BOUNDARY: a seventh pool id re-rolls the seeded draw, so banked auto-pool runs are
+> non-comparable across this commit. Regression legs must be TARGETED.**
+>
+> 🚨 **THREE FINDINGS, REPORTED AND NOT FIXED IN THE SAME TURN.**
+> **(F1) A RE-FIRE ON AN ALREADY-HELD TARGET REFUSES.** At settle K=8 the leg read **ZERO held frames**
+> — worse than K=2, which **REFUTES** "a longer settle fixes onset" — and the log names it: *"already
+> at or below the requested resident mip count (resident 7, target 7, floor 7)"* ×24 and `HELD NONE`
+> ×4. The texture had not returned to its pre-anomaly resident count before the next fire.
+> **Consequence: the first event on a target works and later events on the same target can silently
+> produce nothing — no false positive, but the yield collapses.** ⛔ **MECHANISM NOT ESTABLISHED AND
+> NOT CHASED (`G120`).** One candidate NAMED not claimed: the revert's `StreamIn` belt is guarded by
+> `!HasPendingInitOrStreaming()` and is **silently skipped exactly when a stream op is in flight**,
+> with no log line saying so.
+> **(F2) ONSET IS LATENT 1–4 CAPTURED FRAMES** and sometimes longer than the 8-frame window; 3 of 7
+> fires never held. Those events ship `manifested:false` with empty frame lists — **the m23 F-LABEL
+> guard doing its job: the anomaly never claims a frame it did not change.**
+> **(F3, mine) `stuck_mip.resident_mips`/`baseline_mips` describe the PRIMARY texture while
+> `stuck_mip.held` is ANY-of-armed**, so `armed=6 heldN=1` prints `11/11 held=true` and reads as
+> self-contradictory. Correct value, defective evidence.
+>
+> 📦 Binary **`A8742A4A`** built == staged == archived; predecessor **`D50DDE78`** (the m51 F1
+> candidate) hash-verified AT ITS ARCHIVE before the swap (`A62`); container quintet **BYTE-UNCHANGED**
+> (`67EA1FE0`/`2CEFB8F4`/`E03C6610` + `A16A18A8`/`C70ECDAA`), code-only hot-swap, **no cook** (`G103`);
+> `A44` both encodings with sound and discriminating controls. Seven legs banked under `M52_*`.
+> ⛔ **UNRUN AND NAMED: the LYRA gate (`G8`) — so the virtual-texture NOT_APPLICABLE path has NEVER
+> FIRED — and three of the five `G4` restore exit paths** (cancel-before-focus, target destroyed,
+> level change).
+> 🎯 **NEXT: chat rules on F1, on F3's reporting shape, and on whether 18.75 % justifies raising
+> `MaxCoAffected` above 0 — which would admit unlabelled blurry objects and is a DATASET decision, not
+> a tuning one. Then Lyra, the three remaining exit paths, and the ruled fix.** ⛔ Do not merge, do not
+> tag, do not flip the default, and do not start `m53`/`m54` unprompted.
+>
+> ---
 > 🏁🏁 **079-15, 2026-09-20 — THE VERIFIER CONSISTENCY UNIT IS COMPLETE AND MERGED TO `master` AS
 > THE MERGE COMMIT `0e7569c` (pushed). THE TOOL REPORTS PIXEL EVIDENCE AND ONE SOUND NEGATIVE;
 > **NO OUTPUT CERTIFIES A LABEL.** THIS IS THE CURRENT "YOU ARE HERE" FOR `master`; EVERYTHING BELOW

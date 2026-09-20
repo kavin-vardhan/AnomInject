@@ -1,11 +1,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/EngineTypes.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "IAnomaly.h"
 #include "AnomalyCatalogTypes.h"
 #include "AnomalyInjectorSubsystem.generated.h"
 
+class AActor;
 class UMaterialInterface;
 
 UCLASS()
@@ -74,6 +76,15 @@ public:
 
 	bool IsAnomalyCurrentlyAnomalous(const FName& Id) const;
 	bool IsAnomalyVisualConditionHeld(const FName& Id) const;
+	bool GetAnomalyTelemetry(const FName& Id, FAnomalyTelemetry& Out) const;
+
+	bool DoesAnomalyHaveDeferredOnset(const FName& Id) const;
+
+	void NoteAnomalyCapturedFrame(const FName& Id, bool bAnomalousThisFrame);
+
+	void WatchTargetForAnomaly(AActor* Actor, const FName& Id);
+
+	void ClearTargetWatchForAnomaly(const FName& Id);
 
 
 	TArray<FAnomalyCatalogEntry> GetAnomalyCatalog() const;
@@ -87,6 +98,18 @@ private:
 	void DispatchAnomalyTicks(float DeltaTime);
 
 	void OnWorldPreActorTickSynth(UWorld* World, ELevelTick TickType, float DeltaSeconds);
+
+	void ServiceBenchDestroyLatch();
+
+	UFUNCTION()
+	void OnWatchedTargetEndPlay(AActor* Actor, EEndPlayReason::Type EndPlayReason);
+
+	struct FTargetWatch
+	{
+		TWeakObjectPtr<AActor> Actor;
+		FName AnomalyId;
+	};
+	TArray<FTargetWatch> TargetWatches;
 
 	TMap<FName, TUniquePtr<IAnomaly>> Anomalies;
 

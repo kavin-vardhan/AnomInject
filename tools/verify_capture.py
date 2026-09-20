@@ -130,6 +130,15 @@ resolved identity and an eligible producer-class contract. Extrapolated edge pai
 and disclosed. Tau is a fraction of the target-region pixels; 1/2500 = 0.0004 is below the default
 floor 0.004 (0.4%). Each pixel also must change by more than the configured RGB-channel threshold.
 
+The producer-class contract has two tiers. Most classes are eligible outright: hiding an object or
+swapping its material changes pixels wherever the object is drawn, so no change across the span
+contradicts the label. A HELD-GATED class is eligible only on runs where the producer's own
+per-frame flag says the condition was held on EVERY labelled frame - stuck_low_mip is the first,
+gated on stuck_mip.held, because its effect is produced by the texture streamer on its own schedule
+and a frame the hold had not engaged on is a frame nothing was expected to change. This narrows the
+class rather than trusting it: an unheld or missing flag leaves the run UNASSESSABLE, which is the
+same verdict the class had before it was listed at all.
+
 Only NO-TRACE returns exit 2. Otherwise the session reports NO FAILURE FOUND, not label approval.
 --report-only suppresses 2 but retains execution error 3. Event outcomes are worst-of the RUN
 outcomes NO-TRACE > OFFSET-NOTE > PARTIAL > CONSISTENT. UNASSESSABLE/READING runs affect coverage
@@ -933,6 +942,40 @@ def _observe_windows(runs, first, last, edge_w, base_idx):
 NO_TRACE_TYPES = frozenset(("missing_object", "blink", "blinking", "missing_texture",
                             "corrupted_texture", "lod_popping", "lod_corruption"))
 
+HELD_GATED_TYPES = {"stuck_low_mip": "stuck_mip.held"}
+
+
+def _held_gate(rows, node, a, b, key):
+    """Every labelled frame of the run must carry the producer's held flag as true.
+
+    A held-gated class earns NO-TRACE only where the engine itself says the condition was
+    held on every frame of the span. One unheld frame makes "no change across the whole
+    span" the expected reading rather than a contradiction, so the run is left
+    UNASSESSABLE. A missing key is not held.
+    """
+    seen = 0
+    for k in range(a, b + 1):
+        entry = _target_entry(rows.get(k) or {}, node)
+        if entry is None or entry.get(key) is not True:
+            return False, seen
+        seen += 1
+    return seen > 0, seen
+
+
+def _no_trace_available(run):
+    if run["type"] in NO_TRACE_TYPES:
+        return True, None
+    key = HELD_GATED_TYPES.get(run["type"])
+    if key is None:
+        return False, "NO-TRACE unavailable for class %s" % run["type"]
+    if run.get("held_gate_ok"):
+        return True, None
+    return False, ("NO-TRACE unavailable for class %s - %s is not true on every labelled frame of "
+                   "frames %d..%d (%d of %d carried it), so no change across the span is the "
+                   "expected reading rather than a contradiction" % (
+                       run["type"], key, run["start"], run["end"],
+                       run.get("held_gate_frames", 0), run["end"] - run["start"] + 1))
+
 
 def _run_outcome(run):
     edges = run["edges"]
@@ -960,8 +1003,9 @@ def _run_outcome(run):
         return R_UNASSESSABLE, "whole-span check: " + errors[0]
     if any(e["mask_id_unresolved"] for e in edges) or any(p["unresolved"] for _k, p in span):
         return R_UNASSESSABLE, "NO-TRACE unavailable: mask id unresolved - sole value used"
-    if run["type"] not in NO_TRACE_TYPES:
-        return R_UNASSESSABLE, "NO-TRACE unavailable for class %s" % run["type"]
+    available, why = _no_trace_available(run)
+    if not available:
+        return R_UNASSESSABLE, why
     tau = min(e["tau"] for e in edges)
     changed = [(k, p["d"]) for k, p in span if p["d"] > tau]
     if changed:
@@ -1071,6 +1115,10 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, out_d
             run_entry = _target_entry(row, ev["node"]) or entry
             run = {"event": ev["i"], "ordinal": ordinal, "start": a, "end": b,
                    "node": ev["node"], "type": ev["type"], "mode": mode, "edges": []}
+            held_key = HELD_GATED_TYPES.get(ev["type"])
+            if held_key:
+                run["held_gate_ok"], run["held_gate_frames"] = _held_gate(
+                    rows, ev["node"], a, b, held_key)
             run["signal"] = _PairSignal(cap_dir, rows, ev["node"], run_entry, mode,
                                          hot, paths, size, mlo, min_visible_px, (a, b), edge_w)
             runs.append(run)
@@ -1108,6 +1156,9 @@ def label_pixel_gate(cap_dir, thresh, edge_w, min_visible_px, quiet=False, out_d
              "  assignment               per target/mode, labelled order: nearest unused peak; tie larger d, then earlier; inversions disclosed",
              "  producer metadata        bbox/observable flags are reported, not confirmed by this tool",
              "  NO-TRACE scope           no change above the noise floor (tau) over the complete span AND edge windows",
+             "  NO-TRACE classes         %s; plus %s only where the producer's own per-frame flag is true on EVERY labelled frame" % (
+                 ", ".join(sorted(NO_TRACE_TYPES)),
+                 ", ".join("%s (%s)" % (t, k) for t, k in sorted(HELD_GATED_TYPES.items()))),
              "  detection limit          tau is a fraction of target-region pixels; RGB-channel threshold also applies",
              "-" * 78]
     counts = Counter()
@@ -1838,6 +1889,31 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None):
                   any(e["run_outcome"] == R_CONSISTENT for e in d) and
                   (name != "consistent_with_unassessable_run" or
                    any("run coverage" in s and "UNASSESSABLE 1" in s for s in lines)))
+        for variant, held, expected in (("stuck_mip_held", True, (R_NO_TRACE,)),
+                                        ("stuck_mip_unheld", False, (R_UNASSESSABLE,)),
+                                        ("stuck_mip_no_flag", None, (R_UNASSESSABLE,))):
+            path = pathlib.Path(_codex08_fixture(root, variant, true_runs=(), label_runs=((40, 70),)))
+            rows = [json.loads(line) for line in (path / "labels.jsonl").read_text().splitlines()]
+            for row in rows:
+                for entry in row["anomalies"]:
+                    entry["id"] = "stuck_low_mip"
+                    if held is not None:
+                        entry["stuck_mip.held"] = held
+            if variant == "stuck_mip_unheld":
+                for row in rows:
+                    for entry in row["anomalies"]:
+                        if row["session_index"] == 55:
+                            entry["stuck_mip.held"] = False
+                        else:
+                            entry["stuck_mip.held"] = True
+            (path / "labels.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+            ann = json.loads((path / "annotation.json").read_text())
+            ann["anomalies"][0]["anomaly_type"] = "stuck_low_mip"
+            (path / "annotation.json").write_text(json.dumps(ann), encoding="utf-8")
+            check(variant, path, expected, verify=lambda d, _l, variant=variant:
+                  all(e["run_outcome"] != R_NO_TRACE for e in d) if variant != "stuck_mip_held"
+                  else all(e["run_outcome"] == R_NO_TRACE for e in d))
+
         check("event_mixed_fabricated_run",
               _codex08_fixture(root, "event_mixed_fabricated_run",
                                true_runs=((24, 24),), label_runs=((10, 15), (24, 24))),
