@@ -1,5 +1,9 @@
 # 2026-09-15 — verifier field validity — FIX PROPOSAL (design only; nothing built)
 
+> 2026-09-20 dated pointer: 079-09 withdraws label-truth verdicts. Current predictions
+> are in [2026-09-20-verifier-consistency-semantics.md](2026-09-20-verifier-consistency-semantics.md).
+> This file is preserved as the historical predeclaration and amendments.
+
 **Status: PROPOSAL. NO CODE WAS WRITTEN.** `tools/verify_capture.py` and
 `tools/measure_label_offset.py` are byte-unchanged as of this file. Every prediction below is
 written **before** the fix exists.
