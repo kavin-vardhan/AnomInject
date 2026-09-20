@@ -759,3 +759,76 @@ their FIRING is not gated, and that is stated rather than implied.**
 - ⛔ It predicts **no onset latency**, **no yield**, and **no refusal counts**.
 - ⛔ It does not permit tuning any default after a reading. A gate that misses is a NEEDS-DECISION
   with numbers.
+---
+
+# AMENDMENT 2 — the 080-03 rulings, and the gate readings they change
+
+**Appended 2026-09-20, session 080-03, BEFORE any gate leg ran and BEFORE any result was read.**
+Nothing above this line is edited. AMENDMENT 1 stands except where a reading is superseded below,
+and where AMENDMENT 1 and this amendment disagree on a READING, **this one governs and the
+difference is stated rather than quietly applied**.
+
+## A2.1 What chat ruled on the 080-02 NEEDS-DECISION
+
+1. **F1 is a DEFECT to fix, not accepted behaviour.** The mechanism named in 080-02 §5 (the
+   revert's `StreamIn` is guarded by `!HasPendingInitOrStreaming()` and is therefore silently
+   skipped exactly when a stream operation is in flight) is a hypothesis and is **diagnosed first,
+   then fixed** — the fix is a VERIFIED restore plus an eligibility gate, not a wider guard.
+2. **Onset latency is handled by starting the labelled window at the first held frame**, not by
+   lengthening the settle. `F2` is therefore not a tuning problem.
+3. **F3's reporting shape is ruled:** per-texture rows, and the ambiguous scalar names are made
+   explicit.
+4. **`MaxCoAffected` stays 0** — dataset purity over yield. **`GAutoPoolDefaultEnabled` stays
+   off.** 18.75 % is below chat's 25 % steer and no default moves on this session's numbers either.
+5. **`G4` and `G8` are run now**; the verifier gains a `stuck_low_mip` NO-TRACE route.
+
+## A2.2 What is built, and the one thing each piece must not do
+
+| ruling | built as | the thing it must NOT do |
+|---|---|---|
+| **R1** window at first held frame | `IAnomaly::HasDeferredOnset()` (defaulted **false**) + a pre-roll in the capture FSM's `Positives` phase that CAPTURES the frame and does **not** decrement `PhaseFramesLeft` until the fire is measurably held. Timeout `IAI.Capture.DeferredOnsetTimeout`, compiled **30** captured pre-roll frames | **It must not touch any other anomaly.** `HasDeferredOnset()` is false for all nine others, so `BurstAwaitsDeferredOnset` returns false and the phase code is the pre-m52 statement. That is STRUCTURAL inertness, and `G10`/`G6`'s blinking control is what reads it back |
+| **R2** verified restore | revert clears the bias, then each texture whose resident count is below its recorded baseline is TRACKED and re-asserted every frame from `IAnomaly::TickAlways` until the engine's own `GetNumResidentMips()` reaches the baseline. `IAI.Anomaly.StuckMipRestoreTimeout`, compiled **120** | **The timeout must not stop the polling.** It COUNTS and NAMES the shortfall; the texture stays tracked until it is actually back |
+| **R3** eligibility | a fire is refused `not_restored` if ANY of its candidate textures is still tracked, and `already_held` if the requested target is the one currently held | **It must not refuse silently.** Both are logged by name and counted in `run_summary` |
+| **R4** telemetry shape | `stuck_mip.textures[]` per-texture rows; `stuck_mip.resident_mips`/`baseline_mips` RENAMED `primary_*`; added `held_all` and `onset_latency_frames` | **It must not move `annotation.json`.** `P6` does not move; the rename is outright because the old names shipped in no release |
+| **R5** verifier | `stuck_low_mip` earns NO-TRACE **only** on runs where `stuck_mip.held` is true on EVERY labelled frame | **It must not widen the tool.** An unheld or missing flag leaves the run UNASSESSABLE — the verdict the class already had |
+| **R7** hitch instrument | max and p99 of consecutive `t_wall` deltas from `labels.jsonl` | **It must not be read off a PACED leg.** The pacer absorbs exactly the variance being measured (the `m35` `G-M6` lesson), so the R7 pair runs `-Pace 0` and a paced reading is labelled as measuring the pacer |
+
+⚠ **`hold_timeout` is a LOG LINE AND A COUNTER, NEVER AN `annotation.json` FIELD.** The brief
+says a timed-out fire is `manifested:false` *with reason `hold_timeout`*. That reason ships in
+the capture log and in `run_summary.stuck_mip_hold_timeouts`; putting it in `annotation.json`
+would move `P6`, which `G9` forbids. The `manifested:false` half needs no new code — an
+`AnomalyState` event with no active frame already lands there.
+
+## A2.3 Schema movement this amendment PREDICTS, so `G9` reads it rather than discovering it
+
+- `labels.jsonl` anomaly keys for a `stuck_low_mip` entry: **11 → 14**. Removed **2**
+  (`stuck_mip.resident_mips`, `stuck_mip.baseline_mips`), added **5**
+  (`primary_resident_mips`, `primary_baseline_mips`, `held_all`, `onset_latency_frames`,
+  `textures`). ⚠ **This is the first REMOVAL m52 has made**, and it is only permissible because
+  those two names have never left this branch.
+- `run_summary`: **8 → 16** `stuck_mip_*` keys; added exactly `refused_not_restored`,
+  `refused_already_held`, `hold_timeouts`, `restore_timeout`, `restore_frames_max`,
+  `textures_awaiting_restore`, `onset_latency_max`, and nothing else.
+- `labels.jsonl` ROW keys **13 → 13**; `annotation.json` root **4 → 4**; `label_schema` **2**.
+
+## A2.4 Pre-declared readings — only the gates whose reading CHANGES are restated
+
+| id | PRE-DECLARED reading |
+|---|---|
+| **G2** can-fail | unchanged in intent, **re-run on the new binary**: `held` false on every frame, `observable` **null** (AMENDMENT: 080-02 pre-declared `false`; the shipped value is `null` = unmeasured, which is the m49 A1 tri-state doing its job and is the honest value — restated here, not tuned), events present with `manifested:false` and empty `injected_frames`. 🚨 **With R1 live, the can-fail leg must ALSO hit the hold timeout**: no fire can ever hold, so every burst must spend `DeferredOnsetTimeoutFrames` pre-roll frames and be counted in `stuck_mip_hold_timeouts`. **A can-fail leg that does NOT time out means R1's wait is not wired.** |
+| **G3** hold | ≥ **6 of 7** fires manifest on MainWorld (080-02 read 4 of 7 with the window being eaten by latency); **0** frames go held→unheld mid-window; every manifested event carries **exactly `PositiveFrames` = 8** labelled frames. ⚠ *The 6-of-7 figure is chat's pre-declared bar, fixed before the leg; a miss is a NEEDS-DECISION with numbers, never a re-run for a better one.* |
+| **G3b** 🚨 F1 | the 080-02 `K=8` recipe is re-run on the new binary against its banked `A8742A4A` A-side, which read **ZERO held frames** and 24 × *"already at or below the requested resident mip count"*. **Two readings are acceptable and they are different claims**: (a) the `already at or below` skips are GONE and later fires hold ⇒ R2 restored the texture, the defect is fixed; (b) they are replaced by explicit `not_restored` refusals ⇒ R2 did NOT restore it and R3 made the failure visible instead of silent. ⛔ **A third reading — `already at or below` still appearing — is a FAILURE**, because it means a fire got past R3 with a depressed baseline |
+| **G4** restore, five exits | each exit reports `restored=N left-to-game=0 unresolved=0` **and** a `RESTORE VERIFIED` line per tracked texture. Where a path cannot be produced on this fixture it is reported **UNRUN with the reason**, never as a pass, and the structural argument for it is stated separately from any measurement |
+| **G5** onset | the **first labelled frame is the first held frame** and the labelled window is contiguous — which is also the cross-check that the FSM's tick-time read and the label's tick-END read agree, since a disagreement would open the window one frame early and leave an unheld frame inside it |
+| **G6** hitch | **R7**: max and p99 frame time, `-Pace 0`, m52 vs the blinking control on the same binary and map. ⚠ **No threshold is added.** AMENDMENT 1's +2 ms stands as chat's bar for the MAX; p99 is reported beside it with no bar at all |
+| **G7** yield | re-measured with the refusal table split out to include `not_restored`, `already_held` and `hold_timeouts`. **PRINTED, NO THRESHOLD.** If it reaches ≥ 25 % that is REPORTED to chat, and **no default is flipped in this session** |
+| **G8** Lyra | hold + restore on the second fixture, and the virtual-texture `NOT_APPLICABLE` path must fire **at least once** or Lyra is stated to contain no virtual-textured candidate and the counter is reported as **never exercised** rather than as zero |
+| **G11** verifier | `NO-TRACE 0` **and** the class now AVAILABLE: at least one run must print a `stuck_low_mip` outcome that is NOT *"NO-TRACE unavailable for class"*. 🚨 **080-02's G11 zero was weaker than it looked and said so; this is the gate that makes it a reading.** A NO-TRACE that appears is a FINDING about m52's labels, reported and not tuned |
+
+## A2.5 What this amendment does not do
+
+- ⛔ It sets **no new threshold**. 30 and 120 are chat's, fixed here before the measurement; the
+  6-of-7 bar is chat's; the +2 ms is AMENDMENT 1's.
+- ⛔ It predicts **no yield**, **no onset latency**, **no restore latency** and **no refusal counts**.
+- ⛔ It does not permit flipping `GAutoPoolDefaultEnabled` or raising `MaxCoAffected` on any
+  reading this session produces.
