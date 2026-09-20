@@ -832,3 +832,170 @@ would move `P6`, which `G9` forbids. The `manifested:false` half needs no new co
 - ⛔ It predicts **no yield**, **no onset latency**, **no restore latency** and **no refusal counts**.
 - ⛔ It does not permit flipping `GAutoPoolDefaultEnabled` or raising `MaxCoAffected` on any
   reading this session produces.
+
+---
+
+# AMENDMENT 3 — the 080-04 rulings, the ratio that drives the depth, and the S2' proposal
+
+**Appended 2026-09-20, session 080-04, BEFORE any gate leg ran and BEFORE any result was read.**
+Nothing above this line is edited. AMENDMENTS 1 and 2 stand except where a reading is superseded
+below, and where they and this amendment disagree on a READING, **this one governs and the
+difference is stated rather than quietly applied**.
+
+## A3.1 What chat ruled on the 080-03 NEEDS-DECISION
+
+1. **`G11`'s two NO-TRACE events are ACCEPTED AS TRUE FINDINGS** - labels unsupported by pixels,
+   not a tool defect.
+2. **`R1`** the footprint/mip ratio gate stays a pick-time filter, but the forced mip is chosen so
+   that the top resident mip is `<= bbox_px / 8`. `mip_levels -1` = as deep as the ratio rule
+   requires, floored at 4 resident mips. New telemetry `stuck_mip.ratio_at_pick` and
+   `stuck_mip.forced_top_px`.
+3. **`R2`** a predeclared retest on the SAME auto-pool recipe as 080-03's `G11` leg. **If ANY
+   NO-TRACE survives on a `held:true` event: STOP the perceptibility line and report
+   NEEDS-DECISION; chat escalates to `m55`. Do not iterate the ratio.**
+4. **`R3`** the 8th-frame FSM behaviour is accepted as pre-existing; documented, not changed.
+5. **`R4`** bind the target's destruction, revert immediately, do not label frames after it,
+   counter `stuck_mip_revert_on_destroy`, bench lever `IAI.Bench.DestroyTarget`, gate `G4e`.
+6. **`R5`** the teardown limit stands; add `stuck_mip_unverified_at_teardown` and a client line.
+7. **`R6`** exercise the virtual-texture path once, or record it UNEXERCISED by name.
+8. **S2' is DESIGNED, NOT BUILT.** Default-on deferred. The veto/observability disagreement is
+   queued as 080-05.
+
+## A3.2 🔻 A CORRECTION TO `R1`'s PREMISE, STATED BEFORE THE RETEST RAN
+
+**"As deep as the ratio rule requires, floored at 4 mips" CANNOT REACH 4 MIPS ON A COOKED
+TEXTURE, AND NO BIAS CAN MAKE IT.** The streamer clamps the per-texture ceiling to the asset's
+own non-streaming floor and then asserts it:
+
+```
+MaxAllowedMips = FMath::Clamp(ResourceState.MaxNumLODs - LODBias,
+                              ResourceState.NumNonStreamingLODs, ...)   StreamingTexture.cpp:229, :233
+check( MaxAllowedMips >= ResourceState.NumNonStreamingLODs );           StreamingTexture.cpp:236
+```
+
+On this cooked bench `NumNonStreamingLODs` is **7** on every candidate texture measured, so the
+deepest achievable top resident mip is **64 px**, and a 401 px target can reach a ratio of at most
+**6.27** however deep the request. ⇒ **the depth half of `R1` cannot bite here; what bites is the
+FILTER.** A target that cannot reach the ratio at the deepest achievable hold is REFUSED.
+
+**As built, and the deviation is stated rather than folded in:**
+- `mip_levels -1` resolves to `max(NumNonStreamingLODs, StuckMipMinResidentMips)` -- the deepest
+  the lever can reach, with a new compiled guard of **4 resident mips**. ⛔ **The guard is INERT on
+  this fixture** (the engine floor of 7 is already deeper) and exists for a host whose floor is
+  lower. ⚠ It is a compiled constant with no ini key and no console override, which is a smaller
+  surface than the `AnomalyDefaults` convention; that is deliberate for a value nothing here can
+  exercise, and it is flagged so the omission is a decision rather than an oversight.
+- ⛔ **`-1` is NOT read as "back off to exactly the ratio".** Holding a large object SHALLOWER
+  because the ratio is already satisfied would reduce the visible signal, which is the opposite of
+  the ruling's purpose. `-1` goes as deep as the lever allows, which satisfies the ratio *a
+  fortiori* wherever it is satisfiable at all.
+- `StuckMipMinTexelRatio` compiled default **4.0 -> 8.0**. ⚠ This is a DIRECTED change, fixed by
+  chat before the retest, not a tune after a reading; 080-03's instruction was "do not tune the
+  ratio to make `G11` green", and this is chat changing the predicate in advance instead.
+
+## A3.3 The two refusal reasons, and why they are two
+
+| reason | fires when | what it says |
+|---|---|---|
+| `too_small_for_ratio` | depth came from the ratio rule (`-1`) and the DEEPEST achievable hold still misses the ratio | the object is too small on screen for any blur this lever can produce |
+| `imperceptible` | an EXPLICIT `mip_levels` was requested and that depth misses the ratio | the requested depth is too shallow; a deeper one would pass |
+
+The auto-pool always uses `-1`, so an auto-pool census shows `too_small_for_ratio` and leaves
+`imperceptible` at 0. **That split is itself the reading**: it says whether the floor or the
+operator is the binding constraint. No key is removed; `imperceptible` keeps its name and its
+meaning narrows.
+
+## A3.4 Schema movement this amendment PREDICTS, so `G9` reads it rather than discovering it
+
+- `labels.jsonl` anomaly keys on a `stuck_low_mip` entry: **14 -> 16**, added exactly
+  `stuck_mip.ratio_at_pick` and `stuck_mip.forced_top_px`, removed **0**.
+- Per-texture record keys: **7 -> 9**, added `forced_top_px` and `ratio_at_pick`.
+- `run_summary`: **15 -> 18** `stuck_mip_*` keys, added exactly `refused_too_small_for_ratio`,
+  `revert_on_destroy`, `unverified_at_teardown`, removed **0**.
+- `labels.jsonl` ROW keys **13 -> 13**; `annotation.json` root **4 -> 4** and per-event **16 -> 16**;
+  `label_schema` **2**.
+
+## A3.5 Pre-declared readings - only the gates whose reading CHANGES are restated
+
+| id | PRE-DECLARED reading |
+|---|---|
+| **G4e** 🚨 NEW | fire, destroy the target mid-window with `IAI.Bench.DestroyTarget`, expect: a revert line naming the destruction, `restored=N left-to-game=0 unresolved=0`, a `RESTORE VERIFIED` line per texture, `stuck_mip_revert_on_destroy` **1**, **no labelled frame after the destroy tick**, `stuck_mip_textures_awaiting_restore` **0** at `FinishRun`, no crash, leg exit 0 |
+| **G7** yield | the refusal census gains `too_small_for_ratio` as its own row. **PRINTED, NO THRESHOLD.** No yield is predicted |
+| **G11** 🚨 the R2 retest | **NO-TRACE 0 across the leg.** The two 080-03 `SM_rock` events, or their equivalents at that seed, read CONSISTENT/OFFSET-NOTE **or do not occur at all** because the ratio gate refuses them - a refusal is an acceptable route to zero, and which route it took must be REPORTED from the refusal log rather than inferred. 🚨 **ANY surviving NO-TRACE on a `held:true` event STOPS the perceptibility line** |
+| **R6** VT probe | EXERCISED (a runtime-virtual texture was found, classified `NOT_APPLICABLE`, and counted) **or** UNEXERCISED with the reason named. ⛔ A zero from a branch that was never reachable is BLINDNESS and must not be written as a clean read |
+
+## A3.6 S2' — ONE HOLD, N EVENTS — **PROPOSAL ONLY, NOT BUILT, NOT AUTHORISED**
+
+**The problem.** A texture is an asset. On authored content the same texture is sampled by several
+visible actors, so the shipped `MaxCoAffected 0` refuses the hold outright: Lyra's `L_ShooterGym`
+yields **0 events** at the shipped default for that reason alone. Raising the cap admits the hold
+**and blurs neighbours the label does not name**, which teaches the model that blurry is normal.
+
+**The proposal.** One texture hold produces **one event per VISIBLE co-affected actor**: each with
+its own target, its own stencil tag, its own mask, its own observability, and a shared
+`stuck_mip.shared_hold_id` linking them. `MaxCoAffected` becomes the maximum number of visible
+co-affected actors ADMITTED rather than TOLERATED; proposed default **4**.
+
+### The seven questions, answered from this session's measurements
+
+**1. Stencil-pool cost per fire. 🚨 THIS IS THE BLOCKER.** The pool is `200..254` = **55**
+assignable values, `m50` reserves **8** for the census, and `EventClaimed` is **never released
+mid-run by design** (`mask_map.json` maps value -> event for the whole session). Measured
+co-affected distribution over refused textures:
+
+| fixture | co=1 | co=2 | co=3 | co=4 | co>=6 | total |
+|---|---|---|---|---|---|---|
+| StackOBot `G7` 600 frames | 24 | 14 | 14 | 0 | 28 | 80 |
+| Lyra `L_ShooterGym` 120 frames | 0 | 0 | **21** | 0 | 0 | 21 |
+
+Today's `G7` leg spends **15** tags on 15 events. Under S2' at cap 4 each admitted fire spends
+`1 + N` tags, and **52 of the 80 shared refusals sit at `co <= 4`**, so a comparable session would
+spend on the order of **50-80 tags against a ceiling of 47**. ⇒ **S2' AT CAP 4 EXHAUSTS THE STENCIL
+POOL WITHIN ONE 600-FRAME SESSION ON THIS FIXTURE**, and `m50`'s exhaustion path then ships targets
+as unmeasurable. ⛔ **S2' cannot be built as proposed without either a shorter session, a lower cap,
+or a tag-recycling change that `m50` deliberately refused.** That is the first thing chat must rule on.
+
+**2. `m44` one-target ownership.** `m44`'s rule is *"an actor under a live fire belongs to its
+event"*. S2' does not break it -- each co-affected actor gets its OWN event and its OWN tag, so
+every actor still belongs to exactly one event. What it does break is the **implicit** assumption
+that one FIRE produces one EVENT: `LiveFires` is keyed per anomaly id, and `stuck_low_mip` holds
+one `Held` array. The N events would have to be siblings of one fire, which means either N entries
+in `LiveFires` for one anomaly id (violating the one-instance-per-id registry invariant) or a new
+event-fan-out at the capture layer. **The second is the only route that does not touch the
+registry.**
+
+**3. `m26` veto.** Per event and unchanged, which is the right shape: a co-affected actor that
+draws zero pixels is vetoed on its own evidence and its siblings survive. ⚠ Cost: a fire can now
+lose some of its events and keep others, so `vetoed_events` stops being comparable across the
+change (`G140`'s shape on a new axis).
+
+**4. `annotation.json` shape.** N events sharing `stuck_mip.shared_hold_id`. ⛔ **That field cannot
+live in `annotation.json` without moving `P6`.** It rides `labels.jsonl` (where the other
+`stuck_mip.*` keys already live) and the join is by `(anomaly_type, start_frame)`, which the
+artifact already carries. **No `annotation.json` field is added.**
+
+**5. Verifier reading.** Each event is judged on its own mask, so `R5`'s HELD-GATED rule applies
+per event unchanged. ⚠ **And this session says that is not enough**: today's Lyra bench-override
+leg produced `NO-TRACE 3` on events whose ratio was **26.76-31.59**, far above the gate, so the
+per-event verdict would flag siblings the pick-time rule cannot predict.
+
+**6. The Lyra yield it would give.** All **21** of Lyra leg 1's shared refusals sit at exactly
+`co_affected = 3`, i.e. entirely inside a cap of 4. ⇒ **S2' would take `L_ShooterGym` from 0 events
+to a non-zero yield, at 4 events (1 + 3) per admitted fire.** That is the strongest argument FOR
+S2' in this file, and it sits directly against the pool arithmetic in (1).
+
+**7. Implementation size.** `Anomaly_StuckLowMip.{h,cpp}` +120 (record the co-affected actor set
+per held texture, expose it); `AnomalyCaptureSubsystem.cpp` +150 (fan one fire out to N event
+accumulators, N tags, N mask records); `AnomalyAutoInjectorSubsystem` +30 (live-fire fan-out);
+`AnomalyLabelWriter` +20 (`shared_hold_id`); plus a gate set of its own. **~320 lines and a new
+gate campaign** - comparable to `m52` itself, and NOT a small change.
+
+⛔ **Nothing in S2' is authorised. It is costed so chat can decide, and the pool arithmetic in (1)
+is a stop, not a caveat.**
+
+## A3.7 What this amendment does not do
+
+- ⛔ It sets **no new threshold** other than the ratio chat fixed at 8.0 before the retest.
+- ⛔ It predicts **no yield**, **no refusal counts**, and **no restore latency**.
+- ⛔ It does not permit flipping `GAutoPoolDefaultEnabled` or raising `MaxCoAffected`.
+- ⛔ It does not build S2', and it does not touch the `m26`/`m49` disagreement queued as 080-05.

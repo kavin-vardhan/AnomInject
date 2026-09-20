@@ -7160,3 +7160,62 @@ where the command says it is BEFORE reading anything into the failure.
 frozen campaign depends on it, so the correct path was passed explicitly per leg and the stale
 default is recorded here instead. **Anyone fixing it later should also check whether the other
 map paths in that file moved with it.**
+
+## G269 — a "no target actor" shortcut that is correct for a GLOBAL anomaly is exactly backwards for an OBJECT-scoped one whose target was destroyed (2026-09-20, m52 080-04)
+
+`ComputeFireActive` decided a frame was ACTIVE like this:
+
+    if (Source == EAnomalyActiveSource::AnomalyState)
+    {
+        return !FActor ? 1 : (Injector->IsAnomalyCurrentlyAnomalous(F.Id) ? 1 : 0);
+    }
+
+`!FActor ? 1` is CORRECT for `camera_clipping`: a global anomaly has no target actor by design,
+so "no actor" means "do not look for one". On an object-scoped anomaly whose target has just been
+DESTROYED it reads *"the object has ceased to exist, therefore the anomaly is present"*, and it
+does so WITHOUT CONSULTING THE ANOMALY AT ALL.
+
+Measured on the first run of the gate built to test destruction: `injected_frames`
+`[35,36,37,38,39,40,41]` against `affected_frames` `[35,36]`, with frames 37-41 carrying **no
+anomaly entry in `labels.jsonl` whatsoever**. The per-frame labelling was already right; only the
+event-level claim in `annotation.json` was wrong, and it over-claimed, which is the
+dataset-poisoning direction.
+
+The discriminator already existed one function away: **`F.bWholeFrameExtent`**, which the event
+accumulator uses for exactly this global-vs-object distinction. With it, every global fire is
+byte-unchanged and the only reachable behaviour change is an object-scoped `AnomalyState` fire
+with a dead target - a blast radius that is STRUCTURAL rather than argued, because only two
+anomalies are `AnomalyState` and one of them is the global.
+
+🔑 **The transferable part: a null-check used as a proxy for a CATEGORY.** `!FActor` was standing
+in for "this is a global anomaly", and the two coincided until an object-scoped anomaly learned to
+outlive its target. **When a shortcut's correctness depends on a category, test the category, not
+the symptom that usually accompanies it.** And note what found it: not a failing assertion but a
+NEW EXIT PATH being gated for the first time. The defect had shipped through m52's whole gate set
+because nothing had ever destroyed a target mid-window.
+
+## G270 — an on-screen-size gate cannot see what a texture CONTAINS, and a large ratio is not evidence of visibility (2026-09-20, m52 080-04)
+
+`stuck_low_mip`'s perceptibility rule compares the target's longest on-screen side against the
+width of the mip it will be held at. It is a SIZE test, and its declared weakness was tiling: a
+texture that repeats N times has a true texel size N times smaller than the rule assumes.
+
+The measured failure is a DIFFERENT one and it is worse. On Lyra, three events with
+`ratio_at_pick` of **26.76, 26.76 and 31.59** - three to four times the gate - were read
+`NO-TRACE` by the label-vs-pixel verifier: large objects (968-1537 px on screen), held to a 64 px
+top mip, 131k-146k measured target pixels, `held:true` on every labelled frame, and no change
+above the noise floor. The held texture was a low-frequency paint/normal map. **A flat surface is
+imperceptible at ANY mip, and no predicate computed from BOUNDS and MIP SIZES can know that.**
+
+⚠ The same session raised that ratio from 4.0 to 8.0 and it DID remove the failures on the other
+fixture, where the failing targets sat at 6.27. Both readings are true, and together they say the
+ratio is a useful filter and not a discriminator. ⛔ Raising it further would not reach 26.76.
+
+🔑 **The rule this leaves: a pick-time geometric predicate can decide what to REFUSE; only a
+measurement of the rendered frame can decide what MANIFESTED.** Anywhere a gate is computed from
+geometry and then read as evidence about pixels, the gap is a place a clean number hides an
+invisible anomaly - `m19`'s "gate on PIXELS" in its newest form.
+
+⚠ And it went unreported for a session: the leg that shows it existed in 080-03 and reads
+`NO-TRACE 2` on that binary too. **It was never run through the verifier.** A gate you own but do
+not point at an artifact produces no reading at all, which is indistinguishable from a clean one.

@@ -537,6 +537,8 @@ event, so the object looks blurry while the rest of the scene stays sharp. The k
 | `stuck_mip.textures_held` | int | how many of them are measurably below baseline this frame |
 | `stuck_mip.co_affected_visible` | int | other visible components sampling the primary held texture (0 under the shipped default) |
 | `stuck_mip.onset_latency_frames` | int | captured frames between the anomaly being applied and the first frame it was measurably held. `-1` until the hold engages |
+| `stuck_mip.forced_top_px` | int | the width in pixels of the largest mip the anomaly will hold this texture at — the *intended* blur, fixed at pick time and constant for the event |
+| `stuck_mip.ratio_at_pick` | float | the target's longest on-screen side divided by `forced_top_px`, measured when the target was chosen. Higher means the object out-resolves the held mip by more. `-1` when the target's on-screen box could not be measured |
 | `stuck_mip.texture` | string | the primary held texture's name |
 
 ⚠ **The `primary_*` scalars describe ONE texture; `held` is an ANY-of over all of them.**
@@ -563,17 +565,51 @@ anomaly on a target that uses it is REFUSED and counted in
 `run_summary.stuck_mip_refused_not_restored`, so a later event can never record the
 still-depressed count as its own baseline.
 
+⛔ **The object must be big enough on screen for the blur to show.** The deepest hold the engine
+permits still leaves a mip of a certain width, and if the target's on-screen box is not at least
+**8×** that width the target is REFUSED and counted in
+`run_summary.stuck_mip_refused_too_small_for_ratio` — it produces no event at all, rather than a
+positive label you cannot see. (`stuck_mip_refused_imperceptible` is the same test applied to an
+explicitly requested mip depth that was simply too shallow; on an automatically chosen target it
+stays 0.)
+⚠ **This is a size test, not a visibility guarantee.** It compares the object's on-screen box
+against the held mip's width and knows nothing about what the texture contains: a low-frequency
+surface — flat paint, a soft normal map — can pass it comfortably and still look unchanged. The
+per-frame `observable` field, which is measured from the rendered frame, remains the authoritative
+answer to "did this show".
+
 ⛔ **Not applicable to virtual textures.** A target whose textures are virtual-textured is
 refused and counted in `run_summary.stuck_mip_refused_virtual`; it produces no event.
-⚠ On the two fixtures tested that counter read **0** — no candidate texture resolved as
-virtual-textured at runtime — so it is reported as **never exercised**, not as a proven guard.
+✅ That guard is **proven**: on both test fixtures a bench probe found genuinely virtual-textured
+assets at runtime, ran them through the shipped eligibility test, and confirmed they are refused —
+so a `0` in that counter means no such texture was encountered, not that the check was never made.
+
+⚠ **If the world shuts down while a hold is still being restored**, the streaming bias is cleared
+on every held texture — nothing is left holding the mip down — but the plugin cannot read back a
+confirmation, because nothing ticks after the world is gone. Those textures are counted in
+`run_summary.stuck_mip_unverified_at_teardown` rather than in the restored total, so the weaker
+evidence is visible as such. This is a property of shutdown, not a leak: the runtime state dies
+with the world and no asset is modified on disk at any point.
+
+⛔ **If the target actor is destroyed while the anomaly is live**, the anomaly reverts immediately
+and **no frame after that is labelled for it** — counted in
+`run_summary.stuck_mip_revert_on_destroy`. This matters because the anomaly holds a *texture*, not
+the actor: without it the texture would stay blurry after the object was gone and frames would
+carry a label for something no longer in the scene.
 
 `run_summary` carries the per-session totals: `stuck_mip_fires_applied`,
 `stuck_mip_textures_held`, `stuck_mip_frames_held`, `stuck_mip_onset_preroll_max`,
 `stuck_mip_hold_timeouts`, `stuck_mip_restore_timeout`, `stuck_mip_restore_frames_max`,
-`stuck_mip_textures_awaiting_restore`, and the refusal counters `stuck_mip_refused_shared` /
-`_not_streamable` / `_virtual` / `_imperceptible` / `_no_eligible_textures` /
-`_not_restored` / `_already_held`.
+`stuck_mip_textures_awaiting_restore`, `stuck_mip_revert_on_destroy`,
+`stuck_mip_unverified_at_teardown`, and the refusal counters `stuck_mip_refused_shared` /
+`_not_streamable` / `_virtual` / `_imperceptible` / `_too_small_for_ratio` /
+`_no_eligible_textures` / `_not_restored` / `_already_held`.
+
+⚠ **A `stuck_low_mip` event's window is one frame shorter than the configured burst length.** The
+window opens at the first frame the hold is measurably down, and the burst's last tick reverts in
+the same tick it captures, so that final frame is correctly not held and not claimed. This is a
+property of the capture schedule, not of this anomaly; the count is always in
+`affected_frames.frame_count`.
 
 ⚠ `stuck_mip_onset_preroll_max` and `stuck_mip.onset_latency_frames` measure **adjacent but
 different intervals** and will normally differ by one. The per-frame key counts every captured
