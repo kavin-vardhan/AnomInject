@@ -10,6 +10,7 @@
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
 
+#include "AnomalyDefaults.h"
 #include "AnomalyViewport.h"
 #include "AnomalyTargeting.h"
 #include "Components/PrimitiveComponent.h"
@@ -28,6 +29,7 @@
 #include "Anomalies/Anomaly_CameraClipping.h"
 #include "Anomalies/Anomaly_MissingTexture.h"
 #include "Anomalies/Anomaly_CorruptedTexture.h"
+#include "Anomalies/Anomaly_StuckLowMip.h"
 
 static constexpr uint64 GAnomalyHeartbeatKey = 0x47445048;
 
@@ -135,6 +137,11 @@ namespace
 		{
 			OutScope = EAnomalyScope::Object;
 		}
+		else if (Id == FName(TEXT("stuck_low_mip")))
+		{
+			OutScope = EAnomalyScope::Object;
+			OutArgs.Add(IntArg(TEXT("mip_levels"), TEXT("-1"), (double)AnomalyDefaults::StuckMipLevelsMin));
+		}
 		else
 		{
 			OutScope = EAnomalyScope::Object;
@@ -162,6 +169,7 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Register(MakeUnique<FAnomaly_CameraClipping>());
 	Register(MakeUnique<FAnomaly_MissingTexture>());
 	Register(MakeUnique<FAnomaly_CorruptedTexture>());
+	Register(MakeUnique<FAnomaly_StuckLowMip>());
 
 	SynthPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddUObject(
 		this, &UAnomalyInjectorSubsystem::OnWorldPreActorTickSynth);
@@ -588,6 +596,16 @@ bool UAnomalyInjectorSubsystem::IsAnomalyVisualConditionHeld(const FName& Id) co
 		return false;
 	}
 	return (*Found)->IsVisualConditionHeld();
+}
+
+bool UAnomalyInjectorSubsystem::GetAnomalyTelemetry(const FName& Id, FAnomalyTelemetry& Out) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return false;
+	}
+	return (*Found)->GetTelemetry(Out);
 }
 
 bool UAnomalyInjectorSubsystem::IsAnomalyCurrentlyAnomalous(const FName& Id) const

@@ -398,6 +398,7 @@ private:
 	int32 ObservableFramesTotal = 0;
 	int32 FramesDrawnUnexpected = 0;
 	int32 TargetDrawnMeasuredRows = 0;
+	int32 StuckMipFramesHeld = 0;
 	struct FExposureSample
 	{
 		double LumaAll = -1.0;

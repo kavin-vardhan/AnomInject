@@ -43,7 +43,7 @@ namespace
 		int32 ShadersPending = 0, int32 AnomalyMaterialsIncomplete = 0, bool bExposureDip = false,
 		const TArray<int32>* TargetPixels = nullptr, const TArray<uint8>* Observable = nullptr,
 		const TArray<FIntRect>* DrawnBounds = nullptr, const TArray<int32>* TargetDrawnPixels = nullptr,
-		bool bExposureDipScopeExcluded = false)
+		bool bExposureDipScopeExcluded = false, const TArray<FAnomalyTelemetry>* Telemetry = nullptr)
 	{
 		OutNumLabels = 0;
 
@@ -128,6 +128,23 @@ namespace
 			else
 			{
 				O->SetField(TEXT("bbox_drawn_px"), MakeShared<FJsonValueNull>());
+			}
+
+			if (Telemetry && Telemetry->IsValidIndex(FireIndex))
+			{
+				const FAnomalyTelemetry& T = (*Telemetry)[FireIndex];
+				for (const TPair<FName, int32>& KV : T.Ints)
+				{
+					O->SetNumberField(KV.Key.ToString(), (double)KV.Value);
+				}
+				for (const TPair<FName, bool>& KV : T.Bools)
+				{
+					O->SetBoolField(KV.Key.ToString(), KV.Value);
+				}
+				for (const TPair<FName, FString>& KV : T.Strings)
+				{
+					O->SetStringField(KV.Key.ToString(), KV.Value);
+				}
 			}
 
 			if (bValid)
@@ -498,7 +515,7 @@ namespace AnomalyLabel
 			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues, Snapshot.MaskState,
 			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete, Snapshot.bExposureDip,
 			&Snapshot.TargetPixels, &Snapshot.Observable, &Snapshot.DrawnBounds,
-			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded);
+			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded, &Snapshot.Telemetry);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -654,7 +671,8 @@ namespace AnomalyLabel
 		const FShaderReadinessTelemetry* ShaderReadiness,
 		int32 FramesExposureDip, const FObservabilityTelemetry* Observability,
 		int32 TranslucentOnlyExcludedTargets, int32 UnmeasurableTargetsAdmitted,
-		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed)
+		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed,
+		const FStuckMipTelemetry* StuckMip)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -685,6 +703,17 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("pattern_excluded_targets"), PatternExcludedTargets);
 		Root->SetNumberField(TEXT("translucent_only_excluded_targets"), TranslucentOnlyExcludedTargets);
 		Root->SetNumberField(TEXT("unmeasurable_targets_admitted"), UnmeasurableTargetsAdmitted);
+		if (StuckMip)
+		{
+			Root->SetNumberField(TEXT("stuck_mip_fires_applied"), StuckMip->FiresApplied);
+			Root->SetNumberField(TEXT("stuck_mip_textures_held"), StuckMip->TexturesHeld);
+			Root->SetNumberField(TEXT("stuck_mip_frames_held"), StuckMip->FramesHeld);
+			Root->SetNumberField(TEXT("stuck_mip_refused_shared"), StuckMip->RefusedShared);
+			Root->SetNumberField(TEXT("stuck_mip_refused_not_streamable"), StuckMip->RefusedNotStreamable);
+			Root->SetNumberField(TEXT("stuck_mip_refused_virtual"), StuckMip->RefusedVirtual);
+			Root->SetNumberField(TEXT("stuck_mip_refused_imperceptible"), StuckMip->RefusedImperceptible);
+			Root->SetNumberField(TEXT("stuck_mip_refused_no_eligible_textures"), StuckMip->RefusedNoEligibleTextures);
+		}
 		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);
 		Root->SetNumberField(TEXT("frames_exposure_dip_suppressed"), FramesExposureDipSuppressed);
 		Root->SetNumberField(TEXT("target_drawn_pixels_measured"), TargetDrawnPixelsMeasured);

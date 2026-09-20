@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AnomalyTelemetry.h"
 
 class UWorld;
 
@@ -26,4 +27,6 @@ public:
 	virtual bool IsCurrentlyAnomalous() const { return IsActive(); }
 
 	virtual bool IsVisualConditionHeld() const { return IsCurrentlyAnomalous(); }
+
+	virtual bool GetTelemetry(FAnomalyTelemetry& Out) const { return false; }
 };

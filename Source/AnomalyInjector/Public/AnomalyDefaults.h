@@ -69,6 +69,36 @@ namespace AnomalyDefaults
 	ANOMALYINJECTOR_API void SetAllowTranslucentOnlyTargetsOverride(bool bAllow);
 	ANOMALYINJECTOR_API void ClearAllowTranslucentOnlyTargetsOverride();
 
+	inline constexpr int32 StuckMipLevelsCompiled = -1;
+	inline constexpr int32 StuckMipLevelsMin = -1;
+	inline constexpr int32 StuckMipLevelsMax = 15;
+
+	ANOMALYINJECTOR_API const TCHAR* StuckMipLevelsKey();
+	ANOMALYINJECTOR_API int32 GetStuckMipLevels();
+	ANOMALYINJECTOR_API FString DescribeStuckMipLevels();
+	ANOMALYINJECTOR_API bool SetStuckMipLevelsOverride(int32 Levels);
+	ANOMALYINJECTOR_API void ClearStuckMipLevelsOverride();
+
+	inline constexpr int32 StuckMipMaxCoAffectedCompiled = 0;
+	inline constexpr int32 StuckMipMaxCoAffectedMin = 0;
+	inline constexpr int32 StuckMipMaxCoAffectedMax = 4096;
+
+	ANOMALYINJECTOR_API const TCHAR* StuckMipMaxCoAffectedKey();
+	ANOMALYINJECTOR_API int32 GetStuckMipMaxCoAffected();
+	ANOMALYINJECTOR_API FString DescribeStuckMipMaxCoAffected();
+	ANOMALYINJECTOR_API bool SetStuckMipMaxCoAffectedOverride(int32 Max);
+	ANOMALYINJECTOR_API void ClearStuckMipMaxCoAffectedOverride();
+
+	inline constexpr float StuckMipMinTexelRatioCompiled = 4.0f;
+	inline constexpr float StuckMipMinTexelRatioMin = 0.0f;
+	inline constexpr float StuckMipMinTexelRatioMax = 4096.0f;
+
+	ANOMALYINJECTOR_API const TCHAR* StuckMipMinTexelRatioKey();
+	ANOMALYINJECTOR_API float GetStuckMipMinTexelRatio();
+	ANOMALYINJECTOR_API FString DescribeStuckMipMinTexelRatio();
+	ANOMALYINJECTOR_API bool SetStuckMipMinTexelRatioOverride(float Ratio);
+	ANOMALYINJECTOR_API void ClearStuckMipMinTexelRatioOverride();
+
 	inline constexpr float CameraClippingTriggerRadiusCompiled = 200.0f;
 	inline constexpr float TriggerRadiusMin = 1.0f;
 	inline constexpr float TriggerRadiusMax = 1000000.0f;

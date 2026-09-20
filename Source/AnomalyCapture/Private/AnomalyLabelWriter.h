@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "PixelFormat.h"
 #include "AnomalyPreviewCapture.h"
+#include "AnomalyTelemetry.h"
 #include "AnomalyViewport.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 
@@ -55,6 +56,7 @@ namespace AnomalyLabel
 		TArray<uint8>   ConditionHeld;
 		TArray<uint8>   Observable;
 		TArray<FIntRect> DrawnBounds;
+		TArray<FAnomalyTelemetry> Telemetry;
 	};
 
 	static constexpr int32 GTargetPixelsUnmeasured = -1;
@@ -171,7 +173,20 @@ namespace AnomalyLabel
 		int32 TranslucentOnlyExcludedTargets = 0,
 		int32 UnmeasurableTargetsAdmitted = 0,
 		int32 TargetDrawnPixelsMeasured = 0, int32 FramesDrawnUnexpected = 0,
-		int32 FramesExposureDipSuppressed = 0);
+		int32 FramesExposureDipSuppressed = 0,
+		const struct FStuckMipTelemetry* StuckMip = nullptr);
+
+	struct FStuckMipTelemetry
+	{
+		int32 FiresApplied = 0;
+		int32 TexturesHeld = 0;
+		int32 FramesHeld = 0;
+		int32 RefusedShared = 0;
+		int32 RefusedNotStreamable = 0;
+		int32 RefusedVirtual = 0;
+		int32 RefusedImperceptible = 0;
+		int32 RefusedNoEligibleTextures = 0;
+	};
 
 	struct FObservabilityTelemetry
 	{

@@ -27,6 +27,7 @@
 #include "AnomalyMaskMeasure.h"
 #include "AnomalyStencilTag.h"
 #include "AnomalyCensus.h"
+#include "AnomalyStuckMipStats.h"
 #include "AnomalySveKeyRing.h"
 #include "AnomalyAsyncWriter.h"
 #include "Misc/CoreDelegates.h"
@@ -286,6 +287,7 @@ namespace
 			{ FName(TEXT("lighting_mismatch")), EAnomalyActiveSource::FireWindow },
 			{ FName(TEXT("lod_corruption")),    EAnomalyActiveSource::FireWindow },
 			{ FName(TEXT("camera_clipping")),   EAnomalyActiveSource::AnomalyState },
+			{ FName(TEXT("stuck_low_mip")),     EAnomalyActiveSource::AnomalyState },
 			{ FName(TEXT("time_dilation")),     EAnomalyActiveSource::FireWindow }
 		};
 		const EAnomalyActiveSource* Found = SourceById.Find(Id);
@@ -2977,6 +2979,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	ObservableFramesTotal = 0;
 	FramesDrawnUnexpected = 0;
 	TargetDrawnMeasuredRows = 0;
+	StuckMipFramesHeld = 0;
+	AnomalyStuckMip::ResetRunStats();
 	ExposureLumBySessionIndex.Reset();
 	ExposureExclusionMask.Reset();
 	ExposureExclusionFolded.Reset();
@@ -4595,6 +4599,26 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 			Snap->ConditionHeld.Add(
 				(Injector && Injector->IsAnomalyVisualConditionHeld(F.Id)) ? 1 : 0);
 		}
+
+		Snap->Telemetry.Reset();
+		Snap->Telemetry.AddDefaulted(Snap->Fires.Num());
+		static const FName GStuckMipHeldKey(TEXT("stuck_mip.held"));
+		for (int32 i = 0; i < Snap->Fires.Num(); ++i)
+		{
+			if (!Injector)
+			{
+				continue;
+			}
+			Injector->GetAnomalyTelemetry(Snap->Fires[i].Id, Snap->Telemetry[i]);
+			for (const TPair<FName, bool>& KV : Snap->Telemetry[i].Bools)
+			{
+				if (KV.Key == GStuckMipHeldKey && KV.Value)
+				{
+					++StuckMipFramesHeld;
+					break;
+				}
+			}
+		}
 	}
 
 	if (Snap->bTargetMask)
@@ -5237,6 +5261,17 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		ObservabilityReport.FramesConditionLost = FramesConditionLost;
 		ObservabilityReport.ObservableMinPixels = ObservableMinPixels;
 
+	const AnomalyStuckMip::FRunStats StuckMipStats = AnomalyStuckMip::GetRunStats();
+	AnomalyLabel::FStuckMipTelemetry StuckMipReport;
+	StuckMipReport.FiresApplied = StuckMipStats.FiresApplied;
+	StuckMipReport.TexturesHeld = StuckMipStats.TexturesHeld;
+	StuckMipReport.FramesHeld = StuckMipFramesHeld;
+	StuckMipReport.RefusedShared = StuckMipStats.RefusedShared;
+	StuckMipReport.RefusedNotStreamable = StuckMipStats.RefusedNotStreamable;
+	StuckMipReport.RefusedVirtual = StuckMipStats.RefusedVirtual;
+	StuckMipReport.RefusedImperceptible = StuckMipStats.RefusedImperceptible;
+	StuckMipReport.RefusedNoEligibleTextures = StuckMipStats.RefusedNoEligibleTextures;
+
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
@@ -5252,7 +5287,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			&ObservabilityReport,
 			TranslucentOnlyExcludedTargets,
 			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0,
-			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed);
+			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed, &StuckMipReport);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")

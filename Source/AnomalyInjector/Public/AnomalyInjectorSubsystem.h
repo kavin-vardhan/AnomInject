@@ -74,6 +74,7 @@ public:
 
 	bool IsAnomalyCurrentlyAnomalous(const FName& Id) const;
 	bool IsAnomalyVisualConditionHeld(const FName& Id) const;
+	bool GetAnomalyTelemetry(const FName& Id, FAnomalyTelemetry& Out) const;
 
 
 	TArray<FAnomalyCatalogEntry> GetAnomalyCatalog() const;
