@@ -200,3 +200,105 @@ client, campaign or release approval.
 **Chat review REQUIRED** for the completed evidence and independent review before
 merge; that is the next mandatory checkpoint. No mailbox, merge, tag, build,
 capture, Source/Shaders/measure_label_offset edit or m51/master edit.
+
+
+## AMENDMENT 2 — 079-12 local peaks and ordered nearest assignment (2026-09-20, before implementation/results)
+
+Authority: owner supplied `D:/IntrusiveAnomalies/_reviews/079-12-codex-ruling-monotone-nearest-assignment.md`.
+R6 in 079-11 is withdrawn. Its clarification report remains unchanged. Base is
+`e6351ce396c53ede5a7acd8186497811776e9e34` on `fix/verifier-field-validity`.
+Codex implements; Claude Code independently reviews next; Chat orchestrates.
+This amendment is committed before implementation or any new fixture/bank/sweep results.
+
+### R6-prime computation and interpretations
+
+1. Keep per-edge regions, tau, inclusive labelled bounds and every hard refusal
+   (missing/corrupt RGB or masks, identity, baseline, cap and session coverage).
+   A local peak k has d(k)>tau and d(k)>=1.5*d(k-1), d(k)>=1.5*d(k+1).
+   Interpret "observed range" as this edge's existing scanned window [lo..hi];
+   neighbours outside that window count as zero. No new neighbouring input is
+   read outside the window to decide peak membership. Threshold comparison stays
+   strict, the two peak comparisons inclusive. No global winner/dominance test.
+2. Group all runs' labelled edges by (target, mode), order by labelled frame,
+   onset before end at a tied frame, then event index and run ordinal for a
+   deterministic tie. Each edge subtracts previously assigned frame numbers
+   from its own peaks, chooses nearest to its nominal frame, tie earlier, then
+   consumes that frame. Hard-refused/truncated edges consume nothing. Keep the
+   labelled-bound window calculation; never clip it using a detected frame.
+3. A selected peak yields TRANSITION; remaining available alternatives print on
+   that same line. A window with no peaks yields NO-TRANSITION. A nonempty peak
+   set entirely consumed by earlier edges yields the specified UNASSESSABLE
+   reason with the consumed frames. Structured detail retains original peaks,
+   candidates available at this edge's turn, and previously consumed peaks.
+4. If either run window held >1 peak, disclose both assignments on the run line
+   as nearest of the candidates available at that turn (none when unavailable).
+   Same-target/mode scope and onset-first single-run handling apply everywhere.
+   Retain full-span above-tau checking: no local peak is NOT by itself NO-TRACE.
+5. Follow the explicitly specified ordered greedy walk without an additional
+   ordering constraint. Exclusion establishes uniqueness, but does not generally
+   prove increasing assigned frames when edge regions/tau yield different peak
+   sets. Do not silently add a last-selected-frame floor. Add a narrow regression
+   documenting this limitation and report it for Chat's semantic disposition.
+6. All R1-R5 rules remain except the old single-winner and duplicate-claim
+   refusals, now expressly replaced. Ring remains diagnostic at the SELECTED
+   peak; event/run aggregation, NO-TRACE and batch/exit rules stay unchanged.
+   Reuse AMENDMENT 1's cap derivation and cap=1 semantic fixture controls.
+
+### Predeclared readings and known specification conflict
+
+- Supplied blink control: labels [4..5],[8..9], peaks4/6/8/10 -> assignments
+  4/6/8/10, all delta0, both runs CONSISTENT. B.onset label9 -> assignment8,
+  delta-1, B.end10 delta0; event OFFSET-NOTE. Use actual masked RGB fixtures.
+- Supplied missing-gap prediction is preserved: without peak6, A.end
+  NO-TRANSITION, B.onset8, A PARTIAL/B CONSISTENT. **This contradicts the specified
+  walk.** Under unchanged windows A.onset takes4; A.end [4..8] can still take8
+  (delta+2); B.onset [6..10] then takes10 (delta+2); B.end [8..14] has only consumed
+  8/10 and refuses. Literal expected result: A OFFSET-NOTE, B PARTIAL, event
+  OFFSET-NOTE. A missing-6 fixture will contain exactly peaks4/8/10, with stable
+  pairs thereafter. Do not reserve8 for B or invent a gap-local no-peak rule.
+  Record the supplied prediction as a miss if this reading is confirmed.
+- 079-07/08 adjacent late second onset, true10..11 and15..16, labels10..11 and
+  16..16: take10/12/15/17, B.onset delta-1. New expected OFFSET-NOTE replaces
+  PARTIAL. A.end must be12 (delta0), never15 (the old END-SHIFT(+3) class).
+- Adjacent aligned changes UNASSESSABLE -> CONSISTENT; adjacent early B onset
+  changes UNASSESSABLE -> OFFSET-NOTE; mixed bbox/mask late B onset is expected
+  PARTIAL -> OFFSET-NOTE under the separate mode walks.
+- Single-frame c08 aligned remains UNASSESSABLE: adjacent equal changes60/61
+  suppress each other as local peaks, and full-span change blocks NO-TRACE.
+  c08 late changes PARTIAL -> OFFSET-NOTE (end61 at window boundary, delta-1);
+  c08 early changes UNASSESSABLE -> OFFSET-NOTE (onset60 at boundary, delta+1).
+  These explicitly use the observed-window interpretation above.
+- Lighting, occluder and every other existing fixture retain their old outcome
+  unless local-peak membership or the ordered walk changes it. Before changing
+  any further expected string, record the first observed mismatch and explain
+  its cause; list EVERY changed event/run/edge expected reading against the
+  frozen 079-10 evidence. Such changes are measured corrections, not retroactive
+  predictions. Missing-data/cap/identity guards must still take precedence.
+
+### P1-P6 and disposition
+
+P1: retain all 90 prior fixtures, with disclosed R6-prime changes, and add the
+three ruled blink controls. Add meaningful local-peak/nearest/tie/exclusion,
+scope, hard-refusal, disclosure and ordering-limit contracts. No wrong-NO-TRACE.
+P2-prime: all six pinned legs, 64/64 edges observed, four CONSISTENT events per
+leg, tau0.0040. Compare the four non-blink legs' observations and numbers to
+079-10; header/cap/new disclosure text may differ.
+P3: rerun A2L_LEGA, LYRA_SMOKE_01, A1L_LEGA and M50L_LG9; show complete readings.
+P4: rerun the unchanged 572 planned-key scorer sweep, both guard settings;
+derive and install the measured cap without tuning; retain all ledgers and
+report scored classes, unscored reasons and original-edge positive support.
+P5: retain batch collision tests and direct CLI 2/0/3 exit contracts.
+P6: independent Code review remains pending; preserve producer-contract,
+noise-floor and extrapolation limitations and disclose assignment limitations.
+
+Report `_reviews/079-12-codex-delta-report.md` with the changed-expectation table,
+per-P evidence, source/artifact hashes, diff summary and measured wall time.
+GREEN only if P2-prime AND self-test readings match the supplied predictions;
+otherwise NEEDS-DECISION, even if regressions for the specified algorithm pass.
+Commit/push the feature only, restore m51, preserve 079-11's report and all
+protected/unrelated files. No mailbox, brief, build, cook, capture, merge or tag.
+
+**Chat review NOT REQUIRED** for this authorized implementation and feature push.
+**Chat review REQUIRED** for the resulting evidence, prediction conflicts and
+independent Code review before merge; this is the next mandatory checkpoint.
+Client/Section G, m51 campaign and release holds remain.
