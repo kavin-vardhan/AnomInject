@@ -7219,3 +7219,51 @@ invisible anomaly - `m19`'s "gate on PIXELS" in its newest form.
 ⚠ And it went unreported for a session: the leg that shows it existed in 080-03 and reads
 `NO-TRACE 2` on that binary too. **It was never run through the verifier.** A gate you own but do
 not point at an artifact produces no reading at all, which is indistinguishable from a clean one.
+
+## G271 — a per-event evidence BUDGET must start at ONSET, not at the fire, or a deferred-onset anomaly is judged entirely on its pre-roll (2026-09-20, 080-06)
+
+`m26`'s veto reads `MaxCount`, a MAX over at most `MaxArmsPerEvent = 4` arms, and
+`ArmIfMeasurable` was called every tick-end and armed the first eligible record. So an event's
+**entire evidence budget was spent on the four ticks after its record was created**. That is
+correct for every anomaly whose window opens at the fire — and wrong for one whose window does
+not.
+
+`m52`'s `stuck_low_mip` has a **deferred onset**: the labelled window opens only once the mip hold
+is measurably down, **measured 19–22 captured frames later**. So **100 % of the veto's evidence
+came from frames on which the anomaly had not engaged**, while `m49`'s per-row `target_pixels` was
+filled from a later outcome that had. Two instruments, the same mask pass, the same tag, **disjoint
+frame sets** — and the veto is the one that DELETES the event.
+
+**The rule: any per-event budget — arms, samples, retries, a first-N window — is a claim about
+WHICH frames are the event's. State that claim. If an anomaly can have an onset later than its
+fire, the budget starts at ONSET.**
+
+🔑 **The fix needs no budget arithmetic.** Gate the arm on the same per-frame predicate the LABEL
+uses (here `IsFireLabelledThisFrame`), and skip when it is false: the counter only increments when
+an arm is issued, so **the skip IS the deferral** and the budget lands on the first N eligible
+ticks by construction.
+
+⚠ **And gate it at BOTH ends.** A record whose fire has *ended* is not labelled either, so leftover
+budget cannot be spent on a **restored** object. Measuring the restored texture and calling it the
+event's evidence is the same defect mirrored, and it is the one nobody looks for.
+
+🚨 **THE READING HALF IS HALF THE FIX, AND IT WAS THE MISSING HALF HERE.** 080-05 excluded five
+candidates for a `MEASURED_ZERO` and then stopped, because `CollectResults` reads
+`Mask.TagResults.Find(R.Tag)` and **logged nothing about that table's contents** — no line anywhere
+said which tags the reduce contained, so the zero was unrecoverable from banked evidence and a
+replay would have reproduced the same silence. Once the table is printed the zero reads in one
+line: `ourCount=0 present=5 totalMasked=66839 table=[200:4 201:327 202:32430 203:24091 207:9987]`
+— the pass ran, produced for five other values, and ours was not among them.
+**Log the table your decision reads, not just the number you derived from it.**
+⚠ Print it on **every** contributing frame, not only on zeros: the comparison that settles such a
+question is a zero against a NON-zero on the same actor, and a zero-only log supplies one half of
+it.
+
+⚠ **AND THE GATE FOR THIS CANNOT READ ITS WINDOW FROM `annotation.json`.** A vetoed event is
+removed from that file **before it is written**, so the one event the gate is about is the one it
+cannot judge — the first version of the checker scored those four arms OUTSIDE and would have been
+reported as a product RED (`G142`/`G243`, third instance). `labels.jsonl` is written in a
+delivery-OFF leg and the veto does **not** retro-edit it (`L3`), so read the window there — and
+**prove that route against the known answer first**: `{si : held}` must equal `injected_frames`
+exactly on every event the veto did NOT delete (measured 5 of 5, mismatched 0) before any verdict
+is printed.
