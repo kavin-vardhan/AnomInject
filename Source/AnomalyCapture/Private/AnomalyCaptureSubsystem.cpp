@@ -4390,9 +4390,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 
 	const bool bUseSve = bSveCapture && Async.IsValid() && Async->SveCapturer.IsValid();
 
-	const bool bForceSyncGap = Async.IsValid() && Async->ChangeStage.IsValid()
-		&& Async->ChangeStage->Gate(13, SessionFrameIndex);
-	if (bAsyncCapture && Async.IsValid() && (Async->Capturer.IsValid() || bUseSve) && !bForceSyncGap)
+	if (bAsyncCapture && Async.IsValid() && (Async->Capturer.IsValid() || bUseSve))
 	{
 		SWindow* TargetWindow = nullptr;
 		FIntRect CaptureRect;

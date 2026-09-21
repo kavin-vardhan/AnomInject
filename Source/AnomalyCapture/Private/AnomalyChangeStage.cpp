@@ -16,7 +16,7 @@ static TAutoConsoleVariable<int32> CVarChangeEnabled(TEXT("IAI.Capture.ChangeEvi
 static TAutoConsoleVariable<int32> CVarChangeBytes(TEXT("IAI.Capture.ChangeMaxBytes"), 64 * 1024 * 1024,
 	TEXT("Maximum bytes retained by m55 (not the writer pool). Sampled at run start."));
 static TAutoConsoleVariable<int32> CVarChangeGate(TEXT("IAI.Bench.ChangeGate"), 0,
-	TEXT("Bench fault at SI 8: 1=two-ready,2=skip,3=writer,4=readback,5=mask-write,6=coalesce,7=epoch,8=view,9=extent,10=budget,11=late,12=stale,13=sync-gap. 14=log frozen-mask CRC for transport audit."));
+	TEXT("Bench fault at SI 8: 1=two-ready,2=skip,3=writer,4=readback,5=mask-write,6=coalesce,7=epoch,8=view,9=extent,10=budget,11=late,12=stale,13=unregistered-index. 14=log frozen-mask CRC for transport audit."));
 static FThreadSafeCounter64 GChangeEpoch, GChangeToken;
 
 static FString ChangeSettingSource(const TCHAR* Name)
@@ -91,6 +91,13 @@ FAnomalyChangeIssuePtr FAnomalyChangeStage::Issue(uint64 RequestId, int32 SI, co
 	New->RequestId = RequestId; New->SessionIndex = SI; New->SubmitMs = NowMs(); New->Camera = Camera;
 	New->FrameFile = FrameFile;
 	New->OwnerTarget = OwnerTarget; New->OwnerScene = OwnerScene; New->OwnerLevel = OwnerLevel; New->Stage = AsShared();
+	if (Gate(13, SI))
+	{
+		// Synthetic unissued-index test. Preserve the real legacy colour/mask work,
+		// but do not register this capture with the additional ordered consumer.
+		++Counters.FindOrAdd(TEXT("bench_unregistered_capture"));
+		return New;
+	}
 	if (FirstIndex < 0) { FirstIndex = SI; Cursor = SI; }
 	LatestIndex = SI;
 	FPending& Item = Pending.Add(SI);
