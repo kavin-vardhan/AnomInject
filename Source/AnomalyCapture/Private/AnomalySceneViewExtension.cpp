@@ -93,6 +93,8 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 			FSceneViewFamilyContext Throwaway(FSceneViewFamily::ConstructionValues(nullptr, InViewFamily.Scene, InViewFamily.EngineShowFlags));
 			Throwaway.FrameNumber = InViewFamily.FrameNumber;
 			FSceneViewInitOptions Init; Init.ViewFamily = &Throwaway;
+			Init.ViewRotationMatrix = FMatrix::Identity;
+			Init.ProjectionMatrix = InViewFamily.Views[0]->ViewMatrices.GetProjectionMatrix();
 			Init.SetViewRectangle(FIntRect(0, 0, 16, 16));
 			Throwaway.Views.Add(new FSceneView(Init));
 			BeginRenderViewFamily(Throwaway);
