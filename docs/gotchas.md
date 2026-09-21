@@ -7344,3 +7344,15 @@ legacy end-of-tick label sample arrives, then seal the actual phase last index. 
 consumer by moving legacy label sampling. Numeric work uses value metadata and immutable buffers;
 it releases the admission mutex during the pixel scan. Reference-frame shares extend the unique
 canonical reservation rather than allocating or charging a second copy of the predecessor.
+
+
+## G277 — B1 pose validity and foreground ownership are separate observations (2026-09-21, R1 preflight)
+
+No-capture server snapshots can retain a calibrated static camera while another process owns
+foreground. In081-09, four late A/B preflights passed raw B1 with0/90 foreground samples;
+they do not certify a focused final fixture. Other launches changed orientation and lost the
+visible target while foreground ownership alternated. Retain both pose and foreground series;
+do not infer binary regression, input cause or fixed-fixture readiness from the B1 count alone.
+The adapter uses snapshot indices, not captured-frame indices. Keep missing target rows explicit.
+UE's control JSON may arrive in binary WebSocket data frames; require valid JSON rather than
+Text framing. Treat an empty newly created log as not ready, not as a regex input error.

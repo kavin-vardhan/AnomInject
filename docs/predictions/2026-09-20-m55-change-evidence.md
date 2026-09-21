@@ -1794,3 +1794,14 @@ Moving-camera twins and remaining phase/lifetime/hide/nohold/Lyra/invariance gat
 The unrun offscreen-at-SI3 proposal is withdrawn (before first live fire; not occlusion);
 already-occluded onset still needs a proper fixture. See081-08 journal/report and ledger.
 Stage 1 remains ACCEPTED on36 and24 Lyra legs DROPPED-BY-OWNER-DECISION, as ruled081-07.
+
+
+## AMENDMENT 081-09 outcome, 2026-09-21 — R1 diagnosis, no qualification allowance renewed
+
+081-08 continuation ruling accepts the four static twin legs. R1 no-capture A/Bx5 is complete:
+AEBD09EA B1-valid4/5,2C21EDE5 B1-valid2/5, with inconsistent foreground focus (sustained A2/5,
+B0/5). Both binaries fail, rates are unequal, and focus confounds attribution. No correction
+branch selected; no rebuild or capture. Chat review REQUIRED at the explicit R1 report boundary.
+No new allowance; R2–R4 (including authorized real occluder and natural moving twins) deferred;
+R5 scoped Lyra last. GREEN R2–R4 plus R5 resolved is now the automatic Stage 3 release condition.
+The twenty-four Stage 1 Lyra legs remain DROPPED-BY-OWNER-DECISION. See081-09 journal/report.

@@ -11,19 +11,19 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **081-08, 2026-09-21 — m55 Stage 2 implemented/built; qualification NEEDS-DECISION.**
-> Stage 1 CLOSED/ACCEPTED on 36 legs; 24 Lyra G1–G12/order legs are
-> DROPPED-BY-OWNER-DECISION under 081-07 (host-chosen spawn; no Stage 1 placement lever).
-> Feature source `989da8b`; Game `2C21EDE5`. Static null/solid twins passed both orders,
-> five events each. Delay=3 natural exhausted three B1-invalid attempts; no gate verdict,
-> no fourth attempt. Remaining Stage 2 gates and AEBD09EA invariance are UNRUN.
-> L2 editor fixture module built; no Lyra attempt yet (first-leg allowance remains 3).
-> Unrun offscreen-at-SI3 recipe withdrawn: it does not establish already-occluded onset.
-> Read `docs/sessions/2026-09-21-081-08-codex-m55-stage-2.md` and external
-> `_reviews/081-08-codex-m55-stage-2-report.md`. **Chat review REQUIRED** for B1 fixture
-> continuation and Stage 2 disposition; Stage 3 HELD. **Chat review NOT REQUIRED** for
-> completed authorized implementation/build/documentation. No Code brief; Code reviews
-> after Stage 3. Main/Lyra entry checkouts restored at the external report boundary.
+> **081-09, 2026-09-21 — m55 R1 no-capture fixture diagnosis: NEEDS-DECISION.**
+> Archived Stage 1 AEBD09EA passed B1 in4/5 observations; Stage 2 2C21EDE5 in2/5.
+> Focus was inconsistent: only2/5 A and0/5 B held it for all90 samples. SearchHost was
+> observed owning foreground during much of the series. Both binaries fail pose;
+> neither a Stage-2-only regression nor similar failure rates is established.
+> No capture/injection, rebuild, source fix or allowance renewal. Static twins remain
+> accepted by081-08 ruling; DELAY_N's three old invalid attempts remain uncredited.
+> Read `docs/sessions/2026-09-21-081-09-codex-m55-fixture-diagnosis.md` and external
+> `_reviews/081-09-codex-m55-fixture-diagnosis.md`. **Chat review REQUIRED** for the
+> ambiguous R1 continuation and explicit report/ferry boundary before R2–R4. **Chat review
+> NOT REQUIRED** for completed authorized diagnosis/documentation. R5 Lyra runs last;
+> Stage 3 remains held. Feature changes this round are documentation only.
+> Stage 1 accepted36; Lyra24 DROPPED-BY-OWNER-DECISION unchanged. No Code brief.
 > This m55 feature status supersedes older status prose below for this workstream.
 
 > 🏁🏁 **SESSION 080-06, 2026-09-20 — THE `m26` VETO'S ARMS ARE GATED ON THE LABELLED WINDOW AND
