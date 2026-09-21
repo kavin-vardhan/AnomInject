@@ -108,6 +108,10 @@ void FAnomalyChangeStage::Observe(int32 SI, const TArray<FAnomalyChangeLabel>& L
 			for (FPhase& Phase : Event.Phases) { ClosePhaseLocked(Phase, *Event.Cause); }
 		}
 	}
+	if (!DeferredEndCause.IsEmpty() && SI >= DeferredEndAt)
+	{
+		EndEventsLocked(*DeferredEndCause); DeferredEndCause.Reset(); DeferredEndAt = -1;
+	}
 	ScheduleLocked();
 }
 void FAnomalyChangeStage::EndEventsLocked(const TCHAR* Cause)
@@ -122,7 +126,13 @@ void FAnomalyChangeStage::EndEventsLocked(const TCHAR* Cause)
 }
 void FAnomalyChangeStage::EndEvents(const TCHAR* Cause)
 {
-	FScopeLock Lock(&CS); EndEventsLocked(Cause); ScheduleLocked();
+	FScopeLock Lock(&CS);
+	// BeginRevert may follow CaptureCurrentFrame in the same GT tick. The legacy
+	// end-of-tick label sample must resolve before minting its final watermark.
+	const FPending* Last = Pending.Find(LatestIndex);
+	if (Last && !Last->bObserved) { DeferredEndCause = Cause; DeferredEndAt = LatestIndex; }
+	else { EndEventsLocked(Cause); }
+	ScheduleLocked();
 }
 void FAnomalyChangeStage::FinalizeEventsLocked()
 {
@@ -195,7 +205,11 @@ void FAnomalyChangeStage::MeasureLocked(FPending& Item, EAnomalyChangeReason Rea
 		{
 			Phase.Reference = Previous.Pixels; Phase.ReferenceReceipt = Previous.ColourReceipt; RetainColourLocked(Phase.Reference);
 		}
-		Windows.Add({Label, Phase.Reference, Phase.ReferenceReceipt, {}});
+		const bool RefGeometry = Phase.ReferenceReceipt.IsValid() && Item.ColourReceipt.IsValid() &&
+			Phase.ReferenceReceipt->Rect == Item.ColourReceipt->Rect && Phase.ReferenceReceipt->Extent == Item.ColourReceipt->Extent &&
+			Phase.ReferenceReceipt->Format == Item.ColourReceipt->Format &&
+			Phase.ReferenceReceipt->Issue->RunEpoch == Item.Issued->RunEpoch && Phase.ReferenceReceipt->Issue->CutCounter == Item.Issued->CutCounter;
+		Windows.Add({Label, RefGeometry ? Phase.Reference : nullptr, RefGeometry ? Phase.ReferenceReceipt : nullptr, {}});
 	}
 	if (Windows.IsEmpty()) { return; }
 	FChangeStats Stats[256];

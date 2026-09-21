@@ -44,6 +44,9 @@
 #include "EngineUtils.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/App.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "Kismet/GameplayStatics.h"
 
 #include "Components/MeshComponent.h"
 #include "Misc/FileHelper.h"
@@ -73,6 +76,9 @@
 #endif
 
 #if ANOMALY_CAPTURE
+static TAutoConsoleVariable<int32> GChangeTeardownAt(TEXT("IAI.Bench.ChangeTeardownAt"), -1,
+	TEXT("Fixture-only actual world teardown after N captures; -IAIBenchFixture and CB_GateLevel required. Default off."));
+static bool GChangeTeardownIssued = false;
 namespace AnomalyTickPin
 {
 #if ANOMINJECT_FW_TICKPIN
@@ -629,6 +635,17 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 #if ANOMALY_CAPTURE
 	if (!bRunning)
 	{
+		return;
+	}
+
+	if (!GChangeTeardownIssued && GChangeTeardownAt.GetValueOnGameThread() >= 0 &&
+		SessionFrameIndex >= GChangeTeardownAt.GetValueOnGameThread() &&
+		FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")) &&
+		GetWorld()->GetMapName().Contains(TEXT("CB_GateLevel")))
+	{
+		GChangeTeardownIssued = true;
+		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): TEARDOWN-DEVICE actual OpenLevel at si=%d"), SessionFrameIndex);
+		UGameplayStatics::OpenLevel(GetWorld(), FName(TEXT("/Game/StackOBot/Maps/MainWorld")));
 		return;
 	}
 

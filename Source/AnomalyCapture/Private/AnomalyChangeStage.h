@@ -161,6 +161,8 @@ private:
 	TMap<FString, FEvent> Events;
 	TMap<const TArray<FColor>*, int32> ColourOwners;
 	FString RunDir;
+	FString DeferredEndCause;
+	int32 DeferredEndAt = -1;
 	FString EnabledSource, BytesSource, GateSource;
 	uint64 Epoch = 0, Cut = 0;
 	int32 Cursor = 0, LatestIndex = -1, FirstIndex = -1;
