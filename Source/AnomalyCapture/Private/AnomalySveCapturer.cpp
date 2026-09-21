@@ -26,7 +26,7 @@ void FAnomalySveCapturer::ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr Cha
 	{
 		FScopeLock Lock(&StateCS);
 		PendingWanted.Add(RequestId);
-		if (ChangeIssue.IsValid()) { PendingIssues.Add(RequestId, ChangeIssue); ChangeStage = ChangeIssue->Stage; }
+		if (ChangeIssue.IsValid()) { PendingIssues.Add(RequestId, ChangeIssue); ChangeStage = ChangeIssue->Stage; LastIssuedIdentity = ChangeIssue; }
 		DepthAfter = PendingWanted.Num();
 		++Handshake.ArmsIssued;
 		Handshake.MaxPendingDepth = FMath::Max(Handshake.MaxPendingDepth, DepthAfter);
@@ -52,6 +52,11 @@ FAnomalyChangeIssuePtr FAnomalySveCapturer::PeekChangeIssue() const
 TSharedPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> FAnomalySveCapturer::GetChangeStage() const
 {
 	FScopeLock Lock(&StateCS); return ChangeStage.Pin();
+}
+
+FAnomalyChangeIssuePtr FAnomalySveCapturer::GetOwnerIssue() const
+{
+	FScopeLock Lock(&StateCS); return LastIssuedIdentity;
 }
 
 bool FAnomalySveCapturer::ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId, FAnomalyChangeIssuePtr& OutIssue)
@@ -105,6 +110,7 @@ void FAnomalySveCapturer::Reset()
 		PendingWanted.Reset();
 		PendingIssues.Reset();
 		ChangeStage.Reset();
+		LastIssuedIdentity.Reset();
 		Handshake = FAnomalySveHandshakeStats();
 	}
 	Submits.Reset();

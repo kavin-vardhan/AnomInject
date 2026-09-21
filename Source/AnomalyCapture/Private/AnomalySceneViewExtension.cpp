@@ -72,17 +72,22 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 		}
 	}
 	const auto PendingIssue = Cap->PeekChangeIssue();
-	if (PendingIssue.IsValid())
+	const auto OwnerIssue = PendingIssue.IsValid() ? PendingIssue : Cap->GetOwnerIssue();
+	if (OwnerIssue.IsValid())
 	{
-		auto Stage = PendingIssue->Stage.Pin();
+		auto Stage = OwnerIssue->Stage.Pin();
 		if (!Stage.IsValid()) { return; }
-		if (InViewFamily.Views.Num() != 1 || InViewFamily.RenderTarget != PendingIssue->OwnerTarget
-			|| InViewFamily.Scene != PendingIssue->OwnerScene)
+		if (InViewFamily.Views.Num() != 1 || InViewFamily.RenderTarget != OwnerIssue->OwnerTarget
+			|| InViewFamily.Scene != OwnerIssue->OwnerScene)
 		{
 			Stage->Diagnostic(TEXT("view_rejected"));
 			return; // A foreign family must not consume this viewport's pending arm.
 		}
-		if (Stage->Gate(8, PendingIssue->SessionIndex))
+		if (LastChangeFamilyFrame == InViewFamily.FrameNumber && LastChangeEpoch == OwnerIssue->RunEpoch)
+		{
+			Stage->Diagnostic(TEXT("view_rejected")); return;
+		}
+		if (PendingIssue.IsValid() && Stage->Gate(8, PendingIssue->SessionIndex))
 		{
 			// Real second family/view, same scene frame and view index zero, foreign render target.
 			FSceneViewFamilyContext Throwaway(FSceneViewFamily::ConstructionValues(nullptr, InViewFamily.Scene, InViewFamily.EngineShowFlags));
@@ -100,6 +105,7 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 	{
 		auto* Data = InViewFamily.GetOrCreateExtentionData<FAnomalyChangeFamilyData>();
 		Data->Issue = Issue; Data->FamilyId = FAnomalyChangeFamilyData::NextId();
+		LastChangeFamilyFrame = InViewFamily.FrameNumber; LastChangeEpoch = Issue->RunEpoch;
 	}
 	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, RequestId, bWanted);
 }

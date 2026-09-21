@@ -30,6 +30,8 @@ private:
 
 	TWeakPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Capturer;
 	int32 ExtentClampDrops = 0;
+	uint32 LastChangeFamilyFrame = MAX_uint32;
+	uint64 LastChangeEpoch = 0;
 };
 
 #endif

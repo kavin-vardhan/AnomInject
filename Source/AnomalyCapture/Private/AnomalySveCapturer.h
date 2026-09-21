@@ -43,6 +43,7 @@ public:
 
 	void ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr ChangeIssue = nullptr);
 	FAnomalyChangeIssuePtr PeekChangeIssue() const;
+	FAnomalyChangeIssuePtr GetOwnerIssue() const;
 	TSharedPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> GetChangeStage() const;
 	bool ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId, FAnomalyChangeIssuePtr& OutIssue);
 	void NoteIneligibleFamily();
@@ -86,6 +87,7 @@ private:
 	TArray<uint64> PendingWanted;
 	TMap<uint64, FAnomalyChangeIssuePtr> PendingIssues;
 	TWeakPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> ChangeStage;
+	FAnomalyChangeIssuePtr LastIssuedIdentity;
 	FAnomalySveHandshakeStats Handshake;
 	FThreadSafeCounter ActiveFlag;
 	FThreadSafeCounter Submits;
