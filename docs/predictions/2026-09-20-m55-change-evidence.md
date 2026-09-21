@@ -1,5 +1,19 @@
 # m55 — measured change evidence (v2.1, amended 2026-09-21)
 
+## Amendment 081-08 — Stage 1 accepted; Stage 2 RELEASED (2026-09-21)
+
+Authority: `_reviews/081-07-chat-ruling-lyra-scoped-stage-2-released.md`, owner decision.
+Stage 1 is accepted on 36 legs. Lyra G1–G12 both orders (24) are
+**DROPPED-BY-OWNER-DECISION**, because the host chooses the spawn per launch and the accepted
+candidate has no placement lever. Preserve the three L1-invalid and original failed-precondition-
+undefined attempts. This supersedes every earlier UNRUN/held-Lyra requirement below.
+Stage 2 may rebuild and adds L2; the previous no-rebuild constraint is lifted. No cook/host edits.
+Lyra Stage 2 is exactly null_effect + solid_swap (natural only) and G-3 on G270 recipe; no other
+Lyra Stage 2/3 legs. If first Lyra leg cannot pass L2+L1 in three attempts, drop Lyra entirely
+without another ruling; record it unqualified. StackOBot qualifies all both-orders gates.
+Predictions: `docs/sessions/2026-09-21-081-08-codex-m55-stage-2.md`.
+**Chat review NOT REQUIRED** for Stage 2 execution; next mandatory checkpoint is its report,
+GREEN automatically releases Stage 3. **Chat review REQUIRED** for new findings/non-GREEN.
 ## Amendment 081-07 — L2 initial Lyra placement; execution blocked before any leg
 
 Authority: `_reviews/081-06-chat-ruling-lyra-placement.md`. The accepted 36 legs stand.
