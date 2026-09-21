@@ -229,13 +229,26 @@ void FAnomalyChangeStage::Work()
 			FScopeLock Lock(&CS);
 			while (FPending* Item = Pending.Find(Cursor))
 			{
+				if (GapCursor != Cursor) { GapCursor = Cursor; GapSinceCapturedIndex = -1; }
 				EAnomalyChangeReason Reason = Item->Reason;
 				const bool bReady = Item->bSealed && Item->bColourDone && Item->bMaskDone;
 				const bool bTerminal = bClosing && (FPlatformTime::Seconds() >= ClosureDeadline || LatestIndex - ClosureAtIndex >= 8);
 				if (!bReady && !(Item->bSealed && Item->bColourDone && Reason != EAnomalyChangeReason::None))
 				{
+					// Four frames bound an observed ordering gap, not the entire GPU/writer
+					// pipeline latency. An issue alone is not evidence that a completion is missing.
+					if (GapSinceCapturedIndex < 0)
+					{
+						for (const auto& Later : Pending)
+						{
+							if (Later.Key > Cursor && Later.Value.bColourDone)
+							{
+								GapSinceCapturedIndex = LatestIndex; break;
+							}
+						}
+					}
 					if (bTerminal) { Reason = EAnomalyChangeReason::ClosureTimeout; }
-					else if (!bClosing && LatestIndex - Cursor >= 4) { Reason = EAnomalyChangeReason::OutOfOrderTimeout; }
+					else if (!bClosing && GapSinceCapturedIndex >= 0 && LatestIndex - GapSinceCapturedIndex >= 4) { Reason = EAnomalyChangeReason::OutOfOrderTimeout; }
 					else { break; }
 				}
 				FinalizeLocked(*Item, Reason);
