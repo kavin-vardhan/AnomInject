@@ -17,6 +17,12 @@
 	"EnabledByDefault": true,
 	"Modules": [
 		{
+			"Name": "AnomalyBench",
+			"Type": "Runtime",
+			"TargetAllowList": [ "Editor" ],
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "AnomalyShaders",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit"

@@ -286,6 +286,8 @@ namespace
 			{ FName(TEXT("lod_popping")),       EAnomalyActiveSource::AnomalyState },
 			{ FName(TEXT("missing_texture")),   EAnomalyActiveSource::FireWindow },
 			{ FName(TEXT("corrupted_texture")), EAnomalyActiveSource::FireWindow },
+			{ FName(TEXT("null_effect")), EAnomalyActiveSource::FireWindow },
+			{ FName(TEXT("solid_swap")), EAnomalyActiveSource::FireWindow },
 			{ FName(TEXT("lighting_mismatch")), EAnomalyActiveSource::FireWindow },
 			{ FName(TEXT("lod_corruption")),    EAnomalyActiveSource::FireWindow },
 			{ FName(TEXT("camera_clipping")),   EAnomalyActiveSource::AnomalyState },
@@ -1377,7 +1379,7 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 		if (Result.ChangeReceipt.IsValid() && Async->ChangeStage.IsValid())
 		{
 			FrozenMask = MakeShared<const TArray<uint8>, ESPMode::ThreadSafe>(MoveTemp(Gray));
-			Async->ChangeStage->Mask(Result.ChangeReceipt, FrozenMask, KeptPixels == 0);
+			Async->ChangeStage->Mask(Result.ChangeReceipt, FrozenMask, KeptPixels == 0, TagCounts);
 		}
 
 		if (KeptPixels > 0)
@@ -4372,6 +4374,7 @@ void UAnomalyCaptureSubsystem::BeginFire()
 
 void UAnomalyCaptureSubsystem::BeginRevert()
 {
+	if (Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->EndEvents(TEXT("event_end")); }
 	if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 	{
 		Auto->RevertAllLiveFires();
@@ -4906,6 +4909,24 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 			Snap->MaskValues.Add(Value);
 		}
 	}
+	if (Async->ChangeStage.IsValid())
+	{
+		TArray<FAnomalyChangeLabel> Labels;
+		for (int32 I = 0; I < Snap->Fires.Num(); ++I)
+		{
+			const auto& F = Snap->Fires[I];
+			// Region-less global/light classes do not acquire invented event regions.
+			if (F.Id == FName(TEXT("lighting_mismatch")) || F.Id == FName(TEXT("camera_clipping")) || F.Id == FName(TEXT("time_dilation"))) { continue; }
+			FAnomalyChangeLabel L;
+			L.Event = FString::Printf(TEXT("%s@%llu"), *F.Id.ToString(), F.StartFrame);
+			L.Type = F.Id.ToString(); L.Target = F.Target;
+			L.bLabelled = Snap->FireLabelled.IsValidIndex(I) && Snap->FireLabelled[I] != 0;
+			L.Tag = Snap->MaskValues.IsValidIndex(I) ? Snap->MaskValues[I] : 0;
+			Labels.Add(MoveTemp(L));
+		}
+		Async->ChangeStage->Observe(Snap->SessionIndex, Labels);
+	}
+
 }
 
 bool UAnomalyCaptureSubsystem::IsFireLabelledThisFrame(const FAutoLiveFireInfo& F) const
@@ -5175,10 +5196,14 @@ static bool AccumEventManifested(const FSessionEventAccum& Ev)
 
 void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 {
-#if ANOMALY_CAPTURE
-	if (Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->BeginClosure(); }
-#endif
 	SampleDeferredActiveState();
+#if ANOMALY_CAPTURE
+	if (Async.IsValid() && Async->ChangeStage.IsValid())
+	{
+		if (bDeinitializing) { Async->ChangeStage->EndEvents(TEXT("teardown")); }
+		Async->ChangeStage->BeginClosure();
+	}
+#endif
 
 	if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 	{

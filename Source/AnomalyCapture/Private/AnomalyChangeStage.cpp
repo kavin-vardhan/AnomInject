@@ -12,7 +12,7 @@
 #include "Policies/CondensedJsonPrintPolicy.h"
 
 static TAutoConsoleVariable<int32> CVarChangeEnabled(TEXT("IAI.Capture.ChangeEvidence"), 1,
-	TEXT("m55 identity sidecar. Sampled at run start; Stage 1 performs no pixel arithmetic."));
+	TEXT("m55 measurement sidecar. Sampled at run start; observable is unchanged."));
 static TAutoConsoleVariable<int32> CVarChangeBytes(TEXT("IAI.Capture.ChangeMaxBytes"), 64 * 1024 * 1024,
 	TEXT("Maximum bytes retained by m55 (not the writer pool). Sampled at run start."));
 static TAutoConsoleVariable<int32> CVarChangeGate(TEXT("IAI.Bench.ChangeGate"), 0,
@@ -72,7 +72,9 @@ FAnomalyChangeStage::FAnomalyChangeStage(const FString& InRunDir) : RunDir(InRun
 		TEXT("late_results"), TEXT("epoch_rejected"), TEXT("epoch_resets"), TEXT("view_rejected"), TEXT("duplicate_callback"),
 		TEXT("duplicate_completion"), TEXT("mask_capture_served_ge2"), TEXT("mask_pass_deferred"),
 		TEXT("colour_multi_ready_drain"), TEXT("capture_arm_dropped"), TEXT("throwaway_family_constructed"),
-		TEXT("teardown_flush"), TEXT("persist_failed"), TEXT("late_record_mutations") }) { Counters.Add(Name, 0); }
+		TEXT("teardown_flush"), TEXT("persist_failed"), TEXT("late_record_mutations"), TEXT("denominator_mismatch"), TEXT("histogram_mismatch"),
+		TEXT("ref_onset_mismatch"), TEXT("pairs_measured"), TEXT("measurement_pairs_refused"),
+		TEXT("phases_measured"), TEXT("phases_indeterminate"), TEXT("events_with_phases") }) { Counters.Add(Name, 0); }
 	UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): EFFECTIVE enabled=1(from %s) maxBytes=%lld(from %s) gate=%d(from %s) epoch=%llu; snapshotted at run start"),
 		*EnabledSource, MaxBytes, *BytesSource, BenchGate, *GateSource, Epoch);
 }
@@ -174,20 +176,20 @@ void FAnomalyChangeStage::Colour(const FAnomalyChangeCompletion& Completion, con
 	else if (Pixels.IsValid())
 	{
 		// Reservation precedes taking the stage's reference; writer threads never wait for capacity.
-		if (!Gate(10, Completion.Receipt->Issue->SessionIndex) && ReserveLocked((int64)Pixels->GetAllocatedSize(), true)) { Item.Pixels = Pixels; }
+		if (!Gate(10, Completion.Receipt->Issue->SessionIndex) && ReserveLocked((int64)Pixels->GetAllocatedSize(), true)) { Item.Pixels = Pixels; ColourOwners.Add(Pixels.Get(), 1); }
 		else { Item.Reason = EAnomalyChangeReason::BudgetExceeded; }
 	}
 	else { Item.Reason = EAnomalyChangeReason::CurrentUndelivered; Item.FailureStage = TEXT("colour"); }
 	ScheduleLocked();
 }
-void FAnomalyChangeStage::Mask(const FAnomalyChangeReceiptPtr& Receipt, const FAnomalyChangeMaskPtr& Pixels, bool bEmpty)
+void FAnomalyChangeStage::Mask(const FAnomalyChangeReceiptPtr& Receipt, const FAnomalyChangeMaskPtr& Pixels, bool bEmpty, const TMap<uint8, int32>& Counts)
 {
 	if (!Receipt.IsValid()) { return; }
 	FScopeLock Lock(&CS);
 	if (!AcceptLocked(Receipt->Issue, TEXT("mask_admission"))) { return; }
 	FPending& Item = Pending.FindChecked(Receipt->Issue->SessionIndex);
 	if (Item.MaskReceipt.IsValid()) { ++Counters.FindOrAdd(TEXT("duplicate_completion")); return; }
-	Item.MaskReceipt = Receipt; Item.bEmptyMask = bEmpty;
+	Item.MaskReceipt = Receipt; Item.bEmptyMask = bEmpty; Item.Counts = Counts;
 	if (!Pixels.IsValid()) { Item.Reason = EAnomalyChangeReason::MaskPayloadMissing; Item.bMaskDone = true; }
 	else if (!ReserveLocked((int64)Pixels->GetAllocatedSize(), false)) { Item.Reason = EAnomalyChangeReason::BudgetExceeded; Item.bMaskDone = true; }
 	else
@@ -250,9 +252,17 @@ void FAnomalyChangeStage::Work()
 				}
 				if (GapCursor != Cursor) { GapCursor = Cursor; GapSinceCapturedIndex = -1; }
 				EAnomalyChangeReason Reason = Item->Reason;
-				const bool bReady = Item->bSealed && Item->bColourDone && Item->bMaskDone;
-				const bool bTerminal = bClosing && (FPlatformTime::Seconds() >= ClosureDeadline || LatestIndex - ClosureAtIndex >= 8);
-				if (!bReady && !(Item->bSealed && Item->bColourDone && Reason != EAnomalyChangeReason::None))
+				const bool bReady = Item->bObserved && Item->bSealed && Item->bColourDone && Item->bMaskDone;
+				bool bTerminal = bClosing && (FPlatformTime::Seconds() >= ClosureDeadline || LatestIndex - ClosureAtIndex >= 8);
+				for (const auto& Event : Events)
+				{
+					for (const FPhase& Phase : Event.Value.Phases)
+					{
+						if (Phase.bClosing && !Phase.bFinal && Cursor <= Phase.Last &&
+							(FPlatformTime::Seconds() >= Phase.Deadline || LatestIndex - Phase.EndAt >= 8)) { bTerminal = true; }
+					}
+				}
+				if (!bReady && !(Item->bObserved && Item->bSealed && Item->bColourDone && Reason != EAnomalyChangeReason::None))
 				{
 					// Four frames bound an observed ordering gap, not the entire GPU/writer
 					// pipeline latency. An issue alone is not evidence that a completion is missing.
@@ -270,9 +280,14 @@ void FAnomalyChangeStage::Work()
 					else if (!bClosing && GapSinceCapturedIndex >= 0 && LatestIndex - GapSinceCapturedIndex >= 4) { Reason = EAnomalyChangeReason::OutOfOrderTimeout; }
 					else { break; }
 				}
-				FinalizeLocked(*Item, Reason);
-				Pending.Remove(Cursor++);
+				// Remove before unlocking for arithmetic: a concurrent GT Issue can reallocate Pending.
+				FPending Ready = MoveTemp(*Item);
+				Pending.Remove(Cursor);
+				FinalizeLocked(Ready, Reason);
+				++Cursor;
+				FinalizeEventsLocked();
 			}
+			FinalizeEventsLocked();
 			if (bClosing && Cursor > ClosureWatermark) { bClosed = true; ReleaseLocked(Previous); }
 			bWaitOnOwnQueue = bClosing && !bClosed;
 			WorkerMs += (FPlatformTime::Seconds() - Start) * 1000.0;
@@ -340,7 +355,7 @@ void FAnomalyChangeStage::FinalizeLocked(FPending& Item, EAnomalyChangeReason Re
 	const TCHAR* ReasonName = AnomalyChangeReasonName(Reason);
 	if (ReasonName) { ++Counters.FindOrAdd(FString(TEXT("reason_")) + ReasonName); }
 	auto J = MakeShared<FJsonObject>();
-	J->SetStringField(TEXT("kind"), TEXT("pair")); J->SetNumberField(TEXT("stage_version"), 1);
+	J->SetStringField(TEXT("kind"), TEXT("pair")); J->SetNumberField(TEXT("stage_version"), 2);
 	J->SetStringField(TEXT("session_id"), FPaths::GetCleanFilename(RunDir));
 	J->SetNumberField(TEXT("session_index"), Cursor);
 	J->SetNumberField(TEXT("prev_session_index"), Previous.Issued.IsValid() ? Previous.Issued->SessionIndex : -1);
@@ -363,12 +378,7 @@ void FAnomalyChangeStage::FinalizeLocked(FPending& Item, EAnomalyChangeReason Re
 	}
 	J->SetNumberField(TEXT("cam_dpos_cm"), DPos); J->SetNumberField(TEXT("cam_drot_deg"), DRot);
 	J->SetNumberField(TEXT("cam_dfov_deg"), DFov); J->SetBoolField(TEXT("cam_moved"), DPos || DRot || DFov);
-	if (Rows.Num() < 100000)
-	{
-		FString Line; auto Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Line);
-		FJsonSerializer::Serialize(J, Writer); Rows.Add(MoveTemp(Line));
-	}
-	else { ++Counters.FindOrAdd(TEXT("rows_dropped")); }
+	MeasureLocked(Item, Reason, J);
 	UE_LOG(LogAnomalyCapture, Verbose, TEXT("Capture(m55): PAIR si=%d valid=%d reason=%s"), Cursor, Reason == EAnomalyChangeReason::None, ReasonName ? ReasonName : TEXT("null"));
 	if (BenchGate == 12 && Cursor == 7)
 	{
@@ -383,7 +393,7 @@ void FAnomalyChangeStage::FinalizeLocked(FPending& Item, EAnomalyChangeReason Re
 }
 void FAnomalyChangeStage::ReleaseLocked(FPending& Item)
 {
-	if (Item.Pixels.IsValid()) { BytesHeld -= (int64)Item.Pixels->GetAllocatedSize(); --ColoursHeld; }
+	ReleaseColourLocked(Item.Pixels);
 	if (Item.MaskPixels.IsValid()) { BytesHeld -= (int64)Item.MaskPixels->GetAllocatedSize(); }
 	Item = FPending();
 }
@@ -392,7 +402,8 @@ void FAnomalyChangeStage::BeginClosure()
 	FScopeLock Lock(&CS);
 	if (!bClosing && !bClosed)
 	{
-		bClosing = true; ClosureWatermark = LatestIndex; ClosureAtIndex = LatestIndex;
+		EndEventsLocked(TEXT("run_end"));
+		 bClosing = true; ClosureWatermark = LatestIndex; ClosureAtIndex = LatestIndex;
 		ClosureDeadline = FPlatformTime::Seconds() + 2.0;
 		ScheduleLocked();
 	}
@@ -410,6 +421,7 @@ bool FAnomalyChangeStage::Persist()
 }
 void FAnomalyChangeStage::CloseAndPersist(bool bTeardown)
 {
+	if (bTeardown) { EndEvents(TEXT("teardown")); }
 	BeginClosure();
 	bool bNeedsPersist = false;
 	for (;;)
@@ -418,7 +430,7 @@ void FAnomalyChangeStage::CloseAndPersist(bool bTeardown)
 			FScopeLock Lock(&CS);
 			if (bClosed && !bWorkerActive)
 			{
-				if (bTeardown) { ++Counters.FindOrAdd(TEXT("teardown_flush")); }
+				if (bTeardown) { Counters.FindOrAdd(TEXT("teardown_flush")) = 1; }
 				bNeedsPersist = !bPersisted;
 				break;
 			}
@@ -430,6 +442,7 @@ void FAnomalyChangeStage::CloseAndPersist(bool bTeardown)
 }
 void FAnomalyChangeStage::ResetEpoch()
 {
+	EndEvents(TEXT("epoch_reset"));
 	CloseAndPersist();
 	FScopeLock Lock(&CS);
 	if (!bPersisted) { return; } // Never erase unpublished final records.
@@ -443,7 +456,9 @@ TSharedPtr<FJsonObject> FAnomalyChangeStage::Summary() const
 	FScopeLock Lock(&CS);
 	auto J = MakeShared<FJsonObject>();
 	J->SetStringField(TEXT("change_evidence_file"), TEXT("change_evidence.jsonl"));
-	J->SetNumberField(TEXT("change_stage_version"), 1);
+	J->SetNumberField(TEXT("change_stage_version"), 2);
+	J->SetNumberField(TEXT("change_tau_px"), 8);
+	J->SetNumberField(TEXT("change_window_k"), 4);
 	J->SetNumberField(TEXT("change_max_bytes"), (double)MaxBytes);
 	J->SetNumberField(TEXT("change_bytes_high_water"), (double)BytesHighWater);
 	J->SetNumberField(TEXT("change_bytes_retained"), (double)BytesHeld);

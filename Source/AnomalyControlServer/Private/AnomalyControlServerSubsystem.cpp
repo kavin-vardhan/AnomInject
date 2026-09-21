@@ -9,6 +9,8 @@
 #include "HAL/IConsoleManager.h"
 #include "Containers/StringConv.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "CoreGlobals.h"
 
 #if ANOMALY_CONTROL_SERVER
@@ -374,6 +376,36 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 
 	UWorld* World = GetWorld();
 
+	// Typed bridge to an Editor-only fixture module; never a generic remote exec surface.
+#if WITH_EDITOR
+	if (Type == TEXT("bench_place_view") || Type == TEXT("bench_log_barrier"))
+	{
+		auto Reply = MakeShared<FJsonObject>();
+		Reply->SetStringField(TEXT("type"), Type);
+		const auto* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
+		const bool Allowed = FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")) && World &&
+			World->GetMapName().Contains(TEXT("L_ShooterGym")) && Cap && !Cap->IsCaptureActive();
+		bool Executed = false;
+		double Request = 0; Msg->TryGetNumberField(TEXT("request"), Request);
+		if (Allowed)
+		{
+			if (Type == TEXT("bench_place_view"))
+			{
+				if (IConsoleCommand* Command = IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.PlaceView")) ?
+					IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.PlaceView"))->AsCommand() : nullptr)
+				{
+					Command->Execute({FString::FromInt((int32)FMath::Clamp(Request, 0.0, 1000000000.0))}, World, *GLog);
+					Executed = true;
+				}
+			}
+			else { Executed = true; }
+			GLog->FlushThreadedLogs(); GLog->Flush();
+		}
+		Reply->SetBoolField(TEXT("executed"), Executed); // not a pose certificate; L1 remains mandatory
+		SendJson(Conn.Socket, Reply); return;
+	}
+#endif
+
 	if (Type == TEXT("list_anomalies"))
 	{
 		SendRawText(Conn.Socket, ControlSnapshot::BuildCatalogJson(World));
@@ -638,6 +670,13 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
+#if WITH_EDITOR
+			if (FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")))
+			{
+				UE_LOG(LogAnomalyServer, Log, TEXT("IAI-L2 CAPTURE-START gfc=%llu"), GFrameCounter);
+				GLog->FlushThreadedLogs(); GLog->Flush();
+			}
+#endif
 			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV, Anomaly, TargetActor,
 				TArray<FString>(), OutputHeight);
 		}

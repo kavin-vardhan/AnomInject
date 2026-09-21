@@ -67,6 +67,14 @@ struct FAnomalyChangeCompletion
 	FString Stage;
 };
 
+// Copied from the same end-of-tick snapshot that writes legacy labels. No actor pointers.
+struct FAnomalyChangeLabel
+{
+	FString Event, Type, Target;
+	int32 Tag = 0, Phase = -1, Window = -1;
+	bool bLabelled = false;
+};
+
 class FAnomalyChangeStage : public TSharedFromThis<FAnomalyChangeStage, ESPMode::ThreadSafe>
 {
 public:
@@ -81,7 +89,10 @@ public:
 	bool AcceptGeneration(const FAnomalyChangeIssuePtr& InIssue, const TCHAR* Path);
 	void Diagnostic(const TCHAR* Name, int64 Amount = 1);
 	void Colour(const FAnomalyChangeCompletion& Completion, const FAnomalyChangeColourPtr& Pixels, bool bSupported);
-	void Mask(const FAnomalyChangeReceiptPtr& Receipt, const FAnomalyChangeMaskPtr& Pixels, bool bEmpty);
+	void Mask(const FAnomalyChangeReceiptPtr& Receipt, const FAnomalyChangeMaskPtr& Pixels, bool bEmpty,
+		const TMap<uint8, int32>& Counts = TMap<uint8, int32>());
+	void Observe(int32 SessionIndex, const TArray<FAnomalyChangeLabel>& Labels);
+	void EndEvents(const TCHAR* Cause);
 	void CompleteMask(const FAnomalyChangeCompletion& Completion);
 	void Fail(const FAnomalyChangeIssuePtr& InIssue, EAnomalyChangeReason Reason, const TCHAR* FailureStage);
 	void Pulse();
@@ -104,7 +115,36 @@ private:
 		bool bMaskExpected = false, bMaskDone = true, bMaskDelivered = false, bEmptyMask = false;
 		EAnomalyChangeReason Reason = EAnomalyChangeReason::None;
 		FString FailureStage;
+		TArray<FAnomalyChangeLabel> Labels;
+		TMap<uint8, int32> Counts;
+		bool bObserved = false;
 	};
+	struct FPhase
+	{
+		int32 First = -1, Last = -1, Labelled = 0, Required = 0, Measured = 0;
+		int32 EndAt = -1, MaxGt8 = -1, MaxRef = -1;
+		double Deadline = 0, MaxMean = -1;
+		bool bClosing = false, bFinal = false, bOnsetMeasured = false;
+		EAnomalyChangeReason OnsetReason = EAnomalyChangeReason::None;
+		FString Cause;
+		TMap<FString, int64> Reasons;
+		FAnomalyChangeColourPtr Reference;
+		FAnomalyChangeReceiptPtr ReferenceReceipt;
+	};
+	struct FEvent
+	{
+		FString Type, Target, Cause;
+		TArray<FPhase> Phases;
+		int32 ActivePhase = -1, LastSeen = -1;
+		bool bClosing = false, bFinal = false;
+	};
+	void ClosePhaseLocked(FPhase& Phase, const TCHAR* Cause);
+	void EndEventsLocked(const TCHAR* Cause);
+	void FinalizeEventsLocked();
+	void MeasureLocked(FPending& Item, EAnomalyChangeReason Reason, const TSharedRef<FJsonObject>& Base);
+	void AddRowLocked(const TSharedRef<FJsonObject>& Row);
+	void ReleaseColourLocked(FAnomalyChangeColourPtr& Pixels);
+	void RetainColourLocked(const FAnomalyChangeColourPtr& Pixels);
 	bool AcceptLocked(const FAnomalyChangeIssuePtr& InIssue, const TCHAR* Path);
 	void ScheduleLocked();
 	void Work();
@@ -118,6 +158,8 @@ private:
 	FPending Previous;
 	TArray<FString> Rows;
 	TMap<FString, int64> Counters;
+	TMap<FString, FEvent> Events;
+	TMap<const TArray<FColor>*, int32> ColourOwners;
 	FString RunDir;
 	FString EnabledSource, BytesSource, GateSource;
 	uint64 Epoch = 0, Cut = 0;
