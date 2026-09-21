@@ -552,7 +552,8 @@ namespace AnomalyLabel
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
 		int32 OutWidth, int32 OutHeight, const FString& ImageRelPath, const FString& Record,
-		FCriticalSection& JsonlLock, bool bWriteLabels, bool& bOutResampled)
+		FCriticalSection& JsonlLock, bool bWriteLabels, bool& bOutResampled,
+		TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>* CanonicalPixels)
 	{
 		bOutResampled = false;
 
@@ -563,9 +564,12 @@ namespace AnomalyLabel
 
 		TArray<FColor> Pixels;
 		ConvertTightToBGRA(SrcFormat, BytesPerPixel, RawBytes, Width, Height, Pixels);
+		// The one existing conversion feeds both consumers. Freeze before encoding; no second copy.
+		if (CanonicalPixels) { *CanonicalPixels = MakeShared<const TArray<FColor>, ESPMode::ThreadSafe>(MoveTemp(Pixels)); }
+		const TArray<FColor>& EncoderPixels = CanonicalPixels ? **CanonicalPixels : Pixels;
 
 		TArray<uint8> ImageBytes;
-		if (!ResampleAndEncodeBGRA(OutFormat, Pixels, Width, Height, OutWidth, OutHeight, ImageBytes, bOutResampled))
+		if (!ResampleAndEncodeBGRA(OutFormat, EncoderPixels, Width, Height, OutWidth, OutHeight, ImageBytes, bOutResampled))
 		{
 			return false;
 		}
@@ -703,7 +707,7 @@ namespace AnomalyLabel
 		int32 FramesExposureDip, const FObservabilityTelemetry* Observability,
 		int32 TranslucentOnlyExcludedTargets, int32 UnmeasurableTargetsAdmitted,
 		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed,
-		const FStuckMipTelemetry* StuckMip)
+		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -850,6 +854,13 @@ namespace AnomalyLabel
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
 		FJsonSerializer::Serialize(Root, Writer);
 
+		if (ChangeSummary.IsValid())
+		{
+			for (const auto& Field : ChangeSummary->Values) { Root->SetField(Field.Key, Field.Value); }
+			Out.Reset();
+			const auto ChangeWriter = TJsonWriterFactory<>::Create(&Out);
+			FJsonSerializer::Serialize(Root, ChangeWriter);
+		}
 		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("run_summary.json")),
 			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	}

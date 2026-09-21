@@ -19,13 +19,14 @@ bool FAnomalySveCapturer::IsActive() const
 	return ActiveFlag.GetValue() != 0;
 }
 
-void FAnomalySveCapturer::ArmWanted(uint64 RequestId)
+void FAnomalySveCapturer::ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr ChangeIssue)
 {
 	int32 DepthAfter = 0;
 	int32 TraceIndex = 0;
 	{
 		FScopeLock Lock(&StateCS);
 		PendingWanted.Add(RequestId);
+		if (ChangeIssue.IsValid()) { PendingIssues.Add(RequestId, ChangeIssue); ChangeStage = ChangeIssue->Stage; }
 		DepthAfter = PendingWanted.Num();
 		++Handshake.ArmsIssued;
 		Handshake.MaxPendingDepth = FMath::Max(Handshake.MaxPendingDepth, DepthAfter);
@@ -42,7 +43,18 @@ void FAnomalySveCapturer::ArmWanted(uint64 RequestId)
 	}
 }
 
-bool FAnomalySveCapturer::ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId)
+FAnomalyChangeIssuePtr FAnomalySveCapturer::PeekChangeIssue() const
+{
+	FScopeLock Lock(&StateCS);
+	return PendingWanted.Num() ? PendingIssues.FindRef(PendingWanted[0]) : nullptr;
+}
+
+TSharedPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> FAnomalySveCapturer::GetChangeStage() const
+{
+	FScopeLock Lock(&StateCS); return ChangeStage.Pin();
+}
+
+bool FAnomalySveCapturer::ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId, FAnomalyChangeIssuePtr& OutIssue)
 {
 	OutRequestId = 0;
 	bool bWanted = false;
@@ -54,6 +66,8 @@ bool FAnomalySveCapturer::ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint
 		if (DepthBefore > 0)
 		{
 			OutRequestId = PendingWanted[0];
+			OutIssue = PendingIssues.FindRef(OutRequestId);
+			PendingIssues.Remove(OutRequestId);
 			PendingWanted.RemoveAt(0);
 			bWanted = true;
 			++Handshake.Matches;
@@ -89,6 +103,8 @@ void FAnomalySveCapturer::Reset()
 	{
 		FScopeLock Lock(&StateCS);
 		PendingWanted.Reset();
+		PendingIssues.Reset();
+		ChangeStage.Reset();
 		Handshake = FAnomalySveHandshakeStats();
 	}
 	Submits.Reset();
@@ -132,7 +148,7 @@ FAnomalyReadbackLatencyStats FAnomalySveCapturer::GetLatencyStats() const
 
 void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect,
 	const FIntPoint& SourceExtent, EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
-	TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback)
+	TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback, const FAnomalyChangeReceipt& ChangeSubmission)
 {
 	const bool bDual = LegacyReadback.IsValid();
 
@@ -144,6 +160,7 @@ void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FI
 	Item.SourceExtent = SourceExtent;
 	Item.Format = Format;
 	Item.SubmitRtFrame = GFrameNumberRenderThread;
+	Item.ChangeSubmission = ChangeSubmission;
 	InFlight.Add(MoveTemp(Item));
 
 	Submits.Increment();
@@ -284,6 +301,24 @@ void FAnomalySveCapturer::EnqueueDrain()
 
 void FAnomalySveCapturer::Drain_RenderThread()
 {
+	// Force SI 8 and its successor to be ready in this same reverse-order drain.
+	for (const auto& Held : InFlight)
+	{
+		const auto Issued = Held.ChangeSubmission.Issue;
+		auto Stage = Issued.IsValid() ? Issued->Stage.Pin() : nullptr;
+		if (Stage.IsValid() && Stage->Gate(1, Issued->SessionIndex))
+		{
+			bool bSuccessorReady = false;
+			for (const auto& Other : InFlight)
+			{
+				if (Other.ChangeSubmission.Issue.IsValid() && Other.ChangeSubmission.Issue->SessionIndex == 9
+					&& Other.Readback.IsValid() && Other.Readback->IsReady()) { bSuccessorReady = true; }
+			}
+			if ((!Held.Readback.IsValid() || !Held.Readback->IsReady() || !bSuccessorReady)
+				&& FAnomalyChangeStage::NowMs() - Issued->SubmitMs < 1000) { return; }
+		}
+	}
+	int32 ReadyThisDrain = 0;
 	for (int32 i = InFlight.Num() - 1; i >= 0; --i)
 	{
 		FInFlight& Item = InFlight[i];
@@ -300,6 +335,28 @@ void FAnomalySveCapturer::Drain_RenderThread()
 		if (Item.LegacyReadback.IsValid() && !Item.LegacyReadback->IsReady())
 		{
 			continue;
+		}
+		const auto Issue = Item.ChangeSubmission.Issue;
+		auto Change = Issue.IsValid() ? Issue->Stage.Pin() : nullptr;
+		if (Change.IsValid())
+		{
+			// Delay real GPU completions, not a fabricated receipt, for the two-ready/epoch/late gates.
+			const int32 SI = Issue->SessionIndex;
+			const int64 AgeMs = FAnomalyChangeStage::NowMs() - Issue->SubmitMs;
+			if ((Change->Gate(7, SI) && AgeMs < 2500)
+				|| (Change->Gate(11, SI) && AgeMs < 3500)) { continue; }
+			// Evidence can expire without discarding the independently-owned legacy colour delivery.
+			if (!Change->AcceptGeneration(Issue, TEXT("colour_drain"))) { Change.Reset(); }
+		}
+		if (Change.IsValid())
+		{
+			const int32 SI = Issue->SessionIndex;
+			if (Change->Gate(4, SI))
+			{
+				Change->Fail(Issue, EAnomalyChangeReason::CurrentUndelivered, TEXT("colour"));
+				InFlight.RemoveAt(i); continue;
+			}
+			if (++ReadyThisDrain >= 2) { Change->Diagnostic(TEXT("colour_multi_ready_drain")); }
 		}
 
 		{
@@ -328,6 +385,7 @@ void FAnomalySveCapturer::Drain_RenderThread()
 				RowPitchInPixels, BufferHeight, GuardDrops))
 			{
 				Item.Readback->Unlock();
+				if (Change.IsValid()) { Change->Fail(Issue, EAnomalyChangeReason::CurrentUndelivered, TEXT("colour")); }
 				InFlight.RemoveAt(i);
 				continue;
 			}
@@ -348,6 +406,12 @@ void FAnomalySveCapturer::Drain_RenderThread()
 			}
 
 			Item.Readback->Unlock();
+			if (Change.IsValid())
+			{
+				Item.ChangeSubmission.DrainMs = FAnomalyChangeStage::NowMs();
+				if (Change->Gate(9, Issue->SessionIndex)) { ++Item.ChangeSubmission.Rect.Min.X; }
+				Frame.ChangeReceipt = MakeShared<const FAnomalyChangeReceipt, ESPMode::ThreadSafe>(Item.ChangeSubmission);
+			}
 
 			if (Item.LegacyReadback.IsValid())
 			{
@@ -359,9 +423,10 @@ void FAnomalySveCapturer::Drain_RenderThread()
 				Completed.Add(MoveTemp(Frame));
 			}
 		}
-		else if (Src)
+		else
 		{
-			Item.Readback->Unlock();
+			if (Src) { Item.Readback->Unlock(); }
+			if (Change.IsValid()) { Change->Fail(Issue, EAnomalyChangeReason::CurrentUndelivered, TEXT("colour")); }
 		}
 
 		InFlight.RemoveAt(i);

@@ -4,6 +4,7 @@
 
 #include "AnomalyCaptureLog.h"
 #include "AnomalyStencilTag.h"
+#include "AnomalyChangeFamilyData.h"
 
 #include "SceneView.h"
 #include "RenderGraphBuilder.h"
@@ -52,11 +53,12 @@ bool FAnomalyMaskSceneViewExtension::IsActiveThisFrame_Internal(const FSceneView
 	return PendingArms.Num() > 0;
 }
 
-void FAnomalyMaskSceneViewExtension::ArmMask(uint64 RequestId, bool bWantPixels)
+void FAnomalyMaskSceneViewExtension::ArmMask(uint64 RequestId, bool bWantPixels, FAnomalyChangeIssuePtr ChangeIssue)
 {
 	FScopeLock Lock(&StateCS);
 	PendingArms.Add(RequestId);
 	PendingArmWantsPixels.Add(bWantPixels ? 1 : 0);
+	PendingChangeIssues.Add(ChangeIssue);
 }
 
 void FAnomalyMaskSceneViewExtension::SetAssignedTags(const TSet<uint8>& InAssignedTags)
@@ -83,6 +85,8 @@ void FAnomalyMaskSceneViewExtension::Reset()
 		FScopeLock Lock(&StateCS);
 		PendingArms.Reset();
 		PendingArmWantsPixels.Reset();
+		PendingChangeIssues.Reset();
+		DeferredFamilyFrame = MAX_uint32;
 		AssignedTags.Reset();
 	}
 	{
@@ -116,6 +120,8 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	bool bWantPixels = false;
 	TArray<uint64> ServedIds;
 	TArray<uint8> ServedWantsPixels;
+	TArray<FAnomalyChangeIssuePtr> ServedIssues;
+	FAnomalyChangeReceipt ChangeSubmission;
 	EAnomalyMaskReduceMode Mode = EAnomalyMaskReduceMode::Gpu;
 	{
 		FScopeLock Lock(&StateCS);
@@ -123,8 +129,36 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		{
 			return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 		}
+		FAnomalyChangeIssuePtr CurrentIssue;
+		for (const auto& Candidate : PendingChangeIssues) { if (Candidate.IsValid()) { CurrentIssue = Candidate; break; } }
+		if (CurrentIssue.IsValid())
+		{
+			auto Stage = CurrentIssue->Stage.Pin();
+			auto* Data = FAnomalyChangeFamilyData::Find(View.Family);
+			if (!Data || !Data->Issue.IsValid() || !Stage.IsValid()
+				|| View.Family->RenderTarget != CurrentIssue->OwnerTarget || View.Family->Scene != CurrentIssue->OwnerScene)
+			{
+				if (Stage.IsValid()) { Stage->Diagnostic(TEXT("view_rejected")); }
+				return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+			}
+			if (Stage->Gate(6, CurrentIssue->SessionIndex))
+			{
+				if (DeferredFamilyFrame == MAX_uint32) { DeferredFamilyFrame = View.Family->FrameNumber; }
+				if (DeferredFamilyFrame == View.Family->FrameNumber)
+				{
+					Stage->Diagnostic(TEXT("mask_pass_deferred"));
+					return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+				}
+			}
+			if (!Data->Claim(View, true)) { return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor); }
+			ChangeSubmission.ServingToken = Data->Issue->CaptureToken; ChangeSubmission.ViewFamilyId = Data->FamilyId;
+			ChangeSubmission.ViewIndex = 0; ChangeSubmission.FamilyFrame = View.Family->FrameNumber;
+			ChangeSubmission.Rect = SceneColor.ViewRect; ChangeSubmission.Extent = SceneColor.Texture->Desc.Extent;
+			ChangeSubmission.Format = PF_R8_UINT;
+		}
 		ServedIds = MoveTemp(PendingArms);
 		ServedWantsPixels = MoveTemp(PendingArmWantsPixels);
+		ServedIssues = MoveTemp(PendingChangeIssues);
 		PendingArms.Reset();
 		PendingArmWantsPixels.Reset();
 		ServedWantsPixels.SetNumZeroed(ServedIds.Num());
@@ -167,6 +201,8 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 
 	FMaskInFlight Item;
 	Item.RequestId = RequestId;
+	Item.ChangeIssues = MoveTemp(ServedIssues);
+	Item.ChangeSubmission = ChangeSubmission;
 	Item.Mode = Mode;
 	Item.ViewRectSize = Size;
 
@@ -291,6 +327,17 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 
 		const int32 W = Item.ViewRectSize.X;
 		const int32 H = Item.ViewRectSize.Y;
+		bool bDelay = false;
+		for (const auto& Issue : Item.ChangeIssues)
+		{
+			if (Issue.IsValid())
+			{
+				auto Stage = Issue->Stage.Pin();
+				if (Stage.IsValid() && Stage->Gate(7, Issue->SessionIndex)
+					&& FAnomalyChangeStage::NowMs() - Issue->SubmitMs < 2500) { bDelay = true; }
+			}
+		}
+		if (bDelay) { continue; }
 
 		int32 CpuCounts[256] = {};
 		int32 CpuMinXs[256];
@@ -521,6 +568,25 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 					for (int32 k = 0; k < Item.RequestIds.Num(); ++k)
 					{
 						FAnomalyMaskResult Copy = Result;
+						const auto Issue = Item.ChangeIssues.IsValidIndex(k) ? Item.ChangeIssues[k] : nullptr;
+						if (Issue.IsValid())
+						{
+							auto Stage = Issue->Stage.Pin();
+							if (Stage.IsValid() && Stage->AcceptGeneration(Issue, TEXT("mask_drain")))
+							{
+								FAnomalyChangeReceipt Receipt = Item.ChangeSubmission;
+								Receipt.Issue = Issue; Receipt.DrainMs = FAnomalyChangeStage::NowMs();
+								Receipt.MaskRequestId = Item.RequestIds[k]; Receipt.ServedRequestIds = Item.RequestIds;
+								Receipt.PayloadOwnerRequestId = PixelOwner >= 0 ? Item.RequestIds[PixelOwner] : 0;
+								Copy.ChangeReceipt = MakeShared<const FAnomalyChangeReceipt, ESPMode::ThreadSafe>(MoveTemp(Receipt));
+								int32 CaptureArms = 0;
+								for (const auto& Arm : Item.ChangeIssues) { if (Arm.IsValid()) { ++CaptureArms; } }
+								if (CaptureArms >= 2) { Stage->Diagnostic(TEXT("mask_capture_served_ge2")); }
+								UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): MASK-SERVED si=%d token=%llu servingToken=%llu family=%llu request=%llu owner=%llu served=%d captureArms=%d"),
+									Issue->SessionIndex, Issue->CaptureToken, Item.ChangeSubmission.ServingToken, Item.ChangeSubmission.ViewFamilyId,
+									Item.RequestIds[k], PixelOwner >= 0 ? Item.RequestIds[PixelOwner] : 0, Item.RequestIds.Num(), CaptureArms);
+							}
+						}
 						if (k == PixelOwner)
 						{
 							Copy.MaskPixels = MoveTemp(TightPixels);
@@ -528,6 +594,13 @@ void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)
 						Results.Add(Item.RequestIds[k], MoveTemp(Copy));
 					}
 				}
+			}
+		}
+		else
+		{
+			for (const auto& Issue : Item.ChangeIssues)
+			{
+				if (Issue.IsValid()) { if (auto Stage = Issue->Stage.Pin()) { Stage->Fail(Issue, EAnomalyChangeReason::CurrentUndelivered, TEXT("mask")); } }
 			}
 		}
 

@@ -30,6 +30,7 @@
 #include "AnomalyStuckMipStats.h"
 #include "AnomalySveKeyRing.h"
 #include "AnomalyAsyncWriter.h"
+#include "AnomalyChangeStage.h"
 #include "Misc/CoreDelegates.h"
 #include "SceneViewExtension.h"
 #include "HAL/PlatformProcess.h"
@@ -153,6 +154,7 @@ struct FAnomalyCaptureAsyncState
 	TSharedPtr<FAnomalySceneViewExtension, ESPMode::ThreadSafe> SveExtension;
 	TSharedPtr<FAnomalyMaskSceneViewExtension, ESPMode::ThreadSafe> MaskExtension;
 	TSharedPtr<FAnomalyAsyncWriter, ESPMode::ThreadSafe> Writer;
+	TSharedPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> ChangeStage;
 	TMap<uint64, AnomalyLabel::FCaptureSnapshot> PendingSnapshots;
 	TArray<FSessionEventAccum> SessionEvents;
 	FAnomalyMaskMeasure MaskMeasure;
@@ -582,6 +584,7 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 	PreviewTee.Reset();
 	if (Async.IsValid())
 	{
+		if (Async->ChangeStage.IsValid()) { Async->ChangeStage->CloseAndPersist(true); }
 		Async->PendingSnapshots.Empty();
 		if (Async->Capturer.IsValid())
 		{
@@ -904,6 +907,7 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured, {} });
 			++TargetMaskUnavailable;
 		}
+		if (Async->ChangeStage.IsValid()) { Async->ChangeStage->SealArm(TargetMaskArmedSessionIndex); }
 		TargetMaskArmedSessionIndex = -1;
 	}
 
@@ -964,7 +968,9 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 
 static constexpr uint64 GTargetMaskRequestBit = 1ull << 61;
 
-void UAnomalyCaptureSubsystem::EnqueueTargetMaskPng(int32 SessionIndex, const TArray<uint8>& Gray, int32 W, int32 H)
+void UAnomalyCaptureSubsystem::EnqueueTargetMaskPng(int32 SessionIndex, const TArray<uint8>& Gray, int32 W, int32 H,
+	TSharedPtr<const TArray<uint8>, ESPMode::ThreadSafe> FrozenMask,
+	TSharedPtr<const FAnomalyChangeReceipt, ESPMode::ThreadSafe> ChangeReceipt)
 {
 	if (!Async.IsValid() || !Async->Writer.IsValid() || SessionIndex < 0 || W <= 0 || H <= 0)
 	{
@@ -974,7 +980,9 @@ void UAnomalyCaptureSubsystem::EnqueueTargetMaskPng(int32 SessionIndex, const TA
 	Job.bGrayMask = true;
 	Job.OutputDir = RunDir;
 	Job.ImageRelPath = FString::Printf(TEXT("target_mask/frame_%05d.png"), SessionIndex);
-	Job.RawBytes = Gray;
+	Job.FrozenMask = FrozenMask;
+	Job.ChangeReceipt = ChangeReceipt;
+	if (!FrozenMask.IsValid()) { Job.RawBytes = Gray; }
 	Job.Width = W;
 	Job.Height = H;
 	Async->Writer->Enqueue(MoveTemp(Job));
@@ -1245,7 +1253,13 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 
 	const uint64 RequestId = GTargetMaskRequestBit | (++TargetMaskOwnSerial);
 	Async->MaskExtension->SetAssignedTags(Async->MaskMeasure.BuildAssignedTagSet());
-	Async->MaskExtension->ArmMask(RequestId, true);
+	FAnomalyChangeIssuePtr ChangeIssue;
+	if (Async->ChangeStage.IsValid())
+	{
+		ChangeIssue = Async->ChangeStage->FindIssue(SessionIndex);
+		Async->ChangeStage->ExpectMask(SessionIndex);
+	}
+	Async->MaskExtension->ArmMask(RequestId, true, ChangeIssue);
 	TargetMaskPendingSessionIndex.Add(RequestId, SessionIndex);
 	TargetMaskPendingTags.Add(RequestId, LiveTags);
 	TargetMaskPendingTagEvent.Add(RequestId, MoveTemp(TagEvent));
@@ -1278,6 +1292,7 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 		const int32 H = Result.ViewRectSize.Y;
 		if (W <= 0 || H <= 0 || Result.MaskPixels.Num() < (int64)W * (int64)H)
 		{
+			if (Async->ChangeStage.IsValid()) { Async->ChangeStage->Mask(Result.ChangeReceipt, nullptr, false); }
 			++TargetMaskUnavailable;
 			TargetMaskOutcome.Add(Pair.Value,
 				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured, {} });
@@ -1357,10 +1372,17 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 		}
 
 		FoldExposureExclusion(Gray, W, H, TagEventPtr);
+		// m55: all mutating filters above have finished. Both consumers see this exact frozen buffer.
+		FAnomalyChangeMaskPtr FrozenMask;
+		if (Result.ChangeReceipt.IsValid() && Async->ChangeStage.IsValid())
+		{
+			FrozenMask = MakeShared<const TArray<uint8>, ESPMode::ThreadSafe>(MoveTemp(Gray));
+			Async->ChangeStage->Mask(Result.ChangeReceipt, FrozenMask, KeptPixels == 0);
+		}
 
 		if (KeptPixels > 0)
 		{
-			EnqueueTargetMaskPng(Pair.Value, Gray, W, H);
+			EnqueueTargetMaskPng(Pair.Value, FrozenMask.IsValid() ? *FrozenMask : Gray, W, H, FrozenMask, Result.ChangeReceipt);
 			++TargetMaskMeasured;
 			TargetMaskOutcome.Add(Pair.Value,
 				FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Present, MoveTemp(TagCounts),
@@ -2974,6 +2996,12 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	LastRunDir = RunDir;
 
 	StartRunLog();
+	if (Async.IsValid())
+	{
+		if (Async->ChangeStage.IsValid()) { Async->ChangeStage->CloseAndPersist(); }
+		Async->ChangeStage.Reset();
+		if (FAnomalyChangeStage::IsEnabled()) { Async->ChangeStage = MakeShared<FAnomalyChangeStage, ESPMode::ThreadSafe>(RunDir); }
+	}
 
 	int32 VW = 0, VH = 0;
 	if (UGameViewportClient* GV = World->GetGameViewport())
@@ -3863,6 +3891,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 	{
 		return;
 	}
+	if (Async->ChangeStage.IsValid()) { Async->ChangeStage->Pulse(); }
 
 	const bool bUseSve = bSveCapture && Async->SveCapturer.IsValid();
 	if (!bUseSve && !Async->Capturer.IsValid())
@@ -4138,6 +4167,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Job.OutputDir = RunDir;
 		Job.OutFormat = Format;
 		Job.RawBytes = MoveTemp(Frame.RawBytes);
+		Job.ChangeReceipt = Frame.ChangeReceipt;
 		Job.SrcFormat = Frame.Format;
 		Job.BytesPerPixel = Frame.BytesPerPixel;
 		Job.Width = Frame.Width;
@@ -4399,10 +4429,28 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				StepMaskPairingProbe(Snap.SessionIndex);
 			}
 			StepBenchObservabilityLevers(Snap.SessionIndex);
+			FAnomalyChangeIssuePtr ChangeIssue;
+			if (Async->ChangeStage.IsValid())
+			{
+				// The gate resets after SI 8 was submitted, with its real colour+mask drains held.
+				if (Async->ChangeStage->GetGate() == 7 && Snap.SessionIndex == 9) { Async->ChangeStage->ResetEpoch(); }
+				UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr;
+				FAnomalyViewInfo ReceiptCamera = ProjView;
+				ChangeIssue = Async->ChangeStage->Issue(RequestId, Snap.SessionIndex, ReceiptCamera,
+					GV ? GV->Viewport : nullptr, World ? World->Scene : nullptr,
+					World ? World->PersistentLevel : nullptr,
+					bUseSve && bFormatPng && EffectiveOutputHeight == 0 && bTargetMaskEffective);
+				if (!bTargetMaskEffective) { Async->ChangeStage->SealArm(Snap.SessionIndex); }
+			}
 			Async->PendingSnapshots.Add(RequestId, MoveTemp(Snap));
 			if (bUseSve)
 			{
-				Async->SveCapturer->ArmWanted(RequestId);
+				if (Async->ChangeStage.IsValid() && Async->ChangeStage->Gate(2, SessionFrameIndex))
+				{
+					Async->PendingSnapshots.Remove(RequestId);
+					Async->ChangeStage->Diagnostic(TEXT("capture_arm_dropped"));
+				}
+				else { Async->SveCapturer->ArmWanted(RequestId, ChangeIssue); }
 			}
 			else
 			{
@@ -5109,6 +5157,9 @@ static bool AccumEventManifested(const FSessionEventAccum& Ev)
 
 void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 {
+#if ANOMALY_CAPTURE
+	if (Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->BeginClosure(); }
+#endif
 	SampleDeferredActiveState();
 
 	if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
@@ -5515,6 +5566,22 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	StuckMipReport.RevertOnDestroy = StuckMipStats.RevertOnDestroy;
 	StuckMipReport.UnverifiedAtTeardown = StuckMipStats.UnverifiedAtTeardown;
 
+		if (Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->CloseAndPersist(bDeinitializing); }
+		if (Async.IsValid() && Async->ChangeStage.IsValid() && Async->ChangeStage->GetGate() == 11 && Async->SveCapturer.IsValid())
+		{
+			// G-LATE: the final sidecar already exists. Let the actual held readback arrive;
+			// verify byte-for-byte that late admission cannot change any final record.
+			const FString EvidencePath = FPaths::Combine(RunDir, TEXT("change_evidence.jsonl"));
+			FString Before, After; FFileHelper::LoadFileToString(Before, *EvidencePath);
+			const double GateDeadline = FPlatformTime::Seconds() + 4.0;
+			while (FPlatformTime::Seconds() < GateDeadline)
+			{
+				Async->SveCapturer->EnqueueDrain(); FlushRenderingCommands(); FPlatformProcess::Sleep(0.01f);
+			}
+			FFileHelper::LoadFileToString(After, *EvidencePath);
+			Async->ChangeStage->Diagnostic(TEXT("late_record_mutations"), Before == After ? 0 : 1);
+			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): LATE-FROZEN beforeChars=%d afterChars=%d mutations=%d"), Before.Len(), After.Len(), Before == After ? 0 : 1);
+		}
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
@@ -5530,7 +5597,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			&ObservabilityReport,
 			TranslucentOnlyExcludedTargets,
 			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0,
-			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed, &StuckMipReport);
+			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed, &StuckMipReport,
+			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")

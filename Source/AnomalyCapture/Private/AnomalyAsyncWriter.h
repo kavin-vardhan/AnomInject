@@ -7,6 +7,7 @@
 #include "HAL/ThreadSafeCounter.h"
 #include "PixelFormat.h"
 #include "AnomalyPreviewCapture.h"
+#include "AnomalyChangeStage.h"
 
 class FAnomalyAsyncWriter : public TSharedFromThis<FAnomalyAsyncWriter, ESPMode::ThreadSafe>
 {
@@ -27,6 +28,8 @@ public:
 		bool bPositive = false;
 		bool bWriteLabels = true;
 		bool bGrayMask = false;
+		FAnomalyChangeReceiptPtr ChangeReceipt;
+		FAnomalyChangeMaskPtr FrozenMask;
 	};
 
 	void Enqueue(FJob&& Job);

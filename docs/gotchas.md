@@ -7267,3 +7267,18 @@ delivery-OFF leg and the veto does **not** retro-edit it (`L3`), so read the win
 **prove that route against the known answer first**: `{si : held}` must equal `injected_frames`
 exactly on every event the veto did NOT delete (measured 5 of 5, mismatched 0) before any verdict
 is printed.
+
+## G272 — a scene frame number is not a unique view family, and a drain-time generation is not the request's generation (2026-09-21, m55 Stage 1)
+
+UE 5.1 `SceneRendering.cpp` assigns the same scene frame number to multiple families in one render
+batch. Both can have view index zero. The engine also copies a GT family into `FViewFamilyInfo`:
+keying a side map by the original family's address is not a GT-to-RT bridge. Use the installed
+`ISceneViewFamilyExtentionData` carrier, which the copy retains, and mint a unique family id.
+Associate the issue-time capture token only with the selected viewport/world owner. Separately claim
+each consumer once; reject duplicate callbacks without losing the membership information.
+
+The same principle applies to asynchronous resets: a generation copied from current state at drain
+would bless old work as new. Mint epoch/cut/token at GT issue and carry them through readbacks and
+writers. Reject old work before publishing a receipt; writer success is a separate completion.
+These are source-established constraints, not a runtime gate verdict. Forced runtime readings and
+remaining coverage are recorded in the 081-05 Stage 1 journal/report.

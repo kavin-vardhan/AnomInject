@@ -13,6 +13,7 @@
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/Crc.h"
 
 void FAnomalyAsyncWriter::Enqueue(FJob&& Job)
 {
@@ -28,16 +29,26 @@ void FAnomalyAsyncWriter::Enqueue(FJob&& Job)
 
 void FAnomalyAsyncWriter::Run(FJob& Job)
 {
+	const auto Receipt = Job.ChangeReceipt;
+	auto Change = Receipt.IsValid() && Receipt->Issue.IsValid() ? Receipt->Issue->Stage.Pin() : nullptr;
 	if (Job.bGrayMask)
 	{
 		TArray<uint8> Png;
-		const bool bEncoded = AnomalyPreview::EncodeGray8Png(Job.RawBytes, Job.Width, Job.Height, Png);
+		const TArray<uint8>& Gray = Job.FrozenMask.IsValid() ? *Job.FrozenMask : Job.RawBytes;
+		if (Change.IsValid() && Change->GetGate() == 14 && Job.FrozenMask.IsValid())
+		{
+			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): FROZEN-MASK si=%d bytes=%d crc32=%08x"),
+				Receipt->Issue->SessionIndex, Gray.Num(), FCrc::MemCrc32(Gray.GetData(), Gray.Num()));
+		}
+		const bool bForcedFailure = Change.IsValid() && Change->Gate(5, Receipt->Issue->SessionIndex);
+		const bool bEncoded = !bForcedFailure && AnomalyPreview::EncodeGray8Png(Gray, Job.Width, Job.Height, Png);
 		const FString FullPath = FPaths::Combine(Job.OutputDir, Job.ImageRelPath);
 		if (bEncoded)
 		{
 			IFileManager::Get().MakeDirectory(*FPaths::GetPath(FullPath), true);
 		}
-		if (bEncoded && FFileHelper::SaveArrayToFile(Png, *FullPath))
+		const bool bSaved = bEncoded && FFileHelper::SaveArrayToFile(Png, *FullPath);
+		if (bSaved)
 		{
 			MasksWritten.Increment();
 		}
@@ -49,13 +60,24 @@ void FAnomalyAsyncWriter::Run(FJob& Job)
 				TEXT("this frame names a file that does not exist; target_mask_frames_unavailable counts it."),
 				*Job.ImageRelPath, Job.Width, Job.Height, bEncoded ? 1 : 0);
 		}
+		if (Change.IsValid()) { Change->CompleteMask({ Receipt, bSaved, true, TEXT("mask") }); }
 		return;
 	}
 
 	bool bResampled = false;
-	const bool bOk = AnomalyLabel::EncodeAndWriteFrame(Job.OutputDir, Job.OutFormat, Job.RawBytes,
+	FAnomalyChangeColourPtr Canonical;
+	const bool bForcedFailure = Change.IsValid() && Change->Gate(3, Receipt->Issue->SessionIndex);
+	const bool bOk = !bForcedFailure && AnomalyLabel::EncodeAndWriteFrame(Job.OutputDir, Job.OutFormat, Job.RawBytes,
 		Job.SrcFormat, Job.BytesPerPixel, Job.Width, Job.Height, Job.OutWidth, Job.OutHeight,
-		Job.ImageRelPath, Job.Record, JsonlCS, Job.bWriteLabels, bResampled);
+		Job.ImageRelPath, Job.Record, JsonlCS, Job.bWriteLabels, bResampled, Change.IsValid() ? &Canonical : nullptr);
+	if (Change.IsValid())
+	{
+		const bool bKnownFormat = Job.SrcFormat == PF_B8G8R8A8 || Job.SrcFormat == PF_R8G8B8A8
+			|| Job.SrcFormat == PF_A2B10G10R10 || Job.SrcFormat == PF_FloatRGBA;
+		const bool bSupported = bKnownFormat && Job.OutFormat == AnomalyPreview::EImageFormat::PNG
+			&& Job.Width == Job.OutWidth && Job.Height == Job.OutHeight;
+		Change->Colour({ Receipt, bOk, false, TEXT("writer") }, Canonical, bSupported);
+	}
 
 	if (bOk)
 	{

@@ -8,6 +8,7 @@
 #include "RHIGPUReadback.h"
 #include "AnomalyMaskTypes.h"
 #include "AnomalyFrameCapturer.h"
+#include "AnomalyChangeStage.h"
 
 struct FScreenPassTexture;
 struct FPostProcessMaterialInputs;
@@ -47,7 +48,7 @@ protected:
 	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const override;
 
 public:
-	void ArmMask(uint64 RequestId, bool bWantPixels = false);
+	void ArmMask(uint64 RequestId, bool bWantPixels = false, FAnomalyChangeIssuePtr ChangeIssue = nullptr);
 	void SetAssignedTags(const TSet<uint8>& InAssignedTags);
 	void SetReduceMode(EAnomalyMaskReduceMode InMode);
 	void EnqueueDrain(bool bFinal = false);
@@ -65,6 +66,8 @@ private:
 		uint64 RequestId = 0;
 		TArray<uint64> RequestIds;
 		TArray<uint8> WantsPixels;
+		TArray<FAnomalyChangeIssuePtr> ChangeIssues;
+		FAnomalyChangeReceipt ChangeSubmission;
 		TUniquePtr<FRHIGPUTextureReadback> Readback;
 		TUniquePtr<FRHIGPUBufferReadback> BufferReadback;
 		EAnomalyMaskReduceMode Mode = EAnomalyMaskReduceMode::Gpu;
@@ -77,6 +80,8 @@ private:
 	mutable FCriticalSection StateCS;
 	TArray<uint64> PendingArms;
 	TArray<uint8> PendingArmWantsPixels;
+	TArray<FAnomalyChangeIssuePtr> PendingChangeIssues;
+	uint32 DeferredFamilyFrame = MAX_uint32;
 	TSet<uint8> AssignedTags;
 	EAnomalyMaskReduceMode ReduceMode = EAnomalyMaskReduceMode::Gpu;
 	float DepthBias = 1.0e-5f;

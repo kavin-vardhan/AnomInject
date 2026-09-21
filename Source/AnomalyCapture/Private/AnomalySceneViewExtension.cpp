@@ -5,6 +5,7 @@
 #include "AnomalyCaptureLog.h"
 #include "AnomalySveCapturer.h"
 #include "AnomalySveKeyRing.h"
+#include "AnomalyChangeFamilyData.h"
 
 #include "CoreGlobals.h"
 #include "RHIGPUReadback.h"
@@ -62,7 +63,44 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 	}
 
 	uint64 RequestId = 0;
-	const bool bWanted = Cap->ConsumeWantedForPublish(InViewFamily.FrameNumber, RequestId);
+	if (auto* Existing = FAnomalyChangeFamilyData::Find(&InViewFamily))
+	{
+		if (Existing->Issue.IsValid())
+		{
+			if (auto Stage = Existing->Issue->Stage.Pin()) { Stage->Diagnostic(TEXT("duplicate_callback")); }
+			return; // Idempotent GT attachment: never consume a second arm for the same family.
+		}
+	}
+	const auto PendingIssue = Cap->PeekChangeIssue();
+	if (PendingIssue.IsValid())
+	{
+		auto Stage = PendingIssue->Stage.Pin();
+		if (!Stage.IsValid()) { return; }
+		if (InViewFamily.Views.Num() != 1 || InViewFamily.RenderTarget != PendingIssue->OwnerTarget
+			|| InViewFamily.Scene != PendingIssue->OwnerScene)
+		{
+			Stage->Diagnostic(TEXT("view_rejected"));
+			return; // A foreign family must not consume this viewport's pending arm.
+		}
+		if (Stage->Gate(8, PendingIssue->SessionIndex))
+		{
+			// Real second family/view, same scene frame and view index zero, foreign render target.
+			FSceneViewFamilyContext Throwaway(FSceneViewFamily::ConstructionValues(nullptr, InViewFamily.Scene, InViewFamily.EngineShowFlags));
+			Throwaway.FrameNumber = InViewFamily.FrameNumber;
+			FSceneViewInitOptions Init; Init.ViewFamily = &Throwaway;
+			Init.SetViewRectangle(FIntRect(0, 0, 16, 16));
+			Throwaway.Views.Add(new FSceneView(Init));
+			BeginRenderViewFamily(Throwaway);
+			Stage->Diagnostic(TEXT("throwaway_family_constructed"));
+		}
+	}
+	FAnomalyChangeIssuePtr Issue;
+	const bool bWanted = Cap->ConsumeWantedForPublish(InViewFamily.FrameNumber, RequestId, Issue);
+	if (bWanted && Issue.IsValid())
+	{
+		auto* Data = InViewFamily.GetOrCreateExtentionData<FAnomalyChangeFamilyData>();
+		Data->Issue = Issue; Data->FamilyId = FAnomalyChangeFamilyData::NextId();
+	}
 	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, RequestId, bWanted);
 }
 
@@ -107,6 +145,20 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	if (!Entry.bWanted)
 	{
 		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+	}
+	FAnomalyChangeReceipt ChangeSubmission;
+	if (auto Stage = Cap->GetChangeStage())
+	{
+		auto* Data = FAnomalyChangeFamilyData::Find(View.Family);
+		if (!Data || !Data->Issue.IsValid() || Data->Issue->RequestId != Entry.RequestId)
+		{
+			Stage->Diagnostic(TEXT("view_rejected"));
+			return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+		}
+		if (!Data->Claim(View, false)) { return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor); }
+		if (Stage->Gate(8, Data->Issue->SessionIndex)) { check(!Data->Claim(View, false)); }
+		ChangeSubmission.Issue = Data->Issue; ChangeSubmission.ServingToken = Data->Issue->CaptureToken;
+		ChangeSubmission.ViewFamilyId = Data->FamilyId; ChangeSubmission.FamilyFrame = FamilyFrame; ChangeSubmission.ViewIndex = 0;
 	}
 
 	FRDGTextureRef Texture = SceneColor.Texture;
@@ -156,8 +208,9 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 			FResolveRect(Rect.Min.X, Rect.Min.Y, Rect.Max.X, Rect.Max.Y));
 	}
 
+	ChangeSubmission.Rect = Rect; ChangeSubmission.Extent = SourceExtent; ChangeSubmission.Format = Texture->Desc.Format;
 	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, SourceExtent, Texture->Desc.Format,
-		MoveTemp(Readback), MoveTemp(LegacyReadback));
+		MoveTemp(Readback), MoveTemp(LegacyReadback), ChangeSubmission);
 
 	return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }

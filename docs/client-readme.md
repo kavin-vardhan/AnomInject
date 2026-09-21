@@ -973,3 +973,10 @@ If `IAI.Capture.OutputHeight` is non-zero the mask is **refused outright** and s
 is view-rect sized while the written frame is resampled — and **a label mask must never be filtered**
 (interpolation would invent values that identify no target). `mask_file` is `null` on every row and
 `target_mask_frames_unavailable` equals the frame count. Set the output height to `0` to get masks.
+
+### m55 development: identity sidecar (Stage 1)
+
+The feature branch's optional `change_evidence.jsonl` currently reports capture-pair identity and
+lifetime checks only. It does not report pixel change or anomaly presence and changes no existing
+label meaning. See [the Stage 1 field reference](change-evidence-fields.md) for its join keys,
+receipt timestamps, camera caveats, bounds, counters and closed refusal vocabulary.

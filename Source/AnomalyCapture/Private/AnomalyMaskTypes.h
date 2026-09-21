@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+struct FAnomalyChangeReceipt;
 
 static constexpr int32 GAnomalyMaskDrawnUnmeasured = -1;
 
@@ -25,6 +26,7 @@ struct FAnomalyMaskResult
 	int32 CustomDepthModeAtPass = -1;
 	FIntPoint CustomStencilExtent = FIntPoint::ZeroValue;
 	TArray<uint8> MaskPixels;
+	TSharedPtr<const FAnomalyChangeReceipt, ESPMode::ThreadSafe> ChangeReceipt;
 };
 
 enum class EAnomalyMaskState : uint8
