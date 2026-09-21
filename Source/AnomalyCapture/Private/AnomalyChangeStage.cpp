@@ -16,7 +16,7 @@ static TAutoConsoleVariable<int32> CVarChangeEnabled(TEXT("IAI.Capture.ChangeEvi
 static TAutoConsoleVariable<int32> CVarChangeBytes(TEXT("IAI.Capture.ChangeMaxBytes"), 64 * 1024 * 1024,
 	TEXT("Maximum bytes retained by m55 (not the writer pool). Sampled at run start."));
 static TAutoConsoleVariable<int32> CVarChangeGate(TEXT("IAI.Bench.ChangeGate"), 0,
-	TEXT("Bench fault at SI 8: 1=two-ready,2=skip,3=writer,4=readback,5=mask-write,6=coalesce,7=epoch,8=view,9=extent,10=budget,11=late,12=stale. 14=log frozen-mask CRC for transport audit."));
+	TEXT("Bench fault at SI 8: 1=two-ready,2=skip,3=writer,4=readback,5=mask-write,6=coalesce,7=epoch,8=view,9=extent,10=budget,11=late,12=stale,13=sync-gap. 14=log frozen-mask CRC for transport audit."));
 static FThreadSafeCounter64 GChangeEpoch, GChangeToken;
 
 static FString ChangeSettingSource(const TCHAR* Name)
@@ -227,8 +227,20 @@ void FAnomalyChangeStage::Work()
 		bool bWaitOnOwnQueue = false;
 		{
 			FScopeLock Lock(&CS);
-			while (FPending* Item = Pending.Find(Cursor))
+			while (Cursor <= LatestIndex)
 			{
+				FPending* Item = Pending.Find(Cursor);
+				if (!Item)
+				{
+					// Issue is monotone on the GT. A synchronous fallback can advance the
+					// capture index without issuing to this async stage. Such an index will
+					// never arrive; preserve the actual predecessor and refuse the next pair.
+					int32 NextIssued = LatestIndex + 1;
+					for (const auto& Later : Pending) { if (Later.Key > Cursor) { NextIssued = FMath::Min(NextIssued, Later.Key); } }
+					Counters.FindOrAdd(TEXT("unissued_indices_skipped")) += NextIssued - Cursor;
+					Cursor = NextIssued;
+					continue;
+				}
 				if (GapCursor != Cursor) { GapCursor = Cursor; GapSinceCapturedIndex = -1; }
 				EAnomalyChangeReason Reason = Item->Reason;
 				const bool bReady = Item->bSealed && Item->bColourDone && Item->bMaskDone;

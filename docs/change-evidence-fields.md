@@ -69,7 +69,8 @@ Wrong-family and duplicate callbacks are counters, **not** new refusal strings.
 `issued`, `pairs_identity_valid`, `pairs_refused`, `rows_dropped`, `late_results`, `epoch_rejected`,
 `epoch_resets`, `view_rejected`, `duplicate_callback`, `duplicate_completion`,
 `mask_capture_served_ge2`, `mask_pass_deferred`, `colour_multi_ready_drain`, `capture_arm_dropped`,
-`throwaway_family_constructed`, `teardown_flush`, `persist_failed`, `late_record_mutations`.
+`throwaway_family_constructed`, `teardown_flush`, `persist_failed`, `late_record_mutations`,
+`unissued_indices_skipped`.
 Old-generation rejection also adds `change_epoch_rejected_<path>` for the path actually reached.
 Final event detail will live only in the sidecar at Stage 2, not be duplicated in the summary.
 
@@ -92,6 +93,8 @@ that remains the separate m51 limitation.** Metadata/JSON rows have their separa
 
 An ordering gap starts when a later colour completion exposes an unresolved cursor; it waits
 at most four more captured frames from that observation, not from initial capture issue.
+Indices never issued to this asynchronous stage (a synchronous fallback) are counted and skipped;
+the next pair still requires its actual predecessor to be N−1 and refuses a gap.
 Run closure records the last issued index,
 resolves through it on the serial worker, and freezes by two seconds or eight more captured frames,
 whichever comes first. Run closure admits no further captures, so the wall-time arm is the active
@@ -115,6 +118,7 @@ Late results can only increment diagnostics, not modify final rows. Phase/event 
 | 10 | Force SI 8 colour admission to fail before retaining its shared ref. A separate byte-cap leg uses `ChangeMaxBytes 1`. |
 | 11 | Hold actual SI 8 readback for 3.5 seconds. After closure/persistence, pump owned drains for four seconds and compare final sidecar bytes. Use a 9-frame capture so the held completion is beyond the watermark deadline. |
 | 12 | Keep the actual SI 6 buffer instead of replacing it at SI 7, so SI 8 encounters a real index-2 predecessor. |
+| 13 | Force actual synchronous capture at SI 8, leaving no asynchronous m55 issue for that index. SI 9 must report predecessor_missing with actual predecessor 7; closure must complete. |
 | 14 | Healthy transport audit: log CRC32 of each frozen writer mask; compare with decoded delivered PNG bytes externally. |
 
 These devices do not certify a gate merely by existing. Runtime readings, coverage and unexercised
