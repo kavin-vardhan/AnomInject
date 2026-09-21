@@ -4439,6 +4439,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				ChangeIssue = Async->ChangeStage->Issue(RequestId, Snap.SessionIndex, ReceiptCamera,
 					GV ? GV->Viewport : nullptr, World ? World->Scene : nullptr,
 					World ? World->PersistentLevel : nullptr,
+					FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), Snap.SessionIndex, bFormatPng ? TEXT("png") : TEXT("jpg")),
 					bUseSve && bFormatPng && EffectiveOutputHeight == 0 && bTargetMaskEffective);
 				if (!bTargetMaskEffective) { Async->ChangeStage->SealArm(Snap.SessionIndex); }
 			}

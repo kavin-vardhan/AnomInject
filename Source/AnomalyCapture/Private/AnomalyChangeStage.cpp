@@ -79,7 +79,8 @@ FAnomalyChangeStage::FAnomalyChangeStage(const FString& InRunDir) : RunDir(InRun
 bool FAnomalyChangeStage::Gate(int32 Id, int32 SessionIndex) const { return BenchGate == Id && SessionIndex == 8; }
 
 FAnomalyChangeIssuePtr FAnomalyChangeStage::Issue(uint64 RequestId, int32 SI, const FAnomalyViewInfo& Camera,
-	const FRenderTarget* OwnerTarget, const FSceneInterface* OwnerScene, const void* OwnerLevel, bool bSupported)
+	const FRenderTarget* OwnerTarget, const FSceneInterface* OwnerScene, const void* OwnerLevel,
+	const FString& FrameFile, bool bSupported)
 {
 	if (LastOwnerScene && (LastOwnerScene != OwnerScene || LastOwnerTarget != OwnerTarget || LastOwnerLevel != OwnerLevel)) { ResetEpoch(); }
 	LastOwnerScene = OwnerScene; LastOwnerTarget = OwnerTarget; LastOwnerLevel = OwnerLevel;
@@ -88,12 +89,13 @@ FAnomalyChangeIssuePtr FAnomalyChangeStage::Issue(uint64 RequestId, int32 SI, co
 	auto New = MakeShared<FAnomalyChangeIssue, ESPMode::ThreadSafe>();
 	New->RunEpoch = Epoch; New->CutCounter = Cut; New->CaptureToken = (uint64)GChangeToken.Increment();
 	New->RequestId = RequestId; New->SessionIndex = SI; New->SubmitMs = NowMs(); New->Camera = Camera;
+	New->FrameFile = FrameFile;
 	New->OwnerTarget = OwnerTarget; New->OwnerScene = OwnerScene; New->OwnerLevel = OwnerLevel; New->Stage = AsShared();
 	if (FirstIndex < 0) { FirstIndex = SI; Cursor = SI; }
 	LatestIndex = SI;
 	FPending& Item = Pending.Add(SI);
 	Item.Issued = New;
-	if (!bSupported) { Item.Reason = EAnomalyChangeReason::UnsupportedDelivery; Item.bSealed = true; }
+	if (!bSupported) { Item.Reason = EAnomalyChangeReason::UnsupportedDelivery; Item.bSealed = true; Item.bColourDone = true; }
 	++Counters.FindOrAdd(TEXT("issued"));
 	ScheduleLocked();
 	return New;
@@ -311,7 +313,7 @@ void FAnomalyChangeStage::FinalizeLocked(FPending& Item, EAnomalyChangeReason Re
 	J->SetNumberField(TEXT("session_index"), Cursor);
 	J->SetNumberField(TEXT("prev_session_index"), Previous.Issued.IsValid() ? Previous.Issued->SessionIndex : -1);
 	J->SetNumberField(TEXT("expected_prev_session_index"), Cursor - 1);
-	J->SetStringField(TEXT("frame_file"), FString::Printf(TEXT("Actual_Frames/frame_%05d.png"), Cursor));
+	J->SetStringField(TEXT("frame_file"), Item.Issued->FrameFile);
 	J->SetBoolField(TEXT("pair_valid"), Reason == EAnomalyChangeReason::None);
 	if (ReasonName) { J->SetStringField(TEXT("reason"), ReasonName); }
 	else { J->SetField(TEXT("reason"), MakeShared<FJsonValueNull>()); }

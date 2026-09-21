@@ -29,6 +29,7 @@ struct FAnomalyChangeIssue
 	uint64 RequestId = 0;
 	int32 SessionIndex = -1;
 	int64 SubmitMs = 0;
+	FString FrameFile;
 	FAnomalyViewInfo Camera;
 	const FRenderTarget* OwnerTarget = nullptr;
 	const FSceneInterface* OwnerScene = nullptr;
@@ -72,7 +73,8 @@ public:
 	static bool IsEnabled();
 	explicit FAnomalyChangeStage(const FString& InRunDir);
 	FAnomalyChangeIssuePtr Issue(uint64 RequestId, int32 SessionIndex, const FAnomalyViewInfo& Camera,
-		const FRenderTarget* OwnerTarget, const FSceneInterface* OwnerScene, const void* OwnerLevel, bool bSupported);
+		const FRenderTarget* OwnerTarget, const FSceneInterface* OwnerScene, const void* OwnerLevel,
+		const FString& FrameFile, bool bSupported);
 	FAnomalyChangeIssuePtr FindIssue(int32 SessionIndex) const;
 	void ExpectMask(int32 SessionIndex);
 	void SealArm(int32 SessionIndex);
