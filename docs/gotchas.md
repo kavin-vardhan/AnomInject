@@ -7297,3 +7297,17 @@ Cancel only unserved arms from other immutable generations under their queue loc
 legacy pending bookkeeping with explicit unavailable-mask accounting. Do not discard submitted GPU
 work: G7 needs it to prove old-generation rejection at drain. G15 holds actual arms pending across
 a forced epoch reset and checks cancellation and recovery; it is not a real viewport/world swap.
+
+## G274 — CB_GateLevel stencil tag numbers are not stable cross-run identities (2026-09-21, Chat ruling 081-05)
+
+Stencil tag values on CB_GateLevel vary run-to-run from the shared tag pool. Compare mask occupancy
+AND every nonzero byte against its own labels row's `mask_value`, never raw mask bytes across runs.
+The predecessor-only native diagnostics differed on all 71 raw masks while agreeing on all 71
+occupied-pixel maps; no m55 change was present. This revised invariant does not weaken each run's
+MASK-TIE or frozen-writer-mask/PNG equality. MainWorld's banked strict byte invariant still passed.
+
+The allocation order is decided by `FAnomalyMaskMeasure::AllocateTag`: scan from `NextTagOffset`
+through the reserved assignable range, accept the first ledger-free value, then advance the offset.
+`FAnomalyCensus::ArmNextBatch` also claims ledger-free values from the shared range. Their available
+values therefore depend on event/census claim and release order; the existing M36 allocator log
+records assigned/skipped/free counts. This source read names the mechanism, not a new timing proof.
