@@ -63,6 +63,30 @@ twins. Stage 2 supplies measurement/phase semantics; Stage 3 supplies the oracle
 completion. Each stage stops for Chat. No cook. Stage 1 predictions and implementation
 boundary: `docs/sessions/2026-09-21-081-05-codex-m55-stage-1.md`.
 
+
+### Qualification rulings 2026-09-21 (081-05) — authoritative carry-forward
+
+Chat accepted the built Stage 1 implementation and the 30/30 StackOBot matrix. The banked
+MainWorld strict reduce/mask-byte invariant passes. For cross-run **CB_GateLevel** comparisons,
+require identical occupied-pixel maps AND each nonzero byte equal to that run's row `mask_value`;
+raw tag bytes are not stable cross-run identities (G274). Within-run MASK-TIE and frozen-mask/PNG
+checks remain exact. Whole-artifact EXTRAS are accepted as timing/float noise.
+
+**Stage 3 flagged prior: FPS 21.5 vs 30 on evidence-OFF MAIN4.** Any cost leg at that FPS must
+explain it (hitch, shader prewarm, other) before its gate can be read. Retained-byte high-water
+priors: 17.5 MB StackOBot, 19.4 MB Lyra. No cost action/acceptance in this qualification round.
+Stage 2 still requires teardown/phase/event finalisation. Carry the prior report's full coverage
+limit block verbatim into Stage 3; it is preserved in `_reviews/081-06-evidence/coverage-limits-verbatim.md`.
+
+Before each of the remaining 25 Lyra legs, L1 requires a fresh pre-capture camera snapshot within
+150 cm and 10 degrees of the recorded visible reference. Invalid starting pose is INVALID-FIXTURE,
+with at most three total attempts per leg (shared with the handled-ensure allowance). A real gate
+failure after passing L1 is not retried. Camera motion during a leg is allowed. No pose setter,
+threshold widening, target replacement or changed render defaults is part of this release.
+A **GREEN** 081-06 qualification report automatically releases Stage 2 without another ruling;
+otherwise Stage 2 remains held and Chat review is required. Predictions and results are in
+`docs/sessions/2026-09-21-081-06-codex-m55-lyra-qualification.md`.
+
 ---
 
 **PLAN ONLY. No source, shader, tool, fixture or schema change was made. No build, no cook, no capture,

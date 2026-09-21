@@ -53,3 +53,32 @@ Stage 2 under 081-03; Chat still reads it, and the next mandatory Chat checkpoin
 Any new finding or non-GREEN qualification requires **Chat review REQUIRED** before continuation.
 Report `_reviews/081-06-codex-m55-stage-1-lyra-qualification.md`; ~4-hour bound. Restore entry
 checkouts/modules at the report boundary; no merge/tag/master/m51 ref change or mailbox write.
+
+## Outcome — NEEDS-DECISION; L1 attempt limit reached
+
+G14 synthetic A1 passed L1 (32.504555 cm, 6.402030 degrees), retained 3 events, delivered 90 colour
+images and verified all 49 nonempty frozen-mask PNGs. Pair reasons: 45 identity-valid, 20 empty_region,
+3 budget_exceeded, 3 predecessor_missing, 18 mask_payload_missing, 1 first_frame. High-water
+18,432,000 bytes; zero retained after closure. No runtime handled ensure or identity assertion failure.
+
+G1 native then exhausted L1's three permitted attempts BEFORE capture:
+A1 2137.344321 cm / 30.120133 degrees; A2 257.783348 cm / 59.434196 degrees;
+A3 360.000000 cm / 0.082568 degrees. Each is INVALID-FIXTURE, neither product PASS nor FAIL.
+No capture_start marker/request or session directory exists for those attempts. The raw snapshots
+and logs are banked, copies hash-verified, and independent recomputation of the stored L1 distances
+and classifications passed. A3's camera is (-443.980743,-430,212.000107), rotation (0,0,0),
+so matching orientation alone cannot meet the ruled position condition. No fourth attempt, pose
+adjustment, threshold relaxation, or restart of the retry allowance occurred.
+
+The suite stopped. G1–G12 both orders remain UNRUN on the final candidate (24 legs). The accepted
+matrix is now 36/60: the earlier 30 StackOBot + 5 Lyra legs, plus this new G14 synthetic leg.
+The original failed G14 synthetic remains failed-precondition-undefined and uncredited in the ledger.
+No implementation failure is inferred from the invalid fixtures; qualification is incomplete.
+
+Report: `_reviews/081-06-codex-m55-stage-1-lyra-qualification.md`. **Chat review REQUIRED** before
+further qualification or Stage 2: GREEN's automatic release condition is unmet. Recommend a ruling
+on deterministic fixture-only initial spawn/view placement while retaining L1, host rendering
+and allowed in-leg motion, rather than another undeclared retry. That adjustment was NOT applied.
+**Chat review NOT REQUIRED** for the qualification attempts already released and performed.
+Next mandatory checkpoint: Chat's disposition of this exhausted L1 qualification. No Code brief.
+Entry checkout/module restoration and final docs commit are verified in the report/postflight.
