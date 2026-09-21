@@ -1783,3 +1783,14 @@ Estimated size: ~450 lines of C++/HLSL plus the gate campaign and the cook.
   it.
 
 </details>
+
+
+## AMENDMENT 081-08 outcome, 2026-09-21 (does not alter earlier predictions)
+
+Stage 2 implemented/built at989da8b, Game2C21EDE5. Static twins both orders qualified;
+delay=3 natural exhausted three B1-invalid attempts, so qualification halted with no
+measurement verdict. Stage 3 remains HELD, Chat review REQUIRED for continuation.
+Moving-camera twins and remaining phase/lifetime/hide/nohold/Lyra/invariance gates UNRUN.
+The unrun offscreen-at-SI3 proposal is withdrawn (before first live fire; not occlusion);
+already-occluded onset still needs a proper fixture. See081-08 journal/report and ledger.
+Stage 1 remains ACCEPTED on36 and24 Lyra legs DROPPED-BY-OWNER-DECISION, as ruled081-07.

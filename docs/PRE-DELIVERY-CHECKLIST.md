@@ -48,6 +48,10 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 
 - [ ] **`IAI.ListAnomalies` returns the count recorded in `CLAUDE.md`'s Current-status block, and every
       id listed there is present.**
+      On the m55 feature branch this is **10 shipping + 2 bench-only** in Development; Shipping
+      registers only the shipping entries. `null_effect` and `solid_swap` must refuse outside the
+      explicit named fixture gate and must not enter any auto/default/selector pool. The Editor-only
+      `AnomalyBench` placement module must not be included in a Game/client target.
       *Phrased CATEGORICALLY, against a single source, and never as a number in this file. A literal
       count here goes stale the moment an anomaly ships and then reads as a passing check —
       `setup-runbook.md` asserted "seven" from m3 until m29 while the catalog had been 8 since m8.

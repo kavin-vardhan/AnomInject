@@ -7325,3 +7325,22 @@ control-server pose setter nor an existing bench pawn/view placement console com
 also requires unchanged candidate binaries and no rebuild. A new compiled bench command needs
 that constraint resolved first. No L2 attempt was consumed; prior three L1-invalid G1-native
 attempts remain in the ledger. Each of the 24 remaining legs has its fresh three-attempt allowance.
+
+### G275 follow-up — owner scoped Stage 1 closed and released a Stage 2 rebuild (081-07 ruling)
+
+All 24 Lyra G1–G12 legs are now DROPPED-BY-OWNER-DECISION: host-chosen per-launch spawn and no
+placement lever in the accepted candidate. The 36 accepted legs close Stage 1. The three old
+invalid attempts and original failed-precondition-undefined leg remain. Stage 2 lifts the rebuild
+hold and implements L2 in an Editor-only AnomalyBench module. Lyra is limited to two natural-order
+twins and G-3; first-leg failure to qualify L2+L1 within three attempts drops Lyra entirely for m55.
+This is an owner scope decision, never a conversion of missing measurements into passes.
+
+## G276 — issue and label sampling can straddle the same-tick event end (2026-09-21, m55 Stage 2)
+
+CaptureCurrentFrame can issue the last positive opportunity and BeginRevert can run later in that
+same GT tick, before SampleDeferredActiveState. A closure watermark based only on labels already
+sampled would freeze one frame early. Queue that event-end request until the issued snapshot's
+legacy end-of-tick label sample arrives, then seal the actual phase last index. Do not fix a new
+consumer by moving legacy label sampling. Numeric work uses value metadata and immutable buffers;
+it releases the admission mutex during the pixel scan. Reference-frame shares extend the unique
+canonical reservation rather than allocating or charging a second copy of the predecessor.

@@ -11,17 +11,19 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **081-07, 2026-09-21 — m55 Stage 1 Lyra placement preflight: NEEDS-DECISION.**
-> On `feat/m55-change-evidence`, source `3dc1dda` remains the accepted implementation;
-> 36/60 Stage 1 legs are accepted. Chat's 081-06 ruling authorizes L2 placement then
-> unchanged L1 and gives each remaining G1–G12/order three fresh attempts. None used:
-> neither the accepted control server nor existing bench commands can place the view.
-> Adding that console lever requires a rebuild, which the same ruling forbids.
-> No host source, binaries or capture behavior changed. Stage 2 remains held.
-> Read `docs/sessions/2026-09-21-081-07-codex-m55-lyra-placement.md` and the external
-> `_reviews/081-07-codex-m55-stage-1-lyra-matrix.md`. **Chat review REQUIRED** to resolve
-> the mechanism/build constraint before the 24 legs. **Chat review NOT REQUIRED**
-> for this completed preflight/documentation. No Code brief; Code reviews after Stage 3.
+> **081-08, 2026-09-21 — m55 Stage 2 implemented/built; qualification NEEDS-DECISION.**
+> Stage 1 CLOSED/ACCEPTED on 36 legs; 24 Lyra G1–G12/order legs are
+> DROPPED-BY-OWNER-DECISION under 081-07 (host-chosen spawn; no Stage 1 placement lever).
+> Feature source `989da8b`; Game `2C21EDE5`. Static null/solid twins passed both orders,
+> five events each. Delay=3 natural exhausted three B1-invalid attempts; no gate verdict,
+> no fourth attempt. Remaining Stage 2 gates and AEBD09EA invariance are UNRUN.
+> L2 editor fixture module built; no Lyra attempt yet (first-leg allowance remains 3).
+> Unrun offscreen-at-SI3 recipe withdrawn: it does not establish already-occluded onset.
+> Read `docs/sessions/2026-09-21-081-08-codex-m55-stage-2.md` and external
+> `_reviews/081-08-codex-m55-stage-2-report.md`. **Chat review REQUIRED** for B1 fixture
+> continuation and Stage 2 disposition; Stage 3 HELD. **Chat review NOT REQUIRED** for
+> completed authorized implementation/build/documentation. No Code brief; Code reviews
+> after Stage 3. Main/Lyra entry checkouts restored at the external report boundary.
 > This m55 feature status supersedes older status prose below for this workstream.
 
 > 🏁🏁 **SESSION 080-06, 2026-09-20 — THE `m26` VETO'S ARMS ARE GATED ON THE LABELLED WINDOW AND
