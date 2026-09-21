@@ -1,4 +1,69 @@
-# m55 — measured change evidence (v2, rewritten 2026-09-21)
+# m55 — measured change evidence (v2.1, amended 2026-09-21)
+
+## Amendments 2026-09-21 — authoritative over conflicting active v2 text
+
+Authority: `_reviews/081-04-chat-rulings-release-stage-1.md`, accepting D1–D7 of
+`_reviews/081-04-codex-m55-stage-1-report.md`. Stage 1 is RELEASED to Codex. These
+amendments supersede the matching passages below; the historical superseded fold is unchanged.
+
+1. **D1, origin identity.** Mint epoch, cut and a capture token at the game-thread issue
+   point, before asynchronous work. Carry them unchanged through colour and mask requests,
+   readbacks and writer jobs. Reject stale-generation work before receipt admission.
+   Published receipts and pixel buffers are immutable; writer delivery is a separate
+   immutable completion. G-EPOCH forces old colour AND mask work across reset.
+2. **D2, serving identity.** Enforce the capture subsystem's selected viewport/world owner.
+   Bind a unique serving family identity to the issued capture token and carry the actual
+   serving view identity, epoch and geometry with mask/counts and colour. The two existing
+   request serials remain independent. Family frame number plus view index is insufficient.
+   Unsupported families/views and duplicate callbacks are rejected and counted as
+   `view_rejected` / `duplicate_callback` diagnostics, not new refusal-enum values.
+3. **D3, discriminating gates.** G-COALESCE must consume at least two distinct pending
+   capture-mask requests in one serving pass, log their tokens/IDs and payload owner, and
+   refuse the non-owner as `mask_payload_missing`. Multiple target tags in one arm do not
+   count. G-VIEW includes distinct index-0 families sharing a scene frame and a duplicate
+   callback under one token. Cite the construction used for the throwaway family.
+4. **D4, closure order.** Observe phase/event end on GT and enqueue its last-index watermark.
+   Resolve admitted work through that watermark for at most 8 further captured frames or
+   2 seconds wall time, whichever comes first. Then freeze phase/event records and reject
+   late results. Persist final records before clearing/resetting state, including a
+   best-effort teardown flush with `teardown_flush` counted. Run end flushes before reset.
+   Unresolved terminal work becomes `closure_timeout`; it is never silently discarded.
+5. **D4, reasons.** The closed set now has 14 values: `first_frame`, `predecessor_missing`,
+   `predecessor_undelivered`, `out_of_order_timeout`, `epoch_reset`, `view_mismatch`,
+   `extent_mismatch`, `mask_payload_missing`, `unsupported_delivery`, `budget_exceeded`,
+   `empty_region`, `no_labelled_frames`, **`current_undelivered`**, **`closure_timeout`**.
+   Failed current delivery names `stage` (`colour`, `mask`, or `writer`). The predecessor
+   reason retains its narrow meaning. Diagnostics/counters are not extra refusal values.
+6. **D5, artifact.** Pair rows carry a current `receipt` block: `run_epoch`, `cut_counter`,
+   `capture_token`, `view_family_id`, `rect` [x,y,w,h], `extent` [w,h], `format`,
+   `t_submit_ms`, `t_drain_ms`. Times are integer monotonic engine milliseconds: submit is
+   GT issue; drain is RT drain completion. Publish the predecessor's two times as well.
+   `cam_delta` is represented by `cam_dpos_cm` (integer cm), `cam_drot_deg` and
+   `cam_dfov_deg` (integer tenths of a degree); `cam_moved` means any is nonzero.
+   These are caveats, never validity rules. Event rows add nullable top-level `reason`
+   and `phase_count`. Final event detail is sidecar-only; run_summary adds counters and
+   `change_evidence_file`. The earlier requirement for duplicate summary detail is withdrawn.
+7. **D6, numeric wording.** The unchanged eight bins reconstruct exact strict-> thresholds
+   only at 0,2,4,8,16,32,64. Other thresholds need the images. The all-tag complement excludes
+   target mask pixels, not lighting/shadow spill outside those masks. No calibration in v1.
+8. **D7, ownership.** Filter non-event tags in the mutable mask first, then freeze/share it
+   with writer and change stage. Share the writer's single canonical colour conversion;
+   delivery completion is separate. Reserve bytes at admission before retaining a ref.
+   Count admitted current/predecessor/reference colours (at most three buffers) and masks
+   retained by m55. On a failed reservation emit `budget_exceeded` without retaining the
+   ref. Never block writer workers. This does not bound the writer's total memory (m51).
+9. **Coverage corrections.** G-SKIP includes a real dropped arm and cleanup in addition to
+   the synthetic stale predecessor. G-UNDELIVERED covers colour readback, mask-write and
+   writer failures; a path requiring engine changes may be explicitly UNEXERCISED with
+   its reason. Projection-only movement is a camera caveat. G-LATE forces a delayed
+   completion across the closure watermark and checks exact final-record non-mutation.
+
+Stage 1 is identity/lifetime only: no pixel arithmetic, phase metric aggregates or bench
+twins. Stage 2 supplies measurement/phase semantics; Stage 3 supplies the oracle/cost/docs
+completion. Each stage stops for Chat. No cook. Stage 1 predictions and implementation
+boundary: `docs/sessions/2026-09-21-081-05-codex-m55-stage-1.md`.
+
+---
 
 **PLAN ONLY. No source, shader, tool, fixture or schema change was made. No build, no cook, no capture,
 no leg, no tag, no merge.** Branch `feat/m55-change-evidence` off `master` `031a103`; the v1 plan is
