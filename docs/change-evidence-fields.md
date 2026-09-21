@@ -1,14 +1,65 @@
-# m55 change evidence — Stage 1 field reference
+# m55 change evidence — Stage 2 field reference
 
-Stage 1 is identity/lifetime instrumentation on the feature branch. It does not measure pixel
-differences, infer anomaly presence, or change m49 `observable`, labels, annotation, or vetoes.
-Stage 2 will add tag/phase windows and measurements; those fields and event records do not exist yet.
+Stage 2 adds measurement windows and immutable final events to the existing identity/lifetime
+stage. It does not infer anomaly presence or change m49 `observable`, labels, annotation or vetoes.
+
+## Current Stage 2 records (stage_version 2)
+
+Pair rows now cover only the first K=4 labelled frames of each event phase. They retain the receipt,
+file, index and camera fields below; Stage 1's all-capture diagnostic pair rows are superseded.
+Pair order is ascending capture index. Event records are emitted when their closure watermark resolves.
+The entire sidecar persists on finish/epoch reset and best-effort teardown in both delivery modes.
+
+| Field | Meaning |
+|---|---|
+| `event`, `phase_ordinal`, `window_index` | Legacy Id@StartFrame key, zero-based phase and window index. Window zero is onset. |
+| `mask_value` | Current delivered-mask tag, joined to the same legacy row/event. |
+| `chg_measured`, `chg_eligible`, `pair_valid` | Equal in v1; identity and both nonempty denominators permit arithmetic. No verdict. |
+| `chg_n`, `chg_gt8`, `chg_sum`, `chg_hist`, `chg_mean` | Current-tag region count, strict >8 max-RGB byte changes, sum, eight bins, sum/count/255 rounded to four decimals. Unmeasured: -1 counts, null histogram/mean. |
+| `ctl_*` | Same statistics over zero pixels of the entire filtered mask (all-tag complement). Raw control is retained when identity permits arithmetic and its denominator is nonzero, even if the target is empty. Otherwise -1/null. |
+| `ref_session_index`, `ref_gt8`, `ref_mean` | Retained f0-1 canonical reference index (-1 if unavailable); current-mask target comparison with it. Statistics null when unavailable. Geometry and generation must match. |
+| `chg_gt8_max_sofar`, `chg_mean_max_sofar` | Running maxima in this phase's window; -1 before any measured pair. |
+| `prev_target_pixels` | Previous labelled row's own tag count, or -1; always -1 on onset, so pre-onset visibility is not established. |
+| `tau_px` | Fixed strict byte threshold 8, not a calibrated visibility threshold. |
+
+Bins are [0], [1–2], [3–4], [5–8], [9–16], [17–32], [33–64], [65–255]. Both denominators must
+be positive. Alpha is ignored. Controls exclude tag pixels, not lighting/shadow spill beyond them.
+Reference comparisons are screen-space, not motion compensated. A low control is not causal proof.
+
+Event rows contain `event`, `anomaly_type`, `target`, nullable `reason` (`no_labelled_frames` when
+phase_count=0), true `phase_count`, and at most eight `phases`. Each phase contains ordinal, onset
+indices, last_labelled_index/closure_watermark, pairs_required=min(4,labelled length), pairs_measured,
+refusal histogram, onset coverage state and reason, and final chg_gt8_max/chg_mean_max/ref_gt8_max.
+An onset refusal stays indeterminate regardless of later measurements. `finalized_by` describes a
+lifecycle cause, not an additional refusal enum value. `late_results` is the frozen event-time value;
+later rejected deliveries are counted in the run summary and never edit a final event.
+
+The worker releases the admission mutex during pixel scans. Phase references extend the unique
+canonical buffer reservation; sharing the predecessor does not double-charge bytes or buffer count.
+The existing three-unique-colour and 64 MiB limits remain. Writer total memory remains outside this bound.
+Stage 1 all-capture identity/refusal counters remain transport diagnostics. Stage 2 adds pairs_measured,
+measurement_pairs_refused, phases_measured/indeterminate, events_with_phases, denominator_mismatch,
+histogram_mismatch and ref_onset_mismatch under the `change_` summary prefix, plus tau_px=8/window_k=4.
+No arithmetic feeds labels, annotation, selector, auto pool, observability or the m26 veto.
+
+### Bench-only surfaces
+
+`null_effect` / `solid_swap` share one lifecycle class. Development catalogue is 10 shipping + 2 bench
+entries; Shipping registers neither. Apply requires ChangeEvidenceCases=1, -IAIBenchFixture, and
+CB_GateLevel/L_ShooterGym. Neither id enters any auto/default/selector pool. Delay counts captured
+labelled frames; the positive uses the shipped Lit pink and the existing exact material revert path.
+`AnomalyBench` is an Editor-target-only module exposing one-shot IAI.Bench.PlaceView through a typed
+authenticated server bridge, on L_ShooterGym with -IAIBenchFixture and capture inactive. It preserves
+host camera/movement behavior and compensates camera-to-pawn offset. An ACK is not pose success:
+runner requires a placement log, fresh independent L1 and a clean placement-to-capture log interval.
+`IAI.Bench.ChangeTeardownAt` is default-off and fixture/command-line gated; it requests actual world
+travel on StackOBot at a capture index, exercising subsystem teardown rather than simulating closure.
 
 `IAI.Capture.ChangeEvidence` (default 1) and `IAI.Capture.ChangeMaxBytes` (default 67108864)
 are snapshotted at run start. Value 0 on the former produces neither the sidecar nor summary additions.
 Effective values and engine set-by provenance are echoed, not inferred from configuration files.
 
-## Pair identity records
+## Historical Stage 1 identity record shape; receipt fields remain shared
 
 `change_evidence.jsonl` contains one `kind: "pair"`, `stage_version: 1` diagnostic for each
 issued capture, ordered by session index. This temporary Stage 1 coverage includes unlabelled frames

@@ -200,6 +200,8 @@ void FAnomalyChangeStage::MeasureLocked(FPending& Item, EAnomalyChangeReason Rea
 		if (Label.Window == 0 && Previous.Pixels.IsValid() && Previous.bColourDelivered &&
 			Previous.Issued.IsValid() && Previous.Issued->SessionIndex == Phase.First - 1 &&
 			Previous.ColourReceipt.IsValid() && Item.ColourReceipt.IsValid() &&
+			Previous.ColourReceipt->ServingToken == Previous.Issued->CaptureToken && Previous.ColourReceipt->ViewIndex == 0 &&
+			Previous.Issued->RunEpoch == Item.Issued->RunEpoch && Previous.Issued->CutCounter == Item.Issued->CutCounter &&
 			Previous.ColourReceipt->Rect == Item.ColourReceipt->Rect && Previous.ColourReceipt->Extent == Item.ColourReceipt->Extent &&
 			Previous.ColourReceipt->Format == Item.ColourReceipt->Format)
 		{

@@ -343,6 +343,8 @@ void FAnomalyChangeStage::FinalizeLocked(FPending& Item, EAnomalyChangeReason Re
 		else if (Previous.Reason == EAnomalyChangeReason::OutOfOrderTimeout) { Reason = EAnomalyChangeReason::PredecessorMissing; }
 		else if (!Previous.bColourDelivered) { Reason = EAnomalyChangeReason::PredecessorUndelivered; }
 		else if (!P.IsValid() || !Previous.Pixels.IsValid()) { Reason = EAnomalyChangeReason::PredecessorMissing; }
+		else if (P->Issue->RunEpoch != Item.Issued->RunEpoch || P->Issue->CutCounter != Item.Issued->CutCounter) { Reason = EAnomalyChangeReason::EpochReset; }
+		else if (P->ServingToken != Previous.Issued->CaptureToken || P->ViewIndex != 0) { Reason = EAnomalyChangeReason::ViewMismatch; }
 		else if (!C.IsValid() || !Item.bColourDelivered) { Reason = EAnomalyChangeReason::CurrentUndelivered; Item.FailureStage = TEXT("colour"); }
 		else if (C->ServingToken != Item.Issued->CaptureToken || C->ViewIndex != 0) { Reason = EAnomalyChangeReason::ViewMismatch; }
 		else if (C->Rect != P->Rect || C->Extent != P->Extent || C->Format != P->Format) { Reason = EAnomalyChangeReason::ExtentMismatch; }
