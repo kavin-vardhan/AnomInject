@@ -7282,3 +7282,18 @@ would bless old work as new. Mint epoch/cut/token at GT issue and carry them thr
 writers. Reject old work before publishing a receipt; writer success is a separate completion.
 These are source-established constraints, not a runtime gate verdict. Forced runtime readings and
 remaining coverage are recorded in the 081-05 Stage 1 journal/report.
+
+## G273 — closure must distinguish an unissued index from a pending arm, and reset must clear both consumers (2026-09-21, m55 Stage 1)
+
+The legacy capture index can advance on a synchronous fallback without registering that index with
+the async stage. Waiting forever for such an index prevents terminal closure. Skip/count indices
+never issued to this stage, preserve the actual predecessor, and refuse the next nonadjacent pair.
+G13 covers a synthetic registration gap; the attempted real synchronous fixture hit a D3D12 ensure
+and is not credited as natural-path coverage.
+
+Closing the stage's records does not itself clear the colour and mask arm queues. An old unserved
+arm can retain its former owner at the queue head and block the new owner's callbacks indefinitely.
+Cancel only unserved arms from other immutable generations under their queue locks; remove matching
+legacy pending bookkeeping with explicit unavailable-mask accounting. Do not discard submitted GPU
+work: G7 needs it to prove old-generation rejection at drain. G15 holds actual arms pending across
+a forced epoch reset and checks cancellation and recovery; it is not a real viewport/world swap.

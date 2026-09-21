@@ -70,7 +70,8 @@ Wrong-family and duplicate callbacks are counters, **not** new refusal strings.
 `epoch_resets`, `view_rejected`, `duplicate_callback`, `duplicate_completion`,
 `mask_capture_served_ge2`, `mask_pass_deferred`, `colour_multi_ready_drain`, `capture_arm_dropped`,
 `throwaway_family_constructed`, `teardown_flush`, `persist_failed`, `late_record_mutations`,
-`unissued_indices_skipped`, `bench_unregistered_capture`.
+`unissued_indices_skipped`, `bench_unregistered_capture`, `pending_colour_cancelled`,
+`pending_mask_cancelled`, `pending_family_deferred`.
 Old-generation rejection also adds `change_epoch_rejected_<path>` for the path actually reached.
 Final event detail will live only in the sidecar at Stage 2, not be duplicated in the summary.
 
@@ -120,6 +121,7 @@ Late results can only increment diagnostics, not modify final rows. Phase/event 
 | 12 | Keep the actual SI 6 buffer instead of replacing it at SI 7, so SI 8 encounters a real index-2 predecessor. |
 | 13 | Synthetic registration gap at SI 8: retain real legacy colour/mask delivery but omit this index from the change-stage queue. SI 9 must report predecessor_missing with actual predecessor 7; closure must complete. The actual synchronous-fallback device hit a D3D12 ensure and is not credited as natural-path coverage. |
 | 14 | Healthy transport audit: log CRC32 of each frozen writer mask; compare with decoded delivered PNG bytes externally. |
+| 15 | Keep SI 8 colour/mask arms unserved; force an epoch reset at SI 9; cancel only old pending arms and require capture recovery. |
 
 These devices do not certify a gate merely by existing. Runtime readings, coverage and unexercised
 cases are in the stage journal/report. No shader, asset, cook, pixel-difference arithmetic or event
