@@ -79,6 +79,24 @@ int32 FAnomalyMaskSceneViewExtension::NumPendingArms() const
 	return PendingArms.Num();
 }
 
+void FAnomalyMaskSceneViewExtension::CancelPendingOtherGeneration(const FAnomalyChangeIssuePtr& Current, TArray<uint64>& Cancelled)
+{
+	check(IsInGameThread());
+	if (!Current.IsValid()) { return; }
+	FScopeLock Lock(&StateCS);
+	for (int32 I = PendingArms.Num() - 1; I >= 0; --I)
+	{
+		const auto& Old = PendingChangeIssues[I];
+		if (Old.IsValid() && (Old->RunEpoch != Current->RunEpoch || Old->CutCounter != Current->CutCounter))
+		{
+			Cancelled.Add(PendingArms[I]);
+			PendingArms.RemoveAt(I);
+			PendingArmWantsPixels.RemoveAt(I);
+			PendingChangeIssues.RemoveAt(I);
+		}
+	}
+}
+
 void FAnomalyMaskSceneViewExtension::Reset()
 {
 	{

@@ -54,6 +54,8 @@ public:
 	void EnqueueDrain(bool bFinal = false);
 	bool TakeMaskResult(uint64 RequestId, FAnomalyMaskResult& Out, bool bRemove = true);
 	int32 NumPendingArms() const;
+	// Cancel only unserved old-generation arms; submitted GPU work drains normally.
+	void CancelPendingOtherGeneration(const FAnomalyChangeIssuePtr& Current, TArray<uint64>& Cancelled);
 	void Reset();
 
 private:

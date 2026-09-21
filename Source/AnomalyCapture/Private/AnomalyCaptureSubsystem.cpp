@@ -4433,7 +4433,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			if (Async->ChangeStage.IsValid())
 			{
 				// The gate resets after SI 8 was submitted, with its real colour+mask drains held.
-				if (Async->ChangeStage->GetGate() == 7 && Snap.SessionIndex == 9) { Async->ChangeStage->ResetEpoch(); }
+				if ((Async->ChangeStage->GetGate() == 7 || Async->ChangeStage->GetGate() == 15) && Snap.SessionIndex == 9) { Async->ChangeStage->ResetEpoch(); }
 				UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr;
 				FAnomalyViewInfo ReceiptCamera = ProjView;
 				ChangeIssue = Async->ChangeStage->Issue(RequestId, Snap.SessionIndex, ReceiptCamera,
@@ -4441,6 +4441,23 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 					World ? World->PersistentLevel : nullptr,
 					FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), Snap.SessionIndex, bFormatPng ? TEXT("png") : TEXT("jpg")),
 					bUseSve && bFormatPng && EffectiveOutputHeight == 0 && bTargetMaskEffective);
+				TArray<uint64> CancelledColour, CancelledMask;
+				if (Async->SveCapturer.IsValid()) { Async->SveCapturer->CancelPendingOtherGeneration(ChangeIssue, CancelledColour); }
+				if (Async->MaskExtension.IsValid()) { Async->MaskExtension->CancelPendingOtherGeneration(ChangeIssue, CancelledMask); }
+				for (uint64 Id : CancelledColour) { Async->PendingSnapshots.Remove(Id); }
+				for (uint64 Id : CancelledMask)
+				{
+					if (const int32* OldIndex = TargetMaskPendingSessionIndex.Find(Id))
+					{
+						++TargetMaskUnavailable;
+						TargetMaskOutcome.Add(*OldIndex, FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured, {} });
+					}
+					TargetMaskPendingSessionIndex.Remove(Id);
+					TargetMaskPendingTags.Remove(Id);
+					TargetMaskPendingTagEvent.Remove(Id);
+				}
+				Async->ChangeStage->Diagnostic(TEXT("pending_colour_cancelled"), CancelledColour.Num());
+				Async->ChangeStage->Diagnostic(TEXT("pending_mask_cancelled"), CancelledMask.Num());
 				if (!bTargetMaskEffective) { Async->ChangeStage->SealArm(Snap.SessionIndex); }
 			}
 			Async->PendingSnapshots.Add(RequestId, MoveTemp(Snap));

@@ -16,7 +16,7 @@ static TAutoConsoleVariable<int32> CVarChangeEnabled(TEXT("IAI.Capture.ChangeEvi
 static TAutoConsoleVariable<int32> CVarChangeBytes(TEXT("IAI.Capture.ChangeMaxBytes"), 64 * 1024 * 1024,
 	TEXT("Maximum bytes retained by m55 (not the writer pool). Sampled at run start."));
 static TAutoConsoleVariable<int32> CVarChangeGate(TEXT("IAI.Bench.ChangeGate"), 0,
-	TEXT("Bench fault at SI 8: 1=two-ready,2=skip,3=writer,4=readback,5=mask-write,6=coalesce,7=epoch,8=view,9=extent,10=budget,11=late,12=stale,13=unregistered-index. 14=log frozen-mask CRC for transport audit."));
+	TEXT("Bench fault at SI 8: 1=two-ready,2=skip,3=writer,4=readback,5=mask-write,6=coalesce,7=epoch,8=view,9=extent,10=budget,11=late,12=stale,13=unregistered-index. 14=log frozen-mask CRC for transport audit. 15=unserved-arm epoch reset."));
 static FThreadSafeCounter64 GChangeEpoch, GChangeToken;
 
 static FString ChangeSettingSource(const TCHAR* Name)

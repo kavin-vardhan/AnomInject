@@ -43,6 +43,23 @@ void FAnomalySveCapturer::ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr Cha
 	}
 }
 
+void FAnomalySveCapturer::CancelPendingOtherGeneration(const FAnomalyChangeIssuePtr& Current, TArray<uint64>& Cancelled)
+{
+	check(IsInGameThread());
+	if (!Current.IsValid()) { return; }
+	FScopeLock Lock(&StateCS);
+	for (int32 I = PendingWanted.Num() - 1; I >= 0; --I)
+	{
+		const auto Old = PendingIssues.FindRef(PendingWanted[I]);
+		if (Old.IsValid() && (Old->RunEpoch != Current->RunEpoch || Old->CutCounter != Current->CutCounter))
+		{
+			Cancelled.Add(PendingWanted[I]);
+			PendingIssues.Remove(PendingWanted[I]);
+			PendingWanted.RemoveAt(I);
+		}
+	}
+}
+
 FAnomalyChangeIssuePtr FAnomalySveCapturer::PeekChangeIssue() const
 {
 	FScopeLock Lock(&StateCS);

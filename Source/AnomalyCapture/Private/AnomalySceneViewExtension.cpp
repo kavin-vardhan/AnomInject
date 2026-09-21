@@ -87,6 +87,12 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 		{
 			Stage->Diagnostic(TEXT("view_rejected")); return;
 		}
+		if (PendingIssue.IsValid() && Stage->Gate(15, PendingIssue->SessionIndex))
+		{
+			Stage->Diagnostic(TEXT("pending_family_deferred"));
+			AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, 0, false);
+			return; // Keep the actual colour and mask arms unserved until the forced reset.
+		}
 		if (PendingIssue.IsValid() && Stage->Gate(8, PendingIssue->SessionIndex))
 		{
 			// Real second family/view, same scene frame and view index zero, foreign render target.

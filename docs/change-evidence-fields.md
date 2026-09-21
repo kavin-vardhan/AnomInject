@@ -124,3 +124,7 @@ Late results can only increment diagnostics, not modify final rows. Phase/event 
 These devices do not certify a gate merely by existing. Runtime readings, coverage and unexercised
 cases are in the stage journal/report. No shader, asset, cook, pixel-difference arithmetic or event
 verdict is part of Stage 1.
+
+### Unserved-arm generation cleanup (Stage 1 correction)
+
+On each new issue, remove only unserved colour/mask arms with a different immutable epoch/cut. Legacy snapshot and mask bookkeeping are removed too, with an unavailable mask outcome. Submitted GPU work is untouched and must still pass drain rejection. Summary counters: `change_pending_colour_cancelled`, `change_pending_mask_cancelled`, `change_pending_family_deferred`. Gate 15 leaves the real SI8 arms unserved, forces reset at SI9, and requires cleanup plus recovery. This is a synthetic epoch change, not a real viewport replacement.
