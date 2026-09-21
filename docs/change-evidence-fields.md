@@ -90,7 +90,9 @@ future phase reference shares that same limit). Stage 1 retains no phase referen
 bound includes the masks retained by the stage. **It does not bound the writer pool's total memory;
 that remains the separate m51 limitation.** Metadata/JSON rows have their separate 100,000-row cap.
 
-Ordering waits at most four more captured frames. Run closure records the last issued index,
+An ordering gap starts when a later colour completion exposes an unresolved cursor; it waits
+at most four more captured frames from that observation, not from initial capture issue.
+Run closure records the last issued index,
 resolves through it on the serial worker, and freezes by two seconds or eight more captured frames,
 whichever comes first. Run closure admits no further captures, so the wall-time arm is the active
 terminal bound there. Persistence precedes reset; teardown also attempts persistence and is counted.
