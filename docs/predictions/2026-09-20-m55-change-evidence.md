@@ -225,10 +225,12 @@ Seven facts, each re-read this session. Together they are why v1's *"pin both re
    `Drain_RenderThread` scans in-flight items **backwards** (`AnomalySveCapturer.cpp:287`) and appends
    ready ones to `Completed` (`:359`); `PopCompleted` returns `Completed[0]` FIFO (`:371-379`).
    `InFlight` is appended in submit order, so **two frames that become ready in the same drain pass are
-   popped newest-first**. `ProcessCompletedFrames` then iterates that batch in order (`:3902`).
+   popped newest-first**. `ProcessCompletedFrames` then iterates that batch in order
+   (`AnomalyCaptureSubsystem.cpp:3902`).
 3. 🚨 **Held batches re-order it again.** A frame whose mask outcome has not resolved is pushed into
-   `Async->TargetMaskHeldFrames` and re-prepended to the *next* tick's batch (`:3892-3893`, `:3937-3948`),
-   bounded by `GTargetMaskMaxHoldTicks = 4` (`:169`).
+   `Async->TargetMaskHeldFrames` and re-prepended to the *next* tick's batch
+   (`AnomalyCaptureSubsystem.cpp:3892-3893`, `:3937-3948`), bounded by `GTargetMaskMaxHoldTicks = 4`
+   (`AnomalyCaptureSubsystem.cpp:169`).
 4. 🚨 **Colour and mask do not consume arms the same way.** Colour takes **one** wanted request per
    publish, FIFO (`AnomalySveCapturer.cpp:45-73`). The mask takes **all** pending arms into the next
    eligible pass — `ServedIds = MoveTemp(PendingArms); RequestId = ServedIds[0]`
@@ -236,7 +238,7 @@ Seven facts, each re-read this session. Together they are why v1's *"pin both re
    id, with only one `PixelOwner` receiving `MaskPixels`** (`:512-529`). Assigning those clones an
    intended session index does not make them that session index's render.
 5. **The clone-without-pixels case is already refused today.** `ServiceTargetMask` reads
-   `MaskPixels.Num() < W*H` and lands `Unmeasured` (`:1279-1290`), so such a frame carries
+   `MaskPixels.Num() < W*H` and lands `Unmeasured` (`AnomalyCaptureSubsystem.cpp:1279-1290`), so such a frame carries
    `target_pixels == -1` and `m55` never sees a region. ✅ That closes half of Codex's *"pending mask arms
    coalesced"* row. ⛔ **It does not close the other half:** a clone that *did* receive pixels still may
    not be the render its session index names. Only a receipt match closes that.
@@ -294,7 +296,7 @@ delivery scope of §1.2 satisfied on both
 
 🔑 **The mask join is by receipt, never by intended session index** (`R3`, `F2`). The mask arm for frame
 `N` is bound at the same tick as the colour arm (`TargetMaskArmedTick = GFrameCounter`, consumed under
-`TargetMaskArmedTick == GFrameCounter` at `:891`), but §2.1 fact 4 shows the *render* that serves it may
+`TargetMaskArmedTick == GFrameCounter` at `AnomalyCaptureSubsystem.cpp:891`), but §2.1 fact 4 shows the *render* that serves it may
 serve several arms. The mask SVE therefore records the serving pass's `family_frame` and `view_index`
 alongside its result, and `m55` requires them to equal the colour frame's. A mismatch is
 `mask_payload_missing` and the pair is unmeasured. ⚠ **This is the one item that requires touching the
@@ -331,11 +333,13 @@ publishes `{ receipt, TSharedRef<const TArray<FColor>>, delivered }` to the chan
   in flight are bounded by concurrent jobs, not by `Pending`.
 
 🚨 **And the ordering fact settles where the per-pair numbers can live.** The label row for frame `N` is
-serialised in the drain (`BuildLabelRecordForSnapshot`, `:4132`) and handed to the writer at `:4151`,
+serialised in the drain (`BuildLabelRecordForSnapshot`, `AnomalyCaptureSubsystem.cpp:4132`) and handed
+to the writer at `:4151`,
 **before** `N`'s canonical buffer exists. A pair `(N-1, N)` therefore cannot be measured in time to
 appear in `N`'s `labels.jsonl` row without delaying every row by a frame. ⇒ **v1 writes no per-row
 change field into `labels.jsonl` at all** (§4). That is not a compromise: it also removes the delivery
-hole `F3` names, because `Job.bWriteLabels = !bDeliveryMode || bLabelsInDelivery` (`:4150`) can switch
+hole `F3` names, because `Job.bWriteLabels = !bDeliveryMode || bLabelsInDelivery`
+(`AnomalyCaptureSubsystem.cpp:4150`) can switch
 `labels.jsonl` off entirely.
 
 ### 2.5 Epoch, cut counter, and what resets together
@@ -368,7 +372,7 @@ delta is added; `labels.jsonl` already carries `view` per frame for anyone who w
 
 | bound | value | on breach |
 |---|---|---|
-| out-of-order wait | **4 captured frames** — a deliberate echo of `GTargetMaskMaxHoldTicks = 4` (`:169`), **not** a derivation from it | `out_of_order_timeout`, advance the cursor, count |
+| out-of-order wait | **4 captured frames** — a deliberate echo of `GTargetMaskMaxHoldTicks = 4` (`AnomalyCaptureSubsystem.cpp:169`), **not** a derivation from it | `out_of_order_timeout`, advance the cursor, count |
 | retained bytes | **64 MB**, `IAI.Capture.ChangeMaxBytes`, `A48` echo | `budget_exceeded`, drop oldest, count |
 | concurrent phase references | **2** | `budget_exceeded` on the third |
 | in-flight canonical buffers admitted | **2** | back-pressure, then `budget_exceeded` |
@@ -484,7 +488,7 @@ a visual transition.
 |---|---|
 | `annotation.json` | ⛔ **untouched.** Root key set stays as measured this session: `label_schema`, `session_id`, `video`, `anomalies` (4). Per-event key set unchanged. `P6` does not move. |
 | `label_schema` | ⛔ **stays `2`.** `m51` owns the bump to 3; two units must not both move it. |
-| `labels.jsonl` | ⛔ **row and anomaly key sets untouched** — §2.4's ordering fact makes a per-row change field impossible without delaying rows, and `:4150` can switch the file off entirely. |
+| `labels.jsonl` | ⛔ **row and anomaly key sets untouched** — §2.4's ordering fact makes a per-row change field impossible without delaying rows, and `AnomalyCaptureSubsystem.cpp:4150` can switch the file off entirely. |
 | `run_summary.json` | **+ one declared block.** Root is **86 keys** today (counted this session over the `Root->Set*Field` calls in the run-summary builder). |
 | 🆕 `change_evidence.jsonl` | **new per-run sidecar**, written once at `FinishRun`, sorted by session index. |
 | `target_mask/*.png`, `mask_map.json`, `selection_provenance.json`, `run.json`, `census_mask/*` | untouched |
@@ -502,7 +506,7 @@ Exactly twelve values. Nothing else may be emitted; an unmapped condition is a d
 | reason | meaning |
 |---|---|
 | `first_frame` | no predecessor exists — the run's first captured frame, or the phase starts there |
-| `predecessor_missing` | session indices skip: the predecessor was dropped (extent clamp `AnomalySceneViewExtension.cpp:122-134`, key-ring miss `:96-105`, `CAP-PAIR-DROP` `:3926-3935`) |
+| `predecessor_missing` | session indices skip: the predecessor was dropped (extent clamp `AnomalySceneViewExtension.cpp:122-134`, key-ring miss `AnomalySceneViewExtension.cpp:96-105`, `CAP-PAIR-DROP` `AnomalyCaptureSubsystem.cpp:3926-3935`) |
 | `predecessor_undelivered` | the predecessor's writer job did not succeed; `delivered` is false |
 | `out_of_order_timeout` | the ordered cursor waited its bound and the predecessor never arrived |
 | `epoch_reset` | `run_epoch` or `cut_counter` differs across the pair, or a late result carries a stale one |
@@ -804,11 +808,11 @@ indistinguishable from an instrument that cannot fire (`G96`).
 | case | gate | how |
 |---|---|---|
 | first run frame / insufficient pre-roll | `G-FIRST` | the run's first captured frame reports `first_frame`; no phase is measured from it |
-| predecessor already drained | `G-RECEIPT` | the whole receipt design; a leg where every window pair measures proves `PendingSnapshots`' removal at `:4153` is no longer load-bearing |
+| predecessor already drained | `G-RECEIPT` | the whole receipt design; a leg where every window pair measures proves `PendingSnapshots`' removal at `AnomalyCaptureSubsystem.cpp:4153` is no longer load-bearing |
 | out-of-order readbacks / held batches | `G-ORDER` | `IAI.Bench.ChangeForceOutOfOrder 1` reverses the change stage's admission order; every pair must still be measured against its true `N-1`, and `out_of_order_timeout` must be 0 |
 | capture skipped before retention | `G-SKIP` | `IAI.Bench.ChangeForceStale 2` retains an index-2-older frame; **every** row reads `chg_measured:false` with `predecessor_missing`, and **no row is silently measured against the wrong frame** |
 | readback/encode/write failure after retention | `G-UNDELIVERED` | `IAI.Bench.ChangeForceDeliveryFail 5` fails the writer on every 5th frame; the following pair reads `predecessor_undelivered`, never bridges |
-| mask coalescing / lost pixel owner | `G-COALESCE` | a leg with ≥2 simultaneous live fires so the mask pass serves several arms (`:122-131`, `:512-529`); every row either matches by receipt or reads `mask_payload_missing` |
+| mask coalescing / lost pixel owner | `G-COALESCE` | a leg with ≥2 simultaneous live fires so the mask pass serves several arms (`AnomalyMaskSceneViewExtension.cpp:122-131`, `:512-529`); every row either matches by receipt or reads `mask_payload_missing` |
 | repeated callback / another view | `G-VIEW` | a leg asserting `view_index == 0` on 100 % of receipts; a synthetic receipt with `view_index 1` must read `view_mismatch` |
 | level/world transition, reset | `G-EPOCH` | `IAI.Bench.ChangeForceEpochReset <N>` bumps the epoch at captured frame N; the pair straddling it reads `epoch_reset` and every holder is cleared together |
 | **same-size camera cut** | ⛔ **UNEXERCISED** | nothing in the producer distinguishes a teleport from a fast pan, and no lever synthesises one. Reported only via `cam_moved`, which is a caveat and not a refusal (§2.5). Naming what would exercise it: a bench lever that teleports the *camera* — `IAI.Bench.TeleportTargetOffscreenAt` moves the target, not the view. |
