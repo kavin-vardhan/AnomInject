@@ -11,6 +11,19 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **081-07, 2026-09-21 — m55 Stage 1 Lyra placement preflight: NEEDS-DECISION.**
+> On `feat/m55-change-evidence`, source `3dc1dda` remains the accepted implementation;
+> 36/60 Stage 1 legs are accepted. Chat's 081-06 ruling authorizes L2 placement then
+> unchanged L1 and gives each remaining G1–G12/order three fresh attempts. None used:
+> neither the accepted control server nor existing bench commands can place the view.
+> Adding that console lever requires a rebuild, which the same ruling forbids.
+> No host source, binaries or capture behavior changed. Stage 2 remains held.
+> Read `docs/sessions/2026-09-21-081-07-codex-m55-lyra-placement.md` and the external
+> `_reviews/081-07-codex-m55-stage-1-lyra-matrix.md`. **Chat review REQUIRED** to resolve
+> the mechanism/build constraint before the 24 legs. **Chat review NOT REQUIRED**
+> for this completed preflight/documentation. No Code brief; Code reviews after Stage 3.
+> This m55 feature status supersedes older status prose below for this workstream.
+
 > 🏁🏁 **SESSION 080-06, 2026-09-20 — THE `m26` VETO'S ARMS ARE GATED ON THE LABELLED WINDOW AND
 > THE REDUCE TABLE IS LOGGED. MERGED TO `master`, PUSHED, NO TAG. THIS IS THE CURRENT "YOU ARE
 > HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁

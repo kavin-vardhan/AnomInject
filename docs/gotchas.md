@@ -7311,3 +7311,17 @@ through the reserved assignable range, accept the first ledger-free value, then 
 `FAnomalyCensus::ArmNextBatch` also claims ledger-free values from the shared range. Their available
 values therefore depend on event/census claim and release order; the existing M36 allocator log
 records assigned/skipped/free counts. This source read names the mechanism, not a new timing proof.
+
+## G275 — Lyra's host-chosen spawn needs its own placement rule, then an independent pose check (2026-09-21, Chat ruling 081-06)
+
+Lyra's L_ShooterGym spawn is host-chosen and varies per launch. The bench rule is to place the
+pawn/view once at the recorded reference after the 45-second settle and the last logged host
+respawn, then check L1 from a fresh control-server snapshot (150 cm / 10 degrees). StackOBot B1
+is not portable; this is Lyra's rule. A respawn/possession between placement and capture_start
+invalidates the fixture; motion after capture_start stays allowed. Placement cannot self-certify.
+
+Status: **ruled, not implemented or exercised**. In 081-07, accepted source 3dc1dda has neither a
+control-server pose setter nor an existing bench pawn/view placement console command. The ruling
+also requires unchanged candidate binaries and no rebuild. A new compiled bench command needs
+that constraint resolved first. No L2 attempt was consumed; prior three L1-invalid G1-native
+attempts remain in the ledger. Each of the 24 remaining legs has its fresh three-attempt allowance.

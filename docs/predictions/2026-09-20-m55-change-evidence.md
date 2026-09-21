@@ -1,5 +1,25 @@
 # m55 — measured change evidence (v2.1, amended 2026-09-21)
 
+## Amendment 081-07 — L2 initial Lyra placement; execution blocked before any leg
+
+Authority: `_reviews/081-06-chat-ruling-lyra-placement.md`. The accepted 36 legs stand.
+For the remaining G1–G12 in both orders, place once after 45 seconds settle and the last logged
+respawn, at reference camera origin (-443.98,-70,212.00), pitch/yaw/roll (0,0,-0.08).
+Then require the unchanged independent fresh L1 snapshot (150 cm / 10 degrees), and no logged
+respawn/possession between placement and capture_start. A new respawn is INVALID-FIXTURE.
+Each leg has three fresh total attempts shared with the handled-ensure exception. Keep the
+prior three invalid L1 attempts. Post-L1 ordinary event-floor failure remains a real FAIL;
+G11 retains its already-approved short lifetime-only fixture exception. In-leg motion is allowed.
+
+Mechanism order: existing control-server setter, otherwise a fixture-only bench console lever;
+no Lyra host changes. Candidate AEBD09EA / m55-stage1-lyra-74598de2 must stay unchanged; no rebuild
+or cook. Source inspection found no existing setter in either permitted surface. Creating a
+compiled lever requires a rebuild. **NEEDS-DECISION** before execution; no allowance used, no
+new gate result. G275 records the rule without claiming it has run. Stage 2 remains held.
+**Chat review REQUIRED** to resolve this mechanism/build constraint; **Chat review NOT REQUIRED**
+for the completed preflight. A future GREEN matrix still automatically releases Stage 2 under
+081-03; the next mandatory checkpoint after such GREEN is the Stage 2 report, absent new findings.
+
 ## Amendments 2026-09-21 — authoritative over conflicting active v2 text
 
 Authority: `_reviews/081-04-chat-rulings-release-stage-1.md`, accepting D1–D7 of
