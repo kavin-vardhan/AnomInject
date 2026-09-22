@@ -111,3 +111,17 @@ depth hide must log drawn=count while legacy observable remains unchanged. Natur
 moving twins then mandatory six-leg AEBD09EA legacy comparison. All gates max3attempts,
 foreground throughout; valid measurement failures stop, never result-based retries.
 No claims for unrun gates. Existing four-hour bound and review checkpoint unchanged.
+
+
+### Source-backed recipe clarification before V2 measurement
+
+R2 uses missing_object, whose default unscoped matching accepts the already-occluded
+actor; null_effect's Apply always filters visible components and is unsuitable for
+this gate. No production matching changes. Both orders use the same settled B1 and
+original capture-label B1 (no geometry waiver). NoHold has no labelled bbox by design:
+apply unchanged B1 to90 fresh pre-capture target snapshots, then require all captured
+views retain exactly calibrated origin/rotation. The post-label check is reporting-only
+there because no labelled target rectangle exists. Moving legs use the explicit R3
+settle-only B1 rule. Other static legs require the original capture-label B1 as well.
+Second build all three targets exit0, sourcecb14f31, candidateA699E9EE; revalidation
+is running before measurement. Core change arithmetic and label serialization unchanged.
