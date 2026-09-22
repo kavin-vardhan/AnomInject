@@ -70,3 +70,44 @@ If a gate fails valid evidence, or allowance exhausts, stop and report with caus
 All remaining authorized R2-R4/R5 gates remain pending until actually run.
 Chat review NOT REQUIRED for this same-round continuation; next mandatory checkpoint
 is failed gate/exhaustion or completed R2-R4 report. Stage3 remains held.
+
+
+## R2/R3 remaining fixture implementation prediction (before second build)
+
+D0867240 four static twins all accepted first attempt;5 events/20 pairs each,
+measured19/19/18/19; all foreground samples held, original capture B1 passed.
+Remaining gates need two authorized fixture mechanisms and delayed-capture args.
+Build revision2 adds these default-off bench mechanisms; it is not a repair of a
+failed qualification result. Conservatively count it as the second build iteration.
+Requalify its binary with the same5 ON/3 OFF matrix before any measurement, and rerun
+all four static twins on that final identity. Preserve D0867240 and all its evidence.
+
+R2: duplicate StaticMeshActor_49's already-loaded Cube StaticMesh and materials.
+Cooked presence is proven by that actual actor/component/asset in all eight packaged
+preflight snapshots; log full asset path from the packaged mesh at construction.
+Use the component rotation and0.75*component scale, center halfway from camera to
+original bounds center (same mesh, therefore1.5 times target angular span). Actor
+remains untagged, query collision blocks Visibility, no host source/cook. Invoke only
+after settled B1 before capture. Log camera-to-target-bounds-center Visibility trace
+on every active world tick, including GFrameCounter, hit actor and whether occluder.
+At each onset require matching captured frame_index trace hitting occluder AND
+occlusion-correct target_pixels0. Require empty_region/indeterminate/prev_target=-1,
+zero measured phase pairs, final events. Static B1 still applies; no offscreen lever.
+
+R3: explicit bench YawRate fixture, -3 degrees/sec control yaw while capture active,
+armed only after settled B1. No player input or replacement camera; start after B1,
+stop at run end. Natural null/solid90-frame legs only. Require cam_moved on>=90% of
+window pairs with nonzero quantized rotation/position magnitude; report control rates
+without subtraction and expect null onset far below solid. B1 applies before motion.
+
+Typed scene-fixture request accepts only occluder or motion, same bench gates; every
+fixture command logs readiness before decisions. capture_start's benchDelayFrames=3
+is accepted only non-Shipping explicit named-map fixture solid_swap, passed as delay=3
+through the existing StartRun argument path. Other requests retain empty args.
+Remaining recipes use prior081-08-suite.py: normal/depth hide, delay3 both orders,
+occluded onset both orders, blink>8 both, short both, drop both, runend both, actual
+teardown both and nohold both. Delay's transition must appear at window index3;
+depth hide must log drawn=count while legacy observable remains unchanged. Natural
+moving twins then mandatory six-leg AEBD09EA legacy comparison. All gates max3attempts,
+foreground throughout; valid measurement failures stop, never result-based retries.
+No claims for unrun gates. Existing four-hour bound and review checkpoint unchanged.
