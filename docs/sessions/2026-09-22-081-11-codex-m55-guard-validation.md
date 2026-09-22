@@ -43,3 +43,30 @@ verbatim coverage limits and unrun gates. Stage1 accepted36 / Lyra24 dropped sta
 R2-R4 continuation. **Chat review REQUIRED** at a failed executed validation or the
 Stage 2 report checkpoint. Restore entry source/Lyra modules at the safe boundary;
 preserve all CURRENT history. No merge/tag/master/m51 edits or owner-app changes.
+
+
+## Validation result and R2-R4 continuation prediction
+
+Iteration 1 built all three targets exit0. Source9a28f0b; GameD0867240, archived,
+with eleven Lyra module files. ON1/OFF1/ON2/OFF2/ON3/OFF3/ON4/ON5 all completed.
+All five ON passed strict B1/settle0/zero rotation/coverage100%, lock/place/unlock;
+all eight observations had90/90 foreground. Readiness proves pawn=null and the
+active view owner is the SpectatorPawn. Three OFF readings also passed raw B1.
+No HARNESS-INVALID launch in this iteration; no second correction used.
+Fresh three-attempt allowances now released. Old evidence remains unmodified.
+
+Next run four static twins NULL_N NULL_S SOLID_N SOLID_S on D0867240, 90 frames,
+1280x720 AA0/AE-off, seed777, Config2/4/16/4/0, ChangeGate14 CRC receipts.
+New runner authenticates, locks input, settles5s, places once, observes90 snapshots,
+and checks unchanged B1 BEFORE capture_start. Hold lock through run; require run-end
+release. Foreground PID sampled at50ms from capture_start through summary/tail;
+any sample outside owned PID invalidates the attempt, independently of measurement.
+Every attempt retained, maximum3 per leg. Missing protocol/artifacts, runtime ensure,
+failed B1 or absent unlock also invalidate. Static capture labels receive the original
+check_pose gate as well. No frame or measurement result chooses retries. Once fixture
+valid, run same Stage2 audit: identity/conservation/CRCs/final records/caps/counters;
+expect null near zero and solid onset1.0, controls reported, never subtracted.
+If a gate fails valid evidence, or allowance exhausts, stop and report with cause read.
+All remaining authorized R2-R4/R5 gates remain pending until actually run.
+Chat review NOT REQUIRED for this same-round continuation; next mandatory checkpoint
+is failed gate/exhaustion or completed R2-R4 report. Stage3 remains held.
