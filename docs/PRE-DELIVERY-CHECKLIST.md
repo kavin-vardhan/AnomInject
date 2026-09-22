@@ -50,8 +50,10 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       id listed there is present.**
       On the m55 feature branch this is **10 shipping + 2 bench-only** in Development; Shipping
       registers only the shipping entries. `null_effect` and `solid_swap` must refuse outside the
-      explicit named fixture gate and must not enter any auto/default/selector pool. The Editor-only
-      `AnomalyBench` placement module must not be included in a Game/client target.
+      explicit named fixture gate and must not enter any auto/default/selector pool. `AnomalyBench`
+      allows Game/Editor for the ruled fixture commands; Client/Server and Shipping are excluded.
+      Input lock/placement remain explicit, map/flag gated and independently checked. Measurement
+      legs still require foreground throughout; log its PID and audit sample counts.
       *Phrased CATEGORICALLY, against a single source, and never as a number in this file. A literal
       count here goes stale the moment an anomaly ships and then reads as a passing check —
       `setup-runbook.md` asserted "seven" from m3 until m29 while the catalog had been 8 since m8.

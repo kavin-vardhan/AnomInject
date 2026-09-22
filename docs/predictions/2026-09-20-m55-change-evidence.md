@@ -1805,3 +1805,16 @@ branch selected; no rebuild or capture. Chat review REQUIRED at the explicit R1 
 No new allowance; R2–R4 (including authorized real occluder and natural moving twins) deferred;
 R5 scoped Lyra last. GREEN R2–R4 plus R5 resolved is now the automatic Stage 3 release condition.
 The twenty-four Stage 1 Lyra legs remain DROPPED-BY-OWNER-DECISION. See081-09 journal/report.
+
+
+## AMENDMENT 081-10 outcome, 2026-09-22 — fixture fix, preflight stop
+
+Chat081-09 explicitly applies R1 step3; no further old-binary diagnosis repeats. Implement input
+lock before settle and one-shot StackOBot placement, Game/Editor non-Shipping, no cook/host edits.
+The new required no-capture sequence is ON1/OFF1/ON2/OFF2/ON3/OFF3/ON4/ON5. ON requires5/5,
+settle0, modal0/0/0,100% coverage, unchanged B1; foreground counted but not a preflight veto.
+Measurement legs still require foreground throughout. Source4a14756/GameB283E34C built, but
+ON1's input-lock guard refused before sampling.0/5 qualified; remaining4 ON/3 OFF UNRUN.
+No retries/allowance renewal. Own GetPawn prerequisite needs correction/explicit readiness read.
+Chat review REQUIRED at081-10 stop.081-11 R2–R4 and081-12 R5 deferred; Stage3 held. Historical
+twins accepted, old DELAY_N invalids uncredited, Stage1 accepted36/Lyra24 owner-dropped unchanged.

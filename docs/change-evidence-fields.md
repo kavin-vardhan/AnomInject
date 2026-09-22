@@ -48,10 +48,23 @@ No arithmetic feeds labels, annotation, selector, auto pool, observability or th
 entries; Shipping registers neither. Apply requires ChangeEvidenceCases=1, -IAIBenchFixture, and
 CB_GateLevel/L_ShooterGym. Neither id enters any auto/default/selector pool. Delay counts captured
 labelled frames; the positive uses the shipped Lit pink and the existing exact material revert path.
-`AnomalyBench` is an Editor-target-only module exposing one-shot IAI.Bench.PlaceView through a typed
-authenticated server bridge, on L_ShooterGym with -IAIBenchFixture and capture inactive. It preserves
-host camera/movement behavior and compensates camera-to-pawn offset. An ACK is not pose success:
-runner requires a placement log, fresh independent L1 and a clean placement-to-capture log interval.
+`AnomalyBench` is allowed on non-Shipping Game/Editor targets, excluded from Client/Server and
+Shipping. Typed authenticated `bench_input_lock` (`enabled` bool) and `bench_place_view` (`request`
+number) invoke IAI.Bench.InputLock 1/0 and one-shot IAI.Bench.PlaceView. Both require -IAIBenchFixture,
+CB_GateLevel/L_ShooterGym and inactive capture. An explicit bench request loads the linked module
+even when the existing cooked descriptor predates it; no recook is needed. No generic exec bridge.
+Input lock increments both controller ignore-input counters once; repeated enable does not stack.
+It decrements only its own increments at run end, world cleanup, module shutdown or explicit off
+outside capture. A replaced controller releases with a diagnostic rather than silently rearming.
+Place after settle: CB camera origin(-1500,0,260), rotation(0,0,0); Lyra reference is unchanged.
+Placement compensates measured camera-to-pawn offset without replacing the host camera/movement.
+CB placement requires the input lock. An executed receipt is not success: require lock/placement
+logs and a fresh independent B1 (CB) or L1 (Lyra), plus Lyra's placement-to-capture interval audit.
+Input lock suppresses player look/move input; it does not pin the camera or waive foreground.
+Measurement legs require foreground throughout and record PID/sample counts. The 081-10 no-capture
+preflight explicitly permits absent foreground while checking the pose, per Chat's ruling.
+Status081-10: built, not runtime-qualified. First input-lock enable refused before placement;
+its extra GetPawn readiness prerequisite is under review. No lock/placement success is claimed.
 `IAI.Bench.ChangeTeardownAt` is default-off and fixture/command-line gated; it requests actual world
 travel on StackOBot at a capture index, exercising subsystem teardown rather than simulating closure.
 

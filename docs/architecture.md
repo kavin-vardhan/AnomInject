@@ -6,8 +6,10 @@ The non-Shipping catalogue is **10 shipping + 2 bench-only** entries, `null_effe
 The twins share one class, picker and labelled lifecycle; only the shipped Lit-pink material write
 differs. Neither enters GAutoPool, GAutoPoolDefaultEnabled or GAnomalyChoices. Apply refuses unless
 IAI.Bench.ChangeEvidenceCases=1, -IAIBenchFixture and a named StackOBot/Lyra bench map. Shipping
-registers neither twin. `AnomalyBench` is an Editor-target-only fixture module, excluded from Game
-and client targets, providing one-shot initial camera placement with separate runner verification.
+registers neither twin. `AnomalyBench` is a non-Shipping Game/Editor fixture module; Client/Server
+targets are excluded. Explicit bench commands lock controller look/move input before settle and
+place the camera once afterward, with separate runner verification. Commands require the fixture
+flag, named bench map and inactive capture. Owned input-lock increments release at run end/cleanup.
 Measurements and immutable phase/event records live only in change_evidence.jsonl; the existing
 labels, annotation schema, observable predicate, auto pool and veto remain unchanged. See
 [field reference](change-evidence-fields.md). Runtime qualification is recorded in the Stage 2 report.

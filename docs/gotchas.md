@@ -7356,3 +7356,19 @@ do not infer binary regression, input cause or fixed-fixture readiness from the 
 The adapter uses snapshot indices, not captured-frame indices. Keep missing target rows explicit.
 UE's control JSON may arrive in binary WebSocket data frames; require valid JSON rather than
 Text framing. Treat an empty newly created log as not ready, not as a regex input error.
+
+
+## G278 — lock fixture input before settle, place after settle; keep focus required for capture (2026-09-22, Chat081-09 ruling)
+
+B1 pose failures on CB_GateLevel correlate with partial foreground during settle. Chat accepts
+focus transitions feeding mouse deltas into look input as the mechanism; SearchHost was the
+contender on2026-09-21. Fixture legs lock look/move input and place the view after settle.
+Focus is recorded and remains required for the whole measurement leg. The no-capture081-10
+preflight expressly accepts a pose pass with0/90 foreground; do not transfer that exception to capture.
+
+First implementation readiness pitfall: input locking needs a player controller, not a possessed
+pawn. The081-10 implementation added a GetPawn prerequisite and its first enable refused on a
+map logging No Spawnpad found. The composite refusal does not identify the absent pointer.
+GetPawnOrSpectator is a distinct engine API; inspect actual controller/pawn/spectator/view owner
+before defining placement readiness. Do not create a replacement camera or infer a successful
+lock from command execution. This candidate is built but not runtime-qualified; matrix stopped.
