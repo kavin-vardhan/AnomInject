@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/SpectatorPawn.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -22,10 +23,27 @@ class FAnomalyBenchModule final : public IModuleInterface
 	bool bSawCapture = false;
 	FDelegateHandle TickHandle;
 	FDelegateHandle CleanupHandle;
-	static bool IsFixture(UWorld* World)
+	static const TCHAR* FixtureFailure(UWorld* World, UAnomalyCaptureSubsystem* Cap, APlayerController* PC)
 	{
-		return World && FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")) &&
-			(World->GetMapName().Contains(TEXT("CB_GateLevel")) || World->GetMapName().Contains(TEXT("L_ShooterGym")));
+		if (!World) { return TEXT("no_world"); }
+		if (!FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture"))) { return TEXT("fixture_flag_missing"); }
+		if (!World->GetMapName().Contains(TEXT("CB_GateLevel")) && !World->GetMapName().Contains(TEXT("L_ShooterGym"))) { return TEXT("map_not_allowed"); }
+		if (!Cap) { return TEXT("no_capture_subsystem"); }
+		if (Cap->IsCaptureActive()) { return TEXT("capture_active"); }
+		if (!PC) { return TEXT("no_controller"); }
+		return nullptr;
+	}
+	static FString ReadyName(const UObject* Object) { return Object ? Object->GetName() : TEXT("null"); }
+	static void LogReadiness(UWorld* World, UAnomalyCaptureSubsystem* Cap, APlayerController* PC)
+	{
+		UE_LOG(LogTemp, Log, TEXT("IAI-BENCH READY pc=%s pawn=%s spectator=%s viewtarget=%s capture_active=%d map=%s fixture=%d"),
+			*ReadyName(PC), *ReadyName(PC ? PC->GetPawn() : nullptr), *ReadyName(PC ? PC->GetSpectatorPawn() : nullptr),
+			*ReadyName(PC ? PC->GetViewTarget() : nullptr), Cap && Cap->IsCaptureActive(),
+			World ? *World->GetMapName() : TEXT("null"), FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")));
+	}
+	static void Refuse(const TCHAR* Command, const TCHAR* Reason)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s REFUSED reason=%s"), Command, Reason); FlushLog();
 	}
 	static void FlushLog() { GLog->FlushThreadedLogs(); GLog->Flush(); }
 	void ReleaseInput(const TCHAR* Reason)
@@ -85,21 +103,29 @@ public:
 	{
 		auto* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
 		auto* PC = World ? World->GetFirstPlayerController() : nullptr;
-		if (!IsFixture(World) || !Cap || Cap->IsCaptureActive() || !PC || !PC->GetPawn() ||
-			Args.Num() != 1 || (Args[0] != TEXT("0") && Args[0] != TEXT("1")))
+		LogReadiness(World, Cap, PC);
+		if (const TCHAR* Failure = FixtureFailure(World, Cap, PC))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("IAI-INPUT-LOCK REFUSED fixture/map/ready-controller/inactive-capture/argument gate")); FlushLog(); return;
+			Refuse(TEXT("IAI-INPUT-LOCK"), Failure); return;
+		}
+		if (Args.Num() != 1 || (Args[0] != TEXT("0") && Args[0] != TEXT("1")))
+		{
+			Refuse(TEXT("IAI-INPUT-LOCK"), TEXT("invalid_argument")); return;
 		}
 		if (Args[0] == TEXT("0"))
 		{
 			if (bOwnInputLock && LockedWorld.Get() != World)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("IAI-INPUT-LOCK REFUSED different world")); FlushLog(); return;
+				Refuse(TEXT("IAI-INPUT-LOCK"), TEXT("different_world")); return;
 			}
 			ReleaseInput(TEXT("command")); return;
 		}
 		if (bOwnInputLock)
 		{
+			if (LockedController.Get() != PC || LockedWorld.Get() != World)
+			{
+				Refuse(TEXT("IAI-INPUT-LOCK"), TEXT("different_lock_owner")); return;
+			}
 			UE_LOG(LogTemp, Log, TEXT("IAI-INPUT-LOCK ALREADY owned=%d"), LockedController.Get() == PC && LockedWorld.Get() == World);
 			FlushLog(); return;
 		}
@@ -112,36 +138,42 @@ public:
 	}
 	void PlaceView(const TArray<FString>& Args, UWorld* World)
 	{
-		if (!IsFixture(World) || PlacedWorld.Get() == World || Args.Num() != 1)
+		auto* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
+		auto* PC = World ? World->GetFirstPlayerController() : nullptr;
+		LogReadiness(World, Cap, PC);
+		if (const TCHAR* Failure = FixtureFailure(World, Cap, PC))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("IAI-L2 REFUSED fixture/map/one-shot/request gate")); FlushLog(); return;
+			Refuse(TEXT("IAI-L2"), Failure); return;
 		}
-		auto* Cap = World->GetSubsystem<UAnomalyCaptureSubsystem>();
-		auto* PC = World->GetFirstPlayerController();
-		auto* Pawn = PC ? PC->GetPawn() : nullptr;
+		if (PlacedWorld.Get() == World) { Refuse(TEXT("IAI-L2"), TEXT("already_placed")); return; }
+		if (Args.Num() != 1) { Refuse(TEXT("IAI-L2"), TEXT("invalid_request")); return; }
+		// Spectators derive from APawn. Prefer the actual view target before the controller's fallback.
+		APawn* Owner = Cast<APawn>(PC->GetViewTarget());
+		if (!Owner) { Owner = PC->GetPawnOrSpectator(); }
+		if (!Owner) { Refuse(TEXT("IAI-L2"), TEXT("no_view_owner")); return; }
 		FAnomalyViewInfo View;
-		if (!Cap || Cap->IsCaptureActive() || !Pawn || !AnomalyViewport::GetActiveViewInfo(World, View))
+		if (!AnomalyViewport::GetActiveViewInfo(World, View))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("IAI-L2 REFUSED active capture or no possessed view")); FlushLog(); return;
+			Refuse(TEXT("IAI-L2"), TEXT("no_active_view")); return;
 		}
 		const bool bStack = World->GetMapName().Contains(TEXT("CB_GateLevel"));
 		if (bStack && (!bOwnInputLock || LockedWorld.Get() != World || LockedController.Get() != PC))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("IAI-L2 REFUSED CB placement requires input lock before settle")); FlushLog(); return;
+			Refuse(TEXT("IAI-L2"), TEXT("input_lock_required")); return;
 		}
 		// CB calibration: a54_oracle.py CALIB_BBOX and 081-09 R1V3_A1's independent view snapshot.
 		const FVector Desired = bStack ? FVector(-1500, 0, 260) : FVector(-443.9807434082031, -70.0, 212.00010681152344);
 		const FRotator Rotation = bStack ? FRotator::ZeroRotator : FRotator(0, 0, -0.08256798918660047);
-		const FVector OldPawn = Pawn->GetActorLocation();
-		// Translate the pawn by the camera-origin error after rotating its measured camera offset.
+		const FVector OldOwner = Owner->GetActorLocation();
+		// Translate the resolved owner by the camera-origin error after rotating its measured offset.
 		// No replacement camera, ghost mode, velocity reset or persistent pose pin. Input lock is separate.
-		const FVector LocalOffset = PC->GetControlRotation().Quaternion().UnrotateVector(View.Origin - OldPawn);
-		const FVector NewPawn = Desired - Rotation.Quaternion().RotateVector(LocalOffset);
+		const FVector LocalOffset = PC->GetControlRotation().Quaternion().UnrotateVector(View.Origin - OldOwner);
+		const FVector NewOwner = Desired - Rotation.Quaternion().RotateVector(LocalOffset);
 		PC->SetControlRotation(Rotation);
-		const bool Moved = Pawn->SetActorLocation(NewPawn, false, nullptr, ETeleportType::TeleportPhysics);
+		const bool Moved = Owner->SetActorLocation(NewOwner, false, nullptr, ETeleportType::TeleportPhysics);
 		PlacedWorld = World; // A failed one-shot is still an attempted placement, never secretly retried.
-		UE_LOG(LogTemp, Log, TEXT("IAI-L2 PLACED request=%s ok=%d pawn=%s oldPawn=%s newPawn=%s oldCamera=%s desiredCamera=%s desiredRot=%s gfc=%llu"),
-			*Args[0], Moved, *Pawn->GetName(), *OldPawn.ToString(), *NewPawn.ToString(), *View.Origin.ToString(), *Desired.ToString(), *Rotation.ToString(), GFrameCounter);
+		UE_LOG(LogTemp, Log, TEXT("IAI-L2 PLACED request=%s ok=%d owner=%s oldOwner=%s newOwner=%s oldCamera=%s desiredCamera=%s desiredRot=%s gfc=%llu"),
+			*Args[0], Moved, *Owner->GetName(), *OldOwner.ToString(), *NewOwner.ToString(), *View.Origin.ToString(), *Desired.ToString(), *Rotation.ToString(), GFrameCounter);
 		FlushLog();
 	}
 };
