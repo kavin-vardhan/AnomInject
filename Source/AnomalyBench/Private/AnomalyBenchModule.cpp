@@ -6,6 +6,10 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/SpectatorPawn.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/StaticMesh.h"
+#include "Components/StaticMeshComponent.h"
+#include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -15,6 +19,10 @@ class FAnomalyBenchModule final : public IModuleInterface
 {
 	TUniquePtr<FAutoConsoleCommandWithWorldAndArgs> Place;
 	TUniquePtr<FAutoConsoleCommandWithWorldAndArgs> Lock;
+	TUniquePtr<FAutoConsoleCommandWithWorldAndArgs> SceneFixtureCommand;
+	TWeakObjectPtr<AStaticMeshActor> Occluder;
+	TWeakObjectPtr<UStaticMeshComponent> OcclusionTarget;
+	bool bMotionArmed = false;
 	TWeakObjectPtr<UWorld> PlacedWorld;
 	TWeakObjectPtr<UWorld> LockedWorld;
 	TWeakObjectPtr<APlayerController> LockedController;
@@ -60,7 +68,7 @@ class FAnomalyBenchModule final : public IModuleInterface
 		bOwnInputLock = false; bSawCapture = false; LockedController.Reset(); LockedWorld.Reset(); SessionAtLock.Reset();
 		FlushLog();
 	}
-	void WorldTick(UWorld* World, ELevelTick, float)
+	void WorldTick(UWorld* World, ELevelTick, float DeltaSeconds)
 	{
 		if (!bOwnInputLock || LockedWorld.Get() != World) { return; }
 		if (!LockedController.IsValid() || World->GetFirstPlayerController() != LockedController.Get())
@@ -69,17 +77,41 @@ class FAnomalyBenchModule final : public IModuleInterface
 		}
 		auto* Cap = World->GetSubsystem<UAnomalyCaptureSubsystem>();
 		if (!Cap) { ReleaseInput(TEXT("capture_subsystem_lost")); return; }
-		if (Cap->IsCaptureActive()) { bSawCapture = true; }
+		if (Cap->IsCaptureActive())
+		{
+			bSawCapture = true;
+			if (bMotionArmed)
+			{
+				auto* PC = LockedController.Get();
+				FRotator Rotation = PC->GetControlRotation(); Rotation.Yaw -= 3.0f * DeltaSeconds;
+				PC->SetControlRotation(Rotation);
+			}
+			if (Occluder.IsValid() && OcclusionTarget.IsValid())
+			{
+				FAnomalyViewInfo View;
+				if (AnomalyViewport::GetActiveViewInfo(World, View))
+				{
+					FHitResult Hit; FCollisionQueryParams Params(SCENE_QUERY_STAT(IAIBenchOcclusion), true);
+					Params.AddIgnoredActor(LockedController->GetViewTarget());
+					World->LineTraceSingleByChannel(Hit, View.Origin, OcclusionTarget->Bounds.Origin, ECC_Visibility, Params);
+					UE_LOG(LogTemp, Log, TEXT("IAI-OCCLUSION TRACE gfc=%llu hit=%s occluder_hit=%d"),
+						GFrameCounter, *ReadyName(Hit.GetActor()), Hit.GetActor() == Occluder.Get());
+				}
+			}
+		}
 		else if (bSawCapture || Cap->GetSessionId() != SessionAtLock)
 		{
 			// The session-id check also handles a start+finish between two module ticks.
 			ReleaseInput(TEXT("run_end"));
+			bMotionArmed = false;
 		}
 	}
 	void WorldCleanup(UWorld* World, bool, bool)
 	{
 		if (LockedWorld.Get() == World) { ReleaseInput(TEXT("world_cleanup")); }
 		if (PlacedWorld.Get() == World) { PlacedWorld.Reset(); }
+		if (Occluder.IsValid() && Occluder->GetWorld() == World) { Occluder.Reset(); OcclusionTarget.Reset(); }
+		bMotionArmed = false;
 	}
 public:
 	void StartupModule() override
@@ -90,6 +122,9 @@ public:
 		Lock = MakeUnique<FAutoConsoleCommandWithWorldAndArgs>(TEXT("IAI.Bench.InputLock"),
 			TEXT("1 locks fixture look/move input before settle; 0 releases outside capture. Automatically released at run end."),
 			FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::InputLock));
+		SceneFixtureCommand = MakeUnique<FAutoConsoleCommandWithWorldAndArgs>(TEXT("IAI.Bench.SceneFixture"),
+			TEXT("Explicit CB fixture: occluder duplicates the loaded target mesh; motion arms capture-only -3deg/sec yaw."),
+			FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::SceneFixture));
 		TickHandle = FWorldDelegates::OnWorldPostActorTick.AddRaw(this, &FAnomalyBenchModule::WorldTick);
 		CleanupHandle = FWorldDelegates::OnWorldCleanup.AddRaw(this, &FAnomalyBenchModule::WorldCleanup);
 	}
@@ -97,7 +132,50 @@ public:
 	{
 		FWorldDelegates::OnWorldPostActorTick.Remove(TickHandle);
 		FWorldDelegates::OnWorldCleanup.Remove(CleanupHandle);
-		ReleaseInput(TEXT("module_shutdown")); Place.Reset(); Lock.Reset();
+		ReleaseInput(TEXT("module_shutdown")); Place.Reset(); Lock.Reset(); SceneFixtureCommand.Reset();
+		if (Occluder.IsValid()) { Occluder->Destroy(); }
+		Occluder.Reset(); OcclusionTarget.Reset(); bMotionArmed = false;
+	}
+	void SceneFixture(const TArray<FString>& Args, UWorld* World)
+	{
+		auto* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
+		auto* PC = World ? World->GetFirstPlayerController() : nullptr;
+		LogReadiness(World, Cap, PC);
+		if (const TCHAR* Failure = FixtureFailure(World, Cap, PC)) { Refuse(TEXT("IAI-SCENE"), Failure); return; }
+		if (!World->GetMapName().Contains(TEXT("CB_GateLevel"))) { Refuse(TEXT("IAI-SCENE"), TEXT("cb_only")); return; }
+		if (!bOwnInputLock || LockedController.Get() != PC || PlacedWorld.Get() != World) { Refuse(TEXT("IAI-SCENE"), TEXT("locked_placement_required")); return; }
+		if (Args.Num() != 1 || (Args[0] != TEXT("motion") && Args[0] != TEXT("occluder"))) { Refuse(TEXT("IAI-SCENE"), TEXT("invalid_mode")); return; }
+		if (bMotionArmed || Occluder.IsValid()) { Refuse(TEXT("IAI-SCENE"), TEXT("already_configured")); return; }
+		if (Args[0] == TEXT("motion"))
+		{
+			bMotionArmed = true;
+			UE_LOG(LogTemp, Log, TEXT("IAI-SCENE MOTION armed=1 yaw_rate=-3 capture_only=1 gfc=%llu"), GFrameCounter); FlushLog(); return;
+		}
+		UStaticMeshComponent* Target = nullptr;
+		for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+		{
+			if (It->GetName() == TEXT("StaticMeshActor_49")) { Target = It->GetStaticMeshComponent(); break; }
+		}
+		FAnomalyViewInfo View;
+		if (!Target || !Target->GetStaticMesh()) { Refuse(TEXT("IAI-SCENE"), TEXT("no_loaded_target_mesh")); return; }
+		if (!AnomalyViewport::GetActiveViewInfo(World, View)) { Refuse(TEXT("IAI-SCENE"), TEXT("no_active_view")); return; }
+		FActorSpawnParameters Spawn; Spawn.Name = TEXT("IAIBenchOccluder"); Spawn.ObjectFlags |= RF_Transient;
+		Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		auto* Actor = World->SpawnActor<AStaticMeshActor>(Spawn);
+		if (!Actor) { Refuse(TEXT("IAI-SCENE"), TEXT("spawn_failed")); return; }
+		auto* Mesh = Actor->GetStaticMeshComponent(); Mesh->SetMobility(EComponentMobility::Movable);
+		Mesh->SetStaticMesh(Target->GetStaticMesh());
+		for (int32 I = 0; I < Target->GetNumMaterials(); ++I) { Mesh->SetMaterial(I, Target->GetMaterial(I)); }
+		const FVector Scale = Target->GetComponentScale() * 0.75;
+		const FQuat Rotation = Target->GetComponentQuat();
+		const FVector Center = (View.Origin + Target->Bounds.Origin) * 0.5;
+		Actor->SetActorTransform(FTransform(Rotation, Center - Rotation.RotateVector(Scale * Target->GetStaticMesh()->GetBounds().Origin), Scale));
+		Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly); Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+		Mesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+		Occluder = Actor; OcclusionTarget = Target;
+		UE_LOG(LogTemp, Log, TEXT("IAI-SCENE OCCLUDER actor=%s source=%s asset=%s center=%s scale=%s gfc=%llu"),
+			*Actor->GetName(), *Target->GetOwner()->GetName(), *Target->GetStaticMesh()->GetPathName(), *Center.ToString(), *Scale.ToString(), GFrameCounter);
+		FlushLog();
 	}
 	void InputLock(const TArray<FString>& Args, UWorld* World)
 	{

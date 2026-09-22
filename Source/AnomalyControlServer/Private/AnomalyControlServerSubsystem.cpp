@@ -377,9 +377,9 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 
 	UWorld* World = GetWorld();
 
-	// Typed bridge to an Editor-only fixture module; never a generic remote exec surface.
+	// Typed bridge to a non-Shipping Game/Editor fixture module; never generic remote exec.
 #if !UE_BUILD_SHIPPING
-	if (Type == TEXT("bench_place_view") || Type == TEXT("bench_input_lock") || Type == TEXT("bench_log_barrier"))
+	if (Type == TEXT("bench_place_view") || Type == TEXT("bench_input_lock") || Type == TEXT("bench_log_barrier") || Type == TEXT("bench_scene_fixture"))
 	{
 		auto Reply = MakeShared<FJsonObject>();
 		Reply->SetStringField(TEXT("type"), Type);
@@ -417,6 +417,14 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 				{
 					Command->Execute({FString::FromInt((int32)FMath::Clamp(Request, 0.0, 1000000000.0))}, World, *GLog);
 					Executed = true;
+				}
+			}
+			else if (Type == TEXT("bench_scene_fixture"))
+			{
+				FString Mode; Msg->TryGetStringField(TEXT("mode"), Mode);
+				if (IConsoleObject* Object = IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.SceneFixture")))
+				{
+					if (IConsoleCommand* Command = Object->AsCommand()) { Command->Execute({Mode}, World, *GLog); Executed = true; }
 				}
 			}
 			else { Executed = true; }
@@ -698,8 +706,17 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 				GLog->FlushThreadedLogs(); GLog->Flush();
 			}
 #endif
-			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV, Anomaly, TargetActor,
-				TArray<FString>(), OutputHeight);
+			TArray<FString> TargetArgs;
+#if !UE_BUILD_SHIPPING
+			double BenchDelay = 0;
+			if (Msg->TryGetNumberField(TEXT("benchDelayFrames"), BenchDelay) && BenchDelay == 3 &&
+				Anomaly == TEXT("solid_swap") && FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")) &&
+				(World->GetMapName().Contains(TEXT("CB_GateLevel")) || World->GetMapName().Contains(TEXT("L_ShooterGym"))))
+			{
+				TargetArgs.Add(TEXT("delay=3"));
+			}
+#endif
+			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV, Anomaly, TargetActor, TargetArgs, OutputHeight);
 		}
 		SendAck(Conn.Socket, TEXT("capture_start"));
 		return;
