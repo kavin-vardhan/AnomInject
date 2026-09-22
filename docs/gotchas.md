@@ -7372,3 +7372,30 @@ map logging No Spawnpad found. The composite refusal does not identify the absen
 GetPawnOrSpectator is a distinct engine API; inspect actual controller/pawn/spectator/view owner
 before defining placement readiness. Do not create a replacement camera or infer a successful
 lock from command execution. This candidate is built but not runtime-qualified; matrix stopped.
+
+
+## G279 — controller input readiness differs from possessed-pawn readiness (2026-09-22)
+
+Packaged CB has pawn=null and SpectatorPawn as spectator/viewtarget. Locking input needs only
+its controller. Resolve placement owner from pawn/spectator viewtarget then GetPawnOrSpectator;
+log all identities and specific refusal reasons before deciding. Do not spawn a substitute view.
+Both081-11 candidates passed5/5 strict preflights. Before-sampling self-faults are HARNESS-INVALID
+under Chat081-10, at most2 fix-rebuild iterations; executed pose/B1 failures still count.
+
+## G280 — NoHold without an eligible texture is no fire, not a zero-labelled fire (2026-09-22)
+
+The inherited081-08 NoHold helper targeted untextured CB Cube StaticMeshActor_49.081-11's actual
+run logged0 candidate textures and5 not-applied attempts;0 events existed. NoHold suppresses
+streaming bias only after selecting an eligible texture. Require proof of an active fire before
+claiming no_labelled_frames,0 phases/0 pairs and final-record coverage. This failed-precondition
+run is retained and not credited; no producer finalization defect follows from its empty sidecar.
+Chat review REQUIRED for the corrected recipe/continuation at this report boundary.
+
+## G281 — occlusion demonstration finals must survive legacy measured-zero vetoes (2026-09-22)
+
+True pre-onset geometric occlusion produced target_pixels0 plus same-frame trace hits,5 sidecar
+finals, all indeterminate/empty_region, no measured pairs. Existing m26 veto removed4 legacy
+records, leaving1. A generic >=3 legacy-event assertion incorrectly failed this predeclared
+occlusion demonstration. Correct that auditor scope with >=3 sidecar finals and exact legacy+
+veto accounting, preserving original failed audit and same raw launch. Do not waive B1, trace,
+foreground or normal-case event minima. NoHold with0 sidecar finals is a different failure.

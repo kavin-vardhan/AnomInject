@@ -11,20 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **081-10, 2026-09-22 — m55 fixture fix built; first ON preflight refused: NEEDS-DECISION.**
-> Source4a14756 / GameB283E34C. Input lock and Game-side StackOBot placement implemented;
-> all three builds passed, but F12_ON1 refused at input-lock readiness before settle/placement.
-> Own guard unnecessarily requires PC->GetPawn(); runtime also logs No Spawnpad found.
-> The combined refusal does not prove which pointer was absent. No lock ON, snapshots,
-> capture or retry.0/5 qualified; remaining4 ON/3 OFF UNRUN. No allowance renewal.
-> Read `docs/sessions/2026-09-22-081-10-codex-m55-fixture-fix.md` and external
-> `_reviews/081-10-codex-m55-fixture-fix.md`. **Chat review REQUIRED** for the ruled
-> stop/correction/revalidation before081-11. **Chat review NOT REQUIRED** for completed
-> authorized build/documentation. R2–R4, R5 and Stage3 held; old static twins stay accepted
-> and old DELAY_N invalids stay uncredited. Stage1 accepted36/Lyra24 dropped unchanged.
-> Main/Lyra source and Lyra modules restored at report boundary; main binaries remainB283E34C.
-> No Code brief, merge/tag/cook/owner-app change. Same workstream; no fresh session advised.
-> This m55 feature status supersedes older status prose below for this workstream.
+
+> **081-11,2026-09-22 — guard validation5/5 PASS; Stage2 NEEDS-DECISION.**
+> Final sourcecb14f31 / GameA699E9EE. Both build revisions passed Game/Editor/LyraEditor;
+> each qualified5 ON/3 OFF. Controller-only lock and real spectator view-owner placement work.
+> Continued22 accepted final-build gates, including true occluded onset and actual teardown
+> in both orders.2 foreground-invalid captures retained; respective second attempts passed.
+> NoHold natural then failed its precondition: Cube target has0 candidate textures,5 zero-match
+> Apply attempts,0 active fires/pairs/final events. No no_labelled_frames coverage or retry.
+> Moving fixture built but UNRUN; NoHold synthetic, moving twins, mandatory AEBD09EA comparison
+> and scoped Lyra remain held. Stage3 held. Read docs/sessions/2026-09-22-081-11-codex-m55-guard-validation.md
+> and external _reviews/081-11-codex-m55-guard-and-stage2.md, final ledger and cause read.
+> **Chat review REQUIRED** for corrected NoHold recipe and continuation; **Chat review NOT REQUIRED**
+> for completed authorized work/restoration. Next checkpoint:Chat disposition of081-11.
+> Stage1 accepted36/Lyra24 DROPPED-BY-OWNER-DECISION; old twins accepted/delay invalids retained.
+> Main m51/Lyra source and original Lyra modules restored; main binaries remain final candidate.
+> Carry **FPS 21.5 vs 30 on evidence-OFF MAIN4**. No merge/tag/cook/owner-app changes.
+> Same workstream; no fresh session advised. This supersedes older status below.
 
 > 🏁🏁 **SESSION 080-06, 2026-09-20 — THE `m26` VETO'S ARMS ARE GATED ON THE LABELLED WINDOW AND
 > THE REDUCE TABLE IS LOGGED. MERGED TO `master`, PUSHED, NO TAG. THIS IS THE CURRENT "YOU ARE

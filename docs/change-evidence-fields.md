@@ -57,14 +57,22 @@ Input lock increments both controller ignore-input counters once; repeated enabl
 It decrements only its own increments at run end, world cleanup, module shutdown or explicit off
 outside capture. A replaced controller releases with a diagnostic rather than silently rearming.
 Place after settle: CB camera origin(-1500,0,260), rotation(0,0,0); Lyra reference is unchanged.
-Placement compensates measured camera-to-pawn offset without replacing the host camera/movement.
+Placement compensates measured camera-to-view-owner offset (pawn/spectator view target first, otherwise GetPawnOrSpectator) without replacing the host camera/movement.
 CB placement requires the input lock. An executed receipt is not success: require lock/placement
 logs and a fresh independent B1 (CB) or L1 (Lyra), plus Lyra's placement-to-capture interval audit.
 Input lock suppresses player look/move input; it does not pin the camera or waive foreground.
 Measurement legs require foreground throughout and record PID/sample counts. The 081-10 no-capture
 preflight explicitly permits absent foreground while checking the pose, per Chat's ruling.
-Status081-10: built, not runtime-qualified. First input-lock enable refused before placement;
-its extra GetPawn readiness prerequisite is under review. No lock/placement success is claimed.
+Status081-11: controller-only lock and resolved spectator placement qualify5/5 on final A699E9EE.
+Commands emit IAI-BENCH READY identities before decisions and specific refusal reasons.
+Explicit unlock restores entry flags; ordinary run-end release exercised. Teardown cleanup logs
+controller=None after destruction, clearing ownership without claiming a surviving-controller decrement.
+Typed bench_scene_fixture mode=occluder/motion is CB-only, locked/placed, outside capture:
+occluder duplicates the loaded target Cube and logs Visibility traces; motion arms capture-only
+-3deg/sec yaw. Occlusion qualified both orders; motion remains UNRUN. Non-Shipping named-map
+capture_start benchDelayFrames=3 feeds only solid_swap delay=3; both orders qualified.
+NoHold recipe failed before creating any fire (target Cube has0 candidate textures); therefore
+no_labelled_frames runtime qualification remains UNEXERCISED. Stage2/Stage3 incomplete.
 `IAI.Bench.ChangeTeardownAt` is default-off and fixture/command-line gated; it requests actual world
 travel on StackOBot at a capture index, exercising subsystem teardown rather than simulating closure.
 
