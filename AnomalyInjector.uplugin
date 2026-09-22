@@ -19,7 +19,8 @@
 		{
 			"Name": "AnomalyBench",
 			"Type": "Runtime",
-			"TargetAllowList": [ "Editor" ],
+			"TargetAllowList": [ "Editor", "Game" ],
+			"TargetConfigurationDenyList": [ "Shipping" ],
 			"LoadingPhase": "Default"
 		},
 		{

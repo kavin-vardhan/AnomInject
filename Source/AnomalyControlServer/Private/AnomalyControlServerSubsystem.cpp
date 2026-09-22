@@ -17,6 +17,7 @@
 #include "AnomalyPreviewCapture.h"
 #include "ControlProtocol.h"
 #include "ControlSnapshot.h"
+#include "Modules/ModuleManager.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
@@ -377,19 +378,39 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 	UWorld* World = GetWorld();
 
 	// Typed bridge to an Editor-only fixture module; never a generic remote exec surface.
-#if WITH_EDITOR
-	if (Type == TEXT("bench_place_view") || Type == TEXT("bench_log_barrier"))
+#if !UE_BUILD_SHIPPING
+	if (Type == TEXT("bench_place_view") || Type == TEXT("bench_input_lock") || Type == TEXT("bench_log_barrier"))
 	{
 		auto Reply = MakeShared<FJsonObject>();
 		Reply->SetStringField(TEXT("type"), Type);
 		const auto* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
 		const bool Allowed = FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")) && World &&
-			World->GetMapName().Contains(TEXT("L_ShooterGym")) && Cap && !Cap->IsCaptureActive();
+			(World->GetMapName().Contains(TEXT("L_ShooterGym")) || World->GetMapName().Contains(TEXT("CB_GateLevel"))) && Cap && !Cap->IsCaptureActive();
 		bool Executed = false;
 		double Request = 0; Msg->TryGetNumberField(TEXT("request"), Request);
 		if (Allowed)
 		{
-			if (Type == TEXT("bench_place_view"))
+			// Existing cooked containers predate this fixture module. The rebuilt Game links it;
+			// load its static initializer on an explicit bench command without recooking descriptors.
+			if (Type != TEXT("bench_log_barrier"))
+			{
+				FModuleManager::Get().LoadModulePtr<IModuleInterface>(TEXT("AnomalyBench"));
+			}
+			if (Type == TEXT("bench_input_lock"))
+			{
+				bool Enabled = false;
+				if (Msg->TryGetBoolField(TEXT("enabled"), Enabled))
+				{
+					if (IConsoleObject* Object = IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.InputLock")))
+					{
+						if (IConsoleCommand* Command = Object->AsCommand())
+						{
+							Command->Execute({Enabled ? TEXT("1") : TEXT("0")}, World, *GLog); Executed = true;
+						}
+					}
+				}
+			}
+			else if (Type == TEXT("bench_place_view"))
 			{
 				if (IConsoleCommand* Command = IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.PlaceView")) ?
 					IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.PlaceView"))->AsCommand() : nullptr)
@@ -670,7 +691,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 			if (FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")))
 			{
 				UE_LOG(LogAnomalyServer, Log, TEXT("IAI-L2 CAPTURE-START gfc=%llu"), GFrameCounter);
