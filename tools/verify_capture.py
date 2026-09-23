@@ -157,9 +157,12 @@ decimals. A row that names a reference (ref_session_index with ref_gt8/ref_mean)
 against that delivered frame too. empty_region refusals are cross-read against the mask PNG.
 The producer's numbers are read only to be compared after the recomputation. JPEG, resampled,
 backbuffer, missing or unreadable deliveries are reported UNAVAILABLE with the reason, never
-guessed. Exit 0 whenever it ran - a mismatch is printed, it is not a verdict - and 3 when it cannot
-run. Its output ends with the sentence it exists to state: agreement validates arithmetic and
-transport only; it does not establish renderer pairing, visible effect, or cause.
+guessed. Exit 1 when any compared row or reference comparison mismatches, 0 when every comparison
+matches (coverage 0 included - a gate that needs rows fails itself on coverage 0), and 3 when it
+cannot run. It trusts the row's own pair ids: a producer that published consistent wrong ids AND
+the numbers of the frames those ids name would match. Its output ends with the sentence it exists to
+state: agreement validates arithmetic and transport only; it does not establish renderer pairing,
+visible effect, or cause.
 --change-oracle --selftest proves it can agree, can disagree (five must-fail mutations) and refuses
 what it cannot read.
 
@@ -2371,9 +2374,11 @@ def _oracle_resolve(cap_dir):
 def change_oracle(cap_dir, quiet=False):
     """m55 Stage 3 oracle: recompute each measured pair row from the delivered PNGs on disk.
 
-    Returns (code, lines, detail). code is 0 whenever the comparison ran, whatever it found, and 3
-    when it cannot run. It adds no verdict and changes no other mode's exit code. The producer's
-    chg_/ctl_/ref_ values are read only to be compared after the recomputation.
+    Returns (code, lines, detail). code is 1 when any compared row or reference comparison mismatches,
+    0 when every compared comparison matches (including when nothing was compared - coverage is
+    printed and a gate that needs rows treats coverage 0 as its own failure), and 3 when it cannot run.
+    It changes no other mode's exit code. The producer's chg_/ctl_/ref_ values are read only to be
+    compared after the recomputation.
     """
     lines = ["CHANGE-ORACLE (m55 Stage 3)"]
     detail = {"session": cap_dir, "rows": [], "not_claimed": {}, "unavailable": {},
@@ -2521,7 +2526,7 @@ def change_oracle(cap_dir, quiet=False):
     lines.append("  SUMMARY                  claimed %d  compared %d  matched %d  mismatched %d  unavailable %d"
                  % (s["claimed"], s["compared"], s["matched"], s["mismatched"], s["unavailable"]))
     lines.append(CHANGE_ORACLE_SENTENCE)
-    return 0, lines, detail
+    return (1 if s["mismatched"] or s["ref_mismatched"] else 0), lines, detail
 
 
 ORACLE_FIXTURE_W = 24
@@ -2808,13 +2813,13 @@ def _change_oracle_selftest():
 
         def mutation(name, mutate, si, want_field):
             path = _oracle_baseline(root, "mut_" + name, mutate=mutate)
-            _c3, _l3, md = run(path)
+            c3, _l3, md = run(path)
             rec3 = _oracle_row_of(md, si)
             others = [r for r in md["rows"] if r["session_index"] != si]
-            ok = (rec3 is not None and rec3["status"] == CHANGE_ORACLE_MISMATCH
+            ok = (c3 == 1 and rec3 is not None and rec3["status"] == CHANGE_ORACLE_MISMATCH
                   and want_field in _oracle_bad_fields(rec3)
                   and all(r["status"] == CHANGE_ORACLE_MATCH for r in others))
-            record("mutation_" + name, ok, "fired on %s" % (",".join(_oracle_bad_fields(rec3)[:3]) if rec3 else "-"))
+            record("mutation_" + name, ok, "exit %d fired on %s" % (c3, ",".join(_oracle_bad_fields(rec3)[:3]) if rec3 else "-"))
 
         def off_by_one(frames, masks, rows):
             rows[2]["chg_gt8"] += 1
@@ -2845,6 +2850,16 @@ def _change_oracle_selftest():
             rows[0] = _oracle_fixture_row(frames, masks, 3, 2, ORACLE_TAG_A, 0, ref=2,
                                           control_select=lambda i, m: m == 0 or i == stolen)
         mutation("control_includes_target_pixel", control_includes_target, 3, "ctl_n")
+
+        def ref_only(frames, masks, rows):
+            rows[3]["ref_gt8"] += 1
+        rc, _rl, rd = run(_oracle_baseline(root, "ref_only_mismatch", mutate=ref_only))
+        record("exit_1_on_reference_mismatch_only", rc == 1 and rd["summary"]["mismatched"] == 0
+               and rd["summary"]["ref_mismatched"] == 1, "exit %d rows %d ref %d"
+               % (rc, rd["summary"]["mismatched"], rd["summary"]["ref_mismatched"]))
+        nc, _nl, nd = run(_oracle_baseline(root, "nothing_compared", run_summary={"capture_path": "backbuffer"}))
+        record("exit_0_when_nothing_compared", nc == 0 and nd["summary"]["compared"] == 0,
+               "exit %d compared %d" % (nc, nd["summary"]["compared"]))
 
         empty = os.path.join(root, "empty_dir")
         os.makedirs(empty)
@@ -2918,8 +2933,9 @@ def main():
     ap.add_argument("--change-oracle", nargs="?", const="", default=None, metavar="SESSION",
                     help="m55 Stage 3: recompute every measured change_evidence.jsonl pair row from the "
                          "delivered PNGs and compare count with count and mean with mean. SESSION "
-                         "defaults to --dir. Exit 0 when it ran, 3 when it cannot run; it adds no "
-                         "verdict. With --selftest it proves the oracle can agree and disagree.")
+                         "defaults to --dir. Exit 1 when any compared row or reference comparison "
+                         "mismatches, 0 when every comparison matches, 3 when it cannot run. With "
+                         "--selftest it proves the oracle can agree and disagree.")
     ap.add_argument("--oracle-json", metavar="PATH", default=None,
                     help="with --change-oracle: also write the per-row comparison detail as JSON")
     args = ap.parse_args()

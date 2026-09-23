@@ -60,7 +60,7 @@ class ChangeOracleContracts(unittest.TestCase):
         self.assertIn("CANNOT RUN", text)
         self.assertIn(SPEC_SENTENCE, text.splitlines())
 
-    def test_oracle_exit_code_is_not_a_verdict(self):
+    def test_oracle_exit_code_is_1_on_a_mismatch_and_0_when_all_match(self):
         good = vc._oracle_baseline(str(self.root), "good")
 
         def corrupt(_f, _m, rows):
@@ -69,7 +69,7 @@ class ChangeOracleContracts(unittest.TestCase):
         bad = vc._oracle_baseline(str(self.root), "bad", mutate=corrupt)
         code_good, text_good = run_main(["--change-oracle", good])
         code_bad, text_bad = run_main(["--change-oracle", bad])
-        self.assertEqual((code_good, code_bad), (0, 0))
+        self.assertEqual((code_good, code_bad), (0, 1))
         self.assertIn("mismatched             0", text_good)
         self.assertIn("mismatched             4", text_bad)
         for word in vc.RUN_OUTCOMES:
