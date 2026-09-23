@@ -1,3 +1,28 @@
+## Dated amendment 081-16 (2026-09-23): STOP before build 2
+
+Authority: 081-15-chat-ruling-budget-bound-build-2.md, read FULL. The full-yield
+Stack1080 bar stands and is now Chat-mandated; partial coverage refused. Chat
+records the64MiB specification as its second spec defect in this family.
+No previous failed audit or outcome changes.
+
+Source disproves the requested11C+9M structural bound: one closing phase3..18,
+Cursor3 missing colour, PreviousSI2, masks3..18, then completions4..15 before5s
+retain13C+16M while Work runs after EACH callback and waits. Count beyondLast18
+is0; the closing-phase precedence disables the4-completion gap.720p62,668,800
+exceeds48,844,800 but fits64MiB;1080p141,004,800 exceeds109,900,800 but fits256MiB.
+This is a source-derived counterexample, not a new runtime high-water. No
+after-last-use leak established; deferred demand filtering remains futurev2.
+
+Default256MiB and additive diagnostics NOT implemented; one build UNUSED.
+No numeric bound is promoted into a build prediction. Chat review REQUIRED to
+resolve structural bound vs reference envelope before build; NOT REQUIRED for
+completed source audit/documentation. Next checkpoint:081-16disposition.
+Journal docs/sessions/2026-09-23-081-16-codex-budget-bound-audit.md; full report
+D:/IntrusiveAnomalies/_reviews/081-16-codex-budget-bound-prebuild-review.md.
+After resolution:4Stack1080,thenG270300,thenremaining66inventory+4canfails,
+75candidate legs total; allUNRUN. Original first-valid/full-yield/stop rules
+unchanged. Stage3HELD; allcarry-forwards remain. Previous plan bytes follow.
+
 ## Dated amendment081-15 (2026-09-23), BEFORE build/results
 
 Authority081-14 closure-clock ruling. Supersedes old8issued/2s/3colour predicates:
