@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ⛔ **081-18, 2026-09-24 — `m55` LONG-RUN THROUGHPUT READINGS (evidence ON vs OFF, 1800 frames) DID NOT RUN.
+> THE BENCH WAS NOT IDLE: FOUR FOREIGN UE 5.7 HeistCrewUE EDITORS STARTED FROM 01:32 IST AND WERE STILL
+> PRESENT AT THE BRIEF'S 60-MINUTE BOUND. NOTHING WAS TOUCHED; THE BOUNDARY IS RESTORED. NO BUILD, NO
+> SOURCE CHANGE.** ⛔
+>
+> **Cold start: `docs/sessions/2026-09-24-081-18-code-m55-long-run-throughput.md`.** Harness, predictions
+> (frozen before any capture, `docs/predictions/2026-09-24-m55-081-18-long-run-throughput.md`) and a
+> known-answer-proven writer-latency instrument are ready under `_reviews/081-18-*` for a rerun on an idle
+> bench. L1 used 1 of 3 pre-capture attempts (host respawn after placement, before capture).
+> 📌 **Source facts:** the stage worker and every PNG writer job share one Normal-priority FIFO on the 12
+> background task workers. 📊 **Offline 300-frame re-read of 081-17R (not the long-run answer):** Lyra 1080p
+> armed 23.2 fps vs PNGs completed 21.7 fps, writer latency 672 → 1528 ms across the run, ready-head wait
+> 0 → 801 ms tracking it (ρ 0.95); StackOBot flat. H-Q (worker queued behind writer jobs) is consistent, NOT
+> tested. 🎯 **NEXT: chat decides — clear the bench and rerun 081-18 as written, or rule without it.**
+>
+> ---
+>
 > 🧾 **081-17, 2026-09-24 — `m55` BUILD 2 (Claude Code implements from this round): 256 MiB PAYLOAD CAP +
 > OWNERSHIP CENSUS. STACK 1080p TWINS 4/4 PASS AND LYRA G270 (300 frames) PASS. STAGE 3 STILL HELD —
 > 70 REQUALIFICATION LEGS REMAIN FOR THE NEXT BRIEF. NOT MERGED, NOT TAGGED, NO COOK.** 🧾
