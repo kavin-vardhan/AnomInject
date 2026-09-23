@@ -124,3 +124,51 @@ A has no success-completion timestamps; exact issue-to-writer distribution is
 unavailable, not inferred from drain time. Unlike Lyra1080, this home fixture did
 not reproduce late rejects; report the resolution/host interaction without claiming
 that resolution alone forces failure. The ruling explicitly accepts either A reading.
+
+### Stage1 fault requalification artifact alignment, before B-side legs
+
+Stage2 sidecar exports only K=4 labelled windows, while Stage1 exported every
+identity row. Requalification uses Config2/8/16/4/0 for the Stage1 fault recipes:
+first phase begins atSI7, placing fixed faultSI8 inside the required window.
+Enable existing LogAnomalyCapture Verbose PAIR tracing to reconcile every issued
+index, including unlabelled/fault rows; no code/clock change. G11 remains9frames
+and its prior lifetime-only event-floor exception. Receipt-based predicates and
+real injected fault proof stay the same; Stage1's old all-rows sidecar audit is
+not applied to the intentionally narrower Stage2 artifact. Measurement audit
+plus per-index identity traces and original fault-specific assertions are used.
+No new budget or closure predicate is introduced after build.
+
+## Results/disposition,2026-09-23
+
+One build set passed all3targets; source5649a6d; GameE8E2E43F fullhash in
+081-15-evidence/binary-v1.json. Count/wall missing-completion can-fails PASS both
+orders. Count:15events,28/30pairs,SI3closure_timeout after8real later completions
+plus predecessor refusal; wall:15events,0/30pairs,zero completions,5sbackstop.
+1080null N/S andsolid N PASS20/20pairs each. Solid S valid fixture but16/20:
+SI26/45/66budget_exceeded,SI46predecessor_missing. All5onsets measured1.0,
+0closure/outoforder/late,0invariants,retained0; highwater64,327,680bytes.
+MaxBhighwater66,392,064bytes. Full latency/control data in final-readings.json.
+
+Qualification-scope disclosure: full-pair yield on Stacktwins was Codex's stronger
+predeclared predicate; Chat explicitly imposed it on LyraG270, not Stacktwins.
+Original failed audit retained; no post-hoc reclassification, result retry,
+budget change or second build. Chat review REQUIRED for this scope/result
+disposition. Recommend explicit partial-coverage acceptance for Stackthen remaining
+gates on samebuild; do not infer relaxedG270bar. Stage3HELD;65declaredlegsUNRUN:
+24Stack720measurement,24identity/order/budget/lifetime,2NoHold,12legacy,3Lyra.
+NoLyra capture thisround;3G270fixtureattempts unused. PriorA699acceptedgates stand.
+
+10launches,9captures:1pre-capture harness fault/fix,1Areading,8B(7pass/1fail).
+Lyraoriginalsource9modules restored; mainm51 restoredafterdocscommit/push with
+newcandidateGame/Editorleftasdisclosed. Oldarchives/containers/banks preserved;
+postflightverifiesboundary. Chat review NOT REQUIRED for completedauthorized
+work/safe restoration; nextmandatorycheckpointChatStack1080yielddisposition.
+Report081-15NEEDS-DECISION; not release readiness. Addedcarryforwards include
+required-pairyield,latencydistributions,resolutionenvelope,priors17.5/19.4/39.4MB
+plusA49.803264/B66.392064MB. Allolderlimits/FPS/delay3/countercaveats retained.
+
+### Final inventory reconciliation (no additional leg)
+
+The initial65remaining count omitted accepted ChangeMaxBytes1 controls in both
+orders. Add those2 UNRUN byte-admission controls: total67remaining. Their old
+refusal/highwater0 predicates remain. No pass or completed result changed.

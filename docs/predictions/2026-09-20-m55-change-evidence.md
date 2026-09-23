@@ -1913,3 +1913,16 @@ or first-leg auto-drop extension. R5 unresolved; Stage 3 HELD. Chat review
 REQUIRED for G270 disposition; next mandatory checkpoint is that ruling.
 High-water G270 39,398,400 bytes supplements preserved 17.5/19.4MB priors.
 Full report/journal and raw evidence in 081-14; source/binaries unchanged.
+
+### 081-15 outcome,2026-09-23 (no prediction rewritten)
+
+Onebuild E8E2E43F. Bothcan-fails passedbothorders;1080nullN/SandsolidN20/20.
+SolidS16/20,all5onsets1.0;3budget+1predecessorrefusal,0closure/late/invariants.
+Codex's predeclaredfull-yieldStackpredicate failed; Chatexplicitfull-yieldbar
+wasforLyraG270. Originalauditkept. Chat review REQUIRED forscope/resultdisposition;
+65requalificationlegsUNRUN,Stage3HELD. No retry/secondbuild/budgetchange.
+Recommenddatedpartial-coverageStackamendmentifsodecidedbyChat,thensamebuild
+continuation; G270barunchanged. Report081-15andjournalcarryfullstate/evidence.
+
+Final081-15inventory correction: add both accepted ChangeMaxBytes1 controls,
+omitted from the initialenumeration;67remaining qualificationlegs,allUNRUN.
