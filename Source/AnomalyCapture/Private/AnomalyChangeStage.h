@@ -34,6 +34,7 @@ struct FAnomalyChangeIssue
 	const FRenderTarget* OwnerTarget = nullptr;
 	const FSceneInterface* OwnerScene = nullptr;
 	const void* OwnerLevel = nullptr;
+	bool bSupported = true;
 	TWeakPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> Stage;
 };
 using FAnomalyChangeIssuePtr = TSharedPtr<const FAnomalyChangeIssue, ESPMode::ThreadSafe>;
@@ -95,6 +96,10 @@ public:
 	void EndEvents(const TCHAR* Cause);
 	void CompleteMask(const FAnomalyChangeCompletion& Completion);
 	void Fail(const FAnomalyChangeIssuePtr& InIssue, EAnomalyChangeReason Reason, const TCHAR* FailureStage);
+	void Unsupported(const FAnomalyChangeIssuePtr& InIssue, bool bMask);
+	void MarkSessionBegun();
+	bool HasSession() const;
+	void Discard();
 	void Pulse();
 	void BeginClosure();
 	void CloseAndPersist(bool bTeardown = false);
@@ -185,6 +190,7 @@ private:
 	TMap<int64, int64> ColourLatencyMsHistogram, ColourLatencyFramesHistogram;
 	bool bClosing = false, bClosed = false, bWorkerActive = false;
 	bool bPersisted = false;
+	bool bSessionBegun = false, bDiscarded = false;
 	// GT-only owner lifetime observation. World-subsystem teardown also closes this stage.
 	const FRenderTarget* LastOwnerTarget = nullptr;
 	const FSceneInterface* LastOwnerScene = nullptr;

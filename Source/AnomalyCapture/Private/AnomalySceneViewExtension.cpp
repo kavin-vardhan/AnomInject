@@ -71,22 +71,25 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 			return; // Idempotent GT attachment: never consume a second arm for the same family.
 		}
 	}
+	if (InViewFamily.Views.Num() != 1)
+	{
+		if (auto CurrentStage = Cap->GetChangeStage()) { CurrentStage->Diagnostic(TEXT("multi_view_families")); }
+	}
+	auto IsOwnerFamily = [this, &InViewFamily](const FAnomalyChangeIssuePtr& Owner)
+	{
+		return InViewFamily.Views.Num() == 1 && InViewFamily.RenderTarget == Owner->OwnerTarget
+			&& InViewFamily.Scene == Owner->OwnerScene
+			&& !(LastChangeFamilyFrame == InViewFamily.FrameNumber && LastChangeEpoch == Owner->RunEpoch);
+	};
 	const auto PendingIssue = Cap->PeekChangeIssue();
 	const auto OwnerIssue = PendingIssue.IsValid() ? PendingIssue : Cap->GetOwnerIssue();
-	if (OwnerIssue.IsValid())
+	auto Stage = OwnerIssue.IsValid() ? OwnerIssue->Stage.Pin() : nullptr;
+	if (Stage.IsValid() && !IsOwnerFamily(OwnerIssue))
 	{
-		auto Stage = OwnerIssue->Stage.Pin();
-		if (!Stage.IsValid()) { return; }
-		if (InViewFamily.Views.Num() != 1 || InViewFamily.RenderTarget != OwnerIssue->OwnerTarget
-			|| InViewFamily.Scene != OwnerIssue->OwnerScene)
-		{
-			Stage->Diagnostic(TEXT("view_rejected"));
-			return; // A foreign family must not consume this viewport's pending arm.
-		}
-		if (LastChangeFamilyFrame == InViewFamily.FrameNumber && LastChangeEpoch == OwnerIssue->RunEpoch)
-		{
-			Stage->Diagnostic(TEXT("view_rejected")); return;
-		}
+		Stage->Diagnostic(TEXT("view_rejected"));
+	}
+	else if (Stage.IsValid())
+	{
 		if (PendingIssue.IsValid() && Stage->Gate(15, PendingIssue->SessionIndex))
 		{
 			Stage->Diagnostic(TEXT("pending_family_deferred"));
@@ -111,9 +114,16 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 	const bool bWanted = Cap->ConsumeWantedForPublish(InViewFamily.FrameNumber, RequestId, Issue);
 	if (bWanted && Issue.IsValid())
 	{
-		auto* Data = InViewFamily.GetOrCreateExtentionData<FAnomalyChangeFamilyData>();
-		Data->Issue = Issue; Data->FamilyId = FAnomalyChangeFamilyData::NextId();
-		LastChangeFamilyFrame = InViewFamily.FrameNumber; LastChangeEpoch = Issue->RunEpoch;
+		if (auto IssueStage = Issue->Stage.Pin())
+		{
+			if (IsOwnerFamily(Issue))
+			{
+				auto* Data = InViewFamily.GetOrCreateExtentionData<FAnomalyChangeFamilyData>();
+				Data->Issue = Issue; Data->FamilyId = FAnomalyChangeFamilyData::NextId();
+				LastChangeFamilyFrame = InViewFamily.FrameNumber; LastChangeEpoch = Issue->RunEpoch;
+			}
+			else { IssueStage->Unsupported(Issue, false); }
+		}
 	}
 	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, RequestId, bWanted);
 }
@@ -161,18 +171,19 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 	FAnomalyChangeReceipt ChangeSubmission;
-	if (auto Stage = Cap->GetChangeStage())
+	if (auto* Data = FAnomalyChangeFamilyData::Find(View.Family))
 	{
-		auto* Data = FAnomalyChangeFamilyData::Find(View.Family);
-		if (!Data || !Data->Issue.IsValid() || Data->Issue->RequestId != Entry.RequestId)
+		auto Stage = Data->Issue.IsValid() ? Data->Issue->Stage.Pin() : nullptr;
+		if (Stage.IsValid() && Data->Issue->RequestId != Entry.RequestId)
 		{
 			Stage->Diagnostic(TEXT("view_rejected"));
-			return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 		}
-		if (!Data->Claim(View, false)) { return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor); }
-		if (Stage->Gate(8, Data->Issue->SessionIndex)) { check(!Data->Claim(View, false)); }
-		ChangeSubmission.Issue = Data->Issue; ChangeSubmission.ServingToken = Data->Issue->CaptureToken;
-		ChangeSubmission.ViewFamilyId = Data->FamilyId; ChangeSubmission.FamilyFrame = FamilyFrame; ChangeSubmission.ViewIndex = 0;
+		else if (Stage.IsValid() && Data->Claim(View, false))
+		{
+			if (Stage->Gate(8, Data->Issue->SessionIndex)) { check(!Data->Claim(View, false)); }
+			ChangeSubmission.Issue = Data->Issue; ChangeSubmission.ServingToken = Data->Issue->CaptureToken;
+			ChangeSubmission.ViewFamilyId = Data->FamilyId; ChangeSubmission.FamilyFrame = FamilyFrame; ChangeSubmission.ViewIndex = 0;
+		}
 	}
 
 	FRDGTextureRef Texture = SceneColor.Texture;

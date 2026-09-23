@@ -592,7 +592,11 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 	PreviewTee.Reset();
 	if (Async.IsValid())
 	{
-		if (Async->ChangeStage.IsValid()) { Async->ChangeStage->CloseAndPersist(true); }
+		if (Async->ChangeStage.IsValid())
+		{
+			if (Async->ChangeStage->HasSession()) { Async->ChangeStage->CloseAndPersist(true); }
+			else { Async->ChangeStage->Discard(); }
+		}
 		Async->PendingSnapshots.Empty();
 		if (Async->Capturer.IsValid())
 		{
@@ -3017,7 +3021,11 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	StartRunLog();
 	if (Async.IsValid())
 	{
-		if (Async->ChangeStage.IsValid()) { Async->ChangeStage->CloseAndPersist(); }
+		if (Async->ChangeStage.IsValid())
+		{
+			if (Async->ChangeStage->HasSession()) { Async->ChangeStage->CloseAndPersist(); }
+			else { Async->ChangeStage->Discard(); }
+		}
 		Async->ChangeStage.Reset();
 		if (FAnomalyChangeStage::IsEnabled()) { Async->ChangeStage = MakeShared<FAnomalyChangeStage, ESPMode::ThreadSafe>(RunDir); }
 	}
@@ -3555,6 +3563,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	Phase = ECapturePhase::LeadIn;
 	PhaseFramesLeft = PreFrames;
 	bRunBegun = true;
+	if (Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->MarkSessionBegun(); }
 
 	SpawnMaskPairingProbe();
 
@@ -5718,6 +5727,13 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 	if (!bWroteSession)
 	{
+#if ANOMALY_CAPTURE
+		if (Async.IsValid() && Async->ChangeStage.IsValid())
+		{
+			Async->ChangeStage->Discard();
+			Async->ChangeStage.Reset();
+		}
+#endif
 		EndRunLog();
 		IFileManager::Get().DeleteDirectory(*RunDir, false, true);
 		if (bLogLine)

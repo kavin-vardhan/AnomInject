@@ -7,7 +7,9 @@
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/ThreadSafeCounter64.h"
+#include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 #include "Policies/CondensedJsonPrintPolicy.h"
@@ -75,7 +77,15 @@ FAnomalyChangeStage::FAnomalyChangeStage(const FString& InRunDir) : RunDir(InRun
 		TEXT("colour_multi_ready_drain"), TEXT("capture_arm_dropped"), TEXT("throwaway_family_constructed"),
 		TEXT("teardown_flush"), TEXT("persist_failed"), TEXT("late_record_mutations"), TEXT("denominator_mismatch"), TEXT("histogram_mismatch"),
 		TEXT("ref_onset_mismatch"), TEXT("pairs_measured"), TEXT("measurement_pairs_refused"),
-		TEXT("phases_measured"), TEXT("phases_indeterminate"), TEXT("events_with_phases") }) { Counters.Add(Name, 0); }
+		TEXT("phases_measured"), TEXT("phases_indeterminate"), TEXT("events_with_phases"),
+		TEXT("multi_view_families"), TEXT("unsupported_completion") }) { Counters.Add(Name, 0); }
+	if (BenchGate != 0 && !FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")))
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture(m55): BENCH-GATE-REFUSED IAI.Bench.ChangeGate=%d(from %s) requires -IAIBenchFixture; this run uses gate 0 and legacy delivery is untouched."),
+			BenchGate, *GateSource);
+		BenchGate = 0; GateSource = TEXT("refused_no_fixture_flag");
+		Counters.Add(TEXT("bench_gate_refused"), 1);
+	}
 	UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): EFFECTIVE enabled=1(from %s) maxBytes=%lld(from %s) gate=%d(from %s) epoch=%llu; snapshotted at run start"),
 		*EnabledSource, MaxBytes, *BytesSource, BenchGate, *GateSource, Epoch);
 }
@@ -92,7 +102,7 @@ FAnomalyChangeIssuePtr FAnomalyChangeStage::Issue(uint64 RequestId, int32 SI, co
 	auto New = MakeShared<FAnomalyChangeIssue, ESPMode::ThreadSafe>();
 	New->RunEpoch = Epoch; New->CutCounter = Cut; New->CaptureToken = (uint64)GChangeToken.Increment();
 	New->RequestId = RequestId; New->SessionIndex = SI; New->SubmitMs = NowMs(); New->Camera = Camera;
-	New->FrameFile = FrameFile;
+	New->FrameFile = FrameFile; New->bSupported = bSupported;
 	New->OwnerTarget = OwnerTarget; New->OwnerScene = OwnerScene; New->OwnerLevel = OwnerLevel; New->Stage = AsShared();
 	if (Gate(13, SI))
 	{
@@ -140,6 +150,7 @@ bool FAnomalyChangeStage::AcceptLocked(const FAnomalyChangeIssuePtr& InIssue, co
 	}
 	if (bClosed || InIssue->SessionIndex < Cursor || !Pending.Contains(InIssue->SessionIndex))
 	{
+		if (!InIssue->bSupported) { ++Counters.FindOrAdd(TEXT("unsupported_completion")); return false; }
 		++Counters.FindOrAdd(TEXT("late_results"));
 		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): LATE-REJECT path=%s token=%llu si=%d cursor=%d closed=%d rows=%d"), Path, InIssue->CaptureToken, InIssue->SessionIndex, Cursor, bClosed ? 1 : 0, Rows.Num());
 		return false;
@@ -292,7 +303,11 @@ void FAnomalyChangeStage::Colour(const FAnomalyChangeCompletion& Completion, con
 	FScopeLock Lock(&CS);
 	if (!AcceptLocked(Completion.Receipt->Issue, TEXT("colour_writer"))) { return; }
 	FPending& Item = Pending.FindChecked(Completion.Receipt->Issue->SessionIndex);
-	if (Item.bColourDone) { ++Counters.FindOrAdd(TEXT("duplicate_completion")); return; }
+	if (Item.bColourDone)
+	{
+		++Counters.FindOrAdd(Item.Issued.IsValid() && !Item.Issued->bSupported ? TEXT("unsupported_completion") : TEXT("duplicate_completion"));
+		return;
+	}
 	if (BenchGate == 17 || (BenchGate == 16 && Completion.Receipt->Issue->SessionIndex == 3))
 	{
 		// Bench-only loss of this consumer's notification. The independent legacy
@@ -365,6 +380,29 @@ void FAnomalyChangeStage::Fail(const FAnomalyChangeIssuePtr& InIssue, EAnomalyCh
 	if (FCString::Strcmp(FailureStage, TEXT("mask")) == 0) { Item.bMaskDone = true; }
 	else { NoteColourCompletionLocked(Item); Item.bColourDone = true; }
 	ScheduleLocked();
+}
+void FAnomalyChangeStage::Unsupported(const FAnomalyChangeIssuePtr& InIssue, bool bMask)
+{
+	FScopeLock Lock(&CS);
+	if (!AcceptLocked(InIssue, bMask ? TEXT("mask_family") : TEXT("colour_family"))) { return; }
+	FPending& Item = Pending.FindChecked(InIssue->SessionIndex);
+	if (Item.Reason == EAnomalyChangeReason::None)
+	{
+		Item.Reason = EAnomalyChangeReason::UnsupportedDelivery; Item.FailureStage = bMask ? TEXT("mask") : TEXT("colour");
+	}
+	if (bMask) { Item.bMaskDone = true; } else { Item.bColourDone = true; }
+	ScheduleLocked();
+}
+void FAnomalyChangeStage::MarkSessionBegun() { FScopeLock Lock(&CS); bSessionBegun = true; }
+bool FAnomalyChangeStage::HasSession() const { FScopeLock Lock(&CS); return bSessionBegun; }
+void FAnomalyChangeStage::Discard()
+{
+	BeginClosure();
+	FScopeLock Lock(&CS);
+	if (bDiscarded) { return; }
+	bDiscarded = true;
+	UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): STAGE-DISCARDED run wrote no session; issued=%lld; nothing persisted and no directory created: %s"),
+		Counters.FindRef(TEXT("issued")), *RunDir);
 }
 void FAnomalyChangeStage::Pulse() { FScopeLock Lock(&CS); ScheduleLocked(); }
 void FAnomalyChangeStage::ScheduleLocked()
@@ -575,6 +613,10 @@ bool FAnomalyChangeStage::Persist()
 {
 	// Called by the GT only after closure. Rows are immutable; disk I/O never holds the
 	// admission mutex that colour/mask writer workers use for their completion messages.
+	{
+		FScopeLock Lock(&CS);
+		if (bDiscarded || !bSessionBegun) { return false; }
+	}
 	const bool Ok = FFileHelper::SaveStringToFile(FString::Join(Rows, TEXT("\n")) + (Rows.Num() ? TEXT("\n") : TEXT("")),
 		*FPaths::Combine(RunDir, TEXT("change_evidence.jsonl")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	FScopeLock Lock(&CS);
@@ -584,6 +626,11 @@ bool FAnomalyChangeStage::Persist()
 }
 void FAnomalyChangeStage::CloseAndPersist(bool bTeardown)
 {
+	{
+		FScopeLock Lock(&CS);
+		if (bDiscarded) { return; }
+	}
+	if (!HasSession()) { Discard(); return; }
 	if (bTeardown) { EndEvents(TEXT("teardown")); }
 	BeginClosure();
 	bool bNeedsPersist = false;

@@ -160,7 +160,7 @@ void FAnomalyChangeStage::FinalizeEventsLocked()
 		J->SetStringField(TEXT("kind"), TEXT("event")); J->SetNumberField(TEXT("stage_version"), 2);
 		J->SetStringField(TEXT("event"), KV.Key); J->SetStringField(TEXT("anomaly_type"), Event.Type);
 		J->SetStringField(TEXT("target"), Event.Target); J->SetStringField(TEXT("finalized_by"), Event.Cause);
-		J->SetNumberField(TEXT("phase_count"), Event.Phases.Num()); J->SetNumberField(TEXT("late_results"), 0);
+		J->SetNumberField(TEXT("phase_count"), Event.Phases.Num());
 		if (Event.Phases.IsEmpty()) { J->SetStringField(TEXT("reason"), TEXT("no_labelled_frames")); ++Counters.FindOrAdd(TEXT("reason_no_labelled_frames")); }
 		else { J->SetField(TEXT("reason"), MakeShared<FJsonValueNull>()); ++Counters.FindOrAdd(TEXT("events_with_phases")); }
 		TArray<TSharedPtr<FJsonValue>> Phases;

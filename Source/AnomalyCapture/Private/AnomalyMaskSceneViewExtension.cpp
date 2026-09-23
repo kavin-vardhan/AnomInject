@@ -139,6 +139,7 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 	TArray<uint64> ServedIds;
 	TArray<uint8> ServedWantsPixels;
 	TArray<FAnomalyChangeIssuePtr> ServedIssues;
+	TArray<FAnomalyChangeIssuePtr> UnattachedIssues;
 	FAnomalyChangeReceipt ChangeSubmission;
 	EAnomalyMaskReduceMode Mode = EAnomalyMaskReduceMode::Gpu;
 	{
@@ -149,34 +150,43 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		}
 		FAnomalyChangeIssuePtr CurrentIssue;
 		for (const auto& Candidate : PendingChangeIssues) { if (Candidate.IsValid()) { CurrentIssue = Candidate; break; } }
+		bool bAttach = false;
 		if (CurrentIssue.IsValid())
 		{
 			auto Stage = CurrentIssue->Stage.Pin();
 			auto* Data = FAnomalyChangeFamilyData::Find(View.Family);
-			if (!Data || !Data->Issue.IsValid() || !Stage.IsValid()
-				|| View.Family->RenderTarget != CurrentIssue->OwnerTarget || View.Family->Scene != CurrentIssue->OwnerScene)
+			if (Stage.IsValid() && Stage->Gate(15, CurrentIssue->SessionIndex))
 			{
-				if (Stage.IsValid()) { Stage->Diagnostic(TEXT("view_rejected")); }
+				Stage->Diagnostic(TEXT("view_rejected"));
 				return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 			}
-			if (Stage->Gate(6, CurrentIssue->SessionIndex))
+			if (Data && Data->Issue.IsValid() && Stage.IsValid()
+				&& View.Family->RenderTarget == CurrentIssue->OwnerTarget && View.Family->Scene == CurrentIssue->OwnerScene)
 			{
-				if (DeferredFamilyFrame == MAX_uint32) { DeferredFamilyFrame = View.Family->FrameNumber; }
-				if (DeferredFamilyFrame == View.Family->FrameNumber)
+				if (Stage->Gate(6, CurrentIssue->SessionIndex))
 				{
-					Stage->Diagnostic(TEXT("mask_pass_deferred"));
-					return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+					if (DeferredFamilyFrame == MAX_uint32) { DeferredFamilyFrame = View.Family->FrameNumber; }
+					if (DeferredFamilyFrame == View.Family->FrameNumber)
+					{
+						Stage->Diagnostic(TEXT("mask_pass_deferred"));
+						return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+					}
+				}
+				if (Data->Claim(View, true))
+				{
+					bAttach = true;
+					ChangeSubmission.ServingToken = Data->Issue->CaptureToken; ChangeSubmission.ViewFamilyId = Data->FamilyId;
+					ChangeSubmission.ViewIndex = 0; ChangeSubmission.FamilyFrame = View.Family->FrameNumber;
+					ChangeSubmission.Rect = SceneColor.ViewRect; ChangeSubmission.Extent = SceneColor.Texture->Desc.Extent;
+					ChangeSubmission.Format = PF_R8_UINT;
 				}
 			}
-			if (!Data->Claim(View, true)) { return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor); }
-			ChangeSubmission.ServingToken = Data->Issue->CaptureToken; ChangeSubmission.ViewFamilyId = Data->FamilyId;
-			ChangeSubmission.ViewIndex = 0; ChangeSubmission.FamilyFrame = View.Family->FrameNumber;
-			ChangeSubmission.Rect = SceneColor.ViewRect; ChangeSubmission.Extent = SceneColor.Texture->Desc.Extent;
-			ChangeSubmission.Format = PF_R8_UINT;
+			else if (Stage.IsValid()) { Stage->Diagnostic(TEXT("view_rejected")); }
 		}
 		ServedIds = MoveTemp(PendingArms);
 		ServedWantsPixels = MoveTemp(PendingArmWantsPixels);
 		ServedIssues = MoveTemp(PendingChangeIssues);
+		if (!bAttach) { UnattachedIssues = MoveTemp(ServedIssues); ServedIssues.Reset(); }
 		PendingArms.Reset();
 		PendingArmWantsPixels.Reset();
 		ServedWantsPixels.SetNumZeroed(ServedIds.Num());
@@ -187,6 +197,11 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		}
 		Bias = DepthBias;
 		Mode = ReduceMode;
+	}
+	for (const auto& Unattached : UnattachedIssues)
+	{
+		if (!Unattached.IsValid()) { continue; }
+		if (auto Stage = Unattached->Stage.Pin()) { Stage->Unsupported(Unattached, true); }
 	}
 
 	const FIntRect ViewRect = SceneColor.ViewRect;
