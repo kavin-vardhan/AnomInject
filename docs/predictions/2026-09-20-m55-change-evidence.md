@@ -1877,3 +1877,26 @@ lock/placement or build changes. Predictions, exact CLI, full saved-frame camera
 comparison (1cm/0.1degree), held allowances N2/S3 and subsequent scoped R5 are
 predeclared in docs/sessions/2026-09-23-081-13-codex-nohold-mainworld-lyra.md.
 Chat review NOT REQUIRED for execution; REQUIRED at failed/exhausted gate or report.
+
+### 2026-09-23 / 081-14 dated post-hoc precondition amendment
+
+Chat081-13authorizes SAME NoHoldA2/A3 artifacts requalified against m52G2CANFAIL,
+saved session_index/all90rows/unchanged1cm0.1degree; originalG3rejectedaudits retained.
+ONE post-hoc amendment in pilot metrics, affecting two artifacts; no new natural
+launch or allowance reset. Standingpolicy: identicalCLI/fullsavedindex coverage;
+onlytick-order may differ when no identicalbank exists, then engine frame_index,
+EVERY counterpart passes and>=80/90matched. Localbankinventory agrees noNoHoldS.
+Synthetic3then scopedR5 predictions in2026-09-23-081-14-codex-nohold-requalification-lyra.md.
+Chat review NOT REQUIRED for execution; REQUIRED atfailedgate/reportcheckpoint.
+
+### 081-14 outcome, 2026-09-23 (predictions above preserved)
+
+Natural A2/A3 requalified at 90/90 exact G2 saved-index rows; one post-hoc
+amendment, old dispositions preserved. NoHold synthetic A1 passed with 90/90
+exact G2 engine-index counterparts. Lyra null A3 and solid A1 passed; null A1/A2
+fixture-invalid. G270 A1 fixture-invalid; A2 fixture-valid but measurement FAIL:
+two events, zero measured pairs, eight closure_timeout refusals. No result retry
+or first-leg auto-drop extension. R5 unresolved; Stage 3 HELD. Chat review
+REQUIRED for G270 disposition; next mandatory checkpoint is that ruling.
+High-water G270 39,398,400 bytes supplements preserved 17.5/19.4MB priors.
+Full report/journal and raw evidence in 081-14; source/binaries unchanged.
