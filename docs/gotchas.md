@@ -7423,3 +7423,13 @@ ownership census. Build 2 then measured a different retention shape on Lyra 1080
 pending colours behind a head whose inputs had all arrived, one phase open — not the closing-phase
 shape at all (mechanism not established). A byte figure is a reading per recipe; derive nothing
 structural from a clock constant.
+
+## G283 — an exit-code contract whose fixture only ever returns 0 cannot see a changed exit code (2026-09-24, 081-19)
+
+The first "the six CLI cases keep their exit codes" check for the m55 change oracle ran every case on a
+healthy synthetic session: all six returned 0 before and after, which would also have been the reading if
+the new code had silently swallowed a failure path. It was re-run on a fixture built to fail — a blank
+target region (label-pixel NO-TRACE, exit 2; the batch, exit 2) and a black first frame (black-frame
+gate, exit 1) — and the codes stayed identical before/after and with a mismatching sidecar present.
+An "unchanged" comparison is evidence only when the compared value can take more than one value on the
+fixture (`G96`'s shape, applied to a regression contract rather than a detector).

@@ -269,3 +269,57 @@ auto-pool, 300 frames: 197.0 MB (73 % of the cap), peak census 22 colours (21 pe
 whose inputs had all arrived) + 7 masks, zero refusals. Earlier priors (64 MiB era): 17.5 / 19.4 /
 39.4 / 49.8 / 66.4 MB. 1440p and 4K are unexercised; a 1440p run shaped like the Lyra leg would need
 more than the cap.
+
+## Oracle — `tools/verify_capture.py --change-oracle` (Stage 3, 081-19)
+
+An independent reader that recomputes the sidecar's numbers from the delivered images on disk, so a
+reader can check that `change_evidence.jsonl` says what the PNGs contain. It is Python + Pillow only,
+implements the definition above itself, and never reads a producer `chg_*`/`ctl_*`/`ref_*` value as
+an input — only to compare after recomputing.
+
+**How to run it**
+
+```
+python tools/verify_capture.py --change-oracle <sessionDir> [--quiet] [--oracle-json detail.json]
+python tools/verify_capture.py --dir <sessionDir> --change-oracle
+python tools/verify_capture.py --change-oracle --selftest
+```
+
+`<sessionDir>` is the folder holding `change_evidence.jsonl`; a bank leg folder with exactly one
+session inside is resolved to it. `--quiet` prints only mismatched and unavailable rows plus the
+summary. Exit **0** whenever it ran (a mismatch is printed, it is not a verdict) and **3** when it
+cannot run (no sidecar, unreadable sidecar, no Pillow). It changes no other mode's exit code and adds
+nothing to the 079 vocabulary.
+
+**What it validates.** For every `"kind":"pair"` row with `chg_measured: true` it decodes
+`Actual_Frames/frame_%05d.png` for `session_index` and `prev_session_index` and
+`target_mask/frame_%05d.png` for `session_index`; target = `mask == mask_value`, control =
+`mask == 0`; `d = max(|dR|,|dG|,|dB|)` in delivered bytes, counted when `d > tau_px`. It compares
+`chg_n`, `chg_gt8`, `chg_sum`, `chg_hist` and the `ctl_*` twins exactly, `chg_mean`/`ctl_mean`
+within **0.00005** of the exact `sum/n/255` (the producer rounds to four decimals), and checks
+`tau_px == 8`, `prev_session_index == session_index − 1`, `frame_file` against the naming, and that
+both denominators are positive. A row naming a reference (`ref_session_index` with `ref_gt8`/
+`ref_mean`) is recomputed against that delivered frame over the current target region and counted
+separately. `empty_region` refusals are cross-read against the mask PNG (agrees / disagrees /
+unverifiable when no mask PNG exists — none is written for an all-zero mask). Coverage is printed:
+rows claimed, compared, matched, mismatched, unavailable with reasons, and not-claimed rows by reason.
+
+**What it does not validate.** Its output ends with the contract sentence, verbatim: *agreement
+validates arithmetic and transport only — that the numbers in the sidecar are the numbers the
+delivered images contain. It does not establish renderer pairing, visible effect, or cause.* It
+does not check that the producer chose the right frames to pair (it uses the row's own ids), that a
+refusal other than `empty_region` was right, the event records, the `_sofar` running maxima,
+`prev_target_pixels`, the camera caveat fields, or anything about the anomaly. JPEG, resampled
+(PNG size ≠ receipt rect), backbuffer, missing or unreadable deliveries are **UNAVAILABLE** with the
+reason, never guessed.
+
+**Selftest.** `--change-oracle --selftest` builds 24×16 sessions whose sidecar numbers come from a
+separate per-pixel loop and proves 22 cases: agreement; recomputation independent of the published
+values; `G-GRAD(b)` (`0,3,6,9,12`: four adjacent `chg_gt8` of 0, reference `ref_gt8` 0,0,48,48 =
+full count on the last pair); `G-TIES` (`d == 8` not counted, `d == 9` counted, `PF_A2B10G10R10`
+10-bit `0 → 35` delivered as bytes `0 → 8`); `G-DENOM` (a measured claim on a whole-frame mask or an
+absent tag is flagged; an `empty_region` refusal on a whole-frame mask agrees; the cross-read can
+fire); JPEG / resampled / backbuffer / missing mask / non-grayscale mask are unavailable; and five
+must-fail mutations each fire — a count off by one, a swapped predecessor, the wrong mask value, a
+pair id shifted by one, a control that includes a target pixel. `tools/test_verify_capture_change_oracle.py`
+pins the printed sentence, the exit codes and the six existing CLI cases' exit codes.

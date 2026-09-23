@@ -11,6 +11,32 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ✅ **081-19, 2026-09-24 — `m55` STAGE 3a: THE CHANGE ORACLE EXISTS AND AGREES WITH EVERY BANKED ROW.
+> `tools/verify_capture.py --change-oracle` recomputed all 1,234 measured pair rows and all 1,232
+> reference comparisons in 228 banked m55 sessions from the delivered PNGs: 1,234 matched, 0
+> mismatched, 0 unavailable, on every m55 binary. BENCH-FREE: NO UNREAL, NO BUILD, NO SOURCE CHANGE
+> OUTSIDE `tools/`. NOT MERGED, NOT TAGGED.** ✅
+>
+> **Cold start: `docs/sessions/2026-09-24-081-19-code-m55-oracle.md`, then the "Oracle" section of
+> `docs/change-evidence-fields.md`.** Tool commit `ea9946a` (pure addition, Pillow only, independent
+> of the C++); predictions committed before the banked run (`79dc9ed`). Mean tolerance 0.00005 (the
+> producer rounds to four decimals); counts, sums and the eight bins compared exactly.
+> 🔑 **What agreement means, printed by the tool verbatim:** *agreement validates arithmetic and
+> transport only — that the numbers in the sidecar are the numbers the delivered images contain. It
+> does not establish renderer pairing, visible effect, or cause.*
+> 🧪 `--change-oracle --selftest` 22 cases incl. `G-GRAD(b)` (`0,3,6,9,12`), `G-TIES` (8 vs 9, 10-bit
+> `0→35` = bytes `0→8`), `G-DENOM`, and five must-fail mutations that each fire; sabotaging the oracle
+> makes the selftest fail. Existing suites unchanged (m47 2, label-pixel 98 byte-identical output,
+> contracts 25); new contracts 9, incl. the six existing CLI cases' exit codes (0/1/2/2/0/0 on a
+> failing fixture) unchanged with or without a mismatching sidecar.
+> ⚠ `--change-oracle` exits **0 whenever it ran** and 3 when it cannot run — a mismatch is printed,
+> not signalled (flagged for chat). ⚠ The `empty_region` cross-read never *confirmed* a banked refusal
+> (all 25 have no mask PNG). ⚠ Stage 1–2 C++ comments still need the stripper before merge.
+> 🎯 **NEXT: unchanged from 081-18 — the long-run readings rerun on an idle bench, then chat decides
+> requalification vs build 3. Cost legs, client docs and requalification not started.**
+>
+> ---
+>
 > ⛔ **081-18, 2026-09-24 — `m55` LONG-RUN THROUGHPUT READINGS (evidence ON vs OFF, 1800 frames) DID NOT RUN.
 > THE BENCH WAS NOT IDLE: FOUR FOREIGN UE 5.7 HeistCrewUE EDITORS STARTED FROM 01:32 IST AND WERE STILL
 > PRESENT AT THE BRIEF'S 60-MINUTE BOUND. NOTHING WAS TOUCHED; THE BOUNDARY IS RESTORED. NO BUILD, NO
