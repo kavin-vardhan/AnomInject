@@ -1859,3 +1859,13 @@ verbatim coverage limits and unrun gates. Stage1 accepted36 / Lyra24 dropped sta
 R2-R4 continuation. **Chat review REQUIRED** at a failed executed validation or the
 Stage 2 report checkpoint. Restore entry source/Lyra modules at the safe boundary;
 preserve all CURRENT history. No merge/tag/master/m51 edits or owner-app changes.
+
+### 2026-09-23 / 081-12 continuation
+
+Predeclared motion and two-map legacy checks, plus the NoHold map/fixture
+precondition mismatch, are recorded in
+`docs/sessions/2026-09-23-081-12-codex-stage2-continuation.md` before new launches.
+Natural motion requires cam_moved AND nonzero cam_drot_deg on at least90% of
+window pairs; B1 applies at settle only. NoHold allowances remain N2/S3 until a
+compatible recipe is resolved. Chat review NOT REQUIRED for authorized
+motion/legacy execution; REQUIRED for recipe clarification and report disposition.
