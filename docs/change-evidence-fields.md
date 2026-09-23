@@ -36,7 +36,7 @@ later rejected deliveries are counted in the run summary and never edit a final 
 
 The worker releases the admission mutex during pixel scans. Phase references extend the unique
 canonical buffer reservation; sharing the predecessor does not double-charge bytes or buffer count.
-The 64 MiB byte budget is the sole admission cap (081-15); there is no colour-count cap. Writer total memory remains outside this bound.
+The 256 MiB payload cap is the sole admission cap (081-15 removed the colour-count cap; 081-17 build 2 raised the default from 64 MiB). Writer total memory remains outside it.
 Stage 1 all-capture identity/refusal counters remain transport diagnostics. Stage 2 adds pairs_measured,
 measurement_pairs_refused, phases_measured/indeterminate, events_with_phases, denominator_mismatch,
 histogram_mismatch and ref_onset_mismatch under the `change_` summary prefix, plus tau_px=8/window_k=4.
@@ -76,7 +76,7 @@ no_labelled_frames runtime qualification remains UNEXERCISED. Stage2/Stage3 inco
 `IAI.Bench.ChangeTeardownAt` is default-off and fixture/command-line gated; it requests actual world
 travel on StackOBot at a capture index, exercising subsystem teardown rather than simulating closure.
 
-`IAI.Capture.ChangeEvidence` (default 1) and `IAI.Capture.ChangeMaxBytes` (default 67108864)
+`IAI.Capture.ChangeEvidence` (default 1) and `IAI.Capture.ChangeMaxBytes` (default 268435456, 256 MiB, since 081-17; was 67108864)
 are snapshotted at run start. Value 0 on the former produces neither the sidecar nor summary additions.
 Effective values and engine set-by provenance are echoed, not inferred from configuration files.
 
@@ -134,7 +134,7 @@ Wrong-family and duplicate callbacks are counters, **not** new refusal strings.
 ## Summary additions
 
 `change_evidence_file`, `change_stage_version`, `change_max_bytes`, `change_bytes_high_water`,
-`change_bytes_retained`, `change_worker_ms_total`, `change_closure_watermark`, `change_bench_gate`,
+`change_bytes_retained`, `change_bytes_peak_census` (object or null, 081-17), `change_worker_ms_total`, `change_closure_watermark`, `change_bench_gate`,
 `change_enabled_source`, `change_max_bytes_source`, `change_bench_gate_source`;
 `change_reason_<reason>` for all 14 reasons; and these `change_`-prefixed integer counters:
 
@@ -159,7 +159,7 @@ on that local first. Only after filtering and exposure-exclusion folding is it m
 immutable array, used by both mask writer and stage. No second writer copy on that path.
 
 The stage accounts allocated buffer bytes, not just used elements. Admission takes no buffer
-reference on failure and never waits on a writer. The 64 MiB byte budget is the sole
+reference on failure and never waits on a writer. The 256 MiB payload cap is the sole
 admission cap, including current, predecessor, phase-reference colours and retained masks.
 Shared references to the same colour allocation are charged once. **It does not bound the writer pool's total memory;
 that remains the separate m51 limitation.** Metadata/JSON rows have their separate 100,000-row cap.
@@ -223,3 +223,41 @@ Bench gate16 loses only SI3's stage colour-completion notification; gate17 loses
 all such notifications. Legacy writing continues unchanged. `CLOSURE-TIMEOUT`
 logs distinguish the eight-later-completion path from the five-second wall path.
 These devices require runtime proof; their existence is not a gate pass.
+
+## Payload cap and ownership census (081-17, build 2)
+
+**What the cap covers.** `IAI.Capture.ChangeMaxBytes` (compiled default 268,435,456 = 256 MiB) caps
+**m55's admitted payload only**: the colour allocations the change stage reserves (a colour shared by
+Previous and a phase reference is charged once) and the masks it retains. It is **not** a
+process-RAM ceiling — the writer pool, receipts, rows, compression and metadata are outside it.
+There is **no structural guarantee of full yield at any resolution**. The mechanism in one sentence:
+a long labelled phase whose first colour completion is delayed keeps every later frame's buffers
+until it can close, so long phases at high resolution can exhaust the cap and refuse. Refusals are
+recorded as `budget_exceeded`; numbers are never wrong. 1440p and 4K are unexercised.
+
+**Refusal census (every `budget_exceeded`).** A failed colour or mask reservation — including bench
+gate 10's forced colour refusal — logs one `Capture(m55): BUDGET-EXCEEDED si=… kind=colour|mask
+requested=… held=… max=… census={…}` line and appends the census to `budget_census`, an array on
+the refused index's pair row(s). Only indices that own window rows have sidecar rows; for other
+indices the log line is the record. The field is absent when no refusal happened.
+
+**High-water census.** At every new high-water the census is recomputed after the admitted buffer's
+ownership is recorded and kept as the peak. `Capture(m55): HIGH-WATER bytes=… census={…}` is logged
+only when the peak has risen by at least one colour allocation (the first admitted colour's size)
+since the last such line, plus one `Capture(m55): HIGH-WATER-PEAK` line at each closure. The run
+summary carries it as `change_bytes_peak_census` (null if nothing was ever admitted). High-water is a
+reading, never a gate; there is no closure-bound field and no formula-based warning.
+
+| Census field | Meaning |
+|---|---|
+| `trigger`, `kind` | `budget_exceeded` or `high_water`; the reservation involved, `colour` or `mask`. |
+| `si`, `requested_bytes` | Capture index of that reservation and its allocated size. |
+| `max_bytes`, `bytes_held` | Cap and bytes reserved at the census (the refused buffer is not included). |
+| `colours` | Distinct admitted colour allocations. |
+| `colours_pending` / `_previous` / `_phase_ref` / `_in_hand` / `_unowned` | Split with priority pending > previous > phase reference > the serial worker's current item; a shared allocation is counted once. `_unowned` should be 0. |
+| `colour_bytes`, `masks`, `mask_bytes` | Allocated bytes of those colours; retained masks and their bytes. |
+| `unaccounted_bytes` | `bytes_held − colour_bytes − mask_bytes`; 0 when the accounting closes. |
+| `cursor`, `latest_index` | Serial head index and latest issued index. |
+| `open_phases` | Non-final phases: `event`, `ordinal`, `first`, `last`, `closing`. |
+| `head` | `si` (= cursor), `state` `pending` / `in_hand` / `none`, and `waits_on` ⊆ colour, mask, observed, sealed. |
+| `high_water` | Peak census only: `change_bytes_high_water` at that peak. |

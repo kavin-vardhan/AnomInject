@@ -121,6 +121,7 @@ private:
 		TArray<FAnomalyChangeLabel> Labels;
 		TMap<uint8, int32> Counts;
 		bool bObserved = false;
+		TArray<TSharedPtr<FJsonObject>> BudgetCensus;
 	};
 	struct FPhase
 	{
@@ -154,6 +155,9 @@ private:
 	void FinalizeLocked(FPending& Item, EAnomalyChangeReason Reason);
 	void ReleaseLocked(FPending& Item);
 	bool ReserveLocked(int64 Bytes);
+	TSharedPtr<FJsonObject> CensusLocked(const TCHAR* Trigger, const TCHAR* Kind, int32 SessionIndex, int64 Bytes) const;
+	void NoteBudgetRefusalLocked(FPending& Item, const TCHAR* Kind, int64 Bytes);
+	void NoteHighWaterLocked(int32 SessionIndex, const TCHAR* Kind, int64 Bytes);
 	void NoteColourCompletionLocked(FPending& Item);
 	int32 ColourCompletionsAfterLocked(int32 Index) const;
 	bool Persist();
@@ -174,6 +178,9 @@ private:
 	int32 ClosureWatermark = -1;
 	double ClosureDeadline = 0, WorkerMs = 0;
 	int64 BytesHeld = 0, BytesHighWater = 0, MaxBytes = 0;
+	const FPending* InHand = nullptr;
+	TSharedPtr<FJsonObject> PeakCensus;
+	int64 HighWaterLoggedBytes = 0, ColourUnitBytes = 0;
 	int32 BenchGate = 0;
 	TMap<int64, int64> ColourLatencyMsHistogram, ColourLatencyFramesHistogram;
 	bool bClosing = false, bClosed = false, bWorkerActive = false;

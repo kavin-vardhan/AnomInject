@@ -14,7 +14,7 @@
 
 static TAutoConsoleVariable<int32> CVarChangeEnabled(TEXT("IAI.Capture.ChangeEvidence"), 1,
 	TEXT("m55 measurement sidecar. Sampled at run start; observable is unchanged."));
-static TAutoConsoleVariable<int32> CVarChangeBytes(TEXT("IAI.Capture.ChangeMaxBytes"), 64 * 1024 * 1024,
+static TAutoConsoleVariable<int32> CVarChangeBytes(TEXT("IAI.Capture.ChangeMaxBytes"), 256 * 1024 * 1024,
 	TEXT("Maximum bytes retained by m55 (not the writer pool). Sampled at run start."));
 static TAutoConsoleVariable<int32> CVarChangeGate(TEXT("IAI.Bench.ChangeGate"), 0,
 	TEXT("Bench fault at SI 8: 1=two-ready,2=skip,3=writer,4=readback,5=mask-write,6=coalesce,7=epoch,8=view,9=extent,10=budget,11=late,12=stale,13=unregistered-index. 14=log frozen-mask CRC. 15=unserved-arm epoch reset. 16=missing colour completion SI3; 17=no colour completions."));
@@ -160,6 +160,111 @@ bool FAnomalyChangeStage::ReserveLocked(int64 Bytes)
 	BytesHeld += Bytes; BytesHighWater = FMath::Max(BytesHighWater, BytesHeld);
 	return true;
 }
+static FString ChangeCondensedJson(const TSharedPtr<FJsonObject>& J)
+{
+	FString Out;
+	if (!J.IsValid()) { return TEXT("null"); }
+	auto Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Out);
+	FJsonSerializer::Serialize(J.ToSharedRef(), Writer);
+	return Out;
+}
+TSharedPtr<FJsonObject> FAnomalyChangeStage::CensusLocked(const TCHAR* Trigger, const TCHAR* Kind, int32 SI, int64 Bytes) const
+{
+	TSet<const TArray<FColor>*> PendingColours, References;
+	int32 Masks = 0;
+	int64 MaskBytes = 0;
+	auto CountMask = [&Masks, &MaskBytes](const FPending& P)
+	{
+		if (P.MaskPixels.IsValid()) { ++Masks; MaskBytes += (int64)P.MaskPixels->GetAllocatedSize(); }
+	};
+	for (const auto& Entry : Pending)
+	{
+		if (Entry.Value.Pixels.IsValid()) { PendingColours.Add(Entry.Value.Pixels.Get()); }
+		CountMask(Entry.Value);
+	}
+	CountMask(Previous);
+	if (InHand) { CountMask(*InHand); }
+	const TArray<FColor>* PreviousColour = Previous.Pixels.Get();
+	const TArray<FColor>* InHandColour = InHand ? InHand->Pixels.Get() : nullptr;
+	TArray<TSharedPtr<FJsonValue>> OpenPhases;
+	for (const auto& KV : Events)
+	{
+		for (int32 I = 0; I < KV.Value.Phases.Num(); ++I)
+		{
+			const FPhase& Phase = KV.Value.Phases[I];
+			if (Phase.Reference.IsValid()) { References.Add(Phase.Reference.Get()); }
+			if (Phase.bFinal) { continue; }
+			auto P = MakeShared<FJsonObject>();
+			P->SetStringField(TEXT("event"), KV.Key); P->SetNumberField(TEXT("ordinal"), I);
+			P->SetNumberField(TEXT("first"), Phase.First); P->SetNumberField(TEXT("last"), Phase.Last);
+			P->SetBoolField(TEXT("closing"), Phase.bClosing);
+			OpenPhases.Add(MakeShared<FJsonValueObject>(P));
+		}
+	}
+	int32 NPending = 0, NPrevious = 0, NReference = 0, NInHand = 0, NUnowned = 0;
+	int64 ColourBytes = 0;
+	for (const auto& Owner : ColourOwners)
+	{
+		const TArray<FColor>* Colour = Owner.Key;
+		ColourBytes += (int64)Colour->GetAllocatedSize();
+		if (PendingColours.Contains(Colour)) { ++NPending; }
+		else if (Colour == PreviousColour) { ++NPrevious; }
+		else if (References.Contains(Colour)) { ++NReference; }
+		else if (Colour == InHandColour) { ++NInHand; }
+		else { ++NUnowned; }
+	}
+	auto Head = MakeShared<FJsonObject>();
+	Head->SetNumberField(TEXT("si"), Cursor);
+	TArray<TSharedPtr<FJsonValue>> Waits;
+	if (const FPending* HeadItem = Pending.Find(Cursor))
+	{
+		Head->SetStringField(TEXT("state"), TEXT("pending"));
+		if (!HeadItem->bColourDone) { Waits.Add(MakeShared<FJsonValueString>(TEXT("colour"))); }
+		if (!HeadItem->bMaskDone) { Waits.Add(MakeShared<FJsonValueString>(TEXT("mask"))); }
+		if (!HeadItem->bObserved) { Waits.Add(MakeShared<FJsonValueString>(TEXT("observed"))); }
+		if (!HeadItem->bSealed) { Waits.Add(MakeShared<FJsonValueString>(TEXT("sealed"))); }
+	}
+	else
+	{
+		const bool bInHand = InHand && InHand->Issued.IsValid() && InHand->Issued->SessionIndex == Cursor;
+		Head->SetStringField(TEXT("state"), bInHand ? TEXT("in_hand") : TEXT("none"));
+	}
+	Head->SetArrayField(TEXT("waits_on"), Waits);
+	auto C = MakeShared<FJsonObject>();
+	C->SetStringField(TEXT("trigger"), Trigger); C->SetStringField(TEXT("kind"), Kind);
+	C->SetNumberField(TEXT("si"), SI); C->SetNumberField(TEXT("requested_bytes"), (double)Bytes);
+	C->SetNumberField(TEXT("max_bytes"), (double)MaxBytes); C->SetNumberField(TEXT("bytes_held"), (double)BytesHeld);
+	C->SetNumberField(TEXT("colours"), ColourOwners.Num());
+	C->SetNumberField(TEXT("colours_pending"), NPending); C->SetNumberField(TEXT("colours_previous"), NPrevious);
+	C->SetNumberField(TEXT("colours_phase_ref"), NReference); C->SetNumberField(TEXT("colours_in_hand"), NInHand);
+	C->SetNumberField(TEXT("colours_unowned"), NUnowned); C->SetNumberField(TEXT("colour_bytes"), (double)ColourBytes);
+	C->SetNumberField(TEXT("masks"), Masks); C->SetNumberField(TEXT("mask_bytes"), (double)MaskBytes);
+	C->SetNumberField(TEXT("unaccounted_bytes"), (double)(BytesHeld - ColourBytes - MaskBytes));
+	C->SetNumberField(TEXT("cursor"), Cursor); C->SetNumberField(TEXT("latest_index"), LatestIndex);
+	C->SetArrayField(TEXT("open_phases"), OpenPhases); C->SetObjectField(TEXT("head"), Head);
+	return C;
+}
+void FAnomalyChangeStage::NoteBudgetRefusalLocked(FPending& Item, const TCHAR* Kind, int64 Bytes)
+{
+	const int32 SI = Item.Issued.IsValid() ? Item.Issued->SessionIndex : -1;
+	const TSharedPtr<FJsonObject> Census = CensusLocked(TEXT("budget_exceeded"), Kind, SI, Bytes);
+	Item.BudgetCensus.Add(Census);
+	UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): BUDGET-EXCEEDED si=%d kind=%s requested=%lld held=%lld max=%lld census=%s"),
+		SI, Kind, Bytes, BytesHeld, MaxBytes, *ChangeCondensedJson(Census));
+}
+void FAnomalyChangeStage::NoteHighWaterLocked(int32 SI, const TCHAR* Kind, int64 Bytes)
+{
+	if (BytesHeld < BytesHighWater) { return; }
+	if (PeakCensus.IsValid() && BytesHeld <= (int64)PeakCensus->GetNumberField(TEXT("bytes_held"))) { return; }
+	PeakCensus = CensusLocked(TEXT("high_water"), Kind, SI, Bytes);
+	PeakCensus->SetNumberField(TEXT("high_water"), (double)BytesHighWater);
+	if (ColourUnitBytes > 0 && BytesHighWater - HighWaterLoggedBytes >= ColourUnitBytes)
+	{
+		HighWaterLoggedBytes = BytesHighWater;
+		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): HIGH-WATER bytes=%lld max=%lld census=%s"),
+			BytesHighWater, MaxBytes, *ChangeCondensedJson(PeakCensus));
+	}
+}
 void FAnomalyChangeStage::NoteColourCompletionLocked(FPending& Item)
 {
 	if (Item.bColourCompletionReceived) { return; }
@@ -206,8 +311,14 @@ void FAnomalyChangeStage::Colour(const FAnomalyChangeCompletion& Completion, con
 	else if (Pixels.IsValid())
 	{
 		// Reservation precedes taking the stage's reference; writer threads never wait for capacity.
-		if (!Gate(10, Completion.Receipt->Issue->SessionIndex) && ReserveLocked((int64)Pixels->GetAllocatedSize())) { Item.Pixels = Pixels; ColourOwners.Add(Pixels.Get(), 1); }
-		else { Item.Reason = EAnomalyChangeReason::BudgetExceeded; }
+		const int64 ColourBytes = (int64)Pixels->GetAllocatedSize();
+		if (!Gate(10, Completion.Receipt->Issue->SessionIndex) && ReserveLocked(ColourBytes))
+		{
+			Item.Pixels = Pixels; ColourOwners.Add(Pixels.Get(), 1);
+			if (ColourUnitBytes == 0) { ColourUnitBytes = ColourBytes; }
+			NoteHighWaterLocked(Completion.Receipt->Issue->SessionIndex, TEXT("colour"), ColourBytes);
+		}
+		else { Item.Reason = EAnomalyChangeReason::BudgetExceeded; NoteBudgetRefusalLocked(Item, TEXT("colour"), ColourBytes); }
 	}
 	else { Item.Reason = EAnomalyChangeReason::CurrentUndelivered; Item.FailureStage = TEXT("colour"); }
 	ScheduleLocked();
@@ -221,10 +332,15 @@ void FAnomalyChangeStage::Mask(const FAnomalyChangeReceiptPtr& Receipt, const FA
 	if (Item.MaskReceipt.IsValid()) { ++Counters.FindOrAdd(TEXT("duplicate_completion")); return; }
 	Item.MaskReceipt = Receipt; Item.bEmptyMask = bEmpty; Item.Counts = Counts;
 	if (!Pixels.IsValid()) { Item.Reason = EAnomalyChangeReason::MaskPayloadMissing; Item.bMaskDone = true; }
-	else if (!ReserveLocked((int64)Pixels->GetAllocatedSize())) { Item.Reason = EAnomalyChangeReason::BudgetExceeded; Item.bMaskDone = true; }
+	else if (!ReserveLocked((int64)Pixels->GetAllocatedSize()))
+	{
+		Item.Reason = EAnomalyChangeReason::BudgetExceeded; Item.bMaskDone = true;
+		NoteBudgetRefusalLocked(Item, TEXT("mask"), (int64)Pixels->GetAllocatedSize());
+	}
 	else
 	{
 		Item.MaskPixels = Pixels;
+		NoteHighWaterLocked(Receipt->Issue->SessionIndex, TEXT("mask"), (int64)Pixels->GetAllocatedSize());
 		// Empty masks are deliberately not written by m44. Their zero denominator is known.
 		if (bEmpty) { Item.bMaskDone = true; Item.bMaskDelivered = true; }
 	}
@@ -318,7 +434,9 @@ void FAnomalyChangeStage::Work()
 				// Remove before unlocking for arithmetic: a concurrent GT Issue can reallocate Pending.
 				FPending Ready = MoveTemp(*Item);
 				Pending.Remove(Cursor);
+				InHand = &Ready;
 				FinalizeLocked(Ready, Reason);
+				InHand = nullptr;
 				++Cursor;
 				FinalizeEventsLocked();
 			}
@@ -417,6 +535,12 @@ void FAnomalyChangeStage::FinalizeLocked(FPending& Item, EAnomalyChangeReason Re
 	}
 	J->SetNumberField(TEXT("cam_dpos_cm"), DPos); J->SetNumberField(TEXT("cam_drot_deg"), DRot);
 	J->SetNumberField(TEXT("cam_dfov_deg"), DFov); J->SetBoolField(TEXT("cam_moved"), DPos || DRot || DFov);
+	if (Item.BudgetCensus.Num())
+	{
+		TArray<TSharedPtr<FJsonValue>> Census;
+		for (const TSharedPtr<FJsonObject>& Entry : Item.BudgetCensus) { Census.Add(MakeShared<FJsonValueObject>(Entry)); }
+		J->SetArrayField(TEXT("budget_census"), Census);
+	}
 	MeasureLocked(Item, Reason, J);
 	UE_LOG(LogAnomalyCapture, Verbose, TEXT("Capture(m55): PAIR si=%d valid=%d reason=%s"), Cursor, Reason == EAnomalyChangeReason::None, ReasonName ? ReasonName : TEXT("null"));
 	if (BenchGate == 12 && Cursor == 7)
@@ -477,7 +601,15 @@ void FAnomalyChangeStage::CloseAndPersist(bool bTeardown)
 		}
 		FPlatformProcess::Sleep(0.001f);
 	}
-	if (bNeedsPersist) { Persist(); }
+	if (bNeedsPersist)
+	{
+		{
+			FScopeLock Lock(&CS);
+			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): HIGH-WATER-PEAK bytes=%lld max=%lld census=%s"),
+				BytesHighWater, MaxBytes, *ChangeCondensedJson(PeakCensus));
+		}
+		Persist();
+	}
 }
 void FAnomalyChangeStage::ResetEpoch()
 {
@@ -501,6 +633,8 @@ TSharedPtr<FJsonObject> FAnomalyChangeStage::Summary() const
 	J->SetNumberField(TEXT("change_max_bytes"), (double)MaxBytes);
 	J->SetNumberField(TEXT("change_bytes_high_water"), (double)BytesHighWater);
 	J->SetNumberField(TEXT("change_bytes_retained"), (double)BytesHeld);
+	if (PeakCensus.IsValid()) { J->SetObjectField(TEXT("change_bytes_peak_census"), PeakCensus); }
+	else { J->SetField(TEXT("change_bytes_peak_census"), MakeShared<FJsonValueNull>()); }
 	J->SetNumberField(TEXT("change_worker_ms_total"), WorkerMs);
 	J->SetNumberField(TEXT("change_closure_watermark"), ClosureWatermark);
 	J->SetNumberField(TEXT("change_bench_gate"), BenchGate);
