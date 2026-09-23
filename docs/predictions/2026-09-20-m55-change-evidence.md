@@ -1869,3 +1869,11 @@ Natural motion requires cam_moved AND nonzero cam_drot_deg on at least90% of
 window pairs; B1 applies at settle only. NoHold allowances remain N2/S3 until a
 compatible recipe is resolved. Chat review NOT REQUIRED for authorized
 motion/legacy execution; REQUIRED for recipe clarification and report disposition.
+
+### 2026-09-23 / 081-13 MainWorld NoHold ruling
+
+081-12 Chat explicitly authorizes the banked m52 MainWorld recipe without input
+lock/placement or build changes. Predictions, exact CLI, full saved-frame camera
+comparison (1cm/0.1degree), held allowances N2/S3 and subsequent scoped R5 are
+predeclared in docs/sessions/2026-09-23-081-13-codex-nohold-mainworld-lyra.md.
+Chat review NOT REQUIRED for execution; REQUIRED at failed/exhausted gate or report.
