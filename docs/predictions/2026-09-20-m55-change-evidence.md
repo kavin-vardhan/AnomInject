@@ -1,3 +1,16 @@
+## Dated amendment081-15 (2026-09-23), BEFORE build/results
+
+Authority081-14 closure-clock ruling. Supersedes old8issued/2s/3colour predicates:
+phase/run closure8received later colour completions (delivered or failed) beyond
+phase.Last/ClosureWatermark OR5s wall; out-of-order4later completions outside
+closing phase/run; no timeout counts issues. Byte budget64MiB is sole admission
+cap; remove3colour limit. No writer/identity/numeric/enum change. Exact new
+predictions, precedence, missing-completion devices and full regression inventory:
+docs/sessions/2026-09-23-081-15-codex-completion-clock.md. G11's bench delay6.5s
+crosses5s; all original fault predicates preserved under new clocks. Old results
+retained. One Chat spec defect caught by gate. Chat review NOT REQUIRED to
+execute; REQUIRED on stop condition or081-15report. GREENauto-releasesStage3.
+
 # m55 — measured change evidence (v2.1, amended 2026-09-21)
 
 ## Amendment 081-08 — Stage 1 accepted; Stage 2 RELEASED (2026-09-21)

@@ -3,6 +3,7 @@
 #include "AnomalyCaptureLog.h"
 #include "Async/Async.h"
 #include "Dom/JsonObject.h"
+#include "EngineGlobals.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/ThreadSafeCounter64.h"
@@ -16,7 +17,7 @@ static TAutoConsoleVariable<int32> CVarChangeEnabled(TEXT("IAI.Capture.ChangeEvi
 static TAutoConsoleVariable<int32> CVarChangeBytes(TEXT("IAI.Capture.ChangeMaxBytes"), 64 * 1024 * 1024,
 	TEXT("Maximum bytes retained by m55 (not the writer pool). Sampled at run start."));
 static TAutoConsoleVariable<int32> CVarChangeGate(TEXT("IAI.Bench.ChangeGate"), 0,
-	TEXT("Bench fault at SI 8: 1=two-ready,2=skip,3=writer,4=readback,5=mask-write,6=coalesce,7=epoch,8=view,9=extent,10=budget,11=late,12=stale,13=unregistered-index. 14=log frozen-mask CRC for transport audit. 15=unserved-arm epoch reset."));
+	TEXT("Bench fault at SI 8: 1=two-ready,2=skip,3=writer,4=readback,5=mask-write,6=coalesce,7=epoch,8=view,9=extent,10=budget,11=late,12=stale,13=unregistered-index. 14=log frozen-mask CRC. 15=unserved-arm epoch reset. 16=missing colour completion SI3; 17=no colour completions."));
 static FThreadSafeCounter64 GChangeEpoch, GChangeToken;
 
 static FString ChangeSettingSource(const TCHAR* Name)
@@ -104,6 +105,7 @@ FAnomalyChangeIssuePtr FAnomalyChangeStage::Issue(uint64 RequestId, int32 SI, co
 	LatestIndex = SI;
 	FPending& Item = Pending.Add(SI);
 	Item.Issued = New;
+	Item.IssueFrame = GFrameCounter;
 	if (!bSupported) { Item.Reason = EAnomalyChangeReason::UnsupportedDelivery; Item.bSealed = true; Item.bColourDone = true; }
 	++Counters.FindOrAdd(TEXT("issued"));
 	ScheduleLocked();
@@ -152,12 +154,32 @@ void FAnomalyChangeStage::Diagnostic(const TCHAR* Name, int64 Amount)
 {
 	FScopeLock Lock(&CS); Counters.FindOrAdd(Name) += Amount;
 }
-bool FAnomalyChangeStage::ReserveLocked(int64 Bytes, bool bColour)
+bool FAnomalyChangeStage::ReserveLocked(int64 Bytes)
 {
-	if (Bytes < 0 || Bytes > MaxBytes - BytesHeld || (bColour && ColoursHeld >= 3)) { return false; }
+	if (Bytes < 0 || Bytes > MaxBytes - BytesHeld) { return false; }
 	BytesHeld += Bytes; BytesHighWater = FMath::Max(BytesHighWater, BytesHeld);
-	if (bColour) { ++ColoursHeld; }
 	return true;
+}
+void FAnomalyChangeStage::NoteColourCompletionLocked(FPending& Item)
+{
+	if (Item.bColourCompletionReceived) { return; }
+	Item.bColourCompletionReceived = true;
+	Item.ColourLatencyMs = FMath::Max<int64>(0, NowMs() - Item.Issued->SubmitMs);
+	Item.ColourLatencyFrames = FMath::Max<int64>(0, (int64)GFrameCounter - (int64)Item.IssueFrame);
+	++ColourLatencyMsHistogram.FindOrAdd(Item.ColourLatencyMs);
+	++ColourLatencyFramesHistogram.FindOrAdd(Item.ColourLatencyFrames);
+}
+int32 FAnomalyChangeStage::ColourCompletionsAfterLocked(int32 Index) const
+{
+	// A later index cannot have left Pending while the ordered head is <= Index.
+	// Count distinct real notifications, including failed delivery, never issues,
+	// duplicate callbacks or the synthetic bColourDone used by unsupported issues.
+	int32 Count = 0;
+	for (const auto& Entry : Pending)
+	{
+		if (Entry.Key > Index && Entry.Value.bColourCompletionReceived && ++Count >= 8) { break; }
+	}
+	return Count;
 }
 void FAnomalyChangeStage::Colour(const FAnomalyChangeCompletion& Completion, const FAnomalyChangeColourPtr& Pixels, bool bSupported)
 {
@@ -166,6 +188,14 @@ void FAnomalyChangeStage::Colour(const FAnomalyChangeCompletion& Completion, con
 	if (!AcceptLocked(Completion.Receipt->Issue, TEXT("colour_writer"))) { return; }
 	FPending& Item = Pending.FindChecked(Completion.Receipt->Issue->SessionIndex);
 	if (Item.bColourDone) { ++Counters.FindOrAdd(TEXT("duplicate_completion")); return; }
+	if (BenchGate == 17 || (BenchGate == 16 && Completion.Receipt->Issue->SessionIndex == 3))
+	{
+		// Bench-only loss of this consumer's notification. The independent legacy
+		// writer has really completed; do not fabricate a receipt or a refusal.
+		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): MISSING-COMPLETION gate=%d si=%d"), BenchGate, Completion.Receipt->Issue->SessionIndex);
+		return;
+	}
+	NoteColourCompletionLocked(Item);
 	Item.bColourDone = true; Item.bColourDelivered = Completion.bDelivered;
 	Item.ColourReceipt = Completion.Receipt;
 	if (!Completion.bDelivered)
@@ -176,7 +206,7 @@ void FAnomalyChangeStage::Colour(const FAnomalyChangeCompletion& Completion, con
 	else if (Pixels.IsValid())
 	{
 		// Reservation precedes taking the stage's reference; writer threads never wait for capacity.
-		if (!Gate(10, Completion.Receipt->Issue->SessionIndex) && ReserveLocked((int64)Pixels->GetAllocatedSize(), true)) { Item.Pixels = Pixels; ColourOwners.Add(Pixels.Get(), 1); }
+		if (!Gate(10, Completion.Receipt->Issue->SessionIndex) && ReserveLocked((int64)Pixels->GetAllocatedSize())) { Item.Pixels = Pixels; ColourOwners.Add(Pixels.Get(), 1); }
 		else { Item.Reason = EAnomalyChangeReason::BudgetExceeded; }
 	}
 	else { Item.Reason = EAnomalyChangeReason::CurrentUndelivered; Item.FailureStage = TEXT("colour"); }
@@ -191,7 +221,7 @@ void FAnomalyChangeStage::Mask(const FAnomalyChangeReceiptPtr& Receipt, const FA
 	if (Item.MaskReceipt.IsValid()) { ++Counters.FindOrAdd(TEXT("duplicate_completion")); return; }
 	Item.MaskReceipt = Receipt; Item.bEmptyMask = bEmpty; Item.Counts = Counts;
 	if (!Pixels.IsValid()) { Item.Reason = EAnomalyChangeReason::MaskPayloadMissing; Item.bMaskDone = true; }
-	else if (!ReserveLocked((int64)Pixels->GetAllocatedSize(), false)) { Item.Reason = EAnomalyChangeReason::BudgetExceeded; Item.bMaskDone = true; }
+	else if (!ReserveLocked((int64)Pixels->GetAllocatedSize())) { Item.Reason = EAnomalyChangeReason::BudgetExceeded; Item.bMaskDone = true; }
 	else
 	{
 		Item.MaskPixels = Pixels;
@@ -217,7 +247,7 @@ void FAnomalyChangeStage::Fail(const FAnomalyChangeIssuePtr& InIssue, EAnomalyCh
 	FPending& Item = Pending.FindChecked(InIssue->SessionIndex);
 	Item.Reason = Reason; Item.FailureStage = FailureStage;
 	if (FCString::Strcmp(FailureStage, TEXT("mask")) == 0) { Item.bMaskDone = true; }
-	else { Item.bColourDone = true; }
+	else { NoteColourCompletionLocked(Item); Item.bColourDone = true; }
 	ScheduleLocked();
 }
 void FAnomalyChangeStage::Pulse() { FScopeLock Lock(&CS); ScheduleLocked(); }
@@ -250,34 +280,39 @@ void FAnomalyChangeStage::Work()
 					Cursor = NextIssued;
 					continue;
 				}
-				if (GapCursor != Cursor) { GapCursor = Cursor; GapSinceCapturedIndex = -1; }
 				EAnomalyChangeReason Reason = Item->Reason;
 				const bool bReady = Item->bObserved && Item->bSealed && Item->bColourDone && Item->bMaskDone;
-				bool bTerminal = bClosing && (FPlatformTime::Seconds() >= ClosureDeadline || LatestIndex - ClosureAtIndex >= 8);
+				const double Now = FPlatformTime::Seconds();
+				bool bAwaitingClosure = bClosing;
+				int32 ClosingCompletions = bClosing ? ColourCompletionsAfterLocked(ClosureWatermark) : 0;
+				double ClosingDeadline = bClosing ? ClosureDeadline : 0;
+				bool bTerminal = bClosing && (Now >= ClosureDeadline || ClosingCompletions >= 8);
 				for (const auto& Event : Events)
 				{
 					for (const FPhase& Phase : Event.Value.Phases)
 					{
-						if (Phase.bClosing && !Phase.bFinal && Cursor <= Phase.Last &&
-							(FPlatformTime::Seconds() >= Phase.Deadline || LatestIndex - Phase.EndAt >= 8)) { bTerminal = true; }
+						if (Phase.bClosing && !Phase.bFinal && Cursor <= Phase.Last)
+						{
+							bAwaitingClosure = true;
+							const int32 Completions = ColourCompletionsAfterLocked(Phase.Last);
+							if (!bTerminal && (Now >= Phase.Deadline || Completions >= 8))
+							{
+								bTerminal = true; ClosingCompletions = Completions; ClosingDeadline = Phase.Deadline;
+							}
+						}
 					}
 				}
 				if (!bReady && !(Item->bObserved && Item->bSealed && Item->bColourDone && Reason != EAnomalyChangeReason::None))
 				{
-					// Four frames bound an observed ordering gap, not the entire GPU/writer
-					// pipeline latency. An issue alone is not evidence that a completion is missing.
-					if (GapSinceCapturedIndex < 0)
+					// An issue count is not a completion clock. Closing phases/runs get
+					// their declared eight-completion/5s bound, rather than the gap bound.
+					if (bTerminal)
 					{
-						for (const auto& Later : Pending)
-						{
-							if (Later.Key > Cursor && Later.Value.bColourDone)
-							{
-								GapSinceCapturedIndex = LatestIndex; break;
-							}
-						}
+						Reason = EAnomalyChangeReason::ClosureTimeout;
+						UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): CLOSURE-TIMEOUT si=%d clock=%s laterCompletions=%d elapsedMs=%.0f"),
+							Cursor, ClosingCompletions >= 8 ? TEXT("completions") : TEXT("wall"), ClosingCompletions, (Now - (ClosingDeadline - 5.0)) * 1000.0);
 					}
-					if (bTerminal) { Reason = EAnomalyChangeReason::ClosureTimeout; }
-					else if (!bClosing && GapSinceCapturedIndex >= 0 && LatestIndex - GapSinceCapturedIndex >= 4) { Reason = EAnomalyChangeReason::OutOfOrderTimeout; }
+					else if (!bAwaitingClosure && ColourCompletionsAfterLocked(Cursor) >= 4) { Reason = EAnomalyChangeReason::OutOfOrderTimeout; }
 					else { break; }
 				}
 				// Remove before unlocking for arithmetic: a concurrent GT Issue can reallocate Pending.
@@ -362,6 +397,8 @@ void FAnomalyChangeStage::FinalizeLocked(FPending& Item, EAnomalyChangeReason Re
 	J->SetNumberField(TEXT("session_index"), Cursor);
 	J->SetNumberField(TEXT("prev_session_index"), Previous.Issued.IsValid() ? Previous.Issued->SessionIndex : -1);
 	J->SetNumberField(TEXT("expected_prev_session_index"), Cursor - 1);
+	J->SetNumberField(TEXT("colour_completion_latency_ms"), (double)Item.ColourLatencyMs);
+	J->SetNumberField(TEXT("colour_completion_latency_frames"), (double)Item.ColourLatencyFrames);
 	J->SetStringField(TEXT("frame_file"), Item.Issued->FrameFile);
 	J->SetBoolField(TEXT("pair_valid"), Reason == EAnomalyChangeReason::None);
 	if (ReasonName) { J->SetStringField(TEXT("reason"), ReasonName); }
@@ -405,8 +442,8 @@ void FAnomalyChangeStage::BeginClosure()
 	if (!bClosing && !bClosed)
 	{
 		EndEventsLocked(TEXT("run_end"));
-		 bClosing = true; ClosureWatermark = LatestIndex; ClosureAtIndex = LatestIndex;
-		ClosureDeadline = FPlatformTime::Seconds() + 2.0;
+		bClosing = true; ClosureWatermark = LatestIndex;
+		ClosureDeadline = FPlatformTime::Seconds() + 5.0;
 		ScheduleLocked();
 	}
 }
@@ -470,6 +507,23 @@ TSharedPtr<FJsonObject> FAnomalyChangeStage::Summary() const
 	J->SetStringField(TEXT("change_enabled_source"), EnabledSource);
 	J->SetStringField(TEXT("change_max_bytes_source"), BytesSource);
 	J->SetStringField(TEXT("change_bench_gate_source"), GateSource);
+	int64 LatencySamples = 0;
+	for (const auto& Entry : ColourLatencyMsHistogram) { LatencySamples += Entry.Value; }
+	J->SetNumberField(TEXT("change_colour_completion_latency_samples"), (double)LatencySamples);
+	for (bool bFrames : { false, true })
+	{
+		const auto& Histogram = bFrames ? ColourLatencyFramesHistogram : ColourLatencyMsHistogram;
+		TArray<int64> Values; Histogram.GetKeys(Values); Values.Sort();
+		for (int32 Percent : { 50, 95, 100 })
+		{
+			const int64 Rank = (LatencySamples * Percent + 99) / 100;
+			int64 Count = 0, Value = -1;
+			for (int64 Key : Values) { Count += Histogram.FindChecked(Key); if (Count >= Rank) { Value = Key; break; } }
+			const FString Name = FString::Printf(TEXT("change_colour_completion_latency_%s_%s"), bFrames ? TEXT("frames") : TEXT("ms"),
+				Percent == 50 ? TEXT("p50") : Percent == 95 ? TEXT("p95") : TEXT("max"));
+			J->SetNumberField(Name, (double)Value);
+		}
+	}
 	for (int32 I = 1; I <= (int32)EAnomalyChangeReason::ClosureTimeout; ++I)
 	{
 		J->SetNumberField(FString(TEXT("change_reason_")) + AnomalyChangeReasonName((EAnomalyChangeReason)I), 0);

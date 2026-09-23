@@ -52,7 +52,7 @@ void FAnomalyChangeStage::ReleaseColourLocked(FAnomalyChangeColourPtr& Pixels)
 	int32& Owners = ColourOwners.FindChecked(Pixels.Get());
 	if (--Owners == 0)
 	{
-		BytesHeld -= (int64)Pixels->GetAllocatedSize(); --ColoursHeld;
+		BytesHeld -= (int64)Pixels->GetAllocatedSize();
 		ColourOwners.Remove(Pixels.Get());
 	}
 	Pixels.Reset();
@@ -66,7 +66,7 @@ void FAnomalyChangeStage::AddRowLocked(const TSharedRef<FJsonObject>& J)
 void FAnomalyChangeStage::ClosePhaseLocked(FPhase& Phase, const TCHAR* Cause)
 {
 	if (Phase.bClosing || Phase.bFinal) { return; }
-	Phase.bClosing = true; Phase.EndAt = LatestIndex; Phase.Deadline = FPlatformTime::Seconds() + 2.0;
+	Phase.bClosing = true; Phase.Deadline = FPlatformTime::Seconds() + 5.0;
 	Phase.Cause = Cause;
 }
 void FAnomalyChangeStage::Observe(int32 SI, const TArray<FAnomalyChangeLabel>& Labels)

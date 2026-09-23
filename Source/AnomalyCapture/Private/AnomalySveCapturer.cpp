@@ -367,7 +367,7 @@ void FAnomalySveCapturer::Drain_RenderThread()
 			const int32 SI = Issue->SessionIndex;
 			const int64 AgeMs = FAnomalyChangeStage::NowMs() - Issue->SubmitMs;
 			if ((Change->Gate(7, SI) && AgeMs < 2500)
-				|| (Change->Gate(11, SI) && AgeMs < 3500)) { continue; }
+				|| (Change->Gate(11, SI) && AgeMs < 6500)) { continue; }
 			// Evidence can expire without discarding the independently-owned legacy colour delivery.
 			if (!Change->AcceptGeneration(Issue, TEXT("colour_drain"))) { Change.Reset(); }
 		}

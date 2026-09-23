@@ -112,6 +112,9 @@ private:
 		FAnomalyChangeColourPtr Pixels;
 		FAnomalyChangeMaskPtr MaskPixels;
 		bool bSealed = false, bColourDone = false, bColourDelivered = false;
+		bool bColourCompletionReceived = false;
+		uint64 IssueFrame = 0;
+		int64 ColourLatencyMs = -1, ColourLatencyFrames = -1;
 		bool bMaskExpected = false, bMaskDone = true, bMaskDelivered = false, bEmptyMask = false;
 		EAnomalyChangeReason Reason = EAnomalyChangeReason::None;
 		FString FailureStage;
@@ -122,7 +125,7 @@ private:
 	struct FPhase
 	{
 		int32 First = -1, Last = -1, Labelled = 0, Required = 0, Measured = 0;
-		int32 EndAt = -1, MaxGt8 = -1, MaxRef = -1;
+		int32 MaxGt8 = -1, MaxRef = -1;
 		double Deadline = 0, MaxMean = -1;
 		bool bClosing = false, bFinal = false, bOnsetMeasured = false;
 		EAnomalyChangeReason OnsetReason = EAnomalyChangeReason::None;
@@ -150,7 +153,9 @@ private:
 	void Work();
 	void FinalizeLocked(FPending& Item, EAnomalyChangeReason Reason);
 	void ReleaseLocked(FPending& Item);
-	bool ReserveLocked(int64 Bytes, bool bColour);
+	bool ReserveLocked(int64 Bytes);
+	void NoteColourCompletionLocked(FPending& Item);
+	int32 ColourCompletionsAfterLocked(int32 Index) const;
 	bool Persist();
 
 	mutable FCriticalSection CS;
@@ -166,11 +171,11 @@ private:
 	FString EnabledSource, BytesSource, GateSource;
 	uint64 Epoch = 0, Cut = 0;
 	int32 Cursor = 0, LatestIndex = -1, FirstIndex = -1;
-	int32 GapCursor = -1, GapSinceCapturedIndex = -1;
-	int32 ClosureWatermark = -1, ClosureAtIndex = -1;
+	int32 ClosureWatermark = -1;
 	double ClosureDeadline = 0, WorkerMs = 0;
 	int64 BytesHeld = 0, BytesHighWater = 0, MaxBytes = 0;
-	int32 ColoursHeld = 0, BenchGate = 0;
+	int32 BenchGate = 0;
+	TMap<int64, int64> ColourLatencyMsHistogram, ColourLatencyFramesHistogram;
 	bool bClosing = false, bClosed = false, bWorkerActive = false;
 	bool bPersisted = false;
 	// GT-only owner lifetime observation. World-subsystem teardown also closes this stage.

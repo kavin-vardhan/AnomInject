@@ -7399,3 +7399,14 @@ records, leaving1. A generic >=3 legacy-event assertion incorrectly failed this 
 occlusion demonstration. Correct that auditor scope with >=3 sidecar finals and exact legacy+
 veto accounting, preserving original failed audit and same raw launch. Do not waive B1, trace,
 foreground or normal-case event minima. NoHold with0 sidecar finals is a different failure.
+
+
+## G282 — an issue count is not a completion clock (2026-09-23)
+
+081-14 Lyra1080p had19 genuine colour-writer arrivals rejected after phase closure;
+14 labelled mask-to-colour latencies were617-780ms,19-23engine frames. The old
+8issued-index deadline expired before the writer arrived. Admission also refused
+on a separate3-colour count cap while below64MiB. Chat081-14 classifies this as a
+spec defect caught by a gate. 081-15 changes closure/gap clocks to received colour
+completions, wall backstop5s, and byte-only admission. Frozen finals remain immutable;
+missing/stalled work must still refuse honestly. Qualification is pending081-15.

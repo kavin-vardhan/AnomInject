@@ -36,7 +36,7 @@ later rejected deliveries are counted in the run summary and never edit a final 
 
 The worker releases the admission mutex during pixel scans. Phase references extend the unique
 canonical buffer reservation; sharing the predecessor does not double-charge bytes or buffer count.
-The existing three-unique-colour and 64 MiB limits remain. Writer total memory remains outside this bound.
+The 64 MiB byte budget is the sole admission cap (081-15); there is no colour-count cap. Writer total memory remains outside this bound.
 Stage 1 all-capture identity/refusal counters remain transport diagnostics. Stage 2 adds pairs_measured,
 measurement_pairs_refused, phases_measured/indeterminate, events_with_phases, denominator_mismatch,
 histogram_mismatch and ref_onset_mismatch under the `change_` summary prefix, plus tau_px=8/window_k=4.
@@ -159,20 +159,22 @@ on that local first. Only after filtering and exposure-exclusion folding is it m
 immutable array, used by both mask writer and stage. No second writer copy on that path.
 
 The stage accounts allocated buffer bytes, not just used elements. Admission takes no buffer
-reference on failure, never waits on a writer, and holds at most three colour buffers total (the
-future phase reference shares that same limit). Stage 1 retains no phase reference. The 64 MiB
-bound includes the masks retained by the stage. **It does not bound the writer pool's total memory;
+reference on failure and never waits on a writer. The 64 MiB byte budget is the sole
+admission cap, including current, predecessor, phase-reference colours and retained masks.
+Shared references to the same colour allocation are charged once. **It does not bound the writer pool's total memory;
 that remains the separate m51 limitation.** Metadata/JSON rows have their separate 100,000-row cap.
 
-An ordering gap starts when a later colour completion exposes an unresolved cursor; it waits
-at most four more captured frames from that observation, not from initial capture issue.
+Outside phase/run closure, an incomplete head times out after four distinct later colour
+completion notifications, including failed deliveries. Issue count never advances this clock.
 Indices never issued to this asynchronous stage (a synchronous fallback) are counted and skipped;
 the next pair still requires its actual predecessor to be N−1 and refuses a gap.
 Run closure records the last issued index,
-resolves through it on the serial worker, and freezes by two seconds or eight more captured frames,
-whichever comes first. Run closure admits no further captures, so the wall-time arm is the active
+resolves through it on the serial worker, and freezes by five seconds or eight distinct colour
+completions beyond that watermark, whichever comes first. A closing phase uses the same bound
+with its last labelled index; its closure bound takes precedence over the ordering-gap bound. Run closure admits no further captures, so the wall-time arm is the active
 terminal bound there. Persistence precedes reset; teardown also attempts persistence and is counted.
-Late results can only increment diagnostics, not modify final rows. Phase/event closure is Stage 2.
+Late results can only increment diagnostics, not modify final rows. These clock/budget rules
+are the dated 081-15 correction, superseding the old issued-index / 2-second / 3-colour limits.
 
 ## Bench devices (run-start setting `IAI.Bench.ChangeGate`)
 
@@ -189,7 +191,7 @@ Late results can only increment diagnostics, not modify final rows. Phase/event 
 | 8 | Construct a second `FSceneViewFamilyContext` with one index-0 view and the same scene frame but a foreign render target; call the real GT owner check. Also repeat the RT colour claim on the selected token. The throwaway family is not submitted for GPU rendering. |
 | 9 | Perturb SI 8's recorded rect minimum by one pixel; synthetic geometry fault, no claim of a real letterbox change. |
 | 10 | Force SI 8 colour admission to fail before retaining its shared ref. A separate byte-cap leg uses `ChangeMaxBytes 1`. |
-| 11 | Hold actual SI 8 readback for 3.5 seconds. After closure/persistence, pump owned drains for four seconds and compare final sidecar bytes. Use a 9-frame capture so the held completion is beyond the watermark deadline. |
+| 11 | Hold actual SI 8 readback for 6.5 seconds (081-15: exceeds the 5-second wall bound). After closure/persistence, pump owned drains for four seconds and compare final sidecar bytes. Use a 9-frame capture so the held completion is beyond the watermark deadline. |
 | 12 | Keep the actual SI 6 buffer instead of replacing it at SI 7, so SI 8 encounters a real index-2 predecessor. |
 | 13 | Synthetic registration gap at SI 8: retain real legacy colour/mask delivery but omit this index from the change-stage queue. SI 9 must report predecessor_missing with actual predecessor 7; closure must complete. The actual synchronous-fallback device hit a D3D12 ensure and is not credited as natural-path coverage. |
 | 14 | Healthy transport audit: log CRC32 of each frozen writer mask; compare with decoded delivered PNG bytes externally. |
@@ -202,3 +204,22 @@ verdict is part of Stage 1.
 ### Unserved-arm generation cleanup (Stage 1 correction)
 
 On each new issue, remove only unserved colour/mask arms with a different immutable epoch/cut. Legacy snapshot and mask bookkeeping are removed too, with an unavailable mask outcome. Submitted GPU work is untouched and must still pass drain rejection. Summary counters: `change_pending_colour_cancelled`, `change_pending_mask_cancelled`, `change_pending_family_deferred`. Gate 15 leaves the real SI8 arms unserved, forces reset at SI9, and requires cleanup plus recovery. This is a synthetic epoch change, not a real viewport replacement.
+
+
+## Completion latency diagnostics (081-15)
+
+Pair rows add `colour_completion_latency_ms` and `colour_completion_latency_frames`:
+GT issue to accepted colour-completion notification, in monotonic milliseconds and
+engine frame-counter increments. `-1` means no accepted completion before the row
+finalized; late arrivals never rewrite a row. Failed colour deliveries also count
+as completions. This is not GPU-only readback latency or a validity condition.
+Run summary adds `change_colour_completion_latency_samples` and
+`change_colour_completion_latency_{ms,frames}_{p50,p95,max}`. Percentiles use
+nearest rank over distinct accepted completions; no samples => -1. Report sample
+coverage and late-result exclusions alongside the distribution. Epoch resets keep
+run-wide statistics; pending completion membership remains generation scoped.
+
+Bench gate16 loses only SI3's stage colour-completion notification; gate17 loses
+all such notifications. Legacy writing continues unchanged. `CLOSURE-TIMEOUT`
+logs distinguish the eight-later-completion path from the five-second wall path.
+These devices require runtime proof; their existence is not a gate pass.
