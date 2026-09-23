@@ -11,6 +11,30 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-21, 2026-09-24 — `m55` BUILD 3: THE REVIEW'S F1/F2/F3 (+ F6, F7, F9, ORACLE EXIT CODE) FIXED,
+> F4/F5/F10–F13 DOCUMENTED. ONE BUILD SET, ALL EXIT 0, GAME `002805CF`. EVERY OFFLINE CHECK GREEN. BENCH
+> LEGS NOT RUN — FOUR FOREIGN UE 5.7 EDITORS KEPT THE PC BUSY. NOT MERGED, NOT TAGGED, NO COOK.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-24-081-21-code-m55-build3.md`, then the "Legacy delivery never
+> depends on m55" section of `docs/change-evidence-fields.md`.** Predictions `4e54d57` (before any edit);
+> source `85c99b3`, oracle `c27024d` (build source). 🔑 **The invariant now enforced: m55 may refuse
+> evidence, it never costs legacy output** — every eligible family consumes the colour arm and publishes
+> its key exactly as pre-m55, `AfterPass` always submits a wanted legacy readback, the mask pass serves
+> pending arms on any eligible view; m55 attaches data/receipts only on the owned single-view family and
+> otherwise records `unsupported_delivery`. A cancel-before-focus run writes nothing (stage discarded).
+> New summary keys `change_multi_view_families`, `change_unsupported_completion`; event `late_results`
+> removed; non-zero `IAI.Bench.ChangeGate` refused without `-IAIBenchFixture`; `--change-oracle` exits
+> 1 on a mismatch. 🧪 Suites 2/98/25 unchanged (outputs byte-identical), oracle selftest 22 → 24,
+> contracts 9; banked oracle rerun 228/228 exit 0; reviewer replay 365 sidecars 0 violations; a Python
+> model shows build 3's legacy trace equal to pre-m55 in 24 scenario cells and 4,000 fuzz runs (build 2
+> differs in 3,546). ⚠ Runtime proof owed: the 1080p smoke, the F1 cancel leg, a two-view leg and the
+> evidence-OFF byte-identity leg against `0844220E` were skipped. ⚠ Legacy-exact also restores the
+> pre-m55 same-frame key clobber by a foreign family (build 2 had masked it) — recorded for m51 pairing.
+> 🎯 **NEXT: the 081-18 rerun on build 3 when the owner schedules a quiet PC, then the requalification
+> inventory on build 3.**
+>
+> ---
+>
 > ✅ **081-19, 2026-09-24 — `m55` STAGE 3a: THE CHANGE ORACLE EXISTS AND AGREES WITH EVERY BANKED ROW.
 > `tools/verify_capture.py --change-oracle` recomputed all 1,234 measured pair rows and all 1,232
 > reference comparisons in 228 banked m55 sessions from the delivered PNGs: 1,234 matched, 0

@@ -15,7 +15,7 @@ The entire sidecar persists on finish/epoch reset and best-effort teardown in bo
 | `event`, `phase_ordinal`, `window_index` | Legacy Id@StartFrame key, zero-based phase and window index. Window zero is onset. |
 | `mask_value` | Current delivered-mask tag, joined to the same legacy row/event. |
 | `chg_measured`, `chg_eligible`, `pair_valid` | Equal in v1; identity and both nonempty denominators permit arithmetic. No verdict. |
-| `chg_n`, `chg_gt8`, `chg_sum`, `chg_hist`, `chg_mean` | Current-tag region count, strict >8 max-RGB byte changes, sum, eight bins, sum/count/255 rounded to four decimals. Unmeasured: -1 counts, null histogram/mean. |
+| `chg_n`, `chg_gt8`, `chg_sum`, `chg_hist`, `chg_mean` | Current-tag region count, strict >8 max-RGB byte changes, sum, eight bins, sum/count/255 rounded **half-up** to four decimals (`floor(x·10⁴ + 0.5) / 10⁴`; a half-to-even consumer disagrees on exact midpoints). Unmeasured: -1 counts, null histogram/mean. |
 | `ctl_*` | Same statistics over zero pixels of the entire filtered mask (all-tag complement). Raw control is retained when identity permits arithmetic and its denominator is nonzero, even if the target is empty. Otherwise -1/null. |
 | `ref_session_index`, `ref_gt8`, `ref_mean` | Retained f0-1 canonical reference index (-1 if unavailable); current-mask target comparison with it. Statistics null when unavailable. Geometry and generation must match. |
 | `chg_gt8_max_sofar`, `chg_mean_max_sofar` | Running maxima in this phase's window; -1 before any measured pair. |
@@ -31,8 +31,9 @@ phase_count=0), true `phase_count`, and at most eight `phases`. Each phase conta
 indices, last_labelled_index/closure_watermark, pairs_required=min(4,labelled length), pairs_measured,
 refusal histogram, onset coverage state and reason, and final chg_gt8_max/chg_mean_max/ref_gt8_max.
 An onset refusal stays indeterminate regardless of later measurements. `finalized_by` describes a
-lifecycle cause, not an additional refusal enum value. `late_results` is the frozen event-time value;
-later rejected deliveries are counted in the run summary and never edit a final event.
+lifecycle cause, not an additional refusal enum value. Event records carry **no** `late_results`
+field (removed in build 3, 081-21: it could only ever be 0). Deliveries rejected after finalisation
+are counted in the run summary (`change_late_results`) and never edit a final event.
 
 The worker releases the admission mutex during pixel scans. Phase references extend the unique
 canonical buffer reservation; sharing the predecessor does not double-charge bytes or buffer count.
@@ -127,9 +128,20 @@ loss from the mask request's high-bit namespace. Coalesced non-owners have no pa
 `current_undelivered`, `closure_timeout`.
 
 `current_undelivered` describes this frame's failed readback/encode/write and includes `stage`.
-`predecessor_undelivered` describes a known failed predecessor; a skipped or timed-out predecessor
-is missing. `no_labelled_frames` is reserved for Stage 2 event finalisation; Stage 1 emits no events.
+`no_labelled_frames` is reserved for Stage 2 event finalisation; Stage 1 emits no events.
 Wrong-family and duplicate callbacks are counters, **not** new refusal strings.
+
+**Exact predecessor and family mapping (as the code decides it; 081-20 F5, documented in build 3):**
+
+| Situation of N−1 or of the mask | Reason on pair N |
+|---|---|
+| no N−1 retained: absent, never issued to the stage, a different index, or refused `out_of_order_timeout` | `predecessor_missing` |
+| N−1 delivered, but its pixels were not retained (its admission was refused `budget_exceeded`) | `predecessor_missing` |
+| N−1's colour was never accepted as delivered: its readback/encode/write failed, it ended `closure_timeout` before its colour arrived, or it was refused `unsupported_delivery` | `predecessor_undelivered` |
+| the mask arrived but from another family (serving token or family id differs from the colour receipt's) | `view_mismatch` (plan §2.3 said `mask_payload_missing`; the payload exists, it is the wrong family's) |
+| no mask receipt, or a coalesced non-owner without pixels | `mask_payload_missing` |
+
+All are honest refusals; only the names needed stating.
 
 ## Summary additions
 
@@ -143,8 +155,23 @@ Wrong-family and duplicate callbacks are counters, **not** new refusal strings.
 `mask_capture_served_ge2`, `mask_pass_deferred`, `colour_multi_ready_drain`, `capture_arm_dropped`,
 `throwaway_family_constructed`, `teardown_flush`, `persist_failed`, `late_record_mutations`,
 `unissued_indices_skipped`, `bench_unregistered_capture`, `pending_colour_cancelled`,
-`pending_mask_cancelled`, `pending_family_deferred`.
-Old-generation rejection also adds `change_epoch_rejected_<path>` for the path actually reached.
+`pending_mask_cancelled`, `pending_family_deferred`, and (build 3, 081-21) `multi_view_families`
+and `unsupported_completion`.
+Old-generation rejection also adds `change_epoch_rejected_<path>` for the path actually reached
+(build 3 adds the paths `colour_family` and `mask_family`).
+
+- `change_multi_view_families` — every eligible view family with more than one view seen while a
+  stage exists (the ruling's `multi_view_families`; all stage counters carry the `change_` prefix, and
+  with evidence off there is no stage and no key). Such a family keeps the pre-m55 legacy behaviour;
+  m55 records its frames `unsupported_delivery`. **The pre-m55 multi-view unsoundness — one readback
+  per view under one RequestId, so the delivered picture can be view 1 while the labels describe
+  view 0 — is not fixed in m55**; it is queued for the m51 pairing work.
+- `change_unsupported_completion` — drain admissions and writer/mask completions of a frame issued
+  unsupported (JPEG, resampled, backbuffer, mask not effective). Counted here instead of
+  `change_duplicate_completion` (item still pending) or `change_late_results` (item already final), so
+  those two count true duplicates and true late results only (081-20 F7).
+- `change_bench_gate_refused` (present only when it fired) and `change_bench_gate_source =
+  refused_no_fixture_flag` — a non-zero `IAI.Bench.ChangeGate` without `-IAIBenchFixture` (081-20 F9).
 Final event detail will live only in the sidecar at Stage 2, not be duplicated in the summary.
 
 ## Ownership and bounds
@@ -176,6 +203,66 @@ terminal bound there. Persistence precedes reset; teardown also attempts persist
 Late results can only increment diagnostics, not modify final rows. These clock/budget rules
 are the dated 081-15 correction, superseding the old issued-index / 2-second / 3-colour limits.
 
+**Bounded game-thread wait at closure (081-20 F4, documented, not changed).** `CloseAndPersist`
+blocks the game thread until closure resolves, bounded by the 5-second wall. Two production paths
+reach it: (a) an owner change mid-run (`ResetEpoch` from `Issue`), during which nothing
+game-thread-driven — mask service, writer enqueue — can complete, so the pending items end
+`closure_timeout`; (b) run end or teardown after a frame was dropped on the render thread (extent
+clamp, NO KEY, empty rect, a key clobbered by another family), which never notifies the stage, so
+closure waits the full 5 s. Bounded, no hang; a fix would touch the identity path for little gain.
+
+**Row cap envelope (081-20 F10).** Sidecar rows are held in memory until persistence, capped at
+100,000 rows (later rows are dropped and counted in `change_rows_dropped`). Rows are window pairs
+(at most K=4 per phase per event) plus event records, so a single-event recipe writes far fewer than
+one row per frame; a run that did write one row per captured frame would reach the cap after
+100,000 / 30 ≈ 55 minutes at 30 fps, and co-labelled events reach it sooner. At the cap the row text
+is ≈ 0.25 GB (UTF-16, banked median ≈ 1,173 characters per row), plus a same-size join and a UTF-8
+copy made transiently on the game thread at persistence. The byte budget does not cover rows.
+**FUTURE (v1.1):** stream rows to disk as they finalise.
+
+**Scan ceiling (081-20 F11).** The pixel scan runs on one serial pool worker: ≈ 45 ms per scanned
+pair at 1080p and ≈ 13.5 ms at 720p (upper bounds from banked `change_worker_ms_total`), i.e. about
+22 scans per second at 1080p. Windows are bounded (K=4 per phase; co-labelled events share one scan),
+so ordinary recipes stay below it. During run or phase closure the worker holds one pool thread in a
+1 ms sleep loop for up to 5 s, in the same pool the PNG writer uses. **FUTURE (v2):** a GPU/SIMD scan;
+revisit only if the 081-18 long-run readings implicate the worker.
+
+**Deferred event end across an epoch reset (081-20 F13).** `ResetEpoch` does not clear a deferred
+event end (`DeferredEndCause` / `DeferredEndAt`). It is unreachable with today's tick order — labels
+are observed at the end of the capture tick, before any later `Issue` — so there is no code change:
+an untestable edit in the identity path would be worse than this note.
+
+## Legacy delivery never depends on m55 (081-21, build 3)
+
+The prime invariant of a default-ON evidence layer: **it may refuse evidence; it never costs legacy
+output.** Build 3 enforces it at every place m55 used to gate legacy work (081-20 F1/F2/F3):
+
+- **Colour family (`BeginRenderViewFamily`).** Every eligible family — the pre-m55 filter still
+  excludes scene and reflection captures — consumes the next colour arm and publishes its key exactly
+  as before m55. m55 attaches its family data only when the consumed arm's issue is owned by that
+  family: one view, the issue's render target and scene, and not a second family of the same frame and
+  epoch. Otherwise the consumed issue is recorded `unsupported_delivery` with `stage: colour` and the
+  family carries no m55 data. A dead or closed stage no longer returns before the consume.
+- **Colour submission (`AfterPass`).** The legacy readback is submitted whenever the key is wanted.
+  m55 only decides whether a receipt rides along; missing, mismatched or unclaimed family data means no
+  receipt, never a dropped legacy frame, whatever the stage's open/closed or persistence state.
+- **Masks (`AfterTonemap`).** Pending arms — m26, census, m49 and m55 alike — are served by any
+  eligible view as before m55. m55 attaches its receipt only on an owned, claimed family; otherwise
+  every served m55 arm is recorded `unsupported_delivery` with `stage: mask`, no receipt is built and
+  the legacy mask PNG is written from the unfrozen buffer exactly as before.
+- **Pending arms** are consumed by every eligible frame, so they cannot grow per frame.
+- **Cancel before focus writes nothing (F1).** The stage knows whether its run began a session. A
+  stage whose run wrote no session is discarded — never persisted, never creating a directory — in
+  `FinishRun`'s cancel branch, at the next `StartRun` or `Deinitialize`, and as a backstop inside
+  `CloseAndPersist`. One `Capture(m55): STAGE-DISCARDED` line names the run directory.
+
+On a single-viewport host the attach path is unchanged from build 2 (every normal banked leg had
+`change_view_rejected 0`). ⚠ **What legacy-exact also restores:** an eligible foreign family that
+renders after the capture viewport in the same frame publishes its own key for that frame number, as
+before m55, and the newest key wins at lookup, so that frame's legacy colour can be lost. Build 2 had
+masked this pre-m55 behaviour by refusing foreign families outright; it belongs with the multi-view
+unsoundness in the m51 pairing work.
+
 ## Bench devices (run-start setting `IAI.Bench.ChangeGate`)
 
 | Value | Device |
@@ -200,6 +287,17 @@ are the dated 081-15 correction, superseding the old issued-index / 2-second / 3
 These devices do not certify a gate merely by existing. Runtime readings, coverage and unexercised
 cases are in the stage journal/report. No shader, asset, cook, pixel-difference arithmetic or event
 verdict is part of Stage 1.
+
+**Build 3 (081-21).** Every non-zero value is refused at run start unless the process was launched
+with `-IAIBenchFixture`: the run uses gate 0, logs `Capture(m55): BENCH-GATE-REFUSED` with the
+requested value, and reports `change_bench_gate_source = refused_no_fixture_flag`. A client typing a
+bench command therefore cannot lose frames. Under the legacy-exact rule three devices read
+differently: **gate 8**'s throwaway foreign family now consumes SI 8's colour arm and publishes its key
+(as any eligible foreign family did before m55), so SI 8 is `unsupported_delivery` (`stage: colour`),
+SI 9 `predecessor_undelivered`, and SI 8's legacy PNG is absent (the throwaway is never rendered —
+a fixture-only fault); the RT duplicate-claim check no longer runs at SI 8. **Gate 2**'s SI 8 mask arm
+is served in frame 8 (it used to coalesce into frame 9); SI 8 still ends `out_of_order_timeout`.
+**Gate 15** keeps SI 8's colour and mask arms unserved through an explicit bench hold in the mask pass.
 
 ### Unserved-arm generation cleanup (Stage 1 correction)
 
@@ -287,9 +385,11 @@ python tools/verify_capture.py --change-oracle --selftest
 
 `<sessionDir>` is the folder holding `change_evidence.jsonl`; a bank leg folder with exactly one
 session inside is resolved to it. `--quiet` prints only mismatched and unavailable rows plus the
-summary. Exit **0** whenever it ran (a mismatch is printed, it is not a verdict) and **3** when it
-cannot run (no sidecar, unreadable sidecar, no Pillow). It changes no other mode's exit code and adds
-nothing to the 079 vocabulary.
+summary. **Exit codes (081-21, per the 081-19 ruling):** **1** when any compared row or any reference
+comparison mismatches; **0** when every compared comparison matches — including when nothing was
+compared, which is printed as coverage 0 and which a gate that needs rows must treat as its own
+failure, not the tool's; **3** when it cannot run (no sidecar, unreadable sidecar, no Pillow). It
+changes no other mode's exit code and adds nothing to the 079 vocabulary.
 
 **What it validates.** For every `"kind":"pair"` row with `chg_measured: true` it decodes
 `Actual_Frames/frame_%05d.png` for `session_index` and `prev_session_index` and
@@ -307,14 +407,19 @@ rows claimed, compared, matched, mismatched, unavailable with reasons, and not-c
 **What it does not validate.** Its output ends with the contract sentence, verbatim: *agreement
 validates arithmetic and transport only — that the numbers in the sidecar are the numbers the
 delivered images contain. It does not establish renderer pairing, visible effect, or cause.* It
-does not check that the producer chose the right frames to pair (it uses the row's own ids), that a
+does not check that the producer chose the right frames to pair (it uses the row's own ids): **a
+producer that published consistent wrong pair ids together with the numbers of the frames those ids
+name would match** — pair selection is the identity contract, tested by the Stage 1 identity gates
+and the independent review, not by this oracle. Nor does it check that a
 refusal other than `empty_region` was right, the event records, the `_sofar` running maxima,
 `prev_target_pixels`, the camera caveat fields, or anything about the anomaly. JPEG, resampled
 (PNG size ≠ receipt rect), backbuffer, missing or unreadable deliveries are **UNAVAILABLE** with the
 reason, never guessed.
 
 **Selftest.** `--change-oracle --selftest` builds 24×16 sessions whose sidecar numbers come from a
-separate per-pixel loop and proves 22 cases: agreement; recomputation independent of the published
+separate per-pixel loop and proves 24 cases (22 until 081-21, which added a reference-only mismatch
+that must exit 1 and a nothing-compared session that must exit 0, and made the five must-fail
+mutations also require exit 1): agreement; recomputation independent of the published
 values; `G-GRAD(b)` (`0,3,6,9,12`: four adjacent `chg_gt8` of 0, reference `ref_gt8` 0,0,48,48 =
 full count on the last pair); `G-TIES` (`d == 8` not counted, `d == 9` counted, `PF_A2B10G10R10`
 10-bit `0 → 35` delivered as bytes `0 → 8`); `G-DENOM` (a measured claim on a whole-frame mask or an

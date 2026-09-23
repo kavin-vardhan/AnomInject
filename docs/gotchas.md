@@ -7433,3 +7433,30 @@ target region (label-pixel NO-TRACE, exit 2; the batch, exit 2) and a black firs
 gate, exit 1) — and the codes stayed identical before/after and with a mismatching sidecar present.
 An "unchanged" comparison is evidence only when the compared value can take more than one value on the
 fixture (`G96`'s shape, applied to a regression contract rather than a detector).
+
+## G284 — an evidence layer must ATTACH OR REFUSE; it must never GATE the legacy work it rides on (2026-09-24, 081-20 / 081-21)
+
+m55's identity guards were written as early `return`s placed BEFORE the legacy step they were guarding:
+a family that failed the owner check returned before consuming the colour arm and before publishing its
+key; `AfterPass` returned before submitting the readback when the family carried no m55 data; the mask
+pass returned without serving any arm (m26 and census arms included). On every banked leg the guards
+never fired (`change_view_rejected 0` on all normal legs), so nothing showed it — but on a multi-view,
+SIE or foreign-family host, or with the stage closed after a failed persist, a default-ON evidence layer
+would have produced **zero legacy PNGs** and arms growing one per frame (081-20 F2/F3). Build 3 moves
+every m55 decision to AFTER the legacy step: the legacy consume / publish / submit / serve runs exactly
+as before m55, and m55 only decides whether data or a receipt rides along, recording
+`unsupported_delivery` when it does not. **Test for it with a differential model or leg against the
+pre-feature binary, not with the feature's own counters** — a counter that never fired proves only that
+the guarded shape never occurred.
+⚠ Legacy-exact also means legacy's own defects come back: build 2's refusal of foreign families had been
+masking the pre-m55 same-frame key clobber (a foreign family publishing after the capture viewport).
+That is recorded, not fixed, with the multi-view unsoundness (m51 pairing work).
+
+## G285 — a closure that blocks the game thread cannot be completed by anything the game thread drives (2026-09-24, 081-20 F4)
+
+`CloseAndPersist` spins on the game thread until the stage closes, bounded by a 5-second wall. While it
+spins, mask service and writer enqueue — both game-thread driven — cannot run, so an owner change
+mid-run (`ResetEpoch` from `Issue`) ends every pending item `closure_timeout` rather than letting it
+complete; and at run end a frame dropped on the render thread never notifies the stage, so the closure
+waits the whole 5 s. Bounded, so documented rather than changed (081-20 ruling). If a future change
+adds a longer wait here, check first whether the thing waited for needs the thread that is waiting.
