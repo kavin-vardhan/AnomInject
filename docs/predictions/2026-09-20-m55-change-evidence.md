@@ -1,3 +1,115 @@
+## Dated amendment 081-21 (2026-09-24): build 3 — review fixes F1/F2/F3/F6/F7/F9 + oracle exit code — written and committed BEFORE any build-3 source edit, build or result
+
+Authority: `_reviews/081-20-chat-ruling-review-findings-build-3.md` (governing), brief 081-21, the
+findings in `_reviews/081-20-code-review-of-codex-m55.md` (file:line on 5649a6d), and
+`_reviews/081-19-chat-ruling-oracle-accepted-review-early.md` (oracle exit code). Implementer: Claude
+Code (Opus 5.5). Base: feature head `c3f5753` (build 2 source `9c75abe`, Game 8E64FA39).
+
+### A. The change — exactly these, nothing else
+
+- **F1 (cancel-before-focus writes nothing).** The stage learns whether its run began a session
+  (`MarkSessionBegun` where `bRunBegun` becomes true). A stage whose run wrote no session is
+  **discarded**: it never persists and never creates a directory. `FinishRun`'s `!bWroteSession`
+  branch discards and drops it before the session folder is deleted; `StartRun` and `Deinitialize`
+  discard (not flush) any stale stage that never began; `CloseAndPersist` on an unbegun stage routes
+  to the discard as a backstop. One `Capture(m55): STAGE-DISCARDED` log line names the run dir.
+- **F2 + F3 (legacy never depends on m55).** The prime invariant: m55 may refuse evidence, it never
+  costs legacy output. `BeginRenderViewFamily`: every eligible family (the pre-m55 scene-/reflection-
+  capture filter is unchanged) consumes the next colour arm and publishes its key **exactly as
+  pre-m55**, whatever m55 decides. m55 attaches family data only when the consumed arm's issue is
+  owned by this family (one view, the issue's render target and scene, not a second family of the
+  same frame in the same epoch). Otherwise the consumed issue is recorded
+  `unsupported_delivery` (stage `colour`) and the family carries no m55 data. A dead or closed stage
+  no longer returns before the consume. `AfterPass`: the legacy readback is submitted whenever the key
+  is wanted; m55 only decides whether a receipt rides along (missing, mismatched or unclaimed family
+  data ⇒ no receipt, legacy unchanged). Mask `AfterTonemap`: pending arms (m26, census, m49 and m55
+  arms alike) are served by any eligible view exactly as pre-m55; m55 attaches its receipt only on an
+  owned, claimed family, otherwise every served m55 arm is recorded `unsupported_delivery` (stage
+  `mask`) and no receipt is built. Pending colour and mask arms are consumed every eligible frame, so
+  they cannot grow per frame. New run-summary counter `change_multi_view_families` (every eligible
+  family with `Views.Num() != 1` seen while a stage exists; the ruling's `multi_view_families`, carrying
+  the stage's `change_` prefix). **The pre-m55 multi-view readback unsoundness (one readback per view
+  under one RequestId) is NOT fixed** — queued for the m51 pairing work.
+- **F6.** The event record's constant `late_results` field is removed. The run-level
+  `change_late_results` counter stays.
+- **F7.** New counter `change_unsupported_completion`: drain admissions and writer/mask completions
+  that belong to a frame issued unsupported (JPEG, resampled, backbuffer, mask not effective), counted
+  instead of `change_duplicate_completion` (pending item) or `change_late_results` (finalized item).
+  `change_duplicate_completion` counts true duplicates only.
+- **F9.** Every non-zero `IAI.Bench.ChangeGate` value is refused at run start without
+  `-IAIBenchFixture`: the stage runs gate 0, logs one `Capture(m55): BENCH-GATE-REFUSED` warning with
+  the requested value, and records `change_bench_gate_source = refused_no_fixture_flag` plus
+  `change_bench_gate_refused = 1` (that counter appears only when a refusal happened).
+- **Oracle:** `--change-oracle` exits **1** when any compared row or any reference comparison
+  mismatches, **0** when every compared comparison matches (including coverage 0, which gates treat as
+  a failure of the gate, not the tool), **3** when it cannot run. The six existing modes are unchanged.
+  The oracle section names the trusted-pair-id limit.
+- **Docs only:** F4 (bounded game-thread closure wait), F5 (exact refusal mapping), F10 (row-cap
+  envelope; streaming is FUTURE), F11 (scan ceiling; FUTURE), F12 (half-up at 4 dp), F13 (unreachable
+  deferred end), the packaging-checklist line "exclude `AnomalyBench` from client packages", gotchas.
+- **Unchanged:** completion clock (8 later completions / 5 s wall / 4-completion gap), byte-only
+  admission and the 256 MiB cap, the ownership census, refusal vocabulary (14), pixel arithmetic,
+  event/phase rules, identity checks at finalize, every other bench device's code.
+
+### B. Build-3 predictions — steps that need no quiet PC
+
+- **Build:** one set — StackOBot Game, StackOBot Editor, LyraEditor — all exit 0, zero warnings.
+  Built = staged = archived Game exe; Editor and Lyra module archives. Cooked containers
+  byte-unchanged. A44 in the staged exe (UTF-16): `multi_view_families`, `unsupported_completion`,
+  `STAGE-DISCARDED`, `BENCH-GATE-REFUSED`, `refused_no_fixture_flag` present; an invented control
+  token absent; the same new tokens present in the Lyra capture DLL.
+- **Suites (counts before → after):** m47 selftest 2 → 2; label-pixel selftest 98 → 98 with
+  byte-identical output; consistency contracts 25 → 25; oracle selftest 22 → 24 (two new cases:
+  a reference-only mismatch exits 1; a session with nothing compared exits 0) and the five must-fail
+  mutation cases additionally require exit 1; oracle contracts 9 → 9 with the exit-code test now
+  expecting good 0 / bad 1. The six existing CLI cases' exit codes identical before/after on both the
+  healthy and the built-to-fail fixture (081-19's two exit-code scripts, re-pointed).
+- **Banked oracle rerun** over 081-19's 228-session inventory with the new exit code: every session
+  exit 0 (1,234 / 1,234 rows and 1,232 / 1,232 references match, as 081-19), zero exit 1.
+- **Reviewer's replay** (`081-20-evidence/replay_invariants.py`) over the bank: 365 sidecars,
+  0 violations (the bank is unchanged by an offline round).
+- **Offline model proofs** (Python ports of the family/serve decision logic, not the C++): for every
+  modelled family sequence without a bench gate — normal owner, multi-view owner, foreign-only (SIE
+  shape: owner target null), owner + foreign in the same frame in both orders, closed stage, dead stage,
+  evidence off — build 3's legacy trace (colour consumption order, key publications, legacy
+  submissions, mask serves) is identical to pre-m55 (`031a103`), while build 2's differs in the
+  multi-view / foreign-only / closed-stage shapes (F2/F3 reproduced in the model); pending arms stay
+  bounded; m55 data is attached only to an owned single-view family. F7 routing model: unsupported
+  frames never raise `duplicate_completion` or `late_results`. F1: static source proof that no
+  persist path reaches an unbegun or discarded stage.
+
+### C. Bench legs — only on a quiet PC (no `UnrealEditor` of any engine at leg start)
+
+- (a) StackOBot 1080p `solid1080`, native order, 081-17 recipe, build 3: 20/20 required pairs,
+  exactly 5 events, zero `budget_exceeded`, invariants 0, `change_multi_view_families 0`,
+  `change_unsupported_completion 0`, `change_view_rejected 0`, 90 legacy PNGs, oracle exit 0.
+- (b) F1: armed-pending start then stop before focus ⇒ no session folder exists afterwards, one
+  `STAGE-DISCARDED` line, no `change_evidence.jsonl` anywhere; a following normal start is unaffected.
+- (c) F2 real two-view family: only if the engine can be made to render one (debug split-screen);
+  predicted: legacy PNGs written every captured frame, `change_multi_view_families > 0`, every m55
+  pair `unsupported_delivery`, no measured row. Otherwise **UNEXERCISED**, said so.
+- (d) Legacy byte-identity, evidence OFF, build 3 vs the pre-m55 master binary for `031a103`, if its
+  archive exists: identical PNG bytes/labels on the pinned AA-off arbiter recipe with a same-binary
+  control, run_summary key sets identical (no `change_` keys). If the archive does not exist, say so.
+- A foreign editor appearing mid-leg makes that leg invalid, not failed. If the PC is not quiet,
+  (a)–(d) are skipped and reported as skipped.
+
+### D. Gate-device consequences, stated before any run (requalification reads these)
+
+- **Gate 8** (throwaway foreign family recursed through `BeginRenderViewFamily` before the real
+  family): under the legacy-exact rule the throwaway now consumes SI 8's colour arm and publishes its
+  key, as any eligible foreign family did pre-m55. Predicted: SI 8 `unsupported_delivery` (stage
+  `colour`) with no receipt, SI 9 `predecessor_undelivered`, `view_rejected` ≥ 1,
+  `throwaway_family_constructed` 1, and **SI 8's legacy PNG absent** (the throwaway is never rendered;
+  a fixture-only fault). The RT duplicate-claim `check` no longer runs at SI 8 (UNEXERCISED on build 3).
+- **Gate 2** (SI 8 colour arm dropped): SI 8's mask arm is now served legacy-style in frame 8 instead
+  of coalescing into frame 9; SI 8 still resolves `out_of_order_timeout` and SI 9
+  `predecessor_missing`. **Gate 15** keeps SI 8's colour and mask arms unserved through an explicit
+  bench hold in the mask path (same counters as build 2). Other devices unchanged.
+- Every normal (non-gate) banked leg had `change_view_rejected 0`, so on single-viewport hosts build 3
+  takes exactly build 2's attach path; its only artifact deltas there are the two new summary
+  counters (0) and the removed event field.
+
 ## Dated amendment 081-17 (2026-09-24): build 2 — 256 MiB payload cap + ownership census — written and committed BEFORE the build and BEFORE any build-2 result
 
 Authority: `_reviews/081-16-chat-ruling-memory-criterion-and-handover.md` (read in full) and brief
