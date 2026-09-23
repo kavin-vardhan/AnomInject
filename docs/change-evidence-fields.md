@@ -261,3 +261,11 @@ reading, never a gate; there is no closure-bound field and no formula-based warn
 | `open_phases` | Non-final phases: `event`, `ordinal`, `first`, `last`, `closing`. |
 | `head` | `si` (= cursor), `state` `pending` / `in_hand` / `none`, and `waits_on` ⊆ colour, mask, observed, sealed. |
 | `high_water` | Peak census only: `change_bytes_high_water` at that peak. |
+
+**Measured high-water per exercised recipe (build 2, 081-17; readings, not limits).** StackOBot
+`CB_GateLevel` 1920x1080 twins, 90 frames: 51.9 / 64.3 / 66.4 / 70.5 MB (null N / null S / solid N /
+solid S), peak census 4–5 colours + 9–14 masks, zero refusals. Lyra `L_ShooterGym` 1920x1080 G270
+auto-pool, 300 frames: 197.0 MB (73 % of the cap), peak census 22 colours (21 pending behind a head
+whose inputs had all arrived) + 7 masks, zero refusals. Earlier priors (64 MiB era): 17.5 / 19.4 /
+39.4 / 49.8 / 66.4 MB. 1440p and 4K are unexercised; a 1440p run shaped like the Lyra leg would need
+more than the cap.

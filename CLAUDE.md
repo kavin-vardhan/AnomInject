@@ -11,6 +11,33 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-17, 2026-09-24 — `m55` BUILD 2 (Claude Code implements from this round): 256 MiB PAYLOAD CAP +
+> OWNERSHIP CENSUS. STACK 1080p TWINS 4/4 PASS AND LYRA G270 (300 frames) PASS. STAGE 3 STILL HELD —
+> 70 REQUALIFICATION LEGS REMAIN FOR THE NEXT BRIEF. NOT MERGED, NOT TAGGED, NO COOK.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-24-081-17-code-m55-build2.md` (self-contained), then the 081-17
+> amendment at the top of `docs/predictions/2026-09-20-m55-change-evidence.md`, then
+> `_reviews/081-16-chat-ruling-memory-criterion-and-handover.md`.** Branch `feat/m55-change-evidence`;
+> built source `9c75abe`, Game **8E64FA39** (archived `StackOBot.exe.m55-stage2-8E64FA39`), Lyra archive
+> `m55-stage2-r17-lyra-48b9e048`. Main checkout left on `m51` `53bf725` with build-2 binaries in place;
+> Lyra detached `caa68c6` with its original nine modules.
+>
+> 🎯 **What build 2 is:** `IAI.Capture.ChangeMaxBytes` compiled default 64 MiB → **256 MiB**; admission,
+> clocks and refusals unchanged from 5649a6d. The cap bounds **m55's admitted payload only**, not
+> process RAM, and gives **no structural guarantee of full yield at any resolution**. Every
+> `budget_exceeded` now logs a census and writes `budget_census` on the refused row; the run summary
+> carries `change_bytes_peak_census`. ⛔ **High-water is a reading, never a gate** — no closure bound,
+> no formula warning (081-15 Ruling 1b superseded; Codex's 081-16 counterexample stands).
+>
+> 📊 **Readings:** Stack 1080p high-water 51.9 / 64.3 / 66.4 / 70.5 MB (4–5 colours + 9–14 masks);
+> **Lyra 1080p 197.0 MB = 73 % of the cap**, 21 colours pending behind a head whose inputs had all
+> arrived, latency p50 1.19 s — mechanism NOT established (`G120`); worker and writer share the global
+> thread pool, a named lead only. ⚠ Diagnostic (i) never fired, so it is **runtime-UNEXERCISED** until
+> the next brief's G10 / `ChangeMaxBytes 1` legs. ⚠ The branch's Stage 1–2 source carries comments;
+> run the stripper before merge.
+> 🎯 **NEXT: the requalification brief (70 legs on build 2), then Stage 3. Do not start it unprompted.**
+>
+> ---
 
 > **081-11,2026-09-22 — guard validation5/5 PASS; Stage2 NEEDS-DECISION.**
 > Final sourcecb14f31 / GameA699E9EE. Both build revisions passed Game/Editor/LyraEditor;

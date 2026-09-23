@@ -7410,3 +7410,16 @@ on a separate3-colour count cap while below64MiB. Chat081-14 classifies this as 
 spec defect caught by a gate. 081-15 changes closure/gap clocks to received colour
 completions, wall backstop5s, and byte-only admission. Frozen finals remain immutable;
 missing/stalled work must still refuse honestly. Qualification is pending081-15.
+
+### G282 addendum — a wait threshold is not by itself an admission/retention bound (2026-09-24, 081-16 / 081-17)
+
+A clock that decides when to stop waiting (eight later completions or five seconds) says nothing about
+how many buffers can be held while waiting: 5649a6d admits by bytes only, a closing phase counts
+completions beyond its own last index, and phases can be longer than K. Codex's 081-16 source
+counterexample (one phase 3..18, delayed head) retains 13 colours + 16 masks with every reservation
+legal, so the proposed 11C + 9M "bound" was not one. Chat's ruling: a hard 256 MiB payload cap,
+zero `budget_exceeded` plus full required-pair yield as the gate, and high-water as a reading with an
+ownership census. Build 2 then measured a different retention shape on Lyra 1080p: 197.0 MB, 21
+pending colours behind a head whose inputs had all arrived, one phase open — not the closing-phase
+shape at all (mechanism not established). A byte figure is a reading per recipe; derive nothing
+structural from a clock constant.
