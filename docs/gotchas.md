@@ -7471,3 +7471,12 @@ than the one under test. That reference set cannot be one pair of the current re
 Build the reference from several same-binary pairs (081-22 used this round's pre-m55 pair plus three banked
 081-12 pairs). Prove any comparator with a known-good, a one-leg must-fail and a both-legs must-fail before
 reading a result.
+
+## G287 — normalising array indices inside a run-unique rule loosens it; declare tolerated paths by name instead (2026-09-24, 081-23)
+
+While re-deriving the 081-22 legacy comparator for the requalification harness, the run-unique set was first built from paths with array
+indices normalised (`anomalies[2]` → `anomalies[]`). The dry run then showed that 081-22's recorded native-order FAIL no longer reproduced
+without the new declaration: the pre-m55 pair varies `coverage_pct` on events 3 and 5, so the normalised pattern silently absorbed the
+cross-binary difference on events 2, 6 and 7. Keep the control-pair rule on exact paths; normalise only for key presence and for an explicitly
+declared tolerance set (the 081-22 timing-sampled set). A comparator change is proven by reproducing a recorded verdict both ways — without the
+declaration it must fail exactly as recorded (9 paths, 3 outside the historical set), with it it must pass.

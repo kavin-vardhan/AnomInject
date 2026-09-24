@@ -263,6 +263,22 @@ before m55, and the newest key wins at lookup, so that frame's legacy colour can
 masked this pre-m55 behaviour by refusing foreign families outright; it belongs with the multi-view
 unsoundness in the m51 pairing work.
 
+## Legacy comparisons: the timing-sampled set (ruling 081-22)
+
+A legacy-identity comparison (build under test vs the pre-m55 binary, evidence ON or OFF, same recipe) treats these values as
+**timing-sampled**: they may differ between binaries without failing the comparison, because the capture code samples them at drain or
+tick time rather than from the captured frame's own state.
+
+| Path | Why it is timing-sampled |
+|---|---|
+| `annotation.json` `anomalies[].coverage_pct` | Computed by `EvaluateSelectionProvenance` when the drain processes the event's anchor frame, against the **live** world and view at that moment, not the arm-time view the label rows carry. The pre-m55 binary already differs from itself run to run in native order (081-22 (d): events 3 and 5), and build 3's event-2 value (8.6518 vs 8.6927 pre-m55, ≤ 0.47 % relative) equals the synthetic-order value on both binaries. |
+| `run_summary.json` `end_frame`, `capture_game_ticks`, `key_ring_published`, `key_ring_consumed`, `key_ring_wrapped`, `ticks_per_captured_frame` | Tick and key-ring counters that vary within one binary across same-recipe runs (081-12 bank: `end_frame` 121/122). |
+
+Everything else in the comparison stays exact: mask bytes (MainWorld) or occupancy and own-tag bytes (CB), label rows, camera rows, onsets,
+key structure, event ranges and MASK-TIE tuples. With evidence ON the only allowed additions are the `run_summary` `change_*` block and the
+`change_evidence.jsonl` sidecar; with evidence OFF there must be none. **Queued (m51 pairing / M3, not m55):** compute `coverage_pct` from
+the frame's own mask instead of the live view — exact and frame-consistent, but a legacy-output change that belongs outside m55.
+
 ## Bench devices (run-start setting `IAI.Bench.ChangeGate`)
 
 | Value | Device |

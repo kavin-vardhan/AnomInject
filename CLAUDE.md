@@ -11,6 +11,17 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-23, 2026-09-24 — THE WHOLE `m55` BUILD-3 REQUALIFICATION IS PREPARED, BENCH-FREE: 92 legs (6 long-run readings +
+> 86 requalification legs) in four resumable, fail-fast bench windows of ~15–27 min expected machine time each (~1.5 h in all), one command
+> per window (`python _reviews\081-23-window.py c0|c1|c2|c3`). Predictions committed before any leg; pass rules exactly as ruled, including
+> the 081-22 timing-sampled set for legacy comparisons (`coverage_pct` + six tick/key-ring counters, now in the field reference). Dry run on
+> banked data: 118 of 118 checks as expected — 081-22's native-order FAIL reproduces exactly without the set and passes with it. NOTHING
+> LAUNCHED, NO BUILD, NOT MERGED, NOT TAGGED.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-24-081-23-code-m55-requal-prep.md`, then `docs/predictions/2026-09-24-m55-081-23-requalification.md`.**
+> Next: window c0 (081-18 long run on build 3) when the owner schedules the PC.
+>
+> ---
 > 🧾 **081-22, 2026-09-24 — `m55` BUILD 3 RAN IN THE ENGINE FOR THE FIRST TIME (a 5-minute quiet window at
 > 07:13 IST after 2 h 39 min of waiting on foreign UE 5.7 editors). (a) 1080p smoke PASS (20/20, oracle exit 0,
 > 20/20/20/0); (b) cancel-before-focus PASS (no session folder, zero files, `STAGE-DISCARDED issued=0`);
