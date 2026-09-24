@@ -7460,3 +7460,14 @@ mid-run (`ResetEpoch` from `Issue`) ends every pending item `closure_timeout` ra
 complete; and at run end a frame dropped on the render thread never notifies the stage, so the closure
 waits the whole 5 s. Bounded, so documented rather than changed (081-20 ruling). If a future change
 adds a longer wait here, check first whether the thing waited for needs the thread that is waiting.
+## G286 — a same-binary control pair of n = 2 under-samples run-to-run noise, and a subset rule over it has a one-sided hole (2026-09-24, 081-22)
+
+The legacy-identity rule "every cross-binary difference must also differ within a same-binary pair" was proven
+on banked data before use and failed its must-fail case: a difference present in only ONE of the two build-B
+legs lands in the B-pair's own diff and is absorbed as "run-unique". Closed with two checks: key presence (no
+added or removed JSON path at all) and a reference-only rule whose run-unique set is measured on binaries other
+than the one under test. That reference set cannot be one pair of the current recipe: `end_frame` read
+121/121/122/121 on four legs of two binaries, so a single pair can agree by chance on a field that is noise.
+Build the reference from several same-binary pairs (081-22 used this round's pre-m55 pair plus three banked
+081-12 pairs). Prove any comparator with a known-good, a one-leg must-fail and a both-legs must-fail before
+reading a result.

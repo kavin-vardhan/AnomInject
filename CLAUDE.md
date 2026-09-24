@@ -11,6 +11,21 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-22, 2026-09-24 — `m55` BUILD 3 RAN IN THE ENGINE FOR THE FIRST TIME (a 5-minute quiet window at
+> 07:13 IST after 2 h 39 min of waiting on foreign UE 5.7 editors). (a) 1080p smoke PASS (20/20, oracle exit 0,
+> 20/20/20/0); (b) cancel-before-focus PASS (no session folder, zero files, `STAGE-DISCARDED issued=0`);
+> (c) a real two-view split-screen family PASS (`change_multi_view_families` 120, all rows
+> `unsupported_delivery`, legacy equal to pre-m55 incl. the 180-submit double readback, pending arms 0/1);
+> (d) evidence-OFF vs pre-m55 on MainWorld: synthetic order PASS, native order FAIL on the declared deep-diff
+> gate — masks and the 081-12 field set byte-identical, but `annotation.json` `coverage_pct` on events 2/6/7
+> (≤ 0.47 % relative) and six known-noisy tick/key-ring counters split 2-vs-2 by binary. NO MECHANISM
+> ASSERTED (`coverage_pct` is sampled from the live view at drain time — a candidate only). Stop rule fired:
+> the 081-18 long-run ON/OFF readings (Part 2) were NOT started. NOT MERGED, NOT TAGGED, NO BUILD, NO COOK.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-24-081-22-code-m55-build3-runtime.md` §2.1.** Comparator hole found
+> and closed before any leg (`G286`).
+>
+> ---
 > 🧾 **081-21, 2026-09-24 — `m55` BUILD 3: THE REVIEW'S F1/F2/F3 (+ F6, F7, F9, ORACLE EXIT CODE) FIXED,
 > F4/F5/F10–F13 DOCUMENTED. ONE BUILD SET, ALL EXIT 0, GAME `002805CF`. EVERY OFFLINE CHECK GREEN. BENCH
 > LEGS NOT RUN — FOUR FOREIGN UE 5.7 EDITORS KEPT THE PC BUSY. NOT MERGED, NOT TAGGED, NO COOK.** 🧾
