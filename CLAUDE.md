@@ -11,6 +11,17 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-28, 2026-09-25 — BENCH-FREE. THE G270 VACUITY GUARD IS APPLIED PRE-RUN AND PROVEN BOTH WAYS; THE BOUNDARY IS RE-ISSUED.**
+> Predictions AMENDMENT 3 (ruling 081-27; C3 has not run): a Lyra G270 PASS additionally needs **≥ 3 events each with at least one
+> measured required pair**; a clean pipeline below that is the non-blocking **OBSERVED-BELOW-EVENT-FLOOR**, never PASS; every stop branch
+> still precedes it. Proof 12/12 (all-`empty_region` and 2-measured-event L1 copies → OBSERVED-BELOW-EVENT-FLOOR; c0 L1, c0 L4, 081-17
+> G3_N_A2 and a 3-measured-event copy → PASS; `closure_timeout`/`budget_exceeded` → NEEDS-DECISION). Dry run 153/153 (150 prior
+> unchanged + 3). Boundary: lib `87a5b5c1…` → `7cb583f6…`, new head. NO BUILD, NOT MERGED, NOT TAGGED. Next: windows c1 → c3 when
+> the owner frees the PC.
+>
+> **Cold start: `docs/sessions/2026-09-25-081-28-code-m55-g270-vacuity-guard.md`, then the predictions' AMENDMENT 3.**
+>
+> ---
 > 🧾 **081-27, 2026-09-25 — BENCH-FREE. THE THREE PRE-RUN PREDICTION AMENDMENTS OF RULING 081-26 ARE APPLIED AND PROVEN BOTH WAYS;
 > THE BOUNDARY IS RE-ISSUED.** Predictions AMENDMENT 2 (pre-run — no affected leg had run): **PQ-A** `change_view_rejected` is 0 except
 > G8, G2 and G15 (≥ 1); **PQ-B** one `HIGH-WATER-PEAK` line per closure (1 + `change_epoch_resets`), the last equal to the summary, every
