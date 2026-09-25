@@ -7480,3 +7480,11 @@ without the new declaration: the pre-m55 pair varies `coverage_pct` on events 3 
 cross-binary difference on events 2, 6 and 7. Keep the control-pair rule on exact paths; normalise only for key presence and for an explicitly
 declared tolerance set (the 081-22 timing-sampled set). A comparator change is proven by reproducing a recorded verdict both ways — without the
 declaration it must fail exactly as recorded (9 paths, 3 outside the historical set), with it it must pass.
+
+## G288 — a self-test that covers one branch of the input leaves the other untested, and a driver that ignores a step's exit code reports its crash as success (2026-09-25, 081-24)
+
+The chunk-0 analyzer's self-test ran on banked evidence-ON legs only. On its first real evidence-OFF leg the `__main__` loop called `.pop` on
+`a['evidence']`, which is the string `"OFF"` there, and crashed; the comparator then failed on the missing `analysis.json`. The chunk driver calls
+both through a helper whose return value it discards, so the window printed `chunk_exit 0` and a PASS postflight over a run whose analysis never
+happened. The analysis functions were correct and were re-run from a separate driver without editing the hash-locked harness. Self-test every
+input class the real run will feed (here ON and OFF), and never discard a step's exit code in a driver that reports one.

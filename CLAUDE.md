@@ -11,6 +11,17 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-24, 2026-09-25 — BENCH WINDOW c0 RAN ON BUILD 3: the six 1800-frame long-run legs (Lyra ON/OFF/OFF/ON, StackOBot ON/OFF) are
+> all valid readings (L2 on attempt 3), postflight PASS, no foreign editor. Both hosts PLATEAU by the predeclared rule: writer latency flat
+> per decile (Lyra ON p50 535 / 763 ms, StackOBot 333 ms), stage high-water 64.3 / 134.8 MB (Lyra) and 66.4 MB (StackOBot) reached in the
+> first half and never exceeded, zero `budget_exceeded`, zero `closure_timeout`, 1800/1800 PNGs and zero drops on every leg; oracle exit 0 on
+> all three ON sessions (179 / 168 / 220 compared, 0 mismatched). Evidence ON does not measurably slow the writer or add drops. No build-4
+> scheduling change is needed. 7 of the 20 081-18 predictions met — the Lyra-growth family missed. The c0 analyzer crashed on the first OFF
+> leg and was re-run from a separate driver (G288). NO BUILD, NOT MERGED, NOT TAGGED.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-25-081-24-code-m55-c0-long-run.md`.** Next: chat's ruling on c0, then windows c1–c3 on build 3.
+>
+> ---
 > 🧾 **081-23, 2026-09-24 — THE WHOLE `m55` BUILD-3 REQUALIFICATION IS PREPARED, BENCH-FREE: 92 legs (6 long-run readings +
 > 86 requalification legs) in four resumable, fail-fast bench windows of ~15–27 min expected machine time each (~1.5 h in all), one command
 > per window (`python _reviews\081-23-window.py c0|c1|c2|c3`). Predictions committed before any leg; pass rules exactly as ruled, including
