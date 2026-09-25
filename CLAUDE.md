@@ -11,6 +11,21 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🏁 **081-36, 2026-09-26 — BENCH. BUILD 3 (`85c99b3`, Game 002805CF) PASSES THE WHOLE c0–c3 REQUALIFICATION.** c1 resumed at
+> `R23_MAINON_N1` (only the 8 MAIN legs launched), then c2, then c3; every window exit 0 with postflight PASS.
+> - **c1:** MAIN-N and MAIN-S **PASS** (0 extras, 0 gated-unequal; AMENDMENT 5 A/B/C and AMENDMENT 6 M47 excused nothing).
+> - **c2:** 42 of 42 PASS, all on attempt 1. **c3:** NOHOLD_N PASS on attempt 2 (A1 INVALID-FIXTURE, camera precondition),
+>   NOHOLD_S PASS, **Lyra G270 on the PASS branch** (7 measured events, 4 honest `empty_region`), NULL720 / SOLID720 PASS.
+> - **G297 reading:** two self-excused `coverage_pct` singletons in MAIN-S, one pre-m55 and one build 3; **tripwire does not fire**.
+> - **Person-present gate:** 59 checks, 0 s waited; ENV-INTERRUPTED 0; `person_evidence=false` on every attempt.
+> - **Ledger: 92 legs** — 6 c0 readings, 19 c1 stack PASS, 4 legacy groups PASS (CB-N and CB-S re-evaluated), 42 c2, 5 c3. Nothing
+>   dropped or below a floor.
+> - NOT MERGED, NOT TAGGED, no build. This docs commit moves the feature head, so any further bench window needs a boundary re-issue.
+>   **Next: chat's m55 release decision for build 3.**
+>
+> **Cold start: `docs/sessions/2026-09-26-081-36-code-m55-requal-c1-c3-green.md`.**
+>
+> ---
 > 🧾 **081-35, 2026-09-26 — BENCH-FREE. AMENDMENT 6 IS DECLARED, IMPLEMENTED AND PROVEN; CB-S IS COMMITTED PASS-REEVALUATED; THE
 > BOUNDARY IS RE-ISSUED. c1 RESUMES AT `R23_MAINON_N1` IN 081-36.** Ruling `_reviews/081-35-chat-ruling-m47-excusal-and-g297.md`.
 > - **Bank pre-check first: the G297 tripwire does not fire.** The only non-historical build-3 self-excused singletons in the whole
