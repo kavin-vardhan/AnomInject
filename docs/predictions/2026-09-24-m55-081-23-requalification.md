@@ -157,3 +157,40 @@ build-4 scheduling change is needed), then C1 (new code paths and the never-run 
 known-bad or mutated case (must fail). 118 of 118 checks behaved as expected. Notably: 081-22 (d) native MainWorld evidence-OFF reproduces its
 recorded FAIL exactly (9 paths, 3 outside the historical set) without the timing-sampled set and PASSES with it; Stage-1 G2/G8 legs fail the §D
 clauses with the pre-build-3 shapes (G2 SI9 `mask_payload_missing`), as §D predicts. Leg types with no banked stand-in are listed there.
+
+## AMENDMENT 1 — 081-26, 2026-09-25: the G8 "no receipt" clause is re-encoded; the prediction is unchanged (dated, post-hoc)
+
+Authority: `_reviews/081-25-chat-ruling-g8-predicate-correction.md` (rulings 1–4). **Written after `C1_G8_N_A1` ran (081-25), so it is a
+post-hoc amendment and counts as one in the campaign metrics.** It changes how one §2.3/§D clause is evaluated, not what it predicts.
+
+- **The clause, as now evaluated.** §2.3's G8 clause "SI8 … without a receipt" means SI8's `receipt` carries **no delivery side**:
+  `t_drain_ms == -1` **and** `view_family_id == 0` **and** `serving_token == 0` **and** `format == 0` **and** `rect == []` **and**
+  `extent == []` (`081-23-lib.receipt_without_delivery`). The 081-23 code tested for an absent `receipt` key, a form the serialiser never
+  writes: `ChangeReceiptJson` always writes the issue side (`run_epoch`, `cut_counter`, `capture_token`, `t_submit_ms`) and fills the
+  delivery side only when a receipt was built, else the sentinels above, and the pair row always carries `receipt`. The definition predates
+  build 3 (field reference: "a failed current delivery may only have issue identity: drain -1, family 0, unknown format and empty geometry
+  arrays"; "no receipt is built") and is visible in pre-build-3 banked rows the record already called "no receipt".
+- **Proof both ways** (`_reviews/081-26-evidence/g8-proof.json`, 38 of 38 as expected). PASS on `C1_G8_N_A1` SI8 and on the Stage-1 SI8
+  rows of Lyra V6 G15 N/S (`closure_timeout`), Lyra V5 G4 N/S (`current_undelivered`), StackOBot V6 G15 N/S and V6 G4 N/S; FAIL on six
+  mutated copies of the SI8 receipt, each with exactly one delivery field taken from SI7's real receipt, and on the delivered SI7/SI9
+  receipts. Over the whole bank (374 sessions, 74,257 receipts) every receipt with `t_drain_ms -1` carries the whole stub (801) and every
+  delivered receipt fails the clause (73,456). The full G8 evaluator on each mutated session copy fails on this clause and on nothing else.
+- **`C1_G8_N_A1` is PASS-REEVALUATED** from its banked evidence (never re-run): errors none, oracle re-run 17 compared = 17 matched,
+  0 mismatched; its original FIXTURE-VALID-FAILURE row is kept beside it in `081-23-evidence/c1/stack-results.json`. Window c1 resumes at
+  `C1_G8_S`.
+- **Resume rule, stated because the 081-23 code did not enforce §0 on re-entry.** A leg with a recorded PASS or PASS-REEVALUATED is decided
+  and skipped; a leg with a recorded fixture-valid failure, FAIL, NEEDS-DECISION or NOT-RUN now **stops the window again with its original
+  code** instead of being skipped (the 081-23 code skipped it and carried on, so an unchanged re-run of c1 would have launched `C1_G8_S` past
+  the recorded failure — not re-run `C1_G8_N`, as journal 081-25 said). Invalid attempts are still retried up to three. Proven offline by
+  driving the unchanged chunk drivers with every launch stubbed (`_reviews/081-26-evidence/resume-proof.json`).
+- **Harness boundary re-issued** for the new `081-23-lib.py` hash and the new feature head; no other locked hash changed
+  (`_reviews/081-26-evidence/boundary-diff.json`). **Dry run re-run with the corrected lib: 134 of 134 as expected** — the 118 checks of §5
+  with identical outcomes plus 16 new G8 checks — without writing any 081-23 evidence file.
+- ⚠ **Not changed, and blocking — two PREDICTION-QUESTIONs from the predicate audit** (`_reviews/081-26-evidence/audit.md`; ruling 2 forbids
+  changing a predicate whose prediction looks wrong):
+  **PQ-A** — §2.1.4 "`change_view_rejected` 0 (except G8)": build 3 also counts it on **G2** (SI8's mask arm is served while its colour arm
+  was dropped, so the family carries no m55 data) and on **G15** (the bench mask hold counts every held pass); Stage-1 V6 banked 1 on G2 N/S
+  and G15 N/S. C1_G2 and C1_G15 would fail on it.
+  **PQ-B** — §2.1.3 "exactly one `HIGH-WATER-PEAK` line": gates **7** and **15** reset the epoch at SI 9 and close twice, and the field
+  reference (081-17) specifies one line per closure. C1_G15 and C2_G7 would fail on it.
+  **Window c1 would therefore stop again at `C1_G2_N`**; neither question is answered here.

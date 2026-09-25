@@ -11,6 +11,19 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-26, 2026-09-25 — BENCH-FREE. THE G8 "NO RECEIPT" CLAUSE IS RE-ENCODED AND PROVEN BOTH WAYS; `C1_G8_N` IS PASS-REEVALUATED
+> FROM THE BANK (never re-run); THE PREDICATE AUDIT FOUND TWO PREDICTION QUESTIONS THAT WOULD STOP c1 AGAIN AT `C1_G2_N`.**
+> Clause (ruling 081-25): SI8's `receipt` has no delivery side — `t_drain_ms -1`, `view_family_id 0`, `serving_token 0`, `format 0`,
+> `rect []`, `extent []`; 38/38 proof checks, whole bank 801 stubs pass / 73,456 delivered receipts fail. Re-evaluation: errors none,
+> oracle 17/17. Resume: PASS-REEVALUATED is decided; a recorded failure now re-raises its stop instead of being skipped — 🔻 081-25's
+> "re-running c1 would retry the failed leg" was backwards (it would have run past it, G290). ⚠ **Open, not changed (ruling 2):**
+> **PQ-A** `change_view_rejected` 0 "except G8" is false by construction on G2 and G15 (Stage-1 banked 1 on both); **PQ-B** "exactly one
+> `HIGH-WATER-PEAK` line" is false on G7/G15, which close twice (G291). Boundary re-issued (lib `7e41fa89…` → `ce8184d4…`, new head);
+> dry run 134/134, 081-23 evidence untouched. Predictions AMENDMENT 1 (post-hoc, counted). NO BUILD, NOT MERGED, NOT TAGGED.
+>
+> **Cold start: `docs/sessions/2026-09-25-081-26-code-m55-predicate-correction.md`, then `_reviews/081-26-evidence/audit.md`.**
+>
+> ---
 > ⛔ **081-25, 2026-09-25 — WINDOW c1 STOPPED AT ITS FIRST LEG; c2 AND c3 NOT RUN. The stop is a HARNESS PREDICATE DEFECT, not a product
 > failure.** `C1_G8_N_A1` was fixture-valid and passed every clause (oracle 17/17, SI8 `unsupported_delivery`, SI9 `predecessor_undelivered`,
 > `view_rejected`, throwaway family 1, SI8 PNG absent) except `SI8 carries no receipt`: the 081-23 evaluator tests for an ABSENT `receipt`

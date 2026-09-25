@@ -7497,3 +7497,21 @@ receipt was built. The 081-23 evaluator coded §D's "SI8 carries no receipt" for
 leg where the product had done exactly what §D predicted. The dry run could not catch it because no banked build-3 G8 stand-in existed
 and the known-bad case failed on other clauses first. Test "was a receipt built" on the delivery fields (`t_drain_ms == -1` and no
 family/format/rect), and give every new clause a positive banked case of the exact serialised shape — the Stage-1 G15 and G4 rows are one.
+
+## G290 — a resumable ledger that files a recorded failure under "done" lets the next run of the window carry on past it (2026-09-25, 081-26)
+
+The 081-23 runners returned early for any leg whose ledger row said PASS, FIXTURE-VALID-FAILURE or NOT-RUN (NoHold: PASS/FAIL/NOT-RUN;
+Lyra: PASS/…/NEEDS-DECISION/FAIL). "Never re-run a decided leg" was honoured, but "the first valid failure stops the window" was not: an
+unchanged re-run of c1 after the 081-25 stop would have skipped `C1_G8_N` and launched `C1_G8_S`. Journal 081-25 said the opposite — that
+it would re-run the failed leg — from reading the summary file, not the code. Only a PASS (or a ruled PASS-REEVALUATED) may be skipped;
+a recorded failure must re-raise its stop on re-entry. Establish resume behaviour by driving the real driver offline with every launch
+stubbed and naming the first leg it would start, never by inference from a summary.
+
+## G291 — a pass rule written as a run-wide constant must be checked against every device that changes the run's shape (2026-09-25, 081-26)
+
+Two M-common clauses of 081-23 were true of an ordinary leg and false by construction on specific bench devices: "`change_view_rejected` 0
+except G8" (G2's served-but-unattached mask arm and G15's mask-pass hold also count it — and Stage-1 had banked 1 on both) and "exactly one
+`HIGH-WATER-PEAK` line" (G7 and G15 reset the epoch and close twice; the field reference already said one line per closure). Neither was
+exercised by the dry run, because no build-2/3 G2/G7/G15 leg existed and the Stage-1 stand-ins were judged on identity clauses only. When a
+prediction states a counter's value or a line's count "except X", derive the exception list from the source of every gate in the campaign
+and from the banked counters of every gate, not from the one gate the author was thinking about.
