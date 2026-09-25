@@ -11,6 +11,17 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-29, 2026-09-25 — c1 RESUMED AT `C1_G8_S`: FOUR LEGS PASS ON ATTEMPT 1, THEN `C1_G2_S` WAS EXHAUSTED BY A PERSON USING THE PC.
+> NO GATE FAILED ON BUILD 3. c2 AND c3 NOT RUN. NEEDS-DECISION.**
+> `C1_G8_S`, `C1_G9_N`, `C1_G9_S` and `C1_G2_N` PASS, with the oracle matching everywhere. `C1_G8_N` stays PASS-REEVALUATED and was not re-launched.
+> `C1_G2_S` failed 3 × INVALID-FIXTURE on "whole-leg foreground": the mouse moved and the Start menu, then the desktop shell, took the
+> foreground (0/480 and 0/485 on A2/A3), and input idle read 0.34 s after postflight. The harness filed `NOT-RUN` and exited 2, and
+> postflight PASSED. A re-run halts on that row (G290), so continuing needs a ruling (→ **G292**: the quiet gate sees processes, not a person).
+> Ledger: 92 legs = 6 c0 readings, 5 c1 passes, 1 environmental exhaustion, 80 not run. NO BUILD, NOT MERGED, NOT TAGGED.
+>
+> **Cold start: `docs/sessions/2026-09-25-081-29-code-m55-c1-resume-stop.md`, then `_reviews/081-29-evidence/c1-g2s-cause-read.md`.**
+>
+> ---
 > 🧾 **081-28, 2026-09-25 — BENCH-FREE. THE G270 VACUITY GUARD IS APPLIED PRE-RUN AND PROVEN BOTH WAYS; THE BOUNDARY IS RE-ISSUED.**
 > Predictions AMENDMENT 3 (ruling 081-27; C3 has not run): a Lyra G270 PASS additionally needs **≥ 3 events each with at least one
 > measured required pair**; a clean pipeline below that is the non-blocking **OBSERVED-BELOW-EVENT-FLOOR**, never PASS; every stop branch

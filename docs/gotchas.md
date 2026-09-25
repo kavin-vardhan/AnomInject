@@ -7515,3 +7515,14 @@ except G8" (G2's served-but-unattached mask arm and G15's mask-pass hold also co
 exercised by the dry run, because no build-2/3 G2/G7/G15 leg existed and the Stage-1 stand-ins were judged on identity clauses only. When a
 prediction states a counter's value or a line's count "except X", derive the exception list from the source of every gate in the campaign
 and from the banked counters of every gate, not from the one gate the author was thinking about.
+
+## G292 — the quiet gate sees processes, not a person; a retry loop with no idle check lets one interaction use up a leg's attempts (2026-09-25, 081-29)
+
+Window c1 was resumed on a PC the owner had freed. Four legs passed with a stationary cursor. Then someone used the machine: the mouse
+moved through `C1_G2_S_A1`, and the Start menu (`SearchHost.exe`) and the desktop shell (`explorer.exe`) took the foreground. The harness
+launched attempts 2 and 3 straight away, the game never regained focus (0/480 and 0/485 foreground samples), and the leg was filed
+`NOT-RUN` / INVALID-FIXTURE-EXHAUSTED within about 2 minutes. `GetLastInputInfo` read 0.34 s idle after postflight. Two points to carry:
+`c.quiet()` inspects processes only, so neither a render nor a person at the keyboard makes a window "not quiet". And the 3-attempt budget
+protects against a flaky fixture, but it gives no protection against a person who stays at the PC, because nothing waits between attempts.
+A pre-attempt check on input idle time and foreground ownership would turn this case into a NOT-QUIET wait. Because the `NOT-RUN` row
+halts every re-run (G290), an environmental exhaustion also needs a ruling before the window can continue.
