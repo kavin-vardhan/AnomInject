@@ -7488,3 +7488,12 @@ The chunk-0 analyzer's self-test ran on banked evidence-ON legs only. On its fir
 both through a helper whose return value it discards, so the window printed `chunk_exit 0` and a PASS postflight over a run whose analysis never
 happened. The analysis functions were correct and were re-run from a separate driver without editing the hash-locked harness. Self-test every
 input class the real run will feed (here ON and OFF), and never discard a step's exit code in a driver that reports one.
+
+## G289 — "no receipt" in the change sidecar is a stub with sentinel delivery fields, never an absent key (2026-09-25, 081-25)
+
+`ChangeReceiptJson` always writes `receipt` once an issue exists: `run_epoch`, `cut_counter`, `capture_token` and `t_submit_ms` are real,
+and the delivery half is `t_drain_ms -1`, `view_family_id 0`, `serving_token 0`, `format 0` (`PF_Unknown`), `rect []`, `extent []` when no
+receipt was built. The 081-23 evaluator coded §D's "SI8 carries no receipt" for G8 as `not row.get('receipt')`, and window c1 stopped on a
+leg where the product had done exactly what §D predicted. The dry run could not catch it because no banked build-3 G8 stand-in existed
+and the known-bad case failed on other clauses first. Test "was a receipt built" on the delivery fields (`t_drain_ms == -1` and no
+family/format/rect), and give every new clause a positive banked case of the exact serialised shape — the Stage-1 G15 and G4 rows are one.

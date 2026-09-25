@@ -11,6 +11,17 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ⛔ **081-25, 2026-09-25 — WINDOW c1 STOPPED AT ITS FIRST LEG; c2 AND c3 NOT RUN. The stop is a HARNESS PREDICATE DEFECT, not a product
+> failure.** `C1_G8_N_A1` was fixture-valid and passed every clause (oracle 17/17, SI8 `unsupported_delivery`, SI9 `predecessor_undelivered`,
+> `view_rejected`, throwaway family 1, SI8 PNG absent) except `SI8 carries no receipt`: the 081-23 evaluator tests for an ABSENT `receipt`
+> key, while `ChangeReceiptJson` always writes the issue-side half and leaves the delivery fields at their sentinels (`t_drain_ms -1`,
+> family 0, format 0, empty rect) — the same stub banked Stage-1 G15/G4 rows already called "no receipt" (G289). Postflight PASS. Ledger:
+> 6 valid readings (c0), 1 failed leg, 85 not run. Resuming needs chat's ruling and a new `prep-boundary.json` (the lib hash is pinned);
+> re-running c1 unchanged would retry the failed leg. NO BUILD, NOT MERGED, NOT TAGGED.
+>
+> **Cold start: `docs/sessions/2026-09-25-081-25-code-m55-c1-stop.md`** (ledger inside), then `_reviews/081-25-evidence/c1-g8-cause-read.md`.
+>
+> ---
 > 🧾 **081-24, 2026-09-25 — BENCH WINDOW c0 RAN ON BUILD 3: the six 1800-frame long-run legs (Lyra ON/OFF/OFF/ON, StackOBot ON/OFF) are
 > all valid readings (L2 on attempt 3), postflight PASS, no foreign editor. Both hosts PLATEAU by the predeclared rule: writer latency flat
 > per decile (Lyra ON p50 535 / 763 ms, StackOBot 333 ms), stage high-water 64.3 / 134.8 MB (Lyra) and 66.4 MB (StackOBot) reached in the
