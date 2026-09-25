@@ -7569,6 +7569,8 @@ The cross-pair clause now also excuses exactly the hash-pinned historical run-un
 leg-wide bijection π, checked by remapping pixels, counts, ties and actor identity (ruling B). A bijective relabel therefore no longer
 feeds the run-unique set a control pair learns from. On the banked CB-N the cross pairs excuse `census_cycles`, and CB_N5 passes under π.
 It takes effect when the boundary is re-issued; that is held on 081-32's NEEDS-DECISION (G296). The coalesced-arm frame is G295.
+🔻 **In effect from 081-33 (2026-09-26):** AMENDMENT 5 is released with A.6, CB-N is committed PASS-REEVALUATED, and the boundary is
+re-issued for the lib and the feature head.
 
 ## G295 — a target-mask render that slips a frame coalesces the next frame's arm into it, and that frame comes out UNMEASURED: a pre-existing yield issue, not a label error (2026-09-26, 081-32)
 
@@ -7603,3 +7605,22 @@ frame's colour file". **They do not.**
 The proof was run as written and reported as not-as-expected, not bent into a pass by inventing a colour tolerance. **Before accepting a
 negative proof, name the rule that reads the mutated artifact. If none does, the negative can only pass, and the gap belongs to whoever
 owns the rule set, not to the implementation under test.** Same shape as G96: a check can only fire on what it looks at.
+
+🔻 **RESOLVED 2026-09-26 (081-33), ruling `_reviews/081-33-chat-ruling-colour-proof-and-derived-fields.md`.** Chat ruled the negative a
+chat spec defect and did not add a colour comparison. It replaced the negative with a condition the excusal can actually check.
+
+**A.6:** the excused frame's colour file must exist, with the same dimensions and pixel format as every comparison leg's. These are read
+from the PNG header, with no pixel compare and no tolerance. The excusal exists because the frame *was captured* and only its mask was
+lost, so that is the fact to verify. The rule set was changed by its owner; the implementation was not bent.
+
+The new negatives were then checked the way this entry asks. Before running a case, name the rule that reads the mutated artifact:
+- a missing, zero-byte, resized or re-formatted colour file → A.6 reads it → FAIL;
+- a comparison leg without the file → A.6 reads it → FAIL;
+- the same mutants under the 081-32 lib → nothing reads them → PASS.
+
+That last line is the control proving A.6 is what fires.
+
+⚠ **Second instance of the same trap, caught before it bit:** 081-32's proof mutants copied sessions *without* `Actual_Frames`. Under
+A.6 every "signature present" negative would then have FAILed because the colour file was missing, not for the reason the case names.
+A negative that fails for the wrong reason proves nothing. The 081-33 mutants carry the colour files, and every case asserts **which
+frames were excused** as well as the verdict.

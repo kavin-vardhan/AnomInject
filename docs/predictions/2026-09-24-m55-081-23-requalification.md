@@ -326,6 +326,41 @@ historical run-unique set itself does not change (hash-pinned, `a347374e…`, 10
 - The CB-N re-evaluation from the bank reads PASS-REEVALUATED.
 - Dry run 198 of 198.
 
-**Not yet released.** Proof 1's "colour differs → FAIL" cannot come out as expected: no legacy rule compares colour frames, which differ
-run to run on 20–44 % of pixels. Chat must rule on it. Until then the CB-N row is not written and the boundary is not re-issued. Evidence:
-`_reviews/081-32-evidence/`; journal `docs/sessions/2026-09-26-081-32-code-m55-legacy-amendment-5.md`.
+🔻 *(superseded by the 081-33 release below; kept as the record)* **Not yet released.** Proof 1's "colour differs → FAIL" cannot come
+out as expected: no legacy rule compares colour frames, which differ run to run on 20–44 % of pixels. Chat must rule on it. Until then the
+CB-N row is not written and the boundary is not re-issued. Evidence: `_reviews/081-32-evidence/`; journal
+`docs/sessions/2026-09-26-081-32-code-m55-legacy-amendment-5.md`.
+
+**✅ RELEASED on 2026-09-26 (081-33).** Authority for the two additions below: `_reviews/081-33-chat-ruling-colour-proof-and-derived-fields.md`
+(chat Claude, 2026-09-26 01:54 IST). Ruling 1 found the "colour differs → FAIL" negative ill-formed, a chat spec defect: it asked the
+harness to fail on something no legacy rule compares. Nothing else in A, B or C changes.
+
+- **A.6 — one more condition on the excusal itself; not a new global rule and not a threshold.** For the excused si, the leg's colour
+  file must **exist** and have the same **dimensions and pixel format** as **every comparison leg's** colour file for that si.
+  - The file is the label row's own `image` reference.
+  - Dimensions and format are read from the PNG header only: width, height, bit depth, colour type. **No colour pixel is compared and no
+    tolerance exists anywhere.**
+  - If the file is missing, unreadable or differs, **or a comparison leg's file is missing**, the frame is **not excused**, and the group
+    is judged by the ordinary rules. On the banked data those FAIL in both tick orders: native through the strict and field-set clauses,
+    synth through key presence.
+  - Every evaluation is reported as `coalesced_colour_condition`, and the excused entry carries the colour metadata.
+- **The six derived fields are confirmed** (ruling 2), at the exact value the writer would produce for that one frame; any other value
+  FAILs:
+  - `target_drawn_pixels` −1;
+  - the event's `observable_frame_count` −1 and `unmeasured_frame_count` +1;
+  - run_summary `observable_frames` −1, `target_drawn_pixels_measured` −1 and `target_mask_frames_unavailable` +1.
+
+  This is how 081-32 already encoded them: the comparator is re-read as if the frame were unmeasured.
+
+**Proofs and state at release** (evidence `_reviews/081-33-evidence/`, journal `docs/sessions/2026-09-26-081-33-code-m55-am5-release.md`):
+- lib `c36a60c2…` → `9901be63…`.
+- Proofs 1–5: 49 of 49 as expected.
+  - A.6: missing, different dimensions, different pixel format, zero bytes and a missing comparison file all FAIL; present-and-matching
+    with every pixel replaced is excused. The 081-32 lib excuses the missing and different-dimension mutants, so A.6 is what fires.
+  - Six derived fields off by 2: FAIL, each with the frame still excused.
+  - The 8 earlier negatives, the 2 frequency controls and the 5 symmetric cases are unchanged, now with colour-carrying mutants.
+  - B 8 of 8; C 10 of 10.
+- Proof 6: 16 comparisons; the only flip against the recorded verdicts is c1 CB-N FAIL → PASS; zero against `c36a60c2`.
+- CB-N is **committed PASS-REEVALUATED** in `081-23-evidence/c1/legacy-results.json`.
+- The boundary is re-issued for exactly the lib and the feature head (`_reviews/081-33-evidence/boundary-diff.json`), and c1 resumes at
+  `R23_CB_S1`.

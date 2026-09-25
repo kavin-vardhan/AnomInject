@@ -11,6 +11,29 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-33, 2026-09-26 — BENCH-FREE. AMENDMENT 5 IS RELEASED WITH A.6, CB-N IS COMMITTED PASS-REEVALUATED, AND THE BOUNDARY IS
+> RE-ISSUED. c1 RESUMES AT `R23_CB_S1` IN 081-34.** Rulings `_reviews/081-32-chat-ruling-legacy-identity-amendment-5.md` and
+> `_reviews/081-33-chat-ruling-colour-proof-and-derived-fields.md`.
+> - **081-32's colour negative was a chat spec defect** (no legacy rule compares colour pixels, and colour frames are not byte-stable).
+>   It is replaced by **A.6**, a condition on the excusal itself: the excused frame's colour file exists with the same dimensions and
+>   pixel format as every comparison leg's. It reads the PNG header only — no pixel compare, no tolerance.
+> - **The six derived fields are confirmed** at the writer-exact value only.
+> - **Lib `c36a60c2` → `9901be63`** (window runner unchanged).
+> - **Proofs:**
+>   - 1–5: 49 of 49 — the A.6 colour cases 8 of 8 including controls, off by 2 6 of 6, the 8 earlier negatives, 2 controls,
+>     5 symmetric, B 8, C 10;
+>   - proof 6: no flip vs `c36a60c2`, and vs the recorded verdicts only CB-N FAIL → PASS;
+>   - resume 5 of 5.
+> - The proof mutants now carry `Actual_Frames`; without them every negative would have failed for the wrong reason (G296's second
+>   instance).
+> - **Measured, not assumed:** an unexcused frame FAILs in synth order too, via key presence.
+> - **CB-N row committed** in `081-23-evidence/c1/legacy-results.json`. **Dry run 202 of 202.** The boundary is re-issued for the lib and
+>   the feature head; the preflight replays green for c1, c2 and c3.
+> - NO BUILD, NOT MERGED, NOT TAGGED. **Next: 081-34 (bench) — `081-23-window.py c1 540 081-34`**, which resumes at `R23_CB_S1`.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-33-code-m55-am5-release.md`, then `_reviews/081-33-evidence/a6-proof.json`.**
+>
+> ---
 > 🧾 **081-32, 2026-09-26 — BENCH-FREE. LEGACY-IDENTITY AMENDMENT 5 IS IMPLEMENTED AND PROVEN, AND CB-N PASSES UNDER IT FROM THE BANK. ONE
 > RULED PROOF (COLOUR) CANNOT FAIL UNDER THE EXISTING RULES. NEEDS-DECISION: THE CB-N ROW IS NOT WRITTEN AND THE BOUNDARY IS NOT RE-ISSUED.**
 > Ruling `_reviews/081-32-chat-ruling-legacy-identity-amendment-5.md`.
