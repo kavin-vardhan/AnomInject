@@ -11,6 +11,18 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-27, 2026-09-25 — BENCH-FREE. THE THREE PRE-RUN PREDICTION AMENDMENTS OF RULING 081-26 ARE APPLIED AND PROVEN BOTH WAYS;
+> THE BOUNDARY IS RE-ISSUED.** Predictions AMENDMENT 2 (pre-run — no affected leg had run): **PQ-A** `change_view_rejected` is 0 except
+> G8, G2 and G15 (≥ 1); **PQ-B** one `HIGH-WATER-PEAK` line per closure (1 + `change_epoch_resets`), the last equal to the summary, every
+> census closed; **G270** a required pair refused `empty_region` is honest, PASS = ≥ 3 events and every required pair measured or
+> `empty_region`, none lost to `closure_timeout`/`budget_exceeded`. Proof 64/64 (PQ-B's pass case is a faithful synthetic — no banked
+> build-3 log has two closures); c0 L1 now PASSes G270 (14 `empty_region`). Dry run 150/150 (134 prior unchanged + 16). Boundary: lib
+> `ce8184d4…` → new hash, new head. ⚠ Observation for chat: the amended G270 rule has no measured-pair floor. NO BUILD, NOT MERGED, NOT
+> TAGGED. Next: windows c1 → c3 when the owner frees the PC.
+>
+> **Cold start: `docs/sessions/2026-09-25-081-27-code-m55-prediction-amendments.md`, then the predictions' AMENDMENT 2.**
+>
+> ---
 > 🧾 **081-26, 2026-09-25 — BENCH-FREE. THE G8 "NO RECEIPT" CLAUSE IS RE-ENCODED AND PROVEN BOTH WAYS; `C1_G8_N` IS PASS-REEVALUATED
 > FROM THE BANK (never re-run); THE PREDICATE AUDIT FOUND TWO PREDICTION QUESTIONS THAT WOULD STOP c1 AGAIN AT `C1_G2_N`.**
 > Clause (ruling 081-25): SI8's `receipt` has no delivery side — `t_drain_ms -1`, `view_family_id 0`, `serving_token 0`, `format 0`,
