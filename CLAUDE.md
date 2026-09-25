@@ -11,6 +11,19 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-30, 2026-09-26 — BENCH-FREE. `C1_G2_S` A1–A3 ARE ENV-VOIDED AND A PERSON-PRESENT GATE IS IN THE HARNESS, PROVEN BOTH WAYS;
+> THE BOUNDARY IS RE-ISSUED.** Ruling `_reviews/081-30-chat-ruling-person-present-gate.md`. Before every attempt (all four leg kinds) and
+> at window start the harness waits for ≥ 60 s of input idle, inside one 45-min wait budget per window (exit 4, never NOT-RUN); the
+> runners' own ALT tap is excluded by construction. A foreground failure with person evidence (shell foreground, cursor moved away from a
+> focus action, non-harness input) is ENV-INTERRUPTED: not counted, capped at 5 per leg. Fixture-valid attempts are never reclassified; a
+> flagged failure goes to chat as NEEDS-DECISION. No evaluator, predicate, threshold, prediction or PASS rule changed (predictions
+> AMENDMENT 4 is scheduling only). Proofs 42/42, a walk of all 86 remaining legs (gate → quiet check → launch), window start 6/6; dry run
+> **182/182**; resume proof: c1 resumes at `C1_G2_S_A4` with a fresh 3-attempt budget. 🆕 **G293**; G292 marked mitigated.
+> NO BUILD, NOT MERGED, NOT TAGGED. **Next: 081-31 — `081-23-window.py c1 540 081-31`, then c2, c3, on a PC nobody is using.**
+>
+> **Cold start: `docs/sessions/2026-09-26-081-30-code-m55-person-present-gate.md`.**
+>
+> ---
 > 🧾 **081-29, 2026-09-25 — c1 RESUMED AT `C1_G8_S`: FOUR LEGS PASS ON ATTEMPT 1, THEN `C1_G2_S` WAS EXHAUSTED BY A PERSON USING THE PC.
 > NO GATE FAILED ON BUILD 3. c2 AND c3 NOT RUN. NEEDS-DECISION.**
 > `C1_G8_S`, `C1_G9_N`, `C1_G9_S` and `C1_G2_N` PASS, with the oracle matching everywhere. `C1_G8_N` stays PASS-REEVALUATED and was not re-launched.

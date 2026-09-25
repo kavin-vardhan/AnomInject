@@ -268,3 +268,26 @@ line, and on the all-`empty_region` copy plus one `closure_timeout` (the stop pr
 **Dry run** (081-27 wrapper redirected to `_reviews/081-28-evidence/dryrun/`): **153 of 153 as expected** — the 150 checks of 081-27 with
 identical outcomes (two G270 PASS `why` strings gain the measured-event count) plus 3 new; 081-23, 081-26 and 081-27 evidence
 byte-unchanged. **Boundary** re-issued for exactly `081-23-lib.py` and `feature_head`: `_reviews/081-28-evidence/boundary-diff.json`.
+
+## AMENDMENT 4 — 081-30, 2026-09-26: the person-present gate and ENV-VOIDED — scheduling only, no prediction changed (dated)
+
+Authority: `_reviews/081-30-chat-ruling-person-present-gate.md` (rulings 1 and 2, chat Claude, 2026-09-25 23:48 IST). **This amends §0's
+retry rule, which is fixture scheduling. No prediction, predicate, threshold or PASS rule changes** (ruling 2d): every evaluator is
+byte-identical, and the dry run's 153 prior checks are unchanged.
+
+- **Before every attempt** of every leg kind and **at window start**, the harness waits until input has been idle ≥ 60 s
+  (`GetLastInputInfo`), polling every ≤ 15 s. The runners' own ALT-tap focus action is excluded by construction: an input inside the
+  window of a runner whose attempt carried no person evidence is the runner's. This wait and the process-quiet wait share one **45-min
+  budget per window** (`wait-budget.json`, per brief tag); when it is spent the window exits 4 (NOT-QUIET class). It never records NOT-RUN.
+- A foreground-invalid attempt with **person evidence** inside its steady-state span — a shell process (`SearchHost.exe`,
+  `StartMenuExperienceHost.exe`, `ShellExperienceHost.exe`, `explorer.exe`) took the foreground, the cursor moved away from any focus action,
+  or non-harness input registered — is **ENV-INTERRUPTED**. It does not count against §0's 3 attempts; at most 5 per leg, then exit 4, never
+  NOT-RUN. Without person evidence it stays INVALID and counts, as before.
+- Fixture-valid attempts are never reclassified. `person_evidence` is recorded on every attempt row; a fixture-valid failure that carries it
+  keeps its verdict and goes to chat as NEEDS-DECISION.
+- **ENV-VOIDED** (ruling 1): a dated ledger row that clears a NOT-RUN and grants a fresh 3-attempt budget; it never clears FAIL,
+  FIXTURE-VALID-FAILURE or NEEDS-DECISION. Applied once: `C1_G2_S` A1–A3 (081-29) are ENV-VOIDED as environmental, the rows stay for audit,
+  and c1 resumes at `C1_G2_S_A4`.
+
+Proofs: `_reviews/081-30-evidence/pp-proof.json` (42 of 42), `pp-walk.json` (all 86 remaining legs + window start, 8 of 8),
+`resume-proof.json`; dry run 182 of 182 (the 153 of 081-28 identical + 29 new). Boundary: `_reviews/081-30-evidence/boundary-diff.json`.

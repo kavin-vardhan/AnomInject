@@ -7526,3 +7526,23 @@ launched attempts 2 and 3 straight away, the game never regained focus (0/480 an
 protects against a flaky fixture, but it gives no protection against a person who stays at the PC, because nothing waits between attempts.
 A pre-attempt check on input idle time and foreground ownership would turn this case into a NOT-QUIET wait. Because the `NOT-RUN` row
 halts every re-run (G290), an environmental exhaustion also needs a ruling before the window can continue.
+
+🔻 **MITIGATED 2026-09-26 (081-30, ruling `_reviews/081-30-chat-ruling-person-present-gate.md`).** The harness now waits for a person to
+leave instead of burning attempts: before every attempt of every leg kind and at window start it requires ≥ 60 s of input idle
+(`GetLastInputInfo`), polling every ≤ 15 s inside the same 45-min per-window wait budget (exit 4 when it is spent, never NOT-RUN). The
+runners' own ALT tap is excluded by construction: an input that falls inside the window of a runner whose attempt carried no person
+evidence is the runner's. An attempt that fails on foreground **with person evidence** (a shell process took the foreground, the cursor
+moved away from any focus action, or non-harness input registered) is ENV-INTERRUPTED: it does not count against the three attempts and is
+capped at five per leg (exit 4). Fixture-valid attempts are never reclassified; a flagged failure goes to chat as NEEDS-DECISION.
+`C1_G2_S` A1–A3 are ENV-VOIDED (ruling 1). ⚠ Still not seen: a person who is present but touches nothing. Journal
+`docs/sessions/2026-09-26-081-30-code-m55-person-present-gate.md`.
+
+## G293 — a library proven in isolation does not prove the script that calls it (2026-09-26, 081-30)
+
+081-30 added a person-present gate to the requalification lib and a window-start call to `081-23-window.py`. The lib passed 42 of 42
+proofs, driven through the real `run_measure_leg` with only the PowerShell runner stubbed. The window runner called `L.budget_left()`, a
+function the lib did not define, so every window would have died at start with an `AttributeError` right after its preflight passed. Only
+executing the real `081-23-window.py` source against stubs exposed it. When a change spans a library and a script that calls it, the proof
+must execute the script from its own source, not re-derive its calls. (The same walk's first run also flagged all 20 legacy legs, and that
+was the checker, not the harness: it assumed the launch is the last traced step, while `run_legacy_group`'s `finally` re-checks the
+process state after it — G142's shape.)
