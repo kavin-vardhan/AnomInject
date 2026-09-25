@@ -7686,3 +7686,30 @@ In the requalification the keys stay in legacy-identity scope and are excused on
 - tie the frame marker to the materials the frame's active anomalies actually use;
 - log which material is incomplete;
 - correct the "structurally zero" wording.
+
+## G299 — a game-thread time built on `GetThreadTimes` is a statistical sample; use cycle counts, calibrated against CPU time, never wall (2026-09-26, 081-37)
+
+`GetThreadTimes` charges a thread in 15.625 ms ticks. A game thread runs in slices shorter than that, so its figure is a sample, not a
+measurement. Measured on this box with a synthetic thread of known load: a 1 ms-slice thread read 5–29 % off across three runs, and a
+4 ms-slice thread −3 to +9 %. `QueryThreadCycleTime` on the same thread reproduced the programmed load (3.745 vs 4.0 ms and 0.970 vs 1.0 ms
+per frame; the shortfall is descheduling inside the busy phase).
+- Microsoft warns the cycle counter may not be convertible to time. On this CPU (i7-12650H, hybrid) it runs at the TSC rate: cycles per
+  OS-accounted CPU-second were 1.00–1.04 × the registry `~MHz` (2688) on long-slice trials, the same for a spin and for hashing work.
+- **Calibrate against CPU time, not wall.** A spinning Python thread on this idle laptop got only 75–79 % of wall time, so a
+  cycles-per-wall-second calibration read 2.0–2.2 GHz and would have over-read every game-thread figure by ~25 %.
+- UE names its game thread `GameThread` with `SetThreadDescription` (`WindowsPlatformProcess.cpp:2117-2119`), so an external sampler can
+  find it. Re-read descriptions until they are set: a thread can be enumerated before it names itself (the 081-37 sampler had that race).
+
+## G300 — the m38 run log flushes to disk on every line, on the thread that logs; the "FPS 21.5" leg was one 1.56 s start stall, not a rate (2026-09-26, 081-37)
+
+`FAnomalyRunLog::WriteLineLocked` calls `Writer->Flush()` → `FArchiveFileWriterGeneric::Flush` → `FlushFileBuffers` for every line, and
+the device is `CanBeUsedOnAnyThread`. With the run log ON (delivery OFF, the bench default), every game-thread log line waits for a
+synchronous disk flush.
+- Stage-1's evidence-OFF `MAIN4` read `sustained_wall_fps` 21.535. That is a whole-session ratio (wall span / game span). All of its excess
+  was one stall over session_index 0→4 (883, 111, 238, 527 ms). Frames 5–89 match their siblings to the millisecond.
+- During the stall, StartRun's back-to-back echo lines took 6–215 ms each; the sibling legs emit them within ≤ 2 ms. What slowed the disk
+  or the process is **not established** (no load context was recorded).
+- **Read `sustained_wall_fps` / `speed_ratio` as a whole-run ratio.** One start stall moves it as much as a slow run does; the per-frame
+  `t_wall` deltas tell them apart.
+- **For cost or timing measurements, turn the run log off** (`IAI.Capture.RunLog 0`; delivery mode does this by default). Otherwise
+  every m55 Log line costs a disk flush on its thread, including one `MASK-SERVED` line per served mask on the render thread.

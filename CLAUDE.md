@@ -11,6 +11,26 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧮 **081-37, 2026-09-26 — BENCH-FREE. STAGE 3's COST CAMPAIGN IS DESIGNED, PREDICTED, BUILT, PROVEN AND LOCKED; NOTHING RAN.**
+> Predictions `docs/predictions/2026-09-26-m55-stage3-cost.md` (declared before any leg); harness `_reviews/081-37-*`.
+> - **FPS 21.5 prior: PARTIAL.** It is a whole-session ratio carrying **one 1.56 s start stall** (session_index 0→4); frames 5–89 match
+>   the sibling legs. Not m55 (evidence OFF), not shaders. During the stall every run-log line took 6–215 ms: the m38 run log flushes to disk
+>   per line on the logging thread (G300). Why the disk or process was slow is not established → gated legs run with the run log OFF, plus a
+>   declared diagnostic pair (run log ON) outside the gate.
+> - **Campaign:** `solid_swap` on `CB_GateLevel` (the recipe accepted at both resolutions); pacing OFF; one discard + ABBA×2 per resolution;
+>   600 frames at 720p, 300 at 1080p (writer saturates, run-end flush waits ≤ 5 s); ~12–15 min expected, 60-min cap.
+> - **Metric and gate:** game-thread ms = `QueryThreadCycleTime` of UE's `GameThread` at the TSC rate (G299). Per resolution, PASS iff the
+>   one-sided 95 % upper bound (pooled A/A–B/B SD, t 1.943) ≤ +1.0 ms AND no writer drop beyond uncertainty (with a 5 % resolution guard).
+>   A leg with person evidence, foreign load or a foreign editor is re-run, never averaged in.
+> - **Proofs:** sampler known-answer 4/4, real-bank readings 2/2 (reproduce 081-24), dry-run walk 64/64. A harness bug was caught by the
+>   walk (the discard leg would have run evidence ON).
+> - **For chat before 081-38 (optional):** at 1080p a 1–3 % writer drop may read UNRESOLVED under the literal rule.
+> - **Next — 081-38 (bench):** `C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\081-37-cost-window.py 081-38`.
+>   NOT MERGED, NOT TAGGED, no build.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-37-code-m55-stage3-cost-design.md`.**
+>
+> ---
 > 🏁 **081-36, 2026-09-26 — BENCH. BUILD 3 (`85c99b3`, Game 002805CF) PASSES THE WHOLE c0–c3 REQUALIFICATION.** c1 resumed at
 > `R23_MAINON_N1` (only the 8 MAIN legs launched), then c2, then c3; every window exit 0 with postflight PASS.
 > - **c1:** MAIN-N and MAIN-S **PASS** (0 extras, 0 gated-unequal; AMENDMENT 5 A/B/C and AMENDMENT 6 M47 excused nothing).
