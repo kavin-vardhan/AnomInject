@@ -7624,3 +7624,19 @@ That last line is the control proving A.6 is what fires.
 A.6 every "signature present" negative would then have FAILed because the colour file was missing, not for the reason the case names.
 A negative that fails for the wrong reason proves nothing. The 081-33 mutants carry the colour files, and every case asserts **which
 frames were excused** as well as the verdict.
+
+## G297 — an identity gate that learns its allowed variance from control pairs lets the anomalous leg teach its own difference (2026-09-26, 081-34)
+
+The legacy cross clause builds its run-unique set from each group's control pairs (same binary, same evidence state). G294 was the
+false-FAIL side: a pair that happened to agree flagged known noise. This is the other side. In CB-S, `CB_S2` (build 3 OFF) read
+`frames_shaders_pending 90` against 0 everywhere else; `CB_S2` is one half of the S2/S5 control pair, so its own value differences
+went into the run-unique set and every cross pair reported **0 extras**. Synth order has no strict reference-pair clause. Only the
+key-presence rule saw it, because m47's keys are emitted conditionally and so appeared as new keys.
+
+**Consequence:** in synth order a single leg whose deviation is value-only on keys every leg already has passes the cross clause by
+construction. A control pair measures variance only if neither half is the thing under test. Before trusting a zero from a
+variance-learning gate, ask whether the leg that would fail is one of the legs the variance was learned from.
+
+Also measured here: m47's own log line says `PREWARM … incomplete` is "STRUCTURALLY ZERO in a packaged build". It read **1** on a
+packaged build (`M55B3R23_CB_S2`, 90 of 90 frames `shaders_pending`, 0 pending jobs). A claim of structural impossibility written into a
+log line is a prediction, not a guard. Mechanism not established.

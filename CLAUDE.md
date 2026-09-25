@@ -11,6 +11,21 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-34, 2026-09-26 — BENCH. c1 RESUMED AT `R23_CB_S1` UNDER AMENDMENT 5 AND STOPPED AT LEGACY GROUP CB-S (FAIL, KEY PRESENCE).
+> MAIN-N, MAIN-S, c2 AND c3 NOT RUN. NEEDS-DECISION.**
+> - Resume clean: only `CB_S1`–`CB_S6` launched; no decided leg re-run. Person-present gate 7 checks, 0 s waits; ENV-INTERRUPTED 0;
+>   postflight PASS. AMENDMENT 5 excused nothing live (no coalesced frame, identity tag maps).
+> - **The fail:** `CB_S2` (build 3, evidence OFF, synth) carries m47's `render_state=shaders_pending` / `shader_jobs_pending 0` /
+>   `anomaly_materials_incomplete 1` on all 90 rows (`PREWARM … incomplete=1` on a PACKAGED build, where m47's own line says that is
+>   structurally zero). Masks, tags, pixel counts, events identical to pre-m55. First packaged StackOBot occurrence in 972 banked sessions.
+>   m55's diff touches no m47 line; mechanism NOT ESTABLISHED. 🆕 G297 (the leg's own control pair taught the cross clause its
+>   difference; only key presence could see it).
+> - NO BUILD, NOT MERGED, NOT TAGGED. This commit moves the feature head ⇒ boundary re-issue before the next window.
+> - **Next: chat rules on the m47 keys' legacy scope; then re-evaluate CB-S (or amend), re-issue, resume c1 at `MAINON_N1`.**
+>
+> **Cold start: `docs/sessions/2026-09-26-081-34-code-m55-c1-legacy-cb-s-stop.md`, then `_reviews/081-34-evidence/c1-legacy-cb-s-cause-read.md`.**
+>
+> ---
 > 🧾 **081-33, 2026-09-26 — BENCH-FREE. AMENDMENT 5 IS RELEASED WITH A.6, CB-N IS COMMITTED PASS-REEVALUATED, AND THE BOUNDARY IS
 > RE-ISSUED. c1 RESUMES AT `R23_CB_S1` IN 081-34.** Rulings `_reviews/081-32-chat-ruling-legacy-identity-amendment-5.md` and
 > `_reviews/081-33-chat-ruling-colour-proof-and-derived-fields.md`.
