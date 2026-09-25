@@ -364,3 +364,61 @@ harness to fail on something no legacy rule compares. Nothing else in A, B or C 
 - CB-N is **committed PASS-REEVALUATED** in `081-23-evidence/c1/legacy-results.json`.
 - The boundary is re-issued for exactly the lib and the feature head (`_reviews/081-33-evidence/boundary-diff.json`), and c1 resumes at
   `R23_CB_S1`.
+
+## AMENDMENT 6 — 081-35, 2026-09-26: legacy identity — m47's shader-readiness keys excused under their own log signature, and the G297 self-excused singleton reading with a recurrence tripwire (dated)
+
+Authority: `_reviews/081-35-chat-ruling-m47-excusal-and-g297.md` (rulings 1 and 2, chat Claude, 2026-09-26 02:48 IST).
+**It touches the legacy-identity groups only.** No stack-leg predicate, threshold, prediction or m55 measurement changes. AMENDMENT 5 stays
+as released. The historical run-unique set does not change (`a347374e…`, 108 paths).
+
+Why: legacy CB-S failed in 081-34 on key presence alone. `CB_S2` (build 3, evidence OFF) carried m47's conditional shader-readiness keys on
+all 90 rows. Its own log reads `PREWARM shaders materials=2 incomplete=1`, and m55 touches no m47 line
+(`git diff 031a103 85c99b3 -- Source`). That is pre-m55 behaviour, and the key-presence rule fired correctly on a conditional diagnostic.
+
+- **1 — M47-EXCUSED.** The frozen m47 key list, taken from the writer source and identical at `031a103` (pre-m55) and `85c99b3` (build 3):
+  - **label rows:** `render_state`, `anomaly_materials_incomplete`, `shader_jobs_pending`. They are written together, and only when the
+    arm-time `AnomalyMaterialsIncomplete > 0` (`Source/AnomalyCapture/Private/AnomalyLabelWriter.cpp:212-217`).
+  - **run_summary:** `shader_prewarm_incomplete`, `frames_shaders_pending`. They are always written, and read 0 on a healthy run
+    (`:801-806`). `shader_prewarm_ms`, written beside them, is already in the historical set, so it is not on the list.
+
+  A leg carrying any of them (a row key, or a non-zero summary value) is **M47-EXCUSED** only if **all** of these hold:
+  1. **Signature.** Its own log has exactly one `Capture(m47): PREWARM shaders materials=M incomplete=N` line, with N ≥ 1.
+  2. **Closed key set.** The leg is compared in its **healthy view**: the m47 row keys absent and the two summary values 0, which is what the
+     writer emits when nothing is incomplete. In that view, no path or stable field may differ between this leg and **every** other leg
+     unless the historical set, the timing-sampled set or the group's **other** control pairs excuse it. The leg's own control pair cannot
+     excuse its own difference (G297); without this, a value-only difference on an existing key would pass in synth order.
+  3. **Consistency.**
+     - `shader_prewarm_incomplete` = N;
+     - every row's `anomaly_materials_incomplete` (0 where the keys are absent) = that row's single `SHADERS … incomplete=` line;
+     - every row's `shader_jobs_pending` = that line's `pending=`, and `render_state` = `shaders_pending`;
+     - `frames_shaders_pending` = the number of rows marked.
+  4. **Every other rule runs unchanged** on the healthy view, AMENDMENT 5 included.
+  5. **Symmetric** across binaries.
+  6. **Cap.** At most 1 M47-EXCUSED leg per group. A **second** build-3 leg needing it anywhere in the requalification, while pre-m55
+     legs show none, is **NEEDS-DECISION**.
+  7. **Reported** as `m47_excused: [{leg, N, frames_marked, prewarm_line}]`, plus the first `SHADERS` line and the end-of-run warning
+     line, in the comparison JSON and the group ledger row.
+
+  A leg that carries m47 keys but is **not** excused FAILs with a line naming the failed condition, on top of whatever the ordinary rules
+  report.
+- **2 — G297, a reading plus a tripwire, not a new gate.**
+  - **The reading.** Every group writes `self_excused_singletons` to its comparison JSON and ledger row. A singleton is a path where
+    exactly one leg differs from all the others while they agree, measured on the diffs the comparator actually uses. It is self-excused
+    when no rule reports it: not the cross, strict, key-presence or native field-set clause. Each entry gives the field, leg, binary,
+    evidence state, both values, and whether the path is in the historical set or the timing-sampled set. Field-level singletons are
+    reported beside them.
+  - **The tripwire.** A field key (frame and list positions normalised) outside the historical set that has self-excused singletons on
+    **build-3** legs in **≥ 2 groups**, and **never** on pre-m55 legs, is **NEEDS-DECISION**. The count covers the bank baseline carried in
+    the lib (`G297_BANK_BASELINE`: 081-12 MAIN and CB, 081-22 D MAIN-N and MAIN-S, c1 CB-N) plus every later group row.
+
+**Status on 2026-09-26 (081-35): implemented** in `_reviews/081-23-lib.py` (`9901be63…` → `f5876b05…`). Evidence
+`_reviews/081-35-evidence/`; journal `docs/sessions/2026-09-26-081-35-code-m55-am6-m47-g297.md`.
+- **Bank pre-check (before anything else):** the tripwire does not fire. The only non-historical, build-3 self-excused singletons in the
+  bank were `CB_S2`'s two m47 summary values, in one group. The unchanged `9901be63` lib ran with a read-only hook, and its output was
+  identical to the plain lib's on all 7 groups.
+- **Proofs 1–3:** 33 of 33 as expected — 13 m47 negatives, the positive plus its old-lib control, 5 symmetric cases, 4 tripwire cases
+  through the comparator, 6 through the function, and 2 native-order readings.
+- **Proof 4:** 17 comparisons and mutations under both libs. The only flip is CB-S FAIL → PASS. Readings are identical on all 30 legs; no
+  existing output key moved outside CB-S; the G297 reading equals the pre-check outside CB-S.
+- **Proof 5:** CB-S is **committed PASS-REEVALUATED** from the bank.
+- Resume proof 5 of 5: c1's first launch is `R23_MAINON_N1`. Dry run 209 of 209.

@@ -11,6 +11,34 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-35, 2026-09-26 — BENCH-FREE. AMENDMENT 6 IS DECLARED, IMPLEMENTED AND PROVEN; CB-S IS COMMITTED PASS-REEVALUATED; THE
+> BOUNDARY IS RE-ISSUED. c1 RESUMES AT `R23_MAINON_N1` IN 081-36.** Ruling `_reviews/081-35-chat-ruling-m47-excusal-and-g297.md`.
+> - **Bank pre-check first: the G297 tripwire does not fire.** The only non-historical build-3 self-excused singletons in the whole
+>   legacy bank were CB_S2's two m47 summary values, in one group.
+> - **Ruling 1 — M47-EXCUSED.** Frozen list, from the writer source (identical pre-m55 / build 3):
+>   - label rows `render_state`, `anomaly_materials_incomplete`, `shader_jobs_pending`;
+>   - run_summary `shader_prewarm_incomplete`, `frames_shaders_pending`.
+>
+>   The leg is excused only if all of these hold, and it is compared in its healthy view:
+>   - its own single `PREWARM … incomplete=N ≥ 1` line;
+>   - writer-exact consistency with its SHADERS lines;
+>   - a closed key set checked **without its own control pair** (G297);
+>   - the cap: 1 per group, and a second build-3 leg anywhere → NEEDS-DECISION.
+> - **Ruling 2 — G297 is now visible.** `self_excused_singletons` in every comparison and group row, plus a tripwire (a non-historical
+>   field, build 3 only, in ≥ 2 groups → NEEDS-DECISION). It is a reading, not a gate.
+> - **Lib `9901be63` → `f5876b05`** (window runner unchanged). Readings identical on all 30 banked legs.
+> - **Proofs:**
+>   - 1–3: 33 of 33;
+>   - 4: 17 comparisons, and the only flip is CB-S FAIL → PASS;
+>   - resume: 5 of 5;
+>   - dry run: 209 of 209.
+> - 🆕 G298 (m47's run-wide mark flagged 90 good `blinking` frames on a packaged build — a false-positive client quality flag; FUTURE fixes
+>   filed). G297 updated.
+> - NO BUILD, NOT MERGED, NOT TAGGED. **Next: 081-36 (bench, high) — `081-23-window.py c1 540 081-36`** (MAIN-N, MAIN-S), then c2, c3.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-35-code-m55-am6-m47-g297.md`, then `_reviews/081-35-evidence/am6-proof.json`.**
+>
+> ---
 > 🧾 **081-34, 2026-09-26 — BENCH. c1 RESUMED AT `R23_CB_S1` UNDER AMENDMENT 5 AND STOPPED AT LEGACY GROUP CB-S (FAIL, KEY PRESENCE).
 > MAIN-N, MAIN-S, c2 AND c3 NOT RUN. NEEDS-DECISION.**
 > - Resume clean: only `CB_S1`–`CB_S6` launched; no decided leg re-run. Person-present gate 7 checks, 0 s waits; ENV-INTERRUPTED 0;

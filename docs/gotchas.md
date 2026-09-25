@@ -7640,3 +7640,49 @@ variance-learning gate, ask whether the leg that would fail is one of the legs t
 Also measured here: m47's own log line says `PREWARM … incomplete` is "STRUCTURALLY ZERO in a packaged build". It read **1** on a
 packaged build (`M55B3R23_CB_S2`, 90 of 90 frames `shaders_pending`, 0 pending jobs). A claim of structural impossibility written into a
 log line is a prediction, not a guard. Mechanism not established.
+
+🔻 **NOW VISIBLE (2026-09-26, 081-35), ruling `_reviews/081-35-chat-ruling-m47-excusal-and-g297.md` ruling 2 — a reading and a tripwire,
+deliberately NOT a new gate.** Against a *systematic* m55 effect the gate keeps its power: both legs of a pair would show it and fail. A
+one-leg deviation cannot be told from noise at n = 2 per binary, and failing on singletons would false-fail genuine noise about 2/3 of the
+time.
+- **The reading.** Every legacy group writes `self_excused_singletons`: every path where exactly one leg differs while the others agree,
+  that no rule reports. Each entry gives the leg, binary, evidence state, values, and whether the path is historical or timing-sampled.
+- **The tripwire.** A non-historical field with self-excused singletons on build-3 legs in ≥ 2 groups, and never on pre-m55 legs, is
+  NEEDS-DECISION. It counts the bank (a baseline carried in the lib) plus every later group row.
+- **Bank pre-check (the unchanged `9901be63` lib, before any change):** the tripwire does not fire.
+  - Self-excused singletons: 081-12 CB `CB5` (stage 2, ON), six historical tick counters off by one; 081-22 D MAIN-N `coverage_pct` on
+    `D_N1` and `D_N4` (pre-m55, timing-sampled); 081-22 C `C_3` (pre-m55), historical only; c1 CB-S `CB_S2` `frames_shaders_pending` 90
+    vs 0 and `shader_prewarm_incomplete` 1 vs 0 — **exactly this entry's shape, the only non-historical build-3 case, in one group**.
+  - Under AMENDMENT 6 the last two are M47-EXCUSED and leave the reading (`_reviews/081-35-evidence/g297-bank-precheck.json`,
+    `proof4-no-flips.json`).
+- **The same lesson inside the m47 excusal.** Its closed-key-set condition checks the excused leg against paths excused **without** its
+  own control pair (the historical set, the timing-sampled set, the group's *other* control pairs). Otherwise a value-only difference
+  riding along with the m47 keys would be excused by the very pair it contaminates. Proven: `CB_S2` with m47 keys plus a `bbox_px` value
+  +1 is not excused, and FAILs.
+
+## G298 — m47's shader-readiness mark fired on a packaged build and marked 90 good frames `shaders_pending`: a false-positive client quality flag (2026-09-26, 081-35)
+
+Measured on `M55B3R23_CB_S2` (build 3, evidence OFF; pre-m55 code path, byte-unchanged by m55):
+- `Capture(m47): PREWARM shaders materials=2 incomplete=1 waited=0.0ms pendingBefore=0 pendingAfter=0`;
+- then `SHADERS pending=0 incomplete=1` on every captured frame;
+- so all 90 rows carry `render_state="shaders_pending"`, and run_summary reads `frames_shaders_pending 90`, `shader_prewarm_incomplete 1`.
+
+Three things are wrong with that, and they are separate claims:
+1. **The log's own wording is refuted.** It says the incomplete count is "STRUCTURALLY ZERO in a packaged build", and it read 1 on a
+   packaged build.
+2. **The frame mark is run-wide, not per anomaly.** No shader job was pending, and the active anomaly (`blinking`) swaps no material, so
+   those frames' pixels could not have been affected. The mark keys on *any* of this plugin's swap materials being incomplete, not on the
+   one the frame's anomaly draws.
+3. **For a client it is a false-positive quality flag** that could make them discard good frames.
+
+Incidence: 1 packaged StackOBot leg in the 972 banked sessions carrying m47 fields; the only other non-zero is a Lyra smoke run (prewarm
+incomplete 2, 0 frames marked). **Mechanism NOT ESTABLISHED:** the log does not say which of the two materials was incomplete, or why it
+never completed.
+
+In the requalification the keys stay in legacy-identity scope and are excused only under their own log signature, consistency and a cap
+(AMENDMENT 6 ruling 1). A second build-3 occurrence while pre-m55 shows none is a stop.
+
+📌 **FUTURE (m51 / M3), filed not built:**
+- tie the frame marker to the materials the frame's active anomalies actually use;
+- log which material is incomplete;
+- correct the "structurally zero" wording.
