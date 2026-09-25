@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-31, 2026-09-26 — c1 RESUMED AT `C1_G2_S` WITH THE PERSON-PRESENT GATE: ALL 14 REMAINING STACK LEGS PASS; THE FIRST LEGACY GROUP
+> `CB-N` FAILS ITS NATIVE RULES. c2 AND c3 NOT RUN. NEEDS-DECISION.**
+> - **Stack legs.** `C1_G2_S` A4 (fresh budget after ENV-VOIDED), G15, LOW, G10, COUNT/WALL_FAIL and the 1080 legs all PASS, oracle matching
+>   everywhere.
+>   - **First runtime proofs:** the `ChangeMaxBytes 1` refusal census (LOW: all 90 indices refused, HW 0) and G10 (one refusal at si 8).
+>   - The person-present gate ran 21 times, 0 s waits, ENV-INTERRUPTED 0, `person_evidence` false throughout.
+> - **CB-N FAIL: six READINGs on attempt 1, comparison FAIL. Chunk exit 1, postflight PASS.** Three independent causes:
+>   - (A) `CB_N2` (OFF): the frame-29 target mask is UNMEASURED. Two target arms coalesced into one render, and the pre-existing pixel-owner
+>     rule (identical in `master`) gives pixels to one arm only. The trigger is not established; m55 is not implicated by source.
+>   - (B) `CB_N5` (OFF): a bijective census tag relabel.
+>   - (C) `census_cycles` 26 vs 27, a historical run-unique field.
+>   - B and C look like predicate-encoding gaps → 🆕 **G294**.
+>   - CB-S / MAIN-N / MAIN-S not run.
+> - Ledger 92 legs: 6 c0 readings, 19 c1 stack PASS, 6 legacy readings in one failed group, 61 not run.
+> - NO BUILD, NOT MERGED, NOT TAGGED. The next window needs a boundary re-issue (this docs commit moves the feature head).
+>
+> **Cold start: `docs/sessions/2026-09-26-081-31-code-m55-c1-legacy-cb-n-stop.md`, then `_reviews/081-31-evidence/c1-legacy-cb-n-cause-read.md`.**
+>
+> ---
 > 🧾 **081-30, 2026-09-26 — BENCH-FREE. `C1_G2_S` A1–A3 ARE ENV-VOIDED AND A PERSON-PRESENT GATE IS IN THE HARNESS, PROVEN BOTH WAYS;
 > THE BOUNDARY IS RE-ISSUED.** Ruling `_reviews/081-30-chat-ruling-person-present-gate.md`. Before every attempt (all four leg kinds) and
 > at window start the harness waits for ≥ 60 s of input idle, inside one 45-min wait budget per window (exit 4, never NOT-RUN); the

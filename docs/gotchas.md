@@ -7546,3 +7546,20 @@ executing the real `081-23-window.py` source against stubs exposed it. When a ch
 must execute the script from its own source, not re-derive its calls. (The same walk's first run also flagged all 20 legacy legs, and that
 was the checker, not the harness: it assumed the launch is the last traced step, while `run_legacy_group`'s `finally` re-checks the
 process state after it — G142's shape.)
+
+## G294 — an identity gate whose "expected variance" comes from one control pair per group will flag every known run-unique class that pair happened not to show (2026-09-26, 081-31)
+
+081-31's first legacy group (CB-N: pre-m55, build 3 OFF, build 3 ON, ×2 each) failed its native rules on three unrelated phenomena.
+Two of them are classes this project already knows vary run to run:
+- a **bijective census stencil relabel** on one OFF leg (8 tags one-to-one; occupancy, MASK-TIE and counts equal), which `P-C7 v2/v3`
+  compare modulo bijection;
+- **`census_cycles`**, already in the historical run-unique set, which the native strict rule excuses but the cross-pair rule never consults.
+
+Each group has exactly one control pair per state, so "must also differ within a control pair" only learns the variance that pair happened
+to show. When an identity gate compares raw values, name every known run-unique class up front: tag values modulo bijection, and fields in
+the historical set. Otherwise the first unlucky draw reads as a build difference.
+
+The third phenomenon was real output, with a pre-existing mechanism. When two target-mask arms coalesce into one render, **only the first
+pixel-wanting arm receives pixels** (`Drain_RenderThread`'s `PixelOwner`, identical in `master`). The other frame is filed UNMEASURED with
+`pixels=0` and leaves the observable subset. Any binary can show this whenever a mask render slips a frame. Why it slipped here is not
+established.
