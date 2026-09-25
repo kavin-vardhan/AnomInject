@@ -11,6 +11,33 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **081-32, 2026-09-26 — BENCH-FREE. LEGACY-IDENTITY AMENDMENT 5 IS IMPLEMENTED AND PROVEN, AND CB-N PASSES UNDER IT FROM THE BANK. ONE
+> RULED PROOF (COLOUR) CANNOT FAIL UNDER THE EXISTING RULES. NEEDS-DECISION: THE CB-N ROW IS NOT WRITTEN AND THE BOUNDARY IS NOT RE-ISSUED.**
+> Ruling `_reviews/081-32-chat-ruling-legacy-identity-amendment-5.md`.
+> - **Pre-conditions clear.**
+>   - Source: the `PixelOwner` rule is byte-identical in `master` and build 3; every build-3 addition on that path is issue-guarded.
+>   - Bank: CB_N2 si 29 is the only coalesced-unmeasured frame in 30 legacy legs (build 3 1 of 10, pre-m55 0 of 8).
+> - **Lib `bb4fbb9d` → `c36a60c2`** (window runner unchanged):
+>   - (A) a signed, capped COALESCED-EXCUSED frame, judged against the comparator re-read "as if unmeasured" by the writer's own rules;
+>   - (B) tags modulo one leg-wide bijection, checked by pixel remap, counts, ties and actor identity;
+>   - (C) the hash-pinned historical set in the cross-pair clause, plus per-group ledger rows.
+> - **Proofs:**
+>   - A 17 of 18 (positive 2/2, negatives 8/9, frequency controls 2/2, symmetric 5/5);
+>   - B 8 of 8, with CB_N5 π = 247→227, 248..254→247..253;
+>   - C 10 of 10;
+>   - no verdict flips over 16 comparisons (only c1 CB-N FAIL→PASS);
+>   - CB-N re-evaluation **PASS-REEVALUATED (computed, not written)**;
+>   - dry run **198/198**; resume proof 5/5 (with the row, c1 resumes at `R23_CB_S1`).
+> - 🛑 **The miss:** "signature present, colour differs → FAIL" PASSes, because no legacy rule compares colour frames. They differ on 20–44 % of
+>   pixels even between two runs of one binary. Not bent. **Chat also needs to confirm 6 writer-derived fields** in the excused set
+>   (`target_drawn_pixels` and five counters).
+> - 🆕 G295 (coalesced-arm yield issue, FUTURE per-arm readback), 🆕 G296; G294 resolved in the harness.
+> - The preflight refuses every window until the re-issue: lib hash ≠ boundary.
+> - NO BUILD, NOT MERGED, NOT TAGGED. **Next: chat's ruling; then `reevaluate-cb-n.py --commit`, the boundary re-issue, and 081-33.**
+>
+> **Cold start: `docs/sessions/2026-09-26-081-32-code-m55-legacy-amendment-5.md`, then `_reviews/081-32-evidence/am5-proof.json`.**
+>
+> ---
 > 🧾 **081-31, 2026-09-26 — c1 RESUMED AT `C1_G2_S` WITH THE PERSON-PRESENT GATE: ALL 14 REMAINING STACK LEGS PASS; THE FIRST LEGACY GROUP
 > `CB-N` FAILS ITS NATIVE RULES. c2 AND c3 NOT RUN. NEEDS-DECISION.**
 > - **Stack legs.** `C1_G2_S` A4 (fresh budget after ENV-VOIDED), G15, LOW, G10, COUNT/WALL_FAIL and the 1080 legs all PASS, oracle matching

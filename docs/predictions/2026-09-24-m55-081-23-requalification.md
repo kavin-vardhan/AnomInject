@@ -291,3 +291,41 @@ byte-identical, and the dry run's 153 prior checks are unchanged.
 
 Proofs: `_reviews/081-30-evidence/pp-proof.json` (42 of 42), `pp-walk.json` (all 86 remaining legs + window start, 8 of 8),
 `resume-proof.json`; dry run 182 of 182 (the 153 of 081-28 identical + 29 new). Boundary: `_reviews/081-30-evidence/boundary-diff.json`.
+
+## AMENDMENT 5 — 081-32, 2026-09-26: legacy identity — the coalesced-arm unmeasured frame, tags modulo one bijection, and the historical set in the cross-pair clause (dated)
+
+Authority: `_reviews/081-32-chat-ruling-legacy-identity-amendment-5.md` (rulings A, B and C, chat Claude, 2026-09-26 00:55 IST).
+**It touches the legacy-identity groups only.** No stack-leg predicate, threshold or prediction changes. No m55 measurement changes. The
+historical run-unique set itself does not change (hash-pinned, `a347374e…`, 108 paths).
+
+- **A — a coalesced-arm unmeasured frame is COALESCED-EXCUSED.** It qualifies only if all of these hold:
+  - the leg's own log shows `TARGET MASK UNAVAILABLE for session_index <si> … pixels=0`;
+  - it is preceded by the `M23 PASS` line whose `ids=[…]` serves that frame's target arm together with an earlier session index's target
+    arm (≥ 2 target arms in one render);
+  - the frame's label row reads `mask_state: unmeasured`.
+
+  Differences are confined to that frame's unmeasured-derived set. Every other field, frame, `injected_frames` and colour-side label field
+  must pass the existing rules. The rule is symmetric for pre-m55 and build-3 legs.
+
+  Cap: at most 1 excused frame per leg and 1 leg with any per group. A third build-3 leg with one while pre-m55 legs show none also counts.
+  Beyond the cap the group is **NEEDS-DECISION**, never PASS or FAIL. Every excused frame is reported as `coalesced_unmeasured_excused:
+  [{leg, si, served_line, unavailable_line}]`. Recorded as a pre-existing yield issue (G295), not m55 scope.
+- **B — `mask_value` and mask-file content compare modulo one leg-wide tag bijection π.** Required:
+  - π is one-to-one and applies to every frame and label;
+  - after remapping, every mask file is pixel-identical and every `mask_value` equals π(pre-m55 value);
+  - per-tag counts, occupancy, `mask_ties` and the MASK-TIE cross-check are equal;
+  - actor identity is preserved where serialised (labels and `mask_map.json`).
+
+  π is reported for every leg where it is not the identity.
+- **C — rule 1's cross-pair clause also excuses exactly the paths in `081-22-evidence/legacy-historical-run-unique.json`**, the set rule 3
+  already uses. `census_cycles` is a timing-sampled diagnostic, tabulated per leg as a reading for Stage 3.
+
+**Status on 2026-09-26 (081-32):** implemented in `_reviews/081-23-lib.py` (`c36a60c2…`).
+- Pre-conditions clear.
+- Proofs 2–6 as expected.
+- The CB-N re-evaluation from the bank reads PASS-REEVALUATED.
+- Dry run 198 of 198.
+
+**Not yet released.** Proof 1's "colour differs → FAIL" cannot come out as expected: no legacy rule compares colour frames, which differ
+run to run on 20–44 % of pixels. Chat must rule on it. Until then the CB-N row is not written and the boundary is not re-issued. Evidence:
+`_reviews/081-32-evidence/`; journal `docs/sessions/2026-09-26-081-32-code-m55-legacy-amendment-5.md`.

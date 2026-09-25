@@ -7563,3 +7563,43 @@ The third phenomenon was real output, with a pre-existing mechanism. When two ta
 pixel-wanting arm receives pixels** (`Drain_RenderThread`'s `PixelOwner`, identical in `master`). The other frame is filed UNMEASURED with
 `pixels=0` and leaves the observable subset. Any binary can show this whenever a mask render slips a frame. Why it slipped here is not
 established.
+
+🔻 **RESOLVED IN THE HARNESS 2026-09-26 (081-32, predictions AMENDMENT 5, ruling `_reviews/081-32-chat-ruling-legacy-identity-amendment-5.md`).**
+The cross-pair clause now also excuses exactly the hash-pinned historical run-unique set (ruling C). Tag values compare modulo one
+leg-wide bijection π, checked by remapping pixels, counts, ties and actor identity (ruling B). A bijective relabel therefore no longer
+feeds the run-unique set a control pair learns from. On the banked CB-N the cross pairs excuse `census_cycles`, and CB_N5 passes under π.
+It takes effect when the boundary is re-issued; that is held on 081-32's NEEDS-DECISION (G296). The coalesced-arm frame is G295.
+
+## G295 — a target-mask render that slips a frame coalesces the next frame's arm into it, and that frame comes out UNMEASURED: a pre-existing yield issue, not a label error (2026-09-26, 081-32)
+
+`AfterTonemap_RenderThread` serves **every** pending arm with one render (m43). `Drain_RenderThread` then gives the tight pixels to the
+**first** pixel-wanting arm only (`PixelOwner`). `ServiceTargetMask` files every other target arm in that render `TARGET MASK UNAVAILABLE
+… pixels=0`.
+
+So when frame N's target-mask render slips one frame and frame N+1's arm joins it, N+1 is labelled `mask_state: unmeasured`,
+`target_pixels -1` and `observable null`, and it leaves the observable subset of `affected_frames`.
+- The label stays **honest**: unmeasured means not observable, the m49 rule. It costs **yield, not correctness**.
+- The code is pre-m55 and byte-identical in `master` (`031a103`) and build 3 (`85c99b3`) apart from issue-guarded additions
+  (`_reviews/081-32-evidence/precondition-source.json`).
+- Measured once in 30 banked legacy legs: CB_N2 si 29, build 3 evidence OFF. It is the only `TARGET MASK UNAVAILABLE` line in that bank.
+- **Why the render slipped is NOT ESTABLISHED.** Tick 40 produced no `M23 PASS` line at all, and CB_N2's `speed_ratio` was 1.000913
+  against ~1.000003 on its siblings. Both are observations, not a mechanism.
+- The requalification's legacy-identity gate excuses it under a signature plus a cap (AMENDMENT 5 ruling A); a rising build-3 frequency is
+  a stop.
+
+📌 **FUTURE (m51 / M3), filed not built:** give each target arm its own pixel readback, or re-arm a coalesced target arm on the next
+render, so a slipped render delays a mask instead of losing it.
+
+## G296 — a negative proof's expected FAIL presupposes that the comparator reads the thing the proof mutates (2026-09-26, 081-32)
+
+Ruling 081-32 A asked for "signature present, but the colour differs → FAIL". Its premise was that the existing legacy rules include "the
+frame's colour file". **They do not.**
+- The legacy flat holds labels, annotation, run_summary, run and the mask-PNG hashes. `Actual_Frames` hashes are stored and never
+  compared.
+- Colour frames are not byte-stable at the legacy configuration: 20–44 % of pixels differ between any two CB-N legs, including two pre-m55
+  runs of the same binary (184,214 px, max Δ 59 at si 29).
+- A solid-magenta colour frame therefore PASSes with or without the amendment.
+
+The proof was run as written and reported as not-as-expected, not bent into a pass by inventing a colour tolerance. **Before accepting a
+negative proof, name the rule that reads the mutated artifact. If none does, the negative can only pass, and the gap belongs to whoever
+owns the rule set, not to the implementation under test.** Same shape as G96: a check can only fire on what it looks at.
