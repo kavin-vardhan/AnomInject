@@ -169,38 +169,519 @@ namespace TexCorruptPure
 		long long Total() const { return Chains + Scratch; }
 	};
 
+	inline bool IsFirstOccurrence(const FReqTex* Tex, int i)
+	{
+		for (int j = 0; j < i; ++j)
+		{
+			if (Tex[j].Id == Tex[i].Id)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	inline bool OpensScratchClass(const FReqTex* Tex, int i)
+	{
+		if (Tex[i].M <= 1)
+		{
+			return false;
+		}
+		bool bClassSeen = false;
+		for (int j = 0; j < i && !bClassSeen; ++j)
+		{
+			bClassSeen = Tex[j].M > 1 && Tex[j].W == Tex[i].W && Tex[j].H == Tex[i].H && Tex[j].bSRGB == Tex[i].bSRGB;
+		}
+		return !bClassSeen;
+	}
+
 	inline FRequirement EventRequirement(const FReqTex* Tex, int N)
 	{
 		FRequirement R;
 		for (int i = 0; i < N; ++i)
 		{
-			bool bSeen = false;
-			for (int j = 0; j < i && !bSeen; ++j)
-			{
-				bSeen = Tex[j].Id == Tex[i].Id;
-			}
-			if (bSeen)
+			if (!IsFirstOccurrence(Tex, i))
 			{
 				continue;
 			}
 			++R.DistinctTextures;
 			R.Chains += ChainBytes(Tex[i].W, Tex[i].H, Tex[i].M);
-			if (Tex[i].M <= 1)
-			{
-				continue;
-			}
-			bool bClassSeen = false;
-			for (int j = 0; j < i && !bClassSeen; ++j)
-			{
-				bClassSeen = Tex[j].M > 1 && Tex[j].W == Tex[i].W && Tex[j].H == Tex[i].H && Tex[j].bSRGB == Tex[i].bSRGB;
-			}
-			if (!bClassSeen)
+			if (OpensScratchClass(Tex, i))
 			{
 				++R.ScratchClasses;
 				R.Scratch += ScratchBytes(Tex[i].W, Tex[i].H, Tex[i].M);
 			}
 		}
 		return R;
+	}
+
+	struct FAllocStep
+	{
+		int Kind = 0;
+		int Tex = -1;
+		int Level = 0;
+		int W = 0;
+		int H = 0;
+		long long Bytes = 0;
+	};
+
+	namespace AllocKind
+	{
+		constexpr int Output = 0;
+		constexpr int Scratch = 1;
+	}
+
+	inline long long LevelBytes(int W, int H, int Level)
+	{
+		return 4LL * (long long)MaxInt(1, W >> Level) * (long long)MaxInt(1, H >> Level);
+	}
+
+	inline int PlanAllocations(const FReqTex* Tex, int N, FAllocStep* Out, int MaxOut)
+	{
+		int Count = 0;
+		for (int i = 0; i < N; ++i)
+		{
+			if (!IsFirstOccurrence(Tex, i))
+			{
+				continue;
+			}
+			if (Count >= MaxOut)
+			{
+				return -1;
+			}
+			FAllocStep& O = Out[Count++];
+			O.Kind = AllocKind::Output;
+			O.Tex = i;
+			O.Level = 0;
+			O.W = Tex[i].W;
+			O.H = Tex[i].H;
+			O.Bytes = ChainBytes(Tex[i].W, Tex[i].H, Tex[i].M);
+			if (!OpensScratchClass(Tex, i))
+			{
+				continue;
+			}
+			for (int m = 1; m < Tex[i].M; ++m)
+			{
+				if (Count >= MaxOut)
+				{
+					return -1;
+				}
+				FAllocStep& S = Out[Count++];
+				S.Kind = AllocKind::Scratch;
+				S.Tex = i;
+				S.Level = m;
+				S.W = MaxInt(1, Tex[i].W >> m);
+				S.H = MaxInt(1, Tex[i].H >> m);
+				S.Bytes = LevelBytes(Tex[i].W, Tex[i].H, m);
+			}
+		}
+		return Count;
+	}
+
+	inline int MaxAllocSteps(int N)
+	{
+		return N * 16;
+	}
+
+	struct FLedgerCore
+	{
+		static constexpr int MaxBuckets = 16;
+
+		long long Live = 0;
+		long long Peak = 0;
+		unsigned long long Due[MaxBuckets] = {};
+		long long Bytes[MaxBuckets] = {};
+		int Buckets = 0;
+
+		long long PendingSum() const
+		{
+			long long Sum = 0;
+			for (int i = 0; i < Buckets; ++i)
+			{
+				Sum += Bytes[i];
+			}
+			return Sum;
+		}
+
+		long long Available(long long Cap) const
+		{
+			return Cap - Live - PendingSum();
+		}
+
+		void NotePeak()
+		{
+			const long long Now = Live + PendingSum();
+			if (Now > Peak)
+			{
+				Peak = Now;
+			}
+		}
+
+		bool Reserve(long long B, long long Cap)
+		{
+			if (B < 0 || B > Available(Cap))
+			{
+				return false;
+			}
+			Live += B;
+			NotePeak();
+			return true;
+		}
+
+		void ForceReserve(long long B)
+		{
+			if (B <= 0)
+			{
+				return;
+			}
+			Live += B;
+			NotePeak();
+		}
+
+		void Unreserve(long long B)
+		{
+			if (B <= 0)
+			{
+				return;
+			}
+			Live = Live > B ? Live - B : 0;
+		}
+
+		void ReleaseToPending(long long B, unsigned long long Frame)
+		{
+			if (B <= 0)
+			{
+				return;
+			}
+			Live = Live > B ? Live - B : 0;
+			const unsigned long long D = Frame + 2;
+			for (int i = 0; i < Buckets; ++i)
+			{
+				if (Due[i] == D)
+				{
+					Bytes[i] += B;
+					NotePeak();
+					return;
+				}
+			}
+			if (Buckets < MaxBuckets)
+			{
+				Due[Buckets] = D;
+				Bytes[Buckets] = B;
+				++Buckets;
+			}
+			else
+			{
+				int Latest = 0;
+				for (int i = 1; i < Buckets; ++i)
+				{
+					if (Due[i] > Due[Latest])
+					{
+						Latest = i;
+					}
+				}
+				Bytes[Latest] += B;
+				if (Due[Latest] < D)
+				{
+					Due[Latest] = D;
+				}
+			}
+			NotePeak();
+		}
+
+		void Tick(unsigned long long Frame)
+		{
+			for (int i = Buckets - 1; i >= 0; --i)
+			{
+				if (Due[i] <= Frame)
+				{
+					Due[i] = Due[Buckets - 1];
+					Bytes[i] = Bytes[Buckets - 1];
+					--Buckets;
+				}
+			}
+		}
+	};
+
+	struct FEventAccount
+	{
+		long long Reserved = 0;
+		long long Created = 0;
+
+		bool Reserve(FLedgerCore& L, long long B, long long Cap)
+		{
+			if (!L.Reserve(B, Cap))
+			{
+				return false;
+			}
+			Reserved += B;
+			return true;
+		}
+
+		bool NoteCreated(FLedgerCore& L, long long B)
+		{
+			if (B <= 0)
+			{
+				return B == 0;
+			}
+			Created += B;
+			if (Created <= Reserved)
+			{
+				return true;
+			}
+			const long long Excess = Created - Reserved;
+			L.ForceReserve(Excess);
+			Reserved = Created;
+			return false;
+		}
+
+		bool ReleaseCreated(FLedgerCore& L, long long B, unsigned long long Frame)
+		{
+			if (B <= 0)
+			{
+				return B == 0;
+			}
+			const bool bOk = B <= Created;
+			const long long Moved = bOk ? B : Created;
+			L.ReleaseToPending(Moved, Frame);
+			Created -= Moved;
+			Reserved -= Moved;
+			return bOk;
+		}
+
+		void Close(FLedgerCore& L, unsigned long long Frame)
+		{
+			L.ReleaseToPending(Created, Frame);
+			L.Unreserve(Reserved - Created);
+			Reserved = 0;
+			Created = 0;
+		}
+	};
+
+	enum class EHeld : int
+	{
+		Held,
+		NoEvent,
+		NoExpectedSet,
+		SlotNotInstalled,
+		BindingReadback
+	};
+
+	inline const char* LexHeld(EHeld H)
+	{
+		switch (H)
+		{
+		case EHeld::Held:             return "installed";
+		case EHeld::NoEvent:          return "no_event";
+		case EHeld::NoExpectedSet:    return "no_expected_set";
+		case EHeld::SlotNotInstalled: return "slot_not_installed";
+		default:                      return "binding_readback";
+		}
+	}
+
+	inline EHeld ConditionHeld(bool bActive, const bool* SlotHoldsMid, int NumSlots, const bool* BindingReadsBack, int NumBindings,
+		int& OutFirstBad)
+	{
+		OutFirstBad = -1;
+		if (!bActive)
+		{
+			return EHeld::NoEvent;
+		}
+		if (NumSlots <= 0 || NumBindings <= 0)
+		{
+			return EHeld::NoExpectedSet;
+		}
+		for (int i = 0; i < NumSlots; ++i)
+		{
+			if (!SlotHoldsMid[i])
+			{
+				OutFirstBad = i;
+				return EHeld::SlotNotInstalled;
+			}
+		}
+		for (int i = 0; i < NumBindings; ++i)
+		{
+			if (!BindingReadsBack[i])
+			{
+				OutFirstBad = i;
+				return EHeld::BindingReadback;
+			}
+		}
+		return EHeld::Held;
+	}
+
+	namespace Usage
+	{
+		constexpr unsigned SkeletalMesh = 1u << 0;
+		constexpr unsigned Clothing = 1u << 1;
+		constexpr unsigned MorphTargets = 1u << 2;
+		constexpr unsigned InstancedStaticMeshes = 1u << 3;
+		constexpr unsigned Nanite = 1u << 4;
+		constexpr unsigned SplineMesh = 1u << 5;
+		constexpr unsigned StaticLighting = 1u << 6;
+		constexpr int Count = 7;
+	}
+
+	enum class EMeshKind : int
+	{
+		Unknown,
+		Static,
+		Skinned
+	};
+
+	enum class EUsageGap : int
+	{
+		None,
+		UnknownComponent,
+		NoRenderData,
+		NoLods
+	};
+
+	inline const char* LexUsageGap(EUsageGap G)
+	{
+		switch (G)
+		{
+		case EUsageGap::None:             return "none";
+		case EUsageGap::UnknownComponent: return "unknown_component";
+		case EUsageGap::NoRenderData:     return "no_render_data";
+		default:                          return "no_lods";
+		}
+	}
+
+	struct FUsageFacts
+	{
+		EMeshKind Kind = EMeshKind::Unknown;
+		bool bRenderData = false;
+		bool bInstanced = false;
+		bool bSpline = false;
+		bool bNanite = false;
+		bool bForceVolumetric = false;
+		bool bLodsShareLighting = false;
+		int NumLods = 0;
+		const bool* LodDataLit = nullptr;
+		const bool* LodDataHasBuildData = nullptr;
+		const bool* LodUsesSlot = nullptr;
+		bool bSlotHasClothSection = false;
+		bool bHasMorphTargets = false;
+	};
+
+	inline bool LodHasSurfaceLighting(const FUsageFacts& F, int L)
+	{
+		if (F.bForceVolumetric || L < 0 || L >= F.NumLods)
+		{
+			return false;
+		}
+		const bool bShare = F.bLodsShareLighting || F.bInstanced;
+		if (L > 0 && bShare && F.LodDataHasBuildData[0])
+		{
+			return F.LodDataLit[0];
+		}
+		return F.LodDataLit[L];
+	}
+
+	inline unsigned RequiredUsages(const FUsageFacts& F, EUsageGap& OutGap)
+	{
+		OutGap = EUsageGap::None;
+		if (F.Kind == EMeshKind::Unknown)
+		{
+			OutGap = EUsageGap::UnknownComponent;
+			return 0;
+		}
+		if (!F.bRenderData)
+		{
+			OutGap = EUsageGap::NoRenderData;
+			return 0;
+		}
+		if (F.Kind == EMeshKind::Skinned)
+		{
+			unsigned R = Usage::SkeletalMesh;
+			if (F.bSlotHasClothSection)
+			{
+				R |= Usage::Clothing;
+			}
+			if (F.bHasMorphTargets)
+			{
+				R |= Usage::MorphTargets;
+			}
+			return R;
+		}
+		if (F.NumLods <= 0 || !F.LodDataLit || !F.LodDataHasBuildData || !F.LodUsesSlot)
+		{
+			OutGap = EUsageGap::NoLods;
+			return 0;
+		}
+		unsigned R = 0;
+		if (F.bInstanced)
+		{
+			R |= Usage::InstancedStaticMeshes;
+		}
+		if (F.bNanite && !F.bSpline)
+		{
+			R |= Usage::Nanite;
+			if (!F.bForceVolumetric && F.LodDataLit[0])
+			{
+				R |= Usage::StaticLighting;
+			}
+			return R;
+		}
+		if (F.bSpline)
+		{
+			R |= Usage::SplineMesh;
+		}
+		for (int L = 0; L < F.NumLods; ++L)
+		{
+			if (F.LodUsesSlot[L] && LodHasSurfaceLighting(F, L))
+			{
+				R |= Usage::StaticLighting;
+				break;
+			}
+		}
+		return R;
+	}
+
+	enum class EChainWalk : int
+	{
+		Clean,
+		RuntimeLink,
+		LimitReached
+	};
+
+	template <typename FNode, typename FIsRuntime, typename FParentOf>
+	inline EChainWalk WalkChain(FNode* Start, int MaxLinks, int& OutDepth, FIsRuntime IsRuntime, FParentOf ParentOf)
+	{
+		FNode* Link = Start;
+		OutDepth = 0;
+		for (int Depth = 0; Link; ++Depth)
+		{
+			OutDepth = Depth;
+			if (Depth >= MaxLinks)
+			{
+				return EChainWalk::LimitReached;
+			}
+			if (IsRuntime(Link))
+			{
+				return EChainWalk::RuntimeLink;
+			}
+			Link = ParentOf(Link);
+		}
+		return EChainWalk::Clean;
+	}
+
+	inline double CollateralWindowSeconds(double DeltaSeconds)
+	{
+		const double Floor = 0.2;
+		const double FromDelta = DeltaSeconds + 0.0001;
+		return FromDelta > Floor ? FromDelta : Floor;
+	}
+
+	inline bool IsCollateralPrimitive(bool bRegistered, bool bIsTarget, double SecondsSinceOnScreen, double DeltaSeconds)
+	{
+		return bRegistered && !bIsTarget && SecondsSinceOnScreen <= CollateralWindowSeconds(DeltaSeconds);
+	}
+
+	inline unsigned long long PostRevertSampleFrame(unsigned long long RevertFrame)
+	{
+		return RevertFrame + 2;
 	}
 
 	inline bool Fits(long long Required, long long Cap, long long Live, long long Pending)
