@@ -199,6 +199,59 @@ namespace AnomalyStuckMip
 	}
 }
 
+namespace
+{
+	TArray<const FAnomaly_StuckLowMip*>& LiveStuckMipInstances()
+	{
+		static TArray<const FAnomaly_StuckLowMip*> Instances;
+		return Instances;
+	}
+}
+
+FAnomaly_StuckLowMip::FAnomaly_StuckLowMip()
+{
+	LiveStuckMipInstances().Add(this);
+}
+
+FAnomaly_StuckLowMip::~FAnomaly_StuckLowMip()
+{
+	LiveStuckMipInstances().RemoveSingleSwap(this);
+}
+
+bool FAnomaly_StuckLowMip::HoldsOrRestores(const UTexture2D* Tex) const
+{
+	if (!Tex)
+	{
+		return false;
+	}
+	if (bActive)
+	{
+		for (const FHeldTexture& H : Held)
+		{
+			if (H.Texture.Get() == Tex)
+			{
+				return true;
+			}
+		}
+	}
+	return IsAwaitingRestore(Tex);
+}
+
+namespace AnomalyStuckMip
+{
+	bool IsTextureHeldOrRestoring(const UTexture2D* Tex)
+	{
+		for (const FAnomaly_StuckLowMip* Instance : LiveStuckMipInstances())
+		{
+			if (Instance && Instance->HoldsOrRestores(Tex))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
 bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 {
 	if (!World)

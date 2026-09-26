@@ -10,6 +10,11 @@ class UTexture2D;
 class FAnomaly_StuckLowMip final : public IAnomaly
 {
 public:
+	FAnomaly_StuckLowMip();
+	virtual ~FAnomaly_StuckLowMip();
+
+	bool HoldsOrRestores(const UTexture2D* Tex) const;
+
 	virtual FName   GetId() const override { return FName(TEXT("stuck_low_mip")); }
 	virtual FString GetDescription() const override { return TEXT("Texture held at a low resident mip on an actor's meshes (blurry object)."); }
 	virtual FString GetUsage() const override { return TEXT("<substring> [mip_levels]"); }

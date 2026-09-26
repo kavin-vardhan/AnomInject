@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 
+class UTexture2D;
+
 namespace AnomalyStuckMip
 {
 	struct FRunStats
@@ -33,4 +35,6 @@ namespace AnomalyStuckMip
 	ANOMALYINJECTOR_API bool IsNoHoldLeverOn();
 
 	ANOMALYINJECTOR_API bool IsUnlinkLockOn();
+
+	ANOMALYINJECTOR_API bool IsTextureHeldOrRestoring(const UTexture2D* Tex);
 }
