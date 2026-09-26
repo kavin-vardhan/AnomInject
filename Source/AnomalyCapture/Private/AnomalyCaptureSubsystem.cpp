@@ -28,6 +28,8 @@
 #include "AnomalyStencilTag.h"
 #include "AnomalyCensus.h"
 #include "AnomalyStuckMipStats.h"
+#include "AnomalyTexCorrupt.h"
+#include "Dom/JsonObject.h"
 #include "AnomalySveKeyRing.h"
 #include "AnomalyAsyncWriter.h"
 #include "AnomalyChangeStage.h"
@@ -119,6 +121,7 @@ struct FSessionEventAccum
 {
 	FName Id = NAME_None;
 	FString Target;
+	FString Subtype;
 	uint64 StartFrame = 0;
 
 	TArray<int32> AffectedFrames;
@@ -298,6 +301,8 @@ namespace
 			{ FName(TEXT("lod_corruption")),    EAnomalyActiveSource::FireWindow },
 			{ FName(TEXT("camera_clipping")),   EAnomalyActiveSource::AnomalyState },
 			{ FName(TEXT("stuck_low_mip")),     EAnomalyActiveSource::AnomalyState },
+			{ FName(TEXT("uv_corruption")),     EAnomalyActiveSource::FireWindow },
+			{ FName(TEXT("normal_corruption")), EAnomalyActiveSource::FireWindow },
 			{ FName(TEXT("time_dilation")),     EAnomalyActiveSource::FireWindow }
 		};
 		const EAnomalyActiveSource* Found = SourceById.Find(Id);
@@ -714,6 +719,21 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 
 	switch (Phase)
 	{
+	case ECapturePhase::TexCorruptWarm:
+		if (!bTexCorruptWarmBegun)
+		{
+			bTexCorruptWarmBegun = true;
+			TexCorruptWarmDraws = AnomalyTexCorrupt::BeginWarmDraw(GetWorld());
+		}
+		if (PhaseFramesLeft > 0) { --PhaseFramesLeft; }
+		if (PhaseFramesLeft <= 0)
+		{
+			AnomalyTexCorrupt::EndWarmDraw();
+			Phase = ECapturePhase::LeadIn;
+			PhaseFramesLeft = PreFrames;
+		}
+		break;
+
 	case ECapturePhase::LeadIn:
 		if (PhaseFramesLeft > 0) { CaptureCurrentFrame(); --PhaseFramesLeft; }
 		if (PhaseFramesLeft <= 0) { BeginFire(); }
@@ -2411,6 +2431,47 @@ void UAnomalyCaptureSubsystem::GatherAnomalySwapMaterials(TArray<UMaterialInterf
 #endif
 }
 
+void UAnomalyCaptureSubsystem::GatherAnomalyPrewarmMaterials(TArray<UMaterialInterface*>& Out) const
+{
+#if ANOMALY_CAPTURE
+	GatherAnomalySwapMaterials(Out);
+	AnomalyTexCorrupt::GatherCorruptorMaterials(GetWorld(), Out);
+#endif
+}
+
+bool UAnomalyCaptureSubsystem::IsTexCorruptWarmWanted() const
+{
+	if (bTargetedMode && AnomalyTexCorrupt::IsTexCorruptId(TargetAnomalyId))
+	{
+		return true;
+	}
+	UWorld* World = GetWorld();
+	const UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr;
+	return Auto && (Auto->IsAnomalyEnabled(FName(TEXT("uv_corruption"))) || Auto->IsAnomalyEnabled(FName(TEXT("normal_corruption"))));
+}
+
+const TCHAR* UAnomalyCaptureSubsystem::DescribeTexCorruptWarmDrawSource() const
+{
+	if (bTexCorruptWarmDrawFromConsole)
+	{
+		return TEXT("IAI.Capture.TexCorruptWarmDraw (console)");
+	}
+	return TEXT("COMPILED DEFAULT (on)");
+}
+
+void UAnomalyCaptureSubsystem::SetTexCorruptWarmDraw(bool bInOn)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.TexCorruptWarmDraw: ignored - a capture run is in progress."));
+		return;
+	}
+	bTexCorruptWarmDraw = bInOn;
+	bTexCorruptWarmDrawFromConsole = true;
+	UE_LOG(LogAnomalyCapture, Log, TEXT("IAI.Capture.TexCorruptWarmDraw: %s - m53. Takes effect BETWEEN RUNS. OFF is the G-COST control for the cold first fire."),
+		bTexCorruptWarmDraw ? TEXT("ON") : TEXT("off"));
+}
+
 int32 UAnomalyCaptureSubsystem::CountIncompleteAnomalyMaterials() const
 {
 #if ANOMALY_CAPTURE
@@ -2515,7 +2576,7 @@ void UAnomalyCaptureSubsystem::PrewarmAnomalyShaders()
 	}
 
 	TArray<UMaterialInterface*> Materials;
-	GatherAnomalySwapMaterials(Materials);
+	GatherAnomalyPrewarmMaterials(Materials);
 
 	const int32 PendingBefore = GetShaderJobsPending();
 	const double T0 = FPlatformTime::Seconds();
@@ -3145,6 +3206,9 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	bDeferredOnsetWindowStarted = false;
 	DeferredOnsetWaitFrames = 0;
 	AnomalyStuckMip::ResetRunStats();
+	AnomalyTexCorrupt::ResetRunStats();
+	TexCorruptWarmDraws = -1;
+	bTexCorruptWarmBegun = false;
 	ExposureLumBySessionIndex.Reset();
 	ExposureExclusionMask.Reset();
 	ExposureExclusionFolded.Reset();
@@ -3194,6 +3258,11 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		TEXT("READING and the black-frame pixel gate is what actually tests a packaged cook."),
 		bShaderPrewarm ? TEXT("ON") : TEXT("OFF"),
 		bShaderPrewarm ? TEXT("on") : TEXT("off"), DescribeShaderPrewarmSource());
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("=== Capture(m53): TEXCORRUPT WARM DRAW %s FOR THIS RUN (from %s) - %s ==="),
+		bTexCorruptWarmDraw ? TEXT("ON") : TEXT("OFF"), DescribeTexCorruptWarmDrawSource(),
+		IsTexCorruptWarmWanted() ? TEXT("an m53 id is targeted or enabled, so a 2-frame NON-CAPTURING phase runs before the lead-in") : TEXT("no m53 id is targeted or enabled, so no phase is added and the run is byte-identical to one without m53"));
 
 	bCensusEffective = bCensus && bMaskMeasure && bAsyncCapture;
 	UE_LOG(LogAnomalyCapture, Log,
@@ -3561,6 +3630,12 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 
 	Phase = ECapturePhase::LeadIn;
 	PhaseFramesLeft = PreFrames;
+	if (bTexCorruptWarmDraw && IsTexCorruptWarmWanted())
+	{
+		Phase = ECapturePhase::TexCorruptWarm;
+		PhaseFramesLeft = 2;
+		bTexCorruptWarmBegun = false;
+	}
 	bRunBegun = true;
 	if (Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->MarkSessionBegun(); }
 
@@ -5232,6 +5307,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	{
 		Auto->RevertAllLiveFires();
 	}
+	AnomalyTexCorrupt::EndWarmDraw();
+	AnomalyTexCorrupt::RestoreBenchAssetSlotMid(TEXT("run end"));
 
 	const bool bWroteSession = bRunBegun;
 
@@ -5646,8 +5723,56 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			Async->ChangeStage->Diagnostic(TEXT("late_record_mutations"), Before == After ? 0 : 1);
 			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): LATE-FROZEN beforeChars=%d afterChars=%d mutations=%d"), Before.Len(), After.Len(), Before == After ? 0 : 1);
 		}
-		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
-			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
+		TSharedPtr<FJsonObject> TexCorruptSummary = MakeShared<FJsonObject>();
+		{
+			const AnomalyTexCorrupt::FRunStats TC = AnomalyTexCorrupt::GetRunStats();
+			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_fires_applied"), TC.FiresApplied);
+			for (const FString& Reason : AnomalyTexCorrupt::AllFinalReasons())
+			{
+				TexCorruptSummary->SetNumberField(FString::Printf(TEXT("texcorrupt_refused_%s"), *Reason), TC.RefusedByReason.FindRef(Reason));
+			}
+			for (const TPair<FString, int32>& KV : TC.RefusedByReason)
+			{
+				const FString Key = FString::Printf(TEXT("texcorrupt_refused_%s"), *KV.Key);
+				if (!TexCorruptSummary->HasField(Key))
+				{
+					TexCorruptSummary->SetNumberField(Key, KV.Value);
+				}
+			}
+			TSharedPtr<FJsonObject> SlotDisp = MakeShared<FJsonObject>();
+			for (const TPair<FString, int32>& KV : TC.SlotDispositions) { SlotDisp->SetNumberField(KV.Key, KV.Value); }
+			TexCorruptSummary->SetObjectField(TEXT("texcorrupt_slot_dispositions"), SlotDisp);
+			TSharedPtr<FJsonObject> BindDisp = MakeShared<FJsonObject>();
+			for (const TPair<FString, int32>& KV : TC.BindingDispositions) { BindDisp->SetNumberField(KV.Key, KV.Value); }
+			TexCorruptSummary->SetObjectField(TEXT("texcorrupt_binding_dispositions"), BindDisp);
+			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_rt_bytes_peak"), (double)TC.RtBytesPeak);
+			for (const FString& Step : AnomalyTexCorrupt::AllRollbackSteps())
+			{
+				TexCorruptSummary->SetNumberField(FString::Printf(TEXT("texcorrupt_rollback_%s"), *Step), TC.RollbackByStep.FindRef(Step));
+			}
+			for (const TPair<FString, int32>& KV : TC.RollbackByStep)
+			{
+				const FString Key = FString::Printf(TEXT("texcorrupt_rollback_%s"), *KV.Key);
+				if (!TexCorruptSummary->HasField(Key))
+				{
+					TexCorruptSummary->SetNumberField(Key, KV.Value);
+				}
+			}
+			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_restored_exact"), TC.RestoredExact);
+			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_restored_default"), TC.RestoredDefault);
+			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_left_to_game"), TC.LeftToGame);
+			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_swept"), TC.Swept);
+			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_rt_mip_mismatch"), TC.RtMipMismatch);
+			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_collateral_drops"), TC.CollateralDrops);
+			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_slots_partial_set"), TC.SlotsPartialSet);
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m53): TEXCORRUPT SUMMARY fires_applied=%d rt_mip_mismatch=%d rt_bytes_peak=%lld restored_exact=%d ")
+				TEXT("restored_default=%d left_to_game=%d swept=%d collateral_drops=%d warm_draws=%d. rt_mip_mismatch is the ")
+				TEXT("render-thread tripwire (plan R3.4.5); any non-zero stops S1."),
+				TC.FiresApplied, TC.RtMipMismatch, TC.RtBytesPeak, TC.RestoredExact, TC.RestoredDefault, TC.LeftToGame, TC.Swept,
+				TC.CollateralDrops, TexCorruptWarmDraws);
+		}
+		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
 			bSveCapture ? TEXT("sve") : TEXT("backbuffer"),
 			bSveCapture ? &RingTelemetry : nullptr,
@@ -5662,7 +5787,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TranslucentOnlyExcludedTargets,
 			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0,
 			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed, &StuckMipReport,
-			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr);
+			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr, TexCorruptSummary);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")
@@ -5892,6 +6017,10 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			Ev->CamPath = ResolveCameraPath(World);
 			Ev->TicksMsec = (int64)FMath::RoundToDouble(TimeSeconds * 1000.0);
 			Ev->NodeName = F.Target;
+			if (AnomalyTexCorrupt::IsTexCorruptId(F.Id))
+			{
+				Ev->Subtype = AnomalyTexCorrupt::GetLiveModeName(World, F.Id);
+			}
 			if (const AActor* FActor = F.TargetActor.Get())
 			{
 				Ev->NodePath = FActor->GetPathName();
@@ -6012,6 +6141,10 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 
 		AnomalyLabel::FSessionEvent Out;
 		MapAnomalyToClient(Ev.Id, Out.AnomalyType, Out.AnomalySubtype);
+		if (!Ev.Subtype.IsEmpty())
+		{
+			Out.AnomalySubtype = Ev.Subtype;
+		}
 
 		bool bKnownId = false;
 		const EAnomalyActiveSource Source = ResolveAnomalyActiveSource(Ev.Id, bKnownId);
@@ -6940,8 +7073,29 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureTargetMaskCmd(
 			}
 		}));
 
-static FAutoConsoleCommandWithWorldAndArgs GCaptureShaderPrewarmCmd(
-	TEXT("IAI.Capture.ShaderPrewarm"),
+static FAutoConsoleCommandWithWorldAndArgs GCaptureTexCorruptWarmDrawCmd(
+	TEXT("IAI.Capture.TexCorruptWarmDraw"),
+	TEXT("m53 WARM DRAW. When a run targets an m53 id (or has one enabled in the pool), a 2-frame NON-CAPTURING phase runs ")
+	TEXT("between the run start and the lead-in and draws each corruptor once into small scratch targets of each format ")
+	TEXT("(the allocation update, a clear, a draw and one per-mip copy), then releases them, so first-use PSO creation can ")
+	TEXT("happen outside captured frames. That it hits the same PSOs is NOT proved; G-COST measures the first Apply with it on ")
+	TEXT("and off. Runs that involve no m53 id are unchanged. COMPILED default ON. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Capture.TexCorruptWarmDraw <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Capture.TexCorruptWarmDraw <0|1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetTexCorruptWarmDraw(FCString::Atoi(*Args[0]) != 0);
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GCaptureShaderPrewarmCmd(	TEXT("IAI.Capture.ShaderPrewarm"),
 	TEXT("m47 SHADER READINESS PREWARM. Before the first armed frame of a run, calls ")
 	TEXT("UMaterialInterface::EnsureIsComplete() on every material this plugin can swap in - the ")
 	TEXT("missing_texture checker and the corrupted_texture pink - which submits any missing shader jobs at ")

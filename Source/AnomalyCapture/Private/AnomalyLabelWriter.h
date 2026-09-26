@@ -176,7 +176,8 @@ namespace AnomalyLabel
 		int32 UnmeasurableTargetsAdmitted = 0,
 		int32 TargetDrawnPixelsMeasured = 0, int32 FramesDrawnUnexpected = 0,
 		int32 FramesExposureDipSuppressed = 0,
-		const struct FStuckMipTelemetry* StuckMip = nullptr, const TSharedPtr<FJsonObject>& ChangeSummary = nullptr);
+		const struct FStuckMipTelemetry* StuckMip = nullptr, const TSharedPtr<FJsonObject>& ChangeSummary = nullptr,
+		const TSharedPtr<FJsonObject>& TexCorruptSummary = nullptr);
 
 	struct FStuckMipTelemetry
 	{

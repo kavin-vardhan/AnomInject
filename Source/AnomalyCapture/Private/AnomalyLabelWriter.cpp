@@ -706,7 +706,8 @@ namespace AnomalyLabel
 		int32 FramesExposureDip, const FObservabilityTelemetry* Observability,
 		int32 TranslucentOnlyExcludedTargets, int32 UnmeasurableTargetsAdmitted,
 		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed,
-		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary)
+		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary,
+		const TSharedPtr<FJsonObject>& TexCorruptSummary)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -856,6 +857,13 @@ namespace AnomalyLabel
 		if (ChangeSummary.IsValid())
 		{
 			for (const auto& Field : ChangeSummary->Values) { Root->SetField(Field.Key, Field.Value); }
+		}
+		if (TexCorruptSummary.IsValid())
+		{
+			for (const auto& Field : TexCorruptSummary->Values) { Root->SetField(Field.Key, Field.Value); }
+		}
+		if (ChangeSummary.IsValid() || TexCorruptSummary.IsValid())
+		{
 			Out.Reset();
 			const auto ChangeWriter = TJsonWriterFactory<>::Create(&Out);
 			FJsonSerializer::Serialize(Root, ChangeWriter);

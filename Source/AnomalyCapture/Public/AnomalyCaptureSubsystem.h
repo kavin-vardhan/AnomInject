@@ -92,6 +92,10 @@ public:
 	void SetShaderPrewarm(bool bInOn);
 	bool IsShaderPrewarm() const { return bShaderPrewarm; }
 	const TCHAR* DescribeShaderPrewarmSource() const;
+
+	void SetTexCorruptWarmDraw(bool bInOn);
+	bool IsTexCorruptWarmDraw() const { return bTexCorruptWarmDraw; }
+	const TCHAR* DescribeTexCorruptWarmDrawSource() const;
 	static int32 GetShaderJobsPending();
 	int32 CountIncompleteAnomalyMaterials() const;
 	void BenchForceAnomalyShaderRecompile();
@@ -160,6 +164,7 @@ private:
 	{
 		Idle,
 		ArmedPending,
+		TexCorruptWarm,
 		LeadIn,
 		SettleAfterFire,
 		Positives,
@@ -173,6 +178,8 @@ private:
 	void PrewarmAnomalyShaders();
 
 	void GatherAnomalySwapMaterials(TArray<class UMaterialInterface*>& Out) const;
+	void GatherAnomalyPrewarmMaterials(TArray<class UMaterialInterface*>& Out) const;
+	bool IsTexCorruptWarmWanted() const;
 	void StartRunLog();
 	void EndRunLog();
 	bool ResolveRunLogEffective(FString& OutSource) const;
@@ -416,6 +423,11 @@ private:
 	int32 FramesDrawnUnexpected = 0;
 	int32 TargetDrawnMeasuredRows = 0;
 	int32 StuckMipFramesHeld = 0;
+
+	bool bTexCorruptWarmDraw = true;
+	bool bTexCorruptWarmDrawFromConsole = false;
+	bool bTexCorruptWarmBegun = false;
+	int32 TexCorruptWarmDraws = -1;
 	struct FExposureSample
 	{
 		double LumaAll = -1.0;
