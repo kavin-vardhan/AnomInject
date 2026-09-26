@@ -11,6 +11,18 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **082-06b, 2026-09-27 — `m53` S1: Codex's nine source-review findings (6 P2, 3 P3) FIXED on
+> `feat/m53-uv-normal-corruption` (`127b7e1` … `1d7cada`), BOTH TARGETS REBUILT CLEAN (G10). NOT STAGED, NO COOK, NO LEG, NO TAG.**
+> - **Cold start:** the plan's **§R0.000** (revision 3.2), then `docs/sessions/2026-09-27-082-06b-code-m53-s1-review-fixes.md`.
+> - Offline: 151/151 on the header the plugin compiles, including 129 rollback sequences that balance to zero; the scripted
+>   mutant (`tools/texcorrupt_make_mutant.py`) fails 24, every new group included.
+> - G10: editor exit 0 (43 s), game exit 0 (74 s), 0 warnings, all five modules compiled from scratch, module set unchanged.
+>   Game exe **`8BF054FA`** archived as `_binary_baselines\StackOBot.exe.m53-s1fix-8BF054FA`. **The bench stays on `E0BE6F0A`.**
+> - 🎯 **NEXT: Codex's delta check on these commits (journal §6), then 082-06 (authoring + cook) if it has no P1 and no
+>   unresolved P2.** The in-engine proofs of P2-1/P2-2/P2-3/P2-5/P2-6 are 082-07 leg readings (journal §4 item 7).
+>
+> ---
+>
 > 🛠 **082-05, 2026-09-27 — `m53` S1 PART 1 on `feat/m53-uv-normal-corruption`: plan fixes A/B/C/P3 folded in (revision 3.1,
 > `ea1eed1`), M0 taken, ALL S1 plugin code committed and pushed (`2a2ab17` … `bb048bb`), and BOTH TARGETS BUILT CLEAN (G10).
 > NOT STAGED, NO COOK, NO LEG, NO TAG, NOT MERGED.**
