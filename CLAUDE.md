@@ -11,6 +11,18 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **082-06c, 2026-09-27 — `m53` S1: the two remainders of Codex's fix delta (P2-2 null slot / unresolved entries;
+> P3-3 rollback balance at F+2) FIXED (`9b79486`, harness `74c25de`, plan revision 3.3 `1fc20ea`), BOTH TARGETS REBUILT
+> CLEAN (G10). NOT STAGED, NO COOK, NO LEG, NO TAG.**
+> - **Cold start:** the plan's **§R0.0000** (revision 3.3), then `docs/sessions/2026-09-27-082-06c-code-m53-s1-remainders.md`.
+> - Offline: 172/172; the 13-fault mutant fails 34, and each of the five new faults alone fails its own rows.
+> - G10: editor exit 0 (99 s), game exit 0 (70 s), 0 warnings, module set unchanged. Game exe **`2FCDF059`** archived as
+>   `_binary_baselines\StackOBot.exe.m53-s1rem-2FCDF059`. **The bench stays on `E0BE6F0A`.**
+> - 🎯 **NEXT: Codex's mini-delta on these two items (journal §6), then chat rules; 082-06 (authoring + cook) follows only
+>   if it is clean.**
+>
+> ---
+>
 > 🔧 **082-06b, 2026-09-27 — `m53` S1: Codex's nine source-review findings (6 P2, 3 P3) FIXED on
 > `feat/m53-uv-normal-corruption` (`127b7e1` … `1d7cada`), BOTH TARGETS REBUILT CLEAN (G10). NOT STAGED, NO COOK, NO LEG, NO TAG.**
 > - **Cold start:** the plan's **§R0.000** (revision 3.2), then `docs/sessions/2026-09-27-082-06b-code-m53-s1-review-fixes.md`.
