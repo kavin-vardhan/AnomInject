@@ -256,6 +256,17 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       `CensusDropEntry`, `SpawnTranslucentProbe`, `SynthTickOrder`, `MaskPairingProbe`, `HideMode`, `HideOmitShadowSilencing`, `HideOmitDepthPassSilencing`. *All are console-only with no ini
       key, so they cannot be on by accident — but a capture taken with one on is a GATE LEG, not a
       dataset, and `CensusDropEntry` in particular deliberately hides candidates from the census.*
+      *(082-05, m53 S1)* The m53 levers are all `IAI.Bench.TexCorrupt*`: `NoApply`, `WrongCopy`, `Identity`,
+      `IdentityRedraw`, `TileProbe`, `ForceMissingAsset`, `FailStep`, `ForeignReplace`, `CollateralDetail`,
+      `AssetSlotMid`. None may appear in a delivered log.
+- [ ] ⛔ **No m53 bench fixture ships.** `CB_TexCorruptLevel` and everything under
+      `/Game/CaptureBenchTexCorrupt/` belong to the StackOBot bench project, never to the plugin:
+      `git -C <plugin> ls-files Content` lists only the plugin's shipped materials and textures, and no plugin
+      asset or object reference points into `/Game/CaptureBenchTexCorrupt` (the path's only occurrence in plugin
+      source is the refusal prefix of `IAI.Bench.TexCorruptAssetSlotMid` in `TexCorruptBench.cpp`, a string
+      comparison that loads nothing). On any cooked build that leaves this box, the
+      cooked map index contains no `CB_TexCorruptLevel` (`verify_cooked_maps.ps1`, or the cook log's map list),
+      and `IAI.Bench.TexCorruptAssetSlotMid` was never typed (see the bench-lever box).
 
 
 ### 🆕 `m43` — THE TARGET ID MASK: three boxes for this cook
