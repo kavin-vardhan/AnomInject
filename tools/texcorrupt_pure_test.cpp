@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdio>
+#include <set>
 #include <string>
 
 #include "TexCorruptPure.h"
@@ -78,6 +79,7 @@ struct FSeq
 {
 	int Sequences = 0;
 	int Violations = 0;
+	int LinePendingPositive = 0;
 	std::string FirstViolation;
 };
 
@@ -136,6 +138,14 @@ static void RunRollback(FSeq& Q, const FReqTex* T, int N, int FailK, bool bCreat
 	{
 		Violate(Q, Tag + " pending " + std::to_string(L.PendingSum()) + " != created " + std::to_string(Created));
 	}
+	if (L.PendingSum() > 0)
+	{
+		++Q.LinePendingPositive;
+	}
+	if (JudgeLedgerReading(F, F, L.Live, L.PendingSum()) != ELedgerBalance::NotYetDue)
+	{
+		Violate(Q, Tag + " the rollback line was judged as a balance verdict");
+	}
 	L.Tick(F + 1);
 	if (L.PendingSum() != Created)
 	{
@@ -145,6 +155,10 @@ static void RunRollback(FSeq& Q, const FReqTex* T, int N, int FailK, bool bCreat
 	if (L.Live != 0 || L.PendingSum() != 0)
 	{
 		Violate(Q, Tag + " not balanced at frame+2");
+	}
+	if (JudgeLedgerReading(F, F + 2, L.Live, L.PendingSum()) != ELedgerBalance::Balanced)
+	{
+		Violate(Q, Tag + " the frame+2 reading is not judged balanced");
 	}
 	if (L.Peak != Req)
 	{
@@ -203,6 +217,10 @@ static std::string RunSuccess(const FReqTex* T, int N, bool bRedraw)
 	{
 		return "at revert";
 	}
+	if (JudgeLedgerReading(Revert, Revert, L.Live, L.PendingSum()) != ELedgerBalance::NotYetDue)
+	{
+		return "the revert line was judged as a balance verdict";
+	}
 	L.Tick(Revert + 1);
 	if (L.PendingSum() == 0)
 	{
@@ -212,6 +230,10 @@ static std::string RunSuccess(const FReqTex* T, int N, bool bRedraw)
 	if (L.Live != 0 || L.PendingSum() != 0)
 	{
 		return "not balanced at the post-revert frame";
+	}
+	if (JudgeLedgerReading(Revert, PostRevertSampleFrame(Revert), L.Live, L.PendingSum()) != ELedgerBalance::Balanced)
+	{
+		return "the post-revert reading is not judged balanced";
 	}
 	return L.Peak == Req ? "balanced" : "peak " + std::to_string(L.Peak);
 }
@@ -226,6 +248,65 @@ static std::string Walk(FNode* Start, int& Depth)
 {
 	const EChainWalk W = WalkChain(Start, 16, Depth, [](FNode* N) { return N->bRuntime; }, [](FNode* N) { return N->Parent; });
 	return W == EChainWalk::Clean ? "clean" : (W == EChainWalk::RuntimeLink ? "runtime_link" : "limit_reached");
+}
+
+struct FEntry
+{
+	const char* Tex;
+	bool b2D;
+};
+
+struct FMat
+{
+	const char* Name;
+	bool bReadable;
+	int NumEntries;
+	const FEntry* Entries;
+};
+
+struct FCollOut
+{
+	std::string Set;
+	int NullSlots = 0;
+	int Unresolved = 0;
+	int Unmeasured = 0;
+	int Incomplete = 0;
+	bool bComplete = false;
+};
+
+static FCollOut CollectSlots(FMat* const* Slots, int N, FMat* EngineDefault)
+{
+	FCollOut O;
+	std::set<const FMat*> Seen;
+	std::set<std::string> Paths;
+	for (int s = 0; s < N; ++s)
+	{
+		FMat* M = MeasuredSlotMaterial(Slots[s], EngineDefault, O.NullSlots, O.Unresolved);
+		if (!M || !Seen.insert(M).second)
+		{
+			continue;
+		}
+		if (!M->bReadable)
+		{
+			++O.Unmeasured;
+			continue;
+		}
+		for (int e = 0; e < M->NumEntries; ++e)
+		{
+			const FEntry& E = M->Entries[e];
+			if (ClassifyCollateralEntry(E.Tex != nullptr, E.b2D, O.Unresolved) == ECollEntry::Measured)
+			{
+				Paths.insert(E.Tex);
+			}
+		}
+	}
+	for (const std::string& P : Paths)
+	{
+		O.Set += (O.Set.empty() ? std::string() : std::string(",")) + P;
+	}
+	O.Incomplete = CollateralIncompleteCount(0, O.Unmeasured, O.Unresolved, 0, 1);
+	O.bComplete = CollateralComplete(true, O.Incomplete);
+	return O;
 }
 
 static const char* ClassName(EClassP C)
@@ -479,6 +560,7 @@ int main()
 		std::printf("     %d rollback sequences (every plan step, fail-before-create and created-then-rejected, plus fail after all)\n", Q.Sequences);
 		Check("sequences run (2N+1 per set; N = 26, 36, 1 plan steps)", "129", Int(Q.Sequences));
 		Check("violations (live 0, pending == created, zero at frame+2)", "0", Int(Q.Violations));
+		Check("P3-3 rollback lines with pending > 0 (allowed, judged not_yet_due)", "126", Int(Q.LinePendingPositive));
 		if (Q.Violations > 0)
 		{
 			std::printf("     first violation: %s\n", Q.FirstViolation.c_str());
@@ -621,6 +703,74 @@ int main()
 		Check("window at 30 fps is the engine's 0.2 s floor", "0.2000", [] { char B[16]; std::snprintf(B, 16, "%.4f", CollateralWindowSeconds(1.0 / 30.0)); return std::string(B); }());
 		Check("window follows a long frame", "0.5001", [] { char B[16]; std::snprintf(B, 16, "%.4f", CollateralWindowSeconds(0.5)); return std::string(B); }());
 		Check("post-revert sample frame = revert frame + 2", "102", Int((long long)PostRevertSampleFrame(100)));
+	}
+
+	std::printf("\n[15] 082-06c: P2-2 null slot and unresolved entries; P3-3 rollback balance read at F+2\n");
+	{
+		const FEntry GridEntries[] = { { "T_Default_Grid_D", true }, { "T_Default_Grid_N", true } };
+		const FEntry RockEntries[] = { { "T_Rock_D", true }, { "T_Rock_N", true } };
+		const FEntry WallEntries[] = { { "T_Wall_D", true }, { nullptr, true } };
+		const FEntry SkyEntries[] = { { "T_Sky_Cube", false } };
+		FMat Grid = { "WorldGridMaterial", true, 2, GridEntries };
+		FMat Rock = { "M_Rock", true, 2, RockEntries };
+		FMat Wall = { "M_Wall", true, 2, WallEntries };
+		FMat Sky = { "M_Sky", true, 1, SkyEntries };
+
+		FMat* RockOnly[] = { &Rock };
+		const FCollOut Control = CollectSlots(RockOnly, 1, &Grid);
+		Check("control: one material, every entry resolved", "T_Rock_D,T_Rock_N", Control.Set);
+		Check("control: complete", "true", Bool(Control.bComplete));
+
+		FMat* WithNull[] = { &Rock, nullptr };
+		const FCollOut Null = CollectSlots(WithNull, 2, &Grid);
+		Check("P2-2 null slot measured through the default material", "T_Default_Grid_D,T_Default_Grid_N,T_Rock_D,T_Rock_N", Null.Set);
+		Check("P2-2 null slots counted", "1", Int(Null.NullSlots));
+		Check("P2-2 a measured null slot leaves the set complete", "true", Bool(Null.bComplete));
+
+		FMat* NullOnly[] = { nullptr };
+		const FCollOut NoDefault = CollectSlots(NullOnly, 1, nullptr);
+		Check("P2-2 null slot, default unresolvable: unresolved", "1", Int(NoDefault.Unresolved));
+		Check("P2-2 null slot, default unresolvable: never clean", "false", Bool(NoDefault.bComplete));
+
+		FMat* WithWall[] = { &Wall };
+		const FCollOut Unres = CollectSlots(WithWall, 1, &Grid);
+		Check("P2-2 unresolvable entry: resolved entries still measured", "T_Wall_D", Unres.Set);
+		Check("P2-2 unresolvable entry: collateral_unresolved", "1", Int(Unres.Unresolved));
+		Check("P2-2 unresolvable entry: incomplete", "1", Int(Unres.Incomplete));
+		Check("P2-2 unresolvable entry: never reported clean", "false", Bool(Unres.bComplete));
+
+		FMat* WithSky[] = { &Sky };
+		const FCollOut Cube = CollectSlots(WithSky, 1, &Grid);
+		Check("resolved non-2D entry: not collected, not unresolved", "none/0/true",
+			(Cube.Set.empty() ? std::string("none") : Cube.Set) + "/" + Int(Cube.Unresolved) + "/" + Bool(Cube.bComplete));
+
+		FLedgerCore L;
+		FEventAccount A;
+		const FReqTex One[] = { Tex(1, 1024, 1024, false) };
+		A.Reserve(L, EventRequirement(One, 1).Total(), 1LL << 40);
+		FAllocStep Steps[64];
+		const int NS = PlanAllocations(One, 1, Steps, 64);
+		const int Made = NS < 3 ? NS : 3;
+		for (int k = 0; k < Made; ++k) { A.NoteCreated(L, Steps[k].Bytes); }
+		const unsigned long long F = 700;
+		for (int k = 0; k < Made; ++k) { A.ReleaseCreated(L, Steps[k].Bytes, F); }
+		A.Close(L, F);
+		Check("P3-3 rollback line at F: live 0, pending > 0 is allowed", "0/true", Int(L.Live) + "/" + Bool(L.PendingSum() > 0));
+		Check("P3-3 rollback line: not a balance verdict", "not_yet_due", LexLedgerBalance(JudgeLedgerReading(F, F, L.Live, L.PendingSum())));
+		L.Tick(F + 1);
+		Check("P3-3 reading at F+1: not yet due", "not_yet_due", LexLedgerBalance(JudgeLedgerReading(F, F + 1, L.Live, L.PendingSum())));
+		L.Tick(F + 2);
+		Check("P3-3 reading at F+2: live/pending", "0/0", Int(L.Live) + "/" + Int(L.PendingSum()));
+		Check("P3-3 reading at F+2: judged", "balanced", LexLedgerBalance(JudgeLedgerReading(F, F + 2, L.Live, L.PendingSum())));
+		FLedgerCore Late;
+		Late.Reserve(100, 1LL << 40);
+		Late.ReleaseToPending(100, F + 1);
+		Late.Tick(F + 2);
+		Check("P3-3 bytes still pending at F+2", "unbalanced", LexLedgerBalance(JudgeLedgerReading(F, F + 2, Late.Live, Late.PendingSum())));
+		FLedgerCore Leak;
+		Leak.Reserve(64, 1LL << 40);
+		Check("P3-3 bytes still live at F+2", "unbalanced", LexLedgerBalance(JudgeLedgerReading(F, F + 2, Leak.Live, Leak.PendingSum())));
+		Check("P3-3 a late reading is still judged", "balanced", LexLedgerBalance(JudgeLedgerReading(F, F + 5, 0, 0)));
 	}
 
 	std::printf("\n%d check(s), %d failure(s)\n", GChecks, GFailures);

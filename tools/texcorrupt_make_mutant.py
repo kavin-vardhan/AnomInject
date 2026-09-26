@@ -26,6 +26,21 @@ FAULTS = [
     ("collateral_target_not_excluded",
      "return bRegistered && !bIsTarget && ",
      "return bRegistered && "),
+    ("null_slot_not_measured",
+     "return EngineDefault;",
+     "return nullptr;"),
+    ("unresolved_entry_not_counted",
+     "\t\t\t++InOutUnresolved;\n\t\t\treturn ECollEntry::Unresolved;",
+     "\t\t\treturn ECollEntry::Unresolved;"),
+    ("unresolved_left_out_of_incomplete",
+     "return DroppedByCap + UnmeasuredMaterials + Unresolved + UnknownResidency",
+     "return DroppedByCap + UnmeasuredMaterials + UnknownResidency"),
+    ("rollback_line_judged_at_once",
+     "if (ReadingFrame < PostRevertSampleFrame(TerminalFrame))",
+     "if (ReadingFrame < TerminalFrame)"),
+    ("balance_ignores_pending",
+     "return Live == 0 && Pending == 0 ? ELedgerBalance::Balanced",
+     "return Live == 0 ? ELedgerBalance::Balanced"),
 ]
 
 
