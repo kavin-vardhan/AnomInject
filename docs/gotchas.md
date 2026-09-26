@@ -7879,3 +7879,24 @@ invariant resolves is now NEEDS-DECISION; it never PASSes.
 - Survey an invariant on the whole bank before gating on it, and assert only what the source guarantees (here `≥`, not `=`).
 
 Related: G297 (the self-excused singleton reading this replaces as a gate), G119, G142 (a checker is a defect surface of its own).
+
+## G309 — copying edited sources into a build tree keeps their old mtimes, and UBT then reports an old object as current (2026-09-27, 082-05)
+
+**What happened.** 082-05 edited the S1 sources in one worktree and, to compile-check them before committing, copied the changed files
+into the scratch host's plugin worktree with `Copy-Item`. `Copy-Item` preserves `LastWriteTime`. The host's game target had been
+prewarmed a few minutes EARLIER than the copy but LATER than the edits, so `AnomalyCaptureSubsystem.cpp` arrived with an mtime of 02:34
+while the prewarm's `Module.AnomalyCapture.cpp.obj` was 02:38. The game build then ran 3 actions — compile `AnomalyInjector`, link, write
+metadata — exited 0 with zero warnings, and produced an exe carrying the OLD capture code. The injector module recompiled only because
+new `.cpp` files regenerated its unity file; capture got no new file, so nothing forced it.
+
+**How it was caught.** The action list was read, not just the exit code: a change to four capture files that compiles no capture object
+is not a build of those changes. The obj timestamp against the source timestamp settled it.
+
+**Rule.**
+- Never judge a build by its exit code alone; read which modules compiled against which ones changed (the G164 shape, from the other side:
+  there a killed build left a truncated artifact that read as current; here a correct build of the wrong bytes reads as current).
+- To move sources into a build tree, check them out (`git checkout` stamps the time) or touch them after copying.
+- For a gate build, clear the module's build products first so the committed bytes are compiled from scratch. 082-05's G10 did this for
+  both targets.
+
+Related: G164, G47, G119.

@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **082-05, 2026-09-27 — `m53` S1 PART 1 on `feat/m53-uv-normal-corruption`: plan fixes A/B/C/P3 folded in (revision 3.1,
+> `ea1eed1`), M0 taken, ALL S1 plugin code committed and pushed (`2a2ab17` … `bb048bb`), and BOTH TARGETS BUILT CLEAN (G10).
+> NOT STAGED, NO COOK, NO LEG, NO TAG, NOT MERGED.**
+> - **Cold start:** the plan's **§R0.00** (fixes A/B/C/P3) and **§R13.1** (S1), then journal
+>   `docs/sessions/2026-09-27-082-05-code-m53-s1-source-and-builds.md` (§3 has the corruptor parameter contract 082-06 must author).
+> - **Code:** the §R6 decision tree (E1–E7, S1–S8, T1–T10 with fix C's `streaming_budget`, A1–A6, V1–V2) · the §R7.4 transaction with
+>   rollback · the §R3.4 per-mip draw + RDG copy and the render-thread tripwire · the §R8 restore · the §R3.2 budget with scratch
+>   · the Δ1 chain predicate · the G-COLL probe (fix B) · the split prewarm list + `TexCorruptWarm` phase · `uv_corruption` and
+>   `normal_corruption` registered, **identity and the tile probe only, NOT in the auto pool** · the S1 bench levers ·
+>   private `RenderCore` + `RHI` ("engine modules only; no host-game types").
+> - **G10:** editor exit 0 (79 s) and game exit 0 (67 s), 0 warnings, every plugin module compiled from the committed bytes; the
+>   `AnomalyInjector` link set is exactly the S1 declared set. Game exe **`D7BA87AC`** archived as
+>   `_binary_baselines\StackOBot.exe.m53-s1-D7BA87AC`, editor DLLs as `m53-s1-editor-bb048bb\`. **The bench stays on `E0BE6F0A`.**
+> - **Fails closed until 082-06 authors the assets:** every fire refuses `assets_unavailable` (`missing:M_CorruptTex_UV,…`).
+> - Offline: `tools/texcorrupt_pure_test.cpp` — 83/83 on the header the plugin compiles, 8 failures on a mutated copy (G96).
+> - 🆕 **G309** — copied sources kept old mtimes and a build reported exit 0 on old code.
+> - 🎯 **NEXT: Codex's independent source review of this code, then 082-06 (authoring + cook + M1/M2 + G-COOK), then 082-07 (legs).**
+>
+> ---
 > 📝 **082-04, 2026-09-27 — `m53` PLAN AMENDED (revision 3) on `feat/m53-uv-normal-corruption` for chat's 082-04 ruling
 > (N1 = (a), N2 approved, N3 = 128 MiB, N4 = 2 / 16) and Codex's 082-03 delta (Δ1–Δ3, six PARTIALs). PLAN ONLY: no source,
 > no build, no cook, no bench, no CaptureBench edit. NOT MERGED, NO TAG.**
