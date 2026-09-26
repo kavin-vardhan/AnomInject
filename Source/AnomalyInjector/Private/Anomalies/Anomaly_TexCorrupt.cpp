@@ -751,13 +751,13 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		bActive = true;
 		++FStatsAccess::Mutable().FiresApplied;
 		int32 FirstBad = -1;
-		const TexCorruptPure::EHeld Held = EvaluateCondition(FirstBad);
+		const TexCorruptPure::EHeld Reading = EvaluateCondition(FirstBad);
 		UE_LOG(LogAnomaly, Warning,
 			TEXT("%s: IAI.Bench.TexCorruptNoApply 2 - the decision tree said APPLY and the reservation arithmetic reads %lld byte(s), ")
 			TEXT("but NOTHING IS RESERVED, ALLOCATED, DRAWN OR COMMITTED. This is G-COLL's no-allocation null (plan I1). The target ")
 			TEXT("watches (EndPlay, destroy, world end) ARE registered, as for an applied event. condition read through the live ")
 			TEXT("predicate at apply: %s."),
-			*Id.ToString(), RequiredBytes, ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Held)));
+			*Id.ToString(), RequiredBytes, ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Reading)));
 		return true;
 	}
 
@@ -964,7 +964,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	bActive = true;
 	++FStatsAccess::Mutable().FiresApplied;
 	int32 FirstBad = -1;
-	const TexCorruptPure::EHeld Held = EvaluateCondition(FirstBad);
+	const TexCorruptPure::EHeld Reading = EvaluateCondition(FirstBad);
 	UE_LOG(LogAnomaly, Log,
 		TEXT("%s: APPLIED mode=%s tile=%d fault=%s noapply=%d on '%s' - %d output chain(s), %d scratch class(es), %d host MID(s), ")
 		TEXT("slots %d/%d committed, required=%lld reserved=%lld live=%lld pending=%lld peak=%lld cap=%s, condition read through ")
@@ -972,7 +972,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		TEXT("and copied, enqueued before any scene draw of this frame (plan R7.4)."),
 		*Id.ToString(), LexMode(Mode), TileN, LexWrongCopy(Fault), NoApply, *In.TargetQuery, Outputs.Num(), Scratch.Num(),
 		HostMids.Num(), SlotsCorrupted, SlotsTotal, RequiredBytes, Account.Reserved, Ledger().Live, Ledger().PendingSum(),
-		Ledger().Peak, *DescribeMaxRtBytes(), ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Held)), FirstBad);
+		Ledger().Peak, *DescribeMaxRtBytes(), ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Reading)), FirstBad);
 	return true;
 }
 
@@ -1230,9 +1230,9 @@ bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddInt(TEXT("texcorrupt.slots_corrupted"), SlotsCorrupted);
 	Out.AddInt(TEXT("texcorrupt.slots_total"), SlotsTotal);
 	int32 FirstBad = -1;
-	const TexCorruptPure::EHeld Held = EvaluateCondition(FirstBad);
-	Out.AddBool(TEXT("texcorrupt.condition_held"), Held == TexCorruptPure::EHeld::Held);
-	Out.AddString(TEXT("texcorrupt.condition_detail"), ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Held)));
+	const TexCorruptPure::EHeld Reading = EvaluateCondition(FirstBad);
+	Out.AddBool(TEXT("texcorrupt.condition_held"), Reading == TexCorruptPure::EHeld::Held);
+	Out.AddString(TEXT("texcorrupt.condition_detail"), ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Reading)));
 	Out.AddInt(TEXT("texcorrupt.required_bytes"), (int32)FMath::Min<int64>(RequiredBytes, MAX_int32));
 	const int32 CollIncomplete = CollateralIncomplete();
 	Out.AddInt(TEXT("texcorrupt.collateral_drops"), CountCollateralDrops());

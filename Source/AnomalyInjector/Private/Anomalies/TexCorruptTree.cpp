@@ -525,9 +525,10 @@ namespace AnomalyTexCorrupt
 				return;
 			}
 
+			UMaterial* Root = S.Resolved->GetMaterial();
 			{
 				FString UsageSub;
-				if (FindUsageRefusal(S, S.Resolved->GetMaterial(), UsageSub))
+				if (FindUsageRefusal(S, Root, UsageSub))
 				{
 					FailSlot(S, RankS7, Why::DefaultMaterialPath, UsageSub);
 					return;
