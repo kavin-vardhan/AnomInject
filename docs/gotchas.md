@@ -7713,3 +7713,19 @@ synchronous disk flush.
   `t_wall` deltas tell them apart.
 - **For cost or timing measurements, turn the run log off** (`IAI.Capture.RunLog 0`; delivery mode does this by default). Otherwise
   every m55 Log line costs a disk flush on its thread, including one `MASK-SERVED` line per served mask on the render thread.
+
+## G301 — pacing OFF changes what m55 measures: predict a cost leg's B workload in the regime it runs, not from paced priors (2026-09-26, 081-38)
+
+The Stage 3 cost campaign predicted full required-pair yield from paced priors (`C2_SOLID`, `C1_SOLID1080`: 20/20). Its legs run pacing OFF,
+and there the yield collapsed:
+- **720p:** 20–24 of 120 required pairs measured (yield 0.17–0.20). Unmeasured windows: `view_mismatch` 60–68 (camera deltas exactly 0; the
+  mask payload was served from the view family one earlier than the colour frame), `unsupported_delivery` 22–28 (stage `mask`,
+  `mask_receipt` null), `mask_payload_missing` 5–10. The paced priors show none of the first two. G295's slipped-mask shape, far more often.
+- **1080p:** the writer saturates (≈ 32.5 PNG/s against ≈ 57 fps armed, backlog 141 frames). m55 holds payloads until colour completion
+  (p50 2.3 s), so admitted bytes reach the 256 MiB cap (267.6 MB) and half the required windows are refused `budget_exceeded`. Measured
+  8 of 60 → the declared B-vacuity floor (20) stopped the campaign (LEG-FAILURE).
+- The declared vacuity floor did its job: without it, a B leg that barely ran the measurement would have fed the cost statistic.
+- **Rule:** a cost or throughput leg changes the pacing, resolution or writer regime of its recipe; predict the B workload (yield, reasons,
+  high-water) **in that regime**, from a pilot or banked leg in it, and state the realised pair density beside any cost verdict. A PASS at
+  a fifth of the intended workload is a PASS at that workload only.
+- Mechanism of the pacing-OFF mask slip: **not established** (receipts only).

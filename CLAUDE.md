@@ -11,6 +11,22 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ⏸ **081-38, 2026-09-26 — BENCH. THE COST WINDOW RAN ONCE: 720p PASS AS DECLARED; 1080p HALTED ON B VACUITY (LEG-FAILURE, exit 1).
+> OVERALL UNRESOLVED. NEEDS-DECISION.** Report: `_reviews/081-38-evidence/stage3-cost-report.md`.
+> - **720p (8/8 legs VALID on attempt 1):** game-thread Δ **−0.083 ms**, upper bound **−0.002 ms** (≤ +1.0 → PASS); writer Δ +1.23 PNG/s,
+>   upper +2.51, half-width 1.28 ≤ 3.40 (5 %) → no drop → **PASS**. No stall, no FPS-prior hold, foreign load 0.8–1.0 cores.
+> - ⚠ **Beside it:** pacing OFF measured only **20–24 of 120** required pairs per B leg (declared: full yield). `view_mismatch` (mask served
+>   from the view family one earlier than the colour frame; camera still) and `unsupported_delivery` (stage mask) — the paced priors show
+>   neither (G301, extends G295). The PASS is at that realised workload.
+> - **1080p:** writer saturated at ≈ 32.5 PNG/s vs ≈ 57 fps armed; m55 reached its **256 MiB cap (267.6 MB)**; 30 of 60 required windows
+>   `budget_exceeded`; **8 measured < 20 → LEG-FAILURE at `S3_1080_B1_T1`**. The cap and refusal behaved as designed (0 drops, 0 late,
+>   0 closure timeouts). 1080p blocks and the diagnostic pair NOT run.
+> - **Next:** a chat ruling on the 1080p recipe (paced? shorter? accept UNRESOLVED?) and on whether the 720p PASS stands; any re-run needs a
+>   predictions amendment and a boundary re-issue (this commit moves the feature head). NOT MERGED, NOT TAGGED, no build.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-38-code-m55-stage3-cost-run.md`.**
+>
+> ---
 > 🧮 **081-37, 2026-09-26 — BENCH-FREE. STAGE 3's COST CAMPAIGN IS DESIGNED, PREDICTED, BUILT, PROVEN AND LOCKED; NOTHING RAN.**
 > Predictions `docs/predictions/2026-09-26-m55-stage3-cost.md` (declared before any leg); harness `_reviews/081-37-*`.
 > - **FPS 21.5 prior: PARTIAL.** It is a whole-session ratio carrying **one 1.56 s start stall** (session_index 0→4); frames 5–89 match
