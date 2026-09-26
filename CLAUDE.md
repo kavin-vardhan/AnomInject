@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 📝 **082-03, 2026-09-27 — `m53` PLAN REVISED (revision 2) on `feat/m53-uv-normal-corruption` for Codex's 082-02 review
+> (CHANGES REQUIRED, 12 findings) and chat's disposition. PLAN ONLY: no source, no build, no cook, no bench. NOT MERGED, NO TAG.**
+> - **Cold start:** the plan's §R0 resolution table first, then §R15 (NEEDS-DECISION); journal
+>   `docs/sessions/2026-09-27-082-03-code-m53-plan-revision.md`. Revision 1 sits verbatim under a SUPERSEDED fold.
+> - **Route B only; no route-A fallback.** Bindings come from the compiled uniform-expression set (parameter vs constant is
+>   known); residency is already-resident-or-refuse with 0 wait; host-MID slots are refused (no clone path); no downsampling;
+>   atomic per-slot map sets; one ordered decision tree; every draw clears first.
+> - 🚨 **Two things could not be done as ruled.** (1) Authored / sharpened / alpha-coverage mip chains are undetectable in a
+>   cooked build and a render target can only regenerate mips inside Engine ⇒ **N1** (recommended: declared RenderCore + RHI and
+>   a per-mip draw). (2) No StackOBot host target reaches the colour or normal encodings under the stricter rules ⇒ **N2**, a
+>   bench-only synthetic fixture level. Also **N3** (the 64 MiB budget refuses every 4096² source) and **N4** (`G-ID` tolerance).
+> - 🎯 **NEXT: chat reviews the revision together with Codex's delta check (`_reviews/082-03-codex-m53-delta-check.md`). S1 is
+>   blocked on N1 and N2.**
+>
+> ---
+
+> 🔻 *(082-01's "the takeover is the fallback" is withdrawn by 082-03; kept as the record.)*
 > 📝 **082-01, 2026-09-26 — `m53` (UV / normal-map texture corruption) PLAN WRITTEN on branch `feat/m53-uv-normal-corruption`
 > (off `master` `4283fc8`). PLAN ONLY: no source, no build, no cook, no bench. NOT MERGED, NO TAG.**
 > - **Cold start:** `docs/predictions/2026-09-26-m53-uv-normal-corruption.md` (§1 is the headline, §10 the decisions), journal

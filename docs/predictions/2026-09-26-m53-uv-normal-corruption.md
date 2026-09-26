@@ -1,5 +1,1159 @@
 # m53 — UV / normal-map texture corruption — PRE-DECLARED DESIGN AND GATES
 
+## REVISION 2 — 082-03, 2026-09-27. This is the live design.
+
+**Branch `feat/m53-uv-normal-corruption`, parent `946c1bf` (revision 1, 082-01). PLAN ONLY.** No plugin
+source changed, no build, no cook, no editor or game launch, no bench leg, no tag.
+
+What was executed, all read-only:
+
+- engine source reads, UE 5.1.1 at `D:\UESource\UnrealEngine`;
+- plugin source reads of `master` `4283fc8` through git objects (`master` is now `b5f15a3`, one docs-only
+  commit later; `git diff --stat 4283fc8 master -- Source` is empty, so every plugin line cited here is
+  also `master`'s);
+- a second offline scan of content `.uasset` files, reading tagged properties (dimensions and authored
+  mip settings). Its method and output are Appendix C.
+
+**Inputs.**
+
+- Codex's design review `_reviews/082-02-codex-m53-design-review.md`: CHANGES REQUIRED, 5 P1, 6 P2, 1 P3.
+- Chat's disposition `_reviews/082-03-chat-ruling-codex-m53-design-review.md`: all twelve findings
+  accepted; D1's residency and fallback revised, D7 reversed, D2 and D6 amended.
+
+**How to read this file.**
+
+- **§R0** is the finding-by-finding resolution table, with line ranges in this file.
+- **§R1–§R16** are the design. They replace revision 1's design in full.
+- Revision 1 (`946c1bf`) is kept verbatim at the end, under a SUPERSEDED fold.
+  - Its **source facts** stay citable as `v1 §x`. §R0.2 lists exactly which.
+  - Its **design** is withdrawn and may not be cited: route A, the v1 refusal table, the snapshot rule,
+    the restore, the strength classes, the gate table, the costs, the stages, and D1–D7 as written.
+- Citation conventions are v1's (see the v1 header inside the fold):
+  - engine paths are relative to `Engine/Source`, and `[Shaders]` means `Engine/Shaders`;
+  - a bare engine file name lives under `Runtime/Engine/…`;
+  - plugin `file:line` is against `master` `4283fc8`.
+- Anything measured later that contradicts this file is a **finding**. It is recorded as an amendment,
+  never folded in silently.
+
+---
+
+## R0. Resolution table
+
+### R0.1 Findings
+
+| finding | resolved in | resolution | status |
+|---|---|---|---|
+| **P1-1** texture-pointer intersection is not an active binding | §R2 (L104–205) | Bindings are read from the uniform-expression set of the game-thread shader map of the resource the slot renders with (world feature level, active quality level, static permutation). A binding is a parameter iff its `ParameterInfo.Name` is not None; a constant use is refused `texture_not_parameter`. The full `FMaterialParameterInfo` (name, association, index) is kept and set with `SetTextureParameterValueByInfo`. `GetUsedTextures` and the pointer intersection are gone. Fixtures: the inactive-parameter / active-constant alias and a material-layer parameter (`G-BIND`). | **RESOLVED** in design; feasibility is `G-BIND`'s first check |
+| **P1-2** an identity copy of mip 0 is not an identity texture resource | §R3 (L209–355) | An allowlist of admitted pixel formats replaces the compression denylist. Float, 16-bit, BC6H and LQ formats are refused `unsupported_encoding`. The render target takes the full cooked top-mip dimensions, keeps both dimensions and the aspect, and is never capped or downsampled; if it does not fit, the event is refused `over_budget`. The sampler is matched (LOD group, filter, address), and a host `r.MipMapLODBias` that the render target cannot follow is refused. A qualification matrix covers magnification, minification, grazing angles and mip transitions (`G-ID-M`). **One part cannot be done as ruled:** authored, sharpened or alpha-coverage mip chains are **undetectable** in a cooked build (the settings are editor-only data) and, within Core/CoreUObject/Engine, a render target can only **regenerate** its mips. So "refuse chains that cannot be preserved" cannot be implemented as a refusal. | **PARTIAL → counter-proposal N1** |
+| **P1-3** force-residency contradicts isolation; "full" undefined | §R4 (L359–433) | The source must already be resident at its full cooked chain (`NumResidentLODs == MaxNumLODs`, with the resource valid and nothing pending in init or streaming); otherwise `not_fully_resident`. Wait is 0 frames / 0 ms. No force-resident call, no `WaitForStreaming`. `snapshot_mip` and the snapshot dimensions are recorded against the cooked chain. A prefetch phase is a separate, later decision, and only if yield demands it. | **RESOLVED** |
+| **P1-4** a host-MID clone loses state; animation exception breaks purity | §R5 (L437–456) | A slot whose raw binding is a MID is refused `host_mid`. m53 builds **no clone path** and adds no clone switch. `host_mid_cloned` is reserved and never emitted. | **RESOLVED** |
+| **P1-5** a route-B failure does not justify route A | §R11 (L872–886) | Route A is removed from the design, S1 and `G-ID`. A failure narrows the scope (defer `normal_corruption`) or holds, and any narrowing goes to chat with its evidence. A takeover would be a separate product decision. | **RESOLVED** |
+| **P2-6** AlphaComposite must clear before every redraw | §R7.3 (L613–636) | Clear to (0,0,0,1), then draw, then regenerate mips, on **every** draw, including every `drift` frame. The snapshot and the output are distinct render targets. `G-RD` is a repeated identity-redraw gate with opaque and fractional-alpha inputs, and it has a can-fail lever that skips the clear. | **RESOLVED** |
+| **P2-7** exact restore needs raw slot state and strong references | §R8 (L693–762) | Per slot, before any change: the raw override, the asset material, the resolved material and the effective (Nanite-substituted) material. Nanite routing is inspected from the resolved material. The displaced originals are held strongly until the restore completes. A slot is restored only while it still holds this event's MID. `G4` is extended with GC, an explicit Nanite override, foreign replacement, component recreation and two live ids. | **RESOLVED** |
+| **P2-8** "every map coherently" conflicts with partial eligibility and the cap | §R6.3 (L534–552) | Atomic eligibility per slot: the family's whole required map set is transformable, or the slot is refused with the blocking binding's reason. A cap overflow refuses (`map_set_over_cap`) instead of keeping the 8 largest. The 64 px floor is renamed `below_size_policy` and is a policy, not a claim that small means constant. Small textures inside a qualifying set are transformed. Exclusions are counted per reason. | **RESOLVED** |
+| **P2-9** refusal vocabulary: wrong size, not a decision tree | §R6 (L460–585) | One ordered decision tree (event → slot → binding → slot aggregation → event aggregation). Every binding and slot gets one counted disposition, and the event gets exactly one final reason. It covers asset and resource readiness, unsupported encoding, host-MID policy and residency. The shader-map checks come before an empty texture list is read as "no textures". §R6.4 names a fixture or lever for every reachable reason and marks the rest UNEXERCISED. | **RESOLVED** (most fixtures need **N2**) |
+| **P2-10** gates can go green without qualifying behaviour | §R12 (L890–967) | Every row is marked **Q** (qualification), **D** (diagnostic) or **O** (owner decision). Each fixture has runnable matched controls: a NoApply null, a `corrupted_texture` positive (no fixture gate), and wrong-copy controls that must fail. `G-ID` runs through both corruptors and every admitted encoding. Functionality gates carry minimum counted applications. `G-LYRA` needs one successful counted event per id to claim Lyra support. `G-COST` has a predeclared comparison with m55 held constant, and its acceptance is an owner decision. | **RESOLVED** (fixture **N2**) |
+| **P2-11** shader prewarm is not packaged PSO warmup; a void draw is not validation | §R7.4, §R9 (L638–670, L766–824) | The prewarm-only list is separated from the per-frame check. The Apply transaction is defined: decide → reserve → allocate and verify → re-check every draw precondition → enqueue → bind and read back → commit, with rollback. A non-capturing warm-draw phase runs before the lead-in. The cold first fire is **measured** for both corruptors and every format, and its acceptance is an owner decision. | **RESOLVED**; cold-first-fire acceptance is an owner decision |
+| **P3-12** `strength_class` can only be a mode prior | §R10 (L828–868) | Renamed `texcorrupt.expected_strength_class` and documented as a mode prior, not a per-event measurement. v1's universal statements are withdrawn. m55 stays out of eligibility, ranking, seeds, verdicts and `observable`. | **RESOLVED** |
+
+**Chat's revised rulings.** D1 → §R1, §R4, §R11 · D2 → §R7.5 · D3 → §R8.4 · D4 → §R12, §R14 ·
+D5 → §R12 (`G-RD`, `G-COST`) · D6 → §R9.1–§R9.2 · D7 → §R5.
+
+### R0.2 Revision-1 text that stays citable (source facts, not design)
+
+These v1 sections record what the engine and the content do. They are unaffected by the review and may be
+cited as `v1 §x`:
+
+- v1 §1.1–§1.3 — why a takeover reconstructs rather than corrupts;
+- v1 §2.2 — which texture fields a cooked build can read;
+- v1 §3.1.1 — TexCoord[1] per vertex factory, and why `GetNumUVChannels` returns 0 when cooked;
+- v1 §3.2's **draw facts only**: the render-target draw path, Surface domain not UI, Unlit, opaque writes
+  A = 0, and the sRGB / normal encoding table rows;
+- v1 §3.3's cook and office-host facts (hard references, editor binaries for the cook, runtime-load proof);
+- v1 §3.4's **streaming facts only** (not its snapshot rule);
+- v1 §4.4 (the target watch) and v1 §4.5's facts about m52 sharing;
+- v1 §7.1–§7.4 (two ids, the mode draw, the `G150` precision, no dashboard change);
+- v1 Appendix A (the name-table scan) and Appendix B (the citation index).
+
+Everything else inside the fold is withdrawn.
+
+---
+
+## R1. The rulings as applied
+
+- **D1 (revised): route B only, provisional.**
+  - The host material is kept. Corrupted copies of its **active texture parameters** are drawn into
+    render targets and bound with `…ByInfo` on a MID of the host's own material.
+  - Residency is **already resident, or refuse**, with 0 frames / 0 ms of wait (§R4).
+  - There is **no automatic route-A fallback** (§R11). Route A survives only inside the SUPERSEDED fold.
+- **D2 (amended):** `uv_scramble` is a seeded **bijective** permutation of K×K cells (§R7.5). `channel1`
+  is removed along with route A.
+- **D3:** two ids, `uv_corruption` and `normal_corruption`, with state, cleanup and counters isolated per
+  registration (§R8.4).
+- **D4:** both ids are in `GAutoPool`, default OFF. An all-refused census is a yield result, never a
+  support claim (§R12, §R14).
+- **D5 (provisional):** defaults are UV `tile scramble drift` and normal `invert green_flip noise`.
+  `drift` stays conditional on `G-RD` (repeated-draw fidelity) and `G-COST`.
+- **D6 (amended):** the prewarm-only list is separated from the per-frame readiness check (§R9.1).
+  Shader completeness is not packaged PSO readiness (§R9.2).
+- **D7 (reversed):** slots holding host MIDs are refused, and in m53 unconditionally (§R5).
+  `host_mid_cloned` is reserved for a future state-following milestone.
+
+---
+
+## R2. Active texture bindings (P1-1)
+
+### R2.1 Where the binding list comes from
+
+For each slot, the **resolved** material `M` is used: the raw override if it is non-null, otherwise the
+mesh asset's slot material (§R8.1). The Nanite-substituted effective material is never used; a slot where
+it differs has already been refused (§R6, step S4).
+
+1. **The resource the slot renders with:** `Res = M->GetMaterialResource(World->FeatureLevel,
+   EMaterialQualityLevel::Num)`.
+   - `Num` resolves to the **active** quality level, `GetCachedScalabilityCVars().MaterialQualityLevel`
+     (`Material.cpp:2614-2630`; `UnrealEngine.h:461`).
+   - An MIC with a static permutation returns its own `StaticPermutationMaterialResources`; otherwise
+     the call forwards to the parent (`MaterialInstance.cpp:1684-1697`). This is the same choice the
+     render thread makes (`MaterialInstance.cpp:223-248`).
+   - A runtime MID never has its own static permutation in a cooked build
+     (`MaterialInstance.cpp:666`; set only under editor guards at `:1971-1974`, `:3551-3669`), so it
+     forwards to its parent.
+   - This uses the **world's** feature level. v1's `GetUsedTextures(…, Num)` path used
+     `GMaxRHIFeatureLevel` instead (`Material.cpp:1080-1093`).
+2. **Its game-thread shader map:** `SM = Res->GetGameThreadShaderMap()` (`MaterialShared.h:2097-2101`).
+   - `Res == nullptr` or `SM == nullptr` ⇒ refuse `shader_map_unavailable`.
+   - `!Res->IsGameThreadShaderMapComplete()` (`MaterialShared.h:2109-2113`) ⇒ refuse
+     `shader_map_incomplete`. In a cooked build such a material draws through the render-thread
+     fallback chain towards the default material (`MaterialShared.cpp:4207-4229`), so any statement
+     about "its textures" would describe a material that is not on screen.
+3. **The binding list:** `Set = SM->GetUniformExpressionSet()` (`MaterialShared.h:1399`). For each
+   `EMaterialTextureParameterType` (`MaterialShared.h:468-478`) and each `i < Set.GetNumTextures(Type)`,
+   the entry is `Set.GetTextureParameter(Type, i)` (`:603`, `:605`).
+   - This is `LAYOUT_FIELD` data of the cooked shader map (`MaterialShared.h:647`, `:732`, `:1130`).
+     Only debug strings and sample-count estimates are editor-only (`:738-751`, `:1134-1137`).
+   - **Static-switch-off branches are absent**, because the unselected input is never compiled
+     (`MaterialExpressions.cpp:9324-9332`; `StaticSwitchParameter` `:9077-9109`; `QualitySwitch`
+     `:9507-9533`).
+   - v1 claimed this property for `GetUsedTextures`, which reads the same data. The defect was
+     elsewhere: v1 kept only the texture **pointers** and then intersected them with the parameter list,
+     which threw away which entry was a parameter.
+
+### R2.2 Parameter or constant
+
+Each entry is an `FMaterialTextureParameterInfo` (`MaterialShared.h:481-502`): `ParameterInfo` (name,
+association, index), `TextureIndex`, `SamplerSource`, `VirtualTextureLayerIndex`.
+
+- **A constant texture sample never sets `ParameterInfo`.** Its name stays None
+  (`MaterialUniformExpressions.cpp:1399-1404`; the entry is default-constructed at
+  `HLSLMaterialTranslator.cpp:1345`; the default is `MaterialTypes.h:96`). The runtime itself reads None
+  as "use the referenced texture" (`MaterialUniformExpressions.cpp:1479`).
+- **A texture parameter carries its name, its association (`GlobalParameter`, `LayerParameter`,
+  `BlendParameter`) and its layer or blend index** (`HLSLMaterialTranslator.cpp:6781-6807`;
+  `HLSLMaterialTranslator.h:689-693`).
+- **The binding's current texture** is read with the engine's own game-thread resolver,
+  `Set.GetGameThreadTextureValue(Type, i, M, *Res, OutTex)` (`MaterialShared.h:606`;
+  `MaterialUniformExpressions.cpp:618-634`, `:1477-1483`). It returns what the renderer will sample:
+  the instance chain's override for a parameter, the referenced texture for a constant.
+- **Everything is keyed by the entry, never by the texture pointer.** One texture object can appear
+  under a constant entry and a parameter entry in the same set.
+- **Codex's alias case therefore resolves by construction.** An inactive parameter P defaulting to T,
+  next to an active constant use of T, produces **no entry for P at all** (P's branch is not compiled).
+  T is seen only as a constant and is refused `texture_not_parameter`.
+- ⚠ **Named residual, not solved.** An entry means "a texture chunk was accessed during translation"
+  (`HLSLMaterialTranslator.cpp:3333-3374`, `:1340-1347`), not "the texel reaches an output". A compiled
+  read whose result is multiplied by zero, for example, is still an entry. The design cannot see that
+  case. `G-BIND`'s dead-binding fixture reports what it does, and on host content such an event reads as
+  no measured change in m55 (a `G-STR` reading, never a pass).
+
+### R2.3 The override
+
+- `FMaterialParameterInfo Info(Entry.ParameterInfo)` (explicit constructor, `MaterialTypes.h:56`,
+  `:127-132`). Names are real `FName`s in a cooked build: frozen script names are patched from
+  serialised names at load (`Core/Private/Serialization/MemoryImage.cpp:1597-1610`).
+- `HostMid->SetTextureParameterValueByInfo(Info, Rt)` (`MaterialInstanceDynamic.h:67`, `.cpp:237-249`).
+  A layer parameter is addressed by (name, association, index), so it is set on its own layer and never
+  confused with a global of the same name.
+- **Read-back:** `HostMid->GetTextureParameterValue(Info, Out)` (`MaterialInterface.h:802`) must return
+  `Rt`, else the transaction rolls back (`param_readback_mismatch`, §R7.4).
+  - ⚠ **Necessary, not sufficient.** It proves the MID stores the override, not that the shader samples
+    it. That proof comes from `G-BIND`, `G-ID`, `G1` and `G2`.
+
+### R2.4 Which entries are candidates
+
+- Only `Standard2D` entries whose current texture is a `UTexture2D`.
+- `Cube`, `Array2D`, `ArrayCube`, `Volume` ⇒ `unsupported_type`.
+- `Virtual` entries, and `Standard2D` entries whose texture `IsCurrentlyVirtualTextured()`
+  (`Texture2D.cpp:1210-1224`) ⇒ `virtual_texture`.
+- **Runtime virtual textures are not in this set** (they have their own parameter array) and are never
+  touched. With no clone path (§R5), the host's RVT overrides stay on the host's material by construction.
+
+### R2.5 Module boundary
+
+Every symbol used above is `ENGINE_API`, inline in an Engine header, or a virtual call through an Engine
+class:
+
+- `GetMaterialResource` is virtual; `GetGameThreadShaderMap` and `IsGameThreadShaderMapComplete` are
+  inline; `FUniformExpressionSet::GetTextureParameter` and `GetNumTextures` are inline;
+  `GetGameThreadTextureValue` is `ENGINE_API`.
+- `FMaterialShaderMap::GetUniformExpressionSet` is inline and calls `GetContent()`, which is inline in
+  `RenderCore/Public/Shader.h:2243`. That is a **header-only** use of a RenderCore type through Engine's
+  public include path; it links no RenderCore symbol.
+
+⚠ **Stated as a check, not an assumption.** `G-BIND`'s first check is that both build targets link with
+the module's declared dependencies unchanged (Core, CoreUObject, Engine, InputCore, Foliage). If they do
+not, S1 stops and the dependency question goes to chat, together with N1.
+
+---
+
+## R3. The texture contract: format, dimensions, sampling, mips, memory (P1-2, Q6)
+
+### R3.1 Admitted encodings
+
+`GetPixelFormat()` is the only cooked fact about the encoding (`Texture2D.cpp:376-389`). The choice from
+`CompressionSettings` to a pixel format is made at cook time (`Texture.cpp:2995-3342`, entirely inside
+`#if WITH_EDITOR` `:3005-3339`). So the rule is an **allowlist on the pixel format**, default deny:
+
+| source pixel format | class | render-target format |
+|---|---|---|
+| `PF_DXT1`, `PF_DXT5`, `PF_BC7`, `PF_B8G8R8A8`, with `SRGB` true | colour | `RTF_RGBA8_SRGB` |
+| the same formats with `SRGB` false; `PF_BC4`; `PF_G8` | data | `RTF_RGBA8` |
+| `PF_BC5` with `IsNormalMap()` | normal (`.rg` decode) | `RTF_RGBA8` |
+| `PF_BC5` without `IsNormalMap()` | data (two channels) | `RTF_RGBA8` |
+
+- **Refused `unsupported_encoding`, naming the format:**
+  - `PF_FloatRGBA`, `PF_R16F`, `PF_R32_FLOAT`, `PF_A32B32G32R32F`, `PF_BC6H`. These come from
+    `TC_HDR`, `TC_HDR_F32`, `TC_HalfFloat`, `TC_SingleFloat` and `TC_HDR_Compressed` (`Texture.cpp:3227`,
+    `:3231`, `:3265`, `:3273`, `:3277`). Their range and precision do not survive RGBA8. v1's denylist
+    missed the half and single float settings (Codex P1-2).
+  - `PF_G16` (16-bit grayscale, `:3241-3254`): precision is lost.
+  - `PF_R5G6B5_UNORM`, `PF_B5G5R5A1_UNORM` (`TC_LQ`, `:3213-3224`): not qualified by any fixture.
+  - A normal map in any format other than `PF_BC5`: not qualified by any fixture.
+  - Anything not in the table.
+- **sRGB grayscale** cooks to BGRA8 on Windows, because Windows does not support sRGB grayscale
+  (`Core/Public/Windows/WindowsPlatformProperties.h:101-104`; `Texture.cpp:3305-3308`). It is covered by
+  the BGRA8 colour row.
+- **Single-channel formats (`PF_BC4`, `PF_G8`)** are read by the host through a grayscale or alpha
+  sampler type, which replicates one channel of the lookup. The render target stores the corruptor's raw
+  sample in RGBA8, so whether the host's replication reads the same value from it is not derived here;
+  G-ID's BC4 and G8 rows prove it or refuse the class.
+- **The contract in one line:** every admitted source decodes to values the render-target format holds
+  without range loss. BC interpolants can decode to values between 8-bit steps; the render target stores
+  the nearest 8-bit value. That single re-quantisation is what `G-ID`'s tolerance has to bound (§R12, N4).
+- `Compat.UseDXT5NormalMaps` non-zero refuses the normal family `dxt5_normal_host`. This is v1's rule,
+  kept; the variable is read at runtime (v1 §3.2 encoding table).
+
+### R3.2 Dimensions and memory
+
+- **Size.** The render target is **W×H = the dimensions of the platform's top mip**,
+  `PlatformData->Mips[AssetLODBias]` (§R4). On a normally cooked texture that equals `GetSizeX()` ×
+  `GetSizeY()`, the full cooked mip-0 size after cook-time stripping (`Texture2D.cpp:327-355`;
+  `TextureDerivedData.cpp:2661-2667`).
+  - Both dimensions and the aspect are kept. **There is no cap and no resize.** v1's
+    `TexCorruptRtMaxSize = 1024` is deleted.
+- **Mips.** `bAutoGenerateMips` gives `FloorLog2(max(W, H)) + 1` levels (`TextureRenderTarget2D.cpp:50-62`).
+  Nothing in the render-target or mip-generation path rejects non-square or non-power-of-two sizes.
+- **Bytes per render target:** `B(W,H) = Σ_i 4 · max(1, W≫i) · max(1, H≫i)` over those levels, computed by
+  our own arithmetic. The engine's `CalcTextureMemorySizeEnum` counts only the base level
+  (`TextureRenderTarget2D.cpp:68-79`). Reference values:
+
+  | size | bytes | MiB |
+  |---|---|---|
+  | 256² | 349,524 | 0.33 |
+  | 1024² | 5,592,404 | 5.33 |
+  | 2048² | 22,369,620 | 21.33 |
+  | 4096² | 89,478,484 | 85.33 |
+
+- **`drift` needs two render targets per texture**: the Apply-time snapshot and the per-frame output
+  (§R7.3), so `2·B`.
+- **The budget is a run-wide cap on live m53 render-target bytes**, both ids together:
+  `IAI.Anomaly.TexCorruptMaxRtBytes`, compiled **64 MiB**, in the `AnomalyDefaults` pattern (console >
+  ini > compiled, a `G139` echo, out-of-range values refused rather than clamped).
+  - At Apply the event **reserves** its whole requirement before allocating anything: every required
+    output of every qualifying slot, including `drift` snapshots. If it does not fit, the event is
+    refused `over_budget` (§R6, step V2).
+  - Released bytes stay counted as `pending_release` until two frames after the release is enqueued.
+    That is a bookkeeping rule. GPU deallocation timing is not observable from the game thread, and the
+    cap is **not a VRAM guarantee**.
+  - `texcorrupt_rt_bytes_peak` reports live plus pending bytes.
+- ⚠ **64 MiB is v1's number, chosen when v1 capped the render target at 1024.** Without downsampling it
+  refuses every 4096² source outright (one map alone is 85.33 MiB), and every slot whose UV map set
+  exceeds three 2048² maps. §R14 shows what that costs on the fixtures. **The value is N3.**
+
+### R3.3 Sampling
+
+- **How each sampler is built:**
+  - The render target's sampler comes from **its own** `LODGroup` and `Filter` through the active device
+    profile, with MipBias 0 and anisotropy from `r.MaxAnisotropy` (`TextureRenderTarget2D.cpp:647-655`).
+  - An ordinary texture's sampler uses the same device-profile filter lookup
+    (`Private/Rendering/StreamableTextureResource.cpp:101`; `TextureLODSettings.cpp:358-382`), the same
+    `r.MaxAnisotropy` (`RHI/Public/RHIUtilities.h:844-850`), its own `AddressX/Y`
+    (`Private/Rendering/Texture2DResource.cpp:81-82`), and **MipBias = `r.MipMapLODBias`**
+    (`Private/Rendering/Texture2DResource.cpp:74-83`; `Texture2D.cpp:88-92`, `:1189-1193`).
+- **Matched by construction.** Before the resource is created (`InitCustomFormat`,
+  `TextureRenderTarget2D.h:150`), the render target gets:
+  - `LODGroup = Src->LODGroup` and `Filter = Src->Filter`, so filter and anisotropy match;
+  - `AddressX/Y = Src->AddressX/Y` and `MipsAddressU/V = Src->AddressX/Y`.
+  - The sampler is rebuilt only when the resource is initialised (`TextureRenderTarget2D.cpp:647-655`),
+    which is why these are set first.
+- **MipBias cannot be matched.** The render-target sampler has none, and the engine's sampler refresh
+  skips render targets (`UnrealEngine.cpp:1016-1057`). ⇒ At Apply, `UTexture2D::GetGlobalMipMapLODBias()`
+  (`Texture2D.h:233`) non-zero refuses the event **`host_mip_bias`**. The default is 0; no plugin or bench
+  script sets it (`git grep`, 4283fc8 and CaptureBench).
+- **Shared samplers.** A material sampling through `SSM_Wrap_WorldGroupSettings` / `Clamp` ignores the
+  texture's sampler for the render target and the source alike (`SceneManagement.cpp:901-913`;
+  `MaterialUniformExpressions.cpp:963-975`). Equal treatment, nothing to match.
+- **sRGB.** Set from `Src->SRGB` through the render-target format before creation (v1 §3.2 facts).
+
+### R3.4 Mips: what can be preserved, and what cannot
+
+- **The render target's lower mips are regenerated after every draw.** `DrawMaterialToRenderTarget` ends
+  with `UpdateResourceImmediate(false)` (`KismetRenderingLibrary.cpp:214`), which runs
+  `UpdateDeferredResource` → `FGenerateMips` (`TextureRenderTarget2D.cpp:682-719`).
+  - On D3D12 each level is one bilinear `SampleLevel` from the level above
+    (`RenderCore/Private/GenerateMips.cpp:201-219`; `[Shaders] Private/ComputeGenerateMips.usf:23-40`):
+    a 2×2 box for even sizes, an approximation for odd ones.
+  - On D3D11 it is the driver's `GenerateMips` (`Runtime/Windows/D3D11RHI/Private/D3D11Texture.cpp:1134`).
+- **The source's lower mips were made at cook time** by its `MipGenSettings` (box, sharpen N, blur N,
+  leave existing) and optionally by alpha-coverage scaling.
+  - **All of that is editor-only data** (`Classes/Engine/Texture.h:1117-1275`: `MipGenSettings` `:1247`,
+    `bDoScaleMipsForAlphaCoverage` `:1207`, `AlphaCoverageThresholds` `:1211`, `MaxTextureSize` `:1191`).
+  - The device-profile accessor for a group's mip setting is editor-only too
+    (`Classes/Engine/TextureLODSettings.h:179-182`).
+  - ⇒ **A cooked build cannot tell a box chain from an authored one.**
+- **How common authored chains are** (Appendix C; offline, from the editor assets):
+  - StackOBot: **8 of 131** textures, including `T_Eyes_Atlas` on the Bot's face (`LeaveExistingMips`).
+  - Lyra: **22 of 324**, including **every Manny and Quinn diffuse, mask and normal** (`Sharpen1` /
+    `Sharpen2`).
+  - No texture on either fixture uses alpha-coverage scaling.
+- ⇒ **Chat's instruction "refuse authored lower-mip or alpha-coverage chains that cannot be preserved"
+  cannot be implemented as a refusal** inside Core/CoreUObject/Engine. This is **counter-proposal N1**
+  (§R15):
+  - **(a) Preserve by construction.** Declare RenderCore and RHI dependencies on `AnomalyInjector` (the
+    invariant already lists them as anticipated) and draw **each output mip from the source's own mip m**
+    into a scratch render target, copied into mip m of the output. Every authored chain is carried
+    through, and nothing needs detecting.
+  - **(b) Stay inside Engine and narrow the claim.** Admit, regenerate mips, disclose it, and qualify
+    only box-chain fixtures. This accepts an undetectable failure class.
+  - **(c) Hold the anomaly.**
+  - **Recommended: (a).** The design below is written for (b)'s mechanism, because it is the one the
+    current dependency set allows. `G-ID-M` reports which fixtures are box-chain, and the support claim
+    is restricted to them. **S1 does not start until N1 is ruled**, because (a) changes the render-target
+    module.
+- **Transformed outputs have their own limit (Codex P1-2), named rather than solved.** Tiling ×N baked
+  into a W×H render target stores each tile at `log2(N)` mips less detail. The corruptor's
+  derivative-based sampling picks exactly that source mip, which is what a real ×N UV bug fetches at the
+  same screen footprint. **Under magnification** a real UV bug would show sharper tiles than the baked
+  target can hold. Recorded per event as `texcorrupt.tile_detail_mips = log2(N)`.
+
+### R3.5 What qualifies the contract
+
+`G-ID-M` (§R12) runs the identity comparison on dedicated geometry in the synthetic fixture (N2): a
+target filling the view (magnification), a far target (minification), a grazing-angle plane
+(anisotropic), and geometry that crosses mip transitions. It does **not** use `r.MipMapLODBias` to force
+minification: that would refuse the event (§R3.3). On host fixtures, `G-ID-M` reads only what the bench
+pose shows.
+
+---
+
+## R4. Residency (P1-3)
+
+**Policy.** At Apply, every texture in the event's required set must already be resident at its full
+cooked chain. Otherwise the event is refused `not_fully_resident`.
+
+- **Wait: 0 frames and 0 ms.**
+- **Never** `SetForceMipLevelsToBeResident`, `bForceMiplevelsToBeResident`, `WaitForStreaming` or
+  `WaitForPendingInitOrStreaming`. The last two loop on `FlushRenderingCommands` and `Sleep` with no
+  timeout (`StreamableRenderAsset.cpp:334-368`), and they guarantee only that nothing is pending, not full
+  residency.
+- **A prefetch phase is a separate design decision**, raised only if `G7`'s yield demands it. Codex's
+  conditions travel with it (a non-blocking phase outside labelled capture, frame **and** wall-time
+  cutoffs, identical preparation in clean controls, ownership of changed residency settings, m52
+  exclusion throughout, cleanup on timeout, cancel and EndPlay, and never a labelled event while it is
+  pending).
+
+**The check.** Game thread, all public or inline:
+
+1. `Tex->GetResource() != nullptr` and `!Tex->HasPendingRenderResourceInitialization()`
+   (`Texture.h:1667-1668`; `Texture.cpp:1121-1124`). Else `resource_not_ready`.
+2. `!Tex->HasPendingInitOrStreaming(false)` (`StreamableRenderAsset.cpp:229-265`). Else
+   `streaming_pending`.
+   - It clears the engine's own cached init hint on the game thread (`:239-249`). That is the engine
+     recording an observed fact; residency does not change.
+3. `S = Tex->GetStreamableResourceState()` (`StreamableRenderAsset.h:174-177`) must be valid. Else
+   `resource_not_ready`. (An invalid state also describes virtual-texture resources, which step T2 has
+   already refused.)
+4. **`S.NumResidentLODs == S.MaxNumLODs`:** every mip the resource can hold is resident. Else
+   `not_fully_resident`, and the diagnostic line gives `resident_lods`, `max_lods` and the resident top
+   dimensions.
+   - `MaxNumLODs` already excludes the cook-stripped and runtime non-cinematic bias, and
+     `AssetLODBias + MaxNumLODs == Mips.Num()` for a `UTexture2D` (`Texture.cpp:1400-1522`). So this
+     compares against the chain the platform can show.
+   - **Optional mips.** If the top mips are optional and not mounted, `NumResidentLODs` can never reach
+     `MaxNumLODs` (the streamer clamps to `NumNonOptionalLODs`, `Private/Streaming/StreamingTexture.cpp:224-229`).
+     The event is refused `not_fully_resident` with the sub-reason `optional_unmounted`: an unmounted mip
+     cannot be restored at runtime.
+   - **Cinematic mips** (`NumCinematicMipLevels`, `StreamableRenderAsset.h:256`) are inside `MaxNumLODs`,
+     so a texture with cinematic mips is refused unless they are resident. Stricter than necessary;
+     stated.
+   - **Non-streaming resources** (`!S.bSupportsStreaming`) pass when fully loaded, because their resident
+     count is set at init (`Texture.cpp:1468-1500`). A non-streaming texture whose optional first mip is
+     missing has `NumResidentLODs = NumNonOptionalLODs < MaxNumLODs` and is refused, correctly.
+   - ⛔ **Not `IsFullyStreamedIn()`.** It returns true for an invalid state and for every non-streaming
+     resource whatever was dropped, and it subtracts a non-cinematic runtime bias twice
+     (`StreamableRenderAsset.cpp:318-332`).
+5. **Top-mip dimensions.** `AssetMip = S.LODCountToAssetFirstLODIdx(S.NumResidentLODs)`
+   (`Public/Streaming/StreamableRenderResourceState.h:69-72`), and `PlatformData->Mips[AssetMip].SizeX/SizeY`
+   (`Public/TextureResource.h:44-89`).
+   - Recorded as **`snapshot_mip`** (the asset mip index relative to the cooked chain; 0 on a normal
+     cooked texture) and **`snapshot_px`** = [W, H]. The render target takes these dimensions (§R3.2).
+   - A texture whose runtime `AssetLODBias` is above 0 (a device-profile `MaxLODSize` tighter than the
+     cook) is admitted with `snapshot_mip = AssetLODBias`: that **is** the platform's full chain.
+   - ⚠ `FTexturePlatformData::GetNumNonOptionalMips` and its neighbours are not `ENGINE_API`, so the
+     design uses the state struct's `NumNonOptionalLODs` instead.
+
+**Why nothing can race the check.** Apply is one synchronous game-thread call. The residency check, the
+m52 check (below) and the draw's enqueue all happen inside it. A stream-out already in flight would have
+failed step 2. Anything the streamer requests afterwards is enqueued after our draw on the same render
+command queue (§R7.4). `drift` redraws only from the snapshot, never from the source (§R7.3).
+
+**m52 interplay.** Before the residency check, a new additive query
+`AnomalyStuckMip::IsTextureHeldOrRestoring(const UTexture2D*)` covers **both** m52's held list and its
+restoring list, texture-wide. It is needed because no such public query exists today: the private
+`IsAwaitingRestore` checks only the restoring list (`Anomaly_StuckLowMip.cpp:768-782`), and the public
+`IsAnomalyCurrentlyAnomalous` returns false once the anomaly is inactive (`AnomalyInjectorSubsystem.cpp:800-808`).
+A hit refuses the binding `held_by_stuck_low_mip`. There is no preparation phase, so there is no window in
+which a new m52 hold could start between the check and the draw. The reverse direction is v1 §4.5's (m52's
+auto-pool shared-user gate), and a **targeted** m52 fire still bypasses that gate by design; that is not
+evidence of isolation.
+
+**Measured consequence (m52's banked readings).** On the StackOBot bench poses the rock textures sat at
+resident **11–12 of 13** mips, i.e. a top resident mip of 1024–2048 px, never 4096
+(`2026-09-20-080-02-m52-implemented-and-gated.md:51`; `…080-03…:97`). Both rocks are therefore refused
+`not_fully_resident` whatever the budget (§R14).
+
+---
+
+## R5. Host MIDs (P1-4, D7)
+
+- A slot whose **raw** binding (§R8.1) is a `UMaterialInstanceDynamic` is refused **`host_mid`**.
+- **m53 builds no clone path.**
+  - `CopyParameterOverrides` first clears the MID's parameters, runtime-virtual-texture parameters
+    included, and never copies RVT parameters back (`MaterialInstanceDynamic.cpp:484-503`;
+    `MaterialInstance.cpp:3502-3519`).
+  - A clone also stops following the host's later writes to its own MID (a hit flash, animated
+    roughness).
+  - Both change the picture beyond the named corruption.
+- **Setting the parameter on the host's own MID is refused too.** It would mutate a host-owned object that
+  anything else in the game may point at, and the restore could not tell which later host writes to undo.
+- A MID cannot parent another MID; it renders the default material (v1 §1.4, `MaterialInstance.cpp:3076-3083`).
+- **`IAI.Anomaly.TexCorruptCloneHostMids` is not added** (v1 proposed it). `texcorrupt.host_mid_cloned` is
+  reserved for a future state-following milestone and **never emitted** by m53.
+- **Conditions for that future milestone** (chat's): copy every override type including RVT, define a
+  policy for later host updates, and qualify with an RVT-override identity fixture and a host
+  parameter-animation fixture.
+- **Content:** the StackOBot Bot's slots hold runtime MIDs (`G46`), so the Bot is refused. Whether Lyra's
+  characters do is not known offline; `G0` reads it.
+
+---
+
+## R6. The decision tree (P2-9) and the atomic map set (P2-8)
+
+### R6.1 Rules of the tree
+
+- The steps run in a fixed order: event level, then per slot, then per texture binding, then slot
+  aggregation, then event aggregation. The first failing step decides.
+- **No step has a side effect.** The first side effect, the budget reservation, happens only after the
+  tree says APPLY.
+- Every texture binding and every slot gets **exactly one** counted disposition.
+- The event gets **exactly one** final outcome:
+  - `APPLIED`, or
+  - `REFUSED` with one reason: the first failing event-level step; or, when every slot is refused, the
+    reason of the **earliest step** among the slots' reasons. That makes the reason deterministic.
+- A slot is a (component, slot index) pair on every mesh component the target resolves.
+
+### R6.2 The tree
+
+**Event level**
+
+| step | check | reason |
+|---|---|---|
+| E1 | both corruptor materials and the noise texture resolved non-null (subsystem CDO hard references, v1 §3.3) | `assets_unavailable` — an installation failure, never a content fact |
+| E2 | the corruptor this id needs has a complete game-thread shader map at the world's feature level | `corruptor_not_ready` |
+| E3 | normal family: `Compat.UseDXT5NormalMaps` reads 0 | `dxt5_normal_host` |
+| E4 | `r.MipMapLODBias` reads 0 (§R3.3) | `host_mip_bias` |
+| E5 | targeted fire: the requested mode is one of the id's modes | `mode_invalid` |
+| E6 | the target resolves ≥ 1 static or skinned mesh component (`AnomalyLod::ResolveLodComponents`, viewport scoping as the other texture anomalies) | `no_mesh` |
+
+**Slot level**, for every slot:
+
+| step | check | disposition |
+|---|---|---|
+| S1 | the resolved material is non-null | `slot_empty` — intentionally untouched |
+| S2 | the resolved material is not translucent | `slot_translucent` — intentionally untouched |
+| S3 | the raw binding is not a MID (§R5) | `host_mid` |
+| S4 | static mesh component: not (`UseNaniteOverrideMaterials()` and `Resolved->GetNaniteOverride() != nullptr`) (`StaticMeshComponent.cpp:2264-2268`, `:2670-2675`; `MaterialInterface.h:510`) | `nanite_override` |
+| S5 | `GetMaterialResource(FL)` and its game-thread shader map are non-null (§R2.1) | `shader_map_unavailable` |
+| S6 | that shader map is complete | `shader_map_incomplete` |
+| S7 | the root material carries the usage flag this component class needs, read side-effect-free with `UMaterial::NeedsSetMaterialUsage_Concurrent` + `GetUsageByFlag` (`Material.h:1235`, `:1252`; `Material.cpp:1705-1732`). Checked: skeletal → `MATUSAGE_SkeletalMesh`; instanced static → `MATUSAGE_InstancedStaticMeshes`; Nanite static → `MATUSAGE_Nanite`; lightmapped static → `MATUSAGE_StaticLighting`. | `default_material_path` — the slot already renders the default material in game (`Material.cpp:1790-1820`; `StaticMeshRender.cpp:2225-2227`), so its textures are not on screen |
+| S8 | the uniform-expression set has ≥ 1 texture entry | `no_textures` — **now meaning** "the compiled material samples no texture"; S5–S6 have already excluded the silent empty list of `MaterialShared.cpp:926-941` |
+
+**Texture-binding level**, for every entry of the set (§R2):
+
+| step | check | disposition |
+|---|---|---|
+| T1 | `Standard2D` entry and a `UTexture2D` texture | `unsupported_type` |
+| T2 | not virtual (entry type, and `IsCurrentlyVirtualTextured()`) | `virtual_texture` |
+| T3 | `LODGroup` not in {UI, Lightmap, Shadowmap, Terrain_Heightmap, Terrain_Weightmap, Bokeh} (m52's list, `Anomaly_StuckLowMip.cpp:51-65`) | `excluded_group` — intentionally untouched |
+| T4 | `ParameterInfo.Name` is not None | `texture_not_parameter` |
+| T5 | pixel format admitted for its class (§R3.1) | `unsupported_encoding` |
+| T6 | not held or restoring by `stuck_low_mip` (§R4) | `held_by_stuck_low_mip` |
+| T7 | resource valid, initialised, nothing pending (§R4 steps 1–3) | `resource_not_ready` / `streaming_pending` |
+| T8 | fully resident (§R4 step 4) | `not_fully_resident` |
+| T9 | all passed | `transformable` |
+
+**Slot aggregation**
+
+| step | check | slot reason |
+|---|---|---|
+| A1 | the family's **required set**. UV: every binding except the intentionally untouched ones (T3). Normal: every binding whose texture `IsNormalMap()`, except T3. | — |
+| A2 | normal family: the required set is non-empty | `no_normal_map` |
+| A3 | normal family: the root material's `IsPropertyConnected(MP_Normal)` (`Material.cpp:3961-3964`; a guard only, v1 §2.2) | `normal_unconnected` |
+| A4 | **every** binding in the required set is `transformable` | the **first** failing binding's reason, by step order. The diagnostic counter `slots_partial_set` also counts slots where some bindings were transformable and others not. |
+| A5 | the required set holds ≥ 1 texture at or above the size policy on both axes (`IAI.Anomaly.TexCorruptMinTexturePx`, compiled 64) | `below_size_policy` |
+| A6 | the required set has ≤ `IAI.Anomaly.TexCorruptMaxTextures` bindings (compiled 8) | `map_set_over_cap` |
+
+**Event aggregation**
+
+| step | check | reason |
+|---|---|---|
+| V1 | ≥ 1 slot qualified | the earliest-step slot reason; if every slot was intentionally untouched, `no_eligible_slot` |
+| V2 | the whole requirement fits the run-wide cap (§R3.2) | `over_budget` |
+| V3 | the transaction completes (§R7.4) | `rt_alloc_failed` / `draw_precondition_failed` / `param_readback_mismatch` (each rolls back) |
+
+### R6.3 The atomic map set, stated plainly
+
+- **Within a slot, the transformation is all or nothing.** A UV family event either moves every map the
+  slot's compiled material samples (except intentionally untouched groups), or it does not touch the
+  slot. A normal family event corrupts every normal-map binding of the slot, or none.
+- **A constant or virtual map in the set blocks the slot** (T4, T2). This is Codex's example: an albedo
+  parameter next to a constant-node normal map, or next to a virtual-textured detail map, used to be
+  partly transformed; now the slot is refused.
+- **The cap refuses; it does not trim** (A6). v1's "keep the 8 largest" is withdrawn.
+- **The size floor is a policy** (A5). It asks that an event have at least one texture of meaningful size.
+  It does not claim that a small texture is constant. **Small textures inside a qualifying set are
+  transformed with the rest** (they cost almost nothing), so a small patterned mask moves with its slot.
+- **Between slots, partiality is allowed and labelled.** A slot refused for any reason is left untouched,
+  and the label records `slots_corrupted` / `slots_total` plus each untouched slot's reason. This is
+  deliberate: m53 is a per-material texture corruption, and a real texture bug is per material. Chat may
+  tighten this to event level; it is a stated choice within the ruling ("the slot or event is refused"),
+  not a counter-proposal.
+- **Counting.** Every binding disposition and every slot reason is counted per run (§R10). Exclusions are
+  deterministic because the tree is ordered and has no side effects.
+
+### R6.4 Every reason, and what exercises it
+
+| reason | how it is produced | stage |
+|---|---|---|
+| `assets_unavailable` | bench lever `IAI.Bench.TexCorruptForceMissingAsset` (nulls the pointer for one fire) | S1 |
+| `corruptor_not_ready` | **UNEXERCISED** in a healthy packaged cook; the per-fire check is still built | — |
+| `dxt5_normal_host` | **UNEXERCISED**: the variable is read-only at runtime (`Core/Private/HAL/ConsoleManager.cpp:2842-2852`) and changing it changes shader compilation; the bench reads 0 | — |
+| `host_mip_bias` | `r.MipMapLODBias 1` before a fire | S1 |
+| `mode_invalid` | targeted fire with an unknown mode | S2 |
+| `no_mesh` | targeted fire at an actor with no mesh component | S1 |
+| `slot_translucent` / `no_eligible_slot` | StackOBot `SM_GenericPlane` (`M_HoloGridFence`, translucent, v1 App. A) | S1 |
+| `host_mid` | StackOBot `SKM_Bot` (`G46`) | S1 |
+| `nanite_override` | synthetic fixture (N2); none known on host content | S2 |
+| `shader_map_unavailable` / `shader_map_incomplete` | **UNEXERCISED** on a healthy cook | — |
+| `default_material_path` | synthetic fixture: a skeletal slot whose root material lacks `bUsedWithSkeletalMesh` (the `G49` class) | S2 |
+| `no_textures` | `CB_GateLevel` (`BasicShapeMaterial`, v1 §6.1) | S1 |
+| `unsupported_type` | synthetic fixture: a cube-texture parameter | S1 |
+| `virtual_texture` | Lyra: the three runtime-virtual Megascans textures m52 found (080-04 §5), if a target reaches them; else synthetic fixture | S1/S3 |
+| `excluded_group` | synthetic fixture: a UI-group texture parameter | S1 |
+| `texture_not_parameter` | synthetic fixture: the alias target (`G-BIND`) | S1 |
+| `unsupported_encoding` | synthetic fixture: a `TC_HalfFloat` texture | S1 |
+| `held_by_stuck_low_mip` | `G5` (m52 targeted first, held and restoring) | S2 |
+| `resource_not_ready` / `streaming_pending` | **UNEXERCISED**: no deterministic producer without a force-residency call, which m53 must not make | — |
+| `not_fully_resident` | StackOBot `SM_rock` (measured non-resident, §R4); synthetic fixture: a far, streamed 2048² texture | S1 |
+| `no_normal_map` | StackOBot `SM_FloorBase` (mask only) | S1 |
+| `normal_unconnected` | synthetic fixture: a normal map feeding a non-normal input | S2 |
+| `below_size_policy` | synthetic fixture: a slot whose textures are all 32² | S1 |
+| `map_set_over_cap` | synthetic fixture: a slot with 9 parameter maps | S1 |
+| `over_budget` | synthetic fixture: a never-streamed 4096² texture (resident, 85.33 MiB) | S1 |
+| `rt_alloc_failed` / `draw_precondition_failed` / `param_readback_mismatch` | bench lever `IAI.Bench.TexCorruptFailStep <2..6>` (fails that transaction step once, to prove the rollback) | S1 |
+
+An UNEXERCISED reason is written as UNEXERCISED in the gate report, never as a clean zero.
+
+---
+
+## R7. Corruptors, draws and the Apply transaction
+
+### R7.1 The two corruptor materials
+
+v1 §3.2's draw facts carry over unchanged: Surface domain (a UI-domain material has no local-VF shaders
+in a cooked build), Unlit, value written as Emissive, drawn with `DrawMaterialToRenderTarget`, no usage
+flag needed.
+
+- **`M_CorruptTex_UV`**: AlphaComposite. Parameters `SrcColor` (Color sampler), `SrcData` (Masks),
+  `SrcNormal` (Normal), `SrcKind` (0/1/2), `UvScale`, `UvOffset`, `UvSwap`, and the scramble scalars of
+  §R7.5. Output: `f(uv)` per mode (tile `frac(uv·N)`, swap `uv.yx`, drift `frac(uv + offset)`, scramble
+  §R7.5), `Emissive = src.rgb`, `Opacity = 1 − src.a`. A normal-class source is re-encoded `n.xy·0.5+0.5`
+  into RG (v1 §3.2 encoding table).
+- **`M_CorruptTex_Normal`**: Opaque. `SrcNormal` unpacked to `n`, then `NormalSign` (green flip,
+  invert), `FlatMix` (flat), `NoiseAmp` with a shipped tileable noise-normal texture (noise), re-encoded
+  into RG.
+- ⛔ **`AlphaFromSource` is removed.** v1 used it as a no-re-cook fallback that forced A = 1. Under §R11 a
+  failing alpha path is a scope decision for chat, not a switch Code flips.
+
+### R7.2 The encoding table
+
+v1 §3.2's table (colour → sRGB target, data → linear target, normal → `.rg` re-encode into a linear
+target) is carried, restricted to the admitted formats of §R3.1.
+
+### R7.3 Every draw clears first (P2-6)
+
+For **every** draw — Apply's draws and every `drift` redraw — in this order:
+
+1. `UKismetRenderingLibrary::ClearRenderTarget2D(World, Rt, FLinearColor(0,0,0,1))`
+   (`KismetRenderingLibrary.h:43`; `.cpp:46-67`). It enqueues a clear of mip 0. It fails silently when its
+   guard fails, so the guard (render target, resource, world) is checked by us first (§R7.4 step 4).
+2. `DrawMaterialToRenderTarget(World, Rt, CorruptorMid)`. It enqueues the canvas draw, then
+   `UpdateResourceImmediate(false)`, which regenerates the mips (`KismetRenderingLibrary.cpp:180-216`).
+
+- The render target's own `ClearColor` defaults to (0,0,0,1) (`TextureRenderTarget2D.cpp:38`); it is also
+  set explicitly, because a fresh target's first draw runs a deferred clear with that colour
+  (`TextureRenderTarget.cpp:149-161`).
+- **With the clear**, AlphaComposite gives `RGB = src.rgb` and `A = src.a` on every draw (v1's derivation,
+  which Codex's Q1 found sound).
+- **Without it**, the recurrence is `RGB_n = src.rgb + RGB_{n−1}·src.a` and `A_n = A_{n−1}·src.a`: an
+  opaque source with RGB 0.4 goes 0.4 → 0.8 → 1.0, and fractional alpha decays (Codex P2-6).
+- **`drift`.**
+  - At Apply, an identity draw copies the source into the **snapshot** target.
+  - Every frame, the corruptor samples the **snapshot** (never the source) into the **output** target.
+    The snapshot and the output are distinct objects.
+  - The per-frame cost (clear, draw and mip regeneration, per texture) is part of `G-COST`.
+  - A snapshot adds one more 8-bit re-quantisation (source → snapshot → output). `G-RD` measures its
+    effect.
+
+### R7.4 The Apply transaction (P2-11)
+
+Steps, in order. The slot is touched only at the last step.
+
+| # | step | failure |
+|---|---|---|
+| 0 | the decision tree (§R6) says APPLY; nothing has been changed yet | the tree's reason |
+| 1 | **reserve** the event's bytes under the run-wide cap (§R3.2) | `over_budget` |
+| 2 | **allocate** every render target: `NewObject<UTextureRenderTarget2D>` in the transient package, strongly held by the subsystem; set format, sRGB, `ClearColor`, `LODGroup`, `Filter`, `AddressX/Y`, `MipsAddressU/V` and `bAutoGenerateMips`; then `InitCustomFormat(W, H, Format, bForceLinearGamma)`. Verify each: `GameThread_GetRenderTargetResource() != nullptr`, the size equals W×H, and `GetNumMips()` equals the expected count. | `rt_alloc_failed`; roll back |
+| 3 | create the corruptor MIDs (one per texture and mode), set their parameters, and read each back | `param_readback_mismatch`; roll back |
+| 4 | **re-check every precondition of every draw ourselves**: `FApp::CanEverRender()`, the world is valid, the material is non-null, the render target's resource is non-null — the exact exits of `DrawMaterialToRenderTarget` (`KismetRenderingLibrary.cpp:156-179`) — plus E2's corruptor shader-map completeness. After this step no draw can take a silent exit. | `draw_precondition_failed`; roll back |
+| 5 | **enqueue** every clear and draw (snapshots first for `drift`) | — |
+| 6 | create one host MID per distinct resolved material (parent = the resolved material, never a MID), `SetTextureParameterValueByInfo` for every binding in each qualifying slot's set, and read each back (§R2.3) | `param_readback_mismatch`; roll back |
+| 7 | **commit:** `SetMaterial(i, HostMid)` on every qualifying slot, and record ownership (§R8) | — |
+
+- **Ordering, and why no wait or fence is needed.**
+  - Steps 5–7 enqueue render commands on the single render-command queue, which runs in submission order
+    (`RenderCore/Public/RenderingThread.h:256-291`; the named-thread queue is a FIFO,
+    `Core/Private/Async/TaskGraph.cpp:876-878`, `Core/Public/Containers/LockFreeList.h:523-524`, `:811`).
+    The material-instance parameter updates use the same queue (`MaterialInstance.cpp:390-416`).
+  - The same frame's proxy recreate from `SetMaterial` (`SendAllEndOfFrameUpdates`,
+    `Renderer/Private/SceneRendering.cpp:4528`) and its scene draw (`FDrawSceneCommand`, `:4650`) are
+    enqueued **later**.
+  - ⇒ Every render target is drawn and its mips regenerated before any scene draw can sample it, on the
+    frame the label begins.
+- **Rollback** releases everything steps 2–6 created (`ReleaseResource()`, then the strong references are
+  dropped), un-reserves the bytes, and touches no slot, because the commit is step 7 alone. Each rollback
+  is counted per step.
+- **What the transaction cannot prove.** It cannot prove that the GPU executed the draw correctly; a void
+  call reports nothing. That proof is `G-ID` (content) and `G11` (the packaged shader path draws
+  non-default content).
+- **Where it runs:** inside the fire tick. The labelled window begins on that frame, and `G1` (ONSET)
+  checks that the picture changes on it.
+
+### R7.5 `uv_scramble` as a true permutation (D2)
+
+- Cells are indexed `i = y·K + x`, with `N = K²` cells (K compiled 8, a knob).
+- The permutation is `π(i) = (a·i + b) mod N`:
+  - `a` is chosen among values coprime to N, so π is a bijection;
+  - `b` is chosen in [0, N);
+  - the pair (1, 0), the identity, is excluded.
+- **(a, b) are derived by hashing the run seed with the event's fire index.** Nothing is drawn from the
+  auto-injector's stream, so `R-SEED`'s draw protocol (v1 §7.2) is unchanged, and the pair does not
+  depend on whether an earlier Apply succeeded.
+- The corruptor needs the inverse: output cell j samples source cell `π⁻¹(j) = a⁻¹·(j − b) mod N`. C++
+  computes `a⁻¹ mod N` with the extended Euclidean algorithm and passes `(a⁻¹, b, K)` as scalars. The
+  local cell UV is kept.
+- **Apply verifies bijectivity** by enumerating all N cells on the CPU. The result is logged as
+  `scramble_bijective`; a failure would refuse the event, and is unreachable by construction.
+- Float arithmetic on integers below 2²⁴ is exact in the shader (K ≤ 64 ⇒ N ≤ 4096).
+- It is deterministic across hosts. It is also seam-producing: sampling across a cell boundary is part of
+  the look.
+
+---
+
+## R8. Slots, ownership and exact restore (P2-7)
+
+### R8.1 What is captured per slot, before any change
+
+| field | source |
+|---|---|
+| `Raw` | `Comp->OverrideMaterials.IsValidIndex(i) ? Comp->OverrideMaterials[i] : nullptr` (public, `Classes/Components/MeshComponent.h:26-28`), plus `RawArrayLen = OverrideMaterials.Num()` |
+| `Asset` | static: `GetStaticMesh()->GetMaterial(i)` (`StaticMesh.cpp:7685-7693`); skinned: `GetSkinnedAsset()->GetMaterials()[i].MaterialInterface` (`SkinnedMeshComponent.cpp:1252-1264`) |
+| `Resolved` | `Raw ? Raw : Asset` — the bound material before any Nanite substitution, exactly as the components resolve it (`StaticMeshComponent.cpp:2655-2667`; `SkinnedMeshComponent.cpp:1252-1264`) |
+| `Effective` | `Comp->GetMaterial(i)`, with the Nanite substitution on static meshes (`StaticMeshComponent.cpp:2670-2675`) |
+
+- **Nanite is inspected from `Resolved`** (S4): `UseNaniteOverrideMaterials()` and
+  `Resolved->GetNaniteOverride()`. v1 read only `GetMaterial()`, which returns the override B rather
+  than the slot's material A; saving B and restoring B would lose A, and checking B for an override could
+  miss the refusal. `Effective != Resolved` is logged as a cross-check.
+- **Strong references.** `Raw`, `Asset` and `Resolved` go into a `UPROPERTY` array on the injector
+  subsystem (the `CorruptedTexturePink` pattern, `AnomalyInjectorSubsystem.h:133-137`) from capture until
+  that slot's restore, or its abandonment, completes. The actor and the component stay weak.
+  - This closes Codex's GC case: `corrupted_texture` keeps its original weakly
+    (`Anomaly_CorruptedTexture.h:30`), so a runtime material held only by the slot could be collected
+    mid-event and the revert would reset to the mesh default. m53 does not copy that.
+
+### R8.2 Ownership
+
+- An event owns a set of (weak component, component `FName`, owner, slot index) keys, each mapped to the
+  host MID it installed, plus the render targets and corruptor MIDs it created.
+- A render target is never shared across events or actors. One host MID per distinct resolved material
+  within the event (v1 §4.2's sharing rule, kept for the MID only).
+
+### R8.3 Restore
+
+The m17 contract, mirrored, with the raw state:
+
+1. Re-find the component: the weak pointer, otherwise by `FName` on the owner.
+2. Touch slot i **only if `OverrideMaterials[i]` is still this event's host MID.** A raw read is correct
+   here, because the host MID's parent has no Nanite override (S4). If it is not ours, the slot is left
+   alone and logged `left-to-game`; the host replaced it and we do not stomp.
+3. If `Raw` was non-null, `SetMaterial(i, Raw)`: the strongly held original **object**, which is an
+   exact restore. Otherwise `SetMaterial(i, nullptr)`, and the slot falls back to `Asset`.
+   - **Named limit:** `OverrideMaterials` may stay longer than `RawArrayLen`, with null entries.
+     `SetMaterial` grows it with `AddZeroed` (`MeshComponent.cpp:59-62`), and nothing shrinks it without
+     touching other slots. That renders identically but is not a byte-identical component state.
+     `override_len_before/after` is logged.
+4. **Sweep** every mesh component of each touched owner for a slot still holding one of our host MIDs
+   (the component was re-created after Apply). That is **cleanup**, logged `swept`, and never evidence of
+   an exact restore.
+5. **Release:** each render target's `ReleaseResource()` and its reference; the corruptor and host MIDs;
+   then, only after the slot is restored, the strongly held originals. Bytes move from live to
+   `pending_release` (§R3.2).
+6. **Log per slot:** `restored-exact` (the raw object re-set) / `restored-default` (raw was null) /
+   `left-to-game` / `unresolved` / `swept`.
+
+⚠ Pointer restoration and dropped references do not prove byte-identical future frames or a synchronous
+GPU deallocation. `G3` measures the frames.
+
+### R8.4 Two ids, and which fire paths are supported
+
+- `uv_corruption` and `normal_corruption` keep separate ownership arrays, render-target sets and counters.
+- **Supported fire paths:** auto-pool `TryFireOnce` and targeted `TryFireSpecific`. Both exclude an actor
+  already in `LiveFires` (`AnomalyAutoInjectorSubsystem.cpp:286`; `:454`, `:459-469`), so the
+  one-anomaly-per-actor rule (`G30`) holds there.
+- **Not supported:** raw `ApplyAnomaly` (`AnomalyInjectorSubsystem.cpp:705-730`) and its callers — console
+  `IAI.Apply`, the control server's `inject`, the selector, and session globals. They do not check
+  `LiveFires`, and m53 does not claim isolation for a raw apply that overlaps `missing_texture` or
+  `corrupted_texture` on the same actor.
+
+### R8.5 Exits
+
+Normal revert, `FinishRun`, cancel before focus, target destroyed (`OnEndPlay` plus a weak-pointer poll,
+v1 §4.4), level change, world teardown, and transaction rollback (§R7.4). Every one reaches §R8.3.
+
+---
+
+## R9. Prewarm, first use, cost (P2-11, D6)
+
+### R9.1 The lists are split
+
+- Today `GatherAnomalySwapMaterials` (`AnomalyCaptureSubsystem.cpp:2399-2412`) feeds both the prewarm
+  (`PrewarmAnomalyShaders`, `:2518`) and the per-frame count (`CountIncompleteAnomalyMaterials`, `:2418`,
+  called per frame at `:4442`).
+- m53 adds a new `GatherAnomalyPrewarmMaterials` = that list plus the two corruptors, used **only** by the
+  prewarm. `CountIncompleteAnomalyMaterials` keeps calling the unchanged `GatherAnomalySwapMaterials`, so
+  the per-frame pending count does not widen (`G298` unchanged).
+
+### R9.2 What the prewarm is not
+
+- In a cooked build `EnsureIsComplete` is a no-op: its whole body is `#if WITH_EDITOR`
+  (`MaterialInterface.cpp:1468-1480`). The m47 prewarm's own log says so (`AnomalyCaptureSubsystem.cpp:2540-2541`).
+- PSO precaching is off in 5.1 (`RHI/Private/PipelineStateCache.cpp:103-110`, `:2131-2139`). The first
+  draw of each new combination of shaders, render state and render-target format creates its PSO, and the
+  command list waits for it (`:2067-2094`). That is a stall, not a wrong frame.
+- **Distinct first-use PSOs:** the UV corruptor × {RGBA8, RGBA8_SRGB}; the normal corruptor × RGBA8; the
+  clear; and the mip-generation pass per format (`RenderCore/Private/GenerateMips.cpp`). At least five.
+
+### R9.3 The warm draw
+
+- **Where.** The m47 prewarm runs in `BeginActualRun` (`AnomalyCaptureSubsystem.cpp:3517`), and the very
+  next tick captures the first lead-in frame (`:718`). There is no uncaptured frame to use on the direct
+  path.
+- **What.** A new **non-capturing** phase, `TexCorruptWarm`, between `BeginActualRun` and `LeadIn`,
+  modelled on `SettleAfterFire` (`:722-725`), which counts down without calling `CaptureCurrentFrame`.
+  - It is entered only when an m53 id is enabled in the pool or is the targeted anomaly. Every other run
+    is byte-identical.
+  - It lasts 2 frames. It draws each corruptor once into a small scratch target of each format (clear,
+    draw, mips) and releases them.
+  - Knob `IAI.Capture.TexCorruptWarmDraw`, compiled on.
+- **What it can and cannot claim.** It moves first-use PSO creation out of the captured frames **if** the
+  scratch draws hit the same PSOs (same shaders, blend and formats). Engine offers no PSO introspection,
+  so that is not proved.
+  - Instead it is **measured**: `G-COST` compares the first labelled Apply frame's time with the warm draw
+    on and off, for both corruptors and every target format.
+  - The residual cold-first-fire cost is a **measurement with an owner acceptance decision** (O3).
+
+### R9.4 `G-COST`, the predeclared method
+
+- **Setup:** paced 30 fps, the same build, m55 held constant (on, on both sides). Order A,B,B,A after one
+  declared discard leg (`G186`).
+  - A = both m53 ids disabled.
+  - B = targeted m53 legs on the fixture slot with the **most required maps that fit the budget**, one
+    static mode; and separately `drift`.
+- **Readings:**
+  - per-frame wall time, median and p99; `speed_ratio`; capture throughput (frames written per wall
+    second);
+  - the first Apply frame's time with the warm draw on and off;
+  - the `drift` per-frame redraw time, and its clear and mip work;
+  - the cost of a cancel and of a rollback;
+  - repeated allocation and release over ≥ 20 events, with `texcorrupt_rt_bytes_peak` returning to 0
+    after each event.
+- **Acceptance.** A difference no larger than the within-build spread across positions reads "below the
+  resolution of this instrument" (`G169`). Anything larger is reported with its number and goes to the
+  owner. **No threshold is invented here**; accepting the cost, the cold first fire and `drift` is an
+  **owner decision** (O3).
+
+---
+
+## R10. Strength prior and labels (P3-12)
+
+- **`texcorrupt.expected_strength_class`** ∈ {`strong`, `medium`, `weak`} is a **mode prior**. The client
+  readme will say: "the class this mode is expected to fall in on typical content; it is not a
+  measurement of this event."
+  - Per-event pixel change is m55's (`chg_*`). Perceptibility is measured by nobody.
+  - v1's universal statements are withdrawn. A constant or permutation-invariant texture above the size
+    policy can be unchanged by tile or scramble; a flat normal map is unchanged by sign flips; lighting
+    controls how much a normal change shows.
+  - Priors: `strong` tile, scramble, invert; `medium` green_flip, noise, drift; `weak` swap, flat.
+- **m55 stays out** of eligibility, ranking, seeds, verdicts and `observable` (the m55 v1 contract).
+- **`G-STR`** (S3) may amend the default mode sets and the prior classes from offline measurement. The
+  key's values move with that amendment.
+
+**Label keys.** Additive; `label_schema` stays 2 (the m52 ruling, `2026-09-20-m52-stuck-low-mip.md:672-673`).
+
+- **`annotation.json`:** `anomaly_type` = the id; `anomaly_subtype` = the mode. These are new values in
+  existing fields, so the field set does not move (`P6`).
+- **`labels.jsonl`, inside m53 anomaly entries only:**
+  - `texcorrupt.mode`, `texcorrupt.expected_strength_class`;
+  - `texcorrupt.slots_corrupted`, `texcorrupt.slots_total`, `texcorrupt.slots_untouched[]` of
+    `{slot, reason}`;
+  - `texcorrupt.condition_held`;
+  - per-mode parameters: `texcorrupt.tile`, `texcorrupt.tile_detail_mips`, `texcorrupt.uv_offset`
+    (`drift`, per frame), `texcorrupt.scramble_cells`, `texcorrupt.noise_amp`;
+  - `texcorrupt.textures[]` of `{name, param, association, layer_index, class, pixel_format, snapshot_mip,
+    snapshot_px, rt_bytes}`.
+- **Removed from v1:** `texcorrupt.route`, `texcorrupt.reconstructed`, `texcorrupt.strength_class`,
+  `src_resident_top_px`, `rt_size`.
+- **Reserved, never emitted:** `texcorrupt.host_mid_cloned`.
+- **`run_summary.json`:**
+  - `texcorrupt_fires_applied`;
+  - one `texcorrupt_refused_<reason>` per event-final reason;
+  - two dispositions objects, `texcorrupt_slot_dispositions` and `texcorrupt_binding_dispositions`
+    (reason → count), which keeps the key set bounded;
+  - `texcorrupt_rt_bytes_peak`, `texcorrupt_rollback_<step>`;
+  - `texcorrupt_restored_exact`, `texcorrupt_restored_default`, `texcorrupt_left_to_game`,
+    `texcorrupt_swept`.
+- **`condition_held`** is read from live state, not special-cased: the slot's raw binding is this event's
+  host MID **and** that MID's parameter still resolves to our render target. `NoApply` (§R12) therefore
+  reads false because nothing was installed, not because a lever says so.
+
+---
+
+## R11. Failure policy (P1-5): no route A
+
+| finding in S1 or S2 | action |
+|---|---|
+| `G-ID` fails for the **normal corruptor** only, and every UV path passes, including the UV corruptor's normal-class re-encode | defer `normal_corruption`; continue UV |
+| `G-ID` fails on the **UV corruptor's normal-class path** | STOP and report. The proposal to chat: UV restricted to slots whose required set holds no normal-class binding. That is a narrower product, so chat rules it. |
+| `G-ID` fails on a **colour, data or alpha** path | STOP and report. The proposal: refuse the failing class (`unsupported_encoding` naming it), if the remaining subset is non-empty. Chat rules it. |
+| `G-ID-M` fails at minification or a mip transition on a box-chain fixture | STOP; it bears on N1 |
+| a **wrong-copy control does not fail** | the instrument is invalid; STOP (`G96`) |
+| `G3` or `G4` fails (restore, lifecycle, rollback) | STOP |
+
+- **Never:** switch to the takeover, relax a tolerance, or widen a fixture so that a gate passes. A
+  takeover is a separate product decision.
+- **Code does not narrow the product silently.** A restriction is proposed to chat with the `G-ID`
+  evidence, and applied only after a ruling.
+
+---
+
+## R12. Gates (P2-10)
+
+**Classes.** **Q** = qualification gate: it can fail, and a failure stops the stage. **D** = diagnostic
+reading: reported, no pass or fail. **O** = owner decision: numbers go to the owner.
+
+### R12.1 Fixtures
+
+- **F-SYN** — a synthetic bench level `CB_TexCorruptLevel` with its fixture materials (**N2**).
+  - A sibling of `CB_GateLevel`, which it never edits (`G99`), authored by a CaptureBench tool in the
+    `make_lod_calib_level.py` pattern, and excluded from the shipping cook like `CB_LodCalib`.
+  - Settled camera, as `CB_GateLevel`.
+  - Contents, all ≤ 1024 px and never streamed unless stated:
+    - one opaque target per admitted encoding: sRGB DXT1; sRGB DXT5 whose alpha feeds a **non-threshold**
+      input (fractional alpha); BC7; BGRA8; BC4; G8; BC5 normal;
+    - a masked target whose opacity mask reads base-colour alpha (alpha at silhouettes);
+    - a material-layer parameter target; the alias target; a dead-binding target;
+    - reason targets: 9 parameter maps; all maps 32²; a translucent slot; a cube-texture parameter; a
+      UI-group texture; a `TC_HalfFloat` texture; a normal map feeding a non-normal input; a streamed
+      2048² texture placed far away; a never-streamed 4096² texture; a Nanite mesh whose material has a
+      Nanite override; a skeletal slot whose material lacks `bUsedWithSkeletalMesh`;
+    - geometry for `G-ID-M`, carrying the colour and normal encodings: a target filling the view, a far
+      target, a grazing-angle plane, and a surface crossing mip transitions;
+    - a target whose material samples through a shared sampler (`SSM_Wrap_WorldGroupSettings`);
+    - **reference-bug materials** for transformed outputs: copies of a fixture material with a real ×N UV
+      scale, and a real `uv.yx` swap, in their own graphs. They show what a true UV bug looks like, so a
+      baked `uv_tile` / `uv_swap` can be compared with it (`G-ID-M`, transformed rows).
+- **F-MW** — StackOBot `MainWorld` at its settled pose: `SM_FloorBase`, the rocks, `SKM_Bot`,
+  `SM_GenericPlane`, the modular kit. Real-host readings.
+- **F-GATE** — `CB_GateLevel`: refusals only (`no_textures`).
+- **F-LYRA** — `L_ShooterGym` at Lyra's own defaults (TSR, Lumen, auto-exposure on): the cubes, the
+  weapons, the characters.
+
+### R12.2 Controls, available on every fixture
+
+- **Null (matched): `IAI.Bench.TexCorruptNoApply`.** The same recipe, the same draws, the same MIDs;
+  only step 7 of the transaction (the slot commit) is skipped.
+- **Positive (matched): `corrupted_texture`**, targeted at the same actor from the same pose. It has no
+  fixture gate and fires on MainWorld (`AnomalyInjectorSubsystem.cpp:185`; `Anomaly_CorruptedTexture.cpp:57-134`).
+  On `L_ShooterGym`, m55's `solid_swap` and `null_effect` are also available; they are fixture-gated
+  (`Anomaly_ChangeCase.cpp:21-23`) and that gate is **not** widened.
+- **Wrong copy (must fail): `IAI.Bench.TexCorruptWrongEncoding <srgb|normal|alpha|mip|noclear>`.**
+  - `srgb` writes a colour source into a linear target;
+  - `normal` skips the `·0.5+0.5` re-encode;
+  - `alpha` draws the colour corruptor as opaque (A = 0);
+  - `mip` skips the mip regeneration after the draw;
+  - `noclear` skips the clear before a redraw.
+  - Bench-only, console-only, default off, loudly echoed, never in a client payload.
+- **Same-build control pair:** two NoApply legs. They establish the noise band at the AA-off arbiter
+  (the m45 precedent: 0 frames differing).
+- **Other bench levers:** `TexCorruptForceMissingAsset`, `TexCorruptFailStep <n>`,
+  `TexCorruptForeignReplace` (sets a foreign material on the slot mid-event), `TexCorruptIdentity`
+  (identity mode; v1's lever, kept), `TexCorruptIdentityRedraw` (identity with a forced per-frame redraw).
+  All under `IAI.Bench.`, with the same rules as above.
+
+### R12.3 The gate table
+
+| id | class | stage | fixture | recipe | reading / criterion | minimum count |
+|---|---|---|---|---|---|---|
+| **G0** | D | S1 | all | eligibility census | per target, every slot's `Raw`/`Asset`/`Resolved`/`Effective` material and Nanite routing; every texture entry (type, name, association, index, texture, class, pixel format, dimensions, `resident/max` LODs, `AssetLODBias`); each binding's and slot's disposition; the final reason. A disagreement with §R14's predictions is a **finding**, never a pass. | every target on F-MW, F-LYRA; every F-SYN target |
+| **G-BIND** | Q | S1 | F-SYN | targeted identity and a strong mode on the alias, layer and dead-binding targets | (1) both build targets link with the declared dependencies unchanged; (2) the alias target is refused `texture_not_parameter`; (3) on the layer target, only the layer's region changes against NoApply; (4) the dead-binding target is reported (D) | 3 applied events on the layer target |
+| **G-ID** 🚨 | Q | S1 | F-SYN (+ `SM_FloorBase` on F-MW if admitted) | identity through **both** corruptors, every admitted encoding; AA-off arbiter, native order; identity leg vs NoApply leg | **EXACT** if 0 pixels differ in the target mask on every frame. **PASS** if max \|d\| ≤ q = 2 (8-bit, any channel) on every frame. Every wrong-copy control must read max \|d\| ≥ 8q = 16 on the same mask, or the instrument is invalid. The alpha half runs on the fractional-alpha and masked targets; if no admitted target reads alpha it is **UNEXERCISED**, never a pass. q is **N4**. | 3 applied events per (corruptor, encoding) |
+| **G-ID-M** | Q on F-SYN box-chain targets; D elsewhere | S1 (identity), S2 (transformed) | F-SYN; F-MW / F-LYRA as readings | G-ID's comparison on the magnification, minification, grazing, mip-transition and shared-sampler targets; in S2, baked `uv_tile` and `uv_swap` against the reference-bug materials at the same geometry | identity: G-ID's criterion. Transformed: a **D** reading of the difference between the baked mode and the real UV bug, per geometry (the `tile_detail_mips` limit of §R3.4 shows up under magnification). On host content with authored chains (Appendix C) it is a reading only, pending **N1**. | 3 applied events per geometry |
+| **G-RD** | Q | S1 (identity), S2 (`drift`) | F-SYN | `TexCorruptIdentityRedraw` for ≥ 90 frames, opaque and fractional-alpha inputs; then `drift` | every frame within G-ID's PASS against NoApply, **and** the applied leg's frame N vs its frame 1 reads 0 differing pixels (no drift, no brightening, no alpha decay). The `noclear` wrong copy must fail (it brightens). | 1 leg per input |
+| **G1** | Q | S2 | F-SYN; F-MW `SM_FloorBase` if admitted (else D) | each mode, both tick orders | ONSET: the first labelled frame is the first frame differing from NoApply (m44), except `drift`, whose onset is read from `ref_*` | 4 applied events per mode per order |
+| **G2** | Q | S2 | F-SYN | NoApply | `condition_held` false and `observable` false on every labelled frame; `frames_condition_lost` counts them; `injected_frames` non-empty and `affected_frames` empty; the event stays and is not vetoed (the host still draws, so m26 reads non-zero) | 4 events |
+| **G3** | Q | S1 | F-SYN; F-MW if admitted | revert, then settle | the first post-revert frame vs the pre-onset reference over the **whole frame**, AA-off native: inside the same-build control band (0 differing); every touched slot logged `restored-exact` or `restored-default` with `Raw` pointer-identical; the event's render targets released | 3 events per id |
+| **G4** | Q | S1 | F-SYN | exits and failures | normal revert, `FinishRun`, cancel before focus, target destroyed mid-span, level change; a forced garbage collection mid-event (the engine console `obj gc` if it is available packaged; else UNEXERCISED); `TexCorruptForeignReplace` → `left-to-game`; a re-created component → `swept`; both ids live on two actors → independent ownership and release counts; `TexCorruptFailStep 2..6` → rollback, no slot touched, bytes un-reserved, nothing leaked. After every exit the live render-target bytes return to 0. | each exit once per id |
+| **G5** | Q | S2 | F-MW | m52 targeted first (held, then restoring), then m53 on a target sharing the texture; and the reverse order | refused `held_by_stuck_low_mip` by name in both m52 states; in reverse order the auto-pool m52 pick refuses the shared texture. The targeted-m52 bypass is stated, not tested as isolation. | 1 per state |
+| **G6** | Q (refusals), D (Nanite admit) | S2 | F-SYN; F-MW modular kit | Nanite paths | `nanite_override` refused on the F-SYN target; `host_mid` refused on the Bot; a Nanite target without an override, if it reaches APPLY, is labelled with `observability_measured` false (the m50 admit path). A case with no fixture is UNEXERCISED, never a pass. | 1 each |
+| **G-REASON** | Q | S1–S2 | per §R6.4 | each reason's producer | named in the REFUSED line and counted in `run_summary`; each UNEXERCISED reason stays listed | 1 each |
+| **G7** | O | S3 | F-MW, F-LYRA | auto-pool with both ids enabled explicitly | attempted, applied, refused per final reason, plus the slot and binding dispositions | one census per fixture per id |
+| **G8** | Q | S2 | F-MW | `P-C7 v3` against a pre-m53 control pair | `labels.jsonl` field set unchanged without m53; `run_summary` adds exactly the §R10 keys; the `annotation.json` field set unchanged (`P6`); new `anomaly_subtype` values only for the new ids | 1 pair |
+| **G-STR** | D → O | S3 | F-SYN, F-MW, F-LYRA | every mode with m55 on | m55 onset and `ref_*` per mode against the matched NoApply and `corrupted_texture` twins (and `solid_swap` / `null_effect` on L_ShooterGym); the evidence for amending the default modes and priors | 3 events per mode per fixture where admitted |
+| **G-COST** | O | S3 | F-SYN | §R9.4 | §R9.4's readings; acceptance is the owner's (O3) | §R9.4 |
+| **G9** | D | S2 | S2 legs | `--label-pixel-gate` + `--change-oracle` | readings only; the evidence rows must be present (exit 0 on absent evidence is not accepted) | all S2 legs |
+| **G10** | Q | every build | — | editor and game targets | exit 0, zero warnings, declared dependencies unchanged | every build |
+| **G11** | Q | S1, S2 | packaged | startup read-back + G-ID + G1 | a startup line names both corruptors and the noise texture and says each resolved non-null; every (corruptor, target format) pair drew non-default content, shown by G-ID's applied legs (a default-material draw fails G-ID); the noise texture's own sampling is proven in S2 by G1's `normal_noise` row, since identity draws it at zero amplitude | covered by G-ID and G1 |
+| **G-LYRA** | Q per id, for a Lyra support claim | S3 | F-LYRA | targeted and auto-pool | at least 1 successful counted event per id. A named refusal alone is a yield reading, and that id is then **unqualified on Lyra**. Pixel identity is not claimed there (TSR). | 1 applied event per id |
+
+---
+
+## R13. Stages, builds and cooks
+
+| stage | content | builds and cooks | gates | stop if |
+|---|---|---|---|---|
+| **S0** | this revision ruled, including N1–N4 | — | — | — |
+| **S1** — route B core, identity only | the decision tree, the transaction, restore, the residency check, the budget, the host-MID refusal, the split prewarm list and the warm-draw phase, the bench levers; the two corruptor assets and the noise texture; the F-SYN level and materials (N2); both ids registered, the identity lever only, nothing in the auto pool yet | **2 builds (editor + game), 1 cook** (plugin assets + F-SYN), plus the editor authoring run that creates F-SYN's content | G0, G-BIND, G-ID, G-ID-M, G-RD (identity), G3, G4, G-REASON (S1 rows), G10, G11 | §R11: G-BIND, G-ID, G3 or G4 fails; a wrong-copy control does not fail |
+| **S2** — every mode, both ids | the eight modes; the auto-pool mode draw (`R-SEED`, v1 §7.2); `drift` only if G-RD passes | **2 builds, 0 cooks**, if S1's graphs carry every mode's parameters (they are specified to) | G1, G2, G5, G6, G8, G9, G-RD (`drift`), G-REASON (S2 rows), G10 | a mode fails ONSET, or G2's falsifier cannot fire; `drift` failing G-RD defers `drift` (D5) |
+| **S3** — measurement | yield, strength, cost, Lyra | 0–1 bench builds + a Lyra worktree build (shared-tree rule 5) | G7, G-STR, G-COST, G-LYRA | a restore, lifecycle or rollback defect found on host content (a G3/G4 shape) stops S3. Otherwise S3 produces numbers: an id with no counted application on a fixture is recorded **unqualified** there, and default-on, the budget and cost acceptance wait for the owner (O1–O3). |
+| **S4** — docs and merge | client readme (the prior, the refusals, the limits), architecture, checklist, catalogue; comment strip | 1 build pair | G10 | — |
+
+- **Counts:** about **8 bench builds** (2 per stage) plus 1–2 Lyra builds; **1 cook**. A second cook is
+  needed only if an S1 graph lacks a parameter S2 needs.
+- **"One cook" means one content iteration.** Lyra and each office host build and cook for themselves
+  (Codex Q7). The office procedure still gains the startup read-back line (v1 §3.3).
+- **Estimate: 5 implementation sessions** (S1 is two: it now carries the fixture level, the transaction
+  and the levers). v1 said 4.
+- **S1 cannot start before N1 and N2 are ruled.** N1 decides the render-target module; N2 decides where
+  G-ID can run.
+
+---
+
+## R14. Expected yield impact
+
+**Method.** Three sources, none of them a measurement of m53:
+
+- the 082-01 name-table scan (material chains and texture classes; v1 Appendix A);
+- the 082-03 tagged-property scan (dimensions and authored mip settings; Appendix C);
+- m52's banked residency readings (§R4).
+
+These are **predictions**. `G0` and `G7` read the real values.
+
+### R14.1 Per target, first failing step
+
+| fixture target | textures (imported → cooked top) | v1 prediction | v2 prediction, UV family | v2 prediction, normal family |
+|---|---|---|---|---|
+| MainWorld `SM_rock`, `SM_rock_02` | `T_rock_0x_D/N/AORM` 4096²; `T_detail_N` 2048² | eligible, both | **`not_fully_resident`** (measured resident 11–12 of 13 at the bench pose). Even if resident, **`over_budget`** (one 4096² map is 85.33 MiB). If the world-aligned detail map is a constant, `texture_not_parameter` comes first. | same |
+| MainWorld `SM_FloorBase` (most-fired m52 target) | `T_Grid_A` 1024² mask (5.33 MiB) | UV eligible if a parameter | **eligible** iff `T_Grid_A` is a parameter and fully resident (its residency at the pose is unknown: m52 held it above its floor, which does not prove full). The only StackOBot target with a plausible UV event, and **data class only**. | `no_normal_map` |
+| MainWorld `SKM_Bot` | `T_Bot_*` 4096²; `T_Eyes_Atlas` 2048² (`LeaveExistingMips`) | eligible via clone | **`host_mid`** (S3 comes before any texture step) | same |
+| MainWorld modular kit (Nanite) | `T_SandTileabe_BC`, `T_ConcreteTileable_N`, `T_Metal_Painted_N` 4096² | eligible if parameters | **`over_budget`** (a 4096² map in every material instance), likely not resident either | same |
+| MainWorld `SM_RockFlats_*` | `T_RockTileable_BC` 2048², `T_SandTileabe_BC` 4096² | parameters unknown | `over_budget` if the sand map is active | `no_normal_map` |
+| MainWorld `SM_GenericPlane` | translucent | refused | `no_eligible_slot` | same |
+| `CB_GateLevel` | none | refused | `no_textures` | same |
+| Lyra `Cube*` | `T_Paint_Diffuse` 2048², `T_Paint_Normal` 2048², `T_Paint_Glossiness` 2048² with LODBias 1 (→ 1024²), `T_Paint_Opacity` 2048² | eligible, both | **fits (48 MiB)** if three maps are active; **`over_budget` (69.3 MiB)** if the opacity map is active in the opaque material. **`drift` never fits** (≥ 96 MiB). Residency plausible (the cube was ~1537 px across at m52's bench pose); virtual-texture status unknown. | **fits (21.33 MiB)** |
+| Lyra weapons (Nanite) | `T_Rifle_*` 4096² with LODBias 1 (→ 2048²) × 4 | eligible | **`over_budget` (85.33 MiB)** | fits (21.33 MiB); observability unmeasured (Nanite, `G134`) |
+| Lyra `SKM_Manny/Quinn` | `T_Manny_01_*` 8192² with `MaxTextureSize` 4096 (→ 4096²), `Sharpen1`/`Sharpen2` | refused (v1 route A) / clone (B) | **`over_budget`**, and `host_mid` first if their slots hold MIDs; sharpened chains (N1) | same |
+
+### R14.2 What that adds up to
+
+- **StackOBot MainWorld:** at most **1 of the 5** measured non-Nanite targets (`SM_FloorBase`, UV only,
+  data class only) is predicted to produce an event. **No StackOBot host target exercises the colour or
+  normal encodings at all**, which is why G-ID needs F-SYN (N2).
+- **Lyra:** the cubes (UV static modes and normal) and the weapons (normal only, Nanite).
+- **`drift`** is predicted to refuse `over_budget` on every host target except `SM_FloorBase`
+  (2 × 5.33 = 10.67 MiB).
+- **Which refusal binds, and where:**
+  - **residency** binds first on large, streamed textures at the bench poses (the rocks);
+  - **the budget** binds on every 4096² source and on multi-map 2048² sets (the kit, the weapons, the
+    characters, cube `drift`);
+  - **host MID** removes the StackOBot hero;
+  - **atomic coherence** removes slots mixing parameters with constants or virtual maps. Its count is
+    unknown until `G0`; the rocks' world-aligned detail map is the likely case.
+
+### R14.3 Budget sensitivity (N3), arithmetic only
+
+| budget | newly fits | still refused |
+|---|---|---|
+| 64 MiB (current) | FloorBase UV; cube UV (3 maps); cube normal; weapon normal | everything above |
+| 128 MiB | cube UV with the opacity map; cube `drift` (96); weapon UV (85.33); a single 4096² map (85.33) | rock and kit sets (residency, and more than one 4096² map); weapon `drift` (170.67) |
+| 256 MiB | two 4096² maps (170.67); weapon `drift` | a rock UV set (3 × 85.33 + 21.33 = 277.33); rock and kit residency |
+
+Raising the budget cannot recover the rocks at the bench poses: residency refuses them first. That lever
+is a prefetch design, deferred by ruling (§R4).
+
+---
+
+## R15. NEEDS-DECISION
+
+- **N1 — mip-chain preservation (the counter-proposal to P1-2).**
+  - (a) Declared RenderCore + RHI dependencies on `AnomalyInjector` and a per-mip draw: each output mip
+    drawn from the source's own mip into a scratch render target and copied into that mip of the output.
+    It preserves authored, sharpened and alpha-coverage chains by construction.
+  - (b) Stay inside Engine: regenerate the mips, disclose it, qualify only box-chain fixtures, and accept
+    an undetectable class (on the fixtures: 8 of 131 StackOBot textures and 22 of 324 Lyra textures,
+    including every Lyra character map).
+  - (c) Hold m53.
+  - **Recommended: (a).** **Blocks S1.**
+- **N2 — the synthetic fixture level F-SYN**, authored by a CaptureBench tool: bench-only, a sibling of
+  `CB_GateLevel`, excluded from the shipping cook.
+  - It is needed because host content cannot supply the alias and layer fixtures (P1-1), the reason
+    fixtures (P2-9), the encoding, alpha and mip-geometry matrix (P1-2, P2-6), or **any** colour or normal
+    encoding on StackOBot (§R14).
+  - It touches CaptureBench, which this brief fences.
+  - **Blocks S1.**
+- **N3 — the render-target budget under no downsampling.** 64 MiB is kept as the default; §R14.3 is the
+  arithmetic. Not needed before S1; needed before `G7`'s census means anything.
+- **N4 — `G-ID`'s tolerance.** q = 2 LSB (8-bit, any channel) with an 8q separation from the wrong-copy
+  controls. Its basis is one 8-bit re-quantisation of BC-interpolated or sRGB-decoded texels, then
+  filtering. The alternative is EXACT-only (0 differing pixels). Chat accepts or tightens it before S1.
+- **Later owner decisions:**
+  - **O1** default modes and pool membership (`G7` + `G-STR`);
+  - **O2** the budget value (with N3 and `G-COST`);
+  - **O3** acceptance of the cold first fire and of `drift`'s cost (`G-COST`);
+  - **O4** a prefetch design, only if `G7` shows residency is the binding refusal.
+
+---
+
+## R16. What this revision does not claim
+
+- ⛔ **No yield, strength or cost number.** §R14 is derived from offline scans and banked m52 readings,
+  and `G0` / `G7` / `G-STR` / `G-COST` produce the real ones.
+- ⛔ **No claim that the encodings are correct** (`G-ID`) or that the binding read links inside the
+  declared dependency set (`G-BIND`).
+- ⛔ **Authored mip chains are not solved** (N1).
+- ⛔ **No perceptibility claim.**
+- ⛔ **No incidence claim about the office hosts' content.**
+- ⛔ **Nothing here changes** `m51` (held at `53bf725`), `master`, any tag, any cooked container,
+  CaptureBench (N2 is a proposal) or `ToCodex\`.
+
+---
+
+## Appendix C — the 082-03 tagged-property scan (EVIDENCE, not a measurement)
+
+**Method.**
+
+- For every `.uasset` under the content roots (StackOBot `Content`; Lyra `Content`, `ShooterCore`,
+  `ShooterMaps`, `LyraExampleContent`), read the first 4 MiB.
+- Parse the package summary's name map, then find tagged-property byte patterns: `ImportedSize`
+  (`IntPoint`), `CompressionSettings` / `LODGroup` / `MipGenSettings` (enum), `MaxTextureSize` / `LODBias`
+  (int), and `SRGB` / `bDoScaleMipsForAlphaCoverage` / `CompressionNoAlpha` (bool).
+- The scripts are outside the repo: `C:\ClaudeTemp\m53scan\texprops.py` and `mipcensus.py`.
+
+**What it can and cannot say.**
+
+- These are **editor** assets, so they carry import and cook **settings**. The cooked top mip follows from
+  `ImportedSize`, reduced by `MaxTextureSize` and by cook-time `LODBias` stripping
+  (`TextureLODSettings.cpp:176-186`; `TextureDerivedData.cpp:2435`).
+- **Default values are not serialised**, so an absent key means the default. Checked both ways: `SRGB: 0`
+  appears on every normal map (where the editor turned it off) and is absent on the diffuse maps (default
+  on).
+- Device-profile group limits (`MaxLODSize`) are not applied. Placed-component overrides, Nanite status
+  and virtual-texture status at runtime are not read.
+
+**Dimensions of the targets' textures** (imported size; `LODBias` and `MaxTextureSize` where set):
+
+| fixture | texture | imported | notes |
+|---|---|---|---|
+| StackOBot | `T_rock_01_D/N/AORM`, `T_rock_02_D/N/AORM` | 4096² | |
+| StackOBot | `T_detail_N`, `T_grunge_mask`, `T_black`, `T_white`, `T_default_AORM` | 2048² | `T_default_normal` 2048², `MaxTextureSize` 512 |
+| StackOBot | `T_SandTileabe_BC`, `T_ConcreteTileable_N`, `T_Metal_Painted_N` | 4096² | |
+| StackOBot | `T_Grunge_A`, `T_ConcreteTileable_M`, `T_Grid_A` | 1024² | |
+| StackOBot | `T_Ribbing_A`, `T_Ribbing_N` | 256² | `LODBias` 3 |
+| StackOBot | `Wind` | 2048² | `TC_VectorDisplacementmap` |
+| StackOBot | `T_WhitePixel` | 1×1 | |
+| StackOBot | `T_Bot_Albedo/Normal/M_R_AO/Masks` | 4096² | |
+| StackOBot | `T_Eyes_Atlas` | 2048² | `TMGS_LeaveExistingMips` |
+| StackOBot | `T_RockTileable_BC` / `T_RockTint` | 2048² / 1×256 | |
+| Lyra | `T_Paint_Diffuse`, `T_Paint_Normal`, `T_Paint_Opacity` | 2048² | |
+| Lyra | `T_Paint_Glossiness` | 2048² | `LODBias` 1 |
+| Lyra | `T_Rifle_D/Combined_N/AORM/Masks`, `T_Pistol_D/N` | 4096² | `LODBias` 1 |
+| Lyra | `T_Weapon_D/N/AORM` | 512² | `MaxTextureSize` 32 |
+| Lyra | `T_Manny_01_D/N/MSK` | 8192² | `MaxTextureSize` 4096; `T_Manny_01_D` `TMGS_Sharpen1` |
+| Lyra | `T_Detail_Normal`, `T_OrangePeel_N` | 1024² | |
+
+**Mip-generation census, all textures with an `ImportedSize` tag:**
+
+| fixture | textures | `MipGenSettings` | alpha-coverage scaled | non-box chains |
+|---|---|---|---|---|
+| StackOBot | 131 | default 118 · `NoMipmaps` 5 · `LeaveExistingMips` 7 · `Sharpen10` 1 | 0 | **8** (`T_Eyes_Atlas`, `T_lens_flare_03`, 6 hash-named) |
+| Lyra | 324 | default 179 · `NoMipmaps` 122 · `Sharpen1` 4 · `Sharpen2` 9 · `Sharpen4` 3 · `Sharpen7` 1 · `Blur1` 2 · `Blur5` 1 · `LeaveExistingMips` 2 · `SimpleAverage` 1 | 0 | **22** (every `T_Manny_0x_D/MSK1` and `T_Quinn_0x_*` map among them) |
+
+**Size histogram (longest side):** StackOBot 4096: 44 · 2048: 55 · 1024: 8 · ≤ 720: 24. Lyra 8192: 27 ·
+4096: 40 · 2048: 23 · 1024: 33 · ≤ 512: 201.
+
+---
+---
+
+<details>
+<summary><b>⛔ SUPERSEDED 2026-09-27 — revision 1, the 082-01 plan at <code>946c1bf</code>, kept verbatim. See
+<code>_reviews/082-02-codex-m53-design-review.md</code> and
+<code>_reviews/082-03-chat-ruling-codex-m53-design-review.md</code>. Its DESIGN is withdrawn and may not be
+cited: route A and its fallback, the §2.3/§2.4 refusal tables, the §3.4 snapshot rule, the §4.2/§4.3 restore,
+the §5.3 strength classes, the §6 gates, the §8 costs, the §9 stages and the §10 D1–D7 as written. Only the
+SOURCE FACTS listed in §R0.2 above remain citable, as <code>v1 §x</code>.</b></summary>
+
+# m53 — UV / normal-map texture corruption — PRE-DECLARED DESIGN AND GATES
+
 **Written 2026-09-26, session 082-01, branch `feat/m53-uv-normal-corruption` off `master` `4283fc8`.**
 **PLAN ONLY. No plugin source changed, no build, no cook, no game or editor launch, no bench leg, no tag.**
 The only thing executed was a read-only, offline name-table scan of the StackOBot and Lyra content
@@ -1099,3 +2253,5 @@ All paths are relative to `Engine/Source`, UE 5.1.1.
 | UV-channel count: `GetNumUVChannels` is 0 when cooked; use `GetNumTexCoords` | `StaticMesh.cpp:5150-5162`, `:3443-3451`, `:911-914`; `StaticMesh.h:1525-1530`, `:1747-1750`; `Rendering/SkeletalMeshLODRenderData.h:250-253` |
 | CPU vertex data not kept (static) | `StaticMesh.cpp:498-505` |
 | Cooked `CachedExpressionData`; MIC/MID return the base parameter list | `Public/MaterialCachedData.h:177-338`; `MaterialInterface.cpp:155-190`; `MaterialInstance.cpp:874-889` |
+
+</details>
