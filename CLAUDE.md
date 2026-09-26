@@ -11,6 +11,35 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🏁 **081-44, 2026-09-26 — `m55` (CHANGE EVIDENCE) IS MERGED TO `master` AS THE NO-FF MERGE COMMIT `38f3376` (pushed; `031a103` →
+> `38f3376`, origin matches). NO TAG. THE FEATURE BRANCH IS KEPT (`6591669` == origin).** The merge is inert: `master^{tree}` ==
+> the feature tree == the `merge-tree` forecast, with no conflict. **THIS IS THE CURRENT "YOU ARE HERE" FOR `master`.**
+> - **Cold start:** journal `docs/sessions/2026-09-26-081-44-code-m55-merge.md`; evidence `_reviews/081-44-evidence/`; ruling
+>   `_reviews/081-44-chat-ruling-fixes-accepted-merge.md`.
+> - **Strip `6591669`:** 14 files, 65 comment lines. An independent lexer proves the token streams identical in every file, with 0
+>   comments left, and `AnomalyCapture.Build.cs` byte-identical.
+> - **Both targets built from the stripped source, exit 0:** `StackOBot` 4,401 s and `StackOBotEditor` 105 s. They were built in a
+>   **scratch host project** (`E:\IA_BuildCache\_r44_host`) because the brief forbade disturbing the `m51` checkout — hence a full
+>   engine rebuild for the Game target. The only warnings are the host's own `MidReproActor.cpp` deprecations.
+> - 📦 **Staged Game exe is now `E0BE6F0A`** (archived `_binary_baselines/StackOBot.exe.m55-merge-strip-E0BE6F0A`; Editor plugin
+>   DLLs at `m55-merge-strip-editor-6591669`).
+>   - It is **code-identical to build 3 `002805CF`**, which stays archived and is the binary every requalification and cost result was
+>     measured on.
+>   - A44 reads the same 10 tokens at the same UTF-16 counts as build 3, with the invented control absent.
+>   - The UTF-16 string sets differ only in build date and host-path strings (`G201`).
+>   - The container quintet is byte-unchanged; no cook.
+> - 🔢 **QUEUE — REORDERED BY THE OWNER, 2026-09-26: `m53` = UV / normal texture corruption, `m54` = flicker** (texture corruption
+>   ahead of flicker). This **SUPERSEDES** the old order still written in two closed records, which are not rewritten:
+>   - `docs/predictions/2026-09-20-m52-stuck-low-mip.md:19` ("`m53` (flicker) and `m54` (UV corruption) follow");
+>   - `docs/predictions/2026-09-20-m55-change-evidence.md` §2.2 / §2.3 ("a future UV-corruption `m54`", "a future `m53`" for
+>     flicker / lighting).
+> - ⚠ The feature head moved again. The 081-23 prep and 081-37 cost boundaries were already stale, so any further m55 bench window
+>   needs a re-issue.
+> - 🎯 **NEXT: `m53` = UV / normal texture corruption — plan-before-code when the owner or chat opens it.** ⛔ Do not start it
+>   unprompted, and do not tag.
+>
+> ---
+
 > ✅ **081-43, 2026-09-26 — BENCH-FREE. CODEX 081-42 FINDINGS FIXED AS RULED (F1–F6, N1, N2, THE ORACLE SCOPE NOTE), PROVEN BOTH WAYS,
 > AND THE WHOLE BANK REPLAYED WITH NO REAL VERDICT OR EXIT CODE CHANGED. PENDING CHAT'S REPLAY REVIEW → COMMENT STRIP → BUILD CHECKS →
 > NO-FF MERGE.** No `Source/` change; build 3 `85c99b3` (Game `002805CF`) unchanged; NOT MERGED, NOT TAGGED.
