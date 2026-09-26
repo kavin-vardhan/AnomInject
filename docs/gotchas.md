@@ -7879,3 +7879,39 @@ invariant resolves is now NEEDS-DECISION; it never PASSes.
 - Survey an invariant on the whole bank before gating on it, and assert only what the source guarantees (here `≥`, not `=`).
 
 Related: G297 (the self-excused singleton reading this replaces as a gate), G119, G142 (a checker is a defect surface of its own).
+
+## G308 — bank alias and `_tryN` names are hardlinks to one file: a write through any name changes all of them (2026-09-26, 083-02)
+
+**What happened.** The harness banks each accepted attempt twice: once as `<LEG>_tryN` and once under the alias `<LEG>`. The two copies
+were byte-identical and cost 72.16 GB. 083-02 replaced each redundant copy with an NTFS hardlink to its keeper. That covered 758 session
+pairs and 99,954 files: 753 alias copies, plus 5 copies under `M51_FROZEN_PAIRING_RECHECK_EVIDENCE\attempts\`. One keeper
+(`M51R_F1R_A_REF_NAT_try1`) is shared by its alias and one of those evidence copies, so 81 of its files carry three names. Before each file
+was linked, both sides were SHA-256 checked. Afterwards the whole bank was re-checked: 1,988 legs had the same file list and sizes, and all
+99,954 alias names re-hashed equal. The m55 change oracle reads a hardlinked alias (`M55B3R23_CB_N3`) with byte-identical output before and
+after. Every name and every citation still resolves.
+
+**What is different now.**
+- **A write through one name is a write through every name.** An in-place edit (`r+b`, append, a tool that rewrites a file where it
+  stands) of an alias also edits the `_tryN` copy, and the reverse. Before 083-02 that was a harmless edit to a spare copy; now it is an
+  edit to the evidence. A proof that mutates bank data must work on a **real copy** (not a link) outside the bank. The existing
+  copy-to-mutate practice is journal 081-43 "Proof scratch on E:": links for the untouched files, real copies for every mutated file,
+  mirrored to evidence, scratch deleted.
+- **Deleting or replacing a name affects only that name.** Deleting one frees nothing while another name remains. That is why the 083-02
+  strip refuses a session whose frames are shared with a kept name: the strip would free no space and would leave the two names disagreeing
+  about whether the frames exist.
+- **Logical size is no longer disk use.** Explorer, `Get-ChildItem | Measure Length`, `du` without link awareness and the 083-01 sizer all
+  count shared bytes once per name. The bank reads **234.03 GB logical / 161.87 GB unique** after 083-02 (before the 5.74 GB strip). For
+  unique bytes, use the file-id audit `_reviews/083-01-evidence/hardlink_audit.ps1`.
+- **Hardlinks are per volume.** A copy of a bank leg to another volume, or a robocopy without link handling, produces independent files and
+  the full logical size (about +72 GB for the whole bank). This is correct, not corrupt, but plan the space for it.
+- **Timestamps and attributes are shared.** An alias file now reports its keeper's mtime. Manifests here are relpath + size (+ SHA-256),
+  so no identity check depends on mtime.
+
+**How to see it.** `fsutil hardlink list <file>` (works without admin) or Python `os.stat(p).st_nlink`.
+
+**Rule.**
+- Never open a bank file for write. Copy it out as a real copy, then mutate the copy.
+- Before deleting or stripping any bank name, check `st_nlink` and account for every other name.
+- Size the bank with a file-id audit, never with a logical sum.
+
+Related: G92 (bank before anything destructive), G130 (disk floor), runbook §8.6 step 0b (E: floor and retention policy).
