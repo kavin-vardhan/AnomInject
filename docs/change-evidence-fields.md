@@ -16,7 +16,9 @@ the record format, `stage_version: 2`).
   annotation follow the same rules with evidence on or off; with it on, the only additions are the
   sidecar and the `change_*` summary keys.
 - **A refusal is never a zero.** Where a measurement is not possible the row says why, with one of 14
-  closed reasons, and every number on it is `-1` or `null`.
+  closed reasons, and the statistics it could not measure — the target (`chg_*`) and the pre-onset
+  reference comparison (`ref_gt8`, `ref_mean`) — are `-1` or `null`. Other fields keep real values
+  (see "The closed refusal vocabulary").
 
 ## Where it is written, and when
 
@@ -54,8 +56,9 @@ target silhouette in that frame). Three comparisons use those regions:
 - **Histogram** `*_hist`: eight counts of `d` in the bins `[0]`, `[1–2]`, `[3–4]`, `[5–8]`,
   `[9–16]`, `[17–32]`, `[33–64]`, `[65–255]`. The bins sum to `*_n`; the last four sum to `*_gt8`.
 - **The threshold 8** (`tau_px`) is a fixed byte threshold, not a calibrated visibility threshold.
-- **The control** measures the rest of the picture on the same frame pair. It excludes target
-  pixels, not light, shadow or reflection spill from a target onto its surroundings. A quiet control
+- **The control** measures the rest of the picture on the same frame pair. It excludes the tagged
+  target pixels but can include light, shadow or reflection spill from a target onto its
+  surroundings, so part of the anomaly's own effect can appear in it. A quiet control
   does not prove cause; a busy one (camera motion, a lighting change) warns that the target's change
   may not be the anomaly's alone. It is never subtracted from the target numbers.
 - **The reference** is the frame just before the phase's first labelled frame, kept for the phase's
@@ -64,10 +67,11 @@ target silhouette in that frame). Three comparisons use those regions:
   since just before onset — which is where a change that arrives gradually, or a few frames late,
   appears when each adjacent pair is small. It is screen-space: it is not motion-compensated, so under
   camera or object motion it measures motion as well, and across several frames it also accumulates the
-  scene's ordinary small changes (a few hundred of 66,837 target pixels by window 2 on a static
-  camera, measured on the three-frame-delay test). With `solid_swap delay=3` the adjacent pairs of
-  windows 0–2 changed 9–63 of 66,837 target pixels and window 3 changed all 66,837, in both the
-  adjacent pair and `ref_*`.
+  scene's ordinary small changes. Measured on the three-frame-delay test (`solid_swap delay=3`, static
+  camera, 66,837 target pixels, both tick orders): the adjacent pairs of windows 0–2 changed at most
+  63 target pixels (under 0.1 %); window 3 changed all 66,837 in the adjacent pair and in `ref_*`; and
+  `ref_*` on windows 1–2 had already accumulated 156–819 of them (up to about 1.2 %) of ordinary scene
+  change.
 - **Denominators.** A pair is measured only when both regions are non-empty. An empty target region
   (the target is not in the frame's mask, e.g. fully occluded) is refused `empty_region`; its control
   numbers are still written when the control region is non-empty.
@@ -167,7 +171,13 @@ Each phase object:
 
 ## The closed refusal vocabulary (14 reasons)
 
-A refused row keeps its identity, file and camera fields; its measurement fields are `-1`/`null`.
+A refused row keeps its identity, file, camera and receipt fields. Its target statistics (`chg_n`,
+`chg_gt8`, `chg_sum` `-1`; `chg_hist`, `chg_mean` `null`) and its reference comparison (`ref_gt8`,
+`ref_mean` `null`) are unavailable. It can still carry real values in: the control statistics
+(`ctl_*`), written on an `empty_region` refusal whose control region is non-empty (for example
+`ctl_n` 921,600, `ctl_gt8` 4,579 on an onset refused `empty_region`); `ref_session_index`, which names
+the reference frame when one existed; `prev_target_pixels`; the running phase maxima
+`chg_gt8_max_sofar` / `chg_mean_max_sofar` from earlier windows; and the completion latency.
 
 | Reason | Meaning |
 |---|---|
@@ -228,8 +238,10 @@ Present only when evidence was on for the run.
 | `change_bench_gate`, `change_bench_gate_source`, `change_bench_gate_refused`, `change_throwaway_family_constructed`, `change_bench_unregistered_capture` | test-fixture devices; `0` / `compiled` / absent in a normal run (`refused_no_fixture_flag` if a test device was requested outside the test fixture — the run then uses none) |
 
 Keys created only when they first fire (`change_late_event_observations`, `change_unissued_indices_skipped`,
-`change_epoch_rejected_<path>`, `change_pending_*`, `change_teardown_flush`, `change_bench_gate_refused`,
-`change_bench_unregistered_capture`) are absent when zero.
+`change_epoch_rejected_<path>`, `change_pending_family_deferred`, `change_bench_gate_refused`,
+`change_bench_unregistered_capture`) are absent when zero. `change_teardown_flush` is always present
+(`0`, or `1` when the sidecar was written at world teardown), and `change_pending_colour_cancelled` /
+`change_pending_mask_cancelled` are present in every run that issued a capture (normally `0`).
 
 ## Memory envelope
 
@@ -250,17 +262,36 @@ image being measured, and nine masks. An image is `width × height × 4` bytes a
 2560×1440 (inside the cap, not exercised) and ≈ 440 MB at 3840×2160 (above the default cap: expect
 `budget_exceeded` unless the cap is raised). Longer phases can hold more; the cap still refuses.
 
-**Measured high-water (paced 30 fps, 600-frame legs):** 19.4–20.3 MB at 1280×720, 56.0–68.5 MB at
-1920×1080. With pacing off at 1920×1080 the image writer falls behind, retained images accumulate and
-the cap is reached (267.6 MB measured, with `budget_exceeded` refusals).
+**Measured high-water — observations for one scene and load, not bounds:** on the static test scene
+and machine of the cost measurement below (paced, 600-frame captures) 19.4–20.3 MB at 1280×720 and
+56.0–68.5 MB at 1920×1080; a paced capture on a second test game reached 134.8 MB; with pacing off at
+1920×1080 the image writer falls behind, retained images accumulate and the cap is reached (267.6 MB
+measured, with 134 `budget_exceeded` refusals). Retention depends on completion order, writer delay and
+phase/reference density, so only the cap bounds it.
 
 ## Cost
 
-At paced 30 fps (`IAI.Capture.Pace 1`, the default) with the run log off, m55 has **no measurable
-game-thread cost** at 1280×720 or 1920×1080 (upper bounds of the difference below +0.12 ms per engine
-frame), the image writer's throughput is unchanged, there are no dropped frames, and every required
-pair is measured. The measurement runs on a pool worker, about 2.5 ms per captured frame at 1280×720
-and 7.3 ms at 1920×1080. With pacing off at 1920×1080 the image writer saturates and m55 refuses pairs
+**A dated result on one test scene and one machine (2026-09-26), not a general guarantee.** Setup: the
+same build with evidence off (A) and on (B); a static test scene; the test anomaly `solid_swap`;
+`IAI.Capture.Config 2 4 16 4 0`; 600-frame captures at 1280×720 and 1920×1080, four per side in ABBA
+order; the run log off; paced capture (`IAI.Capture.Pace 1`) configured at 30 fps, which on that
+machine armed about 25.07 captures per second; statistics over the steady window, capture indices
+60–599.
+
+- **Statistic:** the one-sided 95 % upper bound on the **mean game-thread CPU-cycle-equivalent
+  difference per engine frame** (B − A): **−0.0718 ms** at 1280×720 and **+0.1100 ms** at 1920×1080.
+  Cycle-equivalent means the game thread's CPU cycles converted to milliseconds with that machine's
+  calibration; time the thread spent **blocked or waiting is excluded**, and a steady-window mean does
+  not capture rare or closure-only latency. The bound treats the four captures per side as the samples.
+- **Workload:** each evidence-on capture measured **120 of 120** required pairs, with **0** dropped
+  frames on every capture. A denser workload measures more pairs per second.
+- **Writer:** no detected loss of throughput at this load. This is not a measurement of maximum writer
+  capacity.
+- **Worker:** the measurement runs on a pool worker, about 2.5 ms per captured frame at 1280×720 and
+  7.3 ms at 1920×1080.
+
+There is no structural guarantee of full yield, and no memory bound other than the 256 MiB admission
+cap (see "Memory envelope"). With pacing off at 1920×1080 the image writer saturates and m55 refuses pairs
 `budget_exceeded`; under heavy unpaced load the target mask can arrive from a different rendered frame
 than the image, and m55 refuses those pairs `view_mismatch` or `unsupported_delivery` rather than
 measuring a mismatched pair. **Use paced capture with m55.**
@@ -276,13 +307,29 @@ python tools/verify_capture.py --change-oracle --selftest
 the internal "Oracle" section further down this page.
 
 It recomputes every measured row (and every reference comparison) from the delivered PNGs and the
-target-mask PNGs, independently of the numbers in the sidecar, and compares. Exit **0**: every
-comparison matched (including when nothing was compared — the output then shows coverage 0);
-**1**: at least one row or reference comparison did not match; **3**: it could not run (no sidecar,
-unreadable sidecar, or Pillow missing). **It validates arithmetic and transport only** — that the
-numbers in the sidecar are the numbers the delivered images contain. It uses each row's own frame
-indices, so it does not establish that the right frames were paired, that a change is visible, or what
-caused it.
+target-mask PNGs, independently of the numbers in the sidecar, and compares. It also checks that a
+measured row does not contradict itself (`reason` null, `chg_eligible` and `pair_valid` true,
+`expected_prev_session_index` = `session_index` − 1, `chg_hist`/`chg_sum`/`ctl_hist`/`ctl_sum`
+present), and cross-reads each `empty_region` refusal against its mask PNG: both regions non-empty is
+a **disagreement**; no mask PNG (none is written for an all-zero mask) or an unreadable one is
+**unverifiable**, never a disagreement.
+
+Exit **1**: a row or reference comparison did not match, a measured row contradicts itself, or an
+`empty_region` refusal disagrees with its mask (a `tau_px` outside 0–255 counts as a mismatch too).
+Otherwise **3**: something was **uninterpretable** — a line that is not UTF-8 JSON, a line that is not a
+JSON object, a measured row whose pair ids, `mask_value` or `tau_px` are not integers, whose `receipt`
+is not an object or whose `receipt.rect` is not an array, or a `chg_measured` that is not a boolean
+(each listed with its line number) — or it could not run (no
+sidecar, unreadable sidecar, Pillow missing). Otherwise **0**: every line was interpretable and every
+comparison matched (including when nothing was compared — the output then shows coverage 0). A proven
+mismatch outranks incompleteness; the summary always prints both counts. The tool never exits through
+a traceback.
+
+**It validates arithmetic and transport only** — that the numbers in the sidecar are the numbers the
+delivered images contain. It does not check renderer pairing (it uses each row's own frame indices,
+so consistent wrong ids with matching numbers would pass), phase-reference selection (a reference index
+changed to another identical image passes), or the full record schema, and it does not establish that
+a change is visible or what caused it.
 
 ---
 
@@ -700,6 +747,19 @@ comparison mismatches; **0** when every compared comparison matches — includin
 compared, which is printed as coverage 0 and which a gate that needs rows must treat as its own
 failure, not the tool's; **3** when it cannot run (no sidecar, unreadable sidecar, no Pillow). It
 changes no other mode's exit code and adds nothing to the 079 vocabulary.
+
+**081-43 update (Codex 081-42 F1, F3 and the scope note; ruling 081-43; the reference section above is
+authoritative).** A contradicted `empty_region` refusal is a mismatch (exit 1, summary
+`empty_region_disagrees`); a missing or all-zero mask PNG stays unverifiable. Input it cannot
+interpret — a non-UTF-8 or malformed line, a non-object line, a measured row whose pair ids,
+`mask_value` or `tau_px` are not integers, whose `receipt` is not an object or whose `receipt.rect` is
+not an array, a non-boolean `chg_measured`, or a row the recomputation cannot process — is exit 3 with
+line diagnostics (a `tau_px` outside 0..255 is a mismatch); the
+precedence is 1 > 3 > 0 and the summary prints both counts; the CLI never exits through a traceback. A
+measured row carrying a refusal reason, `chg_eligible`/`pair_valid` not true,
+`expected_prev_session_index` ≠ `session_index` − 1, or no `chg_hist`/`chg_sum`/`ctl_hist`/`ctl_sum`
+is a mismatch (summary `contradicted`). The selftest now proves 35 cases and the unit file 19 tests.
+Replayed old vs new over every banked m55 session folder (476): every exit code unchanged (0 → 0).
 
 **What it validates.** For every `"kind":"pair"` row with `chg_measured: true` it decodes
 `Actual_Frames/frame_%05d.png` for `session_index` and `prev_session_index` and

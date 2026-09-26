@@ -107,6 +107,114 @@ class ChangeOracleContracts(unittest.TestCase):
         self.assertEqual([r["recomputed"] for r in a["rows"]], [r["recomputed"] for r in b["rows"]])
         self.assertEqual(b["summary"]["mismatched"], 4)
 
+    def _sidecar(self, name, edit):
+        session = pathlib.Path(vc._oracle_baseline(str(self.root), name))
+        path = session / vc.CHANGE_ORACLE_SIDECAR
+        lines = [x for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+        path.write_text("".join(x + "\n" for x in edit(lines)), encoding="utf-8")
+        return str(session)
+
+    def _run_no_traceback(self, session):
+        err = io.StringIO()
+        out = io.StringIO()
+        with patch.object(sys, "argv", ["verify_capture.py", "--change-oracle", session, "--quiet"]), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            with self.assertRaises(SystemExit) as ctx:
+                vc.main()
+        self.assertNotIn("Traceback", out.getvalue() + err.getvalue())
+        self.assertIn(SPEC_SENTENCE, out.getvalue().splitlines())
+        return ctx.exception.code, out.getvalue()
+
+    def test_f3_malformed_only_exits_3(self):
+        code, text = self._run_no_traceback(self._sidecar("malformed_only", lambda _l: ["{bad json"]))
+        self.assertEqual(code, 3)
+        self.assertIn("UNINTERPRETABLE line 1", text)
+        self.assertIn("mismatched 0", text)
+        self.assertIn("uninterpretable 1", text)
+
+    def test_f3_valid_plus_malformed_exits_3(self):
+        code, text = self._run_no_traceback(self._sidecar("valid_malformed", lambda l: l + ["{bad json"]))
+        self.assertEqual(code, 3)
+        self.assertIn("matched 4", text)
+        self.assertIn("UNINTERPRETABLE line 5", text)
+
+    def test_f3_mismatching_plus_malformed_exits_1(self):
+        def edit(lines):
+            row = json.loads(lines[0])
+            row["chg_gt8"] += 1
+            return [json.dumps(row)] + lines[1:] + ["{bad json"]
+        code, text = self._run_no_traceback(self._sidecar("mismatch_malformed", edit))
+        self.assertEqual(code, 1)
+        self.assertIn("mismatched 1", text)
+        self.assertIn("uninterpretable 1", text)
+
+    def test_f3_receipt_list_with_item_exits_3(self):
+        def edit(lines):
+            row = json.loads(lines[1])
+            row["receipt"] = [1]
+            return [lines[0], json.dumps(row)] + lines[2:]
+        code, text = self._run_no_traceback(self._sidecar("receipt_item", edit))
+        self.assertEqual(code, 3)
+        self.assertIn("UNINTERPRETABLE line 2 si=4: receipt is a JSON array, an object is required", text)
+
+    def test_f3_receipt_empty_list_exits_3(self):
+        def edit(lines):
+            row = json.loads(lines[1])
+            row["receipt"] = []
+            return [lines[0], json.dumps(row)] + lines[2:]
+        code, _text = self._run_no_traceback(self._sidecar("receipt_empty", edit))
+        self.assertEqual(code, 3)
+
+    def test_f3_required_scalar_of_wrong_type_exits_3_and_tau_out_of_range_exits_1(self):
+        def edit(key, value):
+            def f(lines):
+                row = json.loads(lines[1])
+                row[key] = value
+                return [lines[0], json.dumps(row)] + lines[2:]
+            return f
+        code, text = self._run_no_traceback(self._sidecar("tau_string", edit("tau_px", "8")))
+        self.assertEqual(code, 3)
+        self.assertIn("tau_px is a JSON string, an integer is required", text)
+        code, _text = self._run_no_traceback(self._sidecar("mask_null", edit("mask_value", None)))
+        self.assertEqual(code, 3)
+        code, text = self._run_no_traceback(self._sidecar("tau_300", edit("tau_px", 300)))
+        self.assertEqual(code, 1)
+        self.assertIn("tau_px outside 0..255", text)
+
+    def test_f3_well_formed_session_with_no_comparisons_still_exits_0(self):
+        session = vc._oracle_baseline(str(self.root), "nothing", run_summary={"capture_path": "backbuffer"})
+        code, text = self._run_no_traceback(session)
+        self.assertEqual(code, 0)
+        self.assertIn("compared 0", text)
+
+    def test_f1_contradicted_empty_region_exits_1(self):
+        def edit(lines):
+            row = json.loads(lines[1])
+            row.update(chg_measured=False, chg_eligible=False, pair_valid=False, reason="empty_region",
+                       chg_n=-1, chg_gt8=-1, chg_sum=-1, chg_hist=None, chg_mean=None, ref_gt8=None, ref_mean=None)
+            return [lines[0], json.dumps(row)] + lines[2:]
+        code, text = self._run_no_traceback(self._sidecar("empty_region_contradicted", edit))
+        self.assertEqual(code, 1)
+        self.assertIn("empty_region_disagrees 1", text)
+        self.assertIn("DISAGREES si=4", text)
+
+    def test_contradictory_measured_row_exits_1(self):
+        def edit(lines):
+            row = json.loads(lines[1])
+            row.update(chg_eligible=False, pair_valid=False, reason="budget_exceeded", expected_prev_session_index=71)
+            return [lines[0], json.dumps(row)] + lines[2:]
+        code, text = self._run_no_traceback(self._sidecar("contradicted_row", edit))
+        self.assertEqual(code, 1)
+        self.assertIn("measured_row:reason", text)
+        self.assertIn("measured_row:expected_prev_session_index", text)
+
+    def test_internal_error_is_exit_3_without_traceback(self):
+        session = vc._oracle_baseline(str(self.root), "internal")
+        with patch.object(vc, "_oracle_read_sidecar", side_effect=RuntimeError("boom")):
+            code, text = self._run_no_traceback(session)
+        self.assertEqual(code, 3)
+        self.assertIn("CANNOT RUN - internal error RuntimeError", text)
+
     def test_six_existing_cli_cases_ignore_the_oracle(self):
         from PIL import Image
         base = pathlib.Path(vc._synth_session(str(self.root / "bank"), "leg/session_same", with_mask=True,

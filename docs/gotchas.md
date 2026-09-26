@@ -7832,3 +7832,50 @@ numbers). Both are recorded as deviations in journal 081-41 and in the final rep
 - A mechanical source-vs-doc key cross-check, proven able to fail both ways, catches the first case; only reading the chain catches the second.
 
 Related: G119 (the source is an input, not the artifact), G282's family (a wait threshold is not a retention bound).
+
+## G306 — a refusal a gate accepts as honest must be cross-checked, and the cross-check must reach the verdict (2026-09-26, 081-43)
+
+**What happened.** The Lyra G270 gate accepted an `empty_region` refusal as an honest outcome of a required pair (081-26/081-27). The change
+oracle already cross-read every such refusal against the delivered mask and printed `DISAGREES` when the mask held both target and control
+pixels — but it counted the disagreement only in a detail field, its exit code looked at measured-row mismatches alone, and the gate read the
+exit code. Codex turned one measured window of the real G270 bank into an `empty_region` refusal (the mask still held 184,933 target and
+1,888,667 control pixels): audit clean, oracle exit 0, **G270 PASS**. A measurement the capture made was hidden behind an accepted reason.
+
+**What was done.** A proven disagreement is now a mismatch (oracle exit 1, its own `empty_region_disagrees` count), and every gate that
+accepts `empty_region` — G270, the `empty` stack case, the Lyra twins, NoHold and the legacy evidence-on legs — rejects on that count
+itself, not only through the exit code (proven with the oracle stubbed to exit 0). A refusal with no mask PNG to read stays **unverifiable**:
+on the bank all 83 refusals are unverifiable, because the writer writes no PNG for an all-zero mask.
+
+**Rule.**
+- An "honest refusal" clause is only as honest as the check behind it. If a gate accepts a reason, something independent must be able to
+  contradict that reason, and the contradiction must change the gate's verdict.
+- A detector whose result reaches only a printed line or a detail field is not wired. Trace the value to the exit code and to every
+  consumer that decides.
+- Keep "cannot check" distinct from "checked and disagrees": inventing a disagreement where no evidence exists is the opposite error.
+
+Related: G96 (prove a detector can fire), G146 (a gate that passes on empty input), G270's AMENDMENT 2 and 3.
+
+## G307 — an independently checkable invariant beats a noise allowance learned from the candidate's own pair (2026-09-26, 081-43)
+
+**What happened.** Legacy identity excuses a path that differs within a same-kind control pair (run-to-run noise). In synthetic order the two
+build-3 evidence-on legs form their own control pair, so a difference that appears on **one** candidate leg is excused by that leg's
+disagreement with its twin. 081-35 made such self-excused singletons a reported reading with a recurrence tripwire rather than a gate.
+Codex changed one label count (`target_pixels` 20,949 → 20,950 on MAINON_S2 si 4): PASS, no problem, no tripwire — although the delivered
+mask, the MASK-TIE line and the evidence sidecar all still said 20,949.
+
+**What was done.** Nine per-leg invariants run on the raw reading before any excusal (INV-1…INV-9: mask transport; `target_pixels` = the
+decoded tag count; unmeasured/empty rows; `bbox_drawn_px` = the tag's box in the mask; `observable` null iff unmeasured; drawn ⊆ count;
+summary counters ≥ the rows they count; evidence `chg_n` = `target_pixels`; one MASK-TIE line per measured entry equal to the label and the
+cached tuples). Each was surveyed on the whole bank first (382 sessions, 59,923 rows, 45,047 entries; MASK-TIE on 34,210 entries). Every one
+holds except INV-1 on the G5 fault gate, whose deliberately failed mask write leaves a row naming a missing file (a real delivery failure, and
+the writer warns); the counter relations hold only as ≥ (fault legs count a processed frame whose row is dropped), so ≥ is all that is asserted.
+A violation is FAIL and outranks NEEDS-DECISION. A candidate-only singleton outside the frozen run-unique and timing-sampled sets that no
+invariant resolves is now NEEDS-DECISION; it never PASSes.
+
+**Rule.**
+- Before excusing a difference as noise, ask whether an artifact can check the value independently. If it can, check it first — a noise
+  allowance cannot tell a real count from a wrong one; an invariant can.
+- Never learn an exemption from the candidate's own pair: a difference only the candidate shows is exactly the regression shape.
+- Survey an invariant on the whole bank before gating on it, and assert only what the source guarantees (here `≥`, not `=`).
+
+Related: G297 (the self-excused singleton reading this replaces as a gate), G119, G142 (a checker is a defect surface of its own).

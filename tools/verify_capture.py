@@ -157,14 +157,26 @@ decimals. A row that names a reference (ref_session_index with ref_gt8/ref_mean)
 against that delivered frame too. empty_region refusals are cross-read against the mask PNG.
 The producer's numbers are read only to be compared after the recomputation. JPEG, resampled,
 backbuffer, missing or unreadable deliveries are reported UNAVAILABLE with the reason, never
-guessed. Exit 1 when any compared row or reference comparison mismatches, 0 when every comparison
-matches (coverage 0 included - a gate that needs rows fails itself on coverage 0), and 3 when it
-cannot run. It trusts the row's own pair ids: a producer that published consistent wrong ids AND
-the numbers of the frames those ids name would match. Its output ends with the sentence it exists to
-state: agreement validates arithmetic and transport only; it does not establish renderer pairing,
-visible effect, or cause.
---change-oracle --selftest proves it can agree, can disagree (five must-fail mutations) and refuses
-what it cannot read.
+guessed. A measured row must also be self-consistent: reason null, chg_eligible and pair_valid true,
+expected_prev_session_index = session_index - 1 when present, and chg_hist/chg_sum/ctl_hist/ctl_sum
+present; a contradiction is a mismatch. An empty_region refusal whose delivered mask holds both
+target and control pixels DISAGREES and is a mismatch; a refusal with no mask PNG (none is written
+for an all-zero mask) or an unreadable one is UNVERIFIABLE, never a disagreement. Input it cannot
+interpret - a line that is not UTF-8 JSON, a line that is not a JSON object, a measured row whose
+pair ids, mask_value or tau_px are not integers or whose receipt is not an object or whose receipt
+rect is not an array, chg_measured that is not a boolean, or a row the recomputation cannot
+process - is counted UNINTERPRETABLE with its line number. A tau_px outside 0..255 is a mismatch. Exit precedence: 1 when any comparison mismatches or any
+empty_region refusal disagrees (a proven defect outranks incompleteness); otherwise 3 when anything
+was uninterpretable or it cannot run; otherwise 0 (coverage 0 included - a gate that needs rows
+fails itself on coverage 0). The summary always prints both the mismatch and the uninterpretable
+counts. It never exits through a traceback. It trusts the row's own pair ids: a producer that
+published consistent wrong ids AND the numbers of the frames those ids name would match. It checks
+arithmetic and transport only: not renderer pairing, not which frame was chosen as a phase's
+reference (another identical image would match), and not the full record schema. Its output ends
+with the sentence it exists to state: agreement validates arithmetic and transport only; it does not
+establish renderer pairing, visible effect, or cause.
+--change-oracle --selftest proves it can agree, can disagree (five must-fail mutations, a
+contradicted empty_region refusal, contradictory measured rows) and refuses what it cannot read.
 
 Regional motion m_edge remains a reading and never refuses an edge. Values above the historical
 0.42 marker add a run caveat; CONSISTENT counts either motion or lighting caveats. Unsatisfiable
@@ -2245,24 +2257,87 @@ def _oracle_compare(rec, prefix, published_row, stats):
     return all(f["ok"] for f in fields)
 
 
+def _oracle_json_type(value):
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return type(value).__name__
+
+
+def _oracle_uninterpretable_row(row):
+    """Why a claimed (chg_measured: true) pair row cannot be interpreted, or None when it can."""
+    for key in ("session_index", "prev_session_index", "mask_value", "tau_px"):
+        if _oracle_int(row.get(key)) is None:
+            return "%s is %s, an integer is required" % (key, "absent" if key not in row
+                                                         else "a JSON " + _oracle_json_type(row.get(key)))
+    receipt = row.get("receipt")
+    if not isinstance(receipt, dict):
+        return "receipt is %s, an object is required" % ("absent" if "receipt" not in row
+                                                          else "a JSON " + _oracle_json_type(receipt))
+    if "rect" not in receipt:
+        return "receipt.rect is absent, an array is required"
+    if not isinstance(receipt.get("rect"), list):
+        return "receipt.rect is a JSON %s, an array is required" % _oracle_json_type(receipt.get("rect"))
+    return None
+
+
+def _oracle_contradictions(row):
+    """Fields a measured row cannot carry together with chg_measured: true."""
+    out = []
+
+    def bad(field, published, required):
+        out.append({"field": "measured_row:" + field, "published": published, "recomputed": required, "ok": False})
+
+    if row.get("reason") is not None:
+        bad("reason", row.get("reason"), None)
+    if row.get("chg_eligible") is not True:
+        bad("chg_eligible", row.get("chg_eligible", "<absent>"), True)
+    if row.get("pair_valid") is not True:
+        bad("pair_valid", row.get("pair_valid", "<absent>"), True)
+    si = _oracle_int(row.get("session_index"))
+    if "expected_prev_session_index" in row and si is not None \
+            and _oracle_int(row.get("expected_prev_session_index")) != si - 1:
+        bad("expected_prev_session_index", row.get("expected_prev_session_index"), si - 1)
+    for key in ("chg_hist", "chg_sum", "ctl_hist", "ctl_sum"):
+        if key not in row:
+            bad(key, "<absent>", "present")
+    return out
+
+
 def _oracle_measured_row(row, images, capture_path):
     si = _oracle_int(row.get("session_index"))
     prev = _oracle_int(row.get("prev_session_index"))
     tag = _oracle_int(row.get("mask_value"))
     tau = _oracle_int(row.get("tau_px"))
+    contradictions = _oracle_contradictions(row)
     rec = {"session_index": si, "prev_session_index": prev, "mask_value": tag,
            "event": row.get("event"), "window_index": row.get("window_index"),
-           "status": None, "reason": None, "fields": [], "recomputed": {}, "ref": None}
+           "status": None, "reason": None, "fields": list(contradictions), "recomputed": {}, "ref": None,
+           "contradictions": len(contradictions)}
 
     def unavailable(reason):
-        rec["status"] = CHANGE_ORACLE_UNAVAILABLE
+        rec["status"] = CHANGE_ORACLE_MISMATCH if contradictions else CHANGE_ORACLE_UNAVAILABLE
         rec["reason"] = reason
         return rec
 
     if si is None or prev is None:
         return unavailable("pair ids unreadable")
-    if tau is None or not 0 <= tau <= 255:
+    if tau is None:
         return unavailable("tau_px unreadable")
+    if not 0 <= tau <= 255:
+        rec["fields"].append({"field": "tau_px", "published": tau, "recomputed": CHANGE_ORACLE_TAU_V1, "ok": False})
+        rec["status"] = CHANGE_ORACLE_MISMATCH
+        rec["reason"] = "tau_px outside 0..255, arithmetic not attempted"
+        return rec
     if str(capture_path or "").lower() == "backbuffer":
         return unavailable("backbuffer grab point - no receipt, measurement unsupported in v1")
     frame_file = row.get("frame_file")
@@ -2356,6 +2431,38 @@ def _oracle_empty_region_row(row, images):
     return "disagrees", "target %d / control %d are both positive" % (target, control)
 
 
+def _oracle_read_sidecar(path):
+    """Read the sidecar at the input boundary: every line is decoded, parsed and type-checked here.
+
+    Returns (rows, uninterpretable) where rows is a list of (line_number, object) and uninterpretable
+    a list of {line, why}. Raises OSError only when the file itself cannot be read.
+    """
+    with open(path, "rb") as fh:
+        data = fh.read()
+    rows = []
+    bad = []
+    for number, raw in enumerate(data.split(b"\n"), 1):
+        if number == 1 and raw.startswith(b"\xef\xbb\xbf"):
+            raw = raw[3:]
+        if not raw.strip():
+            continue
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            bad.append({"line": number, "why": "not UTF-8 text"})
+            continue
+        try:
+            obj = json.loads(text)
+        except (ValueError, RecursionError) as exc:
+            bad.append({"line": number, "why": "malformed JSON (%s)" % str(exc).split(":")[0][:80]})
+            continue
+        if not isinstance(obj, dict):
+            bad.append({"line": number, "why": "a JSON %s, not an object" % _oracle_json_type(obj)})
+            continue
+        rows.append((number, obj))
+    return rows, bad
+
+
 def _oracle_resolve(cap_dir):
     if os.path.isfile(os.path.join(cap_dir, CHANGE_ORACLE_SIDECAR)):
         return cap_dir, None
@@ -2374,14 +2481,15 @@ def _oracle_resolve(cap_dir):
 def change_oracle(cap_dir, quiet=False):
     """m55 Stage 3 oracle: recompute each measured pair row from the delivered PNGs on disk.
 
-    Returns (code, lines, detail). code is 1 when any compared row or reference comparison mismatches,
-    0 when every compared comparison matches (including when nothing was compared - coverage is
-    printed and a gate that needs rows treats coverage 0 as its own failure), and 3 when it cannot run.
-    It changes no other mode's exit code. The producer's chg_/ctl_/ref_ values are read only to be
-    compared after the recomputation.
+    Returns (code, lines, detail). code is 1 when any compared row or reference comparison mismatches
+    (a contradictory measured row included) or any empty_region refusal is contradicted by its
+    delivered mask; otherwise 3 when anything in the sidecar could not be interpreted or the oracle
+    cannot run; otherwise 0 (including when nothing was compared - coverage is printed and a gate
+    that needs rows treats coverage 0 as its own failure). It changes no other mode's exit code. The
+    producer's chg_/ctl_/ref_ values are read only to be compared after the recomputation.
     """
     lines = ["CHANGE-ORACLE (m55 Stage 3)"]
-    detail = {"session": cap_dir, "rows": [], "not_claimed": {}, "unavailable": {},
+    detail = {"session": cap_dir, "rows": [], "not_claimed": {}, "unavailable": {}, "uninterpretable": [],
               "empty_region": {"agrees": 0, "disagrees": 0, "unverifiable": 0, "rows": []},
               "mean_tolerance": CHANGE_ORACLE_MEAN_TOLERANCE}
     try:
@@ -2399,58 +2507,75 @@ def change_oracle(cap_dir, quiet=False):
     lines.append("  session                  %s" % session)
     if note:
         lines.append("  note                     %s" % note)
-    rows = []
-    bad_lines = 0
     try:
-        with open(os.path.join(session, CHANGE_ORACLE_SIDECAR), "r", encoding="utf-8") as fh:
-            for raw in fh:
-                if not raw.strip():
-                    continue
-                try:
-                    obj = json.loads(raw)
-                except ValueError:
-                    bad_lines += 1
-                    continue
-                if isinstance(obj, dict):
-                    rows.append(obj)
-                else:
-                    bad_lines += 1
+        numbered, uninterpretable = _oracle_read_sidecar(os.path.join(session, CHANGE_ORACLE_SIDECAR))
     except OSError as exc:
         lines.append("CHANGE-ORACLE: CANNOT RUN - sidecar unreadable (%s)" % exc.__class__.__name__)
         lines.append(CHANGE_ORACLE_SENTENCE)
         return 3, lines, detail
+    bad_lines = len(uninterpretable)
+    rows = [obj for _n, obj in numbered]
     capture_path = None
     try:
         with open(os.path.join(session, "run_summary.json"), "r", encoding="utf-8") as fh:
             capture_path = json.load(fh).get("capture_path")
     except (OSError, ValueError, AttributeError):
         capture_path = None
+    if capture_path is not None and not isinstance(capture_path, str):
+        capture_path = None
     images = _OracleImages(session)
-    pairs = [r for r in rows if r.get("kind") == "pair"]
-    events = [r for r in rows if r.get("kind") == "event"]
+    pairs = [(n, r) for n, r in numbered if r.get("kind") == "pair"]
+    events = [r for _n, r in numbered if r.get("kind") == "event"]
     claimed = []
-    for r in pairs:
+    claimed_all = 0
+    bad_rows = 0
+
+    def refuse(number, row, why):
+        uninterpretable.append({"line": number, "session_index": row.get("session_index"), "why": why})
+
+    for n, r in pairs:
         if "chg_measured" not in r:
             key = "stage-1 identity row (no measurement fields)"
             detail["not_claimed"][key] = detail["not_claimed"].get(key, 0) + 1
+        elif not isinstance(r.get("chg_measured"), bool):
+            refuse(n, r, "chg_measured is a JSON %s, a boolean is required" % _oracle_json_type(r.get("chg_measured")))
+            bad_rows += 1
         elif r.get("chg_measured") is True:
-            claimed.append(r)
+            claimed_all += 1
+            why = _oracle_uninterpretable_row(r)
+            if why:
+                refuse(n, r, why)
+                bad_rows += 1
+            else:
+                claimed.append((n, r))
         else:
             key = "refused: %s" % r.get("reason")
             detail["not_claimed"][key] = detail["not_claimed"].get(key, 0) + 1
             if r.get("reason") == "empty_region":
-                verdict, why = _oracle_empty_region_row(r, images)
+                try:
+                    verdict, why = _oracle_empty_region_row(r, images)
+                except Exception as exc:
+                    verdict, why = "unverifiable", "cross-read failed (%s)" % exc.__class__.__name__
                 detail["empty_region"][verdict] += 1
-                detail["empty_region"]["rows"].append({"session_index": r.get("session_index"),
+                detail["empty_region"]["rows"].append({"line": n, "session_index": r.get("session_index"),
                                                        "mask_value": r.get("mask_value"),
                                                        "reading": verdict, "why": why})
-    claimed.sort(key=lambda r: (_oracle_int(r.get("session_index")) or 0, str(r.get("event")),
-                                _oracle_int(r.get("mask_value")) or 0))
+    claimed.sort(key=lambda nr: (_oracle_int(nr[1].get("session_index")) or 0, str(nr[1].get("event")),
+                                 _oracle_int(nr[1].get("mask_value")) or 0))
     counts = {CHANGE_ORACLE_MATCH: 0, CHANGE_ORACLE_MISMATCH: 0, CHANGE_ORACLE_UNAVAILABLE: 0}
     ref_counts = {"claimed": 0, CHANGE_ORACLE_MATCH: 0, CHANGE_ORACLE_MISMATCH: 0, CHANGE_ORACLE_UNAVAILABLE: 0}
     ref_unavailable = {}
-    for r in claimed:
-        rec = _oracle_measured_row(r, images, capture_path)
+    contradicted = 0
+    for n, r in claimed:
+        try:
+            rec = _oracle_measured_row(r, images, capture_path)
+        except Exception as exc:
+            refuse(n, r, "the recomputation could not process this row (%s: %s)"
+                   % (exc.__class__.__name__, str(exc)[:80]))
+            bad_rows += 1
+            continue
+        rec["line"] = n
+        contradicted += 1 if rec.get("contradictions") else 0
         detail["rows"].append(rec)
         counts[rec["status"]] += 1
         if rec["status"] == CHANGE_ORACLE_UNAVAILABLE:
@@ -2465,22 +2590,36 @@ def change_oracle(cap_dir, quiet=False):
             ref_counts[CHANGE_ORACLE_UNAVAILABLE] += 1
             ref_unavailable["pair unavailable"] = ref_unavailable.get("pair unavailable", 0) + 1
     compared = counts[CHANGE_ORACLE_MATCH] + counts[CHANGE_ORACLE_MISMATCH]
+    er = detail["empty_region"]
+    detail["uninterpretable"] = sorted(uninterpretable, key=lambda u: u["line"])
     detail["summary"] = {
         "sidecar_rows": len(rows), "unparseable_lines": bad_lines, "pair_rows": len(pairs),
-        "event_rows": len(events), "claimed": len(claimed), "compared": compared,
+        "event_rows": len(events), "claimed": claimed_all, "compared": compared,
         "matched": counts[CHANGE_ORACLE_MATCH], "mismatched": counts[CHANGE_ORACLE_MISMATCH],
-        "unavailable": counts[CHANGE_ORACLE_UNAVAILABLE],
+        "unavailable": counts[CHANGE_ORACLE_UNAVAILABLE], "contradicted": contradicted,
         "ref_claimed": ref_counts["claimed"], "ref_compared": ref_counts[CHANGE_ORACLE_MATCH] + ref_counts[CHANGE_ORACLE_MISMATCH],
         "ref_matched": ref_counts[CHANGE_ORACLE_MATCH], "ref_mismatched": ref_counts[CHANGE_ORACLE_MISMATCH],
-        "ref_unavailable": ref_counts[CHANGE_ORACLE_UNAVAILABLE], "capture_path": capture_path}
+        "ref_unavailable": ref_counts[CHANGE_ORACLE_UNAVAILABLE],
+        "empty_region_agrees": er["agrees"], "empty_region_disagrees": er["disagrees"],
+        "empty_region_unverifiable": er["unverifiable"],
+        "uninterpretable": len(uninterpretable), "uninterpretable_lines": bad_lines, "uninterpretable_rows": bad_rows,
+        "capture_path": capture_path}
     detail["ref_unavailable"] = ref_unavailable
     s = detail["summary"]
     lines.append("  sidecar                  %d rows (%d pair, %d event, %d unparseable)"
                  % (len(rows), len(pairs), len(events), bad_lines))
+    lines.append("  uninterpretable          %d  (%d line(s) that are not a JSON object, %d row(s) with required "
+                 "fields of the wrong type)" % (s["uninterpretable"], bad_lines, bad_rows))
+    for item in detail["uninterpretable"]:
+        lines.append("    UNINTERPRETABLE line %d%s: %s"
+                     % (item["line"], "" if item.get("session_index") is None else " si=%s" % item["session_index"],
+                        item["why"]))
     lines.append("  rows claimed             %d  (pair rows with chg_measured: true)" % s["claimed"])
     lines.append("  rows compared            %d" % s["compared"])
     lines.append("    matched                %d" % s["matched"])
     lines.append("    mismatched             %d" % s["mismatched"])
+    lines.append("      contradictory rows   %d  (measured rows carrying a refusal field or missing a statistic)"
+                 % s["contradicted"])
     lines.append("  rows unavailable         %d" % s["unavailable"])
     for reason in sorted(detail["unavailable"]):
         lines.append("    %-4d %s" % (detail["unavailable"][reason], reason))
@@ -2491,13 +2630,13 @@ def change_oracle(cap_dir, quiet=False):
     lines.append("  pair rows not claimed    %d" % sum(detail["not_claimed"].values()))
     for reason in sorted(detail["not_claimed"]):
         lines.append("    %-4d %s" % (detail["not_claimed"][reason], reason))
-    er = detail["empty_region"]
     if er["agrees"] or er["disagrees"] or er["unverifiable"]:
         lines.append("  empty_region cross-read  agrees %d  disagrees %d  unverifiable %d"
                      % (er["agrees"], er["disagrees"], er["unverifiable"]))
         for item in er["rows"]:
             if item["reading"] == "disagrees":
-                lines.append("    DISAGREES si=%s tag=%s %s" % (item["session_index"], item["mask_value"], item["why"]))
+                lines.append("    %s DISAGREES si=%s tag=%s %s - a refusal the delivered mask contradicts"
+                             % (CHANGE_ORACLE_MISMATCH, item["session_index"], item["mask_value"], item["why"]))
     lines.append("  compared                 count against count exactly; mean against mean within %.5f "
                  "(the producer publishes sum/n/255 rounded to 4 dp)" % CHANGE_ORACLE_MEAN_TOLERANCE)
     for rec in detail["rows"]:
@@ -2511,6 +2650,8 @@ def change_oracle(cap_dir, quiet=False):
         if rec["status"] == CHANGE_ORACLE_UNAVAILABLE:
             lines.append("%s  %s (%s)" % (head, rec["status"], rec["reason"]))
             continue
+        if rec["reason"]:
+            head += "  [arithmetic unavailable: %s]" % rec["reason"]
         t = rec["recomputed"].get("chg", {})
         c = rec["recomputed"].get("ctl", {})
         ref_note = ""
@@ -2523,10 +2664,26 @@ def change_oracle(cap_dir, quiet=False):
         for f in bad + ref_bad:
             lines.append("      %s %s published=%s recomputed=%s"
                          % (CHANGE_ORACLE_MISMATCH, f["field"], json.dumps(f["published"]), json.dumps(f["recomputed"])))
-    lines.append("  SUMMARY                  claimed %d  compared %d  matched %d  mismatched %d  unavailable %d"
-                 % (s["claimed"], s["compared"], s["matched"], s["mismatched"], s["unavailable"]))
+    lines.append("  SUMMARY                  claimed %d  compared %d  matched %d  mismatched %d  unavailable %d  "
+                 "ref_mismatched %d  empty_region_disagrees %d  uninterpretable %d"
+                 % (s["claimed"], s["compared"], s["matched"], s["mismatched"], s["unavailable"],
+                    s["ref_mismatched"], s["empty_region_disagrees"], s["uninterpretable"]))
+    code = _oracle_exit_code(s)
+    detail["exit"] = code
+    lines.append("  EXIT %d  %s" % (code, {1: "a comparison mismatched or a refusal was contradicted (this outranks "
+                                           "uninterpretable input)",
+                                        3: "part of the sidecar could not be interpreted; nothing readable mismatched",
+                                        0: "every comparison matched and every line was interpretable"}[code]))
     lines.append(CHANGE_ORACLE_SENTENCE)
-    return (1 if s["mismatched"] or s["ref_mismatched"] else 0), lines, detail
+    return code, lines, detail
+
+
+def _oracle_exit_code(s):
+    if s.get("mismatched") or s.get("ref_mismatched") or s.get("empty_region_disagrees"):
+        return 1
+    if s.get("uninterpretable"):
+        return 3
+    return 0
 
 
 ORACLE_FIXTURE_W = 24
@@ -2780,14 +2937,76 @@ def _change_oracle_selftest():
                and "denominators_positive" in _oracle_bad_fields(rec) and rec["recomputed"]["chg"]["n"] == 0,
                "chg_n %d flagged %s" % (rec["recomputed"]["chg"]["n"], _oracle_bad_fields(rec)[:2]))
         refused = dict(claim, chg_measured=False, chg_eligible=False, pair_valid=False, reason="empty_region")
-        _c, _l, dd3 = run(_oracle_write_session(root, "G-DENOM_refusal_agrees", full, fullm, [refused]))
-        record("G-DENOM_empty_region_refusal_agrees", dd3["empty_region"]["agrees"] == 1
-               and dd3["summary"]["claimed"] == 0, "agrees %d" % dd3["empty_region"]["agrees"])
+        c3, _l, dd3 = run(_oracle_write_session(root, "G-DENOM_refusal_agrees", full, fullm, [refused]))
+        record("G-DENOM_empty_region_refusal_agrees", c3 == 0 and dd3["empty_region"]["agrees"] == 1
+               and dd3["summary"]["claimed"] == 0, "exit %d agrees %d" % (c3, dd3["empty_region"]["agrees"]))
         wrong = dict(_oracle_fixture_row(normal, normm, 1, 0, ORACLE_TAG_A, 0, event="denom@1"),
                      chg_measured=False, chg_eligible=False, pair_valid=False, reason="empty_region")
-        _c, _l, dd4 = run(_oracle_write_session(root, "G-DENOM_refusal_contradicted", normal, normm, [wrong]))
-        record("G-DENOM_empty_region_cross_read_can_fire", dd4["empty_region"]["disagrees"] == 1,
-               "disagrees %d" % dd4["empty_region"]["disagrees"])
+        c4, _l, dd4 = run(_oracle_write_session(root, "G-DENOM_refusal_contradicted", normal, normm, [wrong]))
+        record("G-DENOM_contradicted_empty_region_exits_1", c4 == 1 and dd4["empty_region"]["disagrees"] == 1
+               and dd4["summary"]["empty_region_disagrees"] == 1 and dd4["summary"]["mismatched"] == 0,
+               "exit %d disagrees %d" % (c4, dd4["empty_region"]["disagrees"]))
+        c5, _l, dd5 = run(_oracle_write_session(root, "G-DENOM_refusal_no_png", normal, {0: None, 1: None}, [wrong]))
+        record("G-DENOM_refusal_without_mask_png_unverifiable", c5 == 0 and dd5["empty_region"]["unverifiable"] == 1
+               and dd5["summary"]["empty_region_disagrees"] == 0,
+               "exit %d unverifiable %d" % (c5, dd5["empty_region"]["unverifiable"]))
+
+        def contradicted(name, change, fields):
+            def mutate(frames, masks, rows):
+                change(rows[1])
+            cc, _lc, cd = run(_oracle_baseline(root, "contra_" + name, mutate=mutate))
+            rec_c = _oracle_row_of(cd, 4)
+            bad_c = _oracle_bad_fields(rec_c) if rec_c else []
+            ok = (cc == 1 and rec_c is not None and rec_c["status"] == CHANGE_ORACLE_MISMATCH
+                  and all("measured_row:" + f in bad_c for f in fields) and cd["summary"]["contradicted"] == 1
+                  and all(_oracle_row_of(cd, si)["status"] == CHANGE_ORACLE_MATCH for si in (3, 5, 6)))
+            record("contradiction_" + name, ok, "exit %d %s" % (cc, ",".join(f.split(":")[-1] for f in bad_c)[:44]))
+
+        contradicted("refusal_fields_on_measured_row",
+                     lambda r: r.update(chg_eligible=False, pair_valid=False, reason="budget_exceeded",
+                                        expected_prev_session_index=71),
+                     ("reason", "chg_eligible", "pair_valid", "expected_prev_session_index"))
+        contradicted("hist_and_sum_absent",
+                     lambda r: [r.pop(k) for k in ("chg_hist", "chg_sum", "ctl_hist", "ctl_sum")],
+                     ("chg_hist", "chg_sum", "ctl_hist", "ctl_sum"))
+
+        def sidecar_lines(name, lines_out):
+            path = _oracle_baseline(root, "input_" + name)
+            with open(os.path.join(path, CHANGE_ORACLE_SIDECAR), "w", encoding="utf-8") as fh:
+                fh.write("".join(x + "\n" for x in lines_out))
+            return run(path)
+
+        with open(os.path.join(base, CHANGE_ORACLE_SIDECAR), encoding="utf-8") as fh:
+            good_lines = [x.rstrip("\n") for x in fh if x.strip()]
+        ci, _li, di = sidecar_lines("malformed_only", ["{bad json"])
+        record("input_malformed_only_exits_3", ci == 3 and di["summary"]["uninterpretable"] == 1
+               and di["uninterpretable"][0]["line"] == 1, "exit %d uninterpretable %d" % (ci, di["summary"]["uninterpretable"]))
+        ci, _li, di = sidecar_lines("valid_plus_malformed", good_lines + ["{bad json", "[1, 2]"])
+        record("input_valid_plus_malformed_exits_3", ci == 3 and di["summary"]["matched"] == 4
+               and di["summary"]["uninterpretable"] == 2 and [u["line"] for u in di["uninterpretable"]] == [5, 6],
+               "exit %d matched %d lines %s" % (ci, di["summary"]["matched"], [u["line"] for u in di["uninterpretable"]]))
+        wrong_line = json.loads(good_lines[2])
+        wrong_line["chg_gt8"] += 1
+        ci, _li, di = sidecar_lines("mismatch_plus_malformed", good_lines[:2] + [json.dumps(wrong_line)] + good_lines[3:]
+                                    + ["{bad json"])
+        record("input_mismatch_plus_malformed_exits_1", ci == 1 and di["summary"]["mismatched"] == 1
+               and di["summary"]["uninterpretable"] == 1, "exit %d mismatched %d uninterpretable %d"
+               % (ci, di["summary"]["mismatched"], di["summary"]["uninterpretable"]))
+        for label, receipt in (("list_with_item", [1]), ("empty_list", [])):
+            bad_receipt = json.loads(good_lines[1])
+            bad_receipt["receipt"] = receipt
+            ci, _li, di = sidecar_lines("receipt_" + label, [good_lines[0], json.dumps(bad_receipt)] + good_lines[2:])
+            record("input_receipt_%s_exits_3" % label, ci == 3 and di["summary"]["uninterpretable"] == 1
+                   and di["uninterpretable"][0]["line"] == 2 and di["summary"]["matched"] == 3,
+                   "exit %d %s" % (ci, di["uninterpretable"][0]["why"][:36] if di["uninterpretable"] else "-"))
+        for label, key, value, want in (("tau_string", "tau_px", "8", 3), ("mask_value_null", "mask_value", None, 3),
+                                        ("tau_out_of_range", "tau_px", 300, 1)):
+            bad_scalar = json.loads(good_lines[1])
+            bad_scalar[key] = value
+            ci, _li, di = sidecar_lines(label, [good_lines[0], json.dumps(bad_scalar)] + good_lines[2:])
+            record("input_%s_exits_%d" % (label, want), ci == want and di["summary"]["matched"] == 3
+                   and (di["summary"]["uninterpretable"] == 1 if want == 3 else di["summary"]["mismatched"] == 1),
+                   "exit %d uninterpretable %d mismatched %d" % (ci, di["summary"]["uninterpretable"], di["summary"]["mismatched"]))
 
         def expect_unavailable(name, path, fragment):
             _c2, _l2, ud = run(path)
@@ -2933,9 +3152,11 @@ def main():
     ap.add_argument("--change-oracle", nargs="?", const="", default=None, metavar="SESSION",
                     help="m55 Stage 3: recompute every measured change_evidence.jsonl pair row from the "
                          "delivered PNGs and compare count with count and mean with mean. SESSION "
-                         "defaults to --dir. Exit 1 when any compared row or reference comparison "
-                         "mismatches, 0 when every comparison matches, 3 when it cannot run. With "
-                         "--selftest it proves the oracle can agree and disagree.")
+                         "defaults to --dir. Exit 1 when any comparison mismatches, a measured row "
+                         "contradicts itself or an empty_region refusal is contradicted by its mask; "
+                         "otherwise 3 when part of the sidecar cannot be interpreted or it cannot run; "
+                         "otherwise 0. Arithmetic and transport only. With --selftest it proves the "
+                         "oracle can agree and disagree.")
     ap.add_argument("--oracle-json", metavar="PATH", default=None,
                     help="with --change-oracle: also write the per-row comparison detail as JSON")
     args = ap.parse_args()
@@ -2951,12 +3172,23 @@ def main():
 
     if args.change_oracle is not None:
         target = args.change_oracle or args.dir
-        code, lines, detail = change_oracle(os.path.abspath(target), args.quiet)
+        try:
+            code, lines, detail = change_oracle(os.path.abspath(target), args.quiet)
+        except Exception as exc:
+            code, detail = 3, {"session": target, "internal_error": "%s: %s" % (exc.__class__.__name__, str(exc)[:200])}
+            lines = ["CHANGE-ORACLE (m55 Stage 3)",
+                     "CHANGE-ORACLE: CANNOT RUN - internal error %s: %s" % (exc.__class__.__name__, str(exc)[:200]),
+                     CHANGE_ORACLE_SENTENCE]
         for line in lines:
             _emit(line)
         if args.oracle_json:
-            with open(args.oracle_json, "w", encoding="utf-8") as fh:
-                json.dump(detail, fh, indent=1)
+            try:
+                with open(args.oracle_json, "w", encoding="utf-8") as fh:
+                    json.dump(detail, fh, indent=1, default=str)
+            except (OSError, TypeError, ValueError) as exc:
+                _emit("CHANGE-ORACLE: detail JSON not written to %s (%s)" % (args.oracle_json, exc.__class__.__name__))
+                if code != 1:
+                    code = 3
         sys.exit(code)
 
     if args.all:

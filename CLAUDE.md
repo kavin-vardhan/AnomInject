@@ -11,6 +11,28 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ✅ **081-43, 2026-09-26 — BENCH-FREE. CODEX 081-42 FINDINGS FIXED AS RULED (F1–F6, N1, N2, THE ORACLE SCOPE NOTE), PROVEN BOTH WAYS,
+> AND THE WHOLE BANK REPLAYED WITH NO REAL VERDICT OR EXIT CODE CHANGED. PENDING CHAT'S REPLAY REVIEW → COMMENT STRIP → BUILD CHECKS →
+> NO-FF MERGE.** No `Source/` change; build 3 `85c99b3` (Game `002805CF`) unchanged; NOT MERGED, NOT TAGGED.
+> - **Cold start:** journal `docs/sessions/2026-09-26-081-43-code-m55-codex-review-fixes.md`; evidence `_reviews/081-43-evidence/`
+>   (`replay-oracle-bank.json`, `replay-legacy.json`, `replay-gates.json`, `negatives.json`, `amproofs.json`, `doc-grep.json`).
+> - **F1** a contradicted `empty_region` refusal is oracle exit 1 (`empty_region_disagrees`), and every gate that accepts `empty_region`
+>   rejects on that count (G270 → FAIL). Missing/all-zero mask PNGs stay unverifiable (all 83 banked refusals are).
+> - **F2** nine per-leg label invariants (INV-1…INV-9) run on the raw reading before any excusal; a violation is FAIL. A candidate-only
+>   singleton outside the frozen run-unique and timing-sampled sets that no invariant resolves is NEEDS-DECISION (revises 081-35's G297).
+> - **F3 + scope** oracle input classification: uninterpretable input exit 3 with line diagnostics, precedence 1 > 3 > 0, never a traceback;
+>   contradictory measured rows are mismatches. Selftest 35 cases, unit tests 19.
+> - **Docs** F4 control can include spill; F5 refusal rows keep control/bookkeeping; F6 cost as a dated result (−0.0718 / +0.1100 ms upper
+>   bound of the mean game-thread CPU-cycle-equivalent Δ, 25.07 arms/s, 120/120, 0 drops); N1 delay split; N2 `teardown_flush` present at 0
+>   (and `pending_colour/mask_cancelled` too). Client-identifier grep 0.
+> - **Replays:** oracle old vs new over all 476 banked m55 session folders **0 → 0**; 9/9 legacy comparisons and 70/70 requalification
+>   evaluations (incl. every G270) verdict-identical; negatives 38/38; AMENDMENT 1–6 proofs identical under both libs except three
+>   AMENDMENT 6 G297 cases that asserted the single-singleton PASS F2.2 revokes (tripwire output identical). Harness lib now `1c4ae649` (old `f5876b05` kept) and the new
+>   oracle is frozen at `_reviews/081-43-frozen` — **the prep and cost boundaries pin the old lib: any further bench window needs a
+>   re-issue first.**
+>
+> ---
+
 > ✅ **081-41, 2026-09-26 — DOCS ONLY. m55 STAGE 3 COMPLETE; PENDING CODEX REVIEW → COMMENT STRIPPER → MERGE (by Code, no-ff, no tag
 > unless the owner asks).** Build 3 `85c99b3` (Game `002805CF`) unchanged; NOT MERGED, NOT TAGGED.
 > - **Cold start:** `_reviews/081-41-evidence/stage3-report.md` (oracle, cost with paced headline + labelled stress, requalification and
