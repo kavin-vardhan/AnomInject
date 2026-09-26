@@ -9,6 +9,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
+#include "Components/SplineMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "Engine/SkeletalMesh.h"
@@ -25,6 +26,10 @@
 #include "MaterialShared.h"
 #include "RHI.h"
 #include "RenderUtils.h"
+#include "Rendering/SkeletalMeshLODRenderData.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "SceneInterface.h"
+#include "StaticMeshResources.h"
 #include "TextureResource.h"
 #include "UObject/Package.h"
 
@@ -104,72 +109,174 @@ namespace AnomalyTexCorrupt
 
 		bool FindRuntimeLink(UMaterialInterface* Start, const TCHAR* FirstWhere, FString& OutWhere, FString& OutKind)
 		{
-			UMaterialInterface* Link = Start;
-			const TCHAR* Where = FirstWhere;
-			for (int32 Depth = 0; Link && Depth < MaxParentDepth; ++Depth)
+			const TCHAR* Kind = TEXT("");
+			auto IsRuntime = [&Kind](UMaterialInterface* Link) -> bool
 			{
 				if (Link->IsA<UMaterialInstanceDynamic>())
 				{
-					OutWhere = Where;
-					OutKind = TEXT("mid");
+					Kind = TEXT("mid");
 					return true;
 				}
 				if (Link->GetOutermost() == GetTransientPackage())
 				{
-					OutWhere = Where;
-					OutKind = TEXT("transient_outer");
+					Kind = TEXT("transient_outer");
 					return true;
 				}
 				if (!Link->HasAnyFlags(RF_WasLoaded))
 				{
-					OutWhere = Where;
-					OutKind = TEXT("not_loaded");
+					Kind = TEXT("not_loaded");
 					return true;
 				}
-				const UMaterialInstance* Instance = Cast<UMaterialInstance>(Link);
-				if (!Instance)
-				{
-					break;
-				}
-				Link = Instance->Parent;
-				Where = TEXT("parent");
-			}
-			return false;
-		}
-
-		bool NeedsUsage(const FSlot& S, UWorld* World, EMaterialUsage& OutUsage, const TCHAR*& OutName)
-		{
-			if (S.bSkinned)
+				return false;
+			};
+			auto ParentOf = [](UMaterialInterface* Link) -> UMaterialInterface*
 			{
-				OutUsage = MATUSAGE_SkeletalMesh;
-				OutName = TEXT("skeletal_mesh");
-				return true;
-			}
-			const UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(S.Comp);
-			if (!SMC)
+				const UMaterialInstance* Instance = Cast<UMaterialInstance>(Link);
+				return Instance ? Instance->Parent.Get() : nullptr;
+			};
+			int32 Depth = 0;
+			const TexCorruptPure::EChainWalk Walk = TexCorruptPure::WalkChain(Start, MaxParentDepth, Depth, IsRuntime, ParentOf);
+			if (Walk == TexCorruptPure::EChainWalk::Clean)
 			{
 				return false;
 			}
-			if (SMC->IsA<UInstancedStaticMeshComponent>())
+			OutWhere = Depth == 0 ? FirstWhere : TEXT("parent");
+			OutKind = Walk == TexCorruptPure::EChainWalk::RuntimeLink ? FString(Kind)
+				: FString::Printf(TEXT("chain_limit_%d_unverified_tail"), MaxParentDepth);
+			return true;
+		}
+
+		bool UsesNaniteProxy(const UStaticMeshComponent* SMC)
+		{
+			if (!SMC || SMC->bDisallowNanite || SMC->GetScene() == nullptr)
 			{
-				OutUsage = MATUSAGE_InstancedStaticMeshes;
-				OutName = TEXT("instanced_static_meshes");
+				return false;
+			}
+#if WITH_EDITORONLY_DATA
+			if (SMC->bDisplayNaniteFallbackMesh)
+			{
+				return false;
+			}
+#endif
+			return UseNanite(SMC->GetScene()->GetShaderPlatform()) && SMC->HasValidNaniteData();
+		}
+
+		struct FUsageName
+		{
+			unsigned Bit;
+			EMaterialUsage Usage;
+			const TCHAR* Name;
+		};
+
+		bool FindUsageRefusal(const FSlot& S, UMaterial* Root, FString& OutSub)
+		{
+			TexCorruptPure::FUsageFacts F;
+			TArray<bool> Lit;
+			TArray<bool> HasBuild;
+			TArray<bool> UsesSlot;
+			if (S.bSkinned)
+			{
+				F.Kind = TexCorruptPure::EMeshKind::Skinned;
+				const USkinnedMeshComponent* SK = Cast<USkinnedMeshComponent>(S.Comp);
+				USkinnedAsset* Asset = SK ? SK->GetSkinnedAsset() : nullptr;
+				FSkeletalMeshRenderData* RD = Asset ? Asset->GetResourceForRendering() : nullptr;
+				F.bRenderData = RD != nullptr;
+				if (RD)
+				{
+					for (int32 L = 0; L < RD->LODRenderData.Num(); ++L)
+					{
+						const FSkeletalMeshLODInfo* Info = Asset->GetLODInfo(L);
+						const TArray<FSkelMeshRenderSection>& Sections = RD->LODRenderData[L].RenderSections;
+						for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); ++SectionIndex)
+						{
+							if (!Sections[SectionIndex].HasClothingData())
+							{
+								continue;
+							}
+							int32 Use = Sections[SectionIndex].MaterialIndex;
+							if (Info && SectionIndex < Info->LODMaterialMap.Num() && Asset->IsValidMaterialIndex(Info->LODMaterialMap[SectionIndex]))
+							{
+								Use = FMath::Clamp(Info->LODMaterialMap[SectionIndex], 0, Asset->GetNumMaterials());
+							}
+							F.bSlotHasClothSection |= Use == S.SlotIndex;
+						}
+					}
+					F.bHasMorphTargets = Asset->GetMorphTargets().Num() > 0;
+				}
+			}
+			else if (S.bStatic)
+			{
+				F.Kind = TexCorruptPure::EMeshKind::Static;
+				const UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(S.Comp);
+				const UStaticMesh* Mesh = SMC ? SMC->GetStaticMesh() : nullptr;
+				const FStaticMeshRenderData* RD = Mesh ? Mesh->GetRenderData() : nullptr;
+				F.bRenderData = SMC && RD && RD->LODResources.Num() > 0;
+				if (F.bRenderData)
+				{
+					F.bInstanced = SMC->IsA<UInstancedStaticMeshComponent>();
+					F.bSpline = SMC->IsA<USplineMeshComponent>();
+					F.bNanite = UsesNaniteProxy(SMC);
+					F.bForceVolumetric = SMC->LightmapType == ELightmapType::ForceVolumetric;
+					F.bLodsShareLighting = RD->bLODsShareStaticLighting;
+					const int32 NumLods = RD->LODResources.Num();
+					Lit.SetNumZeroed(NumLods);
+					HasBuild.SetNumZeroed(NumLods);
+					UsesSlot.SetNumZeroed(NumLods);
+					for (int32 L = 0; L < NumLods; ++L)
+					{
+						const FMeshMapBuildData* BD = L < SMC->LODData.Num() ? SMC->GetMeshMapBuildData(SMC->LODData[L]) : nullptr;
+						HasBuild[L] = BD != nullptr;
+						Lit[L] = BD && (BD->LightMap.IsValid() || BD->ShadowMap.IsValid());
+						for (const FStaticMeshSection& Section : RD->LODResources[L].Sections)
+						{
+							UsesSlot[L] = UsesSlot[L] || Section.MaterialIndex == S.SlotIndex;
+						}
+					}
+					F.NumLods = NumLods;
+					F.LodDataLit = Lit.GetData();
+					F.LodDataHasBuildData = HasBuild.GetData();
+					F.LodUsesSlot = UsesSlot.GetData();
+				}
+			}
+
+			TexCorruptPure::EUsageGap Gap = TexCorruptPure::EUsageGap::None;
+			const unsigned Required = TexCorruptPure::RequiredUsages(F, Gap);
+			if (Gap != TexCorruptPure::EUsageGap::None)
+			{
+				OutSub = FString::Printf(TEXT("usage_undetermined:%s"), ANSI_TO_TCHAR(TexCorruptPure::LexUsageGap(Gap)));
 				return true;
 			}
-			const UStaticMesh* Mesh = SMC->GetStaticMesh();
-			const EShaderPlatform Platform = World ? GShaderPlatformForFeatureLevel[World->FeatureLevel] : GMaxRHIShaderPlatform;
-			if (!SMC->bDisallowNanite && Mesh && Mesh->HasValidNaniteData() && UseNanite(Platform))
+			if (!Root)
 			{
-				OutUsage = MATUSAGE_Nanite;
-				OutName = TEXT("nanite");
+				OutSub = TEXT("usage_undetermined:no_root_material");
 				return true;
 			}
-			const FMeshMapBuildData* BuildData = SMC->LODData.Num() > 0 ? SMC->GetMeshMapBuildData(SMC->LODData[0]) : nullptr;
-			if (BuildData && (BuildData->LightMap.IsValid() || BuildData->ShadowMap.IsValid()))
+			if (Root->MaterialDomain != MD_Surface)
 			{
-				OutUsage = MATUSAGE_StaticLighting;
-				OutName = TEXT("static_lighting");
-				return true;
+				return false;
+			}
+			static const FUsageName Order[TexCorruptPure::Usage::Count] = {
+				{ TexCorruptPure::Usage::SkeletalMesh, MATUSAGE_SkeletalMesh, TEXT("skeletal_mesh") },
+				{ TexCorruptPure::Usage::Clothing, MATUSAGE_Clothing, TEXT("clothing") },
+				{ TexCorruptPure::Usage::MorphTargets, MATUSAGE_MorphTargets, TEXT("morph_targets") },
+				{ TexCorruptPure::Usage::InstancedStaticMeshes, MATUSAGE_InstancedStaticMeshes, TEXT("instanced_static_meshes") },
+				{ TexCorruptPure::Usage::Nanite, MATUSAGE_Nanite, TEXT("nanite") },
+				{ TexCorruptPure::Usage::SplineMesh, MATUSAGE_SplineMesh, TEXT("spline_mesh") },
+				{ TexCorruptPure::Usage::StaticLighting, MATUSAGE_StaticLighting, TEXT("static_lighting") },
+			};
+			for (const FUsageName& U : Order)
+			{
+				if ((Required & U.Bit) == 0)
+				{
+					continue;
+				}
+				bool bHas = true;
+				Root->NeedsSetMaterialUsage_Concurrent(bHas, U.Usage);
+				if (!bHas)
+				{
+					OutSub = U.Name;
+					return true;
+				}
 			}
 			return false;
 		}
@@ -418,16 +525,11 @@ namespace AnomalyTexCorrupt
 				return;
 			}
 
-			UMaterial* Root = S.Resolved->GetMaterial();
-			EMaterialUsage Usage = MATUSAGE_SkeletalMesh;
-			const TCHAR* UsageName = TEXT("");
-			if (Root && Root->MaterialDomain == MD_Surface && NeedsUsage(S, World, Usage, UsageName))
 			{
-				bool bHas = true;
-				Root->NeedsSetMaterialUsage_Concurrent(bHas, Usage);
-				if (!bHas)
+				FString UsageSub;
+				if (FindUsageRefusal(S, S.Resolved->GetMaterial(), UsageSub))
 				{
-					FailSlot(S, RankS7, Why::DefaultMaterialPath, UsageName);
+					FailSlot(S, RankS7, Why::DefaultMaterialPath, UsageSub);
 					return;
 				}
 			}
