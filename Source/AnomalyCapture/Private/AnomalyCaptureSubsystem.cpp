@@ -5764,13 +5764,15 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_swept"), TC.Swept);
 			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_rt_mip_mismatch"), TC.RtMipMismatch);
 			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_collateral_drops"), TC.CollateralDrops);
+			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_collateral_incomplete_frames"), TC.CollateralIncompleteFrames);
 			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_slots_partial_set"), TC.SlotsPartialSet);
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(m53): TEXCORRUPT SUMMARY fires_applied=%d rt_mip_mismatch=%d rt_bytes_peak=%lld restored_exact=%d ")
-				TEXT("restored_default=%d left_to_game=%d swept=%d collateral_drops=%d warm_draws=%d. rt_mip_mismatch is the ")
-				TEXT("render-thread tripwire (plan R3.4.5); any non-zero stops S1."),
+				TEXT("restored_default=%d left_to_game=%d swept=%d collateral_drops=%d collateral_incomplete_frames=%d warm_draws=%d. ")
+				TEXT("rt_mip_mismatch is the render-thread tripwire (plan R3.4.5); any non-zero stops S1. A collateral reading from ")
+				TEXT("an incomplete set is never a clean reading."),
 				TC.FiresApplied, TC.RtMipMismatch, TC.RtBytesPeak, TC.RestoredExact, TC.RestoredDefault, TC.LeftToGame, TC.Swept,
-				TC.CollateralDrops, TexCorruptWarmDraws);
+				TC.CollateralDrops, TC.CollateralIncompleteFrames, TexCorruptWarmDraws);
 		}
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,

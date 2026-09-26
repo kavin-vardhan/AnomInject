@@ -21,6 +21,7 @@ namespace AnomalyTexCorrupt
 		int32 Swept = 0;
 		int32 RtMipMismatch = 0;
 		int32 CollateralDrops = 0;
+		int32 CollateralIncompleteFrames = 0;
 		int32 SlotsPartialSet = 0;
 	};
 

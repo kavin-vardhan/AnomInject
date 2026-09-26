@@ -3,8 +3,9 @@
 
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
-#include "AnomalyViewport.h"
 #include "Components/MeshComponent.h"
+#include "Components/PrimitiveComponent.h"
+#include "EngineUtils.h"
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
@@ -422,9 +423,17 @@ bool FAnomaly_TexCorrupt::EnqueueOutput(UWorld* World, FOutput& O, bool bClear)
 
 void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 {
+	if (PostRevertFrame != 0)
+	{
+		TakePostRevertSample();
+	}
 	Collateral.Reset();
 	bCollateralTruncated = false;
-	PostRevertCountdown = -1;
+	CollateralDroppedByCap = 0;
+	CollateralUnmeasuredMaterials = 0;
+	CollateralUnknownAtApply = 0;
+	CollateralRenderedPrimitives = 0;
+	bCollateralTaken = World != nullptr;
 	CollateralApplyFrame = GFrameCounter;
 	CollateralNoApply = NoApply;
 	if (!World)
@@ -436,29 +445,55 @@ void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 	{
 		Ignore.Add(W.Get());
 	}
+	const double Now = World->GetTimeSeconds();
+	const double Delta = World->GetDeltaSeconds();
+	const double Window = TexCorruptPure::CollateralWindowSeconds(Delta);
+	TSet<UMaterialInterface*> SeenMaterials;
 	TMap<FString, UTexture2D*> ByPath;
-	for (const TWeakObjectPtr<AActor>& Weak : AnomalyViewport::GetVisibleRenderableActors(World))
+	int32 CollateralPrimitives = 0;
+	for (TActorIterator<AActor> It(World); It; ++It)
 	{
-		AActor* Actor = Weak.Get();
-		if (!Actor || Ignore.Contains(Actor))
+		AActor* Actor = *It;
+		if (!Actor)
 		{
 			continue;
 		}
-		TArray<UMeshComponent*> Comps;
-		Actor->GetComponents<UMeshComponent>(Comps);
-		for (UMeshComponent* Comp : Comps)
+		const bool bTarget = Ignore.Contains(Actor);
+		TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
+		for (UPrimitiveComponent* Prim : Prims)
 		{
-			if (!Comp || !AnomalyViewport::IsRenderableComponent(Comp))
+			if (!Prim)
 			{
 				continue;
 			}
-			for (int32 i = 0; i < Comp->GetNumMaterials(); ++i)
+			const double Since = Now - (double)Prim->GetLastRenderTimeOnScreen();
+			if (Prim->IsRegistered() && Since <= Window)
 			{
+				++CollateralRenderedPrimitives;
+			}
+			if (!TexCorruptPure::IsCollateralPrimitive(Prim->IsRegistered(), bTarget, Since, Delta))
+			{
+				continue;
+			}
+			++CollateralPrimitives;
+			TArray<UMaterialInterface*> Mats;
+			Prim->GetUsedMaterials(Mats, false);
+			for (UMaterialInterface* Mat : Mats)
+			{
+				if (!Mat || SeenMaterials.Contains(Mat))
+				{
+					continue;
+				}
+				SeenMaterials.Add(Mat);
 				TArray<FBinding> Bindings;
 				bool bRes = false;
 				bool bSm = false;
 				bool bComplete = false;
-				ReadActiveBindings(World, Comp->GetMaterial(i), Bindings, bRes, bSm, bComplete);
+				ReadActiveBindings(World, Mat, Bindings, bRes, bSm, bComplete);
+				if (!bRes || !bSm || !bComplete)
+				{
+					++CollateralUnmeasuredMaterials;
+				}
 				for (const FBinding& B : Bindings)
 				{
 					if (B.Tex2D)
@@ -473,7 +508,8 @@ void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 	ByPath.GetKeys(Paths);
 	Paths.Sort();
 	constexpr int32 Cap = 256;
-	bCollateralTruncated = Paths.Num() > Cap;
+	CollateralDroppedByCap = FMath::Max(0, Paths.Num() - Cap);
+	bCollateralTruncated = CollateralDroppedByCap > 0;
 	for (int32 i = 0; i < Paths.Num() && i < Cap; ++i)
 	{
 		UTexture2D* Tex = ByPath[Paths[i]];
@@ -481,31 +517,56 @@ void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 		C.Texture = Tex;
 		C.Path = Paths[i];
 		C.ApplyLevel = Tex->GetStreamableResourceState().IsValid() ? (int32)Tex->GetStreamableResourceState().NumResidentLODs : -1;
+		if (C.ApplyLevel < 0)
+		{
+			++CollateralUnknownAtApply;
+		}
 	}
+	const int32 Incomplete = CollateralIncomplete();
 	UE_LOG(LogAnomaly, Log,
-		TEXT("%s: G-COLL set taken at Apply - %d collateral texture(s) of %d bound to visible actors other than the target%s. ")
+		TEXT("%s: G-COLL set taken at Apply - %d collateral texture(s) of %d, from %d primitive(s) other than the target's drawn ")
+		TEXT("on screen within %.3f s (%d rendered on screen in total, target included). No injection-selection filter is ")
+		TEXT("applied. incomplete=%d (dropped_by_cap=%d unmeasured_materials=%d unknown_residency=%d no_render_evidence=%d) - %s. ")
 		TEXT("Paired per texture across legs by (path, frame offset) from the TEXCORRUPT-COLL lines; never compared as counts."),
-		*Id.ToString(), Collateral.Num(), Paths.Num(), bCollateralTruncated ? TEXT(", TRUNCATED at 256 (incomplete)") : TEXT(""));
+		*Id.ToString(), Collateral.Num(), Paths.Num(), CollateralPrimitives, Window, CollateralRenderedPrimitives, Incomplete,
+		CollateralDroppedByCap, CollateralUnmeasuredMaterials, CollateralUnknownAtApply, CollateralRenderedPrimitives == 0 ? 1 : 0,
+		Incomplete > 0 ? TEXT("INCOMPLETE, NOT A CLEAN READING") : TEXT("complete"));
 	LogCollateral(TEXT("apply"));
 }
 
-int32 FAnomaly_TexCorrupt::CountCollateralDrops() const
+int32 FAnomaly_TexCorrupt::CountCollateralDrops(int32* OutUnknownNow) const
 {
 	int32 Drops = 0;
+	int32 Unknown = 0;
 	for (const FCollateral& C : Collateral)
 	{
 		const UTexture2D* Tex = C.Texture.Get();
-		if (!Tex || C.ApplyLevel < 0)
+		if (!Tex || C.ApplyLevel < 0 || !Tex->GetStreamableResourceState().IsValid())
 		{
+			++Unknown;
 			continue;
 		}
-		const FStreamableRenderResourceState& St = Tex->GetStreamableResourceState();
-		if (St.IsValid() && (int32)St.NumResidentLODs < C.ApplyLevel)
+		if ((int32)Tex->GetStreamableResourceState().NumResidentLODs < C.ApplyLevel)
 		{
 			++Drops;
 		}
 	}
+	if (OutUnknownNow)
+	{
+		*OutUnknownNow = Unknown;
+	}
 	return Drops;
+}
+
+int32 FAnomaly_TexCorrupt::CollateralIncomplete() const
+{
+	if (!bCollateralTaken)
+	{
+		return 0;
+	}
+	int32 UnknownNow = 0;
+	CountCollateralDrops(&UnknownNow);
+	return CollateralDroppedByCap + CollateralUnmeasuredMaterials + UnknownNow + (CollateralRenderedPrimitives == 0 ? 1 : 0);
 }
 
 void FAnomaly_TexCorrupt::LogCollateral(const TCHAR* Kind) const
@@ -522,10 +583,37 @@ void FAnomaly_TexCorrupt::LogCollateral(const TCHAR* Kind) const
 		const int32 Now = (Tex && Tex->GetStreamableResourceState().IsValid()) ? (int32)Tex->GetStreamableResourceState().NumResidentLODs : -1;
 		Levels += FString::Printf(TEXT("%s:%d:%d;"), *C.Path, C.ApplyLevel, Now);
 	}
+	int32 UnknownNow = 0;
+	const int32 Drops = CountCollateralDrops(&UnknownNow);
 	UE_LOG(LogAnomaly, Log,
-		TEXT("TEXCORRUPT-COLL id=%s kind=%s apply_frame=%llu offset=%llu noapply=%d count=%d truncated=%d drops=%d levels=%s"),
+		TEXT("TEXCORRUPT-COLL id=%s kind=%s apply_frame=%llu offset=%llu noapply=%d count=%d truncated=%d dropped_by_cap=%d ")
+		TEXT("unmeasured_materials=%d unknown_now=%d incomplete=%d drops=%d levels=%s"),
 		*Id.ToString(), Kind, CollateralApplyFrame, GFrameCounter - CollateralApplyFrame, CollateralNoApply, Collateral.Num(),
-		bCollateralTruncated ? 1 : 0, CountCollateralDrops(), *Levels);
+		bCollateralTruncated ? 1 : 0, CollateralDroppedByCap, CollateralUnmeasuredMaterials, UnknownNow, CollateralIncomplete(),
+		Drops, *Levels);
+}
+
+void FAnomaly_TexCorrupt::TakePostRevertSample()
+{
+	const uint64 Offset = GFrameCounter - RevertFrame;
+	const TCHAR* Endpoint = GFrameCounter == PostRevertFrame ? TEXT("on_frame") : (GFrameCounter < PostRevertFrame ? TEXT("early") : TEXT("late"));
+	if (bCollateralTaken)
+	{
+		int32 UnknownNow = 0;
+		const int32 Drops = CountCollateralDrops(&UnknownNow);
+		UE_LOG(LogAnomaly, Log,
+			TEXT("%s: G-COLL post-revert sample at frame %llu, %llu rendered frame(s) after the revert at frame %llu (endpoint %s): ")
+			TEXT("%d collateral texture(s) below their Apply-time level; incomplete=%d."),
+			*Id.ToString(), GFrameCounter, Offset, RevertFrame, Endpoint, Drops, CollateralIncomplete());
+		LogCollateral(TEXT("post_revert"));
+	}
+	UE_LOG(LogAnomaly, Log,
+		TEXT("TEXCORRUPT-LEDGER id=%s kind=post_revert revert_frame=%llu frame=%llu offset=%llu endpoint=%s live=%lld pending=%lld ")
+		TEXT("peak=%lld"),
+		*Id.ToString(), RevertFrame, GFrameCounter, Offset, Endpoint, Ledger().Live, Ledger().PendingSum(), Ledger().Peak);
+	Collateral.Reset();
+	bCollateralTaken = false;
+	PostRevertFrame = 0;
 }
 
 void FAnomaly_TexCorrupt::ReleaseTargetWatch()
@@ -956,18 +1044,9 @@ void FAnomaly_TexCorrupt::TickAlways(float DeltaSeconds)
 {
 	Ledger().Tick(GFrameCounter);
 
-	if (PostRevertCountdown > 0)
+	if (PostRevertFrame != 0 && GFrameCounter >= PostRevertFrame)
 	{
-		--PostRevertCountdown;
-		if (PostRevertCountdown == 0)
-		{
-			const int32 Drops = CountCollateralDrops();
-			UE_LOG(LogAnomaly, Log, TEXT("%s: G-COLL post-revert sample (2 frames after revert): %d collateral texture(s) below their Apply-time level."),
-				*Id.ToString(), Drops);
-			LogCollateral(TEXT("post_revert"));
-			Collateral.Reset();
-			PostRevertCountdown = -1;
-		}
+		TakePostRevertSample();
 	}
 
 	if (!bActive)
@@ -1117,10 +1196,8 @@ void FAnomaly_TexCorrupt::Revert()
 		TEXT("(scratch included) released, originals let go after their slots were restored; live=%lld pending=%lld."),
 		*Id.ToString(), Exact, Default, LeftToGame, Unresolved, Swept, Ledger().Live, Ledger().PendingSum());
 
-	if (Collateral.Num() > 0)
-	{
-		PostRevertCountdown = 2;
-	}
+	RevertFrame = GFrameCounter;
+	PostRevertFrame = TexCorruptPure::PostRevertSampleFrame(RevertFrame);
 	ResetEventState();
 	bActive = false;
 }
@@ -1166,7 +1243,12 @@ void FAnomaly_TexCorrupt::NoteCapturedFrame(bool bAnomalousThisFrame)
 	{
 		return;
 	}
-	FStatsAccess::Mutable().CollateralDrops += CountCollateralDrops();
+	FRunStats& Stats = FStatsAccess::Mutable();
+	Stats.CollateralDrops += CountCollateralDrops();
+	if (CollateralIncomplete() > 0)
+	{
+		++Stats.CollateralIncompleteFrames;
+	}
 	LogCollateral(TEXT("labelled"));
 }
 
@@ -1185,9 +1267,12 @@ bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddBool(TEXT("texcorrupt.condition_held"), Held == TexCorruptPure::EHeld::Held);
 	Out.AddString(TEXT("texcorrupt.condition_detail"), ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Held)));
 	Out.AddInt(TEXT("texcorrupt.required_bytes"), (int32)FMath::Min<int64>(RequiredBytes, MAX_int32));
+	const int32 CollIncomplete = CollateralIncomplete();
 	Out.AddInt(TEXT("texcorrupt.collateral_drops"), CountCollateralDrops());
 	Out.AddInt(TEXT("texcorrupt.collateral_count"), Collateral.Num());
 	Out.AddBool(TEXT("texcorrupt.collateral_truncated"), bCollateralTruncated);
+	Out.AddInt(TEXT("texcorrupt.collateral_incomplete"), CollIncomplete);
+	Out.AddBool(TEXT("texcorrupt.collateral_complete"), bCollateralTaken && CollIncomplete == 0);
 	if (Mode == EMode::TileProbe)
 	{
 		Out.AddInt(TEXT("texcorrupt.tile"), TileN);
@@ -1243,7 +1328,15 @@ void FAnomaly_TexCorrupt::OnWorldTeardown()
 	{
 		Revert();
 	}
+	if (PostRevertFrame != 0)
+	{
+		UE_LOG(LogAnomaly, Log,
+			TEXT("TEXCORRUPT-LEDGER id=%s kind=world_teardown revert_frame=%llu frame=%llu offset=%llu endpoint=cancelled live=%lld ")
+			TEXT("pending=%lld peak=%lld"),
+			*Id.ToString(), RevertFrame, GFrameCounter, GFrameCounter - RevertFrame, Ledger().Live, Ledger().PendingSum(), Ledger().Peak);
+	}
 	Collateral.Reset();
-	PostRevertCountdown = -1;
+	bCollateralTaken = false;
+	PostRevertFrame = 0;
 }
 }
