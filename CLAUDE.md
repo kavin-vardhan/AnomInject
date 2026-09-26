@@ -11,6 +11,19 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 📝 **082-01, 2026-09-26 — `m53` (UV / normal-map texture corruption) PLAN WRITTEN on branch `feat/m53-uv-normal-corruption`
+> (off `master` `4283fc8`). PLAN ONLY: no source, no build, no cook, no bench. NOT MERGED, NO TAG.**
+> - **Cold start:** `docs/predictions/2026-09-26-m53-uv-normal-corruption.md` (§1 is the headline, §10 the decisions), journal
+>   `docs/sessions/2026-09-26-082-01-code-m53-plan.md`.
+> - 🚨 **The agreed takeover RECONSTRUCTS the host material rather than corrupting it.** The host graph is editor-only, so on
+>   world-aligned / triplanar / tinted content — StackOBot's modular kit, Lyra's gym cubes — the positives would carry a material
+>   change beside the named bug.
+> - **Recommended: route B.** A MID of the host's own material, with the texture parameter overridden by a render target the plugin
+>   corruptor drew once at Apply. Stage 1 is gated on the identity round-trip `G-ID`, and the takeover is the fallback.
+> - 🎯 **NEXT: chat rules `D1`–`D7`. ⛔ No implementation until `D1` (route) is ruled.**
+>
+> ---
+
 > 🏁 **081-44, 2026-09-26 — `m55` (CHANGE EVIDENCE) IS MERGED TO `master` AS THE NO-FF MERGE COMMIT `38f3376` (pushed; `031a103` →
 > `38f3376`, origin matches). NO TAG. THE FEATURE BRANCH IS KEPT (`6591669` == origin).** The merge is inert: `master^{tree}` ==
 > the feature tree == the `merge-tree` forecast, with no conflict. **THIS IS THE CURRENT "YOU ARE HERE" FOR `master`.**
