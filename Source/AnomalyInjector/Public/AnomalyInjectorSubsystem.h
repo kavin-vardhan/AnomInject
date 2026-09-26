@@ -63,6 +63,16 @@ public:
 
 	UMaterialInterface* GetCorruptedTextureMaterial() const;
 
+	UMaterialInterface* GetTexCorruptUvMaterial() const;
+
+	UMaterialInterface* GetTexCorruptNormalMaterial() const;
+
+	class UTexture2D* GetTexCorruptNoiseTexture() const;
+
+	void TexCorruptHold(UObject* Object);
+
+	void TexCorruptLetGo(UObject* Object);
+
 
 	void ListAnomalies() const;
 
@@ -135,4 +145,16 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> CorruptedTexturePink;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> TexCorruptUv;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> TexCorruptNormal;
+
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> TexCorruptNoise;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UObject>> TexCorruptStrongRefs;
 };

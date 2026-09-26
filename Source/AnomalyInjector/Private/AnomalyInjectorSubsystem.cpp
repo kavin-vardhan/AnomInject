@@ -31,6 +31,9 @@
 #include "Anomalies/Anomaly_CorruptedTexture.h"
 #include "Anomalies/Anomaly_StuckLowMip.h"
 #include "Anomalies/Anomaly_ChangeCase.h"
+#include "Anomalies/Anomaly_TexCorrupt.h"
+#include "AnomalyTexCorrupt.h"
+#include "Engine/Texture2D.h"
 
 static constexpr uint64 GAnomalyHeartbeatKey = 0x47445048;
 
@@ -53,6 +56,18 @@ UAnomalyInjectorSubsystem::UAnomalyInjectorSubsystem()
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> PinkFinder(
 		TEXT("/AnomalyInjector/Materials/M_CorruptedTexture_Pink.M_CorruptedTexture_Pink"));
 	CorruptedTexturePink = PinkFinder.Object;
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TexCorruptUvFinder(
+		TEXT("/AnomalyInjector/Materials/M_CorruptTex_UV.M_CorruptTex_UV"));
+	TexCorruptUv = TexCorruptUvFinder.Object;
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TexCorruptNormalFinder(
+		TEXT("/AnomalyInjector/Materials/M_CorruptTex_Normal.M_CorruptTex_Normal"));
+	TexCorruptNormal = TexCorruptNormalFinder.Object;
+
+	static ConstructorHelpers::FObjectFinder<UTexture2D> TexCorruptNoiseFinder(
+		TEXT("/AnomalyInjector/Textures/T_CorruptTex_NoiseN.T_CorruptTex_NoiseN"));
+	TexCorruptNoise = TexCorruptNoiseFinder.Object;
 }
 
 UMaterialInterface* UAnomalyInjectorSubsystem::GetMissingTextureMaterial() const
@@ -63,6 +78,37 @@ UMaterialInterface* UAnomalyInjectorSubsystem::GetMissingTextureMaterial() const
 UMaterialInterface* UAnomalyInjectorSubsystem::GetCorruptedTextureMaterial() const
 {
 	return CorruptedTexturePink;
+}
+
+UMaterialInterface* UAnomalyInjectorSubsystem::GetTexCorruptUvMaterial() const
+{
+	return TexCorruptUv;
+}
+
+UMaterialInterface* UAnomalyInjectorSubsystem::GetTexCorruptNormalMaterial() const
+{
+	return TexCorruptNormal;
+}
+
+UTexture2D* UAnomalyInjectorSubsystem::GetTexCorruptNoiseTexture() const
+{
+	return TexCorruptNoise;
+}
+
+void UAnomalyInjectorSubsystem::TexCorruptHold(UObject* Object)
+{
+	if (Object)
+	{
+		TexCorruptStrongRefs.Add(Object);
+	}
+}
+
+void UAnomalyInjectorSubsystem::TexCorruptLetGo(UObject* Object)
+{
+	if (Object)
+	{
+		TexCorruptStrongRefs.RemoveSingleSwap(Object);
+	}
 }
 
 namespace
@@ -156,6 +202,10 @@ namespace
 			OutScope = EAnomalyScope::Object;
 			OutArgs.Add(IntArg(TEXT("mip_levels"), TEXT("-1"), (double)AnomalyDefaults::StuckMipLevelsMin));
 		}
+		else if (Id == FName(TEXT("uv_corruption")) || Id == FName(TEXT("normal_corruption")))
+		{
+			OutScope = EAnomalyScope::Object;
+		}
 		else
 		{
 			OutScope = EAnomalyScope::Object;
@@ -184,6 +234,8 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Register(MakeUnique<FAnomaly_MissingTexture>());
 	Register(MakeUnique<FAnomaly_CorruptedTexture>());
 	Register(MakeUnique<FAnomaly_StuckLowMip>());
+	Register(MakeUnique<AnomalyTexCorrupt::FAnomaly_TexCorrupt>(FName(TEXT("uv_corruption")), AnomalyTexCorrupt::EFamily::UV));
+	Register(MakeUnique<AnomalyTexCorrupt::FAnomaly_TexCorrupt>(FName(TEXT("normal_corruption")), AnomalyTexCorrupt::EFamily::Normal));
 #if !UE_BUILD_SHIPPING
 	Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("null_effect")), false));
 	Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("solid_swap")), true));
@@ -194,6 +246,14 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 	UE_LOG(LogAnomaly, Log, TEXT("Subsystem initialized for world '%s'. %d anomaly type(s) registered."),
 		*GetNameSafe(GetWorld()), Anomalies.Num());
+
+	UE_LOG(LogAnomaly, Log,
+		TEXT("TEXCORRUPT-ASSETS M_CorruptTex_UV resolved=%d (%s); M_CorruptTex_Normal resolved=%d (%s); T_CorruptTex_NoiseN ")
+		TEXT("resolved=%d (%s). m53's corruptors and noise texture are hard references on this subsystem's CDO, so they cook with ")
+		TEXT("the plugin. Any 0 here means every uv_corruption / normal_corruption fire is REFUSED assets_unavailable: the ")
+		TEXT("anomaly fails closed and never draws without them."),
+		TexCorruptUv ? 1 : 0, *GetPathNameSafe(TexCorruptUv), TexCorruptNormal ? 1 : 0, *GetPathNameSafe(TexCorruptNormal),
+		TexCorruptNoise ? 1 : 0, *GetPathNameSafe(TexCorruptNoise));
 }
 
 void UAnomalyInjectorSubsystem::Deinitialize()
@@ -225,6 +285,10 @@ void UAnomalyInjectorSubsystem::Deinitialize()
 			Pair.Value->OnWorldTeardown();
 		}
 	}
+
+	AnomalyTexCorrupt::RestoreBenchAssetSlotMid(TEXT("world teardown"));
+	AnomalyTexCorrupt::EndWarmDraw();
+	TexCorruptStrongRefs.Reset();
 
 	Super::Deinitialize();
 }
