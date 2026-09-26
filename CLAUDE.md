@@ -18,8 +18,12 @@ and is the single source of truth for the project.
 >   mutant (`tools/texcorrupt_make_mutant.py`) fails 24, every new group included.
 > - G10: editor exit 0 (43 s), game exit 0 (74 s), 0 warnings, all five modules compiled from scratch, module set unchanged.
 >   Game exe **`8BF054FA`** archived as `_binary_baselines\StackOBot.exe.m53-s1fix-8BF054FA`. **The bench stays on `E0BE6F0A`.**
-> - 🎯 **NEXT: Codex's delta check on these commits (journal §6), then 082-06 (authoring + cook) if it has no P1 and no
->   unresolved P2.** The in-engine proofs of P2-1/P2-2/P2-3/P2-5/P2-6 are 082-07 leg readings (journal §4 item 7).
+> - **Codex delta (collected, NOT acted on): `CHANGES REQUIRED`**, `_reviews/082-06b-codex-m53-s1-fix-delta.md`. 7 of 9
+>   RESOLVED. **P2-2 PARTIAL**: a null material slot, which renders the default material, and unresolved texture entries are
+>   still silently omitted from G-COLL's completeness. **P3-3 PARTIAL + a new P3**: the rollback line cannot show pending=0;
+>   an F+2 rollback reading is needed. No new P1 or P2. "Ready?" **NO** (journal §6).
+> - 🎯 **NEXT: chat rules on the delta. ⛔ Authoring + cook (082-06) waits for that ruling.** The in-engine proofs of
+>   P2-1/P2-2/P2-3/P2-5/P2-6 are 082-07 leg readings (journal §4 item 7).
 >
 > ---
 >

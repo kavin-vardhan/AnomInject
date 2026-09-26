@@ -115,3 +115,25 @@ Host detached at `1d7cada`, tree clean. The plugin's build products were deleted
 ## 5. Codex delta
 
 Recorded in §6 once collected.
+
+## 6. Codex delta — collected, NOT acted on
+
+- Relay run `_relay\runs\2026-09-27-082-06b-m53-s1-fix-delta`: `gpt-6-astra`, effort `max` (requested and rollout
+  agree), `workspace-write`, **649 s**, exit 0, 5,127 B `review.md`. Reviewed head `2f81b3b`.
+- Collected verbatim to `_reviews/082-06b-codex-m53-s1-fix-delta.md` (one header line; body SHA-256 identical);
+  ledger row added.
+- **`VERDICT: CHANGES REQUIRED`.** RESOLVED: P2-1, P2-3, P2-4, P2-5, P2-6, P3-1, P3-2. PARTIAL: **P2-2**, **P3-3**.
+  No new P1 or P2; one new P3.
+  - **P2-2 residual:** a drawn non-target mesh with a **null material slot** renders the engine default
+    material, but `GetUsedMaterials` returns the null and the collector skips it. A texture entry that
+    cannot be resolved is also not counted, so `collateral_complete` can read true without measuring that
+    coverage. Codex proposes collecting the effective fallback where determinable and otherwise counting the
+    gap as incomplete, with collection/completeness cases.
+  - **P3-3 / new P3:** the revised §R9.4 text asks for live=0 **and pending=0** on the rollback line, but a
+    correct rollback that created bytes has pending > 0 there, and `FailAt` schedules no frame-qualified
+    terminal reading. Codex proposes live=0 and pending=created at the failure frame F, then live=pending=0 on an
+    F+2 reading emitted for rollback too.
+  - **"Ready for authoring, cook and legs?" NO.** The blocker is P2-2's unreported material/binding gaps
+    (under chat's no-unresolved-P2 rule), and the P3 rollback criterion needs correcting before that gate is
+    evaluated.
+- Per the brief and the Relay rules, **none of this was acted on**; it goes to chat for a ruling.
