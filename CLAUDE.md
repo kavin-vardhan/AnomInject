@@ -11,6 +11,21 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 📝 **082-04, 2026-09-27 — `m53` PLAN AMENDED (revision 3) on `feat/m53-uv-normal-corruption` for chat's 082-04 ruling
+> (N1 = (a), N2 approved, N3 = 128 MiB, N4 = 2 / 16) and Codex's 082-03 delta (Δ1–Δ3, six PARTIALs). PLAN ONLY: no source,
+> no build, no cook, no bench, no CaptureBench edit. NOT MERGED, NO TAG.**
+> - **Cold start:** the plan's **§R0.0** (the live resolution table, with this file's line ranges), then §R3.4 (the per-mip
+>   copy), §R12.1 (the fixture level), §R13.1 (S1 and its 14-row stop list), §R15 (interpretations I1–I5); journal
+>   `docs/sessions/2026-09-27-082-04-code-m53-plan-revision-3.md`.
+> - **N1(a):** every output mip is drawn from the source's same mip at an explicit LOD; mip 0 straight into the output through
+>   the canvas pair that never regenerates mips, mips ≥ 1 through 1-mip scratch + RDG `AddCopyTexturePass(DestMipIndex)`.
+>   Private `RenderCore` + `RHI` land in S1.
+> - **The GDP Relay now pins Codex to `gpt-6-astra` at `max`** (`-m` and `-c` passed explicitly by the runner).
+> - 🎯 **NEXT: chat reviews revision 3 with Codex's delta check #2 (`_reviews/082-04-codex-m53-delta2.md`). S1 waits for chat.**
+>
+> ---
+
+> 🔻 *(082-03's "NEXT … S1 is blocked on N1 and N2" is discharged by 082-04's ruling; kept as the record.)*
 > 📝 **082-03, 2026-09-27 — `m53` PLAN REVISED (revision 2) on `feat/m53-uv-normal-corruption` for Codex's 082-02 review
 > (CHANGES REQUIRED, 12 findings) and chat's disposition. PLAN ONLY: no source, no build, no cook, no bench. NOT MERGED, NO TAG.**
 > - **Cold start:** the plan's §R0 resolution table first, then §R15 (NEEDS-DECISION); journal
