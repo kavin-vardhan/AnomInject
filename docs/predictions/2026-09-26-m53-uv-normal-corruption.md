@@ -1,6 +1,15 @@
 # m53 — UV / normal-map texture corruption — PRE-DECLARED DESIGN AND GATES
 
-## REVISION 3 — 082-04, 2026-09-27. This is the live design.
+## REVISION 3.1 — 082-05, 2026-09-27. Revision 3 plus four plan-text fixes; this is the live design.
+
+**Branch `feat/m53-uv-normal-corruption`, parent `49dece1` (revision 3).** Chat's ruling
+`_reviews/082-05-chat-ruling-s1-authorised.md` accepted Codex's delta #2 (`_reviews/082-04-codex-m53-delta2.md`) and
+authorised S1 on the condition that Code folds its three P2 fixes (A, B, C) and its P3 into this file as the first
+step of S1. This revision does only that. Every paragraph it changes carries **🔁 082-05**; a withdrawn claim is
+struck through, not deleted. **§R0.00** lists the four fixes with their line ranges. The rest of revision 3, including
+its header below and its §R0.0 table, stands unchanged.
+
+## REVISION 3 — 082-04, 2026-09-27. Superseded as the live design only by the four fixes in §R0.00.
 
 **Branch `feat/m53-uv-normal-corruption`, parent `b118a66` (revision 2, 082-03). PLAN ONLY.** No plugin
 source changed, no build, no cook, no editor or game launch, no bench leg, no CaptureBench edit (N2's
@@ -70,7 +79,18 @@ What was executed, all read-only:
 
 ## R0. Resolution table
 
-### R0.0 🔁 082-04 — Revision 3 resolution table (the live one)
+### R0.00 🔁 082-05 — Revision 3.1 resolution table (the four S1-authorisation fixes)
+
+Line ranges are in this file at revision 3.1. Each row is chat's 082-05 disposition of Codex's delta #2.
+
+| item | ruling (082-05) | implemented in | resolution | status |
+|---|---|---|---|---|
+| **A** (P2) the diagonal `texelshift` is an identity on a one-texel checker | shift along **one axis only**; re-prove offline at ≥ 32 on every assigned row; strike the false ≥ 128 claim | §R7.1 (L1039–1041); §R12.2 (L1502); §R12.4 (L1600) | `texelshift` samples `+(1/W_m, 0)`. For checker parity `(x+y) mod 2`, `C(x+1, y) = 1 − C(x, y)`, so every texel of chain (b) flips 64 ↔ 192 and every texel of chain (d) flips 83 ↔ 172: the predicted minimum per-texel error is 128 and 89. The diagonal claim is struck through. The proof itself is `texcorrupt_fixture_images.py`'s, run in 082-06 before any leg relies on the fault; if it reads below 32, S1 stops (§R13.1 row 12). | **RESOLVED in design**; proven offline in 082-06 |
+| **B** (P2) subtracted counts can hide extra mip loss | pair textures by their actual resident mip levels, applied leg vs null, texture by texture; report every texture with fewer resident mips in the applied leg; stop subtracting counts | §R12.3 `G-COLL` (L1540); §R10 (L1312–1315) | Each sample (Apply, every labelled frame, 2 frames after revert) records every collateral texture's identity and resident level at its frame offset from Apply (`IAI.Bench.TexCorruptCollateralDetail 1`, one `TEXCORRUPT-COLL` log line per sample). The two legs are paired by (texture, frame offset). A texture's deficit is `max(0, null − applied)` resident levels; every texture with a positive deficit is reported by name, and the deficits are aggregated. A truncated collateral set (cap 256) stays flagged incomplete. `texcorrupt.collateral_drops` stays as a within-leg reading and is never subtracted across legs. | **RESOLVED in design** |
+| **C** (P2) a budget or streaming-pool bias is reported as `not_fully_resident` | classify it as a `runtime_lod_bias` sub-reason before the residency check; add a fixture row that reaches it | §R4 step 4 (L720–746); §R6.2 T9 (L914); §R6.4 (L1000–1001) | The per-texture budget bias (`FStreamingRenderAsset::BudgetMipBias`) has no public game-thread query, so zero bias is established conservatively from public state. It is possible only on a streamed texture (`bSupportsStreaming`) while `r.Streaming.UsePerTextureBias` is non-zero and `r.Streaming.MipBias` > 0 (`TextureStreamingHelpers.cpp:299`, `:302`; the drops are capped at `GlobalMipBias`, `AsyncTextureStreaming.cpp:356`). In that state T9 refuses the binding `runtime_lod_bias`, sub-reason **`streaming_budget`**, before T10. Fixture row: the F-SYN streamed 2048² texture fired with `r.Streaming.MipBias 1` (packaged), which reads `streaming_budget`, against the same target without it, which reads `not_fully_resident`. | **RESOLVED** |
+| **P3** arithmetic | two same-class 4096² maps come to 192 MiB | §R3.2 (L416–418); §R6.4 (L1006); §R12.1 (L1412); §R14 (L1726, L1732, L1758–1759) | `2 · 85.33 + 21.33 = 192.0 MiB`: same-class chains share one scratch set. 213.33 MiB is the figure only for two 4096² maps of **different** classes. Every affected figure is corrected; no admission outcome changes (192 > 128, ≤ 256). | **RESOLVED** |
+
+### R0.0 🔁 082-04 — Revision 3 resolution table (the live one, amended by §R0.00)
 
 Line ranges are in this file at revision 3.
 
@@ -393,6 +413,9 @@ that every row has a fixture (§R12.4).
 - 🔁 082-04 **An event's requirement** is `ΣB` over its output chains plus `ΣT` over its distinct scratch
   classes. `drift` doubles the chains (snapshot and output, §R7.3) and keeps its scratch for the event:
   `2·ΣB + ΣT`.
+- 🔁 082-05 (P3) **Worked example.** Two 4096² maps of the **same** class share one scratch set:
+  `2 · 85.33 + 21.33 = 192.0 MiB`. Two 4096² maps of **different** classes (an sRGB colour map and a linear
+  normal map, for example) need two: `2 · 106.67 = 213.33 MiB`.
 - 🔁 082-04 **The budget (N3).** A run-wide cap on live m53 render-target bytes, both ids together:
   `IAI.Anomaly.TexCorruptMaxRtBytes`, compiled **128 MiB (134,217,728 bytes)**.
   - It follows the `AnomalyDefaults` pattern: console > ini `[AnomalyInjector] TexCorruptMaxRtBytesDefault` >
@@ -694,11 +717,33 @@ cooked chain. Otherwise the event is refused `not_fully_resident`. 🔁 082-04 (
      - `r.Streaming.MipBias > 0` with `r.Streaming.UsePerTextureBias` 0, which applies the bias to every
        streamed texture's allowed mips (`Private/Streaming/TextureStreamingHelpers.cpp:171-185`, `:299`;
        `StreamingTexture.cpp:191-200`, `:229-233`).
-     - With `UsePerTextureBias` at its default 1, the streaming bias is spent only under budget pressure,
+     - ~~With `UsePerTextureBias` at its default 1, the streaming bias is spent only under budget pressure,
        per texture (`Private/Streaming/AsyncTextureStreaming.cpp:356`, `:685-691`). The game thread cannot
-       see that per-texture budget bias, so it shows up as `not_fully_resident`. **Stated, not solved.**
+       see that per-texture budget bias, so it shows up as `not_fully_resident`. **Stated, not solved.**~~
+       🔁 082-05 (C): withdrawn; solved conservatively by the next sub-reason.
        The engine's scalability sets `r.Streaming.MipBias` to 16 at `TextureQuality@0` and 1 at `@1`
        (`Engine/Config/BaseScalability.ini:522`, `:533`).
+   - 🔁 082-05 (C) **`streaming_budget`** (binding level, T9, after `cinematic` and `per_texture`, before T10):
+     - With `UsePerTextureBias` at its default 1, the streamer raises a streamed texture's private
+       `BudgetMipBias` under budget pressure (`Private/Streaming/StreamingTexture.cpp:418-435`, applied at
+       `:194-196`). Nothing public exposes it to the game thread (`Public/ContentStreaming.h:458-467` offers only
+       pool totals), so this design does not try to read it.
+     - It establishes **zero** instead, from public state. The drops are capped at `GlobalMipBias`
+       (`AsyncTextureStreaming.cpp:356`), which is `floor(max(0, r.Streaming.MipBias))`
+       (`TextureStreamingHelpers.cpp:299`), and they run only while `UsePerTextureBias` is set (`:302`,
+       `AsyncTextureStreaming.cpp:685`). So a budget bias is **impossible** when `r.Streaming.MipBias` ≤ 0, when
+       `UsePerTextureBias` is 0 (E5 then decides), or on a texture that does not stream
+       (`!S.bSupportsStreaming`).
+     - **Otherwise** — a streamed texture, `UsePerTextureBias` non-zero and `r.Streaming.MipBias` > 0 — zero
+       cannot be established, and the binding is refused `runtime_lod_bias`, sub-reason `streaming_budget`,
+       **whether or not it is currently fully resident**. That is the conservative reading of the ruling
+       ("refuse when any runtime LOD bias applies"): a bias that may apply cannot be told from one that does.
+     - It is strict in the same way as E5: it reads `> 0` rather than the streamer's `floor ≥ 1`, and it does
+       not carve out `r.Streaming.UseAllMips` or the editor's zeroed `GlobalMipBias` (`:299`, `:325-328`).
+     - **Named residual.** A `BudgetMipBias` set while `r.Streaming.MipBias` was above 0 persists until the
+       streamer's reset condition (`AsyncTextureStreaming.cpp:625-637`), so lowering the variable mid-run can
+       leave a biased texture that this check admits. T10 then refuses it as `not_fully_resident`, which is
+       the conservative direction.
 5. **`S.MaxNumLODs == M` and `S.NumResidentLODs == S.MaxNumLODs`:** every mip of the cooked chain is
    resident (step T10). Else `not_fully_resident`, and the diagnostic line gives `resident_lods`,
    `max_lods`, `M` and the resident top dimensions.
@@ -866,7 +911,7 @@ T11.
 | T6 | 🔁 the cooked chain is one the render target can hold (§R3.4.1) | `mip_chain_shape` |
 | T7 | not held or restoring by `stuck_low_mip` (§R4) | `held_by_stuck_low_mip` |
 | T8 | resource valid, initialised, nothing pending (§R4 steps 1–3) | `resource_not_ready` / `streaming_pending` |
-| T9 | 🔁 no runtime LOD bias on this texture (§R4 step 4) | `runtime_lod_bias`, sub-reason `cinematic` / `per_texture` |
+| T9 | 🔁 no runtime LOD bias on this texture (§R4 step 4) | `runtime_lod_bias`, sub-reason `cinematic` / `per_texture` / 🔁 082-05 `streaming_budget` |
 | T10 | fully resident at the cooked chain, `MaxNumLODs == M` (§R4 step 5) | `not_fully_resident` (sub-reasons `max_below_cooked`, `optional_unmounted`) |
 | T11 | all passed | `transformable` |
 
@@ -952,12 +997,13 @@ binding that fails, and every other binding in it is transformable.
 | `resource_not_ready` / `streaming_pending` | T8 | **UNEXERCISED**: no deterministic producer without a force-residency call, which m53 must not make | — |
 | `runtime_lod_bias` / `cinematic` | T9 | F-SYN texture with `NumCinematicMipLevels = 1` (S1) | T1–T8: a loaded, ready World-group texture parameter; E4–E5 read 0 |
 | `runtime_lod_bias` / `per_texture` | T9 | **UNEXERCISED**: it needs a device profile whose `MaxLODSize` is below the cooked top, and no console route sets one | — |
-| `not_fully_resident` | T10 | F-SYN streamed 2048² texture placed far away (S1); MainWorld `SM_rock` as a reading (its world-aligned detail map may be a constant, which gives `texture_not_parameter` first) | T1–T9: a streamed World-group parameter, admitted format, full chain, no cinematic mips |
+| 🔁 082-05 `runtime_lod_bias` / `streaming_budget` | T9 | the F-SYN streamed 2048² texture (the T10 fixture below), fired in the packaged build with `r.Streaming.MipBias 1` set before the fire and restored after; `r.Streaming.UsePerTextureBias` stays at its default 1. Paired with the same target fired without the variable, which must read `not_fully_resident` (T10): the pair is what shows the order (S1) | E5 does not fire (`UsePerTextureBias` is 1); T1–T8 as for T10's producer; `cinematic` and `per_texture` read 0 |
+| `not_fully_resident` | T10 | F-SYN streamed 2048² texture placed far away (S1); MainWorld `SM_rock` as a reading (its world-aligned detail map may be a constant, which gives `texture_not_parameter` first) | T1–T9: a streamed World-group parameter, admitted format, full chain, no cinematic mips; 🔁 082-05 `r.Streaming.MipBias` reads 0, so T9's `streaming_budget` cannot fire |
 | `no_normal_map` | A2 | MainWorld `SM_FloorBase` (mask only), normal family (S1) | the slot passes S1–S8 |
 | `normal_unconnected` | A3 | F-SYN normal map feeding a non-normal input (S2) | A2: the required set holds that normal map |
 | `below_size_policy` | A5 | F-SYN slot whose maps are all 32² (S1) | A4: every binding transformable |
 | `map_set_over_cap` | A6 | F-SYN slot with 9 parameter maps (S1) | A4–A5 pass |
-| `over_budget` | V2 | F-SYN slot with **two never-streamed 4096²** maps, 213.33 MiB > 128 MiB (S1) | every binding transformable; a never-streamed texture is resident once loaded |
+| `over_budget` | V2 | F-SYN slot with **two never-streamed 4096²** maps of the same class, ~~213.33~~ 🔁 082-05 (P3) **192 MiB** > 128 MiB (S1) | every binding transformable; a never-streamed texture is resident once loaded |
 | `rt_alloc_failed` / `draw_precondition_failed` / `param_readback_mismatch` | V3 | bench lever `IAI.Bench.TexCorruptFailStep <2..6>` (fails that transaction step once, to prove the rollback) (S1) | V2 fits |
 
 An UNEXERCISED reason is written as UNEXERCISED in the gate report, never as a clean zero.
@@ -990,6 +1036,9 @@ cooked build), Unlit, value written as Emissive, no usage flag needed. 🔁 082-
   - The noise texture of `normal_noise` is sampled the same way at its own level.
 - 🔁 082-04 **Bench-only scalars for the wrong-copy levers** (§R12.2): `DbgChanSwap`, `DbgSrgbTwice`,
   `DbgTexelShift` (with `TexelSizeU/V`, set per level by C++), `DbgSkipNormalEncode` and `DbgOpaque`.
+  - 🔁 082-05 (A): `DbgTexelShift` moves the sample along **U only**, `uv + (TexelSizeU, 0) · DbgTexelShift`.
+    `TexelSizeV` is still set per level and is unused by the graph; it stays so the parameter set does not
+    change if a later fixture needs the V axis.
   - All are 0 by default and are set only by the lever, never in a client payload.
   - At 0 they are dead arithmetic and add no permutation.
 - ⛔ **`AlphaFromSource` is removed.** v1 used it as a no-re-cook fallback that forced A = 1. Under §R11 a
@@ -1260,6 +1309,10 @@ v1 §4.4), level change, world teardown, and transaction rollback (§R7.4). Ever
   - 🔁 082-04: `texcorrupt.required_bytes` (outputs, snapshots and scratch, §R3.2), so `G7` can re-read an
     event against another budget;
   - 🔁 082-04: `texcorrupt.collateral_drops` (§R12.3 `G-COLL`) for the event's labelled frames.
+    - 🔁 082-05 (B): this is the within-leg count of collateral textures below their Apply-time level. It is
+      a reading of one leg and is **never subtracted** from another leg's; `G-COLL`'s verdict comes from the
+      paired per-texture levels in the `TEXCORRUPT-COLL` lines. `texcorrupt.collateral_count` and
+      `texcorrupt.collateral_truncated` are emitted beside it so a truncated set is visible in the row.
 - **Removed from v1:** `texcorrupt.route`, `texcorrupt.reconstructed`, `texcorrupt.strength_class`,
   `src_resident_top_px`, `rt_size`.
 - **Reserved, never emitted:** `texcorrupt.host_mid_cloned`.
@@ -1356,7 +1409,7 @@ reading: reported, no pass or fail. **O** = owner decision: numbers go to the ow
 | redraw | an opaque BGRA8 linear input with RGB in [48, 128], and a fractional-alpha sRGB DXT5 input with alpha in [0.25, 0.75] | `G-RD` |
 | binding | the material-layer target (a layer parameter with the same name as a global parameter in another layer); the alias target (a static-switch-off parameter P defaulting to T, beside an active constant sample of T); the dead-binding target (a parameter multiplied by 0) | `G-BIND` |
 | runtime material | a duplicate of `/Engine/BasicShapes/Plane` in the folder, used by one actor only, for `IAI.Bench.TexCorruptAssetSlotMid` | Δ1, `G6` |
-| reasons | a mesh-less actor (`no_mesh`); a duplicate mesh whose only asset slot is None (`slot_empty`); a translucent slot; a streaming virtual texture (`r.VirtualTextures=True`, `Config/DefaultEngine.ini:20`); a cube parameter (a six-face DDS, `EditorFactories.cpp:3366`); a spatial 256² UI-group texture beside an albedo; a **1×1** UI-group texture beside an albedo (`non_spatial_exempt`); a `TC_HalfFloat` texture; a texture with `NumCinematicMipLevels = 1`; a streamed 2048² texture placed far away; a slot whose maps are all 32²; a slot with 9 parameter maps; **two never-streamed 4096² maps in one slot** (213.33 MiB, §R3.2); a Nanite duplicate mesh whose material has a Nanite override; a skeletal slot whose material lacks `bUsedWithSkeletalMesh` (a skeletal mesh duplicated into the folder); a normal map feeding a non-normal input | `G-REASON`, `G6` |
+| reasons | a mesh-less actor (`no_mesh`); a duplicate mesh whose only asset slot is None (`slot_empty`); a translucent slot; a streaming virtual texture (`r.VirtualTextures=True`, `Config/DefaultEngine.ini:20`); a cube parameter (a six-face DDS, `EditorFactories.cpp:3366`); a spatial 256² UI-group texture beside an albedo; a **1×1** UI-group texture beside an albedo (`non_spatial_exempt`); a `TC_HalfFloat` texture; a texture with `NumCinematicMipLevels = 1`; a streamed 2048² texture placed far away (also 🔁 082-05 the `streaming_budget` producer, §R6.4); a slot whose maps are all 32²; a slot with 9 parameter maps; **two never-streamed 4096² maps of the same class in one slot** (~~213.33~~ 🔁 082-05 **192 MiB**, §R3.2); a Nanite duplicate mesh whose material has a Nanite override; a skeletal slot whose material lacks `bUsedWithSkeletalMesh` (a skeletal mesh duplicated into the folder); a normal map feeding a non-normal input | `G-REASON`, `G6` |
 | reference bugs | copies of a readout material with a real ×N UV scale and a real `uv.yx` swap, in their own graphs | `G-ID-M` transformed rows (S2) |
 
 - The level has a settled camera (a fixed player start and camera, as in `CB_GateLevel`) and movable lights.
@@ -1446,7 +1499,7 @@ is on" box (`PRE-DELIVERY-CHECKLIST.md:254`):
   | `srgbtwice` | the colour corruptor encodes to sRGB in the shader while the target's sRGB flag stays set (double encoding) | every sRGB colour row |
   | `mipshift` | level m samples source mip m + 1 | chain (a) at minification, grazing and transitions |
   | `mipgen` | the copies for m ≥ 1 are skipped and the engine regenerates mips from mip 0 (`UpdateResourceImmediate(false)` on the output), which was revision 2's behaviour | chain (a) at minification and transitions |
-  | `texelshift` | each level samples one texel off, +(1/W_m, 1/H_m) | chains (b) and (d) at magnification |
+  | `texelshift` | each level samples one texel off ~~+(1/W_m, 1/H_m)~~ 🔁 082-05 (A) **along U only, +(1/W_m, 0)**. The diagonal shift was an identity on a one-texel checker: `C(x+1, y+1) = C(x, y)` | chains (b) and (d) at magnification |
   | `normal` | skip the `·0.5+0.5` re-encode | the two normal rows |
   | `alpha` | the colour corruptor draws with Opacity 1 (A = 0) | the alpha rows |
   | `noclear` | skip the clear before a redraw | the `G-RD` rows |
@@ -1484,7 +1537,7 @@ is on" box (`PRE-DELIVERY-CHECKLIST.md:254`):
 | **G5** | Q | S2 | F-MW | m52 targeted first (held, then restoring), then m53 on a target sharing the texture; and the reverse order | refused `held_by_stuck_low_mip` by name in both m52 states; in reverse order the auto-pool m52 pick refuses the shared texture. The targeted-m52 bypass is stated, not tested as isolation. | 1 per state |
 | **G6** | Q (refusals), D (Nanite admit) | S1 (Δ1), S2 | F-SYN; F-MW modular kit | Nanite and runtime-material paths | `nanite_override` refused on the F-SYN target; `host_mid` refused on the Bot (`where=override`) and, 🔁 Δ1, on the F-SYN asset-slot MID (`where=asset_slot`); a Nanite target without an override, if it reaches APPLY, is labelled with `observability_measured` false (the m50 admit path). A case with no fixture is UNEXERCISED, never a pass. | 1 each |
 | **G-REASON** | Q | S1–S2 | per §R6.4 | each reason's producer | 🔁 the producer yields **that** reason by name, not an earlier one (the §R6.4 precedence column), in the REFUSED line and in `run_summary`; each UNEXERCISED reason stays listed | 1 each |
-| **G-COLL** | D | S1 (F-MW, `SM_FloorBase` if admitted), S3 (every `G7` leg) | 🔁 N3 | applied leg vs `NoApply 2` (no allocation), same recipe | per labelled frame, the number of **collateral** textures whose `NumResidentLODs` fell below its Apply-time value. Collateral = every `UTexture2D` bound (read as in §R2) to a visible renderable actor other than the target, capped at 256 and flagged if truncated; sampled at Apply, on each labelled frame and 2 frames after revert. Reported as the applied-minus-null difference per budget. A positive difference is reported as `collateral_residency_drop` for that host and budget: a purity finding for the owner (O2), never tuned away. | every applied event |
+| **G-COLL** | D | S1 (F-MW, `SM_FloorBase` if admitted), S3 (every `G7` leg) | 🔁 N3 | applied leg vs `NoApply 2` (no allocation), same recipe, both with `IAI.Bench.TexCorruptCollateralDetail 1` | Collateral = every `UTexture2D` bound (read as in §R2) to a visible renderable actor other than the target, capped at 256 by path order and flagged if truncated; sampled at Apply, on each labelled frame and 2 frames after revert. ~~per labelled frame, the number of collateral textures whose `NumResidentLODs` fell below its Apply-time value … Reported as the applied-minus-null difference per budget.~~ 🔁 082-05 (B): **paired, texture by texture.** Each sample logs every collateral texture's path and `NumResidentLODs` with the sample's frame offset from Apply (`TEXCORRUPT-COLL`). The applied and null legs are joined on (texture path, frame offset); a pair's **deficit** is `max(0, null_resident − applied_resident)`. Every texture with a positive deficit is reported by name with its levels, and the deficits are summed per budget. **Counts are never subtracted across legs**: one texture falling 13 → 12 in the null and 13 → 11 in the applied leg is a deficit of 1, which subtracted counts would hide. A texture present in one leg's set and not the other's is listed as unpaired. A truncated set is reported **incomplete**, never as clean. A positive deficit is reported as `collateral_residency_drop` for that host and budget: a purity finding for the owner (O2), never tuned away. | every applied event |
 | **G-COOK** | Q | S1 | the S1 cook | 🔁 N2 (§R12.1) | M0 = M1 = M2 on the manifest outside the allowed paths; the archive hash-verified before the cook; the map gate exits 0 with the new level named; the `CB_GateLevel` / `MainWorld` chunk hashes unchanged; the new packages present; other packages reported (D) | once |
 | **G7** | O (D readings) | S3 | F-MW, F-LYRA | 🔁 N3: auto-pool with both ids enabled explicitly, **three legs per fixture, at `TexCorruptMaxRtBytes` 64, 128 and 256 MiB**, same seed | attempted, applied, refused per final reason, plus the slot and binding dispositions, per budget. Per event `texcorrupt.required_bytes`, so each leg's refusals can also be re-read against the other two budgets. That re-reading is arithmetic only: the live set differs between legs, because a refused event leaves its actor eligible for later picks. `G-COLL` at each budget. The owner chooses the default from these (O2). | one census per fixture per id per budget |
 | **G8** | Q | S2 | F-MW | `P-C7 v3` against a pre-m53 control pair | `labels.jsonl` field set unchanged without m53; `run_summary` adds exactly the §R10 keys; the `annotation.json` field set unchanged (`P6`); new `anomaly_subtype` values only for the new ids | 1 pair |
@@ -1544,7 +1597,7 @@ is on" box (`PRE-DELIVERY-CHECKLIST.md:254`):
 | `normal` | \|n.x\|, \|n.y\| ≤ 0.35 | ≥ 83 |
 | `alpha` | alpha in [0.25, 0.75], lerping colours ≥ 192 levels apart | ≥ 64 in alpha; ≥ 48 in the picture |
 | `mipshift`, `mipgen` | chain (a): solid colour per mip; consecutive mips ≥ 64 apart in some channel; every mip ≥ 64 from mip 0 | ≥ 64 |
-| `texelshift` | chain (b): one-texel checker, 64 / 192; chain (d): n.x = ±0.35 (encoded 83 / 172) | ≥ 128; normal ≥ 89 |
+| `texelshift` | chain (b): one-texel checker, 64 / 192; chain (d): n.x = ±0.35 (encoded 83 / 172) | ~~≥ 128; normal ≥ 89~~ (withdrawn: the diagonal shift it assumed maps the checker onto itself, error 0). 🔁 082-05 (A), for the U-only shift: every texel flips parity, so **128 on every texel of (b) and 89 on every texel of (d)** — predicted, and to be proven by `texcorrupt_fixture_images.py` in 082-06 from the images it generates, before any leg relies on it |
 | `noclear` | opaque input with RGB in [48, 128] (a second composite adds the source again); fractional alpha in [0.25, 0.75] (alpha decays to a²) | ≥ 48; alpha ≥ 47 |
 
 - **The in-leg reading is the authority.** A relied-on fault that reads max |d| < 16 in the picture makes the
@@ -1670,13 +1723,13 @@ runtime material anywhere in the chain. How much each removes is **unknown until
 | MainWorld `SM_rock`, `SM_rock_02` | `T_rock_0x_D/N/AORM` 4096²; `T_detail_N` 2048² | `not_fully_resident`; `over_budget` if resident | **`not_fully_resident`** (measured resident 11–12 of 13 at the bench pose). If resident, `over_budget` at every budget read (325.33 MiB). If the world-aligned detail map is a constant, `texture_not_parameter` comes first. | `not_fully_resident`; if resident, `over_budget` at 128 (133.33 MiB), fits at 256 |
 | MainWorld `SM_FloorBase` (most-fired m52 target) | `T_Grid_A` 1024² mask | eligible iff a parameter and resident | **eligible** iff `T_Grid_A` is a parameter, fully resident and free of runtime bias, and no other map in the slot is excluded (P2-8): **6.67 MiB** (`drift` 12.0). Data class only. | `no_normal_map` |
 | MainWorld `SKM_Bot` | `T_Bot_*` 4096²; `T_Eyes_Atlas` 2048² (`LeaveExistingMips`) | `host_mid` | **`host_mid`** (`where=override`, S3 before any texture step). Its authored eye chain would now be carried (N1(a)), but S3 comes first. | same |
-| MainWorld modular kit (Nanite) | `T_SandTileabe_BC`, `T_ConcreteTileable_N`, `T_Metal_Painted_N` 4096² | `over_budget` | `over_budget` if a set holds two 4096² maps (≥ 213.33 MiB); a set with one 4096² map fits (106.67 MiB). Residency is likely to refuse first. | one 4096² normal map fits (106.67 MiB) if resident |
+| MainWorld modular kit (Nanite) | `T_SandTileabe_BC`, `T_ConcreteTileable_N`, `T_Metal_Painted_N` 4096² | `over_budget` | `over_budget` if a set holds two 4096² maps (~~≥ 213.33~~ 🔁 082-05 **≥ 192 MiB**: 192 for the same class, 213.33 across two classes); a set with one 4096² map fits (106.67 MiB). Residency is likely to refuse first. | one 4096² normal map fits (106.67 MiB) if resident |
 | MainWorld `SM_RockFlats_*` | `T_RockTileable_BC` 2048², `T_SandTileabe_BC` 4096² | `over_budget` if the sand map is active | `over_budget` at 128 (133.33 MiB) if the sand map is active, fits at 256; 26.67 MiB if not | `no_normal_map` |
 | MainWorld `SM_GenericPlane` | translucent | `no_eligible_slot` | `no_eligible_slot` | same |
 | `CB_GateLevel` | none | `no_textures` | `no_textures` | same |
 | Lyra `Cube*` | `T_Paint_Diffuse` 2048², `T_Paint_Normal` 2048², `T_Paint_Glossiness` 2048² with LODBias 1 (→ 1024²), `T_Paint_Opacity` 2048² | fits (48); `over_budget` with the opacity map | **fits: 60.0 MiB** with three maps, **81.33 MiB** with the opacity map. **`drift` fits at 128** (108.0 MiB) without the opacity map; with it, 150.67 MiB, which needs 256. Residency plausible; virtual-texture status unknown. | **fits (26.67 MiB)** |
 | Lyra weapons (Nanite) | `T_Rifle_*` 4096² with LODBias 1 (→ 2048²) × 4 | `over_budget` (85.33) | **fits at 128 (96.0 MiB)**, refused at 64. `drift` 181.33 MiB needs 256. | fits (26.67 MiB); observability unmeasured (Nanite, `G134`) |
-| Lyra `SKM_Manny/Quinn` | `T_Manny_01_*` 8192² with `MaxTextureSize` 4096 (→ 4096²), `Sharpen1`/`Sharpen2` | `over_budget`; `host_mid` first if MIDs; sharpened chains (N1) | `host_mid` first if their slots hold MIDs; otherwise `over_budget` at every budget read (≥ 298.67 MiB). The sharpened chains are carried by N1(a) and are no longer a support restriction. | `host_mid` first if their slots hold MIDs; otherwise a single 4096² normal map fits (106.67 MiB), and a set with two does not (≥ 213.33 MiB) |
+| Lyra `SKM_Manny/Quinn` | `T_Manny_01_*` 8192² with `MaxTextureSize` 4096 (→ 4096²), `Sharpen1`/`Sharpen2` | `over_budget`; `host_mid` first if MIDs; sharpened chains (N1) | `host_mid` first if their slots hold MIDs; otherwise `over_budget` at every budget read (≥ 298.67 MiB). The sharpened chains are carried by N1(a) and are no longer a support restriction. | `host_mid` first if their slots hold MIDs; otherwise a single 4096² normal map fits (106.67 MiB), and a set with two does not (~~≥ 213.33~~ 🔁 082-05 **192 MiB**, both normal maps being one class) |
 
 ### R14.2 What that adds up to
 
@@ -1702,8 +1755,8 @@ runtime material anywhere in the chain. How much each removes is **unknown until
 | budget | fits | still refused |
 |---|---|---|
 | 64 MiB | `SM_FloorBase` UV (6.67) and `drift` (12.0); cube UV, three maps (60.0); cube and weapon normal (26.67) | cube UV with opacity (81.33); weapon UV (96.0); any 4096² map (≥ 106.67); cube `drift` (108.0) |
-| **128 MiB (default)** | adds: cube UV with opacity (81.33); weapon UV (96.0); a single 4096² map (106.67); cube `drift` (108.0) | two 4096² maps (≥ 213.33); `SM_RockFlats` with the sand map (133.33); rock sets; cube `drift` with opacity (150.67); weapon `drift` (181.33) |
-| 256 MiB | adds: `SM_RockFlats` (133.33); cube `drift` with opacity (150.67); weapon `drift` (181.33); two 4096² maps (213.33) | the rock UV set (325.33); the character sets (≥ 298.67) |
+| **128 MiB (default)** | adds: cube UV with opacity (81.33); weapon UV (96.0); a single 4096² map (106.67); cube `drift` (108.0) | two 4096² maps (~~≥ 213.33~~ 🔁 082-05 **192** same class, 213.33 across classes); `SM_RockFlats` with the sand map (133.33); rock sets; cube `drift` with opacity (150.67); weapon `drift` (181.33) |
+| 256 MiB | adds: `SM_RockFlats` (133.33); cube `drift` with opacity (150.67); weapon `drift` (181.33); two 4096² maps (~~213.33~~ 🔁 082-05 **192** same class, 213.33 across classes) | the rock UV set (325.33); the character sets (≥ 298.67) |
 
 Raising the budget cannot recover the rocks at the bench poses, because residency refuses them first. That
 lever is a prefetch design, deferred by ruling (§R4). `G7` reads all three budgets, and `G-COLL` says
