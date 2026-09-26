@@ -1,6 +1,13 @@
 # m53 — UV / normal-map texture corruption — PRE-DECLARED DESIGN AND GATES
 
-## REVISION 3.1 — 082-05, 2026-09-27. Revision 3 plus four plan-text fixes; this is the live design.
+## REVISION 3.2 — 082-06b, 2026-09-27. Revision 3.1 plus the S1 source-review fixes; this is the live design.
+
+Codex's S1 source review (082-06) found 6 P2 and 3 P3 in the S1 code. Chat accepted all nine and rejected
+declared deviations 5 and 10 (`_reviews/082-06b-chat-ruling-s1-source-review.md`). The code is fixed on this
+branch; this revision changes only the plan text those fixes touch, each paragraph marked **🔁 082-06b**, with
+withdrawn text struck through. **§R0.000** lists the nine with commits, line ranges and proofs.
+
+## REVISION 3.1 — 082-05, 2026-09-27. Revision 3 plus four plan-text fixes; superseded as the live design only by §R0.000.
 
 **Branch `feat/m53-uv-normal-corruption`, parent `49dece1` (revision 3).** Chat's ruling
 `_reviews/082-05-chat-ruling-s1-authorised.md` accepted Codex's delta #2 (`_reviews/082-04-codex-m53-delta2.md`) and
@@ -78,6 +85,27 @@ What was executed, all read-only:
 ---
 
 ## R0. Resolution table
+
+### R0.000 🔁 082-06b — Revision 3.2 resolution table (Codex's S1 source review, chat's disposition)
+
+Codex `_reviews/082-06-codex-m53-s1-source-review.md` (CHANGES REQUIRED: 0 P1, 6 P2, 3 P3); chat
+`_reviews/082-06b-chat-ruling-s1-source-review.md` accepted all nine and **rejected declared deviations 5 and
+10**. Code base `193bd35`. Pure core `127b7e1`, compile fix `9382173`, harness `accdb9f`. Proofs are the
+offline harness (`tools/texcorrupt_pure_test.cpp` on the header the plugin compiles; mutant from
+`tools/texcorrupt_make_mutant.py`) plus the source path; **no leg ran**. The in-engine readings listed are the
+ones 082-07's legs must show.
+
+| item | ruling (082-06b) | commit | implemented in | proof | status |
+|---|---|---|---|---|---|
+| **P2-1** NoApply short-circuits the condition | the predicate reads live slots and parameter ownership whatever NoApply is | `034564a` | §R10 `condition_held` (L1378–1387); telemetry (L1359–1360) | Harness [12]: applied → `installed`, NoApply 1 → `slot_not_installed`, NoApply 2 → `no_expected_set`, a lost binding → `binding_readback`. `TexCorruptPure::ConditionHeld` has no NoApply input. The mutant (empty set read as held) fails [12]. In engine: `texcorrupt.condition_detail` and the APPLIED / NoApply 2 lines. | **RESOLVED in code**; leg reading due in 082-07 |
+| **P2-2** G-COLL measures injection candidates | every primitive drawn on screen, `GetLastRenderTimeOnScreen` within the window; a truncated or incomplete set is never clean | `f57004d` | §R12.3 `G-COLL` (L1596); §R10 (L1355–1358, L1376–1377) | `GatherCollateral` no longer calls `GetVisibleRenderableActors` or `IsRenderableComponent`. Harness [14]: in a synthetic scene a 2 % prop, a 500 m backdrop, foliage and a translucent-only mesh are measured; the target, a shadow-only primitive and an unregistered one are not. The mutant (target not excluded) fails. `collateral_incomplete` / `collateral_complete` / `texcorrupt_collateral_incomplete_frames` added. | **RESOLVED in code**; in-engine synthetic case due in 082-07 |
+| **P2-3** subtype from live state at completion | subtype from the captured event record | `1067481` | §R10 `annotation.json` (L1335–1338) | `AccumulateFrameEvents` reads the frame's captured `texcorrupt.mode` (snapshot telemetry async, capture-moment telemetry sync), keyed by (id, start frame, target). `GetLiveModeName` is deleted. Not pure-testable; the proof is the source path. | **RESOLVED in code**; revert-before-completion leg due in 082-07 |
+| **P2-4** one usage flag checked | every applicable flag, engine rule mirrored; undetermined ⇒ refuse; **deviation 5 rejected** | `c297ee2` | §R6.2 S7 (L928); `TexCorruptPure::RequiredUsages` | Harness [13]: 18 offline rows, among them instanced + lightmapped (Codex's case) → `ism+static_lighting`, Nanite ISM, per-LOD and shared lighting, spline, cloth, morph; plus 2 undetermined gaps. The mutant (first-category exit) fails [13]. Declared superset: min-LOD clamp ignored; morph = asset has morph targets. | **RESOLVED in code** (offline rows) |
+| **P2-5** partial scratch failure undercounts | every created byte through the two-frame pending ledger; tests of tree order and a failure at every step | `dbc7033` | §R3.2 (L455–457, unchanged rule); `FEventAccount`, `PlanAllocations` | Harness [9]–[11]: 129 rollback sequences (every plan step × fail-before-create / created-then-rejected, plus a failure after all). Each ends with live 0 and pending == created, still pending at frame+1 and 0 at frame+2. Success paths balance at revert+2. The mutant (created bytes un-reserved; pending retired a frame early) fails [10] and [11]. Runtime lever `IAI.Bench.TexCorruptFailStep 2 <ordinal>`. | **RESOLVED in code** |
+| **P2-6** NoApply 2 skips the watches | register the same watches; **deviation 10 rejected** | `034564a` | §R12.2 NoApply 2 (L1539–1540) | `RegisterTargetWatch` runs on the NoApply 2 path; it reserves, allocates and touches nothing. | **RESOLVED in code**; EndPlay-while-valid leg due in 082-07 |
+| **P3-1** post-revert sample in ticks | count rendered frames | `f57004d` | §R12.3 `G-COLL` (L1596) | Revert stores `RevertFrame` and samples at the first tick with `GFrameCounter >= RevertFrame + 2`, logging `endpoint` on_frame / late / early / cancelled. Harness [14] checks the frame function. | **RESOLVED in code** |
+| **P3-2** chain walk accepts an unexamined tail | past the link limit ⇒ refused with a named reason | `c297ee2` | §R5 predicate (L832–835) | `TexCorruptPure::WalkChain` reports `LimitReached`; the slot is refused `host_mid` with sub `<where>:chain_limit_16_unverified_tail`. Harness [14]: 16 links clean; 17 links and a cycle → `limit_reached`. The mutant fails. | **RESOLVED in code** |
+| **P3-3** a peak cannot prove balance | judge live and pending returning to zero; peak stays a run peak | `f57004d` | §R9.4 (L1304–1309) | Every revert emits `TEXCORRUPT-LEDGER … kind=post_revert … live pending peak` at revert+2; the rollback line carries live/pending/frame. The gate text is corrected. Harness [10]: the peak is never reset. | **RESOLVED** (gate text + code) |
 
 ### R0.00 🔁 082-05 — Revision 3.1 resolution table (the four S1-authorisation fixes)
 
@@ -802,7 +830,10 @@ resident **11–12 of 13** mips, i.e. a top resident mip of 1024–2048 px, neve
   - Step 6 then parented a new MID to it. The engine rejects a MID as a parent (`MaterialInstance.cpp:3076-3083`),
     so the slot would have drawn the default material.
 - **The predicate (step S3, §R6.2).** It is applied to `Resolved` and to `Effective` (§R8.1), walking each up
-  its `UMaterialInstance::Parent` chain to the root `UMaterial`. A link fails if it is:
+  its `UMaterialInstance::Parent` chain to the root `UMaterial`. 🔁 082-06b (P3-2): the walk is bounded at
+  16 links. A chain that still has a parent after 16 links, a cycle included, is **refused** `host_mid` with
+  sub `<where>:chain_limit_16_unverified_tail`; it is never accepted as clean (`TexCorruptPure::WalkChain`).
+  A link fails if it is:
   - **`mid`**: `IsA<UMaterialInstanceDynamic>()`;
   - **`transient_outer`**: its outermost package is the transient package. `UMaterialInstanceDynamic::Create`
     puts a MID there when no outer is given (`MaterialInstanceDynamic.cpp:73-80`).
@@ -894,7 +925,7 @@ resident **11–12 of 13** mips, i.e. a top resident mip of 1024–2048 px, neve
 | S4 | static mesh component: not (`UseNaniteOverrideMaterials()` and `Resolved->GetNaniteOverride() != nullptr`) (`StaticMeshComponent.cpp:2264-2268`, `:2670-2675`; `MaterialInterface.h:510`) | `nanite_override` |
 | S5 | `GetMaterialResource(FL)` and its game-thread shader map are non-null (§R2.1) | `shader_map_unavailable` |
 | S6 | that shader map is complete | `shader_map_incomplete` |
-| S7 | the root material carries the usage flag this component class needs, read side-effect-free with `UMaterial::NeedsSetMaterialUsage_Concurrent` + `GetUsageByFlag` (`Material.h:1235`, `:1252`; `Material.cpp:1705-1732`). Checked: skeletal → `MATUSAGE_SkeletalMesh`; instanced static → `MATUSAGE_InstancedStaticMeshes`; Nanite static → `MATUSAGE_Nanite`; lightmapped static → `MATUSAGE_StaticLighting`. | `default_material_path` — the slot already renders the default material in game (`Material.cpp:1790-1820`; `StaticMeshRender.cpp:2225-2227`), so its textures are not on screen |
+| S7 | the root material carries the usage flag this component class needs, read side-effect-free with `UMaterial::NeedsSetMaterialUsage_Concurrent` + `GetUsageByFlag` (`Material.h:1235`, `:1252`; `Material.cpp:1705-1732`). ~~Checked: skeletal → `MATUSAGE_SkeletalMesh`; instanced static → `MATUSAGE_InstancedStaticMeshes`; Nanite static → `MATUSAGE_Nanite`; lightmapped static → `MATUSAGE_StaticLighting`.~~ 🔁 082-06b (P2-4): **every** flag the engine's proxy applies to this slot, not the first category. Skeletal: SkeletalMesh; plus Clothing if a cloth section maps to the slot; plus MorphTargets if the asset has morph targets (a superset). Nanite proxy: Nanite; plus InstancedStaticMeshes if instanced; plus StaticLighting if LOD0 is lit. Other static: InstancedStaticMeshes if instanced; SplineMesh if spline; StaticLighting if **any** LOD using the slot has surface lighting (per-LOD, with LOD0's data under shared lighting, which instanced meshes force; none under ForceVolumetric). The min-LOD clamp is ignored, a declared superset. Rule: `TexCorruptPure::RequiredUsages`, with 18 offline rows in the harness. A requirement that cannot be determined refuses with sub `usage_undetermined:<why>`. | `default_material_path` — the slot already renders the default material in game (`Material.cpp:1790-1820`; `StaticMeshRender.cpp:2225-2227`), so its textures are not on screen |
 | S8 | the uniform-expression set has ≥ 1 texture entry | `no_textures` — "the compiled material samples no texture"; S5–S6 have already excluded the silent empty list of `MaterialShared.cpp:926-941` |
 
 **Texture-binding level**, for every entry of the set (§R2). 🔁 082-04: T1 and T2 are swapped (P2-9); T6
@@ -1270,8 +1301,12 @@ v1 §4.4), level change, world teardown, and transaction rollback (§R7.4). Ever
   - the `drift` per-frame redraw time, with 🔁 its clears, per-level draws and per-mip copies;
   - 🔁 082-04: the Apply-frame cost of the per-mip draws and copies against the number of levels M;
   - the cost of a cancel and of a rollback;
-  - repeated allocation and release over ≥ 20 events, with `texcorrupt_rt_bytes_peak` returning to 0
-    after each event.
+  - repeated allocation and release over ≥ 20 events, ~~with `texcorrupt_rt_bytes_peak` returning to 0
+    after each event.~~ 🔁 082-06b (P3-3): balance is judged from **live and pending bytes returning to 0**
+    on each event's frame-qualified terminal line, `TEXCORRUPT-LEDGER … kind=post_revert revert_frame=R
+    frame=R+2 … live=0 pending=0` (and on the rollback line of a refused event). The ledger releases pending
+    bytes at frame R+2. `texcorrupt_rt_bytes_peak` is the **run's maximum** live+pending and stays
+    monotone; it cannot return to 0 and is never reset to satisfy this check.
 - **Acceptance.** A difference no larger than the within-build spread across positions reads "below the
   resolution of this instrument" (`G169`). Anything larger is reported with its number and goes to the
   owner. **No threshold is invented here**; accepting the cost, the cold first fire and `drift` is an
@@ -1297,6 +1332,10 @@ v1 §4.4), level change, world teardown, and transaction rollback (§R7.4). Ever
 
 - **`annotation.json`:** `anomaly_type` = the id; `anomaly_subtype` = the mode. These are new values in
   existing fields, so the field set does not move (`P6`).
+  - 🔁 082-06b (P2-3): the mode is the **captured frame's** `texcorrupt.mode` telemetry: the snapshot's own
+    record on the async path, and the telemetry read at the capture moment on the sync path. It is taken on
+    the event's anchor frame, keyed by (id, start frame, target). The live mode at frame completion is
+    never read, so an event completed after revert keeps its subtype and two events of one id keep their own.
 - **`labels.jsonl`, inside m53 anomaly entries only:**
   - `texcorrupt.mode`, `texcorrupt.expected_strength_class`;
   - `texcorrupt.slots_corrupted`, `texcorrupt.slots_total`, `texcorrupt.slots_untouched[]` of
@@ -1313,6 +1352,12 @@ v1 §4.4), level change, world teardown, and transaction rollback (§R7.4). Ever
       a reading of one leg and is **never subtracted** from another leg's; `G-COLL`'s verdict comes from the
       paired per-texture levels in the `TEXCORRUPT-COLL` lines. `texcorrupt.collateral_count` and
       `texcorrupt.collateral_truncated` are emitted beside it so a truncated set is visible in the row.
+    - 🔁 082-06b (P2-2): plus `texcorrupt.collateral_incomplete`, which sums four counts: paths dropped by the
+      cap, materials without a complete shader map, textures whose residency is unknown at Apply or now,
+      and 1 if nothing was drawn on screen at all. Plus `texcorrupt.collateral_complete`. A reading with
+      `collateral_complete` false is **never a clean reading**, whatever `collateral_drops` says.
+  - 🔁 082-06b (P2-1): `texcorrupt.condition_detail`, the branch of the one condition predicate that
+    answered (see `condition_held` below).
 - **Removed from v1:** `texcorrupt.route`, `texcorrupt.reconstructed`, `texcorrupt.strength_class`,
   `src_resident_top_px`, `rt_size`.
 - **Reserved, never emitted:** `texcorrupt.host_mid_cloned`.
@@ -1328,9 +1373,18 @@ v1 §4.4), level change, world teardown, and transaction rollback (§R7.4). Ever
     `texcorrupt_swept`;
   - 🔁 082-04: `texcorrupt_rt_mip_mismatch` (the tripwire, §R3.4.5; expected 0) and
     `texcorrupt_collateral_drops` (§R12.3).
+  - 🔁 082-06b (P2-2): `texcorrupt_collateral_incomplete_frames`, the labelled frames whose collateral
+    reading came from an incomplete set.
 - **`condition_held`** is read from live state, not special-cased: the slot's raw binding is this event's
   host MID **and** that MID's parameter still resolves to our render target. `NoApply` (§R12.2) therefore
   reads false because nothing was installed, not because a lever says so.
+  - 🔁 082-06b (P2-1): the S1 code at `193bd35` did special-case it (`NoApply != 0` returned false first).
+    Now one predicate (`TexCorruptPure::ConditionHeld`) takes the expected set, i.e. every qualified slot
+    that received a host MID and every bound parameter, and it has **no NoApply input**. An empty expected
+    set reads `no_expected_set`, never held. The reading is also emitted as `texcorrupt.condition_detail`
+    (`installed` / `slot_not_installed` / `binding_readback` / `no_expected_set` / `no_event`) and printed
+    on the APPLIED and NoApply 2 lines. So `NoApply 1` must read `slot_not_installed`, `NoApply 2` must read
+    `no_expected_set`, and an applied event must read `installed`, all through the same code.
 
 ---
 
@@ -1482,6 +1536,8 @@ is on" box (`PRE-DELIVERY-CHECKLIST.md:254`):
   step 7 of the transaction (the slot commit) is skipped.
 - 🔁 082-04 **No-allocation null: `IAI.Bench.TexCorruptNoApply 2`**, for `G-COLL` (N3).
   - The decision tree and the reservation arithmetic run; nothing is allocated, drawn or committed.
+  - 🔁 082-06b (P2-6): the target watches (EndPlay, destroy, world end) **are registered**, exactly as for an
+    applied event, so an EndPlay while the actor is still a valid UObject ends both legs at the same frame.
   - The matched null above allocates the same bytes as the applied leg, so it would hide exactly the effect
     `G-COLL` looks for (interpretation I1, §R15).
 - **Positive (matched): `corrupted_texture`**, targeted at the same actor from the same pose. It has no
@@ -1537,7 +1593,7 @@ is on" box (`PRE-DELIVERY-CHECKLIST.md:254`):
 | **G5** | Q | S2 | F-MW | m52 targeted first (held, then restoring), then m53 on a target sharing the texture; and the reverse order | refused `held_by_stuck_low_mip` by name in both m52 states; in reverse order the auto-pool m52 pick refuses the shared texture. The targeted-m52 bypass is stated, not tested as isolation. | 1 per state |
 | **G6** | Q (refusals), D (Nanite admit) | S1 (Δ1), S2 | F-SYN; F-MW modular kit | Nanite and runtime-material paths | `nanite_override` refused on the F-SYN target; `host_mid` refused on the Bot (`where=override`) and, 🔁 Δ1, on the F-SYN asset-slot MID (`where=asset_slot`); a Nanite target without an override, if it reaches APPLY, is labelled with `observability_measured` false (the m50 admit path). A case with no fixture is UNEXERCISED, never a pass. | 1 each |
 | **G-REASON** | Q | S1–S2 | per §R6.4 | each reason's producer | 🔁 the producer yields **that** reason by name, not an earlier one (the §R6.4 precedence column), in the REFUSED line and in `run_summary`; each UNEXERCISED reason stays listed | 1 each |
-| **G-COLL** | D | S1 (F-MW, `SM_FloorBase` if admitted), S3 (every `G7` leg) | 🔁 N3 | applied leg vs `NoApply 2` (no allocation), same recipe, both with `IAI.Bench.TexCorruptCollateralDetail 1` | Collateral = every `UTexture2D` bound (read as in §R2) to a visible renderable actor other than the target, capped at 256 by path order and flagged if truncated; sampled at Apply, on each labelled frame and 2 frames after revert. ~~per labelled frame, the number of collateral textures whose `NumResidentLODs` fell below its Apply-time value … Reported as the applied-minus-null difference per budget.~~ 🔁 082-05 (B): **paired, texture by texture.** Each sample logs every collateral texture's path and `NumResidentLODs` with the sample's frame offset from Apply (`TEXCORRUPT-COLL`). The applied and null legs are joined on (texture path, frame offset); a pair's **deficit** is `max(0, null_resident − applied_resident)`. Every texture with a positive deficit is reported by name with its levels, and the deficits are summed per budget. **Counts are never subtracted across legs**: one texture falling 13 → 12 in the null and 13 → 11 in the applied leg is a deficit of 1, which subtracted counts would hide. A texture present in one leg's set and not the other's is listed as unpaired. A truncated set is reported **incomplete**, never as clean. A positive deficit is reported as `collateral_residency_drop` for that host and budget: a purity finding for the owner (O2), never tuned away. | every applied event |
+| **G-COLL** | D | S1 (F-MW, `SM_FloorBase` if admitted), S3 (every `G7` leg) | 🔁 N3 | applied leg vs `NoApply 2` (no allocation), same recipe, both with `IAI.Bench.TexCorruptCollateralDetail 1` | Collateral = every `UTexture2D` bound (read as in §R2) to ~~a visible renderable actor other than the target~~ 🔁 082-06b (P2-2): **every primitive component drawn on screen** (`GetLastRenderTimeOnScreen` within max(0.2 s, frame delta), the engine's own tolerance; not `GetLastRenderTime`, which counts shadow-only draws) other than the target's, through `GetUsedMaterials`. **No injection-selection policy applies**: poll radius, coverage floor, translucent-only, foliage and exclusion patterns are all ignored. The set is capped at 256 by path order and flagged if truncated, and every incompleteness is counted (`collateral_incomplete`). It is sampled at Apply, on each labelled frame and ~~2 frames after revert~~ 🔁 (P3-1) at **frame revert+2** by `GFrameCounter`, whatever the tick order, logging its endpoint. ~~per labelled frame, the number of collateral textures whose `NumResidentLODs` fell below its Apply-time value … Reported as the applied-minus-null difference per budget.~~ 🔁 082-05 (B): **paired, texture by texture.** Each sample logs every collateral texture's path and `NumResidentLODs` with the sample's frame offset from Apply (`TEXCORRUPT-COLL`). The applied and null legs are joined on (texture path, frame offset); a pair's **deficit** is `max(0, null_resident − applied_resident)`. Every texture with a positive deficit is reported by name with its levels, and the deficits are summed per budget. **Counts are never subtracted across legs**: one texture falling 13 → 12 in the null and 13 → 11 in the applied leg is a deficit of 1, which subtracted counts would hide. A texture present in one leg's set and not the other's is listed as unpaired. A truncated set is reported **incomplete**, never as clean. A positive deficit is reported as `collateral_residency_drop` for that host and budget: a purity finding for the owner (O2), never tuned away. | every applied event |
 | **G-COOK** | Q | S1 | the S1 cook | 🔁 N2 (§R12.1) | M0 = M1 = M2 on the manifest outside the allowed paths; the archive hash-verified before the cook; the map gate exits 0 with the new level named; the `CB_GateLevel` / `MainWorld` chunk hashes unchanged; the new packages present; other packages reported (D) | once |
 | **G7** | O (D readings) | S3 | F-MW, F-LYRA | 🔁 N3: auto-pool with both ids enabled explicitly, **three legs per fixture, at `TexCorruptMaxRtBytes` 64, 128 and 256 MiB**, same seed | attempted, applied, refused per final reason, plus the slot and binding dispositions, per budget. Per event `texcorrupt.required_bytes`, so each leg's refusals can also be re-read against the other two budgets. That re-reading is arithmetic only: the live set differs between legs, because a refused event leaves its actor eligible for later picks. `G-COLL` at each budget. The owner chooses the default from these (O2). | one census per fixture per id per budget |
 | **G8** | Q | S2 | F-MW | `P-C7 v3` against a pre-m53 control pair | `labels.jsonl` field set unchanged without m53; `run_summary` adds exactly the §R10 keys; the `annotation.json` field set unchanged (`P6`); new `anomaly_subtype` values only for the new ids | 1 pair |
