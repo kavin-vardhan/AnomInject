@@ -53,6 +53,181 @@ static std::string Requirement(const FReqTex* T, int N)
 	return MiB(EventRequirement(T, N).Total());
 }
 
+static std::string StepName(const FAllocStep& S)
+{
+	return (S.Kind == AllocKind::Output ? std::string("O") : std::string("S")) + std::to_string(S.Tex)
+		+ (S.Kind == AllocKind::Output ? std::string() : "." + std::to_string(S.Level));
+}
+
+static std::string UsageString(unsigned Bits)
+{
+	const char* Names[Usage::Count] = { "skeletal_mesh", "clothing", "morph_targets", "ism", "nanite", "spline_mesh", "static_lighting" };
+	std::string Out;
+	for (int i = 0; i < Usage::Count; ++i)
+	{
+		if (Bits & (1u << i))
+		{
+			Out += (Out.empty() ? "" : "+");
+			Out += Names[i];
+		}
+	}
+	return Out.empty() ? "none" : Out;
+}
+
+struct FSeq
+{
+	int Sequences = 0;
+	int Violations = 0;
+	std::string FirstViolation;
+};
+
+static void Violate(FSeq& Q, const std::string& What)
+{
+	if (Q.Violations++ == 0)
+	{
+		Q.FirstViolation = What;
+	}
+}
+
+static void RunRollback(FSeq& Q, const FReqTex* T, int N, int FailK, bool bCreatedThenRejected, const char* Set)
+{
+	++Q.Sequences;
+	FLedgerCore L;
+	FEventAccount A;
+	const long long Cap = 1LL << 40;
+	const long long Req = EventRequirement(T, N).Total();
+	const unsigned long long F = 1000;
+	const std::string Tag = std::string(Set) + " fail@" + std::to_string(FailK) + (bCreatedThenRejected ? " created" : " none");
+	if (!A.Reserve(L, Req, Cap))
+	{
+		Violate(Q, Tag + " reserve");
+		return;
+	}
+	FAllocStep Steps[1024];
+	const int NS = PlanAllocations(T, N, Steps, 1024);
+	long long Created = 0;
+	int Made = 0;
+	for (int k = 0; k < NS; ++k)
+	{
+		if (k == FailK)
+		{
+			if (bCreatedThenRejected)
+			{
+				A.NoteCreated(L, Steps[k].Bytes);
+				A.ReleaseCreated(L, Steps[k].Bytes, F);
+				Created += Steps[k].Bytes;
+			}
+			break;
+		}
+		A.NoteCreated(L, Steps[k].Bytes);
+		Created += Steps[k].Bytes;
+		++Made;
+	}
+	for (int k = 0; k < Made; ++k)
+	{
+		A.ReleaseCreated(L, Steps[k].Bytes, F);
+	}
+	A.Close(L, F);
+	if (L.Live != 0)
+	{
+		Violate(Q, Tag + " live after rollback " + std::to_string(L.Live));
+	}
+	if (L.PendingSum() != Created)
+	{
+		Violate(Q, Tag + " pending " + std::to_string(L.PendingSum()) + " != created " + std::to_string(Created));
+	}
+	L.Tick(F + 1);
+	if (L.PendingSum() != Created)
+	{
+		Violate(Q, Tag + " pending dropped before frame+2");
+	}
+	L.Tick(F + 2);
+	if (L.Live != 0 || L.PendingSum() != 0)
+	{
+		Violate(Q, Tag + " not balanced at frame+2");
+	}
+	if (L.Peak != Req)
+	{
+		Violate(Q, Tag + " peak " + std::to_string(L.Peak) + " != reserved " + std::to_string(Req));
+	}
+}
+
+static std::string RunSuccess(const FReqTex* T, int N, bool bRedraw)
+{
+	FLedgerCore L;
+	FEventAccount A;
+	const long long Req = EventRequirement(T, N).Total();
+	const long long Chains = EventRequirement(T, N).Chains;
+	if (!A.Reserve(L, Req, 1LL << 40))
+	{
+		return "reserve";
+	}
+	FAllocStep Steps[1024];
+	const int NS = PlanAllocations(T, N, Steps, 1024);
+	for (int k = 0; k < NS; ++k)
+	{
+		A.NoteCreated(L, Steps[k].Bytes);
+	}
+	const unsigned long long Apply = 500;
+	long long ScratchReleased = 0;
+	if (!bRedraw)
+	{
+		for (int k = 0; k < NS; ++k)
+		{
+			if (Steps[k].Kind == AllocKind::Scratch)
+			{
+				A.ReleaseCreated(L, Steps[k].Bytes, Apply);
+				ScratchReleased += Steps[k].Bytes;
+			}
+		}
+	}
+	if (L.Live != Req - ScratchReleased || L.PendingSum() != ScratchReleased)
+	{
+		return "after static scratch release";
+	}
+	L.Tick(Apply + 2);
+	if (L.PendingSum() != 0 || L.Live != (bRedraw ? Req : Chains))
+	{
+		return "held set at apply+2";
+	}
+	const unsigned long long Revert = 900;
+	for (int k = 0; k < NS; ++k)
+	{
+		if (bRedraw || Steps[k].Kind == AllocKind::Output)
+		{
+			A.ReleaseCreated(L, Steps[k].Bytes, Revert);
+		}
+	}
+	A.Close(L, Revert);
+	if (L.Live != 0 || L.PendingSum() != (bRedraw ? Req : Chains))
+	{
+		return "at revert";
+	}
+	L.Tick(Revert + 1);
+	if (L.PendingSum() == 0)
+	{
+		return "pending dropped at revert+1";
+	}
+	L.Tick(PostRevertSampleFrame(Revert));
+	if (L.Live != 0 || L.PendingSum() != 0)
+	{
+		return "not balanced at the post-revert frame";
+	}
+	return L.Peak == Req ? "balanced" : "peak " + std::to_string(L.Peak);
+}
+
+struct FNode
+{
+	FNode* Parent = nullptr;
+	bool bRuntime = false;
+};
+
+static std::string Walk(FNode* Start, int& Depth)
+{
+	const EChainWalk W = WalkChain(Start, 16, Depth, [](FNode* N) { return N->bRuntime; }, [](FNode* N) { return N->Parent; });
+	return W == EChainWalk::Clean ? "clean" : (W == EChainWalk::RuntimeLink ? "runtime_link" : "limit_reached");
+}
+
 static const char* ClassName(EClassP C)
 {
 	switch (C)
@@ -223,6 +398,229 @@ int main()
 		Check("T9 streaming_budget: MipBias 0", "false", Bool(StreamingBudgetPossible(true, 1, 0.0f)));
 		Check("T9 streaming_budget: per-texture off (E5 decides)", "false", Bool(StreamingBudgetPossible(true, 0, 1.0f)));
 		Check("T9 streaming_budget: texture does not stream", "false", Bool(StreamingBudgetPossible(false, 1, 1.0f)));
+	}
+
+	std::printf("\n[9] P2-5 allocation plan: the order Apply executes, and its byte total\n");
+	{
+		const FReqTex Set[] = { Tex(1, 4096, 4096, true), Tex(2, 4096, 4096, true), Tex(3, 2048, 2048, false), Tex(1, 4096, 4096, true) };
+		FAllocStep Steps[256];
+		const int NS = PlanAllocations(Set, 4, Steps, 256);
+		Check("steps: A out + 12 scratch, B out, C out + 11 scratch", "26", Int(NS));
+		std::string Head;
+		for (int k = 0; k < 3; ++k) { Head += StepName(Steps[k]) + " "; }
+		Check("A's output precedes its scratch levels", "O0 S0.1 S0.2 ", Head);
+		Check("B shares A's class: output only", "O1", StepName(Steps[13]));
+		Check("C opens its own class after its output", "O2 S2.1", StepName(Steps[14]) + " " + StepName(Steps[15]));
+		Check("last step is C's 1x1 scratch level", "S2.11", StepName(Steps[25]));
+		Check("scratch level 1 of 4096^2 (bytes)", Int(4LL * 2048 * 2048), Int(Steps[1].Bytes));
+		long long Sum = 0;
+		for (int k = 0; k < NS; ++k) { Sum += Steps[k].Bytes; }
+		Check("plan bytes == EventRequirement (duplicate counted once)", Int(EventRequirement(Set, 4).Total()), Int(Sum));
+		const FReqTex Rock[] = { Tex(1, 4096, 4096, true), Tex(2, 4096, 4096, false), Tex(3, 4096, 4096, false), Tex(4, 2048, 2048, false) };
+		const int NR = PlanAllocations(Rock, 4, Steps, 256);
+		long long RockSum = 0;
+		for (int k = 0; k < NR; ++k) { RockSum += Steps[k].Bytes; }
+		Check("MainWorld rock set: plan bytes == requirement", MiB(EventRequirement(Rock, 4).Total()), MiB(RockSum));
+		FReqTex Single = Tex(9, 512, 512, false);
+		Single.M = 1;
+		Check("a single-mip source plans one output and no scratch", "1", Int(PlanAllocations(&Single, 1, Steps, 256)));
+		Check("a plan larger than the buffer is refused", "-1", Int(PlanAllocations(Set, 4, Steps, 5)));
+	}
+
+	std::printf("\n[10] P2-5 / P3-3 ledger core: two-frame pending, frame passed in, monotone peak\n");
+	{
+		FLedgerCore L;
+		Check("reserve 100 of cap 150", "true", Bool(L.Reserve(100, 150)));
+		Check("reserve 60 more is refused", "false", Bool(L.Reserve(60, 150)));
+		L.ReleaseToPending(40, 10);
+		Check("40 released at frame 10: live", "60", Int(L.Live));
+		Check("40 released at frame 10: pending", "40", Int(L.PendingSum()));
+		Check("pending blocks the cap: available", "50", Int(L.Available(150)));
+		L.Tick(11);
+		Check("still pending at frame 11", "40", Int(L.PendingSum()));
+		L.ReleaseToPending(10, 11);
+		L.Tick(12);
+		Check("frame 12 retires frame 10's release only", "10", Int(L.PendingSum()));
+		L.Tick(13);
+		Check("frame 13 retires frame 11's release", "0", Int(L.PendingSum()));
+		L.Unreserve(50);
+		Check("unreserve returns live to 0", "0", Int(L.Live));
+		Check("peak stays the run peak, never reset", "100", Int(L.Peak));
+		FLedgerCore M;
+		M.Reserve(2000, 1LL << 40);
+		for (int f = 0; f < 20; ++f) { M.ReleaseToPending(100, 50 + f); }
+		Check("20 releases on 20 frames (bucket overflow merges later)", "2000", Int(M.PendingSum() + M.Live));
+		M.Tick(50 + 19 + 2);
+		Check("all retired by the last due frame", "0", Int(M.PendingSum()));
+	}
+
+	std::printf("\n[11] P2-5 transaction sequences: tree order, a failure at every step, balance back to zero\n");
+	{
+		const FReqTex SetA[] = { Tex(1, 4096, 4096, true), Tex(2, 4096, 4096, true), Tex(3, 2048, 2048, false) };
+		const FReqTex SetB[] = { Tex(1, 2048, 2048, true), Tex(2, 2048, 2048, false), Tex(3, 1024, 1024, false), Tex(4, 2048, 2048, false) };
+		FReqTex SetC[] = { Tex(1, 256, 256, false) };
+		SetC[0].M = 1;
+		struct FSet { const FReqTex* T; int N; const char* Name; };
+		const FSet Sets[] = { { SetA, 3, "two same-class 4096 + 2048" }, { SetB, 4, "Lyra cube with opacity" }, { SetC, 1, "single-mip" } };
+		FSeq Q;
+		for (const FSet& S : Sets)
+		{
+			FAllocStep Steps[1024];
+			const int NS = PlanAllocations(S.T, S.N, Steps, 1024);
+			for (int k = 0; k <= NS; ++k)
+			{
+				RunRollback(Q, S.T, S.N, k, false, S.Name);
+				if (k < NS)
+				{
+					RunRollback(Q, S.T, S.N, k, true, S.Name);
+				}
+			}
+		}
+		std::printf("     %d rollback sequences (every plan step, fail-before-create and created-then-rejected, plus fail after all)\n", Q.Sequences);
+		Check("sequences run (2N+1 per set; N = 26, 36, 1 plan steps)", "129", Int(Q.Sequences));
+		Check("violations (live 0, pending == created, zero at frame+2)", "0", Int(Q.Violations));
+		if (Q.Violations > 0)
+		{
+			std::printf("     first violation: %s\n", Q.FirstViolation.c_str());
+		}
+		Check("success, static scratch released after the draws", "balanced", RunSuccess(SetA, 3, false));
+		Check("success, identity_redraw holds scratch until revert", "balanced", RunSuccess(SetA, 3, true));
+		Check("success, Lyra cube set", "balanced", RunSuccess(SetB, 4, false));
+		FLedgerCore L;
+		FEventAccount A;
+		L.Reserve(100, 150);
+		Check("over-budget reserve refused", "false", Bool(A.Reserve(L, 60, 150)));
+		Check("a refused reserve leaves the account empty", "0", Int(A.Reserved + A.Created));
+		FEventAccount B;
+		B.Reserve(L, 40, 150);
+		Check("creating past the reservation is flagged", "false", Bool(B.NoteCreated(L, 50)));
+		Check("and force-reserved so live stays true", "150", Int(L.Live));
+	}
+
+	std::printf("\n[12] P2-1 condition decision: one predicate, no NoApply input\n");
+	{
+		int Bad = -1;
+		const bool Two[] = { true, true };
+		const bool Three[] = { true, true, true };
+		Check("applied: slots hold the MID, bindings read back", "installed", LexHeld(ConditionHeld(true, Two, 2, Three, 3, Bad)));
+		const bool Orig[] = { false, false };
+		Check("NoApply 1: slots still hold originals", "slot_not_installed", LexHeld(ConditionHeld(true, Orig, 2, Three, 3, Bad)));
+		Check("NoApply 2: no binding set was created", "no_expected_set", LexHeld(ConditionHeld(true, nullptr, 0, nullptr, 0, Bad)));
+		Check("no event", "no_event", LexHeld(ConditionHeld(false, Two, 2, Three, 3, Bad)));
+		const bool OneBad[] = { true, false, true };
+		Check("a binding that no longer reads back", "binding_readback", LexHeld(ConditionHeld(true, Two, 2, OneBad, 3, Bad)));
+		Check("its index is reported", "1", Int(Bad));
+		const bool Partly[] = { true, false };
+		Check("one expected slot replaced by the game", "slot_not_installed", LexHeld(ConditionHeld(true, Partly, 2, Three, 3, Bad)));
+	}
+
+	std::printf("\n[13] P2-4 required usage flags (engine proxy rules, offline rows)\n");
+	{
+		struct FRow
+		{
+			const char* Name;
+			EMeshKind Kind;
+			bool bInstanced, bSpline, bNanite, bForceVol, bShare;
+			int NumLods;
+			bool Lit[3];
+			bool Build[3];
+			bool Uses[3];
+			bool bCloth, bMorph;
+			const char* Expect;
+		};
+		const FRow Rows[] = {
+			{ "static unlit", EMeshKind::Static, false, false, false, false, false, 1, { false }, { false }, { true }, false, false, "none" },
+			{ "static, LOD0 lightmapped", EMeshKind::Static, false, false, false, false, false, 1, { true }, { true }, { true }, false, false, "static_lighting" },
+			{ "instanced + lightmapped (Codex P2-4 case)", EMeshKind::Static, true, false, false, false, false, 1, { true }, { true }, { true }, false, false, "ism+static_lighting" },
+			{ "instanced, unlit", EMeshKind::Static, true, false, false, false, false, 1, { false }, { false }, { true }, false, false, "ism" },
+			{ "Nanite + LOD0 lightmapped", EMeshKind::Static, false, false, true, false, false, 1, { true }, { true }, { true }, false, false, "nanite+static_lighting" },
+			{ "Nanite instanced", EMeshKind::Static, true, false, true, false, false, 1, { false }, { false }, { true }, false, false, "ism+nanite" },
+			{ "Nanite, ForceVolumetric", EMeshKind::Static, false, false, true, true, false, 1, { true }, { true }, { true }, false, false, "nanite" },
+			{ "spline, lightmapped", EMeshKind::Static, false, true, false, false, false, 1, { true }, { true }, { true }, false, false, "spline_mesh+static_lighting" },
+			{ "spline never takes the Nanite proxy", EMeshKind::Static, false, true, true, false, false, 1, { false }, { false }, { true }, false, false, "spline_mesh" },
+			{ "LOD1-only lighting, slot only in LOD1", EMeshKind::Static, false, false, false, false, false, 2, { false, true }, { false, true }, { false, true }, false, false, "static_lighting" },
+			{ "LOD1-only lighting, slot only in LOD0", EMeshKind::Static, false, false, false, false, false, 2, { false, true }, { false, true }, { true, false }, false, false, "none" },
+			{ "shared lighting: LOD0 lit, slot only in LOD1", EMeshKind::Static, false, false, false, false, true, 2, { true, false }, { true, false }, { false, true }, false, false, "static_lighting" },
+			{ "instanced forces sharing: LOD0 data unlit wins", EMeshKind::Static, true, false, false, false, false, 2, { false, true }, { true, true }, { false, true }, false, false, "ism" },
+			{ "shared, LOD0 has no build data: LOD1 own data", EMeshKind::Static, false, false, false, false, true, 2, { false, true }, { false, true }, { false, true }, false, false, "static_lighting" },
+			{ "static ForceVolumetric", EMeshKind::Static, false, false, false, true, false, 1, { true }, { true }, { true }, false, false, "none" },
+			{ "skeletal", EMeshKind::Skinned, false, false, false, false, false, 0, { false }, { false }, { false }, false, false, "skeletal_mesh" },
+			{ "skeletal, cloth section on this slot", EMeshKind::Skinned, false, false, false, false, false, 0, { false }, { false }, { false }, true, false, "skeletal_mesh+clothing" },
+			{ "skeletal with morph targets", EMeshKind::Skinned, false, false, false, false, false, 0, { false }, { false }, { false }, false, true, "skeletal_mesh+morph_targets" },
+		};
+		for (const FRow& R : Rows)
+		{
+			FUsageFacts F;
+			F.Kind = R.Kind;
+			F.bRenderData = true;
+			F.bInstanced = R.bInstanced;
+			F.bSpline = R.bSpline;
+			F.bNanite = R.bNanite;
+			F.bForceVolumetric = R.bForceVol;
+			F.bLodsShareLighting = R.bShare;
+			F.NumLods = R.NumLods;
+			F.LodDataLit = R.Lit;
+			F.LodDataHasBuildData = R.Build;
+			F.LodUsesSlot = R.Uses;
+			F.bSlotHasClothSection = R.bCloth;
+			F.bHasMorphTargets = R.bMorph;
+			EUsageGap Gap = EUsageGap::None;
+			const unsigned Bits = RequiredUsages(F, Gap);
+			Check(R.Name, R.Expect, Gap == EUsageGap::None ? UsageString(Bits) : std::string("gap:") + LexUsageGap(Gap));
+		}
+		FUsageFacts U;
+		EUsageGap Gap = EUsageGap::None;
+		RequiredUsages(U, Gap);
+		Check("unknown component kind is undetermined -> refuse", "unknown_component", LexUsageGap(Gap));
+		U.Kind = EMeshKind::Static;
+		RequiredUsages(U, Gap);
+		Check("static without render data is undetermined -> refuse", "no_render_data", LexUsageGap(Gap));
+	}
+
+	std::printf("\n[14] P3-2 chain walk; P2-2 collateral selection; P3-1 post-revert frame\n");
+	{
+		FNode Chain[20];
+		for (int i = 0; i < 19; ++i) { Chain[i].Parent = &Chain[i + 1]; }
+		int Depth = 0;
+		Chain[3].Parent = nullptr;
+		Check("4-link chain, nothing runtime", "clean", Walk(&Chain[0], Depth));
+		Chain[2].bRuntime = true;
+		Check("runtime link at depth 2", "runtime_link", Walk(&Chain[0], Depth));
+		Check("its depth", "2", Int(Depth));
+		Chain[2].bRuntime = false;
+		Chain[3].Parent = &Chain[4];
+		Chain[15].Parent = nullptr;
+		Check("exactly 16 links then terminal", "clean", Walk(&Chain[0], Depth));
+		Chain[15].Parent = &Chain[16];
+		Chain[16].Parent = nullptr;
+		Check("17 links: the tail past the limit is unverified", "limit_reached", Walk(&Chain[0], Depth));
+		FNode A, B;
+		A.Parent = &B;
+		B.Parent = &A;
+		Check("a cycle ends at the limit, never clean", "limit_reached", Walk(&A, Depth));
+
+		struct FPrim { const char* Name; bool bRegistered; bool bTarget; double Since; bool bFoliage; bool bTranslucentOnly; double CoveragePct; double DistanceCm; };
+		const FPrim Scene[] = {
+			{ "target", true, true, 0.0, false, false, 20.0, 400.0 },
+			{ "prop_2pct", true, false, 0.0, false, false, 2.0, 600.0 },
+			{ "backdrop_far", true, false, 0.03, false, false, 40.0, 50000.0 },
+			{ "foliage", true, false, 0.0, true, false, 8.0, 900.0 },
+			{ "glass", true, false, 0.0, false, true, 5.0, 700.0 },
+			{ "shadow_only", true, false, 12.0, false, false, 0.0, 800.0 },
+			{ "unregistered", false, false, 0.0, false, false, 10.0, 500.0 },
+		};
+		std::string In;
+		for (const FPrim& P : Scene)
+		{
+			if (IsCollateralPrimitive(P.bRegistered, P.bTarget, P.Since, 1.0 / 30.0))
+			{
+				In += std::string(In.empty() ? "" : ",") + P.Name;
+			}
+		}
+		Check("synthetic scene: every drawn non-target primitive, whatever the injection filters say", "prop_2pct,backdrop_far,foliage,glass", In);
+		Check("window at 30 fps is the engine's 0.2 s floor", "0.2000", [] { char B[16]; std::snprintf(B, 16, "%.4f", CollateralWindowSeconds(1.0 / 30.0)); return std::string(B); }());
+		Check("window follows a long frame", "0.5001", [] { char B[16]; std::snprintf(B, 16, "%.4f", CollateralWindowSeconds(0.5)); return std::string(B); }());
+		Check("post-revert sample frame = revert frame + 2", "102", Int((long long)PostRevertSampleFrame(100)));
 	}
 
 	std::printf("\n%d check(s), %d failure(s)\n", GChecks, GFailures);
