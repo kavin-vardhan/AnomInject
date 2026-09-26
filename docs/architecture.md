@@ -1421,7 +1421,15 @@ across all seven anomalies — the M1 `IAnomaly` lock held through M3, including
   sets is a capture/replay-pipeline concern (G30).
 
 ## Game-agnostic invariant
-The module depends only on `Core`/`CoreUObject`/`Engine`/`InputCore`/**`Foliage`** and never references host (StackOBot) types.
+**Engine modules only; no host-game types.** The module depends only on `Core`/`CoreUObject`/`Engine`/`InputCore`
+(public) and **`Foliage`/`RenderCore`/`RHI`** (private), and never references host (StackOBot) types.
+⚖ **`RenderCore` and `RHI` are the `m53` addition (082-04 ruling N1(a), landed in S1, 082-05)** — **PRIVATE**
+dependencies in every configuration, because the texture-corruption anomalies run in every configuration. They exist for
+one mechanism: the per-mip copy that reproduces a source texture's own mip chain into a render target instead of
+regenerating it (`ENQUEUE_RENDER_COMMAND`, `FRDGBuilder`, `CreateRenderTarget`, `AddCopyTexturePass`,
+`FRHICopyTextureInfo`, and the render-thread mip tripwire). Every symbol is `RENDERCORE_API`/`RHI_API` or header-only;
+nothing reaches a renderer-private type. They are engine Runtime modules present in every UE build, so the
+invariant — **no host-game type, ever** — is unchanged. `AnomalyCapture` already declared both, outside Shipping.
 ⚖ **WIDENED BY OWNER RULING, 2026-08-21 (`m31`): the invariant is not just "never reference host TYPES" —
 it is "NEVER LET CORRECTNESS DEPEND ON ANYTHING A HOST CAN REDEFINE."** The m31 defect was this invariant
 violated through an ENGINE GLOBAL rather than a host type: the SVE capture handshake compared two

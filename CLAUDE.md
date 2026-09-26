@@ -6700,8 +6700,9 @@ and is the single source of truth for the project.
   (idempotent; validated byte-identical against the original strip). Put rationale and design notes in commit
   messages, `docs/`, and the session journals — **never in code.** `LICENSE.txt` and the `.uplugin` JSON are
   intentionally exempt (not source).
-- **Plugin stays game-agnostic.** The `AnomalyInjector` module may depend only on
-  `Core`/`CoreUObject`/`Engine`/`InputCore`/**`Foliage`** (later `Renderer`/`RenderCore`/`RHI`/`Slate`)
+- **Plugin stays game-agnostic: engine modules only; no host-game types.** The `AnomalyInjector`
+  module may depend only on `Core`/`CoreUObject`/`Engine`/`InputCore` (public) and
+  **`Foliage`/`RenderCore`/`RHI`** (private) (later `Renderer`/`Slate`)
   and must **never `#include` or reference host game-module types** (e.g. anything from the
   `StackOBot` module). Host-specific buildability lives in the project, never in the plugin.
   ⚖ **`Foliage` ADDED 2026-08-20 BY OWNER RULING, at `m27`, and recorded here as a ruling rather
@@ -6715,6 +6716,12 @@ and is the single source of truth for the project.
   passed check. ⛔ **Do NOT add a string match "as belt and braces"** — two mechanisms means one can
   rot unnoticed while the other covers for it. It is `PrivateDependencyModuleNames`, so it does not
   propagate to `AnomalyCapture` or `AnomalyControlServer`.
+  ⚖ **`RenderCore` and `RHI` ADDED 2026-09-27 BY CHAT RULING 082-04 (N1(a)), landed in `m53` S1 (082-05),
+  and recorded here as a ruling, the way `Foliage` is.** Both are **PRIVATE** and present in every
+  configuration, because the m53 texture-corruption anomalies run in every configuration. They exist for
+  the per-mip copy that carries a source texture's own mip chain into a render target instead of
+  regenerating it; everything used is `RENDERCORE_API`/`RHI_API` or header-only. They are engine Runtime
+  modules, so the invariant is unchanged: **engine modules only, never a host-game type.**
 - **Matching is label-free.** Targeting matches by actor Name or Class only.
   `GetActorLabel()` is editor-only and absent in cooked builds — `ListActors` may print the
   label (guarded by `WITH_EDITOR`) but nothing matches on it.
