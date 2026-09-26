@@ -8,6 +8,7 @@
 #include "AnomalyCaptureSubsystem.generated.h"
 
 struct FAnomalyCaptureAsyncState;
+struct FAnomalyChangeReceipt;
 class FAnomalyPreviewTee;
 class FAnomalyRunLog;
 
@@ -190,7 +191,9 @@ private:
 	void RestoreBenchTeleports();
 	void EnqueueCensusMaskDump(uint64 ArmTick, const TArray<uint8>& Gray, int32 W, int32 H,
 		const TArray<FString>& TagRows);
-	void EnqueueTargetMaskPng(int32 SessionIndex, const TArray<uint8>& Gray, int32 W, int32 H);
+	void EnqueueTargetMaskPng(int32 SessionIndex, const TArray<uint8>& Gray, int32 W, int32 H,
+		TSharedPtr<const TArray<uint8>, ESPMode::ThreadSafe> FrozenMask = nullptr,
+		TSharedPtr<const FAnomalyChangeReceipt, ESPMode::ThreadSafe> ChangeReceipt = nullptr);
 	void FoldExposureExclusion(const TArray<uint8>& Gray, int32 W, int32 H,
 		const TMap<uint8, FString>* TagEvent);
 	const TCHAR* DescribeCensusSource() const;

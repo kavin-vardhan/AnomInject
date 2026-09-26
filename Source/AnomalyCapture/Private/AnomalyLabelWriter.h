@@ -9,6 +9,7 @@
 
 class UWorld;
 struct FAnomalyCensusCounters;
+class FJsonObject;
 
 namespace AnomalyLabel
 {
@@ -95,7 +96,8 @@ namespace AnomalyLabel
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
 		int32 OutWidth, int32 OutHeight, const FString& ImageRelPath, const FString& Record,
-		FCriticalSection& JsonlLock, bool bWriteLabels, bool& bOutResampled);
+		FCriticalSection& JsonlLock, bool bWriteLabels, bool& bOutResampled,
+		TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>* CanonicalPixels = nullptr);
 
 	struct FRunManifest
 	{
@@ -174,7 +176,7 @@ namespace AnomalyLabel
 		int32 UnmeasurableTargetsAdmitted = 0,
 		int32 TargetDrawnPixelsMeasured = 0, int32 FramesDrawnUnexpected = 0,
 		int32 FramesExposureDipSuppressed = 0,
-		const struct FStuckMipTelemetry* StuckMip = nullptr);
+		const struct FStuckMipTelemetry* StuckMip = nullptr, const TSharedPtr<FJsonObject>& ChangeSummary = nullptr);
 
 	struct FStuckMipTelemetry
 	{

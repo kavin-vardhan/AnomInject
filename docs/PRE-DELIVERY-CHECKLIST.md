@@ -48,6 +48,23 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 
 - [ ] **`IAI.ListAnomalies` returns the count recorded in `CLAUDE.md`'s Current-status block, and every
       id listed there is present.**
+      On the m55 feature branch this is **10 shipping + 2 bench-only** in Development; Shipping
+      registers only the shipping entries. `null_effect` and `solid_swap` must refuse outside the
+      explicit named fixture gate and must not enter any auto/default/selector pool. `AnomalyBench`
+      allows Game/Editor for the ruled fixture commands; Client/Server and Shipping are excluded.
+      Input lock/placement remain explicit, map/flag gated and independently checked. Measurement
+      legs still require foreground throughout; log its PID and audit sample counts.
+
+- [ ] **🆕 (081-20 ruling F9, the "M3 packaging checklist" line) — the `AnomalyBench` module is
+      EXCLUDED from client packages.** Its descriptor entry allows non-Shipping Game/Editor targets, so
+      a client's Development package would otherwise carry it dormant — with bench fixture map names,
+      target names and camera coordinates in its strings. Deliver the plugin with the `AnomalyBench`
+      module removed (its `Source/AnomalyBench/` folder and its `.uplugin` module entry), then confirm
+      from the packaged build that it is absent: no `AnomalyBench` module line in the log and no
+      `IAI-BENCH READY` string in the executable (UTF-16 scan, A44; do NOT use `IAI.Bench.PlaceView` as
+      the discriminator — the control server names it too, so it survives the exclusion). Also confirm the
+      m55 bench gates cannot bite: a run started with `IAI.Bench.ChangeGate` non-zero and no
+      `-IAIBenchFixture` must log `Capture(m55): BENCH-GATE-REFUSED` and write every frame (build 3).
       *Phrased CATEGORICALLY, against a single source, and never as a number in this file. A literal
       count here goes stale the moment an anomaly ships and then reads as a passing check —
       `setup-runbook.md` asserted "seven" from m3 until m29 while the catalog had been 8 since m8.

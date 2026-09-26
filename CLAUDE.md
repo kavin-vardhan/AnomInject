@@ -11,6 +11,499 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ✅ **081-43, 2026-09-26 — BENCH-FREE. CODEX 081-42 FINDINGS FIXED AS RULED (F1–F6, N1, N2, THE ORACLE SCOPE NOTE), PROVEN BOTH WAYS,
+> AND THE WHOLE BANK REPLAYED WITH NO REAL VERDICT OR EXIT CODE CHANGED. PENDING CHAT'S REPLAY REVIEW → COMMENT STRIP → BUILD CHECKS →
+> NO-FF MERGE.** No `Source/` change; build 3 `85c99b3` (Game `002805CF`) unchanged; NOT MERGED, NOT TAGGED.
+> - **Cold start:** journal `docs/sessions/2026-09-26-081-43-code-m55-codex-review-fixes.md`; evidence `_reviews/081-43-evidence/`
+>   (`replay-oracle-bank.json`, `replay-legacy.json`, `replay-gates.json`, `negatives.json`, `amproofs.json`, `doc-grep.json`).
+> - **F1** a contradicted `empty_region` refusal is oracle exit 1 (`empty_region_disagrees`), and every gate that accepts `empty_region`
+>   rejects on that count (G270 → FAIL). Missing/all-zero mask PNGs stay unverifiable (all 83 banked refusals are).
+> - **F2** nine per-leg label invariants (INV-1…INV-9) run on the raw reading before any excusal; a violation is FAIL. A candidate-only
+>   singleton outside the frozen run-unique and timing-sampled sets that no invariant resolves is NEEDS-DECISION (revises 081-35's G297).
+> - **F3 + scope** oracle input classification: uninterpretable input exit 3 with line diagnostics, precedence 1 > 3 > 0, never a traceback;
+>   contradictory measured rows are mismatches. Selftest 35 cases, unit tests 19.
+> - **Docs** F4 control can include spill; F5 refusal rows keep control/bookkeeping; F6 cost as a dated result (−0.0718 / +0.1100 ms upper
+>   bound of the mean game-thread CPU-cycle-equivalent Δ, 25.07 arms/s, 120/120, 0 drops); N1 delay split; N2 `teardown_flush` present at 0
+>   (and `pending_colour/mask_cancelled` too). Client-identifier grep 0.
+> - **Replays:** oracle old vs new over all 476 banked m55 session folders **0 → 0**; 9/9 legacy comparisons and 70/70 requalification
+>   evaluations (incl. every G270) verdict-identical; negatives 38/38; AMENDMENT 1–6 proofs identical under both libs except three
+>   AMENDMENT 6 G297 cases that asserted the single-singleton PASS F2.2 revokes (tripwire output identical). Harness lib now `1c4ae649` (old `f5876b05` kept) and the new
+>   oracle is frozen at `_reviews/081-43-frozen` — **the prep and cost boundaries pin the old lib: any further bench window needs a
+>   re-issue first.**
+>
+> ---
+
+> ✅ **081-41, 2026-09-26 — DOCS ONLY. m55 STAGE 3 COMPLETE; PENDING CODEX REVIEW → COMMENT STRIPPER → MERGE (by Code, no-ff, no tag
+> unless the owner asks).** Build 3 `85c99b3` (Game `002805CF`) unchanged; NOT MERGED, NOT TAGGED.
+> - **Cold start:** `_reviews/081-41-evidence/stage3-report.md` (oracle, cost with paced headline + labelled stress, requalification and
+>   AMENDMENTS 1–6, priors, c0, UNEXERCISED verbatim, m51/M3 findings) and `merge-prep-inventory.md`; journal
+>   `docs/sessions/2026-09-26-081-41-code-m55-stage3-docs.md`.
+> - **Field reference** (`docs/change-evidence-fields.md`) rewritten from the writer source: every pair / receipt / event / phase field, the
+>   14 refusal reasons, every `run_summary` `change_*` key, memory envelope, cost, oracle. **Source cross-check: 178 emitted keys,
+>   0 gaps either way**, proven able to fire both ways. Older text kept below as internal notes.
+> - **Client readme section 9** (self-contained — the bundle ships the readme, not the field reference): measurements only, no verdict;
+>   the late/gradual-change paragraph (read from the banked delay=3 legs); memory envelope (256 MiB cap on m55's payload only; the
+>   formula as a **planning estimate, not a bound**); paced cost; `positive_frames`; oracle `host-tools\verify_capture.py --change-oracle`;
+>   the two test entries; known limits. **Internal-identifier grep over 179 added lines: 0.**
+> - **Stripper scope (dry run, nothing written):** 14 files, 65 comment lines, all Codex-authored; Code-authored 0.
+> - **Code-authored changes since build 2:** `9c75abe` (Source 146/5), `ea9946a` (tools 969/0), `85c99b3` (Source 138/43), `c27024d`
+>   (tools 30/14).
+> - **Deviations (G305):** no `cam_delta` field exists (three quantised fields); the closure-bound formula was withdrawn as a bound in
+>   081-16 and ships as a labelled estimate. Reported, not changed: readme Step 6's `tools\verify_capture.py` path vs the bundle's `host-tools\`.
+>
+> ---
+
+> ✅ **081-40, 2026-09-26 — BENCH. m55 STAGE 3 COST, BLOCK P (PACED 30 fps, THE HEADLINE): 720p PASS · 1080p PASS → OVERALL PASS.
+> The Stage 3 cost report is complete.**
+> - **The run.** Tag `081-40`, one window, ~20 min, exit 0, postflight PASS.
+>   - `S3_P_720_DISC` launched first, and no pacing-off leg was re-launched. The 12 rows 081-38 wrote are identical to the preserved copy.
+>   - **16/16 counted legs VALID on attempt 1**, then the diagnostic pair (both VALID).
+>   - Mode check clean on every leg; 0 drops everywhere; a54 exit 0 on every B leg.
+> - **Gate P, read as declared:**
+>
+>   | clause | 720p | 1080p |
+>   |---|---|---|
+>   | game-thread Δ, upper | −0.115 ms, **−0.072** | −0.037 ms, **+0.110** |
+>   | writer Δ, upper | +0.035 PNG/s, +0.078 | −0.014 PNG/s, +0.029 |
+>   | pacing held (arm Δ, upper) | −0.0003, +0.0013 | −0.0023, +0.0033 |
+>   | **B yield** | **120/120 on all 8 B legs** | |
+> - **Readings:**
+>   - writer p50 163 ms (720p) and 318–335 ms (1080p), no growth;
+>   - m55 high-water 19–20 MB and 56–68 MB of 256 MiB;
+>   - worker 2.5 and 7.3 ms per captured frame, off the game thread;
+>   - game GPU counter 0.0 % again (instrument limitation).
+> - **Pacing-off 081-38 results stay labelled STRESS:** 720p PASS (yield 0.17–0.20) · 1080p UNRESOLVED (writer saturation → payload cap →
+>   `budget_exceeded`).
+> - **Diagnostic pair (run log ON, pacing OFF):**
+>   - no stall (MAIN4's 1.56 s start stall did not reproduce, n = 2);
+>   - the cycles prediction **MISSED**: run log ON costs ≈ **+0.99 ms** game-thread CPU per engine frame (**G304**, mechanism not
+>     established).
+> - **One A1.8 prediction missed:** the arm-rate band (declared 24.5–25.0, read 25.06–25.07). The band came from whole-session priors;
+>   it has no verdict effect.
+> - The journal commit moves the feature head past the cost boundary (`805f317`): **any further bench window needs a re-issue.**
+> - **Next: 081-41 (bench-free, client docs).** NOT MERGED, NOT TAGGED, no build.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-40-code-m55-stage3-cost-paced.md`; report `_reviews/081-40-evidence/stage3-cost-report.md`.**
+>
+> ---
+> 🧮 **081-39, 2026-09-26 — BENCH-FREE. COST AMENDMENT 1 IS DECLARED: A PACED BLOCK P (30 fps) IS THE HEADLINE COST GATE. THE HARNESS IS
+> AMENDED AND PROVEN BOTH WAYS; NOTHING RAN ON THE BENCH.** Ruling `_reviews/081-39-chat-ruling-cost-paced-block.md`.
+> - **Stress, not headline, not re-run:**
+>   - 720p pacing OFF **PASS**, labelled "pacing-off stress, measured-pair yield 0.17–0.20";
+>   - 1080p pacing OFF **UNRESOLVED**: writer saturation → 256 MiB payload cap → honest `budget_exceeded` refusals → B vacuity.
+>
+>   All 18 pacing-off legs are retired (never scheduled, refused by name); the ruled LEG-FAILURE no longer halts.
+> - **Block P** (`docs/predictions/2026-09-26-m55-stage3-cost.md` AMENDMENT 1):
+>   - per resolution, 720p then 1080p: discard, then `A1 B1 B2 A2`, `A3 B3 B4 A4`, **600 frames**;
+>   - the runner's own paced base line (Pace 1, Fps 30), run log OFF, gate 0;
+>   - then the diagnostic pair (pacing OFF, run log ON), outside every gate;
+>   - ≈ 18–19 min expected; campaign cap 42 min, so the window stays ≤ 45.
+> - **Gate P** (same statistic, no new tolerance):
+>   - game-thread upper ≤ +1.000 ms;
+>   - no writer drop beyond uncertainty (5 % guard);
+>   - 0 drops;
+>   - **pacing held** (B's arm rate not below A's beyond uncertainty);
+>   - B vacuity: measured-pair yield ≥ 0.9 → otherwise LEG-FAILURE.
+> - **Proofs:**
+>   - pacer replica 6/7: the paced cycle metric tracks work changes, +1.4 → +1.28 vs +1.29 unpaced. The derived busy-wait absorption was
+>     **refuted**: `Sleep` overshoots by 1.6–2.0 ms, so the loop is a constant 0.2 ms (G303);
+>   - banked paced legs 7/7 (c0/c2/c1 yield, latency and high-water reproduced; one checker defect caught and fixed first);
+>   - dry run 112/112, including resume on a copy of the real 081-38 ledger: `S3_P_720_DISC` first, no done leg re-launched, 081-38 rows
+>     byte-identical.
+> - **G302:** the pacing-OFF `view_mismatch` / `unsupported_delivery` yield collapse is m55 correctly **refusing** mispaired masks; the
+>   mispairing is m51's defect (G295 shape), **FUTURE m51 pairing**.
+> - **Declared risks:**
+>   - the literal pacing and writer clauses against a nearly constant paced arm rate (c0's ON leg ran 0.55 % slow with the run log ON);
+>   - `S3_DIAG_B` near its 20-pair floor.
+> - **Next — 081-40 (bench):** `C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\081-37-cost-window.py 081-40`. The cost boundary is
+>   re-issued after this commit (see the 081-39 report). NOT MERGED, NOT TAGGED, no build.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-39-code-m55-cost-amendment-1-paced.md`.**
+>
+> ---
+> ⏸ **081-38, 2026-09-26 — BENCH. THE COST WINDOW RAN ONCE: 720p PASS AS DECLARED; 1080p HALTED ON B VACUITY (LEG-FAILURE, exit 1).
+> OVERALL UNRESOLVED. NEEDS-DECISION.** Report: `_reviews/081-38-evidence/stage3-cost-report.md`.
+> - **720p (8/8 legs VALID on attempt 1):** game-thread Δ **−0.083 ms**, upper bound **−0.002 ms** (≤ +1.0 → PASS); writer Δ +1.23 PNG/s,
+>   upper +2.51, half-width 1.28 ≤ 3.40 (5 %) → no drop → **PASS**. No stall, no FPS-prior hold, foreign load 0.8–1.0 cores.
+> - ⚠ **Beside it:** pacing OFF measured only **20–24 of 120** required pairs per B leg (declared: full yield). `view_mismatch` (mask served
+>   from the view family one earlier than the colour frame; camera still) and `unsupported_delivery` (stage mask) — the paced priors show
+>   neither (G301, extends G295). The PASS is at that realised workload.
+> - **1080p:** writer saturated at ≈ 32.5 PNG/s vs ≈ 57 fps armed; m55 reached its **256 MiB cap (267.6 MB)**; 30 of 60 required windows
+>   `budget_exceeded`; **8 measured < 20 → LEG-FAILURE at `S3_1080_B1_T1`**. The cap and refusal behaved as designed (0 drops, 0 late,
+>   0 closure timeouts). 1080p blocks and the diagnostic pair NOT run.
+> - **Next:** a chat ruling on the 1080p recipe (paced? shorter? accept UNRESOLVED?) and on whether the 720p PASS stands; any re-run needs a
+>   predictions amendment and a boundary re-issue (this commit moves the feature head). NOT MERGED, NOT TAGGED, no build.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-38-code-m55-stage3-cost-run.md`.**
+>
+> ---
+> 🧮 **081-37, 2026-09-26 — BENCH-FREE. STAGE 3's COST CAMPAIGN IS DESIGNED, PREDICTED, BUILT, PROVEN AND LOCKED; NOTHING RAN.**
+> Predictions `docs/predictions/2026-09-26-m55-stage3-cost.md` (declared before any leg); harness `_reviews/081-37-*`.
+> - **FPS 21.5 prior: PARTIAL.** It is a whole-session ratio carrying **one 1.56 s start stall** (session_index 0→4); frames 5–89 match
+>   the sibling legs. Not m55 (evidence OFF), not shaders. During the stall every run-log line took 6–215 ms: the m38 run log flushes to disk
+>   per line on the logging thread (G300). Why the disk or process was slow is not established → gated legs run with the run log OFF, plus a
+>   declared diagnostic pair (run log ON) outside the gate.
+> - **Campaign:** `solid_swap` on `CB_GateLevel` (the recipe accepted at both resolutions); pacing OFF; one discard + ABBA×2 per resolution;
+>   600 frames at 720p, 300 at 1080p (writer saturates, run-end flush waits ≤ 5 s); ~12–15 min expected, 60-min cap.
+> - **Metric and gate:** game-thread ms = `QueryThreadCycleTime` of UE's `GameThread` at the TSC rate (G299). Per resolution, PASS iff the
+>   one-sided 95 % upper bound (pooled A/A–B/B SD, t 1.943) ≤ +1.0 ms AND no writer drop beyond uncertainty (with a 5 % resolution guard).
+>   A leg with person evidence, foreign load or a foreign editor is re-run, never averaged in.
+> - **Proofs:** sampler known-answer 4/4, real-bank readings 2/2 (reproduce 081-24), dry-run walk 64/64. A harness bug was caught by the
+>   walk (the discard leg would have run evidence ON).
+> - **For chat before 081-38 (optional):** at 1080p a 1–3 % writer drop may read UNRESOLVED under the literal rule.
+> - **Next — 081-38 (bench):** `C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\081-37-cost-window.py 081-38`.
+>   NOT MERGED, NOT TAGGED, no build.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-37-code-m55-stage3-cost-design.md`.**
+>
+> ---
+> 🏁 **081-36, 2026-09-26 — BENCH. BUILD 3 (`85c99b3`, Game 002805CF) PASSES THE WHOLE c0–c3 REQUALIFICATION.** c1 resumed at
+> `R23_MAINON_N1` (only the 8 MAIN legs launched), then c2, then c3; every window exit 0 with postflight PASS.
+> - **c1:** MAIN-N and MAIN-S **PASS** (0 extras, 0 gated-unequal; AMENDMENT 5 A/B/C and AMENDMENT 6 M47 excused nothing).
+> - **c2:** 42 of 42 PASS, all on attempt 1. **c3:** NOHOLD_N PASS on attempt 2 (A1 INVALID-FIXTURE, camera precondition),
+>   NOHOLD_S PASS, **Lyra G270 on the PASS branch** (7 measured events, 4 honest `empty_region`), NULL720 / SOLID720 PASS.
+> - **G297 reading:** two self-excused `coverage_pct` singletons in MAIN-S, one pre-m55 and one build 3; **tripwire does not fire**.
+> - **Person-present gate:** 59 checks, 0 s waited; ENV-INTERRUPTED 0; `person_evidence=false` on every attempt.
+> - **Ledger: 92 legs** — 6 c0 readings, 19 c1 stack PASS, 4 legacy groups PASS (CB-N and CB-S re-evaluated), 42 c2, 5 c3. Nothing
+>   dropped or below a floor.
+> - NOT MERGED, NOT TAGGED, no build. This docs commit moves the feature head, so any further bench window needs a boundary re-issue.
+>   **Next: chat's m55 release decision for build 3.**
+>
+> **Cold start: `docs/sessions/2026-09-26-081-36-code-m55-requal-c1-c3-green.md`.**
+>
+> ---
+> 🧾 **081-35, 2026-09-26 — BENCH-FREE. AMENDMENT 6 IS DECLARED, IMPLEMENTED AND PROVEN; CB-S IS COMMITTED PASS-REEVALUATED; THE
+> BOUNDARY IS RE-ISSUED. c1 RESUMES AT `R23_MAINON_N1` IN 081-36.** Ruling `_reviews/081-35-chat-ruling-m47-excusal-and-g297.md`.
+> - **Bank pre-check first: the G297 tripwire does not fire.** The only non-historical build-3 self-excused singletons in the whole
+>   legacy bank were CB_S2's two m47 summary values, in one group.
+> - **Ruling 1 — M47-EXCUSED.** Frozen list, from the writer source (identical pre-m55 / build 3):
+>   - label rows `render_state`, `anomaly_materials_incomplete`, `shader_jobs_pending`;
+>   - run_summary `shader_prewarm_incomplete`, `frames_shaders_pending`.
+>
+>   The leg is excused only if all of these hold, and it is compared in its healthy view:
+>   - its own single `PREWARM … incomplete=N ≥ 1` line;
+>   - writer-exact consistency with its SHADERS lines;
+>   - a closed key set checked **without its own control pair** (G297);
+>   - the cap: 1 per group, and a second build-3 leg anywhere → NEEDS-DECISION.
+> - **Ruling 2 — G297 is now visible.** `self_excused_singletons` in every comparison and group row, plus a tripwire (a non-historical
+>   field, build 3 only, in ≥ 2 groups → NEEDS-DECISION). It is a reading, not a gate.
+> - **Lib `9901be63` → `f5876b05`** (window runner unchanged). Readings identical on all 30 banked legs.
+> - **Proofs:**
+>   - 1–3: 33 of 33;
+>   - 4: 17 comparisons, and the only flip is CB-S FAIL → PASS;
+>   - resume: 5 of 5;
+>   - dry run: 209 of 209.
+> - 🆕 G298 (m47's run-wide mark flagged 90 good `blinking` frames on a packaged build — a false-positive client quality flag; FUTURE fixes
+>   filed). G297 updated.
+> - NO BUILD, NOT MERGED, NOT TAGGED. **Next: 081-36 (bench, high) — `081-23-window.py c1 540 081-36`** (MAIN-N, MAIN-S), then c2, c3.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-35-code-m55-am6-m47-g297.md`, then `_reviews/081-35-evidence/am6-proof.json`.**
+>
+> ---
+> 🧾 **081-34, 2026-09-26 — BENCH. c1 RESUMED AT `R23_CB_S1` UNDER AMENDMENT 5 AND STOPPED AT LEGACY GROUP CB-S (FAIL, KEY PRESENCE).
+> MAIN-N, MAIN-S, c2 AND c3 NOT RUN. NEEDS-DECISION.**
+> - Resume clean: only `CB_S1`–`CB_S6` launched; no decided leg re-run. Person-present gate 7 checks, 0 s waits; ENV-INTERRUPTED 0;
+>   postflight PASS. AMENDMENT 5 excused nothing live (no coalesced frame, identity tag maps).
+> - **The fail:** `CB_S2` (build 3, evidence OFF, synth) carries m47's `render_state=shaders_pending` / `shader_jobs_pending 0` /
+>   `anomaly_materials_incomplete 1` on all 90 rows (`PREWARM … incomplete=1` on a PACKAGED build, where m47's own line says that is
+>   structurally zero). Masks, tags, pixel counts, events identical to pre-m55. First packaged StackOBot occurrence in 972 banked sessions.
+>   m55's diff touches no m47 line; mechanism NOT ESTABLISHED. 🆕 G297 (the leg's own control pair taught the cross clause its
+>   difference; only key presence could see it).
+> - NO BUILD, NOT MERGED, NOT TAGGED. This commit moves the feature head ⇒ boundary re-issue before the next window.
+> - **Next: chat rules on the m47 keys' legacy scope; then re-evaluate CB-S (or amend), re-issue, resume c1 at `MAINON_N1`.**
+>
+> **Cold start: `docs/sessions/2026-09-26-081-34-code-m55-c1-legacy-cb-s-stop.md`, then `_reviews/081-34-evidence/c1-legacy-cb-s-cause-read.md`.**
+>
+> ---
+> 🧾 **081-33, 2026-09-26 — BENCH-FREE. AMENDMENT 5 IS RELEASED WITH A.6, CB-N IS COMMITTED PASS-REEVALUATED, AND THE BOUNDARY IS
+> RE-ISSUED. c1 RESUMES AT `R23_CB_S1` IN 081-34.** Rulings `_reviews/081-32-chat-ruling-legacy-identity-amendment-5.md` and
+> `_reviews/081-33-chat-ruling-colour-proof-and-derived-fields.md`.
+> - **081-32's colour negative was a chat spec defect** (no legacy rule compares colour pixels, and colour frames are not byte-stable).
+>   It is replaced by **A.6**, a condition on the excusal itself: the excused frame's colour file exists with the same dimensions and
+>   pixel format as every comparison leg's. It reads the PNG header only — no pixel compare, no tolerance.
+> - **The six derived fields are confirmed** at the writer-exact value only.
+> - **Lib `c36a60c2` → `9901be63`** (window runner unchanged).
+> - **Proofs:**
+>   - 1–5: 49 of 49 — the A.6 colour cases 8 of 8 including controls, off by 2 6 of 6, the 8 earlier negatives, 2 controls,
+>     5 symmetric, B 8, C 10;
+>   - proof 6: no flip vs `c36a60c2`, and vs the recorded verdicts only CB-N FAIL → PASS;
+>   - resume 5 of 5.
+> - The proof mutants now carry `Actual_Frames`; without them every negative would have failed for the wrong reason (G296's second
+>   instance).
+> - **Measured, not assumed:** an unexcused frame FAILs in synth order too, via key presence.
+> - **CB-N row committed** in `081-23-evidence/c1/legacy-results.json`. **Dry run 202 of 202.** The boundary is re-issued for the lib and
+>   the feature head; the preflight replays green for c1, c2 and c3.
+> - NO BUILD, NOT MERGED, NOT TAGGED. **Next: 081-34 (bench) — `081-23-window.py c1 540 081-34`**, which resumes at `R23_CB_S1`.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-33-code-m55-am5-release.md`, then `_reviews/081-33-evidence/a6-proof.json`.**
+>
+> ---
+> 🧾 **081-32, 2026-09-26 — BENCH-FREE. LEGACY-IDENTITY AMENDMENT 5 IS IMPLEMENTED AND PROVEN, AND CB-N PASSES UNDER IT FROM THE BANK. ONE
+> RULED PROOF (COLOUR) CANNOT FAIL UNDER THE EXISTING RULES. NEEDS-DECISION: THE CB-N ROW IS NOT WRITTEN AND THE BOUNDARY IS NOT RE-ISSUED.**
+> Ruling `_reviews/081-32-chat-ruling-legacy-identity-amendment-5.md`.
+> - **Pre-conditions clear.**
+>   - Source: the `PixelOwner` rule is byte-identical in `master` and build 3; every build-3 addition on that path is issue-guarded.
+>   - Bank: CB_N2 si 29 is the only coalesced-unmeasured frame in 30 legacy legs (build 3 1 of 10, pre-m55 0 of 8).
+> - **Lib `bb4fbb9d` → `c36a60c2`** (window runner unchanged):
+>   - (A) a signed, capped COALESCED-EXCUSED frame, judged against the comparator re-read "as if unmeasured" by the writer's own rules;
+>   - (B) tags modulo one leg-wide bijection, checked by pixel remap, counts, ties and actor identity;
+>   - (C) the hash-pinned historical set in the cross-pair clause, plus per-group ledger rows.
+> - **Proofs:**
+>   - A 17 of 18 (positive 2/2, negatives 8/9, frequency controls 2/2, symmetric 5/5);
+>   - B 8 of 8, with CB_N5 π = 247→227, 248..254→247..253;
+>   - C 10 of 10;
+>   - no verdict flips over 16 comparisons (only c1 CB-N FAIL→PASS);
+>   - CB-N re-evaluation **PASS-REEVALUATED (computed, not written)**;
+>   - dry run **198/198**; resume proof 5/5 (with the row, c1 resumes at `R23_CB_S1`).
+> - 🛑 **The miss:** "signature present, colour differs → FAIL" PASSes, because no legacy rule compares colour frames. They differ on 20–44 % of
+>   pixels even between two runs of one binary. Not bent. **Chat also needs to confirm 6 writer-derived fields** in the excused set
+>   (`target_drawn_pixels` and five counters).
+> - 🆕 G295 (coalesced-arm yield issue, FUTURE per-arm readback), 🆕 G296; G294 resolved in the harness.
+> - The preflight refuses every window until the re-issue: lib hash ≠ boundary.
+> - NO BUILD, NOT MERGED, NOT TAGGED. **Next: chat's ruling; then `reevaluate-cb-n.py --commit`, the boundary re-issue, and 081-33.**
+>
+> **Cold start: `docs/sessions/2026-09-26-081-32-code-m55-legacy-amendment-5.md`, then `_reviews/081-32-evidence/am5-proof.json`.**
+>
+> ---
+> 🧾 **081-31, 2026-09-26 — c1 RESUMED AT `C1_G2_S` WITH THE PERSON-PRESENT GATE: ALL 14 REMAINING STACK LEGS PASS; THE FIRST LEGACY GROUP
+> `CB-N` FAILS ITS NATIVE RULES. c2 AND c3 NOT RUN. NEEDS-DECISION.**
+> - **Stack legs.** `C1_G2_S` A4 (fresh budget after ENV-VOIDED), G15, LOW, G10, COUNT/WALL_FAIL and the 1080 legs all PASS, oracle matching
+>   everywhere.
+>   - **First runtime proofs:** the `ChangeMaxBytes 1` refusal census (LOW: all 90 indices refused, HW 0) and G10 (one refusal at si 8).
+>   - The person-present gate ran 21 times, 0 s waits, ENV-INTERRUPTED 0, `person_evidence` false throughout.
+> - **CB-N FAIL: six READINGs on attempt 1, comparison FAIL. Chunk exit 1, postflight PASS.** Three independent causes:
+>   - (A) `CB_N2` (OFF): the frame-29 target mask is UNMEASURED. Two target arms coalesced into one render, and the pre-existing pixel-owner
+>     rule (identical in `master`) gives pixels to one arm only. The trigger is not established; m55 is not implicated by source.
+>   - (B) `CB_N5` (OFF): a bijective census tag relabel.
+>   - (C) `census_cycles` 26 vs 27, a historical run-unique field.
+>   - B and C look like predicate-encoding gaps → 🆕 **G294**.
+>   - CB-S / MAIN-N / MAIN-S not run.
+> - Ledger 92 legs: 6 c0 readings, 19 c1 stack PASS, 6 legacy readings in one failed group, 61 not run.
+> - NO BUILD, NOT MERGED, NOT TAGGED. The next window needs a boundary re-issue (this docs commit moves the feature head).
+>
+> **Cold start: `docs/sessions/2026-09-26-081-31-code-m55-c1-legacy-cb-n-stop.md`, then `_reviews/081-31-evidence/c1-legacy-cb-n-cause-read.md`.**
+>
+> ---
+> 🧾 **081-30, 2026-09-26 — BENCH-FREE. `C1_G2_S` A1–A3 ARE ENV-VOIDED AND A PERSON-PRESENT GATE IS IN THE HARNESS, PROVEN BOTH WAYS;
+> THE BOUNDARY IS RE-ISSUED.** Ruling `_reviews/081-30-chat-ruling-person-present-gate.md`. Before every attempt (all four leg kinds) and
+> at window start the harness waits for ≥ 60 s of input idle, inside one 45-min wait budget per window (exit 4, never NOT-RUN); the
+> runners' own ALT tap is excluded by construction. A foreground failure with person evidence (shell foreground, cursor moved away from a
+> focus action, non-harness input) is ENV-INTERRUPTED: not counted, capped at 5 per leg. Fixture-valid attempts are never reclassified; a
+> flagged failure goes to chat as NEEDS-DECISION. No evaluator, predicate, threshold, prediction or PASS rule changed (predictions
+> AMENDMENT 4 is scheduling only). Proofs 42/42, a walk of all 86 remaining legs (gate → quiet check → launch), window start 6/6; dry run
+> **182/182**; resume proof: c1 resumes at `C1_G2_S_A4` with a fresh 3-attempt budget. 🆕 **G293**; G292 marked mitigated.
+> NO BUILD, NOT MERGED, NOT TAGGED. **Next: 081-31 — `081-23-window.py c1 540 081-31`, then c2, c3, on a PC nobody is using.**
+>
+> **Cold start: `docs/sessions/2026-09-26-081-30-code-m55-person-present-gate.md`.**
+>
+> ---
+> 🧾 **081-29, 2026-09-25 — c1 RESUMED AT `C1_G8_S`: FOUR LEGS PASS ON ATTEMPT 1, THEN `C1_G2_S` WAS EXHAUSTED BY A PERSON USING THE PC.
+> NO GATE FAILED ON BUILD 3. c2 AND c3 NOT RUN. NEEDS-DECISION.**
+> `C1_G8_S`, `C1_G9_N`, `C1_G9_S` and `C1_G2_N` PASS, with the oracle matching everywhere. `C1_G8_N` stays PASS-REEVALUATED and was not re-launched.
+> `C1_G2_S` failed 3 × INVALID-FIXTURE on "whole-leg foreground": the mouse moved and the Start menu, then the desktop shell, took the
+> foreground (0/480 and 0/485 on A2/A3), and input idle read 0.34 s after postflight. The harness filed `NOT-RUN` and exited 2, and
+> postflight PASSED. A re-run halts on that row (G290), so continuing needs a ruling (→ **G292**: the quiet gate sees processes, not a person).
+> Ledger: 92 legs = 6 c0 readings, 5 c1 passes, 1 environmental exhaustion, 80 not run. NO BUILD, NOT MERGED, NOT TAGGED.
+>
+> **Cold start: `docs/sessions/2026-09-25-081-29-code-m55-c1-resume-stop.md`, then `_reviews/081-29-evidence/c1-g2s-cause-read.md`.**
+>
+> ---
+> 🧾 **081-28, 2026-09-25 — BENCH-FREE. THE G270 VACUITY GUARD IS APPLIED PRE-RUN AND PROVEN BOTH WAYS; THE BOUNDARY IS RE-ISSUED.**
+> Predictions AMENDMENT 3 (ruling 081-27; C3 has not run): a Lyra G270 PASS additionally needs **≥ 3 events each with at least one
+> measured required pair**; a clean pipeline below that is the non-blocking **OBSERVED-BELOW-EVENT-FLOOR**, never PASS; every stop branch
+> still precedes it. Proof 12/12 (all-`empty_region` and 2-measured-event L1 copies → OBSERVED-BELOW-EVENT-FLOOR; c0 L1, c0 L4, 081-17
+> G3_N_A2 and a 3-measured-event copy → PASS; `closure_timeout`/`budget_exceeded` → NEEDS-DECISION). Dry run 153/153 (150 prior
+> unchanged + 3). Boundary: lib `87a5b5c1…` → `7cb583f6…`, new head. NO BUILD, NOT MERGED, NOT TAGGED. Next: windows c1 → c3 when
+> the owner frees the PC.
+>
+> **Cold start: `docs/sessions/2026-09-25-081-28-code-m55-g270-vacuity-guard.md`, then the predictions' AMENDMENT 3.**
+>
+> ---
+> 🧾 **081-27, 2026-09-25 — BENCH-FREE. THE THREE PRE-RUN PREDICTION AMENDMENTS OF RULING 081-26 ARE APPLIED AND PROVEN BOTH WAYS;
+> THE BOUNDARY IS RE-ISSUED.** Predictions AMENDMENT 2 (pre-run — no affected leg had run): **PQ-A** `change_view_rejected` is 0 except
+> G8, G2 and G15 (≥ 1); **PQ-B** one `HIGH-WATER-PEAK` line per closure (1 + `change_epoch_resets`), the last equal to the summary, every
+> census closed; **G270** a required pair refused `empty_region` is honest, PASS = ≥ 3 events and every required pair measured or
+> `empty_region`, none lost to `closure_timeout`/`budget_exceeded`. Proof 64/64 (PQ-B's pass case is a faithful synthetic — no banked
+> build-3 log has two closures); c0 L1 now PASSes G270 (14 `empty_region`). Dry run 150/150 (134 prior unchanged + 16). Boundary: lib
+> `ce8184d4…` → new hash, new head. ⚠ Observation for chat: the amended G270 rule has no measured-pair floor. NO BUILD, NOT MERGED, NOT
+> TAGGED. Next: windows c1 → c3 when the owner frees the PC.
+>
+> **Cold start: `docs/sessions/2026-09-25-081-27-code-m55-prediction-amendments.md`, then the predictions' AMENDMENT 2.**
+>
+> ---
+> 🧾 **081-26, 2026-09-25 — BENCH-FREE. THE G8 "NO RECEIPT" CLAUSE IS RE-ENCODED AND PROVEN BOTH WAYS; `C1_G8_N` IS PASS-REEVALUATED
+> FROM THE BANK (never re-run); THE PREDICATE AUDIT FOUND TWO PREDICTION QUESTIONS THAT WOULD STOP c1 AGAIN AT `C1_G2_N`.**
+> Clause (ruling 081-25): SI8's `receipt` has no delivery side — `t_drain_ms -1`, `view_family_id 0`, `serving_token 0`, `format 0`,
+> `rect []`, `extent []`; 38/38 proof checks, whole bank 801 stubs pass / 73,456 delivered receipts fail. Re-evaluation: errors none,
+> oracle 17/17. Resume: PASS-REEVALUATED is decided; a recorded failure now re-raises its stop instead of being skipped — 🔻 081-25's
+> "re-running c1 would retry the failed leg" was backwards (it would have run past it, G290). ⚠ **Open, not changed (ruling 2):**
+> **PQ-A** `change_view_rejected` 0 "except G8" is false by construction on G2 and G15 (Stage-1 banked 1 on both); **PQ-B** "exactly one
+> `HIGH-WATER-PEAK` line" is false on G7/G15, which close twice (G291). Boundary re-issued (lib `7e41fa89…` → `ce8184d4…`, new head);
+> dry run 134/134, 081-23 evidence untouched. Predictions AMENDMENT 1 (post-hoc, counted). NO BUILD, NOT MERGED, NOT TAGGED.
+>
+> **Cold start: `docs/sessions/2026-09-25-081-26-code-m55-predicate-correction.md`, then `_reviews/081-26-evidence/audit.md`.**
+>
+> ---
+> ⛔ **081-25, 2026-09-25 — WINDOW c1 STOPPED AT ITS FIRST LEG; c2 AND c3 NOT RUN. The stop is a HARNESS PREDICATE DEFECT, not a product
+> failure.** `C1_G8_N_A1` was fixture-valid and passed every clause (oracle 17/17, SI8 `unsupported_delivery`, SI9 `predecessor_undelivered`,
+> `view_rejected`, throwaway family 1, SI8 PNG absent) except `SI8 carries no receipt`: the 081-23 evaluator tests for an ABSENT `receipt`
+> key, while `ChangeReceiptJson` always writes the issue-side half and leaves the delivery fields at their sentinels (`t_drain_ms -1`,
+> family 0, format 0, empty rect) — the same stub banked Stage-1 G15/G4 rows already called "no receipt" (G289). Postflight PASS. Ledger:
+> 6 valid readings (c0), 1 failed leg, 85 not run. Resuming needs chat's ruling and a new `prep-boundary.json` (the lib hash is pinned);
+> re-running c1 unchanged would retry the failed leg. NO BUILD, NOT MERGED, NOT TAGGED.
+>
+> **Cold start: `docs/sessions/2026-09-25-081-25-code-m55-c1-stop.md`** (ledger inside), then `_reviews/081-25-evidence/c1-g8-cause-read.md`.
+>
+> ---
+> 🧾 **081-24, 2026-09-25 — BENCH WINDOW c0 RAN ON BUILD 3: the six 1800-frame long-run legs (Lyra ON/OFF/OFF/ON, StackOBot ON/OFF) are
+> all valid readings (L2 on attempt 3), postflight PASS, no foreign editor. Both hosts PLATEAU by the predeclared rule: writer latency flat
+> per decile (Lyra ON p50 535 / 763 ms, StackOBot 333 ms), stage high-water 64.3 / 134.8 MB (Lyra) and 66.4 MB (StackOBot) reached in the
+> first half and never exceeded, zero `budget_exceeded`, zero `closure_timeout`, 1800/1800 PNGs and zero drops on every leg; oracle exit 0 on
+> all three ON sessions (179 / 168 / 220 compared, 0 mismatched). Evidence ON does not measurably slow the writer or add drops. No build-4
+> scheduling change is needed. 7 of the 20 081-18 predictions met — the Lyra-growth family missed. The c0 analyzer crashed on the first OFF
+> leg and was re-run from a separate driver (G288). NO BUILD, NOT MERGED, NOT TAGGED.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-25-081-24-code-m55-c0-long-run.md`.** Next: chat's ruling on c0, then windows c1–c3 on build 3.
+>
+> ---
+> 🧾 **081-23, 2026-09-24 — THE WHOLE `m55` BUILD-3 REQUALIFICATION IS PREPARED, BENCH-FREE: 92 legs (6 long-run readings +
+> 86 requalification legs) in four resumable, fail-fast bench windows of ~15–27 min expected machine time each (~1.5 h in all), one command
+> per window (`python _reviews\081-23-window.py c0|c1|c2|c3`). Predictions committed before any leg; pass rules exactly as ruled, including
+> the 081-22 timing-sampled set for legacy comparisons (`coverage_pct` + six tick/key-ring counters, now in the field reference). Dry run on
+> banked data: 118 of 118 checks as expected — 081-22's native-order FAIL reproduces exactly without the set and passes with it. NOTHING
+> LAUNCHED, NO BUILD, NOT MERGED, NOT TAGGED.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-24-081-23-code-m55-requal-prep.md`, then `docs/predictions/2026-09-24-m55-081-23-requalification.md`.**
+> Next: window c0 (081-18 long run on build 3) when the owner schedules the PC.
+>
+> ---
+> 🧾 **081-22, 2026-09-24 — `m55` BUILD 3 RAN IN THE ENGINE FOR THE FIRST TIME (a 5-minute quiet window at
+> 07:13 IST after 2 h 39 min of waiting on foreign UE 5.7 editors). (a) 1080p smoke PASS (20/20, oracle exit 0,
+> 20/20/20/0); (b) cancel-before-focus PASS (no session folder, zero files, `STAGE-DISCARDED issued=0`);
+> (c) a real two-view split-screen family PASS (`change_multi_view_families` 120, all rows
+> `unsupported_delivery`, legacy equal to pre-m55 incl. the 180-submit double readback, pending arms 0/1);
+> (d) evidence-OFF vs pre-m55 on MainWorld: synthetic order PASS, native order FAIL on the declared deep-diff
+> gate — masks and the 081-12 field set byte-identical, but `annotation.json` `coverage_pct` on events 2/6/7
+> (≤ 0.47 % relative) and six known-noisy tick/key-ring counters split 2-vs-2 by binary. NO MECHANISM
+> ASSERTED (`coverage_pct` is sampled from the live view at drain time — a candidate only). Stop rule fired:
+> the 081-18 long-run ON/OFF readings (Part 2) were NOT started. NOT MERGED, NOT TAGGED, NO BUILD, NO COOK.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-24-081-22-code-m55-build3-runtime.md` §2.1.** Comparator hole found
+> and closed before any leg (`G286`).
+>
+> ---
+> 🧾 **081-21, 2026-09-24 — `m55` BUILD 3: THE REVIEW'S F1/F2/F3 (+ F6, F7, F9, ORACLE EXIT CODE) FIXED,
+> F4/F5/F10–F13 DOCUMENTED. ONE BUILD SET, ALL EXIT 0, GAME `002805CF`. EVERY OFFLINE CHECK GREEN. BENCH
+> LEGS NOT RUN — FOUR FOREIGN UE 5.7 EDITORS KEPT THE PC BUSY. NOT MERGED, NOT TAGGED, NO COOK.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-24-081-21-code-m55-build3.md`, then the "Legacy delivery never
+> depends on m55" section of `docs/change-evidence-fields.md`.** Predictions `4e54d57` (before any edit);
+> source `85c99b3`, oracle `c27024d` (build source). 🔑 **The invariant now enforced: m55 may refuse
+> evidence, it never costs legacy output** — every eligible family consumes the colour arm and publishes
+> its key exactly as pre-m55, `AfterPass` always submits a wanted legacy readback, the mask pass serves
+> pending arms on any eligible view; m55 attaches data/receipts only on the owned single-view family and
+> otherwise records `unsupported_delivery`. A cancel-before-focus run writes nothing (stage discarded).
+> New summary keys `change_multi_view_families`, `change_unsupported_completion`; event `late_results`
+> removed; non-zero `IAI.Bench.ChangeGate` refused without `-IAIBenchFixture`; `--change-oracle` exits
+> 1 on a mismatch. 🧪 Suites 2/98/25 unchanged (outputs byte-identical), oracle selftest 22 → 24,
+> contracts 9; banked oracle rerun 228/228 exit 0; reviewer replay 365 sidecars 0 violations; a Python
+> model shows build 3's legacy trace equal to pre-m55 in 24 scenario cells and 4,000 fuzz runs (build 2
+> differs in 3,546). ⚠ Runtime proof owed: the 1080p smoke, the F1 cancel leg, a two-view leg and the
+> evidence-OFF byte-identity leg against `0844220E` were skipped. ⚠ Legacy-exact also restores the
+> pre-m55 same-frame key clobber by a foreign family (build 2 had masked it) — recorded for m51 pairing.
+> 🎯 **NEXT: the 081-18 rerun on build 3 when the owner schedules a quiet PC, then the requalification
+> inventory on build 3.**
+>
+> ---
+>
+> ✅ **081-19, 2026-09-24 — `m55` STAGE 3a: THE CHANGE ORACLE EXISTS AND AGREES WITH EVERY BANKED ROW.
+> `tools/verify_capture.py --change-oracle` recomputed all 1,234 measured pair rows and all 1,232
+> reference comparisons in 228 banked m55 sessions from the delivered PNGs: 1,234 matched, 0
+> mismatched, 0 unavailable, on every m55 binary. BENCH-FREE: NO UNREAL, NO BUILD, NO SOURCE CHANGE
+> OUTSIDE `tools/`. NOT MERGED, NOT TAGGED.** ✅
+>
+> **Cold start: `docs/sessions/2026-09-24-081-19-code-m55-oracle.md`, then the "Oracle" section of
+> `docs/change-evidence-fields.md`.** Tool commit `ea9946a` (pure addition, Pillow only, independent
+> of the C++); predictions committed before the banked run (`79dc9ed`). Mean tolerance 0.00005 (the
+> producer rounds to four decimals); counts, sums and the eight bins compared exactly.
+> 🔑 **What agreement means, printed by the tool verbatim:** *agreement validates arithmetic and
+> transport only — that the numbers in the sidecar are the numbers the delivered images contain. It
+> does not establish renderer pairing, visible effect, or cause.*
+> 🧪 `--change-oracle --selftest` 22 cases incl. `G-GRAD(b)` (`0,3,6,9,12`), `G-TIES` (8 vs 9, 10-bit
+> `0→35` = bytes `0→8`), `G-DENOM`, and five must-fail mutations that each fire; sabotaging the oracle
+> makes the selftest fail. Existing suites unchanged (m47 2, label-pixel 98 byte-identical output,
+> contracts 25); new contracts 9, incl. the six existing CLI cases' exit codes (0/1/2/2/0/0 on a
+> failing fixture) unchanged with or without a mismatching sidecar.
+> ⚠ `--change-oracle` exits **0 whenever it ran** and 3 when it cannot run — a mismatch is printed,
+> not signalled (flagged for chat). ⚠ The `empty_region` cross-read never *confirmed* a banked refusal
+> (all 25 have no mask PNG). ⚠ Stage 1–2 C++ comments still need the stripper before merge.
+> 🎯 **NEXT: unchanged from 081-18 — the long-run readings rerun on an idle bench, then chat decides
+> requalification vs build 3. Cost legs, client docs and requalification not started.**
+>
+> ---
+>
+> ⛔ **081-18, 2026-09-24 — `m55` LONG-RUN THROUGHPUT READINGS (evidence ON vs OFF, 1800 frames) DID NOT RUN.
+> THE BENCH WAS NOT IDLE: FOUR FOREIGN UE 5.7 HeistCrewUE EDITORS STARTED FROM 01:32 IST AND WERE STILL
+> PRESENT AT THE BRIEF'S 60-MINUTE BOUND. NOTHING WAS TOUCHED; THE BOUNDARY IS RESTORED. NO BUILD, NO
+> SOURCE CHANGE.** ⛔
+>
+> **Cold start: `docs/sessions/2026-09-24-081-18-code-m55-long-run-throughput.md`.** Harness, predictions
+> (frozen before any capture, `docs/predictions/2026-09-24-m55-081-18-long-run-throughput.md`) and a
+> known-answer-proven writer-latency instrument are ready under `_reviews/081-18-*` for a rerun on an idle
+> bench. L1 used 1 of 3 pre-capture attempts (host respawn after placement, before capture).
+> 📌 **Source facts:** the stage worker and every PNG writer job share one Normal-priority FIFO on the 12
+> background task workers. 📊 **Offline 300-frame re-read of 081-17R (not the long-run answer):** Lyra 1080p
+> armed 23.2 fps vs PNGs completed 21.7 fps, writer latency 672 → 1528 ms across the run, ready-head wait
+> 0 → 801 ms tracking it (ρ 0.95); StackOBot flat. H-Q (worker queued behind writer jobs) is consistent, NOT
+> tested. 🎯 **NEXT: chat decides — clear the bench and rerun 081-18 as written, or rule without it.**
+>
+> ---
+>
+> 🧾 **081-17, 2026-09-24 — `m55` BUILD 2 (Claude Code implements from this round): 256 MiB PAYLOAD CAP +
+> OWNERSHIP CENSUS. STACK 1080p TWINS 4/4 PASS AND LYRA G270 (300 frames) PASS. STAGE 3 STILL HELD —
+> 70 REQUALIFICATION LEGS REMAIN FOR THE NEXT BRIEF. NOT MERGED, NOT TAGGED, NO COOK.** 🧾
+>
+> **Cold start: `docs/sessions/2026-09-24-081-17-code-m55-build2.md` (self-contained), then the 081-17
+> amendment at the top of `docs/predictions/2026-09-20-m55-change-evidence.md`, then
+> `_reviews/081-16-chat-ruling-memory-criterion-and-handover.md`.** Branch `feat/m55-change-evidence`;
+> built source `9c75abe`, Game **8E64FA39** (archived `StackOBot.exe.m55-stage2-8E64FA39`), Lyra archive
+> `m55-stage2-r17-lyra-48b9e048`. Main checkout left on `m51` `53bf725` with build-2 binaries in place;
+> Lyra detached `caa68c6` with its original nine modules.
+>
+> 🎯 **What build 2 is:** `IAI.Capture.ChangeMaxBytes` compiled default 64 MiB → **256 MiB**; admission,
+> clocks and refusals unchanged from 5649a6d. The cap bounds **m55's admitted payload only**, not
+> process RAM, and gives **no structural guarantee of full yield at any resolution**. Every
+> `budget_exceeded` now logs a census and writes `budget_census` on the refused row; the run summary
+> carries `change_bytes_peak_census`. ⛔ **High-water is a reading, never a gate** — no closure bound,
+> no formula warning (081-15 Ruling 1b superseded; Codex's 081-16 counterexample stands).
+>
+> 📊 **Readings:** Stack 1080p high-water 51.9 / 64.3 / 66.4 / 70.5 MB (4–5 colours + 9–14 masks);
+> **Lyra 1080p 197.0 MB = 73 % of the cap**, 21 colours pending behind a head whose inputs had all
+> arrived, latency p50 1.19 s — mechanism NOT established (`G120`); worker and writer share the global
+> thread pool, a named lead only. ⚠ Diagnostic (i) never fired, so it is **runtime-UNEXERCISED** until
+> the next brief's G10 / `ChangeMaxBytes 1` legs. ⚠ The branch's Stage 1–2 source carries comments;
+> run the stripper before merge.
+> 🎯 **NEXT: the requalification brief (70 legs on build 2), then Stage 3. Do not start it unprompted.**
+>
+> ---
+
+> **081-11,2026-09-22 — guard validation5/5 PASS; Stage2 NEEDS-DECISION.**
+> Final sourcecb14f31 / GameA699E9EE. Both build revisions passed Game/Editor/LyraEditor;
+> each qualified5 ON/3 OFF. Controller-only lock and real spectator view-owner placement work.
+> Continued22 accepted final-build gates, including true occluded onset and actual teardown
+> in both orders.2 foreground-invalid captures retained; respective second attempts passed.
+> NoHold natural then failed its precondition: Cube target has0 candidate textures,5 zero-match
+> Apply attempts,0 active fires/pairs/final events. No no_labelled_frames coverage or retry.
+> Moving fixture built but UNRUN; NoHold synthetic, moving twins, mandatory AEBD09EA comparison
+> and scoped Lyra remain held. Stage3 held. Read docs/sessions/2026-09-22-081-11-codex-m55-guard-validation.md
+> and external _reviews/081-11-codex-m55-guard-and-stage2.md, final ledger and cause read.
+> **Chat review REQUIRED** for corrected NoHold recipe and continuation; **Chat review NOT REQUIRED**
+> for completed authorized work/restoration. Next checkpoint:Chat disposition of081-11.
+> Stage1 accepted36/Lyra24 DROPPED-BY-OWNER-DECISION; old twins accepted/delay invalids retained.
+> Main m51/Lyra source and original Lyra modules restored; main binaries remain final candidate.
+> Carry **FPS 21.5 vs 30 on evidence-OFF MAIN4**. No merge/tag/cook/owner-app changes.
+> Same workstream; no fresh session advised. This supersedes older status below.
+
 > 🏁🏁 **SESSION 080-06, 2026-09-20 — THE `m26` VETO'S ARMS ARE GATED ON THE LABELLED WINDOW AND
 > THE REDUCE TABLE IS LOGGED. MERGED TO `master`, PUSHED, NO TAG. THIS IS THE CURRENT "YOU ARE
 > HERE"; EVERYTHING BELOW IT IS OLDER AND IS SUPERSEDED WHEREVER THEY DISAGREE.** 🏁🏁

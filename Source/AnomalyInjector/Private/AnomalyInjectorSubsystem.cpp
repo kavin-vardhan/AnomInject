@@ -30,6 +30,7 @@
 #include "Anomalies/Anomaly_MissingTexture.h"
 #include "Anomalies/Anomaly_CorruptedTexture.h"
 #include "Anomalies/Anomaly_StuckLowMip.h"
+#include "Anomalies/Anomaly_ChangeCase.h"
 
 static constexpr uint64 GAnomalyHeartbeatKey = 0x47445048;
 
@@ -145,6 +146,11 @@ namespace
 		{
 			OutScope = EAnomalyScope::Object;
 		}
+		else if (Id == FName(TEXT("null_effect")) || Id == FName(TEXT("solid_swap")))
+		{
+			OutScope = EAnomalyScope::Object;
+			OutArgs.Add(IntArg(TEXT("delay"), TEXT("0"), 0));
+		}
 		else if (Id == FName(TEXT("stuck_low_mip")))
 		{
 			OutScope = EAnomalyScope::Object;
@@ -178,6 +184,10 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Register(MakeUnique<FAnomaly_MissingTexture>());
 	Register(MakeUnique<FAnomaly_CorruptedTexture>());
 	Register(MakeUnique<FAnomaly_StuckLowMip>());
+#if !UE_BUILD_SHIPPING
+	Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("null_effect")), false));
+	Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("solid_swap")), true));
+#endif
 
 	SynthPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddUObject(
 		this, &UAnomalyInjectorSubsystem::OnWorldPreActorTickSynth);

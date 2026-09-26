@@ -5,6 +5,7 @@
 #if ANOMALY_CAPTURE
 
 #include "AnomalyFrameCapturer.h"
+#include "AnomalyChangeStage.h"
 
 #include "HAL/ThreadSafeCounter.h"
 #include "PixelFormat.h"
@@ -40,13 +41,18 @@ public:
 	void SetActive(bool bInActive);
 	bool IsActive() const;
 
-	void ArmWanted(uint64 RequestId);
-	bool ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId);
+	void ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr ChangeIssue = nullptr);
+	void CancelPendingOtherGeneration(const FAnomalyChangeIssuePtr& Current, TArray<uint64>& Cancelled);
+	FAnomalyChangeIssuePtr PeekChangeIssue() const;
+	FAnomalyChangeIssuePtr GetOwnerIssue() const;
+	TSharedPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> GetChangeStage() const;
+	bool ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint64& OutRequestId, FAnomalyChangeIssuePtr& OutIssue);
 	void NoteIneligibleFamily();
 
 	void SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, const FIntPoint& SourceExtent,
 		EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
-		TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback = TUniquePtr<FRHIGPUTextureReadback>());
+		TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback = TUniquePtr<FRHIGPUTextureReadback>(),
+		const FAnomalyChangeReceipt& ChangeSubmission = FAnomalyChangeReceipt());
 
 	int32 GetDualPathComparisons() const;
 	int32 GetDualPathMismatches() const;
@@ -73,12 +79,16 @@ private:
 		FIntPoint SourceExtent = FIntPoint::ZeroValue;
 		EPixelFormat Format = PF_Unknown;
 		uint32 SubmitRtFrame = 0;
+		FAnomalyChangeReceipt ChangeSubmission;
 	};
 
 	void CompareDualPath_RenderThread(FInFlight& Item, const FAnomalyCapturedFrame& OwnedFrame);
 
 	mutable FCriticalSection StateCS;
 	TArray<uint64> PendingWanted;
+	TMap<uint64, FAnomalyChangeIssuePtr> PendingIssues;
+	TWeakPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> ChangeStage;
+	FAnomalyChangeIssuePtr LastIssuedIdentity;
 	FAnomalySveHandshakeStats Handshake;
 	FThreadSafeCounter ActiveFlag;
 	FThreadSafeCounter Submits;

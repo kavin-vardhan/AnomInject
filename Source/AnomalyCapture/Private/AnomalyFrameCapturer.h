@@ -9,6 +9,7 @@
 #include "HAL/ThreadSafeCounter.h"
 
 class SWindow;
+struct FAnomalyChangeReceipt;
 
 struct FAnomalyCapturedFrame
 {
@@ -18,6 +19,7 @@ struct FAnomalyCapturedFrame
 	EPixelFormat Format = PF_Unknown;
 	int32 BytesPerPixel = 0;
 	TArray<uint8> RawBytes;
+	TSharedPtr<const FAnomalyChangeReceipt, ESPMode::ThreadSafe> ChangeReceipt;
 };
 
 struct FAnomalyReadbackLayout

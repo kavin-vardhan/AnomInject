@@ -145,6 +145,39 @@ outcomes NO-TRACE > OFFSET-NOTE > PARTIAL > CONSISTENT. UNASSESSABLE/READING run
 only; their observed edges cannot promote an event. With no assessable run, the event is
 UNASSESSABLE, or READING when all runs are bbox-only. Separate run coverage remains visible.
 
+--------------------------------------------------------------------------------------------------
+m55 CHANGE ORACLE  (--change-oracle [SESSION], a SEPARATE mode; every mode above is untouched)
+--------------------------------------------------------------------------------------------------
+Recomputes every change_evidence.jsonl pair row with chg_measured: true from the delivered PNGs:
+Actual_Frames/frame_%05d.png for session_index and prev_session_index, target_mask/frame_%05d.png
+for session_index. Target = mask == mask_value, control = mask == 0, d = max over R,G,B of the byte
+difference, counted when d > tau_px. Count against count exactly (n, gt8, sum, the eight bins) and
+mean against mean within 0.00005, because the producer publishes sum/n/255 rounded to four
+decimals. A row that names a reference (ref_session_index with ref_gt8/ref_mean) is recomputed
+against that delivered frame too. empty_region refusals are cross-read against the mask PNG.
+The producer's numbers are read only to be compared after the recomputation. JPEG, resampled,
+backbuffer, missing or unreadable deliveries are reported UNAVAILABLE with the reason, never
+guessed. A measured row must also be self-consistent: reason null, chg_eligible and pair_valid true,
+expected_prev_session_index = session_index - 1 when present, and chg_hist/chg_sum/ctl_hist/ctl_sum
+present; a contradiction is a mismatch. An empty_region refusal whose delivered mask holds both
+target and control pixels DISAGREES and is a mismatch; a refusal with no mask PNG (none is written
+for an all-zero mask) or an unreadable one is UNVERIFIABLE, never a disagreement. Input it cannot
+interpret - a line that is not UTF-8 JSON, a line that is not a JSON object, a measured row whose
+pair ids, mask_value or tau_px are not integers or whose receipt is not an object or whose receipt
+rect is not an array, chg_measured that is not a boolean, or a row the recomputation cannot
+process - is counted UNINTERPRETABLE with its line number. A tau_px outside 0..255 is a mismatch. Exit precedence: 1 when any comparison mismatches or any
+empty_region refusal disagrees (a proven defect outranks incompleteness); otherwise 3 when anything
+was uninterpretable or it cannot run; otherwise 0 (coverage 0 included - a gate that needs rows
+fails itself on coverage 0). The summary always prints both the mismatch and the uninterpretable
+counts. It never exits through a traceback. It trusts the row's own pair ids: a producer that
+published consistent wrong ids AND the numbers of the frames those ids name would match. It checks
+arithmetic and transport only: not renderer pairing, not which frame was chosen as a phase's
+reference (another identical image would match), and not the full record schema. Its output ends
+with the sentence it exists to state: agreement validates arithmetic and transport only; it does not
+establish renderer pairing, visible effect, or cause.
+--change-oracle --selftest proves it can agree, can disagree (five must-fail mutations, a
+contradicted empty_region refusal, contradictory measured rows) and refuses what it cannot read.
+
 Regional motion m_edge remains a reading and never refuses an edge. Values above the historical
 0.42 marker add a run caveat; CONSISTENT counts either motion or lighting caveats. Unsatisfiable
 tau and other coverage guards still apply. docs/verifier-characterisation.md records per-session
@@ -158,6 +191,8 @@ Usage:
     python verify_capture.py --all <bankRoot> --label-pixel-gate --report-only [--out <dir>]
     python verify_capture.py --label-pixel-gate --selftest
     python verify_capture.py --selftest
+    python verify_capture.py --change-oracle <sessionDir> [--quiet] [--oracle-json <file>]
+    python verify_capture.py --change-oracle --selftest
 
 Requires Pillow:  pip install pillow
 """
@@ -2088,6 +2123,992 @@ def label_pixel_batch(root, out_dir, thresh, edge_w, min_visible_px, quiet, repo
     return worst
 
 
+CHANGE_ORACLE_SIDECAR = "change_evidence.jsonl"
+CHANGE_ORACLE_SENTENCE = ("agreement validates arithmetic and transport only — that the numbers in the "
+                          "sidecar are the numbers the delivered images contain. It does not establish "
+                          "renderer pairing, visible effect, or cause.")
+CHANGE_ORACLE_MEAN_TOLERANCE = 0.00005
+CHANGE_ORACLE_TAU_V1 = 8
+CHANGE_ORACLE_BINS = ((0, 0), (1, 2), (3, 4), (5, 8), (9, 16), (17, 32), (33, 64), (65, 255))
+CHANGE_ORACLE_MATCH = "MATCH"
+CHANGE_ORACLE_MISMATCH = "MISMATCH"
+CHANGE_ORACLE_UNAVAILABLE = "UNAVAILABLE"
+
+
+def _oracle_stats(d_hist, tau):
+    """Region statistics from a 256-bin histogram of d = max(|dR|,|dG|,|dB|) over the region.
+
+    Integer arithmetic throughout; the mean is returned unrounded so the comparison against the
+    producer's four-decimal value is made against the exact quotient, not a second rounding.
+    """
+    n = int(sum(d_hist))
+    total = int(sum(i * int(c) for i, c in enumerate(d_hist)))
+    gt = int(sum(d_hist[tau + 1:])) if 0 <= tau <= 255 else 0
+    bins = [int(sum(d_hist[lo:hi + 1])) for lo, hi in CHANGE_ORACLE_BINS]
+    return {"n": n, "gt": gt, "sum": total, "hist": bins,
+            "mean": (total / float(n) / 255.0) if n else None}
+
+
+def _oracle_round4(value):
+    import math
+    return math.floor(value * 10000.0 + 0.5) / 10000.0
+
+
+class _OracleImages(object):
+    """Decoded delivered PNGs by session index, read from disk and nothing else.
+
+    Colour frames are Actual_Frames/frame_%05d.png and masks target_mask/frame_%05d.png, the
+    naming the writer uses (session index, G161). A file that is not a PNG, or a mask that is not
+    8-bit grayscale, is refused with its reason rather than decoded into a guess.
+    """
+
+    def __init__(self, cap_dir, limit=8):
+        self.cap_dir = cap_dir
+        self.limit = max(4, limit)
+        self.cache = {}
+
+    def _open(self, key, rel, want_mode):
+        hit = self.cache.get(key)
+        if hit is not None:
+            return hit
+        from PIL import Image
+        path = os.path.join(self.cap_dir, rel)
+        result = None
+        if not os.path.isfile(path):
+            stem = os.path.splitext(path)[0]
+            if want_mode == "RGB" and any(os.path.isfile(stem + ext) for ext in (".jpg", ".jpeg")):
+                result = (None, "jpeg delivery - lossy, the delivered bytes are not the measured buffer")
+            else:
+                result = (None, "%s missing on disk" % rel.replace("\\", "/"))
+        else:
+            try:
+                im = Image.open(path)
+                fmt = im.format
+                im.load()
+            except Exception as exc:
+                result = (None, "%s unreadable (%s)" % (rel.replace("\\", "/"), exc.__class__.__name__))
+            else:
+                if fmt != "PNG":
+                    result = (None, "%s is %s, not PNG" % (rel.replace("\\", "/"), fmt))
+                elif want_mode == "L" and im.mode != "L":
+                    result = (None, "%s mode %s is not 8-bit grayscale" % (rel.replace("\\", "/"), im.mode))
+                elif want_mode == "RGB" and im.mode not in ("RGB", "RGBA"):
+                    result = (None, "%s mode %s is not 8-bit RGB" % (rel.replace("\\", "/"), im.mode))
+                else:
+                    result = (im.convert(want_mode) if im.mode != want_mode else im, None)
+        while len(self.cache) >= self.limit:
+            self.cache.pop(next(iter(self.cache)))
+        self.cache[key] = result
+        return result
+
+    def colour(self, si):
+        return self._open(("c", si), os.path.join("Actual_Frames", "frame_%05d.png" % si), "RGB")
+
+    def mask(self, si):
+        return self._open(("m", si), os.path.join("target_mask", "frame_%05d.png" % si), "L")
+
+
+def _oracle_d(cur, prev):
+    """d(p) = max over R,G,B of |cur - prev|, as an 8-bit image."""
+    from PIL import ImageChops
+    r, g, b = ImageChops.difference(cur, prev).split()
+    return ImageChops.lighter(ImageChops.lighter(r, g), b)
+
+
+def _oracle_region(mask, value):
+    return mask.point([255 if v == value else 0 for v in range(256)])
+
+
+def _oracle_int(value):
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def _oracle_compare(rec, prefix, published_row, stats):
+    """Compare one region's published statistics against the recomputed ones, field by field."""
+    fields = []
+
+    def check(name, published, recomputed, ok):
+        fields.append({"field": name, "published": published, "recomputed": recomputed, "ok": bool(ok)})
+
+    n_pub = published_row.get(prefix + "_n")
+    check(prefix + "_n", n_pub, stats["n"], _oracle_int(n_pub) == stats["n"])
+    gt_pub = published_row.get(prefix + "_gt8")
+    check(prefix + "_gt8", gt_pub, stats["gt"], _oracle_int(gt_pub) == stats["gt"])
+    sum_pub = published_row.get(prefix + "_sum")
+    if sum_pub is not None or prefix + "_sum" in published_row:
+        check(prefix + "_sum", sum_pub, stats["sum"], _oracle_int(sum_pub) == stats["sum"])
+    if prefix + "_hist" in published_row:
+        hist_pub = published_row.get(prefix + "_hist")
+        ok = (isinstance(hist_pub, list) and len(hist_pub) == len(stats["hist"])
+              and all(_oracle_int(a) == b for a, b in zip(hist_pub, stats["hist"])))
+        check(prefix + "_hist", hist_pub, stats["hist"], ok)
+    mean_pub = published_row.get(prefix + "_mean")
+    exact = stats["mean"]
+    if exact is None:
+        check(prefix + "_mean", mean_pub, None, False)
+    elif isinstance(mean_pub, bool) or not isinstance(mean_pub, (int, float)):
+        check(prefix + "_mean", mean_pub, round(exact, 8), False)
+    else:
+        check(prefix + "_mean", mean_pub, round(exact, 8),
+              abs(float(mean_pub) - exact) <= CHANGE_ORACLE_MEAN_TOLERANCE + 1e-12)
+    rec["fields"].extend(fields)
+    return all(f["ok"] for f in fields)
+
+
+def _oracle_json_type(value):
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return type(value).__name__
+
+
+def _oracle_uninterpretable_row(row):
+    """Why a claimed (chg_measured: true) pair row cannot be interpreted, or None when it can."""
+    for key in ("session_index", "prev_session_index", "mask_value", "tau_px"):
+        if _oracle_int(row.get(key)) is None:
+            return "%s is %s, an integer is required" % (key, "absent" if key not in row
+                                                         else "a JSON " + _oracle_json_type(row.get(key)))
+    receipt = row.get("receipt")
+    if not isinstance(receipt, dict):
+        return "receipt is %s, an object is required" % ("absent" if "receipt" not in row
+                                                          else "a JSON " + _oracle_json_type(receipt))
+    if "rect" not in receipt:
+        return "receipt.rect is absent, an array is required"
+    if not isinstance(receipt.get("rect"), list):
+        return "receipt.rect is a JSON %s, an array is required" % _oracle_json_type(receipt.get("rect"))
+    return None
+
+
+def _oracle_contradictions(row):
+    """Fields a measured row cannot carry together with chg_measured: true."""
+    out = []
+
+    def bad(field, published, required):
+        out.append({"field": "measured_row:" + field, "published": published, "recomputed": required, "ok": False})
+
+    if row.get("reason") is not None:
+        bad("reason", row.get("reason"), None)
+    if row.get("chg_eligible") is not True:
+        bad("chg_eligible", row.get("chg_eligible", "<absent>"), True)
+    if row.get("pair_valid") is not True:
+        bad("pair_valid", row.get("pair_valid", "<absent>"), True)
+    si = _oracle_int(row.get("session_index"))
+    if "expected_prev_session_index" in row and si is not None \
+            and _oracle_int(row.get("expected_prev_session_index")) != si - 1:
+        bad("expected_prev_session_index", row.get("expected_prev_session_index"), si - 1)
+    for key in ("chg_hist", "chg_sum", "ctl_hist", "ctl_sum"):
+        if key not in row:
+            bad(key, "<absent>", "present")
+    return out
+
+
+def _oracle_measured_row(row, images, capture_path):
+    si = _oracle_int(row.get("session_index"))
+    prev = _oracle_int(row.get("prev_session_index"))
+    tag = _oracle_int(row.get("mask_value"))
+    tau = _oracle_int(row.get("tau_px"))
+    contradictions = _oracle_contradictions(row)
+    rec = {"session_index": si, "prev_session_index": prev, "mask_value": tag,
+           "event": row.get("event"), "window_index": row.get("window_index"),
+           "status": None, "reason": None, "fields": list(contradictions), "recomputed": {}, "ref": None,
+           "contradictions": len(contradictions)}
+
+    def unavailable(reason):
+        rec["status"] = CHANGE_ORACLE_MISMATCH if contradictions else CHANGE_ORACLE_UNAVAILABLE
+        rec["reason"] = reason
+        return rec
+
+    if si is None or prev is None:
+        return unavailable("pair ids unreadable")
+    if tau is None:
+        return unavailable("tau_px unreadable")
+    if not 0 <= tau <= 255:
+        rec["fields"].append({"field": "tau_px", "published": tau, "recomputed": CHANGE_ORACLE_TAU_V1, "ok": False})
+        rec["status"] = CHANGE_ORACLE_MISMATCH
+        rec["reason"] = "tau_px outside 0..255, arithmetic not attempted"
+        return rec
+    if str(capture_path or "").lower() == "backbuffer":
+        return unavailable("backbuffer grab point - no receipt, measurement unsupported in v1")
+    frame_file = row.get("frame_file")
+    expected_file = "Actual_Frames/frame_%05d.png" % si
+    cur, why = images.colour(si)
+    if cur is None:
+        return unavailable("current colour: " + why)
+    prev_img, why = images.colour(prev)
+    if prev_img is None:
+        return unavailable("predecessor colour: " + why)
+    mask, why = images.mask(si)
+    if mask is None:
+        return unavailable("current mask: " + why)
+    if not (cur.size == prev_img.size == mask.size):
+        return unavailable("size differs across current %s / predecessor %s / mask %s"
+                           % (cur.size, prev_img.size, mask.size))
+    rect = (row.get("receipt") or {}).get("rect")
+    if not (isinstance(rect, list) and len(rect) == 4 and all(_oracle_int(v) is not None for v in rect)):
+        return unavailable("no receipt rect, so native delivery cannot be established")
+    if (rect[2], rect[3]) != cur.size:
+        return unavailable("resampled delivery - PNG %dx%d against receipt rect %dx%d"
+                           % (cur.size[0], cur.size[1], rect[2], rect[3]))
+
+    def ident(name, published, recomputed):
+        rec["fields"].append({"field": name, "published": published, "recomputed": recomputed,
+                              "ok": published == recomputed})
+
+    ident("pair_ids", [prev, si], [si - 1, si])
+    ident("tau_px", tau, CHANGE_ORACLE_TAU_V1)
+    if frame_file is not None:
+        ident("frame_file", frame_file, expected_file)
+    ident("mask_value_nonzero", tag is not None and tag > 0, True)
+
+    d = _oracle_d(cur, prev_img)
+    target_region = _oracle_region(mask, tag if tag is not None else -1)
+    control_region = _oracle_region(mask, 0)
+    tstats = _oracle_stats(d.histogram(target_region), tau)
+    cstats = _oracle_stats(d.histogram(control_region), tau)
+    rec["recomputed"] = {"chg": tstats, "ctl": cstats}
+    ident("denominators_positive", True, tstats["n"] > 0 and cstats["n"] > 0)
+    _oracle_compare(rec, "chg", row, tstats)
+    _oracle_compare(rec, "ctl", row, cstats)
+
+    ref_si = _oracle_int(row.get("ref_session_index"))
+    ref_claimed = row.get("ref_gt8") is not None or row.get("ref_mean") is not None
+    if ref_claimed:
+        ref = {"ref_session_index": ref_si, "status": None, "reason": None, "fields": []}
+        rec["ref"] = ref
+        ref_img, why = images.colour(ref_si) if ref_si is not None and ref_si >= 0 else (None, "no reference index published")
+        if ref_img is None:
+            ref["status"] = CHANGE_ORACLE_UNAVAILABLE
+            ref["reason"] = "reference colour: " + why
+        elif ref_img.size != cur.size:
+            ref["status"] = CHANGE_ORACLE_UNAVAILABLE
+            ref["reason"] = "reference size %s differs from current %s" % (ref_img.size, cur.size)
+        else:
+            rstats = _oracle_stats(_oracle_d(cur, ref_img).histogram(target_region), tau)
+            rec["recomputed"]["ref"] = rstats
+            sub = {"fields": []}
+            gt_pub = row.get("ref_gt8")
+            sub["fields"].append({"field": "ref_gt8", "published": gt_pub, "recomputed": rstats["gt"],
+                                  "ok": _oracle_int(gt_pub) == rstats["gt"]})
+            mean_pub = row.get("ref_mean")
+            ok_mean = (rstats["mean"] is not None and not isinstance(mean_pub, bool)
+                       and isinstance(mean_pub, (int, float))
+                       and abs(float(mean_pub) - rstats["mean"]) <= CHANGE_ORACLE_MEAN_TOLERANCE + 1e-12)
+            sub["fields"].append({"field": "ref_mean", "published": mean_pub,
+                                  "recomputed": None if rstats["mean"] is None else round(rstats["mean"], 8),
+                                  "ok": ok_mean})
+            ref["fields"] = sub["fields"]
+            ref["status"] = CHANGE_ORACLE_MATCH if all(f["ok"] for f in sub["fields"]) else CHANGE_ORACLE_MISMATCH
+    rec["status"] = CHANGE_ORACLE_MATCH if all(f["ok"] for f in rec["fields"]) else CHANGE_ORACLE_MISMATCH
+    return rec
+
+
+def _oracle_empty_region_row(row, images):
+    """Cross-read of an empty_region refusal: do the delivered images show a zero denominator?"""
+    si = _oracle_int(row.get("session_index"))
+    tag = _oracle_int(row.get("mask_value"))
+    if si is None:
+        return "unverifiable", "session index unreadable"
+    mask, why = images.mask(si)
+    if mask is None:
+        return "unverifiable", ("current mask: " + why + " (no mask PNG is written for an all-zero "
+                                "mask, and none after a failed mask write)")
+    hist = mask.histogram()
+    target = hist[tag] if tag is not None and 0 < tag <= 255 else 0
+    control = hist[0]
+    if target == 0 or control == 0:
+        return "agrees", "target %d / control %d" % (target, control)
+    return "disagrees", "target %d / control %d are both positive" % (target, control)
+
+
+def _oracle_read_sidecar(path):
+    """Read the sidecar at the input boundary: every line is decoded, parsed and type-checked here.
+
+    Returns (rows, uninterpretable) where rows is a list of (line_number, object) and uninterpretable
+    a list of {line, why}. Raises OSError only when the file itself cannot be read.
+    """
+    with open(path, "rb") as fh:
+        data = fh.read()
+    rows = []
+    bad = []
+    for number, raw in enumerate(data.split(b"\n"), 1):
+        if number == 1 and raw.startswith(b"\xef\xbb\xbf"):
+            raw = raw[3:]
+        if not raw.strip():
+            continue
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            bad.append({"line": number, "why": "not UTF-8 text"})
+            continue
+        try:
+            obj = json.loads(text)
+        except (ValueError, RecursionError) as exc:
+            bad.append({"line": number, "why": "malformed JSON (%s)" % str(exc).split(":")[0][:80]})
+            continue
+        if not isinstance(obj, dict):
+            bad.append({"line": number, "why": "a JSON %s, not an object" % _oracle_json_type(obj)})
+            continue
+        rows.append((number, obj))
+    return rows, bad
+
+
+def _oracle_resolve(cap_dir):
+    if os.path.isfile(os.path.join(cap_dir, CHANGE_ORACLE_SIDECAR)):
+        return cap_dir, None
+    found = []
+    if os.path.isdir(cap_dir):
+        for name in sorted(os.listdir(cap_dir)):
+            sub = os.path.join(cap_dir, name)
+            if os.path.isdir(sub) and os.path.isfile(os.path.join(sub, CHANGE_ORACLE_SIDECAR)):
+                found.append(sub)
+    if len(found) == 1:
+        return found[0], "resolved to its only session folder %s" % os.path.basename(found[0])
+    return None, ("no %s in %s%s" % (CHANGE_ORACLE_SIDECAR, cap_dir,
+                                      "" if not found else " and %d session folders below it" % len(found)))
+
+
+def change_oracle(cap_dir, quiet=False):
+    """m55 Stage 3 oracle: recompute each measured pair row from the delivered PNGs on disk.
+
+    Returns (code, lines, detail). code is 1 when any compared row or reference comparison mismatches
+    (a contradictory measured row included) or any empty_region refusal is contradicted by its
+    delivered mask; otherwise 3 when anything in the sidecar could not be interpreted or the oracle
+    cannot run; otherwise 0 (including when nothing was compared - coverage is printed and a gate
+    that needs rows treats coverage 0 as its own failure). It changes no other mode's exit code. The
+    producer's chg_/ctl_/ref_ values are read only to be compared after the recomputation.
+    """
+    lines = ["CHANGE-ORACLE (m55 Stage 3)"]
+    detail = {"session": cap_dir, "rows": [], "not_claimed": {}, "unavailable": {}, "uninterpretable": [],
+              "empty_region": {"agrees": 0, "disagrees": 0, "unverifiable": 0, "rows": []},
+              "mean_tolerance": CHANGE_ORACLE_MEAN_TOLERANCE}
+    try:
+        from PIL import Image
+    except ImportError:
+        lines.append("CHANGE-ORACLE: CANNOT RUN - Pillow is required")
+        lines.append(CHANGE_ORACLE_SENTENCE)
+        return 3, lines, detail
+    session, note = _oracle_resolve(os.path.abspath(cap_dir))
+    if session is None:
+        lines.append("CHANGE-ORACLE: CANNOT RUN - %s" % note)
+        lines.append(CHANGE_ORACLE_SENTENCE)
+        return 3, lines, detail
+    detail["session"] = session
+    lines.append("  session                  %s" % session)
+    if note:
+        lines.append("  note                     %s" % note)
+    try:
+        numbered, uninterpretable = _oracle_read_sidecar(os.path.join(session, CHANGE_ORACLE_SIDECAR))
+    except OSError as exc:
+        lines.append("CHANGE-ORACLE: CANNOT RUN - sidecar unreadable (%s)" % exc.__class__.__name__)
+        lines.append(CHANGE_ORACLE_SENTENCE)
+        return 3, lines, detail
+    bad_lines = len(uninterpretable)
+    rows = [obj for _n, obj in numbered]
+    capture_path = None
+    try:
+        with open(os.path.join(session, "run_summary.json"), "r", encoding="utf-8") as fh:
+            capture_path = json.load(fh).get("capture_path")
+    except (OSError, ValueError, AttributeError):
+        capture_path = None
+    if capture_path is not None and not isinstance(capture_path, str):
+        capture_path = None
+    images = _OracleImages(session)
+    pairs = [(n, r) for n, r in numbered if r.get("kind") == "pair"]
+    events = [r for _n, r in numbered if r.get("kind") == "event"]
+    claimed = []
+    claimed_all = 0
+    bad_rows = 0
+
+    def refuse(number, row, why):
+        uninterpretable.append({"line": number, "session_index": row.get("session_index"), "why": why})
+
+    for n, r in pairs:
+        if "chg_measured" not in r:
+            key = "stage-1 identity row (no measurement fields)"
+            detail["not_claimed"][key] = detail["not_claimed"].get(key, 0) + 1
+        elif not isinstance(r.get("chg_measured"), bool):
+            refuse(n, r, "chg_measured is a JSON %s, a boolean is required" % _oracle_json_type(r.get("chg_measured")))
+            bad_rows += 1
+        elif r.get("chg_measured") is True:
+            claimed_all += 1
+            why = _oracle_uninterpretable_row(r)
+            if why:
+                refuse(n, r, why)
+                bad_rows += 1
+            else:
+                claimed.append((n, r))
+        else:
+            key = "refused: %s" % r.get("reason")
+            detail["not_claimed"][key] = detail["not_claimed"].get(key, 0) + 1
+            if r.get("reason") == "empty_region":
+                try:
+                    verdict, why = _oracle_empty_region_row(r, images)
+                except Exception as exc:
+                    verdict, why = "unverifiable", "cross-read failed (%s)" % exc.__class__.__name__
+                detail["empty_region"][verdict] += 1
+                detail["empty_region"]["rows"].append({"line": n, "session_index": r.get("session_index"),
+                                                       "mask_value": r.get("mask_value"),
+                                                       "reading": verdict, "why": why})
+    claimed.sort(key=lambda nr: (_oracle_int(nr[1].get("session_index")) or 0, str(nr[1].get("event")),
+                                 _oracle_int(nr[1].get("mask_value")) or 0))
+    counts = {CHANGE_ORACLE_MATCH: 0, CHANGE_ORACLE_MISMATCH: 0, CHANGE_ORACLE_UNAVAILABLE: 0}
+    ref_counts = {"claimed": 0, CHANGE_ORACLE_MATCH: 0, CHANGE_ORACLE_MISMATCH: 0, CHANGE_ORACLE_UNAVAILABLE: 0}
+    ref_unavailable = {}
+    contradicted = 0
+    for n, r in claimed:
+        try:
+            rec = _oracle_measured_row(r, images, capture_path)
+        except Exception as exc:
+            refuse(n, r, "the recomputation could not process this row (%s: %s)"
+                   % (exc.__class__.__name__, str(exc)[:80]))
+            bad_rows += 1
+            continue
+        rec["line"] = n
+        contradicted += 1 if rec.get("contradictions") else 0
+        detail["rows"].append(rec)
+        counts[rec["status"]] += 1
+        if rec["status"] == CHANGE_ORACLE_UNAVAILABLE:
+            detail["unavailable"][rec["reason"]] = detail["unavailable"].get(rec["reason"], 0) + 1
+        if rec["ref"] is not None:
+            ref_counts["claimed"] += 1
+            ref_counts[rec["ref"]["status"]] += 1
+            if rec["ref"]["status"] == CHANGE_ORACLE_UNAVAILABLE:
+                ref_unavailable[rec["ref"]["reason"]] = ref_unavailable.get(rec["ref"]["reason"], 0) + 1
+        elif r.get("ref_gt8") is not None and rec["status"] == CHANGE_ORACLE_UNAVAILABLE:
+            ref_counts["claimed"] += 1
+            ref_counts[CHANGE_ORACLE_UNAVAILABLE] += 1
+            ref_unavailable["pair unavailable"] = ref_unavailable.get("pair unavailable", 0) + 1
+    compared = counts[CHANGE_ORACLE_MATCH] + counts[CHANGE_ORACLE_MISMATCH]
+    er = detail["empty_region"]
+    detail["uninterpretable"] = sorted(uninterpretable, key=lambda u: u["line"])
+    detail["summary"] = {
+        "sidecar_rows": len(rows), "unparseable_lines": bad_lines, "pair_rows": len(pairs),
+        "event_rows": len(events), "claimed": claimed_all, "compared": compared,
+        "matched": counts[CHANGE_ORACLE_MATCH], "mismatched": counts[CHANGE_ORACLE_MISMATCH],
+        "unavailable": counts[CHANGE_ORACLE_UNAVAILABLE], "contradicted": contradicted,
+        "ref_claimed": ref_counts["claimed"], "ref_compared": ref_counts[CHANGE_ORACLE_MATCH] + ref_counts[CHANGE_ORACLE_MISMATCH],
+        "ref_matched": ref_counts[CHANGE_ORACLE_MATCH], "ref_mismatched": ref_counts[CHANGE_ORACLE_MISMATCH],
+        "ref_unavailable": ref_counts[CHANGE_ORACLE_UNAVAILABLE],
+        "empty_region_agrees": er["agrees"], "empty_region_disagrees": er["disagrees"],
+        "empty_region_unverifiable": er["unverifiable"],
+        "uninterpretable": len(uninterpretable), "uninterpretable_lines": bad_lines, "uninterpretable_rows": bad_rows,
+        "capture_path": capture_path}
+    detail["ref_unavailable"] = ref_unavailable
+    s = detail["summary"]
+    lines.append("  sidecar                  %d rows (%d pair, %d event, %d unparseable)"
+                 % (len(rows), len(pairs), len(events), bad_lines))
+    lines.append("  uninterpretable          %d  (%d line(s) that are not a JSON object, %d row(s) with required "
+                 "fields of the wrong type)" % (s["uninterpretable"], bad_lines, bad_rows))
+    for item in detail["uninterpretable"]:
+        lines.append("    UNINTERPRETABLE line %d%s: %s"
+                     % (item["line"], "" if item.get("session_index") is None else " si=%s" % item["session_index"],
+                        item["why"]))
+    lines.append("  rows claimed             %d  (pair rows with chg_measured: true)" % s["claimed"])
+    lines.append("  rows compared            %d" % s["compared"])
+    lines.append("    matched                %d" % s["matched"])
+    lines.append("    mismatched             %d" % s["mismatched"])
+    lines.append("      contradictory rows   %d  (measured rows carrying a refusal field or missing a statistic)"
+                 % s["contradicted"])
+    lines.append("  rows unavailable         %d" % s["unavailable"])
+    for reason in sorted(detail["unavailable"]):
+        lines.append("    %-4d %s" % (detail["unavailable"][reason], reason))
+    lines.append("  reference comparisons    claimed %d  compared %d  matched %d  mismatched %d  unavailable %d"
+                 % (s["ref_claimed"], s["ref_compared"], s["ref_matched"], s["ref_mismatched"], s["ref_unavailable"]))
+    for reason in sorted(ref_unavailable):
+        lines.append("    %-4d %s" % (ref_unavailable[reason], reason))
+    lines.append("  pair rows not claimed    %d" % sum(detail["not_claimed"].values()))
+    for reason in sorted(detail["not_claimed"]):
+        lines.append("    %-4d %s" % (detail["not_claimed"][reason], reason))
+    if er["agrees"] or er["disagrees"] or er["unverifiable"]:
+        lines.append("  empty_region cross-read  agrees %d  disagrees %d  unverifiable %d"
+                     % (er["agrees"], er["disagrees"], er["unverifiable"]))
+        for item in er["rows"]:
+            if item["reading"] == "disagrees":
+                lines.append("    %s DISAGREES si=%s tag=%s %s - a refusal the delivered mask contradicts"
+                             % (CHANGE_ORACLE_MISMATCH, item["session_index"], item["mask_value"], item["why"]))
+    lines.append("  compared                 count against count exactly; mean against mean within %.5f "
+                 "(the producer publishes sum/n/255 rounded to 4 dp)" % CHANGE_ORACLE_MEAN_TOLERANCE)
+    for rec in detail["rows"]:
+        bad = [f for f in rec["fields"] if not f["ok"]]
+        ref_bad = [f for f in (rec["ref"] or {}).get("fields", []) if not f["ok"]]
+        loud = rec["status"] == CHANGE_ORACLE_MISMATCH or bad or ref_bad
+        if quiet and not loud:
+            continue
+        head = "  si=%-5s prev=%-5s tag=%-3s w=%s %s" % (rec["session_index"], rec["prev_session_index"],
+                                                       rec["mask_value"], rec["window_index"], rec["event"])
+        if rec["status"] == CHANGE_ORACLE_UNAVAILABLE:
+            lines.append("%s  %s (%s)" % (head, rec["status"], rec["reason"]))
+            continue
+        if rec["reason"]:
+            head += "  [arithmetic unavailable: %s]" % rec["reason"]
+        t = rec["recomputed"].get("chg", {})
+        c = rec["recomputed"].get("ctl", {})
+        ref_note = ""
+        if rec["ref"] is not None:
+            ref_note = "  ref %s" % rec["ref"]["status"]
+            if rec["ref"]["status"] == CHANGE_ORACLE_UNAVAILABLE:
+                ref_note += " (%s)" % rec["ref"]["reason"]
+        lines.append("%s  %s  chg n=%s gt8=%s  ctl n=%s gt8=%s%s"
+                     % (head, rec["status"], t.get("n"), t.get("gt"), c.get("n"), c.get("gt"), ref_note))
+        for f in bad + ref_bad:
+            lines.append("      %s %s published=%s recomputed=%s"
+                         % (CHANGE_ORACLE_MISMATCH, f["field"], json.dumps(f["published"]), json.dumps(f["recomputed"])))
+    lines.append("  SUMMARY                  claimed %d  compared %d  matched %d  mismatched %d  unavailable %d  "
+                 "ref_mismatched %d  empty_region_disagrees %d  uninterpretable %d"
+                 % (s["claimed"], s["compared"], s["matched"], s["mismatched"], s["unavailable"],
+                    s["ref_mismatched"], s["empty_region_disagrees"], s["uninterpretable"]))
+    code = _oracle_exit_code(s)
+    detail["exit"] = code
+    lines.append("  EXIT %d  %s" % (code, {1: "a comparison mismatched or a refusal was contradicted (this outranks "
+                                           "uninterpretable input)",
+                                        3: "part of the sidecar could not be interpreted; nothing readable mismatched",
+                                        0: "every comparison matched and every line was interpretable"}[code]))
+    lines.append(CHANGE_ORACLE_SENTENCE)
+    return code, lines, detail
+
+
+def _oracle_exit_code(s):
+    if s.get("mismatched") or s.get("ref_mismatched") or s.get("empty_region_disagrees"):
+        return 1
+    if s.get("uninterpretable"):
+        return 3
+    return 0
+
+
+ORACLE_FIXTURE_W = 24
+ORACLE_FIXTURE_H = 16
+ORACLE_TAG_A = 200
+ORACLE_TAG_B = 201
+
+
+def _oracle_fixture_stats(cur, prev, mask, select):
+    """Stand-in producer for the selftest: a per-pixel loop, deliberately not the oracle's code path."""
+    import math
+
+    def flat(img):
+        getter = getattr(img, "get_flattened_data", None)
+        return list(getter() if getter else img.getdata())
+    cd, pd, md = flat(cur), flat(prev), flat(mask)
+    n = gt = total = 0
+    hist = [0] * 8
+    for i, m in enumerate(md):
+        if not select(i, m):
+            continue
+        a, b = cd[i], pd[i]
+        d = max(abs(a[0] - b[0]), abs(a[1] - b[1]), abs(a[2] - b[2]))
+        n += 1
+        total += d
+        gt += 1 if d > 8 else 0
+        hist[0 if d == 0 else 1 if d <= 2 else 2 if d <= 4 else 3 if d <= 8 else 4 if d <= 16
+             else 5 if d <= 32 else 6 if d <= 64 else 7] += 1
+    mean = math.floor(total / n / 255.0 * 10000.0 + 0.5) / 10000.0 if n else None
+    return {"n": n, "gt8": gt, "sum": total, "hist": hist, "mean": mean}
+
+
+def _oracle_fixture_row(frames, masks, si, prev, tag, window, ref=None, event="solid_swap@3",
+                        target_select=None, control_select=None):
+    cur, pv, mk = frames[si], frames[prev], masks[si]
+    t = _oracle_fixture_stats(cur, pv, mk, target_select or (lambda _i, m: m == tag))
+    c = _oracle_fixture_stats(cur, pv, mk, control_select or (lambda _i, m: m == 0))
+    row = {"kind": "pair", "stage_version": 2, "session_index": si, "prev_session_index": prev,
+           "expected_prev_session_index": si - 1, "frame_file": "Actual_Frames/frame_%05d.png" % si,
+           "pair_valid": True, "reason": None,
+           "receipt": {"rect": [0, 0, cur.size[0], cur.size[1]], "extent": [cur.size[0], cur.size[1]]},
+           "event": event, "phase_ordinal": 0, "window_index": window, "mask_value": tag,
+           "chg_measured": True, "chg_eligible": True, "tau_px": 8,
+           "chg_n": t["n"], "chg_gt8": t["gt8"], "chg_sum": t["sum"], "chg_hist": t["hist"], "chg_mean": t["mean"],
+           "ctl_n": c["n"], "ctl_gt8": c["gt8"], "ctl_sum": c["sum"], "ctl_hist": c["hist"], "ctl_mean": c["mean"],
+           "ref_session_index": -1 if ref is None else ref, "ref_gt8": None, "ref_mean": None,
+           "prev_target_pixels": -1}
+    if ref is not None:
+        r = _oracle_fixture_stats(cur, frames[ref], mk, target_select or (lambda _i, m: m == tag))
+        row["ref_gt8"] = r["gt8"]
+        row["ref_mean"] = r["mean"]
+    return row
+
+
+def _oracle_fixture_mask(full_tag=None):
+    from PIL import Image
+    w, h = ORACLE_FIXTURE_W, ORACLE_FIXTURE_H
+    if full_tag is not None:
+        return Image.new("L", (w, h), full_tag)
+    m = Image.new("L", (w, h), 0)
+    for y in range(4, 10):
+        for x in range(4, 12):
+            m.putpixel((x, y), ORACLE_TAG_A)
+    for y in range(10, 14):
+        for x in range(16, 20):
+            m.putpixel((x, y), ORACLE_TAG_B)
+    return m
+
+
+def _oracle_fixture_frame(k, target_rgb=None, control_jitter=True):
+    """Deterministic textured background, the tag-A rectangle painted target_rgb when given,
+    and a few control pixels that move by 1, 5, 20 and 100 so every control bin can fill."""
+    from PIL import Image
+    w, h = ORACLE_FIXTURE_W, ORACLE_FIXTURE_H
+    im = Image.new("RGB", (w, h))
+    for y in range(h):
+        for x in range(w):
+            im.putpixel((x, y), ((x * 7 + y * 13) % 200 + 20, (x * 11 + y * 3) % 180 + 30, (x * 5 + y * 17) % 160 + 40))
+    if target_rgb is not None:
+        for y in range(4, 10):
+            for x in range(4, 12):
+                im.putpixel((x, y), target_rgb)
+    if control_jitter:
+        for j, (x, y, step) in enumerate(((0, 0, 1), (1, 0, 5), (2, 0, 20), (3, 0, 100), (22, 15, 7))):
+            base = im.getpixel((x, y))
+            im.putpixel((x, y), ((base[0] + step * (k % 3)) % 256, base[1], base[2]))
+    return im
+
+
+def _oracle_write_session(root, name, frames, masks, rows, run_summary=None, jpeg=(), mask_mode=None):
+    import shutil
+    d = os.path.join(root, name)
+    if os.path.isdir(d):
+        shutil.rmtree(d)
+    os.makedirs(os.path.join(d, "Actual_Frames"))
+    os.makedirs(os.path.join(d, "target_mask"))
+    for si, im in frames.items():
+        if si in jpeg:
+            im.save(os.path.join(d, "Actual_Frames", "frame_%05d.jpg" % si), "JPEG", quality=100)
+        else:
+            im.save(os.path.join(d, "Actual_Frames", "frame_%05d.png" % si))
+    for si, m in masks.items():
+        if m is None:
+            continue
+        out = m.convert(mask_mode) if mask_mode else m
+        out.save(os.path.join(d, "target_mask", "frame_%05d.png" % si))
+    with open(os.path.join(d, CHANGE_ORACLE_SIDECAR), "w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    with open(os.path.join(d, "run_summary.json"), "w", encoding="utf-8") as fh:
+        json.dump(run_summary if run_summary is not None else {"capture_path": "sve"}, fh)
+    return d
+
+
+def _oracle_baseline(root, name="baseline", mutate=None, **write_kw):
+    """Onset at si 3 on tag A; window pairs (2,3) (3,4) (4,5) (5,6), all against the si-2 reference.
+    Target moves by 2, 10 and 40 inside the window so adjacent pairs land in different bins."""
+    frames = {0: _oracle_fixture_frame(0), 1: _oracle_fixture_frame(1), 2: _oracle_fixture_frame(2),
+              3: _oracle_fixture_frame(3, (250, 10, 240)), 4: _oracle_fixture_frame(4, (248, 10, 240)),
+              5: _oracle_fixture_frame(5, (238, 10, 240)), 6: _oracle_fixture_frame(6, (198, 10, 240))}
+    masks = {si: (_oracle_fixture_mask() if si >= 3 else None) for si in frames}
+    rows = [_oracle_fixture_row(frames, masks, si, si - 1, ORACLE_TAG_A, si - 3, ref=2) for si in (3, 4, 5, 6)]
+    if mutate:
+        mutate(frames, masks, rows)
+    return _oracle_write_session(root, name, frames, masks, rows, **write_kw)
+
+
+def _oracle_row_of(detail, si):
+    return next((r for r in detail["rows"] if r["session_index"] == si), None)
+
+
+def _oracle_bad_fields(rec):
+    return [f["field"] for f in rec["fields"] if not f["ok"]] + \
+        [f["field"] for f in (rec.get("ref") or {}).get("fields", []) if not f["ok"]]
+
+
+def _change_oracle_selftest():
+    """Prove the oracle can agree, can disagree, and refuses what it cannot read (G96).
+
+    Synthetic 24x16 sessions. Their sidecar numbers come from a per-pixel loop that stands in for
+    the producer, so agreement on the clean fixtures is two independent computations agreeing, and
+    each must-fail mutation has to be caught by the oracle's own recomputation.
+    """
+    import shutil
+    import tempfile
+    try:
+        from PIL import Image
+    except ImportError:
+        print("SELFTEST: ERROR - Pillow is required.", flush=True)
+        return 2
+    root = tempfile.mkdtemp(prefix="m55_oracle_selftest_")
+    checks = []
+
+    def run(path):
+        return change_oracle(path, quiet=True)
+
+    def record(name, ok, outcome):
+        checks.append(bool(ok))
+        _emit("  %-40s %-44s %s" % (name, outcome, "OK" if ok else "FAIL"))
+
+    try:
+        base = _oracle_baseline(root)
+        code, lines, det = run(base)
+        s = det.get("summary", {})
+        record("baseline_all_match", code == 0 and s.get("claimed") == 4 and s.get("matched") == 4
+               and s.get("mismatched") == 0 and s.get("ref_matched") == 4 and CHANGE_ORACLE_SENTENCE in lines,
+               "claimed %s matched %s ref %s" % (s.get("claimed"), s.get("matched"), s.get("ref_matched")))
+        rec = _oracle_row_of(det, 3)
+        hist_bins = rec["recomputed"]["ctl"]["hist"] if rec else []
+        record("baseline_control_bins_exercised", rec is not None and sum(1 for v in hist_bins if v) >= 3,
+               "ctl hist %s" % hist_bins)
+
+        def garbage(frames, masks, rows):
+            for r in rows:
+                for key in list(r.keys()):
+                    if key.startswith(("chg_", "ctl_", "ref_")) and key not in ("chg_measured", "chg_eligible", "ref_session_index"):
+                        v = r[key]
+                        r[key] = [x + 7 for x in v] if isinstance(v, list) else (v * 3 + 1 if isinstance(v, (int, float)) and not isinstance(v, bool) else v)
+        g = _oracle_baseline(root, "independence", mutate=garbage)
+        _c, _l, gdet = run(g)
+        same = all(_oracle_row_of(gdet, si)["recomputed"] == _oracle_row_of(det, si)["recomputed"] for si in (3, 4, 5, 6))
+        record("independence_recompute_ignores_published", same and gdet["summary"]["mismatched"] == 4,
+               "recomputed identical, mismatched %d" % gdet["summary"]["mismatched"])
+
+        walk = {k: Image.new("RGB", (ORACLE_FIXTURE_W, ORACLE_FIXTURE_H), (40, 90, 140)) for k in range(6)}
+        for k, level in ((1, 0), (2, 3), (3, 6), (4, 9), (5, 12)):
+            for y in range(4, 10):
+                for x in range(4, 12):
+                    walk[k].putpixel((x, y), (level, level, level))
+        gmasks = {k: (_oracle_fixture_mask() if k >= 2 else None) for k in walk}
+        grows = [_oracle_fixture_row(walk, gmasks, si, si - 1, ORACLE_TAG_A, si - 2, ref=1, event="grad@2")
+                 for si in (2, 3, 4, 5)]
+        gpath = _oracle_write_session(root, "grad_0_3_6_9_12", walk, gmasks, grows)
+        _c, _l, gd = run(gpath)
+        adj = [_oracle_row_of(gd, si)["recomputed"]["chg"]["gt"] for si in (2, 3, 4, 5)]
+        refs = [_oracle_row_of(gd, si)["recomputed"]["ref"]["gt"] for si in (2, 3, 4, 5)]
+        n_target = _oracle_row_of(gd, 5)["recomputed"]["chg"]["n"]
+        record("G-GRAD(b)_adjacent_zero_reference_full", adj == [0, 0, 0, 0] and refs == [0, 0, 48, 48]
+               and refs[-1] == n_target and gd["summary"]["matched"] == 4 and gd["summary"]["ref_matched"] == 4,
+               "adjacent %s reference %s n %d" % (adj, refs, n_target))
+
+        tie = {0: Image.new("RGB", (ORACLE_FIXTURE_W, ORACLE_FIXTURE_H), (60, 60, 60))}
+        tie[1] = tie[0].copy()
+        tie[2] = tie[0].copy()
+        for y in range(4, 10):
+            for x in range(4, 12):
+                tie[1].putpixel((x, y), (68, 60, 60))
+                tie[2].putpixel((x, y), (77, 60, 60))
+        tmasks = {k: (_oracle_fixture_mask() if k >= 1 else None) for k in tie}
+        trows = [_oracle_fixture_row(tie, tmasks, 1, 0, ORACLE_TAG_A, 0, event="tie@1"),
+                 _oracle_fixture_row(tie, tmasks, 2, 1, ORACLE_TAG_A, 1, event="tie@1")]
+        _c, _l, td = run(_oracle_write_session(root, "ties_8_9", tie, tmasks, trows))
+        r8 = _oracle_row_of(td, 1)["recomputed"]["chg"]
+        r9 = _oracle_row_of(td, 2)["recomputed"]["chg"]
+        record("G-TIES_d8_not_counted", r8["gt"] == 0 and r8["hist"][3] == 48 and _oracle_row_of(td, 1)["status"] == CHANGE_ORACLE_MATCH,
+               "d=8 gt8 %d bin[5-8] %d" % (r8["gt"], r8["hist"][3]))
+        record("G-TIES_d9_counted", r9["gt"] == 48 and r9["hist"][4] == 48 and _oracle_row_of(td, 2)["status"] == CHANGE_ORACLE_MATCH,
+               "d=9 gt8 %d bin[9-16] %d" % (r9["gt"], r9["hist"][4]))
+
+        def a2b10_red(v10):
+            word = (3 << 30) | (v10 & 0x3FF)
+            return ((word >> 0) & 0x3FF) >> 2
+        ten = {0: Image.new("RGB", (ORACLE_FIXTURE_W, ORACLE_FIXTURE_H), (a2b10_red(0), 50, 50))}
+        ten[1] = ten[0].copy()
+        for y in range(4, 10):
+            for x in range(4, 12):
+                ten[1].putpixel((x, y), (a2b10_red(35), 50, 50))
+        tenm = {0: None, 1: _oracle_fixture_mask()}
+        _c, _l, tend = run(_oracle_write_session(root, "ties_a2b10g10r10", ten, tenm,
+                                                 [_oracle_fixture_row(ten, tenm, 1, 0, ORACLE_TAG_A, 0, event="ten@1")]))
+        rt = _oracle_row_of(tend, 1)["recomputed"]["chg"]
+        normalised = 35 / 1023.0 * 255.0
+        record("G-TIES_a2b10g10r10_0_to_35_is_8", a2b10_red(35) == 8 and rt["gt"] == 0 and rt["hist"][3] == 48
+               and normalised > 8 and tend["summary"]["matched"] == 1,
+               "bytes %d->%d gt8 %d (normalised %.3f)" % (a2b10_red(0), a2b10_red(35), rt["gt"], normalised))
+
+        full = {0: _oracle_fixture_frame(0), 1: _oracle_fixture_frame(1, (250, 10, 240))}
+        fullm = {0: None, 1: _oracle_fixture_mask(full_tag=ORACLE_TAG_A)}
+        claim = _oracle_fixture_row(full, fullm, 1, 0, ORACLE_TAG_A, 0, event="denom@1")
+        _c, _l, dd = run(_oracle_write_session(root, "G-DENOM_control_empty", full, fullm, [claim]))
+        rec = _oracle_row_of(dd, 1)
+        record("G-DENOM_control_empty_claim_refused", rec["status"] == CHANGE_ORACLE_MISMATCH
+               and "denominators_positive" in _oracle_bad_fields(rec) and rec["recomputed"]["ctl"]["n"] == 0,
+               "ctl_n %d flagged %s" % (rec["recomputed"]["ctl"]["n"], _oracle_bad_fields(rec)[:2]))
+        normal = {0: _oracle_fixture_frame(0), 1: _oracle_fixture_frame(1, (250, 10, 240))}
+        normm = {0: None, 1: _oracle_fixture_mask()}
+        absent = _oracle_fixture_row(normal, normm, 1, 0, 202, 0, event="denom@1")
+        _c, _l, dd2 = run(_oracle_write_session(root, "G-DENOM_target_empty", normal, normm, [absent]))
+        rec = _oracle_row_of(dd2, 1)
+        record("G-DENOM_target_empty_claim_refused", rec["status"] == CHANGE_ORACLE_MISMATCH
+               and "denominators_positive" in _oracle_bad_fields(rec) and rec["recomputed"]["chg"]["n"] == 0,
+               "chg_n %d flagged %s" % (rec["recomputed"]["chg"]["n"], _oracle_bad_fields(rec)[:2]))
+        refused = dict(claim, chg_measured=False, chg_eligible=False, pair_valid=False, reason="empty_region")
+        c3, _l, dd3 = run(_oracle_write_session(root, "G-DENOM_refusal_agrees", full, fullm, [refused]))
+        record("G-DENOM_empty_region_refusal_agrees", c3 == 0 and dd3["empty_region"]["agrees"] == 1
+               and dd3["summary"]["claimed"] == 0, "exit %d agrees %d" % (c3, dd3["empty_region"]["agrees"]))
+        wrong = dict(_oracle_fixture_row(normal, normm, 1, 0, ORACLE_TAG_A, 0, event="denom@1"),
+                     chg_measured=False, chg_eligible=False, pair_valid=False, reason="empty_region")
+        c4, _l, dd4 = run(_oracle_write_session(root, "G-DENOM_refusal_contradicted", normal, normm, [wrong]))
+        record("G-DENOM_contradicted_empty_region_exits_1", c4 == 1 and dd4["empty_region"]["disagrees"] == 1
+               and dd4["summary"]["empty_region_disagrees"] == 1 and dd4["summary"]["mismatched"] == 0,
+               "exit %d disagrees %d" % (c4, dd4["empty_region"]["disagrees"]))
+        c5, _l, dd5 = run(_oracle_write_session(root, "G-DENOM_refusal_no_png", normal, {0: None, 1: None}, [wrong]))
+        record("G-DENOM_refusal_without_mask_png_unverifiable", c5 == 0 and dd5["empty_region"]["unverifiable"] == 1
+               and dd5["summary"]["empty_region_disagrees"] == 0,
+               "exit %d unverifiable %d" % (c5, dd5["empty_region"]["unverifiable"]))
+
+        def contradicted(name, change, fields):
+            def mutate(frames, masks, rows):
+                change(rows[1])
+            cc, _lc, cd = run(_oracle_baseline(root, "contra_" + name, mutate=mutate))
+            rec_c = _oracle_row_of(cd, 4)
+            bad_c = _oracle_bad_fields(rec_c) if rec_c else []
+            ok = (cc == 1 and rec_c is not None and rec_c["status"] == CHANGE_ORACLE_MISMATCH
+                  and all("measured_row:" + f in bad_c for f in fields) and cd["summary"]["contradicted"] == 1
+                  and all(_oracle_row_of(cd, si)["status"] == CHANGE_ORACLE_MATCH for si in (3, 5, 6)))
+            record("contradiction_" + name, ok, "exit %d %s" % (cc, ",".join(f.split(":")[-1] for f in bad_c)[:44]))
+
+        contradicted("refusal_fields_on_measured_row",
+                     lambda r: r.update(chg_eligible=False, pair_valid=False, reason="budget_exceeded",
+                                        expected_prev_session_index=71),
+                     ("reason", "chg_eligible", "pair_valid", "expected_prev_session_index"))
+        contradicted("hist_and_sum_absent",
+                     lambda r: [r.pop(k) for k in ("chg_hist", "chg_sum", "ctl_hist", "ctl_sum")],
+                     ("chg_hist", "chg_sum", "ctl_hist", "ctl_sum"))
+
+        def sidecar_lines(name, lines_out):
+            path = _oracle_baseline(root, "input_" + name)
+            with open(os.path.join(path, CHANGE_ORACLE_SIDECAR), "w", encoding="utf-8") as fh:
+                fh.write("".join(x + "\n" for x in lines_out))
+            return run(path)
+
+        with open(os.path.join(base, CHANGE_ORACLE_SIDECAR), encoding="utf-8") as fh:
+            good_lines = [x.rstrip("\n") for x in fh if x.strip()]
+        ci, _li, di = sidecar_lines("malformed_only", ["{bad json"])
+        record("input_malformed_only_exits_3", ci == 3 and di["summary"]["uninterpretable"] == 1
+               and di["uninterpretable"][0]["line"] == 1, "exit %d uninterpretable %d" % (ci, di["summary"]["uninterpretable"]))
+        ci, _li, di = sidecar_lines("valid_plus_malformed", good_lines + ["{bad json", "[1, 2]"])
+        record("input_valid_plus_malformed_exits_3", ci == 3 and di["summary"]["matched"] == 4
+               and di["summary"]["uninterpretable"] == 2 and [u["line"] for u in di["uninterpretable"]] == [5, 6],
+               "exit %d matched %d lines %s" % (ci, di["summary"]["matched"], [u["line"] for u in di["uninterpretable"]]))
+        wrong_line = json.loads(good_lines[2])
+        wrong_line["chg_gt8"] += 1
+        ci, _li, di = sidecar_lines("mismatch_plus_malformed", good_lines[:2] + [json.dumps(wrong_line)] + good_lines[3:]
+                                    + ["{bad json"])
+        record("input_mismatch_plus_malformed_exits_1", ci == 1 and di["summary"]["mismatched"] == 1
+               and di["summary"]["uninterpretable"] == 1, "exit %d mismatched %d uninterpretable %d"
+               % (ci, di["summary"]["mismatched"], di["summary"]["uninterpretable"]))
+        for label, receipt in (("list_with_item", [1]), ("empty_list", [])):
+            bad_receipt = json.loads(good_lines[1])
+            bad_receipt["receipt"] = receipt
+            ci, _li, di = sidecar_lines("receipt_" + label, [good_lines[0], json.dumps(bad_receipt)] + good_lines[2:])
+            record("input_receipt_%s_exits_3" % label, ci == 3 and di["summary"]["uninterpretable"] == 1
+                   and di["uninterpretable"][0]["line"] == 2 and di["summary"]["matched"] == 3,
+                   "exit %d %s" % (ci, di["uninterpretable"][0]["why"][:36] if di["uninterpretable"] else "-"))
+        for label, key, value, want in (("tau_string", "tau_px", "8", 3), ("mask_value_null", "mask_value", None, 3),
+                                        ("tau_out_of_range", "tau_px", 300, 1)):
+            bad_scalar = json.loads(good_lines[1])
+            bad_scalar[key] = value
+            ci, _li, di = sidecar_lines(label, [good_lines[0], json.dumps(bad_scalar)] + good_lines[2:])
+            record("input_%s_exits_%d" % (label, want), ci == want and di["summary"]["matched"] == 3
+                   and (di["summary"]["uninterpretable"] == 1 if want == 3 else di["summary"]["mismatched"] == 1),
+                   "exit %d uninterpretable %d mismatched %d" % (ci, di["summary"]["uninterpretable"], di["summary"]["mismatched"]))
+
+        def expect_unavailable(name, path, fragment):
+            _c2, _l2, ud = run(path)
+            rec2 = _oracle_row_of(ud, 4)
+            ok = (rec2 is not None and rec2["status"] == CHANGE_ORACLE_UNAVAILABLE and fragment in rec2["reason"]
+                  and ud["summary"]["mismatched"] == 0)
+            record(name, ok, "%s" % (rec2["reason"][:44] if rec2 else "row missing"))
+        expect_unavailable("unsupported_jpeg", _oracle_baseline(root, "jpeg", jpeg=(4,)), "jpeg delivery")
+
+        def resampled(frames, masks, rows):
+            rows[1]["receipt"]["rect"] = [0, 0, 48, 32]
+        expect_unavailable("unsupported_resampled", _oracle_baseline(root, "resampled", mutate=resampled), "resampled")
+        _c, _l, bd = run(_oracle_baseline(root, "backbuffer", run_summary={"capture_path": "backbuffer"}))
+        record("unsupported_backbuffer", bd["summary"]["unavailable"] == 4 and bd["summary"]["compared"] == 0,
+               "unavailable %d" % bd["summary"]["unavailable"])
+
+        def drop_mask(frames, masks, rows):
+            masks[4] = None
+        expect_unavailable("missing_mask_is_unavailable", _oracle_baseline(root, "nomask", mutate=drop_mask), "missing on disk")
+        _c, _l, rgbd = run(_oracle_baseline(root, "rgbmask", mask_mode="RGB"))
+        record("mask_not_grayscale_is_unavailable", rgbd["summary"]["unavailable"] == 4 and rgbd["summary"]["mismatched"] == 0,
+               "unavailable %d" % rgbd["summary"]["unavailable"])
+
+        def mutation(name, mutate, si, want_field):
+            path = _oracle_baseline(root, "mut_" + name, mutate=mutate)
+            c3, _l3, md = run(path)
+            rec3 = _oracle_row_of(md, si)
+            others = [r for r in md["rows"] if r["session_index"] != si]
+            ok = (c3 == 1 and rec3 is not None and rec3["status"] == CHANGE_ORACLE_MISMATCH
+                  and want_field in _oracle_bad_fields(rec3)
+                  and all(r["status"] == CHANGE_ORACLE_MATCH for r in others))
+            record("mutation_" + name, ok, "exit %d fired on %s" % (c3, ",".join(_oracle_bad_fields(rec3)[:3]) if rec3 else "-"))
+
+        def off_by_one(frames, masks, rows):
+            rows[2]["chg_gt8"] += 1
+        mutation("count_off_by_one", off_by_one, 5, "chg_gt8")
+
+        def swapped_predecessor(frames, masks, rows):
+            swapped = _oracle_fixture_row(frames, masks, 4, 2, ORACLE_TAG_A, 1, ref=2)
+            swapped["prev_session_index"] = 3
+            swapped["expected_prev_session_index"] = 3
+            rows[1] = swapped
+        mutation("swapped_predecessor", swapped_predecessor, 4, "chg_gt8")
+
+        def wrong_mask_value(frames, masks, rows):
+            rows[1]["mask_value"] = ORACLE_TAG_B
+        mutation("wrong_mask_value", wrong_mask_value, 4, "chg_n")
+
+        def pair_id_shift(frames, masks, rows):
+            shifted = dict(rows[1])
+            shifted["session_index"] = 5
+            shifted["prev_session_index"] = 4
+            shifted["expected_prev_session_index"] = 4
+            shifted["frame_file"] = "Actual_Frames/frame_00005.png"
+            rows[:] = [rows[0], shifted, rows[3]]
+        mutation("pair_id_shifted_by_one", pair_id_shift, 5, "chg_gt8")
+
+        def control_includes_target(frames, masks, rows):
+            stolen = 4 * ORACLE_FIXTURE_W + 4
+            rows[0] = _oracle_fixture_row(frames, masks, 3, 2, ORACLE_TAG_A, 0, ref=2,
+                                          control_select=lambda i, m: m == 0 or i == stolen)
+        mutation("control_includes_target_pixel", control_includes_target, 3, "ctl_n")
+
+        def ref_only(frames, masks, rows):
+            rows[3]["ref_gt8"] += 1
+        rc, _rl, rd = run(_oracle_baseline(root, "ref_only_mismatch", mutate=ref_only))
+        record("exit_1_on_reference_mismatch_only", rc == 1 and rd["summary"]["mismatched"] == 0
+               and rd["summary"]["ref_mismatched"] == 1, "exit %d rows %d ref %d"
+               % (rc, rd["summary"]["mismatched"], rd["summary"]["ref_mismatched"]))
+        nc, _nl, nd = run(_oracle_baseline(root, "nothing_compared", run_summary={"capture_path": "backbuffer"}))
+        record("exit_0_when_nothing_compared", nc == 0 and nd["summary"]["compared"] == 0,
+               "exit %d compared %d" % (nc, nd["summary"]["compared"]))
+
+        empty = os.path.join(root, "empty_dir")
+        os.makedirs(empty)
+        code, lines, _d = run(empty)
+        record("cannot_run_exit_3_sentence_printed", code == 3 and CHANGE_ORACLE_SENTENCE in lines,
+               "exit %d" % code)
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        checks.append(False)
+        _emit("SELFTEST: BROKEN - the selftest raised %s" % exc.__class__.__name__)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+    if all(checks) and checks:
+        _emit("SELFTEST: OK - %d change-oracle cases; it agrees with an independent computation, catches "
+              "every must-fail mutation and refuses what it cannot read." % len(checks))
+        return 0
+    _emit("SELFTEST: BROKEN - %d of %d change-oracle cases failed." % (checks.count(False), len(checks)))
+    return 2
+
+
+def _emit(line):
+    try:
+        print(line, flush=True)
+    except UnicodeEncodeError:
+        sys.stdout.flush()
+        sys.stdout.buffer.write((line + "\n").encode("utf-8"))
+        sys.stdout.flush()
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Draw capture bboxes onto copies of the frames for human inspection (never edits labels).")
@@ -2128,6 +3149,16 @@ def main():
                     help="label-pixel gate: run over EVERY session folder under ROOT, one summary "
                          "line each, full output under --out. Runs --selftest first and refuses "
                          "to start if it is not OK.")
+    ap.add_argument("--change-oracle", nargs="?", const="", default=None, metavar="SESSION",
+                    help="m55 Stage 3: recompute every measured change_evidence.jsonl pair row from the "
+                         "delivered PNGs and compare count with count and mean with mean. SESSION "
+                         "defaults to --dir. Exit 1 when any comparison mismatches, a measured row "
+                         "contradicts itself or an empty_region refusal is contradicted by its mask; "
+                         "otherwise 3 when part of the sidecar cannot be interpreted or it cannot run; "
+                         "otherwise 0. Arithmetic and transport only. With --selftest it proves the "
+                         "oracle can agree and disagree.")
+    ap.add_argument("--oracle-json", metavar="PATH", default=None,
+                    help="with --change-oracle: also write the per-row comparison detail as JSON")
     args = ap.parse_args()
 
     if args.selftest:
@@ -2135,7 +3166,30 @@ def main():
             src = os.path.abspath(args.dir) if args.dir and os.path.isdir(args.dir) else None
             sys.exit(_label_pixel_selftest(args.diff_threshold, args.edge_window,
                                            args.min_visible_px, src))
+        if args.change_oracle is not None:
+            sys.exit(_change_oracle_selftest())
         sys.exit(_selftest())
+
+    if args.change_oracle is not None:
+        target = args.change_oracle or args.dir
+        try:
+            code, lines, detail = change_oracle(os.path.abspath(target), args.quiet)
+        except Exception as exc:
+            code, detail = 3, {"session": target, "internal_error": "%s: %s" % (exc.__class__.__name__, str(exc)[:200])}
+            lines = ["CHANGE-ORACLE (m55 Stage 3)",
+                     "CHANGE-ORACLE: CANNOT RUN - internal error %s: %s" % (exc.__class__.__name__, str(exc)[:200]),
+                     CHANGE_ORACLE_SENTENCE]
+        for line in lines:
+            _emit(line)
+        if args.oracle_json:
+            try:
+                with open(args.oracle_json, "w", encoding="utf-8") as fh:
+                    json.dump(detail, fh, indent=1, default=str)
+            except (OSError, TypeError, ValueError) as exc:
+                _emit("CHANGE-ORACLE: detail JSON not written to %s (%s)" % (args.oracle_json, exc.__class__.__name__))
+                if code != 1:
+                    code = 3
+        sys.exit(code)
 
     if args.all:
         try:

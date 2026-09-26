@@ -7267,3 +7267,615 @@ delivery-OFF leg and the veto does **not** retro-edit it (`L3`), so read the win
 **prove that route against the known answer first**: `{si : held}` must equal `injected_frames`
 exactly on every event the veto did NOT delete (measured 5 of 5, mismatched 0) before any verdict
 is printed.
+
+## G272 — a scene frame number is not a unique view family, and a drain-time generation is not the request's generation (2026-09-21, m55 Stage 1)
+
+UE 5.1 `SceneRendering.cpp` assigns the same scene frame number to multiple families in one render
+batch. Both can have view index zero. The engine also copies a GT family into `FViewFamilyInfo`:
+keying a side map by the original family's address is not a GT-to-RT bridge. Use the installed
+`ISceneViewFamilyExtentionData` carrier, which the copy retains, and mint a unique family id.
+Associate the issue-time capture token only with the selected viewport/world owner. Separately claim
+each consumer once; reject duplicate callbacks without losing the membership information.
+
+The same principle applies to asynchronous resets: a generation copied from current state at drain
+would bless old work as new. Mint epoch/cut/token at GT issue and carry them through readbacks and
+writers. Reject old work before publishing a receipt; writer success is a separate completion.
+These are source-established constraints, not a runtime gate verdict. Forced runtime readings and
+remaining coverage are recorded in the 081-05 Stage 1 journal/report.
+
+## G273 — closure must distinguish an unissued index from a pending arm, and reset must clear both consumers (2026-09-21, m55 Stage 1)
+
+The legacy capture index can advance on a synchronous fallback without registering that index with
+the async stage. Waiting forever for such an index prevents terminal closure. Skip/count indices
+never issued to this stage, preserve the actual predecessor, and refuse the next nonadjacent pair.
+G13 covers a synthetic registration gap; the attempted real synchronous fixture hit a D3D12 ensure
+and is not credited as natural-path coverage.
+
+Closing the stage's records does not itself clear the colour and mask arm queues. An old unserved
+arm can retain its former owner at the queue head and block the new owner's callbacks indefinitely.
+Cancel only unserved arms from other immutable generations under their queue locks; remove matching
+legacy pending bookkeeping with explicit unavailable-mask accounting. Do not discard submitted GPU
+work: G7 needs it to prove old-generation rejection at drain. G15 holds actual arms pending across
+a forced epoch reset and checks cancellation and recovery; it is not a real viewport/world swap.
+
+## G274 — CB_GateLevel stencil tag numbers are not stable cross-run identities (2026-09-21, Chat ruling 081-05)
+
+Stencil tag values on CB_GateLevel vary run-to-run from the shared tag pool. Compare mask occupancy
+AND every nonzero byte against its own labels row's `mask_value`, never raw mask bytes across runs.
+The predecessor-only native diagnostics differed on all 71 raw masks while agreeing on all 71
+occupied-pixel maps; no m55 change was present. This revised invariant does not weaken each run's
+MASK-TIE or frozen-writer-mask/PNG equality. MainWorld's banked strict byte invariant still passed.
+
+The allocation order is decided by `FAnomalyMaskMeasure::AllocateTag`: scan from `NextTagOffset`
+through the reserved assignable range, accept the first ledger-free value, then advance the offset.
+`FAnomalyCensus::ArmNextBatch` also claims ledger-free values from the shared range. Their available
+values therefore depend on event/census claim and release order; the existing M36 allocator log
+records assigned/skipped/free counts. This source read names the mechanism, not a new timing proof.
+
+## G275 — Lyra's host-chosen spawn needs its own placement rule, then an independent pose check (2026-09-21, Chat ruling 081-06)
+
+Lyra's L_ShooterGym spawn is host-chosen and varies per launch. The bench rule is to place the
+pawn/view once at the recorded reference after the 45-second settle and the last logged host
+respawn, then check L1 from a fresh control-server snapshot (150 cm / 10 degrees). StackOBot B1
+is not portable; this is Lyra's rule. A respawn/possession between placement and capture_start
+invalidates the fixture; motion after capture_start stays allowed. Placement cannot self-certify.
+
+Status: **ruled, not implemented or exercised**. In 081-07, accepted source 3dc1dda has neither a
+control-server pose setter nor an existing bench pawn/view placement console command. The ruling
+also requires unchanged candidate binaries and no rebuild. A new compiled bench command needs
+that constraint resolved first. No L2 attempt was consumed; prior three L1-invalid G1-native
+attempts remain in the ledger. Each of the 24 remaining legs has its fresh three-attempt allowance.
+
+### G275 follow-up — owner scoped Stage 1 closed and released a Stage 2 rebuild (081-07 ruling)
+
+All 24 Lyra G1–G12 legs are now DROPPED-BY-OWNER-DECISION: host-chosen per-launch spawn and no
+placement lever in the accepted candidate. The 36 accepted legs close Stage 1. The three old
+invalid attempts and original failed-precondition-undefined leg remain. Stage 2 lifts the rebuild
+hold and implements L2 in an Editor-only AnomalyBench module. Lyra is limited to two natural-order
+twins and G-3; first-leg failure to qualify L2+L1 within three attempts drops Lyra entirely for m55.
+This is an owner scope decision, never a conversion of missing measurements into passes.
+
+## G276 — issue and label sampling can straddle the same-tick event end (2026-09-21, m55 Stage 2)
+
+CaptureCurrentFrame can issue the last positive opportunity and BeginRevert can run later in that
+same GT tick, before SampleDeferredActiveState. A closure watermark based only on labels already
+sampled would freeze one frame early. Queue that event-end request until the issued snapshot's
+legacy end-of-tick label sample arrives, then seal the actual phase last index. Do not fix a new
+consumer by moving legacy label sampling. Numeric work uses value metadata and immutable buffers;
+it releases the admission mutex during the pixel scan. Reference-frame shares extend the unique
+canonical reservation rather than allocating or charging a second copy of the predecessor.
+
+
+## G277 — B1 pose validity and foreground ownership are separate observations (2026-09-21, R1 preflight)
+
+No-capture server snapshots can retain a calibrated static camera while another process owns
+foreground. In081-09, four late A/B preflights passed raw B1 with0/90 foreground samples;
+they do not certify a focused final fixture. Other launches changed orientation and lost the
+visible target while foreground ownership alternated. Retain both pose and foreground series;
+do not infer binary regression, input cause or fixed-fixture readiness from the B1 count alone.
+The adapter uses snapshot indices, not captured-frame indices. Keep missing target rows explicit.
+UE's control JSON may arrive in binary WebSocket data frames; require valid JSON rather than
+Text framing. Treat an empty newly created log as not ready, not as a regex input error.
+
+
+## G278 — lock fixture input before settle, place after settle; keep focus required for capture (2026-09-22, Chat081-09 ruling)
+
+B1 pose failures on CB_GateLevel correlate with partial foreground during settle. Chat accepts
+focus transitions feeding mouse deltas into look input as the mechanism; SearchHost was the
+contender on2026-09-21. Fixture legs lock look/move input and place the view after settle.
+Focus is recorded and remains required for the whole measurement leg. The no-capture081-10
+preflight expressly accepts a pose pass with0/90 foreground; do not transfer that exception to capture.
+
+First implementation readiness pitfall: input locking needs a player controller, not a possessed
+pawn. The081-10 implementation added a GetPawn prerequisite and its first enable refused on a
+map logging No Spawnpad found. The composite refusal does not identify the absent pointer.
+GetPawnOrSpectator is a distinct engine API; inspect actual controller/pawn/spectator/view owner
+before defining placement readiness. Do not create a replacement camera or infer a successful
+lock from command execution. This candidate is built but not runtime-qualified; matrix stopped.
+
+
+## G279 — controller input readiness differs from possessed-pawn readiness (2026-09-22)
+
+Packaged CB has pawn=null and SpectatorPawn as spectator/viewtarget. Locking input needs only
+its controller. Resolve placement owner from pawn/spectator viewtarget then GetPawnOrSpectator;
+log all identities and specific refusal reasons before deciding. Do not spawn a substitute view.
+Both081-11 candidates passed5/5 strict preflights. Before-sampling self-faults are HARNESS-INVALID
+under Chat081-10, at most2 fix-rebuild iterations; executed pose/B1 failures still count.
+
+## G280 — NoHold without an eligible texture is no fire, not a zero-labelled fire (2026-09-22)
+
+The inherited081-08 NoHold helper targeted untextured CB Cube StaticMeshActor_49.081-11's actual
+run logged0 candidate textures and5 not-applied attempts;0 events existed. NoHold suppresses
+streaming bias only after selecting an eligible texture. Require proof of an active fire before
+claiming no_labelled_frames,0 phases/0 pairs and final-record coverage. This failed-precondition
+run is retained and not credited; no producer finalization defect follows from its empty sidecar.
+Chat review REQUIRED for the corrected recipe/continuation at this report boundary.
+
+## G281 — occlusion demonstration finals must survive legacy measured-zero vetoes (2026-09-22)
+
+True pre-onset geometric occlusion produced target_pixels0 plus same-frame trace hits,5 sidecar
+finals, all indeterminate/empty_region, no measured pairs. Existing m26 veto removed4 legacy
+records, leaving1. A generic >=3 legacy-event assertion incorrectly failed this predeclared
+occlusion demonstration. Correct that auditor scope with >=3 sidecar finals and exact legacy+
+veto accounting, preserving original failed audit and same raw launch. Do not waive B1, trace,
+foreground or normal-case event minima. NoHold with0 sidecar finals is a different failure.
+
+
+## G282 — an issue count is not a completion clock (2026-09-23)
+
+081-14 Lyra1080p had19 genuine colour-writer arrivals rejected after phase closure;
+14 labelled mask-to-colour latencies were617-780ms,19-23engine frames. The old
+8issued-index deadline expired before the writer arrived. Admission also refused
+on a separate3-colour count cap while below64MiB. Chat081-14 classifies this as a
+spec defect caught by a gate. 081-15 changes closure/gap clocks to received colour
+completions, wall backstop5s, and byte-only admission. Frozen finals remain immutable;
+missing/stalled work must still refuse honestly. Qualification is pending081-15.
+
+### G282 addendum — a wait threshold is not by itself an admission/retention bound (2026-09-24, 081-16 / 081-17)
+
+A clock that decides when to stop waiting (eight later completions or five seconds) says nothing about
+how many buffers can be held while waiting: 5649a6d admits by bytes only, a closing phase counts
+completions beyond its own last index, and phases can be longer than K. Codex's 081-16 source
+counterexample (one phase 3..18, delayed head) retains 13 colours + 16 masks with every reservation
+legal, so the proposed 11C + 9M "bound" was not one. Chat's ruling: a hard 256 MiB payload cap,
+zero `budget_exceeded` plus full required-pair yield as the gate, and high-water as a reading with an
+ownership census. Build 2 then measured a different retention shape on Lyra 1080p: 197.0 MB, 21
+pending colours behind a head whose inputs had all arrived, one phase open — not the closing-phase
+shape at all (mechanism not established). A byte figure is a reading per recipe; derive nothing
+structural from a clock constant.
+
+## G283 — an exit-code contract whose fixture only ever returns 0 cannot see a changed exit code (2026-09-24, 081-19)
+
+The first "the six CLI cases keep their exit codes" check for the m55 change oracle ran every case on a
+healthy synthetic session: all six returned 0 before and after, which would also have been the reading if
+the new code had silently swallowed a failure path. It was re-run on a fixture built to fail — a blank
+target region (label-pixel NO-TRACE, exit 2; the batch, exit 2) and a black first frame (black-frame
+gate, exit 1) — and the codes stayed identical before/after and with a mismatching sidecar present.
+An "unchanged" comparison is evidence only when the compared value can take more than one value on the
+fixture (`G96`'s shape, applied to a regression contract rather than a detector).
+
+## G284 — an evidence layer must ATTACH OR REFUSE; it must never GATE the legacy work it rides on (2026-09-24, 081-20 / 081-21)
+
+m55's identity guards were written as early `return`s placed BEFORE the legacy step they were guarding:
+a family that failed the owner check returned before consuming the colour arm and before publishing its
+key; `AfterPass` returned before submitting the readback when the family carried no m55 data; the mask
+pass returned without serving any arm (m26 and census arms included). On every banked leg the guards
+never fired (`change_view_rejected 0` on all normal legs), so nothing showed it — but on a multi-view,
+SIE or foreign-family host, or with the stage closed after a failed persist, a default-ON evidence layer
+would have produced **zero legacy PNGs** and arms growing one per frame (081-20 F2/F3). Build 3 moves
+every m55 decision to AFTER the legacy step: the legacy consume / publish / submit / serve runs exactly
+as before m55, and m55 only decides whether data or a receipt rides along, recording
+`unsupported_delivery` when it does not. **Test for it with a differential model or leg against the
+pre-feature binary, not with the feature's own counters** — a counter that never fired proves only that
+the guarded shape never occurred.
+⚠ Legacy-exact also means legacy's own defects come back: build 2's refusal of foreign families had been
+masking the pre-m55 same-frame key clobber (a foreign family publishing after the capture viewport).
+That is recorded, not fixed, with the multi-view unsoundness (m51 pairing work).
+
+## G285 — a closure that blocks the game thread cannot be completed by anything the game thread drives (2026-09-24, 081-20 F4)
+
+`CloseAndPersist` spins on the game thread until the stage closes, bounded by a 5-second wall. While it
+spins, mask service and writer enqueue — both game-thread driven — cannot run, so an owner change
+mid-run (`ResetEpoch` from `Issue`) ends every pending item `closure_timeout` rather than letting it
+complete; and at run end a frame dropped on the render thread never notifies the stage, so the closure
+waits the whole 5 s. Bounded, so documented rather than changed (081-20 ruling). If a future change
+adds a longer wait here, check first whether the thing waited for needs the thread that is waiting.
+## G286 — a same-binary control pair of n = 2 under-samples run-to-run noise, and a subset rule over it has a one-sided hole (2026-09-24, 081-22)
+
+The legacy-identity rule "every cross-binary difference must also differ within a same-binary pair" was proven
+on banked data before use and failed its must-fail case: a difference present in only ONE of the two build-B
+legs lands in the B-pair's own diff and is absorbed as "run-unique". Closed with two checks: key presence (no
+added or removed JSON path at all) and a reference-only rule whose run-unique set is measured on binaries other
+than the one under test. That reference set cannot be one pair of the current recipe: `end_frame` read
+121/121/122/121 on four legs of two binaries, so a single pair can agree by chance on a field that is noise.
+Build the reference from several same-binary pairs (081-22 used this round's pre-m55 pair plus three banked
+081-12 pairs). Prove any comparator with a known-good, a one-leg must-fail and a both-legs must-fail before
+reading a result.
+
+## G287 — normalising array indices inside a run-unique rule loosens it; declare tolerated paths by name instead (2026-09-24, 081-23)
+
+While re-deriving the 081-22 legacy comparator for the requalification harness, the run-unique set was first built from paths with array
+indices normalised (`anomalies[2]` → `anomalies[]`). The dry run then showed that 081-22's recorded native-order FAIL no longer reproduced
+without the new declaration: the pre-m55 pair varies `coverage_pct` on events 3 and 5, so the normalised pattern silently absorbed the
+cross-binary difference on events 2, 6 and 7. Keep the control-pair rule on exact paths; normalise only for key presence and for an explicitly
+declared tolerance set (the 081-22 timing-sampled set). A comparator change is proven by reproducing a recorded verdict both ways — without the
+declaration it must fail exactly as recorded (9 paths, 3 outside the historical set), with it it must pass.
+
+## G288 — a self-test that covers one branch of the input leaves the other untested, and a driver that ignores a step's exit code reports its crash as success (2026-09-25, 081-24)
+
+The chunk-0 analyzer's self-test ran on banked evidence-ON legs only. On its first real evidence-OFF leg the `__main__` loop called `.pop` on
+`a['evidence']`, which is the string `"OFF"` there, and crashed; the comparator then failed on the missing `analysis.json`. The chunk driver calls
+both through a helper whose return value it discards, so the window printed `chunk_exit 0` and a PASS postflight over a run whose analysis never
+happened. The analysis functions were correct and were re-run from a separate driver without editing the hash-locked harness. Self-test every
+input class the real run will feed (here ON and OFF), and never discard a step's exit code in a driver that reports one.
+
+## G289 — "no receipt" in the change sidecar is a stub with sentinel delivery fields, never an absent key (2026-09-25, 081-25)
+
+`ChangeReceiptJson` always writes `receipt` once an issue exists: `run_epoch`, `cut_counter`, `capture_token` and `t_submit_ms` are real,
+and the delivery half is `t_drain_ms -1`, `view_family_id 0`, `serving_token 0`, `format 0` (`PF_Unknown`), `rect []`, `extent []` when no
+receipt was built. The 081-23 evaluator coded §D's "SI8 carries no receipt" for G8 as `not row.get('receipt')`, and window c1 stopped on a
+leg where the product had done exactly what §D predicted. The dry run could not catch it because no banked build-3 G8 stand-in existed
+and the known-bad case failed on other clauses first. Test "was a receipt built" on the delivery fields (`t_drain_ms == -1` and no
+family/format/rect), and give every new clause a positive banked case of the exact serialised shape — the Stage-1 G15 and G4 rows are one.
+
+## G290 — a resumable ledger that files a recorded failure under "done" lets the next run of the window carry on past it (2026-09-25, 081-26)
+
+The 081-23 runners returned early for any leg whose ledger row said PASS, FIXTURE-VALID-FAILURE or NOT-RUN (NoHold: PASS/FAIL/NOT-RUN;
+Lyra: PASS/…/NEEDS-DECISION/FAIL). "Never re-run a decided leg" was honoured, but "the first valid failure stops the window" was not: an
+unchanged re-run of c1 after the 081-25 stop would have skipped `C1_G8_N` and launched `C1_G8_S`. Journal 081-25 said the opposite — that
+it would re-run the failed leg — from reading the summary file, not the code. Only a PASS (or a ruled PASS-REEVALUATED) may be skipped;
+a recorded failure must re-raise its stop on re-entry. Establish resume behaviour by driving the real driver offline with every launch
+stubbed and naming the first leg it would start, never by inference from a summary.
+
+## G291 — a pass rule written as a run-wide constant must be checked against every device that changes the run's shape (2026-09-25, 081-26)
+
+Two M-common clauses of 081-23 were true of an ordinary leg and false by construction on specific bench devices: "`change_view_rejected` 0
+except G8" (G2's served-but-unattached mask arm and G15's mask-pass hold also count it — and Stage-1 had banked 1 on both) and "exactly one
+`HIGH-WATER-PEAK` line" (G7 and G15 reset the epoch and close twice; the field reference already said one line per closure). Neither was
+exercised by the dry run, because no build-2/3 G2/G7/G15 leg existed and the Stage-1 stand-ins were judged on identity clauses only. When a
+prediction states a counter's value or a line's count "except X", derive the exception list from the source of every gate in the campaign
+and from the banked counters of every gate, not from the one gate the author was thinking about.
+
+## G292 — the quiet gate sees processes, not a person; a retry loop with no idle check lets one interaction use up a leg's attempts (2026-09-25, 081-29)
+
+Window c1 was resumed on a PC the owner had freed. Four legs passed with a stationary cursor. Then someone used the machine: the mouse
+moved through `C1_G2_S_A1`, and the Start menu (`SearchHost.exe`) and the desktop shell (`explorer.exe`) took the foreground. The harness
+launched attempts 2 and 3 straight away, the game never regained focus (0/480 and 0/485 foreground samples), and the leg was filed
+`NOT-RUN` / INVALID-FIXTURE-EXHAUSTED within about 2 minutes. `GetLastInputInfo` read 0.34 s idle after postflight. Two points to carry:
+`c.quiet()` inspects processes only, so neither a render nor a person at the keyboard makes a window "not quiet". And the 3-attempt budget
+protects against a flaky fixture, but it gives no protection against a person who stays at the PC, because nothing waits between attempts.
+A pre-attempt check on input idle time and foreground ownership would turn this case into a NOT-QUIET wait. Because the `NOT-RUN` row
+halts every re-run (G290), an environmental exhaustion also needs a ruling before the window can continue.
+
+🔻 **MITIGATED 2026-09-26 (081-30, ruling `_reviews/081-30-chat-ruling-person-present-gate.md`).** The harness now waits for a person to
+leave instead of burning attempts: before every attempt of every leg kind and at window start it requires ≥ 60 s of input idle
+(`GetLastInputInfo`), polling every ≤ 15 s inside the same 45-min per-window wait budget (exit 4 when it is spent, never NOT-RUN). The
+runners' own ALT tap is excluded by construction: an input that falls inside the window of a runner whose attempt carried no person
+evidence is the runner's. An attempt that fails on foreground **with person evidence** (a shell process took the foreground, the cursor
+moved away from any focus action, or non-harness input registered) is ENV-INTERRUPTED: it does not count against the three attempts and is
+capped at five per leg (exit 4). Fixture-valid attempts are never reclassified; a flagged failure goes to chat as NEEDS-DECISION.
+`C1_G2_S` A1–A3 are ENV-VOIDED (ruling 1). ⚠ Still not seen: a person who is present but touches nothing. Journal
+`docs/sessions/2026-09-26-081-30-code-m55-person-present-gate.md`.
+
+## G293 — a library proven in isolation does not prove the script that calls it (2026-09-26, 081-30)
+
+081-30 added a person-present gate to the requalification lib and a window-start call to `081-23-window.py`. The lib passed 42 of 42
+proofs, driven through the real `run_measure_leg` with only the PowerShell runner stubbed. The window runner called `L.budget_left()`, a
+function the lib did not define, so every window would have died at start with an `AttributeError` right after its preflight passed. Only
+executing the real `081-23-window.py` source against stubs exposed it. When a change spans a library and a script that calls it, the proof
+must execute the script from its own source, not re-derive its calls. (The same walk's first run also flagged all 20 legacy legs, and that
+was the checker, not the harness: it assumed the launch is the last traced step, while `run_legacy_group`'s `finally` re-checks the
+process state after it — G142's shape.)
+
+## G294 — an identity gate whose "expected variance" comes from one control pair per group will flag every known run-unique class that pair happened not to show (2026-09-26, 081-31)
+
+081-31's first legacy group (CB-N: pre-m55, build 3 OFF, build 3 ON, ×2 each) failed its native rules on three unrelated phenomena.
+Two of them are classes this project already knows vary run to run:
+- a **bijective census stencil relabel** on one OFF leg (8 tags one-to-one; occupancy, MASK-TIE and counts equal), which `P-C7 v2/v3`
+  compare modulo bijection;
+- **`census_cycles`**, already in the historical run-unique set, which the native strict rule excuses but the cross-pair rule never consults.
+
+Each group has exactly one control pair per state, so "must also differ within a control pair" only learns the variance that pair happened
+to show. When an identity gate compares raw values, name every known run-unique class up front: tag values modulo bijection, and fields in
+the historical set. Otherwise the first unlucky draw reads as a build difference.
+
+The third phenomenon was real output, with a pre-existing mechanism. When two target-mask arms coalesce into one render, **only the first
+pixel-wanting arm receives pixels** (`Drain_RenderThread`'s `PixelOwner`, identical in `master`). The other frame is filed UNMEASURED with
+`pixels=0` and leaves the observable subset. Any binary can show this whenever a mask render slips a frame. Why it slipped here is not
+established.
+
+🔻 **RESOLVED IN THE HARNESS 2026-09-26 (081-32, predictions AMENDMENT 5, ruling `_reviews/081-32-chat-ruling-legacy-identity-amendment-5.md`).**
+The cross-pair clause now also excuses exactly the hash-pinned historical run-unique set (ruling C). Tag values compare modulo one
+leg-wide bijection π, checked by remapping pixels, counts, ties and actor identity (ruling B). A bijective relabel therefore no longer
+feeds the run-unique set a control pair learns from. On the banked CB-N the cross pairs excuse `census_cycles`, and CB_N5 passes under π.
+It takes effect when the boundary is re-issued; that is held on 081-32's NEEDS-DECISION (G296). The coalesced-arm frame is G295.
+🔻 **In effect from 081-33 (2026-09-26):** AMENDMENT 5 is released with A.6, CB-N is committed PASS-REEVALUATED, and the boundary is
+re-issued for the lib and the feature head.
+
+## G295 — a target-mask render that slips a frame coalesces the next frame's arm into it, and that frame comes out UNMEASURED: a pre-existing yield issue, not a label error (2026-09-26, 081-32)
+
+`AfterTonemap_RenderThread` serves **every** pending arm with one render (m43). `Drain_RenderThread` then gives the tight pixels to the
+**first** pixel-wanting arm only (`PixelOwner`). `ServiceTargetMask` files every other target arm in that render `TARGET MASK UNAVAILABLE
+… pixels=0`.
+
+So when frame N's target-mask render slips one frame and frame N+1's arm joins it, N+1 is labelled `mask_state: unmeasured`,
+`target_pixels -1` and `observable null`, and it leaves the observable subset of `affected_frames`.
+- The label stays **honest**: unmeasured means not observable, the m49 rule. It costs **yield, not correctness**.
+- The code is pre-m55 and byte-identical in `master` (`031a103`) and build 3 (`85c99b3`) apart from issue-guarded additions
+  (`_reviews/081-32-evidence/precondition-source.json`).
+- Measured once in 30 banked legacy legs: CB_N2 si 29, build 3 evidence OFF. It is the only `TARGET MASK UNAVAILABLE` line in that bank.
+- **Why the render slipped is NOT ESTABLISHED.** Tick 40 produced no `M23 PASS` line at all, and CB_N2's `speed_ratio` was 1.000913
+  against ~1.000003 on its siblings. Both are observations, not a mechanism.
+- The requalification's legacy-identity gate excuses it under a signature plus a cap (AMENDMENT 5 ruling A); a rising build-3 frequency is
+  a stop.
+
+📌 **FUTURE (m51 / M3), filed not built:** give each target arm its own pixel readback, or re-arm a coalesced target arm on the next
+render, so a slipped render delays a mask instead of losing it.
+
+🔻 **CROSS-REFERENCE (2026-09-26, 081-39):** with pacing OFF this shape appears at scale — the mask is served from the view family one
+before the colour frame on 60–68 of 120 required windows per leg, and m55 refuses those pairs. Recorded as **G302**, FUTURE for m51
+pairing (ruling 081-39 ruling 3).
+
+## G296 — a negative proof's expected FAIL presupposes that the comparator reads the thing the proof mutates (2026-09-26, 081-32)
+
+Ruling 081-32 A asked for "signature present, but the colour differs → FAIL". Its premise was that the existing legacy rules include "the
+frame's colour file". **They do not.**
+- The legacy flat holds labels, annotation, run_summary, run and the mask-PNG hashes. `Actual_Frames` hashes are stored and never
+  compared.
+- Colour frames are not byte-stable at the legacy configuration: 20–44 % of pixels differ between any two CB-N legs, including two pre-m55
+  runs of the same binary (184,214 px, max Δ 59 at si 29).
+- A solid-magenta colour frame therefore PASSes with or without the amendment.
+
+The proof was run as written and reported as not-as-expected, not bent into a pass by inventing a colour tolerance. **Before accepting a
+negative proof, name the rule that reads the mutated artifact. If none does, the negative can only pass, and the gap belongs to whoever
+owns the rule set, not to the implementation under test.** Same shape as G96: a check can only fire on what it looks at.
+
+🔻 **RESOLVED 2026-09-26 (081-33), ruling `_reviews/081-33-chat-ruling-colour-proof-and-derived-fields.md`.** Chat ruled the negative a
+chat spec defect and did not add a colour comparison. It replaced the negative with a condition the excusal can actually check.
+
+**A.6:** the excused frame's colour file must exist, with the same dimensions and pixel format as every comparison leg's. These are read
+from the PNG header, with no pixel compare and no tolerance. The excusal exists because the frame *was captured* and only its mask was
+lost, so that is the fact to verify. The rule set was changed by its owner; the implementation was not bent.
+
+The new negatives were then checked the way this entry asks. Before running a case, name the rule that reads the mutated artifact:
+- a missing, zero-byte, resized or re-formatted colour file → A.6 reads it → FAIL;
+- a comparison leg without the file → A.6 reads it → FAIL;
+- the same mutants under the 081-32 lib → nothing reads them → PASS.
+
+That last line is the control proving A.6 is what fires.
+
+⚠ **Second instance of the same trap, caught before it bit:** 081-32's proof mutants copied sessions *without* `Actual_Frames`. Under
+A.6 every "signature present" negative would then have FAILed because the colour file was missing, not for the reason the case names.
+A negative that fails for the wrong reason proves nothing. The 081-33 mutants carry the colour files, and every case asserts **which
+frames were excused** as well as the verdict.
+
+## G297 — an identity gate that learns its allowed variance from control pairs lets the anomalous leg teach its own difference (2026-09-26, 081-34)
+
+The legacy cross clause builds its run-unique set from each group's control pairs (same binary, same evidence state). G294 was the
+false-FAIL side: a pair that happened to agree flagged known noise. This is the other side. In CB-S, `CB_S2` (build 3 OFF) read
+`frames_shaders_pending 90` against 0 everywhere else; `CB_S2` is one half of the S2/S5 control pair, so its own value differences
+went into the run-unique set and every cross pair reported **0 extras**. Synth order has no strict reference-pair clause. Only the
+key-presence rule saw it, because m47's keys are emitted conditionally and so appeared as new keys.
+
+**Consequence:** in synth order a single leg whose deviation is value-only on keys every leg already has passes the cross clause by
+construction. A control pair measures variance only if neither half is the thing under test. Before trusting a zero from a
+variance-learning gate, ask whether the leg that would fail is one of the legs the variance was learned from.
+
+Also measured here: m47's own log line says `PREWARM … incomplete` is "STRUCTURALLY ZERO in a packaged build". It read **1** on a
+packaged build (`M55B3R23_CB_S2`, 90 of 90 frames `shaders_pending`, 0 pending jobs). A claim of structural impossibility written into a
+log line is a prediction, not a guard. Mechanism not established.
+
+🔻 **NOW VISIBLE (2026-09-26, 081-35), ruling `_reviews/081-35-chat-ruling-m47-excusal-and-g297.md` ruling 2 — a reading and a tripwire,
+deliberately NOT a new gate.** Against a *systematic* m55 effect the gate keeps its power: both legs of a pair would show it and fail. A
+one-leg deviation cannot be told from noise at n = 2 per binary, and failing on singletons would false-fail genuine noise about 2/3 of the
+time.
+- **The reading.** Every legacy group writes `self_excused_singletons`: every path where exactly one leg differs while the others agree,
+  that no rule reports. Each entry gives the leg, binary, evidence state, values, and whether the path is historical or timing-sampled.
+- **The tripwire.** A non-historical field with self-excused singletons on build-3 legs in ≥ 2 groups, and never on pre-m55 legs, is
+  NEEDS-DECISION. It counts the bank (a baseline carried in the lib) plus every later group row.
+- **Bank pre-check (the unchanged `9901be63` lib, before any change):** the tripwire does not fire.
+  - Self-excused singletons: 081-12 CB `CB5` (stage 2, ON), six historical tick counters off by one; 081-22 D MAIN-N `coverage_pct` on
+    `D_N1` and `D_N4` (pre-m55, timing-sampled); 081-22 C `C_3` (pre-m55), historical only; c1 CB-S `CB_S2` `frames_shaders_pending` 90
+    vs 0 and `shader_prewarm_incomplete` 1 vs 0 — **exactly this entry's shape, the only non-historical build-3 case, in one group**.
+  - Under AMENDMENT 6 the last two are M47-EXCUSED and leave the reading (`_reviews/081-35-evidence/g297-bank-precheck.json`,
+    `proof4-no-flips.json`).
+- **The same lesson inside the m47 excusal.** Its closed-key-set condition checks the excused leg against paths excused **without** its
+  own control pair (the historical set, the timing-sampled set, the group's *other* control pairs). Otherwise a value-only difference
+  riding along with the m47 keys would be excused by the very pair it contaminates. Proven: `CB_S2` with m47 keys plus a `bbox_px` value
+  +1 is not excused, and FAILs.
+
+## G298 — m47's shader-readiness mark fired on a packaged build and marked 90 good frames `shaders_pending`: a false-positive client quality flag (2026-09-26, 081-35)
+
+Measured on `M55B3R23_CB_S2` (build 3, evidence OFF; pre-m55 code path, byte-unchanged by m55):
+- `Capture(m47): PREWARM shaders materials=2 incomplete=1 waited=0.0ms pendingBefore=0 pendingAfter=0`;
+- then `SHADERS pending=0 incomplete=1` on every captured frame;
+- so all 90 rows carry `render_state="shaders_pending"`, and run_summary reads `frames_shaders_pending 90`, `shader_prewarm_incomplete 1`.
+
+Three things are wrong with that, and they are separate claims:
+1. **The log's own wording is refuted.** It says the incomplete count is "STRUCTURALLY ZERO in a packaged build", and it read 1 on a
+   packaged build.
+2. **The frame mark is run-wide, not per anomaly.** No shader job was pending, and the active anomaly (`blinking`) swaps no material, so
+   those frames' pixels could not have been affected. The mark keys on *any* of this plugin's swap materials being incomplete, not on the
+   one the frame's anomaly draws.
+3. **For a client it is a false-positive quality flag** that could make them discard good frames.
+
+Incidence: 1 packaged StackOBot leg in the 972 banked sessions carrying m47 fields; the only other non-zero is a Lyra smoke run (prewarm
+incomplete 2, 0 frames marked). **Mechanism NOT ESTABLISHED:** the log does not say which of the two materials was incomplete, or why it
+never completed.
+
+In the requalification the keys stay in legacy-identity scope and are excused only under their own log signature, consistency and a cap
+(AMENDMENT 6 ruling 1). A second build-3 occurrence while pre-m55 shows none is a stop.
+
+📌 **FUTURE (m51 / M3), filed not built:**
+- tie the frame marker to the materials the frame's active anomalies actually use;
+- log which material is incomplete;
+- correct the "structurally zero" wording.
+
+## G299 — a game-thread time built on `GetThreadTimes` is a statistical sample; use cycle counts, calibrated against CPU time, never wall (2026-09-26, 081-37)
+
+`GetThreadTimes` charges a thread in 15.625 ms ticks. A game thread runs in slices shorter than that, so its figure is a sample, not a
+measurement. Measured on this box with a synthetic thread of known load: a 1 ms-slice thread read 5–29 % off across three runs, and a
+4 ms-slice thread −3 to +9 %. `QueryThreadCycleTime` on the same thread reproduced the programmed load (3.745 vs 4.0 ms and 0.970 vs 1.0 ms
+per frame; the shortfall is descheduling inside the busy phase).
+- Microsoft warns the cycle counter may not be convertible to time. On this CPU (i7-12650H, hybrid) it runs at the TSC rate: cycles per
+  OS-accounted CPU-second were 1.00–1.04 × the registry `~MHz` (2688) on long-slice trials, the same for a spin and for hashing work.
+- **Calibrate against CPU time, not wall.** A spinning Python thread on this idle laptop got only 75–79 % of wall time, so a
+  cycles-per-wall-second calibration read 2.0–2.2 GHz and would have over-read every game-thread figure by ~25 %.
+- UE names its game thread `GameThread` with `SetThreadDescription` (`WindowsPlatformProcess.cpp:2117-2119`), so an external sampler can
+  find it. Re-read descriptions until they are set: a thread can be enumerated before it names itself (the 081-37 sampler had that race).
+
+## G300 — the m38 run log flushes to disk on every line, on the thread that logs; the "FPS 21.5" leg was one 1.56 s start stall, not a rate (2026-09-26, 081-37)
+
+`FAnomalyRunLog::WriteLineLocked` calls `Writer->Flush()` → `FArchiveFileWriterGeneric::Flush` → `FlushFileBuffers` for every line, and
+the device is `CanBeUsedOnAnyThread`. With the run log ON (delivery OFF, the bench default), every game-thread log line waits for a
+synchronous disk flush.
+- Stage-1's evidence-OFF `MAIN4` read `sustained_wall_fps` 21.535. That is a whole-session ratio (wall span / game span). All of its excess
+  was one stall over session_index 0→4 (883, 111, 238, 527 ms). Frames 5–89 match their siblings to the millisecond.
+- During the stall, StartRun's back-to-back echo lines took 6–215 ms each; the sibling legs emit them within ≤ 2 ms. What slowed the disk
+  or the process is **not established** (no load context was recorded).
+- **Read `sustained_wall_fps` / `speed_ratio` as a whole-run ratio.** One start stall moves it as much as a slow run does; the per-frame
+  `t_wall` deltas tell them apart.
+- **For cost or timing measurements, turn the run log off** (`IAI.Capture.RunLog 0`; delivery mode does this by default). Otherwise
+  every m55 Log line costs a disk flush on its thread, including one `MASK-SERVED` line per served mask on the render thread.
+
+## G301 — pacing OFF changes what m55 measures: predict a cost leg's B workload in the regime it runs, not from paced priors (2026-09-26, 081-38)
+
+The Stage 3 cost campaign predicted full required-pair yield from paced priors (`C2_SOLID`, `C1_SOLID1080`: 20/20). Its legs run pacing OFF,
+and there the yield collapsed:
+- **720p:** 20–24 of 120 required pairs measured (yield 0.17–0.20). Unmeasured windows: `view_mismatch` 60–68 (camera deltas exactly 0; the
+  mask payload was served from the view family one earlier than the colour frame), `unsupported_delivery` 22–28 (stage `mask`,
+  `mask_receipt` null), `mask_payload_missing` 5–10. The paced priors show none of the first two. G295's slipped-mask shape, far more often.
+- **1080p:** the writer saturates (≈ 32.5 PNG/s against ≈ 57 fps armed, backlog 141 frames). m55 holds payloads until colour completion
+  (p50 2.3 s), so admitted bytes reach the 256 MiB cap (267.6 MB) and half the required windows are refused `budget_exceeded`. Measured
+  8 of 60 → the declared B-vacuity floor (20) stopped the campaign (LEG-FAILURE).
+- The declared vacuity floor did its job: without it, a B leg that barely ran the measurement would have fed the cost statistic.
+- **Rule:** a cost or throughput leg changes the pacing, resolution or writer regime of its recipe; predict the B workload (yield, reasons,
+  high-water) **in that regime**, from a pilot or banked leg in it, and state the realised pair density beside any cost verdict. A PASS at
+  a fifth of the intended workload is a PASS at that workload only.
+- Mechanism of the pacing-OFF mask slip: **not established** (receipts only).
+
+## G302 — with pacing OFF, m55 refuses most required pairs because the mask arrives from the wrong view family: the refusal is m55 working; the mispairing is m51's defect (2026-09-26, 081-39)
+
+The m55 identity contract refuses a pair whose mask and colour frame do not belong together. With pacing OFF that refusal became the
+common case. Measured in 081-38 on the solid recipe, 720p, four B legs, each against 120 required windows:
+- **`view_mismatch` 60–68 per leg.** The camera delta is exactly 0. The receipts show the mask payload came from the view family **one
+  before** the colour frame (`S3_720_B1_T1` si 23: colour `view_family_id 24` / `family_frame 1779`, mask 23 / 1778).
+- **`unsupported_delivery` 22–28 per leg** (stage `mask`, `mask_receipt` null).
+- Only 20–24 pairs per leg were measured (yield 0.17–0.20). Paced priors on the same recipe and binary measure 20 of 20 with neither reason.
+
+**m55 is right to refuse.** It records each window as unmeasured, with its reason, and never measures a wrongly paired frame. That is the
+identity contract doing its job, and m55 does not change for this (ruling 081-39, ruling 3).
+
+**The mispairing belongs to m51.** Chat ruled it the m51 mask/colour pairing defect: G295's shape (a slipped target-mask render), first seen
+under load in 078.
+- It points the same way as 078's MASK-PICTURE-PAIRING `PREVIOUS` readings, where the mask matched the previous picture.
+- In 078, every pairing leg near `speed_ratio` 1.00 passed and every leg at ≥ 1.59 failed. That is an association only.
+- Beyond the receipts, the mechanism is **not established**.
+
+Consequences:
+- **Report the realised yield next to any m55 reading taken with pacing OFF (G301).** A pacing-off m55 measurement covers only the pairs
+  that happened to be correctly paired.
+- **For clients, paced capture is the m55 configuration.** At 1080p with pacing OFF the payload cap adds `budget_exceeded` refusals as well
+  (081-41 client docs).
+
+📌 **FUTURE (m51 pairing), filed not built:** keep the mask paired to its own view family under load. Candidates: G295's per-arm pixel
+readback, or re-arming a coalesced target arm. Its gate should be the m55 `view_mismatch` count on a pacing-OFF leg, which is 60–68 of
+120 today. Cross-references: G295, G301.
+
+## G303 — a sleep-then-spin pacer inside a cycle-counted thread: derive what the spin does, then measure a replica before trusting the derivation (2026-09-26, 081-39)
+
+The m11 pacer (`PaceThisTick`) works in two steps:
+1. It sleeps whole milliseconds to within 1.5 ms of the frame deadline. `SleepNoStats` truncates to whole ms, and UE sets
+   `timeBeginPeriod(1)`.
+2. It then loops `SwitchToThread` on the game thread until the deadline.
+
+`QueryThreadCycleTime` counts that loop, so a paced game-thread cost metric contains it.
+
+**The derivation.** If `Sleep` woke within about 1 ms of its request, the loop would last 0.5–2.5 ms and shrink as the frame's work grew.
+It would then absorb up to ~1 ms of any work change.
+
+**The replica says otherwise.** A synthetic process making the same Win32 calls (`_reviews/081-39-evidence/proof-pacer.json`, 600 frames
+per condition) showed that on this box:
+- `Sleep(n)` returned after **n + 1.6–2.0 ms**;
+- the loop averaged **0.2 ms per frame** and did not move with the work (−0.03 ms for +0.4 ms of work);
+- cycle deltas tracked the work: +0.335 for +0.4, and +1.28 for +1.4, against +1.29 unpaced.
+
+So the paced gate can see a 1 ms cost here.
+
+**Rule.** When a timing mechanism sits inside the measured thread, write the derivation down, then measure a replica before building a gate
+on either the derivation or the fear. The derivation named the risk; only the replica sized it. A host whose `Sleep` wakes tighter could
+still absorb up to ~1 ms. That is a named limit, not a measurement.
+
+## G304 — the run log is not free on the game thread: ≈ +1 ms of CPU per engine frame at pacing OFF, even though a cycle metric excludes blocked wait (2026-09-26, 081-40)
+
+**The prediction.** 081-37 predicted that turning the run log ON would move game-thread cycles by less than ±0.3 ms. The reasoning was that
+`QueryThreadCycleTime` charges CPU, not time spent blocked in a flush (§1.6 of the cost predictions).
+
+**The measurement.** The 081-40 diagnostic pair ran pacing OFF, 720p, 600 frames, run log ON. It was compared with 081-38's pacing-off
+720p legs, the same recipe with the run log OFF, 4 legs per side there against 1 here, about an hour apart.
+- Game-thread cycles read **+0.987 ms (evidence OFF) and +0.989 ms (evidence ON)** per engine frame.
+- Engine time rose +1.2 / +1.5 ms.
+- The run log wrote ~7,300–7,700 lines per leg (≈ 10 per engine frame). Evidence OFF has 0 `MASK-SERVED` lines, so the cost is not m55's
+  logging.
+
+**What is established.** The cost is **CPU work on the game thread**, not waiting. **Mechanism not established.** Per-line formatting, the
+write, and the kernel-mode CPU of the per-line `FlushFileBuffers` are all candidates; thread cycle counts include kernel time, which is why
+"cycles exclude blocked wait" did not make I/O free.
+
+**Rule.**
+- Keep the run log **OFF** on every cost, throughput or pacing leg; block P did, and the client's delivery mode does.
+- Never compare a run-log-ON leg against a run-log-OFF leg for game-thread cost.
+- A cycle-counted metric still charges the CPU side of synchronous I/O.
+
+Related: G300 (the FPS-21.5 stall ran through these flushes; it did not reproduce in the two diagnostic legs, n = 2).
+
+## G305 — a ruling's field names and formulas are spec text, not source: check each field against the writer and each formula against the ruling that last ruled on it (2026-09-26, 081-41)
+
+**What happened.** The 081-41 docs brief listed what the field reference and client readme must say. Two items did not match the record:
+- **`cam_delta`** — named in 081-03 and 081-41 as a field "next to `cam_moved`". The writer emits no field of that name; the camera delta is
+  three quantised integers, `cam_dpos_cm`, `cam_drot_deg` and `cam_dfov_deg`, and the two `_deg` fields are in **tenths** of a degree.
+  Documenting `cam_delta` would have described a key no reader can find.
+- **"the closure-bound formula"** — 081-41 (after 081-37) asked the readme to state `(8 + 3) × colour + 9 × mask` as part of the memory
+  envelope. 081-16 had **withdrawn** it as a bound (Codex's legal 16-frame phase holds 13 colours + 16 masks) and ruled that there is no
+  structural guarantee of full yield at any resolution. Stated as the brief worded it, the readme would have promised a maximum the
+  source does not enforce.
+
+**What was done.** The field reference documents the three fields and says there is no single `cam_delta` key. The formula ships as a
+**planning estimate, labelled "not a bound"**, beside the 081-16 sentence (no structural guarantee; the cap refuses; refusals are never wrong
+numbers). Both are recorded as deviations in journal 081-41 and in the final report.
+
+**Rule.**
+- Before documenting a field a brief names, find it in the writer (`Set*Field(TEXT("…"))`). A name that is not emitted is a question,
+  not a field.
+- Before documenting a number or formula a brief carries forward, walk the ruling chain back to the ruling that last ruled on it. A later
+  brief can re-cite a claim an earlier ruling withdrew.
+- A mechanical source-vs-doc key cross-check, proven able to fail both ways, catches the first case; only reading the chain catches the second.
+
+Related: G119 (the source is an input, not the artifact), G282's family (a wait threshold is not a retention bound).
+
+## G306 — a refusal a gate accepts as honest must be cross-checked, and the cross-check must reach the verdict (2026-09-26, 081-43)
+
+**What happened.** The Lyra G270 gate accepted an `empty_region` refusal as an honest outcome of a required pair (081-26/081-27). The change
+oracle already cross-read every such refusal against the delivered mask and printed `DISAGREES` when the mask held both target and control
+pixels — but it counted the disagreement only in a detail field, its exit code looked at measured-row mismatches alone, and the gate read the
+exit code. Codex turned one measured window of the real G270 bank into an `empty_region` refusal (the mask still held 184,933 target and
+1,888,667 control pixels): audit clean, oracle exit 0, **G270 PASS**. A measurement the capture made was hidden behind an accepted reason.
+
+**What was done.** A proven disagreement is now a mismatch (oracle exit 1, its own `empty_region_disagrees` count), and every gate that
+accepts `empty_region` — G270, the `empty` stack case, the Lyra twins, NoHold and the legacy evidence-on legs — rejects on that count
+itself, not only through the exit code (proven with the oracle stubbed to exit 0). A refusal with no mask PNG to read stays **unverifiable**:
+on the bank all 83 refusals are unverifiable, because the writer writes no PNG for an all-zero mask.
+
+**Rule.**
+- An "honest refusal" clause is only as honest as the check behind it. If a gate accepts a reason, something independent must be able to
+  contradict that reason, and the contradiction must change the gate's verdict.
+- A detector whose result reaches only a printed line or a detail field is not wired. Trace the value to the exit code and to every
+  consumer that decides.
+- Keep "cannot check" distinct from "checked and disagrees": inventing a disagreement where no evidence exists is the opposite error.
+
+Related: G96 (prove a detector can fire), G146 (a gate that passes on empty input), G270's AMENDMENT 2 and 3.
+
+## G307 — an independently checkable invariant beats a noise allowance learned from the candidate's own pair (2026-09-26, 081-43)
+
+**What happened.** Legacy identity excuses a path that differs within a same-kind control pair (run-to-run noise). In synthetic order the two
+build-3 evidence-on legs form their own control pair, so a difference that appears on **one** candidate leg is excused by that leg's
+disagreement with its twin. 081-35 made such self-excused singletons a reported reading with a recurrence tripwire rather than a gate.
+Codex changed one label count (`target_pixels` 20,949 → 20,950 on MAINON_S2 si 4): PASS, no problem, no tripwire — although the delivered
+mask, the MASK-TIE line and the evidence sidecar all still said 20,949.
+
+**What was done.** Nine per-leg invariants run on the raw reading before any excusal (INV-1…INV-9: mask transport; `target_pixels` = the
+decoded tag count; unmeasured/empty rows; `bbox_drawn_px` = the tag's box in the mask; `observable` null iff unmeasured; drawn ⊆ count;
+summary counters ≥ the rows they count; evidence `chg_n` = `target_pixels`; one MASK-TIE line per measured entry equal to the label and the
+cached tuples). Each was surveyed on the whole bank first (382 sessions, 59,923 rows, 45,047 entries; MASK-TIE on 34,210 entries). Every one
+holds except INV-1 on the G5 fault gate, whose deliberately failed mask write leaves a row naming a missing file (a real delivery failure, and
+the writer warns); the counter relations hold only as ≥ (fault legs count a processed frame whose row is dropped), so ≥ is all that is asserted.
+A violation is FAIL and outranks NEEDS-DECISION. A candidate-only singleton outside the frozen run-unique and timing-sampled sets that no
+invariant resolves is now NEEDS-DECISION; it never PASSes.
+
+**Rule.**
+- Before excusing a difference as noise, ask whether an artifact can check the value independently. If it can, check it first — a noise
+  allowance cannot tell a real count from a wrong one; an invariant can.
+- Never learn an exemption from the candidate's own pair: a difference only the candidate shows is exactly the regression shape.
+- Survey an invariant on the whole bank before gating on it, and assert only what the source guarantees (here `≥`, not `=`).
+
+Related: G297 (the self-excused singleton reading this replaces as a gate), G119, G142 (a checker is a defect surface of its own).

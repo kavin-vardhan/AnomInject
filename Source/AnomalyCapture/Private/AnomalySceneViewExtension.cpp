@@ -5,6 +5,7 @@
 #include "AnomalyCaptureLog.h"
 #include "AnomalySveCapturer.h"
 #include "AnomalySveKeyRing.h"
+#include "AnomalyChangeFamilyData.h"
 
 #include "CoreGlobals.h"
 #include "RHIGPUReadback.h"
@@ -62,7 +63,67 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 	}
 
 	uint64 RequestId = 0;
-	const bool bWanted = Cap->ConsumeWantedForPublish(InViewFamily.FrameNumber, RequestId);
+	if (auto* Existing = FAnomalyChangeFamilyData::Find(&InViewFamily))
+	{
+		if (Existing->Issue.IsValid())
+		{
+			if (auto Stage = Existing->Issue->Stage.Pin()) { Stage->Diagnostic(TEXT("duplicate_callback")); }
+			return;
+		}
+	}
+	if (InViewFamily.Views.Num() != 1)
+	{
+		if (auto CurrentStage = Cap->GetChangeStage()) { CurrentStage->Diagnostic(TEXT("multi_view_families")); }
+	}
+	auto IsOwnerFamily = [this, &InViewFamily](const FAnomalyChangeIssuePtr& Owner)
+	{
+		return InViewFamily.Views.Num() == 1 && InViewFamily.RenderTarget == Owner->OwnerTarget
+			&& InViewFamily.Scene == Owner->OwnerScene
+			&& !(LastChangeFamilyFrame == InViewFamily.FrameNumber && LastChangeEpoch == Owner->RunEpoch);
+	};
+	const auto PendingIssue = Cap->PeekChangeIssue();
+	const auto OwnerIssue = PendingIssue.IsValid() ? PendingIssue : Cap->GetOwnerIssue();
+	auto Stage = OwnerIssue.IsValid() ? OwnerIssue->Stage.Pin() : nullptr;
+	if (Stage.IsValid() && !IsOwnerFamily(OwnerIssue))
+	{
+		Stage->Diagnostic(TEXT("view_rejected"));
+	}
+	else if (Stage.IsValid())
+	{
+		if (PendingIssue.IsValid() && Stage->Gate(15, PendingIssue->SessionIndex))
+		{
+			Stage->Diagnostic(TEXT("pending_family_deferred"));
+			AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, 0, false);
+			return;
+		}
+		if (PendingIssue.IsValid() && Stage->Gate(8, PendingIssue->SessionIndex))
+		{
+			FSceneViewFamilyContext Throwaway(FSceneViewFamily::ConstructionValues(nullptr, InViewFamily.Scene, InViewFamily.EngineShowFlags));
+			Throwaway.FrameNumber = InViewFamily.FrameNumber;
+			FSceneViewInitOptions Init; Init.ViewFamily = &Throwaway;
+			Init.ViewRotationMatrix = FMatrix::Identity;
+			Init.ProjectionMatrix = InViewFamily.Views[0]->ViewMatrices.GetProjectionMatrix();
+			Init.SetViewRectangle(FIntRect(0, 0, 16, 16));
+			Throwaway.Views.Add(new FSceneView(Init));
+			BeginRenderViewFamily(Throwaway);
+			Stage->Diagnostic(TEXT("throwaway_family_constructed"));
+		}
+	}
+	FAnomalyChangeIssuePtr Issue;
+	const bool bWanted = Cap->ConsumeWantedForPublish(InViewFamily.FrameNumber, RequestId, Issue);
+	if (bWanted && Issue.IsValid())
+	{
+		if (auto IssueStage = Issue->Stage.Pin())
+		{
+			if (IsOwnerFamily(Issue))
+			{
+				auto* Data = InViewFamily.GetOrCreateExtentionData<FAnomalyChangeFamilyData>();
+				Data->Issue = Issue; Data->FamilyId = FAnomalyChangeFamilyData::NextId();
+				LastChangeFamilyFrame = InViewFamily.FrameNumber; LastChangeEpoch = Issue->RunEpoch;
+			}
+			else { IssueStage->Unsupported(Issue, false); }
+		}
+	}
 	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, RequestId, bWanted);
 }
 
@@ -107,6 +168,21 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	if (!Entry.bWanted)
 	{
 		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+	}
+	FAnomalyChangeReceipt ChangeSubmission;
+	if (auto* Data = FAnomalyChangeFamilyData::Find(View.Family))
+	{
+		auto Stage = Data->Issue.IsValid() ? Data->Issue->Stage.Pin() : nullptr;
+		if (Stage.IsValid() && Data->Issue->RequestId != Entry.RequestId)
+		{
+			Stage->Diagnostic(TEXT("view_rejected"));
+		}
+		else if (Stage.IsValid() && Data->Claim(View, false))
+		{
+			if (Stage->Gate(8, Data->Issue->SessionIndex)) { check(!Data->Claim(View, false)); }
+			ChangeSubmission.Issue = Data->Issue; ChangeSubmission.ServingToken = Data->Issue->CaptureToken;
+			ChangeSubmission.ViewFamilyId = Data->FamilyId; ChangeSubmission.FamilyFrame = FamilyFrame; ChangeSubmission.ViewIndex = 0;
+		}
 	}
 
 	FRDGTextureRef Texture = SceneColor.Texture;
@@ -156,8 +232,9 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 			FResolveRect(Rect.Min.X, Rect.Min.Y, Rect.Max.X, Rect.Max.Y));
 	}
 
+	ChangeSubmission.Rect = Rect; ChangeSubmission.Extent = SourceExtent; ChangeSubmission.Format = Texture->Desc.Format;
 	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, SourceExtent, Texture->Desc.Format,
-		MoveTemp(Readback), MoveTemp(LegacyReadback));
+		MoveTemp(Readback), MoveTemp(LegacyReadback), ChangeSubmission);
 
 	return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }

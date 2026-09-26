@@ -9,12 +9,15 @@
 #include "HAL/IConsoleManager.h"
 #include "Containers/StringConv.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "CoreGlobals.h"
 
 #if ANOMALY_CONTROL_SERVER
 #include "AnomalyPreviewCapture.h"
 #include "ControlProtocol.h"
 #include "ControlSnapshot.h"
+#include "Modules/ModuleManager.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
@@ -374,6 +377,61 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 
 	UWorld* World = GetWorld();
 
+#if !UE_BUILD_SHIPPING
+	if (Type == TEXT("bench_place_view") || Type == TEXT("bench_input_lock") || Type == TEXT("bench_log_barrier") || Type == TEXT("bench_scene_fixture"))
+	{
+		auto Reply = MakeShared<FJsonObject>();
+		Reply->SetStringField(TEXT("type"), Type);
+		const auto* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
+		const bool Allowed = FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")) && World &&
+			(World->GetMapName().Contains(TEXT("L_ShooterGym")) || World->GetMapName().Contains(TEXT("CB_GateLevel"))) && Cap && !Cap->IsCaptureActive();
+		bool Executed = false;
+		double Request = 0; Msg->TryGetNumberField(TEXT("request"), Request);
+		if (Allowed)
+		{
+			if (Type != TEXT("bench_log_barrier"))
+			{
+				FModuleManager::Get().LoadModulePtr<IModuleInterface>(TEXT("AnomalyBench"));
+			}
+			if (Type == TEXT("bench_input_lock"))
+			{
+				bool Enabled = false;
+				if (Msg->TryGetBoolField(TEXT("enabled"), Enabled))
+				{
+					if (IConsoleObject* Object = IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.InputLock")))
+					{
+						if (IConsoleCommand* Command = Object->AsCommand())
+						{
+							Command->Execute({Enabled ? TEXT("1") : TEXT("0")}, World, *GLog); Executed = true;
+						}
+					}
+				}
+			}
+			else if (Type == TEXT("bench_place_view"))
+			{
+				if (IConsoleCommand* Command = IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.PlaceView")) ?
+					IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.PlaceView"))->AsCommand() : nullptr)
+				{
+					Command->Execute({FString::FromInt((int32)FMath::Clamp(Request, 0.0, 1000000000.0))}, World, *GLog);
+					Executed = true;
+				}
+			}
+			else if (Type == TEXT("bench_scene_fixture"))
+			{
+				FString Mode; Msg->TryGetStringField(TEXT("mode"), Mode);
+				if (IConsoleObject* Object = IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.SceneFixture")))
+				{
+					if (IConsoleCommand* Command = Object->AsCommand()) { Command->Execute({Mode}, World, *GLog); Executed = true; }
+				}
+			}
+			else { Executed = true; }
+			GLog->FlushThreadedLogs(); GLog->Flush();
+		}
+		Reply->SetBoolField(TEXT("executed"), Executed);
+		SendJson(Conn.Socket, Reply); return;
+	}
+#endif
+
 	if (Type == TEXT("list_anomalies"))
 	{
 		SendRawText(Conn.Socket, ControlSnapshot::BuildCatalogJson(World));
@@ -638,8 +696,24 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 
 		if (UAnomalyCaptureSubsystem* Cap = World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
 		{
-			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV, Anomaly, TargetActor,
-				TArray<FString>(), OutputHeight);
+#if !UE_BUILD_SHIPPING
+			if (FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")))
+			{
+				UE_LOG(LogAnomalyServer, Log, TEXT("IAI-L2 CAPTURE-START gfc=%llu"), GFrameCounter);
+				GLog->FlushThreadedLogs(); GLog->Flush();
+			}
+#endif
+			TArray<FString> TargetArgs;
+#if !UE_BUILD_SHIPPING
+			double BenchDelay = 0;
+			if (Msg->TryGetNumberField(TEXT("benchDelayFrames"), BenchDelay) && BenchDelay == 3 &&
+				Anomaly == TEXT("solid_swap") && FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture")) &&
+				(World->GetMapName().Contains(TEXT("CB_GateLevel")) || World->GetMapName().Contains(TEXT("L_ShooterGym"))))
+			{
+				TargetArgs.Add(TEXT("delay=3"));
+			}
+#endif
+			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV, Anomaly, TargetActor, TargetArgs, OutputHeight);
 		}
 		SendAck(Conn.Socket, TEXT("capture_start"));
 		return;
