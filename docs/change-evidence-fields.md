@@ -1,4 +1,298 @@
-# m55 change evidence — Stage 2 field reference
+# m55 change evidence — field reference
+
+m55 adds one optional sidecar file, `change_evidence.jsonl`, and a block of `change_*` keys in
+`run_summary.json`. This page lists every field the writer emits, as the source emits it (stage 2 of
+the record format, `stage_version: 2`).
+
+## What it is — measurements only, no verdict in v1
+
+- **Per frame and per target, it measures how much the delivered picture changed** inside the anomaly
+  target's silhouette, and the same statistics over the rest of the picture (the whole-frame
+  **control**).
+- **There is no verdict in v1.** Nothing in the file says whether an anomaly is visible, present or
+  absent. The numbers are measurements; the reader decides what they mean.
+- **`observable` is unchanged.** No m55 number feeds `labels.jsonl`, `annotation.json`, target
+  selection, the capture pool, observability or the removal of unmeasured events. Frames, labels and
+  annotation follow the same rules with evidence on or off; with it on, the only additions are the
+  sidecar and the `change_*` summary keys.
+- **A refusal is never a zero.** Where a measurement is not possible the row says why, with one of 14
+  closed reasons, and every number on it is `-1` or `null`.
+
+## Where it is written, and when
+
+- **File:** `<session>/change_evidence.jsonl`, UTF-8 without BOM, one JSON object per line. It is
+  written in both delivery modes when the run closes (at run end or world teardown; an epoch reset
+  mid-run also writes it). A capture cancelled before it began writes nothing.
+- **Switch:** `IAI.Capture.ChangeEvidence` (default `1`), read at run start. `0` produces neither the
+  sidecar nor any `change_*` summary key.
+- **Measurable captures:** a frame can be measured only on the default grab point, with PNG frames, at
+  native output size (`IAI.Capture.OutputHeight 0`) and with the target mask on. Any other capture is
+  refused `unsupported_delivery`; its images and labels are written exactly as without m55.
+- **Row order:** pair rows in ascending `session_index`; an event row is written when all its phases
+  have closed, after the pair rows it depends on. Join a pair row to its `labels.jsonl` row and frame by
+  `session_index` (never by `frame_index`).
+- **Rows exist only for measurement windows.** A pair row is written for each of the first four
+  labelled frames of every phase of every event (`window_index` 0–3). Frames outside those windows
+  are still checked for identity and counted in the summary, but have no row.
+
+## The measurement
+
+For a window frame N, `d = max(|ΔR|, |ΔG|, |ΔB|)` of the delivered 8-bit bytes at each pixel (alpha
+ignored). The **target region** is every pixel whose value in frame N's delivered target mask equals
+the row's `mask_value`; the **control region** is every pixel whose mask value is `0` (outside every
+target silhouette in that frame). Three comparisons use those regions:
+
+| Comparison | Pixels compared | Fields |
+|---|---|---|
+| **Adjacent pair** | frame N against frame N−1, target region | `chg_n`, `chg_gt8`, `chg_sum`, `chg_hist`, `chg_mean` |
+| **Control** | frame N against frame N−1, control region | `ctl_n`, `ctl_gt8`, `ctl_sum`, `ctl_hist`, `ctl_mean` |
+| **Pre-onset reference** | frame N against the frame just before the phase's first labelled frame, target region of frame N | `ref_session_index`, `ref_gt8`, `ref_mean` |
+
+- `*_n` pixels in the region; `*_gt8` pixels with `d > 8` (strictly greater); `*_sum` the sum of `d`;
+  `*_mean` = `sum / n / 255`, rounded half-up to four decimals (`floor(x·10⁴ + 0.5) / 10⁴` — a
+  half-to-even reader disagrees on exact midpoints).
+- **Histogram** `*_hist`: eight counts of `d` in the bins `[0]`, `[1–2]`, `[3–4]`, `[5–8]`,
+  `[9–16]`, `[17–32]`, `[33–64]`, `[65–255]`. The bins sum to `*_n`; the last four sum to `*_gt8`.
+- **The threshold 8** (`tau_px`) is a fixed byte threshold, not a calibrated visibility threshold.
+- **The control** measures the rest of the picture on the same frame pair. It excludes target
+  pixels, not light, shadow or reflection spill from a target onto its surroundings. A quiet control
+  does not prove cause; a busy one (camera motion, a lighting change) warns that the target's change
+  may not be the anomaly's alone. It is never subtracted from the target numbers.
+- **The reference** is the frame just before the phase's first labelled frame, kept for the phase's
+  four windows when it was delivered with the same rectangle, size and format. On the onset window (0)
+  the reference frame *is* frame N−1, so `ref_*` equals `chg_*` there. On windows 1–3 it shows the change accumulated
+  since just before onset — which is where a change that arrives gradually, or a few frames late,
+  appears when each adjacent pair is small. It is screen-space: it is not motion-compensated, so under
+  camera or object motion it measures motion as well, and across several frames it also accumulates the
+  scene's ordinary small changes (a few hundred of 66,837 target pixels by window 2 on a static
+  camera, measured on the three-frame-delay test). With `solid_swap delay=3` the adjacent pairs of
+  windows 0–2 changed 9–63 of 66,837 target pixels and window 3 changed all 66,837, in both the
+  adjacent pair and `ref_*`.
+- **Denominators.** A pair is measured only when both regions are non-empty. An empty target region
+  (the target is not in the frame's mask, e.g. fully occluded) is refused `empty_region`; its control
+  numbers are still written when the control region is non-empty.
+
+## Camera delta (`cam_delta`)
+
+The camera delta between frame N and frame N−1 is written as three quantised integers, plus a flag.
+There is no single field named `cam_delta`.
+
+| Field | Type | Unit |
+|---|---|---|
+| `cam_dpos_cm` | integer | camera-position distance, rounded to whole centimetres |
+| `cam_drot_deg` | integer | quaternion angular distance in **tenths** of a degree (despite the name) |
+| `cam_dfov_deg` | integer | absolute horizontal field-of-view difference in **tenths** of a degree |
+| `cam_moved` | boolean | any of the three is non-zero |
+
+All four are **caveats, never validity conditions**: a pair is measured whether or not the camera
+moved, and a camera cut to the same size and field of view is not detected. With no predecessor all
+three are `0`.
+
+## Pair row (`"kind": "pair"`) — every field
+
+| Field | Type | When present | Meaning |
+|---|---|---|---|
+| `kind` | string | always | `"pair"` |
+| `stage_version` | integer | always | `2` |
+| `session_id` | string | always | the session folder's name |
+| `session_index` | integer | always | frame N; joins to `labels.jsonl` `session_index` and `Actual_Frames/frame_NNNNN.png` |
+| `prev_session_index` | integer | always | the frame actually retained as N's predecessor, `-1` if none |
+| `expected_prev_session_index` | integer | always | `session_index − 1`; a measured pair always has `prev_session_index` equal to it |
+| `frame_file` | string | always | frame N's image, relative to the session folder |
+| `event` | string | always | the event key, `<anomaly id>@<start frame>` as in the labels |
+| `phase_ordinal` | integer | always | zero-based phase within the event (a blinking event has one phase per hidden run) |
+| `window_index` | integer | always | 0–3; 0 is the phase's onset (its first labelled frame) |
+| `mask_value` | integer | always | the event's tag in frame N's target mask |
+| `chg_measured` | boolean | always | the adjacent pair was measured |
+| `chg_eligible` | boolean | always | equal to `chg_measured` in v1 |
+| `pair_valid` | boolean | always | equal to `chg_measured` on window rows; **not** an anomaly verdict |
+| `reason` | string or null | always | `null` when measured, otherwise one of the 14 refusal reasons below |
+| `stage` | string | only on a delivery refusal | where frame N's delivery failed or was unsupported: `colour`, `mask` or `writer` |
+| `tau_px` | integer | always | `8` |
+| `chg_n`, `chg_gt8`, `chg_sum` | integer | always | target statistics; `-1` when not measured |
+| `chg_hist` | array of 8 integers or null | always | target histogram; `null` when not measured |
+| `chg_mean` | number or null | always | target mean; `null` when not measured |
+| `ctl_n`, `ctl_gt8`, `ctl_sum`, `ctl_hist`, `ctl_mean` | as `chg_*` | always | control statistics; written when identity permits arithmetic and the control region is non-empty, else `-1`/`null` |
+| `ref_session_index` | integer | always | the reference frame's index, `-1` when no usable reference exists |
+| `ref_gt8` | integer or null | always | reference comparison; `null` when unavailable or the pair is not measured |
+| `ref_mean` | number or null | always | as `ref_gt8` |
+| `prev_target_pixels` | integer | always | the previous window frame's own count of this tag; always `-1` on window 0, so visibility before onset is not established |
+| `chg_gt8_max_sofar` | integer | always | largest `chg_gt8` measured so far in this phase's window; `-1` before any |
+| `chg_mean_max_sofar` | number | always | largest `chg_mean` so far; `-1` before any |
+| `cam_dpos_cm`, `cam_drot_deg`, `cam_dfov_deg`, `cam_moved` | see above | always | camera delta |
+| `colour_completion_latency_ms` | integer | always | from frame N's capture to its image completion, milliseconds; `-1` if it had not completed when the row was written |
+| `colour_completion_latency_frames` | integer | always | the same in engine frames |
+| `receipt` | object | always | frame N's capture receipt (below) |
+| `prev_receipt` | object | when a predecessor exists | the predecessor's receipt |
+| `mask_receipt` | object | when a mask result arrived | frame N's mask receipt |
+| `budget_census` | array of objects | only when frame N's colour or mask was refused `budget_exceeded` | the memory census at each refusal (internal diagnostic) |
+
+**Receipt object.** Always: `run_epoch`, `cut_counter`, `capture_token` (identity of the capture)
+and `t_submit_ms` (capture time, integer monotonic milliseconds). When the frame was read back:
+`t_drain_ms` (readback completion, same clock), `view_family_id` and `serving_token` (the rendered
+frame that served it), `format` (engine pixel-format number), `rect` `[x, y, width, height]`,
+`extent` `[width, height]`, `family_frame` and `view_index`. When nothing was read back:
+`t_drain_ms` `-1`, `view_family_id` and `serving_token` `0`, `format` `0`, `rect` and `extent` empty
+arrays, and no `family_frame` or `view_index`. Mask receipts add `mask_request_id`,
+`payload_owner_request_id` and `served_request_ids` as **decimal strings** (they exceed JSON's
+exact-integer range).
+
+## Event row (`"kind": "event"`) — every field
+
+| Field | Type | Meaning |
+|---|---|---|
+| `kind`, `stage_version` | string, integer | `"event"`, `2` |
+| `event`, `anomaly_type`, `target` | string | the event key, the anomaly id and the target, as in the labels |
+| `finalized_by` | string | what closed the event: `event_end`, `fire_removed_or_target_lost`, `run_end`, `teardown` or `epoch_reset` |
+| `phase_count` | integer | the true number of phases |
+| `reason` | string or null | `no_labelled_frames` when the event never had a labelled frame (phase count 0), otherwise `null` |
+| `phases` | array | at most the first 8 phases |
+
+Each phase object:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `ordinal` | integer | zero-based phase number |
+| `state` | string | `measured` if the onset pair (window 0) was measured, otherwise `indeterminate` — a later measured window does not change it |
+| `first_labelled_index`, `onset_prev_index` | integer | the phase's first labelled frame, and that index − 1 (the onset predecessor and the reference frame) |
+| `last_labelled_index`, `closure_watermark` | integer | the phase's last labelled frame (both fields carry it) |
+| `finalized_by` | string | what closed the phase: `phase_end` or one of the event causes above |
+| `pairs_required` | integer | `min(4, labelled frames in the phase)` |
+| `pairs_measured` | integer | window pairs actually measured |
+| `reason` | string or null | the onset pair's refusal reason, `null` when it was measured |
+| `reasons` | object | count of each refusal reason over the phase's window rows |
+| `chg_gt8_max`, `chg_mean_max`, `ref_gt8_max` | integer / number / integer | maxima over the measured windows; `-1` when none |
+
+**Yield** is `pairs_measured / pairs_required`, summed over phases.
+
+## The closed refusal vocabulary (14 reasons)
+
+A refused row keeps its identity, file and camera fields; its measurement fields are `-1`/`null`.
+
+| Reason | Meaning |
+|---|---|
+| `first_frame` | frame N is the run's first capture; there is no predecessor. |
+| `predecessor_missing` | no frame N−1 was retained: it was never captured, arrived out of order and timed out, or was delivered but not retained because of the memory cap. |
+| `predecessor_undelivered` | frame N−1's image was never delivered (its readback, encode or write failed, it timed out at closure before arriving, or its capture was unsupported). |
+| `out_of_order_timeout` | frame N's inputs did not arrive before four later frames had completed. |
+| `epoch_reset` | the capture's owner changed (viewport, scene or level) between N−1 and N, so the two frames belong to different epochs; also the first frame after such a reset. |
+| `view_mismatch` | frame N's image or mask (or frame N−1's image) was served by a different rendered frame than the one it was captured for. |
+| `extent_mismatch` | N and N−1 (or N's image and mask) differ in rectangle, size or pixel format. |
+| `mask_payload_missing` | no target-mask pixels arrived for frame N (no mask was requested for it, or its mask shared another frame's render). |
+| `unsupported_delivery` | the capture configuration cannot be measured (see "Measurable captures"), or the frame was rendered in a way m55 does not support. |
+| `budget_exceeded` | retaining frame N's image or mask would exceed the memory cap, so it was not retained. |
+| `empty_region` | the target region (or the control region) is empty in frame N's mask. |
+| `no_labelled_frames` | event rows only: the event never had a labelled frame. |
+| `current_undelivered` | frame N's own image or mask failed to be read back, encoded or written; `stage` says which. |
+| `closure_timeout` | at the end of a phase or of the run, frame N's inputs had not arrived within five seconds or eight later completions. |
+
+Exact assignment for the predecessor and family cases (the order the code tests them):
+
+| Situation of N−1 or of the mask | Reason on pair N |
+|---|---|
+| no N−1 retained: absent, never issued, a different index, or refused `out_of_order_timeout` | `predecessor_missing` |
+| N−1 delivered, but its pixels were not retained (refused `budget_exceeded`) | `predecessor_missing` |
+| N−1's image was never accepted as delivered (failure, `closure_timeout` before arrival, or `unsupported_delivery`) | `predecessor_undelivered` |
+| the mask arrived from another rendered frame (serving token, family or view differ from the image's) | `view_mismatch` |
+| no mask receipt, or a mask receipt without pixels | `mask_payload_missing` |
+
+## `run_summary.json` additions — every key
+
+Present only when evidence was on for the run.
+
+| Key | Meaning |
+|---|---|
+| `change_evidence_file` | `"change_evidence.jsonl"` |
+| `change_stage_version`, `change_tau_px`, `change_window_k` | `2`, `8`, `4` |
+| `change_max_bytes`, `change_max_bytes_source` | the memory cap in bytes for this run, and where it was set (`compiled`, `console`, `command_line`, …) |
+| `change_enabled_source` | where `IAI.Capture.ChangeEvidence` was set |
+| `change_bytes_high_water`, `change_bytes_retained` | peak retained bytes, and bytes still retained at the summary (normally 0) |
+| `change_bytes_peak_census` | the retained-memory breakdown at the peak (object), or `null` |
+| `change_worker_ms_total` | total measurement-worker time, milliseconds (not on the game thread) |
+| `change_closure_watermark` | the last capture index at run closure |
+| `change_colour_completion_latency_samples` | completions in the latency distribution |
+| `change_colour_completion_latency_{ms,frames}_{p50,p95,max}` | nearest-rank percentiles of capture-to-completion latency; `-1` with no samples |
+| `change_reason_<reason>` | one key for each of the 14 reasons: how many captures ended with it. **These count every captured frame, not only window rows**, so a large count (for example `mask_payload_missing` on frames without a mask) does not mean a required window was lost — read yield from the event rows. |
+| `change_issued`, `change_pairs_identity_valid`, `change_pairs_refused` | captures registered, and how many passed or failed the identity checks |
+| `change_pairs_measured`, `change_measurement_pairs_refused` | window rows measured and refused |
+| `change_phases_measured`, `change_phases_indeterminate`, `change_events_with_phases` | phase and event outcomes |
+| `change_denominator_mismatch`, `change_histogram_mismatch`, `change_ref_onset_mismatch` | internal consistency checks; each should read 0 |
+| `change_late_results`, `change_late_event_observations`, `change_late_record_mutations` | results that arrived after their row was final (counted, never applied) |
+| `change_rows_dropped` | rows beyond the 100,000-row cap |
+| `change_persist_failed`, `change_teardown_flush` | sidecar write failure; the sidecar was written at world teardown |
+| `change_epoch_resets`, `change_epoch_rejected`, `change_epoch_rejected_<path>` | owner changes, and results rejected as belonging to an earlier epoch (by path: `colour_drain`, `colour_writer`, `colour_family`, `colour`, `mask_drain`, `mask_admission`, `mask_writer`, `mask_family`, `mask`) |
+| `change_view_rejected`, `change_multi_view_families`, `change_unsupported_completion` | rendered frames m55 would not attach to, multi-view frames seen, completions of unsupported captures |
+| `change_duplicate_callback`, `change_duplicate_completion` | repeated callbacks and completions (ignored) |
+| `change_mask_capture_served_ge2`, `change_mask_pass_deferred`, `change_colour_multi_ready_drain`, `change_capture_arm_dropped`, `change_unissued_indices_skipped` | transport diagnostics |
+| `change_pending_colour_cancelled`, `change_pending_mask_cancelled`, `change_pending_family_deferred` | pending work cancelled or deferred at an epoch reset |
+| `change_bench_gate`, `change_bench_gate_source`, `change_bench_gate_refused`, `change_throwaway_family_constructed`, `change_bench_unregistered_capture` | test-fixture devices; `0` / `compiled` / absent in a normal run (`refused_no_fixture_flag` if a test device was requested outside the test fixture — the run then uses none) |
+
+Keys created only when they first fire (`change_late_event_observations`, `change_unissued_indices_skipped`,
+`change_epoch_rejected_<path>`, `change_pending_*`, `change_teardown_flush`, `change_bench_gate_refused`,
+`change_bench_unregistered_capture`) are absent when zero.
+
+## Memory envelope
+
+`IAI.Capture.ChangeMaxBytes` (compiled default 268,435,456 = **256 MiB**, read at run start) caps
+**m55's retained payload only** — the images and masks it holds for measurement. It is not a limit on
+the process's total memory: the image writer, receipts, rows and metadata are outside it. The cap is a
+hard limit: anything that would exceed it is refused `budget_exceeded` and not retained, so a refusal
+never produces a wrong number.
+
+There is **no structural guarantee of full yield at any resolution**: a long labelled phase whose
+first completion is delayed keeps every later frame's buffers until it can close, so long phases at
+high resolution can reach the cap and refuse.
+
+**Sizing estimate (not a bound).** The planning estimate is `(8 + 3) × image + 9 × mask`: the eight
+later completions a closing phase can wait for, plus the predecessor, the phase reference and the
+image being measured, and nine masks. An image is `width × height × 4` bytes and a mask
+`width × height` bytes. That gives ≈ 49 MB at 1280×720, ≈ 110 MB at 1920×1080, ≈ 195 MB at
+2560×1440 (inside the cap, not exercised) and ≈ 440 MB at 3840×2160 (above the default cap: expect
+`budget_exceeded` unless the cap is raised). Longer phases can hold more; the cap still refuses.
+
+**Measured high-water (paced 30 fps, 600-frame legs):** 19.4–20.3 MB at 1280×720, 56.0–68.5 MB at
+1920×1080. With pacing off at 1920×1080 the image writer falls behind, retained images accumulate and
+the cap is reached (267.6 MB measured, with `budget_exceeded` refusals).
+
+## Cost
+
+At paced 30 fps (`IAI.Capture.Pace 1`, the default) with the run log off, m55 has **no measurable
+game-thread cost** at 1280×720 or 1920×1080 (upper bounds of the difference below +0.12 ms per engine
+frame), the image writer's throughput is unchanged, there are no dropped frames, and every required
+pair is measured. The measurement runs on a pool worker, about 2.5 ms per captured frame at 1280×720
+and 7.3 ms at 1920×1080. With pacing off at 1920×1080 the image writer saturates and m55 refuses pairs
+`budget_exceeded`; under heavy unpaced load the target mask can arrive from a different rendered frame
+than the image, and m55 refuses those pairs `view_mismatch` or `unsupported_delivery` rather than
+measuring a mismatched pair. **Use paced capture with m55.**
+
+## Checking the numbers — `verify_capture.py --change-oracle`
+
+```
+python tools/verify_capture.py --change-oracle <sessionFolder> [--quiet] [--oracle-json <file>]
+python tools/verify_capture.py --change-oracle --selftest
+```
+
+(In a delivered bundle the tool is `host-tools\verify_capture.py`.) The full oracle description is in
+the internal "Oracle" section further down this page.
+
+It recomputes every measured row (and every reference comparison) from the delivered PNGs and the
+target-mask PNGs, independently of the numbers in the sidecar, and compares. Exit **0**: every
+comparison matched (including when nothing was compared — the output then shows coverage 0);
+**1**: at least one row or reference comparison did not match; **3**: it could not run (no sidecar,
+unreadable sidecar, or Pillow missing). **It validates arithmetic and transport only** — that the
+numbers in the sidecar are the numbers the delivered images contain. It uses each row's own frame
+indices, so it does not establish that the right frames were paired, that a change is visible, or what
+caused it.
+
+---
+
+# Internal development notes (not client-facing)
+
+Everything below is the development record of the fields above: design history, test devices,
+bounds and the oracle's full description. It keeps internal identifiers. **Where it differs from the
+reference above, the reference above is authoritative** (it was written against the source at the
+end of Stage 3, 081-41).
+## Stage 2 notes (history, superseded where the reference above differs)
 
 Stage 2 adds measurement windows and immutable final events to the existing identity/lifetime
 stage. It does not infer anomaly presence or change m49 `observable`, labels, annotation or vetoes.
@@ -368,7 +662,7 @@ reading, never a gate; there is no closure-bound field and no formula-based warn
 | `si`, `requested_bytes` | Capture index of that reservation and its allocated size. |
 | `max_bytes`, `bytes_held` | Cap and bytes reserved at the census (the refused buffer is not included). |
 | `colours` | Distinct admitted colour allocations. |
-| `colours_pending` / `_previous` / `_phase_ref` / `_in_hand` / `_unowned` | Split with priority pending > previous > phase reference > the serial worker's current item; a shared allocation is counted once. `_unowned` should be 0. |
+| `colours_pending` / `colours_previous` / `colours_phase_ref` / `colours_in_hand` / `colours_unowned` | Split with priority pending > previous > phase reference > the serial worker's current item; a shared allocation is counted once. `_unowned` should be 0. |
 | `colour_bytes`, `masks`, `mask_bytes` | Allocated bytes of those colours; retained masks and their bytes. |
 | `unaccounted_bytes` | `bytes_held − colour_bytes − mask_bytes`; 0 when the accounting closes. |
 | `cursor`, `latest_index` | Serial head index and latest issued index. |

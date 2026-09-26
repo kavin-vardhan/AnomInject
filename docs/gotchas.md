@@ -7808,3 +7808,27 @@ write, and the kernel-mode CPU of the per-line `FlushFileBuffers` are all candid
 - A cycle-counted metric still charges the CPU side of synchronous I/O.
 
 Related: G300 (the FPS-21.5 stall ran through these flushes; it did not reproduce in the two diagnostic legs, n = 2).
+
+## G305 — a ruling's field names and formulas are spec text, not source: check each field against the writer and each formula against the ruling that last ruled on it (2026-09-26, 081-41)
+
+**What happened.** The 081-41 docs brief listed what the field reference and client readme must say. Two items did not match the record:
+- **`cam_delta`** — named in 081-03 and 081-41 as a field "next to `cam_moved`". The writer emits no field of that name; the camera delta is
+  three quantised integers, `cam_dpos_cm`, `cam_drot_deg` and `cam_dfov_deg`, and the two `_deg` fields are in **tenths** of a degree.
+  Documenting `cam_delta` would have described a key no reader can find.
+- **"the closure-bound formula"** — 081-41 (after 081-37) asked the readme to state `(8 + 3) × colour + 9 × mask` as part of the memory
+  envelope. 081-16 had **withdrawn** it as a bound (Codex's legal 16-frame phase holds 13 colours + 16 masks) and ruled that there is no
+  structural guarantee of full yield at any resolution. Stated as the brief worded it, the readme would have promised a maximum the
+  source does not enforce.
+
+**What was done.** The field reference documents the three fields and says there is no single `cam_delta` key. The formula ships as a
+**planning estimate, labelled "not a bound"**, beside the 081-16 sentence (no structural guarantee; the cap refuses; refusals are never wrong
+numbers). Both are recorded as deviations in journal 081-41 and in the final report.
+
+**Rule.**
+- Before documenting a field a brief names, find it in the writer (`Set*Field(TEXT("…"))`). A name that is not emitted is a question,
+  not a field.
+- Before documenting a number or formula a brief carries forward, walk the ruling chain back to the ruling that last ruled on it. A later
+  brief can re-cite a claim an earlier ruling withdrew.
+- A mechanical source-vs-doc key cross-check, proven able to fail both ways, catches the first case; only reading the chain catches the second.
+
+Related: G119 (the source is an input, not the artifact), G282's family (a wait threshold is not a retention bound).

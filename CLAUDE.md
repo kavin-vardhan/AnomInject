@@ -11,6 +11,26 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ✅ **081-41, 2026-09-26 — DOCS ONLY. m55 STAGE 3 COMPLETE; PENDING CODEX REVIEW → COMMENT STRIPPER → MERGE (by Code, no-ff, no tag
+> unless the owner asks).** Build 3 `85c99b3` (Game `002805CF`) unchanged; NOT MERGED, NOT TAGGED.
+> - **Cold start:** `_reviews/081-41-evidence/stage3-report.md` (oracle, cost with paced headline + labelled stress, requalification and
+>   AMENDMENTS 1–6, priors, c0, UNEXERCISED verbatim, m51/M3 findings) and `merge-prep-inventory.md`; journal
+>   `docs/sessions/2026-09-26-081-41-code-m55-stage3-docs.md`.
+> - **Field reference** (`docs/change-evidence-fields.md`) rewritten from the writer source: every pair / receipt / event / phase field, the
+>   14 refusal reasons, every `run_summary` `change_*` key, memory envelope, cost, oracle. **Source cross-check: 178 emitted keys,
+>   0 gaps either way**, proven able to fire both ways. Older text kept below as internal notes.
+> - **Client readme section 9** (self-contained — the bundle ships the readme, not the field reference): measurements only, no verdict;
+>   the late/gradual-change paragraph (read from the banked delay=3 legs); memory envelope (256 MiB cap on m55's payload only; the
+>   formula as a **planning estimate, not a bound**); paced cost; `positive_frames`; oracle `host-tools\verify_capture.py --change-oracle`;
+>   the two test entries; known limits. **Internal-identifier grep over 179 added lines: 0.**
+> - **Stripper scope (dry run, nothing written):** 14 files, 65 comment lines, all Codex-authored; Code-authored 0.
+> - **Code-authored changes since build 2:** `9c75abe` (Source 146/5), `ea9946a` (tools 969/0), `85c99b3` (Source 138/43), `c27024d`
+>   (tools 30/14).
+> - **Deviations (G305):** no `cam_delta` field exists (three quantised fields); the closure-bound formula was withdrawn as a bound in
+>   081-16 and ships as a labelled estimate. Reported, not changed: readme Step 6's `tools\verify_capture.py` path vs the bundle's `host-tools\`.
+>
+> ---
+
 > ✅ **081-40, 2026-09-26 — BENCH. m55 STAGE 3 COST, BLOCK P (PACED 30 fps, THE HEADLINE): 720p PASS · 1080p PASS → OVERALL PASS.
 > The Stage 3 cost report is complete.**
 > - **The run.** Tag `081-40`, one window, ~20 min, exit 0, postflight PASS.
