@@ -21,9 +21,10 @@
 namespace AnomalyTexCorrupt
 {
 	UTextureRenderTarget2D* AllocateTarget(int32 W, int32 H, bool bSRGB, int32 ExpectedMips, UTexture2D* SamplerSource,
-		FString& OutFailure)
+		FString& OutFailure, bool& bOutResourceCreated)
 	{
 		OutFailure.Reset();
+		bOutResourceCreated = false;
 		if (W <= 0 || H <= 0 || W > 16384 || H > 16384)
 		{
 			OutFailure = FString::Printf(TEXT("bad_size_%dx%d"), W, H);
@@ -48,6 +49,7 @@ namespace AnomalyTexCorrupt
 		Target->bAutoGenerateMips = ExpectedMips > 1;
 		Target->InitCustomFormat(W, H, PF_B8G8R8A8, !bSRGB);
 		Target->UpdateResourceImmediate(true);
+		bOutResourceCreated = true;
 
 		if (!Target->GameThread_GetRenderTargetResource())
 		{
@@ -233,8 +235,9 @@ namespace AnomalyTexCorrupt
 		for (const FPass& Pass : Passes)
 		{
 			FString Failure;
-			UTextureRenderTarget2D* Out = AllocateTarget(8, 8, Pass.bSRGB, 4, nullptr, Failure);
-			UTextureRenderTarget2D* Scratch = Out ? AllocateTarget(4, 4, Pass.bSRGB, 1, nullptr, Failure) : nullptr;
+			bool bCreated = false;
+			UTextureRenderTarget2D* Out = AllocateTarget(8, 8, Pass.bSRGB, 4, nullptr, Failure, bCreated);
+			UTextureRenderTarget2D* Scratch = Out ? AllocateTarget(4, 4, Pass.bSRGB, 1, nullptr, Failure, bCreated) : nullptr;
 			UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(Pass.Corruptor, GetTransientPackage());
 			if (!Out || !Scratch || !Mid)
 			{

@@ -5,6 +5,7 @@
 #include "MaterialShared.h"
 #include "Materials/MaterialInterface.h"
 #include "AnomalyTexCorrupt.h"
+#include "Anomalies/TexCorruptPure.h"
 
 class AActor;
 class UMeshComponent;
@@ -162,6 +163,7 @@ namespace AnomalyTexCorrupt
 		int32 TileProbe = 0;
 		bool bForceMissingAsset = false;
 		int32 FailStep = 0;
+		int32 FailAllocOrdinal = -1;
 		bool bForeignReplace = false;
 		bool bCollateralDetail = false;
 	};
@@ -169,20 +171,7 @@ namespace AnomalyTexCorrupt
 	FLevers& Levers();
 	FString DescribeLevers();
 
-	struct FLedger
-	{
-		int64 Live = 0;
-		TArray<TPair<int64, uint64>> Pending;
-		int64 Peak = 0;
-
-		int64 PendingSum() const;
-		int64 Available(int64 Cap) const;
-		bool Reserve(int64 Bytes, int64 Cap);
-		void Unreserve(int64 Bytes);
-		void ReleaseToPending(int64 Bytes);
-		void Tick();
-		void NotePeak();
-	};
+	using FLedger = TexCorruptPure::FLedgerCore;
 
 	FLedger& Ledger();
 
@@ -314,7 +303,7 @@ namespace AnomalyTexCorrupt
 	};
 
 	UTextureRenderTarget2D* AllocateTarget(int32 W, int32 H, bool bSRGB, int32 ExpectedMips, UTexture2D* SamplerSource,
-		FString& OutFailure);
+		FString& OutFailure, bool& bOutResourceCreated);
 
 	bool IsTargetDrawable(UTextureRenderTarget2D* Target);
 

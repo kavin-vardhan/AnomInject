@@ -293,69 +293,10 @@ namespace AnomalyTexCorrupt
 	FString DescribeLevers()
 	{
 		return FString::Printf(TEXT("noapply=%d wrongcopy=%s identity=%d identity_redraw=%d tile_probe=%d force_missing_asset=%d ")
-			TEXT("fail_step=%d foreign_replace=%d collateral_detail=%d"),
+			TEXT("fail_step=%d fail_alloc_ordinal=%d foreign_replace=%d collateral_detail=%d"),
 			GLevers.NoApply, LexWrongCopy(GLevers.WrongCopy), GLevers.bIdentity ? 1 : 0, GLevers.bIdentityRedraw ? 1 : 0,
-			GLevers.TileProbe, GLevers.bForceMissingAsset ? 1 : 0, GLevers.FailStep, GLevers.bForeignReplace ? 1 : 0,
-			GLevers.bCollateralDetail ? 1 : 0);
-	}
-
-	int64 FLedger::PendingSum() const
-	{
-		int64 Sum = 0;
-		for (const TPair<int64, uint64>& P : Pending)
-		{
-			Sum += P.Key;
-		}
-		return Sum;
-	}
-
-	int64 FLedger::Available(int64 Cap) const
-	{
-		return Cap - Live - PendingSum();
-	}
-
-	bool FLedger::Reserve(int64 Bytes, int64 Cap)
-	{
-		if (Bytes > Available(Cap))
-		{
-			return false;
-		}
-		Live += Bytes;
-		NotePeak();
-		return true;
-	}
-
-	void FLedger::Unreserve(int64 Bytes)
-	{
-		Live = FMath::Max<int64>(0, Live - Bytes);
-	}
-
-	void FLedger::ReleaseToPending(int64 Bytes)
-	{
-		if (Bytes <= 0)
-		{
-			return;
-		}
-		Live = FMath::Max<int64>(0, Live - Bytes);
-		Pending.Emplace(Bytes, GFrameCounter + 2);
-		NotePeak();
-	}
-
-	void FLedger::Tick()
-	{
-		for (int32 i = Pending.Num() - 1; i >= 0; --i)
-		{
-			if (Pending[i].Value <= GFrameCounter)
-			{
-				Pending.RemoveAtSwap(i);
-			}
-		}
-	}
-
-	void FLedger::NotePeak()
-	{
-		Peak = FMath::Max(Peak, Live + PendingSum());
-		GStats.RtBytesPeak = FMath::Max(GStats.RtBytesPeak, Peak);
+			GLevers.TileProbe, GLevers.bForceMissingAsset ? 1 : 0, GLevers.FailStep, GLevers.FailAllocOrdinal,
+			GLevers.bForeignReplace ? 1 : 0, GLevers.bCollateralDetail ? 1 : 0);
 	}
 
 	FLedger& Ledger()
@@ -391,7 +332,7 @@ namespace AnomalyTexCorrupt
 	void ResetRunStats()
 	{
 		GStats = FRunStats();
-		GLedger.Tick();
+		GLedger.Tick(GFrameCounter);
 		GLedger.Peak = GLedger.Live + GLedger.PendingSum();
 		GStats.RtBytesPeak = GLedger.Peak;
 		GTripwire.Reset();

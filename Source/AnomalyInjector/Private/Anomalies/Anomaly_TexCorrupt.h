@@ -115,15 +115,21 @@ private:
 	void Hold(UObject* Obj);
 	void LetGoAll();
 	bool FailAt(int32 Step, const TCHAR* Reason, const FString& Detail);
-	void ReleaseAllTargets(bool bRollback);
+	void ReleaseAllTargets();
+	void ReleaseScratchSet(FScratchSet& S);
+	bool AllocateAll(FString& OutDetail);
 	bool SetupLevelMid(UWorld* World, FOutput& O, int32 Level, UMaterialInterface* Corruptor, UTexture2D* Noise, FString& OutFail);
 	bool EnqueueOutput(UWorld* World, FOutput& O, bool bClear);
 	int32 SourceMipFor(const FOutput& O, int32 Level) const;
 	FScratchSet* FindScratch(const FScratchKey& Key);
 	void GatherCollateral(UWorld* World);
-	int32 CountCollateralDrops() const;
+	int32 CountCollateralDrops(int32* OutUnknownNow = nullptr) const;
+	int32 CollateralIncomplete() const;
 	void LogCollateral(const TCHAR* Kind) const;
+	void TakePostRevertSample();
+	TexCorruptPure::EHeld EvaluateCondition(int32& OutFirstBad) const;
 	void Redraw();
+	void RegisterTargetWatch(UAnomalyInjectorSubsystem* Injector);
 	void ReleaseTargetWatch();
 	void ResetEventState();
 
@@ -137,8 +143,7 @@ private:
 	int32 NoApply = 0;
 	uint64 ApplyFrame = 0;
 	int64 RequiredBytes = 0;
-	int64 ReservedBytes = 0;
-	int64 AllocatedBytes = 0;
+	TexCorruptPure::FEventAccount Account;
 	int32 SlotsCorrupted = 0;
 	int32 SlotsTotal = 0;
 	int32 TicksSinceApply = 0;
@@ -160,8 +165,14 @@ private:
 
 	TArray<FCollateral> Collateral;
 	bool bCollateralTruncated = false;
-	int32 PostRevertCountdown = -1;
+	int32 CollateralDroppedByCap = 0;
+	int32 CollateralUnmeasuredMaterials = 0;
+	int32 CollateralUnknownAtApply = 0;
+	int32 CollateralRenderedPrimitives = 0;
+	bool bCollateralTaken = false;
 	uint64 CollateralApplyFrame = 0;
 	int32 CollateralNoApply = 0;
+	uint64 RevertFrame = 0;
+	uint64 PostRevertFrame = 0;
 };
 }

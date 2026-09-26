@@ -143,8 +143,7 @@ void FAnomaly_TexCorrupt::ResetEventState()
 	Fault = EWrongCopy::None;
 	NoApply = 0;
 	RequiredBytes = 0;
-	ReservedBytes = 0;
-	AllocatedBytes = 0;
+	Account = TexCorruptPure::FEventAccount();
 	SlotsCorrupted = 0;
 	SlotsTotal = 0;
 	TicksSinceApply = 0;
@@ -168,48 +167,147 @@ int32 FAnomaly_TexCorrupt::SourceMipFor(const FOutput& O, int32 Level) const
 	return TexCorruptPure::SourceMipFor(Level, O.M, Mode == EMode::TileProbe ? TileN : 1, Fault == EWrongCopy::MipShift);
 }
 
-void FAnomaly_TexCorrupt::ReleaseAllTargets(bool bRollback)
+void FAnomaly_TexCorrupt::ReleaseScratchSet(FScratchSet& S)
+{
+	if (!S.bLive)
+	{
+		return;
+	}
+	for (int32 m = 0; m < S.Levels.Num(); ++m)
+	{
+		if (S.Levels[m])
+		{
+			ReleaseTarget(S.Levels[m]);
+			Account.ReleaseCreated(Ledger(), TexCorruptPure::LevelBytes(S.Key.W, S.Key.H, m), GFrameCounter);
+			S.Levels[m] = nullptr;
+		}
+	}
+	S.bLive = false;
+}
+
+void FAnomaly_TexCorrupt::ReleaseAllTargets()
 {
 	for (FOutput& O : Outputs)
 	{
-		ReleaseTarget(O.Target);
+		if (O.Target)
+		{
+			ReleaseTarget(O.Target);
+			Account.ReleaseCreated(Ledger(), O.Bytes, GFrameCounter);
+			O.Target = nullptr;
+		}
 	}
 	for (FScratchSet& S : Scratch)
 	{
-		if (S.bLive)
-		{
-			for (UTextureRenderTarget2D* T : S.Levels)
-			{
-				ReleaseTarget(T);
-			}
-			S.bLive = false;
-		}
+		ReleaseScratchSet(S);
 	}
-	FLedger& L = Ledger();
-	L.ReleaseToPending(AllocatedBytes);
-	if (bRollback)
-	{
-		L.Unreserve(FMath::Max<int64>(0, ReservedBytes - AllocatedBytes));
-	}
-	ReservedBytes = 0;
-	AllocatedBytes = 0;
+	Account.Close(Ledger(), GFrameCounter);
 }
 
 bool FAnomaly_TexCorrupt::FailAt(int32 Step, const TCHAR* Reason, const FString& Detail)
 {
-	ReleaseAllTargets(true);
+	const int64 CreatedAtFail = Account.Created;
+	const int64 NeverCreated = Account.Reserved - Account.Created;
+	ReleaseAllTargets();
 	LetGoAll();
 	FRunStats& Stats = FStatsAccess::Mutable();
 	CountReason(Stats.RollbackByStep, FString::FromInt(Step));
 	CountReason(Stats.RefusedByReason, Reason);
 	UE_LOG(LogAnomaly, Warning,
 		TEXT("%s: REFUSED %s at transaction step %d (%s) - ROLLED BACK: every render target, corruptor MID and host MID this ")
-		TEXT("event created is released, its bytes are un-reserved, and NO SLOT WAS TOUCHED (the commit is step 7 alone). ")
-		TEXT("live=%lld pending=%lld."),
-		*Id.ToString(), Reason, Step, *Detail, Ledger().Live, Ledger().PendingSum());
+		TEXT("event created is released, NO SLOT WAS TOUCHED (the commit is step 7 alone). Ledger: %lld created byte(s) moved ")
+		TEXT("to the two-frame pending ledger, %lld never-created byte(s) un-reserved; live=%lld pending=%lld frame=%llu."),
+		*Id.ToString(), Reason, Step, *Detail, CreatedAtFail, NeverCreated, Ledger().Live, Ledger().PendingSum(), GFrameCounter);
 	ResetEventState();
 	bActive = false;
 	return false;
+}
+
+bool FAnomaly_TexCorrupt::AllocateAll(FString& OutDetail)
+{
+	TArray<TexCorruptPure::FReqTex> Req;
+	for (int32 i = 0; i < Outputs.Num(); ++i)
+	{
+		TexCorruptPure::FReqTex& R = Req.AddDefaulted_GetRef();
+		R.Id = i;
+		R.W = Outputs[i].W;
+		R.H = Outputs[i].H;
+		R.M = Outputs[i].M;
+		R.bSRGB = Outputs[i].Key.bSRGB;
+	}
+	TArray<TexCorruptPure::FAllocStep> Steps;
+	Steps.SetNum(TexCorruptPure::MaxAllocSteps(Req.Num()));
+	const int32 NumSteps = TexCorruptPure::PlanAllocations(Req.GetData(), Req.Num(), Steps.GetData(), Steps.Num());
+	if (NumSteps < 0)
+	{
+		OutDetail = TEXT("allocation_plan_overflow");
+		return false;
+	}
+	const int32 FailOrdinal = Levers().FailStep == 2 ? Levers().FailAllocOrdinal : -1;
+	if (FailOrdinal >= 0)
+	{
+		Levers().FailStep = 0;
+		Levers().FailAllocOrdinal = -1;
+	}
+	for (int32 k = 0; k < NumSteps; ++k)
+	{
+		const TexCorruptPure::FAllocStep& St = Steps[k];
+		FOutput& O = Outputs[St.Tex];
+		const bool bOutput = St.Kind == TexCorruptPure::AllocKind::Output;
+		FScratchSet* S = nullptr;
+		if (!bOutput)
+		{
+			S = FindScratch(O.Key);
+			if (!S)
+			{
+				S = &Scratch.AddDefaulted_GetRef();
+				S->Key = O.Key;
+				S->M = O.M;
+				S->Bytes = ScratchBytes(O.W, O.H, O.M);
+				S->Levels.SetNumZeroed(O.M);
+				S->bLive = true;
+			}
+		}
+		FString Failure;
+		bool bCreated = false;
+		UTextureRenderTarget2D* T = bOutput
+			? AllocateTarget(O.W, O.H, O.Class == EClass::Colour, O.M, O.Source, Failure, bCreated)
+			: AllocateTarget(St.W, St.H, O.Key.bSRGB, 1, nullptr, Failure, bCreated);
+		if (T && k == FailOrdinal)
+		{
+			ReleaseTarget(T);
+			T = nullptr;
+			Failure = FString::Printf(TEXT("IAI.Bench.TexCorruptFailStep 2 %d (created then rejected)"), k);
+		}
+		if (!T)
+		{
+			if (bCreated)
+			{
+				Account.NoteCreated(Ledger(), St.Bytes);
+				Account.ReleaseCreated(Ledger(), St.Bytes, GFrameCounter);
+			}
+			OutDetail = bOutput
+				? FString::Printf(TEXT("output %s (plan step %d of %d, resource_created=%d): %s"), *O.SourceName, k, NumSteps,
+					bCreated ? 1 : 0, *Failure)
+				: FString::Printf(TEXT("scratch %dx%d mip %d (plan step %d of %d, resource_created=%d): %s"), O.W, O.H, St.Level, k,
+					NumSteps, bCreated ? 1 : 0, *Failure);
+			return false;
+		}
+		Hold(T);
+		if (!Account.NoteCreated(Ledger(), St.Bytes))
+		{
+			UE_LOG(LogAnomaly, Error, TEXT("%s: LEDGER - plan step %d created %lld byte(s) beyond the reservation; the excess was ")
+				TEXT("force-reserved so live stays true."), *Id.ToString(), k, St.Bytes);
+		}
+		if (bOutput)
+		{
+			O.Target = T;
+		}
+		else
+		{
+			S->Levels[St.Level] = T;
+		}
+	}
+	return true;
 }
 
 bool FAnomaly_TexCorrupt::SetupLevelMid(UWorld* World, FOutput& O, int32 Level, UMaterialInterface* Corruptor,
@@ -625,45 +723,21 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 
 	const int64 Cap = GetMaxRtBytes();
-	if (!Ledger().Reserve(RequiredBytes, Cap))
+	if (!Account.Reserve(Ledger(), RequiredBytes, Cap))
 	{
 		return FailAt(1, Why::OverBudget, FString::Printf(TEXT("need %lld available %lld"), RequiredBytes, Ledger().Available(Cap)));
 	}
-	ReservedBytes = RequiredBytes;
 
-	if (Levers().FailStep == 2)
+	if (Levers().FailStep == 2 && Levers().FailAllocOrdinal < 0)
 	{
 		Levers().FailStep = 0;
-		return FailAt(2, Why::RtAllocFailed, TEXT("IAI.Bench.TexCorruptFailStep 2"));
+		return FailAt(2, Why::RtAllocFailed, TEXT("IAI.Bench.TexCorruptFailStep 2 (before any allocation)"));
 	}
-	for (FOutput& O : Outputs)
 	{
-		FString Failure;
-		O.Target = AllocateTarget(O.W, O.H, O.Class == EClass::Colour, O.M, O.Source, Failure);
-		if (!O.Target)
+		FString AllocDetail;
+		if (!AllocateAll(AllocDetail))
 		{
-			return FailAt(2, Why::RtAllocFailed, FString::Printf(TEXT("output %s: %s"), *O.SourceName, *Failure));
-		}
-		Hold(O.Target);
-		AllocatedBytes += O.Bytes;
-		if (O.M > 1 && !FindScratch(O.Key))
-		{
-			FScratchSet& S = Scratch.AddDefaulted_GetRef();
-			S.Key = O.Key;
-			S.M = O.M;
-			S.Bytes = ScratchBytes(O.W, O.H, O.M);
-			S.Levels.SetNumZeroed(O.M);
-			S.bLive = true;
-			for (int32 m = 1; m < O.M; ++m)
-			{
-				S.Levels[m] = AllocateTarget(FMath::Max(1, O.W >> m), FMath::Max(1, O.H >> m), O.Key.bSRGB, 1, nullptr, Failure);
-				if (!S.Levels[m])
-				{
-					return FailAt(2, Why::RtAllocFailed, FString::Printf(TEXT("scratch %dx%d mip %d: %s"), O.W, O.H, m, *Failure));
-				}
-				Hold(S.Levels[m]);
-			}
-			AllocatedBytes += S.Bytes;
+			return FailAt(2, Why::RtAllocFailed, AllocDetail);
 		}
 	}
 
@@ -749,18 +823,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	{
 		for (FScratchSet& S : Scratch)
 		{
-			if (!S.bLive)
-			{
-				continue;
-			}
-			for (UTextureRenderTarget2D* T : S.Levels)
-			{
-				ReleaseTarget(T);
-			}
-			S.bLive = false;
-			Ledger().ReleaseToPending(S.Bytes);
-			ReservedBytes -= S.Bytes;
-			AllocatedBytes -= S.Bytes;
+			ReleaseScratchSet(S);
 		}
 	}
 
@@ -851,7 +914,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		TEXT("slots %d/%d committed, required=%lld reserved=%lld live=%lld pending=%lld peak=%lld cap=%s. Every level of every ")
 		TEXT("output was drawn from the source's own mip and copied, enqueued before any scene draw of this frame (plan R7.4)."),
 		*Id.ToString(), LexMode(Mode), TileN, LexWrongCopy(Fault), NoApply, *In.TargetQuery, Outputs.Num(), Scratch.Num(),
-		HostMids.Num(), SlotsCorrupted, SlotsTotal, RequiredBytes, ReservedBytes, Ledger().Live, Ledger().PendingSum(),
+		HostMids.Num(), SlotsCorrupted, SlotsTotal, RequiredBytes, Account.Reserved, Ledger().Live, Ledger().PendingSum(),
 		Ledger().Peak, *DescribeMaxRtBytes());
 	return true;
 }
@@ -875,7 +938,7 @@ void FAnomaly_TexCorrupt::Redraw()
 
 void FAnomaly_TexCorrupt::TickAlways(float DeltaSeconds)
 {
-	Ledger().Tick();
+	Ledger().Tick(GFrameCounter);
 
 	if (PostRevertCountdown > 0)
 	{
@@ -1030,7 +1093,7 @@ void FAnomaly_TexCorrupt::Revert()
 	Stats.LeftToGame += LeftToGame;
 	Stats.Swept += Swept;
 
-	ReleaseAllTargets(false);
+	ReleaseAllTargets();
 	LetGoAll();
 
 	UE_LOG(LogAnomaly, Log,

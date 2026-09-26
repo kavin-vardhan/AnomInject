@@ -278,16 +278,30 @@ namespace AnomalyTexCorrupt
 		FAutoConsoleCommand GFailStepCmd(
 			TEXT("IAI.Bench.TexCorruptFailStep"),
 			TEXT("BENCH DEVICE (m53, G4). Fails transaction step <n> (2..6) ONCE on the next fire, to prove the rollback: no slot ")
-			TEXT("touched, bytes un-reserved, nothing leaked. 0 disarms. Usage: IAI.Bench.TexCorruptFailStep <0|2|3|4|5|6>"),
+			TEXT("touched, created bytes held in the two-frame pending ledger, the rest un-reserved, nothing leaked. For step 2 an ")
+			TEXT("optional <ordinal> fails that allocation in plan order AFTER creating its resource (a created-then-rejected ")
+			TEXT("target); without it step 2 fails before any allocation. 0 disarms. ")
+			TEXT("Usage: IAI.Bench.TexCorruptFailStep <0|2|3|4|5|6> [ordinal]"),
 			FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 			{
 				const int32 V = ParseInt(Args, -1);
 				if (V != 0 && (V < 2 || V > 6))
 				{
-					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.TexCorruptFailStep <0|2|3|4|5|6>"));
+					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.TexCorruptFailStep <0|2|3|4|5|6> [ordinal]"));
 					return;
 				}
+				int32 Ordinal = -1;
+				if (Args.Num() >= 2)
+				{
+					if (V != 2 || !Args[1].IsNumeric() || FCString::Atoi(*Args[1]) < 0)
+					{
+						UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.TexCorruptFailStep: [ordinal] is a non-negative integer and applies to step 2 only."));
+						return;
+					}
+					Ordinal = FCString::Atoi(*Args[1]);
+				}
 				Levers().FailStep = V;
+				Levers().FailAllocOrdinal = Ordinal;
 				Echo(TEXT("IAI.Bench.TexCorruptFailStep"));
 			}));
 
