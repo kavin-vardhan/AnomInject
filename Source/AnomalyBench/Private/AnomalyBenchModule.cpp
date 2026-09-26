@@ -14,7 +14,6 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
-// Explicit fixture commands only. Descriptor excludes Client/Server and Shipping targets.
 class FAnomalyBenchModule final : public IModuleInterface
 {
 	TUniquePtr<FAutoConsoleCommandWithWorldAndArgs> Place;
@@ -60,7 +59,6 @@ class FAnomalyBenchModule final : public IModuleInterface
 		auto* PC = LockedController.Get();
 		if (PC)
 		{
-			// UE stacks these flags. Remove only our increment; never reset the host's flags.
 			PC->SetIgnoreLookInput(false); PC->SetIgnoreMoveInput(false);
 		}
 		UE_LOG(LogTemp, Log, TEXT("IAI-INPUT-LOCK OFF reason=%s controller=%s lookIgnored=%d moveIgnored=%d gfc=%llu"),
@@ -101,7 +99,6 @@ class FAnomalyBenchModule final : public IModuleInterface
 		}
 		else if (bSawCapture || Cap->GetSessionId() != SessionAtLock)
 		{
-			// The session-id check also handles a start+finish between two module ticks.
 			ReleaseInput(TEXT("run_end"));
 			bMotionArmed = false;
 		}
@@ -225,7 +222,6 @@ public:
 		}
 		if (PlacedWorld.Get() == World) { Refuse(TEXT("IAI-L2"), TEXT("already_placed")); return; }
 		if (Args.Num() != 1) { Refuse(TEXT("IAI-L2"), TEXT("invalid_request")); return; }
-		// Spectators derive from APawn. Prefer the actual view target before the controller's fallback.
 		APawn* Owner = Cast<APawn>(PC->GetViewTarget());
 		if (!Owner) { Owner = PC->GetPawnOrSpectator(); }
 		if (!Owner) { Refuse(TEXT("IAI-L2"), TEXT("no_view_owner")); return; }
@@ -239,17 +235,14 @@ public:
 		{
 			Refuse(TEXT("IAI-L2"), TEXT("input_lock_required")); return;
 		}
-		// CB calibration: a54_oracle.py CALIB_BBOX and 081-09 R1V3_A1's independent view snapshot.
 		const FVector Desired = bStack ? FVector(-1500, 0, 260) : FVector(-443.9807434082031, -70.0, 212.00010681152344);
 		const FRotator Rotation = bStack ? FRotator::ZeroRotator : FRotator(0, 0, -0.08256798918660047);
 		const FVector OldOwner = Owner->GetActorLocation();
-		// Translate the resolved owner by the camera-origin error after rotating its measured offset.
-		// No replacement camera, ghost mode, velocity reset or persistent pose pin. Input lock is separate.
 		const FVector LocalOffset = PC->GetControlRotation().Quaternion().UnrotateVector(View.Origin - OldOwner);
 		const FVector NewOwner = Desired - Rotation.Quaternion().RotateVector(LocalOffset);
 		PC->SetControlRotation(Rotation);
 		const bool Moved = Owner->SetActorLocation(NewOwner, false, nullptr, ETeleportType::TeleportPhysics);
-		PlacedWorld = World; // A failed one-shot is still an attempted placement, never secretly retried.
+		PlacedWorld = World;
 		UE_LOG(LogTemp, Log, TEXT("IAI-L2 PLACED request=%s ok=%d owner=%s oldOwner=%s newOwner=%s oldCamera=%s desiredCamera=%s desiredRot=%s gfc=%llu"),
 			*Args[0], Moved, *Owner->GetName(), *OldOwner.ToString(), *NewOwner.ToString(), *View.Origin.ToString(), *Desired.ToString(), *Rotation.ToString(), GFrameCounter);
 		FlushLog();

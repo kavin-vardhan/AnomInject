@@ -11,7 +11,6 @@ class FJsonObject;
 class FRenderTarget;
 class FSceneInterface;
 
-// None is internal only: it is serialized as JSON null, never as a refusal string.
 enum class EAnomalyChangeReason : uint8
 {
 	None, FirstFrame, PredecessorMissing, PredecessorUndelivered, OutOfOrderTimeout,
@@ -20,7 +19,6 @@ enum class EAnomalyChangeReason : uint8
 };
 const TCHAR* AnomalyChangeReasonName(EAnomalyChangeReason Reason);
 
-// Constructed on the GT at arm time and only published through const shared pointers.
 struct FAnomalyChangeIssue
 {
 	uint64 RunEpoch = 0;
@@ -39,7 +37,6 @@ struct FAnomalyChangeIssue
 };
 using FAnomalyChangeIssuePtr = TSharedPtr<const FAnomalyChangeIssue, ESPMode::ThreadSafe>;
 
-// Geometry is recorded at submission; the complete immutable receipt is published at drain.
 struct FAnomalyChangeReceipt
 {
 	FAnomalyChangeIssuePtr Issue;
@@ -59,7 +56,6 @@ using FAnomalyChangeReceiptPtr = TSharedPtr<const FAnomalyChangeReceipt, ESPMode
 using FAnomalyChangeColourPtr = TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>;
 using FAnomalyChangeMaskPtr = TSharedPtr<const TArray<uint8>, ESPMode::ThreadSafe>;
 
-// Separate completion record. A writer never changes a published receipt or buffer.
 struct FAnomalyChangeCompletion
 {
 	FAnomalyChangeReceiptPtr Receipt;
@@ -68,7 +64,6 @@ struct FAnomalyChangeCompletion
 	FString Stage;
 };
 
-// Copied from the same end-of-tick snapshot that writes legacy labels. No actor pointers.
 struct FAnomalyChangeLabel
 {
 	FString Event, Type, Target;
@@ -191,7 +186,6 @@ private:
 	bool bClosing = false, bClosed = false, bWorkerActive = false;
 	bool bPersisted = false;
 	bool bSessionBegun = false, bDiscarded = false;
-	// GT-only owner lifetime observation. World-subsystem teardown also closes this stage.
 	const FRenderTarget* LastOwnerTarget = nullptr;
 	const FSceneInterface* LastOwnerScene = nullptr;
 	const void* LastOwnerLevel = nullptr;

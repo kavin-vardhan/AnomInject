@@ -68,7 +68,7 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 		if (Existing->Issue.IsValid())
 		{
 			if (auto Stage = Existing->Issue->Stage.Pin()) { Stage->Diagnostic(TEXT("duplicate_callback")); }
-			return; // Idempotent GT attachment: never consume a second arm for the same family.
+			return;
 		}
 	}
 	if (InViewFamily.Views.Num() != 1)
@@ -94,11 +94,10 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 		{
 			Stage->Diagnostic(TEXT("pending_family_deferred"));
 			AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, 0, false);
-			return; // Keep the actual colour and mask arms unserved until the forced reset.
+			return;
 		}
 		if (PendingIssue.IsValid() && Stage->Gate(8, PendingIssue->SessionIndex))
 		{
-			// Real second family/view, same scene frame and view index zero, foreign render target.
 			FSceneViewFamilyContext Throwaway(FSceneViewFamily::ConstructionValues(nullptr, InViewFamily.Scene, InViewFamily.EngineShowFlags));
 			Throwaway.FrameNumber = InViewFamily.FrameNumber;
 			FSceneViewInitOptions Init; Init.ViewFamily = &Throwaway;

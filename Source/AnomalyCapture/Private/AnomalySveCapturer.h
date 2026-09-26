@@ -42,7 +42,6 @@ public:
 	bool IsActive() const;
 
 	void ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr ChangeIssue = nullptr);
-	// Cancel only unserved old-generation arms; submitted GPU work drains normally.
 	void CancelPendingOtherGeneration(const FAnomalyChangeIssuePtr& Current, TArray<uint64>& Cancelled);
 	FAnomalyChangeIssuePtr PeekChangeIssue() const;
 	FAnomalyChangeIssuePtr GetOwnerIssue() const;

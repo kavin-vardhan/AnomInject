@@ -127,8 +127,6 @@ void FAnomalyChangeStage::EndEventsLocked(const TCHAR* Cause)
 void FAnomalyChangeStage::EndEvents(const TCHAR* Cause)
 {
 	FScopeLock Lock(&CS);
-	// BeginRevert may follow CaptureCurrentFrame in the same GT tick. The legacy
-	// end-of-tick label sample must resolve before minting its final watermark.
 	const FPending* Last = Pending.Find(LatestIndex);
 	if (Last && !Last->bObserved) { DeferredEndCause = Cause; DeferredEndAt = LatestIndex; }
 	else { EndEventsLocked(Cause); }
@@ -145,7 +143,6 @@ void FAnomalyChangeStage::FinalizeEventsLocked()
 		{
 			if (!Phase.bFinal && Phase.bClosing && Cursor > Phase.Last)
 			{
-				// Every issued window row through the watermark has resolved or timed out.
 				if (!Phase.bOnsetMeasured && Phase.OnsetReason == EAnomalyChangeReason::None)
 				{
 					Phase.OnsetReason = EAnomalyChangeReason::ClosureTimeout;
@@ -185,7 +182,6 @@ void FAnomalyChangeStage::FinalizeEventsLocked()
 
 void FAnomalyChangeStage::MeasureLocked(FPending& Item, EAnomalyChangeReason Reason, const TSharedRef<FJsonObject>& Base)
 {
-	// Snapshot only shared buffers and value metadata before unlocking. GT may grow Events/Pending.
 	struct FWindow { FAnomalyChangeLabel Label; FAnomalyChangeColourPtr Ref; FAnomalyChangeReceiptPtr Receipt; FChangeStats RefStats; };
 	TArray<FWindow> Windows;
 	for (const FAnomalyChangeLabel& Label : Item.Labels)
@@ -220,8 +216,6 @@ void FAnomalyChangeStage::MeasureLocked(FPending& Item, EAnomalyChangeReason Rea
 		Item.Pixels->Num() == Previous.Pixels->Num() && Item.Pixels->Num() == Item.MaskPixels->Num();
 	if (bIdentity && bArrays)
 	{
-		// Never hold the admission lock during O(pixels) work. Local Item and Previous remain
-		// worker-owned; reset/teardown wait for this worker before releasing their reservations.
 		CS.Unlock();
 		for (int32 I = 0; I < Item.Pixels->Num(); ++I)
 		{

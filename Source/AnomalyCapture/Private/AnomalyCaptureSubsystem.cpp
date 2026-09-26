@@ -1395,7 +1395,6 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 		}
 
 		FoldExposureExclusion(Gray, W, H, TagEventPtr);
-		// m55: all mutating filters above have finished. Both consumers see this exact frozen buffer.
 		FAnomalyChangeMaskPtr FrozenMask;
 		if (Result.ChangeReceipt.IsValid() && Async->ChangeStage.IsValid())
 		{
@@ -4461,7 +4460,6 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			FAnomalyChangeIssuePtr ChangeIssue;
 			if (Async->ChangeStage.IsValid())
 			{
-				// The gate resets after SI 8 was submitted, with its real colour+mask drains held.
 				if ((Async->ChangeStage->GetGate() == 7 || Async->ChangeStage->GetGate() == 15) && Snap.SessionIndex == 9) { Async->ChangeStage->ResetEpoch(); }
 				UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr;
 				FAnomalyViewInfo ReceiptCamera = ProjView;
@@ -4941,7 +4939,6 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 		for (int32 I = 0; I < Snap->Fires.Num(); ++I)
 		{
 			const auto& F = Snap->Fires[I];
-			// Region-less global/light classes do not acquire invented event regions.
 			if (F.Id == FName(TEXT("lighting_mismatch")) || F.Id == FName(TEXT("camera_clipping")) || F.Id == FName(TEXT("time_dilation"))) { continue; }
 			FAnomalyChangeLabel L;
 			L.Event = FString::Printf(TEXT("%s@%llu"), *F.Id.ToString(), F.StartFrame);
@@ -5638,8 +5635,6 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		if (Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->CloseAndPersist(bDeinitializing); }
 		if (Async.IsValid() && Async->ChangeStage.IsValid() && Async->ChangeStage->GetGate() == 11 && Async->SveCapturer.IsValid())
 		{
-			// G-LATE: the final sidecar already exists. Let the actual held readback arrive;
-			// verify byte-for-byte that late admission cannot change any final record.
 			const FString EvidencePath = FPaths::Combine(RunDir, TEXT("change_evidence.jsonl"));
 			FString Before, After; FFileHelper::LoadFileToString(Before, *EvidencePath);
 			const double GateDeadline = FPlatformTime::Seconds() + 4.0;

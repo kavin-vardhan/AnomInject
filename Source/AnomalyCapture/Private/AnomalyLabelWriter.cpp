@@ -564,7 +564,6 @@ namespace AnomalyLabel
 
 		TArray<FColor> Pixels;
 		ConvertTightToBGRA(SrcFormat, BytesPerPixel, RawBytes, Width, Height, Pixels);
-		// The one existing conversion feeds both consumers. Freeze before encoding; no second copy.
 		if (CanonicalPixels) { *CanonicalPixels = MakeShared<const TArray<FColor>, ESPMode::ThreadSafe>(MoveTemp(Pixels)); }
 		const TArray<FColor>& EncoderPixels = CanonicalPixels ? **CanonicalPixels : Pixels;
 

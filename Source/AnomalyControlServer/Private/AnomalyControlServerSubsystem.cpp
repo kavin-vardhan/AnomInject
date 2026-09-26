@@ -377,7 +377,6 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 
 	UWorld* World = GetWorld();
 
-	// Typed bridge to a non-Shipping Game/Editor fixture module; never generic remote exec.
 #if !UE_BUILD_SHIPPING
 	if (Type == TEXT("bench_place_view") || Type == TEXT("bench_input_lock") || Type == TEXT("bench_log_barrier") || Type == TEXT("bench_scene_fixture"))
 	{
@@ -390,8 +389,6 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		double Request = 0; Msg->TryGetNumberField(TEXT("request"), Request);
 		if (Allowed)
 		{
-			// Existing cooked containers predate this fixture module. The rebuilt Game links it;
-			// load its static initializer on an explicit bench command without recooking descriptors.
 			if (Type != TEXT("bench_log_barrier"))
 			{
 				FModuleManager::Get().LoadModulePtr<IModuleInterface>(TEXT("AnomalyBench"));
@@ -430,7 +427,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			else { Executed = true; }
 			GLog->FlushThreadedLogs(); GLog->Flush();
 		}
-		Reply->SetBoolField(TEXT("executed"), Executed); // not a pose certificate; L1 remains mandatory
+		Reply->SetBoolField(TEXT("executed"), Executed);
 		SendJson(Conn.Socket, Reply); return;
 	}
 #endif

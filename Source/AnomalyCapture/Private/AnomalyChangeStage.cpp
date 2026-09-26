@@ -106,8 +106,6 @@ FAnomalyChangeIssuePtr FAnomalyChangeStage::Issue(uint64 RequestId, int32 SI, co
 	New->OwnerTarget = OwnerTarget; New->OwnerScene = OwnerScene; New->OwnerLevel = OwnerLevel; New->Stage = AsShared();
 	if (Gate(13, SI))
 	{
-		// Synthetic unissued-index test. Preserve the real legacy colour/mask work,
-		// but do not register this capture with the additional ordered consumer.
 		++Counters.FindOrAdd(TEXT("bench_unregistered_capture"));
 		return New;
 	}
@@ -287,9 +285,6 @@ void FAnomalyChangeStage::NoteColourCompletionLocked(FPending& Item)
 }
 int32 FAnomalyChangeStage::ColourCompletionsAfterLocked(int32 Index) const
 {
-	// A later index cannot have left Pending while the ordered head is <= Index.
-	// Count distinct real notifications, including failed delivery, never issues,
-	// duplicate callbacks or the synthetic bColourDone used by unsupported issues.
 	int32 Count = 0;
 	for (const auto& Entry : Pending)
 	{
@@ -310,8 +305,6 @@ void FAnomalyChangeStage::Colour(const FAnomalyChangeCompletion& Completion, con
 	}
 	if (BenchGate == 17 || (BenchGate == 16 && Completion.Receipt->Issue->SessionIndex == 3))
 	{
-		// Bench-only loss of this consumer's notification. The independent legacy
-		// writer has really completed; do not fabricate a receipt or a refusal.
 		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): MISSING-COMPLETION gate=%d si=%d"), BenchGate, Completion.Receipt->Issue->SessionIndex);
 		return;
 	}
@@ -325,7 +318,6 @@ void FAnomalyChangeStage::Colour(const FAnomalyChangeCompletion& Completion, con
 	else if (!bSupported) { Item.Reason = EAnomalyChangeReason::UnsupportedDelivery; }
 	else if (Pixels.IsValid())
 	{
-		// Reservation precedes taking the stage's reference; writer threads never wait for capacity.
 		const int64 ColourBytes = (int64)Pixels->GetAllocatedSize();
 		if (!Gate(10, Completion.Receipt->Issue->SessionIndex) && ReserveLocked(ColourBytes))
 		{
@@ -356,7 +348,6 @@ void FAnomalyChangeStage::Mask(const FAnomalyChangeReceiptPtr& Receipt, const FA
 	{
 		Item.MaskPixels = Pixels;
 		NoteHighWaterLocked(Receipt->Issue->SessionIndex, TEXT("mask"), (int64)Pixels->GetAllocatedSize());
-		// Empty masks are deliberately not written by m44. Their zero denominator is known.
 		if (bEmpty) { Item.bMaskDone = true; Item.bMaskDelivered = true; }
 	}
 	ScheduleLocked();
@@ -425,9 +416,6 @@ void FAnomalyChangeStage::Work()
 				FPending* Item = Pending.Find(Cursor);
 				if (!Item)
 				{
-					// Issue is monotone on the GT. A synchronous fallback can advance the
-					// capture index without issuing to this async stage. Such an index will
-					// never arrive; preserve the actual predecessor and refuse the next pair.
 					int32 NextIssued = LatestIndex + 1;
 					for (const auto& Later : Pending) { if (Later.Key > Cursor) { NextIssued = FMath::Min(NextIssued, Later.Key); } }
 					Counters.FindOrAdd(TEXT("unissued_indices_skipped")) += NextIssued - Cursor;
@@ -458,8 +446,6 @@ void FAnomalyChangeStage::Work()
 				}
 				if (!bReady && !(Item->bObserved && Item->bSealed && Item->bColourDone && Reason != EAnomalyChangeReason::None))
 				{
-					// An issue count is not a completion clock. Closing phases/runs get
-					// their declared eight-completion/5s bound, rather than the gap bound.
 					if (bTerminal)
 					{
 						Reason = EAnomalyChangeReason::ClosureTimeout;
@@ -469,7 +455,6 @@ void FAnomalyChangeStage::Work()
 					else if (!bAwaitingClosure && ColourCompletionsAfterLocked(Cursor) >= 4) { Reason = EAnomalyChangeReason::OutOfOrderTimeout; }
 					else { break; }
 				}
-				// Remove before unlocking for arithmetic: a concurrent GT Issue can reallocate Pending.
 				FPending Ready = MoveTemp(*Item);
 				Pending.Remove(Cursor);
 				InHand = &Ready;
@@ -485,7 +470,6 @@ void FAnomalyChangeStage::Work()
 			if (!bWaitOnOwnQueue) { bWorkerActive = false; }
 		}
 		if (!bWaitOnOwnQueue) { return; }
-		// No writer waits for a predecessor or for capacity. Only this serial stage waits.
 		FPlatformProcess::Sleep(0.001f);
 	}
 }
@@ -511,7 +495,6 @@ static TSharedRef<FJsonObject> ChangeReceiptJson(const FAnomalyChangeReceiptPtr&
 		J->SetNumberField(TEXT("view_index"), R->ViewIndex);
 		if (R->MaskRequestId)
 		{
-			// Mask request serials use high bits, so preserve their exact uint64 values as strings.
 			J->SetStringField(TEXT("mask_request_id"), FString::Printf(TEXT("%llu"), R->MaskRequestId));
 			J->SetStringField(TEXT("payload_owner_request_id"), FString::Printf(TEXT("%llu"), R->PayloadOwnerRequestId));
 			TArray<TSharedPtr<FJsonValue>> Ids;
@@ -583,7 +566,6 @@ void FAnomalyChangeStage::FinalizeLocked(FPending& Item, EAnomalyChangeReason Re
 	UE_LOG(LogAnomalyCapture, Verbose, TEXT("Capture(m55): PAIR si=%d valid=%d reason=%s"), Cursor, Reason == EAnomalyChangeReason::None, ReasonName ? ReasonName : TEXT("null"));
 	if (BenchGate == 12 && Cursor == 7)
 	{
-		// Keep the real SI 6 buffer/receipt so SI 8 sees an actual wrong predecessor.
 		ReleaseLocked(Item); return;
 	}
 	ReleaseLocked(Previous);
@@ -611,8 +593,6 @@ void FAnomalyChangeStage::BeginClosure()
 }
 bool FAnomalyChangeStage::Persist()
 {
-	// Called by the GT only after closure. Rows are immutable; disk I/O never holds the
-	// admission mutex that colour/mask writer workers use for their completion messages.
 	{
 		FScopeLock Lock(&CS);
 		if (bDiscarded || !bSessionBegun) { return false; }
@@ -663,7 +643,7 @@ void FAnomalyChangeStage::ResetEpoch()
 	EndEvents(TEXT("epoch_reset"));
 	CloseAndPersist();
 	FScopeLock Lock(&CS);
-	if (!bPersisted) { return; } // Never erase unpublished final records.
+	if (!bPersisted) { return; }
 	Epoch = (uint64)GChangeEpoch.Increment(); ++Cut;
 	Pending.Reset(); ReleaseLocked(Previous);
 	FirstIndex = -1; bClosing = false; bClosed = false; bPersisted = false;

@@ -2,7 +2,6 @@
 #include "IAnomaly.h"
 #include "Anomalies/Anomaly_CorruptedTexture.h"
 
-// One lifecycle/picker/label path; the material-write flag is the only twin difference.
 class FAnomaly_ChangeCase final : public IAnomaly
 {
 public:

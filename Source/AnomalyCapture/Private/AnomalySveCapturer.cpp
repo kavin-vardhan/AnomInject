@@ -324,7 +324,6 @@ void FAnomalySveCapturer::EnqueueDrain()
 
 void FAnomalySveCapturer::Drain_RenderThread()
 {
-	// Force SI 8 and its successor to be ready in this same reverse-order drain.
 	for (const auto& Held : InFlight)
 	{
 		const auto Issued = Held.ChangeSubmission.Issue;
@@ -363,12 +362,10 @@ void FAnomalySveCapturer::Drain_RenderThread()
 		auto Change = Issue.IsValid() ? Issue->Stage.Pin() : nullptr;
 		if (Change.IsValid())
 		{
-			// Delay real GPU completions, not a fabricated receipt, for the two-ready/epoch/late gates.
 			const int32 SI = Issue->SessionIndex;
 			const int64 AgeMs = FAnomalyChangeStage::NowMs() - Issue->SubmitMs;
 			if ((Change->Gate(7, SI) && AgeMs < 2500)
 				|| (Change->Gate(11, SI) && AgeMs < 6500)) { continue; }
-			// Evidence can expire without discarding the independently-owned legacy colour delivery.
 			if (!Change->AcceptGeneration(Issue, TEXT("colour_drain"))) { Change.Reset(); }
 		}
 		if (Change.IsValid())
