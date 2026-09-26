@@ -7592,6 +7592,10 @@ So when frame N's target-mask render slips one frame and frame N+1's arm joins i
 📌 **FUTURE (m51 / M3), filed not built:** give each target arm its own pixel readback, or re-arm a coalesced target arm on the next
 render, so a slipped render delays a mask instead of losing it.
 
+🔻 **CROSS-REFERENCE (2026-09-26, 081-39):** with pacing OFF this shape appears at scale — the mask is served from the view family one
+before the colour frame on 60–68 of 120 required windows per leg, and m55 refuses those pairs. Recorded as **G302**, FUTURE for m51
+pairing (ruling 081-39 ruling 3).
+
 ## G296 — a negative proof's expected FAIL presupposes that the comparator reads the thing the proof mutates (2026-09-26, 081-32)
 
 Ruling 081-32 A asked for "signature present, but the colour differs → FAIL". Its premise was that the existing legacy rules include "the
@@ -7729,3 +7733,55 @@ and there the yield collapsed:
   high-water) **in that regime**, from a pilot or banked leg in it, and state the realised pair density beside any cost verdict. A PASS at
   a fifth of the intended workload is a PASS at that workload only.
 - Mechanism of the pacing-OFF mask slip: **not established** (receipts only).
+
+## G302 — with pacing OFF, m55 refuses most required pairs because the mask arrives from the wrong view family: the refusal is m55 working; the mispairing is m51's defect (2026-09-26, 081-39)
+
+The m55 identity contract refuses a pair whose mask and colour frame do not belong together. With pacing OFF that refusal became the
+common case. Measured in 081-38 on the solid recipe, 720p, four B legs, each against 120 required windows:
+- **`view_mismatch` 60–68 per leg.** The camera delta is exactly 0. The receipts show the mask payload came from the view family **one
+  before** the colour frame (`S3_720_B1_T1` si 23: colour `view_family_id 24` / `family_frame 1779`, mask 23 / 1778).
+- **`unsupported_delivery` 22–28 per leg** (stage `mask`, `mask_receipt` null).
+- Only 20–24 pairs per leg were measured (yield 0.17–0.20). Paced priors on the same recipe and binary measure 20 of 20 with neither reason.
+
+**m55 is right to refuse.** It records each window as unmeasured, with its reason, and never measures a wrongly paired frame. That is the
+identity contract doing its job, and m55 does not change for this (ruling 081-39, ruling 3).
+
+**The mispairing belongs to m51.** Chat ruled it the m51 mask/colour pairing defect: G295's shape (a slipped target-mask render), first seen
+under load in 078.
+- It points the same way as 078's MASK-PICTURE-PAIRING `PREVIOUS` readings, where the mask matched the previous picture.
+- In 078, every pairing leg near `speed_ratio` 1.00 passed and every leg at ≥ 1.59 failed. That is an association only.
+- Beyond the receipts, the mechanism is **not established**.
+
+Consequences:
+- **Report the realised yield next to any m55 reading taken with pacing OFF (G301).** A pacing-off m55 measurement covers only the pairs
+  that happened to be correctly paired.
+- **For clients, paced capture is the m55 configuration.** At 1080p with pacing OFF the payload cap adds `budget_exceeded` refusals as well
+  (081-41 client docs).
+
+📌 **FUTURE (m51 pairing), filed not built:** keep the mask paired to its own view family under load. Candidates: G295's per-arm pixel
+readback, or re-arming a coalesced target arm. Its gate should be the m55 `view_mismatch` count on a pacing-OFF leg, which is 60–68 of
+120 today. Cross-references: G295, G301.
+
+## G303 — a sleep-then-spin pacer inside a cycle-counted thread: derive what the spin does, then measure a replica before trusting the derivation (2026-09-26, 081-39)
+
+The m11 pacer (`PaceThisTick`) works in two steps:
+1. It sleeps whole milliseconds to within 1.5 ms of the frame deadline. `SleepNoStats` truncates to whole ms, and UE sets
+   `timeBeginPeriod(1)`.
+2. It then loops `SwitchToThread` on the game thread until the deadline.
+
+`QueryThreadCycleTime` counts that loop, so a paced game-thread cost metric contains it.
+
+**The derivation.** If `Sleep` woke within about 1 ms of its request, the loop would last 0.5–2.5 ms and shrink as the frame's work grew.
+It would then absorb up to ~1 ms of any work change.
+
+**The replica says otherwise.** A synthetic process making the same Win32 calls (`_reviews/081-39-evidence/proof-pacer.json`, 600 frames
+per condition) showed that on this box:
+- `Sleep(n)` returned after **n + 1.6–2.0 ms**;
+- the loop averaged **0.2 ms per frame** and did not move with the work (−0.03 ms for +0.4 ms of work);
+- cycle deltas tracked the work: +0.335 for +0.4, and +1.28 for +1.4, against +1.29 unpaced.
+
+So the paced gate can see a 1 ms cost here.
+
+**Rule.** When a timing mechanism sits inside the measured thread, write the derivation down, then measure a replica before building a gate
+on either the derivation or the fear. The derivation named the risk; only the replica sized it. A host whose `Sleep` wakes tighter could
+still absorb up to ~1 ms. That is a named limit, not a measurement.

@@ -11,6 +11,41 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧮 **081-39, 2026-09-26 — BENCH-FREE. COST AMENDMENT 1 IS DECLARED: A PACED BLOCK P (30 fps) IS THE HEADLINE COST GATE. THE HARNESS IS
+> AMENDED AND PROVEN BOTH WAYS; NOTHING RAN ON THE BENCH.** Ruling `_reviews/081-39-chat-ruling-cost-paced-block.md`.
+> - **Stress, not headline, not re-run:**
+>   - 720p pacing OFF **PASS**, labelled "pacing-off stress, measured-pair yield 0.17–0.20";
+>   - 1080p pacing OFF **UNRESOLVED**: writer saturation → 256 MiB payload cap → honest `budget_exceeded` refusals → B vacuity.
+>
+>   All 18 pacing-off legs are retired (never scheduled, refused by name); the ruled LEG-FAILURE no longer halts.
+> - **Block P** (`docs/predictions/2026-09-26-m55-stage3-cost.md` AMENDMENT 1):
+>   - per resolution, 720p then 1080p: discard, then `A1 B1 B2 A2`, `A3 B3 B4 A4`, **600 frames**;
+>   - the runner's own paced base line (Pace 1, Fps 30), run log OFF, gate 0;
+>   - then the diagnostic pair (pacing OFF, run log ON), outside every gate;
+>   - ≈ 18–19 min expected; campaign cap 42 min, so the window stays ≤ 45.
+> - **Gate P** (same statistic, no new tolerance):
+>   - game-thread upper ≤ +1.000 ms;
+>   - no writer drop beyond uncertainty (5 % guard);
+>   - 0 drops;
+>   - **pacing held** (B's arm rate not below A's beyond uncertainty);
+>   - B vacuity: measured-pair yield ≥ 0.9 → otherwise LEG-FAILURE.
+> - **Proofs:**
+>   - pacer replica 6/7: the paced cycle metric tracks work changes, +1.4 → +1.28 vs +1.29 unpaced. The derived busy-wait absorption was
+>     **refuted**: `Sleep` overshoots by 1.6–2.0 ms, so the loop is a constant 0.2 ms (G303);
+>   - banked paced legs 7/7 (c0/c2/c1 yield, latency and high-water reproduced; one checker defect caught and fixed first);
+>   - dry run 112/112, including resume on a copy of the real 081-38 ledger: `S3_P_720_DISC` first, no done leg re-launched, 081-38 rows
+>     byte-identical.
+> - **G302:** the pacing-OFF `view_mismatch` / `unsupported_delivery` yield collapse is m55 correctly **refusing** mispaired masks; the
+>   mispairing is m51's defect (G295 shape), **FUTURE m51 pairing**.
+> - **Declared risks:**
+>   - the literal pacing and writer clauses against a nearly constant paced arm rate (c0's ON leg ran 0.55 % slow with the run log ON);
+>   - `S3_DIAG_B` near its 20-pair floor.
+> - **Next — 081-40 (bench):** `C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\081-37-cost-window.py 081-40`. The cost boundary is
+>   re-issued after this commit (see the 081-39 report). NOT MERGED, NOT TAGGED, no build.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-39-code-m55-cost-amendment-1-paced.md`.**
+>
+> ---
 > ⏸ **081-38, 2026-09-26 — BENCH. THE COST WINDOW RAN ONCE: 720p PASS AS DECLARED; 1080p HALTED ON B VACUITY (LEG-FAILURE, exit 1).
 > OVERALL UNRESOLVED. NEEDS-DECISION.** Report: `_reviews/081-38-evidence/stage3-cost-report.md`.
 > - **720p (8/8 legs VALID on attempt 1):** game-thread Δ **−0.083 ms**, upper bound **−0.002 ms** (≤ +1.0 → PASS); writer Δ +1.23 PNG/s,
