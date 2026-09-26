@@ -7785,3 +7785,26 @@ So the paced gate can see a 1 ms cost here.
 **Rule.** When a timing mechanism sits inside the measured thread, write the derivation down, then measure a replica before building a gate
 on either the derivation or the fear. The derivation named the risk; only the replica sized it. A host whose `Sleep` wakes tighter could
 still absorb up to ~1 ms. That is a named limit, not a measurement.
+
+## G304 — the run log is not free on the game thread: ≈ +1 ms of CPU per engine frame at pacing OFF, even though a cycle metric excludes blocked wait (2026-09-26, 081-40)
+
+**The prediction.** 081-37 predicted that turning the run log ON would move game-thread cycles by less than ±0.3 ms. The reasoning was that
+`QueryThreadCycleTime` charges CPU, not time spent blocked in a flush (§1.6 of the cost predictions).
+
+**The measurement.** The 081-40 diagnostic pair ran pacing OFF, 720p, 600 frames, run log ON. It was compared with 081-38's pacing-off
+720p legs, the same recipe with the run log OFF, 4 legs per side there against 1 here, about an hour apart.
+- Game-thread cycles read **+0.987 ms (evidence OFF) and +0.989 ms (evidence ON)** per engine frame.
+- Engine time rose +1.2 / +1.5 ms.
+- The run log wrote ~7,300–7,700 lines per leg (≈ 10 per engine frame). Evidence OFF has 0 `MASK-SERVED` lines, so the cost is not m55's
+  logging.
+
+**What is established.** The cost is **CPU work on the game thread**, not waiting. **Mechanism not established.** Per-line formatting, the
+write, and the kernel-mode CPU of the per-line `FlushFileBuffers` are all candidates; thread cycle counts include kernel time, which is why
+"cycles exclude blocked wait" did not make I/O free.
+
+**Rule.**
+- Keep the run log **OFF** on every cost, throughput or pacing leg; block P did, and the client's delivery mode does.
+- Never compare a run-log-ON leg against a run-log-OFF leg for game-thread cost.
+- A cycle-counted metric still charges the CPU side of synchronous I/O.
+
+Related: G300 (the FPS-21.5 stall ran through these flushes; it did not reproduce in the two diagnostic legs, n = 2).

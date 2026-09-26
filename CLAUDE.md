@@ -11,6 +11,39 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ✅ **081-40, 2026-09-26 — BENCH. m55 STAGE 3 COST, BLOCK P (PACED 30 fps, THE HEADLINE): 720p PASS · 1080p PASS → OVERALL PASS.
+> The Stage 3 cost report is complete.**
+> - **The run.** Tag `081-40`, one window, ~20 min, exit 0, postflight PASS.
+>   - `S3_P_720_DISC` launched first, and no pacing-off leg was re-launched. The 12 rows 081-38 wrote are identical to the preserved copy.
+>   - **16/16 counted legs VALID on attempt 1**, then the diagnostic pair (both VALID).
+>   - Mode check clean on every leg; 0 drops everywhere; a54 exit 0 on every B leg.
+> - **Gate P, read as declared:**
+>
+>   | clause | 720p | 1080p |
+>   |---|---|---|
+>   | game-thread Δ, upper | −0.115 ms, **−0.072** | −0.037 ms, **+0.110** |
+>   | writer Δ, upper | +0.035 PNG/s, +0.078 | −0.014 PNG/s, +0.029 |
+>   | pacing held (arm Δ, upper) | −0.0003, +0.0013 | −0.0023, +0.0033 |
+>   | **B yield** | **120/120 on all 8 B legs** | |
+> - **Readings:**
+>   - writer p50 163 ms (720p) and 318–335 ms (1080p), no growth;
+>   - m55 high-water 19–20 MB and 56–68 MB of 256 MiB;
+>   - worker 2.5 and 7.3 ms per captured frame, off the game thread;
+>   - game GPU counter 0.0 % again (instrument limitation).
+> - **Pacing-off 081-38 results stay labelled STRESS:** 720p PASS (yield 0.17–0.20) · 1080p UNRESOLVED (writer saturation → payload cap →
+>   `budget_exceeded`).
+> - **Diagnostic pair (run log ON, pacing OFF):**
+>   - no stall (MAIN4's 1.56 s start stall did not reproduce, n = 2);
+>   - the cycles prediction **MISSED**: run log ON costs ≈ **+0.99 ms** game-thread CPU per engine frame (**G304**, mechanism not
+>     established).
+> - **One A1.8 prediction missed:** the arm-rate band (declared 24.5–25.0, read 25.06–25.07). The band came from whole-session priors;
+>   it has no verdict effect.
+> - The journal commit moves the feature head past the cost boundary (`805f317`): **any further bench window needs a re-issue.**
+> - **Next: 081-41 (bench-free, client docs).** NOT MERGED, NOT TAGGED, no build.
+>
+> **Cold start: `docs/sessions/2026-09-26-081-40-code-m55-stage3-cost-paced.md`; report `_reviews/081-40-evidence/stage3-cost-report.md`.**
+>
+> ---
 > 🧮 **081-39, 2026-09-26 — BENCH-FREE. COST AMENDMENT 1 IS DECLARED: A PACED BLOCK P (30 fps) IS THE HEADLINE COST GATE. THE HARNESS IS
 > AMENDED AND PROVEN BOTH WAYS; NOTHING RAN ON THE BENCH.** Ruling `_reviews/081-39-chat-ruling-cost-paced-block.md`.
 > - **Stress, not headline, not re-run:**
