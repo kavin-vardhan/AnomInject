@@ -1,0 +1,46 @@
+#pragma once
+
+#include "CoreMinimal.h"
+
+class UWorld;
+class UMaterialInterface;
+
+namespace AnomalyTexCorrupt
+{
+	struct FRunStats
+	{
+		int32 FiresApplied = 0;
+		TMap<FString, int32> RefusedByReason;
+		TMap<FString, int32> SlotDispositions;
+		TMap<FString, int32> BindingDispositions;
+		TMap<FString, int32> RollbackByStep;
+		int64 RtBytesPeak = 0;
+		int32 RestoredExact = 0;
+		int32 RestoredDefault = 0;
+		int32 LeftToGame = 0;
+		int32 Swept = 0;
+		int32 RtMipMismatch = 0;
+		int32 CollateralDrops = 0;
+		int32 SlotsPartialSet = 0;
+	};
+
+	ANOMALYINJECTOR_API void ResetRunStats();
+
+	ANOMALYINJECTOR_API FRunStats GetRunStats();
+
+	ANOMALYINJECTOR_API const TArray<FString>& AllFinalReasons();
+
+	ANOMALYINJECTOR_API const TArray<FString>& AllRollbackSteps();
+
+	ANOMALYINJECTOR_API bool IsTexCorruptId(FName Id);
+
+	ANOMALYINJECTOR_API FString GetLiveModeName(UWorld* World, FName Id);
+
+	ANOMALYINJECTOR_API void GatherCorruptorMaterials(UWorld* World, TArray<UMaterialInterface*>& Out);
+
+	ANOMALYINJECTOR_API int32 BeginWarmDraw(UWorld* World);
+
+	ANOMALYINJECTOR_API void EndWarmDraw();
+
+	ANOMALYINJECTOR_API void RestoreBenchAssetSlotMid(const TCHAR* Context);
+}
