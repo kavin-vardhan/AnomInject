@@ -165,6 +165,8 @@ private:
 	bool bCollateralTruncated = false;
 	int32 CollateralDroppedByCap = 0;
 	int32 CollateralUnmeasuredMaterials = 0;
+	int32 CollateralUnresolved = 0;
+	int32 CollateralNullSlots = 0;
 	int32 CollateralUnknownAtApply = 0;
 	int32 CollateralRenderedPrimitives = 0;
 	bool bCollateralTaken = false;
@@ -172,5 +174,6 @@ private:
 	int32 CollateralNoApply = 0;
 	uint64 RevertFrame = 0;
 	uint64 PostRevertFrame = 0;
+	bool bTerminalRollback = false;
 };
 }

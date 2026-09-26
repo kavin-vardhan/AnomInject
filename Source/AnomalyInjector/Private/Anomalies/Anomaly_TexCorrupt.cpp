@@ -183,9 +183,15 @@ bool FAnomaly_TexCorrupt::FailAt(int32 Step, const TCHAR* Reason, const FString&
 	UE_LOG(LogAnomaly, Warning,
 		TEXT("%s: REFUSED %s at transaction step %d (%s) - ROLLED BACK: every render target, corruptor MID and host MID this ")
 		TEXT("event created is released, NO SLOT WAS TOUCHED (the commit is step 7 alone). Ledger: %lld created byte(s) moved ")
-		TEXT("to the two-frame pending ledger, %lld never-created byte(s) un-reserved; live=%lld pending=%lld frame=%llu."),
-		*Id.ToString(), Reason, Step, *Detail, CreatedAtFail, NeverCreated, Ledger().Live, Ledger().PendingSum(), GFrameCounter);
+		TEXT("to the two-frame pending ledger, %lld never-created byte(s) un-reserved; live=%lld pending=%lld frame=%llu. ")
+		TEXT("pending > 0 here is expected (created bytes wait two rendered frames) and this line is not a balance verdict; ")
+		TEXT("the balance reading is TEXCORRUPT-LEDGER kind=rollback at frame %llu, which must read live=0 pending=0."),
+		*Id.ToString(), Reason, Step, *Detail, CreatedAtFail, NeverCreated, Ledger().Live, Ledger().PendingSum(), GFrameCounter,
+		TexCorruptPure::PostRevertSampleFrame(GFrameCounter));
 	ResetEventState();
+	RevertFrame = GFrameCounter;
+	PostRevertFrame = TexCorruptPure::PostRevertSampleFrame(RevertFrame);
+	bTerminalRollback = true;
 	bActive = false;
 	return false;
 }
@@ -398,6 +404,8 @@ void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 	bCollateralTruncated = false;
 	CollateralDroppedByCap = 0;
 	CollateralUnmeasuredMaterials = 0;
+	CollateralUnresolved = 0;
+	CollateralNullSlots = 0;
 	CollateralUnknownAtApply = 0;
 	CollateralRenderedPrimitives = 0;
 	bCollateralTaken = World != nullptr;
@@ -415,6 +423,7 @@ void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 	const double Now = World->GetTimeSeconds();
 	const double Delta = World->GetDeltaSeconds();
 	const double Window = TexCorruptPure::CollateralWindowSeconds(Delta);
+	UMaterialInterface* EngineDefault = UMaterial::GetDefaultMaterial(MD_Surface);
 	TSet<UMaterialInterface*> SeenMaterials;
 	TMap<FString, UTexture2D*> ByPath;
 	int32 CollateralPrimitives = 0;
@@ -445,8 +454,10 @@ void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 			++CollateralPrimitives;
 			TArray<UMaterialInterface*> Mats;
 			Prim->GetUsedMaterials(Mats, false);
-			for (UMaterialInterface* Mat : Mats)
+			for (UMaterialInterface* Assigned : Mats)
 			{
+				UMaterialInterface* Mat = TexCorruptPure::MeasuredSlotMaterial<UMaterialInterface>(Assigned, EngineDefault,
+					CollateralNullSlots, CollateralUnresolved);
 				if (!Mat || SeenMaterials.Contains(Mat))
 				{
 					continue;
@@ -463,7 +474,8 @@ void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 				}
 				for (const FBinding& B : Bindings)
 				{
-					if (B.Tex2D)
+					if (TexCorruptPure::ClassifyCollateralEntry(B.Texture != nullptr, B.Tex2D != nullptr, CollateralUnresolved)
+						== TexCorruptPure::ECollEntry::Measured)
 					{
 						ByPath.Add(B.Tex2D->GetPathName(), B.Tex2D);
 					}
@@ -493,10 +505,13 @@ void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 	UE_LOG(LogAnomaly, Log,
 		TEXT("%s: G-COLL set taken at Apply - %d collateral texture(s) of %d, from %d primitive(s) other than the target's drawn ")
 		TEXT("on screen within %.3f s (%d rendered on screen in total, target included). No injection-selection filter is ")
-		TEXT("applied. incomplete=%d (dropped_by_cap=%d unmeasured_materials=%d unknown_residency=%d no_render_evidence=%d) - %s. ")
+		TEXT("applied. %d null material slot(s) measured through the engine default material '%s', which the mesh proxy draws ")
+		TEXT("there. incomplete=%d (dropped_by_cap=%d unmeasured_materials=%d unresolved=%d unknown_residency=%d ")
+		TEXT("no_render_evidence=%d) - %s. ")
 		TEXT("Paired per texture across legs by (path, frame offset) from the TEXCORRUPT-COLL lines; never compared as counts."),
-		*Id.ToString(), Collateral.Num(), Paths.Num(), CollateralPrimitives, Window, CollateralRenderedPrimitives, Incomplete,
-		CollateralDroppedByCap, CollateralUnmeasuredMaterials, CollateralUnknownAtApply, CollateralRenderedPrimitives == 0 ? 1 : 0,
+		*Id.ToString(), Collateral.Num(), Paths.Num(), CollateralPrimitives, Window, CollateralRenderedPrimitives, CollateralNullSlots,
+		*GetPathNameSafe(EngineDefault), Incomplete, CollateralDroppedByCap, CollateralUnmeasuredMaterials, CollateralUnresolved,
+		CollateralUnknownAtApply, CollateralRenderedPrimitives == 0 ? 1 : 0,
 		Incomplete > 0 ? TEXT("INCOMPLETE, NOT A CLEAN READING") : TEXT("complete"));
 	LogCollateral(TEXT("apply"));
 }
@@ -533,7 +548,8 @@ int32 FAnomaly_TexCorrupt::CollateralIncomplete() const
 	}
 	int32 UnknownNow = 0;
 	CountCollateralDrops(&UnknownNow);
-	return CollateralDroppedByCap + CollateralUnmeasuredMaterials + UnknownNow + (CollateralRenderedPrimitives == 0 ? 1 : 0);
+	return TexCorruptPure::CollateralIncompleteCount(CollateralDroppedByCap, CollateralUnmeasuredMaterials, CollateralUnresolved,
+		UnknownNow, CollateralRenderedPrimitives);
 }
 
 void FAnomaly_TexCorrupt::LogCollateral(const TCHAR* Kind) const
@@ -554,33 +570,38 @@ void FAnomaly_TexCorrupt::LogCollateral(const TCHAR* Kind) const
 	const int32 Drops = CountCollateralDrops(&UnknownNow);
 	UE_LOG(LogAnomaly, Log,
 		TEXT("TEXCORRUPT-COLL id=%s kind=%s apply_frame=%llu offset=%llu noapply=%d count=%d truncated=%d dropped_by_cap=%d ")
-		TEXT("unmeasured_materials=%d unknown_now=%d incomplete=%d drops=%d levels=%s"),
+		TEXT("unmeasured_materials=%d unresolved=%d null_slots=%d unknown_now=%d incomplete=%d drops=%d levels=%s"),
 		*Id.ToString(), Kind, CollateralApplyFrame, GFrameCounter - CollateralApplyFrame, CollateralNoApply, Collateral.Num(),
-		bCollateralTruncated ? 1 : 0, CollateralDroppedByCap, CollateralUnmeasuredMaterials, UnknownNow, CollateralIncomplete(),
-		Drops, *Levels);
+		bCollateralTruncated ? 1 : 0, CollateralDroppedByCap, CollateralUnmeasuredMaterials, CollateralUnresolved, CollateralNullSlots,
+		UnknownNow, CollateralIncomplete(), Drops, *Levels);
 }
 
 void FAnomaly_TexCorrupt::TakePostRevertSample()
 {
 	const uint64 Offset = GFrameCounter - RevertFrame;
 	const TCHAR* Endpoint = GFrameCounter == PostRevertFrame ? TEXT("on_frame") : (GFrameCounter < PostRevertFrame ? TEXT("early") : TEXT("late"));
+	const TCHAR* Terminal = bTerminalRollback ? TEXT("rollback") : TEXT("revert");
 	if (bCollateralTaken)
 	{
 		int32 UnknownNow = 0;
 		const int32 Drops = CountCollateralDrops(&UnknownNow);
 		UE_LOG(LogAnomaly, Log,
-			TEXT("%s: G-COLL post-revert sample at frame %llu, %llu rendered frame(s) after the revert at frame %llu (endpoint %s): ")
+			TEXT("%s: G-COLL post-%s sample at frame %llu, %llu rendered frame(s) after the %s at frame %llu (endpoint %s): ")
 			TEXT("%d collateral texture(s) below their Apply-time level; incomplete=%d."),
-			*Id.ToString(), GFrameCounter, Offset, RevertFrame, Endpoint, Drops, CollateralIncomplete());
-		LogCollateral(TEXT("post_revert"));
+			*Id.ToString(), Terminal, GFrameCounter, Offset, Terminal, RevertFrame, Endpoint, Drops, CollateralIncomplete());
+		LogCollateral(bTerminalRollback ? TEXT("post_rollback") : TEXT("post_revert"));
 	}
+	const TexCorruptPure::ELedgerBalance Balance = TexCorruptPure::JudgeLedgerReading(RevertFrame, GFrameCounter, Ledger().Live,
+		Ledger().PendingSum());
 	UE_LOG(LogAnomaly, Log,
-		TEXT("TEXCORRUPT-LEDGER id=%s kind=post_revert revert_frame=%llu frame=%llu offset=%llu endpoint=%s live=%lld pending=%lld ")
-		TEXT("peak=%lld"),
-		*Id.ToString(), RevertFrame, GFrameCounter, Offset, Endpoint, Ledger().Live, Ledger().PendingSum(), Ledger().Peak);
+		TEXT("TEXCORRUPT-LEDGER id=%s kind=%s %s_frame=%llu frame=%llu offset=%llu endpoint=%s live=%lld pending=%lld ")
+		TEXT("peak=%lld balance=%s"),
+		*Id.ToString(), bTerminalRollback ? TEXT("rollback") : TEXT("post_revert"), Terminal, RevertFrame, GFrameCounter, Offset,
+		Endpoint, Ledger().Live, Ledger().PendingSum(), Ledger().Peak, ANSI_TO_TCHAR(TexCorruptPure::LexLedgerBalance(Balance)));
 	Collateral.Reset();
 	bCollateralTaken = false;
 	PostRevertFrame = 0;
+	bTerminalRollback = false;
 }
 
 void FAnomaly_TexCorrupt::ReleaseTargetWatch()
@@ -1165,6 +1186,7 @@ void FAnomaly_TexCorrupt::Revert()
 
 	RevertFrame = GFrameCounter;
 	PostRevertFrame = TexCorruptPure::PostRevertSampleFrame(RevertFrame);
+	bTerminalRollback = false;
 	ResetEventState();
 	bActive = false;
 }
@@ -1239,7 +1261,8 @@ bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddInt(TEXT("texcorrupt.collateral_count"), Collateral.Num());
 	Out.AddBool(TEXT("texcorrupt.collateral_truncated"), bCollateralTruncated);
 	Out.AddInt(TEXT("texcorrupt.collateral_incomplete"), CollIncomplete);
-	Out.AddBool(TEXT("texcorrupt.collateral_complete"), bCollateralTaken && CollIncomplete == 0);
+	Out.AddInt(TEXT("texcorrupt.collateral_unresolved"), CollateralUnresolved);
+	Out.AddBool(TEXT("texcorrupt.collateral_complete"), TexCorruptPure::CollateralComplete(bCollateralTaken, CollIncomplete));
 	if (Mode == EMode::TileProbe)
 	{
 		Out.AddInt(TEXT("texcorrupt.tile"), TileN);
@@ -1297,13 +1320,17 @@ void FAnomaly_TexCorrupt::OnWorldTeardown()
 	}
 	if (PostRevertFrame != 0)
 	{
+		const TexCorruptPure::ELedgerBalance Balance = TexCorruptPure::JudgeLedgerReading(RevertFrame, GFrameCounter, Ledger().Live,
+			Ledger().PendingSum());
 		UE_LOG(LogAnomaly, Log,
-			TEXT("TEXCORRUPT-LEDGER id=%s kind=world_teardown revert_frame=%llu frame=%llu offset=%llu endpoint=cancelled live=%lld ")
-			TEXT("pending=%lld peak=%lld"),
-			*Id.ToString(), RevertFrame, GFrameCounter, GFrameCounter - RevertFrame, Ledger().Live, Ledger().PendingSum(), Ledger().Peak);
+			TEXT("TEXCORRUPT-LEDGER id=%s kind=world_teardown %s_frame=%llu frame=%llu offset=%llu endpoint=cancelled live=%lld ")
+			TEXT("pending=%lld peak=%lld balance=%s"),
+			*Id.ToString(), bTerminalRollback ? TEXT("rollback") : TEXT("revert"), RevertFrame, GFrameCounter, GFrameCounter - RevertFrame,
+			Ledger().Live, Ledger().PendingSum(), Ledger().Peak, ANSI_TO_TCHAR(TexCorruptPure::LexLedgerBalance(Balance)));
 	}
 	Collateral.Reset();
 	bCollateralTaken = false;
 	PostRevertFrame = 0;
+	bTerminalRollback = false;
 }
 }

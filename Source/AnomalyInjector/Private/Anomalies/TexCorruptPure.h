@@ -684,6 +684,74 @@ namespace TexCorruptPure
 		return RevertFrame + 2;
 	}
 
+	template <typename FMat>
+	inline FMat* MeasuredSlotMaterial(FMat* Assigned, FMat* EngineDefault, int& InOutNullSlots, int& InOutUnresolved)
+	{
+		if (Assigned)
+		{
+			return Assigned;
+		}
+		++InOutNullSlots;
+		if (!EngineDefault)
+		{
+			++InOutUnresolved;
+		}
+		return EngineDefault;
+	}
+
+	enum class ECollEntry : int
+	{
+		Measured,
+		NotTexture2D,
+		Unresolved
+	};
+
+	inline ECollEntry ClassifyCollateralEntry(bool bResolved, bool bTexture2D, int& InOutUnresolved)
+	{
+		if (!bResolved)
+		{
+			++InOutUnresolved;
+			return ECollEntry::Unresolved;
+		}
+		return bTexture2D ? ECollEntry::Measured : ECollEntry::NotTexture2D;
+	}
+
+	inline int CollateralIncompleteCount(int DroppedByCap, int UnmeasuredMaterials, int Unresolved, int UnknownResidency, int RenderedPrimitives)
+	{
+		return DroppedByCap + UnmeasuredMaterials + Unresolved + UnknownResidency + (RenderedPrimitives == 0 ? 1 : 0);
+	}
+
+	inline bool CollateralComplete(bool bTaken, int Incomplete)
+	{
+		return bTaken && Incomplete == 0;
+	}
+
+	enum class ELedgerBalance : int
+	{
+		NotYetDue,
+		Balanced,
+		Unbalanced
+	};
+
+	inline const char* LexLedgerBalance(ELedgerBalance B)
+	{
+		switch (B)
+		{
+		case ELedgerBalance::NotYetDue: return "not_yet_due";
+		case ELedgerBalance::Balanced:  return "balanced";
+		default:                        return "unbalanced";
+		}
+	}
+
+	inline ELedgerBalance JudgeLedgerReading(unsigned long long TerminalFrame, unsigned long long ReadingFrame, long long Live, long long Pending)
+	{
+		if (ReadingFrame < PostRevertSampleFrame(TerminalFrame))
+		{
+			return ELedgerBalance::NotYetDue;
+		}
+		return Live == 0 && Pending == 0 ? ELedgerBalance::Balanced : ELedgerBalance::Unbalanced;
+	}
+
 	inline bool Fits(long long Required, long long Cap, long long Live, long long Pending)
 	{
 		return Required <= Cap - Live - Pending;

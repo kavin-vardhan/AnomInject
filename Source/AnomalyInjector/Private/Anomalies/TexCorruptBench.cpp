@@ -278,7 +278,8 @@ namespace AnomalyTexCorrupt
 		FAutoConsoleCommand GFailStepCmd(
 			TEXT("IAI.Bench.TexCorruptFailStep"),
 			TEXT("BENCH DEVICE (m53, G4). Fails transaction step <n> (2..6) ONCE on the next fire, to prove the rollback: no slot ")
-			TEXT("touched, created bytes held in the two-frame pending ledger, the rest un-reserved, nothing leaked. For step 2 an ")
+			TEXT("touched, created bytes held in the two-frame pending ledger, the rest un-reserved, nothing leaked: the ")
+			TEXT("TEXCORRUPT-LEDGER kind=rollback reading two rendered frames later reads live=0 pending=0. For step 2 an ")
 			TEXT("optional <ordinal> fails that allocation in plan order AFTER creating its resource (a created-then-rejected ")
 			TEXT("target); without it step 2 fails before any allocation. 0 disarms. ")
 			TEXT("Usage: IAI.Bench.TexCorruptFailStep <0|2|3|4|5|6> [ordinal]"),
