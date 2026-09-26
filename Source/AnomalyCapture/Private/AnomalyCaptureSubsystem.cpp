@@ -4263,7 +4263,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, OutW, OutH, ImageName, NumLabels);
 
 		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePos, Snap->View, Snap->NearClip,
-			Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds);
+			Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds, &Snap->Telemetry);
 
 		FAnomalyAsyncWriter::FJob Job;
 		Job.OutputDir = RunDir;
@@ -4645,7 +4645,17 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			Pos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 		}
 		const double NowT = World ? World->GetTimeSeconds() : 0.0;
-		AccumulateFrameEvents(Fires, ActiveNow, Pos, ProjView, GNearClippingPlane, SessionFrameIndex, NowT);
+		TArray<FAnomalyTelemetry> SyncTelemetry;
+		SyncTelemetry.SetNum(Fires.Num());
+		for (int32 i = 0; i < Fires.Num(); ++i)
+		{
+			if (SyncInjector)
+			{
+				SyncInjector->GetAnomalyTelemetry(Fires[i].Id, SyncTelemetry[i]);
+			}
+		}
+		AccumulateFrameEvents(Fires, ActiveNow, Pos, ProjView, GNearClippingPlane, SessionFrameIndex, NowT, nullptr, nullptr,
+			&SyncTelemetry);
 		if (FirstFrameTimeSeconds < 0.0)
 		{
 			FirstFrameTimeSeconds = NowT;
@@ -5985,7 +5995,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireInfo>& Fires,
 	const TArray<uint8>& FireActive, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
 	float NearClip, int32 SessionIndex, double TimeSeconds, const TArray<uint8>* Observable,
-	const TArray<FIntRect>* DrawnBounds)
+	const TArray<FIntRect>* DrawnBounds, const TArray<FAnomalyTelemetry>* CapturedTelemetry)
 {
 	if (!Async.IsValid())
 	{
@@ -6008,7 +6018,21 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			Ev = &Async->SessionEvents[Async->SessionEvents.Add(MoveTemp(NewEv))];
 		}
 
-		if (SessionIndex < Ev->AnchorIndex)
+		const bool bNewAnchor = SessionIndex < Ev->AnchorIndex;
+		if (AnomalyTexCorrupt::IsTexCorruptId(F.Id) && CapturedTelemetry && CapturedTelemetry->IsValidIndex(i))
+		{
+			static const FString GModeKey(TEXT("texcorrupt.mode"));
+			for (const TPair<FString, FString>& KV : (*CapturedTelemetry)[i].Strings)
+			{
+				if (KV.Key == GModeKey && !KV.Value.IsEmpty() && (bNewAnchor || Ev->Subtype.IsEmpty()))
+				{
+					Ev->Subtype = KV.Value;
+					break;
+				}
+			}
+		}
+
+		if (bNewAnchor)
 		{
 			Ev->AnchorIndex = SessionIndex;
 			Ev->CamPos = View.Origin;
@@ -6019,10 +6043,6 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			Ev->CamPath = ResolveCameraPath(World);
 			Ev->TicksMsec = (int64)FMath::RoundToDouble(TimeSeconds * 1000.0);
 			Ev->NodeName = F.Target;
-			if (AnomalyTexCorrupt::IsTexCorruptId(F.Id))
-			{
-				Ev->Subtype = AnomalyTexCorrupt::GetLiveModeName(World, F.Id);
-			}
 			if (const AActor* FActor = F.TargetActor.Get())
 			{
 				Ev->NodePath = FActor->GetPathName();

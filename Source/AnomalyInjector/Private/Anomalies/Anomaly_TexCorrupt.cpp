@@ -19,12 +19,6 @@ namespace AnomalyTexCorrupt
 {
 namespace
 {
-	TArray<const FAnomaly_TexCorrupt*>& LiveTexCorruptInstances()
-	{
-		static TArray<const FAnomaly_TexCorrupt*> Instances;
-		return Instances;
-	}
-
 	UMeshComponent* FindComponentByName(AActor* Owner, const FName& Name)
 	{
 		if (!Owner || Name.IsNone())
@@ -59,32 +53,14 @@ namespace
 	}
 }
 
-	FString GetLiveModeName(UWorld* World, FName Id)
-	{
-		for (const FAnomaly_TexCorrupt* Instance : LiveTexCorruptInstances())
-		{
-			if (Instance && Instance->GetId() == Id && Instance->IsActive())
-			{
-				const FString Name = Instance->GetLiveModeName(World);
-				if (!Name.IsEmpty())
-				{
-					return Name;
-				}
-			}
-		}
-		return FString();
-	}
-
 FAnomaly_TexCorrupt::FAnomaly_TexCorrupt(FName InId, EFamily InFamily)
 	: Id(InId)
 	, Family(InFamily)
 {
-	LiveTexCorruptInstances().Add(this);
 }
 
 FAnomaly_TexCorrupt::~FAnomaly_TexCorrupt()
 {
-	LiveTexCorruptInstances().RemoveSingleSwap(this);
 }
 
 FString FAnomaly_TexCorrupt::GetDescription() const
@@ -92,15 +68,6 @@ FString FAnomaly_TexCorrupt::GetDescription() const
 	return Family == EFamily::UV
 		? TEXT("UV corruption: the host's own active texture parameters, redrawn per mip into render targets and bound on a MID of its own material (m53 S1: identity and a bench tile probe only).")
 		: TEXT("Normal-map corruption: the host's own normal-map parameters, redrawn per mip into render targets and bound on a MID of its own material (m53 S1: identity only).");
-}
-
-FString FAnomaly_TexCorrupt::GetLiveModeName(const UWorld* World) const
-{
-	if (!bActive || (World && EventWorld.Get() != World))
-	{
-		return FString();
-	}
-	return LexMode(Mode);
 }
 
 void FAnomaly_TexCorrupt::Hold(UObject* Obj)

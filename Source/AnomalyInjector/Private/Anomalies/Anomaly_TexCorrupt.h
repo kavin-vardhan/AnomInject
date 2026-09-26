@@ -36,8 +36,6 @@ public:
 	virtual void OnTargetLost(AActor* Actor, bool bWorldEnding) override;
 	virtual void OnWorldTeardown() override;
 
-	FString GetLiveModeName(const UWorld* World) const;
-
 private:
 	struct FOutput
 	{

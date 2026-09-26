@@ -235,7 +235,8 @@ private:
 
 	void AccumulateFrameEvents(const TArray<struct FAutoLiveFireInfo>& Fires, const TArray<uint8>& FireActive,
 		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
-		const TArray<uint8>* Observable = nullptr, const TArray<FIntRect>* DrawnBounds = nullptr);
+		const TArray<uint8>* Observable = nullptr, const TArray<FIntRect>* DrawnBounds = nullptr,
+		const TArray<struct FAnomalyTelemetry>* CapturedTelemetry = nullptr);
 	void WriteSessionAnnotationFile();
 
 	void ApplySessionGlobals();
