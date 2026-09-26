@@ -98,3 +98,23 @@ Host detached at `1fc20ea`, tree clean. The plugin's build products were deleted
 ## 5. Codex mini-delta
 
 Recorded in §6 once collected.
+
+## 6. Codex mini-delta — collected, NOT acted on
+
+- Relay run `_relay\runs\2026-09-27-082-06c-m53-s1-mini-delta`: `gpt-6-astra`, effort `max` (requested and rollout
+  agree), `workspace-write`, **290 s**, exit 0, 2,684 B `review.md`. Reviewed head `02987b7`.
+- Collected verbatim to `_reviews/082-06c-codex-m53-s1-mini-delta.md` (one header line; body SHA-256 identical,
+  `6E8DF20D`); ledger row added.
+- **`VERDICT: APPROVE`.**
+  - **P2-2 remainder: RESOLVED** (null slots through the default material; unresolved entries counted, in the
+    incompleteness sum and blocking `collateral_complete`; an unavailable default counts unresolved).
+  - **P3-3: RESOLVED** (rollback schedules F+2; the tick retires pending before the reading; the shared judge gives
+    no verdict before F+2 and needs both counters zero after; plan text and harness rows cited).
+  - **Anything new: no new defect.** It names the additions (unresolved telemetry, null-slot diagnostics, the
+    post-rollback collateral sample) and notes that the declared non-null usage-fallback limit predates these commits
+    and is outside the remainder.
+  - It independently re-hashed the 12 archived artifacts (all match) and notes that build source `1fc20ea` differs
+    from the reviewed head only in documentation.
+  - **"Ready for authoring, cook and legs?" YES** for code readiness; the null-slot and F+2 in-engine readings remain
+    due in the legs. It asks for chat's review for disposition and release of the next stage.
+- Per the brief and the Relay rules, **none of this was acted on**; it goes to chat.

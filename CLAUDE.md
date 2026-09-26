@@ -18,8 +18,10 @@ and is the single source of truth for the project.
 > - Offline: 172/172; the 13-fault mutant fails 34, and each of the five new faults alone fails its own rows.
 > - G10: editor exit 0 (99 s), game exit 0 (70 s), 0 warnings, module set unchanged. Game exe **`2FCDF059`** archived as
 >   `_binary_baselines\StackOBot.exe.m53-s1rem-2FCDF059`. **The bench stays on `E0BE6F0A`.**
-> - 🎯 **NEXT: Codex's mini-delta on these two items (journal §6), then chat rules; 082-06 (authoring + cook) follows only
->   if it is clean.**
+> - **Codex mini-delta (collected, NOT acted on): `APPROVE`**, `_reviews/082-06c-codex-m53-s1-mini-delta.md` (Astra/max,
+>   290 s). P2-2 remainder and P3-3 both RESOLVED; no new defect; "Ready for authoring, cook and legs?" **YES** (code
+>   readiness; the in-engine readings stay due in the legs). Journal §6.
+> - 🎯 **NEXT: chat rules on the mini-delta; 082-06 (authoring + cook) follows if chat releases it.**
 >
 > ---
 >
