@@ -11,6 +11,33 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **082-07c, 2026-09-27 — `m53` S1: the NORMAL-FAMILY FIXTURE IS FIXED, RE-COOKED, G-COOK PASSES, the new container is
+> STAGED. NO LEG, NO PLUGIN SOURCE CHANGE, NO TAG.**
+> - **Cold start:** `docs/sessions/2026-09-27-082-07c-code-m53-normal-fixture-fix-recook.md`.
+> - ✅ CaptureBench `41ef8b9`: `M_TC_UN1` / `M_TC_NN1` / `M_TC_ChainD` / `M_TC_NormalEmis` are now **Default Lit with `Tex`
+>   into Normal**, and the Emissive readout is kept. They were re-authored in place by a new `normals` mode that changed exactly
+>   those 4 packages. The disk read-back proves all four, with 0 problems, and finds no other normal-map binding. The negative
+>   control on the unfixed fixture failed on exactly those 8 checks.
+> - ✅ Three cooks, 899 packages each, 0 warnings. G-COOK PASS:
+>   - `CB_GateLevel` exact;
+>   - `MainWorld` header identical in 17 containers, and diff(A, e1) 0 bytes outside the region (also outside 082-06d's alone);
+>   - fixture 101/101 and plugin 3/3 present;
+>   - M1″ and M2″ clean, M2″ ≡ M1′.
+> - 📦 **Bench: exe `2FCDF059` (unchanged) + `30FE0FDE` / `11231356` / `FD766B7B` + `462B8AC6` / `BB05CF99`.** A44 green. Rollback
+>   is `m53-s1-cook-9A26D497\`.
+> - ✅ Offline admission: all 7 normal targets would pass every static V1 step and V2. The runtime steps are left to the 082-07e
+>   G0 census.
+> - ⚠ Two traps met here, both harness-side: `Start-Process -Wait` hung on MSBuild reuse nodes (G316), and the editor texture
+>   size read the async-compile placeholder (G317).
+> - 🎯 **NEXT: 082-07d (bench-free):**
+>   - the window fix, the Q-row admission pre-check and the G0 normal coverage;
+>   - the G3 amendment and bank re-evaluation;
+>   - the predictions amendment and the boundary re-issue.
+>
+>   ⚠ U-N1's material changed; whether U-N1 re-runs is chat's call.
+>
+> ---
+>
 > ⛔ **082-07b, 2026-09-27 — `m53` S1 part 3b: the S1 legs RAN and STOPPED at G3 N-N1 (stop row 7) after 50 of 194 legs.
 > The cause is the FIXTURE, not the corruptor. NO BUILD, NO SOURCE CHANGE, NO TAG.**
 > - **Cold start:** `docs/sessions/2026-09-27-082-07b-code-m53-s1-legs.md`.

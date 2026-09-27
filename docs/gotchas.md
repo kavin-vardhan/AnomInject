@@ -8019,3 +8019,33 @@ limit or a stub sequence, so that the file a human is told to run has run once. 
 line that glues them together.
 
 Related: G142, G119.
+
+## G316 — `Start-Process -Wait` waits for the whole process TREE, so a cook that leaves MSBuild node-reuse processes behind never "finishes" (2026-09-27, 082-07c)
+
+**What happened.** The 082-07c cook runner launched each `RunUAT BuildCookRun` with PowerShell 5.1's `Start-Process -Wait`. Cook
+e1 printed `BUILD SUCCESSFUL` after 50 s, but the runner sat for over nine minutes without writing its progress line. The cook
+had spawned six `dotnet MSBuild.dll /nodemode:1 /nodeReuse:true` processes, and those idle reuse nodes outlive AutomationTool by
+design. In 5.1, `-Wait` waits for every descendant, not just the launched process. 082-06d never hit this because MSBuild
+nodes from an earlier cook were already idle and got reused, so its cooks spawned no new descendants. The six nodes were
+verified by parent PID and creation time as this cook's own, then stopped by PID. e2 and e3 then ran with
+`MSBUILDDISABLENODEREUSE=1` and `$p.WaitForExit()`, and took 52 s and 50 s.
+
+**Rule.** For any tool that may leave helper processes behind (UAT, UBT, MSBuild, shader workers), wait on the launched
+process itself (`-PassThru` then `.WaitForExit()`), and set `MSBUILDDISABLENODEREUSE=1` in the runner's environment. Whether
+`-Wait` returns depends on what else happens to be running on the box, so its behaviour cannot be reproduced.
+
+Related: G164.
+
+## G317 — in a 5.1 editor commandlet, `Texture2D.blueprint_get_size_x()` can return the async-compile placeholder's size (2026-09-27, 082-07c)
+
+**What happened.** The 082-07c offline admission check read texture sizes with `blueprint_get_size_x/y()` and got **32×32** for
+128×128 and 64×64 normal maps. Its A5 (`below_size_policy`, min 64) then refused all seven targets. The verify run in the same
+session recorded T_TC_UN1 as 128 but the other three as 32, so the value depends on how far UE 5.1's asynchronous texture
+compilation had got when it was read: until it finishes, the resource is the default texture. The asset-registry tag
+`Dimensions` is built from `SourceSize` (`Texture2D.cpp:659`) and saved with the package. Re-read that way, all seven passed.
+
+**Rule.** Offline, read a texture's size from its source (the asset-registry `Dimensions` tag), never from the in-memory
+resource, unless compilation has been forced to finish first. The same trap affects any `texcorrupt_fixture_verify.json`
+`size` field, which is a reading, not a fact.
+
+Related: G96.
