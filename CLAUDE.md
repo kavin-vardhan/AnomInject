@@ -11,6 +11,29 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧪 **082-07f, 2026-09-28 — `m53` S1: `TC_Masked` DIAGNOSED, EVERY FIXTURE ROW AUDITED, FIXED, RE-COOKED, G-COOK PASSES,
+> STAGED. The PROBE shows the tile now clips, and STOPS on a neighbourhood halo. NO LEG, NO PLUGIN SOURCE CHANGE, NO TAG.**
+> - **Cold start:** `docs/sessions/2026-09-28-082-07f-code-m53-masked-fixture-fix-recook.md` (§1 the cause, §2 the audit,
+>   §7 the probe, §8 the amendment list).
+> - 🔎 **Cause (G323):** `M_TC_Masked` was saved with `bCanMaskedBeAssumedOpaque` true, so `GetBlendMode()` read
+>   **Opaque**. The tool set the blend mode and the clip value before it connected OpacityMask and never recompiled.
+>   Every authored property read back correct. CaptureBench content, not an engine setting.
+> - ✅ **Audit (G322 on every row):** 42 channel-dependent fault rows and 46 identity rows. Pre-fix it flags exactly
+>   MASKED; post-fix it reads **0 defects**. The new offline MASKED proof reads alphas 152/184 crossing the clip, min
+>   **138**. The new tile-probe proof covers G-BIND (3).
+> - ✅ **CaptureBench `2c5ec56`:** `masked` mode, recompile in the author path, and verify now proves the effective blend
+>   of every material. The negative control failed on exactly the 2 MASKED checks. Only `M_TC_Masked` changed (M1‴).
+> - ✅ **G-COOK PASS:** 3 cooks with f1 the candidate; `MainWorld` header identical in 20 containers, 0 words outside R;
+>   101/101 + 3/3; map gate exit 0. **Staged `2FCDF059` + `20DA6F98` / `534C5863` / `FD766B7B`**, archived and A44-green.
+>   Rollback: `m53-s1-normalfix-cook-30FE0FDE\`.
+> - ⛔ **PROBE:** (a) PASS, with sky in every alpha < 0.5 cell and the mask 4,096 → 2,048 px. (b) and (c) read up to 7 and
+>   5 **within 48 px of the re-authored tile only**, far field ≤ 1. Same-build wrong copies show the same halo, 8–17 levels
+>   (G324). Stop reported, not waived.
+> - 🎯 **NEXT: chat rules the probe stop, then 082-07g writes AMENDMENT 2** (the MASKED PRE row, G-BIND (3)'s outside
+>   clause, the build under test and `common.py`'s `STAGED`) and re-issues the boundary.
+>
+> ---
+>
 > 🧪 **082-07e, 2026-09-28 — `m53` S1: the legs RESUMED and STOPPED at G-ID MASKED. The alpha wrong copy reads 0 because the
 > fixture's masked tile never clips. NO BUILD, NO SOURCE CHANGE, NO TAG.**
 > - **Cold start:** `docs/sessions/2026-09-28-082-07e-code-m53-s1-legs-resume.md` (§4 the failure, §6 the full leg ledger).

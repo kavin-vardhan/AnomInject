@@ -8127,3 +8127,38 @@ place, the manifest the guard reads, and fail the build of the fixture when a ro
 predictions table is an unproven instrument, not a detail.
 
 Related: G96, G320.
+
+## G323 — a Masked material authored by script can be saved as effectively OPAQUE: `bCanMaskedBeAssumedOpaque` is recomputed only in PostEditChange, and connecting a pin does not run it (2026-09-28, 082-07f)
+
+**What happened.** The fixture tool set `blend_mode` (Masked) and `opacity_mask_clip_value` through `set_editor_property`,
+and only **then** connected OpacityMask with `MaterialEditingLibrary.connect_material_property`. Each `set_editor_property`
+runs `PostEditChangeProperty`, which recomputes the saved `UPROPERTY` `bCanMaskedBeAssumedOpaque`: true iff OpacityMask has
+no expression (`Material.cpp:4383`). The connect call does not run it. The material was saved with the flag true, so
+`UMaterial::GetBlendMode()` returned **Opaque** (`Material.cpp:6177-6185`). The tile never clipped, in two builds and in
+every leg, while every authored property read back correct: blend mode Masked, clip 0.5, OpacityMask ← `Tex`.A. G-ID
+MASKED's alpha wrong copy read 0 (G322).
+
+**Rule.** After any scripted graph edit to a material, call `MaterialEditingLibrary.recompile_material` (it runs
+PreEditChange/PostEditChange) before saving. Prove a blend-dependent material by its **effective** blend mode:
+`get_blend_mode()` from Python is `UMaterialInterface::GetBlendMode`. Do not prove it by the `blend_mode` property.
+The fixture's verify now requires effective = authored for every material.
+
+Related: G322, G49.
+
+## G324 — on this bench, changing a tile's pixels changes its neighbourhood too: a static halo of up to ~17 levels within 16 px (up to 48 px on a lit neighbour), far field ≤ 1 (2026-09-28, 082-07f)
+
+**What happened.** The 082-07f PROBE compared the re-cooked fixture (`M_TC_Masked` now clipping) with 082-07e's null frames
+at the same index.
+- Outside the re-authored tile: up to 7 levels within 48 px, and ≤ 1 beyond 64 px.
+- The lit neighbour `TC_NN1` got uniformly brighter over its nearest 22 px.
+- The sky ring within 3 px of the tile got uniformly darker.
+
+On the SAME build, with no cook involved, every 082-07e wrong copy against its null does the same around its tile: 8–17
+levels within 4 px, 3–6 within 16 px, ≤ 2 beyond. Mechanism not established; the candidates are bloom and screen-space AO.
+
+**Rule.** A pixel criterion that reads "everything outside the target ≤ 2" cannot pass on this bench while the target's
+own pixels change. Judge the far field beyond a declared ring, and never let a halo next to a changed tile read as
+"another asset changed". **G-BIND (3)'s `outside_max` clause (`ev_bind_layer`, the whole frame outside the union mask,
+TOL 2) is predicted to FAIL as written.**
+
+Related: G318, G96.
