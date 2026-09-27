@@ -8162,3 +8162,51 @@ own pixels change. Judge the far field beyond a declared ring, and never let a h
 TOL 2) is predicted to FAIL as written.**
 
 Related: G318, G96.
+
+## G325 — a rule minted for one gate was never applied to the other gate with the same shape: G-RD's drift clause is a within-leg comparison that the tonemapper dither fails by construction (2026-09-28, 082-07g)
+
+**What happened.** G318 (082-07d) found that two frames of one run differ by ±1 on ~40 % of pixels unless their engine
+frame numbers differ by a multiple of 8. It changed G3 to compare the same `session_index` across two runs. G-RD's drift
+clause ("the applied leg's frame N differs from its frame 1 in 0 pixels of the frame-1 mask") has exactly the same
+within-run shape, and nobody re-read it.
+
+Measured on the bank in 082-07g, inside the target mask of 29 identity, null and control legs:
+- every event with a frame N reads a difference against its first frame;
+- on the three legs inspected frame by frame, that is 2,065–2,544 of 4,096 px at max 1;
+- every phase-matched pair reads 0.
+
+Both G-RD rows would have stopped as a feature FAIL at stop row 6.
+
+**Rule.** When a gotcha names a class of comparison ("within one run", "outside the target", "located from the picture"),
+grep **every** gate for that class the same day, not only the one that tripped. For G-RD, compare each frame with the first
+frame of its dither phase (engine `frame_index` mod 8).
+
+Related: G318, G319.
+
+## G326 — a step that locates regions from the picture was tuned on a synthetic scene and is wrong on the real render: TC_Layer's "uniform" global half has an 8-level gradient (2026-09-28, 082-07g)
+
+**What happened.** G-BIND (3) finds `TC_Layer`'s global and layer halves from the null picture: exactly one half must be
+"uniform" (range ≤ 2), because the global texture is a solid colour. The evaluator proofs built that tile synthetically, so
+it was perfectly uniform. On every sampled banked F-SYN frame (708 frames, 59 legs), the **rendered** global half, about
+(150, 73, 36), carries a horizontal gradient of up to **8** levels. No half read uniform, so G-BIND (3) would have stopped
+INVALID-FIXTURE before judging anything. The cause is not established.
+
+**Rule.** Prove every locate-by-picture step on **real banked frames of the fixture** before relying on it, not only on the
+synthetic scene that the verdict proofs use. Record the measured ranges, and separate the two classes with margin; here that
+is < 16, against a global ≤ 8 and a layer ≥ 156.
+
+Related: G135, G96, G322.
+
+## G327 — a no-flip re-read after a supersede act reads inputs the act removed: re-evaluate each row against the inputs it recorded (2026-09-28, 082-07g)
+
+**What happened.** The 082-07g supersede act superseded `G0_FSYN_A2`, because the census re-runs on the new build. A no-flip
+pass then re-evaluated every live row. The four standing ADMIT rows (U-N1, N-N1) read **NO-CENSUS** instead of their
+recorded ADMITTED, because `admission_check` reads the *current* accepted census, and there was none. Nothing had flipped:
+- the harness never re-evaluates a recorded ADMIT row;
+- re-read against the census label each row recorded, all four stay ADMITTED.
+
+**Rule.** A no-flip check must hold the inputs fixed. Re-evaluate a row against exactly the inputs it recorded (census label,
+attempt labels, build), or run it before the act that changes those inputs. Do both, and keep the confusing read as evidence
+beside the correct one.
+
+Related: G319, G142.

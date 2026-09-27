@@ -11,6 +11,30 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 📐 **082-07g, 2026-09-28 — `m53` S1: AMENDMENT 2 WRITTEN, THE HARNESS AMENDED AND PROVEN, MASKED SUPERSEDED, THE BOUNDARY
+> RE-ISSUED. BENCH-FREE: NO LEG, NO BUILD, NO COOK, NO SOURCE CHANGE, NO TAG.**
+> - **Cold start:**
+>   1. `docs/predictions/2026-09-27-m53-s1-legs.md` **AMENDMENT 2**, which governs 082-07h;
+>   2. `docs/sessions/2026-09-28-082-07g-code-m53-amendment-2-boundary.md`.
+> - ✅ **Build under test:** `2FCDF059` + utoc `20DA6F98` / ucas `534C5863`. `common.py` changes only its two staged hashes.
+> - ✅ **MASKED re-runs whole, with `PRE-CLIP MASKED` read in the null before the wrong copy:** mask = 2,048 and sky in every
+>   alpha < 0.5 cell. It is proven both ways: the 082-07e null FAILS, the 082-07f probe PASSES, and a failure stops with code 12.
+> - ✅ **R = 42 px,** measured from the bank: the exact maximum halo extent over 27 pairs (the ruling's 48 was a band edge).
+>   G-BIND (3)'s outside clause is split: ring < 32, far field ≤ 2, and a per-tile leak reading. All 27 halo pairs pass, every
+>   synthetic leak fails, and 0 earlier verdicts flip (150/150 and 138/138).
+> - ⚠ **Three defaults from the ruling-4 review, flagged for chat,** each of which would otherwise stop 082-07h:
+>   - the G-BIND (3) **global half** gets the same ring (the halo reaches inside the tile; a +20 global change now passes);
+>   - TC_Layer's halves are **located at range < 16**: the rendered global half has an 8-level gradient (G326);
+>   - G-RD's **drift is phase-matched mod 8**: the old within-leg clause fails by the dither alone (G325).
+>
+>   Also flagged: **G0_FSYN re-runs first** (A1.4).
+> - ✅ **Proofs:** AMENDMENT 2 33/33, evaluators 210/210, admission 37/37, sequencer 20/20, disk 15/15, dry run 194 legs /
+>   549 rows / 0 problems.
+> - 🎯 **NEXT: chat rules the flagged defaults, then 082-07h** resumes: G0_FSYN (A3), MASKED, then SHARED onward, 143 legs. Any
+>   rejection means a boundary re-issue first.
+>
+> ---
+>
 > 🧪 **082-07f, 2026-09-28 — `m53` S1: `TC_Masked` DIAGNOSED, EVERY FIXTURE ROW AUDITED, FIXED, RE-COOKED, G-COOK PASSES,
 > STAGED. The PROBE shows the tile now clips, and STOPS on a neighbourhood halo. NO LEG, NO PLUGIN SOURCE CHANGE, NO TAG.**
 > - **Cold start:** `docs/sessions/2026-09-28-082-07f-code-m53-masked-fixture-fix-recook.md` (§1 the cause, §2 the audit,
