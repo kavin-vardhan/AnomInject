@@ -7900,3 +7900,38 @@ is not a build of those changes. The obj timestamp against the source timestamp 
   both targets.
 
 Related: G164, G47, G119.
+## G310 — UE Python returns struct array elements BY COPY: editing them in a loop and writing the array back changes nothing, silently (2026-09-27, 082-06)
+
+**What happened.** 082-06's fixture tool assigned slot materials with
+`sm = mesh.get_editor_property("static_materials"); for s in sm: s.set_editor_property("material_interface", M); mesh.set_editor_property("static_materials", sm)`
+(and the same through `SkeletalMesh.materials`). Every call returned without error, the assets saved, the dirty-package check was clean
+and the verify pass compiled every material. The saved meshes still held their original slots (`WorldGridMaterial`, or `None`). The loop
+variable was a copy of each struct, so the unmodified array was written back.
+
+**How it was caught.** The cook's positive control: the listing had to contain every new package, and five were missing — exactly the
+materials that only those slots referenced. The asset registry then showed them with no referencer at all.
+
+**Rule.**
+- Assign mesh slots with the owning object's setter (`UStaticMesh::SetMaterial(i, M)`), or build new struct values and assign the whole
+  array; never mutate elements obtained from `get_editor_property`.
+- A tool that writes an asset must read the written property back from the saved asset. "No error" and "saved" are not evidence the
+  property changed.
+- A cooked-package presence check is a real positive control: it sees a reference that was never made.
+
+Related: G142, G119, G96.
+
+## G311 — a World-Partition map's cooked chunk is not reproducible across cooks of identical input, so a byte-identity gate on it cannot pass (2026-09-27, 082-06)
+
+**What happened.** m53 S1's `G-COOK` required `MainWorld`'s cooked chunk hash to equal the archived container's. It changed. Its source
+(the `.umap` and all 421 external actors) was byte-identical, and the loose cooked `.umap` header was identical; the `.uexp` differed in
+1,603 bytes (451 runs, one span), mostly the fourth float of repeated (X, Y, Z, value∈[0,1]) records. A second cook of identical inputs on
+the same host, 50 s later, changed it again (1,612 bytes, 451 runs, same span). `CB_GateLevel` was identical across all three cooks.
+
+**Rule.**
+- Before a gate asserts byte identity of a cooked artifact, measure a same-input cook pair. If the pair differs, identity is
+  unsatisfiable, and the gate needs a control-pair form (the G-S3a-1 amendment shape), not a retry.
+- Report where the candidate's difference sits relative to the control pair's (here, at word level, inside it), and do not assert a
+  mechanism for the nondeterminism until one is measured (G120).
+- The StackOBot shader archives also differ run to run (same size, other hash); `CB_GateLevel` does not.
+
+Related: G140, G228, G120.

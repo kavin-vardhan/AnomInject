@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛑 **082-06, 2026-09-27 — `m53` S1 part 2: corruptor assets (`c9f8089`), F-SYN fixture + offline proofs, M1, archive and cook
+> DONE; `G-COOK` FAILED on two rows of stop-list row 11, so the new container was NOT STAGED and S1 stops. NO LEG, NO TAG.**
+> - **Cold start:** `docs/sessions/2026-09-27-082-06-code-m53-s1-authoring-cook.md` (§5 G-COOK, §8 NEEDS-DECISION).
+> - ✅ Assets: `M_CorruptTex_UV` (AlphaComposite), `M_CorruptTex_Normal` (Opaque), `T_CorruptTex_NoiseN`; the parameter contract, the
+>   explicit-mip sample settings and the CDO resolution all read back. Offline wrong-copy proofs: **30 pairs, all ≥ 32** (lowest 37;
+>   U-only `texelshift` 128 / 89). Fixture `/Game/CaptureBenchTexCorrupt/CB_TexCorruptLevel`, 101 assets, 77 actors (CaptureBench
+>   `8e53dea`). **M1 and M2 CLEAN** (2,082 M0 files byte-identical, 104 allowed additions). Archive
+>   `_binary_baselines\m53-s1-precook-container-67EA1FE0\` verified at the destination. Cook clean (894 packages, 0 warnings); map gate
+>   exit 0; `CB_GateLevel` chunk identical.
+> - ❌ **`MainWorld`'s cooked chunk changed — and changes between two cooks of IDENTICAL input**, so the row cannot pass as written
+>   (G311); the N2 difference sits inside the run-to-run region. ❌ **5 fixture packages missing**: my tool's mesh-slot assignments
+>   silently did nothing (G310), so the `slot_empty`, asset-slot-MID, `nanite_override` and `default_material_path` producers are wrong.
+> - ⚠ The scratch host's `Content` is now a **junction to the real D: `Content`**: an editor on the host saves into the real project.
+> - **The bench stays on `E0BE6F0A` + the Phase B quintet.** Candidate exe `2FCDF059` / container `651656EF` kept on E:, not staged.
+> - 🎯 **NEXT: chat rules on the `MainWorld` row (a control-pair form is proposed, not applied) and authorises the fixture fix +
+>   re-cook.**
+>
+> ---
+>
 > 🔧 **082-06c, 2026-09-27 — `m53` S1: the two remainders of Codex's fix delta (P2-2 null slot / unresolved entries;
 > P3-3 rollback balance at F+2) FIXED (`9b79486`, harness `74c25de`, plan revision 3.3 `1fc20ea`), BOTH TARGETS REBUILT
 > CLEAN (G10). NOT STAGED, NO COOK, NO LEG, NO TAG.**
