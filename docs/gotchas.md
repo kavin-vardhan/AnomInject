@@ -8291,3 +8291,31 @@ single-quoted here-string `@'…'@`, or a Python script. After any shell-written
 (`[\x00-\x08\x0b-\x1f]`) and for a CR count that should be 0.
 
 Related: G321, G115, G141.
+
+## G332 — a leg whose premise is "the window is not yet focused at frame 1" can never run under a runner that forces focus from 400 ms after launch (2026-09-28, 082-07j)
+
+**What happened.**
+
+- `G4_CAN_*` sends `IAI.Capture.Start` and `IAI.Capture.Stop` in one ExecCmds batch and expects `Capture run CANCELLED
+  before focus`.
+- That line exists only for an armed-pending run. `StartRun` enters `ArmedPending` only when the focus gate is on, a game
+  window exists, and it is NOT focused (`AnomalyCaptureSubsystem.cpp:3362-3373`). Otherwise it calls `BeginActualRun()`
+  synchronously, and a same-batch `Stop` FINISHES the run with 0 frames.
+- `082-07-run.ps1`'s `Hold-Focus` forces the window into the foreground on every startup sample. `launch.json` recorded
+  focus at 0.9 / 1.3 / 1.2 s, while frame 1 came at about 2.3 s.
+- So the leg failed 3 of 3 with `CANCEL-LINE-NOT-SEEN`, became NOT-RUN, and stopped S1.
+
+**Why nothing caught it.**
+
+- It passed every bench-free proof, because the stub cannot model focus.
+- The premise and the runner were written against each other and never checked together.
+- This is G320 / G328's shape on the focus axis: the harness controls the very state the row assumes is absent.
+
+**Rule.**
+
+- For every leg premise that names an environmental state at a frame (focus, residency, streaming, load), find the harness
+  code that sets or forces that state and cite it next to the premise.
+- If the harness forces the opposite, the row needs a deterministic lever or a class-D disposition before it is released,
+  not after a live stop.
+
+Related: G320, G328, G72 (the focus gate), A63.

@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ⛔ **082-07j, 2026-09-28 — `m53` S1 LAST LEGS: A5, A6, V2 AND G4 FIN-UV PASS (158 of 193 accepted), THEN S1 STOPS AT
+> `G4_CAN_UV` NOT-RUN (code 2). NO BUILD, NO SOURCE / HARNESS / PREDICTIONS CHANGE, NO TAG. Postflight PASS.**
+> - **Cold start:** `docs/sessions/2026-09-28-082-07j-code-m53-s1-last-legs-stop.md` — §2 the stop, §3 the final gate
+>   table, §6 the complete S1 leg ledger across 07b / 07e / 07h / 07j.
+> - 🔎 **The stop is a harness premise defect, not a feature FAIL (G332).** The cancel leg sends `Start` + `Stop` in one batch
+>   and expects "CANCELLED before focus". The runner forces the game window into the foreground from 400 ms after launch
+>   (focus at 0.9–1.3 s), before frame 1, so `StartRun` begins the run synchronously (`AnomalyCaptureSubsystem.cpp:3362-3373`)
+>   and `Stop` FINISHES it with 0 frames and `fires_applied=0`. 3 of 3 attempts, deterministic. `G4_CAN_NM` would fail
+>   the same way.
+> - ⛔ **Not obtained:** P2-2, P2-5, P2-6 and **MW-FLOOR** (all after the stop). P2-1 and P2-3 are CONFIRMED over the
+>   156 accepted m53 capture legs.
+> - ⚠ **The boundary `456f4146` is stale:** this docs commit moves the feature head.
+> - 🎯 **NEXT: chat rules on the G4 CAN premise** (re-encode, a runner mode, or class D with an S2 lever). Then a supersede act,
+>   an amendment and a boundary re-issue, then the resume of the remaining 35 legs.
+>
+> ---
+>
 > 🧭 **082-07i, 2026-09-28 — `m53` S1: THE TIME-AXIS REVIEW OF THE 39 UNRUN LEGS, AMENDMENT 3, SUPERSEDE ENTRY 4, THE BOUNDARY
 > RE-ISSUED. BENCH-FREE: NO LEG, NO BUILD, NO COOK, NO SOURCE CHANGE, NO TAG.**
 > - **Cold start:**
