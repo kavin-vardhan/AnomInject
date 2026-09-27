@@ -11,6 +11,26 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧭 **082-07i, 2026-09-28 — `m53` S1: THE TIME-AXIS REVIEW OF THE 39 UNRUN LEGS, AMENDMENT 3, SUPERSEDE ENTRY 4, THE BOUNDARY
+> RE-ISSUED. BENCH-FREE: NO LEG, NO BUILD, NO COOK, NO SOURCE CHANGE, NO TAG.**
+> - **Cold start:**
+>   1. `docs/predictions/2026-09-27-m53-s1-legs.md` **AMENDMENT 3**, which governs 082-07j;
+>   2. `docs/sessions/2026-09-28-082-07i-code-m53-amendment-3-time-axis.md`.
+> - ✅ **T10:** superseded (entry 4) and re-declared class D FIXTURE-CANNOT-EXERCISE (premise). It is not a leg in S1, and a
+>   full row is owed in S2.
+> - ✅ **V1:** the census and the apply path call the same `EvaluateTree` / `EvaluateBinding` (`TexCorruptTree.cpp:736`,
+>   `:460-470`). `not_fully_resident` is proven as a predicate plus the refusal plumbing, not as a live refused fire.
+> - 🔧 **One encoding fix, from the review:** the F-MW partial yield. Legs deciding at about frame 42 in separate processes can
+>   disagree on which events applied, which would have halted G-ID-FMW / G3 FMW. They now compare only the events every leg
+>   applied (G329). Proven both ways, 35/35.
+> - 📏 **MainWorld "zero yield" is UNVERIFIED.** A read-only MW-FLOOR row reads the floor at its decision frame in all six
+>   floor legs.
+> - ⚠ **New finding (A3.7, G330):** phase-matched frames differ by max |d| 1 on the ChainD grazing/transition tiles, in the nulls
+>   too. It blocks nothing.
+> - 🎯 **NEXT: 082-07j** runs the 39 legs from `REASON_A5`.
+>
+> ---
+>
 > ⛔ **082-07h, 2026-09-28 — `m53` S1 LEGS: MASKED PASSES ON THE RE-COOKED BUILD, 104 LEGS ACCEPTED, THEN S1 STOPS AT
 > `G-REASON T10` (stop row 9). NO BUILD, NO SOURCE OR HARNESS CHANGE, NO TAG.**
 > - **Cold start:** `docs/sessions/2026-09-28-082-07h-code-m53-s1-legs-final.md` — §2 the stop, §3 the gate table, §6 the

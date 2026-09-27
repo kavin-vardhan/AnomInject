@@ -8214,12 +8214,14 @@ Related: G319, G142.
 
 ## G328 — a residency-dependent refusal row was admitted on a census taken at frame 1; the streamed texture was fully resident by the decision frame (2026-09-28, 082-07h)
 
-**What happened.** G-REASON T10 expects 
-ot_fully_resident on TC_Stream2k, a streamed 2048² texture on a far plane.
-- **Census, frame 1:** every G0_FSYN census (3 of 3) read esident=7 max=12, so the row looked producible.
+**What happened.** G-REASON T10 expects `not_fully_resident` on `TC_Stream2k`, a streamed 2048² texture on a far plane.
+- **Census, frame 1:** every G0_FSYN census (3 of 3) read `resident=7 max=12`, so the row looked producible.
 - **T10 leg, frame 18:** the first decision comes after a 2-frame warm draw and a 16-frame lead-in, and read
-  esident=12 max=12 → APPLY on all 8 events.
-- **Result:** the feature followed its rule (TexCorruptTree.cpp:466), and the gate stopped S1 as a feature FAIL.
+  `resident=12 max=12` → `APPLY` on all 8 events.
+- **Result:** the feature followed its rule (`TexCorruptTree.cpp:466`), and the gate stopped S1 as a feature FAIL.
+
+🔻 *082-07i: this entry was repaired in place. As first committed (`f9d6710`), a PowerShell double-quoted here-string
+had read its backticks as escapes (`n, `r), turning code spans into a newline and two carriage returns.*
 
 ⛔ Why the streamer loads the full chain for a far, off-screen plane is **not established**.
 
@@ -8231,3 +8233,61 @@ of a **moment**, not of the fixture. For any row whose expected disposition depe
 This is G320's shape on the time axis.
 
 Related: G320, G135.
+
+## G329 — a two-branch rule for a race (all refused → NOT-ADMITTED, all applied → judged) omitted the third branch the time axis creates: a partial yield across separately launched legs (2026-09-28, 082-07i)
+
+**What happened.** A1.8 declared the F-MW rows two ways:
+- when the apply-time fire on the MainWorld floor is refused, the row reads NOT-ADMITTED;
+- when it applies, the row is judged.
+
+The floor reads `not_fully_resident` at frame 1 (48 of 102 bindings at 7/11–7/13), the same load-time state that made T10's
+premise false (G328). The three F-MW legs each decide at about frame 42, in **separate processes**, so they can disagree on
+**which** of their 5 events applied. Under the pre-edit lib, proven on synthetic legs, each of these stops the run:
+- the identity leg refusing one event gives G-ID-FMW `INVALID-PAIR` (halt 3);
+- the same case gives G3 FMW `FAIL` (halt 1);
+- all three legs refusing the same three events gives `FAIL` on the event minimum.
+
+None of those is a feature failure.
+
+**Rule.** When legs that decide independently are compared, and the decision depends on state that changes over time, the
+comparison needs the partial branch. Compare only the events every leg applied, require each leg to account for its missing
+events with its own refusals, and read too few common events as a partial admission, never as a FAIL. An unexplained
+difference still halts.
+
+Related: G328, G320, G319.
+
+## G330 — a real-data proof is a claim about the bank it ran on: P5a read 0 phase-matched differences on 59 legs and 10 of 991 once 082-07h's legs joined (2026-09-28, 082-07i)
+
+**What happened.** 082-07g's P5a scanned every banked F-SYN identity, null and control event and found phase-matched frames (the
+same engine frame mod 8) identical. That result supported the G-RD drift rule (G318, G325).
+
+Re-run in 082-07i on the grown bank, it reads 10 differences:
+- all on the ChainD grazing and transition tiles;
+- 1–2 px at max |d| 1;
+- in the NoApply nulls as well;
+- identical under the pre-edit lib.
+
+The recorded G-RD rows (head-on tiles) still read 0. ⛔ No mechanism or period is established.
+
+**Rule.** A real-data proof has the scope of the data it read. Re-run it whenever the bank grows, and read a new failure as
+**new evidence about the premise**, not as a regression of the code under test. Do not narrow the scan to make it pass. Report
+it with its location and its magnitude.
+
+Related: G318, G325, G135.
+
+## G331 — a PowerShell double-quoted here-string reads markdown backticks as escapes: `n became a newline, `r a carriage return, `0 a NUL, and the rest vanished (2026-09-28, 082-07i)
+
+**What happened.** 082-07h appended G328 and a journal hand-off through `@"…"@`. Markdown code spans are backticks:
+- `` `not_fully_resident` `` became a newline plus "ot_fully_resident";
+- `` `resident=… `` became a carriage return plus "esident=…";
+- `` `082-07-common.py` `` became a NUL plus "82-07-common.py";
+- every other backtick was silently dropped.
+
+The text still read almost right, it was committed and pushed (`f9d6710`), and it was found only because 082-07i counted the CR
+characters in a file that should have none. Both places are repaired in place, marked 🔻.
+
+**Rule.** Never write markdown (or any text with backticks) through a PowerShell double-quoted string. Use the editor tool, a
+single-quoted here-string `@'…'@`, or a Python script. After any shell-written doc edit, scan the file for control characters
+(`[\x00-\x08\x0b-\x1f]`) and for a CR count that should be 0.
+
+Related: G321, G115, G141.
