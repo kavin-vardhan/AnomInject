@@ -11,6 +11,28 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧰 **082-07d, 2026-09-27 — `m53` S1: the leg HARNESS is FIXED and the resume is PREPARED. BENCH-FREE: NO LEG, NO BUILD, NO
+> COOK, NO TAG.**
+> - **Cold start:**
+>   1. `docs/predictions/2026-09-27-m53-s1-legs.md` **AMENDMENT 1**, which governs 082-07e;
+>   2. `docs/sessions/2026-09-27-082-07d-code-m53-harness-fixes-g3.md`.
+> - ✅ **Window:** it calls `L.budget_state()['left_s']` and is byte-identical to the ratified 082-07b driver. The driver copy is
+>   retired.
+> - ✅ **Q-row admission pre-check:** before any F-SYN Q row launches, its targets must read `APPLY` in the current build's G0
+>   census. Otherwise the harness stops with **FIXTURE-CANNOT-EXERCISE (code 12)**, a harness stop and not a feature FAIL.
+> - ✅ **G0** now compares the normal family on all 77 synthetic targets.
+> - ✅ **G3** now compares the post-revert frame against the null's frame at the **same index**, max |d| ≤ 2 inside the union mask
+>   and over the whole frame. The 11 banked UV rows PASS it exactly, with max 0 in both regions.
+> - 🔎 **The 363,001-pixel pre/post change** is UE 5.1's **tonemapper grain quantization** (a ±1 dither seeded by frame index mod
+>   8), measured (G318).
+> - ⚖ **REASON A2 (MainWorld floor, `no_normal_map`) is declared FIXTURE-CANNOT-EXERCISE, class D.** The floor carries a
+>   connected normal map (source + G0). This is flagged for chat.
+> - ♻ **Resume record `082-07-evidence/run/supersede.json`:** `G0_FSYN`, the four U-N1 legs and N-N1 re-run, with the halt
+>   superseded. History is kept and the aliases are renamed `…__SUPERSEDED_082-07d`.
+> - 🎯 **NEXT: 082-07e resumes the legs** on the re-issued boundary, with the tag given in the 082-07d report.
+>
+> ---
+>
 > 🛠 **082-07c, 2026-09-27 — `m53` S1: the NORMAL-FAMILY FIXTURE IS FIXED, RE-COOKED, G-COOK PASSES, the new container is
 > STAGED. NO LEG, NO PLUGIN SOURCE CHANGE, NO TAG.**
 > - **Cold start:** `docs/sessions/2026-09-27-082-07c-code-m53-normal-fixture-fix-recook.md`.

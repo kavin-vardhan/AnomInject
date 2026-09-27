@@ -8049,3 +8049,51 @@ resource, unless compilation has been forced to finish first. The same trap affe
 `size` field, which is a reading, not a fact.
 
 Related: G96.
+
+## G318 — two captured frames of one static scene differ by ±1 on ~40 % of pixels: the tonemapper's grain quantization, seeded by frame index mod 8 (2026-09-27, 082-07d)
+
+**What happened.** G3 compared each event's pre-onset frame with its post-revert frame within one leg, and read **363,001**
+differing pixels in both the applied and null legs of every UV row. The scene was static, and the AA-off arbiter was on.
+
+The cause is UE 5.1's tonemapper **grain quantization** (`r.Tonemapper.GrainQuantization`, on by default). It adds a ±½-LSB
+dither seeded from `Halton(ViewState frame index mod 8)` (`PostProcessTonemap.cpp:637-643`). Pixels near a rounding boundary
+move by exactly one level whenever the two frames' engine frame numbers differ by a non-multiple of 8.
+
+Measured on the 082-07b bank:
+
+- max |d| is 1;
+- pairs at a multiple of 8 are bit-identical once a ~22-frame start-up transient settles;
+- every event's pair is 11 engine frames apart, which is why the count is the same everywhere;
+- applied against null at the **same index** reads 0 over the whole frame.
+
+**Rule.** Never judge "nothing changed" by comparing two frames of one run at different times. Compare the same `session_index`
+across two runs of one recipe: the dither phase is then identical. If a within-run comparison is unavoidable, pair frames whose
+engine frames differ by a multiple of 8, or set `r.Tonemapper.GrainQuantization 0`. That setting changes the delivered picture,
+so it is a bench-only knob.
+
+Related: G228, G230.
+
+## G319 — a halt raised inside an evaluation pass leaves later ready rows unevaluated, and a resume must name them (2026-09-27, 082-07d)
+
+**What happened.** `evaluate_ready` walks the gate rows in declaration order and raises at the first Q failure. In 082-07b, G3
+N-N1 failed, and it precedes the per-leg TRIP and G11 rows. So `TRIP NULL_NN1` and `G11 NULL_NN1` were never evaluated, although
+their leg was accepted. The 082-07d supersede act assumed 19 recorded rows for the seven re-run legs and found 17. Its own assert
+stopped it before anything changed.
+
+**Rule.** After any stop, list the rows that were ready but not evaluated before claiming what a resume supersedes. A missing row
+is "never evaluated", not "passed" and not "absent".
+
+Related: G142, G315.
+
+## G320 — a gate row whose target the fixture cannot admit reads as a feature FAIL unless admission is checked before the launch (2026-09-27, 082-07d)
+
+**What happened.** 082-07b's G0 census already read `normal_unconnected` for every normal-map target at the first leg. The census
+was a reading and G0 compared only the uv family, so nothing looked at it. The window then spent legs on N-N1 and stopped with a
+G3 **FAIL** ("0 events") that was really a fixture that could not exercise the row.
+
+**Rule.** When a gate's premise is a fixture property that an earlier read-only step can see (here, admission in the census),
+check it **before launching the row**, and stop with a distinct verdict (FIXTURE-CANNOT-EXERCISE) that prints the census reason.
+Do not let the row run and fail. The check must not decide who is at fault: the same census reading can come from a fixture
+defect or from a feature defect.
+
+Related: G96, G135.
