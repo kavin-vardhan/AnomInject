@@ -82,7 +82,7 @@ The full table is AMENDMENT 2 §A2.6. It covers every row not yet run (415 of 54
 | admission / G0 / G3 (082-07d suite) | **37/37** | `prep/proof-082-07d.console.txt` |
 | sequencer | **20/20** | `prep/proof-sequencer.console.txt` |
 | disk | **15/15** | `prep/proof-disk.console.txt` |
-| no-flip, pre-supersede: every live recorded row re-evaluated by the final lib | **150/150, 0 flips** | `noflip-pre-supersede.json` |
+| no-flip, pre-supersede: every live recorded row re-evaluated by the final lib | **150/150, 0 flips** | `noflip-pre-supersede-locked-lib.json` (🔻 082-07h citation fix: `noflip-pre-supersede.json` ran on the intermediate lib `16730610`; same 150/150) |
 | no-flip, post-supersede, like for like | **138/138, 0 flips** | `noflip-post-supersede-like-for-like.json` |
 | dry run, pre-lock | 194 legs, 549 rows, **0 problems**, 0 tokens absent | `prep/dryrun-pre-lock-082-07g.json` |
 

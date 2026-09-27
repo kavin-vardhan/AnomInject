@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ⛔ **082-07h, 2026-09-28 — `m53` S1 LEGS: MASKED PASSES ON THE RE-COOKED BUILD, 104 LEGS ACCEPTED, THEN S1 STOPS AT
+> `G-REASON T10` (stop row 9). NO BUILD, NO SOURCE OR HARNESS CHANGE, NO TAG.**
+> - **Cold start:** `docs/sessions/2026-09-28-082-07h-code-m53-s1-legs-final.md` — §2 the stop, §3 the gate table, §6 the
+>   full leg ledger.
+> - ✅ **104 new attempts, all accepted on attempt 1.**
+>   - MASKED: G-ID PASS (identity 0, alpha wrong copy 154); `PRE-CLIP` PASS (2,048 px on 57/57 frames).
+>   - Also passing: G-ID-M 29/29, G3 43/43 across all runs, G-RD 2/2 (phase-matched drift 0 of 92), G-BIND (3), G6,
+>     G-REASON 14/15.
+>   - Ruling-1 reading: the global half beyond 16 px reads max 1, 0 px > 2.
+> - ⛔ **T10 FAIL.** `TC_Stream2k` reads `resident=7/12` in every frame-1 census but `12/12` at the leg's decision frame 18, so
+>   the feature APPLIED, correctly by its own rule (`TexCorruptTree.cpp:466`). Read: the row's premise failed, not the
+>   feature (G328). Why the streamer loads the full chain is NOT established.
+> - ⛔ **39 legs unrun,** so these are NOT OBTAINED: P2-2 (G-COLL), P2-5 / P2-6 / F+2 (G4), F-MW, S8, A5, A6, V2. P2-1 and P2-3
+>   are CONFIRMED read-only over the 153 accepted m53 legs.
+> - 🎯 **NEXT: chat rules T10.** Any resume needs a **boundary re-issue** first (this docs commit moves the head and edits the
+>   predictions: the noflip citation fix).
+>
+> ---
+>
 > 📐 **082-07g, 2026-09-28 — `m53` S1: AMENDMENT 2 WRITTEN, THE HARNESS AMENDED AND PROVEN, MASKED SUPERSEDED, THE BOUNDARY
 > RE-ISSUED. BENCH-FREE: NO LEG, NO BUILD, NO COOK, NO SOURCE CHANGE, NO TAG.**
 > - **Cold start:**

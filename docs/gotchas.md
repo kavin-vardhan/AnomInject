@@ -8210,3 +8210,24 @@ attempt labels, build), or run it before the act that changes those inputs. Do b
 beside the correct one.
 
 Related: G319, G142.
+
+
+## G328 — a residency-dependent refusal row was admitted on a census taken at frame 1; the streamed texture was fully resident by the decision frame (2026-09-28, 082-07h)
+
+**What happened.** G-REASON T10 expects 
+ot_fully_resident on TC_Stream2k, a streamed 2048² texture on a far plane.
+- **Census, frame 1:** every G0_FSYN census (3 of 3) read esident=7 max=12, so the row looked producible.
+- **T10 leg, frame 18:** the first decision comes after a 2-frame warm draw and a 16-frame lead-in, and read
+  esident=12 max=12 → APPLY on all 8 events.
+- **Result:** the feature followed its rule (TexCorruptTree.cpp:466), and the gate stopped S1 as a feature FAIL.
+
+⛔ Why the streamer loads the full chain for a far, off-screen plane is **not established**.
+
+**Rule.** A fixture state that the streamer, the scalability system or any other background system can change is a property
+of a **moment**, not of the fixture. For any row whose expected disposition depends on it:
+- read the state **at the decision frame of the leg that is judged**, or pin it with a lever;
+- never admit the row on a census taken at another moment.
+
+This is G320's shape on the time axis.
+
+Related: G320, G135.
