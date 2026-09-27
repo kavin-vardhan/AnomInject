@@ -11,6 +11,22 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ⛔ **082-07b, 2026-09-27 — `m53` S1 part 3b: the S1 legs RAN and STOPPED at G3 N-N1 (stop row 7) after 50 of 194 legs.
+> The cause is the FIXTURE, not the corruptor. NO BUILD, NO SOURCE CHANGE, NO TAG.**
+> - **Cold start:** `docs/sessions/2026-09-27-082-07b-code-m53-s1-legs.md`.
+> - ✅ **Every judged uv row is identical to its null: G-ID 12/12 PASS, max d = 0 EXACT.** Every wrong copy reads ≥ 58 (the rule
+>   is ≥ 16). G3 12/12 PASS; LUMA, BAND (0/0), FIXTURE-NAMES, G-BIND (1), TRIP 49/49 and G11 49/49 all pass. 50 attempts, 0
+>   invalid, 0 pose discards.
+> - ⛔ **`normal_corruption` cannot fire on ANY F-SYN target.** The fixture's normal readout materials (`M_TC_NN1`, `M_TC_UN1`,
+>   `M_TC_ChainD`, `M_TC_NormalEmis`) drive Emissive only and leave the Normal pin unconnected, so V1 refuses them with
+>   `normal_unconnected` (§R6.4, as specified). The G0 census showed this on leg 1, but its F-SYN comparator checks uv only (G314).
+> - ⚠ The locked `082-07-window.py` crashed on `L.budget_left()`; the run used a one-expression unlocked copy (G315).
+>   ⚠ The F-MW census reads the `SM_FloorBase` actor as `not_fully_resident`, not the predicted uv `APPLY`.
+> - 🎯 **NEXT: chat rules on the fixture.** The boundary is stale after this docs commit; any resumed window needs a re-issue
+>   and a new budget tag. P2-2, P2-5 and P2-6 are UNRUN.
+>
+> ---
+>
 > 🧰 **082-07a, 2026-09-27 — `m53` S1 part 3a: the S1 LEG HARNESS is built, proven and LOCKED; the legs are declared. BENCH-FREE:
 > NO LEG, NO GAME LAUNCH, NO TAG.**
 > - **Cold start:** `docs/predictions/2026-09-27-m53-s1-legs.md` (the legs, rules, classes, predictions and §9's twelve named

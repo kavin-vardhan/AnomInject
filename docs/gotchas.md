@@ -7983,3 +7983,39 @@ harness handles this in advance:
   later.
 
 Related: G117, G93, G120.
+
+
+## G314 — a fixture built for a lighting-free pixel readout can fail the feature's own admission rule: the normal readout drove Emissive and left the Normal pin unconnected (2026-09-27, 082-07b)
+
+**What happened.** The m53 F-SYN fixture renders each texture through Emissive, so G-ID can compare pixels with lighting off.
+For normal maps, `make_texcorrupt_fixture.py` `readout(kind="normal")` feeds the sampler through a custom node into
+`MP_EMISSIVE_COLOR` only. `normal_corruption`'s V1 rule refuses any slot whose root material has `MP_Normal` unconnected
+(`normal_unconnected`, §R6.4). The result was that every normal fixture target was refused, the id never fired on `TC_NN1`,
+and G3 N-N1 read FAIL with 0 events. That stopped S1 at leg 50 of 194.
+
+**Why nobody saw it earlier.** The G0 census printed `normal: normal_unconnected` on all 7 normal targets **on the first leg of
+the window**. But G0 is D-class, and its F-SYN comparator checks the `uv` family only, so it raised no finding. The predictions
+file also listed `normal_unconnected` as an S2 producer "UNEXERCISED in S1". That was a sign the fixture's normal targets had
+never been checked against the admission tree.
+
+**Rule.**
+- Before a leg campaign, run the census (or its offline equivalent) on the fixture and assert that **every target a Q row
+  needs admitted reads `APPLY` for that row's family**. Make it a PRE gate, not a D reading.
+- A comparator that checks a subset of families must say so in its output. Silence on a family is not agreement.
+- A fixture's material wiring must satisfy the feature's admission predicates as well as the readout's needs. For the normal
+  family, connect the Normal pin as well as the Emissive readout.
+
+Related: G96, G135, G146.
+
+## G315 — a locked harness's top-level driver was never executed by any proof, and it crashed on a name the lib did not define (2026-09-27, 082-07b)
+
+**What happened.** The locked `082-07-window.py` called `L.budget_left()`, but the locked lib defines `budget_state()['left_s']`.
+The 082-07a proofs exercised the lib, the sequencer and the preflight directly, and the dry run did not go through the window
+script. The first real invocation died with `AttributeError` before any leg. The script was pinned in the boundary, so it could
+not be fixed in place. 082-07b ran an unlocked copy that differs by that one expression.
+
+**Rule.** A locked boundary must include **one no-leg execution of the exact entry-point command**, for example with a zero wait
+limit or a stub sequence, so that the file a human is told to run has run once. "Every component is proven" does not prove the
+line that glues them together.
+
+Related: G142, G119.
