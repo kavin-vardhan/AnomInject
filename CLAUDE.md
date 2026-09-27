@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧰 **082-07a, 2026-09-27 — `m53` S1 part 3a: the S1 LEG HARNESS is built, proven and LOCKED; the legs are declared. BENCH-FREE:
+> NO LEG, NO GAME LAUNCH, NO TAG.**
+> - **Cold start:** `docs/predictions/2026-09-27-m53-s1-legs.md` (the legs, rules, classes, predictions and §9's twelve named
+>   deviations), then `docs/sessions/2026-09-27-082-07a-code-m53-s1-leg-harness.md`.
+> - Harness `D:\IntrusiveAnomalies\_reviews\082-07-*`: 194 legs (185 F-SYN, 8 F-MW, 1 F-GATE), 548 gate rows. It is built on the
+>   081-23 infrastructure (quiet gate, person-present gate with ENV-INTERRUPTED, budget tag, resume-safe ledger, boundary lock,
+>   stop at the first failure).
+> - Proofs, all offline: evaluators **207 / 0 failed** (every offline-proven wrong copy rebuilt from the fixture's own images, and
+>   caught both ways); sequencer **20 / 0**; disk policy 1–2 **15 / 0** (the exe-side copy deleted only after a manifest check;
+>   aliases as NTFS hardlinks); dry run **194 legs, 0 problems**, with all 36 console tokens found in the staged exe.
+> - ⚠ **F-SYN has no A47 guard.** The input lock and view placement are allow-listed to `CB_GateLevel`/`L_ShooterGym` (G313).
+>   Pixel legs therefore require rotation `(0,0,0)`, and pose-only invalidity has a budget of 6.
+> - 🎯 **NEXT: 082-07b runs `C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\082-07-window.py 082-07b 540`** (~2 h of
+>   legs, resume-safe). ⛔ **Any commit on the branch before it needs a boundary re-issue.**
+>
+> ---
+>
 > ✅ **082-06d, 2026-09-27 — `m53` S1: the fixture slot bug FIXED and its four producers PROVEN FROM DISK; 13 identical-input
 > cooks; `G-COOK` PASSES under the amended `MainWorld` row; the S1 build is STAGED. NO LEG, NO TAG.**
 > - **Cold start:** `docs/sessions/2026-09-27-082-06d-code-m53-fixture-fix-recook-stage.md` (§4.1 is the one to review), then the

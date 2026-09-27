@@ -7958,3 +7958,28 @@ alignment read 0 outside.
   read 0 too. Do not use it as a cooked-flag check.
 
 Related: G311, G96, G120, G235.
+
+## G313 — a new bench map does not inherit the bench levers: the input lock, the view placement and the teardown device are allow-listed to two maps (2026-09-27, 082-07a)
+
+**What happened.** The m53 S1 legs run on a new fixture map, `CB_TexCorruptLevel`. The levers that stop the A47 camera-rotation
+bifurcation on `CB_GateLevel` legs, `IAI.Bench.InputLock` and `IAI.Bench.PlaceView`, refuse every map except `CB_GateLevel`
+and `L_ShooterGym` (`AnomalyBenchModule.cpp`, `map_not_allowed`). The WebSocket route to them checks the same list, and so does
+`IAI.Bench.ChangeTeardownAt` (`CB_GateLevel` only). A packaged unattended leg also has no console channel after startup
+(`-ExecCmds` runs once, on the first tick).
+
+**Consequence.** On the new map there is no rotation guard, no mid-run level change and no mid-event console command. The S1
+harness handles this in advance:
+- legs whose pixels are compared must settle at the PlayerStart rotation `(0,0,0)` and at the campaign reference pose;
+- pose-only invalidity has its own budget of 6;
+- forced GC uses the engine purge timer;
+- world end is a graceful close of our own process;
+- level change is declared UNEXERCISED.
+
+**Rule.**
+- Before designing legs on a new map, list every bench lever the design needs and read its map check in source. An allow-list
+  does not follow the fixture.
+- A mid-event action in a packaged unattended leg needs either a latch lever (the `IAI.Bench.DestroyTarget` pattern, armed at
+  startup and fired by a condition) or an external signal to our own process. It never comes from a console command issued
+  later.
+
+Related: G117, G93, G120.
