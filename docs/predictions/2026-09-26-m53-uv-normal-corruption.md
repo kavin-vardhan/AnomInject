@@ -1,6 +1,14 @@
 # m53 — UV / normal-map texture corruption — PRE-DECLARED DESIGN AND GATES
 
-## REVISION 3.3 — 082-06c, 2026-09-27. Revision 3.2 plus the two remainders of Codex's fix delta; this is the live design.
+## REVISION 3.4 — 082-06d, 2026-09-27. Revision 3.3 plus one dated gate amendment: the `MainWorld` row of `G-COOK`; this is the live design.
+
+082-06 found `MainWorld`'s cooked chunk different between two cooks of IDENTICAL input (G311), so the row
+"the `MainWorld` chunk hash unchanged" could not pass for any cook. Chat amended the row to the control-pair form
+**before any staging** (`_reviews/082-06d-chat-ruling-gcook-fixture.md` §1). This revision changes only the three
+places the row appears, each marked **🔁 082-06d**, with the withdrawn text struck through. **§R0.00000** records the
+amendment and how 082-06d read it. `CB_GateLevel` keeps exact identity.
+
+## REVISION 3.3 — 082-06c, 2026-09-27. Revision 3.2 plus the two remainders of Codex's fix delta; superseded as the live design only by §R0.00000.
 
 Codex's fix delta (`_reviews/082-06b-codex-m53-s1-fix-delta.md`) found P2-2 and P3-3 PARTIAL. Chat accepted both
 remainders (`_reviews/082-06c-chat-ruling-s1-fix-delta.md`). This revision changes only the plan text those two
@@ -92,6 +100,16 @@ What was executed, all read-only:
 ---
 
 ## R0. Resolution table
+
+### R0.00000 🔁 082-06d — Revision 3.4: the `G-COOK` `MainWorld` row amended (dated 2026-09-27, before staging)
+
+Ruling `_reviews/082-06d-chat-ruling-gcook-fixture.md` §1. The row's intent is unchanged: m53's additions must not
+change `MainWorld`'s cooked content. M1 / M1′ / M2′ already prove every `MainWorld` source file byte-identical.
+
+| row | was | now (🔁 082-06d) | how 082-06d read it |
+|---|---|---|---|
+| `G-COOK`, `MainWorld` | the cooked chunk hash unchanged against the archived pre-m53 container | **control-pair form:** the region allowed to vary is the union of the differences between **≥ 2 cooks of identical input**; the new cook's differences from the archived pre-m53 container must fall **entirely inside** that region; the cooked `.umap` header must stay **byte-identical** | Candidate d1, controls d2…d13 (13 identical-input cooks), all read at container level (`UnrealPak -Extract`). Header `.uheader` identical in A and all 13; `.uexp` sizes equal; diff(A, d1) outside the region: **0 words at each of the four alignments and 0 bytes**. With 3 cooks the pre-declared every-alignment test read 4 / 20 / 25 / 0 and was declared under-sampled before 10 more cooks ran (journal 082-06d §4). **PASS.** |
+| `G-COOK`, `CB_GateLevel` | chunk hash unchanged | **unchanged — exact identity** | `0x01AD80B5B5F83E…` in A and all 13 cooks. **PASS.** |
 
 ### R0.0000 🔁 082-06c — Revision 3.3 resolution table (the two remainders of Codex's fix delta)
 
@@ -1439,7 +1457,7 @@ v1 §4.4), level change, world teardown, and transaction rollback (§R7.4). Ever
 | 🔁 the mip tripwire `texcorrupt_rt_mip_mismatch` reads non-zero | STOP; the premise of §R3.4.2 is wrong on this build |
 | a **wrong-copy control does not fail** (reads below 16 on a row it is assigned to), or 🔁 an offline lever proof is below 32 | the instrument is invalid; STOP (`G96`) |
 | `G3` or `G4` fails (restore, lifecycle, rollback) | STOP |
-| 🔁 `G-COOK` fails (a byte change outside the new folder, an archive not verified, a map gate failure, a changed `CB_GateLevel` / `MainWorld` chunk) | STOP before any leg runs on the new container |
+| 🔁 `G-COOK` fails (a byte change outside the new folder, an archive not verified, a map gate failure, a changed `CB_GateLevel` ~~/ `MainWorld`~~ chunk; **🔁 082-06d** a `MainWorld` difference outside the identical-input variance region, or a changed `MainWorld` header) | STOP before any leg runs on the new container |
 
 - **Never:** switch to the takeover, relax a tolerance, re-enable mip regeneration, or widen a fixture so
   that a gate passes. A takeover is a separate product decision.
@@ -1634,7 +1652,7 @@ is on" box (`PRE-DELIVERY-CHECKLIST.md:254`):
 | **G6** | Q (refusals), D (Nanite admit) | S1 (Δ1), S2 | F-SYN; F-MW modular kit | Nanite and runtime-material paths | `nanite_override` refused on the F-SYN target; `host_mid` refused on the Bot (`where=override`) and, 🔁 Δ1, on the F-SYN asset-slot MID (`where=asset_slot`); a Nanite target without an override, if it reaches APPLY, is labelled with `observability_measured` false (the m50 admit path). A case with no fixture is UNEXERCISED, never a pass. | 1 each |
 | **G-REASON** | Q | S1–S2 | per §R6.4 | each reason's producer | 🔁 the producer yields **that** reason by name, not an earlier one (the §R6.4 precedence column), in the REFUSED line and in `run_summary`; each UNEXERCISED reason stays listed | 1 each |
 | **G-COLL** | D | S1 (F-MW, `SM_FloorBase` if admitted), S3 (every `G7` leg) | 🔁 N3 | applied leg vs `NoApply 2` (no allocation), same recipe, both with `IAI.Bench.TexCorruptCollateralDetail 1` | Collateral = every `UTexture2D` bound (read as in §R2) to ~~a visible renderable actor other than the target~~ 🔁 082-06b (P2-2): **every primitive component drawn on screen** (`GetLastRenderTimeOnScreen` within max(0.2 s, frame delta), the engine's own tolerance; not `GetLastRenderTime`, which counts shadow-only draws) other than the target's, through `GetUsedMaterials`. **No injection-selection policy applies**: poll radius, coverage floor, translucent-only, foliage and exclusion patterns are all ignored. 🔁 082-06c (P2-2 remainder): **a null slot is measured through the engine default material** (`UMaterial::GetDefaultMaterial(MD_Surface)`), which is what the static and skeletal proxies draw there (`StaticMeshRender.cpp:2223–2226`, `SkeletalMesh.cpp:5794–5800`); the count is logged as `null_slots`. **A texture entry that resolves to no texture counts `collateral_unresolved`** and makes the set incomplete, never clean; so does a null slot whose default cannot be resolved. Resolved non-2D entries stay outside G-COLL (082-06b). The set is capped at 256 by path order and flagged if truncated, and every incompleteness is counted (`collateral_incomplete`). It is sampled at Apply, on each labelled frame and ~~2 frames after revert~~ 🔁 (P3-1) at **frame revert+2** by `GFrameCounter`, whatever the tick order, logging its endpoint. ~~per labelled frame, the number of collateral textures whose `NumResidentLODs` fell below its Apply-time value … Reported as the applied-minus-null difference per budget.~~ 🔁 082-05 (B): **paired, texture by texture.** Each sample logs every collateral texture's path and `NumResidentLODs` with the sample's frame offset from Apply (`TEXCORRUPT-COLL`). The applied and null legs are joined on (texture path, frame offset); a pair's **deficit** is `max(0, null_resident − applied_resident)`. Every texture with a positive deficit is reported by name with its levels, and the deficits are summed per budget. **Counts are never subtracted across legs**: one texture falling 13 → 12 in the null and 13 → 11 in the applied leg is a deficit of 1, which subtracted counts would hide. A texture present in one leg's set and not the other's is listed as unpaired. A truncated set is reported **incomplete**, never as clean. A positive deficit is reported as `collateral_residency_drop` for that host and budget: a purity finding for the owner (O2), never tuned away. | every applied event |
-| **G-COOK** | Q | S1 | the S1 cook | 🔁 N2 (§R12.1) | M0 = M1 = M2 on the manifest outside the allowed paths; the archive hash-verified before the cook; the map gate exits 0 with the new level named; the `CB_GateLevel` / `MainWorld` chunk hashes unchanged; the new packages present; other packages reported (D) | once |
+| **G-COOK** | Q | S1 | the S1 cook | 🔁 N2 (§R12.1) | M0 = M1 = M2 on the manifest outside the allowed paths; the archive hash-verified before the cook; the map gate exits 0 with the new level named; the `CB_GateLevel` ~~/ `MainWorld`~~ chunk ~~hashes~~ **hash** unchanged; **🔁 082-06d** `MainWorld` in the control-pair form (§R0.00000): its difference from the archived container inside the union of the differences between ≥ 2 identical-input cooks, its cooked header byte-identical; the new packages present; other packages reported (D) | once |
 | **G7** | O (D readings) | S3 | F-MW, F-LYRA | 🔁 N3: auto-pool with both ids enabled explicitly, **three legs per fixture, at `TexCorruptMaxRtBytes` 64, 128 and 256 MiB**, same seed | attempted, applied, refused per final reason, plus the slot and binding dispositions, per budget. Per event `texcorrupt.required_bytes`, so each leg's refusals can also be re-read against the other two budgets. That re-reading is arithmetic only: the live set differs between legs, because a refused event leaves its actor eligible for later picks. `G-COLL` at each budget. The owner chooses the default from these (O2). | one census per fixture per id per budget |
 | **G8** | Q | S2 | F-MW | `P-C7 v3` against a pre-m53 control pair | `labels.jsonl` field set unchanged without m53; `run_summary` adds exactly the §R10 keys; the `annotation.json` field set unchanged (`P6`); new `anomaly_subtype` values only for the new ids | 1 pair |
 | **G-STR** | D → O | S3 | F-SYN, F-MW, F-LYRA | every mode with m55 on | m55 onset and `ref_*` per mode against the matched NoApply and `corrupted_texture` twins (and `solid_swap` / `null_effect` on L_ShooterGym); the evidence for amending the default modes and priors | 3 events per mode per fixture where admitted |
@@ -1778,7 +1796,7 @@ no tolerance moves, and no fallback is taken.
 | 8 | `G4`: any exit or rollback path leaves a slot touched, bytes reserved or a render target alive, or ownership crosses between the ids |
 | 9 | `G-REASON` and `G6` (Δ1): an S1 producer yields no refusal, or a reason other than its §R6.4 row (the precedence is wrong) |
 | 10 | `G11`: the startup read-back does not name both corruptors and the noise normal as resolved |
-| 11 | `G-COOK`: M1 or M2 differs from M0 outside the allowed paths; the archive was not verified before the cook; the map gate does not exit 0; a `CB_GateLevel` / `MainWorld` chunk hash changed; a new package is missing |
+| 11 | `G-COOK`: M1 or M2 differs from M0 outside the allowed paths; the archive was not verified before the cook; the map gate does not exit 0; a `CB_GateLevel` ~~/ `MainWorld`~~ chunk hash changed; **🔁 082-06d** a `MainWorld` difference falls outside the identical-input variance region, or its cooked header changed (§R0.00000); a new package is missing |
 | 12 | an offline wrong-copy proof below 32 for a fault a row relies on |
 | 13 | the luma gate fails on the fixture level |
 | 14 | the fixture tool writes, or leaves dirty, anything outside `/Game/CaptureBenchTexCorrupt/` |

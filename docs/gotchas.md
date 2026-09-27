@@ -7935,3 +7935,26 @@ the same host, 50 s later, changed it again (1,612 bytes, 451 runs, same span). 
 - The StackOBot shader archives also differ run to run (same size, other hash); `CB_GateLevel` does not.
 
 Related: G140, G228, G120.
+
+## G312 — a variance region learned from a few identical-input cooks under-samples random floats, and a fixed-alignment word test straddles fields (2026-09-27, 082-06d)
+
+**What happened.** 082-06d read G311's `MainWorld` row in the control-pair form at container level (`UnrealPak -Extract`). With the
+candidate plus two controls, the pre-declared test (diff(archive, candidate) inside the union of the controls' differences, at every one
+of the four 4-byte word alignments) read 4 / 20 / 25 / 0 words outside, and 49 bytes outside at byte level. The same counts appeared for
+the archive against each control, i.e. at bytes where all three new cooks agreed and the archive did not. A hex read showed why:
+the varying data are 16-byte (X, Y, Z, V) records with V a random value in [0, 1], and all 49 bytes were V's most-significant byte
+(0x3d / 0x3e / 0x3f). Three cooks share V's binade often (roughly 1 in 4 to 1 in 8 per record), so the region missed those bytes. V fields
+start at different residues mod 4 in different arrays, so a fixed-alignment word pairs V's top byte with constant bytes. With 13 cooks
+(the count fixed in writing before the 10 extra ran) the byte region saturated at 1,800 bytes from the 9th cook on, and every
+alignment read 0 outside.
+
+**Rule.**
+- A run-to-run variance region is an estimate; three samples of a random float do not cover its exponent byte. Fix the number of extra
+  identical-input cooks in writing before they run, keep the candidate and the predicate unchanged, and report the region's growth
+  curve. A systematic difference can never enter such a region, so more controls cannot launder one.
+- A fixed-alignment word test on data whose fields are not globally aligned is a byte test in disguise. Hex-read the differing records
+  before attributing a word-level miss.
+- A string scan of a zen `.uheader` / `.uexp` for a property name (for example `bUsedWithSkeletalMesh`) is blind: the positive control
+  read 0 too. Do not use it as a cooked-flag check.
+
+Related: G311, G96, G120, G235.

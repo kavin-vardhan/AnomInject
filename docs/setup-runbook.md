@@ -780,6 +780,35 @@ in-leg positive control decisive in BOTH directions** · **≥ 3 counted events*
 ⛔ **A cook that changed certified behaviour is a FINDING** — it must not be discovered later, inside
 a result.
 
+### 8.6a 🔗 COOKING OR AUTHORING ON A SCRATCH HOST WHOSE `Content` IS LINKED TO THE REAL PROJECT (ruled 082-06d, 2026-09-27)
+
+When the main checkout must stay on another branch, a scratch host on `E:` (for m53:
+`E:\IA_BuildCache\_r53_host\StackOBot`, plugin = a detached `git worktree`) builds the plugin, and its
+`Content` (plus `Plugins\RoomGenerator\Content`) is a **junction to the real `D:` content**. That is what
+lets a fixture be authored into the real project and a cook read the real content. **It also means any
+save on the host writes the real project.** Chat accepted this for 082-06d's work on three conditions:
+
+1. **Commandlets only** (`UnrealEditor-Cmd … -run=pythonscript`, `RunUAT BuildCookRun`). ⛔ **Never an
+   interactive editor save on that host** — nothing brackets it.
+2. **Byte manifests bracket every commandlet and cook run:** M0 before any authoring, M1 / M1′ after each
+   authoring or verify run, M2 / M2′ after the cooks (CaptureBench `tools/texcorrupt_bytecheck.ps1`,
+   baseline `_reviews\082-05-evidence\M0-source-manifest.json`). Any change outside the allowed paths is
+   a STOP. Diff each manifest against the previous one too: a verify run must change nothing, and a
+   targeted re-author must change exactly the packages it names.
+3. **Archive each cook to its own fresh `E:` directory** (`-archivedirectory=`), never into
+   `Builds\BenchGate`. Staging is a separate, hash-verified copy after the gate passes.
+
+⚠ Two traps met while reading these cooks, both harness-side:
+- `verify_cooked_maps.ps1 -Required a,b,c` run through `powershell -File` receives **one string**, and
+  the gate then reports every map "omitted" while listing them all. Call it in-process with
+  `-Required @('a','b',…)`.
+- `… | Select -First 1` on a child `powershell` stops the child; `texcorrupt_bytecheck.ps1` then prints
+  its verdict line and **never writes its manifest**. Capture the output into a variable first.
+
+To compare a cooked package at container level (not the host's loose `Saved\Cooked`, which each cook
+overwrites): `UnrealPak.exe <…\StackOBot-Windows.utoc> <outdir> -Extract "-Filter=*/Maps/MainWorld.umap"`
+writes the package's `.uheader` (the zen header) and `.uexp` (its export data).
+
 ## Troubleshooting
 - **"The following modules are missing or built with a different engine version… rebuild?"** —
   expected if `Binaries/` is stale or absent. Click **Yes**, or run step 4 first.

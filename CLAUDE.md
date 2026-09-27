@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ✅ **082-06d, 2026-09-27 — `m53` S1: the fixture slot bug FIXED and its four producers PROVEN FROM DISK; 13 identical-input
+> cooks; `G-COOK` PASSES under the amended `MainWorld` row; the S1 build is STAGED. NO LEG, NO TAG.**
+> - **Cold start:** `docs/sessions/2026-09-27-082-06d-code-m53-fixture-fix-recook-stage.md` (§4.1 is the one to review), then the
+>   plan's **§R0.00000** (revision 3.4: the `G-COOK` `MainWorld` row in the control-pair form, ruling 082-06d; `CB_GateLevel` exact).
+> - Fixture: CaptureBench `47d6fff` (static slots via `SetMaterial`, a new skeletal entry list, a targeted `slots` mode, a
+>   verify pass that reads the slots back from disk). Negative control: the new verify FAILED on the old fixture, 4/4. After the
+>   fix: `slot_empty`, `host_mid` asset_slot, `nanite_override`, `default_material_path` all PROVEN. M1′ = M1 + exactly the 4 mesh
+>   packages; M1′ ≡ M2′; clean vs M0 throughout.
+> - Cooks d1–d13: 899 packages each, 0/0. `CB_GateLevel` identical to the archive in all 13; `MainWorld` header identical; its
+>   difference from the archive inside the 13-cook variance region at every word alignment and at byte level; 101/101 fixture +
+>   3/3 plugin packages present; map gate exit 0. ⚠ With 3 cooks the pre-declared every-alignment test read 4/20/25/0 (V-field
+>   exponent bytes under-sampled, G312); 10 more cooks were fixed in writing before they ran.
+> - **STAGED (bench): exe `2FCDF059` + `9A26D497` / `10D7F0C0` / `ABD931A2` + `462B8AC6` / `BB05CF99`**, archived at
+>   `_binary_baselines\m53-s1-cook-9A26D497\`, verified at the destination; A44 green. Rollback = the 082-06 pre-cook archive.
+> - Runbook **§8.6a**: the linked-Content scratch host is for commandlets only, with manifests bracketing every run.
+> - 🎯 **NEXT: per chat — 082-07 (S1 legs on the staged build).** ⛔ Verify the staged hash before any leg.
+>
+> ---
+>
 > 🛑 **082-06, 2026-09-27 — `m53` S1 part 2: corruptor assets (`c9f8089`), F-SYN fixture + offline proofs, M1, archive and cook
 > DONE; `G-COOK` FAILED on two rows of stop-list row 11, so the new container was NOT STAGED and S1 stops. NO LEG, NO TAG.**
 > - **Cold start:** `docs/sessions/2026-09-27-082-06-code-m53-s1-authoring-cook.md` (§5 G-COOK, §8 NEEDS-DECISION).
