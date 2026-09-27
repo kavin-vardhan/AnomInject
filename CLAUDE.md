@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧪 **082-07e, 2026-09-28 — `m53` S1: the legs RESUMED and STOPPED at G-ID MASKED. The alpha wrong copy reads 0 because the
+> fixture's masked tile never clips. NO BUILD, NO SOURCE CHANGE, NO TAG.**
+> - **Cold start:** `docs/sessions/2026-09-28-082-07e-code-m53-s1-legs-resume.md` (§4 the failure, §6 the full leg ledger).
+> - ✅ 12 legs, all accepted: `G0_FSYN` (**0 findings, both families**), the U-N1 re-run, N-N1, MASKED. **G-ID identity is EXACT
+>   (max 0) on all 14 encoding rows**, incl. U-N1 and N-N1 on the lit normal tiles; their wrong copies read 65–180. **G3 PASS**
+>   (0 at the same index) on 14 rows. TRIP / G11 PASS on every leg. Postflight PASS.
+> - ⛔ **G-ID MASKED FAIL (stop row 3):** wrong copy `alpha` min 0 on 57 frames. The fault was applied (`fault=alpha` on every
+>   fire), but in the **null** leg `M_TC_Masked` draws the texels whose alpha is below its 0.5 clip, so no alpha fault can show.
+>   The row never had an offline proof (no `TC_Masked` entry in the 082-06 manifest). **Fixture / gate-encoding defect (G322),
+>   not a feature defect; why the tile does not clip is not established.**
+> - 📜 P2-1 and P2-3 **CONFIRMED** (read-only over 53 capture legs). P2-2, P2-5 / F+2 and P2-6 **NOT REACHED**.
+> - ⚠ This commit moves the feature head, so the 082-07d boundary no longer admits a window: re-issue before any leg.
+> - 🎯 **NEXT: chat rules the MASKED row** (fix the fixture and prove its clip, or re-assign / drop the alpha wrong copy), then a
+>   predictions amendment and a boundary re-issue. 139 of 194 legs remain.
+>
+> ---
+>
 > 🧰 **082-07d, 2026-09-27 — `m53` S1: the leg HARNESS is FIXED and the resume is PREPARED. BENCH-FREE: NO LEG, NO BUILD, NO
 > COOK, NO TAG.**
 > - **Cold start:**

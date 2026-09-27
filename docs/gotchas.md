@@ -8097,3 +8097,33 @@ Do not let the row run and fail. The check must not decide who is at fault: the 
 defect or from a feature defect.
 
 Related: G96, G135.
+
+## G321 — PowerShell output redirection silently re-encodes text: `>` writes UTF-16, and `Out-File -Encoding ascii` turns every non-ASCII character into `?` (2026-09-28, 082-07e)
+
+**What happened.** In 082-07d two `grep`-based watchers stayed silent for a whole run, because the console file they watched was
+written with PowerShell's `>` redirect, which writes UTF-16 LE; `grep` never matched. In 082-07e a Python helper was written to
+disk through `@'…'@ | Out-File -Encoding ascii`, and its `→` and `—` literals became `?` in the script, so the table it generated
+carried `?` into a journal. Neither failure raised an error.
+
+**Rule.** When PowerShell writes a file another tool will read, name the encoding and make it one that tool reads: `utf8` for
+text a UTF-8 reader parses, and **ASCII-only content** when using `-Encoding ascii`. Write non-ASCII characters in helper
+scripts as escapes (`→`), or write the file with the editor tool. A watcher that has matched nothing is not proof that
+nothing happened: check that it can match (G96).
+
+Related: G115, G141.
+
+## G322 — a wrong-copy row whose fault acts on a channel the fixture never displays reads 0 and stops as an instrument FAIL; every assigned fault needs an offline proof and a null that exercises the channel (2026-09-28, 082-07e)
+
+**What happened.** G-ID MASKED assigns the `alpha` wrong copy to `TC_Masked` (`M_TC_Masked`: Masked, clip 0.5, Opacity Mask =
+`T_TC_UC2`.A). Half of `T_TC_UC2`'s texels carry alpha below the clip (72 and 104 of 255). In the null leg, with the feature not
+installed, **those texels are drawn anyway**: the host tile never clips in this build (mechanism not established). The alpha fault
+changes only alpha, so the wrong copy was byte-identical to the null on every frame: min |d| 0 against the rule's 16, FAIL, stop
+row 3. The 082-06 offline manifest has no `TC_Masked` entry at all; the predictions table left MASKED's offline minimum blank,
+and the fixture tool's `all_relied_on` guard only covers faults assigned in the manifest, not in the leg list.
+
+**Rule.** A wrong-copy (can-fail) assignment is valid only if (a) an offline proof gives its minimum on that exact fixture row,
+and (b) the fixture's own null reading shows the channel the fault acts on (here: some texels clipped). Assign faults in one
+place, the manifest the guard reads, and fail the build of the fixture when a row's fault has no proof. A blank minimum in a
+predictions table is an unproven instrument, not a detail.
+
+Related: G96, G320.
