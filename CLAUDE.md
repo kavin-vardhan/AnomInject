@@ -11,6 +11,32 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔁 **082-13, 2026-09-28 — `m53` S2 PLAN REVISION 2.1 (PLAN ONLY): Codex's delta D1–D6 and chat's noise ruling
+> applied under `_reviews\082-12-chat-ruling-s2-delta.md`; S2-0 CHECKED RUNNABLE ON THE STAGED S1 BUILD. NEXT: S2-0 ON
+> THE CURRENT BUILD (owner's PC OK), THEN CHAT'S RULINGS, THEN S2-1. A Codex mini-delta was collected
+> (`_reviews\082-13-codex-m53-s2-minidelta.md`) and not acted on. No source, harness, CaptureBench, build, cook or bench;
+> no tag, no merge.**
+> - **Cold start:** `docs/predictions/2026-09-28-m53-s2.md`. Read its "🔁 082-13 — REVISION 2.1" section first (R21.1–R21.9),
+>   then §3A (S2-0), then "🔁 082-12 — REVISION 2". Then `docs/sessions/2026-09-28-082-13-code-m53-s2-plan-rev2-1.md`.
+> - **What changed:**
+>   - **D1:** one warm policy per S2-0 family. A is warm-on as banked (apply 42). B is warm-OFF on every leg with pre 62
+>     (apply 62), so C and the m53 arms share one clock. A full si → fi map per family, and eight timing checks (T1–T8) on
+>     every leg.
+>   - **D2:** the null / refresh legs count `Auto.FireSpecific … -> applied` and the NoApply-2 marker, not APPLIED.
+>   - **D3:** G-MODE-UV `drift` has four complete events (`2 16 100 4 4`, 432 frames) and its own null.
+>   - **D4:** a post-GC RT census judges retention; a separate omitted-accounting fault unbalances the ledger (`Close` would
+>     rescue a skip-only fault, G339).
+>   - **D5:** `bindings` carry `association` and `layer_index`, plus an association-swap negative.
+>   - **D6:** a direct C-vs-ID-F trace reading; the swap flag is descriptive; PLUGIN-WIDE-RESTORE-DEFECT needs the same
+>     trace and defective state on both arms.
+>   - **Noise:** τ measured on a P-ORC identity leg, fixed at the lock, a FAIL after it; no sound τ ⇒ chat before the lock.
+> - **S2-0 runnability:** exe `2FCDF059` / utoc `20DA6F98` / ucas `534C5863` verified. Every S2-0 token is present (UTF-16),
+>   the S2-only absent controls read 0, and the longest command line is 3,106 characters of 16,384. Nested `DEFER` and the
+>   warm-off m53 schedule are **unexercised on the bench** and are validated by their first legs.
+> - **Counts:** 1 build pair + 1 fixture cook; S2-0 24 legs; premise window ~20; gate window ~132. Gotchas G338, G339.
+>
+> ---
+>
 > 🔁 **082-12, 2026-09-28 — `m53` S2 PLAN REVISION 2 (PLAN ONLY): Codex's eleven design findings applied under chat's
 > ruling 082-11; the P2-9 determination made; S2-0 specified as a matrix. NEXT: CHAT RULES ON THE CODEX DELTA
 > (`_reviews\082-12-codex-m53-s2-delta.md`), THEN S2-0 ON THE CURRENT S1 BUILD (owner's PC OK), THEN S2-1.

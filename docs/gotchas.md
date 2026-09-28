@@ -8418,3 +8418,29 @@ model).
 declared exception is inside the count, for example G-REASON's A1 APPLY row). A gate verdict of PASS is not a
 measurement. Downstream readers turn "44/44 restores" into "pixel-verified restoration everywhere". Same family as `G146`
 (a gate satisfied vacuously).
+
+## G338 — a non-capturing phase that only some arms take makes "the same session_index" mean different engine frames (2026-09-28, 082-13)
+
+- m53's warm draw inserts 2 uncaptured frames before the lead-in, but only when an m53 id is targeted or enabled
+  (ACS:2442-2451, :3631-3638). In S2-0's revision-2 family B, the `corrupted_texture` arm fired at frame 60 and its m53
+  neighbours at 62. Every same-si comparison across those arms compared frames 2 apart, on a moving camera trajectory and a
+  different dither phase. Codex caught it (082-12 D1).
+- The echo did not help: with warm OFF and an m53 id targeted, its trailing clause still says "a 2-frame NON-CAPTURING phase
+  runs", because the clause tests *wanted*, not *effective* (ACS:3263-3265 vs :3633).
+
+**Rule.** Every cross-leg comparison keyed on `session_index` must also assert that the legs' `frame_index` series are equal
+row by row. Validate each arm type's si → fi map on its first leg, from `labels.jsonl`, never from a phase echo. Any
+arm-dependent pre-phase (warm-up, prewarm, focus wait) must be the same across compared arms, or the comparison is not
+same-frame. Same family as `G318` (same-index comparisons) and `G119` (read the effective value, not the described one).
+
+## G339 — a fault lever that skips one step can be undone by a later "catch-all" in the same path (2026-09-28, 082-13)
+
+- Revision 2 planned `TexCorruptRetainRt` to make the ledger read unbalanced. Retention never touches accounting, so it
+  reads balanced (Codex, 082-12 D4).
+- Designing the replacement exposed a second trap. An obvious "skip `ReleaseCreated` for one output" fault would **also**
+  read balanced, because `FEventAccount::Close` releases whatever `Created` remains (TCP:452-458). The lever would have
+  shipped as a can-fail that cannot fail.
+
+**Rule.** Before declaring a fault lever, trace the whole path to the judgement and name every later step that could
+repair the injected fault (close, flush, sweep, re-sync, default fallback). The fault must defeat those steps as well, and
+the plan must name how. Same family as `G252` (a can-fail lever must bypass the mechanism under test) and `G96`.
