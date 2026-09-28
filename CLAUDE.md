@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **084-06, 2026-09-29 — THE LABEL-SYNC BENCH RAN ON `E9FF019A`: 31/31 LEGS ACCEPTED ON ATTEMPT 1, m53 SET RESTORED AND
+> VERIFIED, POSTFLIGHT PASS. Four anomalies are SYNC-PROVEN; m52 is DESYNC at onset with AA off; camera_clipping over-labels
+> MainWorld; B-CC could not run. NOT merged, NO tag.** Harness `_reviews\084-06-*` (one edit: `TransitionOnFrames 3` on the
+> fix legs, read back `on=3 off=8 hide=1`).
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-06-sync-bench.md`; evidence `_reviews\084-06-evidence\run\report.md`.
+> - **SYNC-PROVEN (0/0 at t50):**
+>   - blinking, missing_object and corrupted_texture: B-REAL R1/R2 with TAA and with AA off, plus MASK55;
+>   - missing_texture: B-REAL 20/20 plus MASK55 35/36, the one FAIL marginal (threshold 97 % of depth).
+> - **MASK55 mask gate PASS:** 119 events, 586/586 labelled frames masked, 64 recycles, 0 aliasing. ⚠ Peak live IDs 1, so
+>   Codex F4 was not exercised.
+> - **m52 DESYNC:** on B9 (AA off), 16/16 events have onset +2 at the 50 % rule. The first two labelled frames carry 9–22 % of
+>   the depth; on the 084-03 build the same two frames carried ~70 %. Cause not established. The TAA legs pass only inside the
+>   flags. The null basis never ran (**G356**). Both can-fails were proven.
+> - **camera_clipping:** MainWorld is labelled 200/200 with `eye_inside_box` and no pixel evidence (an over-label). **B-CC is
+>   INVALID:** container `67EA1FE0`'s cooked `.uplugin` predates `AnomalyBench`, so the schedule never registered (**G354**).
+> - **lod_popping UNJUDGEABLE:** 0 events measurable under TAA; 4 PASS with AA off.
+> - The harness restore died on WinError 32 and was re-issued by hand (**G355**).
+> - 🎯 **NEXT: chat rules on the three NEEDS-DECISION items in the 084-06 report.** ⛔ Do not re-run legs or cook unprompted.
+>
 > 🧪 **084-05b, 2026-09-29 — THE 084-06 BENCH HARNESS IS BUILT AND PROVEN OFFLINE; NOTHING LAUNCHED, BUILT OR STAGED. The
 > build under test is `E9FF019A` (086-02). NOT merged, NO tag.** Harness `_reviews\084-06-*` (outside the repo); docs only here.
 > - **Cold start:** journal `docs/sessions/2026-09-29-084-05b-sync-harness.md`; invocation and rules in `_reviews\084-06-README.md`.

@@ -8183,3 +8183,40 @@ among the tickables at `LevelTick.cpp:1606`, before `UpdateCameraManager` at `:1
   (2) say which errors it cannot see, and (3) keep an AA-off (window-free) leg in the gate set.
 
 Related: G349 (why the threshold is edge-local), G350, G352, G345.
+
+## G354 — A code-only hot-swap cannot add a MODULE: a packaged game starts only the modules its COOKED `.uplugin` lists, and `-ExecCmds` drops an unregistered command without a word (2026-09-29, 084-06)
+
+- **Measured:** all seven B-CC legs ran `IAI.Bench.InputLock 1` and `IAI.Bench.CameraSchedule cc_v1` on exe `E9FF019A` over
+  container `67EA1FE0`. The logs carry **zero** `IAI-` lines: no ARMED, no FRAME, not even a `REFUSED`. The exe contains the
+  strings, but the container's cooked descriptor (extracted with UnrealPak from the archived `.pak`) lists
+  `AnomalyShaders, AnomalyInjector, AnomalyCapture, AnomalyControlServer`. `AnomalyBench` entered the `.uplugin` on
+  2026-09-21 and the container was cooked on 2026-09-04. The module was linked in and never started, so its console objects
+  were never registered.
+- **Why it hides:** every other lever on the same legs echoed normally, because they live in modules the old descriptor lists.
+  An unregistered `-ExecCmds` entry prints nothing, so the leg looks like a clean run with a lever that did nothing (G114's null).
+- **Rule:** `G103`'s hot-swap covers code in EXISTING modules only. Before pairing an exe with an older container, diff the
+  exe branch's `.uplugin` module list against the container's cooked one (`UnrealPak <pak> -Extract <dir> -Filter=*.uplugin`).
+  Every bench lever must be read back from the leg's own log before the leg counts, as the m52 levers already are.
+
+## G355 — A `finally` restore that catches only the harness's own exception is not a guarantee: an OS copy error escapes it (2026-09-29, 084-06)
+
+- **Measured:** 3 s after the last leg's game process exited, the m53 restore's first `shutil.copy2` raised
+  `PermissionError [WinError 32]` on the staged exe. `084-06-window.py` wraps the restore in `except L.Stop`, so the
+  `PermissionError` escaped. No restore receipt was written, the evaluation was skipped, and the process exited 1 with the FIX
+  set still staged. Nothing had been replaced, and a retry of the same `stage()` call a minute later verified at once.
+- **Rule:** a restore step must catch every exception, retry a sharing violation with a bounded back-off, and always write a
+  receipt stating what is staged. The evaluation must not depend on the restore having succeeded.
+- **Related:** a dry-run root in `%TEMP%` (C:) cannot hardlink stand-ins from the bank, which is a junction to E:
+  (WinError 17). Put `IAI_R56_ROOT` on E:.
+
+## G356 — A null that writes no events cannot calibrate: on a G350 build the no-hold null has nothing labelled, so the edge-local basis silently falls back on every leg (2026-09-29, 084-06)
+
+- **Measured:** B5 (`IAI.Bench.StuckMipNoHold 1`) wrote 0 annotation events on `E9FF019A`: no render-held frame, so no
+  labelled frame, so no event (G350 working as designed). The 084-06 null gate needs one settled null event, so it read
+  FAIL. B0, B3, B9 and B0L then reported `basis: own-detrend, lag: None`. The G349 null-divided threshold the harness was
+  built around never ran, and B0/B3's censored offsets (12 of 16, 5 of 8) come from the fallback basis.
+- **Rule:** calibrate a null from its SERIES (the sharpness trace and the lag), never from events the build may legitimately
+  not emit. Before the window, check that each null leg yields what its consumer needs; a basis that falls back must say so
+  in the verdict line, not only in a per-row field.
+
+Related: G349, G350, G103, G114, G120.
