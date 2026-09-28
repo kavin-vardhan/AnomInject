@@ -789,8 +789,9 @@ One JSON object per line, one line per captured frame.
 | `t_wall` | number | v1 | Real-world seconds since the run started. |
 | `image` | string | v1 | The frame's filename. |
 | `width`, `height` | int | v1 | The written frame's size in pixels. |
-| `anomaly_present` | bool | v1 | Whether any anomaly was active on this frame. |
-| `visible_positive` | bool | v1 | An anomaly was active **and** at least one had a valid box. |
+| `anomaly_present` | bool | v1 | Whether any anomaly was active on this frame. 🆕 **For `stuck_low_mip`, only a frame that is labelled for it counts** (it is in the event's `annotation.json` frame list); its frames before the blur takes hold and after the texture is back carry no positive entry. Every other anomaly keeps the v1 meaning (an event is running). A transition-only entry (§8.6a) never sets it. |
+| **`transition_present`** | `true` | **new** | **Only present when true.** At least one entry on this frame carries `transition: 1` — see §8.6a. |
+| `visible_positive` | bool | v1 | `anomaly_present` **and** at least one of the entries that set it had a valid box. |
 | `anomalies` | array | v1 | One object per active anomaly — see below. |
 | `mask_file` | string \| null | since target masks | The mask PNG for this frame, or `null` if there is none. |
 | `mask_state` | string | since target masks | `present` / `empty` / `unmeasured`. |
@@ -815,9 +816,42 @@ One JSON object per line, one line per captured frame.
 | **`target_drawn_pixels`** | int | **v2** | See §8.4. The subset of `target_pixels` the target was actually drawn at. `-1` = unmeasured. |
 | **`observable`** | bool \| null | **v2** | See §8.4. `null` = unmeasured. |
 | `mask_value` | int | since target masks | This anomaly's pixel value in `target_mask/`. |
+| **`transition`** | `1` | **new** | **Only present when set.** This frame may be smeared by temporal anti-aliasing for this event — see §8.6a. |
 
 ⚠ **The two box fields use different conventions on purpose and always have:** `bbox_norm` is
 `[x0, y0, x1, y1]` (corners, 0–1); `bbox_px` and `bbox_drawn_px` are `[x, y, width, height]` (pixels).
+
+### 8.6a `transition` — frames that temporal anti-aliasing may smear
+
+Labels follow **what the game rendered on that exact frame**. With a **temporal** anti-aliasing method
+(TAA or TSR), the picture you see is blended with previous frames, so a change can look half-done for a
+frame or two after it starts, and linger for a few frames after it ends. We measured this on our bench:
+with anti-aliasing off the labels and pixels agree exactly at both ends; with TAA the blur reaches its
+midpoint about **2 frames** after a blurry-texture event starts and clears **1 to 7 frames** after it ends.
+
+Rather than move a label off the exact render, those frames carry an extra key, **`transition: 1`**, on
+the anomaly's entry, and the frame carries **`transition_present: true`**:
+
+| Case | Which frames | The entry | Sets `anomaly_present`? | In `annotation.json`? |
+| --- | --- | --- | --- | --- |
+| `stuck_low_mip` start | the event's first **2** labelled frames | the normal entry, plus `transition: 1` | yes | yes |
+| `stuck_low_mip` end | the **8** captured frames after its last labelled frame | a transition-only entry (`target_pixels` −1, `observable` null; the frame's target mask does not include it) | **no** | **no** |
+| `blinking`, `missing_object` | the **first** captured frame after the object reappears | `transition: 1` (inside a `blinking` burst this is on the burst's own entry; after the event ends it is a transition-only entry) | only if the event is still running, as before | no |
+| every other anomaly | none | — | — | — |
+
+- **Only under temporal anti-aliasing.** The game's anti-aliasing method is read when the capture starts,
+  from `r.AntiAliasingMethod`, and reported in `run_summary.json` as `label_aa_method`
+  (`none`/`fxaa`/`taa`/`msaa`/`tsr`) and `label_temporal_aa`. Without TAA or TSR no `transition` key ever
+  appears. ⚠ The method is read once per capture; a project that disables anti-aliasing only through a
+  show flag or a camera setting is still reported by the console value.
+- **The numbers are provisional** (2 / 8 / 1). They are console variables —
+  `IAI.Label.TransitionOnFrames`, `IAI.Label.TransitionOffFrames`, `IAI.Label.TransitionHideFrames`
+  (`-1` = the default) — and each capture reports the values it used in `run_summary.json`
+  (`label_transition_on_frames`, `_off_frames`, `_hide_frames`, plus the `_cvar` values as set).
+- **How to use it:** for a strict training set, drop or down-weight frames with `transition_present`.
+  Frames without it are expected to agree with their labels pixel for pixel.
+- `run_summary.json` also counts `label_transition_entries`, `label_transition_frames` and
+  `label_entries_suppressed` (entries withheld because they were not labelled on that frame).
 
 ### Reading `labels.jsonl` — the rows are not in order
 
@@ -847,6 +881,13 @@ same **`session_index`** as `Actual_Frames/`, at **exactly the picture size**.
 - **`mask_map.json`** (session root) maps `mask_value` + event → `target_name`, `anomaly_type`,
   `first_frame`, `last_frame`. ⚠ **Values are REUSED across events**, so key on `mask_value` *together
   with* the frame range, never on the value alone.
+- 🆕 **Long captures keep their masks.** There are 55 values. Earlier builds gave each event its own
+  value for the whole capture, so a session with more than about 55 events shipped its later events with
+  labels but **no mask**. A value is now **recycled** when the pool would otherwise run out: it is taken
+  back only from an event that has finished, whose every frame and mask has been processed, so **no frame
+  ever carries two events under one value**. `run_summary.json` reports `mask_tag_recycles`,
+  `mask_tag_peak_live` (the most values held by unfinished events at once) and `mask_tag_exhausted`
+  (events that still got no value; expected 0).
 - **`labels.jsonl`** gains **three** keys: `mask_file` and `mask_state` on the frame row, `mask_value`
   on each anomaly row.
 - **`run_summary.json`** gains **three**: `target_mask_frames_measured`, `_hidden_blank`,
@@ -1184,11 +1225,12 @@ it.
 
 ### 9.7 `positive_frames` in `run_summary.json`
 
-`positive_frames` counts every written frame during which **at least one anomaly was active**. That
-includes frames where an anomaly has been started but its effect is not yet in place — for example the
-blurry-texture anomaly while it waits for the blur to take hold, whose rows carry `target_pixels: -1`
-and `observable: null`. **It is not a count of labelled frames**; use `injected_frames` and
-`affected_frames` in `annotation.json` for that.
+`positive_frames` counts every written frame whose `labels.jsonl` row has `anomaly_present: true`. For
+most anomalies that means an event was running, including frames where its effect is not showing —
+for example a `blinking` burst's visible frames. 🆕 For the blurry-texture anomaly (`stuck_low_mip`) only
+labelled frames count: its frames while the blur takes hold and after the texture is back no longer
+count and carry no entry for it. **It is not a count of labelled frames in general**; use
+`injected_frames` and `affected_frames` in `annotation.json` for that.
 
 ### 9.8 Two test entries in the anomaly list
 

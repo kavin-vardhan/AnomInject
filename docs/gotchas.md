@@ -8113,3 +8113,28 @@ Related: G345, G347, G96, G135.
   when every documented semantic still holds.
 
 Related: G98, G243, G347.
+
+🔻 **FIXED IN SOURCE (084-05a, 2026-09-28, exe `2AC0523E`, no runtime evidence yet):** a `stuck_low_mip` entry is now emitted as
+positive only on a frame labelled for it; post-closure and pre-onset rows carry no positive entry. Non-m52 rows are unchanged.
+The rule above for checkers stands.
+
+## G351 — A recycled stencil value is still ON the previous owner, and releasing it early changes the census's choices (2026-09-28, 084-05a)
+
+*(Number checked against every ref: the maximum was G350 on `fix/m52-label-timing`.)*
+
+- **Observed, from source:** m26's `ArmIfMeasurable` and the target mask tag actors with `AnomalyStencilTag::TagActor`; only the
+  target mask's own self-tags are restored the next tick. m26's tags stay on the actor until `RestoreAll` at run end. And
+  `ArmIfMeasurable` arms **any** record with arms left, whether or not its fire is live — that is how `missing_object` gets its
+  post-revert arms.
+- **Consequence 1:** giving a value to a new event without restoring the old actor's components puts two objects under one value
+  in the mask — G246's shape, produced by the fix for the ceiling. A value moved while m26 can still arm the old record, or while
+  any frame or target mask still carries it, aliases two events the same way.
+- **Consequence 2:** the census allocates from the same ledger (`IsFree`), and with the census on its batches decide which
+  targets pass selection. Returning a value to the free pool the moment its event ends changes census batches, and therefore
+  seeded selection, on **every** census-on run — including every short run that never nears the ceiling.
+- **Rule:** a pooled identifier is reusable only when (1) every consumer that can still emit or re-emit it is provably done,
+  (2) its physical carrier on the old owner is restored, and (3) the release cannot feed back into another consumer's
+  decisions. When (3) cannot be shown, reclaim at exhaustion instead of releasing at the end: runs that never exhaust then stay
+  identical, and the value never leaves the claimed set.
+
+Related: G246, G250, G254, G295, G350.

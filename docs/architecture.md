@@ -894,6 +894,18 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   camera motion a fired actor can leave the viewport mid-hold (`present=true` + all `bbox_valid=false`); those frames are
   KEPT as hard negatives, not dropped (gotcha G42). The in-frustum-but-occluded sub-case is the deferred
   `GetLastRenderTimeOnScreen` refinement (G22).
+- **084-05a label sync (async path).** Per fire the snapshot may carry an emission mode (`EntryEmit`: normal / suppress /
+  transition-only), a `transition` bit and extra transition-only entries (`TransitionFires`); all empty for non-m52,
+  non-returning frames, which reproduces the older row exactly. **Render-truth (`stuck_low_mip`) fires** are positive only on
+  frames labelled for them; `anomaly_present` = at least one normal entry. **Under temporal AA** (TAA/TSR, resolved at run start
+  by `GetDefaultAntiAliasingMethod`) the first `IAI.Label.TransitionOnFrames` labelled m52 frames and the
+  `IAI.Label.TransitionOffFrames` frames after a labelled frame carry `transition: 1` (the latter as transition-only entries that
+  set no `anomaly_present`), and hide types flag the first `IAI.Label.TransitionHideFrames` frames after the object returns.
+  Pure logic: `AnomalyInjector/Public/AnomalyLabelSync.h`.
+- **Stencil tags are recycled at exhaustion (084-05a).** `FAnomalyMaskMeasure::AllocateTag` rotates over the free values as
+  before; when none is free it reclaims the oldest *releasable* record's value (fire ended, m52 trail detached with nothing in
+  flight, no pending snapshot or target-mask request carrying it, m26 done), restoring that record's components still
+  carrying the value. Releasability is refreshed every tick in `OnWorldTickEndMask` after the m26 arm. G351.
 - **View-lag L (default 0) — the spatial analogue of settle-K, but distinct.** A per-tick view ring; each capture projects
   with the view from L ring-entries ago. **L=0 is validated and correct (not "zero lag") FOR THE SYNC PATH:** the capture
   subsystem (a `FTickableGameObject`) ticks *before* `UpdateCameraManager` (LevelTick.cpp:1606 vs 1621), so

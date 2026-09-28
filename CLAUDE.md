@@ -11,6 +11,27 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **084-05a, 2026-09-28 late night — THE LABEL-SYNC FIXES RULED IN `_reviews/084-03-chat-ruling-bench-results.md` (DECISIONS
+> 1–3) ARE BUILT: exe `2AC0523E`, archived, NOT staged, NOTHING LAUNCHED — no runtime evidence yet. NOT merged, NO tag.**
+> Branch `fix/m52-label-timing` `05c7649` (source + tests) + docs, pushed. Main checkout `m51` `53bf725`; staged exe `2FCDF059`.
+> **Supersedes the 084-03 block below wherever they disagree.**
+> - **Cold start:** journal `docs/sessions/2026-09-28-084-05a-code-sync-fixes-source.md` (§0 the table, §7 deviations, §8 what
+>   084-05b's harness needs).
+> - **G350 fixed:** a `stuck_low_mip` entry is positive only on a frame labelled for it; post-closure and pre-onset rows carry no
+>   positive entry; `anomaly_present` / `positive_frames` follow. Non-m52 rows byte-identical (source argument, journal §1).
+> - **`transition` flag (additive):** temporal AA (TAA/TSR) read at run start from `r.AntiAliasingMethod`;
+>   `IAI.Label.TransitionOnFrames` / `TransitionOffFrames` / `TransitionHideFrames`, `-1` = **2 / 8 / 1** under temporal AA, **0**
+>   without it (explicit values too). m52 start frames keep their label + `transition: 1`; the K_off frames after a labelled frame
+>   get a transition-only entry that sets **no** `anomaly_present`; hide types flag the first frame after the object returns.
+>   `transition_present` on the row; `label_*` keys in `run_summary`.
+> - **Mask-ID recycling:** at pool exhaustion only, the oldest finished event's value is reclaimed (fire ended, trail detached
+>   with nothing in flight, frames and masks read back, m26 arms done), its components restored first. Runs that never exhaust
+>   are unchanged. `mask_tag_recycles` / `_peak_live` / `_exhausted`; `TAG RECYCLED` log lines (G351).
+> - **Gate (ii)'s 5 frames = G295** (coalesced target arm, `TARGET MASK UNAVAILABLE … pixels=0` on all five). Not fixed.
+> - **Proofs:** selftest **189/189** (59 new, both ways). Game + Editor exit 0, 0 warnings; `_binary_baselines\m52fix-2AC0523E\`.
+> - 🎯 **NEXT: 086-02 (camera_clipping), then 084-05b (harness: transition-aware gate, > 55-event mask leg, re-evaluation) and a
+>   Codex source review of 084-05a + 086-02.** ⛔ No merge, no staging from this brief.
+>
 > 🧪 **084-03, 2026-09-28 night — THE m52 PART-B BENCH RAN: baseline `E0BE6F0A` vs fix `B725678B`, 13 legs, 13 attempts,
 > zero retries; m53 set restored and verified; postflight PASS. NOT merged, NO tag. Supersedes the 084-04 block below
 > wherever they disagree.**

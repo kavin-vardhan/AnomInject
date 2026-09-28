@@ -358,6 +358,11 @@ which is recorded in place rather than silently overwritten.*
       `Error` line and it is the tripwire for the defect above. *Its presence does not corrupt a
       label any more — the event is admitted unmeasured instead — but it means the pool ran out, and
       on a long capture that is the structural ceiling described in the `m50` journal §5.*
+      🔻 *084-05a: the ceiling is lifted by **recycling** — when the pool is otherwise empty, a value is
+      taken back from a finished event whose frames and masks have all been read back. On a long capture
+      read `run_summary.mask_tag_recycles` (> 0 is expected past ~55 events) and **`mask_tag_exhausted`,
+      which must be 0**; `TAG RECYCLED` log lines name each move, and `TAG-OWNER VIOLATION` must stay
+      absent.*
 - [ ] 🚨 **`m50` UNMEASURABLE-TARGET ADMISSION.** On a Nanite-heavy host, a capture that fires N
       events must deliver N events with `observability_measured: false` — **not `anomalies: []`**.
       *Measured on a real Nanite-heavy game BEFORE the fix: 6 of 6 events vetoed, 90 frames and 43
