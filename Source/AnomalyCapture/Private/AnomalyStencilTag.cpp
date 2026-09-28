@@ -204,6 +204,31 @@ namespace AnomalyStencilTag
 		}
 	}
 
+	int32 RestoreComponentsCarrying(AActor* Actor, int32 StencilValue)
+	{
+		if (!Actor)
+		{
+			return 0;
+		}
+		int32 Restored = 0;
+		TInlineComponentArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents(Prims);
+		for (UPrimitiveComponent* Prim : Prims)
+		{
+			const TWeakObjectPtr<UPrimitiveComponent> Key(Prim);
+			const FPriorStencilState* Prior = GTaggedComponents.Find(Key);
+			if (!Prior || !Prim->bRenderCustomDepth || Prim->CustomDepthStencilValue != StencilValue)
+			{
+				continue;
+			}
+			Prim->SetCustomDepthStencilValue(Prior->CustomDepthStencilValue);
+			Prim->SetRenderCustomDepth(Prior->bRenderCustomDepth);
+			GTaggedComponents.Remove(Key);
+			++Restored;
+		}
+		return Restored;
+	}
+
 	void RestoreAll()
 	{
 		for (TPair<TWeakObjectPtr<UPrimitiveComponent>, FPriorStencilState>& Pair : GTaggedComponents)

@@ -72,7 +72,21 @@ namespace AnomalyLabel
 		bool bRenderWatchArmed = false;
 		TArray<uint8> Trailing;
 		TArray<uint8> RenderSettled;
+
+		TArray<uint8> EntryEmit;
+		TArray<uint8> EntryTransition;
+		TArray<FAutoLiveFireInfo> TransitionFires;
+		TArray<FAutoLiveFireInfo> TransitionCandidates;
 	};
+
+	struct FLabelEntryCounts
+	{
+		bool bPresent = false;
+		int32 Suppressed = 0;
+		int32 TransitionEntries = 0;
+	};
+
+	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot);
 
 	static constexpr int32 GTargetPixelsUnmeasured = -1;
 
@@ -190,7 +204,28 @@ namespace AnomalyLabel
 		int32 UnmeasurableTargetsAdmitted = 0,
 		int32 TargetDrawnPixelsMeasured = 0, int32 FramesDrawnUnexpected = 0,
 		int32 FramesExposureDipSuppressed = 0,
-		const struct FStuckMipTelemetry* StuckMip = nullptr, const TSharedPtr<FJsonObject>& ChangeSummary = nullptr);
+		const struct FStuckMipTelemetry* StuckMip = nullptr, const TSharedPtr<FJsonObject>& ChangeSummary = nullptr,
+		const struct FLabelSyncTelemetry* LabelSync = nullptr);
+
+	struct FLabelSyncTelemetry
+	{
+		FString AaMethod;
+		int32 AaMethodValue = 0;
+		bool bTemporalAa = false;
+		int32 OnFramesConfigured = -1;
+		int32 OffFramesConfigured = -1;
+		int32 HideFramesConfigured = -1;
+		int32 OnFrames = 0;
+		int32 OffFrames = 0;
+		int32 HideFrames = 0;
+		int32 TransitionEntries = 0;
+		int32 TransitionFrames = 0;
+		int32 SuppressedEntries = 0;
+		int32 OutOfOrderFrames = 0;
+		int32 MaskTagRecycles = 0;
+		int32 MaskTagPeakLive = 0;
+		int32 MaskTagExhausted = 0;
+	};
 
 	struct FStuckMipTelemetry
 	{

@@ -179,6 +179,11 @@ private:
 	bool AnyStuckMipTrailGating() const;
 	void ComputeRenderMembership(const FAnomalyCapturedFrame& Frame, const AnomalyLabel::FCaptureSnapshot& Snap);
 	void ApplyRenderTruthToSnapshot(AnomalyLabel::FCaptureSnapshot& Snap);
+	void ResolveLabelSyncForRun();
+	void StepHideTransitions(AnomalyLabel::FCaptureSnapshot& Snap);
+	void AddDetachedTransitionCandidates(AnomalyLabel::FCaptureSnapshot& Snap);
+	void ResolveDetachedTransitionCandidates(AnomalyLabel::FCaptureSnapshot& Snap);
+	void RefreshMaskTagReleasability();
 	void FlushObserveQueue(bool bForce);
 	bool ResolveEventTextures(const struct FAutoLiveFireInfo& F, TArray<struct FAnomalyRenderTruthTexture>& Out);
 	void FinalizeRenderTruthArm(AnomalyLabel::FCaptureSnapshot& Snap);

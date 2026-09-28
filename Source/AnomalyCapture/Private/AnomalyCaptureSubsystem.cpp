@@ -29,6 +29,8 @@
 #include "AnomalyCensus.h"
 #include "AnomalyStuckMipStats.h"
 #include "AnomalyStuckMipWindow.h"
+#include "AnomalyLabelSync.h"
+#include "SceneUtils.h"
 #include "AnomalySveKeyRing.h"
 #include "Components/DecalComponent.h"
 #include "Engine/Level.h"
@@ -91,6 +93,19 @@ static TAutoConsoleVariable<int32> GStuckMipSettleTailFrames(TEXT("IAI.StuckMip.
 	TEXT("stuck_low_mip: captured frames that stay LABELLED after the render record shows every held texture back at ")
 	TEXT("its baseline. Default 0. It exists for one measured case only: a residual that temporal history (anti-")
 	TEXT("aliasing) carries past the restore. Read at the start of each capture run; the effective value is echoed."));
+static TAutoConsoleVariable<int32> GLabelTransitionOnFrames(TEXT("IAI.Label.TransitionOnFrames"), -1,
+	TEXT("labels.jsonl transition flag: the first N labelled frames of a stuck_low_mip event carry transition=1. Applies ONLY ")
+	TEXT("under a temporal anti-aliasing method (TAA or TSR, read from r.AntiAliasingMethod at run start); without one the ")
+	TEXT("effective value is 0. -1 (default) = the provisional default 2. Read at the start of each capture run; echoed and ")
+	TEXT("written to run_summary.label_transition_on_frames."));
+static TAutoConsoleVariable<int32> GLabelTransitionOffFrames(TEXT("IAI.Label.TransitionOffFrames"), -1,
+	TEXT("labels.jsonl transition flag: the N captured frames after the last labelled frame of a stuck_low_mip event carry ")
+	TEXT("an entry with transition=1 that does NOT set anomaly_present. Temporal AA only (0 without it). -1 (default) = the ")
+	TEXT("provisional default 8. Read at run start; echoed and written to run_summary.label_transition_off_frames."));
+static TAutoConsoleVariable<int32> GLabelTransitionHideFrames(TEXT("IAI.Label.TransitionHideFrames"), -1,
+	TEXT("labels.jsonl transition flag for hide anomalies (blinking, missing_object): the first N captured frames after the ")
+	TEXT("object returns carry transition=1. Temporal AA only (0 without it). -1 (default) = 1. Read at run start; echoed ")
+	TEXT("and written to run_summary.label_transition_hide_frames."));
 static bool GBenchStuckMipLegacyTiming = false;
 static bool GBenchStuckMipLeversRegistered = false;
 static FString StuckMipEventKey(FName Id, uint64 StartFrame)
@@ -286,6 +301,44 @@ struct FAnomalyCaptureAsyncState
 	int32 ForcedAuthorityFrames = 0;
 	int32 LateReceiptAfterForce = 0;
 	int32 InheritedMaskRecords = 0;
+
+	int32 LabelAaMethod = 0;
+	bool bLabelTemporalAa = false;
+	int32 LabelOnCvar = -1;
+	int32 LabelOffCvar = -1;
+	int32 LabelHideCvar = -1;
+	int32 LabelOnFrames = 0;
+	int32 LabelOffFrames = 0;
+	int32 LabelHideFrames = 0;
+	int32 LabelTransitionEntries = 0;
+	int32 LabelTransitionFrames = 0;
+	int32 LabelSuppressedEntries = 0;
+	TMap<FString, AnomalyLabelSync::FEventTransitionTrack> TransitionTracks;
+	struct FHideTrack
+	{
+		FAutoLiveFireInfo Fire;
+		AnomalyLabelSync::FHideReturnTrack Track;
+	};
+	TMap<FString, FHideTrack> HideTracks;
+
+	void ResetLabelSync()
+	{
+		LabelTransitionEntries = 0;
+		LabelTransitionFrames = 0;
+		LabelSuppressedEntries = 0;
+		TransitionTracks.Reset();
+		HideTracks.Reset();
+	}
+
+	int32 TransitionOutOfOrder() const
+	{
+		int32 N = 0;
+		for (const TPair<FString, AnomalyLabelSync::FEventTransitionTrack>& KV : TransitionTracks)
+		{
+			N += KV.Value.OutOfOrder;
+		}
+		return N;
+	}
 
 	void ResetRenderTruth()
 	{
@@ -1108,6 +1161,7 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick Tick
 	const int32 OwnershipSessionIndex = bCapturedThisTick ? TargetMaskArmedSessionIndex : -1;
 	UpdateMaskRecordLabelledWindow();
 	const bool bArmedNormal = Async->MaskMeasure.ArmIfMeasurable(Async->MaskExtension.Get(), GFrameCounter, false);
+	RefreshMaskTagReleasability();
 
 	if (bCapturedThisTick)
 	{
@@ -3460,6 +3514,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		bRenderTruthRun ? TEXT("RENDER RECORD") : (GBenchStuckMipLegacyTiming ? TEXT("LEGACY GAME-THREAD MIRROR (IAI.Bench.StuckMipLegacyTiming)") : TEXT("NONE - stuck_low_mip refused")),
 		StuckMipSettleTailFrames, StuckMipTrailTimeoutFrames,
 		AnomalyStuckMip::IsLegacyPurityLeverOn() ? TEXT("LEGACY visible-only (IAI.Bench.StuckMipLegacyPurity)") : TEXT("exactly one user component in the whole loaded world"));
+	ResolveLabelSyncForRun();
 	ExposureLumBySessionIndex.Reset();
 	ExposureExclusionMask.Reset();
 	ExposureExclusionFolded.Reset();
@@ -4578,6 +4633,13 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		const FString ImageName = FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), Snap->SessionIndex, Ext);
 		int32 NumLabels = 0;
 		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, OutW, OutH, ImageName, NumLabels);
+		const AnomalyLabel::FLabelEntryCounts EntryCounts = AnomalyLabel::CountLabelEntries(*Snap);
+		Async->LabelTransitionEntries += EntryCounts.TransitionEntries;
+		Async->LabelSuppressedEntries += EntryCounts.Suppressed;
+		if (EntryCounts.TransitionEntries > 0)
+		{
+			++Async->LabelTransitionFrames;
+		}
 
 		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePos, Snap->View, Snap->NearClip,
 			Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds);
@@ -4595,7 +4657,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Job.OutHeight = OutH;
 		Job.ImageRelPath = ImageName;
 		Job.Record = Record;
-		Job.bPositive = Snap->Fires.Num() > 0;
+		Job.bPositive = EntryCounts.bPresent;
 		Job.bWriteLabels = !bDeliveryMode || bLabelsInDelivery;
 		Async->Writer->Enqueue(MoveTemp(Job));
 
@@ -5252,6 +5314,7 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 			}
 		}
 		FinalizeRenderTruthArm(*Snap);
+		AddDetachedTransitionCandidates(*Snap);
 	}
 	Snap->FirePos.Reset();
 	Snap->FirePos.Reserve(Snap->Fires.Num());
@@ -5449,6 +5512,7 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 	{
 		Snap->FireLabelled.Add(IsFireLabelledThisFrame(F) ? 1 : 0);
 	}
+	StepHideTransitions(*Snap);
 
 	{
 		const UWorld* CondWorld = GetWorld();
@@ -6657,12 +6721,195 @@ void UAnomalyCaptureSubsystem::ComputeRenderMembership(const FAnomalyCapturedFra
 	HandleTrailReopens();
 }
 
+void UAnomalyCaptureSubsystem::ResolveLabelSyncForRun()
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	Async->ResetLabelSync();
+	UWorld* World = GetWorld();
+	int32 CvarValue = -1;
+	if (IConsoleVariable* AaVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AntiAliasingMethod")))
+	{
+		CvarValue = AaVar->GetInt();
+	}
+	Async->LabelAaMethod = World ? (int32)GetDefaultAntiAliasingMethod(World->FeatureLevel.GetValue()) : CvarValue;
+	Async->bLabelTemporalAa = AnomalyLabelSync::IsTemporalMethod(Async->LabelAaMethod);
+	Async->LabelOnCvar = GLabelTransitionOnFrames.GetValueOnGameThread();
+	Async->LabelOffCvar = GLabelTransitionOffFrames.GetValueOnGameThread();
+	Async->LabelHideCvar = GLabelTransitionHideFrames.GetValueOnGameThread();
+	Async->LabelOnFrames = AnomalyLabelSync::ResolveTransitionFrames(Async->LabelOnCvar,
+		AnomalyLabelSync::DefaultOnFramesTemporal, Async->bLabelTemporalAa);
+	Async->LabelOffFrames = AnomalyLabelSync::ResolveTransitionFrames(Async->LabelOffCvar,
+		AnomalyLabelSync::DefaultOffFramesTemporal, Async->bLabelTemporalAa);
+	Async->LabelHideFrames = AnomalyLabelSync::ResolveTransitionFrames(Async->LabelHideCvar,
+		AnomalyLabelSync::DefaultHideFramesTemporal, Async->bLabelTemporalAa);
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("=== Capture(labelsync): EFFECTIVE FOR THIS RUN - anti-aliasing method %s (r.AntiAliasingMethod=%d, effective %d), ")
+		TEXT("temporal=%d; transition frames on=%d off=%d hide=%d (IAI.Label.TransitionOnFrames=%d TransitionOffFrames=%d ")
+		TEXT("TransitionHideFrames=%d; -1 = default 2/8/1 under temporal AA; every value is 0 without temporal AA) === ")
+		TEXT("A labels.jsonl entry with transition=1 marks a frame the temporal history may smear: the first labelled frames of ")
+		TEXT("a stuck_low_mip event, the frames after its last labelled frame (those set NO anomaly_present), and the first ")
+		TEXT("frame after a hidden object returns. Labels stay on the exact render truth; the flag is additive. Only frames ")
+		TEXT("labelled on that frame set anomaly_present for stuck_low_mip."),
+		UTF8_TO_TCHAR(AnomalyLabelSync::DescribeAaMethod(Async->LabelAaMethod)), CvarValue, Async->LabelAaMethod,
+		Async->bLabelTemporalAa ? 1 : 0, Async->LabelOnFrames, Async->LabelOffFrames, Async->LabelHideFrames,
+		Async->LabelOnCvar, Async->LabelOffCvar, Async->LabelHideCvar);
+}
+
+void UAnomalyCaptureSubsystem::StepHideTransitions(AnomalyLabel::FCaptureSnapshot& Snap)
+{
+	if (!Async.IsValid() || Async->LabelHideFrames <= 0)
+	{
+		return;
+	}
+	TSet<FString> Seen;
+	for (int32 i = 0; i < Snap.Fires.Num(); ++i)
+	{
+		const FAutoLiveFireInfo& F = Snap.Fires[i];
+		bool bKnownId = false;
+		if (ResolveAnomalyActiveSource(F.Id, bKnownId) != EAnomalyActiveSource::ActorHidden)
+		{
+			continue;
+		}
+		const FString Key = FString::Printf(TEXT("%s@%llu|%s"), *F.Id.ToString(), F.StartFrame, *F.Target);
+		Seen.Add(Key);
+		FAnomalyCaptureAsyncState::FHideTrack& H = Async->HideTracks.FindOrAdd(Key);
+		H.Fire = F;
+		const bool bHidden = Snap.FireLabelled.IsValidIndex(i) && Snap.FireLabelled[i] != 0;
+		if (AnomalyLabelSync::StepHideLive(H.Track, bHidden, Async->LabelHideFrames))
+		{
+			if (Snap.EntryTransition.Num() != Snap.Fires.Num())
+			{
+				Snap.EntryTransition.SetNumZeroed(Snap.Fires.Num());
+			}
+			Snap.EntryTransition[i] = 1;
+		}
+	}
+	for (auto It = Async->HideTracks.CreateIterator(); It; ++It)
+	{
+		if (Seen.Contains(It.Key()))
+		{
+			continue;
+		}
+		if (AnomalyLabelSync::StepHideGone(It.Value().Track, Async->LabelHideFrames))
+		{
+			FAutoLiveFireInfo Returned = It.Value().Fire;
+			Returned.SecondsRemaining = 0;
+			Snap.TransitionFires.Add(MoveTemp(Returned));
+		}
+		if (AnomalyLabelSync::HideTrackDone(It.Value().Track))
+		{
+			It.RemoveCurrent();
+		}
+	}
+}
+
+void UAnomalyCaptureSubsystem::AddDetachedTransitionCandidates(AnomalyLabel::FCaptureSnapshot& Snap)
+{
+	if (!Async.IsValid() || !bRenderTruthRun || Async->LabelOffFrames <= 0)
+	{
+		return;
+	}
+	for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
+	{
+		if (Trail.Window.AttachedForProducts())
+		{
+			continue;
+		}
+		const AnomalyLabelSync::FEventTransitionTrack* Track = Async->TransitionTracks.Find(Trail.Key);
+		if (Track && !Track->bOffDone && Track->LastMember() >= 0)
+		{
+			Snap.TransitionCandidates.Add(Trail.Fire);
+		}
+	}
+}
+
+void UAnomalyCaptureSubsystem::ResolveDetachedTransitionCandidates(AnomalyLabel::FCaptureSnapshot& Snap)
+{
+	if (!Async.IsValid() || Snap.TransitionCandidates.Num() == 0)
+	{
+		return;
+	}
+	for (const FAutoLiveFireInfo& C : Snap.TransitionCandidates)
+	{
+		const bool bInFrame = Snap.Fires.ContainsByPredicate([&C](const FAutoLiveFireInfo& F)
+		{
+			return F.Id == C.Id && F.StartFrame == C.StartFrame;
+		});
+		if (bInFrame)
+		{
+			continue;
+		}
+		AnomalyLabelSync::FEventTransitionTrack* Track = Async->TransitionTracks.Find(StuckMipEventKey(C.Id, C.StartFrame));
+		if (!Track)
+		{
+			continue;
+		}
+		bool bOn = false;
+		bool bOff = false;
+		Track->Observe(Snap.SessionIndex, false, Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff);
+		if (bOff)
+		{
+			FAutoLiveFireInfo Entry = C;
+			Entry.SecondsRemaining = 0;
+			Snap.TransitionFires.Add(MoveTemp(Entry));
+		}
+		else if (Track->OffWindowPassed(Snap.SessionIndex, Async->LabelOffFrames))
+		{
+			Track->bOffDone = true;
+		}
+	}
+	Snap.TransitionCandidates.Reset();
+}
+
+void UAnomalyCaptureSubsystem::RefreshMaskTagReleasability()
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	const TArray<FAutoLiveFireInfo> Live = Auto ? Auto->GetLiveFires() : TArray<FAutoLiveFireInfo>();
+	TSet<uint8> PendingMaskTags;
+	for (const TPair<uint64, TSet<uint8>>& Pair : TargetMaskPendingTags)
+	{
+		PendingMaskTags.Append(Pair.Value);
+	}
+	Async->MaskMeasure.RefreshTagReleasability([this, &Live, &PendingMaskTags](const FAnomalyMaskRecord& R)
+	{
+		FAnomalyTagReleaseExternal Ext;
+		const auto SameEvent = [&R](const FAutoLiveFireInfo& F)
+		{
+			return F.Id == R.Id && F.StartFrame == R.StartFrame && F.Target == R.Target;
+		};
+		Ext.bFireLive = Live.ContainsByPredicate(SameEvent) || ActiveSessionGlobals.Contains(R.Id);
+		if (const FAnomalyCaptureAsyncState::FStuckTrail* Trail = Async->FindTrail(StuckMipEventKey(R.Id, R.StartFrame)))
+		{
+			Ext.bTrailBlocks = AnomalyLabelSync::TrailBlocksRelease(true, Trail->Window.AttachedForProducts(),
+				Trail->Window.AllNotedProcessed());
+		}
+		for (const TPair<uint64, AnomalyLabel::FCaptureSnapshot>& Pending : Async->PendingSnapshots)
+		{
+			if (Pending.Value.Fires.ContainsByPredicate(SameEvent))
+			{
+				Ext.bInPendingSnapshot = true;
+				break;
+			}
+		}
+		Ext.bInPendingTargetMask = PendingMaskTags.Contains(R.Tag);
+		return Ext;
+	}, (uint64)GFrameCounter);
+}
+
 void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot(AnomalyLabel::FCaptureSnapshot& Snap)
 {
 	if (!Async.IsValid())
 	{
 		return;
 	}
+	ResolveDetachedTransitionCandidates(Snap);
 	ResolvePendingMembership(Snap.SessionIndex);
 	const TMap<FString, FAnomalyCaptureAsyncState::FRenderEventResult>* FrameResults =
 		Async->RenderResultBySI.Find(Snap.SessionIndex);
@@ -6675,6 +6922,8 @@ void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot(AnomalyLabel::FCapture
 	if (Snap.FireLabelled.Num() != N) { Snap.FireLabelled.SetNumZeroed(N); }
 	if (Snap.ConditionHeld.Num() != N) { Snap.ConditionHeld.SetNumZeroed(N); }
 	if (Snap.Telemetry.Num() != N) { Snap.Telemetry.SetNum(N); }
+	if (Snap.EntryEmit.Num() != N) { Snap.EntryEmit.SetNumZeroed(N); }
+	if (Snap.EntryTransition.Num() != N) { Snap.EntryTransition.SetNumZeroed(N); }
 	static const FString HeldKey(TEXT("stuck_mip.held"));
 	for (int32 i = 0; i < N; ++i)
 	{
@@ -6697,6 +6946,21 @@ void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot(AnomalyLabel::FCapture
 		Snap.FireActive[i] = bMember ? 1 : 0;
 		Snap.FireLabelled[i] = bMember ? 1 : 0;
 		Snap.ConditionHeld[i] = bMember ? 1 : 0;
+
+		{
+			const bool bNewTrack = !Async->TransitionTracks.Contains(Key);
+			AnomalyLabelSync::FEventTransitionTrack& Track = Async->TransitionTracks.FindOrAdd(Key);
+			if (bNewTrack && R->bTrailing)
+			{
+				const FAnomalyCaptureAsyncState::FStuckTrail* OwnTrail = Async->FindTrail(Key);
+				Track.bOnsetPast = OwnTrail && OwnTrail->Window.bInherited;
+			}
+			bool bOnTransition = false;
+			bool bOffTransition = false;
+			Track.Observe(Snap.SessionIndex, bMember, Async->LabelOnFrames, Async->LabelOffFrames, bOnTransition, bOffTransition);
+			Snap.EntryEmit[i] = (uint8)AnomalyLabelSync::DecideRenderTruthEntry(bMember, bOffTransition);
+			Snap.EntryTransition[i] = bOnTransition ? 1 : 0;
+		}
 
 		if (R->bRecord) { ++Async->RenderRecordFrames; }
 		if (R->Membership == AnomalyStuckMipWindow::EMembership::Held) { ++Async->RenderHeldFrames; }
@@ -7750,6 +8014,33 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			Async->ChangeStage->Diagnostic(TEXT("late_record_mutations"), Before == After ? 0 : 1);
 			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(m55): LATE-FROZEN beforeChars=%d afterChars=%d mutations=%d"), Before.Len(), After.Len(), Before == After ? 0 : 1);
 		}
+		AnomalyLabel::FLabelSyncTelemetry LabelSyncReport;
+		if (Async.IsValid())
+		{
+			LabelSyncReport.AaMethod = UTF8_TO_TCHAR(AnomalyLabelSync::DescribeAaMethod(Async->LabelAaMethod));
+			LabelSyncReport.AaMethodValue = Async->LabelAaMethod;
+			LabelSyncReport.bTemporalAa = Async->bLabelTemporalAa;
+			LabelSyncReport.OnFramesConfigured = Async->LabelOnCvar;
+			LabelSyncReport.OffFramesConfigured = Async->LabelOffCvar;
+			LabelSyncReport.HideFramesConfigured = Async->LabelHideCvar;
+			LabelSyncReport.OnFrames = Async->LabelOnFrames;
+			LabelSyncReport.OffFrames = Async->LabelOffFrames;
+			LabelSyncReport.HideFrames = Async->LabelHideFrames;
+			LabelSyncReport.TransitionEntries = Async->LabelTransitionEntries;
+			LabelSyncReport.TransitionFrames = Async->LabelTransitionFrames;
+			LabelSyncReport.SuppressedEntries = Async->LabelSuppressedEntries;
+			LabelSyncReport.OutOfOrderFrames = Async->TransitionOutOfOrder();
+			LabelSyncReport.MaskTagRecycles = Async->MaskMeasure.GetTagRecycles();
+			LabelSyncReport.MaskTagPeakLive = Async->MaskMeasure.GetTagPeakLive();
+			LabelSyncReport.MaskTagExhausted = Async->MaskMeasure.GetTagExhausted();
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(labelsync): RUN SUMMARY aa=%s temporal=%d on=%d off=%d hide=%d transitionEntries=%d transitionFrames=%d ")
+				TEXT("suppressedEntries=%d outOfOrder=%d maskTagRecycles=%d maskTagPeakLive=%d maskTagExhausted=%d"),
+				*LabelSyncReport.AaMethod, LabelSyncReport.bTemporalAa ? 1 : 0, LabelSyncReport.OnFrames, LabelSyncReport.OffFrames,
+				LabelSyncReport.HideFrames, LabelSyncReport.TransitionEntries, LabelSyncReport.TransitionFrames,
+				LabelSyncReport.SuppressedEntries, LabelSyncReport.OutOfOrderFrames, LabelSyncReport.MaskTagRecycles,
+				LabelSyncReport.MaskTagPeakLive, LabelSyncReport.MaskTagExhausted);
+		}
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
@@ -7766,7 +8057,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TranslucentOnlyExcludedTargets,
 			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0,
 			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed, &StuckMipReport,
-			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr);
+			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr,
+			Async.IsValid() ? &LabelSyncReport : nullptr);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")

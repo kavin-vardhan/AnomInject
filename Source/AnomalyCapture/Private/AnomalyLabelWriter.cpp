@@ -8,6 +8,7 @@
 #include "AnomalyViewport.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyCensus.h"
+#include "AnomalyLabelSync.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -35,6 +36,50 @@ namespace
 		return { LabelNum(X), LabelNum(Y), LabelNum(Z) };
 	}
 
+	AnomalyLabelSync::EEntryEmit EmitAt(const TArray<uint8>* Modes, int32 Index)
+	{
+		return (Modes && Modes->IsValidIndex(Index))
+			? (AnomalyLabelSync::EEntryEmit)(*Modes)[Index] : AnomalyLabelSync::EEntryEmit::Normal;
+	}
+
+	bool TransitionAt(const TArray<uint8>* Modes, const TArray<uint8>* Transition, int32 Index)
+	{
+		const AnomalyLabelSync::EEntryEmit Mode = EmitAt(Modes, Index);
+		if (Mode == AnomalyLabelSync::EEntryEmit::TransitionOnly)
+		{
+			return true;
+		}
+		return Mode == AnomalyLabelSync::EEntryEmit::Normal
+			&& Transition && Transition->IsValidIndex(Index) && (*Transition)[Index] != 0;
+	}
+
+	AnomalyLabel::FLabelEntryCounts CountEntries(int32 NumFires, const TArray<uint8>* Modes, const TArray<uint8>* Transition,
+		const TArray<FAutoLiveFireInfo>* TransitionFires)
+	{
+		AnomalyLabel::FLabelEntryCounts C;
+		for (int32 i = 0; i < NumFires; ++i)
+		{
+			const AnomalyLabelSync::EEntryEmit Mode = EmitAt(Modes, i);
+			if (Mode == AnomalyLabelSync::EEntryEmit::Normal)
+			{
+				C.bPresent = true;
+			}
+			else if (Mode == AnomalyLabelSync::EEntryEmit::Suppress)
+			{
+				++C.Suppressed;
+			}
+			if (TransitionAt(Modes, Transition, i))
+			{
+				++C.TransitionEntries;
+			}
+		}
+		if (TransitionFires)
+		{
+			C.TransitionEntries += TransitionFires->Num();
+		}
+		return C;
+	}
+
 	FString BuildFrameLabelRecord(const TArray<FAutoLiveFireInfo>& Fires,
 		const FAnomalyViewInfo& View, int32 W, int32 H, uint64 FrameIndex, int32 SessionIndex, double TimeSeconds,
 		double WallSeconds, const FString& ImageName, int32& OutNumLabels,
@@ -43,7 +88,9 @@ namespace
 		int32 ShadersPending = 0, int32 AnomalyMaterialsIncomplete = 0, bool bExposureDip = false,
 		const TArray<int32>* TargetPixels = nullptr, const TArray<uint8>* Observable = nullptr,
 		const TArray<FIntRect>* DrawnBounds = nullptr, const TArray<int32>* TargetDrawnPixels = nullptr,
-		bool bExposureDipScopeExcluded = false, const TArray<FAnomalyTelemetry>* Telemetry = nullptr)
+		bool bExposureDipScopeExcluded = false, const TArray<FAnomalyTelemetry>* Telemetry = nullptr,
+		const TArray<uint8>* EntryEmit = nullptr, const TArray<uint8>* EntryTransition = nullptr,
+		const TArray<FAutoLiveFireInfo>* TransitionFires = nullptr)
 	{
 		OutNumLabels = 0;
 
@@ -55,13 +102,16 @@ namespace
 		Root->SetStringField(TEXT("image"), ImageName);
 		Root->SetNumberField(TEXT("width"), W);
 		Root->SetNumberField(TEXT("height"), H);
-		Root->SetBoolField(TEXT("anomaly_present"), Fires.Num() > 0);
+		const AnomalyLabel::FLabelEntryCounts Counts = CountEntries(Fires.Num(), EntryEmit, EntryTransition, TransitionFires);
+		Root->SetBoolField(TEXT("anomaly_present"), Counts.bPresent);
+		if (Counts.TransitionEntries > 0)
+		{
+			Root->SetBoolField(TEXT("transition_present"), true);
+		}
 
 		TArray<TSharedPtr<FJsonValue>> Anoms;
-		int32 FireIndex = -1;
-		for (const FAutoLiveFireInfo& F : Fires)
+		auto EmitEntry = [&](const FAutoLiveFireInfo& F, int32 FireIndex, bool bTransition, bool bSetsPresent)
 		{
-			++FireIndex;
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			O->SetStringField(TEXT("id"), F.Id.ToString());
 			O->SetStringField(TEXT("target_name"), F.Target);
@@ -178,15 +228,36 @@ namespace
 				}
 			}
 
-			if (bValid)
+			if (bTransition)
+			{
+				O->SetNumberField(TEXT("transition"), 1);
+			}
+			if (bValid && bSetsPresent)
 			{
 				++OutNumLabels;
 			}
 			Anoms.Add(MakeShared<FJsonValueObject>(O));
+		};
+		for (int32 FireIndex = 0; FireIndex < Fires.Num(); ++FireIndex)
+		{
+			const AnomalyLabelSync::EEntryEmit Mode = EmitAt(EntryEmit, FireIndex);
+			if (Mode == AnomalyLabelSync::EEntryEmit::Suppress)
+			{
+				continue;
+			}
+			EmitEntry(Fires[FireIndex], FireIndex, TransitionAt(EntryEmit, EntryTransition, FireIndex),
+				Mode == AnomalyLabelSync::EEntryEmit::Normal);
+		}
+		if (TransitionFires)
+		{
+			for (const FAutoLiveFireInfo& F : *TransitionFires)
+			{
+				EmitEntry(F, INDEX_NONE, true, false);
+			}
 		}
 		Root->SetArrayField(TEXT("anomalies"), Anoms);
 
-		Root->SetBoolField(TEXT("visible_positive"), (Fires.Num() > 0) && (OutNumLabels > 0));
+		Root->SetBoolField(TEXT("visible_positive"), Counts.bPresent && (OutNumLabels > 0));
 
 		if (bTargetMask)
 		{
@@ -546,7 +617,13 @@ namespace AnomalyLabel
 			Snapshot.bTargetMask, Snapshot.MaskFileRel, &Snapshot.MaskValues, Snapshot.MaskState,
 			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete, Snapshot.bExposureDip,
 			&Snapshot.TargetPixels, &Snapshot.Observable, &Snapshot.DrawnBounds,
-			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded, &Snapshot.Telemetry);
+			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded, &Snapshot.Telemetry,
+			&Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires);
+	}
+
+	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot)
+	{
+		return CountEntries(Snapshot.Fires.Num(), &Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires);
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -706,7 +783,8 @@ namespace AnomalyLabel
 		int32 FramesExposureDip, const FObservabilityTelemetry* Observability,
 		int32 TranslucentOnlyExcludedTargets, int32 UnmeasurableTargetsAdmitted,
 		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed,
-		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary)
+		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary,
+		const FLabelSyncTelemetry* LabelSync)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -907,6 +985,26 @@ namespace AnomalyLabel
 			L->SetNumberField(TEXT("row_pitch_in_pixels"), ReadbackLayout->RowPitchInPixels);
 			L->SetNumberField(TEXT("pixel_format"), ReadbackLayout->Format);
 			Root->SetObjectField(TEXT("readback_layout"), L);
+		}
+
+		if (LabelSync)
+		{
+			Root->SetStringField(TEXT("label_aa_method"), LabelSync->AaMethod);
+			Root->SetNumberField(TEXT("label_aa_method_cvar"), LabelSync->AaMethodValue);
+			Root->SetBoolField(TEXT("label_temporal_aa"), LabelSync->bTemporalAa);
+			Root->SetNumberField(TEXT("label_transition_on_frames"), LabelSync->OnFrames);
+			Root->SetNumberField(TEXT("label_transition_off_frames"), LabelSync->OffFrames);
+			Root->SetNumberField(TEXT("label_transition_hide_frames"), LabelSync->HideFrames);
+			Root->SetNumberField(TEXT("label_transition_on_frames_cvar"), LabelSync->OnFramesConfigured);
+			Root->SetNumberField(TEXT("label_transition_off_frames_cvar"), LabelSync->OffFramesConfigured);
+			Root->SetNumberField(TEXT("label_transition_hide_frames_cvar"), LabelSync->HideFramesConfigured);
+			Root->SetNumberField(TEXT("label_transition_entries"), LabelSync->TransitionEntries);
+			Root->SetNumberField(TEXT("label_transition_frames"), LabelSync->TransitionFrames);
+			Root->SetNumberField(TEXT("label_entries_suppressed"), LabelSync->SuppressedEntries);
+			Root->SetNumberField(TEXT("label_transition_out_of_order"), LabelSync->OutOfOrderFrames);
+			Root->SetNumberField(TEXT("mask_tag_recycles"), LabelSync->MaskTagRecycles);
+			Root->SetNumberField(TEXT("mask_tag_peak_live"), LabelSync->MaskTagPeakLive);
+			Root->SetNumberField(TEXT("mask_tag_exhausted"), LabelSync->MaskTagExhausted);
 		}
 
 		FString Out;

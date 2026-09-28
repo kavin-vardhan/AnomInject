@@ -44,6 +44,18 @@ struct FAnomalyMaskRecord
 	bool bLabelledThisTick = false;
 	int32 ArmsDeferred = 0;
 	TArray<int32> PerArmCounts;
+
+	bool bReleasable = false;
+	int64 ReleasableSinceTick = -1;
+	bool bTagRecycled = false;
+};
+
+struct FAnomalyTagReleaseExternal
+{
+	bool bFireLive = false;
+	bool bTrailBlocks = false;
+	bool bInPendingSnapshot = false;
+	bool bInPendingTargetMask = false;
 };
 
 class FAnomalyMaskMeasure
@@ -79,8 +91,15 @@ public:
 	int32 TotalResidualDiscards() const;
 	int32 TotalNoPassDiscards() const;
 
+	int32 RefreshTagReleasability(TFunctionRef<FAnomalyTagReleaseExternal(const FAnomalyMaskRecord&)> External, uint64 Tick);
+	int32 GetTagRecycles() const { return TagRecycles; }
+	int32 GetTagPeakLive() const { return TagPeakLive; }
+	int32 GetTagExhausted() const { return TagExhausted; }
+
 private:
-	int32 AllocateTag();
+	int32 AllocateTag(FName ForId, const FString& ForTarget, uint64 ForStartFrame);
+	int32 ReclaimReleasableTag(FName ForId, const FString& ForTarget, uint64 ForStartFrame);
+	bool IsRecordArmInFlight(int32 Index) const;
 
 	TArray<FAnomalyMaskRecord> Records;
 	TMap<uint64, int32> ArmedRequestToRecord;
@@ -92,6 +111,9 @@ private:
 	FAnomalyStencilTagLedger* Ledger = nullptr;
 	int32 NextTagOffset = 0;
 	bool bArmWindowGate = true;
+	int32 TagRecycles = 0;
+	int32 TagPeakLive = 0;
+	int32 TagExhausted = 0;
 };
 
 #endif

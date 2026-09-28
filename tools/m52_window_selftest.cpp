@@ -1,4 +1,5 @@
 #include "../Source/AnomalyInjector/Public/AnomalyStuckMipWindow.h"
+#include "../Source/AnomalyInjector/Public/AnomalyLabelSync.h"
 #include "m52_window_legacy_90dfa6f.h"
 
 #include <algorithm>
@@ -967,6 +968,466 @@ static void TestMonitorCost()
 	Check(O.P95Ms == 3.5 && O.MeanMs == 3.5, "monitor: a single scan is its own p95");
 }
 
+namespace Legacy44584
+{
+	inline bool FramePresent(int NumFires)
+	{
+		return NumFires > 0;
+	}
+
+	inline int EmittedEntries(int NumFires)
+	{
+		return NumFires;
+	}
+
+	inline int AllocateTag(std::set<int>& Claimed, int& NextOffset, int Base, int Span)
+	{
+		for (int i = 0; i < Span; ++i)
+		{
+			const int Tag = Base + ((NextOffset + i) % Span);
+			if (!Claimed.count(Tag))
+			{
+				Claimed.insert(Tag);
+				NextOffset = (NextOffset + i + 1) % Span;
+				return Tag;
+			}
+		}
+		return 0;
+	}
+}
+
+struct FM52Frame
+{
+	int SI = 0;
+	bool bEventInFires = false;
+	bool bMember = false;
+};
+
+static std::vector<FM52Frame> BuildM52Sequence()
+{
+	std::vector<FM52Frame> Seq;
+	for (int si = 0; si < 48; ++si)
+	{
+		FM52Frame F;
+		F.SI = si;
+		F.bEventInFires = si >= 2;
+		F.bMember = si >= 4 && si <= 15;
+		Seq.push_back(F);
+	}
+	return Seq;
+}
+
+static void TestG350PostClosure()
+{
+	using namespace AnomalyLabelSync;
+	const std::vector<FM52Frame> Seq = BuildM52Sequence();
+
+	int LegacyPresentUnlabelled = 0;
+	int LegacyEntriesUnlabelled = 0;
+	for (const FM52Frame& F : Seq)
+	{
+		const int NumFires = F.bEventInFires ? 1 : 0;
+		if (!F.bMember && Legacy44584::FramePresent(NumFires)) { ++LegacyPresentUnlabelled; }
+		if (!F.bMember) { LegacyEntriesUnlabelled += Legacy44584::EmittedEntries(NumFires); }
+	}
+	Check(LegacyPresentUnlabelled == 34 && LegacyEntriesUnlabelled == 34,
+		"G350 44584e7: anomaly_present and an entry on all 34 unlabelled frames with the event attached (pre-onset 2 + post-closure 32)");
+
+	for (int Pass = 0; Pass < 2; ++Pass)
+	{
+		const int On = Pass == 0 ? 0 : 2;
+		const int Off = Pass == 0 ? 0 : 8;
+		FEventTransitionTrack Track;
+		int PresentUnlabelled = 0;
+		int PresentLabelled = 0;
+		int PositiveEntriesUnlabelled = 0;
+		std::vector<int> OffTransitionSI;
+		std::vector<int> OnTransitionSI;
+		for (const FM52Frame& F : Seq)
+		{
+			EEntryEmit Mode = EEntryEmit::Normal;
+			bool bOnT = false;
+			if (F.bEventInFires)
+			{
+				bool bOff = false;
+				Track.Observe(F.SI, F.bMember, On, Off, bOnT, bOff);
+				Mode = DecideRenderTruthEntry(F.bMember, bOff);
+				if (Mode == EEntryEmit::TransitionOnly) { OffTransitionSI.push_back(F.SI); }
+				if (bOnT) { OnTransitionSI.push_back(F.SI); }
+			}
+			const bool bPresent = FramePresent(&Mode, F.bEventInFires ? 1 : 0, F.bEventInFires ? 1 : 0);
+			if (bPresent && !F.bMember) { ++PresentUnlabelled; }
+			if (bPresent && F.bMember) { ++PresentLabelled; }
+			if (!F.bMember && F.bEventInFires && Mode == EEntryEmit::Normal) { ++PositiveEntriesUnlabelled; }
+		}
+		const std::string Tag = Pass == 0 ? "AA off (0/0)" : "temporal AA (2/8)";
+		Check(PresentUnlabelled == 0 && PresentLabelled == 12 && PositiveEntriesUnlabelled == 0,
+			"G350 fixed, " + Tag + ": anomaly_present exactly on the 12 labelled frames, no positive entry on an unlabelled frame");
+		if (Pass == 0)
+		{
+			Check(OffTransitionSI.empty() && OnTransitionSI.empty(), "G350 fixed, AA off: no transition entry at all");
+		}
+		else
+		{
+			Check(OnTransitionSI == std::vector<int>({ 4, 5 }), "transition, temporal AA: first 2 labelled frames flagged " + Str(OnTransitionSI));
+			Check(OffTransitionSI == std::vector<int>({ 16, 17, 18, 19, 20, 21, 22, 23 }),
+				"transition, temporal AA: the 8 frames after the last labelled frame carry a non-present entry " + Str(OffTransitionSI));
+		}
+	}
+
+	for (int n = 0; n <= 5; ++n)
+	{
+		std::vector<EEntryEmit> Empty;
+		Check(FramePresent(Empty.data(), 0, n) == Legacy44584::FramePresent(n),
+			"non-m52 identity: with no emission modes the present rule equals 44584e7's Fires.Num() > 0 at n=" + std::to_string(n));
+	}
+	Check(ModeAt(nullptr, 0, 3) == EEntryEmit::Normal, "non-m52 identity: a fire with no mode is emitted exactly as before");
+}
+
+static void TestTransitionTrackOrder()
+{
+	using namespace AnomalyLabelSync;
+	FEventTransitionTrack T;
+	bool bOn = false, bOff = false;
+	T.Observe(10, true, 2, 8, bOn, bOff);
+	Check(bOn, "track: first member flagged");
+	T.Observe(10, true, 2, 8, bOn, bOff);
+	Check(!bOn && T.OutOfOrder == 0, "track: a duplicate observation is not flagged twice and is not out of order");
+	T.Observe(12, true, 2, 8, bOn, bOff);
+	Check(bOn, "track: second member flagged");
+	T.Observe(13, true, 2, 8, bOn, bOff);
+	Check(!bOn, "track: third member not flagged");
+	T.Observe(11, false, 2, 8, bOn, bOff);
+	Check(bOff && T.OutOfOrder == 1, "track: a late non-member inside the gap is an off transition and counted out of order");
+	T.Observe(22, false, 2, 8, bOn, bOff);
+	Check(!bOff && T.OffWindowPassed(22, 8), "track: 9 frames after the last member is outside K_off=8");
+	T.Observe(21, false, 2, 8, bOn, bOff);
+	Check(bOff, "track: exactly 8 frames after the last member is inside K_off=8");
+
+	FEventTransitionTrack Inherited;
+	Inherited.bOnsetPast = true;
+	Inherited.Observe(0, true, 2, 8, bOn, bOff);
+	Check(!bOn, "track: an inherited (carried) trail's first frame in a new run is not an onset");
+
+	FEventTransitionTrack Many;
+	int Flags = 0;
+	for (int si = 0; si < 300; ++si)
+	{
+		Many.Observe(si, true, 64, 64, bOn, bOff);
+		if (bOn) { ++Flags; }
+	}
+	Check(Flags == 64 && Many.NumRecent == FEventTransitionTrack::RecentCap, "track: 300 members flag exactly K_on=64 and stay bounded");
+	Many.Observe(363, false, 64, 64, bOn, bOff);
+	Check(bOff, "track: bounded memory still finds the last member (64 back)");
+}
+
+static void TestAaResolve()
+{
+	using namespace AnomalyLabelSync;
+	Check(IsTemporalMethod(AaTemporal) && IsTemporalMethod(AaTsr), "aa: TAA and TSR are temporal");
+	Check(!IsTemporalMethod(AaNone) && !IsTemporalMethod(AaFxaa) && !IsTemporalMethod(AaMsaa), "aa: none/FXAA/MSAA are not");
+	Check(ResolveTransitionFrames(-1, DefaultOnFramesTemporal, true) == 2
+		&& ResolveTransitionFrames(-1, DefaultOffFramesTemporal, true) == 8
+		&& ResolveTransitionFrames(-1, DefaultHideFramesTemporal, true) == 1, "aa: -1 resolves to the provisional 2/8/1 under temporal AA");
+	Check(ResolveTransitionFrames(-1, 8, false) == 0 && ResolveTransitionFrames(5, 8, false) == 0,
+		"aa: without temporal AA every value is 0, even an explicit one");
+	Check(ResolveTransitionFrames(3, 8, true) == 3 && ResolveTransitionFrames(0, 8, true) == 0
+		&& ResolveTransitionFrames(1000, 8, true) == MaxTransitionFrames, "aa: an explicit value is used and clamped to 64");
+}
+
+struct FGateFrame
+{
+	bool bLabelled = false;
+	bool bPixelVisible = false;
+	bool bTransition = false;
+};
+
+static bool TransitionGatePasses(const std::vector<FGateFrame>& Frames)
+{
+	for (const FGateFrame& F : Frames)
+	{
+		if (F.bTransition) { continue; }
+		if (F.bLabelled != F.bPixelVisible) { return false; }
+	}
+	return true;
+}
+
+static std::vector<FGateFrame> BuildSmearedEvent(int LabelledFrames, int OnsetLag, int ClearLag, bool bUseFlag, int On, int Off)
+{
+	using namespace AnomalyLabelSync;
+	std::vector<FGateFrame> Frames;
+	const int Start = 10;
+	const int End = Start + LabelledFrames - 1;
+	FEventTransitionTrack Track;
+	for (int si = 0; si < End + 20; ++si)
+	{
+		FGateFrame G;
+		G.bLabelled = si >= Start && si <= End;
+		G.bPixelVisible = si >= Start + OnsetLag && si <= End + ClearLag;
+		if (bUseFlag && si >= Start - 2)
+		{
+			bool bOn = false, bOff = false;
+			Track.Observe(si, G.bLabelled, On, Off, bOn, bOff);
+			const EEntryEmit Mode = DecideRenderTruthEntry(G.bLabelled, bOff);
+			G.bTransition = bOn || Mode == EEntryEmit::TransitionOnly;
+		}
+		Frames.push_back(G);
+	}
+	return Frames;
+}
+
+static void TestTransitionGate()
+{
+	int LegacyFails = 0;
+	int NewPasses = 0;
+	const int ClearLags[] = { 1, 2, 3, 4, 5, 6, 7 };
+	for (int ClearLag : ClearLags)
+	{
+		if (!TransitionGatePasses(BuildSmearedEvent(20, 2, ClearLag, false, 0, 0))) { ++LegacyFails; }
+		if (TransitionGatePasses(BuildSmearedEvent(20, 2, ClearLag, true, 2, 8))) { ++NewPasses; }
+	}
+	Check(LegacyFails == 7, "transition gate 44584e7: onset +2 and clear +1..+7 fail on all 7 (no transition flag exists)");
+	Check(NewPasses == 7, "transition gate new: every unlabelled pixel-visible and labelled-not-yet-visible frame is flagged, 7/7");
+	Check(TransitionGatePasses(BuildSmearedEvent(20, 0, 0, false, 0, 0)), "transition gate: an exact AA-off event passes with no flag");
+	Check(!TransitionGatePasses(BuildSmearedEvent(20, 2, 9, true, 2, 8)), "transition gate can fail on the new logic: clear +9 beyond K_off=8 FAILS");
+	Check(!TransitionGatePasses(BuildSmearedEvent(20, 3, 1, true, 2, 8)), "transition gate can fail on the new logic: onset +3 beyond K_on=2 FAILS");
+}
+
+static std::vector<int> RunHideSequence(const std::vector<int>& HiddenBySI, int LiveUntil, int Frames, int K, std::vector<int>* OutGone)
+{
+	using namespace AnomalyLabelSync;
+	FHideReturnTrack T;
+	std::vector<int> Live;
+	for (int si = 0; si < Frames; ++si)
+	{
+		if (si <= LiveUntil)
+		{
+			if (StepHideLive(T, HiddenBySI[si] != 0, K)) { Live.push_back(si); }
+		}
+		else
+		{
+			if (StepHideGone(T, K) && OutGone) { OutGone->push_back(si); }
+			if (HideTrackDone(T)) { break; }
+		}
+	}
+	return Live;
+}
+
+static void TestHideReturn()
+{
+	std::vector<int> Blink = { 0, 0, 1, 1, 0, 0, 0, 1, 1, 0 };
+	std::vector<int> Gone;
+	std::vector<int> Live = RunHideSequence(Blink, 8, 14, 1, &Gone);
+	Check(Live == std::vector<int>({ 4 }), "hide: blinking in-window return flagged at the first visible frame " + Str(Live));
+	Check(Gone == std::vector<int>({ 9 }), "hide: blinking final return (after revert) flagged on the first captured frame after it " + Str(Gone));
+	std::vector<int> Missing = { 1, 1, 1, 1, 1, 1, 1, 1 };
+	Gone.clear();
+	Live = RunHideSequence(Missing, 7, 12, 1, &Gone);
+	Check(Live.empty() && Gone == std::vector<int>({ 8 }), "hide: missing_object flags only the first frame after the object returns " + Str(Gone));
+	Gone.clear();
+	Live = RunHideSequence(Missing, 7, 12, 0, &Gone);
+	Check(Live.empty() && Gone.empty(), "hide: K=0 (no temporal AA) flags nothing");
+	std::vector<int> EndsVisible = { 0, 1, 1, 0, 0 };
+	Gone.clear();
+	Live = RunHideSequence(EndsVisible, 4, 8, 1, &Gone);
+	Check(Live == std::vector<int>({ 3 }) && Gone.empty(), "hide: an event that ends on a visible frame adds no post-revert entry");
+	Gone.clear();
+	Live = RunHideSequence(Missing, 7, 12, 2, &Gone);
+	Check(Gone == std::vector<int>({ 8, 9 }), "hide: K=2 flags the first two frames after return");
+
+	std::vector<FGateFrame> LegacyResidual;
+	std::vector<FGateFrame> NewResidual;
+	for (int si = 0; si < 12; ++si)
+	{
+		FGateFrame G;
+		G.bLabelled = si <= 7;
+		G.bPixelVisible = si <= 8;
+		LegacyResidual.push_back(G);
+		G.bTransition = si == 8;
+		NewResidual.push_back(G);
+	}
+	Check(!TransitionGatePasses(LegacyResidual), "hide gate 44584e7: the partly visible first frame after return fails (no flag)");
+	Check(TransitionGatePasses(NewResidual), "hide gate new: that frame carries transition=1 and passes");
+}
+
+struct FSimEvent
+{
+	int Fire = 0;
+	int End = 0;
+	int Target = 0;
+	int Tag = 0;
+	bool bRecycled = false;
+	bool bReleasable = false;
+	long long ReleasableSince = -1;
+	int AttachedUntil = -1;
+	int ArmsIssued = 0;
+};
+
+struct FSimResult
+{
+	int Events = 0;
+	int Untagged = 0;
+	int Recycles = 0;
+	int AliasFrames = 0;
+	int LabelledFramesWithoutMask = 0;
+	int PeakLive = 0;
+	int CarriedRecycledWhileAttached = 0;
+};
+
+enum class ESimPolicy { Legacy44584, Ruled, NaiveReleaseAtRevert };
+
+static FSimResult SimulateTagPool(ESimPolicy Policy, int NumEvents, int Gap, int Length, int Latency, int Pool, int CarriedAttachedUntil)
+{
+	using namespace AnomalyLabelSync;
+	const int Base = 200;
+	std::vector<FSimEvent> Ev;
+	std::set<int> Claimed;
+	int NextOffset = 0;
+	FSimResult Res;
+	int Next = 0;
+	if (CarriedAttachedUntil >= 0)
+	{
+		FSimEvent C;
+		C.Fire = -Length;
+		C.End = -1;
+		C.Target = 999;
+		C.AttachedUntil = CarriedAttachedUntil;
+		C.Tag = Legacy44584::AllocateTag(Claimed, NextOffset, Base, Pool);
+		Ev.push_back(C);
+	}
+	const int LastFrame = NumEvents * Gap + Length + Latency + 8;
+	for (int f = 0; f <= LastFrame; ++f)
+	{
+		for (size_t i = 0; i < Ev.size(); ++i)
+		{
+			FSimEvent& E = Ev[i];
+			const bool bLive = f >= E.Fire && f <= E.End;
+			if (f >= std::max(E.Fire, 0) && E.ArmsIssued < 4) { ++E.ArmsIssued; }
+			if (E.Tag == 0 || E.bRecycled) { E.bReleasable = false; continue; }
+			FTagReleaseInputs In;
+			In.Tag = E.Tag;
+			In.bFireLive = bLive || f < E.Fire;
+			In.bTrailBlocks = Policy == ESimPolicy::NaiveReleaseAtRevert ? false
+				: TrailBlocksRelease(E.AttachedUntil >= 0, f <= E.AttachedUntil, true);
+			const int LastProductFrame = std::max(E.End, E.AttachedUntil);
+			In.bInPendingSnapshot = Policy == ESimPolicy::NaiveReleaseAtRevert ? false : f <= LastProductFrame + Latency;
+			In.bInPendingTargetMask = In.bInPendingSnapshot;
+			In.bM26MayArmAgain = Policy == ESimPolicy::NaiveReleaseAtRevert ? false
+				: M26MayArmAgain(E.ArmsIssued, 4, true, false, false, false, bLive);
+			const bool bRel = IsTagReleasable(In);
+			if (bRel && !E.bReleasable) { E.ReleasableSince = f; }
+			E.bReleasable = bRel;
+		}
+		int Live = 0;
+		for (const FSimEvent& E : Ev) { if (E.Tag != 0 && !E.bRecycled && !E.bReleasable) { ++Live; } }
+		Res.PeakLive = std::max(Res.PeakLive, Live);
+
+		if (Next < NumEvents && f == Next * Gap)
+		{
+			FSimEvent E;
+			E.Fire = f;
+			E.End = f + Length - 1;
+			E.Target = Next % 7;
+			E.Tag = Legacy44584::AllocateTag(Claimed, NextOffset, Base, Pool);
+			if (E.Tag == 0 && Policy != ESimPolicy::Legacy44584)
+			{
+				std::vector<FRecycleCandidate> C;
+				for (size_t i = 0; i < Ev.size(); ++i)
+				{
+					FRecycleCandidate R;
+					R.Record = (int)i;
+					R.Tag = Ev[i].Tag;
+					R.bReleasable = Ev[i].bReleasable;
+					R.bAlreadyRecycled = Ev[i].bRecycled;
+					R.ReleasableSince = Ev[i].ReleasableSince;
+					C.push_back(R);
+				}
+				const int Pick = PickRecycleVictim(C.data(), (int)C.size());
+				if (Pick >= 0)
+				{
+					if (f <= Ev[C[Pick].Record].AttachedUntil) { ++Res.CarriedRecycledWhileAttached; }
+					Ev[C[Pick].Record].bRecycled = true;
+					E.Tag = C[Pick].Tag;
+					++Res.Recycles;
+				}
+			}
+			if (E.Tag == 0) { ++Res.Untagged; }
+			Ev.push_back(E);
+			++Res.Events;
+			++Next;
+		}
+
+		std::vector<int> InFlight;
+		for (const FSimEvent& E : Ev)
+		{
+			const int LastProductFrame = std::max(E.End, E.AttachedUntil);
+			const bool bCarrying = E.Tag != 0 && f >= E.Fire && f <= LastProductFrame + Latency;
+			if (bCarrying) { InFlight.push_back(E.Tag); }
+		}
+		if (AnyAlias(InFlight.data(), (int)InFlight.size())) { ++Res.AliasFrames; }
+		for (const FSimEvent& E : Ev)
+		{
+			if (E.Target != 999 && f >= E.Fire && f <= E.End && E.Tag == 0) { ++Res.LabelledFramesWithoutMask; }
+		}
+	}
+	return Res;
+}
+
+static void TestTagRecycling()
+{
+	const FSimResult Legacy = SimulateTagPool(ESimPolicy::Legacy44584, 90, 12, 8, 3, 55, -1);
+	Check(Legacy.Events == 90 && Legacy.Untagged == 35 && Legacy.LabelledFramesWithoutMask == 35 * 8,
+		"recycle 44584e7: 90 events on a 55-value pool leave the last 35 without a mask (" + std::to_string(Legacy.Untagged) + " untagged)");
+	const FSimResult Ruled = SimulateTagPool(ESimPolicy::Ruled, 90, 12, 8, 3, 55, -1);
+	Check(Ruled.Untagged == 0 && Ruled.LabelledFramesWithoutMask == 0 && Ruled.Recycles == 35,
+		"recycle new: all 90 events tagged, every labelled frame has a mask, 35 recycles (" + std::to_string(Ruled.Recycles) + ")");
+	Check(Ruled.AliasFrames == 0, "recycle new: no frame ever has two events in flight under one value (>55 events)");
+	Check(Ruled.PeakLive <= 2, "recycle new: peak live values stays small on a sequential auto-pool (" + std::to_string(Ruled.PeakLive) + ")");
+	Check(Legacy.AliasFrames == 0, "recycle 44584e7: never recycles, so never aliases (the coverage case is where it fails)");
+
+	const FSimResult Short = SimulateTagPool(ESimPolicy::Ruled, 40, 12, 8, 3, 55, -1);
+	const FSimResult ShortLegacy = SimulateTagPool(ESimPolicy::Legacy44584, 40, 12, 8, 3, 55, -1);
+	Check(Short.Recycles == 0 && Short.Untagged == ShortLegacy.Untagged && Short.Untagged == 0,
+		"recycle new: a run that never exhausts the pool recycles nothing (allocation identical to 44584e7)");
+
+	const FSimResult Naive = SimulateTagPool(ESimPolicy::NaiveReleaseAtRevert, 6, 5, 5, 3, 1, -1);
+	const FSimResult RuledTight = SimulateTagPool(ESimPolicy::Ruled, 6, 5, 5, 3, 1, -1);
+	Check(Naive.AliasFrames > 0, "no-alias can-fail: releasing at revert (before read-back) aliases two events in flight ("
+		+ std::to_string(Naive.AliasFrames) + " frames)");
+	Check(RuledTight.AliasFrames == 0, "no-alias new: waiting for read-back never aliases on the same tight pool");
+
+	const FSimResult Carried = SimulateTagPool(ESimPolicy::Ruled, 12, 6, 4, 3, 3, 40);
+	Check(Carried.AliasFrames == 0 && Carried.Untagged == 0 && Carried.CarriedRecycledWhileAttached == 0 && Carried.Recycles > 0,
+		"no-alias across a run boundary: on a 3-value pool a carried trail attached for 40 frames is never recycled while "
+		"attached; all 12 events tagged with " + std::to_string(Carried.Recycles) + " recycles");
+	const FSimResult CarriedNaive = SimulateTagPool(ESimPolicy::NaiveReleaseAtRevert, 12, 6, 4, 3, 3, 40);
+	Check(CarriedNaive.CarriedRecycledWhileAttached > 0 && CarriedNaive.AliasFrames > 0,
+		"no-alias can-fail across a run boundary: releasing on fire end recycles the carried trail's value while it is attached ("
+		+ std::to_string(CarriedNaive.AliasFrames) + " alias frames)");
+	const FSimResult Long = SimulateTagPool(ESimPolicy::Ruled, 200, 5, 4, 3, 55, 20);
+	Check(Long.AliasFrames == 0 && Long.Untagged == 0 && Long.LabelledFramesWithoutMask == 0,
+		"recycle new: 200 events with a carried trail, every labelled frame has a mask, no alias (" + std::to_string(Long.Recycles) + " recycles)");
+
+	AnomalyLabelSync::FTagReleaseInputs In;
+	In.Tag = 210;
+	Check(AnomalyLabelSync::IsTagReleasable(In), "release: a finished, read-back event is releasable");
+	In.bTrailBlocks = AnomalyLabelSync::TrailBlocksRelease(true, false, false);
+	Check(!AnomalyLabelSync::IsTagReleasable(In), "release: a detached trail with a request still in flight blocks (it could re-attach)");
+	In.bTrailBlocks = AnomalyLabelSync::TrailBlocksRelease(true, false, true);
+	In.bM26ArmInFlight = true;
+	Check(!AnomalyLabelSync::IsTagReleasable(In), "release: an m26 arm in flight blocks");
+	In.bM26ArmInFlight = false;
+	In.bM26MayArmAgain = AnomalyLabelSync::M26MayArmAgain(2, 4, true, false, false, false, false);
+	Check(!AnomalyLabelSync::IsTagReleasable(In), "release: a record m26 will still arm (post-revert arms) blocks");
+	In.bM26MayArmAgain = AnomalyLabelSync::M26MayArmAgain(2, 4, true, false, false, true, false);
+	Check(AnomalyLabelSync::IsTagReleasable(In), "release: a deferred-onset record cannot arm once its fire ended");
+	In.bAlreadyRecycled = true;
+	Check(!AnomalyLabelSync::IsTagReleasable(In), "release: a value already moved on is never released twice");
+	const int Tags[] = { 200, 201, 0, 0, 202 };
+	const int Dup[] = { 200, 201, 200 };
+	Check(!AnomalyLabelSync::AnyAlias(Tags, 5) && AnomalyLabelSync::AnyAlias(Dup, 3), "alias detector: zeros ignored, a duplicate found");
+}
+
 int main()
 {
 	TestTextureAndCombine();
@@ -991,6 +1452,12 @@ int main()
 	TestF6ForcedAuthority();
 	TestRegistrationRoute();
 	TestMonitorCost();
+	TestG350PostClosure();
+	TestTransitionTrackOrder();
+	TestAaResolve();
+	TestTransitionGate();
+	TestHideReturn();
+	TestTagRecycling();
 	std::printf("m52 window selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }

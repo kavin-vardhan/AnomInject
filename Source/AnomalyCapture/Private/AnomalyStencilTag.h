@@ -34,6 +34,7 @@ namespace AnomalyStencilTag
 	int32 TagActor(AActor* Actor, int32 StencilValue);
 	int32 TagActor(AActor* Actor, int32 StencilValue, int32* OutFlagFlips);
 	void RestoreActor(AActor* Actor);
+	int32 RestoreComponentsCarrying(AActor* Actor, int32 StencilValue);
 	void RestoreAll();
 	bool IsAnyTagged();
 	bool IsAnyComponentTagged(const AActor* Actor);
