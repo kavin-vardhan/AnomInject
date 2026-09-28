@@ -11,6 +11,18 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧪 **084-05b, 2026-09-29 — THE 084-06 BENCH HARNESS IS BUILT AND PROVEN OFFLINE; NOTHING LAUNCHED, BUILT OR STAGED. The
+> build under test is `E9FF019A` (086-02). NOT merged, NO tag.** Harness `_reviews\084-06-*` (outside the repo); docs only here.
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-05b-sync-harness.md`; invocation and rules in `_reviews\084-06-README.md`.
+> - **Evaluator:** edge-local thresholds (the leg divided by its matched null at the same session index, lag by
+>   cross-correlation — G349's scene cycle divides out) + the transition-aware gate (a flag-excused tail must start to decay at
+>   the first unlabelled frame — **G353**) + the 086-01 checker as a second verdict on every leg; MASK55, B-CC and B-CC-MW gates.
+> - **Proofs:** 26/26 offline, 55/55 on real banked pixels. **084-03 bank re-evaluated:** AA off, fix **0/0 on 16/16**, baseline
+>   −1/+4 on 21/21; AA as delivered, fix legs PASS with the flag rule applied offline. The old whole-leg threshold judged 0 events.
+> - **Proposed (for chat):** `IAI.Label.TransitionOnFrames 3`, `TransitionOffFrames 8`. Codex source review of 084-05a + 086-02:
+>   **RED (F1–F5)**, `_reviews\084-05b-codex-sync-source-review.md`, collected and not acted on.
+> - 🎯 **NEXT: 084-06 = `084-06-window.py live`** (≈ 50 min). ⛔ B-LYRA needs the Lyra plugin at `f51f124` and a LyraEditor build first.
+>
 > 🔧 **086-02, 2026-09-29 — camera_clipping's per-frame label is now a VIEW-SLAB test on render geometry, and the B-CC
 > camera-schedule lever exists: exe `E9FF019A`, archived, NOT staged, NOTHING LAUNCHED — no runtime evidence yet. NOT merged,
 > NO tag.** Branch `fix/m52-label-timing` `f908b71` (source + selftest) + docs, pushed. Supersedes the 084-05a block below

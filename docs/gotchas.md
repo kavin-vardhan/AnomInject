@@ -8161,3 +8161,25 @@ Related: G246, G250, G254, G295, G350.
 
 Related: G41 (the pre-086-02 camera_clipping decision also read the PREVIOUS frame's camera: it ran in `FinalizeArmedLabel`,
 among the tickables at `LevelTick.cpp:1606`, before `UpdateCameraManager` at `:1621`), G228, G230.
+
+## G353 — A transition window excuses every label error smaller than itself; a flag gate needs a shape rule, and under temporal AA an onset error of up to K_on frames cannot be seen from pixels at all (2026-09-29, 084-05b)
+
+*(Number checked against every ref, local and remote: the maximum was G352 on `fix/m52-label-timing`.)*
+
+- **Observed, on real banked pixels (084-06 proofs, B0_FIX, flags placed by the build's rule at K_on 3 / K_off 8):** a label
+  that ends 5 frames early, INSIDE the hold, leaves 5 fully anomalous frames unlabelled — and the rule flags the K_off frames
+  after the (early) end, so every one of them carries `transition: 1`. The ruled gate ("every unlabelled pixel-visible frame
+  must carry the flag") PASSES it. So does any other offset error smaller than K_off.
+- **The shape rule that catches it:** a real temporal-AA tail starts to decay at the first unlabelled frame (on B0_FIX the
+  effect drops by 3.0–8.5 % of the reference level at label end + 1 on all 39 judged events of B0_FIX, B3_FIX and B7_FIX,
+  against a 3-sigma requirement of 0.1–2.2 %); an early end leaves the effect flat or still
+  deepening there. The 084-06 gate therefore FAILS a flag-excused tail whose effect at label end + 1 is not below the effect
+  at label end by 3 sigma. With it, the early end FAILS on all three proof events; without it, it PASSES.
+- **What no rule can catch:** at the onset, the build's exact label under TAA (render truth) starts 1–2 frames before the
+  first 50 %-visible frame. A label that is truly 2 frames early is, in pixels, the same picture. The K_on window is a blind
+  spot by construction; widening K_on widens it. The AA-off legs (K = 0 there, a flag there is itself a FAIL) are the only
+  strict onset test.
+- **Rule:** any gate that exempts frames by a flag must (1) prove on real pixels that an error smaller than the window FAILS,
+  (2) say which errors it cannot see, and (3) keep an AA-off (window-free) leg in the gate set.
+
+Related: G349 (why the threshold is edge-local), G350, G352, G345.
