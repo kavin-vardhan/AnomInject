@@ -791,7 +791,7 @@ One JSON object per line, one line per captured frame.
 | `width`, `height` | int | v1 | The written frame's size in pixels. |
 | `anomaly_present` | bool | v1 | Whether any anomaly was active on this frame. 🆕 **For `stuck_low_mip`, only a frame that is labelled for it counts** (it is in the event's `annotation.json` frame list); its frames before the blur takes hold and after the texture is back carry no positive entry. Every other anomaly keeps the v1 meaning (an event is running). A transition-only entry (§8.6a) never sets it. |
 | **`transition_present`** | `true` | **new** | **Only present when true.** At least one entry on this frame carries `transition: 1` — see §8.6a. |
-| `visible_positive` | bool | v1 | `anomaly_present` **and** at least one of the entries that set it had a valid box. |
+| `visible_positive` | bool | v1, 🆕 **changed** | `anomaly_present` **and** at least one entry that is **labelled on this frame** (`labelled: true`, i.e. the frame is in that event's `annotation.json` frame list) has a valid box. 🆕 Before this build it only needed an active entry with a box, so a `blinking` frame whose object was visible, or a `lod_popping` frame between pops, read `true`; it now reads `false` there (see "Rows where an event is active but not in the picture" below). |
 | `anomalies` | array | v1 | One object per active anomaly — see below. |
 | `mask_file` | string \| null | since target masks | The mask PNG for this frame, or `null` if there is none. |
 | `mask_state` | string | since target masks | `present` / `empty` / `unmeasured`. |
@@ -816,7 +816,21 @@ One JSON object per line, one line per captured frame.
 | **`target_drawn_pixels`** | int | **v2** | See §8.4. The subset of `target_pixels` the target was actually drawn at. `-1` = unmeasured. |
 | **`observable`** | bool \| null | **v2** | See §8.4. `null` = unmeasured. |
 | `mask_value` | int | since target masks | This anomaly's pixel value in `target_mask/`. |
-| **`transition`** | `1` | **new** | **Only present when set.** This frame may be smeared by temporal anti-aliasing for this event — see §8.6a. |
+| **`transition`** | `1` | **new** | **Only present when set.** This frame is uncertain for this event — why is in `transition_reason`; see §8.6a. |
+| **`transition_reason`** | array of string | **new** | **Only present with `transition`.** One or more of `temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed` — see §8.6a. |
+| **`labelled`** | bool | **new** | Whether this frame is in this event's `annotation.json` frame list — the anomaly is in the picture on this frame by the label's own rule. `false` on an entry means the event is running but its effect is not applied on this frame. |
+
+**Rows where an event is active but not in the picture.** `anomaly_present` means *an event is active on this
+frame*; whether its effect is in the picture is `labelled` on the entry (and `visible_positive` on the row). These
+row families are expected and are the ONLY ones:
+
+| Anomaly | Which frames | `anomaly_present` | entry `labelled` | `visible_positive` | `observable` / `target_pixels` |
+| --- | --- | --- | --- | --- | --- |
+| `blinking` | the burst's visible phases (between and around its hidden runs) | `true` | `false` | `false` (unless another entry is labelled) | `null` / `-1` (no mask is armed on these frames) |
+| `lod_popping` | the burst's un-forced phases (between pops) | `true` | `false` | `false` (unless another entry is labelled) | `null` / `-1` |
+| any | the frame after an object returns, or a `stuck_low_mip` off-window frame | as the table in §8.6a says | `false` | as above | `null` / `-1` |
+
+Any other `anomaly_present` row outside the event's frame list is a defect — tell us.
 
 ⚠ **The two box fields use different conventions on purpose and always have:** `bbox_norm` is
 `[x0, y0, x1, y1]` (corners, 0–1); `bbox_px` and `bbox_drawn_px` are `[x, y, width, height]` (pixels).
@@ -832,26 +846,61 @@ midpoint about **2 frames** after a blurry-texture event starts and clears **1 t
 Rather than move a label off the exact render, those frames carry an extra key, **`transition: 1`**, on
 the anomaly's entry, and the frame carries **`transition_present: true`**:
 
-| Case | Which frames | The entry | Sets `anomaly_present`? | In `annotation.json`? |
-| --- | --- | --- | --- | --- |
-| `stuck_low_mip` start | the event's first **2** labelled frames | the normal entry, plus `transition: 1` | yes | yes |
-| `stuck_low_mip` end | the **8** captured frames after its last labelled frame | a transition-only entry (`target_pixels` −1, `observable` null; the frame's target mask does not include it) | **no** | **no** |
-| `blinking`, `missing_object` | the **first** captured frame after the object reappears | `transition: 1` (inside a `blinking` burst this is on the burst's own entry; after the event ends it is a transition-only entry) | only if the event is still running, as before | no |
-| every other anomaly | none | — | — | — |
+| Case | `transition_reason` | Which frames | The entry | Sets `anomaly_present`? | In `annotation.json`? |
+| --- | --- | --- | --- | --- | --- |
+| `stuck_low_mip` start | `temporal_aa` | the event's first **3** labelled frames | the normal entry, plus `transition: 1` | yes | yes |
+| `stuck_low_mip` end | `temporal_aa` | the **8** captured frames after its last labelled frame | a transition-only entry (`target_pixels` −1, `observable` null; the frame's target mask does not include it) | **no** | **no** |
+| `blinking`, `missing_object` | `hide_return` | the **first** captured frame after the object reappears | `transition: 1` (inside a `blinking` burst this is on the burst's own entry; after the event ends it is a transition-only entry) | only if the event is still running, as before | no |
+| `stuck_low_mip`, either edge | `partial` | every labelled frame whose **render record** shows the held textures only part of the way down — some at their held (blurry) level, others still sharp. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
+| `camera_clipping` | `camera_clipping_unconfirmed` | a labelled frame where the geometry inside the clipped slab could not be confirmed triangle by triangle (see §8.6b) | the normal entry, plus `transition: 1` | yes | yes |
+| every other anomaly | — | none | — | — | — |
 
-- **Only under temporal anti-aliasing.** The game's anti-aliasing method is read when the capture starts,
+- **`partial` is not an anti-aliasing effect.** A blurry-texture event holds several textures of one object (for
+  example its colour, normal and roughness maps). The engine lowers them one by one, and which one goes first
+  varies. We measured the first two labelled frames showing between **6 % and 78 %** of the full blur depending
+  only on that order. The label is right that the event has started; the flag says the picture shows only part of
+  it. `run_summary.json` counts these frames per edge: `stuck_mip_partial_onset_frames`,
+  `stuck_mip_partial_offset_frames`, `stuck_mip_partial_mid_frames`, plus `stuck_mip_partial_events` (each event's
+  frame numbers).
+- **Only under temporal anti-aliasing** (for `temporal_aa` and `hide_return`). The game's anti-aliasing method is read when the capture starts,
   from `r.AntiAliasingMethod`, and reported in `run_summary.json` as `label_aa_method`
-  (`none`/`fxaa`/`taa`/`msaa`/`tsr`) and `label_temporal_aa`. Without TAA or TSR no `transition` key ever
-  appears. ⚠ The method is read once per capture; a project that disables anti-aliasing only through a
+  (`none`/`fxaa`/`taa`/`msaa`/`tsr`) and `label_temporal_aa`. Without TAA or TSR those two reasons never
+  appear (`partial` and `camera_clipping_unconfirmed` still can). ⚠ The method is read once per capture; a project that disables anti-aliasing only through a
   show flag or a camera setting is still reported by the console value.
-- **The numbers are provisional** (2 / 8 / 1). They are console variables —
+- **Across captures:** if a capture stops while a transition is still owed, the next capture's first frames
+  carry it (counted in `label_transition_tracks_carried_in` and `label_hide_tracks_carried_in`). This treats
+  the gap between the two captures as zero frames, which can only add flagged frames, never remove a label.
+- **The numbers are 3 / 8 / 1** (ruled for this build). They are console variables —
   `IAI.Label.TransitionOnFrames`, `IAI.Label.TransitionOffFrames`, `IAI.Label.TransitionHideFrames`
   (`-1` = the default) — and each capture reports the values it used in `run_summary.json`
   (`label_transition_on_frames`, `_off_frames`, `_hide_frames`, plus the `_cvar` values as set).
 - **How to use it:** for a strict training set, drop or down-weight frames with `transition_present`.
   Frames without it are expected to agree with their labels pixel for pixel.
 - `run_summary.json` also counts `label_transition_entries`, `label_transition_frames` and
-  `label_entries_suppressed` (entries withheld because they were not labelled on that frame).
+  `label_entries_suppressed` (entries withheld because they were not labelled on that frame), the entries per
+  reason (`label_transition_temporal_aa_entries`, `_hide_return_entries`, `_partial_entries`,
+  `_camera_clipping_unconfirmed_entries`) and `label_active_unlabelled_entries` (the rows of the table above).
+
+### 8.6b `camera_clipping` — how a frame becomes positive
+
+A frame is labelled `camera_clipping` only when rendered geometry lies in the **slab** between the normal near
+plane and the pushed one. Object bounds are only the first check: a hollow room or a large rock around the
+camera has bounds that contain the camera while its surfaces are far away. So for each object whose bounds
+touch the slab, the plugin traces a grid of rays **inside the slab only** against that object's own triangles
+(its collision mesh; for landscape, its height field). A hit means geometry is really there.
+
+- `camera_clipping.clipped_ray_fraction` — the share of a 16×9 grid of view rays whose slab segment hit
+  geometry: roughly how much of the picture is sliced.
+- `camera_clipping.bounds_candidate`, `.confirm_traces`, `.confirm_hits`, `.confirm_misses`,
+  `.confirm_unresolved` — the per-frame bookkeeping.
+- **When triangles cannot be checked** — a skinned character (only rough physics shapes exist), an object with
+  no collision, an object whose collision is simplified, or more than 16 candidate objects / 320 traces in one
+  frame — the frame stays labelled on the bounds check and carries `transition_reason:
+  ["camera_clipping_unconfirmed"]` and `camera_clipping.unconfirmed: true`. It is never silently a guess.
+- **What it can miss:** a sliver of geometry thinner than the ray grid that belongs to a large object (for
+  example a thin pipe inside a room mesh) can fall between rays. Small objects get their own finer grid.
+- `run_summary.json` reports `camera_clipping_label_rule: "view_slab_bounds_then_triangle_confirm_v2"`, the
+  confirmed / unconfirmed / rejected frame counts and the cost (`camera_clipping_confirm_us_mean_per_labelled_frame`).
 
 ### Reading `labels.jsonl` — the rows are not in order
 
@@ -900,7 +949,10 @@ same **`session_index`** as `Actual_Frames/`, at **exactly the picture size**.
   back only from an event that has finished, whose every frame and mask has been processed, so **no frame
   ever carries two events under one value**. `run_summary.json` reports `mask_tag_recycles`,
   `mask_tag_peak_live` (the most values held by unfinished events at once) and `mask_tag_exhausted`
-  (events that still got no value; expected 0).
+  (events that still got no value; expected 0). 🆕 Before a value moves, every object the plugin tagged
+  with it is reset, including objects the game has temporarily hidden from the mask pass, and the plugin
+  checks that nothing still carries it. If something does, that value is set aside for the rest of the
+  capture instead of being reused (`mask_tag_retire_quarantined`; expected 0).
 - **`labels.jsonl`** gains **three** keys: `mask_file` and `mask_state` on the frame row, `mask_value`
   on each anomaly row.
 - **`run_summary.json`** gains **three**: `target_mask_frames_measured`, `_hidden_blank`,

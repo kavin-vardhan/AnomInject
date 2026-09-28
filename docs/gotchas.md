@@ -8220,3 +8220,49 @@ Related: G349 (why the threshold is edge-local), G350, G352, G345.
   in the verdict line, not only in a per-row field.
 
 Related: G349, G350, G103, G114, G120.
+
+## G357 — A binary render record cannot see a PARTIAL held set, and the visible share of a partial set depends on WHICH texture dropped first (2026-09-29, 084-07)
+
+- **Measured (banked B9 legs, AA off, joined frame by frame with the 084-06 evaluator's drop fraction):** on every judged
+  event the first two labelled frames hold one or two of the three textures at the held level and the rest at baseline.
+  084-03: normal map at 7, diffuse/AORM at 11 → 0.66—0.78 of the event's depth. 084-06: diffuse/AORM at 7, normal map
+  at 11 → 0.06—0.23. All three held → 0.91—1.00. The order also flips WITHIN a run (each run's warm-up event has the other
+  order: 084-03 sf=46 0.05—0.07, 084-06 sf=46 0.76). `Combine` reads HELD for all of them, because one held texture makes
+  the verdict.
+- **Rule:** a membership test answers "has the event started", not "is the whole effect in the picture". Carry the held
+  level with the baseline and flag frames whose set sits between them (`transition_reason: partial`). Never tune a pixel
+  threshold to a level that depends on streamer order. ⛔ Why the streamer drops the textures in a varying order is NOT
+  established (G120); only the order and its visible consequence are measured.
+
+## G358 — `visible_positive` never said "not manifest this frame": it was `anomaly_present` plus a valid box (2026-09-29, 084-07)
+
+- **Measured:** every `anomaly_present` row outside its event's annotation frames in the 084-06 banks (MASK55 128 blinking,
+  REAL_BL 56 per leg, LOD 80 per leg, B0L 345) carried `visible_positive: true`, `observable: null` and `target_pixels -1`.
+  Ruling 7's premise ("the object is in its visible phase and `visible_positive = 0`") described the intent, not the
+  build; the client readme documented the as-built rule (present + a valid box).
+- **Rule:** a per-frame visibility field must be derived from the same per-frame bit the annotation uses (`FireActive`),
+  never from event liveness. Entries now carry `labelled`, and `visible_positive` needs a labelled entry with a box.
+  Check a ruling's description of a field against the banked rows before building on it.
+
+## G359 — Rebasing session indices across a run boundary makes them negative, and `-1` was the "no member" sentinel (2026-09-29, 084-07)
+
+- **Measured:** the F5 carry selftest failed on first run (`[]` flagged instead of 0..7): the carried last member rebased
+  to `-1`, and `PrevMember`/`LastMember` started their search at `Best = -1` with a strict `>`, so the member was
+  invisible. `FEventTransitionTrack::NoMember` (INT_MIN) now marks "none"; `Observe`, `OffWindowPassed` and the capture
+  subsystem compare against it.
+- **Rule:** when a value space can be shifted, a sentinel must lie outside every shifted value. Test the carry across the
+  boundary, not just the state inside one run.
+
+## G360 — A complex trace against a component with no physics state returns "no hit" silently (2026-09-29, 084-07)
+
+- **Source (UE 5.1):** `UPrimitiveComponent::LineTraceComponent` calls `FBodyInstance::LineTrace` → `LineTrace_Geom`,
+  which returns false when the body has no actor handle (NoCollision) and only tests shapes flagged
+  `EPDF_ComplexCollision`. A NoCollision hollow mesh, a skinned body (physics-asset shapes only) or a mesh cooked
+  simple-as-complex therefore reads as a MISS, which would have silently un-labelled a real clip.
+- **Rule:** decide confirmability BEFORE tracing (body valid, collision enabled, a cooked triangle mesh, not
+  simple-as-complex; landscape via its heightfield collision component), and keep the bounds verdict plus a
+  `camera_clipping_unconfirmed` flag for anything that cannot be traced. Also: 5.1 has no `EAllowShrinking` (5.4+),
+  and `UBodySetupCore::GetCollisionTraceFlag` is exported from PhysicsCore, which `AnomalyInjector` does not list:
+  read the `CollisionTraceFlag` UPROPERTY instead of adding a module dependency.
+
+Related: G120, G139, G349, G350, G352, G354.

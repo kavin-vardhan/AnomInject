@@ -699,6 +699,18 @@ therefore no mask.**
   `.slab_primitives` / `.eye_inside_box` / `.near_overridden` on every frame while camera_clipping is held, and
   `run_summary` `camera_clipping_*`. **Known limits** are in journal 086-02 §3; the rule is UNMEASURED until B-CC.
 
+**As built (084-07) - bounds are the broad phase, triangles decide.** Every SAT-positive component (and every
+SAT-positive ISM instance, enumerated with its full transform - F2) becomes a confirmation candidate. `ConfirmSlab`
+(`AnomalyNearClipSlab.h`) casts a 16x9 grid of view-ray segments from the baseline to the anomalous near plane, clips each
+to the candidate's box and traces the clipped segment with a complex `FBodyInstance::LineTrace` against that candidate's
+body (the heightfield collision component for landscape, found through the render component's `CollisionComponent`
+property); candidates the grid barely touches get a 4x4 grid over their own footprint. A hit labels the frame. A candidate
+that cannot be traced (skinned, no collision, no cooked triangle mesh or simple-as-complex, over 16 candidates or 320
+traces, or no ray) keeps its SAT verdict and flags the frame `transition_reason: camera_clipping_unconfirmed`. Per frame:
+`camera_clipping.clipped_ray_fraction`; run_summary: confirmed/unconfirmed/rejected frames and the confirmation cost.
+Known miss: a sub-grid sliver belonging to a large candidate. Selftest cases: hollow box 0 unflagged, wall 1, pole caught
+by the footprint grid, NoCollision hollow mesh flagged, trace/candidate caps flagged, F2 scaled/rotated/off-centre instances.
+
 **`P6` does not move.** The existing event shape carries it: whole-frame as `coverage_ratio = 1` and
 per-frame `bbox_norm = 0,0,1,1`, empty `asset_name`, and `coverage_pct` left at its `-1` sentinel
 (it comes from selection provenance, and a global anomaly has no selected actor).
@@ -920,11 +932,20 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   by `GetDefaultAntiAliasingMethod`) the first `IAI.Label.TransitionOnFrames` labelled m52 frames and the
   `IAI.Label.TransitionOffFrames` frames after a labelled frame carry `transition: 1` (the latter as transition-only entries that
   set no `anomaly_present`), and hide types flag the first `IAI.Label.TransitionHideFrames` frames after the object returns.
-  Pure logic: `AnomalyInjector/Public/AnomalyLabelSync.h`.
+  Pure logic: `AnomalyInjector/Public/AnomalyLabelSync.h`. **084-07:** every flagged entry names its reason in
+  `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); defaults 3/8/1. `partial`
+  is set, with or without temporal AA, on any m52 member frame whose render record shows the held set between baseline and the
+  held level (`FAnomalyRenderTruthTexture::HeldResidentMips` carried into the watch; `AnomalyStuckMipWindow::ClassifyLevel` /
+  `IsPartialHeldSet` / `FPartialEdgeTrack`). Entries carry `labelled` (the `FireActive` bit the annotation uses) and
+  `visible_positive` needs a labelled entry with a box. Unfinished transition and hide-return history is carried across a run
+  boundary, rebased (`CarryTransitionTrack`). The sync path builds one `FCaptureSnapshot` and writes the row and the accounting
+  from it (F3).
 - **Stencil tags are recycled at exhaustion (084-05a).** `FAnomalyMaskMeasure::AllocateTag` rotates over the free values as
   before; when none is free it reclaims the oldest *releasable* record's value (fire ended, m52 trail detached with nothing in
   flight, no pending snapshot or target-mask request carrying it, m26 done), restoring that record's components still
-  carrying the value. Releasability is refreshed every tick in `OnWorldTickEndMask` after the m26 arm. G351.
+  carrying the value. Releasability is refreshed every tick in `OnWorldTickEndMask` after the m26 arm. G351. **084-07 (F4):** retirement walks every TRACKED holder
+  of the value (`RetireStencilValue`), restores custom-depth-off holders value-only (the host's flag kept), verifies nothing
+  still carries the value and otherwise quarantines it (`mask_tag_retire_quarantined`).
 - **View-lag L (default 0) — the spatial analogue of settle-K, but distinct.** A per-tick view ring; each capture projects
   with the view from L ring-entries ago. **L=0 is validated and correct (not "zero lag") FOR THE SYNC PATH:** the capture
   subsystem (a `FTickableGameObject`) ticks *before* `UpdateCameraManager` (LevelTick.cpp:1606 vs 1621), so

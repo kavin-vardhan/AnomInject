@@ -11,6 +11,27 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **084-07, 2026-09-29 — LABEL-SYNC FIXES ROUND 3 (SOURCE) ON `fix/m52-label-timing`: commit `8b8b4d0`, exe `FF41BFF3`
+> archived `_binary_baselines\m52fix-FF41BFF3\`. NOT staged, NOT cooked (084-07b), nothing launched, NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-07-sync-fixes-round3.md`.
+> - **m52 onset = reading (a), PARTIAL application, from the banked render records:** the first 2 labelled frames hold one or
+>   two of the three textures at the held level. The visible share depends on WHICH dropped first: normal map first (084-03)
+>   → 0.66–0.78 of depth; diffuse+AORM first (084-06) → 0.06–0.23; the order flips even within a run (G357). ⛔ Why the
+>   order varies is NOT established. **Fix:** the record carries each texture's held level; a member frame with a partial set
+>   gets `transition_reason: partial` (either edge, with or without AA) + `stuck_mip_partial_*` guard fields.
+> - **camera_clipping:** bounds SAT is only the broad phase; a 16×9 (+4×4 footprint) grid of in-slab ray segments is traced
+>   (complex) against each candidate's own body / landscape heightfield; untraceable candidates keep SAT and flag
+>   `camera_clipping_unconfirmed`. Cost ≤ 0.5 ms is instrumented, NOT measured (engine needed). F2 folded in.
+> - **F3** sync path writes row + accounting from one snapshot (and uses the logical-hidden registry, not `IsHidden()`);
+>   0/88 banked sessions had sync rows. **F4** retirement clears every tracked holder (custom-depth-off: value only) and
+>   quarantines on failed verification. **F5** transition + hide-return history carried across run boundaries (G359).
+> - **Ruling 7:** every uncovered `anomaly_present` row is "event active, effect not applied this frame", BUT they all read
+>   `visible_positive: true` (G358). Entries now carry `labelled`; `visible_positive` needs a labelled entry with a box.
+> - **Defaults 3/8/1.** Selftests: m52 220/0, camera_clipping 118/0 (56 new, each with its broken variant). Builds 0 warnings.
+> - 🎯 **NEXT:** 084-07b cook; 084-08 harness must read `transition_reason`, `labelled`, `stuck_mip_partial_*`; NEEDS-DECISION
+>   on ruling 1's "< 10 % ⇒ label-early" vs residency-proven partial frames (6/16 084-06 events would count).
+>
+> ---
 > 🧾 **084-06, 2026-09-29 — THE LABEL-SYNC BENCH RAN ON `E9FF019A`: 31/31 LEGS ACCEPTED ON ATTEMPT 1, m53 SET RESTORED AND
 > VERIFIED, POSTFLIGHT PASS. Four anomalies are SYNC-PROVEN; m52 is DESYNC at onset with AA off; camera_clipping over-labels
 > MainWorld; B-CC could not run. NOT merged, NO tag.** Harness `_reviews\084-06-*` (one edit: `TransitionOnFrames 3` on the
