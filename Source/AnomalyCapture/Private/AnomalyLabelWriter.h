@@ -22,6 +22,13 @@ namespace AnomalyLabel
 		bool bNearOverridden = false;
 		int32 SlabPrimitives = 0;
 		int32 EyeInsideBox = 0;
+		bool bSatPositive = false;
+		bool bUnconfirmed = false;
+		float ClippedRayFraction = 0.0f;
+		int32 ConfirmTraces = 0;
+		int32 ConfirmHits = 0;
+		int32 ConfirmMisses = 0;
+		int32 ConfirmUnresolved = 0;
 	};
 
 	static constexpr int32 SchemaVersion = 1;
@@ -77,6 +84,7 @@ namespace AnomalyLabel
 			uint64 StartFrame = 0;
 			FString TextureName;
 			int32 Baseline = 0;
+			int32 HeldLevel = 0;
 			uint64 BaselineResourceId = 0;
 		};
 		TArray<FRenderTruthWatch> RenderWatch;
@@ -87,6 +95,7 @@ namespace AnomalyLabel
 		TArray<uint8> EntryEmit;
 		TArray<uint8> EntryTransition;
 		TArray<FAutoLiveFireInfo> TransitionFires;
+		TArray<uint8> TransitionFireReasons;
 		TArray<FAutoLiveFireInfo> TransitionCandidates;
 
 		bool bViewGlobalPending = false;
@@ -131,7 +140,7 @@ namespace AnomalyLabel
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
 		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
-		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true);
+		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true, const FCaptureSnapshot* SyncFrame = nullptr);
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
 		const FString& ImageName, int32& OutNumLabels);
@@ -240,6 +249,13 @@ namespace AnomalyLabel
 		int32 MaskTagRecycles = 0;
 		int32 MaskTagPeakLive = 0;
 		int32 MaskTagExhausted = 0;
+		int32 MaskTagRetireQuarantined = 0;
+		int32 MaskTagRetireHostFlagKept = 0;
+		int32 ReasonEntries[4] = { 0, 0, 0, 0 };
+		int32 CarriedTransitionTracks = 0;
+		int32 CarriedHideTracks = 0;
+		int32 UnlabelledActiveEntries = 0;
+		int32 SyncFramesWritten = 0;
 	};
 
 	struct FStuckMipTelemetry
@@ -318,6 +334,13 @@ namespace AnomalyLabel
 		int32 ForcedAuthorityFrames = 0;
 		int32 LateReceiptAfterForce = 0;
 		int32 InheritedMaskRecords = 0;
+		int32 PartialFrames = 0;
+		int32 PartialOnsetFrames = 0;
+		int32 PartialMidFrames = 0;
+		int32 PartialOffsetFrames = 0;
+		int32 PartialMaxPerEdge = 0;
+		int32 PartialEventsOverThree = 0;
+		TArray<FString> PartialEvents;
 	};
 
 	struct FObservabilityTelemetry

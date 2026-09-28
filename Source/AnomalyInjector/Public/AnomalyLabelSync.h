@@ -10,9 +10,33 @@ namespace AnomalyLabelSync
 	};
 
 	static constexpr int MaxTransitionFrames = 64;
-	static constexpr int DefaultOnFramesTemporal = 2;
+	static constexpr int DefaultOnFramesTemporal = 3;
 	static constexpr int DefaultOffFramesTemporal = 8;
 	static constexpr int DefaultHideFramesTemporal = 1;
+
+	static constexpr unsigned char ReasonTemporal = 1;
+	static constexpr unsigned char ReasonHideReturn = 2;
+	static constexpr unsigned char ReasonPartial = 4;
+	static constexpr unsigned char ReasonCameraUnconfirmed = 8;
+	static constexpr int NumReasons = 4;
+
+	inline const char* DescribeReasonBit(int Bit)
+	{
+		switch (Bit)
+		{
+		case 0: return "temporal_aa";
+		case 1: return "hide_return";
+		case 2: return "partial";
+		case 3: return "camera_clipping_unconfirmed";
+		default: return "unknown";
+		}
+	}
+
+	inline unsigned char ReasonsOrLegacy(unsigned char Value)
+	{
+		return (Value != 0 && (Value & (ReasonTemporal | ReasonHideReturn | ReasonPartial | ReasonCameraUnconfirmed)) == 0)
+			? ReasonTemporal : Value;
+	}
 
 	static constexpr int AaNone = 0;
 	static constexpr int AaFxaa = 1;
@@ -86,6 +110,8 @@ namespace AnomalyLabelSync
 		int NumFirst = 0;
 		int Recent[RecentCap] = {};
 		int NumRecent = 0;
+		static constexpr int NoMember = -2147483647 - 1;
+
 		int MaxSISeen = -1;
 		int OutOfOrder = 0;
 		bool bOnsetPast = false;
@@ -116,7 +142,7 @@ namespace AnomalyLabelSync
 
 		int PrevMember(int SI) const
 		{
-			int Best = -1;
+			int Best = NoMember;
 			for (int i = 0; i < NumRecent; ++i)
 			{
 				if (Recent[i] < SI && Recent[i] > Best) { Best = Recent[i]; }
@@ -130,7 +156,7 @@ namespace AnomalyLabelSync
 
 		int LastMember() const
 		{
-			int Best = -1;
+			int Best = NoMember;
 			for (int i = 0; i < NumRecent; ++i)
 			{
 				if (Recent[i] > Best) { Best = Recent[i]; }
@@ -197,7 +223,7 @@ namespace AnomalyLabelSync
 				return;
 			}
 			const int Prev = PrevMember(SI);
-			if (Prev >= 0 && SI - Prev <= OffFrames)
+			if (Prev != NoMember && SI - Prev <= OffFrames)
 			{
 				bOutOff = true;
 			}
@@ -206,9 +232,75 @@ namespace AnomalyLabelSync
 		bool OffWindowPassed(int SI, int OffFrames) const
 		{
 			const int Last = LastMember();
-			return Last < 0 || SI - Last > OffFrames;
+			return Last == NoMember || SI - Last > OffFrames;
+		}
+
+		void Rebase(int Offset)
+		{
+			for (int i = 0; i < NumFirst; ++i) { First[i] -= Offset; }
+			for (int i = 0; i < NumRecent; ++i) { Recent[i] -= Offset; }
+			MaxSISeen -= Offset;
 		}
 	};
+
+	inline bool ShouldCarryTransitionTrack(const FEventTransitionTrack& T, int LastSIOfRun, int OffFrames,
+		bool bEventContinues)
+	{
+		if (T.LastMember() == FEventTransitionTrack::NoMember)
+		{
+			return false;
+		}
+		if (bEventContinues)
+		{
+			return true;
+		}
+		return !T.bOffDone && !T.OffWindowPassed(LastSIOfRun, OffFrames);
+	}
+
+	inline FEventTransitionTrack CarryTransitionTrack(const FEventTransitionTrack& T, int LastSIOfRun)
+	{
+		FEventTransitionTrack C = T;
+		C.Rebase(LastSIOfRun + 1);
+		C.OutOfOrder = 0;
+		return C;
+	}
+
+	enum class ERetireAction : unsigned char
+	{
+		Leave = 0,
+		RestoreValueAndFlag = 1,
+		RestoreValueKeepHostFlag = 2
+	};
+
+	inline ERetireAction DecideRetire(bool bTracked, int CurrentValue, bool bRenderCustomDepth, int RetiredValue)
+	{
+		if (!bTracked || CurrentValue != RetiredValue)
+		{
+			return ERetireAction::Leave;
+		}
+		return bRenderCustomDepth ? ERetireAction::RestoreValueAndFlag : ERetireAction::RestoreValueKeepHostFlag;
+	}
+
+	inline ERetireAction DecideRetireLegacy(bool bTracked, int CurrentValue, bool bRenderCustomDepth, int RetiredValue)
+	{
+		if (!bTracked || !bRenderCustomDepth || CurrentValue != RetiredValue)
+		{
+			return ERetireAction::Leave;
+		}
+		return ERetireAction::RestoreValueAndFlag;
+	}
+
+	inline bool RetirementVerified(const int* ValuesAfter, int Num, int RetiredValue)
+	{
+		for (int i = 0; i < Num; ++i)
+		{
+			if (ValuesAfter[i] == RetiredValue)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
 
 	struct FHideReturnTrack
 	{
@@ -260,6 +352,11 @@ namespace AnomalyLabelSync
 	inline bool HideTrackDone(const FHideReturnTrack& T)
 	{
 		return T.bGone && T.Remaining <= 0;
+	}
+
+	inline bool ShouldCarryHideTrack(const FHideReturnTrack& T)
+	{
+		return T.bPrevHidden || T.Remaining > 0;
 	}
 
 	struct FTagReleaseInputs

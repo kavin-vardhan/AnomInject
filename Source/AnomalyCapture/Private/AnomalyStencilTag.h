@@ -22,6 +22,14 @@ struct FAnomalyStencilTagLedger
 	void Reset();
 };
 
+struct FRetireStencilResult
+{
+	int32 Restored = 0;
+	int32 RestoredValueOnly = 0;
+	int32 Remaining = 0;
+	bool bVerified = true;
+};
+
 namespace AnomalyStencilTag
 {
 	static constexpr int32 ReservedStencilBase = 200;
@@ -35,6 +43,7 @@ namespace AnomalyStencilTag
 	int32 TagActor(AActor* Actor, int32 StencilValue, int32* OutFlagFlips);
 	void RestoreActor(AActor* Actor);
 	int32 RestoreComponentsCarrying(AActor* Actor, int32 StencilValue);
+	FRetireStencilResult RetireStencilValue(AActor* FormerOwner, int32 StencilValue);
 	void RestoreAll();
 	bool IsAnyTagged();
 	bool IsAnyComponentTagged(const AActor* Actor);

@@ -285,6 +285,353 @@ namespace AnomalyNearClipSlab
 		return DistSq <= Radius * Radius;
 	}
 
+	inline FBox3 MakeInstanceBox(const FV3& MeshCenter, const FV3& MeshHalf, const FV3& UnitX, const FV3& UnitY,
+		const FV3& UnitZ, const FV3& Scale, const FV3& Translation)
+	{
+		FBox3 B;
+		const FV3 Scaled = MakeV3(MeshCenter.X * Scale.X, MeshCenter.Y * Scale.Y, MeshCenter.Z * Scale.Z);
+		B.Center = Add(Translation, Add(Add(Mul(UnitX, Scaled.X), Mul(UnitY, Scaled.Y)), Mul(UnitZ, Scaled.Z)));
+		B.Axis[0] = UnitX;
+		B.Axis[1] = UnitY;
+		B.Axis[2] = UnitZ;
+		B.Half[0] = std::fabs(MeshHalf.X) * std::fabs(Scale.X);
+		B.Half[1] = std::fabs(MeshHalf.Y) * std::fabs(Scale.Y);
+		B.Half[2] = std::fabs(MeshHalf.Z) * std::fabs(Scale.Z);
+		return B;
+	}
+
+	inline bool InstanceBoxMayTouchSlab(const FSlab& S, const FBox3& InstanceBox)
+	{
+		if (S.bEmpty)
+		{
+			return false;
+		}
+		FV3 Min;
+		FV3 Max;
+		BoxAabb(InstanceBox, Min, Max);
+		return AabbOverlap(S.AabbMin, S.AabbMax, Min, Max) && BoxIntersectsSlab(S, InstanceBox);
+	}
+
+	inline bool LegacyIsmQueryKeepsInstance(const FSlab& S, const FV3& InstanceTranslation, const FV3& MeshHalf)
+	{
+		if (S.bEmpty)
+		{
+			return false;
+		}
+		const FV3 E = MakeV3(std::fabs(MeshHalf.X), std::fabs(MeshHalf.Y), std::fabs(MeshHalf.Z));
+		return AabbOverlap(S.AabbMin, S.AabbMax, Sub(InstanceTranslation, E), Add(InstanceTranslation, E));
+	}
+
+	inline FV3 ViewRayDir(double ScreenU, double ScreenV, const FV3& Forward, const FV3& Right, const FV3& Up,
+		double TanH, double TanV)
+	{
+		return Add(Add(Forward, Mul(Right, ScreenU * TanH)), Mul(Up, ScreenV * TanV));
+	}
+
+	inline bool ClipSegmentToBox(const FBox3& B, const FV3& P0, const FV3& P1, double& OutT0, double& OutT1)
+	{
+		double T0 = 0.0;
+		double T1 = 1.0;
+		const FV3 D = Sub(P1, P0);
+		const FV3 Rel = Sub(P0, B.Center);
+		for (int i = 0; i < 3; ++i)
+		{
+			const double O = Dot(Rel, B.Axis[i]);
+			const double Dir = Dot(D, B.Axis[i]);
+			const double H = B.Half[i];
+			if (std::fabs(Dir) < 1e-12)
+			{
+				if (std::fabs(O) > H)
+				{
+					return false;
+				}
+				continue;
+			}
+			double Ta = (-H - O) / Dir;
+			double Tb = (H - O) / Dir;
+			if (Ta > Tb)
+			{
+				const double Swap = Ta;
+				Ta = Tb;
+				Tb = Swap;
+			}
+			T0 = Ta > T0 ? Ta : T0;
+			T1 = Tb < T1 ? Tb : T1;
+			if (T0 > T1)
+			{
+				return false;
+			}
+		}
+		OutT0 = T0;
+		OutT1 = T1;
+		return true;
+	}
+
+	inline FV3 LerpV3(const FV3& A, const FV3& B, double T)
+	{
+		return Add(A, Mul(Sub(B, A), T));
+	}
+
+	struct FScreenRect
+	{
+		double U0 = -1.0;
+		double V0 = -1.0;
+		double U1 = 1.0;
+		double V1 = 1.0;
+		bool bFull = true;
+	};
+
+	inline FScreenRect BoxFootprint(const FBox3& B, const FV3& Eye, const FV3& Forward, const FV3& Right, const FV3& Up,
+		double TanH, double TanV)
+	{
+		FScreenRect R;
+		double U0 = 1e300;
+		double V0 = 1e300;
+		double U1 = -1e300;
+		double V1 = -1e300;
+		for (int SX = -1; SX <= 1; SX += 2)
+		{
+			for (int SY = -1; SY <= 1; SY += 2)
+			{
+				for (int SZ = -1; SZ <= 1; SZ += 2)
+				{
+					const FV3 C = Add(Add(Add(B.Center, Mul(B.Axis[0], SX * B.Half[0])), Mul(B.Axis[1], SY * B.Half[1])),
+						Mul(B.Axis[2], SZ * B.Half[2]));
+					const FV3 D = Sub(C, Eye);
+					const double Depth = Dot(D, Forward);
+					if (Depth <= 1e-3)
+					{
+						return R;
+					}
+					const double U = Dot(D, Right) / (Depth * TanH);
+					const double V = Dot(D, Up) / (Depth * TanV);
+					U0 = U < U0 ? U : U0;
+					V0 = V < V0 ? V : V0;
+					U1 = U > U1 ? U : U1;
+					V1 = V > V1 ? V : V1;
+				}
+			}
+		}
+		R.bFull = false;
+		R.U0 = U0 < -1.0 ? -1.0 : U0;
+		R.V0 = V0 < -1.0 ? -1.0 : V0;
+		R.U1 = U1 > 1.0 ? 1.0 : U1;
+		R.V1 = V1 > 1.0 ? 1.0 : V1;
+		return R;
+	}
+
+	struct FConfirmConfig
+	{
+		int GridX = 16;
+		int GridY = 9;
+		int FootX = 4;
+		int FootY = 4;
+		int MinFootprintRays = 6;
+		int MaxCandidates = 16;
+		int MaxTraces = 320;
+	};
+
+	static constexpr int MaxConfirmCandidates = 64;
+
+	struct FConfirmCandidate
+	{
+		FBox3 Box;
+		bool bConfirmable = true;
+	};
+
+	enum class ECandidateOutcome : unsigned char
+	{
+		NotNeeded = 0,
+		Hit = 1,
+		Miss = 2,
+		Unconfirmable = 3,
+		OverCandidateCap = 4,
+		TraceCapped = 5,
+		NoRay = 6
+	};
+
+	inline const char* DescribeOutcome(ECandidateOutcome O)
+	{
+		switch (O)
+		{
+		case ECandidateOutcome::Hit:              return "hit";
+		case ECandidateOutcome::Miss:             return "miss";
+		case ECandidateOutcome::Unconfirmable:    return "unconfirmable";
+		case ECandidateOutcome::OverCandidateCap: return "over_candidate_cap";
+		case ECandidateOutcome::TraceCapped:      return "trace_capped";
+		case ECandidateOutcome::NoRay:            return "no_ray";
+		default:                                  return "not_needed";
+		}
+	}
+
+	struct FConfirmResult
+	{
+		bool bPositive = false;
+		bool bUnconfirmed = false;
+		int GlobalRays = 0;
+		int GlobalRaysHit = 0;
+		int Traces = 0;
+		int Hits = 0;
+		int Misses = 0;
+		int Unconfirmable = 0;
+		int OverCap = 0;
+		int TraceCapped = 0;
+		int NoRay = 0;
+		double ClippedRayFraction = 0.0;
+	};
+
+	template <typename TraceFn>
+	FConfirmResult ConfirmSlab(const FV3& Eye, const FV3& Forward, const FV3& Right, const FV3& Up, double TanH,
+		double TanV, double NearBaseline, double NearAnomalous, const FConfirmCandidate* Candidates, int NumCandidates,
+		ECandidateOutcome* OutOutcome, const FConfirmConfig& Cfg, TraceFn&& Trace)
+	{
+		FConfirmResult Res;
+		const double N0 = NearBaseline > 0.0 ? NearBaseline : 0.0;
+		const double N1 = NearAnomalous;
+		const int Cap = Cfg.MaxCandidates < MaxConfirmCandidates ? Cfg.MaxCandidates : MaxConfirmCandidates;
+		int Foot[MaxConfirmCandidates] = {};
+		bool bCapped[MaxConfirmCandidates] = {};
+		for (int c = 0; c < NumCandidates; ++c)
+		{
+			if (c >= Cap)
+			{
+				OutOutcome[c] = ECandidateOutcome::OverCandidateCap;
+			}
+			else
+			{
+				OutOutcome[c] = Candidates[c].bConfirmable ? ECandidateOutcome::NotNeeded : ECandidateOutcome::Unconfirmable;
+			}
+		}
+		const int Limit = NumCandidates < Cap ? NumCandidates : Cap;
+		bool bAnyHit = false;
+		const int Gx = Cfg.GridX > 0 ? Cfg.GridX : 1;
+		const int Gy = Cfg.GridY > 0 ? Cfg.GridY : 1;
+		for (int Iy = 0; Iy < Gy; ++Iy)
+		{
+			for (int Ix = 0; Ix < Gx; ++Ix)
+			{
+				const double U = -1.0 + (2.0 * Ix + 1.0) / Gx;
+				const double V = -1.0 + (2.0 * Iy + 1.0) / Gy;
+				const FV3 Dir = ViewRayDir(U, V, Forward, Right, Up, TanH, TanV);
+				const FV3 P0 = Add(Eye, Mul(Dir, N0));
+				const FV3 P1 = Add(Eye, Mul(Dir, N1));
+				++Res.GlobalRays;
+				bool bRayHit = false;
+				for (int c = 0; c < Limit; ++c)
+				{
+					if (!Candidates[c].bConfirmable)
+					{
+						continue;
+					}
+					double T0 = 0.0;
+					double T1 = 0.0;
+					if (!ClipSegmentToBox(Candidates[c].Box, P0, P1, T0, T1))
+					{
+						continue;
+					}
+					++Foot[c];
+					if (bRayHit)
+					{
+						continue;
+					}
+					if (Res.Traces >= Cfg.MaxTraces)
+					{
+						bCapped[c] = true;
+						continue;
+					}
+					++Res.Traces;
+					if (Trace(c, LerpV3(P0, P1, T0), LerpV3(P0, P1, T1)))
+					{
+						bRayHit = true;
+						bAnyHit = true;
+						OutOutcome[c] = ECandidateOutcome::Hit;
+					}
+				}
+				if (bRayHit)
+				{
+					++Res.GlobalRaysHit;
+				}
+			}
+		}
+		if (!bAnyHit)
+		{
+			for (int c = 0; c < Limit && !bAnyHit; ++c)
+			{
+				if (!Candidates[c].bConfirmable || Foot[c] >= Cfg.MinFootprintRays || Cfg.FootX <= 0 || Cfg.FootY <= 0)
+				{
+					continue;
+				}
+				const FScreenRect Rect = BoxFootprint(Candidates[c].Box, Eye, Forward, Right, Up, TanH, TanV);
+				if (!Rect.bFull && (Rect.U0 > Rect.U1 || Rect.V0 > Rect.V1))
+				{
+					continue;
+				}
+				for (int Iy = 0; Iy < Cfg.FootY && !bAnyHit; ++Iy)
+				{
+					for (int Ix = 0; Ix < Cfg.FootX && !bAnyHit; ++Ix)
+					{
+						const double U = Rect.U0 + (Rect.U1 - Rect.U0) * (Ix + 0.5) / Cfg.FootX;
+						const double V = Rect.V0 + (Rect.V1 - Rect.V0) * (Iy + 0.5) / Cfg.FootY;
+						const FV3 Dir = ViewRayDir(U, V, Forward, Right, Up, TanH, TanV);
+						const FV3 P0 = Add(Eye, Mul(Dir, N0));
+						const FV3 P1 = Add(Eye, Mul(Dir, N1));
+						double T0 = 0.0;
+						double T1 = 0.0;
+						if (!ClipSegmentToBox(Candidates[c].Box, P0, P1, T0, T1))
+						{
+							continue;
+						}
+						++Foot[c];
+						if (Res.Traces >= Cfg.MaxTraces)
+						{
+							bCapped[c] = true;
+							continue;
+						}
+						++Res.Traces;
+						if (Trace(c, LerpV3(P0, P1, T0), LerpV3(P0, P1, T1)))
+						{
+							bAnyHit = true;
+							OutOutcome[c] = ECandidateOutcome::Hit;
+						}
+					}
+				}
+			}
+		}
+		for (int c = 0; c < NumCandidates; ++c)
+		{
+			if (c < Limit && Candidates[c].bConfirmable && OutOutcome[c] == ECandidateOutcome::NotNeeded && !bAnyHit)
+			{
+				if (bCapped[c])
+				{
+					OutOutcome[c] = ECandidateOutcome::TraceCapped;
+				}
+				else if (Foot[c] == 0)
+				{
+					OutOutcome[c] = ECandidateOutcome::NoRay;
+				}
+				else
+				{
+					OutOutcome[c] = ECandidateOutcome::Miss;
+				}
+			}
+			switch (OutOutcome[c])
+			{
+			case ECandidateOutcome::Hit:              ++Res.Hits; break;
+			case ECandidateOutcome::Miss:             ++Res.Misses; break;
+			case ECandidateOutcome::Unconfirmable:    ++Res.Unconfirmable; break;
+			case ECandidateOutcome::OverCandidateCap: ++Res.OverCap; break;
+			case ECandidateOutcome::TraceCapped:      ++Res.TraceCapped; break;
+			case ECandidateOutcome::NoRay:            ++Res.NoRay; break;
+			default: break;
+			}
+		}
+		const bool bUncertain = Res.Unconfirmable + Res.OverCap + Res.TraceCapped + Res.NoRay > 0;
+		Res.bPositive = bAnyHit || bUncertain;
+		Res.bUnconfirmed = !bAnyHit && bUncertain;
+		Res.ClippedRayFraction = Res.GlobalRays > 0 ? (double)Res.GlobalRaysHit / (double)Res.GlobalRays : 0.0;
+		return Res;
+	}
+
 	struct FPrimitiveFlags
 	{
 		bool bRegistered = true;

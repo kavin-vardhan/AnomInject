@@ -54,6 +54,29 @@ namespace
 			&& Transition && Transition->IsValidIndex(Index) && (*Transition)[Index] != 0;
 	}
 
+	uint8 ReasonsAt(const TArray<uint8>* Modes, const TArray<uint8>* Transition, int32 Index)
+	{
+		const uint8 Raw = (Transition && Transition->IsValidIndex(Index)) ? (*Transition)[Index] : 0;
+		if (EmitAt(Modes, Index) == AnomalyLabelSync::EEntryEmit::TransitionOnly)
+		{
+			return Raw != 0 ? AnomalyLabelSync::ReasonsOrLegacy(Raw) : AnomalyLabelSync::ReasonTemporal;
+		}
+		return AnomalyLabelSync::ReasonsOrLegacy(Raw);
+	}
+
+	TArray<TSharedPtr<FJsonValue>> ReasonValues(uint8 Bits)
+	{
+		TArray<TSharedPtr<FJsonValue>> Out;
+		for (int32 b = 0; b < AnomalyLabelSync::NumReasons; ++b)
+		{
+			if (Bits & (1 << b))
+			{
+				Out.Add(MakeShared<FJsonValueString>(FString(UTF8_TO_TCHAR(AnomalyLabelSync::DescribeReasonBit(b)))));
+			}
+		}
+		return Out;
+	}
+
 	AnomalyLabel::FLabelEntryCounts CountEntries(int32 NumFires, const TArray<uint8>* Modes, const TArray<uint8>* Transition,
 		const TArray<FAutoLiveFireInfo>* TransitionFires)
 	{
@@ -92,9 +115,11 @@ namespace
 		bool bExposureDipScopeExcluded = false, const TArray<FAnomalyTelemetry>* Telemetry = nullptr,
 		const TArray<uint8>* EntryEmit = nullptr, const TArray<uint8>* EntryTransition = nullptr,
 		const TArray<FAutoLiveFireInfo>* TransitionFires = nullptr,
-		const AnomalyLabel::FCameraClipFrameDiag* CameraClip = nullptr)
+		const AnomalyLabel::FCameraClipFrameDiag* CameraClip = nullptr,
+		const TArray<uint8>* FireActive = nullptr, const TArray<uint8>* TransitionFireReasons = nullptr)
 	{
 		OutNumLabels = 0;
+		int32 NumLabelledWithBox = 0;
 
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetNumberField(TEXT("frame_index"), (double)FrameIndex);
@@ -112,7 +137,7 @@ namespace
 		}
 
 		TArray<TSharedPtr<FJsonValue>> Anoms;
-		auto EmitEntry = [&](const FAutoLiveFireInfo& F, int32 FireIndex, bool bTransition, bool bSetsPresent)
+		auto EmitEntry = [&](const FAutoLiveFireInfo& F, int32 FireIndex, bool bTransition, bool bSetsPresent, uint8 Reasons)
 		{
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			O->SetStringField(TEXT("id"), F.Id.ToString());
@@ -233,10 +258,22 @@ namespace
 			if (bTransition)
 			{
 				O->SetNumberField(TEXT("transition"), 1);
+				const TArray<TSharedPtr<FJsonValue>> ReasonList = ReasonValues(Reasons != 0 ? Reasons : AnomalyLabelSync::ReasonTemporal);
+				O->SetArrayField(TEXT("transition_reason"), ReasonList);
+			}
+			bool bLabelled = bSetsPresent;
+			if (FireActive)
+			{
+				bLabelled = bSetsPresent && FireIndex != INDEX_NONE && FireActive->IsValidIndex(FireIndex) && (*FireActive)[FireIndex] != 0;
+				O->SetBoolField(TEXT("labelled"), bLabelled);
 			}
 			if (bValid && bSetsPresent)
 			{
 				++OutNumLabels;
+			}
+			if (bValid && bLabelled)
+			{
+				++NumLabelledWithBox;
 			}
 			Anoms.Add(MakeShared<FJsonValueObject>(O));
 		};
@@ -248,18 +285,20 @@ namespace
 				continue;
 			}
 			EmitEntry(Fires[FireIndex], FireIndex, TransitionAt(EntryEmit, EntryTransition, FireIndex),
-				Mode == AnomalyLabelSync::EEntryEmit::Normal);
+				Mode == AnomalyLabelSync::EEntryEmit::Normal, ReasonsAt(EntryEmit, EntryTransition, FireIndex));
 		}
 		if (TransitionFires)
 		{
-			for (const FAutoLiveFireInfo& F : *TransitionFires)
+			for (int32 t = 0; t < TransitionFires->Num(); ++t)
 			{
-				EmitEntry(F, INDEX_NONE, true, false);
+				const uint8 Reasons = (TransitionFireReasons && TransitionFireReasons->IsValidIndex(t))
+					? (*TransitionFireReasons)[t] : AnomalyLabelSync::ReasonTemporal;
+				EmitEntry((*TransitionFires)[t], INDEX_NONE, true, false, Reasons);
 			}
 		}
 		Root->SetArrayField(TEXT("anomalies"), Anoms);
 
-		Root->SetBoolField(TEXT("visible_positive"), Counts.bPresent && (OutNumLabels > 0));
+		Root->SetBoolField(TEXT("visible_positive"), Counts.bPresent && (NumLabelledWithBox > 0));
 
 		if (bTargetMask)
 		{
@@ -295,6 +334,16 @@ namespace
 			Root->SetBoolField(TEXT("camera_clipping.sphere_proxy"), CameraClip->bSphereProxy);
 			Root->SetNumberField(TEXT("camera_clipping.slab_primitives"), CameraClip->SlabPrimitives);
 			Root->SetNumberField(TEXT("camera_clipping.eye_inside_box"), CameraClip->EyeInsideBox);
+			Root->SetBoolField(TEXT("camera_clipping.bounds_candidate"), CameraClip->bSatPositive);
+			Root->SetNumberField(TEXT("camera_clipping.clipped_ray_fraction"), CameraClip->ClippedRayFraction);
+			Root->SetNumberField(TEXT("camera_clipping.confirm_traces"), CameraClip->ConfirmTraces);
+			Root->SetNumberField(TEXT("camera_clipping.confirm_hits"), CameraClip->ConfirmHits);
+			Root->SetNumberField(TEXT("camera_clipping.confirm_misses"), CameraClip->ConfirmMisses);
+			Root->SetNumberField(TEXT("camera_clipping.confirm_unresolved"), CameraClip->ConfirmUnresolved);
+			if (CameraClip->bUnconfirmed)
+			{
+				Root->SetBoolField(TEXT("camera_clipping.unconfirmed"), true);
+			}
 			if (CameraClip->bNearOverridden)
 			{
 				Root->SetBoolField(TEXT("camera_clipping.near_overridden"), true);
@@ -562,7 +611,7 @@ namespace AnomalyLabel
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
 		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
-		bool& bOutResampled, bool bLog, bool bWriteLabels)
+		bool& bOutResampled, bool bLog, bool bWriteLabels, const FCaptureSnapshot* SyncFrame)
 	{
 		OutNumLabels = 0;
 		OutNativeW = 0;
@@ -610,8 +659,14 @@ namespace AnomalyLabel
 			return false;
 		}
 
-		const FString Record = BuildFrameLabelRecord(Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
-			World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
+		const FString Record = SyncFrame
+			? BuildFrameLabelRecord(SyncFrame->Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
+				World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels, false, FString(), nullptr,
+				EAnomalyMaskState::Unmeasured, 0, 0, false, nullptr, nullptr, nullptr, nullptr, false, nullptr,
+				&SyncFrame->EntryEmit, &SyncFrame->EntryTransition, &SyncFrame->TransitionFires, &SyncFrame->CameraClip,
+				&SyncFrame->FireActive, &SyncFrame->TransitionFireReasons)
+			: BuildFrameLabelRecord(Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
+				World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
 
 		if (!AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog, bWriteLabels))
 		{
@@ -632,7 +687,8 @@ namespace AnomalyLabel
 			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete, Snapshot.bExposureDip,
 			&Snapshot.TargetPixels, &Snapshot.Observable, &Snapshot.DrawnBounds,
 			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded, &Snapshot.Telemetry,
-			&Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires, &Snapshot.CameraClip);
+			&Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires, &Snapshot.CameraClip,
+			&Snapshot.FireActive, &Snapshot.TransitionFireReasons);
 	}
 
 	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot)
@@ -908,6 +964,18 @@ namespace AnomalyLabel
 				Root->SetNumberField(TEXT("stuck_mip_forced_authority_frames"), StuckMip->ForcedAuthorityFrames);
 				Root->SetNumberField(TEXT("stuck_mip_late_receipt_after_force"), StuckMip->LateReceiptAfterForce);
 				Root->SetNumberField(TEXT("stuck_mip_inherited_mask_records"), StuckMip->InheritedMaskRecords);
+			Root->SetNumberField(TEXT("stuck_mip_partial_frames"), StuckMip->PartialFrames);
+			Root->SetNumberField(TEXT("stuck_mip_partial_onset_frames"), StuckMip->PartialOnsetFrames);
+			Root->SetNumberField(TEXT("stuck_mip_partial_mid_frames"), StuckMip->PartialMidFrames);
+			Root->SetNumberField(TEXT("stuck_mip_partial_offset_frames"), StuckMip->PartialOffsetFrames);
+			Root->SetNumberField(TEXT("stuck_mip_partial_max_per_edge"), StuckMip->PartialMaxPerEdge);
+			Root->SetNumberField(TEXT("stuck_mip_partial_events_over_three"), StuckMip->PartialEventsOverThree);
+			TArray<TSharedPtr<FJsonValue>> PartialValues;
+			for (const FString& P : StuckMip->PartialEvents)
+			{
+				PartialValues.Add(MakeShared<FJsonValueString>(P));
+			}
+			Root->SetArrayField(TEXT("stuck_mip_partial_events"), PartialValues);
 			}
 		}
 		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);
@@ -1019,12 +1087,44 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("mask_tag_recycles"), LabelSync->MaskTagRecycles);
 			Root->SetNumberField(TEXT("mask_tag_peak_live"), LabelSync->MaskTagPeakLive);
 			Root->SetNumberField(TEXT("mask_tag_exhausted"), LabelSync->MaskTagExhausted);
+			Root->SetNumberField(TEXT("mask_tag_retire_quarantined"), LabelSync->MaskTagRetireQuarantined);
+			Root->SetNumberField(TEXT("mask_tag_retire_host_flag_kept"), LabelSync->MaskTagRetireHostFlagKept);
+			Root->SetNumberField(TEXT("label_transition_temporal_aa_entries"), LabelSync->ReasonEntries[0]);
+			Root->SetNumberField(TEXT("label_transition_hide_return_entries"), LabelSync->ReasonEntries[1]);
+			Root->SetNumberField(TEXT("label_transition_partial_entries"), LabelSync->ReasonEntries[2]);
+			Root->SetNumberField(TEXT("label_transition_camera_clipping_unconfirmed_entries"), LabelSync->ReasonEntries[3]);
+			Root->SetNumberField(TEXT("label_transition_tracks_carried_in"), LabelSync->CarriedTransitionTracks);
+			Root->SetNumberField(TEXT("label_hide_tracks_carried_in"), LabelSync->CarriedHideTracks);
+			Root->SetNumberField(TEXT("label_active_unlabelled_entries"), LabelSync->UnlabelledActiveEntries);
+			Root->SetNumberField(TEXT("sync_frames_written"), LabelSync->SyncFramesWritten);
 		}
 
 		if (CameraClip && CameraClip->FramesEvaluated > 0)
 		{
 			const double Frames = (double)CameraClip->FramesEvaluated;
-			Root->SetStringField(TEXT("camera_clipping_label_rule"), TEXT("view_slab_render_bounds_v1"));
+			Root->SetStringField(TEXT("camera_clipping_label_rule"), TEXT("view_slab_bounds_then_triangle_confirm_v2"));
+			Root->SetNumberField(TEXT("camera_clipping_bounds_candidate_frames"), CameraClip->BoundsCandidateFrames);
+			Root->SetNumberField(TEXT("camera_clipping_confirmed_positive_frames"), CameraClip->ConfirmedPositiveFrames);
+			Root->SetNumberField(TEXT("camera_clipping_unconfirmed_frames"), CameraClip->UnconfirmedFrames);
+			Root->SetNumberField(TEXT("camera_clipping_bounds_rejected_by_triangles_frames"), CameraClip->RejectedByTrianglesFrames);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_traces_total"), (double)CameraClip->ConfirmTracesTotal);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_traces_max"), CameraClip->ConfirmTracesMax);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_unconfirmable_candidates"), (double)CameraClip->UnconfirmableTotal);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_over_cap_candidates"), (double)CameraClip->OverCapTotal);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_trace_capped_candidates"), (double)CameraClip->TraceCappedTotal);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_no_ray_candidates"), (double)CameraClip->NoRayTotal);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_landscape_candidates"), (double)CameraClip->LandscapeTotal);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_skinned_unconfirmable"), (double)CameraClip->SkinnedTotal);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_no_collision_unconfirmable"), (double)CameraClip->NoCollisionTotal);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_no_complex_unconfirmable"), (double)CameraClip->NoComplexTotal);
+			const double LabelledFrames = (double)FMath::Max(1, CameraClip->ConfirmedPositiveFrames + CameraClip->UnconfirmedFrames);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_us_mean_per_labelled_frame"), CameraClip->ConfirmMicrosLabelledTotal / LabelledFrames);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_us_mean_per_candidate_frame"),
+				CameraClip->ConfirmMicrosTotal / (double)FMath::Max(1, CameraClip->BoundsCandidateFrames));
+			Root->SetNumberField(TEXT("camera_clipping_confirm_us_max"), CameraClip->ConfirmMicrosMax);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_budget_us"), 500.0);
+			Root->SetNumberField(TEXT("camera_clipping_clipped_ray_fraction_mean_confirmed"),
+				CameraClip->ClippedRayFractionSum / (double)FMath::Max(1, CameraClip->ConfirmedPositiveFrames));
 			Root->SetNumberField(TEXT("camera_clipping_baseline_near"), CameraClip->BaselineNear);
 			Root->SetNumberField(TEXT("camera_clipping_anomalous_near"), CameraClip->AnomalousNear);
 			Root->SetNumberField(TEXT("camera_clipping_frames_evaluated"), CameraClip->FramesEvaluated);

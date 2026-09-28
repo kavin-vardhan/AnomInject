@@ -54,6 +54,25 @@ struct FAnomalyNearClipSlabResult
 	int32 FxExcluded = 0;
 	double Micros = 0.0;
 	FString FirstHit;
+	bool bSatPositive = false;
+	bool bUnconfirmed = false;
+	float ClippedRayFraction = 0.0f;
+	int32 ConfirmCandidates = 0;
+	int32 ConfirmTraces = 0;
+	int32 ConfirmHits = 0;
+	int32 ConfirmMisses = 0;
+	int32 ConfirmUnconfirmable = 0;
+	int32 ConfirmOverCap = 0;
+	int32 ConfirmTraceCapped = 0;
+	int32 ConfirmNoRay = 0;
+	int32 LandscapeCandidates = 0;
+	int32 SkinnedUnconfirmable = 0;
+	int32 NoCollisionUnconfirmable = 0;
+	int32 NoComplexUnconfirmable = 0;
+	int32 HismTreeQueries = 0;
+	int32 IsmFullScans = 0;
+	double ConfirmMicros = 0.0;
+	FString FirstConfirmedHit;
 };
 
 struct FSelectionProvenance

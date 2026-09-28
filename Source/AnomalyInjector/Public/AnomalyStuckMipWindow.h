@@ -648,4 +648,132 @@ namespace AnomalyStuckMipWindow
 		default:                      return "baseline";
 		}
 	}
+
+	enum class ELevel : unsigned char
+	{
+		Unknown = 0,
+		Baseline = 1,
+		Between = 2,
+		AtHeld = 3
+	};
+
+	inline ELevel ClassifyLevel(ETexState State, int RenderResident, int Baseline, int HeldLevel)
+	{
+		if (State == ETexState::Unknown)
+		{
+			return ELevel::Unknown;
+		}
+		if (State == ETexState::Baseline)
+		{
+			return ELevel::Baseline;
+		}
+		if (HeldLevel <= 0 || HeldLevel >= Baseline)
+		{
+			return ELevel::AtHeld;
+		}
+		return RenderResident <= HeldLevel ? ELevel::AtHeld : ELevel::Between;
+	}
+
+	inline bool IsPartialHeldSet(const ELevel* Levels, int Num)
+	{
+		bool bAnyBelowBaseline = false;
+		bool bAnyShortOfHeld = false;
+		for (int i = 0; i < Num; ++i)
+		{
+			if (Levels[i] == ELevel::AtHeld || Levels[i] == ELevel::Between)
+			{
+				bAnyBelowBaseline = true;
+			}
+			if (Levels[i] != ELevel::AtHeld)
+			{
+				bAnyShortOfHeld = true;
+			}
+		}
+		return bAnyBelowBaseline && bAnyShortOfHeld;
+	}
+
+	inline const char* DescribeLevel(ELevel L)
+	{
+		switch (L)
+		{
+		case ELevel::Baseline: return "baseline";
+		case ELevel::Between:  return "between";
+		case ELevel::AtHeld:   return "held";
+		default:               return "unknown";
+		}
+	}
+
+	struct FPartialEdgeTrack
+	{
+		static constexpr int Cap = 32;
+		int PartialSI[Cap] = {};
+		int NumPartial = 0;
+		int PartialOverflow = 0;
+		int FirstFullSI = -1;
+		int LastFullSI = -1;
+
+		void Observe(int SI, bool bMember, bool bPartial)
+		{
+			if (!bMember)
+			{
+				return;
+			}
+			if (!bPartial)
+			{
+				FirstFullSI = (FirstFullSI < 0 || SI < FirstFullSI) ? SI : FirstFullSI;
+				LastFullSI = SI > LastFullSI ? SI : LastFullSI;
+				return;
+			}
+			for (int i = 0; i < NumPartial; ++i)
+			{
+				if (PartialSI[i] == SI)
+				{
+					return;
+				}
+			}
+			if (NumPartial == Cap)
+			{
+				++PartialOverflow;
+				return;
+			}
+			int Pos = NumPartial;
+			while (Pos > 0 && PartialSI[Pos - 1] > SI)
+			{
+				PartialSI[Pos] = PartialSI[Pos - 1];
+				--Pos;
+			}
+			PartialSI[Pos] = SI;
+			++NumPartial;
+		}
+
+		bool IsOnsetEdge(int SI) const
+		{
+			return FirstFullSI < 0 || SI < FirstFullSI;
+		}
+
+		int CountOnset() const
+		{
+			int N = 0;
+			for (int i = 0; i < NumPartial; ++i)
+			{
+				if (IsOnsetEdge(PartialSI[i])) { ++N; }
+			}
+			return N;
+		}
+
+		int CountOffset() const
+		{
+			return NumPartial - CountOnset() - CountMid();
+		}
+
+		int CountMid() const
+		{
+			int N = 0;
+			for (int i = 0; i < NumPartial; ++i)
+			{
+				if (!IsOnsetEdge(PartialSI[i]) && PartialSI[i] < LastFullSI) { ++N; }
+			}
+			return N;
+		}
+	};
 }

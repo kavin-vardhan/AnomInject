@@ -52,8 +52,10 @@ bool FAnomaly_CameraClipping::Apply(UWorld* World, const TArray<FString>& Args)
 		bActive = true;
 		UE_LOG(LogAnomaly, Log,
 			TEXT("camera_clipping: near clip %.3f -> %.3f. A frame is labelled positive only when rendered geometry lies in ")
-			TEXT("the view slab between the two planes (depth %.3f..%.3f inside the frustum); the pre-086-02 sphere proxy ")
-			TEXT("is kept as the diagnostic camera_clipping.sphere_proxy."),
+			TEXT("the view slab between the two planes (depth %.3f..%.3f inside the frustum): bounds are the broad phase and ")
+			TEXT("a complex trace inside the slab must hit the candidate's triangles; a candidate that cannot be traced keeps ")
+			TEXT("its bounds verdict and flags the frame camera_clipping_unconfirmed. The pre-086-02 sphere proxy is kept as ")
+			TEXT("the diagnostic camera_clipping.sphere_proxy."),
 			PreviousNearClip, GNearClippingPlane, PreviousNearClip, AnomalousNearClip);
 		return true;
 	}

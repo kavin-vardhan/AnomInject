@@ -95,6 +95,8 @@ public:
 	int32 GetTagRecycles() const { return TagRecycles; }
 	int32 GetTagPeakLive() const { return TagPeakLive; }
 	int32 GetTagExhausted() const { return TagExhausted; }
+	int32 GetTagRetireQuarantined() const { return TagRetireQuarantined; }
+	int32 GetTagRetireHostFlagKept() const { return TagRetireHostFlagKept; }
 
 private:
 	int32 AllocateTag(FName ForId, const FString& ForTarget, uint64 ForStartFrame);
@@ -114,6 +116,8 @@ private:
 	int32 TagRecycles = 0;
 	int32 TagPeakLive = 0;
 	int32 TagExhausted = 0;
+	int32 TagRetireQuarantined = 0;
+	int32 TagRetireHostFlagKept = 0;
 };
 
 #endif

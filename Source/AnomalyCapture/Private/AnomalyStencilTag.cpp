@@ -3,6 +3,7 @@
 #if ANOMALY_CAPTURE
 
 #include "AnomalyViewport.h"
+#include "AnomalyLabelSync.h"
 
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
@@ -202,6 +203,65 @@ namespace AnomalyStencilTag
 				GTaggedComponents.Remove(Key);
 			}
 		}
+	}
+
+	FRetireStencilResult RetireStencilValue(AActor* FormerOwner, int32 StencilValue)
+	{
+		FRetireStencilResult R;
+		for (auto It = GTaggedComponents.CreateIterator(); It; ++It)
+		{
+			UPrimitiveComponent* Prim = It.Key().Get();
+			if (!Prim)
+			{
+				continue;
+			}
+			const AnomalyLabelSync::ERetireAction Action = AnomalyLabelSync::DecideRetire(true,
+				Prim->CustomDepthStencilValue, Prim->bRenderCustomDepth != 0, StencilValue);
+			if (Action == AnomalyLabelSync::ERetireAction::Leave)
+			{
+				continue;
+			}
+			Prim->SetCustomDepthStencilValue(It.Value().CustomDepthStencilValue);
+			if (Action == AnomalyLabelSync::ERetireAction::RestoreValueAndFlag)
+			{
+				Prim->SetRenderCustomDepth(It.Value().bRenderCustomDepth);
+				++R.Restored;
+			}
+			else
+			{
+				++R.RestoredValueOnly;
+			}
+			It.RemoveCurrent();
+		}
+		TArray<int32> After;
+		for (const TPair<TWeakObjectPtr<UPrimitiveComponent>, FPriorStencilState>& Pair : GTaggedComponents)
+		{
+			if (const UPrimitiveComponent* Prim = Pair.Key.Get())
+			{
+				After.Add(Prim->CustomDepthStencilValue);
+			}
+		}
+		if (FormerOwner)
+		{
+			TInlineComponentArray<UPrimitiveComponent*> Prims;
+			FormerOwner->GetComponents(Prims);
+			for (const UPrimitiveComponent* Prim : Prims)
+			{
+				if (Prim && !GTaggedComponents.Contains(TWeakObjectPtr<UPrimitiveComponent>(const_cast<UPrimitiveComponent*>(Prim))))
+				{
+					After.Add(Prim->CustomDepthStencilValue);
+				}
+			}
+		}
+		for (const int32 V : After)
+		{
+			if (V == StencilValue)
+			{
+				++R.Remaining;
+			}
+		}
+		R.bVerified = AnomalyLabelSync::RetirementVerified(After.GetData(), After.Num(), StencilValue);
+		return R;
 	}
 
 	int32 RestoreComponentsCarrying(AActor* Actor, int32 StencilValue)

@@ -61,6 +61,7 @@ private:
 		TWeakObjectPtr<UTexture2D> Texture;
 		FString TextureName;
 		int32 BaselineResidentMips = 0;
+		int32 HeldResidentMips = 0;
 		uint64 BaselineResourceId = 0;
 		TWeakObjectPtr<AActor> Owner;
 		FString OwnerName;
@@ -71,6 +72,8 @@ private:
 		bool bFenceRan = false;
 		bool bTimeoutReported = false;
 	};
+
+	static int32 HeldLevelOf(const FHeldTexture& H);
 
 	bool RunStreamerFence(int32& OutRetireFrames);
 	bool bStreamerFencePending = false;

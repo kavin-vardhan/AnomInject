@@ -15,7 +15,11 @@
 #include "Components/PrimitiveComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
+#include "PhysicsEngine/BodyInstance.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "UObject/UnrealType.h"
 #include "InstancedFoliageActor.h"
 #include "Materials/MaterialInterface.h"
 #include "MaterialShared.h"
@@ -574,6 +578,55 @@ namespace
 		return B;
 	}
 
+	enum class EConfirmTarget : uint8
+	{
+		Mesh = 0,
+		Landscape = 1,
+		Skinned = 2,
+		NoCollision = 3,
+		NoComplex = 4
+	};
+
+	EConfirmTarget ResolveConfirmTarget(UPrimitiveComponent* P, int32 InstanceIndex, FBodyInstance*& OutBody)
+	{
+		OutBody = nullptr;
+		if (!P || P->IsA<USkinnedMeshComponent>())
+		{
+			return EConfirmTarget::Skinned;
+		}
+		if (const FLazyObjectProperty* Prop = FindFProperty<FLazyObjectProperty>(P->GetClass(), TEXT("CollisionComponent")))
+		{
+			UPrimitiveComponent* Collision = Cast<UPrimitiveComponent>(Prop->GetObjectPropertyValue_InContainer(P));
+			FBodyInstance* Body = Collision ? Collision->GetBodyInstance() : nullptr;
+			if (!Body || !Body->IsValidBodyInstance())
+			{
+				return EConfirmTarget::NoCollision;
+			}
+			OutBody = Body;
+			return EConfirmTarget::Landscape;
+		}
+		FBodyInstance* Body = nullptr;
+		if (UInstancedStaticMeshComponent* Ism = Cast<UInstancedStaticMeshComponent>(P))
+		{
+			Body = Ism->InstanceBodies.IsValidIndex(InstanceIndex) ? Ism->InstanceBodies[InstanceIndex] : nullptr;
+		}
+		else
+		{
+			Body = P->GetBodyInstance();
+		}
+		if (P->GetCollisionEnabled() == ECollisionEnabled::NoCollision || !Body || !Body->IsValidBodyInstance())
+		{
+			return EConfirmTarget::NoCollision;
+		}
+		const UBodySetup* Setup = P->GetBodySetup();
+		if (!Setup || Setup->CollisionTraceFlag == CTF_UseSimpleAsComplex || Setup->ChaosTriMeshes.Num() == 0)
+		{
+			return EConfirmTarget::NoComplex;
+		}
+		OutBody = Body;
+		return EConfirmTarget::Mesh;
+	}
+
 	bool IsOrientedBoxPlausible(const AnomalyNearClipSlab::FBox3& B, const FBoxSphereBounds& WorldBounds,
 		const FVector& LocalExtent)
 	{
@@ -1027,6 +1080,31 @@ namespace AnomalyViewport
 		const FBox SlabBox(FromSlabV3(Slab.AabbMin), FromSlabV3(Slab.AabbMax));
 		const AActor* ViewActor = PC->GetViewTarget();
 
+		TArray<FConfirmCandidate> ConfirmCands;
+		TArray<FBodyInstance*> ConfirmBodies;
+		TArray<FString> ConfirmNames;
+		auto AddConfirm = [&](UPrimitiveComponent* P, int32 InstanceIndex, const FBox3& Box)
+		{
+			FConfirmCandidate C;
+			C.Box = Box;
+			FBodyInstance* Body = nullptr;
+			const EConfirmTarget Kind = ResolveConfirmTarget(P, InstanceIndex, Body);
+			switch (Kind)
+			{
+			case EConfirmTarget::Landscape: ++Out.LandscapeCandidates; break;
+			case EConfirmTarget::Skinned:   ++Out.SkinnedUnconfirmable; break;
+			case EConfirmTarget::NoCollision: ++Out.NoCollisionUnconfirmable; break;
+			case EConfirmTarget::NoComplex: ++Out.NoComplexUnconfirmable; break;
+			default: break;
+			}
+			C.bConfirmable = Body != nullptr && (Kind == EConfirmTarget::Mesh || Kind == EConfirmTarget::Landscape);
+			ConfirmCands.Add(C);
+			ConfirmBodies.Add(C.bConfirmable ? Body : nullptr);
+			ConfirmNames.Add(InstanceIndex == INDEX_NONE
+				? FString::Printf(TEXT("%s.%s"), *GetNameSafe(P->GetOwner()), *P->GetName())
+				: FString::Printf(TEXT("%s.%s[%d]"), *GetNameSafe(P->GetOwner()), *P->GetName(), InstanceIndex));
+		};
+
 		auto Visit = [&](UPrimitiveComponent* P)
 		{
 			if (!P)
@@ -1085,8 +1163,24 @@ namespace AnomalyViewport
 					return;
 				}
 				const FBoxSphereBounds MeshBounds = Mesh->GetBounds();
-				const TArray<int32> Overlapping = Ism->GetInstancesOverlappingBox(SlabBox, true);
-				for (const int32 Index : Overlapping)
+				TArray<int32> Indices;
+				const UHierarchicalInstancedStaticMeshComponent* Hism = Cast<UHierarchicalInstancedStaticMeshComponent>(Ism);
+				if (Hism && Hism->ClusterTreePtr.IsValid() && Hism->ClusterTreePtr->Num() > 0 && Hism->IsTreeFullyBuilt())
+				{
+					++Out.HismTreeQueries;
+					Indices = Hism->GetInstancesOverlappingBox(SlabBox, true);
+				}
+				else
+				{
+					++Out.IsmFullScans;
+					const int32 Count = Ism->GetInstanceCount();
+					Indices.Reserve(Count);
+					for (int32 Index = 0; Index < Count; ++Index)
+					{
+						Indices.Add(Index);
+					}
+				}
+				for (const int32 Index : Indices)
 				{
 					FTransform InstanceTransform;
 					if (!Ism->GetInstanceTransform(Index, InstanceTransform, true))
@@ -1100,11 +1194,11 @@ namespace AnomalyViewport
 					{
 						continue;
 					}
-					if (BoxIntersectsSlab(Slab, Box))
+					if (InstanceBoxMayTouchSlab(Slab, Box))
 					{
 						bHit = true;
-						bEyeInside = PointInsideBox(Box, Eye);
-						break;
+						bEyeInside = bEyeInside || PointInsideBox(Box, Eye);
+						AddConfirm(const_cast<UInstancedStaticMeshComponent*>(Ism), Index, Box);
 					}
 				}
 			}
@@ -1118,12 +1212,20 @@ namespace AnomalyViewport
 				{
 					bHit = BoxIntersectsSlab(Slab, Oriented) && BoxIntersectsSlab(Slab, WorldAabb);
 					bEyeInside = bHit && PointInsideBox(Oriented, Eye);
+					if (bHit)
+					{
+						AddConfirm(P, INDEX_NONE, Oriented);
+					}
 				}
 				else
 				{
 					++Out.BoxFallbacks;
 					bHit = BoxIntersectsSlab(Slab, WorldAabb);
 					bEyeInside = bHit && PointInsideBox(WorldAabb, Eye);
+					if (bHit)
+					{
+						AddConfirm(P, INDEX_NONE, WorldAabb);
+					}
 				}
 			}
 			if (!bHit)
@@ -1157,7 +1259,48 @@ namespace AnomalyViewport
 			}
 		}
 
-		Out.bSlab = Out.SlabPrimitives > 0;
+		Out.bSatPositive = Out.SlabPrimitives > 0;
+		Out.bSlab = false;
+		Out.ConfirmCandidates = ConfirmCands.Num();
+		if (Out.bSatPositive && ConfirmCands.Num() > 0)
+		{
+			const uint64 ConfirmStart = FPlatformTime::Cycles64();
+			TArray<ECandidateOutcome> Outcomes;
+			Outcomes.SetNum(ConfirmCands.Num());
+			const FConfirmConfig Cfg;
+			const FConfirmResult R = ConfirmSlab(Eye, ToSlabV3(Basis.GetScaledAxis(EAxis::X)),
+				ToSlabV3(Basis.GetScaledAxis(EAxis::Y)), ToSlabV3(Basis.GetScaledAxis(EAxis::Z)), Tan.TanH, Tan.TanV,
+				BaselineNear, AnomalousNear, ConfirmCands.GetData(), ConfirmCands.Num(), Outcomes.GetData(), Cfg,
+				[&ConfirmBodies](int32 Index, const FV3& P0, const FV3& P1)
+				{
+					FBodyInstance* Body = ConfirmBodies.IsValidIndex(Index) ? ConfirmBodies[Index] : nullptr;
+					if (!Body || !Body->IsValidBodyInstance())
+					{
+						return false;
+					}
+					FHitResult Hit;
+					return Body->LineTrace(Hit, FromSlabV3(P0), FromSlabV3(P1), true, false);
+				});
+			Out.ConfirmMicros = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - ConfirmStart) * 1000.0;
+			Out.bSlab = R.bPositive;
+			Out.bUnconfirmed = R.bUnconfirmed;
+			Out.ClippedRayFraction = (float)R.ClippedRayFraction;
+			Out.ConfirmTraces = R.Traces;
+			Out.ConfirmHits = R.Hits;
+			Out.ConfirmMisses = R.Misses;
+			Out.ConfirmUnconfirmable = R.Unconfirmable;
+			Out.ConfirmOverCap = R.OverCap;
+			Out.ConfirmTraceCapped = R.TraceCapped;
+			Out.ConfirmNoRay = R.NoRay;
+			for (int32 i = 0; i < Outcomes.Num(); ++i)
+			{
+				if (Outcomes[i] == ECandidateOutcome::Hit)
+				{
+					Out.FirstConfirmedHit = ConfirmNames[i];
+					break;
+				}
+			}
+		}
 		Finish();
 		return true;
 	}

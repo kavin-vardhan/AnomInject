@@ -1012,6 +1012,7 @@ void FAnomaly_StuckLowMip::Revert()
 				Back.Texture = Tex;
 				Back.TextureName = H.TextureName;
 				Back.BaselineResidentMips = H.BaselineResidentMips;
+				Back.HeldResidentMips = HeldLevelOf(H);
 				Back.BaselineResourceId = H.BaselineResourceId;
 				Back.Owner = PrimaryOwner;
 				Back.OwnerName = PrimaryOwnerName;
@@ -1031,6 +1032,7 @@ void FAnomaly_StuckLowMip::Revert()
 		R.Texture = Tex;
 		R.TextureName = H.TextureName;
 		R.BaselineResidentMips = H.BaselineResidentMips;
+		R.HeldResidentMips = HeldLevelOf(H);
 		R.BaselineResourceId = H.BaselineResourceId;
 		R.Owner = PrimaryOwner;
 		R.OwnerName = PrimaryOwnerName;
@@ -1297,6 +1299,13 @@ bool FAnomaly_StuckLowMip::IsCurrentlyAnomalous() const
 	return false;
 }
 
+int32 FAnomaly_StuckLowMip::HeldLevelOf(const FHeldTexture& H)
+{
+	const int32 Aim = H.PredictedMaxAllowedMips > 0 ? H.PredictedMaxAllowedMips : H.TargetMips;
+	const int32 Floor = FMath::Max(1, H.FloorMips);
+	return FMath::Clamp(Aim, Floor, FMath::Max(Floor, H.BaselineResidentMips));
+}
+
 bool FAnomaly_StuckLowMip::GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const
 {
 	if (!bActive)
@@ -1309,6 +1318,7 @@ bool FAnomaly_StuckLowMip::GetRenderTruthTextures(TArray<FAnomalyRenderTruthText
 		R.Texture = H.Texture;
 		R.Name = H.TextureName;
 		R.BaselineResidentMips = H.BaselineResidentMips;
+		R.HeldResidentMips = HeldLevelOf(H);
 		R.BaselineResourceId = H.BaselineResourceId;
 		R.Owner = PrimaryOwner;
 		R.OwnerName = PrimaryOwnerName;
@@ -1325,6 +1335,7 @@ bool FAnomaly_StuckLowMip::GetRestoringRenderTruthTextures(TArray<FAnomalyRender
 		R.Texture = Rs.Texture;
 		R.Name = Rs.TextureName;
 		R.BaselineResidentMips = Rs.BaselineResidentMips;
+		R.HeldResidentMips = Rs.HeldResidentMips;
 		R.BaselineResourceId = Rs.BaselineResourceId;
 		R.Owner = Rs.Owner;
 		R.OwnerName = Rs.OwnerName;

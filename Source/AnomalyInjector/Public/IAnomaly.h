@@ -13,6 +13,7 @@ struct FAnomalyRenderTruthTexture
 	TWeakObjectPtr<UTexture2D> Texture;
 	FString Name;
 	int32 BaselineResidentMips = 0;
+	int32 HeldResidentMips = 0;
 	uint64 BaselineResourceId = 0;
 	TWeakObjectPtr<AActor> Owner;
 	FString OwnerName;

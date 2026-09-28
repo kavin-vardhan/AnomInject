@@ -34,6 +34,24 @@ struct FCameraClipRunAccum
 	float BaselineNear = 0.0f;
 	float AnomalousNear = 0.0f;
 	TMap<FString, int32> FirstHits;
+	int32 BoundsCandidateFrames = 0;
+	int32 ConfirmedPositiveFrames = 0;
+	int32 UnconfirmedFrames = 0;
+	int32 RejectedByTrianglesFrames = 0;
+	int64 ConfirmTracesTotal = 0;
+	int32 ConfirmTracesMax = 0;
+	int64 UnconfirmableTotal = 0;
+	int64 OverCapTotal = 0;
+	int64 TraceCappedTotal = 0;
+	int64 NoRayTotal = 0;
+	int64 LandscapeTotal = 0;
+	int64 SkinnedTotal = 0;
+	int64 NoCollisionTotal = 0;
+	int64 NoComplexTotal = 0;
+	double ConfirmMicrosTotal = 0.0;
+	double ConfirmMicrosLabelledTotal = 0.0;
+	double ConfirmMicrosMax = 0.0;
+	double ClippedRayFractionSum = 0.0;
 };
 
 UCLASS()

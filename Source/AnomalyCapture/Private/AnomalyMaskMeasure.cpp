@@ -39,6 +39,8 @@ void FAnomalyMaskMeasure::BeginRun(FAnomalyStencilTagLedger* InLedger)
 	TagRecycles = 0;
 	TagPeakLive = 0;
 	TagExhausted = 0;
+	TagRetireQuarantined = 0;
+	TagRetireHostFlagKept = 0;
 
 	const int32 Before = ReadCustomDepthCVar();
 	AnomalyStencilTag::EnableCustomStencil();
@@ -159,31 +161,61 @@ int32 FAnomalyMaskMeasure::ReclaimReleasableTag(FName ForId, const FString& ForT
 		C.ReleasableSince = R.ReleasableSinceTick;
 		Candidates.Add(C);
 	}
-	const int32 Pick = AnomalyLabelSync::PickRecycleVictim(Candidates.GetData(), Candidates.Num());
+	int32 Pick = -1;
+	uint8 Tag = 0;
+	FRetireStencilResult Retire;
+	for (int32 Attempt = 0; Attempt < Candidates.Num(); ++Attempt)
+	{
+		const int32 Try = AnomalyLabelSync::PickRecycleVictim(Candidates.GetData(), Candidates.Num());
+		if (Try < 0)
+		{
+			return 0;
+		}
+		FAnomalyMaskRecord& Victim = Records[Candidates[Try].Record];
+		const uint8 TryTag = Victim.Tag;
+		for (const FAnomalyMaskRecord& Other : Records)
+		{
+			if (&Other != &Victim && !Other.bTagRecycled && Other.Tag == TryTag)
+			{
+				UE_LOG(LogAnomalyCapture, Error,
+					TEXT("Capture(mask): TAG RECYCLE REFUSED value=%d - another unrecycled record (%s@%llu target=%s) still holds ")
+					TEXT("it, so recycling would alias two events. NO TAG IS ISSUED."),
+					(int32)TryTag, *Other.Id.ToString(), Other.StartFrame, *Other.Target);
+				return 0;
+			}
+		}
+		Victim.bTagRecycled = true;
+		Victim.bReleasable = false;
+		Candidates[Try].bAlreadyRecycled = true;
+		if (Ledger)
+		{
+			Ledger->EventClaimed.Add(TryTag);
+		}
+		const FRetireStencilResult R = AnomalyStencilTag::RetireStencilValue(Victim.TargetActor.Get(), (int32)TryTag);
+		TagRetireHostFlagKept += R.RestoredValueOnly;
+		if (!R.bVerified)
+		{
+			++TagRetireQuarantined;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(mask): TAG RETIRE UNVERIFIED value=%d from event=%s@%llu target=%s - %d component(s) still hold the ")
+				TEXT("value after retirement (restored %d with flag, %d value-only). The value is QUARANTINED for the rest of the run ")
+				TEXT("and is NOT issued to event=%s@%llu; the next releasable value is tried. Counted in ")
+				TEXT("run_summary.mask_tag_retire_quarantined."),
+				(int32)TryTag, *Victim.Id.ToString(), Victim.StartFrame, *Victim.Target, R.Remaining, R.Restored,
+				R.RestoredValueOnly, *ForId.ToString(), ForStartFrame);
+			continue;
+		}
+		Pick = Try;
+		Tag = TryTag;
+		Retire = R;
+		break;
+	}
 	if (Pick < 0)
 	{
 		return 0;
 	}
 	FAnomalyMaskRecord& Victim = Records[Candidates[Pick].Record];
-	const uint8 Tag = Victim.Tag;
-	for (const FAnomalyMaskRecord& Other : Records)
-	{
-		if (&Other != &Victim && !Other.bTagRecycled && Other.Tag == Tag)
-		{
-			UE_LOG(LogAnomalyCapture, Error,
-				TEXT("Capture(mask): TAG RECYCLE REFUSED value=%d - another unrecycled record (%s@%llu target=%s) still holds ")
-				TEXT("it, so recycling would alias two events. NO TAG IS ISSUED."),
-				(int32)Tag, *Other.Id.ToString(), Other.StartFrame, *Other.Target);
-			return 0;
-		}
-	}
-	Victim.bTagRecycled = true;
-	Victim.bReleasable = false;
-	const int32 Restored = AnomalyStencilTag::RestoreComponentsCarrying(Victim.TargetActor.Get(), (int32)Tag);
-	if (Ledger)
-	{
-		Ledger->EventClaimed.Add(Tag);
-	}
+	const int32 Restored = Retire.Restored + Retire.RestoredValueOnly;
 	++TagRecycles;
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(mask): TAG RECYCLED value=%d from event=%s@%llu target=%s (releasable since tick %lld) to event=%s@%llu ")

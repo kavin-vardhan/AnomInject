@@ -606,6 +606,297 @@ static void RunBenchmark()
 	Check(NsPerSat < 5000.0, "exact SAT stays in the microsecond range");
 }
 
+struct FTri
+{
+	FV3 A;
+	FV3 B;
+	FV3 C;
+};
+
+struct FMesh
+{
+	std::vector<FTri> Tris;
+	FBox3 Box;
+	bool bConfirmable = true;
+};
+
+static bool SegmentHitsTri(const FV3& P0, const FV3& P1, const FTri& T)
+{
+	const FV3 D = Sub(P1, P0);
+	const FV3 E1 = Sub(T.B, T.A);
+	const FV3 E2 = Sub(T.C, T.A);
+	const FV3 P = Cross(D, E2);
+	const double Det = Dot(E1, P);
+	if (std::fabs(Det) < 1e-12)
+	{
+		return false;
+	}
+	const double Inv = 1.0 / Det;
+	const FV3 S = Sub(P0, T.A);
+	const double U = Dot(S, P) * Inv;
+	if (U < 0.0 || U > 1.0)
+	{
+		return false;
+	}
+	const FV3 Q = Cross(S, E1);
+	const double V = Dot(D, Q) * Inv;
+	if (V < 0.0 || U + V > 1.0)
+	{
+		return false;
+	}
+	const double T0 = Dot(E2, Q) * Inv;
+	return T0 >= 0.0 && T0 <= 1.0;
+}
+
+static void AddQuad(std::vector<FTri>& Out, const FV3& A, const FV3& B, const FV3& C, const FV3& D)
+{
+	Out.push_back({ A, B, C });
+	Out.push_back({ A, C, D });
+}
+
+static void AddBoxShell(std::vector<FTri>& Out, const FV3& Center, const FV3& Half)
+{
+	FV3 P[8];
+	int I = 0;
+	for (int SX = -1; SX <= 1; SX += 2)
+	{
+		for (int SY = -1; SY <= 1; SY += 2)
+		{
+			for (int SZ = -1; SZ <= 1; SZ += 2)
+			{
+				P[I++] = MakeV3(Center.X + SX * Half.X, Center.Y + SY * Half.Y, Center.Z + SZ * Half.Z);
+			}
+		}
+	}
+	AddQuad(Out, P[0], P[1], P[3], P[2]);
+	AddQuad(Out, P[4], P[5], P[7], P[6]);
+	AddQuad(Out, P[0], P[1], P[5], P[4]);
+	AddQuad(Out, P[2], P[3], P[7], P[6]);
+	AddQuad(Out, P[0], P[2], P[6], P[4]);
+	AddQuad(Out, P[1], P[3], P[7], P[5]);
+}
+
+static FMesh BoxMesh(const FV3& Center, const FV3& Half)
+{
+	FMesh M;
+	AddBoxShell(M.Tris, Center, Half);
+	M.Box = MakeAxisAlignedBox(Center, Half);
+	return M;
+}
+
+static FCamera ConfirmCamera()
+{
+	FCamera C;
+	C.Origin = MakeV3(0, 0, 0);
+	C.Forward = MakeV3(1, 0, 0);
+	C.Right = MakeV3(0, 1, 0);
+	C.Up = MakeV3(0, 0, 1);
+	C.TanH = 1.0;
+	C.TanV = 0.5625;
+	return C;
+}
+
+struct FConfirmRun
+{
+	FConfirmResult R;
+	std::vector<ECandidateOutcome> Outcomes;
+	bool bSat = false;
+};
+
+static FConfirmRun RunConfirm(const std::vector<FMesh>& Meshes, const FConfirmConfig& Cfg, bool bUseSatFilter = true)
+{
+	const FCamera C = ConfirmCamera();
+	const FSlab S = BuildSlab(C.Origin, C.Forward, C.Right, C.Up, C.TanH, C.TanV, 10.0, 100.0);
+	std::vector<FConfirmCandidate> Cands;
+	std::vector<const FMesh*> Src;
+	for (const FMesh& M : Meshes)
+	{
+		if (bUseSatFilter && !BoxIntersectsSlab(S, M.Box))
+		{
+			continue;
+		}
+		FConfirmCandidate K;
+		K.Box = M.Box;
+		K.bConfirmable = M.bConfirmable;
+		Cands.push_back(K);
+		Src.push_back(&M);
+	}
+	FConfirmRun Out;
+	Out.bSat = !Cands.empty();
+	Out.Outcomes.resize(Cands.size());
+	Out.R = ConfirmSlab(C.Origin, C.Forward, C.Right, C.Up, C.TanH, C.TanV, 10.0, 100.0, Cands.data(), (int)Cands.size(),
+		Out.Outcomes.data(), Cfg, [&Src](int Index, const FV3& P0, const FV3& P1)
+		{
+			for (const FTri& T : Src[Index]->Tris)
+			{
+				if (SegmentHitsTri(P0, P1, T))
+				{
+					return true;
+				}
+			}
+			return false;
+		});
+	return Out;
+}
+
+static void RunConfirmation()
+{
+	const FConfirmConfig Cfg;
+
+	{
+		std::vector<FMesh> Scene = { BoxMesh(MakeV3(0, 0, 0), MakeV3(200, 200, 200)) };
+		const FConfirmRun Run = RunConfirm(Scene, Cfg);
+		Check(Run.bSat, "hollow box around the eye: the bounds broad phase (SAT) reads it as a candidate - the 084-06 over-label");
+		Check(!Run.R.bPositive && !Run.R.bUnconfirmed, "hollow box around the eye with collision: the triangle confirmation reads 0 and does NOT flag");
+		Check(Run.R.ClippedRayFraction == 0.0 && Run.R.Misses == 1, "hollow box: clipped_ray_fraction 0, the candidate is a confirmed miss");
+		Check(Run.R.Traces == Cfg.GridX * Cfg.GridY, "hollow box: every global view ray crossed the box and was traced (" + std::to_string(Run.R.Traces) + ")");
+		Check(Run.bSat != Run.R.bPositive, "BOTH WAYS: bounds-only labelling (SAT alone) over-labels the hollow box; confirmation does not");
+	}
+
+	{
+		FMesh Wall;
+		AddQuad(Wall.Tris, MakeV3(50, -200, -200), MakeV3(50, 200, -200), MakeV3(50, 200, 200), MakeV3(50, -200, 200));
+		Wall.Box = MakeAxisAlignedBox(MakeV3(50, 0, 0), MakeV3(0.5, 200, 200));
+		const FConfirmRun Run = RunConfirm({ Wall }, Cfg);
+		Check(Run.R.bPositive && !Run.R.bUnconfirmed, "wall inside the slab: confirmed positive, not flagged");
+		Check(Run.R.ClippedRayFraction == 1.0, "wall across the whole slab: clipped_ray_fraction 1.0");
+	}
+
+	{
+		FMesh Wall;
+		AddQuad(Wall.Tris, MakeV3(150, -500, -500), MakeV3(150, 500, -500), MakeV3(150, 500, 500), MakeV3(150, -500, 500));
+		Wall.Box = MakeAxisAlignedBox(MakeV3(150, 0, 0), MakeV3(0.5, 500, 500));
+		const FConfirmRun Run = RunConfirm({ Wall }, Cfg);
+		Check(!Run.bSat && !Run.R.bPositive, "wall beyond the anomalous near plane never becomes a candidate");
+	}
+
+	{
+		std::vector<FMesh> Scene = { BoxMesh(MakeV3(60, 0, 0), MakeV3(0.2, 0.2, 100)) };
+		const FConfirmRun Run = RunConfirm(Scene, Cfg);
+		Check(Run.bSat, "thin pole between the global grid columns is a SAT candidate");
+		Check(Run.R.bPositive && !Run.R.bUnconfirmed && Run.R.Hits == 1,
+			"thin pole between the global grid rays is CAUGHT by its own footprint grid (confirmed positive, not flagged)");
+		FConfirmConfig NoFoot = Cfg;
+		NoFoot.FootX = 0;
+		NoFoot.FootY = 0;
+		const FConfirmRun Blind = RunConfirm(Scene, NoFoot);
+		Check(Blind.R.bPositive && Blind.R.bUnconfirmed && Blind.R.NoRay == 1,
+			"BOTH WAYS: with the footprint grid off the pole gets no ray - it stays positive by SAT and is FLAGGED, never silently dropped");
+	}
+
+	{
+		FMesh Room = BoxMesh(MakeV3(0, 0, 0), MakeV3(200, 200, 200));
+		AddBoxShell(Room.Tris, MakeV3(60, 0, 0), MakeV3(0.2, 0.2, 100));
+		const FConfirmRun Run = RunConfirm({ Room }, Cfg);
+		Check(!Run.R.bPositive && !Run.R.bUnconfirmed,
+			"DOCUMENTED MISS: a sub-grid sliver belonging to a large candidate (a 0.4 cm pole inside a room mesh) falls between "
+			"the 16x9 global rays and the candidate is read as a miss");
+	}
+
+	{
+		FMesh Hollow = BoxMesh(MakeV3(0, 0, 0), MakeV3(200, 200, 200));
+		Hollow.bConfirmable = false;
+		const FConfirmRun Run = RunConfirm({ Hollow }, Cfg);
+		Check(Run.R.bPositive && Run.R.bUnconfirmed && Run.R.Traces == 0 && Run.R.Unconfirmable == 1,
+			"NoCollision hollow mesh: SAT positive stands and the frame is FLAGGED camera_clipping_unconfirmed, no trace issued");
+	}
+
+	{
+		FMesh Wall;
+		AddQuad(Wall.Tris, MakeV3(50, -200, -200), MakeV3(50, 200, -200), MakeV3(50, 200, 200), MakeV3(50, -200, 200));
+		Wall.Box = MakeAxisAlignedBox(MakeV3(50, 0, 0), MakeV3(0.5, 200, 200));
+		FMesh Hollow = BoxMesh(MakeV3(0, 0, 0), MakeV3(200, 200, 200));
+		Hollow.bConfirmable = false;
+		const FConfirmRun Run = RunConfirm({ Hollow, Wall }, Cfg);
+		Check(Run.R.bPositive && !Run.R.bUnconfirmed, "a confirmed hit wins: positive and not flagged even beside an unconfirmable candidate");
+	}
+
+	{
+		std::vector<FMesh> Scene = { BoxMesh(MakeV3(0, 0, 0), MakeV3(200, 200, 200)) };
+		FConfirmConfig Tight = Cfg;
+		Tight.MaxTraces = 10;
+		const FConfirmRun Run = RunConfirm(Scene, Tight);
+		Check(Run.R.bPositive && Run.R.bUnconfirmed && Run.R.TraceCapped == 1 && Run.R.Traces == 10,
+			"trace cap reached before the candidate was fully tested: positive by SAT and FLAGGED, never read as a miss");
+	}
+
+	{
+		std::vector<FMesh> Scene;
+		for (int i = 0; i < 20; ++i)
+		{
+			Scene.push_back(BoxMesh(MakeV3(150, -150 + 15.0 * i, 0), MakeV3(1, 1, 1)));
+		}
+		Scene.push_back(BoxMesh(MakeV3(0, 0, 0), MakeV3(200, 200, 200)));
+		FConfirmConfig Few = Cfg;
+		Few.MaxCandidates = 0;
+		const FConfirmRun Run = RunConfirm(Scene, Few);
+		Check(Run.R.bPositive && Run.R.bUnconfirmed && Run.R.OverCap >= 1,
+			"candidate cap: a candidate over the per-frame cap keeps its SAT result and FLAGS the frame");
+	}
+}
+
+static void RunInstanceQueryF2()
+{
+	const FCamera C = ConfirmCamera();
+	const FSlab S = BuildSlab(C.Origin, C.Forward, C.Right, C.Up, C.TanH, C.TanV, 10.0, 100.0);
+	const FV3 X = MakeV3(1, 0, 0);
+	const FV3 Y = MakeV3(0, 1, 0);
+	const FV3 Z = MakeV3(0, 0, 1);
+
+	{
+		const FBox3 B = MakeInstanceBox(MakeV3(0, 0, 0), MakeV3(10, 10, 10), X, Y, Z, MakeV3(10, 1, 1), MakeV3(150, 0, 0));
+		FV3 Mn, Mx;
+		BoxAabb(B, Mn, Mx);
+		Check(std::fabs(Mn.X - 50.0) < 1e-9 && std::fabs(Mx.X - 250.0) < 1e-9, "F2 scaled instance: world X extent [50,250] (Codex's counterexample)");
+		Check(InstanceBoxMayTouchSlab(S, B), "F2 scaled instance: the full-transform instance box reaches the slab (face at X=50)");
+		Check(!LegacyIsmQueryKeepsInstance(S, MakeV3(150, 0, 0), MakeV3(10, 10, 10)),
+			"F2 BOTH WAYS: UE's ISM overlap query (translation +/- unscaled extent, X [140,160]) DROPS the same instance");
+	}
+	{
+		const FBox3 B = MakeInstanceBox(MakeV3(0, 0, 0), MakeV3(100, 5, 5), Y, MakeV3(-1, 0, 0), Z, MakeV3(1, 1, 1), MakeV3(60, 120, 0));
+		Check(InstanceBoxMayTouchSlab(S, B), "F2 rotated instance: a rod turned onto world Y reaches into the slab from the side");
+		Check(!LegacyIsmQueryKeepsInstance(S, MakeV3(60, 120, 0), MakeV3(100, 5, 5)),
+			"F2 BOTH WAYS: the rotation-blind query keeps Y [115,125] and drops it");
+	}
+	{
+		const FBox3 B = MakeInstanceBox(MakeV3(80, 0, 0), MakeV3(5, 5, 5), X, Y, Z, MakeV3(1, 1, 1), MakeV3(0, 0, 0));
+		Check(InstanceBoxMayTouchSlab(S, B), "F2 off-centre mesh bounds origin: the instance box at X [75,85] is in the slab");
+		Check(!LegacyIsmQueryKeepsInstance(S, MakeV3(0, 0, 0), MakeV3(5, 5, 5)),
+			"F2 BOTH WAYS: the origin-blind query tests X [-5,5] and drops it");
+	}
+	{
+		const FBox3 B = MakeInstanceBox(MakeV3(0, 0, 0), MakeV3(10, 10, 10), X, Y, Z, MakeV3(1, 1, 1), MakeV3(400, 0, 0));
+		Check(!InstanceBoxMayTouchSlab(S, B), "F2 control: an unscaled instance beyond the slab is still rejected");
+	}
+}
+
+static void RunConfirmBenchmark()
+{
+	const FCamera C = ConfirmCamera();
+	std::vector<FConfirmCandidate> Cands(16);
+	for (int i = 0; i < 16; ++i)
+	{
+		Cands[i].Box = MakeAxisAlignedBox(MakeV3(0, 0, 0), MakeV3(200.0 + i, 200.0, 200.0));
+	}
+	std::vector<ECandidateOutcome> Out(16);
+	FConfirmConfig Cfg;
+	Cfg.MaxTraces = 1 << 30;
+	const int Iter = 2000;
+	long long Sink = 0;
+	const auto T0 = std::chrono::steady_clock::now();
+	for (int i = 0; i < Iter; ++i)
+	{
+		const FConfirmResult R = ConfirmSlab(C.Origin, C.Forward, C.Right, C.Up, C.TanH, C.TanV, 10.0, 100.0, Cands.data(), 16,
+			Out.data(), Cfg, [](int, const FV3&, const FV3&) { return false; });
+		Sink += R.Traces;
+	}
+	const auto T1 = std::chrono::steady_clock::now();
+	const double UsPerFrame = std::chrono::duration<double, std::micro>(T1 - T0).count() / Iter;
+	std::printf("BENCH confirmation overhead without traces: %.2f us per frame at 16 enclosing candidates (%lld traces/frame requested)\n",
+		UsPerFrame, Sink / Iter);
+	Check(UsPerFrame < 250.0, "the confirmation's own grid and clipping overhead stays far below the 0.5 ms budget");
+}
+
 int main()
 {
 	RunTanExtents();
@@ -614,6 +905,9 @@ int main()
 	RunCases();
 	RunRandomCrossCheck();
 	RunBenchmark();
+	RunConfirmation();
+	RunInstanceQueryF2();
+	RunConfirmBenchmark();
 	std::printf("camera_clipping slab selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }
