@@ -8385,3 +8385,20 @@ Related: G96, G114.
 span after a settle margin. Persist the raw input timestamps so the attribution can be read, not reconstructed.
 
 Related: G332.
+
+## G336 — a row-level proof assumed every listed label row carries the anomaly's telemetry block; after an injector-side early end the capture layer keeps listing the fire with none (2026-09-28, 082-07l)
+
+**What happened.**
+
+- P2-1 and P2-3 range over every `labels.jsonl` row of the id. On the three DES legs the bench lever destroys the target
+  mid-window, and the anomaly reverts on `TARGET LOST`.
+- `GetTelemetry` returns `false` when the anomaly is inactive (`Anomaly_TexCorrupt.cpp:1248`). The capture layer's live-fire
+  record persists until the burst's own revert, so rows `si 16..22` stay `anomaly_present: true` with no `texcorrupt.*` key.
+- Both proofs read NOT-CONFIRMED on those rows only. Without the three legs they are CONFIRMED (10,808 / 1,183, 0 problems),
+  and `annotation.json` was correct throughout (event `[15]`).
+- No stub or earlier leg could show it, because no earlier leg ended an anomaly before its burst did.
+
+**Rule.** A row-level proof must say which rows it ranges over when two layers own the "is this fire live" fact. Either
+scope it to rows where the anomaly itself is active, or assert block absence as a named state. Never let the absence of a
+block read as a wrong value. Same family as `L3` (labels.jsonl lists fire-active rows) and G332 (a premise the stub cannot
+model).

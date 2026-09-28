@@ -11,6 +11,30 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> ✅ **082-07l, 2026-09-28 — `m53` S1 IS COMPLETE: 193 OF 193 LEGS ACCEPTED, NO HALT. THE LAST 35 RAN ON ATTEMPT 1.
+> EVERY QUALIFICATION GATE PASSES OR CARRIES ITS DECLARED DISPOSITION. NO BUILD, NO SOURCE / HARNESS CHANGE, NO TAG.
+> Postflight PASS.**
+> - **Cold start:** `docs/sessions/2026-09-28-082-07l-code-m53-s1-final-legs.md` — §2 the 35 rows, §3 P2-1 / P2-3, §4 MW-FLOOR,
+>   §6 the complete S1 leg ledger.
+> - ✅ **G4 all 26 Q rows PASS** (LEVEL-CHANGE / RECREATED UNEXERCISED, declared):
+>   - STOP-BEFORE-FIRE ×2;
+>   - **FailStep ×12, every rollback `off=2 live=0 pending=0 balanced` (P2-5)**; FS2O is created-then-rejected;
+>   - DES ×3, with DES2's apply→LOST equal to the applied leg's (P2-6);
+>   - END ×2: world-end revert live 0, exit 0 (P2-6);
+>   - GC ×2 with 7 passes inside the event;
+>   - TWO.
+> - ✅ **P2-2 CONFIRMED** (G-COLL F-SYN). S3O `host_mid:override` and S8 `no_textures` PASS. G3-COUNT PASS.
+> - ⚖ **P2-1 / P2-3 read NOT-CONFIRMED on the three DES legs only.**
+>   - After TARGET LOST, `labels.jsonl` keeps listing the fire with no `texcorrupt.*` block.
+>   - Without those legs both are CONFIRMED (10,808 / 1,183, 0 problems).
+>   - Proof-scope premise (G336). **CHAT-DECISION REQUIRED.**
+> - 🔎 **MW-FLOOR:**
+>   - Once loaded, the floor qualifies 30 of 30 slots, but needs **209.4 MiB against the 128 MiB cap** → `over_budget` every time.
+>   - Only the first, partly-loaded fire (frame 42, 12–21 slots) applies. The "zero yield" claim is refuted as a zero; the limiter is the byte budget.
+> - 🎯 **NEXT:** chat's ruling on P2-1 / P2-3, then the Codex evidence review of S1.
+>
+> ---
+>
 > 🧭 **082-07k, 2026-09-28 — `m53` S1: THE RUNTIME-CONDITIONS REVIEW OF THE 35 UNRUN LEGS, AMENDMENT 4, SUPERSEDE ENTRY 5, THE
 > BOUNDARY RE-ISSUED. BENCH-FREE: NO LEG, NO BUILD, NO COOK, NO SOURCE CHANGE, NO TAG.**
 > - **Cold start:** `docs/predictions/2026-09-27-m53-s1-legs.md` **AMENDMENT 4** (§A4.3 is the review table), then
