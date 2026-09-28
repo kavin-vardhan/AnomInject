@@ -11,6 +11,51 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **084-02b, 2026-09-28 — THE m52 FIX IS CORRECTED PER THE 084-02 RULING (F1–F7, Shipping, resource replacement,
+> purity scope) AND REBUILT: exe `FD621B27`, archived, NOT staged. NOTHING HAS BEEN LAUNCHED; no runtime evidence yet.
+> NOT merged, NO tag.** Branch `fix/m52-label-timing` `d798900` (source) + docs, pushed. `master` `b5f15a3`; main
+> checkout on `m51` `53bf725`. **Supersedes the 084-02 block below wherever they disagree.**
+> - **Cold start:** journal `docs/sessions/2026-09-28-084-02b-code-m52-fix-corrections.md` (§1 is the per-correction
+>   table); ruling `_reviews/084-02-chat-ruling-codex-fix-review.md`; harness `_reviews/084-03-README.md`.
+> - **What changed:**
+>   - **Ordered cursor.** Trail updates run in capture order across batches, and frames wait (`ORDER HOLD`) until
+>     earlier requests report.
+>   - **Missing requests** are unknown and never confirm.
+>   - **Closure** needs 2 baselines armed with **no stream operation pending** and is final only at a fence covering the
+>     in-flight requests. A held or unknown receipt after closure **reopens** the event.
+>   - **Empty watch = unknown (labelled).** The watch is re-frozen at `FinalizeArmedLabel` before the family is served.
+>   - **Carry.** Unresolved or cut events are **carried** across run stop and start with reservation and refusal.
+>   - **m55** never gets a provisional negative.
+>   - **Deferred-mask age** is carried.
+>   - **Legacy-purity lever** compiles out of Shipping.
+>   - **Resource replacement** reads unknown.
+>   - **Purity scope:** all loaded levels, active or not, registered or not. A hold monitor reverts on a new user
+>     mid-hold and flags `stuck_mip.contaminated = 1`. UE 5.1 has no component-registered delegate, so the monitor
+>     uses a per-tick new-component diff (G346).
+> - **Proofs (offline):**
+>   - selftest **93/93**, each correction both ways against a verbatim 084-02 replica;
+>   - gate known-answer checks **15/15**;
+>   - dry run on banked pixels: **gate (i) is now TWO-SIDED**, and onset +2, offset −5, early-onset and late-offset
+>     over-labels (Codex's counterexample) all FAIL while the pixel-repaired window PASSES (G345).
+> - **Builds:** Game and Editor exit 0, 0 plugin warnings; `_binary_baselines\m52fix-FD621B27\` (pinned by name in
+>   `084-03-common.py`); `m52fix-562EE7A4` superseded, kept.
+> - ⛔ **Codex mini-delta (Relay, 1,105 s): CHANGES-REQUIRED.** `_reviews/084-02b-codex-m52-minidelta.md`, collected,
+>   **not acted on**. RESOLVED: F3, F7, Shipping (source), resource replacement, the Apply-time purity scope and the
+>   two-sided comparator. PARTIAL:
+>   - **F1:** queued streamer intent is not fenced;
+>   - **F2:** reopen loses masks and m55, and leaves the reservation and refusal stale;
+>   - **F4:** the lifetime monitor misses `SetMaterial`-then-register and MID texture parameters;
+>   - **F5:** inherited frames have no mask record; a non-render-truth run drops carried ownership;
+>   - **F6:** the hard-bound m55 fallback can disagree with a late live label;
+>   - **gate:** gaps, later visible runs and missing masks can false-pass.
+>
+>   Codex judges the build **not fit for tonight under decision 1**, and says the residual is not its reason. **Chat
+>   decides** whether 084-03 runs now or after correction.
+> - 🎯 **NEXT: chat's ruling; then 084-03 on the owner's go:** `C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\084-03-window.py live`
+>   (12 required legs, B9_FIX now required; 50–65 min, up to ~95). **`SettleTailFrames` stays 0**; the fix legs may fail
+>   (i) by exactly the measured residual, which is reported with the closure rule that would give 0 on both edges. Chat
+>   rules the rule after tonight.
+>
 > 🔧 **084-02, 2026-09-28 — THE `m52` (`stuck_low_mip`) LABEL-SYNC FIX IS BUILT ON `fix/m52-label-timing` (`67afa94`, pushed).
 > NOTHING HAS BEEN LAUNCHED: the fix has NO runtime evidence yet. NOT merged, NO tag. This block is the "you are here" for
 > the m52 fix line.** `master` is unchanged at `b5f15a3`, and the main checkout stays on `m51` `53bf725`.

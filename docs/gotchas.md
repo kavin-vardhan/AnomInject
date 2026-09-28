@@ -7988,3 +7988,39 @@ old header and the compiler read the new one. The result is a `GENERATED_BODY` l
 UWorldSubsystem") that looks like a real defect. It is not; the next build reruns UHT. Edit after the build, or expect one failed build.
 
 Related: G343 (the label mirror), G266 (the streamer's schedule), G96, G135.
+
+## G345 — a TWO-SIDED sync gate needs ONE reference window, and its can-fail proof is void unless the REPAIRED case PASSES first (2026-09-28, 084-02b)
+
+- The 084-02 sync gate was one-sided: every pixel-visible frame had to be labelled, and nothing checked labels AFTER the last
+  visible frame. Codex showed a counterexample (visible 10–14, labelled 10–18 as a settle tail) that passed both gates.
+- Making it two-sided (label window starts AT the first visible frame and ends AT the last) exposed a conflict the one-sided
+  rule had hidden. The pixel window is defined with a 2-consecutive onset and a 3-frame clean suffix, but "every visible frame
+  must be labelled" also counted an **isolated** below-threshold frame 10 frames before the onset (banked event 577, frame 497).
+  With both rules, the pixel-repaired label window could never pass, so every can-fail case would have "failed" for a reason
+  that proves nothing.
+- **Rule: a two-sided gate compares against a single reference window ([first_vis..last_vis]); isolated excursions outside it
+  are REPORTED, not required. And a doctored-label proof counts only when the repaired window PASSES every gate on the same
+  data.** It was the first dry run's `repaired: FAIL` that caught this; a proof that reported only the negatives would have
+  looked complete.
+- Also: the doctored cases are real session COPIES on disk (labels.jsonl rewritten, mask PNGs written, frames = the banked
+  pixels) judged against a pixel oracle measured once on the original. In-memory label edits never exercise the artifact path.
+
+Related: G344 (the pre-event reference), G96, G120.
+
+## G346 — UE 5.1 has NO global component-registered delegate, and the one global object-creation hook is unsafe to add at runtime (2026-09-28, 084-02b)
+
+- `UActorComponent` exposes only `GlobalCreatePhysicsDelegate` / `GlobalDestroyPhysicsDelegate` (physics only) and
+  `MarkRenderStateDirtyEvent`. The last fires from `MarkRenderStateDirty()`, and only for a component that is registered and has
+  its render state created. **Registering a new component does not broadcast it.**
+- `FUObjectArray::AddUObjectCreateListener` would see every new component, but `AllocateUObjectIndex` iterates
+  `UObjectCreateListeners` **unlocked**, including from the async-loading thread. The engine registers listeners only once (cooker,
+  DDC commandlet). Adding one mid-game races the loader. **Rejected.**
+- **What works with no engine change:** a per-tick diff of `TObjectIterator<UPrimitiveComponent>` / `<UDecalComponent>` (the
+  class hash, not a full object walk) against an `FObjectKey` known-set built at the start. Skip objects still loading
+  (`RF_NeedLoad` / `RF_NeedPostLoad` / async internal flags) and objects whose level is not yet a loaded level of the world, so
+  they are judged once they settle. Add `FWorldDelegates::LevelAddedToWorld` (level made visible) and `MarkRenderStateDirtyEvent`
+  (material change on a registered component). It runs only while an m52 hold is active.
+- Related trap met in the same brief: a preprocessor directive **inside a `UE_LOG` argument list** is C2121 ("'#': invalid
+  character"). Hoist the conditional text into a variable first.
+
+Related: G127, G33.
