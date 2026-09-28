@@ -7959,3 +7959,32 @@ nothing, because they share one predicate.
 
 Related: G135 (a restricted fixture hides a class), G224 (no gate compared first-label to first-mask), G266 (the streamer runs on its own
 schedule), G270 (a geometric predicate cannot certify visibility), G96 (prove the gate can fail).
+
+## G344 — a texture's sharpness drifts on its own, so a pixel blur oracle must use the PRE-EVENT level; a flat null or a pre/post line both lie (2026-09-28, 084-02)
+
+**What happened.** The part B pixel oracle for `stuck_low_mip` measures S, the mean grey gradient inside the target's ROI, and calls a
+frame "pixel-visibly blurred" when S falls below a reference by more than a threshold taken from a no-hold null run. Its first two versions
+failed on banked MainWorld data, each for a reason that looks like noise but is structure:
+1. **A flat null μ/σ over the whole run.** MainWorld's camera eases for the first ~25–85 captured frames (the 082-07 AMENDMENT 4 shape),
+   and after it settles S still drifts about ±7 % with game time. The null's σ came out at 6 % of μ, the threshold swallowed a 30 % blur,
+   and no event was measurable.
+2. **A reference line interpolated from the pre-event level to the post-event level.** On F-H event 577 the rock sat at S ≈ 3.9 before the
+   fire and climbed to ≈ 4.8 over roughly 150 frames afterwards, with no hold active. **The texture streamer re-sharpens a texture on its own
+   schedule**, beyond the baseline the anomaly restores to. The rising line made the pre-roll look blurred, a false onset 12 frames early.
+
+**Rule.**
+- Reference a blur oracle to the **pre-event level**: the picture at baseline residency just before `Apply`. The anomaly's contract is
+  "held below baseline"; the streamer's later sharpening past baseline is not the anomaly, and must not be charged to it.
+- Take σ from the null's **high-frequency residual** (a rolling-median detrend, then MAD), and add the null's own **worst drop** below its
+  pre-event level under the same procedure. That is a threshold the null cannot exceed by construction, and the only honest meaning of "from
+  independent null runs".
+- Exclude an event whose camera moved from 6 frames before it to 10 frames after it. Report an edge without 3 confirming clean frames, or
+  with a frame-index gap at it, as **censored**, not passed.
+- Proven on real pixels: with the flat pre-event reference, banked F-H event 577 reads first visible 507 against label 508 and last visible
+  521 against label end 514. That is the 084-01 diagnosis, reproduced by an oracle that never reads the label.
+
+⚠ A side note from the same brief: editing plugin headers **while a background build of the same host runs** makes UHT generate from the
+old header and the compiler read the new one. The result is a `GENERATED_BODY` line mismatch (C2509, C2143, "Tick is not a member of
+UWorldSubsystem") that looks like a real defect. It is not; the next build reruns UHT. Edit after the build, or expect one failed build.
+
+Related: G343 (the label mirror), G266 (the streamer's schedule), G96, G135.

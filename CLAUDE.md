@@ -11,6 +11,48 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **084-02, 2026-09-28 — THE `m52` (`stuck_low_mip`) LABEL-SYNC FIX IS BUILT ON `fix/m52-label-timing` (`67afa94`, pushed).
+> NOTHING HAS BEEN LAUNCHED: the fix has NO runtime evidence yet. NOT merged, NO tag. This block is the "you are here" for
+> the m52 fix line.** `master` is unchanged at `b5f15a3`, and the main checkout stays on `m51` `53bf725`.
+> - **Cold start:** journal `docs/sessions/2026-09-28-084-02-code-m52-fix-source-build.md`; spec
+>   `_reviews/084-01-chat-ruling-m52-fix-contract.md`; harness `_reviews/084-03-README.md`.
+> - **The fix (ruling items 1–4):**
+>   - A frame is labelled iff **its own render** drew a held texture below baseline. The colour SVE pass reads
+>     `FStreamableTextureResource::GetState()` for the exact captured request.
+>   - One record drives the label, `stuck_mip.held`, `observable`, the annotation window and the target mask. The
+>     game-thread mirror is kept as `stuck_mip.held_gt_mirror`, a diagnostic.
+>   - The event **outlives `Revert`** through a captured `RestoreTrail` phase that gates the next burst, plus
+>     `IAI.StuckMip.SettleTailFrames` (**default 0**).
+>   - A timeout marks the event `restore_unresolved`, refuses further m52 fires and reserves the target. **Nothing is ever
+>     labelled clean by it.**
+>   - **Wrong object fixed:** a texture is held only with **exactly one user component in the whole loaded world** (any
+>     primitive type or decal, visibility ignored), targeted fires included. The old gate counted only on-screen
+>     static/skeletal users, and targeted fires skipped it.
+> - **Builds:** Game and Editor exit 0, 0 plugin warnings. Exe **`562EE7A4`** (code-only, pairs with container
+>   `67EA1FE0`), archived at `_binary_baselines\m52fix-562EE7A4\`. **Not staged**: the m53 set
+>   `2FCDF059`/`20DA6F98`/`534C5863` is in place.
+> - **Proofs so far are offline only:**
+>   - the unit test: 41 checks, 0 failures;
+>   - non-m52 byte identity, by a source-level argument hunk by hunk (journal §5);
+>   - the harness dry run on banked pixels: the doctored-label can-fail is proven, and the baseline shape is reproduced
+>     (1 frame early, 7 unlabelled after).
+> - ⛔ **Codex source review (Relay, 933 s): CHANGES-REQUIRED.** Report: `_reviews/084-02-codex-m52-fix-review.md`.
+>   Collected, **not acted on**. Five P1 findings:
+>   - F1: the trail closes without a restoration fence.
+>   - F2: split drain batches can close the trail early.
+>   - F3: an empty watch is treated as before_apply, i.e. clean.
+>   - F4: purity misses inactive-loaded levels and unregistered components, and is not maintained after `Apply`.
+>   - F5: restoration ownership is lost at run boundaries.
+>
+>   Two P2 findings: F6 (forced m55 observes) and F7 (the deferred-mask age resets). The legacy-purity storage is not
+>   Shipping-excluded. Gate (i) does not reject over-labelling after recovery (synthetic counterexample).
+> - 🎯 **NEXT: chat rules on Codex's findings and the gate contract. Only then does 084-03 run.** The harness is ready:
+>   `C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\084-03-window.py live`, about 45–60 min. It runs B0/B5/B3 on
+>   both builds, B9 on the baseline, the lever and purity can-fails, and the settle-tail measurement, then restores the m53
+>   set. The merge follows Codex's evidence check.
+>
+> ---
+>
 > 🏁 **081-44, 2026-09-26 — `m55` (CHANGE EVIDENCE) IS MERGED TO `master` AS THE NO-FF MERGE COMMIT `38f3376` (pushed; `031a103` →
 > `38f3376`, origin matches). NO TAG. THE FEATURE BRANCH IS KEPT (`6591669` == origin).** The merge is inert: `master^{tree}` ==
 > the feature tree == the `merge-tree` forecast, with no conflict. **THIS IS THE CURRENT "YOU ARE HERE" FOR `master`.**
