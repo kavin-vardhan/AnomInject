@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "IAnomaly.h"
+#include "AnomalyViewport.h"
 
 class UWorld;
 class AActor;
@@ -19,7 +20,21 @@ public:
 	virtual bool IsActive() const override { return bActive; }
 	virtual bool IsCurrentlyAnomalous() const override;
 
+	bool GetFrameEvaluation(FAnomalyNearClipSlabResult& OutSlab, bool& bOutSphereProxy) const;
+
 private:
+	const FAnomalyNearClipSlabResult& EvaluateNow() const;
+
+	mutable FAnomalyNearClipSlabResult CacheSlab;
+	mutable bool bCacheSphereProxy = false;
+	mutable bool bCacheValid = false;
+	mutable uint64 CacheFrame = 0;
+	mutable FVector CacheLocation = FVector::ZeroVector;
+	mutable FRotator CacheRotation = FRotator::ZeroRotator;
+	mutable float CacheFov = 0.0f;
+	mutable float CacheBaseline = -1.0f;
+	mutable float CacheAnomalous = -1.0f;
+
 	TWeakObjectPtr<UWorld> WorldWeak;
 	TArray<TWeakObjectPtr<AActor>> Targets;
 	FString TargetToken;

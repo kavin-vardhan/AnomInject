@@ -36,6 +36,26 @@ struct FRenderableActorInfo
 	bool bRectValid = false;
 };
 
+struct FAnomalyNearClipSlabResult
+{
+	bool bEvaluated = false;
+	bool bSlab = false;
+	bool bNearOverridden = false;
+	bool bNotPerspective = false;
+	float BaselineNear = 0.0f;
+	float AnomalousNear = 0.0f;
+	float EffectiveNear = 0.0f;
+	int32 SlabPrimitives = 0;
+	int32 EyeInsideBox = 0;
+	int32 Candidates = 0;
+	int32 Enumerated = 0;
+	int32 BoxFallbacks = 0;
+	int32 InstancesTested = 0;
+	int32 FxExcluded = 0;
+	double Micros = 0.0;
+	FString FirstHit;
+};
+
 struct FSelectionProvenance
 {
 	float CoveragePct = -1.0f;
@@ -121,6 +141,9 @@ namespace AnomalyViewport
 	ANOMALYINJECTOR_API float GetActorPollDistanceCm(UWorld* World, const AActor* Actor);
 
 	ANOMALYINJECTOR_API bool IsGeometryWithinNearClipRadius(UWorld* World);
+
+	ANOMALYINJECTOR_API bool EvaluateNearClipSlab(UWorld* World, float BaselineNear, float AnomalousNear,
+		FAnomalyNearClipSlabResult& Out);
 
 	ANOMALYINJECTOR_API float ComputeBoundsScreenSizeForActiveView(UWorld* World, const FVector& BoundsOrigin, float SphereRadius);
 

@@ -3377,6 +3377,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	NonManifestedEvents = 0;
 	VetoedEvents = 0;
 	SessionFrameIndex = 0;
+	CameraClipAccum = FCameraClipRunAccum();
 	SyncResamplesPerformed = 0;
 	SyncFirstWrittenW = 0;
 	SyncFirstWrittenH = 0;
@@ -5288,7 +5289,14 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 	}
 	if (ActiveSessionGlobals.Num() > 0)
 	{
-		if (AppendSessionGlobalFires(Snap->Fires))
+		const bool bDeferViewDependent = HasViewDependentGlobal();
+		const bool bEarlyPositive = AppendSessionGlobalFires(Snap->Fires, bDeferViewDependent);
+		if (bDeferViewDependent)
+		{
+			Snap->bViewGlobalPending = true;
+			Snap->bGlobalEarlyPositive = bEarlyPositive;
+		}
+		else if (bEarlyPositive)
 		{
 			++SessionGlobalPositiveFrames;
 		}
@@ -5374,8 +5382,8 @@ void UAnomalyCaptureSubsystem::ApplySessionGlobals()
 				TEXT("burst cycle. While it is held the anomaly's own proximity trigger drives it: the near clip is pushed ")
 				TEXT("whenever the player is within range of the target and restored when the player leaves. Baseline ")
 				TEXT("near-clip was %.3f, it is now %.3f. A frame is labelled positive ONLY when the near clip is pushed ")
-				TEXT("AND geometry is actually within the near-clip radius - standing inside the trigger radius is NOT by ")
-				TEXT("itself a positive frame. ==="),
+				TEXT("AND rendered geometry lies in the view slab between the two planes, decided after the camera update ")
+				TEXT("of that frame - standing inside the trigger radius is NOT by itself a positive frame. ==="),
 				*TargetAnomalyId.ToString(), *TargetActorName, SessionGlobalBaselineNearClip, GNearClippingPlane);
 		}
 		else
@@ -5420,7 +5428,8 @@ void UAnomalyCaptureSubsystem::ApplySessionGlobals()
 			TEXT("=== Capture(session-global): APPLIED FOR THE WHOLE SESSION: %s. Baseline near-clip was %.3f, it is now %.3f. ")
 			TEXT("These are held from StartRun to FinishRun and NEVER routed through the auto-injector's per-burst fire path, ")
 			TEXT("so no target actor is drawn and no '=ActorName' token is ever built for them. ")
-			TEXT("A frame is labelled positive ONLY when geometry is actually within the near-clip radius - the near plane being ")
+			TEXT("For camera_clipping a frame is labelled positive ONLY when rendered geometry lies in the view slab between ")
+			TEXT("the baseline and the anomalous near plane, decided after that frame's camera update - the near plane being ")
 			TEXT("wrong is not the same as the viewer seeing anything wrong. ==="),
 			*FString::Join(Names, TEXT(", ")), SessionGlobalBaselineNearClip, GNearClippingPlane);
 	}
@@ -5448,15 +5457,134 @@ void UAnomalyCaptureSubsystem::RevertSessionGlobals()
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture(session-global): REVERTED %d id(s). Near-clip is now %.3f (baseline at StartRun was %.3f). ")
 		TEXT("Frames labelled positive: %d, negative: %d - the split is each id's OWN per-frame anomalous test, not the ")
-		TEXT("session flag; for camera_clipping that means the near clip was pushed AND geometry was actually inside the ")
-		TEXT("near-clip radius on that frame. ==="),
+		TEXT("session flag; for camera_clipping that means the near clip was pushed AND rendered geometry lay in the view ")
+		TEXT("slab on that frame. ==="),
 		ActiveSessionGlobals.Num(), GNearClippingPlane, SessionGlobalBaselineNearClip,
 		SessionGlobalPositiveFrames, SessionGlobalNegativeFrames);
+
+	if (CameraClipAccum.FramesEvaluated > 0)
+	{
+		const FCameraClipRunAccum& A = CameraClipAccum;
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(camera_clipping) RUN SUMMARY rule=view_slab_render_bounds_v1 near %.3f->%.3f frames=%d ")
+			TEXT("slab_positive=%d sphere_proxy_positive=%d slab_only=%d sphere_proxy_only=%d eye_inside_box_frames=%d ")
+			TEXT("near_overridden_frames=%d box_fallbacks=%d fx_excluded_max=%d enumerated_mean=%.1f candidates_mean=%.2f ")
+			TEXT("instances_tested=%lld eval_us_mean=%.1f eval_us_max=%.1f. The label is the slab test; the sphere proxy is ")
+			TEXT("the pre-086-02 rule, kept only as the diagnostic camera_clipping.sphere_proxy."),
+			A.BaselineNear, A.AnomalousNear, A.FramesEvaluated, A.SlabPositiveFrames, A.SphereProxyPositiveFrames,
+			A.SlabOnlyFrames, A.ProxyOnlyFrames, A.EyeInsideBoxFrames, A.NearOverriddenFrames, A.BoxFallbacks,
+			A.FxExcludedMax, (double)A.EnumeratedTotal / A.FramesEvaluated, (double)A.CandidatesTotal / A.FramesEvaluated,
+			A.InstancesTestedTotal, A.MicrosTotal / A.FramesEvaluated, A.MicrosMax);
+	}
 
 	ActiveSessionGlobals.Reset();
 }
 
-bool UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo>& InOutFires) const
+bool UAnomalyCaptureSubsystem::IsViewDependentGlobalId(const FName& Id)
+{
+	return Id == FName(TEXT("camera_clipping"));
+}
+
+bool UAnomalyCaptureSubsystem::HasViewDependentGlobal() const
+{
+	for (const FName& Id : ActiveSessionGlobals)
+	{
+		if (IsViewDependentGlobalId(Id))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void UAnomalyCaptureSubsystem::AppendViewDependentGlobals(AnomalyLabel::FCaptureSnapshot& Snap)
+{
+	Snap.bViewGlobalPending = false;
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+
+	bool bAny = false;
+	for (const FName& Id : ActiveSessionGlobals)
+	{
+		if (!IsViewDependentGlobalId(Id))
+		{
+			continue;
+		}
+		const bool bPositive = Injector && Injector->IsAnomalyCurrentlyAnomalous(Id);
+
+		FAnomalyNearClipSlabResult Slab;
+		bool bSphereProxy = false;
+		if (Injector && Injector->GetCameraClippingFrameEvaluation(Slab, bSphereProxy))
+		{
+			Snap.CameraClip.bPresent = true;
+			Snap.CameraClip.bSlab = bPositive;
+			Snap.CameraClip.bSphereProxy = bSphereProxy;
+			Snap.CameraClip.bNearOverridden = Slab.bNearOverridden;
+			Snap.CameraClip.SlabPrimitives = Slab.SlabPrimitives;
+			Snap.CameraClip.EyeInsideBox = Slab.EyeInsideBox;
+
+			FCameraClipRunAccum& A = CameraClipAccum;
+			++A.FramesEvaluated;
+			A.SlabPositiveFrames += bPositive ? 1 : 0;
+			A.SphereProxyPositiveFrames += bSphereProxy ? 1 : 0;
+			A.SlabOnlyFrames += (bPositive && !bSphereProxy) ? 1 : 0;
+			A.ProxyOnlyFrames += (!bPositive && bSphereProxy) ? 1 : 0;
+			A.EyeInsideBoxFrames += Slab.EyeInsideBox > 0 ? 1 : 0;
+			A.NearOverriddenFrames += Slab.bNearOverridden ? 1 : 0;
+			A.BoxFallbacks += Slab.BoxFallbacks;
+			A.FxExcludedMax = FMath::Max(A.FxExcludedMax, Slab.FxExcluded);
+			A.EnumeratedTotal += Slab.Enumerated;
+			A.CandidatesTotal += Slab.Candidates;
+			A.InstancesTestedTotal += Slab.InstancesTested;
+			A.MicrosTotal += Slab.Micros;
+			A.MicrosMax = FMath::Max(A.MicrosMax, Slab.Micros);
+			A.BaselineNear = Slab.BaselineNear;
+			A.AnomalousNear = Slab.AnomalousNear;
+			if (bPositive && !Slab.FirstHit.IsEmpty())
+			{
+				++A.FirstHits.FindOrAdd(Slab.FirstHit);
+			}
+		}
+
+		if (!bPositive)
+		{
+			continue;
+		}
+		const int32 OldNum = Snap.Fires.Num();
+		FAutoLiveFireInfo F;
+		F.Id = Id;
+		F.Target = FString();
+		F.TargetActor = nullptr;
+		F.SecondsRemaining = 0.0f;
+		F.StartFrame = (uint64)StartFrame;
+		F.bWholeFrameExtent = true;
+		Snap.Fires.Add(F);
+		if (Snap.FirePos.Num() == OldNum)
+		{
+			Snap.FirePos.Add(FVector::ZeroVector);
+		}
+		if (Snap.Trailing.Num() == OldNum)
+		{
+			Snap.Trailing.Add(0);
+		}
+		if (Snap.RenderSettled.Num() == OldNum)
+		{
+			Snap.RenderSettled.Add(0);
+		}
+		bAny = true;
+	}
+
+	if (bAny || Snap.bGlobalEarlyPositive)
+	{
+		++SessionGlobalPositiveFrames;
+	}
+	else
+	{
+		++SessionGlobalNegativeFrames;
+	}
+}
+
+bool UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo>& InOutFires, bool bSkipViewDependent) const
 {
 	UWorld* World = GetWorld();
 	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
@@ -5464,6 +5592,10 @@ bool UAnomalyCaptureSubsystem::AppendSessionGlobalFires(TArray<FAutoLiveFireInfo
 	bool bAny = false;
 	for (const FName& Id : ActiveSessionGlobals)
 	{
+		if (bSkipViewDependent && IsViewDependentGlobalId(Id))
+		{
+			continue;
+		}
 		if (!Injector || !Injector->IsAnomalyCurrentlyAnomalous(Id))
 		{
 			continue;
@@ -5497,6 +5629,11 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 	if (!Snap)
 	{
 		return;
+	}
+
+	if (Snap->bViewGlobalPending)
+	{
+		AppendViewDependentGlobals(*Snap);
 	}
 
 	Snap->FireActive.Reset();
@@ -8058,7 +8195,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0,
 			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed, &StuckMipReport,
 			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr,
-			Async.IsValid() ? &LabelSyncReport : nullptr);
+			Async.IsValid() ? &LabelSyncReport : nullptr,
+			CameraClipAccum.FramesEvaluated > 0 ? &CameraClipAccum : nullptr);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")

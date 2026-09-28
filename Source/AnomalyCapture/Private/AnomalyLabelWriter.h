@@ -9,10 +9,21 @@
 
 class UWorld;
 struct FAnomalyCensusCounters;
+struct FCameraClipRunAccum;
 class FJsonObject;
 
 namespace AnomalyLabel
 {
+	struct FCameraClipFrameDiag
+	{
+		bool bPresent = false;
+		bool bSlab = false;
+		bool bSphereProxy = false;
+		bool bNearOverridden = false;
+		int32 SlabPrimitives = 0;
+		int32 EyeInsideBox = 0;
+	};
+
 	static constexpr int32 SchemaVersion = 1;
 
 	enum class EAnomalyMaskState : uint8
@@ -77,6 +88,10 @@ namespace AnomalyLabel
 		TArray<uint8> EntryTransition;
 		TArray<FAutoLiveFireInfo> TransitionFires;
 		TArray<FAutoLiveFireInfo> TransitionCandidates;
+
+		bool bViewGlobalPending = false;
+		bool bGlobalEarlyPositive = false;
+		FCameraClipFrameDiag CameraClip;
 	};
 
 	struct FLabelEntryCounts
@@ -205,7 +220,7 @@ namespace AnomalyLabel
 		int32 TargetDrawnPixelsMeasured = 0, int32 FramesDrawnUnexpected = 0,
 		int32 FramesExposureDipSuppressed = 0,
 		const struct FStuckMipTelemetry* StuckMip = nullptr, const TSharedPtr<FJsonObject>& ChangeSummary = nullptr,
-		const struct FLabelSyncTelemetry* LabelSync = nullptr);
+		const struct FLabelSyncTelemetry* LabelSync = nullptr, const ::FCameraClipRunAccum* CameraClip = nullptr);
 
 	struct FLabelSyncTelemetry
 	{

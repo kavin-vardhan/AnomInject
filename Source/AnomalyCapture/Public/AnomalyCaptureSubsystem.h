@@ -15,6 +15,27 @@ class FAnomalyRunLog;
 class UTexture2D;
 namespace AnomalyLabel { struct FCaptureSnapshot; }
 
+struct FCameraClipRunAccum
+{
+	int32 FramesEvaluated = 0;
+	int32 SlabPositiveFrames = 0;
+	int32 SphereProxyPositiveFrames = 0;
+	int32 SlabOnlyFrames = 0;
+	int32 ProxyOnlyFrames = 0;
+	int32 EyeInsideBoxFrames = 0;
+	int32 NearOverriddenFrames = 0;
+	int32 BoxFallbacks = 0;
+	int32 FxExcludedMax = 0;
+	int64 EnumeratedTotal = 0;
+	int64 CandidatesTotal = 0;
+	int64 InstancesTestedTotal = 0;
+	double MicrosTotal = 0.0;
+	double MicrosMax = 0.0;
+	float BaselineNear = 0.0f;
+	float AnomalousNear = 0.0f;
+	TMap<FString, int32> FirstHits;
+};
+
 UCLASS()
 class ANOMALYCAPTURE_API UAnomalyCaptureSubsystem : public UTickableWorldSubsystem
 {
@@ -54,6 +75,7 @@ public:
 
 	int32 GetFrameCap() const { return FrameCap; }
 	FString GetSessionId() const { return SessionId; }
+	int32 GetSessionFrameIndex() const { return SessionFrameIndex; }
 
 	void SetBurstConfig(int32 K, int32 Pre, int32 Positive, int32 Post, int32 Bursts);
 
@@ -266,7 +288,12 @@ private:
 
 	void ApplySessionGlobals();
 	void RevertSessionGlobals();
-	bool AppendSessionGlobalFires(TArray<struct FAutoLiveFireInfo>& InOutFires) const;
+	bool AppendSessionGlobalFires(TArray<struct FAutoLiveFireInfo>& InOutFires, bool bSkipViewDependent = false) const;
+	static bool IsViewDependentGlobalId(const FName& Id);
+	bool HasViewDependentGlobal() const;
+	void AppendViewDependentGlobals(AnomalyLabel::FCaptureSnapshot& Snap);
+
+	FCameraClipRunAccum CameraClipAccum;
 
 	TArray<FName> ActiveSessionGlobals;
 	float SessionGlobalBaselineNearClip = 0.0f;

@@ -805,6 +805,17 @@ bool UAnomalyInjectorSubsystem::GetAnomalyTelemetry(const FName& Id, FAnomalyTel
 	return (*Found)->GetTelemetry(Out);
 }
 
+bool UAnomalyInjectorSubsystem::GetCameraClippingFrameEvaluation(FAnomalyNearClipSlabResult& OutSlab,
+	bool& bOutSphereProxy) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(FName(TEXT("camera_clipping")));
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return false;
+	}
+	return static_cast<const FAnomaly_CameraClipping*>(Found->Get())->GetFrameEvaluation(OutSlab, bOutSphereProxy);
+}
+
 bool UAnomalyInjectorSubsystem::IsAnomalyCurrentlyAnomalous(const FName& Id) const
 {
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);

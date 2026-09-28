@@ -78,6 +78,8 @@ public:
 	bool IsAnomalyVisualConditionHeld(const FName& Id) const;
 	bool GetAnomalyTelemetry(const FName& Id, FAnomalyTelemetry& Out) const;
 
+	bool GetCameraClippingFrameEvaluation(struct FAnomalyNearClipSlabResult& OutSlab, bool& bOutSphereProxy) const;
+
 	bool DoesAnomalyHaveDeferredOnset(const FName& Id) const;
 
 	bool DoesAnomalyUseRenderTruth(const FName& Id) const;

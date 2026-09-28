@@ -9,6 +9,7 @@
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyCensus.h"
 #include "AnomalyLabelSync.h"
+#include "AnomalyCaptureSubsystem.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -90,7 +91,8 @@ namespace
 		const TArray<FIntRect>* DrawnBounds = nullptr, const TArray<int32>* TargetDrawnPixels = nullptr,
 		bool bExposureDipScopeExcluded = false, const TArray<FAnomalyTelemetry>* Telemetry = nullptr,
 		const TArray<uint8>* EntryEmit = nullptr, const TArray<uint8>* EntryTransition = nullptr,
-		const TArray<FAutoLiveFireInfo>* TransitionFires = nullptr)
+		const TArray<FAutoLiveFireInfo>* TransitionFires = nullptr,
+		const AnomalyLabel::FCameraClipFrameDiag* CameraClip = nullptr)
 	{
 		OutNumLabels = 0;
 
@@ -285,6 +287,18 @@ namespace
 			Root->SetStringField(TEXT("render_state"), TEXT("shaders_pending"));
 			Root->SetNumberField(TEXT("anomaly_materials_incomplete"), AnomalyMaterialsIncomplete);
 			Root->SetNumberField(TEXT("shader_jobs_pending"), ShadersPending);
+		}
+
+		if (CameraClip && CameraClip->bPresent)
+		{
+			Root->SetBoolField(TEXT("camera_clipping.slab"), CameraClip->bSlab);
+			Root->SetBoolField(TEXT("camera_clipping.sphere_proxy"), CameraClip->bSphereProxy);
+			Root->SetNumberField(TEXT("camera_clipping.slab_primitives"), CameraClip->SlabPrimitives);
+			Root->SetNumberField(TEXT("camera_clipping.eye_inside_box"), CameraClip->EyeInsideBox);
+			if (CameraClip->bNearOverridden)
+			{
+				Root->SetBoolField(TEXT("camera_clipping.near_overridden"), true);
+			}
 		}
 
 		TSharedRef<FJsonObject> V = MakeShared<FJsonObject>();
@@ -618,7 +632,7 @@ namespace AnomalyLabel
 			Snapshot.ShadersPending, Snapshot.AnomalyMaterialsIncomplete, Snapshot.bExposureDip,
 			&Snapshot.TargetPixels, &Snapshot.Observable, &Snapshot.DrawnBounds,
 			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded, &Snapshot.Telemetry,
-			&Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires);
+			&Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires, &Snapshot.CameraClip);
 	}
 
 	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot)
@@ -784,7 +798,7 @@ namespace AnomalyLabel
 		int32 TranslucentOnlyExcludedTargets, int32 UnmeasurableTargetsAdmitted,
 		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed,
 		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary,
-		const FLabelSyncTelemetry* LabelSync)
+		const FLabelSyncTelemetry* LabelSync, const ::FCameraClipRunAccum* CameraClip)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -1005,6 +1019,44 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("mask_tag_recycles"), LabelSync->MaskTagRecycles);
 			Root->SetNumberField(TEXT("mask_tag_peak_live"), LabelSync->MaskTagPeakLive);
 			Root->SetNumberField(TEXT("mask_tag_exhausted"), LabelSync->MaskTagExhausted);
+		}
+
+		if (CameraClip && CameraClip->FramesEvaluated > 0)
+		{
+			const double Frames = (double)CameraClip->FramesEvaluated;
+			Root->SetStringField(TEXT("camera_clipping_label_rule"), TEXT("view_slab_render_bounds_v1"));
+			Root->SetNumberField(TEXT("camera_clipping_baseline_near"), CameraClip->BaselineNear);
+			Root->SetNumberField(TEXT("camera_clipping_anomalous_near"), CameraClip->AnomalousNear);
+			Root->SetNumberField(TEXT("camera_clipping_frames_evaluated"), CameraClip->FramesEvaluated);
+			Root->SetNumberField(TEXT("camera_clipping_slab_positive_frames"), CameraClip->SlabPositiveFrames);
+			Root->SetNumberField(TEXT("camera_clipping_sphere_proxy_positive_frames"), CameraClip->SphereProxyPositiveFrames);
+			Root->SetNumberField(TEXT("camera_clipping_slab_only_frames"), CameraClip->SlabOnlyFrames);
+			Root->SetNumberField(TEXT("camera_clipping_sphere_proxy_only_frames"), CameraClip->ProxyOnlyFrames);
+			Root->SetNumberField(TEXT("camera_clipping_eye_inside_box_frames"), CameraClip->EyeInsideBoxFrames);
+			Root->SetNumberField(TEXT("camera_clipping_near_overridden_frames"), CameraClip->NearOverriddenFrames);
+			Root->SetNumberField(TEXT("camera_clipping_box_fallbacks"), CameraClip->BoxFallbacks);
+			Root->SetNumberField(TEXT("camera_clipping_fx_excluded_max"), CameraClip->FxExcludedMax);
+			Root->SetNumberField(TEXT("camera_clipping_primitives_enumerated_mean"), CameraClip->EnumeratedTotal / Frames);
+			Root->SetNumberField(TEXT("camera_clipping_candidates_mean"), CameraClip->CandidatesTotal / Frames);
+			Root->SetNumberField(TEXT("camera_clipping_instances_tested_total"), (double)CameraClip->InstancesTestedTotal);
+			Root->SetNumberField(TEXT("camera_clipping_eval_ms_total"), CameraClip->MicrosTotal / 1000.0);
+			Root->SetNumberField(TEXT("camera_clipping_eval_us_mean"), CameraClip->MicrosTotal / Frames);
+			Root->SetNumberField(TEXT("camera_clipping_eval_us_max"), CameraClip->MicrosMax);
+			TArray<TPair<FString, int32>> Hits;
+			for (const TPair<FString, int32>& Hit : CameraClip->FirstHits)
+			{
+				Hits.Add(Hit);
+			}
+			Hits.Sort([](const TPair<FString, int32>& A, const TPair<FString, int32>& B)
+			{
+				return A.Value != B.Value ? A.Value > B.Value : A.Key < B.Key;
+			});
+			TArray<TSharedPtr<FJsonValue>> HitValues;
+			for (int32 i = 0; i < Hits.Num() && i < 16; ++i)
+			{
+				HitValues.Add(MakeShared<FJsonValueString>(FString::Printf(TEXT("%s=%d"), *Hits[i].Key, Hits[i].Value)));
+			}
+			Root->SetArrayField(TEXT("camera_clipping_first_hits"), HitValues);
 		}
 
 		FString Out;
