@@ -8471,3 +8471,18 @@ the settle alone must not trip it, a real difference inside the window must. Sam
 (target), never by the inner name alone, and must assert the declared count (`targets=n`, `slots=n`). Run it on a real
 multi-entry block from the bank as well as on the single-entry case the harness expects. Same family as `G142` (the
 checker is a defect surface of its own).
+
+## G342 — an "absent" bound set equal to the null bound has zero margin: one grey level decided three flags (2026-09-28, 082-15)
+
+- S2-0's §3A.7 defines **absent** as arm vs each null ≤ 2 in K at every tail si, and the null-agreement bound is also ≤ 2.
+- In the live window, the three family-B cache-off arms (ID-F, C, R) read **max 2 at 59 of 60 tail si and max 3 at one si,
+  with 0 px ≥ 16 everywhere.** Each cell therefore reads **partial**, not absent, so CACHE-DEPENDENT is false for all
+  three. The deciding difference is a single level at a single si.
+- The locked rule was applied as written and nothing was relabelled after the reading (that would be `P30`'s laundering
+  shape). The zero margin is recorded so the next window does not inherit it unnoticed.
+
+**Rule.** When an "absent" (or "clean") bound is taken from the observed null maximum, it has no margin: ordinary noise one
+count above the nulls flips the cell to the other side of the vocabulary. Before locking, declare either a margin with its
+basis (e.g. absent = ≤ null bound + k, or a px-count criterion such as 0 px ≥ 16), or a three-way vocabulary whose middle
+class ("partial at the noise floor") is stated in advance. Report the per-si histogram beside any "partial", so a
+one-level excursion cannot be mistaken for a trace. Same family as `G340` (a validity bound copied from a summary figure).

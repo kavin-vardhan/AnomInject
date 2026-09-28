@@ -11,6 +11,29 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧾 **082-15, 2026-09-28 — `m53` S2-0 RAN TO COMPLETION: 24 LEGS, 24 ACCEPTED ON ATTEMPT 1, T1–T8 GREEN ON EVERY LEG,
+> KNOWN ANSWER EXACT, POSTFLIGHT PASS. CLASSIFICATION (verbatim): `["STALE-NULL", "REPRODUCED-BY-SWAP, CAUSE UNRESOLVED"]`,
+> primary STALE-NULL. NEXT: CHAT RULES ON THE JOURNAL'S §6, THEN S2-1. No build, cook, stage, source, harness or plan
+> change; no tag, no merge.**
+> - **Cold start:** `docs/sessions/2026-09-28-082-15-code-m53-s2-0-run.md` (§3 the classification, §4 the evidence, §6
+>   the decisions), then plan §3A.7–§3A.8. Evidence: `D:\IntrusiveAnomalies\_reviews\082-14-s20-evidence\run\`
+>   (`flags.json`, `readings.json`, `ledger.json`); banks `_bench_sessions_bank\M53S20_*`.
+> - **The shadow trace came back:** ID-P with the cache on is **present** at every tail si 47–106 (px≥16 42–78, max up to
+>   118; nulls ≤ 2) ⇒ REPRODUCED. With the cache off it is **absent** ⇒ CACHE-DEPENDENT[IDP].
+> - **Family B, cache on:** ID-F (30/30 committed), C (`corrupted_texture`, 30 slots / 12 components) and R (a plain
+>   re-register, no material change) are **all present, with the same K image**: C vs ID-F and R vs ID-F ≤ 2 at every
+>   tail si ⇒ REPRODUCED-BY-SWAP, SAME-TRACE-AS-ID-F, FOOTPRINT-MATCHED, REPRODUCED-BY-REFRESH.
+> - **Family B, cache off:** ID-F, C and R read **partial**, from max 3 at 1 of 60 tail si with 0 px ≥ 16. So
+>   CACHE-DEPENDENT is false for them under the locked ≤ 2 bound (G342).
+> - **State:** Effective mismatch **0 of 30 slots on all 24 legs.** Override arrays stay grown after revert (§R8.3,
+>   non-rendering here). Dispositions: left 0, unresolved 0.
+> - ⛔ **No mechanism asserted.** The virtual-shadow-map cache stays a candidate. No restore defect is established on any
+>   arm, so there is no escalation.
+> - ⚠ This commit moves the feature head past `7348237`, so boundary `5A31D568` is stale. Any further S2-0 window needs a
+>   re-issue.
+>
+> ---
+>
 > 🔁 **082-14, 2026-09-28 — `m53` S2 PLAN REVISION 2.2 + THE S2-0 HARNESS BUILT, PROVEN AND LOCKED (BENCH-FREE).
 > Codex's mini-delta M1–M4 applied under `_reviews\082-13-chat-ruling-minidelta.md`; no further Codex round before S2-0.
 > NEXT: 082-15 runs S2-0 ONLY ON THE OWNER'S "PC IDLE". No game launch, compile, cook, stage, source, CaptureBench or
