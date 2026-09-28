@@ -21,6 +21,8 @@ namespace
 
 	TMap<TWeakObjectPtr<UPrimitiveComponent>, FPriorStencilState> GTaggedComponents;
 
+	TMap<TWeakObjectPtr<UPrimitiveComponent>, uint64> GAppliedValues;
+
 	int32 GCustomStencilRefCount = 0;
 	int32 GSavedCustomDepthValue = 0;
 }
@@ -138,6 +140,7 @@ namespace AnomalyStencilTag
 			}
 			Prim->SetCustomDepthStencilValue(Value);
 			Prim->SetRenderCustomDepth(true);
+			GAppliedValues.FindOrAdd(Key) |= AnomalyLabelSync::AppliedBit((int)Value);
 			++Tagged;
 		}
 		return Tagged;
@@ -207,60 +210,100 @@ namespace AnomalyStencilTag
 
 	FRetireStencilResult RetireStencilValue(AActor* FormerOwner, int32 StencilValue)
 	{
-		FRetireStencilResult R;
-		for (auto It = GTaggedComponents.CreateIterator(); It; ++It)
+		TArray<TWeakObjectPtr<UPrimitiveComponent>> Keys;
+		TSet<TWeakObjectPtr<UPrimitiveComponent>> Seen;
+		auto AddKey = [&Keys, &Seen](const TWeakObjectPtr<UPrimitiveComponent>& Key)
 		{
-			UPrimitiveComponent* Prim = It.Key().Get();
-			if (!Prim)
+			if (!Seen.Contains(Key))
 			{
-				continue;
+				Seen.Add(Key);
+				Keys.Add(Key);
 			}
-			const AnomalyLabelSync::ERetireAction Action = AnomalyLabelSync::DecideRetire(true,
-				Prim->CustomDepthStencilValue, Prim->bRenderCustomDepth != 0, StencilValue);
-			if (Action == AnomalyLabelSync::ERetireAction::Leave)
-			{
-				continue;
-			}
-			Prim->SetCustomDepthStencilValue(It.Value().CustomDepthStencilValue);
-			if (Action == AnomalyLabelSync::ERetireAction::RestoreValueAndFlag)
-			{
-				Prim->SetRenderCustomDepth(It.Value().bRenderCustomDepth);
-				++R.Restored;
-			}
-			else
-			{
-				++R.RestoredValueOnly;
-			}
-			It.RemoveCurrent();
-		}
-		TArray<int32> After;
+		};
 		for (const TPair<TWeakObjectPtr<UPrimitiveComponent>, FPriorStencilState>& Pair : GTaggedComponents)
 		{
-			if (const UPrimitiveComponent* Prim = Pair.Key.Get())
-			{
-				After.Add(Prim->CustomDepthStencilValue);
-			}
+			AddKey(Pair.Key);
 		}
+		for (const TPair<TWeakObjectPtr<UPrimitiveComponent>, uint64>& Pair : GAppliedValues)
+		{
+			AddKey(Pair.Key);
+		}
+		TSet<TWeakObjectPtr<UPrimitiveComponent>> Owned;
 		if (FormerOwner)
 		{
 			TInlineComponentArray<UPrimitiveComponent*> Prims;
 			FormerOwner->GetComponents(Prims);
-			for (const UPrimitiveComponent* Prim : Prims)
+			for (UPrimitiveComponent* Prim : Prims)
 			{
-				if (Prim && !GTaggedComponents.Contains(TWeakObjectPtr<UPrimitiveComponent>(const_cast<UPrimitiveComponent*>(Prim))))
+				if (Prim)
 				{
-					After.Add(Prim->CustomDepthStencilValue);
+					const TWeakObjectPtr<UPrimitiveComponent> Key(Prim);
+					Owned.Add(Key);
+					AddKey(Key);
 				}
 			}
 		}
-		for (const int32 V : After)
+
+		TArray<AnomalyLabelSync::FRetireHolder> Holders;
+		Holders.SetNum(Keys.Num());
+		for (int32 i = 0; i < Keys.Num(); ++i)
 		{
-			if (V == StencilValue)
+			AnomalyLabelSync::FRetireHolder& H = Holders[i];
+			const UPrimitiveComponent* Prim = Keys[i].Get();
+			H.bValid = Prim != nullptr;
+			if (const FPriorStencilState* Prior = GTaggedComponents.Find(Keys[i]))
 			{
-				++R.Remaining;
+				H.bTracked = true;
+				H.PriorValue = Prior->CustomDepthStencilValue;
+				H.bPriorCustomDepth = Prior->bRenderCustomDepth;
+			}
+			if (Prim)
+			{
+				H.Value = Prim->CustomDepthStencilValue;
+				H.bCustomDepth = Prim->bRenderCustomDepth != 0;
+			}
+			const uint64* Mask = GAppliedValues.Find(Keys[i]);
+			H.AppliedMask = Mask ? *Mask : 0;
+			H.bOwnedByFormerOwner = Owned.Contains(Keys[i]);
+		}
+
+		const AnomalyLabelSync::FRetireOutcome Outcome = AnomalyLabelSync::RetireHolders(Holders.GetData(), Holders.Num(), StencilValue);
+
+		for (int32 i = 0; i < Keys.Num(); ++i)
+		{
+			const AnomalyLabelSync::FRetireHolder& H = Holders[i];
+			UPrimitiveComponent* Prim = Keys[i].Get();
+			if (Prim && H.bSetValue)
+			{
+				Prim->SetCustomDepthStencilValue(H.Value);
+			}
+			if (Prim && H.bSetFlag)
+			{
+				Prim->SetRenderCustomDepth(H.bCustomDepth);
+			}
+			if (H.bUntrack)
+			{
+				GTaggedComponents.Remove(Keys[i]);
+			}
+			if (const uint64* Mask = GAppliedValues.Find(Keys[i]))
+			{
+				const uint64 Left = Prim ? (H.bClearApplied ? (*Mask & ~AnomalyLabelSync::AppliedBit(StencilValue)) : *Mask) : 0;
+				if (Left == 0)
+				{
+					GAppliedValues.Remove(Keys[i]);
+				}
+				else
+				{
+					GAppliedValues.Add(Keys[i], Left);
+				}
 			}
 		}
-		R.bVerified = AnomalyLabelSync::RetirementVerified(After.GetData(), After.Num(), StencilValue);
+
+		FRetireStencilResult R;
+		R.Restored = Outcome.Restored;
+		R.RestoredValueOnly = Outcome.RestoredValueOnly;
+		R.Remaining = Outcome.Remaining;
+		R.bVerified = Outcome.bVerified;
 		return R;
 	}
 
@@ -300,6 +343,7 @@ namespace AnomalyStencilTag
 			}
 		}
 		GTaggedComponents.Empty();
+		GAppliedValues.Empty();
 	}
 
 	bool IsAnyTagged()

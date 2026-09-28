@@ -44,6 +44,9 @@ struct FCameraClipRunAccum
 	int64 OverCapTotal = 0;
 	int64 TraceCappedTotal = 0;
 	int64 NoRayTotal = 0;
+	int64 TooFewValidTotal = 0;
+	int64 FullSlabFallbacksTotal = 0;
+	int64 InvalidSegmentsTotal = 0;
 	int64 LandscapeTotal = 0;
 	int64 SkinnedTotal = 0;
 	int64 NoCollisionTotal = 0;
@@ -287,6 +290,8 @@ private:
 	void SampleDeferredActiveState();
 	uint8 ComputeFireActive(const struct FAutoLiveFireInfo& F) const;
 	bool IsFireLabelledThisFrame(const struct FAutoLiveFireInfo& F) const;
+	uint8 ResolveAnnotationPolicy(const struct FAutoLiveFireInfo& F) const;
+	void FillAnnotationInputs(AnomalyLabel::FCaptureSnapshot& Snap) const;
 	bool BurstAwaitsDeferredOnset(int32& OutPendingFires) const;
 	void NoteDeferredOnsetTimeout();
 	void FinishRun(bool bLogLine);
@@ -300,7 +305,7 @@ private:
 	class UAnomalyAutoInjectorSubsystem* ResolveAuto() const;
 
 	void AccumulateFrameEvents(const TArray<struct FAutoLiveFireInfo>& Fires, const TArray<uint8>& FireActive,
-		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
+		const TArray<uint8>& FirePolicy, const TArray<uint8>& FireOnScreen, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
 		const TArray<uint8>* Observable = nullptr, const TArray<FIntRect>* DrawnBounds = nullptr);
 	void WriteSessionAnnotationFile();
 

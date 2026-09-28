@@ -562,6 +562,15 @@ namespace
 		return FVector(V.X, V.Y, V.Z);
 	}
 
+	AnomalyNearClipSlab::FAffine34 AffineFromMatrix(const FMatrix& M)
+	{
+		return AnomalyNearClipSlab::MakeAffine(
+			AnomalyNearClipSlab::MakeV3(M.M[0][0], M.M[0][1], M.M[0][2]),
+			AnomalyNearClipSlab::MakeV3(M.M[1][0], M.M[1][1], M.M[1][2]),
+			AnomalyNearClipSlab::MakeV3(M.M[2][0], M.M[2][1], M.M[2][2]),
+			AnomalyNearClipSlab::MakeV3(M.M[3][0], M.M[3][1], M.M[3][2]));
+	}
+
 	AnomalyNearClipSlab::FBox3 OrientedBoxFromLocal(const FVector& LocalCenter, const FVector& LocalHalf,
 		const FTransform& Transform)
 	{
@@ -1180,16 +1189,17 @@ namespace AnomalyViewport
 						Indices.Add(Index);
 					}
 				}
+				const FMatrix ComponentMatrix = Ism->GetComponentTransform().ToMatrixWithScale();
 				for (const int32 Index : Indices)
 				{
-					FTransform InstanceTransform;
-					if (!Ism->GetInstanceTransform(Index, InstanceTransform, true))
+					if (!Ism->PerInstanceSMData.IsValidIndex(Index))
 					{
 						continue;
 					}
 					++Out.InstancesTested;
-					const FBox3 Box = OrientedBoxFromLocal(MeshBounds.Origin, MeshBounds.BoxExtent * Ism->BoundsScale,
-						InstanceTransform);
+					const FMatrix InstanceWorld = Ism->PerInstanceSMData[Index].Transform * ComponentMatrix;
+					const FBox3 Box = MakeMatrixBox(ToSlabV3(MeshBounds.Origin), ToSlabV3(MeshBounds.BoxExtent * Ism->BoundsScale),
+						AffineFromMatrix(InstanceWorld));
 					if (Box.Half[0] + Box.Half[1] + Box.Half[2] <= UE_KINDA_SMALL_NUMBER)
 					{
 						continue;
@@ -1292,6 +1302,9 @@ namespace AnomalyViewport
 			Out.ConfirmOverCap = R.OverCap;
 			Out.ConfirmTraceCapped = R.TraceCapped;
 			Out.ConfirmNoRay = R.NoRay;
+			Out.ConfirmTooFewValid = R.TooFewValid;
+			Out.ConfirmFullSlabFallbacks = R.FullSlabFallbacks;
+			Out.ConfirmInvalidSegments = R.InvalidSegments;
 			for (int32 i = 0; i < Outcomes.Num(); ++i)
 			{
 				if (Outcomes[i] == ECandidateOutcome::Hit)

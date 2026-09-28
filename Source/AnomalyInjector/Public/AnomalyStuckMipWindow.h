@@ -669,27 +669,68 @@ namespace AnomalyStuckMipWindow
 		}
 		if (HeldLevel <= 0 || HeldLevel >= Baseline)
 		{
-			return ELevel::AtHeld;
+			return ELevel::Unknown;
 		}
 		return RenderResident <= HeldLevel ? ELevel::AtHeld : ELevel::Between;
 	}
 
-	inline bool IsPartialHeldSet(const ELevel* Levels, int Num)
+	enum class EHeldSet : unsigned char
 	{
-		bool bAnyBelowBaseline = false;
-		bool bAnyShortOfHeld = false;
+		NotHeld = 0,
+		Full = 1,
+		Partial = 2,
+		Unresolved = 3
+	};
+
+	inline EHeldSet ClassifyHeldSet(const ELevel* Levels, int Num)
+	{
+		bool bAnyKnownBelowBaseline = false;
+		bool bAnyKnownShortOfHeld = false;
+		bool bAnyUnknown = false;
 		for (int i = 0; i < Num; ++i)
 		{
-			if (Levels[i] == ELevel::AtHeld || Levels[i] == ELevel::Between)
+			switch (Levels[i])
 			{
-				bAnyBelowBaseline = true;
-			}
-			if (Levels[i] != ELevel::AtHeld)
-			{
-				bAnyShortOfHeld = true;
+			case ELevel::AtHeld:
+				bAnyKnownBelowBaseline = true;
+				break;
+			case ELevel::Between:
+				bAnyKnownBelowBaseline = true;
+				bAnyKnownShortOfHeld = true;
+				break;
+			case ELevel::Baseline:
+				bAnyKnownShortOfHeld = true;
+				break;
+			default:
+				bAnyUnknown = true;
+				break;
 			}
 		}
-		return bAnyBelowBaseline && bAnyShortOfHeld;
+		if (bAnyKnownBelowBaseline && bAnyKnownShortOfHeld)
+		{
+			return EHeldSet::Partial;
+		}
+		if (bAnyUnknown || Num <= 0)
+		{
+			return EHeldSet::Unresolved;
+		}
+		return bAnyKnownBelowBaseline ? EHeldSet::Full : EHeldSet::NotHeld;
+	}
+
+	inline bool IsPartialHeldSet(const ELevel* Levels, int Num)
+	{
+		return ClassifyHeldSet(Levels, Num) == EHeldSet::Partial;
+	}
+
+	inline const char* DescribeHeldSet(EHeldSet S)
+	{
+		switch (S)
+		{
+		case EHeldSet::Full:       return "full";
+		case EHeldSet::Partial:    return "partial";
+		case EHeldSet::Unresolved: return "unresolved";
+		default:                   return "not_held";
+		}
 	}
 
 	inline const char* DescribeLevel(ELevel L)
@@ -703,77 +744,141 @@ namespace AnomalyStuckMipWindow
 		}
 	}
 
-	struct FPartialEdgeTrack
+	struct FSIRange
 	{
-		static constexpr int Cap = 32;
-		int PartialSI[Cap] = {};
-		int NumPartial = 0;
-		int PartialOverflow = 0;
+		int First = 0;
+		int Last = 0;
+	};
+
+	static constexpr int SIRangeMin = -2147483647 - 1;
+	static constexpr int SIRangeMax = 2147483647;
+
+	template <typename TList>
+	inline void AddToRangeList(TList& L, int SI)
+	{
+		const int N = (int)L.Num();
+		int Pos = 0;
+		while (Pos < N && L[Pos].First <= SI)
+		{
+			++Pos;
+		}
+		if (Pos > 0 && L[Pos - 1].Last >= SI)
+		{
+			return;
+		}
+		const bool bJoinPrev = Pos > 0 && L[Pos - 1].Last == SI - 1;
+		const bool bJoinNext = Pos < N && L[Pos].First == SI + 1;
+		if (bJoinPrev && bJoinNext)
+		{
+			L[Pos - 1].Last = L[Pos].Last;
+			L.RemoveAt(Pos);
+		}
+		else if (bJoinPrev)
+		{
+			L[Pos - 1].Last = SI;
+		}
+		else if (bJoinNext)
+		{
+			L[Pos].First = SI;
+		}
+		else
+		{
+			FSIRange R;
+			R.First = SI;
+			R.Last = SI;
+			L.Insert(R, Pos);
+		}
+	}
+
+	template <typename TList>
+	inline int CountRangeListWithin(const TList& L, int Lo, int Hi)
+	{
+		long long N = 0;
+		for (int i = 0; i < (int)L.Num(); ++i)
+		{
+			const int A = L[i].First > Lo ? L[i].First : Lo;
+			const int B = L[i].Last < Hi ? L[i].Last : Hi;
+			if (A <= B)
+			{
+				N += (long long)B - (long long)A + 1;
+			}
+		}
+		return (int)N;
+	}
+
+	template <typename TList, typename TFn>
+	inline void ForEachRangeWithin(const TList& L, int Lo, int Hi, TFn&& Fn)
+	{
+		for (int i = 0; i < (int)L.Num(); ++i)
+		{
+			const int A = L[i].First > Lo ? L[i].First : Lo;
+			const int B = L[i].Last < Hi ? L[i].Last : Hi;
+			if (A <= B)
+			{
+				Fn(A, B);
+			}
+		}
+	}
+
+	template <typename TList>
+	struct TPartialEdgeTrack
+	{
+		TList Partial;
+		TList Unresolved;
 		int FirstFullSI = -1;
 		int LastFullSI = -1;
 
-		void Observe(int SI, bool bMember, bool bPartial)
+		void Observe(int SI, bool bMember, EHeldSet State)
 		{
 			if (!bMember)
 			{
 				return;
 			}
-			if (!bPartial)
+			if (State == EHeldSet::Full)
 			{
 				FirstFullSI = (FirstFullSI < 0 || SI < FirstFullSI) ? SI : FirstFullSI;
 				LastFullSI = SI > LastFullSI ? SI : LastFullSI;
 				return;
 			}
-			for (int i = 0; i < NumPartial; ++i)
+			if (State == EHeldSet::Partial)
 			{
-				if (PartialSI[i] == SI)
-				{
-					return;
-				}
-			}
-			if (NumPartial == Cap)
-			{
-				++PartialOverflow;
+				AddToRangeList(Partial, SI);
 				return;
 			}
-			int Pos = NumPartial;
-			while (Pos > 0 && PartialSI[Pos - 1] > SI)
+			if (State == EHeldSet::Unresolved)
 			{
-				PartialSI[Pos] = PartialSI[Pos - 1];
-				--Pos;
+				AddToRangeList(Unresolved, SI);
 			}
-			PartialSI[Pos] = SI;
-			++NumPartial;
 		}
 
-		bool IsOnsetEdge(int SI) const
+		int NumPartial() const
 		{
-			return FirstFullSI < 0 || SI < FirstFullSI;
+			return CountRangeListWithin(Partial, SIRangeMin, SIRangeMax);
+		}
+
+		int NumUnresolved() const
+		{
+			return CountRangeListWithin(Unresolved, SIRangeMin, SIRangeMax);
+		}
+
+		int OnsetHi() const
+		{
+			return FirstFullSI < 0 ? SIRangeMax : FirstFullSI - 1;
 		}
 
 		int CountOnset() const
 		{
-			int N = 0;
-			for (int i = 0; i < NumPartial; ++i)
-			{
-				if (IsOnsetEdge(PartialSI[i])) { ++N; }
-			}
-			return N;
-		}
-
-		int CountOffset() const
-		{
-			return NumPartial - CountOnset() - CountMid();
+			return CountRangeListWithin(Partial, SIRangeMin, OnsetHi());
 		}
 
 		int CountMid() const
 		{
-			int N = 0;
-			for (int i = 0; i < NumPartial; ++i)
-			{
-				if (!IsOnsetEdge(PartialSI[i]) && PartialSI[i] < LastFullSI) { ++N; }
-			}
-			return N;
+			return FirstFullSI < 0 ? 0 : CountRangeListWithin(Partial, FirstFullSI, LastFullSI - 1);
+		}
+
+		int CountOffset() const
+		{
+			return FirstFullSI < 0 ? 0 : CountRangeListWithin(Partial, LastFullSI, SIRangeMax);
 		}
 	};
 }

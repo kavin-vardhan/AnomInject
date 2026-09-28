@@ -66,6 +66,8 @@ namespace AnomalyLabel
 		TArray<int32> MaskValues;
 		EAnomalyMaskState MaskState = EAnomalyMaskState::Unmeasured;
 		TArray<uint8>   FireActive;
+		TArray<uint8>   FirePolicy;
+		TArray<uint8>   FireOnScreen;
 		TArray<FVector> FirePos;
 		bool bExposureDip = false;
 		bool bExposureDipScopeExcluded = false;
@@ -111,6 +113,13 @@ namespace AnomalyLabel
 	};
 
 	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot);
+
+	bool ProjectFireBox(const FAutoLiveFireInfo& F, const FAnomalyViewInfo& View, FVector2D& OutMin, FVector2D& OutMax);
+
+	bool IsFireInAnnotation(const TArray<uint8>* FirePolicy, const TArray<uint8>* FireActive, const TArray<uint8>* FireOnScreen,
+		int32 FireIndex);
+
+	bool IsSnapshotEntryLabelled(const FCaptureSnapshot& Snapshot, int32 FireIndex);
 
 	static constexpr int32 GTargetPixelsUnmeasured = -1;
 
@@ -251,7 +260,7 @@ namespace AnomalyLabel
 		int32 MaskTagExhausted = 0;
 		int32 MaskTagRetireQuarantined = 0;
 		int32 MaskTagRetireHostFlagKept = 0;
-		int32 ReasonEntries[4] = { 0, 0, 0, 0 };
+		int32 ReasonEntries[5] = { 0, 0, 0, 0, 0 };
 		int32 CarriedTransitionTracks = 0;
 		int32 CarriedHideTracks = 0;
 		int32 UnlabelledActiveEntries = 0;
@@ -341,6 +350,8 @@ namespace AnomalyLabel
 		int32 PartialMaxPerEdge = 0;
 		int32 PartialEventsOverThree = 0;
 		TArray<FString> PartialEvents;
+		int32 UnresolvedFrames = 0;
+		int32 UnresolvedEvents = 0;
 	};
 
 	struct FObservabilityTelemetry

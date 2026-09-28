@@ -65,6 +65,9 @@ struct FAnomalyNearClipSlabResult
 	int32 ConfirmOverCap = 0;
 	int32 ConfirmTraceCapped = 0;
 	int32 ConfirmNoRay = 0;
+	int32 ConfirmTooFewValid = 0;
+	int32 ConfirmFullSlabFallbacks = 0;
+	int32 ConfirmInvalidSegments = 0;
 	int32 LandscapeCandidates = 0;
 	int32 SkinnedUnconfirmable = 0;
 	int32 NoCollisionUnconfirmable = 0;

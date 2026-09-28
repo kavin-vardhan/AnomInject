@@ -18,7 +18,8 @@ namespace AnomalyLabelSync
 	static constexpr unsigned char ReasonHideReturn = 2;
 	static constexpr unsigned char ReasonPartial = 4;
 	static constexpr unsigned char ReasonCameraUnconfirmed = 8;
-	static constexpr int NumReasons = 4;
+	static constexpr unsigned char ReasonUnresolved = 16;
+	static constexpr int NumReasons = 5;
 
 	inline const char* DescribeReasonBit(int Bit)
 	{
@@ -28,14 +29,45 @@ namespace AnomalyLabelSync
 		case 1: return "hide_return";
 		case 2: return "partial";
 		case 3: return "camera_clipping_unconfirmed";
+		case 4: return "unresolved";
 		default: return "unknown";
 		}
 	}
 
 	inline unsigned char ReasonsOrLegacy(unsigned char Value)
 	{
-		return (Value != 0 && (Value & (ReasonTemporal | ReasonHideReturn | ReasonPartial | ReasonCameraUnconfirmed)) == 0)
+		return (Value != 0 && (Value & (ReasonTemporal | ReasonHideReturn | ReasonPartial | ReasonCameraUnconfirmed
+			| ReasonUnresolved)) == 0)
 			? ReasonTemporal : Value;
+	}
+
+	enum class EAnnotationPolicy : unsigned char
+	{
+		FireWindow = 0,
+		ActorHidden = 1,
+		AnomalyState = 2,
+		RenderHeldWindow = 3
+	};
+
+	inline const char* DescribeAnnotationPolicy(EAnnotationPolicy Policy)
+	{
+		switch (Policy)
+		{
+		case EAnnotationPolicy::ActorHidden:      return "actor_hidden";
+		case EAnnotationPolicy::AnomalyState:     return "anomaly_state";
+		case EAnnotationPolicy::RenderHeldWindow: return "render_held_window";
+		default:                                  return "fire_window";
+		}
+	}
+
+	inline bool IsAnnotationMember(EAnnotationPolicy Policy, bool bActive, bool bOnScreen)
+	{
+		return Policy == EAnnotationPolicy::FireWindow ? bOnScreen : bActive;
+	}
+
+	inline bool IsEntryLabelled(bool bNormalEmit, EAnnotationPolicy Policy, bool bActive, bool bOnScreen)
+	{
+		return bNormalEmit && IsAnnotationMember(Policy, bActive, bOnScreen);
 	}
 
 	static constexpr int AaNone = 0;
@@ -265,6 +297,33 @@ namespace AnomalyLabelSync
 		return C;
 	}
 
+	enum class ECarrySource : unsigned char
+	{
+		None = 0,
+		AttachedTrail = 1,
+		DetachedTrail = 2,
+		CarriedTail = 3
+	};
+
+	struct FCarryDecision
+	{
+		bool bCarry = false;
+		bool bDetachedTail = false;
+	};
+
+	inline FCarryDecision DecideRunEndCarry(const FEventTransitionTrack& T, int LastSIOfRun, int OffFrames, ECarrySource Source)
+	{
+		FCarryDecision D;
+		if (Source == ECarrySource::None)
+		{
+			return D;
+		}
+		const bool bContinues = Source == ECarrySource::AttachedTrail;
+		D.bCarry = ShouldCarryTransitionTrack(T, LastSIOfRun, OffFrames, bContinues);
+		D.bDetachedTail = D.bCarry && !bContinues;
+		return D;
+	}
+
 	enum class ERetireAction : unsigned char
 	{
 		Leave = 0,
@@ -300,6 +359,101 @@ namespace AnomalyLabelSync
 			}
 		}
 		return true;
+	}
+
+	static constexpr int AppliedMaskBase = 192;
+
+	inline unsigned long long AppliedBit(int Value)
+	{
+		return (Value >= AppliedMaskBase && Value < AppliedMaskBase + 64) ? (1ull << (Value - AppliedMaskBase)) : 0ull;
+	}
+
+	struct FRetireHolder
+	{
+		bool bValid = true;
+		bool bTracked = false;
+		int PriorValue = 0;
+		bool bPriorCustomDepth = false;
+		int Value = 0;
+		bool bCustomDepth = false;
+		unsigned long long AppliedMask = 0;
+		bool bOwnedByFormerOwner = false;
+		bool bChecked = false;
+		bool bSetValue = false;
+		bool bSetFlag = false;
+		bool bUntrack = false;
+		bool bClearApplied = false;
+	};
+
+	struct FRetireOutcome
+	{
+		int Restored = 0;
+		int RestoredValueOnly = 0;
+		int Checked = 0;
+		int Remaining = 0;
+		bool bVerified = true;
+	};
+
+	inline bool IsRetireIdentity(const FRetireHolder& H, int RetiredValue)
+	{
+		return H.bTracked || (H.AppliedMask & AppliedBit(RetiredValue)) != 0 || H.bOwnedByFormerOwner;
+	}
+
+	inline FRetireOutcome RetireHolders(FRetireHolder* Holders, int Num, int RetiredValue)
+	{
+		FRetireOutcome R;
+		for (int i = 0; i < Num; ++i)
+		{
+			Holders[i].bChecked = Holders[i].bValid && IsRetireIdentity(Holders[i], RetiredValue);
+		}
+		for (int i = 0; i < Num; ++i)
+		{
+			FRetireHolder& H = Holders[i];
+			if (!H.bValid || !H.bTracked)
+			{
+				continue;
+			}
+			const ERetireAction Action = DecideRetire(true, H.Value, H.bCustomDepth, RetiredValue);
+			if (Action == ERetireAction::Leave)
+			{
+				continue;
+			}
+			H.Value = H.PriorValue;
+			H.bSetValue = true;
+			if (Action == ERetireAction::RestoreValueAndFlag)
+			{
+				H.bCustomDepth = H.bPriorCustomDepth;
+				H.bSetFlag = true;
+				++R.Restored;
+			}
+			else
+			{
+				++R.RestoredValueOnly;
+			}
+			H.bTracked = false;
+			H.bUntrack = true;
+		}
+		for (int i = 0; i < Num; ++i)
+		{
+			if (!Holders[i].bChecked)
+			{
+				continue;
+			}
+			++R.Checked;
+			if (Holders[i].Value == RetiredValue)
+			{
+				++R.Remaining;
+			}
+		}
+		R.bVerified = R.Remaining == 0;
+		if (R.bVerified)
+		{
+			for (int i = 0; i < Num; ++i)
+			{
+				Holders[i].bClearApplied = (Holders[i].AppliedMask & AppliedBit(RetiredValue)) != 0;
+			}
+		}
+		return R;
 	}
 
 	struct FHideReturnTrack

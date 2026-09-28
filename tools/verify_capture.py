@@ -3139,18 +3139,20 @@ def _emit(line):
         sys.stdout.flush()
 
 
-LABEL_RULE_REASONS = ("temporal_aa", "hide_return", "partial", "camera_clipping_unconfirmed")
+LABEL_RULE_REASONS = ("temporal_aa", "hide_return", "partial", "camera_clipping_unconfirmed", "unresolved")
 LABEL_RULE_REASON_TYPES = {
     "temporal_aa": ("stuck_low_mip",),
     "hide_return": ("blinking", "missing_object"),
     "partial": ("stuck_low_mip",),
     "camera_clipping_unconfirmed": ("camera_clipping",),
+    "unresolved": ("stuck_low_mip",),
 }
-LABEL_RULE_LABELLED_ONLY = ("partial", "camera_clipping_unconfirmed")
+LABEL_RULE_LABELLED_ONLY = ("partial", "camera_clipping_unconfirmed", "unresolved")
 LABEL_RULE_TEMPORAL_ONLY = ("temporal_aa", "hide_return")
 RULE_NEW = "NEW"
 RULE_OLD = "OLD"
 RULE_NONE = "NONE"
+RULE_SHOT = "LEGACY_SHOT"
 LABEL_RULE_CHECKS = ("VP-MISMATCH", "TRANSITION-PRESENT-MISMATCH", "REASON-MISSING", "REASON-WITHOUT-TRANSITION",
                      "REASON-UNKNOWN", "REASON-MISPLACED", "REASON-ON-UNLABELLED", "REASON-WITHOUT-TEMPORAL-AA",
                      "LABELLED-EXTRA", "LABELLED-MISSING", "ENTRY-MISSING", "FRAME-MISSING")
@@ -3226,7 +3228,14 @@ def label_rule_check(cap_dir, quiet=False):
     if rows is None:
         lines.append("LABEL-RULE: CANNOT RUN - %s" % err)
         return 3, lines, {"rule": None}
+    shot_rows = sum(1 for r in rows if r.get("label_rule") == "legacy_shot")
+    if 0 < shot_rows < len(rows):
+        lines.append("LABEL-RULE: CANNOT RUN - %d of %d rows carry label_rule legacy_shot; an IAI.Capture.Shot row cannot "
+                     "share a file with capture-run rows" % (shot_rows, len(rows)))
+        return 3, lines, {"rule": None}
     events, err = _lr_read_events(cap_dir)
+    if events is None and shot_rows and err == "no annotation.json":
+        events = []
     if events is None:
         lines.append("LABEL-RULE: CANNOT RUN - %s" % err)
         return 3, lines, {"rule": None}
@@ -3237,7 +3246,9 @@ def label_rule_check(cap_dir, quiet=False):
         lines.append("LABEL-RULE: CANNOT RUN - %d of %d entries carry `labelled`; one session cannot mix the two rules"
                      % (with_key, len(entries)))
         return 3, lines, {"rule": None}
-    if not entries:
+    if shot_rows:
+        rule = RULE_SHOT
+    elif not entries:
         rule = RULE_NONE
     else:
         rule = RULE_NEW if with_key == len(entries) else RULE_OLD
@@ -3350,6 +3361,10 @@ def label_rule_check(cap_dir, quiet=False):
     if rule == RULE_NEW:
         lines.append("  rule                   : NEW - every anomaly entry carries `labelled`; visible_positive = anomaly_present "
                      "AND a labelled entry with a valid box")
+    elif rule == RULE_SHOT:
+        lines.append("  rule                   : LEGACY_SHOT - every row carries label_rule legacy_shot (IAI.Capture.Shot); "
+                     "visible_positive has the OLD meaning (anomaly_present AND an active entry with a valid box) and is NOT "
+                     "the capture-run rule: a one-shot has no render record and no transition history")
     elif rule == RULE_OLD:
         lines.append("  rule                   : OLD - no entry carries `labelled` (a build before 084-07); visible_positive = "
                      "anomaly_present AND an active entry with a valid box, which does NOT say the effect is in the picture. "
@@ -3552,6 +3567,44 @@ def _label_rule_selftest():
         rows[6]["anomalies"][0].pop("transition_reason")
         case("old_rule_transition_without_reason_is_legacy", rows, ev, 0, RULE_OLD,
              extra=lambda d, _l: d["legacy_unreasoned"] == 1)
+        off = {3, 4, 5, 8, 9, 10}
+        fixed = [_lr_row(si, [_lr_entry("missing_texture", "Rock", si in off, si in off)] if 3 <= si <= 10 else [],
+                         present=3 <= si <= 10) for si in range(12)]
+        case("new_rule_texture_box_offscreen_unlisted_clean", fixed, [("missing_texture", "Rock", off)], 0, RULE_NEW,
+             extra=lambda d, _l: d["vp_rule"] == 6 and d["active_unlabelled"] == 2)
+        ff41 = [_lr_row(si, [_lr_entry("missing_texture", "Rock", False, si in off)] if 3 <= si <= 10 else [],
+                        present=3 <= si <= 10) for si in range(12)]
+        case("FF41BFF3_shape_texture_labelled_false_FAILS", ff41, [("missing_texture", "Rock", off)], 1, RULE_NEW,
+             "LABELLED-MISSING", extra=lambda d, _l: d["vp_rule"] == 0 and len(d["fails"]["LABELLED-MISSING"]) == 6)
+        unres = [_lr_row(si, [_lr_entry("stuck_low_mip", "Rock", True, True, ("unresolved",) if si == 5 else None)]
+                         if 4 <= si <= 7 else [], present=4 <= si <= 7) for si in range(10)]
+        case("new_rule_unresolved_on_stuck_mip_clean", unres, [("stuck_low_mip", "Rock", {4, 5, 6, 7})], 0, RULE_NEW,
+             extra=lambda d, _l: d["reasons"].get("stuck_low_mip/unresolved") == 1)
+        unres_bad = [_lr_row(si, [_lr_entry("stuck_low_mip", "Rock", si != 5, True, ("unresolved",) if si == 5 else None)]
+                             if 4 <= si <= 7 else [], present=4 <= si <= 7) for si in range(10)]
+        case("new_rule_unresolved_on_unlabelled_FAILS", unres_bad, [("stuck_low_mip", "Rock", {4, 6, 7})], 1, RULE_NEW,
+             "REASON-ON-UNLABELLED")
+        unres_tex = [_lr_row(si, [_lr_entry("missing_texture", "Rock", True, True, ("unresolved",) if si == 4 else None)]
+                             if 3 <= si <= 6 else [], present=3 <= si <= 6) for si in range(8)]
+        case("new_rule_unresolved_on_texture_swap_FAILS", unres_tex, [("missing_texture", "Rock", {3, 4, 5, 6})], 1,
+             RULE_NEW, "REASON-MISPLACED")
+        shot = [_lr_row(0, [_lr_entry("blinking", "Cube", None, True)], present=True)]
+        shot[0]["label_rule"] = "legacy_shot"
+        case("legacy_shot_read_under_old_meaning", shot, [], 0, RULE_SHOT,
+             extra=lambda d, l: d["vp_rule"] == 1 and any("LEGACY_SHOT" in x for x in l))
+        shot_bad = [_lr_row(0, [_lr_entry("blinking", "Cube", None, True)], vp=False, present=True)]
+        shot_bad[0]["label_rule"] = "legacy_shot"
+        case("legacy_shot_vp_missing_FAILS", shot_bad, [], 1, RULE_SHOT, "VP-MISMATCH")
+        d_shot = _lr_write(root, "legacy_shot_no_annotation", shot, [])
+        os.remove(os.path.join(d_shot, "annotation.json"))
+        code_s, lines_s, det_s = label_rule_check(d_shot, quiet=True)
+        ok_s = code_s == 0 and det_s.get("rule") == RULE_SHOT
+        results.append(ok_s)
+        print("LABEL-RULE SELFTEST %-44s -> exit %d rule %-4s %s" % ("legacy_shot_without_annotation_reads", code_s,
+                                                                     det_s.get("rule"), "ok" if ok_s else "BROKEN"), flush=True)
+        rows, ev = _lr_blink_session()
+        rows[7]["label_rule"] = "legacy_shot"
+        case("shot_rows_mixed_with_run_rows_refused", rows, ev, 3)
         rows, ev = _lr_blink_session()
         rows[5]["anomalies"][0].pop("labelled")
         case("mixed_rules_refused", rows, ev, 3)

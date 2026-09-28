@@ -1436,7 +1436,19 @@ struct FTexSample
 	bool bKnown;
 };
 
-static bool PartialOf(const std::vector<FTexSample>& Set, EVerdict* OutVerdict = nullptr)
+struct FTestRangeList
+{
+	std::vector<FSIRange> V;
+	int Num() const { return (int)V.size(); }
+	FSIRange& operator[](int i) { return V[i]; }
+	const FSIRange& operator[](int i) const { return V[i]; }
+	void Insert(const FSIRange& R, int Pos) { V.insert(V.begin() + Pos, R); }
+	void RemoveAt(int Pos) { V.erase(V.begin() + Pos); }
+};
+
+using FPartialEdgeTrack = TPartialEdgeTrack<FTestRangeList>;
+
+static EHeldSet HeldSetOf(const std::vector<FTexSample>& Set, EVerdict* OutVerdict = nullptr)
 {
 	std::vector<ETexState> States;
 	std::vector<ELevel> Levels;
@@ -1450,7 +1462,75 @@ static bool PartialOf(const std::vector<FTexSample>& Set, EVerdict* OutVerdict =
 	{
 		*OutVerdict = Combine(States.data(), (int)States.size());
 	}
-	return IsPartialHeldSet(Levels.data(), (int)Levels.size());
+	return ClassifyHeldSet(Levels.data(), (int)Levels.size());
+}
+
+static bool PartialOf(const std::vector<FTexSample>& Set, EVerdict* OutVerdict = nullptr)
+{
+	return HeldSetOf(Set, OutVerdict) == EHeldSet::Partial;
+}
+
+namespace Legacy0847
+{
+	static ELevel LegacyClassifyLevel(ETexState State, int RenderResident, int Baseline, int HeldLevel)
+	{
+		if (State == ETexState::Unknown) { return ELevel::Unknown; }
+		if (State == ETexState::Baseline) { return ELevel::Baseline; }
+		if (HeldLevel <= 0 || HeldLevel >= Baseline) { return ELevel::AtHeld; }
+		return RenderResident <= HeldLevel ? ELevel::AtHeld : ELevel::Between;
+	}
+
+	static bool IsPartial(const std::vector<FTexSample>& Set)
+	{
+		bool bBelow = false;
+		bool bShort = false;
+		for (const FTexSample& T : Set)
+		{
+			const ELevel L = LegacyClassifyLevel(ClassifyTexture(T.Resident, T.Baseline, T.bKnown), T.Resident, T.Baseline, T.HeldLevel);
+			if (L == ELevel::AtHeld || L == ELevel::Between) { bBelow = true; }
+			if (L != ELevel::AtHeld) { bShort = true; }
+		}
+		return bBelow && bShort;
+	}
+
+	struct FEdgeTrack
+	{
+		static constexpr int Cap = 32;
+		int PartialSI[Cap] = {};
+		int NumPartial = 0;
+		int PartialOverflow = 0;
+		int FirstFullSI = -1;
+
+		void Observe(int SI, bool bMember, bool bPartial)
+		{
+			if (!bMember) { return; }
+			if (!bPartial)
+			{
+				FirstFullSI = (FirstFullSI < 0 || SI < FirstFullSI) ? SI : FirstFullSI;
+				return;
+			}
+			for (int i = 0; i < NumPartial; ++i) { if (PartialSI[i] == SI) { return; } }
+			if (NumPartial == Cap) { ++PartialOverflow; return; }
+			PartialSI[NumPartial++] = SI;
+		}
+
+		int CountOnset() const
+		{
+			int N = 0;
+			for (int i = 0; i < NumPartial; ++i) { if (FirstFullSI < 0 || PartialSI[i] < FirstFullSI) { ++N; } }
+			return N;
+		}
+	};
+}
+
+static std::set<int> RangeMembers(const FTestRangeList& L)
+{
+	std::set<int> Out;
+	for (const FSIRange& R : L.V)
+	{
+		for (int si = R.First; si <= R.Last; ++si) { Out.insert(si); }
+	}
+	return Out;
 }
 
 static void TestPartialHeldSet()
@@ -1474,37 +1554,190 @@ static void TestPartialHeldSet()
 	Check(!PartialOf(Clean), "partial: a set wholly at baseline is not partial (and is not a member)");
 	Check(PartialOf({ { 9, 11, 7, true } }), "partial: a single texture part-way down its chain (9 of 11, held 7) is PARTIAL");
 	Check(!PartialOf({ { 6, 11, 7, true } }), "partial: a texture below its held level counts as held");
-	Check(PartialOf({ { 7, 11, 7, true }, { -1, 11, 7, false } }), "partial: a held texture beside an UNKNOWN one is flagged (conservative)");
-	Check(!PartialOf({ { -1, 11, 7, false }, { -1, 11, 7, false } }), "partial: an all-unknown record is not called partial (no texture is known below baseline)");
-	Check(!PartialOf({ { 9, 11, 0, true } }), "partial: with no known held level any drop below baseline counts as held (no partial claim is invented)");
+	Check(HeldSetOf(Full) == EHeldSet::Full && HeldSetOf(Clean) == EHeldSet::NotHeld,
+		"N4 held set: all three at the held level is KNOWN-FULL; all at baseline is not held");
+
+	const std::vector<FTexSample> HeldPlusUnknown = { { 7, 11, 7, true }, { -1, 11, 7, false } };
+	Check(HeldSetOf(HeldPlusUnknown) == EHeldSet::Unresolved,
+		"N4: a held texture beside an UNKNOWN one is UNRESOLVED - the unknown one may be fully held too, so no partial claim");
+	Check(Legacy0847::IsPartial(HeldPlusUnknown),
+		"N4 BOTH WAYS: the 084-07 rule called the same record PARTIAL (unknown counted as short of held)");
+	const std::vector<FTexSample> NoEndpoint = { { 9, 11, 0, true } };
+	Check(HeldSetOf(NoEndpoint) == EHeldSet::Unresolved,
+		"N4: an INVALID held endpoint (0) makes a below-baseline texture UNRESOLVED, not at-held");
+	Check(!Legacy0847::IsPartial(NoEndpoint) && Legacy0847::LegacyClassifyLevel(ETexState::Held, 9, 11, 0) == ELevel::AtHeld,
+		"N4 BOTH WAYS: the 084-07 rule read the invalid endpoint as AT-HELD, so an intermediate 9 of 11 went unflagged");
+	Check(HeldSetOf({ { 9, 11, 11, true } }) == EHeldSet::Unresolved, "N4: an endpoint at the baseline is invalid too - unresolved");
+	Check(HeldSetOf({ { -1, 11, 7, false }, { -1, 11, 7, false } }) == EHeldSet::Unresolved,
+		"N4: an all-unknown record is unresolved");
+	Check(HeldSetOf({}) == EHeldSet::Unresolved, "N4: a member frame with NO texture record (watch missing) is unresolved, never full");
+	FPartialEdgeTrack Settle;
+	Settle.Observe(20, true, EHeldSet::Partial);
+	Settle.Observe(21, true, EHeldSet::Full);
+	Settle.Observe(22, true, EHeldSet::NotHeld);
+	Settle.Observe(23, true, EHeldSet::Partial);
+	Check(Settle.LastFullSI == 21 && Settle.CountOffset() == 1 && Settle.NumUnresolved() == 0,
+		"N4: a known all-baseline member (settle tail) is neither a full-set boundary nor unresolved - frame 23 stays an offset partial");
+	Check(HeldSetOf({ { 7, 11, 7, true }, { 11, 11, 7, true }, { -1, 11, 7, false } }) == EHeldSet::Partial,
+		"N4: a KNOWN held texture beside a KNOWN baseline one is record-backed PARTIAL even when a third is unknown");
 
 	FPartialEdgeTrack T;
-	T.Observe(120, false, false);
-	T.Observe(121, true, PartialOf(Onset06));
-	T.Observe(122, true, PartialOf(Onset06));
+	T.Observe(120, false, EHeldSet::NotHeld);
+	T.Observe(121, true, HeldSetOf(Onset06));
+	T.Observe(122, true, HeldSetOf(Onset06));
 	for (int si = 123; si <= 130; ++si)
 	{
-		T.Observe(si, true, PartialOf(Full));
+		T.Observe(si, true, HeldSetOf(Full));
 	}
-	T.Observe(131, true, PartialOf(Offset03));
-	T.Observe(132, false, false);
-	Check(T.CountOnset() == 2 && T.CountOffset() == 1 && T.CountMid() == 0 && T.NumPartial == 3,
+	T.Observe(131, true, HeldSetOf(Offset03));
+	T.Observe(132, false, EHeldSet::NotHeld);
+	Check(T.CountOnset() == 2 && T.CountOffset() == 1 && T.CountMid() == 0 && T.NumPartial() == 3,
 		"edge track: the banked two-frame onset plus a one-frame offset partial read onset 2 / offset 1 / mid 0");
 	FPartialEdgeTrack W;
 	for (int si = 55; si <= 59; ++si)
 	{
-		W.Observe(si, true, true);
+		W.Observe(si, true, EHeldSet::Partial);
 	}
 	for (int si = 60; si <= 62; ++si)
 	{
-		W.Observe(si, true, false);
+		W.Observe(si, true, EHeldSet::Full);
 	}
-	Check(W.CountOnset() == 5, "edge track: the 084-06 warm-up event (N held alone for 5 frames) reads 5 onset partial frames (> 3 = investigate)");
+	Check(W.CountOnset() == 5, "edge track: the 084-06 warm-up event (N held alone for 5 frames) reads 5 onset partial frames");
 	FPartialEdgeTrack O;
-	O.Observe(10, true, true);
-	O.Observe(9, true, false);
-	O.Observe(8, true, true);
+	O.Observe(10, true, EHeldSet::Partial);
+	O.Observe(9, true, EHeldSet::Full);
+	O.Observe(8, true, EHeldSet::Partial);
 	Check(O.CountOnset() == 1 && O.CountOffset() == 1, "edge track: out-of-order observation still splits edges by the first full frame");
+
+	FPartialEdgeTrack U;
+	U.Observe(10, true, EHeldSet::Unresolved);
+	U.Observe(11, true, EHeldSet::Partial);
+	U.Observe(12, true, EHeldSet::Full);
+	U.Observe(13, true, EHeldSet::Full);
+	Check(U.FirstFullSI == 12 && U.CountOnset() == 1 && U.NumUnresolved() == 1 && RangeMembers(U.Unresolved) == std::set<int>({ 10 }),
+		"N4: an UNRESOLVED member never sets the full-set boundary - frame 11 stays an ONSET partial and 10 is listed unresolved");
+	Legacy0847::FEdgeTrack UL;
+	UL.Observe(10, true, false);
+	UL.Observe(11, true, true);
+	UL.Observe(12, true, false);
+	Check(UL.FirstFullSI == 10 && UL.CountOnset() == 0,
+		"N4 BOTH WAYS: the 084-07 track took the all-unknown frame as FULL, so frame 11 lost its onset edge");
+
+	FPartialEdgeTrack Long;
+	std::set<int> Flagged;
+	for (int si = 100; si <= 139; ++si)
+	{
+		Long.Observe(si, true, EHeldSet::Partial);
+		Flagged.insert(si);
+	}
+	for (int si = 140; si <= 150; ++si)
+	{
+		Long.Observe(si, true, EHeldSet::Full);
+	}
+	for (int si = 151; si <= 155; ++si)
+	{
+		Long.Observe(si, true, EHeldSet::Partial);
+		Flagged.insert(si);
+	}
+	Check(Long.NumPartial() == 45 && Long.CountOnset() == 40 && Long.CountOffset() == 5 && Long.Partial.Num() == 2
+		&& RangeMembers(Long.Partial) == Flagged,
+		"N5: 45 partial frames (40 onset) are stored as 2 exact ranges and EVERY flagged frame is identifiable - no cap");
+	Legacy0847::FEdgeTrack LongLegacy;
+	for (int si = 100; si <= 139; ++si) { LongLegacy.Observe(si, true, true); }
+	Check(LongLegacy.NumPartial == 32 && LongLegacy.PartialOverflow == 8 && LongLegacy.CountOnset() == 32,
+		"N5 BOTH WAYS: the 084-07 32-slot list names only 32 of 40 onset frames and counts 8 as bare overflow");
+	FPartialEdgeTrack Merge;
+	Merge.Observe(5, true, EHeldSet::Partial);
+	Merge.Observe(3, true, EHeldSet::Partial);
+	Merge.Observe(9, true, EHeldSet::Partial);
+	Merge.Observe(4, true, EHeldSet::Partial);
+	Merge.Observe(8, true, EHeldSet::Partial);
+	Merge.Observe(7, true, EHeldSet::Partial);
+	Merge.Observe(6, true, EHeldSet::Partial);
+	Merge.Observe(6, true, EHeldSet::Partial);
+	Check(Merge.Partial.Num() == 1 && Merge.Partial[0].First == 3 && Merge.Partial[0].Last == 9 && Merge.NumPartial() == 7,
+		"N5: out-of-order and repeated frames merge into one exact range [3,9]");
+	FPartialEdgeTrack Gaps;
+	for (int si = 0; si < 200; si += 2)
+	{
+		Gaps.Observe(si, true, EHeldSet::Partial);
+	}
+	Check(Gaps.Partial.Num() == 100 && Gaps.NumPartial() == 100, "N5: 100 separated partial frames keep 100 ranges - the list grows, it never overflows");
+}
+
+static void TestAnnotationMembership()
+{
+	using namespace AnomalyLabelSync;
+	struct FFrame
+	{
+		bool bLive;
+		bool bActive;
+		bool bOnScreen;
+		bool bGameThreadState;
+	};
+	struct FCase
+	{
+		const char* Name;
+		EAnnotationPolicy Policy;
+		std::vector<FFrame> Frames;
+		std::set<int> ExpectedList;
+	};
+	const std::vector<FCase> Cases = {
+		{ "FireWindow (missing_texture / corrupted_texture): annotation lists the frames whose box is on screen", EAnnotationPolicy::FireWindow,
+			{ { true, false, true, false }, { true, false, true, false }, { true, false, false, false }, { true, false, true, false } },
+			{ 0, 1, 3 } },
+		{ "ActorHidden (blinking): annotation lists the hidden frames", EAnnotationPolicy::ActorHidden,
+			{ { true, false, true, false }, { true, true, true, false }, { true, true, true, false }, { true, false, true, false },
+			  { true, false, true, false }, { true, true, true, false } },
+			{ 1, 2, 5 } },
+		{ "AnomalyState (lod_popping): annotation lists the frames the anomaly is in its anomalous state", EAnnotationPolicy::AnomalyState,
+			{ { true, false, true, false }, { true, true, true, false }, { true, true, true, false }, { true, false, true, false } },
+			{ 1, 2 } },
+		{ "RenderHeldWindow (stuck_low_mip): annotation lists the render-record member frames", EAnnotationPolicy::RenderHeldWindow,
+			{ { true, false, true, true }, { true, false, true, true }, { true, true, true, true }, { true, true, true, false },
+			  { true, true, true, false }, { true, false, true, false } },
+			{ 2, 3, 4 } },
+	};
+	for (const FCase& C : Cases)
+	{
+		std::set<int> List;
+		std::set<int> Labelled;
+		std::set<int> BrokenActivity;
+		std::set<int> BrokenLive;
+		std::set<int> BrokenGameThread;
+		for (int si = 0; si < (int)C.Frames.size(); ++si)
+		{
+			const FFrame& F = C.Frames[si];
+			if (IsAnnotationMember(C.Policy, F.bActive, F.bOnScreen)) { List.insert(si); }
+			if (IsEntryLabelled(true, C.Policy, F.bActive, F.bOnScreen)) { Labelled.insert(si); }
+			if (F.bActive) { BrokenActivity.insert(si); }
+			if (F.bLive) { BrokenLive.insert(si); }
+			if (F.bGameThreadState) { BrokenGameThread.insert(si); }
+		}
+		Check(List == C.ExpectedList, std::string("N1 ") + C.Name + " " + Str(std::vector<int>(List.begin(), List.end())));
+		Check(Labelled == List, std::string("N1 ") + DescribeAnnotationPolicy(C.Policy) + ": every row's labelled == the frame's membership in annotation.json");
+		if (C.Policy == EAnnotationPolicy::FireWindow)
+		{
+			Check(BrokenActivity != List && BrokenActivity.empty(),
+				"N1 BOTH WAYS fire_window: the 084-07 writer read the activity bit (logically hidden) and labelled NO texture frame - it must fail");
+		}
+		else if (C.Policy == EAnnotationPolicy::RenderHeldWindow)
+		{
+			Check(BrokenGameThread != List,
+				"N1 BOTH WAYS render_held_window: reading the game-thread activity bit instead of the render record disagrees - it must fail");
+			Check(BrokenLive != List, "N1 BOTH WAYS render_held_window: reading 'event live' labels every frame - it must fail");
+		}
+		else
+		{
+			Check(BrokenLive != List, std::string("N1 BOTH WAYS ") + DescribeAnnotationPolicy(C.Policy)
+				+ ": reading 'event live' (the pre-084-07 rule) labels the un-applied phases - it must fail");
+			Check(BrokenActivity == List, std::string("N1 ") + DescribeAnnotationPolicy(C.Policy) + ": here the activity bit IS the authority");
+		}
+	}
+	Check(!IsEntryLabelled(false, EAnnotationPolicy::RenderHeldWindow, true, true),
+		"N1: a transition-only or suppressed entry is never labelled, whatever its inputs");
+	Check(IsEntryLabelled(true, EAnnotationPolicy::FireWindow, false, true) && !IsEntryLabelled(true, EAnnotationPolicy::FireWindow, true, false),
+		"N1 fire_window: on-screen decides, the hidden bit is ignored");
 }
 
 static void TestTransitionReasons()
@@ -1518,6 +1751,9 @@ static void TestTransitionReasons()
 		&& std::string(AnomalyLabelSync::DescribeReasonBit(0)) == "temporal_aa", "reasons: the four reason names");
 	Check(AnomalyLabelSync::ReasonPartial != 0 && (AnomalyLabelSync::ReasonPartial & AnomalyLabelSync::ReasonTemporal) == 0,
 		"reasons: partial is its own bit, independent of temporal AA");
+	Check(std::string(AnomalyLabelSync::DescribeReasonBit(4)) == "unresolved" && AnomalyLabelSync::NumReasons == 5
+		&& AnomalyLabelSync::ReasonsOrLegacy(AnomalyLabelSync::ReasonUnresolved) == AnomalyLabelSync::ReasonUnresolved,
+		"N4 reasons: 'unresolved' is its own fifth bit and is not rewritten as a legacy temporal flag");
 }
 
 static void TestF5TransitionCarry()
@@ -1579,6 +1815,82 @@ static void TestF5TransitionCarry()
 	AnomalyLabelSync::FHideReturnTrack HF;
 	const bool bFreshFlag = AnomalyLabelSync::StepHideGone(HF, 1);
 	Check(bCarriedFlag && !bFreshFlag, "F5 hide BOTH WAYS: the carried track flags the next run's first frame; a reset track does not");
+
+	using AnomalyLabelSync::ECarrySource;
+	auto RunOff = [&](FEventTransitionTrack& Track, int FirstSI, int LastSI)
+	{
+		std::vector<int> Out;
+		for (int si = FirstSI; si <= LastSI; ++si)
+		{
+			Track.Observe(si, false, On, Off, bOn, bOff);
+			if (bOff) { Out.push_back(si); }
+		}
+		return Out;
+	};
+	auto CarryAtEnd = [&](const FEventTransitionTrack& Track, int LastSI, ECarrySource Source, bool bLegacy, bool& bOutCarried)
+	{
+		const ECarrySource Effective = (bLegacy && Source == ECarrySource::CarriedTail) ? ECarrySource::None : Source;
+		const AnomalyLabelSync::FCarryDecision D = (bLegacy && LastSI < 0)
+			? AnomalyLabelSync::FCarryDecision()
+			: AnomalyLabelSync::DecideRunEndCarry(Track, LastSI, Off, Effective);
+		bOutCarried = D.bCarry;
+		return AnomalyLabelSync::CarryTransitionTrack(Track, LastSI);
+	};
+	for (int Lg = 0; Lg <= 1; ++Lg)
+	{
+		FEventTransitionTrack A;
+		for (int si = 90; si <= 98; ++si) { A.Observe(si, true, On, Off, bOn, bOff); }
+		const std::vector<int> OffA = RunOff(A, 99, 99);
+		bool bCarriedA = false;
+		FEventTransitionTrack B = CarryAtEnd(A, 99, ECarrySource::DetachedTrail, Lg == 1, bCarriedA);
+		const std::vector<int> OffB = RunOff(B, 0, 0);
+		bool bCarriedB = false;
+		FEventTransitionTrack C = CarryAtEnd(B, 0, ECarrySource::CarriedTail, Lg == 1, bCarriedB);
+		FEventTransitionTrack FreshC;
+		std::vector<int> OffC = bCarriedB ? RunOff(C, 0, 9) : RunOff(FreshC, 0, 9);
+		const int Total = (int)(OffA.size() + OffB.size() + OffC.size());
+		if (Lg == 0)
+		{
+			Check(bCarriedA && bCarriedB && OffA.size() == 1 && OffB.size() == 1 && OffC == std::vector<int>({ 0, 1, 2, 3, 4, 5 }) && Total == Off,
+				"N6: a detached tail crosses TWO run boundaries - run B (1 frame) flags its frame, run C flags the remaining 6, total 8 = the off window "
+				+ Str(OffC));
+		}
+		else
+		{
+			Check(bCarriedA && !bCarriedB && OffC.empty() && Total == 2,
+				"N6 BOTH WAYS: the 084-07 carry skipped the trail-less tail at run B's end, so run C lost 6 off-window frames");
+		}
+	}
+	for (int Lg = 0; Lg <= 1; ++Lg)
+	{
+		FEventTransitionTrack A;
+		for (int si = 90; si <= 98; ++si) { A.Observe(si, true, On, Off, bOn, bOff); }
+		RunOff(A, 99, 99);
+		bool bCarriedA = false;
+		FEventTransitionTrack B = CarryAtEnd(A, 99, ECarrySource::DetachedTrail, Lg == 1, bCarriedA);
+		bool bCarriedEmpty = false;
+		FEventTransitionTrack C = CarryAtEnd(B, -1, ECarrySource::CarriedTail, Lg == 1, bCarriedEmpty);
+		FEventTransitionTrack FreshC;
+		const std::vector<int> OffC = bCarriedEmpty ? RunOff(C, 0, 9) : RunOff(FreshC, 0, 9);
+		if (Lg == 0)
+		{
+			Check(bCarriedEmpty && OffC == std::vector<int>({ 0, 1, 2, 3, 4, 5, 6 }),
+				"N6: a ZERO-FRAME run in between passes the history through unchanged - the next run flags the remaining 7 " + Str(OffC));
+		}
+		else
+		{
+			Check(!bCarriedEmpty && OffC.empty(), "N6 BOTH WAYS: the 084-07 carry returned early on a zero-frame run and dropped the history");
+		}
+	}
+	{
+		FEventTransitionTrack A;
+		for (int si = 50; si <= 60; ++si) { A.Observe(si, true, On, Off, bOn, bOff); }
+		const AnomalyLabelSync::FCarryDecision Attached = AnomalyLabelSync::DecideRunEndCarry(A, 99, Off, ECarrySource::AttachedTrail);
+		const AnomalyLabelSync::FCarryDecision Spent = AnomalyLabelSync::DecideRunEndCarry(A, 99, Off, ECarrySource::CarriedTail);
+		const AnomalyLabelSync::FCarryDecision NoSource = AnomalyLabelSync::DecideRunEndCarry(A, 60, Off, ECarrySource::None);
+		Check(Attached.bCarry && !Attached.bDetachedTail && !Spent.bCarry && !NoSource.bCarry,
+			"N6 policy: an attached trail always carries; a spent tail does not; a track with no source does not");
+	}
 }
 
 static void TestF4Retire()
@@ -1646,6 +1958,167 @@ static void TestF4Retire()
 	Check(!AnomalyLabelSync::RetirementVerified(&Left, 1, 200), "F4: an untracked holder of the value fails verification, so the value is quarantined, not issued");
 }
 
+struct FWorldComponent
+{
+	int Value = 0;
+	bool bCustomDepth = false;
+	bool bAlive = true;
+	int OwnerActor = 1;
+	bool bTracked = false;
+	int PriorValue = 0;
+	bool bPriorCustomDepth = false;
+	unsigned long long AppliedMask = 0;
+};
+
+static void WorldTag(FWorldComponent& C, int V)
+{
+	if (!C.bTracked)
+	{
+		C.bTracked = true;
+		C.PriorValue = C.Value;
+		C.bPriorCustomDepth = C.bCustomDepth;
+	}
+	C.AppliedMask |= AnomalyLabelSync::AppliedBit(V);
+	C.Value = V;
+	C.bCustomDepth = true;
+}
+
+static void WorldRestoreActor(std::vector<FWorldComponent>& World, int Actor)
+{
+	for (FWorldComponent& C : World)
+	{
+		if (C.bAlive && C.OwnerActor == Actor && C.bTracked)
+		{
+			C.Value = C.PriorValue;
+			C.bCustomDepth = C.bPriorCustomDepth;
+			C.bTracked = false;
+		}
+	}
+}
+
+static AnomalyLabelSync::FRetireOutcome WorldRetire(std::vector<FWorldComponent>& World, int FormerOwner, int V)
+{
+	std::vector<AnomalyLabelSync::FRetireHolder> H(World.size());
+	for (size_t i = 0; i < World.size(); ++i)
+	{
+		const FWorldComponent& C = World[i];
+		H[i].bValid = C.bAlive;
+		H[i].bTracked = C.bTracked;
+		H[i].PriorValue = C.PriorValue;
+		H[i].bPriorCustomDepth = C.bPriorCustomDepth;
+		H[i].Value = C.Value;
+		H[i].bCustomDepth = C.bCustomDepth;
+		H[i].AppliedMask = C.AppliedMask;
+		H[i].bOwnedByFormerOwner = C.OwnerActor == FormerOwner;
+	}
+	const AnomalyLabelSync::FRetireOutcome R = AnomalyLabelSync::RetireHolders(H.data(), (int)H.size(), V);
+	for (size_t i = 0; i < World.size(); ++i)
+	{
+		FWorldComponent& C = World[i];
+		if (H[i].bSetValue) { C.Value = H[i].Value; }
+		if (H[i].bSetFlag) { C.bCustomDepth = H[i].bCustomDepth; }
+		if (H[i].bUntrack) { C.bTracked = false; }
+		if (H[i].bClearApplied) { C.AppliedMask &= ~AnomalyLabelSync::AppliedBit(V); }
+	}
+	return R;
+}
+
+static bool LegacyRetireVerified0847(std::vector<FWorldComponent> World, int FormerOwner, int V)
+{
+	for (FWorldComponent& C : World)
+	{
+		if (!C.bAlive || !C.bTracked)
+		{
+			continue;
+		}
+		const AnomalyLabelSync::ERetireAction A = AnomalyLabelSync::DecideRetire(true, C.Value, C.bCustomDepth, V);
+		if (A == AnomalyLabelSync::ERetireAction::Leave)
+		{
+			continue;
+		}
+		C.Value = C.PriorValue;
+		if (A == AnomalyLabelSync::ERetireAction::RestoreValueAndFlag)
+		{
+			C.bCustomDepth = C.bPriorCustomDepth;
+		}
+		C.bTracked = false;
+	}
+	std::vector<int> After;
+	for (const FWorldComponent& C : World)
+	{
+		if (C.bAlive && (C.bTracked || C.OwnerActor == FormerOwner))
+		{
+			After.push_back(C.Value);
+		}
+	}
+	return AnomalyLabelSync::RetirementVerified(After.data(), (int)After.size(), V);
+}
+
+static void TestN7RetireEveryAppliedIdentity()
+{
+	const int V = 210;
+	const int OldActor = 1;
+	const int OtherActor = 2;
+	{
+		std::vector<FWorldComponent> World(1);
+		World[0].Value = V;
+		World[0].bCustomDepth = false;
+		WorldTag(World[0], V);
+		World[0].OwnerActor = OtherActor;
+		World[0].bCustomDepth = false;
+		const bool bLegacy = LegacyRetireVerified0847(World, OldActor, V);
+		const AnomalyLabelSync::FRetireOutcome R = WorldRetire(World, OldActor, V);
+		std::vector<int> Drawn = { V };
+		World[0].bCustomDepth = true;
+		Drawn.push_back(World[0].Value);
+		Check(!R.bVerified && R.Remaining == 1 && R.RestoredValueOnly == 1 && World[0].Value == V && (World[0].AppliedMask & AnomalyLabelSync::AppliedBit(V)) != 0,
+			"N7: Codex's case - prior value == V, custom depth off, the component LEFT the old actor: retirement restores V, the applied identity "
+			"is still checked, verification FAILS and V is quarantined (and the identity kept until verified)");
+		Check(bLegacy && AnomalyLabelSync::AnyAlias(Drawn.data(), (int)Drawn.size()),
+			"N7 BOTH WAYS: the 084-07 verification (map after removal + the old actor's current components) passed it, so V was reissued "
+			"and aliases the new event once the host re-enables custom depth");
+	}
+	{
+		std::vector<FWorldComponent> World(1);
+		WorldTag(World[0], V);
+		World[0].OwnerActor = OtherActor;
+		World[0].bCustomDepth = false;
+		const AnomalyLabelSync::FRetireOutcome R = WorldRetire(World, OldActor, V);
+		Check(R.bVerified && World[0].Value == 0 && !World[0].bCustomDepth && World[0].AppliedMask == 0,
+			"N7: a moved holder whose prior value was 0 is restored to 0 (host flag kept), verifies, and its applied identity is cleared");
+	}
+	{
+		std::vector<FWorldComponent> World(2);
+		World[0].Value = V;
+		WorldTag(World[0], V);
+		WorldTag(World[1], V);
+		WorldRestoreActor(World, OldActor);
+		World[0].OwnerActor = OtherActor;
+		const bool bLegacy = LegacyRetireVerified0847(World, OldActor, V);
+		const AnomalyLabelSync::FRetireOutcome R = WorldRetire(World, OldActor, V);
+		Check(!R.bVerified && R.Checked == 2 && R.Remaining == 1 && bLegacy,
+			"N7 BOTH WAYS: a holder restored EARLIER (RestoreActor, no longer tracked) and moved away is still verified by the new path "
+			"(fails, quarantined); the 084-07 path never looked at it");
+	}
+	{
+		std::vector<FWorldComponent> World(2);
+		WorldTag(World[0], V);
+		World[1].Value = 57;
+		World[1].bCustomDepth = true;
+		World[1].OwnerActor = OtherActor;
+		const AnomalyLabelSync::FRetireOutcome R = WorldRetire(World, OldActor, V);
+		Check(R.bVerified && R.Restored == 1 && R.Checked == 1 && World[0].Value == 0 && World[1].Value == 57,
+			"N7: an ordinary retirement restores value and flag, checks only identities that ever held V, leaves unrelated components alone");
+	}
+	{
+		std::vector<FWorldComponent> World(1);
+		WorldTag(World[0], V);
+		World[0].bAlive = false;
+		const AnomalyLabelSync::FRetireOutcome R = WorldRetire(World, OldActor, V);
+		Check(R.bVerified && R.Checked == 0, "N7: a destroyed holder cannot alias and does not block the value");
+	}
+}
+
 int main()
 {
 	TestTextureAndCombine();
@@ -1680,6 +2153,8 @@ int main()
 	TestTransitionReasons();
 	TestF5TransitionCarry();
 	TestF4Retire();
+	TestAnnotationMembership();
+	TestN7RetireEveryAppliedIdentity();
 	std::printf("m52 window selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }

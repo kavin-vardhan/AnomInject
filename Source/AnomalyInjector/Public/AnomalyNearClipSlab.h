@@ -300,6 +300,94 @@ namespace AnomalyNearClipSlab
 		return B;
 	}
 
+	struct FAffine34
+	{
+		FV3 Row[3];
+		FV3 Origin;
+	};
+
+	inline FAffine34 MakeAffine(const FV3& RowX, const FV3& RowY, const FV3& RowZ, const FV3& Origin)
+	{
+		FAffine34 M;
+		M.Row[0] = RowX;
+		M.Row[1] = RowY;
+		M.Row[2] = RowZ;
+		M.Origin = Origin;
+		return M;
+	}
+
+	inline FV3 AffineVector(const FAffine34& M, const FV3& V)
+	{
+		return Add(Add(Mul(M.Row[0], V.X), Mul(M.Row[1], V.Y)), Mul(M.Row[2], V.Z));
+	}
+
+	inline FV3 AffinePoint(const FAffine34& M, const FV3& P)
+	{
+		return Add(AffineVector(M, P), M.Origin);
+	}
+
+	inline FAffine34 MulAffine(const FAffine34& First, const FAffine34& Then)
+	{
+		FAffine34 C;
+		for (int i = 0; i < 3; ++i)
+		{
+			C.Row[i] = AffineVector(Then, First.Row[i]);
+		}
+		C.Origin = AffinePoint(Then, First.Origin);
+		return C;
+	}
+
+	inline FV3 NormalizeOr(const FV3& V, const FV3& Fallback)
+	{
+		const double L = std::sqrt(LengthSq(V));
+		return L > 1e-12 ? Mul(V, 1.0 / L) : Fallback;
+	}
+
+	inline FBox3 MakeMatrixBox(const FV3& LocalCenter, const FV3& LocalHalf, const FAffine34& M)
+	{
+		FBox3 B;
+		B.Center = AffinePoint(M, LocalCenter);
+		const double H[3] = { std::fabs(LocalHalf.X), std::fabs(LocalHalf.Y), std::fabs(LocalHalf.Z) };
+		const FV3 E[3] = { Mul(M.Row[0], H[0]), Mul(M.Row[1], H[1]), Mul(M.Row[2], H[2]) };
+		int Order[3] = { 0, 1, 2 };
+		for (int a = 0; a < 3; ++a)
+		{
+			for (int b = a + 1; b < 3; ++b)
+			{
+				if (LengthSq(E[Order[b]]) > LengthSq(E[Order[a]]))
+				{
+					const int T = Order[a];
+					Order[a] = Order[b];
+					Order[b] = T;
+				}
+			}
+		}
+		const FV3 A0 = NormalizeOr(E[Order[0]], MakeV3(1.0, 0.0, 0.0));
+		FV3 A1 = MakeV3(0.0, 0.0, 0.0);
+		for (int k = 1; k < 3 && LengthSq(A1) == 0.0; ++k)
+		{
+			const FV3 Cand = Sub(E[Order[k]], Mul(A0, Dot(E[Order[k]], A0)));
+			if (LengthSq(Cand) > 1e-18 * (LengthSq(E[Order[k]]) + 1.0))
+			{
+				A1 = NormalizeOr(Cand, MakeV3(0.0, 0.0, 0.0));
+			}
+		}
+		if (LengthSq(A1) == 0.0)
+		{
+			const FV3 Probe = std::fabs(A0.X) < 0.9 ? MakeV3(1.0, 0.0, 0.0) : MakeV3(0.0, 1.0, 0.0);
+			A1 = NormalizeOr(Sub(Probe, Mul(A0, Dot(Probe, A0))), MakeV3(0.0, 1.0, 0.0));
+		}
+		const FV3 A2 = NormalizeOr(Cross(A0, A1), MakeV3(0.0, 0.0, 1.0));
+		B.Axis[0] = A0;
+		B.Axis[1] = A1;
+		B.Axis[2] = A2;
+		for (int k = 0; k < 3; ++k)
+		{
+			B.Half[k] = std::fabs(Dot(E[0], B.Axis[k])) + std::fabs(Dot(E[1], B.Axis[k])) + std::fabs(Dot(E[2], B.Axis[k]));
+		}
+		return B;
+	}
+
 	inline bool InstanceBoxMayTouchSlab(const FSlab& S, const FBox3& InstanceBox)
 	{
 		if (S.bEmpty)
@@ -429,7 +517,30 @@ namespace AnomalyNearClipSlab
 		int MinFootprintRays = 6;
 		int MaxCandidates = 16;
 		int MaxTraces = 320;
+		double MinTraceLength = 1e-3;
 	};
+
+	static constexpr double EngineTraceMinLength = 1e-4;
+
+	inline bool PrepareConfirmSegment(const FV3& RayP0, const FV3& RayP1, double T0, double T1, double MinLength,
+		FV3& OutA, FV3& OutB, bool& bOutFullSlab)
+	{
+		bOutFullSlab = false;
+		OutA = LerpV3(RayP0, RayP1, T0);
+		OutB = LerpV3(RayP0, RayP1, T1);
+		if (LengthSq(Sub(OutB, OutA)) > MinLength * MinLength)
+		{
+			return true;
+		}
+		if (LengthSq(Sub(RayP1, RayP0)) > MinLength * MinLength)
+		{
+			OutA = RayP0;
+			OutB = RayP1;
+			bOutFullSlab = true;
+			return true;
+		}
+		return false;
+	}
 
 	static constexpr int MaxConfirmCandidates = 64;
 
@@ -447,7 +558,8 @@ namespace AnomalyNearClipSlab
 		Unconfirmable = 3,
 		OverCandidateCap = 4,
 		TraceCapped = 5,
-		NoRay = 6
+		NoRay = 6,
+		TooFewValidTraces = 7
 	};
 
 	inline const char* DescribeOutcome(ECandidateOutcome O)
@@ -460,6 +572,7 @@ namespace AnomalyNearClipSlab
 		case ECandidateOutcome::OverCandidateCap: return "over_candidate_cap";
 		case ECandidateOutcome::TraceCapped:      return "trace_capped";
 		case ECandidateOutcome::NoRay:            return "no_ray";
+		case ECandidateOutcome::TooFewValidTraces: return "too_few_valid_traces";
 		default:                                  return "not_needed";
 		}
 	}
@@ -477,6 +590,9 @@ namespace AnomalyNearClipSlab
 		int OverCap = 0;
 		int TraceCapped = 0;
 		int NoRay = 0;
+		int TooFewValid = 0;
+		int FullSlabFallbacks = 0;
+		int InvalidSegments = 0;
 		double ClippedRayFraction = 0.0;
 	};
 
@@ -490,7 +606,9 @@ namespace AnomalyNearClipSlab
 		const double N1 = NearAnomalous;
 		const int Cap = Cfg.MaxCandidates < MaxConfirmCandidates ? Cfg.MaxCandidates : MaxConfirmCandidates;
 		int Foot[MaxConfirmCandidates] = {};
+		int Valid[MaxConfirmCandidates] = {};
 		bool bCapped[MaxConfirmCandidates] = {};
+		const int NeededValid = Cfg.MinFootprintRays > 0 ? Cfg.MinFootprintRays : 1;
 		for (int c = 0; c < NumCandidates; ++c)
 		{
 			if (c >= Cap)
@@ -534,13 +652,23 @@ namespace AnomalyNearClipSlab
 					{
 						continue;
 					}
+					FV3 SegA;
+					FV3 SegB;
+					bool bFullSlab = false;
+					if (!PrepareConfirmSegment(P0, P1, T0, T1, Cfg.MinTraceLength, SegA, SegB, bFullSlab))
+					{
+						++Res.InvalidSegments;
+						continue;
+					}
 					if (Res.Traces >= Cfg.MaxTraces)
 					{
 						bCapped[c] = true;
 						continue;
 					}
 					++Res.Traces;
-					if (Trace(c, LerpV3(P0, P1, T0), LerpV3(P0, P1, T1)))
+					++Valid[c];
+					Res.FullSlabFallbacks += bFullSlab ? 1 : 0;
+					if (Trace(c, SegA, SegB))
 					{
 						bRayHit = true;
 						bAnyHit = true;
@@ -557,7 +685,7 @@ namespace AnomalyNearClipSlab
 		{
 			for (int c = 0; c < Limit && !bAnyHit; ++c)
 			{
-				if (!Candidates[c].bConfirmable || Foot[c] >= Cfg.MinFootprintRays || Cfg.FootX <= 0 || Cfg.FootY <= 0)
+				if (!Candidates[c].bConfirmable || Valid[c] >= Cfg.MinFootprintRays || Cfg.FootX <= 0 || Cfg.FootY <= 0)
 				{
 					continue;
 				}
@@ -582,13 +710,23 @@ namespace AnomalyNearClipSlab
 							continue;
 						}
 						++Foot[c];
+						FV3 SegA;
+						FV3 SegB;
+						bool bFullSlab = false;
+						if (!PrepareConfirmSegment(P0, P1, T0, T1, Cfg.MinTraceLength, SegA, SegB, bFullSlab))
+						{
+							++Res.InvalidSegments;
+							continue;
+						}
 						if (Res.Traces >= Cfg.MaxTraces)
 						{
 							bCapped[c] = true;
 							continue;
 						}
 						++Res.Traces;
-						if (Trace(c, LerpV3(P0, P1, T0), LerpV3(P0, P1, T1)))
+						++Valid[c];
+						Res.FullSlabFallbacks += bFullSlab ? 1 : 0;
+						if (Trace(c, SegA, SegB))
 						{
 							bAnyHit = true;
 							OutOutcome[c] = ECandidateOutcome::Hit;
@@ -609,6 +747,10 @@ namespace AnomalyNearClipSlab
 				{
 					OutOutcome[c] = ECandidateOutcome::NoRay;
 				}
+				else if (Valid[c] < NeededValid)
+				{
+					OutOutcome[c] = ECandidateOutcome::TooFewValidTraces;
+				}
 				else
 				{
 					OutOutcome[c] = ECandidateOutcome::Miss;
@@ -622,10 +764,11 @@ namespace AnomalyNearClipSlab
 			case ECandidateOutcome::OverCandidateCap: ++Res.OverCap; break;
 			case ECandidateOutcome::TraceCapped:      ++Res.TraceCapped; break;
 			case ECandidateOutcome::NoRay:            ++Res.NoRay; break;
+			case ECandidateOutcome::TooFewValidTraces: ++Res.TooFewValid; break;
 			default: break;
 			}
 		}
-		const bool bUncertain = Res.Unconfirmable + Res.OverCap + Res.TraceCapped + Res.NoRay > 0;
+		const bool bUncertain = Res.Unconfirmable + Res.OverCap + Res.TraceCapped + Res.NoRay + Res.TooFewValid > 0;
 		Res.bPositive = bAnyHit || bUncertain;
 		Res.bUnconfirmed = !bAnyHit && bUncertain;
 		Res.ClippedRayFraction = Res.GlobalRays > 0 ? (double)Res.GlobalRaysHit / (double)Res.GlobalRays : 0.0;

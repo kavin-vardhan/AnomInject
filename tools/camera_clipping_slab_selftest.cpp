@@ -727,6 +727,10 @@ static FConfirmRun RunConfirm(const std::vector<FMesh>& Meshes, const FConfirmCo
 	Out.R = ConfirmSlab(C.Origin, C.Forward, C.Right, C.Up, C.TanH, C.TanV, 10.0, 100.0, Cands.data(), (int)Cands.size(),
 		Out.Outcomes.data(), Cfg, [&Src](int Index, const FV3& P0, const FV3& P1)
 		{
+			if (LengthSq(Sub(P1, P0)) <= EngineTraceMinLength * EngineTraceMinLength)
+			{
+				return false;
+			}
 			for (const FTri& T : Src[Index]->Tris)
 			{
 				if (SegmentHitsTri(P0, P1, T))
@@ -833,6 +837,67 @@ static void RunConfirmation()
 		Check(Run.R.bPositive && Run.R.bUnconfirmed && Run.R.OverCap >= 1,
 			"candidate cap: a candidate over the per-frame cap keeps its SAT result and FLAGS the frame");
 	}
+
+	{
+		FMesh Plane;
+		AddQuad(Plane.Tris, MakeV3(50, -200, -200), MakeV3(50, 200, -200), MakeV3(50, 200, 200), MakeV3(50, -200, 200));
+		Plane.Box = MakeAxisAlignedBox(MakeV3(50, 0, 0), MakeV3(0, 200, 200));
+		const FConfirmRun Run = RunConfirm({ Plane }, Cfg);
+		Check(Run.bSat && Run.R.bPositive && !Run.R.bUnconfirmed && Run.R.Hits == 1 && Run.R.FullSlabFallbacks > 0,
+			"N2: a ZERO-THICKNESS wall (planar bounds, half-extent 0) in the slab is a confirmed POSITIVE - its degenerate clipped segments are "
+			"traced along the full slab segment (" + std::to_string(Run.R.FullSlabFallbacks) + " fallbacks)");
+		const FCamera C = ConfirmCamera();
+		int ZeroLength = 0;
+		int Rays = 0;
+		for (int Iy = 0; Iy < Cfg.GridY; ++Iy)
+		{
+			for (int Ix = 0; Ix < Cfg.GridX; ++Ix)
+			{
+				const double U = -1.0 + (2.0 * Ix + 1.0) / Cfg.GridX;
+				const double V = -1.0 + (2.0 * Iy + 1.0) / Cfg.GridY;
+				const FV3 Dir = ViewRayDir(U, V, C.Forward, C.Right, C.Up, C.TanH, C.TanV);
+				const FV3 P0 = Add(C.Origin, Mul(Dir, 10.0));
+				const FV3 P1 = Add(C.Origin, Mul(Dir, 100.0));
+				double T0 = 0.0;
+				double T1 = 0.0;
+				if (ClipSegmentToBox(Plane.Box, P0, P1, T0, T1))
+				{
+					++Rays;
+					const FV3 A = LerpV3(P0, P1, T0);
+					const FV3 B = LerpV3(P0, P1, T1);
+					ZeroLength += LengthSq(Sub(B, A)) <= EngineTraceMinLength * EngineTraceMinLength ? 1 : 0;
+				}
+			}
+		}
+		Check(Rays == Cfg.GridX * Cfg.GridY && ZeroLength == Rays,
+			"N2 BOTH WAYS: under the 084-07 rule every one of the " + std::to_string(Rays) + " clipped segments is zero-length, the engine traces "
+			"none (length <= 1e-4), and the wall read as an UNFLAGGED miss");
+	}
+
+	{
+		std::vector<FMesh> Scene = { BoxMesh(MakeV3(50, 0, 0), MakeV3(0.5, 200, 200)) };
+		FConfirmConfig Degenerate = Cfg;
+		Degenerate.MinTraceLength = 1.0e6;
+		const FConfirmRun Run = RunConfirm(Scene, Degenerate);
+		Check(Run.bSat && Run.R.bPositive && Run.R.bUnconfirmed && Run.R.TooFewValid == 1 && Run.R.Misses == 0 && Run.R.Traces == 0
+			&& Run.R.InvalidSegments > 0,
+			"N2: a candidate whose every segment is degenerate (no valid trace possible) is FLAGGED camera_clipping_unconfirmed - never a miss");
+	}
+
+	{
+		FMesh Empty;
+		Empty.Box = MakeAxisAlignedBox(MakeV3(50, 3.125, 0), MakeV3(5, 2, 2));
+		FConfirmConfig NoFoot = Cfg;
+		NoFoot.FootX = 0;
+		NoFoot.FootY = 0;
+		const FConfirmRun Run = RunConfirm({ Empty }, NoFoot);
+		Check(Run.bSat && Run.R.Traces >= 1 && Run.R.Traces < Cfg.MinFootprintRays && Run.R.TooFewValid == 1 && Run.R.bUnconfirmed && Run.R.bPositive,
+			"N2: a candidate reached by fewer valid traces (" + std::to_string(Run.R.Traces) + ") than the grid needs ("
+			+ std::to_string(Cfg.MinFootprintRays) + ") is flagged, not a miss");
+		const FConfirmRun WithFoot = RunConfirm({ Empty }, Cfg);
+		Check(!WithFoot.R.bPositive && !WithFoot.R.bUnconfirmed && WithFoot.R.Misses == 1 && WithFoot.R.Traces >= Cfg.MinFootprintRays,
+			"N2 BOTH WAYS: with its footprint grid it gets enough valid traces and is a real miss (empty geometry)");
+	}
 }
 
 static void RunInstanceQueryF2()
@@ -867,6 +932,80 @@ static void RunInstanceQueryF2()
 	{
 		const FBox3 B = MakeInstanceBox(MakeV3(0, 0, 0), MakeV3(10, 10, 10), X, Y, Z, MakeV3(1, 1, 1), MakeV3(400, 0, 0));
 		Check(!InstanceBoxMayTouchSlab(S, B), "F2 control: an unscaled instance beyond the slab is still rejected");
+	}
+
+	auto RotZ = [](double Deg)
+	{
+		const double R = Deg * 3.14159265358979323846 / 180.0;
+		const double Cs = std::cos(R);
+		const double Sn = std::sin(R);
+		return MakeAffine(MakeV3(Cs, Sn, 0), MakeV3(-Sn, Cs, 0), MakeV3(0, 0, 1), MakeV3(0, 0, 0));
+	};
+	auto ComposedTrsBox = [&](double InstanceDeg, const FV3& ComponentScale, const FV3& ComponentTranslation, const FV3& MeshHalf)
+	{
+		const FAffine34 R = RotZ(InstanceDeg);
+		return MakeInstanceBox(MakeV3(0, 0, 0), MeshHalf, R.Row[0], R.Row[1], R.Row[2], ComponentScale, ComponentTranslation);
+	};
+	auto CornersInsideAt = [](const FBox3& B, const FAffine34& M, const FV3& Center, const FV3& Half)
+	{
+		for (int SX = -1; SX <= 1; SX += 2)
+		{
+			for (int SY = -1; SY <= 1; SY += 2)
+			{
+				for (int SZ = -1; SZ <= 1; SZ += 2)
+				{
+					const FV3 P = AffinePoint(M, MakeV3(Center.X + SX * Half.X, Center.Y + SY * Half.Y, Center.Z + SZ * Half.Z));
+					const FV3 D = Sub(P, B.Center);
+					for (int k = 0; k < 3; ++k)
+					{
+						if (std::fabs(Dot(D, B.Axis[k])) > B.Half[k] + 1e-9)
+						{
+							return false;
+						}
+					}
+				}
+			}
+		}
+		return true;
+	};
+	auto CornersInside = [&](const FBox3& B, const FAffine34& M, const FV3& Half)
+	{
+		return CornersInsideAt(B, M, MakeV3(0, 0, 0), Half);
+	};
+	const FV3 Half10 = MakeV3(10, 10, 10);
+	{
+		const FAffine34 Component = MakeAffine(MakeV3(10, 0, 0), MakeV3(0, 1, 0), MakeV3(0, 0, 1), MakeV3(150, 0, 0));
+		const FAffine34 World = MulAffine(RotZ(90.0), Component);
+		const FBox3 B = MakeMatrixBox(MakeV3(0, 0, 0), Half10, World);
+		FV3 Mn, Mx;
+		BoxAabb(B, Mn, Mx);
+		Check(std::fabs(Mn.X - 50.0) < 1e-9 && std::fabs(Mx.X - 250.0) < 1e-9 && InstanceBoxMayTouchSlab(S, B) && CornersInside(B, World, Half10),
+			"N3: instance 90 deg about Z under component scale (10,1,1): the ENGINE FORMULA (instance matrix x component matrix, "
+			"InstancedStaticMesh.cpp:2665) gives rendered X [50,250]; the matrix box encloses every rendered corner and reaches the slab");
+		const FBox3 Legacy = ComposedTrsBox(90.0, MakeV3(10, 1, 1), MakeV3(150, 0, 0), Half10);
+		FV3 LMn, LMx;
+		BoxAabb(Legacy, LMn, LMx);
+		Check(std::fabs(LMn.X - 140.0) < 1e-9 && std::fabs(LMx.X - 160.0) < 1e-9 && !InstanceBoxMayTouchSlab(S, Legacy) && !CornersInside(Legacy, World, Half10),
+			"N3 BOTH WAYS: the 084-07 composed FTransform (scales multiplied componentwise, rotations separately) gives X [140,160], "
+			"misses the rendered corners and REJECTS the instance");
+	}
+	{
+		const FAffine34 Component = MakeAffine(MakeV3(10, 0, 0), MakeV3(0, 1, 0), MakeV3(0, 0, 1), MakeV3(150, 0, 0));
+		const FAffine34 World = MulAffine(RotZ(45.0), Component);
+		const FBox3 B = MakeMatrixBox(MakeV3(0, 0, 0), Half10, World);
+		const FBox3 Legacy = ComposedTrsBox(45.0, MakeV3(10, 1, 1), MakeV3(150, 0, 0), Half10);
+		Check(CornersInside(B, World, Half10) && !CornersInside(Legacy, World, Half10),
+			"N3 BOTH WAYS: 45 deg under non-uniform scale shears the rendered box; the matrix box still encloses every rendered corner "
+			"(conservative), the composed FTransform box does not");
+	}
+	{
+		const FAffine34 Component = MakeAffine(MakeV3(0, 2, 0), MakeV3(-3, 0, 0), MakeV3(0, 0, 1), MakeV3(60, 0, 0));
+		const FAffine34 World = MulAffine(RotZ(0.0), Component);
+		const FBox3 B = MakeMatrixBox(MakeV3(5, 0, 0), MakeV3(4, 5, 6), World);
+		Check(CornersInsideAt(B, World, MakeV3(5, 0, 0), MakeV3(4, 5, 6)), "N3: with orthogonal edges the matrix box contains every rendered corner");
+		const double Vol = B.Half[0] * B.Half[1] * B.Half[2];
+		Check(std::fabs(Vol - (4.0 * 2.0) * (5.0 * 3.0) * 6.0) < 1e-6 && std::fabs(B.Center.X - 60.0) < 1e-9 && std::fabs(B.Center.Y - 10.0) < 1e-9,
+			"N3: with orthogonal edges (rotation x scale) the matrix box is EXACT - same volume as the rendered box, centre at the transformed mesh origin");
 	}
 }
 
