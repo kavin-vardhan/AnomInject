@@ -11,6 +11,24 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **086-02, 2026-09-29 — camera_clipping's per-frame label is now a VIEW-SLAB test on render geometry, and the B-CC
+> camera-schedule lever exists: exe `E9FF019A`, archived, NOT staged, NOTHING LAUNCHED — no runtime evidence yet. NOT merged,
+> NO tag.** Branch `fix/m52-label-timing` `f908b71` (source + selftest) + docs, pushed. Supersedes the 084-05a block below
+> wherever they disagree.
+> - **Cold start:** journal `docs/sessions/2026-09-29-086-02-camera-clipping-view-slab.md` (§3 the limits, §8 the B-CC spec).
+> - **Label:** positive iff a rendered primitive (pawn and its meshes INCLUDED, FX excluded) has render geometry between the
+>   baseline and the anomalous near plane INSIDE the frustum; exact SAT of oriented render boxes (per instance for foliage)
+>   against the slab, built from the camera cache the renderer uses; decided at `OnWorldTickEnd`, after the camera update (the
+>   old decision read the previous frame's camera, a G41 recurrence). The m30 sphere proxy survives only as the diagnostic
+>   `camera_clipping.sphere_proxy`. ⚠ Over-labels hollow meshes that surround the eye; misses particles. UNMEASURED until B-CC.
+> - **Lever:** `IAI.Bench.CameraSchedule cc_v1|off` (`-IAIBench` only, no Shipping): 200 poses keyed by session index — wall
+>   150→50→150 cm, behind, beside, non-colliding prop, pawn mesh.
+> - **Proofs:** selftest `tools/camera_clipping_slab_selftest.cpp` **93/93**; the legacy model is wrong on 9 of 17 constructed
+>   cases, the slab test on 0. Game + Editor exit 0, 0 warnings; `_binary_baselines\m52fix-E9FF019A\`. **G352** (the near plane
+>   also moves the shadow cascades: B-CC's floor must come from ON vs null on designed-negative frames).
+> - 🎯 **NEXT: 084-05b (harness incl. B-CC from journal §8), the Tue-night bench, and the Codex source review of 084-05a + 086-02.**
+>   ⛔ No merge, no staging from this brief.
+>
 > 🔧 **084-05a, 2026-09-28 late night — THE LABEL-SYNC FIXES RULED IN `_reviews/084-03-chat-ruling-bench-results.md` (DECISIONS
 > 1–3) ARE BUILT: exe `2AC0523E`, archived, NOT staged, NOTHING LAUNCHED — no runtime evidence yet. NOT merged, NO tag.**
 > Branch `fix/m52-label-timing` `05c7649` (source + tests) + docs, pushed. Main checkout `m51` `53bf725`; staged exe `2FCDF059`.

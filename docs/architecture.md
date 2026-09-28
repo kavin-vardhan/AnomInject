@@ -674,11 +674,30 @@ The first Global-scoped id in the pool. It is **held for the whole capture sessi
 `FinishRun` — and it **NEVER routes through `TryFireOnce`**, which now skips Global-scoped ids. That
 removes the `"=ActorName"` misparse structurally: the token is never built for it.
 
-🚨 **A frame is labelled positive ONLY when geometry is within the anomalous near-clip radius**, by a
-per-frame sphere overlap at the camera (bounds only, no pixel read). The near plane being wrong is
-not the same as the viewer seeing anything wrong, and labelling a whole session positive would ship
-thousands of frames showing nothing — which **the m26 mask veto cannot catch, because there is no
-target and therefore no mask.**
+🚨 **A frame is labelled positive ONLY when rendered geometry lies in the VIEW SLAB** — the part of the
+view frustum between the baseline near plane and the anomalous one (086-02; the m30 rule was a sphere
+overlap of collision at the camera, which labelled geometry behind the camera, missed non-colliding
+props and ignored the pawn, and whose gate was circular). The near plane being wrong is not the same
+as the viewer seeing anything wrong, and labelling a whole session positive would ship thousands of
+frames showing nothing — which **the m26 mask veto cannot catch, because there is no target and
+therefore no mask.**
+
+**As built (086-02):** `FAnomaly_CameraClipping::IsCurrentlyAnomalous` → `AnomalyViewport::EvaluateNearClipSlab`
+(pure maths in `AnomalyNearClipSlab.h`, UE-free, selftest `tools/camera_clipping_slab_selftest.cpp`).
+- **Which primitives count:** every `UPrimitiveComponent` in the world (plus level BSP) that the main view would draw —
+  registered with a scene proxy, `IsVisible()`, owner not hidden, `bRenderInMainPass`, not scene-capture-only, owner-see
+  rules evaluated against the view target exactly as `FPrimitiveSceneProxy::IsShown` does, outside its `MinDrawDistance`.
+  **The pawn and its meshes count.** `UFXSystemComponent`s are excluded (their bounds are often fixed and large).
+- **The test:** world render bounds vs the slab's AABB (broad), then an exact SAT of the ORIENTED render box (local
+  `CalcBounds` × component transform, intersected-as-a-test with the world AABB) against the slab's truncated pyramid;
+  ISM/HISM/foliage per instance. Frustum extents mirror `FMinimalViewInfo::CalculateProjectionMatrixGivenView`. A per-camera
+  `PerspectiveNearClipPlane` override or an ortho camera makes the slab empty (the anomaly has no effect there).
+- **When:** the async path decides it at `OnWorldTickEnd`, AFTER `UpdateCameraManager` (`LevelTick.cpp:1621`), because
+  `FinalizeArmedLabel` runs among the tickables (`:1606`) and would read the previous frame's camera. The entry is appended
+  there, at the end of `Fires`. Other session globals and the sync path keep the old decision point.
+- **Diagnostics:** frame keys `camera_clipping.slab` / `.sphere_proxy` (the m30 rule, kept for comparison) /
+  `.slab_primitives` / `.eye_inside_box` / `.near_overridden` on every frame while camera_clipping is held, and
+  `run_summary` `camera_clipping_*`. **Known limits** are in journal 086-02 §3; the rule is UNMEASURED until B-CC.
 
 **`P6` does not move.** The existing event shape carries it: whole-frame as `coverage_ratio = 1` and
 per-frame `bbox_norm = 0,0,1,1`, empty `asset_name`, and `coverage_pct` left at its `-1` sentinel

@@ -867,7 +867,20 @@ Nothing is missing and nothing is duplicated — it is purely an ordering proper
 
 ### A note on `camera_clipping`
 
-`camera_clipping` is **available but switched off by default** in the Capture pool panel — tick it when you want it. It is a **whole-session** anomaly: it applies to the camera for the entire capture rather than to one object for a few frames. That is why it is not on by default, and it is the consequence worth knowing in advance: anything permanently close to the camera — a first-person viewmodel, a held weapon — sits inside the near-clip radius for the whole run, so it will appear sliced or partly missing in **every frame** of that session. **This is expected behaviour, not a defect**, and it is what the anomaly is meant to look like.
+`camera_clipping` is **available but switched off by default** in the Capture pool panel — tick it when you want it. It is a **whole-session** anomaly: it applies to the camera for the entire capture rather than to one object for a few frames. That is why it is not on by default, and it is the consequence worth knowing in advance: anything permanently close to the camera — a first-person viewmodel, a held weapon — sits in front of the pushed near plane for the whole run, so it will appear sliced or partly missing in **every frame** of that session. **This is expected behaviour, not a defect**, and it is what the anomaly is meant to look like.
+
+**Which frames are labelled.** A frame carries a `camera_clipping` entry only when something the game actually draws on screen has geometry between the game's normal near plane and the pushed one, **inside the camera's view**. So:
+
+- geometry **behind or beside** the camera does **not** label the frame, even when it is very close;
+- objects **without collision** (many props, foliage) **do** count;
+- the **player's own visible meshes** (hands, weapon, body) **do** count; a mesh the game hides from its own player does not.
+
+The check uses each object's **bounding box** (per instance for foliage), not its exact triangles. Two consequences to know:
+
+- a large **hollow** object that surrounds the camera — a sky dome mesh, a room shell, a big landscape tile — can label a frame even when no visible surface is actually cut away (an over-label);
+- **particle effects** are not counted, so a particle sliced by the near plane does not label the frame (an under-label).
+
+Every frame of a `camera_clipping` session also carries a few diagnostic keys in `labels.jsonl` (`camera_clipping.slab`, `camera_clipping.sphere_proxy`, `camera_clipping.slab_primitives`, `camera_clipping.eye_inside_box`). `camera_clipping.slab` equals the label. `camera_clipping.sphere_proxy` is the older labelling rule, kept only for comparison — **do not train on it**. This labelling rule is new in this build and has not yet been checked frame by frame against the pictures.
 
 ---
 

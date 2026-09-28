@@ -8138,3 +8138,26 @@ The rule above for checkers stands.
   identical, and the value never leaves the claimed set.
 
 Related: G246, G250, G254, G295, G350.
+
+## G352 — Pushing the near plane also moves the directional light's shadow cascades, so a near-clip anomaly changes pixels it does not clip (2026-09-29, 086-02)
+
+*(Number checked against every ref, local and remote: the maximum was G351 on `fix/m52-label-timing`.)*
+
+- **Observed, from source (NOT measured):** `FDirectionalLightSceneProxy::GetSplitDistance`
+  (`DirectionalLightComponent.cpp:756-785`) starts every near cascade at `ShadowNear = View.NearClippingDistance` and
+  spreads the splits from there to the CSM distance. `camera_clipping` pushes that value (10 → 100 by default), so every
+  near cascade boundary moves and shadow texel density changes across the whole frame, including where nothing is clipped.
+  Depth-based screen effects see a different depth encoding too.
+- **Consequence 1 (the B-CC oracle):** ON vs null at the same frame index will differ on frames where no geometry is in
+  the slab. A noise floor taken only from null vs null (two runs at the baseline plane) under-reads the floor, and the
+  oracle would call those shadow shifts "clipped" — false positives against a correct label. The floor must come from
+  ON vs null on frames the schedule designs as negative, next to the null-vs-null floor, and the decision threshold must
+  be derived two-sided against the designed-positive signal, with both margins reported.
+- **Consequence 2 (the dataset):** a `camera_clipping` session's NEGATIVE frames are not pixel-identical to the same
+  game without the anomaly. The label is defined as "geometry clipped"; the cascade shift is a side effect it does not
+  describe. If B-CC measures it as visible, that is a product decision, not a label bug.
+- **Rule:** before designing a matched-null pixel oracle for a view-parameter anomaly (near plane, FOV, exposure), list
+  every renderer system that reads that parameter, not only the one the anomaly is named after.
+
+Related: G41 (the pre-086-02 camera_clipping decision also read the PREVIOUS frame's camera: it ran in `FinalizeArmedLabel`,
+among the tickables at `LevelTick.cpp:1606`, before `UpdateCameraManager` at `:1621`), G228, G230.
