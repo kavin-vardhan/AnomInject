@@ -5,10 +5,15 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyLod.h"
 #include "AnomalyStuckMipStats.h"
+#include "AnomalyStuckMipWindow.h"
 #include "AnomalyViewport.h"
+#include "Components/DecalComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/Engine.h"
+#include "EngineUtils.h"
+#include "HAL/PlatformTime.h"
+#include "Materials/MaterialInterface.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/StreamableRenderAsset.h"
 #include "Engine/Texture2D.h"
@@ -23,7 +28,74 @@ namespace
 {
 	bool GStuckMipNoHold = false;
 	bool GStuckMipUnlinkLock = false;
+	bool GStuckMipLegacyPurity = false;
 	AnomalyStuckMip::FRunStats GStuckMipStats;
+
+	struct FWorldTextureUsers
+	{
+		TArray<const UActorComponent*> Components;
+		TArray<FString> Names;
+	};
+
+	void BuildWorldTextureUsers(UWorld* World, const TSet<UTexture2D*>& Wanted,
+		TMap<UTexture2D*, FWorldTextureUsers>& Out, int32& OutComponentsScanned)
+	{
+		OutComponentsScanned = 0;
+		if (!World || Wanted.Num() == 0)
+		{
+			return;
+		}
+		TArray<UTexture*> Used;
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (!Actor)
+			{
+				continue;
+			}
+			TInlineComponentArray<UActorComponent*> Comps;
+			Actor->GetComponents(Comps);
+			for (UActorComponent* AC : Comps)
+			{
+				if (!AC || !AC->IsRegistered())
+				{
+					continue;
+				}
+				Used.Reset();
+				if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(AC))
+				{
+					Prim->GetUsedTextures(Used, EMaterialQualityLevel::Num);
+				}
+				else if (UDecalComponent* Decal = Cast<UDecalComponent>(AC))
+				{
+					if (UMaterialInterface* M = Decal->GetDecalMaterial())
+					{
+						M->GetUsedTextures(Used, EMaterialQualityLevel::Num, true, ERHIFeatureLevel::Num, true);
+					}
+				}
+				else
+				{
+					continue;
+				}
+				++OutComponentsScanned;
+				for (UTexture* T : Used)
+				{
+					UTexture2D* T2 = Cast<UTexture2D>(T);
+					if (!T2 || !Wanted.Contains(T2))
+					{
+						continue;
+					}
+					FWorldTextureUsers& Users = Out.FindOrAdd(T2);
+					if (!Users.Components.Contains(AC))
+					{
+						Users.Components.Add(AC);
+						Users.Names.Add(FString::Printf(TEXT("%s.%s(%s)"),
+							*GetNameSafe(Actor), *AC->GetName(), *AC->GetClass()->GetName()));
+					}
+				}
+			}
+		}
+	}
 
 	int32 ReadIntCVar(const TCHAR* Name, int32 Fallback)
 	{
@@ -197,6 +269,16 @@ namespace AnomalyStuckMip
 	{
 		return GStuckMipUnlinkLock;
 	}
+
+	void SetLegacyPurityLever(bool bOn)
+	{
+		GStuckMipLegacyPurity = bOn;
+	}
+
+	bool IsLegacyPurityLeverOn()
+	{
+		return GStuckMipLegacyPurity;
+	}
 }
 
 bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
@@ -292,15 +374,19 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	const int32 MaxCoAffected = bAutoPool ? AnomalyDefaults::GetStuckMipMaxCoAffected() : TNumericLimits<int32>::Max();
 	const float MinTexelRatio = bAutoPool ? AnomalyDefaults::GetStuckMipMinTexelRatio() : 0.0f;
 
+	const bool bLegacyPurity = GStuckMipLegacyPurity;
 	if (!bAutoPool)
 	{
 		UE_LOG(LogAnomaly, Log,
-			TEXT("stuck_low_mip: TARGETED FIRE on '%s' - the co-affected gate (max %d other VISIBLE components per ")
-			TEXT("texture) and the %.2fx perceptibility ratio are BYPASSED because they govern AUTO-POOL SELECTION ")
-			TEXT("only. An explicitly named object is the operator's decision. LABELLING IS UNCHANGED and still ")
-			TEXT("discriminates per frame: the label is driven by the MEASURED resident mip count, so a fire that ")
-			TEXT("never drops a mip carries zero positive frames."),
-			*Substring, AnomalyDefaults::GetStuckMipMaxCoAffected(), AnomalyDefaults::GetStuckMipMinTexelRatio());
+			TEXT("stuck_low_mip: TARGETED FIRE on '%s' - the %.2fx perceptibility ratio is BYPASSED because it governs ")
+			TEXT("AUTO-POOL SELECTION only. %s"),
+			*Substring, AnomalyDefaults::GetStuckMipMinTexelRatio(),
+			bLegacyPurity
+				? TEXT("IAI.Bench.StuckMipLegacyPurity IS ON: the legacy visible-only co-affected gate is used and a ")
+				  TEXT("targeted fire BYPASSES it, exactly as before the 084-02 fix. BENCH DEVICE, can-fail only.")
+				: TEXT("The PURITY RULE STILL APPLIES: a texture held here must have exactly ONE user component in the ")
+				  TEXT("whole loaded world, because a blurred object the label does not name is a wrong label whoever ")
+				  TEXT("chose the target."));
 	}
 
 	TSet<const AActor*> IgnoreActors;
@@ -329,6 +415,41 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
 	{
 		CollectComponentTextures(Weak.Get(), Candidates);
+	}
+
+	TArray<uint64> TargetComponentIds;
+	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
+	{
+		if (UMeshComponent* Mesh = Weak.Get())
+		{
+			TargetComponentIds.Add((uint64)(UPTRINT)static_cast<const UActorComponent*>(Mesh));
+		}
+	}
+	TMap<UTexture2D*, FWorldTextureUsers> WorldUsers;
+	int32 ComponentsScanned = 0;
+	double PurityMs = 0.0;
+	if (!bLegacyPurity)
+	{
+		TSet<UTexture2D*> Wanted;
+		for (UTexture2D* Tex : Candidates)
+		{
+			if (Tex)
+			{
+				Wanted.Add(Tex);
+			}
+		}
+		const double T0 = FPlatformTime::Seconds();
+		BuildWorldTextureUsers(World, Wanted, WorldUsers, ComponentsScanned);
+		PurityMs = (FPlatformTime::Seconds() - T0) * 1000.0;
+		++GStuckMipStats.PurityEnumerations;
+		GStuckMipStats.PurityEnumerationMsMax = FMath::Max(GStuckMipStats.PurityEnumerationMsMax, PurityMs);
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: PURITY ENUMERATION for '%s' - %d component(s) of every loaded actor scanned ")
+			TEXT("(primitives of every type, plus decals) for %d candidate texture(s) in %.2f ms. A texture is ")
+			TEXT("held only if it has exactly ONE user component in the whole loaded world and that component ")
+			TEXT("belongs to the target. Visibility is NOT consulted: an off-screen user still shows the blur the ")
+			TEXT("moment the camera turns to it."),
+			*Substring, ComponentsScanned, Wanted.Num(), PurityMs);
 	}
 
 	for (UTexture2D* Tex : Candidates)
@@ -404,15 +525,66 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 
 		const int32 CoAffected = VisibleUsers.FindRef(Tex);
-		if (CoAffected > MaxCoAffected)
+		int32 WorldUserCount = -1;
+		if (bLegacyPurity)
 		{
-			++RefusedShared;
+			if (CoAffected > MaxCoAffected)
+			{
+				++RefusedShared;
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: REFUSED TEXTURE '%s' - %d other VISIBLE component(s) sample it and the maximum ")
+					TEXT("is %d (LEGACY visible-only rule, IAI.Bench.StuckMipLegacyPurity)."),
+					*GetNameSafe(Tex), CoAffected, MaxCoAffected);
+				continue;
+			}
+		}
+		else
+		{
+			const FWorldTextureUsers* Users = WorldUsers.Find(Tex);
+			TArray<uint64> UserIds;
+			if (Users)
+			{
+				for (const UActorComponent* C : Users->Components)
+				{
+					UserIds.Add((uint64)(UPTRINT)C);
+				}
+			}
+			WorldUserCount = UserIds.Num();
+			int32 Foreign = 0;
+			const AnomalyStuckMipWindow::EPurity Purity = AnomalyStuckMipWindow::ClassifyPurity(
+				UserIds.GetData(), UserIds.Num(), TargetComponentIds.GetData(), TargetComponentIds.Num(), &Foreign);
+			if (Purity != AnomalyStuckMipWindow::EPurity::Pure)
+			{
+				++GStuckMipStats.RefusedSharedWorld;
+				++RefusedShared;
+				FString Others;
+				if (Users)
+				{
+					for (int32 u = 0; u < Users->Names.Num() && u < 6; ++u)
+					{
+						Others += Users->Names[u] + TEXT(" ");
+					}
+				}
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: REFUSED TEXTURE '%s' shared_world - %d user component(s) in the whole loaded ")
+					TEXT("world (%d not a target component), and the rule is exactly ONE. Holding it would blur every ")
+					TEXT("other user, on screen or not, while the label and mask name only the target. Users: [ %s]. ")
+					TEXT("The gate is PER TEXTURE, so the target's other textures are still eligible."),
+					*GetNameSafe(Tex), UserIds.Num(), Foreign, *Others);
+				continue;
+			}
+		}
+
+		if (Tex->HasPendingInitOrStreaming())
+		{
+			++GStuckMipStats.RefusedBaselinePending;
+			++RefusedNotStreamable;
 			UE_LOG(LogAnomaly, Warning,
-				TEXT("stuck_low_mip: REFUSED TEXTURE '%s' - %d other VISIBLE component(s) sample it and the maximum ")
-				TEXT("is %d. Holding it would blur objects the label does not name, and an unlabelled blurry object ")
-				TEXT("in a labelled frame teaches the model that blurry is normal - worse than a missing label. The ")
-				TEXT("gate is PER TEXTURE, so the target's other textures are still eligible."),
-				*GetNameSafe(Tex), CoAffected, MaxCoAffected);
+				TEXT("stuck_low_mip: REFUSED TEXTURE '%s' baseline_pending - a stream operation is IN FLIGHT, so the ")
+				TEXT("game-thread resident count (%d) is not yet the count the renderer draws with. A baseline read ")
+				TEXT("now could be the pre- or post-transition value, and every later frame's held/restored verdict ")
+				TEXT("is measured against it. Refusing costs one fire; a wrong baseline costs a wrong label."),
+				*GetNameSafe(Tex), Tex->GetNumResidentMips());
 			continue;
 		}
 
@@ -483,6 +655,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		H.TargetMips = TargetMips;
 		H.TopResidentPxAtTarget = TopResidentPx;
 		H.CoAffectedVisible = CoAffected;
+		H.WorldUsers = WorldUserCount;
 		H.RatioAtPick = RatioAtPick;
 
 		if (!bNoHoldLever)
@@ -523,9 +696,10 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		UE_LOG(LogAnomaly, Log,
 			TEXT("stuck_low_mip: HOLD '%s' full_mips=%d floor_mips=%d baseline_resident=%d target_resident=%d ")
 			TEXT("top_resident_px=%d ratio_at_pick=%.2f cinematic_mips %d->%d predicted_max_allowed=%d ")
-			TEXT("co_affected_visible=%d [%s]."),
+			TEXT("co_affected_visible=%d world_users=%d [%s]."),
 			*H.TextureName, H.FullMips, H.FloorMips, H.BaselineResidentMips, H.TargetMips, H.TopResidentPxAtTarget,
 			H.RatioAtPick, H.SavedCinematicMips, H.AppliedCinematicMips, H.PredictedMaxAllowedMips, H.CoAffectedVisible,
+			H.WorldUsers,
 			bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, selection gates BYPASSED"));
 
 		Held.Add(H);
@@ -718,8 +892,17 @@ void FAnomaly_StuckLowMip::Revert()
 
 		if (Tex->GetNumResidentMips() >= H.BaselineResidentMips)
 		{
-			++AlreadyBack;
-			continue;
+			if (!bBusy)
+			{
+				++AlreadyBack;
+				continue;
+			}
+			++GStuckMipStats.RestoreTrackedWhileBusy;
+			UE_LOG(LogAnomaly, Log,
+				TEXT("stuck_low_mip: revert of '%s' reads resident %d >= baseline %d BUT a stream operation is still in ")
+				TEXT("flight, so it is TRACKED rather than counted already-back: an in-flight stream-out can still land ")
+				TEXT("after this revert and leave the picture low with nobody re-asserting the stream-in."),
+				*H.TextureName, Tex->GetNumResidentMips(), H.BaselineResidentMips);
 		}
 
 		FRestoringTexture R;
@@ -819,7 +1002,7 @@ void FAnomaly_StuckLowMip::TickAlways(float DeltaSeconds)
 		}
 
 		const int32 Resident = Tex->GetNumResidentMips();
-		if (Resident >= R.BaselineResidentMips)
+		if (Resident >= R.BaselineResidentMips && !static_cast<UStreamableRenderAsset*>(Tex)->HasPendingInitOrStreaming())
 		{
 			GStuckMipStats.RestoreFramesMax = FMath::Max(GStuckMipStats.RestoreFramesMax, R.FramesWaited);
 			UE_LOG(LogAnomaly, Log,
@@ -906,6 +1089,23 @@ bool FAnomaly_StuckLowMip::IsCurrentlyAnomalous() const
 	return false;
 }
 
+bool FAnomaly_StuckLowMip::GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const
+{
+	if (!bActive)
+	{
+		return false;
+	}
+	for (const FHeldTexture& H : Held)
+	{
+		FAnomalyRenderTruthTexture R;
+		R.Texture = H.Texture;
+		R.Name = H.TextureName;
+		R.BaselineResidentMips = H.BaselineResidentMips;
+		Out.Add(R);
+	}
+	return Out.Num() > 0;
+}
+
 bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 {
 	if (!bActive || Held.Num() == 0)
@@ -972,6 +1172,7 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 		Rec.AddInt(TEXT("resident_mips"), Now);
 		Rec.AddInt(TEXT("resident_mips_at_onset"), H.ResidentAtOnset);
 		Rec.AddInt(TEXT("co_affected_visible"), H.CoAffectedVisible);
+		Rec.AddInt(TEXT("world_users"), H.WorldUsers);
 		Rec.AddBool(TEXT("held"), Tex != nullptr && Now < H.BaselineResidentMips);
 	}
 

@@ -58,6 +58,18 @@ namespace AnomalyLabel
 		TArray<uint8>   Observable;
 		TArray<FIntRect> DrawnBounds;
 		TArray<FAnomalyTelemetry> Telemetry;
+
+		struct FRenderTruthWatch
+		{
+			FName Id;
+			FString Target;
+			uint64 StartFrame = 0;
+			FString TextureName;
+			int32 Baseline = 0;
+		};
+		TArray<FRenderTruthWatch> RenderWatch;
+		bool bRenderWatchArmed = false;
+		TArray<uint8> Trailing;
 	};
 
 	static constexpr int32 GTargetPixelsUnmeasured = -1;
@@ -198,6 +210,25 @@ namespace AnomalyLabel
 		int32 OnsetPrerollMax = -1;
 		int32 RevertOnDestroy = 0;
 		int32 UnverifiedAtTeardown = 0;
+		FString LabelSource;
+		int32 RenderRecordFrames = 0;
+		int32 RenderHeldFrames = 0;
+		int32 RenderUnknownFrames = 0;
+		int32 RenderRecordMissingFrames = 0;
+		int32 TrailingFrames = 0;
+		int32 TrailingLabelledFrames = 0;
+		int32 SettleTailFrames = 0;
+		int32 SettleTailSetting = 0;
+		int32 TrailsOpened = 0;
+		int32 TrailsClosed = 0;
+		int32 RestoreUnresolved = 0;
+		int32 RestoreUnresolvedAtEnd = 0;
+		int32 GtMirrorDisagreeFrames = 0;
+		int32 MaskDeferredDropped = 0;
+		int32 RefusedSharedWorld = 0;
+		int32 RefusedBaselinePending = 0;
+		int32 RestoreTrackedWhileBusy = 0;
+		double PurityEnumerationMsMax = 0.0;
 	};
 
 	struct FObservabilityTelemetry

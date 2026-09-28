@@ -11,6 +11,24 @@
 class SWindow;
 struct FAnomalyChangeReceipt;
 
+enum class EAnomalyRenderMipStatus : uint8
+{
+	Ok = 0,
+	NoTexture = 1,
+	NoResource = 2,
+	NotStreamable = 3,
+	PartiallyResident = 4,
+	Uninitialized = 5
+};
+
+struct FAnomalyRenderMipSample
+{
+	int32 Resident = -1;
+	int32 FirstMip = -1;
+	EAnomalyRenderMipStatus Status = EAnomalyRenderMipStatus::NoTexture;
+	uint64 ResourceId = 0;
+};
+
 struct FAnomalyCapturedFrame
 {
 	uint64 RequestId = 0;
@@ -20,6 +38,8 @@ struct FAnomalyCapturedFrame
 	int32 BytesPerPixel = 0;
 	TArray<uint8> RawBytes;
 	TSharedPtr<const FAnomalyChangeReceipt, ESPMode::ThreadSafe> ChangeReceipt;
+	TArray<FAnomalyRenderMipSample> RenderMips;
+	bool bRenderRecord = false;
 };
 
 struct FAnomalyReadbackLayout

@@ -28,7 +28,12 @@
 #include "AnomalyStencilTag.h"
 #include "AnomalyCensus.h"
 #include "AnomalyStuckMipStats.h"
+#include "AnomalyStuckMipWindow.h"
 #include "AnomalySveKeyRing.h"
+#include "Components/DecalComponent.h"
+#include "Engine/Texture2D.h"
+#include "UObject/StrongObjectPtr.h"
+#include "UObject/UObjectIterator.h"
 #include "AnomalyAsyncWriter.h"
 #include "AnomalyChangeStage.h"
 #include "Misc/CoreDelegates.h"
@@ -79,6 +84,16 @@
 static TAutoConsoleVariable<int32> GChangeTeardownAt(TEXT("IAI.Bench.ChangeTeardownAt"), -1,
 	TEXT("Fixture-only actual world teardown after N captures; -IAIBenchFixture and CB_GateLevel required. Default off."));
 static bool GChangeTeardownIssued = false;
+static TAutoConsoleVariable<int32> GStuckMipSettleTailFrames(TEXT("IAI.StuckMip.SettleTailFrames"), 0,
+	TEXT("stuck_low_mip: captured frames that stay LABELLED after the render record shows every held texture back at ")
+	TEXT("its baseline. Default 0. It exists for one measured case only: a residual that temporal history (anti-")
+	TEXT("aliasing) carries past the restore. Read at the start of each capture run; the effective value is echoed."));
+static bool GBenchStuckMipLegacyTiming = false;
+static bool GBenchStuckMipLeversRegistered = false;
+static FString StuckMipEventKey(FName Id, uint64 StartFrame)
+{
+	return FString::Printf(TEXT("%s@%llu"), *Id.ToString(), StartFrame);
+}
 namespace AnomalyTickPin
 {
 #if ANOMINJECT_FW_TICKPIN
@@ -168,6 +183,96 @@ struct FAnomalyCaptureAsyncState
 	FAnomalyCensus Census;
 	TMap<TWeakObjectPtr<UPrimitiveComponent>, int32> PreRunStencilSnapshot;
 	TArray<FAnomalyCapturedFrame> TargetMaskHeldFrames;
+
+	struct FStuckTrail
+	{
+		FString Key;
+		AnomalyStuckMipWindow::FTrail Window;
+		FAutoLiveFireInfo Fire;
+		TArray<FAnomalyRenderTruthTexture> Textures;
+		bool bEndEventsIssued = false;
+	};
+	TArray<FStuckTrail> Trails;
+	TArray<TStrongObjectPtr<UTexture2D>> RenderTruthKeepAlive;
+
+	struct FRenderTexDetail
+	{
+		FString Name;
+		int32 Baseline = 0;
+		FAnomalyRenderMipSample Sample;
+	};
+	struct FRenderEventResult
+	{
+		AnomalyStuckMipWindow::EVerdict Verdict = AnomalyStuckMipWindow::EVerdict::BeforeApply;
+		AnomalyStuckMipWindow::EMembership Membership = AnomalyStuckMipWindow::EMembership::Out;
+		bool bTrailing = false;
+		bool bRecord = false;
+		TArray<FRenderTexDetail> Textures;
+	};
+	TMap<int32, TMap<FString, FRenderEventResult>> RenderResultBySI;
+
+	struct FQueuedObserve
+	{
+		int32 SessionIndex = -1;
+		TArray<FAnomalyChangeLabel> Labels;
+		TArray<int32> GatedLabel;
+		TArray<FString> GatedKey;
+		bool bReady = false;
+		int32 AgeTicks = 0;
+	};
+	TArray<FQueuedObserve> ObserveQueue;
+
+	struct FDeferredMask
+	{
+		FAnomalyMaskResult Result;
+		int32 AgeTicks = 0;
+	};
+	TMap<uint64, FDeferredMask> DeferredMasks;
+	TMap<uint64, TSet<uint8>> MaskGatedTags;
+
+	int32 RenderRecordFrames = 0;
+	int32 RenderHeldFrames = 0;
+	int32 RenderUnknownFrames = 0;
+	int32 RenderRecordMissingFrames = 0;
+	int32 TrailingFrames = 0;
+	int32 TrailingLabelledFrames = 0;
+	int32 SettleTailFrames = 0;
+	int32 TrailsOpened = 0;
+	int32 TrailsClosed = 0;
+	int32 RestoreUnresolved = 0;
+	int32 RestoreUnresolvedAtEnd = 0;
+	int32 GtMirrorDisagreeFrames = 0;
+	int32 MaskDeferredDropped = 0;
+	int32 ObserveForced = 0;
+
+	void ResetRenderTruth()
+	{
+		Trails.Reset();
+		RenderTruthKeepAlive.Reset();
+		RenderResultBySI.Reset();
+		ObserveQueue.Reset();
+		DeferredMasks.Reset();
+		MaskGatedTags.Reset();
+		RenderRecordFrames = 0;
+		RenderHeldFrames = 0;
+		RenderUnknownFrames = 0;
+		RenderRecordMissingFrames = 0;
+		TrailingFrames = 0;
+		TrailingLabelledFrames = 0;
+		SettleTailFrames = 0;
+		TrailsOpened = 0;
+		TrailsClosed = 0;
+		RestoreUnresolved = 0;
+		RestoreUnresolvedAtEnd = 0;
+		GtMirrorDisagreeFrames = 0;
+		MaskDeferredDropped = 0;
+		ObserveForced = 0;
+	}
+
+	FStuckTrail* FindTrail(const FString& Key)
+	{
+		return Trails.FindByPredicate([&Key](const FStuckTrail& T) { return T.Key == Key; });
+	}
 #endif
 };
 
@@ -366,6 +471,7 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 #if ANOMALY_CAPTURE
+	RegisterBenchStuckMipLevers();
 	MaskEndFrameHandle = FCoreDelegates::OnEndFrame.AddUObject(this, &UAnomalyCaptureSubsystem::OnEndFrameMaskSample);
 	MaskWorldTickEndHandle = FWorldDelegates::OnWorldTickEnd.AddUObject(this, &UAnomalyCaptureSubsystem::OnWorldTickEndCombined);
 	bool bConfigDelivery = false;
@@ -697,6 +803,11 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		ProcessCompletedFrames();
 	}
 
+	if (bRenderTruthRun)
+	{
+		ServiceStuckMipTrails();
+	}
+
 	if (FrameCap > 0 && SessionFrameIndex >= FrameCap
 		&& Phase != ECapturePhase::Idle && Phase != ECapturePhase::DrainTail)
 	{
@@ -796,6 +907,15 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		else
 		{
 			--PhaseFramesLeft;
+		}
+		break;
+
+	case ECapturePhase::RestoreTrail:
+		CaptureCurrentFrame();
+		if (!AnyStuckMipTrailGating())
+		{
+			Phase = ECapturePhase::PostGap;
+			PhaseFramesLeft = PostFrames;
 		}
 		break;
 
@@ -1176,7 +1296,19 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 	int32 ScanFires = 0;
 	int32 ScanLabelled = 0;
 	int32 ScanWithRecord = 0;
-	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+	TArray<FAutoLiveFireInfo> ArmFires = Auto->GetLiveFires();
+	if (bRenderTruthRun)
+	{
+		for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
+		{
+			if (Trail.Window.StillAttached())
+			{
+				ArmFires.Add(Trail.Fire);
+			}
+		}
+	}
+	TSet<uint8> GatedTags;
+	for (const FAutoLiveFireInfo& F : ArmFires)
 	{
 		++ScanFires;
 		AActor* Actor = F.TargetActor.Get();
@@ -1184,7 +1316,8 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 		{
 			continue;
 		}
-		if (!IsFireLabelledThisFrame(F))
+		const bool bGated = IsRenderTruthFire(F);
+		if (!bGated && !IsFireLabelledThisFrame(F))
 		{
 			continue;
 		}
@@ -1195,6 +1328,10 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 			{
 				++ScanWithRecord;
 				LiveTags.Add(R.Tag);
+				if (bGated)
+				{
+					GatedTags.Add(R.Tag);
+				}
 				TagEvent.Add(R.Tag, FString::Printf(TEXT("%s@%llu"), *R.Id.ToString(), R.StartFrame));
 				if (!Actor->IsHidden())
 				{
@@ -1286,6 +1423,10 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 	TargetMaskPendingSessionIndex.Add(RequestId, SessionIndex);
 	TargetMaskPendingTags.Add(RequestId, LiveTags);
 	TargetMaskPendingTagEvent.Add(RequestId, MoveTemp(TagEvent));
+	if (GatedTags.Num() > 0)
+	{
+		Async->MaskGatedTags.Add(RequestId, MoveTemp(GatedTags));
+	}
 	return true;
 }
 
@@ -1301,14 +1442,46 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 	for (const TPair<uint64, int32>& Pair : TargetMaskPendingSessionIndex)
 	{
 		FAnomalyMaskResult Result;
-		if (!Async->MaskExtension->TakeMaskResult(Pair.Key, Result, true))
+		if (FAnomalyCaptureAsyncState::FDeferredMask* Deferred = Async->DeferredMasks.Find(Pair.Key))
+		{
+			Result = MoveTemp(Deferred->Result);
+			Async->DeferredMasks.Remove(Pair.Key);
+		}
+		else if (!Async->MaskExtension->TakeMaskResult(Pair.Key, Result, true))
 		{
 			continue;
+		}
+
+		TSet<uint8> DroppedGated;
+		if (const TSet<uint8>* Gated = Async->MaskGatedTags.Find(Pair.Key))
+		{
+			const TMap<FString, FAnomalyCaptureAsyncState::FRenderEventResult>* FrameResults =
+				Async->RenderResultBySI.Find(Pair.Value);
+			if (!FrameResults)
+			{
+				FAnomalyCaptureAsyncState::FDeferredMask& Hold = Async->DeferredMasks.Add(Pair.Key);
+				Hold.Result = MoveTemp(Result);
+				continue;
+			}
+			const TMap<uint8, FString>* GatedTagEvent = TargetMaskPendingTagEvent.Find(Pair.Key);
+			for (uint8 Tag : *Gated)
+			{
+				const FString* Key = GatedTagEvent ? GatedTagEvent->Find(Tag) : nullptr;
+				const FAnomalyCaptureAsyncState::FRenderEventResult* EventResult = Key ? FrameResults->Find(*Key) : nullptr;
+				if (!EventResult || !AnomalyStuckMipWindow::IsMember(EventResult->Membership))
+				{
+					DroppedGated.Add(Tag);
+				}
+			}
 		}
 		Ready.Add(Pair.Key);
 
 		const TSet<uint8>* LiveTagsPtr = TargetMaskPendingTags.Find(Pair.Key);
-		const TSet<uint8> EventTags = LiveTagsPtr ? *LiveTagsPtr : TSet<uint8>();
+		TSet<uint8> EventTags = LiveTagsPtr ? *LiveTagsPtr : TSet<uint8>();
+		for (uint8 Tag : DroppedGated)
+		{
+			EventTags.Remove(Tag);
+		}
 		const TMap<uint8, FString>* TagEventPtr = TargetMaskPendingTagEvent.Find(Pair.Key);
 
 		const int32 W = Result.ViewRectSize.X;
@@ -1430,6 +1603,7 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 		TargetMaskPendingSessionIndex.Remove(Id);
 		TargetMaskPendingTags.Remove(Id);
 		TargetMaskPendingTagEvent.Remove(Id);
+		Async->MaskGatedTags.Remove(Id);
 	}
 }
 
@@ -3145,6 +3319,33 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	bDeferredOnsetWindowStarted = false;
 	DeferredOnsetWaitFrames = 0;
 	AnomalyStuckMip::ResetRunStats();
+	if (Async.IsValid())
+	{
+		Async->ResetRenderTruth();
+	}
+	bRenderTruthRun = bSveCapture && bAsyncCapture && !GBenchStuckMipLegacyTiming;
+	StuckMipSettleTailFrames = FMath::Clamp(GStuckMipSettleTailFrames.GetValueOnGameThread(), 0, 120);
+	StuckMipTrailTimeoutFrames = FMath::Max(1, AnomalyDefaults::GetStuckMipRestoreTimeout());
+	if (UAnomalyInjectorSubsystem* RtInjector = GetWorld() ? GetWorld()->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr)
+	{
+		RtInjector->ClearAnomalyRefusals();
+		RtInjector->ClearReservedActors();
+		if (!bRenderTruthRun && !GBenchStuckMipLegacyTiming)
+		{
+			RtInjector->SetAnomalyRefusal(FName(TEXT("stuck_low_mip")),
+				TEXT("no_render_record: this capture run does not use the SVE grab point with async capture, so no ")
+				TEXT("render-thread residency record exists for a captured frame and the label could only follow the ")
+				TEXT("game-thread mirror, which is known to be late at onset and early at offset"));
+		}
+	}
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("=== Capture(m52): EFFECTIVE FOR THIS RUN - stuck_low_mip label source %s, settle tail %d frame(s) ")
+		TEXT("(IAI.StuckMip.SettleTailFrames), restore trail timeout %d captured frame(s), texture purity rule %s === ")
+		TEXT("With the render record, a frame is labelled iff that frame's own render drew a held texture below its ")
+		TEXT("baseline; the event outlives the revert until a record shows every texture back; the next burst waits."),
+		bRenderTruthRun ? TEXT("RENDER RECORD") : (GBenchStuckMipLegacyTiming ? TEXT("LEGACY GAME-THREAD MIRROR (IAI.Bench.StuckMipLegacyTiming)") : TEXT("NONE - stuck_low_mip refused")),
+		StuckMipSettleTailFrames, StuckMipTrailTimeoutFrames,
+		AnomalyStuckMip::IsLegacyPurityLeverOn() ? TEXT("LEGACY visible-only (IAI.Bench.StuckMipLegacyPurity)") : TEXT("exactly one user component in the whole loaded world"));
 	ExposureLumBySessionIndex.Reset();
 	ExposureExclusionMask.Reset();
 	ExposureExclusionFolded.Reset();
@@ -3955,6 +4156,47 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		}
 	}
 
+	bool bBatchHasRenderTruth = false;
+	if (bRenderTruthRun)
+	{
+		for (const FAnomalyCapturedFrame& Frame : Batch)
+		{
+			const AnomalyLabel::FCaptureSnapshot* RSnap = Async->PendingSnapshots.Find(Frame.RequestId);
+			if (Frame.bRenderRecord || (RSnap && (RSnap->bRenderWatchArmed || RSnap->Trailing.Contains(1))))
+			{
+				bBatchHasRenderTruth = true;
+				break;
+			}
+		}
+		if (!bBatchHasRenderTruth)
+		{
+			for (const FAnomalyCapturedFrame& Frame : Batch)
+			{
+				const AnomalyLabel::FCaptureSnapshot* RSnap = Async->PendingSnapshots.Find(Frame.RequestId);
+				if (RSnap && RSnap->Fires.ContainsByPredicate([this](const FAutoLiveFireInfo& F) { return IsRenderTruthFire(F); }))
+				{
+					bBatchHasRenderTruth = true;
+					break;
+				}
+			}
+		}
+	}
+	if (bBatchHasRenderTruth)
+	{
+		Batch.StableSort([](const FAnomalyCapturedFrame& A, const FAnomalyCapturedFrame& B) { return A.RequestId < B.RequestId; });
+		for (const FAnomalyCapturedFrame& Frame : Batch)
+		{
+			if (const AnomalyLabel::FCaptureSnapshot* RSnap = Async->PendingSnapshots.Find(Frame.RequestId))
+			{
+				ComputeRenderMembership(Frame, *RSnap);
+			}
+		}
+		if (Async->DeferredMasks.Num() > 0 && bTargetMaskEffective && Async->MaskExtension.IsValid())
+		{
+			ServiceTargetMask();
+		}
+	}
+
 	for (int32 BatchIndex = 0; BatchIndex < Batch.Num(); ++BatchIndex)
 	{
 		FAnomalyCapturedFrame& Frame = Batch[BatchIndex];
@@ -4050,6 +4292,11 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			TargetMaskOutcome.Remove(Snap->SessionIndex);
 		}
 
+		if (bRenderTruthRun)
+		{
+			ApplyRenderTruthToSnapshot(*Snap);
+		}
+
 		Snap->Observable.Reset();
 		Snap->Observable.AddUninitialized(Snap->Fires.Num());
 		for (int32 i = 0; i < Snap->Fires.Num(); ++i)
@@ -4067,6 +4314,21 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			{
 				Snap->Observable[i] = (uint8)AnomalyLabel::EObservable::Unmeasured;
 				continue;
+			}
+
+			if (bRenderTruthRun && Snap->Fires.IsValidIndex(i) && IsRenderTruthFire(Snap->Fires[i]))
+			{
+				const FAnomalyCaptureAsyncState::FRenderEventResult* RenderResult = nullptr;
+				if (const TMap<FString, FAnomalyCaptureAsyncState::FRenderEventResult>* FrameResults =
+					Async->RenderResultBySI.Find(Snap->SessionIndex))
+				{
+					RenderResult = FrameResults->Find(StuckMipEventKey(Snap->Fires[i].Id, Snap->Fires[i].StartFrame));
+				}
+				if (RenderResult && RenderResult->Membership == AnomalyStuckMipWindow::EMembership::Unknown)
+				{
+					Snap->Observable[i] = (uint8)AnomalyLabel::EObservable::Unmeasured;
+					continue;
+				}
 			}
 
 			const bool bObservable = bLabelled && bHeld && Px >= ObservableMinPixels;
@@ -4208,6 +4470,11 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Async->Writer->Enqueue(MoveTemp(Job));
 
 		Async->PendingSnapshots.Remove(Frame.RequestId);
+	}
+
+	if (bRenderTruthRun)
+	{
+		FlushObserveQueue(false);
 	}
 
 	FramesWritten = Async->Writer->GetFramesWritten();
@@ -4371,6 +4638,93 @@ void UAnomalyCaptureSubsystem::NoteDeferredOnsetTimeout()
 		DeferredOnsetWaitFrames, Names.IsEmpty() ? TEXT("the deferred-onset fire ") : *Names);
 }
 
+static void BenchLogStuckMipTextureUsers(UWorld* World, const FString& EventKey, const FAutoLiveFireInfo& Fire,
+	const TArray<FAnomalyRenderTruthTexture>& Textures)
+{
+	TSet<const UTexture2D*> Wanted;
+	for (const FAnomalyRenderTruthTexture& T : Textures)
+	{
+		if (const UTexture2D* Tex = T.Texture.Get())
+		{
+			Wanted.Add(Tex);
+		}
+	}
+	TMap<const UTexture2D*, TArray<const UActorComponent*>> Users;
+	int32 Scanned = 0;
+	TArray<UTexture*> Used;
+	TArray<UMaterialInterface*> Mats;
+	auto Consider = [&](const UActorComponent* C)
+	{
+		for (UMaterialInterface* M : Mats)
+		{
+			if (!M)
+			{
+				continue;
+			}
+			Used.Reset();
+			M->GetUsedTextures(Used, EMaterialQualityLevel::Num, true, ERHIFeatureLevel::Num, true);
+			for (UTexture* T : Used)
+			{
+				const UTexture2D* T2 = Cast<UTexture2D>(T);
+				if (T2 && Wanted.Contains(T2))
+				{
+					Users.FindOrAdd(T2).AddUnique(C);
+				}
+			}
+		}
+	};
+	for (TObjectIterator<UPrimitiveComponent> It; It; ++It)
+	{
+		UPrimitiveComponent* P = *It;
+		if (!P || P->IsTemplate() || P->GetWorld() != World || !P->IsRegistered())
+		{
+			continue;
+		}
+		++Scanned;
+		Mats.Reset();
+		P->GetUsedMaterials(Mats, false);
+		Consider(P);
+	}
+	for (TObjectIterator<UDecalComponent> It; It; ++It)
+	{
+		UDecalComponent* D = *It;
+		if (!D || D->IsTemplate() || D->GetWorld() != World || !D->IsRegistered())
+		{
+			continue;
+		}
+		++Scanned;
+		Mats.Reset();
+		Mats.Add(D->GetDecalMaterial());
+		Consider(D);
+	}
+	const AActor* TargetActor = Fire.TargetActor.Get();
+	for (const FAnomalyRenderTruthTexture& T : Textures)
+	{
+		const UTexture2D* Tex = T.Texture.Get();
+		const TArray<const UActorComponent*>* List = Tex ? Users.Find(Tex) : nullptr;
+		int32 TargetUsers = 0;
+		FString Names;
+		if (List)
+		{
+			for (const UActorComponent* C : *List)
+			{
+				if (C && C->GetOwner() == TargetActor)
+				{
+					++TargetUsers;
+				}
+				if (Names.Len() < 600)
+				{
+					Names += FString::Printf(TEXT("%s.%s(%s) "), C ? *GetNameSafe(C->GetOwner()) : TEXT("null"),
+						*GetNameSafe(C), C ? *C->GetClass()->GetName() : TEXT("null"));
+				}
+			}
+		}
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m52-bench): TEXUSERS event=%s target=%s texture=%s users=%d target_users=%d scanned=%d list=[ %s]"),
+			*EventKey, *Fire.Target, *T.Name, List ? List->Num() : 0, TargetUsers, Scanned, *Names);
+	}
+}
+
 void UAnomalyCaptureSubsystem::BeginFire()
 {
 	bDeferredOnsetWindowStarted = false;
@@ -4393,16 +4747,37 @@ void UAnomalyCaptureSubsystem::BeginFire()
 		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: burst %d fired nothing (zero-match / empty) Ã¢â‚¬â€ negatives only."),
 			BurstsDone + 1);
 	}
+	else if (Auto && FParse::Param(FCommandLine::Get(), TEXT("IAIBench")))
+	{
+		UWorld* BenchWorld = GetWorld();
+		const UAnomalyInjectorSubsystem* BenchInjector = BenchWorld ? BenchWorld->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+		{
+			TArray<FAnomalyRenderTruthTexture> Textures;
+			if (F.StartFrame == GFrameCounter && BenchInjector && BenchInjector->DoesAnomalyUseRenderTruth(F.Id)
+				&& BenchInjector->GetAnomalyRenderTruthTextures(F.Id, Textures))
+			{
+				BenchLogStuckMipTextureUsers(BenchWorld, StuckMipEventKey(F.Id, F.StartFrame), F, Textures);
+			}
+		}
+	}
 	Phase = ECapturePhase::SettleAfterFire;
 	PhaseFramesLeft = SettleFrames;
 }
 
 void UAnomalyCaptureSubsystem::BeginRevert()
 {
-	if (Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->EndEvents(TEXT("event_end")); }
+	const bool bTrail = bRenderTruthRun && OpenStuckMipTrails();
+	if (!bTrail && Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->EndEvents(TEXT("event_end")); }
 	if (UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 	{
 		Auto->RevertAllLiveFires();
+	}
+	if (bTrail)
+	{
+		Phase = ECapturePhase::RestoreTrail;
+		PhaseFramesLeft = 0;
+		return;
 	}
 	Phase = ECapturePhase::SettleAfterRevert;
 	PhaseFramesLeft = SettleFrames;
@@ -4487,6 +4862,12 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				Async->ChangeStage->Diagnostic(TEXT("pending_mask_cancelled"), CancelledMask.Num());
 				if (!bTargetMaskEffective) { Async->ChangeStage->SealArm(Snap.SessionIndex); }
 			}
+			TArray<UTexture2D*> RenderWatchPtrs;
+			if (bRenderTruthRun && bUseSve)
+			{
+				BuildRenderWatch(Snap, RenderWatchPtrs);
+			}
+			const bool bRenderWatch = Snap.bRenderWatchArmed;
 			Async->PendingSnapshots.Add(RequestId, MoveTemp(Snap));
 			if (bUseSve)
 			{
@@ -4495,7 +4876,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 					Async->PendingSnapshots.Remove(RequestId);
 					Async->ChangeStage->Diagnostic(TEXT("capture_arm_dropped"));
 				}
-				else { Async->SveCapturer->ArmWanted(RequestId, ChangeIssue); }
+				else { Async->SveCapturer->ArmWanted(RequestId, ChangeIssue, bRenderWatch ? &RenderWatchPtrs : nullptr); }
 			}
 			else
 			{
@@ -4676,6 +5057,19 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 		else
 		{
 			++SessionGlobalNegativeFrames;
+		}
+	}
+	if (bRenderTruthRun)
+	{
+		Snap->Trailing.Reset();
+		Snap->Trailing.AddZeroed(Snap->Fires.Num());
+		for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
+		{
+			if (Trail.Window.StillAttached())
+			{
+				Snap->Fires.Add(Trail.Fire);
+				Snap->Trailing.Add(1);
+			}
 		}
 	}
 	Snap->FirePos.Reset();
@@ -4904,6 +5298,10 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 				NoteInjector->NoteAnomalyCapturedFrame(Snap->Fires[i].Id, Snap->FireLabelled[i] != 0);
 			}
 			Injector->GetAnomalyTelemetry(Snap->Fires[i].Id, Snap->Telemetry[i]);
+			if (bRenderTruthRun)
+			{
+				continue;
+			}
 			for (const TPair<FString, bool>& KV : Snap->Telemetry[i].Bools)
 			{
 				if (KV.Key == GStuckMipHeldKey && KV.Value)
@@ -4936,6 +5334,8 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 	if (Async->ChangeStage.IsValid())
 	{
 		TArray<FAnomalyChangeLabel> Labels;
+		TArray<int32> GatedLabel;
+		TArray<FString> GatedKey;
 		for (int32 I = 0; I < Snap->Fires.Num(); ++I)
 		{
 			const auto& F = Snap->Fires[I];
@@ -4945,9 +5345,29 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 			L.Type = F.Id.ToString(); L.Target = F.Target;
 			L.bLabelled = Snap->FireLabelled.IsValidIndex(I) && Snap->FireLabelled[I] != 0;
 			L.Tag = Snap->MaskValues.IsValidIndex(I) ? Snap->MaskValues[I] : 0;
+			if (bRenderTruthRun && IsRenderTruthFire(F))
+			{
+				GatedLabel.Add(Labels.Num());
+				GatedKey.Add(StuckMipEventKey(F.Id, F.StartFrame));
+				L.bLabelled = false;
+			}
 			Labels.Add(MoveTemp(L));
 		}
-		Async->ChangeStage->Observe(Snap->SessionIndex, Labels);
+		if (GatedLabel.Num() > 0 || Async->ObserveQueue.Num() > 0)
+		{
+			FAnomalyCaptureAsyncState::FQueuedObserve Q;
+			Q.SessionIndex = Snap->SessionIndex;
+			Q.Labels = MoveTemp(Labels);
+			Q.GatedLabel = MoveTemp(GatedLabel);
+			Q.GatedKey = MoveTemp(GatedKey);
+			Q.bReady = Q.GatedLabel.Num() == 0;
+			Async->ObserveQueue.Add(MoveTemp(Q));
+			FlushObserveQueue(false);
+		}
+		else
+		{
+			Async->ChangeStage->Observe(Snap->SessionIndex, Labels);
+		}
 	}
 
 }
@@ -4972,6 +5392,473 @@ bool UAnomalyCaptureSubsystem::IsFireLabelledThisFrame(const FAutoLiveFireInfo& 
 	default:
 		return true;
 	}
+}
+
+bool UAnomalyCaptureSubsystem::IsRenderTruthFire(const FAutoLiveFireInfo& F) const
+{
+	if (!bRenderTruthRun)
+	{
+		return false;
+	}
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	return Injector && Injector->DoesAnomalyUseRenderTruth(F.Id);
+}
+
+void UAnomalyCaptureSubsystem::BuildRenderWatch(AnomalyLabel::FCaptureSnapshot& Snap, TArray<UTexture2D*>& OutPtrs)
+{
+	OutPtrs.Reset();
+	Snap.RenderWatch.Reset();
+	Snap.bRenderWatchArmed = false;
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	if (!Injector || !Async.IsValid())
+	{
+		return;
+	}
+	auto AddEvent = [this, &Snap, &OutPtrs](const FAutoLiveFireInfo& F, const TArray<FAnomalyRenderTruthTexture>& Textures)
+	{
+		for (const FAnomalyRenderTruthTexture& T : Textures)
+		{
+			UTexture2D* Tex = T.Texture.Get();
+			AnomalyLabel::FCaptureSnapshot::FRenderTruthWatch W;
+			W.Id = F.Id;
+			W.Target = F.Target;
+			W.StartFrame = F.StartFrame;
+			W.TextureName = T.Name;
+			W.Baseline = T.BaselineResidentMips;
+			Snap.RenderWatch.Add(W);
+			OutPtrs.Add(Tex);
+			if (Tex && !Async->RenderTruthKeepAlive.ContainsByPredicate(
+				[Tex](const TStrongObjectPtr<UTexture2D>& P) { return P.Get() == Tex; }))
+			{
+				Async->RenderTruthKeepAlive.Emplace(Tex);
+			}
+		}
+	};
+	if (const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
+	{
+		for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+		{
+			if (!IsRenderTruthFire(F))
+			{
+				continue;
+			}
+			TArray<FAnomalyRenderTruthTexture> Textures;
+			if (Injector->GetAnomalyRenderTruthTextures(F.Id, Textures))
+			{
+				AddEvent(F, Textures);
+			}
+		}
+	}
+	for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
+	{
+		if (Trail.Window.StillAttached())
+		{
+			AddEvent(Trail.Fire, Trail.Textures);
+		}
+	}
+	Snap.bRenderWatchArmed = OutPtrs.Num() > 0;
+}
+
+bool UAnomalyCaptureSubsystem::OpenStuckMipTrails()
+{
+	if (!Async.IsValid())
+	{
+		return false;
+	}
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	if (!Auto || !Injector)
+	{
+		return false;
+	}
+	bool bOpened = false;
+	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+	{
+		if (!IsRenderTruthFire(F))
+		{
+			continue;
+		}
+		TArray<FAnomalyRenderTruthTexture> Textures;
+		if (!Injector->GetAnomalyRenderTruthTextures(F.Id, Textures))
+		{
+			continue;
+		}
+		FAnomalyCaptureAsyncState::FStuckTrail& Trail = Async->Trails.AddDefaulted_GetRef();
+		Trail.Key = StuckMipEventKey(F.Id, F.StartFrame);
+		Trail.Fire = F;
+		Trail.Textures = Textures;
+		Trail.Window.Open(SessionFrameIndex, StuckMipSettleTailFrames, StuckMipTrailTimeoutFrames);
+		++Async->TrailsOpened;
+		bOpened = true;
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m52): RESTORE TRAIL OPEN event=%s target=%s textures=%d revertTickSi=%d settleTail=%d ")
+			TEXT("timeout=%d - the event OUTLIVES the revert. Every captured frame from here is labelled from its OWN ")
+			TEXT("render-thread residency record, masks stay armed, and the next burst waits until a record shows ")
+			TEXT("every held texture back at its baseline (plus the settle tail and %d confirming frames)."),
+			*Trail.Key, *F.Target, Textures.Num(), SessionFrameIndex - 1, StuckMipSettleTailFrames,
+			StuckMipTrailTimeoutFrames, AnomalyStuckMipWindow::ConfirmFrames);
+	}
+	return bOpened;
+}
+
+bool UAnomalyCaptureSubsystem::AnyStuckMipTrailGating() const
+{
+	if (!Async.IsValid())
+	{
+		return false;
+	}
+	for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
+	{
+		if (Trail.Window.GatesNextBurst())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void UAnomalyCaptureSubsystem::ServiceStuckMipTrails()
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	for (FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
+	{
+		if (!Trail.Window.bOpen)
+		{
+			continue;
+		}
+		if (Trail.Window.bClosed)
+		{
+			if (!Trail.bEndEventsIssued)
+			{
+				Trail.bEndEventsIssued = true;
+				++Async->TrailsClosed;
+				if (Injector)
+				{
+					Injector->SetActorReserved(Trail.Fire.TargetActor.Get(), false);
+				}
+				if (Async->ChangeStage.IsValid() && (!Auto || Auto->GetLiveFireCount() == 0))
+				{
+					Async->ChangeStage->EndEvents(TEXT("event_end"));
+				}
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(m52): RESTORE TRAIL CLOSED event=%s at si=%d - trailing frames held=%d unknown=%d ")
+					TEXT("settleTail=%d%s. The render record showed every held texture back at its baseline on %d ")
+					TEXT("consecutive captured frames; the next burst is released."),
+					*Trail.Key, Trail.Window.ClosedAtSI, Trail.Window.HeldFrames, Trail.Window.UnknownFrames,
+					Trail.Window.TailFrames, Trail.Window.bUnresolved ? TEXT(" (LATE: this trail was already marked restore unresolved)") : TEXT(""),
+					AnomalyStuckMipWindow::ConfirmFrames);
+			}
+			continue;
+		}
+		if (Trail.Window.ShouldTimeout(SessionFrameIndex))
+		{
+			Trail.Window.bUnresolved = true;
+			++Async->RestoreUnresolved;
+			if (Injector)
+			{
+				Injector->SetAnomalyRefusal(Trail.Fire.Id, FString::Printf(
+					TEXT("restore_unresolved: event %s on '%s' did not show every held texture back at its baseline in %d ")
+					TEXT("captured frames, so a further hold could not be told apart from this one"),
+					*Trail.Key, *Trail.Fire.Target, StuckMipTrailTimeoutFrames));
+				Injector->SetActorReserved(Trail.Fire.TargetActor.Get(), true);
+			}
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(m52): RESTORE UNRESOLVED event=%s target=%s after %d captured frame(s). The run is NOT ")
+				TEXT("stopped and NOTHING is labelled clean by this: the trail stays attached, so every frame whose render ")
+				TEXT("record still shows a held texture keeps its label and mask. Further %s fires are REFUSED for the ")
+				TEXT("rest of the run with the reason restore_unresolved, and no anomaly may fire on this target while ")
+				TEXT("the trail is open. Counted in run_summary.stuck_mip_restore_unresolved."),
+				*Trail.Key, *Trail.Fire.Target, StuckMipTrailTimeoutFrames, *Trail.Fire.Id.ToString());
+		}
+	}
+
+	TArray<uint64> Drop;
+	for (TPair<uint64, FAnomalyCaptureAsyncState::FDeferredMask>& KV : Async->DeferredMasks)
+	{
+		if (++KV.Value.AgeTicks > 16)
+		{
+			Drop.Add(KV.Key);
+		}
+	}
+	for (uint64 Id : Drop)
+	{
+		if (const int32* DroppedSi = TargetMaskPendingSessionIndex.Find(Id))
+		{
+			TargetMaskOutcome.Add(*DroppedSi, FTargetMaskOutcome{ (uint8)AnomalyLabel::EAnomalyMaskState::Unmeasured, {} });
+			++TargetMaskUnavailable;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(m52): TARGET MASK DROPPED for session_index %d - its frame's render record never arrived ")
+				TEXT("within 16 ticks, so the mask cannot be filtered to the labelled window and is not delivered."),
+				*DroppedSi);
+		}
+		Async->DeferredMasks.Remove(Id);
+		TargetMaskPendingSessionIndex.Remove(Id);
+		TargetMaskPendingTags.Remove(Id);
+		TargetMaskPendingTagEvent.Remove(Id);
+		Async->MaskGatedTags.Remove(Id);
+		++Async->MaskDeferredDropped;
+	}
+	for (FAnomalyCaptureAsyncState::FQueuedObserve& Q : Async->ObserveQueue)
+	{
+		++Q.AgeTicks;
+	}
+	if (Async->ObserveQueue.Num() > 0)
+	{
+		FlushObserveQueue(false);
+	}
+}
+
+void UAnomalyCaptureSubsystem::ComputeRenderMembership(const FAnomalyCapturedFrame& Frame, const AnomalyLabel::FCaptureSnapshot& Snap)
+{
+	if (!Async.IsValid() || Async->RenderResultBySI.Contains(Snap.SessionIndex))
+	{
+		return;
+	}
+	TMap<FString, FAnomalyCaptureAsyncState::FRenderEventResult> Results;
+	bool bAny = false;
+	for (int32 i = 0; i < Snap.Fires.Num(); ++i)
+	{
+		const FAutoLiveFireInfo& F = Snap.Fires[i];
+		if (!IsRenderTruthFire(F))
+		{
+			continue;
+		}
+		bAny = true;
+		const FString Key = StuckMipEventKey(F.Id, F.StartFrame);
+		if (Results.Contains(Key))
+		{
+			continue;
+		}
+		FAnomalyCaptureAsyncState::FRenderEventResult R;
+		R.bTrailing = Snap.Trailing.IsValidIndex(i) && Snap.Trailing[i] != 0;
+		R.bRecord = Frame.bRenderRecord;
+		TArray<AnomalyStuckMipWindow::ETexState> States;
+		for (int32 j = 0; j < Snap.RenderWatch.Num(); ++j)
+		{
+			const AnomalyLabel::FCaptureSnapshot::FRenderTruthWatch& W = Snap.RenderWatch[j];
+			if (W.Id != F.Id || W.StartFrame != F.StartFrame)
+			{
+				continue;
+			}
+			FAnomalyCaptureAsyncState::FRenderTexDetail D;
+			D.Name = W.TextureName;
+			D.Baseline = W.Baseline;
+			if (Frame.bRenderRecord && Frame.RenderMips.IsValidIndex(j))
+			{
+				D.Sample = Frame.RenderMips[j];
+			}
+			const bool bKnown = Frame.bRenderRecord && D.Sample.Status == EAnomalyRenderMipStatus::Ok;
+			States.Add(AnomalyStuckMipWindow::ClassifyTexture(D.Sample.Resident, D.Baseline, bKnown));
+			R.Textures.Add(D);
+		}
+		R.Verdict = AnomalyStuckMipWindow::Combine(States.GetData(), States.Num());
+		if (States.Num() > 0 && !Frame.bRenderRecord)
+		{
+			++Async->RenderRecordMissingFrames;
+		}
+		FAnomalyCaptureAsyncState::FStuckTrail* Trail = R.bTrailing ? Async->FindTrail(Key) : nullptr;
+		R.Membership = Trail ? Trail->Window.Step(Snap.SessionIndex, R.Verdict) : AnomalyStuckMipWindow::LiveMembership(R.Verdict);
+		Results.Add(Key, MoveTemp(R));
+	}
+	if (bAny)
+	{
+		Async->RenderResultBySI.Add(Snap.SessionIndex, MoveTemp(Results));
+	}
+}
+
+void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot(AnomalyLabel::FCaptureSnapshot& Snap)
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	const TMap<FString, FAnomalyCaptureAsyncState::FRenderEventResult>* FrameResults =
+		Async->RenderResultBySI.Find(Snap.SessionIndex);
+	if (!FrameResults)
+	{
+		return;
+	}
+	const int32 N = Snap.Fires.Num();
+	if (Snap.FireActive.Num() != N) { Snap.FireActive.SetNumZeroed(N); }
+	if (Snap.FireLabelled.Num() != N) { Snap.FireLabelled.SetNumZeroed(N); }
+	if (Snap.ConditionHeld.Num() != N) { Snap.ConditionHeld.SetNumZeroed(N); }
+	if (Snap.Telemetry.Num() != N) { Snap.Telemetry.SetNum(N); }
+	static const FString HeldKey(TEXT("stuck_mip.held"));
+	for (int32 i = 0; i < N; ++i)
+	{
+		const FAutoLiveFireInfo& F = Snap.Fires[i];
+		if (!IsRenderTruthFire(F))
+		{
+			continue;
+		}
+		const FAnomalyCaptureAsyncState::FRenderEventResult* R = FrameResults->Find(StuckMipEventKey(F.Id, F.StartFrame));
+		if (!R)
+		{
+			continue;
+		}
+		const bool bMember = AnomalyStuckMipWindow::IsMember(R->Membership);
+		if ((Snap.FireLabelled[i] != 0) != bMember)
+		{
+			++Async->GtMirrorDisagreeFrames;
+		}
+		Snap.FireActive[i] = bMember ? 1 : 0;
+		Snap.FireLabelled[i] = bMember ? 1 : 0;
+		Snap.ConditionHeld[i] = bMember ? 1 : 0;
+
+		if (R->bRecord) { ++Async->RenderRecordFrames; }
+		if (R->Membership == AnomalyStuckMipWindow::EMembership::Held) { ++Async->RenderHeldFrames; }
+		if (R->Membership == AnomalyStuckMipWindow::EMembership::Unknown) { ++Async->RenderUnknownFrames; }
+		if (R->Membership == AnomalyStuckMipWindow::EMembership::SettleTail) { ++Async->SettleTailFrames; }
+		if (R->bTrailing)
+		{
+			++Async->TrailingFrames;
+			if (bMember) { ++Async->TrailingLabelledFrames; }
+		}
+		if (bMember) { ++StuckMipFramesHeld; }
+
+		FAnomalyTelemetry& T = Snap.Telemetry[i];
+		bool bGtHeld = false;
+		bool bHadHeld = false;
+		for (TPair<FString, bool>& KV : T.Bools)
+		{
+			if (KV.Key == HeldKey)
+			{
+				bHadHeld = true;
+				bGtHeld = KV.Value;
+				KV.Value = bMember;
+			}
+		}
+		if (!bHadHeld)
+		{
+			T.AddBool(HeldKey, bMember);
+		}
+		T.AddBool(TEXT("stuck_mip.held_gt_mirror"), bGtHeld);
+		T.AddString(TEXT("stuck_mip.render_state"),
+			R->Verdict == AnomalyStuckMipWindow::EVerdict::BeforeApply
+				? FString(TEXT("before_apply"))
+				: FString(UTF8_TO_TCHAR(AnomalyStuckMipWindow::DescribeMembership(R->Membership))));
+		T.AddBool(TEXT("stuck_mip.trailing"), R->bTrailing);
+		T.AddString(TEXT("stuck_mip.label_source"), TEXT("render_record"));
+		for (const FAnomalyCaptureAsyncState::FRenderTexDetail& D : R->Textures)
+		{
+			FAnomalyTelemetryFields& Rec = T.AddArrayEntry(TEXT("stuck_mip.render_textures"));
+			Rec.AddString(TEXT("name"), D.Name);
+			Rec.AddInt(TEXT("baseline_mips"), D.Baseline);
+			Rec.AddInt(TEXT("render_resident_mips"), D.Sample.Resident);
+			Rec.AddInt(TEXT("render_first_mip"), D.Sample.FirstMip);
+			Rec.AddInt(TEXT("render_status"), (int32)D.Sample.Status);
+		}
+	}
+
+	if (FAnomalyCaptureAsyncState::FQueuedObserve* Q = Async->ObserveQueue.FindByPredicate(
+		[&Snap](const FAnomalyCaptureAsyncState::FQueuedObserve& E) { return E.SessionIndex == Snap.SessionIndex; }))
+	{
+		for (int32 g = 0; g < Q->GatedLabel.Num(); ++g)
+		{
+			const FAnomalyCaptureAsyncState::FRenderEventResult* R = FrameResults->Find(Q->GatedKey[g]);
+			if (Q->Labels.IsValidIndex(Q->GatedLabel[g]))
+			{
+				Q->Labels[Q->GatedLabel[g]].bLabelled = R && AnomalyStuckMipWindow::IsMember(R->Membership);
+			}
+		}
+		Q->bReady = true;
+	}
+}
+
+void UAnomalyCaptureSubsystem::FlushObserveQueue(bool bForce)
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	while (Async->ObserveQueue.Num() > 0)
+	{
+		FAnomalyCaptureAsyncState::FQueuedObserve& Head = Async->ObserveQueue[0];
+		if (!Head.bReady)
+		{
+			if (const TMap<FString, FAnomalyCaptureAsyncState::FRenderEventResult>* FrameResults =
+				Async->RenderResultBySI.Find(Head.SessionIndex))
+			{
+				for (int32 g = 0; g < Head.GatedLabel.Num(); ++g)
+				{
+					const FAnomalyCaptureAsyncState::FRenderEventResult* R = FrameResults->Find(Head.GatedKey[g]);
+					if (Head.Labels.IsValidIndex(Head.GatedLabel[g]))
+					{
+						Head.Labels[Head.GatedLabel[g]].bLabelled = R && AnomalyStuckMipWindow::IsMember(R->Membership);
+					}
+				}
+				Head.bReady = true;
+			}
+		}
+		if (!Head.bReady && !bForce && Head.AgeTicks <= 16)
+		{
+			break;
+		}
+		if (!Head.bReady)
+		{
+			++Async->ObserveForced;
+		}
+		if (Async->ChangeStage.IsValid())
+		{
+			Async->ChangeStage->Observe(Head.SessionIndex, Head.Labels);
+		}
+		Async->ObserveQueue.RemoveAt(0);
+	}
+}
+
+void UAnomalyCaptureSubsystem::RegisterBenchStuckMipLevers()
+{
+	if (GBenchStuckMipLeversRegistered || !FParse::Param(FCommandLine::Get(), TEXT("IAIBench")))
+	{
+		return;
+	}
+	GBenchStuckMipLeversRegistered = true;
+	IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("IAI.Bench.StuckMipLegacyTiming"),
+		TEXT("BENCH DEVICE, registered only under -IAIBench and compiled out of Shipping. ON restores the pre-084-02 ")
+		TEXT("stuck_low_mip label timing for the NEXT capture run: the label, masks, held and observable follow the ")
+		TEXT("game-thread resident-mip mirror, and the event ends at the revert with no restore trail. It exists only ")
+		TEXT("so the sync gate can be shown to FAIL on today's timing. Usage: IAI.Bench.StuckMipLegacyTiming <0|1>"),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			if (Args.Num() >= 1)
+			{
+				GBenchStuckMipLegacyTiming = FCString::Atoi(*Args[0]) != 0;
+			}
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("IAI.Bench.StuckMipLegacyTiming -> %s. BENCH DEVICE: takes effect at the next IAI.Capture.Start."),
+				GBenchStuckMipLegacyTiming ? TEXT("ON (legacy game-thread timing)") : TEXT("off"));
+		}),
+		ECVF_Default);
+	IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("IAI.Bench.StuckMipLegacyPurity"),
+		TEXT("BENCH DEVICE, registered only under -IAIBench and compiled out of Shipping. ON restores the pre-084-02 ")
+		TEXT("stuck_low_mip texture-sharing rule: only VISIBLE co-users are counted, and a targeted fire bypasses the ")
+		TEXT("gate. It exists only so the purity gate can be shown to FAIL on the old rule. ")
+		TEXT("Usage: IAI.Bench.StuckMipLegacyPurity <0|1>"),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			if (Args.Num() >= 1)
+			{
+				AnomalyStuckMip::SetLegacyPurityLever(FCString::Atoi(*Args[0]) != 0);
+			}
+			UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Bench.StuckMipLegacyPurity -> %s. BENCH DEVICE."),
+				AnomalyStuckMip::IsLegacyPurityLeverOn() ? TEXT("ON (legacy visible-only rule)") : TEXT("off"));
+		}),
+		ECVF_Default);
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m52): -IAIBench present - bench levers IAI.Bench.StuckMipLegacyTiming and ")
+		TEXT("IAI.Bench.StuckMipLegacyPurity are registered, and every stuck_low_mip fire logs an independent ")
+		TEXT("texture-user enumeration (TEXUSERS)."));
 }
 
 uint8 UAnomalyCaptureSubsystem::ComputeFireActive(const FAutoLiveFireInfo& F) const
@@ -5240,6 +6127,26 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		if (bAsyncCapture)
 		{
 			DrainAsyncToCompletion();
+		}
+
+		if (bRenderTruthRun && Async.IsValid())
+		{
+			FlushObserveQueue(true);
+			for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
+			{
+				if (Trail.Window.StillAttached())
+				{
+					++Async->RestoreUnresolvedAtEnd;
+					UE_LOG(LogAnomalyCapture, Warning,
+						TEXT("Capture(m52): RESTORE UNRESOLVED AT RUN END event=%s target=%s - the capture ended before a ")
+						TEXT("render record showed every held texture back at its baseline. Every captured frame up to the ")
+						TEXT("end was labelled from its own record, so nothing was labelled clean by the cut; the texture ")
+						TEXT("is restored by the anomaly's own revert. Counted in run_summary.stuck_mip_restore_unresolved_at_end."),
+						*Trail.Key, *Trail.Fire.Target);
+				}
+			}
+			Async->MaskDeferredDropped += Async->DeferredMasks.Num();
+			Async->DeferredMasks.Reset();
 		}
 
 		RevertSessionGlobals();
@@ -5631,6 +6538,42 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	StuckMipReport.OnsetPrerollMax = DeferredOnsetPrerollMax;
 	StuckMipReport.RevertOnDestroy = StuckMipStats.RevertOnDestroy;
 	StuckMipReport.UnverifiedAtTeardown = StuckMipStats.UnverifiedAtTeardown;
+	StuckMipReport.LabelSource = bRenderTruthRun ? TEXT("render_record")
+		: (GBenchStuckMipLegacyTiming ? TEXT("gt_mirror_legacy_bench") : TEXT("refused_no_render_record"));
+	StuckMipReport.SettleTailSetting = StuckMipSettleTailFrames;
+	StuckMipReport.RefusedSharedWorld = StuckMipStats.RefusedSharedWorld;
+	StuckMipReport.RefusedBaselinePending = StuckMipStats.RefusedBaselinePending;
+	StuckMipReport.RestoreTrackedWhileBusy = StuckMipStats.RestoreTrackedWhileBusy;
+	StuckMipReport.PurityEnumerationMsMax = StuckMipStats.PurityEnumerationMsMax;
+	if (Async.IsValid())
+	{
+		StuckMipReport.RenderRecordFrames = Async->RenderRecordFrames;
+		StuckMipReport.RenderHeldFrames = Async->RenderHeldFrames;
+		StuckMipReport.RenderUnknownFrames = Async->RenderUnknownFrames;
+		StuckMipReport.RenderRecordMissingFrames = Async->RenderRecordMissingFrames;
+		StuckMipReport.TrailingFrames = Async->TrailingFrames;
+		StuckMipReport.TrailingLabelledFrames = Async->TrailingLabelledFrames;
+		StuckMipReport.SettleTailFrames = Async->SettleTailFrames;
+		StuckMipReport.TrailsOpened = Async->TrailsOpened;
+		StuckMipReport.TrailsClosed = Async->TrailsClosed;
+		StuckMipReport.RestoreUnresolved = Async->RestoreUnresolved;
+		StuckMipReport.RestoreUnresolvedAtEnd = Async->RestoreUnresolvedAtEnd;
+		StuckMipReport.GtMirrorDisagreeFrames = Async->GtMirrorDisagreeFrames;
+		StuckMipReport.MaskDeferredDropped = Async->MaskDeferredDropped;
+		if (StuckMipReport.FiresApplied > 0 || StuckMipReport.TrailsOpened > 0)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m52): RENDER-TRUTH SUMMARY source=%s recordFrames=%d heldFrames=%d unknownFrames=%d ")
+				TEXT("missingRecord=%d trailingFrames=%d trailingLabelled=%d settleTail=%d/%d trails=%d/%d unresolved=%d ")
+				TEXT("unresolvedAtEnd=%d gtMirrorDisagree=%d maskDeferredDropped=%d observeForced=%d refusedSharedWorld=%d ")
+				TEXT("refusedBaselinePending=%d purityMsMax=%.2f"),
+				*StuckMipReport.LabelSource, Async->RenderRecordFrames, Async->RenderHeldFrames, Async->RenderUnknownFrames,
+				Async->RenderRecordMissingFrames, Async->TrailingFrames, Async->TrailingLabelledFrames, Async->SettleTailFrames,
+				StuckMipSettleTailFrames, Async->TrailsClosed, Async->TrailsOpened, Async->RestoreUnresolved,
+				Async->RestoreUnresolvedAtEnd, Async->GtMirrorDisagreeFrames, Async->MaskDeferredDropped, Async->ObserveForced,
+				StuckMipStats.RefusedSharedWorld, StuckMipStats.RefusedBaselinePending, StuckMipStats.PurityEnumerationMsMax);
+		}
+	}
 
 		if (Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->CloseAndPersist(bDeinitializing); }
 		if (Async.IsValid() && Async->ChangeStage.IsValid() && Async->ChangeStage->GetGate() == 11 && Async->SveCapturer.IsValid())
@@ -5814,6 +6757,17 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	Phase = ECapturePhase::Idle;
 	PhaseFramesLeft = 0;
 	RunDir.Reset();
+
+	if (UAnomalyInjectorSubsystem* EndInjector = GetWorld() ? GetWorld()->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr)
+	{
+		EndInjector->ClearAnomalyRefusals();
+		EndInjector->ClearReservedActors();
+	}
+	if (Async.IsValid())
+	{
+		Async->ResetRenderTruth();
+	}
+	bRenderTruthRun = false;
 
 	bTargetedMode = false;
 	TargetAnomalyId = NAME_None;

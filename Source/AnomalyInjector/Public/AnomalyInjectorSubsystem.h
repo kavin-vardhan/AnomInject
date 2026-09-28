@@ -80,6 +80,22 @@ public:
 
 	bool DoesAnomalyHaveDeferredOnset(const FName& Id) const;
 
+	bool DoesAnomalyUseRenderTruth(const FName& Id) const;
+
+	bool GetAnomalyRenderTruthTextures(const FName& Id, TArray<FAnomalyRenderTruthTexture>& Out) const;
+
+	void SetAnomalyRefusal(const FName& Id, const FString& Reason);
+
+	void ClearAnomalyRefusals();
+
+	bool GetAnomalyRefusal(const FName& Id, FString& OutReason) const;
+
+	void SetActorReserved(AActor* Actor, bool bReserved);
+
+	void ClearReservedActors();
+
+	bool IsActorReserved(const AActor* Actor) const;
+
 	void NoteAnomalyCapturedFrame(const FName& Id, bool bAnomalousThisFrame);
 
 	void WatchTargetForAnomaly(AActor* Actor, const FName& Id);
@@ -119,6 +135,10 @@ private:
 		double ApplyTimeSeconds = 0.0;
 	};
 	TMap<FName, FActiveRecord> ActiveRecords;
+
+	TMap<FName, FString> RefusedIds;
+
+	TArray<TWeakObjectPtr<AActor>> ReservedActors;
 
 	float HeartbeatAccumulator = 0.0f;
 

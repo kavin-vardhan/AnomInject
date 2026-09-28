@@ -20,6 +20,8 @@ public:
 	virtual bool IsActive() const override { return bActive; }
 	virtual bool IsCurrentlyAnomalous() const override;
 	virtual bool HasDeferredOnset() const override { return true; }
+	virtual bool UsesRenderResidencyTruth() const override { return true; }
+	virtual bool GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const override;
 	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) override;
 	virtual bool GetTelemetry(FAnomalyTelemetry& Out) const override;
 	virtual bool WantsTargetLostNotification() const override { return true; }
@@ -40,6 +42,7 @@ private:
 		int32 PredictedMaxAllowedMips = 0;
 		int32 TopResidentPxAtTarget = 0;
 		int32 CoAffectedVisible = 0;
+		int32 WorldUsers = -1;
 		int32 ResidentAtOnset = -1;
 		float RatioAtPick = -1.0f;
 		bool bUnlinked = false;

@@ -785,6 +785,10 @@ bool UAnomalyAutoInjectorSubsystem::IsActorLive(const AActor* Actor) const
 			return true;
 		}
 	}
+	if (const UAnomalyInjectorSubsystem* Injector = ResolveInjector(GetWorld()))
+	{
+		return Injector->IsActorReserved(Actor);
+	}
 	return false;
 }
 

@@ -9,8 +9,11 @@
 
 struct FAnomalyCaptureAsyncState;
 struct FAnomalyChangeReceipt;
+struct FAnomalyCapturedFrame;
 class FAnomalyPreviewTee;
 class FAnomalyRunLog;
+class UTexture2D;
+namespace AnomalyLabel { struct FCaptureSnapshot; }
 
 UCLASS()
 class ANOMALYCAPTURE_API UAnomalyCaptureSubsystem : public UTickableWorldSubsystem
@@ -165,8 +168,22 @@ private:
 		Positives,
 		SettleAfterRevert,
 		PostGap,
-		DrainTail
+		DrainTail,
+		RestoreTrail
 	};
+
+	bool IsRenderTruthFire(const struct FAutoLiveFireInfo& F) const;
+	void BuildRenderWatch(AnomalyLabel::FCaptureSnapshot& Snap, TArray<UTexture2D*>& OutPtrs);
+	bool OpenStuckMipTrails();
+	void ServiceStuckMipTrails();
+	bool AnyStuckMipTrailGating() const;
+	void ComputeRenderMembership(const FAnomalyCapturedFrame& Frame, const AnomalyLabel::FCaptureSnapshot& Snap);
+	void ApplyRenderTruthToSnapshot(AnomalyLabel::FCaptureSnapshot& Snap);
+	void FlushObserveQueue(bool bForce);
+	void RegisterBenchStuckMipLevers();
+	bool bRenderTruthRun = false;
+	int32 StuckMipSettleTailFrames = 0;
+	int32 StuckMipTrailTimeoutFrames = 120;
 
 	void BeginActualRun();
 

@@ -1,10 +1,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "AnomalyTelemetry.h"
 
 class AActor;
 class UWorld;
+class UTexture2D;
+
+struct FAnomalyRenderTruthTexture
+{
+	TWeakObjectPtr<UTexture2D> Texture;
+	FString Name;
+	int32 BaselineResidentMips = 0;
+};
 
 class IAnomaly
 {
@@ -32,6 +41,10 @@ public:
 	virtual bool IsVisualConditionHeld() const { return IsCurrentlyAnomalous(); }
 
 	virtual bool HasDeferredOnset() const { return false; }
+
+	virtual bool UsesRenderResidencyTruth() const { return false; }
+
+	virtual bool GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const { return false; }
 
 	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) {}
 

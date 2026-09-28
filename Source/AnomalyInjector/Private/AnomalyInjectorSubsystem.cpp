@@ -711,6 +711,14 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 		return false;
 	}
 
+	if (const FString* Refusal = RefusedIds.Find(Id))
+	{
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("IAI.Apply '%s' REFUSED %s - no fire is recorded and nothing is changed."),
+			*Id.ToString(), **Refusal);
+		return false;
+	}
+
 	const bool bApplied = (*Found)->Apply(GetWorld(), Args);
 
 	if (bApplied)
@@ -815,6 +823,82 @@ bool UAnomalyInjectorSubsystem::DoesAnomalyHaveDeferredOnset(const FName& Id) co
 		return false;
 	}
 	return (*Found)->HasDeferredOnset();
+}
+
+bool UAnomalyInjectorSubsystem::DoesAnomalyUseRenderTruth(const FName& Id) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid())
+	{
+		return false;
+	}
+	return (*Found)->UsesRenderResidencyTruth();
+}
+
+bool UAnomalyInjectorSubsystem::GetAnomalyRenderTruthTextures(const FName& Id, TArray<FAnomalyRenderTruthTexture>& Out) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return false;
+	}
+	return (*Found)->GetRenderTruthTextures(Out);
+}
+
+void UAnomalyInjectorSubsystem::SetAnomalyRefusal(const FName& Id, const FString& Reason)
+{
+	if (Reason.IsEmpty())
+	{
+		RefusedIds.Remove(Id);
+		return;
+	}
+	RefusedIds.Add(Id, Reason);
+	UE_LOG(LogAnomaly, Warning, TEXT("IAI: '%s' is REFUSED from now on - %s"), *Id.ToString(), *Reason);
+}
+
+void UAnomalyInjectorSubsystem::ClearAnomalyRefusals()
+{
+	RefusedIds.Reset();
+}
+
+bool UAnomalyInjectorSubsystem::GetAnomalyRefusal(const FName& Id, FString& OutReason) const
+{
+	if (const FString* Reason = RefusedIds.Find(Id))
+	{
+		OutReason = *Reason;
+		return true;
+	}
+	return false;
+}
+
+void UAnomalyInjectorSubsystem::SetActorReserved(AActor* Actor, bool bReserved)
+{
+	ReservedActors.RemoveAll([Actor](const TWeakObjectPtr<AActor>& Weak) { return !Weak.IsValid() || Weak.Get() == Actor; });
+	if (bReserved && Actor)
+	{
+		ReservedActors.Add(Actor);
+	}
+}
+
+void UAnomalyInjectorSubsystem::ClearReservedActors()
+{
+	ReservedActors.Reset();
+}
+
+bool UAnomalyInjectorSubsystem::IsActorReserved(const AActor* Actor) const
+{
+	if (!Actor)
+	{
+		return false;
+	}
+	for (const TWeakObjectPtr<AActor>& Weak : ReservedActors)
+	{
+		if (Weak.Get() == Actor)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void UAnomalyInjectorSubsystem::NoteAnomalyCapturedFrame(const FName& Id, bool bAnomalousThisFrame)

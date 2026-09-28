@@ -24,6 +24,11 @@ namespace AnomalyStuckMip
 		int32 TexturesAwaitingRestore = 0;
 		int32 RevertOnDestroy = 0;
 		int32 UnverifiedAtTeardown = 0;
+		int32 RefusedSharedWorld = 0;
+		int32 RefusedBaselinePending = 0;
+		int32 PurityEnumerations = 0;
+		double PurityEnumerationMsMax = 0.0;
+		int32 RestoreTrackedWhileBusy = 0;
 	};
 
 	ANOMALYINJECTOR_API void ResetRunStats();
@@ -33,4 +38,8 @@ namespace AnomalyStuckMip
 	ANOMALYINJECTOR_API bool IsNoHoldLeverOn();
 
 	ANOMALYINJECTOR_API bool IsUnlinkLockOn();
+
+	ANOMALYINJECTOR_API void SetLegacyPurityLever(bool bOn);
+
+	ANOMALYINJECTOR_API bool IsLegacyPurityLeverOn();
 }
