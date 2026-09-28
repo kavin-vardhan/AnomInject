@@ -8402,3 +8402,19 @@ Related: G332.
 scope it to rows where the anomaly itself is active, or assert block absence as a named state. Never let the absence of a
 block read as a wrong value. Same family as `L3` (labels.jsonl lists fire-active rows) and G332 (a premise the stub cannot
 model).
+
+## G337 — a headline pass count mixed measured, log-only and not-applicable rows, and read as more measured than it was (2026-09-28, 082-09)
+
+**What happened.**
+
+- The 082-07l close-out said "G3 44/44" and "TRIP 193/193", and chat's ruling repeated them.
+- One G3 row (MainWorld) passed on logs and ledgers alone. Its pixel clause was unjudged, because the target is
+  mask-unmeasurable (`nanite`) and has zero measured target-region frames.
+- Two TRIP rows were census legs with no summary to read.
+- Codex's independent review (082-08, P3-1) caught it. The correct statement is "43 F-SYN pixel-plus-log restore rows + 1
+  MainWorld log-only row; TRIP 191 measured zero + 2 census N/A".
+
+**Rule.** A headline count says how each row was decided: **measured / log-only / N/A** (and, where it applies, which
+declared exception is inside the count, for example G-REASON's A1 APPLY row). A gate verdict of PASS is not a
+measurement. Downstream readers turn "44/44 restores" into "pixel-verified restoration everywhere". Same family as `G146`
+(a gate satisfied vacuously).

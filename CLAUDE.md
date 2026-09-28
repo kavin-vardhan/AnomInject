@@ -11,6 +11,22 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🏁 **082-09, 2026-09-28 — `m53` S1 COMPLETE (SCOPED); CODEX EVIDENCE REVIEW APPROVE-WITH-FIXES, DISPOSITIONED; NEXT: THE
+> S2 PLAN. Docs only; no tag, no merge.**
+> - **Cold start:** `docs/predictions/2026-09-27-m53-s1-legs.md` **"S1 RESULT"** (R1 established · R2 not established ·
+>   R3 amendment classes · R4 proof scope · R5 findings · **R6 the S2/S3 debt list** · R7), then
+>   `docs/sessions/2026-09-28-082-09-code-m53-s1-close-out.md`, then `_reviews\082-08-codex-m53-s1-evidence-review.md`.
+> - ⚖ **Corrected counts (P3-1):**
+>   - 43 F-SYN pixel-plus-log restore rows + **1 MainWorld log-only** row (nanite target, zero measured frames);
+>   - TRIP 191 measured zero + 2 census N/A;
+>   - G-REASON 19, including A1's APPLY exception.
+> - 🔻 **Findings:** P2-1 (`observable: null` after TARGET LOST) → m51/M3. P2-2, P2-4, the block-presence assertion and the
+>   global-half far-strip gate → S2 harness. P2-3 (slot identities) → S2 source. P3-1 → this record.
+> - ⛔ **S1 authorises neither default-on nor a release.** Some amendments are **declared weakenings**: the G-BIND ring and
+>   global half < 32, and F-MW partial yield.
+>
+> ---
+>
 > ✅ **082-07l, 2026-09-28 — `m53` S1 IS COMPLETE: 193 OF 193 LEGS ACCEPTED, NO HALT. THE LAST 35 RAN ON ATTEMPT 1.
 > EVERY QUALIFICATION GATE PASSES OR CARRIES ITS DECLARED DISPOSITION. NO BUILD, NO SOURCE / HARNESS CHANGE, NO TAG.
 > Postflight PASS.**
