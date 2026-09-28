@@ -936,16 +936,27 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); defaults 3/8/1. `partial`
   is set, with or without temporal AA, on any m52 member frame whose render record shows the held set between baseline and the
   held level (`FAnomalyRenderTruthTexture::HeldResidentMips` carried into the watch; `AnomalyStuckMipWindow::ClassifyLevel` /
-  `IsPartialHeldSet` / `FPartialEdgeTrack`). Entries carry `labelled` (the `FireActive` bit the annotation uses) and
-  `visible_positive` needs a labelled entry with a box. Unfinished transition and hide-return history is carried across a run
-  boundary, rebased (`CarryTransitionTrack`). The sync path builds one `FCaptureSnapshot` and writes the row and the accounting
-  from it (F3).
+  `IsPartialHeldSet` / `FPartialEdgeTrack`). Entries carry `labelled` and `visible_positive` needs a labelled entry with a
+  box. Unfinished transition and hide-return history is carried across a run boundary, rebased (`CarryTransitionTrack`). The
+  sync path builds one `FCaptureSnapshot` and writes the row and the accounting from it (F3).
+  **084-07c:** `labelled` comes from ONE authority, `AnomalyLabelSync::IsAnnotationMember(policy, active, onScreen)` — the
+  rule that builds `annotation.json`'s frame list, per class (FireWindow ⇒ the fire's box is on screen via the shared
+  `AnomalyLabel::ProjectFireBox`; ActorHidden / AnomalyState ⇒ the activity bit; RenderHeldWindow ⇒ the render-record
+  membership). `FillAnnotationInputs` puts `FirePolicy` + `FireOnScreen` into the snapshot once, just before the row is
+  written; both writers, the unlabelled counter and the accumulator read them, and `injected_frames` is built from the same
+  per-frame bit (`MemberByIndex`). The held set is `EHeldSet` full / partial / unresolved / not-held (`ClassifyHeldSet`; an
+  invalid held endpoint is unresolved); unresolved members carry the reason `unresolved` and never set the full-set
+  boundary; partial / unresolved frames are exact ranges (`TPartialEdgeTrack<TArray<FSIRange>>`, no cap). Run-end carry
+  goes through `DecideRunEndCarry` with the source trail OR a carried detached tail, and passes history through a
+  zero-frame run. `IAI.Capture.Shot` rows carry `label_rule: "legacy_shot"`.
 - **Stencil tags are recycled at exhaustion (084-05a).** `FAnomalyMaskMeasure::AllocateTag` rotates over the free values as
   before; when none is free it reclaims the oldest *releasable* record's value (fire ended, m52 trail detached with nothing in
   flight, no pending snapshot or target-mask request carrying it, m26 done), restoring that record's components still
   carrying the value. Releasability is refreshed every tick in `OnWorldTickEndMask` after the m26 arm. G351. **084-07 (F4):** retirement walks every TRACKED holder
   of the value (`RetireStencilValue`), restores custom-depth-off holders value-only (the host's flag kept), verifies nothing
-  still carries the value and otherwise quarantines it (`mask_tag_retire_quarantined`).
+  still carries the value and otherwise quarantines it (`mask_tag_retire_quarantined`). **084-07c (N7):** `TagActor` records
+  every component each value was applied to (`GAppliedValues`, kept until that value's retirement verifies); retirement
+  collects tracked ∪ applied ∪ former-owner components and runs the pure `AnomalyLabelSync::RetireHolders` (G365).
 - **View-lag L (default 0) — the spatial analogue of settle-K, but distinct.** A per-tick view ring; each capture projects
   with the view from L ring-entries ago. **L=0 is validated and correct (not "zero lag") FOR THE SYNC PATH:** the capture
   subsystem (a `FTickableGameObject`) ticks *before* `UpdateCameraManager` (LevelTick.cpp:1606 vs 1621), so

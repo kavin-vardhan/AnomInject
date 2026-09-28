@@ -883,6 +883,9 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
   `unresolved` instead. Such a frame is still labelled (the record shows the event holding), but it is never taken
   as evidence that the whole set was held, so it never moves the event's partial frames between its start, middle
   and end. `run_summary.json` counts them in `stuck_mip_unresolved_frames` / `stuck_mip_unresolved_events`.
+  ⚠ One exception in this build: a frame whose render record had not arrived when the capture's wait limit forced a
+  decision (counted in `stuck_mip_forced_authority_frames`) is labelled but carries **no** `unresolved` reason; its
+  entry's `stuck_mip.forced_unknown` key marks it.
 - **One limit, in the source:** "the level the anomaly holds it at" is the plugin's prediction of where the
   engine's streamer will settle, so on a game whose streaming settings push a texture deeper than predicted, frames on
   the way down past the prediction are not flagged.
@@ -940,14 +943,19 @@ touch the slab, the plugin traces a grid of rays **inside the slab only** agains
   depth, so the part of a ray inside its box has no length and the engine would not trace it. Such a ray is traced
   along its whole segment through the slab instead, against that object's own triangles only, so a flat wall across
   the slab is found. (`camera_clipping_confirm_full_slab_fallback_traces` counts these.)
-- **Instanced objects are placed exactly as drawn.** Each instance's box is built from the same matrix product
-  the renderer draws it with (instance × component), so a rotated instance inside a component scaled differently
-  along different axes is still found.
+- **Instanced objects are selected as drawn.** Each instance's box is built from the same matrix product the renderer
+  draws it with (instance × component), so a rotated instance inside a component scaled differently along different
+  axes is no longer dropped before the traces.
 - **What it can miss** (each of these reads as "not clipped", with no flag):
   - a sliver of geometry thinner than the ray grid that belongs to a large object (for example a thin pipe inside a
     room mesh) can fall between rays. Small objects get their own finer grid;
   - one-sided collision seen from behind: a trace that starts on the back side of a one-sided collision surface does
-    not hit it.
+    not hit it;
+  - a rotated instance inside an instanced component scaled differently along different axes: it now reaches the
+    traces, but the traces run against the instance's collision body, which the engine places with a simpler transform
+    than the one it draws with, so the body can sit away from the drawn instance and the traces miss it.
+- **What it can over-report** (reads as "clipped", with no flag): a flat object attached (welded) to a parent object
+  whose own collision lies in the slab — the traces run against the parent's collision body and can hit the parent.
 - **What it traces is the collision mesh, not the drawn mesh.** Where an object's collision triangles differ from
   what is drawn, the label follows the collision triangles; the landscape is traced against its collision height
   field, which can be coarser than the drawn landscape. Translucent and masked surfaces are traced as solid.
@@ -990,7 +998,9 @@ Five fields answer five different questions about one frame. Keep them apart:
 a value moves to a new event only when every value is taken, only from an event that has ended and whose every
 frame, mask and measurement has been read back, and only after every object tagged with it has been reset and
 checked (a value that fails the check is set aside, never re-used). So one value never marks two events on the
-same frame — but it can mark different events on different frames. **Read the value together with the frame**:
+same frame — but it can mark different events on different frames. (One known exception, never observed: an object
+that already carried the value before the capture, was then re-tagged with a different value before the first was
+re-used, and has its custom-depth flag turned back on by the game, can show the re-used value again.) **Read the value together with the frame**:
 use the `mask_value` on that frame's own `labels.jsonl` entry, or key `mask_map.json` by value **and**
 `first_frame`–`last_frame`, never by the value alone.
 

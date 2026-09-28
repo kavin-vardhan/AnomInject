@@ -11,6 +11,30 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **084-07c, 2026-09-29 — LABEL-SYNC FIXES ROUND 4 (Codex N1–N8) ON `fix/m52-label-timing`: source `3d6f702`, exe
+> `16053B80`, re-cook `59C20959`, both archived. Nothing launched, NOT staged, NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-07c-sync-fixes-round4.md` (§1 = where each fix lives + its
+>   both-ways test); evidence `_reviews\084-07c-evidence\`; Codex v2 `_reviews\084-07c-codex-sync-recheck2.md`.
+> - **N1 fixed:** `labelled` now comes from ONE authority, `AnomalyLabelSync::IsAnnotationMember`, the rule that builds
+>   `annotation.json`'s frame list per class (FireWindow ⇒ box on screen; hidden / anomalous state; the m52 render record);
+>   both writers, the counter and the annotation read the same per-frame bits. `FF41BFF3`'s texture-swap
+>   `labelled:false` is gone; `--label-rule` fails that shape and passes the fix. 0 of 2,586 banked sessions carry the shape.
+> - **N2–N8:** degenerate slab segments traced along the whole slab, too few valid traces ⇒ unconfirmed · ISM boxes from
+>   the renderer's matrix product · held set full/partial/unresolved + reason `unresolved` · exact ranges, no cap ·
+>   carried tails re-carried, zero-frame runs pass through · retirement verifies every identity a value was ever applied
+>   to (pure `RetireHolders`) · `IAI.Capture.Shot` rows marked `label_rule: legacy_shot`.
+> - **Tests:** m52 selftest 262/0 (was 220), camera 128/0 (was 118), `--label-rule` 24 cases (was 15), other verify suites
+>   unchanged; 9 header mutants re-introducing the old behaviour all fail the selftests (the N3 one is not a faithful replay).
+> - **Build/cook:** editor + game 0 warnings; A44 caught a stale `..._v2` rule string in a log line (fixed, rebuilt).
+>   Cook 48 s, 794 packages, 0 warnings; descriptor byte-identical to the branch; D: content manifest identical before/after.
+>   3 of 1,972 container entries differ from 084-07b's cook (ShaderArchive tables, `MainWorld.umap` +50 B), cause not established.
+> - **Codex v2: PARTIAL — N1/N5/N6/N8 RESOLVED; N2/N3/N4/N7 PARTIAL; no blocking finding under the loop bound.** Remaining
+>   HIGH: ISM confirmation traces the engine's collision body, placed with the composed `FTransform` (G364), on a path no
+>   bank exercised. New mediums: welded-parent body in the full-slab fallback; a forced-unknown m52 result defaults to
+>   `NotHeld` (**a defect of this round**); N7 pending-prior variant. Readme now documents all four. Not acted on.
+> - 🎯 **NEXT: chat rules on Codex v2.** Then 085-01 (m53 DC plan, dry run on this head), 084-08 (harness runs `--label-rule`).
+>
+> ---
 > 📦 **084-07b, 2026-09-29 — CLIENT-README LABEL SEMANTICS, A COOK OF `fix/m52-label-timing`, AND CODEX'S RE-CHECK OF 084-07
 > (RED). No source edit, nothing launched, NOT staged, NOT merged, NO tag.**
 > - **Cold start:** journal `docs/sessions/2026-09-29-084-07b-readme-cook-recheck.md`; evidence `_reviews\084-07b-evidence\`.

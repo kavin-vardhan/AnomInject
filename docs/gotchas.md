@@ -8299,3 +8299,51 @@ Related: G241, G358, G362.
   name goes through the one mapping function.
 
 Related: G142, G361.
+
+## G363 — An engine query that REFUSES to run returns the same `false` as one that ran and found nothing: a zero-thickness box turned a real wall into a clean camera_clipping negative (2026-09-29, 084-07c)
+
+- **Mechanism (Codex N2, source):** the confirmation clipped each view ray to the candidate's box; a planar mesh has a box
+  of zero depth, so every clipped segment had zero length. `FBodyInstance::LineTrace` → `LineTrace_Geom` traces only when
+  the segment is longer than `UE_KINDA_SMALL_NUMBER` (1e-4 cm, `PhysInterface_Chaos.cpp:991`) and otherwise returns
+  `false` — indistinguishable from a miss. 144 of 144 rays "missed" and the frame read clean, unflagged.
+- **The selftest had hidden it:** its wall was given a 0.5 cm half-thickness, so the test never produced a degenerate segment.
+- **Fix:** a segment shorter than the minimum is traced along the whole slab segment of that ray (the candidate's own body,
+  so nothing outside it can hit); a candidate whose VALID traces number fewer than the grid's minimum is `unconfirmed`, never
+  a miss. The test stub now refuses short segments exactly as the engine does.
+- **Rule:** count a negative only from queries that provably ran. Any query with a precondition (a length, a valid body, a
+  built tree) must be checked for that precondition before its `false` is read as evidence.
+
+Related: G360, G96.
+
+## G364 — `FTransform` composition is NOT the matrix product under rotation + non-uniform scale; the renderer uses the matrix product (2026-09-29, 084-07c)
+
+- `GetInstanceTransform(i, T, true)` returns `FTransform(PerInstanceSMData[i].Transform) * ComponentTransform`, and for
+  positive scales `FTransform` multiplies scales componentwise and rotations separately (`TransformVectorized.h`). An instance
+  rotated 90° inside a component scaled (10,1,1) then has its long axis on the wrong world axis: X [140,160] instead of the
+  rendered [50,250] (Codex N3). The renderer and `CalcBounds` use `PerInstanceSMData[i].Transform *
+  ComponentTransform.ToMatrixWithScale()` (`InstancedStaticMesh.cpp:2665`), which can shear.
+- **Fix:** build the instance box from that matrix product (`MakeMatrixBox`): exact when the edges are orthogonal, the
+  enclosing box of the parallelepiped otherwise (conservative — confirmation traces decide).
+- **Rule:** when a geometric test must agree with what is drawn, compose transforms the way the renderer does. An `FTransform`
+  cannot represent every composed transform.
+- ⚠ **Not closed end to end (Codex v2, 084-07c):** UE builds each instance's COLLISION body with the same `FTransform`
+  composition (`InstancedStaticMesh.cpp:2514–2524`), so the confirmation trace against `InstanceBodies[i]` can still miss
+  the drawn instance. Fixing the box moved the error from selection to confirmation; chat decides the remedy.
+
+Related: G360, G363.
+
+## G365 — A verification set drawn from CURRENT membership cannot see an identity that has left it; and a test that verifies every modelled holder cannot see a production path that drops some first (2026-09-29, 084-07c)
+
+- **Mechanism (Codex N7):** mask-value retirement restored tracked holders, REMOVED them from the tracked map, then verified
+  the value against the map's remaining entries plus the old actor's current components. A component that had been moved to
+  another actor, with the host's custom depth off and a pre-plugin value equal to the retired one, was in neither set, so
+  verification passed and the value was reissued — it aliases the new event once the host re-enables custom depth.
+- **Why the 084-07 test passed:** it modelled the holders and verified ALL of them after retirement; production discarded
+  identities before verifying. The test exercised a model of the rule, not the code path.
+- **Fix:** every component a value is ever applied to is recorded (`GAppliedValues`) and kept until that value's retirement
+  verifies; retirement collects tracked ∪ applied ∪ former-owner components and runs one pure function (`RetireHolders`) that
+  both restores and decides the verification set. The selftest calls that same function.
+- **Rule:** verify against the set of identities that ever held the thing, not the set that currently claims it; and put the
+  decision in a pure function the test can call, so the test and production cannot diverge on which identities are checked.
+
+Related: G295, G361.
