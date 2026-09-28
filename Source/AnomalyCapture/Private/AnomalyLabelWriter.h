@@ -66,10 +66,12 @@ namespace AnomalyLabel
 			uint64 StartFrame = 0;
 			FString TextureName;
 			int32 Baseline = 0;
+			uint64 BaselineResourceId = 0;
 		};
 		TArray<FRenderTruthWatch> RenderWatch;
 		bool bRenderWatchArmed = false;
 		TArray<uint8> Trailing;
+		TArray<uint8> RenderSettled;
 	};
 
 	static constexpr int32 GTargetPixelsUnmeasured = -1;
@@ -229,6 +231,21 @@ namespace AnomalyLabel
 		int32 RefusedBaselinePending = 0;
 		int32 RestoreTrackedWhileBusy = 0;
 		double PurityEnumerationMsMax = 0.0;
+		int32 PurityInactiveLevelUsers = 0;
+		int32 PurityUnregisteredUsers = 0;
+		int32 HoldContaminations = 0;
+		int32 ContaminatedFrames = 0;
+		int32 ResourceReplacedFrames = 0;
+		int32 TrailReopens = 0;
+		int32 TrailMissingFrames = 0;
+		int32 UnwatchedAfterClose = 0;
+		int32 WatchRefrozenFrames = 0;
+		int32 WatchMissingFrames = 0;
+		int32 OrderHeldFrames = 0;
+		int32 LiveWindowCut = 0;
+		int32 RestoreCarriedAtEnd = 0;
+		int32 RestoreInheritedAtStart = 0;
+		int32 ObserveUnresolved = 0;
 	};
 
 	struct FObservabilityTelemetry

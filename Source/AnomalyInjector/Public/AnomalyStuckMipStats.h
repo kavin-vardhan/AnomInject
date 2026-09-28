@@ -29,6 +29,11 @@ namespace AnomalyStuckMip
 		int32 PurityEnumerations = 0;
 		double PurityEnumerationMsMax = 0.0;
 		int32 RestoreTrackedWhileBusy = 0;
+		int32 PurityInactiveLevelUsers = 0;
+		int32 PurityUnregisteredUsers = 0;
+		int32 PurityLevelsScannedMax = 0;
+		int32 HoldMonitorScans = 0;
+		int32 HoldContaminations = 0;
 	};
 
 	ANOMALYINJECTOR_API void ResetRunStats();
@@ -39,7 +44,9 @@ namespace AnomalyStuckMip
 
 	ANOMALYINJECTOR_API bool IsUnlinkLockOn();
 
+#if !UE_BUILD_SHIPPING
 	ANOMALYINJECTOR_API void SetLegacyPurityLever(bool bOn);
 
 	ANOMALYINJECTOR_API bool IsLegacyPurityLeverOn();
+#endif
 }

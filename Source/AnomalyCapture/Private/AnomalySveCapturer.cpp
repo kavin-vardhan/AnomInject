@@ -22,6 +22,17 @@ bool FAnomalySveCapturer::IsActive() const
 	return ActiveFlag.GetValue() != 0;
 }
 
+bool FAnomalySveCapturer::ExtendRenderWatch(uint64 RequestId, const TArray<UTexture2D*>& Added)
+{
+	FScopeLock Lock(&StateCS);
+	if (!PendingWanted.Contains(RequestId))
+	{
+		return false;
+	}
+	RenderWatchByRequest.FindOrAdd(RequestId).Append(Added);
+	return true;
+}
+
 bool FAnomalySveCapturer::TakeRenderWatch_RenderThread(uint64 RequestId, TArray<UTexture2D*>& Out)
 {
 	FScopeLock Lock(&StateCS);

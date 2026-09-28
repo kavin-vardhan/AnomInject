@@ -84,6 +84,10 @@ public:
 
 	bool GetAnomalyRenderTruthTextures(const FName& Id, TArray<FAnomalyRenderTruthTexture>& Out) const;
 
+	bool GetAnomalyRestoringTextures(const FName& Id, TArray<FAnomalyRenderTruthTexture>& Out) const;
+
+	bool ConsumeAnomalyContamination(const FName& Id, FString& OutReason);
+
 	void SetAnomalyRefusal(const FName& Id, const FString& Reason);
 
 	void ClearAnomalyRefusals();

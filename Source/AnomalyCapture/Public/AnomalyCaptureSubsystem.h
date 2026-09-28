@@ -180,6 +180,15 @@ private:
 	void ComputeRenderMembership(const FAnomalyCapturedFrame& Frame, const AnomalyLabel::FCaptureSnapshot& Snap);
 	void ApplyRenderTruthToSnapshot(AnomalyLabel::FCaptureSnapshot& Snap);
 	void FlushObserveQueue(bool bForce);
+	bool ResolveEventTextures(const struct FAutoLiveFireInfo& F, TArray<struct FAnomalyRenderTruthTexture>& Out);
+	void FinalizeRenderTruthArm(AnomalyLabel::FCaptureSnapshot& Snap);
+	bool ResolvePendingMembership(int32 SessionIndex);
+	bool IsRenderOrderPending(int32 SessionIndex);
+	void ResolveTrailGaps(bool bForceAll);
+	void HandleTrailReopens();
+	void CarryAttachedTrails();
+	void AdoptCarriedTrails();
+	void ApplyCarriedTrailOwnership(bool bOn);
 	void RegisterBenchStuckMipLevers();
 	bool bRenderTruthRun = false;
 	int32 StuckMipSettleTailFrames = 0;

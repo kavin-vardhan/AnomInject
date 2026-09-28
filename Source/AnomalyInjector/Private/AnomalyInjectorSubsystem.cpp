@@ -845,6 +845,26 @@ bool UAnomalyInjectorSubsystem::GetAnomalyRenderTruthTextures(const FName& Id, T
 	return (*Found)->GetRenderTruthTextures(Out);
 }
 
+bool UAnomalyInjectorSubsystem::GetAnomalyRestoringTextures(const FName& Id, TArray<FAnomalyRenderTruthTexture>& Out) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid())
+	{
+		return false;
+	}
+	return (*Found)->GetRestoringRenderTruthTextures(Out);
+}
+
+bool UAnomalyInjectorSubsystem::ConsumeAnomalyContamination(const FName& Id, FString& OutReason)
+{
+	TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid())
+	{
+		return false;
+	}
+	return (*Found)->ConsumeHoldContamination(OutReason);
+}
+
 void UAnomalyInjectorSubsystem::SetAnomalyRefusal(const FName& Id, const FString& Reason)
 {
 	if (Reason.IsEmpty())

@@ -13,6 +13,9 @@ struct FAnomalyRenderTruthTexture
 	TWeakObjectPtr<UTexture2D> Texture;
 	FString Name;
 	int32 BaselineResidentMips = 0;
+	uint64 BaselineResourceId = 0;
+	TWeakObjectPtr<AActor> Owner;
+	FString OwnerName;
 };
 
 class IAnomaly
@@ -45,6 +48,10 @@ public:
 	virtual bool UsesRenderResidencyTruth() const { return false; }
 
 	virtual bool GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const { return false; }
+
+	virtual bool GetRestoringRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const { return false; }
+
+	virtual bool ConsumeHoldContamination(FString& OutReason) { return false; }
 
 	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) {}
 

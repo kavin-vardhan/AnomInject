@@ -757,7 +757,8 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("stuck_mip_onset_preroll_max"), StuckMip->OnsetPrerollMax);
 			Root->SetNumberField(TEXT("stuck_mip_revert_on_destroy"), StuckMip->RevertOnDestroy);
 			Root->SetNumberField(TEXT("stuck_mip_unverified_at_teardown"), StuckMip->UnverifiedAtTeardown);
-			if (StuckMip->FiresApplied > 0 || StuckMip->RenderRecordFrames > 0 || StuckMip->TrailsOpened > 0)
+			if (StuckMip->FiresApplied > 0 || StuckMip->RenderRecordFrames > 0 || StuckMip->TrailsOpened > 0
+				|| StuckMip->RestoreInheritedAtStart > 0 || StuckMip->RestoreCarriedAtEnd > 0)
 			{
 				Root->SetStringField(TEXT("stuck_mip_label_source"), StuckMip->LabelSource);
 				Root->SetNumberField(TEXT("stuck_mip_render_record_frames"), StuckMip->RenderRecordFrames);
@@ -778,6 +779,21 @@ namespace AnomalyLabel
 				Root->SetNumberField(TEXT("stuck_mip_refused_baseline_pending"), StuckMip->RefusedBaselinePending);
 				Root->SetNumberField(TEXT("stuck_mip_restore_tracked_while_busy"), StuckMip->RestoreTrackedWhileBusy);
 				Root->SetNumberField(TEXT("stuck_mip_purity_enumeration_ms_max"), StuckMip->PurityEnumerationMsMax);
+				Root->SetNumberField(TEXT("stuck_mip_purity_inactive_level_users"), StuckMip->PurityInactiveLevelUsers);
+				Root->SetNumberField(TEXT("stuck_mip_purity_unregistered_users"), StuckMip->PurityUnregisteredUsers);
+				Root->SetNumberField(TEXT("stuck_mip_hold_contaminations"), StuckMip->HoldContaminations);
+				Root->SetNumberField(TEXT("stuck_mip_contaminated_frames"), StuckMip->ContaminatedFrames);
+				Root->SetNumberField(TEXT("stuck_mip_resource_replaced_frames"), StuckMip->ResourceReplacedFrames);
+				Root->SetNumberField(TEXT("stuck_mip_trail_reopens"), StuckMip->TrailReopens);
+				Root->SetNumberField(TEXT("stuck_mip_trail_missing_frames"), StuckMip->TrailMissingFrames);
+				Root->SetNumberField(TEXT("stuck_mip_unwatched_after_close"), StuckMip->UnwatchedAfterClose);
+				Root->SetNumberField(TEXT("stuck_mip_watch_refrozen_frames"), StuckMip->WatchRefrozenFrames);
+				Root->SetNumberField(TEXT("stuck_mip_watch_missing_frames"), StuckMip->WatchMissingFrames);
+				Root->SetNumberField(TEXT("stuck_mip_order_held_frames"), StuckMip->OrderHeldFrames);
+				Root->SetNumberField(TEXT("stuck_mip_live_window_cut"), StuckMip->LiveWindowCut);
+				Root->SetNumberField(TEXT("stuck_mip_restore_carried_at_end"), StuckMip->RestoreCarriedAtEnd);
+				Root->SetNumberField(TEXT("stuck_mip_restore_inherited_at_start"), StuckMip->RestoreInheritedAtStart);
+				Root->SetNumberField(TEXT("stuck_mip_observe_unresolved"), StuckMip->ObserveUnresolved);
 			}
 		}
 		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);

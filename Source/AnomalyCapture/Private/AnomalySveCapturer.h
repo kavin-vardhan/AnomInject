@@ -45,6 +45,7 @@ public:
 
 	void ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr ChangeIssue = nullptr,
 		const TArray<class UTexture2D*>* RenderWatch = nullptr);
+	bool ExtendRenderWatch(uint64 RequestId, const TArray<class UTexture2D*>& Added);
 	bool TakeRenderWatch_RenderThread(uint64 RequestId, TArray<class UTexture2D*>& Out);
 	static void SampleRenderMips_RenderThread(const TArray<class UTexture2D*>& Watch, TArray<FAnomalyRenderMipSample>& Out);
 	void CancelPendingOtherGeneration(const FAnomalyChangeIssuePtr& Current, TArray<uint64>& Cancelled);

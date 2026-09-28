@@ -1,15 +1,20 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HAL/CriticalSection.h"
 #include "IAnomaly.h"
+#include "UObject/ObjectKey.h"
 
 class AActor;
+class UActorComponent;
+class ULevel;
 class UWorld;
 class UTexture2D;
 
 class FAnomaly_StuckLowMip final : public IAnomaly
 {
 public:
+	virtual ~FAnomaly_StuckLowMip() override;
 	virtual FName   GetId() const override { return FName(TEXT("stuck_low_mip")); }
 	virtual FString GetDescription() const override { return TEXT("Texture held at a low resident mip on an actor's meshes (blurry object)."); }
 	virtual FString GetUsage() const override { return TEXT("<substring> [mip_levels]"); }
@@ -22,6 +27,8 @@ public:
 	virtual bool HasDeferredOnset() const override { return true; }
 	virtual bool UsesRenderResidencyTruth() const override { return true; }
 	virtual bool GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const override;
+	virtual bool GetRestoringRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const override;
+	virtual bool ConsumeHoldContamination(FString& OutReason) override;
 	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) override;
 	virtual bool GetTelemetry(FAnomalyTelemetry& Out) const override;
 	virtual bool WantsTargetLostNotification() const override { return true; }
@@ -45,6 +52,7 @@ private:
 		int32 WorldUsers = -1;
 		int32 ResidentAtOnset = -1;
 		float RatioAtPick = -1.0f;
+		uint64 BaselineResourceId = 0;
 		bool bUnlinked = false;
 	};
 
@@ -53,6 +61,9 @@ private:
 		TWeakObjectPtr<UTexture2D> Texture;
 		FString TextureName;
 		int32 BaselineResidentMips = 0;
+		uint64 BaselineResourceId = 0;
+		TWeakObjectPtr<AActor> Owner;
+		FString OwnerName;
 		int32 FramesWaited = 0;
 		int32 StreamInRequests = 0;
 		int32 SkippedPending = 0;
@@ -62,6 +73,22 @@ private:
 	bool IsAwaitingRestore(const UTexture2D* Tex) const;
 
 	void ReleaseTargetWatch();
+
+	void StartHoldMonitor(UWorld* World);
+	void StopHoldMonitor();
+	void ScanHoldForNewUsers(const TCHAR* Trigger);
+	bool ConsiderHoldUser(UActorComponent* Component, const TSet<const ULevel*>& Loaded, const TCHAR* Trigger);
+	void OnHoldLevelAdded(ULevel* Level, UWorld* World);
+	void OnHoldRenderStateDirty(UActorComponent& Component);
+
+	TSet<FObjectKey> HoldKnownComponents;
+	TArray<TWeakObjectPtr<UActorComponent>> HoldDirtyRecheck;
+	FCriticalSection HoldDirtyCS;
+	FDelegateHandle HoldLevelAddedHandle;
+	FDelegateHandle HoldRenderDirtyHandle;
+	bool bHoldMonitorOn = false;
+	bool bContaminationPending = false;
+	FString ContaminationReason;
 
 	TArray<FHeldTexture> Held;
 	TArray<FRestoringTexture> Restoring;
