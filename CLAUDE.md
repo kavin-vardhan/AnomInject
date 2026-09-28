@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧪 **084-03, 2026-09-28 night — THE m52 PART-B BENCH RAN: baseline `E0BE6F0A` vs fix `B725678B`, 13 legs, 13 attempts,
+> zero retries; m53 set restored and verified; postflight PASS. NOT merged, NO tag. Supersedes the 084-04 block below
+> wherever they disagree.**
+> - **Cold start:** journal `docs/sessions/2026-09-28-084-03-code-m52-bench-part-b.md` (§2 the final-evaluator verdicts,
+>   §4 the residual table, §9 the open items). Evidence `_reviews/084-03-evidence/`; bank `M52FIX_<leg>`.
+> - **Final evaluator `084-04a`: every sync verdict is NO-JUDGEABLE-EVENT on both builds.** The null's worst drop read
+>   0.27–0.29 of pre (0.027 on the banked 90-frame null): a ≈12 s scene cycle in the rock ROI, not the hold (G349).
+> - **Pixel residual (declared variants, two instruments agree):** **AA off: the fix is 0 / 0 on both edges, 16 of 16
+>   events, and the render record equals the pixel window**; baseline −1 / +4 on every event. **TAA as delivered, 50 % rule:
+>   onset +2 (constant), offset +1…+7 (not constant)** — temporal history around an exact record.
+> - **Gate (ii):** label == render record on all 62 events; 5 isolated `target_pixels -1` frames FAIL rule (c), cause not
+>   established. **Gate (iii):** PASS on every ordinary fix leg; P1 lever FAILS as required.
+> - **086-01 checker:** baseline FAIL (onset −1); B0L lever FAIL (−1, can-fail proven); **fix NO-REFERENCE everywhere**,
+>   because `anomaly_present` is true on 986 of 1,027 unlabelled fix rows (G350, client-visible).
+> - **Edge paths:** reopens, ORDER HOLD and gap-unknowns **0**; 2 carried trails (the cap-cut event); contamination only on
+>   the P1 lever. **Monitor ≈ 0.2 ms mean, ≤ 0.33 ms p95 per held tick** on 1,180 components; fence ≤ 0.26 ms.
+> - 🎯 **NEXT: chat rules on §9** (harness threshold, `anomaly_present`, the TAA residual closure, the mask dropouts). ⛔ No
+>   merge before chat rules.
+>
 > 🔧 **084-04, 2026-09-28 — THE m52 EDGE-PATH CORRECTIONS (084-02b DECISION 2) AND A HOLD-MONITOR COST TIMER ARE BUILT:
 > exe `B725678B`, archived, NOT staged. NOTHING HAS BEEN LAUNCHED; no runtime evidence for this build. NOT merged, NO tag.**
 > Branch `fix/m52-label-timing` `8773ddb` (source) + docs, pushed. `master` `b5f15a3`; main checkout on `m51` `53bf725`. Tonight's

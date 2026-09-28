@@ -8082,3 +8082,34 @@ Related: G345 (its "isolated runs are reported, not required" is WITHDRAWN), G96
   **heuristic, named as such**, and counted in `stuck_mip_streamer_fence_incomplete`.
 
 Related: G343, G344, G119.
+
+## G349 — A null that calibrates a threshold by its WORST drop over the whole leg absorbs any slow scene motion, and a long leg can make every event unmeasurable (2026-09-28, 084-03)
+
+- **Observed:** the 084-03 harness sets the pixel threshold to `max(5σ, 2 % pre, null worst drop)`. On the banked 90-frame
+  null the worst drop was **0.027** of pre. On tonight's 1,200-frame nulls it was **0.266 / 0.289**, so every sync leg on both
+  builds read **NO-JUDGEABLE-EVENT** (measurability needs depth ≥ 3·thr, ≈ 80 % of pre).
+- **What the null was measuring:** the rock ROI's own sharpness level cycles between ≈3.8 and ≈5.8 with a period of about
+  360 frames (≈12 s, matching the recorded moving-platform period; association only). The "worst drop" is that cycle's
+  downslope at a span end, 50–60 frames after the event, not anything near the hold.
+- **Why the dry runs could not show it:** a 90-frame null never spans one cycle. Proving a calibration on a short leg says
+  nothing about a long one.
+- **Rule:** a threshold derived from a maximum over time must be derived over the same window the judged quantity uses (here,
+  the few frames around the edge), or detrended first. Check a null's per-event drop list, not only its maximum; a threshold
+  10× the proven one is a finding before it is a verdict.
+
+Related: G345, G347, G96, G135.
+
+## G350 — On the m52 fix build `anomaly_present` is true on ~96 % of unlabelled rows; any checker that picks reference frames by it goes blind (2026-09-28, 084-03)
+
+- **Observed:** on `B725678B` a closed stuck-mip event stays attached (trailing) until the next fire (084-04 F2), and its rows
+  carry the event's entry, so `anomaly_present` is true on **986 of 1,027 unlabelled rows** of B0_FIX (baseline: 345 of 1,046).
+  The delivered label window is unchanged.
+- **Consequence:** the 086-01 checker takes its pre-event reference from rows with `anomaly_present == false`, so it returned
+  **NO-REFERENCE on every fix event** while reading the baseline normally. It looked like "no data", not like a defect.
+- `anomaly_present` has meant fire-active, not labelled, since m23; the fix build stretches fire-active to nearly the whole
+  session. `labels.jsonl` ships to clients, so this is a client-visible change of what the flag means in practice.
+- **Rule:** a checker selects "clean" frames by the label artifact (`annotation.json` membership), never by a per-row activity
+  flag whose meaning can widen. And a field whose value distribution changes by 3× across a fix is a contract question, even
+  when every documented semantic still holds.
+
+Related: G98, G243, G347.
