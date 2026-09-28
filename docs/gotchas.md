@@ -7915,3 +7915,47 @@ after. Every name and every citation still resolves.
 - Size the bank with a file-id audit, never with a logical sum.
 
 Related: G92 (bank before anything destructive), G130 (disk floor), runbook §8.6 step 0b (E: floor and retention policy).
+
+## G343 — a game-thread MIRROR of a render-thread change is acknowledged AFTER the frame that first shows it, and ending the request does not end the picture (2026-09-28, 084-01)
+
+⚠ Numbering: G309–G342 exist on `feat/m53-uv-normal-corruption`, so this entry skips to G343 on a branch cut from `master`.
+
+**What happened.** `stuck_low_mip` (m52) labels a frame, and arms its target mask, when the game-thread value
+`UTexture2D::GetNumResidentMips()` reads below the baseline. That value is `CachedSRRState.NumResidentLODs`
+(`Texture2D.cpp:481-483`). The engine updates it only in a later `TickStreaming`, once the render-thread swap
+(`FStreamableTextureResource::FinalizeStreaming`, `StreamableTextureResource.cpp:214-237`) has already run
+(`StreamableRenderAsset.cpp:174-179`). The label sample happens at `OnWorldTickEnd`, which comes **before** that frame's streamer tick
+(`GameEngine.cpp:1775/1891/1901`). And the streamer is staged: 5 slices, then one final in-flight poll (`StreamingManagerTexture.cpp:1647-1762`).
+So the first low-mip frame normally carries no label. The source guarantees only that the render-thread update precedes the
+acknowledgement, not a whole frame between them; a narrow same-poll race can close the gap. The bank (StackOBot, 43 of 43 static-camera
+measurable events) shows the main blur step one captured frame before the label, with smaller departures up to 4 frames before it. The
+held textures' game-thread counts usually flip together (65 of 70 records), which hides each texture's own swap time. The other edge is
+keyed to the **request**: `BeginRevert` removes the fire in the same tick, and the revert-tick frame is already labelled clean. But the
+stream-in lands later, first recovering at revert +6 engine frames with `RESTORE VERIFIED` for all textures at +7. That left every one of
+42 complete events still below half the held sharpness deficit for 5–14 captured frames, labelled clean. The owner saw about 2 frames late
+at onset and about 5 frames still blurred after the label ended, on an office host.
+
+**Why nothing caught it.** The onset gate was "the first labelled frame has resident < baseline". That gate checks the label against **the
+same signal that drives it**, so it passes by construction. The restore gate checked that the count eventually returned, not where the label
+ended. And the label-vs-pixel verifier could only answer `NO-TRACE` for this class. Labels and masks agreed with each other, which proves
+nothing, because they share one predicate.
+
+**Rule.**
+- A per-frame label must come from a receipt of **what that frame rendered**. Read it on the render thread, joined to the capture by request
+  id. Never use a game-thread mirror that the engine refreshes on its own schedule, and never shift by a constant: the lag is set by streamer
+  phase and slice, not fixed.
+- An anomaly whose effect outlives its request (async restore, fades, streaming) must keep its event alive until the render-side receipt shows
+  it is gone. The fire's lifetime is not the picture's lifetime.
+- Gate every edge against pixels, with a can-fail lever that reproduces today's timing. An edge gate that reads the label's own input is not
+  a gate.
+- A bench whose cadence settles into step with the engine's (here, mostly 35 engine frames per burst = 5 × the nominal 7-frame streamer
+  cycle, with +7 restores on every static event) shows a narrow band and hides the variance another host will show. Vary the cadence
+  before claiming a constant.
+- A residency receipt is not a visibility proof: the resident mip is not the sampled mip, and temporal history can outlive the restore.
+  Gate the residency window and the visible edge as two different contracts.
+- ⚠ `FMipBiasFade` looks like a streaming fade, but in 5.1 its `CalcMipBias()` is read by no renderer path: only `SetNewMipCount`
+  (`RenderResource.cpp:1096`) and, through `IsFading()`, `UTexture::HasPendingLODTransition` (`Texture.cpp:1126-1129`). Don't explain a
+  gradual recovery with it.
+
+Related: G135 (a restricted fixture hides a class), G224 (no gate compared first-label to first-mask), G266 (the streamer runs on its own
+schedule), G270 (a geometric predicate cannot certify visibility), G96 (prove the gate can fail).
