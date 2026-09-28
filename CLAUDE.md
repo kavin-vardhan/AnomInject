@@ -11,6 +11,31 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔁 **082-14, 2026-09-28 — `m53` S2 PLAN REVISION 2.2 + THE S2-0 HARNESS BUILT, PROVEN AND LOCKED (BENCH-FREE).
+> Codex's mini-delta M1–M4 applied under `_reviews\082-13-chat-ruling-minidelta.md`; no further Codex round before S2-0.
+> NEXT: 082-15 runs S2-0 ONLY ON THE OWNER'S "PC IDLE". No game launch, compile, cook, stage, source, CaptureBench or
+> fixture change; no tag, no merge.**
+> - **Cold start:** `docs/predictions/2026-09-28-m53-s2.md`. Read its "🔁 082-14 — REVISION 2.2" section first
+>   (R22.1–R22.6), then REVISION 2.1, then §3A. Then `docs/sessions/2026-09-28-082-14-code-m53-s2-0-harness.md`.
+> - **M1:** a restore-defect class needs an actual Effective mismatch after revert on every arm it names; a
+>   `left-to-game` / `unresolved` count never classifies. ⚠ Extended to M53-RESTORE-DEFECT, flagged for chat.
+> - **M2:** every T-check names its proof source: a synthetic negative, a bank positive where the bank has the lines, and
+>   first-live-leg validation.
+> - **M3:** drift offsets are counted in engine frames (k = 1, 4 … 102, ending at 0.85 UV).
+> - **M4:** the "≤ 8" is struck.
+> - **Harness:** `D:\IntrusiveAnomalies\_reviews\082-14-s20-*` (7 files), importing S1's runner and library unmodified.
+>   - Proofs: **93 checks, 0 failed.** Codex's shadow numbers reproduced exactly (100 si, 1,000 readings); the control bound
+>     is 2 over si 32–99.
+>   - Sequencer stops and resume refusals: **8 checks, 0 failed.**
+>   - Dry run of all 24 batches with the launch stubbed: **10 checks, 0 failed.**
+> - **Lock:** `_reviews\082-14-s20-evidence\boundary.json`, issued **after** this commit and pinning it. ⛔ Any docs commit
+>   on the branch before 082-15 blocks the window; re-issue it.
+> - **Found:** the bank nulls reach 55 at si 0–31, so the null window runs from the first labelled si (G340); the census
+>   parser is keyed per target (G341).
+> - **082-15:** `C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\082-14-s20-window.py 082-15 540`, ≈ 10–13 min.
+>
+> ---
+>
 > 🔁 **082-13, 2026-09-28 — `m53` S2 PLAN REVISION 2.1 (PLAN ONLY): Codex's delta D1–D6 and chat's noise ruling
 > applied under `_reviews\082-12-chat-ruling-s2-delta.md`; S2-0 CHECKED RUNNABLE ON THE STAGED S1 BUILD. NEXT: S2-0 ON
 > THE CURRENT BUILD (owner's PC OK), THEN CHAT'S RULINGS, THEN S2-1. A Codex mini-delta was collected

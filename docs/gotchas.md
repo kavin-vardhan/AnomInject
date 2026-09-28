@@ -8444,3 +8444,30 @@ same-frame. Same family as `G318` (same-index comparisons) and `G119` (read the 
 **Rule.** Before declaring a fault lever, trace the whole path to the judgement and name every later step that could
 repair the injected fault (close, flush, sweep, re-sync, default fallback). The fault must defeat those steps as well, and
 the plan must name how. Same family as `G252` (a can-fail lever must bypass the mechanism under test) and `G96`.
+
+## G340 — a validity window copied from a summary ("the controls agree within 2 at every si") reads the MainWorld launch settle (2026-09-28, 082-14)
+
+- The S2-0 plan required the nulls to agree within 2 in the shadow crop "at every si", citing Codex's bank reading.
+- Codex's bound was **si 36–99**. Re-derived per si from the same seven banked legs, the nulls reach **55** at si 0–31
+  (launch-dependent streaming settle) and agree within 2 only from si 32.
+- Read literally, the rule would have made every S2-0 cell INCONCLUSIVE, on a diagnostic that cannot be re-run cheaply.
+- The same shape surfaced a second time in the same harness. "The first si where the arm differs from both nulls inside
+  region R" read **si 0** on the bank, where §3.2 had recorded si 39. The early frames differ across launches everywhere,
+  so a first-difference reading from si 0 measures the settle, not the event.
+
+**Rule.** Take every validity window and every "first si" reading from per-si data on the real bank, not from a prose
+summary of it. On MainWorld, a cross-launch comparison is only meaningful where the nulls agree, so the window must start
+after the settle (or carry an explicit null-agreement condition per si). Prove it both ways on the bank before the lock:
+the settle alone must not trip it, a real difference inside the window must. Same family as `G318` and `G142`.
+
+## G341 — a census parser keyed by family silently kept the first target of a multi-target block (2026-09-28, 082-14)
+
+- The S2-0 state reader first stored each census block's families as `fams[family]` with `setdefault`.
+- `M53S1_G0_FMW`'s first census block covers **six** targets, and the floor is not the first. The parser kept the first
+  target's uv block and dropped the floor's without error. The bank proof read 19 components where the floor has 12.
+- S2-0's own censuses are single-target, so the live path would not have hit it. The bank proof is what exposed it.
+
+**Rule.** A parser for a block that can repeat an inner key (one family per target) must key by the outer identity
+(target), never by the inner name alone, and must assert the declared count (`targets=n`, `slots=n`). Run it on a real
+multi-entry block from the bank as well as on the single-entry case the harness expects. Same family as `G142` (the
+checker is a defect surface of its own).
