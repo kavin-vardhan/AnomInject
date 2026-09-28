@@ -11,6 +11,36 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **084-04, 2026-09-28 — THE m52 EDGE-PATH CORRECTIONS (084-02b DECISION 2) AND A HOLD-MONITOR COST TIMER ARE BUILT:
+> exe `B725678B`, archived, NOT staged. NOTHING HAS BEEN LAUNCHED; no runtime evidence for this build. NOT merged, NO tag.**
+> Branch `fix/m52-label-timing` `8773ddb` (source) + docs, pushed. `master` `b5f15a3`; main checkout on `m51` `53bf725`. Tonight's
+> 084-03 bench runs the previous build `FD621B27` with the untouched `084-03-*` harness. **Supersedes the 084-02b block below
+> wherever they disagree.**
+> - **Cold start:** journal `docs/sessions/2026-09-28-084-04-code-m52-edge-fixes.md` (§1 is the per-item table, §1.1 is what
+>   the ordinary path now looks like); ruling `_reviews/084-02b-chat-ruling-bench-tonight.md` decision 2.
+> - **What changed:**
+>   - **F1:** one tick after each revert, a synchronous `UpdateResourceStreaming(0, true)` **replaces** any streamer plan
+>     computed under the hold. UE 5.1 has no public generation fence (G348). Already-back textures now stay restoring until
+>     the fence has run. Amortized copies are a counted, documented heuristic residual.
+>   - **F2:** logical closure (which releases the burst) is separated from **detachment**. A closed event keeps its watch,
+>     mask and m55 label until every noted request is processed or the next fire begins, so a late receipt reopens it
+>     **with continuity**. Reservation and refusal are **owned** per trail (reopen and unresolved timeout included) and
+>     released once, at detach.
+>   - **F5:** trail mask records exist before the first arm of a run. Carried ownership survives a run with no render
+>     record.
+>   - **F6:** the m55 hard-bound fallback writes a **terminal unknown** into the frame's single authority, so a late
+>     receipt cannot contradict it.
+>   - **Route 2** (a material set while unregistered, then registered): **caught** by a registration watch on components
+>     that were unregistered when judged. **Route 1** (MID texture parameter) is a documented delivery limitation.
+>   - **Monitor timer:** `stuck_mip_hold_monitor_scans/_ms_mean/_ms_p95/_ms_max` plus counts, and a `HOLD MONITOR COST`
+>     log line.
+> - **Proofs (offline):** selftest **130/130**, 37 new, each item both ways against a verbatim `90dfa6f` header replica.
+> - **Builds:** Game and Editor exit 0, 0 warnings; `_binary_baselines\m52fix-B725678B\`. `FD621B27` is untouched and
+>   remains tonight's pinned FIX build.
+> - 🎯 **NEXT:** tonight's 084-03 on `FD621B27`. Then Tuesday's confirmation bench on `B725678B`: the 084-03 harness runs it
+>   by changing `FIX_ARCHIVE_NAME` alone; journal §5 has the caveats. Then Codex's one combined check (source delta plus
+>   the evidence). ⛔ No merge before chat rules.
+>
 > 🔧 **084-02b, 2026-09-28 — THE m52 FIX IS CORRECTED PER THE 084-02 RULING (F1–F7, Shipping, resource replacement,
 > purity scope) AND REBUILT: exe `FD621B27`, archived, NOT staged. NOTHING HAS BEEN LAUNCHED; no runtime evidence yet.
 > NOT merged, NO tag.** Branch `fix/m52-label-timing` `d798900` (source) + docs, pushed. `master` `b5f15a3`; main

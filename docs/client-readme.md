@@ -607,6 +607,25 @@ and **no frame after that is labelled for it** — counted in
 the actor: without it the texture would stay blurry after the object was gone and frames would
 carry a label for something no longer in the scene.
 
+⚠ **Two known delivery limitations of `stuck_low_mip`.** Both are rare, and each is either counted or
+named here rather than silent.
+
+- **A texture parameter changed on a runtime material instance during the hold.** Suppose that while
+  an event is holding a texture, your game sets that same texture as a parameter on a *dynamic
+  material instance* used by another object. That object then turns blurry as well, and neither the
+  label nor the mask names it. UE 5.1 sends no engine-wide notification for a material-parameter
+  change, so the plugin cannot see this without changing the engine, which it never does.
+  The plugin **does** catch the other routes: a new object that uses the texture, a streamed-in
+  level, a material swap on an existing object, or an object given the texture while unregistered
+  that registers later. In each case the hold is reverted at once, and the event's frames from that
+  point carry `stuck_mip.contaminated = 1`.
+- **Amortized texture streaming.** Your project may enable `r.Streaming.AmortizeCPUToGPUCopy` with
+  `r.Streaming.MaxNumTexturesToStreamPerFrame` above 0. If so, a mip copy the engine queued during
+  the hold can still run after the revert. The event then stays open for two full streaming cycles
+  before it may close. That covers the engine's normal schedule but is not a guarantee. Each such
+  revert is counted in `run_summary.stuck_mip_streamer_fence_incomplete`. With the engine defaults
+  (both off) this does not apply.
+
 `run_summary` carries the per-session totals: `stuck_mip_fires_applied`,
 `stuck_mip_textures_held`, `stuck_mip_frames_held`, `stuck_mip_onset_preroll_max`,
 `stuck_mip_hold_timeouts`, `stuck_mip_restore_timeout`, `stuck_mip_restore_frames_max`,

@@ -8055,3 +8055,30 @@ Related: G127, G33.
   "any gap in the span". A jump between two visible frames inside the window must still PASS, and the proof checks that.
 
 Related: G345 (its "isolated runs are reported, not required" is WITHDRAWN), G96, G142, G146, G119.
+
+## G348 — UE 5.1's texture streamer plans a stream-out BEFORE the asset shows it; "no PendingUpdate" cannot fence that plan, and the only public retirement is a synchronous full update (2026-09-28, 084-04)
+
+- The streamer works in cycles: stage 0 starts an async task that computes each asset's `WantedMips` with the bias it knows
+  then; stages 1..N refresh per-asset data; the apply stage (`StreamRenderAssets`) calls `StreamWantedMips`, which issues
+  `StreamOut(WantedMips)` whenever the asset has **no** pending operation (`StreamingTexture.cpp:562-596`). With
+  `r.Streaming.AmortizeCPUToGPUCopy` on, the apply stage instead queues copies in `PendingMipCopyRequests`, drained on later
+  frames from `CachedWantedMips`. **A plan computed under a hold can therefore lower a texture after the hold is reverted,
+  while `HasPendingInitOrStreaming()` read false the whole time.** Nothing on the asset shows the plan:
+  `bHasStreamingUpdatePending` is `BudgetedMips > ResidentMips`, a stream-IN signal only.
+- **The public "generation" counter is dead in 5.1.** `IStreamingManager::GetNumWantingResourcesID()` is documented as
+  "bumped every time NumWantingResources is updated", but `NumWantingResourcesCounter` has no writer anywhere under
+  `Engine/Source/Runtime` (only its declaration, `ContentStreaming.h:152`). `ProcessingStage` and `PendingMipCopyRequests` are
+  private members of `FRenderAssetStreamingManager`.
+- **What works with public API and no engine change:** after the bias is cleared, call
+  `IStreamingManager::Get().GetRenderAssetStreamingManager().UpdateResourceStreaming(0.f, true)` once. The "process
+  everything" branch completes the in-flight async task, resets the cycle, refreshes every asset's data with the current bias,
+  recomputes and applies synchronously. **The stale plan is replaced before it is ever applied.** The engine's own precedents
+  are `StreamAllResources` and the `ListTextures` exec path. Run it from a plain tick, not from inside a level-add or EndPlay
+  delegate (m52 defers it one tick). **Measure it:** it is a full synchronous streaming pass
+  (`stuck_mip_streamer_fence_ms_max`).
+- **It does NOT retire the amortized copy queue**: the process-everything branch skips the amortized path, so it never
+  resets `PendingMipCopyRequests`. With amortization on, the only bound is the engine's schedule (the next amortized apply
+  resets the queue), so m52 holds the texture as restoring for `2 × (r.Streaming.FramesForFullUpdate + 2)` frames. That is a
+  **heuristic, named as such**, and counted in `stuck_mip_streamer_fence_incomplete`.
+
+Related: G343, G344, G119.
