@@ -184,8 +184,31 @@ tau and other coverage guards still apply. docs/verifier-characterisation.md rec
 recovery classes and all wrong cells with competing peaks; the fixed planned denominator includes
 an unscored ledger for ineligible runs. Recovery agreement does not establish label correctness.
 
+--------------------------------------------------------------------------------------------------
+LABEL-RULE READER  (--label-rule, a SEPARATE mode; also printed at the end of the overlay mode) - 084-07b
+--------------------------------------------------------------------------------------------------
+From build 084-07 on, every labels.jsonl anomaly entry carries `labelled` (the frame is in that event's
+annotation.json frame list) and visible_positive = anomaly_present AND a labelled entry with a valid box.
+Earlier builds wrote no `labelled`, and their visible_positive also counted frames on which an event was
+running but its effect was not in the picture (a blinking visible phase, a lod_popping frame between pops).
+The reader picks the rule from the session itself - NEW when every entry carries `labelled`, OLD when none
+does, and it REFUSES a session that mixes them - and SAYS which. Under NEW it recomputes visible_positive,
+counts the active-but-unlabelled rows, and cross-checks `labelled` against annotation.json both ways:
+a labelled entry on a frame its event does not list (LABELLED-EXTRA; reported, not failed, when
+run_summary counts vetoed events, because a vetoed event leaves annotation.json but not labels.jsonl) and a
+listed frame with no labelled entry (LABELLED-MISSING). Under OLD it checks visible_positive against the old
+rule and counts the rows the new rule would turn false. On both it reads the transition flags:
+transition_present equals "an entry carries transition", every flagged entry names a known reason, each
+reason appears only on the anomaly that produces it, partial and camera_clipping_unconfirmed only on
+labelled entries, and temporal_aa / hide_return only when run_summary.label_temporal_aa is not false.
+A build before 084-07 wrote `transition` with no `transition_reason`; under OLD that is counted as legacy,
+not failed. Exit 0 no mismatch, 1 mismatch, 3 cannot run. --label-rule --selftest (and bare --selftest) prove it can
+fail both ways on synthetic sessions.
+
 Usage:
     python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet] [--red-only]
+    python verify_capture.py --dir <sessionDir> --label-rule [--quiet]
+    python verify_capture.py --label-rule --selftest
     python verify_capture.py --dir <sessionDir> --black-frame-gate [--black-threshold N]
     python verify_capture.py --dir <sessionDir> --label-pixel-gate [--report-only]
     python verify_capture.py --all <bankRoot> --label-pixel-gate --report-only [--out <dir>]
@@ -455,7 +478,14 @@ def _selftest():
 
     Builds two synthetic one-frame sessions - one mid-grey, one all black - and asserts
     the gate PASSES the first and FAILS the second. Both directions, every run.
+    Then runs the label-rule selftest (084-07b); the result is OK only when both are.
     """
+    rc = _black_frame_selftest()
+    lr = _label_rule_selftest()
+    return rc if rc != 0 else lr
+
+
+def _black_frame_selftest():
     import shutil
     import tempfile
     try:
@@ -3109,6 +3139,433 @@ def _emit(line):
         sys.stdout.flush()
 
 
+LABEL_RULE_REASONS = ("temporal_aa", "hide_return", "partial", "camera_clipping_unconfirmed")
+LABEL_RULE_REASON_TYPES = {
+    "temporal_aa": ("stuck_low_mip",),
+    "hide_return": ("blinking", "missing_object"),
+    "partial": ("stuck_low_mip",),
+    "camera_clipping_unconfirmed": ("camera_clipping",),
+}
+LABEL_RULE_LABELLED_ONLY = ("partial", "camera_clipping_unconfirmed")
+LABEL_RULE_TEMPORAL_ONLY = ("temporal_aa", "hide_return")
+RULE_NEW = "NEW"
+RULE_OLD = "OLD"
+RULE_NONE = "NONE"
+LABEL_RULE_CHECKS = ("VP-MISMATCH", "TRANSITION-PRESENT-MISMATCH", "REASON-MISSING", "REASON-WITHOUT-TRANSITION",
+                     "REASON-UNKNOWN", "REASON-MISPLACED", "REASON-ON-UNLABELLED", "REASON-WITHOUT-TEMPORAL-AA",
+                     "LABELLED-EXTRA", "LABELLED-MISSING", "ENTRY-MISSING", "FRAME-MISSING")
+
+
+def _lr_read_rows(cap_dir):
+    path = os.path.join(cap_dir, "labels.jsonl")
+    if not os.path.isfile(path):
+        return None, "no labels.jsonl"
+    rows = []
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for n, line in enumerate(fh, 1):
+                if not line.strip():
+                    continue
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    return None, "labels.jsonl line %d is not JSON" % n
+                if not isinstance(rec, dict) or not isinstance(rec.get("session_index"), int):
+                    return None, "labels.jsonl line %d has no integer session_index" % n
+                rows.append(rec)
+    except (OSError, UnicodeDecodeError) as exc:
+        return None, "labels.jsonl unreadable (%s)" % exc.__class__.__name__
+    rows.sort(key=lambda r: r["session_index"])
+    return rows, None
+
+
+def _lr_read_events(cap_dir):
+    path = os.path.join(cap_dir, "annotation.json")
+    if not os.path.isfile(path):
+        return None, "no annotation.json"
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            ann = json.load(fh)
+    except (OSError, ValueError, UnicodeDecodeError) as exc:
+        return None, "annotation.json unreadable (%s)" % exc.__class__.__name__
+    out = []
+    for ev in ann.get("anomalies", []) or []:
+        lst = ev.get("injected_frames")
+        which = "injected_frames"
+        if not isinstance(lst, dict):
+            lst = ev.get("affected_frames", {}) or {}
+            which = "affected_frames"
+        nodes = (ev.get("affected_objects", {}) or {}).get("nodes", []) or []
+        out.append({"type": ev.get("anomaly_type", ""), "names": set(n.get("name", "") for n in nodes),
+                    "frames": set(lst.get("frame_indices", []) or []), "list": which,
+                    "manifested": bool(ev.get("manifested", True))})
+    return out, None
+
+
+def _lr_first(sis, n=8):
+    s = sorted(set(sis))
+    return ", ".join(str(x) for x in s[:n]) + (" ..." if len(s) > n else "")
+
+
+def label_rule_check(cap_dir, quiet=False):
+    """Read one session's per-frame label fields against the rule its own build wrote them under.
+
+    A session whose anomaly entries carry `labelled` (084-07 and later) is read under the NEW rule:
+    visible_positive = anomaly_present AND at least one labelled entry with a valid box, and every labelled
+    entry must sit on a frame its event lists in annotation.json (injected_frames), and every listed frame must
+    carry a labelled entry. A session with no `labelled` anywhere is read under the OLD rule and says so:
+    visible_positive = anomaly_present AND an active entry with a valid box, which does NOT say the effect is in the
+    picture; for such a session the per-frame truth is annotation.json's frame lists. A session that mixes the two
+    is refused. Transition reasons are read on both: transition_present must equal "an entry carries transition",
+    every flagged entry must name a known reason, each reason may appear only on the anomaly that produces it,
+    partial and camera_clipping_unconfirmed only on labelled entries (NEW rule), and temporal_aa / hide_return only
+    when run_summary says the run used temporal anti-aliasing. Exit 0 no mismatch, 1 mismatch, 3 cannot run.
+    """
+    lines = ["LABEL-RULE (084-07b): anomaly_present / labelled / visible_positive / transition, read from the session"]
+    rows, err = _lr_read_rows(cap_dir)
+    if rows is None:
+        lines.append("LABEL-RULE: CANNOT RUN - %s" % err)
+        return 3, lines, {"rule": None}
+    events, err = _lr_read_events(cap_dir)
+    if events is None:
+        lines.append("LABEL-RULE: CANNOT RUN - %s" % err)
+        return 3, lines, {"rule": None}
+    rs = load_run_summary(cap_dir)
+    entries = [a for r in rows for a in (r.get("anomalies") or [])]
+    with_key = sum(1 for a in entries if isinstance(a, dict) and "labelled" in a)
+    if entries and 0 < with_key < len(entries):
+        lines.append("LABEL-RULE: CANNOT RUN - %d of %d entries carry `labelled`; one session cannot mix the two rules"
+                     % (with_key, len(entries)))
+        return 3, lines, {"rule": None}
+    if not entries:
+        rule = RULE_NONE
+    else:
+        rule = RULE_NEW if with_key == len(entries) else RULE_OLD
+    temporal = rs.get("label_temporal_aa")
+    vetoed = int(rs.get("vetoed_events", 0) or 0)
+
+    fails = {}
+
+    def fail(cat, si):
+        fails.setdefault(cat, []).append(si)
+
+    by_si = {}
+    for r in rows:
+        by_si[r["session_index"]] = r
+    n_present = 0
+    n_vp_written = 0
+    n_vp_rule = 0
+    n_active_unlabelled = 0
+    n_old_vp_unlisted = 0
+    n_transition_rows = 0
+    n_vetoed_labelled = 0
+    n_legacy_unreasoned = 0
+    reason_counts = {}
+    per_type = {}
+
+    def listed(entry, si):
+        t = client_type(entry.get("id", ""))
+        tgt = entry.get("target_name", "")
+        return any(e["type"] == t and tgt in e["names"] and si in e["frames"] for e in events)
+
+    for r in rows:
+        si = r["session_index"]
+        ents = [a for a in (r.get("anomalies") or []) if isinstance(a, dict)]
+        present = r.get("anomaly_present") is True
+        written = r.get("visible_positive") is True
+        n_present += 1 if present else 0
+        n_vp_written += 1 if written else 0
+        if rule == RULE_NEW:
+            rule_vp = present and any(a.get("labelled") is True and a.get("bbox_valid") is True for a in ents)
+            if written != rule_vp:
+                fail("VP-MISMATCH", si)
+            if present and not any(a.get("labelled") is True for a in ents):
+                n_active_unlabelled += 1
+        else:
+            strict = present and any(a.get("bbox_valid") is True and not a.get("transition") for a in ents)
+            loose = present and any(a.get("bbox_valid") is True for a in ents)
+            rule_vp = written if written in (strict, loose) else loose
+            if written not in (strict, loose):
+                fail("VP-MISMATCH", si)
+            if written and not any(listed(a, si) for a in ents):
+                n_old_vp_unlisted += 1
+        n_vp_rule += 1 if rule_vp else 0
+        for a in ents:
+            pt = per_type.setdefault(a.get("id", ""), [0, 0, 0])
+            pt[0] += 1
+            if a.get("labelled") is True:
+                pt[1] += 1
+            if rule_vp and a.get("labelled") is True and a.get("bbox_valid") is True:
+                pt[2] += 1
+        flagged = [a for a in ents if a.get("transition")]
+        if flagged:
+            n_transition_rows += 1
+        if (r.get("transition_present") is True) != bool(flagged):
+            fail("TRANSITION-PRESENT-MISMATCH", si)
+        for a in ents:
+            has_t = bool(a.get("transition"))
+            reasons = a.get("transition_reason")
+            if has_t and not reasons:
+                if rule == RULE_NEW:
+                    fail("REASON-MISSING", si)
+                else:
+                    n_legacy_unreasoned += 1
+                continue
+            if reasons and not has_t:
+                fail("REASON-WITHOUT-TRANSITION", si)
+            for reason in reasons or []:
+                if reason not in LABEL_RULE_REASONS:
+                    fail("REASON-UNKNOWN", si)
+                    continue
+                key = (a.get("id", ""), reason)
+                reason_counts[key] = reason_counts.get(key, 0) + 1
+                if a.get("id", "") not in LABEL_RULE_REASON_TYPES[reason]:
+                    fail("REASON-MISPLACED", si)
+                if rule == RULE_NEW and reason in LABEL_RULE_LABELLED_ONLY and a.get("labelled") is not True:
+                    fail("REASON-ON-UNLABELLED", si)
+                if reason in LABEL_RULE_TEMPORAL_ONLY and temporal is False:
+                    fail("REASON-WITHOUT-TEMPORAL-AA", si)
+        if rule == RULE_NEW:
+            for a in ents:
+                if a.get("labelled") is True and not listed(a, si):
+                    if vetoed > 0:
+                        n_vetoed_labelled += 1
+                    else:
+                        fail("LABELLED-EXTRA", si)
+
+    for e in events:
+        for si in sorted(e["frames"]):
+            r = by_si.get(si)
+            if r is None:
+                fail("FRAME-MISSING", si)
+                continue
+            mine = [a for a in (r.get("anomalies") or []) if isinstance(a, dict)
+                    and client_type(a.get("id", "")) == e["type"] and a.get("target_name", "") in e["names"]]
+            if not mine:
+                fail("ENTRY-MISSING", si)
+            elif rule == RULE_NEW and not any(a.get("labelled") is True for a in mine):
+                fail("LABELLED-MISSING", si)
+
+    lines.append("  session                : %s" % cap_dir)
+    if rule == RULE_NEW:
+        lines.append("  rule                   : NEW - every anomaly entry carries `labelled`; visible_positive = anomaly_present "
+                     "AND a labelled entry with a valid box")
+    elif rule == RULE_OLD:
+        lines.append("  rule                   : OLD - no entry carries `labelled` (a build before 084-07); visible_positive = "
+                     "anomaly_present AND an active entry with a valid box, which does NOT say the effect is in the picture. "
+                     "Per-frame truth for this session is annotation.json's frame lists.")
+    else:
+        lines.append("  rule                   : NONE - the session has no anomaly entries, so the rule cannot be read; "
+                     "visible_positive must be false on every row")
+    lines.append("  rows                   : %d   anomaly_present %d   visible_positive written %d, by the rule %d"
+                 % (len(rows), n_present, n_vp_written, n_vp_rule))
+    if rule == RULE_NEW:
+        lines.append("  active, not labelled   : %d row(s) - the event is running but its effect is not applied on the frame "
+                     "(blinking visible phases, lod_popping un-forced phases, texture boxes off screen)" % n_active_unlabelled)
+        for t in sorted(per_type):
+            c = per_type[t]
+            lines.append("    %-22s entries %5d   labelled %5d   counted visible %5d" % (t or "(none)", c[0], c[1], c[2]))
+        if n_vetoed_labelled:
+            lines.append("  labelled, event vetoed : %d entr(ies) - labelled on frames no annotation.json event lists, with "
+                         "run_summary vetoed_events %d; annotation.json decides" % (n_vetoed_labelled, vetoed))
+    elif rule == RULE_OLD:
+        lines.append("  old-rule positives not listed by annotation.json: %d row(s) - under the NEW rule these rows would read "
+                     "visible_positive false" % n_old_vp_unlisted)
+    reason_txt = ", ".join("%s/%s %d" % (k[0], k[1], v) for k, v in sorted(reason_counts.items())) or "none"
+    lines.append("  transitions            : %d row(s) with transition_present; entries by anomaly/reason: %s"
+                 % (n_transition_rows, reason_txt))
+    if n_legacy_unreasoned:
+        lines.append("  transitions, no reason : %d entr(ies) - a build before 084-07 wrote `transition` without "
+                     "`transition_reason`; read as temporal_aa or hide_return, not as a defect" % n_legacy_unreasoned)
+    lines.append("  label_temporal_aa      : %s (run_summary)" % ("absent" if temporal is None else temporal))
+    lines.append("  annotation.json        : %d event(s), %d listed frame(s) (%s)"
+                 % (len(events), sum(len(e["frames"]) for e in events),
+                    ", ".join(sorted(set(e["list"] for e in events))) or "no list"))
+    for cat in LABEL_RULE_CHECKS:
+        sis = fails.get(cat)
+        if sis:
+            lines.append("  FAIL %-28s %d  [%s]" % (cat, len(sis), _lr_first(sis)))
+        elif not quiet:
+            lines.append("  pass %s" % cat)
+    code = 1 if fails else 0
+    if code:
+        lines.append("LABEL-RULE: MISMATCH - %d check(s) failed (%s)" % (len(fails), ", ".join(sorted(fails))))
+    else:
+        lines.append("LABEL-RULE: NO MISMATCH under the %s rule" % rule)
+    detail = {"rule": rule, "fails": {k: sorted(set(v)) for k, v in fails.items()}, "rows": len(rows),
+              "present": n_present, "vp_written": n_vp_written, "vp_rule": n_vp_rule,
+              "active_unlabelled": n_active_unlabelled, "old_vp_unlisted": n_old_vp_unlisted,
+              "vetoed_labelled": n_vetoed_labelled, "legacy_unreasoned": n_legacy_unreasoned,
+              "reasons": {"%s/%s" % k: v for k, v in reason_counts.items()}}
+    return code, lines, detail
+
+
+def _lr_entry(aid, target, labelled=None, bbox=True, reasons=None):
+    e = {"id": aid, "target_name": target, "bbox_valid": bbox}
+    if labelled is not None:
+        e["labelled"] = labelled
+    if reasons:
+        e["transition"] = 1
+        e["transition_reason"] = list(reasons)
+    return e
+
+
+def _lr_write(root, name, rows, events, run_summary=None):
+    d = os.path.join(root, name)
+    os.makedirs(d)
+    with open(os.path.join(d, "labels.jsonl"), "w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    ann = {"label_schema": 2, "anomalies": []}
+    for etype, target, frames in events:
+        fl = sorted(frames)
+        ann["anomalies"].append({"anomaly_type": etype, "manifested": bool(fl),
+                                 "affected_objects": {"nodes": [{"name": target}]},
+                                 "injected_frames": {"frame_indices": fl},
+                                 "affected_frames": {"frame_indices": fl}})
+    with open(os.path.join(d, "annotation.json"), "w", encoding="utf-8") as fh:
+        json.dump(ann, fh)
+    with open(os.path.join(d, "run_summary.json"), "w", encoding="utf-8") as fh:
+        json.dump(run_summary if run_summary is not None else {"label_temporal_aa": True, "vetoed_events": 0}, fh)
+    return d
+
+
+def _lr_row(si, ents, vp=None, present=False):
+    p = bool(present)
+    clean = [{k: v for k, v in e.items() if k != "_transition_only"} for e in ents]
+    row = {"session_index": si, "anomaly_present": p, "anomalies": clean}
+    if any(e.get("transition") for e in clean):
+        row["transition_present"] = True
+    if vp is None:
+        if clean and all("labelled" in e for e in clean):
+            vp = p and any(e.get("labelled") is True and e.get("bbox_valid") is True for e in clean)
+        else:
+            vp = p and any(e.get("bbox_valid") is True for e in clean)
+    row["visible_positive"] = vp
+    return row
+
+
+def _lr_blink_session(labelled_keys=True, vp_override=None):
+    hidden = {4, 5, 9, 10}
+    rows = []
+    for si in range(0, 14):
+        ents = []
+        if 3 <= si <= 10:
+            lab = (si in hidden) if labelled_keys else None
+            reasons = ("hide_return",) if si in (6, 11) else None
+            ents.append(_lr_entry("blinking", "Cube", lab, True, reasons))
+        present = 3 <= si <= 10
+        vp = vp_override.get(si) if vp_override and si in vp_override else None
+        rows.append(_lr_row(si, ents, vp=vp, present=present))
+    return rows, [("blink", "Cube", hidden)]
+
+
+def _label_rule_selftest():
+    """Prove the label-rule reader can fail, both ways, on synthetic sessions (G96).
+
+    NEW-rule sessions: an event-active unlabelled row must NOT count as a visible positive, and a row that says it does
+    is a mismatch. OLD-rule sessions (no `labelled`): read under the old rule, said so, and not failed for following it.
+    Plus: labelled vs annotation.json in both directions, the veto exception, transition-reason placement, and the
+    refusal of a session that mixes the two rules.
+    """
+    import shutil
+    import tempfile
+    root = tempfile.mkdtemp(prefix="lr_selftest_")
+    results = []
+
+    def case(name, rows, events, want_code, want_rule=None, want_fail=None, rs=None, extra=None):
+        d = _lr_write(root, name, rows, events, rs)
+        code, lines, detail = label_rule_check(d, quiet=True)
+        ok = code == want_code
+        if want_rule is not None:
+            ok = ok and detail.get("rule") == want_rule
+        if want_fail is not None:
+            ok = ok and want_fail in detail.get("fails", {})
+        if extra is not None:
+            ok = ok and extra(detail, lines)
+        results.append(ok)
+        print("LABEL-RULE SELFTEST %-44s -> exit %d rule %-4s %s" % (name, code, detail.get("rule"),
+                                                                     "ok" if ok else "BROKEN"), flush=True)
+        if not ok:
+            for line in lines:
+                print("    " + line, flush=True)
+
+    try:
+        rows, ev = _lr_blink_session()
+        case("new_rule_blink_clean", rows, ev, 0, RULE_NEW,
+             extra=lambda d, _l: d["vp_rule"] == 4 and d["active_unlabelled"] == 4)
+        rows, ev = _lr_blink_session(vp_override={6: True})
+        case("new_rule_active_unlabelled_counted_vp_FAILS", rows, ev, 1, RULE_NEW, "VP-MISMATCH")
+        rows, ev = _lr_blink_session(labelled_keys=False)
+        case("old_rule_blink_read_as_old", rows, ev, 0, RULE_OLD,
+             extra=lambda d, l: d["vp_rule"] == 8 and d["old_vp_unlisted"] == 4 and any("OLD" in x for x in l))
+        rows, ev = _lr_blink_session(labelled_keys=False, vp_override={5: False})
+        case("old_rule_vp_missing_on_active_box_FAILS", rows, ev, 1, RULE_OLD, "VP-MISMATCH")
+
+        tex = set(range(3, 11))
+        good = [_lr_row(si, [_lr_entry("missing_texture", "Rock", si in tex)] if 3 <= si <= 10 else [],
+                        present=3 <= si <= 10) for si in range(12)]
+        case("new_rule_texture_labelled_clean", good, [("missing_texture", "Rock", tex)], 0, RULE_NEW)
+        bad = [_lr_row(si, [_lr_entry("missing_texture", "Rock", False)] if 3 <= si <= 10 else [],
+                       present=3 <= si <= 10) for si in range(12)]
+        case("new_rule_texture_unlabelled_but_listed_FAILS", bad, [("missing_texture", "Rock", tex)], 1, RULE_NEW,
+             "LABELLED-MISSING")
+
+        extra_rows = [_lr_row(si, [_lr_entry("lod_popping", "Rock", si in (4, 5, 6))] if 3 <= si <= 8 else [],
+                              present=3 <= si <= 8) for si in range(10)]
+        case("new_rule_labelled_not_listed_FAILS", extra_rows, [("lod_popping", "Rock", {4, 5})], 1, RULE_NEW,
+             "LABELLED-EXTRA")
+        veto_rows = [_lr_row(si, [_lr_entry("blinking", "Plane", si in (4, 5))] if 3 <= si <= 8 else [],
+                             present=3 <= si <= 8) for si in range(10)]
+        case("new_rule_vetoed_event_reported_not_failed", veto_rows, [], 0, RULE_NEW,
+             rs={"label_temporal_aa": True, "vetoed_events": 1}, extra=lambda d, _l: d["vetoed_labelled"] == 2)
+
+        held = {5, 6, 7, 8}
+        mip_rows = []
+        for si in range(12):
+            ents = []
+            if si in held:
+                rs_ = ("temporal_aa", "partial") if si == 5 else (("temporal_aa",) if si in (6, 7) else None)
+                ents.append(_lr_entry("stuck_low_mip", "Rock", True, True, rs_))
+            elif si in (9, 10):
+                e = _lr_entry("stuck_low_mip", "Rock", False, True, ("temporal_aa",))
+                e["_transition_only"] = True
+                ents.append(e)
+            mip_rows.append(_lr_row(si, ents, present=si in held))
+        case("new_rule_stuck_mip_reasons_clean", mip_rows, [("stuck_low_mip", "Rock", held)], 0, RULE_NEW,
+             extra=lambda d, _l: d["reasons"].get("stuck_low_mip/partial") == 1)
+        wrong = [_lr_row(si, [_lr_entry("missing_texture", "Rock", True, True, ("partial",) if si == 4 else None)]
+                         if 3 <= si <= 6 else [], present=3 <= si <= 6) for si in range(8)]
+        case("new_rule_partial_on_texture_swap_FAILS", wrong, [("missing_texture", "Rock", {3, 4, 5, 6})], 1,
+             RULE_NEW, "REASON-MISPLACED")
+        rows, ev = _lr_blink_session()
+        for r in rows:
+            r.pop("transition_present", None)
+        case("transition_present_missing_FAILS", rows, ev, 1, RULE_NEW, "TRANSITION-PRESENT-MISMATCH")
+        rows, ev = _lr_blink_session()
+        case("hide_return_without_temporal_aa_FAILS", rows, ev, 1, RULE_NEW, "REASON-WITHOUT-TEMPORAL-AA",
+             rs={"label_temporal_aa": False, "vetoed_events": 0})
+        rows, ev = _lr_blink_session()
+        rows[6]["anomalies"][0].pop("transition_reason")
+        case("new_rule_transition_without_reason_FAILS", rows, ev, 1, RULE_NEW, "REASON-MISSING")
+        rows, ev = _lr_blink_session(labelled_keys=False)
+        rows[6]["anomalies"][0].pop("transition_reason")
+        case("old_rule_transition_without_reason_is_legacy", rows, ev, 0, RULE_OLD,
+             extra=lambda d, _l: d["legacy_unreasoned"] == 1)
+        rows, ev = _lr_blink_session()
+        rows[5]["anomalies"][0].pop("labelled")
+        case("mixed_rules_refused", rows, ev, 3)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+    if all(results):
+        print("LABEL-RULE SELFTEST: OK - %d cases; an event-active unlabelled row is not a visible positive, an old "
+              "session is read under the old rule and says so, and every must-fail case fails." % len(results),
+              flush=True)
+        return 0
+    print("LABEL-RULE SELFTEST: BROKEN - %d of %d cases failed." % (results.count(False), len(results)), flush=True)
+    return 2
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Draw capture bboxes onto copies of the frames for human inspection (never edits labels).")
@@ -3159,6 +3616,11 @@ def main():
                          "oracle can agree and disagree.")
     ap.add_argument("--oracle-json", metavar="PATH", default=None,
                     help="with --change-oracle: also write the per-row comparison detail as JSON")
+    ap.add_argument("--label-rule", action="store_true",
+                    help="read the session's anomaly_present / labelled / visible_positive / transition fields against "
+                         "the rule its build wrote them under (NEW with `labelled`, OLD without, said which), cross-checked "
+                         "against annotation.json. Exit 0 no mismatch, 1 mismatch, 3 cannot run. With --selftest it proves "
+                         "the reader can fail both ways.")
     args = ap.parse_args()
 
     if args.selftest:
@@ -3168,7 +3630,15 @@ def main():
                                            args.min_visible_px, src))
         if args.change_oracle is not None:
             sys.exit(_change_oracle_selftest())
+        if args.label_rule:
+            sys.exit(_label_rule_selftest())
         sys.exit(_selftest())
+
+    if args.label_rule:
+        code, lines, _detail = label_rule_check(os.path.abspath(args.dir), args.quiet)
+        for line in lines:
+            _emit(line)
+        sys.exit(code)
 
     if args.change_oracle is not None:
         target = args.change_oracle or args.dir
@@ -3361,6 +3831,9 @@ def main():
     if counts[CAT_UNMATCHED]:
         print("  NOTE: UNMATCHED means a candidate box has no matching event in annotation.json and "
               "run_summary reports no vetoes. That combination is not expected - worth reporting.", flush=True)
+    lr_code, lr_lines, _lr_detail = label_rule_check(cap_dir, quiet=True)
+    for line in lr_lines:
+        _emit(line)
 
 
 if __name__ == "__main__":
