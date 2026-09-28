@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 📐 **082-10, 2026-09-28 — `m53` S2 PLAN WRITTEN (PLAN ONLY). NEXT: CODEX DESIGN REVIEW VIA THE RELAY, THEN CHAT'S RULINGS.
+> No source, harness, CaptureBench, build, cook or bench; no tag, no merge.**
+> - **Cold start:** `docs/predictions/2026-09-28-m53-s2.md` (§1.2 places every S1 R6 item; §3 the two cause reads; §6.0 the
+>   premise window; §6.2 the gates; §7 the premise audit; §11 NEEDS-DECISION), then
+>   `docs/sessions/2026-09-28-082-10-code-m53-s2-plan.md`.
+> - **Shape:** the eight modes, the mode draw, both ids pooled (default OFF), the five S1 debts, the four harness items and
+>   P2-3 telemetry. **1 build pair + 1 bench-fixture cook; 0 plugin-asset cooks** (the corruptor graphs already carry every
+>   mode). ~95 gate legs after a ~16-leg read-only **premise window** (new; chat decides).
+> - **Cause reads:** (a) T10 — the first streaming pass has no instance data for the Movable fixture meshes, so drawn
+>   textures take the unknown-reference rule and the 1000 MB pool keeps them; producer `PauseTextureStreaming` in the
+>   frame-1 batch (7/12, not pending, no bias). (b) MainWorld — camera, clock and dither identical; four animated zones plus
+>   streaming-timed speckle; no S2 Q row reads MainWorld pixels.
+> - 🚨 **Found on the S1 bank:** MainWorld's identity install + revert-to-default leaves a persistent contact-shadow difference
+>   (max 67–76) where the nulls agree to 1 — a G3-shaped reading on host content, mechanism not established. **CHAT-DECISION.**
+>
+> ---
+>
 > 🏁 **082-09, 2026-09-28 — `m53` S1 COMPLETE (SCOPED); CODEX EVIDENCE REVIEW APPROVE-WITH-FIXES, DISPOSITIONED; NEXT: THE
 > S2 PLAN. Docs only; no tag, no merge.**
 > - **Cold start:** `docs/predictions/2026-09-27-m53-s1-legs.md` **"S1 RESULT"** (R1 established · R2 not established ·
