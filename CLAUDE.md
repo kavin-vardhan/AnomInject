@@ -11,6 +11,33 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔁 **082-12, 2026-09-28 — `m53` S2 PLAN REVISION 2 (PLAN ONLY): Codex's eleven design findings applied under chat's
+> ruling 082-11; the P2-9 determination made; S2-0 specified as a matrix. NEXT: CHAT RULES ON THE CODEX DELTA
+> (`_reviews\082-12-codex-m53-s2-delta.md`), THEN S2-0 ON THE CURRENT S1 BUILD (owner's PC OK), THEN S2-1.
+> No source, harness, CaptureBench, build, cook or bench; no tag, no merge.**
+> - **Cold start:** `docs/predictions/2026-09-28-m53-s2.md`. Read, in order: its "🔁 082-12 — REVISION 2" section
+>   (R2.1–R2.11, each with the design change, the gate and its can-fail, the source impact with anchors, and the premise
+>   line), then **§3A (S2-0)**. Then `docs/sessions/2026-09-28-082-12-code-m53-s2-plan-rev2.md`.
+> - **What changed:**
+>   - a **mode oracle** on new asymmetric fixture cells (G-MODE-UV / -N, with wrong-mode negatives on real frames);
+>   - the **drift snapshot** qualified on its own (G-SNAP-*);
+>   - the renamed successor keeps §R8.3's **cleanup** contract, with a SkipSweep negative;
+>   - G5 RESTORING proves the drop and the insertion;
+>   - LEVEL-CHANGE uses one **ticket** plus a post-GC RT census;
+>   - flat, declared-array **telemetry** (`DeclareArray`), with byte-identity for non-m53 labels;
+>   - the **RNG contract**: one mode draw per m53 attempt, an `Auto.Draw` log and a known-answer test;
+>   - E6, CAN and G3-S2 predicates corrected;
+>   - new levers behind **`-IAIBench`**, `DestroyTarget` included.
+> - **P2-9: YES by default** (`MaxConcurrent` 4, one per id and one per actor, independent holds), so **S2 fixes m52's
+>   co-affected enumeration to see m53 hosts** (G5-REV).
+> - **S2-0:** identity (partial and full footprint), `corrupted_texture`, and a plain `Reattach.Components` refresh, each
+>   × shadow cache on/off with its own nulls. 24 legs; a single event and a 60-frame tail. Predicted: **STALE-NULL** (a
+>   label caveat, not a restore defect).
+> - **Counts unchanged:** 1 build pair + 1 fixture cook (now with the oracle cells); S2-0 needs neither. Premise window ~19
+>   legs, gate window ~129.
+>
+> ---
+>
 > 📐 **082-10, 2026-09-28 — `m53` S2 PLAN WRITTEN (PLAN ONLY). NEXT: CODEX DESIGN REVIEW VIA THE RELAY, THEN CHAT'S RULINGS.
 > No source, harness, CaptureBench, build, cook or bench; no tag, no merge.**
 > - **Cold start:** `docs/predictions/2026-09-28-m53-s2.md` (§1.2 places every S1 R6 item; §3 the two cause reads; §6.0 the
