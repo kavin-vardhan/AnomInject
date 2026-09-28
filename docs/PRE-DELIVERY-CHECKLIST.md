@@ -55,6 +55,28 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       Input lock/placement remain explicit, map/flag gated and independently checked. Measurement
       legs still require foreground throughout; log its PID and audit sample counts.
 
+- [ ] **🆕 (G354, 084-06 / 084-07b) — the SHIPPED plugin descriptor lists exactly the intended modules. Read it
+      out of the package, never off the source tree.** A packaged game starts only the modules its **cooked**
+      `AnomalyInjector.uplugin` lists, and a console command whose module never started is dropped from
+      `-ExecCmds` **without a word** — a missing module reads as a clean run with a lever that did nothing, and an
+      extra one ships dormant code. Before packaging, and again on the packaged build:
+      1. Extract the descriptor from the delivered container:
+         `UnrealPak <build>\<Project>\Content\Paks\<Project>-Windows.pak -Extract <dir> -Filter=*.uplugin`, then
+         open `<dir>\<Project>\Plugins\AnomalyInjector\AnomalyInjector.uplugin`.
+      2. Diff its `Modules` list — names, `Type`, `LoadingPhase`, allow/deny lists — against the intended set: the
+         delivered branch's `AnomalyInjector.uplugin` **minus `AnomalyBench`** (the F9 box below). A module in the
+         intended set that is missing from the cooked list is a **STOP** (nothing may be silently missing);
+         `AnomalyBench` present is a **STOP** (F9).
+      3. Bench levers absent or inert without `-IAIBench`: launch the delivered build **without** `-IAIBench` or
+         `-IAIBenchFixture` and confirm its log has no `Capture(m52): -IAIBench present` line (the m52 levers
+         register only under that flag) and no `AnomalyBench` module line, and run F9's A44 scan below.
+      4. Record the extracted descriptor's SHA-256 with the delivery receipt.
+      *Measured instance: 084-06's B-CC legs ran `IAI.Bench.CameraSchedule` over a container cooked before
+      `AnomalyBench` entered the descriptor and logged zero `IAI-` lines — a clean null (G354). The check itself is
+      proven on 084-07b's cook, whose extracted descriptor is byte-identical to the branch's (SHA-256
+      `9EFB9B49…`, five modules, `AnomalyBench` first with `TargetConfigurationDenyList [Shipping]`) — that
+      cook is a bench build, which is why `AnomalyBench` is in it.*
+
 - [ ] **🆕 (081-20 ruling F9, the "M3 packaging checklist" line) — the `AnomalyBench` module is
       EXCLUDED from client packages.** Its descriptor entry allows non-Shipping Game/Editor targets, so
       a client's Development package would otherwise carry it dormant — with bench fixture map names,

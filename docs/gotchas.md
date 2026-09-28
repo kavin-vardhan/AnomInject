@@ -8266,3 +8266,36 @@ Related: G349, G350, G103, G114, G120.
   read the `CollisionTraceFlag` UPROPERTY instead of adding a module dependency.
 
 Related: G120, G139, G349, G350, G352, G354.
+
+## G361 — The capture keeps TWO per-fire "active" bits, and a new consumer took the one that does not cover every anomaly: `labelled` reads `FireActive`, which is always false for a texture swap (2026-09-29, 084-07b)
+
+- **Source (`8b8b4d0`):** `FireActive` = `ComputeFireActive`, whose non-`AnomalyState` branch returns
+  `IsLogicallyHidden(actor)` (`AnomalyCaptureSubsystem.cpp:7568`). For `FireWindow` ids (`missing_texture`,
+  `corrupted_texture`, `:550–551`) that is false on every frame, and the annotation never uses it for them — their frame
+  list is `AffectedFrames` (`:8900–8903`). `FireLabelled` = `IsFireLabelledThisFrame` returns true for them (`:5859–5860`)
+  and is what `observable` and the masks read. 084-07 wired the new per-entry `labelled` to `FireActive`
+  (`AnomalyLabelWriter.cpp:264–269`), so on `FF41BFF3` every texture-swap entry reads `labelled: false`, every such row
+  `visible_positive: false`, while `observable` can read `true` on the same entry and `annotation.json` lists the frame.
+- **This is G241's bug class again** (073: `observable`'s active term had been `FireActive` and emptied the texture
+  events). The bit's NAME says "active"; its MEANING is "the annotation's active subset for sources that have one".
+- **Found by reading source while writing the readme's field table**, and independently by Codex (084-07 re-check N1).
+  No runtime evidence; the next bench's `verify_capture.py --label-rule` fails such a session with `LABELLED-MISSING`.
+- **Rule:** a per-entry field that claims "this frame is in the event's frame list" must be computed by the same test
+  the annotation applies for that entry's source — for `FireWindow` that is fire live AND the projected box valid, not
+  `IsFireLabelledThisFrame` alone (true off screen) and not `FireActive` (false always). Before adding a consumer of
+  either bit, list every source in `ResolveAnomalyActiveSource` and say what the bit is for each.
+
+Related: G241, G358, G362.
+
+## G362 — `annotation.json` calls the blinking anomaly `blink`; `labels.jsonl` calls it `blinking` — and the client readme said both were `blinking` (2026-09-29, 084-07b)
+
+- **Source:** `MapAnomalyToClient` (`AnomalyCaptureSubsystem.cpp:523–535`) writes `anomaly_type: "blink"` for the engine id
+  `blinking`; every other id passes through unchanged. `labels.jsonl` entries carry the engine id
+  (`AnomalyLabelWriter.cpp:143`). The client readme's §8.2 listed `blinking` as an `anomaly_type` value and §8.6 said an
+  entry's `id` "matches `anomaly_type`" — both false for this one anomaly.
+- **Consequence:** a client joining labels to annotation on the type string silently drops every blinking event.
+  `verify_capture.py` has always mapped it (`client_type`), so no internal tool noticed.
+- **Rule:** a readme field table is read out of the writer, value by value, not from memory; a cross-file join on a type
+  name goes through the one mapping function.
+
+Related: G142, G361.

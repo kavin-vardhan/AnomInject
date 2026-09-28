@@ -11,6 +11,31 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 📦 **084-07b, 2026-09-29 — CLIENT-README LABEL SEMANTICS, A COOK OF `fix/m52-label-timing`, AND CODEX'S RE-CHECK OF 084-07
+> (RED). No source edit, nothing launched, NOT staged, NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-07b-readme-cook-recheck.md`; evidence `_reviews\084-07b-evidence\`.
+> - **Cook:** 60 s, 794 packages, 0 warnings. exe `FF41BFF3` (unchanged) + utoc **`87A46A27`** / ucas `55A65BA4` / pak
+>   `26FFC026` + `462B8AC6` / `BB05CF99`, archived `_binary_baselines\m52fix-cook-87A46A27\` (6/6 re-hashed). **Cooked
+>   descriptor extracted with UnrealPak = byte-identical to the branch's: 5 modules, `AnomalyBench` first, Shipping-denied.**
+>   Maps `CB_GateLevel`/`MainMenu`/`MainWorld`/`Entry`. D: content manifest identical before/after (temporary junctions,
+>   removed). The m53 set stays staged.
+> - **Codex re-check (1,233 s, `_reviews\084-07-codex-sync-recheck.md`): RED — F3 RESOLVED; items 1–5 and 7 PARTIAL.**
+>   N1 (high) = D1 below; N2 (high) a zero-thickness box turns camera_clipping's traces into an unflagged miss; N3 (high)
+>   rotated instances under non-uniform component scale still rejected; N4–N7 medium. Not acted on.
+> - 🚨 **D1 / G361: `labelled` reads `FireActive`, which is false for every FireWindow id, so on `FF41BFF3` (and in this
+>   cook) every `missing_texture` / `corrupted_texture` entry reads `labelled: false` and its row `visible_positive: false`**,
+>   while `annotation.json` lists the frame. G241's class again. From source + Codex N1; no runtime evidence.
+> - **Readme:** new §8.7 (per-anomaly semantics table, mask-value re-use, training-label recipe), §8.6/8.6a/8.6b tightened
+>   (the `visible_positive` change and how to tell old sessions apart, decision 3, per-reason guidance, camera_clipping
+>   limits and cost), the stale camera_clipping note rewritten, `blink` vs `blinking` fixed (G362). Field → source table
+>   in the journal: 32 rows, 31 match, 1 does not (D1).
+> - **`verify_capture.py --label-rule`:** NEW/OLD rule read from the session and stated; 15-case selftest both ways; all
+>   prior selftests and contracts unchanged. On the 084-06 banks it reproduces 084-07's row families (345/80/128/56).
+> - **Checklist:** the G354 descriptor/module-list box added to `PRE-DELIVERY-CHECKLIST.md` §1.
+> - 🎯 **NEXT: chat rules on D1 and Codex N2–N7.** A source fix = rebuild + re-cook (§2 recipe). 084-08 and the kits must read
+>   `labelled` as `--label-rule` does.
+>
+> ---
 > 🔧 **084-07, 2026-09-29 — LABEL-SYNC FIXES ROUND 3 (SOURCE) ON `fix/m52-label-timing`: commit `8b8b4d0`, exe `FF41BFF3`
 > archived `_binary_baselines\m52fix-FF41BFF3\`. NOT staged, NOT cooked (084-07b), nothing launched, NOT merged, NO tag.**
 > - **Cold start:** journal `docs/sessions/2026-09-29-084-07-sync-fixes-round3.md`.
