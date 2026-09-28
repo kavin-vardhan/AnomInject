@@ -7991,6 +7991,10 @@ Related: G343 (the label mirror), G266 (the streamer's schedule), G96, G135.
 
 ## G345 — a TWO-SIDED sync gate needs ONE reference window, and its can-fail proof is void unless the REPAIRED case PASSES first (2026-09-28, 084-02b)
 
+> 🔻 **SUPERSEDED IN PART by G347 (084-04a, ruling 084-02b decision 3): "isolated excursions outside it are REPORTED, not
+> required" is WITHDRAWN.** Every pixel-visible frame outside the window now FAILS unless the paired null shows it. The
+> single-reference-window rule and "the proof counts only when the repaired case PASSES" both STAND.
+
 - The 084-02 sync gate was one-sided: every pixel-visible frame had to be labelled, and nothing checked labels AFTER the last
   visible frame. Codex showed a counterexample (visible 10–14, labelled 10–18 as a settle tail) that passed both gates.
 - Making it two-sided (label window starts AT the first visible frame and ends AT the last) exposed a conflict the one-sided
@@ -8024,3 +8028,30 @@ Related: G344 (the pre-event reference), G96, G120.
   character"). Hoist the conditional text into a variable first.
 
 Related: G127, G33.
+
+## G347 — a gate that reads its evidence only when the evidence is present PASSES on its absence; and censoring must rank below a definite failure (2026-09-28, 084-04a)
+
+- The 084-02b part B evaluator had four false-pass paths (Codex, `_reviews/084-02b-codex-m52-minidelta.md`), and all four are
+  one shape: **when the evidence was missing, the code took the branch that does not fail.**
+  - The edge-gap test compared engine frames only `if` the neighbouring row existed, so a **missing** neighbour skipped the
+    test and the edge passed. It also looked only at the first frame of the 3-frame clean suffix.
+  - The mask rule required a mask only when `target_pixels > 0`, so `target_pixels = -1` (**unmeasured**) required nothing.
+  - `HOLD CONTAMINATED` lines were collected **after** the purity verdict was computed, so they were listed beside a PASS.
+  - Visible frames outside the pixel window went into a "reported, not required" list (G345), so a 5-frame recurrence passed.
+- The frozen 084-02b evaluator PASSES all six known answers (Codex's four, a single spike, the contaminated census). That is
+  the `[before]` section of `_reviews/084-03-gateselftest.py`. **The corrected one fails or censors all six.**
+- **Rule 1: every predicate states what it does when its input is absent, and absent means CENSORED or FAIL, never "skip".**
+  A "reported, not required" list inside a gate needs a stated reason why the listed thing cannot be the defect. G345's
+  list had no such reason; it existed only so that the repaired case could pass.
+- **Rule 2: censoring is not a hiding place. The per-event order is FAIL > CENSORED > PASS.** The old evaluator excluded a
+  censored event entirely, including any definite failure it contained. Re-evaluated on the real m52 bank (16 legs, 23
+  measurable static events), **20 of the 23 moved CENSORED → FAIL** (each has unlabelled pixel-visible frames inside its
+  window, the baseline under-label). The remaining 3 were already FAIL. None passes under either evaluator.
+- **Rule 3: tightening a gate can remove the only data that shows its PASS half.** Under the corrected rules, no unedited
+  banked event can pass. The one uncensored event (M52F 577) carries the G345 spike at si 497. The proof therefore runs
+  on 577 with a **declared** single-frame base edit (497 re-pointed at 496). It also proves that the **unedited** original
+  FAILS. Silently choosing "an event that passes" would have hidden that the PASS half now rests on one event with one edit.
+- Also: engine-frame jumps are routine in capture (every settle gap), so the censoring rule is **adjacency to an edge**, not
+  "any gap in the span". A jump between two visible frames inside the window must still PASS, and the proof checks that.
+
+Related: G345 (its "isolated runs are reported, not required" is WITHDRAWN), G96, G142, G146, G119.
