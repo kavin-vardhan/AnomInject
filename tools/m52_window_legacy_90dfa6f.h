@@ -1,6 +1,6 @@
 #pragma once
 
-namespace AnomalyStuckMipWindow
+namespace Legacy90dfa6f
 {
 	enum class ETexState : unsigned char
 	{
@@ -144,14 +144,11 @@ namespace AnomalyStuckMipWindow
 		int TailFrames = 0;
 		int UnsettledBaselineFrames = 0;
 		int Reopens = 0;
-		int ReopensAfterDetach = 0;
 		int LateReceipts = 0;
 		int Overflows = 0;
-		int DetachedAtSI = -1;
 		bool bOpen = false;
 		bool bClosing = false;
 		bool bClosed = false;
-		bool bDetached = false;
 		bool bUnresolved = false;
 		bool bInherited = false;
 		FTrailSlot Slots[CursorCapacity];
@@ -197,7 +194,7 @@ namespace AnomalyStuckMipWindow
 
 		void NoteArmed(int SessionIndex)
 		{
-			if (!bOpen || bDetached || SessionIndex <= LastArmedSI)
+			if (!bOpen || SessionIndex <= LastArmedSI)
 			{
 				return;
 			}
@@ -315,32 +312,7 @@ namespace AnomalyStuckMipWindow
 				bClosed = false;
 				++Reopens;
 				LastReopenSI = SessionIndex;
-				if (bDetached)
-				{
-					bDetached = false;
-					++ReopensAfterDetach;
-				}
 			}
-		}
-
-		bool AllNotedProcessed() const
-		{
-			return NextSI < 0 || NextSI > LastArmedSI;
-		}
-
-		bool TryDetach(int NextArmSessionIndex, bool bNextFireBegins)
-		{
-			if (!bOpen || !bClosed || bDetached)
-			{
-				return false;
-			}
-			if (!AllNotedProcessed() && !bNextFireBegins)
-			{
-				return false;
-			}
-			bDetached = true;
-			DetachedAtSI = NextArmSessionIndex;
-			return true;
 		}
 
 		EMembership Process(int SessionIndex, EVerdict V, bool bSettled)
@@ -407,154 +379,7 @@ namespace AnomalyStuckMipWindow
 		{
 			return bOpen && !bClosed;
 		}
-
-		bool AttachedForProducts() const
-		{
-			return bOpen && !bDetached;
-		}
 	};
-
-	struct FTrailOwnership
-	{
-		bool bReserved = false;
-		bool bOwnsRefusal = false;
-		bool bServiced = false;
-	};
-
-	struct FOwnershipRelease
-	{
-		bool bUnreserve = false;
-		bool bClearRefusal = false;
-	};
-
-	inline void OwnOnRefusal(FTrailOwnership& O)
-	{
-		O.bOwnsRefusal = true;
-	}
-
-	inline void OwnOnReserve(FTrailOwnership& O)
-	{
-		O.bReserved = true;
-	}
-
-	inline void OwnOnReopen(FTrailOwnership& O)
-	{
-		O.bReserved = true;
-		O.bOwnsRefusal = true;
-		O.bServiced = false;
-	}
-
-	inline FOwnershipRelease OwnOnDetach(FTrailOwnership& O, bool bOtherReserverOfTarget, bool bOtherRefusalOwnerOfId)
-	{
-		FOwnershipRelease R;
-		if (O.bServiced)
-		{
-			return R;
-		}
-		O.bServiced = true;
-		R.bUnreserve = O.bReserved && !bOtherReserverOfTarget;
-		R.bClearRefusal = O.bOwnsRefusal && !bOtherRefusalOwnerOfId;
-		O.bReserved = false;
-		O.bOwnsRefusal = false;
-		return R;
-	}
-
-	inline bool NeedsMaskRecordAtArm(bool bLiveFire, bool bTrailAttachedForProducts, bool bRenderTruthRun)
-	{
-		return bLiveFire || (bRenderTruthRun && bTrailAttachedForProducts);
-	}
-
-	inline bool ShouldReapplyCarriedOwnership(int NumCarried, bool bDeinitializing)
-	{
-		return NumCarried > 0 && !bDeinitializing;
-	}
-
-	struct FStreamerFence
-	{
-		bool bFlushed = false;
-		bool bAmortizedCopies = false;
-		bool bStreamingEnabled = true;
-		int FramesSinceRevert = 0;
-		int MinFramesIfUnfenced = 0;
-	};
-
-	inline bool StreamerPlansRetired(const FStreamerFence& F)
-	{
-		if (!F.bStreamingEnabled)
-		{
-			return true;
-		}
-		if (F.bFlushed && !F.bAmortizedCopies)
-		{
-			return true;
-		}
-		return F.FramesSinceRevert >= F.MinFramesIfUnfenced;
-	}
-
-	inline int UnfencedMinFrames(int FramesForFullUpdate)
-	{
-		const int Stages = FramesForFullUpdate < 1 ? 1 : FramesForFullUpdate;
-		return 2 * (Stages + 2);
-	}
-
-	inline bool IsArmSettled(int NumTextures, bool bAnyRestoring, bool bAnyPendingOperation, bool bPlansRetired)
-	{
-		return NumTextures > 0 && !bAnyRestoring && !bAnyPendingOperation && bPlansRetired;
-	}
-
-	struct FFrameAuthority
-	{
-		bool bHasResult = false;
-		bool bOrderPending = false;
-		bool bForced = false;
-		EMembership Membership = EMembership::Unknown;
-	};
-
-	inline void ForceTerminalUnknown(FFrameAuthority& A)
-	{
-		if (A.bHasResult && !A.bOrderPending)
-		{
-			return;
-		}
-		A.bHasResult = true;
-		A.bOrderPending = false;
-		A.bForced = true;
-		A.Membership = EMembership::Unknown;
-	}
-
-	inline bool AcceptsLateReceipt(const FFrameAuthority& A)
-	{
-		return !A.bHasResult;
-	}
-
-	inline bool RejudgeOnRegistration(bool bRegisteredWhenJudged, bool bRegisteredNow)
-	{
-		return !bRegisteredWhenJudged && bRegisteredNow;
-	}
-
-	struct FCostSummary
-	{
-		int Samples = 0;
-		double MeanMs = 0.0;
-		double P95Ms = 0.0;
-		double MaxMs = 0.0;
-	};
-
-	inline FCostSummary SummarizeCost(const float* SortedMs, int Num, double SumMs)
-	{
-		FCostSummary S;
-		S.Samples = Num;
-		if (Num <= 0)
-		{
-			return S;
-		}
-		S.MeanMs = SumMs / (double)Num;
-		int Idx = (int)((95 * (long long)Num + 99) / 100) - 1;
-		Idx = Idx < 0 ? 0 : (Idx >= Num ? Num - 1 : Idx);
-		S.P95Ms = SortedMs[Idx];
-		S.MaxMs = SortedMs[Num - 1];
-		return S;
-	}
 
 	inline bool ShouldCarryAcrossRun(const FTrail& T)
 	{

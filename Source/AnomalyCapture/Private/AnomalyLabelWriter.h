@@ -246,6 +246,28 @@ namespace AnomalyLabel
 		int32 RestoreCarriedAtEnd = 0;
 		int32 RestoreInheritedAtStart = 0;
 		int32 ObserveUnresolved = 0;
+		int32 HoldMonitorScans = 0;
+		double HoldMonitorMsMean = 0.0;
+		double HoldMonitorMsP95 = 0.0;
+		double HoldMonitorMsMax = 0.0;
+		int32 HoldMonitorComponentsWalkedMax = 0;
+		int32 HoldMonitorUnregisteredWatchedMax = 0;
+		int32 HoldMonitorRegistrationRejudges = 0;
+		int32 HoldMonitorDirtyRequeued = 0;
+		int32 StreamerFences = 0;
+		double StreamerFenceMsMax = 0.0;
+		int32 StreamerFenceIncomplete = 0;
+		int32 RestoreHeldForStreamerPlans = 0;
+		int32 TrailDetaches = 0;
+		int32 TrailDetachesAtNextFire = 0;
+		int32 GraceFrames = 0;
+		int32 ReopensInGrace = 0;
+		int32 ReopensAfterDetach = 0;
+		int32 ReopenUnrecoverableFrames = 0;
+		int32 ReopenCrossTalkSuppressed = 0;
+		int32 ForcedAuthorityFrames = 0;
+		int32 LateReceiptAfterForce = 0;
+		int32 InheritedMaskRecords = 0;
 	};
 
 	struct FObservabilityTelemetry

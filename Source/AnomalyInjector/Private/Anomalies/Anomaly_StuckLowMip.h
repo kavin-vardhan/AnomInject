@@ -67,8 +67,13 @@ private:
 		int32 FramesWaited = 0;
 		int32 StreamInRequests = 0;
 		int32 SkippedPending = 0;
+		int32 PlansRetireFrames = 0;
+		bool bFenceRan = false;
 		bool bTimeoutReported = false;
 	};
+
+	bool RunStreamerFence(int32& OutRetireFrames);
+	bool bStreamerFencePending = false;
 
 	bool IsAwaitingRestore(const UTexture2D* Tex) const;
 
@@ -82,6 +87,7 @@ private:
 	void OnHoldRenderStateDirty(UActorComponent& Component);
 
 	TSet<FObjectKey> HoldKnownComponents;
+	TArray<TWeakObjectPtr<UActorComponent>> HoldUnregisteredWatch;
 	TArray<TWeakObjectPtr<UActorComponent>> HoldDirtyRecheck;
 	FCriticalSection HoldDirtyCS;
 	FDelegateHandle HoldLevelAddedHandle;

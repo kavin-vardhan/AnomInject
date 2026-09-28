@@ -189,6 +189,8 @@ private:
 	void CarryAttachedTrails();
 	void AdoptCarriedTrails();
 	void ApplyCarriedTrailOwnership(bool bOn);
+	void ServiceTrailDetach(int32 TrailIndex, bool bQuiet);
+	void DetachClosedTrailsForNextFire();
 	void RegisterBenchStuckMipLevers();
 	bool bRenderTruthRun = false;
 	int32 StuckMipSettleTailFrames = 0;

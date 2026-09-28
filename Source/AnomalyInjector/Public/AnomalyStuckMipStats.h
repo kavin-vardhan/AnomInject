@@ -34,6 +34,16 @@ namespace AnomalyStuckMip
 		int32 PurityLevelsScannedMax = 0;
 		int32 HoldMonitorScans = 0;
 		int32 HoldContaminations = 0;
+		double HoldMonitorScanMsSum = 0.0;
+		TArray<float> HoldMonitorScanMs;
+		int32 HoldMonitorComponentsWalkedMax = 0;
+		int32 HoldMonitorUnregisteredWatchedMax = 0;
+		int32 HoldMonitorRegistrationRejudges = 0;
+		int32 HoldMonitorDirtyRequeued = 0;
+		int32 StreamerFences = 0;
+		double StreamerFenceMsMax = 0.0;
+		int32 StreamerFenceIncomplete = 0;
+		int32 RestoreHeldForStreamerPlans = 0;
 	};
 
 	ANOMALYINJECTOR_API void ResetRunStats();

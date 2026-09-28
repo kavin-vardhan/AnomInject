@@ -1,7 +1,10 @@
 #include "../Source/AnomalyInjector/Public/AnomalyStuckMipWindow.h"
+#include "m52_window_legacy_90dfa6f.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -573,6 +576,397 @@ static void TestHoldMonitor()
 	Check(!IsContaminatedFrame(-1, 41, EMembership::Held), "hold: no contamination, no flag");
 }
 
+struct FToyStreamer
+{
+	bool bQueuedStaleOut = false;
+	bool bAmortizedQueue = false;
+	int StaleApplyFrame = -1;
+	int LowUntil = -1;
+	int LowFrom = -1;
+
+	void Flush()
+	{
+		if (!bAmortizedQueue)
+		{
+			bQueuedStaleOut = false;
+		}
+	}
+
+	void Tick(int Frame)
+	{
+		if (bQueuedStaleOut && Frame == StaleApplyFrame)
+		{
+			bQueuedStaleOut = false;
+			LowFrom = Frame;
+			LowUntil = Frame + 2;
+		}
+	}
+
+	bool Low(int Frame) const
+	{
+		return LowFrom >= 0 && Frame >= LowFrom && Frame <= LowUntil;
+	}
+};
+
+static void TestF1StreamerFence()
+{
+	FToyStreamer LS;
+	LS.bQueuedStaleOut = true;
+	LS.StaleApplyFrame = 8;
+	Legacy90dfa6f::FTrail L;
+	L.Open(4, 0, 120);
+	std::vector<int> LegacyUnlabelled;
+	for (int f = 4; f <= 14; ++f)
+	{
+		LS.Tick(f);
+		const bool bLow = LS.Low(f);
+		if (!L.StillAttached())
+		{
+			if (bLow) { LegacyUnlabelled.push_back(f); }
+			continue;
+		}
+		const bool bLegacySettled = !bLow;
+		L.NoteArmed(f);
+		L.Receive(f, bLow ? Legacy90dfa6f::EVerdict::Held : Legacy90dfa6f::EVerdict::NotHeld, bLegacySettled);
+	}
+	Check(L.bClosed && L.ClosedAtSI == 5 && LegacyUnlabelled == std::vector<int>({ 8, 9, 10 }),
+		"F1 legacy (90dfa6f): an already-back texture gets no restoring entry, so two baselines with no PendingUpdate "
+		"close the trail at 5; the stream-out the streamer QUEUED under the hold is issued at 8 and frames 8,9,10 are "
+		"blurred and unlabelled " + Str(LegacyUnlabelled));
+
+	for (int Amortized = 0; Amortized <= 1; ++Amortized)
+	{
+		FToyStreamer S;
+		S.bQueuedStaleOut = true;
+		S.bAmortizedQueue = Amortized != 0;
+		S.StaleApplyFrame = 8;
+		FStreamerFence Fence;
+		Fence.bAmortizedCopies = Amortized != 0;
+		Fence.MinFramesIfUnfenced = UnfencedMinFrames(5);
+		bool bFenceRan = false;
+		int RetireAt = -1;
+		FTrail T;
+		T.Open(4, 0, 120);
+		std::vector<int> Unlabelled, Labelled;
+		int CloseSI = -1;
+		for (int f = 4; f <= 40; ++f)
+		{
+			if (f == 5)
+			{
+				Fence.bFlushed = true;
+				S.Flush();
+				Fence.FramesSinceRevert = 0;
+				bFenceRan = true;
+				RetireAt = StreamerPlansRetired(Fence) ? f : f + Fence.MinFramesIfUnfenced;
+			}
+			S.Tick(f);
+			const bool bLow = S.Low(f);
+			const bool bRestoring = !bFenceRan || f < RetireAt || bLow;
+			if (!T.StillAttached())
+			{
+				if (bLow) { Unlabelled.push_back(f); }
+				continue;
+			}
+			const bool bSettled = IsArmSettled(1, bRestoring, bLow, true);
+			T.NoteArmed(f);
+			T.Receive(f, bLow ? EVerdict::Held : EVerdict::NotHeld, bSettled);
+			EMembership M = EMembership::Out;
+			if (T.TryGetMembership(f, M) && IsMember(M)) { Labelled.push_back(f); }
+			if (T.bClosed && CloseSI < 0) { CloseSI = T.ClosedAtSI; }
+		}
+		if (Amortized == 0)
+		{
+			Check(Unlabelled.empty() && Labelled.empty() && CloseSI == 6,
+				"F1: the streamer fence (synchronous full update) REPLACES the plan computed under the hold, so the queued "
+				"stream-out is never issued; the already-back texture stays tracked until the fence has run and the trail "
+				"closes on two settled baselines after it (6)");
+		}
+		else
+		{
+			Check(Unlabelled.empty() && Labelled == std::vector<int>({ 8, 9, 10 }) && CloseSI == 20,
+				"F1 amortized copies: the fence cannot retire the private copy queue, so baselines stay unsettled for two "
+				"full streaming cycles (14 frames); the late stream-out 8..10 is inside that window and LABELLED, and the "
+				"trail closes only at 20 " + Str(Labelled));
+		}
+	}
+	FStreamerFence Off;
+	Off.bStreamingEnabled = false;
+	Check(StreamerPlansRetired(Off), "F1: with texture streaming disabled there is no streamer plan to retire");
+	Check(!IsArmSettled(0, false, false, true), "F1: no watched texture is never settled");
+}
+
+struct FGraceSim
+{
+	std::vector<int> ProductlessMembers;
+	int Reopens = 0;
+	int ReopensAfterDetach = 0;
+	bool bDetachedAtEnd = false;
+	int ClosedAt = -1;
+};
+
+template <typename TrailT, typename AttachedFn>
+static FGraceSim RunGrace(TrailT& T, AttachedFn Attached, bool bNextFireAt116, int HeldLateSI)
+{
+	FGraceSim R;
+	const int Latency = 2;
+	auto V = [HeldLateSI](int si) -> int
+	{
+		if (si <= 101 || si == HeldLateSI) { return 1; }
+		return 0;
+	};
+	std::map<int, bool> Products;
+	std::map<int, bool> Watched;
+	std::set<int> Pending;
+	int ReopensHandled = 0;
+	for (int t = 100; t <= 125; ++t)
+	{
+		const int si = t - Latency;
+		if (Pending.count(si))
+		{
+			Pending.erase(si);
+			if (Watched[si])
+			{
+				using FVerdictT = decltype(T.Slots[0].Verdict);
+				const int v = Products[si] ? V(si) : 2;
+				T.Receive(si, (FVerdictT)v, true);
+			}
+		}
+		if (T.bClosed && R.ClosedAt < 0) { R.ClosedAt = T.ClosedAtSI; }
+		if (T.Reopens > ReopensHandled)
+		{
+			ReopensHandled = T.Reopens;
+			const int LastBefore = T.LastArmedSI;
+			for (int p : Pending)
+			{
+				if (p > LastBefore && !Watched[p])
+				{
+					Watched[p] = true;
+					T.NoteArmed(p);
+				}
+			}
+		}
+		if (t <= 118)
+		{
+			const bool bAtt = Attached(T, t, bNextFireAt116);
+			Products[t] = bAtt;
+			Watched[t] = bAtt;
+			if (bAtt) { T.NoteArmed(t); }
+			Pending.insert(t);
+		}
+	}
+	for (int si = 100; si <= 118; ++si)
+	{
+		int M = 0;
+		bool bGot = false;
+		if (T.NextSI >= 0 && si < T.NextSI)
+		{
+			const auto& S = T.Slot(si);
+			if (S.bProcessed && S.SessionIndex == si) { M = (int)S.Membership; bGot = true; }
+		}
+		if (bGot && M != 0 && !Products[si]) { R.ProductlessMembers.push_back(si); }
+	}
+	R.Reopens = T.Reopens;
+	return R;
+}
+
+static void TestF2GraceContinuity()
+{
+	Legacy90dfa6f::FTrail L;
+	L.Open(100, 0, 120);
+	const FGraceSim LR = RunGrace(L, [](Legacy90dfa6f::FTrail& Tr, int, bool) { return Tr.StillAttached(); }, false, 105);
+	Check(LR.Reopens == 1 && !LR.ProductlessMembers.empty(),
+		"F2 legacy (90dfa6f): closure at 104 detaches at once; the frame armed next (106) carries no watch, mask or m55 "
+		"label, so when the in-flight 105 reads HELD and reopens the event, 106 is labelled with no products "
+		+ Str(LR.ProductlessMembers));
+
+	FTrail T;
+	T.Open(100, 0, 120);
+	const FGraceSim NR = RunGrace(T, [](FTrail& Tr, int t, bool bFire)
+	{
+		if (bFire && t == 116) { Tr.TryDetach(t, true); }
+		return Tr.AttachedForProducts();
+	}, true, 105);
+	Check(NR.Reopens == 1 && NR.ProductlessMembers.empty() && T.ReopensAfterDetach == 0,
+		"F2: a closed event keeps its products through the grace, so the reopen on the in-flight HELD 105 has continuity: "
+		"no labelled frame lacks its watch, mask or m55 label " + Str(NR.ProductlessMembers));
+	Check(T.bDetached && T.DetachedAtSI == 116,
+		"F2: the grace ends when the next fire begins (116), before its hold can reach a frame");
+
+	FTrail Q;
+	Q.Open(200, 0, 120);
+	for (int si = 200; si <= 204; ++si) { Q.NoteArmed(si); }
+	for (int si = 200; si <= 203; ++si) { Q.Receive(si, si <= 201 ? EVerdict::Held : EVerdict::NotHeld, true); }
+	Check(Q.bClosing && !Q.bClosed && !Q.TryDetach(206, false), "F2: a closing trail never detaches");
+	Q.NoteArmed(205);
+	Q.Receive(204, EVerdict::NotHeld, true);
+	Check(Q.bClosed && !Q.AllNotedProcessed() && !Q.TryDetach(206, false) && Q.AttachedForProducts(),
+		"F2: closed with 205 still in flight - not detached while a noted request can still reopen it");
+	Q.Receive(205, EVerdict::NotHeld, true);
+	Check(Q.AllNotedProcessed() && Q.TryDetach(206, false) && !Q.AttachedForProducts(),
+		"F2: every noted request processed (a capture pause) - detached; no receipt can reach it any more");
+	Q.NoteArmed(206);
+	Check(Q.LastArmedSI == 205, "F2: a detached trail notes nothing");
+}
+
+static void TestF2Ownership()
+{
+	struct FWorld
+	{
+		bool bReserved = false;
+		bool bRefused = false;
+	};
+	struct FLegacyService
+	{
+		bool bEndEventsIssued = false;
+		bool bCarriedRefusal = false;
+	};
+	auto LegacyClose = [](FLegacyService& S, FWorld& W)
+	{
+		if (S.bEndEventsIssued) { return; }
+		S.bEndEventsIssued = true;
+		W.bReserved = false;
+		if (S.bCarriedRefusal) { W.bRefused = false; S.bCarriedRefusal = false; }
+	};
+	FWorld LW;
+	FLegacyService LS;
+	LegacyClose(LS, LW);
+	LW.bReserved = true;
+	LW.bRefused = true;
+	LegacyClose(LS, LW);
+	Check(LW.bReserved && LW.bRefused,
+		"F2 legacy (90dfa6f): close, service, reopen (reserve + restore_reopened refusal, not owned), reclose - the second "
+		"closure skips its service, so the target stays reserved and m52 refused for the rest of the run");
+
+	FWorld W;
+	FTrailOwnership O;
+	FOwnershipRelease R = OwnOnDetach(O, false, false);
+	Check(!R.bUnreserve && !R.bClearRefusal, "F2: an ordinary trail owns nothing and releases nothing");
+	W.bReserved = true;
+	W.bRefused = true;
+	OwnOnReopen(O);
+	R = OwnOnDetach(O, false, false);
+	if (R.bUnreserve) { W.bReserved = false; }
+	if (R.bClearRefusal) { W.bRefused = false; }
+	Check(!W.bReserved && !W.bRefused, "F2: a reopen OWNS its reservation and refusal, and the next detach releases both");
+	const FOwnershipRelease Twice = OwnOnDetach(O, false, false);
+	Check(!Twice.bUnreserve && !Twice.bClearRefusal, "F2: a detach is serviced once");
+	OwnOnReopen(O);
+	R = OwnOnDetach(O, true, true);
+	Check(!R.bUnreserve && !R.bClearRefusal,
+		"F2: another attached trail on the same target / id keeps the shared reservation and refusal in force");
+
+	FLegacyService LT;
+	FWorld LTW;
+	LTW.bRefused = true;
+	LTW.bReserved = true;
+	LegacyClose(LT, LTW);
+	Check(LTW.bRefused, "F2 legacy: the restore_unresolved refusal was never owned, so a LATE closure left m52 refused");
+	FTrailOwnership OT;
+	OwnOnRefusal(OT);
+	OwnOnReserve(OT);
+	const FOwnershipRelease RT = OwnOnDetach(OT, false, false);
+	Check(RT.bClearRefusal && RT.bUnreserve, "F2: the unresolved timeout owns its refusal and reservation; a late closure releases them");
+}
+
+static void TestF5OpeningMaskAndCarriedOwnership()
+{
+	auto LegacyNeedsRecord = [](bool bLiveFire, bool, bool) { return bLiveFire; };
+	std::vector<int> LegacyNoMask, NewNoMask;
+	for (int si = 0; si < 3; ++si)
+	{
+		const bool bRecordAtArmLegacy = LegacyNeedsRecord(false, true, true) || si >= 1;
+		if (!bRecordAtArmLegacy) { LegacyNoMask.push_back(si); }
+		if (!NeedsMaskRecordAtArm(false, true, true)) { NewNoMask.push_back(si); }
+	}
+	Check(LegacyNoMask == std::vector<int>({ 0 }),
+		"F5 legacy (90dfa6f): mask records are made at arm only for live fires, so the first frame of a new run that "
+		"inherited a trail is labelled with no target mask (the record appears only when that frame is accumulated) "
+		+ Str(LegacyNoMask));
+	Check(NewNoMask.empty(), "F5: the attached trail gets its mask record BEFORE the first arm of the run");
+	Check(!NeedsMaskRecordAtArm(false, true, false), "F5: a run without a render record creates no trail records");
+	Check(!NeedsMaskRecordAtArm(false, false, true), "F5: a detached trail needs no record");
+
+	auto LegacyReapply = [](bool bRenderTruthRun, bool bDeinit) { return bRenderTruthRun && !bDeinit; };
+	Check(!LegacyReapply(false, false),
+		"F5 legacy (90dfa6f): a non-render-truth run's FinishRun cleared every reservation and refusal and re-applied "
+		"carried ownership only for a render-truth run, so the carried restore lost its target reservation and refusal");
+	Check(ShouldReapplyCarriedOwnership(1, false), "F5: carried ownership is re-applied whatever the intervening run's mode");
+	Check(!ShouldReapplyCarriedOwnership(0, false) && !ShouldReapplyCarriedOwnership(1, true),
+		"F5: nothing to re-apply without a carry, and nothing is carried across world teardown");
+}
+
+static void TestF6ForcedAuthority()
+{
+	const bool bLegacyM55Labelled = true;
+	const EMembership LegacyRow = LiveMembership(EVerdict::NotHeld);
+	Check(bLegacyM55Labelled && !IsMember(LegacyRow),
+		"F6 legacy (90dfa6f): the 64-tick fallback submitted m55 as LABELLED but wrote nothing to the frame's render "
+		"result, so a late live baseline receipt made the row and mask OUT - m55 and the label disagree");
+	FFrameAuthority A;
+	ForceTerminalUnknown(A);
+	Check(A.bForced && A.bHasResult && IsMember(A.Membership) && !AcceptsLateReceipt(A),
+		"F6: the fallback writes a terminal UNKNOWN into the frame's single authority; the late receipt is ignored, so "
+		"row, mask and m55 are all labelled");
+	FFrameAuthority Pending;
+	Pending.bHasResult = true;
+	Pending.bOrderPending = true;
+	ForceTerminalUnknown(Pending);
+	Check(Pending.bForced && !Pending.bOrderPending && IsMember(Pending.Membership),
+		"F6: an order-pending result is overridden by the fallback too");
+	FFrameAuthority Final;
+	Final.bHasResult = true;
+	Final.Membership = EMembership::Out;
+	ForceTerminalUnknown(Final);
+	Check(!Final.bForced && Final.Membership == EMembership::Out, "F6: an already final result is never overwritten");
+}
+
+static void TestRegistrationRoute()
+{
+	struct FComp
+	{
+		bool bKnown = true;
+		bool bRegisteredWhenJudged = false;
+		bool bRegistered = false;
+		bool bUsesHeld = false;
+	};
+	FComponentScope Scope;
+	Scope.bInLoadedLevelOfWorld = true;
+	Scope.bLevelActive = true;
+	Scope.bPrimitiveOrDecal = true;
+	FComp C;
+	C.bUsesHeld = true;
+	C.bRegistered = true;
+	const bool bDirtyBroadcast = false;
+	const bool bLegacyJudged = !C.bKnown || bDirtyBroadcast;
+	Check(!bLegacyJudged,
+		"route 2 legacy (90dfa6f): a component known at Apply while UNREGISTERED is given the held texture and then "
+		"registers; registration broadcasts no dirty event and its identity is already known, so it is never judged");
+	const bool bRejudge = RejudgeOnRegistration(C.bRegisteredWhenJudged, C.bRegistered);
+	Scope.bRegistered = C.bRegistered;
+	Check(bRejudge && EvaluateNewHoldUser(Scope, C.bUsesHeld, false, true) == EHoldUserAction::RevertNow,
+		"route 2: the unregistered-when-judged watch re-judges it the tick it registers, and the hold reverts");
+	Check(!RejudgeOnRegistration(true, true) && !RejudgeOnRegistration(false, false),
+		"route 2: only a transition to registered triggers a re-judge");
+}
+
+static void TestMonitorCost()
+{
+	const bool bLegacyTimer = false;
+	Check(!bLegacyTimer, "monitor legacy (90dfa6f): the per-tick scan had no timer and its count was not written out");
+	std::vector<float> Ms;
+	double Sum = 0.0;
+	for (int i = 1; i <= 20; ++i) { Ms.push_back((float)i); Sum += i; }
+	std::sort(Ms.begin(), Ms.end());
+	const FCostSummary S = SummarizeCost(Ms.data(), (int)Ms.size(), Sum);
+	Check(S.Samples == 20 && S.MeanMs == 10.5 && S.P95Ms == 19.0 && S.MaxMs == 20.0,
+		"monitor: mean 10.5, nearest-rank p95 19, max 20 over 1..20 ms");
+	const FCostSummary E = SummarizeCost(nullptr, 0, 0.0);
+	Check(E.Samples == 0 && E.MaxMs == 0.0, "monitor: no scans reads zero, not garbage");
+	std::vector<float> One = { 3.5f };
+	const FCostSummary O = SummarizeCost(One.data(), 1, 3.5);
+	Check(O.P95Ms == 3.5 && O.MeanMs == 3.5, "monitor: a single scan is its own p95");
+}
+
 int main()
 {
 	TestTextureAndCombine();
@@ -590,6 +984,13 @@ int main()
 	TestF7DeferredMaskAge();
 	TestPurityScope();
 	TestHoldMonitor();
+	TestF1StreamerFence();
+	TestF2GraceContinuity();
+	TestF2Ownership();
+	TestF5OpeningMaskAndCarriedOwnership();
+	TestF6ForcedAuthority();
+	TestRegistrationRoute();
+	TestMonitorCost();
 	std::printf("m52 window selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }

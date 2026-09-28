@@ -196,8 +196,9 @@ struct FAnomalyCaptureAsyncState
 		TMap<int32, uint64> RequestBySI;
 		int32 ContamSI = -1;
 		int32 ReopensHandled = 0;
-		bool bEndEventsIssued = false;
-		bool bCarriedRefusal = false;
+		int32 ReopensAfterDetachHandled = 0;
+		AnomalyStuckMipWindow::FTrailOwnership Own;
+		bool bClosedLogged = false;
 	};
 	TArray<FStuckTrail> Trails;
 	TArray<FStuckTrail> CarriedTrails;
@@ -222,9 +223,12 @@ struct FAnomalyCaptureAsyncState
 		bool bRecord = false;
 		bool bOrderPending = false;
 		bool bWatchMissing = false;
+		bool bForced = false;
+		bool bLateReceiptSeen = false;
 		TArray<FRenderTexDetail> Textures;
 	};
 	TMap<int32, TMap<FString, FRenderEventResult>> RenderResultBySI;
+	TSet<int32> ProductsUnrecoverableSI;
 
 	struct FQueuedObserve
 	{
@@ -272,10 +276,31 @@ struct FAnomalyCaptureAsyncState
 	int32 RestoreCarriedAtEnd = 0;
 	int32 RestoreInheritedAtStart = 0;
 	int32 ObserveUnresolved = 0;
+	int32 TrailDetaches = 0;
+	int32 TrailDetachesAtNextFire = 0;
+	int32 GraceFrames = 0;
+	int32 ReopensInGrace = 0;
+	int32 ReopensAfterDetach = 0;
+	int32 ReopenUnrecoverableFrames = 0;
+	int32 CrossTalkSuppressed = 0;
+	int32 ForcedAuthorityFrames = 0;
+	int32 LateReceiptAfterForce = 0;
+	int32 InheritedMaskRecords = 0;
 
 	void ResetRenderTruth()
 	{
 		Trails.Reset();
+		ProductsUnrecoverableSI.Reset();
+		TrailDetaches = 0;
+		TrailDetachesAtNextFire = 0;
+		GraceFrames = 0;
+		ReopensInGrace = 0;
+		ReopensAfterDetach = 0;
+		ReopenUnrecoverableFrames = 0;
+		CrossTalkSuppressed = 0;
+		ForcedAuthorityFrames = 0;
+		LateReceiptAfterForce = 0;
+		InheritedMaskRecords = 0;
 		RenderTruthKeepAlive.Reset();
 		EventTextures.Reset();
 		ContaminatedFromSI.Reset();
@@ -1293,11 +1318,36 @@ void UAnomalyCaptureSubsystem::EnsureMaskRecordsForCapturedFrame()
 	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
 	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
 	{
+		if (!AnomalyStuckMipWindow::NeedsMaskRecordAtArm(true, false, bRenderTruthRun))
+		{
+			continue;
+		}
 		FAnomalyMaskRecord* Rec =
 			Async->MaskMeasure.FindOrAddRecord(F.Id, F.Target, F.StartFrame, const_cast<AActor*>(F.TargetActor.Get()));
 		if (Rec)
 		{
 			Rec->bAwaitLabelled = Injector && Injector->DoesAnomalyHaveDeferredOnset(F.Id);
+		}
+	}
+	for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
+	{
+		if (!AnomalyStuckMipWindow::NeedsMaskRecordAtArm(false, Trail.Window.AttachedForProducts(), bRenderTruthRun))
+		{
+			continue;
+		}
+		const FAutoLiveFireInfo& F = Trail.Fire;
+		const bool bExisted = Async->MaskMeasure.FindRecord(F.Id, F.Target, F.StartFrame) != nullptr;
+		FAnomalyMaskRecord* Rec =
+			Async->MaskMeasure.FindOrAddRecord(F.Id, F.Target, F.StartFrame, const_cast<AActor*>(F.TargetActor.Get()));
+		if (Rec && !bExisted)
+		{
+			Rec->bAwaitLabelled = Injector && Injector->DoesAnomalyHaveDeferredOnset(F.Id);
+			++Async->InheritedMaskRecords;
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m52): MASK RECORD FOR TRAIL event=%s target=%s tag=%d inherited=%d - the trailing event had no ")
+				TEXT("mask record in this run (the run's mask ledger starts empty and records were made only for live fires), ")
+				TEXT("so it is created BEFORE this frame's mask is armed and the frame's target mask carries the event's tag."),
+				*Trail.Key, *F.Target, (int32)Rec->Tag, Trail.Window.bInherited ? 1 : 0);
 		}
 	}
 }
@@ -1345,7 +1395,7 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 	{
 		for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
 		{
-			if (Trail.Window.StillAttached())
+			if (Trail.Window.AttachedForProducts())
 			{
 				ArmFires.Add(Trail.Fire);
 			}
@@ -4854,6 +4904,7 @@ void UAnomalyCaptureSubsystem::BeginFire()
 {
 	bDeferredOnsetWindowStarted = false;
 	DeferredOnsetWaitFrames = 0;
+	DetachClosedTrailsForNextFire();
 
 	if (bTargetGlobalHeld)
 	{
@@ -5190,10 +5241,14 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 		Snap->Trailing.AddZeroed(Snap->Fires.Num());
 		for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
 		{
-			if (Trail.Window.StillAttached())
+			if (Trail.Window.AttachedForProducts())
 			{
 				Snap->Fires.Add(Trail.Fire);
 				Snap->Trailing.Add(1);
+				if (Trail.Window.bClosed)
+				{
+					++Async->GraceFrames;
+				}
 			}
 		}
 		FinalizeRenderTruthArm(*Snap);
@@ -5642,7 +5697,7 @@ void UAnomalyCaptureSubsystem::BuildRenderWatch(AnomalyLabel::FCaptureSnapshot& 
 	}
 	for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
 	{
-		if (Trail.Window.StillAttached())
+		if (Trail.Window.AttachedForProducts())
 		{
 			AddEvent(Trail.Fire, Trail.Textures);
 		}
@@ -5682,18 +5737,21 @@ void UAnomalyCaptureSubsystem::FinalizeRenderTruthArm(AnomalyLabel::FCaptureSnap
 		{
 			Injector->GetAnomalyRestoringTextures(F.Id, Restoring);
 		}
-		bool bSettled = Textures.Num() > 0;
+		bool bAnyRestoring = false;
+		bool bAnyPending = false;
 		for (const FAnomalyRenderTruthTexture& T : Textures)
 		{
 			UTexture2D* Tex = T.Texture.Get();
-			const bool bRestoring = Restoring.ContainsByPredicate(
-				[Tex](const FAnomalyRenderTruthTexture& R) { return R.Texture.Get() == Tex; });
-			if (!Tex || bRestoring || static_cast<UStreamableRenderAsset*>(Tex)->HasPendingInitOrStreaming())
+			if (!Tex)
 			{
-				bSettled = false;
-				break;
+				bAnyPending = true;
+				continue;
 			}
+			bAnyRestoring |= Restoring.ContainsByPredicate(
+				[Tex](const FAnomalyRenderTruthTexture& R) { return R.Texture.Get() == Tex; });
+			bAnyPending |= static_cast<UStreamableRenderAsset*>(Tex)->HasPendingInitOrStreaming();
 		}
+		const bool bSettled = AnomalyStuckMipWindow::IsArmSettled(Textures.Num(), bAnyRestoring, bAnyPending, true);
 		Snap.RenderSettled[i] = bSettled ? 1 : 0;
 		if (Seen.Contains(Key))
 		{
@@ -5847,7 +5905,7 @@ void UAnomalyCaptureSubsystem::ApplyCarriedTrailOwnership(bool bOn)
 		{
 			Injector->SetActorReserved(Trail.Fire.TargetActor.Get(), false);
 			Injector->SetAnomalyRefusal(Trail.Fire.Id, FString());
-			Trail.bCarriedRefusal = false;
+			Trail.Own = AnomalyStuckMipWindow::FTrailOwnership();
 			continue;
 		}
 		Injector->SetActorReserved(Trail.Fire.TargetActor.Get(), true);
@@ -5856,7 +5914,91 @@ void UAnomalyCaptureSubsystem::ApplyCarriedTrailOwnership(bool bOn)
 			TEXT("back at its baseline, so its ownership, target reservation and this refusal persist until a later ")
 			TEXT("capture's record does"),
 			*Trail.Key, *Trail.Fire.Target));
-		Trail.bCarriedRefusal = true;
+		AnomalyStuckMipWindow::OwnOnReserve(Trail.Own);
+		AnomalyStuckMipWindow::OwnOnRefusal(Trail.Own);
+		Trail.Own.bServiced = false;
+	}
+}
+
+void UAnomalyCaptureSubsystem::ServiceTrailDetach(int32 TrailIndex, bool bQuiet)
+{
+	if (!Async.IsValid() || !Async->Trails.IsValidIndex(TrailIndex))
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	FAnomalyCaptureAsyncState::FStuckTrail& Trail = Async->Trails[TrailIndex];
+	const AActor* Target = Trail.Fire.TargetActor.Get();
+	bool bOtherReserver = false;
+	bool bOtherRefusalOwner = false;
+	auto Scan = [&](const FAnomalyCaptureAsyncState::FStuckTrail& Other, bool bCarried)
+	{
+		if (&Other == &Trail || (!bCarried && !Other.Window.AttachedForProducts()))
+		{
+			return;
+		}
+		if (Other.Own.bReserved && Target && Other.Fire.TargetActor.Get() == Target)
+		{
+			bOtherReserver = true;
+		}
+		if (Other.Own.bOwnsRefusal && Other.Fire.Id == Trail.Fire.Id)
+		{
+			bOtherRefusalOwner = true;
+		}
+	};
+	for (const FAnomalyCaptureAsyncState::FStuckTrail& Other : Async->Trails) { Scan(Other, false); }
+	for (const FAnomalyCaptureAsyncState::FStuckTrail& Other : Async->CarriedTrails) { Scan(Other, true); }
+	const bool bWasServiced = Trail.Own.bServiced;
+	const AnomalyStuckMipWindow::FOwnershipRelease Release =
+		AnomalyStuckMipWindow::OwnOnDetach(Trail.Own, bOtherReserver, bOtherRefusalOwner);
+	if (bWasServiced)
+	{
+		return;
+	}
+	++Async->TrailDetaches;
+	if (!bQuiet)
+	{
+		++Async->TrailDetachesAtNextFire;
+	}
+	if (Injector)
+	{
+		if (Release.bUnreserve)
+		{
+			Injector->SetActorReserved(Trail.Fire.TargetActor.Get(), false);
+		}
+		if (Release.bClearRefusal)
+		{
+			Injector->SetAnomalyRefusal(Trail.Fire.Id, FString());
+		}
+	}
+	if (bQuiet && Async->ChangeStage.IsValid() && (!Auto || Auto->GetLiveFireCount() == 0))
+	{
+		Async->ChangeStage->EndEvents(TEXT("event_end"));
+	}
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m52): RESTORE TRAIL DETACHED event=%s at si=%d (%s) closedAt=%d lastNoted=%d unreserved=%d ")
+		TEXT("refusalCleared=%d - the event stopped carrying products (watch, target mask, m55 label) only now. Between its ")
+		TEXT("closure and here every captured frame kept all three, so a late held or unknown receipt reopened it with ")
+		TEXT("continuity instead of leaving frames without a mask or an m55 label."),
+		*Trail.Key, Trail.Window.DetachedAtSI,
+		bQuiet ? TEXT("every noted request processed") : TEXT("the next fire begins, before its hold can reach a frame"),
+		Trail.Window.ClosedAtSI, Trail.Window.LastArmedSI, Release.bUnreserve ? 1 : 0, Release.bClearRefusal ? 1 : 0);
+}
+
+void UAnomalyCaptureSubsystem::DetachClosedTrailsForNextFire()
+{
+	if (!Async.IsValid() || !bRenderTruthRun)
+	{
+		return;
+	}
+	for (int32 i = 0; i < Async->Trails.Num(); ++i)
+	{
+		if (Async->Trails[i].Window.TryDetach(SessionFrameIndex, true))
+		{
+			ServiceTrailDetach(i, false);
+		}
 	}
 }
 
@@ -5956,7 +6098,9 @@ void UAnomalyCaptureSubsystem::AdoptCarriedTrails()
 		Trail.Window.RebaseForNewRun(0);
 		Trail.RequestBySI.Reset();
 		Trail.ReopensHandled = 0;
-		Trail.bEndEventsIssued = false;
+		Trail.ReopensAfterDetachHandled = 0;
+		Trail.bClosedLogged = false;
+		Trail.Own = AnomalyStuckMipWindow::FTrailOwnership();
 		if (Trail.ContamSI >= 0)
 		{
 			Async->ContaminatedFromSI.Add(Trail.Key, 0);
@@ -5969,7 +6113,8 @@ void UAnomalyCaptureSubsystem::AdoptCarriedTrails()
 				TEXT("restore_inherited: event %s on '%s' is still restoring from before this run; m52 fires are refused and ")
 				TEXT("the target is reserved until a render record shows every held texture back at its baseline"),
 				*Trail.Key, *Trail.Fire.Target));
-			Trail.bCarriedRefusal = true;
+			AnomalyStuckMipWindow::OwnOnReserve(Trail.Own);
+			AnomalyStuckMipWindow::OwnOnRefusal(Trail.Own);
 		}
 		++Async->RestoreInheritedAtStart;
 		UE_LOG(LogAnomalyCapture, Warning,
@@ -5990,6 +6135,7 @@ void UAnomalyCaptureSubsystem::HandleTrailReopens()
 	}
 	UWorld* World = GetWorld();
 	UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	const UAnomalyAutoInjectorSubsystem* ReopenAuto = ResolveAuto();
 	for (FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
 	{
 		if (Trail.Window.Reopens <= Trail.ReopensHandled)
@@ -5997,7 +6143,43 @@ void UAnomalyCaptureSubsystem::HandleTrailReopens()
 			continue;
 		}
 		Trail.ReopensHandled = Trail.Window.Reopens;
+		const bool bAfterDetach = Trail.Window.ReopensAfterDetach > Trail.ReopensAfterDetachHandled;
+		Trail.ReopensAfterDetachHandled = Trail.Window.ReopensAfterDetach;
+		Trail.bClosedLogged = false;
+		if (bAfterDetach && ReopenAuto)
+		{
+			bool bNewFireOnTarget = false;
+			for (const FAutoLiveFireInfo& F : ReopenAuto->GetLiveFires())
+			{
+				if (F.TargetActor.Get() == Trail.Fire.TargetActor.Get()
+					&& !(F.Id == Trail.Fire.Id && F.StartFrame == Trail.Fire.StartFrame))
+				{
+					bNewFireOnTarget = true;
+				}
+			}
+			if (bNewFireOnTarget)
+			{
+				Trail.Window.bClosed = true;
+				Trail.Window.bDetached = true;
+				++Async->CrossTalkSuppressed;
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m52): REOPEN SUPPRESSED event=%s at si=%d - a held or unknown receipt reached this event AFTER it ")
+					TEXT("detached, while a NEW fire is live on the same target, so the reading cannot be told apart from the new ")
+					TEXT("hold. The old event stays closed; the new event labels its own frames. Counted in ")
+					TEXT("run_summary.stuck_mip_reopen_crosstalk_suppressed."),
+					*Trail.Key, Trail.Window.LastReopenSI);
+				continue;
+			}
+		}
 		++Async->TrailReopens;
+		if (bAfterDetach)
+		{
+			++Async->ReopensAfterDetach;
+		}
+		else
+		{
+			++Async->ReopensInGrace;
+		}
 		const int32 LastBefore = Trail.Window.LastArmedSI;
 		TArray<TPair<int32, uint64>> Unwatched;
 		for (const TPair<uint64, AnomalyLabel::FCaptureSnapshot>& KV : Async->PendingSnapshots)
@@ -6040,6 +6222,8 @@ void UAnomalyCaptureSubsystem::HandleTrailReopens()
 			Trail.RequestBySI.Add(U.Key, U.Value);
 			Trail.Window.NoteArmed(U.Key);
 			Async->RenderResultBySI.Remove(U.Key);
+			Async->ProductsUnrecoverableSI.Add(U.Key);
+			++Async->ReopenUnrecoverableFrames;
 			Relabelled.Add(U.Key);
 		}
 		int32 WrittenUnwatched = 0;
@@ -6058,12 +6242,19 @@ void UAnomalyCaptureSubsystem::HandleTrailReopens()
 				TEXT("restore_reopened: event %s on '%s' read a held or unknown render record at or after its closure"),
 				*Trail.Key, *Trail.Fire.Target));
 		}
+		AnomalyStuckMipWindow::OwnOnReopen(Trail.Own);
 		UE_LOG(LogAnomalyCapture, Warning,
 			TEXT("Capture(m52): RESTORE TRAIL REOPENED event=%s at si=%d - a HELD or UNKNOWN record arrived at or after the ")
-			TEXT("closure (reopen #%d). The event is attached again; %d not-yet-written frame(s) armed after the closure are ")
-			TEXT("re-labelled for it as UNKNOWN (labelled), and %d frame(s) already written in that span could not be; they ")
-			TEXT("are counted in run_summary.stuck_mip_unwatched_after_close. m52 is refused and the target reserved again."),
-			*Trail.Key, Trail.Window.LastReopenSI, Trail.Window.Reopens, Relabelled.Num(), WrittenUnwatched);
+			TEXT("closure (reopen #%d, %s). The event is attached again. %s %d not-yet-written frame(s) armed without it are ")
+			TEXT("re-labelled for it as UNKNOWN (labelled) and flagged stuck_mip.products_unrecoverable = 1, because their ")
+			TEXT("target mask and m55 observation were issued without the event; %d frame(s) already written in that span ")
+			TEXT("could not be re-labelled (run_summary.stuck_mip_unwatched_after_close). m52 is refused and the target ")
+			TEXT("reserved again; this trail OWNS both and releases them when it detaches."),
+			*Trail.Key, Trail.Window.LastReopenSI, Trail.Window.Reopens,
+			bAfterDetach ? TEXT("AFTER it detached") : TEXT("inside its grace, before it detached"),
+			bAfterDetach ? TEXT("Frames armed after the detach lack its products:")
+				: TEXT("Every frame since the closure still carried its watch, target mask and m55 label, so continuity holds;"),
+			Relabelled.Num(), WrittenUnwatched);
 	}
 }
 
@@ -6217,8 +6408,9 @@ void UAnomalyCaptureSubsystem::ServiceStuckMipTrails()
 		}
 	}
 
-	for (FAnomalyCaptureAsyncState::FStuckTrail& Trail : Async->Trails)
+	for (int32 TrailIndex = 0; TrailIndex < Async->Trails.Num(); ++TrailIndex)
 	{
+		FAnomalyCaptureAsyncState::FStuckTrail& Trail = Async->Trails[TrailIndex];
 		if (!Trail.Window.bOpen)
 		{
 			continue;
@@ -6238,33 +6430,26 @@ void UAnomalyCaptureSubsystem::ServiceStuckMipTrails()
 		}
 		if (Trail.Window.bClosed)
 		{
-			if (!Trail.bEndEventsIssued)
+			if (!Trail.bClosedLogged)
 			{
-				Trail.bEndEventsIssued = true;
+				Trail.bClosedLogged = true;
 				++Async->TrailsClosed;
-				if (Injector)
-				{
-					Injector->SetActorReserved(Trail.Fire.TargetActor.Get(), false);
-					if (Trail.bCarriedRefusal)
-					{
-						Injector->SetAnomalyRefusal(Trail.Fire.Id, FString());
-						Trail.bCarriedRefusal = false;
-					}
-				}
-				if (Async->ChangeStage.IsValid() && (!Auto || Auto->GetLiveFireCount() == 0))
-				{
-					Async->ChangeStage->EndEvents(TEXT("event_end"));
-				}
 				UE_LOG(LogAnomalyCapture, Log,
 					TEXT("Capture(m52): RESTORE TRAIL CLOSED event=%s at si=%d - trailing frames held=%d unknown=%d missing=%d ")
 					TEXT("settleTail=%d unsettledBaseline=%d%s%s. The render record showed every held texture back at its ")
-					TEXT("baseline on %d consecutive captured frames armed with no stream operation pending, in capture order, ")
-					TEXT("through the fence si=%d; the next burst is released."),
+					TEXT("baseline on %d consecutive captured frames armed with no stream operation pending and the streamer ")
+					TEXT("fence past, in capture order, through the fence si=%d; the next burst is released. The event keeps ")
+					TEXT("its watch, target mask and m55 label on every frame until it DETACHES (every noted request processed, ")
+					TEXT("or the next fire begins), so a late receipt can still reopen it with continuity."),
 					*Trail.Key, Trail.Window.ClosedAtSI, Trail.Window.HeldFrames, Trail.Window.UnknownFrames,
 					Trail.Window.MissingFrames, Trail.Window.TailFrames, Trail.Window.UnsettledBaselineFrames,
 					Trail.Window.bUnresolved ? TEXT(" (LATE: this trail was already marked restore unresolved)") : TEXT(""),
 					Trail.Window.bInherited ? TEXT(" (INHERITED from before this run)") : TEXT(""),
 					AnomalyStuckMipWindow::ConfirmFrames, Trail.Window.ClosedAtSI);
+			}
+			if (Trail.Window.TryDetach(SessionFrameIndex, false))
+			{
+				ServiceTrailDetach(TrailIndex, true);
 			}
 			continue;
 		}
@@ -6279,6 +6464,9 @@ void UAnomalyCaptureSubsystem::ServiceStuckMipTrails()
 					TEXT("captured frames, so a further hold could not be told apart from this one"),
 					*Trail.Key, *Trail.Fire.Target, StuckMipTrailTimeoutFrames));
 				Injector->SetActorReserved(Trail.Fire.TargetActor.Get(), true);
+				AnomalyStuckMipWindow::OwnOnRefusal(Trail.Own);
+				AnomalyStuckMipWindow::OwnOnReserve(Trail.Own);
+				Trail.Own.bServiced = false;
 			}
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture(m52): RESTORE UNRESOLVED event=%s target=%s after %d captured frame(s). The run is NOT ")
@@ -6333,8 +6521,27 @@ void UAnomalyCaptureSubsystem::ComputeRenderMembership(const FAnomalyCapturedFra
 	{
 		return;
 	}
-	if (Async->RenderResultBySI.Contains(Snap.SessionIndex))
+	if (TMap<FString, FAnomalyCaptureAsyncState::FRenderEventResult>* Existing = Async->RenderResultBySI.Find(Snap.SessionIndex))
 	{
+		for (TPair<FString, FAnomalyCaptureAsyncState::FRenderEventResult>& KV : *Existing)
+		{
+			AnomalyStuckMipWindow::FFrameAuthority A;
+			A.bHasResult = true;
+			A.bOrderPending = KV.Value.bOrderPending;
+			if (KV.Value.bForced && !KV.Value.bLateReceiptSeen && !AnomalyStuckMipWindow::AcceptsLateReceipt(A))
+			{
+				KV.Value.bLateReceiptSeen = true;
+				if (++Async->LateReceiptAfterForce <= 8)
+				{
+					UE_LOG(LogAnomalyCapture, Warning,
+						TEXT("Capture(m52): LATE RECEIPT AFTER FORCED UNKNOWN event=%s si=%d - this frame's m55 observation was ")
+						TEXT("already submitted as LABELLED at the hard bound, and that terminal UNKNOWN is the frame's single ")
+						TEXT("authority: the late render record does NOT change its label or mask, so label, mask and m55 agree. ")
+						TEXT("Counted in run_summary.stuck_mip_late_receipt_after_force."),
+						*KV.Key, Snap.SessionIndex);
+				}
+			}
+		}
 		ResolvePendingMembership(Snap.SessionIndex);
 		return;
 	}
@@ -6526,6 +6733,14 @@ void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot(AnomalyLabel::FCapture
 		{
 			T.AddInt(TEXT("stuck_mip.watch_missing"), 1);
 		}
+		if (R->bForced)
+		{
+			T.AddInt(TEXT("stuck_mip.forced_unknown"), 1);
+		}
+		if (R->bTrailing && Async->ProductsUnrecoverableSI.Contains(Snap.SessionIndex))
+		{
+			T.AddInt(TEXT("stuck_mip.products_unrecoverable"), 1);
+		}
 		const int32* ContamSI = Async->ContaminatedFromSI.Find(Key);
 		if (ContamSI && AnomalyStuckMipWindow::IsContaminatedFrame(*ContamSI, Snap.SessionIndex, R->Membership))
 		{
@@ -6597,12 +6812,42 @@ void UAnomalyCaptureSubsystem::FlushObserveQueue(bool bForce)
 				{
 					break;
 				}
+				TMap<FString, FAnomalyCaptureAsyncState::FRenderEventResult>& Authority =
+					Async->RenderResultBySI.FindOrAdd(Head.SessionIndex);
+				bool bWroteAuthority = false;
 				for (int32 g = 0; g < Head.GatedLabel.Num(); ++g)
 				{
 					if (Head.Labels.IsValidIndex(Head.GatedLabel[g]))
 					{
 						Head.Labels[Head.GatedLabel[g]].bLabelled = true;
 					}
+					if (!Head.GatedKey.IsValidIndex(g))
+					{
+						continue;
+					}
+					FAnomalyCaptureAsyncState::FRenderEventResult* Existing = Authority.Find(Head.GatedKey[g]);
+					AnomalyStuckMipWindow::FFrameAuthority A;
+					A.bHasResult = Existing != nullptr;
+					A.bOrderPending = Existing && Existing->bOrderPending;
+					if (Existing)
+					{
+						A.Membership = Existing->Membership;
+					}
+					AnomalyStuckMipWindow::ForceTerminalUnknown(A);
+					if (!A.bForced)
+					{
+						continue;
+					}
+					FAnomalyCaptureAsyncState::FRenderEventResult& R = Existing ? *Existing : Authority.Add(Head.GatedKey[g]);
+					R.Membership = A.Membership;
+					R.Verdict = AnomalyStuckMipWindow::EVerdict::Unknown;
+					R.bOrderPending = false;
+					R.bForced = true;
+					bWroteAuthority = true;
+				}
+				if (bWroteAuthority)
+				{
+					++Async->ForcedAuthorityFrames;
 				}
 				Head.bReady = true;
 				++Async->ObserveForced;
@@ -7388,8 +7633,60 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	StuckMipReport.RefusedBaselinePending = StuckMipStats.RefusedBaselinePending;
 	StuckMipReport.RestoreTrackedWhileBusy = StuckMipStats.RestoreTrackedWhileBusy;
 	StuckMipReport.PurityEnumerationMsMax = StuckMipStats.PurityEnumerationMsMax;
+	{
+		TArray<float> ScanMs = StuckMipStats.HoldMonitorScanMs;
+		ScanMs.Sort();
+		const AnomalyStuckMipWindow::FCostSummary Cost =
+			AnomalyStuckMipWindow::SummarizeCost(ScanMs.GetData(), ScanMs.Num(), StuckMipStats.HoldMonitorScanMsSum);
+		StuckMipReport.HoldMonitorScans = StuckMipStats.HoldMonitorScans;
+		StuckMipReport.HoldMonitorMsMean = Cost.MeanMs;
+		StuckMipReport.HoldMonitorMsP95 = Cost.P95Ms;
+		StuckMipReport.HoldMonitorMsMax = Cost.MaxMs;
+		StuckMipReport.HoldMonitorComponentsWalkedMax = StuckMipStats.HoldMonitorComponentsWalkedMax;
+		StuckMipReport.HoldMonitorUnregisteredWatchedMax = StuckMipStats.HoldMonitorUnregisteredWatchedMax;
+		StuckMipReport.HoldMonitorRegistrationRejudges = StuckMipStats.HoldMonitorRegistrationRejudges;
+		StuckMipReport.HoldMonitorDirtyRequeued = StuckMipStats.HoldMonitorDirtyRequeued;
+		StuckMipReport.StreamerFences = StuckMipStats.StreamerFences;
+		StuckMipReport.StreamerFenceMsMax = StuckMipStats.StreamerFenceMsMax;
+		StuckMipReport.StreamerFenceIncomplete = StuckMipStats.StreamerFenceIncomplete;
+		StuckMipReport.RestoreHeldForStreamerPlans = StuckMipStats.RestoreHeldForStreamerPlans;
+		if (StuckMipStats.FiresApplied > 0)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m52): HOLD MONITOR COST scans=%d samples=%d meanMs=%.4f p95Ms=%.4f maxMs=%.4f ")
+				TEXT("componentsWalkedMax=%d unregisteredWatchedMax=%d registrationRejudges=%d dirtyRequeued=%d ")
+				TEXT("contaminations=%d - game-thread time of the per-tick hold-monitor scan, timed around every scan of ")
+				TEXT("this run; the 30 fps pacer absorbs any cost below its budget, so this timer, not speed_ratio, is the reading. ")
+				TEXT("STREAMER FENCE fences=%d maxMs=%.3f incomplete=%d restoresHeldForPlans=%d."),
+				StuckMipStats.HoldMonitorScans, Cost.Samples, Cost.MeanMs, Cost.P95Ms, Cost.MaxMs,
+				StuckMipStats.HoldMonitorComponentsWalkedMax, StuckMipStats.HoldMonitorUnregisteredWatchedMax,
+				StuckMipStats.HoldMonitorRegistrationRejudges, StuckMipStats.HoldMonitorDirtyRequeued,
+				StuckMipStats.HoldContaminations, StuckMipStats.StreamerFences, StuckMipStats.StreamerFenceMsMax,
+				StuckMipStats.StreamerFenceIncomplete, StuckMipStats.RestoreHeldForStreamerPlans);
+		}
+	}
 	if (Async.IsValid())
 	{
+		StuckMipReport.TrailDetaches = Async->TrailDetaches;
+		StuckMipReport.TrailDetachesAtNextFire = Async->TrailDetachesAtNextFire;
+		StuckMipReport.GraceFrames = Async->GraceFrames;
+		StuckMipReport.ReopensInGrace = Async->ReopensInGrace;
+		StuckMipReport.ReopensAfterDetach = Async->ReopensAfterDetach;
+		StuckMipReport.ReopenUnrecoverableFrames = Async->ReopenUnrecoverableFrames;
+		StuckMipReport.ReopenCrossTalkSuppressed = Async->CrossTalkSuppressed;
+		StuckMipReport.ForcedAuthorityFrames = Async->ForcedAuthorityFrames;
+		StuckMipReport.LateReceiptAfterForce = Async->LateReceiptAfterForce;
+		StuckMipReport.InheritedMaskRecords = Async->InheritedMaskRecords;
+		if (Async->TrailsOpened > 0 || Async->RestoreInheritedAtStart > 0)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m52): TRAIL LIFECYCLE detaches=%d atNextFire=%d graceFrames=%d reopensInGrace=%d ")
+				TEXT("reopensAfterDetach=%d unrecoverableFrames=%d crossTalkSuppressed=%d forcedAuthorityFrames=%d ")
+				TEXT("lateReceiptAfterForce=%d trailMaskRecords=%d"),
+				Async->TrailDetaches, Async->TrailDetachesAtNextFire, Async->GraceFrames, Async->ReopensInGrace,
+				Async->ReopensAfterDetach, Async->ReopenUnrecoverableFrames, Async->CrossTalkSuppressed,
+				Async->ForcedAuthorityFrames, Async->LateReceiptAfterForce, Async->InheritedMaskRecords);
+		}
 		StuckMipReport.RenderRecordFrames = Async->RenderRecordFrames;
 		StuckMipReport.RenderHeldFrames = Async->RenderHeldFrames;
 		StuckMipReport.RenderUnknownFrames = Async->RenderUnknownFrames;
@@ -7636,7 +7933,18 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		if (bRenderTruthRun && !bDeinitializing)
 		{
 			CarryAttachedTrails();
+		}
+		if (AnomalyStuckMipWindow::ShouldReapplyCarriedOwnership(Async->CarriedTrails.Num(), bDeinitializing))
+		{
 			ApplyCarriedTrailOwnership(true);
+			if (!bRenderTruthRun)
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m52): %d CARRIED restore(s) kept their target reservation and m52 refusal through this run's end ")
+					TEXT("- this run had no render record (not SVE + async), so it could neither observe nor close them, and the ")
+					TEXT("run-end clear no longer drops the ownership a later render-record run adopts."),
+					Async->CarriedTrails.Num());
+			}
 		}
 		Async->ResetRenderTruth();
 	}

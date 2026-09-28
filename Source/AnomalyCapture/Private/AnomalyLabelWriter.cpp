@@ -794,6 +794,28 @@ namespace AnomalyLabel
 				Root->SetNumberField(TEXT("stuck_mip_restore_carried_at_end"), StuckMip->RestoreCarriedAtEnd);
 				Root->SetNumberField(TEXT("stuck_mip_restore_inherited_at_start"), StuckMip->RestoreInheritedAtStart);
 				Root->SetNumberField(TEXT("stuck_mip_observe_unresolved"), StuckMip->ObserveUnresolved);
+				Root->SetNumberField(TEXT("stuck_mip_hold_monitor_scans"), StuckMip->HoldMonitorScans);
+				Root->SetNumberField(TEXT("stuck_mip_hold_monitor_ms_mean"), StuckMip->HoldMonitorMsMean);
+				Root->SetNumberField(TEXT("stuck_mip_hold_monitor_ms_p95"), StuckMip->HoldMonitorMsP95);
+				Root->SetNumberField(TEXT("stuck_mip_hold_monitor_ms_max"), StuckMip->HoldMonitorMsMax);
+				Root->SetNumberField(TEXT("stuck_mip_hold_monitor_components_walked_max"), StuckMip->HoldMonitorComponentsWalkedMax);
+				Root->SetNumberField(TEXT("stuck_mip_hold_monitor_unregistered_watched_max"), StuckMip->HoldMonitorUnregisteredWatchedMax);
+				Root->SetNumberField(TEXT("stuck_mip_hold_monitor_registration_rejudges"), StuckMip->HoldMonitorRegistrationRejudges);
+				Root->SetNumberField(TEXT("stuck_mip_hold_monitor_dirty_requeued"), StuckMip->HoldMonitorDirtyRequeued);
+				Root->SetNumberField(TEXT("stuck_mip_streamer_fences"), StuckMip->StreamerFences);
+				Root->SetNumberField(TEXT("stuck_mip_streamer_fence_ms_max"), StuckMip->StreamerFenceMsMax);
+				Root->SetNumberField(TEXT("stuck_mip_streamer_fence_incomplete"), StuckMip->StreamerFenceIncomplete);
+				Root->SetNumberField(TEXT("stuck_mip_restore_held_for_streamer_plans"), StuckMip->RestoreHeldForStreamerPlans);
+				Root->SetNumberField(TEXT("stuck_mip_trail_detaches"), StuckMip->TrailDetaches);
+				Root->SetNumberField(TEXT("stuck_mip_trail_detaches_at_next_fire"), StuckMip->TrailDetachesAtNextFire);
+				Root->SetNumberField(TEXT("stuck_mip_grace_frames"), StuckMip->GraceFrames);
+				Root->SetNumberField(TEXT("stuck_mip_reopens_in_grace"), StuckMip->ReopensInGrace);
+				Root->SetNumberField(TEXT("stuck_mip_reopens_after_detach"), StuckMip->ReopensAfterDetach);
+				Root->SetNumberField(TEXT("stuck_mip_reopen_unrecoverable_frames"), StuckMip->ReopenUnrecoverableFrames);
+				Root->SetNumberField(TEXT("stuck_mip_reopen_crosstalk_suppressed"), StuckMip->ReopenCrossTalkSuppressed);
+				Root->SetNumberField(TEXT("stuck_mip_forced_authority_frames"), StuckMip->ForcedAuthorityFrames);
+				Root->SetNumberField(TEXT("stuck_mip_late_receipt_after_force"), StuckMip->LateReceiptAfterForce);
+				Root->SetNumberField(TEXT("stuck_mip_inherited_mask_records"), StuckMip->InheritedMaskRecords);
 			}
 		}
 		Root->SetNumberField(TEXT("frames_exposure_dip"), FramesExposureDip);

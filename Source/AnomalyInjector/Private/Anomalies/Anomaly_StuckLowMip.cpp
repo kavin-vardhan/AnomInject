@@ -10,6 +10,7 @@
 #include "Components/DecalComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
+#include "ContentStreaming.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
 #include "HAL/PlatformTime.h"
@@ -947,6 +948,7 @@ void FAnomaly_StuckLowMip::OnWorldTeardown()
 		Unverified, *Names);
 
 	Restoring.Reset();
+	bStreamerFencePending = false;
 }
 
 void FAnomaly_StuckLowMip::Revert()
@@ -1006,6 +1008,15 @@ void FAnomaly_StuckLowMip::Revert()
 			if (!bBusy)
 			{
 				++AlreadyBack;
+				FRestoringTexture Back;
+				Back.Texture = Tex;
+				Back.TextureName = H.TextureName;
+				Back.BaselineResidentMips = H.BaselineResidentMips;
+				Back.BaselineResourceId = H.BaselineResourceId;
+				Back.Owner = PrimaryOwner;
+				Back.OwnerName = PrimaryOwnerName;
+				Restoring.Add(Back);
+				++GStuckMipStats.RestoreHeldForStreamerPlans;
 				continue;
 			}
 			++GStuckMipStats.RestoreTrackedWhileBusy;
@@ -1044,11 +1055,18 @@ void FAnomaly_StuckLowMip::Revert()
 		}
 	}
 
+	if (Restoring.Num() > 0)
+	{
+		bStreamerFencePending = true;
+	}
+
 	UE_LOG(LogAnomaly, Log,
 		TEXT("stuck_low_mip: revert of %d held texture(s) - restored=%d left-to-game=%d unresolved=%d relinked=%d ")
 		TEXT("already-back=%d awaiting-restore=%d (total tracked %d). The bias is cleared on every restored texture; ")
 		TEXT("a texture whose resident count is not yet back at its baseline is POLLED every frame until it is, and ")
-		TEXT("while it is pending, any fire on a target that uses it is refused as not_restored."),
+		TEXT("while it is pending, any fire on a target that uses it is refused as not_restored. Every tracked texture, ")
+		TEXT("already-back ones included, is released only after the STREAMER FENCE has retired any mip plan the ")
+		TEXT("streamer computed under the hold (queued but not yet issued), which runs on the next tick."),
 		Held.Num(), Restored, LeftToGame, Unresolved, Relinked, AlreadyBack, Tracked, Restoring.Num());
 
 	Held.Reset();
@@ -1060,6 +1078,46 @@ void FAnomaly_StuckLowMip::Revert()
 	bNoHoldLever = false;
 	bActive = false;
 	GStuckMipStats.TexturesAwaitingRestore = Restoring.Num();
+}
+
+bool FAnomaly_StuckLowMip::RunStreamerFence(int32& OutRetireFrames)
+{
+	OutRetireFrames = 0;
+	AnomalyStuckMipWindow::FStreamerFence Fence;
+	Fence.bStreamingEnabled = !IStreamingManager::HasShutdown() && IStreamingManager::Get().IsTextureStreamingEnabled();
+	Fence.bAmortizedCopies = ReadIntCVar(TEXT("r.Streaming.AmortizeCPUToGPUCopy"), 0) != 0
+		&& ReadIntCVar(TEXT("r.Streaming.MaxNumTexturesToStreamPerFrame"), 0) > 0;
+	Fence.MinFramesIfUnfenced = AnomalyStuckMipWindow::UnfencedMinFrames(ReadIntCVar(TEXT("r.Streaming.FramesForFullUpdate"), 5));
+	double Ms = 0.0;
+	if (Fence.bStreamingEnabled)
+	{
+		const double Start = FPlatformTime::Seconds();
+		IStreamingManager::Get().GetRenderAssetStreamingManager().UpdateResourceStreaming(0.0f, true);
+		Ms = (FPlatformTime::Seconds() - Start) * 1000.0;
+		Fence.bFlushed = true;
+		++GStuckMipStats.StreamerFences;
+		GStuckMipStats.StreamerFenceMsMax = FMath::Max(GStuckMipStats.StreamerFenceMsMax, Ms);
+	}
+	const bool bRetired = AnomalyStuckMipWindow::StreamerPlansRetired(Fence);
+	if (!bRetired)
+	{
+		OutRetireFrames = Fence.MinFramesIfUnfenced;
+		++GStuckMipStats.StreamerFenceIncomplete;
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("stuck_low_mip: STREAMER FENCE INCOMPLETE - r.Streaming.AmortizeCPUToGPUCopy is on with ")
+			TEXT("r.Streaming.MaxNumTexturesToStreamPerFrame > 0, so mip copies the streamer queued under the hold can still ")
+			TEXT("be issued from its private copy queue after the synchronous update (UE 5.1 exposes no public generation for ")
+			TEXT("it). The restoring textures are held for %d further frame(s), two full streaming cycles, before a baseline ")
+			TEXT("may confirm; this bound is a heuristic, not a proof. Counted in run_summary.stuck_mip_streamer_fence_incomplete."),
+			OutRetireFrames);
+	}
+	UE_LOG(LogAnomaly, Log,
+		TEXT("stuck_low_mip: STREAMER FENCE flushed=%d amortizedCopies=%d streamingEnabled=%d ms=%.3f retired=%d - a ")
+		TEXT("synchronous full streaming update (UpdateResourceStreaming(0, true), the engine's own StreamAllResources ")
+		TEXT("step) recomputes every wanted mip with the reverted bias and REPLACES the in-flight mip plan, so a stream-out ")
+		TEXT("computed under the hold but not yet issued can no longer be issued."),
+		Fence.bFlushed ? 1 : 0, Fence.bAmortizedCopies ? 1 : 0, Fence.bStreamingEnabled ? 1 : 0, Ms, bRetired ? 1 : 0);
+	return bRetired;
 }
 
 bool FAnomaly_StuckLowMip::IsAwaitingRestore(const UTexture2D* Tex) const
@@ -1095,7 +1153,29 @@ void FAnomaly_StuckLowMip::TickAlways(float DeltaSeconds)
 
 	if (bActive && bHoldMonitorOn)
 	{
+		const double ScanStart = FPlatformTime::Seconds();
 		ScanHoldForNewUsers(TEXT("per-tick new-component diff"));
+		const double ScanMs = (FPlatformTime::Seconds() - ScanStart) * 1000.0;
+		GStuckMipStats.HoldMonitorScanMsSum += ScanMs;
+		if (GStuckMipStats.HoldMonitorScanMs.Num() < 262144)
+		{
+			GStuckMipStats.HoldMonitorScanMs.Add((float)ScanMs);
+		}
+	}
+
+	if (bStreamerFencePending)
+	{
+		bStreamerFencePending = false;
+		int32 RetireFrames = 0;
+		const bool bRetired = RunStreamerFence(RetireFrames);
+		for (FRestoringTexture& R : Restoring)
+		{
+			if (!R.bFenceRan)
+			{
+				R.bFenceRan = true;
+				R.PlansRetireFrames = bRetired ? 0 : R.FramesWaited + RetireFrames;
+			}
+		}
 	}
 
 	if (Restoring.Num() == 0)
@@ -1121,19 +1201,28 @@ void FAnomaly_StuckLowMip::TickAlways(float DeltaSeconds)
 		}
 
 		const int32 Resident = Tex->GetNumResidentMips();
-		if (Resident >= R.BaselineResidentMips && !static_cast<UStreamableRenderAsset*>(Tex)->HasPendingInitOrStreaming())
+		const bool bPending = static_cast<UStreamableRenderAsset*>(Tex)->HasPendingInitOrStreaming();
+		const bool bPlansRetired = R.bFenceRan && R.FramesWaited >= R.PlansRetireFrames;
+		if (Resident >= R.BaselineResidentMips && !bPending && bPlansRetired)
 		{
 			GStuckMipStats.RestoreFramesMax = FMath::Max(GStuckMipStats.RestoreFramesMax, R.FramesWaited);
 			UE_LOG(LogAnomaly, Log,
 				TEXT("stuck_low_mip: RESTORE VERIFIED '%s' resident %d >= baseline %d after %d frame(s), %d ")
-				TEXT("re-asserted stream-in request(s) and %d frame(s) where the engine was already busy. This is a ")
-				TEXT("READ-BACK of the engine's own resident count, not an assumption that the revert took."),
-				*R.TextureName, Resident, R.BaselineResidentMips, R.FramesWaited, R.StreamInRequests, R.SkippedPending);
+				TEXT("re-asserted stream-in request(s) and %d frame(s) where the engine was already busy, with the ")
+				TEXT("streamer fence past (plans retire frame %d). This is a READ-BACK of the engine's own resident count, ")
+				TEXT("not an assumption that the revert took."),
+				*R.TextureName, Resident, R.BaselineResidentMips, R.FramesWaited, R.StreamInRequests, R.SkippedPending,
+				R.PlansRetireFrames);
 			Restoring.RemoveAt(i);
 			continue;
 		}
 
 		++R.FramesWaited;
+
+		if (Resident >= R.BaselineResidentMips && !bPending)
+		{
+			continue;
+		}
 
 		UStreamableRenderAsset* Asset = Tex;
 		if (Asset->HasPendingInitOrStreaming())
@@ -1269,25 +1358,33 @@ void FAnomaly_StuckLowMip::StartHoldMonitor(UWorld* World)
 		return;
 	}
 	HoldKnownComponents.Reset();
+	HoldUnregisteredWatch.Reset();
+	TSet<const ULevel*> Loaded;
+	GatherLoadedLevels(World, Loaded);
 	int32 Deferred = 0;
-	for (TObjectIterator<UPrimitiveComponent> It; It; ++It)
+	auto Seed = [this, &Loaded, &Deferred](UActorComponent* AC)
 	{
-		if (IsComponentStillLoading(*It))
+		if (IsComponentStillLoading(AC))
 		{
 			++Deferred;
-			continue;
+			return;
 		}
-		HoldKnownComponents.Add(FObjectKey(*It));
+		HoldKnownComponents.Add(FObjectKey(AC));
+		if (!AC->IsRegistered() && AnomalyStuckMipWindow::InPurityScope(DescribeComponentScope(AC, Loaded)))
+		{
+			HoldUnregisteredWatch.Add(AC);
+		}
+	};
+	for (TObjectIterator<UPrimitiveComponent> It; It; ++It)
+	{
+		Seed(*It);
 	}
 	for (TObjectIterator<UDecalComponent> It; It; ++It)
 	{
-		if (IsComponentStillLoading(*It))
-		{
-			++Deferred;
-			continue;
-		}
-		HoldKnownComponents.Add(FObjectKey(*It));
+		Seed(*It);
 	}
+	GStuckMipStats.HoldMonitorUnregisteredWatchedMax =
+		FMath::Max(GStuckMipStats.HoldMonitorUnregisteredWatchedMax, HoldUnregisteredWatch.Num());
 	{
 		FScopeLock Lock(&HoldDirtyCS);
 		HoldDirtyRecheck.Reset();
@@ -1301,8 +1398,10 @@ void FAnomaly_StuckLowMip::StartHoldMonitor(UWorld* World)
 		TEXT("streamed in, newly created or registered: a per-tick diff against that set, because UE 5.1 has no global ")
 		TEXT("component-registered delegate), a level ADDED to the world (FWorldDelegates::LevelAddedToWorld), or a ")
 		TEXT("component whose render state is marked dirty (a material change) is checked; a new user of a held texture ")
-		TEXT("that is not the target REVERTS THE HOLD IMMEDIATELY and flags the event contaminated."),
-		HoldKnownComponents.Num(), Deferred);
+		TEXT("that is not the target REVERTS THE HOLD IMMEDIATELY and flags the event contaminated. %d in-scope component(s) ")
+		TEXT("were UNREGISTERED when judged; each is judged again the tick it registers, because registration creates its ")
+		TEXT("render state without a dirty broadcast and a material set while it was unregistered is otherwise never seen."),
+		HoldKnownComponents.Num(), Deferred, HoldUnregisteredWatch.Num());
 }
 
 void FAnomaly_StuckLowMip::StopHoldMonitor()
@@ -1319,6 +1418,7 @@ void FAnomaly_StuckLowMip::StopHoldMonitor()
 	}
 	bHoldMonitorOn = false;
 	HoldKnownComponents.Reset();
+	HoldUnregisteredWatch.Reset();
 	FScopeLock Lock(&HoldDirtyCS);
 	HoldDirtyRecheck.Reset();
 }
@@ -1435,37 +1535,58 @@ void FAnomaly_StuckLowMip::ScanHoldForNewUsers(const TCHAR* Trigger)
 	TSet<const ULevel*> Loaded;
 	GatherLoadedLevels(World, Loaded);
 	TArray<UActorComponent*> Fresh;
-	for (TObjectIterator<UPrimitiveComponent> It; It; ++It)
+	int32 Walked = 0;
+	auto Diff = [this, &Loaded, &Fresh, &Walked](UActorComponent* AC)
 	{
-		UPrimitiveComponent* P = *It;
-		if (!P || IsComponentStillLoading(P))
+		++Walked;
+		if (!AC || IsComponentStillLoading(AC))
 		{
-			continue;
+			return;
 		}
-		const FObjectKey Key(P);
-		if (!HoldKnownComponents.Contains(Key) && SettleHoldComponent(P, Loaded))
+		const FObjectKey Key(AC);
+		if (!HoldKnownComponents.Contains(Key) && SettleHoldComponent(AC, Loaded))
 		{
 			HoldKnownComponents.Add(Key);
-			Fresh.Add(P);
+			Fresh.Add(AC);
+			if (!AC->IsRegistered() && AnomalyStuckMipWindow::InPurityScope(DescribeComponentScope(AC, Loaded)))
+			{
+				HoldUnregisteredWatch.Add(AC);
+			}
 		}
+	};
+	for (TObjectIterator<UPrimitiveComponent> It; It; ++It)
+	{
+		Diff(*It);
 	}
 	for (TObjectIterator<UDecalComponent> It; It; ++It)
 	{
-		UDecalComponent* D = *It;
-		if (!D || IsComponentStillLoading(D))
-		{
-			continue;
-		}
-		const FObjectKey Key(D);
-		if (!HoldKnownComponents.Contains(Key) && SettleHoldComponent(D, Loaded))
-		{
-			HoldKnownComponents.Add(Key);
-			Fresh.Add(D);
-		}
+		Diff(*It);
 	}
+	GStuckMipStats.HoldMonitorComponentsWalkedMax = FMath::Max(GStuckMipStats.HoldMonitorComponentsWalkedMax, Walked);
+	GStuckMipStats.HoldMonitorUnregisteredWatchedMax =
+		FMath::Max(GStuckMipStats.HoldMonitorUnregisteredWatchedMax, HoldUnregisteredWatch.Num());
 	for (UActorComponent* AC : Fresh)
 	{
 		if (ConsiderHoldUser(AC, Loaded, Trigger))
+		{
+			return;
+		}
+	}
+	for (int32 i = HoldUnregisteredWatch.Num() - 1; i >= 0; --i)
+	{
+		UActorComponent* AC = HoldUnregisteredWatch[i].Get();
+		if (!AC)
+		{
+			HoldUnregisteredWatch.RemoveAtSwap(i);
+			continue;
+		}
+		if (!AnomalyStuckMipWindow::RejudgeOnRegistration(false, AC->IsRegistered()))
+		{
+			continue;
+		}
+		HoldUnregisteredWatch.RemoveAtSwap(i);
+		++GStuckMipStats.HoldMonitorRegistrationRejudges;
+		if (ConsiderHoldUser(AC, Loaded, TEXT("registered mid-hold (a material set while it was unregistered)")))
 		{
 			return;
 		}
@@ -1476,13 +1597,29 @@ void FAnomaly_StuckLowMip::ScanHoldForNewUsers(const TCHAR* Trigger)
 		Dirty = MoveTemp(HoldDirtyRecheck);
 		HoldDirtyRecheck.Reset();
 	}
+	TArray<TWeakObjectPtr<UActorComponent>> StillLoading;
 	for (const TWeakObjectPtr<UActorComponent>& Weak : Dirty)
 	{
 		UActorComponent* AC = Weak.Get();
-		if (AC && !IsComponentStillLoading(AC) && ConsiderHoldUser(AC, Loaded, TEXT("render state marked dirty")))
+		if (!AC)
+		{
+			continue;
+		}
+		if (IsComponentStillLoading(AC))
+		{
+			StillLoading.Add(Weak);
+			continue;
+		}
+		if (ConsiderHoldUser(AC, Loaded, TEXT("render state marked dirty")))
 		{
 			return;
 		}
+	}
+	if (StillLoading.Num() > 0)
+	{
+		GStuckMipStats.HoldMonitorDirtyRequeued += StillLoading.Num();
+		FScopeLock Lock(&HoldDirtyCS);
+		HoldDirtyRecheck.Append(StillLoading);
 	}
 }
 
