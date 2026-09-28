@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧭 **082-07k, 2026-09-28 — `m53` S1: THE RUNTIME-CONDITIONS REVIEW OF THE 35 UNRUN LEGS, AMENDMENT 4, SUPERSEDE ENTRY 5, THE
+> BOUNDARY RE-ISSUED. BENCH-FREE: NO LEG, NO BUILD, NO COOK, NO SOURCE CHANGE, NO TAG.**
+> - **Cold start:** `docs/predictions/2026-09-27-m53-s1-legs.md` **AMENDMENT 4** (§A4.3 is the review table), then
+>   `docs/sessions/2026-09-28-082-07k-code-m53-amendment-4-runtime-conditions.md`.
+> - ✅ **G4 CAN → STOP-BEFORE-FIRE (Q).** The 082-07j attempts and their NOT-RUN record are superseded (entry 5, `e67f0ec9`),
+>   and both CAN legs re-run fresh. The cancel-before-focus branch is owed in S2 with a bench "treat as unfocused" lever.
+> - 🔧 **The review caught three more runtime premises before the bench did:**
+>   - **F-MW:** the settled-camera validity clause would have voided every MainWorld leg, because its camera eases for
+>     ~85 frames. The pixel legs now match a pinned trajectory; 146 of 161 banked launches are bit-exact on it (G333).
+>   - **GC:** the G4 GC detector was blind, because `LogGarbage` defaults to Warning. The GC legs now raise it (G334).
+>   - **TWO:** a named frame-1 refusal reads FIXTURE-CANNOT-EXERCISE, not FAIL.
+> - 🔎 **Person evidence:** the runner's own final startup Alt registers about 6 % of the time (G335). It cannot void a leg,
+>   so the detector is unchanged.
+> - 🎯 **NEXT: 082-07l** runs the 35 legs from `G4_CAN_UV` (`082-07-window.py 082-07l 540`).
+>
+> ---
+>
 > ⛔ **082-07j, 2026-09-28 — `m53` S1 LAST LEGS: A5, A6, V2 AND G4 FIN-UV PASS (158 of 193 accepted), THEN S1 STOPS AT
 > `G4_CAN_UV` NOT-RUN (code 2). NO BUILD, NO SOURCE / HARNESS / PREDICTIONS CHANGE, NO TAG. Postflight PASS.**
 > - **Cold start:** `docs/sessions/2026-09-28-082-07j-code-m53-s1-last-legs-stop.md` — §2 the stop, §3 the final gate

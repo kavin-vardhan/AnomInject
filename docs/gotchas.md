@@ -8319,3 +8319,69 @@ Related: G321, G115, G141.
   not after a live stop.
 
 Related: G320, G328, G72 (the focus gate), A63.
+
+## G333 — a validity clause calibrated on one fixture was applied to every fixture: MainWorld's camera eases for ~85 frames, so the "settled camera" rule would have voided every F-MW leg (2026-09-28, 082-07k)
+
+**What happened.**
+
+- `validity()` required, for every capture leg on every map:
+  - one modal view covering ≥ 50 % of rows;
+  - every labelled row on it.
+- That is true on the synthetic fixture: 156 of 156 real F-SYN sessions sit at one pose.
+- On MainWorld:
+  - the rotation settles by about captured frame 24;
+  - the origin keeps easing (3096.5 → 3073.8 cm) through about frame 85–112;
+  - so at the check's 0.1 cm resolution nearly every row is distinct (modal coverage ~0.19 over 329 banked sessions).
+- No F-MW capture leg had run under this harness; the only F-MW leg was a census. So the rule was never met on real data,
+  and every one of the seven F-MW legs would have gone INVALID-POSE × 6 → NOT-RUN.
+
+**Found how:** by reading the banked MainWorld sessions from other campaigns during the runtime-conditions review, not by a
+leg.
+
+**What the pixel rows actually need** is the same view at the same index across legs. Measured: 146 of 161 frame-1 launches
+are bit-exact on one trajectory, and a reference built from half of them predicts the other half exactly.
+
+**Rule.** Before a validity clause gates a fixture, measure it on that fixture's real sessions, not on the fixture it was
+tuned on. Scope a clause to the rows that need it: a row that reads only logs gains nothing from a camera clause and can
+only be stopped by it.
+
+Related: G320, G328, G332, A47, A64.
+
+## G334 — a detector keyed on a log line whose category's default verbosity suppresses it is blind, and reads as a clean "unexercised" (2026-09-28, 082-07k)
+
+**What happened.**
+
+- The G4 GC row counted `LogGarbage: Collecting garbage` lines inside the event.
+- `LogGarbage` is declared `DECLARE_LOG_CATEGORY_EXTERN(LogGarbage, Warning, All)` (`GarbageCollection.h:49`), while the line
+  is `UE_LOG(LogGarbage, Log, …)` (`GarbageCollection.cpp:2293`).
+- So it never reaches a packaged log. Three real 65 s logs with GC passes carry 0 `LogGarbage` lines.
+- The row could only read UNEXERCISED, with the reason "no pass fell inside the first event". That reason is false: the
+  detector was blind.
+
+**The fix:**
+
+- the legs issue `Log LogGarbage Log`, whose echo line proves it took;
+- the evaluator says "detector blind" when no line appears anywhere.
+
+**Rule.** For any log-line detector, check the category's declared default verbosity against the line's verbosity. Prove the
+line appears on a real log before trusting its absence (G96's shape, for logs).
+
+Related: G96, G114.
+
+## G335 — a harness's own synthetic input at the edge of its measurement span registers as a person (2026-09-28, 082-07k)
+
+**What happened.**
+
+- The runner's `[M53Fg]::Force` sends a synthetic Alt on every startup sample.
+- The person-evidence span begins at `sampling_started_utc`, set a fraction of a millisecond after the last startup
+  `Force`.
+- `GetLastInputInfo` (tick-count granularity) versus `time.time()` puts that Alt −0.010 … +0.033 s around the boundary.
+  - So in 10 of 171 capture / census attempts it lands inside the span.
+  - No force window excuses it, because the startup samples lie before the span.
+- It is harmless here. Person evidence never adds a validity error; it only turns a foreground failure into ENV-INTERRUPTED
+  and costs a ≤ 60 s gate wait.
+
+**Rule.** When a harness both generates input and measures input, either excuse its own last action explicitly or start the
+span after a settle margin. Persist the raw input timestamps so the attribution can be read, not reconstructed.
+
+Related: G332.
