@@ -48,8 +48,12 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 
 - [ ] **`IAI.ListAnomalies` returns the count recorded in `CLAUDE.md`'s Current-status block, and every
       id listed there is present.**
-      On the m55 feature branch this is **10 shipping + 2 bench-only** in Development; Shipping
-      registers only the shipping entries. `null_effect` and `solid_swap` must refuse outside the
+      🆕 **(084-10) The delivered build lists the shipping entries ONLY.** `null_effect` and `solid_swap`
+      register only when the bench gate is open (`-IAIBench` or `-IAIBenchFixture` on the command line),
+      so a delivered build launched without those flags must list neither — **either name in the list is a
+      STOP** (the build was launched with a bench flag, or the gate regressed). With a bench flag the
+      list is the shipping entries + the 2 bench-only ones; Shipping registers only the shipping entries.
+      `null_effect` and `solid_swap` must refuse outside the
       explicit named fixture gate and must not enter any auto/default/selector pool. `AnomalyBench`
       allows Game/Editor for the ruled fixture commands; Client/Server and Shipping are excluded.
       Input lock/placement remain explicit, map/flag gated and independently checked. Measurement
@@ -60,17 +64,39 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       `AnomalyInjector.uplugin` lists, and a console command whose module never started is dropped from
       `-ExecCmds` **without a word** — a missing module reads as a clean run with a lever that did nothing, and an
       extra one ships dormant code. Before packaging, and again on the packaged build:
-      1. Extract the descriptor from the delivered container:
-         `UnrealPak <build>\<Project>\Content\Paks\<Project>-Windows.pak -Extract <dir> -Filter=*.uplugin`, then
-         open `<dir>\<Project>\Plugins\AnomalyInjector\AnomalyInjector.uplugin`.
-      2. Diff its `Modules` list — names, `Type`, `LoadingPhase`, allow/deny lists — against the intended set: the
-         delivered branch's `AnomalyInjector.uplugin` **minus `AnomalyBench`** (the F9 box below). A module in the
-         intended set that is missing from the cooked list is a **STOP** (nothing may be silently missing);
-         `AnomalyBench` present is a **STOP** (F9).
-      3. Bench levers absent or inert without `-IAIBench`: launch the delivered build **without** `-IAIBench` or
-         `-IAIBenchFixture` and confirm its log has no `Capture(m52): -IAIBench present` line (the m52 levers
-         register only under that flag) and no `AnomalyBench` module line, and run F9's A44 scan below.
-      4. Record the extracted descriptor's SHA-256 with the delivery receipt.
+      1. 🆕 **(084-10) Run the check — it is a script now, not a reading.** From the delivered branch's plugin:
+         `python tools\check_package_descriptor.py --build <packaged build root>`
+         It extracts the cooked `AnomalyInjector.uplugin` with UnrealPak (`-Extract -Filter=*.uplugin`), diffs
+         every module field against the branch descriptor **minus `AnomalyBench`**, compares the plugin
+         dependency list, scans the `.utoc` for bench fixture content (`AnomalyFixtures`, `CaptureBenchGate`,
+         the `CB_*` maps), and prints the descriptor's SHA-256. **Expected output on a correct delivery:**
+         ```
+         G354 DESCRIPTOR source=<...>-Windows.pak sha256=<64 hex> bytes=<n>
+         G354 SHIPPED  modules=4: AnomalyShaders, AnomalyInjector, AnomalyCapture, AnomalyControlServer
+         G354 INTENDED modules=4: AnomalyShaders, AnomalyInjector, AnomalyCapture, AnomalyControlServer
+         G354 MODULE AnomalyShaders         identical      (and the same for the other three)
+         G354 PLUGINS identical: [{"Name": "WebSocketNetworking", "Enabled": true}]
+         G354 FIXTURE container=<...>.utoc sha256=<16 hex> hits=none
+         G354 VERDICT PASS
+         ```
+         Exit 0 = PASS, 1 = STOP (the line names it: `MISSING <module>`, `EXTRA AnomalyBench` (F9), `DIFF`,
+         `PLUGINS`, `FIXTURE`), 2 = could not read the package (no verdict — fix the path, never tick).
+         *Proven both ways on real packages (084-10): the 084-08b bench cook reads `STOP EXTRA AnomalyBench,
+         FIXTURE` (and `PASS` with `--bench-cook`, descriptor SHA-256 `9EFB9B49…`, byte-identical to 084-07b's
+         reading); the 2026-07-15 `Builds\Windows` package reads `STOP MISSING AnomalyShaders` with `hits=none`;
+         `--selftest` runs 8 synthetic cases.* For a descriptor you already extracted, use
+         `--descriptor <file> [--utoc <file>]`.
+      2. *(Superseded by step 1, kept as the manual fallback:)* `UnrealPak <pak> -Extract <dir> -Filter=*.uplugin`,
+         then diff `Modules` by hand against the branch descriptor minus `AnomalyBench`.
+      3. Bench levers absent without a bench flag: launch the delivered build **without** `-IAIBench` or
+         `-IAIBenchFixture` and confirm its log carries `IAI bench levers: DISABLED (<n> masked) … preset=0`
+         (at least once each with `where=post_engine_init` and `where=subsystem_init` — ⚠ predicted from source
+         in 084-10, which launched nothing; the G-LEVER night legs are its first observation), **no**
+         `IAI bench levers: ENABLED` line,
+         **no** `Capture(m52): bench gate open` line (084-10 wording; it was `-IAIBench present`), and no
+         `AnomalyBench` module line; `preset=` above 0 names a lever someone set by ini or command line before
+         the gate masked it — a STOP until that setting is removed. Then run F9's A44 scan below.
+      4. Record the descriptor's SHA-256 (step 1 prints it) with the delivery receipt.
       *Measured instance: 084-06's B-CC legs ran `IAI.Bench.CameraSchedule` over a container cooked before
       `AnomalyBench` entered the descriptor and logged zero `IAI-` lines — a clean null (G354). The check itself is
       proven on 084-07b's cook, whose extracted descriptor is byte-identical to the branch's (SHA-256
@@ -85,8 +111,49 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       from the packaged build that it is absent: no `AnomalyBench` module line in the log and no
       `IAI-BENCH READY` string in the executable (UTF-16 scan, A44; do NOT use `IAI.Bench.PlaceView` as
       the discriminator — the control server names it too, so it survives the exclusion). Also confirm the
-      m55 bench gates cannot bite: a run started with `IAI.Bench.ChangeGate` non-zero and no
-      `-IAIBenchFixture` must log `Capture(m55): BENCH-GATE-REFUSED` and write every frame (build 3).
+      m55 bench gates cannot bite: 🆕 (084-10) without any bench flag, `IAI.Bench.ChangeGate 5` is **not
+      recognised** (the lever is masked) and the run writes every frame; with `-IAIBench` but no
+      `-IAIBenchFixture` the lever is reachable and the run must log `Capture(m55): BENCH-GATE-REFUSED` and
+      write every frame (build 3).
+
+      🆕 **(084-10) THE EXCLUSION LINES ARE A SCRIPT.** Stage the delivered plugin folder with
+      `python tools\stage_plugin_delivery.py --out <empty folder> --ref <delivered commit>` (from the delivered
+      branch). It copies from `git archive` (tracked files at that ref only) through an **allowlist**:
+      ```
+      SHIP      AnomalyInjector.uplugin (AnomalyBench module entry removed), LICENSE.txt, Content/, Shaders/, Source/
+      EXCLUDE   Source/AnomalyBench/   (F9)      docs/, tools/, CLAUDE.md, WebClient/, .gitignore   (internal)
+      ```
+      then verifies its own output (G354 against the branch descriptor minus `AnomalyBench`, and
+      `lever_audit.py` on the staged `Source`) and ends `STAGE VERDICT PASS - deliverable`. Anything else is
+      a **STOP**. **Bench fixture CONTENT** lives in the host project, not the plugin: for any delivery
+      cook made on a bench host, the cook's `-map=` list carries no `/Game/CaptureBenchGate` or
+      `/Game/AnomalyFixtures` map, and the host's `Config/DefaultGame.ini` carries
+      ```
+      [/Script/UnrealEd.ProjectPackagingSettings]
+      +DirectoriesToNeverCook=(Path="/Game/AnomalyFixtures")
+      +DirectoriesToNeverCook=(Path="/Game/CaptureBenchGate")
+      ```
+      so nothing can pull them in; the G354 script's `FIXTURE` line (`hits=none`) is the proof from the package.
+
+- [ ] **🆕 (084-10) G-LEVER-AUDIT — every `IAI.Bench.*` lever and both bench twins are behind the ONE bench
+      gate, and compiled out of Shipping. RUN IT; it is a script.** From the delivered branch's plugin:
+      ```
+      python tools\lever_audit.py --selftest
+      python tools\lever_audit.py --binary <delivered build>\<Project>\Binaries\Win64\<Project>.exe
+      ```
+      The selftest plants one violation per rule in a copy of the source and must end
+      `G-LEVER-AUDIT SELFTEST 11 case(s): OK` (**a planted unguarded registration must FAIL** — if the selftest
+      is not OK the audit's PASS means nothing). The audit must end `G-LEVER-AUDIT VERDICT PASS` with a
+      `BINARY … unknown=0 missing=0 echo=present` line: every lever name in the delivered exe is one the source
+      compiles, every registered lever is in it (a stale exe fails), and the gate's echo strings are present.
+      Rules: R1 no `IAI.Bench.` string live in a Shipping compile · R2 every lever either a file-scope static
+      (masked by the sweep) or registered only through `AnomalyBenchGate::IsEnabled()` · R3 the sweep runs at
+      `OnPostEngineInit` and `Initialize`, the gate opens on `-IAIBench`/`-IAIBenchFixture` and is false in
+      Shipping · R4 bench catalogue entries gated and in no pool · R5 levers looked up only through
+      `FindLeverCommand` · R6 no second, inline `-IAIBench` test.
+      *Its first run (084-10) FAILED on 26 lever strings still compiled into Shipping from `SetBench*` setters
+      outside `#if ANOMALY_CAPTURE`, although every registration was already excluded; fixed before commit.
+      The pre-gate exe `8A6074AA` fails its binary half (`B3`, no echo). G-LEVER (night) is the runtime half.*
       *Phrased CATEGORICALLY, against a single source, and never as a number in this file. A literal
       count here goes stale the moment an anomaly ships and then reads as a passing check —
       `setup-runbook.md` asserted "seven" from m3 until m29 while the catalog had been 8 since m8.
@@ -470,7 +537,36 @@ it **cannot start** (`Missing global shader … permutation 0`). The shader-pres
       as a link failure inside the cook window.* **Measured instance: `LogAnomaly` was unexported from
       `m38` through `m43` — five milestones, every bench gate green, and the next cook would have
       failed at link.** → `G221`, journal 069 §5.
-## 2. Desktop app + config
+## 2. Dashboard bundle + its token file (🆕 084-10 — READ THIS BEFORE THE OLD §2/§3 BELOW)
+
+The bundle has been the **browser** layout since m27, assembled by AnomDash `host-tools\make_delivery.py`
+(`<delivery root>/ Setup.bat Run.bat README.md dashboard/ host-tools/`). The dashboard's token file is
+**`dashboard\config.json`** (`controlToken`); it replaced the M1 build-time `.env` at M2. The old §2/§3
+below describe the retired Tauri `Dashboard.exe` layout and are kept as history.
+
+- [ ] 🚨 **THE DASHBOARD TOKEN FILE IS IN THE PACKAGE AND CARRIES THE DELIVERED BUILD'S TOKEN — RUN THE
+      CHECK.** *The M2 incident: the client's dashboard could not log in. Two shapes produce it, and the
+      tooling allows both.* **(a)** `npm run build` copies the owner's **gitignored** `public/config.json` —
+      the DEV token — into `dist/`, and the bundler's `DIR dist → dashboard` ships it, although its closing
+      line says *"config.json was NOT copied"* (measured 084-10: the bundle's `dashboard\config.json` was
+      byte-identical to `public/config.json`). The client then holds the dev token, which works only if the
+      delivered game was cooked with that same token. **(b)** Without that file, `Setup.bat` writes
+      `config.json` with an **empty** token (it never passes `--token`), so the dashboard opens on a manual
+      connect screen asking for a token the client does not have. Fix both the same way — write the
+      delivered token in, then check it against the DELIVERED build:
+      ```
+      python <bundle>\host-tools\write_config.py --file <bundle>\dashboard\config.json --token <delivered token>
+      python tools\check_delivery_bundle.py <bundle> --expect-token-log <a log of the delivered build>
+      ```
+      (`--expect-token-ini <the delivered game's DefaultGame.ini>` also works, but the LOG is what the build
+      enforces — G118/G119.) Expected: every `BUNDLE FILE … present`, `BUNDLE TOKEN … <n> chars, matches the
+      game log -> OK`, every `BUNDLE README runs python host-tools/… exists in the bundle`, and
+      `BUNDLE VERDICT PASS`. It never prints the token. A stray `env` / `.env` file draws a WARN — the
+      dashboard does not read it. *Proven (084-10): `--selftest` 7 cases; on a real bundle from
+      `make_delivery.py`, the current README passes and the `37bb750` README STOPs on `tools/verify_capture.py`
+      (the readme host-tools path mismatch, now fixed in `client-readme.md` Step 6).*
+
+## 2 (superseded — Tauri era). Desktop app + config
 
 - [ ] **Built with the current source**: `npm run build:tauri && npm run tauri build` on a machine with
       **Rust ≥ 1.77.2**; copy `src-tauri/target/release/Dashboard.exe` to the delivery root.
@@ -489,7 +585,7 @@ it **cannot start** (`Missing global shader … permutation 0`). The shader-pres
       The dev token is whatever `StackOBot\Config\DefaultGame.ini` currently holds; read it there, and
       run §1's check against the value you actually ship.
 
-## 3. Bundle assembly
+## 3 (superseded — Tauri era; the current layout is in §2 above). Bundle assembly
 
 ```
 <delivery root>/  Setup.bat  Run.bat  Dashboard.exe  config.json  host-tools/  (game build)

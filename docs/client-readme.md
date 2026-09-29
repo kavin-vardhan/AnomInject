@@ -154,8 +154,8 @@ certifies that a label is correct. Even an exact target mask identifies the pixe
 not the cause: lighting, occlusion or animation can change those same pixels.
 
 ```
-python tools\verify_capture.py --dir <sessionFolder> --label-pixel-gate --report-only
-python tools\verify_capture.py --all <folderOfSessions> --label-pixel-gate --report-only
+python host-tools\verify_capture.py --dir <sessionFolder> --label-pixel-gate --report-only
+python host-tools\verify_capture.py --all <folderOfSessions> --label-pixel-gate --report-only
 ```
 
 `--all` proves the instrument with its self-test first, then saves each session's
@@ -1423,9 +1423,12 @@ count and carry no entry for it. **It is not a count of labelled frames in gener
 
 ### 9.8 Two test entries in the anomaly list
 
-`IAI.ListAnomalies` on a Development build also lists **`null_effect`** and **`solid_swap`**. They are
-internal test fixtures: they refuse to apply outside the test setup and never enter the capture pool,
-the dashboard's selection or any default. Ignore them.
+**`null_effect`** and **`solid_swap`** are internal test fixtures. Your build does not list them:
+`IAI.ListAnomalies` and the dashboard show them only when the game is launched with our internal test
+switch, and even then they refuse to apply outside the test setup and never enter the capture pool, the
+dashboard's selection or any default. The same switch hides every `IAI.Bench.*` console command: in your
+build those commands are not recognised. If you ever see either name listed, tell us — it means the
+build was launched with a test switch it should not have.
 
 ### 9.9 Known limits (not specific to change evidence)
 

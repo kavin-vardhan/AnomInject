@@ -8460,3 +8460,59 @@ Related: G120.
   host's `Content` away before making the cook junction.
 
 Related: G370.
+
+## G374 — To hide a console lever at runtime, OR `ECVF_Unregistered` into its flags; `SetFlags` REPLACES, `UnregisterConsoleObject` DELETES a command, and `FindConsoleObject` ignores the mask (2026-09-29, 084-10)
+
+- **The mechanism the bench gate uses (UE 5.1 source):** with `ECVF_Unregistered` set, the console refuses the object
+  (`ConsoleManager.cpp:1853`), `FindConsoleVariable` returns null (`:1564`) and autocomplete skips it (`Console.cpp:97`),
+  while the object stays alive for its static destructor.
+- **Three traps next to it:** `IConsoleObject::SetFlags` **replaces** the flag word (`ConsoleManager.cpp:138`), so write
+  `SetFlags(GetFlags() | ECVF_Unregistered)`; `UnregisterConsoleObject(Name)` on a **command** removes it and calls
+  `Release()` — it deletes the object (`:1669-1672`); and **`FindConsoleObject` does NOT filter the mask** (`:1575-1623`),
+  so code that runs a lever by name through it (`->AsCommand()->Execute`) bypasses the gate. Route such lookups through
+  one masked-aware helper (`AnomalyBenchGate::FindLeverCommand`).
+- **The fourth, stated because it is not closable from inside the plugin:** a lever given a value by ini or
+  `-dpcvars` BEFORE the sweep keeps that value — masking only stops the console reaching it. The sweep counts and names
+  such levers (`preset=<n>`), and `preset>0` is a delivery STOP.
+
+Related: G354, G375.
+
+## G375 — "Every registration is compiled out of Shipping" is not "the lever is compiled out of Shipping"; a preprocessor-aware audit found 26 lever strings the registrations left behind (2026-09-29, 084-10)
+
+- **What happened:** after wrapping all nine Shipping-compiled `IAI.Bench.*` registrations, `tools/lever_audit.py`'s
+  first run still FAILED rule R1 on 26 strings: ten `SetBench*` member setters (and one census log) in
+  `AnomalyCaptureSubsystem.cpp` sit **outside** `#if ANOMALY_CAPTURE`, so the AnomalyCapture module compiles them into
+  Shipping although their only callers (the registrations) are compiled out; plus one lever log in a
+  `stuck_low_mip` product path.
+- **The lesson:** a grep for registrations answers the question you asked; the lever's *code* can sit in functions nobody
+  looked at. Evaluate the preprocessor per configuration (Shipping / Development / Editor) and check every occurrence of
+  the lever prefix, not only the registration sites.
+- **The wrap chosen:** whole setter definitions inside `#if !UE_BUILD_SHIPPING` (not empty bodies), so a future Shipping
+  caller is a link error — loud — rather than a silent no-op.
+
+Related: G119, G374.
+
+## G376 — The dashboard bundle ships the owner's DEV token: vite copies the gitignored `public/config.json` into `dist/`, and the bundler's "config.json was NOT copied" line is false (2026-09-29, 084-10)
+
+- **Measured:** a bundle from AnomDash `make_delivery.py` (`618b8df`) carried `dashboard\config.json` byte-identical to the
+  owner's gitignored `public/config.json` (SHA-256 prefix `860D1969A04D`, a 64-char token), because `npm run build` copies
+  `public/` into `dist/` and the manifest's `DIR dist → dashboard` copies `dist/`. Only `build:tauri` deletes
+  `dist/config.json`. The bundler still prints *"config.json was NOT copied - it carries your token"*.
+- **Why it matters (the M2 incident's shape):** the client gets whatever token the packaging machine's dev config holds.
+  It works only if the delivered game was cooked with that same token; otherwise the dashboard cannot log in. With no
+  `dist/config.json`, `Setup.bat` writes an EMPTY token instead — the other shape of the same failure.
+- **The check:** `tools/check_delivery_bundle.py <bundle> --expect-token-log <a log of the delivered build>` — compare
+  against what the delivered build ENFORCES (G118). ⛔ AnomDash was not changed in 084-10.
+
+Related: G112, G118, G119.
+
+## G377 — A build that masks bench levers makes every lever-using leg need `-IAIBench`; without it the lever is refused and the leg is a clean null (2026-09-29, 084-10)
+
+- **From 084-10's build on (Game `667FD4EF`),** `IAI.Bench.*` typed in `-ExecCmds` without `-IAIBench` or
+  `-IAIBenchFixture` is refused as an unknown command, so a leg that relies on `SynthTickOrder`, `MaskPairingProbe`,
+  `Letterbox`, `CameraSchedule` or any other lever runs **without** it and reads as a clean result — G354's shape.
+- **Detector:** the run log's `IAI bench levers: ENABLED (<flags>)` line. A harness that uses a lever asserts that line
+  before trusting the leg; `DISABLED (<n> masked)` on such a leg makes it INVALID. The 084-09 harness is pinned to the
+  pre-gate exe `8A6074AA` and is unaffected.
+
+Related: G354, G374.

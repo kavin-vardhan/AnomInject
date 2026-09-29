@@ -2,11 +2,25 @@
 
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
 
-The non-Shipping catalogue is **10 shipping + 2 bench-only** entries, `null_effect` and `solid_swap`.
+The catalogue is **10 shipping entries** in every configuration, plus **2 bench-only** entries,
+`null_effect` and `solid_swap`, that register **only when the bench gate is open** (084-10, below).
 The twins share one class, picker and labelled lifecycle; only the shipped Lit-pink material write
 differs. Neither enters GAutoPool, GAutoPoolDefaultEnabled or GAnomalyChoices. Apply refuses unless
 IAI.Bench.ChangeEvidenceCases=1, -IAIBenchFixture and a named StackOBot/Lyra bench map. Shipping
-registers neither twin. `AnomalyBench` is a non-Shipping Game/Editor fixture module; Client/Server
+registers neither twin.
+
+**The bench gate (084-10, `Public/AnomalyBenchGate.h`).** One predicate, `AnomalyBenchGate::IsEnabled()`
+= not Shipping and `-IAIBench` or `-IAIBenchFixture` on the process command line. With it shut: the
+twins do not register (so `IAI.ListAnomalies`, `GetAnomalyCatalog` and the dashboard do not list them),
+the runtime-registered levers (`AnomalyBench`'s four commands, the two `StuckMipLegacy*` commands) are
+never registered, and `SweepUngatedLevers` — run at `OnPostEngineInit` and at every
+`UAnomalyInjectorSubsystem::Initialize` — ORs `ECVF_Unregistered` into every console object named
+`IAI.Bench.*`, so the console refuses it, `FindConsoleVariable` and autocomplete skip it, and the object
+stays alive for its static destructor. Echo: `IAI bench levers: ENABLED (<flags>) … | DISABLED (<n>
+masked) … preset=<p>`. Code that runs a lever by name uses `AnomalyBenchGate::FindLeverCommand`
+(`FindConsoleObject` does not honour the mask). Every `IAI.Bench.*` registration and its setter/log code
+is also inside `#if !UE_BUILD_SHIPPING`, `ANOMALY_CAPTURE` or the Shipping-denied `AnomalyBench`
+module. `tools/lever_audit.py` (G-LEVER-AUDIT) checks all of it from source and against a built binary. `AnomalyBench` is a non-Shipping Game/Editor fixture module; Client/Server
 targets are excluded. Explicit bench commands lock controller look/move input before settle and
 place the camera once afterward, with separate runner verification. Commands require the fixture
 flag, named bench map and inactive capture. Owned input-lock increments release at run end/cleanup.

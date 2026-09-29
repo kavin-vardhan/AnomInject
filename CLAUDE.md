@@ -11,6 +11,36 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧹 **084-10, 2026-09-29 — RELEASE HYGIENE ON `fix/m52-label-timing` (the m52-only fallback ships clean; m53 inherits it at
+> 085-02): ONE BENCH GATE for the twins and every `IAI.Bench.*` lever, G-LEVER-AUDIT, and the packaging items as scripts.
+> Source `92c3500`, Game exe `667FD4EF` + Editor DLLs archived, NOT cooked, NOT staged, NOT swapped in, nothing launched,
+> NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-10-release-hygiene.md`; evidence `_reviews\084-10-evidence\`;
+>   archive `_binary_baselines\m52fix-667FD4EF\`; `PRE-DELIVERY-CHECKLIST.md` §1 (G354 script, F9 exclusion lines,
+>   G-LEVER-AUDIT) and §2 (the dashboard token file).
+> - **The gate (`Public/AnomalyBenchGate.h`):** `IsEnabled()` = not Shipping ∧ (`-IAIBench` ∨ `-IAIBenchFixture`, ND-6).
+>   Shut ⇒ `null_effect`/`solid_swap` not registered (not in `IAI.ListAnomalies`, the catalogue or the dashboard); the 4
+>   AnomalyBench commands and the 2 `StuckMipLegacy*` ones never registered; every other `IAI.Bench.*` masked by ORing
+>   `ECVF_Unregistered` at `OnPostEngineInit` and every injector `Initialize` (echo `IAI bench levers: DISABLED (<n> masked)
+>   … preset=<p>`). Lookups by name go through `FindLeverCommand` (`FindConsoleObject` ignores the mask, G374). Shipping:
+>   every registration and its setter/log code compiled out.
+> - **G-LEVER-AUDIT `tools/lever_audit.py`:** source PASS (33 lever names = 27 static/swept + 6 runtime/gated; 2 bench
+>   catalogue entries gated); `--selftest` 11 OK (10 planted violations, each FAILs on its rule); binary PASS on `667FD4EF`
+>   and the Editor DLLs, the pre-gate `8A6074AA` FAILs (B3). ⚠ **Its first run FAILED R1 on 26 lever strings still
+>   compiled into Shipping (`SetBench*` setters outside `ANOMALY_CAPTURE`) — fixed before commit (G375).**
+> - **Packaging, each a script proven both ways on real data:** `check_package_descriptor.py` (G354 + fixture scan: bench cook
+>   STOP / `--bench-cook` PASS / the 07-15 package STOP `MISSING AnomalyShaders`) · `stage_plugin_delivery.py` (the exclusion
+>   lines; `37bb750` FAIL, `92c3500` PASS) · `check_delivery_bundle.py` (token file + README paths) · readme Step 6 now
+>   `host-tools\verify_capture.py`, §9.8 says the twins are not listed. **AnomDash: no uncommitted edits on this PC.**
+> - 🚨 **Found (G376):** the AnomDash bundle ships the owner's **dev** token — vite copies the gitignored
+>   `public/config.json` into `dist/` and the bundler says "config.json was NOT copied". AnomDash NOT changed; the checklist's
+>   token-file box checks the bundle against the DELIVERED build's log.
+> - **Unchanged:** string scan `8A6074AA` → `667FD4EF` moves only gate/bench strings; m52 282/0, camera 154/0,
+>   `--label-rule` 24 (and 98, 35); both targets 0 warnings. **Legs on this build need `-IAIBench` to reach a lever (G377).**
+> - 🎯 **NEXT: 084-09 tonight on its own pins (unaffected); 085-02 merges this into m53 — re-run `lever_audit.py` (+
+>   `--selftest`) on the merged tree; G-LEVER night legs are the runtime half.**
+>
+> ---
 > 🧱 **084-08b, 2026-09-29 — A HIGH-CONTRAST `lod_popping` FIXTURE (bench-only map, engine shapes, per-LOD materials,
 > dithered D + plain N variants), RE-COOK, 084-09 PINS + LOD LEGS, DRY RUN. No source edit (exe `8A6074AA` unchanged), cook
 > utoc `BF06AE61` archived, NOT staged, nothing launched, NOT merged, NO tag.**
