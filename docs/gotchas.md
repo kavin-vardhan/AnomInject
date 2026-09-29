@@ -8403,3 +8403,60 @@ Related: G357.
   must be uncontaminated. Put sync evidence on wide-gap legs.
 
 Related: G349, G352.
+
+## G370 — In a `-run=pythonscript` commandlet the StaticMeshEditor subsystem does not exist until `Module Load StaticMeshEditor`; the deprecated library then returns `[]` / `-1` in silence (2026-09-29, 084-08b)
+
+- **Measured (probe on the r84 host):** before, `hasattr(unreal, "StaticMeshEditorSubsystem")` is False,
+  `EditorStaticMeshLibrary.get_lod_screen_sizes(Sphere)` returns `[]` and `get_lod_count` returns `-1`, with no log line.
+  After `unreal.SystemLibrary.execute_console_command(None, "Module Load StaticMeshEditor")` the subsystem exists and both
+  calls read the engine sphere (`[2.0]`, 1 LOD).
+- **Mechanism (source):** `EditorStaticMeshLibrary.cpp` forwards every LOD call to
+  `GEditor->GetEditorSubsystem<UStaticMeshEditorSubsystem>()` and returns an empty result when that is null.
+- **This is what G367 recorded as "the commandlet cannot read LOD screen sizes".** G367's observation stands; its
+  explanation is superseded. `set_lod_from_static_mesh`, `set_lod_screen_sizes`, `get/set_lod_material_slot` all need it too.
+- **Rule:** load the module before `get_editor_subsystem`; an empty list from an editor-scripting call is "not measured",
+  never "no LODs". Also: `auto_compute_lod_screen_size` is not a Python-visible property in 5.1 (read the screen sizes back).
+
+Related: G367.
+
+## G371 — Two cooks of identical content already differ in three named chunks; a "nothing but the new content" container diff must be read against that baseline (2026-09-29, 084-08b)
+
+- **Baseline (UnrealPak `-List`, per-chunk hashes):** between the 084-07b, 084-07c and 084-08 cooks (same content, code-only
+  changes) exactly **`MainWorld.umap` and the two project shader archives** change; the other 929 of 932 named chunks and every
+  shader-code chunk are identical.
+- **Adding the 7-file LOD fixture** changed the same three, added the fixture's 9 chunks (7 packages + 2 `.ubulk`), replaced the
+  container header and 1 of 1,039 shader-code chunks (16 new ones for the four materials), and **flipped the path case of an
+  unrelated engine package** (`FlipBook.uasset` vs `flipbook.uasset`) with byte-identical chunks. The pak changed only in
+  `AssetRegistry.bin`.
+- **084-08b's cook prediction 6 did not anticipate the MainWorld / case / regroup items.** It is reported as missed and
+  explained by the baseline, not re-worded after the fact.
+- **Rule:** prove "content changed only by X" at the SOURCE (the D: content manifest, where it is exact); a container diff is
+  supporting evidence and needs a same-input cook-to-cook baseline beside it.
+
+Related: G119, G121.
+
+## G372 — A forced LOD never dithers in UE 5.1; a material's Dithered LOD Transition only affects automatic LOD selection (2026-09-29, 084-08b, SOURCE-READ, bench pending)
+
+- **Source:** `StaticMeshRender.cpp:1068-1070` sets the mesh batch's `bDitheredLODTransition = false` whenever
+  `ForcedLodModel > 0`; `GetLODMask` returns the forced LOD directly (`:2359-2361`). The dithered path runs only for automatic
+  LOD and blends two temporal LOD samples that move with the camera, so a return to automatic LOD at a fixed camera gives
+  both samples LOD 0.
+- **Consequence:** 086-01's candidate lag for `lod_popping` (dithered LOD transitions fading a forced pop) predicts NO
+  dither-driven fade on the anomaly's own path. The 084-08b fixture still carries a dithered variant D and a plain variant N,
+  because a bench reading outranks a source reading; any multi-frame fade on D is a finding whatever this entry predicts.
+- **Rule:** read which engine path an anomaly actually drives (forced vs automatic LOD) before naming a candidate mechanism.
+
+Related: G120.
+
+## G373 — Author new content where the project cannot be written, read it back in a fresh process, then copy exactly the new files (2026-09-29, 084-08b)
+
+- **What was done:** the fixture was authored by an editor commandlet on the scratch host with NO content junction (the
+  host's own E: `Content`), read back from disk by a second commandlet, and only then copied into the D: project. The D:
+  manifest before the copy equalled 084-08's (`E4C7F38D…`); after it, the diff is exactly the 7 new files.
+- **Why:** a commandlet behind a `Content` junction writes the D: project directly (the 082-06 hazard), so any stray save lands
+  in the real content and the manifest can only detect it afterwards. Authoring off-project makes "only new files" true by
+  construction and the manifest diff proves it.
+- **Also:** the editor creates `Content\Collections` and `Content\Developers\<user>` on a host with no content; move the
+  host's `Content` away before making the cook junction.
+
+Related: G370.

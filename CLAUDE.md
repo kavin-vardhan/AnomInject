@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧱 **084-08b, 2026-09-29 — A HIGH-CONTRAST `lod_popping` FIXTURE (bench-only map, engine shapes, per-LOD materials,
+> dithered D + plain N variants), RE-COOK, 084-09 PINS + LOD LEGS, DRY RUN. No source edit (exe `8A6074AA` unchanged), cook
+> utoc `BF06AE61` archived, NOT staged, nothing launched, NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-08b-lod-fixture.md`; harness README `_reviews\084-09-README.md`
+>   (section "084-08b"); evidence `_reviews\084-08b-evidence\`; archive `_binary_baselines\m52fix-cook-BF06AE61\`.
+> - **Fixture `/Game/AnomalyFixtures/CB_LodFixture`:** `CB_LodFix_N` / `CB_LodFix_D`, LOD0 engine sphere (960 tris, orange) →
+>   LOD1 engine cube (48 tris, blue), screen sizes [1.0, 0.05], not Nanite; D = Dithered LOD Transition on both materials.
+>   **The declared rule, unchanged, selects both:** screen size 0.4466 ⇒ LOD 0, bounds coverage 26.96 %, triangle ratio 20.
+> - **D: content changed only by the 7 new files** (manifest `E4C7F38D…` → `7A5D8D8D…`, diff = 7 added lines). Cook 801
+>   packages, 0 warnings; descriptor byte-identical (`9EFB9B49…`); map gate 5/5 + inverted probe. Container diff: the fixture's 9
+>   chunks added; MainWorld + 2 shader archives changed exactly as between any two identical-content cooks (G371).
+> - **Harness:** 10 required `BLODF` legs (2 premises, 8 gate legs of 720 frames, AA on/off × both orders × both variants);
+>   `lod_gate` (≥ 16 judged, 0 off at t50 outside transition frames) + the pop-edge fade reader (D fades = FINDINGS). Selftest
+>   42/42; dry run exit 0, 47/47 launches accepted. Predicted: no dither fade on the forced path (G372; bench decides).
+> - 🎯 **NEXT: 084-09 bench (≈ 87–100 min) on `8A6074AA` + `BF06AE61`.**
+>
+> ---
 > 🧪 **084-08, 2026-09-29 — PART A: THE FOUR 084-07c RULING FIXES (flag or default) + REBUILD + RE-COOK; PART B: THE
 > 084-09 SYNC HARNESS. Source `4bf0915`, exe `8A6074AA`, cook utoc `4BF63FB8`, both archived, NOT staged. Nothing launched
 > (dry run only), NOT merged, NO tag.**
