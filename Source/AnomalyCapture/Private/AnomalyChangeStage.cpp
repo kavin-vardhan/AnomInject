@@ -24,7 +24,8 @@ static FThreadSafeCounter64 GChangeEpoch, GChangeToken;
 
 static FString ChangeSettingSource(const TCHAR* Name)
 {
-	const IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(Name);
+	IConsoleObject* Object = IConsoleManager::Get().FindConsoleObject(Name);
+	const IConsoleVariable* Var = Object ? Object->AsVariable() : nullptr;
 	if (!Var) { return TEXT("unavailable"); }
 	const uint32 By = Var->GetFlags() & ECVF_SetByMask;
 	switch (By)

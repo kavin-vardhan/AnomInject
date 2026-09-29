@@ -11,6 +11,349 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧹 **084-10, 2026-09-29 — RELEASE HYGIENE ON `fix/m52-label-timing` (the m52-only fallback ships clean; m53 inherits it at
+> 085-02): ONE BENCH GATE for the twins and every `IAI.Bench.*` lever, G-LEVER-AUDIT, and the packaging items as scripts.
+> Source `92c3500`, Game exe `667FD4EF` + Editor DLLs archived, NOT cooked, NOT staged, NOT swapped in, nothing launched,
+> NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-10-release-hygiene.md`; evidence `_reviews\084-10-evidence\`;
+>   archive `_binary_baselines\m52fix-667FD4EF\`; `PRE-DELIVERY-CHECKLIST.md` §1 (G354 script, F9 exclusion lines,
+>   G-LEVER-AUDIT) and §2 (the dashboard token file).
+> - **The gate (`Public/AnomalyBenchGate.h`):** `IsEnabled()` = not Shipping ∧ (`-IAIBench` ∨ `-IAIBenchFixture`, ND-6).
+>   Shut ⇒ `null_effect`/`solid_swap` not registered (not in `IAI.ListAnomalies`, the catalogue or the dashboard); the 4
+>   AnomalyBench commands and the 2 `StuckMipLegacy*` ones never registered; every other `IAI.Bench.*` masked by ORing
+>   `ECVF_Unregistered` at `OnPostEngineInit` and every injector `Initialize` (echo `IAI bench levers: DISABLED (<n> masked)
+>   … preset=<p>`). Lookups by name go through `FindLeverCommand` (`FindConsoleObject` ignores the mask, G374). Shipping:
+>   every registration and its setter/log code compiled out.
+> - **G-LEVER-AUDIT `tools/lever_audit.py`:** source PASS (33 lever names = 27 static/swept + 6 runtime/gated; 2 bench
+>   catalogue entries gated); `--selftest` 11 OK (10 planted violations, each FAILs on its rule); binary PASS on `667FD4EF`
+>   and the Editor DLLs, the pre-gate `8A6074AA` FAILs (B3). ⚠ **Its first run FAILED R1 on 26 lever strings still
+>   compiled into Shipping (`SetBench*` setters outside `ANOMALY_CAPTURE`) — fixed before commit (G375).**
+> - **Packaging, each a script proven both ways on real data:** `check_package_descriptor.py` (G354 + fixture scan: bench cook
+>   STOP / `--bench-cook` PASS / the 07-15 package STOP `MISSING AnomalyShaders`) · `stage_plugin_delivery.py` (the exclusion
+>   lines; `37bb750` FAIL, `92c3500` PASS) · `check_delivery_bundle.py` (token file + README paths) · readme Step 6 now
+>   `host-tools\verify_capture.py`, §9.8 says the twins are not listed. **AnomDash: no uncommitted edits on this PC.**
+> - 🚨 **Found (G376):** the AnomDash bundle ships the owner's **dev** token — vite copies the gitignored
+>   `public/config.json` into `dist/` and the bundler says "config.json was NOT copied". AnomDash NOT changed; the checklist's
+>   token-file box checks the bundle against the DELIVERED build's log.
+> - **Unchanged:** string scan `8A6074AA` → `667FD4EF` moves only gate/bench strings; m52 282/0, camera 154/0,
+>   `--label-rule` 24 (and 98, 35); both targets 0 warnings. **Legs on this build need `-IAIBench` to reach a lever (G377).**
+> - 🎯 **NEXT: 084-09 tonight on its own pins (unaffected); 085-02 merges this into m53 — re-run `lever_audit.py` (+
+>   `--selftest`) on the merged tree; G-LEVER night legs are the runtime half.**
+>
+> ---
+> 🧱 **084-08b, 2026-09-29 — A HIGH-CONTRAST `lod_popping` FIXTURE (bench-only map, engine shapes, per-LOD materials,
+> dithered D + plain N variants), RE-COOK, 084-09 PINS + LOD LEGS, DRY RUN. No source edit (exe `8A6074AA` unchanged), cook
+> utoc `BF06AE61` archived, NOT staged, nothing launched, NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-08b-lod-fixture.md`; harness README `_reviews\084-09-README.md`
+>   (section "084-08b"); evidence `_reviews\084-08b-evidence\`; archive `_binary_baselines\m52fix-cook-BF06AE61\`.
+> - **Fixture `/Game/AnomalyFixtures/CB_LodFixture`:** `CB_LodFix_N` / `CB_LodFix_D`, LOD0 engine sphere (960 tris, orange) →
+>   LOD1 engine cube (48 tris, blue), screen sizes [1.0, 0.05], not Nanite; D = Dithered LOD Transition on both materials.
+>   **The declared rule, unchanged, selects both:** screen size 0.4466 ⇒ LOD 0, bounds coverage 26.96 %, triangle ratio 20.
+> - **D: content changed only by the 7 new files** (manifest `E4C7F38D…` → `7A5D8D8D…`, diff = 7 added lines). Cook 801
+>   packages, 0 warnings; descriptor byte-identical (`9EFB9B49…`); map gate 5/5 + inverted probe. Container diff: the fixture's 9
+>   chunks added; MainWorld + 2 shader archives changed exactly as between any two identical-content cooks (G371).
+> - **Harness:** 10 required `BLODF` legs (2 premises, 8 gate legs of 720 frames, AA on/off × both orders × both variants);
+>   `lod_gate` (≥ 16 judged, 0 off at t50 outside transition frames) + the pop-edge fade reader (D fades = FINDINGS). Selftest
+>   42/42; dry run exit 0, 47/47 launches accepted. Predicted: no dither fade on the forced path (G372; bench decides).
+> - 🎯 **NEXT: 084-09 bench (≈ 87–100 min) on `8A6074AA` + `BF06AE61`.**
+>
+> ---
+> 🧪 **084-08, 2026-09-29 — PART A: THE FOUR 084-07c RULING FIXES (flag or default) + REBUILD + RE-COOK; PART B: THE
+> 084-09 SYNC HARNESS. Source `4bf0915`, exe `8A6074AA`, cook utoc `4BF63FB8`, both archived, NOT staged. Nothing launched
+> (dry run only), NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-08-sync-harness-round2.md`; harness `_reviews\084-09-*` (README
+>   first); evidence `_reviews\084-09-evidence\`.
+> - **A1** shear-case ISM instances (composed collision transform ≠ rendered matrix product) ⇒ `camera_clipping_unconfirmed`,
+>   no trace · **A2** an unclassified / forced-unknown m52 held set defaults to `unresolved` · **A3** welded candidates ⇒
+>   unconfirmed · **A4** a restore writing back a live mask value ⇒ `mask_prior_collision` counted, value quarantined.
+>   Selftests m52 282/0, camera 154/0; 16 mutants (9 old + 7 A1–A4) all caught. Camera rule string v4.
+> - **Harness 084-09:** G355 restore retries with backoff (proven: injected 8 s lock ⇒ copy succeeded on attempt 3) · G356
+>   null calibrates from its own series (084-06 B0/B3: 14 of 17 CENSORED offsets resolve) · partial-flag guard per 084-07
+>   decisions 1–2 + N4 · `verify_capture.py --label-rule` on every leg · `labelled` rule read, old banks say so · B-CC on the new
+>   cook · B-CC-MW per-frame null floor · MASK55 v2 with `stuck_low_mip` in the pool (peak live ≥ 2 validity) · amendment R1
+>   (clean-reference span) · MT85 pair · LOD premise legs. Gate selftest 24/24; dry run exit 0, 29/29 launches accepted.
+> - ⚠ **LOD fixture: the declared rule selected NOTHING on MainWorld** (only the two rocks, triangle ratio 7.997 < 8, and a
+>   2-LOD bush exist); gate legs wait on chat. **missing_texture MASK55 borderline: CONFOUNDED-REFERENCE under R1** (the bank's
+>   gaps cannot host an uncontaminated reference); the MT85 pair decides it on the bench.
+> - 🎯 **NEXT: 084-09 re-bench on `8A6074AA` + `4BF63FB8` (chat rules on the two NEEDS-DECISION items first).**
+>
+> ---
+> 🔧 **084-07c, 2026-09-29 — LABEL-SYNC FIXES ROUND 4 (Codex N1–N8) ON `fix/m52-label-timing`: source `3d6f702`, exe
+> `16053B80`, re-cook `59C20959`, both archived. Nothing launched, NOT staged, NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-07c-sync-fixes-round4.md` (§1 = where each fix lives + its
+>   both-ways test); evidence `_reviews\084-07c-evidence\`; Codex v2 `_reviews\084-07c-codex-sync-recheck2.md`.
+> - **N1 fixed:** `labelled` now comes from ONE authority, `AnomalyLabelSync::IsAnnotationMember`, the rule that builds
+>   `annotation.json`'s frame list per class (FireWindow ⇒ box on screen; hidden / anomalous state; the m52 render record);
+>   both writers, the counter and the annotation read the same per-frame bits. `FF41BFF3`'s texture-swap
+>   `labelled:false` is gone; `--label-rule` fails that shape and passes the fix. 0 of 2,586 banked sessions carry the shape.
+> - **N2–N8:** degenerate slab segments traced along the whole slab, too few valid traces ⇒ unconfirmed · ISM boxes from
+>   the renderer's matrix product · held set full/partial/unresolved + reason `unresolved` · exact ranges, no cap ·
+>   carried tails re-carried, zero-frame runs pass through · retirement verifies every identity a value was ever applied
+>   to (pure `RetireHolders`) · `IAI.Capture.Shot` rows marked `label_rule: legacy_shot`.
+> - **Tests:** m52 selftest 262/0 (was 220), camera 128/0 (was 118), `--label-rule` 24 cases (was 15), other verify suites
+>   unchanged; 9 header mutants re-introducing the old behaviour all fail the selftests (the N3 one is not a faithful replay).
+> - **Build/cook:** editor + game 0 warnings; A44 caught a stale `..._v2` rule string in a log line (fixed, rebuilt).
+>   Cook 48 s, 794 packages, 0 warnings; descriptor byte-identical to the branch; D: content manifest identical before/after.
+>   3 of 1,972 container entries differ from 084-07b's cook (ShaderArchive tables, `MainWorld.umap` +50 B), cause not established.
+> - **Codex v2: PARTIAL — N1/N5/N6/N8 RESOLVED; N2/N3/N4/N7 PARTIAL; no blocking finding under the loop bound.** Remaining
+>   HIGH: ISM confirmation traces the engine's collision body, placed with the composed `FTransform` (G364), on a path no
+>   bank exercised. New mediums: welded-parent body in the full-slab fallback; a forced-unknown m52 result defaults to
+>   `NotHeld` (**a defect of this round**); N7 pending-prior variant. Readme now documents all four. Not acted on.
+> - 🎯 **NEXT: chat rules on Codex v2.** Then 085-01 (m53 DC plan, dry run on this head), 084-08 (harness runs `--label-rule`).
+>
+> ---
+> 📦 **084-07b, 2026-09-29 — CLIENT-README LABEL SEMANTICS, A COOK OF `fix/m52-label-timing`, AND CODEX'S RE-CHECK OF 084-07
+> (RED). No source edit, nothing launched, NOT staged, NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-07b-readme-cook-recheck.md`; evidence `_reviews\084-07b-evidence\`.
+> - **Cook:** 60 s, 794 packages, 0 warnings. exe `FF41BFF3` (unchanged) + utoc **`87A46A27`** / ucas `55A65BA4` / pak
+>   `26FFC026` + `462B8AC6` / `BB05CF99`, archived `_binary_baselines\m52fix-cook-87A46A27\` (6/6 re-hashed). **Cooked
+>   descriptor extracted with UnrealPak = byte-identical to the branch's: 5 modules, `AnomalyBench` first, Shipping-denied.**
+>   Maps `CB_GateLevel`/`MainMenu`/`MainWorld`/`Entry`. D: content manifest identical before/after (temporary junctions,
+>   removed). The m53 set stays staged.
+> - **Codex re-check (1,233 s, `_reviews\084-07-codex-sync-recheck.md`): RED — F3 RESOLVED; items 1–5 and 7 PARTIAL.**
+>   N1 (high) = D1 below; N2 (high) a zero-thickness box turns camera_clipping's traces into an unflagged miss; N3 (high)
+>   rotated instances under non-uniform component scale still rejected; N4–N7 medium. Not acted on.
+> - 🚨 **D1 / G361: `labelled` reads `FireActive`, which is false for every FireWindow id, so on `FF41BFF3` (and in this
+>   cook) every `missing_texture` / `corrupted_texture` entry reads `labelled: false` and its row `visible_positive: false`**,
+>   while `annotation.json` lists the frame. G241's class again. From source + Codex N1; no runtime evidence.
+> - **Readme:** new §8.7 (per-anomaly semantics table, mask-value re-use, training-label recipe), §8.6/8.6a/8.6b tightened
+>   (the `visible_positive` change and how to tell old sessions apart, decision 3, per-reason guidance, camera_clipping
+>   limits and cost), the stale camera_clipping note rewritten, `blink` vs `blinking` fixed (G362). Field → source table
+>   in the journal: 32 rows, 31 match, 1 does not (D1).
+> - **`verify_capture.py --label-rule`:** NEW/OLD rule read from the session and stated; 15-case selftest both ways; all
+>   prior selftests and contracts unchanged. On the 084-06 banks it reproduces 084-07's row families (345/80/128/56).
+> - **Checklist:** the G354 descriptor/module-list box added to `PRE-DELIVERY-CHECKLIST.md` §1.
+> - 🎯 **NEXT: chat rules on D1 and Codex N2–N7.** A source fix = rebuild + re-cook (§2 recipe). 084-08 and the kits must read
+>   `labelled` as `--label-rule` does.
+>
+> ---
+> 🔧 **084-07, 2026-09-29 — LABEL-SYNC FIXES ROUND 3 (SOURCE) ON `fix/m52-label-timing`: commit `8b8b4d0`, exe `FF41BFF3`
+> archived `_binary_baselines\m52fix-FF41BFF3\`. NOT staged, NOT cooked (084-07b), nothing launched, NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-07-sync-fixes-round3.md`.
+> - **m52 onset = reading (a), PARTIAL application, from the banked render records:** the first 2 labelled frames hold one or
+>   two of the three textures at the held level. The visible share depends on WHICH dropped first: normal map first (084-03)
+>   → 0.66–0.78 of depth; diffuse+AORM first (084-06) → 0.06–0.23; the order flips even within a run (G357). ⛔ Why the
+>   order varies is NOT established. **Fix:** the record carries each texture's held level; a member frame with a partial set
+>   gets `transition_reason: partial` (either edge, with or without AA) + `stuck_mip_partial_*` guard fields.
+> - **camera_clipping:** bounds SAT is only the broad phase; a 16×9 (+4×4 footprint) grid of in-slab ray segments is traced
+>   (complex) against each candidate's own body / landscape heightfield; untraceable candidates keep SAT and flag
+>   `camera_clipping_unconfirmed`. Cost ≤ 0.5 ms is instrumented, NOT measured (engine needed). F2 folded in.
+> - **F3** sync path writes row + accounting from one snapshot (and uses the logical-hidden registry, not `IsHidden()`);
+>   0/88 banked sessions had sync rows. **F4** retirement clears every tracked holder (custom-depth-off: value only) and
+>   quarantines on failed verification. **F5** transition + hide-return history carried across run boundaries (G359).
+> - **Ruling 7:** every uncovered `anomaly_present` row is "event active, effect not applied this frame", BUT they all read
+>   `visible_positive: true` (G358). Entries now carry `labelled`; `visible_positive` needs a labelled entry with a box.
+> - **Defaults 3/8/1.** Selftests: m52 220/0, camera_clipping 118/0 (56 new, each with its broken variant). Builds 0 warnings.
+> - 🎯 **NEXT:** 084-07b cook; 084-08 harness must read `transition_reason`, `labelled`, `stuck_mip_partial_*`; NEEDS-DECISION
+>   on ruling 1's "< 10 % ⇒ label-early" vs residency-proven partial frames (6/16 084-06 events would count).
+>
+> ---
+> 🧾 **084-06, 2026-09-29 — THE LABEL-SYNC BENCH RAN ON `E9FF019A`: 31/31 LEGS ACCEPTED ON ATTEMPT 1, m53 SET RESTORED AND
+> VERIFIED, POSTFLIGHT PASS. Four anomalies are SYNC-PROVEN; m52 is DESYNC at onset with AA off; camera_clipping over-labels
+> MainWorld; B-CC could not run. NOT merged, NO tag.** Harness `_reviews\084-06-*` (one edit: `TransitionOnFrames 3` on the
+> fix legs, read back `on=3 off=8 hide=1`).
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-06-sync-bench.md`; evidence `_reviews\084-06-evidence\run\report.md`.
+> - **SYNC-PROVEN (0/0 at t50):**
+>   - blinking, missing_object and corrupted_texture: B-REAL R1/R2 with TAA and with AA off, plus MASK55;
+>   - missing_texture: B-REAL 20/20 plus MASK55 35/36, the one FAIL marginal (threshold 97 % of depth).
+> - **MASK55 mask gate PASS:** 119 events, 586/586 labelled frames masked, 64 recycles, 0 aliasing. ⚠ Peak live IDs 1, so
+>   Codex F4 was not exercised.
+> - **m52 DESYNC:** on B9 (AA off), 16/16 events have onset +2 at the 50 % rule. The first two labelled frames carry 9–22 % of
+>   the depth; on the 084-03 build the same two frames carried ~70 %. Cause not established. The TAA legs pass only inside the
+>   flags. The null basis never ran (**G356**). Both can-fails were proven.
+> - **camera_clipping:** MainWorld is labelled 200/200 with `eye_inside_box` and no pixel evidence (an over-label). **B-CC is
+>   INVALID:** container `67EA1FE0`'s cooked `.uplugin` predates `AnomalyBench`, so the schedule never registered (**G354**).
+> - **lod_popping UNJUDGEABLE:** 0 events measurable under TAA; 4 PASS with AA off.
+> - The harness restore died on WinError 32 and was re-issued by hand (**G355**).
+> - 🎯 **NEXT: chat rules on the three NEEDS-DECISION items in the 084-06 report.** ⛔ Do not re-run legs or cook unprompted.
+>
+> 🧪 **084-05b, 2026-09-29 — THE 084-06 BENCH HARNESS IS BUILT AND PROVEN OFFLINE; NOTHING LAUNCHED, BUILT OR STAGED. The
+> build under test is `E9FF019A` (086-02). NOT merged, NO tag.** Harness `_reviews\084-06-*` (outside the repo); docs only here.
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-05b-sync-harness.md`; invocation and rules in `_reviews\084-06-README.md`.
+> - **Evaluator:** edge-local thresholds (the leg divided by its matched null at the same session index, lag by
+>   cross-correlation — G349's scene cycle divides out) + the transition-aware gate (a flag-excused tail must start to decay at
+>   the first unlabelled frame — **G353**) + the 086-01 checker as a second verdict on every leg; MASK55, B-CC and B-CC-MW gates.
+> - **Proofs:** 26/26 offline, 55/55 on real banked pixels. **084-03 bank re-evaluated:** AA off, fix **0/0 on 16/16**, baseline
+>   −1/+4 on 21/21; AA as delivered, fix legs PASS with the flag rule applied offline. The old whole-leg threshold judged 0 events.
+> - **Proposed (for chat):** `IAI.Label.TransitionOnFrames 3`, `TransitionOffFrames 8`. Codex source review of 084-05a + 086-02:
+>   **RED (F1–F5)**, `_reviews\084-05b-codex-sync-source-review.md`, collected and not acted on.
+> - 🎯 **NEXT: 084-06 = `084-06-window.py live`** (≈ 50 min). ⛔ B-LYRA needs the Lyra plugin at `f51f124` and a LyraEditor build first.
+>
+> 🔧 **086-02, 2026-09-29 — camera_clipping's per-frame label is now a VIEW-SLAB test on render geometry, and the B-CC
+> camera-schedule lever exists: exe `E9FF019A`, archived, NOT staged, NOTHING LAUNCHED — no runtime evidence yet. NOT merged,
+> NO tag.** Branch `fix/m52-label-timing` `f908b71` (source + selftest) + docs, pushed. Supersedes the 084-05a block below
+> wherever they disagree.
+> - **Cold start:** journal `docs/sessions/2026-09-29-086-02-camera-clipping-view-slab.md` (§3 the limits, §8 the B-CC spec).
+> - **Label:** positive iff a rendered primitive (pawn and its meshes INCLUDED, FX excluded) has render geometry between the
+>   baseline and the anomalous near plane INSIDE the frustum; exact SAT of oriented render boxes (per instance for foliage)
+>   against the slab, built from the camera cache the renderer uses; decided at `OnWorldTickEnd`, after the camera update (the
+>   old decision read the previous frame's camera, a G41 recurrence). The m30 sphere proxy survives only as the diagnostic
+>   `camera_clipping.sphere_proxy`. ⚠ Over-labels hollow meshes that surround the eye; misses particles. UNMEASURED until B-CC.
+> - **Lever:** `IAI.Bench.CameraSchedule cc_v1|off` (`-IAIBench` only, no Shipping): 200 poses keyed by session index — wall
+>   150→50→150 cm, behind, beside, non-colliding prop, pawn mesh.
+> - **Proofs:** selftest `tools/camera_clipping_slab_selftest.cpp` **93/93**; the legacy model is wrong on 9 of 17 constructed
+>   cases, the slab test on 0. Game + Editor exit 0, 0 warnings; `_binary_baselines\m52fix-E9FF019A\`. **G352** (the near plane
+>   also moves the shadow cascades: B-CC's floor must come from ON vs null on designed-negative frames).
+> - 🎯 **NEXT: 084-05b (harness incl. B-CC from journal §8), the Tue-night bench, and the Codex source review of 084-05a + 086-02.**
+>   ⛔ No merge, no staging from this brief.
+>
+> 🔧 **084-05a, 2026-09-28 late night — THE LABEL-SYNC FIXES RULED IN `_reviews/084-03-chat-ruling-bench-results.md` (DECISIONS
+> 1–3) ARE BUILT: exe `2AC0523E`, archived, NOT staged, NOTHING LAUNCHED — no runtime evidence yet. NOT merged, NO tag.**
+> Branch `fix/m52-label-timing` `05c7649` (source + tests) + docs, pushed. Main checkout `m51` `53bf725`; staged exe `2FCDF059`.
+> **Supersedes the 084-03 block below wherever they disagree.**
+> - **Cold start:** journal `docs/sessions/2026-09-28-084-05a-code-sync-fixes-source.md` (§0 the table, §7 deviations, §8 what
+>   084-05b's harness needs).
+> - **G350 fixed:** a `stuck_low_mip` entry is positive only on a frame labelled for it; post-closure and pre-onset rows carry no
+>   positive entry; `anomaly_present` / `positive_frames` follow. Non-m52 rows byte-identical (source argument, journal §1).
+> - **`transition` flag (additive):** temporal AA (TAA/TSR) read at run start from `r.AntiAliasingMethod`;
+>   `IAI.Label.TransitionOnFrames` / `TransitionOffFrames` / `TransitionHideFrames`, `-1` = **2 / 8 / 1** under temporal AA, **0**
+>   without it (explicit values too). m52 start frames keep their label + `transition: 1`; the K_off frames after a labelled frame
+>   get a transition-only entry that sets **no** `anomaly_present`; hide types flag the first frame after the object returns.
+>   `transition_present` on the row; `label_*` keys in `run_summary`.
+> - **Mask-ID recycling:** at pool exhaustion only, the oldest finished event's value is reclaimed (fire ended, trail detached
+>   with nothing in flight, frames and masks read back, m26 arms done), its components restored first. Runs that never exhaust
+>   are unchanged. `mask_tag_recycles` / `_peak_live` / `_exhausted`; `TAG RECYCLED` log lines (G351).
+> - **Gate (ii)'s 5 frames = G295** (coalesced target arm, `TARGET MASK UNAVAILABLE … pixels=0` on all five). Not fixed.
+> - **Proofs:** selftest **189/189** (59 new, both ways). Game + Editor exit 0, 0 warnings; `_binary_baselines\m52fix-2AC0523E\`.
+> - 🎯 **NEXT: 086-02 (camera_clipping), then 084-05b (harness: transition-aware gate, > 55-event mask leg, re-evaluation) and a
+>   Codex source review of 084-05a + 086-02.** ⛔ No merge, no staging from this brief.
+>
+> 🧪 **084-03, 2026-09-28 night — THE m52 PART-B BENCH RAN: baseline `E0BE6F0A` vs fix `B725678B`, 13 legs, 13 attempts,
+> zero retries; m53 set restored and verified; postflight PASS. NOT merged, NO tag. Supersedes the 084-04 block below
+> wherever they disagree.**
+> - **Cold start:** journal `docs/sessions/2026-09-28-084-03-code-m52-bench-part-b.md` (§2 the final-evaluator verdicts,
+>   §4 the residual table, §9 the open items). Evidence `_reviews/084-03-evidence/`; bank `M52FIX_<leg>`.
+> - **Final evaluator `084-04a`: every sync verdict is NO-JUDGEABLE-EVENT on both builds.** The null's worst drop read
+>   0.27–0.29 of pre (0.027 on the banked 90-frame null): a ≈12 s scene cycle in the rock ROI, not the hold (G349).
+> - **Pixel residual (declared variants, two instruments agree):** **AA off: the fix is 0 / 0 on both edges, 16 of 16
+>   events, and the render record equals the pixel window**; baseline −1 / +4 on every event. **TAA as delivered, 50 % rule:
+>   onset +2 (constant), offset +1…+7 (not constant)** — temporal history around an exact record.
+> - **Gate (ii):** label == render record on all 62 events; 5 isolated `target_pixels -1` frames FAIL rule (c), cause not
+>   established. **Gate (iii):** PASS on every ordinary fix leg; P1 lever FAILS as required.
+> - **086-01 checker:** baseline FAIL (onset −1); B0L lever FAIL (−1, can-fail proven); **fix NO-REFERENCE everywhere**,
+>   because `anomaly_present` is true on 986 of 1,027 unlabelled fix rows (G350, client-visible).
+> - **Edge paths:** reopens, ORDER HOLD and gap-unknowns **0**; 2 carried trails (the cap-cut event); contamination only on
+>   the P1 lever. **Monitor ≈ 0.2 ms mean, ≤ 0.33 ms p95 per held tick** on 1,180 components; fence ≤ 0.26 ms.
+> - 🎯 **NEXT: chat rules on §9** (harness threshold, `anomaly_present`, the TAA residual closure, the mask dropouts). ⛔ No
+>   merge before chat rules.
+>
+> 🔧 **084-04, 2026-09-28 — THE m52 EDGE-PATH CORRECTIONS (084-02b DECISION 2) AND A HOLD-MONITOR COST TIMER ARE BUILT:
+> exe `B725678B`, archived, NOT staged. NOTHING HAS BEEN LAUNCHED; no runtime evidence for this build. NOT merged, NO tag.**
+> Branch `fix/m52-label-timing` `8773ddb` (source) + docs, pushed. `master` `b5f15a3`; main checkout on `m51` `53bf725`. Tonight's
+> 084-03 bench runs the previous build `FD621B27` with the untouched `084-03-*` harness. **Supersedes the 084-02b block below
+> wherever they disagree.**
+> - **Cold start:** journal `docs/sessions/2026-09-28-084-04-code-m52-edge-fixes.md` (§1 is the per-item table, §1.1 is what
+>   the ordinary path now looks like); ruling `_reviews/084-02b-chat-ruling-bench-tonight.md` decision 2.
+> - **What changed:**
+>   - **F1:** one tick after each revert, a synchronous `UpdateResourceStreaming(0, true)` **replaces** any streamer plan
+>     computed under the hold. UE 5.1 has no public generation fence (G348). Already-back textures now stay restoring until
+>     the fence has run. Amortized copies are a counted, documented heuristic residual.
+>   - **F2:** logical closure (which releases the burst) is separated from **detachment**. A closed event keeps its watch,
+>     mask and m55 label until every noted request is processed or the next fire begins, so a late receipt reopens it
+>     **with continuity**. Reservation and refusal are **owned** per trail (reopen and unresolved timeout included) and
+>     released once, at detach.
+>   - **F5:** trail mask records exist before the first arm of a run. Carried ownership survives a run with no render
+>     record.
+>   - **F6:** the m55 hard-bound fallback writes a **terminal unknown** into the frame's single authority, so a late
+>     receipt cannot contradict it.
+>   - **Route 2** (a material set while unregistered, then registered): **caught** by a registration watch on components
+>     that were unregistered when judged. **Route 1** (MID texture parameter) is a documented delivery limitation.
+>   - **Monitor timer:** `stuck_mip_hold_monitor_scans/_ms_mean/_ms_p95/_ms_max` plus counts, and a `HOLD MONITOR COST`
+>     log line.
+> - **Proofs (offline):** selftest **130/130**, 37 new, each item both ways against a verbatim `90dfa6f` header replica.
+> - **Builds:** Game and Editor exit 0, 0 warnings; `_binary_baselines\m52fix-B725678B\`. `FD621B27` is untouched and
+>   remains tonight's pinned FIX build.
+> - 🎯 **NEXT:** tonight's 084-03 on `FD621B27`. Then Tuesday's confirmation bench on `B725678B`: the 084-03 harness runs it
+>   by changing `FIX_ARCHIVE_NAME` alone; journal §5 has the caveats. Then Codex's one combined check (source delta plus
+>   the evidence). ⛔ No merge before chat rules.
+>
+> 🔧 **084-02b, 2026-09-28 — THE m52 FIX IS CORRECTED PER THE 084-02 RULING (F1–F7, Shipping, resource replacement,
+> purity scope) AND REBUILT: exe `FD621B27`, archived, NOT staged. NOTHING HAS BEEN LAUNCHED; no runtime evidence yet.
+> NOT merged, NO tag.** Branch `fix/m52-label-timing` `d798900` (source) + docs, pushed. `master` `b5f15a3`; main
+> checkout on `m51` `53bf725`. **Supersedes the 084-02 block below wherever they disagree.**
+> - **Cold start:** journal `docs/sessions/2026-09-28-084-02b-code-m52-fix-corrections.md` (§1 is the per-correction
+>   table); ruling `_reviews/084-02-chat-ruling-codex-fix-review.md`; harness `_reviews/084-03-README.md`.
+> - **What changed:**
+>   - **Ordered cursor.** Trail updates run in capture order across batches, and frames wait (`ORDER HOLD`) until
+>     earlier requests report.
+>   - **Missing requests** are unknown and never confirm.
+>   - **Closure** needs 2 baselines armed with **no stream operation pending** and is final only at a fence covering the
+>     in-flight requests. A held or unknown receipt after closure **reopens** the event.
+>   - **Empty watch = unknown (labelled).** The watch is re-frozen at `FinalizeArmedLabel` before the family is served.
+>   - **Carry.** Unresolved or cut events are **carried** across run stop and start with reservation and refusal.
+>   - **m55** never gets a provisional negative.
+>   - **Deferred-mask age** is carried.
+>   - **Legacy-purity lever** compiles out of Shipping.
+>   - **Resource replacement** reads unknown.
+>   - **Purity scope:** all loaded levels, active or not, registered or not. A hold monitor reverts on a new user
+>     mid-hold and flags `stuck_mip.contaminated = 1`. UE 5.1 has no component-registered delegate, so the monitor
+>     uses a per-tick new-component diff (G346).
+> - **Proofs (offline):**
+>   - selftest **93/93**, each correction both ways against a verbatim 084-02 replica;
+>   - gate known-answer checks **15/15**;
+>   - dry run on banked pixels: **gate (i) is now TWO-SIDED**, and onset +2, offset −5, early-onset and late-offset
+>     over-labels (Codex's counterexample) all FAIL while the pixel-repaired window PASSES (G345).
+> - **Builds:** Game and Editor exit 0, 0 plugin warnings; `_binary_baselines\m52fix-FD621B27\` (pinned by name in
+>   `084-03-common.py`); `m52fix-562EE7A4` superseded, kept.
+> - ⛔ **Codex mini-delta (Relay, 1,105 s): CHANGES-REQUIRED.** `_reviews/084-02b-codex-m52-minidelta.md`, collected,
+>   **not acted on**. RESOLVED: F3, F7, Shipping (source), resource replacement, the Apply-time purity scope and the
+>   two-sided comparator. PARTIAL:
+>   - **F1:** queued streamer intent is not fenced;
+>   - **F2:** reopen loses masks and m55, and leaves the reservation and refusal stale;
+>   - **F4:** the lifetime monitor misses `SetMaterial`-then-register and MID texture parameters;
+>   - **F5:** inherited frames have no mask record; a non-render-truth run drops carried ownership;
+>   - **F6:** the hard-bound m55 fallback can disagree with a late live label;
+>   - **gate:** gaps, later visible runs and missing masks can false-pass.
+>
+>   Codex judges the build **not fit for tonight under decision 1**, and says the residual is not its reason. **Chat
+>   decides** whether 084-03 runs now or after correction.
+> - 🎯 **NEXT: chat's ruling; then 084-03 on the owner's go:** `C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\084-03-window.py live`
+>   (12 required legs, B9_FIX now required; 50–65 min, up to ~95). **`SettleTailFrames` stays 0**; the fix legs may fail
+>   (i) by exactly the measured residual, which is reported with the closure rule that would give 0 on both edges. Chat
+>   rules the rule after tonight.
+>
+> 🔧 **084-02, 2026-09-28 — THE `m52` (`stuck_low_mip`) LABEL-SYNC FIX IS BUILT ON `fix/m52-label-timing` (`67afa94`, pushed).
+> NOTHING HAS BEEN LAUNCHED: the fix has NO runtime evidence yet. NOT merged, NO tag. This block is the "you are here" for
+> the m52 fix line.** `master` is unchanged at `b5f15a3`, and the main checkout stays on `m51` `53bf725`.
+> - **Cold start:** journal `docs/sessions/2026-09-28-084-02-code-m52-fix-source-build.md`; spec
+>   `_reviews/084-01-chat-ruling-m52-fix-contract.md`; harness `_reviews/084-03-README.md`.
+> - **The fix (ruling items 1–4):**
+>   - A frame is labelled iff **its own render** drew a held texture below baseline. The colour SVE pass reads
+>     `FStreamableTextureResource::GetState()` for the exact captured request.
+>   - One record drives the label, `stuck_mip.held`, `observable`, the annotation window and the target mask. The
+>     game-thread mirror is kept as `stuck_mip.held_gt_mirror`, a diagnostic.
+>   - The event **outlives `Revert`** through a captured `RestoreTrail` phase that gates the next burst, plus
+>     `IAI.StuckMip.SettleTailFrames` (**default 0**).
+>   - A timeout marks the event `restore_unresolved`, refuses further m52 fires and reserves the target. **Nothing is ever
+>     labelled clean by it.**
+>   - **Wrong object fixed:** a texture is held only with **exactly one user component in the whole loaded world** (any
+>     primitive type or decal, visibility ignored), targeted fires included. The old gate counted only on-screen
+>     static/skeletal users, and targeted fires skipped it.
+> - **Builds:** Game and Editor exit 0, 0 plugin warnings. Exe **`562EE7A4`** (code-only, pairs with container
+>   `67EA1FE0`), archived at `_binary_baselines\m52fix-562EE7A4\`. **Not staged**: the m53 set
+>   `2FCDF059`/`20DA6F98`/`534C5863` is in place.
+> - **Proofs so far are offline only:**
+>   - the unit test: 41 checks, 0 failures;
+>   - non-m52 byte identity, by a source-level argument hunk by hunk (journal §5);
+>   - the harness dry run on banked pixels: the doctored-label can-fail is proven, and the baseline shape is reproduced
+>     (1 frame early, 7 unlabelled after).
+> - ⛔ **Codex source review (Relay, 933 s): CHANGES-REQUIRED.** Report: `_reviews/084-02-codex-m52-fix-review.md`.
+>   Collected, **not acted on**. Five P1 findings:
+>   - F1: the trail closes without a restoration fence.
+>   - F2: split drain batches can close the trail early.
+>   - F3: an empty watch is treated as before_apply, i.e. clean.
+>   - F4: purity misses inactive-loaded levels and unregistered components, and is not maintained after `Apply`.
+>   - F5: restoration ownership is lost at run boundaries.
+>
+>   Two P2 findings: F6 (forced m55 observes) and F7 (the deferred-mask age resets). The legacy-purity storage is not
+>   Shipping-excluded. Gate (i) does not reject over-labelling after recovery (synthetic counterexample).
+> - 🎯 **NEXT: chat rules on Codex's findings and the gate contract. Only then does 084-03 run.** The harness is ready:
+>   `C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\084-03-window.py live`, about 45–60 min. It runs B0/B5/B3 on
+>   both builds, B9 on the baseline, the lever and purity can-fails, and the settle-tail measurement, then restores the m53
+>   set. The merge follows Codex's evidence check.
+>
+> ---
+>
 > 🧾 **082-15, 2026-09-28 — `m53` S2-0 RAN TO COMPLETION: 24 LEGS, 24 ACCEPTED ON ATTEMPT 1, T1–T8 GREEN ON EVERY LEG,
 > KNOWN ANSWER EXACT, POSTFLIGHT PASS. CLASSIFICATION (verbatim): `["STALE-NULL", "REPRODUCED-BY-SWAP, CAUSE UNRESOLVED"]`,
 > primary STALE-NULL. NEXT: CHAT RULES ON THE JOURNAL'S §6, THEN S2-1. No build, cook, stage, source, harness or plan

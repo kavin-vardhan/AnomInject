@@ -169,6 +169,13 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	{
 		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
+	TArray<UTexture2D*> RenderWatch;
+	TArray<FAnomalyRenderMipSample> RenderMips;
+	const bool bRenderRecord = Cap->TakeRenderWatch_RenderThread(Entry.RequestId, RenderWatch);
+	if (bRenderRecord)
+	{
+		FAnomalySveCapturer::SampleRenderMips_RenderThread(RenderWatch, RenderMips);
+	}
 	FAnomalyChangeReceipt ChangeSubmission;
 	if (auto* Data = FAnomalyChangeFamilyData::Find(View.Family))
 	{
@@ -234,7 +241,7 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 
 	ChangeSubmission.Rect = Rect; ChangeSubmission.Extent = SourceExtent; ChangeSubmission.Format = Texture->Desc.Format;
 	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, SourceExtent, Texture->Desc.Format,
-		MoveTemp(Readback), MoveTemp(LegacyReadback), ChangeSubmission);
+		MoveTemp(Readback), MoveTemp(LegacyReadback), ChangeSubmission, MoveTemp(RenderMips), bRenderRecord);
 
 	return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }

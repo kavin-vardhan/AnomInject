@@ -7880,6 +7880,42 @@ invariant resolves is now NEEDS-DECISION; it never PASSes.
 
 Related: G297 (the self-excused singleton reading this replaces as a gate), G119, G142 (a checker is a defect surface of its own).
 
+## G308 — bank alias and `_tryN` names are hardlinks to one file: a write through any name changes all of them (2026-09-26, 083-02)
+
+**What happened.** The harness banks each accepted attempt twice: once as `<LEG>_tryN` and once under the alias `<LEG>`. The two copies
+were byte-identical and cost 72.16 GB. 083-02 replaced each redundant copy with an NTFS hardlink to its keeper. That covered 758 session
+pairs and 99,954 files: 753 alias copies, plus 5 copies under `M51_FROZEN_PAIRING_RECHECK_EVIDENCE\attempts\`. One keeper
+(`M51R_F1R_A_REF_NAT_try1`) is shared by its alias and one of those evidence copies, so 81 of its files carry three names. Before each file
+was linked, both sides were SHA-256 checked. Afterwards the whole bank was re-checked: 1,988 legs had the same file list and sizes, and all
+99,954 alias names re-hashed equal. The m55 change oracle reads a hardlinked alias (`M55B3R23_CB_N3`) with byte-identical output before and
+after. Every name and every citation still resolves.
+
+**What is different now.**
+- **A write through one name is a write through every name.** An in-place edit (`r+b`, append, a tool that rewrites a file where it
+  stands) of an alias also edits the `_tryN` copy, and the reverse. Before 083-02 that was a harmless edit to a spare copy; now it is an
+  edit to the evidence. A proof that mutates bank data must work on a **real copy** (not a link) outside the bank. The existing
+  copy-to-mutate practice is journal 081-43 "Proof scratch on E:": links for the untouched files, real copies for every mutated file,
+  mirrored to evidence, scratch deleted.
+- **Deleting or replacing a name affects only that name.** Deleting one frees nothing while another name remains. That is why the 083-02
+  strip refuses a session whose frames are shared with a kept name: the strip would free no space and would leave the two names disagreeing
+  about whether the frames exist.
+- **Logical size is no longer disk use.** Explorer, `Get-ChildItem | Measure Length`, `du` without link awareness and the 083-01 sizer all
+  count shared bytes once per name. The bank reads **234.03 GB logical / 161.87 GB unique** after 083-02 (before the 5.74 GB strip). For
+  unique bytes, use the file-id audit `_reviews/083-01-evidence/hardlink_audit.ps1`.
+- **Hardlinks are per volume.** A copy of a bank leg to another volume, or a robocopy without link handling, produces independent files and
+  the full logical size (about +72 GB for the whole bank). This is correct, not corrupt, but plan the space for it.
+- **Timestamps and attributes are shared.** An alias file now reports its keeper's mtime. Manifests here are relpath + size (+ SHA-256),
+  so no identity check depends on mtime.
+
+**How to see it.** `fsutil hardlink list <file>` (works without admin) or Python `os.stat(p).st_nlink`.
+
+**Rule.**
+- Never open a bank file for write. Copy it out as a real copy, then mutate the copy.
+- Before deleting or stripping any bank name, check `st_nlink` and account for every other name.
+- Size the bank with a file-id audit, never with a logical sum.
+
+Related: G92 (bank before anything destructive), G130 (disk floor), runbook §8.6 step 0b (E: floor and retention policy).
+
 ## G309 — copying edited sources into a build tree keeps their old mtimes, and UBT then reports an old object as current (2026-09-27, 082-05)
 
 **What happened.** 082-05 edited the S1 sources in one worktree and, to compile-check them before committing, copied the changed files
@@ -8486,3 +8522,603 @@ count above the nulls flips the cell to the other side of the vocabulary. Before
 basis (e.g. absent = ≤ null bound + k, or a px-count criterion such as 0 px ≥ 16), or a three-way vocabulary whose middle
 class ("partial at the noise floor") is stated in advance. Report the per-si histogram beside any "partial", so a
 one-level excursion cannot be mistaken for a trace. Same family as `G340` (a validity bound copied from a summary figure).
+## G343 — a game-thread MIRROR of a render-thread change is acknowledged AFTER the frame that first shows it, and ending the request does not end the picture (2026-09-28, 084-01)
+
+⚠ Numbering: G309–G342 exist on `feat/m53-uv-normal-corruption`, so this entry skips to G343 on a branch cut from `master`.
+
+**What happened.** `stuck_low_mip` (m52) labels a frame, and arms its target mask, when the game-thread value
+`UTexture2D::GetNumResidentMips()` reads below the baseline. That value is `CachedSRRState.NumResidentLODs`
+(`Texture2D.cpp:481-483`). The engine updates it only in a later `TickStreaming`, once the render-thread swap
+(`FStreamableTextureResource::FinalizeStreaming`, `StreamableTextureResource.cpp:214-237`) has already run
+(`StreamableRenderAsset.cpp:174-179`). The label sample happens at `OnWorldTickEnd`, which comes **before** that frame's streamer tick
+(`GameEngine.cpp:1775/1891/1901`). And the streamer is staged: 5 slices, then one final in-flight poll (`StreamingManagerTexture.cpp:1647-1762`).
+So the first low-mip frame normally carries no label. The source guarantees only that the render-thread update precedes the
+acknowledgement, not a whole frame between them; a narrow same-poll race can close the gap. The bank (StackOBot, 43 of 43 static-camera
+measurable events) shows the main blur step one captured frame before the label, with smaller departures up to 4 frames before it. The
+held textures' game-thread counts usually flip together (65 of 70 records), which hides each texture's own swap time. The other edge is
+keyed to the **request**: `BeginRevert` removes the fire in the same tick, and the revert-tick frame is already labelled clean. But the
+stream-in lands later, first recovering at revert +6 engine frames with `RESTORE VERIFIED` for all textures at +7. That left every one of
+42 complete events still below half the held sharpness deficit for 5–14 captured frames, labelled clean. The owner saw about 2 frames late
+at onset and about 5 frames still blurred after the label ended, on an office host.
+
+**Why nothing caught it.** The onset gate was "the first labelled frame has resident < baseline". That gate checks the label against **the
+same signal that drives it**, so it passes by construction. The restore gate checked that the count eventually returned, not where the label
+ended. And the label-vs-pixel verifier could only answer `NO-TRACE` for this class. Labels and masks agreed with each other, which proves
+nothing, because they share one predicate.
+
+**Rule.**
+- A per-frame label must come from a receipt of **what that frame rendered**. Read it on the render thread, joined to the capture by request
+  id. Never use a game-thread mirror that the engine refreshes on its own schedule, and never shift by a constant: the lag is set by streamer
+  phase and slice, not fixed.
+- An anomaly whose effect outlives its request (async restore, fades, streaming) must keep its event alive until the render-side receipt shows
+  it is gone. The fire's lifetime is not the picture's lifetime.
+- Gate every edge against pixels, with a can-fail lever that reproduces today's timing. An edge gate that reads the label's own input is not
+  a gate.
+- A bench whose cadence settles into step with the engine's (here, mostly 35 engine frames per burst = 5 × the nominal 7-frame streamer
+  cycle, with +7 restores on every static event) shows a narrow band and hides the variance another host will show. Vary the cadence
+  before claiming a constant.
+- A residency receipt is not a visibility proof: the resident mip is not the sampled mip, and temporal history can outlive the restore.
+  Gate the residency window and the visible edge as two different contracts.
+- ⚠ `FMipBiasFade` looks like a streaming fade, but in 5.1 its `CalcMipBias()` is read by no renderer path: only `SetNewMipCount`
+  (`RenderResource.cpp:1096`) and, through `IsFading()`, `UTexture::HasPendingLODTransition` (`Texture.cpp:1126-1129`). Don't explain a
+  gradual recovery with it.
+
+Related: G135 (a restricted fixture hides a class), G224 (no gate compared first-label to first-mask), G266 (the streamer runs on its own
+schedule), G270 (a geometric predicate cannot certify visibility), G96 (prove the gate can fail).
+
+## G344 — a texture's sharpness drifts on its own, so a pixel blur oracle must use the PRE-EVENT level; a flat null or a pre/post line both lie (2026-09-28, 084-02)
+
+**What happened.** The part B pixel oracle for `stuck_low_mip` measures S, the mean grey gradient inside the target's ROI, and calls a
+frame "pixel-visibly blurred" when S falls below a reference by more than a threshold taken from a no-hold null run. Its first two versions
+failed on banked MainWorld data, each for a reason that looks like noise but is structure:
+1. **A flat null μ/σ over the whole run.** MainWorld's camera eases for the first ~25–85 captured frames (the 082-07 AMENDMENT 4 shape),
+   and after it settles S still drifts about ±7 % with game time. The null's σ came out at 6 % of μ, the threshold swallowed a 30 % blur,
+   and no event was measurable.
+2. **A reference line interpolated from the pre-event level to the post-event level.** On F-H event 577 the rock sat at S ≈ 3.9 before the
+   fire and climbed to ≈ 4.8 over roughly 150 frames afterwards, with no hold active. **The texture streamer re-sharpens a texture on its own
+   schedule**, beyond the baseline the anomaly restores to. The rising line made the pre-roll look blurred, a false onset 12 frames early.
+
+**Rule.**
+- Reference a blur oracle to the **pre-event level**: the picture at baseline residency just before `Apply`. The anomaly's contract is
+  "held below baseline"; the streamer's later sharpening past baseline is not the anomaly, and must not be charged to it.
+- Take σ from the null's **high-frequency residual** (a rolling-median detrend, then MAD), and add the null's own **worst drop** below its
+  pre-event level under the same procedure. That is a threshold the null cannot exceed by construction, and the only honest meaning of "from
+  independent null runs".
+- Exclude an event whose camera moved from 6 frames before it to 10 frames after it. Report an edge without 3 confirming clean frames, or
+  with a frame-index gap at it, as **censored**, not passed.
+- Proven on real pixels: with the flat pre-event reference, banked F-H event 577 reads first visible 507 against label 508 and last visible
+  521 against label end 514. That is the 084-01 diagnosis, reproduced by an oracle that never reads the label.
+
+⚠ A side note from the same brief: editing plugin headers **while a background build of the same host runs** makes UHT generate from the
+old header and the compiler read the new one. The result is a `GENERATED_BODY` line mismatch (C2509, C2143, "Tick is not a member of
+UWorldSubsystem") that looks like a real defect. It is not; the next build reruns UHT. Edit after the build, or expect one failed build.
+
+Related: G343 (the label mirror), G266 (the streamer's schedule), G96, G135.
+
+## G345 — a TWO-SIDED sync gate needs ONE reference window, and its can-fail proof is void unless the REPAIRED case PASSES first (2026-09-28, 084-02b)
+
+> 🔻 **SUPERSEDED IN PART by G347 (084-04a, ruling 084-02b decision 3): "isolated excursions outside it are REPORTED, not
+> required" is WITHDRAWN.** Every pixel-visible frame outside the window now FAILS unless the paired null shows it. The
+> single-reference-window rule and "the proof counts only when the repaired case PASSES" both STAND.
+
+- The 084-02 sync gate was one-sided: every pixel-visible frame had to be labelled, and nothing checked labels AFTER the last
+  visible frame. Codex showed a counterexample (visible 10–14, labelled 10–18 as a settle tail) that passed both gates.
+- Making it two-sided (label window starts AT the first visible frame and ends AT the last) exposed a conflict the one-sided
+  rule had hidden. The pixel window is defined with a 2-consecutive onset and a 3-frame clean suffix, but "every visible frame
+  must be labelled" also counted an **isolated** below-threshold frame 10 frames before the onset (banked event 577, frame 497).
+  With both rules, the pixel-repaired label window could never pass, so every can-fail case would have "failed" for a reason
+  that proves nothing.
+- **Rule: a two-sided gate compares against a single reference window ([first_vis..last_vis]); isolated excursions outside it
+  are REPORTED, not required. And a doctored-label proof counts only when the repaired window PASSES every gate on the same
+  data.** It was the first dry run's `repaired: FAIL` that caught this; a proof that reported only the negatives would have
+  looked complete.
+- Also: the doctored cases are real session COPIES on disk (labels.jsonl rewritten, mask PNGs written, frames = the banked
+  pixels) judged against a pixel oracle measured once on the original. In-memory label edits never exercise the artifact path.
+
+Related: G344 (the pre-event reference), G96, G120.
+
+## G346 — UE 5.1 has NO global component-registered delegate, and the one global object-creation hook is unsafe to add at runtime (2026-09-28, 084-02b)
+
+- `UActorComponent` exposes only `GlobalCreatePhysicsDelegate` / `GlobalDestroyPhysicsDelegate` (physics only) and
+  `MarkRenderStateDirtyEvent`. The last fires from `MarkRenderStateDirty()`, and only for a component that is registered and has
+  its render state created. **Registering a new component does not broadcast it.**
+- `FUObjectArray::AddUObjectCreateListener` would see every new component, but `AllocateUObjectIndex` iterates
+  `UObjectCreateListeners` **unlocked**, including from the async-loading thread. The engine registers listeners only once (cooker,
+  DDC commandlet). Adding one mid-game races the loader. **Rejected.**
+- **What works with no engine change:** a per-tick diff of `TObjectIterator<UPrimitiveComponent>` / `<UDecalComponent>` (the
+  class hash, not a full object walk) against an `FObjectKey` known-set built at the start. Skip objects still loading
+  (`RF_NeedLoad` / `RF_NeedPostLoad` / async internal flags) and objects whose level is not yet a loaded level of the world, so
+  they are judged once they settle. Add `FWorldDelegates::LevelAddedToWorld` (level made visible) and `MarkRenderStateDirtyEvent`
+  (material change on a registered component). It runs only while an m52 hold is active.
+- Related trap met in the same brief: a preprocessor directive **inside a `UE_LOG` argument list** is C2121 ("'#': invalid
+  character"). Hoist the conditional text into a variable first.
+
+Related: G127, G33.
+
+## G347 — a gate that reads its evidence only when the evidence is present PASSES on its absence; and censoring must rank below a definite failure (2026-09-28, 084-04a)
+
+- The 084-02b part B evaluator had four false-pass paths (Codex, `_reviews/084-02b-codex-m52-minidelta.md`), and all four are
+  one shape: **when the evidence was missing, the code took the branch that does not fail.**
+  - The edge-gap test compared engine frames only `if` the neighbouring row existed, so a **missing** neighbour skipped the
+    test and the edge passed. It also looked only at the first frame of the 3-frame clean suffix.
+  - The mask rule required a mask only when `target_pixels > 0`, so `target_pixels = -1` (**unmeasured**) required nothing.
+  - `HOLD CONTAMINATED` lines were collected **after** the purity verdict was computed, so they were listed beside a PASS.
+  - Visible frames outside the pixel window went into a "reported, not required" list (G345), so a 5-frame recurrence passed.
+- The frozen 084-02b evaluator PASSES all six known answers (Codex's four, a single spike, the contaminated census). That is
+  the `[before]` section of `_reviews/084-03-gateselftest.py`. **The corrected one fails or censors all six.**
+- **Rule 1: every predicate states what it does when its input is absent, and absent means CENSORED or FAIL, never "skip".**
+  A "reported, not required" list inside a gate needs a stated reason why the listed thing cannot be the defect. G345's
+  list had no such reason; it existed only so that the repaired case could pass.
+- **Rule 2: censoring is not a hiding place. The per-event order is FAIL > CENSORED > PASS.** The old evaluator excluded a
+  censored event entirely, including any definite failure it contained. Re-evaluated on the real m52 bank (16 legs, 23
+  measurable static events), **20 of the 23 moved CENSORED → FAIL** (each has unlabelled pixel-visible frames inside its
+  window, the baseline under-label). The remaining 3 were already FAIL. None passes under either evaluator.
+- **Rule 3: tightening a gate can remove the only data that shows its PASS half.** Under the corrected rules, no unedited
+  banked event can pass. The one uncensored event (M52F 577) carries the G345 spike at si 497. The proof therefore runs
+  on 577 with a **declared** single-frame base edit (497 re-pointed at 496). It also proves that the **unedited** original
+  FAILS. Silently choosing "an event that passes" would have hidden that the PASS half now rests on one event with one edit.
+- Also: engine-frame jumps are routine in capture (every settle gap), so the censoring rule is **adjacency to an edge**, not
+  "any gap in the span". A jump between two visible frames inside the window must still PASS, and the proof checks that.
+
+Related: G345 (its "isolated runs are reported, not required" is WITHDRAWN), G96, G142, G146, G119.
+
+## G348 — UE 5.1's texture streamer plans a stream-out BEFORE the asset shows it; "no PendingUpdate" cannot fence that plan, and the only public retirement is a synchronous full update (2026-09-28, 084-04)
+
+- The streamer works in cycles: stage 0 starts an async task that computes each asset's `WantedMips` with the bias it knows
+  then; stages 1..N refresh per-asset data; the apply stage (`StreamRenderAssets`) calls `StreamWantedMips`, which issues
+  `StreamOut(WantedMips)` whenever the asset has **no** pending operation (`StreamingTexture.cpp:562-596`). With
+  `r.Streaming.AmortizeCPUToGPUCopy` on, the apply stage instead queues copies in `PendingMipCopyRequests`, drained on later
+  frames from `CachedWantedMips`. **A plan computed under a hold can therefore lower a texture after the hold is reverted,
+  while `HasPendingInitOrStreaming()` read false the whole time.** Nothing on the asset shows the plan:
+  `bHasStreamingUpdatePending` is `BudgetedMips > ResidentMips`, a stream-IN signal only.
+- **The public "generation" counter is dead in 5.1.** `IStreamingManager::GetNumWantingResourcesID()` is documented as
+  "bumped every time NumWantingResources is updated", but `NumWantingResourcesCounter` has no writer anywhere under
+  `Engine/Source/Runtime` (only its declaration, `ContentStreaming.h:152`). `ProcessingStage` and `PendingMipCopyRequests` are
+  private members of `FRenderAssetStreamingManager`.
+- **What works with public API and no engine change:** after the bias is cleared, call
+  `IStreamingManager::Get().GetRenderAssetStreamingManager().UpdateResourceStreaming(0.f, true)` once. The "process
+  everything" branch completes the in-flight async task, resets the cycle, refreshes every asset's data with the current bias,
+  recomputes and applies synchronously. **The stale plan is replaced before it is ever applied.** The engine's own precedents
+  are `StreamAllResources` and the `ListTextures` exec path. Run it from a plain tick, not from inside a level-add or EndPlay
+  delegate (m52 defers it one tick). **Measure it:** it is a full synchronous streaming pass
+  (`stuck_mip_streamer_fence_ms_max`).
+- **It does NOT retire the amortized copy queue**: the process-everything branch skips the amortized path, so it never
+  resets `PendingMipCopyRequests`. With amortization on, the only bound is the engine's schedule (the next amortized apply
+  resets the queue), so m52 holds the texture as restoring for `2 × (r.Streaming.FramesForFullUpdate + 2)` frames. That is a
+  **heuristic, named as such**, and counted in `stuck_mip_streamer_fence_incomplete`.
+
+Related: G343, G344, G119.
+
+## G349 — A null that calibrates a threshold by its WORST drop over the whole leg absorbs any slow scene motion, and a long leg can make every event unmeasurable (2026-09-28, 084-03)
+
+- **Observed:** the 084-03 harness sets the pixel threshold to `max(5σ, 2 % pre, null worst drop)`. On the banked 90-frame
+  null the worst drop was **0.027** of pre. On tonight's 1,200-frame nulls it was **0.266 / 0.289**, so every sync leg on both
+  builds read **NO-JUDGEABLE-EVENT** (measurability needs depth ≥ 3·thr, ≈ 80 % of pre).
+- **What the null was measuring:** the rock ROI's own sharpness level cycles between ≈3.8 and ≈5.8 with a period of about
+  360 frames (≈12 s, matching the recorded moving-platform period; association only). The "worst drop" is that cycle's
+  downslope at a span end, 50–60 frames after the event, not anything near the hold.
+- **Why the dry runs could not show it:** a 90-frame null never spans one cycle. Proving a calibration on a short leg says
+  nothing about a long one.
+- **Rule:** a threshold derived from a maximum over time must be derived over the same window the judged quantity uses (here,
+  the few frames around the edge), or detrended first. Check a null's per-event drop list, not only its maximum; a threshold
+  10× the proven one is a finding before it is a verdict.
+
+Related: G345, G347, G96, G135.
+
+## G350 — On the m52 fix build `anomaly_present` is true on ~96 % of unlabelled rows; any checker that picks reference frames by it goes blind (2026-09-28, 084-03)
+
+- **Observed:** on `B725678B` a closed stuck-mip event stays attached (trailing) until the next fire (084-04 F2), and its rows
+  carry the event's entry, so `anomaly_present` is true on **986 of 1,027 unlabelled rows** of B0_FIX (baseline: 345 of 1,046).
+  The delivered label window is unchanged.
+- **Consequence:** the 086-01 checker takes its pre-event reference from rows with `anomaly_present == false`, so it returned
+  **NO-REFERENCE on every fix event** while reading the baseline normally. It looked like "no data", not like a defect.
+- `anomaly_present` has meant fire-active, not labelled, since m23; the fix build stretches fire-active to nearly the whole
+  session. `labels.jsonl` ships to clients, so this is a client-visible change of what the flag means in practice.
+- **Rule:** a checker selects "clean" frames by the label artifact (`annotation.json` membership), never by a per-row activity
+  flag whose meaning can widen. And a field whose value distribution changes by 3× across a fix is a contract question, even
+  when every documented semantic still holds.
+
+Related: G98, G243, G347.
+
+🔻 **FIXED IN SOURCE (084-05a, 2026-09-28, exe `2AC0523E`, no runtime evidence yet):** a `stuck_low_mip` entry is now emitted as
+positive only on a frame labelled for it; post-closure and pre-onset rows carry no positive entry. Non-m52 rows are unchanged.
+The rule above for checkers stands.
+
+## G351 — A recycled stencil value is still ON the previous owner, and releasing it early changes the census's choices (2026-09-28, 084-05a)
+
+*(Number checked against every ref: the maximum was G350 on `fix/m52-label-timing`.)*
+
+- **Observed, from source:** m26's `ArmIfMeasurable` and the target mask tag actors with `AnomalyStencilTag::TagActor`; only the
+  target mask's own self-tags are restored the next tick. m26's tags stay on the actor until `RestoreAll` at run end. And
+  `ArmIfMeasurable` arms **any** record with arms left, whether or not its fire is live — that is how `missing_object` gets its
+  post-revert arms.
+- **Consequence 1:** giving a value to a new event without restoring the old actor's components puts two objects under one value
+  in the mask — G246's shape, produced by the fix for the ceiling. A value moved while m26 can still arm the old record, or while
+  any frame or target mask still carries it, aliases two events the same way.
+- **Consequence 2:** the census allocates from the same ledger (`IsFree`), and with the census on its batches decide which
+  targets pass selection. Returning a value to the free pool the moment its event ends changes census batches, and therefore
+  seeded selection, on **every** census-on run — including every short run that never nears the ceiling.
+- **Rule:** a pooled identifier is reusable only when (1) every consumer that can still emit or re-emit it is provably done,
+  (2) its physical carrier on the old owner is restored, and (3) the release cannot feed back into another consumer's
+  decisions. When (3) cannot be shown, reclaim at exhaustion instead of releasing at the end: runs that never exhaust then stay
+  identical, and the value never leaves the claimed set.
+
+Related: G246, G250, G254, G295, G350.
+
+## G352 — Pushing the near plane also moves the directional light's shadow cascades, so a near-clip anomaly changes pixels it does not clip (2026-09-29, 086-02)
+
+*(Number checked against every ref, local and remote: the maximum was G351 on `fix/m52-label-timing`.)*
+
+- **Observed, from source (NOT measured):** `FDirectionalLightSceneProxy::GetSplitDistance`
+  (`DirectionalLightComponent.cpp:756-785`) starts every near cascade at `ShadowNear = View.NearClippingDistance` and
+  spreads the splits from there to the CSM distance. `camera_clipping` pushes that value (10 → 100 by default), so every
+  near cascade boundary moves and shadow texel density changes across the whole frame, including where nothing is clipped.
+  Depth-based screen effects see a different depth encoding too.
+- **Consequence 1 (the B-CC oracle):** ON vs null at the same frame index will differ on frames where no geometry is in
+  the slab. A noise floor taken only from null vs null (two runs at the baseline plane) under-reads the floor, and the
+  oracle would call those shadow shifts "clipped" — false positives against a correct label. The floor must come from
+  ON vs null on frames the schedule designs as negative, next to the null-vs-null floor, and the decision threshold must
+  be derived two-sided against the designed-positive signal, with both margins reported.
+- **Consequence 2 (the dataset):** a `camera_clipping` session's NEGATIVE frames are not pixel-identical to the same
+  game without the anomaly. The label is defined as "geometry clipped"; the cascade shift is a side effect it does not
+  describe. If B-CC measures it as visible, that is a product decision, not a label bug.
+- **Rule:** before designing a matched-null pixel oracle for a view-parameter anomaly (near plane, FOV, exposure), list
+  every renderer system that reads that parameter, not only the one the anomaly is named after.
+
+Related: G41 (the pre-086-02 camera_clipping decision also read the PREVIOUS frame's camera: it ran in `FinalizeArmedLabel`,
+among the tickables at `LevelTick.cpp:1606`, before `UpdateCameraManager` at `:1621`), G228, G230.
+
+## G353 — A transition window excuses every label error smaller than itself; a flag gate needs a shape rule, and under temporal AA an onset error of up to K_on frames cannot be seen from pixels at all (2026-09-29, 084-05b)
+
+*(Number checked against every ref, local and remote: the maximum was G352 on `fix/m52-label-timing`.)*
+
+- **Observed, on real banked pixels (084-06 proofs, B0_FIX, flags placed by the build's rule at K_on 3 / K_off 8):** a label
+  that ends 5 frames early, INSIDE the hold, leaves 5 fully anomalous frames unlabelled — and the rule flags the K_off frames
+  after the (early) end, so every one of them carries `transition: 1`. The ruled gate ("every unlabelled pixel-visible frame
+  must carry the flag") PASSES it. So does any other offset error smaller than K_off.
+- **The shape rule that catches it:** a real temporal-AA tail starts to decay at the first unlabelled frame (on B0_FIX the
+  effect drops by 3.0–8.5 % of the reference level at label end + 1 on all 39 judged events of B0_FIX, B3_FIX and B7_FIX,
+  against a 3-sigma requirement of 0.1–2.2 %); an early end leaves the effect flat or still
+  deepening there. The 084-06 gate therefore FAILS a flag-excused tail whose effect at label end + 1 is not below the effect
+  at label end by 3 sigma. With it, the early end FAILS on all three proof events; without it, it PASSES.
+- **What no rule can catch:** at the onset, the build's exact label under TAA (render truth) starts 1–2 frames before the
+  first 50 %-visible frame. A label that is truly 2 frames early is, in pixels, the same picture. The K_on window is a blind
+  spot by construction; widening K_on widens it. The AA-off legs (K = 0 there, a flag there is itself a FAIL) are the only
+  strict onset test.
+- **Rule:** any gate that exempts frames by a flag must (1) prove on real pixels that an error smaller than the window FAILS,
+  (2) say which errors it cannot see, and (3) keep an AA-off (window-free) leg in the gate set.
+
+Related: G349 (why the threshold is edge-local), G350, G352, G345.
+
+## G354 — A code-only hot-swap cannot add a MODULE: a packaged game starts only the modules its COOKED `.uplugin` lists, and `-ExecCmds` drops an unregistered command without a word (2026-09-29, 084-06)
+
+- **Measured:** all seven B-CC legs ran `IAI.Bench.InputLock 1` and `IAI.Bench.CameraSchedule cc_v1` on exe `E9FF019A` over
+  container `67EA1FE0`. The logs carry **zero** `IAI-` lines: no ARMED, no FRAME, not even a `REFUSED`. The exe contains the
+  strings, but the container's cooked descriptor (extracted with UnrealPak from the archived `.pak`) lists
+  `AnomalyShaders, AnomalyInjector, AnomalyCapture, AnomalyControlServer`. `AnomalyBench` entered the `.uplugin` on
+  2026-09-21 and the container was cooked on 2026-09-04. The module was linked in and never started, so its console objects
+  were never registered.
+- **Why it hides:** every other lever on the same legs echoed normally, because they live in modules the old descriptor lists.
+  An unregistered `-ExecCmds` entry prints nothing, so the leg looks like a clean run with a lever that did nothing (G114's null).
+- **Rule:** `G103`'s hot-swap covers code in EXISTING modules only. Before pairing an exe with an older container, diff the
+  exe branch's `.uplugin` module list against the container's cooked one (`UnrealPak <pak> -Extract <dir> -Filter=*.uplugin`).
+  Every bench lever must be read back from the leg's own log before the leg counts, as the m52 levers already are.
+
+## G355 — A `finally` restore that catches only the harness's own exception is not a guarantee: an OS copy error escapes it (2026-09-29, 084-06)
+
+- **Measured:** 3 s after the last leg's game process exited, the m53 restore's first `shutil.copy2` raised
+  `PermissionError [WinError 32]` on the staged exe. `084-06-window.py` wraps the restore in `except L.Stop`, so the
+  `PermissionError` escaped. No restore receipt was written, the evaluation was skipped, and the process exited 1 with the FIX
+  set still staged. Nothing had been replaced, and a retry of the same `stage()` call a minute later verified at once.
+- **Rule:** a restore step must catch every exception, retry a sharing violation with a bounded back-off, and always write a
+  receipt stating what is staged. The evaluation must not depend on the restore having succeeded.
+- **Related:** a dry-run root in `%TEMP%` (C:) cannot hardlink stand-ins from the bank, which is a junction to E:
+  (WinError 17). Put `IAI_R56_ROOT` on E:.
+
+## G356 — A null that writes no events cannot calibrate: on a G350 build the no-hold null has nothing labelled, so the edge-local basis silently falls back on every leg (2026-09-29, 084-06)
+
+- **Measured:** B5 (`IAI.Bench.StuckMipNoHold 1`) wrote 0 annotation events on `E9FF019A`: no render-held frame, so no
+  labelled frame, so no event (G350 working as designed). The 084-06 null gate needs one settled null event, so it read
+  FAIL. B0, B3, B9 and B0L then reported `basis: own-detrend, lag: None`. The G349 null-divided threshold the harness was
+  built around never ran, and B0/B3's censored offsets (12 of 16, 5 of 8) come from the fallback basis.
+- **Rule:** calibrate a null from its SERIES (the sharpness trace and the lag), never from events the build may legitimately
+  not emit. Before the window, check that each null leg yields what its consumer needs; a basis that falls back must say so
+  in the verdict line, not only in a per-row field.
+
+Related: G349, G350, G103, G114, G120.
+
+## G357 — A binary render record cannot see a PARTIAL held set, and the visible share of a partial set depends on WHICH texture dropped first (2026-09-29, 084-07)
+
+- **Measured (banked B9 legs, AA off, joined frame by frame with the 084-06 evaluator's drop fraction):** on every judged
+  event the first two labelled frames hold one or two of the three textures at the held level and the rest at baseline.
+  084-03: normal map at 7, diffuse/AORM at 11 → 0.66—0.78 of the event's depth. 084-06: diffuse/AORM at 7, normal map
+  at 11 → 0.06—0.23. All three held → 0.91—1.00. The order also flips WITHIN a run (each run's warm-up event has the other
+  order: 084-03 sf=46 0.05—0.07, 084-06 sf=46 0.76). `Combine` reads HELD for all of them, because one held texture makes
+  the verdict.
+- **Rule:** a membership test answers "has the event started", not "is the whole effect in the picture". Carry the held
+  level with the baseline and flag frames whose set sits between them (`transition_reason: partial`). Never tune a pixel
+  threshold to a level that depends on streamer order. ⛔ Why the streamer drops the textures in a varying order is NOT
+  established (G120); only the order and its visible consequence are measured.
+
+## G358 — `visible_positive` never said "not manifest this frame": it was `anomaly_present` plus a valid box (2026-09-29, 084-07)
+
+- **Measured:** every `anomaly_present` row outside its event's annotation frames in the 084-06 banks (MASK55 128 blinking,
+  REAL_BL 56 per leg, LOD 80 per leg, B0L 345) carried `visible_positive: true`, `observable: null` and `target_pixels -1`.
+  Ruling 7's premise ("the object is in its visible phase and `visible_positive = 0`") described the intent, not the
+  build; the client readme documented the as-built rule (present + a valid box).
+- **Rule:** a per-frame visibility field must be derived from the same per-frame bit the annotation uses (`FireActive`),
+  never from event liveness. Entries now carry `labelled`, and `visible_positive` needs a labelled entry with a box.
+  Check a ruling's description of a field against the banked rows before building on it.
+
+## G359 — Rebasing session indices across a run boundary makes them negative, and `-1` was the "no member" sentinel (2026-09-29, 084-07)
+
+- **Measured:** the F5 carry selftest failed on first run (`[]` flagged instead of 0..7): the carried last member rebased
+  to `-1`, and `PrevMember`/`LastMember` started their search at `Best = -1` with a strict `>`, so the member was
+  invisible. `FEventTransitionTrack::NoMember` (INT_MIN) now marks "none"; `Observe`, `OffWindowPassed` and the capture
+  subsystem compare against it.
+- **Rule:** when a value space can be shifted, a sentinel must lie outside every shifted value. Test the carry across the
+  boundary, not just the state inside one run.
+
+## G360 — A complex trace against a component with no physics state returns "no hit" silently (2026-09-29, 084-07)
+
+- **Source (UE 5.1):** `UPrimitiveComponent::LineTraceComponent` calls `FBodyInstance::LineTrace` → `LineTrace_Geom`,
+  which returns false when the body has no actor handle (NoCollision) and only tests shapes flagged
+  `EPDF_ComplexCollision`. A NoCollision hollow mesh, a skinned body (physics-asset shapes only) or a mesh cooked
+  simple-as-complex therefore reads as a MISS, which would have silently un-labelled a real clip.
+- **Rule:** decide confirmability BEFORE tracing (body valid, collision enabled, a cooked triangle mesh, not
+  simple-as-complex; landscape via its heightfield collision component), and keep the bounds verdict plus a
+  `camera_clipping_unconfirmed` flag for anything that cannot be traced. Also: 5.1 has no `EAllowShrinking` (5.4+),
+  and `UBodySetupCore::GetCollisionTraceFlag` is exported from PhysicsCore, which `AnomalyInjector` does not list:
+  read the `CollisionTraceFlag` UPROPERTY instead of adding a module dependency.
+
+Related: G120, G139, G349, G350, G352, G354.
+
+## G361 — The capture keeps TWO per-fire "active" bits, and a new consumer took the one that does not cover every anomaly: `labelled` reads `FireActive`, which is always false for a texture swap (2026-09-29, 084-07b)
+
+- **Source (`8b8b4d0`):** `FireActive` = `ComputeFireActive`, whose non-`AnomalyState` branch returns
+  `IsLogicallyHidden(actor)` (`AnomalyCaptureSubsystem.cpp:7568`). For `FireWindow` ids (`missing_texture`,
+  `corrupted_texture`, `:550–551`) that is false on every frame, and the annotation never uses it for them — their frame
+  list is `AffectedFrames` (`:8900–8903`). `FireLabelled` = `IsFireLabelledThisFrame` returns true for them (`:5859–5860`)
+  and is what `observable` and the masks read. 084-07 wired the new per-entry `labelled` to `FireActive`
+  (`AnomalyLabelWriter.cpp:264–269`), so on `FF41BFF3` every texture-swap entry reads `labelled: false`, every such row
+  `visible_positive: false`, while `observable` can read `true` on the same entry and `annotation.json` lists the frame.
+- **This is G241's bug class again** (073: `observable`'s active term had been `FireActive` and emptied the texture
+  events). The bit's NAME says "active"; its MEANING is "the annotation's active subset for sources that have one".
+- **Found by reading source while writing the readme's field table**, and independently by Codex (084-07 re-check N1).
+  No runtime evidence; the next bench's `verify_capture.py --label-rule` fails such a session with `LABELLED-MISSING`.
+- **Rule:** a per-entry field that claims "this frame is in the event's frame list" must be computed by the same test
+  the annotation applies for that entry's source — for `FireWindow` that is fire live AND the projected box valid, not
+  `IsFireLabelledThisFrame` alone (true off screen) and not `FireActive` (false always). Before adding a consumer of
+  either bit, list every source in `ResolveAnomalyActiveSource` and say what the bit is for each.
+
+Related: G241, G358, G362.
+
+## G362 — `annotation.json` calls the blinking anomaly `blink`; `labels.jsonl` calls it `blinking` — and the client readme said both were `blinking` (2026-09-29, 084-07b)
+
+- **Source:** `MapAnomalyToClient` (`AnomalyCaptureSubsystem.cpp:523–535`) writes `anomaly_type: "blink"` for the engine id
+  `blinking`; every other id passes through unchanged. `labels.jsonl` entries carry the engine id
+  (`AnomalyLabelWriter.cpp:143`). The client readme's §8.2 listed `blinking` as an `anomaly_type` value and §8.6 said an
+  entry's `id` "matches `anomaly_type`" — both false for this one anomaly.
+- **Consequence:** a client joining labels to annotation on the type string silently drops every blinking event.
+  `verify_capture.py` has always mapped it (`client_type`), so no internal tool noticed.
+- **Rule:** a readme field table is read out of the writer, value by value, not from memory; a cross-file join on a type
+  name goes through the one mapping function.
+
+Related: G142, G361.
+
+## G363 — An engine query that REFUSES to run returns the same `false` as one that ran and found nothing: a zero-thickness box turned a real wall into a clean camera_clipping negative (2026-09-29, 084-07c)
+
+- **Mechanism (Codex N2, source):** the confirmation clipped each view ray to the candidate's box; a planar mesh has a box
+  of zero depth, so every clipped segment had zero length. `FBodyInstance::LineTrace` → `LineTrace_Geom` traces only when
+  the segment is longer than `UE_KINDA_SMALL_NUMBER` (1e-4 cm, `PhysInterface_Chaos.cpp:991`) and otherwise returns
+  `false` — indistinguishable from a miss. 144 of 144 rays "missed" and the frame read clean, unflagged.
+- **The selftest had hidden it:** its wall was given a 0.5 cm half-thickness, so the test never produced a degenerate segment.
+- **Fix:** a segment shorter than the minimum is traced along the whole slab segment of that ray (the candidate's own body,
+  so nothing outside it can hit); a candidate whose VALID traces number fewer than the grid's minimum is `unconfirmed`, never
+  a miss. The test stub now refuses short segments exactly as the engine does.
+- **Rule:** count a negative only from queries that provably ran. Any query with a precondition (a length, a valid body, a
+  built tree) must be checked for that precondition before its `false` is read as evidence.
+
+Related: G360, G96.
+
+## G364 — `FTransform` composition is NOT the matrix product under rotation + non-uniform scale; the renderer uses the matrix product (2026-09-29, 084-07c)
+
+- `GetInstanceTransform(i, T, true)` returns `FTransform(PerInstanceSMData[i].Transform) * ComponentTransform`, and for
+  positive scales `FTransform` multiplies scales componentwise and rotations separately (`TransformVectorized.h`). An instance
+  rotated 90° inside a component scaled (10,1,1) then has its long axis on the wrong world axis: X [140,160] instead of the
+  rendered [50,250] (Codex N3). The renderer and `CalcBounds` use `PerInstanceSMData[i].Transform *
+  ComponentTransform.ToMatrixWithScale()` (`InstancedStaticMesh.cpp:2665`), which can shear.
+- **Fix:** build the instance box from that matrix product (`MakeMatrixBox`): exact when the edges are orthogonal, the
+  enclosing box of the parallelepiped otherwise (conservative — confirmation traces decide).
+- **Rule:** when a geometric test must agree with what is drawn, compose transforms the way the renderer does. An `FTransform`
+  cannot represent every composed transform.
+- ⚠ **Not closed end to end (Codex v2, 084-07c):** UE builds each instance's COLLISION body with the same `FTransform`
+  composition (`InstancedStaticMesh.cpp:2514–2524`), so the confirmation trace against `InstanceBodies[i]` can still miss
+  the drawn instance. Fixing the box moved the error from selection to confirmation; chat decides the remedy.
+
+Related: G360, G363.
+
+## G365 — A verification set drawn from CURRENT membership cannot see an identity that has left it; and a test that verifies every modelled holder cannot see a production path that drops some first (2026-09-29, 084-07c)
+
+- **Mechanism (Codex N7):** mask-value retirement restored tracked holders, REMOVED them from the tracked map, then verified
+  the value against the map's remaining entries plus the old actor's current components. A component that had been moved to
+  another actor, with the host's custom depth off and a pre-plugin value equal to the retired one, was in neither set, so
+  verification passed and the value was reissued — it aliases the new event once the host re-enables custom depth.
+- **Why the 084-07 test passed:** it modelled the holders and verified ALL of them after retirement; production discarded
+  identities before verifying. The test exercised a model of the rule, not the code path.
+- **Fix:** every component a value is ever applied to is recorded (`GAppliedValues`) and kept until that value's retirement
+  verifies; retirement collects tracked ∪ applied ∪ former-owner components and runs one pure function (`RetireHolders`) that
+  both restores and decides the verification set. The selftest calls that same function.
+- **Rule:** verify against the set of identities that ever held the thing, not the set that currently claims it; and put the
+  decision in a pure function the test can call, so the test and production cannot diverge on which identities are checked.
+
+Related: G295, G361.
+
+## G366 — A capture fires exactly ONE anomaly per burst: `IAI.Auto.MaxConcurrent` never makes capture events concurrent (2026-09-29, 084-08)
+
+- **Mechanism:** `UAnomalyCaptureSubsystem::BeginFire` calls `TryFireOnce` (or `TryFireSpecific`) once per burst and
+  `BeginRevert` reverts every live fire at the burst's end. `MaxConcurrent` only caps the auto-injector's own timed loop,
+  which the capture pauses (G62). So a capture never has two events live at once, whatever the pool's concurrency setting.
+- **What does overlap:** mask RECORDS. A record stays live until its fire has ended, its m52 restore trail is detached with
+  nothing in flight, and every frame and mask carrying it has been read back. A `stuck_low_mip` trail can outlive the burst,
+  so the next event's value is allocated while the previous record is still live: 084-06's targeted B0 and its null read
+  `mask_tag_peak_live` 2, while every four-type leg (MASK55 included) read 1.
+- **Consequence:** to exercise concurrent mask IDs (Codex's F4 path) put `stuck_low_mip` in the auto pool, and make
+  `mask_tag_peak_live >= 2` a validity condition of the leg (below it the leg is INVALID for that purpose, never a pass).
+- **Rule:** a brief's "concurrency setting" is a premise; read which call site actually consumes the setting before
+  designing a leg around it.
+
+Related: G62.
+
+## G367 — A 5.1 editor commandlet CAN load every World Partition actor, but CANNOT read LOD screen sizes (2026-09-29, 084-08)
+
+- **Works:** `UnrealEditor-Cmd <uproject> -run=pythonscript -script=<py> -unattended -nullrhi`, then
+  `LevelEditorSubsystem.load_level(map)`, `WorldPartitionBlueprintLibrary.get_actor_descs()` and `load_actors(guids)`:
+  MainWorld loaded 421 of 421 actor descs in about 8 s. `StaticMesh.get_num_lods()` and `get_num_triangles(lod)` work.
+- **Does not:** LOD screen sizes. `unreal.StaticMeshEditorSubsystem` is absent in the commandlet, `StaticMesh` does not expose
+  `source_models`, and `-EnablePlugins=EditorScriptingUtilities` did not make `EditorStaticMeshLibrary` appear. The runtime
+  log's `lod_popping: CURRENT-LOD … screen_size=` line is where the current LOD is read instead.
+- **Guard:** run it with the host's `Content` junctioned to the real project, so hash-manifest the content before and after
+  (it was byte-identical here); the script saves nothing.
+
+Related: G344.
+
+## G368 — A rule written when a flag had ONE meaning becomes a false-FAIL generator when the flag gains an AA-independent reason (2026-09-29, 084-08)
+
+- **Mechanism:** the 084-06 evaluator failed any leg that carried a `transition` flag without temporal AA ("the build emits
+  none there"). That was true while the only reasons were `temporal_aa` / `hide_return`. From 084-07 the build writes
+  `partial` and `unresolved` WITH OR WITHOUT AA, so the inherited rule would have failed every AA-off `stuck_low_mip` leg
+  (B9) that carries a partial onset — exactly the frames the flag exists for.
+- **Caught by:** the 084-09 doctored-case self-test (a record-backed partial onset on an AA-off leg read FAIL), before any
+  bench leg was evaluated with it.
+- **Rule:** when a flag gains a reason, re-scope every check keyed on the flag to the reasons it was written for; test each
+  reason on both AA settings.
+
+Related: G357.
+
+## G369 — A reference rule declared in advance can make a whole schedule UNDECIDABLE, and that is an answer, not a reason to loosen it (2026-09-29, 084-08)
+
+- **Mechanism:** amendment R1 (an onset reference needs >= 4 clean frames at least 4 frames after the previous event, topped
+  up from the event's own post frames) was declared before the MASK55 re-check. MASK55's `2 4 6 4 0` schedule leaves at most
+  3 clean frames between one event's return and the next event (`StaticMeshActor_85`: previous tail 179, label 183–188,
+  next event 193), so every single-run event of missing_texture (37), corrupted_texture (29) and missing_object (20)
+  became CONFOUNDED-REFERENCE. Only blinking, whose own visible phase supplies the reference, stayed judgeable (32 PASS).
+- **What was not done:** relaxing `PREV_SETTLE` after seeing the result. The borderline stays undecided on that bank, and a
+  wide-gap targeted pair (`2 4 8 14 0`, both tick orders) was added to the bench to decide it.
+- **Rule:** tight auto-pool schedules test masks and recycling; they cannot carry per-event sync evidence once the reference
+  must be uncontaminated. Put sync evidence on wide-gap legs.
+
+Related: G349, G352.
+
+## G370 — In a `-run=pythonscript` commandlet the StaticMeshEditor subsystem does not exist until `Module Load StaticMeshEditor`; the deprecated library then returns `[]` / `-1` in silence (2026-09-29, 084-08b)
+
+- **Measured (probe on the r84 host):** before, `hasattr(unreal, "StaticMeshEditorSubsystem")` is False,
+  `EditorStaticMeshLibrary.get_lod_screen_sizes(Sphere)` returns `[]` and `get_lod_count` returns `-1`, with no log line.
+  After `unreal.SystemLibrary.execute_console_command(None, "Module Load StaticMeshEditor")` the subsystem exists and both
+  calls read the engine sphere (`[2.0]`, 1 LOD).
+- **Mechanism (source):** `EditorStaticMeshLibrary.cpp` forwards every LOD call to
+  `GEditor->GetEditorSubsystem<UStaticMeshEditorSubsystem>()` and returns an empty result when that is null.
+- **This is what G367 recorded as "the commandlet cannot read LOD screen sizes".** G367's observation stands; its
+  explanation is superseded. `set_lod_from_static_mesh`, `set_lod_screen_sizes`, `get/set_lod_material_slot` all need it too.
+- **Rule:** load the module before `get_editor_subsystem`; an empty list from an editor-scripting call is "not measured",
+  never "no LODs". Also: `auto_compute_lod_screen_size` is not a Python-visible property in 5.1 (read the screen sizes back).
+
+Related: G367.
+
+## G371 — Two cooks of identical content already differ in three named chunks; a "nothing but the new content" container diff must be read against that baseline (2026-09-29, 084-08b)
+
+- **Baseline (UnrealPak `-List`, per-chunk hashes):** between the 084-07b, 084-07c and 084-08 cooks (same content, code-only
+  changes) exactly **`MainWorld.umap` and the two project shader archives** change; the other 929 of 932 named chunks and every
+  shader-code chunk are identical.
+- **Adding the 7-file LOD fixture** changed the same three, added the fixture's 9 chunks (7 packages + 2 `.ubulk`), replaced the
+  container header and 1 of 1,039 shader-code chunks (16 new ones for the four materials), and **flipped the path case of an
+  unrelated engine package** (`FlipBook.uasset` vs `flipbook.uasset`) with byte-identical chunks. The pak changed only in
+  `AssetRegistry.bin`.
+- **084-08b's cook prediction 6 did not anticipate the MainWorld / case / regroup items.** It is reported as missed and
+  explained by the baseline, not re-worded after the fact.
+- **Rule:** prove "content changed only by X" at the SOURCE (the D: content manifest, where it is exact); a container diff is
+  supporting evidence and needs a same-input cook-to-cook baseline beside it.
+
+Related: G119, G121.
+
+## G372 — A forced LOD never dithers in UE 5.1; a material's Dithered LOD Transition only affects automatic LOD selection (2026-09-29, 084-08b, SOURCE-READ, bench pending)
+
+- **Source:** `StaticMeshRender.cpp:1068-1070` sets the mesh batch's `bDitheredLODTransition = false` whenever
+  `ForcedLodModel > 0`; `GetLODMask` returns the forced LOD directly (`:2359-2361`). The dithered path runs only for automatic
+  LOD and blends two temporal LOD samples that move with the camera, so a return to automatic LOD at a fixed camera gives
+  both samples LOD 0.
+- **Consequence:** 086-01's candidate lag for `lod_popping` (dithered LOD transitions fading a forced pop) predicts NO
+  dither-driven fade on the anomaly's own path. The 084-08b fixture still carries a dithered variant D and a plain variant N,
+  because a bench reading outranks a source reading; any multi-frame fade on D is a finding whatever this entry predicts.
+- **Rule:** read which engine path an anomaly actually drives (forced vs automatic LOD) before naming a candidate mechanism.
+
+Related: G120.
+
+## G373 — Author new content where the project cannot be written, read it back in a fresh process, then copy exactly the new files (2026-09-29, 084-08b)
+
+- **What was done:** the fixture was authored by an editor commandlet on the scratch host with NO content junction (the
+  host's own E: `Content`), read back from disk by a second commandlet, and only then copied into the D: project. The D:
+  manifest before the copy equalled 084-08's (`E4C7F38D…`); after it, the diff is exactly the 7 new files.
+- **Why:** a commandlet behind a `Content` junction writes the D: project directly (the 082-06 hazard), so any stray save lands
+  in the real content and the manifest can only detect it afterwards. Authoring off-project makes "only new files" true by
+  construction and the manifest diff proves it.
+- **Also:** the editor creates `Content\Collections` and `Content\Developers\<user>` on a host with no content; move the
+  host's `Content` away before making the cook junction.
+
+Related: G370.
+
+## G374 — To hide a console lever at runtime, OR `ECVF_Unregistered` into its flags; `SetFlags` REPLACES, `UnregisterConsoleObject` DELETES a command, and `FindConsoleObject` ignores the mask (2026-09-29, 084-10)
+
+- **The mechanism the bench gate uses (UE 5.1 source):** with `ECVF_Unregistered` set, the console refuses the object
+  (`ConsoleManager.cpp:1853`), `FindConsoleVariable` returns null (`:1564`) and autocomplete skips it (`Console.cpp:97`),
+  while the object stays alive for its static destructor.
+- **Three traps next to it:** `IConsoleObject::SetFlags` **replaces** the flag word (`ConsoleManager.cpp:138`), so write
+  `SetFlags(GetFlags() | ECVF_Unregistered)`; `UnregisterConsoleObject(Name)` on a **command** removes it and calls
+  `Release()` — it deletes the object (`:1669-1672`); and **`FindConsoleObject` does NOT filter the mask** (`:1575-1623`),
+  so code that runs a lever by name through it (`->AsCommand()->Execute`) bypasses the gate. Route such lookups through
+  one masked-aware helper (`AnomalyBenchGate::FindLeverCommand`).
+- **The fourth, stated because it is not closable from inside the plugin:** a lever given a value by ini or
+  `-dpcvars` BEFORE the sweep keeps that value — masking only stops the console reaching it. The sweep counts and names
+  such levers (`preset=<n>`), and `preset>0` is a delivery STOP.
+
+Related: G354, G375.
+
+## G375 — "Every registration is compiled out of Shipping" is not "the lever is compiled out of Shipping"; a preprocessor-aware audit found 26 lever strings the registrations left behind (2026-09-29, 084-10)
+
+- **What happened:** after wrapping all nine Shipping-compiled `IAI.Bench.*` registrations, `tools/lever_audit.py`'s
+  first run still FAILED rule R1 on 26 strings: ten `SetBench*` member setters (and one census log) in
+  `AnomalyCaptureSubsystem.cpp` sit **outside** `#if ANOMALY_CAPTURE`, so the AnomalyCapture module compiles them into
+  Shipping although their only callers (the registrations) are compiled out; plus one lever log in a
+  `stuck_low_mip` product path.
+- **The lesson:** a grep for registrations answers the question you asked; the lever's *code* can sit in functions nobody
+  looked at. Evaluate the preprocessor per configuration (Shipping / Development / Editor) and check every occurrence of
+  the lever prefix, not only the registration sites.
+- **The wrap chosen:** whole setter definitions inside `#if !UE_BUILD_SHIPPING` (not empty bodies), so a future Shipping
+  caller is a link error — loud — rather than a silent no-op.
+
+Related: G119, G374.
+
+## G376 — The dashboard bundle ships the owner's DEV token: vite copies the gitignored `public/config.json` into `dist/`, and the bundler's "config.json was NOT copied" line is false (2026-09-29, 084-10)
+
+- **Measured:** a bundle from AnomDash `make_delivery.py` (`618b8df`) carried `dashboard\config.json` byte-identical to the
+  owner's gitignored `public/config.json` (SHA-256 prefix `860D1969A04D`, a 64-char token), because `npm run build` copies
+  `public/` into `dist/` and the manifest's `DIR dist → dashboard` copies `dist/`. Only `build:tauri` deletes
+  `dist/config.json`. The bundler still prints *"config.json was NOT copied - it carries your token"*.
+- **Why it matters (the M2 incident's shape):** the client gets whatever token the packaging machine's dev config holds.
+  It works only if the delivered game was cooked with that same token; otherwise the dashboard cannot log in. With no
+  `dist/config.json`, `Setup.bat` writes an EMPTY token instead — the other shape of the same failure.
+- **The check:** `tools/check_delivery_bundle.py <bundle> --expect-token-log <a log of the delivered build>` — compare
+  against what the delivered build ENFORCES (G118). ⛔ AnomDash was not changed in 084-10.
+
+Related: G112, G118, G119.
+
+## G377 — A build that masks bench levers makes every lever-using leg need `-IAIBench`; without it the lever is refused and the leg is a clean null (2026-09-29, 084-10)
+
+- **From 084-10's build on (Game `667FD4EF`),** `IAI.Bench.*` typed in `-ExecCmds` without `-IAIBench` or
+  `-IAIBenchFixture` is refused as an unknown command, so a leg that relies on `SynthTickOrder`, `MaskPairingProbe`,
+  `Letterbox`, `CameraSchedule` or any other lever runs **without** it and reads as a clean result — G354's shape.
+- **Detector:** the run log's `IAI bench levers: ENABLED (<flags>)` line. A harness that uses a lever asserts that line
+  before trusting the leg; `DISABLED (<n> masked)` on such a leg makes it INVALID. The 084-09 harness is pinned to the
+  pre-gate exe `8A6074AA` and is unaffected.
+
+Related: G354, G374.

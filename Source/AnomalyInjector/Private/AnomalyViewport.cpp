@@ -1,5 +1,6 @@
 #include "AnomalyViewport.h"
 
+#include "AnomalyNearClipSlab.h"
 #include "AnomalyTargeting.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyDefaults.h"
@@ -14,7 +15,11 @@
 #include "Components/PrimitiveComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
+#include "PhysicsEngine/BodyInstance.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "UObject/UnrealType.h"
 #include "InstancedFoliageActor.h"
 #include "Materials/MaterialInterface.h"
 #include "MaterialShared.h"
@@ -30,6 +35,11 @@
 #include "HAL/IConsoleManager.h"
 #include "Engine/EngineBaseTypes.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/Level.h"
+#include "Engine/LocalPlayer.h"
+#include "Components/ModelComponent.h"
+#include "Particles/ParticleSystemComponent.h"
+#include "HAL/PlatformTime.h"
 
 namespace
 {
@@ -540,6 +550,110 @@ namespace
 	}
 }
 
+namespace
+{
+	AnomalyNearClipSlab::FV3 ToSlabV3(const FVector& V)
+	{
+		return AnomalyNearClipSlab::MakeV3(V.X, V.Y, V.Z);
+	}
+
+	FVector FromSlabV3(const AnomalyNearClipSlab::FV3& V)
+	{
+		return FVector(V.X, V.Y, V.Z);
+	}
+
+	AnomalyNearClipSlab::FAffine34 AffineFromMatrix(const FMatrix& M)
+	{
+		return AnomalyNearClipSlab::MakeAffine(
+			AnomalyNearClipSlab::MakeV3(M.M[0][0], M.M[0][1], M.M[0][2]),
+			AnomalyNearClipSlab::MakeV3(M.M[1][0], M.M[1][1], M.M[1][2]),
+			AnomalyNearClipSlab::MakeV3(M.M[2][0], M.M[2][1], M.M[2][2]),
+			AnomalyNearClipSlab::MakeV3(M.M[3][0], M.M[3][1], M.M[3][2]));
+	}
+
+	AnomalyNearClipSlab::FBox3 OrientedBoxFromLocal(const FVector& LocalCenter, const FVector& LocalHalf,
+		const FTransform& Transform)
+	{
+		AnomalyNearClipSlab::FBox3 B;
+		B.Center = ToSlabV3(Transform.TransformPosition(LocalCenter));
+		const FQuat Rotation = Transform.GetRotation();
+		const FVector Scale = Transform.GetScale3D().GetAbs();
+		B.Axis[0] = ToSlabV3(Rotation.RotateVector(FVector::XAxisVector));
+		B.Axis[1] = ToSlabV3(Rotation.RotateVector(FVector::YAxisVector));
+		B.Axis[2] = ToSlabV3(Rotation.RotateVector(FVector::ZAxisVector));
+		B.Half[0] = FMath::Abs(LocalHalf.X) * Scale.X;
+		B.Half[1] = FMath::Abs(LocalHalf.Y) * Scale.Y;
+		B.Half[2] = FMath::Abs(LocalHalf.Z) * Scale.Z;
+		return B;
+	}
+
+	AnomalyNearClipSlab::EConfirmBody ResolveConfirmTarget(UPrimitiveComponent* P, int32 InstanceIndex, FBodyInstance*& OutBody)
+	{
+		OutBody = nullptr;
+		AnomalyNearClipSlab::FConfirmBodyFacts F;
+		F.bSkinned = !P || P->IsA<USkinnedMeshComponent>();
+		if (F.bSkinned)
+		{
+			return AnomalyNearClipSlab::ClassifyConfirmBody(F);
+		}
+		FBodyInstance* Body = nullptr;
+		if (const FLazyObjectProperty* Prop = FindFProperty<FLazyObjectProperty>(P->GetClass(), TEXT("CollisionComponent")))
+		{
+			UPrimitiveComponent* Collision = Cast<UPrimitiveComponent>(Prop->GetObjectPropertyValue_InContainer(P));
+			Body = Collision ? Collision->GetBodyInstance() : nullptr;
+			F.bLandscape = true;
+			F.bBodyValid = Body && Body->IsValidBodyInstance();
+		}
+		else
+		{
+			if (UInstancedStaticMeshComponent* Ism = Cast<UInstancedStaticMeshComponent>(P))
+			{
+				Body = Ism->InstanceBodies.IsValidIndex(InstanceIndex) ? Ism->InstanceBodies[InstanceIndex] : nullptr;
+				F.bInstance = true;
+				F.bInstanceBodyMatchesRendered = false;
+				if (Ism->PerInstanceSMData.IsValidIndex(InstanceIndex))
+				{
+					const FMatrix InstanceMatrix = Ism->PerInstanceSMData[InstanceIndex].Transform;
+					const FMatrix Rendered = InstanceMatrix * Ism->GetComponentTransform().ToMatrixWithScale();
+					const FMatrix BodyMatrix = (FTransform(InstanceMatrix) * Ism->GetComponentTransform()).ToMatrixWithScale();
+					F.bInstanceBodyMatchesRendered = AnomalyNearClipSlab::AffineMatchesRendered(AffineFromMatrix(Rendered),
+						AffineFromMatrix(BodyMatrix), AnomalyNearClipSlab::InstanceBodyMatchRelEps);
+				}
+			}
+			else
+			{
+				Body = P->GetBodyInstance();
+			}
+			F.bCollisionEnabled = P->GetCollisionEnabled() != ECollisionEnabled::NoCollision;
+			F.bBodyValid = Body && Body->IsValidBodyInstance();
+			const auto* WeldInfo = Body ? Body->GetCurrentWeldInfo() : nullptr;
+			F.bWelded = P->IsWelded() || (Body && Body->WeldParent != nullptr) || (WeldInfo && WeldInfo->Num() > 0);
+			const UBodySetup* Setup = P->GetBodySetup();
+			F.bHasComplex = Setup && Setup->CollisionTraceFlag != CTF_UseSimpleAsComplex && Setup->ChaosTriMeshes.Num() > 0;
+		}
+		const AnomalyNearClipSlab::EConfirmBody Kind = AnomalyNearClipSlab::ClassifyConfirmBody(F);
+		if (AnomalyNearClipSlab::IsConfirmableBody(Kind))
+		{
+			OutBody = Body;
+		}
+		return Kind;
+	}
+
+	bool IsOrientedBoxPlausible(const AnomalyNearClipSlab::FBox3& B, const FBoxSphereBounds& WorldBounds,
+		const FVector& LocalExtent)
+	{
+		if (LocalExtent.IsNearlyZero() && !WorldBounds.BoxExtent.IsNearlyZero())
+		{
+			return false;
+		}
+		const FBox Aabb = WorldBounds.GetBox();
+		const double Slack = FMath::Max(1.0, 0.01 * WorldBounds.BoxExtent.GetMax());
+		const FVector C = FromSlabV3(B.Center);
+		return C.X >= Aabb.Min.X - Slack && C.Y >= Aabb.Min.Y - Slack && C.Z >= Aabb.Min.Z - Slack
+			&& C.X <= Aabb.Max.X + Slack && C.Y <= Aabb.Max.Y + Slack && C.Z <= Aabb.Max.Z + Slack;
+	}
+}
+
 namespace AnomalyViewport
 {
 	bool GetActiveViewInfo(UWorld* World, FAnomalyViewInfo& OutView)
@@ -884,6 +998,329 @@ namespace AnomalyViewport
 
 		return World->OverlapAnyTestByChannel(View.Origin, FQuat::Identity, ECC_Visibility,
 			FCollisionShape::MakeSphere(Radius), Params);
+	}
+
+	bool EvaluateNearClipSlab(UWorld* World, float BaselineNear, float AnomalousNear, FAnomalyNearClipSlabResult& Out)
+	{
+		using namespace AnomalyNearClipSlab;
+
+		Out = FAnomalyNearClipSlabResult();
+		Out.BaselineNear = BaselineNear;
+		Out.AnomalousNear = AnomalousNear;
+		const uint64 StartCycles = FPlatformTime::Cycles64();
+
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		if (!PC)
+		{
+			return false;
+		}
+
+		FMinimalViewInfo Pov;
+		if (PC->PlayerCameraManager && PC->PlayerCameraManager->GetCameraCacheTime() > 0.0f)
+		{
+			Pov = PC->PlayerCameraManager->GetCameraCacheView();
+		}
+		else
+		{
+			FAnomalyViewInfo Fallback;
+			if (!GetActiveViewInfo(World, Fallback))
+			{
+				return false;
+			}
+			Pov.Location = Fallback.Origin;
+			Pov.Rotation = Fallback.Rotation;
+			Pov.FOV = Fallback.HorizontalFOVDeg;
+			Pov.AspectRatio = Fallback.AspectRatio;
+		}
+		Out.bEvaluated = true;
+		Out.EffectiveNear = Pov.GetFinalPerspectiveNearClipPlane();
+
+		auto Finish = [&Out, StartCycles]()
+		{
+			Out.Micros = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartCycles) * 1000.0;
+		};
+
+		if (Pov.ProjectionMode != ECameraProjectionMode::Perspective)
+		{
+			Out.bNotPerspective = true;
+			Finish();
+			return true;
+		}
+		if (Pov.PerspectiveNearClipPlane > 0.0f)
+		{
+			Out.bNearOverridden = true;
+			Finish();
+			return true;
+		}
+
+		int32 SizeX = 0;
+		int32 SizeY = 0;
+		if (UGameViewportClient* ViewportClient = World->GetGameViewport())
+		{
+			FVector2D Size = FVector2D::ZeroVector;
+			ViewportClient->GetViewportSize(Size);
+			SizeX = (int32)Size.X;
+			SizeY = (int32)Size.Y;
+		}
+		int32 Axis = AxisMaintainX;
+		if (const ULocalPlayer* LocalPlayer = PC->GetLocalPlayer())
+		{
+			if (LocalPlayer->AspectRatioAxisConstraint == AspectRatio_MaintainYFOV)
+			{
+				Axis = AxisMaintainY;
+			}
+			else if (LocalPlayer->AspectRatioAxisConstraint == AspectRatio_MajorAxisFOV)
+			{
+				Axis = AxisMajor;
+			}
+		}
+		static IConsoleVariable* LegacyMaintainY =
+			IConsoleManager::Get().FindConsoleVariable(TEXT("r.UseLegacyMaintainYFOVViewMatrix"));
+		const bool bLegacyMaintainY = LegacyMaintainY && LegacyMaintainY->GetInt() != 0;
+
+		const FTanExtents Tan = ComputeTanExtents(Pov.FOV, Pov.AspectRatio, Pov.bConstrainAspectRatio != 0,
+			SizeX, SizeY, Axis, bLegacyMaintainY);
+		const FRotationMatrix Basis(Pov.Rotation);
+		const FV3 Eye = ToSlabV3(Pov.Location);
+		const FSlab Slab = BuildSlab(Eye, ToSlabV3(Basis.GetScaledAxis(EAxis::X)), ToSlabV3(Basis.GetScaledAxis(EAxis::Y)),
+			ToSlabV3(Basis.GetScaledAxis(EAxis::Z)), Tan.TanH, Tan.TanV, BaselineNear, AnomalousNear);
+		if (Slab.bEmpty)
+		{
+			Finish();
+			return true;
+		}
+		const FBox SlabBox(FromSlabV3(Slab.AabbMin), FromSlabV3(Slab.AabbMax));
+		const AActor* ViewActor = PC->GetViewTarget();
+
+		TArray<FConfirmCandidate> ConfirmCands;
+		TArray<FBodyInstance*> ConfirmBodies;
+		TArray<FString> ConfirmNames;
+		auto AddConfirm = [&](UPrimitiveComponent* P, int32 InstanceIndex, const FBox3& Box)
+		{
+			FConfirmCandidate C;
+			C.Box = Box;
+			FBodyInstance* Body = nullptr;
+			const AnomalyNearClipSlab::EConfirmBody Kind = ResolveConfirmTarget(P, InstanceIndex, Body);
+			switch (Kind)
+			{
+			case AnomalyNearClipSlab::EConfirmBody::Landscape: ++Out.LandscapeCandidates; break;
+			case AnomalyNearClipSlab::EConfirmBody::Skinned:   ++Out.SkinnedUnconfirmable; break;
+			case AnomalyNearClipSlab::EConfirmBody::NoCollision: ++Out.NoCollisionUnconfirmable; break;
+			case AnomalyNearClipSlab::EConfirmBody::NoComplex: ++Out.NoComplexUnconfirmable; break;
+			case AnomalyNearClipSlab::EConfirmBody::Welded: ++Out.WeldedUnconfirmable; break;
+			case AnomalyNearClipSlab::EConfirmBody::InstanceTransform: ++Out.InstanceTransformUnconfirmable; break;
+			default: break;
+			}
+			C.bConfirmable = Body != nullptr && AnomalyNearClipSlab::IsConfirmableBody(Kind);
+			ConfirmCands.Add(C);
+			ConfirmBodies.Add(C.bConfirmable ? Body : nullptr);
+			ConfirmNames.Add(InstanceIndex == INDEX_NONE
+				? FString::Printf(TEXT("%s.%s"), *GetNameSafe(P->GetOwner()), *P->GetName())
+				: FString::Printf(TEXT("%s.%s[%d]"), *GetNameSafe(P->GetOwner()), *P->GetName(), InstanceIndex));
+		};
+
+		auto Visit = [&](UPrimitiveComponent* P)
+		{
+			if (!P)
+			{
+				return;
+			}
+			++Out.Enumerated;
+			const AActor* Owner = P->GetOwner();
+			FPrimitiveFlags Flags;
+			Flags.bRegistered = P->IsRegistered();
+			Flags.bHasSceneProxy = P->SceneProxy != nullptr;
+			Flags.bVisible = P->IsVisible();
+			Flags.bOwnerHidden = Owner && Owner->IsHidden();
+			Flags.bRenderInMainPass = P->bRenderInMainPass != 0;
+			Flags.bSceneCaptureOnly = P->bVisibleInSceneCaptureOnly != 0;
+			Flags.bIsFxSystem = P->IsA<UFXSystemComponent>();
+			Flags.bOnlyOwnerSee = P->bOnlyOwnerSee != 0;
+			Flags.bOwnerNoSee = P->bOwnerNoSee != 0;
+			if (Flags.bOnlyOwnerSee || Flags.bOwnerNoSee)
+			{
+				for (const AActor* Chain = Owner; Chain; Chain = Chain->GetOwner())
+				{
+					if (Chain == ViewActor)
+					{
+						Flags.bOwnedByViewActor = true;
+						break;
+					}
+				}
+			}
+			Flags.MinDrawDistance = P->MinDrawDistance;
+			Flags.DistanceSqToView = FVector::DistSquared(P->Bounds.Origin, Pov.Location);
+			const EPrimitiveVerdict Verdict = ClassifyPrimitive(Flags);
+			if (Verdict == EPrimitiveVerdict::FxExcluded)
+			{
+				++Out.FxExcluded;
+				return;
+			}
+			if (Verdict != EPrimitiveVerdict::Counted)
+			{
+				return;
+			}
+			const FBox WorldBox = P->Bounds.GetBox();
+			if (!AabbOverlap(Slab.AabbMin, Slab.AabbMax, ToSlabV3(WorldBox.Min), ToSlabV3(WorldBox.Max)))
+			{
+				return;
+			}
+			++Out.Candidates;
+
+			bool bHit = false;
+			bool bEyeInside = false;
+			if (const UInstancedStaticMeshComponent* Ism = Cast<UInstancedStaticMeshComponent>(P))
+			{
+				const UStaticMesh* Mesh = Ism->GetStaticMesh();
+				if (!Mesh)
+				{
+					return;
+				}
+				const FBoxSphereBounds MeshBounds = Mesh->GetBounds();
+				TArray<int32> Indices;
+				const UHierarchicalInstancedStaticMeshComponent* Hism = Cast<UHierarchicalInstancedStaticMeshComponent>(Ism);
+				if (Hism && Hism->ClusterTreePtr.IsValid() && Hism->ClusterTreePtr->Num() > 0 && Hism->IsTreeFullyBuilt())
+				{
+					++Out.HismTreeQueries;
+					Indices = Hism->GetInstancesOverlappingBox(SlabBox, true);
+				}
+				else
+				{
+					++Out.IsmFullScans;
+					const int32 Count = Ism->GetInstanceCount();
+					Indices.Reserve(Count);
+					for (int32 Index = 0; Index < Count; ++Index)
+					{
+						Indices.Add(Index);
+					}
+				}
+				const FMatrix ComponentMatrix = Ism->GetComponentTransform().ToMatrixWithScale();
+				for (const int32 Index : Indices)
+				{
+					if (!Ism->PerInstanceSMData.IsValidIndex(Index))
+					{
+						continue;
+					}
+					++Out.InstancesTested;
+					const FMatrix InstanceWorld = Ism->PerInstanceSMData[Index].Transform * ComponentMatrix;
+					const FBox3 Box = MakeMatrixBox(ToSlabV3(MeshBounds.Origin), ToSlabV3(MeshBounds.BoxExtent * Ism->BoundsScale),
+						AffineFromMatrix(InstanceWorld));
+					if (Box.Half[0] + Box.Half[1] + Box.Half[2] <= UE_KINDA_SMALL_NUMBER)
+					{
+						continue;
+					}
+					if (InstanceBoxMayTouchSlab(Slab, Box))
+					{
+						bHit = true;
+						bEyeInside = bEyeInside || PointInsideBox(Box, Eye);
+						AddConfirm(const_cast<UInstancedStaticMeshComponent*>(Ism), Index, Box);
+					}
+				}
+			}
+			else
+			{
+				const FBox3 WorldAabb = MakeAxisAlignedBox(ToSlabV3(P->Bounds.Origin), ToSlabV3(P->Bounds.BoxExtent));
+				const FBoxSphereBounds Local = P->CalcBounds(FTransform::Identity);
+				const FBox3 Oriented = OrientedBoxFromLocal(Local.Origin, Local.BoxExtent * P->BoundsScale,
+					P->GetComponentTransform());
+				if (IsOrientedBoxPlausible(Oriented, P->Bounds, Local.BoxExtent))
+				{
+					bHit = BoxIntersectsSlab(Slab, Oriented) && BoxIntersectsSlab(Slab, WorldAabb);
+					bEyeInside = bHit && PointInsideBox(Oriented, Eye);
+					if (bHit)
+					{
+						AddConfirm(P, INDEX_NONE, Oriented);
+					}
+				}
+				else
+				{
+					++Out.BoxFallbacks;
+					bHit = BoxIntersectsSlab(Slab, WorldAabb);
+					bEyeInside = bHit && PointInsideBox(WorldAabb, Eye);
+					if (bHit)
+					{
+						AddConfirm(P, INDEX_NONE, WorldAabb);
+					}
+				}
+			}
+			if (!bHit)
+			{
+				return;
+			}
+			++Out.SlabPrimitives;
+			if (bEyeInside)
+			{
+				++Out.EyeInsideBox;
+			}
+			if (Out.FirstHit.IsEmpty())
+			{
+				Out.FirstHit = FString::Printf(TEXT("%s.%s"), *GetNameSafe(Owner), *P->GetName());
+			}
+		};
+
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			It->ForEachComponent<UPrimitiveComponent>(false, Visit);
+		}
+		for (ULevel* Level : World->GetLevels())
+		{
+			if (!Level)
+			{
+				continue;
+			}
+			for (UModelComponent* Model : Level->ModelComponents)
+			{
+				Visit(Model);
+			}
+		}
+
+		Out.bSatPositive = Out.SlabPrimitives > 0;
+		Out.bSlab = false;
+		Out.ConfirmCandidates = ConfirmCands.Num();
+		if (Out.bSatPositive && ConfirmCands.Num() > 0)
+		{
+			const uint64 ConfirmStart = FPlatformTime::Cycles64();
+			TArray<ECandidateOutcome> Outcomes;
+			Outcomes.SetNum(ConfirmCands.Num());
+			const FConfirmConfig Cfg;
+			const FConfirmResult R = ConfirmSlab(Eye, ToSlabV3(Basis.GetScaledAxis(EAxis::X)),
+				ToSlabV3(Basis.GetScaledAxis(EAxis::Y)), ToSlabV3(Basis.GetScaledAxis(EAxis::Z)), Tan.TanH, Tan.TanV,
+				BaselineNear, AnomalousNear, ConfirmCands.GetData(), ConfirmCands.Num(), Outcomes.GetData(), Cfg,
+				[&ConfirmBodies](int32 Index, const FV3& P0, const FV3& P1)
+				{
+					FBodyInstance* Body = ConfirmBodies.IsValidIndex(Index) ? ConfirmBodies[Index] : nullptr;
+					if (!Body || !Body->IsValidBodyInstance())
+					{
+						return false;
+					}
+					FHitResult Hit;
+					return Body->LineTrace(Hit, FromSlabV3(P0), FromSlabV3(P1), true, false);
+				});
+			Out.ConfirmMicros = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - ConfirmStart) * 1000.0;
+			Out.bSlab = R.bPositive;
+			Out.bUnconfirmed = R.bUnconfirmed;
+			Out.ClippedRayFraction = (float)R.ClippedRayFraction;
+			Out.ConfirmTraces = R.Traces;
+			Out.ConfirmHits = R.Hits;
+			Out.ConfirmMisses = R.Misses;
+			Out.ConfirmUnconfirmable = R.Unconfirmable;
+			Out.ConfirmOverCap = R.OverCap;
+			Out.ConfirmTraceCapped = R.TraceCapped;
+			Out.ConfirmNoRay = R.NoRay;
+			Out.ConfirmTooFewValid = R.TooFewValid;
+			Out.ConfirmFullSlabFallbacks = R.FullSlabFallbacks;
+			Out.ConfirmInvalidSegments = R.InvalidSegments;
+			for (int32 i = 0; i < Outcomes.Num(); ++i)
+			{
+				if (Outcomes[i] == ECandidateOutcome::Hit)
+				{
+					Out.FirstConfirmedHit = ConfirmNames[i];
+					break;
+				}
+			}
+		}
+		Finish();
+		return true;
 	}
 
 	void ResetTargetExclusionStats()

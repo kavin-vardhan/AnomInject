@@ -5,17 +5,27 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyLod.h"
 #include "AnomalyStuckMipStats.h"
+#include "AnomalyStuckMipWindow.h"
 #include "AnomalyViewport.h"
+#include "Components/DecalComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
+#include "ContentStreaming.h"
 #include "Engine/Engine.h"
+#include "EngineUtils.h"
+#include "HAL/PlatformTime.h"
+#include "Materials/MaterialInterface.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/Level.h"
+#include "Engine/LevelStreaming.h"
 #include "Engine/StreamableRenderAsset.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
+#include "Misc/ScopeLock.h"
 #include "SceneTypes.h"
+#include "TextureResource.h"
 #include "UObject/UObjectIterator.h"
 #include "UnrealClient.h"
 
@@ -23,7 +33,151 @@ namespace
 {
 	bool GStuckMipNoHold = false;
 	bool GStuckMipUnlinkLock = false;
+#if !UE_BUILD_SHIPPING
+	bool GStuckMipLegacyPurity = false;
+#endif
 	AnomalyStuckMip::FRunStats GStuckMipStats;
+
+	struct FWorldTextureUsers
+	{
+		TArray<const UActorComponent*> Components;
+		TArray<FString> Names;
+		int32 InactiveLevelUsers = 0;
+		int32 UnregisteredUsers = 0;
+	};
+
+	void GatherLoadedLevels(UWorld* World, TSet<const ULevel*>& Out)
+	{
+		Out.Reset();
+		if (!World)
+		{
+			return;
+		}
+		for (ULevel* Level : World->GetLevels())
+		{
+			if (Level)
+			{
+				Out.Add(Level);
+			}
+		}
+		for (ULevelStreaming* Streaming : World->GetStreamingLevels())
+		{
+			if (Streaming)
+			{
+				if (ULevel* Loaded = Streaming->GetLoadedLevel())
+				{
+					Out.Add(Loaded);
+				}
+			}
+		}
+	}
+
+	bool IsComponentStillLoading(const UObject* Object)
+	{
+		return Object->HasAnyFlags(RF_NeedLoad | RF_NeedPostLoad)
+			|| Object->HasAnyInternalFlags(EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading);
+	}
+
+	AnomalyStuckMipWindow::FComponentScope DescribeComponentScope(const UActorComponent* AC, const TSet<const ULevel*>& Loaded)
+	{
+		AnomalyStuckMipWindow::FComponentScope S;
+		S.bTemplate = AC->IsTemplate();
+		S.bPendingKill = !IsValid(AC);
+		const ULevel* Level = AC->GetComponentLevel();
+		S.bInLoadedLevelOfWorld = Level && Loaded.Contains(Level);
+		S.bLevelActive = Level && Level->bIsVisible;
+		S.bRegistered = AC->IsRegistered();
+		S.bPrimitiveOrDecal = AC->IsA<UPrimitiveComponent>() || AC->IsA<UDecalComponent>();
+		return S;
+	}
+
+	bool SettleHoldComponent(const UActorComponent* AC, const TSet<const ULevel*>& Loaded)
+	{
+		const AnomalyStuckMipWindow::FComponentScope S = DescribeComponentScope(AC, Loaded);
+		return AnomalyStuckMipWindow::InPurityScope(S) || S.bTemplate || S.bPendingKill || !AC->GetComponentLevel();
+	}
+
+	void CollectAnyComponentTextures(UActorComponent* AC, TArray<UTexture*>& Used)
+	{
+		Used.Reset();
+		if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(AC))
+		{
+			Prim->GetUsedTextures(Used, EMaterialQualityLevel::Num);
+		}
+		else if (UDecalComponent* Decal = Cast<UDecalComponent>(AC))
+		{
+			if (UMaterialInterface* M = Decal->GetDecalMaterial())
+			{
+				M->GetUsedTextures(Used, EMaterialQualityLevel::Num, true, ERHIFeatureLevel::Num, true);
+			}
+		}
+	}
+
+	void BuildWorldTextureUsers(UWorld* World, const TSet<UTexture2D*>& Wanted,
+		TMap<UTexture2D*, FWorldTextureUsers>& Out, int32& OutComponentsScanned, int32& OutLevelsScanned)
+	{
+		OutComponentsScanned = 0;
+		OutLevelsScanned = 0;
+		if (!World || Wanted.Num() == 0)
+		{
+			return;
+		}
+		TSet<const ULevel*> Loaded;
+		GatherLoadedLevels(World, Loaded);
+		OutLevelsScanned = Loaded.Num();
+		TArray<UTexture*> Used;
+		for (const ULevel* Level : Loaded)
+		{
+			for (AActor* Actor : Level->Actors)
+			{
+				if (!Actor)
+				{
+					continue;
+				}
+				TInlineComponentArray<UActorComponent*> Comps;
+				Actor->GetComponents(Comps);
+				for (UActorComponent* AC : Comps)
+				{
+					if (!AC)
+					{
+						continue;
+					}
+					const AnomalyStuckMipWindow::FComponentScope Scope = DescribeComponentScope(AC, Loaded);
+					if (!AnomalyStuckMipWindow::InPurityScope(Scope))
+					{
+						continue;
+					}
+					CollectAnyComponentTextures(AC, Used);
+					++OutComponentsScanned;
+					for (UTexture* T : Used)
+					{
+						UTexture2D* T2 = Cast<UTexture2D>(T);
+						if (!T2 || !Wanted.Contains(T2))
+						{
+							continue;
+						}
+						FWorldTextureUsers& Users = Out.FindOrAdd(T2);
+						if (!Users.Components.Contains(AC))
+						{
+							Users.Components.Add(AC);
+							if (!Scope.bLevelActive)
+							{
+								++Users.InactiveLevelUsers;
+							}
+							if (!Scope.bRegistered)
+							{
+								++Users.UnregisteredUsers;
+							}
+							Users.Names.Add(FString::Printf(TEXT("%s.%s(%s%s%s)"),
+								*GetNameSafe(Actor), *AC->GetName(), *AC->GetClass()->GetName(),
+								Scope.bLevelActive ? TEXT("") : TEXT(",inactive_level"),
+								Scope.bRegistered ? TEXT("") : TEXT(",unregistered")));
+						}
+					}
+				}
+			}
+		}
+	}
 
 	int32 ReadIntCVar(const TCHAR* Name, int32 Fallback)
 	{
@@ -197,6 +351,18 @@ namespace AnomalyStuckMip
 	{
 		return GStuckMipUnlinkLock;
 	}
+
+#if !UE_BUILD_SHIPPING
+	void SetLegacyPurityLever(bool bOn)
+	{
+		GStuckMipLegacyPurity = bOn;
+	}
+
+	bool IsLegacyPurityLeverOn()
+	{
+		return GStuckMipLegacyPurity;
+	}
+#endif
 }
 
 namespace
@@ -216,6 +382,7 @@ FAnomaly_StuckLowMip::FAnomaly_StuckLowMip()
 FAnomaly_StuckLowMip::~FAnomaly_StuckLowMip()
 {
 	LiveStuckMipInstances().RemoveSingleSwap(this);
+	StopHoldMonitor();
 }
 
 bool FAnomaly_StuckLowMip::HoldsOrRestores(const UTexture2D* Tex) const
@@ -345,15 +512,29 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	const int32 MaxCoAffected = bAutoPool ? AnomalyDefaults::GetStuckMipMaxCoAffected() : TNumericLimits<int32>::Max();
 	const float MinTexelRatio = bAutoPool ? AnomalyDefaults::GetStuckMipMinTexelRatio() : 0.0f;
 
+#if UE_BUILD_SHIPPING
+	const bool bLegacyPurity = false;
+#else
+	const bool bLegacyPurity = GStuckMipLegacyPurity;
+#endif
 	if (!bAutoPool)
 	{
+		const TCHAR* PurityNote =
+			TEXT("The PURITY RULE STILL APPLIES: a texture held here must have exactly ONE user component in the ")
+			TEXT("whole loaded world, because a blurred object the label does not name is a wrong label whoever ")
+			TEXT("chose the target.");
+#if !UE_BUILD_SHIPPING
+		if (bLegacyPurity)
+		{
+			PurityNote =
+				TEXT("IAI.Bench.StuckMipLegacyPurity IS ON: the legacy visible-only co-affected gate is used and a ")
+				TEXT("targeted fire BYPASSES it, exactly as before the 084-02 fix. BENCH DEVICE, can-fail only.");
+		}
+#endif
 		UE_LOG(LogAnomaly, Log,
-			TEXT("stuck_low_mip: TARGETED FIRE on '%s' - the co-affected gate (max %d other VISIBLE components per ")
-			TEXT("texture) and the %.2fx perceptibility ratio are BYPASSED because they govern AUTO-POOL SELECTION ")
-			TEXT("only. An explicitly named object is the operator's decision. LABELLING IS UNCHANGED and still ")
-			TEXT("discriminates per frame: the label is driven by the MEASURED resident mip count, so a fire that ")
-			TEXT("never drops a mip carries zero positive frames."),
-			*Substring, AnomalyDefaults::GetStuckMipMaxCoAffected(), AnomalyDefaults::GetStuckMipMinTexelRatio());
+			TEXT("stuck_low_mip: TARGETED FIRE on '%s' - the %.2fx perceptibility ratio is BYPASSED because it governs ")
+			TEXT("AUTO-POOL SELECTION only. %s"),
+			*Substring, AnomalyDefaults::GetStuckMipMinTexelRatio(), PurityNote);
 	}
 
 	TSet<const AActor*> IgnoreActors;
@@ -382,6 +563,53 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
 	{
 		CollectComponentTextures(Weak.Get(), Candidates);
+	}
+
+	TArray<uint64> TargetComponentIds;
+	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
+	{
+		if (UMeshComponent* Mesh = Weak.Get())
+		{
+			TargetComponentIds.Add((uint64)(UPTRINT)static_cast<const UActorComponent*>(Mesh));
+		}
+	}
+	TMap<UTexture2D*, FWorldTextureUsers> WorldUsers;
+	int32 ComponentsScanned = 0;
+	int32 LevelsScanned = 0;
+	double PurityMs = 0.0;
+	if (!bLegacyPurity)
+	{
+		TSet<UTexture2D*> Wanted;
+		for (UTexture2D* Tex : Candidates)
+		{
+			if (Tex)
+			{
+				Wanted.Add(Tex);
+			}
+		}
+		const double T0 = FPlatformTime::Seconds();
+		BuildWorldTextureUsers(World, Wanted, WorldUsers, ComponentsScanned, LevelsScanned);
+		PurityMs = (FPlatformTime::Seconds() - T0) * 1000.0;
+		++GStuckMipStats.PurityEnumerations;
+		GStuckMipStats.PurityEnumerationMsMax = FMath::Max(GStuckMipStats.PurityEnumerationMsMax, PurityMs);
+		GStuckMipStats.PurityLevelsScannedMax = FMath::Max(GStuckMipStats.PurityLevelsScannedMax, LevelsScanned);
+		int32 InactiveUsers = 0;
+		int32 UnregisteredUsers = 0;
+		for (const TPair<UTexture2D*, FWorldTextureUsers>& KV : WorldUsers)
+		{
+			InactiveUsers += KV.Value.InactiveLevelUsers;
+			UnregisteredUsers += KV.Value.UnregisteredUsers;
+		}
+		GStuckMipStats.PurityInactiveLevelUsers += InactiveUsers;
+		GStuckMipStats.PurityUnregisteredUsers += UnregisteredUsers;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("stuck_low_mip: PURITY ENUMERATION for '%s' - scope ALL LOADED LEVELS (%d, active or not): %d component(s) ")
+			TEXT("of every actor in them scanned, REGISTERED OR NOT (primitives of every type, plus decals), for %d ")
+			TEXT("candidate texture(s) in %.2f ms; %d user(s) sit in an inactive loaded level and %d are unregistered. A ")
+			TEXT("texture is held only if it has exactly ONE user component in that scope and that component belongs to ")
+			TEXT("the target. Visibility is NOT consulted: an off-screen user still shows the blur the moment the camera ")
+			TEXT("turns to it."),
+			*Substring, LevelsScanned, ComponentsScanned, Wanted.Num(), PurityMs, InactiveUsers, UnregisteredUsers);
 	}
 
 	for (UTexture2D* Tex : Candidates)
@@ -457,15 +685,68 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 
 		const int32 CoAffected = VisibleUsers.FindRef(Tex);
-		if (CoAffected > MaxCoAffected)
+		int32 WorldUserCount = -1;
+#if !UE_BUILD_SHIPPING
+		if (bLegacyPurity)
 		{
-			++RefusedShared;
+			if (CoAffected > MaxCoAffected)
+			{
+				++RefusedShared;
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: REFUSED TEXTURE '%s' - %d other VISIBLE component(s) sample it and the maximum ")
+					TEXT("is %d (LEGACY visible-only rule, IAI.Bench.StuckMipLegacyPurity)."),
+					*GetNameSafe(Tex), CoAffected, MaxCoAffected);
+				continue;
+			}
+		}
+		else
+#endif
+		{
+			const FWorldTextureUsers* Users = WorldUsers.Find(Tex);
+			TArray<uint64> UserIds;
+			if (Users)
+			{
+				for (const UActorComponent* C : Users->Components)
+				{
+					UserIds.Add((uint64)(UPTRINT)C);
+				}
+			}
+			WorldUserCount = UserIds.Num();
+			int32 Foreign = 0;
+			const AnomalyStuckMipWindow::EPurity Purity = AnomalyStuckMipWindow::ClassifyPurity(
+				UserIds.GetData(), UserIds.Num(), TargetComponentIds.GetData(), TargetComponentIds.Num(), &Foreign);
+			if (Purity != AnomalyStuckMipWindow::EPurity::Pure)
+			{
+				++GStuckMipStats.RefusedSharedWorld;
+				++RefusedShared;
+				FString Others;
+				if (Users)
+				{
+					for (int32 u = 0; u < Users->Names.Num() && u < 6; ++u)
+					{
+						Others += Users->Names[u] + TEXT(" ");
+					}
+				}
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("stuck_low_mip: REFUSED TEXTURE '%s' shared_world - %d user component(s) in the whole loaded ")
+					TEXT("world (%d not a target component), and the rule is exactly ONE. Holding it would blur every ")
+					TEXT("other user, on screen or not, while the label and mask name only the target. Users: [ %s]. ")
+					TEXT("The gate is PER TEXTURE, so the target's other textures are still eligible."),
+					*GetNameSafe(Tex), UserIds.Num(), Foreign, *Others);
+				continue;
+			}
+		}
+
+		if (Tex->HasPendingInitOrStreaming())
+		{
+			++GStuckMipStats.RefusedBaselinePending;
+			++RefusedNotStreamable;
 			UE_LOG(LogAnomaly, Warning,
-				TEXT("stuck_low_mip: REFUSED TEXTURE '%s' - %d other VISIBLE component(s) sample it and the maximum ")
-				TEXT("is %d. Holding it would blur objects the label does not name, and an unlabelled blurry object ")
-				TEXT("in a labelled frame teaches the model that blurry is normal - worse than a missing label. The ")
-				TEXT("gate is PER TEXTURE, so the target's other textures are still eligible."),
-				*GetNameSafe(Tex), CoAffected, MaxCoAffected);
+				TEXT("stuck_low_mip: REFUSED TEXTURE '%s' baseline_pending - a stream operation is IN FLIGHT, so the ")
+				TEXT("game-thread resident count (%d) is not yet the count the renderer draws with. A baseline read ")
+				TEXT("now could be the pre- or post-transition value, and every later frame's held/restored verdict ")
+				TEXT("is measured against it. Refusing costs one fire; a wrong baseline costs a wrong label."),
+				*GetNameSafe(Tex), Tex->GetNumResidentMips());
 			continue;
 		}
 
@@ -536,7 +817,9 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		H.TargetMips = TargetMips;
 		H.TopResidentPxAtTarget = TopResidentPx;
 		H.CoAffectedVisible = CoAffected;
+		H.WorldUsers = WorldUserCount;
 		H.RatioAtPick = RatioAtPick;
+		H.BaselineResourceId = (uint64)(UPTRINT)Tex->GetResource();
 
 		if (!bNoHoldLever)
 		{
@@ -565,20 +848,23 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		{
 			H.AppliedCinematicMips = H.SavedCinematicMips;
 			H.PredictedMaxAllowedMips = PredictMaxAllowedMips(Tex);
+#if !UE_BUILD_SHIPPING
 			UE_LOG(LogAnomaly, Warning,
 				TEXT("stuck_low_mip: IAI.Bench.StuckMipNoHold IS ON - '%s' is recorded as a held texture and the ")
 				TEXT("streaming bias is DELIBERATELY NOT WRITTEN. The mip will not drop, so held reads false on every ")
 				TEXT("frame, observable reads false, and the event carries no labelled frame. That is the can-fail ")
 				TEXT("proof (G96), not a defect."),
 				*GetNameSafe(Tex));
+#endif
 		}
 
 		UE_LOG(LogAnomaly, Log,
 			TEXT("stuck_low_mip: HOLD '%s' full_mips=%d floor_mips=%d baseline_resident=%d target_resident=%d ")
 			TEXT("top_resident_px=%d ratio_at_pick=%.2f cinematic_mips %d->%d predicted_max_allowed=%d ")
-			TEXT("co_affected_visible=%d [%s]."),
+			TEXT("co_affected_visible=%d world_users=%d [%s]."),
 			*H.TextureName, H.FullMips, H.FloorMips, H.BaselineResidentMips, H.TargetMips, H.TopResidentPxAtTarget,
 			H.RatioAtPick, H.SavedCinematicMips, H.AppliedCinematicMips, H.PredictedMaxAllowedMips, H.CoAffectedVisible,
+			H.WorldUsers,
 			bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, selection gates BYPASSED"));
 
 		Held.Add(H);
@@ -641,6 +927,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 			Injector->WatchTargetForAnomaly(Weak.Get(), GetId());
 		}
 	}
+	StartHoldMonitor(World);
 
 	UE_LOG(LogAnomaly, Log,
 		TEXT("stuck_low_mip: matched %d component(s) for '%s' - HOLDING %d of %d candidate texture(s) [%s]; ")
@@ -694,6 +981,7 @@ void FAnomaly_StuckLowMip::OnTargetLost(AActor* Actor, bool bWorldEnding)
 
 void FAnomaly_StuckLowMip::OnWorldTeardown()
 {
+	StopHoldMonitor();
 	const int32 Unverified = Restoring.Num();
 	GStuckMipStats.UnverifiedAtTeardown = Unverified;
 	if (Unverified <= 0)
@@ -716,10 +1004,12 @@ void FAnomaly_StuckLowMip::OnWorldTeardown()
 		Unverified, *Names);
 
 	Restoring.Reset();
+	bStreamerFencePending = false;
 }
 
 void FAnomaly_StuckLowMip::Revert()
 {
+	StopHoldMonitor();
 	ReleaseTargetWatch();
 
 	int32 Restored = 0;
@@ -771,14 +1061,37 @@ void FAnomaly_StuckLowMip::Revert()
 
 		if (Tex->GetNumResidentMips() >= H.BaselineResidentMips)
 		{
-			++AlreadyBack;
-			continue;
+			if (!bBusy)
+			{
+				++AlreadyBack;
+				FRestoringTexture Back;
+				Back.Texture = Tex;
+				Back.TextureName = H.TextureName;
+				Back.BaselineResidentMips = H.BaselineResidentMips;
+				Back.HeldResidentMips = HeldLevelOf(H);
+				Back.BaselineResourceId = H.BaselineResourceId;
+				Back.Owner = PrimaryOwner;
+				Back.OwnerName = PrimaryOwnerName;
+				Restoring.Add(Back);
+				++GStuckMipStats.RestoreHeldForStreamerPlans;
+				continue;
+			}
+			++GStuckMipStats.RestoreTrackedWhileBusy;
+			UE_LOG(LogAnomaly, Log,
+				TEXT("stuck_low_mip: revert of '%s' reads resident %d >= baseline %d BUT a stream operation is still in ")
+				TEXT("flight, so it is TRACKED rather than counted already-back: an in-flight stream-out can still land ")
+				TEXT("after this revert and leave the picture low with nobody re-asserting the stream-in."),
+				*H.TextureName, Tex->GetNumResidentMips(), H.BaselineResidentMips);
 		}
 
 		FRestoringTexture R;
 		R.Texture = Tex;
 		R.TextureName = H.TextureName;
 		R.BaselineResidentMips = H.BaselineResidentMips;
+		R.HeldResidentMips = HeldLevelOf(H);
+		R.BaselineResourceId = H.BaselineResourceId;
+		R.Owner = PrimaryOwner;
+		R.OwnerName = PrimaryOwnerName;
 		R.StreamInRequests = bBusy ? 0 : 1;
 		R.SkippedPending = bBusy ? 1 : 0;
 		Restoring.Add(R);
@@ -800,11 +1113,18 @@ void FAnomaly_StuckLowMip::Revert()
 		}
 	}
 
+	if (Restoring.Num() > 0)
+	{
+		bStreamerFencePending = true;
+	}
+
 	UE_LOG(LogAnomaly, Log,
 		TEXT("stuck_low_mip: revert of %d held texture(s) - restored=%d left-to-game=%d unresolved=%d relinked=%d ")
 		TEXT("already-back=%d awaiting-restore=%d (total tracked %d). The bias is cleared on every restored texture; ")
 		TEXT("a texture whose resident count is not yet back at its baseline is POLLED every frame until it is, and ")
-		TEXT("while it is pending, any fire on a target that uses it is refused as not_restored."),
+		TEXT("while it is pending, any fire on a target that uses it is refused as not_restored. Every tracked texture, ")
+		TEXT("already-back ones included, is released only after the STREAMER FENCE has retired any mip plan the ")
+		TEXT("streamer computed under the hold (queued but not yet issued), which runs on the next tick."),
 		Held.Num(), Restored, LeftToGame, Unresolved, Relinked, AlreadyBack, Tracked, Restoring.Num());
 
 	Held.Reset();
@@ -816,6 +1136,46 @@ void FAnomaly_StuckLowMip::Revert()
 	bNoHoldLever = false;
 	bActive = false;
 	GStuckMipStats.TexturesAwaitingRestore = Restoring.Num();
+}
+
+bool FAnomaly_StuckLowMip::RunStreamerFence(int32& OutRetireFrames)
+{
+	OutRetireFrames = 0;
+	AnomalyStuckMipWindow::FStreamerFence Fence;
+	Fence.bStreamingEnabled = !IStreamingManager::HasShutdown() && IStreamingManager::Get().IsTextureStreamingEnabled();
+	Fence.bAmortizedCopies = ReadIntCVar(TEXT("r.Streaming.AmortizeCPUToGPUCopy"), 0) != 0
+		&& ReadIntCVar(TEXT("r.Streaming.MaxNumTexturesToStreamPerFrame"), 0) > 0;
+	Fence.MinFramesIfUnfenced = AnomalyStuckMipWindow::UnfencedMinFrames(ReadIntCVar(TEXT("r.Streaming.FramesForFullUpdate"), 5));
+	double Ms = 0.0;
+	if (Fence.bStreamingEnabled)
+	{
+		const double Start = FPlatformTime::Seconds();
+		IStreamingManager::Get().GetRenderAssetStreamingManager().UpdateResourceStreaming(0.0f, true);
+		Ms = (FPlatformTime::Seconds() - Start) * 1000.0;
+		Fence.bFlushed = true;
+		++GStuckMipStats.StreamerFences;
+		GStuckMipStats.StreamerFenceMsMax = FMath::Max(GStuckMipStats.StreamerFenceMsMax, Ms);
+	}
+	const bool bRetired = AnomalyStuckMipWindow::StreamerPlansRetired(Fence);
+	if (!bRetired)
+	{
+		OutRetireFrames = Fence.MinFramesIfUnfenced;
+		++GStuckMipStats.StreamerFenceIncomplete;
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("stuck_low_mip: STREAMER FENCE INCOMPLETE - r.Streaming.AmortizeCPUToGPUCopy is on with ")
+			TEXT("r.Streaming.MaxNumTexturesToStreamPerFrame > 0, so mip copies the streamer queued under the hold can still ")
+			TEXT("be issued from its private copy queue after the synchronous update (UE 5.1 exposes no public generation for ")
+			TEXT("it). The restoring textures are held for %d further frame(s), two full streaming cycles, before a baseline ")
+			TEXT("may confirm; this bound is a heuristic, not a proof. Counted in run_summary.stuck_mip_streamer_fence_incomplete."),
+			OutRetireFrames);
+	}
+	UE_LOG(LogAnomaly, Log,
+		TEXT("stuck_low_mip: STREAMER FENCE flushed=%d amortizedCopies=%d streamingEnabled=%d ms=%.3f retired=%d - a ")
+		TEXT("synchronous full streaming update (UpdateResourceStreaming(0, true), the engine's own StreamAllResources ")
+		TEXT("step) recomputes every wanted mip with the reverted bias and REPLACES the in-flight mip plan, so a stream-out ")
+		TEXT("computed under the hold but not yet issued can no longer be issued."),
+		Fence.bFlushed ? 1 : 0, Fence.bAmortizedCopies ? 1 : 0, Fence.bStreamingEnabled ? 1 : 0, Ms, bRetired ? 1 : 0);
+	return bRetired;
 }
 
 bool FAnomaly_StuckLowMip::IsAwaitingRestore(const UTexture2D* Tex) const
@@ -849,6 +1209,33 @@ void FAnomaly_StuckLowMip::TickAlways(float DeltaSeconds)
 		Revert();
 	}
 
+	if (bActive && bHoldMonitorOn)
+	{
+		const double ScanStart = FPlatformTime::Seconds();
+		ScanHoldForNewUsers(TEXT("per-tick new-component diff"));
+		const double ScanMs = (FPlatformTime::Seconds() - ScanStart) * 1000.0;
+		GStuckMipStats.HoldMonitorScanMsSum += ScanMs;
+		if (GStuckMipStats.HoldMonitorScanMs.Num() < 262144)
+		{
+			GStuckMipStats.HoldMonitorScanMs.Add((float)ScanMs);
+		}
+	}
+
+	if (bStreamerFencePending)
+	{
+		bStreamerFencePending = false;
+		int32 RetireFrames = 0;
+		const bool bRetired = RunStreamerFence(RetireFrames);
+		for (FRestoringTexture& R : Restoring)
+		{
+			if (!R.bFenceRan)
+			{
+				R.bFenceRan = true;
+				R.PlansRetireFrames = bRetired ? 0 : R.FramesWaited + RetireFrames;
+			}
+		}
+	}
+
 	if (Restoring.Num() == 0)
 	{
 		return;
@@ -872,19 +1259,28 @@ void FAnomaly_StuckLowMip::TickAlways(float DeltaSeconds)
 		}
 
 		const int32 Resident = Tex->GetNumResidentMips();
-		if (Resident >= R.BaselineResidentMips)
+		const bool bPending = static_cast<UStreamableRenderAsset*>(Tex)->HasPendingInitOrStreaming();
+		const bool bPlansRetired = R.bFenceRan && R.FramesWaited >= R.PlansRetireFrames;
+		if (Resident >= R.BaselineResidentMips && !bPending && bPlansRetired)
 		{
 			GStuckMipStats.RestoreFramesMax = FMath::Max(GStuckMipStats.RestoreFramesMax, R.FramesWaited);
 			UE_LOG(LogAnomaly, Log,
 				TEXT("stuck_low_mip: RESTORE VERIFIED '%s' resident %d >= baseline %d after %d frame(s), %d ")
-				TEXT("re-asserted stream-in request(s) and %d frame(s) where the engine was already busy. This is a ")
-				TEXT("READ-BACK of the engine's own resident count, not an assumption that the revert took."),
-				*R.TextureName, Resident, R.BaselineResidentMips, R.FramesWaited, R.StreamInRequests, R.SkippedPending);
+				TEXT("re-asserted stream-in request(s) and %d frame(s) where the engine was already busy, with the ")
+				TEXT("streamer fence past (plans retire frame %d). This is a READ-BACK of the engine's own resident count, ")
+				TEXT("not an assumption that the revert took."),
+				*R.TextureName, Resident, R.BaselineResidentMips, R.FramesWaited, R.StreamInRequests, R.SkippedPending,
+				R.PlansRetireFrames);
 			Restoring.RemoveAt(i);
 			continue;
 		}
 
 		++R.FramesWaited;
+
+		if (Resident >= R.BaselineResidentMips && !bPending)
+		{
+			continue;
+		}
 
 		UStreamableRenderAsset* Asset = Tex;
 		if (Asset->HasPendingInitOrStreaming())
@@ -959,6 +1355,336 @@ bool FAnomaly_StuckLowMip::IsCurrentlyAnomalous() const
 	return false;
 }
 
+int32 FAnomaly_StuckLowMip::HeldLevelOf(const FHeldTexture& H)
+{
+	const int32 Aim = H.PredictedMaxAllowedMips > 0 ? H.PredictedMaxAllowedMips : H.TargetMips;
+	const int32 Floor = FMath::Max(1, H.FloorMips);
+	return FMath::Clamp(Aim, Floor, FMath::Max(Floor, H.BaselineResidentMips));
+}
+
+bool FAnomaly_StuckLowMip::GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const
+{
+	if (!bActive)
+	{
+		return false;
+	}
+	for (const FHeldTexture& H : Held)
+	{
+		FAnomalyRenderTruthTexture R;
+		R.Texture = H.Texture;
+		R.Name = H.TextureName;
+		R.BaselineResidentMips = H.BaselineResidentMips;
+		R.HeldResidentMips = HeldLevelOf(H);
+		R.BaselineResourceId = H.BaselineResourceId;
+		R.Owner = PrimaryOwner;
+		R.OwnerName = PrimaryOwnerName;
+		Out.Add(R);
+	}
+	return Out.Num() > 0;
+}
+
+bool FAnomaly_StuckLowMip::GetRestoringRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const
+{
+	for (const FRestoringTexture& Rs : Restoring)
+	{
+		FAnomalyRenderTruthTexture R;
+		R.Texture = Rs.Texture;
+		R.Name = Rs.TextureName;
+		R.BaselineResidentMips = Rs.BaselineResidentMips;
+		R.HeldResidentMips = Rs.HeldResidentMips;
+		R.BaselineResourceId = Rs.BaselineResourceId;
+		R.Owner = Rs.Owner;
+		R.OwnerName = Rs.OwnerName;
+		Out.Add(R);
+	}
+	return Out.Num() > 0;
+}
+
+bool FAnomaly_StuckLowMip::ConsumeHoldContamination(FString& OutReason)
+{
+	if (!bContaminationPending)
+	{
+		return false;
+	}
+	bContaminationPending = false;
+	OutReason = ContaminationReason;
+	ContaminationReason.Reset();
+	return true;
+}
+
+void FAnomaly_StuckLowMip::StartHoldMonitor(UWorld* World)
+{
+	StopHoldMonitor();
+	if (!World)
+	{
+		return;
+	}
+	HoldKnownComponents.Reset();
+	HoldUnregisteredWatch.Reset();
+	TSet<const ULevel*> Loaded;
+	GatherLoadedLevels(World, Loaded);
+	int32 Deferred = 0;
+	auto Seed = [this, &Loaded, &Deferred](UActorComponent* AC)
+	{
+		if (IsComponentStillLoading(AC))
+		{
+			++Deferred;
+			return;
+		}
+		HoldKnownComponents.Add(FObjectKey(AC));
+		if (!AC->IsRegistered() && AnomalyStuckMipWindow::InPurityScope(DescribeComponentScope(AC, Loaded)))
+		{
+			HoldUnregisteredWatch.Add(AC);
+		}
+	};
+	for (TObjectIterator<UPrimitiveComponent> It; It; ++It)
+	{
+		Seed(*It);
+	}
+	for (TObjectIterator<UDecalComponent> It; It; ++It)
+	{
+		Seed(*It);
+	}
+	GStuckMipStats.HoldMonitorUnregisteredWatchedMax =
+		FMath::Max(GStuckMipStats.HoldMonitorUnregisteredWatchedMax, HoldUnregisteredWatch.Num());
+	{
+		FScopeLock Lock(&HoldDirtyCS);
+		HoldDirtyRecheck.Reset();
+	}
+	HoldLevelAddedHandle = FWorldDelegates::LevelAddedToWorld.AddRaw(this, &FAnomaly_StuckLowMip::OnHoldLevelAdded);
+	HoldRenderDirtyHandle = UActorComponent::MarkRenderStateDirtyEvent.AddRaw(this, &FAnomaly_StuckLowMip::OnHoldRenderStateDirty);
+	bHoldMonitorOn = true;
+	UE_LOG(LogAnomaly, Log,
+		TEXT("stuck_low_mip: HOLD MONITOR ON - %d existing component(s) recorded as already judged by the purity census ")
+		TEXT("(%d still loading, judged when they finish). For the whole hold, a component that appears (spawned, ")
+		TEXT("streamed in, newly created or registered: a per-tick diff against that set, because UE 5.1 has no global ")
+		TEXT("component-registered delegate), a level ADDED to the world (FWorldDelegates::LevelAddedToWorld), or a ")
+		TEXT("component whose render state is marked dirty (a material change) is checked; a new user of a held texture ")
+		TEXT("that is not the target REVERTS THE HOLD IMMEDIATELY and flags the event contaminated. %d in-scope component(s) ")
+		TEXT("were UNREGISTERED when judged; each is judged again the tick it registers, because registration creates its ")
+		TEXT("render state without a dirty broadcast and a material set while it was unregistered is otherwise never seen."),
+		HoldKnownComponents.Num(), Deferred, HoldUnregisteredWatch.Num());
+}
+
+void FAnomaly_StuckLowMip::StopHoldMonitor()
+{
+	if (HoldLevelAddedHandle.IsValid())
+	{
+		FWorldDelegates::LevelAddedToWorld.Remove(HoldLevelAddedHandle);
+		HoldLevelAddedHandle.Reset();
+	}
+	if (HoldRenderDirtyHandle.IsValid())
+	{
+		UActorComponent::MarkRenderStateDirtyEvent.Remove(HoldRenderDirtyHandle);
+		HoldRenderDirtyHandle.Reset();
+	}
+	bHoldMonitorOn = false;
+	HoldKnownComponents.Reset();
+	HoldUnregisteredWatch.Reset();
+	FScopeLock Lock(&HoldDirtyCS);
+	HoldDirtyRecheck.Reset();
+}
+
+void FAnomaly_StuckLowMip::OnHoldLevelAdded(ULevel* Level, UWorld* World)
+{
+	if (!bActive || !bHoldMonitorOn || !Level || World != HeldWorld.Get())
+	{
+		return;
+	}
+	TSet<const ULevel*> Loaded;
+	GatherLoadedLevels(World, Loaded);
+	for (AActor* Actor : Level->Actors)
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		TInlineComponentArray<UActorComponent*> Comps;
+		Actor->GetComponents(Comps);
+		for (UActorComponent* AC : Comps)
+		{
+			if (AC && ConsiderHoldUser(AC, Loaded, TEXT("level added to world")))
+			{
+				return;
+			}
+		}
+	}
+}
+
+void FAnomaly_StuckLowMip::OnHoldRenderStateDirty(UActorComponent& Component)
+{
+	if (!bHoldMonitorOn)
+	{
+		return;
+	}
+	FScopeLock Lock(&HoldDirtyCS);
+	HoldDirtyRecheck.Add(&Component);
+}
+
+bool FAnomaly_StuckLowMip::ConsiderHoldUser(UActorComponent* Component, const TSet<const ULevel*>& Loaded, const TCHAR* Trigger)
+{
+	if (!bActive || !Component)
+	{
+		return false;
+	}
+	const AnomalyStuckMipWindow::FComponentScope Scope = DescribeComponentScope(Component, Loaded);
+	if (!AnomalyStuckMipWindow::InPurityScope(Scope))
+	{
+		return false;
+	}
+	TArray<UTexture*> Used;
+	CollectAnyComponentTextures(Component, Used);
+	const UTexture2D* HitTex = nullptr;
+	for (UTexture* T : Used)
+	{
+		const UTexture2D* T2 = Cast<UTexture2D>(T);
+		if (!T2)
+		{
+			continue;
+		}
+		for (const FHeldTexture& H : Held)
+		{
+			if (H.Texture.Get() == T2)
+			{
+				HitTex = T2;
+				break;
+			}
+		}
+		if (HitTex)
+		{
+			break;
+		}
+	}
+	const AActor* Owner = Component->GetOwner();
+	bool bOwnedByTarget = false;
+	for (const TWeakObjectPtr<AActor>& Weak : HeldOwners)
+	{
+		if (Weak.Get() == Owner)
+		{
+			bOwnedByTarget = true;
+			break;
+		}
+	}
+	if (AnomalyStuckMipWindow::EvaluateNewHoldUser(Scope, HitTex != nullptr, bOwnedByTarget, bActive)
+		!= AnomalyStuckMipWindow::EHoldUserAction::RevertNow)
+	{
+		return false;
+	}
+	++GStuckMipStats.HoldContaminations;
+	bContaminationPending = true;
+	ContaminationReason = FString::Printf(TEXT("new user %s.%s(%s%s%s) of held texture '%s' appeared mid-hold (%s)"),
+		*GetNameSafe(Owner), *Component->GetName(), *Component->GetClass()->GetName(),
+		Scope.bLevelActive ? TEXT("") : TEXT(",inactive_level"), Scope.bRegistered ? TEXT("") : TEXT(",unregistered"),
+		*GetNameSafe(HitTex), Trigger);
+	UE_LOG(LogAnomaly, Warning,
+		TEXT("stuck_low_mip: HOLD CONTAMINATED - %s while '%s' holds it. The purity rule (exactly one user component) ")
+		TEXT("no longer holds, so the blur now reaches an object the label and mask do not name. REVERTING THE HOLD NOW; ")
+		TEXT("every labelled frame from here until the render record shows the texture back at baseline is flagged ")
+		TEXT("stuck_mip.contaminated = 1."),
+		*ContaminationReason, *PrimaryOwnerName);
+	Revert();
+	return true;
+}
+
+void FAnomaly_StuckLowMip::ScanHoldForNewUsers(const TCHAR* Trigger)
+{
+	UWorld* World = HeldWorld.Get();
+	if (!bActive || !bHoldMonitorOn || !World)
+	{
+		return;
+	}
+	++GStuckMipStats.HoldMonitorScans;
+	TSet<const ULevel*> Loaded;
+	GatherLoadedLevels(World, Loaded);
+	TArray<UActorComponent*> Fresh;
+	int32 Walked = 0;
+	auto Diff = [this, &Loaded, &Fresh, &Walked](UActorComponent* AC)
+	{
+		++Walked;
+		if (!AC || IsComponentStillLoading(AC))
+		{
+			return;
+		}
+		const FObjectKey Key(AC);
+		if (!HoldKnownComponents.Contains(Key) && SettleHoldComponent(AC, Loaded))
+		{
+			HoldKnownComponents.Add(Key);
+			Fresh.Add(AC);
+			if (!AC->IsRegistered() && AnomalyStuckMipWindow::InPurityScope(DescribeComponentScope(AC, Loaded)))
+			{
+				HoldUnregisteredWatch.Add(AC);
+			}
+		}
+	};
+	for (TObjectIterator<UPrimitiveComponent> It; It; ++It)
+	{
+		Diff(*It);
+	}
+	for (TObjectIterator<UDecalComponent> It; It; ++It)
+	{
+		Diff(*It);
+	}
+	GStuckMipStats.HoldMonitorComponentsWalkedMax = FMath::Max(GStuckMipStats.HoldMonitorComponentsWalkedMax, Walked);
+	GStuckMipStats.HoldMonitorUnregisteredWatchedMax =
+		FMath::Max(GStuckMipStats.HoldMonitorUnregisteredWatchedMax, HoldUnregisteredWatch.Num());
+	for (UActorComponent* AC : Fresh)
+	{
+		if (ConsiderHoldUser(AC, Loaded, Trigger))
+		{
+			return;
+		}
+	}
+	for (int32 i = HoldUnregisteredWatch.Num() - 1; i >= 0; --i)
+	{
+		UActorComponent* AC = HoldUnregisteredWatch[i].Get();
+		if (!AC)
+		{
+			HoldUnregisteredWatch.RemoveAtSwap(i);
+			continue;
+		}
+		if (!AnomalyStuckMipWindow::RejudgeOnRegistration(false, AC->IsRegistered()))
+		{
+			continue;
+		}
+		HoldUnregisteredWatch.RemoveAtSwap(i);
+		++GStuckMipStats.HoldMonitorRegistrationRejudges;
+		if (ConsiderHoldUser(AC, Loaded, TEXT("registered mid-hold (a material set while it was unregistered)")))
+		{
+			return;
+		}
+	}
+	TArray<TWeakObjectPtr<UActorComponent>> Dirty;
+	{
+		FScopeLock Lock(&HoldDirtyCS);
+		Dirty = MoveTemp(HoldDirtyRecheck);
+		HoldDirtyRecheck.Reset();
+	}
+	TArray<TWeakObjectPtr<UActorComponent>> StillLoading;
+	for (const TWeakObjectPtr<UActorComponent>& Weak : Dirty)
+	{
+		UActorComponent* AC = Weak.Get();
+		if (!AC)
+		{
+			continue;
+		}
+		if (IsComponentStillLoading(AC))
+		{
+			StillLoading.Add(Weak);
+			continue;
+		}
+		if (ConsiderHoldUser(AC, Loaded, TEXT("render state marked dirty")))
+		{
+			return;
+		}
+	}
+	if (StillLoading.Num() > 0)
+	{
+		GStuckMipStats.HoldMonitorDirtyRequeued += StillLoading.Num();
+		FScopeLock Lock(&HoldDirtyCS);
+		HoldDirtyRecheck.Append(StillLoading);
+	}
+}
+
 bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 {
 	if (!bActive || Held.Num() == 0)
@@ -1025,6 +1751,7 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 		Rec.AddInt(TEXT("resident_mips"), Now);
 		Rec.AddInt(TEXT("resident_mips_at_onset"), H.ResidentAtOnset);
 		Rec.AddInt(TEXT("co_affected_visible"), H.CoAffectedVisible);
+		Rec.AddInt(TEXT("world_users"), H.WorldUsers);
 		Rec.AddBool(TEXT("held"), Tex != nullptr && Now < H.BaselineResidentMips);
 	}
 
@@ -1051,6 +1778,7 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 	return true;
 }
 
+#if !UE_BUILD_SHIPPING
 static FAutoConsoleCommandWithWorldAndArgs GBenchStuckMipNoHoldCmd(
 	TEXT("IAI.Bench.StuckMipNoHold"),
 	TEXT("BENCH DEVICE, console only, default OFF - never in a client payload. ON makes stuck_low_mip do all of its ")
@@ -1216,3 +1944,4 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchStuckMipUnlinkLockCmd(
 				TEXT("the streamer defeating the bias."),
 				GStuckMipUnlinkLock ? TEXT("ON") : TEXT("off"));
 		}));
+#endif

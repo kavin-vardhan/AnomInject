@@ -9,10 +9,28 @@
 
 class UWorld;
 struct FAnomalyCensusCounters;
+struct FCameraClipRunAccum;
 class FJsonObject;
 
 namespace AnomalyLabel
 {
+	struct FCameraClipFrameDiag
+	{
+		bool bPresent = false;
+		bool bSlab = false;
+		bool bSphereProxy = false;
+		bool bNearOverridden = false;
+		int32 SlabPrimitives = 0;
+		int32 EyeInsideBox = 0;
+		bool bSatPositive = false;
+		bool bUnconfirmed = false;
+		float ClippedRayFraction = 0.0f;
+		int32 ConfirmTraces = 0;
+		int32 ConfirmHits = 0;
+		int32 ConfirmMisses = 0;
+		int32 ConfirmUnresolved = 0;
+	};
+
 	static constexpr int32 SchemaVersion = 1;
 
 	enum class EAnomalyMaskState : uint8
@@ -48,6 +66,8 @@ namespace AnomalyLabel
 		TArray<int32> MaskValues;
 		EAnomalyMaskState MaskState = EAnomalyMaskState::Unmeasured;
 		TArray<uint8>   FireActive;
+		TArray<uint8>   FirePolicy;
+		TArray<uint8>   FireOnScreen;
 		TArray<FVector> FirePos;
 		bool bExposureDip = false;
 		bool bExposureDipScopeExcluded = false;
@@ -58,7 +78,48 @@ namespace AnomalyLabel
 		TArray<uint8>   Observable;
 		TArray<FIntRect> DrawnBounds;
 		TArray<FAnomalyTelemetry> Telemetry;
+
+		struct FRenderTruthWatch
+		{
+			FName Id;
+			FString Target;
+			uint64 StartFrame = 0;
+			FString TextureName;
+			int32 Baseline = 0;
+			int32 HeldLevel = 0;
+			uint64 BaselineResourceId = 0;
+		};
+		TArray<FRenderTruthWatch> RenderWatch;
+		bool bRenderWatchArmed = false;
+		TArray<uint8> Trailing;
+		TArray<uint8> RenderSettled;
+
+		TArray<uint8> EntryEmit;
+		TArray<uint8> EntryTransition;
+		TArray<FAutoLiveFireInfo> TransitionFires;
+		TArray<uint8> TransitionFireReasons;
+		TArray<FAutoLiveFireInfo> TransitionCandidates;
+
+		bool bViewGlobalPending = false;
+		bool bGlobalEarlyPositive = false;
+		FCameraClipFrameDiag CameraClip;
 	};
+
+	struct FLabelEntryCounts
+	{
+		bool bPresent = false;
+		int32 Suppressed = 0;
+		int32 TransitionEntries = 0;
+	};
+
+	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot);
+
+	bool ProjectFireBox(const FAutoLiveFireInfo& F, const FAnomalyViewInfo& View, FVector2D& OutMin, FVector2D& OutMax);
+
+	bool IsFireInAnnotation(const TArray<uint8>* FirePolicy, const TArray<uint8>* FireActive, const TArray<uint8>* FireOnScreen,
+		int32 FireIndex);
+
+	bool IsSnapshotEntryLabelled(const FCaptureSnapshot& Snapshot, int32 FireIndex);
 
 	static constexpr int32 GTargetPixelsUnmeasured = -1;
 
@@ -88,7 +149,7 @@ namespace AnomalyLabel
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
 		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
-		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true);
+		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true, const FCaptureSnapshot* SyncFrame = nullptr);
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
 		const FString& ImageName, int32& OutNumLabels);
@@ -177,7 +238,37 @@ namespace AnomalyLabel
 		int32 TargetDrawnPixelsMeasured = 0, int32 FramesDrawnUnexpected = 0,
 		int32 FramesExposureDipSuppressed = 0,
 		const struct FStuckMipTelemetry* StuckMip = nullptr, const TSharedPtr<FJsonObject>& ChangeSummary = nullptr,
-		const TSharedPtr<FJsonObject>& TexCorruptSummary = nullptr);
+		const TSharedPtr<FJsonObject>& TexCorruptSummary = nullptr,
+		const struct FLabelSyncTelemetry* LabelSync = nullptr, const ::FCameraClipRunAccum* CameraClip = nullptr);
+
+	struct FLabelSyncTelemetry
+	{
+		FString AaMethod;
+		int32 AaMethodValue = 0;
+		bool bTemporalAa = false;
+		int32 OnFramesConfigured = -1;
+		int32 OffFramesConfigured = -1;
+		int32 HideFramesConfigured = -1;
+		int32 OnFrames = 0;
+		int32 OffFrames = 0;
+		int32 HideFrames = 0;
+		int32 TransitionEntries = 0;
+		int32 TransitionFrames = 0;
+		int32 SuppressedEntries = 0;
+		int32 OutOfOrderFrames = 0;
+		int32 MaskTagRecycles = 0;
+		int32 MaskTagPeakLive = 0;
+		int32 MaskTagExhausted = 0;
+		int32 MaskTagRetireQuarantined = 0;
+		int32 MaskTagRetireHostFlagKept = 0;
+		int32 MaskPriorCollisions = 0;
+		int32 MaskPriorCollisionQuarantined = 0;
+		int32 ReasonEntries[5] = { 0, 0, 0, 0, 0 };
+		int32 CarriedTransitionTracks = 0;
+		int32 CarriedHideTracks = 0;
+		int32 UnlabelledActiveEntries = 0;
+		int32 SyncFramesWritten = 0;
+	};
 
 	struct FStuckMipTelemetry
 	{
@@ -199,6 +290,71 @@ namespace AnomalyLabel
 		int32 OnsetPrerollMax = -1;
 		int32 RevertOnDestroy = 0;
 		int32 UnverifiedAtTeardown = 0;
+		FString LabelSource;
+		int32 RenderRecordFrames = 0;
+		int32 RenderHeldFrames = 0;
+		int32 RenderUnknownFrames = 0;
+		int32 RenderRecordMissingFrames = 0;
+		int32 TrailingFrames = 0;
+		int32 TrailingLabelledFrames = 0;
+		int32 SettleTailFrames = 0;
+		int32 SettleTailSetting = 0;
+		int32 TrailsOpened = 0;
+		int32 TrailsClosed = 0;
+		int32 RestoreUnresolved = 0;
+		int32 RestoreUnresolvedAtEnd = 0;
+		int32 GtMirrorDisagreeFrames = 0;
+		int32 MaskDeferredDropped = 0;
+		int32 RefusedSharedWorld = 0;
+		int32 RefusedBaselinePending = 0;
+		int32 RestoreTrackedWhileBusy = 0;
+		double PurityEnumerationMsMax = 0.0;
+		int32 PurityInactiveLevelUsers = 0;
+		int32 PurityUnregisteredUsers = 0;
+		int32 HoldContaminations = 0;
+		int32 ContaminatedFrames = 0;
+		int32 ResourceReplacedFrames = 0;
+		int32 TrailReopens = 0;
+		int32 TrailMissingFrames = 0;
+		int32 UnwatchedAfterClose = 0;
+		int32 WatchRefrozenFrames = 0;
+		int32 WatchMissingFrames = 0;
+		int32 OrderHeldFrames = 0;
+		int32 LiveWindowCut = 0;
+		int32 RestoreCarriedAtEnd = 0;
+		int32 RestoreInheritedAtStart = 0;
+		int32 ObserveUnresolved = 0;
+		int32 HoldMonitorScans = 0;
+		double HoldMonitorMsMean = 0.0;
+		double HoldMonitorMsP95 = 0.0;
+		double HoldMonitorMsMax = 0.0;
+		int32 HoldMonitorComponentsWalkedMax = 0;
+		int32 HoldMonitorUnregisteredWatchedMax = 0;
+		int32 HoldMonitorRegistrationRejudges = 0;
+		int32 HoldMonitorDirtyRequeued = 0;
+		int32 StreamerFences = 0;
+		double StreamerFenceMsMax = 0.0;
+		int32 StreamerFenceIncomplete = 0;
+		int32 RestoreHeldForStreamerPlans = 0;
+		int32 TrailDetaches = 0;
+		int32 TrailDetachesAtNextFire = 0;
+		int32 GraceFrames = 0;
+		int32 ReopensInGrace = 0;
+		int32 ReopensAfterDetach = 0;
+		int32 ReopenUnrecoverableFrames = 0;
+		int32 ReopenCrossTalkSuppressed = 0;
+		int32 ForcedAuthorityFrames = 0;
+		int32 LateReceiptAfterForce = 0;
+		int32 InheritedMaskRecords = 0;
+		int32 PartialFrames = 0;
+		int32 PartialOnsetFrames = 0;
+		int32 PartialMidFrames = 0;
+		int32 PartialOffsetFrames = 0;
+		int32 PartialMaxPerEdge = 0;
+		int32 PartialEventsOverThree = 0;
+		TArray<FString> PartialEvents;
+		int32 UnresolvedFrames = 0;
+		int32 UnresolvedEvents = 0;
 	};
 
 	struct FObservabilityTelemetry

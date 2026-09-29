@@ -12,6 +12,7 @@ struct FAnomalyStencilTagLedger
 	TSet<uint8> HostReserved;
 	TSet<uint8> EventClaimed;
 	TSet<uint8> CensusClaimed;
+	TSet<uint8> Quarantined;
 
 	int32 BenchPoolLimit = 0;
 
@@ -20,6 +21,14 @@ struct FAnomalyStencilTagLedger
 	int32 NumFree() const;
 	int32 NumAssignable() const;
 	void Reset();
+};
+
+struct FRetireStencilResult
+{
+	int32 Restored = 0;
+	int32 RestoredValueOnly = 0;
+	int32 Remaining = 0;
+	bool bVerified = true;
 };
 
 namespace AnomalyStencilTag
@@ -34,7 +43,13 @@ namespace AnomalyStencilTag
 	int32 TagActor(AActor* Actor, int32 StencilValue);
 	int32 TagActor(AActor* Actor, int32 StencilValue, int32* OutFlagFlips);
 	void RestoreActor(AActor* Actor);
+	int32 RestoreComponentsCarrying(AActor* Actor, int32 StencilValue);
+	FRetireStencilResult RetireStencilValue(AActor* FormerOwner, int32 StencilValue);
 	void RestoreAll();
+	void SetRestoreWatch(FAnomalyStencilTagLedger* Ledger);
+	void ResetPriorCollisions();
+	int32 GetPriorCollisions();
+	int32 GetPriorCollisionQuarantined();
 	bool IsAnyTagged();
 	bool IsAnyComponentTagged(const AActor* Actor);
 

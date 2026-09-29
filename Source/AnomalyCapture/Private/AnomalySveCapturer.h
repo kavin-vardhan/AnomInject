@@ -11,6 +11,8 @@
 #include "PixelFormat.h"
 #include "RHIGPUReadback.h"
 
+class UTexture2D;
+
 struct FAnomalyReadbackLatencyStats
 {
 	int32 Samples = 0;
@@ -41,7 +43,11 @@ public:
 	void SetActive(bool bInActive);
 	bool IsActive() const;
 
-	void ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr ChangeIssue = nullptr);
+	void ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr ChangeIssue = nullptr,
+		const TArray<class UTexture2D*>* RenderWatch = nullptr);
+	bool ExtendRenderWatch(uint64 RequestId, const TArray<class UTexture2D*>& Added);
+	bool TakeRenderWatch_RenderThread(uint64 RequestId, TArray<class UTexture2D*>& Out);
+	static void SampleRenderMips_RenderThread(const TArray<class UTexture2D*>& Watch, TArray<FAnomalyRenderMipSample>& Out);
 	void CancelPendingOtherGeneration(const FAnomalyChangeIssuePtr& Current, TArray<uint64>& Cancelled);
 	FAnomalyChangeIssuePtr PeekChangeIssue() const;
 	FAnomalyChangeIssuePtr GetOwnerIssue() const;
@@ -52,7 +58,8 @@ public:
 	void SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect, const FIntPoint& SourceExtent,
 		EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
 		TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback = TUniquePtr<FRHIGPUTextureReadback>(),
-		const FAnomalyChangeReceipt& ChangeSubmission = FAnomalyChangeReceipt());
+		const FAnomalyChangeReceipt& ChangeSubmission = FAnomalyChangeReceipt(),
+		TArray<FAnomalyRenderMipSample>&& RenderMips = TArray<FAnomalyRenderMipSample>(), bool bRenderRecord = false);
 
 	int32 GetDualPathComparisons() const;
 	int32 GetDualPathMismatches() const;
@@ -80,6 +87,8 @@ private:
 		EPixelFormat Format = PF_Unknown;
 		uint32 SubmitRtFrame = 0;
 		FAnomalyChangeReceipt ChangeSubmission;
+		TArray<FAnomalyRenderMipSample> RenderMips;
+		bool bRenderRecord = false;
 	};
 
 	void CompareDualPath_RenderThread(FInFlight& Item, const FAnomalyCapturedFrame& OwnedFrame);
@@ -87,6 +96,7 @@ private:
 	mutable FCriticalSection StateCS;
 	TArray<uint64> PendingWanted;
 	TMap<uint64, FAnomalyChangeIssuePtr> PendingIssues;
+	TMap<uint64, TArray<class UTexture2D*>> RenderWatchByRequest;
 	TWeakPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> ChangeStage;
 	FAnomalyChangeIssuePtr LastIssuedIdentity;
 	FAnomalySveHandshakeStats Handshake;

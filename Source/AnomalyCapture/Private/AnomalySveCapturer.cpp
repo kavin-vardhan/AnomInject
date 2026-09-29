@@ -5,9 +5,12 @@
 #include "AnomalyCaptureLog.h"
 
 #include "CoreGlobals.h"
+#include "Engine/Texture2D.h"
 #include "Misc/ScopeLock.h"
 #include "RHICommandList.h"
 #include "RenderingThread.h"
+#include "Rendering/StreamableTextureResource.h"
+#include "TextureResource.h"
 
 void FAnomalySveCapturer::SetActive(bool bInActive)
 {
@@ -19,13 +22,91 @@ bool FAnomalySveCapturer::IsActive() const
 	return ActiveFlag.GetValue() != 0;
 }
 
-void FAnomalySveCapturer::ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr ChangeIssue)
+bool FAnomalySveCapturer::ExtendRenderWatch(uint64 RequestId, const TArray<UTexture2D*>& Added)
+{
+	FScopeLock Lock(&StateCS);
+	if (!PendingWanted.Contains(RequestId))
+	{
+		return false;
+	}
+	RenderWatchByRequest.FindOrAdd(RequestId).Append(Added);
+	return true;
+}
+
+bool FAnomalySveCapturer::TakeRenderWatch_RenderThread(uint64 RequestId, TArray<UTexture2D*>& Out)
+{
+	FScopeLock Lock(&StateCS);
+	TArray<UTexture2D*>* Found = RenderWatchByRequest.Find(RequestId);
+	if (!Found)
+	{
+		return false;
+	}
+	Out = MoveTemp(*Found);
+	RenderWatchByRequest.Remove(RequestId);
+	return true;
+}
+
+void FAnomalySveCapturer::SampleRenderMips_RenderThread(const TArray<UTexture2D*>& Watch, TArray<FAnomalyRenderMipSample>& Out)
+{
+	Out.Reset();
+	Out.Reserve(Watch.Num());
+	for (UTexture2D* Tex : Watch)
+	{
+		FAnomalyRenderMipSample S;
+		const FTextureResource* Res = Tex ? static_cast<const UTexture*>(Tex)->GetResource() : nullptr;
+		if (!Tex)
+		{
+			S.Status = EAnomalyRenderMipStatus::NoTexture;
+		}
+		else if (!Res)
+		{
+			S.Status = EAnomalyRenderMipStatus::NoResource;
+		}
+		else if (Res->IsTextureRHIPartiallyResident())
+		{
+			S.Status = EAnomalyRenderMipStatus::PartiallyResident;
+		}
+		else if (const FStreamableTextureResource* SR = Res->GetStreamableTextureResource())
+		{
+			if (!SR->IsInitialized())
+			{
+				S.Status = EAnomalyRenderMipStatus::Uninitialized;
+			}
+			else
+			{
+				const FStreamableRenderResourceState State = SR->GetState();
+				if (State.IsValid())
+				{
+					S.Status = EAnomalyRenderMipStatus::Ok;
+					S.Resident = (int32)State.NumResidentLODs;
+					S.FirstMip = SR->GetCurrentFirstMip();
+				}
+				else
+				{
+					S.Status = EAnomalyRenderMipStatus::Uninitialized;
+				}
+			}
+		}
+		else
+		{
+			S.Status = EAnomalyRenderMipStatus::NotStreamable;
+		}
+		S.ResourceId = (uint64)(UPTRINT)Res;
+		Out.Add(S);
+	}
+}
+
+void FAnomalySveCapturer::ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr ChangeIssue, const TArray<UTexture2D*>* RenderWatch)
 {
 	int32 DepthAfter = 0;
 	int32 TraceIndex = 0;
 	{
 		FScopeLock Lock(&StateCS);
 		PendingWanted.Add(RequestId);
+		if (RenderWatch)
+		{
+			RenderWatchByRequest.Add(RequestId, *RenderWatch);
+		}
 		if (ChangeIssue.IsValid()) { PendingIssues.Add(RequestId, ChangeIssue); ChangeStage = ChangeIssue->Stage; LastIssuedIdentity = ChangeIssue; }
 		DepthAfter = PendingWanted.Num();
 		++Handshake.ArmsIssued;
@@ -55,6 +136,7 @@ void FAnomalySveCapturer::CancelPendingOtherGeneration(const FAnomalyChangeIssue
 		{
 			Cancelled.Add(PendingWanted[I]);
 			PendingIssues.Remove(PendingWanted[I]);
+			RenderWatchByRequest.Remove(PendingWanted[I]);
 			PendingWanted.RemoveAt(I);
 		}
 	}
@@ -126,6 +208,7 @@ void FAnomalySveCapturer::Reset()
 		FScopeLock Lock(&StateCS);
 		PendingWanted.Reset();
 		PendingIssues.Reset();
+		RenderWatchByRequest.Reset();
 		ChangeStage.Reset();
 		LastIssuedIdentity.Reset();
 		Handshake = FAnomalySveHandshakeStats();
@@ -171,7 +254,8 @@ FAnomalyReadbackLatencyStats FAnomalySveCapturer::GetLatencyStats() const
 
 void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect,
 	const FIntPoint& SourceExtent, EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
-	TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback, const FAnomalyChangeReceipt& ChangeSubmission)
+	TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback, const FAnomalyChangeReceipt& ChangeSubmission,
+	TArray<FAnomalyRenderMipSample>&& RenderMips, bool bRenderRecord)
 {
 	const bool bDual = LegacyReadback.IsValid();
 
@@ -184,6 +268,8 @@ void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FI
 	Item.Format = Format;
 	Item.SubmitRtFrame = GFrameNumberRenderThread;
 	Item.ChangeSubmission = ChangeSubmission;
+	Item.RenderMips = MoveTemp(RenderMips);
+	Item.bRenderRecord = bRenderRecord;
 	InFlight.Add(MoveTemp(Item));
 
 	Submits.Increment();
@@ -416,6 +502,8 @@ void FAnomalySveCapturer::Drain_RenderThread()
 			Frame.Height = H;
 			Frame.Format = Item.Format;
 			Frame.BytesPerPixel = BPP;
+			Frame.RenderMips = MoveTemp(Item.RenderMips);
+			Frame.bRenderRecord = Item.bRenderRecord;
 			Frame.RawBytes.SetNumUninitialized((int64)W * H * BPP);
 
 			const uint8* Base = static_cast<const uint8*>(Src);

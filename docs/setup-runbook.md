@@ -598,6 +598,48 @@ documented validation asset) · **`Builds\Windows` — the pre-cook 3-map build,
 EVIDENCE behind `S-1` and the `G87` correction; it is the artifact that proves `MainWorld` was never
 cooked, and re-deriving that would need a cook.**
 
+#### 0b. 🆕 THE `E:` FLOOR — 50 GB (083-02 ruling, 2026-09-26)
+
+`Binaries`, `Intermediate`, `Saved`, `Builds`, `_bench_sessions_bank` and `_binary_baselines` are all
+junctions onto `E:\IA_BuildCache` (see "ARCHIVES LIVE ON `E:`" above and §3.6). So a build, a cook and
+every bench leg write to **`E:`**, and the `D:` check above does not see them. Check both:
+
+```powershell
+(Get-PSDrive E).Free / 1GB
+```
+
+| free on `E:` | verdict |
+|---|---|
+| **≥ 50 GB** | ✅ **GO** |
+| **< 50 GB** | ⛔ **NO-GO** for a cook, a build or a bench round. Recover space under the policy below first. |
+
+The 15 GB `D:` floor above still applies to `D:`. Measured 2026-09-26: `E:` was down to **106.95 GB**
+free before the 083-02 cleanup, which brought it back to **273.09 GB**.
+
+**Retention policy (083-02 ruling, items 3–7).** Items 1–2 (delete the exe-side leg copy once it is
+banked and its manifest verified; bank alias names as hardlinks) go into the harness with m53's first
+bench brief. ⛔ **They are NOT implemented yet.**
+
+3. **At each milestone merge, strip frames from invalid attempts and superseded-build legs.** Delete only
+   `Actual_Frames\*.png`, and only after writing `png-manifest.json` (relpath, size, SHA-256 of every PNG)
+   into that session. Labels, `target_mask`, sidecars, logs and JSON are always kept, so the label-side
+   ties stay recomputable. **Accepted evidence keeps its frames.** A session that shares its frame files
+   with a kept name through a hardlink is not stripped (**G308**).
+4. **Tear down scratch hosts** once their binaries are archived.
+5. **Delete old engine-version intermediates after an engine change.** 083-02 deleted the UE 5.4-era
+   `D:\UESource\UnrealEngine\Engine\Intermediate\Build\Win64\x64` (27.34 GB). 5.1 UBT writes
+   `Win64\UnrealEditor`.
+6. **`_binary_baselines` is NTFS-compressed** (`compact /c /s:<dir> /i /q *`; 30.74 GB stored in
+   19.11 GB). This is transparent: the hashes are unchanged, verified on `E0BE6F0A`, `002805CF`,
+   `85A39CFB` and `A7EF9B12` before and after. A file copied out of it lands uncompressed. Archive only
+   exes a gate ran on, and keep no stray pdbs.
+7. **This 50 GB `E:` floor.**
+
+⚠ **Since 083-02 the bank's alias and `_tryN` names are NTFS HARDLINKS** to one file (758 session pairs,
+99,954 files, including 5 copies under `M51_FROZEN_PAIRING_RECHECK_EVIDENCE\attempts\`). Every name still resolves and hashes as before. But **writing through one name changes
+every name**, and Explorer or `Get-ChildItem | Measure Length` count the shared bytes twice. Read
+**G308** before you write into, strip, move or size anything in the bank.
+
 ### 1. Re-bank first (G92)
 
 The archive step is destructive **under conditions that are not established**. Move anything unbanked

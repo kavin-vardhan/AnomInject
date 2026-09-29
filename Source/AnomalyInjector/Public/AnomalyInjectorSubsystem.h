@@ -88,7 +88,29 @@ public:
 	bool IsAnomalyVisualConditionHeld(const FName& Id) const;
 	bool GetAnomalyTelemetry(const FName& Id, FAnomalyTelemetry& Out) const;
 
+	bool GetCameraClippingFrameEvaluation(struct FAnomalyNearClipSlabResult& OutSlab, bool& bOutSphereProxy) const;
+
 	bool DoesAnomalyHaveDeferredOnset(const FName& Id) const;
+
+	bool DoesAnomalyUseRenderTruth(const FName& Id) const;
+
+	bool GetAnomalyRenderTruthTextures(const FName& Id, TArray<FAnomalyRenderTruthTexture>& Out) const;
+
+	bool GetAnomalyRestoringTextures(const FName& Id, TArray<FAnomalyRenderTruthTexture>& Out) const;
+
+	bool ConsumeAnomalyContamination(const FName& Id, FString& OutReason);
+
+	void SetAnomalyRefusal(const FName& Id, const FString& Reason);
+
+	void ClearAnomalyRefusals();
+
+	bool GetAnomalyRefusal(const FName& Id, FString& OutReason) const;
+
+	void SetActorReserved(AActor* Actor, bool bReserved);
+
+	void ClearReservedActors();
+
+	bool IsActorReserved(const AActor* Actor) const;
 
 	void NoteAnomalyCapturedFrame(const FName& Id, bool bAnomalousThisFrame);
 
@@ -129,6 +151,10 @@ private:
 		double ApplyTimeSeconds = 0.0;
 	};
 	TMap<FName, FActiveRecord> ActiveRecords;
+
+	TMap<FName, FString> RefusedIds;
+
+	TArray<TWeakObjectPtr<AActor>> ReservedActors;
 
 	float HeartbeatAccumulator = 0.0f;
 

@@ -10,6 +10,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 
 void FAnomaly_CameraClipping::ExecuteSetNearClip(UWorld* World, float Value) const
 {
@@ -41,13 +43,20 @@ bool FAnomaly_CameraClipping::Apply(UWorld* World, const TArray<FString>& Args)
 	TriggerTransitions = 0;
 	bTargetedMode = bTargeted;
 	bPushed = false;
+	bCacheValid = false;
 
 	if (!bTargeted)
 	{
 		AnomalousNearClip = AnomalyArgs::GetFloat(Args, 0, DefaultNearClip, MinNearClip, MaxNearClip);
 		ExecuteSetNearClip(World, AnomalousNearClip);
 		bActive = true;
-		UE_LOG(LogAnomaly, Log, TEXT("camera_clipping: near clip %.3f -> %.3f."), PreviousNearClip, GNearClippingPlane);
+		UE_LOG(LogAnomaly, Log,
+			TEXT("camera_clipping: near clip %.3f -> %.3f. A frame is labelled positive only when rendered geometry lies in ")
+			TEXT("the view slab between the two planes (depth %.3f..%.3f inside the frustum): bounds are the broad phase and ")
+			TEXT("a complex trace inside the slab must hit the candidate's triangles; a candidate that cannot be traced keeps ")
+			TEXT("its bounds verdict and flags the frame camera_clipping_unconfirmed. The pre-086-02 sphere proxy is kept as ")
+			TEXT("the diagnostic camera_clipping.sphere_proxy."),
+			PreviousNearClip, GNearClippingPlane, PreviousNearClip, AnomalousNearClip);
 		return true;
 	}
 
@@ -75,9 +84,9 @@ bool FAnomaly_CameraClipping::Apply(UWorld* World, const TArray<FString>& Args)
 		TEXT("camera_clipping: TARGETED on %d actor(s) for '%s' — near clip %.3f -> %.3f WHILE the player is within ")
 		TEXT("%.2f cm of the target, restored to %.3f while outside. The effect follows proximity, so the rest of the ")
 		TEXT("scene is not spuriously clipped. Nothing is pushed yet; the first evaluation happens on the next tick. ")
-		TEXT("A frame counts positive only when the near plane is anomalous AND geometry is actually within the ")
-		TEXT("near-clip radius, so if the player never approaches this event carries zero positive frames and the ")
-		TEXT("m23 F-LABEL guard reports it."),
+		TEXT("A frame counts positive only when the near plane is anomalous AND rendered geometry lies in the view ")
+		TEXT("slab between the two planes, so if the player never approaches this event carries zero positive frames ")
+		TEXT("and the m23 F-LABEL guard reports it."),
 		Targets.Num(), *TargetToken, PreviousNearClip, AnomalousNearClip, TriggerRadiusCm, PreviousNearClip);
 	return true;
 }
@@ -132,6 +141,64 @@ void FAnomaly_CameraClipping::Tick(float DeltaSeconds)
 		bPushed ? TEXT("ENTER") : TEXT("LEAVE"), *TargetToken, GNearClippingPlane, TriggerTransitions);
 }
 
+const FAnomalyNearClipSlabResult& FAnomaly_CameraClipping::EvaluateNow() const
+{
+	UWorld* World = WorldWeak.Get();
+	FVector Location = FVector::ZeroVector;
+	FRotator Rotation = FRotator::ZeroRotator;
+	float Fov = 0.0f;
+	if (World)
+	{
+		if (const APlayerController* PC = World->GetFirstPlayerController())
+		{
+			if (PC->PlayerCameraManager)
+			{
+				const FMinimalViewInfo& Pov = PC->PlayerCameraManager->GetCameraCacheView();
+				Location = Pov.Location;
+				Rotation = Pov.Rotation;
+				Fov = Pov.FOV;
+			}
+		}
+	}
+
+	if (bCacheValid && CacheFrame == GFrameCounter && CacheLocation.Equals(Location, 0.0)
+		&& CacheRotation.Equals(Rotation, 0.0) && CacheFov == Fov && CacheBaseline == PreviousNearClip
+		&& CacheAnomalous == AnomalousNearClip)
+	{
+		return CacheSlab;
+	}
+
+	AnomalyViewport::EvaluateNearClipSlab(World, PreviousNearClip, AnomalousNearClip, CacheSlab);
+	bCacheSphereProxy = AnomalyViewport::IsGeometryWithinNearClipRadius(World);
+	bCacheValid = true;
+	CacheFrame = GFrameCounter;
+	CacheLocation = Location;
+	CacheRotation = Rotation;
+	CacheFov = Fov;
+	CacheBaseline = PreviousNearClip;
+	CacheAnomalous = AnomalousNearClip;
+	return CacheSlab;
+}
+
+bool FAnomaly_CameraClipping::GetFrameEvaluation(FAnomalyNearClipSlabResult& OutSlab, bool& bOutSphereProxy) const
+{
+	if (!bActive)
+	{
+		return false;
+	}
+	if (bTargetedMode && !bPushed)
+	{
+		OutSlab = FAnomalyNearClipSlabResult();
+		OutSlab.BaselineNear = PreviousNearClip;
+		OutSlab.AnomalousNear = PreviousNearClip;
+		bOutSphereProxy = false;
+		return true;
+	}
+	OutSlab = EvaluateNow();
+	bOutSphereProxy = bCacheSphereProxy;
+	return true;
+}
+
 bool FAnomaly_CameraClipping::IsCurrentlyAnomalous() const
 {
 	if (!bActive)
@@ -142,7 +209,7 @@ bool FAnomaly_CameraClipping::IsCurrentlyAnomalous() const
 	{
 		return false;
 	}
-	return AnomalyViewport::IsGeometryWithinNearClipRadius(WorldWeak.Get());
+	return EvaluateNow().bSlab;
 }
 
 void FAnomaly_CameraClipping::Revert()
@@ -170,4 +237,5 @@ void FAnomaly_CameraClipping::Revert()
 	bTargetedMode = false;
 	bPushed = false;
 	bActive = false;
+	bCacheValid = false;
 }

@@ -7,6 +7,7 @@
 #include "AnomalyStencilTag.h"
 #include "AnomalyHiddenClass.h"
 #include "AnomalyMeasurability.h"
+#include "AnomalyLabelSync.h"
 
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
@@ -35,6 +36,13 @@ void FAnomalyMaskMeasure::BeginRun(FAnomalyStencilTagLedger* InLedger)
 	ExtraAssignedTags.Reset();
 	Ledger = InLedger;
 	NextTagOffset = 0;
+	TagRecycles = 0;
+	TagPeakLive = 0;
+	TagExhausted = 0;
+	TagRetireQuarantined = 0;
+	TagRetireHostFlagKept = 0;
+	AnomalyStencilTag::ResetPriorCollisions();
+	AnomalyStencilTag::SetRestoreWatch(Ledger);
 
 	const int32 Before = ReadCustomDepthCVar();
 	AnomalyStencilTag::EnableCustomStencil();
@@ -57,6 +65,18 @@ void FAnomalyMaskMeasure::EndRun()
 {
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(mask): M23 CVAR finishRun rCustomDepth before restore=%d"), ReadCustomDepthCVar());
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(mask): TAG POOL SUMMARY records=%d recycles=%d peakLive=%d exhausted=%d - a value is recycled only when ")
+		TEXT("the pool is otherwise exhausted, and only from an event whose fire has ended, whose restore trail (m52) is detached ")
+		TEXT("with nothing in flight, whose every frame and target mask has been read back, and whose m26 arms are done. A run ")
+		TEXT("that never exhausts the pool recycles nothing and allocates exactly as before."),
+		Records.Num(), TagRecycles, TagPeakLive, TagExhausted);
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(mask): MASK PRIOR COLLISION SUMMARY collisions=%d quarantined=%d - a restore that wrote back a value live ")
+		TEXT("in the allocator (a documented N7 limitation: a saved prior equal to a later event's value) is counted and the ")
+		TEXT("value is quarantined; 0 means no restore ever wrote a live value."),
+		AnomalyStencilTag::GetPriorCollisions(), AnomalyStencilTag::GetPriorCollisionQuarantined());
+	AnomalyStencilTag::SetRestoreWatch(nullptr);
 
 	UntagAll();
 	AnomalyStencilTag::DisableCustomStencil();
@@ -79,7 +99,156 @@ void FAnomalyMaskMeasure::UntagAll()
 	AnomalyStencilTag::RestoreAll();
 }
 
-int32 FAnomalyMaskMeasure::AllocateTag()
+bool FAnomalyMaskMeasure::IsRecordArmInFlight(int32 Index) const
+{
+	for (const TPair<uint64, int32>& Pair : ArmedRequestToRecord)
+	{
+		if (Pair.Value == Index)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+int32 FAnomalyMaskMeasure::RefreshTagReleasability(
+	TFunctionRef<FAnomalyTagReleaseExternal(const FAnomalyMaskRecord&)> External, uint64 Tick)
+{
+	int32 Live = 0;
+	for (int32 i = 0; i < Records.Num(); ++i)
+	{
+		FAnomalyMaskRecord& R = Records[i];
+		if (R.Tag == 0 || R.bTagRecycled)
+		{
+			R.bReleasable = false;
+			continue;
+		}
+		const FAnomalyTagReleaseExternal Ext = External(R);
+		AnomalyLabelSync::FTagReleaseInputs In;
+		In.Tag = (int32)R.Tag;
+		In.bAlreadyRecycled = R.bTagRecycled;
+		In.bFireLive = Ext.bFireLive;
+		In.bTrailBlocks = Ext.bTrailBlocks;
+		In.bInPendingSnapshot = Ext.bInPendingSnapshot;
+		In.bInPendingTargetMask = Ext.bInPendingTargetMask;
+		In.bM26ArmInFlight = IsRecordArmInFlight(i);
+		In.bM26MayArmAgain = AnomalyLabelSync::M26MayArmAgain(R.ArmsIssued, MaxArmsPerEvent, R.TargetActor.IsValid(),
+			R.bKnownUnmeasurable, R.bTagFailed, bArmWindowGate && R.bAwaitLabelled, Ext.bFireLive);
+		if (AnomalyLabelSync::IsTagReleasable(In))
+		{
+			if (!R.bReleasable)
+			{
+				R.bReleasable = true;
+				R.ReleasableSinceTick = (int64)Tick;
+			}
+		}
+		else
+		{
+			R.bReleasable = false;
+			R.ReleasableSinceTick = -1;
+			++Live;
+		}
+	}
+	TagPeakLive = FMath::Max(TagPeakLive, Live);
+	return Live;
+}
+
+int32 FAnomalyMaskMeasure::ReclaimReleasableTag(FName ForId, const FString& ForTarget, uint64 ForStartFrame)
+{
+	TArray<AnomalyLabelSync::FRecycleCandidate> Candidates;
+	Candidates.Reserve(Records.Num());
+	for (int32 i = 0; i < Records.Num(); ++i)
+	{
+		const FAnomalyMaskRecord& R = Records[i];
+		AnomalyLabelSync::FRecycleCandidate C;
+		C.Record = i;
+		C.Tag = (int32)R.Tag;
+		C.bReleasable = R.bReleasable && !IsRecordArmInFlight(i)
+			&& (!Ledger || (Ledger->IsAssignable(R.Tag) && !Ledger->CensusClaimed.Contains(R.Tag)));
+		C.bAlreadyRecycled = R.bTagRecycled;
+		C.bQuarantined = Ledger && Ledger->Quarantined.Contains(R.Tag);
+		C.ReleasableSince = R.ReleasableSinceTick;
+		Candidates.Add(C);
+	}
+	int32 Pick = -1;
+	uint8 Tag = 0;
+	FRetireStencilResult Retire;
+	for (int32 Attempt = 0; Attempt < Candidates.Num(); ++Attempt)
+	{
+		const int32 Try = AnomalyLabelSync::PickRecycleVictim(Candidates.GetData(), Candidates.Num());
+		if (Try < 0)
+		{
+			return 0;
+		}
+		FAnomalyMaskRecord& Victim = Records[Candidates[Try].Record];
+		const uint8 TryTag = Victim.Tag;
+		for (const FAnomalyMaskRecord& Other : Records)
+		{
+			if (&Other != &Victim && !Other.bTagRecycled && Other.Tag == TryTag)
+			{
+				UE_LOG(LogAnomalyCapture, Error,
+					TEXT("Capture(mask): TAG RECYCLE REFUSED value=%d - another unrecycled record (%s@%llu target=%s) still holds ")
+					TEXT("it, so recycling would alias two events. NO TAG IS ISSUED."),
+					(int32)TryTag, *Other.Id.ToString(), Other.StartFrame, *Other.Target);
+				return 0;
+			}
+		}
+		Victim.bTagRecycled = true;
+		Victim.bReleasable = false;
+		Candidates[Try].bAlreadyRecycled = true;
+		if (Ledger)
+		{
+			Ledger->EventClaimed.Add(TryTag);
+		}
+		const FRetireStencilResult R = AnomalyStencilTag::RetireStencilValue(Victim.TargetActor.Get(), (int32)TryTag);
+		TagRetireHostFlagKept += R.RestoredValueOnly;
+		if (!R.bVerified)
+		{
+			++TagRetireQuarantined;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(mask): TAG RETIRE UNVERIFIED value=%d from event=%s@%llu target=%s - %d component(s) still hold the ")
+				TEXT("value after retirement (restored %d with flag, %d value-only). The value is QUARANTINED for the rest of the run ")
+				TEXT("and is NOT issued to event=%s@%llu; the next releasable value is tried. Counted in ")
+				TEXT("run_summary.mask_tag_retire_quarantined."),
+				(int32)TryTag, *Victim.Id.ToString(), Victim.StartFrame, *Victim.Target, R.Remaining, R.Restored,
+				R.RestoredValueOnly, *ForId.ToString(), ForStartFrame);
+			continue;
+		}
+		Pick = Try;
+		Tag = TryTag;
+		Retire = R;
+		break;
+	}
+	if (Pick < 0)
+	{
+		return 0;
+	}
+	FAnomalyMaskRecord& Victim = Records[Candidates[Pick].Record];
+	const int32 Restored = Retire.Restored + Retire.RestoredValueOnly;
+	++TagRecycles;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(mask): TAG RECYCLED value=%d from event=%s@%llu target=%s (releasable since tick %lld) to event=%s@%llu ")
+		TEXT("target=%s tick=%llu restoredComponents=%d recycles=%d - the pool was otherwise exhausted. The old event's fire ")
+		TEXT("has ended, its restore trail (m52) is detached with nothing in flight, every frame and target mask carrying ")
+		TEXT("it has been read back and its m26 arms are done, so no frame can carry both events under this value. Its ")
+		TEXT("components still carrying the value were restored before the value moved. mask_map.json keys each event by ")
+		TEXT("value AND frame range."),
+		(int32)Tag, *Victim.Id.ToString(), Victim.StartFrame, *Victim.Target, (long long)Victim.ReleasableSinceTick,
+		*ForId.ToString(), ForStartFrame, *ForTarget, (uint64)GFrameCounter, Restored, TagRecycles);
+	return (int32)Tag;
+}
+
+int32 FAnomalyMaskMeasure::GetPriorCollisions() const
+{
+	return AnomalyStencilTag::GetPriorCollisions();
+}
+
+int32 FAnomalyMaskMeasure::GetPriorCollisionQuarantined() const
+{
+	return AnomalyStencilTag::GetPriorCollisionQuarantined();
+}
+
+int32 FAnomalyMaskMeasure::AllocateTag(FName ForId, const FString& ForTarget, uint64 ForStartFrame)
 {
 	const int32 Span = AnomalyStencilTag::AssignableStencilMax - AnomalyStencilTag::ReservedStencilBase + 1;
 	int32 Skipped = 0;
@@ -102,9 +271,18 @@ int32 FAnomalyMaskMeasure::AllocateTag()
 		++Skipped;
 	}
 
+	const int32 Reclaimed = ReclaimReleasableTag(ForId, ForTarget, ForStartFrame);
+	if (Reclaimed != 0)
+	{
+		return Reclaimed;
+	}
+
+	++TagExhausted;
 	UE_LOG(LogAnomalyCapture, Error,
 		TEXT("Capture(mask): M36 TAG-POOL EXHAUSTED tick=%llu - every assignable stencil value %d..%d is ")
 		TEXT("reserved or claimed: eventClaimed=[%s] censusClaimed=[%s] hostReserved=[%s]. NO TAG IS ISSUED. ")
+		TEXT("No finished event's value was recyclable either (084-05a): every event holding one is still live, ")
+		TEXT("attached, or has a frame, mask or m26 arm not yet read back. ")
 		TEXT("m50 step 0 measured the old behaviour - re-issue a value the allocator had just proven was NOT ")
 		TEXT("free - to be the SOLE producer of the one-value/two-objects defect (G246): 12 of 12 affected ")
 		TEXT("tag-instances across 16 banked legs carried a value this line had re-issued. Returning 0 puts ")
@@ -185,7 +363,7 @@ FAnomalyMaskRecord* FAnomalyMaskMeasure::FindOrAddRecord(FName Id, const FString
 	}
 	else
 	{
-		New.Tag = (uint8)AllocateTag();
+		New.Tag = (uint8)AllocateTag(Id, Target, StartFrame);
 		if (New.Tag == 0)
 		{
 			New.bKnownUnmeasurable = true;
@@ -287,7 +465,7 @@ bool FAnomalyMaskMeasure::ArmIfMeasurable(FAnomalyMaskSceneViewExtension* Sve, u
 		{
 			continue;
 		}
-		if (R.bKnownUnmeasurable || R.Tag == 0)
+		if (R.bKnownUnmeasurable || R.Tag == 0 || R.bTagRecycled)
 		{
 			continue;
 		}
@@ -362,7 +540,7 @@ bool FAnomalyMaskMeasure::ArmProbeOnHidden(FAnomalyMaskSceneViewExtension* Sve, 
 		{
 			continue;
 		}
-		if (R.bKnownUnmeasurable || R.Tag == 0)
+		if (R.bKnownUnmeasurable || R.Tag == 0 || R.bTagRecycled)
 		{
 			continue;
 		}

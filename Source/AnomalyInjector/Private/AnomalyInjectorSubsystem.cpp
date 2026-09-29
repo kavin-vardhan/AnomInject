@@ -1,6 +1,7 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyHiddenClass.h"
+#include "AnomalyBenchGate.h"
 
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
@@ -37,6 +38,7 @@
 
 static constexpr uint64 GAnomalyHeartbeatKey = 0x47445048;
 
+#if !UE_BUILD_SHIPPING
 namespace
 {
 	bool GBenchDestroyArmed = false;
@@ -44,6 +46,7 @@ namespace
 	int32 GBenchDestroyHoldFrames = 2;
 	int32 GBenchDestroyAnomalousTicks = 0;
 }
+#endif
 
 UAnomalyInjectorSubsystem::~UAnomalyInjectorSubsystem() = default;
 
@@ -237,9 +240,13 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Register(MakeUnique<AnomalyTexCorrupt::FAnomaly_TexCorrupt>(FName(TEXT("uv_corruption")), AnomalyTexCorrupt::EFamily::UV));
 	Register(MakeUnique<AnomalyTexCorrupt::FAnomaly_TexCorrupt>(FName(TEXT("normal_corruption")), AnomalyTexCorrupt::EFamily::Normal));
 #if !UE_BUILD_SHIPPING
-	Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("null_effect")), false));
-	Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("solid_swap")), true));
+	if (AnomalyBenchGate::IsEnabled())
+	{
+		Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("null_effect")), false));
+		Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("solid_swap")), true));
+	}
 #endif
+	AnomalyBenchGate::SweepUngatedLevers(TEXT("subsystem_init"));
 
 	SynthPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddUObject(
 		this, &UAnomalyInjectorSubsystem::OnWorldPreActorTickSynth);
@@ -293,6 +300,7 @@ void UAnomalyInjectorSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
+#if !UE_BUILD_SHIPPING
 void UAnomalyInjectorSubsystem::ServiceBenchDestroyLatch()
 {
 	if (!GBenchDestroyArmed)
@@ -353,6 +361,7 @@ void UAnomalyInjectorSubsystem::ServiceBenchDestroyLatch()
 	UE_LOG(LogAnomaly, Warning,
 		TEXT("IAI.Bench.DestroyTarget: Destroy() returned for '%s'; the latch is now DISARMED."), *VictimName);
 }
+#endif
 
 void UAnomalyInjectorSubsystem::WatchTargetForAnomaly(AActor* Actor, const FName& Id)
 {
@@ -461,7 +470,9 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 		DispatchAnomalyTicks(DeltaTime);
 	}
 
+#if !UE_BUILD_SHIPPING
 	ServiceBenchDestroyLatch();
+#endif
 
 	HeartbeatAccumulator += DeltaTime;
 	if (HeartbeatAccumulator >= 2.0f)
@@ -703,6 +714,7 @@ bool UAnomalyInjectorSubsystem::IsViewportScopingEnabled(UWorld* World)
 void UAnomalyInjectorSubsystem::SetSynthTickOrder(bool bEnabled)
 {
 	bSynthTickOrder = bEnabled;
+#if !UE_BUILD_SHIPPING
 	if (bEnabled)
 	{
 		UE_LOG(LogAnomaly, Warning,
@@ -718,6 +730,7 @@ void UAnomalyInjectorSubsystem::SetSynthTickOrder(bool bEnabled)
 			TEXT("IAI.Bench.SynthTickOrder -> OFF. The injector's anomaly dispatch is back in its own Tick, i.e. in ")
 			TEXT("whatever order this host ticks the subsystems."));
 	}
+#endif
 }
 
 bool UAnomalyInjectorSubsystem::IsSynthTickOrderEnabled(UWorld* World)
@@ -772,6 +785,14 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 	if (!Found || !Found->IsValid())
 	{
 		UE_LOG(LogAnomaly, Warning, TEXT("Unknown anomaly '%s'. Try IAI.ListAnomalies."), *Id.ToString());
+		return false;
+	}
+
+	if (const FString* Refusal = RefusedIds.Find(Id))
+	{
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("IAI.Apply '%s' REFUSED %s - no fire is recorded and nothing is changed."),
+			*Id.ToString(), **Refusal);
 		return false;
 	}
 
@@ -861,6 +882,17 @@ bool UAnomalyInjectorSubsystem::GetAnomalyTelemetry(const FName& Id, FAnomalyTel
 	return (*Found)->GetTelemetry(Out);
 }
 
+bool UAnomalyInjectorSubsystem::GetCameraClippingFrameEvaluation(FAnomalyNearClipSlabResult& OutSlab,
+	bool& bOutSphereProxy) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(FName(TEXT("camera_clipping")));
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return false;
+	}
+	return static_cast<const FAnomaly_CameraClipping*>(Found->Get())->GetFrameEvaluation(OutSlab, bOutSphereProxy);
+}
+
 bool UAnomalyInjectorSubsystem::IsAnomalyCurrentlyAnomalous(const FName& Id) const
 {
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
@@ -879,6 +911,102 @@ bool UAnomalyInjectorSubsystem::DoesAnomalyHaveDeferredOnset(const FName& Id) co
 		return false;
 	}
 	return (*Found)->HasDeferredOnset();
+}
+
+bool UAnomalyInjectorSubsystem::DoesAnomalyUseRenderTruth(const FName& Id) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid())
+	{
+		return false;
+	}
+	return (*Found)->UsesRenderResidencyTruth();
+}
+
+bool UAnomalyInjectorSubsystem::GetAnomalyRenderTruthTextures(const FName& Id, TArray<FAnomalyRenderTruthTexture>& Out) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return false;
+	}
+	return (*Found)->GetRenderTruthTextures(Out);
+}
+
+bool UAnomalyInjectorSubsystem::GetAnomalyRestoringTextures(const FName& Id, TArray<FAnomalyRenderTruthTexture>& Out) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid())
+	{
+		return false;
+	}
+	return (*Found)->GetRestoringRenderTruthTextures(Out);
+}
+
+bool UAnomalyInjectorSubsystem::ConsumeAnomalyContamination(const FName& Id, FString& OutReason)
+{
+	TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid())
+	{
+		return false;
+	}
+	return (*Found)->ConsumeHoldContamination(OutReason);
+}
+
+void UAnomalyInjectorSubsystem::SetAnomalyRefusal(const FName& Id, const FString& Reason)
+{
+	if (Reason.IsEmpty())
+	{
+		RefusedIds.Remove(Id);
+		return;
+	}
+	RefusedIds.Add(Id, Reason);
+	UE_LOG(LogAnomaly, Warning, TEXT("IAI: '%s' is REFUSED from now on - %s"), *Id.ToString(), *Reason);
+}
+
+void UAnomalyInjectorSubsystem::ClearAnomalyRefusals()
+{
+	RefusedIds.Reset();
+}
+
+bool UAnomalyInjectorSubsystem::GetAnomalyRefusal(const FName& Id, FString& OutReason) const
+{
+	if (const FString* Reason = RefusedIds.Find(Id))
+	{
+		OutReason = *Reason;
+		return true;
+	}
+	return false;
+}
+
+void UAnomalyInjectorSubsystem::SetActorReserved(AActor* Actor, bool bReserved)
+{
+	ReservedActors.RemoveAll([Actor](const TWeakObjectPtr<AActor>& Weak) { return !Weak.IsValid() || Weak.Get() == Actor; });
+	if (bReserved && Actor)
+	{
+		ReservedActors.Add(Actor);
+	}
+}
+
+void UAnomalyInjectorSubsystem::ClearReservedActors()
+{
+	ReservedActors.Reset();
+}
+
+bool UAnomalyInjectorSubsystem::IsActorReserved(const AActor* Actor) const
+{
+	if (!Actor)
+	{
+		return false;
+	}
+	for (const TWeakObjectPtr<AActor>& Weak : ReservedActors)
+	{
+		if (Weak.Get() == Actor)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void UAnomalyInjectorSubsystem::NoteAnomalyCapturedFrame(const FName& Id, bool bAnomalousThisFrame)
@@ -1065,6 +1193,7 @@ static FAutoConsoleCommandWithWorldAndArgs GSetViewportScopingCmd(
 			}
 		}));
 
+#if !UE_BUILD_SHIPPING
 static FAutoConsoleCommandWithWorldAndArgs GSynthTickOrderCmd(
 	TEXT("IAI.Bench.SynthTickOrder"),
 	TEXT("BENCH DEVICE, default OFF, console only - no ini key, never in a client payload. "
@@ -1339,6 +1468,7 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchSpawnTranslucentProbeCmd(
 					       "OFF direction of B-G1 is testable here; the ON direction is UNOBTAINABLE and rides "
 					       "the next cook with C-G1b. Declared, not a pass and not a failure."));
 		}));
+#endif
 
 static FAutoConsoleCommandWithWorldAndArgs GTestVisibilityCmd(
 	TEXT("IAI.TestVisibility"),

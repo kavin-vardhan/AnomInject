@@ -1,6 +1,7 @@
 #include "AnomalyControlServerSubsystem.h"
 
 #include "AnomalyControlServerLog.h"
+#include "AnomalyBenchGate.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
@@ -398,19 +399,15 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 				bool Enabled = false;
 				if (Msg->TryGetBoolField(TEXT("enabled"), Enabled))
 				{
-					if (IConsoleObject* Object = IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.InputLock")))
+					if (IConsoleCommand* Command = AnomalyBenchGate::FindLeverCommand(TEXT("IAI.Bench.InputLock")))
 					{
-						if (IConsoleCommand* Command = Object->AsCommand())
-						{
-							Command->Execute({Enabled ? TEXT("1") : TEXT("0")}, World, *GLog); Executed = true;
-						}
+						Command->Execute({Enabled ? TEXT("1") : TEXT("0")}, World, *GLog); Executed = true;
 					}
 				}
 			}
 			else if (Type == TEXT("bench_place_view"))
 			{
-				if (IConsoleCommand* Command = IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.PlaceView")) ?
-					IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.PlaceView"))->AsCommand() : nullptr)
+				if (IConsoleCommand* Command = AnomalyBenchGate::FindLeverCommand(TEXT("IAI.Bench.PlaceView")))
 				{
 					Command->Execute({FString::FromInt((int32)FMath::Clamp(Request, 0.0, 1000000000.0))}, World, *GLog);
 					Executed = true;
@@ -419,9 +416,9 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			else if (Type == TEXT("bench_scene_fixture"))
 			{
 				FString Mode; Msg->TryGetStringField(TEXT("mode"), Mode);
-				if (IConsoleObject* Object = IConsoleManager::Get().FindConsoleObject(TEXT("IAI.Bench.SceneFixture")))
+				if (IConsoleCommand* Command = AnomalyBenchGate::FindLeverCommand(TEXT("IAI.Bench.SceneFixture")))
 				{
-					if (IConsoleCommand* Command = Object->AsCommand()) { Command->Execute({Mode}, World, *GLog); Executed = true; }
+					Command->Execute({Mode}, World, *GLog); Executed = true;
 				}
 			}
 			else { Executed = true; }

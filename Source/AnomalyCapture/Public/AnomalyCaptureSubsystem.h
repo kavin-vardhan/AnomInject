@@ -9,8 +9,55 @@
 
 struct FAnomalyCaptureAsyncState;
 struct FAnomalyChangeReceipt;
+struct FAnomalyCapturedFrame;
 class FAnomalyPreviewTee;
 class FAnomalyRunLog;
+class UTexture2D;
+namespace AnomalyLabel { struct FCaptureSnapshot; }
+
+struct FCameraClipRunAccum
+{
+	int32 FramesEvaluated = 0;
+	int32 SlabPositiveFrames = 0;
+	int32 SphereProxyPositiveFrames = 0;
+	int32 SlabOnlyFrames = 0;
+	int32 ProxyOnlyFrames = 0;
+	int32 EyeInsideBoxFrames = 0;
+	int32 NearOverriddenFrames = 0;
+	int32 BoxFallbacks = 0;
+	int32 FxExcludedMax = 0;
+	int64 EnumeratedTotal = 0;
+	int64 CandidatesTotal = 0;
+	int64 InstancesTestedTotal = 0;
+	double MicrosTotal = 0.0;
+	double MicrosMax = 0.0;
+	float BaselineNear = 0.0f;
+	float AnomalousNear = 0.0f;
+	TMap<FString, int32> FirstHits;
+	int32 BoundsCandidateFrames = 0;
+	int32 ConfirmedPositiveFrames = 0;
+	int32 UnconfirmedFrames = 0;
+	int32 RejectedByTrianglesFrames = 0;
+	int64 ConfirmTracesTotal = 0;
+	int32 ConfirmTracesMax = 0;
+	int64 UnconfirmableTotal = 0;
+	int64 OverCapTotal = 0;
+	int64 TraceCappedTotal = 0;
+	int64 NoRayTotal = 0;
+	int64 TooFewValidTotal = 0;
+	int64 FullSlabFallbacksTotal = 0;
+	int64 InvalidSegmentsTotal = 0;
+	int64 LandscapeTotal = 0;
+	int64 SkinnedTotal = 0;
+	int64 NoCollisionTotal = 0;
+	int64 NoComplexTotal = 0;
+	int64 WeldedTotal = 0;
+	int64 InstanceTransformTotal = 0;
+	double ConfirmMicrosTotal = 0.0;
+	double ConfirmMicrosLabelledTotal = 0.0;
+	double ConfirmMicrosMax = 0.0;
+	double ClippedRayFractionSum = 0.0;
+};
 
 UCLASS()
 class ANOMALYCAPTURE_API UAnomalyCaptureSubsystem : public UTickableWorldSubsystem
@@ -51,6 +98,7 @@ public:
 
 	int32 GetFrameCap() const { return FrameCap; }
 	FString GetSessionId() const { return SessionId; }
+	int32 GetSessionFrameIndex() const { return SessionFrameIndex; }
 
 	void SetBurstConfig(int32 K, int32 Pre, int32 Positive, int32 Post, int32 Bursts);
 
@@ -170,8 +218,38 @@ private:
 		Positives,
 		SettleAfterRevert,
 		PostGap,
-		DrainTail
+		DrainTail,
+		RestoreTrail
 	};
+
+	bool IsRenderTruthFire(const struct FAutoLiveFireInfo& F) const;
+	void BuildRenderWatch(AnomalyLabel::FCaptureSnapshot& Snap, TArray<UTexture2D*>& OutPtrs);
+	bool OpenStuckMipTrails();
+	void ServiceStuckMipTrails();
+	bool AnyStuckMipTrailGating() const;
+	void ComputeRenderMembership(const FAnomalyCapturedFrame& Frame, const AnomalyLabel::FCaptureSnapshot& Snap);
+	void ApplyRenderTruthToSnapshot(AnomalyLabel::FCaptureSnapshot& Snap);
+	void ResolveLabelSyncForRun();
+	void StepHideTransitions(AnomalyLabel::FCaptureSnapshot& Snap);
+	void AddDetachedTransitionCandidates(AnomalyLabel::FCaptureSnapshot& Snap);
+	void ResolveDetachedTransitionCandidates(AnomalyLabel::FCaptureSnapshot& Snap);
+	void RefreshMaskTagReleasability();
+	void FlushObserveQueue(bool bForce);
+	bool ResolveEventTextures(const struct FAutoLiveFireInfo& F, TArray<struct FAnomalyRenderTruthTexture>& Out);
+	void FinalizeRenderTruthArm(AnomalyLabel::FCaptureSnapshot& Snap);
+	bool ResolvePendingMembership(int32 SessionIndex);
+	bool IsRenderOrderPending(int32 SessionIndex);
+	void ResolveTrailGaps(bool bForceAll);
+	void HandleTrailReopens();
+	void CarryAttachedTrails();
+	void AdoptCarriedTrails();
+	void ApplyCarriedTrailOwnership(bool bOn);
+	void ServiceTrailDetach(int32 TrailIndex, bool bQuiet);
+	void DetachClosedTrailsForNextFire();
+	void RegisterBenchStuckMipLevers();
+	bool bRenderTruthRun = false;
+	int32 StuckMipSettleTailFrames = 0;
+	int32 StuckMipTrailTimeoutFrames = 120;
 
 	void BeginActualRun();
 
@@ -221,6 +299,8 @@ private:
 	void SampleDeferredActiveState();
 	uint8 ComputeFireActive(const struct FAutoLiveFireInfo& F) const;
 	bool IsFireLabelledThisFrame(const struct FAutoLiveFireInfo& F) const;
+	uint8 ResolveAnnotationPolicy(const struct FAutoLiveFireInfo& F) const;
+	void FillAnnotationInputs(AnomalyLabel::FCaptureSnapshot& Snap) const;
 	bool BurstAwaitsDeferredOnset(int32& OutPendingFires) const;
 	void NoteDeferredOnsetTimeout();
 	void FinishRun(bool bLogLine);
@@ -234,14 +314,19 @@ private:
 	class UAnomalyAutoInjectorSubsystem* ResolveAuto() const;
 
 	void AccumulateFrameEvents(const TArray<struct FAutoLiveFireInfo>& Fires, const TArray<uint8>& FireActive,
-		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
+		const TArray<uint8>& FirePolicy, const TArray<uint8>& FireOnScreen, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
 		const TArray<uint8>* Observable = nullptr, const TArray<FIntRect>* DrawnBounds = nullptr,
 		const TArray<struct FAnomalyTelemetry>* CapturedTelemetry = nullptr);
 	void WriteSessionAnnotationFile();
 
 	void ApplySessionGlobals();
 	void RevertSessionGlobals();
-	bool AppendSessionGlobalFires(TArray<struct FAutoLiveFireInfo>& InOutFires) const;
+	bool AppendSessionGlobalFires(TArray<struct FAutoLiveFireInfo>& InOutFires, bool bSkipViewDependent = false) const;
+	static bool IsViewDependentGlobalId(const FName& Id);
+	bool HasViewDependentGlobal() const;
+	void AppendViewDependentGlobals(AnomalyLabel::FCaptureSnapshot& Snap);
+
+	FCameraClipRunAccum CameraClipAccum;
 
 	TArray<FName> ActiveSessionGlobals;
 	float SessionGlobalBaselineNearClip = 0.0f;

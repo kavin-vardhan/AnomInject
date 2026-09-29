@@ -2,11 +2,25 @@
 
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
 
-The non-Shipping catalogue is **10 shipping + 2 bench-only** entries, `null_effect` and `solid_swap`.
+The catalogue is **10 shipping entries** in every configuration, plus **2 bench-only** entries,
+`null_effect` and `solid_swap`, that register **only when the bench gate is open** (084-10, below).
 The twins share one class, picker and labelled lifecycle; only the shipped Lit-pink material write
 differs. Neither enters GAutoPool, GAutoPoolDefaultEnabled or GAnomalyChoices. Apply refuses unless
 IAI.Bench.ChangeEvidenceCases=1, -IAIBenchFixture and a named StackOBot/Lyra bench map. Shipping
-registers neither twin. `AnomalyBench` is a non-Shipping Game/Editor fixture module; Client/Server
+registers neither twin.
+
+**The bench gate (084-10, `Public/AnomalyBenchGate.h`).** One predicate, `AnomalyBenchGate::IsEnabled()`
+= not Shipping and `-IAIBench` or `-IAIBenchFixture` on the process command line. With it shut: the
+twins do not register (so `IAI.ListAnomalies`, `GetAnomalyCatalog` and the dashboard do not list them),
+the runtime-registered levers (`AnomalyBench`'s four commands, the two `StuckMipLegacy*` commands) are
+never registered, and `SweepUngatedLevers` — run at `OnPostEngineInit` and at every
+`UAnomalyInjectorSubsystem::Initialize` — ORs `ECVF_Unregistered` into every console object named
+`IAI.Bench.*`, so the console refuses it, `FindConsoleVariable` and autocomplete skip it, and the object
+stays alive for its static destructor. Echo: `IAI bench levers: ENABLED (<flags>) … | DISABLED (<n>
+masked) … preset=<p>`. Code that runs a lever by name uses `AnomalyBenchGate::FindLeverCommand`
+(`FindConsoleObject` does not honour the mask). Every `IAI.Bench.*` registration and its setter/log code
+is also inside `#if !UE_BUILD_SHIPPING`, `ANOMALY_CAPTURE` or the Shipping-denied `AnomalyBench`
+module. `tools/lever_audit.py` (G-LEVER-AUDIT) checks all of it from source and against a built binary. `AnomalyBench` is a non-Shipping Game/Editor fixture module; Client/Server
 targets are excluded. Explicit bench commands lock controller look/move input before settle and
 place the camera once afterward, with separate runner verification. Commands require the fixture
 flag, named bench map and inactive capture. Owned input-lock increments release at run end/cleanup.
@@ -674,11 +688,48 @@ The first Global-scoped id in the pool. It is **held for the whole capture sessi
 `FinishRun` — and it **NEVER routes through `TryFireOnce`**, which now skips Global-scoped ids. That
 removes the `"=ActorName"` misparse structurally: the token is never built for it.
 
-🚨 **A frame is labelled positive ONLY when geometry is within the anomalous near-clip radius**, by a
-per-frame sphere overlap at the camera (bounds only, no pixel read). The near plane being wrong is
-not the same as the viewer seeing anything wrong, and labelling a whole session positive would ship
-thousands of frames showing nothing — which **the m26 mask veto cannot catch, because there is no
-target and therefore no mask.**
+🚨 **A frame is labelled positive ONLY when rendered geometry lies in the VIEW SLAB** — the part of the
+view frustum between the baseline near plane and the anomalous one (086-02; the m30 rule was a sphere
+overlap of collision at the camera, which labelled geometry behind the camera, missed non-colliding
+props and ignored the pawn, and whose gate was circular). The near plane being wrong is not the same
+as the viewer seeing anything wrong, and labelling a whole session positive would ship thousands of
+frames showing nothing — which **the m26 mask veto cannot catch, because there is no target and
+therefore no mask.**
+
+**As built (086-02):** `FAnomaly_CameraClipping::IsCurrentlyAnomalous` → `AnomalyViewport::EvaluateNearClipSlab`
+(pure maths in `AnomalyNearClipSlab.h`, UE-free, selftest `tools/camera_clipping_slab_selftest.cpp`).
+- **Which primitives count:** every `UPrimitiveComponent` in the world (plus level BSP) that the main view would draw —
+  registered with a scene proxy, `IsVisible()`, owner not hidden, `bRenderInMainPass`, not scene-capture-only, owner-see
+  rules evaluated against the view target exactly as `FPrimitiveSceneProxy::IsShown` does, outside its `MinDrawDistance`.
+  **The pawn and its meshes count.** `UFXSystemComponent`s are excluded (their bounds are often fixed and large).
+- **The test:** world render bounds vs the slab's AABB (broad), then an exact SAT of the ORIENTED render box (local
+  `CalcBounds` × component transform, intersected-as-a-test with the world AABB) against the slab's truncated pyramid;
+  ISM/HISM/foliage per instance. Frustum extents mirror `FMinimalViewInfo::CalculateProjectionMatrixGivenView`. A per-camera
+  `PerspectiveNearClipPlane` override or an ortho camera makes the slab empty (the anomaly has no effect there).
+- **When:** the async path decides it at `OnWorldTickEnd`, AFTER `UpdateCameraManager` (`LevelTick.cpp:1621`), because
+  `FinalizeArmedLabel` runs among the tickables (`:1606`) and would read the previous frame's camera. The entry is appended
+  there, at the end of `Fires`. Other session globals and the sync path keep the old decision point.
+- **Diagnostics:** frame keys `camera_clipping.slab` / `.sphere_proxy` (the m30 rule, kept for comparison) /
+  `.slab_primitives` / `.eye_inside_box` / `.near_overridden` on every frame while camera_clipping is held, and
+  `run_summary` `camera_clipping_*`. **Known limits** are in journal 086-02 §3; the rule is UNMEASURED until B-CC.
+
+**As built (084-07) - bounds are the broad phase, triangles decide.** Every SAT-positive component (and every
+SAT-positive ISM instance, enumerated with its full transform - F2) becomes a confirmation candidate. `ConfirmSlab`
+(`AnomalyNearClipSlab.h`) casts a 16x9 grid of view-ray segments from the baseline to the anomalous near plane, clips each
+to the candidate's box and traces the clipped segment with a complex `FBodyInstance::LineTrace` against that candidate's
+body (the heightfield collision component for landscape, found through the render component's `CollisionComponent`
+property); candidates the grid barely touches get a 4x4 grid over their own footprint. A hit labels the frame. A candidate
+that cannot be traced (skinned, no collision, no cooked triangle mesh or simple-as-complex, over 16 candidates or 320
+traces, or no ray) keeps its SAT verdict and flags the frame `transition_reason: camera_clipping_unconfirmed`. Per frame:
+`camera_clipping.clipped_ray_fraction`; run_summary: confirmed/unconfirmed/rejected frames and the confirmation cost.
+Known miss: a sub-grid sliver belonging to a large candidate. Selftest cases: hollow box 0 unflagged, wall 1, pole caught
+by the footprint grid, NoCollision hollow mesh flagged, trace/candidate caps flagged, F2 scaled/rotated/off-centre instances.
+**084-08 (rule v4):** which body a candidate is traced against is decided by ONE pure function,
+`AnomalyNearClipSlab::ClassifyConfirmBody` (mesh / landscape confirmable; skinned, no collision, welded, instance transform,
+no complex unconfirmable), fed by `ResolveConfirmTarget`. A **welded** candidate (welded into a parent, or a weld parent
+carrying children's shapes) and an **ISM instance whose composed-`FTransform` collision body differs from the rendered matrix
+product** beyond a relative 1e-4 (`AffineMatchesRendered`; the shear case) are flagged unconfirmed without a trace
+(`camera_clipping_confirm_welded_unconfirmable`, `_instance_transform_unconfirmable`).
 
 **`P6` does not move.** The existing event shape carries it: whole-frame as `coverage_ratio = 1` and
 per-frame `bbox_norm = 0,0,1,1`, empty `asset_name`, and `coverage_pct` left at its `-1` sentinel
@@ -894,6 +945,45 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   camera motion a fired actor can leave the viewport mid-hold (`present=true` + all `bbox_valid=false`); those frames are
   KEPT as hard negatives, not dropped (gotcha G42). The in-frustum-but-occluded sub-case is the deferred
   `GetLastRenderTimeOnScreen` refinement (G22).
+- **084-05a label sync (async path).** Per fire the snapshot may carry an emission mode (`EntryEmit`: normal / suppress /
+  transition-only), a `transition` bit and extra transition-only entries (`TransitionFires`); all empty for non-m52,
+  non-returning frames, which reproduces the older row exactly. **Render-truth (`stuck_low_mip`) fires** are positive only on
+  frames labelled for them; `anomaly_present` = at least one normal entry. **Under temporal AA** (TAA/TSR, resolved at run start
+  by `GetDefaultAntiAliasingMethod`) the first `IAI.Label.TransitionOnFrames` labelled m52 frames and the
+  `IAI.Label.TransitionOffFrames` frames after a labelled frame carry `transition: 1` (the latter as transition-only entries that
+  set no `anomaly_present`), and hide types flag the first `IAI.Label.TransitionHideFrames` frames after the object returns.
+  Pure logic: `AnomalyInjector/Public/AnomalyLabelSync.h`. **084-07:** every flagged entry names its reason in
+  `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); defaults 3/8/1. `partial`
+  is set, with or without temporal AA, on any m52 member frame whose render record shows the held set between baseline and the
+  held level (`FAnomalyRenderTruthTexture::HeldResidentMips` carried into the watch; `AnomalyStuckMipWindow::ClassifyLevel` /
+  `IsPartialHeldSet` / `FPartialEdgeTrack`). Entries carry `labelled` and `visible_positive` needs a labelled entry with a
+  box. Unfinished transition and hide-return history is carried across a run boundary, rebased (`CarryTransitionTrack`). The
+  sync path builds one `FCaptureSnapshot` and writes the row and the accounting from it (F3).
+  **084-07c:** `labelled` comes from ONE authority, `AnomalyLabelSync::IsAnnotationMember(policy, active, onScreen)` — the
+  rule that builds `annotation.json`'s frame list, per class (FireWindow ⇒ the fire's box is on screen via the shared
+  `AnomalyLabel::ProjectFireBox`; ActorHidden / AnomalyState ⇒ the activity bit; RenderHeldWindow ⇒ the render-record
+  membership). `FillAnnotationInputs` puts `FirePolicy` + `FireOnScreen` into the snapshot once, just before the row is
+  written; both writers, the unlabelled counter and the accumulator read them, and `injected_frames` is built from the same
+  per-frame bit (`MemberByIndex`). The held set is `EHeldSet` full / partial / unresolved / not-held (`ClassifyHeldSet`; an
+  invalid held endpoint is unresolved); unresolved members carry the reason `unresolved` and never set the full-set
+  boundary. **084-08:** a render result's held set is an `AnomalyStuckMipWindow::FHeldSetState` that starts `Unresolved`; the
+  `FlushObserveQueue` force path keeps a classification only when a texture record backs it, so a forced-unknown member
+  frame carries `unresolved`; partial / unresolved frames are exact ranges (`TPartialEdgeTrack<TArray<FSIRange>>`, no cap). Run-end carry
+  goes through `DecideRunEndCarry` with the source trail OR a carried detached tail, and passes history through a
+  zero-frame run. `IAI.Capture.Shot` rows carry `label_rule: "legacy_shot"`.
+- **Stencil tags are recycled at exhaustion (084-05a).** `FAnomalyMaskMeasure::AllocateTag` rotates over the free values as
+  before; when none is free it reclaims the oldest *releasable* record's value (fire ended, m52 trail detached with nothing in
+  flight, no pending snapshot or target-mask request carrying it, m26 done), restoring that record's components still
+  carrying the value. Releasability is refreshed every tick in `OnWorldTickEndMask` after the m26 arm. G351. **084-07 (F4):** retirement walks every TRACKED holder
+  of the value (`RetireStencilValue`), restores custom-depth-off holders value-only (the host's flag kept), verifies nothing
+  still carries the value and otherwise quarantines it (`mask_tag_retire_quarantined`). **084-07c (N7):** `TagActor` records
+  every component each value was applied to (`GAppliedValues`, kept until that value's retirement verifies); retirement
+  collects tracked ∪ applied ∪ former-owner components and runs the pure `AnomalyLabelSync::RetireHolders` (G365).
+  **084-08 (tripwire):** every restore of a saved prior value (`RestoreActor`, `RestoreComponentsCarrying`, retirement) is
+  checked by the pure `AnomalyLabelSync::CheckPriorRestore` against the live ledger (`AnomalyStencilTag::SetRestoreWatch`,
+  set for the run by `FAnomalyMaskMeasure`); a write-back of a value event- or census-claimed is counted
+  (`run_summary.mask_prior_collision`) and the value is added to `FAnomalyStencilTagLedger::Quarantined`, which
+  `IsTagValueFree` and the recycler (`FRecycleCandidate::bQuarantined`) both exclude for the rest of the run.
 - **View-lag L (default 0) — the spatial analogue of settle-K, but distinct.** A per-tick view ring; each capture projects
   with the view from L ring-entries ago. **L=0 is validated and correct (not "zero lag") FOR THE SYNC PATH:** the capture
   subsystem (a `FTickableGameObject`) ticks *before* `UpdateCameraManager` (LevelTick.cpp:1606 vs 1621), so

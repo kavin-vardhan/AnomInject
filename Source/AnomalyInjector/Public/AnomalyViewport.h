@@ -36,6 +36,50 @@ struct FRenderableActorInfo
 	bool bRectValid = false;
 };
 
+struct FAnomalyNearClipSlabResult
+{
+	bool bEvaluated = false;
+	bool bSlab = false;
+	bool bNearOverridden = false;
+	bool bNotPerspective = false;
+	float BaselineNear = 0.0f;
+	float AnomalousNear = 0.0f;
+	float EffectiveNear = 0.0f;
+	int32 SlabPrimitives = 0;
+	int32 EyeInsideBox = 0;
+	int32 Candidates = 0;
+	int32 Enumerated = 0;
+	int32 BoxFallbacks = 0;
+	int32 InstancesTested = 0;
+	int32 FxExcluded = 0;
+	double Micros = 0.0;
+	FString FirstHit;
+	bool bSatPositive = false;
+	bool bUnconfirmed = false;
+	float ClippedRayFraction = 0.0f;
+	int32 ConfirmCandidates = 0;
+	int32 ConfirmTraces = 0;
+	int32 ConfirmHits = 0;
+	int32 ConfirmMisses = 0;
+	int32 ConfirmUnconfirmable = 0;
+	int32 ConfirmOverCap = 0;
+	int32 ConfirmTraceCapped = 0;
+	int32 ConfirmNoRay = 0;
+	int32 ConfirmTooFewValid = 0;
+	int32 ConfirmFullSlabFallbacks = 0;
+	int32 ConfirmInvalidSegments = 0;
+	int32 LandscapeCandidates = 0;
+	int32 SkinnedUnconfirmable = 0;
+	int32 NoCollisionUnconfirmable = 0;
+	int32 NoComplexUnconfirmable = 0;
+	int32 WeldedUnconfirmable = 0;
+	int32 InstanceTransformUnconfirmable = 0;
+	int32 HismTreeQueries = 0;
+	int32 IsmFullScans = 0;
+	double ConfirmMicros = 0.0;
+	FString FirstConfirmedHit;
+};
+
 struct FSelectionProvenance
 {
 	float CoveragePct = -1.0f;
@@ -121,6 +165,9 @@ namespace AnomalyViewport
 	ANOMALYINJECTOR_API float GetActorPollDistanceCm(UWorld* World, const AActor* Actor);
 
 	ANOMALYINJECTOR_API bool IsGeometryWithinNearClipRadius(UWorld* World);
+
+	ANOMALYINJECTOR_API bool EvaluateNearClipSlab(UWorld* World, float BaselineNear, float AnomalousNear,
+		FAnomalyNearClipSlabResult& Out);
 
 	ANOMALYINJECTOR_API float ComputeBoundsScreenSizeForActiveView(UWorld* World, const FVector& BoundsOrigin, float SphereRadius);
 

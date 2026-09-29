@@ -1,9 +1,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HAL/CriticalSection.h"
 #include "IAnomaly.h"
+#include "UObject/ObjectKey.h"
 
 class AActor;
+class UActorComponent;
+class ULevel;
 class UWorld;
 class UTexture2D;
 
@@ -11,7 +15,7 @@ class FAnomaly_StuckLowMip final : public IAnomaly
 {
 public:
 	FAnomaly_StuckLowMip();
-	virtual ~FAnomaly_StuckLowMip();
+	virtual ~FAnomaly_StuckLowMip() override;
 
 	bool HoldsOrRestores(const UTexture2D* Tex) const;
 
@@ -25,6 +29,10 @@ public:
 	virtual bool IsActive() const override { return bActive; }
 	virtual bool IsCurrentlyAnomalous() const override;
 	virtual bool HasDeferredOnset() const override { return true; }
+	virtual bool UsesRenderResidencyTruth() const override { return true; }
+	virtual bool GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const override;
+	virtual bool GetRestoringRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const override;
+	virtual bool ConsumeHoldContamination(FString& OutReason) override;
 	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) override;
 	virtual bool GetTelemetry(FAnomalyTelemetry& Out) const override;
 	virtual bool WantsTargetLostNotification() const override { return true; }
@@ -45,8 +53,10 @@ private:
 		int32 PredictedMaxAllowedMips = 0;
 		int32 TopResidentPxAtTarget = 0;
 		int32 CoAffectedVisible = 0;
+		int32 WorldUsers = -1;
 		int32 ResidentAtOnset = -1;
 		float RatioAtPick = -1.0f;
+		uint64 BaselineResourceId = 0;
 		bool bUnlinked = false;
 	};
 
@@ -55,15 +65,43 @@ private:
 		TWeakObjectPtr<UTexture2D> Texture;
 		FString TextureName;
 		int32 BaselineResidentMips = 0;
+		int32 HeldResidentMips = 0;
+		uint64 BaselineResourceId = 0;
+		TWeakObjectPtr<AActor> Owner;
+		FString OwnerName;
 		int32 FramesWaited = 0;
 		int32 StreamInRequests = 0;
 		int32 SkippedPending = 0;
+		int32 PlansRetireFrames = 0;
+		bool bFenceRan = false;
 		bool bTimeoutReported = false;
 	};
+
+	static int32 HeldLevelOf(const FHeldTexture& H);
+
+	bool RunStreamerFence(int32& OutRetireFrames);
+	bool bStreamerFencePending = false;
 
 	bool IsAwaitingRestore(const UTexture2D* Tex) const;
 
 	void ReleaseTargetWatch();
+
+	void StartHoldMonitor(UWorld* World);
+	void StopHoldMonitor();
+	void ScanHoldForNewUsers(const TCHAR* Trigger);
+	bool ConsiderHoldUser(UActorComponent* Component, const TSet<const ULevel*>& Loaded, const TCHAR* Trigger);
+	void OnHoldLevelAdded(ULevel* Level, UWorld* World);
+	void OnHoldRenderStateDirty(UActorComponent& Component);
+
+	TSet<FObjectKey> HoldKnownComponents;
+	TArray<TWeakObjectPtr<UActorComponent>> HoldUnregisteredWatch;
+	TArray<TWeakObjectPtr<UActorComponent>> HoldDirtyRecheck;
+	FCriticalSection HoldDirtyCS;
+	FDelegateHandle HoldLevelAddedHandle;
+	FDelegateHandle HoldRenderDirtyHandle;
+	bool bHoldMonitorOn = false;
+	bool bContaminationPending = false;
+	FString ContaminationReason;
 
 	TArray<FHeldTexture> Held;
 	TArray<FRestoringTexture> Restoring;
