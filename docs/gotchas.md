@@ -9260,3 +9260,67 @@ Related: G96.
   FireWindow snapshots ignored), each failing on a different sequence.
 
 Related: G383, G384.
+
+## G388 — In a 5.1 commandlet, `merge_static_mesh_actors` collapsed two differently-materialled planes into one slot, and deleting an unsaved temporary crashed the editor (2026-09-29, 085-03)
+
+- To author `TC_Mixed` (one component, two Default-Lit slots), two engine planes were merged with `merge_materials`
+  off. The merge API only exists after `Module Load StaticMeshEditor` (G370), and then it built a mesh with **one**
+  section on the source plane's `lambert1` WorldGrid slot — both with component overrides and with two duplicated
+  planes carrying different asset-slot materials. Deleting those unsaved duplicates with
+  `EditorAssetLibrary.delete_asset` then crashed the commandlet (`ObjectTools::GatherObjectReferencersForDeletion`,
+  null read). Each failed run had already saved its textures and materials into the real `Content` (the host is a
+  junction): they were rolled back by a Python tool against the M0 manifest and the declared file list.
+- **Rule:** build a multi-slot fixture mesh from an explicit `StaticMeshDescription` (polygon groups with slot names)
+  on a duplicate of an engine mesh, and check sections, section-to-slot map and extent after the build. Never delete
+  a never-saved package inside a commandlet; if a helper is needed, leave it unsaved and prove it never reached disk.
+
+## G389 — A commandlet reports a streamed texture's resident size, not its asset size (2026-09-29, 085-03)
+
+- `Texture2D.blueprint_get_size_x/y()` on the streamed 1024² `T_TC_M52Shared` read **32 × 32** in the verify
+  commandlet, and `imported_size` is not reflected in 5.1 Python. The proof would have failed a correct asset.
+- **Rule:** read an asset's source dimensions from the asset registry's `Dimensions` tag (`1024x1024`); report the
+  resident size beside it as a reading.
+
+## G390 — `verify_cooked_maps.ps1` reads the STAGED container unless `-Utoc` is given (2026-09-29, 085-03)
+
+- Called on a fresh cook without `-Utoc`, the map gate read `Builds\BenchGate`'s staged S1 container and printed PASS
+  (the map list happened to match). Only the printed `utoc :` line showed which container it had judged.
+- **Rule:** every map gate on a cook output passes `-Utoc <that output>`, and the harness reads the `utoc :` line back.
+  Pair it with an inverted probe (a map that was not cooked must read MISSING, exit 1).
+
+## G391 — Two identical-input cooks also differ in `AssetRegistry.bin` (2026-09-29, 085-03)
+
+- Cooks `dc1` and `dc2` on `_r53_host` (same source, same content, same maps) differ in both shader archives,
+  `MainWorld.umap` (G371) **and** the pak's `StackOBot/AssetRegistry.bin`. The S1 → DC container diff shows exactly
+  that set plus the 13 new DC packages (+2 `.ubulk`) and the changed fixture level.
+- **Rule:** a container diff states the cook-variant set measured on a second identical-input cook before it
+  attributes any other difference to content.
+
+## G392 — Under amendment R1, E1 reads the m55 DELAY known answer as CONFOUNDED-REFERENCE; the +3 is E2's (2026-09-29, 085-03)
+
+- 086-01's `solid_swap` DELAY sessions (`M55B3R23_C2_DELAY_{N,S}_A1`) run a tight schedule. 084-09's E1 with the R1
+  clean-reference rule marks their events CONFOUNDED-REFERENCE, so it cannot re-read the known answer; ls086 (E2)
+  reads **start +3 on every non-warm-up event (6 of 6), end 0**, 4 warm-ups apart.
+- **Rule:** a can-fail re-read names the evaluator that read it. B-M53's own arms (CommitDelay / RestoreDelay 3) run on
+  `2 4 8 14 0`, whose gaps satisfy R1, so E1 is exercised there.
+
+## G393 — A PowerShell `$Matches` capture across a pipeline can come back empty and form a delete path (2026-09-29, 085-03)
+
+- A rollback matched `ADDED` lines with `-match` inside `Where-Object` and read `$Matches[1]` in the next
+  `ForEach-Object`; on one run the capture was empty and `Remove-Item` was handed `...\Content\.uasset` (the tool
+  refused it; nothing was deleted).
+- **Rule:** delete only in a script that recomputes the set against a baseline manifest, refuses anything outside a
+  declared list, and re-hashes the tree afterwards (`_reviews\085-03-content-manifest.py rollback`).
+
+## G394 — B-REAL's rock can never be an m53 host: its texture is not a material parameter (2026-09-29, 085-03)
+
+- The S1 bank's MainWorld census (`M53S1_G0_FMW`, frame 1, 128 MiB) refuses both rocks `texture_not_parameter` for
+  both families, and re-read under the DC rules (all-or-nothing) **0 of 10** census actors is eligible for either
+  family at 128 MiB: the four uv APPLYs were single-slot partials (1/4..1/7 -> `partial_footprint`), normal is refused
+  everywhere, and the floor's normal map covers 18 of 30 slots, so its normal family is `partial_footprint` at any cap.
+- **Rule:** the DC plan's "the rock first" host rule cannot pick an m53 host, and "one host eligible for both
+  families" may not exist on MainWorld. B-M53's premise picks hosts per family (a both-eligible actor preferred), and a
+  family with no host at any cap <= 1 GiB leaves its MainWorld legs NOT-RUN-PREMISE for chat. It is a prediction from
+  frame 1 of an S1 build: tonight's P-HOST census reads after a 90-tick settle on the DC build and decides.
+
+Related: G370, G371, G373.

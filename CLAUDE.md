@@ -11,6 +11,32 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧪 **085-03, 2026-09-29 — THE DC FIXTURE CELLS ARE AUTHORED AND COOKED INTO THE MERGED BUILD, AND THE B-M53 HARNESS
+> (`_reviews\085-04-*`) IS BUILT, PROVEN OFFLINE AND DRY-RUN. NO GAME WAS LAUNCHED; NOTHING WAS STAGED OUTSIDE THE DRY
+> RUN'S OWN E: SANDBOX.** 🧪
+> **Cold start: `docs/sessions/2026-09-29-085-03-m53-fixture-harness.md`, then `_reviews\085-04-README.md` (invocation,
+> the premise window, the ND-5 definition, the leg table with its predictions).**
+> - **Fixture (CaptureBench `8f8b7f3`, mode `dcadd`):** `TC_OracleUV16` / `UV64` / `OracleN` (the asymmetric mode-oracle
+>   cells), `TC_Mixed` (one component, two Default-Lit slots) and `TC_M52Hold` / `Share` (streamed 1024², EXCL's m52
+>   target) added to `CB_TexCorruptLevel`. **Content diff M0 → M1: exactly the 13 declared files added + the level
+>   changed, nothing removed;** verify read back from disk in a fresh process (52 materials, 55 textures, 0 dirty).
+> - **Cook:** pairing **exe `6B671987` (= 085-02c's build) + utoc `F76F1119`**, archived
+>   `_binary_baselines\m53dc-cook-F76F1119\`; map gate PASS (inverted probe exit 1); container diff vs the S1 cook = the
+>   13 packages (+2 .ubulk), the level, and the cook-variant set measured on a second identical cook (G391); descriptor
+>   `STOP EXTRA AnomalyBench, FIXTURE` without `--bench-cook` (a bench cook, never delivered), PASS with it; binary lever
+>   audit PASS (46).
+> - **Harness:** 86 legs (premise 7 + 79 gate legs: B-M53 fixture 16 / MainWorld 16, arms 5, G-MODE 6, EXCL 2, REASON 3, AON 1,
+>   SEED 3, LEVER 2, CENSUS 2, BIND 4, G-ID 6, G-SYNC-REG 8, COST 5) with predictions declared in the README; offline proofs
+>   **gate selftest 54/54, oracle 39/39, m53 rows 98/98**; the final **dry run exit 0, 86/86 launches accepted, the G355 restore on
+>   attempt 3**; expected night ≈ 145 min (≤ 170).
+> - ⚠ **ND-4 pre-read (S1 bank, frame 1, DC rules): 0 of 10 MainWorld census actors eligible for either family at
+>   128 MiB; the rock refuses `texture_not_parameter`** (G394). The harness picks hosts per family and declares any
+>   cap raise in a committed lock before a gate leg; tonight's P-HOST decides.
+> - 🎯 **NEXT: 085-04 (night, after 084-09): `085-04-window.py night --commit`.** ⛔ No tag, no merge; `m51`, `master`,
+>   `fix/m52-label-timing` untouched. Gotchas G388–G394 (next free G395).
+>
+> ---
+>
 > 🔧 **085-02c, 2026-09-29 — THE THREE RESIDUALS CHAT RULED ON (`_reviews\085-02b-chat-ruling-dc-fixes.md`) ARE FIXED,
 > TESTED BOTH WAYS, BUILT (0 WARNINGS) AND ARCHIVED. NO CODEX RE-CHECK (RULED). NOTHING WAS LAUNCHED, COOKED OR
 > STAGED.** 🔧
