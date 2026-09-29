@@ -1487,7 +1487,8 @@ def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, t
     pre = median([rho[x] for x in prew])
     postw = span[-POST_N:] if span_hi - L1 >= 20 else []
     post = median([rho[x] for x in postw]) if len(postw) >= 4 else None
-    own = set(range(L0 - 1, L1 + SPAN_AFTER // 2))
+    first_row = min(e["rows"]) if e["rows"] else L0
+    own = set(range(min(L0, first_row) - 1, L1 + SPAN_AFTER // 2))
     ex = excl | own
     s_on, _n_on = local_sigma(rho, L0 - PRE_W, L0 - 1, ex)
     s_off, _n_off = local_sigma(rho, span_hi - 10, span_hi + 10, ex | set(range(L0 - 1, L1 + 12)))
@@ -2248,12 +2249,13 @@ def st_cases():
                                                                                          "pixels": {}}]}))
     L52 = list(range(60, 70))
 
-    def m52(name, pixels, flags=None, record=None, taa=False, labels=None):
-        ev = {"L": labels or L52, "pixels": pixels, "flags": flags or {}, "record": record or {}, "fire_pre": 1}
+    def m52(name, pixels, flags=None, record=None, taa=False, labels=None, fire_pre=1):
+        ev = {"L": labels or L52, "pixels": pixels, "flags": flags or {}, "record": record or {}, "fire_pre": fire_pre}
         spec = {"type": M52, "kind": "blur", "n": 190, "events": [ev], "taa": taa}
         cases.append((name, spec))
 
     m52("m52_exact", _full(L52))
+    m52("m52_label_late_3", _full(L52), labels=list(range(63, 73)), fire_pre=4)
     p = _full(L52)
     p.update({60: 0.3, 61: 0.3})
     m52("m52_partial_confirmed", p, flags={60: ("partial",), 61: ("partial",)})
@@ -2330,7 +2332,9 @@ def st_expect():
         lambda r: verdict(r) == "FAIL", True)
     add("cc", "camera_clipping is not judgeable", lambda r: r["status"] == "NOT-JUDGEABLE" and "per" not in r)
     add("m52_exact", "stuck_low_mip exact PASS 0/0", lambda r: verdict(r) == "PASS" and _edge(r)["start"] == 0 and _edge(r)["end"] == 0)
-    add("m52_partial_confirmed", "partial frames above the noise band: transition-aware PASS, raw start +2",
+    add("m52_label_late_3", "stuck_low_mip label 3 frames late FAILS, start -3",
+        lambda r: verdict(r) == "FAIL" and _edge(r)["start"] == -3, True)
+    add("m52_partial_confirmed","partial frames above the noise band: transition-aware PASS, raw start +2",
         lambda r: verdict(r) == "PASS" and _edge(r)["start"] == 2 and r["per"]["t50"]["stats"].get("partial_confirmed") == 2)
     add("m52_partial_invisible", "partial frame within the noise band with the record: counted, PASS",
         lambda r: verdict(r) == "PASS" and r["per"]["t50"]["stats"].get("partial_invisible") == 1)
