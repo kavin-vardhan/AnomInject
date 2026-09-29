@@ -44,6 +44,7 @@ COOK_EXCLUSION_LINES = (
     '[/Script/UnrealEd.ProjectPackagingSettings]',
     '+DirectoriesToNeverCook=(Path="/Game/AnomalyFixtures")',
     '+DirectoriesToNeverCook=(Path="/Game/CaptureBenchGate")',
+    '+DirectoriesToNeverCook=(Path="/Game/CaptureBenchTexCorrupt")',
 )
 
 
@@ -114,7 +115,9 @@ def main():
     print("STAGE COOK-EXCLUSION lines for the host's Config/DefaultGame.ini of any delivery cook made on a bench host:")
     for l in COOK_EXCLUSION_LINES:
         print("    " + l)
-    print("      and no /Game/CaptureBenchGate or /Game/AnomalyFixtures map on the -map= list.")
+    print("      and no /Game/CaptureBenchGate, /Game/AnomalyFixtures or /Game/CaptureBenchTexCorrupt map on the -map= list.")
+    print("STAGE NEXT after the delivery build, audit its exe against THIS folder (not the branch, which still holds AnomalyBench):")
+    print("    python tools\\lever_audit.py --root %s --binary <build>\\<Project>\\Binaries\\Win64\\<Project>.exe" % out)
     ok = rc1 == 0 and rc2 == 0
     print("STAGE VERDICT %s" % ("PASS - deliverable" if ok else "FAIL - do not deliver this folder"))
     return 0 if ok else 1

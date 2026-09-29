@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Check an assembled delivery bundle before it goes to a client: the dashboard token file is IN it, and every
-script path the README tells the client to run exists in it.
+"""Check an assembled delivery bundle before it goes to a client: the dashboard token file is IN it, every
+script path the README tells the client to run exists in it, and the README carries no unfilled placeholder
+(the Step 1 LAUNCH stub, a value "to be measured").
 
 The M2 incident: the client's dashboard could not log in. The dashboard's token file is `dashboard\\config.json`
 (it replaced the build-time `.env` at M2), make_delivery.py deliberately never copies it (the dev copy carries
@@ -28,6 +29,10 @@ REQUIRED = ("Setup.bat", "Run.bat", "README.md", "dashboard/index.html", "dashbo
 PLACEHOLDER = re.compile(r"TESTVALUE|TESTTOKEN|CHANGEME|placeholder|^TEST$", re.I)
 MIN_TOKEN = 32
 README_CMD = re.compile(r"\bpython[0-9.]*\s+((?:<[^>]+>[\\/])?[\w.\\/-]+\.py)\b", re.I)
+README_PLACEHOLDERS = (
+    ("the Step 1 LAUNCH stub (the client cannot start the game)", re.compile(r"fill this in", re.I)),
+    ("a value still 'to be measured'", re.compile(r"to be measured", re.I)),
+)
 
 
 def token_from_ini(path):
@@ -121,6 +126,11 @@ def check(root, expected=None, expected_src=None, out=print):
             out("BUNDLE README runs python %-40s %s" % (p, "exists in the bundle" if ok else "*** NOT IN THE BUNDLE -> STOP ***"))
         if not paths:
             out("BUNDLE README names no python script")
+        for label, rx in README_PLACEHOLDERS:
+            for n, line in enumerate(text.splitlines(), 1):
+                if rx.search(line):
+                    stops.append("README placeholder line %d" % n)
+                    out("BUNDLE README line %d is %s -> STOP (fill it in for the build being delivered)" % (n, label))
 
     out("BUNDLE VERDICT %s%s" % ("PASS" if not stops else "STOP", "" if not stops else " " + ", ".join(stops)))
     return 0 if not stops else 1
@@ -130,6 +140,8 @@ def selftest():
     good_tok = "A" * 40 + "b" * 24
     readme_ok = "Run:\n```\npython host-tools\\verify_capture.py --dir <s>\npython <delivery-root>\\host-tools\\verify_capture.py --x\n```\n"
     readme_bad = readme_ok + "python tools\\verify_capture.py --dir <s>\n"
+    readme_launch_stub = readme_ok + "> **⟨ LAUNCH — build-specific; fill this in ⟩**\n"
+    readme_unmeasured = readme_ok + "on realistic content, per mode: **(rate: to be measured)**.\n"
 
     def make(d, token=good_tok, cfg=True, readme=readme_ok, stray=False, ini_token=None):
         for rel in REQUIRED:
@@ -160,6 +172,8 @@ def selftest():
         ("placeholder token", {"token": "TESTVALUE123" + "x" * 30}, 1),
         ("token differs from the game's", {"ini_token": "Z" * 64}, 1),
         ("README runs tools\\verify_capture.py", {"readme": readme_bad}, 1),
+        ("README keeps the unfilled LAUNCH stub", {"readme": readme_launch_stub}, 1),
+        ("README keeps a 'to be measured' value", {"readme": readme_unmeasured}, 1),
         ("stray env file only (warns)", {"stray": True}, 0),
     ]
     tmp = tempfile.mkdtemp(prefix="bundle_selftest_")

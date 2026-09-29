@@ -11,6 +11,24 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 📦 **088-01, 2026-09-29 — DELIVERY REHEARSAL: BOTH PATHS BUILT AS THE CLIENT RECEIVES THEM (staged plugin → Development
+> build → cook/pak → AnomDash bundle) AND EVERY PACKAGING CHECK RUN. NOTHING DELIVERED, NOTHING LAUNCHED, NO TAG, NO MERGE TO
+> `master`.** Outputs only under `E:\IA_BuildCache\_rehearsal\` (packages, bundles, evidence).
+> - **Cold start:** journal `docs/sessions/2026-09-29-088-01-delivery-rehearsal.md` (§3 the checks, §6 every checklist box).
+> - **Merges (087-01 decision 2):** kit → fix `df63a8a`; fix → m53 `9bd7316`; every suite green on both trees (C++ incl. all
+>   23 m53 mutants failing as required; kit 32/32).
+> - **Packages:** A (m52-only) exe `6D1B659F`, B (m52 + m53) exe `C18D0F41`; cooks 792 / 795 packages, 0 errors, 0 warnings;
+>   **G354 PASS on both without `--bench-cook`** (descriptor `62E6B9AD…`, FIXTURE `hits=none`); cooked ini delivery-shaped;
+>   bundles COMPLETE 14/14 with the dev `config.json` removed and each build's cooked token written (PASS; STOP against the dev
+>   ini and against the other path's build); `Setup.bat` walked: token kept. A vs B: only m53 files, readme sections and assets.
+> - **Three packaging faults fixed on the fix branch (m53 inherits by merge):** the never-cook list and G354 needles now name
+>   `/Game/CaptureBenchTexCorrupt` (G400); the binary lever audit takes `--root <staged folder>` — from the branch it FAILED a
+>   correct delivery exe (G398); `check_delivery_bundle.py` STOPs on an unfilled README (G399).
+> - ⚠ **Before either bundle ships:** fill README Step 1 (the LAUNCH stub, both paths) and, for B, §8.8's `(rate: to be
+>   measured)`. ⚠ **The runtime half is unobserved on these packages** (token read back from a log, DISABLED echo, no twins,
+>   pool line, B's census): one launch each, tonight or Thursday. No product-source fault found.
+>
+> ---
 > 📐 **084-11, 2026-09-29 — m52 YIELD PLAN (PLAN ONLY: no source, no build, no cook, no launch). `stuck_low_mip` fires
 > ZERO on the office host (Deimos) because purity holds a texture only if exactly ONE component in the loaded world uses it,
 > and a refused `Apply` wastes the whole burst.**

@@ -8,8 +8,8 @@ branch's descriptor MINUS AnomalyBench (ruling F9). A missing module, an extra m
 or any differing field is a STOP.
 
 The same run scans the container index (.utoc, both encodings) for bench fixture content: the fixture
-folder names AnomalyFixtures and CaptureBenchGate (the index stores path components without slashes) and the
-bench maps. Any hit in a delivery package is
+folder names AnomalyFixtures, CaptureBenchGate and CaptureBenchTexCorrupt (the index stores path components
+without slashes) and the bench maps. Any hit in a delivery package is
 a STOP. A BENCH cook legitimately carries AnomalyBench and the fixtures: pass --bench-cook, and the descriptor
 must then equal the branch descriptor exactly.
 
@@ -31,8 +31,8 @@ import sys
 import tempfile
 
 BENCH_MODULES = ("AnomalyBench",)
-FIXTURE_NEEDLES = ("AnomalyFixtures", "CaptureBenchGate", "CB_GateLevel", "CB_LodCalib", "CB_LodFixture",
-                   "CB_TexCorruptLevel")
+FIXTURE_NEEDLES = ("AnomalyFixtures", "CaptureBenchGate", "CaptureBenchTexCorrupt", "CB_GateLevel", "CB_LodCalib",
+                   "CB_LodFixture", "CB_TexCorruptLevel")
 DEFAULT_UNREALPAK = r"D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealPak.exe"
 COMPARED_TOP = ("Modules", "Plugins")
 
@@ -131,7 +131,7 @@ def check(descriptor_bytes, source, intended_path, utoc, bench_cook, out):
         if hits and not bench_cook:
             stops.append("FIXTURE")
             out("G354 FIXTURE bench fixture content is cooked into this package -> STOP (exclude /Game/AnomalyFixtures, "
-                "/Game/CaptureBenchGate and the CB_ maps from the delivery cook)")
+                "/Game/CaptureBenchGate, /Game/CaptureBenchTexCorrupt and the CB_ maps from the delivery cook)")
     else:
         out("G354 FIXTURE not checked (no container index given)")
     out("G354 VERDICT %s%s" % ("PASS" if not stops else "STOP", "" if not stops else " " + ", ".join(stops)))
@@ -153,6 +153,7 @@ def selftest(intended_path):
     noplug["Plugins"] = []
     clean_utoc = "/Game/StackOBot/Maps/MainWorld".encode("utf-16-le")
     fixture_utoc = clean_utoc + "/Game/AnomalyFixtures/CB_LodFixture".encode("utf-16-le")
+    texcorrupt_utoc = clean_utoc + "CaptureBenchTexCorrupt\0M_TC_UC1".encode("ascii")
     cases = [
         ("delivery descriptor, clean container", delivery, clean_utoc, False, 0),
         ("branch descriptor (AnomalyBench present)", branch, clean_utoc, False, 1),
@@ -160,6 +161,7 @@ def selftest(intended_path):
         ("a module field changed (LoadingPhase)", phase, clean_utoc, False, 1),
         ("the plugin dependency list dropped", noplug, clean_utoc, False, 1),
         ("delivery descriptor, fixture in container", delivery, fixture_utoc, False, 1),
+        ("delivery descriptor, texcorrupt asset, no map", delivery, texcorrupt_utoc, False, 1),
         ("bench cook: branch descriptor + fixture", branch, fixture_utoc, True, 0),
         ("bench cook: descriptor without AnomalyBench", delivery, fixture_utoc, True, 1),
     ]
