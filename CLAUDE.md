@@ -11,6 +11,26 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔎 **089-01, 2026-09-30 — OFFLINE ADJUDICATION OF THE NIGHT BENCH (read-only; no source, build, cook, launch or staging).
+> No adjudicated FAIL is a real label/picture mismatch.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-089-01-adjudication.md`; the review with tables per item
+>   `_reviews\089-01-adjudication.md`; per-frame tables `_reviews\089-01-adjudication-tables.md` (from `089-01-tables.py`).
+> - **blinking SYN (E1 FAIL 10/10) = E1 artefact** (G405: a one-frame label run is scaled by its own post-label noise); the
+>   pixels, 086-01 and the kit read +0. **B9's 5 086-01 FAILs = scene drift in 086-01's own-run reference** (it is not
+>   partial-blind). **B3 si 181's 41-frame tail = E1's null 16 frames out of game-time phase** (G406) over a normal TSR decay
+>   (< 50 % of depth from +6; the textures back at baseline from the frame after the label). **B0's 12 censored offsets** = a
+>   rejected null lag (the leg started 250 frames late) + own-detrend vs the rock-sharpness cycle; with the null aligned by
+>   game time, 11 are judged and all PASS at t50. Two events lie beyond the null's 41.3 s and stay unjudgeable.
+> - **MASK55 v2's 270 unmeasured frames = m50 Nanite admission** (BP_SpawnPad_C, RoomBuilderSquare_C, SM_Ramp2; the rock is
+>   172/172 masked); not G295, not the pool lever, not a regression (084-06 ran on the non-Nanite gate level). Peak live ≥ 2
+>   has only come from targeted stuck_low_mip legs (11 of 15) (G409).
+> - **lod_popping `worst=2`** = the 1-based `ForcedLodModel` (LOD index 1 of 2), in range; the label does not depend on it
+>   (G408). **m53 arms:** the levers count engine frames and the capture skips K = 2 settle ticks, so CD3/RD3 move the
+>   picture by one captured frame; can-fail proven at +1 (G407).
+> - 🎯 **NEEDS-DECISION (chat):** accept the game-time-aligned null; stuck_low_mip TSR residue policy (t50 vs a longer off
+>   window); MASK55 route (targeted stuck + `TagPoolLimit 12`, or a bench hold lever); arm predictions in captured frames.
+>
+> ---
 > 🧪 **084-09, 2026-09-29/30 — THE LABEL-SYNC RE-BENCH ON THE FIX BUILD (`8A6074AA` + `BF06AE61`) RAN AS BUILT: 29 of 29
 > runnable legs ACCEPTED, restore on attempt 1, postflight PASS. No gate, prediction or threshold changed; no source, build
 > or cook.**

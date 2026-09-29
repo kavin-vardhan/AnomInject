@@ -8653,3 +8653,68 @@ Related: A63, G90.
   it (mean luminance well above 0, the target region non-uniform).
 
 Related: G151.
+
+## G405 — A one-frame label run judges itself: E1 scales its off half by the run's own post-label noise (2026-09-30, 089-01)
+
+*(Number checked against every ref, local and remote: the maximum was G404 on `feat/m53-uv-normal-corruption`.)*
+
+- **Measured (084-09 REAL_BL_SYN, 10 of 10 events):** `084-09-eval.py:508-519` splits each label run at its midpoint and
+  scales frames after it by `dD_off = max D over the run's off half`. Synthetic tick order hides `{n, n+1, n+2, n+6}`, so the
+  last run is ONE frame: its midpoint is that frame, its off half holds no hidden frame, and `dD_off` is post-label noise
+  (1.8–2.6 against a real depth of 44.7–47.9). The noisiest frame after the label (1.4–3.3 on the pixels, against 34.6–39.8 on
+  the hidden frames) scores 0.73–1.0 "of the effect" by construction, and a slow whole-frame drift 13–14 frames later crosses
+  half of that noise scale. E1 read FAIL 10/10 (ends +1 and +14) where 086-01, the office kit and the pixels read +0. Native
+  order (two-frame runs) is immune, which is why NAT passed on the same instrument.
+- **Rule:** a normaliser must come from frames that contain the effect it scales. A run whose off half holds no labelled frame
+  is scaled by its own `depth_on` (or the event's depth), never by its post-label frames. This is G395's shape — the judged
+  frame sets its own scale — without G395's letter (the frame is not in the reference set).
+
+Related: G395.
+
+## G406 — One session-wide null lag misaligns legs whose capture hitches or start differ; align the null by game time (2026-09-30, 089-01)
+
+- **Measured:** E1's stuck_low_mip basis picks ONE lag in `session_index` by correlation over the whole session
+  (`084-09-eval.py:199-241`). Every auto-pool fire attempt costs a 3-engine-frame capture hitch, so B3 (41 hitches) drifts
+  against the null B5 (20 hitches): game-time offset +0 at si 181, +16 at si 500, +38 at si 1100. E1 chose lag 16 (corr 0.93);
+  at si 181 the true offset is 0 (ratio 0.997–1.000 at lag 0 against 0.967–1.018 at lag 16). Dividing by a null 16 frames later
+  while the scene's rock sharpness climbed turned an ordinary TSR decay into a 41-frame "tail" and a t50 FAIL. B0's accepted
+  attempt started at engine frame 591 (the firewall waits of G401), 250 frames off the null: every lag within `LAG_MAX` 30 was
+  rejected (best corr −0.07), own-detrend met ±8–30 % scene drift, and 12 of 18 offsets were censored. With the null
+  interpolated at each leg frame's own game time `t`, 11 of those 12 and si 181 are judged, all below 50 % of depth by +5..+8.
+- **Rule:** align a null to a leg by game time `t`, frame by frame, never by one lag in capture index; and capture the null long
+  enough to cover the leg's whole game-time range (B0's last four events lay beyond B5's 41.3 s).
+
+Related: G349, G396, G401.
+
+## G407 — Bench levers counted in engine frames lose K settle ticks at every apply and revert: CD3/RD3 move the picture by ONE captured frame (2026-09-30, 089-01)
+
+- **Measured (085-04 ARM_CD3 / ARM_RD3, direct pixels):** `IAI.Bench.TexCorruptCommitDelay` and `…RestoreDelay` schedule on
+  `GFrameCounter + D` (`Anomaly_TexCorrupt.cpp:1113, 1279`). The capture records the apply tick (labelled) and the revert tick
+  (unlabelled), then skips `K = 2` settle ticks (frame_index jumps by 3). CD3: apply at engine 32 = si 25 (labelled, still
+  clean), commit at 35 = si 26 ⇒ onset +1, not +3. RD3: revert at engine 42 = si 33 (still corrupted), restore at 45 = si 34
+  (clean) ⇒ end +1. The captured effect is `1 + max(0, D − 1 − K)` for either lever, so a +3 arm needs D = 5.
+- **Rule:** a lever and its prediction must use the same unit; state bench-lever predictions in captured frames, derived from
+  the leg's settle count, or count the lever in captured frames.
+
+Related: G37, G395.
+
+## G408 — lod_popping's `worst=N` is the 1-based `ForcedLodModel`, not a LOD index (2026-09-30, 089-01)
+
+- **Source:** `AnomalyLod::GetWorstLod` returns the mesh's LOD COUNT and `SetForcedLod` writes it to
+  `UStaticMeshComponent::SetForcedLodModel` / `USkinnedMeshComponent::SetForcedLOD`, whose value is 1-based ("if >0, force to
+  (ForcedLodModel-1)"). `worst=2` on a two-LOD mesh forces LOD index 1, the last LOD, and the engine's clamp
+  (`StaticMeshRender.cpp:2322`) leaves it alone. The CURRENT-LOD line prints it beside a 0-based `level=`, which is what read as
+  "out of range". The label does not depend on it (`IsCurrentlyAnomalous() = bActive && bPoppedPhase`); the pixels do.
+- **Rule:** print a forced LOD as `forced_lod_model=N (LOD index N−1 of N)`; never mix 1-based and 0-based LOD numbers on one line.
+
+## G409 — On MainWorld the auto pool picks Nanite targets that are unmeasured by design, and only targeted stuck_low_mip legs ever overlap two mask records (2026-09-30, 089-01)
+
+- **Measured (084-09 MASK55 v2):** 172 labelled frames on the rock are all masked; 270 on `BP_SpawnPad_C`,
+  `RoomBuilderSquare_C` and `SM_Ramp2` are all `unmeasured`, each event logging `Capture(m50): UNMEASURABLE TARGET … reason=nanite`
+  (57 events = `unmeasurable_targets_admitted`), with 0 `TARGET MASK UNAVAILABLE` lines (not G295). 084-06's 586/586 ran on
+  `CB_GateLevel`, whose engine basic shapes are not Nanite. Across every banked leg, `mask_tag_peak_live` reached 2 on 11 of 15
+  targeted stuck_low_mip legs and on 0 of 5 auto-pool legs, and no leg has had peak live ≥ 2 and recycles > 0 together.
+- **Rule:** a "every labelled frame masked" gate names its map: on MainWorld it reads per measurable target, and every unmeasured
+  frame must carry an m50 reason. A concurrency (peak-live) condition needs a targeted stuck_low_mip leg, not a mixed auto pool.
+
+Related: G134, G366.
