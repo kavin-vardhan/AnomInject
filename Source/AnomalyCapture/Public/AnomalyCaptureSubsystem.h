@@ -246,6 +246,12 @@ private:
 	void ApplyCarriedTrailOwnership(bool bOn);
 	void ServiceTrailDetach(int32 TrailIndex, bool bQuiet);
 	void DetachClosedTrailsForNextFire();
+	uint8 QueryExclusionTrail(FName PartnerId, FString& OutEventKey) const;
+	void RegisterExclusionTrailProvider();
+	void ClearExclusionTrailProvider();
+	void NoteTexCorruptM52Overlap(const AnomalyLabel::FCaptureSnapshot& Snap);
+	void LogTexCorruptCostLine();
+	int32 TexCorruptM52OverlapFrames = 0;
 	void RegisterBenchStuckMipLevers();
 	bool bRenderTruthRun = false;
 	int32 StuckMipSettleTailFrames = 0;

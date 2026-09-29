@@ -1,6 +1,7 @@
 #include "Anomalies/Anomaly_TexCorrupt.h"
 #include "Anomalies/TexCorruptPure.h"
 
+#include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "Components/MeshComponent.h"
@@ -12,6 +13,7 @@
 #include "GameFramework/Actor.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/App.h"
 #include "UObject/Package.h"
 
@@ -39,7 +41,35 @@ namespace
 
 	const TCHAR* ExpectedStrengthClass(EMode Mode)
 	{
-		return Mode == EMode::TileProbe ? TEXT("strong") : TEXT("none");
+		switch (Mode)
+		{
+		case EMode::TileProbe:
+		case EMode::Tile:
+		case EMode::Scramble:
+		case EMode::Invert:
+			return TEXT("strong");
+		case EMode::GreenFlip:
+			return TEXT("medium");
+		default:
+			return TEXT("none");
+		}
+	}
+
+	TArray<FAnomaly_TexCorrupt*>& LiveInstances()
+	{
+		static TArray<FAnomaly_TexCorrupt*> Instances;
+		return Instances;
+	}
+
+	uint32 ConfiguredSeed(UWorld* World)
+	{
+		const UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr;
+		return Auto ? (uint32)Auto->GetSeed() : 0u;
+	}
+
+	double ElapsedMs(double StartSeconds)
+	{
+		return (FPlatformTime::Seconds() - StartSeconds) * 1000.0;
 	}
 
 	int32 SrcKindFor(EClass Class)
@@ -57,17 +87,40 @@ FAnomaly_TexCorrupt::FAnomaly_TexCorrupt(FName InId, EFamily InFamily)
 	: Id(InId)
 	, Family(InFamily)
 {
+	LiveInstances().Add(this);
 }
 
 FAnomaly_TexCorrupt::~FAnomaly_TexCorrupt()
 {
+	LiveInstances().RemoveSingleSwap(this);
 }
 
 FString FAnomaly_TexCorrupt::GetDescription() const
 {
 	return Family == EFamily::UV
-		? TEXT("UV corruption: the host's own active texture parameters, redrawn per mip into render targets and bound on a MID of its own material (m53 S1: identity and a bench tile probe only).")
-		: TEXT("Normal-map corruption: the host's own normal-map parameters, redrawn per mip into render targets and bound on a MID of its own material (m53 S1: identity only).");
+		? TEXT("UV corruption: the host's own active texture parameters, redrawn per mip into render targets through a UV transform and bound on a MID of its own material. Modes: tile (N x N repeat) and scramble (a K x K cell permutation).")
+		: TEXT("Normal-map corruption: the host's own normal-map parameters, redrawn per mip into render targets with a sign change and bound on a MID of its own material. Modes: invert (x and y negated) and green_flip (y negated).");
+}
+
+bool FAnomaly_TexCorrupt::IsRevertSettlingIn(const UWorld* World) const
+{
+	if (!World || EventWorld.Get() != World)
+	{
+		return false;
+	}
+	return TexCorruptPure::IsRevertSettlingAt(PostRevertFrame, bTerminalRollback, bRestorePending, GFrameCounter);
+}
+
+bool IsRevertSettling(UWorld* World)
+{
+	for (const FAnomaly_TexCorrupt* Instance : LiveInstances())
+	{
+		if (Instance && Instance->IsRevertSettlingIn(World))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void FAnomaly_TexCorrupt::Hold(UObject* Obj)
@@ -108,6 +161,12 @@ void FAnomaly_TexCorrupt::ResetEventState()
 	PrimaryName.Reset();
 	Mode = EMode::None;
 	TileN = 1;
+	Attempt = FAttemptInfo();
+	bCommitPending = false;
+	CommitDueFrame = 0;
+	bRestorePending = false;
+	RestoreDueFrame = 0;
+	RestoreDelayedBy = 0;
 	Fault = EWrongCopy::None;
 	NoApply = 0;
 	RequiredBytes = 0;
@@ -132,7 +191,8 @@ FAnomaly_TexCorrupt::FScratchSet* FAnomaly_TexCorrupt::FindScratch(const FScratc
 
 int32 FAnomaly_TexCorrupt::SourceMipFor(const FOutput& O, int32 Level) const
 {
-	return TexCorruptPure::SourceMipFor(Level, O.M, Mode == EMode::TileProbe ? TileN : 1, Fault == EWrongCopy::MipShift);
+	return TexCorruptPure::SourceMipFor(Level, O.M, (Mode == EMode::TileProbe || Mode == EMode::Tile) ? TileN : 1,
+		Fault == EWrongCopy::MipShift);
 }
 
 void FAnomaly_TexCorrupt::ReleaseScratchSet(FScratchSet& S)
@@ -185,9 +245,9 @@ bool FAnomaly_TexCorrupt::FailAt(int32 Step, const TCHAR* Reason, const FString&
 		TEXT("event created is released, NO SLOT WAS TOUCHED (the commit is step 7 alone). Ledger: %lld created byte(s) moved ")
 		TEXT("to the two-frame pending ledger, %lld never-created byte(s) un-reserved; live=%lld pending=%lld frame=%llu. ")
 		TEXT("pending > 0 here is expected (created bytes wait two rendered frames) and this line is not a balance verdict; ")
-		TEXT("the balance reading is TEXCORRUPT-LEDGER kind=rollback at frame %llu, which must read live=0 pending=0."),
+		TEXT("the balance reading is TEXCORRUPT-LEDGER kind=rollback at frame %llu, which must read live=0 pending=0.%s"),
 		*Id.ToString(), Reason, Step, *Detail, CreatedAtFail, NeverCreated, Ledger().Live, Ledger().PendingSum(), GFrameCounter,
-		TexCorruptPure::PostRevertSampleFrame(GFrameCounter));
+		TexCorruptPure::PostRevertSampleFrame(GFrameCounter), *Attempt.Describe());
 	ResetEventState();
 	RevertFrame = GFrameCounter;
 	PostRevertFrame = TexCorruptPure::PostRevertSampleFrame(RevertFrame);
@@ -216,12 +276,14 @@ bool FAnomaly_TexCorrupt::AllocateAll(FString& OutDetail)
 		OutDetail = TEXT("allocation_plan_overflow");
 		return false;
 	}
+#if !UE_BUILD_SHIPPING
 	const int32 FailOrdinal = Levers().FailStep == 2 ? Levers().FailAllocOrdinal : -1;
 	if (FailOrdinal >= 0)
 	{
 		Levers().FailStep = 0;
 		Levers().FailAllocOrdinal = -1;
 	}
+#endif
 	for (int32 k = 0; k < NumSteps; ++k)
 	{
 		const TexCorruptPure::FAllocStep& St = Steps[k];
@@ -246,12 +308,14 @@ bool FAnomaly_TexCorrupt::AllocateAll(FString& OutDetail)
 		UTextureRenderTarget2D* T = bOutput
 			? AllocateTarget(O.W, O.H, O.Class == EClass::Colour, O.M, O.Source, Failure, bCreated)
 			: AllocateTarget(St.W, St.H, O.Key.bSRGB, 1, nullptr, Failure, bCreated);
+#if !UE_BUILD_SHIPPING
 		if (T && k == FailOrdinal)
 		{
 			ReleaseTarget(T);
 			T = nullptr;
 			Failure = FString::Printf(TEXT("IAI.Bench.TexCorruptFailStep 2 %d (created then rejected)"), k);
 		}
+#endif
 		if (!T)
 		{
 			if (bCreated)
@@ -310,11 +374,21 @@ bool FAnomaly_TexCorrupt::SetupLevelMid(UWorld* World, FOutput& O, int32 Level, 
 	{
 		const int32 Kind = SrcKindFor(O.Class);
 		Scalars.Emplace(Param::SrcKind, (float)Kind);
-		Scalars.Emplace(Param::UvScale, Mode == EMode::TileProbe ? (float)TileN : 1.0f);
+		Scalars.Emplace(Param::UvScale, (Mode == EMode::TileProbe || Mode == EMode::Tile) ? (float)TileN : 1.0f);
 		Scalars.Emplace(Param::UvOffsetU, 0.0f);
 		Scalars.Emplace(Param::UvOffsetV, 0.0f);
 		Scalars.Emplace(Param::UvSwap, 0.0f);
-		Scalars.Emplace(Param::ScrambleOn, 0.0f);
+		if (Mode == EMode::Scramble)
+		{
+			Scalars.Emplace(Param::ScrambleOn, 1.0f);
+			Scalars.Emplace(Param::ScrambleK, (float)Attempt.Scramble.K);
+			Scalars.Emplace(Param::ScrambleAInv, (float)Attempt.Scramble.AInv);
+			Scalars.Emplace(Param::ScrambleB, (float)Attempt.Scramble.B);
+		}
+		else
+		{
+			Scalars.Emplace(Param::ScrambleOn, 0.0f);
+		}
 		Scalars.Emplace(Param::DbgSrgbTwice, Fault == EWrongCopy::SrgbTwice ? 1.0f : 0.0f);
 		Scalars.Emplace(Param::DbgOpaque, Fault == EWrongCopy::Alpha ? 1.0f : 0.0f);
 		Textures.Emplace(Kind == 0 ? Param::SrcColor : (Kind == 1 ? Param::SrcData : Param::SrcNormal), O.Source);
@@ -323,8 +397,8 @@ bool FAnomaly_TexCorrupt::SetupLevelMid(UWorld* World, FOutput& O, int32 Level, 
 	{
 		const int32 NoiseMips = Noise ? Noise->GetNumMips() : 1;
 		Scalars.Emplace(Param::NoiseMip, (float)FMath::Clamp(Level, 0, FMath::Max(0, NoiseMips - 1)));
-		Scalars.Emplace(Param::NormalSignX, 1.0f);
-		Scalars.Emplace(Param::NormalSignY, 1.0f);
+		Scalars.Emplace(Param::NormalSignX, Mode == EMode::Invert ? -1.0f : 1.0f);
+		Scalars.Emplace(Param::NormalSignY, (Mode == EMode::Invert || Mode == EMode::GreenFlip) ? -1.0f : 1.0f);
 		Scalars.Emplace(Param::FlatMix, 0.0f);
 		Scalars.Emplace(Param::NoiseAmp, 0.0f);
 		Textures.Emplace(Param::SrcNormal, O.Source);
@@ -617,18 +691,23 @@ void FAnomaly_TexCorrupt::ReleaseTargetWatch()
 
 bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 {
+	const int32 Ordinal = TakeAttemptOrdinal(Family);
 	if (!World)
 	{
 		return false;
 	}
 	if (Args.Num() == 0 || Args[0].IsEmpty())
 	{
-		UE_LOG(LogAnomaly, Warning, TEXT("%s: usage <substring> [mode]"), *Id.ToString());
+		UE_LOG(LogAnomaly, Warning, TEXT("%s: usage <substring> <mode> (attempt ordinal %d used up)"), *Id.ToString(), Ordinal);
 		return false;
 	}
 	if (bActive)
 	{
 		Revert();
+	}
+	if (bRestorePending)
+	{
+		FinishPendingRestore(TEXT("re-apply"));
 	}
 	ResetEventState();
 
@@ -637,7 +716,36 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	const bool bModeArg = Args.Num() >= 2 && !Args[1].IsEmpty();
 	EMode RequestedMode = EMode::None;
 	int32 RequestedTile = 1;
-	if (!bModeArg)
+	FString ModeRefusalSub;
+	if (bModeArg)
+	{
+		TexCorruptPure::EModeP Pure = TexCorruptPure::EModeP::None;
+		const TexCorruptPure::FModeName* Name = nullptr;
+		const TexCorruptPure::EModeArg Parsed = TexCorruptPure::ClassifyModeArg(*Args[1], ToPureFamily(Family), bAutoPool, Pure, Name);
+		switch (Parsed)
+		{
+		case TexCorruptPure::EModeArg::Ok:
+			RequestedMode = FromPureMode(Pure);
+			if (RequestedMode == EMode::Tile)
+			{
+				RequestedTile = GetTileN();
+			}
+			break;
+		case TexCorruptPure::EModeArg::NoModeEnabled:
+			ModeRefusalSub = TEXT("no_mode_enabled");
+			break;
+		case TexCorruptPure::EModeArg::WrongFamily:
+			ModeRefusalSub = FString::Printf(TEXT("family:%s"), *Args[1]);
+			break;
+		case TexCorruptPure::EModeArg::NotInDelivery:
+			ModeRefusalSub = FString::Printf(TEXT("not_in_delivery:%s"), Name ? ANSI_TO_TCHAR(Name->Name) : *Args[1]);
+			break;
+		default:
+			ModeRefusalSub = FString::Printf(TEXT("unknown:%s"), *Args[1]);
+			break;
+		}
+	}
+	else
 	{
 		if ((L.TileProbe == 2 || L.TileProbe == 4) && !bAutoPool && Family == EFamily::UV)
 		{
@@ -652,6 +760,18 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		{
 			RequestedMode = EMode::Identity;
 		}
+		if (RequestedMode == EMode::None)
+		{
+			ModeRefusalSub = TEXT("no_mode");
+		}
+	}
+
+	FAttemptInfo AttemptInfo;
+	AttemptInfo.Ordinal = Ordinal;
+	if (RequestedMode == EMode::Scramble)
+	{
+		AttemptInfo.bScramble = true;
+		AttemptInfo.Scramble = DeriveScramble(ConfiguredSeed(World), Ordinal, GetScrambleK());
 	}
 
 	FTreeInputs In;
@@ -661,6 +781,8 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	In.TargetQuery = Args[0];
 	In.bModeArgGiven = bModeArg;
 	In.ModeArg = bModeArg ? Args[1] : FString();
+	In.ModeRefusalSub = ModeRefusalSub;
+	In.Attempt = AttemptInfo;
 
 	FTreeResult Tree;
 	EvaluateTree(World, In, Tree);
@@ -669,17 +791,19 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	if (!Tree.bApply)
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("%s: REFUSED %s (step %s) for '%s'. The decision tree has no side effect: nothing was reserved, allocated or ")
+			TEXT("%s: REFUSED %s (step %s) for '%s'%s. The decision tree has no side effect: nothing was reserved, allocated or ")
 			TEXT("touched, and the event records no fire."),
-			*Id.ToString(), *Tree.FinalKey(), *Tree.EventStep, *In.TargetQuery);
+			*Id.ToString(), *Tree.FinalKey(), *Tree.EventStep, *In.TargetQuery, *AttemptInfo.Describe());
 		return false;
 	}
+	const double ApplyStartSeconds = FPlatformTime::Seconds();
 
 	UAnomalyInjectorSubsystem* Injector = ResolveInjector(World);
 	Holder = Injector;
 	EventWorld = World;
 	Mode = RequestedMode;
 	TileN = RequestedTile;
+	Attempt = AttemptInfo;
 	Fault = L.WrongCopy;
 	NoApply = FMath::Clamp(L.NoApply, 0, 2);
 	RequiredBytes = Tree.RequiredBytes;
@@ -766,6 +890,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 
 	GatherCollateral(World);
 
+#if !UE_BUILD_SHIPPING
 	if (NoApply == 2)
 	{
 		RegisterTargetWatch(Injector);
@@ -777,10 +902,12 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 			TEXT("%s: IAI.Bench.TexCorruptNoApply 2 - the decision tree said APPLY and the reservation arithmetic reads %lld byte(s), ")
 			TEXT("but NOTHING IS RESERVED, ALLOCATED, DRAWN OR COMMITTED. This is G-COLL's no-allocation null (plan I1). The target ")
 			TEXT("watches (EndPlay, destroy, world end) ARE registered, as for an applied event. condition read through the live ")
-			TEXT("predicate at apply: %s."),
-			*Id.ToString(), RequiredBytes, ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Reading)));
+			TEXT("predicate at apply: %s.%s apply_ms=%.3f"),
+			*Id.ToString(), RequiredBytes, ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Reading)), *Attempt.Describe(),
+			ElapsedMs(ApplyStartSeconds));
 		return true;
 	}
+#endif
 
 	for (const FSlot& S : Tree.Slots)
 	{
@@ -808,11 +935,13 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		return FailAt(1, Why::OverBudget, FString::Printf(TEXT("need %lld available %lld"), RequiredBytes, Ledger().Available(Cap)));
 	}
 
+#if !UE_BUILD_SHIPPING
 	if (Levers().FailStep == 2 && Levers().FailAllocOrdinal < 0)
 	{
 		Levers().FailStep = 0;
 		return FailAt(2, Why::RtAllocFailed, TEXT("IAI.Bench.TexCorruptFailStep 2 (before any allocation)"));
 	}
+#endif
 	{
 		FString AllocDetail;
 		if (!AllocateAll(AllocDetail))
@@ -823,11 +952,13 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 
 	UMaterialInterface* Corruptor = Injector ? (Family == EFamily::UV ? Injector->GetTexCorruptUvMaterial() : Injector->GetTexCorruptNormalMaterial()) : nullptr;
 	UTexture2D* Noise = Injector ? Injector->GetTexCorruptNoiseTexture() : nullptr;
+#if !UE_BUILD_SHIPPING
 	if (Levers().FailStep == 3)
 	{
 		Levers().FailStep = 0;
 		return FailAt(3, Why::ParamReadbackMismatch, TEXT("IAI.Bench.TexCorruptFailStep 3"));
 	}
+#endif
 	for (FOutput& O : Outputs)
 	{
 		for (int32 m = 0; m < O.M; ++m)
@@ -840,11 +971,13 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 	}
 
+#if !UE_BUILD_SHIPPING
 	if (Levers().FailStep == 4)
 	{
 		Levers().FailStep = 0;
 		return FailAt(4, Why::DrawPreconditionFailed, TEXT("IAI.Bench.TexCorruptFailStep 4"));
 	}
+#endif
 	{
 		FString Why4;
 		if (!FApp::CanEverRender()) { Why4 = TEXT("cannot_ever_render"); }
@@ -894,11 +1027,13 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	{
 		return FailAt(5, Why::DrawPreconditionFailed, TEXT("a draw exited after the step-4 precondition check"));
 	}
+#if !UE_BUILD_SHIPPING
 	if (Levers().FailStep == 5)
 	{
 		Levers().FailStep = 0;
 		return FailAt(5, Why::DrawPreconditionFailed, TEXT("IAI.Bench.TexCorruptFailStep 5 (after enqueue)"));
 	}
+#endif
 	if (Mode != EMode::IdentityRedraw)
 	{
 		for (FScratchSet& S : Scratch)
@@ -907,11 +1042,13 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 	}
 
+#if !UE_BUILD_SHIPPING
 	if (Levers().FailStep == 6)
 	{
 		Levers().FailStep = 0;
 		return FailAt(6, Why::ParamReadbackMismatch, TEXT("IAI.Bench.TexCorruptFailStep 6"));
 	}
+#endif
 	for (const FSlot& S : Tree.Slots)
 	{
 		if (!S.IsQualified())
@@ -956,27 +1093,31 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 	}
 
+	bool bCommitNow = true;
+#if !UE_BUILD_SHIPPING
 	if (NoApply == 1)
 	{
+		bCommitNow = false;
 		UE_LOG(LogAnomaly, Warning,
 			TEXT("%s: IAI.Bench.TexCorruptNoApply 1 - the whole transaction ran (reserve, allocate, draw, host MIDs) and ONLY ")
 			TEXT("THE SLOT COMMIT (step 7) IS SKIPPED. condition_held is read by the same live predicate as an applied event and ")
 			TEXT("reads slot_not_installed because each expected slot still holds its original."),
 			*Id.ToString());
 	}
-	else
+	else if (L.CommitDelay > 0)
 	{
-		for (FOwnedSlot& OS : Slots)
-		{
-			UMeshComponent* Comp = OS.Comp.Get();
-			if (Comp && OS.HostMid)
-			{
-				Comp->SetMaterial(OS.SlotIndex, OS.HostMid);
-				OS.bCommitted = true;
-				OS.OverrideLenAfter = Comp->OverrideMaterials.Num();
-				++SlotsCorrupted;
-			}
-		}
+		bCommitNow = false;
+		bCommitPending = true;
+		CommitDueFrame = GFrameCounter + (uint64)L.CommitDelay;
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("%s: IAI.Bench.TexCorruptCommitDelay %d - the event is APPLIED and labelled from frame %llu, but the slot commit ")
+			TEXT("(step 7) is held until frame %llu, so the picture changes %d frame(s) after the label. BENCH DEVICE (B-M53 can-fail)."),
+			*Id.ToString(), L.CommitDelay, GFrameCounter, CommitDueFrame, L.CommitDelay);
+	}
+#endif
+	if (bCommitNow)
+	{
+		CommitSlots();
 	}
 
 	RegisterTargetWatch(Injector);
@@ -986,15 +1127,34 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	++FStatsAccess::Mutable().FiresApplied;
 	int32 FirstBad = -1;
 	const TexCorruptPure::EHeld Reading = EvaluateCondition(FirstBad);
+	const double ApplyMs = ElapsedMs(ApplyStartSeconds);
 	UE_LOG(LogAnomaly, Log,
 		TEXT("%s: APPLIED mode=%s tile=%d fault=%s noapply=%d on '%s' - %d output chain(s), %d scratch class(es), %d host MID(s), ")
 		TEXT("slots %d/%d committed, required=%lld reserved=%lld live=%lld pending=%lld peak=%lld cap=%s, condition read through ")
 		TEXT("the live predicate: %s (first failing index %d). Every level of every output was drawn from the source's own mip ")
-		TEXT("and copied, enqueued before any scene draw of this frame (plan R7.4)."),
+		TEXT("and copied, enqueued before any scene draw of this frame (plan R7.4).%s apply_ms=%.3f"),
 		*Id.ToString(), LexMode(Mode), TileN, LexWrongCopy(Fault), NoApply, *In.TargetQuery, Outputs.Num(), Scratch.Num(),
 		HostMids.Num(), SlotsCorrupted, SlotsTotal, RequiredBytes, Account.Reserved, Ledger().Live, Ledger().PendingSum(),
-		Ledger().Peak, *DescribeMaxRtBytes(), ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Reading)), FirstBad);
+		Ledger().Peak, *DescribeMaxRtBytes(), ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Reading)), FirstBad, *Attempt.Describe(), ApplyMs);
 	return true;
+}
+
+int32 FAnomaly_TexCorrupt::CommitSlots()
+{
+	int32 Committed = 0;
+	for (FOwnedSlot& OS : Slots)
+	{
+		UMeshComponent* Comp = OS.Comp.Get();
+		if (Comp && OS.HostMid && !OS.bCommitted)
+		{
+			Comp->SetMaterial(OS.SlotIndex, OS.HostMid);
+			OS.bCommitted = true;
+			OS.OverrideLenAfter = Comp->OverrideMaterials.Num();
+			++SlotsCorrupted;
+			++Committed;
+		}
+	}
+	return Committed;
 }
 
 void FAnomaly_TexCorrupt::RegisterTargetWatch(UAnomalyInjectorSubsystem* Injector)
@@ -1032,6 +1192,13 @@ void FAnomaly_TexCorrupt::TickAlways(float DeltaSeconds)
 {
 	Ledger().Tick(GFrameCounter);
 
+#if !UE_BUILD_SHIPPING
+	if (bRestorePending && GFrameCounter >= RestoreDueFrame)
+	{
+		FinishPendingRestore(TEXT("due"));
+	}
+#endif
+
 	if (PostRevertFrame != 0 && GFrameCounter >= PostRevertFrame)
 	{
 		TakePostRevertSample();
@@ -1051,7 +1218,19 @@ void FAnomaly_TexCorrupt::TickAlways(float DeltaSeconds)
 		return;
 	}
 
+#if !UE_BUILD_SHIPPING
+	if (bCommitPending && GFrameCounter >= CommitDueFrame)
+	{
+		bCommitPending = false;
+		const int32 Committed = CommitSlots();
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("%s: IAI.Bench.TexCorruptCommitDelay - committed %d slot(s) at frame %llu, %llu frame(s) after APPLIED at frame %llu."),
+			*Id.ToString(), Committed, GFrameCounter, GFrameCounter - ApplyFrame, ApplyFrame);
+	}
+#endif
+
 	++TicksSinceApply;
+#if !UE_BUILD_SHIPPING
 	if (bForeignReplacePending && TicksSinceApply >= 2)
 	{
 		bForeignReplacePending = false;
@@ -1071,6 +1250,7 @@ void FAnomaly_TexCorrupt::TickAlways(float DeltaSeconds)
 			}
 		}
 	}
+#endif
 
 	if (Mode == EMode::IdentityRedraw)
 	{
@@ -1084,8 +1264,44 @@ void FAnomaly_TexCorrupt::Revert()
 	{
 		return;
 	}
+	const double StartSeconds = FPlatformTime::Seconds();
 	ReleaseTargetWatch();
+	bCommitPending = false;
+#if !UE_BUILD_SHIPPING
+	const int32 RestoreDelay = Levers().RestoreDelay;
+	if (RestoreDelay > 0)
+	{
+		bActive = false;
+		bRestorePending = true;
+		RestoreDelayedBy = RestoreDelay;
+		RestoreDueFrame = GFrameCounter + (uint64)RestoreDelay;
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("%s: IAI.Bench.TexCorruptRestoreDelay %d - REVERT called at frame %llu and the event ends here, but every slot keeps ")
+			TEXT("the corrupted MID (and every render target stays live) until frame %llu, when the REVERT line below runs the ")
+			TEXT("restore. BENCH DEVICE (B-M53 can-fail)."),
+			*Id.ToString(), RestoreDelay, GFrameCounter, RestoreDueFrame);
+		return;
+	}
+#endif
+	RestoreAndRelease(StartSeconds, 0);
+}
 
+void FAnomaly_TexCorrupt::FinishPendingRestore(const TCHAR* Context)
+{
+	if (!bRestorePending)
+	{
+		return;
+	}
+	const double StartSeconds = FPlatformTime::Seconds();
+	const int32 DelayedBy = RestoreDelayedBy;
+	UE_LOG(LogAnomaly, Log, TEXT("%s: delayed restore runs now (%s) at frame %llu, due %llu."), *Id.ToString(), Context, GFrameCounter,
+		RestoreDueFrame);
+	bRestorePending = false;
+	RestoreAndRelease(StartSeconds, DelayedBy);
+}
+
+void FAnomaly_TexCorrupt::RestoreAndRelease(double StartSeconds, int32 DelayedBy)
+{
 	int32 Exact = 0;
 	int32 Default = 0;
 	int32 LeftToGame = 0;
@@ -1181,8 +1397,10 @@ void FAnomaly_TexCorrupt::Revert()
 
 	UE_LOG(LogAnomaly, Log,
 		TEXT("%s: REVERT restored-exact=%d restored-default=%d left-to-game=%d unresolved=%d swept=%d; every render target ")
-		TEXT("(scratch included) released, originals let go after their slots were restored; live=%lld pending=%lld."),
-		*Id.ToString(), Exact, Default, LeftToGame, Unresolved, Swept, Ledger().Live, Ledger().PendingSum());
+		TEXT("(scratch included) released, originals let go after their slots were restored; live=%lld pending=%lld.%s ")
+		TEXT("restore_delay=%d revert_ms=%.3f"),
+		*Id.ToString(), Exact, Default, LeftToGame, Unresolved, Swept, Ledger().Live, Ledger().PendingSum(), *Attempt.Describe(),
+		DelayedBy, ElapsedMs(StartSeconds));
 
 	RevertFrame = GFrameCounter;
 	PostRevertFrame = TexCorruptPure::PostRevertSampleFrame(RevertFrame);
@@ -1263,10 +1481,22 @@ bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddInt(TEXT("texcorrupt.collateral_incomplete"), CollIncomplete);
 	Out.AddInt(TEXT("texcorrupt.collateral_unresolved"), CollateralUnresolved);
 	Out.AddBool(TEXT("texcorrupt.collateral_complete"), TexCorruptPure::CollateralComplete(bCollateralTaken, CollIncomplete));
-	if (Mode == EMode::TileProbe)
+	if (Mode == EMode::TileProbe || Mode == EMode::Tile)
 	{
 		Out.AddInt(TEXT("texcorrupt.tile"), TileN);
 		Out.AddInt(TEXT("texcorrupt.tile_detail_mips"), FMath::FloorLog2(FMath::Max(1, TileN)));
+	}
+	if (Attempt.Ordinal >= 0)
+	{
+		Out.AddInt(TEXT("texcorrupt.ordinal"), Attempt.Ordinal);
+	}
+	if (Attempt.bScramble)
+	{
+		Out.AddInt(TEXT("texcorrupt.scramble_cells"), Attempt.Scramble.K);
+		Out.AddInt(TEXT("texcorrupt.scramble_a"), Attempt.Scramble.A);
+		Out.AddInt(TEXT("texcorrupt.scramble_b"), Attempt.Scramble.B);
+		Out.AddInt(TEXT("texcorrupt.scramble_a_inv"), Attempt.Scramble.AInv);
+		Out.AddString(TEXT("texcorrupt.scramble_h"), FString::Printf(TEXT("%u"), Attempt.Scramble.H));
 	}
 	if (NoApply != 0)
 	{
@@ -1317,6 +1547,10 @@ void FAnomaly_TexCorrupt::OnWorldTeardown()
 	if (bActive)
 	{
 		Revert();
+	}
+	if (bRestorePending)
+	{
+		FinishPendingRestore(TEXT("world teardown"));
 	}
 	if (PostRevertFrame != 0)
 	{

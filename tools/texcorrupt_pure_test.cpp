@@ -773,6 +773,273 @@ int main()
 		Check("P3-3 a late reading is still judged", "balanced", LexLedgerBalance(JudgeLedgerReading(F, F + 5, 0, 0)));
 	}
 
+	std::printf("\n[16] 085-02 DC: the four shipped modes, the refusal sub-reasons, the enabled sets\n");
+	{
+		struct FArgCase
+		{
+			const char* Arg;
+			EModeFamilyP Family;
+			bool bAutoPool;
+			const char* Expected;
+		};
+		const FArgCase Cases[] = {
+			{ "tile", EModeFamilyP::UV, false, "ok:tile" },
+			{ "SCRAMBLE", EModeFamilyP::UV, false, "ok:scramble" },
+			{ "scramble", EModeFamilyP::UV, true, "ok:scramble" },
+			{ "invert", EModeFamilyP::Normal, false, "ok:invert" },
+			{ "green_flip", EModeFamilyP::Normal, true, "ok:green_flip" },
+			{ "bogus", EModeFamilyP::UV, false, "unknown:none" },
+			{ "invert", EModeFamilyP::UV, false, "family:none" },
+			{ "green_flip", EModeFamilyP::UV, false, "family:none" },
+			{ "tile", EModeFamilyP::Normal, false, "family:none" },
+			{ "flat", EModeFamilyP::UV, false, "family:none" },
+			{ "drift", EModeFamilyP::UV, false, "not_in_delivery:none" },
+			{ "swap", EModeFamilyP::UV, false, "not_in_delivery:none" },
+			{ "flat", EModeFamilyP::Normal, false, "not_in_delivery:none" },
+			{ "Noise", EModeFamilyP::Normal, false, "not_in_delivery:none" },
+			{ "", EModeFamilyP::UV, false, "no_mode:none" },
+			{ "!none", EModeFamilyP::UV, true, "no_mode_enabled:none" },
+			{ "!none", EModeFamilyP::Normal, true, "no_mode_enabled:none" },
+			{ "!none", EModeFamilyP::UV, false, "unknown:none" },
+			{ "tile ", EModeFamilyP::UV, false, "unknown:none" },
+			{ "til", EModeFamilyP::UV, false, "unknown:none" },
+			{ "tiles", EModeFamilyP::UV, false, "unknown:none" },
+		};
+		for (const FArgCase& C : Cases)
+		{
+			EModeP Mode = EModeP::Invert;
+			const FModeName* Name = nullptr;
+			const EModeArg R = ClassifyModeArg(C.Arg, C.Family, C.bAutoPool, Mode, Name);
+			const std::string Tag = std::string("mode arg '") + C.Arg + "' " + (C.Family == EModeFamilyP::UV ? "uv" : "normal")
+				+ (C.bAutoPool ? " auto" : " typed");
+			Check(Tag.c_str(), C.Expected, std::string(LexModeArg(R)) + ":" + LexModeP(Mode));
+		}
+		{
+			EModeP Mode = EModeP::None;
+			const FModeName* Name = nullptr;
+			const EModeArg R = ClassifyModeArg(L"Green_Flip", EModeFamilyP::Normal, false, Mode, Name);
+			Check("mode arg, wide characters (the TCHAR path)", "ok:green_flip", std::string(LexModeArg(R)) + ":" + LexModeP(Mode));
+			const EModeArg D = ClassifyModeArg(L"drift", EModeFamilyP::UV, false, Mode, Name);
+			Check("not_in_delivery names the canonical mode", "not_in_delivery:drift",
+				std::string(LexModeArg(D)) + ":" + (Name ? Name->Name : "null"));
+		}
+
+		EModeFamilyP Fam = EModeFamilyP::Normal;
+		std::string Families;
+		const EModeP All[] = { EModeP::Tile, EModeP::Scramble, EModeP::Invert, EModeP::GreenFlip, EModeP::None };
+		for (EModeP M : All)
+		{
+			const bool bHas = ModeFamilyOf(M, Fam);
+			Families += std::string(Families.empty() ? "" : ",") + LexModeP(M) + "=" + (bHas ? (Fam == EModeFamilyP::UV ? "uv" : "normal") : "-");
+		}
+		Check("ModeFamily", "tile=uv,scramble=uv,invert=normal,green_flip=normal,none=-", Families);
+
+		auto Ordered = [](EModeFamilyP F, unsigned Mask)
+		{
+			EModeP Out[NumModeNames];
+			const int N = DeliveredModesInOrder(F, Mask, Out, NumModeNames);
+			std::string S;
+			for (int i = 0; i < N; ++i)
+			{
+				S += std::string(i ? "+" : "") + LexModeP(Out[i]);
+			}
+			return S.empty() ? std::string("none") : S;
+		};
+		Check("uv delivered set, declared order", "tile+scramble", Ordered(EModeFamilyP::UV, DeliveredMask(EModeFamilyP::UV)));
+		Check("normal delivered set, declared order", "invert+green_flip", Ordered(EModeFamilyP::Normal, DeliveredMask(EModeFamilyP::Normal)));
+		Check("order does not follow the mask's build order", "tile+scramble",
+			Ordered(EModeFamilyP::UV, ModeBit(EModeP::Scramble) | ModeBit(EModeP::Tile)));
+		Check("other family's bits are ignored", "scramble", Ordered(EModeFamilyP::UV, ModeBit(EModeP::Scramble) | ModeBit(EModeP::Invert)));
+		Check("empty set", "none", Ordered(EModeFamilyP::Normal, 0u));
+
+		struct FSetCase
+		{
+			const char* Text;
+			EModeFamilyP Family;
+			const char* Expected;
+		};
+		const FSetCase Sets[] = {
+			{ "tile+scramble", EModeFamilyP::UV, "ok:tile+scramble" },
+			{ "scramble+tile", EModeFamilyP::UV, "ok:tile+scramble" },
+			{ " tile + scramble ", EModeFamilyP::UV, "ok:tile+scramble" },
+			{ "scramble", EModeFamilyP::UV, "ok:scramble" },
+			{ "invert+green_flip", EModeFamilyP::Normal, "ok:invert+green_flip" },
+			{ "none", EModeFamilyP::UV, "ok:none" },
+			{ "NONE", EModeFamilyP::Normal, "ok:none" },
+			{ "", EModeFamilyP::UV, "no_mode:" },
+			{ "tile+drift", EModeFamilyP::UV, "not_in_delivery:drift" },
+			{ "invert+tile", EModeFamilyP::Normal, "family:tile" },
+			{ "tile++scramble", EModeFamilyP::UV, "unknown:" },
+			{ "none+tile", EModeFamilyP::UV, "unknown:none" },
+			{ "bogus", EModeFamilyP::Normal, "unknown:bogus" },
+		};
+		for (const FSetCase& S : Sets)
+		{
+			const FModeSetParse P = ParseModeSet(S.Text, S.Family);
+			const std::string Got = P.bOk ? "ok:" + Ordered(S.Family, P.Mask)
+				: std::string(LexModeArg(P.Why)) + ":" + std::string(S.Text + P.BadStart, (size_t)P.BadLen);
+			Check((std::string("mode set '") + S.Text + "'").c_str(), S.Expected, Got);
+		}
+	}
+
+	std::printf("\n[17] 085-02 DC: the scramble pair - CRC-32 over {seed, ordinal, 0x53434D52}, 12 little-endian bytes\n");
+	{
+		struct FCrcRef
+		{
+			unsigned operator()(const unsigned char* B, int N) const
+			{
+				unsigned C = 0xFFFFFFFFu;
+				for (int i = 0; i < N; ++i)
+				{
+					C ^= B[i];
+					for (int k = 0; k < 8; ++k)
+					{
+						C = (C & 1u) ? (C >> 1) ^ 0xEDB88320u : (C >> 1);
+					}
+				}
+				return C ^ 0xFFFFFFFFu;
+			}
+		};
+		const FCrcRef Crc;
+		auto Hex = [](unsigned V)
+		{
+			char B[16];
+			std::snprintf(B, sizeof(B), "0x%08x", V);
+			return std::string(B);
+		};
+		Check("independent CRC-32 KAT '123456789'", "0xcbf43926", Hex(Crc((const unsigned char*)"123456789", 9)));
+
+		unsigned char Bytes[12];
+		ScrambleBytes(777u, 1u, Bytes);
+		std::string Layout;
+		for (int i = 0; i < 12; ++i)
+		{
+			char B[4];
+			std::snprintf(B, sizeof(B), "%02x", Bytes[i]);
+			Layout += B;
+		}
+		Check("the 12 bytes: seed, ordinal, tag, little-endian", "0903000001000000524d4353", Layout);
+
+		struct FVector
+		{
+			unsigned Seed;
+			unsigned Ordinal;
+			unsigned H;
+			int A;
+			int B;
+			int AInv;
+		};
+		const FVector Vectors[] = {
+			{ 777u, 0u, 0x4fee5fcdu, 29, 13, 53 },
+			{ 777u, 1u, 0x83445f53u, 9, 19, 57 },
+			{ 4242u, 0u, 0x65b7db15u, 47, 21, 15 },
+			{ 4242u, 7u, 0x6f72d20cu, 37, 12, 45 },
+			{ 0u, 0u, 0x4ba5035du, 11, 29, 35 },
+			{ 0xFFFFFFFFu, 3u, 0x41003d2eu, 1, 46, 1 },
+			{ 123456789u, 42u, 0xf800962eu, 1, 46, 1 },
+		};
+		for (const FVector& V : Vectors)
+		{
+			const FScramble S = ScramblePair(V.Seed, V.Ordinal, 8, Crc);
+			char Tag[96];
+			std::snprintf(Tag, sizeof(Tag), "zlib.crc32 vector seed=%u ordinal=%u K=8", V.Seed, V.Ordinal);
+			char Want[96];
+			std::snprintf(Want, sizeof(Want), "%s a=%d b=%d a_inv=%d", Hex(V.H).c_str(), V.A, V.B, V.AInv);
+			char Got[96];
+			std::snprintf(Got, sizeof(Got), "%s a=%d b=%d a_inv=%d", Hex(S.H).c_str(), S.A, S.B, S.AInv);
+			Check(Tag, Want, Got);
+		}
+		const FScramble K4 = ScramblePair(777u, 0u, 4, Crc);
+		Check("K=4 from the same hash", "13/13/5", Int(K4.A) + "/" + Int(K4.B) + "/" + Int(K4.AInv));
+		const FScramble K16 = ScramblePair(777u, 1u, 16, Crc);
+		Check("K=16 from the same hash", "137/83/185", Int(K16.A) + "/" + Int(K16.B) + "/" + Int(K16.AInv));
+		const FScramble NoOp = ScramblePair(9u, 0u, 2, Crc);
+		Check("K=2 seed 9 ordinal 0 hashes to (1, 0): the no-op pair is forbidden, b becomes 1", "0xd60c39cc 1/1",
+			Hex(NoOp.H) + " " + Int(NoOp.A) + "/" + Int(NoOp.B));
+
+		Check("InverseModN(3, 64)", "43", Int(InverseModN(3, 64)));
+		Check("InverseModN(63, 64)", "63", Int(InverseModN(63, 64)));
+		Check("InverseModN(1, 64)", "1", Int(InverseModN(1, 64)));
+		Check("InverseModN(2, 64) (not invertible)", "-1", Int(InverseModN(2, 64)));
+		Check("InverseModN(5, 1) (no ring)", "-1", Int(InverseModN(5, 1)));
+
+		int Pairs = 0;
+		int Bad = 0;
+		std::string FirstBad;
+		const int Ks[] = { 2, 4, 8, 16, 64 };
+		for (int K : Ks)
+		{
+			const int N = K * K;
+			const unsigned Ordinals = K == 64 ? 16u : 256u;
+			for (unsigned O = 0; O < Ordinals; ++O)
+			{
+				const FScramble S = ScramblePair(777u + (unsigned)K, O, K, Crc);
+				++Pairs;
+				std::set<int> Seen;
+				bool bOk = S.bValid && S.N == N && S.A >= 1 && S.A < N && S.B >= 0 && S.B < N && !(S.A == 1 && S.B == 0)
+					&& GcdInt(S.A, N) == 1 && ((long long)S.A * S.AInv) % N == 1;
+				for (int i = 0; bOk && i < N; ++i)
+				{
+					const int J = ScrambleForward(S.A, S.B, N, i);
+					bOk = Seen.insert(J).second && ScrambleInverse(S.AInv, S.B, N, J) == i;
+				}
+				if (!bOk && Bad++ == 0)
+				{
+					FirstBad = "K=" + Int(K) + " ordinal=" + Int(O);
+				}
+			}
+		}
+		Check("every derived pair: a invertible mod K^2, not (1, 0), forward a bijection, inverse exact", "1040 pairs, 0 bad",
+			Int(Pairs) + " pairs, " + Int(Bad) + " bad" + (FirstBad.empty() ? "" : " first " + FirstBad));
+
+		FAttemptOrdinals Ord;
+		std::string Run1;
+		Run1 += Int(Ord.Take(EModeFamilyP::UV));
+		Run1 += "," + Int(Ord.Take(EModeFamilyP::UV));
+		Run1 += "," + Int(Ord.Take(EModeFamilyP::Normal));
+		Run1 += "," + Int(Ord.Take(EModeFamilyP::UV));
+		Check("ordinals per id: applied, refused, other id, applied", "0,1,0,2", Run1);
+		const FScramble AfterRefusal = ScramblePair(777u, 2u, 8, Crc);
+		const FScramble IfRefusalSkipped = ScramblePair(777u, 1u, 8, Crc);
+		Check("a refused attempt uses up an ordinal: the third attempt's pair is ordinal 2's", "true",
+			Bool(AfterRefusal.A != IfRefusalSkipped.A || AfterRefusal.B != IfRefusalSkipped.B));
+		Ord.Reset();
+		std::string Run2 = Int(Ord.Take(EModeFamilyP::UV)) + "," + Int(Ord.Take(EModeFamilyP::Normal));
+		Check("reset at run start: both ids start at 0 again", "0,0", Run2);
+		const FScramble Again = ScramblePair(777u, 0u, 8, Crc);
+		Check("two runs, same seed, first attempt: same pair", "29/13", Int(Again.A) + "/" + Int(Again.B));
+	}
+
+	std::printf("\n[18] 085-02 DC: all-or-nothing (V1P between V1 and V2) and the revert-settling window\n");
+	{
+		Check("footprint 0/30", "V1", LexFootprintStep(DecideFootprintStep(0, 30, true)));
+		Check("footprint 0/0 (no slots)", "V1", LexFootprintStep(DecideFootprintStep(0, 0, true)));
+		Check("footprint 12/30, fits", "V1P", LexFootprintStep(DecideFootprintStep(12, 30, true)));
+		Check("footprint 12/30, over budget: V1P wins, never over_budget", "V1P", LexFootprintStep(DecideFootprintStep(12, 30, false)));
+		Check("footprint 1/2 (TC_Mixed shape)", "V1P", LexFootprintStep(DecideFootprintStep(1, 2, true)));
+		Check("footprint 29/30", "V1P", LexFootprintStep(DecideFootprintStep(29, 30, true)));
+		Check("footprint 30/30, over budget", "V2", LexFootprintStep(DecideFootprintStep(30, 30, false)));
+		Check("footprint 30/30, fits", "apply", LexFootprintStep(DecideFootprintStep(30, 30, true)));
+
+		const int Ranks[] = { 23, 1, 12, 2 };
+		const bool Qual[] = { false, false, true, false };
+		Check("earliest non-qualifying slot counts untouched slots (slot_empty ranks first)", "1",
+			Int(PickEarliestNonQualified(Ranks, Qual, 4)));
+		const bool Untouched[] = { false, true, false, true };
+		Check("V1's earliest skips untouched slots (unchanged)", "0", Int(PickEarliestSlot(Ranks, Untouched, Qual, 4)));
+		const bool AllQ[] = { true, true, true, true };
+		Check("no non-qualifying slot", "-1", Int(PickEarliestNonQualified(Ranks, AllQ, 4)));
+
+		const unsigned long long R = 100;
+		const unsigned long long P = PostRevertSampleFrame(R);
+		Check("revert settling at R, R+1, R+2, R+3", "true,true,false,false",
+			Bool(IsRevertSettlingAt(P, false, false, R)) + "," + Bool(IsRevertSettlingAt(P, false, false, R + 1)) + ","
+			+ Bool(IsRevertSettlingAt(P, false, false, R + 2)) + "," + Bool(IsRevertSettlingAt(P, false, false, R + 3)));
+		Check("a rollback never settles (nothing was shown)", "false", Bool(IsRevertSettlingAt(P, true, false, R + 1)));
+		Check("no revert pending", "false", Bool(IsRevertSettlingAt(0, false, false, R)));
+		Check("a bench-delayed restore settles until it runs", "true", Bool(IsRevertSettlingAt(0, false, true, R + 50)));
+	}
+
 	std::printf("\n%d check(s), %d failure(s)\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }

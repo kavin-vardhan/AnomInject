@@ -33,6 +33,10 @@
 #include "Dom/JsonObject.h"
 #include "AnomalyStuckMipWindow.h"
 #include "AnomalyLabelSync.h"
+#include "AnomalyExclusion.h"
+#include "AnomalyActiveSource.h"
+#include "EngineGlobals.h"
+#include "RenderCore.h"
 #include "SceneUtils.h"
 #include "AnomalySveKeyRing.h"
 #include "Components/DecalComponent.h"
@@ -541,31 +545,21 @@ namespace
 		}
 	}
 
-	enum class EAnomalyActiveSource : uint8
-	{
-		FireWindow,
-		ActorHidden,
-		AnomalyState
-	};
+	using EAnomalyActiveSource = AnomalyActiveSource::ESource;
 
 	EAnomalyActiveSource ResolveAnomalyActiveSource(FName Id, bool& bOutKnownId)
 	{
-		static const TMap<FName, EAnomalyActiveSource> SourceById = {
-			{ FName(TEXT("blinking")),          EAnomalyActiveSource::ActorHidden },
-			{ FName(TEXT("missing_object")),    EAnomalyActiveSource::ActorHidden },
-			{ FName(TEXT("lod_popping")),       EAnomalyActiveSource::AnomalyState },
-			{ FName(TEXT("missing_texture")),   EAnomalyActiveSource::FireWindow },
-			{ FName(TEXT("corrupted_texture")), EAnomalyActiveSource::FireWindow },
-			{ FName(TEXT("null_effect")), EAnomalyActiveSource::FireWindow },
-			{ FName(TEXT("solid_swap")), EAnomalyActiveSource::FireWindow },
-			{ FName(TEXT("lighting_mismatch")), EAnomalyActiveSource::FireWindow },
-			{ FName(TEXT("lod_corruption")),    EAnomalyActiveSource::FireWindow },
-			{ FName(TEXT("camera_clipping")),   EAnomalyActiveSource::AnomalyState },
-			{ FName(TEXT("stuck_low_mip")),     EAnomalyActiveSource::AnomalyState },
-			{ FName(TEXT("uv_corruption")),     EAnomalyActiveSource::FireWindow },
-			{ FName(TEXT("normal_corruption")), EAnomalyActiveSource::FireWindow },
-			{ FName(TEXT("time_dilation")),     EAnomalyActiveSource::FireWindow }
-		};
+		static const TMap<FName, EAnomalyActiveSource> SourceById = []()
+		{
+			TMap<FName, EAnomalyActiveSource> Map;
+			int32 Num = 0;
+			const AnomalyActiveSource::FEntry* Entries = AnomalyActiveSource::Table(Num);
+			for (int32 i = 0; i < Num; ++i)
+			{
+				Map.Add(FName(ANSI_TO_TCHAR(Entries[i].Id)), Entries[i].Source);
+			}
+			return Map;
+		}();
 		const EAnomalyActiveSource* Found = SourceById.Find(Id);
 		bOutKnownId = (Found != nullptr);
 		return Found ? *Found : EAnomalyActiveSource::FireWindow;
@@ -845,6 +839,7 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 	bDeinitializing = true;
 	StopRun();
 #if ANOMALY_CAPTURE
+	ClearExclusionTrailProvider();
 	EndRunLog();
 	if (MaskEndFrameHandle.IsValid())
 	{
@@ -3585,10 +3580,13 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	bRenderTruthRun = bSveCapture && bAsyncCapture && !GBenchStuckMipLegacyTiming;
 	StuckMipSettleTailFrames = FMath::Clamp(GStuckMipSettleTailFrames.GetValueOnGameThread(), 0, 120);
 	StuckMipTrailTimeoutFrames = FMath::Max(1, AnomalyDefaults::GetStuckMipRestoreTimeout());
+	TexCorruptM52OverlapFrames = 0;
 	if (UAnomalyInjectorSubsystem* RtInjector = GetWorld() ? GetWorld()->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr)
 	{
 		RtInjector->ClearAnomalyRefusals();
 		RtInjector->ClearReservedActors();
+		RtInjector->ResetExclusionStats();
+		RegisterExclusionTrailProvider();
 		if (!bRenderTruthRun && !GBenchStuckMipLegacyTiming)
 		{
 			RtInjector->SetAnomalyRefusal(FName(TEXT("stuck_low_mip")),
@@ -4760,6 +4758,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			++Async->LabelTransitionFrames;
 		}
 		CountEntryReasons(*Snap, Async->LabelReasonEntries, Async->UnlabelledActiveEntries);
+		NoteTexCorruptM52Overlap(*Snap);
 
 		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePolicy, Snap->FireOnScreen, Snap->FirePos, Snap->View, Snap->NearClip,
 			Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds, &Snap->Telemetry);
@@ -5149,6 +5148,8 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 
 	const FAnomalyViewInfo ProjView = ProjectionView();
 
+	LogTexCorruptCostLine();
+
 	const bool bUseSve = bSveCapture && Async.IsValid() && Async->SveCapturer.IsValid();
 
 	if (bAsyncCapture && Async.IsValid() && (Async->Capturer.IsValid() || bUseSve))
@@ -5322,6 +5323,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				++Async->LabelTransitionFrames;
 			}
 			CountEntryReasons(SyncFrame, Async->LabelReasonEntries, Async->UnlabelledActiveEntries);
+			NoteTexCorruptM52Overlap(SyncFrame);
 			++Async->SyncFramesWritten;
 		}
 		const double NowT = World ? World->GetTimeSeconds() : 0.0;
@@ -6284,6 +6286,111 @@ bool UAnomalyCaptureSubsystem::AnyStuckMipTrailGating() const
 		}
 	}
 	return false;
+}
+
+uint8 UAnomalyCaptureSubsystem::QueryExclusionTrail(FName PartnerId, FString& OutEventKey) const
+{
+	AnomalyExclusion::ETrail Best = AnomalyExclusion::ETrail::None;
+	if (!Async.IsValid())
+	{
+		return (uint8)Best;
+	}
+	auto Scan = [&Best, &OutEventKey, PartnerId](const TArray<FAnomalyCaptureAsyncState::FStuckTrail>& List)
+	{
+		for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : List)
+		{
+			if (Trail.Fire.Id != PartnerId)
+			{
+				continue;
+			}
+			const AnomalyExclusion::ETrail State = AnomalyExclusion::ClassifyTrail(Trail.Window);
+			if (AnomalyExclusion::CombineTrail(Best, State) != Best)
+			{
+				Best = State;
+				OutEventKey = Trail.Key;
+			}
+		}
+	};
+	Scan(Async->Trails);
+	Scan(Async->CarriedTrails);
+	return (uint8)Best;
+}
+
+void UAnomalyCaptureSubsystem::RegisterExclusionTrailProvider()
+{
+	UWorld* World = GetWorld();
+	UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	if (!Injector)
+	{
+		return;
+	}
+	TWeakObjectPtr<UAnomalyCaptureSubsystem> WeakSelf(this);
+	Injector->SetTrailProvider([WeakSelf](FName PartnerId, FString& OutEventKey) -> AnomalyExclusion::ETrail
+	{
+		if (const UAnomalyCaptureSubsystem* Self = WeakSelf.Get())
+		{
+			return (AnomalyExclusion::ETrail)Self->QueryExclusionTrail(PartnerId, OutEventKey);
+		}
+		return AnomalyExclusion::ETrail::None;
+	});
+}
+
+void UAnomalyCaptureSubsystem::ClearExclusionTrailProvider()
+{
+	UWorld* World = GetWorld();
+	if (UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr)
+	{
+		Injector->ClearTrailProvider();
+	}
+}
+
+void UAnomalyCaptureSubsystem::NoteTexCorruptM52Overlap(const AnomalyLabel::FCaptureSnapshot& Snap)
+{
+	static const FName M52Name(ANSI_TO_TCHAR(AnomalyExclusion::M52Id));
+	bool bM52Entry = false;
+	bool bM53Labelled = false;
+	for (int32 i = 0; i < Snap.Fires.Num(); ++i)
+	{
+		const FName& Id = Snap.Fires[i].Id;
+		const AnomalyLabelSync::EEntryEmit Mode = Snap.EntryEmit.IsValidIndex(i)
+			? (AnomalyLabelSync::EEntryEmit)Snap.EntryEmit[i] : AnomalyLabelSync::EEntryEmit::Normal;
+		const bool bLabelled = AnomalyLabel::IsSnapshotEntryLabelled(Snap, i);
+		if (Id == M52Name && (bLabelled || Mode == AnomalyLabelSync::EEntryEmit::TransitionOnly))
+		{
+			bM52Entry = true;
+		}
+		if (AnomalyTexCorrupt::IsTexCorruptId(Id) && bLabelled)
+		{
+			bM53Labelled = true;
+		}
+	}
+	for (const FAutoLiveFireInfo& T : Snap.TransitionFires)
+	{
+		if (T.Id == M52Name)
+		{
+			bM52Entry = true;
+		}
+	}
+	if (bM52Entry && bM53Labelled)
+	{
+		++TexCorruptM52OverlapFrames;
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(m53): M52-M53 OVERLAP si=%d - this captured frame carries a stuck_low_mip entry (labelled or ")
+			TEXT("transition) AND a labelled uv_corruption / normal_corruption entry. The exclusion should make this ")
+			TEXT("impossible; counted in run_summary.texcorrupt_m52_overlap_frames (expected 0)."),
+			Snap.SessionIndex);
+	}
+}
+
+void UAnomalyCaptureSubsystem::LogTexCorruptCostLine()
+{
+	if (!AnomalyBenchGate::IsEnabled() || !IsTexCorruptWarmWanted())
+	{
+		return;
+	}
+	UE_LOG(LogAnomalyCapture, Log, TEXT("TEXCORRUPT-COST si=%d gfc=%llu gpu_ms=%.3f gt_ms=%.3f"),
+		SessionFrameIndex, (unsigned long long)GFrameCounter, FPlatformTime::ToMilliseconds(GGPUFrameTime),
+		FPlatformTime::ToMilliseconds(GGameThreadTime));
 }
 
 void UAnomalyCaptureSubsystem::ApplyCarriedTrailOwnership(bool bOn)
@@ -7668,17 +7775,8 @@ void UAnomalyCaptureSubsystem::RegisterBenchStuckMipLevers()
 
 uint8 UAnomalyCaptureSubsystem::ResolveAnnotationPolicy(const FAutoLiveFireInfo& F) const
 {
-	if (IsRenderTruthFire(F))
-	{
-		return (uint8)AnomalyLabelSync::EAnnotationPolicy::RenderHeldWindow;
-	}
 	bool bKnownId = false;
-	switch (ResolveAnomalyActiveSource(F.Id, bKnownId))
-	{
-	case EAnomalyActiveSource::ActorHidden:  return (uint8)AnomalyLabelSync::EAnnotationPolicy::ActorHidden;
-	case EAnomalyActiveSource::AnomalyState: return (uint8)AnomalyLabelSync::EAnnotationPolicy::AnomalyState;
-	default:                                 return (uint8)AnomalyLabelSync::EAnnotationPolicy::FireWindow;
-	}
+	return (uint8)AnomalyActiveSource::PolicyFor(ResolveAnomalyActiveSource(F.Id, bKnownId), IsRenderTruthFire(F));
 }
 
 void UAnomalyCaptureSubsystem::FillAnnotationInputs(AnomalyLabel::FCaptureSnapshot& Snap) const
@@ -8629,6 +8727,21 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_collateral_drops"), TC.CollateralDrops);
 			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_collateral_incomplete_frames"), TC.CollateralIncompleteFrames);
 			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_slots_partial_set"), TC.SlotsPartialSet);
+			{
+				const UAnomalyInjectorSubsystem* ExclInjector = GetWorld() ? GetWorld()->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+				const FAnomalyExclusionStats Excl = ExclInjector ? ExclInjector->GetExclusionStats() : FAnomalyExclusionStats();
+				TexCorruptSummary->SetNumberField(TEXT("auto_excluded_uv_corruption"), Excl.ExcludedUvCorruption);
+				TexCorruptSummary->SetNumberField(TEXT("auto_excluded_normal_corruption"), Excl.ExcludedNormalCorruption);
+				TexCorruptSummary->SetNumberField(TEXT("auto_excluded_stuck_low_mip"), Excl.ExcludedStuckLowMip);
+				TexCorruptSummary->SetNumberField(TEXT("texcorrupt_admitted_after_unresolved"), Excl.AdmittedAfterUnresolved);
+				TexCorruptSummary->SetNumberField(TEXT("texcorrupt_m52_overlap_frames"), TexCorruptM52OverlapFrames);
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(m53): EXCLUSION SUMMARY auto_excluded_uv_corruption=%d auto_excluded_normal_corruption=%d ")
+					TEXT("auto_excluded_stuck_low_mip=%d texcorrupt_admitted_after_unresolved=%d texcorrupt_m52_overlap_frames=%d ")
+					TEXT("(overlap expected 0)."),
+					Excl.ExcludedUvCorruption, Excl.ExcludedNormalCorruption, Excl.ExcludedStuckLowMip,
+					Excl.AdmittedAfterUnresolved, TexCorruptM52OverlapFrames);
+			}
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(m53): TEXCORRUPT SUMMARY fires_applied=%d rt_mip_mismatch=%d rt_bytes_peak=%lld restored_exact=%d ")
 				TEXT("restored_default=%d left_to_game=%d swept=%d collateral_drops=%d collateral_incomplete_frames=%d warm_draws=%d. ")
@@ -8864,6 +8977,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		EndInjector->ClearAnomalyRefusals();
 		EndInjector->ClearReservedActors();
 	}
+	ClearExclusionTrailProvider();
 	if (Async.IsValid())
 	{
 		if (bDeferM55Closure && Async->ChangeStage.IsValid())

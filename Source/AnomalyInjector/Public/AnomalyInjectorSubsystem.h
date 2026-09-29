@@ -5,10 +5,36 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "IAnomaly.h"
 #include "AnomalyCatalogTypes.h"
+#include "AnomalyExclusion.h"
+#include "Templates/Function.h"
 #include "AnomalyInjectorSubsystem.generated.h"
 
 class AActor;
 class UMaterialInterface;
+
+using FAnomalyTrailProviderFn = TFunction<AnomalyExclusion::ETrail(FName, FString&)>;
+
+struct FAnomalyPartnerExclusion
+{
+	bool bExcluded = false;
+	bool bAdmittedAfterUnresolved = false;
+	FName Partner = NAME_None;
+	AnomalyExclusion::EState PartnerState = AnomalyExclusion::EState::Idle;
+	FString EventKey;
+
+	FString Describe() const
+	{
+		return FString::Printf(TEXT("%s:%s"), *Partner.ToString(), ANSI_TO_TCHAR(AnomalyExclusion::DescribeState(PartnerState)));
+	}
+};
+
+struct FAnomalyExclusionStats
+{
+	int32 ExcludedUvCorruption = 0;
+	int32 ExcludedNormalCorruption = 0;
+	int32 ExcludedStuckLowMip = 0;
+	int32 AdmittedAfterUnresolved = 0;
+};
 
 UCLASS()
 class ANOMALYINJECTOR_API UAnomalyInjectorSubsystem : public UTickableWorldSubsystem
@@ -112,6 +138,22 @@ public:
 
 	bool IsActorReserved(const AActor* Actor) const;
 
+	bool IsExcludedByPartner(FName Id, FString& OutWhy) const;
+
+	FAnomalyPartnerExclusion EvaluatePartnerExclusion(FName Id) const;
+
+	void NoteExclusion(FName Candidate, const FAnomalyPartnerExclusion& Verdict, const FString& Attempt);
+
+	void SetTrailProvider(FAnomalyTrailProviderFn InProvider);
+
+	void ClearTrailProvider();
+
+	bool HasTrailProvider() const { return (bool)TrailProvider; }
+
+	void ResetExclusionStats();
+
+	FAnomalyExclusionStats GetExclusionStats() const { return ExclusionStats; }
+
 	void NoteAnomalyCapturedFrame(const FName& Id, bool bAnomalousThisFrame);
 
 	void WatchTargetForAnomaly(AActor* Actor, const FName& Id);
@@ -132,6 +174,20 @@ private:
 	void OnWorldPreActorTickSynth(UWorld* World, ELevelTick TickType, float DeltaSeconds);
 
 	void ServiceBenchDestroyLatch();
+
+	bool IsIdFireLive(const FName& Id) const;
+
+	bool IsStuckMipRestoring() const;
+
+	FString PartnerEventKey(const FName& Id) const;
+
+	FAnomalyTrailProviderFn TrailProvider;
+
+	FAnomalyExclusionStats ExclusionStats;
+
+	TMap<FName, uint64> LastApplyFrame;
+
+	FName LastTexCorruptRevertId = NAME_None;
 
 	UFUNCTION()
 	void OnWatchedTargetEndPlay(AActor* Actor, EEndPlayReason::Type EndPlayReason);

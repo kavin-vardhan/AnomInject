@@ -14,6 +14,7 @@
 
 namespace AnomalyTexCorrupt
 {
+#if !UE_BUILD_SHIPPING
 	namespace
 	{
 		struct FAssetSlotMid
@@ -40,9 +41,13 @@ namespace AnomalyTexCorrupt
 			}
 		}
 	}
+#endif
 
 	void RestoreBenchAssetSlotMid(const TCHAR* Context)
 	{
+#if UE_BUILD_SHIPPING
+		(void)Context;
+#else
 		UStaticMesh* Mesh = GAssetSlotMid.Mesh.Get();
 		if (!Mesh && GAssetSlotMid.Mids.Num() == 0)
 		{
@@ -85,6 +90,7 @@ namespace AnomalyTexCorrupt
 			TEXT("they no longer held our MID."),
 			*GetPathNameSafe(Mesh), Context, Restored, LeftAlone);
 		GAssetSlotMid = FAssetSlotMid();
+#endif
 	}
 
 #if !UE_BUILD_SHIPPING
@@ -229,8 +235,8 @@ namespace AnomalyTexCorrupt
 		FAutoConsoleCommand GIdentityCmd(
 			TEXT("IAI.Bench.TexCorruptIdentity"),
 			TEXT("BENCH DEVICE (m53 S1). Selects the identity mode for the next m53 fire: every output mip is the source's own ")
-			TEXT("mip redrawn unchanged. S1 ships no product mode, so without this (or the tile probe, or identity redraw) a fire ")
-			TEXT("is refused mode_invalid. Usage: IAI.Bench.TexCorruptIdentity <0|1>"),
+			TEXT("mip redrawn unchanged. It applies only to a fire with no mode argument; without it (or the tile probe, or identity ")
+			TEXT("redraw) such a fire is refused mode_invalid:no_mode. Usage: IAI.Bench.TexCorruptIdentity <0|1>"),
 			FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 			{
 				Levers().bIdentity = ParseInt(Args, 0) != 0;
@@ -326,6 +332,54 @@ namespace AnomalyTexCorrupt
 			{
 				Levers().bCollateralDetail = ParseInt(Args, 0) != 0;
 				Echo(TEXT("IAI.Bench.TexCorruptCollateralDetail"));
+			}));
+
+		FAutoConsoleCommand GCommitDelayCmd(
+			TEXT("IAI.Bench.TexCorruptCommitDelay"),
+			TEXT("BENCH DEVICE (m53 DC, B-M53 can-fail). Every m53 event still APPLIES and is labelled on its frame, but the slot ")
+			TEXT("commit (the corrupted MID going onto the slots) runs <n> engine frames later, so the picture's first edge is <n> ")
+			TEXT("frames late against the label. 0 = off (byte-identical). Usage: IAI.Bench.TexCorruptCommitDelay <0..60>"),
+			FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+			{
+				const int32 V = ParseInt(Args, -1);
+				if (V < 0 || V > 60)
+				{
+					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.TexCorruptCommitDelay <0..60>"));
+					return;
+				}
+				Levers().CommitDelay = V;
+				Echo(TEXT("IAI.Bench.TexCorruptCommitDelay"));
+				if (V > 0)
+				{
+					UE_LOG(LogAnomaly, Warning,
+						TEXT("IAI.Bench.TexCorruptCommitDelay -> %d: every m53 picture edge at onset is now %d frame(s) LATE against its ")
+						TEXT("label, on purpose. Never in a client payload."),
+						V, V);
+				}
+			}));
+
+		FAutoConsoleCommand GRestoreDelayCmd(
+			TEXT("IAI.Bench.TexCorruptRestoreDelay"),
+			TEXT("BENCH DEVICE (m53 DC, B-M53 can-fail). Every m53 revert still ends the event on its frame, but the slot restore ")
+			TEXT("and the render-target release run <n> engine frames later, so the picture's last edge is <n> frames late against ")
+			TEXT("the label. 0 = off (byte-identical). Usage: IAI.Bench.TexCorruptRestoreDelay <0..60>"),
+			FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+			{
+				const int32 V = ParseInt(Args, -1);
+				if (V < 0 || V > 60)
+				{
+					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.TexCorruptRestoreDelay <0..60>"));
+					return;
+				}
+				Levers().RestoreDelay = V;
+				Echo(TEXT("IAI.Bench.TexCorruptRestoreDelay"));
+				if (V > 0)
+				{
+					UE_LOG(LogAnomaly, Warning,
+						TEXT("IAI.Bench.TexCorruptRestoreDelay -> %d: every m53 picture edge at offset is now %d frame(s) LATE against ")
+						TEXT("its label, on purpose. Never in a client payload."),
+						V, V);
+				}
 			}));
 
 		FAutoConsoleCommandWithWorldAndArgs GAssetSlotMidCmd(

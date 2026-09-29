@@ -8,9 +8,11 @@
 #include "AnomalyViewport.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/MeshComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Components/SplineMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "EngineUtils.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAsset.h"
@@ -739,6 +741,7 @@ namespace AnomalyTexCorrupt
 		Out.Family = In.Family;
 		Out.Mode = In.Mode;
 		Out.TileN = In.TileN;
+		Out.Attempt = In.Attempt;
 		Out.TargetQuery = In.TargetQuery;
 
 		auto RefuseEvent = [&Out](const TCHAR* InReason, const FString& Sub, const TCHAR* Step)
@@ -813,8 +816,12 @@ namespace AnomalyTexCorrupt
 		}
 		if (!In.bCensus && In.Mode == EMode::None)
 		{
-			RefuseEvent(Why::ModeInvalid,
-				In.bModeArgGiven ? FString::Printf(TEXT("unknown:%s"), *In.ModeArg) : FString(TEXT("no_mode_in_s1")), TEXT("E6"));
+			FString Sub = In.ModeRefusalSub;
+			if (Sub.IsEmpty())
+			{
+				Sub = In.bModeArgGiven ? FString::Printf(TEXT("unknown:%s"), *In.ModeArg) : FString(TEXT("no_mode"));
+			}
+			RefuseEvent(Why::ModeInvalid, Sub, TEXT("E6"));
 			return;
 		}
 
@@ -879,7 +886,8 @@ namespace AnomalyTexCorrupt
 		}
 		const int32 EarliestIndex = TexCorruptPure::PickEarliestSlot(Ranks.GetData(), Untouched.GetData(), Qualified.GetData(), Ranks.Num());
 		const FSlot* Earliest = Out.Slots.IsValidIndex(EarliestIndex) ? &Out.Slots[EarliestIndex] : nullptr;
-		if (Out.SlotsQualified == 0)
+		const TexCorruptPure::EFootprint Footprint = TexCorruptPure::JudgeFootprint(Out.SlotsQualified, Out.Slots.Num());
+		if (Footprint == TexCorruptPure::EFootprint::NoneQualified)
 		{
 			if (Earliest)
 			{
@@ -889,6 +897,14 @@ namespace AnomalyTexCorrupt
 			{
 				RefuseEvent(Why::NoEligibleSlot, Out.Slots.Num() == 0 ? FString(TEXT("no_slots")) : FString(TEXT("all_untouched")), TEXT("V1"));
 			}
+			return;
+		}
+		if (Footprint == TexCorruptPure::EFootprint::Partial)
+		{
+			const int32 FirstOut = TexCorruptPure::PickEarliestNonQualified(Ranks.GetData(), Qualified.GetData(), Ranks.Num());
+			const FString FirstReason = Out.Slots.IsValidIndex(FirstOut) ? Out.Slots[FirstOut].Reason : FString(TEXT("unknown"));
+			RefuseEvent(Why::PartialFootprint, FString::Printf(TEXT("%d/%d:%s"), Out.SlotsQualified, Out.Slots.Num(), *FirstReason),
+				TEXT("V1P"));
 			return;
 		}
 
@@ -930,10 +946,11 @@ namespace AnomalyTexCorrupt
 	{
 		UE_LOG(LogAnomaly, Log,
 			TEXT("TEXCORRUPT-%s family=%s mode=%s target='%s' final=%s step=%s slots=%d qualified=%d required_bytes=%lld ")
-			TEXT("distinct_textures=%d scratch_classes=%d cap=%s levers=[%s]"),
+			TEXT("distinct_textures=%d scratch_classes=%d cap=%s levers=[%s]%s"),
 			Tag, LexFamily(Result.Family), LexMode(Result.Mode), *Result.TargetQuery, *Result.FinalKey(),
 			Result.EventStep.IsEmpty() ? TEXT("-") : *Result.EventStep, Result.Slots.Num(), Result.SlotsQualified,
-			Result.RequiredBytes, Result.DistinctTextures, Result.ScratchClasses, *DescribeMaxRtBytes(), *DescribeLevers());
+			Result.RequiredBytes, Result.DistinctTextures, Result.ScratchClasses, *DescribeMaxRtBytes(), *DescribeLevers(),
+			*Result.Attempt.Describe());
 		for (const FSlot& S : Result.Slots)
 		{
 			UE_LOG(LogAnomaly, Log,
@@ -1008,5 +1025,115 @@ namespace AnomalyTexCorrupt
 			}
 		}
 		UE_LOG(LogAnomaly, Log, TEXT("TEXCORRUPT-CENSUS END targets=%d"), Targets.Num());
+	}
+
+	void RunOfficeCensus(UWorld* World, bool bAll)
+	{
+		if (!World)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("IAI.TexCorrupt.Census: no world; nothing was counted."));
+			return;
+		}
+		TArray<FString> Names;
+		if (bAll)
+		{
+			for (TActorIterator<AActor> It(World); It; ++It)
+			{
+				AActor* Actor = *It;
+				if (!Actor)
+				{
+					continue;
+				}
+				TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
+				for (UPrimitiveComponent* Prim : Prims)
+				{
+					if (AnomalyViewport::IsRenderableComponent(Prim))
+					{
+						Names.Add(Actor->GetName());
+						break;
+					}
+				}
+			}
+		}
+		else
+		{
+			for (const TWeakObjectPtr<AActor>& Weak : AnomalyViewport::GetVisibleRenderableActors(World))
+			{
+				if (const AActor* Actor = Weak.Get())
+				{
+					Names.Add(Actor->GetName());
+				}
+			}
+		}
+		Names.Sort();
+
+		struct FCounts
+		{
+			int32 Eligible = 0;
+			int32 Refused = 0;
+			TMap<FString, int32> Reasons;
+		};
+		FCounts Counts[2];
+		for (const FString& Name : Names)
+		{
+			for (int32 f = 0; f < 2; ++f)
+			{
+				FTreeInputs In;
+				In.Family = f == 0 ? EFamily::UV : EFamily::Normal;
+				In.bCensus = true;
+				In.TargetQuery = FString(TEXT("=")) + Name;
+				FTreeResult Result;
+				EvaluateTree(World, In, Result);
+				if (Result.bApply)
+				{
+					++Counts[f].Eligible;
+				}
+				else
+				{
+					++Counts[f].Refused;
+					Counts[f].Reasons.FindOrAdd(Result.Reason)++;
+				}
+			}
+		}
+
+		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 scope=%s candidates=%d cap_bytes=%d uv_modes=%s normal_modes=%s"),
+			bAll ? TEXT("all") : TEXT("view"), Names.Num(), GetMaxRtBytes(), *DescribeModeSet(EFamily::UV, GetEnabledModeMask(EFamily::UV)),
+			*DescribeModeSet(EFamily::Normal, GetEnabledModeMask(EFamily::Normal)));
+		for (int32 f = 0; f < 2; ++f)
+		{
+			TArray<FString> Keys;
+			Counts[f].Reasons.GetKeys(Keys);
+			Keys.Sort([](const FString& L, const FString& R) { return L.Compare(R, ESearchCase::CaseSensitive) < 0; });
+			FString Reasons;
+			for (const FString& Key : Keys)
+			{
+				Reasons += FString::Printf(TEXT("%s%s:%d"), Reasons.IsEmpty() ? TEXT("") : TEXT(","), *Key, Counts[f].Reasons[Key]);
+			}
+			UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 id=%s eligible=%d refused=%d reasons=%s"),
+				f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption"), Counts[f].Eligible, Counts[f].Refused,
+				Reasons.IsEmpty() ? TEXT("-") : *Reasons);
+		}
+		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 end"));
+	}
+
+	namespace
+	{
+		FAutoConsoleCommandWithWorldAndArgs GOfficeCensusCmd(
+			TEXT("IAI.TexCorrupt.Census"),
+			TEXT("m53 office census, READ-ONLY, in every build. Runs the uv_corruption and normal_corruption decision tree in census ")
+			TEXT("mode (no allocation, draw or slot change; the mode step is skipped) with the effective cap and all-or-nothing, ")
+			TEXT("over the auto-pool's candidate set now (name-sorted), or with 'all' over every renderable actor in the loaded ")
+			TEXT("levels, and prints four IAI-TEXCORRUPT-CENSUS v1 lines of counts only: no actor, component, asset, path, map or ")
+			TEXT("frame, and no sub-reasons. Usage: IAI.TexCorrupt.Census [all]"),
+			FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+			{
+				const bool bAll = Args.Num() >= 1 && Args[0].Equals(TEXT("all"), ESearchCase::IgnoreCase);
+				if (Args.Num() >= 1 && !bAll)
+				{
+					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.TexCorrupt.Census [all]"));
+					return;
+				}
+				RunOfficeCensus(World, bAll);
+			}));
 	}
 }

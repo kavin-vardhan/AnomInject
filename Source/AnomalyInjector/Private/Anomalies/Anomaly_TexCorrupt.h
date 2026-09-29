@@ -36,6 +36,8 @@ public:
 	virtual void OnTargetLost(AActor* Actor, bool bWorldEnding) override;
 	virtual void OnWorldTeardown() override;
 
+	bool IsRevertSettlingIn(const UWorld* World) const;
+
 private:
 	struct FOutput
 	{
@@ -130,6 +132,9 @@ private:
 	void RegisterTargetWatch(UAnomalyInjectorSubsystem* Injector);
 	void ReleaseTargetWatch();
 	void ResetEventState();
+	int32 CommitSlots();
+	void RestoreAndRelease(double StartSeconds, int32 DelayedBy);
+	void FinishPendingRestore(const TCHAR* Context);
 
 	FName Id;
 	EFamily Family;
@@ -137,6 +142,12 @@ private:
 	bool bActive = false;
 	EMode Mode = EMode::None;
 	int32 TileN = 1;
+	FAttemptInfo Attempt;
+	bool bCommitPending = false;
+	uint64 CommitDueFrame = 0;
+	bool bRestorePending = false;
+	uint64 RestoreDueFrame = 0;
+	int32 RestoreDelayedBy = 0;
 	EWrongCopy Fault = EWrongCopy::None;
 	int32 NoApply = 0;
 	uint64 ApplyFrame = 0;

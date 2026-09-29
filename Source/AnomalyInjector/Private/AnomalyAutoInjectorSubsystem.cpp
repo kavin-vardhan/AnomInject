@@ -5,7 +5,10 @@
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyViewport.h"
 #include "AnomalyTargeting.h"
+#include "AnomalyTexCorrupt.h"
+#include "Anomalies/TexCorruptPure.h"
 
+#include "Misc/Crc.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/Canvas.h"
@@ -28,6 +31,8 @@ namespace
 		FName(TEXT("lod_popping")),
 		FName(TEXT("camera_clipping")),
 		FName(TEXT("stuck_low_mip")),
+		FName(TEXT("uv_corruption")),
+		FName(TEXT("normal_corruption")),
 	};
 	constexpr int32 GNumAutoPool = UE_ARRAY_COUNT(GAutoPool);
 	static_assert(GNumAutoPool == UAnomalyAutoInjectorSubsystem::NumPoolKeys, "pool size must match the keybind count");
@@ -60,6 +65,31 @@ namespace
 		}
 		return false;
 	}
+
+	FString FingerprintNames(const TArray<FString>& Names)
+	{
+		TArray<FString> Sorted = Names;
+		Sorted.Sort([](const FString& A, const FString& B) { return A.Compare(B, ESearchCase::CaseSensitive) < 0; });
+		const FString Joined = FString::Join(Sorted, TEXT("\n"));
+		const FTCHARToUTF8 Utf8(*Joined);
+		const uint32 Crc = FCrc::MemCrc32(Utf8.Get(), Utf8.Length(), 0);
+		return FString::Printf(TEXT("%d:%08x"), Names.Num(), Crc);
+	}
+
+	FString JoinIds(const TArray<FName>& Ids)
+	{
+		if (Ids.Num() == 0)
+		{
+			return FString(TEXT("-"));
+		}
+		TArray<FString> Names;
+		Names.Reserve(Ids.Num());
+		for (const FName& Id : Ids)
+		{
+			Names.Add(Id.ToString());
+		}
+		return FString::Join(Names, TEXT(","));
+	}
 }
 
 
@@ -74,6 +104,8 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 	KeyPool[4] = EKeys::Five;
 	KeyPool[5] = EKeys::Six;
 	KeyPool[6] = EKeys::Seven;
+	KeyPool[7] = EKeys::Eight;
+	KeyPool[8] = EKeys::Nine;
 	KeyRun     = EKeys::J;
 	KeyReseed  = EKeys::K;
 
@@ -173,6 +205,7 @@ void UAnomalyAutoInjectorSubsystem::SetRunning(bool bInRunning)
 		RevertAllLiveFires();
 		WarnOnCoexistence();
 		Stream.Initialize(Seed);
+		DrawAttemptOrdinal = 0;
 		FireTimer = Stream.FRandRange(IntervalMin, IntervalMax);
 		UE_LOG(LogAnomaly, Log, TEXT("IAI.Auto.Run -> ON (seed %d, first fire in %.2fs)."), Seed, FireTimer);
 	}
@@ -238,6 +271,8 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 
 	TArray<FName> Eligible;
 	Eligible.Reserve(GNumAutoPool);
+	TArray<FName> ExcludedIds;
+	TArray<FAnomalyPartnerExclusion> ExcludedWhy;
 	for (const FName& Id : GAutoPool)
 	{
 		if (!EnabledIds.Contains(Id) || IsIdLive(Id))
@@ -248,16 +283,57 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		{
 			continue;
 		}
+		const FAnomalyPartnerExclusion Excl = Injector->EvaluatePartnerExclusion(Id);
+		if (Excl.bExcluded)
+		{
+			ExcludedIds.Add(Id);
+			ExcludedWhy.Add(Excl);
+			continue;
+		}
 		Eligible.Add(Id);
 	}
+	if (Eligible.Num() == 0 && ExcludedIds.Num() == 0)
+	{
+		return false;
+	}
+
+	const int32 Attempt = ++DrawAttemptOrdinal;
+	const FString AttemptText = FString::FromInt(Attempt);
+	for (int32 k = 0; k < ExcludedIds.Num(); ++k)
+	{
+		Injector->NoteExclusion(ExcludedIds[k], ExcludedWhy[k], AttemptText);
+	}
+	TArray<FString> EligibleNames;
+	EligibleNames.Reserve(Eligible.Num());
+	for (const FName& E : Eligible)
+	{
+		EligibleNames.Add(E.ToString());
+	}
+	const FString EligibleFp = FingerprintNames(EligibleNames);
+	const FString ExcludedText = JoinIds(ExcludedIds);
+	const uint32 SeedBefore = (uint32)Stream.GetCurrentSeed();
+	auto LogDraw = [&](const FString& IdText, const FString& TargetText, const FString& CandidatesText,
+		const FString& HoldText, const FString& ModeText, const TCHAR* Result)
+	{
+		UE_LOG(LogAnomaly, Log,
+			TEXT("Auto.Draw attempt=%d seed_before=%u id=%s eligible=%s excluded=%s target=%s candidates=%s hold=%s ")
+			TEXT("mode=%s seed_after=%u result=%s"),
+			Attempt, SeedBefore, *IdText, *EligibleFp, *ExcludedText, *TargetText, *CandidatesText, *HoldText, *ModeText,
+			(uint32)Stream.GetCurrentSeed(), Result);
+	};
+	const FString Dash(TEXT("-"));
+
 	if (Eligible.Num() == 0)
 	{
+		LastFireResult = FString::Printf(TEXT("all excluded (%s): partner live"), *ExcludedText);
+		LogDraw(Dash, Dash, Dash, Dash, Dash, TEXT("all_excluded"));
 		return false;
 	}
 
 	TArray<TWeakObjectPtr<AActor>> Visible = AnomalyViewport::GetVisibleRenderableActors(World);
 	if (Visible.Num() == 0)
 	{
+		LogDraw(Dash, Dash, Dash, Dash, Dash, TEXT("no_visible"));
 		return false;
 	}
 	Visible.Sort([](const TWeakObjectPtr<AActor>& A, const TWeakObjectPtr<AActor>& B)
@@ -269,8 +345,6 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		return AA->GetName() < BB->GetName();
 	});
 
-	const FName Id = Eligible[Stream.RandHelper(Eligible.Num())];
-
 	TArray<AActor*> Candidates;
 	Candidates.Reserve(Visible.Num());
 	int32 CensusConsulted = 0;
@@ -280,85 +354,112 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	int32 CensusExpired = 0;
 	int32 CensusUnseen = 0;
 	int32 CensusWindow = -1;
-	for (const TWeakObjectPtr<AActor>& Weak : Visible)
+	auto CandidateCount = [&](int32) -> int32
 	{
-		AActor* Actor = Weak.Get();
-		if (!Actor || IsActorLive(Actor))
+		for (const TWeakObjectPtr<AActor>& Weak : Visible)
 		{
-			continue;
-		}
-
-		if (CensusQuery)
-		{
-			const FAnomalyCensusOpinion Opinion = CensusQuery(Actor);
-			if (Opinion.Decision != EAnomalyCensusDecision::NoOpinion)
+			AActor* Actor = Weak.Get();
+			if (!Actor || IsActorLive(Actor))
 			{
-				++CensusConsulted;
-				CensusWindow = Opinion.WindowTicks;
-				UE_LOG(LogAnomaly, Verbose,
-					TEXT("Auto.Fire: CENSUS '%s' -> %s (reason=%s ageTicks=%d drawnPct=%.3f)"),
-					*Actor->GetName(), LexToStringAnomalyCensusDecision(Opinion.Decision),
-					Opinion.Reason, Opinion.AgeTicks, Opinion.DrawnPct);
+				continue;
+			}
 
-				if (Opinion.Decision == EAnomalyCensusDecision::ExcludedZero
-					|| Opinion.Decision == EAnomalyCensusDecision::ExcludedBelowFloor
-					|| Opinion.Decision == EAnomalyCensusDecision::ExcludedAboveCeiling
-					|| Opinion.Decision == EAnomalyCensusDecision::ExcludedTranslucent)
+			if (CensusQuery)
+			{
+				const FAnomalyCensusOpinion Opinion = CensusQuery(Actor);
+				if (Opinion.Decision != EAnomalyCensusDecision::NoOpinion)
 				{
-					++CensusExcluded;
-					continue;
-				}
-				if (Opinion.Decision == EAnomalyCensusDecision::Eligible)
-				{
-					++CensusEligible;
-				}
-				if (Opinion.Decision == EAnomalyCensusDecision::FallbackBounds)
-				{
-					++CensusFallback;
-					if (Opinion.bExpired)
+					++CensusConsulted;
+					CensusWindow = Opinion.WindowTicks;
+					UE_LOG(LogAnomaly, Verbose,
+						TEXT("Auto.Fire: CENSUS '%s' -> %s (reason=%s ageTicks=%d drawnPct=%.3f)"),
+						*Actor->GetName(), LexToStringAnomalyCensusDecision(Opinion.Decision),
+						Opinion.Reason, Opinion.AgeTicks, Opinion.DrawnPct);
+
+					if (Opinion.Decision == EAnomalyCensusDecision::ExcludedZero
+						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedBelowFloor
+						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedAboveCeiling
+						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedTranslucent)
 					{
-						++CensusExpired;
+						++CensusExcluded;
+						continue;
 					}
-					if (Opinion.bUnseen)
+					if (Opinion.Decision == EAnomalyCensusDecision::Eligible)
 					{
-						++CensusUnseen;
+						++CensusEligible;
+					}
+					if (Opinion.Decision == EAnomalyCensusDecision::FallbackBounds)
+					{
+						++CensusFallback;
+						if (Opinion.bExpired)
+						{
+							++CensusExpired;
+						}
+						if (Opinion.bUnseen)
+						{
+							++CensusUnseen;
+						}
 					}
 				}
 			}
+
+			Candidates.Add(Actor);
 		}
 
-		Candidates.Add(Actor);
-	}
+		if (CensusQuery && CensusConsulted > 0)
+		{
+			const bool bAllFallback = (CensusFallback == CensusConsulted);
 
-	if (CensusQuery && CensusConsulted > 0)
+			UE_LOG(LogAnomaly, Log,
+				TEXT("Auto.Fire: census consulted=%d eligible=%d excluded=%d fallback=%d expired=%d unseen=%d ")
+				TEXT("(window=%d ticks) - fallback is the BOUNDS path deciding this candidate, not the census; ")
+				TEXT("expired and unseen are its two silent shapes and are counted here so a partial fallback ")
+				TEXT("cannot hide behind an all-fallback warning that never fires."),
+				CensusConsulted, CensusEligible, CensusExcluded, CensusFallback, CensusExpired, CensusUnseen,
+				CensusWindow);
+
+			if (bAllFallback)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("Auto.Fire: CENSUS ALL-FALLBACK - every one of %d consulted candidate(s) was ")
+					TEXT("not_yet_measured or EXPIRED, so this fire was decided entirely by the BOUNDS path ")
+					TEXT("and the census contributed nothing to it. The fire is still valid; what is not ")
+					TEXT("valid is reading it as evidence the census selected anything. Report this count ")
+					TEXT("rather than re-running to a green."),
+					CensusConsulted);
+			}
+			if (CensusFireReport)
+			{
+				CensusFireReport(CensusConsulted, CensusFallback, CensusUnseen);
+			}
+		}
+		return Candidates.Num();
+	};
+
+	TArray<FString> Modes;
+	auto ModeCount = [&](int32 IdIndex) -> int32
 	{
-		const bool bAllFallback = (CensusFallback == CensusConsulted);
-
-		UE_LOG(LogAnomaly, Log,
-			TEXT("Auto.Fire: census consulted=%d eligible=%d excluded=%d fallback=%d expired=%d unseen=%d ")
-			TEXT("(window=%d ticks) - fallback is the BOUNDS path deciding this candidate, not the census; ")
-			TEXT("expired and unseen are its two silent shapes and are counted here so a partial fallback ")
-			TEXT("cannot hide behind an all-fallback warning that never fires."),
-			CensusConsulted, CensusEligible, CensusExcluded, CensusFallback, CensusExpired, CensusUnseen,
-			CensusWindow);
-
-		if (bAllFallback)
+		if (!AnomalyTexCorrupt::IsTexCorruptId(Eligible[IdIndex]))
 		{
-			UE_LOG(LogAnomaly, Warning,
-				TEXT("Auto.Fire: CENSUS ALL-FALLBACK - every one of %d consulted candidate(s) was ")
-				TEXT("not_yet_measured or EXPIRED, so this fire was decided entirely by the BOUNDS path ")
-				TEXT("and the census contributed nothing to it. The fire is still valid; what is not ")
-				TEXT("valid is reading it as evidence the census selected anything. Report this count ")
-				TEXT("rather than re-running to a green."),
-				CensusConsulted);
+			return -1;
 		}
-		if (CensusFireReport)
-		{
-			CensusFireReport(CensusConsulted, CensusFallback, CensusUnseen);
-		}
+		Modes = AnomalyTexCorrupt::GetAutoDrawModes(Eligible[IdIndex]);
+		return Modes.Num();
+	};
+
+	const TexCorruptPure::FDrawAttemptResult Draw =
+		TexCorruptPure::DrawAttempt(Stream, Eligible.Num(), CandidateCount, ModeCount, HoldMin, HoldMax);
+	const FName Id = Eligible.IsValidIndex(Draw.IdIndex) ? Eligible[Draw.IdIndex] : NAME_None;
+
+	TArray<FString> CandidateNames;
+	CandidateNames.Reserve(Candidates.Num());
+	for (const AActor* C : Candidates)
+	{
+		CandidateNames.Add(C->GetName());
 	}
+	const FString CandidatesFp = FingerprintNames(CandidateNames);
 
-	if (Candidates.Num() == 0)
+	if (Draw.Outcome != TexCorruptPure::EDrawOutcome::Drawn)
 	{
 		if (CensusQuery && CensusExcluded > 0)
 		{
@@ -368,17 +469,36 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 				TEXT("the point of it, not a failure to find work."),
 				CensusConsulted, CensusExcluded, CensusFallback);
 		}
+		LogDraw(Id.ToString(), Dash, CandidatesFp, Dash, Dash, TEXT("no_candidates"));
 		return false;
 	}
 
-	AActor* Target = Candidates[Stream.RandHelper(Candidates.Num())];
-	const float Hold = Stream.FRandRange(HoldMin, HoldMax);
+	AActor* Target = Candidates[Draw.TargetIndex];
+	const float Hold = Draw.Hold;
 
 	const FString TargetName = Target->GetName();
 	const FString Token = FString(TEXT("=")) + TargetName;
+	TArray<FString> ApplyArgs;
+	ApplyArgs.Add(Token);
+	FString ModeLog = Dash;
+	if (Draw.bModeDrawn)
+	{
+		if (Modes.IsValidIndex(Draw.ModeIndex))
+		{
+			ApplyArgs.Add(Modes[Draw.ModeIndex]);
+			ModeLog = Modes[Draw.ModeIndex];
+		}
+		else
+		{
+			ApplyArgs.Add(FString(TEXT("!none")));
+			ModeLog = FString(TEXT("none"));
+		}
+	}
 	Injector->SetAutoPoolSelection(true);
-	const bool bApplied = Injector->ApplyAnomaly(Id, TArray<FString>{ Token });
+	const bool bApplied = Injector->ApplyAnomaly(Id, ApplyArgs);
 	Injector->SetAutoPoolSelection(false);
+	LogDraw(Id.ToString(), TargetName, CandidatesFp, FString::Printf(TEXT("%.9g"), Hold), ModeLog,
+		bApplied ? TEXT("applied") : TEXT("0 matched"));
 	if (bApplied)
 	{
 		FAutoLiveFire Fire;
@@ -454,6 +574,19 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 	if (IsIdLive(Id))
 	{
 		return false;
+	}
+
+	const int32 Attempt = ++DrawAttemptOrdinal;
+	{
+		const FAnomalyPartnerExclusion Excl = Injector->EvaluatePartnerExclusion(Id);
+		if (Excl.bExcluded)
+		{
+			Injector->NoteExclusion(Id, Excl, FString::FromInt(Attempt));
+			LastFireResult = FString::Printf(TEXT("fire %s on %s: excluded (%s)"), *Id.ToString(), *ActorName, *Excl.Describe());
+			UE_LOG(LogAnomaly, Log, TEXT("Auto.FireSpecific: '%s' on '%s' -> excluded (excluded_partner_live:%s)."),
+				*Id.ToString(), *ActorName, *Excl.Describe());
+			return false;
+		}
 	}
 
 	AActor* Target = nullptr;
@@ -547,6 +680,7 @@ void UAnomalyAutoInjectorSubsystem::SetSeed(int32 InSeed)
 {
 	Seed = InSeed;
 	Stream.Initialize(Seed);
+	DrawAttemptOrdinal = 0;
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.Auto.Seed -> %d."), Seed);
 }
 
@@ -658,12 +792,14 @@ bool UAnomalyAutoInjectorSubsystem::SetKeyBinding(FName Action, FKey Key)
 	else if (Action == FName(TEXT("pool5")))  { KeyPool[4] = Key; }
 	else if (Action == FName(TEXT("pool6")))  { KeyPool[5] = Key; }
 	else if (Action == FName(TEXT("pool7")))  { KeyPool[6] = Key; }
+	else if (Action == FName(TEXT("pool8")))  { KeyPool[7] = Key; }
+	else if (Action == FName(TEXT("pool9")))  { KeyPool[8] = Key; }
 	else if (Action == FName(TEXT("run")))    { KeyRun = Key; }
 	else if (Action == FName(TEXT("reseed"))) { KeyReseed = Key; }
 	else
 	{
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("IAI.Auto.Bind: unknown action '%s' (use pool1/pool2/pool3/pool4/pool5/pool6/pool7/run/reseed)."), *Action.ToString());
+			TEXT("IAI.Auto.Bind: unknown action '%s' (use pool1/pool2/pool3/pool4/pool5/pool6/pool7/pool8/pool9/run/reseed)."), *Action.ToString());
 		return false;
 	}
 
@@ -829,7 +965,7 @@ void UAnomalyAutoInjectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController* 
 	const float LineH = 16.0f;
 
 	Canvas->SetDrawColor(FColor::White);
-	Canvas->DrawText(Font, FString::Printf(TEXT("[IAI] Auto-Injector  Ã¢â‚¬â€  Run: %s   (1-3: types   J: run   K: reseed)"),
+	Canvas->DrawText(Font, FString::Printf(TEXT("[IAI] Auto-Injector  Ã¢â‚¬â€  Run: %s   (1-9: types   J: run   K: reseed)"),
 		bRunning ? TEXT("ON") : TEXT("OFF")), X, Y);
 	Y += LineH * 1.5f;
 
@@ -1009,11 +1145,11 @@ static FAutoConsoleCommandWithWorldAndArgs GAutoStatusCmd(
 
 static FAutoConsoleCommandWithWorldAndArgs GAutoBindCmd(
 	TEXT("IAI.Auto.Bind"),
-	TEXT("Rebind an auto-injector key. Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|pool5|pool6|pool7|run|reseed> <KeyName>"),
+	TEXT("Rebind an auto-injector key. Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|pool5|pool6|pool7|pool8|pool9|run|reseed> <KeyName>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
-			if (Args.Num() < 2) { UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|pool5|pool6|pool7|run|reseed> <KeyName>")); return; }
+			if (Args.Num() < 2) { UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Auto.Bind <pool1|pool2|pool3|pool4|pool5|pool6|pool7|pool8|pool9|run|reseed> <KeyName>")); return; }
 			const FName KeyName(*Args[1]);
 			const FKey Key(KeyName);
 			if (!EKeys::GetKeyDetails(Key).IsValid())

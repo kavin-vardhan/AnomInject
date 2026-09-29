@@ -205,9 +205,21 @@ namespace
 			OutScope = EAnomalyScope::Object;
 			OutArgs.Add(IntArg(TEXT("mip_levels"), TEXT("-1"), (double)AnomalyDefaults::StuckMipLevelsMin));
 		}
-		else if (Id == FName(TEXT("uv_corruption")) || Id == FName(TEXT("normal_corruption")))
+		else if (Id == FName(TEXT("uv_corruption")))
 		{
 			OutScope = EAnomalyScope::Object;
+			FAnomalyArgSpec Mode;
+			Mode.Name = TEXT("mode"); Mode.Type = EAnomalyArgType::Enum; Mode.Default = TEXT("tile"); Mode.bRequired = true;
+			Mode.Options = { TEXT("tile"), TEXT("scramble") };
+			OutArgs.Add(Mode);
+		}
+		else if (Id == FName(TEXT("normal_corruption")))
+		{
+			OutScope = EAnomalyScope::Object;
+			FAnomalyArgSpec Mode;
+			Mode.Name = TEXT("mode"); Mode.Type = EAnomalyArgType::Enum; Mode.Default = TEXT("invert"); Mode.bRequired = true;
+			Mode.Options = { TEXT("invert"), TEXT("green_flip") };
+			OutArgs.Add(Mode);
 		}
 		else
 		{
@@ -296,6 +308,7 @@ void UAnomalyInjectorSubsystem::Deinitialize()
 	AnomalyTexCorrupt::RestoreBenchAssetSlotMid(TEXT("world teardown"));
 	AnomalyTexCorrupt::EndWarmDraw();
 	TexCorruptStrongRefs.Reset();
+	TrailProvider.Reset();
 
 	Super::Deinitialize();
 }
@@ -796,6 +809,29 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 		return false;
 	}
 
+	{
+		const FAnomalyPartnerExclusion Excl = EvaluatePartnerExclusion(Id);
+		if (Excl.bExcluded)
+		{
+			NoteExclusion(Id, Excl, TEXT("-"));
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Apply '%s' REFUSED excluded_partner_live:%s - its m52/m53 partner can still be in the picture, ")
+				TEXT("so no fire is recorded and nothing is changed."),
+				*Id.ToString(), *Excl.Describe());
+			return false;
+		}
+		if (Excl.bAdmittedAfterUnresolved)
+		{
+			++ExclusionStats.AdmittedAfterUnresolved;
+			UE_LOG(LogAnomaly, Log,
+				TEXT("Auto.AdmitUnresolved candidate=%s partner=%s state=%s event=%s - admitted because the partner's restore ")
+				TEXT("trail is past restore_unresolved; its blur may still be in the picture (counted in ")
+				TEXT("run_summary.texcorrupt_admitted_after_unresolved)."),
+				*Id.ToString(), *Excl.Partner.ToString(), ANSI_TO_TCHAR(AnomalyExclusion::DescribeState(Excl.PartnerState)),
+				*Excl.EventKey);
+		}
+	}
+
 	const bool bApplied = (*Found)->Apply(GetWorld(), Args);
 
 	if (bApplied)
@@ -804,6 +840,7 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 		Record.Args = Args;
 		Record.ApplyTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 		ActiveRecords.Add(Id, MoveTemp(Record));
+		LastApplyFrame.Add(Id, GFrameCounter);
 	}
 	else
 	{
@@ -830,6 +867,10 @@ bool UAnomalyInjectorSubsystem::RevertAnomaly(const FName& Id)
 
 	(*Found)->Revert();
 	ActiveRecords.Remove(Id);
+	if (AnomalyTexCorrupt::IsTexCorruptId(Id))
+	{
+		LastTexCorruptRevertId = Id;
+	}
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.Revert '%s' -> reverted."), *Id.ToString());
 	return true;
 }
@@ -842,11 +883,164 @@ int32 UAnomalyInjectorSubsystem::RevertAllActive()
 		if (Pair.Value && Pair.Value->IsActive())
 		{
 			Pair.Value->Revert();
+			if (AnomalyTexCorrupt::IsTexCorruptId(Pair.Key))
+			{
+				LastTexCorruptRevertId = Pair.Key;
+			}
 			++Count;
 		}
 	}
 	ActiveRecords.Empty();
 	return Count;
+}
+
+bool UAnomalyInjectorSubsystem::IsIdFireLive(const FName& Id) const
+{
+	if (!ActiveRecords.Contains(Id))
+	{
+		return false;
+	}
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	return Found && Found->IsValid() && (*Found)->IsActive();
+}
+
+bool UAnomalyInjectorSubsystem::IsStuckMipRestoring() const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(FName(ANSI_TO_TCHAR(AnomalyExclusion::M52Id)));
+	if (!Found || !Found->IsValid())
+	{
+		return false;
+	}
+	return static_cast<const FAnomaly_StuckLowMip*>(Found->Get())->IsRestoringAny();
+}
+
+FString UAnomalyInjectorSubsystem::PartnerEventKey(const FName& Id) const
+{
+	if (const uint64* Frame = LastApplyFrame.Find(Id))
+	{
+		return FString::Printf(TEXT("%s@%llu"), *Id.ToString(), (unsigned long long)*Frame);
+	}
+	return FString::Printf(TEXT("%s@-"), *Id.ToString());
+}
+
+FAnomalyPartnerExclusion UAnomalyInjectorSubsystem::EvaluatePartnerExclusion(FName Id) const
+{
+	static const FName M52Name(ANSI_TO_TCHAR(AnomalyExclusion::M52Id));
+	static const FName UvName(ANSI_TO_TCHAR(AnomalyExclusion::M53UvId));
+	static const FName NormalName(ANSI_TO_TCHAR(AnomalyExclusion::M53NormalId));
+
+	FAnomalyPartnerExclusion Out;
+	AnomalyExclusion::EFamily Candidate = AnomalyExclusion::EFamily::Other;
+	if (Id == M52Name)
+	{
+		Candidate = AnomalyExclusion::EFamily::M52;
+	}
+	else if (Id == UvName || Id == NormalName)
+	{
+		Candidate = AnomalyExclusion::EFamily::M53;
+	}
+	if (Candidate == AnomalyExclusion::EFamily::Other)
+	{
+		return Out;
+	}
+
+	if (Candidate == AnomalyExclusion::EFamily::M53)
+	{
+		AnomalyExclusion::FM52Signals S;
+		S.bFireLive = IsIdFireLive(M52Name);
+		FString TrailKey;
+		if (TrailProvider)
+		{
+			S.bProvider = true;
+			S.Trail = TrailProvider(M52Name, TrailKey);
+		}
+		S.bRestoringSet = IsStuckMipRestoring();
+		const AnomalyExclusion::EState M52 = AnomalyExclusion::M52State(S);
+		const AnomalyExclusion::FVerdict V = AnomalyExclusion::Evaluate(Candidate, M52, AnomalyExclusion::EState::Idle);
+		Out.bExcluded = V.bExcluded;
+		Out.bAdmittedAfterUnresolved = V.bAdmittedAfterUnresolved;
+		Out.Partner = M52Name;
+		Out.PartnerState = V.PartnerState;
+		const bool bTrailState = M52 == AnomalyExclusion::EState::TrailOpen || M52 == AnomalyExclusion::EState::Unresolved
+			|| M52 == AnomalyExclusion::EState::Closed;
+		Out.EventKey = (bTrailState && !TrailKey.IsEmpty()) ? TrailKey : PartnerEventKey(M52Name);
+		return Out;
+	}
+
+	AnomalyExclusion::FM53Signals S;
+	FName LivePartner = NAME_None;
+	if (IsIdFireLive(UvName))
+	{
+		LivePartner = UvName;
+	}
+	else if (IsIdFireLive(NormalName))
+	{
+		LivePartner = NormalName;
+	}
+	S.bFireLive = !LivePartner.IsNone();
+	S.bRevertSettling = !S.bFireLive && AnomalyTexCorrupt::IsRevertSettling(GetWorld());
+	const AnomalyExclusion::EState M53 = AnomalyExclusion::M53State(S);
+	const AnomalyExclusion::FVerdict V = AnomalyExclusion::Evaluate(Candidate, AnomalyExclusion::EState::Idle, M53);
+	Out.bExcluded = V.bExcluded;
+	Out.Partner = S.bFireLive ? LivePartner : (LastTexCorruptRevertId.IsNone() ? UvName : LastTexCorruptRevertId);
+	Out.PartnerState = V.PartnerState;
+	Out.EventKey = PartnerEventKey(Out.Partner);
+	return Out;
+}
+
+bool UAnomalyInjectorSubsystem::IsExcludedByPartner(FName Id, FString& OutWhy) const
+{
+	const FAnomalyPartnerExclusion Excl = EvaluatePartnerExclusion(Id);
+	OutWhy = Excl.bExcluded ? Excl.Describe() : FString();
+	return Excl.bExcluded;
+}
+
+void UAnomalyInjectorSubsystem::NoteExclusion(FName Candidate, const FAnomalyPartnerExclusion& Verdict, const FString& Attempt)
+{
+	if (!Verdict.bExcluded)
+	{
+		return;
+	}
+	if (Candidate == FName(ANSI_TO_TCHAR(AnomalyExclusion::M53UvId)))
+	{
+		++ExclusionStats.ExcludedUvCorruption;
+	}
+	else if (Candidate == FName(ANSI_TO_TCHAR(AnomalyExclusion::M53NormalId)))
+	{
+		++ExclusionStats.ExcludedNormalCorruption;
+	}
+	else if (Candidate == FName(ANSI_TO_TCHAR(AnomalyExclusion::M52Id)))
+	{
+		++ExclusionStats.ExcludedStuckLowMip;
+	}
+	UE_LOG(LogAnomaly, Log, TEXT("Auto.Exclude candidate=%s partner=%s state=%s event=%s attempt=%s"),
+		*Candidate.ToString(), *Verdict.Partner.ToString(), ANSI_TO_TCHAR(AnomalyExclusion::DescribeState(Verdict.PartnerState)),
+		*Verdict.EventKey, *Attempt);
+}
+
+void UAnomalyInjectorSubsystem::SetTrailProvider(FAnomalyTrailProviderFn InProvider)
+{
+	TrailProvider = MoveTemp(InProvider);
+	UE_LOG(LogAnomaly, Log,
+		TEXT("Auto: TRAIL PROVIDER REGISTERED - m52 stays live for the m52/m53 exclusion while any restore trail gates ")
+		TEXT("(live, reopened, adopted or carried), not only until its revert."));
+}
+
+void UAnomalyInjectorSubsystem::ClearTrailProvider()
+{
+	const bool bHad = (bool)TrailProvider;
+	TrailProvider.Reset();
+	if (bHad)
+	{
+		UE_LOG(LogAnomaly, Log,
+			TEXT("Auto: trail provider CLEARED - with no capture run, m52 stays live for the exclusion while its game-thread ")
+			TEXT("restoring set is non-empty."));
+	}
+}
+
+void UAnomalyInjectorSubsystem::ResetExclusionStats()
+{
+	ExclusionStats = FAnomalyExclusionStats();
 }
 
 int32 UAnomalyInjectorSubsystem::GetActiveAnomalyCount() const

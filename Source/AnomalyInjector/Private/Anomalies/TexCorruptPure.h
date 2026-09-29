@@ -791,6 +791,537 @@ namespace TexCorruptPure
 		return Best;
 	}
 
+	inline int PickEarliestNonQualified(const int* Ranks, const bool* Qualified, int N)
+	{
+		int Best = -1;
+		for (int i = 0; i < N; ++i)
+		{
+			if (Qualified[i])
+			{
+				continue;
+			}
+			if (Best < 0 || Ranks[i] < Ranks[Best])
+			{
+				Best = i;
+			}
+		}
+		return Best;
+	}
+
+	enum class EFootprint : int
+	{
+		NoneQualified,
+		Partial,
+		Full
+	};
+
+	inline EFootprint JudgeFootprint(int Qualified, int Slots)
+	{
+		if (Qualified <= 0 || Slots <= 0)
+		{
+			return EFootprint::NoneQualified;
+		}
+		return Qualified < Slots ? EFootprint::Partial : EFootprint::Full;
+	}
+
+	enum class EFootprintStep : int
+	{
+		V1,
+		V1P,
+		V2,
+		Apply
+	};
+
+	inline const char* LexFootprintStep(EFootprintStep S)
+	{
+		switch (S)
+		{
+		case EFootprintStep::V1:  return "V1";
+		case EFootprintStep::V1P: return "V1P";
+		case EFootprintStep::V2:  return "V2";
+		default:                  return "apply";
+		}
+	}
+
+	inline EFootprintStep DecideFootprintStep(int Qualified, int Slots, bool bFits)
+	{
+		const EFootprint F = JudgeFootprint(Qualified, Slots);
+		if (F == EFootprint::NoneQualified)
+		{
+			return EFootprintStep::V1;
+		}
+		if (F == EFootprint::Partial)
+		{
+			return EFootprintStep::V1P;
+		}
+		return bFits ? EFootprintStep::Apply : EFootprintStep::V2;
+	}
+
+	enum class EModeFamilyP : int
+	{
+		UV,
+		Normal
+	};
+
+	enum class EModeP : int
+	{
+		None,
+		Tile,
+		Scramble,
+		Invert,
+		GreenFlip
+	};
+
+	struct FModeName
+	{
+		const char* Name;
+		EModeFamilyP Family;
+		EModeP Mode;
+		bool bDelivered;
+	};
+
+	constexpr int NumModeNames = 8;
+
+	inline const FModeName& ModeNameAt(int i)
+	{
+		static const FModeName Table[NumModeNames] = {
+			{ "tile", EModeFamilyP::UV, EModeP::Tile, true },
+			{ "scramble", EModeFamilyP::UV, EModeP::Scramble, true },
+			{ "drift", EModeFamilyP::UV, EModeP::None, false },
+			{ "swap", EModeFamilyP::UV, EModeP::None, false },
+			{ "invert", EModeFamilyP::Normal, EModeP::Invert, true },
+			{ "green_flip", EModeFamilyP::Normal, EModeP::GreenFlip, true },
+			{ "flat", EModeFamilyP::Normal, EModeP::None, false },
+			{ "noise", EModeFamilyP::Normal, EModeP::None, false } };
+		return Table[i];
+	}
+
+	inline const char* LexModeP(EModeP Mode)
+	{
+		switch (Mode)
+		{
+		case EModeP::Tile:      return "tile";
+		case EModeP::Scramble:  return "scramble";
+		case EModeP::Invert:    return "invert";
+		case EModeP::GreenFlip: return "green_flip";
+		default:                return "none";
+		}
+	}
+
+	inline bool ModeFamilyOf(EModeP Mode, EModeFamilyP& OutFamily)
+	{
+		switch (Mode)
+		{
+		case EModeP::Tile:
+		case EModeP::Scramble:
+			OutFamily = EModeFamilyP::UV;
+			return true;
+		case EModeP::Invert:
+		case EModeP::GreenFlip:
+			OutFamily = EModeFamilyP::Normal;
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	inline unsigned ModeBit(EModeP Mode)
+	{
+		return Mode == EModeP::None ? 0u : (1u << ((int)Mode - 1));
+	}
+
+	inline int DeliveredModesInOrder(EModeFamilyP Family, unsigned Mask, EModeP* Out, int MaxOut)
+	{
+		int Count = 0;
+		for (int i = 0; i < NumModeNames; ++i)
+		{
+			const FModeName& M = ModeNameAt(i);
+			if (M.Family != Family || !M.bDelivered || (Mask & ModeBit(M.Mode)) == 0)
+			{
+				continue;
+			}
+			if (Count < MaxOut)
+			{
+				Out[Count] = M.Mode;
+			}
+			++Count;
+		}
+		return Count;
+	}
+
+	inline unsigned DeliveredMask(EModeFamilyP Family)
+	{
+		unsigned Mask = 0;
+		for (int i = 0; i < NumModeNames; ++i)
+		{
+			const FModeName& M = ModeNameAt(i);
+			if (M.Family == Family && M.bDelivered)
+			{
+				Mask |= ModeBit(M.Mode);
+			}
+		}
+		return Mask;
+	}
+
+	inline int LowerAscii(int C)
+	{
+		return (C >= 'A' && C <= 'Z') ? C - 'A' + 'a' : C;
+	}
+
+	template <typename TChar>
+	inline int AsciiLength(const TChar* A)
+	{
+		int N = 0;
+		while (A && A[N] != 0)
+		{
+			++N;
+		}
+		return N;
+	}
+
+	template <typename TChar>
+	inline bool EqualsAsciiNoCaseN(const TChar* A, int Len, const char* B)
+	{
+		if (!A || !B)
+		{
+			return false;
+		}
+		int i = 0;
+		for (; i < Len; ++i)
+		{
+			if (B[i] == 0 || LowerAscii((int)A[i]) != LowerAscii((int)(unsigned char)B[i]))
+			{
+				return false;
+			}
+		}
+		return B[i] == 0;
+	}
+
+	template <typename TChar>
+	inline const FModeName* FindModeNameN(const TChar* A, int Len)
+	{
+		for (int i = 0; i < NumModeNames; ++i)
+		{
+			if (EqualsAsciiNoCaseN(A, Len, ModeNameAt(i).Name))
+			{
+				return &ModeNameAt(i);
+			}
+		}
+		return nullptr;
+	}
+
+	enum class EModeArg : int
+	{
+		Ok,
+		NoMode,
+		NoModeEnabled,
+		Unknown,
+		WrongFamily,
+		NotInDelivery
+	};
+
+	inline const char* LexModeArg(EModeArg R)
+	{
+		switch (R)
+		{
+		case EModeArg::Ok:            return "ok";
+		case EModeArg::NoMode:        return "no_mode";
+		case EModeArg::NoModeEnabled: return "no_mode_enabled";
+		case EModeArg::Unknown:       return "unknown";
+		case EModeArg::WrongFamily:   return "family";
+		default:                      return "not_in_delivery";
+		}
+	}
+
+	constexpr const char* NoModeEnabledToken = "!none";
+
+	template <typename TChar>
+	inline EModeArg ClassifyModeArg(const TChar* Arg, EModeFamilyP Family, bool bAutoPool, EModeP& OutMode, const FModeName*& OutName)
+	{
+		OutMode = EModeP::None;
+		OutName = nullptr;
+		const int Len = AsciiLength(Arg);
+		if (Len == 0)
+		{
+			return EModeArg::NoMode;
+		}
+		if (EqualsAsciiNoCaseN(Arg, Len, NoModeEnabledToken))
+		{
+			return bAutoPool ? EModeArg::NoModeEnabled : EModeArg::Unknown;
+		}
+		const FModeName* Name = FindModeNameN(Arg, Len);
+		if (!Name)
+		{
+			return EModeArg::Unknown;
+		}
+		OutName = Name;
+		if (Name->Family != Family)
+		{
+			return EModeArg::WrongFamily;
+		}
+		if (!Name->bDelivered)
+		{
+			return EModeArg::NotInDelivery;
+		}
+		OutMode = Name->Mode;
+		return EModeArg::Ok;
+	}
+
+	struct FModeSetParse
+	{
+		bool bOk = false;
+		unsigned Mask = 0;
+		EModeArg Why = EModeArg::Ok;
+		int BadStart = 0;
+		int BadLen = 0;
+		const FModeName* BadName = nullptr;
+	};
+
+	inline bool IsAsciiSpace(int C)
+	{
+		return C == ' ' || C == '\t';
+	}
+
+	template <typename TChar>
+	inline FModeSetParse ParseModeSet(const TChar* Text, EModeFamilyP Family)
+	{
+		FModeSetParse R;
+		const int Len = AsciiLength(Text);
+		int Start = 0;
+		int End = Len;
+		while (Start < End && IsAsciiSpace((int)Text[Start]))
+		{
+			++Start;
+		}
+		while (End > Start && IsAsciiSpace((int)Text[End - 1]))
+		{
+			--End;
+		}
+		if (End == Start)
+		{
+			R.Why = EModeArg::NoMode;
+			return R;
+		}
+		if (EqualsAsciiNoCaseN(Text + Start, End - Start, "none"))
+		{
+			R.bOk = true;
+			return R;
+		}
+		int TokStart = Start;
+		for (int i = Start; i <= End; ++i)
+		{
+			if (i < End && Text[i] != '+')
+			{
+				continue;
+			}
+			int A = TokStart;
+			int B = i;
+			while (A < B && IsAsciiSpace((int)Text[A]))
+			{
+				++A;
+			}
+			while (B > A && IsAsciiSpace((int)Text[B - 1]))
+			{
+				--B;
+			}
+			const FModeName* Name = FindModeNameN(Text + A, B - A);
+			EModeArg Why = EModeArg::Ok;
+			if (!Name)
+			{
+				Why = EModeArg::Unknown;
+			}
+			else if (Name->Family != Family)
+			{
+				Why = EModeArg::WrongFamily;
+			}
+			else if (!Name->bDelivered)
+			{
+				Why = EModeArg::NotInDelivery;
+			}
+			if (Why != EModeArg::Ok)
+			{
+				R.Why = Why;
+				R.BadStart = A;
+				R.BadLen = B - A;
+				R.BadName = Name;
+				R.Mask = 0;
+				return R;
+			}
+			R.Mask |= ModeBit(Name->Mode);
+			TokStart = i + 1;
+		}
+		R.bOk = true;
+		return R;
+	}
+
+	constexpr unsigned ScrambleTag = 0x53434D52u;
+
+	inline void ScrambleBytes(unsigned Seed, unsigned Ordinal, unsigned char Out[12])
+	{
+		const unsigned Words[3] = { Seed, Ordinal, ScrambleTag };
+		for (int w = 0; w < 3; ++w)
+		{
+			for (int k = 0; k < 4; ++k)
+			{
+				Out[w * 4 + k] = (unsigned char)((Words[w] >> (8 * k)) & 0xFFu);
+			}
+		}
+	}
+
+	inline int GcdInt(int A, int B)
+	{
+		A = A < 0 ? -A : A;
+		B = B < 0 ? -B : B;
+		while (B != 0)
+		{
+			const int T = A % B;
+			A = B;
+			B = T;
+		}
+		return A;
+	}
+
+	inline int InverseModN(int A, int N)
+	{
+		if (N <= 1)
+		{
+			return -1;
+		}
+		long long T = 0;
+		long long NewT = 1;
+		long long R = N;
+		long long NewR = ((A % N) + N) % N;
+		while (NewR != 0)
+		{
+			const long long Q = R / NewR;
+			const long long TT = T - Q * NewT;
+			T = NewT;
+			NewT = TT;
+			const long long RR = R - Q * NewR;
+			R = NewR;
+			NewR = RR;
+		}
+		if (R != 1)
+		{
+			return -1;
+		}
+		if (T < 0)
+		{
+			T += N;
+		}
+		return (int)T;
+	}
+
+	struct FScramble
+	{
+		bool bValid = false;
+		unsigned H = 0;
+		int K = 0;
+		int N = 0;
+		int A = 1;
+		int B = 0;
+		int AInv = 1;
+	};
+
+	inline FScramble ScrambleFromHash(unsigned H, int K)
+	{
+		FScramble S;
+		S.H = H;
+		S.K = K;
+		if (K < 2)
+		{
+			return S;
+		}
+		const int N = K * K;
+		S.N = N;
+		int Count = 0;
+		for (int a = 1; a < N; ++a)
+		{
+			if (GcdInt(a, N) == 1)
+			{
+				++Count;
+			}
+		}
+		if (Count == 0)
+		{
+			return S;
+		}
+		const int Pick = (int)((H >> 16) % (unsigned)Count);
+		int Seen = 0;
+		int A = 1;
+		for (int a = 1; a < N; ++a)
+		{
+			if (GcdInt(a, N) != 1)
+			{
+				continue;
+			}
+			if (Seen == Pick)
+			{
+				A = a;
+				break;
+			}
+			++Seen;
+		}
+		int B = (int)(H % (unsigned)N);
+		if (A == 1 && B == 0)
+		{
+			B = 1;
+		}
+		S.A = A;
+		S.B = B;
+		S.AInv = InverseModN(A, N);
+		S.bValid = S.AInv > 0;
+		return S;
+	}
+
+	template <typename FCrc32>
+	inline FScramble ScramblePair(unsigned Seed, unsigned Ordinal, int K, FCrc32 Crc)
+	{
+		unsigned char Bytes[12];
+		ScrambleBytes(Seed, Ordinal, Bytes);
+		return ScrambleFromHash((unsigned)Crc(Bytes, 12), K);
+	}
+
+	inline int ScrambleForward(int A, int B, int N, int I)
+	{
+		return (int)((((long long)A * I + B) % N + N) % N);
+	}
+
+	inline int ScrambleInverse(int AInv, int B, int N, int J)
+	{
+		const long long D = (((long long)J - B) % N + N) % N;
+		return (int)(((long long)AInv * D) % N);
+	}
+
+	struct FAttemptOrdinals
+	{
+		int Next[2] = { 0, 0 };
+
+		int Take(EModeFamilyP Family)
+		{
+			return Next[(int)Family]++;
+		}
+
+		void Reset()
+		{
+			Next[0] = 0;
+			Next[1] = 0;
+		}
+	};
+
+	inline bool IsRevertSettlingAt(unsigned long long PostRevertFrame, bool bRollback, bool bRestorePending, unsigned long long Now)
+	{
+		if (bRestorePending)
+		{
+			return true;
+		}
+		if (PostRevertFrame == 0 || bRollback)
+		{
+			return false;
+		}
+		return Now < PostRevertFrame;
+	}
+
 	inline bool IsNonSpatial(int M, int W, int H)
 	{
 		return M == 1 && W == 1 && H == 1;
@@ -826,5 +1357,60 @@ namespace TexCorruptPure
 	inline bool GlobalStreamingBias(int UsePerTextureBias, float MipBias)
 	{
 		return MipBias > 0.0f && UsePerTextureBias == 0;
+	}
+
+	enum class EDrawOutcome : int
+	{
+		NoEligible,
+		NoCandidates,
+		Drawn
+	};
+
+	struct FDrawAttemptResult
+	{
+		EDrawOutcome Outcome = EDrawOutcome::NoEligible;
+		int IdIndex = -1;
+		int NumCandidates = 0;
+		int TargetIndex = -1;
+		float Hold = 0.0f;
+		int NumModes = -1;
+		bool bModeDrawn = false;
+		float ModeFraction = 0.0f;
+		int ModeIndex = -1;
+	};
+
+	inline int ModeIndexFromFraction(float U, int N)
+	{
+		return N > 0 ? (int)(U * (float)N) : -1;
+	}
+
+	template <typename TStream, typename TCandidateCount, typename TModeCount>
+	FDrawAttemptResult DrawAttempt(TStream& Stream, int NumEligible, TCandidateCount&& CandidateCount,
+		TModeCount&& ModeCount, float HoldMin, float HoldMax)
+	{
+		FDrawAttemptResult R;
+		if (NumEligible <= 0)
+		{
+			R.Outcome = EDrawOutcome::NoEligible;
+			return R;
+		}
+		R.IdIndex = Stream.RandHelper(NumEligible);
+		R.NumCandidates = CandidateCount(R.IdIndex);
+		if (R.NumCandidates <= 0)
+		{
+			R.Outcome = EDrawOutcome::NoCandidates;
+			return R;
+		}
+		R.TargetIndex = Stream.RandHelper(R.NumCandidates);
+		R.Hold = (float)Stream.FRandRange(HoldMin, HoldMax);
+		R.NumModes = ModeCount(R.IdIndex);
+		if (R.NumModes >= 0)
+		{
+			R.bModeDrawn = true;
+			R.ModeFraction = Stream.GetFraction();
+			R.ModeIndex = ModeIndexFromFraction(R.ModeFraction, R.NumModes);
+		}
+		R.Outcome = EDrawOutcome::Drawn;
+		return R;
 	}
 }

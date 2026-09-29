@@ -37,7 +37,7 @@ class ANOMALYINJECTOR_API UAnomalyAutoInjectorSubsystem : public UTickableWorldS
 	GENERATED_BODY()
 
 public:
-	static constexpr int32 NumPoolKeys = 7;
+	static constexpr int32 NumPoolKeys = 9;
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
@@ -124,6 +124,8 @@ private:
 	FRandomStream Stream;
 
 	int32 Seed = 0;
+
+	int32 DrawAttemptOrdinal = 0;
 
 	float IntervalMin = 4.0f;
 	float IntervalMax = 9.0f;

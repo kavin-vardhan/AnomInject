@@ -37,7 +37,11 @@ namespace AnomalyTexCorrupt
 		None,
 		Identity,
 		IdentityRedraw,
-		TileProbe
+		TileProbe,
+		Tile,
+		Scramble,
+		Invert,
+		GreenFlip
 	};
 
 	enum class EWrongCopy : uint8
@@ -86,6 +90,7 @@ namespace AnomalyTexCorrupt
 		extern const TCHAR* BelowSizePolicy;
 		extern const TCHAR* MapSetOverCap;
 		extern const TCHAR* NoEligibleSlot;
+		extern const TCHAR* PartialFootprint;
 		extern const TCHAR* OverBudget;
 		extern const TCHAR* RtAllocFailed;
 		extern const TCHAR* DrawPreconditionFailed;
@@ -129,6 +134,10 @@ namespace AnomalyTexCorrupt
 	const TCHAR* LexMode(EMode Mode);
 	const TCHAR* LexWrongCopy(EWrongCopy Fault);
 
+	bool ModeFamily(EMode Mode, EFamily& OutFamily);
+	TexCorruptPure::EModeFamilyP ToPureFamily(EFamily Family);
+	EMode FromPureMode(TexCorruptPure::EModeP Mode);
+
 	const TArray<FName>& UvCorruptorScalars();
 	const TArray<FName>& UvCorruptorTextures();
 	const TArray<FName>& NormalCorruptorScalars();
@@ -145,6 +154,12 @@ namespace AnomalyTexCorrupt
 		static constexpr int32 MaxTexturesCompiled = 8;
 		static constexpr int32 MaxTexturesMin = 1;
 		static constexpr int32 MaxTexturesMax = 64;
+		static constexpr int32 TileNCompiled = 8;
+		static constexpr int32 TileNMin = 2;
+		static constexpr int32 TileNMax = 16;
+		static constexpr int32 ScrambleKCompiled = 8;
+		static constexpr int32 ScrambleKMin = 2;
+		static constexpr int32 ScrambleKMax = 64;
 	};
 
 	int32 GetMaxRtBytes();
@@ -153,6 +168,17 @@ namespace AnomalyTexCorrupt
 	FString DescribeMinTexturePx();
 	int32 GetMaxTextures();
 	FString DescribeMaxTextures();
+	int32 GetTileN();
+	FString DescribeTileN();
+	int32 GetScrambleK();
+	FString DescribeScrambleK();
+	uint32 GetEnabledModeMask(EFamily Family);
+	FString DescribeModeSet(EFamily Family, uint32 Mask);
+	FString DescribeEnabledModes(EFamily Family);
+	void EchoRunStartKnobs();
+
+	int32 TakeAttemptOrdinal(EFamily Family);
+	TexCorruptPure::FScramble DeriveScramble(uint32 Seed, int32 Ordinal, int32 K);
 
 	struct FLevers
 	{
@@ -166,6 +192,8 @@ namespace AnomalyTexCorrupt
 		int32 FailAllocOrdinal = -1;
 		bool bForeignReplace = false;
 		bool bCollateralDetail = false;
+		int32 CommitDelay = 0;
+		int32 RestoreDelay = 0;
 	};
 
 	FLevers& Levers();
@@ -249,11 +277,21 @@ namespace AnomalyTexCorrupt
 		FString DispositionKey() const;
 	};
 
+	struct FAttemptInfo
+	{
+		int32 Ordinal = -1;
+		bool bScramble = false;
+		TexCorruptPure::FScramble Scramble;
+
+		FString Describe() const;
+	};
+
 	struct FTreeResult
 	{
 		EFamily Family = EFamily::UV;
 		EMode Mode = EMode::None;
 		int32 TileN = 1;
+		FAttemptInfo Attempt;
 		FString TargetQuery;
 		bool bApply = false;
 		FString Reason;
@@ -276,6 +314,8 @@ namespace AnomalyTexCorrupt
 		bool bCensus = false;
 		bool bModeArgGiven = false;
 		FString ModeArg;
+		FString ModeRefusalSub;
+		FAttemptInfo Attempt;
 		FString TargetQuery;
 	};
 
@@ -316,4 +356,6 @@ namespace AnomalyTexCorrupt
 	void ReleaseTarget(UTextureRenderTarget2D* Target);
 
 	void RunCensus(UWorld* World, const FString& Query);
+
+	void RunOfficeCensus(UWorld* World, bool bAll);
 }
