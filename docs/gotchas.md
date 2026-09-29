@@ -9122,3 +9122,38 @@ Related: G112, G118, G119.
   pre-gate exe `8A6074AA` and is unaffected.
 
 Related: G354, G374.
+
+## G378 — A merge commit can fail a gate that neither parent failed: a gate added on one branch covers the other branch's code only from the merge on (2026-09-29, 085-02)
+
+- **Measured:** `tools/lever_audit.py` (084-10) read `VERDICT PASS` on `fix/m52-label-timing` `02d15a4`. m53 never ran it.
+  On the merge `7cda2f1` it read **FAIL R1 × 10**: m53 S1's own `IAI.Bench.TexCorrupt*` log strings, compiled into
+  Shipping, which no gate had ever looked at. Its `--selftest` also read `11 case(s): FAILED`, because the selftest's
+  "clean copy must PASS" case runs on the tree it is given.
+- **Rule:** run every gate of **both** parents on the merge commit, and expect the debt of the branch that never ran a
+  gate to surface there. Report it as the merge's reading (it is not a merge defect), and clear it in the next commit.
+  A selftest that reads its own tree fails for the same reason; that is the gate working, not a broken selftest.
+
+Related: G375, G96.
+
+## G379 — A clean auto-merge can leave two definitions of one member: git merges the .cpp silently while only the .h conflicts (2026-09-29, 085-02)
+
+- Both branches added a destructor to `FAnomaly_StuckLowMip`: m53 near the constructor (registry removal), m52 near
+  `StartHoldMonitor` (`StopHoldMonitor`). The **header** conflicted (two declarations); the **.cpp auto-merged** with both
+  bodies, far apart, which is a compile error (C2084) git cannot see. 085-01's dry run found it by reading, not by git.
+- **Rule:** for every member whose declaration conflicted in a header, grep the merged .cpp for its definition and count
+  them before building. The resolution is one definition doing both jobs, and the order is a decision to state (here:
+  registry removal first, so no query sees a half-destroyed instance, then `StopHoldMonitor`).
+
+Related: G102.
+
+## G380 — A mutant that does not compile is not a failed mutant: compile mutation copies WITHOUT `/WX` (2026-09-29, 085-02)
+
+- `texcorrupt_make_mutant.py` leaves unused parameters behind (a fault replaces a body that read them), so the mutant
+  copy of `TexCorruptPure.h` fails to compile under `/W4 /WX` (C4100 / C4189 as errors). A harness that treats "the
+  mutant build failed" as "the mutant failed" reports a can-fail proof that never ran a single check (G96's shape).
+- **Rule:** clean builds keep `/WX`; mutant builds drop it and must print a check count. Read the count, not the exit
+  code: the mutant must RUN and report failures (085-02: 172 checks, 34 failures on the merge; 251 / 56 on the DC).
+- **And for compile-time mutant switches from a `.bat`:** cmd splits `/DNAME=1` at the `=` inside a `for` loop or a batch
+  argument; MSVC accepts `/DNAME#1` for the same define.
+
+Related: G96.

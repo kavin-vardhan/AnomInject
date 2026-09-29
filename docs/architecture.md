@@ -2,7 +2,8 @@
 
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
 
-The catalogue is **10 shipping entries** in every configuration, plus **2 bench-only** entries,
+The catalogue is **12 shipping entries** in every configuration (m53 added `uv_corruption` and
+`normal_corruption`), plus **2 bench-only** entries,
 `null_effect` and `solid_swap`, that register **only when the bench gate is open** (084-10, below).
 The twins share one class, picker and labelled lifecycle; only the shipped Lit-pink material write
 differs. Neither enters GAutoPool, GAutoPoolDefaultEnabled or GAnomalyChoices. Apply refuses unless
@@ -512,9 +513,11 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
   `GPollRadius = 1800.0f` and `GMinScreenCoveragePct = 6.0f` (`AnomalyViewport.cpp`, file-scope globals — NOT
   ini-backed; ini-backing via GConfig remains available as a follow-up if per-title tuning is ever wanted), and the
   auto-pool's **default-enabled** set `GAutoPoolDefaultEnabled = { blinking, missing_texture,
-  corrupted_texture, lod_popping, camera_clipping }` (`AnomalyAutoInjectorSubsystem.cpp`, consumed in
-  `Initialize`; m30 — the M2 pool). `GAutoPool` offers all seven ids (m52 added `stuck_low_mip`, which is selectable but NOT default-enabled)
-  (`missing_object` remains selectable, just **not enabled by default**), and `SetAllAnomaliesEnabled(true)` still means
+  corrupted_texture, lod_popping }` (`AnomalyAutoInjectorSubsystem.cpp`, consumed in `Initialize`).
+  `GAutoPool` offers nine ids, keys 1–9 in order `missing_object, blinking, missing_texture, corrupted_texture,
+  lod_popping, camera_clipping, stuck_low_mip, uv_corruption, normal_corruption` (m52 added `stuck_low_mip`, the m53
+  delivery cut the last two; all three selectable but NOT default-enabled; `camera_clipping` is selectable and not
+  default-enabled either; `missing_object` remains selectable, just **not enabled by default**), and `SetAllAnomaliesEnabled(true)` still means
   *all* of `GAutoPool` — it is an explicit action, not a default. **The dashboard has NO defaults of its own for these:**
   the sliders and the pool checkboxes are pure mirrors of the snapshot (`session.pollRadius`,
   `session.minScreenCoverage`, `auto.pool[id]` ← `Auto->IsAnomalyEnabled`), so engine and UI cannot drift. **Note the
@@ -545,6 +548,11 @@ Module-scoped `FAutoConsoleCommandWithWorldAndArgs`, resolved from the console's
   to a build without them; this is a LEVER, not a change.** The canonical constants live in `AnomalyDefaults`
   and each anomaly's `Apply` carries a `static_assert` tying its own constant and clamp to them, so a drift
   breaks the build rather than the artifact.
+- **m53 (texture corruption, delivery cut):** the knobs `IAI.Anomaly.TexCorruptTileN`, `…ScrambleK`, `…UvModes`,
+  `…NormalModes`, `…MaxRtBytes`, `…MinTexturePx`, `…MaxTextures` (plain `FAutoConsoleCommand`s in
+  `TexCorruptState.cpp`, each printing an `EFFECTIVE READ-BACK`) and the read-only office census
+  `IAI.TexCorrupt.Census [all]` (`TexCorruptTree.cpp`, every configuration). See the m53 entry under the anomaly
+  catalog.
 
 Object Selector + Inject UI (m5) — drive the `UAnomalySelectorSubsystem` (these are the bridge **thin-shell** over
 its public methods; the keys + HUD are the separate real-Play eyeball shell):
@@ -561,14 +569,14 @@ separate real-Play eyeball shell). `Step`/`FireOnce` drive the deterministic cor
 - `IAI.Auto.Enable <0|1>` — eyeball shell on/off (HUD + key polling). Default **OFF** → dormant.
 - `IAI.Auto.Run <0|1>` — start/stop the auto-tick firing loop (requires Enable; re-seeds + arms the first interval).
 - `IAI.Auto.Seed <int>` — set the run seed (re-initializes the stream now; default seed is time-based).
-- `IAI.Auto.Pool <id|all> <0|1>` — enable/disable a pool id (or all four) for firing.
+- `IAI.Auto.Pool <id|all> <0|1>` — enable/disable a pool id (or all of `GAutoPool`) for firing.
 - `IAI.Auto.Interval <minSec> <maxSec>` / `IAI.Auto.Hold <minSec> <maxSec>` — inter-fire interval / per-fire hold ranges.
 - `IAI.Auto.MaxConcurrent <n>` — cap on concurrent live fires (also naturally bounded by the enabled-id count).
 - `IAI.Auto.Persist <0|1>` — persist-until-manual (default OFF = auto-revert after the hold).
 - `IAI.Auto.Step <seconds>` — advance the scheduler by N seconds (deterministic core drive; the bridge gate timing knob).
 - `IAI.Auto.FireOnce` — force one fire attempt now (deterministic core drive).
 - `IAI.Auto.Status` — log enable/run state, seed, cadence, the enabled set, and the live fires (the state-gate readback).
-- `IAI.Auto.Bind <pool1|pool2|pool3|pool4|run|reseed> <KeyName>` — rebind a key (validated via `EKeys::GetKeyDetails`).
+- `IAI.Auto.Bind <pool1|…|pool9|run|reseed> <KeyName>` — rebind a key (validated via `EKeys::GetKeyDetails`).
 
 Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `AnomalyControlServer` module; only when
 `ANOMALY_CONTROL_SERVER=1`). Narrow the fired types via `IAI.Auto.Pool` first; the auto-injector's `Run` must be OFF:
@@ -616,11 +624,113 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
 | `missing_texture` | actor-scoped (per-component `SetMaterial`), no tick | `IAI.Apply missing_texture <sub>` | swap every renderable SM/SK component's material slots to the plugin-shipped **Lit gray/white UV-checker** (per-component override → object isolation; never mutates the shared mesh/material asset) | **re-find + guarded restore (m17, see below)** — never trusts the saved component ptr | **as-built (m8, revert hardened m17)** — the flat-magenta variant deferred at m8 shipped instead as its own id, `corrupted_texture` |
 | `corrupted_texture` | actor-scoped (per-component `SetMaterial`), no tick | `IAI.Apply corrupted_texture <sub>` | swap every renderable SM/SK component's material slots to the plugin-shipped **Lit solid-magenta, OPAQUE, two-sided** material `M_CorruptedTexture_Pink` (same per-component override → object isolation) | **the m17 contract, mirrored**: re-find live component → touch a slot only if it still holds OUR pink → restore / default-reset → sweep successors | **as-built (m29)** — distinct from `missing_texture`, which is CHECKERED |
 | `stuck_low_mip` | actor-scoped (per-TEXTURE streaming bias), no tick | `IAI.Apply stuck_low_mip <sub> [mip_levels]` | for every eligible streamable `UTexture2D` reached through the target's components (`UPrimitiveComponent::GetUsedTextures`), raise the texture's own public runtime `NumCinematicMipLevels` and call `UpdateCachedLODBias()`. That lowers the streamer's `MaxAllowedMips`, so **the streamer performs the stream-out itself and then holds it** - no RHI resource recreation, no blocking wait, no global cvar. The achieved bias is READ BACK from `GetCachedLODBias()` and corrected in a bounded loop, never computed and trusted. `mip_levels` default **-1** = hold as deep as the lever can reach, `max(NumNonStreamingLODs, StuckMipMinResidentMips)` — the engine floor is typically 7 resident mips = a 64 px top level, and the compiled guard of **4** binds only on a host whose floor is lower. ⛔ **The engine floor is a HARD limit no bias can cross** — `MaxAllowedMips` is clamped to `NumNonStreamingLODs` and then asserted (`StreamingTexture.cpp:229/233`, `check` at `:236`) — so on cooked content a 64 px top mip is the deepest blur available, whatever depth is requested. Eligibility excludes virtual textures (`NOT_APPLICABLE`), `NeverStream`, unlinked/unstreamable resources and the UI/lightmap/shadowmap/terrain/bokeh LOD groups. **AUTO-POOL SELECTION additionally gates PER TEXTURE on the VISIBLE set**: a texture sampled by more than `StuckMipMaxCoAffected` (compiled **0**) other currently-visible components is refused, so the target's exclusive textures are still held while its shared utility textures are left alone; and a target whose longest on-screen side is below `StuckMipMinTexelRatio` (compiled **8.0**, raised from 4.0 at 080-04) times the held mip's width is refused — as `too_small_for_ratio` when the depth came from the ratio rule and the engine floor is what binds, as `imperceptible` when an explicit `mip_levels` was simply too shallow. A targeted fire bypasses both selection gates. | restore the saved `NumCinematicMipLevels`, `UpdateCachedLODBias()`, and (belt) `StreamIn(baseline, bHighPrio)` through a `UStreamableRenderAsset*` base pointer - **never a `UTexture2D*`, whose `StreamOut`/`StreamIn` are `final` and unexported, so devirtualisation would break the modular editor link**. A texture whose `NumCinematicMipLevels` no longer equals what we wrote is LEFT TO THE GAME, never stomped. The restore is then VERIFIED by polling the engine's own resident count from `TickAlways` until it reaches the recorded baseline, and **the target actor's destruction reverts immediately** — bound through `AActor::OnEndPlay` (`Actor.h:2016`, broadcast `Actor.cpp:2652` from `Destroyed()` at `:2692`) with a weak-pointer poll as the garbage-collection backstop. That matters because the anomaly holds a texture ASSET, not the actor: without it the mip stays down after the object is gone and frames keep being labelled for something no longer in the scene. | **as-built (m52, 080-02 → 080-04)** - labelled via `EAnomalyActiveSource::AnomalyState` with `IsCurrentlyAnomalous()` = *the mip is measurably below baseline*, so **a frame where the hold has not engaged is NOT LABELLED**; the m44 ONSET property therefore holds by construction. Per-frame evidence ships as additive `stuck_mip.*` keys inside the anomaly entry only. ⚠ **NOT in `GAutoPoolDefaultEnabled`** — owner's call, deferred; the 080-04 retest read 15 manifested events of 16 applied fires on a 600-frame MainWorld leg. 🚨 **NAMED LIMITATION, MEASURED ON TWO FIXTURES (journal 080-04 §6): the perceptibility ratio is a SIZE test and cannot see texture CONTENT.** Lyra events at ratio 26.76–31.59 — three to four times the gate — still read `NO-TRACE` from the label-vs-pixel verifier, because a low-frequency paint or normal map is imperceptible at any achievable mip. The shipped `MaxCoAffected 0` happens to exclude that class; an in-engine measured change fraction is the only thing that would separate it — `m55` (merged 2026-09-26) now MEASURES it per frame in `change_evidence.jsonl`, with no verdict, and nothing it measures feeds selection or labels. |
+| `uv_corruption` | actor-scoped (per-slot material override backed by render-target copies of the slot's textures) | `IAI.Apply uv_corruption <sub> <tile\|scramble>` | every required texture of every slot (colour, data and normal alike) is redrawn, mip by mip from its own source mip, through `M_CorruptTex_UV` into a render target with the source's mip chain; each slot material gets a host MID with those texture parameters pointed at the targets (read back and checked). `tile`: `UvScale` = N, output mip m reads source mip min(m + log2 N, M − 1). `scramble`: K×K cells, output cell j reads source cell a⁻¹(j − b) mod K², (a, b) from `ScramblePair` | restore every committed slot, release MIDs and targets; the id stays exclusion-live until revert + 2 frames (`revert_settling`) | **as-built (m53 S1; delivery cut 085-02)** — see below |
+| `normal_corruption` | as `uv_corruption` | `IAI.Apply normal_corruption <sub> <invert\|green_flip>` | as `uv_corruption`, through `M_CorruptTex_Normal`, on the slot's **normal maps only** (a slot needs one: `no_normal_map` / `normal_unconnected`). `invert`: `NormalSignX` = `NormalSignY` = −1. `green_flip`: `NormalSignY` = −1 | as `uv_corruption` | **as-built (m53 S1; delivery cut 085-02)** — see below |
+
+### `uv_corruption` / `normal_corruption` — texture corruption as delivered (m53 delivery cut, 085-02)
+
+**Modes.** `EMode` (`TexCorruptCore.h`) carries `Tile`, `Scramble`, `Invert`, `GreenFlip` plus bench-only
+`Identity` / `IdentityRedraw` / `TileProbe`. The mode is `Args[1]` after the target; `GetAuthoredSpec` gives each id a
+required enum `mode` argument (`tile|scramble`, default `tile`; `invert|green_flip`, default `invert`). The name table
+`TexCorruptPure::ModeNameAt` also lists `drift` / `swap` (uv) and `flat` / `noise` (normal) as **not delivered**, so
+the E6 step refuses them by name. `ClassifyModeArg` (pure, case-insensitive) gives the sub-reason:
+`no_mode` (no argument), `unknown:<arg>`, `family:<arg>` (a name of the other family, checked before delivery, so a
+deferred name of the other family reads `family:`), `not_in_delivery:<mode>`, and `no_mode_enabled` for the
+auto-pool's reserved `!none` token (a typed `!none` outside the auto-pool is `unknown:!none`).
+
+**Knobs** (`TexCorruptState.cpp`; console > `DefaultGame.ini [AnomalyInjector]` > compiled; out of range REFUSED,
+never clamped; all echoed on one `texcorrupt: run-start knobs …` line from `ResetRunStats` at `StartRun`):
+`IAI.Anomaly.TexCorruptTileN` (`TexCorruptTileNDefault`, {2, 4, 8, 16}, compiled 8) ·
+`IAI.Anomaly.TexCorruptScrambleK` (`TexCorruptScrambleKDefault`, 2–64, compiled 8) ·
+`IAI.Anomaly.TexCorruptUvModes` / `IAI.Anomaly.TexCorruptNormalModes` (`TexCorruptUvModesDefault` /
+`TexCorruptNormalModesDefault`, `+`-joined or `none`, compiled `tile+scramble` / `invert+green_flip`; they drive
+the **auto-pool draw only**) · `IAI.Anomaly.TexCorruptMaxRtBytes` (`TexCorruptMaxRtBytesDefault`, 1 MiB–1 GiB,
+compiled 134,217,728 = 128 MiB, both ids together) · `IAI.Anomaly.TexCorruptMinTexturePx` (compiled 64) ·
+`IAI.Anomaly.TexCorruptMaxTextures` (compiled 8).
+
+**Scramble pair.** `DeriveScramble` → `TexCorruptPure::ScramblePair`: CRC-32 (`FCrc::MemCrc32`) over 12
+little-endian bytes {seed, per-family attempt ordinal, `0x53434D52`}; a = the ((H >> 16) mod φ(K²))-th integer in
+[1, K²) coprime to K², b = H mod K², and (1, 0) is bumped to (1, 1), so a scramble is never the identity. The ordinal (`TakeAttemptOrdinal`) is taken on **every** `Apply` call of the family, refused
+or not, and reset with the run stats. a, b, a⁻¹ and the hash are logged on DECIDE / APPLIED and carried per frame as
+`texcorrupt.scramble_*`.
+
+**Decision tree** (`EvaluateTree`, `TexCorruptTree.cpp`; no side effect when it refuses). Event steps E1–E7
+(`assets_unavailable`, `corruptor_not_ready`, `dxt5_normal_host`, `runtime_lod_bias` ×2, `mode_invalid` E6,
+`no_mesh`), then every slot of every candidate mesh component (`AnomalyLod::ResolveLodComponents`) through the
+per-slot and per-binding steps, then:
+- **V1** no slot qualifies → the earliest slot's reason (or `no_eligible_slot`);
+- **V1P (all-or-nothing, ND-1 strict)** `0 < qualified < slots` → `partial_footprint:<q>/<n>:<earliest non-qualifying
+  reason>` (`TexCorruptPure::JudgeFootprint`, `PickEarliestNonQualified`). `slot_empty` / `slot_translucent` are
+  **untouched** slots and do **not** qualify (`FSlot::IsQualified`), so the mask — whole components — never covers an
+  unchanged slot. There is no partial application;
+- **V2** the whole footprint's bytes against the cap → `over_budget:need_…_available_…_cap_…`.
+Then the apply transaction (steps 2–6: allocate, host MIDs, draw, read-back; a failure is rolled back and counted in
+`texcorrupt_rollback_<step>`) and the slot commit (step 7). `run_summary` always emits `texcorrupt_refused_<reason>`
+for every name in `AllFinalReasons()` (including `partial_footprint`), plus `texcorrupt_fires_applied`,
+`texcorrupt_rt_bytes_peak`, the slot / binding disposition maps and the restore counters. Game-thread cost rides the
+existing lines as `apply_ms` (APPLIED) and `revert_ms` (REVERT); a bench-only `TEXCORRUPT-COST si= gpu_ms= gt_ms=`
+line (capture side) reads the GPU frame time around applies.
+
+**Pool and the mode draw.** Both ids are in `GAutoPool` (keys 8 and 9, `pool8` / `pool9`) and **not** in
+`GAutoPoolDefaultEnabled`: they fire only when enabled (the owner decides the default after the office test).
+`TryFireOnce` draws through `TexCorruptPure::DrawAttempt<TStream>` (`TexCorruptPure.h`): id, target, hold, then, for
+an m53 id only, **exactly one** `GetFraction()` mode draw over `AnomalyTexCorrupt::GetAutoDrawModes(Id)` (the enabled
+set in delivered order; an empty set still draws once and passes `!none`). Every attempt logs one
+`Auto.Draw attempt= seed_before= id= eligible=<n>:<fp> excluded=<ids> target= candidates= hold= mode= seed_after=
+result=` line, so a seed replays ids, targets, holds and modes exactly. `IsAutoPoolSelection` tells `Apply` it came
+from the pool.
+
+**The m52 ⟂ m53 exclusion** (`Public/AnomalyExclusion.h`, pure: families, `EState` `fire_live | trail_open |
+restoring | revert_settling | restore_unresolved | closed | idle`, `M52State`, `M53State`, `Evaluate`). `stuck_low_mip`
+and the two m53 ids are never live at once:
+- **m52 live** = its fire is live, or — with the capture's **trail provider** registered (`SetTrailProvider` at
+  `StartRun`, cleared at `FinishRun` / `Deinitialize`; G127: the capture owns the trails) — any restore trail still
+  gating (live, reopened after detach, adopted or carried), or — with no provider — its game-thread Restoring set is
+  non-empty (`restoring`). A trail past `restore_unresolved` **admits** m53, counted
+  (`texcorrupt_admitted_after_unresolved`, log `Auto.AdmitUnresolved`).
+- **m53 live** = its fire is live, or `AnomalyTexCorrupt::IsRevertSettling(UWorld*)`: true while a delayed restore is
+  pending and until the event's `post_revert` ledger frame (R + 2) is reached; a rolled-back apply does not settle
+  (`TexCorruptPure::IsRevertSettlingAt`; the pure rule's own `RevertSettleFrames = 2`).
+- **Where it is checked** (`UAnomalyInjectorSubsystem::EvaluatePartnerExclusion` / `IsExcludedByPartner`): in
+  `TryFireOnce`'s eligible loop **before any draw** (an excluded id never becomes an attempt, so the one-draw contract
+  holds; an all-excluded pool logs `result=all_excluded` with `seed_after == seed_before`), in `TryFireSpecific` after
+  `IsIdLive` and before the hold draw, and as the **`ApplyAnomaly` backstop** beside `RefusedIds`, which refuses every
+  other path (console `IAI.Apply`, the control server's `inject`, the selector) with
+  `excluded_partner_live:<partner>:<state>`. Each refusal logs `Auto.Exclude candidate= partner= state= event=
+  attempt=` and increments `auto_excluded_<id>` (`FAnomalyExclusionStats`).
+- **Capture side:** `texcorrupt_m52_overlap_frames` counts captured frames carrying a `stuck_low_mip` entry (labelled
+  or transition) **and** a labelled m53 entry, with a `Capture(m53): M52-M53 OVERLAP` warning each; expected 0.
+- Separately, a slot whose texture `stuck_low_mip` holds or is restoring is refused `held_by_stuck_low_mip`.
+
+**Labels.** The id → active-source table lives in `Source/AnomalyCapture/Private/AnomalyActiveSource.h` (pure,
+`AnomalyActiveSource::Resolve` / `PolicyFor` / `IsLabelledMember`); both m53 ids are `FireWindow`, so `labelled` =
+`AnomalyLabelSync::IsAnnotationMember(FireWindow, …)` (active and the projected box on screen) and `injected_frames`
+is that set. No `transition` reason applies to them. `anomaly_subtype` is the mode (the `texcorrupt.mode` telemetry
+key). `observable` = mask pixels ≥ `ObservableMinPixels` and `texcorrupt.condition_held`. Per-frame `texcorrupt.*`
+keys ride the anomaly entry in `labels.jsonl`.
+
+**Office census** — `IAI.TexCorrupt.Census [all]` (`RunOfficeCensus`, `TexCorruptTree.cpp`): a product command in
+every configuration, no bench flag, read-only. It runs `EvaluateTree` with `bCensus` (no allocation, draw or slot
+change; E6 skipped, so counts do not depend on mode) over `GetVisibleRenderableActors` (name-sorted) or, with `all`,
+every actor with a renderable component, and prints four `Display` lines, counts only (no actor, component, asset,
+path, map or frame, and final reason names without sub-reasons, which can name textures):
+`IAI-TEXCORRUPT-CENSUS v1 scope=<view|all> candidates= cap_bytes= uv_modes= normal_modes=`, one
+`… id=<id> eligible= refused= reasons=<reason>:<n>,…|-` line per id, and `… end`. The bench census with per-actor
+lines stays `IAI.Bench.TexCorruptCensus`.
+
+**Bench-only levers** (`TexCorruptBench.cpp`, every one `IAI.Bench.TexCorrupt*`, compiled out of Shipping and masked
+without the bench gate): the S1 set plus `CommitDelay <n>` (the picture commits n frames after APPLIED, label
+unchanged) and `RestoreDelay <n>` (restore n frames after REVERT) — B-M53's can-fail arms.
+
+**Deferred to the next delivery:** the `drift`, `swap`, `flat` and `noise` modes (and the drift snapshot path),
+cancel-before-focus, level-change / recreated-component handling, per-slot telemetry beyond the footprint.
 
 ### Bench twins `null_effect` / `solid_swap` — bench-only, never in any pool (m55)
 
-Registered in non-Shipping builds only (`#if !UE_BUILD_SHIPPING`, `AnomalyInjectorSubsystem.cpp`), so a
-Development package lists **10 shipping + 2 bench** ids and Shipping lists the 10. Both are
+Registered only when the bench gate is open (`#if !UE_BUILD_SHIPPING` and `AnomalyBenchGate::IsEnabled()`,
+`AnomalyInjectorSubsystem.cpp`; 084-10), so a Development package launched without `-IAIBench` /
+`-IAIBenchFixture` lists the **12 shipping** ids, one launched with a bench flag lists **12 + 2**, and Shipping
+lists the 12. Both are
 `FAnomaly_ChangeCase` (object scope, one `delay=<frames>` argument): `null_effect` changes nothing,
 `solid_swap` swaps the target to the shipped Lit magenta after `delay` labelled frames and reverts on the
 `m17` contract. `Apply` **refuses** unless `IAI.Bench.ChangeEvidenceCases 1`, `-IAIBenchFixture` and a
@@ -893,7 +1003,12 @@ future non-object track.
   full run reproducibility with fixed visible sets is a capture/replay concern, not v1.
 - **Coexistence (R-COEXIST).** Manual selector/console injection of a pool id during an auto run is **unsupported** (it
   clobbers via the registry's one-instance-per-id; the auto-injector tracks only its own fires) — detected cases
-  (selector UI on; viewport scoping on) are **warned, not blocked**.
+  (selector UI on; viewport scoping on) are **warned, not blocked**. ⚖ **One pairing IS blocked on every path:**
+  `stuck_low_mip` vs `uv_corruption` / `normal_corruption` (the m52 ⟂ m53 exclusion — dropped from `Eligible` before
+  the id draw here, refused in `TryFireSpecific`, and refused by the `ApplyAnomaly` backstop for every other route;
+  see the m53 entry under the anomaly catalog).
+- **m53 mode draw.** For `uv_corruption` / `normal_corruption` the draw protocol adds exactly one mode draw after the
+  hold (`TexCorruptPure::DrawAttempt`); every attempt logs one `Auto.Draw …` line (see the m53 entry).
 - **Defaults.** Keys `1`/`2`/`3`/`4` toggle the four types, `J` start/stop, `K` reseed (distinct from the selector's
   Tab/C/G/H, rebindable via `IAI.Auto.Bind`); interval [4,9]s, hold [3,6]s, MaxConcurrent 4 (tuned for clear
   eyeballing — tighten later for dataset density). All console-settable.
@@ -1495,6 +1610,8 @@ across all seven anomalies — the M1 `IAnomaly` lock held through M3, including
   injection-point decision: global PP volume vs camera `PostProcessSettings` vs PP material).
 - **high/low-speed** → substantially covered by `time_dilation`; a `GlobalAnimRateScale` variant can be
   added later only if the label taxonomy needs the distinction.
+- **m53 `drift` / `swap` (uv) and `flat` / `noise` (normal)** → the next delivery, with the drift snapshot path. The
+  delivered build names them in its mode table and refuses them `mode_invalid:not_in_delivery:<mode>`.
 
 ## Limitations
 - **Cross-anomaly target overlap** = last-writer-wins on the single `bHidden` flag (gotcha G12). Fine
@@ -1505,7 +1622,15 @@ across all seven anomalies — the M1 `IAnomaly` lock held through M3, including
   for *deliberate* compound same-actor anomalies.
 - **Manual + auto injection together is unsupported (m6).** Manual selector/console injection of a pool id
   while the auto-injector is running clobbers via the registry's one-instance-per-id (the auto-injector can
-  only track its own fires). Detected and warned, not blocked (R-COEXIST).
+  only track its own fires). Detected and warned, not blocked (R-COEXIST). The m52 ⟂ m53 pairing is the exception:
+  the `ApplyAnomaly` backstop refuses an overlapping apply from any path. Any manual fire during a capture is still
+  outside the capture's burst accounting.
+- **m52 ⟂ m53 exclusion, two named limits.** With no capture (free-running `IAI.Auto.Run`) the m52 side ends on the
+  game-thread Restoring set, which can empty before the picture is sharp; and a trail past `restore_unresolved`
+  admits m53 while the blur may persist (counted in `texcorrupt_admitted_after_unresolved`).
+- **m53 normal modes (and uv on near-uniform textures) can label an invisible change.** `observable` measures drawn
+  pixels and install state, not appearance; the client readme §8.8 gives the `change_evidence.jsonl` filter
+  (`ref_gt8_max / chg_n`). No in-product appearance gate exists this delivery.
 - **Auto-injection reproducibility is over the bridge / Step granularity, not real Play.** The seed
   reproduces the choices given the same visible-set sequence; full run reproducibility with fixed visible
   sets is a capture/replay-pipeline concern (G30).

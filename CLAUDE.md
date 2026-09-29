@@ -11,6 +11,33 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧩 **085-02, 2026-09-29 — THE m53 DELIVERY CUT (DC) SOURCE IS BUILT ON THE MERGED BRANCH; THE CODEX SOURCE REVIEW SAYS
+> NEEDS-DECISION (3 high, 2 medium) AND WAS NOT ACTED ON. NOTHING WAS LAUNCHED, COOKED OR STAGED.** 🧩
+> **Cold start: `docs/sessions/2026-09-29-085-02-m53-dc-source.md`, then `docs/predictions/2026-09-29-m53-dc.md` (the plan),
+> `_reviews\085-01-chat-ruling-dc-plan.md`, and `_reviews\085-02-codex-m53-dc-source-review.md`.**
+> - **Merge `7cda2f1`** (`fix/m52-label-timing` `02d15a4` → m53 `0209599`, a merge not a rebase, pushed): 8 files, all
+>   keep-both; the two `FAnomaly_StuckLowMip` destructors are ONE (registry removal, then `StopHoldMonitor`), checked by
+>   `tools/stuck_mip_destructor_check.py` (+ selftest). Its own gate: both targets 0 warnings; m52 282/0, camera 154/0,
+>   texcorrupt 172/0 (mutant fails), `--label-rule` 24; the lever audit read FAIL R1 × 10 on m53 S1's own strings (G378).
+> - **DC `b1cfc8a`:** uv `tile`/`scramble`, normal `invert`/`green_flip` (others refuse `mode_invalid:not_in_delivery` /
+>   `family` / `unknown` / `no_mode` / `no_mode_enabled`); scramble CRC over (seed, per-id ordinal) with (a, b) logged;
+>   all-or-nothing step V1P (`partial_footprint`); the m52 ⟂ m53 exclusion (pure `AnomalyExclusion.h`, trail provider from
+>   the capture, `ApplyAnomaly` backstop, `Auto.Exclude`, `auto_excluded_*`, `texcorrupt_m52_overlap_frames`); both ids in
+>   the pool (keys 8/9, OFF by default) with `DrawAttempt` (one mode draw per m53 attempt); `IAI.TexCorrupt.Census [all]`;
+>   `apply_ms` / `revert_ms` / bench `TEXCORRUPT-COST`; `IAI.Bench.TexCorruptCommitDelay` / `RestoreDelay`.
+> - **Tests:** pure 251/0, draw KAT 286/0, exclusion 102/0 (the "m52 live until BeginRevert" mutant fails 25), active-source
+>   47/0 — every mutant fails. **G-LEVER-AUDIT PASS** (46 names) + selftest 11 OK; binary 46/46, echo present.
+> - **Build:** exe **`27055E55`**, 0 warnings both targets, archived `_binary_baselines\m53dc-27055E55\`. Not staged.
+> - 🚨 **Codex (collected, not acted on):** F1 closed trail releases while m52's TAA off-tail can still emit (EXCL-A, AA on);
+>   F2 a late m52 reopen after m53 admission (EXCL-A); F3 an invalid raw re-Apply drops the record but not the effect;
+>   F4 the census shares the enumeration that can print names and bump stats (G-CENSUS); F5 a delayed restore can outlive
+>   `FinishRun`. ⚠ **Also for chat:** the dashboard's Targeted capture sends no mode, so a targeted m53 capture from the
+>   dashboard refuses `no_mode` on every burst.
+> - 🎯 **NEXT: chat rules on F1–F5 and the dashboard gap; then 085-03 (fixture cook, B-M53 harness, dry run).** ⛔ No tag,
+>   no merge to master; `m51`, `master` and `fix/m52-label-timing` untouched.
+>
+> ---
+>
 > 🧹 **084-10, 2026-09-29 — RELEASE HYGIENE ON `fix/m52-label-timing` (the m52-only fallback ships clean; m53 inherits it at
 > 085-02): ONE BENCH GATE for the twins and every `IAI.Bench.*` lever, G-LEVER-AUDIT, and the packaging items as scripts.
 > Source `92c3500`, Game exe `667FD4EF` + Editor DLLs archived, NOT cooked, NOT staged, NOT swapped in, nothing launched,

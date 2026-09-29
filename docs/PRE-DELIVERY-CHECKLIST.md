@@ -347,7 +347,8 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       dataset, and `CensusDropEntry` in particular deliberately hides candidates from the census.*
       *(082-05, m53 S1)* The m53 levers are all `IAI.Bench.TexCorrupt*`: `NoApply`, `WrongCopy`, `Identity`,
       `IdentityRedraw`, `TileProbe`, `ForceMissingAsset`, `FailStep`, `ForeignReplace`, `CollateralDetail`,
-      `AssetSlotMid`. None may appear in a delivered log.
+      `AssetSlotMid`, `Census`, and (085-02, the delivery cut) `CommitDelay`, `RestoreDelay`. None may appear in a
+      delivered log. ⚠ `IAI.TexCorrupt.Census` (no `Bench`) is the **product** census and is expected to work.
 - [ ] ⛔ **No m53 bench fixture ships.** `CB_TexCorruptLevel` and everything under
       `/Game/CaptureBenchTexCorrupt/` belong to the StackOBot bench project, never to the plugin:
       `git -C <plugin> ls-files Content` lists only the plugin's shipped materials and textures, and no plugin
@@ -357,6 +358,60 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       cooked map index contains no `CB_TexCorruptLevel` (`verify_cooked_maps.ps1`, or the cook log's map list),
       and `IAI.Bench.TexCorruptAssetSlotMid` was never typed (see the bench-lever box).
 
+### 🆕 `m53` delivery cut (085-02) — `uv_corruption` / `normal_corruption`: six boxes
+
+- [ ] **The office census runs on the delivery build and prints COUNTS ONLY.** Launch the delivered build
+      **without** `-IAIBench` / `-IAIBenchFixture`, reach a gameplay view, and type `IAI.TexCorrupt.Census`, then
+      `IAI.TexCorrupt.Census all`. Each must print exactly four `IAI-TEXCORRUPT-CENSUS v1` lines. Check them from the
+      log; any line off the grammar is a **STOP**, because it can carry a name:
+      ```powershell
+      $log = "<staged>\<Project>\Saved\Logs\<Project>.log"
+      $l = @(Select-String -Path $log -Pattern 'IAI-TEXCORRUPT-CENSUS v1 .*$' | ForEach-Object { $_.Matches[0].Value })
+      $m = '[a-z_]+(\+[a-z_]+)*|none'
+      $ok = "^IAI-TEXCORRUPT-CENSUS v1 (scope=(view|all) candidates=\d+ cap_bytes=\d+ uv_modes=($m) normal_modes=($m)|id=(uv_corruption|normal_corruption) eligible=\d+ refused=\d+ reasons=(-|[a-z0-9_]+:\d+(,[a-z0-9_]+:\d+)*)|end)$"
+      $bad = @($l | Where-Object { $_ -cnotmatch $ok })
+      if ($l.Count -eq 0 -or ($l.Count % 4) -ne 0 -or $bad.Count -gt 0) { Write-Host "STOP: $($l.Count) census line(s), $($bad.Count) off-grammar" -Fore Red; $bad; exit 1 }
+      Write-Host "PASS: $($l.Count / 4) census run(s), counts only" -Fore Green
+      ```
+      ⚠ **`-cnotmatch`, not `-notmatch`:** PowerShell matching is case-insensitive by default, and a
+      case-insensitive grammar would pass a capitalised object name such as `SM_Floor:1`. Every `reasons=` name must
+      also be one of the reasons in the client readme's §8.8 table.
+      Also read the first line: `cap_bytes=134217728`, `uv_modes=tile+scramble`, `normal_modes=invert+green_flip`,
+      unless a deliberate ini change is recorded with this delivery. *A command that is not recognised is a STOP too:
+      the census is a product command in every configuration and needs no bench flag.* Only the numbers leave the
+      office machine.
+- [ ] **`verify_capture.py --label-rule` passes on a delivered session.** Prove it can fail first, then read a
+      session captured on the delivery build (delivery mode writes `labels.jsonl` by default,
+      `IAI.Capture.DeliveryLabels`):
+      ```
+      python tools\verify_capture.py --label-rule --selftest
+      python tools\verify_capture.py --dir <session> --label-rule
+      ```
+      The selftest must end `LABEL-RULE SELFTEST: OK`; the session must exit **0** with
+      `LABEL-RULE: NO MISMATCH under the NEW rule`. Exit 1 is a STOP; exit 3 is no verdict (no `labels.jsonl`, or a
+      session mixing rules) — fix and re-read, never tick. *For `uv_corruption` / `normal_corruption` this is the check
+      that `labelled: true` sits exactly on `injected_frames` and that no m53 entry carries a `transition` reason.*
+- [ ] **The m52 / m53 overlap counter reads `0`** on a delivered session captured in Auto-pool with
+      `stuck_low_mip` **and** at least one of `uv_corruption` / `normal_corruption` ticked:
+      `run_summary.json` → `texcorrupt_m52_overlap_frames` = **0**, and the log has no `Capture(m53): M52-M53
+      OVERLAP` line. Record `auto_excluded_uv_corruption`, `auto_excluded_normal_corruption`,
+      `auto_excluded_stuck_low_mip` (all 0 = the exclusion was **not exercised** on that session — say so, it is not a
+      pass of the exclusion) and `texcorrupt_admitted_after_unresolved` (non-zero is not a failure; it names frames
+      where a blur may persist).
+- [ ] **The G-LEVER-AUDIT box above was run on THIS delivery ref** — the merged m52 + m53 build, not the m52-only
+      branch — and ended `G-LEVER-AUDIT VERDICT PASS`. *It is the same box, not a second audit; it is repeated here
+      because the delivery cut added `IAI.Bench.TexCorruptCommitDelay` / `RestoreDelay`.*
+- [ ] **The comment strip ran before the merge to `master`.** `python D:\IntrusiveAnomalies\_strip_comments.py
+      <plugin repo root>` on the delivery ref reports `(no comments)` for every file. If it strips anything, commit the
+      strip (reading `git diff --stat` first), and build and cook the delivery from **that** commit — the delivered
+      exe must come from the stripped source.
+- [ ] **`uv_corruption` / `normal_corruption` are default-ON only on the owner's office-test ruling.** The startup
+      `AutoInjector subsystem initialized … Default pool: <ids>` line lists **neither** unless the owner ruled
+      default-on after the office test (census, labels, looks); if he did, `GAutoPoolDefaultEnabled` changed in
+      source, the ruling is in `CLAUDE.md`'s status block, and the client readme's §4 pool table and §8.8 "off by
+      default" line change in the same delivery. **And the client readme's §8.8 carries no `(rate: to be measured)`
+      placeholder** — the measured per-mode rate replaces it before the bundle ships. Its note that the dashboard's
+      Targeted capture sends no m53 mode must still be true of the dashboard being shipped.
 
 ### 🆕 `m43` — THE TARGET ID MASK: three boxes for this cook
 

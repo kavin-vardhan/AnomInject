@@ -334,7 +334,7 @@ Anomalies are applied to objects that are currently visible on screen. These two
 
 The list of anomaly types Auto-pool mode draws from — check the ones you want in the mix. **now firing** below it shows which anomalies are live right now, on which objects, and for how much longer.
 
-**Seven anomaly types are available. Four are enabled by default:**
+**Nine anomaly types are available. Four are enabled by default:**
 
 | Anomaly | Default | |
 | --- | --- | --- |
@@ -345,8 +345,12 @@ The list of anomaly types Auto-pool mode draws from — check the ones you want 
 | `missing_object` | **off** | an object is hidden for the whole burst, with no reappearance inside it |
 | `camera_clipping` | **off** | the camera's near-clip plane is pushed out, slicing away close geometry |
 | `stuck_low_mip` | **off** | an object's textures stay stuck at a low-resolution level, so it looks blurry while everything around it stays sharp |
+| `uv_corruption` | **off** | an object's textures are repeated many times across its surface, or cut into cells and shuffled (§8.8) |
+| `normal_corruption` | **off** | an object's normal map is inverted or its green channel flipped, so its surface detail is lit from the wrong side (§8.8) |
 
-The three unticked ones are **available, not disabled** — tick any of them whenever you want it in the mix.
+The five unticked ones are **available, not disabled** — tick any of them whenever you want it in the mix.
+
+**`uv_corruption` and `normal_corruption` are new in this delivery and off by default.** Read §8.8 before relying on them: they decline any object they cannot corrupt completely, a normal-map change can be nearly invisible under flat lighting, and a **Targeted** capture of either needs the console, because the dashboard does not send their `mode` yet.
 
 **`camera_clipping` is available but off by default**, because in Auto-pool mode it is held for the **whole session** rather than for a few frames — so on a first-person game the player's hands and weapon are sliced away in *every frame* of that capture. That is correct behaviour and it is what the anomaly looks like, but it is disruptive as a default. **Tick it whenever you want it** — see the explainer video and the note in section 7 first.
 
@@ -372,6 +376,7 @@ Commands you may actually need:
 * **`IAI.Capture.Fps 30`** — sets the capture rate in frames per second (default 30, allowed 1–240). See section 6 for how to choose the number. Can't be changed while a capture is running — stop first.
 * **`IAI.Capture.Status`** — shows the current capture settings and whether a run is active.
 * **`IAI.RevertAll`** — removes every active anomaly (same as the dashboard's Revert all button).
+* **`IAI.TexCorrupt.Census`** (or **`IAI.TexCorrupt.Census all`**) — counts how many objects the two texture-corruption anomalies could use right now, and why the others are declined. Read-only; prints counts, no names (§8.8).
 * **`stat FPS`** — shows the game's frames per second in the corner of the screen. Type it again to hide it. (The dashboard's top bar shows the same number.)
 
 Console equivalents of the dashboard sliders, in case you ever need them: `IAI.SetPollRadius 1800` (poll radius — note this one is in **centimeters**, so 1800 = 18 m; 0 = off) and `IAI.SetMinScreenCoverage 6` (coverage percentage; 0 = off).
@@ -472,8 +477,8 @@ first.
 
 | Field | Type | Since | Meaning |
 | --- | --- | --- | --- |
-| `anomaly_type` | string | v1 | `blink`, `missing_texture`, `corrupted_texture`, `lod_popping`, `missing_object`, `camera_clipping`, `stuck_low_mip`. ⚠ The blinking anomaly is written **`blink`** here, while `labels.jsonl` calls it `blinking` (its `id`); every other anomaly uses the same name in both files. |
-| `anomaly_subtype` | string | v1 | A finer label for the same event, e.g. `disappear_reappear` for `blinking`. |
+| `anomaly_type` | string | v1 | `blink`, `missing_texture`, `corrupted_texture`, `lod_popping`, `missing_object`, `camera_clipping`, `stuck_low_mip`, `uv_corruption`, `normal_corruption`. ⚠ The blinking anomaly is written **`blink`** here, while `labels.jsonl` calls it `blinking` (its `id`); every other anomaly uses the same name in both files. |
+| `anomaly_subtype` | string | v1 | A finer label for the same event, e.g. `disappear_reappear` for `blinking`. For `uv_corruption` and `normal_corruption` it is the mode: `tile`, `scramble`, `invert` or `green_flip` (§8.8). |
 | **`affected_frames`** | object | v1, **meaning changed in v2** | **The frames on which the anomaly is judged to be VISIBLE.** See §8.3. |
 | **`injected_frames`** | object | **v2** | **The frames on which the anomaly was APPLIED**, whether or not it could be seen. Same shape as `affected_frames`. This is exactly what `affected_frames` meant in v1. |
 | **`bbox_source`** | string | **v2** | `"drawn"` = the boxes for this event come from measured drawn pixels. `"projected"` = they come from the object's projected bounds only. |
@@ -992,7 +997,7 @@ Five fields answer five different questions about one frame. Keep them apart:
 | --- | --- | --- | --- | --- | --- | --- |
 | `blinking` | every burst frame | the frames on which the object is **hidden**, as the plugin's own hidden state stands after every game system has ticked for that frame | the burst's visible phases | the object's projected box, also on hidden frames (where it would be) | labelled frames (the would-be silhouette) | `hide_return` |
 | `missing_object` | every burst frame | the hidden frames — normally the whole burst | none expected | as `blinking` | labelled frames | `hide_return` (after the event) |
-| `missing_texture`, `corrupted_texture` | every burst frame | burst frames on which the object's projected box is on screen | frames with the box off screen | projected box | labelled frames | none |
+| `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption` | every burst frame | burst frames on which the object's projected box is on screen | frames with the box off screen | projected box | labelled frames | none |
 | `lod_popping` | every burst frame | the frames on which the forced LOD is applied | the un-forced phases between pops | projected box | labelled frames | none |
 | `camera_clipping` | only the frames on which it is positive (§8.6b) — a whole-session anomaly whose entry appears only then | the same frames | none | the whole frame | never (`null` / `-1`) | `camera_clipping_unconfirmed` |
 | `stuck_low_mip` | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; under temporal anti-aliasing the 8 frames after the last held frame carry **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
@@ -1054,6 +1059,173 @@ Nothing is missing and nothing is duplicated — it is purely an ordering proper
 - objects whose triangles **cannot** be traced — the player's own **skinned** meshes (hands, weapon, body), objects **without collision** (many props, foliage), objects with simplified collision only — still label the frame on their bounding box, and the frame carries `transition_reason: ["camera_clipping_unconfirmed"]` and `camera_clipping.unconfirmed: true` so you can filter it.
 
 Every frame of a `camera_clipping` session also carries diagnostic keys in `labels.jsonl`: `camera_clipping.slab` (equals the label), `camera_clipping.bounds_candidate` (the bounding-box first pass), `camera_clipping.clipped_ray_fraction`, `camera_clipping.confirm_traces` / `_hits` / `_misses` / `_unresolved`, `camera_clipping.slab_primitives`, `camera_clipping.eye_inside_box`, and `camera_clipping.sphere_proxy`. `camera_clipping.sphere_proxy` is the oldest labelling rule, kept only for comparison — **do not train on it**. The triangle-confirmation rule is new in this build and has not yet been checked frame by frame against the pictures.
+
+### 8.8 Texture corruption — `uv_corruption` and `normal_corruption` (new in this delivery)
+
+Two anomalies change how an object's own textures are read, without changing its shape. Each has **modes**;
+this delivery ships two modes per anomaly.
+
+| Anomaly | Mode | What it looks like |
+| --- | --- | --- |
+| `uv_corruption` | `tile` | The texture is repeated N×N times across the same surface (its texture coordinates are multiplied by N; N = 8 by default), so the pattern looks shrunk and repeated. |
+| `uv_corruption` | `scramble` | The texture is cut into a K×K grid of cells (K = 8 by default) and the cells are shuffled: the cell at position *i* moves to position *a·i + b* (mod K²). *a* and *b* come from the capture's seed and a per-anomaly attempt counter, so the same seed gives the same shuffle. Each event's log line and its `labels.jsonl` entries record them. The no-shuffle pair (*a* = 1, *b* = 0) is never used. |
+| `normal_corruption` | `invert` | The normal map's X and Y are both negated: bumps read as dents and grooves as ridges, so the lighting on surface detail comes from the wrong side. |
+| `normal_corruption` | `green_flip` | Only the normal map's Y (the green channel) is negated — the classic DirectX/OpenGL normal-map mismatch: detail looks lit from the wrong side along one direction. |
+
+`uv_corruption` applies the same change to every texture of the object's material (colour, normal, roughness and so
+on; a 1×1 single-colour texture is left as it is), so they stay aligned with each other. `normal_corruption` changes the normal maps only.
+
+**Not in this delivery:** the modes `drift` and `swap` (`uv_corruption`) and `flat` and `noise`
+(`normal_corruption`) are deferred to the next delivery. They are recognised by name and refused
+(`mode_invalid:not_in_delivery:<mode>`), never replaced by another mode.
+
+**Choosing the mode.**
+
+- **Auto-pool** picks the mode at random from that anomaly's enabled list — one random draw per attempt, from the
+  capture's seed, so a seed reproduces the modes as well. Both modes are enabled by default. To narrow the list, use
+  `IAI.Anomaly.TexCorruptUvModes tile` (or `scramble`, or `tile+scramble`) and `IAI.Anomaly.TexCorruptNormalModes
+  invert` (or `green_flip`, or `invert+green_flip`). `none` empties a list; every Auto-pool attempt on that anomaly
+  is then refused `mode_invalid:no_mode_enabled`. To leave an anomaly out of the mix, untick it in the Capture pool
+  panel instead.
+- **Everywhere else** the mode is the argument after the target: `IAI.Apply uv_corruption <object> tile`,
+  `IAI.Apply normal_corruption <object> green_flip`. Mode names are not case-sensitive. The anomaly list the game
+  sends the dashboard declares a required `mode` argument (defaults `tile` / `invert`).
+- ⚠ **The dashboard's Targeted capture does not send a mode in this delivery.** A Targeted `uv_corruption` or
+  `normal_corruption` capture started from the dashboard is therefore refused `mode_invalid:no_mode` on every burst
+  and records no events. Start a targeted capture of these two from the console instead, with the mode after the
+  object's name:
+
+  ```
+  IAI.Capture.Start <captures folder> png "" "" uv_corruption <object name> tile
+  ```
+
+  Use your captures folder (the one you gave `Setup.bat`; in quotes if it contains a space) and the object name as
+  the dashboard's target list shows it. The two `""` keep the automatic seed and capture until you press Stop (or type
+  `IAI.Capture.Stop`). Auto-pool captures from the dashboard
+  are not affected.
+
+**Settings.** Console first, then `DefaultGame.ini` `[AnomalyInjector]`, then the built-in default. Every capture
+prints the values in effect at its start. A value outside the allowed range is refused, never clamped, and
+`default` returns a command to the ini or built-in value.
+
+| Console command | ini key | Default | Allowed | What it sets |
+| --- | --- | --- | --- | --- |
+| `IAI.Anomaly.TexCorruptTileN` | `TexCorruptTileNDefault` | 8 | 2, 4, 8, 16 | `tile`'s N |
+| `IAI.Anomaly.TexCorruptScrambleK` | `TexCorruptScrambleKDefault` | 8 | 2–64 | `scramble`'s K |
+| `IAI.Anomaly.TexCorruptUvModes` | `TexCorruptUvModesDefault` | `tile+scramble` | `+`-joined modes, or `none` | the modes Auto-pool may draw for `uv_corruption` |
+| `IAI.Anomaly.TexCorruptNormalModes` | `TexCorruptNormalModesDefault` | `invert+green_flip` | `+`-joined modes, or `none` | the modes Auto-pool may draw for `normal_corruption` |
+| `IAI.Anomaly.TexCorruptMaxRtBytes` | `TexCorruptMaxRtBytesDefault` | 134217728 (128 MiB) | 1 MiB – 1 GiB | the memory cap for corrupted texture copies, both anomalies together |
+| `IAI.Anomaly.TexCorruptMinTexturePx` | `TexCorruptMinTexturePxDefault` | 64 | 1–16384 | a slot needs at least one texture at least this many pixels on both sides |
+| `IAI.Anomaly.TexCorruptMaxTextures` | `TexCorruptMaxTexturesDefault` | 8 | 1–64 | the most textures one slot may need |
+
+The two mode lists drive the Auto-pool draw only; a mode named explicitly may be any delivered mode of that anomaly.
+
+**All or nothing.** An event applies only if **every material slot of every mesh of the target qualifies**. An
+empty slot and a translucent slot do not qualify. If only some slots qualify, the event is refused
+`partial_footprint:<qualified>/<slots>:<reason>` — for example `partial_footprint:12/30:not_fully_resident` means
+12 of 30 slots qualified and the first slot that did not was refused `not_fully_resident` — and nothing is touched:
+no slot is changed and no memory is taken. **There is never a partial application**, so the label's box and mask
+never include an unchanged part of the object. If no slot qualifies, the event is refused with the first slot's own
+reason instead.
+
+*Example from our large test level:* its floor object has 30 material slots. In an earlier measurement, 12 of them
+(21 on another run) qualified at the moment of the decision, so under this rule it is refused `partial_footprint`.
+When all 30 qualify it needs 219,541,488 bytes of texture copies, more than the 128 MiB cap, so it is refused
+`over_budget`.
+
+**Refusals.** A refused event records no fire, changes nothing and gets no label. The game log names each refusal
+in full (`uv_corruption: REFUSED partial_footprint:12/30:… (step …)`). `run_summary.json` counts refusals by reason
+name as `texcorrupt_refused_<reason>`; each key is present with 0 when that reason did not happen, except
+`slot_empty` and `slot_translucent`, which appear only when they occur. In the order they are checked:
+
+| Reason | Meaning |
+| --- | --- |
+| `assets_unavailable` | the plugin's own corruption materials are missing from the build — a packaging fault; every event is refused |
+| `corruptor_not_ready` | those materials' shaders are not compiled yet (early in a session) |
+| `dxt5_normal_host` | `normal_corruption` only: the project stores normal maps in the DXT5 layout, which this version does not handle |
+| `runtime_lod_bias` | a texture mip bias is active (globally or on one of the target's textures), so the texture on screen is not the full texture |
+| `mode_invalid:<detail>` | the mode: `no_mode` (none given), `unknown:<text>`, `family:<mode>` (a mode of the other anomaly, including a deferred one), `not_in_delivery:<mode>` (a deferred mode of this anomaly), `no_mode_enabled` (Auto-pool with an empty mode list) |
+| `no_mesh` | no static or skeletal mesh matched the target |
+| a per-slot reason | why a slot did not qualify: `slot_empty`, `slot_translucent`, `host_mid` (the game already drives that slot through its own runtime material instance), `nanite_override`, `shader_map_unavailable`, `shader_map_incomplete`, `default_material_path`, `no_textures`, `no_normal_map` / `normal_unconnected` (`normal_corruption`), a texture reason (`virtual_texture`, `unsupported_type`, `excluded_group`, `texture_not_parameter`, `unsupported_encoding`, `mip_chain_shape`, `held_by_stuck_low_mip`, `resource_not_ready`, `streaming_pending`, `not_fully_resident`), `below_size_policy`, `map_set_over_cap`. It is the event's reason when no slot qualifies, and the `<reason>` of `partial_footprint` when some do |
+| `no_eligible_slot` | the target has no slot to judge |
+| `partial_footprint` | some but not all slots qualify (above) |
+| `over_budget` | every slot qualifies, but the texture copies would exceed the memory cap (128 MiB by default, both anomalies together). Never downsampled to fit |
+| `rt_alloc_failed`, `draw_precondition_failed`, `param_readback_mismatch` | a failure while applying. Everything already taken is released and nothing is left changed (counted in `texcorrupt_rollback_*`) |
+
+**Labels.** Both are labelled like `missing_texture` and `corrupted_texture` (§8.7): `anomaly_present` on every frame
+from apply to revert, and `labelled` (in `injected_frames`) on those frames where the object's projected box is on
+screen. `anomaly_type` is `uv_corruption` / `normal_corruption` and `anomaly_subtype` is the mode. They never carry
+a `transition` flag. The target mask covers the whole corrupted object — every slot of its meshes is corrupted.
+`observable` and `target_pixels` say whether the object drew pixels on that frame with the corrupted material in
+place (`texcorrupt.condition_held`); they do not say how much its appearance changed (see the next paragraph). Each
+`labels.jsonl` entry also carries `texcorrupt.*` keys: `texcorrupt.mode`, `texcorrupt.slots_corrupted` /
+`texcorrupt.slots_total`, `texcorrupt.condition_held`, and `texcorrupt.tile` for `tile` or `texcorrupt.scramble_cells`
+/ `_a` / `_b` for `scramble`. `run_summary.json` adds `texcorrupt_fires_applied` and `texcorrupt_rt_bytes_peak` (the
+most memory the copies used at once).
+
+⚠ **When the picture barely changes — read this before training on these two.** An inverted or green-flipped
+normal map changes the shading only where light falls across the surface at an angle. Under flat, head-on or back
+lighting the picture barely changes, yet the frames are labelled: a false positive. `tile` and `scramble` on a nearly
+uniform texture (a flat colour, a faint noise) behave the same way. `observable` does not catch this. Measured rate
+on realistic content, per mode: **(rate: to be measured)**.
+**To filter such events,** use `change_evidence.jsonl` (§9). For each `uv_corruption` / `normal_corruption` event,
+divide its event line's `ref_gt8_max` by `chg_n` (the object's pixel count) from the same event's pair lines. That is
+the share of the object that changed noticeably against the frame before the event began. Drop events where it is
+small; the threshold is your choice. This works only where change evidence was measured (default capture settings,
+§9.1); an event whose `ref_gt8_max` is `-1` has no reading.
+
+**After an event ends — a shadow difference that is not a missed label.** On our large test level, the frames just
+after one of these events can differ from a run in which the event never happened, in a small shadowed area, while
+those frames are correctly labelled clean. Every corrupted slot is back on its original material, and
+`corrupted_texture` (a plain material swap) and a render refresh that changes no material leave the same difference,
+so it is not specific to these two anomalies. The cause is not established (the renderer's shadow cache is a
+candidate). If you compare frames after an event with an untouched run, expect this; it does not mean the event
+lingered.
+
+**Never at the same time as `stuck_low_mip`.** The blurry-texture anomaly and these two are never live together.
+`stuck_low_mip` counts as live from apply until its textures are seen back at full resolution in the rendered picture
+— which can be several frames after its event ends. `uv_corruption` / `normal_corruption` count as live from apply
+until 2 frames after their revert. While one side is live the other is not started:
+
+- in **Auto-pool**, it is left out of that draw before anything random is drawn, so a seed still reproduces the rest
+  of the run;
+- on **every other route** — a Targeted capture, `IAI.Apply` in the console, or any other way of applying an
+  anomaly — the request is refused `excluded_partner_live:<partner>:<state>` (for example `excluded_partner_live:stuck_low_mip:trail_open`)
+  and nothing is changed. `<state>` is `fire_live` (the partner's event is running), `trail_open` (its textures are
+  not yet back), `restoring` (the same, outside a capture) or `revert_settling` (the 2 frames after a texture
+  corruption's revert).
+
+`run_summary.json` counts each refusal as `auto_excluded_uv_corruption`, `auto_excluded_normal_corruption` or
+`auto_excluded_stuck_low_mip` (from any route), and `texcorrupt_m52_overlap_frames` counts captured frames that
+carry both a `stuck_low_mip` entry and a labelled texture-corruption entry. **It must read 0.** Two limits:
+
+- **Outside a capture** (Auto-pool running with no capture), the game cannot read the rendered picture, so the
+  `stuck_low_mip` side ends when the game has finished its restore, which can be a little before the picture is
+  sharp again.
+- **If a `stuck_low_mip` restore is declared unresolved** (its textures were not seen back at full resolution in
+  time), texture corruption is allowed again and each such start is counted in
+  `texcorrupt_admitted_after_unresolved`; the blur may still be in the picture on those frames.
+
+**Checking your content first — `IAI.TexCorrupt.Census`.** A read-only console command, in every build. It runs both
+anomalies' decision — with the current memory cap and the all-or-nothing rule, without choosing a mode, and without
+changing or allocating anything — over the objects Auto-pool could pick right now (`IAI.TexCorrupt.Census`), or over
+every drawable object in the loaded levels (`IAI.TexCorrupt.Census all`). It prints exactly four lines, counts only,
+with no object, texture, asset or map names:
+
+```
+IAI-TEXCORRUPT-CENSUS v1 scope=<view|all> candidates=<n> cap_bytes=<n> uv_modes=<list> normal_modes=<list>
+IAI-TEXCORRUPT-CENSUS v1 id=uv_corruption eligible=<n> refused=<n> reasons=<reason>:<n>,...
+IAI-TEXCORRUPT-CENSUS v1 id=normal_corruption eligible=<n> refused=<n> reasons=<reason>:<n>,...
+IAI-TEXCORRUPT-CENSUS v1 end
+```
+
+`eligible` counts objects the anomaly could apply to at that moment; `reasons` lists the refusal reasons by name
+(the table above, without their details), or `-` when nothing was refused. The answer depends on the view and on what
+has finished loading, so run it at a few typical views.
+
+**What ships in this delivery:** both anomalies, the four modes above, the settings, the census command and the
+`stuck_low_mip` exclusion. Both are in the Capture pool panel, **off by default**. **Deferred:** `drift`, `swap`,
+`flat` and `noise`.
 
 ---
 
