@@ -144,8 +144,14 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       gate, and compiled out of Shipping. RUN IT; it is a script.** From the delivered branch's plugin:
       ```
       python tools\lever_audit.py --selftest
-      python tools\lever_audit.py --binary <delivered build>\<Project>\Binaries\Win64\<Project>.exe
+      python tools\lever_audit.py --root <the staged plugin folder> --binary <delivered build>\<Project>\Binaries\Win64\<Project>.exe
       ```
+      🆕 **(088-01) `--root` IS THE STAGED FOLDER, NOT THE BRANCH.** The delivered exe is compiled from the folder
+      `stage_plugin_delivery.py` produced, which has no `Source/AnomalyBench/` (F9). Audited against the branch (the
+      default root), B2 reads AnomalyBench's own `IAI.Bench.CameraSchedule` registration as *"the binary does not carry
+      it (stale build)"* and FAILS a correct delivery exe — measured on the rehearsal packages (088-01: branch root
+      `FAIL B2 missing=1`, staged root `PASS unknown=0 missing=0 echo=present`). The staging script prints this exact
+      command with its own output folder filled in.
       The selftest plants one violation per rule in a copy of the source and must end
       `G-LEVER-AUDIT SELFTEST 11 case(s): OK` (**a planted unguarded registration must FAIL** — if the selftest
       is not OK the audit's PASS means nothing). The audit must end `G-LEVER-AUDIT VERDICT PASS` with a
@@ -570,6 +576,16 @@ below describe the retired Tauri `Dashboard.exe` layout and are kept as history.
       dashboard does not read it. *Proven (084-10): `--selftest` 7 cases; on a real bundle from
       `make_delivery.py`, the current README passes and the `37bb750` README STOPs on `tools/verify_capture.py`
       (the readme host-tools path mismatch, now fixed in `client-readme.md` Step 6).*
+
+- [ ] 🚨 **🆕 (088-01) THE BUNDLE README HAS NO UNFILLED PLACEHOLDER — ABOVE ALL THE STEP 1 LAUNCH STUB.**
+      `client-readme.md` ships Step 1 as `⟨ LAUNCH — build-specific; fill this in ⟩`: the launch steps (the game
+      exe or launcher that ships with the build, and how its control server starts) are written into the BUNDLE's
+      `README.md` for each delivered build. The only box that asked for it sat in the superseded Tauri §3 below, so a
+      current-layout bundle could reach a client with no way to start the game — the rehearsal built two such bundles
+      and nothing stopped them. **`check_delivery_bundle.py` now STOPs on it** (`BUNDLE README line <n> is the Step 1
+      LAUNCH stub`) and on any value still *"to be measured"* (m53's §8.8 per-mode rate), so the §2 check above cannot
+      PASS until both are filled. *Proven (088-01): selftest 9 cases; both rehearsal bundles STOP on line 61, B also
+      on line 1200; the same bundle with the stub filled PASSes.*
 
 ## 2 (superseded — Tauri era). Desktop app + config
 
