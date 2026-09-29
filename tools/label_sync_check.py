@@ -1009,9 +1009,15 @@ def analyse_d(s, ev, evs, taa):
         other.update(o["L"])
         other.update(o["T"])
         other.update(o["entries"])
-    other -= mine
     lo, hi = L[0], L[-1]
     tail = max([x - hi for x in Ts if x > hi] or [0])
+    for si in range(lo - REF_BACK - 30, hi + SPAN_PAD + tail + 6):
+        for x in ((s.rows.get(si) or {}).get("anomalies") or []):
+            if not (x.get("start_frame") == ev["start_frame"] and ent_type(x) == ev["type"]
+                    and (ev["node"] is None or x.get("target_name") == ev["node"])):
+                other.add(si)
+                break
+    other -= mine
     span_lo, span_hi = lo - SPAN_PAD, hi + SPAN_PAD + tail
     for si in range(lo - 1, lo - SPAN_PAD - 1, -1):
         if si in other:
@@ -2109,9 +2115,10 @@ def st_make(root, name, spec):
         L = ev["L"]
         fire = set(range(min(L) - ev.get("fire_pre", 1), max(L) + 1)) | set(ev.get("flags", {}).keys())
         fire_all[k] = fire
-        anomalies.append({"anomaly_type": typ, "anomaly_subtype": typ, "injected_frames": {"frame_indices": sorted(L)},
-                          "affected_frames": {"frame_indices": sorted(L)}, "manifested": True,
-                          "affected_objects": {"nodes": [{"name": "T%d" % k}]}})
+        if ev.get("annotated", True):
+            anomalies.append({"anomaly_type": typ, "anomaly_subtype": typ, "injected_frames": {"frame_indices": sorted(L)},
+                              "affected_frames": {"frame_indices": sorted(L)}, "manifested": True,
+                              "affected_objects": {"nodes": [{"name": "T%d" % k}]}})
     gap_at = spec.get("gap_before")
     written = {}
     obj_mask = [bytes(ST_MV if (ST_OBJ[0] <= x < ST_OBJ[2] and ST_OBJ[1] <= y < ST_OBJ[3]) else 0 for x in range(W))
@@ -2220,6 +2227,9 @@ def st_cases():
     stray = _full(L)
     stray[55] = 1.0
     tex("stray_visible_frame", stray)
+    cases.append(("unannotated_burst_after", {"type": "corrupted_texture", "kind": "tex", "n": 72, "events": [
+        {"L": L, "pixels": _full(L)},
+        {"L": [58, 59, 60], "pixels": _full([58, 59, 60]), "annotated": False}]}))
     tex("old_rule_late_1", _full(range(40, 48)), labels=list(range(41, 48)), rule="old")
     smear = _full(L)
     smear.update({48: 0.7, 49: 0.35, 50: 0.1})
@@ -2307,6 +2317,8 @@ def st_expect():
         lambda r: verdict(r) == "CENSORED" and _edge(r)["ue"] and not r["per"]["t50"]["fails"])
     add("stray_visible_frame", "an isolated unlabelled visible frame after the event FAILS",
         lambda r: verdict(r) == "FAIL", True)
+    add("unannotated_burst_after", "a later burst missing from the annotation (cut or vetoed) ends the window: PASS 0/0",
+        lambda r: verdict(r) == "PASS" and _edge(r)["end"] == 0)
     add("wrong_object", "second object changing on labelled frames counted as wrong-object",
         lambda r: r["d"]["wrong_obj"] and not r["d"]["wrong_obj_clean"])
     add("exact", "exact case has no wrong-object", lambda r: not r["d"]["wrong_obj"])
