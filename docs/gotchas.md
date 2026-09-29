@@ -9157,3 +9157,44 @@ Related: G102.
   argument; MSVC accepts `/DNAME#1` for the same define.
 
 Related: G96.
+
+## G381 — An exclusion that releases on the partner's STATE can still share a FRAME with it: release on what the frames can still carry (2026-09-29, 085-02b)
+
+- The m52 ⟂ m53 exclusion (085-02) released m53 when the m52 restore trail read `closed`. Codex F1/F2 showed two ways
+  the frames outlive that state: under temporal AA the label-sync tail keeps writing `transition`-flagged m52 entries
+  for up to 8 frames after the last labelled frame (incl. a carried tail with no trail at the next run's start), and a
+  trail closed or force-detached with a render receipt still outstanding can be REOPENED by a late held receipt. A
+  closed trail is not a terminal one.
+- **Rule (chat ruling 1):** a family is live until (a) its last labelled frame and its last transition-flagged tail
+  frame have been emitted, (b) no receipt is outstanding for it and (c) no detached trail can reopen it — both
+  directions. The admission test asks "can any frame from here on still carry the partner?", which for an
+  asynchronously labelled family includes unfinalized snapshots (out-of-order finalization can re-open an owed tail).
+- **And prove it in frames, not states:** the selftest simulates each sequence frame by frame and asserts no frame
+  carries both entries; the artifact gate (`tools/exclusion_gate.py`) and the in-run counter use one predicate.
+
+Related: G120, G378.
+
+## G382 — A refusal must not drop the record of an effect that is still installed (2026-09-29, 085-02b)
+
+- `ApplyAnomaly` removed the active record whenever `Apply` returned false. `uv_corruption`'s `Apply` refuses a
+  missing target BEFORE it reverts its running instance, so a raw `IAI.Apply uv_corruption` with no target left the
+  effect on screen with no record — and the exclusion's "live" was `record AND active`, so the backstop admitted
+  `stuck_low_mip` beside it (Codex F3).
+- **Rule:** decide the record from the instance's state after the call (`RecordAfterApply`: applied → replace,
+  refused-but-active → KEEP, refused-and-inactive → drop), and read "live" from the instance (`IsActive()`), not from
+  the bookkeeping. A missing record is never proof that an effect is absent; a stale record is never proof that one is
+  present.
+
+Related: G96.
+
+## G383 — "Read-only" is a property of every helper a command calls, not of its own body (2026-09-29, 085-02b)
+
+- `IAI.TexCorrupt.Census` printed counts only and allocated nothing, but it enumerated candidates through
+  `IsRenderableComponent` / `GetVisibleRenderableActors`, whose first-seen sets feed a capture's run_summary and whose
+  first-encounter diagnostics log actor, component and asset names (Codex F4). A census during a run could change the
+  run's counts and consume those diagnostics; a census anywhere could print a name.
+- **Rule:** a read-only command enumerates through a read-only mode that shares the eligibility logic but records and
+  logs nothing (`AnomalyViewport::FReadOnlyEnumerationScope`), checks its own side effects at run time (the census's
+  `stats_unchanged=`), and is guarded by a structural check with planted failures (`tools/census_readonly_check.py`).
+
+Related: G139.

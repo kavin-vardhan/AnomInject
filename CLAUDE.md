@@ -11,6 +11,31 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **085-02b, 2026-09-29 — CODEX F1–F4 FIXED PER CHAT'S RULING, TARGETED m53 ROUND-ROBIN, FREE-RUNNING BOUND; BUILT
+> (0 warnings) AND ARCHIVED. THE CODEX RE-CHECK SAYS NEEDS-DECISION (F2, F3 RESOLVED; F1, F4 PARTIAL; ONE NEW HIGH ON THE
+> B-M53 IDENTITY-NULL PATH) AND WAS NOT ACTED ON. NOTHING WAS LAUNCHED, COOKED OR STAGED.** 🔧
+> **Cold start: `docs/sessions/2026-09-29-085-02b-m53-dc-fixes.md`, then `_reviews\085-02-chat-ruling-dc-source.md` (the
+> spec) and `_reviews\085-02b-codex-m53-dc-recheck.md`.**
+> - **Source `b52970a` (pushed):** the exclusion is "in the frames" — a family is live until its last labelled and
+>   `transition` tail frames are emitted, no receipt is outstanding and no detached trail can reopen it (`FTrailFacts` /
+>   `ClassifyTrail`, states `trail_reopenable` / `label_tail`; the provider scans trails, carried trails, carried tails
+>   and unfinalized snapshots); the overlap counter and `tools/exclusion_gate.py` (EXCL-A) share `IsCoEntryFrame`; a
+>   refused re-Apply KEEPS the record and live = `IsActive()`; the census is read-only by construction
+>   (`FReadOnlyEnumerationScope`, `end stats_unchanged=`, `tools/census_readonly_check.py`); a targeted m53 fire with no
+>   mode takes modes round-robin (`mode_source=round_robin`, no draw added); the free-running m52 restoring set releases
+>   at `StuckMipRestoreTimeoutFrames` (counted). F5 = documented bench-only (one RestoreDelay run per process).
+> - **Tests:** exclusion 224/0 (9 mutants fail, incl. the 085-02 rule and the old counter), draw 571/0 (6 mutants), pure
+>   251/0, census check PASS + 17 planted, gate selftest OK, lever audit PASS + 11, strip 0. **Build:** exe **`76A04998`**,
+>   0 warnings both targets, archived `_binary_baselines\m53dcfix-76A04998\`, A44 green. Not staged.
+> - 🚨 **Codex re-check (collected, not acted on):** **N1 high** — the round-robin inserts a mode even when the bench
+>   identity / redraw / tile-probe levers expect none, so B-M53's targeted identity nulls would corrupt; **F1 residual
+>   high (off recipes)** — m53's retained auto-fire entry after a raw early Revert is invisible to the provider; **F4
+>   residual medium** — first-use config echoes print during a cold census.
+> - 🎯 **NEXT: chat rules on N1 / F1 / F4 (N1 blocks 085-03 under the loop rule); then 085-03.** ⛔ No tag, no merge;
+>   `m51`, `master`, `fix/m52-label-timing` untouched. Gotchas G381–G383 (next free G384).
+>
+> ---
+>
 > 🧩 **085-02, 2026-09-29 — THE m53 DELIVERY CUT (DC) SOURCE IS BUILT ON THE MERGED BRANCH; THE CODEX SOURCE REVIEW SAYS
 > NEEDS-DECISION (3 high, 2 medium) AND WAS NOT ACTED ON. NOTHING WAS LAUNCHED, COOKED OR STAGED.** 🧩
 > **Cold start: `docs/sessions/2026-09-29-085-02-m53-dc-source.md`, then `docs/predictions/2026-09-29-m53-dc.md` (the plan),

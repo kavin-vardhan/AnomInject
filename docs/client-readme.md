@@ -1090,10 +1090,12 @@ on; a 1×1 single-colour texture is left as it is), so they stay aligned with ea
 - **Everywhere else** the mode is the argument after the target: `IAI.Apply uv_corruption <object> tile`,
   `IAI.Apply normal_corruption <object> green_flip`. Mode names are not case-sensitive. The anomaly list the game
   sends the dashboard declares a required `mode` argument (defaults `tile` / `invert`).
-- ⚠ **The dashboard's Targeted capture does not send a mode in this delivery.** A Targeted `uv_corruption` or
-  `normal_corruption` capture started from the dashboard is therefore refused `mode_invalid:no_mode` on every burst
-  and records no events. Start a targeted capture of these two from the console instead, with the mode after the
-  object's name:
+- **A Targeted capture with no mode** — every Targeted capture started from the dashboard — takes the anomaly's
+  enabled modes in turn, one per burst (`tile`, `scramble`, `tile`, … from the same lists as Auto-pool, starting again
+  at the first with each capture). Nothing random is drawn for it, so a seed reproduces the rest of the run exactly as
+  before; the game log names the source of each mode (`mode_source=round_robin`). With an empty list the burst is
+  refused `mode_invalid:no_mode`. To fix one mode instead, start the targeted capture from the console with the mode
+  after the object's name (the log then reads `mode_source=argument`):
 
   ```
   IAI.Capture.Start <captures folder> png "" "" uv_corruption <object name> tile
@@ -1101,8 +1103,7 @@ on; a 1×1 single-colour texture is left as it is), so they stay aligned with ea
 
   Use your captures folder (the one you gave `Setup.bat`; in quotes if it contains a space) and the object name as
   the dashboard's target list shows it. The two `""` keep the automatic seed and capture until you press Stop (or type
-  `IAI.Capture.Stop`). Auto-pool captures from the dashboard
-  are not affected.
+  `IAI.Capture.Stop`).
 
 **Settings.** Console first, then `DefaultGame.ini` `[AnomalyInjector]`, then the built-in default. Every capture
 prints the values in effect at its start. A value outside the allowed range is refused, never clamped, and
@@ -1112,13 +1113,14 @@ prints the values in effect at its start. A value outside the allowed range is r
 | --- | --- | --- | --- | --- |
 | `IAI.Anomaly.TexCorruptTileN` | `TexCorruptTileNDefault` | 8 | 2, 4, 8, 16 | `tile`'s N |
 | `IAI.Anomaly.TexCorruptScrambleK` | `TexCorruptScrambleKDefault` | 8 | 2–64 | `scramble`'s K |
-| `IAI.Anomaly.TexCorruptUvModes` | `TexCorruptUvModesDefault` | `tile+scramble` | `+`-joined modes, or `none` | the modes Auto-pool may draw for `uv_corruption` |
-| `IAI.Anomaly.TexCorruptNormalModes` | `TexCorruptNormalModesDefault` | `invert+green_flip` | `+`-joined modes, or `none` | the modes Auto-pool may draw for `normal_corruption` |
+| `IAI.Anomaly.TexCorruptUvModes` | `TexCorruptUvModesDefault` | `tile+scramble` | `+`-joined modes, or `none` | the modes Auto-pool may draw, and a Targeted capture without a mode takes in turn, for `uv_corruption` |
+| `IAI.Anomaly.TexCorruptNormalModes` | `TexCorruptNormalModesDefault` | `invert+green_flip` | `+`-joined modes, or `none` | the same for `normal_corruption` |
 | `IAI.Anomaly.TexCorruptMaxRtBytes` | `TexCorruptMaxRtBytesDefault` | 134217728 (128 MiB) | 1 MiB – 1 GiB | the memory cap for corrupted texture copies, both anomalies together |
 | `IAI.Anomaly.TexCorruptMinTexturePx` | `TexCorruptMinTexturePxDefault` | 64 | 1–16384 | a slot needs at least one texture at least this many pixels on both sides |
 | `IAI.Anomaly.TexCorruptMaxTextures` | `TexCorruptMaxTexturesDefault` | 8 | 1–64 | the most textures one slot may need |
 
-The two mode lists drive the Auto-pool draw only; a mode named explicitly may be any delivered mode of that anomaly.
+The two mode lists drive the Auto-pool draw and the Targeted turn order; a mode named explicitly may be any delivered
+mode of that anomaly.
 
 **All or nothing.** An event applies only if **every material slot of every mesh of the target qualifies**. An
 empty slot and a translucent slot do not qualify. If only some slots qualify, the event is refused
@@ -1182,9 +1184,12 @@ so it is not specific to these two anomalies. The cause is not established (the 
 candidate). If you compare frames after an event with an untouched run, expect this; it does not mean the event
 lingered.
 
-**Never at the same time as `stuck_low_mip`.** The blurry-texture anomaly and these two are never live together.
-`stuck_low_mip` counts as live from apply until its textures are seen back at full resolution in the rendered picture
-— which can be several frames after its event ends. `uv_corruption` / `normal_corruption` count as live from apply
+**Never at the same time as `stuck_low_mip` — in the frames, not only in the game.** The blurry-texture anomaly and
+these two never share a captured frame. `stuck_low_mip` counts as live from apply until its textures are seen back at
+full resolution in the rendered picture **and** every frame it labels, or flags `transition` after its last labelled
+frame, has been written **and** no render record it is still waiting on could show the blur again — which can be
+several frames after its event ends (with temporal anti-aliasing, up to 8 more frames for its `transition` tail,
+including frames at the start of the next capture). `uv_corruption` / `normal_corruption` count as live from apply
 until 2 frames after their revert. While one side is live the other is not started:
 
 - in **Auto-pool**, it is left out of that draw before anything random is drawn, so a seed still reproduces the rest
@@ -1192,19 +1197,26 @@ until 2 frames after their revert. While one side is live the other is not start
 - on **every other route** — a Targeted capture, `IAI.Apply` in the console, or any other way of applying an
   anomaly — the request is refused `excluded_partner_live:<partner>:<state>` (for example `excluded_partner_live:stuck_low_mip:trail_open`)
   and nothing is changed. `<state>` is `fire_live` (the partner's event is running), `trail_open` (its textures are
-  not yet back), `restoring` (the same, outside a capture) or `revert_settling` (the 2 frames after a texture
-  corruption's revert).
+  not yet back), `trail_reopenable` (they look back, but a render record it is still waiting on could show the blur
+  again), `label_tail` (frames it labels or flags `transition` are still to be written), `restoring` (textures not
+  yet back, outside a capture) or `revert_settling` (the 2 frames after a texture corruption's revert).
+- A refused re-apply of a running anomaly (for example `IAI.Apply uv_corruption` with the object missing) leaves the
+  running one in place **and still counted as live**, so it keeps the other side out until it is reverted.
 
 `run_summary.json` counts each refusal as `auto_excluded_uv_corruption`, `auto_excluded_normal_corruption` or
 `auto_excluded_stuck_low_mip` (from any route), and `texcorrupt_m52_overlap_frames` counts captured frames that
-carry both a `stuck_low_mip` entry and a labelled texture-corruption entry. **It must read 0.** Two limits:
+carry both a `stuck_low_mip` entry (labelled, or flagged `transition`) and any texture-corruption entry (labelled or
+not). **It must read 0**, except as in the second limit below. Two limits:
 
 - **Outside a capture** (Auto-pool running with no capture), the game cannot read the rendered picture, so the
   `stuck_low_mip` side ends when the game has finished its restore, which can be a little before the picture is
-  sharp again.
+  sharp again. A restore that never finishes stops blocking after the same timeout a capture uses
+  (`StuckMipRestoreTimeoutFrames`), and each start after it is counted in `texcorrupt_admitted_after_unresolved`: the
+  exclusion never lasts forever.
 - **If a `stuck_low_mip` restore is declared unresolved** (its textures were not seen back at full resolution in
   time), texture corruption is allowed again and each such start is counted in
-  `texcorrupt_admitted_after_unresolved`; the blur may still be in the picture on those frames.
+  `texcorrupt_admitted_after_unresolved`; the blur may still be in the picture on those frames, and such frames may
+  carry both entries (they count in `texcorrupt_m52_overlap_frames`).
 
 **Checking your content first — `IAI.TexCorrupt.Census`.** A read-only console command, in every build. It runs both
 anomalies' decision — with the current memory cap and the all-or-nothing rule, without choosing a mode, and without
@@ -1216,16 +1228,27 @@ with no object, texture, asset or map names:
 IAI-TEXCORRUPT-CENSUS v1 scope=<view|all> candidates=<n> cap_bytes=<n> uv_modes=<list> normal_modes=<list>
 IAI-TEXCORRUPT-CENSUS v1 id=uv_corruption eligible=<n> refused=<n> reasons=<reason>:<n>,...
 IAI-TEXCORRUPT-CENSUS v1 id=normal_corruption eligible=<n> refused=<n> reasons=<reason>:<n>,...
-IAI-TEXCORRUPT-CENSUS v1 end
+IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=1
 ```
 
 `eligible` counts objects the anomaly could apply to at that moment; `reasons` lists the refusal reasons by name
 (the table above, without their details), or `-` when nothing was refused. The answer depends on the view and on what
-has finished loading, so run it at a few typical views.
+has finished loading, so run it at a few typical views. The command changes nothing — not even the counts a capture
+running at the same time reports, and it prints none of the per-object messages other commands print when they first
+meet an excluded object. `stats_unchanged=1` on the last line is the command's own check of that; `0` means
+something changed and should be reported to us.
 
 **What ships in this delivery:** both anomalies, the four modes above, the settings, the census command and the
 `stuck_low_mip` exclusion. Both are in the Capture pool panel, **off by default**. **Deferred:** `drift`, `swap`,
 `flat` and `noise`.
+
+⚠ **An "all" pool now includes these two.** `IAI.Auto.Pool all 1` enables `uv_corruption` and
+`normal_corruption` too, so an Auto-pool run with every anomaly enabled draws a
+**different sequence** of anomalies, objects and holds for the same seed than a build without them. A seed
+reproduces runs of the same build, not runs across this change.
+
+One internal test setting that your build does not have (a delayed texture restore, `IAI.Bench.*`) can leave a
+corrupted texture on screen past the end of a capture; it cannot happen in a delivered build.
 
 ---
 

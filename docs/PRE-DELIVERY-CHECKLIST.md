@@ -358,7 +358,7 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       cooked map index contains no `CB_TexCorruptLevel` (`verify_cooked_maps.ps1`, or the cook log's map list),
       and `IAI.Bench.TexCorruptAssetSlotMid` was never typed (see the bench-lever box).
 
-### 🆕 `m53` delivery cut (085-02) — `uv_corruption` / `normal_corruption`: six boxes
+### 🆕 `m53` delivery cut (085-02, 085-02b) — `uv_corruption` / `normal_corruption`: seven boxes
 
 - [ ] **The office census runs on the delivery build and prints COUNTS ONLY.** Launch the delivered build
       **without** `-IAIBench` / `-IAIBenchFixture`, reach a gameplay view, and type `IAI.TexCorrupt.Census`, then
@@ -368,11 +368,14 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       $log = "<staged>\<Project>\Saved\Logs\<Project>.log"
       $l = @(Select-String -Path $log -Pattern 'IAI-TEXCORRUPT-CENSUS v1 .*$' | ForEach-Object { $_.Matches[0].Value })
       $m = '[a-z_]+(\+[a-z_]+)*|none'
-      $ok = "^IAI-TEXCORRUPT-CENSUS v1 (scope=(view|all) candidates=\d+ cap_bytes=\d+ uv_modes=($m) normal_modes=($m)|id=(uv_corruption|normal_corruption) eligible=\d+ refused=\d+ reasons=(-|[a-z0-9_]+:\d+(,[a-z0-9_]+:\d+)*)|end)$"
+      $ok = "^IAI-TEXCORRUPT-CENSUS v1 (scope=(view|all) candidates=\d+ cap_bytes=\d+ uv_modes=($m) normal_modes=($m)|id=(uv_corruption|normal_corruption) eligible=\d+ refused=\d+ reasons=(-|[a-z0-9_]+:\d+(,[a-z0-9_]+:\d+)*)|end stats_unchanged=1)$"
       $bad = @($l | Where-Object { $_ -cnotmatch $ok })
       if ($l.Count -eq 0 -or ($l.Count % 4) -ne 0 -or $bad.Count -gt 0) { Write-Host "STOP: $($l.Count) census line(s), $($bad.Count) off-grammar" -Fore Red; $bad; exit 1 }
       Write-Host "PASS: $($l.Count / 4) census run(s), counts only" -Fore Green
       ```
+      *(085-02b)* The `end` line carries the command's own read-only check, `stats_unchanged=1`; `stats_unchanged=0`
+      is off-grammar and a **STOP** (the census changed a run count, the m53 stats or the pool). No `EXCLUDED-TARGET` /
+      `EXCLUDED-TRANSLUCENT` line may appear between the census command and its `end` line.
       ⚠ **`-cnotmatch`, not `-notmatch`:** PowerShell matching is case-insensitive by default, and a
       case-insensitive grammar would pass a capitalised object name such as `SM_Floor:1`. Every `reasons=` name must
       also be one of the reasons in the client readme's §8.8 table.
@@ -394,10 +397,19 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 - [ ] **The m52 / m53 overlap counter reads `0`** on a delivered session captured in Auto-pool with
       `stuck_low_mip` **and** at least one of `uv_corruption` / `normal_corruption` ticked:
       `run_summary.json` → `texcorrupt_m52_overlap_frames` = **0**, and the log has no `Capture(m53): M52-M53
-      OVERLAP` line. Record `auto_excluded_uv_corruption`, `auto_excluded_normal_corruption`,
+      OVERLAP` line. *(085-02b: the counter now counts a frame with a `stuck_low_mip` entry that is labelled OR flagged
+      `transition` beside ANY m53 entry, labelled or not — the same predicate as the artifact check
+      `python tools\exclusion_gate.py <session>`, which must print `EXCL-A-COENTRY PASS` and agree with the counter.)*
+      Record `auto_excluded_uv_corruption`, `auto_excluded_normal_corruption`,
       `auto_excluded_stuck_low_mip` (all 0 = the exclusion was **not exercised** on that session — say so, it is not a
       pass of the exclusion) and `texcorrupt_admitted_after_unresolved` (non-zero is not a failure; it names frames
-      where a blur may persist).
+      where a blur may persist, and the gate then reads `INVALID`, not `PASS`, because those frames may legitimately
+      carry both entries).
+- [ ] **`IAI.Bench.TexCorruptRestoreDelay` is bench-only, one run per process** (085-02b, Codex F5, ruled a
+      documented limitation): a restore it delays past `FinishRun` completes only when its delay runs out, possibly
+      inside the next capture of the same process. It needs `-IAIBench` and is compiled out of Shipping, so it cannot
+      reach a delivered session; on the bench, a leg that sets it must be the only capture run in its process (the
+      085-03 harness asserts this). Tick when the delivery log has no `IAI.Bench.TexCorruptRestoreDelay` line.
 - [ ] **The G-LEVER-AUDIT box above was run on THIS delivery ref** — the merged m52 + m53 build, not the m52-only
       branch — and ended `G-LEVER-AUDIT VERDICT PASS`. *It is the same box, not a second audit; it is repeated here
       because the delivery cut added `IAI.Bench.TexCorruptCommitDelay` / `RestoreDelay`.*
@@ -410,8 +422,11 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       default-on after the office test (census, labels, looks); if he did, `GAutoPoolDefaultEnabled` changed in
       source, the ruling is in `CLAUDE.md`'s status block, and the client readme's §4 pool table and §8.8 "off by
       default" line change in the same delivery. **And the client readme's §8.8 carries no `(rate: to be measured)`
-      placeholder** — the measured per-mode rate replaces it before the bundle ships. Its note that the dashboard's
-      Targeted capture sends no m53 mode must still be true of the dashboard being shipped.
+      placeholder** — the measured per-mode rate replaces it before the bundle ships. *(085-02b)* A dashboard Targeted
+      capture of `uv_corruption` / `normal_corruption` takes the enabled modes in turn: its log shows
+      `Auto.FireSpecific: '<id>' mode_source=round_robin mode=<mode>` on each burst and the modes cycle through the
+      enabled list. If the dashboard being shipped starts sending a mode, the log reads `mode_source=argument` instead
+      and the readme's §8.8 paragraph must change with it.
 
 ### 🆕 `m43` — THE TARGET ID MASK: three boxes for this cook
 

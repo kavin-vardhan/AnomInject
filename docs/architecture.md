@@ -678,19 +678,36 @@ an m53 id only, **exactly one** `GetFraction()` mode draw over `AnomalyTexCorrup
 set in delivered order; an empty set still draws once and passes `!none`). Every attempt logs one
 `Auto.Draw attempt= seed_before= id= eligible=<n>:<fp> excluded=<ids> target= candidates= hold= mode= seed_after=
 result=` line, so a seed replays ids, targets, holds and modes exactly. `IsAutoPoolSelection` tells `Apply` it came
-from the pool.
+from the pool. `TryFireSpecific` (a Targeted capture) draws only its hold, through `TexCorruptPure::TargetedAttempt`;
+for an m53 id with no mode argument (every dashboard Targeted capture) it takes the next mode of
+`GetAutoDrawModes(Id)` round-robin (`RoundRobinNext`, per-id `TargetedModeCounters`, reset with the seed in `SetSeed`
+/ `SetRunning`, advanced independently of the apply result) and logs `Auto.FireSpecific: '<id>'
+mode_source=round_robin mode= index=k/n` (`mode_source=argument` when a mode is given). No draw is added (085-02b,
+ruling 5; KAT `GKatTargeted[]`).
 
 **The m52 ⟂ m53 exclusion** (`Public/AnomalyExclusion.h`, pure: families, `EState` `fire_live | trail_open |
-restoring | revert_settling | restore_unresolved | closed | idle`, `M52State`, `M53State`, `Evaluate`). `stuck_low_mip`
-and the two m53 ids are never live at once:
-- **m52 live** = its fire is live, or — with the capture's **trail provider** registered (`SetTrailProvider` at
-  `StartRun`, cleared at `FinishRun` / `Deinitialize`; G127: the capture owns the trails) — any restore trail still
-  gating (live, reopened after detach, adopted or carried), or — with no provider — its game-thread Restoring set is
-  non-empty (`restoring`). A trail past `restore_unresolved` **admits** m53, counted
-  (`texcorrupt_admitted_after_unresolved`, log `Auto.AdmitUnresolved`).
+trail_reopenable | label_tail | restoring | revert_settling | restore_unresolved | closed | idle`, `FTrailFacts` /
+`ClassifyTrail`, `M52State`, `M53State`, `Evaluate`). `stuck_low_mip` and the two m53 ids never share a captured
+frame (085-02b, chat ruling on Codex F1/F2: "never at the same moment" is **in the frames**). A family is live until
+(a) its last labelled frame **and** its last `transition`-flagged tail frame have been emitted, (b) no receipt is
+outstanding for it and (c) no detached trail can reopen it:
+- **m52 live** = its fire is live (the instance reports active; a record is not required, F3), or — with the capture's
+  **trail provider** registered (`SetTrailProvider` at `StartRun`, cleared at `FinishRun` / `Deinitialize`; G127: the
+  capture owns the trails) — the provider's worst trail over `Trails`, `CarriedTrails`, carried tail-only events
+  (`CarriedTailFires`) and events still in an unfinalized snapshot: `Gating` (open, not closed) → `trail_open`;
+  `Reopenable` (closed but still attached for products, or detached with a noted receipt unprocessed — a late held
+  receipt can reopen it) → `trail_reopenable`; `LabelTail` (terminal, but a pending snapshot still carries the event
+  or its temporal off window still owes `transition` frames: `TransitionTailOwed` = render-truth run ∧ off frames > 0
+  ∧ the track has a member ∧ not `bOffDone`) → `label_tail`; `Closed` releases. With no provider, its game-thread
+  Restoring set non-empty is `restoring`, **bounded by the same `StuckMipRestoreTimeoutFrames`**: once every entry has
+  waited that long it reads `restore_unresolved`. `restore_unresolved` (trail or free-running) **admits** m53,
+  counted (`texcorrupt_admitted_after_unresolved`, log `Auto.AdmitUnresolved`); an exclusion never lasts forever.
 - **m53 live** = its fire is live, or `AnomalyTexCorrupt::IsRevertSettling(UWorld*)`: true while a delayed restore is
   pending and until the event's `post_revert` ledger frame (R + 2) is reached; a rolled-back apply does not settle
-  (`TexCorruptPure::IsRevertSettlingAt`; the pure rule's own `RevertSettleFrames = 2`).
+  (`TexCorruptPure::IsRevertSettlingAt`; the pure rule's own `RevertSettleFrames = 2`); or — both directions — the
+  provider reports an excluding trail state for an m53 id (none today: m53 has no trail or transition track).
+- **Records (F3):** `ApplyAnomaly` keeps the active record when a re-Apply is refused while the instance still reports
+  active (`RecordAfterApply`: `Replace | Keep | Drop`), and `IsIdFireLive` reads the instance's `IsActive()` alone.
 - **Where it is checked** (`UAnomalyInjectorSubsystem::EvaluatePartnerExclusion` / `IsExcludedByPartner`): in
   `TryFireOnce`'s eligible loop **before any draw** (an excluded id never becomes an attempt, so the one-draw contract
   holds; an all-excluded pool logs `result=all_excluded` with `seed_after == seed_before`), in `TryFireSpecific` after
@@ -699,7 +716,9 @@ and the two m53 ids are never live at once:
   `excluded_partner_live:<partner>:<state>`. Each refusal logs `Auto.Exclude candidate= partner= state= event=
   attempt=` and increments `auto_excluded_<id>` (`FAnomalyExclusionStats`).
 - **Capture side:** `texcorrupt_m52_overlap_frames` counts captured frames carrying a `stuck_low_mip` entry (labelled
-  or transition) **and** a labelled m53 entry, with a `Capture(m53): M52-M53 OVERLAP` warning each; expected 0.
+  or transition) **and** any emitted m53 entry (labelled or not) — `AnomalyExclusion::IsCoEntryFrame`, the same
+  predicate as the artifact gate `tools/exclusion_gate.py` (EXCL-A) — with a `Capture(m53): M52-M53 OVERLAP` warning
+  each; expected 0 outside the `restore_unresolved` exception.
 - Separately, a slot whose texture `stuck_low_mip` holds or is restoring is refused `held_by_stuck_low_mip`.
 
 **Labels.** The id → active-source table lives in `Source/AnomalyCapture/Private/AnomalyActiveSource.h` (pure,
@@ -715,8 +734,16 @@ change; E6 skipped, so counts do not depend on mode) over `GetVisibleRenderableA
 every actor with a renderable component, and prints four `Display` lines, counts only (no actor, component, asset,
 path, map or frame, and final reason names without sub-reasons, which can name textures):
 `IAI-TEXCORRUPT-CENSUS v1 scope=<view|all> candidates= cap_bytes= uv_modes= normal_modes=`, one
-`… id=<id> eligible= refused= reasons=<reason>:<n>,…|-` line per id, and `… end`. The bench census with per-actor
-lines stays `IAI.Bench.TexCorruptCensus`.
+`… id=<id> eligible= refused= reasons=<reason>:<n>,…|-` line per id, and `… end stats_unchanged=<0|1>`. The bench
+census with per-actor lines stays `IAI.Bench.TexCorruptCensus`. **Read-only by construction (085-02b, Codex F4):** the
+whole body holds `AnomalyViewport::FReadOnlyEnumerationScope` (a `thread_local` depth) and enumerates through
+`GetVisibleRenderableActorsReadOnly` / `IsRenderableComponentReadOnly`; inside the scope `MatchesExcludedTargetPattern`
+and `RefusedAsTranslucentOnly` return the same eligibility but neither add to their first-seen sets (which feed
+`run_summary`) nor log their name-bearing `EXCLUDED-*` lines, and `GetActiveViewInfo`'s no-controller warning is
+silent. The census snapshots the two exclusion counts, `AnomalyTexCorrupt::RunStatsDigest()` (FNV-1a over every
+`FRunStats` field, the tripwire, the ledger and the attempt ordinals), both mode masks and the auto-injector's live
+count and enabled ids before and after, and prints the comparison as `stats_unchanged`. Structural guard with planted
+failures: `tools/census_readonly_check.py [--selftest]`.
 
 **Bench-only levers** (`TexCorruptBench.cpp`, every one `IAI.Bench.TexCorrupt*`, compiled out of Shipping and masked
 without the bench gate): the S1 set plus `CommitDelay <n>` (the picture commits n frames after APPLIED, label
@@ -1625,9 +1652,14 @@ across all seven anomalies — the M1 `IAnomaly` lock held through M3, including
   only track its own fires). Detected and warned, not blocked (R-COEXIST). The m52 ⟂ m53 pairing is the exception:
   the `ApplyAnomaly` backstop refuses an overlapping apply from any path. Any manual fire during a capture is still
   outside the capture's burst accounting.
-- **m52 ⟂ m53 exclusion, two named limits.** With no capture (free-running `IAI.Auto.Run`) the m52 side ends on the
-  game-thread Restoring set, which can empty before the picture is sharp; and a trail past `restore_unresolved`
-  admits m53 while the blur may persist (counted in `texcorrupt_admitted_after_unresolved`).
+- **m52 ⟂ m53 exclusion, three named limits.** With no capture (free-running `IAI.Auto.Run`) the m52 side ends on the
+  game-thread Restoring set, which can empty before the picture is sharp; a trail (or, free-running, a Restoring set)
+  past `restore_unresolved` admits m53 while the blur may persist (counted in `texcorrupt_admitted_after_unresolved`;
+  such frames can carry both entries); and a trail carried into a run that is not render-truth never progresses, so
+  it keeps m53 out for that whole run.
+- **`IAI.Bench.TexCorruptRestoreDelay` is bench-only, one run per process** (085-02b, Codex F5): a restore it delays
+  past `FinishRun` completes when its deadline arrives, possibly inside the next capture of the same process. The
+  085-03 harness asserts one RestoreDelay run per process.
 - **m53 normal modes (and uv on near-uniform textures) can label an invisible change.** `observable` measures drawn
   pixels and install state, not appearance; the client readme §8.8 gives the `change_evidence.jsonl` filter
   (`ref_gt8_max / chg_n`). No in-product appearance gate exists this delivery.
