@@ -23,7 +23,8 @@ import tempfile
 
 REQUIRED = ("Setup.bat", "Run.bat", "README.md", "dashboard/index.html", "dashboard/config.json",
             "host-tools/encode_watcher.py", "host-tools/verify_capture.py", "host-tools/measure_label_offset.py",
-            "host-tools/write_config.py", "host-tools/serve_dashboard.py")
+            "host-tools/write_config.py", "host-tools/serve_dashboard.py", "host-tools/label_sync_check.py",
+            "host-tools/OFFICE-CHECK.md")
 PLACEHOLDER = re.compile(r"TESTVALUE|TESTTOKEN|CHANGEME|placeholder|^TEST$", re.I)
 MIN_TOKEN = 32
 README_CMD = re.compile(r"\bpython[0-9.]*\s+((?:<[^>]+>[\\/])?[\w.\\/-]+\.py)\b", re.I)

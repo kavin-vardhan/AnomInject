@@ -8506,6 +8506,15 @@ Related: G119, G374.
 
 Related: G112, G118, G119.
 
+🔻 **FIXED IN ANOMDASH `ab6e63f` (087-01, 2026-09-29):** `make_delivery.py` always removes the copied
+`dashboard\config.json` and says so; `--token-log <a log of the delivered build>` (or `--token-ini`) writes the token that
+build enforces, refusing an empty, short or placeholder one with no bundle produced; without it, or without
+`--plugin-repo`, the banner says NOT COMPLETE and the run exits 4, and `make_delivery.bat` no longer calls such a bundle
+"ready" (it did, for the dashboard-only bundle too). Proven with this checker: the `618b8df` bundle STOPs on TOKEN against
+a delivered-build log whose token differs, and passes only against this box's own ini, whose token equals the dev one;
+the new bundle PASSes. ⚠ The real delivered-build logs on this box are the placeholder era (`TESTVALUE123`), so the
+passing leg used a synthetic log in the engine's exact line format; the placeholder log is refused by the new bundler.
+
 ## G377 — A build that masks bench levers makes every lever-using leg need `-IAIBench`; without it the lever is refused and the leg is a clean null (2026-09-29, 084-10)
 
 - **From 084-10's build on (Game `667FD4EF`),** `IAI.Bench.*` typed in `-ExecCmds` without `-IAIBench` or
@@ -8517,6 +8526,46 @@ Related: G112, G118, G119.
 
 Related: G354, G374.
 
+## G395 — A reference that contains the frame it judges hides that frame: 084-06's offset reference and onset reference both can, and a one-frame desync then reads with the wrong sign (2026-09-29, 087-01)
+
+*(Number checked against every ref, local and remote: the maximum was G394 on `feat/m53-uv-normal-corruption`.)*
+
+- **Measured, on synthetic known answers (the office kit's selftest) and re-checked on tonight's `084-09-eval.py`:**
+  - **label ends 1 frame early** (effect on 8 frames, label on the first 7): the frame after the label still carries the
+    effect and is "clean" by the label, so it becomes the first of the six offset-reference frames. Its own large
+    leave-one-out difference inflates the reference's noise (`max(MAD, std)`), the "post reference settled" test
+    (`d_first <= thD_off`, from the same six frames) passes, and the inflated threshold hides three labelled frames:
+    **084-09 reads end −3, not +1**;
+  - **label starts 1 frame late**: the frame before the label shows the effect but is the event's own fire row, which
+    the onset reference admits (`clean` allows own entries); **084-09 reads start +4, not −1**.
+  - Both verdicts still read FAIL (as "labelled not visible"), so no doctored label passed — the **numbers** a report
+    prints for a failing event have the wrong size and sign.
+- **Rule:** a reference's validity test must be built from frames that exclude the one under test (judge the first
+  post frame against the median and noise of the other post frames; if it is not settled, judge the offset against the
+  onset reference with 086-01's drift censor), and an onset reference excludes the event's own unlabelled fire rows. The
+  office kit does both; its selftest reads −1 and +1 on these cases.
+- A **slow drift** after an event needs its own censor against the offset reference (late clean frames vs the reference
+  beyond 10 % of the effect), or the drifted frames read as a late end — the kit's selftest carries that case too.
+- **One late frame is enough, too:** 086-01's noise model is `max(MAD, std)`, so a post reference whose LAST frame
+  already carries the next burst's change (banked `PB0_SMOKE_try2`, event 6: D 40 on that frame) raises the threshold to
+  103.8 and a hidden frame (D 62.5) reads "not visible" — a false FAIL, end −1, on an event 086-01 calls unresolved. The
+  kit drops unsettled trailing reference frames as well as leading ones; 084-09's post reference keeps all six frames.
+- **A frame at the edge of a window can only be tested from one side.** Make every reference-selection rule answer "what
+  if the frame I am about to trust is the anomaly?" — and prove the answer with a synthetic known answer, since a green
+  bank result cannot tell a right reference from a lenient one.
+
+Related: G349, G353, G350, G96.
+
+## G396 — Without a null session the stuck_low_mip edge-local basis cannot divide out a cycling scene, so the office kit censors more ends than the bench gate (2026-09-29, 087-01)
+
+- **Measured (the kit on 084-03's banked legs, own-detrend basis):** B9_FIX (AA off) reads 0 on every judged edge, but
+  **11 of 16 ends are censored** ("the picture does not return to its pre-event level"), where 084-06's rebank —
+  dividing by the matched null B5 — judged all 16 at 0. MainWorld's rock sharpness cycles with a ~12 s period (G349);
+  with no null, the two-point detrend cannot remove it and the 084-06 rule censors rather than guesses.
+- **Consequence:** at the office (no null capture) `stuck_low_mip` ends read as **censored**, never as a pass they did
+  not earn; the onsets and every judged end still carry the verdict. The kit states the basis in its header.
+
+Related: G349, G356.
 ## G397 — In an editor commandlet, a texture reads 32×32 until async texture compilation finishes, so every texture looks non-streamable (2026-09-29, 084-11)
 
 - **Seen in 084-11's MainWorld texture scan** (`-run=pythonscript`): `Texture2D.blueprint_get_size_x/y()` returned 32×32
