@@ -13,6 +13,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "AnomalyBenchGate.h"
 
 namespace
 {
@@ -245,19 +246,19 @@ class FAnomalyBenchModule final : public IModuleInterface
 public:
 	void StartupModule() override
 	{
-		Place = MakeUnique<FAutoConsoleCommandWithWorldAndArgs>(TEXT("IAI.Bench.PlaceView"),
-			TEXT("L2 one-shot camera-origin placement. -IAIBenchFixture, named bench maps; outside capture. CB requires InputLock."),
-			FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::PlaceView));
-		Lock = MakeUnique<FAutoConsoleCommandWithWorldAndArgs>(TEXT("IAI.Bench.InputLock"),
-			TEXT("1 locks fixture look/move input before settle; 0 releases outside capture. Automatically released at run end."),
-			FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::InputLock));
-		SceneFixtureCommand = MakeUnique<FAutoConsoleCommandWithWorldAndArgs>(TEXT("IAI.Bench.SceneFixture"),
-			TEXT("Explicit CB fixture: occluder duplicates the loaded target mesh; motion arms capture-only -3deg/sec yaw."),
-			FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::SceneFixture));
-		if (FParse::Param(FCommandLine::Get(), TEXT("IAIBench")))
+		if (AnomalyBenchGate::IsEnabled())
 		{
+			Place = MakeUnique<FAutoConsoleCommandWithWorldAndArgs>(TEXT("IAI.Bench.PlaceView"),
+				TEXT("L2 one-shot camera-origin placement. -IAIBenchFixture, named bench maps; outside capture. CB requires InputLock."),
+				FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::PlaceView));
+			Lock = MakeUnique<FAutoConsoleCommandWithWorldAndArgs>(TEXT("IAI.Bench.InputLock"),
+				TEXT("1 locks fixture look/move input before settle; 0 releases outside capture. Automatically released at run end."),
+				FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::InputLock));
+			SceneFixtureCommand = MakeUnique<FAutoConsoleCommandWithWorldAndArgs>(TEXT("IAI.Bench.SceneFixture"),
+				TEXT("Explicit CB fixture: occluder duplicates the loaded target mesh; motion arms capture-only -3deg/sec yaw."),
+				FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::SceneFixture));
 			ScheduleCommand = MakeUnique<FAutoConsoleCommandWithWorldAndArgs>(TEXT("IAI.Bench.CameraSchedule"),
-				TEXT("BENCH DEVICE (-IAIBench only, compiled out of Shipping). cc_v1 arms the B-CC camera_clipping pose schedule on CB_GateLevel: ")
+				TEXT("BENCH DEVICE (bench gate only: -IAIBench or -IAIBenchFixture; compiled out of Shipping). cc_v1 arms the B-CC camera_clipping pose schedule on CB_GateLevel: ")
 				TEXT("spawns a wall, a colliding prop beside the lens path, a non-colliding prop and (if a pawn is possessed) a pawn-owned mesh, then ")
 				TEXT("drives the view through 200 poses keyed by the capture session frame index. off disarms outside capture. Requires InputLock."),
 				FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::CameraSchedule));

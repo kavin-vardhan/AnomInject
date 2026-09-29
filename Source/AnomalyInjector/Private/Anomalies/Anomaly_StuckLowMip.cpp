@@ -794,12 +794,14 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		{
 			H.AppliedCinematicMips = H.SavedCinematicMips;
 			H.PredictedMaxAllowedMips = PredictMaxAllowedMips(Tex);
+#if !UE_BUILD_SHIPPING
 			UE_LOG(LogAnomaly, Warning,
 				TEXT("stuck_low_mip: IAI.Bench.StuckMipNoHold IS ON - '%s' is recorded as a held texture and the ")
 				TEXT("streaming bias is DELIBERATELY NOT WRITTEN. The mip will not drop, so held reads false on every ")
 				TEXT("frame, observable reads false, and the event carries no labelled frame. That is the can-fail ")
 				TEXT("proof (G96), not a defect."),
 				*GetNameSafe(Tex));
+#endif
 		}
 
 		UE_LOG(LogAnomaly, Log,
@@ -1727,6 +1729,7 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 	return true;
 }
 
+#if !UE_BUILD_SHIPPING
 static FAutoConsoleCommandWithWorldAndArgs GBenchStuckMipNoHoldCmd(
 	TEXT("IAI.Bench.StuckMipNoHold"),
 	TEXT("BENCH DEVICE, console only, default OFF - never in a client payload. ON makes stuck_low_mip do all of its ")
@@ -1892,3 +1895,4 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchStuckMipUnlinkLockCmd(
 				TEXT("the streamer defeating the bias."),
 				GStuckMipUnlinkLock ? TEXT("ON") : TEXT("off"));
 		}));
+#endif

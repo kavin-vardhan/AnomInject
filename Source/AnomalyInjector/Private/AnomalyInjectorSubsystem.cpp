@@ -1,6 +1,7 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyHiddenClass.h"
+#include "AnomalyBenchGate.h"
 
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
@@ -34,6 +35,7 @@
 
 static constexpr uint64 GAnomalyHeartbeatKey = 0x47445048;
 
+#if !UE_BUILD_SHIPPING
 namespace
 {
 	bool GBenchDestroyArmed = false;
@@ -41,6 +43,7 @@ namespace
 	int32 GBenchDestroyHoldFrames = 2;
 	int32 GBenchDestroyAnomalousTicks = 0;
 }
+#endif
 
 UAnomalyInjectorSubsystem::~UAnomalyInjectorSubsystem() = default;
 
@@ -185,9 +188,13 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Register(MakeUnique<FAnomaly_CorruptedTexture>());
 	Register(MakeUnique<FAnomaly_StuckLowMip>());
 #if !UE_BUILD_SHIPPING
-	Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("null_effect")), false));
-	Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("solid_swap")), true));
+	if (AnomalyBenchGate::IsEnabled())
+	{
+		Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("null_effect")), false));
+		Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("solid_swap")), true));
+	}
 #endif
+	AnomalyBenchGate::SweepUngatedLevers(TEXT("subsystem_init"));
 
 	SynthPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddUObject(
 		this, &UAnomalyInjectorSubsystem::OnWorldPreActorTickSynth);
@@ -229,6 +236,7 @@ void UAnomalyInjectorSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
+#if !UE_BUILD_SHIPPING
 void UAnomalyInjectorSubsystem::ServiceBenchDestroyLatch()
 {
 	if (!GBenchDestroyArmed)
@@ -289,6 +297,7 @@ void UAnomalyInjectorSubsystem::ServiceBenchDestroyLatch()
 	UE_LOG(LogAnomaly, Warning,
 		TEXT("IAI.Bench.DestroyTarget: Destroy() returned for '%s'; the latch is now DISARMED."), *VictimName);
 }
+#endif
 
 void UAnomalyInjectorSubsystem::WatchTargetForAnomaly(AActor* Actor, const FName& Id)
 {
@@ -397,7 +406,9 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 		DispatchAnomalyTicks(DeltaTime);
 	}
 
+#if !UE_BUILD_SHIPPING
 	ServiceBenchDestroyLatch();
+#endif
 
 	HeartbeatAccumulator += DeltaTime;
 	if (HeartbeatAccumulator >= 2.0f)
@@ -639,6 +650,7 @@ bool UAnomalyInjectorSubsystem::IsViewportScopingEnabled(UWorld* World)
 void UAnomalyInjectorSubsystem::SetSynthTickOrder(bool bEnabled)
 {
 	bSynthTickOrder = bEnabled;
+#if !UE_BUILD_SHIPPING
 	if (bEnabled)
 	{
 		UE_LOG(LogAnomaly, Warning,
@@ -654,6 +666,7 @@ void UAnomalyInjectorSubsystem::SetSynthTickOrder(bool bEnabled)
 			TEXT("IAI.Bench.SynthTickOrder -> OFF. The injector's anomaly dispatch is back in its own Tick, i.e. in ")
 			TEXT("whatever order this host ticks the subsystems."));
 	}
+#endif
 }
 
 bool UAnomalyInjectorSubsystem::IsSynthTickOrderEnabled(UWorld* World)
@@ -1116,6 +1129,7 @@ static FAutoConsoleCommandWithWorldAndArgs GSetViewportScopingCmd(
 			}
 		}));
 
+#if !UE_BUILD_SHIPPING
 static FAutoConsoleCommandWithWorldAndArgs GSynthTickOrderCmd(
 	TEXT("IAI.Bench.SynthTickOrder"),
 	TEXT("BENCH DEVICE, default OFF, console only - no ini key, never in a client payload. "
@@ -1390,6 +1404,7 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchSpawnTranslucentProbeCmd(
 					       "OFF direction of B-G1 is testable here; the ON direction is UNOBTAINABLE and rides "
 					       "the next cook with C-G1b. Declared, not a pass and not a failure."));
 		}));
+#endif
 
 static FAutoConsoleCommandWithWorldAndArgs GTestVisibilityCmd(
 	TEXT("IAI.TestVisibility"),

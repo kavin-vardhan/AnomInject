@@ -1,6 +1,7 @@
 #include "AnomalyCaptureSubsystem.h"
 
 #include "AnomalyCaptureLog.h"
+#include "AnomalyBenchGate.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "UnrealClient.h"
@@ -2085,6 +2086,7 @@ void UAnomalyCaptureSubsystem::SetCensusIncludeTranslucentWriters(bool bInInclud
 			: TEXT("off (translucent-only is EXCLUDED regardless of the opt-in)"));
 }
 
+#if !UE_BUILD_SHIPPING
 void UAnomalyCaptureSubsystem::SetBenchMaskPairingProbe(bool bInOn)
 {
 	if (bRunning)
@@ -2123,6 +2125,7 @@ void UAnomalyCaptureSubsystem::SetBenchVetoArmUngated(bool bInUngated)
 		TEXT("capture taken with this ON."),
 		bBenchVetoArmUngated ? TEXT("ON (UNGATED - pre-fix behaviour)") : TEXT("off (gated on the labelled window)"));
 }
+#endif
 
 void UAnomalyCaptureSubsystem::SpawnMaskPairingProbe()
 {
@@ -2208,6 +2211,7 @@ void UAnomalyCaptureSubsystem::DestroyMaskPairingProbe()
 	MaskPairingProbe = nullptr;
 }
 
+#if !UE_BUILD_SHIPPING
 void UAnomalyCaptureSubsystem::SetBenchTeleportOffscreenAt(int32 InSessionIndex)
 {
 	if (bRunning)
@@ -2330,6 +2334,7 @@ void UAnomalyCaptureSubsystem::SetBenchForceTagCollision(int32 InSessionIndex)
 		TEXT("blindness. NEVER ship a capture taken with this set."),
 		BenchForceTagCollision, BenchForceTagCollision);
 }
+#endif
 
 void UAnomalyCaptureSubsystem::StepBenchForceTagCollision(int32 SessionIndex)
 {
@@ -2582,6 +2587,7 @@ void UAnomalyCaptureSubsystem::EnqueueCensusMaskDump(uint64 ArmTick, const TArra
 		FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
 }
 
+#if !UE_BUILD_SHIPPING
 void UAnomalyCaptureSubsystem::SetBenchCensusFixedExpiry(bool bInFixed)
 {
 	if (bRunning)
@@ -2642,6 +2648,7 @@ void UAnomalyCaptureSubsystem::SetBenchCensusDropEveryNth(int32 InN)
 		TEXT("reading. NEVER ship a capture taken with this ON."),
 		BenchCensusDropEveryNth);
 }
+#endif
 
 void UAnomalyCaptureSubsystem::SetCensusReservation(bool bInReserve)
 {
@@ -3026,6 +3033,7 @@ int32 UAnomalyCaptureSubsystem::ScanHostPostProcessCustomDepthReaders(UWorld* Wo
 	}
 	else
 	{
+#if !UE_BUILD_SHIPPING
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(census): HOST-PP CUSTOM-DEPTH READERS = 0 (scanned %d volume(s), %d camera blend(s), ")
 			TEXT("%d blendable entr(ies), %d material(s), %d of which read some scene texture). ")
@@ -3045,6 +3053,7 @@ int32 UAnomalyCaptureSubsystem::ScanHostPostProcessCustomDepthReaders(UWorld* Wo
 			TEXT("custom pass, Niagara, UMG, a decal), and it is a snapshot taken now, so a blendable added ")
 			TEXT("later is missed. ZERO DOES NOT MEAN 'NOTHING ON THIS HOST READS CUSTOM DEPTH'."),
 			Volumes, CameraBlends, BlendableEntries, MaterialsSeen, SceneTextureUsers);
+#endif
 	}
 
 	return Readers;
@@ -5021,7 +5030,7 @@ void UAnomalyCaptureSubsystem::BeginFire()
 		UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: burst %d fired nothing (zero-match / empty) Ã¢â‚¬â€ negatives only."),
 			BurstsDone + 1);
 	}
-	else if (Auto && FParse::Param(FCommandLine::Get(), TEXT("IAIBench")))
+	else if (Auto && AnomalyBenchGate::IsEnabled())
 	{
 		UWorld* BenchWorld = GetWorld();
 		const UAnomalyInjectorSubsystem* BenchInjector = BenchWorld ? BenchWorld->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
@@ -7528,14 +7537,14 @@ void UAnomalyCaptureSubsystem::FlushObserveQueue(bool bForce)
 
 void UAnomalyCaptureSubsystem::RegisterBenchStuckMipLevers()
 {
-	if (GBenchStuckMipLeversRegistered || !FParse::Param(FCommandLine::Get(), TEXT("IAIBench")))
+	if (GBenchStuckMipLeversRegistered || !AnomalyBenchGate::IsEnabled())
 	{
 		return;
 	}
 	GBenchStuckMipLeversRegistered = true;
 	IConsoleManager::Get().RegisterConsoleCommand(
 		TEXT("IAI.Bench.StuckMipLegacyTiming"),
-		TEXT("BENCH DEVICE, registered only under -IAIBench and compiled out of Shipping. ON restores the pre-084-02 ")
+		TEXT("BENCH DEVICE, registered only when the bench gate is open (-IAIBench or -IAIBenchFixture) and compiled out of Shipping. ON restores the pre-084-02 ")
 		TEXT("stuck_low_mip label timing for the NEXT capture run: the label, masks, held and observable follow the ")
 		TEXT("game-thread resident-mip mirror, and the event ends at the revert with no restore trail. It exists only ")
 		TEXT("so the sync gate can be shown to FAIL on today's timing. Usage: IAI.Bench.StuckMipLegacyTiming <0|1>"),
@@ -7552,7 +7561,7 @@ void UAnomalyCaptureSubsystem::RegisterBenchStuckMipLevers()
 		ECVF_Default);
 	IConsoleManager::Get().RegisterConsoleCommand(
 		TEXT("IAI.Bench.StuckMipLegacyPurity"),
-		TEXT("BENCH DEVICE, registered only under -IAIBench and compiled out of Shipping. ON restores the pre-084-02 ")
+		TEXT("BENCH DEVICE, registered only when the bench gate is open (-IAIBench or -IAIBenchFixture) and compiled out of Shipping. ON restores the pre-084-02 ")
 		TEXT("stuck_low_mip texture-sharing rule: only VISIBLE co-users are counted, and a targeted fire bypasses the ")
 		TEXT("gate. It exists only so the purity gate can be shown to FAIL on the old rule. ")
 		TEXT("Usage: IAI.Bench.StuckMipLegacyPurity <0|1>"),
@@ -7567,9 +7576,9 @@ void UAnomalyCaptureSubsystem::RegisterBenchStuckMipLevers()
 		}),
 		ECVF_Default);
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("Capture(m52): -IAIBench present - bench levers IAI.Bench.StuckMipLegacyTiming and ")
+		TEXT("Capture(m52): bench gate open (%s) - bench levers IAI.Bench.StuckMipLegacyTiming and ")
 		TEXT("IAI.Bench.StuckMipLegacyPurity are registered, and every stuck_low_mip fire logs an independent ")
-		TEXT("texture-user enumeration (TEXUSERS)."));
+		TEXT("texture-user enumeration (TEXUSERS)."), *AnomalyBenchGate::DescribeFlags());
 }
 
 uint8 UAnomalyCaptureSubsystem::ResolveAnnotationPolicy(const FAutoLiveFireInfo& F) const
