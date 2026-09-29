@@ -8516,3 +8516,22 @@ Related: G112, G118, G119.
   pre-gate exe `8A6074AA` and is unaffected.
 
 Related: G354, G374.
+
+## G397 — In an editor commandlet, a texture reads 32×32 until async texture compilation finishes, so every texture looks non-streamable (2026-09-29, 084-11)
+
+- **Seen in 084-11's MainWorld texture scan** (`-run=pythonscript`): `Texture2D.blueprint_get_size_x/y()` returned 32×32
+  for 34 of 38 textures. The runtime logs show the same assets at 4,096 px / 13 mips (`T_rock_02_*`) and 512 px / 10 mips
+  (`T_HoloGrid_M`).
+- UE 5.1 compiles textures asynchronously in the editor. Until a texture's platform data is built, its size is a
+  placeholder. The first analysis therefore classed 35 of 38 textures "no streamable mips": a confident, wrong null.
+- **Fix:** run the console command `Editor.AsyncTextureCompilationFinishAll` (and
+  `Editor.AsyncStaticMeshCompilationFinishAll`) after loading the map and its World Partition actors, and before reading
+  any texture property. It is registered by `FAsyncCompilationStandardCVars` in `TextureCompiler.cpp`, and costs 0.4 s on
+  MainWorld.
+- **Detector:** a size histogram with nearly every texture at exactly 32×32. Compare at least one texture against a runtime
+  `HOLD … full_mips=` line before trusting a scan.
+- `MaterialEditingLibrary.GetUsedTextures` has the same dependency on compiled material resources: it reads uniform texture
+  expressions, so the commandlet also needs `-AllowCommandletRendering`.
+- Numbered G397 after taking the maximum over every ref: G396 on `feat/office-check-kit`.
+
+Related: G135, G96.

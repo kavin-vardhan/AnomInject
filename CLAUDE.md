@@ -11,6 +11,22 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 📐 **084-11, 2026-09-29 — m52 YIELD PLAN (PLAN ONLY: no source, no build, no cook, no launch). `stuck_low_mip` fires
+> ZERO on the office host (Deimos) because purity holds a texture only if exactly ONE component in the loaded world uses it,
+> and a refused `Apply` wastes the whole burst.**
+> - **Cold start:** `docs/predictions/2026-09-29-m52-yield.md` (§0 in three lines, §1.1 how to read the office counts, §7
+>   decisions); journal `docs/sessions/2026-09-29-084-11-m52-yield-plan.md`; evidence `_reviews\084-11-evidence\`.
+> - **Home, measured** (commandlet scan validated against the runtime purity lines; D: content manifest identical):
+>   - Of MainWorld's 342 renderable actors, today's rule passes **2**. Option A (K = 8, strict) passes 2; A′ (Nanite
+>     co-users labelled `-1`) passes 6.
+>   - At the settled camera, 1 of 17 picked targets passes (rock A). Today's fire rate is 9 of 24 bursts.
+>   - Sharing is bimodal (1–2 users, or 165–315 with Nanite users).
+>   - **The ratio gate is a second wall:** it needs ≥ 512 px on screen. `CB_GateLevel` yields 0 by construction.
+> - **Plan:** A-core for Thursday — K-capped co-affected admission, one mask value and one label entry per affected
+>   component, and a picker pre-filter (required for yield). A-ext (mid-hold additions, `baseline_pending` settle-wait) comes
+>   after. Fallbacks: B (pre-filter with K = 1), then available-but-off. **G397** (commandlet textures read 32×32 until
+>   compiled).
+>
 > 🧹 **084-10, 2026-09-29 — RELEASE HYGIENE ON `fix/m52-label-timing` (the m52-only fallback ships clean; m53 inherits it at
 > 085-02): ONE BENCH GATE for the twins and every `IAI.Bench.*` lever, G-LEVER-AUDIT, and the packaging items as scripts.
 > Source `92c3500`, Game exe `667FD4EF` + Editor DLLs archived, NOT cooked, NOT staged, NOT swapped in, nothing launched,
