@@ -11,6 +11,22 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧪 **089-03, 2026-09-30 — THE TARGETED RE-BENCH RAN AS FROZEN: 24 / 24 ACCEPTED ON ATTEMPT 1, EXIT 0, NO HARNESS-INVALID,
+> NO GATE CHANGED. stuck_low_mip, blinking and lod_popping read SYNC on E1 + the kit; camera_clipping AA off stays
+> UNJUDGEABLE on the as-built gate (the proposed confirmed-hold reading PASSes; chat rules).**
+> - **Cold start:** journal `docs/sessions/2026-09-30-089-03-rebench.md`; evidence `_reviews\089-03-evidence\run\report.md` /
+>   `report.json`; banks `D:\IA_BankOverflow\M52S10_*`.
+> - **stuck_low_mip:** E1 (null aligned by game time, covered on every leg) PASS B0 16 · B3 8 · B9 16 (ends +0 ×16) · MASK55A 16;
+>   KIT-GT PASS on all four, 0 UNJUDGEABLE; OffFrames 16 read back; B0L FAIL 18 (E1) / 18 (KIT-GT) and P1 purity FAIL = both
+>   can-fails proven. ⚠ **E2 086-01 FAILs 5 / 2 / 5 / 5 events there, every one with its own "scene drift" offset note —
+>   unresolved.** MASK55A: peak live 2, recycles 6, 199 / 199 masked, 0 shared frames.
+> - **blinking:** SYN and NAT PASS 10 / 10 at +0 / +0 on E1, E2 and the kit (E1-as-banked still FAILs SYN, G405).
+> - **lod_popping:** the relit fixture renders (median frame mean 131); all 8 gate legs PASS 23 / 23 at +0 / +0, N and D, AA on
+>   and off, both orders; 0 variant-D fade edges.
+> - **Part 0:** A and B PASS every check; 0 security prompts; firewall rules 16 → 16. Staged set restored to M53 (`2FCDF059`).
+> - 🎯 **NEXT: chat rules on the camera_clipping AA-off reading and the E2 drift FAILs.** ⛔ Do not re-run the bench unprompted.
+>
+> ---
 > 🛠 **089-02a, 2026-09-30 — THE 089-03 RE-BENCH IS PREPARED (dry run only; no game launch, no staging). E1 fixed for G395 /
 > G405 / G406 and frozen; the LOD fixture relit and re-cooked; the leg set with the 1,800-frame null after the m52 legs and
 > Part 0 last.**
