@@ -63,6 +63,7 @@ SUFFIX = 3
 DS = 4
 POST_REF_N = 6
 REF_AMENDMENT = True
+DEBUG = False
 REF_MIN = 4
 PREV_SETTLE = 4
 POST_SKIP = 2
@@ -1138,6 +1139,16 @@ def analyse_d(s, ev, evs, taa):
                 settled = d_first <= thD_on and p_first <= thP_on
         if settled:
             use = off_views[k:]
+            use_si = roff[k:]
+            while len(use) >= 3:
+                head = use[:-1]
+                _mh, thDh, thPh, _th = noise_model(head, ctx, False)
+                dl, pl, _o = metrics(use[-1], median_view(head, False), ctx, False)
+                if dl <= thDh and pl <= thPh:
+                    break
+                use = head
+                use_si = use_si[:-1]
+            roff = roff[:k] + use_si
             Roff = median_view(use, False)
             mu_off, thD_off, thP_off, _t = noise_model(use, ctx, False)
             for si in ser_on:
@@ -1180,7 +1191,8 @@ def analyse_d(s, ev, evs, taa):
         for si, (D, P) in off_items:
             series[si] = dict(D=D, P=P, frac=(D - mu_off) / max(dD_off - mu_off, 1e-6), strict=bool(D > thD_off or P > thP_off))
             sig_by_si[si] = (thD_off - mu_off) / K_SIG
-        run_info.append(dict(a=a, b=b, lo=lo_w, hi=hi_w, thrD_on=thD_on, depth_on=dD_on, fallback=not settled))
+        run_info.append(dict(a=a, b=b, lo=lo_w, hi=hi_w, thrD_on=thD_on, depth_on=dD_on, fallback=not settled,
+                             ron=ron, roff=roff, k=k, depth_off=dD_off, mu_on=mu_on, mu_off=mu_off, thD_off=thD_off))
     if not series:
         res["status"] = "NO-FRAMES"
         return res
@@ -1210,13 +1222,6 @@ def analyse_d(s, ev, evs, taa):
     for name, t in THRESH:
         vis = set(si for si, v in series.items() if v["strict"] and v["frac"] >= t)
         tg = transition_gate(L, lab_runs, vis, [si for si in span if si in series], reasons, drop, sig, taa)
-        fails, amb = split_censored(tg, L, on_c, off_c)
-        raw_fails = []
-        if [si for si in tg["unl"] if not ((si > max(L) and off_c) or (si < min(L) and on_c))]:
-            raw_fails.append("unlabelled visible")
-        mid_all = (min(L) + max(L)) / 2.0
-        if [si for si in tg["lnv"] if not ((si > mid_all and off_c) or (si <= mid_all and on_c))]:
-            raw_fails.append("labelled not visible")
         edges = []
         for ri in run_info:
             a, b = ri["a"], ri["b"]
@@ -1231,7 +1236,21 @@ def analyse_d(s, ev, evs, taa):
             st, en = ta_offsets(win, range(a, b + 1), tg["exc_unl"], tg["exc_lnv"])
             e["start_ta"], e["end_ta"] = st, en
             edges.append(e)
-        cen_any = any(e["cs"] or e["ce"] for e in edges)
+        unres = set()
+        for e, ri in zip(edges, run_info):
+            for si in tg["unl"]:
+                if (e["ue"] and e["b"] < si <= ri["hi"]) or (e["us"] and ri["lo"] <= si < e["a"]):
+                    unres.add(si)
+        tg_u = dict(tg)
+        tg_u["unl_x"] = [si for si in tg["unl_x"] if si not in unres]
+        fails, amb = split_censored(tg_u, L, on_c, off_c)
+        raw_fails = []
+        if [si for si in tg["unl"] if si not in unres and not ((si > max(L) and off_c) or (si < min(L) and on_c))]:
+            raw_fails.append("unlabelled visible")
+        mid_all = (min(L) + max(L)) / 2.0
+        if [si for si in tg["lnv"] if not ((si > mid_all and off_c) or (si <= mid_all and on_c))]:
+            raw_fails.append("labelled not visible")
+        cen_any = any(e["cs"] or e["ce"] or e["us"] or e["ue"] for e in edges)
         if not res["measurable"]:
             v_ta = v_raw = "NOT-MEASURABLE"
         elif res["confounded"]:
@@ -1244,6 +1263,9 @@ def analyse_d(s, ev, evs, taa):
     res["per"] = per
     res["status"] = "OK"
     res["fallback_runs"] = fallback_runs
+    if DEBUG:
+        res["dbg"] = dict(series={si: (round(v["D"], 3), round(v["frac"], 3), v["strict"]) for si, v in sorted(series.items())},
+                          runs=run_info, refc=refc, span=span)
     res["runs"] = len(run_info)
     res["post1"] = []
     for ri in run_info:
@@ -1864,7 +1886,7 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
             w("  %-18s events %d, judged 0" % (t, a.events))
             continue
         w("  %-18s judged %d | start %s | end %s | wrong-object %d | censored %d | fail %d" % (
-            t, a.status.get("judged", 0), hist(a.S[RELEASE]["ta"]), hist(a.E[RELEASE]["ta"]), a.wrong, a.cs + a.ce,
+            t, a.status.get("judged", 0), hist(a.S[RELEASE]["ta"]), hist(a.E[RELEASE]["ta"]), a.wrong, a.cs + a.ce + a.us + a.ue,
             a.release.get("FAIL", 0)))
     w("")
     w("frames decoded %d | seconds %.0f" % (frames_decoded, elapsed))
@@ -2192,6 +2214,12 @@ def st_cases():
     tex("gap_exact", _full(L), gap_before=40)
     tex("gap_late_1", _full(range(40, 48)), labels=list(range(41, 48)), gap_before=41)
     tex("wrong_object", _full(L), wrong=True)
+    late_change = _full(L)
+    late_change.update({60: 1.0, 61: 1.0, 62: 1.0, 63: 1.0})
+    tex("later_change_at_window_end", late_change)
+    stray = _full(L)
+    stray[55] = 1.0
+    tex("stray_visible_frame", stray)
     tex("old_rule_late_1", _full(range(40, 48)), labels=list(range(41, 48)), rule="old")
     smear = _full(L)
     smear.update({48: 0.7, 49: 0.35, 50: 0.1})
@@ -2275,6 +2303,10 @@ def st_expect():
         lambda r: verdict(r) == "PASS" and _edge(r)["gs"])
     add("gap_late_1", "gap beside the onset, label late by 1: FAIL (a gap never excuses)",
         lambda r: verdict(r) == "FAIL" and _edge(r)["start"] == -1, True)
+    add("later_change_at_window_end", "a separate change running into the window end: unresolved, not failed",
+        lambda r: verdict(r) == "CENSORED" and _edge(r)["ue"] and not r["per"]["t50"]["fails"])
+    add("stray_visible_frame", "an isolated unlabelled visible frame after the event FAILS",
+        lambda r: verdict(r) == "FAIL", True)
     add("wrong_object", "second object changing on labelled frames counted as wrong-object",
         lambda r: r["d"]["wrong_obj"] and not r["d"]["wrong_obj_clean"])
     add("exact", "exact case has no wrong-object", lambda r: not r["d"]["wrong_obj"])
