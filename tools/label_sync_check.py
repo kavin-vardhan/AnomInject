@@ -1752,7 +1752,7 @@ def aggregate(rows):
         if st == "NOT-JUDGEABLE":
             a.status["not-judgeable"] += 1
             continue
-        if r.get("path") == "m52-fallback-d":
+        if r.get("path") == "m52-fallback-d" and st == "OK":
             a.fallback_events += 1
         d = r.get("d") or {}
         if d.get("status") == "OK" and d.get("measurable") and st not in ("WARMUP", "CAMERA-MOVED"):
@@ -1865,7 +1865,8 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
             w("  end   %-6s transition-aware %-24s raw %s" % (name, hist(a.E[name]["ta"]), hist(a.E[name]["raw"])))
         w("edges: censored start %d end %d | unresolved start %d end %d | beside an uncaptured gap %d" % (
             a.cs, a.ce, a.us, a.ue, a.gap))
-        w("wrong-object (upper bound) %d event(s) | of them also changing on unlabelled frames %d" % (a.wrong, a.wrong_clean))
+        w("wrong-object: %d event(s) tied to the label | upper bound %d, of which %d also change on unlabelled frames" % (
+            a.wrong - a.wrong_clean, a.wrong, a.wrong_clean))
         w("masks: labelled frames without a mask %d | masks outside the label %d" % (a.mm, a.mx))
         if a.post1:
             p = sorted(a.post1)
@@ -1892,9 +1893,9 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
         if not a.status.get("judged"):
             w("  %-18s events %d, judged 0" % (t, a.events))
             continue
-        w("  %-18s judged %d | start %s | end %s | wrong-object %d | censored %d | fail %d" % (
-            t, a.status.get("judged", 0), hist(a.S[RELEASE]["ta"]), hist(a.E[RELEASE]["ta"]), a.wrong, a.cs + a.ce + a.us + a.ue,
-            a.release.get("FAIL", 0)))
+        w("  %-18s judged %d | start %s | end %s | wrong-object %d (upper bound %d) | censored %d | fail %d" % (
+            t, a.status.get("judged", 0), hist(a.S[RELEASE]["ta"]), hist(a.E[RELEASE]["ta"]), a.wrong - a.wrong_clean,
+            a.wrong, a.cs + a.ce + a.us + a.ue, a.release.get("FAIL", 0)))
     w("")
     w("frames decoded %d | seconds %.0f" % (frames_decoded, elapsed))
     return "\n".join(lines) + "\n"
