@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧪 **085-04, 2026-09-29 — THE m53 DELIVERY-CUT NIGHT RAN ON THE DC BUILD (`6B671987` + `F76F1119`): 65 of 65 attempts
+> ACCEPTED, lock committed before any gate leg (`ca14678`), restore on attempt 1, postflight PASS. Every B-M53 FIXTURE cell
+> PASSES; NO m53 LEG RAN ON MAINWORLD.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-085-04-m53-night.md` (§2 the two evaluator fixes, §3 the lock and the
+>   ND-4 parse bug, §4 every gate); evidence `_reviews\085-04-evidence\run\`, banks `D:\IA_BankOverflow\M53DC_*`.
+> - **Fixture:** tile / scramble / invert / green_flip × NAT, AA-off, SYN: 12 of 12 PASS, 17/17 judged onsets and offsets,
+>   +0/+0, 0 not-measurable; E1, 086-01 and the office kit agree. EXCL-B, G-SEED, G-ID, G-SYNC-REG, G-LEVER-ON PASS;
+>   co-entry frames 0 on both EXCL legs.
+> - ⚠ **Two evaluator faults repaired (both fix iterations spent, declared):** `judged_edges()` crashed on the per-run edge
+>   list; the fixture NOT-MEASURABLE count included the warm-ups, against the declared ND-5 definition. The as-built
+>   reports are kept for chat.
+> - 🚨 **ND-4 parse bug (G403):** the host rule matched `final=='over_budget'` while the product writes
+>   `over_budget:need_…`, so the uv MainWorld hosts (SM_Ramp2, RoomBuilderSquare, ≤ 256 MiB) were missed and the 16
+>   MainWorld and 5 COST legs were NOT-RUN-PREMISE. Normal has no host at any cap. ND-5 on realistic content: not measured.
+> - ⚠ **Not passing:** P-ORC (G-MODE unrunnable), G-BIND INVALID-FIXTURE, EXCL-A (no RESTORE CARRIED), G-REASON-DC
+>   MIXED_N / MIXED_UV, G-LEVER-OFF (no "not recognized" lines in the packaged log), G-CENSUS host (two census commands in
+>   one frame), and the arms read CD3 +1 (not +3) and RD3 three different ways.
+>
+> ---
 > 📦 **088-01, 2026-09-29 — DELIVERY REHEARSAL: BOTH PATHS BUILT AS THE CLIENT RECEIVES THEM (staged plugin → Development
 > build → cook/pak → AnomDash bundle) AND EVERY PACKAGING CHECK RUN. NOTHING DELIVERED, NOTHING LAUNCHED, NO TAG, NO MERGE TO
 > `master`.** Outputs only under `E:\IA_BuildCache\_rehearsal\` (packages, bundles, evidence).

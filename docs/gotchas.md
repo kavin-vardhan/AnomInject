@@ -9433,3 +9433,26 @@ Related: G119, G142.
   lines and the needles in the same change.
 
 Related: G354, G99.
+
+## G403 — A reason token compared by equality silently misses the form that carries detail (2026-09-29, 085-04)
+
+- **Measured:** the ND-4 host rule in `085-04-window.py` keeps a host only when a census line's `final` equals
+  `over_budget`. The product writes `final=over_budget:need_213949084_available_134217728_cap_134217728`. The rule never
+  matched, the lock recorded "no host at any cap", and the uv MainWorld and COST legs did not run, although two uv
+  candidates (SM_Ramp2, RoomBuilderSquare) were refused on budget alone and qualified for the declared 256 MiB raise.
+  The dry run's stand-in census lines (written by `085-04-window.py` itself) carried the bare token, so it passed there.
+- **Rule:** match a reason by its leading token (`split(':')[0]`), and prove a parser on one real banked line of the
+  current build before the night, not only on lines the harness wrote itself.
+
+Related: G96, G377.
+
+## G404 — A dry run on stand-ins that change nothing never reaches the code that judges a change (2026-09-29, 085-04)
+
+- **Measured:** 085-04's dry run evaluated all 86 legs on banked stand-ins and exited 0, but every stand-in event was
+  NOT-MEASURABLE, so `judged_edges()` returned before the line that reads the edges. On the first real captures the line
+  raised on every m53 leg (the E1 evaluator emits a list of per-run edges, the function expected a dict), and the same
+  path counted unevaluated warm-up events as NOT-MEASURABLE, against the README's declared definition.
+- **Rule:** a dry run's stand-ins include at least one session in which the judged effect is present (a banked known
+  answer), and the report states which evaluator branches the dry run reached.
+
+Related: G96, G392.
