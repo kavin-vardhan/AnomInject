@@ -8584,3 +8584,45 @@ Related: G349, G356.
 - Numbered G397 after taking the maximum over every ref: G396 on `feat/office-check-kit`.
 
 Related: G135, G96.
+
+## G398 — Audit a built binary against the source it was compiled from: a delivery exe audited against the branch reads the excluded bench module as a "stale build" (2026-09-29, 088-01)
+
+*(Numbered after taking the maximum over all 31 refs: G397 on `feat/m53-uv-normal-corruption`.)*
+
+- **Measured on both rehearsal packages** (A `6D1B659F`, B `C18D0F41`, each built from the folder
+  `stage_plugin_delivery.py` produced): `lever_audit.py --binary <exe>` run from the branch — the checklist's form —
+  **FAILED B2**: *"source registers `IAI.Bench.CameraSchedule` … but the binary does not carry it (stale build)"*. The
+  branch still holds `Source/AnomalyBench/`; the staged folder does not (F9), so the binary is correct and the audit's
+  source model was wrong. With `--root <staged folder>`: **PASS**, `unknown=0 missing=0 echo=present`.
+- A false FAIL is not harmless: it teaches the reader to discount B2, the rule that catches a genuinely stale exe.
+- **Rule:** a binary cross-check names the exact tree the binary was built from. Where a build is made from a derived
+  tree (staging, stripping, a generated copy), the audit takes that tree's root, and the step that derives the tree
+  prints the command.
+
+Related: G354, G375, G142.
+
+## G399 — A presence check passes a document that still says "fill this in" (2026-09-29, 088-01)
+
+- **Measured:** both rehearsal bundles passed `check_delivery_bundle.py` (README present, every script path it names in
+  the bundle, token right) while the README's Step 1 still read `⟨ LAUNCH — build-specific; fill this in ⟩`, and B's §8.8
+  still read `(rate: to be measured)`. A client would have received no way to start the game.
+- The only checklist box asking for the launch steps sat in a section marked *superseded* (the Tauri layout); the layout
+  changed, the box did not move, and the stub outlived it.
+- **Rule:** a client-facing template's placeholders are part of the delivery check. The bundle check now STOPs on the
+  stub and on any value "to be measured", and a copy with the stub filled PASSes (both directions shown). When a checklist
+  section is superseded, move its still-live boxes forward before marking it history.
+
+Related: G119, G142.
+
+## G400 — An exclusion list of bench folders goes stale when a new bench folder is added (2026-09-29, 088-01)
+
+- **Measured:** the bench project's Content holds three fixture folders — `AnomalyFixtures`, `CaptureBenchGate` and, since
+  082-05, `CaptureBenchTexCorrupt` (m53's `CB_TexCorruptLevel` and ~110 `TC_*` assets). The delivery cook's never-cook
+  lines and G354's fixture needles named only the first two (the needles did catch the TC *map* by name, not a TC asset
+  cooked without it). No shipping map references any of the three (1,888 files scanned), so no package carried TC
+  content: an incomplete guard, not a leak.
+- **Rule:** a list of "things to keep out" is checked against a listing of what exists, at each use — here, the top-level
+  folders of the host's Content — not against the list's own history. Adding a fixture folder adds it to the never-cook
+  lines and the needles in the same change.
+
+Related: G354, G99.
