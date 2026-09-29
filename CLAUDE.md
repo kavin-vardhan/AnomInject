@@ -11,6 +11,50 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 📐 **084-11, 2026-09-29 — m52 YIELD PLAN (PLAN ONLY: no source, no build, no cook, no launch). `stuck_low_mip` fires
+> ZERO on the office host (Deimos) because purity holds a texture only if exactly ONE component in the loaded world uses it,
+> and a refused `Apply` wastes the whole burst.**
+> - **Cold start:** `docs/predictions/2026-09-29-m52-yield.md` (§0 in three lines, §1.1 how to read the office counts, §7
+>   decisions); journal `docs/sessions/2026-09-29-084-11-m52-yield-plan.md`; evidence `_reviews\084-11-evidence\`.
+> - **Home, measured** (commandlet scan validated against the runtime purity lines; D: content manifest identical):
+>   - Of MainWorld's 342 renderable actors, today's rule passes **2**. Option A (K = 8, strict) passes 2; A′ (Nanite
+>     co-users labelled `-1`) passes 6.
+>   - At the settled camera, 1 of 17 picked targets passes (rock A). Today's fire rate is 9 of 24 bursts.
+>   - Sharing is bimodal (1–2 users, or 165–315 with Nanite users).
+>   - **The ratio gate is a second wall:** it needs ≥ 512 px on screen. `CB_GateLevel` yields 0 by construction.
+> - **Plan:** A-core for Thursday — K-capped co-affected admission, one mask value and one label entry per affected
+>   component, and a picker pre-filter (required for yield). A-ext (mid-hold additions, `baseline_pending` settle-wait) comes
+>   after. Fallbacks: B (pre-filter with K = 1), then available-but-off. **G397** (commandlet textures read 32×32 until
+>   compiled).
+>
+> ---
+> 🧪 **087-01, 2026-09-29 — THE OFFICE LABEL-SYNC CHECK KIT EXISTS: `tools/label_sync_check.py` + `tools/OFFICE-CHECK.md` on
+> branch `feat/office-check-kit` (off `fix/m52-label-timing` `02d15a4`; merges with the fix at merge prep; NO tag). Bench-free:
+> nothing launched, built, cooked or staged; every bank read-only. AnomDash `ab6e63f` fixes G376 (the bundle token).**
+> - **Cold start:** journal `docs/sessions/2026-09-29-087-01-office-check-kit.md`; drivers and logs `_reviews\087-01-work\`.
+> - **The kit (`0cd2bb0`):** one stdlib file (3.8+; Pillow optional — identical numbers, shown on a real 56-event set), read-only,
+>   **numbers only**. 086-01's per-frame change on the target silhouette + 084-06's edge-local references; 084-06's sharpness
+>   path for `stuck_low_mip` (own-detrend: no null at the office, G396); 084-09's R1. **Release reading = transition-aware at
+>   50 %** (raw, 10 %, strict beside it); a flag excuses only in its reason's direction (G353's decay rule kept); 084-07
+>   decision 1 for `partial`; `labelled` disagreements counted; the header names rule, AA, references and basis.
+>   `camera_clipping` = *not judgeable by this kit*.
+> - **Selftest 32/32 on both decoders** (28 synthetic sessions; the TAA smear must pass, a late label under a stray flag must
+>   fail) and 32/32 with Pillow hidden. **Real captures:** master stuck_low_mip FAILs as 084-06's rebank (B9_BASE −1/+4);
+>   fixed builds read 0 transition-aware (B9_FIX 0 FAIL; B0/B7/B3_FIX with synthesised 3/8 flags 0 FAIL; `E9FF019A` B0/B3/B9/B0L
+>   exactly 084-06's E1; B9 given the 084-07 schema + synthesised `partial` → 0 FAIL, 32 partial frames confirmed); **vs 086-01
+>   on 159 sessions every t50 edge both judge is equal (871 + 744, 0 different)**; doctored ±1/+3 FAIL everywhere except
+>   stuck_low_mip +1 under TAA (G353's K_on blind spot).
+> - 🚨 **Found (G395): 084-06's D-path — and tonight's `084-09-eval.py` — can put the frame it judges into its own reference.**
+>   On known answers 084-09 still FAILs, but reports **start +4 for a label 1 late and end −3 for a label ending 1 early**;
+>   a post reference that ends on a later change inflates its own threshold (it made an early kit version FAIL a banked
+>   event 086-01 calls unresolved). The kit's 9 deviations from 084-06 each came from a known answer or a named banked event.
+> - **Runtime (56 events / 1,200 frames, this PC):** **Pillow 180 s, standard library 857 s** (identical reports); the office
+>   3,000-frame capture is ~7 min with Pillow, ~30 min without. Selftest ~50 s.
+> - 🎯 **NEXT: chat reviews; the kit merges with the fix at merge prep (AnomDash's manifest already ships it, so a
+>   `--plugin-repo` ref without it fails loudly); the delivery rehearsal repeats the bundle check with the real delivery
+>   build's log.**
+>
+> ---
 > 🧪 **085-03, 2026-09-29 — THE DC FIXTURE CELLS ARE AUTHORED AND COOKED INTO THE MERGED BUILD, AND THE B-M53 HARNESS
 > (`_reviews\085-04-*`) IS BUILT, PROVEN OFFLINE AND DRY-RUN. NO GAME WAS LAUNCHED; NOTHING WAS STAGED OUTSIDE THE DRY
 > RUN'S OWN E: SANDBOX.** 🧪
