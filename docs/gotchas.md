@@ -9198,3 +9198,65 @@ Related: G96.
   `stats_unchanged=`), and is guarded by a structural check with planted failures (`tools/census_readonly_check.py`).
 
 Related: G139.
+
+## G384 — A first-use echo can only be silenced by NOT caching the quiet read; and a quiet scope must name every lazy getter it reaches (2026-09-29, 085-02c)
+
+- After G383's fix the census still printed settings echoes on a cold process (Codex F4 residual): `KnobGet`,
+  `ModeKnobGet`, `GetExcludedTargetPatterns` and `GetAllowTranslucentOnlyTargets` resolve lazily and log the first
+  time they are read, and an invalid ini value is echoed verbatim in the refusal warning. The read-only scope guarded
+  the enumeration's side channels and never reached these callees; a warmed process hid it completely.
+- Suppressing the log while still setting the "resolved" flag would lose the echo **and the ini refusal warning** for
+  the whole process, because the first real use would then find the value cached.
+- **Rule:** inside the scope, resolve the same value through a log-free helper and return it **without caching**; the
+  first real use still resolves, echoes and warns as before. The structural check must list the reachable lazy getters
+  and **fail on an unlisted one** (`census_readonly_check.py` clause (g): an `AnomalyDefaults::Get*` call reachable
+  from the census that is not on the quiet list, or a new first-use resolver in `TexCorruptState.cpp`). Otherwise the
+  next getter added to that path reopens the defect silently. Read the office output only from a **cold** process
+  (`--log <log> --cold` says UNDECIDABLE, never PASS, when an echo printed before the census).
+
+Related: G383, G139, G96.
+
+## G385 — A UE log does not record which console command produced a line (2026-09-29, 085-02c)
+
+- Banked packaged logs show `-ExecCmds` commands only on the `Command Line:` line, with no per-command echo, and a
+  typed command's `>>> cmd <<<` goes to the console scrollback (`UConsole::OutputText`), not to the log file. The only
+  engine record is a CSV event for deferred commands. A log reader therefore cannot find where a command's output
+  begins.
+- For a **synchronous** console command (the census runs entirely inside one game-thread call), the
+  `[time][frame]` prefix is the delimiter: every line in that frame up to the command's last line belongs to it or
+  preceded it in the same frame. The attribution can only **over-attribute** (a plugin line earlier in the same frame
+  reads as the command's, which is a false FAIL), and it needs the prefix. With no prefix the reading is
+  UNDECIDABLE.
+- **Rule:** delimit a synchronous command's output by its engine frame and treat over-attribution as the
+  conservative direction. Prefer this to adding a marker line to a pre-declared output grammar (the census's four
+  lines are pinned in the DC plan and the checklist).
+
+Related: G384.
+
+## G386 — Two exact unit tests can pass while their composition is wrong: an inserted argument silently disables a "no argument" branch downstream (2026-09-29, 085-02c)
+
+- 085-02b's targeted round-robin was exact (one hold draw, the right index) and `Apply`'s bench-lever branch was
+  exact (identity / redraw / tile probe **when no mode argument is given**). Composed, the round-robin inserted a mode,
+  so `Apply` never reached the lever branch and B-M53's identity null became a real `tile` corruption (Codex N1).
+  Neither unit test could see it, because each tested its own half.
+- **Rule:** when one side decides an argument that another side branches on, share **one** predicate between them
+  (`TexCorruptPure::NoModeLever`, used by `Apply` and by `TargetedNoModeBenchLever`), and test the **composition**
+  against independent expectations: the upstream decision fed through the downstream selection, over every lever and
+  family combination (`texcorrupt_draw_test.cpp` `TestTargetedToApplySelection`), with a mutant that re-inserts the
+  argument (`DRAW_MUTANT 7`) failing.
+
+Related: G96.
+
+## G387 — A pending-snapshot barrier covers nothing at readback latency 1; model sequences at the measured latency (2026-09-29, 085-02c)
+
+- Codex's F1 reverse witness (a raw early `IAI.Revert` of m53, then a forced m52 fire) looks as if the pending
+  FireWindow snapshots should block it, since every armed frame still copies the retained m53 entry. At readback
+  latency 1, which is the latency measured on this bench (M-1), the snapshot armed on the previous tick is already
+  finalized when the next tick decides, so the pending set is empty at decision time and only the **retained live
+  fire** keeps m52 out. The selftest at latency 1 shows it: ignoring the retained fire admits m52 at R + 2 = 22 and
+  frames 22..39 carry both entries; at latency 3 the pending scan alone would have hidden that.
+- **Rule:** a sequence test for a barrier built on in-flight work runs at the **measured** latency (and one larger),
+  and each ingredient of the barrier gets its own mutant (`EXCL_MUTANT 10` retained fires ignored, `11` pending
+  FireWindow snapshots ignored), each failing on a different sequence.
+
+Related: G383, G384.

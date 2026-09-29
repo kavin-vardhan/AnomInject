@@ -683,7 +683,13 @@ for an m53 id with no mode argument (every dashboard Targeted capture) it takes 
 `GetAutoDrawModes(Id)` round-robin (`RoundRobinNext`, per-id `TargetedModeCounters`, reset with the seed in `SetSeed`
 / `SetRunning`, advanced independently of the apply result) and logs `Auto.FireSpecific: '<id>'
 mode_source=round_robin mode= index=k/n` (`mode_source=argument` when a mode is given). No draw is added (085-02b,
-ruling 5; KAT `GKatTargeted[]`).
+ruling 5; KAT `GKatTargeted[]`). **Bench levers take precedence (085-02c, Codex N1):** while
+`IAI.Bench.TexCorruptIdentity`, `…IdentityRedraw` or `…TileProbe` (uv only, targeted only) defines a no-mode fire's
+mode, `AnomalyTexCorrupt::TargetedNoModeBenchLever(Id)` names it, `TargetedAttempt` is told so (`bBenchLeverMode`: the
+hold is still the only draw, no round-robin index, the counter does not advance), no mode is inserted, and the log
+reads `mode_source=bench_lever lever=<identity|identity_redraw|tile_probe>`. Both that function and `Apply`'s no-mode
+branch select through the one pure rule `TexCorruptPure::NoModeLever`. The levers exist only under the bench gate, so a
+client build always takes the round-robin.
 
 **The m52 ⟂ m53 exclusion** (`Public/AnomalyExclusion.h`, pure: families, `EState` `fire_live | trail_open |
 trail_reopenable | label_tail | restoring | revert_settling | restore_unresolved | closed | idle`, `FTrailFacts` /
@@ -705,7 +711,13 @@ outstanding for it and (c) no detached trail can reopen it:
 - **m53 live** = its fire is live, or `AnomalyTexCorrupt::IsRevertSettling(UWorld*)`: true while a delayed restore is
   pending and until the event's `post_revert` ledger frame (R + 2) is reached; a rolled-back apply does not settle
   (`TexCorruptPure::IsRevertSettlingAt`; the pure rule's own `RevertSettleFrames = 2`); or — both directions — the
-  provider reports an excluding trail state for an m53 id (none today: m53 has no trail or transition track).
+  provider reports an excluding state for an m53 id. m53 has no trail or transition track; its emitters are **the
+  auto-injector's retained live fire** (after a raw early `IAI.Revert` or target loss the instance is inactive but the
+  `LiveFires` entry stays until the capture's scheduled `BeginRevert`, and every armed frame still copies it) and **its
+  pending FireWindow snapshots**. For an m53 partner the provider reads both (`RetainedLiveFireOwesFrames`,
+  `PendingFireOwesFrames`, `EmitterTrail` → `label_tail`; 085-02c, Codex F1 reverse); for an m52 partner the pending
+  scan still counts render-truth fires only. Release after an ordinary revert is max(R + 2, the last m53-carrying
+  snapshot finalized) — R + 2 at readback latency 1.
 - **Records (F3):** `ApplyAnomaly` keeps the active record when a re-Apply is refused while the instance still reports
   active (`RecordAfterApply`: `Replace | Keep | Drop`), and `IsIdFireLive` reads the instance's `IsActive()` alone.
 - **Where it is checked** (`UAnomalyInjectorSubsystem::EvaluatePartnerExclusion` / `IsExcludedByPartner`): in
@@ -719,6 +731,9 @@ outstanding for it and (c) no detached trail can reopen it:
   or transition) **and** any emitted m53 entry (labelled or not) — `AnomalyExclusion::IsCoEntryFrame`, the same
   predicate as the artifact gate `tools/exclusion_gate.py` (EXCL-A) — with a `Capture(m53): M52-M53 OVERLAP` warning
   each; expected 0 outside the `restore_unresolved` exception.
+- **Engine glue guard:** `tools/m53_glue_check.py [--selftest]` (085-02c) fails if the provider stops reading the
+  retained fires or the FireWindow snapshots for an m53 partner, if an m52 candidate stops asking for both m53 ids,
+  or if the bench-lever precedence in `TryFireSpecific` / `Apply` / `TargetedNoModeBenchLever` is broken.
 - Separately, a slot whose texture `stuck_low_mip` holds or is restoring is refused `held_by_stuck_low_mip`.
 
 **Labels.** The id → active-source table lives in `Source/AnomalyCapture/Private/AnomalyActiveSource.h` (pure,
@@ -742,8 +757,16 @@ and `RefusedAsTranslucentOnly` return the same eligibility but neither add to th
 `run_summary`) nor log their name-bearing `EXCLUDED-*` lines, and `GetActiveViewInfo`'s no-controller warning is
 silent. The census snapshots the two exclusion counts, `AnomalyTexCorrupt::RunStatsDigest()` (FNV-1a over every
 `FRunStats` field, the tripwire, the ledger and the attempt ordinals), both mode masks and the auto-injector's live
-count and enabled ids before and after, and prints the comparison as `stats_unchanged`. Structural guard with planted
-failures: `tools/census_readonly_check.py [--selftest]`.
+count and enabled ids before and after, and prints the comparison as `stats_unchanged`. **First-use configuration
+echoes are quiet inside the scope (085-02c, Codex F4 residual):** the census-reachable lazy getters — `KnobGet`,
+`ModeKnobGet` (`TexCorruptState.cpp`), `AnomalyDefaults::GetExcludedTargetPatterns` and
+`GetAllowTranslucentOnlyTargets` — resolve the same value through a log-free helper and return it without logging,
+without the ini refusal warning and without caching, so the first real use still prints its echo. Structural guard
+with planted failures: `tools/census_readonly_check.py [--selftest]` (clause (g) also fails a census-reachable
+`AnomalyDefaults::Get*` not on the quiet list, and a new lazy resolver in `TexCorruptState.cpp`); its
+`--log <game log> --cold` mode reads the office output: every plugin line in the census's own engine frame must be one
+of the four census lines (the frame is the `[time][frame]` prefix; no prefix, or a census-reachable echo printed
+before the census, reads UNDECIDABLE).
 
 **Bench-only levers** (`TexCorruptBench.cpp`, every one `IAI.Bench.TexCorrupt*`, compiled out of Shipping and masked
 without the bench gate): the S1 set plus `CommitDelay <n>` (the picture commits n frames after APPLIED, label

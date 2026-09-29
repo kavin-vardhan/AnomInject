@@ -11,6 +11,29 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔧 **085-02c, 2026-09-29 — THE THREE RESIDUALS CHAT RULED ON (`_reviews\085-02b-chat-ruling-dc-fixes.md`) ARE FIXED,
+> TESTED BOTH WAYS, BUILT (0 WARNINGS) AND ARCHIVED. NO CODEX RE-CHECK (RULED). NOTHING WAS LAUNCHED, COOKED OR
+> STAGED.** 🔧
+> **Cold start: `docs/sessions/2026-09-29-085-02c-m53-dc-residuals.md`.**
+> - **Source `270ed32` (pushed).** **N1:** while `IAI.Bench.TexCorruptIdentity` / `…IdentityRedraw` / `…TileProbe`
+>   defines a no-mode fire's mode, a targeted m53 fire inserts no round-robin mode and logs `mode_source=bench_lever
+>   lever=<name>`. One pure rule, `TexCorruptPure::NoModeLever`, is shared by `Apply` and `TargetedNoModeBenchLever`.
+>   The hold is still the only draw, and client builds (no bench gate) are unchanged. **F1 reverse:** for an m53
+>   partner the provider also reads the auto-injector's retained live fires and pending FireWindow snapshots
+>   (`label_tail`), so a raw early `IAI.Revert` of m53 keeps m52 out until the retained entry clears. **F4:** the four
+>   census-reachable lazy getters return quietly inside the census scope (no echo, no refusal warning, no caching).
+> - **Tests:** exclusion 243/0 (mutants 1–11 fail; 10 = retained ignored → co-entry frames 22..39, 11 = pending
+>   ignored); draw 978/0 (mutants 1–8 fail; 7 = round-robin under the identity lever → `apply_selects_identity_got_round_robin`);
+>   KAT 88 rows, the existing rows unchanged; census check PASS + 37 selftest cases (the pre-fix tree FAILs 4 × (g)),
+>   including a `--log --cold` reader for the office output; new `tools/m53_glue_check.py` PASS + 10; pure 251, lever
+>   audit PASS + 11. **Build:** exe **`6B671987`**, 0 warnings, archived `_binary_baselines\m53dcres-6B671987\`, A44
+>   and the binary lever audit green. Not staged.
+> - 🎯 **NEXT: 085-03 on this build** (fixture cook, B-M53 harness, dry run; read `mode_source=bench_lever` on the
+>   identity nulls and a cold `--log --cold` census). Then 087-01. ⛔ No tag, no merge; `m51`, `master`,
+>   `fix/m52-label-timing` untouched. Gotchas G384–G387 (next free G388).
+>
+> ---
+>
 > 🔧 **085-02b, 2026-09-29 — CODEX F1–F4 FIXED PER CHAT'S RULING, TARGETED m53 ROUND-ROBIN, FREE-RUNNING BOUND; BUILT
 > (0 warnings) AND ARCHIVED. THE CODEX RE-CHECK SAYS NEEDS-DECISION (F2, F3 RESOLVED; F1, F4 PARTIAL; ONE NEW HIGH ON THE
 > B-M53 IDENTITY-NULL PATH) AND WAS NOT ACTED ON. NOTHING WAS LAUNCHED, COOKED OR STAGED.** 🔧

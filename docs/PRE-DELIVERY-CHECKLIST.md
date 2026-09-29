@@ -376,6 +376,14 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       *(085-02b)* The `end` line carries the command's own read-only check, `stats_unchanged=1`; `stats_unchanged=0`
       is off-grammar and a **STOP** (the census changed a run count, the m53 stats or the pool). No `EXCLUDED-TARGET` /
       `EXCLUDED-TRANSLUCENT` line may appear between the census command and its `end` line.
+      *(085-02c)* **Also once on a COLD process:** launch the delivered build fresh, make `IAI.TexCorrupt.Census` the
+      **first** command typed, then read the log with
+      `python tools\census_readonly_check.py --log <log> --cold`. It must print `CENSUS-LOG VERDICT PASS`: every
+      plugin line in the census's own engine frame is one of the four census lines — no `texcorrupt: IAI.Anomaly...`
+      setting echo, no ini refusal warning, no `target-exclusion patterns` / `translucent-only targets` line (those
+      now print later, at the first real use). `FAIL` is a **STOP**. `UNDECIDABLE` (the log has no `[time][frame]`
+      prefix, or a setting echo printed before the census, so the process was not cold) means relaunch and repeat,
+      never a pass. Prove the reader can fail first: `python tools\census_readonly_check.py --selftest`.
       ⚠ **`-cnotmatch`, not `-notmatch`:** PowerShell matching is case-insensitive by default, and a
       case-insensitive grammar would pass a capitalised object name such as `SM_Floor:1`. Every `reasons=` name must
       also be one of the reasons in the client readme's §8.8 table.
@@ -426,7 +434,10 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       capture of `uv_corruption` / `normal_corruption` takes the enabled modes in turn: its log shows
       `Auto.FireSpecific: '<id>' mode_source=round_robin mode=<mode>` on each burst and the modes cycle through the
       enabled list. If the dashboard being shipped starts sending a mode, the log reads `mode_source=argument` instead
-      and the readme's §8.8 paragraph must change with it.
+      and the readme's §8.8 paragraph must change with it. *(085-02c)* A delivered log never reads
+      `mode_source=bench_lever`: that line appears only while `IAI.Bench.TexCorruptIdentity` / `…IdentityRedraw` /
+      `…TileProbe` selects the mode, and those need the bench gate. Seeing it is a **STOP** (a bench flag reached the
+      delivery).
 
 ### 🆕 `m43` — THE TARGET ID MASK: three boxes for this cook
 

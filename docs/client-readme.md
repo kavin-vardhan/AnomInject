@@ -1190,7 +1190,10 @@ full resolution in the rendered picture **and** every frame it labels, or flags 
 frame, has been written **and** no render record it is still waiting on could show the blur again — which can be
 several frames after its event ends (with temporal anti-aliasing, up to 8 more frames for its `transition` tail,
 including frames at the start of the next capture). `uv_corruption` / `normal_corruption` count as live from apply
-until 2 frames after their revert. While one side is live the other is not started:
+until 2 frames after their revert **and** until every captured frame that carries their entry has been written — so if
+one is reverted early during a capture (for example `IAI.Revert uv_corruption` in the console, or its object being
+removed), the capture still carries its event until the event's scheduled end, and `stuck_low_mip` stays out until
+then (`<state>` below reads `label_tail`). While one side is live the other is not started:
 
 - in **Auto-pool**, it is left out of that draw before anything random is drawn, so a seed still reproduces the rest
   of the run;
@@ -1235,8 +1238,11 @@ IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=1
 (the table above, without their details), or `-` when nothing was refused. The answer depends on the view and on what
 has finished loading, so run it at a few typical views. The command changes nothing — not even the counts a capture
 running at the same time reports, and it prints none of the per-object messages other commands print when they first
-meet an excluded object. `stats_unchanged=1` on the last line is the command's own check of that; `0` means
-something changed and should be reported to us.
+meet an excluded object. It also prints none of the settings messages the game writes the first time it reads a
+setting (for example `texcorrupt: IAI.Anomaly.TexCorruptUvModes = ...`), even when the census is the first command
+after the game starts; those messages appear later, at the setting's first real use. So the four lines above are
+everything the command prints. `stats_unchanged=1` on the last line is the command's own check that nothing changed;
+`0` means something changed and should be reported to us.
 
 **What ships in this delivery:** both anomalies, the four modes above, the settings, the census command and the
 `stuck_low_mip` exclusion. Both are in the Capture pool panel, **off by default**. **Deferred:** `drift`, `swap`,
