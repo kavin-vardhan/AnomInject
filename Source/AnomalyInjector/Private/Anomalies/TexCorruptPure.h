@@ -1413,4 +1413,38 @@ namespace TexCorruptPure
 		R.Outcome = EDrawOutcome::Drawn;
 		return R;
 	}
+
+	inline int RoundRobinNext(unsigned& Counter, int NumModes)
+	{
+		if (NumModes <= 0)
+		{
+			return -1;
+		}
+		const int Index = (int)(Counter % (unsigned)NumModes);
+		++Counter;
+		return Index;
+	}
+
+	struct FTargetedAttemptResult
+	{
+		float Hold = 0.0f;
+		bool bRoundRobin = false;
+		int ModeIndex = -1;
+		int NumModes = -1;
+	};
+
+	template <typename TStream>
+	FTargetedAttemptResult TargetedAttempt(TStream& Stream, float HoldMin, float HoldMax, bool bModeGiven, int NumModes,
+		unsigned& RoundRobinCounter)
+	{
+		FTargetedAttemptResult R;
+		R.Hold = (float)Stream.FRandRange(HoldMin, HoldMax);
+		R.NumModes = NumModes;
+		if (!bModeGiven && NumModes >= 0)
+		{
+			R.bRoundRobin = true;
+			R.ModeIndex = RoundRobinNext(RoundRobinCounter, NumModes);
+		}
+		return R;
+	}
 }

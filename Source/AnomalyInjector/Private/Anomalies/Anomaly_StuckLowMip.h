@@ -21,6 +21,8 @@ public:
 
 	bool IsRestoringAny() const { return Restoring.Num() > 0; }
 
+	bool IsRestoringPastTimeout(int32 TimeoutFrames) const;
+
 	virtual FName   GetId() const override { return FName(TEXT("stuck_low_mip")); }
 	virtual FString GetDescription() const override { return TEXT("Texture held at a low resident mip on an actor's meshes (blurry object)."); }
 	virtual FString GetUsage() const override { return TEXT("<substring> [mip_levels]"); }

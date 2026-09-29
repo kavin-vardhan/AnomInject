@@ -127,6 +127,8 @@ private:
 
 	int32 DrawAttemptOrdinal = 0;
 
+	TMap<FName, uint32> TargetedModeCounters;
+
 	float IntervalMin = 4.0f;
 	float IntervalMax = 9.0f;
 	float HoldMin = 3.0f;

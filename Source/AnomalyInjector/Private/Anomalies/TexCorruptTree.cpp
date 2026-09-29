@@ -1,6 +1,7 @@
 #include "Anomalies/TexCorruptCore.h"
 #include "Anomalies/TexCorruptPure.h"
 
+#include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyLod.h"
@@ -1034,6 +1035,35 @@ namespace AnomalyTexCorrupt
 			UE_LOG(LogAnomaly, Warning, TEXT("IAI.TexCorrupt.Census: no world; nothing was counted."));
 			return;
 		}
+		AnomalyViewport::FReadOnlyEnumerationScope ReadOnly;
+
+		struct FStatsSnapshot
+		{
+			int32 TargetExclusions = 0;
+			int32 TranslucentExclusions = 0;
+			uint32 RunStats = 0;
+			uint32 UvModes = 0;
+			uint32 NormalModes = 0;
+			int32 PoolLiveFires = -1;
+			TArray<FString> PoolIds;
+		};
+		auto TakeStatsSnapshot = [World]()
+		{
+			FStatsSnapshot S;
+			S.TargetExclusions = AnomalyViewport::GetTargetExclusionCount();
+			S.TranslucentExclusions = AnomalyViewport::GetTranslucentOnlyExclusionCount();
+			S.RunStats = RunStatsDigest();
+			S.UvModes = GetEnabledModeMask(EFamily::UV);
+			S.NormalModes = GetEnabledModeMask(EFamily::Normal);
+			if (const UAnomalyAutoInjectorSubsystem* AutoInjector = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>())
+			{
+				S.PoolLiveFires = AutoInjector->GetLiveFireCount();
+				S.PoolIds = AutoInjector->GetEnabledIds();
+			}
+			return S;
+		};
+		const FStatsSnapshot StatsBefore = TakeStatsSnapshot();
+
 		TArray<FString> Names;
 		if (bAll)
 		{
@@ -1047,7 +1077,7 @@ namespace AnomalyTexCorrupt
 				TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
 				for (UPrimitiveComponent* Prim : Prims)
 				{
-					if (AnomalyViewport::IsRenderableComponent(Prim))
+					if (AnomalyViewport::IsRenderableComponentReadOnly(Prim))
 					{
 						Names.Add(Actor->GetName());
 						break;
@@ -1057,7 +1087,7 @@ namespace AnomalyTexCorrupt
 		}
 		else
 		{
-			for (const TWeakObjectPtr<AActor>& Weak : AnomalyViewport::GetVisibleRenderableActors(World))
+			for (const TWeakObjectPtr<AActor>& Weak : AnomalyViewport::GetVisibleRenderableActorsReadOnly(World))
 			{
 				if (const AActor* Actor = Weak.Get())
 				{
@@ -1113,7 +1143,12 @@ namespace AnomalyTexCorrupt
 				f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption"), Counts[f].Eligible, Counts[f].Refused,
 				Reasons.IsEmpty() ? TEXT("-") : *Reasons);
 		}
-		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 end"));
+		const FStatsSnapshot StatsAfter = TakeStatsSnapshot();
+		const bool bStatsUnchanged = StatsBefore.TargetExclusions == StatsAfter.TargetExclusions
+			&& StatsBefore.TranslucentExclusions == StatsAfter.TranslucentExclusions && StatsBefore.RunStats == StatsAfter.RunStats
+			&& StatsBefore.UvModes == StatsAfter.UvModes && StatsBefore.NormalModes == StatsAfter.NormalModes
+			&& StatsBefore.PoolLiveFires == StatsAfter.PoolLiveFires && StatsBefore.PoolIds == StatsAfter.PoolIds;
+		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=%d"), bStatsUnchanged ? 1 : 0);
 	}
 
 	namespace

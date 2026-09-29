@@ -177,6 +177,20 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API int32 GetTranslucentOnlyExclusionCount();
 
+	struct ANOMALYINJECTOR_API FReadOnlyEnumerationScope
+	{
+		FReadOnlyEnumerationScope();
+		~FReadOnlyEnumerationScope();
+		FReadOnlyEnumerationScope(const FReadOnlyEnumerationScope&) = delete;
+		FReadOnlyEnumerationScope& operator=(const FReadOnlyEnumerationScope&) = delete;
+	};
+
+	ANOMALYINJECTOR_API bool IsReadOnlyEnumeration();
+
+	ANOMALYINJECTOR_API bool IsRenderableComponentReadOnly(const UPrimitiveComponent* Component);
+
+	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<AActor>> GetVisibleRenderableActorsReadOnly(UWorld* World);
+
 	template <typename T>
 	TArray<TWeakObjectPtr<T>> FindVisibleComponentsMatching(UWorld* World, const FString& Substring)
 	{

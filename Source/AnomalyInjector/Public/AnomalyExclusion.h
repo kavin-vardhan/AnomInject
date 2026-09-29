@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnomalyStuckMipWindow.h"
+#include "AnomalyLabelSync.h"
 
 namespace AnomalyExclusion
 {
@@ -19,7 +20,9 @@ namespace AnomalyExclusion
 		Restoring = 3,
 		RevertSettling = 4,
 		Unresolved = 5,
-		Closed = 6
+		Closed = 6,
+		TrailReopenable = 7,
+		LabelTail = 8
 	};
 
 	enum class ETrail : unsigned char
@@ -27,7 +30,9 @@ namespace AnomalyExclusion
 		None = 0,
 		Closed = 1,
 		Unresolved = 2,
-		Gating = 3
+		LabelTail = 3,
+		Reopenable = 4,
+		Gating = 5
 	};
 
 	static constexpr int RevertSettleFrames = 2;
@@ -66,42 +71,129 @@ namespace AnomalyExclusion
 	{
 		switch (S)
 		{
-		case EState::FireLive:       return "fire_live";
-		case EState::TrailOpen:      return "trail_open";
-		case EState::Restoring:      return "restoring";
-		case EState::RevertSettling: return "revert_settling";
-		case EState::Unresolved:     return "restore_unresolved";
-		case EState::Closed:         return "closed";
-		default:                     return "idle";
+		case EState::FireLive:        return "fire_live";
+		case EState::TrailOpen:       return "trail_open";
+		case EState::Restoring:       return "restoring";
+		case EState::RevertSettling:  return "revert_settling";
+		case EState::Unresolved:      return "restore_unresolved";
+		case EState::Closed:          return "closed";
+		case EState::TrailReopenable: return "trail_reopenable";
+		case EState::LabelTail:       return "label_tail";
+		default:                      return "idle";
 		}
 	}
 
 	inline bool IsExcludingState(EState S)
 	{
-		return S == EState::FireLive || S == EState::TrailOpen || S == EState::Restoring || S == EState::RevertSettling;
+		return S == EState::FireLive || S == EState::TrailOpen || S == EState::Restoring || S == EState::RevertSettling
+			|| S == EState::TrailReopenable || S == EState::LabelTail;
 	}
 
-	inline ETrail ClassifyTrail(bool bOpen, bool bClosed, bool bUnresolved)
+	struct FTrailFacts
 	{
-		if (!bOpen)
+		bool bOpen = false;
+		bool bClosed = false;
+		bool bDetached = false;
+		bool bUnresolved = false;
+		bool bAllNotedProcessed = true;
+		bool bLabelTail = false;
+	};
+
+	inline ETrail ClassifyTrail(const FTrailFacts& F)
+	{
+		if (!F.bOpen)
 		{
-			return ETrail::None;
+			return F.bLabelTail ? ETrail::LabelTail : ETrail::None;
 		}
-		if (bClosed)
+		if (!F.bClosed)
 		{
-			return ETrail::Closed;
+			return F.bUnresolved ? ETrail::Unresolved : ETrail::Gating;
 		}
-		return bUnresolved ? ETrail::Unresolved : ETrail::Gating;
+		if (!F.bDetached || !F.bAllNotedProcessed)
+		{
+			return ETrail::Reopenable;
+		}
+		return F.bLabelTail ? ETrail::LabelTail : ETrail::Closed;
 	}
 
-	inline ETrail ClassifyTrail(const AnomalyStuckMipWindow::FTrail& T)
+	inline FTrailFacts FactsOf(const AnomalyStuckMipWindow::FTrail& T, bool bLabelTail)
 	{
-		return ClassifyTrail(T.bOpen, T.bClosed, T.bUnresolved);
+		FTrailFacts F;
+		F.bOpen = T.bOpen;
+		F.bClosed = T.bClosed;
+		F.bDetached = T.bDetached;
+		F.bUnresolved = T.bUnresolved;
+		F.bAllNotedProcessed = T.AllNotedProcessed();
+		F.bLabelTail = bLabelTail;
+		return F;
+	}
+
+	inline ETrail ClassifyTrail(const AnomalyStuckMipWindow::FTrail& T, bool bLabelTail)
+	{
+		return ClassifyTrail(FactsOf(T, bLabelTail));
 	}
 
 	inline ETrail CombineTrail(ETrail A, ETrail B)
 	{
 		return (unsigned char)A >= (unsigned char)B ? A : B;
+	}
+
+	inline bool RunEmitsTransitionTail(bool bRenderTruthRun, int OffFrames)
+	{
+		return bRenderTruthRun && OffFrames > 0;
+	}
+
+	inline bool TransitionTailOwed(bool bRunEmitsTail, bool bHasMember, bool bOffDone)
+	{
+		return bRunEmitsTail && bHasMember && !bOffDone;
+	}
+
+	inline bool TransitionTailOwed(bool bRunEmitsTail, const AnomalyLabelSync::FEventTransitionTrack& T)
+	{
+		return TransitionTailOwed(bRunEmitsTail, T.LastMember() != AnomalyLabelSync::FEventTransitionTrack::NoMember, T.bOffDone);
+	}
+
+	inline EState StateOfTrail(ETrail T)
+	{
+		switch (T)
+		{
+		case ETrail::Gating:     return EState::TrailOpen;
+		case ETrail::Reopenable: return EState::TrailReopenable;
+		case ETrail::LabelTail:  return EState::LabelTail;
+		case ETrail::Unresolved: return EState::Unresolved;
+		case ETrail::Closed:     return EState::Closed;
+		default:                 return EState::Idle;
+		}
+	}
+
+	inline bool IsRestoreEntryPastTimeout(int FramesWaited, int TimeoutFrames)
+	{
+		return FramesWaited >= (TimeoutFrames < 1 ? 1 : TimeoutFrames);
+	}
+
+	inline bool AllRestoringPastTimeout(const int* FramesWaited, int Num, int TimeoutFrames)
+	{
+		if (!FramesWaited || Num <= 0)
+		{
+			return false;
+		}
+		for (int i = 0; i < Num; ++i)
+		{
+			if (!IsRestoreEntryPastTimeout(FramesWaited[i], TimeoutFrames))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	inline EState RestoringState(bool bRestoringSet, bool bPastTimeout)
+	{
+		if (!bRestoringSet)
+		{
+			return EState::Idle;
+		}
+		return bPastTimeout ? EState::Unresolved : EState::Restoring;
 	}
 
 	struct FM52Signals
@@ -110,6 +202,7 @@ namespace AnomalyExclusion
 		bool bProvider = false;
 		ETrail Trail = ETrail::None;
 		bool bRestoringSet = false;
+		bool bRestoringPastTimeout = false;
 	};
 
 	inline EState M52State(const FM52Signals& S)
@@ -120,20 +213,16 @@ namespace AnomalyExclusion
 		}
 		if (S.bProvider && S.Trail != ETrail::None)
 		{
-			switch (S.Trail)
-			{
-			case ETrail::Gating:     return EState::TrailOpen;
-			case ETrail::Unresolved: return EState::Unresolved;
-			default:                 return EState::Closed;
-			}
+			return StateOfTrail(S.Trail);
 		}
-		return S.bRestoringSet ? EState::Restoring : EState::Idle;
+		return RestoringState(S.bRestoringSet, S.bRestoringPastTimeout);
 	}
 
 	struct FM53Signals
 	{
 		bool bFireLive = false;
 		bool bRevertSettling = false;
+		ETrail Trail = ETrail::None;
 	};
 
 	inline EState M53State(const FM53Signals& S)
@@ -142,7 +231,12 @@ namespace AnomalyExclusion
 		{
 			return EState::FireLive;
 		}
-		return S.bRevertSettling ? EState::RevertSettling : EState::Idle;
+		if (S.bRevertSettling)
+		{
+			return EState::RevertSettling;
+		}
+		const EState FromTrail = StateOfTrail(S.Trail);
+		return IsExcludingState(FromTrail) ? FromTrail : EState::Idle;
 	}
 
 	inline bool IsRevertSettlingAt(long long RevertFrame, long long NowFrame)
@@ -190,5 +284,55 @@ namespace AnomalyExclusion
 			Admitted += bAdmit ? 1 : 0;
 		}
 		return Admitted;
+	}
+
+	enum class ERecordAction : unsigned char
+	{
+		Replace = 0,
+		Keep = 1,
+		Drop = 2
+	};
+
+	inline ERecordAction RecordAfterApply(bool bApplied, bool bInstanceActiveAfter)
+	{
+		if (bApplied)
+		{
+			return ERecordAction::Replace;
+		}
+		return bInstanceActiveAfter ? ERecordAction::Keep : ERecordAction::Drop;
+	}
+
+	inline bool IsFireLiveForExclusion(bool bInstanceActive)
+	{
+		return bInstanceActive;
+	}
+
+	struct FFrameEntry
+	{
+		EFamily Family = EFamily::Other;
+		bool bLabelled = false;
+		bool bTransition = false;
+	};
+
+	inline bool IsM52CoEntry(const FFrameEntry& E)
+	{
+		return E.Family == EFamily::M52 && (E.bLabelled || E.bTransition);
+	}
+
+	inline bool IsM53CoEntry(const FFrameEntry& E)
+	{
+		return E.Family == EFamily::M53;
+	}
+
+	inline bool IsCoEntryFrame(const FFrameEntry* Entries, int Num)
+	{
+		bool bM52 = false;
+		bool bM53 = false;
+		for (int i = 0; Entries && i < Num; ++i)
+		{
+			bM52 = bM52 || IsM52CoEntry(Entries[i]);
+			bM53 = bM53 || IsM53CoEntry(Entries[i]);
+		}
+		return bM52 && bM53;
 	}
 }

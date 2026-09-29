@@ -206,6 +206,7 @@ void UAnomalyAutoInjectorSubsystem::SetRunning(bool bInRunning)
 		WarnOnCoexistence();
 		Stream.Initialize(Seed);
 		DrawAttemptOrdinal = 0;
+		TargetedModeCounters.Reset();
 		FireTimer = Stream.FRandRange(IntervalMin, IntervalMax);
 		UE_LOG(LogAnomaly, Log, TEXT("IAI.Auto.Run -> ON (seed %d, first fire in %.2fs)."), Seed, FireTimer);
 	}
@@ -607,13 +608,45 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 		return false;
 	}
 
-	const float Hold = Stream.FRandRange(HoldMin, HoldMax);
+	const bool bTexCorrupt = AnomalyTexCorrupt::IsTexCorruptId(Id);
+	TArray<FString> Modes;
+	if (bTexCorrupt)
+	{
+		Modes = AnomalyTexCorrupt::GetAutoDrawModes(Id);
+	}
+	const bool bModeGiven = ExtraArgs.Num() >= 1 && !ExtraArgs[0].IsEmpty();
+	uint32 UnusedModeCounter = 0;
+	uint32& ModeCounter = bTexCorrupt ? TargetedModeCounters.FindOrAdd(Id) : UnusedModeCounter;
+	const TexCorruptPure::FTargetedAttemptResult Targeted = TexCorruptPure::TargetedAttempt(Stream, HoldMin, HoldMax,
+		bModeGiven, bTexCorrupt ? Modes.Num() : -1, ModeCounter);
+	const float Hold = Targeted.Hold;
 	const FString TargetName = Target->GetName();
 	const FString Token = FString(TEXT("=")) + TargetName;
 	TArray<FString> ApplyArgs;
 	ApplyArgs.Reserve(1 + ExtraArgs.Num());
 	ApplyArgs.Add(Token);
 	ApplyArgs.Append(ExtraArgs);
+	if (Targeted.bRoundRobin)
+	{
+		const bool bHaveMode = Modes.IsValidIndex(Targeted.ModeIndex);
+		if (bHaveMode)
+		{
+			if (ExtraArgs.Num() >= 1)
+			{
+				ApplyArgs[1] = Modes[Targeted.ModeIndex];
+			}
+			else
+			{
+				ApplyArgs.Add(Modes[Targeted.ModeIndex]);
+			}
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("Auto.FireSpecific: '%s' mode_source=round_robin mode=%s index=%d/%d"),
+			*Id.ToString(), bHaveMode ? *Modes[Targeted.ModeIndex] : TEXT("none"), Targeted.ModeIndex, Targeted.NumModes);
+	}
+	else if (bTexCorrupt)
+	{
+		UE_LOG(LogAnomaly, Log, TEXT("Auto.FireSpecific: '%s' mode_source=argument mode=%s"), *Id.ToString(), *ExtraArgs[0]);
+	}
 	const bool bApplied = Injector->ApplyAnomaly(Id, ApplyArgs);
 	if (bApplied)
 	{
@@ -681,6 +714,7 @@ void UAnomalyAutoInjectorSubsystem::SetSeed(int32 InSeed)
 	Seed = InSeed;
 	Stream.Initialize(Seed);
 	DrawAttemptOrdinal = 0;
+	TargetedModeCounters.Reset();
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.Auto.Seed -> %d."), Seed);
 }
 

@@ -51,6 +51,8 @@ namespace
 
 	float GMinScreenCoveragePct = 6.0f;
 
+	thread_local int32 GReadOnlyEnumerationDepth = 0;
+
 	TSet<FString>& ExcludedActorsSeen()
 	{
 		static TSet<FString> Seen;
@@ -117,6 +119,10 @@ namespace
 
 			if (Field)
 			{
+				if (AnomalyViewport::IsReadOnlyEnumeration())
+				{
+					return true;
+				}
 				bool bAlready = false;
 				ExcludedActorsSeen().Add(ActorName, &bAlready);
 				if (!bAlready)
@@ -503,6 +509,10 @@ namespace
 			return false;
 		}
 
+		if (AnomalyViewport::IsReadOnlyEnumeration())
+		{
+			return true;
+		}
 		const FString ActorName = Actor->GetName();
 		bool bAlready = false;
 		TranslucentOnlyActorsSeen().Add(ActorName, &bAlready);
@@ -669,9 +679,12 @@ namespace AnomalyViewport
 		APlayerController* PC = World->GetFirstPlayerController();
 		if (!PC)
 		{
-			UE_LOG(LogAnomaly, Warning,
-				TEXT("AnomalyViewport: no local player controller for world '%s' (e.g. a Simulate session); viewport scoping treated as unscoped."),
-				*GetNameSafe(World));
+			if (!IsReadOnlyEnumeration())
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("AnomalyViewport: no local player controller for world '%s' (e.g. a Simulate session); viewport scoping treated as unscoped."),
+					*GetNameSafe(World));
+			}
 			return false;
 		}
 
@@ -1337,6 +1350,33 @@ namespace AnomalyViewport
 	int32 GetTranslucentOnlyExclusionCount()
 	{
 		return TranslucentOnlyActorsSeen().Num();
+	}
+
+	FReadOnlyEnumerationScope::FReadOnlyEnumerationScope()
+	{
+		++GReadOnlyEnumerationDepth;
+	}
+
+	FReadOnlyEnumerationScope::~FReadOnlyEnumerationScope()
+	{
+		--GReadOnlyEnumerationDepth;
+	}
+
+	bool IsReadOnlyEnumeration()
+	{
+		return GReadOnlyEnumerationDepth > 0;
+	}
+
+	bool IsRenderableComponentReadOnly(const UPrimitiveComponent* Component)
+	{
+		FReadOnlyEnumerationScope ReadOnly;
+		return IsRenderableComponent(Component);
+	}
+
+	TArray<TWeakObjectPtr<AActor>> GetVisibleRenderableActorsReadOnly(UWorld* World)
+	{
+		FReadOnlyEnumerationScope ReadOnly;
+		return GetVisibleRenderableActors(World);
 	}
 
 	float GetActorScreenCoveragePct(UWorld* World, const AActor* Actor)

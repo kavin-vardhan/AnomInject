@@ -640,6 +640,67 @@ namespace AnomalyTexCorrupt
 		return Out;
 	}
 
+	namespace
+	{
+		void RunStatsDigestFold(uint32& Fnv, uint64 Value)
+		{
+			for (int32 i = 0; i < 8; ++i)
+			{
+				Fnv = (Fnv ^ (uint32)((Value >> (i * 8)) & 0xFFu)) * 16777619u;
+			}
+		}
+
+		void RunStatsDigestFoldMap(uint32& Fnv, const TMap<FString, int32>& Map)
+		{
+			TArray<FString> Keys;
+			Map.GetKeys(Keys);
+			Keys.Sort([](const FString& L, const FString& R) { return L.Compare(R, ESearchCase::CaseSensitive) < 0; });
+			RunStatsDigestFold(Fnv,(uint64)Keys.Num());
+			for (const FString& Key : Keys)
+			{
+				RunStatsDigestFold(Fnv,(uint64)Key.Len());
+				for (int32 c = 0; c < Key.Len(); ++c)
+				{
+					RunStatsDigestFold(Fnv,(uint64)Key[c]);
+				}
+				RunStatsDigestFold(Fnv,(uint64)(int64)Map.FindChecked(Key));
+			}
+		}
+	}
+
+	uint32 RunStatsDigest()
+	{
+		uint32 Fnv = 2166136261u;
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.FiresApplied);
+		RunStatsDigestFoldMap(Fnv,GStats.RefusedByReason);
+		RunStatsDigestFoldMap(Fnv,GStats.SlotDispositions);
+		RunStatsDigestFoldMap(Fnv,GStats.BindingDispositions);
+		RunStatsDigestFoldMap(Fnv,GStats.RollbackByStep);
+		RunStatsDigestFold(Fnv,(uint64)GStats.RtBytesPeak);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.RestoredExact);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.RestoredDefault);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.LeftToGame);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.Swept);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.RtMipMismatch);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.CollateralDrops);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.CollateralIncompleteFrames);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.SlotsPartialSet);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GTripwire.GetValue());
+		RunStatsDigestFold(Fnv,(uint64)GLedger.Live);
+		RunStatsDigestFold(Fnv,(uint64)GLedger.Peak);
+		RunStatsDigestFold(Fnv,(uint64)GLedger.PendingSum());
+		const int32 Buckets = FMath::Clamp(GLedger.Buckets, 0, FLedger::MaxBuckets);
+		RunStatsDigestFold(Fnv,(uint64)(int64)Buckets);
+		for (int32 i = 0; i < Buckets; ++i)
+		{
+			RunStatsDigestFold(Fnv,(uint64)GLedger.Due[i]);
+			RunStatsDigestFold(Fnv,(uint64)GLedger.Bytes[i]);
+		}
+		RunStatsDigestFold(Fnv,(uint64)(int64)GOrdinals.Next[0]);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GOrdinals.Next[1]);
+		return Fnv;
+	}
+
 	const TArray<FString>& AllFinalReasons()
 	{
 		static const TArray<FString> List = {

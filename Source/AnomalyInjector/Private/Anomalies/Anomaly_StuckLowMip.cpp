@@ -385,6 +385,16 @@ FAnomaly_StuckLowMip::~FAnomaly_StuckLowMip()
 	StopHoldMonitor();
 }
 
+bool FAnomaly_StuckLowMip::IsRestoringPastTimeout(int32 TimeoutFrames) const
+{
+	TArray<int, TInlineAllocator<16>> Waited;
+	for (const FRestoringTexture& R : Restoring)
+	{
+		Waited.Add(R.FramesWaited);
+	}
+	return AnomalyExclusion::AllRestoringPastTimeout(Waited.GetData(), Waited.Num(), TimeoutFrames);
+}
+
 bool FAnomaly_StuckLowMip::HoldsOrRestores(const UTexture2D* Tex) const
 {
 	if (!Tex)

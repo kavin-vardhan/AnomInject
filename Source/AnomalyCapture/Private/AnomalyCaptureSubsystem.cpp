@@ -6295,7 +6295,44 @@ uint8 UAnomalyCaptureSubsystem::QueryExclusionTrail(FName PartnerId, FString& Ou
 	{
 		return (uint8)Best;
 	}
-	auto Scan = [&Best, &OutEventKey, PartnerId](const TArray<FAnomalyCaptureAsyncState::FStuckTrail>& List)
+	const bool bRunEmitsTail = AnomalyExclusion::RunEmitsTransitionTail(bRenderTruthRun, Async->LabelOffFrames);
+	TSet<FString> PendingKeys;
+	for (const TPair<uint64, AnomalyLabel::FCaptureSnapshot>& Pending : Async->PendingSnapshots)
+	{
+		for (const FAutoLiveFireInfo& F : Pending.Value.Fires)
+		{
+			if (F.Id == PartnerId && IsRenderTruthFire(F))
+			{
+				PendingKeys.Add(StuckMipEventKey(F.Id, F.StartFrame));
+			}
+		}
+		for (const FAutoLiveFireInfo& C : Pending.Value.TransitionCandidates)
+		{
+			if (C.Id == PartnerId)
+			{
+				PendingKeys.Add(StuckMipEventKey(C.Id, C.StartFrame));
+			}
+		}
+	}
+	auto LabelTailOf = [this, &PendingKeys, bRunEmitsTail](const FString& Key) -> bool
+	{
+		if (PendingKeys.Contains(Key))
+		{
+			return true;
+		}
+		const AnomalyLabelSync::FEventTransitionTrack* Track = Async->TransitionTracks.Find(Key);
+		return Track && AnomalyExclusion::TransitionTailOwed(bRunEmitsTail, *Track);
+	};
+	auto Consider = [&Best, &OutEventKey](AnomalyExclusion::ETrail State, const FString& Key)
+	{
+		if (AnomalyExclusion::CombineTrail(Best, State) != Best)
+		{
+			Best = State;
+			OutEventKey = Key;
+		}
+	};
+	TSet<FString> Seen;
+	auto Scan = [&](const TArray<FAnomalyCaptureAsyncState::FStuckTrail>& List)
 	{
 		for (const FAnomalyCaptureAsyncState::FStuckTrail& Trail : List)
 		{
@@ -6303,16 +6340,38 @@ uint8 UAnomalyCaptureSubsystem::QueryExclusionTrail(FName PartnerId, FString& Ou
 			{
 				continue;
 			}
-			const AnomalyExclusion::ETrail State = AnomalyExclusion::ClassifyTrail(Trail.Window);
-			if (AnomalyExclusion::CombineTrail(Best, State) != Best)
-			{
-				Best = State;
-				OutEventKey = Trail.Key;
-			}
+			Seen.Add(Trail.Key);
+			Consider(AnomalyExclusion::ClassifyTrail(Trail.Window, LabelTailOf(Trail.Key)), Trail.Key);
 		}
 	};
 	Scan(Async->Trails);
 	Scan(Async->CarriedTrails);
+	for (const FAutoLiveFireInfo& Tail : Async->CarriedTailFires)
+	{
+		if (Tail.Id != PartnerId)
+		{
+			continue;
+		}
+		const FString Key = StuckMipEventKey(Tail.Id, Tail.StartFrame);
+		if (Seen.Contains(Key))
+		{
+			continue;
+		}
+		Seen.Add(Key);
+		AnomalyExclusion::FTrailFacts NoTrail;
+		NoTrail.bLabelTail = LabelTailOf(Key);
+		Consider(AnomalyExclusion::ClassifyTrail(NoTrail), Key);
+	}
+	for (const FString& Key : PendingKeys)
+	{
+		if (Seen.Contains(Key))
+		{
+			continue;
+		}
+		AnomalyExclusion::FTrailFacts NoTrail;
+		NoTrail.bLabelTail = true;
+		Consider(AnomalyExclusion::ClassifyTrail(NoTrail), Key);
+	}
 	return (uint8)Best;
 }
 
@@ -6347,37 +6406,43 @@ void UAnomalyCaptureSubsystem::ClearExclusionTrailProvider()
 void UAnomalyCaptureSubsystem::NoteTexCorruptM52Overlap(const AnomalyLabel::FCaptureSnapshot& Snap)
 {
 	static const FName M52Name(ANSI_TO_TCHAR(AnomalyExclusion::M52Id));
-	bool bM52Entry = false;
-	bool bM53Labelled = false;
+	TArray<AnomalyExclusion::FFrameEntry, TInlineAllocator<8>> Entries;
+	auto FamilyOfId = [](const FName& Id)
+	{
+		if (Id == M52Name)
+		{
+			return AnomalyExclusion::EFamily::M52;
+		}
+		return AnomalyTexCorrupt::IsTexCorruptId(Id) ? AnomalyExclusion::EFamily::M53 : AnomalyExclusion::EFamily::Other;
+	};
 	for (int32 i = 0; i < Snap.Fires.Num(); ++i)
 	{
-		const FName& Id = Snap.Fires[i].Id;
 		const AnomalyLabelSync::EEntryEmit Mode = Snap.EntryEmit.IsValidIndex(i)
 			? (AnomalyLabelSync::EEntryEmit)Snap.EntryEmit[i] : AnomalyLabelSync::EEntryEmit::Normal;
-		const bool bLabelled = AnomalyLabel::IsSnapshotEntryLabelled(Snap, i);
-		if (Id == M52Name && (bLabelled || Mode == AnomalyLabelSync::EEntryEmit::TransitionOnly))
+		if (Mode == AnomalyLabelSync::EEntryEmit::Suppress)
 		{
-			bM52Entry = true;
+			continue;
 		}
-		if (AnomalyTexCorrupt::IsTexCorruptId(Id) && bLabelled)
-		{
-			bM53Labelled = true;
-		}
+		AnomalyExclusion::FFrameEntry& E = Entries.AddDefaulted_GetRef();
+		E.Family = FamilyOfId(Snap.Fires[i].Id);
+		E.bLabelled = Mode == AnomalyLabelSync::EEntryEmit::Normal && AnomalyLabel::IsSnapshotEntryLabelled(Snap, i);
+		E.bTransition = Mode == AnomalyLabelSync::EEntryEmit::TransitionOnly
+			|| (Snap.EntryTransition.IsValidIndex(i) && Snap.EntryTransition[i] != 0);
 	}
 	for (const FAutoLiveFireInfo& T : Snap.TransitionFires)
 	{
-		if (T.Id == M52Name)
-		{
-			bM52Entry = true;
-		}
+		AnomalyExclusion::FFrameEntry& E = Entries.AddDefaulted_GetRef();
+		E.Family = FamilyOfId(T.Id);
+		E.bTransition = true;
 	}
-	if (bM52Entry && bM53Labelled)
+	if (AnomalyExclusion::IsCoEntryFrame(Entries.GetData(), Entries.Num()))
 	{
 		++TexCorruptM52OverlapFrames;
 		UE_LOG(LogAnomalyCapture, Warning,
 			TEXT("Capture(m53): M52-M53 OVERLAP si=%d - this captured frame carries a stuck_low_mip entry (labelled or ")
-			TEXT("transition) AND a labelled uv_corruption / normal_corruption entry. The exclusion should make this ")
-			TEXT("impossible; counted in run_summary.texcorrupt_m52_overlap_frames (expected 0)."),
+			TEXT("transition) AND a uv_corruption / normal_corruption entry (labelled or not). The exclusion keeps each ")
+			TEXT("family out until the other's last labelled and transition frames are emitted, so outside a partner ")
+			TEXT("admitted after restore_unresolved this is impossible; counted in run_summary.texcorrupt_m52_overlap_frames."),
 			Snap.SessionIndex);
 	}
 }

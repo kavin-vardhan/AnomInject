@@ -69,6 +69,40 @@ CASES = [
 ]
 
 
+def targeted_attempt(stream, counters, slot, mode_given, num_modes, hold_min, hold_max):
+    before = stream.steps
+    out = {'rr': 0, 'mode': -1}
+    out['hold_bits'] = f32_bits(f32(stream.frand_range(f32(hold_min), f32(hold_max))))
+    if not mode_given and num_modes >= 0:
+        out['rr'] = 1
+        if num_modes > 0:
+            out['mode'] = counters[slot] % num_modes
+            counters[slot] = (counters[slot] + 1) & 0xFFFFFFFF
+    out['counter_after'] = counters[slot]
+    out['seed_after'] = stream.seed
+    out['draws'] = stream.steps - before
+    return out
+
+
+RR2 = (0, 0, 2, 3.0, 6.0)
+RR4 = (0, 0, 4, 3.0, 6.0)
+GIVEN2 = (0, 1, 2, 3.0, 6.0)
+
+TARGETED_CASES = [
+    ('rr_two_modes', 4242, [RR2] * 5),
+    ('rr_four_modes', 4242, [RR4] * 6),
+    ('rr_empty_set', 99, [(0, 0, 0, 3.0, 6.0)] * 3),
+    ('non_m53_no_rr', 4242, [(0, 0, -1, 3.0, 6.0), (0, 1, -1, 3.0, 6.0), (0, 0, -1, 3.0, 6.0)]),
+    ('mixed_two_modes', 4242, [RR2, GIVEN2, RR2, GIVEN2, GIVEN2, RR2, RR2]),
+    ('mixed_four_modes_odd_hold', -123456, [
+        (0, 1, 4, 0.35, 7.9), (0, 0, 4, 0.35, 7.9), (0, 0, 4, 0.35, 7.9), (0, 1, 4, 0.35, 7.9),
+        (0, 0, 4, 0.35, 7.9), (0, 1, 4, 0.35, 7.9), (0, 0, 4, 0.35, 7.9), (0, 0, 4, 0.35, 7.9)]),
+    ('two_ids_separate_counters', 777, [
+        (0, 0, 2, 3.0, 6.0), (1, 0, 4, 3.0, 6.0), (0, 0, 2, 3.0, 6.0), (1, 1, 4, 3.0, 6.0),
+        (1, 0, 4, 3.0, 6.0), (0, 0, 2, 3.0, 6.0), (1, 0, 4, 3.0, 6.0)]),
+]
+
+
 def flit(v):
     s = '%.9g' % f32(v)
     if '.' not in s and 'e' not in s:
@@ -88,6 +122,18 @@ def main():
                 r['outcome'], r['id'], r['target'], r['hold_bits'], r['mode_drawn'], r['mode'], r['seed_after'], r['draws']))
     sys.stdout.write('static const FKatRow GKat[] =\n{\n')
     sys.stdout.write('\n'.join(rows))
+    sys.stdout.write('\n};\n')
+    trows = []
+    for name, seed, fires in TARGETED_CASES:
+        stream = KatStream(seed)
+        counters = [0, 0]
+        for i, (slot, given, n, lo, hi) in enumerate(fires):
+            r = targeted_attempt(stream, counters, slot, given, n, lo, hi)
+            trows.append('\t{ "%s", %d, %d, %d, %d, %d, %s, %s, 0x%08Xu, %d, %d, %du, 0x%08Xu, %du },' % (
+                name, seed, i, slot, given, n, flit(lo), flit(hi),
+                r['hold_bits'], r['rr'], r['mode'], r['counter_after'], r['seed_after'], r['draws']))
+    sys.stdout.write('\nstatic const FKatTargetedRow GKatTargeted[] =\n{\n')
+    sys.stdout.write('\n'.join(trows))
     sys.stdout.write('\n};\n')
 
 

@@ -834,17 +834,27 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 
 	const bool bApplied = (*Found)->Apply(GetWorld(), Args);
 
-	if (bApplied)
+	switch (AnomalyExclusion::RecordAfterApply(bApplied, (*Found)->IsActive()))
+	{
+	case AnomalyExclusion::ERecordAction::Replace:
 	{
 		FActiveRecord Record;
 		Record.Args = Args;
 		Record.ApplyTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 		ActiveRecords.Add(Id, MoveTemp(Record));
 		LastApplyFrame.Add(Id, GFrameCounter);
+		break;
 	}
-	else
-	{
+	case AnomalyExclusion::ERecordAction::Keep:
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("IAI.Apply '%s' was refused while its previous application is still installed - the running effect and ")
+			TEXT("its active record are KEPT (a refused re-Apply never drops the record of an effect that is on screen), so ")
+			TEXT("the m52/m53 exclusion still sees it live. Revert it with IAI.Revert %s."),
+			*Id.ToString(), *Id.ToString());
+		break;
+	case AnomalyExclusion::ERecordAction::Drop:
 		ActiveRecords.Remove(Id);
+		break;
 	}
 
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.Apply '%s' -> %s."), *Id.ToString(), bApplied ? TEXT("applied") : TEXT("not applied"));
@@ -896,12 +906,8 @@ int32 UAnomalyInjectorSubsystem::RevertAllActive()
 
 bool UAnomalyInjectorSubsystem::IsIdFireLive(const FName& Id) const
 {
-	if (!ActiveRecords.Contains(Id))
-	{
-		return false;
-	}
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
-	return Found && Found->IsValid() && (*Found)->IsActive();
+	return Found && Found->IsValid() && AnomalyExclusion::IsFireLiveForExclusion((*Found)->IsActive());
 }
 
 bool UAnomalyInjectorSubsystem::IsStuckMipRestoring() const
@@ -912,6 +918,16 @@ bool UAnomalyInjectorSubsystem::IsStuckMipRestoring() const
 		return false;
 	}
 	return static_cast<const FAnomaly_StuckLowMip*>(Found->Get())->IsRestoringAny();
+}
+
+bool UAnomalyInjectorSubsystem::IsStuckMipRestoringPastTimeout() const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(FName(ANSI_TO_TCHAR(AnomalyExclusion::M52Id)));
+	if (!Found || !Found->IsValid())
+	{
+		return false;
+	}
+	return static_cast<const FAnomaly_StuckLowMip*>(Found->Get())->IsRestoringPastTimeout(AnomalyDefaults::GetStuckMipRestoreTimeout());
 }
 
 FString UAnomalyInjectorSubsystem::PartnerEventKey(const FName& Id) const
@@ -955,14 +971,14 @@ FAnomalyPartnerExclusion UAnomalyInjectorSubsystem::EvaluatePartnerExclusion(FNa
 			S.Trail = TrailProvider(M52Name, TrailKey);
 		}
 		S.bRestoringSet = IsStuckMipRestoring();
+		S.bRestoringPastTimeout = S.bRestoringSet && IsStuckMipRestoringPastTimeout();
 		const AnomalyExclusion::EState M52 = AnomalyExclusion::M52State(S);
 		const AnomalyExclusion::FVerdict V = AnomalyExclusion::Evaluate(Candidate, M52, AnomalyExclusion::EState::Idle);
 		Out.bExcluded = V.bExcluded;
 		Out.bAdmittedAfterUnresolved = V.bAdmittedAfterUnresolved;
 		Out.Partner = M52Name;
 		Out.PartnerState = V.PartnerState;
-		const bool bTrailState = M52 == AnomalyExclusion::EState::TrailOpen || M52 == AnomalyExclusion::EState::Unresolved
-			|| M52 == AnomalyExclusion::EState::Closed;
+		const bool bTrailState = S.bProvider && S.Trail != AnomalyExclusion::ETrail::None && !S.bFireLive;
 		Out.EventKey = (bTrailState && !TrailKey.IsEmpty()) ? TrailKey : PartnerEventKey(M52Name);
 		return Out;
 	}
@@ -979,12 +995,25 @@ FAnomalyPartnerExclusion UAnomalyInjectorSubsystem::EvaluatePartnerExclusion(FNa
 	}
 	S.bFireLive = !LivePartner.IsNone();
 	S.bRevertSettling = !S.bFireLive && AnomalyTexCorrupt::IsRevertSettling(GetWorld());
+	FString UvKey;
+	FString NormalKey;
+	FName TrailPartner = NAME_None;
+	if (TrailProvider)
+	{
+		const AnomalyExclusion::ETrail UvTrail = TrailProvider(UvName, UvKey);
+		const AnomalyExclusion::ETrail NormalTrail = TrailProvider(NormalName, NormalKey);
+		S.Trail = AnomalyExclusion::CombineTrail(UvTrail, NormalTrail);
+		TrailPartner = S.Trail == UvTrail ? UvName : NormalName;
+	}
 	const AnomalyExclusion::EState M53 = AnomalyExclusion::M53State(S);
 	const AnomalyExclusion::FVerdict V = AnomalyExclusion::Evaluate(Candidate, AnomalyExclusion::EState::Idle, M53);
 	Out.bExcluded = V.bExcluded;
-	Out.Partner = S.bFireLive ? LivePartner : (LastTexCorruptRevertId.IsNone() ? UvName : LastTexCorruptRevertId);
+	const bool bFromTrail = !S.bFireLive && !S.bRevertSettling && V.bExcluded;
+	Out.Partner = S.bFireLive ? LivePartner
+		: (bFromTrail ? TrailPartner : (LastTexCorruptRevertId.IsNone() ? UvName : LastTexCorruptRevertId));
 	Out.PartnerState = V.PartnerState;
-	Out.EventKey = PartnerEventKey(Out.Partner);
+	const FString& TrailKey = TrailPartner == UvName ? UvKey : NormalKey;
+	Out.EventKey = (bFromTrail && !TrailKey.IsEmpty()) ? TrailKey : PartnerEventKey(Out.Partner);
 	return Out;
 }
 
@@ -1022,8 +1051,10 @@ void UAnomalyInjectorSubsystem::SetTrailProvider(FAnomalyTrailProviderFn InProvi
 {
 	TrailProvider = MoveTemp(InProvider);
 	UE_LOG(LogAnomaly, Log,
-		TEXT("Auto: TRAIL PROVIDER REGISTERED - m52 stays live for the m52/m53 exclusion while any restore trail gates ")
-		TEXT("(live, reopened, adopted or carried), not only until its revert."));
+		TEXT("Auto: TRAIL PROVIDER REGISTERED - a family stays live for the m52/m53 exclusion until its last labelled frame ")
+		TEXT("and its last transition-flagged tail frame are emitted, no receipt is outstanding for it and no detached ")
+		TEXT("trail can reopen it (live, gating, reopenable, adopted, carried or tail-only), not only until its revert. ")
+		TEXT("A trail past restore_unresolved is admitted and counted."));
 }
 
 void UAnomalyInjectorSubsystem::ClearTrailProvider()
@@ -1034,7 +1065,8 @@ void UAnomalyInjectorSubsystem::ClearTrailProvider()
 	{
 		UE_LOG(LogAnomaly, Log,
 			TEXT("Auto: trail provider CLEARED - with no capture run, m52 stays live for the exclusion while its game-thread ")
-			TEXT("restoring set is non-empty."));
+			TEXT("restoring set is non-empty, bounded by the same restore_unresolved timeout as a capture: once every texture ")
+			TEXT("in it has waited StuckMipRestoreTimeoutFrames ticks, m53 is admitted and counted."));
 	}
 }
 

@@ -179,6 +179,8 @@ private:
 
 	bool IsStuckMipRestoring() const;
 
+	bool IsStuckMipRestoringPastTimeout() const;
+
 	FString PartnerEventKey(const FName& Id) const;
 
 	FAnomalyTrailProviderFn TrailProvider;

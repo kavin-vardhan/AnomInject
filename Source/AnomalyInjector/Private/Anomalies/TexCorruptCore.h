@@ -208,6 +208,8 @@ namespace AnomalyTexCorrupt
 		static FRunStats& Mutable();
 	};
 
+	uint32 RunStatsDigest();
+
 	void CountReason(TMap<FString, int32>& Map, const FString& Key);
 
 	FThreadSafeCounter& TripwireCounter();
