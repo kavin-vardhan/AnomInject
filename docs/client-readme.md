@@ -16,7 +16,7 @@ The delivery folder looks like this — the two launchers sit at the top:
   Setup.bat            run once, first
   Run.bat              starts everything (encoder + dashboard)
   dashboard/           the dashboard itself, plus the config.json it reads on startup
-  host-tools/          the encoder and helper scripts
+  host-tools/          the encoder and helper scripts, and the label-sync check (Step 7)
   (your game build)    see the Launch section below
 ```
 
@@ -297,6 +297,34 @@ M3 `observable`, `target_pixels`, and bbox provenance are **the producer's own
 recorded evidence**. The checker copies their provenance into its output; it does
 not independently measure or confirm those fields. Use the overlay in step 5 and
 the source frames for human review when this instrument is unassessable.
+
+### Step 7 — The label-sync check (numbers only)
+
+`host-tools\label_sync_check.py` measures, from the saved frames themselves, how many frames each label edge
+is off from the picture: the first and the last frame on which the anomaly is visible, against the first and
+the last frame the labels mark. **0 means in sync; `+` means the picture lags the label.** It reads sessions
+without changing them and prints **numbers only** (no folder, object or frame names). It needs Python 3.8 or
+newer and nothing else; Pillow, if installed, only makes it faster (both decoders give identical numbers).
+**`host-tools\OFFICE-CHECK.md` is its one-page recipe** — the capture settings (PNG, native size, a still
+camera, `IAI.Capture.Config 2 40 8 30 0`), the two commands and what to read back.
+
+```
+python host-tools\label_sync_check.py --selftest
+python host-tools\label_sync_check.py <a session folder, or a folder of sessions> --out numbers.txt
+```
+
+- **Run the selftest first.** It builds known-answer sessions (exact labels, labels one frame early or late,
+  an effect three frames late, a faint ghost frame, a moving camera, a missing mask, a stray transition flag)
+  and checks every reading; its last line must say `OK`.
+- **The release reading is transition-aware at 50 % of the effect** (§8.6a): a frame flagged `transition`
+  is excused only in the direction its reason allows (an onset frame the anti-aliasing history has not caught
+  up with; the first frame after an object returns; a `stuck_low_mip` tail that decays), and a `partial`
+  frame counts when it shows part of the blur, or when its render record shows a texture held. Raw, 10 %
+  and strict readings are printed beside it. Sessions from builds without the flags are read raw, and the
+  header says so.
+- **It cannot judge** `camera_clipping` (no target mask; its label is a whole-frame proxy), moving-camera
+  events, effects too faint to measure, or frames the capture never saves. Its wrong-object count is an
+  upper bound (shadows and reflections trip it too).
 
 ## 4. The dashboard, control by control
 
