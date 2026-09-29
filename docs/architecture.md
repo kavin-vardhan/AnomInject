@@ -710,6 +710,12 @@ traces, or no ray) keeps its SAT verdict and flags the frame `transition_reason:
 `camera_clipping.clipped_ray_fraction`; run_summary: confirmed/unconfirmed/rejected frames and the confirmation cost.
 Known miss: a sub-grid sliver belonging to a large candidate. Selftest cases: hollow box 0 unflagged, wall 1, pole caught
 by the footprint grid, NoCollision hollow mesh flagged, trace/candidate caps flagged, F2 scaled/rotated/off-centre instances.
+**084-08 (rule v4):** which body a candidate is traced against is decided by ONE pure function,
+`AnomalyNearClipSlab::ClassifyConfirmBody` (mesh / landscape confirmable; skinned, no collision, welded, instance transform,
+no complex unconfirmable), fed by `ResolveConfirmTarget`. A **welded** candidate (welded into a parent, or a weld parent
+carrying children's shapes) and an **ISM instance whose composed-`FTransform` collision body differs from the rendered matrix
+product** beyond a relative 1e-4 (`AffineMatchesRendered`; the shear case) are flagged unconfirmed without a trace
+(`camera_clipping_confirm_welded_unconfirmable`, `_instance_transform_unconfirmable`).
 
 **`P6` does not move.** The existing event shape carries it: whole-frame as `coverage_ratio = 1` and
 per-frame `bbox_norm = 0,0,1,1`, empty `asset_name`, and `coverage_pct` left at its `-1` sentinel
@@ -946,7 +952,9 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   written; both writers, the unlabelled counter and the accumulator read them, and `injected_frames` is built from the same
   per-frame bit (`MemberByIndex`). The held set is `EHeldSet` full / partial / unresolved / not-held (`ClassifyHeldSet`; an
   invalid held endpoint is unresolved); unresolved members carry the reason `unresolved` and never set the full-set
-  boundary; partial / unresolved frames are exact ranges (`TPartialEdgeTrack<TArray<FSIRange>>`, no cap). Run-end carry
+  boundary. **084-08:** a render result's held set is an `AnomalyStuckMipWindow::FHeldSetState` that starts `Unresolved`; the
+  `FlushObserveQueue` force path keeps a classification only when a texture record backs it, so a forced-unknown member
+  frame carries `unresolved`; partial / unresolved frames are exact ranges (`TPartialEdgeTrack<TArray<FSIRange>>`, no cap). Run-end carry
   goes through `DecideRunEndCarry` with the source trail OR a carried detached tail, and passes history through a
   zero-frame run. `IAI.Capture.Shot` rows carry `label_rule: "legacy_shot"`.
 - **Stencil tags are recycled at exhaustion (084-05a).** `FAnomalyMaskMeasure::AllocateTag` rotates over the free values as
@@ -957,6 +965,11 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   still carries the value and otherwise quarantines it (`mask_tag_retire_quarantined`). **084-07c (N7):** `TagActor` records
   every component each value was applied to (`GAppliedValues`, kept until that value's retirement verifies); retirement
   collects tracked ∪ applied ∪ former-owner components and runs the pure `AnomalyLabelSync::RetireHolders` (G365).
+  **084-08 (tripwire):** every restore of a saved prior value (`RestoreActor`, `RestoreComponentsCarrying`, retirement) is
+  checked by the pure `AnomalyLabelSync::CheckPriorRestore` against the live ledger (`AnomalyStencilTag::SetRestoreWatch`,
+  set for the run by `FAnomalyMaskMeasure`); a write-back of a value event- or census-claimed is counted
+  (`run_summary.mask_prior_collision`) and the value is added to `FAnomalyStencilTagLedger::Quarantined`, which
+  `IsTagValueFree` and the recycler (`FRecycleCandidate::bQuarantined`) both exclude for the rest of the run.
 - **View-lag L (default 0) — the spatial analogue of settle-K, but distinct.** A per-tick view ring; each capture projects
   with the view from L ring-entries ago. **L=0 is validated and correct (not "zero lag") FOR THE SYNC PATH:** the capture
   subsystem (a `FTickableGameObject`) ticks *before* `UpdateCameraManager` (LevelTick.cpp:1606 vs 1621), so

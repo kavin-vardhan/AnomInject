@@ -883,9 +883,10 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
   `unresolved` instead. Such a frame is still labelled (the record shows the event holding), but it is never taken
   as evidence that the whole set was held, so it never moves the event's partial frames between its start, middle
   and end. `run_summary.json` counts them in `stuck_mip_unresolved_frames` / `stuck_mip_unresolved_events`.
-  ⚠ One exception in this build: a frame whose render record had not arrived when the capture's wait limit forced a
-  decision (counted in `stuck_mip_forced_authority_frames`) is labelled but carries **no** `unresolved` reason; its
-  entry's `stuck_mip.forced_unknown` key marks it.
+  This includes a frame whose render record had not arrived when the capture's wait limit forced a decision
+  (counted in `stuck_mip_forced_authority_frames`, entry key `stuck_mip.forced_unknown`): it is labelled, reads
+  `stuck_mip.held_set: "unresolved"` and carries the `unresolved` reason. (Builds before 084-08 wrote it with no reason
+  and `held_set: "not_held"`.)
 - **One limit, in the source:** "the level the anomaly holds it at" is the plugin's prediction of where the
   engine's streamer will settle, so on a game whose streaming settings push a texture deeper than predicted, frames on
   the way down past the prediction are not flagged.
@@ -936,7 +937,10 @@ touch the slab, the plugin traces a grid of rays **inside the slab only** agains
   `.confirm_unresolved` — the per-frame bookkeeping.
 - **When triangles cannot be checked** — a skinned character (only rough physics shapes exist), an object with
   no collision, an object whose collision is simplified, more than 16 candidate objects / 320 traces in one
-  frame, or an object that fewer than 6 valid traces reached — the frame stays labelled on the bounds check and
+  frame, an object that fewer than 6 valid traces reached, an object **welded** to another (its collision body
+  holds the other object's shapes too), or an instance whose collision body the engine places differently from how
+  it draws it (a rotated instance inside a component scaled differently along different axes) — the frame stays
+  labelled on the bounds check and
   carries `transition_reason: ["camera_clipping_unconfirmed"]` and `camera_clipping.unconfirmed: true`. It is never
   silently a guess: an object can be read as "not clipped" only from traces the engine actually ran.
 - **Flat objects are traced along the whole slab.** A perfectly flat object (a single-plane mesh) has a box with no
@@ -950,12 +954,14 @@ touch the slab, the plugin traces a grid of rays **inside the slab only** agains
   - a sliver of geometry thinner than the ray grid that belongs to a large object (for example a thin pipe inside a
     room mesh) can fall between rays. Small objects get their own finer grid;
   - one-sided collision seen from behind: a trace that starts on the back side of a one-sided collision surface does
-    not hit it;
-  - a rotated instance inside an instanced component scaled differently along different axes: it now reaches the
-    traces, but the traces run against the instance's collision body, which the engine places with a simpler transform
-    than the one it draws with, so the body can sit away from the drawn instance and the traces miss it.
-- **What it can over-report** (reads as "clipped", with no flag): a flat object attached (welded) to a parent object
-  whose own collision lies in the slab — the traces run against the parent's collision body and can hit the parent.
+    not hit it.
+- **Instances whose collision body differs from the drawn instance are not traced.** The engine places an instance's
+  collision body with a simpler transform than the one it draws with; when the two differ (a rotated instance inside
+  a component scaled differently along different axes), the body can sit away from the drawn instance, so such an
+  instance is flagged `camera_clipping_unconfirmed` instead of traced (`camera_clipping_confirm_instance_transform_unconfirmable`).
+- **Welded objects are not traced.** An object welded to another shares one collision body with it, so a trace could
+  hit the other object's geometry; such a candidate is flagged `camera_clipping_unconfirmed` instead
+  (`camera_clipping_confirm_welded_unconfirmable`).
 - **What it traces is the collision mesh, not the drawn mesh.** Where an object's collision triangles differ from
   what is drawn, the label follows the collision triangles; the landscape is traced against its collision height
   field, which can be coarser than the drawn landscape. Translucent and masked surfaces are traced as solid.
@@ -963,9 +969,10 @@ touch the slab, the plugin traces a grid of rays **inside the slab only** agains
   candidate objects** outside the engine. The cost of the traces themselves has **not been measured in the engine
   yet**; the budget is 0.5 ms mean per labelled frame, and every run reports what it spent
   (`camera_clipping_confirm_us_mean_per_labelled_frame`, `camera_clipping_confirm_us_max`).
-- `run_summary.json` reports `camera_clipping_label_rule: "view_slab_bounds_then_triangle_confirm_v3"`, the
+- `run_summary.json` reports `camera_clipping_label_rule: "view_slab_bounds_then_triangle_confirm_v4"`, the
   confirmed / unconfirmed / rejected frame counts, the per-cause unconfirmed counts (including
-  `camera_clipping_confirm_too_few_valid_trace_candidates`) and the cost.
+  `camera_clipping_confirm_too_few_valid_trace_candidates`, `_welded_unconfirmable` and
+  `_instance_transform_unconfirmable`) and the cost.
 
 ### 8.7 The per-frame label, anomaly by anomaly — and how to build a training label from it
 
@@ -998,9 +1005,12 @@ Five fields answer five different questions about one frame. Keep them apart:
 a value moves to a new event only when every value is taken, only from an event that has ended and whose every
 frame, mask and measurement has been read back, and only after every object tagged with it has been reset and
 checked (a value that fails the check is set aside, never re-used). So one value never marks two events on the
-same frame — but it can mark different events on different frames. (One known exception, never observed: an object
-that already carried the value before the capture, was then re-tagged with a different value before the first was
-re-used, and has its custom-depth flag turned back on by the game, can show the re-used value again.) **Read the value together with the frame**:
+same frame — but it can mark different events on different frames. (One known limit, never observed: an object
+that already carried a value before the capture can have that value written back to it when the plugin releases it;
+if the game later turns its custom-depth flag back on it would show that value. The plugin now detects every such
+write-back of a value that is in use — `run_summary.json` `mask_prior_collision`, expected 0 — and sets that value
+aside for the rest of the capture so it is never handed to another event; `mask_prior_collision_quarantined`
+counts the values set aside.) **Read the value together with the frame**:
 use the `mask_value` on that frame's own `labels.jsonl` entry, or key `mask_map.json` by value **and**
 `first_frame`–`last_frame`, never by the value alone.
 

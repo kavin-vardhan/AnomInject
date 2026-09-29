@@ -11,6 +11,26 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧪 **084-08, 2026-09-29 — PART A: THE FOUR 084-07c RULING FIXES (flag or default) + REBUILD + RE-COOK; PART B: THE
+> 084-09 SYNC HARNESS. Source `4bf0915`, exe `8A6074AA`, cook utoc `4BF63FB8`, both archived, NOT staged. Nothing launched
+> (dry run only), NOT merged, NO tag.**
+> - **Cold start:** journal `docs/sessions/2026-09-29-084-08-sync-harness-round2.md`; harness `_reviews\084-09-*` (README
+>   first); evidence `_reviews\084-09-evidence\`.
+> - **A1** shear-case ISM instances (composed collision transform ≠ rendered matrix product) ⇒ `camera_clipping_unconfirmed`,
+>   no trace · **A2** an unclassified / forced-unknown m52 held set defaults to `unresolved` · **A3** welded candidates ⇒
+>   unconfirmed · **A4** a restore writing back a live mask value ⇒ `mask_prior_collision` counted, value quarantined.
+>   Selftests m52 282/0, camera 154/0; 16 mutants (9 old + 7 A1–A4) all caught. Camera rule string v4.
+> - **Harness 084-09:** G355 restore retries with backoff (proven: injected 8 s lock ⇒ copy succeeded on attempt 3) · G356
+>   null calibrates from its own series (084-06 B0/B3: 14 of 17 CENSORED offsets resolve) · partial-flag guard per 084-07
+>   decisions 1–2 + N4 · `verify_capture.py --label-rule` on every leg · `labelled` rule read, old banks say so · B-CC on the new
+>   cook · B-CC-MW per-frame null floor · MASK55 v2 with `stuck_low_mip` in the pool (peak live ≥ 2 validity) · amendment R1
+>   (clean-reference span) · MT85 pair · LOD premise legs. Gate selftest 24/24; dry run exit 0, 29/29 launches accepted.
+> - ⚠ **LOD fixture: the declared rule selected NOTHING on MainWorld** (only the two rocks, triangle ratio 7.997 < 8, and a
+>   2-LOD bush exist); gate legs wait on chat. **missing_texture MASK55 borderline: CONFOUNDED-REFERENCE under R1** (the bank's
+>   gaps cannot host an uncontaminated reference); the MT85 pair decides it on the bench.
+> - 🎯 **NEXT: 084-09 re-bench on `8A6074AA` + `4BF63FB8` (chat rules on the two NEEDS-DECISION items first).**
+>
+> ---
 > 🔧 **084-07c, 2026-09-29 — LABEL-SYNC FIXES ROUND 4 (Codex N1–N8) ON `fix/m52-label-timing`: source `3d6f702`, exe
 > `16053B80`, re-cook `59C20959`, both archived. Nothing launched, NOT staged, NOT merged, NO tag.**
 > - **Cold start:** journal `docs/sessions/2026-09-29-084-07c-sync-fixes-round4.md` (§1 = where each fix lives + its

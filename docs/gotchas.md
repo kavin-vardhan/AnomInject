@@ -8347,3 +8347,59 @@ Related: G360, G363.
   decision in a pure function the test can call, so the test and production cannot diverge on which identities are checked.
 
 Related: G295, G361.
+
+## G366 — A capture fires exactly ONE anomaly per burst: `IAI.Auto.MaxConcurrent` never makes capture events concurrent (2026-09-29, 084-08)
+
+- **Mechanism:** `UAnomalyCaptureSubsystem::BeginFire` calls `TryFireOnce` (or `TryFireSpecific`) once per burst and
+  `BeginRevert` reverts every live fire at the burst's end. `MaxConcurrent` only caps the auto-injector's own timed loop,
+  which the capture pauses (G62). So a capture never has two events live at once, whatever the pool's concurrency setting.
+- **What does overlap:** mask RECORDS. A record stays live until its fire has ended, its m52 restore trail is detached with
+  nothing in flight, and every frame and mask carrying it has been read back. A `stuck_low_mip` trail can outlive the burst,
+  so the next event's value is allocated while the previous record is still live: 084-06's targeted B0 and its null read
+  `mask_tag_peak_live` 2, while every four-type leg (MASK55 included) read 1.
+- **Consequence:** to exercise concurrent mask IDs (Codex's F4 path) put `stuck_low_mip` in the auto pool, and make
+  `mask_tag_peak_live >= 2` a validity condition of the leg (below it the leg is INVALID for that purpose, never a pass).
+- **Rule:** a brief's "concurrency setting" is a premise; read which call site actually consumes the setting before
+  designing a leg around it.
+
+Related: G62.
+
+## G367 — A 5.1 editor commandlet CAN load every World Partition actor, but CANNOT read LOD screen sizes (2026-09-29, 084-08)
+
+- **Works:** `UnrealEditor-Cmd <uproject> -run=pythonscript -script=<py> -unattended -nullrhi`, then
+  `LevelEditorSubsystem.load_level(map)`, `WorldPartitionBlueprintLibrary.get_actor_descs()` and `load_actors(guids)`:
+  MainWorld loaded 421 of 421 actor descs in about 8 s. `StaticMesh.get_num_lods()` and `get_num_triangles(lod)` work.
+- **Does not:** LOD screen sizes. `unreal.StaticMeshEditorSubsystem` is absent in the commandlet, `StaticMesh` does not expose
+  `source_models`, and `-EnablePlugins=EditorScriptingUtilities` did not make `EditorStaticMeshLibrary` appear. The runtime
+  log's `lod_popping: CURRENT-LOD … screen_size=` line is where the current LOD is read instead.
+- **Guard:** run it with the host's `Content` junctioned to the real project, so hash-manifest the content before and after
+  (it was byte-identical here); the script saves nothing.
+
+Related: G344.
+
+## G368 — A rule written when a flag had ONE meaning becomes a false-FAIL generator when the flag gains an AA-independent reason (2026-09-29, 084-08)
+
+- **Mechanism:** the 084-06 evaluator failed any leg that carried a `transition` flag without temporal AA ("the build emits
+  none there"). That was true while the only reasons were `temporal_aa` / `hide_return`. From 084-07 the build writes
+  `partial` and `unresolved` WITH OR WITHOUT AA, so the inherited rule would have failed every AA-off `stuck_low_mip` leg
+  (B9) that carries a partial onset — exactly the frames the flag exists for.
+- **Caught by:** the 084-09 doctored-case self-test (a record-backed partial onset on an AA-off leg read FAIL), before any
+  bench leg was evaluated with it.
+- **Rule:** when a flag gains a reason, re-scope every check keyed on the flag to the reasons it was written for; test each
+  reason on both AA settings.
+
+Related: G357.
+
+## G369 — A reference rule declared in advance can make a whole schedule UNDECIDABLE, and that is an answer, not a reason to loosen it (2026-09-29, 084-08)
+
+- **Mechanism:** amendment R1 (an onset reference needs >= 4 clean frames at least 4 frames after the previous event, topped
+  up from the event's own post frames) was declared before the MASK55 re-check. MASK55's `2 4 6 4 0` schedule leaves at most
+  3 clean frames between one event's return and the next event (`StaticMeshActor_85`: previous tail 179, label 183–188,
+  next event 193), so every single-run event of missing_texture (37), corrupted_texture (29) and missing_object (20)
+  became CONFOUNDED-REFERENCE. Only blinking, whose own visible phase supplies the reference, stayed judgeable (32 PASS).
+- **What was not done:** relaxing `PREV_SETTLE` after seeing the result. The borderline stays undecided on that bank, and a
+  wide-gap targeted pair (`2 4 8 14 0`, both tick orders) was added to the bench to decide it.
+- **Rule:** tight auto-pool schedules test masks and recycling; they cannot carry per-event sync evidence once the reference
+  must be uncontaminated. Put sync evidence on wide-gap legs.
+
+Related: G349, G352.
