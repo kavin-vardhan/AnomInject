@@ -72,6 +72,8 @@ struct FAnomalyNearClipSlabResult
 	int32 SkinnedUnconfirmable = 0;
 	int32 NoCollisionUnconfirmable = 0;
 	int32 NoComplexUnconfirmable = 0;
+	int32 WeldedUnconfirmable = 0;
+	int32 InstanceTransformUnconfirmable = 0;
 	int32 HismTreeQueries = 0;
 	int32 IsmFullScans = 0;
 	double ConfirmMicros = 0.0;

@@ -4,6 +4,7 @@
 
 #include "AnomalyViewport.h"
 #include "AnomalyLabelSync.h"
+#include "AnomalyCaptureLog.h"
 
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
@@ -25,6 +26,49 @@ namespace
 
 	int32 GCustomStencilRefCount = 0;
 	int32 GSavedCustomDepthValue = 0;
+
+	FAnomalyStencilTagLedger* GRestoreWatch = nullptr;
+	int32 GPriorCollisions = 0;
+	int32 GPriorCollisionQuarantined = 0;
+
+	void NotePriorRestore(const UPrimitiveComponent* Prim, int32 PriorValue, bool bPriorCustomDepth)
+	{
+		if (!GRestoreWatch || !Prim)
+		{
+			return;
+		}
+		AnomalyLabelSync::FPriorRestoreInputs In;
+		In.PriorValue = PriorValue;
+		In.AssignableMin = AnomalyStencilTag::ReservedStencilBase;
+		In.AssignableMax = AnomalyStencilTag::AssignableStencilMax;
+		const uint8 Value = (uint8)FMath::Clamp(PriorValue, 0, 255);
+		In.bEventClaimed = GRestoreWatch->EventClaimed.Contains(Value);
+		In.bCensusClaimed = GRestoreWatch->CensusClaimed.Contains(Value);
+		In.bAlreadyQuarantined = GRestoreWatch->Quarantined.Contains(Value);
+		const AnomalyLabelSync::FPriorRestoreVerdict Verdict = AnomalyLabelSync::CheckPriorRestore(In);
+		if (!Verdict.bCollision)
+		{
+			return;
+		}
+		++GPriorCollisions;
+		if (Verdict.bQuarantine)
+		{
+			GRestoreWatch->Quarantined.Add(Value);
+			++GPriorCollisionQuarantined;
+		}
+		if (GPriorCollisions <= 8)
+		{
+			const AActor* Owner = Prim->GetOwner();
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(mask): MASK PRIOR COLLISION component=%s/%s restored stencil value %d (custom depth %d) while that ")
+				TEXT("value is live in the allocator (eventClaimed=%d censusClaimed=%d). The value is QUARANTINED: it is never ")
+				TEXT("issued again this run once its current holder releases it, and no free-value search returns it. If the host ")
+				TEXT("re-enables custom depth on this component it would alias the live holder's mask. Counted in ")
+				TEXT("run_summary.mask_prior_collision."),
+				Owner ? *Owner->GetName() : TEXT("?"), *Prim->GetName(), PriorValue, bPriorCustomDepth ? 1 : 0,
+				In.bEventClaimed ? 1 : 0, In.bCensusClaimed ? 1 : 0);
+		}
+	}
 }
 
 bool FAnomalyStencilTagLedger::IsAssignable(uint8 Value) const
@@ -41,7 +85,8 @@ bool FAnomalyStencilTagLedger::IsAssignable(uint8 Value) const
 
 bool FAnomalyStencilTagLedger::IsFree(uint8 Value) const
 {
-	return IsAssignable(Value) && !EventClaimed.Contains(Value) && !CensusClaimed.Contains(Value);
+	return AnomalyLabelSync::IsTagValueFree(IsAssignable(Value), EventClaimed.Contains(Value), CensusClaimed.Contains(Value),
+		Quarantined.Contains(Value));
 }
 
 int32 FAnomalyStencilTagLedger::NumFree() const
@@ -75,6 +120,7 @@ void FAnomalyStencilTagLedger::Reset()
 	HostReserved.Reset();
 	EventClaimed.Reset();
 	CensusClaimed.Reset();
+	Quarantined.Reset();
 }
 
 namespace AnomalyStencilTag
@@ -201,6 +247,7 @@ namespace AnomalyStencilTag
 			const TWeakObjectPtr<UPrimitiveComponent> Key(Prim);
 			if (const FPriorStencilState* Prior = GTaggedComponents.Find(Key))
 			{
+				NotePriorRestore(Prim, Prior->CustomDepthStencilValue, Prior->bRenderCustomDepth);
 				Prim->SetCustomDepthStencilValue(Prior->CustomDepthStencilValue);
 				Prim->SetRenderCustomDepth(Prior->bRenderCustomDepth);
 				GTaggedComponents.Remove(Key);
@@ -275,6 +322,7 @@ namespace AnomalyStencilTag
 			UPrimitiveComponent* Prim = Keys[i].Get();
 			if (Prim && H.bSetValue)
 			{
+				NotePriorRestore(Prim, H.Value, H.bCustomDepth);
 				Prim->SetCustomDepthStencilValue(H.Value);
 			}
 			if (Prim && H.bSetFlag)
@@ -324,6 +372,7 @@ namespace AnomalyStencilTag
 			{
 				continue;
 			}
+			NotePriorRestore(Prim, Prior->CustomDepthStencilValue, Prior->bRenderCustomDepth);
 			Prim->SetCustomDepthStencilValue(Prior->CustomDepthStencilValue);
 			Prim->SetRenderCustomDepth(Prior->bRenderCustomDepth);
 			GTaggedComponents.Remove(Key);
@@ -344,6 +393,27 @@ namespace AnomalyStencilTag
 		}
 		GTaggedComponents.Empty();
 		GAppliedValues.Empty();
+	}
+
+	void SetRestoreWatch(FAnomalyStencilTagLedger* Ledger)
+	{
+		GRestoreWatch = Ledger;
+	}
+
+	void ResetPriorCollisions()
+	{
+		GPriorCollisions = 0;
+		GPriorCollisionQuarantined = 0;
+	}
+
+	int32 GetPriorCollisions()
+	{
+		return GPriorCollisions;
+	}
+
+	int32 GetPriorCollisionQuarantined()
+	{
+		return GPriorCollisionQuarantined;
 	}
 
 	bool IsAnyTagged()

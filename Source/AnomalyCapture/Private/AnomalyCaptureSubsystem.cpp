@@ -248,7 +248,7 @@ struct FAnomalyCaptureAsyncState
 		bool bForced = false;
 		bool bLateReceiptSeen = false;
 		bool bPartial = false;
-		uint8 HeldSet = 0;
+		AnomalyStuckMipWindow::FHeldSetState Held;
 		TArray<FRenderTexDetail> Textures;
 	};
 	TMap<int32, TMap<FString, FRenderEventResult>> RenderResultBySI;
@@ -5518,7 +5518,7 @@ void UAnomalyCaptureSubsystem::RevertSessionGlobals()
 	{
 		const FCameraClipRunAccum& A = CameraClipAccum;
 		UE_LOG(LogAnomalyCapture, Log,
-			TEXT("Capture(camera_clipping) RUN SUMMARY rule=view_slab_bounds_then_triangle_confirm_v3 near %.3f->%.3f frames=%d ")
+			TEXT("Capture(camera_clipping) RUN SUMMARY rule=view_slab_bounds_then_triangle_confirm_v4 near %.3f->%.3f frames=%d ")
 			TEXT("labelled=%d (confirmed %d, unconfirmed %d) bounds_candidate=%d rejected_by_triangles=%d sphere_proxy_positive=%d ")
 			TEXT("eye_inside_box_frames=%d near_overridden_frames=%d box_fallbacks=%d fx_excluded_max=%d enumerated_mean=%.1f ")
 			TEXT("candidates_mean=%.2f instances_tested=%lld traces_max=%d confirm_us_mean_per_labelled_frame=%.1f confirm_us_max=%.1f ")
@@ -5532,6 +5532,12 @@ void UAnomalyCaptureSubsystem::RevertSessionGlobals()
 			A.InstancesTestedTotal, A.ConfirmTracesMax,
 			A.ConfirmMicrosLabelledTotal / (double)FMath::Max(1, A.ConfirmedPositiveFrames + A.UnconfirmedFrames),
 			A.ConfirmMicrosMax, A.MicrosTotal / A.FramesEvaluated, A.MicrosMax);
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(camera_clipping) UNCONFIRMABLE CANDIDATES skinned=%lld no_collision=%lld no_complex=%lld welded=%lld ")
+			TEXT("instance_transform=%lld - a welded body can carry another component's shapes, and an instance whose collision body ")
+			TEXT("is placed by the composed transform where the renderer uses the matrix product (a rotated instance under non-uniform ")
+			TEXT("component scale) is not traced; both keep the bounds verdict and FLAG the frame camera_clipping_unconfirmed."),
+			A.SkinnedTotal, A.NoCollisionTotal, A.NoComplexTotal, A.WeldedTotal, A.InstanceTransformTotal);
 	}
 
 	ActiveSessionGlobals.Reset();
@@ -5606,6 +5612,8 @@ void UAnomalyCaptureSubsystem::AppendViewDependentGlobals(AnomalyLabel::FCapture
 			A.SkinnedTotal += Slab.SkinnedUnconfirmable;
 			A.NoCollisionTotal += Slab.NoCollisionUnconfirmable;
 			A.NoComplexTotal += Slab.NoComplexUnconfirmable;
+			A.WeldedTotal += Slab.WeldedUnconfirmable;
+			A.InstanceTransformTotal += Slab.InstanceTransformUnconfirmable;
 			A.ConfirmMicrosTotal += Slab.ConfirmMicros;
 			A.ConfirmMicrosLabelledTotal += bPositive ? Slab.ConfirmMicros : 0.0;
 			A.ConfirmMicrosMax = FMath::Max(A.ConfirmMicrosMax, Slab.ConfirmMicros);
@@ -6918,9 +6926,8 @@ void UAnomalyCaptureSubsystem::ComputeRenderMembership(const FAnomalyCapturedFra
 			{
 				Levels.Add(TD.Level);
 			}
-			const AnomalyStuckMipWindow::EHeldSet HeldSet = AnomalyStuckMipWindow::ClassifyHeldSet(Levels.GetData(), Levels.Num());
-			R.HeldSet = (uint8)HeldSet;
-			R.bPartial = HeldSet == AnomalyStuckMipWindow::EHeldSet::Partial;
+			AnomalyStuckMipWindow::ClassifyHeldSetState(R.Held, Levels.GetData(), Levels.Num());
+			R.bPartial = R.Held.Set == AnomalyStuckMipWindow::EHeldSet::Partial;
 		}
 		if (!Frame.bRenderRecord || R.bWatchMissing)
 		{
@@ -7332,9 +7339,9 @@ void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot(AnomalyLabel::FCapture
 			bool bOffTransition = false;
 			Track.Observe(Snap.SessionIndex, bMember, Async->LabelOnFrames, Async->LabelOffFrames, bOnTransition, bOffTransition);
 			Snap.EntryEmit[i] = (uint8)AnomalyLabelSync::DecideRenderTruthEntry(bMember, bOffTransition);
-			const AnomalyStuckMipWindow::EHeldSet HeldSet = (AnomalyStuckMipWindow::EHeldSet)R->HeldSet;
-			const bool bPartialFrame = bMember && HeldSet == AnomalyStuckMipWindow::EHeldSet::Partial;
-			const bool bUnresolvedFrame = bMember && HeldSet == AnomalyStuckMipWindow::EHeldSet::Unresolved;
+			const AnomalyStuckMipWindow::EHeldSet HeldSet = R->Held.Set;
+			const bool bPartialFrame = AnomalyStuckMipWindow::IsPartialMemberFrame(bMember, R->Held);
+			const bool bUnresolvedFrame = AnomalyStuckMipWindow::IsUnresolvedMemberFrame(bMember, R->Held);
 			Snap.EntryTransition[i] = (uint8)((bOnTransition ? AnomalyLabelSync::ReasonTemporal : 0)
 				| (bPartialFrame ? AnomalyLabelSync::ReasonPartial : 0)
 				| (bUnresolvedFrame ? AnomalyLabelSync::ReasonUnresolved : 0));
@@ -7372,8 +7379,8 @@ void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot(AnomalyLabel::FCapture
 		T.AddString(TEXT("stuck_mip.render_state"), FString(UTF8_TO_TCHAR(AnomalyStuckMipWindow::DescribeMembership(R->Membership))));
 		T.AddBool(TEXT("stuck_mip.trailing"), R->bTrailing);
 		T.AddBool(TEXT("stuck_mip.partial"), bMember && R->bPartial);
-		T.AddBool(TEXT("stuck_mip.unresolved"), bMember && R->HeldSet == (uint8)AnomalyStuckMipWindow::EHeldSet::Unresolved);
-		T.AddString(TEXT("stuck_mip.held_set"), FString(UTF8_TO_TCHAR(AnomalyStuckMipWindow::DescribeHeldSet((AnomalyStuckMipWindow::EHeldSet)R->HeldSet))));
+		T.AddBool(TEXT("stuck_mip.unresolved"), AnomalyStuckMipWindow::IsUnresolvedMemberFrame(bMember, R->Held));
+		T.AddString(TEXT("stuck_mip.held_set"), FString(UTF8_TO_TCHAR(AnomalyStuckMipWindow::DescribeHeldSet(R->Held.Set))));
 		T.AddString(TEXT("stuck_mip.label_source"), TEXT("render_record"));
 		if (R->bWatchMissing)
 		{
@@ -7491,6 +7498,7 @@ void UAnomalyCaptureSubsystem::FlushObserveQueue(bool bForce)
 					R.Verdict = AnomalyStuckMipWindow::EVerdict::Unknown;
 					R.bOrderPending = false;
 					R.bForced = true;
+					AnomalyStuckMipWindow::ForceHeldSetUnknown(R.Held);
 					bWroteAuthority = true;
 				}
 				if (bWroteAuthority)
@@ -8503,6 +8511,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.MaskTagExhausted = Async->MaskMeasure.GetTagExhausted();
 			LabelSyncReport.MaskTagRetireQuarantined = Async->MaskMeasure.GetTagRetireQuarantined();
 			LabelSyncReport.MaskTagRetireHostFlagKept = Async->MaskMeasure.GetTagRetireHostFlagKept();
+			LabelSyncReport.MaskPriorCollisions = Async->MaskMeasure.GetPriorCollisions();
+			LabelSyncReport.MaskPriorCollisionQuarantined = Async->MaskMeasure.GetPriorCollisionQuarantined();
 			for (int32 b = 0; b < 5; ++b)
 			{
 				LabelSyncReport.ReasonEntries[b] = Async->LabelReasonEntries[b];
@@ -8515,12 +8525,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				TEXT("Capture(labelsync): TRANSITION REASONS temporal_aa=%d hide_return=%d partial=%d camera_clipping_unconfirmed=%d ")
 				TEXT("unresolved=%d; ")
 				TEXT("carried in: %d transition track(s), %d hide track(s); active-but-unlabelled entries %d; sync frames %d; ")
-				TEXT("mask retire: quarantined %d, host custom-depth-off holders restored value-only %d"),
+				TEXT("mask retire: quarantined %d, host custom-depth-off holders restored value-only %d; ")
+				TEXT("mask_prior_collision %d (quarantined %d)"),
 				LabelSyncReport.ReasonEntries[0], LabelSyncReport.ReasonEntries[1], LabelSyncReport.ReasonEntries[2],
 				LabelSyncReport.ReasonEntries[3], LabelSyncReport.ReasonEntries[4], LabelSyncReport.CarriedTransitionTracks,
 				LabelSyncReport.CarriedHideTracks,
 				LabelSyncReport.UnlabelledActiveEntries, LabelSyncReport.SyncFramesWritten,
-				LabelSyncReport.MaskTagRetireQuarantined, LabelSyncReport.MaskTagRetireHostFlagKept);
+				LabelSyncReport.MaskTagRetireQuarantined, LabelSyncReport.MaskTagRetireHostFlagKept,
+				LabelSyncReport.MaskPriorCollisions, LabelSyncReport.MaskPriorCollisionQuarantined);
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(labelsync): RUN SUMMARY aa=%s temporal=%d on=%d off=%d hide=%d transitionEntries=%d transitionFrames=%d ")
 				TEXT("suppressedEntries=%d outOfOrder=%d maskTagRecycles=%d maskTagPeakLive=%d maskTagExhausted=%d"),

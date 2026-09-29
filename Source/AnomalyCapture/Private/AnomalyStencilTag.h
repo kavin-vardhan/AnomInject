@@ -12,6 +12,7 @@ struct FAnomalyStencilTagLedger
 	TSet<uint8> HostReserved;
 	TSet<uint8> EventClaimed;
 	TSet<uint8> CensusClaimed;
+	TSet<uint8> Quarantined;
 
 	int32 BenchPoolLimit = 0;
 
@@ -45,6 +46,10 @@ namespace AnomalyStencilTag
 	int32 RestoreComponentsCarrying(AActor* Actor, int32 StencilValue);
 	FRetireStencilResult RetireStencilValue(AActor* FormerOwner, int32 StencilValue);
 	void RestoreAll();
+	void SetRestoreWatch(FAnomalyStencilTagLedger* Ledger);
+	void ResetPriorCollisions();
+	int32 GetPriorCollisions();
+	int32 GetPriorCollisionQuarantined();
 	bool IsAnyTagged();
 	bool IsAnyComponentTagged(const AActor* Actor);
 

@@ -562,15 +562,46 @@ namespace AnomalyLabelSync
 		int Tag = 0;
 		bool bReleasable = false;
 		bool bAlreadyRecycled = false;
+		bool bQuarantined = false;
 		long long ReleasableSince = -1;
 	};
+
+	inline bool IsTagValueFree(bool bAssignable, bool bEventClaimed, bool bCensusClaimed, bool bQuarantined)
+	{
+		return bAssignable && !bEventClaimed && !bCensusClaimed && !bQuarantined;
+	}
+
+	struct FPriorRestoreInputs
+	{
+		int PriorValue = 0;
+		int AssignableMin = 200;
+		int AssignableMax = 254;
+		bool bEventClaimed = false;
+		bool bCensusClaimed = false;
+		bool bAlreadyQuarantined = false;
+	};
+
+	struct FPriorRestoreVerdict
+	{
+		bool bCollision = false;
+		bool bQuarantine = false;
+	};
+
+	inline FPriorRestoreVerdict CheckPriorRestore(const FPriorRestoreInputs& In)
+	{
+		FPriorRestoreVerdict V;
+		const bool bPluginValue = In.PriorValue >= In.AssignableMin && In.PriorValue <= In.AssignableMax;
+		V.bCollision = bPluginValue && (In.bEventClaimed || In.bCensusClaimed);
+		V.bQuarantine = V.bCollision && !In.bAlreadyQuarantined;
+		return V;
+	}
 
 	inline int PickRecycleVictim(const FRecycleCandidate* C, int N)
 	{
 		int Best = -1;
 		for (int i = 0; i < N; ++i)
 		{
-			if (!C[i].bReleasable || C[i].bAlreadyRecycled || C[i].Tag == 0)
+			if (!C[i].bReleasable || C[i].bAlreadyRecycled || C[i].bQuarantined || C[i].Tag == 0)
 			{
 				continue;
 			}

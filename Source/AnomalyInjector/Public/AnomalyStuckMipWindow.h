@@ -733,6 +733,36 @@ namespace AnomalyStuckMipWindow
 		}
 	}
 
+	struct FHeldSetState
+	{
+		EHeldSet Set = EHeldSet::Unresolved;
+		bool bFromRecord = false;
+	};
+
+	inline void ClassifyHeldSetState(FHeldSetState& S, const ELevel* Levels, int Num)
+	{
+		S.Set = ClassifyHeldSet(Levels, Num);
+		S.bFromRecord = Num > 0;
+	}
+
+	inline void ForceHeldSetUnknown(FHeldSetState& S)
+	{
+		if (!S.bFromRecord)
+		{
+			S.Set = EHeldSet::Unresolved;
+		}
+	}
+
+	inline bool IsPartialMemberFrame(bool bMember, const FHeldSetState& S)
+	{
+		return bMember && S.Set == EHeldSet::Partial;
+	}
+
+	inline bool IsUnresolvedMemberFrame(bool bMember, const FHeldSetState& S)
+	{
+		return bMember && S.Set == EHeldSet::Unresolved;
+	}
+
 	inline const char* DescribeLevel(ELevel L)
 	{
 		switch (L)

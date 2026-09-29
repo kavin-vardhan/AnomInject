@@ -388,6 +388,37 @@ namespace AnomalyNearClipSlab
 		return B;
 	}
 
+	static constexpr double InstanceBodyMatchRelEps = 1.0e-4;
+
+	inline double MaxOf(double A, double B)
+	{
+		return A > B ? A : B;
+	}
+
+	inline bool AffineMatchesRendered(const FAffine34& Rendered, const FAffine34& Body, double RelEps)
+	{
+		double Scale = 0.0;
+		for (int i = 0; i < 3; ++i)
+		{
+			Scale = MaxOf(Scale, std::sqrt(LengthSq(Rendered.Row[i])));
+			Scale = MaxOf(Scale, std::sqrt(LengthSq(Body.Row[i])));
+		}
+		if (Scale <= 0.0)
+		{
+			Scale = 1.0;
+		}
+		for (int i = 0; i < 3; ++i)
+		{
+			if (std::sqrt(LengthSq(Sub(Rendered.Row[i], Body.Row[i]))) > RelEps * Scale)
+			{
+				return false;
+			}
+		}
+		const double OriginScale = MaxOf(MaxOf(1.0, Scale),
+			MaxOf(std::sqrt(LengthSq(Rendered.Origin)), std::sqrt(LengthSq(Body.Origin))));
+		return std::sqrt(LengthSq(Sub(Rendered.Origin, Body.Origin))) <= RelEps * OriginScale;
+	}
+
 	inline bool InstanceBoxMayTouchSlab(const FSlab& S, const FBox3& InstanceBox)
 	{
 		if (S.bEmpty)
@@ -543,6 +574,77 @@ namespace AnomalyNearClipSlab
 	}
 
 	static constexpr int MaxConfirmCandidates = 64;
+
+	enum class EConfirmBody : unsigned char
+	{
+		Mesh = 0,
+		Landscape = 1,
+		Skinned = 2,
+		NoCollision = 3,
+		NoComplex = 4,
+		Welded = 5,
+		InstanceTransform = 6
+	};
+
+	struct FConfirmBodyFacts
+	{
+		bool bSkinned = false;
+		bool bLandscape = false;
+		bool bCollisionEnabled = true;
+		bool bBodyValid = false;
+		bool bHasComplex = false;
+		bool bWelded = false;
+		bool bInstance = false;
+		bool bInstanceBodyMatchesRendered = true;
+	};
+
+	inline EConfirmBody ClassifyConfirmBody(const FConfirmBodyFacts& F)
+	{
+		if (F.bSkinned)
+		{
+			return EConfirmBody::Skinned;
+		}
+		if (F.bLandscape)
+		{
+			return F.bBodyValid ? EConfirmBody::Landscape : EConfirmBody::NoCollision;
+		}
+		if (!F.bCollisionEnabled || !F.bBodyValid)
+		{
+			return EConfirmBody::NoCollision;
+		}
+		if (F.bWelded)
+		{
+			return EConfirmBody::Welded;
+		}
+		if (F.bInstance && !F.bInstanceBodyMatchesRendered)
+		{
+			return EConfirmBody::InstanceTransform;
+		}
+		if (!F.bHasComplex)
+		{
+			return EConfirmBody::NoComplex;
+		}
+		return EConfirmBody::Mesh;
+	}
+
+	inline bool IsConfirmableBody(EConfirmBody K)
+	{
+		return K == EConfirmBody::Mesh || K == EConfirmBody::Landscape;
+	}
+
+	inline const char* DescribeConfirmBody(EConfirmBody K)
+	{
+		switch (K)
+		{
+		case EConfirmBody::Mesh:              return "mesh";
+		case EConfirmBody::Landscape:         return "landscape";
+		case EConfirmBody::Skinned:           return "skinned";
+		case EConfirmBody::NoCollision:       return "no_collision";
+		case EConfirmBody::NoComplex:         return "no_complex";
+		case EConfirmBody::Welded:            return "welded";
+		default:                              return "instance_transform";
+		}
+	}
 
 	struct FConfirmCandidate
 	{

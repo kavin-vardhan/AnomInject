@@ -1009,6 +1009,254 @@ static void RunInstanceQueryF2()
 	}
 }
 
+static FAffine34 RotAbout(int Axis, double Deg)
+{
+	const double R = Deg * 3.14159265358979323846 / 180.0;
+	const double Cs = std::cos(R);
+	const double Sn = std::sin(R);
+	if (Axis == 0)
+	{
+		return MakeAffine(MakeV3(1, 0, 0), MakeV3(0, Cs, Sn), MakeV3(0, -Sn, Cs), MakeV3(0, 0, 0));
+	}
+	if (Axis == 1)
+	{
+		return MakeAffine(MakeV3(Cs, 0, -Sn), MakeV3(0, 1, 0), MakeV3(Sn, 0, Cs), MakeV3(0, 0, 0));
+	}
+	return MakeAffine(MakeV3(Cs, Sn, 0), MakeV3(-Sn, Cs, 0), MakeV3(0, 0, 1), MakeV3(0, 0, 0));
+}
+
+static FAffine34 TrsMatrix(const FAffine34& Rot, const FV3& Scale, const FV3& T)
+{
+	return MakeAffine(Mul(Rot.Row[0], Scale.X), Mul(Rot.Row[1], Scale.Y), Mul(Rot.Row[2], Scale.Z), T);
+}
+
+static FAffine34 EngineRenderedInstance(const FAffine34& InstRot, const FV3& InstScale, const FV3& InstT, const FAffine34& CompRot,
+	const FV3& CompScale, const FV3& CompT)
+{
+	return MulAffine(TrsMatrix(InstRot, InstScale, InstT), TrsMatrix(CompRot, CompScale, CompT));
+}
+
+static FAffine34 EngineComposedBody(const FAffine34& InstRot, const FV3& InstScale, const FV3& InstT, const FAffine34& CompRot,
+	const FV3& CompScale, const FV3& CompT)
+{
+	FAffine34 Rot;
+	for (int k = 0; k < 3; ++k)
+	{
+		Rot.Row[k] = AffineVector(CompRot, InstRot.Row[k]);
+	}
+	const FV3 Scale = MakeV3(InstScale.X * CompScale.X, InstScale.Y * CompScale.Y, InstScale.Z * CompScale.Z);
+	const FV3 T = Add(AffineVector(CompRot, MakeV3(CompScale.X * InstT.X, CompScale.Y * InstT.Y, CompScale.Z * InstT.Z)), CompT);
+	return TrsMatrix(Rot, Scale, T);
+}
+
+static FMesh AffineBoxMesh(const FAffine34& M, const FV3& Half)
+{
+	FV3 P[8];
+	int I = 0;
+	for (int SX = -1; SX <= 1; SX += 2)
+	{
+		for (int SY = -1; SY <= 1; SY += 2)
+		{
+			for (int SZ = -1; SZ <= 1; SZ += 2)
+			{
+				P[I++] = AffinePoint(M, MakeV3(SX * Half.X, SY * Half.Y, SZ * Half.Z));
+			}
+		}
+	}
+	FMesh Out;
+	AddQuad(Out.Tris, P[0], P[1], P[3], P[2]);
+	AddQuad(Out.Tris, P[4], P[5], P[7], P[6]);
+	AddQuad(Out.Tris, P[0], P[1], P[5], P[4]);
+	AddQuad(Out.Tris, P[2], P[3], P[7], P[6]);
+	AddQuad(Out.Tris, P[0], P[2], P[6], P[4]);
+	AddQuad(Out.Tris, P[1], P[3], P[7], P[5]);
+	Out.Box = MakeMatrixBox(MakeV3(0, 0, 0), Half, M);
+	return Out;
+}
+
+static FConfirmRun RunConfirmAgainst(const FBox3& CandidateBox, bool bConfirmable, const std::vector<FTri>& TracedTris,
+	const FConfirmConfig& Cfg)
+{
+	const FCamera C = ConfirmCamera();
+	FConfirmCandidate K;
+	K.Box = CandidateBox;
+	K.bConfirmable = bConfirmable;
+	FConfirmRun Out;
+	const FSlab S = BuildSlab(C.Origin, C.Forward, C.Right, C.Up, C.TanH, C.TanV, 10.0, 100.0);
+	Out.bSat = BoxIntersectsSlab(S, CandidateBox);
+	Out.Outcomes.resize(1);
+	Out.R = ConfirmSlab(C.Origin, C.Forward, C.Right, C.Up, C.TanH, C.TanV, 10.0, 100.0, &K, 1, Out.Outcomes.data(), Cfg,
+		[&TracedTris](int, const FV3& P0, const FV3& P1)
+		{
+			if (LengthSq(Sub(P1, P0)) <= EngineTraceMinLength * EngineTraceMinLength)
+			{
+				return false;
+			}
+			for (const FTri& T : TracedTris)
+			{
+				if (SegmentHitsTri(P0, P1, T))
+				{
+					return true;
+				}
+			}
+			return false;
+		});
+	return Out;
+}
+
+static FConfirmBodyFacts MeshFacts()
+{
+	FConfirmBodyFacts F;
+	F.bCollisionEnabled = true;
+	F.bBodyValid = true;
+	F.bHasComplex = true;
+	return F;
+}
+
+static void RunConfirmBody0848()
+{
+	const FConfirmConfig Cfg;
+	const FAffine34 Ident = RotAbout(2, 0.0);
+	const FV3 One = MakeV3(1, 1, 1);
+	const FV3 Zero = MakeV3(0, 0, 0);
+	const FV3 Half10 = MakeV3(10, 10, 10);
+
+	{
+		const FAffine34 Rendered = EngineRenderedInstance(RotAbout(2, 90.0), One, Zero, Ident, MakeV3(10, 1, 1), MakeV3(150, 0, 0));
+		const FAffine34 Body = EngineComposedBody(RotAbout(2, 90.0), One, Zero, Ident, MakeV3(10, 1, 1), MakeV3(150, 0, 0));
+		const bool bMatch = AffineMatchesRendered(Rendered, Body, InstanceBodyMatchRelEps);
+		Check(!bMatch, "A1: Codex's shear case (instance 90 deg about Z under component scale (10,1,1)) - the collision body placed by the "
+			"composed FTransform (InstancedStaticMesh.cpp:2514) does NOT match the rendered matrix product (:2665)");
+		FConfirmBodyFacts F = MeshFacts();
+		F.bInstance = true;
+		F.bInstanceBodyMatchesRendered = bMatch;
+		const EConfirmBody Kind = ClassifyConfirmBody(F);
+		Check(Kind == EConfirmBody::InstanceTransform && !IsConfirmableBody(Kind),
+			"A1: the shear-case instance is classified instance_transform and is NOT confirmable (no trace)");
+		const FMesh RenderedMesh = AffineBoxMesh(Rendered, Half10);
+		const FMesh BodyMesh = AffineBoxMesh(Body, Half10);
+		const FConfirmRun Truth = RunConfirmAgainst(RenderedMesh.Box, true, RenderedMesh.Tris, Cfg);
+		Check(Truth.bSat && Truth.R.bPositive && !Truth.R.bUnconfirmed,
+			"A1 picture truth: the RENDERED triangles (face at X=50) are clipped by the slab - the frame is truly positive");
+		const FConfirmRun Fixed = RunConfirmAgainst(RenderedMesh.Box, IsConfirmableBody(Kind), BodyMesh.Tris, Cfg);
+		Check(Fixed.bSat && Fixed.R.bPositive && Fixed.R.bUnconfirmed && Fixed.R.Traces == 0 && Fixed.R.Unconfirmable == 1,
+			"A1: with the fix the candidate keeps its SAT verdict and the frame is FLAGGED camera_clipping_unconfirmed, 0 traces");
+		const FConfirmRun Old = RunConfirmAgainst(RenderedMesh.Box, true, BodyMesh.Tris, Cfg);
+		Check(Old.bSat && !Old.R.bPositive && !Old.R.bUnconfirmed && Old.R.Misses == 1 && Old.R.Traces >= Cfg.MinFootprintRays,
+			"A1 BOTH WAYS: the 084-07c path traced the composed-transform body (X [140,160]) and read the truly clipped instance as an "
+			"UNFLAGGED MISS (" + std::to_string(Old.R.Traces) + " traces)");
+	}
+	{
+		const FAffine34 Rendered = EngineRenderedInstance(RotAbout(2, 90.0), One, Zero, Ident, MakeV3(3, 3, 3), MakeV3(60, 0, 0));
+		const FAffine34 Body = EngineComposedBody(RotAbout(2, 90.0), One, Zero, Ident, MakeV3(3, 3, 3), MakeV3(60, 0, 0));
+		FConfirmBodyFacts F = MeshFacts();
+		F.bInstance = true;
+		F.bInstanceBodyMatchesRendered = AffineMatchesRendered(Rendered, Body, InstanceBodyMatchRelEps);
+		Check(F.bInstanceBodyMatchesRendered && ClassifyConfirmBody(F) == EConfirmBody::Mesh,
+			"A1 control: a rotated instance under UNIFORM component scale - body and render agree, the instance is traced (mesh)");
+		const FMesh RenderedMesh = AffineBoxMesh(Rendered, Half10);
+		const FMesh BodyMesh = AffineBoxMesh(Body, Half10);
+		const FConfirmRun Run = RunConfirmAgainst(RenderedMesh.Box, true, BodyMesh.Tris, Cfg);
+		Check(Run.R.bPositive && !Run.R.bUnconfirmed && Run.R.Hits == 1,
+			"A1 control: when the transforms agree, tracing the body confirms the rendered geometry (confirmed positive, not flagged)");
+	}
+	{
+		const FAffine34 Rendered = EngineRenderedInstance(RotAbout(0, 90.0), One, Zero, Ident, MakeV3(10, 1, 1), MakeV3(150, 0, 0));
+		const FAffine34 Body = EngineComposedBody(RotAbout(0, 90.0), One, Zero, Ident, MakeV3(10, 1, 1), MakeV3(150, 0, 0));
+		Check(AffineMatchesRendered(Rendered, Body, InstanceBodyMatchRelEps),
+			"A1 control: an instance rotated about the component's SCALED axis (X, scale (10,1,1)) has no shear - body matches render");
+	}
+	{
+		const FAffine34 Rendered = EngineRenderedInstance(Ident, MakeV3(2, 3, 4), MakeV3(5, 6, 7), RotAbout(2, 30.0), MakeV3(10, 1, 1),
+			MakeV3(150, 20, 0));
+		const FAffine34 Body = EngineComposedBody(Ident, MakeV3(2, 3, 4), MakeV3(5, 6, 7), RotAbout(2, 30.0), MakeV3(10, 1, 1),
+			MakeV3(150, 20, 0));
+		Check(AffineMatchesRendered(Rendered, Body, InstanceBodyMatchRelEps),
+			"A1 control: an UNROTATED instance with non-uniform instance and component scale under a rotated component - body matches");
+	}
+	{
+		const FAffine34 Rendered = EngineRenderedInstance(RotAbout(2, 45.0), One, MakeV3(3, 0, 0), RotAbout(2, 30.0), MakeV3(10, 1, 1),
+			MakeV3(150, 0, 0));
+		const FAffine34 Body = EngineComposedBody(RotAbout(2, 45.0), One, MakeV3(3, 0, 0), RotAbout(2, 30.0), MakeV3(10, 1, 1),
+			MakeV3(150, 0, 0));
+		Check(!AffineMatchesRendered(Rendered, Body, InstanceBodyMatchRelEps),
+			"A1: 45 deg instance under a rotated, non-uniformly scaled component shears - mismatch, flagged");
+		Check(std::fabs(Rendered.Origin.X - Body.Origin.X) < 1e-9 && std::fabs(Rendered.Origin.Y - Body.Origin.Y) < 1e-9,
+			"A1: the two engine formulas agree on the instance ORIGIN; only the linear part differs under shear");
+	}
+	{
+		const FAffine34 Rendered = EngineRenderedInstance(RotAbout(2, 90.0), One, Zero, Ident, MakeV3(3, 3, 3), MakeV3(60, 0, 0));
+		FAffine34 Near = Rendered;
+		Near.Row[0] = Mul(Near.Row[0], 1.0 + 1.0e-6);
+		Near.Origin = Add(Near.Origin, MakeV3(1.0e-5, 0, 0));
+		FAffine34 Far = Rendered;
+		Far.Row[1] = Add(Far.Row[1], MakeV3(0.05, 0, 0));
+		Check(AffineMatchesRendered(Rendered, Near, InstanceBodyMatchRelEps),
+			"A1 epsilon: a float-rounding difference (1e-6 relative) still matches");
+		Check(!AffineMatchesRendered(Rendered, Far, InstanceBodyMatchRelEps),
+			"A1 epsilon: a 1.7 % off-axis term (0.05 on a length-3 row) is a mismatch");
+	}
+
+	{
+		FMesh ParentFace;
+		AddQuad(ParentFace.Tris, MakeV3(80, -300, -300), MakeV3(80, 300, -300), MakeV3(80, 300, 300), MakeV3(80, -300, 300));
+		const FBox3 ChildBox = MakeAxisAlignedBox(MakeV3(50, 0, 0), MakeV3(0, 300, 300));
+		const std::vector<FTri> ChildOwnTris;
+		FConfirmBodyFacts F = MeshFacts();
+		F.bWelded = true;
+		const EConfirmBody Kind = ClassifyConfirmBody(F);
+		Check(Kind == EConfirmBody::Welded && !IsConfirmableBody(Kind), "A3: a welded candidate is classified welded and is NOT confirmable");
+		const FConfirmRun Fixed = RunConfirmAgainst(ChildBox, IsConfirmableBody(Kind), ParentFace.Tris, Cfg);
+		Check(Fixed.bSat && Fixed.R.bPositive && Fixed.R.bUnconfirmed && Fixed.R.Traces == 0,
+			"A3: Codex's welded case (planar child at X=50 with a hole, welded to a parent face at X=80) is FLAGGED "
+			"camera_clipping_unconfirmed with 0 traces");
+		const FConfirmRun Old = RunConfirmAgainst(ChildBox, true, ParentFace.Tris, Cfg);
+		Check(Old.R.bPositive && !Old.R.bUnconfirmed && Old.R.Hits == 1 && Old.R.FullSlabFallbacks > 0,
+			"A3 BOTH WAYS: the 084-07c path traced the WELD PARENT's body through the full-slab fallback and CONFIRMED a positive the "
+			"child does not render - an unflagged false confirmation");
+		FConfirmBodyFacts Own = MeshFacts();
+		Check(ClassifyConfirmBody(Own) == EConfirmBody::Mesh, "A3 control: the same child NOT welded is a mesh candidate");
+		const FConfirmRun OwnRun = RunConfirmAgainst(ChildBox, true, ChildOwnTris, Cfg);
+		Check(!OwnRun.R.bPositive && !OwnRun.R.bUnconfirmed && OwnRun.R.Misses == 1,
+			"A3 control: traced against its OWN body (no geometry in the slab) the unwelded child is a correct negative");
+	}
+
+	{
+		FConfirmBodyFacts F;
+		F.bSkinned = true;
+		F.bWelded = true;
+		Check(ClassifyConfirmBody(F) == EConfirmBody::Skinned, "classifier: skinned wins over every other fact");
+		FConfirmBodyFacts L;
+		L.bLandscape = true;
+		L.bBodyValid = true;
+		Check(ClassifyConfirmBody(L) == EConfirmBody::Landscape && IsConfirmableBody(EConfirmBody::Landscape),
+			"classifier: a landscape with a valid heightfield body is confirmable");
+		L.bBodyValid = false;
+		Check(ClassifyConfirmBody(L) == EConfirmBody::NoCollision, "classifier: a landscape without a valid body is no_collision");
+		FConfirmBodyFacts N = MeshFacts();
+		N.bCollisionEnabled = false;
+		N.bWelded = true;
+		Check(ClassifyConfirmBody(N) == EConfirmBody::NoCollision, "classifier: collision disabled is no_collision before welded");
+		FConfirmBodyFacts W = MeshFacts();
+		W.bWelded = true;
+		W.bHasComplex = false;
+		W.bInstance = true;
+		W.bInstanceBodyMatchesRendered = false;
+		Check(ClassifyConfirmBody(W) == EConfirmBody::Welded, "classifier: welded is reported before instance_transform and no_complex");
+		FConfirmBodyFacts X = MeshFacts();
+		X.bInstance = true;
+		X.bInstanceBodyMatchesRendered = false;
+		X.bHasComplex = false;
+		Check(ClassifyConfirmBody(X) == EConfirmBody::InstanceTransform, "classifier: instance_transform is reported before no_complex");
+		FConfirmBodyFacts Y = MeshFacts();
+		Y.bHasComplex = false;
+		Check(ClassifyConfirmBody(Y) == EConfirmBody::NoComplex && !IsConfirmableBody(EConfirmBody::NoComplex),
+			"classifier: no complex collision is no_complex (unconfirmable)");
+		Check(ClassifyConfirmBody(MeshFacts()) == EConfirmBody::Mesh && IsConfirmableBody(EConfirmBody::Mesh),
+			"classifier: valid body with complex collision is a confirmable mesh");
+	}
+}
+
 static void RunConfirmBenchmark()
 {
 	const FCamera C = ConfirmCamera();
@@ -1046,6 +1294,7 @@ int main()
 	RunBenchmark();
 	RunConfirmation();
 	RunInstanceQueryF2();
+	RunConfirmBody0848();
 	RunConfirmBenchmark();
 	std::printf("camera_clipping slab selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;

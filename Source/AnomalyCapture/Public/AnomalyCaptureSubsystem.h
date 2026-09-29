@@ -51,6 +51,8 @@ struct FCameraClipRunAccum
 	int64 SkinnedTotal = 0;
 	int64 NoCollisionTotal = 0;
 	int64 NoComplexTotal = 0;
+	int64 WeldedTotal = 0;
+	int64 InstanceTransformTotal = 0;
 	double ConfirmMicrosTotal = 0.0;
 	double ConfirmMicrosLabelledTotal = 0.0;
 	double ConfirmMicrosMax = 0.0;

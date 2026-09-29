@@ -1123,6 +1123,8 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("mask_tag_exhausted"), LabelSync->MaskTagExhausted);
 			Root->SetNumberField(TEXT("mask_tag_retire_quarantined"), LabelSync->MaskTagRetireQuarantined);
 			Root->SetNumberField(TEXT("mask_tag_retire_host_flag_kept"), LabelSync->MaskTagRetireHostFlagKept);
+			Root->SetNumberField(TEXT("mask_prior_collision"), LabelSync->MaskPriorCollisions);
+			Root->SetNumberField(TEXT("mask_prior_collision_quarantined"), LabelSync->MaskPriorCollisionQuarantined);
 			Root->SetNumberField(TEXT("label_transition_temporal_aa_entries"), LabelSync->ReasonEntries[0]);
 			Root->SetNumberField(TEXT("label_transition_hide_return_entries"), LabelSync->ReasonEntries[1]);
 			Root->SetNumberField(TEXT("label_transition_partial_entries"), LabelSync->ReasonEntries[2]);
@@ -1138,7 +1140,7 @@ namespace AnomalyLabel
 		if (CameraClip && CameraClip->FramesEvaluated > 0)
 		{
 			const double Frames = (double)CameraClip->FramesEvaluated;
-			Root->SetStringField(TEXT("camera_clipping_label_rule"), TEXT("view_slab_bounds_then_triangle_confirm_v3"));
+			Root->SetStringField(TEXT("camera_clipping_label_rule"), TEXT("view_slab_bounds_then_triangle_confirm_v4"));
 			Root->SetNumberField(TEXT("camera_clipping_bounds_candidate_frames"), CameraClip->BoundsCandidateFrames);
 			Root->SetNumberField(TEXT("camera_clipping_confirmed_positive_frames"), CameraClip->ConfirmedPositiveFrames);
 			Root->SetNumberField(TEXT("camera_clipping_unconfirmed_frames"), CameraClip->UnconfirmedFrames);
@@ -1156,6 +1158,8 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("camera_clipping_confirm_skinned_unconfirmable"), (double)CameraClip->SkinnedTotal);
 			Root->SetNumberField(TEXT("camera_clipping_confirm_no_collision_unconfirmable"), (double)CameraClip->NoCollisionTotal);
 			Root->SetNumberField(TEXT("camera_clipping_confirm_no_complex_unconfirmable"), (double)CameraClip->NoComplexTotal);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_welded_unconfirmable"), (double)CameraClip->WeldedTotal);
+			Root->SetNumberField(TEXT("camera_clipping_confirm_instance_transform_unconfirmable"), (double)CameraClip->InstanceTransformTotal);
 			const double LabelledFrames = (double)FMath::Max(1, CameraClip->ConfirmedPositiveFrames + CameraClip->UnconfirmedFrames);
 			Root->SetNumberField(TEXT("camera_clipping_confirm_us_mean_per_labelled_frame"), CameraClip->ConfirmMicrosLabelledTotal / LabelledFrames);
 			Root->SetNumberField(TEXT("camera_clipping_confirm_us_mean_per_candidate_frame"),

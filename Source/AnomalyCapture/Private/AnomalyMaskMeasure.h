@@ -97,6 +97,8 @@ public:
 	int32 GetTagExhausted() const { return TagExhausted; }
 	int32 GetTagRetireQuarantined() const { return TagRetireQuarantined; }
 	int32 GetTagRetireHostFlagKept() const { return TagRetireHostFlagKept; }
+	int32 GetPriorCollisions() const;
+	int32 GetPriorCollisionQuarantined() const;
 
 private:
 	int32 AllocateTag(FName ForId, const FString& ForTarget, uint64 ForStartFrame);

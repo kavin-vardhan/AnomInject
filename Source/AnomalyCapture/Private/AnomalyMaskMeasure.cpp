@@ -41,6 +41,8 @@ void FAnomalyMaskMeasure::BeginRun(FAnomalyStencilTagLedger* InLedger)
 	TagExhausted = 0;
 	TagRetireQuarantined = 0;
 	TagRetireHostFlagKept = 0;
+	AnomalyStencilTag::ResetPriorCollisions();
+	AnomalyStencilTag::SetRestoreWatch(Ledger);
 
 	const int32 Before = ReadCustomDepthCVar();
 	AnomalyStencilTag::EnableCustomStencil();
@@ -69,6 +71,12 @@ void FAnomalyMaskMeasure::EndRun()
 		TEXT("with nothing in flight, whose every frame and target mask has been read back, and whose m26 arms are done. A run ")
 		TEXT("that never exhausts the pool recycles nothing and allocates exactly as before."),
 		Records.Num(), TagRecycles, TagPeakLive, TagExhausted);
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(mask): MASK PRIOR COLLISION SUMMARY collisions=%d quarantined=%d - a restore that wrote back a value live ")
+		TEXT("in the allocator (a documented N7 limitation: a saved prior equal to a later event's value) is counted and the ")
+		TEXT("value is quarantined; 0 means no restore ever wrote a live value."),
+		AnomalyStencilTag::GetPriorCollisions(), AnomalyStencilTag::GetPriorCollisionQuarantined());
+	AnomalyStencilTag::SetRestoreWatch(nullptr);
 
 	UntagAll();
 	AnomalyStencilTag::DisableCustomStencil();
@@ -158,6 +166,7 @@ int32 FAnomalyMaskMeasure::ReclaimReleasableTag(FName ForId, const FString& ForT
 		C.bReleasable = R.bReleasable && !IsRecordArmInFlight(i)
 			&& (!Ledger || (Ledger->IsAssignable(R.Tag) && !Ledger->CensusClaimed.Contains(R.Tag)));
 		C.bAlreadyRecycled = R.bTagRecycled;
+		C.bQuarantined = Ledger && Ledger->Quarantined.Contains(R.Tag);
 		C.ReleasableSince = R.ReleasableSinceTick;
 		Candidates.Add(C);
 	}
@@ -227,6 +236,16 @@ int32 FAnomalyMaskMeasure::ReclaimReleasableTag(FName ForId, const FString& ForT
 		(int32)Tag, *Victim.Id.ToString(), Victim.StartFrame, *Victim.Target, (long long)Victim.ReleasableSinceTick,
 		*ForId.ToString(), ForStartFrame, *ForTarget, (uint64)GFrameCounter, Restored, TagRecycles);
 	return (int32)Tag;
+}
+
+int32 FAnomalyMaskMeasure::GetPriorCollisions() const
+{
+	return AnomalyStencilTag::GetPriorCollisions();
+}
+
+int32 FAnomalyMaskMeasure::GetPriorCollisionQuarantined() const
+{
+	return AnomalyStencilTag::GetPriorCollisionQuarantined();
 }
 
 int32 FAnomalyMaskMeasure::AllocateTag(FName ForId, const FString& ForTarget, uint64 ForStartFrame)

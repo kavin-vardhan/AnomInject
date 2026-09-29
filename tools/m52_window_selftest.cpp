@@ -2119,6 +2119,135 @@ static void TestN7RetireEveryAppliedIdentity()
 	}
 }
 
+static void TestA2ForcedHeldSet()
+{
+	const FHeldSetState Fresh;
+	Check(Fresh.Set == EHeldSet::Unresolved && !Fresh.bFromRecord,
+		"A2: a render result created with NO texture record (the FlushObserveQueue force path) starts UNRESOLVED, never not_held");
+	FHeldSetState Forced;
+	ForceHeldSetUnknown(Forced);
+	Check(Forced.Set == EHeldSet::Unresolved && IsUnresolvedMemberFrame(true, Forced) && !IsPartialMemberFrame(true, Forced),
+		"A2: a forced-unknown member frame carries the unresolved reason");
+	FFrameAuthority A;
+	ForceTerminalUnknown(A);
+	const bool bMember = A.Membership != EMembership::Out;
+	const unsigned char Reasons = (unsigned char)((IsPartialMemberFrame(bMember, Forced) ? AnomalyLabelSync::ReasonPartial : 0)
+		| (IsUnresolvedMemberFrame(bMember, Forced) ? AnomalyLabelSync::ReasonUnresolved : 0));
+	Check(A.bForced && bMember && Reasons == AnomalyLabelSync::ReasonUnresolved,
+		"A2: with AA off (no temporal reason) the forced-unknown labelled row still carries transition_reason unresolved");
+	FPartialEdgeTrack Track;
+	Track.Observe(40, bMember, Forced.Set);
+	Check(Track.NumUnresolved() == 1 && Track.LastFullSI < 0,
+		"A2: the forced frame is counted unresolved and does not set a full-set boundary");
+	Check(std::string(DescribeHeldSet(Forced.Set)) == "unresolved", "A2: telemetry stuck_mip.held_set reads unresolved");
+
+	const EHeldSet Legacy = (EHeldSet)0;
+	const bool bLegacyReason = bMember && Legacy == EHeldSet::Unresolved;
+	Check(Legacy == EHeldSet::NotHeld && !bLegacyReason && std::string(DescribeHeldSet(Legacy)) == "not_held",
+		"A2 BOTH WAYS: the 084-07c default (uint8 0) read not_held and gave the forced frame NO unresolved reason");
+
+	const std::vector<FTexSample> Full = { { 7, 11, 7, true }, { 7, 11, 7, true } };
+	FHeldSetState Recorded;
+	std::vector<ELevel> Levels;
+	for (const FTexSample& S : Full)
+	{
+		Levels.push_back(ClassifyLevel(ClassifyTexture(S.Resident, S.Baseline, S.bKnown), S.Resident, S.Baseline, S.HeldLevel));
+	}
+	ClassifyHeldSetState(Recorded, Levels.data(), (int)Levels.size());
+	ForceHeldSetUnknown(Recorded);
+	Check(Recorded.Set == EHeldSet::Full && Recorded.bFromRecord,
+		"A2: a result classified from an actual texture record keeps that classification when it is later forced");
+	FHeldSetState Unbacked;
+	Unbacked.Set = EHeldSet::NotHeld;
+	ForceHeldSetUnknown(Unbacked);
+	Check(Unbacked.Set == EHeldSet::Unresolved,
+		"A2: a classification with no record behind it is reset to unresolved when the frame is forced (only a record can back it)");
+	FHeldSetState Empty;
+	ClassifyHeldSetState(Empty, nullptr, 0);
+	ForceHeldSetUnknown(Empty);
+	Check(Empty.Set == EHeldSet::Unresolved && !Empty.bFromRecord, "A2: an empty record is unresolved before and after forcing");
+}
+
+static void TestA4PriorCollision()
+{
+	AnomalyLabelSync::FPriorRestoreInputs In;
+	In.PriorValue = 210;
+	In.bEventClaimed = true;
+	AnomalyLabelSync::FPriorRestoreVerdict V = AnomalyLabelSync::CheckPriorRestore(In);
+	Check(V.bCollision && V.bQuarantine, "A4: a restore that writes back 210 while an event holds 210 is a mask_prior_collision and quarantines 210");
+	In.bEventClaimed = false;
+	In.bCensusClaimed = true;
+	V = AnomalyLabelSync::CheckPriorRestore(In);
+	Check(V.bCollision && V.bQuarantine, "A4: a value claimed by the census is live too");
+	In.bCensusClaimed = false;
+	V = AnomalyLabelSync::CheckPriorRestore(In);
+	Check(!V.bCollision && !V.bQuarantine, "A4: writing back a value no one holds is not a collision");
+	In.PriorValue = 0;
+	In.bEventClaimed = true;
+	V = AnomalyLabelSync::CheckPriorRestore(In);
+	Check(!V.bCollision, "A4: a host value outside the plugin range (0) is never a collision");
+	In.PriorValue = 255;
+	V = AnomalyLabelSync::CheckPriorRestore(In);
+	Check(!V.bCollision, "A4: 255 (the StencilDummy detector, never assignable) is never a collision");
+	In.PriorValue = 210;
+	In.bAlreadyQuarantined = true;
+	V = AnomalyLabelSync::CheckPriorRestore(In);
+	Check(V.bCollision && !V.bQuarantine, "A4: a second collision on an already quarantined value is counted, not re-quarantined");
+
+	Check(AnomalyLabelSync::IsTagValueFree(true, false, false, false) && !AnomalyLabelSync::IsTagValueFree(true, false, false, true),
+		"A4: a quarantined value is not free to the event or census allocators");
+
+	AnomalyLabelSync::FRecycleCandidate C[2];
+	C[0].Record = 0; C[0].Tag = 210; C[0].bReleasable = true; C[0].ReleasableSince = 5; C[0].bQuarantined = true;
+	C[1].Record = 1; C[1].Tag = 211; C[1].bReleasable = true; C[1].ReleasableSince = 9;
+	Check(AnomalyLabelSync::PickRecycleVictim(C, 2) == 1, "A4: the recycler skips the quarantined value even when it is the oldest releasable");
+	C[1].bQuarantined = true;
+	Check(AnomalyLabelSync::PickRecycleVictim(C, 2) == -1, "A4: with every releasable value quarantined nothing is recycled");
+
+	std::set<int> EventClaimed = { 210 };
+	std::set<int> Quarantined;
+	int Collisions = 0;
+	auto Restore = [&](int Prior)
+	{
+		AnomalyLabelSync::FPriorRestoreInputs R;
+		R.PriorValue = Prior;
+		R.bEventClaimed = EventClaimed.count(Prior) != 0;
+		R.bAlreadyQuarantined = Quarantined.count(Prior) != 0;
+		const AnomalyLabelSync::FPriorRestoreVerdict RV = AnomalyLabelSync::CheckPriorRestore(R);
+		Collisions += RV.bCollision ? 1 : 0;
+		if (RV.bQuarantine)
+		{
+			Quarantined.insert(Prior);
+		}
+		return Prior;
+	};
+	int Value = 210;
+	Value = Restore(210);
+	Value = 211;
+	EventClaimed.insert(211);
+	AnomalyLabelSync::FRetireHolder H;
+	H.bTracked = true;
+	H.PriorValue = 210;
+	H.Value = Value;
+	H.bCustomDepth = true;
+	H.AppliedMask = AnomalyLabelSync::AppliedBit(210) | AnomalyLabelSync::AppliedBit(211);
+	const AnomalyLabelSync::FRetireOutcome Retired = AnomalyLabelSync::RetireHolders(&H, 1, 210);
+	AnomalyLabelSync::FRecycleCandidate Old;
+	Old.Record = 0; Old.Tag = 210; Old.bReleasable = true; Old.ReleasableSince = 1;
+	Old.bQuarantined = Quarantined.count(210) != 0;
+	const int Pick = AnomalyLabelSync::PickRecycleVictim(&Old, 1);
+	Value = Restore(H.PriorValue);
+	Check(Retired.bVerified && Collisions == 2 && Quarantined.count(210) == 1 && Pick == -1,
+		"A4: Codex's saved-prior sequence (host prior 210 custom-depth off; apply 210, restore; apply 211; retire 210; restore 211's "
+		"saved prior 210) trips the tripwire on both restores, quarantines 210 and the recycler never reissues it");
+	Old.bQuarantined = false;
+	const int LegacyPick = AnomalyLabelSync::PickRecycleVictim(&Old, 1);
+	const int E3Value = LegacyPick == 0 ? Old.Tag : 0;
+	Check(LegacyPick == 0 && E3Value == 210 && Value == E3Value,
+		"A4 BOTH WAYS: without the quarantine 210 is recycled to a new event and the later restore writes 210 back onto the old "
+		"component - an alias the moment the host re-enables custom depth (Codex's N7 saved-prior variant)");
+}
+
 int main()
 {
 	TestTextureAndCombine();
@@ -2155,6 +2284,8 @@ int main()
 	TestF4Retire();
 	TestAnnotationMembership();
 	TestN7RetireEveryAppliedIdentity();
+	TestA2ForcedHeldSet();
+	TestA4PriorCollision();
 	std::printf("m52 window selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }

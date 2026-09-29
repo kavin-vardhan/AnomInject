@@ -260,6 +260,8 @@ namespace AnomalyLabel
 		int32 MaskTagExhausted = 0;
 		int32 MaskTagRetireQuarantined = 0;
 		int32 MaskTagRetireHostFlagKept = 0;
+		int32 MaskPriorCollisions = 0;
+		int32 MaskPriorCollisionQuarantined = 0;
 		int32 ReasonEntries[5] = { 0, 0, 0, 0, 0 };
 		int32 CarriedTransitionTracks = 0;
 		int32 CarriedHideTracks = 0;

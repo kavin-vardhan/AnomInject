@@ -587,53 +587,56 @@ namespace
 		return B;
 	}
 
-	enum class EConfirmTarget : uint8
-	{
-		Mesh = 0,
-		Landscape = 1,
-		Skinned = 2,
-		NoCollision = 3,
-		NoComplex = 4
-	};
-
-	EConfirmTarget ResolveConfirmTarget(UPrimitiveComponent* P, int32 InstanceIndex, FBodyInstance*& OutBody)
+	AnomalyNearClipSlab::EConfirmBody ResolveConfirmTarget(UPrimitiveComponent* P, int32 InstanceIndex, FBodyInstance*& OutBody)
 	{
 		OutBody = nullptr;
-		if (!P || P->IsA<USkinnedMeshComponent>())
+		AnomalyNearClipSlab::FConfirmBodyFacts F;
+		F.bSkinned = !P || P->IsA<USkinnedMeshComponent>();
+		if (F.bSkinned)
 		{
-			return EConfirmTarget::Skinned;
+			return AnomalyNearClipSlab::ClassifyConfirmBody(F);
 		}
+		FBodyInstance* Body = nullptr;
 		if (const FLazyObjectProperty* Prop = FindFProperty<FLazyObjectProperty>(P->GetClass(), TEXT("CollisionComponent")))
 		{
 			UPrimitiveComponent* Collision = Cast<UPrimitiveComponent>(Prop->GetObjectPropertyValue_InContainer(P));
-			FBodyInstance* Body = Collision ? Collision->GetBodyInstance() : nullptr;
-			if (!Body || !Body->IsValidBodyInstance())
-			{
-				return EConfirmTarget::NoCollision;
-			}
-			OutBody = Body;
-			return EConfirmTarget::Landscape;
-		}
-		FBodyInstance* Body = nullptr;
-		if (UInstancedStaticMeshComponent* Ism = Cast<UInstancedStaticMeshComponent>(P))
-		{
-			Body = Ism->InstanceBodies.IsValidIndex(InstanceIndex) ? Ism->InstanceBodies[InstanceIndex] : nullptr;
+			Body = Collision ? Collision->GetBodyInstance() : nullptr;
+			F.bLandscape = true;
+			F.bBodyValid = Body && Body->IsValidBodyInstance();
 		}
 		else
 		{
-			Body = P->GetBodyInstance();
+			if (UInstancedStaticMeshComponent* Ism = Cast<UInstancedStaticMeshComponent>(P))
+			{
+				Body = Ism->InstanceBodies.IsValidIndex(InstanceIndex) ? Ism->InstanceBodies[InstanceIndex] : nullptr;
+				F.bInstance = true;
+				F.bInstanceBodyMatchesRendered = false;
+				if (Ism->PerInstanceSMData.IsValidIndex(InstanceIndex))
+				{
+					const FMatrix InstanceMatrix = Ism->PerInstanceSMData[InstanceIndex].Transform;
+					const FMatrix Rendered = InstanceMatrix * Ism->GetComponentTransform().ToMatrixWithScale();
+					const FMatrix BodyMatrix = (FTransform(InstanceMatrix) * Ism->GetComponentTransform()).ToMatrixWithScale();
+					F.bInstanceBodyMatchesRendered = AnomalyNearClipSlab::AffineMatchesRendered(AffineFromMatrix(Rendered),
+						AffineFromMatrix(BodyMatrix), AnomalyNearClipSlab::InstanceBodyMatchRelEps);
+				}
+			}
+			else
+			{
+				Body = P->GetBodyInstance();
+			}
+			F.bCollisionEnabled = P->GetCollisionEnabled() != ECollisionEnabled::NoCollision;
+			F.bBodyValid = Body && Body->IsValidBodyInstance();
+			const auto* WeldInfo = Body ? Body->GetCurrentWeldInfo() : nullptr;
+			F.bWelded = P->IsWelded() || (Body && Body->WeldParent != nullptr) || (WeldInfo && WeldInfo->Num() > 0);
+			const UBodySetup* Setup = P->GetBodySetup();
+			F.bHasComplex = Setup && Setup->CollisionTraceFlag != CTF_UseSimpleAsComplex && Setup->ChaosTriMeshes.Num() > 0;
 		}
-		if (P->GetCollisionEnabled() == ECollisionEnabled::NoCollision || !Body || !Body->IsValidBodyInstance())
+		const AnomalyNearClipSlab::EConfirmBody Kind = AnomalyNearClipSlab::ClassifyConfirmBody(F);
+		if (AnomalyNearClipSlab::IsConfirmableBody(Kind))
 		{
-			return EConfirmTarget::NoCollision;
+			OutBody = Body;
 		}
-		const UBodySetup* Setup = P->GetBodySetup();
-		if (!Setup || Setup->CollisionTraceFlag == CTF_UseSimpleAsComplex || Setup->ChaosTriMeshes.Num() == 0)
-		{
-			return EConfirmTarget::NoComplex;
-		}
-		OutBody = Body;
-		return EConfirmTarget::Mesh;
+		return Kind;
 	}
 
 	bool IsOrientedBoxPlausible(const AnomalyNearClipSlab::FBox3& B, const FBoxSphereBounds& WorldBounds,
@@ -1097,16 +1100,18 @@ namespace AnomalyViewport
 			FConfirmCandidate C;
 			C.Box = Box;
 			FBodyInstance* Body = nullptr;
-			const EConfirmTarget Kind = ResolveConfirmTarget(P, InstanceIndex, Body);
+			const AnomalyNearClipSlab::EConfirmBody Kind = ResolveConfirmTarget(P, InstanceIndex, Body);
 			switch (Kind)
 			{
-			case EConfirmTarget::Landscape: ++Out.LandscapeCandidates; break;
-			case EConfirmTarget::Skinned:   ++Out.SkinnedUnconfirmable; break;
-			case EConfirmTarget::NoCollision: ++Out.NoCollisionUnconfirmable; break;
-			case EConfirmTarget::NoComplex: ++Out.NoComplexUnconfirmable; break;
+			case AnomalyNearClipSlab::EConfirmBody::Landscape: ++Out.LandscapeCandidates; break;
+			case AnomalyNearClipSlab::EConfirmBody::Skinned:   ++Out.SkinnedUnconfirmable; break;
+			case AnomalyNearClipSlab::EConfirmBody::NoCollision: ++Out.NoCollisionUnconfirmable; break;
+			case AnomalyNearClipSlab::EConfirmBody::NoComplex: ++Out.NoComplexUnconfirmable; break;
+			case AnomalyNearClipSlab::EConfirmBody::Welded: ++Out.WeldedUnconfirmable; break;
+			case AnomalyNearClipSlab::EConfirmBody::InstanceTransform: ++Out.InstanceTransformUnconfirmable; break;
 			default: break;
 			}
-			C.bConfirmable = Body != nullptr && (Kind == EConfirmTarget::Mesh || Kind == EConfirmTarget::Landscape);
+			C.bConfirmable = Body != nullptr && AnomalyNearClipSlab::IsConfirmableBody(Kind);
 			ConfirmCands.Add(C);
 			ConfirmBodies.Add(C.bConfirmable ? Body : nullptr);
 			ConfirmNames.Add(InstanceIndex == INDEX_NONE
