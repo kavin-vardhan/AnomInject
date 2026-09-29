@@ -11,6 +11,24 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **089-02a, 2026-09-30 — THE 089-03 RE-BENCH IS PREPARED (dry run only; no game launch, no staging). E1 fixed for G395 /
+> G405 / G406 and frozen; the LOD fixture relit and re-cooked; the leg set with the 1,800-frame null after the m52 legs and
+> Part 0 last.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-089-02a-rebench-prep.md`; harness README `_reviews\089-03-README.md`;
+>   evidence `_reviews\089-03-evidence\` (`freeze.json`, `gateselftest.json`, the dry run, `cook\`, `lodfix\`).
+> - **E1 (`089-03-eval.py`, SHA-256 `8e48e883…`, frozen):** each fix proven both ways on the night bank — G395: doctored
+>   early/late labels read end +1 / start −1 (084-09 read −3 / +4), RD3 reads its true end +1; G405: REAL_BL_SYN PASS 10/10 at
+>   +0 (fixes off reproduce 084-09's FAIL 10); G406: B3 si 181 PASS on the game-time null, B9 PASS 16/16 at +0, B0L still FAILS;
+>   events past the null read UNJUDGEABLE (B0: 13 judged PASS, 5 past the null, leg UNJUDGEABLE-NULL-COVERAGE).
+> - **LOD fixture:** its sun pointed UP (`unreal.Rotator` is roll, pitch, yaw) and the gate level's point lights were never
+>   copied (G410): sun set to pitch −40, three 400 cd point lights (G412's calibration). New pairing
+>   **`m52fix-cook-62633720`** = exe `8A6074AA` + utoc `62633720`, globals and descriptor byte-identical; D: content changed by
+>   the one map. ⚠ Not proven offline (G411: the commandlet capture renders the control black too) — the bench's luma premise
+>   decides.
+> - 🎯 **NEXT: 089-03 (the targeted re-bench) when the PC is idle:** `C:\Python313\python.exe
+>   D:\IntrusiveAnomalies\_reviews\089-03-window.py live`.
+>
+> ---
 > 🔎 **089-01, 2026-09-30 — OFFLINE ADJUDICATION OF THE NIGHT BENCH (read-only; no source, build, cook, launch or staging).
 > No adjudicated FAIL is a real label/picture mismatch.**
 > - **Cold start:** journal `docs/sessions/2026-09-30-089-01-adjudication.md`; the review with tables per item

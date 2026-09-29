@@ -8718,3 +8718,52 @@ Related: G37, G395.
   frame must carry an m50 reason. A concurrency (peak-live) condition needs a targeted stuck_low_mip leg, not a mixed auto pool.
 
 Related: G134, G366.
+
+## G410 — `unreal.Rotator(a, b, c)` is (roll, pitch, yaw): the LOD fixture's sun pointed UP, and the lights that make the gate level visible were never copied (2026-09-30, 089-02a)
+
+*(Number checked against every ref, local and remote: the maximum was G409 on `fix/m52-label-timing`.)*
+
+- **Measured:** `CaptureBench/tools/make_lod_fixture.py` spawned the sun with `unreal.Rotator(-40, 20, 0)`. The UE Python
+  constructor's positional order is **(roll, pitch, yaw)**, so the saved actor read back as **pitch +20, yaw 0, roll −40**
+  (084-08b's own `lodfix-scan.json`): the light travelled upward from below the shadow-casting floor, with the sky atmosphere
+  at night. The fixture had copied the gate level's sun (`make_gate_level.py`, `Rotator(-45, 35, 0)` — also pitch +35, up) but
+  **not the three 2,500 cd point lights that actually light `CB_GateLevel`**. Every packaged fixture frame was 100 % black
+  (G402), while the target mask still measured the silhouette (243,018 px): the geometry drew; no light reached it.
+- **Fixed (content only):** sun pitch −40 / yaw 20 set **by keyword** (`Rotator(roll=0, pitch=-40, yaw=20)`), read back in a
+  fresh commandlet as pitch −40; three movable, shadow-casting point lights added. The authoring tool now does the same
+  (CaptureBench `e66b461`). ⛔ `make_gate_level.py`'s sun is left as it is: `CB_GateLevel` is frozen and renders correctly
+  through its point lights.
+- **Rule:** construct UE Python rotators with keyword arguments, and read the rotation back (`get_actor_rotation().pitch`) and
+  the forward vector's sign before trusting a light. A light copied from a working level is not the level's lighting.
+
+Related: G402, G151, G99.
+
+## G411 — A commandlet scene capture that renders a known-good level black is not an instrument (2026-09-30, 089-02a)
+
+- **Measured:** `UnrealEditor-Cmd -run=pythonscript -AllowCommandletRendering` (D3D12 initialised on the RTX 3070) with a
+  `SceneCapture2D` at the PlayerStart pose: `capture_scene()` × 4, then `export_render_target` / `read_render_target_raw_uv`.
+  **Every sample was 0 — FinalColor, BaseColor and linear HDR — for `CB_LodFixture` AND for the control `CB_GateLevel`**, which
+  renders at mean luma ~105 in the packaged bench. The whole script ran in ~2 s: nothing rendered. The control is what showed it;
+  without it, a black fixture render would have "confirmed" G402 and a lit one would have been impossible to obtain.
+- **Consequence:** the fixture's not-black proof is the **first premise check on the bench** (G402's rule): median whole-frame
+  luma ≥ 20 and a non-uniform target ROI on LODP_FN / LODP_FD, before any fixture gate leg runs.
+- **Rule:** any offline render proof carries a known-good control rendered by the same pipeline in the same process; a control
+  that reads black voids the proof, it does not support it.
+
+Related: G151, G402, G96.
+
+## G412 — The bench's pinned exposure is bright: a lit grid floor is already in the tonemapper's shoulder at ~36 lux (2026-09-30, 089-02a)
+
+- **Measured on a packaged `CB_GateLevel` frame (084-09 MT85_NAT, si 5–7):** floor points along the camera's y = 0 lane, whose
+  direct illuminance from the level's three 2,500 cd point lights is computable (inverse square with UE's attenuation window),
+  read **luma 232–237 at 36–45 lux, 245–246 at 71–78 lux and 250–252 at 114–139 lux** (grey, R = G = B). The gate targets'
+  camera-facing sides, which get almost no direct light, read ~110–125 (bounce). With `r.DefaultFeature.AutoExposure 0` and
+  `r.EyeAdaptationQuality 0`, mid-grey therefore sits at only a few lux on this bench.
+- **Consequence for fixtures:** a fixture lit like the gate level's floor (the first 089-02a patch put ~43 lux on the targets)
+  would render near-white and compress exactly the intermediate levels the LOD fade reader measures. The fixture's point lights
+  were set to **400 cd** (~8 lux direct on the targets' camera-facing sides; orange ≈ 190 / blue ≈ 120 luma predicted,
+  unclipped). ⚠ A calibration from one level, not a measurement of the fixture; the premise luma check decides.
+- **Rule:** size a new fixture's light from a packaged frame of a known level on the same exposure settings, and aim targets
+  at mid-tone, not at "clearly lit".
+
+Related: G233, G410.
