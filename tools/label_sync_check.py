@@ -62,6 +62,7 @@ MEAS_K = 3.0
 SUFFIX = 3
 DS = 4
 POST_REF_N = 6
+REF_AMENDMENT = True
 REF_MIN = 4
 PREV_SETTLE = 4
 POST_SKIP = 2
@@ -1034,9 +1035,18 @@ def analyse_d(s, ev, evs, taa):
     prev = [x for x in other if x < lo]
     nxt_o = [x for x in other if x > hi]
     prev_last = max(prev) if prev else None
+    if not REF_AMENDMENT:
+        refc = [si for si in range(lo - REF_BACK, lo) if pre_clean(si)]
+        if len(refc) < 3:
+            refc = [si for si in range(lo - 30, lo) if pre_clean(si)][-8:]
+        if len(refc) < 2:
+            res["status"] = "NO-REFERENCE"
+            return res
+        prev_last = None
     start = lo - REF_BACK if prev_last is None else max(lo - REF_BACK, prev_last + PREV_SETTLE + 1)
-    refc = [si for si in range(start, lo) if pre_clean(si)]
-    if len(refc) < REF_MIN:
+    if REF_AMENDMENT:
+        refc = [si for si in range(start, lo) if pre_clean(si)]
+    if REF_AMENDMENT and len(refc) < REF_MIN:
         tailx = max([hi] + [x for x in Ts if x > hi])
         lim = min(nxt_o) if nxt_o else tailx + 1 + POST_SKIP + POST_REF_N
         post = [si for si in range(tailx + 1 + POST_SKIP, lim) if clean(si)][:POST_REF_N]
@@ -1102,7 +1112,7 @@ def analyse_d(s, ev, evs, taa):
         off_ok = len(off_views) >= 2 and not any(x is None for x in off_views)
         midr = (a + b) / 2.0
         ser_on = {}
-        ser_off = {}
+        off_all = {}
         for si in range(lo_w, hi_w + 1):
             if si not in s.rows:
                 continue
@@ -1131,12 +1141,12 @@ def analyse_d(s, ev, evs, taa):
             Roff = median_view(use, False)
             mu_off, thD_off, thP_off, _t = noise_model(use, ctx, False)
             for si in ser_on:
-                if si > midr:
+                if si >= a:
                     D, P, _o = metrics(V(si), Roff, ctx, False)
-                    ser_off[si] = (D, P)
+                    off_all[si] = (D, P)
             late = [si for si in range(roff[-1] + 1, hi_w + 1) if si in ser_on and clean(si)]
-            dD = max([v[0] for k, v in ser_off.items()] or [0.0])
-            dP = max([v[1] for k, v in ser_off.items()] or [0.0])
+            dD = max([v[0] for v in off_all.values()] or [0.0])
+            dP = max([v[1] for v in off_all.values()] or [0.0])
             if len(late) >= 2:
                 Rl = median_view([V(x) for x in late], False)
                 lD, lP, _o = metrics(Rl, Roff, ctx, False)
@@ -1147,8 +1157,8 @@ def analyse_d(s, ev, evs, taa):
             fallback_runs += 1
             mu_off, thD_off, thP_off = mu_on, thD_on, thP_on
             for si in ser_on:
-                if si > midr:
-                    ser_off[si] = ser_on[si]
+                if si >= a:
+                    off_all[si] = ser_on[si]
             late = [si for si in range(b + 4, hi_w + 1) if si in ser_on and si not in Ls and si not in Ts]
             dD = max(v[0] for v in ser_on.values()) if ser_on else 0.0
             dP = max(v[1] for v in ser_on.values()) if ser_on else 0.0
@@ -1161,9 +1171,9 @@ def analyse_d(s, ev, evs, taa):
                 if drift >= REL:
                     cens[b] = "scene drift"
         on_items = [(si, ser_on[si]) for si in ser_on if si <= midr]
-        off_items = [(si, ser_off[si]) for si in ser_off if si > midr]
+        off_items = [(si, off_all[si]) for si in off_all if si > midr]
         dD_on = max([x[1][0] for x in on_items] or [0.0])
-        dD_off = max([x[1][0] for x in off_items] or [dD_on])
+        dD_off = max([v[0] for v in off_all.values()] or [dD_on])
         for si, (D, P) in on_items:
             series[si] = dict(D=D, P=P, frac=(D - mu_on) / max(dD_on - mu_on, 1e-6), strict=bool(D > thD_on or P > thP_on))
             sig_by_si[si] = (thD_on - mu_on) / K_SIG
@@ -1801,6 +1811,7 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
       "(086-01 constants; no clean frames after the run)" % (tot_runs - tot_fb, tot_runs, tot_fb))
     w("stuck_low_mip: sharpness basis own-detrend, edge-local noise (no null session); %d event(s) judged by the "
       "086-01 path because the sharpness path lacked frames" % tot_52fb)
+    w("reference amendment R1 (084-09): %s" % ("on - an event with fewer than %d clean reference frames reads confounded reference" % REF_MIN if REF_AMENDMENT else "off"))
     w("release reading: transition-aware at 50 % of the effect; raw, 10 % and strict printed beside it")
     w("offsets: first (or last) visible frame minus first (or last) labelled frame; + means the picture lags the label")
     w("")
@@ -2192,6 +2203,9 @@ def st_cases():
     ghost = {si: 1.0 for si in L}
     ghost[48] = 0.08
     cases.append(("ghost_8pct", {"type": "blink", "kind": "hide", "n": 72, "events": [{"L": L, "pixels": ghost}]}))
+    g2 = {40: 1.0, 41: 1.0, 42: 1.0, 46: 1.0, 47: 0.15}
+    cases.append(("blink_single_run_residual", {"type": "blink", "kind": "hide", "n": 72,
+                                                "events": [{"L": [40, 41, 42, 46], "pixels": g2}]}))
     cases.append(("cc", {"type": "camera_clipping", "kind": "tex", "n": 60, "events": [{"L": list(range(40, 44)),
                                                                                          "pixels": {}}]}))
     L52 = list(range(60, 70))
@@ -2249,6 +2263,9 @@ def st_expect():
     add("delayed_swap_3", "effect 3 frames late FAILS, start +3", lambda r: verdict(r) == "FAIL" and _edge(r)["start"] == 3, True)
     add("ghost_8pct", "8 % reappear ghost: 50 % end 0 PASS, 10 % end 0, strict end +1",
         lambda r: verdict(r) == "PASS" and _edge(r)["end"] == 0 and _edge(r, "t10")["end"] == 0 and _edge(r, "strict")["end"] == 1)
+    add("blink_single_run_residual", "one-frame hidden run then a 15 % residual: 50 % end 0, strict end +1",
+        lambda r: verdict(r) == "PASS" and r["per"]["t50"]["edges"][1]["end"] == 0
+        and r["per"]["strict"]["edges"][1]["end"] == 1)
     add("slow_drift", "slow drift after the event: end censored, not failed",
         lambda r: verdict(r) == "CENSORED" and _edge(r)["ce"])
     add("missing_mask", "one labelled frame without a mask is counted",
