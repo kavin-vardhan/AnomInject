@@ -76,11 +76,13 @@ struct FKatTargetedRow
 	int Fire;
 	int IdSlot;
 	int ModeGiven;
+	int BenchLever;
 	int NumModes;
 	float HoldMin;
 	float HoldMax;
 	unsigned HoldBits;
 	int RoundRobin;
+	int BenchLeverOut;
 	int Mode;
 	unsigned CounterAfter;
 	unsigned SeedAfter;
@@ -89,45 +91,59 @@ struct FKatTargetedRow
 
 static const FKatTargetedRow GKatTargeted[] =
 {
-	{ "rr_two_modes", 4242, 0, 0, 0, 2, 3.0f, 6.0f, 0x40540E92u, 1, 0, 1u, 0x1ABE19A5u, 1u },
-	{ "rr_two_modes", 4242, 1, 0, 0, 2, 3.0f, 6.0f, 0x40ABC4CAu, 1, 1, 2u, 0xCA0CC694u, 1u },
-	{ "rr_two_modes", 4242, 2, 0, 0, 2, 3.0f, 6.0f, 0x40B07B8Eu, 1, 0, 3u, 0xD69ED00Fu, 1u },
-	{ "rr_two_modes", 4242, 3, 0, 0, 2, 3.0f, 6.0f, 0x409EE7B3u, 1, 1, 4u, 0xA7BF3286u, 1u },
-	{ "rr_two_modes", 4242, 4, 0, 0, 2, 3.0f, 6.0f, 0x409AA93Au, 1, 0, 5u, 0x9C6DF129u, 1u },
-	{ "rr_four_modes", 4242, 0, 0, 0, 4, 3.0f, 6.0f, 0x40540E92u, 1, 0, 1u, 0x1ABE19A5u, 1u },
-	{ "rr_four_modes", 4242, 1, 0, 0, 4, 3.0f, 6.0f, 0x40ABC4CAu, 1, 1, 2u, 0xCA0CC694u, 1u },
-	{ "rr_four_modes", 4242, 2, 0, 0, 4, 3.0f, 6.0f, 0x40B07B8Eu, 1, 2, 3u, 0xD69ED00Fu, 1u },
-	{ "rr_four_modes", 4242, 3, 0, 0, 4, 3.0f, 6.0f, 0x409EE7B3u, 1, 3, 4u, 0xA7BF3286u, 1u },
-	{ "rr_four_modes", 4242, 4, 0, 0, 4, 3.0f, 6.0f, 0x409AA93Au, 1, 0, 5u, 0x9C6DF129u, 1u },
-	{ "rr_four_modes", 4242, 5, 0, 0, 4, 3.0f, 6.0f, 0x40A0742Cu, 1, 1, 6u, 0xABE074E8u, 1u },
-	{ "rr_empty_set", 99, 0, 0, 0, 0, 3.0f, 6.0f, 0x40A6B211u, 1, -1, 0u, 0xBC8583EAu, 1u },
-	{ "rr_empty_set", 99, 1, 0, 0, 0, 3.0f, 6.0f, 0x40842422u, 1, -1, 0u, 0x60605ADDu, 1u },
-	{ "rr_empty_set", 99, 2, 0, 0, 0, 3.0f, 6.0f, 0x40B428EEu, 1, -1, 0u, 0xE06D272Cu, 1u },
-	{ "non_m53_no_rr", 4242, 0, 0, 0, -1, 3.0f, 6.0f, 0x40540E92u, 0, -1, 0u, 0x1ABE19A5u, 1u },
-	{ "non_m53_no_rr", 4242, 1, 0, 1, -1, 3.0f, 6.0f, 0x40ABC4CAu, 0, -1, 0u, 0xCA0CC694u, 1u },
-	{ "non_m53_no_rr", 4242, 2, 0, 0, -1, 3.0f, 6.0f, 0x40B07B8Eu, 0, -1, 0u, 0xD69ED00Fu, 1u },
-	{ "mixed_two_modes", 4242, 0, 0, 0, 2, 3.0f, 6.0f, 0x40540E92u, 1, 0, 1u, 0x1ABE19A5u, 1u },
-	{ "mixed_two_modes", 4242, 1, 0, 1, 2, 3.0f, 6.0f, 0x40ABC4CAu, 0, -1, 1u, 0xCA0CC694u, 1u },
-	{ "mixed_two_modes", 4242, 2, 0, 0, 2, 3.0f, 6.0f, 0x40B07B8Eu, 1, 1, 2u, 0xD69ED00Fu, 1u },
-	{ "mixed_two_modes", 4242, 3, 0, 1, 2, 3.0f, 6.0f, 0x409EE7B3u, 0, -1, 2u, 0xA7BF3286u, 1u },
-	{ "mixed_two_modes", 4242, 4, 0, 1, 2, 3.0f, 6.0f, 0x409AA93Au, 0, -1, 2u, 0x9C6DF129u, 1u },
-	{ "mixed_two_modes", 4242, 5, 0, 0, 2, 3.0f, 6.0f, 0x40A0742Cu, 1, 0, 3u, 0xABE074E8u, 1u },
-	{ "mixed_two_modes", 4242, 6, 0, 0, 2, 3.0f, 6.0f, 0x406E8CE8u, 1, 1, 4u, 0x3E113773u, 1u },
-	{ "mixed_four_modes_odd_hold", -123456, 0, 0, 1, 4, 0.349999994f, 7.9000001f, 0x4022A3AFu, 0, -1, 0u, 0x4A4C8C2Bu, 1u },
-	{ "mixed_four_modes_odd_hold", -123456, 1, 0, 0, 4, 0.349999994f, 7.9000001f, 0x40E940A4u, 1, 0, 1u, 0xEB499452u, 1u },
-	{ "mixed_four_modes_odd_hold", -123456, 2, 0, 0, 4, 0.349999994f, 7.9000001f, 0x3F87F37Eu, 1, 1, 2u, 0x18256065u, 1u },
-	{ "mixed_four_modes_odd_hold", -123456, 3, 0, 1, 4, 0.349999994f, 7.9000001f, 0x40024AFCu, 0, -1, 2u, 0x39296C54u, 1u },
-	{ "mixed_four_modes_odd_hold", -123456, 4, 0, 0, 4, 0.349999994f, 7.9000001f, 0x40C289E5u, 1, 2, 3u, 0xC24420CFu, 1u },
-	{ "mixed_four_modes_odd_hold", -123456, 5, 0, 1, 4, 0.349999994f, 7.9000001f, 0x4054C57Du, 0, -1, 3u, 0x64DBEA46u, 1u },
-	{ "mixed_four_modes_odd_hold", -123456, 6, 0, 0, 4, 0.349999994f, 7.9000001f, 0x40287012u, 1, 3, 4u, 0x4D5EFBE9u, 1u },
-	{ "mixed_four_modes_odd_hold", -123456, 7, 0, 0, 4, 0.349999994f, 7.9000001f, 0x40433E75u, 1, 0, 5u, 0x5B92AEA8u, 1u },
-	{ "two_ids_separate_counters", 777, 0, 0, 0, 2, 3.0f, 6.0f, 0x40A5BC1Fu, 1, 0, 1u, 0xB9F5A848u, 1u },
-	{ "two_ids_separate_counters", 777, 1, 1, 0, 4, 3.0f, 6.0f, 0x405A4DC4u, 1, 0, 1u, 0x23125A53u, 1u },
-	{ "two_ids_separate_counters", 777, 2, 0, 0, 2, 3.0f, 6.0f, 0x409F30B5u, 1, 1, 2u, 0xA881E29Au, 1u },
-	{ "two_ids_separate_counters", 777, 3, 1, 1, 4, 3.0f, 6.0f, 0x40592207u, 0, -1, 1u, 0x2182B54Du, 1u },
-	{ "two_ids_separate_counters", 777, 4, 1, 0, 4, 3.0f, 6.0f, 0x409BCE5Cu, 1, 1, 2u, 0x9F7BA05Cu, 1u },
-	{ "two_ids_separate_counters", 777, 5, 0, 0, 2, 3.0f, 6.0f, 0x404A47C4u, 1, 0, 3u, 0x0DB50677u, 1u },
-	{ "two_ids_separate_counters", 777, 6, 1, 0, 4, 3.0f, 6.0f, 0x40449690u, 1, 2, 3u, 0x061E160Eu, 1u },
+	{ "rr_two_modes", 4242, 0, 0, 0, 0, 2, 3.0f, 6.0f, 0x40540E92u, 1, 0, 0, 1u, 0x1ABE19A5u, 1u },
+	{ "rr_two_modes", 4242, 1, 0, 0, 0, 2, 3.0f, 6.0f, 0x40ABC4CAu, 1, 0, 1, 2u, 0xCA0CC694u, 1u },
+	{ "rr_two_modes", 4242, 2, 0, 0, 0, 2, 3.0f, 6.0f, 0x40B07B8Eu, 1, 0, 0, 3u, 0xD69ED00Fu, 1u },
+	{ "rr_two_modes", 4242, 3, 0, 0, 0, 2, 3.0f, 6.0f, 0x409EE7B3u, 1, 0, 1, 4u, 0xA7BF3286u, 1u },
+	{ "rr_two_modes", 4242, 4, 0, 0, 0, 2, 3.0f, 6.0f, 0x409AA93Au, 1, 0, 0, 5u, 0x9C6DF129u, 1u },
+	{ "rr_four_modes", 4242, 0, 0, 0, 0, 4, 3.0f, 6.0f, 0x40540E92u, 1, 0, 0, 1u, 0x1ABE19A5u, 1u },
+	{ "rr_four_modes", 4242, 1, 0, 0, 0, 4, 3.0f, 6.0f, 0x40ABC4CAu, 1, 0, 1, 2u, 0xCA0CC694u, 1u },
+	{ "rr_four_modes", 4242, 2, 0, 0, 0, 4, 3.0f, 6.0f, 0x40B07B8Eu, 1, 0, 2, 3u, 0xD69ED00Fu, 1u },
+	{ "rr_four_modes", 4242, 3, 0, 0, 0, 4, 3.0f, 6.0f, 0x409EE7B3u, 1, 0, 3, 4u, 0xA7BF3286u, 1u },
+	{ "rr_four_modes", 4242, 4, 0, 0, 0, 4, 3.0f, 6.0f, 0x409AA93Au, 1, 0, 0, 5u, 0x9C6DF129u, 1u },
+	{ "rr_four_modes", 4242, 5, 0, 0, 0, 4, 3.0f, 6.0f, 0x40A0742Cu, 1, 0, 1, 6u, 0xABE074E8u, 1u },
+	{ "rr_empty_set", 99, 0, 0, 0, 0, 0, 3.0f, 6.0f, 0x40A6B211u, 1, 0, -1, 0u, 0xBC8583EAu, 1u },
+	{ "rr_empty_set", 99, 1, 0, 0, 0, 0, 3.0f, 6.0f, 0x40842422u, 1, 0, -1, 0u, 0x60605ADDu, 1u },
+	{ "rr_empty_set", 99, 2, 0, 0, 0, 0, 3.0f, 6.0f, 0x40B428EEu, 1, 0, -1, 0u, 0xE06D272Cu, 1u },
+	{ "non_m53_no_rr", 4242, 0, 0, 0, 0, -1, 3.0f, 6.0f, 0x40540E92u, 0, 0, -1, 0u, 0x1ABE19A5u, 1u },
+	{ "non_m53_no_rr", 4242, 1, 0, 1, 0, -1, 3.0f, 6.0f, 0x40ABC4CAu, 0, 0, -1, 0u, 0xCA0CC694u, 1u },
+	{ "non_m53_no_rr", 4242, 2, 0, 0, 0, -1, 3.0f, 6.0f, 0x40B07B8Eu, 0, 0, -1, 0u, 0xD69ED00Fu, 1u },
+	{ "mixed_two_modes", 4242, 0, 0, 0, 0, 2, 3.0f, 6.0f, 0x40540E92u, 1, 0, 0, 1u, 0x1ABE19A5u, 1u },
+	{ "mixed_two_modes", 4242, 1, 0, 1, 0, 2, 3.0f, 6.0f, 0x40ABC4CAu, 0, 0, -1, 1u, 0xCA0CC694u, 1u },
+	{ "mixed_two_modes", 4242, 2, 0, 0, 0, 2, 3.0f, 6.0f, 0x40B07B8Eu, 1, 0, 1, 2u, 0xD69ED00Fu, 1u },
+	{ "mixed_two_modes", 4242, 3, 0, 1, 0, 2, 3.0f, 6.0f, 0x409EE7B3u, 0, 0, -1, 2u, 0xA7BF3286u, 1u },
+	{ "mixed_two_modes", 4242, 4, 0, 1, 0, 2, 3.0f, 6.0f, 0x409AA93Au, 0, 0, -1, 2u, 0x9C6DF129u, 1u },
+	{ "mixed_two_modes", 4242, 5, 0, 0, 0, 2, 3.0f, 6.0f, 0x40A0742Cu, 1, 0, 0, 3u, 0xABE074E8u, 1u },
+	{ "mixed_two_modes", 4242, 6, 0, 0, 0, 2, 3.0f, 6.0f, 0x406E8CE8u, 1, 0, 1, 4u, 0x3E113773u, 1u },
+	{ "mixed_four_modes_odd_hold", -123456, 0, 0, 1, 0, 4, 0.349999994f, 7.9000001f, 0x4022A3AFu, 0, 0, -1, 0u, 0x4A4C8C2Bu, 1u },
+	{ "mixed_four_modes_odd_hold", -123456, 1, 0, 0, 0, 4, 0.349999994f, 7.9000001f, 0x40E940A4u, 1, 0, 0, 1u, 0xEB499452u, 1u },
+	{ "mixed_four_modes_odd_hold", -123456, 2, 0, 0, 0, 4, 0.349999994f, 7.9000001f, 0x3F87F37Eu, 1, 0, 1, 2u, 0x18256065u, 1u },
+	{ "mixed_four_modes_odd_hold", -123456, 3, 0, 1, 0, 4, 0.349999994f, 7.9000001f, 0x40024AFCu, 0, 0, -1, 2u, 0x39296C54u, 1u },
+	{ "mixed_four_modes_odd_hold", -123456, 4, 0, 0, 0, 4, 0.349999994f, 7.9000001f, 0x40C289E5u, 1, 0, 2, 3u, 0xC24420CFu, 1u },
+	{ "mixed_four_modes_odd_hold", -123456, 5, 0, 1, 0, 4, 0.349999994f, 7.9000001f, 0x4054C57Du, 0, 0, -1, 3u, 0x64DBEA46u, 1u },
+	{ "mixed_four_modes_odd_hold", -123456, 6, 0, 0, 0, 4, 0.349999994f, 7.9000001f, 0x40287012u, 1, 0, 3, 4u, 0x4D5EFBE9u, 1u },
+	{ "mixed_four_modes_odd_hold", -123456, 7, 0, 0, 0, 4, 0.349999994f, 7.9000001f, 0x40433E75u, 1, 0, 0, 5u, 0x5B92AEA8u, 1u },
+	{ "two_ids_separate_counters", 777, 0, 0, 0, 0, 2, 3.0f, 6.0f, 0x40A5BC1Fu, 1, 0, 0, 1u, 0xB9F5A848u, 1u },
+	{ "two_ids_separate_counters", 777, 1, 1, 0, 0, 4, 3.0f, 6.0f, 0x405A4DC4u, 1, 0, 0, 1u, 0x23125A53u, 1u },
+	{ "two_ids_separate_counters", 777, 2, 0, 0, 0, 2, 3.0f, 6.0f, 0x409F30B5u, 1, 0, 1, 2u, 0xA881E29Au, 1u },
+	{ "two_ids_separate_counters", 777, 3, 1, 1, 0, 4, 3.0f, 6.0f, 0x40592207u, 0, 0, -1, 1u, 0x2182B54Du, 1u },
+	{ "two_ids_separate_counters", 777, 4, 1, 0, 0, 4, 3.0f, 6.0f, 0x409BCE5Cu, 1, 0, 1, 2u, 0x9F7BA05Cu, 1u },
+	{ "two_ids_separate_counters", 777, 5, 0, 0, 0, 2, 3.0f, 6.0f, 0x404A47C4u, 1, 0, 0, 3u, 0x0DB50677u, 1u },
+	{ "two_ids_separate_counters", 777, 6, 1, 0, 0, 4, 3.0f, 6.0f, 0x40449690u, 1, 0, 2, 3u, 0x061E160Eu, 1u },
+	{ "bench_lever_mixed", 4242, 0, 0, 0, 0, 2, 3.0f, 6.0f, 0x40540E92u, 1, 0, 0, 1u, 0x1ABE19A5u, 1u },
+	{ "bench_lever_mixed", 4242, 1, 0, 0, 1, 2, 3.0f, 6.0f, 0x40ABC4CAu, 0, 1, -1, 1u, 0xCA0CC694u, 1u },
+	{ "bench_lever_mixed", 4242, 2, 0, 0, 0, 2, 3.0f, 6.0f, 0x40B07B8Eu, 1, 0, 1, 2u, 0xD69ED00Fu, 1u },
+	{ "bench_lever_mixed", 4242, 3, 0, 0, 1, 2, 3.0f, 6.0f, 0x409EE7B3u, 0, 1, -1, 2u, 0xA7BF3286u, 1u },
+	{ "bench_lever_mixed", 4242, 4, 0, 1, 0, 2, 3.0f, 6.0f, 0x409AA93Au, 0, 0, -1, 2u, 0x9C6DF129u, 1u },
+	{ "bench_lever_mixed", 4242, 5, 0, 0, 0, 2, 3.0f, 6.0f, 0x40A0742Cu, 1, 0, 0, 3u, 0xABE074E8u, 1u },
+	{ "bench_lever_mixed", 4242, 6, 0, 0, 1, 2, 3.0f, 6.0f, 0x406E8CE8u, 0, 1, -1, 3u, 0x3E113773u, 1u },
+	{ "bench_lever_mixed", 4242, 7, 0, 0, 0, 2, 3.0f, 6.0f, 0x409E7FD0u, 1, 0, 1, 4u, 0xA6AA2A3Au, 1u },
+	{ "bench_lever_empty_set", 99, 0, 0, 0, 1, 0, 3.0f, 6.0f, 0x40A6B211u, 0, 1, -1, 0u, 0xBC8583EAu, 1u },
+	{ "bench_lever_empty_set", 99, 1, 0, 0, 0, 0, 3.0f, 6.0f, 0x40842422u, 1, 0, -1, 0u, 0x60605ADDu, 1u },
+	{ "bench_lever_mode_given_wins", 4242, 0, 0, 1, 1, 2, 3.0f, 6.0f, 0x40540E92u, 0, 0, -1, 0u, 0x1ABE19A5u, 1u },
+	{ "bench_lever_mode_given_wins", 4242, 1, 0, 0, 0, 2, 3.0f, 6.0f, 0x40ABC4CAu, 1, 0, 0, 1u, 0xCA0CC694u, 1u },
+	{ "bench_lever_non_m53", 4242, 0, 0, 0, 1, -1, 3.0f, 6.0f, 0x40540E92u, 0, 0, -1, 0u, 0x1ABE19A5u, 1u },
+	{ "bench_lever_non_m53", 4242, 1, 0, 0, 0, -1, 3.0f, 6.0f, 0x40ABC4CAu, 0, 0, -1, 0u, 0xCA0CC694u, 1u },
 };
 
 struct FKatStream
@@ -229,7 +245,7 @@ static TexCorruptPure::FDrawAttemptResult RunDraw(FKatStream& Stream, const FKat
 
 template <typename TStream>
 TexCorruptPure::FTargetedAttemptResult MutantTargetedAttempt(TStream& Stream, float HoldMin, float HoldMax, bool bModeGiven,
-	int NumModes, unsigned& RoundRobinCounter)
+	int NumModes, unsigned& RoundRobinCounter, bool bBenchLeverMode)
 {
 	TexCorruptPure::FTargetedAttemptResult R;
 	R.Hold = (float)Stream.FRandRange(HoldMin, HoldMax);
@@ -240,6 +256,15 @@ TexCorruptPure::FTargetedAttemptResult MutantTargetedAttempt(TStream& Stream, fl
 		{
 			++RoundRobinCounter;
 		}
+	}
+	if (!bModeGiven && NumModes >= 0 && bBenchLeverMode && DRAW_MUTANT != 7)
+	{
+		R.bBenchLever = true;
+		if constexpr (DRAW_MUTANT == 8)
+		{
+			++RoundRobinCounter;
+		}
+		return R;
 	}
 	if (!bModeGiven && NumModes >= 0)
 	{
@@ -260,16 +285,22 @@ TexCorruptPure::FTargetedAttemptResult MutantTargetedAttempt(TStream& Stream, fl
 	return R;
 }
 
-static TexCorruptPure::FTargetedAttemptResult RunTargeted(FKatStream& Stream, const FKatTargetedRow& Row, unsigned& Counter)
+static TexCorruptPure::FTargetedAttemptResult TargetedCall(FKatStream& Stream, float HoldMin, float HoldMax, bool bModeGiven,
+	int NumModes, unsigned& Counter, bool bBenchLever)
 {
 	if constexpr (DRAW_MUTANT >= 4)
 	{
-		return MutantTargetedAttempt(Stream, Row.HoldMin, Row.HoldMax, Row.ModeGiven != 0, Row.NumModes, Counter);
+		return MutantTargetedAttempt(Stream, HoldMin, HoldMax, bModeGiven, NumModes, Counter, bBenchLever);
 	}
 	else
 	{
-		return TexCorruptPure::TargetedAttempt(Stream, Row.HoldMin, Row.HoldMax, Row.ModeGiven != 0, Row.NumModes, Counter);
+		return TexCorruptPure::TargetedAttempt(Stream, HoldMin, HoldMax, bModeGiven, NumModes, Counter, bBenchLever);
 	}
+}
+
+static TexCorruptPure::FTargetedAttemptResult RunTargeted(FKatStream& Stream, const FKatTargetedRow& Row, unsigned& Counter)
+{
+	return TargetedCall(Stream, Row.HoldMin, Row.HoldMax, Row.ModeGiven != 0, Row.NumModes, Counter, Row.BenchLever != 0);
 }
 
 static int GChecks = 0;
@@ -358,6 +389,7 @@ struct FTargetedObserved
 {
 	unsigned HoldBits;
 	int RoundRobin;
+	int BenchLever;
 	int Mode;
 	unsigned CounterAfter;
 	unsigned SeedAfter;
@@ -393,6 +425,7 @@ static std::vector<FTargetedObserved> RunTargetedCase(const char* Case)
 		FTargetedObserved O;
 		O.HoldBits = FloatBits(R.Hold);
 		O.RoundRobin = R.bRoundRobin ? 1 : 0;
+		O.BenchLever = R.bBenchLever ? 1 : 0;
 		O.Mode = R.ModeIndex;
 		O.CounterAfter = Counters[Row.IdSlot];
 		O.SeedAfter = (unsigned)Stream.GetCurrentSeed();
@@ -404,6 +437,97 @@ static std::vector<FTargetedObserved> RunTargetedCase(const char* Case)
 		Out.push_back(O);
 	}
 	return Out;
+}
+
+static const char* ApplyNoModeSelection(int TileProbe, bool bIdentityRedraw, bool bIdentity, bool bUv)
+{
+	switch (TexCorruptPure::NoModeLever(TileProbe, bIdentityRedraw, bIdentity, false, bUv))
+	{
+	case TexCorruptPure::ENoModeLever::TileProbe:      return "tile_probe";
+	case TexCorruptPure::ENoModeLever::IdentityRedraw: return "identity_redraw";
+	case TexCorruptPure::ENoModeLever::Identity:       return "identity";
+	default:                                           return "no_mode";
+	}
+}
+
+static void TestTargetedToApplySelection()
+{
+	using TexCorruptPure::ENoModeLever;
+	struct FLeverRow
+	{
+		int TileProbe;
+		int IdentityRedraw;
+		int Identity;
+		int AutoPool;
+		int Uv;
+		ENoModeLever Expect;
+	};
+	static const FLeverRow Rows[] =
+	{
+		{ 0, 0, 0, 0, 1, ENoModeLever::None },
+		{ 0, 0, 1, 0, 1, ENoModeLever::Identity },
+		{ 0, 0, 1, 0, 0, ENoModeLever::Identity },
+		{ 0, 1, 0, 0, 0, ENoModeLever::IdentityRedraw },
+		{ 0, 1, 1, 0, 1, ENoModeLever::IdentityRedraw },
+		{ 2, 0, 0, 0, 1, ENoModeLever::TileProbe },
+		{ 4, 1, 1, 0, 1, ENoModeLever::TileProbe },
+		{ 2, 0, 0, 0, 0, ENoModeLever::None },
+		{ 4, 0, 1, 0, 0, ENoModeLever::Identity },
+		{ 2, 0, 0, 1, 1, ENoModeLever::None },
+		{ 3, 0, 0, 0, 1, ENoModeLever::None },
+		{ 2, 0, 1, 1, 1, ENoModeLever::Identity },
+	};
+	for (const FLeverRow& L : Rows)
+	{
+		char Buf[96];
+		std::snprintf(Buf, sizeof(Buf), "no_mode_lever[tp=%d ir=%d id=%d auto=%d uv=%d]", L.TileProbe, L.IdentityRedraw, L.Identity,
+			L.AutoPool, L.Uv);
+		Check(TexCorruptPure::NoModeLever(L.TileProbe, L.IdentityRedraw != 0, L.Identity != 0, L.AutoPool != 0, L.Uv != 0) == L.Expect,
+			Buf);
+	}
+
+	const int TileProbes[] = { 0, 2, 4 };
+	for (int Tp : TileProbes)
+	{
+		for (int Ir = 0; Ir <= 1; ++Ir)
+		{
+			for (int Id = 0; Id <= 1; ++Id)
+			{
+				for (int Uv = 0; Uv <= 1; ++Uv)
+				{
+					for (int Given = 0; Given <= 1; ++Given)
+					{
+						const bool bUv = Uv != 0;
+						const char* Expected = Given ? "argument"
+							: ((Tp == 2 || Tp == 4) && bUv) ? "tile_probe"
+							: Ir ? "identity_redraw"
+							: Id ? "identity"
+							: "round_robin";
+						const ENoModeLever Lever = Given ? ENoModeLever::None
+							: TexCorruptPure::NoModeLever(Tp, Ir != 0, Id != 0, false, bUv);
+						FKatStream Stream;
+						Stream.Initialize(4242);
+						unsigned Counter = 5u;
+						const TexCorruptPure::FTargetedAttemptResult R = TargetedCall(Stream, 3.0f, 6.0f, Given != 0, 2, Counter,
+							Lever != ENoModeLever::None);
+						const bool bInserted = R.bRoundRobin && R.ModeIndex >= 0;
+						const char* Selected = Given ? "argument"
+							: bInserted ? "round_robin"
+							: ApplyNoModeSelection(Tp, Ir != 0, Id != 0, bUv);
+						char Buf[128];
+						std::snprintf(Buf, sizeof(Buf), "targeted_to_apply[tp=%d ir=%d id=%d uv=%d given=%d]", Tp, Ir, Id, Uv, Given);
+						const std::string Name(Buf);
+						Check(std::strcmp(Selected, Expected) == 0, Name + ".apply_selects_" + Expected + "_got_" + Selected);
+						Check(Stream.Steps == 1u, Name + ".exactly_one_draw");
+						const bool bRr = std::strcmp(Expected, "round_robin") == 0;
+						Check(Counter == (bRr ? 6u : 5u), Name + ".counter_advances_only_on_round_robin");
+						Check(!bRr || R.ModeIndex == 1, Name + ".round_robin_index");
+						Check(R.bBenchLever == (Lever != ENoModeLever::None && !Given), Name + ".mode_source_bench_lever");
+					}
+				}
+			}
+		}
+	}
 }
 
 int main()
@@ -481,6 +605,7 @@ int main()
 		int GivenOnM53 = 0;
 		int EmptySetRoundRobin = 0;
 		int NonM53 = 0;
+		int LeverNoMode = 0;
 		for (const std::string& Case : TargetedCases)
 		{
 			const std::vector<FTargetedObserved> Obs = RunTargetedCase(Case.c_str());
@@ -495,6 +620,7 @@ int main()
 				const FTargetedObserved& O = Obs[k++];
 				Check(O.HoldBits == Row.HoldBits, TargetedRowName(Row, "hold_bits"));
 				Check(O.RoundRobin == Row.RoundRobin, TargetedRowName(Row, "round_robin"));
+				Check(O.BenchLever == Row.BenchLeverOut, TargetedRowName(Row, "bench_lever"));
 				Check(O.Mode == Row.Mode, TargetedRowName(Row, "mode_index"));
 				Check(O.CounterAfter == Row.CounterAfter, TargetedRowName(Row, "counter_after"));
 				Check(O.SeedAfter == Row.SeedAfter, TargetedRowName(Row, "seed_after"));
@@ -518,11 +644,18 @@ int main()
 				{
 					++NonM53;
 				}
+				if (Row.BenchLever != 0 && Row.ModeGiven == 0 && Row.NumModes >= 0)
+				{
+					++LeverNoMode;
+				}
 			}
 			Check(bEquivalent, "targeted:" + Case + ".same_stream_as_bare_frandrange");
 		}
-		Check(RoundRobinWithMode > 0 && GivenOnM53 > 0 && EmptySetRoundRobin > 0 && NonM53 > 0, "targeted_table_covers_every_shape");
+		Check(RoundRobinWithMode > 0 && GivenOnM53 > 0 && EmptySetRoundRobin > 0 && NonM53 > 0 && LeverNoMode > 0,
+			"targeted_table_covers_every_shape");
 	}
+
+	TestTargetedToApplySelection();
 
 	{
 		unsigned C = 7u;

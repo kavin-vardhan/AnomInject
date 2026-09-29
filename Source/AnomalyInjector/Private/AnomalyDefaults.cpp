@@ -1,11 +1,31 @@
 #include "AnomalyDefaults.h"
 
 #include "AnomalyInjectorLog.h"
+#include "AnomalyViewport.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/ConfigCacheIni.h"
 
 namespace
 {
+	TArray<FString> ReadExcludedTargetPatternsIni()
+	{
+		TArray<FString> Raw;
+		TArray<FString> Patterns;
+		if (GConfig)
+		{
+			GConfig->GetArray(AnomalyDefaults::SectionName(), AnomalyDefaults::ExcludedTargetPatternsKey(), Raw, GGameIni);
+		}
+		for (const FString& Entry : Raw)
+		{
+			const FString Trimmed = Entry.TrimStartAndEnd();
+			if (!Trimmed.IsEmpty())
+			{
+				Patterns.Add(Trimmed);
+			}
+		}
+		return Patterns;
+	}
+
 	struct FResolvedDefault
 	{
 		int32 Value = 0;
@@ -286,21 +306,14 @@ namespace AnomalyDefaults
 		{
 			return Patterns;
 		}
+		if (AnomalyViewport::IsReadOnlyEnumeration())
+		{
+			static TArray<FString> QuietPatterns;
+			QuietPatterns = ReadExcludedTargetPatternsIni();
+			return QuietPatterns;
+		}
 		bResolved = true;
-
-		TArray<FString> Raw;
-		if (GConfig)
-		{
-			GConfig->GetArray(SectionName(), ExcludedTargetPatternsKey(), Raw, GGameIni);
-		}
-		for (const FString& Entry : Raw)
-		{
-			const FString Trimmed = Entry.TrimStartAndEnd();
-			if (!Trimmed.IsEmpty())
-			{
-				Patterns.Add(Trimmed);
-			}
-		}
+		Patterns = ReadExcludedTargetPatternsIni();
 
 		if (Patterns.Num() > 0)
 		{
@@ -958,10 +971,15 @@ namespace AnomalyDefaults
 		{
 			return bValue;
 		}
+		bool bFromIni = false;
+		const bool bHasIni = GConfig && GConfig->GetBool(SectionName(), AllowTranslucentOnlyTargetsKey(), bFromIni, GGameIni);
+		if (AnomalyViewport::IsReadOnlyEnumeration())
+		{
+			return bHasIni ? bFromIni : AllowTranslucentOnlyTargetsCompiled;
+		}
 		bResolved = true;
 
-		bool bFromIni = false;
-		if (GConfig && GConfig->GetBool(SectionName(), AllowTranslucentOnlyTargetsKey(), bFromIni, GGameIni))
+		if (bHasIni)
 		{
 			bValue = bFromIni;
 			Source = TEXT("ini");

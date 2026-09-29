@@ -6296,12 +6296,13 @@ uint8 UAnomalyCaptureSubsystem::QueryExclusionTrail(FName PartnerId, FString& Ou
 		return (uint8)Best;
 	}
 	const bool bRunEmitsTail = AnomalyExclusion::RunEmitsTransitionTail(bRenderTruthRun, Async->LabelOffFrames);
+	const AnomalyExclusion::EFamily PartnerFamily = AnomalyExclusion::FamilyOf(TCHAR_TO_ANSI(*PartnerId.ToString()));
 	TSet<FString> PendingKeys;
 	for (const TPair<uint64, AnomalyLabel::FCaptureSnapshot>& Pending : Async->PendingSnapshots)
 	{
 		for (const FAutoLiveFireInfo& F : Pending.Value.Fires)
 		{
-			if (F.Id == PartnerId && IsRenderTruthFire(F))
+			if (F.Id == PartnerId && AnomalyExclusion::PendingFireOwesFrames(PartnerFamily, IsRenderTruthFire(F)))
 			{
 				PendingKeys.Add(StuckMipEventKey(F.Id, F.StartFrame));
 			}
@@ -6362,15 +6363,33 @@ uint8 UAnomalyCaptureSubsystem::QueryExclusionTrail(FName PartnerId, FString& Ou
 		NoTrail.bLabelTail = LabelTailOf(Key);
 		Consider(AnomalyExclusion::ClassifyTrail(NoTrail), Key);
 	}
+	if (AnomalyExclusion::RetainedLiveFireOwesFrames(PartnerFamily))
+	{
+		if (const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
+		{
+			for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+			{
+				if (F.Id != PartnerId)
+				{
+					continue;
+				}
+				const FString Key = StuckMipEventKey(F.Id, F.StartFrame);
+				if (Seen.Contains(Key))
+				{
+					continue;
+				}
+				Seen.Add(Key);
+				Consider(AnomalyExclusion::EmitterTrail(true), Key);
+			}
+		}
+	}
 	for (const FString& Key : PendingKeys)
 	{
 		if (Seen.Contains(Key))
 		{
 			continue;
 		}
-		AnomalyExclusion::FTrailFacts NoTrail;
-		NoTrail.bLabelTail = true;
-		Consider(AnomalyExclusion::ClassifyTrail(NoTrail), Key);
+		Consider(AnomalyExclusion::EmitterTrail(true), Key);
 	}
 	return (uint8)Best;
 }

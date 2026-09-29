@@ -747,18 +747,20 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 	else
 	{
-		if ((L.TileProbe == 2 || L.TileProbe == 4) && !bAutoPool && Family == EFamily::UV)
+		switch (TexCorruptPure::NoModeLever(L.TileProbe, L.bIdentityRedraw, L.bIdentity, bAutoPool, Family == EFamily::UV))
 		{
+		case TexCorruptPure::ENoModeLever::TileProbe:
 			RequestedMode = EMode::TileProbe;
 			RequestedTile = L.TileProbe;
-		}
-		else if (L.bIdentityRedraw)
-		{
+			break;
+		case TexCorruptPure::ENoModeLever::IdentityRedraw:
 			RequestedMode = EMode::IdentityRedraw;
-		}
-		else if (L.bIdentity)
-		{
+			break;
+		case TexCorruptPure::ENoModeLever::Identity:
 			RequestedMode = EMode::Identity;
+			break;
+		default:
+			break;
 		}
 		if (RequestedMode == EMode::None)
 		{

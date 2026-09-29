@@ -1425,25 +1425,69 @@ namespace TexCorruptPure
 		return Index;
 	}
 
+	enum class ENoModeLever : unsigned char
+	{
+		None = 0,
+		TileProbe = 1,
+		IdentityRedraw = 2,
+		Identity = 3
+	};
+
+	inline ENoModeLever NoModeLever(int TileProbe, bool bIdentityRedraw, bool bIdentity, bool bAutoPool, bool bUvFamily)
+	{
+		if ((TileProbe == 2 || TileProbe == 4) && !bAutoPool && bUvFamily)
+		{
+			return ENoModeLever::TileProbe;
+		}
+		if (bIdentityRedraw)
+		{
+			return ENoModeLever::IdentityRedraw;
+		}
+		if (bIdentity)
+		{
+			return ENoModeLever::Identity;
+		}
+		return ENoModeLever::None;
+	}
+
+	inline const char* LexNoModeLever(ENoModeLever L)
+	{
+		switch (L)
+		{
+		case ENoModeLever::TileProbe:      return "tile_probe";
+		case ENoModeLever::IdentityRedraw: return "identity_redraw";
+		case ENoModeLever::Identity:       return "identity";
+		default:                           return "none";
+		}
+	}
+
 	struct FTargetedAttemptResult
 	{
 		float Hold = 0.0f;
 		bool bRoundRobin = false;
+		bool bBenchLever = false;
 		int ModeIndex = -1;
 		int NumModes = -1;
 	};
 
 	template <typename TStream>
 	FTargetedAttemptResult TargetedAttempt(TStream& Stream, float HoldMin, float HoldMax, bool bModeGiven, int NumModes,
-		unsigned& RoundRobinCounter)
+		unsigned& RoundRobinCounter, bool bBenchLeverMode = false)
 	{
 		FTargetedAttemptResult R;
 		R.Hold = (float)Stream.FRandRange(HoldMin, HoldMax);
 		R.NumModes = NumModes;
 		if (!bModeGiven && NumModes >= 0)
 		{
-			R.bRoundRobin = true;
-			R.ModeIndex = RoundRobinNext(RoundRobinCounter, NumModes);
+			if (bBenchLeverMode)
+			{
+				R.bBenchLever = true;
+			}
+			else
+			{
+				R.bRoundRobin = true;
+				R.ModeIndex = RoundRobinNext(RoundRobinCounter, NumModes);
+			}
 		}
 		return R;
 	}

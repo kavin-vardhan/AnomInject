@@ -120,6 +120,46 @@ static bool FireLive(bool bHasRecord, bool bActive)
 	}
 }
 
+static bool RetainedOwes(EFamily Partner)
+{
+	if constexpr (EXCL_MUTANT == 10)
+	{
+		(void)Partner;
+		return false;
+	}
+	else
+	{
+		return RetainedLiveFireOwesFrames(Partner);
+	}
+}
+
+static bool PendingOwes(EFamily Partner, bool bRenderTruthFire)
+{
+	if constexpr (EXCL_MUTANT == 11)
+	{
+		(void)Partner;
+		return bRenderTruthFire;
+	}
+	else
+	{
+		return PendingFireOwesFrames(Partner, bRenderTruthFire);
+	}
+}
+
+static ETrail M53ProviderTrail(bool bRetainedFire, bool bPendingSnapshot)
+{
+	ETrail Best = ETrail::None;
+	if (bRetainedFire && RetainedOwes(EFamily::M53))
+	{
+		Best = CombineTrail(Best, EmitterTrail(true));
+	}
+	if (bPendingSnapshot && PendingOwes(EFamily::M53, false))
+	{
+		Best = CombineTrail(Best, EmitterTrail(true));
+	}
+	return Best;
+}
+
 static bool CoEntry(const std::vector<FFrameEntry>& Entries)
 {
 	if constexpr (EXCL_MUTANT == 8)
@@ -600,6 +640,101 @@ static void TestCoEntryPredicate()
 	Check(!CoEntry({}), "co-entry: an empty frame");
 }
 
+struct FReverseRun
+{
+	int AdmitSI = -1;
+	bool bCoEntry = false;
+	int M53First = -1;
+	int M53Last = -1;
+};
+
+static FReverseRun RunF1Reverse(int ApplySI, int RawRevertSI, int BeginRevertSI, int Latency, int LastSI)
+{
+	FReverseRun Out;
+	std::vector<int> M53Armed;
+	const int InstanceEnd = RawRevertSI >= 0 ? RawRevertSI : BeginRevertSI;
+	for (int si = ApplySI; si <= LastSI; ++si)
+	{
+		const bool bActive = si < InstanceEnd;
+		const bool bRetained = si < BeginRevertSI;
+		bool bPending = false;
+		for (int a : M53Armed)
+		{
+			bPending = bPending || (a + Latency > si);
+		}
+		if (Out.AdmitSI < 0 && si > ApplySI)
+		{
+			FM53Signals S;
+			S.bFireLive = bActive;
+			S.bRevertSettling = !bActive && IsRevertSettlingAt(InstanceEnd, si);
+			S.Trail = M53ProviderTrail(bRetained, bPending);
+			if (!Evaluate(EFamily::M52, EState::Idle, DeriveM53(S)).bExcluded)
+			{
+				Out.AdmitSI = si;
+			}
+		}
+		std::vector<FFrameEntry> Entries;
+		if (bRetained)
+		{
+			Entries.push_back(E(EFamily::M53, true, false));
+			M53Armed.push_back(si);
+			Out.M53First = Out.M53First < 0 ? si : Out.M53First;
+			Out.M53Last = si;
+		}
+		if (Out.AdmitSI >= 0 && si >= Out.AdmitSI)
+		{
+			Entries.push_back(E(EFamily::M52, true, false));
+		}
+		Out.bCoEntry = Out.bCoEntry || CoEntry(Entries);
+	}
+	return Out;
+}
+
+static void TestF1ReverseRetained()
+{
+	Check(RetainedLiveFireOwesFrames(EFamily::M53) && !RetainedLiveFireOwesFrames(EFamily::M52),
+		"F1 reverse rule: a retained auto live fire owes frames for m53 only (m52 keeps its render-truth rule)");
+	Check(PendingFireOwesFrames(EFamily::M53, false) && PendingFireOwesFrames(EFamily::M52, true)
+		&& !PendingFireOwesFrames(EFamily::M52, false),
+		"F1 reverse rule: a pending FireWindow snapshot owes m53 frames; m52 needs a render-truth fire, as before");
+	Check(EmitterTrail(true) == ETrail::LabelTail && EmitterTrail(false) == ETrail::None,
+		"F1 reverse rule: an emitter that still owes frames reads label_tail");
+
+	FM53Signals Retained;
+	Retained.Trail = M53ProviderTrail(true, false);
+	Row("m52<-m53 raw early IAI.Revert (or target loss) past R+2, auto fire entry still retained", EFamily::M52, FM52Signals(),
+		Retained, EState::LabelTail, true, false);
+	FM53Signals Pending;
+	Pending.Trail = M53ProviderTrail(false, true);
+	Row("m52<-m53 retained entry cleared, a FireWindow snapshot still pending", EFamily::M52, FM52Signals(), Pending,
+		EState::LabelTail, true, false);
+	FM53Signals Cleared;
+	Cleared.Trail = M53ProviderTrail(false, false);
+	Row("m52<-m53 retained entry cleared and every snapshot finalized", EFamily::M52, FM52Signals(), Cleared, EState::Idle,
+		false, false);
+
+	const FReverseRun Raw1 = RunF1Reverse(10, 20, 40, 1, 60);
+	Check(Raw1.M53First == 10 && Raw1.M53Last == 39, "F1 reverse setup: the retained m53 entry is on frames 10..39 after a raw "
+		"revert at 20 (it clears only at the scheduled BeginRevert at 40)");
+	Check(Raw1.AdmitSI == 40, "F1 reverse sequence (readback latency 1): a forced m52 fire is first admitted at si 40, when the "
+		"retained entry clears, not at R+2 = 22 (got " + std::to_string(Raw1.AdmitSI) + ")");
+	Check(!Raw1.bCoEntry, "F1 reverse sequence (latency 1): no frame carries both the retained m53 entry and an m52 entry");
+
+	const FReverseRun Raw3 = RunF1Reverse(10, 20, 40, 3, 60);
+	Check(Raw3.AdmitSI == 42, "F1 reverse sequence (readback latency 3): admitted at si 42, after the last m53-carrying "
+		"FireWindow snapshot (armed 39) is finalized (got " + std::to_string(Raw3.AdmitSI) + ")");
+	Check(!Raw3.bCoEntry, "F1 reverse sequence (latency 3): no co-entry frame");
+
+	const FReverseRun Ordinary1 = RunF1Reverse(10, -1, 40, 1, 60);
+	Check(Ordinary1.AdmitSI == 42 && !Ordinary1.bCoEntry,
+		"F1 reverse control: an ordinary scheduled revert at 40 still releases at R+2 = 42 at latency 1 (got "
+		+ std::to_string(Ordinary1.AdmitSI) + ")");
+	const FReverseRun Ordinary4 = RunF1Reverse(10, -1, 40, 4, 60);
+	Check(Ordinary4.AdmitSI == 43 && !Ordinary4.bCoEntry,
+		"F1 reverse control: at latency 4 the release is max(R+2, last m53 snapshot finalized) = 43 (got "
+		+ std::to_string(Ordinary4.AdmitSI) + ")");
+}
+
 int main()
 {
 	const FM52Signals NoM52;
@@ -744,6 +879,7 @@ int main()
 	TestFreeRunningBound();
 	TestF3RecordLifecycle();
 	TestCoEntryPredicate();
+	TestF1ReverseRetained();
 
 	std::printf("exclusion selftest (mutant %d): %d checks, %d failures\n", EXCL_MUTANT, GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;

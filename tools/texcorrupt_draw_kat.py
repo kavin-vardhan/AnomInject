@@ -69,11 +69,13 @@ CASES = [
 ]
 
 
-def targeted_attempt(stream, counters, slot, mode_given, num_modes, hold_min, hold_max):
+def targeted_attempt(stream, counters, slot, mode_given, num_modes, hold_min, hold_max, lever):
     before = stream.steps
-    out = {'rr': 0, 'mode': -1}
+    out = {'rr': 0, 'lever': 0, 'mode': -1}
     out['hold_bits'] = f32_bits(f32(stream.frand_range(f32(hold_min), f32(hold_max))))
-    if not mode_given and num_modes >= 0:
+    if not mode_given and num_modes >= 0 and lever:
+        out['lever'] = 1
+    elif not mode_given and num_modes >= 0:
         out['rr'] = 1
         if num_modes > 0:
             out['mode'] = counters[slot] % num_modes
@@ -87,6 +89,7 @@ def targeted_attempt(stream, counters, slot, mode_given, num_modes, hold_min, ho
 RR2 = (0, 0, 2, 3.0, 6.0)
 RR4 = (0, 0, 4, 3.0, 6.0)
 GIVEN2 = (0, 1, 2, 3.0, 6.0)
+LEVER2 = (0, 0, 2, 3.0, 6.0, 1)
 
 TARGETED_CASES = [
     ('rr_two_modes', 4242, [RR2] * 5),
@@ -100,6 +103,10 @@ TARGETED_CASES = [
     ('two_ids_separate_counters', 777, [
         (0, 0, 2, 3.0, 6.0), (1, 0, 4, 3.0, 6.0), (0, 0, 2, 3.0, 6.0), (1, 1, 4, 3.0, 6.0),
         (1, 0, 4, 3.0, 6.0), (0, 0, 2, 3.0, 6.0), (1, 0, 4, 3.0, 6.0)]),
+    ('bench_lever_mixed', 4242, [RR2, LEVER2, RR2, LEVER2, GIVEN2, RR2, LEVER2, RR2]),
+    ('bench_lever_empty_set', 99, [(0, 0, 0, 3.0, 6.0, 1), (0, 0, 0, 3.0, 6.0)]),
+    ('bench_lever_mode_given_wins', 4242, [(0, 1, 2, 3.0, 6.0, 1), RR2]),
+    ('bench_lever_non_m53', 4242, [(0, 0, -1, 3.0, 6.0, 1), (0, 0, -1, 3.0, 6.0)]),
 ]
 
 
@@ -127,11 +134,13 @@ def main():
     for name, seed, fires in TARGETED_CASES:
         stream = KatStream(seed)
         counters = [0, 0]
-        for i, (slot, given, n, lo, hi) in enumerate(fires):
-            r = targeted_attempt(stream, counters, slot, given, n, lo, hi)
-            trows.append('\t{ "%s", %d, %d, %d, %d, %d, %s, %s, 0x%08Xu, %d, %d, %du, 0x%08Xu, %du },' % (
-                name, seed, i, slot, given, n, flit(lo), flit(hi),
-                r['hold_bits'], r['rr'], r['mode'], r['counter_after'], r['seed_after'], r['draws']))
+        for i, fire in enumerate(fires):
+            slot, given, n, lo, hi = fire[:5]
+            lever = fire[5] if len(fire) > 5 else 0
+            r = targeted_attempt(stream, counters, slot, given, n, lo, hi, lever)
+            trows.append('\t{ "%s", %d, %d, %d, %d, %d, %d, %s, %s, 0x%08Xu, %d, %d, %d, %du, 0x%08Xu, %du },' % (
+                name, seed, i, slot, given, lever, n, flit(lo), flit(hi),
+                r['hold_bits'], r['rr'], r['lever'], r['mode'], r['counter_after'], r['seed_after'], r['draws']))
     sys.stdout.write('\nstatic const FKatTargetedRow GKatTargeted[] =\n{\n')
     sys.stdout.write('\n'.join(trows))
     sys.stdout.write('\n};\n')

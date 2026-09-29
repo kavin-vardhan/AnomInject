@@ -3,6 +3,7 @@
 
 #include "AnomalyDefaults.h"
 #include "AnomalyInjectorLog.h"
+#include "AnomalyViewport.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "Misc/ConfigCacheIni.h"
@@ -238,6 +239,35 @@ namespace AnomalyTexCorrupt
 		FIntKnob GScrambleK{ TEXT("IAI.Anomaly.TexCorruptScrambleK"), TEXT("TexCorruptScrambleKDefault"),
 			FKnobs::ScrambleKCompiled, FKnobs::ScrambleKMin, FKnobs::ScrambleKMax };
 
+		struct FKnobResolution
+		{
+			int32 Value = 0;
+			const TCHAR* Source = TEXT("compiled");
+			bool bRefused = false;
+			int32 RefusedIni = 0;
+		};
+
+		FKnobResolution KnobResolve(const FIntKnob& K)
+		{
+			FKnobResolution R;
+			R.Value = K.Compiled;
+			int32 FromIni = 0;
+			if (GConfig && GConfig->GetInt(AnomalyDefaults::SectionName(), K.IniKey, FromIni, GGameIni))
+			{
+				if (!KnobAdmits(K, FromIni))
+				{
+					R.bRefused = true;
+					R.RefusedIni = FromIni;
+				}
+				else
+				{
+					R.Value = FromIni;
+					R.Source = TEXT("ini");
+				}
+			}
+			return R;
+		}
+
 		int32 KnobGet(FIntKnob& K)
 		{
 			if (K.bOverride)
@@ -246,24 +276,20 @@ namespace AnomalyTexCorrupt
 			}
 			if (!K.bResolved)
 			{
-				K.bResolved = true;
-				K.Value = K.Compiled;
-				K.Source = TEXT("compiled");
-				int32 FromIni = 0;
-				if (GConfig && GConfig->GetInt(AnomalyDefaults::SectionName(), K.IniKey, FromIni, GGameIni))
+				const FKnobResolution R = KnobResolve(K);
+				if (AnomalyViewport::IsReadOnlyEnumeration())
 				{
-					if (!KnobAdmits(K, FromIni))
-					{
-						UE_LOG(LogAnomaly, Warning,
-							TEXT("texcorrupt: DefaultGame.ini [%s] %s = %d is outside %s; REFUSED, not clamped, ")
-							TEXT("so the compiled default %d stands."),
-							AnomalyDefaults::SectionName(), K.IniKey, FromIni, *KnobRange(K), K.Compiled);
-					}
-					else
-					{
-						K.Value = FromIni;
-						K.Source = TEXT("ini");
-					}
+					return R.Value;
+				}
+				K.bResolved = true;
+				K.Value = R.Value;
+				K.Source = R.Source;
+				if (R.bRefused)
+				{
+					UE_LOG(LogAnomaly, Warning,
+						TEXT("texcorrupt: DefaultGame.ini [%s] %s = %d is outside %s; REFUSED, not clamped, ")
+						TEXT("so the compiled default %d stands."),
+						AnomalyDefaults::SectionName(), K.IniKey, R.RefusedIni, *KnobRange(K), K.Compiled);
 				}
 				UE_LOG(LogAnomaly, Log, TEXT("texcorrupt: %s = %d (%s)."), K.Command, K.Value, K.Source);
 			}
@@ -359,6 +385,39 @@ namespace AnomalyTexCorrupt
 			return false;
 		}
 
+		struct FModeKnobResolution
+		{
+			uint32 Value = 0;
+			const TCHAR* Source = TEXT("compiled");
+			bool bRefused = false;
+			FString RefusedIni;
+			FString Error;
+		};
+
+		FModeKnobResolution ModeKnobResolve(const FModeSetKnob& K)
+		{
+			FModeKnobResolution R;
+			R.Value = CompiledModeMask(K.Family);
+			FString FromIni;
+			if (GConfig && GConfig->GetString(AnomalyDefaults::SectionName(), K.IniKey, FromIni, GGameIni))
+			{
+				uint32 Mask = 0;
+				FString Error;
+				if (ParseModeSetText(K.Family, FromIni, Mask, Error))
+				{
+					R.Value = Mask;
+					R.Source = TEXT("ini");
+				}
+				else
+				{
+					R.bRefused = true;
+					R.RefusedIni = FromIni;
+					R.Error = Error;
+				}
+			}
+			return R;
+		}
+
 		uint32 ModeKnobGet(FModeSetKnob& K)
 		{
 			if (K.bOverride)
@@ -367,25 +426,19 @@ namespace AnomalyTexCorrupt
 			}
 			if (!K.bResolved)
 			{
-				K.bResolved = true;
-				K.Value = CompiledModeMask(K.Family);
-				K.Source = TEXT("compiled");
-				FString FromIni;
-				if (GConfig && GConfig->GetString(AnomalyDefaults::SectionName(), K.IniKey, FromIni, GGameIni))
+				const FModeKnobResolution R = ModeKnobResolve(K);
+				if (AnomalyViewport::IsReadOnlyEnumeration())
 				{
-					uint32 Mask = 0;
-					FString Error;
-					if (ParseModeSetText(K.Family, FromIni, Mask, Error))
-					{
-						K.Value = Mask;
-						K.Source = TEXT("ini");
-					}
-					else
-					{
-						UE_LOG(LogAnomaly, Warning,
-							TEXT("texcorrupt: DefaultGame.ini [%s] %s = '%s' is REFUSED (%s); the compiled set %s stands."),
-							AnomalyDefaults::SectionName(), K.IniKey, *FromIni, *Error, *DescribeModeSet(K.Family, K.Value));
-					}
+					return R.Value;
+				}
+				K.bResolved = true;
+				K.Value = R.Value;
+				K.Source = R.Source;
+				if (R.bRefused)
+				{
+					UE_LOG(LogAnomaly, Warning,
+						TEXT("texcorrupt: DefaultGame.ini [%s] %s = '%s' is REFUSED (%s); the compiled set %s stands."),
+						AnomalyDefaults::SectionName(), K.IniKey, *R.RefusedIni, *R.Error, *DescribeModeSet(K.Family, K.Value));
 				}
 				UE_LOG(LogAnomaly, Log, TEXT("texcorrupt: %s = %s (%s)."), K.Command, *DescribeModeSet(K.Family, K.Value), K.Source);
 			}
@@ -580,6 +633,19 @@ namespace AnomalyTexCorrupt
 	FLevers& Levers()
 	{
 		return GLevers;
+	}
+
+	FString TargetedNoModeBenchLever(FName Id)
+	{
+		static const FName Uv(TEXT("uv_corruption"));
+		static const FName Normal(TEXT("normal_corruption"));
+		if (Id != Uv && Id != Normal)
+		{
+			return FString();
+		}
+		const TexCorruptPure::ENoModeLever L = TexCorruptPure::NoModeLever(GLevers.TileProbe, GLevers.bIdentityRedraw,
+			GLevers.bIdentity, false, Id == Uv);
+		return L == TexCorruptPure::ENoModeLever::None ? FString() : FString(ANSI_TO_TCHAR(TexCorruptPure::LexNoModeLever(L)));
 	}
 
 	FString DescribeLevers()

@@ -10,7 +10,24 @@ PATHS = {
     "state": "Source/AnomalyInjector/Private/Anomalies/TexCorruptState.cpp",
     "core": "Source/AnomalyInjector/Private/Anomalies/TexCorruptCore.h",
     "stats": "Source/AnomalyInjector/Public/AnomalyTexCorrupt.h",
+    "defaults": "Source/AnomalyInjector/Private/AnomalyDefaults.cpp",
 }
+
+QUIET_GUARD_RX = re.compile(r"if\s*\(\s*(?:AnomalyViewport\s*::\s*)?IsReadOnlyEnumeration\s*\(\s*\)\s*\)\s*\{")
+QUIET_GUARD_BLOCK = r"if\s*\(\s*(?:AnomalyViewport\s*::\s*)?IsReadOnlyEnumeration\s*\(\s*\)\s*\)\s*\{[^{}]*\}\s*"
+QUIET_GETTERS = (
+    ("state", "KnobGet", r"\bint32\s+KnobGet\s*\(", r"\bK\s*\.\s*bResolved\s*=\s*true\s*;"),
+    ("state", "ModeKnobGet", r"\buint32\s+ModeKnobGet\s*\(", r"\bK\s*\.\s*bResolved\s*=\s*true\s*;"),
+    ("defaults", "GetExcludedTargetPatterns", r"\bconst\s+TArray\s*<\s*FString\s*>\s*&\s*GetExcludedTargetPatterns\s*\(",
+     r"\bbResolved\s*=\s*true\s*;"),
+    ("defaults", "GetAllowTranslucentOnlyTargets", r"\bbool\s+GetAllowTranslucentOnlyTargets\s*\(", r"\bbResolved\s*=\s*true\s*;"),
+)
+CENSUS_REACH_FILES = ("vpcpp", "tree", "state")
+DEFAULTS_CALL_RX = re.compile(r"\bAnomalyDefaults\s*::\s*((?:Get|Describe)\w+)\s*\(")
+DEFAULTS_ALLOWED = {"GetExcludedTargetPatterns", "GetAllowTranslucentOnlyTargets", "DescribeAllowTranslucentOnlyTargets"}
+LAZY_RESOLVE_RX = re.compile(r"\bbResolved\s*=\s*true\s*;")
+CPP_KEYWORDS = {"if", "for", "while", "switch", "return", "sizeof", "TEXT", "UE_LOG", "static_cast", "reinterpret_cast",
+                "const_cast", "decltype", "catch"}
 
 PAIRS = {"(": ")", "[": "]", "{": "}"}
 
@@ -466,12 +483,166 @@ def check_digest(state, core, stats_h, failures):
             failures.append(f"(f) RunStatsDigest does not fold {need}")
 
 
+def enclosing_function(text, pos):
+    best = None
+    for m in re.finditer(r"^[ \t]*(?:static\s+|inline\s+)?(?:const\s+)?[\w:<>]+(?:\s*[\*&])?\s+(\w+)\s*\(", text, re.M):
+        if m.start() > pos:
+            break
+        for s, e in definitions(text[m.start():], r"\b" + m.group(1) + r"\s*\("):
+            if m.start() + s <= pos <= m.start() + e:
+                best = m.group(1)
+            break
+    return best
+
+
+def helper_logs(text, name):
+    sig = r"^[ \t]*(?:static\s+|inline\s+)?(?:const\s+)?[\w:<>]+(?:\s*[\*&])?\s+" + name + r"\s*\("
+    out = []
+    for m in re.finditer(sig, text, re.M):
+        for s, e in definitions(text[m.start():], r"\b" + name + r"\s*\("):
+            body = text[m.start() + s:m.start() + e]
+            if re.search(r"\bUE_LOG\s*\(", body) or OTHER_LOG_RX.search(body):
+                out.append(name)
+            break
+    return out
+
+
+def check_quiet(files, failures):
+    for key, name, sig, resolved_rx in QUIET_GETTERS:
+        text = files[key]
+        defs = definitions(text, sig)
+        if len(defs) != 1:
+            failures.append(f"(g) {name}: definitions: {len(defs)} (expected exactly 1)")
+            continue
+        body = text[defs[0][0]:defs[0][1]]
+        resolved = [m.start() for m in re.finditer(resolved_rx, body)]
+        logs = [m.start() for m in re.finditer(r"\bUE_LOG\s*\(", body)]
+        if len(resolved) != 1:
+            failures.append(f"(g) {name}: first-use resolution sites {len(resolved)} (expected exactly 1)")
+            continue
+        if not logs:
+            failures.append(f"(g) {name}: no first-use echo found; the getter changed shape and this clause no longer reads it")
+            continue
+        guards = []
+        for m in QUIET_GUARD_RX.finditer(body):
+            close = match_close(body, m.end() - 1)
+            guards.append((m.start(), close, body[m.end():close]))
+        if not guards:
+            failures.append(f"(g) {name}: no read-only quiet return; the first census call would print its configuration echo")
+            continue
+        g_start, g_end, g_body = guards[0]
+        if not re.search(r"\breturn\b", g_body):
+            failures.append(f"(g) {name}: the read-only branch does not return, so the echo still follows it")
+        if re.search(r"\bUE_LOG\s*\(", g_body) or OTHER_LOG_RX.search(g_body):
+            failures.append(f"(g) {name}: the read-only branch itself logs")
+        if g_start > min(logs) or g_end > resolved[0]:
+            failures.append(f"(g) {name}: the read-only return does not precede the first-use flag and every echo")
+        elif brace_depth(body, g_start) != brace_depth(body, resolved[0]):
+            failures.append(f"(g) {name}: the read-only return is not in the block that resolves and echoes")
+        called = set(re.findall(r"\b([A-Za-z_]\w*)\s*\(", body[:g_end])) - CPP_KEYWORDS - {name}
+        for helper in sorted(called):
+            for logged in helper_logs(text, helper):
+                failures.append(f"(g) {name}: the quiet path calls {logged}(), which logs")
+    for key in CENSUS_REACH_FILES:
+        for m in DEFAULTS_CALL_RX.finditer(files[key]):
+            if m.group(1) not in DEFAULTS_ALLOWED:
+                failures.append(f"(g) {PATHS[key]} calls AnomalyDefaults::{m.group(1)}(), which is not on the quiet-getter list; "
+                                f"a census-reachable first-use echo would go unchecked")
+    for m in LAZY_RESOLVE_RX.finditer(files["state"]):
+        fn = enclosing_function(files["state"], m.start())
+        if fn not in ("KnobGet", "ModeKnobGet"):
+            failures.append(f"(g) TexCorruptState.cpp: a first-use resolution in {fn}() is not one of the quiet getters")
+
+
 def check(files):
     failures = []
     check_census(files["tree"], failures)
     check_viewport(files["vpcpp"], files["vph"], failures)
     check_digest(files["state"], files["core"], files["stats"], failures)
+    check_quiet(files, failures)
     return failures
+
+
+LOG_PREFIX_RX = re.compile(r"^\[(?P<ts>[^\]]*)\]\[\s*(?P<frame>\d+)\](?P<rest>.*)$")
+LOG_CAT_RX = re.compile(r"^(?P<cat>[A-Za-z][A-Za-z0-9_]*):\s")
+CENSUS_LINE_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (scope=|id=|end\b)")
+CENSUS_EXPECT = (
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 scope=(view|all) candidates=\d+ cap_bytes=\d+ uv_modes=\S+ normal_modes=\S+\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 id=uv_corruption eligible=\d+ refused=\d+ reasons=\S+\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 id=normal_corruption eligible=\d+ refused=\d+ reasons=\S+\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=1\s*$"),
+)
+COLD_ECHO_RX = re.compile(r"texcorrupt: IAI\.Anomaly\.TexCorrupt\w+ = |texcorrupt: DefaultGame\.ini \[|"
+                          r"AnomalyInjector: target-exclusion patterns = |selection: translucent-only targets are ")
+
+
+def parse_log(text):
+    rows = []
+    frame = None
+    for raw in text.splitlines():
+        m = LOG_PREFIX_RX.match(raw)
+        if m:
+            frame = int(m.group("frame"))
+            rest = m.group("rest")
+            c = LOG_CAT_RX.match(rest)
+            rows.append({"frame": frame, "cat": c.group("cat") if c else "", "text": rest, "prefixed": True})
+        else:
+            c = LOG_CAT_RX.match(raw)
+            rows.append({"frame": frame, "cat": c.group("cat") if c else "", "text": raw, "prefixed": False})
+    return rows
+
+
+def check_log(text, cold):
+    rows = parse_log(text)
+    scopes = [i for i, r in enumerate(rows) if "IAI-TEXCORRUPT-CENSUS v1 scope=" in r["text"]]
+    if not scopes:
+        return "UNDECIDABLE", ["no IAI-TEXCORRUPT-CENSUS v1 scope= line in this log"]
+    messages = []
+    verdict = "PASS"
+    for n, si in enumerate(scopes):
+        tag = f"census #{n + 1}"
+        if not rows[si]["prefixed"] or rows[si]["frame"] is None:
+            return "UNDECIDABLE", [f"{tag}: the scope line carries no [time][frame] prefix, so its block cannot be delimited"]
+        frame = rows[si]["frame"]
+        start = si
+        while start > 0 and rows[start - 1]["frame"] == frame:
+            start -= 1
+        end = None
+        for j in range(si, len(rows)):
+            if "IAI-TEXCORRUPT-CENSUS v1 end" in rows[j]["text"]:
+                end = j
+                break
+        if end is None:
+            verdict = "FAIL"
+            messages.append(f"{tag}: no end line after the scope line")
+            continue
+        if cold and n == 0:
+            warmed = [r["text"] for r in rows[:start] if r["cat"].startswith("LogAnomaly") and COLD_ECHO_RX.search(r["text"])]
+            if warmed:
+                return "UNDECIDABLE", [f"{tag}: NOT A COLD PROCESS - a census-reachable configuration echo printed before the "
+                                       f"census ({len(warmed)} line(s), first: {warmed[0].strip()[:120]}), so a clean block "
+                                       f"here would be a warmed reading, not evidence"]
+        census = []
+        foreign = 0
+        for j in range(start, end + 1):
+            r = rows[j]
+            if CENSUS_LINE_RX.search(r["text"]):
+                if r["frame"] != frame:
+                    verdict = "FAIL"
+                    messages.append(f"{tag}: census line outside the census frame: {r['text'].strip()[:120]}")
+                census.append(r["text"][r["text"].find("IAI-TEXCORRUPT-CENSUS"):])
+            elif r["cat"].startswith("LogAnomaly"):
+                verdict = "FAIL"
+                messages.append(f"{tag}: plugin line inside the counts block: {r['text'].strip()[:160]}")
+            else:
+                foreign += 1
+        if len(census) != len(CENSUS_EXPECT) or not all(rx.match(c) for rx, c in zip(CENSUS_EXPECT, census)):
+            verdict = "FAIL"
+            messages.append(f"{tag}: the counts block is not scope / id=uv_corruption / id=normal_corruption / "
+                            f"end stats_unchanged=1 ({len(census)} census line(s))")
+        messages.append(f"{tag}: frame {frame}, {end - start + 1} line(s) in the block, {len(census)} census line(s), "
+                        f"{foreign} other-category line(s) (not plugin output)")
+    return verdict, messages
 
 
 def mutate(files, key, sig, fn):
@@ -555,6 +726,74 @@ def build_mutants(files):
          mutate(files, "state", DIGEST_SIG, rx_sub(r"[^\n]*GStats\.Swept[^\n]*\n", ""))),
         ("digest takes an attempt ordinal", "(f)",
          mutate(files, "state", DIGEST_SIG, prepend("\n\t\tTakeAttemptOrdinal(EFamily::UV);"))),
+        ("quiet return removed from KnobGet", "(g)",
+         mutate(files, "state", QUIET_GETTERS[0][2], rx_sub(QUIET_GUARD_BLOCK, ""))),
+        ("quiet return removed from ModeKnobGet", "(g)",
+         mutate(files, "state", QUIET_GETTERS[1][2], rx_sub(QUIET_GUARD_BLOCK, ""))),
+        ("quiet return removed from GetExcludedTargetPatterns", "(g)",
+         mutate(files, "defaults", QUIET_GETTERS[2][2], rx_sub(QUIET_GUARD_BLOCK, ""))),
+        ("quiet return removed from GetAllowTranslucentOnlyTargets", "(g)",
+         mutate(files, "defaults", QUIET_GETTERS[3][2], rx_sub(QUIET_GUARD_BLOCK, ""))),
+        ("quiet return moved after the first-use flag in KnobGet", "(g)",
+         mutate(files, "state", QUIET_GETTERS[0][2], chain(
+             rx_sub(QUIET_GUARD_BLOCK, ""),
+             rep("K.bResolved = true;", "K.bResolved = true;\n\t\t\t\tif (AnomalyViewport::IsReadOnlyEnumeration())\n"
+                                        "\t\t\t\t{\n\t\t\t\t\treturn R.Value;\n\t\t\t\t}")))),
+        ("the quiet resolve helper logs", "(g)",
+         mutate(files, "state", r"\bFKnobResolution\s+KnobResolve\s*\(",
+                prepend("\n\t\t\tUE_LOG(LogAnomaly, Log, TEXT(\"texcorrupt: resolving %s\"), K.IniKey);"))),
+        ("a census-reachable defaults getter that is not on the quiet list", "(g)",
+         mutate(files, "vpcpp", None, lambda t: t + "\nint32 CensusProbeLevels()\n{\n\treturn AnomalyDefaults::GetStuckMipLevels();\n}\n")),
+        ("a second lazy resolver in TexCorruptState", "(g)",
+         mutate(files, "state", None,
+                lambda t: t + "\nint32 CensusProbeGet()\n{\n\tstatic bool bResolved = false;\n\tbResolved = true;\n\treturn 0;\n}\n")),
+    ]
+
+
+def log_line(frame, text):
+    return f"[2026.09.29-10.00.00:000][{frame:3d}]{text}"
+
+
+def build_log_cases():
+    census = [
+        "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 scope=view candidates=12 cap_bytes=67108864 uv_modes=tile+rotate+scramble "
+        "normal_modes=invert+scramble",
+        "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 id=uv_corruption eligible=3 refused=9 reasons=assets_unavailable:9",
+        "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 id=normal_corruption eligible=0 refused=12 reasons=no_normal_binding:12",
+        "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=1",
+    ]
+    echoes = [
+        "LogAnomaly: texcorrupt: IAI.Anomaly.TexCorruptUvModes = tile+rotate+scramble (compiled).",
+        "LogAnomaly: texcorrupt: IAI.Anomaly.TexCorruptNormalModes = invert+scramble (compiled).",
+        "LogAnomaly: AnomalyInjector: target-exclusion patterns = NONE, from the COMPILED DEFAULT; no [AnomalyInjector] "
+        "ExcludedTargetNamePatterns key is present, so selection is byte-identical to a build without this feature.",
+        "LogAnomaly: selection: translucent-only targets are EXCLUDED (compiled).",
+        "LogAnomaly: texcorrupt: IAI.Anomaly.TexCorruptMaxRtBytes = 67108864 (compiled).",
+    ]
+    sentinel = ("LogAnomaly: Warning: texcorrupt: DefaultGame.ini [AnomalyInjector] TexCorruptUvModesDefault = "
+                "'CENSUS_NAME_SENTINEL' is REFUSED (unknown:CENSUS_NAME_SENTINEL); the compiled set tile+rotate+scramble stands.")
+    init = [log_line(0, "LogAnomalyCapture: AnomalyCapture module started (idle - use IAI.Capture.Start)."),
+            log_line(0, "LogInit: Display: Engine is initialized.")]
+    block = [log_line(412, c) for c in census]
+    later = [log_line(530, e) for e in echoes]
+    return [
+        ("cold, pre-fix shape: first-use echoes inside the census frame", True,
+         init + [log_line(412, e) for e in echoes] + block, "FAIL"),
+        ("cold, pre-fix shape: an invalid ini mode set echoed verbatim", True,
+         init + [log_line(412, sentinel)] + block, "FAIL"),
+        ("cold, fixed: the counts block only, the echoes at the first real use", True, init + block + later, "PASS"),
+        ("a warmed process presented as cold", True, init + [log_line(300, e) for e in echoes] + block, "UNDECIDABLE"),
+        ("the same warmed log without --cold", False, init + [log_line(300, e) for e in echoes] + block, "PASS"),
+        ("no [time][frame] prefix", True, init + census, "UNDECIDABLE"),
+        ("end stats_unchanged=0", True, init + block[:3] + [log_line(412, census[3].replace("=1", "=0"))], "FAIL"),
+        ("an id line missing", True, init + [block[0], block[1], block[3]], "FAIL"),
+        ("a capture line inside the block", True,
+         init + block[:2] + [log_line(412, "LogAnomalyCapture: Capture(m52): something")] + block[2:], "FAIL"),
+        ("an engine line inside the block is not plugin output", True,
+         init + block[:2] + [log_line(412, "LogRenderer: Warning: something")] + block[2:], "PASS"),
+        ("an earlier plugin line in the census frame is attributed to it (the conservative direction)", True,
+         init + [log_line(412, "LogAnomaly: Auto: something")] + block, "FAIL"),
+        ("no census in the log", True, init, "UNDECIDABLE"),
     ]
 
 
@@ -566,7 +805,8 @@ def report(label, failures):
     else:
         print(f"CENSUS-READONLY {label} VERDICT PASS (the office census holds the read-only scope over its whole body, "
               f"prints counts only, calls no stats or pool mutator, both exclusion side channels and the named view warning "
-              f"are guarded, and the end line carries stats_unchanged= from a before/after snapshot of a pure digest)")
+              f"are guarded, the end line carries stats_unchanged= from a before/after snapshot of a pure digest, and every "
+              f"census-reachable first-use configuration echo returns quietly inside the scope)")
 
 
 def selftest(files):
@@ -592,7 +832,15 @@ def selftest(files):
         else:
             print(f"CENSUS-READONLY SELFTEST BLIND {name} -> PASSED (the check is blind)")
             ok = False
-    print(f"CENSUS-READONLY SELFTEST {1 + len(mutants)} case(s): {'OK' if ok else 'FAILED'}")
+    log_cases = build_log_cases()
+    for name, cold, lines, expect in log_cases:
+        verdict, messages = check_log("\n".join(lines) + "\n", cold)
+        if verdict == expect:
+            print(f"CENSUS-READONLY SELFTEST LOG OK {name} -> {verdict} as expected")
+        else:
+            print(f"CENSUS-READONLY SELFTEST LOG WRONG {name} -> {verdict}, expected {expect} [{messages[0] if messages else ''}]")
+            ok = False
+    print(f"CENSUS-READONLY SELFTEST {1 + len(mutants) + len(log_cases)} case(s): {'OK' if ok else 'FAILED'}")
     return ok
 
 
@@ -600,7 +848,16 @@ def main():
     ap = argparse.ArgumentParser(description="IAI.TexCorrupt.Census is read-only: counts only, no names, no stats or pool mutation.")
     ap.add_argument("--root", default=str(Path(__file__).resolve().parent.parent))
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--log", help="a game log: every plugin line in the census frame must be one of the four census lines")
+    ap.add_argument("--cold", action="store_true",
+                    help="with --log: the process must be cold (no census-reachable configuration echo before the census)")
     a = ap.parse_args()
+    if a.log:
+        verdict, messages = check_log(Path(a.log).read_text(encoding="utf-8-sig", errors="replace"), a.cold)
+        for m in messages:
+            print(f"CENSUS-LOG {m}")
+        print(f"CENSUS-LOG VERDICT {verdict}{' (cold process)' if a.cold else ''}")
+        sys.exit({"PASS": 0, "FAIL": 1}.get(verdict, 2))
     root = Path(a.root)
     files = {k: (root / p).read_text(encoding="utf-8", errors="surrogateescape").replace("\r\n", "\n")
              for k, p in PATHS.items()}

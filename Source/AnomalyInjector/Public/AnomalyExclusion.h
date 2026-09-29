@@ -153,6 +153,23 @@ namespace AnomalyExclusion
 		return TransitionTailOwed(bRunEmitsTail, T.LastMember() != AnomalyLabelSync::FEventTransitionTrack::NoMember, T.bOffDone);
 	}
 
+	inline bool PendingFireOwesFrames(EFamily Partner, bool bRenderTruthFire)
+	{
+		return bRenderTruthFire || Partner == EFamily::M53;
+	}
+
+	inline bool RetainedLiveFireOwesFrames(EFamily Partner)
+	{
+		return Partner == EFamily::M53;
+	}
+
+	inline ETrail EmitterTrail(bool bOwesFrames)
+	{
+		FTrailFacts F;
+		F.bLabelTail = bOwesFrames;
+		return ClassifyTrail(F);
+	}
+
 	inline EState StateOfTrail(ETrail T)
 	{
 		switch (T)

@@ -37,6 +37,8 @@ namespace AnomalyTexCorrupt
 
 	ANOMALYINJECTOR_API TArray<FString> GetAutoDrawModes(FName Id);
 
+	ANOMALYINJECTOR_API FString TargetedNoModeBenchLever(FName Id);
+
 	ANOMALYINJECTOR_API bool IsRevertSettling(UWorld* World);
 
 	ANOMALYINJECTOR_API void GatherCorruptorMaterials(UWorld* World, TArray<UMaterialInterface*>& Out);

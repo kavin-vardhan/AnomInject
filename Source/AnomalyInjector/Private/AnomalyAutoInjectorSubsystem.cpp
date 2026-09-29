@@ -615,10 +615,11 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 		Modes = AnomalyTexCorrupt::GetAutoDrawModes(Id);
 	}
 	const bool bModeGiven = ExtraArgs.Num() >= 1 && !ExtraArgs[0].IsEmpty();
+	const FString BenchLever = (bTexCorrupt && !bModeGiven) ? AnomalyTexCorrupt::TargetedNoModeBenchLever(Id) : FString();
 	uint32 UnusedModeCounter = 0;
 	uint32& ModeCounter = bTexCorrupt ? TargetedModeCounters.FindOrAdd(Id) : UnusedModeCounter;
 	const TexCorruptPure::FTargetedAttemptResult Targeted = TexCorruptPure::TargetedAttempt(Stream, HoldMin, HoldMax,
-		bModeGiven, bTexCorrupt ? Modes.Num() : -1, ModeCounter);
+		bModeGiven, bTexCorrupt ? Modes.Num() : -1, ModeCounter, !BenchLever.IsEmpty());
 	const float Hold = Targeted.Hold;
 	const FString TargetName = Target->GetName();
 	const FString Token = FString(TEXT("=")) + TargetName;
@@ -626,7 +627,13 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 	ApplyArgs.Reserve(1 + ExtraArgs.Num());
 	ApplyArgs.Add(Token);
 	ApplyArgs.Append(ExtraArgs);
-	if (Targeted.bRoundRobin)
+	if (Targeted.bBenchLever)
+	{
+		UE_LOG(LogAnomaly, Log, TEXT("Auto.FireSpecific: '%s' mode_source=bench_lever lever=%s (no mode argument; the bench lever ")
+			TEXT("selects the mode, so no round-robin mode is inserted and the round-robin counter does not advance)"),
+			*Id.ToString(), *BenchLever);
+	}
+	else if (Targeted.bRoundRobin)
 	{
 		const bool bHaveMode = Modes.IsValidIndex(Targeted.ModeIndex);
 		if (bHaveMode)
