@@ -8626,3 +8626,30 @@ Related: G119, G142.
   lines and the needles in the same change.
 
 Related: G354, G99.
+
+## G401 — A game started from a NEW exe path that opens a socket raises a firewall prompt that holds the foreground (2026-09-29, 084-09 part 0)
+
+- **Measured:** the 088-01 launch check ran each rehearsal package (a new exe path) with `IAI.Server.Start`. Windows
+  Defender Firewall raised its "allow access?" prompt (PickerHost `FirewallNotificationDialogServer`), one per new path and
+  one more for a relaunch. The prompt took the foreground; the bench's focus forcing (Alt + `SetForegroundWindow`) could not
+  take it back, even after the prompt was minimized, and 084-09's B0 burned four ENV-INTERRUPTED attempts (`focus_at_s=-1`,
+  foreground = PickerHost on 90 of 90 samples) before the prompts were closed with `WM_CLOSE`. Closing (= Cancel) created
+  no firewall rule (the StackOBot rule count stayed 16). The server listens on 127.0.0.1 only; the prompt is Windows asking
+  anyway.
+- **Rule:** before a bench window, list visible `Shell_SystemDialog` / "Windows Security" windows; a launch check that starts
+  the control server from a new exe path runs after the bench, or its prompts are closed before the first leg. A harness
+  that sees the same foreign foreground on every focus sample is looking at a dialog, not a person.
+
+Related: A63, G90.
+
+## G402 — A new fixture level can render black in the packaged build while every non-pixel check passes (2026-09-29, 084-09)
+
+- **Measured:** 084-08b's LOD fixture `CB_LodFixture` was read back in a fresh commandlet (geometry, LOD screen sizes,
+  materials), and in the packaged run its coverage (26.9571 %) and `CURRENT-LOD level=0` lines matched the prediction
+  exactly. Every captured frame of both premise legs is **100 % black** (mean 0, extrema 0), so the premise read 0 of 9
+  events measurable and all eight fixture gate legs were NOT-RUN-PREMISE. G151 again: a commandlet readback proves the
+  data, not the light.
+- **Rule:** a new or rebuilt capture level gets a luma check on one packaged capture before any gate legs are designed on
+  it (mean luminance well above 0, the target region non-uniform).
+
+Related: G151.

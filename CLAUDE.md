@@ -11,6 +11,27 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧪 **084-09, 2026-09-29/30 — THE LABEL-SYNC RE-BENCH ON THE FIX BUILD (`8A6074AA` + `BF06AE61`) RAN AS BUILT: 29 of 29
+> runnable legs ACCEPTED, restore on attempt 1, postflight PASS. No gate, prediction or threshold changed; no source, build
+> or cook.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-084-09-sync-rebench.md` (§1.2 the per-anomaly table, §1.3 the three
+>   instruments, §2 the yield counts); evidence `_reviews\084-09-evidence\run\`, banks `D:\IA_BankOverflow\M52S09_*`.
+> - **In sync on E1, 086-01 and the office kit alike:** missing_object, missing_texture (MT85 12/12 on both orders ⇒ the
+>   084-06 +1 was a reference confound), corrupted_texture, blinking native. camera_clipping edges exact under TAA (NAT and
+>   SYN); CCMW PASS (0 labelled-confirmed at the floor).
+> - ⚠ **Not proven:** blinking SYN (E1 FAIL 10/10, ends +1 ×5 / +14 ×5, while 086-01 and the kit read 0); stuck_low_mip
+>   (B9 E1 16/16 but 086-01 FAILs 5; B0 12 of 18 CENSORED; B3 one E1 FAIL with a 41-frame tail after the label end);
+>   lod_popping (the LOD fixture renders 100 % black in the package, G402, so no gate leg ran); MASK55 v2 INVALID (peak
+>   live 1); CC at AA off UNJUDGEABLE. Every disagreement is reported, not resolved (G395).
+> - **Part 0 (088-01 launch check):** every item PASS on both packages (token, DISABLED levers preset=0, no twins, the
+>   four-id pool, `probe EFFECTIVE=0`, B's census counts-only with `stats_unchanged=1`; MainWorld has 0 eligible m53 hosts
+>   at 128 MiB). Its firewall prompts cost B0 four attempts (G401).
+> - **Part 1b yield reading:** 20 / 24 / 22 stuck_low_mip attempts → 6 / 5 / 5 holds, all on one rock; HELD NONE mostly
+>   shared-visible and not-streamable textures; shared_world 77 / 88 / 93; not_restored, baseline_pending, contamination 0.
+> - The bank root was redirected to `D:\IA_BankOverflow` by an optional `IAI_BANK_OVERRIDE` in both harness `common.py`
+>   files (E: was 5.7 GB above its 50 GB floor): a path change, declared, nothing deleted.
+>
+> ---
 > 📦 **088-01, 2026-09-29 — DELIVERY REHEARSAL: BOTH PATHS BUILT AS THE CLIENT RECEIVES THEM (staged plugin → Development
 > build → cook/pak → AnomDash bundle) AND EVERY PACKAGING CHECK RUN. NOTHING DELIVERED, NOTHING LAUNCHED, NO TAG, NO MERGE TO
 > `master`.** Outputs only under `E:\IA_BuildCache\_rehearsal\` (packages, bundles, evidence).
