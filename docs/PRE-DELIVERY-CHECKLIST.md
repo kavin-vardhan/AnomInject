@@ -84,7 +84,7 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
          *Proven both ways on real packages (084-10): the 084-08b bench cook reads `STOP EXTRA AnomalyBench,
          FIXTURE` (and `PASS` with `--bench-cook`, descriptor SHA-256 `9EFB9B49…`, byte-identical to 084-07b's
          reading); the 2026-07-15 `Builds\Windows` package reads `STOP MISSING AnomalyShaders` with `hits=none`;
-         `--selftest` runs 8 synthetic cases.* For a descriptor you already extracted, use
+         `--selftest` runs 9 synthetic cases.* For a descriptor you already extracted, use
          `--descriptor <file> [--utoc <file>]`.
       2. *(Superseded by step 1, kept as the manual fallback:)* `UnrealPak <pak> -Extract <dir> -Filter=*.uplugin`,
          then diff `Modules` by hand against the branch descriptor minus `AnomalyBench`.
@@ -126,14 +126,19 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       then verifies its own output (G354 against the branch descriptor minus `AnomalyBench`, and
       `lever_audit.py` on the staged `Source`) and ends `STAGE VERDICT PASS - deliverable`. Anything else is
       a **STOP**. **Bench fixture CONTENT** lives in the host project, not the plugin: for any delivery
-      cook made on a bench host, the cook's `-map=` list carries no `/Game/CaptureBenchGate` or
-      `/Game/AnomalyFixtures` map, and the host's `Config/DefaultGame.ini` carries
+      cook made on a bench host, the cook's `-map=` list carries no `/Game/CaptureBenchGate`,
+      `/Game/AnomalyFixtures` or `/Game/CaptureBenchTexCorrupt` map, and the host's `Config/DefaultGame.ini` carries
       ```
       [/Script/UnrealEd.ProjectPackagingSettings]
       +DirectoriesToNeverCook=(Path="/Game/AnomalyFixtures")
       +DirectoriesToNeverCook=(Path="/Game/CaptureBenchGate")
+      +DirectoriesToNeverCook=(Path="/Game/CaptureBenchTexCorrupt")
       ```
       so nothing can pull them in; the G354 script's `FIXTURE` line (`hits=none`) is the proof from the package.
+      🆕 **(088-01) The third line is m53's fixture folder** (`CB_TexCorruptLevel` and ~110 `TC_*` assets, in the
+      bench project since 082-05). It was missing from this list and from the G354 needles, which caught the TC
+      *map* but not a TC asset pulled in without it; no shipping StackOBot map references the folder (scanned), so
+      no delivered package carried it, but the guard was incomplete. Both lists now name it.
 
 - [ ] **🆕 (084-10) G-LEVER-AUDIT — every `IAI.Bench.*` lever and both bench twins are behind the ONE bench
       gate, and compiled out of Shipping. RUN IT; it is a script.** From the delivered branch's plugin:
