@@ -9,6 +9,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "RenderUtils.h"
+#include "RHI.h"
 
 namespace AnomalyMeasurability
 {
@@ -35,6 +36,11 @@ namespace AnomalyMeasurability
 #endif
 		const UStaticMesh* Mesh = SMC->GetStaticMesh();
 		return Mesh && Mesh->HasValidNaniteData() && UseNanite(ShaderPlatform);
+	}
+
+	bool ComponentDrawsNanite(const UPrimitiveComponent* Component)
+	{
+		return ComponentRendersAsNanite(Cast<UStaticMeshComponent>(Component), GMaxRHIShaderPlatform);
 	}
 
 	bool IsKnownUnmeasurable(const AActor* Actor, EShaderPlatform ShaderPlatform, EReason& OutReason)

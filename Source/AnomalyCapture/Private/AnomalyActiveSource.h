@@ -84,8 +84,8 @@ namespace AnomalyActiveSource
 		}
 	}
 
-	inline bool IsLabelledMember(ESource Source, bool bRenderTruthFire, bool bActive, bool bOnScreen)
+	inline bool IsLabelledMember(ESource Source, bool bRenderTruthFire, bool bActive, bool bOnScreen, bool bInstalled)
 	{
-		return AnomalyLabelSync::IsAnnotationMember(PolicyFor(Source, bRenderTruthFire), bActive, bOnScreen);
+		return AnomalyLabelSync::IsAnnotationMember(PolicyFor(Source, bRenderTruthFire), bActive, bOnScreen, bInstalled);
 	}
 }

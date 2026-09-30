@@ -66,6 +66,7 @@ class ANOMALYCAPTURE_API UAnomalyCaptureSubsystem : public UTickableWorldSubsyst
 
 public:
 	UAnomalyCaptureSubsystem();
+	UAnomalyCaptureSubsystem(FVTableHelper& Helper);
 	virtual ~UAnomalyCaptureSubsystem();
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -159,6 +160,7 @@ public:
 	void SetBenchCensusDropEveryNth(int32 InN);
 	void SetBenchTeleportOffscreenAt(int32 InSessionIndex);
 	void SetBenchRetakeMaterialAfter(int32 InSessionIndex);
+	void SetBenchRawRevertAt(int32 InSessionIndex);
 	void SetBenchCensusMaskDump(int32 InFrames);
 	void SetBenchTagPoolLimit(int32 InValues);
 	void SetBenchForceTagCollision(int32 InSessionIndex);
@@ -320,7 +322,8 @@ private:
 	class UAnomalyAutoInjectorSubsystem* ResolveAuto() const;
 
 	void AccumulateFrameEvents(const TArray<struct FAutoLiveFireInfo>& Fires, const TArray<uint8>& FireActive,
-		const TArray<uint8>& FirePolicy, const TArray<uint8>& FireOnScreen, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
+		const TArray<uint8>& FirePolicy, const TArray<uint8>& FireOnScreen, const TArray<uint8>& FireInstalled,
+		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
 		const TArray<uint8>* Observable = nullptr, const TArray<FIntRect>* DrawnBounds = nullptr,
 		const TArray<struct FAnomalyTelemetry>* CapturedTelemetry = nullptr);
 	void WriteSessionAnnotationFile();
@@ -551,6 +554,7 @@ private:
 	int32 BenchCensusDropEveryNth = 0;
 	int32 BenchTeleportOffscreenAt = -1;
 	int32 BenchRetakeMaterialAfter = -1;
+	int32 BenchRawRevertAt = -1;
 	int32 BenchCensusMaskDumpFrames = 0;
 	int32 TagOwnerViolations = 0;
 	int32 BenchTagPoolLimit = 0;
@@ -560,6 +564,7 @@ private:
 	int32 BenchCensusMaskDumpsWritten = 0;
 	bool bBenchTeleportFired = false;
 	bool bBenchRetakeFired = false;
+	bool bBenchRawRevertFired = false;
 	TArray<TPair<TWeakObjectPtr<AActor>, FVector>> BenchTeleportRestore;
 	FDelegateHandle MaskEndFrameHandle;
 	FDelegateHandle MaskWorldTickEndHandle;

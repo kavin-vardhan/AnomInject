@@ -4,6 +4,7 @@
 #include "AnomalyTargeting.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyDefaults.h"
+#include "AnomalyTargetPolicy.h"
 
 #include "Engine/StaticMesh.h"
 #include "Engine/SkinnedAsset.h"
@@ -64,6 +65,16 @@ namespace
 		static TSet<FString> Seen;
 		return Seen;
 	}
+
+	TSet<FString>& NaniteRefusedActorsSeen()
+	{
+		static TSet<FString> Seen;
+		return Seen;
+	}
+
+	int32 GNaniteRefusalAttempts = 0;
+
+	AnomalyViewport::FNaniteComponentProbe GNaniteComponentProbe = nullptr;
 
 	FString MeshAssetNameOf(const UPrimitiveComponent* Component)
 	{
@@ -1340,6 +1351,8 @@ namespace AnomalyViewport
 	{
 		ExcludedActorsSeen().Reset();
 		TranslucentOnlyActorsSeen().Reset();
+		NaniteRefusedActorsSeen().Reset();
+		GNaniteRefusalAttempts = 0;
 	}
 
 	int32 GetTargetExclusionCount()
@@ -1377,6 +1390,95 @@ namespace AnomalyViewport
 	{
 		FReadOnlyEnumerationScope ReadOnly;
 		return GetVisibleRenderableActors(World);
+	}
+
+	bool ActorDrawsAnyNaniteReadOnly(const AActor* Actor)
+	{
+		FReadOnlyEnumerationScope ReadOnly;
+		return ActorDrawsAnyNanite(Actor);
+	}
+
+	void SetNaniteComponentProbe(FNaniteComponentProbe Probe)
+	{
+		GNaniteComponentProbe = Probe;
+	}
+
+	bool HasNaniteComponentProbe()
+	{
+		return GNaniteComponentProbe != nullptr;
+	}
+
+	bool ComponentDrawsNanite(const UPrimitiveComponent* Component)
+	{
+		return Component && GNaniteComponentProbe && GNaniteComponentProbe(Component);
+	}
+
+	bool ActorDrawsAnyNanite(const AActor* Actor, int32* OutNaniteComponents, int32* OutRenderableComponents)
+	{
+		int32 Nanite = 0;
+		int32 Renderable = 0;
+		if (Actor)
+		{
+			TInlineComponentArray<UPrimitiveComponent*> Prims;
+			const_cast<AActor*>(Actor)->GetComponents(Prims);
+			for (const UPrimitiveComponent* Prim : Prims)
+			{
+				if (!IsRenderableComponent(Prim))
+				{
+					continue;
+				}
+				++Renderable;
+				if (ComponentDrawsNanite(Prim))
+				{
+					++Nanite;
+				}
+			}
+		}
+		if (OutNaniteComponents) { *OutNaniteComponents = Nanite; }
+		if (OutRenderableComponents) { *OutRenderableComponents = Renderable; }
+		return AnomalyTargetPolicy::DecideNanite(false, Renderable, Nanite) == AnomalyTargetPolicy::ENaniteDecision::Refuse;
+	}
+
+	bool RefuseNaniteTarget(const AActor* Actor, const TCHAR* Site)
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+		const bool bAllow = AnomalyDefaults::GetAllowNaniteTargets();
+		int32 Nanite = 0;
+		int32 Renderable = 0;
+		ActorDrawsAnyNanite(Actor, &Nanite, &Renderable);
+		if (AnomalyTargetPolicy::DecideNanite(bAllow, Renderable, Nanite) != AnomalyTargetPolicy::ENaniteDecision::Refuse)
+		{
+			return false;
+		}
+		++GNaniteRefusalAttempts;
+		const FString ActorName = Actor->GetName();
+		bool bAlready = false;
+		NaniteRefusedActorsSeen().Add(ActorName, &bAlready);
+		if (!bAlready || FCString::Strcmp(Site, TEXT("auto_pool")) != 0)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("REFUSED-NANITE actor='%s' class=%s site=%s nanite=%d/%d reason=%s setting=%s - at least one drawn ")
+				TEXT("primitive of this target renders as Nanite, and on UE 5.1 a Nanite primitive never writes custom ")
+				TEXT("depth, so the target mask could not carry it. The target is refused BEFORE apply, so no event, box ")
+				TEXT("or label is made for it. IAI.Targets.AllowNanite 1 restores the previous behaviour (label and box, ")
+				TEXT("no mask, observability_measured false)."),
+				*ActorName, *Actor->GetClass()->GetName(), Site, Nanite, Renderable,
+				UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeNaniteReason()), *AnomalyDefaults::DescribeAllowNaniteTargets());
+		}
+		return true;
+	}
+
+	int32 GetNaniteRefusalCount()
+	{
+		return NaniteRefusedActorsSeen().Num();
+	}
+
+	int32 GetNaniteRefusalAttempts()
+	{
+		return GNaniteRefusalAttempts;
 	}
 
 	float GetActorScreenCoveragePct(UWorld* World, const AActor* Actor)

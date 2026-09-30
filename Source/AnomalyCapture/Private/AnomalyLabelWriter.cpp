@@ -117,7 +117,8 @@ namespace
 		const TArray<FAutoLiveFireInfo>* TransitionFires = nullptr,
 		const AnomalyLabel::FCameraClipFrameDiag* CameraClip = nullptr,
 		const TArray<uint8>* FireActive = nullptr, const TArray<uint8>* TransitionFireReasons = nullptr,
-		const TArray<uint8>* FirePolicy = nullptr, const TArray<uint8>* FireOnScreen = nullptr)
+		const TArray<uint8>* FirePolicy = nullptr, const TArray<uint8>* FireOnScreen = nullptr,
+		const TArray<uint8>* FireInstalled = nullptr)
 	{
 		OutNumLabels = 0;
 		int32 NumLabelledWithBox = 0;
@@ -260,7 +261,7 @@ namespace
 			if (FireActive)
 			{
 				bLabelled = bSetsPresent && FireIndex != INDEX_NONE
-					&& AnomalyLabel::IsFireInAnnotation(FirePolicy, FireActive, FireOnScreen, FireIndex);
+					&& AnomalyLabel::IsFireInAnnotation(FirePolicy, FireActive, FireOnScreen, FireInstalled, FireIndex);
 				O->SetBoolField(TEXT("labelled"), bLabelled);
 			}
 			if (bValid && bSetsPresent)
@@ -660,7 +661,8 @@ namespace AnomalyLabel
 				World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels, false, FString(), nullptr,
 				EAnomalyMaskState::Unmeasured, 0, 0, false, nullptr, nullptr, nullptr, nullptr, false, nullptr,
 				&SyncFrame->EntryEmit, &SyncFrame->EntryTransition, &SyncFrame->TransitionFires, &SyncFrame->CameraClip,
-				&SyncFrame->FireActive, &SyncFrame->TransitionFireReasons, &SyncFrame->FirePolicy, &SyncFrame->FireOnScreen)
+				&SyncFrame->FireActive, &SyncFrame->TransitionFireReasons, &SyncFrame->FirePolicy, &SyncFrame->FireOnScreen,
+				&SyncFrame->ConditionHeld)
 			: BuildFrameLabelRecord(Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
 				World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
 
@@ -684,7 +686,8 @@ namespace AnomalyLabel
 			&Snapshot.TargetPixels, &Snapshot.Observable, &Snapshot.DrawnBounds,
 			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded, &Snapshot.Telemetry,
 			&Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires, &Snapshot.CameraClip,
-			&Snapshot.FireActive, &Snapshot.TransitionFireReasons, &Snapshot.FirePolicy, &Snapshot.FireOnScreen);
+			&Snapshot.FireActive, &Snapshot.TransitionFireReasons, &Snapshot.FirePolicy, &Snapshot.FireOnScreen,
+			&Snapshot.ConditionHeld);
 	}
 
 	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot)
@@ -709,14 +712,19 @@ namespace AnomalyLabel
 		return false;
 	}
 
+	bool IsFireInstalledAt(const TArray<uint8>* FireInstalled, int32 FireIndex)
+	{
+		return FireInstalled && FireInstalled->IsValidIndex(FireIndex) && (*FireInstalled)[FireIndex] != 0;
+	}
+
 	bool IsFireInAnnotation(const TArray<uint8>* FirePolicy, const TArray<uint8>* FireActive, const TArray<uint8>* FireOnScreen,
-		int32 FireIndex)
+		const TArray<uint8>* FireInstalled, int32 FireIndex)
 	{
 		const AnomalyLabelSync::EAnnotationPolicy Policy = (FirePolicy && FirePolicy->IsValidIndex(FireIndex))
 			? (AnomalyLabelSync::EAnnotationPolicy)(*FirePolicy)[FireIndex] : AnomalyLabelSync::EAnnotationPolicy::FireWindow;
 		const bool bActive = FireActive && FireActive->IsValidIndex(FireIndex) && (*FireActive)[FireIndex] != 0;
 		const bool bOnScreen = FireOnScreen && FireOnScreen->IsValidIndex(FireIndex) && (*FireOnScreen)[FireIndex] != 0;
-		return AnomalyLabelSync::IsAnnotationMember(Policy, bActive, bOnScreen);
+		return AnomalyLabelSync::IsAnnotationMember(Policy, bActive, bOnScreen, IsFireInstalledAt(FireInstalled, FireIndex));
 	}
 
 	bool IsSnapshotEntryLabelled(const FCaptureSnapshot& Snapshot, int32 FireIndex)
@@ -725,7 +733,35 @@ namespace AnomalyLabel
 			(Snapshot.FirePolicy.IsValidIndex(FireIndex)
 				? (AnomalyLabelSync::EAnnotationPolicy)Snapshot.FirePolicy[FireIndex] : AnomalyLabelSync::EAnnotationPolicy::FireWindow),
 			Snapshot.FireActive.IsValidIndex(FireIndex) && Snapshot.FireActive[FireIndex] != 0,
-			Snapshot.FireOnScreen.IsValidIndex(FireIndex) && Snapshot.FireOnScreen[FireIndex] != 0);
+			Snapshot.FireOnScreen.IsValidIndex(FireIndex) && Snapshot.FireOnScreen[FireIndex] != 0,
+			IsFireInstalledAt(&Snapshot.ConditionHeld, FireIndex));
+	}
+
+	int32 MarkInterruptedEffects(FCaptureSnapshot& Snapshot)
+	{
+		const int32 N = Snapshot.Fires.Num();
+		int32 Marked = 0;
+		for (int32 i = 0; i < N; ++i)
+		{
+			const AnomalyLabelSync::EAnnotationPolicy Policy = Snapshot.FirePolicy.IsValidIndex(i)
+				? (AnomalyLabelSync::EAnnotationPolicy)Snapshot.FirePolicy[i] : AnomalyLabelSync::EAnnotationPolicy::FireWindow;
+			const bool bInstalled = IsFireInstalledAt(&Snapshot.ConditionHeld, i);
+			if (!AnomalyLabelSync::IsEffectInterrupted(Policy, bInstalled))
+			{
+				continue;
+			}
+			if (Snapshot.EntryEmit.Num() != N) { Snapshot.EntryEmit.SetNumZeroed(N); }
+			if (Snapshot.EntryTransition.Num() != N) { Snapshot.EntryTransition.SetNumZeroed(N); }
+			const AnomalyLabelSync::EEntryEmit Before = (AnomalyLabelSync::EEntryEmit)Snapshot.EntryEmit[i];
+			const AnomalyLabelSync::EEntryEmit After = AnomalyLabelSync::DecideInterruptedEntry(Before, Policy, bInstalled);
+			if (After == AnomalyLabelSync::EEntryEmit::TransitionOnly)
+			{
+				Snapshot.EntryEmit[i] = (uint8)After;
+				Snapshot.EntryTransition[i] |= AnomalyLabelSync::ReasonEffectInterrupted;
+				++Marked;
+			}
+		}
+		return Marked;
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -886,7 +922,8 @@ namespace AnomalyLabel
 		int32 TranslucentOnlyExcludedTargets, int32 UnmeasurableTargetsAdmitted,
 		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed,
 		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary,
-		const TSharedPtr<FJsonObject>& TexCorruptSummary, const FLabelSyncTelemetry* LabelSync, const ::FCameraClipRunAccum* CameraClip)
+		const TSharedPtr<FJsonObject>& TexCorruptSummary, const FLabelSyncTelemetry* LabelSync, const ::FCameraClipRunAccum* CameraClip,
+		int32 RefusedNaniteTargets, const FString& NaniteTargetPolicy)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -916,6 +953,11 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("translucency_unknown_vetoes"), TranslucencyUnknownVetoes);
 		Root->SetNumberField(TEXT("pattern_excluded_targets"), PatternExcludedTargets);
 		Root->SetNumberField(TEXT("translucent_only_excluded_targets"), TranslucentOnlyExcludedTargets);
+		Root->SetNumberField(TEXT("refused_nanite"), RefusedNaniteTargets);
+		if (!NaniteTargetPolicy.IsEmpty())
+		{
+			Root->SetStringField(TEXT("nanite_target_policy"), NaniteTargetPolicy);
+		}
 		Root->SetNumberField(TEXT("unmeasurable_targets_admitted"), UnmeasurableTargetsAdmitted);
 		if (StuckMip)
 		{
@@ -1130,7 +1172,8 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("label_transition_partial_entries"), LabelSync->ReasonEntries[2]);
 			Root->SetNumberField(TEXT("label_transition_camera_clipping_unconfirmed_entries"), LabelSync->ReasonEntries[3]);
 			Root->SetNumberField(TEXT("label_transition_unresolved_entries"), LabelSync->ReasonEntries[4]);
-			Root->SetStringField(TEXT("label_labelled_rule"), TEXT("annotation_membership_per_policy_v1"));
+			Root->SetNumberField(TEXT("label_transition_effect_interrupted_entries"), LabelSync->ReasonEntries[5]);
+			Root->SetStringField(TEXT("label_labelled_rule"), TEXT("annotation_membership_per_policy_v2_effect_installed"));
 			Root->SetNumberField(TEXT("label_transition_tracks_carried_in"), LabelSync->CarriedTransitionTracks);
 			Root->SetNumberField(TEXT("label_hide_tracks_carried_in"), LabelSync->CarriedHideTracks);
 			Root->SetNumberField(TEXT("label_active_unlabelled_entries"), LabelSync->UnlabelledActiveEntries);

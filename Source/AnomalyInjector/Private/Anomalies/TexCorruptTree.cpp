@@ -7,6 +7,7 @@
 #include "AnomalyLod.h"
 #include "AnomalyStuckMipStats.h"
 #include "AnomalyViewport.h"
+#include "AnomalyDefaults.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
@@ -840,6 +841,18 @@ namespace AnomalyTexCorrupt
 		{
 			RefuseEvent(Why::NoMesh, FString(), TEXT("E7"));
 			return;
+		}
+		if (!AnomalyDefaults::GetAllowNaniteTargets())
+		{
+			for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
+			{
+				const UMeshComponent* Comp = Weak.Get();
+				if (Comp && AnomalyViewport::ActorDrawsAnyNaniteReadOnly(Comp->GetOwner()))
+				{
+					RefuseEvent(Why::NaniteUnmaskable, FString(), TEXT("E7N"));
+					return;
+				}
+			}
 		}
 
 		for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)

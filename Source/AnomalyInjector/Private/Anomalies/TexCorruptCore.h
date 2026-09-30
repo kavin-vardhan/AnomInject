@@ -65,6 +65,7 @@ namespace AnomalyTexCorrupt
 		extern const TCHAR* RuntimeLodBias;
 		extern const TCHAR* ModeInvalid;
 		extern const TCHAR* NoMesh;
+		extern const TCHAR* NaniteUnmaskable;
 		extern const TCHAR* SlotEmpty;
 		extern const TCHAR* SlotTranslucent;
 		extern const TCHAR* HostMid;

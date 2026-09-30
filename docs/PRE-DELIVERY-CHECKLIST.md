@@ -651,10 +651,11 @@ it **cannot start** (`Missing global shader … permutation 0`). The shader-pres
       missing `#include` never shows here. A host that compiles plugin files on their own fails at
       once.* **Measured instance: the second office host could not compile `da902d6` (`ELevelTick`
       and `UMaterial` undefined, exit 6) while this box and the first office host compiled it clean.**
-      ⚠ **Until chat rules on the one non-include residual (journal 090-04 §3), the tool reads exactly
-      three `C4150` in `AnomalyCaptureSubsystem.gen.cpp` and exits 1. Those three are known; ANY
-      other error is a STOP.**
-      → `G424`, `G425`, journal 090-04.
+      **The box reads 0 errors on both targets — no known residual is accepted (090-05).** The three
+      `C4150` 090-04 found in the generated `AnomalyCaptureSubsystem.gen.cpp` are gone: the class now
+      declares its own `FVTableHelper` constructor, so the header tool no longer generates one where the
+      three `TUniquePtr` member types are incomplete. **ANY error is a STOP.**
+      → `G424`, `G425`, journal 090-04, journal 090-05 §D.
 ## 2. Dashboard bundle + its token file (🆕 084-10 — READ THIS BEFORE THE OLD §2/§3 BELOW)
 
 The bundle has been the **browser** layout since m27, assembled by AnomDash `host-tools\make_delivery.py`

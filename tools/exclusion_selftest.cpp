@@ -649,6 +649,10 @@ struct FReverseRun
 	bool bCoEntry = false;
 	int M53First = -1;
 	int M53Last = -1;
+	int M53LabelledFirst = -1;
+	int M53LabelledLast = -1;
+	int M53InterruptedFirst = -1;
+	int M53InterruptedLast = -1;
 };
 
 static FReverseRun RunF1Reverse(int ApplySI, int RawRevertSI, int BeginRevertSI, int Latency, int LastSI)
@@ -679,10 +683,21 @@ static FReverseRun RunF1Reverse(int ApplySI, int RawRevertSI, int BeginRevertSI,
 		std::vector<FFrameEntry> Entries;
 		if (bRetained)
 		{
-			Entries.push_back(E(EFamily::M53, true, false));
+			const bool bInstalled = bActive;
+			Entries.push_back(E(EFamily::M53, bInstalled, !bInstalled));
 			M53Armed.push_back(si);
 			Out.M53First = Out.M53First < 0 ? si : Out.M53First;
 			Out.M53Last = si;
+			if (bInstalled)
+			{
+				Out.M53LabelledFirst = Out.M53LabelledFirst < 0 ? si : Out.M53LabelledFirst;
+				Out.M53LabelledLast = si;
+			}
+			else
+			{
+				Out.M53InterruptedFirst = Out.M53InterruptedFirst < 0 ? si : Out.M53InterruptedFirst;
+				Out.M53InterruptedLast = si;
+			}
 		}
 		if (Out.AdmitSI >= 0 && si >= Out.AdmitSI)
 		{
@@ -719,6 +734,10 @@ static void TestF1ReverseRetained()
 	const FReverseRun Raw1 = RunF1Reverse(10, 20, 40, 1, 60);
 	Check(Raw1.M53First == 10 && Raw1.M53Last == 39, "F1 reverse setup: the retained m53 entry is on frames 10..39 after a raw "
 		"revert at 20 (it clears only at the scheduled BeginRevert at 40)");
+	Check(Raw1.M53LabelledFirst == 10 && Raw1.M53LabelledLast == 19 && Raw1.M53InterruptedFirst == 20 && Raw1.M53InterruptedLast == 39,
+		"090-05 F1: the retained m53 entry is LABELLED on 10..19 only (the effect is installed); from the raw revert at 20 to 39 "
+		"it is a transition-only effect_interrupted entry - updated from the 089-era expectation 'labelled on 10..39' (got "
+		+ std::to_string(Raw1.M53LabelledFirst) + ".." + std::to_string(Raw1.M53LabelledLast) + ")");
 	Check(Raw1.AdmitSI == 40, "F1 reverse sequence (readback latency 1): a forced m52 fire is first admitted at si 40, when the "
 		"retained entry clears, not at R+2 = 22 (got " + std::to_string(Raw1.AdmitSI) + ")");
 	Check(!Raw1.bCoEntry, "F1 reverse sequence (latency 1): no frame carries both the retained m53 entry and an m52 entry");

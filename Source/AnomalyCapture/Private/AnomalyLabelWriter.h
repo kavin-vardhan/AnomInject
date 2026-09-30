@@ -116,10 +116,14 @@ namespace AnomalyLabel
 
 	bool ProjectFireBox(const FAutoLiveFireInfo& F, const FAnomalyViewInfo& View, FVector2D& OutMin, FVector2D& OutMax);
 
+	bool IsFireInstalledAt(const TArray<uint8>* FireInstalled, int32 FireIndex);
+
 	bool IsFireInAnnotation(const TArray<uint8>* FirePolicy, const TArray<uint8>* FireActive, const TArray<uint8>* FireOnScreen,
-		int32 FireIndex);
+		const TArray<uint8>* FireInstalled, int32 FireIndex);
 
 	bool IsSnapshotEntryLabelled(const FCaptureSnapshot& Snapshot, int32 FireIndex);
+
+	int32 MarkInterruptedEffects(FCaptureSnapshot& Snapshot);
 
 	static constexpr int32 GTargetPixelsUnmeasured = -1;
 
@@ -239,7 +243,8 @@ namespace AnomalyLabel
 		int32 FramesExposureDipSuppressed = 0,
 		const struct FStuckMipTelemetry* StuckMip = nullptr, const TSharedPtr<FJsonObject>& ChangeSummary = nullptr,
 		const TSharedPtr<FJsonObject>& TexCorruptSummary = nullptr,
-		const struct FLabelSyncTelemetry* LabelSync = nullptr, const ::FCameraClipRunAccum* CameraClip = nullptr);
+		const struct FLabelSyncTelemetry* LabelSync = nullptr, const ::FCameraClipRunAccum* CameraClip = nullptr,
+		int32 RefusedNaniteTargets = 0, const FString& NaniteTargetPolicy = FString());
 
 	struct FLabelSyncTelemetry
 	{
@@ -263,7 +268,7 @@ namespace AnomalyLabel
 		int32 MaskTagRetireHostFlagKept = 0;
 		int32 MaskPriorCollisions = 0;
 		int32 MaskPriorCollisionQuarantined = 0;
-		int32 ReasonEntries[5] = { 0, 0, 0, 0, 0 };
+		int32 ReasonEntries[6] = { 0, 0, 0, 0, 0, 0 };
 		int32 CarriedTransitionTracks = 0;
 		int32 CarriedHideTracks = 0;
 		int32 UnlabelledActiveEntries = 0;

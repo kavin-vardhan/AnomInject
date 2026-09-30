@@ -19,6 +19,7 @@ namespace AnomalyTexCorrupt
 		const TCHAR* RuntimeLodBias = TEXT("runtime_lod_bias");
 		const TCHAR* ModeInvalid = TEXT("mode_invalid");
 		const TCHAR* NoMesh = TEXT("no_mesh");
+		const TCHAR* NaniteUnmaskable = TEXT("nanite_unmaskable");
 		const TCHAR* SlotEmpty = TEXT("slot_empty");
 		const TCHAR* SlotTranslucent = TEXT("slot_translucent");
 		const TCHAR* HostMid = TEXT("host_mid");
@@ -771,7 +772,7 @@ namespace AnomalyTexCorrupt
 	{
 		static const TArray<FString> List = {
 			Why::AssetsUnavailable, Why::CorruptorNotReady, Why::Dxt5NormalHost, Why::RuntimeLodBias,
-			Why::ModeInvalid, Why::NoMesh, Why::HostMid, Why::NaniteOverride, Why::ShaderMapUnavailable,
+			Why::ModeInvalid, Why::NoMesh, Why::NaniteUnmaskable, Why::HostMid, Why::NaniteOverride, Why::ShaderMapUnavailable,
 			Why::ShaderMapIncomplete, Why::DefaultMaterialPath, Why::NoTextures, Why::VirtualTexture,
 			Why::UnsupportedType, Why::ExcludedGroup, Why::TextureNotParameter, Why::UnsupportedEncoding,
 			Why::MipChainShape, Why::HeldByStuckLowMip, Why::ResourceNotReady, Why::StreamingPending,

@@ -339,8 +339,11 @@ struct FAnomalyCaptureAsyncState
 	};
 	TMap<FString, FHideTrack> HideTracks;
 	TMap<FString, AnomalyStuckMipWindow::TPartialEdgeTrack<TArray<AnomalyStuckMipWindow::FSIRange>>> PartialTracks;
-	int32 LabelReasonEntries[5] = { 0, 0, 0, 0, 0 };
+	int32 LabelReasonEntries[6] = { 0, 0, 0, 0, 0, 0 };
 	int32 UnlabelledActiveEntries = 0;
+	int64 InstalledChecks = 0;
+	uint64 InstalledCheckCycles = 0;
+	uint64 InstalledCheckMaxCycles = 0;
 
 	struct FCarriedTransition
 	{
@@ -366,8 +369,11 @@ struct FAnomalyCaptureAsyncState
 		HideTracks.Reset();
 		PartialTracks.Reset();
 		CarriedTailFires.Reset();
-		for (int32 b = 0; b < 5; ++b) { LabelReasonEntries[b] = 0; }
+		for (int32 b = 0; b < AnomalyLabelSync::NumReasons; ++b) { LabelReasonEntries[b] = 0; }
 		UnlabelledActiveEntries = 0;
+		InstalledChecks = 0;
+		InstalledCheckCycles = 0;
+		InstalledCheckMaxCycles = 0;
 		CarriedTransitionTracksIn = 0;
 		CarriedHideTracksIn = 0;
 	}
@@ -583,6 +589,8 @@ UAnomalyCaptureSubsystem::UAnomalyCaptureSubsystem()
 {
 	Async = MakeUnique<FAnomalyCaptureAsyncState>();
 }
+
+UAnomalyCaptureSubsystem::UAnomalyCaptureSubsystem(FVTableHelper& Helper) : Super(Helper) {}
 
 UAnomalyCaptureSubsystem::~UAnomalyCaptureSubsystem() = default;
 
@@ -2269,6 +2277,25 @@ void UAnomalyCaptureSubsystem::SetBenchRetakeMaterialAfter(int32 InSessionIndex)
 		BenchRetakeMaterialAfter, BenchRetakeMaterialAfter);
 }
 
+void UAnomalyCaptureSubsystem::SetBenchRawRevertAt(int32 InSessionIndex)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("IAI.Bench.RawRevertAt: ignored - a capture run is in progress."));
+		return;
+	}
+	BenchRawRevertAt = (InSessionIndex < 0) ? -1 : InSessionIndex;
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("IAI.Bench.RawRevertAt -> %d. BENCH DEVICE, console only, no ini key, never in a client payload. -1 = ")
+		TEXT("OFF and the run is byte-inert. Otherwise, on the tick that arms captured frame session_index=%d, every ")
+		TEXT("auto live fire's anomaly is reverted with the injector's raw RevertAnomaly - exactly what an IAI.Revert ")
+		TEXT("typed mid-event does - while the auto live-fire entry stays until its scheduled end. It exists to prove ")
+		TEXT("the 090-05 F1 rule from pixels: from that frame on the event must be unlabelled and flagged ")
+		TEXT("effect_interrupted. NEVER ship a capture taken with this set."),
+		BenchRawRevertAt, BenchRawRevertAt);
+}
+
 void UAnomalyCaptureSubsystem::SetBenchCensusMaskDump(int32 InFrames)
 {
 	if (bRunning)
@@ -2554,6 +2581,38 @@ void UAnomalyCaptureSubsystem::StepBenchObservabilityLevers(int32 SessionIndex)
 				SessionIndex);
 		}
 	}
+
+	if (BenchRawRevertAt >= 0 && !bBenchRawRevertFired && SessionIndex == BenchRawRevertAt)
+	{
+		bBenchRawRevertFired = true;
+		UWorld* RevertWorld = GetWorld();
+		UAnomalyInjectorSubsystem* RevertInjector =
+			RevertWorld ? RevertWorld->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+		int32 Reverted = 0;
+		if (RevertInjector && Auto)
+		{
+			for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+			{
+				if (RevertInjector->RevertAnomaly(F.Id))
+				{
+					++Reverted;
+					UE_LOG(LogAnomalyCapture, Warning,
+						TEXT("Capture(bench): RAW-REVERT session_index=%d actor=%s id=%s - reverted with the raw ")
+						TEXT("RevertAnomaly; the auto live-fire entry stays until its scheduled end. From this frame ")
+						TEXT("on the event must be unlabelled and flagged effect_interrupted."),
+						SessionIndex, *F.Target, *F.Id.ToString());
+				}
+			}
+		}
+		if (Reverted == 0)
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(bench): RAW-REVERT session_index=%d reverted NOTHING - no active auto live fire on that ")
+				TEXT("frame. The lever did not fire; an effect_interrupted count of 0 here would be BLINDNESS, not a pass."),
+				SessionIndex);
+		}
+	}
 }
 
 void UAnomalyCaptureSubsystem::RestoreBenchTeleports()
@@ -2571,6 +2630,7 @@ void UAnomalyCaptureSubsystem::RestoreBenchTeleports()
 	BenchTeleportRestore.Reset();
 	bBenchTeleportFired = false;
 	bBenchRetakeFired = false;
+	bBenchRawRevertFired = false;
 }
 
 void UAnomalyCaptureSubsystem::EnqueueCensusMaskDump(uint64 ArmTick, const TArray<uint8>& Gray, int32 W, int32 H,
@@ -4761,8 +4821,8 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		CountEntryReasons(*Snap, Async->LabelReasonEntries, Async->UnlabelledActiveEntries);
 		NoteTexCorruptM52Overlap(*Snap);
 
-		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePolicy, Snap->FireOnScreen, Snap->FirePos, Snap->View, Snap->NearClip,
-			Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds, &Snap->Telemetry);
+		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePolicy, Snap->FireOnScreen, Snap->ConditionHeld, Snap->FirePos,
+			Snap->View, Snap->NearClip, Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds, &Snap->Telemetry);
 
 		FAnomalyAsyncWriter::FJob Job;
 		Job.OutputDir = RunDir;
@@ -5278,10 +5338,15 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 	}
 	SyncFrame.FireActive.Reserve(SyncFrame.Fires.Num());
 	SyncFrame.FireLabelled.Reserve(SyncFrame.Fires.Num());
-	for (const FAutoLiveFireInfo& F : SyncFrame.Fires)
+	SyncFrame.ConditionHeld.Reserve(SyncFrame.Fires.Num());
 	{
-		SyncFrame.FireActive.Add(ComputeFireActive(F));
-		SyncFrame.FireLabelled.Add(IsFireLabelledThisFrame(F) ? 1 : 0);
+		const UAnomalyInjectorSubsystem* SyncInjector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		for (const FAutoLiveFireInfo& F : SyncFrame.Fires)
+		{
+			SyncFrame.FireActive.Add(ComputeFireActive(F));
+			SyncFrame.FireLabelled.Add(IsFireLabelledThisFrame(F) ? 1 : 0);
+			SyncFrame.ConditionHeld.Add((SyncInjector && SyncInjector->IsAnomalyVisualConditionHeld(F.Id)) ? 1 : 0);
+		}
 	}
 	SyncFrame.View = ProjView;
 	FillAnnotationInputs(SyncFrame);
@@ -5338,8 +5403,8 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 				SyncInjector->GetAnomalyTelemetry(SyncFrame.Fires[i].Id, SyncTelemetry[i]);
 			}
 		}
-		AccumulateFrameEvents(SyncFrame.Fires, SyncFrame.FireActive, SyncFrame.FirePolicy, SyncFrame.FireOnScreen, Pos, ProjView,
-			GNearClippingPlane, SessionFrameIndex, NowT, nullptr, nullptr, &SyncTelemetry);
+		AccumulateFrameEvents(SyncFrame.Fires, SyncFrame.FireActive, SyncFrame.FirePolicy, SyncFrame.FireOnScreen,
+			SyncFrame.ConditionHeld, Pos, ProjView, GNearClippingPlane, SessionFrameIndex, NowT, nullptr, nullptr, &SyncTelemetry);
 		if (FirstFrameTimeSeconds < 0.0)
 		{
 			FirstFrameTimeSeconds = NowT;
@@ -5972,7 +6037,21 @@ bool UAnomalyCaptureSubsystem::IsFireLabelledThisFrame(const FAutoLiveFireInfo& 
 		return Injector && Injector->IsAnomalyCurrentlyAnomalous(F.Id);
 	}
 	default:
-		return true;
+	{
+		UWorld* World = GetWorld();
+		const UAnomalyInjectorSubsystem* Injector =
+			World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		const uint64 C0 = FPlatformTime::Cycles64();
+		const bool bInstalled = Injector && Injector->IsAnomalyVisualConditionHeld(F.Id);
+		const uint64 Dt = FPlatformTime::Cycles64() - C0;
+		if (Async.IsValid())
+		{
+			++Async->InstalledChecks;
+			Async->InstalledCheckCycles += Dt;
+			Async->InstalledCheckMaxCycles = FMath::Max(Async->InstalledCheckMaxCycles, Dt);
+		}
+		return bInstalled;
+	}
 	}
 }
 
@@ -7876,6 +7955,7 @@ void UAnomalyCaptureSubsystem::FillAnnotationInputs(AnomalyLabel::FCaptureSnapsh
 		FVector2D Max(FVector2D::ZeroVector);
 		Snap.FireOnScreen[i] = AnomalyLabel::ProjectFireBox(Snap.Fires[i], Snap.View, Min, Max) ? 1 : 0;
 	}
+	AnomalyLabel::MarkInterruptedEffects(Snap);
 }
 
 uint8 UAnomalyCaptureSubsystem::ComputeFireActive(const FAutoLiveFireInfo& F) const
@@ -8396,6 +8476,15 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TranslucentOnlyExcludedTargets, *AnomalyDefaults::DescribeAllowTranslucentOnlyTargets());
 
 		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(090-05): NANITE TARGETS REFUSED = %d distinct actor(s) (%d refusal(s)) as nanite_unmaskable ")
+			TEXT("this run, setting %s. A refused target draws at least one Nanite primitive, which on UE 5.1 writes no ")
+			TEXT("custom depth, so its mask could not be made; it was skipped before apply in the auto-pool, a targeted ")
+			TEXT("fire or ApplyAnomaly. See the REFUSED-NANITE lines for which. A zero is a READING only if a Nanite ")
+			TEXT("target was on screen at all; census_unmeasurable_nanite says whether such a candidate existed."),
+			AnomalyViewport::GetNaniteRefusalCount(), AnomalyViewport::GetNaniteRefusalAttempts(),
+			*AnomalyDefaults::DescribeAllowNaniteTargets());
+
+		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m50): TAG-OWNER VIOLATIONS = %d captured frame(s) on which one stencil value was on ")
 			TEXT("more than one actor. The per-frame TAG-OWNERS lines carry the whole ownership map and are ")
 			TEXT("read by the m50 single-owner gate. A 0 here is a READING and not a pass on its own - the ")
@@ -8858,9 +8947,22 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.MaskTagRetireHostFlagKept = Async->MaskMeasure.GetTagRetireHostFlagKept();
 			LabelSyncReport.MaskPriorCollisions = Async->MaskMeasure.GetPriorCollisions();
 			LabelSyncReport.MaskPriorCollisionQuarantined = Async->MaskMeasure.GetPriorCollisionQuarantined();
-			for (int32 b = 0; b < 5; ++b)
+			static_assert(AnomalyLabelSync::NumReasons == 6, "the reason arrays and the run_summary keys carry six reasons");
+			for (int32 b = 0; b < AnomalyLabelSync::NumReasons; ++b)
 			{
 				LabelSyncReport.ReasonEntries[b] = Async->LabelReasonEntries[b];
+			}
+			{
+				const double CycleUs = FPlatformTime::GetSecondsPerCycle64() * 1.0e6;
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(F1): EFFECT-INSTALLED CHECK calls=%lld total=%.1f us mean=%.3f us max=%.3f us; ")
+					TEXT("effect_interrupted entries=%d. A FireWindow entry is labelled only on a frame its effect is ")
+					TEXT("installed (our material or MID still bound on every targeted slot), sampled at the same point ")
+					TEXT("as the activity bit; a frame without it is written transition-only with ")
+					TEXT("transition_reason effect_interrupted and is not in annotation.json."),
+					Async->InstalledChecks, (double)Async->InstalledCheckCycles * CycleUs,
+					Async->InstalledChecks > 0 ? (double)Async->InstalledCheckCycles * CycleUs / (double)Async->InstalledChecks : 0.0,
+					(double)Async->InstalledCheckMaxCycles * CycleUs, Async->LabelReasonEntries[5]);
 			}
 			LabelSyncReport.CarriedTransitionTracks = Async->CarriedTransitionTracksIn;
 			LabelSyncReport.CarriedHideTracks = Async->CarriedHideTracksIn;
@@ -8868,12 +8970,13 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.SyncFramesWritten = Async->SyncFramesWritten;
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(labelsync): TRANSITION REASONS temporal_aa=%d hide_return=%d partial=%d camera_clipping_unconfirmed=%d ")
-				TEXT("unresolved=%d; ")
+				TEXT("unresolved=%d effect_interrupted=%d; ")
 				TEXT("carried in: %d transition track(s), %d hide track(s); active-but-unlabelled entries %d; sync frames %d; ")
 				TEXT("mask retire: quarantined %d, host custom-depth-off holders restored value-only %d; ")
 				TEXT("mask_prior_collision %d (quarantined %d)"),
 				LabelSyncReport.ReasonEntries[0], LabelSyncReport.ReasonEntries[1], LabelSyncReport.ReasonEntries[2],
-				LabelSyncReport.ReasonEntries[3], LabelSyncReport.ReasonEntries[4], LabelSyncReport.CarriedTransitionTracks,
+				LabelSyncReport.ReasonEntries[3], LabelSyncReport.ReasonEntries[4], LabelSyncReport.ReasonEntries[5],
+				LabelSyncReport.CarriedTransitionTracks,
 				LabelSyncReport.CarriedHideTracks,
 				LabelSyncReport.UnlabelledActiveEntries, LabelSyncReport.SyncFramesWritten,
 				LabelSyncReport.MaskTagRetireQuarantined, LabelSyncReport.MaskTagRetireHostFlagKept,
@@ -8904,7 +9007,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed, &StuckMipReport,
 			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr, TexCorruptSummary,
 			Async.IsValid() ? &LabelSyncReport : nullptr,
-			CameraClipAccum.FramesEvaluated > 0 ? &CameraClipAccum : nullptr);
+			CameraClipAccum.FramesEvaluated > 0 ? &CameraClipAccum : nullptr,
+			AnomalyViewport::GetNaniteRefusalCount(), AnomalyDefaults::DescribeAllowNaniteTargets());
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")
@@ -9131,7 +9235,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireInfo>& Fires,
 	const TArray<uint8>& FireActive, const TArray<uint8>& FirePolicy, const TArray<uint8>& FireOnScreen,
-	const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
+	const TArray<uint8>& FireInstalled, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
 	float NearClip, int32 SessionIndex, double TimeSeconds, const TArray<uint8>* Observable,
 	const TArray<FIntRect>* DrawnBounds, const TArray<FAnomalyTelemetry>* CapturedTelemetry)
 {
@@ -9211,7 +9315,8 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 		const int32 Active = (FireActive.IsValidIndex(i) && FireActive[i]) ? 1 : 0;
 		if (Active) { ++Ev->ActiveFrames; } else { ++Ev->InactiveFrames; }
 		Ev->ActiveByIndex.Add(SessionIndex, (uint8)Active);
-		Ev->MemberByIndex.Add(SessionIndex, AnomalyLabel::IsFireInAnnotation(&FirePolicy, &FireActive, &FireOnScreen, i) ? 1 : 0);
+		Ev->MemberByIndex.Add(SessionIndex,
+			AnomalyLabel::IsFireInAnnotation(&FirePolicy, &FireActive, &FireOnScreen, &FireInstalled, i) ? 1 : 0);
 
 		const uint8 Obs = (Observable && Observable->IsValidIndex(i))
 			? (*Observable)[i] : (uint8)AnomalyLabel::EObservable::Unmeasured;
@@ -10447,6 +10552,28 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchRetakeMaterialAfterCmd(
 			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
 			{
 				Cap->SetBenchRetakeMaterialAfter(FCString::Atoi(*Args[0]));
+			}
+		}));
+
+static FAutoConsoleCommandWithWorldAndArgs GBenchRawRevertAtCmd(
+	TEXT("IAI.Bench.RawRevertAt"),
+	TEXT("BENCH DEVICE, default -1 (OFF), console only - no ini key, never in a client payload. On the tick that ")
+	TEXT("arms captured frame session_index=<si>, every auto live fire's anomaly is reverted with the injector's raw ")
+	TEXT("RevertAnomaly (what IAI.Revert typed mid-event does) while the auto live-fire entry stays retained until ")
+	TEXT("its scheduled end. It proves the 090-05 F1 rule from pixels: from that frame on a FireWindow event must be ")
+	TEXT("unlabelled and flagged effect_interrupted. With it OFF the run is byte-inert. Takes effect BETWEEN RUNS. ")
+	TEXT("Usage: IAI.Bench.RawRevertAt <si|-1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogAnomalyCapture, Warning, TEXT("Usage: IAI.Bench.RawRevertAt <si|-1>"));
+				return;
+			}
+			if (UAnomalyCaptureSubsystem* Cap = ResolveCapture(World))
+			{
+				Cap->SetBenchRawRevertAt(FCString::Atoi(*Args[0]));
 			}
 		}));
 

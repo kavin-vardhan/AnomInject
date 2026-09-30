@@ -38,7 +38,7 @@ static bool ResolveUnderTest(const char* Id, ESource& Out)
 	return AnomalyActiveSource::Resolve(Id, Out);
 }
 
-static bool LabelledUnderTest(ESource Source, bool bRenderTruth, bool bActive, bool bOnScreen)
+static bool LabelledUnderTest(ESource Source, bool bRenderTruth, bool bActive, bool bOnScreen, bool bInstalled = true)
 {
 	if constexpr (SRC_MUTANT == 2)
 	{
@@ -46,7 +46,7 @@ static bool LabelledUnderTest(ESource Source, bool bRenderTruth, bool bActive, b
 	}
 	else
 	{
-		return AnomalyActiveSource::IsLabelledMember(Source, bRenderTruth, bActive, bOnScreen);
+		return AnomalyActiveSource::IsLabelledMember(Source, bRenderTruth, bActive, bOnScreen, bInstalled);
 	}
 }
 
@@ -106,13 +106,17 @@ int main(int Argc, char** Argv)
 		{
 			for (int o = 0; o < 2; ++o)
 			{
-				const bool bLabelled = LabelledUnderTest(Source, false, a != 0, o != 0);
-				const std::string Cell = Name + " active=" + std::to_string(a) + " on_screen=" + std::to_string(o);
-				Check(bLabelled == AnomalyLabelSync::IsAnnotationMember(EAnnotationPolicy::FireWindow, a != 0, o != 0),
-					Cell + " labelled comes from IsAnnotationMember(FireWindow)");
-				Check(bLabelled == (o != 0), Cell + " labelled == projected box on screen");
-				Check(AnomalyLabelSync::IsEntryLabelled(true, AnomalyActiveSource::PolicyFor(Source, false), a != 0, o != 0) == bLabelled,
-					Cell + " row labelled (IsEntryLabelled) agrees");
+				for (int e = 0; e < 2; ++e)
+				{
+					const bool bLabelled = LabelledUnderTest(Source, false, a != 0, o != 0, e != 0);
+					const std::string Cell = Name + " active=" + std::to_string(a) + " on_screen=" + std::to_string(o)
+						+ " installed=" + std::to_string(e);
+					Check(bLabelled == AnomalyLabelSync::IsAnnotationMember(EAnnotationPolicy::FireWindow, a != 0, o != 0, e != 0),
+						Cell + " labelled comes from IsAnnotationMember(FireWindow)");
+					Check(bLabelled == (o != 0 && e != 0), Cell + " labelled == projected box on screen AND effect installed (090-05 F1)");
+					Check(AnomalyLabelSync::IsEntryLabelled(true, AnomalyActiveSource::PolicyFor(Source, false), a != 0, o != 0, e != 0)
+						== bLabelled, Cell + " row labelled (IsEntryLabelled) agrees");
+				}
 			}
 		}
 		const bool OnScreen[] = { false, true, true, false, true, true, true, false };
@@ -125,7 +129,7 @@ int main(int Argc, char** Argv)
 			{
 				Injected += std::to_string(i) + ",";
 			}
-			if (AnomalyLabelSync::IsAnnotationMember(EAnnotationPolicy::FireWindow, Active[i], OnScreen[i]))
+			if (AnomalyLabelSync::IsAnnotationMember(EAnnotationPolicy::FireWindow, Active[i], OnScreen[i], true))
 			{
 				Members += std::to_string(i) + ",";
 			}
@@ -159,7 +163,7 @@ int main(int Argc, char** Argv)
 	std::string Writer = ReadText(Root + "/Source/AnomalyCapture/Private/AnomalyLabelWriter.cpp");
 	if constexpr (SRC_MUTANT == 3)
 	{
-		const std::string From = "AnomalyLabelSync::IsAnnotationMember(Policy, bActive, bOnScreen)";
+		const std::string From = "AnomalyLabelSync::IsAnnotationMember(Policy, bActive, bOnScreen, IsFireInstalledAt(FireInstalled, FireIndex))";
 		const size_t At = Writer.find(From);
 		if (At != std::string::npos)
 		{
@@ -178,13 +182,13 @@ int main(int Argc, char** Argv)
 	const std::string Fill = FunctionBody(Capture, "void UAnomalyCaptureSubsystem::FillAnnotationInputs(");
 	Check(Has(Fill, "Snap.FirePolicy[i] = ResolveAnnotationPolicy(Snap.Fires[i]);"), "FillAnnotationInputs takes each fire's policy from ResolveAnnotationPolicy");
 	const std::string Accum = FunctionBody(Capture, "void UAnomalyCaptureSubsystem::AccumulateFrameEvents(");
-	Check(Has(Accum, "Ev->MemberByIndex.Add(SessionIndex, AnomalyLabel::IsFireInAnnotation(&FirePolicy, &FireActive, &FireOnScreen, i)"),
+	Check(Has(Accum, "AnomalyLabel::IsFireInAnnotation(&FirePolicy, &FireActive, &FireOnScreen, &FireInstalled, i)"),
 		"AccumulateFrameEvents records membership through IsFireInAnnotation");
 	const std::string Annot = FunctionBody(Capture, "void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile(");
 	Check(Has(Annot, "FrameIndices = MoveTemp(MemberIdx);") && Has(Annot, "Out.InjectedFrameIndices = FrameIndices;"),
 		"annotation injected_frames is the member set");
 	const std::string InAnnotation = FunctionBody(Writer, "bool IsFireInAnnotation(");
-	Check(Has(InAnnotation, "return AnomalyLabelSync::IsAnnotationMember(Policy, bActive, bOnScreen);"),
+	Check(Has(InAnnotation, "return AnomalyLabelSync::IsAnnotationMember(Policy, bActive, bOnScreen, IsFireInstalledAt(FireInstalled, FireIndex));"),
 		"IsFireInAnnotation returns AnomalyLabelSync::IsAnnotationMember");
 	const std::string RowLabelled = FunctionBody(Writer, "bool IsSnapshotEntryLabelled(");
 	Check(Has(RowLabelled, "AnomalyLabelSync::IsEntryLabelled("), "labels.jsonl row labelled comes from AnomalyLabelSync::IsEntryLabelled");

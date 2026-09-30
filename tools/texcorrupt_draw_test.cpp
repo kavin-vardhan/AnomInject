@@ -1,4 +1,5 @@
 #include "../Source/AnomalyInjector/Private/Anomalies/TexCorruptPure.h"
+#include "../Source/AnomalyInjector/Public/AnomalyTargetPolicy.h"
 
 #include <cstdio>
 #include <cstring>
@@ -227,6 +228,83 @@ TexCorruptPure::FDrawAttemptResult MutantDrawAttempt(TStream& Stream, int NumEli
 	}
 	R.Outcome = TexCorruptPure::EDrawOutcome::Drawn;
 	return R;
+}
+
+static void Check(bool bOk, const std::string& What);
+
+struct FNaniteKatObserved
+{
+	int Outcome = -1;
+	std::string Target;
+	int TargetIndex = -1;
+	int NumCandidates = 0;
+	unsigned SeedAfter = 0;
+	unsigned Draws = 0;
+};
+
+static std::vector<FNaniteKatObserved> RunNaniteKat(bool bAllowNanite, bool bAllNanite)
+{
+	static const char* Pool[] = { "Rock0", "Wall1", "Rock2", "Wall3", "Rock4", "Rock5", "Rock6" };
+	FKatStream Stream;
+	Stream.Initialize(4242);
+	std::vector<FNaniteKatObserved> Out;
+	for (int k = 0; k < 3; ++k)
+	{
+		std::vector<std::string> Cands;
+		for (const char* P : Pool)
+		{
+			Cands.push_back(bAllNanite ? std::string("Wall") + (P + 4) : std::string(P));
+		}
+		auto CandidateCount = [&Cands, bAllowNanite](int) -> int
+		{
+			const int Kept = AnomalyTargetPolicy::FilterNaniteCandidates(Cands.data(), (int)Cands.size(), bAllowNanite,
+				[](const std::string& C) { return C.rfind("Wall", 0) == 0; });
+			Cands.resize((size_t)Kept);
+			return Kept;
+		};
+		auto ModeCount = [](int) { return -1; };
+		const unsigned Before = Stream.Steps;
+		TexCorruptPure::FDrawAttemptResult R;
+		if constexpr (DRAW_MUTANT != 0)
+		{
+			R = MutantDrawAttempt(Stream, 2, CandidateCount, ModeCount, 3.0f, 6.0f);
+		}
+		else
+		{
+			R = TexCorruptPure::DrawAttempt(Stream, 2, CandidateCount, ModeCount, 3.0f, 6.0f);
+		}
+		FNaniteKatObserved O;
+		O.Outcome = (int)R.Outcome;
+		O.NumCandidates = R.NumCandidates;
+		O.TargetIndex = R.TargetIndex;
+		O.Target = (R.TargetIndex >= 0 && R.TargetIndex < (int)Cands.size()) ? Cands[(size_t)R.TargetIndex] : std::string();
+		O.SeedAfter = (unsigned)Stream.GetCurrentSeed();
+		O.Draws = Stream.Steps - Before;
+		Out.push_back(O);
+	}
+	return Out;
+}
+
+static void TestNaniteKat()
+{
+	static const unsigned Seeds[3] = { 0xD69ED00Fu, 0xABE074E8u, 0x79A8096Du };
+	const std::vector<FNaniteKatObserved> Allow = RunNaniteKat(true, false);
+	const std::vector<FNaniteKatObserved> Skip = RunNaniteKat(false, false);
+	const std::vector<FNaniteKatObserved> All = RunNaniteKat(false, true);
+	static const char* AllowTargets[3] = { "Rock5", "Rock4", "Rock4" };
+	for (int k = 0; k < 3; ++k)
+	{
+		const std::string N = "nanite_kat[" + std::to_string(k) + "]";
+		Check(Allow[k].Outcome == (int)TexCorruptPure::EDrawOutcome::Drawn && Allow[k].NumCandidates == 7
+			&& Allow[k].Target == AllowTargets[k] && Allow[k].SeedAfter == Seeds[k] && Allow[k].Draws == 3u,
+			N + " setting 1: the production DrawAttempt reproduces the non_m53_no_mode_draw known answers on the unfiltered pool");
+		Check(Skip[k].Outcome == (int)TexCorruptPure::EDrawOutcome::Drawn && Skip[k].NumCandidates == 5
+			&& Skip[k].Target == "Rock5" && Skip[k].TargetIndex == 3 && Skip[k].SeedAfter == Seeds[k] && Skip[k].Draws == 3u,
+			N + " setting 0: the two Nanite candidates are dropped before the target draw; still 3 draws and the same seed "
+			"after, target index 3 of 5 = Rock5 (the independent Python replica's answer)");
+		Check(All[k].Outcome == (int)TexCorruptPure::EDrawOutcome::NoCandidates && All[k].Draws == 1u,
+			N + " every candidate Nanite: the id draw then the no-candidate path (1 draw)");
+	}
 }
 
 static TexCorruptPure::FDrawAttemptResult RunDraw(FKatStream& Stream, const FKatRow& Row)
@@ -676,6 +754,8 @@ int main()
 	Check(TexCorruptPure::ModeIndexFromFraction(0.34f, 3) == 1, "mode_fraction_mid");
 	Check(TexCorruptPure::ModeIndexFromFraction(0.5f, 0) == -1, "mode_fraction_empty_none");
 	Check(TexCorruptPure::ModeIndexFromFraction(0.5f, 1) == 0, "mode_fraction_single");
+
+	TestNaniteKat();
 
 	std::printf("texcorrupt draw test (mutant %d): %d checks, %d failures\n", DRAW_MUTANT, GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;

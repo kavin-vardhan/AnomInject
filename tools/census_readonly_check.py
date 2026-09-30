@@ -21,10 +21,12 @@ QUIET_GETTERS = (
     ("defaults", "GetExcludedTargetPatterns", r"\bconst\s+TArray\s*<\s*FString\s*>\s*&\s*GetExcludedTargetPatterns\s*\(",
      r"\bbResolved\s*=\s*true\s*;"),
     ("defaults", "GetAllowTranslucentOnlyTargets", r"\bbool\s+GetAllowTranslucentOnlyTargets\s*\(", r"\bbResolved\s*=\s*true\s*;"),
+    ("defaults", "GetAllowNaniteTargets", r"\bbool\s+GetAllowNaniteTargets\s*\(", r"\bbResolved\s*=\s*true\s*;"),
 )
 CENSUS_REACH_FILES = ("vpcpp", "tree", "state")
 DEFAULTS_CALL_RX = re.compile(r"\bAnomalyDefaults\s*::\s*((?:Get|Describe)\w+)\s*\(")
-DEFAULTS_ALLOWED = {"GetExcludedTargetPatterns", "GetAllowTranslucentOnlyTargets", "DescribeAllowTranslucentOnlyTargets"}
+DEFAULTS_ALLOWED = {"GetExcludedTargetPatterns", "GetAllowTranslucentOnlyTargets", "DescribeAllowTranslucentOnlyTargets",
+                    "GetAllowNaniteTargets", "DescribeAllowNaniteTargets"}
 LAZY_RESOLVE_RX = re.compile(r"\bbResolved\s*=\s*true\s*;")
 CPP_KEYWORDS = {"if", "for", "while", "switch", "return", "sizeof", "TEXT", "UE_LOG", "static_cast", "reinterpret_cast",
                 "const_cast", "decltype", "catch"}
@@ -96,9 +98,9 @@ MUTATOR_RX = [re.compile(p) for p in (
     r"\bLedger\s*\(\s*\)\s*\.\s*(?:Reserve|ForceReserve|Unreserve|ReleaseToPending|Tick|NotePeak)\s*\(",
     r"\b(?:Reserve|ForceReserve|Unreserve|ReleaseToPending|ReleaseCreated|NoteCreated|Close)\s*\(\s*Ledger\s*\(",
     r"\bSet(?:AnomalyEnabled|AllAnomaliesEnabled|AutoPoolSelection|Seed|Running|Enabled|PollRadius|MinScreenCoveragePct|"
-    r"OverlaysSuppressed|ViewportScoping\w*|ExcludedTargets\w*|AllowTranslucentOnlyTargets\w*|IntervalRange|HoldRange|"
+    r"OverlaysSuppressed|ViewportScoping\w*|ExcludedTargets\w*|AllowTranslucentOnlyTargets\w*|AllowNaniteTargets\w*|NaniteComponentProbe|IntervalRange|HoldRange|"
     r"MaxConcurrent|Persist)\s*\(",
-    r"\b(?:TryFireOnce|TryFireSpecific|ApplyAnomaly|RevertAnomaly|RevertAll\w*|BeginWarmDraw|EndWarmDraw|"
+    r"\b(?:TryFireOnce|TryFireSpecific|ApplyAnomaly|RevertAnomaly|RevertAll\w*|RefuseNaniteTarget|BeginWarmDraw|EndWarmDraw|"
     r"RestoreBenchAssetSlotMid)\s*\(",
     r"\bG(?:Stats|Ledger|Ordinals|Levers|Tripwire)\b",
 )]
@@ -116,6 +118,7 @@ SIDE_CHANNELS = (
 READ_ONLY_ENTRIES = (
     ("IsRenderableComponentReadOnly", r"\bIsRenderableComponent\s*\("),
     ("GetVisibleRenderableActorsReadOnly", r"\bGetVisibleRenderableActors\s*\("),
+    ("ActorDrawsAnyNaniteReadOnly", r"\bActorDrawsAnyNanite\s*\("),
 )
 
 DIGEST_SIG = r"\buint32\s+RunStatsDigest\s*\("
@@ -734,6 +737,8 @@ def build_mutants(files):
          mutate(files, "defaults", QUIET_GETTERS[2][2], rx_sub(QUIET_GUARD_BLOCK, ""))),
         ("quiet return removed from GetAllowTranslucentOnlyTargets", "(g)",
          mutate(files, "defaults", QUIET_GETTERS[3][2], rx_sub(QUIET_GUARD_BLOCK, ""))),
+        ("quiet return removed from GetAllowNaniteTargets", "(g)",
+         mutate(files, "defaults", QUIET_GETTERS[4][2], rx_sub(QUIET_GUARD_BLOCK, ""))),
         ("quiet return moved after the first-use flag in KnobGet", "(g)",
          mutate(files, "state", QUIET_GETTERS[0][2], chain(
              rx_sub(QUIET_GUARD_BLOCK, ""),

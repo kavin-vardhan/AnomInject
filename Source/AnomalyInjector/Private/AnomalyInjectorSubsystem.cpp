@@ -14,6 +14,7 @@
 #include "AnomalyDefaults.h"
 #include "AnomalyViewport.h"
 #include "AnomalyTargeting.h"
+#include "AnomalyTargetPolicy.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -807,6 +808,33 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 			TEXT("IAI.Apply '%s' REFUSED %s - no fire is recorded and nothing is changed."),
 			*Id.ToString(), **Refusal);
 		return false;
+	}
+
+	{
+		EAnomalyScope Scope = EAnomalyScope::Object;
+		TArray<FAnomalyArgSpec> Spec;
+		GetAuthoredSpec(Id, Scope, Spec);
+		if (Scope == EAnomalyScope::Object && Args.Num() > 0 && !Args[0].IsEmpty() && !AnomalyDefaults::GetAllowNaniteTargets())
+		{
+			const TArray<TWeakObjectPtr<AActor>> Matches = AnomalyTargeting::FindActorsMatching(GetWorld(), Args[0]);
+			int32 Refused = 0;
+			for (const TWeakObjectPtr<AActor>& Weak : Matches)
+			{
+				if (AnomalyViewport::RefuseNaniteTarget(Weak.Get(), TEXT("apply")))
+				{
+					++Refused;
+				}
+			}
+			if (Refused > 0)
+			{
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("IAI.Apply '%s' '%s' REFUSED %s - %d of %d matched actor(s) draw a Nanite primitive, so the target ")
+					TEXT("mask could not carry them. Nothing is applied and no fire is recorded (setting %s)."),
+					*Id.ToString(), *Args[0], UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeNaniteReason()), Refused,
+					Matches.Num(), *AnomalyDefaults::DescribeAllowNaniteTargets());
+				return false;
+			}
+		}
 	}
 
 	{
