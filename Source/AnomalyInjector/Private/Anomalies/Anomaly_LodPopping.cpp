@@ -172,13 +172,15 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 
 		const AnomalyLod::FCurrentLod Current = AnomalyLod::GetCurrentLod(World, Mesh);
+		const int32 PopNumLods = AnomalyLod::GetWorstLod(Mesh);
+		const int32 PopForcedLodModel = PopNumLods;
 		UE_LOG(LogAnomaly, Log,
-			TEXT("lod_popping: CURRENT-LOD '%s' level=%s screen_size=%.6f source=%s worst=%d (%s) — the anomaly's ")
+			TEXT("lod_popping: CURRENT-LOD '%s' level=%s screen_size=%.6f source=%s forced_lod_model=%d (LOD index %d of %d) (%s) — the anomaly's ")
 			TEXT("visible magnitude is the CONTRAST between this level and the forced one, so a candidate already at ")
 			TEXT("a reduced LOD pops to something close to itself."),
 			*Mesh->GetName(),
 			Current.bKnown ? *FString::FromInt(Current.Level) : TEXT("UNDETERMINED"),
-			Current.ScreenSize, Current.Source, AnomalyLod::GetWorstLod(Mesh),
+			Current.ScreenSize, Current.Source, PopForcedLodModel, PopForcedLodModel - 1, PopNumLods,
 			bRequireHighestLod ? TEXT("ENFORCED, auto-pool selection") : TEXT("BYPASSED, targeted fire"));
 
 		if (bRequireHighestLod && Current.bKnown && Current.Level != 0)
@@ -186,10 +188,11 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 			++RefusedNotHighestLod;
 			UE_LOG(LogAnomaly, Warning,
 				TEXT("lod_popping: REFUSED '%s' — it is ALREADY AT LOD %d (source %s, screen_size %.6f), not its ")
-				TEXT("highest-detail LOD 0, so forcing LOD %d onto it would change little or nothing. This is the ")
-				TEXT("GRADED form of the single-LOD guard and it gates AUTO-POOL SELECTION only; a targeted fire on ")
-				TEXT("a named object warns and fires anyway. IAI.Anomaly.LodRequireHighestLod 0 disables it."),
-				*Mesh->GetName(), Current.Level, Current.Source, Current.ScreenSize, AnomalyLod::GetWorstLod(Mesh));
+				TEXT("highest-detail LOD 0, so forcing forced_lod_model=%d (LOD index %d of %d) onto it would change little or ")
+				TEXT("nothing. This is the GRADED form of the single-LOD guard and it gates AUTO-POOL SELECTION only; a targeted ")
+				TEXT("fire on a named object warns and fires anyway. IAI.Anomaly.LodRequireHighestLod 0 disables it."),
+				*Mesh->GetName(), Current.Level, Current.Source, Current.ScreenSize, PopForcedLodModel, PopForcedLodModel - 1,
+				PopNumLods);
 			continue;
 		}
 

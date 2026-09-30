@@ -102,8 +102,8 @@ static TAutoConsoleVariable<int32> GLabelTransitionOnFrames(TEXT("IAI.Label.Tran
 	TEXT("independent of this value and of anti-aliasing."));
 static TAutoConsoleVariable<int32> GLabelTransitionOffFrames(TEXT("IAI.Label.TransitionOffFrames"), -1,
 	TEXT("labels.jsonl transition flag: the N captured frames after the last labelled frame of a stuck_low_mip event carry ")
-	TEXT("an entry with transition=1 that does NOT set anomaly_present. Temporal AA only (0 without it). -1 (default) = 8 ")
-	TEXT("(ruled 084-05b). Read at run start; echoed and written to run_summary.label_transition_off_frames."));
+	TEXT("an entry with transition=1 that does NOT set anomaly_present. Temporal AA only (0 without it). -1 (default) = 16 ")
+	TEXT("(ruled 089-01). Read at run start; echoed and written to run_summary.label_transition_off_frames."));
 static TAutoConsoleVariable<int32> GLabelTransitionHideFrames(TEXT("IAI.Label.TransitionHideFrames"), -1,
 	TEXT("labels.jsonl transition flag for hide anomalies (blinking, missing_object): the first N captured frames after the ")
 	TEXT("object returns carry transition=1. Temporal AA only (0 without it). -1 (default) = 1. Read at run start; echoed ")
@@ -7014,7 +7014,7 @@ void UAnomalyCaptureSubsystem::ResolveLabelSyncForRun()
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture(labelsync): EFFECTIVE FOR THIS RUN - anti-aliasing method %s (r.AntiAliasingMethod=%d, effective %d), ")
 		TEXT("temporal=%d; transition frames on=%d off=%d hide=%d (IAI.Label.TransitionOnFrames=%d TransitionOffFrames=%d ")
-		TEXT("TransitionHideFrames=%d; -1 = default 3/8/1 under temporal AA; every value is 0 without temporal AA) === ")
+		TEXT("TransitionHideFrames=%d; -1 = default 3/16/1 under temporal AA; every value is 0 without temporal AA) === ")
 		TEXT("A labels.jsonl entry with transition=1 marks a frame the temporal history may smear: the first labelled frames of ")
 		TEXT("a stuck_low_mip event, the frames after its last labelled frame (those set NO anomaly_present), and the first ")
 		TEXT("frame after a hidden object returns. Labels stay on the exact render truth; the flag is additive. Only frames ")

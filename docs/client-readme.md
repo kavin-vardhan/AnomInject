@@ -378,7 +378,7 @@ The three unticked ones are **available, not disabled** — tick any of them whe
 
 **`camera_clipping` is available but off by default**, because in Auto-pool mode it is held for the **whole session** rather than for a few frames — so on a first-person game the player's hands and weapon are sliced away in *every frame* of that capture. That is correct behaviour and it is what the anomaly looks like, but it is disruptive as a default. **Tick it whenever you want it** — see the explainer video and the note in section 7 first.
 
-**`stuck_low_mip` is available but off by default** for a different reason: its reach depends on how your game's textures are shared. It only ever holds a texture that no *other* visible object is using, so on content where one material is reused across a scene it will decline most targets and produce few events — and it declines them loudly, with a counted reason in `run_summary`, rather than producing labels you cannot see. On content with per-object textures it fires readily. **Tick it and read the `stuck_mip_refused_*` counters** in `run_summary.json` to see what your content gives it before relying on it for volume.
+**`stuck_low_mip` is available but off by default** for a different reason: its reach depends on how your game's textures are shared. It only holds a texture that **exactly one object in the whole loaded level uses** — the target itself — because holding a shared texture would blur every other object that uses it, on screen or not, while the label and mask name only the target. (The test is per texture: a target that shares some textures can still fire on the ones that are its own.) So on content where textures are shared between objects (a material reused across a scene, a texture atlas) it declines most targets and **fires rarely** — and it declines them loudly, with a counted reason in `run_summary` (`stuck_mip_refused_shared`), rather than producing labels you cannot see. On content with per-object textures it fires readily. **Tick it and read the `stuck_mip_refused_*` counters** in `run_summary.json` to see what your content gives it before relying on it for volume.
 
 ### Live preview
 
@@ -876,7 +876,9 @@ Labels follow **what the game rendered on that exact frame**. With a **temporal*
 (TAA or TSR), the picture you see is blended with previous frames, so a change can look half-done for a
 frame or two after it starts, and linger for a few frames after it ends. We measured this on our bench:
 with anti-aliasing off the labels and pixels agree exactly at both ends; with TAA the blur reaches its
-midpoint about **2 frames** after a blurry-texture event starts and clears **1 to 7 frames** after it ends.
+midpoint about **2 frames** after a blurry-texture event starts, falls below half of its depth **4 to 8 frames**
+after it ends, and a faint trace (5–45 % of the depth) can linger to **13–29 frames** after it ends. That is
+why a `stuck_low_mip` event now flags **16** frames after its last labelled frame (it was 8 in earlier builds).
 
 Rather than move a label off the exact render, those frames carry an extra key, **`transition: 1`**, on
 the anomaly's entry, and the frame carries **`transition_present: true`**:
@@ -884,7 +886,7 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
 | Case | `transition_reason` | Which frames | The entry | Sets `anomaly_present`? | In `annotation.json`? |
 | --- | --- | --- | --- | --- | --- |
 | `stuck_low_mip` start | `temporal_aa` | the event's first **3** labelled frames | the normal entry, plus `transition: 1` | yes | yes |
-| `stuck_low_mip` end | `temporal_aa` | the **8** captured frames after its last labelled frame | a transition-only entry (`target_pixels` −1, `observable` null; the frame's target mask does not include it) | **no** | **no** |
+| `stuck_low_mip` end | `temporal_aa` | the **16** captured frames after its last labelled frame | a transition-only entry (`target_pixels` −1, `observable` null; the frame's target mask does not include it) | **no** | **no** |
 | `blinking`, `missing_object` | `hide_return` | the **first** captured frame after the object reappears | `transition: 1` (inside a `blinking` burst this is on the burst's own entry; after the event ends it is a transition-only entry) | only if the event is still running, as before | no |
 | `stuck_low_mip`, either edge | `partial` | every labelled frame whose **render record** shows the held textures only part of the way down — some at their held (blurry) level, others still sharp. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
 | `stuck_low_mip`, any labelled frame | `unresolved` | a labelled frame whose render record cannot say whether the whole set is held — a texture's level could not be read, its held level is unknown, or the frame has no texture record — and no texture it *can* read proves the set partial. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
@@ -923,7 +925,7 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
 
 | `transition_reason` | What the frame is | For a strict training set | For a larger, noisier set |
 | --- | --- | --- | --- |
-| `temporal_aa` | the anti-aliasing history may still show the previous state (onset) or a fading copy (the 8 frames after a `stuck_low_mip` event) | drop the frame | keep the onset frames as positives (the effect is applied); keep the after-frames as negatives only if you accept a faint ghost |
+| `temporal_aa` | the anti-aliasing history may still show the previous state (onset) or a fading copy (the 16 frames after a `stuck_low_mip` event) | drop the frame | keep the onset frames as positives (the effect is applied); keep the after-frames as negatives only if you accept a faint ghost |
 | `hide_return` | the first frame after a hidden object reappears; the history may still show it missing | drop the frame | treat as negative (the object is back) |
 | `partial` | `stuck_low_mip` is applied to only part of the object's textures | drop the frame | keep as a positive — the effect is real but weaker |
 | `unresolved` | `stuck_low_mip` is applied, but the record cannot say whether to all of the object's textures | drop the frame | keep as a positive — the effect is applied, its extent is unknown |
@@ -939,10 +941,13 @@ A frame can carry more than one reason; apply the strictest one that is present.
   carry it (counted in `label_transition_tracks_carried_in` and `label_hide_tracks_carried_in`), and so do the
   captures after that while it is still owed — a short capture in between, or one that wrote no frames, passes it
   on. This treats the gap between captures as zero frames, which can only add flagged frames, never remove a label.
-- **The numbers are 3 / 8 / 1** (ruled for this build). They are console variables —
+- **The numbers are 3 / 16 / 1** under temporal anti-aliasing and **0 / 0 / 0** without it (ruled for this build;
+  earlier builds used 3 / 8 / 1). They are console variables —
   `IAI.Label.TransitionOnFrames`, `IAI.Label.TransitionOffFrames`, `IAI.Label.TransitionHideFrames`
-  (`-1` = the default) — and each capture reports the values it used in `run_summary.json`
-  (`label_transition_on_frames`, `_off_frames`, `_hide_frames`, plus the `_cvar` values as set).
+  (`-1` = the default; any other value replaces it, up to 64) — and each capture reports the values it used in
+  `run_summary.json` (`label_transition_on_frames`, `_off_frames`, `_hide_frames`, plus the `_cvar` values as set).
+  The 16 is deliberately generous: the fade-out is usually gone by 8 frames, but a faint trace can outlast that,
+  and an extra flagged frame costs you one frame while a missed one puts a blurry frame in your negatives.
 - **How to use it:** for a strict training set, drop or down-weight frames with `transition_present`.
   Frames without it are expected to agree with their labels pixel for pixel.
 - `run_summary.json` also counts `label_transition_entries`, `label_transition_frames` and
@@ -1023,7 +1028,7 @@ Five fields answer five different questions about one frame. Keep them apart:
 | `missing_texture`, `corrupted_texture` | every burst frame | burst frames on which the object's projected box is on screen | frames with the box off screen | projected box | labelled frames | none |
 | `lod_popping` | every burst frame | the frames on which the forced LOD is applied | the un-forced phases between pops | projected box | labelled frames | none |
 | `camera_clipping` | only the frames on which it is positive (§8.6b) — a whole-session anomaly whose entry appears only then | the same frames | none | the whole frame | never (`null` / `-1`) | `camera_clipping_unconfirmed` |
-| `stuck_low_mip` | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; under temporal anti-aliasing the 8 frames after the last held frame carry **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
+| `stuck_low_mip` | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; under temporal anti-aliasing the 16 frames after the last held frame carry **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
 
 `temporal_aa` and `hide_return` appear only under temporal anti-aliasing (TAA or TSR); `partial`, `unresolved` and
 `camera_clipping_unconfirmed` appear with any anti-aliasing setting.
@@ -1057,6 +1062,58 @@ rows in the table above: the event is running but its effect is not in the pictu
 `transition_present`, using the per-reason guidance in §8.6a. Do not use `anomaly_present` on its own as a positive
 label — it says an event is running, not that its effect is on screen.
 
+### 8.7a How far each label is proven, anomaly by anomaly — and which flags to drop
+
+**What "proven" means here.** We captured each anomaly on our own machine, found from the saved frames themselves the
+first and the last frame on which the anomaly is visible, and checked that the label's first and last frame are those
+same frames — **0 frames off at both edges**, on every event judged. The tools that did this were first shown to fail on
+labels deliberately moved by one frame, so a pass is not the tool being blind. A proof says the label is **in step with
+the picture**; it does not say the anomaly is easy to see (that is `observable`, §8.4).
+
+"Our bench level" is a purpose-built test level of simple shapes; "our large test level" is the main level of the
+sample game we develop on, with ordinary game scenery. "Both tick orders" means both orders in which the engine can
+update the game and the plugin within one frame (a game can use either).
+
+| Anomaly | Label in step with the picture — proven on | Anti-aliasing | For a strict training set, drop frames carrying |
+| --- | --- | --- | --- |
+| `blinking` | our bench level and our large test level, both tick orders | on and off | `hide_return` (the first frame after the object reappears; temporal AA only) |
+| `missing_object` | our bench level and our large test level, both tick orders | on and off | `hide_return` (temporal AA only) |
+| `missing_texture` | our bench level and our large test level, both tick orders | on and off | nothing |
+| `corrupted_texture` | our bench level and our large test level, both tick orders | on and off | nothing |
+| `stuck_low_mip` | our large test level (an object with its own textures), including an Auto-pool run | on and off | `partial` and `unresolved` (an event's first labelled frames), and `temporal_aa` (its first 3 labelled frames and the **16** frames after its last one; temporal AA only) |
+| `camera_clipping` | our bench level, with a scripted camera, both tick orders; judged on the **confirmed** frames | on and off | `camera_clipping_unconfirmed` (over-labels by design — on our bench those frames showed no slice at all) |
+| `lod_popping` | a purpose-built test object whose detail levels differ strongly: 23 pops per capture, both tick orders | on and off | nothing |
+
+What each row leaves open, stated rather than implied:
+
+- **`stuck_low_mip` — the start is flagged, not early.** The engine lowers an object's textures one by one, so an
+  event's first labelled frames can show only part of the blur. On our bench that was **2 frames per event** (3 in a
+  longer capture, **up to 5** on the first event after the game starts), each flagged `partial`. The label is right that
+  the event has begun; the flag says the picture shows only part of it. With temporal AA the fade-out after the event
+  ended **4 to 6 frames** after the label on the bench, well inside the 16 flagged frames; with AA off it ended on exactly
+  the label's last frame.
+- **`stuck_low_mip` — how often it fires depends on your content.** It holds only textures that exactly one object uses
+  (the Capture pool panel, section 4), so on scenes that share textures it fires rarely, and it is **off in Auto-pool by
+  default**. `run_summary.json` counts every refusal by reason.
+- **`camera_clipping`** — a flagged unconfirmed frame is a frame where the plugin could not check the object's own
+  triangles (§8.6b). On our large test level the rule labelled 2 frames of a 200-frame leg, both flagged, where the
+  previous rule had labelled all 200 with nothing visibly clipped.
+- **`lod_popping`** — on ordinary scenery (the rocks of our large test level) the pop is too faint to find in the
+  pixels, so there the label could not be checked against the picture. The mechanism does not depend on the content:
+  the detail level is forced on the object in the same frame the label marks, which is what the test object proves.
+- **Masks:** long captures re-use mask values (the `m43` section below). In a capture on our large test level built to
+  force it, two events held values at the same time and values were recycled 6 times; all 199 labelled frames had
+  their mask, and no frame carried two events under one value.
+- **Nanite objects get labels and boxes, but no mask.** On Unreal Engine 5.1 the pass that draws the mask cannot see
+  objects rendered with Nanite (an engine limit). Anomalies still fire on them and are labelled normally, with the box
+  from the object's projected bounds (`bbox_source: "projected"`), but their entries read `target_pixels: -1` and
+  `observable: null`, the event reads `observability_measured: false` (so `affected_frames` equals `injected_frames`),
+  and the object never appears in `target_mask/`. `run_summary.json` counts such events in
+  `unmeasurable_targets_admitted`. Excluding Nanite objects instead would remove most targets on a Nanite-heavy scene, so
+  they stay in, declared unmeasured.
+- **Not covered by any row:** a moving camera, and effects too faint to measure from the pixels. Step 7's label-sync
+  check (section 3) measures the same thing on your own sessions.
+
 ### Reading `labels.jsonl` — the rows are not in order
 
 **If you parse `labels.jsonl`, read this first.** The file has one JSON object per line, one line per captured frame. Every frame is present exactly once — **but the lines are not written in frame order.** They are written in the order the capture's background writer finished them, which varies from run to run, and neighbouring frames routinely swap places.
@@ -1081,7 +1138,7 @@ Nothing is missing and nothing is duplicated — it is purely an ordering proper
 - a large **hollow** object that surrounds the camera — a room shell, a big rock — no longer labels a frame on its bounding box alone: its triangles are traced inside the slab, and if none are there the frame is **not** labelled;
 - objects whose triangles **cannot** be traced — the player's own **skinned** meshes (hands, weapon, body), objects **without collision** (many props, foliage), objects with simplified collision only — still label the frame on their bounding box, and the frame carries `transition_reason: ["camera_clipping_unconfirmed"]` and `camera_clipping.unconfirmed: true` so you can filter it.
 
-Every frame of a `camera_clipping` session also carries diagnostic keys in `labels.jsonl`: `camera_clipping.slab` (equals the label), `camera_clipping.bounds_candidate` (the bounding-box first pass), `camera_clipping.clipped_ray_fraction`, `camera_clipping.confirm_traces` / `_hits` / `_misses` / `_unresolved`, `camera_clipping.slab_primitives`, `camera_clipping.eye_inside_box`, and `camera_clipping.sphere_proxy`. `camera_clipping.sphere_proxy` is the oldest labelling rule, kept only for comparison — **do not train on it**. The triangle-confirmation rule is new in this build and has not yet been checked frame by frame against the pictures.
+Every frame of a `camera_clipping` session also carries diagnostic keys in `labels.jsonl`: `camera_clipping.slab` (equals the label), `camera_clipping.bounds_candidate` (the bounding-box first pass), `camera_clipping.clipped_ray_fraction`, `camera_clipping.confirm_traces` / `_hits` / `_misses` / `_unresolved`, `camera_clipping.slab_primitives`, `camera_clipping.eye_inside_box`, and `camera_clipping.sphere_proxy`. `camera_clipping.sphere_proxy` is the oldest labelling rule, kept only for comparison — **do not train on it**. The triangle-confirmation rule has been checked frame by frame against the pictures on our bench (§8.7a): every **confirmed** labelled frame shows the slice, with anti-aliasing on and off, and the label starts and ends on exactly the frames the picture does. The **unconfirmed** frames on that bench — an object with no collision in the slab — showed **no** visible slice at all: they are over-labels by design, which is why they are flagged. **Drop frames carrying `camera_clipping_unconfirmed`.** On our large test level, where the old rule labelled all 200 frames of a leg with nothing visibly clipped, the new rule labelled 2 frames, both flagged unconfirmed.
 
 ---
 
@@ -1192,7 +1249,8 @@ genuinely in front of it still cuts it away. It is not a bounding box.
 - **Every labelled hidden frame has a mask file with content.**
 - **The visible in-between frames of a blink carry NO mask** — those frames are labelled clean, and a
   mask there would contradict the label.
-- ⛔ **Nanite-rendered targets are excluded**, the same limit the anomaly measurement has.
+- ⛔ **Nanite-rendered targets get no mask**, the same limit the anomaly measurement has — their events are still
+  labelled, with boxes (§8.7a).
 - ✅ **Masks are correct at any screen percentage**, including dynamic resolution and temporal
   upsamplers — the mask pass maps its samples through the render's internal view rect.
 
@@ -1222,7 +1280,8 @@ NOT suppress it.
   translucent material that explicitly opts into writing custom depth CAN be measured and is not
   excluded.)* You can turn the exclusion off with `IAI.Select.AllowTranslucentOnlyTargets 1`, and
   `run_summary.json` → `translucent_only_excluded_targets` counts how many objects it refused.
-- **Nanite-rendered targets never appear** — the same limit the anomaly measurement has.
+- **Nanite-rendered targets never appear** — the same limit the anomaly measurement has. Their events are still in
+  `annotation.json` and `labels.jsonl`, with boxes, marked unmeasured (§8.7a).
 - **Multi-target frames are unverified.** Read it as *"one value per anomaly target present in the
   frame"*; no capture here has yet shown two distinct values in one PNG.
 
