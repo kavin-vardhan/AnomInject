@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **090-04, 2026-09-30 — THE SECOND OFFICE HOST'S COMPILE FAILURE IS FIXED BY FOUR INCLUDES, PROVEN BY A STRICT-INCLUDE BUILD
+> THAT FIRST REPRODUCED IT. ONE NON-INCLUDE RESIDUAL (3 × C4150 IN `AnomalyCaptureSubsystem.gen.cpp`) IS HELD FOR A RULING.
+> Includes only; no game launch, no cook, no staging. Then merged into m53 (see m53's status block).**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-04-strict-include-fix.md`; archive
+>   `_binary_baselines\m52fix-09004-76428F44\` (exe **76428F44** + the five editor DLLs, 6/6 re-hashed).
+> - **Source `01d34d3`:** + `Engine/EngineBaseTypes.h` in `AnomalyInjectorSubsystem.h` (`ELevelTick`, the office root error) ·
+>   + `Materials/Material.h` in `AnomalyCaptureSubsystem.cpp` (`UMaterial`) · + `UObject/WeakObjectPtr.h` in `IAnomaly.h` ·
+>   + `IWebSocketServer.h` in `AnomalyControlServerSubsystem.h`. Nothing else changed in `Source/`.
+> - **`tools/strict_include_build.py`:** per plugin module no unity, no PCH, latest include order, plus one TU per header; proves
+>   from the response files that the settings took effect; restores every `Build.cs` byte-for-byte. On the unfixed `0347e8c` it
+>   reproduced the office error set exactly (12 unique errors, Game and Editor); with the fix: **3** (the residual); with the held
+>   `FVTableHelper`-constructor experiment: **0** (G424, G425). PRE-DELIVERY-CHECKLIST §1 has the box.
+> - **Normal builds 0 warnings;** UTF-16 literal sets identical before/after; lever audit `--binary` PASS 33/33; selftests 284/0 and
+>   154/0; Python suites green.
+> - 🎯 **NEXT: chat rules on the 3-line `FVTableHelper` constructor (journal §3); 090-05 follows.** ⛔ No tag, no merge to master.
+>
+> ---
 > 🛠 **090-01, 2026-09-30 — THE FINAL SOURCE ROUND ON THE FIX BRANCH: stuck_low_mip's TAA off-frames default is 16, the LOD log
 > prints `forced_lod_model=N (LOD index N-1 of M)`, and the client readme states the week's evidence per anomaly. Built and
 > checked; no game launch, no cook, no UE staging. Then merged into m53 (see m53's status block).**

@@ -8795,3 +8795,44 @@ Related: G399, G408.
   branch, or its size/hash — never "up to date" (G164's shape, reached a new way).
 
 Related: G164, G201, G398.
+
+## G424 — The engine's shared PCH hides every missing `#include` in the plugin; a host that compiles plugin files on their own fails at the first gap (2026-09-30, 090-04)
+
+- **Measured:** `da902d6` did not compile on the second office host (C2061 `ELevelTick` at `AnomalyInjectorSubsystem.h:174`, its
+  C2665/C2511/C2352/C2597 cascade, C2027 `UMaterial` at `AnomalyCaptureSubsystem.cpp:10368`, exit 6), while this box and the first
+  office host compiled it clean. Our Game and Editor builds compile each plugin module as unity files with `/Yu` on
+  `SharedPCH.Engine.ShadowErrors.h`, built from `EngineSharedPCH.h` (627 lines of engine includes, among them
+  `Engine/EngineBaseTypes.h` at line 463 and `Materials/Material.h` at line 572). Stock 5.1 `Subsystems/WorldSubsystem.h` does not
+  reach `ELevelTick` by itself.
+- **The instrument:** `tools/strict_include_build.py` sets, per plugin module only, `bUseUnity = false`,
+  `PCHUsage = PCHUsageMode.NoPCHs`, `IncludeOrderVersion = EngineIncludeOrderVersion.Latest` (5.1's newest is `Unreal5_1`, which both
+  host targets already use) and compiles one extra TU per plugin header. On the unfixed fix branch it reproduced the office error set
+  exactly (same codes, same sites), plus C2504 `FWeakObjectPtr` x23 (`IAnomaly.h` included only `WeakObjectPtrTemplates.h`) and C4150
+  incomplete-type deletes. Target-wide `-NoPCH` / `-DisableUnity` were NOT used: they change every engine module's compile environment
+  (a full engine rebuild, and for the Editor target the shared engine DLLs).
+- **Two traps met while building it:** (1) the first "did the strict settings take effect" check read response-file mtimes, and UBT
+  does not rewrite an unchanged `.response`, so an incremental strict run read "nothing compiled" — check the content (a per-file
+  response exists and carries no `/Yu`), not its age; (2) restoring a file with `Copy-Item` restores its old mtime, older than the UHT
+  output of the run just made — touch it, or UHT keeps the previous `.gen.cpp` (G309's shape).
+- **Rule:** before delivery the strict build reads 0 errors on Game and Editor (PRE-DELIVERY-CHECKLIST §1). A clean normal build
+  proves nothing about includes.
+
+Related: G47, G221, G309, G425.
+
+## G425 — A UHT `.gen.cpp` compiled on its own defines the class's `FVTableHelper` constructor, so every `TUniquePtr` member of a forward-declared type needs its complete type there, and no include can supply a type defined in a `.cpp` (2026-09-30, 090-04)
+
+- **Measured:** after the four include fixes the strict build still read 3 x C4150 (deletion of pointer to incomplete type
+  `FAnomalyCaptureAsyncState`, `FAnomalyPreviewTee`, `FAnomalyRunLog`) in `AnomalyCaptureSubsystem.gen.cpp`, Game and Editor. Line 74
+  of that file is `DEFINE_VTABLE_PTR_HELPER_CTOR(UAnomalyCaptureSubsystem)`, i.e. `UX::UX(FVTableHelper& Helper) : Super(Helper) {}`;
+  a constructor may destroy its members, which instantiates `~TUniquePtr<T>`. The class's own out-of-line destructor does not help.
+  In a unity build that `.gen.cpp` shares a file with `AnomalyCaptureSubsystem.cpp`, which has the complete types, so it never shows.
+- `FAnomalyCaptureAsyncState` is defined inside `AnomalyCaptureSubsystem.cpp` (line 194) and the other two in the module's Private
+  headers, which a Public header cannot include for other modules. `IWebSocketServer` in `AnomalyControlServerSubsystem.h` was the
+  same shape but fixable by an include: it has a public engine header and that header's only includer is its own module.
+- **What works (experiment, NOT committed):** declaring `UAnomalyCaptureSubsystem(FVTableHelper& Helper);` and defining it in the
+  `.cpp` with the same body. UHT then omits its own (`UhtHeaderCodeGeneratorCppFile.cs:1034`, `HasCustomVTableHelperConstructor`),
+  and the strict build reads 0 errors on both targets. Held for a ruling because 090-04 was includes-only.
+- **Rule:** a UCLASS holding `TUniquePtr<Forward>` members declares its own `FVTableHelper` constructor out of line next to its
+  destructor, or the strict build fails.
+
+Related: G424.
