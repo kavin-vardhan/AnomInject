@@ -9525,3 +9525,29 @@ Related: G404, G403.
   on the same file).
 
 Related: G201, G371.
+
+## G419 — An offset reference taken right after the label can hold the late picture itself, and the edge then reads backwards (2026-09-30, 089-04b)
+
+- **Measured:** the RD5 arm keeps the corruption 5 engine frames past the revert (68 → 73), which the capture's two-frame
+  skip turns into 3 captured frames. The pixels end exactly +3 on 8/8 events (every labelled frame at the full plateau,
+  mean |Δ| 73.1). The frozen E1 read **end −4** on every judged event: its offset reference is the six frames after the
+  last label, three of which were still corrupted, and its leave-one-out trim takes its noise threshold from the same
+  window, so it dropped nothing (`thrD_off` 59.1 against RD3's 1.57). The off half of the labelled run then read "not
+  visible". RD3 (+1, one late frame) was trimmed and read correctly.
+- **Rule:** an offset reference must be shown settled against the onset reference's noise, or start beyond the largest lag
+  the leg can have. An arm that pushes the picture past half the reference window is read in pixels as well; an evaluator
+  FAIL that names the wrong edge direction is a reading, not a proof.
+
+Related: G404, G417.
+
+## G420 — One oracle premise over two recipes judges each family on frames that were never rendered for it (2026-09-30, 089-04b)
+
+- **Measured:** the 089-04 premise lock ran the uv and normal oracles on three uv-recipe frames plus three normal-recipe
+  frames together. The normal oracle is read unlit (`ShowFlag.Lighting 0`); the uv recipe renders lit, so on those frames
+  it read interior 12 / pattern 21 and the pooled median FAILED — although on its own frames it reads interior 0 / pattern 0.
+  The G-MODE gate then used the overall pass, so the uv rows read INSUFFICIENT (their own oracles passed) on the lit uv
+  null. Gated per family, all four modes PASS.
+- **Rule:** a per-family premise is computed on that family's own recipe and gates only that family's rows; a combined
+  "all oracles pass" is never a gate for one family.
+
+Related: G415, G416.

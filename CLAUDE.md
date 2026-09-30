@@ -11,6 +11,22 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧪 **089-04 / 089-04b, 2026-09-30 — THE m53 RE-BENCH RAN ON DC2 (`6B671987` + `45E2FA86`): 47/47 launches accepted, 10
+> NOT-RUN-PREMISE as predicted, lock `a7f542d` before any gate leg, restore on attempt 1, postflight PASS. 089-04b re-read it
+> offline (nothing launched).**
+> - **Cold start:** journal `docs/sessions/2026-09-30-089-04-m53-rebench.md` (§2 every gate, §3 G-MODE, §4 RD5, §7 decisions);
+>   as-built report `_reviews\089-04-evidence\run\report.md` (kept unchanged); 089-04b evidence `_reviews\089-04b-evidence\`.
+> - **Fixture B-M53 PASS in all 4 modes** (17/17 onsets and offsets at +0/+0); kit agrees; CD3 +1, CD5 +3, RD3 +1, NOAPPLY
+>   proven; G-BIND, G-CENSUS, G-LEVER-OFF, G-REASON PASS; label-rule all PASS; 0 co-entry frames.
+> - **G-MODE had two family mix-ups** (the gate used the overall P-ORC; the premise lock pooled the uv and normal recipes).
+>   Family-gated and re-evaluated from the banked legs: **PASS in all 4 modes**, negatives all failing as required. The
+>   "normal P-ORC failure" was the n oracle reading lit uv-recipe frames; on its own recipe it passes (G420).
+> - **RD5 "end −4" is the frozen E1's offset reference, not a label defect:** pixels end +3 on 8/8 events per leg, as
+>   declared; E1's post-label window holds the 3 late frames and its trim keeps them (G419).
+> - **MainWorld uv: unjudgeable from pixels** — both hosts are Nanite (`reason=nanite` on every fire), so no mask; labels
+>   follow the unmeasurable contract; GT-NULL wrong-object PASS. Normal: no host (L2).
+> - **Next:** chat rules on the journal §7 items (G-MODE-N PASS; RD5 on the pixel reading), then 090-01.
+>
 > 🛠 **089-02b, 2026-09-30 — THE m53 RE-BENCH IS PREPARED, NOT RUN: harness `_reviews\089-04-*` frozen, selftest 68/68,
 > dry run exit 0 (44/44 stubbed launches accepted). New pairing DC2 = exe `6B671987` + utoc `45E2FA86`
 > (`_binary_baselines\m53dc2-cook-45E2FA86`), the fixture fixed and re-cooked. Nothing launched the game.**
