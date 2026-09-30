@@ -11,6 +11,27 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔀 **090-01 (m53 half), 2026-09-30 — THE FIX BRANCH'S FINAL SOURCE ROUND IS MERGED INTO m53 (`3ca5dcb`), m53's own test
+> follows the new default (`d57246c`), and §8.8 is filled to the evidence. Both targets built with 0 warnings, every suite
+> green, archived. No game launch, no cook, no UE staging; no tag, no merge to master.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-01-final-source-round.md` §5–§9 (§0–§4 are the fix-branch half);
+>   archive `_binary_baselines\m53-09001-CE55D997\` (exe **CE55D997** + the five editor DLLs, 6/6 re-hashed).
+> - **Merge:** conflicts only in `CLAUDE.md` / `gotchas.md` (append-only, both kept: fix blocks above m53's, G401–G422 in
+>   order); source and readme auto-merged (source delta = the fix branch's 4 files).
+> - 🚨 **The merge was clean and still broke a test:** `exclusion_selftest` read 243 / **7 FAIL** — its F1 scenarios read
+>   `DefaultOffFramesTemporal` but hard-coded an 8-frame tail. Expectations now derived from `Off`; 243 / 0 at 16 **and** at 8
+>   (header copy); 23 / 23 mutants still fail (G423). Product unchanged: m53 now waits up to 16 frames behind a stuck_low_mip tail.
+> - **Suites before → after:** C++ tc 251 · draw 978 · excl 243 · src 47 · m52 282 → **284** · camera 154, all /0; Python 18 / 18
+>   both times. Lever audit `--binary` PASS 46/46; **a delivery-shaped exe from the staged folder PASSes the staged-root audit
+>   45/45**; string scan PASS.
+> - **Readme §8.8:** evidence basis (fixture sync 4 modes × 2 captures, G-MODE 4/4, 0 co-entry, ordinary scenery not checked
+>   from pixels because the framable hosts are Nanite); **the per-mode rate "not measured on realistic content"** (fixture 0 of
+>   17); the 128 MiB default + the large-test-level example; §8.7a uv/normal rows. ⛔ **Only Step 1 (the owner's) remains a
+>   placeholder** — the bundle checker's placeholder scan reads 1 line (was 2).
+> - 🎯 **NEXT: 090-02, the Codex evidence review (merge prep); then the final delivery build with Step 1 filled.** For
+>   Thursday, pull `feat/m53-uv-normal-corruption` (this head); the m52-only fallback is `fix/m52-label-timing` `0347e8c`.
+>
+> ---
 > 🛠 **090-01, 2026-09-30 — THE FINAL SOURCE ROUND ON THE FIX BRANCH: stuck_low_mip's TAA off-frames default is 16, the LOD log
 > prints `forced_lod_model=N (LOD index N-1 of M)`, and the client readme states the week's evidence per anomaly. Built and
 > checked; no game launch, no cook, no UE staging. Then merged into m53 (see m53's status block).**

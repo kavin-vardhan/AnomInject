@@ -9720,3 +9720,18 @@ Related: G399, G408.
   branch, or its size/hash — never "up to date" (G164's shape, reached a new way).
 
 Related: G164, G201, G398.
+
+## G423 — A test that reads a default but hard-codes the numbers that default produces breaks on the first ruled change, in another branch (2026-09-30, 090-01)
+
+- **Measured:** m53's `tools/exclusion_selftest.cpp` F1 scenarios took `Off = AnomalyLabelSync::DefaultOffFramesTemporal` and
+  then asserted the frames an 8-frame tail yields (entries 102..109, m53 admitted at 111, a carried tail on 0..3 with admission
+  at 5, the out-of-order window done by 109). The fix branch changed the default to 16 (089-01 ruling 2) with its own tests
+  green; the merge into m53 was clean, and only m53's C++ suite, run after the merge, read **243 / 7 FAIL**. The product was
+  right: `stuck_low_mip` now stays live for 16 frames and m53 is admitted after them.
+- **Fix:** derive every expectation from `Off` and size the loops to reach it; prove it both ways by compiling the same file
+  against a header copy with the old value (it must reproduce the old literal numbers) as well as the new one.
+- **Rule:** a clean textual merge proves nothing about semantics — run the receiving branch's own suites after every merge.
+  And a test that reads a named constant must compute its expectations from it, or assert the constant itself, never both
+  read it and hard-code its consequences.
+
+Related: G201, G421.
