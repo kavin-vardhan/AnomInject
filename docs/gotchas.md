@@ -8767,3 +8767,31 @@ Related: G151, G402, G96.
   at mid-tone, not at "clearly lit".
 
 Related: G233, G410.
+
+## G421 — A client-facing paraphrase of a gate can outlive the gate: the readme described stuck_low_mip's legacy bench rule for two days (2026-09-30, 090-01)
+
+- **Found while writing the yield note:** the Capture pool paragraph said `stuck_low_mip` "only ever holds a texture that no
+  *other* visible object is using". That is the **legacy visible-only purity rule**, which since 084-02 (`67afa94`) survives only
+  behind the bench lever `IAI.Bench.StuckMipLegacyPurity` (non-Shipping). The shipping rule is **exactly one user component in
+  the whole loaded world** (`Anomaly_StuckLowMip.cpp`, `shared_world`, "the rule is exactly ONE"), which refuses far more
+  targets — the very property the yield note exists to explain. No gate caught it: the readme named no key that changed.
+- **Also stale by the same route, named and left for its own round:** the `HELD NONE` log line still says "shared with a
+  visible component" while it counts `shared_world` (084-11 §43).
+- **Rule:** when a gate's definition changes, grep the client readme (and the log strings) for the gate's **plain-words
+  paraphrase**, not only for its key and counter names. Source is the authority; a sentence that restates a rule is a copy of it.
+
+Related: G399, G408.
+
+## G422 — After a plugin-slot swap, UBT reports the host exe "up to date" while it is still the exe linked from the swapped-in copy (2026-09-30, 090-01)
+
+- **Measured on `_r84_host`:** a delivery-shaped exe (`D6B094DD`, 242,092,032 B, no AnomalyBench) was linked with the plugin slot
+  junctioned to a staged copy (088-01's recipe). The slot, the parked `Intermediate\Build\Win64\StackOBot\Development\Anomaly*` and
+  the worktree were then all restored, and `Build.bat StackOBot` answered **"Target is up to date" in 3.3 s, exit 0** — with the
+  staged exe still on disk. Its timestamp is newer than every restored object, and the game `Makefile.bin` was the staged build's.
+- **Fix:** move the host exe and `Intermediate\Build\Win64\StackOBot\Development\Makefile.bin` aside, then build: 2 actions (link +
+  metadata), 55 s, exe back at 242,134,016 B (`4B804F41`, the same objects as the archived `EB01156E`; G201) and the lever audit
+  PASSes 33/33 against the branch again.
+- **Rule:** after any slot swap, restore is not done until the exe's own content says so — a lever-audit `--binary` against the
+  branch, or its size/hash — never "up to date" (G164's shape, reached a new way).
+
+Related: G164, G201, G398.

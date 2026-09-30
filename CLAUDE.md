@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **090-01, 2026-09-30 — THE FINAL SOURCE ROUND ON THE FIX BRANCH: stuck_low_mip's TAA off-frames default is 16, the LOD log
+> prints `forced_lod_model=N (LOD index N-1 of M)`, and the client readme states the week's evidence per anomaly. Built and
+> checked; no game launch, no cook, no UE staging. Then merged into m53 (see m53's status block).**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-01-final-source-round.md`; archive
+>   `_binary_baselines\m52fix-EB01156E\` (exe **EB01156E** + the five editor DLLs, 6/6 re-hashed).
+> - **Source `c12b7e9`:** `AnomalyLabelSync::DefaultOffFramesTemporal` 8 → **16** (089-01 ruling 2; stuck_low_mip only — the sole
+>   `UsesRenderResidencyTruth` anomaly); On 3 / Hide 1 unchanged; 0 without temporal AA; an explicit CVar still wins (≤ 64).
+>   `m52_window_selftest` **284 / 0**, and a header with the old 8 fails exactly the two default checks; camera **154 / 0**.
+> - **Builds 0 warnings** (editor 7 actions, game 4); every Python suite green (label-rule 24, kit 32, lever 11 + PASS, G354 9,
+>   bundle 9); lever audit `--binary` PASS 33/33 vs the branch; **a delivery-shaped exe built from the staged folder passes the
+>   staged-root binary audit 32/32** (the host exe fails it only on AnomalyBench's name, G398); string scan PASS.
+> - **Readme:** new §8.7a (evidence per anomaly + the flags to drop, stuck_low_mip partial onset and 16 fade-out frames,
+>   camera_clipping unconfirmed = over-labels, lod_popping on the fixture, **Nanite = labels and boxes, no mask**); 3/16/1; the
+>   yield note corrected to the whole-world single-user rule (G421). ⛔ **Step 1 (launch) stays the owner's placeholder.**
+> - 🎯 **NEXT: 090-02, the Codex evidence review (merge prep).** ⛔ No tag, no merge to master.
+>
+> ---
 > 🧪 **089-03, 2026-09-30 — THE TARGETED RE-BENCH RAN AS FROZEN: 24 / 24 ACCEPTED ON ATTEMPT 1, EXIT 0, NO HARNESS-INVALID,
 > NO GATE CHANGED. stuck_low_mip, blinking and lod_popping read SYNC on E1 + the kit; camera_clipping AA off stays
 > UNJUDGEABLE on the as-built gate (the proposed confirmed-hold reading PASSes; chat rules).**
