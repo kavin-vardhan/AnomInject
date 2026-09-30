@@ -9434,6 +9434,33 @@ Related: G119, G142.
 
 Related: G354, G99.
 
+## G401 — A game started from a NEW exe path that opens a socket raises a firewall prompt that holds the foreground (2026-09-29, 084-09 part 0)
+
+- **Measured:** the 088-01 launch check ran each rehearsal package (a new exe path) with `IAI.Server.Start`. Windows
+  Defender Firewall raised its "allow access?" prompt (PickerHost `FirewallNotificationDialogServer`), one per new path and
+  one more for a relaunch. The prompt took the foreground; the bench's focus forcing (Alt + `SetForegroundWindow`) could not
+  take it back, even after the prompt was minimized, and 084-09's B0 burned four ENV-INTERRUPTED attempts (`focus_at_s=-1`,
+  foreground = PickerHost on 90 of 90 samples) before the prompts were closed with `WM_CLOSE`. Closing (= Cancel) created
+  no firewall rule (the StackOBot rule count stayed 16). The server listens on 127.0.0.1 only; the prompt is Windows asking
+  anyway.
+- **Rule:** before a bench window, list visible `Shell_SystemDialog` / "Windows Security" windows; a launch check that starts
+  the control server from a new exe path runs after the bench, or its prompts are closed before the first leg. A harness
+  that sees the same foreign foreground on every focus sample is looking at a dialog, not a person.
+
+Related: A63, G90.
+
+## G402 — A new fixture level can render black in the packaged build while every non-pixel check passes (2026-09-29, 084-09)
+
+- **Measured:** 084-08b's LOD fixture `CB_LodFixture` was read back in a fresh commandlet (geometry, LOD screen sizes,
+  materials), and in the packaged run its coverage (26.9571 %) and `CURRENT-LOD level=0` lines matched the prediction
+  exactly. Every captured frame of both premise legs is **100 % black** (mean 0, extrema 0), so the premise read 0 of 9
+  events measurable and all eight fixture gate legs were NOT-RUN-PREMISE. G151 again: a commandlet readback proves the
+  data, not the light.
+- **Rule:** a new or rebuilt capture level gets a luma check on one packaged capture before any gate legs are designed on
+  it (mean luminance well above 0, the target region non-uniform).
+
+Related: G151.
+
 ## G403 — A reason token compared by equality silently misses the form that carries detail (2026-09-29, 085-04)
 
 - **Measured:** the ND-4 host rule in `085-04-window.py` keeps a host only when a census line's `final` equals
@@ -9458,6 +9485,120 @@ Related: G96, G377.
 Related: G96, G392.
 
 (G405–G412 live on `fix/m52-label-timing`; the numbers below were taken after the max over all 31 refs, G412.)
+
+## G405 — A one-frame label run judges itself: E1 scales its off half by the run's own post-label noise (2026-09-30, 089-01)
+
+*(Number checked against every ref, local and remote: the maximum was G404 on `feat/m53-uv-normal-corruption`.)*
+
+- **Measured (084-09 REAL_BL_SYN, 10 of 10 events):** `084-09-eval.py:508-519` splits each label run at its midpoint and
+  scales frames after it by `dD_off = max D over the run's off half`. Synthetic tick order hides `{n, n+1, n+2, n+6}`, so the
+  last run is ONE frame: its midpoint is that frame, its off half holds no hidden frame, and `dD_off` is post-label noise
+  (1.8–2.6 against a real depth of 44.7–47.9). The noisiest frame after the label (1.4–3.3 on the pixels, against 34.6–39.8 on
+  the hidden frames) scores 0.73–1.0 "of the effect" by construction, and a slow whole-frame drift 13–14 frames later crosses
+  half of that noise scale. E1 read FAIL 10/10 (ends +1 and +14) where 086-01, the office kit and the pixels read +0. Native
+  order (two-frame runs) is immune, which is why NAT passed on the same instrument.
+- **Rule:** a normaliser must come from frames that contain the effect it scales. A run whose off half holds no labelled frame
+  is scaled by its own `depth_on` (or the event's depth), never by its post-label frames. This is G395's shape — the judged
+  frame sets its own scale — without G395's letter (the frame is not in the reference set).
+
+Related: G395.
+
+## G406 — One session-wide null lag misaligns legs whose capture hitches or start differ; align the null by game time (2026-09-30, 089-01)
+
+- **Measured:** E1's stuck_low_mip basis picks ONE lag in `session_index` by correlation over the whole session
+  (`084-09-eval.py:199-241`). Every auto-pool fire attempt costs a 3-engine-frame capture hitch, so B3 (41 hitches) drifts
+  against the null B5 (20 hitches): game-time offset +0 at si 181, +16 at si 500, +38 at si 1100. E1 chose lag 16 (corr 0.93);
+  at si 181 the true offset is 0 (ratio 0.997–1.000 at lag 0 against 0.967–1.018 at lag 16). Dividing by a null 16 frames later
+  while the scene's rock sharpness climbed turned an ordinary TSR decay into a 41-frame "tail" and a t50 FAIL. B0's accepted
+  attempt started at engine frame 591 (the firewall waits of G401), 250 frames off the null: every lag within `LAG_MAX` 30 was
+  rejected (best corr −0.07), own-detrend met ±8–30 % scene drift, and 12 of 18 offsets were censored. With the null
+  interpolated at each leg frame's own game time `t`, 11 of those 12 and si 181 are judged, all below 50 % of depth by +5..+8.
+- **Rule:** align a null to a leg by game time `t`, frame by frame, never by one lag in capture index; and capture the null long
+  enough to cover the leg's whole game-time range (B0's last four events lay beyond B5's 41.3 s).
+
+Related: G349, G396, G401.
+
+## G407 — Bench levers counted in engine frames lose K settle ticks at every apply and revert: CD3/RD3 move the picture by ONE captured frame (2026-09-30, 089-01)
+
+- **Measured (085-04 ARM_CD3 / ARM_RD3, direct pixels):** `IAI.Bench.TexCorruptCommitDelay` and `…RestoreDelay` schedule on
+  `GFrameCounter + D` (`Anomaly_TexCorrupt.cpp:1113, 1279`). The capture records the apply tick (labelled) and the revert tick
+  (unlabelled), then skips `K = 2` settle ticks (frame_index jumps by 3). CD3: apply at engine 32 = si 25 (labelled, still
+  clean), commit at 35 = si 26 ⇒ onset +1, not +3. RD3: revert at engine 42 = si 33 (still corrupted), restore at 45 = si 34
+  (clean) ⇒ end +1. The captured effect is `1 + max(0, D − 1 − K)` for either lever, so a +3 arm needs D = 5.
+- **Rule:** a lever and its prediction must use the same unit; state bench-lever predictions in captured frames, derived from
+  the leg's settle count, or count the lever in captured frames.
+
+Related: G37, G395.
+
+## G408 — lod_popping's `worst=N` is the 1-based `ForcedLodModel`, not a LOD index (2026-09-30, 089-01)
+
+- **Source:** `AnomalyLod::GetWorstLod` returns the mesh's LOD COUNT and `SetForcedLod` writes it to
+  `UStaticMeshComponent::SetForcedLodModel` / `USkinnedMeshComponent::SetForcedLOD`, whose value is 1-based ("if >0, force to
+  (ForcedLodModel-1)"). `worst=2` on a two-LOD mesh forces LOD index 1, the last LOD, and the engine's clamp
+  (`StaticMeshRender.cpp:2322`) leaves it alone. The CURRENT-LOD line prints it beside a 0-based `level=`, which is what read as
+  "out of range". The label does not depend on it (`IsCurrentlyAnomalous() = bActive && bPoppedPhase`); the pixels do.
+- **Rule:** print a forced LOD as `forced_lod_model=N (LOD index N−1 of N)`; never mix 1-based and 0-based LOD numbers on one line.
+
+## G409 — On MainWorld the auto pool picks Nanite targets that are unmeasured by design, and only targeted stuck_low_mip legs ever overlap two mask records (2026-09-30, 089-01)
+
+- **Measured (084-09 MASK55 v2):** 172 labelled frames on the rock are all masked; 270 on `BP_SpawnPad_C`,
+  `RoomBuilderSquare_C` and `SM_Ramp2` are all `unmeasured`, each event logging `Capture(m50): UNMEASURABLE TARGET … reason=nanite`
+  (57 events = `unmeasurable_targets_admitted`), with 0 `TARGET MASK UNAVAILABLE` lines (not G295). 084-06's 586/586 ran on
+  `CB_GateLevel`, whose engine basic shapes are not Nanite. Across every banked leg, `mask_tag_peak_live` reached 2 on 11 of 15
+  targeted stuck_low_mip legs and on 0 of 5 auto-pool legs, and no leg has had peak live ≥ 2 and recycles > 0 together.
+- **Rule:** a "every labelled frame masked" gate names its map: on MainWorld it reads per measurable target, and every unmeasured
+  frame must carry an m50 reason. A concurrency (peak-live) condition needs a targeted stuck_low_mip leg, not a mixed auto pool.
+
+Related: G134, G366.
+
+## G410 — `unreal.Rotator(a, b, c)` is (roll, pitch, yaw): the LOD fixture's sun pointed UP, and the lights that make the gate level visible were never copied (2026-09-30, 089-02a)
+
+*(Number checked against every ref, local and remote: the maximum was G409 on `fix/m52-label-timing`.)*
+
+- **Measured:** `CaptureBench/tools/make_lod_fixture.py` spawned the sun with `unreal.Rotator(-40, 20, 0)`. The UE Python
+  constructor's positional order is **(roll, pitch, yaw)**, so the saved actor read back as **pitch +20, yaw 0, roll −40**
+  (084-08b's own `lodfix-scan.json`): the light travelled upward from below the shadow-casting floor, with the sky atmosphere
+  at night. The fixture had copied the gate level's sun (`make_gate_level.py`, `Rotator(-45, 35, 0)` — also pitch +35, up) but
+  **not the three 2,500 cd point lights that actually light `CB_GateLevel`**. Every packaged fixture frame was 100 % black
+  (G402), while the target mask still measured the silhouette (243,018 px): the geometry drew; no light reached it.
+- **Fixed (content only):** sun pitch −40 / yaw 20 set **by keyword** (`Rotator(roll=0, pitch=-40, yaw=20)`), read back in a
+  fresh commandlet as pitch −40; three movable, shadow-casting point lights added. The authoring tool now does the same
+  (CaptureBench `e66b461`). ⛔ `make_gate_level.py`'s sun is left as it is: `CB_GateLevel` is frozen and renders correctly
+  through its point lights.
+- **Rule:** construct UE Python rotators with keyword arguments, and read the rotation back (`get_actor_rotation().pitch`) and
+  the forward vector's sign before trusting a light. A light copied from a working level is not the level's lighting.
+
+Related: G402, G151, G99.
+
+## G411 — A commandlet scene capture that renders a known-good level black is not an instrument (2026-09-30, 089-02a)
+
+- **Measured:** `UnrealEditor-Cmd -run=pythonscript -AllowCommandletRendering` (D3D12 initialised on the RTX 3070) with a
+  `SceneCapture2D` at the PlayerStart pose: `capture_scene()` × 4, then `export_render_target` / `read_render_target_raw_uv`.
+  **Every sample was 0 — FinalColor, BaseColor and linear HDR — for `CB_LodFixture` AND for the control `CB_GateLevel`**, which
+  renders at mean luma ~105 in the packaged bench. The whole script ran in ~2 s: nothing rendered. The control is what showed it;
+  without it, a black fixture render would have "confirmed" G402 and a lit one would have been impossible to obtain.
+- **Consequence:** the fixture's not-black proof is the **first premise check on the bench** (G402's rule): median whole-frame
+  luma ≥ 20 and a non-uniform target ROI on LODP_FN / LODP_FD, before any fixture gate leg runs.
+- **Rule:** any offline render proof carries a known-good control rendered by the same pipeline in the same process; a control
+  that reads black voids the proof, it does not support it.
+
+Related: G151, G402, G96.
+
+## G412 — The bench's pinned exposure is bright: a lit grid floor is already in the tonemapper's shoulder at ~36 lux (2026-09-30, 089-02a)
+
+- **Measured on a packaged `CB_GateLevel` frame (084-09 MT85_NAT, si 5–7):** floor points along the camera's y = 0 lane, whose
+  direct illuminance from the level's three 2,500 cd point lights is computable (inverse square with UE's attenuation window),
+  read **luma 232–237 at 36–45 lux, 245–246 at 71–78 lux and 250–252 at 114–139 lux** (grey, R = G = B). The gate targets'
+  camera-facing sides, which get almost no direct light, read ~110–125 (bounce). With `r.DefaultFeature.AutoExposure 0` and
+  `r.EyeAdaptationQuality 0`, mid-grey therefore sits at only a few lux on this bench.
+- **Consequence for fixtures:** a fixture lit like the gate level's floor (the first 089-02a patch put ~43 lux on the targets)
+  would render near-white and compress exactly the intermediate levels the LOD fade reader measures. The fixture's point lights
+  were set to **400 cd** (~8 lux direct on the targets' camera-facing sides; orange ≈ 190 / blue ≈ 120 luma predicted,
+  unclipped). ⚠ A calibration from one level, not a measurement of the fixture; the premise luma check decides.
+- **Rule:** size a new fixture's light from a packaged frame of a known level on the same exposure settings, and aim targets
+  at mid-tone, not at "clearly lit".
+
+Related: G233, G410.
 
 ## G413 — A plan can name a lever for a job its code refuses (2026-09-30, 089-02b)
 
@@ -9551,3 +9692,31 @@ Related: G404, G417.
   "all oracles pass" is never a gate for one family.
 
 Related: G415, G416.
+
+## G421 — A client-facing paraphrase of a gate can outlive the gate: the readme described stuck_low_mip's legacy bench rule for two days (2026-09-30, 090-01)
+
+- **Found while writing the yield note:** the Capture pool paragraph said `stuck_low_mip` "only ever holds a texture that no
+  *other* visible object is using". That is the **legacy visible-only purity rule**, which since 084-02 (`67afa94`) survives only
+  behind the bench lever `IAI.Bench.StuckMipLegacyPurity` (non-Shipping). The shipping rule is **exactly one user component in
+  the whole loaded world** (`Anomaly_StuckLowMip.cpp`, `shared_world`, "the rule is exactly ONE"), which refuses far more
+  targets — the very property the yield note exists to explain. No gate caught it: the readme named no key that changed.
+- **Also stale by the same route, named and left for its own round:** the `HELD NONE` log line still says "shared with a
+  visible component" while it counts `shared_world` (084-11 §43).
+- **Rule:** when a gate's definition changes, grep the client readme (and the log strings) for the gate's **plain-words
+  paraphrase**, not only for its key and counter names. Source is the authority; a sentence that restates a rule is a copy of it.
+
+Related: G399, G408.
+
+## G422 — After a plugin-slot swap, UBT reports the host exe "up to date" while it is still the exe linked from the swapped-in copy (2026-09-30, 090-01)
+
+- **Measured on `_r84_host`:** a delivery-shaped exe (`D6B094DD`, 242,092,032 B, no AnomalyBench) was linked with the plugin slot
+  junctioned to a staged copy (088-01's recipe). The slot, the parked `Intermediate\Build\Win64\StackOBot\Development\Anomaly*` and
+  the worktree were then all restored, and `Build.bat StackOBot` answered **"Target is up to date" in 3.3 s, exit 0** — with the
+  staged exe still on disk. Its timestamp is newer than every restored object, and the game `Makefile.bin` was the staged build's.
+- **Fix:** move the host exe and `Intermediate\Build\Win64\StackOBot\Development\Makefile.bin` aside, then build: 2 actions (link +
+  metadata), 55 s, exe back at 242,134,016 B (`4B804F41`, the same objects as the archived `EB01156E`; G201) and the lever audit
+  PASSes 33/33 against the branch again.
+- **Rule:** after any slot swap, restore is not done until the exe's own content says so — a lever-audit `--binary` against the
+  branch, or its size/hash — never "up to date" (G164's shape, reached a new way).
+
+Related: G164, G201, G398.

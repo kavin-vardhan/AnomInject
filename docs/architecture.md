@@ -1118,7 +1118,8 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   `IAI.Label.TransitionOffFrames` frames after a labelled frame carry `transition: 1` (the latter as transition-only entries that
   set no `anomaly_present`), and hide types flag the first `IAI.Label.TransitionHideFrames` frames after the object returns.
   Pure logic: `AnomalyInjector/Public/AnomalyLabelSync.h`. **084-07:** every flagged entry names its reason in
-  `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); defaults 3/8/1. `partial`
+  `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); defaults 3/16/1 under
+  temporal AA (the off default was 8 until 090-01; `AnomalyLabelSync::DefaultOffFramesTemporal`, ruled 089-01), 0 without. `partial`
   is set, with or without temporal AA, on any m52 member frame whose render record shows the held set between baseline and the
   held level (`FAnomalyRenderTruthTexture::HeldResidentMips` carried into the watch; `AnomalyStuckMipWindow::ClassifyLevel` /
   `IsPartialHeldSet` / `FPartialEdgeTrack`). Entries carry `labelled` and `visible_positive` needs a labelled entry with a

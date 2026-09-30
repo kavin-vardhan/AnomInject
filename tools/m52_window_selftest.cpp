@@ -1127,8 +1127,13 @@ static void TestAaResolve()
 	Check(IsTemporalMethod(AaTemporal) && IsTemporalMethod(AaTsr), "aa: TAA and TSR are temporal");
 	Check(!IsTemporalMethod(AaNone) && !IsTemporalMethod(AaFxaa) && !IsTemporalMethod(AaMsaa), "aa: none/FXAA/MSAA are not");
 	Check(ResolveTransitionFrames(-1, DefaultOnFramesTemporal, true) == 3
-		&& ResolveTransitionFrames(-1, DefaultOffFramesTemporal, true) == 8
-		&& ResolveTransitionFrames(-1, DefaultHideFramesTemporal, true) == 1, "aa: -1 resolves to the ruled 3/8/1 under temporal AA (084-05b decision 2)");
+		&& ResolveTransitionFrames(-1, DefaultOffFramesTemporal, true) == 16
+		&& ResolveTransitionFrames(-1, DefaultHideFramesTemporal, true) == 1, "aa: -1 resolves to the ruled 3/16/1 under temporal AA (084-05b on/hide, 089-01 off)");
+	Check(DefaultOffFramesTemporal == 16 && ResolveTransitionFrames(-1, DefaultOffFramesTemporal, false) == 0,
+		"aa: the off default is 16 under temporal AA and still 0 without it (089-01 ruling 2)");
+	Check(ResolveTransitionFrames(8, DefaultOffFramesTemporal, true) == 8 && ResolveTransitionFrames(0, DefaultOffFramesTemporal, true) == 0
+		&& ResolveTransitionFrames(24, DefaultOffFramesTemporal, true) == 24,
+		"aa: an explicit IAI.Label.TransitionOffFrames still overrides the 16 default (8 -> 8, 0 -> 0, 24 -> 24)");
 	Check(ResolveTransitionFrames(-1, 8, false) == 0 && ResolveTransitionFrames(5, 8, false) == 0,
 		"aa: without temporal AA every value is 0, even an explicit one");
 	Check(ResolveTransitionFrames(3, 8, true) == 3 && ResolveTransitionFrames(0, 8, true) == 0

@@ -11,6 +11,98 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **090-01, 2026-09-30 — THE FINAL SOURCE ROUND ON THE FIX BRANCH: stuck_low_mip's TAA off-frames default is 16, the LOD log
+> prints `forced_lod_model=N (LOD index N-1 of M)`, and the client readme states the week's evidence per anomaly. Built and
+> checked; no game launch, no cook, no UE staging. Then merged into m53 (see m53's status block).**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-01-final-source-round.md`; archive
+>   `_binary_baselines\m52fix-EB01156E\` (exe **EB01156E** + the five editor DLLs, 6/6 re-hashed).
+> - **Source `c12b7e9`:** `AnomalyLabelSync::DefaultOffFramesTemporal` 8 → **16** (089-01 ruling 2; stuck_low_mip only — the sole
+>   `UsesRenderResidencyTruth` anomaly); On 3 / Hide 1 unchanged; 0 without temporal AA; an explicit CVar still wins (≤ 64).
+>   `m52_window_selftest` **284 / 0**, and a header with the old 8 fails exactly the two default checks; camera **154 / 0**.
+> - **Builds 0 warnings** (editor 7 actions, game 4); every Python suite green (label-rule 24, kit 32, lever 11 + PASS, G354 9,
+>   bundle 9); lever audit `--binary` PASS 33/33 vs the branch; **a delivery-shaped exe built from the staged folder passes the
+>   staged-root binary audit 32/32** (the host exe fails it only on AnomalyBench's name, G398); string scan PASS.
+> - **Readme:** new §8.7a (evidence per anomaly + the flags to drop, stuck_low_mip partial onset and 16 fade-out frames,
+>   camera_clipping unconfirmed = over-labels, lod_popping on the fixture, **Nanite = labels and boxes, no mask**); 3/16/1; the
+>   yield note corrected to the whole-world single-user rule (G421). ⛔ **Step 1 (launch) stays the owner's placeholder.**
+> - 🎯 **NEXT: 090-02, the Codex evidence review (merge prep).** ⛔ No tag, no merge to master.
+>
+> ---
+> 🧪 **089-03, 2026-09-30 — THE TARGETED RE-BENCH RAN AS FROZEN: 24 / 24 ACCEPTED ON ATTEMPT 1, EXIT 0, NO HARNESS-INVALID,
+> NO GATE CHANGED. stuck_low_mip, blinking and lod_popping read SYNC on E1 + the kit; camera_clipping AA off stays
+> UNJUDGEABLE on the as-built gate (the proposed confirmed-hold reading PASSes; chat rules).**
+> - **Cold start:** journal `docs/sessions/2026-09-30-089-03-rebench.md`; evidence `_reviews\089-03-evidence\run\report.md` /
+>   `report.json`; banks `D:\IA_BankOverflow\M52S10_*`.
+> - **stuck_low_mip:** E1 (null aligned by game time, covered on every leg) PASS B0 16 · B3 8 · B9 16 (ends +0 ×16) · MASK55A 16;
+>   KIT-GT PASS on all four, 0 UNJUDGEABLE; OffFrames 16 read back; B0L FAIL 18 (E1) / 18 (KIT-GT) and P1 purity FAIL = both
+>   can-fails proven. ⚠ **E2 086-01 FAILs 5 / 2 / 5 / 5 events there, every one with its own "scene drift" offset note —
+>   unresolved.** MASK55A: peak live 2, recycles 6, 199 / 199 masked, 0 shared frames.
+> - **blinking:** SYN and NAT PASS 10 / 10 at +0 / +0 on E1, E2 and the kit (E1-as-banked still FAILs SYN, G405).
+> - **lod_popping:** the relit fixture renders (median frame mean 131); all 8 gate legs PASS 23 / 23 at +0 / +0, N and D, AA on
+>   and off, both orders; 0 variant-D fade edges.
+> - **Part 0:** A and B PASS every check; 0 security prompts; firewall rules 16 → 16. Staged set restored to M53 (`2FCDF059`).
+> - 🎯 **NEXT: chat rules on the camera_clipping AA-off reading and the E2 drift FAILs.** ⛔ Do not re-run the bench unprompted.
+>
+> ---
+> 🛠 **089-02a, 2026-09-30 — THE 089-03 RE-BENCH IS PREPARED (dry run only; no game launch, no staging). E1 fixed for G395 /
+> G405 / G406 and frozen; the LOD fixture relit and re-cooked; the leg set with the 1,800-frame null after the m52 legs and
+> Part 0 last.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-089-02a-rebench-prep.md`; harness README `_reviews\089-03-README.md`;
+>   evidence `_reviews\089-03-evidence\` (`freeze.json`, `gateselftest.json`, the dry run, `cook\`, `lodfix\`).
+> - **E1 (`089-03-eval.py`, SHA-256 `8e48e883…`, frozen):** each fix proven both ways on the night bank — G395: doctored
+>   early/late labels read end +1 / start −1 (084-09 read −3 / +4), RD3 reads its true end +1; G405: REAL_BL_SYN PASS 10/10 at
+>   +0 (fixes off reproduce 084-09's FAIL 10); G406: B3 si 181 PASS on the game-time null, B9 PASS 16/16 at +0, B0L still FAILS;
+>   events past the null read UNJUDGEABLE (B0: 13 judged PASS, 5 past the null, leg UNJUDGEABLE-NULL-COVERAGE).
+> - **LOD fixture:** its sun pointed UP (`unreal.Rotator` is roll, pitch, yaw) and the gate level's point lights were never
+>   copied (G410): sun set to pitch −40, three 400 cd point lights (G412's calibration). New pairing
+>   **`m52fix-cook-62633720`** = exe `8A6074AA` + utoc `62633720`, globals and descriptor byte-identical; D: content changed by
+>   the one map. ⚠ Not proven offline (G411: the commandlet capture renders the control black too) — the bench's luma premise
+>   decides.
+> - 🎯 **NEXT: 089-03 (the targeted re-bench) when the PC is idle:** `C:\Python313\python.exe
+>   D:\IntrusiveAnomalies\_reviews\089-03-window.py live`.
+>
+> ---
+> 🔎 **089-01, 2026-09-30 — OFFLINE ADJUDICATION OF THE NIGHT BENCH (read-only; no source, build, cook, launch or staging).
+> No adjudicated FAIL is a real label/picture mismatch.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-089-01-adjudication.md`; the review with tables per item
+>   `_reviews\089-01-adjudication.md`; per-frame tables `_reviews\089-01-adjudication-tables.md` (from `089-01-tables.py`).
+> - **blinking SYN (E1 FAIL 10/10) = E1 artefact** (G405: a one-frame label run is scaled by its own post-label noise); the
+>   pixels, 086-01 and the kit read +0. **B9's 5 086-01 FAILs = scene drift in 086-01's own-run reference** (it is not
+>   partial-blind). **B3 si 181's 41-frame tail = E1's null 16 frames out of game-time phase** (G406) over a normal TSR decay
+>   (< 50 % of depth from +6; the textures back at baseline from the frame after the label). **B0's 12 censored offsets** = a
+>   rejected null lag (the leg started 250 frames late) + own-detrend vs the rock-sharpness cycle; with the null aligned by
+>   game time, 11 are judged and all PASS at t50. Two events lie beyond the null's 41.3 s and stay unjudgeable.
+> - **MASK55 v2's 270 unmeasured frames = m50 Nanite admission** (BP_SpawnPad_C, RoomBuilderSquare_C, SM_Ramp2; the rock is
+>   172/172 masked); not G295, not the pool lever, not a regression (084-06 ran on the non-Nanite gate level). Peak live ≥ 2
+>   has only come from targeted stuck_low_mip legs (11 of 15) (G409).
+> - **lod_popping `worst=2`** = the 1-based `ForcedLodModel` (LOD index 1 of 2), in range; the label does not depend on it
+>   (G408). **m53 arms:** the levers count engine frames and the capture skips K = 2 settle ticks, so CD3/RD3 move the
+>   picture by one captured frame; can-fail proven at +1 (G407).
+> - 🎯 **NEEDS-DECISION (chat):** accept the game-time-aligned null; stuck_low_mip TSR residue policy (t50 vs a longer off
+>   window); MASK55 route (targeted stuck + `TagPoolLimit 12`, or a bench hold lever); arm predictions in captured frames.
+>
+> ---
+> 🧪 **084-09, 2026-09-29/30 — THE LABEL-SYNC RE-BENCH ON THE FIX BUILD (`8A6074AA` + `BF06AE61`) RAN AS BUILT: 29 of 29
+> runnable legs ACCEPTED, restore on attempt 1, postflight PASS. No gate, prediction or threshold changed; no source, build
+> or cook.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-084-09-sync-rebench.md` (§1.2 the per-anomaly table, §1.3 the three
+>   instruments, §2 the yield counts); evidence `_reviews\084-09-evidence\run\`, banks `D:\IA_BankOverflow\M52S09_*`.
+> - **In sync on E1, 086-01 and the office kit alike:** missing_object, missing_texture (MT85 12/12 on both orders ⇒ the
+>   084-06 +1 was a reference confound), corrupted_texture, blinking native. camera_clipping edges exact under TAA (NAT and
+>   SYN); CCMW PASS (0 labelled-confirmed at the floor).
+> - ⚠ **Not proven:** blinking SYN (E1 FAIL 10/10, ends +1 ×5 / +14 ×5, while 086-01 and the kit read 0); stuck_low_mip
+>   (B9 E1 16/16 but 086-01 FAILs 5; B0 12 of 18 CENSORED; B3 one E1 FAIL with a 41-frame tail after the label end);
+>   lod_popping (the LOD fixture renders 100 % black in the package, G402, so no gate leg ran); MASK55 v2 INVALID (peak
+>   live 1); CC at AA off UNJUDGEABLE. Every disagreement is reported, not resolved (G395).
+> - **Part 0 (088-01 launch check):** every item PASS on both packages (token, DISABLED levers preset=0, no twins, the
+>   four-id pool, `probe EFFECTIVE=0`, B's census counts-only with `stats_unchanged=1`; MainWorld has 0 eligible m53 hosts
+>   at 128 MiB). Its firewall prompts cost B0 four attempts (G401).
+> - **Part 1b yield reading:** 20 / 24 / 22 stuck_low_mip attempts → 6 / 5 / 5 holds, all on one rock; HELD NONE mostly
+>   shared-visible and not-streamable textures; shared_world 77 / 88 / 93; not_restored, baseline_pending, contamination 0.
+> - The bank root was redirected to `D:\IA_BankOverflow` by an optional `IAI_BANK_OVERRIDE` in both harness `common.py`
+>   files (E: was 5.7 GB above its 50 GB floor): a path change, declared, nothing deleted.
+>
+> ---
 > 🧪 **089-04 / 089-04b, 2026-09-30 — THE m53 RE-BENCH RAN ON DC2 (`6B671987` + `45E2FA86`): 47/47 launches accepted, 10
 > NOT-RUN-PREMISE as predicted, lock `a7f542d` before any gate leg, restore on attempt 1, postflight PASS. 089-04b re-read it
 > offline (nothing launched).**
