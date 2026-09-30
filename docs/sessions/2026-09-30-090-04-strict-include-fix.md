@@ -108,3 +108,44 @@ the box is not ticked on a misread. Gotchas **G424** (the shared PCH hides missi
 
 **Not done / limits:** no Shipping-configuration strict build (a Shipping Game target on a scratch host is a full engine build;
 the plugin's Shipping paths are `#if`-reduced, not include-reduced); the second office host's exact build mode is not observed.
+
+## 7. The merge into m53 (`a74bf7f` source, `1449d9e` docs; both no-ff)
+
+- `a74bf7f`: the fix commit `01d34d3` merged into `da902d6` with **no conflict**; the merge's diff against `da902d6` is exactly the
+  four include lines, the tool and the checklist box (381 insertions, nothing else).
+- `1449d9e`: the fix branch's docs commit `37e01f0`; conflicts only in `CLAUDE.md` (m53's status block kept; this commit adds the
+  entries) and `gotchas.md` (G424–G425 appended after m53's G423). No `Source/` or `tools/` change against `a74bf7f`.
+
+## 8. m53 strict build (`_r53_host` detached at `a74bf7f`, run 4)
+
+| target | result |
+| --- | --- |
+| Game | exit 6, 127 actions, 1,096 s — **3 unique errors, the §3 residual only** |
+| Editor | exit 6, 136 actions, 2,522 s (one compile at a time, RAM-capped) — **the same 3** |
+
+Lever check (Game): per-file no-PCH responses AnomalyBench 1 · AnomalyCapture 40 · AnomalyControlServer 8 · AnomalyInjector 63 ·
+AnomalyShaders 5; header TUs **61 / 61**; no problems. **m53's own files needed no include**: every m53-only `.cpp` and header
+(texture corruption, exclusion, active source, UV/normal) compiled on its own without the PCH. Restore: all five `Build.cs`
+byte-identical, `git status` unchanged. So on m53, as on the fix branch, the strict build is 0 errors except the three `.gen.cpp`
+C4150 that §3 holds for a ruling.
+
+## 9. m53 normal build and checks (source `a74bf7f` = `1449d9e`)
+
+- **Editor 15 actions / 142 s, Game 6 actions / 135 s, both exit 0, 0 warnings.** Exe `1A99DDDA` → **`45FD344C`** (242,454,528 B,
+  same size); DLLs AnomalyBench `B80E3DCF`→`BC11837D`, AnomalyCapture `D2885748`→`7D0C33A1`, AnomalyControlServer
+  `C04783CE`→`30980D2C`, AnomalyInjector `853D316C`→`BEA7A989`, AnomalyShaders `105F122A`→`1B549457`.
+- **String scan: 0 differing strings, ASCII and UTF-16, on the exe and all five DLLs** (the "before" set copied from the host before
+  any build and hash-checked; the same instrument reads 15,269 on the fix exe vs the m53 exe, so 0 is a reading).
+- **Lever audit `--binary`** exe and the five DLLs vs the branch: **PASS 46 / 46**. C++ suite: base **6 / 6** pass (texcorrupt 251,
+  draw 978, exclusion 243, active source 47, m52 window 284, camera 154 checks, 0 failures) and **23 / 23 mutants fail**. Python
+  suites **18 / 18 OK** (incl. exclusion gate, stuck-mip destructor, m53 glue, census read-only). Comment stripper 0 changed / 150.
+- **Archive:** `_binary_baselines\m53-09004-45FD344C\` (exe + the five DLLs, 6 / 6 re-hashed; logs, string scan, lever, suites).
+
+## 10. State at the end
+
+- `fix/m52-label-timing` **`37e01f0`** (`01d34d3` + docs), `feat/m53-uv-normal-corruption` at the commit carrying this section, both pushed.
+  **The office hosts pull the tip of `feat/m53-uv-normal-corruption`** (a host on the fix branch: `37e01f0`).
+- `_r84_host` on the branch at `37e01f0`, warm, normal binaries (`76428F44`); `_r53_host` detached at `a74bf7f`, warm, normal
+  binaries (`45FD344C`). No temporary junctions. `m51`, `master`, tags untouched.
+- **NEEDS-DECISION:** the 3-line `FVTableHelper` constructor for `UAnomalyCaptureSubsystem` (§3, G425) — the only thing between the
+  plugin and a 0-error strict build on both branches.

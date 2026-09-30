@@ -11,6 +11,37 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔀 **090-04 (m53 half), 2026-09-30 — THE STRICT-INCLUDE FIX IS MERGED INTO m53 (`a74bf7f` source, `1449d9e` docs) AND m53
+> NEEDS NOTHING MORE: its own files are include-complete; the only strict error is the fix branch's held residual. Both targets built
+> with 0 warnings, every suite green, archived. No game launch, no cook, no staging; no tag, no merge to master.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-04-strict-include-fix.md` §7–§10 (§0–§6 are the fix-branch half);
+>   archive `_binary_baselines\m53-09004-45FD344C\` (exe **45FD344C** + the five editor DLLs, 6/6 re-hashed).
+> - **Strict build (61 header TUs):** Game (127 actions) and Editor (136) read exactly the 3 × C4150 in
+>   `AnomalyCaptureSubsystem.gen.cpp` (held, journal §3, G425) and nothing else; lever check clean; `Build.cs` restored
+>   byte-identical.
+> - **Normal builds 0 warnings;** string scan 0 differing strings (exe and DLLs) vs `1A99DDDA`; lever audit `--binary` PASS 46/46;
+>   C++ base 6/6 with 23/23 mutants failing; Python suites 18/18.
+> - 🎯 **The office hosts pull this branch's tip.** NEXT: chat rules on the 3-line `FVTableHelper` constructor; then 090-05.
+>   ⛔ No tag, no merge to master.
+>
+> ---
+> 🛠 **090-04, 2026-09-30 — THE SECOND OFFICE HOST'S COMPILE FAILURE IS FIXED BY FOUR INCLUDES, PROVEN BY A STRICT-INCLUDE BUILD
+> THAT FIRST REPRODUCED IT. ONE NON-INCLUDE RESIDUAL (3 × C4150 IN `AnomalyCaptureSubsystem.gen.cpp`) IS HELD FOR A RULING.
+> Includes only; no game launch, no cook, no staging. Then merged into m53 (see m53's status block).**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-04-strict-include-fix.md`; archive
+>   `_binary_baselines\m52fix-09004-76428F44\` (exe **76428F44** + the five editor DLLs, 6/6 re-hashed).
+> - **Source `01d34d3`:** + `Engine/EngineBaseTypes.h` in `AnomalyInjectorSubsystem.h` (`ELevelTick`, the office root error) ·
+>   + `Materials/Material.h` in `AnomalyCaptureSubsystem.cpp` (`UMaterial`) · + `UObject/WeakObjectPtr.h` in `IAnomaly.h` ·
+>   + `IWebSocketServer.h` in `AnomalyControlServerSubsystem.h`. Nothing else changed in `Source/`.
+> - **`tools/strict_include_build.py`:** per plugin module no unity, no PCH, latest include order, plus one TU per header; proves
+>   from the response files that the settings took effect; restores every `Build.cs` byte-for-byte. On the unfixed `0347e8c` it
+>   reproduced the office error set exactly (12 unique errors, Game and Editor); with the fix: **3** (the residual); with the held
+>   `FVTableHelper`-constructor experiment: **0** (G424, G425). PRE-DELIVERY-CHECKLIST §1 has the box.
+> - **Normal builds 0 warnings;** UTF-16 literal sets identical before/after; lever audit `--binary` PASS 33/33; selftests 284/0 and
+>   154/0; Python suites green.
+> - 🎯 **NEXT: chat rules on the 3-line `FVTableHelper` constructor (journal §3); 090-05 follows.** ⛔ No tag, no merge to master.
+>
+> ---
 > 🔀 **090-01 (m53 half), 2026-09-30 — THE FIX BRANCH'S FINAL SOURCE ROUND IS MERGED INTO m53 (`3ca5dcb`), m53's own test
 > follows the new default (`d57246c`), and §8.8 is filled to the evidence. Both targets built with 0 warnings, every suite
 > green, archived. No game launch, no cook, no UE staging; no tag, no merge to master.**
