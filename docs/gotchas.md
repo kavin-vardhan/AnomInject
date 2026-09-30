@@ -9456,3 +9456,72 @@ Related: G96, G377.
   answer), and the report states which evaluator branches the dry run reached.
 
 Related: G96, G392.
+
+(G405–G412 live on `fix/m52-label-timing`; the numbers below were taken after the max over all 31 refs, G412.)
+
+## G413 — A plan can name a lever for a job its code refuses (2026-09-30, 089-02b)
+
+- **Measured:** two rulings asked for MainWorld hosts eligible at 128 MiB "framed by the bench placement lever (L2)".
+  `IAI.Bench.PlaceView` refuses every map but CB_GateLevel and L_ShooterGym and needs `-IAIBenchFixture`
+  (`AnomalyBenchModule.cpp:105-114`), and its pose is a fixed constant per map (:475-476). No MainWorld actor can be
+  framed without a source change, so the 26 uv / 9 normal whole-world hosts are unreachable on the build under test.
+- **Rule:** before planning legs on a lever, read its refusal path and where its target comes from. The 089-04 harness
+  reads L2's capability from the build's source at preflight and refuses when it changes.
+
+Related: G377, G394.
+
+## G414 — A spawned StaticMeshActor can keep a component override that a mesh swap does not clear (2026-09-30, 089-02b)
+
+- **Measured:** the fixture tile TC_Mixed was spawned with `override=False` and then given a two-slot mesh. Its component
+  kept `OverrideMaterials = [BasicShapeMaterial]`, so slot 0 resolved to a textureless engine material and every
+  MIXED decision refused `no_textures`. The mesh's own static materials were right, and the fixture's read-back checked
+  only those. Every other DC tile carried the same override until `set_material` replaced it. The engine's basic-shape
+  factory sets exactly this override (`ActorFactory.cpp:664`); whether `spawn_actor_from_class` takes that path was not
+  established.
+- **Rule:** a fixture read-back lists each component's override array and each slot's RESOLVED material
+  (`get_material(i)`), not only the mesh's slots. The product's own decision lines (`raw=… resolved=…`) show it too.
+
+Related: G310, G49.
+
+## G415 — The filmic tonemapper mixes channels, so a per-channel colour model misplaces cells (2026-09-30, 089-02b)
+
+- **Measured:** on the mode-oracle tiles (unlit, 8-bit, 1:1, AA off) the texel red 100 displays as 67, 79, 79 or 108
+  depending on the other two channels. uv16's cell 13 (100,220,220) displays (108,197,196) against a predicted
+  (83,199,192), so it was "not found" while fully on screen. Vignette, the ±1 dither and a bloom halo add an interior
+  spread of 4 against a limit of 2, and a linear normal readout is compressed into 13.5 levels between cells.
+- **Rule:** a leg whose reader locates colours sets `ShowFlag.Tonemapper 0` (gamma-only display) and reads the flag back
+  from its echo; a readout that must display its bytes is linearised (`pow(x, 2.2)`).
+
+Related: G233, G411.
+
+## G416 — Moving a recipe setting from a shared base to per-leg levers drops it silently where nobody re-added it (2026-09-30, 089-02b)
+
+- **Measured:** S1 set the AA-off arbiter in its BASE for every leg. The DC harness made it a per-leg lever; the four BIND
+  legs never got it, ran with TSR and Lumen on, and the uniform-half test read a range of 17 against 16. The gate called
+  it INVALID-FIXTURE, blaming the fixture.
+- **Rule:** a leg's declared recipe is read back from its own echo as a validity condition (the arbiter's four cvars at
+  0, each declared show flag, the declared cap). A recipe miss is INVALID-RECIPE, never a fixture verdict.
+
+Related: G184, G119.
+
+## G417 — A classifier fed a type it did not expect can report "never" forever (2026-09-30, 089-02b)
+
+- **Measured:** 085-04's arm classifier tested E1's t50 histogram with `dict.get`, but E1 returns the histogram as a
+  string (`'{+1:7}'`). `has()` was always false, so no arm could be reported proven, even one that moved exactly as
+  declared. The night read "+1, not +3", which hid it.
+- **Rule:** prove a classifier on the real evaluator's output (a banked leg), both ways, not on dicts written for the test.
+
+Related: G404, G403.
+
+## G418 — The environment can refuse one file name everywhere; a cook then fails at staging after its pak step (2026-09-30, 089-02b)
+
+- **Measured:** from about 03:00 on 30 Sep, creating any file named `dbghelp.dll` failed with "access denied" on E: and D:
+  alike, in fresh directories. Any other name copied, and no visible process held the file. Defender real-time
+  protection had been turned off at 03:03 after a configuration change at 02:59. BuildCookRun cooked and paked (exit 0),
+  then failed copying the engine's `dbghelp.dll` into staging, three times.
+- **Rule:** probe the exact name in a fresh directory next to another name before suspecting the tree or killing
+  anything. A container from such a run is usable only if the pak / IoStore step exited 0 and the map gate and the
+  container diff both hold. Never change security settings to get past it; report it (a delivery BuildCookRun will stop
+  on the same file).
+
+Related: G201, G371.

@@ -11,6 +11,21 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **089-02b, 2026-09-30 — THE m53 RE-BENCH IS PREPARED, NOT RUN: harness `_reviews\089-04-*` frozen, selftest 68/68,
+> dry run exit 0 (44/44 stubbed launches accepted). New pairing DC2 = exe `6B671987` + utoc `45E2FA86`
+> (`_binary_baselines\m53dc2-cook-45E2FA86`), the fixture fixed and re-cooked. Nothing launched the game.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-089-02b-m53-rebench-prep.md`, then `_reviews\089-04-README.md`.
+> - 🚨 **L2 cannot frame MainWorld** (`AnomalyBenchModule.cpp:105-114`, fixed pose :475-476), so the whole-world 128 MiB hosts
+>   are unreachable: uv runs on SM_Ramp2 / RoomBuilderSquare under the declared 256 MiB raise; **normal has no MainWorld host.**
+> - **Causes found:** P-ORC = the filmic tonemapper mixing channels (fix: show flags + reader + linear readout); G-BIND = the
+>   AA-off arbiter dropped from the BIND legs (a recipe miss, not the fixture); MIXED = slot 0's component override
+>   `BasicShapeMaterial`, not the colour slot; G403 fixed; G-LEVER-OFF / G-CENSUS re-expressed; CD5 / RD5 added (+3), CD3 /
+>   RD3 +1; 085-04's arm classifier could never say "proven".
+> - 🚨 **The environment refuses any file named `dbghelp.dll` since ~03:00 (G418):** the cook's staging failed after its
+>   pak step; a delivery BuildCookRun will stop there too.
+> - **Next:** the 089-04 re-bench when the PC is idle (`089-04-window.py night --commit`), after chat rules on the NEEDS-DECISION
+>   items in the journal §7.
+>
 > 🧪 **085-04, 2026-09-29 — THE m53 DELIVERY-CUT NIGHT RAN ON THE DC BUILD (`6B671987` + `F76F1119`): 65 of 65 attempts
 > ACCEPTED, lock committed before any gate leg (`ca14678`), restore on attempt 1, postflight PASS. Every B-M53 FIXTURE cell
 > PASSES; NO m53 LEG RAN ON MAINWORLD.**
