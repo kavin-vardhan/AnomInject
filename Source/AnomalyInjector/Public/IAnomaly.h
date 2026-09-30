@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+#include "UObject/WeakObjectPtr.h"
 #include "AnomalyTelemetry.h"
 
 class AActor;

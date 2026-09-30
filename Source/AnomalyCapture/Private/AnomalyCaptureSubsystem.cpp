@@ -68,6 +68,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/Material.h"
 #include "MaterialShared.h"
 #include "Engine/PostProcessVolume.h"
 #include "Camera/PlayerCameraManager.h"

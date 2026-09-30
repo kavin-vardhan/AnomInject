@@ -548,6 +548,21 @@ it **cannot start** (`Missing global shader … permutation 0`). The shader-pres
       as a link failure inside the cook window.* **Measured instance: `LogAnomaly` was unexported from
       `m38` through `m43` — five milestones, every bench gate green, and the next cook would have
       failed at link.** → `G221`, journal 069 §5.
+
+- [ ] 🚨 🆕 **STRICT-INCLUDE BUILD: 0 ERRORS, GAME AND EDITOR, BEFORE DELIVERY (090-04).**
+      `python tools/strict_include_build.py --uproject <host>\StackOBot.uproject` — exit 0 = PASS.
+      *It builds every plugin module with no unity, no PCH and the latest include order, plus one
+      translation unit per plugin header, checks from the compile response files that those settings
+      really took effect, restores every `Build.cs` byte-for-byte (hash-checked) and rebuilds normally.
+      Our normal builds compile the plugin in unity files against the engine's shared PCH, which
+      already includes `Engine/EngineBaseTypes.h`, `Materials/Material.h` and hundreds more, so a
+      missing `#include` never shows here. A host that compiles plugin files on their own fails at
+      once.* **Measured instance: the second office host could not compile `da902d6` (`ELevelTick`
+      and `UMaterial` undefined, exit 6) while this box and the first office host compiled it clean.**
+      ⚠ **Until chat rules on the one non-include residual (journal 090-04 §3), the tool reads exactly
+      three `C4150` in `AnomalyCaptureSubsystem.gen.cpp` and exits 1. Those three are known; ANY
+      other error is a STOP.**
+      → `G424`, `G425`, journal 090-04.
 ## 2. Dashboard bundle + its token file (🆕 084-10 — READ THIS BEFORE THE OLD §2/§3 BELOW)
 
 The bundle has been the **browser** layout since m27, assembled by AnomDash `host-tools\make_delivery.py`
