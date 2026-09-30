@@ -11,6 +11,24 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **090-05, 2026-09-30 — F1 (A FIREWINDOW LABEL ENDS WHEN THE EFFECT ENDS), THE NANITE SKIP (DEFAULT: SKIP), THE README
+> CORRECTIONS AND THE FVTableHelper CONSTRUCTOR. Built and gated; no game launch, no cook, no staging. Then merged into m53
+> (`2d5a5ea`, see m53's status block).**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-05-f1-nanite-readme.md`; archive
+>   `_binary_baselines\m52fix-09005-129E8E53\` (exe **129E8E53** + the five editor DLLs, 6/6 re-hashed).
+> - **Source `8d78bfc`:** FireWindow membership = on screen **and the effect installed** (`IsVisualConditionHeld`, sampled with
+>   the activity bit); otherwise a transition-only entry `effect_interrupted` (G426). `IAI.Targets.AllowNanite` (default 0):
+>   a target drawing any Nanite part is refused `nanite_unmaskable` in the auto-pool (before the target draw), targeted fire
+>   and `ApplyAnomaly`; `run_summary.refused_nanite` (G429). `UAnomalyCaptureSubsystem(FVTableHelper&)`. Bench lever
+>   `IAI.Bench.RawRevertAt <si>`.
+> - **Strict-include build 0 / 0 errors (was 3 / 3), VERDICT PASS on `8d78bfc`**; normal 0 warnings; lever audit 34/34;
+>   selftests m52 296/0, target policy 25/0, camera 154/0, five header mutants fail; Python 11/11 (label-rule 27).
+> - ⚠ **Shipping-only code read: 132 of 140 branches OK, 8 RISK** — the Shipping TU of `AnomalyCaptureSubsystem.cpp` would not
+>   compile (pre-existing, both branches); nothing compiles Shipping because delivery is Development/Test (G428,
+>   `_reviews\090-05-shipping-code-read.md`). **NEEDS-DECISION.**
+> - 🎯 **NEXT: tonight's 090-06 smoke (idle-gated), then Thursday's office test on the m53 head.** ⛔ No tag, no merge to master.
+>
+> ---
 > 🛠 **090-04, 2026-09-30 — THE SECOND OFFICE HOST'S COMPILE FAILURE IS FIXED BY FOUR INCLUDES, PROVEN BY A STRICT-INCLUDE BUILD
 > THAT FIRST REPRODUCED IT. ONE NON-INCLUDE RESIDUAL (3 × C4150 IN `AnomalyCaptureSubsystem.gen.cpp`) IS HELD FOR A RULING.
 > Includes only; no game launch, no cook, no staging. Then merged into m53 (see m53's status block).**

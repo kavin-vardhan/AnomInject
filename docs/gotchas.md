@@ -8836,3 +8836,59 @@ Related: G47, G221, G309, G425.
   destructor, or the strict build fails.
 
 Related: G424.
+
+## G426 — "On screen" is not "in the picture" for an effect the host can take away: a FireWindow label must also require the effect to be installed on the frame (2026-09-30, 090-05)
+
+- **Found by review (Codex F1), not by a bench:** FireWindow membership was `bOnScreen` alone. A raw `IAI.Revert`, a host
+  material swap (damage flash, material LOD, a script re-taking its own materials) or a target teardown ends the effect,
+  but the auto live-fire entry stays until its scheduled end, so frames showing a clean object stayed labelled. Codex's
+  counterexample was already in our own exclusion selftest: apply 10, raw revert 20, scheduled end 40, labelled 10..39.
+- **The rule now:** membership is `bOnScreen && bInstalled`, where `bInstalled` is the anomaly's own
+  `IsVisualConditionHeld` (our checker/pink material, or m53's MID with its RT bindings, still on every targeted slot),
+  sampled at the same `OnWorldTickEnd` point as the activity bit. `IsFireLabelledThisFrame` follows it, so masks and `m26`
+  arms stop on the same frames (the m44 rule: masks only on labelled frames). A frame without it is a transition-only entry
+  with `transition_reason: effect_interrupted` and is not in `annotation.json`.
+- **Consequences to expect:** `frames_condition_lost` now stays 0 for the texture types (a labelled frame is by definition
+  an installed one) and the count moves to `label_transition_effect_interrupted_entries`; m53's bench CommitDelay lever no
+  longer produces a misaligned onset (its pre-commit frames are now `effect_interrupted`), so it is no longer a can-fail
+  lever for the evaluator. The restore-delay lever still fails as before, because F1 can only END a label early.
+- **Rule:** a label predicate for an effect that someone else can remove must read the effect, not the bookkeeping that
+  scheduled it.
+
+## G427 — A strict-build tool's "git status unchanged" restore check is also a check on the operator: editing the tree while it runs reads as RESTORE FAILED (2026-09-30, 090-05)
+
+- **Measured:** the first 090-05 strict run read 0 errors on both targets and then `RESTORE FAILED: Build.cs hashes
+  identical, generated dirs removed True, git status unchanged False` — because I edited `PRE-DELIVERY-CHECKLIST.md` in the
+  same worktree while it ran. The Build.cs restore itself was byte-exact.
+- **Rule:** commit first, run the strict tool on a clean tree, and do not touch that worktree until it prints its verdict;
+  the second run on the committed HEAD read `RESTORE OK` and `VERDICT PASS`. Work in another worktree meanwhile.
+
+## G428 — Nothing compiles the plugin's Shipping configuration, and the Shipping translation unit of AnomalyCaptureSubsystem.cpp would not compile (2026-09-30, 090-05; code read, not a build)
+
+- **The premise that failed:** "the final delivery package (a normal Shipping build) is the Shipping compile gate". The
+  delivery package is **Development or Test** by rule (PRE-DELIVERY-CHECKLIST §4: capture and the control server are compiled
+  out of Shipping), so no build in this project's life cycle compiles Shipping.
+- **What the read found (both branches, pre-existing):** with `ANOMALY_CAPTURE=0` the file keeps about fourteen member
+  functions outside any `#if ANOMALY_CAPTURE` (for example `EnqueueTargetMaskPng`, `ArmTargetMaskOwn`,
+  `ServiceTargetMask`, `StepBenchObservabilityLevers`) that use `Async->Writer`, `FAnomalyAsyncWriter`, `AnomalyStencilTag::`
+  and other names declared only inside the guarded include block or the guarded `FAnomalyCaptureAsyncState` body; the
+  destructor deletes `TUniquePtr<FAnomalyPreviewTee>` / `<FAnomalyRunLog>` whose types are complete only inside the guard
+  (C4150 is an error); and those bodies call members defined only inside the large guarded block (unresolved externals).
+- **Why it matters although delivery is Development:** a client who packages their own game in Shipping with the plugin
+  still enabled would hit a compile error in our module. Not fixed in 090-05 (the fix cannot be verified without a Shipping
+  compile); proposed: wrap those bodies in `#if ANOMALY_CAPTURE` as their siblings are, and include `AnomalyRunLog.h`
+  unconditionally.
+- **Rule:** a configuration no gate compiles is an untested configuration; say which build is the gate before relying on it.
+
+## G429 — `UStaticMeshComponent::ShouldCreateNaniteProxy()` is protected; keep the Nanite predicate in the capture module and hand it to the injector as a probe (2026-09-30, 090-05)
+
+- **Measured:** calling it from `AnomalyInjector` fails with C2248 (protected member). Re-implementing it needs
+  `UseNanite(EShaderPlatform)` from RenderCore, a dependency `AnomalyInjector` has never had (G127).
+- **What shipped:** the capture module registers its existing `AnomalyMeasurability::ComponentRendersAsNanite` (the very
+  predicate behind the unmeasured contract) with `AnomalyViewport::SetNaniteComponentProbe` at module startup and clears it at
+  shutdown; `AnomalyViewport::ActorDrawsAnyNanite` asks the probe. The refusal set is therefore exactly "drew a part the mask
+  cannot see", and in Shipping (capture compiled out, no probe) nothing is refused and nothing is labelled.
+- **Rule:** when a lower module needs a render-side fact, invert it — the higher module registers the predicate (the census
+  provider pattern) — rather than growing the lower module's dependencies or reaching around access control.
+
+Related: G127, G134.
