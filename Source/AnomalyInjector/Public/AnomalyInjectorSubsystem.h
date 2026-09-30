@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
+#include "Engine/EngineBaseTypes.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "IAnomaly.h"
 #include "AnomalyCatalogTypes.h"

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "IWebSocketServer.h"
 #include "AnomalyControlServerSubsystem.generated.h"
 
 class IWebSocketServer;
