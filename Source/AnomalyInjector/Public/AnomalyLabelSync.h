@@ -19,7 +19,8 @@ namespace AnomalyLabelSync
 	static constexpr unsigned char ReasonPartial = 4;
 	static constexpr unsigned char ReasonCameraUnconfirmed = 8;
 	static constexpr unsigned char ReasonUnresolved = 16;
-	static constexpr int NumReasons = 5;
+	static constexpr unsigned char ReasonEffectInterrupted = 32;
+	static constexpr int NumReasons = 6;
 
 	inline const char* DescribeReasonBit(int Bit)
 	{
@@ -30,6 +31,7 @@ namespace AnomalyLabelSync
 		case 2: return "partial";
 		case 3: return "camera_clipping_unconfirmed";
 		case 4: return "unresolved";
+		case 5: return "effect_interrupted";
 		default: return "unknown";
 		}
 	}
@@ -37,7 +39,7 @@ namespace AnomalyLabelSync
 	inline unsigned char ReasonsOrLegacy(unsigned char Value)
 	{
 		return (Value != 0 && (Value & (ReasonTemporal | ReasonHideReturn | ReasonPartial | ReasonCameraUnconfirmed
-			| ReasonUnresolved)) == 0)
+			| ReasonUnresolved | ReasonEffectInterrupted)) == 0)
 			? ReasonTemporal : Value;
 	}
 
@@ -60,14 +62,28 @@ namespace AnomalyLabelSync
 		}
 	}
 
-	inline bool IsAnnotationMember(EAnnotationPolicy Policy, bool bActive, bool bOnScreen)
+	inline bool IsAnnotationMember(EAnnotationPolicy Policy, bool bActive, bool bOnScreen, bool bInstalled)
 	{
-		return Policy == EAnnotationPolicy::FireWindow ? bOnScreen : bActive;
+		return Policy == EAnnotationPolicy::FireWindow ? (bOnScreen && bInstalled) : bActive;
 	}
 
-	inline bool IsEntryLabelled(bool bNormalEmit, EAnnotationPolicy Policy, bool bActive, bool bOnScreen)
+	inline bool IsEntryLabelled(bool bNormalEmit, EAnnotationPolicy Policy, bool bActive, bool bOnScreen, bool bInstalled)
 	{
-		return bNormalEmit && IsAnnotationMember(Policy, bActive, bOnScreen);
+		return bNormalEmit && IsAnnotationMember(Policy, bActive, bOnScreen, bInstalled);
+	}
+
+	inline bool IsEffectInterrupted(EAnnotationPolicy Policy, bool bInstalled)
+	{
+		return Policy == EAnnotationPolicy::FireWindow && !bInstalled;
+	}
+
+	inline EEntryEmit DecideInterruptedEntry(EEntryEmit Current, EAnnotationPolicy Policy, bool bInstalled)
+	{
+		if (!IsEffectInterrupted(Policy, bInstalled) || Current == EEntryEmit::Suppress)
+		{
+			return Current;
+		}
+		return EEntryEmit::TransitionOnly;
 	}
 
 	static constexpr int AaNone = 0;

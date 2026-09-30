@@ -1713,8 +1713,8 @@ static void TestAnnotationMembership()
 		for (int si = 0; si < (int)C.Frames.size(); ++si)
 		{
 			const FFrame& F = C.Frames[si];
-			if (IsAnnotationMember(C.Policy, F.bActive, F.bOnScreen)) { List.insert(si); }
-			if (IsEntryLabelled(true, C.Policy, F.bActive, F.bOnScreen)) { Labelled.insert(si); }
+			if (IsAnnotationMember(C.Policy, F.bActive, F.bOnScreen, true)) { List.insert(si); }
+			if (IsEntryLabelled(true, C.Policy, F.bActive, F.bOnScreen, true)) { Labelled.insert(si); }
 			if (F.bActive) { BrokenActivity.insert(si); }
 			if (F.bLive) { BrokenLive.insert(si); }
 			if (F.bGameThreadState) { BrokenGameThread.insert(si); }
@@ -1739,10 +1739,96 @@ static void TestAnnotationMembership()
 			Check(BrokenActivity == List, std::string("N1 ") + DescribeAnnotationPolicy(C.Policy) + ": here the activity bit IS the authority");
 		}
 	}
-	Check(!IsEntryLabelled(false, EAnnotationPolicy::RenderHeldWindow, true, true),
+	Check(!IsEntryLabelled(false, EAnnotationPolicy::RenderHeldWindow, true, true, true),
 		"N1: a transition-only or suppressed entry is never labelled, whatever its inputs");
-	Check(IsEntryLabelled(true, EAnnotationPolicy::FireWindow, false, true) && !IsEntryLabelled(true, EAnnotationPolicy::FireWindow, true, false),
-		"N1 fire_window: on-screen decides, the hidden bit is ignored");
+	Check(IsEntryLabelled(true, EAnnotationPolicy::FireWindow, false, true, true)
+		&& !IsEntryLabelled(true, EAnnotationPolicy::FireWindow, true, false, true),
+		"N1 fire_window: with the effect installed, on-screen decides and the hidden bit is ignored");
+}
+
+static void TestF1EffectInstalled()
+{
+	using namespace AnomalyLabelSync;
+	struct FRun
+	{
+		std::vector<int> Labelled;
+		std::vector<int> Listed;
+		std::vector<int> Interrupted;
+		std::vector<int> OldRuleLabelled;
+	};
+	auto Run = [](int Apply, int End, const std::vector<bool>& InstalledFrom10, bool bOnScreen)
+	{
+		FRun R;
+		for (int si = Apply; si < End; ++si)
+		{
+			const size_t k = (size_t)(si - Apply);
+			const bool bInstalled = k < InstalledFrom10.size() ? InstalledFrom10[k] : false;
+			const EEntryEmit Emit = DecideInterruptedEntry(EEntryEmit::Normal, EAnnotationPolicy::FireWindow, bInstalled);
+			if (IsEntryLabelled(Emit == EEntryEmit::Normal, EAnnotationPolicy::FireWindow, false, bOnScreen, bInstalled))
+			{
+				R.Labelled.push_back(si);
+			}
+			if (IsAnnotationMember(EAnnotationPolicy::FireWindow, false, bOnScreen, bInstalled))
+			{
+				R.Listed.push_back(si);
+			}
+			if (Emit == EEntryEmit::TransitionOnly && IsEffectInterrupted(EAnnotationPolicy::FireWindow, bInstalled))
+			{
+				R.Interrupted.push_back(si);
+			}
+			if (IsAnnotationMember(EAnnotationPolicy::FireWindow, false, bOnScreen, true))
+			{
+				R.OldRuleLabelled.push_back(si);
+			}
+		}
+		return R;
+	};
+	auto Range = [](int A, int B)
+	{
+		std::vector<int> V;
+		for (int i = A; i <= B; ++i) { V.push_back(i); }
+		return V;
+	};
+
+	std::vector<bool> RawRevert(30, false);
+	for (int k = 0; k < 10; ++k) { RawRevert[(size_t)k] = true; }
+	const FRun Codex = Run(10, 40, RawRevert, true);
+	Check(Codex.Labelled == Range(10, 19), "F1 Codex case: apply at 10, raw revert at 20, scheduled end at 40 - labelled 10..19 only, got "
+		+ Str(Codex.Labelled));
+	Check(Codex.Listed == Codex.Labelled, "F1 Codex case: annotation.json lists exactly the labelled frames");
+	Check(Codex.Interrupted == Range(20, 39),
+		"F1 Codex case: 20..39 are written transition-only with transition_reason effect_interrupted, got " + Str(Codex.Interrupted));
+	Check(Codex.OldRuleLabelled == Range(10, 39) && Codex.OldRuleLabelled != Codex.Labelled,
+		"F1 BOTH WAYS: the pre-090-05 rule (on screen only) labels 10..39 - a clean picture after the revert - and must disagree");
+
+	std::vector<bool> HostSwap(15, true);
+	for (int k = 5; k < 8; ++k) { HostSwap[(size_t)k] = false; }
+	const FRun Host = Run(10, 25, HostSwap, true);
+	std::vector<int> Want = Range(10, 14);
+	for (int i = 18; i <= 24; ++i) { Want.push_back(i); }
+	Check(Host.Labelled == Want, "F1 host replaces the material at 15, our effect re-installed at 18: labelled 10..14 and 18..24, got "
+		+ Str(Host.Labelled));
+	Check(Host.Interrupted == Range(15, 17), "F1 host replacement: 15..17 unlabelled and flagged effect_interrupted, got "
+		+ Str(Host.Interrupted));
+
+	const FRun Off = Run(10, 20, std::vector<bool>(10, true), false);
+	Check(Off.Labelled.empty() && Off.Interrupted.empty(),
+		"F1: an installed effect whose box is off screen is unlabelled and NOT flagged interrupted (the pre-existing rule)");
+
+	Check(IsAnnotationMember(EAnnotationPolicy::ActorHidden, true, true, false)
+		&& IsAnnotationMember(EAnnotationPolicy::AnomalyState, true, true, false)
+		&& IsAnnotationMember(EAnnotationPolicy::RenderHeldWindow, true, true, false),
+		"F1 scope: the installed bit is read only for fire_window; the other policies keep their own authority");
+	Check(DecideInterruptedEntry(EEntryEmit::Normal, EAnnotationPolicy::ActorHidden, false) == EEntryEmit::Normal,
+		"F1 scope: a hide-class entry is never marked effect_interrupted");
+	Check(DecideInterruptedEntry(EEntryEmit::Suppress, EAnnotationPolicy::FireWindow, false) == EEntryEmit::Suppress,
+		"F1: a suppressed entry stays suppressed");
+	Check(DecideInterruptedEntry(EEntryEmit::Normal, EAnnotationPolicy::FireWindow, true) == EEntryEmit::Normal,
+		"F1: an installed fire_window entry is untouched");
+	Check(std::string(DescribeReasonBit(5)) == "effect_interrupted" && ReasonEffectInterrupted == 32
+		&& ReasonsOrLegacy(ReasonEffectInterrupted) == ReasonEffectInterrupted
+		&& (ReasonEffectInterrupted & (ReasonTemporal | ReasonHideReturn | ReasonPartial | ReasonCameraUnconfirmed | ReasonUnresolved)) == 0,
+		"F1 reasons: effect_interrupted is its own sixth bit and is not rewritten as a legacy temporal flag");
 }
 
 static void TestTransitionReasons()
@@ -1756,7 +1842,7 @@ static void TestTransitionReasons()
 		&& std::string(AnomalyLabelSync::DescribeReasonBit(0)) == "temporal_aa", "reasons: the four reason names");
 	Check(AnomalyLabelSync::ReasonPartial != 0 && (AnomalyLabelSync::ReasonPartial & AnomalyLabelSync::ReasonTemporal) == 0,
 		"reasons: partial is its own bit, independent of temporal AA");
-	Check(std::string(AnomalyLabelSync::DescribeReasonBit(4)) == "unresolved" && AnomalyLabelSync::NumReasons == 5
+	Check(std::string(AnomalyLabelSync::DescribeReasonBit(4)) == "unresolved" && AnomalyLabelSync::NumReasons == 6
 		&& AnomalyLabelSync::ReasonsOrLegacy(AnomalyLabelSync::ReasonUnresolved) == AnomalyLabelSync::ReasonUnresolved,
 		"N4 reasons: 'unresolved' is its own fifth bit and is not rewritten as a legacy temporal flag");
 }
@@ -2288,6 +2374,7 @@ int main()
 	TestF5TransitionCarry();
 	TestF4Retire();
 	TestAnnotationMembership();
+	TestF1EffectInstalled();
 	TestN7RetireEveryAppliedIdentity();
 	TestA2ForcedHeldSet();
 	TestA4PriorCollision();

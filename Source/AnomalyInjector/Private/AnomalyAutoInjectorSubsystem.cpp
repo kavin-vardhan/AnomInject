@@ -5,6 +5,8 @@
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyViewport.h"
 #include "AnomalyTargeting.h"
+#include "AnomalyTargetPolicy.h"
+#include "AnomalyDefaults.h"
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -280,11 +282,18 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	int32 CensusExpired = 0;
 	int32 CensusUnseen = 0;
 	int32 CensusWindow = -1;
+	int32 NaniteRefused = 0;
 	for (const TWeakObjectPtr<AActor>& Weak : Visible)
 	{
 		AActor* Actor = Weak.Get();
 		if (!Actor || IsActorLive(Actor))
 		{
+			continue;
+		}
+
+		if (AnomalyViewport::RefuseNaniteTarget(Actor, TEXT("auto_pool")))
+		{
+			++NaniteRefused;
 			continue;
 		}
 
@@ -360,6 +369,13 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 
 	if (Candidates.Num() == 0)
 	{
+		if (NaniteRefused > 0)
+		{
+			UE_LOG(LogAnomaly, Log,
+				TEXT("Auto.Fire: no candidate left after %d Nanite target(s) were refused as nanite_unmaskable - firing ")
+				TEXT("nothing this tick (setting %s)."),
+				NaniteRefused, *AnomalyDefaults::DescribeAllowNaniteTargets());
+		}
 		if (CensusQuery && CensusExcluded > 0)
 		{
 			UE_LOG(LogAnomaly, Log,
@@ -471,6 +487,16 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 	{
 		LastFireResult = FString::Printf(TEXT("target %s: 0 matched (skipped)"), *ActorName);
 		UE_LOG(LogAnomaly, Log, TEXT("Auto.FireSpecific: '%s' on '%s' -> 0 matched."), *Id.ToString(), *ActorName);
+		return false;
+	}
+
+	if (!IsSessionGlobalId(Injector, Id) && AnomalyViewport::RefuseNaniteTarget(Target, TEXT("targeted")))
+	{
+		LastFireResult = FString::Printf(TEXT("target %s: refused (%s)"), *ActorName,
+			UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeNaniteReason()));
+		UE_LOG(LogAnomaly, Warning, TEXT("Auto.FireSpecific: '%s' on '%s' -> refused, %s (setting %s)."),
+			*Id.ToString(), *ActorName, UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeNaniteReason()),
+			*AnomalyDefaults::DescribeAllowNaniteTargets());
 		return false;
 	}
 

@@ -3139,22 +3139,28 @@ def _emit(line):
         sys.stdout.flush()
 
 
-LABEL_RULE_REASONS = ("temporal_aa", "hide_return", "partial", "camera_clipping_unconfirmed", "unresolved")
+LABEL_RULE_REASONS = ("temporal_aa", "hide_return", "partial", "camera_clipping_unconfirmed", "unresolved",
+                      "effect_interrupted")
+LABEL_RULE_FIRE_WINDOW_TYPES = ("missing_texture", "corrupted_texture", "uv_corruption", "normal_corruption",
+                                "lighting_mismatch", "lod_corruption", "null_effect", "solid_swap", "time_dilation")
 LABEL_RULE_REASON_TYPES = {
     "temporal_aa": ("stuck_low_mip",),
     "hide_return": ("blinking", "missing_object"),
     "partial": ("stuck_low_mip",),
     "camera_clipping_unconfirmed": ("camera_clipping",),
     "unresolved": ("stuck_low_mip",),
+    "effect_interrupted": LABEL_RULE_FIRE_WINDOW_TYPES,
 }
 LABEL_RULE_LABELLED_ONLY = ("partial", "camera_clipping_unconfirmed", "unresolved")
+LABEL_RULE_UNLABELLED_ONLY = ("effect_interrupted",)
 LABEL_RULE_TEMPORAL_ONLY = ("temporal_aa", "hide_return")
 RULE_NEW = "NEW"
 RULE_OLD = "OLD"
 RULE_NONE = "NONE"
 RULE_SHOT = "LEGACY_SHOT"
 LABEL_RULE_CHECKS = ("VP-MISMATCH", "TRANSITION-PRESENT-MISMATCH", "REASON-MISSING", "REASON-WITHOUT-TRANSITION",
-                     "REASON-UNKNOWN", "REASON-MISPLACED", "REASON-ON-UNLABELLED", "REASON-WITHOUT-TEMPORAL-AA",
+                     "REASON-UNKNOWN", "REASON-MISPLACED", "REASON-ON-UNLABELLED", "REASON-ON-LABELLED",
+                     "REASON-WITHOUT-TEMPORAL-AA",
                      "LABELLED-EXTRA", "LABELLED-MISSING", "ENTRY-MISSING", "FRAME-MISSING")
 
 
@@ -3334,6 +3340,8 @@ def label_rule_check(cap_dir, quiet=False):
                     fail("REASON-MISPLACED", si)
                 if rule == RULE_NEW and reason in LABEL_RULE_LABELLED_ONLY and a.get("labelled") is not True:
                     fail("REASON-ON-UNLABELLED", si)
+                if reason in LABEL_RULE_UNLABELLED_ONLY and a.get("labelled") is True:
+                    fail("REASON-ON-LABELLED", si)
                 if reason in LABEL_RULE_TEMPORAL_ONLY and temporal is False:
                     fail("REASON-WITHOUT-TEMPORAL-AA", si)
         if rule == RULE_NEW:
@@ -3587,6 +3595,25 @@ def _label_rule_selftest():
         unres_tex = [_lr_row(si, [_lr_entry("missing_texture", "Rock", True, True, ("unresolved",) if si == 4 else None)]
                              if 3 <= si <= 6 else [], present=3 <= si <= 6) for si in range(8)]
         case("new_rule_unresolved_on_texture_swap_FAILS", unres_tex, [("missing_texture", "Rock", {3, 4, 5, 6})], 1,
+             RULE_NEW, "REASON-MISPLACED")
+
+        def f1_rows(aid, labelled_extra=None):
+            out = []
+            for si in range(44):
+                if 10 <= si <= 39:
+                    on = si <= 19 or si == labelled_extra
+                    out.append(_lr_row(si, [_lr_entry(aid, "Rock", on, True, None if si <= 19 else ("effect_interrupted",))],
+                                       present=on))
+                else:
+                    out.append(_lr_row(si, [], present=False))
+            return out
+        f1_listed = set(range(10, 20))
+        case("F1_raw_revert_labels_stop_at_revert_clean", f1_rows("missing_texture"), [("missing_texture", "Rock", f1_listed)],
+             0, RULE_NEW, extra=lambda d, _l: d["reasons"].get("missing_texture/effect_interrupted") == 20
+             and d["vp_rule"] == 10)
+        case("F1_effect_interrupted_on_labelled_FAILS", f1_rows("corrupted_texture", 25),
+             [("corrupted_texture", "Rock", f1_listed | {25})], 1, RULE_NEW, "REASON-ON-LABELLED")
+        case("F1_effect_interrupted_on_blinking_FAILS", f1_rows("blinking"), [("blinking", "Rock", f1_listed)], 1,
              RULE_NEW, "REASON-MISPLACED")
         shot = [_lr_row(0, [_lr_entry("blinking", "Cube", None, True)], present=True)]
         shot[0]["label_rule"] = "legacy_shot"

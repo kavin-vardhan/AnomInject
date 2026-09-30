@@ -132,6 +132,18 @@ namespace
 		return bSet;
 	}
 
+	bool& AllowNaniteOverride()
+	{
+		static bool bValue = false;
+		return bValue;
+	}
+
+	bool& AllowNaniteOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
 	float& TriggerRadiusOverride()
 	{
 		static float Value = 0.0f;
@@ -1015,6 +1027,80 @@ namespace AnomalyDefaults
 		return FString::Printf(TEXT("%s(%s)"), bV ? TEXT("allowed") : TEXT("excluded"), Src);
 	}
 
+	const TCHAR* AllowNaniteTargetsKey()
+	{
+		return TEXT("AllowNaniteTargets");
+	}
+
+	bool GetAllowNaniteTargets()
+	{
+		if (AllowNaniteOverrideSet())
+		{
+			return AllowNaniteOverride();
+		}
+		static bool bResolved = false;
+		static bool bValue = AllowNaniteTargetsCompiled;
+		static const TCHAR* Source = TEXT("compiled");
+		if (bResolved)
+		{
+			return bValue;
+		}
+		bResolved = true;
+
+		bool bFromIni = false;
+		if (GConfig && GConfig->GetBool(SectionName(), AllowNaniteTargetsKey(), bFromIni, GGameIni))
+		{
+			bValue = bFromIni;
+			Source = TEXT("ini");
+		}
+
+		UE_LOG(LogAnomaly, Log,
+			TEXT("selection: Nanite targets are %s (%s). On UE 5.1 a Nanite primitive never writes custom depth, so an ")
+			TEXT("event on a target that draws any Nanite primitive cannot carry a pixel mask for that part. REFUSED ")
+			TEXT("(the default) skips such a target before apply - in the auto-pool, a targeted fire and ApplyAnomaly - as ")
+			TEXT("nanite_unmaskable, so every labelled event has a real mask; the cost is fewer eligible objects on ")
+			TEXT("Nanite-heavy content. ALLOWED restores the previous contract exactly (label and box, no mask, ")
+			TEXT("observability_measured false). A G140 boundary: the same seed picks different targets across a change ")
+			TEXT("of this setting when a Nanite target is on screen."),
+			bValue ? TEXT("ALLOWED") : TEXT("REFUSED"), Source);
+		return bValue;
+	}
+
+	void SetAllowNaniteTargetsOverride(bool bAllow)
+	{
+		AllowNaniteOverride() = bAllow;
+		AllowNaniteOverrideSet() = true;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("selection: Nanite targets set to %s by console override. This BEATS DefaultGame.ini [%s] %s (G88)."),
+			bAllow ? TEXT("ALLOWED") : TEXT("REFUSED"), SectionName(), AllowNaniteTargetsKey());
+	}
+
+	void ClearAllowNaniteTargetsOverride()
+	{
+		AllowNaniteOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("selection: console Nanite-target override cleared; the ini value or the compiled default takes over."));
+	}
+
+	FString DescribeAllowNaniteTargets()
+	{
+		const bool bV = GetAllowNaniteTargets();
+		const TCHAR* Src = TEXT("compiled");
+		if (AllowNaniteOverrideSet())
+		{
+			Src = TEXT("console");
+		}
+		else
+		{
+			bool bFromIni = false;
+			if (GConfig && GConfig->GetBool(SectionName(), AllowNaniteTargetsKey(), bFromIni, GGameIni))
+			{
+				Src = TEXT("ini");
+			}
+		}
+		return FString::Printf(TEXT("%s(%s)"), bV ? TEXT("allowed") : TEXT("refused"), Src);
+	}
+
 	const TCHAR* CameraClippingTriggerRadiusKey()
 	{
 		return TEXT("CameraClippingTriggerRadiusCm");
@@ -1310,6 +1396,33 @@ namespace
 			*AnomalyDefaults::DescribeAllowTranslucentOnlyTargets());
 	}
 
+	void HandleAllowNaniteTargets(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("Usage: IAI.Targets.AllowNanite <0|1|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeAllowNaniteTargets());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearAllowNaniteTargetsOverride();
+		}
+		else if (Args[0] == TEXT("0") || Args[0] == TEXT("1"))
+		{
+			AnomalyDefaults::SetAllowNaniteTargetsOverride(Args[0] == TEXT("1"));
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Targets.AllowNanite: '%s' is not 0, 1 or 'default'; nothing changed."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Targets.AllowNanite: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeAllowNaniteTargets());
+	}
+
 	void HandleStuckMipLevels(const TArray<FString>& Args)
 	{
 		if (Args.Num() < 1)
@@ -1551,6 +1664,20 @@ static FAutoConsoleCommand GAllowTranslucentOnlyTargetsCmd(
 	     "a different setting. Pass 'default' to clear the override. "
 	     "Usage: IAI.Select.AllowTranslucentOnlyTargets <0|1|default>"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleAllowTranslucentOnlyTargets));
+
+static FAutoConsoleCommand GAllowNaniteTargetsCmd(
+	TEXT("IAI.Targets.AllowNanite"),
+	TEXT("Allow a target whose drawn primitives include a Nanite component. DEFAULT: 0 (REFUSED). On UE 5.1 a Nanite "
+	     "primitive never writes custom depth, so the target mask cannot carry it. With 0 such a target is refused "
+	     "BEFORE apply as nanite_unmaskable in all three places a target is chosen or applied: the auto-pool (the actor "
+	     "is dropped from the candidate list before the target is drawn, so the random stream is untouched when no "
+	     "Nanite actor is on screen), a targeted fire, and the ApplyAnomaly backstop. Each refused actor is logged as "
+	     "REFUSED-NANITE and counted once per run in run_summary.refused_nanite. The cost is fewer eligible objects on "
+	     "Nanite-heavy content. With 1 the previous contract returns unchanged: label and box, no mask, "
+	     "observability_measured false. camera_clipping has no target and is unaffected. PRECEDENCE: console beats "
+	     "DefaultGame.ini [AnomalyInjector] AllowNaniteTargets, which beats the compiled default (0). Pass 'default' to "
+	     "clear the override. Usage: IAI.Targets.AllowNanite <0|1|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleAllowNaniteTargets));
 
 static FAutoConsoleCommand GCameraClipTriggerRadiusCmd(
 	TEXT("IAI.Anomaly.CameraClipTriggerRadius"),

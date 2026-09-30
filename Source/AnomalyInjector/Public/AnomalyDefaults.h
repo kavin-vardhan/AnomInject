@@ -69,6 +69,14 @@ namespace AnomalyDefaults
 	ANOMALYINJECTOR_API void SetAllowTranslucentOnlyTargetsOverride(bool bAllow);
 	ANOMALYINJECTOR_API void ClearAllowTranslucentOnlyTargetsOverride();
 
+	inline constexpr bool AllowNaniteTargetsCompiled = false;
+
+	ANOMALYINJECTOR_API const TCHAR* AllowNaniteTargetsKey();
+	ANOMALYINJECTOR_API bool GetAllowNaniteTargets();
+	ANOMALYINJECTOR_API FString DescribeAllowNaniteTargets();
+	ANOMALYINJECTOR_API void SetAllowNaniteTargetsOverride(bool bAllow);
+	ANOMALYINJECTOR_API void ClearAllowNaniteTargetsOverride();
+
 	inline constexpr int32 StuckMipLevelsCompiled = -1;
 	inline constexpr int32 StuckMipLevelsMin = -1;
 	inline constexpr int32 StuckMipLevelsMax = 15;

@@ -7,6 +7,7 @@
 #include "RHIDefinitions.h"
 
 class AActor;
+class UPrimitiveComponent;
 class UStaticMeshComponent;
 
 namespace AnomalyMeasurability
@@ -20,6 +21,8 @@ namespace AnomalyMeasurability
 	const TCHAR* LexToString(EReason Reason);
 
 	bool ComponentRendersAsNanite(const UStaticMeshComponent* SMC, EShaderPlatform ShaderPlatform);
+
+	bool ComponentDrawsNanite(const UPrimitiveComponent* Component);
 
 	bool IsKnownUnmeasurable(const AActor* Actor, EShaderPlatform ShaderPlatform, EReason& OutReason);
 }

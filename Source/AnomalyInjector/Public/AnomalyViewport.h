@@ -177,6 +177,23 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API int32 GetTranslucentOnlyExclusionCount();
 
+	using FNaniteComponentProbe = bool (*)(const UPrimitiveComponent* Component);
+
+	ANOMALYINJECTOR_API void SetNaniteComponentProbe(FNaniteComponentProbe Probe);
+
+	ANOMALYINJECTOR_API bool HasNaniteComponentProbe();
+
+	ANOMALYINJECTOR_API bool ComponentDrawsNanite(const UPrimitiveComponent* Component);
+
+	ANOMALYINJECTOR_API bool ActorDrawsAnyNanite(const AActor* Actor, int32* OutNaniteComponents = nullptr,
+		int32* OutRenderableComponents = nullptr);
+
+	ANOMALYINJECTOR_API bool RefuseNaniteTarget(const AActor* Actor, const TCHAR* Site);
+
+	ANOMALYINJECTOR_API int32 GetNaniteRefusalCount();
+
+	ANOMALYINJECTOR_API int32 GetNaniteRefusalAttempts();
+
 	template <typename T>
 	TArray<TWeakObjectPtr<T>> FindVisibleComponentsMatching(UWorld* World, const FString& Substring)
 	{
