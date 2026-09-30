@@ -1125,6 +1125,17 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   `IsPartialHeldSet` / `FPartialEdgeTrack`). Entries carry `labelled` and `visible_positive` needs a labelled entry with a
   box. Unfinished transition and hide-return history is carried across a run boundary, rebased (`CarryTransitionTrack`). The
   sync path builds one `FCaptureSnapshot` and writes the row and the accounting from it (F3).
+  **090-05 (F1):** the authority is now `IsAnnotationMember(policy, active, onScreen, installed)`; for FireWindow it is
+  `onScreen && installed`, where `installed` is the anomaly's own `IsVisualConditionHeld()` sampled per fire as
+  `Snap.ConditionHeld` at the activity-bit point (both capture paths). `FillAnnotationInputs` ends with
+  `AnomalyLabel::MarkInterruptedEffects`, which makes a not-installed FireWindow entry transition-only with reason bit 5
+  `effect_interrupted`; `IsFireLabelledThisFrame`'s FireWindow case reads the same bit (timed; `Capture(F1)` log line), so
+  masks and `m26` arms stop with the label. **Nanite skip (090-05):** `AnomalyDefaults::GetAllowNaniteTargets()` (console
+  `IAI.Targets.AllowNanite`, ini `AllowNaniteTargets`, compiled false); `AnomalyViewport::RefuseNaniteTarget(actor, site)` asks
+  a probe the capture module registers at startup (`AnomalyMeasurability::ComponentRendersAsNanite`) over the actor's
+  renderable components and refuses on any Nanite one (`AnomalyTargetPolicy::DecideNanite`); called in the auto-pool
+  candidate loop, `TryFireSpecific` (before the hold draw) and `ApplyAnomaly`; counted distinct per run
+  (`run_summary.refused_nanite`, reset in `ResetTargetExclusionStats`).
   **084-07c:** `labelled` comes from ONE authority, `AnomalyLabelSync::IsAnnotationMember(policy, active, onScreen)` — the
   rule that builds `annotation.json`'s frame list, per class (FireWindow ⇒ the fire's box is on screen via the shared
   `AnomalyLabel::ProjectFireBox`; ActorHidden / AnomalyState ⇒ the activity bit; RenderHeldWindow ⇒ the render-record

@@ -11,6 +11,48 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔀 **090-05 (m53 half), 2026-09-30 — F1, THE NANITE SKIP, THE README CORRECTIONS AND THE FVTableHelper CONSTRUCTOR ARE
+> MERGED INTO m53 (`2d5a5ea` source, then this docs merge) WITH m53'S OWN SIDE OF EACH. Strict-include build 0 / 0 errors, both
+> targets 0 warnings, every suite green, archived; tonight's smoke harness is ready and dry-run. No game launch, no cook, no
+> staging; no tag, no merge to master.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-05-f1-nanite-readme.md` (one journal, both branches); archive
+>   `_binary_baselines\m53-09005-97D292F8\` (exe **97D292F8** + the five editor DLLs, 6/6 re-hashed).
+> - **m53 side:** the installed check for `uv_corruption` / `normal_corruption` is TexCorrupt's own `IsVisualConditionHeld` (our
+>   MID on every committed slot, RT bindings reading back); an interrupted m53 event still counts as live for the m52/m53
+>   exclusion until its retained entry clears (`exclusion_selftest` now: labelled 10..19, `effect_interrupted` 20..39,
+>   admission at 40). Nanite: refusal inside `CandidateCount` before `DrawAttempt`, before `TargetedAttempt`, backstop before the
+>   partner exclusion; decision-tree step `E7N` `nanite_unmaskable` (read-only), so the office census counts it as its own
+>   reason (format `v1` unchanged); `GetAllowNaniteTargets` quiet-guarded; KAT on the production `DrawAttempt`.
+> - **Strict build VERDICT PASS on `2d5a5ea`:** Game 0 (105 actions), Editor 0 (114), 62/62 header TUs (was 3 / 3); `.gen.cpp`
+>   no longer defines its own vtable-helper constructor. Normal 0 warnings; lever audit 47/47; C++ base 6/6 (draw 987, excl 244,
+>   src 71) + 23 mutants fail, target policy 25/0 + 5 mutants fail; Python 18/18 (census 38 + PASS).
+> - **Tonight's smoke:** `_reviews\090-06-README.md` — 22 capture legs (FireWindow B-REAL AA on/off, m53 fixture 4 modes +
+>   G-MODE, F1 raw revert + retake + an OLD-exe can-fail, Nanite skip default + AllowNanite 1, stuck_low_mip B9/B0/B5), 53.25 min
+>   declared (~56 with the measured evaluation), harness selftest 83/83, dry run clean (pins complete; only the idle gate
+>   blocks). Part 0 NOT-RUNNABLE (no 090-05 delivery package; staging blocked by `dbghelp.dll`).
+> - ⚠ **NEEDS-DECISION:** the Shipping TU of `AnomalyCaptureSubsystem.cpp` would not compile (pre-existing; G428).
+> - 🎯 **The office hosts pull this branch's tip.** NEXT: tonight's 090-06 smoke (idle-gated), then Thursday's office test.
+>   ⛔ No tag, no merge to master.
+>
+> ---
+> 🛠 **090-05, 2026-09-30 — F1 (A FIREWINDOW LABEL ENDS WHEN THE EFFECT ENDS), THE NANITE SKIP (DEFAULT: SKIP), THE README
+> CORRECTIONS AND THE FVTableHelper CONSTRUCTOR. Built and gated; no game launch, no cook, no staging. Then merged into m53
+> (`2d5a5ea`, see m53's status block).**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-05-f1-nanite-readme.md`; archive
+>   `_binary_baselines\m52fix-09005-129E8E53\` (exe **129E8E53** + the five editor DLLs, 6/6 re-hashed).
+> - **Source `8d78bfc`:** FireWindow membership = on screen **and the effect installed** (`IsVisualConditionHeld`, sampled with
+>   the activity bit); otherwise a transition-only entry `effect_interrupted` (G426). `IAI.Targets.AllowNanite` (default 0):
+>   a target drawing any Nanite part is refused `nanite_unmaskable` in the auto-pool (before the target draw), targeted fire
+>   and `ApplyAnomaly`; `run_summary.refused_nanite` (G429). `UAnomalyCaptureSubsystem(FVTableHelper&)`. Bench lever
+>   `IAI.Bench.RawRevertAt <si>`.
+> - **Strict-include build 0 / 0 errors (was 3 / 3), VERDICT PASS on `8d78bfc`**; normal 0 warnings; lever audit 34/34;
+>   selftests m52 296/0, target policy 25/0, camera 154/0, five header mutants fail; Python 11/11 (label-rule 27).
+> - ⚠ **Shipping-only code read: 132 of 140 branches OK, 8 RISK** — the Shipping TU of `AnomalyCaptureSubsystem.cpp` would not
+>   compile (pre-existing, both branches); nothing compiles Shipping because delivery is Development/Test (G428,
+>   `_reviews\090-05-shipping-code-read.md`). **NEEDS-DECISION.**
+> - 🎯 **NEXT: tonight's 090-06 smoke (idle-gated), then Thursday's office test on the m53 head.** ⛔ No tag, no merge to master.
+>
+> ---
 > 🔀 **090-04 (m53 half), 2026-09-30 — THE STRICT-INCLUDE FIX IS MERGED INTO m53 (`a74bf7f` source, `1449d9e` docs) AND m53
 > NEEDS NOTHING MORE: its own files are include-complete; the only strict error is the fix branch's held residual. Both targets built
 > with 0 warnings, every suite green, archived. No game launch, no cook, no staging; no tag, no merge to master.**
