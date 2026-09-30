@@ -26,21 +26,25 @@
 		{
 			"Name": "AnomalyShaders",
 			"Type": "Runtime",
+			"TargetConfigurationDenyList": [ "Shipping" ],
 			"LoadingPhase": "PostConfigInit"
 		},
 		{
 			"Name": "AnomalyInjector",
 			"Type": "Runtime",
+			"TargetConfigurationDenyList": [ "Shipping" ],
 			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "AnomalyCapture",
 			"Type": "Runtime",
+			"TargetConfigurationDenyList": [ "Shipping" ],
 			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "AnomalyControlServer",
 			"Type": "Runtime",
+			"TargetConfigurationDenyList": [ "Shipping" ],
 			"LoadingPhase": "Default"
 		}
 	],

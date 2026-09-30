@@ -20,7 +20,10 @@ carries is one the source compiles in that configuration, every registered lever
 binary (a stale build fails), and the gate's echo strings are present.
 
 --selftest copies the tree, plants one violation per rule, and requires the clean copy to PASS
-and every planted copy to FAIL on its rule.
+and every planted copy to FAIL on its rule. Since 090-07 every plugin module is denied to Shipping in
+the descriptor, so the R1 plants re-admit their module to Shipping in the copy (R1 is about a module
+Shipping builds), and one more case requires the same R1 plant in a module the descriptor keeps out of
+Shipping to PASS.
 
 Exit 0 PASS, 1 FAIL, 2 cannot read the tree.
 """
@@ -590,7 +593,26 @@ def selftest(root):
             for l in sink:
                 if " FAIL " in l:
                     print("    " + l)
-        for rule, label, rel, pat, rep in MUTANTS:
+        def admit_shipping(d, module):
+            dp = os.path.join(d, "AnomalyInjector.uplugin")
+            with open(dp, "r", encoding="utf-8-sig") as f:
+                desc = json.load(f)
+            changed = False
+            for m in desc.get("Modules", []):
+                if m.get("Name") != module:
+                    continue
+                for key in ("TargetConfigurationDenyList", "BlacklistTargetConfigurations"):
+                    if "Shipping" in m.get(key, []):
+                        m[key] = [x for x in m[key] if x != "Shipping"]
+                        changed = True
+            with open(dp, "w", encoding="utf-8") as f:
+                json.dump(desc, f, indent="\t")
+            return changed
+
+        cases = [(r, l, rel, pat, rep, r == "R1") for r, l, rel, pat, rep in MUTANTS]
+        cases.append(("R1", "the first R1 lever in a module Shipping does not build", MUTANTS[0][2], MUTANTS[0][3],
+                      MUTANTS[0][4], False))
+        for rule, label, rel, pat, rep, admit in cases:
             d = fresh()
             p = os.path.join(d, rel.replace("/", os.sep))
             with open(p, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
@@ -602,14 +624,23 @@ def selftest(root):
                 continue
             with open(p, "w", encoding="utf-8", newline="") as f:
                 f.write(t2)
+            excluded = rule == "R1" and not admit and not load_modules(d)[module_of(rel)]["shipping"]
+            if admit:
+                admit_shipping(d, module_of(rel))
             sink = []
             rc = audit(d, out=sink.append)
             rules = set(re.findall(r"G-LEVER-AUDIT FAIL (\w+) ", "\n".join(sink)))
-            ok = rc == 1 and rule in rules
+            if rule == "R1" and not admit:
+                ok = excluded and rc == 0
+                verdict = "PASSED as expected (the descriptor keeps the module out of Shipping)" if ok else "*** WRONG ***"
+            else:
+                ok = rc == 1 and rule in rules
+                verdict = "FAILED as expected" if ok else "*** NOT CAUGHT ***"
             results.append(ok)
             first = next((l for l in sink if (" FAIL %s " % rule) in l), "")
-            print("G-LEVER-AUDIT SELFTEST %s %-52s -> %s (exit %d, rules %s)" % (
-                rule, label, "FAILED as expected" if ok else "*** NOT CAUGHT ***", rc, ",".join(sorted(rules)) or "none"))
+            print("G-LEVER-AUDIT SELFTEST %s %-52s -> %s (exit %d, rules %s)%s" % (
+                rule, label, verdict, rc, ",".join(sorted(rules)) or "none",
+                " [module re-admitted to Shipping in the copy]" if admit else ""))
             if first:
                 print("    " + first.replace("G-LEVER-AUDIT ", "")[:180])
     finally:
