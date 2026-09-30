@@ -374,7 +374,7 @@ static void TestF1TemporalOffTail()
 	(void)V;
 
 	int AdmitSI = -1;
-	for (int si = 106; si <= 115; ++si)
+	for (int si = 106; si <= 107 + Off; ++si)
 	{
 		if (AdmitSI < 0 && M53AdmittedBehind(T, true, Track, true, Off, false))
 		{
@@ -390,10 +390,11 @@ static void TestF1TemporalOffTail()
 	{
 		bCoEntry = bCoEntry || (AdmitSI >= 0 && f >= AdmitSI);
 	}
-	Check(TailFrames.size() == 8 && TailFrames.front() == 102 && TailFrames.back() == 109,
-		"F1 sequence: m52 transition entries on 102..109 (the eight temporal off-frames after 101)");
-	Check(AdmitSI == 111, "F1 sequence: m53 first admitted at si 111, after frame 110 closed the off window (got "
-		+ std::to_string(AdmitSI) + ")");
+	Check((int)TailFrames.size() == Off && TailFrames.front() == 102 && TailFrames.back() == 101 + Off,
+		"F1 sequence: m52 transition entries on 102.." + std::to_string(101 + Off) + " (the " + std::to_string(Off)
+		+ " temporal off-frames after 101)");
+	Check(AdmitSI == 103 + Off, "F1 sequence: m53 first admitted at si " + std::to_string(103 + Off) + ", after frame "
+		+ std::to_string(102 + Off) + " closed the off window (got " + std::to_string(AdmitSI) + ")");
 	Check(!bCoEntry, "F1 sequence: no frame carries both an m52 transition entry and an m53 entry");
 	Row("F1 tail done releases", EFamily::M53, M52Provider(ClassifyT(T, TransitionTailOwed(true, Track)), false), FM53Signals(),
 		EState::Closed, false, false);
@@ -433,7 +434,7 @@ static void TestF1CarriedTailOnly()
 	std::vector<int> Emitted;
 	int AdmitSI = -1;
 	const FTrail Unused = FTrail();
-	for (int si = 0; si <= 8; ++si)
+	for (int si = 0; si <= Off; ++si)
 	{
 		if (AdmitSI < 0 && M53AdmittedBehind(Unused, false, Carried, true, Off, false))
 		{
@@ -449,9 +450,11 @@ static void TestF1CarriedTailOnly()
 	{
 		bCoEntry = bCoEntry || (AdmitSI >= 0 && f >= AdmitSI);
 	}
-	Check(Emitted.size() == 4 && Emitted.front() == 0 && Emitted.back() == 3,
-		"F1 carry: the next run's frames 0..3 carry the carried m52 transition entries (old frames 106..109)");
-	Check(AdmitSI == 5, "F1 carry: m53 first admitted at next-run si 5 (got " + std::to_string(AdmitSI) + ")");
+	Check((int)Emitted.size() == Off - 4 && Emitted.front() == 0 && Emitted.back() == Off - 5,
+		"F1 carry: the next run's frames 0.." + std::to_string(Off - 5) + " carry the carried m52 transition entries (old frames 106.."
+		+ std::to_string(101 + Off) + ")");
+	Check(AdmitSI == Off - 3, "F1 carry: m53 first admitted at next-run si " + std::to_string(Off - 3) + " (got "
+		+ std::to_string(AdmitSI) + ")");
 	Check(!bCoEntry, "F1 carry: no next-run frame carries both the carried m52 tail and an m53 entry");
 }
 
@@ -471,7 +474,7 @@ static void TestF1PendingSnapshot()
 	bool bOn = false;
 	bool bOff = false;
 	Track.Observe(100, true, On, Off, bOn, bOff);
-	for (int si = 101; si <= 109; ++si)
+	for (int si = 101; si <= 101 + Off; ++si)
 	{
 		ResolveDetachedFrame(Track, si, On, Off);
 	}

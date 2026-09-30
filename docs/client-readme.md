@@ -1088,6 +1088,8 @@ update the game and the plugin within one frame (a game can use either).
 | `stuck_low_mip` | our large test level (an object with its own textures), including an Auto-pool run | on and off | `partial` and `unresolved` (an event's first labelled frames), and `temporal_aa` (its first 3 labelled frames and the **16** frames after its last one; temporal AA only) |
 | `camera_clipping` | our bench level, with a scripted camera, both tick orders; judged on the **confirmed** frames | on and off | `camera_clipping_unconfirmed` (over-labels by design — on our bench those frames showed no slice at all) |
 | `lod_popping` | a purpose-built test object whose detail levels differ strongly: 23 pops per capture, both tick orders | on and off | nothing |
+| `uv_corruption` (`tile`, `scramble`) | a purpose-built test object, 17 events per mode, both tick orders, two independent captures; **not yet checked on ordinary scenery** (§8.8) | on and off | nothing (but read the "barely changes" note in §8.8) |
+| `normal_corruption` (`invert`, `green_flip`) | the same test object, 17 events per mode, both tick orders, two independent captures; **not yet checked on ordinary scenery** (§8.8) | on and off | nothing (but read the "barely changes" note in §8.8) |
 
 What each row leaves open, stated rather than implied:
 
@@ -1218,7 +1220,13 @@ reason instead.
 *Example from our large test level:* its floor object has 30 material slots. In an earlier measurement, 12 of them
 (21 on another run) qualified at the moment of the decision, so under this rule it is refused `partial_footprint`.
 When all 30 qualify it needs 219,541,488 bytes of texture copies, more than the 128 MiB cap, so it is refused
-`over_budget`.
+`over_budget`. Across the objects in that level's usual starting view, **none qualified at the 128 MiB default** —
+`uv_corruption`: `over_budget` 2, `partial_footprint` 1, `texture_not_parameter` 2; `normal_corruption`:
+`partial_footprint` 3, `texture_not_parameter` 2. Raising the cap to 256 MiB (`IAI.Anomaly.TexCorruptMaxRtBytes
+268435456`) made two objects eligible for `uv_corruption` (each needing about 214–220 MB of copies); `normal_corruption`
+had no eligible object there at any cap. So on scenes built from a few large, many-material objects, expect few events
+at the default, and run `IAI.TexCorrupt.Census` (below) before relying on these two for volume. A raised cap costs that
+much video memory while an event is live.
 
 **Refusals.** A refused event records no fire, changes nothing and gets no label. The game log names each refusal
 in full (`uv_corruption: REFUSED partial_footprint:12/30:… (step …)`). `run_summary.json` counts refusals by reason
@@ -1250,11 +1258,29 @@ place (`texcorrupt.condition_held`); they do not say how much its appearance cha
 / `_a` / `_b` for `scramble`. `run_summary.json` adds `texcorrupt_fires_applied` and `texcorrupt_rt_bytes_peak` (the
 most memory the copies used at once).
 
+**How far these labels are proven** (the method is in §8.7a):
+
+- **Label in step with the picture: proven on our purpose-built test object, all four modes, in two independent
+  captures** — 17 of 17 events per mode start and end on exactly the labelled frames (0 frames off), with anti-aliasing
+  on and off and in both engine tick orders. Deliberately delayed apply and restore were caught at the size we set.
+- **The right mode is applied: proven on the same object, all four modes** — `tile` and `scramble` match the expected
+  pattern on every judged event (the logged `scramble` pair recomputed on each), `invert` and `green_flip` on every
+  judged cell of the surface, and every wrong mode fails the same check.
+- **Never in the same frame as `stuck_low_mip`: 0 frames carrying both, in every capture** (the rule is below).
+- **On ordinary game scenery: not checked from pixels yet.** On our large test level the only objects that could be
+  framed and qualified are rendered with Nanite, and on Unreal Engine 5.1 Nanite objects get no mask (§8.7a), so the
+  label could not be checked against the picture there. Their events were labelled exactly as the unmeasured contract
+  says, and no change was seen on any other object. The mechanism is the same material swap, in the same frame, as
+  `corrupted_texture`, whose label is proven on that level.
+
 ⚠ **When the picture barely changes — read this before training on these two.** An inverted or green-flipped
 normal map changes the shading only where light falls across the surface at an angle. Under flat, head-on or back
 lighting the picture barely changes, yet the frames are labelled: a false positive. `tile` and `scramble` on a nearly
-uniform texture (a flat colour, a faint noise) behave the same way. `observable` does not catch this. Measured rate
-on realistic content, per mode: **(rate: to be measured)**.
+uniform texture (a flat colour, a faint noise) behave the same way. `observable` does not catch this. How often it
+happens, per mode: **not measured on realistic content.** On our purpose-built test object it happened on **0 of 17**
+events in every mode; that object was built to show the change, so it says nothing about your scenes. On our large test level no object that could be framed qualified at the
+default memory cap, and the two that qualified under a raised cap are rendered with Nanite, which the pixel
+measurement cannot see (below), so the rate could not be read there. Read it on your own content with the filter below.
 **To filter such events,** use `change_evidence.jsonl` (§9). For each `uv_corruption` / `normal_corruption` event,
 divide its event line's `ref_gt8_max` by `chg_n` (the object's pixel count) from the same event's pair lines. That is
 the share of the object that changed noticeably against the frame before the event began. Drop events where it is
@@ -1273,7 +1299,7 @@ lingered.
 these two never share a captured frame. `stuck_low_mip` counts as live from apply until its textures are seen back at
 full resolution in the rendered picture **and** every frame it labels, or flags `transition` after its last labelled
 frame, has been written **and** no render record it is still waiting on could show the blur again — which can be
-several frames after its event ends (with temporal anti-aliasing, up to 8 more frames for its `transition` tail,
+several frames after its event ends (with temporal anti-aliasing, up to 16 more frames for its `transition` tail,
 including frames at the start of the next capture). `uv_corruption` / `normal_corruption` count as live from apply
 until 2 frames after their revert **and** until every captured frame that carries their entry has been written — so if
 one is reverted early during a capture (for example `IAI.Revert uv_corruption` in the console, or its object being
