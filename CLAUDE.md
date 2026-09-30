@@ -11,6 +11,20 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔀 **090-07 (m53 half), 2026-09-30 — THE SHIPPING EXCLUSION, THE OFFICE KIT'S `effect_interrupted` HANDLING AND
+> `tools/m52_log_counts.py` ARE MERGED INTO m53 (`983215f`, auto-merged, no m53 source touched; then this docs merge).
+> THIS BRANCH'S TIP IS THE THURSDAY PULL TARGET FOR BOTH OFFICE HOSTS. Compile only; no tag, no merge to master.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-07-shipping-kit-logcounts.md` (one journal, both branches); archive
+>   `_binary_baselines\m53-09007-A3EC29D8\` (6/6 re-hashed).
+> - **Shipping:** UBT JsonExport on the m53 host — Shipping 4 plugin modules → 0 (306 → 302); Development / Test / Editor
+>   exports byte-identical. **The normal Development build is up to date and byte-identical to `97D292F8`**, the exe the
+>   090-06 smoke is pinned to, so the smoke speaks for this head's Development code.
+> - **Strict-include VERDICT PASS on `983215f`:** Game 0, Editor 0 (62/62 header TUs); after the relink (exe `A3EC29D8`)
+>   0 UTF-16 string differences against `97D292F8` (exe + 5 DLLs). Lever audit 47/47 (source, exe, DLLs), selftest 12/12.
+> - **Suites:** Python 23/23 (kit 39, counter 9, kit mutants and counter mutants fail); C++ base 6/6 + target policy 25/0,
+>   23 + 5 mutants fail.
+> - 🎯 **NEXT: tonight's 090-06 smoke, 090-08 (Codex re-check of 090-05), Thursday's office test on this tip.**
+>
 > 🔀 **090-05 (m53 half), 2026-09-30 — F1, THE NANITE SKIP, THE README CORRECTIONS AND THE FVTableHelper CONSTRUCTOR ARE
 > MERGED INTO m53 (`2d5a5ea` source, then this docs merge) WITH m53'S OWN SIDE OF EACH. Strict-include build 0 / 0 errors, both
 > targets 0 warnings, every suite green, archived; tonight's smoke harness is ready and dry-run. No game launch, no cook, no
@@ -35,6 +49,26 @@ and is the single source of truth for the project.
 >   ⛔ No tag, no merge to master.
 >
 > ---
+> 🛠 **090-07, 2026-09-30 — SHIPPING EXCLUDED BY DESCRIPTOR; THE OFFICE KIT READS `effect_interrupted`;
+> `tools/m52_log_counts.py`. Compile only (no game launch, no cook, no staging). Merged into m53 (`983215f` + the docs
+> merge); the m53 head is the Thursday pull target for both office hosts.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-07-shipping-kit-logcounts.md`; archive
+>   `_binary_baselines\m52fix-09007-8AA57A53\` (6/6 re-hashed).
+> - **A (`bcdd7e1`):** every module in `AnomalyInjector.uplugin` carries `"TargetConfigurationDenyList": [ "Shipping" ]`; no
+>   source change (G428 now unreachable). UBT JsonExport (no compile): Shipping 4 plugin modules → 0, Development / Test /
+>   Editor exports byte-identical. Normal build up to date and **byte-identical to `129E8E53`**; after the strict relink
+>   (exe `8AA57A53`) 0 UTF-16 string differences. Lever-audit selftest re-planted for the deny list (G431), 12/12.
+>   No real Shipping compile was run.
+> - **B:** kit 1.1 — `effect_interrupted` is known and never an AA flag; an interrupted run edge is read against the
+>   interruption's own picture (its settled tail when 8+ frames, G430), 0 frames off to pass; re-install judged per run;
+>   an interruption still showing the effect FAILS; READ BACK gains `| interrupted N`. Selftest 39/39; doctored real
+>   sessions 14/14 (the ignore mutant misses 10, the TAA-flag mutant 2); old-vs-new on 8 real sessions identical.
+> - **C:** `m52_log_counts.py` — the PowerShell counter's readings and lines, stdlib; selftest 9/9 from the source's own
+>   format strings; identical to the PowerShell function on the sample and two real logs; both mutants fail.
+> - **Strict-include 0 / 0 (fix), suites Python 15/15, C++ 296/154/25 with 5 mutants failing.**
+> - 🎯 **NEXT: tonight's 090-06 smoke on `97D292F8` — which IS the m53 head's Development build (byte-identical); then
+>   090-08 (Codex re-check of 090-05); Thursday's office test on the m53 head.** ⛔ No tag, no merge to master.
+>
 > 🛠 **090-05, 2026-09-30 — F1 (A FIREWINDOW LABEL ENDS WHEN THE EFFECT ENDS), THE NANITE SKIP (DEFAULT: SKIP), THE README
 > CORRECTIONS AND THE FVTableHelper CONSTRUCTOR. Built and gated; no game launch, no cook, no staging. Then merged into m53
 > (`2d5a5ea`, see m53's status block).**
