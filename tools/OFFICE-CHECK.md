@@ -32,11 +32,17 @@ Open a Command Prompt in the delivery folder and run these two lines, one after 
 ## 3. Read back
 Read the lines under **READ BACK**, one per anomaly, for example:
 
-    blinking           judged 12 | start {+0:24} | end {+0:24} | wrong-object 0 (upper bound 2) | censored 1 | fail 0
+    blinking           judged 12 | start {+0:24} | end {+0:24} | wrong-object 0 (upper bound 2) | censored 1 | fail 0 | interrupted 0
 
-For each anomaly read: **judged**, **start**, **end**, **wrong-object** (both numbers), **censored**, **fail**.
-Also read the **`sessions read`** line and the **`decoder:`** line. That is all; `numbers.txt` holds the
-same text.
+For each anomaly read: **judged**, **start**, **end**, **wrong-object** (both numbers), **censored**, **fail**,
+**interrupted**. Also read the **`sessions read`** line and the **`decoder:`** line. That is all; `numbers.txt`
+holds the same text.
+
+**`interrupted`** counts anomalies the game removed partway through (for example by swapping the material back);
+their labels stop at that frame and are checked there, so it is not a failure by itself.
+
+Then, in the plugin folder, run `python tools\m52_log_counts.py "<the game's log>"` and read back every line it
+prints (numbers only).
 
 ## If something looks odd
 - **`judged 0`** for an anomaly: it fired too rarely, or the camera moved. Capture once more (Step 1), then

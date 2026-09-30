@@ -50,6 +50,8 @@ Re-run `Setup.bat` any time your paths change (new game build, moved captures fo
 
 **Token (connects the dashboard to the game).** The dashboard and the game share a token so only your dashboard can control your game. This is already configured in the build you received — you do not need to enter or paste anything. (For reference it lives in `dashboard\config.json`; if the dashboard ever reports that the token was rejected, that is the file to check. `Setup.bat` checks that the dashboard can actually read it and stops if it cannot.)
 
+**Build configuration.** The plugin is excluded from Shipping builds by design; capture with Development or Test. A Shipping build of your game leaves every plugin module out, so it contains none of the plugin (no capture, no anomalies, no dashboard connection).
+
 ## 3. Running a capture session
 
 Do these in order each time you want to capture.
@@ -322,6 +324,11 @@ python host-tools\label_sync_check.py <a session folder, or a folder of sessions
   frame counts when it shows part of the blur, or when its render record shows a texture held. Raw, 10 %
   and strict readings are printed beside it. Sessions from builds without the flags are read raw, and the
   header says so.
+- **An interrupted event** (`effect_interrupted`, §8.6a — the game removed the effect partway through) is
+  judged at its own label edges: the last labelled frame against the picture at the interruption, 0 frames off
+  to pass. If the effect came back, each labelled run is judged separately, and the frames between them must
+  not show the effect. `interrupted` on the READ BACK line counts such events; it is not a failure by itself,
+  and an `effect_interrupted` flag is never read as an anti-aliasing flag.
 - **It cannot judge** `camera_clipping` (no target mask; its label is a whole-frame proxy), moving-camera
   events, effects too faint to measure, or frames the capture never saves. Its wrong-object count is an
   upper bound (shadows and reflections trip it too).

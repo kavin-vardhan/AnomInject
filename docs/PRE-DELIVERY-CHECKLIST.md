@@ -246,6 +246,10 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
       the Issue-2 regression. `game` is only correct for game-clock content such as StackOBot itself.*
 - [ ] Build is **Development or Test**, not Shipping.
       *Capture and the control server are compiled out of Shipping entirely.*
+      **The plugin is excluded from Shipping builds by design; capture with Development or Test.** 🆕 (090-07)
+      Every module in `AnomalyInjector.uplugin` carries `"TargetConfigurationDenyList": [ "Shipping" ]`, so a
+      Shipping build compiles without the plugin rather than failing in it (G428). Check: UBT's module list for
+      the Shipping target (`-Mode=JsonExport`, no compile) names no `Anomaly*` module.
 - [ ] 🚨 **`IAI.Capture.MaskProbe` is OFF in anything that ships — check what the BUILD does, not what
       you intended.** *The probe is a GATE ARTEFACT (m26, F-6 item 5): under the flag it deliberately
       bypasses `LOCK-1` for one arm per run to prove the mask's detectors are live. It defaults OFF and

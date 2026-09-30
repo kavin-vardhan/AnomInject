@@ -26,10 +26,11 @@ import tempfile
 import time
 import zlib
 
-KIT_VERSION = "1.0"
-EVALUATOR = "087-01"
+KIT_VERSION = "1.1"
+EVALUATOR = "090-07"
 METHOD = ("086-01 per-frame change on the target silhouette; 084-06 edge-local references, stuck_low_mip "
-          "sharpness path and transition-aware gate; 084-07 labelled and partial rules")
+          "sharpness path and transition-aware gate; 084-07 labelled and partial rules; 090-07 effect_interrupted "
+          "run edges read against the picture at the interruption")
 
 TYPE_MAP = {"blink": "blinking", "flicker": "blinking"}
 DELIVERED = ("blinking", "missing_object", "missing_texture", "corrupted_texture", "lod_popping",
@@ -42,6 +43,8 @@ NOT_JUDGEABLE = {
     "lighting_mismatch": "its effect is the scene's lighting, not the target's own pixels",
 }
 AA_ONLY_REASONS = ("temporal_aa", "hide_return")
+INTERRUPT_REASON = "effect_interrupted"
+KNOWN_REASONS = AA_ONLY_REASONS + ("partial", "camera_clipping_unconfirmed", "unresolved", INTERRUPT_REASON)
 
 MOVE_CM = 0.5
 MOVE_DEG = 0.05
@@ -548,7 +551,7 @@ def events_of(s):
                     starts[x.get("start_frame")] += 1
         sf = starts.most_common(1)[0][0] if starts else None
         ev = dict(ord=i, type=typ, L=L, Lset=set(L), runs=runs_of(L), node=node, start_frame=sf, entries={},
-                  T=set(), reasons={}, mv={}, bbox={}, disagree=0, has_reason=False)
+                  T=set(), reasons={}, mv={}, bbox={}, disagree=0, has_reason=False, I=set(), unknown=0)
         if sf is not None:
             for si in s.sis:
                 for x in (s.rows[si].get("anomalies") or []):
@@ -560,6 +563,9 @@ def events_of(s):
                             if isinstance(rs, list) and rs:
                                 ev["reasons"][si] = tuple(str(q) for q in rs)
                                 ev["has_reason"] = True
+                                ev["unknown"] += sum(1 for q in ev["reasons"][si] if q not in KNOWN_REASONS)
+                                if INTERRUPT_REASON in ev["reasons"][si] and si not in ev["Lset"]:
+                                    ev["I"].add(si)
                         ev["mv"][si] = x.get("mask_value")
                         ev["bbox"][si] = x.get("bbox_px")
                         if "labelled" in x and bool(x.get("labelled")) != (si in ev["Lset"]):
@@ -1099,22 +1105,60 @@ def analyse_d(s, ev, evs, taa):
     sig_by_si = {}
     run_info = []
     fallback_runs = 0
+    Is = ev["I"]
+    pre_ref = []
+
+    def shows_effect(lab_med, Rg, thD, thP, mu_g):
+        sD, sP, _o = metrics(lab_med, Rg, ctx, False)
+        if not (sD > thD or sP > thP):
+            return 1
+        if not pre_ref:
+            pre_ref.append((median_view(rv, False), noise_model(rv, ctx, False)[0]))
+        Rp, mu_p = pre_ref[0]
+        dD, _dP, _o = metrics(lab_med, Rp, ctx, False)
+        return 1 if (sD - mu_g) < dict(THRESH)[RELEASE] * (dD - mu_p) else 0
+
+    def int_stretch(si, step):
+        out = []
+        while si in Is and si in s.rows:
+            out.append(si)
+            si += step
+        return out if step > 0 else out[::-1]
+
     for i, (a, b) in enumerate(lab_runs):
         lo_w = (lab_runs[i - 1][1] + a) // 2 + 1 if i > 0 else span_lo
         hi_w = (b + lab_runs[i + 1][0]) // 2 if i + 1 < len(lab_runs) else span_hi
-        if i == 0:
+        pre_int = int_stretch(a - 1, -1)
+        if len(pre_int) >= 2:
+            ron = pre_int[-POST_REF_N:]
+            if i > 0 and len(ron) >= 3 and ron[0] == lab_runs[i - 1][1] + 1:
+                ron = ron[1:]
+        elif i == 0:
             ron = refc
         else:
             ron = [si for si in range(lab_runs[i - 1][1] + 1, a) if clean(si)]
             if len(ron) < 2:
                 ron = refc
         nxt = lab_runs[i + 1][0] if i + 1 < len(lab_runs) else span_hi + 1
-        roff = [si for si in range(b + 1, nxt) if clean(si)][:POST_REF_N]
+        post_int = [si for si in int_stretch(b + 1, 1) if si < nxt]
+        if len(post_int) >= POST_REF_N + 2:
+            roff = post_int[-POST_REF_N:]
+        elif post_int:
+            roff = (post_int + [si for si in range(post_int[-1] + 1, nxt) if clean(si)])[:POST_REF_N]
+        else:
+            roff = [si for si in range(b + 1, nxt) if clean(si)][:POST_REF_N]
         on_views = [V(x) for x in ron]
         if any(x is None for x in on_views):
             continue
         Ron = median_view(on_views)
         mu_on, thD_on, thP_on, thOB_on = noise_model(on_views, ctx)
+        lab_med = None
+        if len(pre_int) >= 2 or post_int:
+            lab_views = [V(x) for x in range(a, b + 1)]
+            lab_med = median_view(lab_views, False) if not any(x is None for x in lab_views) else None
+        int_shows = 0
+        if len(pre_int) >= 2 and lab_med is not None:
+            int_shows += shows_effect(lab_med, Ron, thD_on, thP_on, mu_on)
         off_views = [V(x) for x in roff] if len(roff) >= 2 else []
         off_ok = len(off_views) >= 2 and not any(x is None for x in off_views)
         midr = (a + b) / 2.0
@@ -1157,6 +1201,8 @@ def analyse_d(s, ev, evs, taa):
             roff = roff[:k] + use_si
             Roff = median_view(use, False)
             mu_off, thD_off, thP_off, _t = noise_model(use, ctx, False)
+            if post_int and lab_med is not None:
+                int_shows += shows_effect(lab_med, Roff, thD_off, thP_off, mu_off)
             for si in ser_on:
                 if si >= a:
                     D, P, _o = metrics(V(si), Roff, ctx, False)
@@ -1198,7 +1244,8 @@ def analyse_d(s, ev, evs, taa):
             series[si] = dict(D=D, P=P, frac=(D - mu_off) / max(dD_off - mu_off, 1e-6), strict=bool(D > thD_off or P > thP_off))
             sig_by_si[si] = (thD_off - mu_off) / K_SIG
         run_info.append(dict(a=a, b=b, lo=lo_w, hi=hi_w, thrD_on=thD_on, depth_on=dD_on, fallback=not settled,
-                             ron=ron, roff=roff, k=k, depth_off=dD_off, mu_on=mu_on, mu_off=mu_off, thD_off=thD_off))
+                             ron=ron, roff=roff, k=k, depth_off=dD_off, mu_on=mu_on, mu_off=mu_off, thD_off=thD_off,
+                             int_start=bool(pre_int), int_end=bool(post_int), int_shows=int_shows))
     if not series:
         res["status"] = "NO-FRAMES"
         return res
@@ -1224,6 +1271,7 @@ def analyse_d(s, ev, evs, taa):
     reasons = {si: ev["reasons"].get(si, ()) for si in Ts}
     on_c = ("s", lab_runs[0][0]) in cens
     off_c = (lab_runs[-1][1] in cens) or (("e", lab_runs[-1][1]) in cens)
+    shows = sum(ri["int_shows"] for ri in run_info)
     per = {}
     for name, t in THRESH:
         vis = set(si for si, v in series.items() if v["strict"] and v["frac"] >= t)
@@ -1256,6 +1304,9 @@ def analyse_d(s, ev, evs, taa):
         mid_all = (min(L) + max(L)) / 2.0
         if [si for si in tg["lnv"] if not ((si > mid_all and off_c) or (si <= mid_all and on_c))]:
             raw_fails.append("labelled not visible")
+        if shows:
+            fails.append("interrupted frames show the effect")
+            raw_fails.append("interrupted frames show the effect")
         cen_any = any(e["cs"] or e["ce"] or e["us"] or e["ue"] for e in edges)
         if not res["measurable"]:
             v_ta = v_raw = "NOT-MEASURABLE"
@@ -1273,6 +1324,8 @@ def analyse_d(s, ev, evs, taa):
         res["dbg"] = dict(series={si: (round(v["D"], 3), round(v["frac"], 3), v["strict"]) for si, v in sorted(series.items())},
                           runs=run_info, refc=refc, span=span)
     res["runs"] = len(run_info)
+    res["int_ends"] = sum(1 for ri in run_info if ri["int_end"])
+    res["int_shows"] = shows
     res["post1"] = []
     for ri in run_info:
         x = series.get(ri["b"] + 1)
@@ -1599,7 +1652,8 @@ def analyse_session(d, decoder, types=None):
         typ = ev["type"]
         if types and typ not in types:
             continue
-        row = dict(type=typ, ord=ev["ord"], rule=rule, disagree=ev["disagree"], ce=None)
+        row = dict(type=typ, ord=ev["ord"], rule=rule, disagree=ev["disagree"], ce=None, unknown=ev["unknown"],
+                   int_frames=len(ev["I"]), int_gap=sum(1 for si in ev["I"] if ev["L"] and ev["L"][0] < si < ev["L"][-1]))
         if typ in NOT_JUDGEABLE:
             row["status"] = "NOT-JUDGEABLE"
             out.append(row)
@@ -1735,6 +1789,13 @@ class Agg(object):
         self.part_edges_warm = collections.Counter()
         self.part_investigate = 0
         self.events = 0
+        self.unknown = 0
+        self.int_events = 0
+        self.int_judged = 0
+        self.int_frames = 0
+        self.int_gap = 0
+        self.int_ends = 0
+        self.int_shows = 0
 
 
 def aggregate(rows):
@@ -1748,6 +1809,11 @@ def aggregate(rows):
         a = aggs[t]
         a.events += 1
         a.disagree += r.get("disagree") or 0
+        a.unknown += r.get("unknown") or 0
+        if r.get("int_frames"):
+            a.int_events += 1
+            a.int_frames += r["int_frames"]
+            a.int_gap += r.get("int_gap") or 0
         st = r.get("status")
         if st == "NOT-JUDGEABLE":
             a.status["not-judgeable"] += 1
@@ -1768,6 +1834,10 @@ def aggregate(rows):
                           st, "not judged (no reference or frames)")] += 1
             continue
         a.status["judged"] += 1
+        if r.get("int_frames"):
+            a.int_judged += 1
+            a.int_ends += d.get("int_ends") or 0
+            a.int_shows += d.get("int_shows") or 0
         for c in r.get("ce") or []:
             a.ce_w[c] += 1
         per = r["per"]
@@ -1882,6 +1952,10 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
                 hist(list(a.part_edges.elements())), hist(list(a.part_edges_warm.elements())), PARTIAL_INVESTIGATE,
                 a.part_investigate))
         w("labelled key disagreeing with the annotation: %d frame(s)" % a.disagree)
+        w("interrupted (effect removed mid-event): events %d, judged %d | run ends at an interruption %d | frames %d, "
+          "between two labelled runs %d | interrupted pictures still showing the effect %d" % (
+              a.int_events, a.int_judged, a.int_ends, a.int_frames, a.int_gap, a.int_shows))
+        w("transition reasons unknown to this kit: %d frame(s)" % a.unknown)
         w("m55 onset witness: %s" % _counter_line(a.ce_w, ("onset-on-first", "label-early", "no-change", "partial-first",
                                                              "unmeasured")))
         w("")
@@ -1893,9 +1967,9 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
         if not a.status.get("judged"):
             w("  %-18s events %d, judged 0" % (t, a.events))
             continue
-        w("  %-18s judged %d | start %s | end %s | wrong-object %d (upper bound %d) | censored %d | fail %d" % (
+        w("  %-18s judged %d | start %s | end %s | wrong-object %d (upper bound %d) | censored %d | fail %d | interrupted %d" % (
             t, a.status.get("judged", 0), hist(a.S[RELEASE]["ta"]), hist(a.E[RELEASE]["ta"]), a.wrong - a.wrong_clean,
-            a.wrong, a.cs + a.ce + a.us + a.ue, a.release.get("FAIL", 0)))
+            a.wrong, a.cs + a.ce + a.us + a.ue, a.release.get("FAIL", 0), a.int_judged))
     w("")
     w("frames decoded %d | seconds %.0f" % (frames_decoded, elapsed))
     return "\n".join(lines) + "\n"
@@ -2057,6 +2131,8 @@ def _st_seg(kind, f, drift, variant, y):
             c = [int(round(o + f * (bg - o))) for o in (200, 190, 60)]
         elif kind == "tex":
             c = [min(255, int(round(o + f * (m - o))) + drift) for o, m in zip((150, 150, 150), (255, 0, 255))]
+        elif kind == "host":
+            c = [40 + drift, 160, 40]
         else:
             chk = 40 if ((x // 2 + y // 2) % 2) else 220
             v = int(round(chk + f * (130 - chk)))
@@ -2069,7 +2145,7 @@ def _st_seg(kind, f, drift, variant, y):
 
 def _st_frame(si, spec, state):
     ox0, oy0, ox1, oy1 = ST_OBJ
-    kind = spec["kind"]
+    kind = "host" if state.get("host") else spec["kind"]
     f = state.get("f", 0.0)
     drift = state.get("drift", 0)
     variant = si % 11
@@ -2131,6 +2207,8 @@ def st_make(root, name, spec):
             pf = ev.get("pixels", {})
             if si in pf:
                 state["f"] = pf[si]
+            if si in ev.get("host", ()):
+                state["host"] = True
         if spec.get("drift_from") is not None and si >= spec["drift_from"]:
             state["drift"] = (si - spec["drift_from"]) * spec.get("drift_step", 3)
         if spec.get("wrong") and any(si in ev["L"] for ev in evs):
@@ -2162,7 +2240,7 @@ def st_make(root, name, spec):
                 ent["stuck_mip.render_state"] = "held" if si in L else "none"
                 ent["stuck_mip.textures"] = [{"name": "T_N", "forced_mips": 7, "baseline_mips": 11}]
                 ent["stuck_mip.render_textures"] = [{"name": "T_N", "baseline_mips": 11, "held_level_mips": 7, "level": rec}]
-            transition_only = fl is not None and si not in L and si > max(L)
+            transition_only = fl is not None and si not in L and (si > max(L) or "effect_interrupted" in fl)
             if not transition_only:
                 present = True
             entries.append(ent)
@@ -2190,7 +2268,9 @@ def st_make(root, name, spec):
         summ.update({"label_temporal_aa": bool(spec.get("taa", False)), "label_transition_on_frames": 3,
                      "label_transition_off_frames": 8, "label_transition_hide_frames": 1})
     if spec.get("rule", "new") == "new":
-        summ["label_labelled_rule"] = "annotation_membership_per_policy_v1"
+        f1 = any("effect_interrupted" in (fl or ()) for ev in evs for fl in ev.get("flags", {}).values())
+        summ["label_labelled_rule"] = ("annotation_membership_per_policy_v2_effect_installed" if f1
+                                       else "annotation_membership_per_policy_v1")
     with open(os.path.join(d, "run_summary.json"), "w", encoding="utf-8") as fh:
         json.dump(summ, fh)
     return d, written
@@ -2240,6 +2320,14 @@ def st_cases():
     tex("taa_smear_flagged", smear, taa=True, ev={"flags": flags})
     wrongflag = {39: ("temporal_aa",), 48: ("temporal_aa",)}
     tex("late_1_flag_covering", _full(range(39, 47)), labels=list(range(40, 49)), taa=True, ev={"flags": wrongflag})
+    cut = ("effect_interrupted",)
+    tex("f1_interrupted_end", _full(L), ev={"flags": {si: cut for si in range(48, 60)}})
+    L2 = list(range(40, 45)) + list(range(48, 55))
+    tex("f1_host_reinstall", _full(L2), labels=L2, ev={"flags": {si: cut for si in (45, 46, 47)}, "host": (45, 46, 47)})
+    tex("f1_host_to_capture_end", _full(L), ev={"flags": {si: cut for si in range(48, 72)}, "host": tuple(range(48, 72))})
+    tex("f1_label_past_interruption_4", _full(L), labels=list(range(40, 52)), ev={"flags": {si: cut for si in range(52, 60)}})
+    tex("f1_label_stops_early_2", _full(range(40, 50)), taa=True, ev={"flags": {si: cut for si in range(48, 60)}})
+    tex("f1_gap_shows_effect", _full(range(40, 55)), labels=L2, ev={"flags": {si: cut for si in (45, 46, 47)}})
     ghost = {si: 1.0 for si in L}
     ghost[48] = 0.08
     cases.append(("ghost_8pct", {"type": "blink", "kind": "hide", "n": 72, "events": [{"L": L, "pixels": ghost}]}))
@@ -2331,6 +2419,24 @@ def st_expect():
         lambda r: verdict(r) == "PASS" and _edge(r)["end_ta"] == 0 and _edge(r)["end"] == 1 and raw(r) == "FAIL")
     add("late_1_flag_covering", "label late by 1 with the flag wrongly covering it FAILS at 50 %",
         lambda r: verdict(r) == "FAIL", True)
+    def all_edges_zero(r):
+        return all(e["start_ta"] == 0 and e["end_ta"] == 0 for e in r["per"]["t50"]["edges"])
+
+    add("f1_interrupted_end", "effect_interrupted after the label, AA off: PASS 0/0, counted, not a TAA flag",
+        lambda r: verdict(r) == "PASS" and all_edges_zero(r) and r["int_frames"] == 12 and r["d"]["int_ends"] == 1
+        and r["int_gap"] == 0)
+    add("f1_host_reinstall", "host material in a 3-frame interruption, re-installed: both runs 0/0, gap 3",
+        lambda r: verdict(r) == "PASS" and len(r["per"]["t50"]["edges"]) == 2 and all_edges_zero(r)
+        and r["int_gap"] == 3 and r["d"]["int_shows"] == 0)
+    add("f1_host_to_capture_end", "host material from the interruption to the capture end: PASS 0/0",
+        lambda r: verdict(r) == "PASS" and all_edges_zero(r) and r["d"]["int_ends"] == 1)
+    add("f1_label_past_interruption_4", "label runs 4 frames past the interruption FAILS, end -4",
+        lambda r: verdict(r) == "FAIL" and _edge(r)["end"] == -4 and _edge(r)["end_ta"] == -4, True)
+    add("f1_label_stops_early_2", "effect still visible 2 frames into the interruption, TAA on: FAIL, end +2 (not excused)",
+        lambda r: verdict(r) == "FAIL" and _edge(r)["end_ta"] == 2, True)
+    add("f1_gap_shows_effect", "interruption gap still showing the effect FAILS",
+        lambda r: verdict(r) == "FAIL" and r["d"]["int_shows"] >= 1
+        and "interrupted frames show the effect" in r["per"]["t50"]["fails"], True)
     add("cc", "camera_clipping is not judgeable", lambda r: r["status"] == "NOT-JUDGEABLE" and "per" not in r)
     add("m52_exact", "stuck_low_mip exact PASS 0/0", lambda r: verdict(r) == "PASS" and _edge(r)["start"] == 0 and _edge(r)["end"] == 0)
     add("m52_label_late_3", "stuck_low_mip label 3 frames late FAILS, start -3",
@@ -2433,6 +2539,11 @@ def selftest(force_stdlib=False):
         clean = not re.search(r"[\\/]|\.png|\.json|session_|frame_\d|\bT\d\b|st_|label_sync_selftest", text)
         lines.append("SELFTEST %-66s %s" % ("report prints numbers only (no path, folder or object name)", "ok" if clean else "*** WRONG ***"))
         ok_all = ok_all and clean
+        want_int = sum(1 for x in rows if x["type"] == "corrupted_texture" and x.get("status") == "OK" and x.get("int_frames"))
+        rb = [l for l in text.splitlines() if l.strip().startswith("corrupted_texture") and "| interrupted " in l]
+        rb_ok = want_int > 0 and len(rb) == 1 and rb[0].rstrip().endswith("| interrupted %d" % want_int)
+        lines.append("SELFTEST %-66s %s" % ("READ BACK carries the interrupted count (%d judged)" % want_int, "ok" if rb_ok else "*** WRONG ***"))
+        ok_all = ok_all and rb_ok
         if doctored_passed:
             ok_all = False
             lines.append("SELFTEST *** THE KIT PASSED A DOCTORED LABEL (%d case(s)) - DO NOT USE ITS NUMBERS ***" % len(doctored_passed))
