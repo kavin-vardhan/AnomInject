@@ -8879,6 +8879,15 @@ Related: G424.
   compile); proposed: wrap those bodies in `#if ANOMALY_CAPTURE` as their siblings are, and include `AnomalyRunLog.h`
   unconditionally.
 - **Rule:** a configuration no gate compiles is an untested configuration; say which build is the gate before relying on it.
+- 🔻 **090-07 — NOW UNREACHABLE, BY DESCRIPTOR, NOT REPAIRED (chat ruling 090-05 #1).** Every module in
+  `AnomalyInjector.uplugin` carries `"TargetConfigurationDenyList": [ "Shipping" ]` (AnomalyBench already did), so UBT
+  never builds `AnomalyCaptureSubsystem.cpp` for Shipping and the defect above has no build that can reach it. Measured with
+  `UnrealBuildTool -Mode=JsonExport` (no compile): the StackOBot Shipping target listed 4 plugin modules before and 0 after
+  (306 → 302 modules, the other 302 identical); Development, Test and Editor exports byte-identical before and after.
+  **The `ANOMALY_CAPTURE=0` code is left exactly as it was — it is now dead, not fixed.** If the deny list is ever removed,
+  this gotcha is live again, and the lever audit's R1 (which reads the descriptor) resumes checking Shipping strings.
+  A client who builds Shipping with the plugin enabled gets a target without the plugin's modules rather than our compile
+  error (module-list evidence; whether a real Shipping compile was also run is stated in journal 090-07).
 
 ## G429 — `UStaticMeshComponent::ShouldCreateNaniteProxy()` is protected; keep the Nanite predicate in the capture module and hand it to the injector as a probe (2026-09-30, 090-05)
 
@@ -8892,3 +8901,36 @@ Related: G424.
   provider pattern) — rather than growing the lower module's dependencies or reaching around access control.
 
 Related: G127, G134.
+
+## G430 — An interrupted label end has no clean frames after it: read it against the interruption's own settled picture, not the frames the old reference picked (2026-09-30, 090-07)
+
+- **The premise that failed:** the office kit's edge-local off reference (084-06) takes the first *clean* frames after a
+  labelled run. F1's `effect_interrupted` frames are flagged entries, so they were never clean: an interrupted end was read
+  against the picture after the **scheduled** end, and a run followed by a re-install had **no** off reference at all (it fell
+  back to the pre-event picture).
+- **Measured, synthetic and on doctored real TSR sessions:** where the game puts its own material in the interruption (host
+  replacement), the old reference reads that material as the anomaly on a correct label — host material to the next event
+  **end +14**, re-install **+2 / −1**, FAIL on one session and CENSORED on the other — and a gap that still showed the effect
+  read **CENSORED**, not FAIL. Reading against the interruption gives 0/0 on the correct shapes and FAIL on the bad one.
+- **And the head of the interruption is the wrong half:** when the label stops early the first interrupted frames still show
+  the effect; with the reference drawn from them the settle step accepted a mixed median and the kit read **end −4 on a +2
+  case — the sign reversed**. A stretch of `POST_REF_N + 2` or more frames is now read against its last `POST_REF_N` frames
+  (the settled tail); shorter stretches keep the head rule and its settle step.
+- **Rule:** a reference is only edge-local if it shows the picture the edge ends *into*; when a new flag changes which frames
+  count as clean, re-derive every reference that was defined by cleanliness.
+
+## G431 — A descriptor deny list turns every Shipping source gate into a vacuous pass; prove the gate on a copy that re-admits the module (2026-09-30, 090-07)
+
+- **Measured:** after `"TargetConfigurationDenyList": ["Shipping"]` on every module, `lever_audit.py --selftest` read both R1
+  plants **NOT CAUGHT** — R1 is "no bench string live in a Shipping compile of a module Shipping builds", and no module is
+  built any more. The source audit still PASSED, which alone would have looked like health.
+- **What shipped:** the R1 selftest plants now re-admit their module to Shipping in the copy (R1 fires again), and one more
+  case requires the same plant in an excluded module to PASS — it goes WRONG on the pre-090-07 descriptor, so it detects a
+  missing exclusion. 12/12.
+- **The no-compile evidence for a descriptor change:** `UnrealBuildTool <Target> Win64 <Config> -Project=… -Mode=JsonExport
+  -OutputFile=…` writes the target's module list in ~7 s without compiling (the Shipping target went from 4 plugin modules to 0;
+  Development, Test and Editor exports byte-identical).
+- **Rule:** when a change removes the thing a gate inspects, the gate's can-fail case has to be re-planted where the thing
+  still exists; a gate with nothing to inspect passes forever.
+
+Related: G428, G96.

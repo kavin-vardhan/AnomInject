@@ -11,6 +11,26 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **090-07, 2026-09-30 — SHIPPING EXCLUDED BY DESCRIPTOR; THE OFFICE KIT READS `effect_interrupted`;
+> `tools/m52_log_counts.py`. Compile only (no game launch, no cook, no staging). Merged into m53 (`983215f` + the docs
+> merge); the m53 head is the Thursday pull target for both office hosts.**
+> - **Cold start:** journal `docs/sessions/2026-09-30-090-07-shipping-kit-logcounts.md`; archive
+>   `_binary_baselines\m52fix-09007-8AA57A53\` (6/6 re-hashed).
+> - **A (`bcdd7e1`):** every module in `AnomalyInjector.uplugin` carries `"TargetConfigurationDenyList": [ "Shipping" ]`; no
+>   source change (G428 now unreachable). UBT JsonExport (no compile): Shipping 4 plugin modules → 0, Development / Test /
+>   Editor exports byte-identical. Normal build up to date and **byte-identical to `129E8E53`**; after the strict relink
+>   (exe `8AA57A53`) 0 UTF-16 string differences. Lever-audit selftest re-planted for the deny list (G431), 12/12.
+>   No real Shipping compile was run.
+> - **B:** kit 1.1 — `effect_interrupted` is known and never an AA flag; an interrupted run edge is read against the
+>   interruption's own picture (its settled tail when 8+ frames, G430), 0 frames off to pass; re-install judged per run;
+>   an interruption still showing the effect FAILS; READ BACK gains `| interrupted N`. Selftest 39/39; doctored real
+>   sessions 14/14 (the ignore mutant misses 10, the TAA-flag mutant 2); old-vs-new on 8 real sessions identical.
+> - **C:** `m52_log_counts.py` — the PowerShell counter's readings and lines, stdlib; selftest 9/9 from the source's own
+>   format strings; identical to the PowerShell function on the sample and two real logs; both mutants fail.
+> - **Strict-include 0 / 0 (fix), suites Python 15/15, C++ 296/154/25 with 5 mutants failing.**
+> - 🎯 **NEXT: tonight's 090-06 smoke on `97D292F8` — which IS the m53 head's Development build (byte-identical); then
+>   090-08 (Codex re-check of 090-05); Thursday's office test on the m53 head.** ⛔ No tag, no merge to master.
+>
 > 🛠 **090-05, 2026-09-30 — F1 (A FIREWINDOW LABEL ENDS WHEN THE EFFECT ENDS), THE NANITE SKIP (DEFAULT: SKIP), THE README
 > CORRECTIONS AND THE FVTableHelper CONSTRUCTOR. Built and gated; no game launch, no cook, no staging. Then merged into m53
 > (`2d5a5ea`, see m53's status block).**
