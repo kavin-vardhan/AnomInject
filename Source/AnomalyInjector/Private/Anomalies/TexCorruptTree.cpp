@@ -14,6 +14,7 @@
 #include "Components/SkinnedMeshComponent.h"
 #include "Components/SplineMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Containers/Ticker.h"
 #include "EngineUtils.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "Engine/SkeletalMesh.h"
@@ -30,6 +31,7 @@
 #include "MaterialShared.h"
 #include "RHI.h"
 #include "RenderUtils.h"
+#include "RenderingThread.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "SceneInterface.h"
@@ -297,6 +299,13 @@ namespace AnomalyTexCorrupt
 			B.LODGroup = (int32)Tex->LODGroup;
 			B.CinematicMips = Tex->NumCinematicMipLevels;
 			B.CachedLODBias = Tex->GetCachedLODBias();
+#if WITH_EDITOR
+			B.bDefaultTexture = Tex->IsDefaultTexture();
+#endif
+			if (B.bDefaultTexture)
+			{
+				return;
+			}
 			if (const FTexturePlatformData* PD = Tex->GetPlatformData())
 			{
 				B.Format = PD->PixelFormat;
@@ -392,6 +401,11 @@ namespace AnomalyTexCorrupt
 			if (B.ParamName.IsNone())
 			{
 				FailBinding(B, 4, Why::TextureNotParameter);
+				return;
+			}
+			if (B.bDefaultTexture)
+			{
+				FailBinding(B, 5, Why::ResourceNotReady, TEXT("compiling"));
 				return;
 			}
 			if (!B.Tex2D->GetPlatformData())
@@ -686,6 +700,58 @@ namespace AnomalyTexCorrupt
 		return true;
 	}
 
+	bool MaterialRendersAsItself(UMaterialInterface* Material, UWorld* World)
+	{
+		if (!Material || !World)
+		{
+			return false;
+		}
+		FMaterialResource* Res = Material->GetMaterialResource(World->FeatureLevel);
+		if (!Res || !Res->GetGameThreadShaderMap())
+		{
+			return false;
+		}
+		if (Res->IsGameThreadShaderMapComplete())
+		{
+			return true;
+		}
+		static uint64 CacheFrame = MAX_uint64;
+		static TMap<const FMaterialResource*, bool> Cache;
+		if (CacheFrame != GFrameCounter)
+		{
+			Cache.Reset();
+			CacheFrame = GFrameCounter;
+		}
+		if (const bool* Hit = Cache.Find(Res))
+		{
+			return *Hit;
+		}
+		bool bRenderComplete = false;
+		bool* const Out = &bRenderComplete;
+		const FMaterialResource* const Query = Res;
+		ENQUEUE_RENDER_COMMAND(AnomalyTexCorruptRenderShaderMap)([Query, Out](FRHICommandListImmediate&)
+		{
+			*Out = Query->IsRenderingThreadShaderMapComplete();
+		});
+		FlushRenderingCommands();
+		Cache.Add(Res, bRenderComplete);
+		static TSet<FName> Reported;
+		if (!AnomalyViewport::IsReadOnlyEnumeration() && Reported.Num() < 256)
+		{
+			bool bAlready = false;
+			Reported.Add(Material->GetFName(), &bAlready);
+			if (!bAlready)
+			{
+				UE_LOG(LogAnomaly, Log,
+					TEXT("TEXCORRUPT-SHADERMAP '%s' game_thread_complete=0 render_thread_complete=%d -> %s. The renderer draws a material ")
+					TEXT("as itself exactly when its render-thread shader map is complete (FMaterialRenderProxy::GetMaterialWithFallback); ")
+					TEXT("in the editor the game-thread flag can stay 0 while the material renders, so the render-thread flag decides."),
+					*GetNameSafe(Material), bRenderComplete ? 1 : 0, bRenderComplete ? TEXT("renders as itself") : TEXT("renders as the fallback"));
+			}
+		}
+		return bRenderComplete;
+	}
+
 	void ReadActiveBindings(UWorld* World, UMaterialInterface* Resolved, TArray<FBinding>& OutBindings, bool& bOutResourceOk,
 		bool& bOutShaderMapOk, bool& bOutComplete)
 	{
@@ -709,7 +775,7 @@ namespace AnomalyTexCorrupt
 			return;
 		}
 		bOutShaderMapOk = true;
-		if (!Res->IsGameThreadShaderMapComplete())
+		if (!MaterialRendersAsItself(Resolved, World))
 		{
 			return;
 		}
@@ -795,7 +861,7 @@ namespace AnomalyTexCorrupt
 		{
 			UMaterialInterface* Needed = (In.Family == EFamily::UV) ? UvCorruptor : NormalCorruptor;
 			FMaterialResource* Res = Needed->GetMaterialResource(World->FeatureLevel);
-			if (!Res || !Res->GetGameThreadShaderMap() || !Res->IsGameThreadShaderMapComplete())
+			if (!Res || !Res->GetGameThreadShaderMap() || !MaterialRendersAsItself(Needed, World))
 			{
 				RefuseEvent(Why::CorruptorNotReady, GetNameSafe(Needed), TEXT("E2"));
 				return;
@@ -827,7 +893,24 @@ namespace AnomalyTexCorrupt
 			return;
 		}
 
-		TArray<TWeakObjectPtr<UMeshComponent>> Meshes = AnomalyLod::ResolveLodComponents(World, In.TargetQuery);
+		TArray<TWeakObjectPtr<UMeshComponent>> Meshes;
+		if (AActor* Direct = In.TargetActor.Get())
+		{
+			TInlineComponentArray<UStaticMeshComponent*> Statics(Direct);
+			for (UStaticMeshComponent* C : Statics)
+			{
+				Meshes.Add(C);
+			}
+			TInlineComponentArray<USkinnedMeshComponent*> Skinned(Direct);
+			for (USkinnedMeshComponent* C : Skinned)
+			{
+				Meshes.Add(C);
+			}
+		}
+		else
+		{
+			Meshes = AnomalyLod::ResolveLodComponents(World, In.TargetQuery);
+		}
 		if (UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World))
 		{
 			FAnomalyViewInfo View;
@@ -1041,14 +1124,50 @@ namespace AnomalyTexCorrupt
 		UE_LOG(LogAnomaly, Log, TEXT("TEXCORRUPT-CENSUS END targets=%d"), Targets.Num());
 	}
 
-	void RunOfficeCensus(UWorld* World, bool bAll)
+	namespace
 	{
-		if (!World)
+		struct FCensusCounts
+		{
+			int32 Eligible = 0;
+			int32 Refused = 0;
+			TMap<FString, int32> Reasons;
+		};
+
+		struct FOfficeCensusJob
+		{
+			TWeakObjectPtr<UWorld> World;
+			bool bAll = false;
+			bool bEnumerated = false;
+			bool bStatsUnchanged = true;
+			TArray<FString> Names;
+			TArray<TWeakObjectPtr<AActor>> Actors;
+			int32 Next = 0;
+			int32 Gone = 0;
+			FCensusCounts Counts[2];
+			double StartSeconds = 0.0;
+			double NextProgressSeconds = 0.0;
+		};
+
+		TUniquePtr<FOfficeCensusJob>& ActiveCensus()
+		{
+			static TUniquePtr<FOfficeCensusJob> Job;
+			return Job;
+		}
+
+		constexpr double CensusSliceSeconds = 0.004;
+		constexpr double CensusMaxSeconds = 120.0;
+		constexpr double CensusProgressSeconds = 2.0;
+	}
+
+	bool RunOfficeCensus(FOfficeCensusJob& Job)
+	{
+		AnomalyViewport::FReadOnlyEnumerationScope ReadOnly;
+		UWorld* World = Job.World.Get();
+		if (!World && !Job.bEnumerated)
 		{
 			UE_LOG(LogAnomaly, Warning, TEXT("IAI.TexCorrupt.Census: no world; nothing was counted."));
-			return;
+			return true;
 		}
-		AnomalyViewport::FReadOnlyEnumerationScope ReadOnly;
 
 		struct FStatsSnapshot
 		{
@@ -1068,63 +1187,82 @@ namespace AnomalyTexCorrupt
 			S.RunStats = RunStatsDigest();
 			S.UvModes = GetEnabledModeMask(EFamily::UV);
 			S.NormalModes = GetEnabledModeMask(EFamily::Normal);
-			if (const UAnomalyAutoInjectorSubsystem* AutoInjector = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>())
+			if (World)
 			{
-				S.PoolLiveFires = AutoInjector->GetLiveFireCount();
-				S.PoolIds = AutoInjector->GetEnabledIds();
+				if (const UAnomalyAutoInjectorSubsystem* AutoInjector = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>())
+				{
+					S.PoolLiveFires = AutoInjector->GetLiveFireCount();
+					S.PoolIds = AutoInjector->GetEnabledIds();
+				}
 			}
 			return S;
 		};
 		const FStatsSnapshot StatsBefore = TakeStatsSnapshot();
 
-		TArray<FString> Names;
-		if (bAll)
+		TArray<FString>& Names = Job.Names;
+		if (!Job.bEnumerated)
 		{
-			for (TActorIterator<AActor> It(World); It; ++It)
+			Job.bEnumerated = true;
+			TArray<TPair<FString, TWeakObjectPtr<AActor>>> Found;
+			if (Job.bAll)
 			{
-				AActor* Actor = *It;
-				if (!Actor)
+				for (TActorIterator<AActor> It(World); It; ++It)
 				{
-					continue;
-				}
-				TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
-				for (UPrimitiveComponent* Prim : Prims)
-				{
-					if (AnomalyViewport::IsRenderableComponentReadOnly(Prim))
+					AActor* Actor = *It;
+					if (!Actor)
 					{
-						Names.Add(Actor->GetName());
-						break;
+						continue;
+					}
+					TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
+					for (UPrimitiveComponent* Prim : Prims)
+					{
+						if (AnomalyViewport::IsRenderableComponentReadOnly(Prim))
+						{
+							Found.Emplace(Actor->GetName(), Actor);
+							break;
+						}
 					}
 				}
 			}
-		}
-		else
-		{
-			for (const TWeakObjectPtr<AActor>& Weak : AnomalyViewport::GetVisibleRenderableActorsReadOnly(World))
+			else
 			{
-				if (const AActor* Actor = Weak.Get())
+				for (const TWeakObjectPtr<AActor>& Weak : AnomalyViewport::GetVisibleRenderableActorsReadOnly(World))
 				{
-					Names.Add(Actor->GetName());
+					if (AActor* Actor = Weak.Get())
+					{
+						Found.Emplace(Actor->GetName(), Actor);
+					}
 				}
 			}
+			Found.Sort([](const TPair<FString, TWeakObjectPtr<AActor>>& L, const TPair<FString, TWeakObjectPtr<AActor>>& R)
+			{
+				return L.Key < R.Key;
+			});
+			for (const TPair<FString, TWeakObjectPtr<AActor>>& P : Found)
+			{
+				Names.Add(P.Key);
+				Job.Actors.Add(P.Value);
+			}
 		}
-		Names.Sort();
 
-		struct FCounts
+		FCensusCounts* Counts = Job.Counts;
+		const TCHAR* Stop = World ? nullptr : TEXT("world_gone");
+		const double SliceEnd = FPlatformTime::Seconds() + CensusSliceSeconds;
+		while (!Stop && Job.Next < Names.Num())
 		{
-			int32 Eligible = 0;
-			int32 Refused = 0;
-			TMap<FString, int32> Reasons;
-		};
-		FCounts Counts[2];
-		for (const FString& Name : Names)
-		{
+			AActor* Actor = Job.Actors[Job.Next].Get();
+			++Job.Next;
+			if (!Actor)
+			{
+				++Job.Gone;
+				continue;
+			}
 			for (int32 f = 0; f < 2; ++f)
 			{
 				FTreeInputs In;
 				In.Family = f == 0 ? EFamily::UV : EFamily::Normal;
 				In.bCensus = true;
-				In.TargetQuery = FString(TEXT("=")) + Name;
+				In.TargetActor = Actor;
 				FTreeResult Result;
 				EvaluateTree(World, In, Result);
 				if (Result.bApply)
@@ -1137,8 +1275,39 @@ namespace AnomalyTexCorrupt
 					Counts[f].Reasons.FindOrAdd(Result.Reason)++;
 				}
 			}
+			if (FPlatformTime::Seconds() >= SliceEnd)
+			{
+				break;
+			}
+		}
+		const FStatsSnapshot StatsAfter = TakeStatsSnapshot();
+		const bool bStatsUnchanged = Job.bStatsUnchanged && StatsBefore.TargetExclusions == StatsAfter.TargetExclusions
+			&& StatsBefore.TranslucentExclusions == StatsAfter.TranslucentExclusions && StatsBefore.RunStats == StatsAfter.RunStats
+			&& StatsBefore.UvModes == StatsAfter.UvModes && StatsBefore.NormalModes == StatsAfter.NormalModes
+			&& StatsBefore.PoolLiveFires == StatsAfter.PoolLiveFires && StatsBefore.PoolIds == StatsAfter.PoolIds;
+		Job.bStatsUnchanged = bStatsUnchanged;
+
+		const double Elapsed = FPlatformTime::Seconds() - Job.StartSeconds;
+		if (!Stop && Job.Next >= Names.Num())
+		{
+			Stop = TEXT("complete");
+		}
+		if (!Stop && Elapsed >= CensusMaxSeconds)
+		{
+			Stop = TEXT("time_limit");
+		}
+		if (!Stop)
+		{
+			if (Elapsed >= Job.NextProgressSeconds)
+			{
+				Job.NextProgressSeconds = Elapsed + CensusProgressSeconds;
+				UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 progress scanned=%d of=%d seconds=%.1f"),
+					Job.Next, Names.Num(), Elapsed);
+			}
+			return false;
 		}
 
+		const bool bAll = Job.bAll;
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 scope=%s candidates=%d cap_bytes=%d uv_modes=%s normal_modes=%s"),
 			bAll ? TEXT("all") : TEXT("view"), Names.Num(), GetMaxRtBytes(), *DescribeModeSet(EFamily::UV, GetEnabledModeMask(EFamily::UV)),
 			*DescribeModeSet(EFamily::Normal, GetEnabledModeMask(EFamily::Normal)));
@@ -1156,12 +1325,10 @@ namespace AnomalyTexCorrupt
 				f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption"), Counts[f].Eligible, Counts[f].Refused,
 				Reasons.IsEmpty() ? TEXT("-") : *Reasons);
 		}
-		const FStatsSnapshot StatsAfter = TakeStatsSnapshot();
-		const bool bStatsUnchanged = StatsBefore.TargetExclusions == StatsAfter.TargetExclusions
-			&& StatsBefore.TranslucentExclusions == StatsAfter.TranslucentExclusions && StatsBefore.RunStats == StatsAfter.RunStats
-			&& StatsBefore.UvModes == StatsAfter.UvModes && StatsBefore.NormalModes == StatsAfter.NormalModes
-			&& StatsBefore.PoolLiveFires == StatsAfter.PoolLiveFires && StatsBefore.PoolIds == StatsAfter.PoolIds;
+		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 scanned=%d of=%d gone=%d stopped=%s seconds=%.1f"),
+			Job.Next, Names.Num(), Job.Gone, Stop, Elapsed);
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=%d"), bStatsUnchanged ? 1 : 0);
+		return true;
 	}
 
 	namespace
@@ -1172,7 +1339,9 @@ namespace AnomalyTexCorrupt
 			TEXT("mode (no allocation, draw or slot change; the mode step is skipped) with the effective cap and all-or-nothing, ")
 			TEXT("over the auto-pool's candidate set now (name-sorted), or with 'all' over every renderable actor in the loaded ")
 			TEXT("levels, and prints four IAI-TEXCORRUPT-CENSUS v1 lines of counts only: no actor, component, asset, path, map or ")
-			TEXT("frame, and no sub-reasons. Usage: IAI.TexCorrupt.Census [all]"),
+			TEXT("frame, and no sub-reasons. TIME-SLICED: about 4 ms of work per frame, a progress line every 2 s, and a hard stop ")
+			TEXT("at 120 s that prints the counts so far with 'scanned=K of=N stopped=time_limit'; it never blocks a frame for long. ")
+			TEXT("Usage: IAI.TexCorrupt.Census [all]"),
 			FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 			{
 				const bool bAll = Args.Num() >= 1 && Args[0].Equals(TEXT("all"), ESearchCase::IgnoreCase);
@@ -1181,7 +1350,41 @@ namespace AnomalyTexCorrupt
 					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.TexCorrupt.Census [all]"));
 					return;
 				}
-				RunOfficeCensus(World, bAll);
+				TUniquePtr<FOfficeCensusJob>& Job = ActiveCensus();
+				if (Job.IsValid())
+				{
+					UE_LOG(LogAnomaly, Warning,
+						TEXT("IAI.TexCorrupt.Census: a census is already running (%d of %d scanned); this request is ignored."),
+						Job->Next, Job->Names.Num());
+					return;
+				}
+				Job = MakeUnique<FOfficeCensusJob>();
+				Job->World = World;
+				Job->bAll = bAll;
+				Job->StartSeconds = FPlatformTime::Seconds();
+				Job->NextProgressSeconds = CensusProgressSeconds;
+				UE_LOG(LogAnomaly, Display,
+					TEXT("IAI-TEXCORRUPT-CENSUS v1 begin scope=%s slice_ms=%d max_seconds=%d - time-sliced across frames, READ-ONLY."),
+					bAll ? TEXT("all") : TEXT("view"), (int32)(CensusSliceSeconds * 1000.0), (int32)CensusMaxSeconds);
+				if (RunOfficeCensus(*Job))
+				{
+					Job.Reset();
+					return;
+				}
+				FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float) -> bool
+				{
+					TUniquePtr<FOfficeCensusJob>& Active = ActiveCensus();
+					if (!Active.IsValid())
+					{
+						return false;
+					}
+					if (RunOfficeCensus(*Active))
+					{
+						Active.Reset();
+						return false;
+					}
+					return true;
+				}));
 			}));
 	}
 }

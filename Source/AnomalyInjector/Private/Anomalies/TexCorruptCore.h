@@ -244,6 +244,7 @@ namespace AnomalyTexCorrupt
 		int32 CinematicMips = 0;
 		int32 CachedLODBias = 0;
 		bool bStreams = false;
+		bool bDefaultTexture = false;
 		int32 Step = 0;
 		FString Reason;
 		FString Sub;
@@ -320,9 +321,12 @@ namespace AnomalyTexCorrupt
 		FString ModeRefusalSub;
 		FAttemptInfo Attempt;
 		FString TargetQuery;
+		TWeakObjectPtr<AActor> TargetActor;
 	};
 
 	UAnomalyInjectorSubsystem* ResolveInjector(UWorld* World);
+
+	bool MaterialRendersAsItself(UMaterialInterface* Material, UWorld* World);
 
 	bool CheckCorruptorContract(UMaterialInterface* Corruptor, const TArray<FName>& Scalars, const TArray<FName>& Textures,
 		FString& OutMissing);
@@ -359,6 +363,4 @@ namespace AnomalyTexCorrupt
 	void ReleaseTarget(UTextureRenderTarget2D* Target);
 
 	void RunCensus(UWorld* World, const FString& Query);
-
-	void RunOfficeCensus(UWorld* World, bool bAll);
 }

@@ -33,7 +33,7 @@ CPP_KEYWORDS = {"if", "for", "while", "switch", "return", "sizeof", "TEXT", "UE_
 
 PAIRS = {"(": ")", "[": "]", "{": "}"}
 
-CENSUS_SIG = r"\bvoid\s+RunOfficeCensus\s*\("
+CENSUS_SIG = r"\b(?:void|bool)\s+RunOfficeCensus\s*\("
 SCOPE_RX = re.compile(r"\bFReadOnlyEnumerationScope\s+\w+\s*;")
 SCOPE_LINE_RX = r"[ \t]*(?:AnomalyViewport::)?FReadOnlyEnumerationScope\s+\w+\s*;[ \t]*\n"
 ENUM_RX = [re.compile(p) for p in (
@@ -55,6 +55,8 @@ CENSUS_FORMATS = {
     NO_WORLD: 0,
     "IAI-TEXCORRUPT-CENSUS v1 scope=%s candidates=%d cap_bytes=%d uv_modes=%s normal_modes=%s": 5,
     "IAI-TEXCORRUPT-CENSUS v1 id=%s eligible=%d refused=%d reasons=%s": 4,
+    "IAI-TEXCORRUPT-CENSUS v1 progress scanned=%d of=%d seconds=%.1f": 3,
+    "IAI-TEXCORRUPT-CENSUS v1 scanned=%d of=%d gone=%d stopped=%s seconds=%.1f": 5,
     "IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=%d": 1,
 }
 PRINTF_FORMATS = {"%s%s:%d"}
@@ -75,6 +77,10 @@ ARG_ALLOW = {norm(a) for a in (
     "Counts[f].Refused",
     'Reasons.IsEmpty() ? TEXT("-") : *Reasons',
     "bStatsUnchanged ? 1 : 0",
+    "Job.Next",
+    "Job.Gone",
+    "Stop",
+    "Elapsed",
 )}
 PRINTF_ARG_ALLOW = {norm(a) for a in (
     'Reasons.IsEmpty() ? TEXT("") : TEXT(",")',
@@ -569,6 +575,8 @@ def check(files):
 LOG_PREFIX_RX = re.compile(r"^\[(?P<ts>[^\]]*)\]\[\s*(?P<frame>\d+)\](?P<rest>.*)$")
 LOG_CAT_RX = re.compile(r"^(?P<cat>[A-Za-z][A-Za-z0-9_]*):\s")
 CENSUS_LINE_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (scope=|id=|end\b)")
+CENSUS_AUX_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (begin|progress|scanned)\b")
+SCANNED_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 scanned=(\d+) of=(\d+) gone=(\d+) stopped=(\w+) seconds=([\d.]+)")
 CENSUS_EXPECT = (
     re.compile(r"IAI-TEXCORRUPT-CENSUS v1 scope=(view|all) candidates=\d+ cap_bytes=\d+ uv_modes=\S+ normal_modes=\S+\s*$"),
     re.compile(r"IAI-TEXCORRUPT-CENSUS v1 id=uv_corruption eligible=\d+ refused=\d+ reasons=\S+\s*$"),
@@ -627,8 +635,14 @@ def check_log(text, cold):
                                        f"here would be a warmed reading, not evidence"]
         census = []
         foreign = 0
+        scanned = None
         for j in range(start, end + 1):
             r = rows[j]
+            if CENSUS_AUX_RX.search(r["text"]):
+                m = SCANNED_RX.search(r["text"])
+                if m:
+                    scanned = m.groups()
+                continue
             if CENSUS_LINE_RX.search(r["text"]):
                 if r["frame"] != frame:
                     verdict = "FAIL"
@@ -643,6 +657,8 @@ def check_log(text, cold):
             verdict = "FAIL"
             messages.append(f"{tag}: the counts block is not scope / id=uv_corruption / id=normal_corruption / "
                             f"end stats_unchanged=1 ({len(census)} census line(s))")
+        if scanned:
+            messages.append(f"{tag}: scanned {scanned[0]} of {scanned[1]} (gone {scanned[2]}), stopped={scanned[3]} after {scanned[4]} s" + ("" if scanned[3] == "complete" else " - PARTIAL COUNTS"))
         messages.append(f"{tag}: frame {frame}, {end - start + 1} line(s) in the block, {len(census)} census line(s), "
                         f"{foreign} other-category line(s) (not plugin output)")
     return verdict, messages
@@ -697,12 +713,12 @@ def build_mutants(files):
         ("scope removed from the census", "(a)",
          mutate(files, "tree", CENSUS_SIG, rx_sub(SCOPE_LINE_RX, ""))),
         ("scope moved after the enumeration", "(a)",
-         mutate(files, "tree", CENSUS_SIG, chain(rx_sub(SCOPE_LINE_RX, ""), rep("\t\tNames.Sort();", scope_stmt + "\t\tNames.Sort();")))),
+         mutate(files, "tree", CENSUS_SIG, chain(rx_sub(SCOPE_LINE_RX, ""), rep("\t\tFCensusCounts* Counts = Job.Counts;", scope_stmt + "\t\tFCensusCounts* Counts = Job.Counts;")))),
         ("scope confined to the 'all' block", "(a)",
-         mutate(files, "tree", CENSUS_SIG, chain(rx_sub(SCOPE_LINE_RX, ""), rx_sub(r"if \(bAll\)\n\t\t\{\n", "if (bAll)\n\t\t{\n\t" + scope_stmt)))),
+         mutate(files, "tree", CENSUS_SIG, chain(rx_sub(SCOPE_LINE_RX, ""), rx_sub(r"if \(Job\.bAll\)\n\t\t\t\{\n", "if (Job.bAll)\n\t\t\t{\n\t\t" + scope_stmt)))),
         ("name-bearing UE_LOG added to the census", "(b)",
-         mutate(files, "tree", CENSUS_SIG, rx_sub(r"for \(const FString& Name : Names\)\n\t\t\{\n",
-                                                   "for (const FString& Name : Names)\n\t\t{\n" + name_log))),
+         mutate(files, "tree", CENSUS_SIG, rx_sub(r"\t\t\tAActor\* Actor = Job\.Actors\[Job\.Next\]\.Get\(\);\n",
+                                                   "\t\t\tAActor* Actor = Job.Actors[Job.Next].Get();\n" + name_log))),
         ("reasons histogram keyed by the target", "(b)",
          mutate(files, "tree", CENSUS_SIG, rep(".FindOrAdd(Result.Reason)", ".FindOrAdd(Result.Reason + In.TargetQuery)"))),
         ("CountTreeDispositions call added to the census", "(c)",
