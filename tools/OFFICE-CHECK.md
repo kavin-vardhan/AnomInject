@@ -32,14 +32,24 @@ Open a Command Prompt in the delivery folder and run these two lines, one after 
 ## 3. Read back
 Read the lines under **READ BACK**, one per anomaly, for example:
 
-    blinking           judged 12 | start {+0:24} | end {+0:24} | wrong-object 0 (upper bound 2) | censored 1 | fail 0 | interrupted 0
+    blinking           judged 12 | start {+0:24} | end {+0:24} | wrong-object 0 (upper bound 2) | censored 1 | fail 0 | interrupted 0 | nanite 0 | unjudged 0
 
 For each anomaly read: **judged**, **start**, **end**, **wrong-object** (both numbers), **censored**, **fail**,
-**interrupted**. Also read the **`sessions read`** line and the **`decoder:`** line. That is all; `numbers.txt`
-holds the same text.
+**interrupted**, **nanite**, **unjudged**. Also read the **`sessions read`** line and the **`decoder:`** line. That
+is all; `numbers.txt` holds the same text.
 
 **`interrupted`** counts anomalies the game removed partway through (for example by swapping the material back);
 their labels stop at that frame and are checked there, so it is not a failure by itself.
+
+**`nanite`** counts anomalies whose object turned out to draw Nanite partway through, so the plugin stopped
+labelling it and removed the effect; those frames are left out of the check, so it is not a failure by itself.
+
+**`unjudged`** counts anomalies the kit could not fully judge (for example a frame image is missing or unreadable);
+one that also shows a failure counts under **fail** instead. It is **not a pass**: copy the session folder again
+and re-run the check, and if it is still above 0, read it back.
+
+**`censored`** is not proof of correct timing: a one-frame interruption between two labelled runs (or another gap
+too short to measure) reads `censored`, not failed.
 
 Then, in the plugin folder, run `python tools\m52_log_counts.py "<the game's log>"` and read back every line it
 prints (numbers only).
