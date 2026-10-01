@@ -653,10 +653,12 @@ namespace AnomalyTexCorrupt
 	FString DescribeLevers()
 	{
 		return FString::Printf(TEXT("noapply=%d wrongcopy=%s identity=%d identity_redraw=%d tile_probe=%d force_missing_asset=%d ")
-			TEXT("fail_step=%d fail_alloc_ordinal=%d foreign_replace=%d collateral_detail=%d commit_delay=%d restore_delay=%d"),
+			TEXT("fail_step=%d fail_alloc_ordinal=%d foreign_replace=%d collateral_detail=%d commit_delay=%d restore_delay=%d ")
+			TEXT("rt_sampler_bias=%d src_mip_comp=%d no_part_scope=%d"),
 			GLevers.NoApply, LexWrongCopy(GLevers.WrongCopy), GLevers.bIdentity ? 1 : 0, GLevers.bIdentityRedraw ? 1 : 0,
 			GLevers.TileProbe, GLevers.bForceMissingAsset ? 1 : 0, GLevers.FailStep, GLevers.FailAllocOrdinal,
-			GLevers.bForeignReplace ? 1 : 0, GLevers.bCollateralDetail ? 1 : 0, GLevers.CommitDelay, GLevers.RestoreDelay);
+			GLevers.bForeignReplace ? 1 : 0, GLevers.bCollateralDetail ? 1 : 0, GLevers.CommitDelay, GLevers.RestoreDelay,
+			GLevers.RtSamplerBias, GLevers.SrcMipCompensation, GLevers.bNoPartScope ? 1 : 0);
 	}
 
 	FLedger& Ledger()
@@ -696,6 +698,7 @@ namespace AnomalyTexCorrupt
 		GLedger.Peak = GLedger.Live + GLedger.PendingSum();
 		GStats.RtBytesPeak = GLedger.Peak;
 		GTripwire.Reset();
+		SourceChangedCounter().Reset();
 		GOrdinals.Reset();
 		EchoRunStartKnobs();
 	}
@@ -704,6 +707,7 @@ namespace AnomalyTexCorrupt
 	{
 		FRunStats Out = GStats;
 		Out.RtMipMismatch = GTripwire.GetValue();
+		Out.CopySourceChanged = SourceChangedCounter().GetValue();
 		Out.RtBytesPeak = FMath::Max(Out.RtBytesPeak, GLedger.Peak);
 		return Out;
 	}
@@ -753,6 +757,10 @@ namespace AnomalyTexCorrupt
 		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.CollateralDrops);
 		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.CollateralIncompleteFrames);
 		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.SlotsPartialSet);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.CopySourceChanged);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.ResidentChainOutputs);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.FiresWithSkippedParts);
+		RunStatsDigestFold(Fnv,(uint64)(int64)GStats.ComponentsSkipped);
 		RunStatsDigestFold(Fnv,(uint64)(int64)GTripwire.GetValue());
 		RunStatsDigestFold(Fnv,(uint64)GLedger.Live);
 		RunStatsDigestFold(Fnv,(uint64)GLedger.Peak);

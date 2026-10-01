@@ -3,7 +3,10 @@
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyTargeting.h"
+#include "Components/MeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/Texture2D.h"
+#include "EngineUtils.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -241,6 +244,133 @@ namespace AnomalyTexCorrupt
 			{
 				Levers().bIdentity = ParseInt(Args, 0) != 0;
 				Echo(TEXT("IAI.Bench.TexCorruptIdentity"));
+			}));
+
+		FAutoConsoleCommand GRtSamplerBiasCmd(
+			TEXT("IAI.Bench.TexCorruptRtSamplerBias"),
+			TEXT("BENCH DEVICE (090-10c, A4 can-fail). -1 = product (the copy's sampler carries the global r.MipMapLODBias, as the ")
+			TEXT("texture's own sampler does), 0 = never (the copy samples sharper than the original under a global bias), 1 = always. ")
+			TEXT("Usage: IAI.Bench.TexCorruptRtSamplerBias <-1|0|1>"),
+			FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+			{
+				Levers().RtSamplerBias = FMath::Clamp(ParseInt(Args, -1), -1, 1);
+				Echo(TEXT("IAI.Bench.TexCorruptRtSamplerBias"));
+			}));
+
+		FAutoConsoleCommand GSrcMipCompCmd(
+			TEXT("IAI.Bench.TexCorruptSrcMipCompensation"),
+			TEXT("BENCH DEVICE (090-10c). 1 = draw each copy level at SrcMip minus the global r.MipMapLODBias (for a sampler whose ")
+			TEXT("bias also applies to an explicit-LOD sample); -1/0 = product (no compensation). ")
+			TEXT("Usage: IAI.Bench.TexCorruptSrcMipCompensation <-1|0|1>"),
+			FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+			{
+				Levers().SrcMipCompensation = FMath::Clamp(ParseInt(Args, -1), -1, 1);
+				Echo(TEXT("IAI.Bench.TexCorruptSrcMipCompensation"));
+			}));
+
+		FAutoConsoleCommand GNoPartScopeCmd(
+			TEXT("IAI.Bench.TexCorruptNoPartScope"),
+			TEXT("BENCH DEVICE (090-10c, B can-fail). With 1 an event that skipped some components does NOT scope the mask and the ")
+			TEXT("projected box to its corrupted components, so they cover the whole actor. Usage: IAI.Bench.TexCorruptNoPartScope <0|1>"),
+			FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+			{
+				Levers().bNoPartScope = ParseInt(Args, 0) != 0;
+				Echo(TEXT("IAI.Bench.TexCorruptNoPartScope"));
+			}));
+
+		struct FHostTexBias
+		{
+			TWeakObjectPtr<UTexture2D> Tex;
+			int32 LODBias = 0;
+			int32 Cinematic = 0;
+		};
+
+		TArray<FHostTexBias>& HostTexBiases()
+		{
+			static TArray<FHostTexBias> List;
+			return List;
+		}
+
+		void RestoreHostTexBiases()
+		{
+			for (const FHostTexBias& E : HostTexBiases())
+			{
+				if (UTexture2D* T = E.Tex.Get())
+				{
+					T->LODBias = E.LODBias;
+					T->NumCinematicMipLevels = E.Cinematic;
+					T->UpdateCachedLODBias();
+					T->UpdateResource();
+				}
+			}
+			UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.TexCorruptHostTexBias: RESTORED %d texture(s) to their own LODBias / cinematic mips."),
+				HostTexBiases().Num());
+			HostTexBiases().Reset();
+		}
+
+		FAutoConsoleCommandWithWorldAndArgs GHostTexBiasCmd(
+			TEXT("IAI.Bench.TexCorruptHostTexBias"),
+			TEXT("BENCH DEVICE (090-10c). Sets LODBias and NumCinematicMipLevels at runtime on every 2D texture the named actor's mesh ")
+			TEXT("slots use, and recreates their resources: the per-texture and cinematic LOD bias a real project carries, reached in a ")
+			TEXT("packaged bench build without a cook. '0' restores every texture it changed. ")
+			TEXT("Usage: IAI.Bench.TexCorruptHostTexBias <actor> <lod_bias> <cinematic_mips> | 0"),
+			FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+			{
+				if (Args.Num() == 1 && Args[0] == TEXT("0"))
+				{
+					RestoreHostTexBiases();
+					return;
+				}
+				if (!World || Args.Num() < 3)
+				{
+					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.TexCorruptHostTexBias <actor> <lod_bias> <cinematic_mips> | 0"));
+					return;
+				}
+				const int32 Bias = FCString::Atoi(*Args[1]);
+				const int32 Cin = FCString::Atoi(*Args[2]);
+				int32 Changed = 0;
+				for (TActorIterator<AActor> It(World); It; ++It)
+				{
+					if (!It->GetName().Equals(Args[0], ESearchCase::IgnoreCase))
+					{
+						continue;
+					}
+					TInlineComponentArray<UMeshComponent*> Meshes(*It);
+					for (UMeshComponent* C : Meshes)
+					{
+						for (int32 i = 0; i < C->GetNumMaterials(); ++i)
+						{
+							UMaterialInterface* M = C->GetMaterial(i);
+							if (!M)
+							{
+								continue;
+							}
+							TArray<UTexture*> Used;
+							M->GetUsedTextures(Used, EMaterialQualityLevel::Num, true, World->FeatureLevel, true);
+							for (UTexture* T : Used)
+							{
+								UTexture2D* T2 = Cast<UTexture2D>(T);
+								if (!T2 || HostTexBiases().ContainsByPredicate([T2](const FHostTexBias& E) { return E.Tex.Get() == T2; }))
+								{
+									continue;
+								}
+								FHostTexBias& E = HostTexBiases().AddDefaulted_GetRef();
+								E.Tex = T2;
+								E.LODBias = T2->LODBias;
+								E.Cinematic = T2->NumCinematicMipLevels;
+								T2->LODBias = Bias;
+								T2->NumCinematicMipLevels = Cin;
+								T2->UpdateCachedLODBias();
+								T2->UpdateResource();
+								++Changed;
+								UE_LOG(LogAnomaly, Warning,
+									TEXT("IAI.Bench.TexCorruptHostTexBias: '%s' LODBias %d -> %d, cinematic %d -> %d, cached_lod_bias now %d."),
+									*T2->GetName(), E.LODBias, Bias, E.Cinematic, Cin, T2->GetCachedLODBias());
+							}
+						}
+					}
+				}
+				UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.TexCorruptHostTexBias: %d texture(s) changed on '%s'."), Changed, *Args[0]);
 			}));
 
 		FAutoConsoleCommand GAllReasonsFirstOnlyCmd(

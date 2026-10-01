@@ -9196,6 +9196,10 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_collateral_drops"), TC.CollateralDrops);
 			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_collateral_incomplete_frames"), TC.CollateralIncompleteFrames);
 			TexCorruptSummary->SetNumberField(TEXT("texcorrupt_slots_partial_set"), TC.SlotsPartialSet);
+		TexCorruptSummary->SetNumberField(TEXT("texcorrupt_copy_source_changed"), TC.CopySourceChanged);
+		TexCorruptSummary->SetNumberField(TEXT("texcorrupt_resident_chain_outputs"), TC.ResidentChainOutputs);
+		TexCorruptSummary->SetNumberField(TEXT("texcorrupt_fires_with_skipped_parts"), TC.FiresWithSkippedParts);
+		TexCorruptSummary->SetNumberField(TEXT("texcorrupt_components_skipped"), TC.ComponentsSkipped);
 			{
 				const UAnomalyInjectorSubsystem* ExclInjector = GetWorld() ? GetWorld()->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
 				const FAnomalyExclusionStats Excl = ExclInjector ? ExclInjector->GetExclusionStats() : FAnomalyExclusionStats();

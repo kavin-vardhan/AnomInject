@@ -198,6 +198,9 @@ namespace AnomalyTexCorrupt
 		int32 CommitDelay = 0;
 		int32 RestoreDelay = 0;
 		bool bAllReasonsFirstOnly = false;
+		int32 RtSamplerBias = -1;
+		int32 SrcMipCompensation = -1;
+		bool bNoPartScope = false;
 	};
 
 	FLevers& Levers();
@@ -246,6 +249,11 @@ namespace AnomalyTexCorrupt
 		int32 AssetLODBias = -1;
 		int32 CinematicMips = 0;
 		int32 CachedLODBias = 0;
+		int32 CookedM = 0;
+		int32 CookedW = 0;
+		int32 CookedH = 0;
+		int32 FirstMip = 0;
+		bool bResidentMappable = true;
 		bool bStreams = false;
 		bool bDefaultTexture = false;
 		int32 Step = 0;
@@ -286,7 +294,10 @@ namespace AnomalyTexCorrupt
 		TArray<FString> Notes;
 		bool bUnassessed = false;
 
+		bool bComponentAdmitted = true;
+
 		bool IsQualified() const { return Step == 0 && !bUntouched; }
+		bool IsSelected() const { return IsQualified() && bComponentAdmitted; }
 		FString DispositionKey() const;
 	};
 
@@ -318,6 +329,9 @@ namespace AnomalyTexCorrupt
 		TArray<FString> EventKeys;
 		TArray<FString> EventNotes;
 		int32 ComponentsAdmittable = 0;
+		int32 ComponentsTouchable = 0;
+		int32 ComponentsSkipped = 0;
+		int32 SlotsSelected = 0;
 
 		FString FinalKey() const;
 		FString CensusKey() const;
@@ -387,7 +401,18 @@ namespace AnomalyTexCorrupt
 
 	void EnqueueMipCopy(UTextureRenderTarget2D* Scratch, UTextureRenderTarget2D* Out, int32 Mip, int32 W, int32 H);
 
-	void EnqueueTripwire(UTexture2D* Source, int32 M, int32 W, int32 H, const FString& Name);
+	struct FTripwireHold;
+
+	TSharedRef<FTripwireHold, ESPMode::ThreadSafe> MakeTripwireHold();
+
+	void EnqueueTripwire(UTexture2D* Source, int32 M, int32 W, int32 H, int32 FirstMip, const FString& Name,
+		const TSharedRef<FTripwireHold, ESPMode::ThreadSafe>& Hold, bool bPost);
+
+	FThreadSafeCounter& SourceChangedCounter();
+
+	float EffectiveRtSamplerBias();
+
+	float EffectiveSrcMipCompensation();
 
 	void ReleaseTarget(UTextureRenderTarget2D* Target);
 

@@ -163,6 +163,16 @@ namespace AnomalyViewport
 	ANOMALYINJECTOR_API bool ProjectBoxToScreenRect(
 		const FAnomalyViewInfo& View, const FBox& Box, FVector2D& OutMin, FVector2D& OutMax);
 
+	ANOMALYINJECTOR_API void SetEventComponentScope(const AActor* Actor, const TArray<const UPrimitiveComponent*>& Components);
+
+	ANOMALYINJECTOR_API void ClearEventComponentScope(const AActor* Actor);
+
+	ANOMALYINJECTOR_API void PruneEventComponentScopes();
+
+	ANOMALYINJECTOR_API bool HasEventComponentScope(const AActor* Actor);
+
+	ANOMALYINJECTOR_API bool IsInEventComponentScope(const UPrimitiveComponent* Component);
+
 	ANOMALYINJECTOR_API float GetActorScreenCoveragePct(UWorld* World, const AActor* Actor);
 
 	ANOMALYINJECTOR_API float GetActorPollDistanceCm(UWorld* World, const AActor* Actor);

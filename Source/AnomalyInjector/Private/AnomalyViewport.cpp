@@ -1683,6 +1683,63 @@ namespace AnomalyViewport
 		return Result;
 	}
 
+	namespace
+	{
+		TMap<TWeakObjectPtr<const AActor>, TArray<TWeakObjectPtr<const UPrimitiveComponent>>>& EventComponentScopes()
+		{
+			static TMap<TWeakObjectPtr<const AActor>, TArray<TWeakObjectPtr<const UPrimitiveComponent>>> Scopes;
+			return Scopes;
+		}
+	}
+
+	void SetEventComponentScope(const AActor* Actor, const TArray<const UPrimitiveComponent*>& Components)
+	{
+		if (!Actor)
+		{
+			return;
+		}
+		TArray<TWeakObjectPtr<const UPrimitiveComponent>>& Scope = EventComponentScopes().FindOrAdd(Actor);
+		Scope.Reset();
+		for (const UPrimitiveComponent* C : Components)
+		{
+			if (C && C->GetOwner() == Actor)
+			{
+				Scope.AddUnique(C);
+			}
+		}
+	}
+
+	void ClearEventComponentScope(const AActor* Actor)
+	{
+		EventComponentScopes().Remove(Actor);
+	}
+
+	void PruneEventComponentScopes()
+	{
+		for (auto It = EventComponentScopes().CreateIterator(); It; ++It)
+		{
+			if (!It.Key().IsValid())
+			{
+				It.RemoveCurrent();
+			}
+		}
+	}
+
+	bool HasEventComponentScope(const AActor* Actor)
+	{
+		return Actor && EventComponentScopes().Contains(Actor);
+	}
+
+	bool IsInEventComponentScope(const UPrimitiveComponent* Component)
+	{
+		if (!Component || EventComponentScopes().Num() == 0)
+		{
+			return true;
+		}
+		const TArray<TWeakObjectPtr<const UPrimitiveComponent>>* Scope = EventComponentScopes().Find(Component->GetOwner());
+		return !Scope || Scope->Contains(Component);
+	}
+
 	bool ProjectActorBoundsToScreenRect(const FAnomalyViewInfo& View, const AActor* Actor, FVector2D& OutMin, FVector2D& OutMax)
 	{
 		OutMin = OutMax = FVector2D::ZeroVector;
@@ -1692,7 +1749,23 @@ namespace AnomalyViewport
 		}
 
 		FBox Box(ForceInit);
-		if (!GetActorRenderableBounds(Actor, Box))
+		if (HasEventComponentScope(Actor))
+		{
+			TArray<UPrimitiveComponent*> Prims;
+			Actor->GetComponents<UPrimitiveComponent>(Prims);
+			for (const UPrimitiveComponent* Prim : Prims)
+			{
+				if (IsRenderableGeometryComponent(Prim) && IsInEventComponentScope(Prim))
+				{
+					Box += Prim->Bounds.GetBox();
+				}
+			}
+			if (!Box.IsValid)
+			{
+				return false;
+			}
+		}
+		else if (!GetActorRenderableBounds(Actor, Box))
 		{
 			return false;
 		}

@@ -24,6 +24,10 @@ namespace AnomalyTexCorrupt
 		int32 CollateralDrops = 0;
 		int32 CollateralIncompleteFrames = 0;
 		int32 SlotsPartialSet = 0;
+		int32 CopySourceChanged = 0;
+		int32 ResidentChainOutputs = 0;
+		int32 FiresWithSkippedParts = 0;
+		int32 ComponentsSkipped = 0;
 	};
 
 	ANOMALYINJECTOR_API void ResetRunStats();

@@ -2,7 +2,10 @@
 
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
+#include "DeviceProfiles/DeviceProfile.h"
+#include "DeviceProfiles/DeviceProfileManager.h"
 #include "Engine/Canvas.h"
+#include "Engine/TextureLODSettings.h"
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
@@ -68,7 +71,60 @@ namespace AnomalyTexCorrupt
 			Target->ReleaseResource();
 			return nullptr;
 		}
+		const float Bias = SamplerSource ? EffectiveRtSamplerBias() : 0.0f;
+		if (Bias != 0.0f)
+		{
+			FTextureResource* Res = Target->GetResource();
+			const ESamplerFilter Filter = (ESamplerFilter)UDeviceProfileManager::Get().GetActiveProfile()->GetTextureLODSettings()->GetSamplerFilter(Target);
+			const ESamplerAddressMode AddrU = Target->AddressX == TA_Wrap ? AM_Wrap : (Target->AddressX == TA_Clamp ? AM_Clamp : AM_Mirror);
+			const ESamplerAddressMode AddrV = Target->AddressY == TA_Wrap ? AM_Wrap : (Target->AddressY == TA_Clamp ? AM_Clamp : AM_Mirror);
+			ENQUEUE_RENDER_COMMAND(AnomalyTexCorruptRtSamplerBias)(
+				[Res, Filter, AddrU, AddrV, Bias](FRHICommandListImmediate&)
+				{
+					if (Res)
+					{
+						Res->SamplerStateRHI = GetOrCreateSamplerState(FSamplerStateInitializerRHI(Filter, AddrU, AddrV, AM_Wrap, Bias));
+					}
+				});
+		}
 		return Target;
+	}
+
+	float EffectiveRtSamplerBias()
+	{
+		const int32 L = Levers().RtSamplerBias;
+		if (L == 0)
+		{
+			return 0.0f;
+		}
+		return UTexture2D::GetGlobalMipMapLODBias();
+	}
+
+	float EffectiveSrcMipCompensation()
+	{
+		const int32 L = Levers().SrcMipCompensation;
+		if (L == 1)
+		{
+			return UTexture2D::GetGlobalMipMapLODBias();
+		}
+		return 0.0f;
+	}
+
+	struct FTripwireHold
+	{
+		FTextureRHIRef Ref;
+		bool bTaken = false;
+	};
+
+	TSharedRef<FTripwireHold, ESPMode::ThreadSafe> MakeTripwireHold()
+	{
+		return MakeShared<FTripwireHold, ESPMode::ThreadSafe>();
+	}
+
+	FThreadSafeCounter& SourceChangedCounter()
+	{
+		static FThreadSafeCounter Counter;
+		return Counter;
 	}
 
 	bool IsTargetDrawable(UTextureRenderTarget2D* Target)
@@ -134,7 +190,8 @@ namespace AnomalyTexCorrupt
 			});
 	}
 
-	void EnqueueTripwire(UTexture2D* Source, int32 M, int32 W, int32 H, const FString& Name)
+	void EnqueueTripwire(UTexture2D* Source, int32 M, int32 W, int32 H, int32 FirstMip, const FString& Name,
+		const TSharedRef<FTripwireHold, ESPMode::ThreadSafe>& Hold, bool bPost)
 	{
 		FTextureResource* Res = Source ? Source->GetResource() : nullptr;
 		if (!Res)
@@ -144,20 +201,39 @@ namespace AnomalyTexCorrupt
 			return;
 		}
 		ENQUEUE_RENDER_COMMAND(AnomalyTexCorruptTripwire)(
-			[Res, M, W, H, Name](FRHICommandListImmediate& RHICmdList)
+			[Res, M, W, H, FirstMip, Name, Hold, bPost](FRHICommandListImmediate& RHICmdList)
 			{
 				FRHITexture* Tex = Res->TextureRHI.GetReference();
 				const int32 Mips = Tex ? (int32)Tex->GetNumMips() : -1;
 				const FIntPoint Extent = Tex ? Tex->GetSizeXY() : FIntPoint(-1, -1);
+				if (!bPost)
+				{
+					Hold->Ref = Res->TextureRHI;
+					Hold->bTaken = true;
+				}
+				else
+				{
+					if (Hold->bTaken && Hold->Ref.GetReference() != Tex)
+					{
+						SourceChangedCounter().Increment();
+						UE_LOG(LogAnomaly, Warning,
+							TEXT("texcorrupt: COPY SOURCE CHANGED '%s' - the source RHI texture was replaced (streaming) between the ")
+							TEXT("first and the last level draw of its copy. The copy keeps the levels it drew and stays visibly ")
+							TEXT("corrupted; identity against the new resource is not claimed. Counted in texcorrupt_copy_source_changed ")
+							TEXT("(a note, not a refusal)."),
+							*Name);
+					}
+					Hold->Ref.SafeRelease();
+				}
 				if (Mips != M || Extent != FIntPoint(W, H))
 				{
 					TripwireCounter().Increment();
 					UE_LOG(LogAnomaly, Error,
-						TEXT("texcorrupt: MIP TRIPWIRE '%s' - on the render thread the source RHI texture has %d mip(s) at %dx%d, ")
-						TEXT("while admission derived %d mip(s) at %dx%d from game-thread state. The premise that RHI mip i IS ")
-						TEXT("cooked mip i is WRONG for this texture on this build (plan R3.4.2); counted in ")
+						TEXT("texcorrupt: MIP TRIPWIRE '%s' (%s) - on the render thread the source RHI texture has %d mip(s) at %dx%d, ")
+						TEXT("while admission derived %d resident mip(s) at %dx%d (cooked mip %d first) from game-thread state. The ")
+						TEXT("premise that RHI mip i IS cooked mip %d+i does not hold for this texture now; counted in ")
 						TEXT("texcorrupt_rt_mip_mismatch, which stops S1."),
-						*Name, Mips, Extent.X, Extent.Y, M, W, H);
+						*Name, bPost ? TEXT("after the copy") : TEXT("before the copy"), Mips, Extent.X, Extent.Y, M, W, H, FirstMip, FirstMip);
 				}
 			});
 	}

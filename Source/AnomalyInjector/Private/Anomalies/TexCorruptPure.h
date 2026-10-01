@@ -918,14 +918,14 @@ namespace TexCorruptPure
 		}
 	}
 
-	inline EFootprintStep DecideFootprintStep(int Qualified, int Slots, bool bFits)
+	inline EFootprintStep DecideFootprintStep(int Qualified, int Slots, int ComponentsAdmitted, bool bFits)
 	{
 		const EFootprint F = JudgeFootprint(Qualified, Slots);
 		if (F == EFootprint::NoneQualified)
 		{
 			return EFootprintStep::V1;
 		}
-		if (F == EFootprint::Partial)
+		if (F == EFootprint::Partial && ComponentsAdmitted <= 0)
 		{
 			return EFootprintStep::V1P;
 		}
@@ -1432,6 +1432,31 @@ namespace TexCorruptPure
 	inline bool GlobalStreamingBias(int UsePerTextureBias, float MipBias)
 	{
 		return MipBias > 0.0f && UsePerTextureBias == 0;
+	}
+
+	inline int EffectiveStreamingMipBias(bool bEditor, float MipBias, int UseAllMips)
+	{
+		if (bEditor || UseAllMips != 0 || !(MipBias > 0.0f))
+		{
+			return 0;
+		}
+		return (int)MipBias;
+	}
+
+	enum class EPartAdmission : int
+	{
+		NothingToChange,
+		Admitted,
+		Skipped
+	};
+
+	inline EPartAdmission JudgeComponent(int Touchable, int Qualified)
+	{
+		if (Touchable <= 0)
+		{
+			return EPartAdmission::NothingToChange;
+		}
+		return Qualified == Touchable ? EPartAdmission::Admitted : EPartAdmission::Skipped;
 	}
 
 	enum class EDrawOutcome : int

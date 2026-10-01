@@ -479,6 +479,12 @@ int main()
 		Check("T9 streaming_budget: MipBias 0", "false", Bool(StreamingBudgetPossible(true, 1, 0.0f)));
 		Check("T9 streaming_budget: per-texture off (E5 decides)", "false", Bool(StreamingBudgetPossible(true, 0, 1.0f)));
 		Check("T9 streaming_budget: texture does not stream", "false", Bool(StreamingBudgetPossible(false, 1, 1.0f)));
+		Check("090-10c A2 effective bias: editor, MipBias 1 -> 0 (TextureStreamingHelpers.cpp:299)", "0",
+			Int(EffectiveStreamingMipBias(true, 1.0f, 0)));
+		Check("090-10c A2 effective bias: game, MipBias 0.5 -> floor 0", "0", Int(EffectiveStreamingMipBias(false, 0.5f, 0)));
+		Check("090-10c A2 effective bias: game, MipBias 1.7 -> 1", "1", Int(EffectiveStreamingMipBias(false, 1.7f, 0)));
+		Check("090-10c A2 effective bias: game, UseAllMips -> 0 (:325-328)", "0", Int(EffectiveStreamingMipBias(false, 2.0f, 1)));
+		Check("090-10c A2 effective bias: game, negative -> 0", "0", Int(EffectiveStreamingMipBias(false, -1.0f, 0)));
 	}
 
 	std::printf("\n[9] P2-5 allocation plan: the order Apply executes, and its byte total\n");
@@ -1012,14 +1018,25 @@ int main()
 
 	std::printf("\n[18] 085-02 DC: all-or-nothing (V1P between V1 and V2) and the revert-settling window\n");
 	{
-		Check("footprint 0/30", "V1", LexFootprintStep(DecideFootprintStep(0, 30, true)));
-		Check("footprint 0/0 (no slots)", "V1", LexFootprintStep(DecideFootprintStep(0, 0, true)));
-		Check("footprint 12/30, fits", "V1P", LexFootprintStep(DecideFootprintStep(12, 30, true)));
-		Check("footprint 12/30, over budget: V1P wins, never over_budget", "V1P", LexFootprintStep(DecideFootprintStep(12, 30, false)));
-		Check("footprint 1/2 (TC_Mixed shape)", "V1P", LexFootprintStep(DecideFootprintStep(1, 2, true)));
-		Check("footprint 29/30", "V1P", LexFootprintStep(DecideFootprintStep(29, 30, true)));
-		Check("footprint 30/30, over budget", "V2", LexFootprintStep(DecideFootprintStep(30, 30, false)));
-		Check("footprint 30/30, fits", "apply", LexFootprintStep(DecideFootprintStep(30, 30, true)));
+		Check("footprint 0/30", "V1", LexFootprintStep(DecideFootprintStep(0, 30, 0, true)));
+		Check("footprint 0/0 (no slots)", "V1", LexFootprintStep(DecideFootprintStep(0, 0, 0, true)));
+		Check("footprint 12/30 on one component (no whole component), fits", "V1P", LexFootprintStep(DecideFootprintStep(12, 30, 0, true)));
+		Check("footprint 12/30 on one component, over budget: V1P wins, never over_budget", "V1P",
+			LexFootprintStep(DecideFootprintStep(12, 30, 0, false)));
+		Check("footprint 1/2 (TC_Mixed shape: one component, one slot fails) is still skipped", "V1P",
+			LexFootprintStep(DecideFootprintStep(1, 2, 0, true)));
+		Check("footprint 29/30 on one component", "V1P", LexFootprintStep(DecideFootprintStep(29, 30, 0, true)));
+		Check("090-10c B: 29/30 across components with one whole component admits its parts", "apply",
+			LexFootprintStep(DecideFootprintStep(29, 30, 1, true)));
+		Check("090-10c B: a partial event over budget is over_budget", "V2", LexFootprintStep(DecideFootprintStep(29, 30, 1, false)));
+		Check("090-10c: one qualified slot + one untouched (translucent) slot on one component admits", "apply",
+			LexFootprintStep(DecideFootprintStep(1, 2, JudgeComponent(1, 1) == EPartAdmission::Admitted ? 1 : 0, true)));
+		Check("footprint 30/30, over budget", "V2", LexFootprintStep(DecideFootprintStep(30, 30, 1, false)));
+		Check("footprint 30/30, fits", "apply", LexFootprintStep(DecideFootprintStep(30, 30, 1, true)));
+		Check("090-10c component: every touchable slot qualifies", "1", Int((int)JudgeComponent(3, 3)));
+		Check("090-10c component: one touchable slot fails (never part of a component)", "2", Int((int)JudgeComponent(3, 2)));
+		Check("090-10c component: nothing touchable (all empty or translucent)", "0", Int((int)JudgeComponent(0, 0)));
+		Check("090-10c component: 29 of 30", "2", Int((int)JudgeComponent(30, 29)));
 
 		const int Ranks[] = { 23, 1, 12, 2 };
 		const bool Qual[] = { false, false, true, false };

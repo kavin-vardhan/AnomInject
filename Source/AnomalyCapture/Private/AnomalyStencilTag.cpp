@@ -166,7 +166,7 @@ namespace AnomalyStencilTag
 		Actor->GetComponents(Prims);
 		for (UPrimitiveComponent* Prim : Prims)
 		{
-			if (!AnomalyViewport::IsRenderableComponent(Prim))
+			if (!AnomalyViewport::IsRenderableComponent(Prim) || !AnomalyViewport::IsInEventComponentScope(Prim))
 			{
 				continue;
 			}
@@ -209,7 +209,7 @@ namespace AnomalyStencilTag
 		const_cast<AActor*>(Actor)->GetComponents(Prims);
 		for (const UPrimitiveComponent* Prim : Prims)
 		{
-			if (!AnomalyViewport::IsRenderableComponent(Prim))
+			if (!AnomalyViewport::IsRenderableComponent(Prim) || !AnomalyViewport::IsInEventComponentScope(Prim))
 			{
 				continue;
 			}

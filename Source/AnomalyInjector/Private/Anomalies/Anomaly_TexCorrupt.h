@@ -48,6 +48,8 @@ private:
 		int32 M = 0;
 		int32 W = 0;
 		int32 H = 0;
+		int32 FirstMip = 0;
+		int32 CookedM = 0;
 		UTextureRenderTarget2D* Target = nullptr;
 		TArray<UMaterialInstanceDynamic*> LevelMids;
 		int64 Bytes = 0;
@@ -96,6 +98,8 @@ private:
 		int32 W = 0;
 		int32 H = 0;
 		int32 M = 0;
+		int32 FirstMip = 0;
+		int32 CookedM = 0;
 		int64 RtBytes = 0;
 		bool bNonSpatialExempt = false;
 	};
@@ -136,6 +140,7 @@ private:
 	int32 CommitSlots();
 	void RestoreAndRelease(double StartSeconds, int32 DelayedBy);
 	void FinishPendingRestore(const TCHAR* Context);
+	void ClearPartScope();
 
 	FName Id;
 	EFamily Family;
@@ -172,6 +177,10 @@ private:
 	TArray<FOwnedSlot> Slots;
 	TArray<FTexRecord> TexRecords;
 	TArray<FUntouched> Untouched;
+	TArray<FString> PartsCorrupted;
+	TArray<TWeakObjectPtr<AActor>> ScopedOwners;
+	int32 ComponentsCorrupted = 0;
+	int32 ComponentsSkipped = 0;
 
 	TArray<FCollateral> Collateral;
 	bool bCollateralTruncated = false;

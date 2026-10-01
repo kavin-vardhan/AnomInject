@@ -5,6 +5,7 @@
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
+#include "AnomalyViewport.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
@@ -157,6 +158,10 @@ void FAnomaly_TexCorrupt::ResetEventState()
 	Slots.Reset();
 	TexRecords.Reset();
 	Untouched.Reset();
+	ClearPartScope();
+	PartsCorrupted.Reset();
+	ComponentsCorrupted = 0;
+	ComponentsSkipped = 0;
 	Owners.Reset();
 	PrimaryOwner.Reset();
 	PrimaryName.Reset();
@@ -176,6 +181,22 @@ void FAnomaly_TexCorrupt::ResetEventState()
 	SlotsTotal = 0;
 	TicksSinceApply = 0;
 	bForeignReplacePending = false;
+}
+
+void FAnomaly_TexCorrupt::ClearPartScope()
+{
+	for (const TWeakObjectPtr<AActor>& W : ScopedOwners)
+	{
+		if (const AActor* A = W.Get())
+		{
+			AnomalyViewport::ClearEventComponentScope(A);
+		}
+	}
+	if (ScopedOwners.Num() > 0)
+	{
+		AnomalyViewport::PruneEventComponentScopes();
+	}
+	ScopedOwners.Reset();
 }
 
 FAnomaly_TexCorrupt::FScratchSet* FAnomaly_TexCorrupt::FindScratch(const FScratchKey& Key)
@@ -365,7 +386,7 @@ bool FAnomaly_TexCorrupt::SetupLevelMid(UWorld* World, FOutput& O, int32 Level, 
 	const int32 Hm = FMath::Max(1, O.H >> Level);
 	TArray<TPair<FName, float>> Scalars;
 	TArray<TPair<FName, UTexture*>> Textures;
-	Scalars.Emplace(Param::SrcMip, (float)SourceMipFor(O, Level));
+	Scalars.Emplace(Param::SrcMip, (float)SourceMipFor(O, Level) - EffectiveSrcMipCompensation());
 	Scalars.Emplace(Param::DbgChanSwap, Fault == EWrongCopy::ChanSwap ? 1.0f : 0.0f);
 	Scalars.Emplace(Param::DbgTexelShift, Fault == EWrongCopy::TexelShift ? 1.0f : 0.0f);
 	Scalars.Emplace(Param::TexelSizeU, 1.0f / (float)Wm);
@@ -437,7 +458,8 @@ bool FAnomaly_TexCorrupt::SetupLevelMid(UWorld* World, FOutput& O, int32 Level, 
 
 bool FAnomaly_TexCorrupt::EnqueueOutput(UWorld* World, FOutput& O, bool bClear)
 {
-	EnqueueTripwire(O.Source, O.M, O.W, O.H, O.SourceName);
+	const TSharedRef<FTripwireHold, ESPMode::ThreadSafe> TripHold = MakeTripwireHold();
+	EnqueueTripwire(O.Source, O.M, O.W, O.H, O.FirstMip, O.SourceName, TripHold, false);
 	bool bOk = true;
 	FScratchSet* S = O.M > 1 ? FindScratch(O.Key) : nullptr;
 	for (int32 m = 0; m < O.M; ++m)
@@ -465,7 +487,7 @@ bool FAnomaly_TexCorrupt::EnqueueOutput(UWorld* World, FOutput& O, bool bClear)
 	{
 		O.Target->UpdateResourceImmediate(false);
 	}
-	EnqueueTripwire(O.Source, O.M, O.W, O.H, O.SourceName);
+	EnqueueTripwire(O.Source, O.M, O.W, O.H, O.FirstMip, O.SourceName, TripHold, true);
 	return bOk;
 }
 
@@ -814,17 +836,18 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 
 	for (const FSlot& S : Tree.Slots)
 	{
-		if (S.Owner)
+		if (S.Owner && S.IsSelected())
 		{
 			Owners.AddUnique(S.Owner);
 		}
-		if (!S.IsQualified())
+		if (!S.IsSelected())
 		{
 			FUntouched& U = Untouched.AddDefaulted_GetRef();
 			U.Slot = FString::Printf(TEXT("%s[%d]"), *S.CompName.ToString(), S.SlotIndex);
-			U.Reason = S.DispositionKey();
+			U.Reason = S.IsQualified() ? FString(TEXT("component_skipped")) : S.DispositionKey();
 		}
 	}
+	ComponentsSkipped = Tree.ComponentsSkipped;
 	SlotsTotal = Tree.Slots.Num();
 	if (Owners.Num() > 0)
 	{
@@ -835,7 +858,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	TMap<UTexture2D*, int32> OutputIndex;
 	for (const FSlot& S : Tree.Slots)
 	{
-		if (!S.IsQualified())
+		if (!S.IsSelected())
 		{
 			continue;
 		}
@@ -870,6 +893,8 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 				O.M = B.M;
 				O.W = B.W;
 				O.H = B.H;
+				O.FirstMip = B.FirstMip;
+				O.CookedM = B.CookedM;
 				O.Bytes = ChainBytes(B.W, B.H, B.M);
 				O.Key.W = B.W;
 				O.Key.H = B.H;
@@ -887,6 +912,8 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 			R.W = B.W;
 			R.H = B.H;
 			R.M = B.M;
+			R.FirstMip = B.FirstMip;
+			R.CookedM = B.CookedM;
 			R.RtBytes = ChainBytes(B.W, B.H, B.M);
 		}
 	}
@@ -914,10 +941,11 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 
 	for (const FSlot& S : Tree.Slots)
 	{
-		if (!S.IsQualified())
+		if (!S.IsSelected())
 		{
 			continue;
 		}
+		PartsCorrupted.Add(FString::Printf(TEXT("%s[%d]"), *S.CompName.ToString(), S.SlotIndex));
 		FOwnedSlot& OS = Slots.AddDefaulted_GetRef();
 		OS.Comp = S.Comp;
 		OS.CompName = S.CompName;
@@ -1054,7 +1082,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 #endif
 	for (const FSlot& S : Tree.Slots)
 	{
-		if (!S.IsQualified())
+		if (!S.IsSelected())
 		{
 			continue;
 		}
@@ -1121,6 +1149,46 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	if (bCommitNow)
 	{
 		CommitSlots();
+	}
+
+	{
+		TMap<AActor*, TArray<const UPrimitiveComponent*>> ByOwner;
+		for (const FOwnedSlot& OS : Slots)
+		{
+			if (UMeshComponent* C = OS.Comp.Get())
+			{
+				ByOwner.FindOrAdd(C->GetOwner()).AddUnique(C);
+			}
+		}
+		for (const TPair<AActor*, TArray<const UPrimitiveComponent*>>& P : ByOwner)
+		{
+			ComponentsCorrupted += P.Value.Num();
+		}
+		if (ComponentsSkipped > 0 && !Levers().bNoPartScope)
+		{
+			for (const TPair<AActor*, TArray<const UPrimitiveComponent*>>& P : ByOwner)
+			{
+				if (P.Key)
+				{
+					AnomalyViewport::SetEventComponentScope(P.Key, P.Value);
+					ScopedOwners.Add(P.Key);
+				}
+			}
+		}
+		FRunStats& Stats = FStatsAccess::Mutable();
+		for (const FOutput& O : Outputs)
+		{
+			Stats.ResidentChainOutputs += O.FirstMip > 0 ? 1 : 0;
+		}
+		if (ComponentsSkipped > 0)
+		{
+			++Stats.FiresWithSkippedParts;
+			Stats.ComponentsSkipped += ComponentsSkipped;
+			UE_LOG(LogAnomaly, Log,
+				TEXT("%s: PARTS - %d component(s) corrupted, %d skipped because not every part of them qualified; the mask and the ")
+				TEXT("projected box cover the corrupted component(s) only (scope %s)."),
+				*Id.ToString(), ComponentsCorrupted, ComponentsSkipped, Levers().bNoPartScope ? TEXT("OFF - bench lever") : TEXT("set"));
+		}
 	}
 
 	RegisterTargetWatch(Injector);
@@ -1305,6 +1373,7 @@ void FAnomaly_TexCorrupt::FinishPendingRestore(const TCHAR* Context)
 
 void FAnomaly_TexCorrupt::RestoreAndRelease(double StartSeconds, int32 DelayedBy)
 {
+	ClearPartScope();
 	int32 Exact = 0;
 	int32 Default = 0;
 	int32 LeftToGame = 0;
@@ -1580,6 +1649,8 @@ bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddString(TEXT("texcorrupt.expected_strength_class"), ExpectedStrengthClass(Mode));
 	Out.AddInt(TEXT("texcorrupt.slots_corrupted"), SlotsCorrupted);
 	Out.AddInt(TEXT("texcorrupt.slots_total"), SlotsTotal);
+	Out.AddInt(TEXT("texcorrupt.components_corrupted"), ComponentsCorrupted);
+	Out.AddInt(TEXT("texcorrupt.components_skipped"), ComponentsSkipped);
 	int32 FirstBad = -1;
 	const TexCorruptPure::EHeld Reading = EvaluateCondition(FirstBad);
 	Out.AddBool(TEXT("texcorrupt.condition_held"), Reading == TexCorruptPure::EHeld::Held);
@@ -1617,6 +1688,11 @@ bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 	{
 		Out.AddString(TEXT("texcorrupt.bench_wrong_copy"), LexWrongCopy(Fault));
 	}
+	for (const FString& Part : PartsCorrupted)
+	{
+		FAnomalyTelemetryFields& Rec = Out.AddArrayEntry(TEXT("texcorrupt.slots_corrupted_list"));
+		Rec.AddString(TEXT("slot"), Part);
+	}
 	for (const FUntouched& U : Untouched)
 	{
 		FAnomalyTelemetryFields& Rec = Out.AddArrayEntry(TEXT("texcorrupt.slots_untouched"));
@@ -1632,7 +1708,8 @@ bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 		Rec.AddInt(TEXT("layer_index"), R.LayerIndex);
 		Rec.AddString(TEXT("class"), R.Class);
 		Rec.AddString(TEXT("pixel_format"), R.PixelFormat);
-		Rec.AddInt(TEXT("snapshot_mip"), 0);
+		Rec.AddInt(TEXT("snapshot_mip"), R.FirstMip);
+		Rec.AddInt(TEXT("cooked_mip_count"), R.CookedM);
 		Rec.AddInt(TEXT("snapshot_px_w"), R.W);
 		Rec.AddInt(TEXT("snapshot_px_h"), R.H);
 		Rec.AddInt(TEXT("rt_bytes"), (int32)FMath::Min<int64>(R.RtBytes, MAX_int32));
@@ -1659,6 +1736,7 @@ void FAnomaly_TexCorrupt::OnWorldTeardown()
 	{
 		Revert();
 	}
+	ClearPartScope();
 	if (bRestorePending)
 	{
 		FinishPendingRestore(TEXT("world teardown"));

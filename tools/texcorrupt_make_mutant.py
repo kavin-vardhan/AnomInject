@@ -59,6 +59,12 @@ FAULTS = [
     ("revert_settling_ends_a_frame_early",
      "return Now < PostRevertFrame;",
      "return Now + 1 < PostRevertFrame;"),
+    ("part_of_a_component_admitted",
+     "return Qualified == Touchable ? EPartAdmission::Admitted : EPartAdmission::Skipped;",
+     "return Qualified > 0 ? EPartAdmission::Admitted : EPartAdmission::Skipped;"),
+    ("editor_streaming_bias_not_zeroed",
+     "if (bEditor || UseAllMips != 0 || !(MipBias > 0.0f))",
+     "if (UseAllMips != 0 || !(MipBias > 0.0f))"),
 ]
 
 

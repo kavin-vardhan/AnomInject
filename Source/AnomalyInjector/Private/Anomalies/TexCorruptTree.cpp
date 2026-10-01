@@ -322,6 +322,9 @@ namespace AnomalyTexCorrupt
 					B.LevelSizes.Add(FIntPoint(PD->Mips[m].SizeX, PD->Mips[m].SizeY));
 				}
 			}
+			B.CookedM = B.M;
+			B.CookedW = B.W;
+			B.CookedH = B.H;
 			const FStreamableRenderResourceState& St = Tex->GetStreamableResourceState();
 			if (St.IsValid())
 			{
@@ -330,6 +333,17 @@ namespace AnomalyTexCorrupt
 				B.NonOptionalLODs = St.NumNonOptionalLODs;
 				B.AssetLODBias = St.AssetLODBias;
 				B.bStreams = St.bSupportsStreaming != 0;
+				const int32 First = (int32)St.AssetLODBias + (int32)St.MaxNumLODs - (int32)St.NumResidentLODs;
+				B.bResidentMappable = B.M > 0 && B.LevelSizes.Num() == B.M && ((int32)St.AssetLODBias + (int32)St.MaxNumLODs) == B.M
+					&& St.NumResidentLODs >= 1 && First >= 0 && First < B.M;
+				if (B.bResidentMappable && First > 0)
+				{
+					B.FirstMip = First;
+					B.W = B.LevelSizes[First].X;
+					B.H = B.LevelSizes[First].Y;
+					B.M = (int32)St.NumResidentLODs;
+					B.LevelSizes.RemoveAt(0, First);
+				}
 			}
 		}
 
@@ -460,7 +474,7 @@ namespace AnomalyTexCorrupt
 			}
 			if (B.Tex2D->HasPendingInitOrStreaming(false))
 			{
-				if (Fail(8, Why::StreamingPending, FString(), false)) { return; }
+				B.Notes.AddUnique(CensusKey(Why::StreamingPending, FString()));
 			}
 			const FStreamableRenderResourceState& St = B.Tex2D->GetStreamableResourceState();
 			if (!St.IsValid())
@@ -469,26 +483,30 @@ namespace AnomalyTexCorrupt
 			}
 			if (B.CinematicMips > 0)
 			{
-				if (Fail(9, Why::RuntimeLodBias, TEXT("cinematic"), false)) { return; }
+				B.Notes.AddUnique(CensusKey(Why::RuntimeLodBias, TEXT("cinematic")));
 			}
 			if ((int32)St.AssetLODBias > 0 || (B.CachedLODBias - B.CinematicMips - (int32)St.AssetLODBias) > 0)
 			{
-				if (Fail(9, Why::RuntimeLodBias, TEXT("per_texture"), false)) { return; }
+				B.Notes.AddUnique(CensusKey(Why::RuntimeLodBias, TEXT("per_texture")));
 			}
-			if (TexCorruptPure::StreamingBudgetPossible(St.bSupportsStreaming != 0,
-				ReadCVarInt(TEXT("r.Streaming.UsePerTextureBias"), 1), ReadCVarFloat(TEXT("r.Streaming.MipBias"), 0.0f)))
+			if (St.bSupportsStreaming != 0 && ReadCVarInt(TEXT("r.Streaming.UsePerTextureBias"), 1) != 0
+				&& TexCorruptPure::EffectiveStreamingMipBias(GIsEditor, ReadCVarFloat(TEXT("r.Streaming.MipBias"), 0.0f),
+					ReadCVarInt(TEXT("r.Streaming.UseAllMips"), 0)) > 0)
 			{
-				if (Fail(9, Why::RuntimeLodBias, TEXT("streaming_budget"), false)) { return; }
+				B.Notes.AddUnique(CensusKey(Why::RuntimeLodBias, TEXT("streaming_budget")));
 			}
-			if ((int32)St.MaxNumLODs != B.M)
+			if (!B.bResidentMappable)
 			{
-				if (Fail(10, Why::NotFullyResident,
-					(int32)St.MaxNumLODs < B.M ? TEXT("max_below_cooked") : TEXT("max_above_cooked"), false)) { return; }
+				if (Fail(10, Why::NotFullyResident, TEXT("unmappable"), false)) { return; }
 			}
-			if (St.NumResidentLODs != St.MaxNumLODs)
+			else if (St.NumResidentLODs != St.MaxNumLODs)
 			{
 				const bool bOptional = St.NumNonOptionalLODs < St.MaxNumLODs && St.NumResidentLODs <= St.NumNonOptionalLODs;
-				if (Fail(10, Why::NotFullyResident, bOptional ? TEXT("optional_not_resident") : TEXT(""), false)) { return; }
+				B.Notes.AddUnique(CensusKey(Why::NotFullyResident, bOptional ? TEXT("optional_not_resident") : TEXT("resident_chain")));
+			}
+			else if (B.FirstMip > 0)
+			{
+				B.Notes.AddUnique(CensusKey(Why::NotFullyResident, TEXT("resident_chain")));
 			}
 		}
 
@@ -587,7 +605,7 @@ namespace AnomalyTexCorrupt
 			{
 				const bool bInFamily = (In.Family == EFamily::UV) || (B.Tex2D && B.bNormalMap);
 				B.bRequired = bInFamily;
-				if (bInFamily && !B.IsTransformable() && B.Tex2D && TexCorruptPure::IsNonSpatial(B.M, B.W, B.H))
+				if (bInFamily && !B.IsTransformable() && B.Tex2D && TexCorruptPure::IsNonSpatial(B.CookedM, B.CookedW, B.CookedH))
 				{
 					B.bRequired = false;
 					B.bNonSpatialExempt = true;
@@ -598,18 +616,23 @@ namespace AnomalyTexCorrupt
 				}
 			}
 
-			if (bAll)
+			for (const FBinding& B : S.Bindings)
 			{
-				for (const FBinding& B : S.Bindings)
+				if (!B.bRequired)
 				{
-					if (B.bRequired)
+					continue;
+				}
+				for (const FString& K : B.Notes)
+				{
+					S.Notes.AddUnique(K);
+				}
+				if (bAll)
+				{
+					for (const FString& K : B.AllKeys)
 					{
-						for (const FString& K : B.AllKeys)
-						{
-							S.AllKeys.AddUnique(K);
-						}
-						S.bUnassessed |= B.bUnassessed;
+						S.AllKeys.AddUnique(K);
 					}
+					S.bUnassessed |= B.bUnassessed;
 				}
 			}
 
@@ -653,7 +676,7 @@ namespace AnomalyTexCorrupt
 			bool bAnyAtPolicy = false;
 			for (const FBinding& B : S.Bindings)
 			{
-				if (B.bRequired && B.W >= MinPx && B.H >= MinPx)
+				if (B.bRequired && B.CookedW >= MinPx && B.CookedH >= MinPx)
 				{
 					bAnyAtPolicy = true;
 					break;
@@ -678,7 +701,7 @@ namespace AnomalyTexCorrupt
 			TArray<TexCorruptPure::FReqTex> Req;
 			for (const FSlot& S : Out.Slots)
 			{
-				if (!S.IsQualified())
+				if (!S.IsSelected())
 				{
 					continue;
 				}
@@ -1002,13 +1025,13 @@ namespace AnomalyTexCorrupt
 		}
 		if (UTexture2D::GetGlobalMipMapLODBias() != 0.0f)
 		{
-			RefuseEvent(Why::RuntimeLodBias, TEXT("global_sampler"), TEXT("E4"));
-			if (!bAll) { return; }
+			Out.EventNotes.AddUnique(CensusKey(Why::RuntimeLodBias, TEXT("global_sampler")));
 		}
-		if (TexCorruptPure::GlobalStreamingBias(ReadCVarInt(TEXT("r.Streaming.UsePerTextureBias"), 1), ReadCVarFloat(TEXT("r.Streaming.MipBias"), 0.0f)))
+		if (ReadCVarInt(TEXT("r.Streaming.UsePerTextureBias"), 1) == 0
+			&& TexCorruptPure::EffectiveStreamingMipBias(GIsEditor, ReadCVarFloat(TEXT("r.Streaming.MipBias"), 0.0f),
+				ReadCVarInt(TEXT("r.Streaming.UseAllMips"), 0)) > 0)
 		{
-			RefuseEvent(Why::RuntimeLodBias, TEXT("global_streaming"), TEXT("E5"));
-			if (!bAll) { return; }
+			Out.EventNotes.AddUnique(CensusKey(Why::RuntimeLodBias, TEXT("global_streaming")));
 		}
 		if (!In.bCensus && In.Mode == EMode::None)
 		{
@@ -1123,11 +1146,30 @@ namespace AnomalyTexCorrupt
 			}
 			for (const TPair<const UMeshComponent*, TPair<int32, int32>>& P : PerComp)
 			{
-				if (P.Value.Key > 0 && P.Value.Key == P.Value.Value)
+				const TexCorruptPure::EPartAdmission A = TexCorruptPure::JudgeComponent(P.Value.Key, P.Value.Value);
+				if (A == TexCorruptPure::EPartAdmission::Admitted)
 				{
 					++Out.ComponentsAdmittable;
 				}
+				if (A != TexCorruptPure::EPartAdmission::NothingToChange)
+				{
+					++Out.ComponentsTouchable;
+				}
 			}
+			for (FSlot& S : Out.Slots)
+			{
+				const TPair<int32, int32>* P = PerComp.Find(S.Comp);
+				S.bComponentAdmitted = P && TexCorruptPure::JudgeComponent(P->Key, P->Value) == TexCorruptPure::EPartAdmission::Admitted;
+				if (S.IsSelected())
+				{
+					++Out.SlotsSelected;
+				}
+				for (const FString& K : S.Notes)
+				{
+					Out.EventNotes.AddUnique(K);
+				}
+			}
+			Out.ComponentsSkipped = Out.ComponentsTouchable - Out.ComponentsAdmittable;
 		}
 		const int32 EarliestIndex = TexCorruptPure::PickEarliestSlot(Ranks.GetData(), Untouched.GetData(), Qualified.GetData(), Ranks.Num());
 		const FSlot* Earliest = Out.Slots.IsValidIndex(EarliestIndex) ? &Out.Slots[EarliestIndex] : nullptr;
@@ -1144,7 +1186,7 @@ namespace AnomalyTexCorrupt
 			}
 			return;
 		}
-		if (Footprint == TexCorruptPure::EFootprint::Partial)
+		if (Footprint == TexCorruptPure::EFootprint::Partial && Out.ComponentsAdmittable == 0)
 		{
 			const int32 FirstOut = TexCorruptPure::PickEarliestNonQualified(Ranks.GetData(), Qualified.GetData(), Ranks.Num());
 			const FString FirstReason = Out.Slots.IsValidIndex(FirstOut) ? Out.Slots[FirstOut].Reason : FString(TEXT("unknown"));
@@ -1219,19 +1261,21 @@ namespace AnomalyTexCorrupt
 	{
 		UE_LOG(LogAnomaly, Log,
 			TEXT("TEXCORRUPT-%s family=%s mode=%s target='%s' final=%s step=%s slots=%d qualified=%d required_bytes=%lld ")
-			TEXT("distinct_textures=%d scratch_classes=%d cap=%s levers=[%s]%s"),
+			TEXT("distinct_textures=%d scratch_classes=%d cap=%s levers=[%s]%s components=%d admitted=%d skipped=%d selected_slots=%d ")
+			TEXT("notes=[%s]"),
 			Tag, LexFamily(Result.Family), LexMode(Result.Mode), *Result.TargetQuery, *Result.FinalKey(),
 			Result.EventStep.IsEmpty() ? TEXT("-") : *Result.EventStep, Result.Slots.Num(), Result.SlotsQualified,
 			Result.RequiredBytes, Result.DistinctTextures, Result.ScratchClasses, *DescribeMaxRtBytes(), *DescribeLevers(),
-			*Result.Attempt.Describe());
+			*Result.Attempt.Describe(), Result.ComponentsTouchable, Result.ComponentsAdmittable, Result.ComponentsSkipped,
+			Result.SlotsSelected, *FString::Join(Result.EventNotes, TEXT(" ")));
 		for (const FSlot& S : Result.Slots)
 		{
 			UE_LOG(LogAnomaly, Log,
 				TEXT("TEXCORRUPT-%s   slot %s.%s[%d] disposition=%s raw=%s(len %d) asset=%s resolved=%s effective=%s ")
-				TEXT("nanite_routed=%d partial=%d bindings=%d"),
+				TEXT("nanite_routed=%d partial=%d bindings=%d selected=%d"),
 				Tag, *GetNameSafe(S.Owner), *S.CompName.ToString(), S.SlotIndex, *S.DispositionKey(),
 				*GetNameSafe(S.Raw), S.RawArrayLen, *GetNameSafe(S.Asset), *GetNameSafe(S.Resolved), *GetNameSafe(S.Effective),
-				(S.Effective != S.Resolved) ? 1 : 0, S.bPartial ? 1 : 0, S.Bindings.Num());
+				(S.Effective != S.Resolved) ? 1 : 0, S.bPartial ? 1 : 0, S.Bindings.Num(), S.IsSelected() ? 1 : 0);
 			if (!bVerboseBindings)
 			{
 				continue;
@@ -1247,11 +1291,13 @@ namespace AnomalyTexCorrupt
 				UE_LOG(LogAnomaly, Log,
 					TEXT("TEXCORRUPT-%s     binding type=%s idx=%d param='%s' assoc=%s layer=%d texture='%s' class=%s fmt=%s srgb=%d ")
 					TEXT("normal_map=%d group=%d M=%d top=%dx%d levels=[%s] resident=%d max=%d nonoptional=%d asset_lod_bias=%d ")
-					TEXT("cinematic=%d cached_lod_bias=%d streams=%d required=%d disposition=%s"),
+					TEXT("cinematic=%d cached_lod_bias=%d streams=%d required=%d disposition=%s first_mip=%d cooked=%dx%d/M%d ")
+					TEXT("mappable=%d notes=[%s]"),
 					Tag, LexTexType(B.Type), B.Index, *B.ParamName.ToString(), LexAssociation(B.Info.Association), B.Info.Index,
 					*B.TextureName, LexClass(B.Class), GetPixelFormatString(B.Format), B.bSRGB ? 1 : 0, B.bNormalMap ? 1 : 0,
 					B.LODGroup, B.M, B.W, B.H, *Levels, B.ResidentLODs, B.MaxLODs, B.NonOptionalLODs, B.AssetLODBias,
-					B.CinematicMips, B.CachedLODBias, B.bStreams ? 1 : 0, B.bRequired ? 1 : 0, *B.DispositionKey());
+					B.CinematicMips, B.CachedLODBias, B.bStreams ? 1 : 0, B.bRequired ? 1 : 0, *B.DispositionKey(), B.FirstMip,
+					B.CookedW, B.CookedH, B.CookedM, B.bResidentMappable ? 1 : 0, *FString::Join(B.Notes, TEXT(" ")));
 			}
 		}
 	}
