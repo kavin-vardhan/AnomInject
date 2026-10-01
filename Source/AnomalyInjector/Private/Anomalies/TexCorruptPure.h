@@ -24,6 +24,81 @@ namespace TexCorruptPure
 		}
 	}
 
+	enum class EDrawReadiness : int
+	{
+		Ready,
+		CompilePending,
+		NoVertexFactoryShaders,
+		NoBasePassVertexShader,
+		NoBasePassPixelShader
+	};
+
+	inline const char* LexDrawReadiness(EDrawReadiness R)
+	{
+		switch (R)
+		{
+		case EDrawReadiness::Ready:                  return "ready";
+		case EDrawReadiness::CompilePending:         return "compile_pending";
+		case EDrawReadiness::NoVertexFactoryShaders: return "no_vertex_factory_shaders";
+		case EDrawReadiness::NoBasePassVertexShader: return "no_base_pass_vs";
+		case EDrawReadiness::NoBasePassPixelShader:  return "no_base_pass_ps";
+		}
+		return "unknown";
+	}
+
+	inline bool StartsWithAscii(const char* S, const char* Prefix)
+	{
+		if (!S || !Prefix)
+		{
+			return false;
+		}
+		while (*Prefix)
+		{
+			if (*S != *Prefix)
+			{
+				return false;
+			}
+			++S;
+			++Prefix;
+		}
+		return true;
+	}
+
+	inline int ClassifyBasePassShaderTypeName(const char* Name)
+	{
+		if (StartsWithAscii(Name, "TBasePassVS") || StartsWithAscii(Name, "TMobileBasePassVS"))
+		{
+			return 1;
+		}
+		if (StartsWithAscii(Name, "TBasePassPS") || StartsWithAscii(Name, "TMobileBasePassPS"))
+		{
+			return 2;
+		}
+		return 0;
+	}
+
+	inline EDrawReadiness JudgeDrawReadiness(bool bCompileFinished, bool bHasVertexFactoryShaders, int BasePassVertexShaders,
+		int BasePassPixelShaders)
+	{
+		if (!bCompileFinished)
+		{
+			return EDrawReadiness::CompilePending;
+		}
+		if (!bHasVertexFactoryShaders)
+		{
+			return EDrawReadiness::NoVertexFactoryShaders;
+		}
+		if (BasePassVertexShaders <= 0)
+		{
+			return EDrawReadiness::NoBasePassVertexShader;
+		}
+		if (BasePassPixelShaders <= 0)
+		{
+			return EDrawReadiness::NoBasePassPixelShader;
+		}
+		return EDrawReadiness::Ready;
+	}
+
 	enum class EFmt : int
 	{
 		DXT1,

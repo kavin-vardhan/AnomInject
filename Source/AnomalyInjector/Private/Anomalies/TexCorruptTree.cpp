@@ -533,15 +533,11 @@ namespace AnomalyTexCorrupt
 			bool bResOk = false;
 			bool bSmOk = false;
 			bool bComplete = false;
-			ReadActiveBindings(World, S.Resolved, S.Comp, S.Bindings, bResOk, bSmOk, bComplete);
+			FHostDrawReadiness Readiness;
+			ReadActiveBindings(World, S.Resolved, S.Comp, S.Bindings, bResOk, bSmOk, bComplete, &Readiness);
 			if (!bResOk || !bSmOk)
 			{
 				FailSlot(S, RankS5, Why::ShaderMapUnavailable, bResOk ? TEXT("no_shader_map") : TEXT("no_resource"));
-				return;
-			}
-			if (!bComplete)
-			{
-				FailSlot(S, RankS6, Why::ShaderMapIncomplete);
 				return;
 			}
 
@@ -553,6 +549,14 @@ namespace AnomalyTexCorrupt
 					FailSlot(S, RankS7, Why::DefaultMaterialPath, UsageSub);
 					return;
 				}
+			}
+
+			if (!bComplete)
+			{
+				const bool bPending = Readiness.Verdict == TexCorruptPure::EDrawReadiness::CompilePending;
+				FailSlot(S, RankS6, bPending ? Why::ShaderMapIncomplete : Why::DrawShadersMissing,
+					FString::Printf(TEXT("%s:%s"), *Readiness.VertexFactory, UTF8_TO_TCHAR(TexCorruptPure::LexDrawReadiness(Readiness.Verdict))));
+				return;
 			}
 
 			if (S.Bindings.Num() == 0)
@@ -702,28 +706,26 @@ namespace AnomalyTexCorrupt
 		return true;
 	}
 
-	bool HostShadersReady(UMaterialInterface* Material, const UPrimitiveComponent* Comp, UWorld* World)
+	FHostDrawReadiness ReadHostDrawReadiness(UMaterialInterface* Material, const UPrimitiveComponent* Comp, UWorld* World)
 	{
+		FHostDrawReadiness Out;
 		if (!Material || !World)
 		{
-			return false;
+			return Out;
 		}
 		FMaterialResource* Res = Material->GetMaterialResource(World->FeatureLevel);
 		const FMaterialShaderMap* Map = Res ? Res->GetGameThreadShaderMap() : nullptr;
 		if (!Map)
 		{
-			return false;
+			return Out;
 		}
-		if (Res->IsGameThreadShaderMapComplete())
-		{
-			return true;
-		}
+		Out.bWholeMapComplete = Res->IsGameThreadShaderMapComplete();
 #if WITH_EDITOR
-		const bool bFinished = Res->IsCompilationFinished();
+		Out.bCompileFinished = Res->IsCompilationFinished();
 #else
-		const bool bFinished = true;
+		Out.bCompileFinished = true;
 #endif
-		const FVertexFactoryType* Types[2] = { nullptr, nullptr };
+		const FVertexFactoryType* Types[3] = { nullptr, nullptr, nullptr };
 		if (Cast<UInstancedStaticMeshComponent>(Comp))
 		{
 			Types[0] = &FInstancedStaticMeshVertexFactory::StaticType;
@@ -732,45 +734,82 @@ namespace AnomalyTexCorrupt
 		{
 			Types[0] = &TGPUSkinVertexFactory<GPUSkinBoneInfluenceType::DefaultBoneInfluence>::StaticType;
 			Types[1] = &TGPUSkinVertexFactory<GPUSkinBoneInfluenceType::UnlimitedBoneInfluence>::StaticType;
+			Types[2] = FVertexFactoryType::GetVFByName(FHashedName(TEXT("FGPUSkinPassthroughVertexFactory")));
+		}
+		else if (Cast<USplineMeshComponent>(Comp))
+		{
+			Types[0] = FVertexFactoryType::GetVFByName(FHashedName(TEXT("FSplineMeshVertexFactory")));
 		}
 		else
 		{
 			Types[0] = &FLocalVertexFactory::StaticType;
 		}
-		int32 Shaders = 0;
-		const TCHAR* VfName = TEXT("none");
+		int64 BestScore = -1;
 		for (const FVertexFactoryType* Type : Types)
 		{
 			if (!Type)
 			{
 				continue;
 			}
-			if (const FMeshMaterialShaderMap* Mesh = Map->GetMeshShaderMap(Type))
+			const FMeshMaterialShaderMap* Mesh = Map->GetMeshShaderMap(Type);
+			if (!Mesh)
 			{
-				const int32 N = (int32)Mesh->GetNumShaders();
-				if (N > Shaders)
+				continue;
+			}
+			int32 Shaders = 0;
+			int32 Vs = 0;
+			int32 Ps = 0;
+			for (const TMemoryImagePtr<FShader>& Ptr : Mesh->GetShaders())
+			{
+				const FShader* Shader = Ptr.Get();
+				if (!Shader)
 				{
-					Shaders = N;
-					VfName = Type->GetName();
+					continue;
 				}
+				++Shaders;
+				const FShaderType* ShaderType = Shader->GetType(Map->GetPointerTable());
+				if (!ShaderType)
+				{
+					continue;
+				}
+				const FTCHARToUTF8 TypeName(ShaderType->GetName());
+				const int Kind = TexCorruptPure::ClassifyBasePassShaderTypeName(TypeName.Get());
+				Vs += Kind == 1 ? 1 : 0;
+				Ps += Kind == 2 ? 1 : 0;
+			}
+			const int64 Score = (Vs > 0 && Ps > 0 ? (int64)1 << 32 : 0) + ((int64)FMath::Min(Vs, Ps) << 16) + Shaders;
+			if (Score > BestScore)
+			{
+				BestScore = Score;
+				Out.VertexFactory = Type->GetName();
+				Out.VertexFactoryShaders = Shaders;
+				Out.BasePassVertexShaders = Vs;
+				Out.BasePassPixelShaders = Ps;
 			}
 		}
-		const bool bReady = bFinished && Shaders > 0;
-		static TSet<FName> Reported;
+		Out.Verdict = TexCorruptPure::JudgeDrawReadiness(Out.bCompileFinished, Out.VertexFactoryShaders > 0, Out.BasePassVertexShaders,
+			Out.BasePassPixelShaders);
+		static TSet<FString> Reported;
 		if (!AnomalyViewport::IsReadOnlyEnumeration() && Reported.Num() < 256)
 		{
 			bool bAlready = false;
-			Reported.Add(Material->GetFName(), &bAlready);
+			Reported.Add(FString::Printf(TEXT("%s|%d"), *Material->GetPathName(), (int32)Out.Verdict), &bAlready);
 			if (!bAlready)
 			{
+				const FString VerdictText = Out.IsReady() ? FString(TEXT("admitted"))
+					: FString::Printf(TEXT("refused %s"), UTF8_TO_TCHAR(TexCorruptPure::LexDrawReadiness(Out.Verdict)));
 				UE_LOG(LogAnomaly, Log,
-					TEXT("TEXCORRUPT-SHADERMAP '%s' game_thread_complete=0 compilation_finished=%d vertex_factory=%s shaders=%d -> %s. ")
-					TEXT("A whole-map completeness flag stays 0 in the editor for materials that render; a mesh draws with the shaders ")
-					TEXT("its material has for the component's vertex factory, so those decide (and an unfinished compile refuses)."),
-					*GetNameSafe(Material), bFinished ? 1 : 0, VfName, Shaders, bReady ? TEXT("admitted") : TEXT("refused"));
+					TEXT("TEXCORRUPT-SHADERMAP '%s' game_thread_complete=%d compilation_finished=%d vertex_factory=%s shaders=%d ")
+					TEXT("base_pass_vs=%d base_pass_ps=%d -> %s. The whole-map flag is reported, never decided on: it stays 0 in the ")
+					TEXT("editor for materials that render, and it is cached for the usages the map was compiled with. The base pass ")
+					TEXT("draws a mesh with its material's vertex and pixel shaders for the component's vertex factory or falls back ")
+					TEXT("to the default material (BasePassRendering.cpp:507 TryGetShaders), so those decide; an unfinished compile ")
+					TEXT("refuses as shader_map_incomplete, missing base-pass shaders as draw_shaders_missing."),
+					*GetNameSafe(Material), Out.bWholeMapComplete ? 1 : 0, Out.bCompileFinished ? 1 : 0, *Out.VertexFactory,
+					Out.VertexFactoryShaders, Out.BasePassVertexShaders, Out.BasePassPixelShaders, *VerdictText);
 			}
 		}
-		return bReady;
+		return Out;
 	}
 
 	bool CorruptorShadersReady(UMaterialInterface* Corruptor, UWorld* World)
@@ -797,7 +836,7 @@ namespace AnomalyTexCorrupt
 	}
 
 	void ReadActiveBindings(UWorld* World, UMaterialInterface* Resolved, const UPrimitiveComponent* Comp, TArray<FBinding>& OutBindings,
-		bool& bOutResourceOk, bool& bOutShaderMapOk, bool& bOutComplete)
+		bool& bOutResourceOk, bool& bOutShaderMapOk, bool& bOutComplete, FHostDrawReadiness* OutReadiness)
 	{
 		OutBindings.Reset();
 		bOutResourceOk = false;
@@ -819,7 +858,12 @@ namespace AnomalyTexCorrupt
 			return;
 		}
 		bOutShaderMapOk = true;
-		if (!HostShadersReady(Resolved, Comp, World))
+		const FHostDrawReadiness Readiness = ReadHostDrawReadiness(Resolved, Comp, World);
+		if (OutReadiness)
+		{
+			*OutReadiness = Readiness;
+		}
+		if (!Readiness.IsReady())
 		{
 			return;
 		}
@@ -1214,6 +1258,10 @@ namespace AnomalyTexCorrupt
 			FCensusCounts Counts[2];
 			double StartSeconds = 0.0;
 			double NextProgressSeconds = 0.0;
+			double LastCallSeconds = 0.0;
+			double MaxIntervalSeconds = 0.0;
+			double MaxCallSeconds = 0.0;
+			int32 Calls = 0;
 		};
 
 		TUniquePtr<FOfficeCensusJob>& ActiveCensus()
@@ -1230,6 +1278,13 @@ namespace AnomalyTexCorrupt
 	bool RunOfficeCensus(FOfficeCensusJob& Job)
 	{
 		AnomalyViewport::FReadOnlyEnumerationScope ReadOnly;
+		const double CallStart = FPlatformTime::Seconds();
+		if (Job.Calls > 0)
+		{
+			Job.MaxIntervalSeconds = FMath::Max(Job.MaxIntervalSeconds, CallStart - Job.LastCallSeconds);
+		}
+		Job.LastCallSeconds = CallStart;
+		++Job.Calls;
 		UWorld* World = Job.World.Get();
 		if (!World && !Job.bEnumerated)
 		{
@@ -1354,6 +1409,7 @@ namespace AnomalyTexCorrupt
 			&& StatsBefore.UvModes == StatsAfter.UvModes && StatsBefore.NormalModes == StatsAfter.NormalModes
 			&& StatsBefore.PoolLiveFires == StatsAfter.PoolLiveFires && StatsBefore.PoolIds == StatsAfter.PoolIds;
 		Job.bStatsUnchanged = bStatsUnchanged;
+		Job.MaxCallSeconds = FMath::Max(Job.MaxCallSeconds, FPlatformTime::Seconds() - CallStart);
 
 		const double Elapsed = FPlatformTime::Seconds() - Job.StartSeconds;
 		if (!Stop && Job.Next >= Names.Num())
@@ -1395,7 +1451,9 @@ namespace AnomalyTexCorrupt
 		}
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 scanned=%d of=%d gone=%d stopped=%s seconds=%.1f"),
 			Job.Next, Names.Num(), Job.Gone, Stop, Elapsed);
-		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=%d"), bStatsUnchanged ? 1 : 0);
+		UE_LOG(LogAnomaly, Display,
+			TEXT("IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=%d frames=%d work_ms_max=%.2f frame_interval_ms_max=%.1f"),
+			bStatsUnchanged ? 1 : 0, Job.Calls, Job.MaxCallSeconds * 1000.0, Job.Calls > 1 ? Job.MaxIntervalSeconds * 1000.0 : -1.0);
 		return true;
 	}
 
@@ -1409,6 +1467,8 @@ namespace AnomalyTexCorrupt
 			TEXT("levels, and prints four IAI-TEXCORRUPT-CENSUS v1 lines of counts only: no actor, component, asset, path, map or ")
 			TEXT("frame, and no sub-reasons. TIME-SLICED: about 4 ms of work per frame, a progress line every 2 s, and a hard stop ")
 			TEXT("at 120 s that prints the counts so far with 'scanned=K of=N stopped=time_limit'; it never blocks a frame for long. ")
+			TEXT("The end line reports the frames it spanned, its longest single frame of work (work_ms_max) and the longest ")
+			TEXT("frame-to-frame interval while it ran (frame_interval_ms_max). ")
 			TEXT("Usage: IAI.TexCorrupt.Census [all]"),
 			FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 			{

@@ -36,7 +36,7 @@ NANITE = re.compile(r"REFUSED-NANITE actor=")
 NANITE_PROBE = re.compile(r"REFUSED-NANITE-PROBE-MISSING actor=")
 TC_HEAD = re.compile(r"TEXCORRUPT-(DECIDE|REFUSED) family=(uv|normal) mode=\S+ target='.*?' final=([A-Za-z_]+)")
 TC_SLOT = re.compile(r"TEXCORRUPT-(?:DECIDE|REFUSED)\s+slot \S+ disposition=([a-z_]+)")
-TC_SHADERMAP = re.compile(r"TEXCORRUPT-SHADERMAP '.*?' game_thread_complete=(\d) .*?-> (admitted|refused)")
+TC_SHADERMAP = re.compile(r"TEXCORRUPT-SHADERMAP '.*?' game_thread_complete=(\d) .*?-> (admitted|refused)(?: (\w+))?")
 CENSUS = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (scope=\S+ candidates=\d+|id=\S+ eligible=\d+ refused=\d+|"
                     r"scanned=\d+ of=\d+ gone=\d+ stopped=\w+ seconds=[\d.]+|end stats_unchanged=\d)(?: reasons=(\S+))?")
 
@@ -104,7 +104,7 @@ def count(lines):
             continue
         m = TC_SHADERMAP.search(line)
         if m:
-            c["tc_shadermap"][m.group(2)] += 1
+            c["tc_shadermap"][m.group(2) + (":" + m.group(3) if m.group(3) else "")] += 1
             continue
         m = CENSUS.search(line)
         if m:
@@ -167,6 +167,8 @@ SAMPLE = [
     "disposition=qualified raw=MI_Secret2(len 1)",
     "[2026.10.01-08.00.03:000][  4]LogAnomaly: TEXCORRUPT-SHADERMAP 'MI_Secret2' game_thread_complete=0 compilation_finished=1 "
     "vertex_factory=FLocalVertexFactory shaders=12 -> admitted. A whole-map completeness flag",
+    "[2026.10.01-08.00.03:000][  4]LogAnomaly: TEXCORRUPT-SHADERMAP 'MI_Secret3' game_thread_complete=1 compilation_finished=1 "
+    "vertex_factory=FInstancedStaticMeshVertexFactory shaders=0 base_pass_vs=0 base_pass_ps=0 -> refused no_vertex_factory_shaders. The",
     "[2026.10.01-08.00.04:000][  5]LogAnomaly: Warning: Auto.Yield uv_corruption: 0 of 7 candidates eligible - "
     "shader_map_incomplete 5, virtual_texture 2 (auto-pool, 3 round(s) since the last line). Nothing of this type",
     "[2026.10.01-08.00.04:000][  5]LogAnomaly: Auto.Fire: 'uv_corruption' on 'SM_SecretCrate_7' -> 0 matched.",
@@ -201,7 +203,8 @@ def selftest():
           and c["tc_refused"]["normal_corruption"] == Counter(over_budget=1))
     check("slot dispositions: shader_map_incomplete 1, qualified 1",
           c["tc_slots"] == Counter(shader_map_incomplete=1, qualified=1))
-    check("shadermap line counted by its verdict (admitted 1)", c["tc_shadermap"] == Counter(admitted=1))
+    check("shadermap lines counted by verdict and reason (admitted 1, refused no_vertex_factory_shaders 1)",
+          c["tc_shadermap"] == Counter({"admitted": 1, "refused:no_vertex_factory_shaders": 1}))
     check("yield line: uv 0 of 7, shader_map_incomplete 5 virtual_texture 2",
           c["yield_candidates"]["uv_corruption"] == 7
           and c["yield_reasons"]["uv_corruption"] == Counter(shader_map_incomplete=5, virtual_texture=2))

@@ -26,6 +26,7 @@ namespace AnomalyTexCorrupt
 		const TCHAR* NaniteOverride = TEXT("nanite_override");
 		const TCHAR* ShaderMapUnavailable = TEXT("shader_map_unavailable");
 		const TCHAR* ShaderMapIncomplete = TEXT("shader_map_incomplete");
+		const TCHAR* DrawShadersMissing = TEXT("draw_shaders_missing");
 		const TCHAR* DefaultMaterialPath = TEXT("default_material_path");
 		const TCHAR* NoTextures = TEXT("no_textures");
 		const TCHAR* VirtualTexture = TEXT("virtual_texture");
@@ -773,7 +774,7 @@ namespace AnomalyTexCorrupt
 		static const TArray<FString> List = {
 			Why::AssetsUnavailable, Why::CorruptorNotReady, Why::Dxt5NormalHost, Why::RuntimeLodBias,
 			Why::ModeInvalid, Why::NoMesh, Why::NaniteUnmaskable, Why::HostMid, Why::NaniteOverride, Why::ShaderMapUnavailable,
-			Why::ShaderMapIncomplete, Why::DefaultMaterialPath, Why::NoTextures, Why::VirtualTexture,
+			Why::ShaderMapIncomplete, Why::DrawShadersMissing, Why::DefaultMaterialPath, Why::NoTextures, Why::VirtualTexture,
 			Why::UnsupportedType, Why::ExcludedGroup, Why::TextureNotParameter, Why::UnsupportedEncoding,
 			Why::MipChainShape, Why::HeldByStuckLowMip, Why::ResourceNotReady, Why::StreamingPending,
 			Why::NotFullyResident, Why::NoNormalMap, Why::NormalUnconnected, Why::BelowSizePolicy,

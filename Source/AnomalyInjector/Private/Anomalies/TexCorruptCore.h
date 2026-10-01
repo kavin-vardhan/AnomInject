@@ -73,6 +73,7 @@ namespace AnomalyTexCorrupt
 		extern const TCHAR* NaniteOverride;
 		extern const TCHAR* ShaderMapUnavailable;
 		extern const TCHAR* ShaderMapIncomplete;
+		extern const TCHAR* DrawShadersMissing;
 		extern const TCHAR* DefaultMaterialPath;
 		extern const TCHAR* NoTextures;
 		extern const TCHAR* VirtualTexture;
@@ -327,7 +328,20 @@ namespace AnomalyTexCorrupt
 
 	UAnomalyInjectorSubsystem* ResolveInjector(UWorld* World);
 
-	bool HostShadersReady(UMaterialInterface* Material, const UPrimitiveComponent* Comp, UWorld* World);
+	struct FHostDrawReadiness
+	{
+		TexCorruptPure::EDrawReadiness Verdict = TexCorruptPure::EDrawReadiness::NoVertexFactoryShaders;
+		bool bWholeMapComplete = false;
+		bool bCompileFinished = false;
+		FString VertexFactory = TEXT("none");
+		int32 VertexFactoryShaders = 0;
+		int32 BasePassVertexShaders = 0;
+		int32 BasePassPixelShaders = 0;
+
+		bool IsReady() const { return Verdict == TexCorruptPure::EDrawReadiness::Ready; }
+	};
+
+	FHostDrawReadiness ReadHostDrawReadiness(UMaterialInterface* Material, const UPrimitiveComponent* Comp, UWorld* World);
 
 	bool CorruptorShadersReady(UMaterialInterface* Corruptor, UWorld* World);
 
@@ -335,7 +349,7 @@ namespace AnomalyTexCorrupt
 		FString& OutMissing);
 
 	void ReadActiveBindings(UWorld* World, UMaterialInterface* Resolved, const UPrimitiveComponent* Comp, TArray<FBinding>& OutBindings,
-		bool& bOutResourceOk, bool& bOutShaderMapOk, bool& bOutComplete);
+		bool& bOutResourceOk, bool& bOutShaderMapOk, bool& bOutComplete, FHostDrawReadiness* OutReadiness = nullptr);
 
 	void EvaluateTree(UWorld* World, const FTreeInputs& In, FTreeResult& Out);
 
