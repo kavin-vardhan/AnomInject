@@ -1,5 +1,6 @@
 #include "Anomalies/Anomaly_TexCorrupt.h"
 #include "Anomalies/TexCorruptPure.h"
+#include "AnomalyInstallState.h"
 
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
@@ -1326,7 +1327,7 @@ void FAnomaly_TexCorrupt::RestoreAndRelease(double StartSeconds, int32 DelayedBy
 		{
 			Comp = FindComponentByName(OS.Owner.Get(), OS.CompName);
 		}
-		if (!Comp || OS.SlotIndex >= Comp->GetNumMaterials())
+		if (!Comp)
 		{
 			++Unresolved;
 			UE_LOG(LogAnomaly, Warning, TEXT("%s: revert could not resolve '%s' slot %d (unresolved); the owner sweep follows."),
@@ -1341,6 +1342,13 @@ void FAnomaly_TexCorrupt::RestoreAndRelease(double StartSeconds, int32 DelayedBy
 				*Id.ToString(), *Comp->GetName(), OS.SlotIndex,
 				*GetNameSafe(Comp->OverrideMaterials.IsValidIndex(OS.SlotIndex) ? Comp->OverrideMaterials[OS.SlotIndex].Get() : nullptr));
 			continue;
+		}
+		if (OS.SlotIndex >= Comp->GetNumMaterials())
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("%s: '%s' now has %d slot(s) but our MID is still stored at index %d - it is restored there too, so it ")
+				TEXT("cannot come back on a later mesh change."),
+				*Id.ToString(), *Comp->GetName(), Comp->GetNumMaterials(), OS.SlotIndex);
 		}
 		const int32 LenBefore = Comp->OverrideMaterials.Num();
 		if (OS.Raw)
@@ -1388,6 +1396,50 @@ void FAnomaly_TexCorrupt::RestoreAndRelease(double StartSeconds, int32 DelayedBy
 		}
 	}
 
+	int32 Residual = 0;
+	{
+		TArray<UMeshComponent*> Check;
+		for (const FOwnedSlot& OS : Slots)
+		{
+			if (UMeshComponent* C = OS.Comp.Get())
+			{
+				Check.AddUnique(C);
+			}
+		}
+		for (const TWeakObjectPtr<AActor>& W : Owners)
+		{
+			if (AActor* Owner = W.Get())
+			{
+				TArray<UMeshComponent*> Comps;
+				Owner->GetComponents<UMeshComponent>(Comps);
+				for (UMeshComponent* C : Comps)
+				{
+					if (C)
+					{
+						Check.AddUnique(C);
+					}
+				}
+			}
+		}
+		for (UMeshComponent* C : Check)
+		{
+			TArray<bool> Ours;
+			for (int32 i = 0; i < C->OverrideMaterials.Num(); ++i)
+			{
+				UMaterialInstanceDynamic* AsMid = Cast<UMaterialInstanceDynamic>(C->OverrideMaterials[i].Get());
+				Ours.Add(AsMid != nullptr && OurMids.Contains(AsMid));
+			}
+			Residual += AnomalyInstall::CountOwnedOverrides(Ours.GetData(), Ours.Num());
+		}
+	}
+	if (Residual > 0)
+	{
+		UE_LOG(LogAnomaly, Error,
+			TEXT("%s: REVERT-RESIDUAL %d override(s) of ours still stored after revert - the corruption can reappear with no ")
+			TEXT("event or label. This is a defect; report it."),
+			*Id.ToString(), Residual);
+	}
+
 	FRunStats& Stats = FStatsAccess::Mutable();
 	Stats.RestoredExact += Exact;
 	Stats.RestoredDefault += Default;
@@ -1398,10 +1450,10 @@ void FAnomaly_TexCorrupt::RestoreAndRelease(double StartSeconds, int32 DelayedBy
 	LetGoAll();
 
 	UE_LOG(LogAnomaly, Log,
-		TEXT("%s: REVERT restored-exact=%d restored-default=%d left-to-game=%d unresolved=%d swept=%d; every render target ")
+		TEXT("%s: REVERT restored-exact=%d restored-default=%d left-to-game=%d unresolved=%d swept=%d residual=%d; every render target ")
 		TEXT("(scratch included) released, originals let go after their slots were restored; live=%lld pending=%lld.%s ")
 		TEXT("restore_delay=%d revert_ms=%.3f"),
-		*Id.ToString(), Exact, Default, LeftToGame, Unresolved, Swept, Ledger().Live, Ledger().PendingSum(), *Attempt.Describe(),
+		*Id.ToString(), Exact, Default, LeftToGame, Unresolved, Swept, Residual, Ledger().Live, Ledger().PendingSum(), *Attempt.Describe(),
 		DelayedBy, ElapsedMs(StartSeconds));
 
 	RevertFrame = GFrameCounter;
@@ -1442,8 +1494,65 @@ TexCorruptPure::EHeld FAnomaly_TexCorrupt::EvaluateCondition(int32& OutFirstBad)
 
 bool FAnomaly_TexCorrupt::IsVisualConditionHeld() const
 {
-	int32 FirstBad = -1;
-	return EvaluateCondition(FirstBad) == TexCorruptPure::EHeld::Held;
+	return AnomalyInstall::IsInstalledByte(GetVisualConditionState());
+}
+
+unsigned char FAnomaly_TexCorrupt::GetVisualConditionState() const
+{
+	if (!bActive)
+	{
+		return (unsigned char)AnomalyInstall::EState::None;
+	}
+	int32 Targeted = 0;
+	int32 Ours = 0;
+	for (const FOwnedSlot& OS : Slots)
+	{
+		if (!OS.HostMid)
+		{
+			continue;
+		}
+		++Targeted;
+		bool bBindingsHold = false;
+		for (const FHostMid& HM : HostMids)
+		{
+			if (HM.Mid != OS.HostMid)
+			{
+				continue;
+			}
+			bBindingsHold = true;
+			for (const TPair<FMaterialParameterInfo, UTextureRenderTarget2D*>& Pair : HM.Bound)
+			{
+				UTexture* Read = nullptr;
+				if (!Pair.Value || !HM.Mid->GetTextureParameterValue(FHashedMaterialParameterInfo(Pair.Key), Read, true) || Read != Pair.Value)
+				{
+					bBindingsHold = false;
+					break;
+				}
+			}
+			break;
+		}
+		const UMeshComponent* Comp = OS.Comp.Get();
+		if (!Comp)
+		{
+			Comp = FindComponentByName(OS.Owner.Get(), OS.CompName);
+		}
+		AnomalyInstall::FSlotView View;
+		View.bComponentValid = Comp != nullptr;
+		if (Comp)
+		{
+			View.bRegistered = Comp->IsRegistered();
+			View.bRenders = Comp->ShouldRender();
+			View.SlotIndex = OS.SlotIndex;
+			View.NumMaterials = Comp->GetNumMaterials();
+			View.bResolvedIsOurs = bBindingsHold && OS.SlotIndex >= 0 && OS.SlotIndex < View.NumMaterials
+				&& Comp->GetMaterial(OS.SlotIndex) == OS.HostMid;
+		}
+		if (AnomalyInstall::SlotRendersOurs(View))
+		{
+			++Ours;
+		}
+	}
+	return (unsigned char)AnomalyInstall::Classify(Targeted, Ours);
 }
 
 void FAnomaly_TexCorrupt::NoteCapturedFrame(bool bAnomalousThisFrame)

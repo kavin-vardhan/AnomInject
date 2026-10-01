@@ -204,11 +204,15 @@ namespace AnomalyViewport
 	ANOMALYINJECTOR_API bool ActorDrawsAnyNanite(const AActor* Actor, int32* OutNaniteComponents = nullptr,
 		int32* OutRenderableComponents = nullptr);
 
+	ANOMALYINJECTOR_API bool ActorBlocksLabelForNanite(const AActor* Actor);
+
 	ANOMALYINJECTOR_API bool RefuseNaniteTarget(const AActor* Actor, const TCHAR* Site);
 
 	ANOMALYINJECTOR_API int32 GetNaniteRefusalCount();
 
 	ANOMALYINJECTOR_API int32 GetNaniteRefusalAttempts();
+
+	ANOMALYINJECTOR_API int32 GetNaniteProbeMissingRefusals();
 
 	template <typename T>
 	TArray<TWeakObjectPtr<T>> FindVisibleComponentsMatching(UWorld* World, const FString& Substring)

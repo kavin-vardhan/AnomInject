@@ -847,7 +847,7 @@ namespace AnomalyTexCorrupt
 			for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
 			{
 				const UMeshComponent* Comp = Weak.Get();
-				if (Comp && AnomalyViewport::ActorDrawsAnyNaniteReadOnly(Comp->GetOwner()))
+				if (Comp && (!AnomalyViewport::HasNaniteComponentProbe() || AnomalyViewport::ActorDrawsAnyNaniteReadOnly(Comp->GetOwner())))
 				{
 					RefuseEvent(Why::NaniteUnmaskable, FString(), TEXT("E7N"));
 					return;

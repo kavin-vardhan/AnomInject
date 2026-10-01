@@ -307,6 +307,12 @@ private:
 	void SampleDeferredActiveState();
 	uint8 ComputeFireActive(const struct FAutoLiveFireInfo& F) const;
 	bool IsFireLabelledThisFrame(const struct FAutoLiveFireInfo& F) const;
+	uint8 GetFireInstallState(const struct FAutoLiveFireInfo& F) const;
+	bool IsFireNaniteBlocked(const struct FAutoLiveFireInfo& F) const;
+	void OpenConditionWindow() const;
+	void CloseConditionWindow() const;
+	void NoteNaniteBlocked(const struct FAutoLiveFireInfo& F, int32 SessionIndex);
+	void ServicePendingNaniteReverts();
 	uint8 ResolveAnnotationPolicy(const struct FAutoLiveFireInfo& F) const;
 	void FillAnnotationInputs(AnomalyLabel::FCaptureSnapshot& Snap) const;
 	bool BurstAwaitsDeferredOnset(int32& OutPendingFires) const;
@@ -325,7 +331,8 @@ private:
 		const TArray<uint8>& FirePolicy, const TArray<uint8>& FireOnScreen, const TArray<uint8>& FireInstalled,
 		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
 		const TArray<uint8>* Observable = nullptr, const TArray<FIntRect>* DrawnBounds = nullptr,
-		const TArray<struct FAnomalyTelemetry>* CapturedTelemetry = nullptr);
+		const TArray<struct FAnomalyTelemetry>* CapturedTelemetry = nullptr,
+		const TArray<uint8>* FireNaniteBlocked = nullptr);
 	void WriteSessionAnnotationFile();
 
 	void ApplySessionGlobals();

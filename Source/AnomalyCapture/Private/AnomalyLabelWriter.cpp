@@ -717,18 +717,28 @@ namespace AnomalyLabel
 		return FireInstalled && FireInstalled->IsValidIndex(FireIndex) && (*FireInstalled)[FireIndex] != 0;
 	}
 
+	bool IsFireNaniteBlockedAt(const TArray<uint8>* FireNaniteBlocked, int32 FireIndex)
+	{
+		return FireNaniteBlocked && FireNaniteBlocked->IsValidIndex(FireIndex) && (*FireNaniteBlocked)[FireIndex] != 0;
+	}
+
 	bool IsFireInAnnotation(const TArray<uint8>* FirePolicy, const TArray<uint8>* FireActive, const TArray<uint8>* FireOnScreen,
-		const TArray<uint8>* FireInstalled, int32 FireIndex)
+		const TArray<uint8>* FireInstalled, int32 FireIndex, const TArray<uint8>* FireNaniteBlocked)
 	{
 		const AnomalyLabelSync::EAnnotationPolicy Policy = (FirePolicy && FirePolicy->IsValidIndex(FireIndex))
 			? (AnomalyLabelSync::EAnnotationPolicy)(*FirePolicy)[FireIndex] : AnomalyLabelSync::EAnnotationPolicy::FireWindow;
 		const bool bActive = FireActive && FireActive->IsValidIndex(FireIndex) && (*FireActive)[FireIndex] != 0;
 		const bool bOnScreen = FireOnScreen && FireOnScreen->IsValidIndex(FireIndex) && (*FireOnScreen)[FireIndex] != 0;
-		return AnomalyLabelSync::IsAnnotationMember(Policy, bActive, bOnScreen, IsFireInstalledAt(FireInstalled, FireIndex));
+		return AnomalyLabelSync::IsAnnotationMemberGated(Policy, bActive, bOnScreen, IsFireInstalledAt(FireInstalled, FireIndex),
+			IsFireNaniteBlockedAt(FireNaniteBlocked, FireIndex));
 	}
 
 	bool IsSnapshotEntryLabelled(const FCaptureSnapshot& Snapshot, int32 FireIndex)
 	{
+		if (IsFireNaniteBlockedAt(&Snapshot.FireNaniteBlocked, FireIndex))
+		{
+			return false;
+		}
 		return AnomalyLabelSync::IsEntryLabelled(EmitAt(&Snapshot.EntryEmit, FireIndex) == AnomalyLabelSync::EEntryEmit::Normal,
 			(Snapshot.FirePolicy.IsValidIndex(FireIndex)
 				? (AnomalyLabelSync::EAnnotationPolicy)Snapshot.FirePolicy[FireIndex] : AnomalyLabelSync::EAnnotationPolicy::FireWindow),
@@ -762,6 +772,44 @@ namespace AnomalyLabel
 			}
 		}
 		return Marked;
+	}
+
+	int32 MarkNaniteUnmaskable(FCaptureSnapshot& Snapshot)
+	{
+		const int32 N = Snapshot.Fires.Num();
+		int32 Marked = 0;
+		for (int32 i = 0; i < N; ++i)
+		{
+			const bool bBlocked = IsFireNaniteBlockedAt(&Snapshot.FireNaniteBlocked, i);
+			if (!bBlocked)
+			{
+				continue;
+			}
+			if (Snapshot.EntryEmit.Num() != N) { Snapshot.EntryEmit.SetNumZeroed(N); }
+			if (Snapshot.EntryTransition.Num() != N) { Snapshot.EntryTransition.SetNumZeroed(N); }
+			const AnomalyLabelSync::EEntryEmit Before = (AnomalyLabelSync::EEntryEmit)Snapshot.EntryEmit[i];
+			const AnomalyLabelSync::EEntryEmit After = AnomalyLabelSync::DecideNaniteEntry(Before, bBlocked);
+			if (After == AnomalyLabelSync::EEntryEmit::TransitionOnly)
+			{
+				Snapshot.EntryEmit[i] = (uint8)After;
+				Snapshot.EntryTransition[i] |= AnomalyLabelSync::ReasonNaniteUnmaskable;
+				++Marked;
+			}
+		}
+		return Marked;
+	}
+
+	bool FrameHasPartialLabelledEntry(const FCaptureSnapshot& Snapshot)
+	{
+		for (int32 i = 0; i < Snapshot.Fires.Num(); ++i)
+		{
+			if (Snapshot.ConditionHeld.IsValidIndex(i) && AnomalyInstall::IsPartialByte(Snapshot.ConditionHeld[i])
+				&& IsSnapshotEntryLabelled(Snapshot, i))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	bool EncodeAndWriteFrame(const FString& OutputDir, AnomalyPreview::EImageFormat OutFormat,
@@ -1173,7 +1221,11 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("label_transition_camera_clipping_unconfirmed_entries"), LabelSync->ReasonEntries[3]);
 			Root->SetNumberField(TEXT("label_transition_unresolved_entries"), LabelSync->ReasonEntries[4]);
 			Root->SetNumberField(TEXT("label_transition_effect_interrupted_entries"), LabelSync->ReasonEntries[5]);
-			Root->SetStringField(TEXT("label_labelled_rule"), TEXT("annotation_membership_per_policy_v2_effect_installed"));
+			Root->SetNumberField(TEXT("label_transition_nanite_unmaskable_entries"), LabelSync->ReasonEntries[6]);
+			Root->SetNumberField(TEXT("label_effect_partial_frames"), LabelSync->LabelEffectPartialFrames);
+			Root->SetNumberField(TEXT("nanite_midevent_reverts"), LabelSync->NaniteMidEventReverts);
+			Root->SetNumberField(TEXT("refused_nanite_probe_missing"), LabelSync->RefusedNaniteProbeMissing);
+			Root->SetStringField(TEXT("label_labelled_rule"), TEXT("annotation_membership_per_policy_v3_effect_rendered_nanite_gated"));
 			Root->SetNumberField(TEXT("label_transition_tracks_carried_in"), LabelSync->CarriedTransitionTracks);
 			Root->SetNumberField(TEXT("label_hide_tracks_carried_in"), LabelSync->CarriedHideTracks);
 			Root->SetNumberField(TEXT("label_active_unlabelled_entries"), LabelSync->UnlabelledActiveEntries);

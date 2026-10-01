@@ -222,11 +222,91 @@ static void TestKat()
 		"KAT setting 1: Nanite actors stay drawable (attempt 1 index 4 = Rock4)");
 }
 
+static void TestR6FailClosed()
+{
+	Check(DecideNaniteTarget(false, false, 3, 0) == ENaniteDecision::RefuseProbeMissing,
+		"R6: setting 0 with no classifier registered refuses even a target that reads zero Nanite parts (fail closed)");
+	Check(DecideNaniteTarget(false, false, 0, 0) == ENaniteDecision::RefuseProbeMissing,
+		"R6: setting 0 with no classifier refuses whatever the enumeration says");
+	Check(DecideNaniteTarget(true, false, 3, 1) == ENaniteDecision::Admit,
+		"R6: setting 1 is the deliberate bypass and admits with or without a classifier");
+	Check(DecideNaniteTarget(false, true, 3, 1) == ENaniteDecision::Refuse && DecideNaniteTarget(false, true, 3, 0) == ENaniteDecision::Admit,
+		"R6: with a classifier registered, setting 0 behaves as before");
+	Check(std::string(DescribeNaniteProbeMissingReason()) == "nanite_probe_missing", "R6: the refusal reason is nanite_probe_missing");
+	Check(NaniteBlocksLabel(false, false, true, 2, 0), "R6: a frame cannot be labelled while the classifier is missing (setting 0)");
+}
+
+static void TestR5Enumeration()
+{
+	FPrimitiveFacts Body;
+	Body.bVisible = true;
+	Body.bGeometryClass = true;
+	FPrimitiveFacts ExcludedNanite = Body;
+	ExcludedNanite.bExcludedByTargetPattern = true;
+	ExcludedNanite.bNanite = true;
+	FPrimitiveFacts FoliageNanite = Body;
+	FoliageNanite.bFoliageOwner = true;
+	FoliageNanite.bNanite = true;
+	FPrimitiveFacts HiddenNanite = Body;
+	HiddenNanite.bVisible = false;
+	HiddenNanite.bNanite = true;
+	FPrimitiveFacts EmptyIsm = Body;
+	EmptyIsm.bZeroInstances = true;
+	EmptyIsm.bNanite = true;
+	FPrimitiveFacts NotGeometry = Body;
+	NotGeometry.bGeometryClass = false;
+
+	const FPrimitiveFacts A[] = { Body, ExcludedNanite };
+	int Drawn = 0;
+	const int Nanite = CountDrawnNanite(A, 2, Drawn);
+	Check(Drawn == 2 && Nanite == 1 && DecideNanite(false, Drawn, Nanite) == ENaniteDecision::Refuse,
+		"R5: a visible Nanite part excluded by a target-name pattern still counts, so the actor is refused");
+	const FPrimitiveFacts B[] = { Body, FoliageNanite };
+	CountDrawnNanite(B, 2, Drawn);
+	Check(CountDrawnNanite(B, 2, Drawn) == 1, "R5: the foliage-owner selection exclusion does not hide a Nanite part either");
+	const FPrimitiveFacts C[] = { Body, HiddenNanite, EmptyIsm, NotGeometry };
+	const int NC = CountDrawnNanite(C, 4, Drawn);
+	Check(NC == 0 && Drawn == 1, "R5: a hidden component, an empty instanced mesh and a non-geometry primitive draw nothing");
+	Check(NaniteBlocksLabel(false, true, true, 2, 1) && !NaniteBlocksLabel(true, true, true, 2, 1)
+		&& !NaniteBlocksLabel(false, true, false, 2, 1) && !NaniteBlocksLabel(false, true, true, 2, 0),
+		"R5: mid-event, a frame is blocked only at setting 0, with a target actor, and a drawn Nanite part");
+	HiddenNanite.bVisible = true;
+	const FPrimitiveFacts D[] = { Body, HiddenNanite };
+	Check(CountDrawnNanite(D, 2, Drawn) == 1 && NaniteBlocksLabel(false, true, true, Drawn, 1),
+		"R5: a hidden Nanite part made visible mid-event blocks the label from that frame");
+}
+
+static void TestR11SplineRoute()
+{
+	Check(!RouteIsNanite(true, true, false, false, true, true),
+		"R11: a spline mesh on a Nanite-enabled asset renders through FSplineMeshSceneProxy, not Nanite");
+	Check(RouteIsNanite(true, false, false, false, true, true), "R11: a plain static mesh with Nanite data on a Nanite platform is Nanite");
+	Check(!RouteIsNanite(true, false, true, false, true, true) && !RouteIsNanite(true, false, false, true, true, true)
+		&& !RouteIsNanite(true, false, false, false, false, true) && !RouteIsNanite(true, false, false, false, true, false)
+		&& !RouteIsNanite(false, false, false, false, true, true),
+		"R11: bDisallowNanite, the editor fallback, no Nanite data, a non-Nanite platform or a non-static mesh are not Nanite");
+	std::vector<FCand> Pool = { { "Spline0", RouteIsNanite(true, true, false, false, true, true) } };
+	FKatStream S;
+	S.Initialize(4242);
+	const FAttempt A = AutoPoolAttempt(S, 2, Pool, false, 3.0f, 6.0f);
+	Check(A.Outcome == 2 && A.Target != nullptr && std::string(A.Target) == "Spline0" && A.Draws == 3u,
+		"R11 KAT: a pool whose only candidate is a spline on a Nanite asset still fires on it at setting 0 (3 draws)");
+	std::vector<FCand> PoolOld = { { "Spline0", true } };
+	FKatStream S2;
+	S2.Initialize(4242);
+	const FAttempt B = AutoPoolAttempt(S2, 2, PoolOld, false, 3.0f, 6.0f);
+	Check(B.Outcome == 1 && B.Draws == 1u,
+		"R11 KAT control: under the old asset-only classification that pool took the no-candidate path (the defect)");
+}
+
 int main()
 {
 	TestDecision();
 	TestFilter();
 	TestKat();
+	TestR6FailClosed();
+	TestR5Enumeration();
+	TestR11SplineRoute();
 	std::printf("target policy selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }

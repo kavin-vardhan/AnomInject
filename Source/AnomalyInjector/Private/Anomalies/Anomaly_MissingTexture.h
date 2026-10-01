@@ -19,6 +19,7 @@ public:
 	virtual void Revert() override;
 	virtual bool IsActive() const override { return bActive; }
 	virtual bool IsVisualConditionHeld() const override;
+	virtual unsigned char GetVisualConditionState() const override;
 
 private:
 	struct FCapturedSlot

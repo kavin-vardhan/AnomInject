@@ -74,6 +74,8 @@ namespace
 
 	int32 GNaniteRefusalAttempts = 0;
 
+	int32 GNaniteProbeMissingRefusals = 0;
+
 	AnomalyViewport::FNaniteComponentProbe GNaniteComponentProbe = nullptr;
 
 	FString MeshAssetNameOf(const UPrimitiveComponent* Component)
@@ -1353,6 +1355,7 @@ namespace AnomalyViewport
 		TranslucentOnlyActorsSeen().Reset();
 		NaniteRefusedActorsSeen().Reset();
 		GNaniteRefusalAttempts = 0;
+		GNaniteProbeMissingRefusals = 0;
 	}
 
 	int32 GetTargetExclusionCount()
@@ -1416,27 +1419,45 @@ namespace AnomalyViewport
 	bool ActorDrawsAnyNanite(const AActor* Actor, int32* OutNaniteComponents, int32* OutRenderableComponents)
 	{
 		int32 Nanite = 0;
-		int32 Renderable = 0;
+		int32 Drawn = 0;
 		if (Actor)
 		{
 			TInlineComponentArray<UPrimitiveComponent*> Prims;
 			const_cast<AActor*>(Actor)->GetComponents(Prims);
+			TArray<AnomalyTargetPolicy::FPrimitiveFacts> Facts;
+			Facts.Reserve(Prims.Num());
 			for (const UPrimitiveComponent* Prim : Prims)
 			{
-				if (!IsRenderableComponent(Prim))
+				if (!Prim)
 				{
 					continue;
 				}
-				++Renderable;
-				if (ComponentDrawsNanite(Prim))
-				{
-					++Nanite;
-				}
+				AnomalyTargetPolicy::FPrimitiveFacts F;
+				F.bVisible = Prim->IsVisible();
+				F.bGeometryClass = IsRenderableGeometryComponent(Prim);
+				const UInstancedStaticMeshComponent* ISM = Cast<UInstancedStaticMeshComponent>(Prim);
+				F.bZeroInstances = ISM && ISM->GetInstanceCount() <= 0;
+				F.bNanite = F.bVisible && F.bGeometryClass && ComponentDrawsNanite(Prim);
+				Facts.Add(F);
 			}
+			Nanite = AnomalyTargetPolicy::CountDrawnNanite(Facts.GetData(), Facts.Num(), Drawn);
 		}
 		if (OutNaniteComponents) { *OutNaniteComponents = Nanite; }
-		if (OutRenderableComponents) { *OutRenderableComponents = Renderable; }
-		return AnomalyTargetPolicy::DecideNanite(false, Renderable, Nanite) == AnomalyTargetPolicy::ENaniteDecision::Refuse;
+		if (OutRenderableComponents) { *OutRenderableComponents = Drawn; }
+		return AnomalyTargetPolicy::DecideNanite(false, Drawn, Nanite) == AnomalyTargetPolicy::ENaniteDecision::Refuse;
+	}
+
+	bool ActorBlocksLabelForNanite(const AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+		int32 Nanite = 0;
+		int32 Drawn = 0;
+		ActorDrawsAnyNanite(Actor, &Nanite, &Drawn);
+		return AnomalyTargetPolicy::NaniteBlocksLabel(AnomalyDefaults::GetAllowNaniteTargets(), HasNaniteComponentProbe(),
+			true, Drawn, Nanite);
 	}
 
 	bool RefuseNaniteTarget(const AActor* Actor, const TCHAR* Site)
@@ -1446,12 +1467,27 @@ namespace AnomalyViewport
 			return false;
 		}
 		const bool bAllow = AnomalyDefaults::GetAllowNaniteTargets();
+		const bool bProbe = HasNaniteComponentProbe();
 		int32 Nanite = 0;
 		int32 Renderable = 0;
 		ActorDrawsAnyNanite(Actor, &Nanite, &Renderable);
-		if (AnomalyTargetPolicy::DecideNanite(bAllow, Renderable, Nanite) != AnomalyTargetPolicy::ENaniteDecision::Refuse)
+		const AnomalyTargetPolicy::ENaniteDecision Decision =
+			AnomalyTargetPolicy::DecideNaniteTarget(bAllow, bProbe, Renderable, Nanite);
+		if (Decision == AnomalyTargetPolicy::ENaniteDecision::Admit)
 		{
 			return false;
+		}
+		if (Decision == AnomalyTargetPolicy::ENaniteDecision::RefuseProbeMissing)
+		{
+			++GNaniteProbeMissingRefusals;
+			UE_LOG(LogAnomaly, Error,
+				TEXT("REFUSED-NANITE-PROBE-MISSING actor='%s' class=%s site=%s reason=%s setting=%s - IAI.Targets.AllowNanite is 0 ")
+				TEXT("but no Nanite classifier is registered (the AnomalyCapture module is not loaded or has shut down), so this ")
+				TEXT("target cannot be shown to be free of Nanite parts. It is refused (fail closed). Load the AnomalyCapture ")
+				TEXT("module, or set IAI.Targets.AllowNanite 1 to accept unmaskable targets."),
+				*Actor->GetName(), *Actor->GetClass()->GetName(), Site,
+				UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeNaniteProbeMissingReason()), *AnomalyDefaults::DescribeAllowNaniteTargets());
+			return true;
 		}
 		++GNaniteRefusalAttempts;
 		const FString ActorName = Actor->GetName();
@@ -1479,6 +1515,11 @@ namespace AnomalyViewport
 	int32 GetNaniteRefusalAttempts()
 	{
 		return GNaniteRefusalAttempts;
+	}
+
+	int32 GetNaniteProbeMissingRefusals()
+	{
+		return GNaniteProbeMissingRefusals;
 	}
 
 	float GetActorScreenCoveragePct(UWorld* World, const AActor* Actor)

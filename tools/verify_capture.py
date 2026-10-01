@@ -3140,7 +3140,7 @@ def _emit(line):
 
 
 LABEL_RULE_REASONS = ("temporal_aa", "hide_return", "partial", "camera_clipping_unconfirmed", "unresolved",
-                      "effect_interrupted")
+                      "effect_interrupted", "nanite_unmaskable")
 LABEL_RULE_FIRE_WINDOW_TYPES = ("missing_texture", "corrupted_texture", "uv_corruption", "normal_corruption",
                                 "lighting_mismatch", "lod_corruption", "null_effect", "solid_swap", "time_dilation")
 LABEL_RULE_REASON_TYPES = {
@@ -3150,9 +3150,11 @@ LABEL_RULE_REASON_TYPES = {
     "camera_clipping_unconfirmed": ("camera_clipping",),
     "unresolved": ("stuck_low_mip",),
     "effect_interrupted": LABEL_RULE_FIRE_WINDOW_TYPES,
+    "nanite_unmaskable": tuple(t for t in LABEL_RULE_FIRE_WINDOW_TYPES if t != "time_dilation")
+    + ("blinking", "missing_object", "stuck_low_mip", "lod_popping"),
 }
 LABEL_RULE_LABELLED_ONLY = ("partial", "camera_clipping_unconfirmed", "unresolved")
-LABEL_RULE_UNLABELLED_ONLY = ("effect_interrupted",)
+LABEL_RULE_UNLABELLED_ONLY = ("effect_interrupted", "nanite_unmaskable")
 LABEL_RULE_TEMPORAL_ONLY = ("temporal_aa", "hide_return")
 RULE_NEW = "NEW"
 RULE_OLD = "OLD"
@@ -3615,6 +3617,26 @@ def _label_rule_selftest():
              [("corrupted_texture", "Rock", f1_listed | {25})], 1, RULE_NEW, "REASON-ON-LABELLED")
         case("F1_effect_interrupted_on_blinking_FAILS", f1_rows("blinking"), [("blinking", "Rock", f1_listed)], 1,
              RULE_NEW, "REASON-MISPLACED")
+
+        def nan_rows(aid, labelled_extra=None, why=("nanite_unmaskable",)):
+            out = []
+            for si in range(44):
+                if 10 <= si <= 39:
+                    on = si <= 19 or si == labelled_extra
+                    out.append(_lr_row(si, [_lr_entry(aid, "Rock", on, True, None if si <= 19 else why)], present=on))
+                else:
+                    out.append(_lr_row(si, [], present=False))
+            return out
+        case("R5_nanite_midevent_lod_popping_clean", nan_rows("lod_popping"), [("lod_popping", "Rock", f1_listed)], 0, RULE_NEW,
+             extra=lambda d, _l: d["reasons"].get("lod_popping/nanite_unmaskable") == 20)
+        case("R5_nanite_with_effect_interrupted_texture_clean",
+             nan_rows("missing_texture", why=("effect_interrupted", "nanite_unmaskable")),
+             [("missing_texture", "Rock", f1_listed)], 0, RULE_NEW,
+             extra=lambda d, _l: d["reasons"].get("missing_texture/nanite_unmaskable") == 20)
+        case("R5_nanite_unmaskable_on_labelled_FAILS", nan_rows("stuck_low_mip", 25),
+             [("stuck_low_mip", "Rock", f1_listed | {25})], 1, RULE_NEW, "REASON-ON-LABELLED")
+        case("R5_nanite_unmaskable_on_camera_clipping_FAILS", nan_rows("camera_clipping"),
+             [("camera_clipping", "Rock", f1_listed)], 1, RULE_NEW, "REASON-MISPLACED")
         shot = [_lr_row(0, [_lr_entry("blinking", "Cube", None, True)], present=True)]
         shot[0]["label_rule"] = "legacy_shot"
         case("legacy_shot_read_under_old_meaning", shot, [], 0, RULE_SHOT,

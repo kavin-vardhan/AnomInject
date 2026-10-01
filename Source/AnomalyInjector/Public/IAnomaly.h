@@ -45,6 +45,8 @@ public:
 
 	virtual bool IsVisualConditionHeld() const { return IsCurrentlyAnomalous(); }
 
+	virtual unsigned char GetVisualConditionState() const { return IsVisualConditionHeld() ? 1 : 0; }
+
 	virtual bool HasDeferredOnset() const { return false; }
 
 	virtual bool UsesRenderResidencyTruth() const { return false; }

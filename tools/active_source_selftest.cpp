@@ -163,7 +163,7 @@ int main(int Argc, char** Argv)
 	std::string Writer = ReadText(Root + "/Source/AnomalyCapture/Private/AnomalyLabelWriter.cpp");
 	if constexpr (SRC_MUTANT == 3)
 	{
-		const std::string From = "AnomalyLabelSync::IsAnnotationMember(Policy, bActive, bOnScreen, IsFireInstalledAt(FireInstalled, FireIndex))";
+		const std::string From = "AnomalyLabelSync::IsAnnotationMemberGated(Policy, bActive, bOnScreen, IsFireInstalledAt(FireInstalled, FireIndex),";
 		const size_t At = Writer.find(From);
 		if (At != std::string::npos)
 		{
@@ -182,14 +182,14 @@ int main(int Argc, char** Argv)
 	const std::string Fill = FunctionBody(Capture, "void UAnomalyCaptureSubsystem::FillAnnotationInputs(");
 	Check(Has(Fill, "Snap.FirePolicy[i] = ResolveAnnotationPolicy(Snap.Fires[i]);"), "FillAnnotationInputs takes each fire's policy from ResolveAnnotationPolicy");
 	const std::string Accum = FunctionBody(Capture, "void UAnomalyCaptureSubsystem::AccumulateFrameEvents(");
-	Check(Has(Accum, "AnomalyLabel::IsFireInAnnotation(&FirePolicy, &FireActive, &FireOnScreen, &FireInstalled, i)"),
+	Check(Has(Accum, "AnomalyLabel::IsFireInAnnotation(&FirePolicy, &FireActive, &FireOnScreen, &FireInstalled, i, FireNaniteBlocked)"),
 		"AccumulateFrameEvents records membership through IsFireInAnnotation");
 	const std::string Annot = FunctionBody(Capture, "void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile(");
 	Check(Has(Annot, "FrameIndices = MoveTemp(MemberIdx);") && Has(Annot, "Out.InjectedFrameIndices = FrameIndices;"),
 		"annotation injected_frames is the member set");
 	const std::string InAnnotation = FunctionBody(Writer, "bool IsFireInAnnotation(");
-	Check(Has(InAnnotation, "return AnomalyLabelSync::IsAnnotationMember(Policy, bActive, bOnScreen, IsFireInstalledAt(FireInstalled, FireIndex));"),
-		"IsFireInAnnotation returns AnomalyLabelSync::IsAnnotationMember");
+	Check(Has(InAnnotation, "return AnomalyLabelSync::IsAnnotationMemberGated(Policy, bActive, bOnScreen, IsFireInstalledAt(FireInstalled, FireIndex),"),
+		"IsFireInAnnotation returns AnomalyLabelSync::IsAnnotationMemberGated (membership, Nanite-gated)");
 	const std::string RowLabelled = FunctionBody(Writer, "bool IsSnapshotEntryLabelled(");
 	Check(Has(RowLabelled, "AnomalyLabelSync::IsEntryLabelled("), "labels.jsonl row labelled comes from AnomalyLabelSync::IsEntryLabelled");
 

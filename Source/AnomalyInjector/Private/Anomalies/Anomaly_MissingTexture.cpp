@@ -1,5 +1,6 @@
 #include "Anomalies/Anomaly_MissingTexture.h"
 
+#include "AnomalyInstallState.h"
 #include "AnomalyLod.h"
 #include "AnomalyViewport.h"
 #include "AnomalyInjectorSubsystem.h"
@@ -51,6 +52,19 @@ namespace
 			}
 		}
 		return nullptr;
+	}
+
+	UMaterialInterface* SlotMaterial(const UMeshComponent* Mesh, int32 Index)
+	{
+		if (!Mesh || Index < 0)
+		{
+			return nullptr;
+		}
+		if (Index < Mesh->GetNumMaterials())
+		{
+			return Mesh->GetMaterial(Index);
+		}
+		return Mesh->OverrideMaterials.IsValidIndex(Index) ? Mesh->OverrideMaterials[Index].Get() : nullptr;
 	}
 }
 
@@ -154,7 +168,9 @@ void FAnomaly_MissingTexture::Revert()
 	int32 Swept = 0;
 	int32 ReFound = 0;
 
+	int32 OutOfRange = 0;
 	TArray<AActor*> TouchedOwners;
+	TArray<UMeshComponent*> TouchedMeshes;
 
 	for (const FCapturedSlot& Slot : Captured)
 	{
@@ -181,26 +197,36 @@ void FAnomaly_MissingTexture::Revert()
 				*Slot.ComponentName.ToString(), Slot.SlotIndex, *GetNameSafe(Owner));
 			continue;
 		}
-		if (Slot.SlotIndex >= Mesh->GetNumMaterials())
-		{
-			++Unresolved;
-			UE_LOG(LogAnomaly, Warning,
-				TEXT("missing_texture: revert found component '%s' with %d slot(s); captured slot %d no longer exists — skipped."),
-				*Mesh->GetName(), Mesh->GetNumMaterials(), Slot.SlotIndex);
-			continue;
-		}
+		TouchedMeshes.AddUnique(Mesh);
 
-		if (!IsCheckerDerived(Mesh->GetMaterial(Slot.SlotIndex), Checker))
+		const bool bInRange = Slot.SlotIndex < Mesh->GetNumMaterials();
+		if (!bInRange)
 		{
-			++SkippedForeign;
-			UE_LOG(LogAnomaly, Log,
-				TEXT("missing_texture: revert left '%s' slot %d untouched — the game replaced it with '%s' after apply."),
-				*Mesh->GetName(), Slot.SlotIndex, *GetNameSafe(Mesh->GetMaterial(Slot.SlotIndex)));
-			continue;
+			++OutOfRange;
 		}
-
+		UMaterialInterface* Current = SlotMaterial(Mesh, Slot.SlotIndex);
 		UMaterialInterface* Original = Slot.OriginalMaterial.Get();
-		if (Slot.bWasExplicitOverride && Original)
+		const AnomalyInstall::ERevertSlot Action = AnomalyInstall::DecideRevertSlot(
+			IsCheckerDerived(Current, Checker), Slot.bWasExplicitOverride, Original != nullptr);
+		if (Action == AnomalyInstall::ERevertSlot::Leave)
+		{
+			if (bInRange)
+			{
+				++SkippedForeign;
+				UE_LOG(LogAnomaly, Log,
+					TEXT("missing_texture: revert left '%s' slot %d untouched — the game replaced it with '%s' after apply."),
+					*Mesh->GetName(), Slot.SlotIndex, *GetNameSafe(Current));
+			}
+			continue;
+		}
+		if (!bInRange)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("missing_texture: '%s' now has %d slot(s) but our checker override is still stored at index %d — it is restored/cleared there too, so it cannot come back on a later mesh change."),
+				*Mesh->GetName(), Mesh->GetNumMaterials(), Slot.SlotIndex);
+		}
+
+		if (Action == AnomalyInstall::ERevertSlot::Restore)
 		{
 			Mesh->SetMaterial(Slot.SlotIndex, Original);
 			++Restored;
@@ -224,28 +250,50 @@ void FAnomaly_MissingTexture::Revert()
 		Owner->GetComponents<UMeshComponent>(Components);
 		for (UMeshComponent* Component : Components)
 		{
-			if (!Component)
+			if (Component)
 			{
-				continue;
-			}
-			const int32 NumSlots = Component->GetNumMaterials();
-			for (int32 i = 0; i < NumSlots; ++i)
-			{
-				if (IsCheckerDerived(Component->GetMaterial(i), Checker))
-				{
-					Component->SetMaterial(i, nullptr);
-					++Swept;
-					UE_LOG(LogAnomaly, Warning,
-						TEXT("missing_texture: swept leftover checker off '%s' slot %d on '%s' (component was re-created after apply) — reset to the mesh default."),
-						*Component->GetName(), i, *Owner->GetName());
-				}
+				TouchedMeshes.AddUnique(Component);
 			}
 		}
 	}
 
+	for (UMeshComponent* Component : TouchedMeshes)
+	{
+		const int32 Extent = AnomalyInstall::SweepExtent(Component->GetNumMaterials(), Component->OverrideMaterials.Num());
+		for (int32 i = 0; i < Extent; ++i)
+		{
+			if (IsCheckerDerived(SlotMaterial(Component, i), Checker))
+			{
+				Component->SetMaterial(i, nullptr);
+				++Swept;
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("missing_texture: swept leftover checker off '%s' slot %d on '%s' (component re-created or mesh changed after apply) — reset to the mesh default."),
+					*Component->GetName(), i, *GetNameSafe(Component->GetOwner()));
+			}
+		}
+	}
+
+	int32 Residual = 0;
+	for (UMeshComponent* Component : TouchedMeshes)
+	{
+		TArray<bool> Ours;
+		Ours.Reserve(Component->OverrideMaterials.Num());
+		for (int32 i = 0; i < Component->OverrideMaterials.Num(); ++i)
+		{
+			Ours.Add(IsCheckerDerived(Component->OverrideMaterials[i].Get(), Checker));
+		}
+		Residual += AnomalyInstall::CountOwnedOverrides(Ours.GetData(), Ours.Num());
+	}
+	if (Residual > 0)
+	{
+		UE_LOG(LogAnomaly, Error,
+			TEXT("missing_texture: REVERT-RESIDUAL %d override(s) of ours still stored after revert — the checker can reappear with no event or label. This is a defect; report it."),
+			Residual);
+	}
+
 	UE_LOG(LogAnomaly, Log,
-		TEXT("missing_texture: revert of %d captured slot(s) — restored=%d default-reset=%d left-to-game=%d unresolved=%d swept=%d (re-found=%d)."),
-		Captured.Num(), Restored, DefaultReset, SkippedForeign, Unresolved, Swept, ReFound);
+		TEXT("missing_texture: revert of %d captured slot(s) — restored=%d default-reset=%d left-to-game=%d unresolved=%d swept=%d out-of-range=%d residual=%d (re-found=%d)."),
+		Captured.Num(), Restored, DefaultReset, SkippedForeign, Unresolved, Swept, OutOfRange, Residual, ReFound);
 
 	Captured.Reset();
 	AppliedChecker.Reset();
@@ -254,28 +302,43 @@ void FAnomaly_MissingTexture::Revert()
 
 bool FAnomaly_MissingTexture::IsVisualConditionHeld() const
 {
+	return AnomalyInstall::IsInstalledByte(GetVisualConditionState());
+}
+
+unsigned char FAnomaly_MissingTexture::GetVisualConditionState() const
+{
 	if (!bActive)
 	{
-		return false;
+		return (unsigned char)AnomalyInstall::EState::None;
 	}
 	const UMaterialInterface* Checker = AppliedChecker.Get();
 	if (!Checker)
 	{
-		return false;
+		return (unsigned char)AnomalyInstall::EState::None;
 	}
-	int32 Live = 0;
+	int32 Ours = 0;
 	for (const FCapturedSlot& Slot : Captured)
 	{
 		const UMeshComponent* Mesh = Slot.Mesh.Get();
 		if (!Mesh)
 		{
-			continue;
+			Mesh = FindLiveComponentByName(Slot.Owner.Get(), Slot.ComponentName);
 		}
-		++Live;
-		if (!IsCheckerDerived(Mesh->GetMaterial(Slot.SlotIndex), Checker))
+		AnomalyInstall::FSlotView View;
+		View.bComponentValid = Mesh != nullptr;
+		if (Mesh)
 		{
-			return false;
+			View.bRegistered = Mesh->IsRegistered();
+			View.bRenders = Mesh->ShouldRender();
+			View.SlotIndex = Slot.SlotIndex;
+			View.NumMaterials = Mesh->GetNumMaterials();
+			View.bResolvedIsOurs = Slot.SlotIndex >= 0 && Slot.SlotIndex < View.NumMaterials
+				&& IsCheckerDerived(Mesh->GetMaterial(Slot.SlotIndex), Checker);
+		}
+		if (AnomalyInstall::SlotRendersOurs(View))
+		{
+			++Ours;
 		}
 	}
-	return Live > 0;
+	return (unsigned char)AnomalyInstall::Classify(Captured.Num(), Ours);
 }

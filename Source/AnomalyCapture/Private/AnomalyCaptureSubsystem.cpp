@@ -2,6 +2,7 @@
 
 #include "AnomalyCaptureLog.h"
 #include "AnomalyBenchGate.h"
+#include "AnomalyInstallState.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "UnrealClient.h"
@@ -339,11 +340,34 @@ struct FAnomalyCaptureAsyncState
 	};
 	TMap<FString, FHideTrack> HideTracks;
 	TMap<FString, AnomalyStuckMipWindow::TPartialEdgeTrack<TArray<AnomalyStuckMipWindow::FSIRange>>> PartialTracks;
-	int32 LabelReasonEntries[6] = { 0, 0, 0, 0, 0, 0 };
+	int32 LabelReasonEntries[7] = { 0, 0, 0, 0, 0, 0, 0 };
 	int32 UnlabelledActiveEntries = 0;
 	int64 InstalledChecks = 0;
 	uint64 InstalledCheckCycles = 0;
 	uint64 InstalledCheckMaxCycles = 0;
+	int64 NaniteChecks = 0;
+	int64 ConditionTimedFrames = 0;
+	uint64 InstallFrameCyclesSum = 0;
+	uint64 InstallFrameCyclesMax = 0;
+	uint64 NaniteFrameCyclesSum = 0;
+	uint64 NaniteFrameCyclesMax = 0;
+	int32 LabelEffectPartialFrames = 0;
+	int32 NaniteMidEventReverts = 0;
+	int32 NaniteMidEventEvents = 0;
+	bool bConditionWindowOpen = false;
+	bool bConditionWindowSampled = false;
+	uint64 WindowInstallCycles = 0;
+	uint64 WindowNaniteCycles = 0;
+	TMap<FName, uint8> InstallCache;
+	TMap<const AActor*, uint8> NaniteCache;
+	TSet<FString> NaniteRevertRequested;
+	struct FPendingNaniteRevert
+	{
+		FName Id;
+		uint64 StartFrame = 0;
+		FString Target;
+	};
+	TArray<FPendingNaniteRevert> PendingNaniteReverts;
 
 	struct FCarriedTransition
 	{
@@ -374,6 +398,23 @@ struct FAnomalyCaptureAsyncState
 		InstalledChecks = 0;
 		InstalledCheckCycles = 0;
 		InstalledCheckMaxCycles = 0;
+		NaniteChecks = 0;
+		ConditionTimedFrames = 0;
+		InstallFrameCyclesSum = 0;
+		InstallFrameCyclesMax = 0;
+		NaniteFrameCyclesSum = 0;
+		NaniteFrameCyclesMax = 0;
+		LabelEffectPartialFrames = 0;
+		NaniteMidEventReverts = 0;
+		NaniteMidEventEvents = 0;
+		bConditionWindowOpen = false;
+		bConditionWindowSampled = false;
+		WindowInstallCycles = 0;
+		WindowNaniteCycles = 0;
+		InstallCache.Reset();
+		NaniteCache.Reset();
+		NaniteRevertRequested.Reset();
+		PendingNaniteReverts.Reset();
 		CarriedTransitionTracksIn = 0;
 		CarriedHideTracksIn = 0;
 	}
@@ -959,6 +1000,8 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		return;
 	}
 
+	ServicePendingNaniteReverts();
+
 	PaceThisTick();
 
 	SampleViewThisTick();
@@ -1177,8 +1220,17 @@ void UAnomalyCaptureSubsystem::SetDeferredOnsetTimeoutFrames(int32 InFrames)
 void UAnomalyCaptureSubsystem::OnWorldTickEndCombined(UWorld* World, ELevelTick TickType, float DeltaSeconds)
 {
 #if ANOMALY_CAPTURE
+	const bool bConditionWindow = World == GetWorld() && bRunning;
+	if (bConditionWindow)
+	{
+		OpenConditionWindow();
+	}
 	OnWorldTickEndMask(World, TickType, DeltaSeconds);
 	OnWorldTickEndSample(World, TickType, DeltaSeconds);
+	if (bConditionWindow)
+	{
+		CloseConditionWindow();
+	}
 #endif
 }
 
@@ -4810,6 +4862,10 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		const FString ImageName = FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), Snap->SessionIndex, Ext);
 		int32 NumLabels = 0;
 		FillAnnotationInputs(*Snap);
+		if (AnomalyLabel::FrameHasPartialLabelledEntry(*Snap))
+		{
+			++Async->LabelEffectPartialFrames;
+		}
 		const FString Record = AnomalyLabel::BuildLabelRecordForSnapshot(*Snap, OutW, OutH, ImageName, NumLabels);
 		const AnomalyLabel::FLabelEntryCounts EntryCounts = AnomalyLabel::CountLabelEntries(*Snap);
 		Async->LabelTransitionEntries += EntryCounts.TransitionEntries;
@@ -4822,7 +4878,8 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		NoteTexCorruptM52Overlap(*Snap);
 
 		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePolicy, Snap->FireOnScreen, Snap->ConditionHeld, Snap->FirePos,
-			Snap->View, Snap->NearClip, Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds, &Snap->Telemetry);
+			Snap->View, Snap->NearClip, Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds, &Snap->Telemetry,
+			&Snap->FireNaniteBlocked);
 
 		FAnomalyAsyncWriter::FJob Job;
 		Job.OutputDir = RunDir;
@@ -5339,14 +5396,26 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 	SyncFrame.FireActive.Reserve(SyncFrame.Fires.Num());
 	SyncFrame.FireLabelled.Reserve(SyncFrame.Fires.Num());
 	SyncFrame.ConditionHeld.Reserve(SyncFrame.Fires.Num());
+	SyncFrame.FireNaniteBlocked.Reserve(SyncFrame.Fires.Num());
 	{
-		const UAnomalyInjectorSubsystem* SyncInjector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		OpenConditionWindow();
 		for (const FAutoLiveFireInfo& F : SyncFrame.Fires)
 		{
 			SyncFrame.FireActive.Add(ComputeFireActive(F));
 			SyncFrame.FireLabelled.Add(IsFireLabelledThisFrame(F) ? 1 : 0);
-			SyncFrame.ConditionHeld.Add((SyncInjector && SyncInjector->IsAnomalyVisualConditionHeld(F.Id)) ? 1 : 0);
+			SyncFrame.ConditionHeld.Add(GetFireInstallState(F));
+			const bool bNaniteBlocked = IsFireNaniteBlocked(F);
+			SyncFrame.FireNaniteBlocked.Add(bNaniteBlocked ? 1 : 0);
+			if (bNaniteBlocked)
+			{
+				NoteNaniteBlocked(F, SessionFrameIndex);
+			}
 		}
+		if (Async.IsValid())
+		{
+			Async->bConditionWindowSampled = true;
+		}
+		CloseConditionWindow();
 	}
 	SyncFrame.View = ProjView;
 	FillAnnotationInputs(SyncFrame);
@@ -5390,6 +5459,10 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			}
 			CountEntryReasons(SyncFrame, Async->LabelReasonEntries, Async->UnlabelledActiveEntries);
 			NoteTexCorruptM52Overlap(SyncFrame);
+			if (AnomalyLabel::FrameHasPartialLabelledEntry(SyncFrame))
+			{
+				++Async->LabelEffectPartialFrames;
+			}
 			++Async->SyncFramesWritten;
 		}
 		const double NowT = World ? World->GetTimeSeconds() : 0.0;
@@ -5404,7 +5477,8 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			}
 		}
 		AccumulateFrameEvents(SyncFrame.Fires, SyncFrame.FireActive, SyncFrame.FirePolicy, SyncFrame.FireOnScreen,
-			SyncFrame.ConditionHeld, Pos, ProjView, GNearClippingPlane, SessionFrameIndex, NowT, nullptr, nullptr, &SyncTelemetry);
+			SyncFrame.ConditionHeld, Pos, ProjView, GNearClippingPlane, SessionFrameIndex, NowT, nullptr, nullptr, &SyncTelemetry,
+			&SyncFrame.FireNaniteBlocked);
 		if (FirstFrameTimeSeconds < 0.0)
 		{
 			FirstFrameTimeSeconds = NowT;
@@ -5899,6 +5973,7 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 	{
 		AppendViewDependentGlobals(*Snap);
 	}
+	Async->bConditionWindowSampled = true;
 
 	Snap->FireActive.Reset();
 	Snap->FireActive.Reserve(Snap->Fires.Num());
@@ -5921,10 +5996,17 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 			CondWorld ? CondWorld->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
 		Snap->ConditionHeld.Reset();
 		Snap->ConditionHeld.Reserve(Snap->Fires.Num());
+		Snap->FireNaniteBlocked.Reset();
+		Snap->FireNaniteBlocked.Reserve(Snap->Fires.Num());
 		for (const FAutoLiveFireInfo& F : Snap->Fires)
 		{
-			Snap->ConditionHeld.Add(
-				(Injector && Injector->IsAnomalyVisualConditionHeld(F.Id)) ? 1 : 0);
+			Snap->ConditionHeld.Add(GetFireInstallState(F));
+			const bool bNaniteBlocked = IsFireNaniteBlocked(F);
+			Snap->FireNaniteBlocked.Add(bNaniteBlocked ? 1 : 0);
+			if (bNaniteBlocked)
+			{
+				NoteNaniteBlocked(F, Snap->SessionIndex);
+			}
 		}
 
 		Snap->Telemetry.Reset();
@@ -6021,6 +6103,10 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 
 bool UAnomalyCaptureSubsystem::IsFireLabelledThisFrame(const FAutoLiveFireInfo& F) const
 {
+	if (IsFireNaniteBlocked(F))
+	{
+		return false;
+	}
 	bool bKnownId = false;
 	const EAnomalyActiveSource Source = ResolveAnomalyActiveSource(F.Id, bKnownId);
 	const AActor* FActor = F.TargetActor.Get();
@@ -6037,21 +6123,164 @@ bool UAnomalyCaptureSubsystem::IsFireLabelledThisFrame(const FAutoLiveFireInfo& 
 		return Injector && Injector->IsAnomalyCurrentlyAnomalous(F.Id);
 	}
 	default:
-	{
-		UWorld* World = GetWorld();
-		const UAnomalyInjectorSubsystem* Injector =
-			World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
-		const uint64 C0 = FPlatformTime::Cycles64();
-		const bool bInstalled = Injector && Injector->IsAnomalyVisualConditionHeld(F.Id);
-		const uint64 Dt = FPlatformTime::Cycles64() - C0;
-		if (Async.IsValid())
-		{
-			++Async->InstalledChecks;
-			Async->InstalledCheckCycles += Dt;
-			Async->InstalledCheckMaxCycles = FMath::Max(Async->InstalledCheckMaxCycles, Dt);
-		}
-		return bInstalled;
+		return AnomalyInstall::IsInstalledByte(GetFireInstallState(F));
 	}
+}
+
+uint8 UAnomalyCaptureSubsystem::GetFireInstallState(const FAutoLiveFireInfo& F) const
+{
+	if (Async.IsValid() && Async->bConditionWindowOpen)
+	{
+		if (const uint8* Cached = Async->InstallCache.Find(F.Id))
+		{
+			return *Cached;
+		}
+	}
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	const uint64 C0 = FPlatformTime::Cycles64();
+	const uint8 State = Injector ? Injector->GetAnomalyVisualConditionState(F.Id) : 0;
+	const uint64 Dt = FPlatformTime::Cycles64() - C0;
+	if (Async.IsValid())
+	{
+		++Async->InstalledChecks;
+		Async->InstalledCheckCycles += Dt;
+		Async->InstalledCheckMaxCycles = FMath::Max(Async->InstalledCheckMaxCycles, Dt);
+		if (Async->bConditionWindowOpen)
+		{
+			Async->WindowInstallCycles += Dt;
+			Async->InstallCache.Add(F.Id, State);
+		}
+	}
+	return State;
+}
+
+bool UAnomalyCaptureSubsystem::IsFireNaniteBlocked(const FAutoLiveFireInfo& F) const
+{
+	const AActor* Actor = F.bWholeFrameExtent ? nullptr : F.TargetActor.Get();
+	if (!Actor)
+	{
+		return false;
+	}
+	if (Async.IsValid() && Async->bConditionWindowOpen)
+	{
+		if (const uint8* Cached = Async->NaniteCache.Find(Actor))
+		{
+			return *Cached != 0;
+		}
+	}
+	const uint64 C0 = FPlatformTime::Cycles64();
+	const bool bBlocked = AnomalyViewport::ActorBlocksLabelForNanite(Actor);
+	const uint64 Dt = FPlatformTime::Cycles64() - C0;
+	if (Async.IsValid())
+	{
+		++Async->NaniteChecks;
+		if (Async->bConditionWindowOpen)
+		{
+			Async->WindowNaniteCycles += Dt;
+			Async->NaniteCache.Add(Actor, bBlocked ? 1 : 0);
+		}
+	}
+	return bBlocked;
+}
+
+void UAnomalyCaptureSubsystem::OpenConditionWindow() const
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	Async->bConditionWindowOpen = true;
+	Async->bConditionWindowSampled = false;
+	Async->WindowInstallCycles = 0;
+	Async->WindowNaniteCycles = 0;
+	Async->InstallCache.Reset();
+	Async->NaniteCache.Reset();
+}
+
+void UAnomalyCaptureSubsystem::CloseConditionWindow() const
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	if (Async->bConditionWindowOpen && Async->bConditionWindowSampled)
+	{
+		++Async->ConditionTimedFrames;
+		Async->InstallFrameCyclesSum += Async->WindowInstallCycles;
+		Async->InstallFrameCyclesMax = FMath::Max(Async->InstallFrameCyclesMax, Async->WindowInstallCycles);
+		Async->NaniteFrameCyclesSum += Async->WindowNaniteCycles;
+		Async->NaniteFrameCyclesMax = FMath::Max(Async->NaniteFrameCyclesMax, Async->WindowNaniteCycles);
+	}
+	Async->bConditionWindowOpen = false;
+	Async->bConditionWindowSampled = false;
+	Async->InstallCache.Reset();
+	Async->NaniteCache.Reset();
+}
+
+void UAnomalyCaptureSubsystem::NoteNaniteBlocked(const FAutoLiveFireInfo& F, int32 SessionIndex)
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	const FString Key = FString::Printf(TEXT("%s@%llu"), *F.Id.ToString(), (unsigned long long)F.StartFrame);
+	if (Async->NaniteRevertRequested.Contains(Key))
+	{
+		return;
+	}
+	Async->NaniteRevertRequested.Add(Key);
+	++Async->NaniteMidEventEvents;
+	FAnomalyCaptureAsyncState::FPendingNaniteRevert P;
+	P.Id = F.Id;
+	P.StartFrame = F.StartFrame;
+	P.Target = F.Target;
+	Async->PendingNaniteReverts.Add(P);
+	UE_LOG(LogAnomalyCapture, Warning,
+		TEXT("Capture(090-09): NANITE-MIDEVENT session_index=%d actor=%s id=%s - the target now draws a Nanite primitive ")
+		TEXT("(IAI.Targets.AllowNanite 0), so its mask cannot be made. From this frame the entry is unlabelled with ")
+		TEXT("transition_reason nanite_unmaskable, and the effect is reverted at the next tick."),
+		SessionIndex, *F.Target, *F.Id.ToString());
+}
+
+void UAnomalyCaptureSubsystem::ServicePendingNaniteReverts()
+{
+	if (!Async.IsValid() || Async->PendingNaniteReverts.Num() == 0)
+	{
+		return;
+	}
+	TArray<FAnomalyCaptureAsyncState::FPendingNaniteRevert> Pending = MoveTemp(Async->PendingNaniteReverts);
+	Async->PendingNaniteReverts.Reset();
+	UWorld* World = GetWorld();
+	UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	if (!Injector || !Auto)
+	{
+		return;
+	}
+	for (const FAnomalyCaptureAsyncState::FPendingNaniteRevert& P : Pending)
+	{
+		bool bStillLive = false;
+		for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+		{
+			if (F.Id == P.Id && F.StartFrame == P.StartFrame)
+			{
+				bStillLive = true;
+				break;
+			}
+		}
+		if (!bStillLive)
+		{
+			continue;
+		}
+		if (Injector->RevertAnomaly(P.Id))
+		{
+			++Async->NaniteMidEventReverts;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(090-09): NANITE-MIDEVENT REVERTED actor=%s id=%s start_frame=%llu - raw revert; the live-fire ")
+				TEXT("entry stays until its scheduled end and every later frame of it is unlabelled."),
+				*P.Target, *P.Id.ToString(), (unsigned long long)P.StartFrame);
+		}
 	}
 }
 
@@ -7956,6 +8185,7 @@ void UAnomalyCaptureSubsystem::FillAnnotationInputs(AnomalyLabel::FCaptureSnapsh
 		Snap.FireOnScreen[i] = AnomalyLabel::ProjectFireBox(Snap.Fires[i], Snap.View, Min, Max) ? 1 : 0;
 	}
 	AnomalyLabel::MarkInterruptedEffects(Snap);
+	AnomalyLabel::MarkNaniteUnmaskable(Snap);
 }
 
 uint8 UAnomalyCaptureSubsystem::ComputeFireActive(const FAutoLiveFireInfo& F) const
@@ -8203,7 +8433,9 @@ static bool AccumEventManifested(const FSessionEventAccum& Ev)
 
 void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 {
+	OpenConditionWindow();
 	SampleDeferredActiveState();
+	CloseConditionWindow();
 #if ANOMALY_CAPTURE
 	const bool bDeferM55Closure = bRenderTruthRun && Async.IsValid() && Async->ObserveQueue.Num() > 0;
 	if (Async.IsValid() && Async->ChangeStage.IsValid() && !bDeferM55Closure)
@@ -8483,6 +8715,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TEXT("target was on screen at all; census_unmeasurable_nanite says whether such a candidate existed."),
 			AnomalyViewport::GetNaniteRefusalCount(), AnomalyViewport::GetNaniteRefusalAttempts(),
 			*AnomalyDefaults::DescribeAllowNaniteTargets());
+		if (AnomalyViewport::GetNaniteProbeMissingRefusals() > 0)
+		{
+			UE_LOG(LogAnomalyCapture, Error,
+				TEXT("Capture(090-09): NANITE PROBE MISSING - %d target refusal(s) as nanite_probe_missing this run. With ")
+				TEXT("IAI.Targets.AllowNanite 0 a target is admitted only when the Nanite classifier is registered; it was not, ")
+				TEXT("so those targets were refused (fail closed). run_summary.refused_nanite_probe_missing carries the count."),
+				AnomalyViewport::GetNaniteProbeMissingRefusals());
+		}
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m50): TAG-OWNER VIOLATIONS = %d captured frame(s) on which one stencil value was on ")
@@ -8947,22 +9187,35 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.MaskTagRetireHostFlagKept = Async->MaskMeasure.GetTagRetireHostFlagKept();
 			LabelSyncReport.MaskPriorCollisions = Async->MaskMeasure.GetPriorCollisions();
 			LabelSyncReport.MaskPriorCollisionQuarantined = Async->MaskMeasure.GetPriorCollisionQuarantined();
-			static_assert(AnomalyLabelSync::NumReasons == 6, "the reason arrays and the run_summary keys carry six reasons");
+			static_assert(AnomalyLabelSync::NumReasons == 7, "the reason arrays and the run_summary keys carry seven reasons");
+			LabelSyncReport.LabelEffectPartialFrames = Async->LabelEffectPartialFrames;
+			LabelSyncReport.NaniteMidEventReverts = Async->NaniteMidEventReverts;
+			LabelSyncReport.RefusedNaniteProbeMissing = AnomalyViewport::GetNaniteProbeMissingRefusals();
 			for (int32 b = 0; b < AnomalyLabelSync::NumReasons; ++b)
 			{
 				LabelSyncReport.ReasonEntries[b] = Async->LabelReasonEntries[b];
 			}
 			{
 				const double CycleUs = FPlatformTime::GetSecondsPerCycle64() * 1.0e6;
+				const double FrameMs = CycleUs / 1000.0;
+				const double InstallMean = Async->ConditionTimedFrames > 0
+					? (double)Async->InstallFrameCyclesSum * FrameMs / (double)Async->ConditionTimedFrames : 0.0;
+				const double InstallMax = (double)Async->InstallFrameCyclesMax * FrameMs;
+				const double NaniteMean = Async->ConditionTimedFrames > 0
+					? (double)Async->NaniteFrameCyclesSum * FrameMs / (double)Async->ConditionTimedFrames : 0.0;
+				const double NaniteMax = (double)Async->NaniteFrameCyclesMax * FrameMs;
+				const bool bCostPass = InstallMean <= 0.05 && InstallMax <= 0.5;
 				UE_LOG(LogAnomalyCapture, Log,
-					TEXT("Capture(F1): EFFECT-INSTALLED CHECK calls=%lld total=%.1f us mean=%.3f us max=%.3f us; ")
-					TEXT("effect_interrupted entries=%d. A FireWindow entry is labelled only on a frame its effect is ")
-					TEXT("installed (our material or MID still bound on every targeted slot), sampled at the same point ")
-					TEXT("as the activity bit; a frame without it is written transition-only with ")
-					TEXT("transition_reason effect_interrupted and is not in annotation.json."),
-					Async->InstalledChecks, (double)Async->InstalledCheckCycles * CycleUs,
-					Async->InstalledChecks > 0 ? (double)Async->InstalledCheckCycles * CycleUs / (double)Async->InstalledChecks : 0.0,
-					(double)Async->InstalledCheckMaxCycles * CycleUs, Async->LabelReasonEntries[5]);
+					TEXT("Capture(F1): EFFECT-INSTALLED COST PER CAPTURED FRAME frames=%lld mean=%.4f ms max=%.4f ms ")
+					TEXT("(threshold mean<=0.05 max<=0.5: %s); calls=%lld. NANITE RECHECK PER CAPTURED FRAME mean=%.4f ms ")
+					TEXT("max=%.4f ms calls=%lld. A frame's cost is the sum of every installed/Nanite evaluation in that frame's ")
+					TEXT("sample window (evaluated once per fire and shared by the mask, m26 and label consumers). ")
+					TEXT("effect_interrupted entries=%d, nanite_unmaskable entries=%d, partial-effect labelled frames=%d, ")
+					TEXT("Nanite mid-event reverts=%d of %d event(s)."),
+					Async->ConditionTimedFrames, InstallMean, InstallMax, bCostPass ? TEXT("PASS") : TEXT("OVER"),
+					Async->InstalledChecks, NaniteMean, NaniteMax, Async->NaniteChecks,
+					Async->LabelReasonEntries[5], Async->LabelReasonEntries[6], Async->LabelEffectPartialFrames,
+					Async->NaniteMidEventReverts, Async->NaniteMidEventEvents);
 			}
 			LabelSyncReport.CarriedTransitionTracks = Async->CarriedTransitionTracksIn;
 			LabelSyncReport.CarriedHideTracks = Async->CarriedHideTracksIn;
@@ -8970,12 +9223,13 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.SyncFramesWritten = Async->SyncFramesWritten;
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(labelsync): TRANSITION REASONS temporal_aa=%d hide_return=%d partial=%d camera_clipping_unconfirmed=%d ")
-				TEXT("unresolved=%d effect_interrupted=%d; ")
+				TEXT("unresolved=%d effect_interrupted=%d nanite_unmaskable=%d; ")
 				TEXT("carried in: %d transition track(s), %d hide track(s); active-but-unlabelled entries %d; sync frames %d; ")
 				TEXT("mask retire: quarantined %d, host custom-depth-off holders restored value-only %d; ")
 				TEXT("mask_prior_collision %d (quarantined %d)"),
 				LabelSyncReport.ReasonEntries[0], LabelSyncReport.ReasonEntries[1], LabelSyncReport.ReasonEntries[2],
 				LabelSyncReport.ReasonEntries[3], LabelSyncReport.ReasonEntries[4], LabelSyncReport.ReasonEntries[5],
+				LabelSyncReport.ReasonEntries[6],
 				LabelSyncReport.CarriedTransitionTracks,
 				LabelSyncReport.CarriedHideTracks,
 				LabelSyncReport.UnlabelledActiveEntries, LabelSyncReport.SyncFramesWritten,
@@ -9237,7 +9491,8 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 	const TArray<uint8>& FireActive, const TArray<uint8>& FirePolicy, const TArray<uint8>& FireOnScreen,
 	const TArray<uint8>& FireInstalled, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
 	float NearClip, int32 SessionIndex, double TimeSeconds, const TArray<uint8>* Observable,
-	const TArray<FIntRect>* DrawnBounds, const TArray<FAnomalyTelemetry>* CapturedTelemetry)
+	const TArray<FIntRect>* DrawnBounds, const TArray<FAnomalyTelemetry>* CapturedTelemetry,
+	const TArray<uint8>* FireNaniteBlocked)
 {
 	if (!Async.IsValid())
 	{
@@ -9316,7 +9571,7 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 		if (Active) { ++Ev->ActiveFrames; } else { ++Ev->InactiveFrames; }
 		Ev->ActiveByIndex.Add(SessionIndex, (uint8)Active);
 		Ev->MemberByIndex.Add(SessionIndex,
-			AnomalyLabel::IsFireInAnnotation(&FirePolicy, &FireActive, &FireOnScreen, &FireInstalled, i) ? 1 : 0);
+			AnomalyLabel::IsFireInAnnotation(&FirePolicy, &FireActive, &FireOnScreen, &FireInstalled, i, FireNaniteBlocked) ? 1 : 0);
 
 		const uint8 Obs = (Observable && Observable->IsValidIndex(i))
 			? (*Observable)[i] : (uint8)AnomalyLabel::EObservable::Unmeasured;

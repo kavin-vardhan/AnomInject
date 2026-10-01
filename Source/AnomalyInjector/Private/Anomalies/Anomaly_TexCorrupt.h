@@ -30,6 +30,7 @@ public:
 	virtual void Revert() override;
 	virtual bool IsActive() const override { return bActive; }
 	virtual bool IsVisualConditionHeld() const override;
+	virtual unsigned char GetVisualConditionState() const override;
 	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) override;
 	virtual bool GetTelemetry(FAnomalyTelemetry& Out) const override;
 	virtual bool WantsTargetLostNotification() const override { return true; }
