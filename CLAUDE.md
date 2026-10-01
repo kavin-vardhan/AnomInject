@@ -11,6 +11,47 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🩺 **090-10b2, 2026-10-01/02 — stuck_low_mip's PIE "shared" WAS THE FIXTURE'S PURITY CONTROL, NOT THE EDITOR WORLD; THE PURITY LOG
+> NOW NAMES ITS WORLD; 090-10b IS WRITTEN UP; THE CHECKLIST RULE IS "VISIBLY WORKED IN PIE AND STAGED". Code head `a5f0a06`
+> (Source as `c60de04`), exe `5E93A74E`. The texture-corruption readiness change is m53-only (read its block). Merged into m53.**
+> - **Cold start:** journals `docs/sessions/2026-10-01-090-10b2-m52-pie-wrapup-census.md` and
+>   `2026-10-01-090-10b-office-nothing-corrupts.md` (the latter written by 090-10b2 from 090-10b's run records; 090-10b ended
+>   INTERRUPTED at 17:38 with its code, builds and archives complete).
+> - **The premise that did not survive:** "the purity scan counts the editor world's copy". The PIE log: `scope ALL LOADED LEVELS (1 ...):
+>   98 component(s)`, users `_77` and `_78` of the PIE world; the editor world holds 2 more copies that were never counted; and the
+>   fixture builds `TC_M52Hold`/`TC_M52Share` on one material on purpose (`make_texcorrupt_fixture.py:1443-1446`). No purity code
+>   changed (G443).
+> - **Changed (`c60de04`, `a5f0a06`):** the PURITY line names `world '<w>' (type=PIE|Game)` and says other worlds are not scanned; the
+>   HELD NONE summary says "shared with another user component in this world" (was "a visible component"); `m52_log_counts.py` follows
+>   (9/9); `m52_window_selftest` gains the two-world case, and an all-worlds `InPurityScope` mutant fails it.
+> - **PIE proof (m53 build):** MainWorld rock B9 vs its B5 null, E1 PASS 17/17 in PIE and 16/16 staged; auto-pool 5/5 blurred.
+> - 🆕 **`PRE-DELIVERY-CHECKLIST.md` §0 widened:** no build to an office host until it has VISIBLY WORKED in a running game at home, in
+>   PIE and staged — every type it changes, both readiness directions, census timing (G444).
+> - **Builds:** strict 0/0, normal 0 warnings, lever 34/34, string scan vs `DA903919` 12 (the two log strings old/new + one-byte
+>   artefacts), C++ 5/5 + 20 mutants + the all-worlds mutant, Python 19/19. Archive `_binary_baselines\m52fix-0910b2-5E93A74E\` (6/6 re-hashed).
+> - ⛔ No tag, no merge to master.
+>
+> ---
+> 🚨 **090-10b, 2026-10-01 — THE SECOND OFFICE HOST CORRUPTED NOTHING BECAUSE IT RUNS THE PLUGIN IN THE EDITOR; THE CAUSE IS
+> 🔻 *Block drafted by 090-10b before its watcher died (17:38) and committed by 090-10b2 from its records. Superseded as the
+> pull target by the 090-10b2 block above; the facts below stand.*
+> m53-ONLY AND IS FIXED ON `feat/m53-uv-normal-corruption` (READ ITS BLOCK). THIS BRANCH GAINS THE "NEVER SILENT" HALF, AN
+> `IAI-STARTUP` LINE, THE OFFICE READ-OUT TOOL AND THE CHECKLIST RULE. Game launches at home (PIE, editor -game, staged), no cook.**
+> - **Cold start:** journal `docs/sessions/2026-10-01-090-10b-office-nothing-corrupts.md`; archive `_binary_baselines\m52fix-0910b-DA903919\`.
+> - **Never silent (`6a7a29e`, `cf422d5`):** a type that finds no eligible target logs, at most every 10 s,
+>   `Auto.Yield <type>: 0 of N candidates eligible - <reason> n, ...` (auto-pool and targeted; reasons from the Nanite gate, the
+>   census, `IAnomaly::GetLastRefusalReason` - stuck_low_mip reports its dominant HELD NONE bucket), and a round with no visible
+>   candidate names the coverage cull and poll radius. Every Game/PIE world prints one `IAI-STARTUP` line (world type, editor,
+>   Nanite policy, probe registered/MISSING, r.VirtualTextures, r.Nanite.ProjectEnabled). The dashboard has no status channel.
+> - **`tools/anomaly_refusal_counts.py` (`6a7a29e`, `b9716ea`):** numbers-only read-out of all of it from a game or editor log;
+>   selftest 14/14. Office command: `docs/../tools/OFFICE-CHECK.md` last section.
+> - 🆕 **`PRE-DELIVERY-CHECKLIST.md` §0: no build goes to an office host until it has visibly corrupted in a running game at
+>   home, in PIE and in the staged game.** G439–G442.
+> - **Builds:** normal 0 warnings, strict 0/0 (58 header TUs), exe **`DA903919`**; 53 string differences, all this round's +
+>   one-byte artefacts; lever audit 34/34; C++ 5/5 + 20 mutants; Python 19/19.
+> - ⛔ No tag, no merge to master.
+>
+> ---
 > 🛠 **090-10, 2026-10-01 — R4 CLOSED IN CODE: A LABEL'S BOX AND ON-SCREEN TEST COME FROM THE TICK-END SAMPLE, NOT FROM THE LIVE
 > ACTOR AT READBACK; EVERY SYNC-PATH FRAME IS `capture_unpaired` (DROPPED, UNSUPPORTED FOR DELIVERY); KIT 1.3 CLOSES ITS TWO OLDER
 > LIMITS. Compile only (no game launch, no cook, no staging). Merged into m53.**
