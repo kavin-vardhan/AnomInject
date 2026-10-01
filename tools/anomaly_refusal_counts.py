@@ -9,8 +9,8 @@ It reads the plugin's own log wording and prints, as counts:
   - Auto.Yield lines: per anomaly type, the reasons it had zero eligible candidates;
   - auto-pool and targeted fires per anomaly type: applied / not applied;
   - the Nanite gate: REFUSED-NANITE, REFUSED-NANITE-PROBE-MISSING;
-  - uv_corruption / normal_corruption: applied, refused per reason, slot dispositions, TEXCORRUPT-SHADERMAP (render-thread
-    complete or not), and the IAI-TEXCORRUPT-CENSUS lines;
+  - uv_corruption / normal_corruption: applied, refused per reason, slot dispositions, TEXCORRUPT-SHADERMAP (admitted or
+    refused on the vertex-factory shaders), and the IAI-TEXCORRUPT-CENSUS lines;
   - stuck_low_mip: the m52_log_counts.py readings (the same folder).
 No actor, component, material, texture, path or map name is printed: a reason's detail after ':' is dropped.
 Standard library only (Python 3.8 or newer). Exit codes: 0 read, 1 selftest failed, 2 cannot read the log.
@@ -36,7 +36,7 @@ NANITE = re.compile(r"REFUSED-NANITE actor=")
 NANITE_PROBE = re.compile(r"REFUSED-NANITE-PROBE-MISSING actor=")
 TC_HEAD = re.compile(r"TEXCORRUPT-(DECIDE|REFUSED) family=(uv|normal) mode=\S+ target='.*?' final=([A-Za-z_]+)")
 TC_SLOT = re.compile(r"TEXCORRUPT-(?:DECIDE|REFUSED)\s+slot \S+ disposition=([a-z_]+)")
-TC_SHADERMAP = re.compile(r"TEXCORRUPT-SHADERMAP '.*?' game_thread_complete=(\d) render_thread_complete=(\d)")
+TC_SHADERMAP = re.compile(r"TEXCORRUPT-SHADERMAP '.*?' game_thread_complete=(\d) .*?-> (admitted|refused)")
 CENSUS = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (scope=\S+ candidates=\d+|id=\S+ eligible=\d+ refused=\d+|"
                     r"scanned=\d+ of=\d+ gone=\d+ stopped=\w+ seconds=[\d.]+|end stats_unchanged=\d)(?: reasons=(\S+))?")
 
@@ -104,7 +104,7 @@ def count(lines):
             continue
         m = TC_SHADERMAP.search(line)
         if m:
-            c["tc_shadermap"]["render_thread_complete=%s" % m.group(2)] += 1
+            c["tc_shadermap"][m.group(2)] += 1
             continue
         m = CENSUS.search(line)
         if m:
@@ -165,8 +165,8 @@ SAMPLE = [
     "[2026.10.01-08.00.03:000][  4]LogAnomaly: TEXCORRUPT-DECIDE family=uv mode=tile target='=SM_SecretBarrel_2' final=APPLY step=-",
     "[2026.10.01-08.00.03:000][  4]LogAnomaly: TEXCORRUPT-DECIDE   slot SM_SecretBarrel_2.StaticMeshComponent0[0] "
     "disposition=qualified raw=MI_Secret2(len 1)",
-    "[2026.10.01-08.00.03:000][  4]LogAnomaly: TEXCORRUPT-SHADERMAP 'MI_Secret2' game_thread_complete=0 render_thread_complete=1 "
-    "-> renders as itself.",
+    "[2026.10.01-08.00.03:000][  4]LogAnomaly: TEXCORRUPT-SHADERMAP 'MI_Secret2' game_thread_complete=0 compilation_finished=1 "
+    "vertex_factory=FLocalVertexFactory shaders=12 -> admitted. A whole-map completeness flag",
     "[2026.10.01-08.00.04:000][  5]LogAnomaly: Warning: Auto.Yield uv_corruption: 0 of 7 candidates eligible - "
     "shader_map_incomplete 5, virtual_texture 2 (auto-pool, 3 round(s) since the last line). Nothing of this type",
     "[2026.10.01-08.00.04:000][  5]LogAnomaly: Auto.Fire: 'uv_corruption' on 'SM_SecretCrate_7' -> 0 matched.",
@@ -201,7 +201,7 @@ def selftest():
           and c["tc_refused"]["normal_corruption"] == Counter(over_budget=1))
     check("slot dispositions: shader_map_incomplete 1, qualified 1",
           c["tc_slots"] == Counter(shader_map_incomplete=1, qualified=1))
-    check("shadermap line counted by its render-thread flag", c["tc_shadermap"] == Counter({"render_thread_complete=1": 1}))
+    check("shadermap line counted by its verdict (admitted 1)", c["tc_shadermap"] == Counter(admitted=1))
     check("yield line: uv 0 of 7, shader_map_incomplete 5 virtual_texture 2",
           c["yield_candidates"]["uv_corruption"] == 7
           and c["yield_reasons"]["uv_corruption"] == Counter(shader_map_incomplete=5, virtual_texture=2))
