@@ -83,7 +83,7 @@ namespace AnomalyTexCorrupt
 				{
 					if (Res)
 					{
-						Res->SamplerStateRHI = FTexture::GetOrCreateSamplerState(FSamplerStateInitializerRHI(Filter, AddrU, AddrV, AM_Wrap, Bias));
+						Res->SamplerStateRHI = RHICreateSamplerState(FSamplerStateInitializerRHI(Filter, AddrU, AddrV, AM_Wrap, Bias));
 					}
 				});
 		}
