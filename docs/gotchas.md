@@ -9874,3 +9874,34 @@ Related: G127, G134.
   still exists; a gate with nothing to inspect passes forever.
 
 Related: G428, G96.
+
+## G432 — "What we wrote at apply" is not "what renders now": an installed test must read the current render state
+*(090-09, 2026-10-01; numbered past G431, the max over all 31 refs.)* The F1 installed predicate (090-05) walked the slot records made
+at apply and asked whether each still held our material. Codex (090-08 R1/R3) showed three ways that answer differs from the picture:
+one slot replaced by the game made the whole event a negative while the other slots still showed the effect; a hidden or unregistered
+original component (with a clean replacement drawing the box) still read installed; and a mesh change left a slot index that no longer
+exists. The rule now: a targeted slot counts only if its component (or same-named successor) is registered and `ShouldRender()`, the
+slot exists on the current mesh, and the material that slot resolves to is ours; none ⇒ `effect_interrupted`, some ⇒ partial (still
+labelled, counted). **Lesson: a record of what we changed is evidence about our intent, not about the frame. Read the thing the
+renderer reads, at the frame's sample point.** Pure rule in `AnomalyInstallState.h`; `tools/install_state_selftest.cpp`.
+
+## G433 — `UMeshComponent::SetMaterial` grows the override array past the mesh's slot count; a sweep bounded by `GetNumMaterials()` leaves a dormant override
+*(090-09.)* `SetMaterial(i, M)` writes `OverrideMaterials[i]` with no check against the current mesh (`MeshComponent.cpp:48-77`), and
+`GetMaterial(i)` returns an existing override for any index the current mesh uses. A revert or sweep that loops `0..GetNumMaterials()-1`
+therefore skips an override stored at an index the current mesh does not have — and it comes back, with no event and no label, when
+the mesh changes back. **Loop `max(GetNumMaterials(), OverrideMaterials.Num())`, read the raw override past the mesh's range, and
+assert after the revert that no override of ours is stored at any index** (`REVERT-RESIDUAL`, Error).
+
+## G434 — Never cache a per-frame reading across the whole tick: a Tick-time read before `BeginFire` is stale by tick end
+*(090-09, R10.)* Sharing one installed/Nanite evaluation per fire among the mask, m26 and label consumers is right (and is how the
+per-captured-frame cost is measured), but the cache must live only inside the sample window — the `OnWorldTickEnd` callback and the
+sync capture block. A cache keyed on `GFrameCounter` would hand the tick-end sample a value computed earlier in the same Tick (for
+example by `BurstAwaitsDeferredOnset`) before `BeginFire`/`BeginRevert` changed it. `OpenConditionWindow`/`CloseConditionWindow`
+scope it; reads outside a window are computed fresh.
+
+## G435 — A null classifier must not read as "verified clean": make the owner's setting fail closed
+*(090-09, R6.)* With `IAI.Targets.AllowNanite 0` the Nanite probe answered `false` when no probe was registered, so "no Nanite part"
+and "could not tell" were the same value and a target was admitted. Unreachable in the shipped Development/Test configuration (the
+capture module registers the probe at startup), but the owner's decision was resting on a module's load order. Now `0` with no probe
+refuses every target as `nanite_probe_missing` (Error line, `run_summary.refused_nanite_probe_missing`); `1` stays the deliberate
+bypass. **Any "skip X" setting whose detector can be absent must decide "unknown" as "skip".**

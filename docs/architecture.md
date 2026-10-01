@@ -1139,6 +1139,23 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   renderable components and refuses on any Nanite one (`AnomalyTargetPolicy::DecideNanite`); called in the auto-pool
   candidate loop, `TryFireSpecific` (before the hold draw) and `ApplyAnomaly`; counted distinct per run
   (`run_summary.refused_nanite`, reset in `ResetTargetExclusionStats`).
+  **090-09 (supersedes the two 090-05 sentences above where they differ):** `installed` is now a tri-state
+  `IAnomaly::GetVisualConditionState()` (pure rule `AnomalyInstallState.h`: none / full / partial), read from the object as it
+  renders on that frame — a targeted slot counts if its component (or same-named successor) is registered and `ShouldRender()`,
+  the slot exists on the current mesh, and the slot resolves to our material (m53: our host MID with its RT bindings). `Snap.ConditionHeld`
+  stores the byte (0/1/2); none ⇒ `effect_interrupted`, partial ⇒ labelled and counted (`label_effect_partial_frames`). The installed
+  and Nanite readings are computed once per fire inside a sample window (`OpenConditionWindow`/`CloseConditionWindow`: the
+  `OnWorldTickEnd` callback, the sync capture block, `FinishRun`'s final sample) and shared by the mask, `m26` and label consumers;
+  the window's summed cost is the per-captured-frame F1 cost line. `Snap.FireNaniteBlocked` (per fire, `ActorBlocksLabelForNanite`)
+  gates every policy: `IsFireLabelledThisFrame` returns false, `IsAnnotationMemberGated` excludes the frame, and
+  `MarkNaniteUnmaskable` (after `MarkInterruptedEffects`) writes a transition-only entry with reason bit 6 `nanite_unmaskable`;
+  `NoteNaniteBlocked` queues one raw `RevertAnomaly` per event, serviced at the top of the next capture Tick
+  (`nanite_midevent_reverts`). `ActorDrawsAnyNanite` counts every visible geometry primitive the actor draws, ignoring the
+  target-selection exclusions (`AnomalyTargetPolicy::CountDrawnNanite`); `RefuseNaniteTarget` fails closed when no probe is
+  registered (`nanite_probe_missing`, `refused_nanite_probe_missing`); `ComponentRendersAsNanite` excludes
+  `USplineMeshComponent` (`RouteIsNanite`). Texture-swap revert restores or clears every captured index, including indices past
+  the current mesh's slot count, sweeps `max(GetNumMaterials(), OverrideMaterials.Num())`, and asserts no override of ours remains
+  (`REVERT-RESIDUAL`). Rule name `annotation_membership_per_policy_v3_effect_rendered_nanite_gated`.
   **084-07c:** `labelled` comes from ONE authority, `AnomalyLabelSync::IsAnnotationMember(policy, active, onScreen)` — the
   rule that builds `annotation.json`'s frame list, per class (FireWindow ⇒ the fire's box is on screen via the shared
   `AnomalyLabel::ProjectFireBox`; ActorHidden / AnomalyState ⇒ the activity bit; RenderHeldWindow ⇒ the render-record
