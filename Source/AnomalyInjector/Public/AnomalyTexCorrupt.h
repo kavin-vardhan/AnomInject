@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 
+class AActor;
 class UWorld;
 class UMaterialInterface;
 
@@ -34,6 +35,8 @@ namespace AnomalyTexCorrupt
 	ANOMALYINJECTOR_API const TArray<FString>& AllRollbackSteps();
 
 	ANOMALYINJECTOR_API bool IsTexCorruptId(FName Id);
+
+	ANOMALYINJECTOR_API bool IsEligibleTarget(UWorld* World, FName Id, AActor* Actor, FString& OutReason);
 
 	ANOMALYINJECTOR_API TArray<FString> GetAutoDrawModes(FName Id);
 

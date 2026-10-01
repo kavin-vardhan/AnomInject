@@ -9,6 +9,7 @@
 
 class AActor;
 class UMeshComponent;
+class UPrimitiveComponent;
 class UTexture;
 class UTexture2D;
 class UTextureRenderTarget2D;
@@ -326,13 +327,13 @@ namespace AnomalyTexCorrupt
 
 	UAnomalyInjectorSubsystem* ResolveInjector(UWorld* World);
 
-	bool MaterialRendersAsItself(UMaterialInterface* Material, UWorld* World);
+	bool HostShadersReady(UMaterialInterface* Material, const UPrimitiveComponent* Comp, UWorld* World);
 
 	bool CheckCorruptorContract(UMaterialInterface* Corruptor, const TArray<FName>& Scalars, const TArray<FName>& Textures,
 		FString& OutMissing);
 
-	void ReadActiveBindings(UWorld* World, UMaterialInterface* Resolved, TArray<FBinding>& OutBindings, bool& bOutResourceOk,
-		bool& bOutShaderMapOk, bool& bOutComplete);
+	void ReadActiveBindings(UWorld* World, UMaterialInterface* Resolved, const UPrimitiveComponent* Comp, TArray<FBinding>& OutBindings,
+		bool& bOutResourceOk, bool& bOutShaderMapOk, bool& bOutComplete);
 
 	void EvaluateTree(UWorld* World, const FTreeInputs& In, FTreeResult& Out);
 

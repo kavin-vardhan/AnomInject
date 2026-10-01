@@ -66,4 +66,6 @@ public:
 	virtual void OnTargetLost(AActor* Actor, bool bWorldEnding) {}
 
 	virtual void OnWorldTeardown() {}
+
+	virtual FString GetLastRefusalReason() const { return FString(); }
 };

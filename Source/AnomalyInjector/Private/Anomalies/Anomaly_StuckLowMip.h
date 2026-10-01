@@ -42,6 +42,7 @@ public:
 	virtual bool WantsTargetLostNotification() const override { return true; }
 	virtual void OnTargetLost(AActor* Actor, bool bWorldEnding) override;
 	virtual void OnWorldTeardown() override;
+	virtual FString GetLastRefusalReason() const override { return LastRefusal; }
 
 private:
 	struct FHeldTexture
@@ -113,6 +114,7 @@ private:
 	TWeakObjectPtr<UWorld> HeldWorld;
 	TWeakObjectPtr<AActor> PrimaryOwner;
 	FString PrimaryOwnerName;
+	FString LastRefusal;
 	int32 PrimaryIndex = 0;
 	int32 CapturedFramesSeen = 0;
 	int32 OnsetLatencyFrames = -1;

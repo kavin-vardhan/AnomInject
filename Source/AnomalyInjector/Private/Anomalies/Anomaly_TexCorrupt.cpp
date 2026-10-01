@@ -542,7 +542,7 @@ void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 				bool bRes = false;
 				bool bSm = false;
 				bool bComplete = false;
-				ReadActiveBindings(World, Mat, Bindings, bRes, bSm, bComplete);
+				ReadActiveBindings(World, Mat, Prim, Bindings, bRes, bSm, bComplete);
 				if (!bRes || !bSm || !bComplete)
 				{
 					++CollateralUnmeasuredMaterials;
@@ -989,7 +989,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		else
 		{
 			FMaterialResource* Res = Corruptor->GetMaterialResource(World->FeatureLevel);
-			if (!Res || !Res->GetGameThreadShaderMap() || !MaterialRendersAsItself(Corruptor, World))
+			if (!Res || !Res->GetGameThreadShaderMap() || !Res->IsGameThreadShaderMapComplete())
 			{
 				Why4 = TEXT("corruptor_shader_map_incomplete");
 			}

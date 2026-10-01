@@ -31,8 +31,10 @@
 #include "MaterialShared.h"
 #include "RHI.h"
 #include "RenderUtils.h"
-#include "RenderingThread.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
+#include "LocalVertexFactory.h"
+#include "GPUSkinVertexFactory.h"
+#include "Engine/InstancedStaticMesh.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "SceneInterface.h"
 #include "StaticMeshResources.h"
@@ -531,7 +533,7 @@ namespace AnomalyTexCorrupt
 			bool bResOk = false;
 			bool bSmOk = false;
 			bool bComplete = false;
-			ReadActiveBindings(World, S.Resolved, S.Bindings, bResOk, bSmOk, bComplete);
+			ReadActiveBindings(World, S.Resolved, S.Comp, S.Bindings, bResOk, bSmOk, bComplete);
 			if (!bResOk || !bSmOk)
 			{
 				FailSlot(S, RankS5, Why::ShaderMapUnavailable, bResOk ? TEXT("no_shader_map") : TEXT("no_resource"));
@@ -700,14 +702,15 @@ namespace AnomalyTexCorrupt
 		return true;
 	}
 
-	bool MaterialRendersAsItself(UMaterialInterface* Material, UWorld* World)
+	bool HostShadersReady(UMaterialInterface* Material, const UPrimitiveComponent* Comp, UWorld* World)
 	{
 		if (!Material || !World)
 		{
 			return false;
 		}
 		FMaterialResource* Res = Material->GetMaterialResource(World->FeatureLevel);
-		if (!Res || !Res->GetGameThreadShaderMap())
+		const FMaterialShaderMap* Map = Res ? Res->GetGameThreadShaderMap() : nullptr;
+		if (!Map)
 		{
 			return false;
 		}
@@ -715,26 +718,44 @@ namespace AnomalyTexCorrupt
 		{
 			return true;
 		}
-		static uint64 CacheFrame = MAX_uint64;
-		static TMap<const FMaterialResource*, bool> Cache;
-		if (CacheFrame != GFrameCounter)
+#if WITH_EDITOR
+		const bool bFinished = Res->IsCompilationFinished();
+#else
+		const bool bFinished = true;
+#endif
+		const FVertexFactoryType* Types[2] = { nullptr, nullptr };
+		if (Cast<UInstancedStaticMeshComponent>(Comp))
 		{
-			Cache.Reset();
-			CacheFrame = GFrameCounter;
+			Types[0] = &FInstancedStaticMeshVertexFactory::StaticType;
 		}
-		if (const bool* Hit = Cache.Find(Res))
+		else if (Cast<USkinnedMeshComponent>(Comp))
 		{
-			return *Hit;
+			Types[0] = &TGPUSkinVertexFactory<GPUSkinBoneInfluenceType::DefaultBoneInfluence>::StaticType;
+			Types[1] = &TGPUSkinVertexFactory<GPUSkinBoneInfluenceType::UnlimitedBoneInfluence>::StaticType;
 		}
-		bool bRenderComplete = false;
-		bool* const Out = &bRenderComplete;
-		const FMaterialResource* const Query = Res;
-		ENQUEUE_RENDER_COMMAND(AnomalyTexCorruptRenderShaderMap)([Query, Out](FRHICommandListImmediate&)
+		else
 		{
-			*Out = Query->IsRenderingThreadShaderMapComplete();
-		});
-		FlushRenderingCommands();
-		Cache.Add(Res, bRenderComplete);
+			Types[0] = &FLocalVertexFactory::StaticType;
+		}
+		int32 Shaders = 0;
+		const TCHAR* VfName = TEXT("none");
+		for (const FVertexFactoryType* Type : Types)
+		{
+			if (!Type)
+			{
+				continue;
+			}
+			if (const FMeshMaterialShaderMap* Mesh = Map->GetMeshShaderMap(Type))
+			{
+				const int32 N = (int32)Mesh->GetNumShaders();
+				if (N > Shaders)
+				{
+					Shaders = N;
+					VfName = Type->GetName();
+				}
+			}
+		}
+		const bool bReady = bFinished && Shaders > 0;
 		static TSet<FName> Reported;
 		if (!AnomalyViewport::IsReadOnlyEnumeration() && Reported.Num() < 256)
 		{
@@ -743,17 +764,17 @@ namespace AnomalyTexCorrupt
 			if (!bAlready)
 			{
 				UE_LOG(LogAnomaly, Log,
-					TEXT("TEXCORRUPT-SHADERMAP '%s' game_thread_complete=0 render_thread_complete=%d -> %s. The renderer draws a material ")
-					TEXT("as itself exactly when its render-thread shader map is complete (FMaterialRenderProxy::GetMaterialWithFallback); ")
-					TEXT("in the editor the game-thread flag can stay 0 while the material renders, so the render-thread flag decides."),
-					*GetNameSafe(Material), bRenderComplete ? 1 : 0, bRenderComplete ? TEXT("renders as itself") : TEXT("renders as the fallback"));
+					TEXT("TEXCORRUPT-SHADERMAP '%s' game_thread_complete=0 compilation_finished=%d vertex_factory=%s shaders=%d -> %s. ")
+					TEXT("A whole-map completeness flag stays 0 in the editor for materials that render; a mesh draws with the shaders ")
+					TEXT("its material has for the component's vertex factory, so those decide (and an unfinished compile refuses)."),
+					*GetNameSafe(Material), bFinished ? 1 : 0, VfName, Shaders, bReady ? TEXT("admitted") : TEXT("refused"));
 			}
 		}
-		return bRenderComplete;
+		return bReady;
 	}
 
-	void ReadActiveBindings(UWorld* World, UMaterialInterface* Resolved, TArray<FBinding>& OutBindings, bool& bOutResourceOk,
-		bool& bOutShaderMapOk, bool& bOutComplete)
+	void ReadActiveBindings(UWorld* World, UMaterialInterface* Resolved, const UPrimitiveComponent* Comp, TArray<FBinding>& OutBindings,
+		bool& bOutResourceOk, bool& bOutShaderMapOk, bool& bOutComplete)
 	{
 		OutBindings.Reset();
 		bOutResourceOk = false;
@@ -775,7 +796,7 @@ namespace AnomalyTexCorrupt
 			return;
 		}
 		bOutShaderMapOk = true;
-		if (!MaterialRendersAsItself(Resolved, World))
+		if (!HostShadersReady(Resolved, Comp, World))
 		{
 			return;
 		}
@@ -861,7 +882,7 @@ namespace AnomalyTexCorrupt
 		{
 			UMaterialInterface* Needed = (In.Family == EFamily::UV) ? UvCorruptor : NormalCorruptor;
 			FMaterialResource* Res = Needed->GetMaterialResource(World->FeatureLevel);
-			if (!Res || !Res->GetGameThreadShaderMap() || !MaterialRendersAsItself(Needed, World))
+			if (!Res || !Res->GetGameThreadShaderMap() || !Res->IsGameThreadShaderMapComplete())
 			{
 				RefuseEvent(Why::CorruptorNotReady, GetNameSafe(Needed), TEXT("E2"));
 				return;
@@ -1016,6 +1037,30 @@ namespace AnomalyTexCorrupt
 		}
 		Out.bApply = true;
 		Out.Reason = TEXT("APPLY");
+	}
+
+	bool IsEligibleTarget(UWorld* World, FName Id, AActor* Actor, FString& OutReason)
+	{
+		OutReason.Reset();
+		static const FName Uv(TEXT("uv_corruption"));
+		static const FName Normal(TEXT("normal_corruption"));
+		if (!World || !Actor || (Id != Uv && Id != Normal))
+		{
+			OutReason = TEXT("not_texcorrupt");
+			return false;
+		}
+		AnomalyViewport::FReadOnlyEnumerationScope ReadOnly;
+		FTreeInputs In;
+		In.Family = Id == Uv ? EFamily::UV : EFamily::Normal;
+		In.bCensus = true;
+		In.TargetActor = Actor;
+		FTreeResult Result;
+		EvaluateTree(World, In, Result);
+		if (!Result.bApply)
+		{
+			OutReason = Result.Reason;
+		}
+		return Result.bApply;
 	}
 
 	void CountTreeDispositions(const FTreeResult& Result)
