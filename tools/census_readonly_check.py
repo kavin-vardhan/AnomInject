@@ -59,6 +59,11 @@ CENSUS_FORMATS = {
     "IAI-TEXCORRUPT-CENSUS v1 scanned=%d of=%d gone=%d stopped=%s seconds=%.1f": 5,
     "IAI-TEXCORRUPT-CENSUS v1 timing frames=%d work_ms_max=%.2f frame_interval_ms_max=%.1f": 3,
     "IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=%d": 1,
+    "IAI-TEXCORRUPT-CENSUS v1 subs id=%s subs=%s": 2,
+    "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s objects=%d eligible=%d blocked=%d unassessed=%d b_gain_objects=%d": 6,
+    "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s key=%s objects=%d only=%d": 4,
+    "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s note=%s objects=%d": 3,
+    "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s combo=%s objects=%d": 3,
 }
 PRINTF_FORMATS = {"%s%s:%d"}
 
@@ -85,11 +90,24 @@ ARG_ALLOW = {norm(a) for a in (
     "Job.Calls",
     "WorkMsMax",
     "FrameIntervalMsMax",
+    'Subs.IsEmpty() ? TEXT("-") : *Subs',
+    "IdText",
+    "C.Objects",
+    "C.Eligible",
+    "C.Blocked",
+    "C.Unassessed",
+    "C.BGainObjects",
+    "*P.Key",
+    "P.Value",
+    "Only ? *Only : 0",
 )}
 PRINTF_ARG_ALLOW = {norm(a) for a in (
     'Reasons.IsEmpty() ? TEXT("") : TEXT(",")',
     "*Key",
     "Counts[f].Reasons[Key]",
+    'Subs.IsEmpty() ? TEXT("") : TEXT(",")',
+    "*P.Key",
+    "P.Value",
 )}
 NAME_TOKENS = ("GetName", "GetPathName", "GetFullName", "GetNameSafe", "Names[", "*Name", "Name)", "Name,", "Actor",
                "Prim", "Comp", "Weak", "Path", "Label", "TargetQuery", ".Sub", "Slots", "Bindings", "ToString", "World",
@@ -343,8 +361,9 @@ def check_census(tree, failures):
             if norm(a) not in PRINTF_ARG_ALLOW:
                 failures.append(f"(b) RunOfficeCensus: an FString::Printf argument not on the allowlist: {a}")
     for pos, argtext in find_calls(body, re.compile(r"\.\s*FindOrAdd\s*\(")):
-        if norm(argtext) != "Result.Reason":
-            failures.append(f"(b) RunOfficeCensus: the reasons histogram is keyed by '{argtext}', not Result.Reason alone")
+        if norm(argtext) not in ("Result.Reason", "Result.CensusKey()"):
+            failures.append(f"(b) RunOfficeCensus: the reasons histogram is keyed by '{argtext}', not Result.Reason or the "
+                            f"sanitized Result.CensusKey() alone")
 
     for rx in MUTATOR_RX:
         m = rx.search(body)
@@ -580,6 +599,16 @@ LOG_PREFIX_RX = re.compile(r"^\[(?P<ts>[^\]]*)\]\[\s*(?P<frame>\d+)\](?P<rest>.*
 LOG_CAT_RX = re.compile(r"^(?P<cat>[A-Za-z][A-Za-z0-9_]*):\s")
 CENSUS_LINE_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (scope=|id=|end\b)")
 CENSUS_AUX_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (begin|progress|scanned|timing)\b")
+CENSUS_KEYED_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (subs|allreasons) ")
+KEY = r"[A-Za-z0-9_./]+"
+CENSUS_KEYED_FORMATS = (
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 subs id=(uv|normal)_corruption subs=(-|" + KEY + r":\d+(," + KEY + r":\d+)*)\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=(uv|normal)_corruption objects=\d+ eligible=\d+ blocked=\d+ unassessed=\d+ "
+               r"b_gain_objects=\d+\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=(uv|normal)_corruption key=" + KEY + r" objects=\d+ only=\d+\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=(uv|normal)_corruption note=" + KEY + r" objects=\d+\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=(uv|normal)_corruption combo=" + KEY + r"(\+" + KEY + r")* objects=\d+\s*$"),
+)
 SCANNED_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 scanned=(\d+) of=(\d+) gone=(\d+) stopped=(\w+) seconds=([\d.]+)")
 CENSUS_EXPECT = (
     re.compile(r"IAI-TEXCORRUPT-CENSUS v1 scope=(view|all) candidates=\d+ cap_bytes=\d+ uv_modes=\S+ normal_modes=\S+\s*$"),
@@ -646,6 +675,15 @@ def check_log(text, cold):
                 m = SCANNED_RX.search(r["text"])
                 if m:
                     scanned = m.groups()
+                continue
+            if CENSUS_KEYED_RX.search(r["text"]):
+                line = r["text"][r["text"].find("IAI-TEXCORRUPT-CENSUS"):]
+                if not any(rx.match(line) for rx in CENSUS_KEYED_FORMATS):
+                    verdict = "FAIL"
+                    messages.append(f"{tag}: a subs/allreasons line outside its count-only format: {line.strip()[:160]}")
+                if r["frame"] != frame:
+                    verdict = "FAIL"
+                    messages.append(f"{tag}: census line outside the census frame: {r['text'].strip()[:120]}")
                 continue
             if CENSUS_LINE_RX.search(r["text"]):
                 if r["frame"] != frame:
@@ -819,6 +857,18 @@ def build_log_cases():
         ("an earlier plugin line in the census frame is attributed to it (the conservative direction)", True,
          init + [log_line(412, "LogAnomaly: Auto: something")] + block, "FAIL"),
         ("no census in the log", True, init, "UNDECIDABLE"),
+        ("090-10c subs and allreasons lines in their count-only formats", True,
+         init + block[:3] + [log_line(412, x) for x in (
+             "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 subs id=uv_corruption subs=runtime_lod_bias/per_texture:7,host_mid/override.mid:2",
+             "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 subs id=normal_corruption subs=-",
+             "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption objects=12 eligible=3 blocked=9 unassessed=1 b_gain_objects=2",
+             "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption key=runtime_lod_bias/per_texture objects=7 only=4",
+             "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption note=streaming_pending objects=3",
+             "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption combo=host_mid/override.mid+runtime_lod_bias/per_texture objects=2")]
+         + [block[3]], "PASS"),
+        ("090-10c an allreasons key carrying a name", True,
+         init + block[:3] + [log_line(412, "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption key=nanite_override/M Rock objects=1 only=1")]
+         + [block[3]], "FAIL"),
     ]
 
 

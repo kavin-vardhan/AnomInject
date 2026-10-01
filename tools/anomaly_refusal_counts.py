@@ -11,7 +11,13 @@ It reads the plugin's own log wording and prints, as counts:
   - the Nanite gate: REFUSED-NANITE, REFUSED-NANITE-PROBE-MISSING;
   - uv_corruption / normal_corruption: applied, refused per reason, slot dispositions, TEXCORRUPT-SHADERMAP (admitted or
     refused on the vertex-factory shaders), and the IAI-TEXCORRUPT-CENSUS lines;
-  - stuck_low_mip: the m52_log_counts.py readings (the same folder).
+  - stuck_low_mip: the m52_log_counts.py readings (the same folder);
+  - since 090-10c: the census 'subs' lines (first refusal with its sub-reason, reason/sub) and the 'allreasons' table
+    (IAI.TexCorrupt.Census allreasons: every blocking key with objects failing it and failing ONLY it, the notes, the top
+    combinations). The plugin reduces any sub that could name content to the reason; this tool keeps a key only if it is
+    made of [A-Za-z0-9_./].
+  python anomaly_refusal_counts.py --allreasons-check "<log>"   exit 0 when the allreasons table shows at least one
+    object failing more than one check (a first-failure census never can), 1 when it does not, 2 when there is no table.
 No actor, component, material, texture, path or map name is printed: a reason's detail after ':' is dropped.
 Standard library only (Python 3.8 or newer). Exit codes: 0 read, 1 selftest failed, 2 cannot read the log.
 """
@@ -28,7 +34,15 @@ import m52_log_counts as m52
 STARTUP = re.compile(r"IAI-STARTUP world='[^']*' type=(\w+) editor=(\d) nanite_policy=(\S+) nanite_probe=(\w+) "
                      r"virtual_textures=(-?\d+) nanite_project=(-?\d+)")
 YIELD = re.compile(r"Auto\.Yield ([a-z_]+): 0 of (\d+) candidates eligible - (.*?) \((auto-pool|targeted), (\d+) round")
-YIELD_ITEM = re.compile(r"([a-z_]+)(?::\S*)? (\d+)")
+YIELD_ITEM = re.compile(r"([a-z_]+(?:/[A-Za-z0-9_.]+)?)(?::\S*)? (\d+)")
+KEY = r"[A-Za-z0-9_./]+"
+SUBS = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 subs id=((?:uv|normal)_corruption) subs=(-|" + KEY + r":\d+(?:," + KEY + r":\d+)*)\s*$")
+AR_HEAD = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((?:uv|normal)_corruption) objects=(\d+) eligible=(\d+) blocked=(\d+) "
+                     r"unassessed=(\d+) b_gain_objects=(\d+)\s*$")
+AR_KEY = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((?:uv|normal)_corruption) key=(" + KEY + r") objects=(\d+) only=(\d+)\s*$")
+AR_NOTE = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((?:uv|normal)_corruption) note=(" + KEY + r") objects=(\d+)\s*$")
+AR_COMBO = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((?:uv|normal)_corruption) combo=(" + KEY + r"(?:\+" + KEY + r")*) "
+                      r"objects=(\d+)\s*$")
 AUTO_FIRE = re.compile(r"Auto\.Fire: '([a-z_]+)' on '.*?' -> (applied|0 matched)\.")
 AUTO_SPEC = re.compile(r"Auto\.FireSpecific: '([a-z_]+)' on '.*?' -> (applied|not applied|0 matched|refused)")
 AUTO_DRAW = re.compile(r"Auto\.Draw attempt=\d+ .*? id=([a-z_-]+) .*? result=(\w+)")
@@ -56,7 +70,7 @@ def reason_heads(text):
 def count(lines):
     c = dict(startup=[], yield_lines=Counter(), yield_reasons={}, yield_candidates=Counter(), auto=Counter(), spec=Counter(),
              draw=Counter(), nanite=0, nanite_probe=0, tc_applied=Counter(), tc_refused={}, tc_slots=Counter(),
-             tc_shadermap=Counter(), census=[])
+             tc_shadermap=Counter(), census=[], subs={}, allreasons={})
     for raw in lines:
         line = raw.rstrip("\r\n")
         m = STARTUP.search(line)
@@ -106,6 +120,34 @@ def count(lines):
         if m:
             c["tc_shadermap"][m.group(2) + (":" + m.group(3) if m.group(3) else "")] += 1
             continue
+        m = SUBS.search(line)
+        if m:
+            sc = c["subs"].setdefault(m.group(1), Counter())
+            if m.group(2) != "-":
+                for part in m.group(2).split(","):
+                    k, _, n = part.rpartition(":")
+                    sc[k] += int(n)
+            continue
+        m = AR_HEAD.search(line)
+        if m:
+            a = c["allreasons"].setdefault(m.group(1), dict(head=None, keys={}, notes=Counter(), combos=Counter()))
+            a["head"] = tuple(int(x) for x in m.groups()[1:])
+            continue
+        m = AR_KEY.search(line)
+        if m:
+            a = c["allreasons"].setdefault(m.group(1), dict(head=None, keys={}, notes=Counter(), combos=Counter()))
+            a["keys"][m.group(2)] = (int(m.group(3)), int(m.group(4)))
+            continue
+        m = AR_NOTE.search(line)
+        if m:
+            a = c["allreasons"].setdefault(m.group(1), dict(head=None, keys={}, notes=Counter(), combos=Counter()))
+            a["notes"][m.group(2)] = int(m.group(3))
+            continue
+        m = AR_COMBO.search(line)
+        if m:
+            a = c["allreasons"].setdefault(m.group(1), dict(head=None, keys={}, notes=Counter(), combos=Counter()))
+            a["combos"][m.group(2)] = int(m.group(3))
+            continue
         m = CENSUS.search(line)
         if m:
             head = m.group(1)
@@ -148,6 +190,18 @@ def render(c, m52c):
     out.append("TEXCORRUPT-SHADERMAP      %s" % fmt_counter(c["tc_shadermap"]))
     for line in c["census"]:
         out.append("CENSUS                    %s" % line)
+    for fam in sorted(c["subs"]):
+        out.append("CENSUS SUBS %-13s %s" % (fam, fmt_counter(c["subs"][fam])))
+    for fam in sorted(c["allreasons"]):
+        a = c["allreasons"][fam]
+        if a["head"]:
+            out.append("ALL-REASONS %-13s objects %d | eligible %d | blocked %d | unassessed %d | b_gain_objects %d" % ((fam,) + a["head"]))
+        for k, (n, only) in sorted(a["keys"].items(), key=lambda kv: (-kv[1][0], kv[0])):
+            out.append("  key  %-60s objects %6d | only %6d" % (k, n, only))
+        for k, n in sorted(a["notes"].items(), key=lambda kv: (-kv[1], kv[0])):
+            out.append("  note %-60s objects %6d" % (k, n))
+        for k, n in sorted(a["combos"].items(), key=lambda kv: (-kv[1], kv[0])):
+            out.append("  combo %-59s objects %6d" % (k, n))
     out.append("STUCK_LOW_MIP (m52_log_counts.py):")
     out.extend("  " + l for l in m52.render(m52c))
     return out
@@ -181,6 +235,45 @@ SAMPLE = [
     "reasons=over_budget:4,virtual_texture:5",
     "[2026.10.01-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 scanned=12 of=12 gone=0 stopped=complete seconds=0.4",
     "[2026.10.01-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=1",
+]
+
+
+def allreasons_check(c):
+    if not c["allreasons"]:
+        return 2, "no allreasons table in this log"
+    multi = []
+    for fam, a in sorted(c["allreasons"].items()):
+        combos = sum(n for k, n in a["combos"].items() if "+" in k)
+        partial = sum(1 for k, (n, only) in a["keys"].items() if only < n)
+        if combos or partial:
+            multi.append("%s: %d object(s) in multi-key combinations, %d key(s) with only < objects" % (fam, combos, partial))
+    if multi:
+        return 0, "PASS - every check is evaluated: " + "; ".join(multi)
+    return 1, ("FAIL - no object fails more than one check (only == objects for every key, no combination): that is a "
+               "first-failure census, not an all-reasons one")
+
+
+AR_SAMPLE_REAL = [
+    "[2026.10.02-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 subs id=uv_corruption "
+    "subs=runtime_lod_bias/streaming_budget:6,host_mid/override.mid:2",
+    "[2026.10.02-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption objects=10 eligible=2 "
+    "blocked=8 unassessed=0 b_gain_objects=1",
+    "[2026.10.02-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption "
+    "key=runtime_lod_bias/streaming_budget objects=6 only=2",
+    "[2026.10.02-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption "
+    "key=not_fully_resident objects=4 only=0",
+    "[2026.10.02-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption "
+    "combo=not_fully_resident+runtime_lod_bias/streaming_budget objects=4",
+    "[2026.10.02-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption "
+    "key=nanite_override/M Secret objects=1 only=1",
+]
+AR_SAMPLE_FIRST_ONLY = [
+    "[2026.10.02-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption objects=10 eligible=2 "
+    "blocked=8 unassessed=0 b_gain_objects=1",
+    "[2026.10.02-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption "
+    "key=runtime_lod_bias/streaming_budget objects=6 only=6",
+    "[2026.10.02-08.00.07:000][  8]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption "
+    "key=host_mid/override.mid objects=2 only=2",
 ]
 
 
@@ -229,6 +322,21 @@ def selftest():
         for fn in os.listdir(tmp):
             os.remove(os.path.join(tmp, fn))
         os.rmdir(tmp)
+    ar = count(AR_SAMPLE_REAL + [SAMPLE[4]])
+    check("yield item with a sub-reason is read whole (runtime_lod_bias/per_texture 21)",
+          count(["LogAnomaly: Warning: Auto.Yield uv_corruption: 0 of 21 candidates eligible - runtime_lod_bias/per_texture 21 "
+                 "(auto-pool, 1 round(s) since the last line)."])["yield_reasons"]["uv_corruption"]
+          == Counter({"runtime_lod_bias/per_texture": 21}))
+    check("subs line read as reason/sub counts",
+          ar["subs"]["uv_corruption"] == Counter({"runtime_lod_bias/streaming_budget": 6, "host_mid/override.mid": 2}))
+    check("allreasons table read (head, 2 keys, 1 combo); a key carrying a space is dropped",
+          ar["allreasons"]["uv_corruption"]["head"] == (10, 2, 8, 0, 1) and len(ar["allreasons"]["uv_corruption"]["keys"]) == 2
+          and ar["allreasons"]["uv_corruption"]["combos"]["not_fully_resident+runtime_lod_bias/streaming_budget"] == 4)
+    check("allreasons-check PASSes an all-reasons table", allreasons_check(ar)[0] == 0)
+    check("allreasons-check FAILs a first-failure table (the mutant that stops at the first failure)",
+          allreasons_check(count(AR_SAMPLE_FIRST_ONLY))[0] == 1)
+    check("allreasons-check says 2 when there is no table", allreasons_check(count(SAMPLE))[0] == 2)
+    check("rendered all-reasons table carries no name", not re.search(r"Secret| M ", "\n".join(render(ar, m52.count([])))))
     empty = render(count([]), m52.count([]))
     check("an empty log prints zeros and says the startup line is absent", "no IAI-STARTUP line" in empty[0])
     for l in lines:
@@ -241,9 +349,18 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Why anomalies did or did not fire, from a game or editor log: numbers only.")
     ap.add_argument("log", nargs="?", help="the game's or the editor's log file")
     ap.add_argument("--selftest", action="store_true", help="run the known-answer self test")
+    ap.add_argument("--allreasons-check", action="store_true",
+                    help="exit 0 if the log's allreasons table shows objects failing more than one check, 1 if not, 2 if absent")
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
+    if a.allreasons_check:
+        if not a.log or not os.path.isfile(a.log):
+            print("cannot read the log: file not found")
+            return 2
+        rc, msg = allreasons_check(count(list(m52.read_lines(a.log))))
+        print("ALLREASONS-CHECK " + msg)
+        return rc
     if not a.log:
         ap.print_help()
         return 2

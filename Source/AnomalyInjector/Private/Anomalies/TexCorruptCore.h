@@ -197,6 +197,7 @@ namespace AnomalyTexCorrupt
 		bool bCollateralDetail = false;
 		int32 CommitDelay = 0;
 		int32 RestoreDelay = 0;
+		bool bAllReasonsFirstOnly = false;
 	};
 
 	FLevers& Levers();
@@ -252,6 +253,9 @@ namespace AnomalyTexCorrupt
 		FString Sub;
 		bool bRequired = false;
 		bool bNonSpatialExempt = false;
+		TArray<FString> AllKeys;
+		TArray<FString> Notes;
+		bool bUnassessed = false;
 
 		bool IsTransformable() const { return Step == 0; }
 		FString DispositionKey() const;
@@ -278,6 +282,9 @@ namespace AnomalyTexCorrupt
 		FString Kind;
 		bool bPartial = false;
 		TArray<FBinding> Bindings;
+		TArray<FString> AllKeys;
+		TArray<FString> Notes;
+		bool bUnassessed = false;
 
 		bool IsQualified() const { return Step == 0 && !bUntouched; }
 		FString DispositionKey() const;
@@ -308,8 +315,12 @@ namespace AnomalyTexCorrupt
 		int64 RequiredBytes = 0;
 		int32 DistinctTextures = 0;
 		int32 ScratchClasses = 0;
+		TArray<FString> EventKeys;
+		TArray<FString> EventNotes;
+		int32 ComponentsAdmittable = 0;
 
 		FString FinalKey() const;
+		FString CensusKey() const;
 	};
 
 	struct FTreeInputs
@@ -318,6 +329,7 @@ namespace AnomalyTexCorrupt
 		EMode Mode = EMode::None;
 		int32 TileN = 1;
 		bool bCensus = false;
+		bool bAllReasons = false;
 		bool bModeArgGiven = false;
 		FString ModeArg;
 		FString ModeRefusalSub;
@@ -380,4 +392,6 @@ namespace AnomalyTexCorrupt
 	void ReleaseTarget(UTextureRenderTarget2D* Target);
 
 	void RunCensus(UWorld* World, const FString& Query);
+
+	FString CensusKey(const FString& Reason, const FString& Sub);
 }

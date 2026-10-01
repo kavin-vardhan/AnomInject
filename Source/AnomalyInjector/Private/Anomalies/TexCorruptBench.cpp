@@ -243,6 +243,17 @@ namespace AnomalyTexCorrupt
 				Echo(TEXT("IAI.Bench.TexCorruptIdentity"));
 			}));
 
+		FAutoConsoleCommand GAllReasonsFirstOnlyCmd(
+			TEXT("IAI.Bench.TexCorruptAllReasonsFirstOnly"),
+			TEXT("BENCH DEVICE (090-10c, the all-reasons census's can-fail). With 1, IAI.TexCorrupt.Census allreasons keeps only each ")
+			TEXT("object's FIRST refusal, exactly what the first-failure census reports, so its checker must fail. ")
+			TEXT("Usage: IAI.Bench.TexCorruptAllReasonsFirstOnly <0|1>"),
+			FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+			{
+				Levers().bAllReasonsFirstOnly = ParseInt(Args, 0) != 0;
+				Echo(TEXT("IAI.Bench.TexCorruptAllReasonsFirstOnly"));
+			}));
+
 		FAutoConsoleCommand GIdentityRedrawCmd(
 			TEXT("IAI.Bench.TexCorruptIdentityRedraw"),
 			TEXT("BENCH DEVICE (m53 S1, G-RD). Identity with a FORCED redraw of every level of every output on every frame, each ")

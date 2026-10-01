@@ -826,4 +826,78 @@ namespace AnomalyTexCorrupt
 	{
 		return bApply ? FString(TEXT("APPLY")) : (Sub.IsEmpty() ? Reason : FString::Printf(TEXT("%s:%s"), *Reason, *Sub));
 	}
+
+	FString FTreeResult::CensusKey() const
+	{
+		return bApply ? FString(TEXT("APPLY")) : AnomalyTexCorrupt::CensusKey(Reason, Sub);
+	}
+
+	namespace
+	{
+		FString CensusToken(const FString& In)
+		{
+			FString Out;
+			for (const TCHAR C : In)
+			{
+				if (FChar::IsAlnum(C) || C == TEXT('_'))
+				{
+					Out.AppendChar(C);
+				}
+				else if (C == TEXT(':') || C == TEXT('.'))
+				{
+					Out.AppendChar(TEXT('.'));
+				}
+				if (Out.Len() >= 48)
+				{
+					break;
+				}
+			}
+			return Out;
+		}
+	}
+
+	FString CensusKey(const FString& Reason, const FString& Sub)
+	{
+		static const TCHAR* Enumerated[] = {
+			Why::RuntimeLodBias, Why::NotFullyResident, Why::ResourceNotReady, Why::DefaultMaterialPath, Why::HostMid,
+			Why::ShaderMapUnavailable, Why::ShaderMapIncomplete, Why::DrawShadersMissing, Why::UnsupportedEncoding, Why::ExcludedGroup,
+			Why::AssetsUnavailable, Why::CorruptorNotReady, Why::ModeInvalid, Why::NoEligibleSlot, Why::VirtualTexture,
+			Why::StreamingPending };
+		static const TCHAR* TexTypes[] = { TEXT("cube"), TEXT("array2d"), TEXT("arraycube"), TEXT("volume"), TEXT("virtual"),
+			TEXT("unknown"), TEXT("null_texture") };
+		if (Sub.IsEmpty())
+		{
+			return Reason;
+		}
+		if (Reason == Why::PartialFootprint)
+		{
+			int32 Colon = INDEX_NONE;
+			if (Sub.FindChar(TEXT(':'), Colon))
+			{
+				const FString Rest = Sub.Mid(Colon + 1);
+				return FString::Printf(TEXT("%s/%s"), *Reason, *CensusToken(Rest.Left(Rest.Find(TEXT(":")) == INDEX_NONE ? Rest.Len() : Rest.Find(TEXT(":")))));
+			}
+			return Reason;
+		}
+		if (Reason == Why::UnsupportedType)
+		{
+			for (const TCHAR* T : TexTypes)
+			{
+				if (Sub == T)
+				{
+					return FString::Printf(TEXT("%s/%s"), *Reason, T);
+				}
+			}
+			return FString::Printf(TEXT("%s/texture_class"), *Reason);
+		}
+		for (const TCHAR* E : Enumerated)
+		{
+			if (Reason == E)
+			{
+				const FString Token = CensusToken(Sub);
+				return Token.IsEmpty() ? Reason : FString::Printf(TEXT("%s/%s"), *Reason, *Token);
+			}
+		}
+		return Reason;
+	}
 }

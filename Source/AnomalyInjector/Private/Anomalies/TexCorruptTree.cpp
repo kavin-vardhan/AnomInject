@@ -377,51 +377,62 @@ namespace AnomalyTexCorrupt
 			return EClass::None;
 		}
 
-		void EvaluateBinding(FBinding& B)
+		void EvaluateBinding(FBinding& B, bool bAll)
 		{
 			B.Step = 0;
 			B.Reason = Why::Transformable;
 			B.Sub.Reset();
+			B.AllKeys.Reset();
+			B.Notes.Reset();
+			B.bUnassessed = false;
+
+			auto Fail = [&B, bAll](int32 Step, const TCHAR* InReason, const FString& Sub, bool bDependent) -> bool
+			{
+				if (B.Step == 0)
+				{
+					FailBinding(B, Step, InReason, Sub);
+				}
+				if (!bAll)
+				{
+					return true;
+				}
+				B.AllKeys.AddUnique(CensusKey(InReason, Sub));
+				B.bUnassessed |= bDependent;
+				return bDependent;
+			};
 
 			if (B.Type == EMaterialTextureParameterType::Virtual || (B.Tex2D && B.Tex2D->IsCurrentlyVirtualTextured()))
 			{
-				FailBinding(B, 1, Why::VirtualTexture, LexTexType(B.Type));
-				return;
+				if (Fail(1, Why::VirtualTexture, LexTexType(B.Type), true)) { return; }
 			}
 			if (B.Type != EMaterialTextureParameterType::Standard2D || !B.Tex2D)
 			{
-				FailBinding(B, 2, Why::UnsupportedType,
+				if (Fail(2, Why::UnsupportedType,
 					B.Type != EMaterialTextureParameterType::Standard2D ? FString(LexTexType(B.Type))
-						: (B.Texture ? B.Texture->GetClass()->GetName() : FString(TEXT("null_texture"))));
-				return;
+						: (B.Texture ? B.Texture->GetClass()->GetName() : FString(TEXT("null_texture"))), true)) { return; }
 			}
 			if (IsExcludedLodGroup(B.LODGroup))
 			{
-				FailBinding(B, 3, Why::ExcludedGroup, FString::Printf(TEXT("group_%d"), B.LODGroup));
-				return;
+				if (Fail(3, Why::ExcludedGroup, FString::Printf(TEXT("group_%d"), B.LODGroup), false)) { return; }
 			}
 			if (B.ParamName.IsNone())
 			{
-				FailBinding(B, 4, Why::TextureNotParameter);
-				return;
+				if (Fail(4, Why::TextureNotParameter, FString(), false)) { return; }
 			}
 			if (B.bDefaultTexture)
 			{
-				FailBinding(B, 5, Why::ResourceNotReady, TEXT("compiling"));
-				return;
+				if (Fail(5, Why::ResourceNotReady, TEXT("compiling"), true)) { return; }
 			}
 			if (!B.Tex2D->GetPlatformData())
 			{
-				FailBinding(B, 5, Why::ResourceNotReady, TEXT("no_platform_data"));
-				return;
+				if (Fail(5, Why::ResourceNotReady, TEXT("no_platform_data"), true)) { return; }
 			}
 			{
 				FString Sub;
 				B.Class = ClassifyFormat(B, Sub);
 				if (B.Class == EClass::None)
 				{
-					FailBinding(B, 5, Why::UnsupportedEncoding, Sub);
-					return;
+					if (Fail(5, Why::UnsupportedEncoding, Sub, false)) { return; }
 				}
 			}
 			{
@@ -436,58 +447,48 @@ namespace AnomalyTexCorrupt
 					&& TexCorruptPure::IsAdmittedChainShape(B.M, B.W, B.H, LevelW.GetData(), LevelH.GetData());
 				if (!bShapeOk)
 				{
-					FailBinding(B, 6, Why::MipChainShape, FString::Printf(TEXT("M%d_%dx%d"), B.M, B.W, B.H));
-					return;
+					if (Fail(6, Why::MipChainShape, FString::Printf(TEXT("M%d_%dx%d"), B.M, B.W, B.H), false)) { return; }
 				}
 			}
 			if (AnomalyStuckMip::IsTextureHeldOrRestoring(B.Tex2D))
 			{
-				FailBinding(B, 7, Why::HeldByStuckLowMip);
-				return;
+				if (Fail(7, Why::HeldByStuckLowMip, FString(), false)) { return; }
 			}
 			if (!B.Tex2D->GetResource() || B.Tex2D->HasPendingRenderResourceInitialization())
 			{
-				FailBinding(B, 8, Why::ResourceNotReady, TEXT("resource"));
-				return;
+				if (Fail(8, Why::ResourceNotReady, TEXT("resource"), true)) { return; }
 			}
 			if (B.Tex2D->HasPendingInitOrStreaming(false))
 			{
-				FailBinding(B, 8, Why::StreamingPending);
-				return;
+				if (Fail(8, Why::StreamingPending, FString(), false)) { return; }
 			}
 			const FStreamableRenderResourceState& St = B.Tex2D->GetStreamableResourceState();
 			if (!St.IsValid())
 			{
-				FailBinding(B, 8, Why::ResourceNotReady, TEXT("invalid_state"));
-				return;
+				if (Fail(8, Why::ResourceNotReady, TEXT("invalid_state"), true)) { return; }
 			}
 			if (B.CinematicMips > 0)
 			{
-				FailBinding(B, 9, Why::RuntimeLodBias, TEXT("cinematic"));
-				return;
+				if (Fail(9, Why::RuntimeLodBias, TEXT("cinematic"), false)) { return; }
 			}
 			if ((int32)St.AssetLODBias > 0 || (B.CachedLODBias - B.CinematicMips - (int32)St.AssetLODBias) > 0)
 			{
-				FailBinding(B, 9, Why::RuntimeLodBias, TEXT("per_texture"));
-				return;
+				if (Fail(9, Why::RuntimeLodBias, TEXT("per_texture"), false)) { return; }
 			}
 			if (TexCorruptPure::StreamingBudgetPossible(St.bSupportsStreaming != 0,
 				ReadCVarInt(TEXT("r.Streaming.UsePerTextureBias"), 1), ReadCVarFloat(TEXT("r.Streaming.MipBias"), 0.0f)))
 			{
-				FailBinding(B, 9, Why::RuntimeLodBias, TEXT("streaming_budget"));
-				return;
+				if (Fail(9, Why::RuntimeLodBias, TEXT("streaming_budget"), false)) { return; }
 			}
 			if ((int32)St.MaxNumLODs != B.M)
 			{
-				FailBinding(B, 10, Why::NotFullyResident,
-					(int32)St.MaxNumLODs < B.M ? TEXT("max_below_cooked") : TEXT("max_above_cooked"));
-				return;
+				if (Fail(10, Why::NotFullyResident,
+					(int32)St.MaxNumLODs < B.M ? TEXT("max_below_cooked") : TEXT("max_above_cooked"), false)) { return; }
 			}
 			if (St.NumResidentLODs != St.MaxNumLODs)
 			{
 				const bool bOptional = St.NumNonOptionalLODs < St.MaxNumLODs && St.NumResidentLODs <= St.NumNonOptionalLODs;
-				FailBinding(B, 10, Why::NotFullyResident, bOptional ? TEXT("optional_not_resident") : TEXT(""));
-				return;
+				if (Fail(10, Why::NotFullyResident, bOptional ? TEXT("optional_not_resident") : TEXT(""), false)) { return; }
 			}
 		}
 
@@ -500,6 +501,21 @@ namespace AnomalyTexCorrupt
 
 		void EvaluateSlot(UWorld* World, const FTreeInputs& In, FSlot& S)
 		{
+			const bool bAll = In.bAllReasons;
+			auto SlotFail = [&S, bAll](int32 Rank, const TCHAR* InReason, const FString& Sub, bool bDependent) -> bool
+			{
+				if (S.Step == 0)
+				{
+					FailSlot(S, Rank, InReason, Sub);
+				}
+				if (!bAll)
+				{
+					return true;
+				}
+				S.AllKeys.AddUnique(CensusKey(InReason, Sub));
+				S.bUnassessed |= bDependent;
+				return bDependent;
+			};
 			if (!S.Resolved)
 			{
 				S.bUntouched = true;
@@ -517,16 +533,14 @@ namespace AnomalyTexCorrupt
 			if (FindRuntimeLink(S.Resolved, S.Raw ? TEXT("override") : TEXT("asset_slot"), S.Where, S.Kind)
 				|| (S.Effective && S.Effective != S.Resolved && FindRuntimeLink(S.Effective, TEXT("effective"), S.Where, S.Kind)))
 			{
-				FailSlot(S, RankS3, Why::HostMid, FString::Printf(TEXT("%s:%s"), *S.Where, *S.Kind));
-				return;
+				if (SlotFail(RankS3, Why::HostMid, FString::Printf(TEXT("%s:%s"), *S.Where, *S.Kind), false)) { return; }
 			}
 			if (S.bStatic)
 			{
 				const UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(S.Comp);
 				if (SMC && SMC->UseNaniteOverrideMaterials() && S.Resolved->GetNaniteOverride() != nullptr)
 				{
-					FailSlot(S, RankS4, Why::NaniteOverride, GetNameSafe(S.Resolved->GetNaniteOverride()));
-					return;
+					if (SlotFail(RankS4, Why::NaniteOverride, GetNameSafe(S.Resolved->GetNaniteOverride()), false)) { return; }
 				}
 			}
 
@@ -537,8 +551,7 @@ namespace AnomalyTexCorrupt
 			ReadActiveBindings(World, S.Resolved, S.Comp, S.Bindings, bResOk, bSmOk, bComplete, &Readiness);
 			if (!bResOk || !bSmOk)
 			{
-				FailSlot(S, RankS5, Why::ShaderMapUnavailable, bResOk ? TEXT("no_shader_map") : TEXT("no_resource"));
-				return;
+				if (SlotFail(RankS5, Why::ShaderMapUnavailable, bResOk ? TEXT("no_shader_map") : TEXT("no_resource"), true)) { return; }
 			}
 
 			UMaterial* Root = S.Resolved->GetMaterial();
@@ -546,29 +559,27 @@ namespace AnomalyTexCorrupt
 				FString UsageSub;
 				if (FindUsageRefusal(S, Root, UsageSub))
 				{
-					FailSlot(S, RankS7, Why::DefaultMaterialPath, UsageSub);
-					return;
+					if (SlotFail(RankS7, Why::DefaultMaterialPath, UsageSub, false)) { return; }
 				}
 			}
 
 			if (!bComplete)
 			{
 				const bool bPending = Readiness.Verdict == TexCorruptPure::EDrawReadiness::CompilePending;
-				FailSlot(S, RankS6, bPending ? Why::ShaderMapIncomplete : Why::DrawShadersMissing,
-					FString::Printf(TEXT("%s:%s"), *Readiness.VertexFactory, UTF8_TO_TCHAR(TexCorruptPure::LexDrawReadiness(Readiness.Verdict))));
-				return;
+				if (SlotFail(RankS6, bPending ? Why::ShaderMapIncomplete : Why::DrawShadersMissing,
+					FString::Printf(TEXT("%s:%s"), *Readiness.VertexFactory, UTF8_TO_TCHAR(TexCorruptPure::LexDrawReadiness(Readiness.Verdict))),
+					false)) { return; }
 			}
 
 			if (S.Bindings.Num() == 0)
 			{
-				FailSlot(S, RankS8, Why::NoTextures);
-				return;
+				if (SlotFail(RankS8, Why::NoTextures, FString(), true)) { return; }
 			}
 
 			for (FBinding& B : S.Bindings)
 			{
 				GatherTextureFacts(B);
-				EvaluateBinding(B);
+				EvaluateBinding(B, bAll);
 			}
 
 			int32 RequiredCount = 0;
@@ -587,15 +598,28 @@ namespace AnomalyTexCorrupt
 				}
 			}
 
+			if (bAll)
+			{
+				for (const FBinding& B : S.Bindings)
+				{
+					if (B.bRequired)
+					{
+						for (const FString& K : B.AllKeys)
+						{
+							S.AllKeys.AddUnique(K);
+						}
+						S.bUnassessed |= B.bUnassessed;
+					}
+				}
+			}
+
 			if (In.Family == EFamily::Normal && RequiredCount == 0)
 			{
-				FailSlot(S, RankA2, Why::NoNormalMap);
-				return;
+				if (SlotFail(RankA2, Why::NoNormalMap, FString(), false)) { return; }
 			}
 			if (In.Family == EFamily::Normal && (!Root || !Root->IsPropertyConnected(MP_Normal)))
 			{
-				FailSlot(S, RankA3, Why::NormalUnconnected);
-				return;
+				if (SlotFail(RankA3, Why::NormalUnconnected, FString(), false)) { return; }
 			}
 
 			int32 Transformable = 0;
@@ -615,8 +639,14 @@ namespace AnomalyTexCorrupt
 			if (FirstFail)
 			{
 				S.bPartial = Transformable > 0;
-				FailSlot(S, TexCorruptPure::Rank::ForBindingStep(FirstFail->Step), FirstFail->Reason, FirstFail->Sub);
-				return;
+				if (S.Step == 0)
+				{
+					FailSlot(S, TexCorruptPure::Rank::ForBindingStep(FirstFail->Step), FirstFail->Reason, FirstFail->Sub);
+				}
+				if (!bAll)
+				{
+					return;
+				}
 			}
 
 			const int32 MinPx = GetMinTexturePx();
@@ -631,16 +661,16 @@ namespace AnomalyTexCorrupt
 			}
 			if (!bAnyAtPolicy)
 			{
-				FailSlot(S, RankA5, Why::BelowSizePolicy, FString::Printf(TEXT("min_%d"), MinPx));
-				return;
+				if (SlotFail(RankA5, Why::BelowSizePolicy, FString::Printf(TEXT("min_%d"), MinPx), false)) { return; }
 			}
 			if (RequiredCount > GetMaxTextures())
 			{
-				FailSlot(S, RankA6, Why::MapSetOverCap, FString::Printf(TEXT("%d_of_%d"), RequiredCount, GetMaxTextures()));
-				return;
+				if (SlotFail(RankA6, Why::MapSetOverCap, FString::Printf(TEXT("%d_of_%d"), RequiredCount, GetMaxTextures()), false)) { return; }
 			}
-			S.Step = 0;
-			S.Reason = Why::Qualified;
+			if (S.Step == 0)
+			{
+				S.Reason = Why::Qualified;
+			}
 		}
 
 		void ComputeRequirement(FTreeResult& Out)
@@ -900,8 +930,19 @@ namespace AnomalyTexCorrupt
 		Out.Attempt = In.Attempt;
 		Out.TargetQuery = In.TargetQuery;
 
-		auto RefuseEvent = [&Out](const TCHAR* InReason, const FString& Sub, const TCHAR* Step)
+		const bool bAll = In.bAllReasons;
+		bool bRefused = false;
+		auto RefuseEvent = [&Out, &bRefused, bAll](const TCHAR* InReason, const FString& Sub, const TCHAR* Step)
 		{
+			if (bAll)
+			{
+				Out.EventKeys.AddUnique(CensusKey(InReason, Sub));
+			}
+			if (bRefused)
+			{
+				return;
+			}
+			bRefused = true;
 			Out.bApply = false;
 			Out.Reason = InReason;
 			Out.Sub = Sub;
@@ -921,7 +962,7 @@ namespace AnomalyTexCorrupt
 		if (Levers().bForceMissingAsset)
 		{
 			RefuseEvent(Why::AssetsUnavailable, TEXT("bench_force_missing_asset"), TEXT("E1"));
-			return;
+			if (!bAll) { return; }
 		}
 		if (!UvCorruptor || !NormalCorruptor || !Noise)
 		{
@@ -931,44 +972,43 @@ namespace AnomalyTexCorrupt
 			if (!Noise) { Missing += TEXT("T_CorruptTex_NoiseN,"); }
 			Missing.RemoveFromEnd(TEXT(","));
 			RefuseEvent(Why::AssetsUnavailable, FString::Printf(TEXT("missing:%s"), *Missing), TEXT("E1"));
-			return;
+			if (!bAll) { return; }
 		}
+		else
 		{
 			FString MissingParam;
 			if (!CheckCorruptorContract(UvCorruptor, UvCorruptorScalars(), UvCorruptorTextures(), MissingParam))
 			{
 				RefuseEvent(Why::AssetsUnavailable, FString::Printf(TEXT("uv_corruptor_lacks:%s"), *MissingParam), TEXT("E1"));
-				return;
+				if (!bAll) { return; }
 			}
 			if (!CheckCorruptorContract(NormalCorruptor, NormalCorruptorScalars(), NormalCorruptorTextures(), MissingParam))
 			{
 				RefuseEvent(Why::AssetsUnavailable, FString::Printf(TEXT("normal_corruptor_lacks:%s"), *MissingParam), TEXT("E1"));
-				return;
+				if (!bAll) { return; }
 			}
-		}
-		{
 			UMaterialInterface* Needed = (In.Family == EFamily::UV) ? UvCorruptor : NormalCorruptor;
 			FMaterialResource* Res = Needed->GetMaterialResource(World->FeatureLevel);
 			if (!Res || !CorruptorShadersReady(Needed, World))
 			{
 				RefuseEvent(Why::CorruptorNotReady, GetNameSafe(Needed), TEXT("E2"));
-				return;
+				if (!bAll) { return; }
 			}
 		}
 		if (In.Family == EFamily::Normal && ReadCVarInt(TEXT("Compat.UseDXT5NormalMaps"), 0) != 0)
 		{
 			RefuseEvent(Why::Dxt5NormalHost, FString(), TEXT("E3"));
-			return;
+			if (!bAll) { return; }
 		}
 		if (UTexture2D::GetGlobalMipMapLODBias() != 0.0f)
 		{
 			RefuseEvent(Why::RuntimeLodBias, TEXT("global_sampler"), TEXT("E4"));
-			return;
+			if (!bAll) { return; }
 		}
 		if (TexCorruptPure::GlobalStreamingBias(ReadCVarInt(TEXT("r.Streaming.UsePerTextureBias"), 1), ReadCVarFloat(TEXT("r.Streaming.MipBias"), 0.0f)))
 		{
 			RefuseEvent(Why::RuntimeLodBias, TEXT("global_streaming"), TEXT("E5"));
-			return;
+			if (!bAll) { return; }
 		}
 		if (!In.bCensus && In.Mode == EMode::None)
 		{
@@ -1021,7 +1061,8 @@ namespace AnomalyTexCorrupt
 				if (Comp && (!AnomalyViewport::HasNaniteComponentProbe() || AnomalyViewport::ActorDrawsAnyNaniteReadOnly(Comp->GetOwner())))
 				{
 					RefuseEvent(Why::NaniteUnmaskable, FString(), TEXT("E7N"));
-					return;
+					if (!bAll) { return; }
+					break;
 				}
 			}
 		}
@@ -1069,6 +1110,25 @@ namespace AnomalyTexCorrupt
 				++Out.SlotsQualified;
 			}
 		}
+		{
+			TMap<const UMeshComponent*, TPair<int32, int32>> PerComp;
+			for (const FSlot& S : Out.Slots)
+			{
+				TPair<int32, int32>& P = PerComp.FindOrAdd(S.Comp);
+				if (!S.bUntouched)
+				{
+					++P.Key;
+					P.Value += S.IsQualified() ? 1 : 0;
+				}
+			}
+			for (const TPair<const UMeshComponent*, TPair<int32, int32>>& P : PerComp)
+			{
+				if (P.Value.Key > 0 && P.Value.Key == P.Value.Value)
+				{
+					++Out.ComponentsAdmittable;
+				}
+			}
+		}
 		const int32 EarliestIndex = TexCorruptPure::PickEarliestSlot(Ranks.GetData(), Untouched.GetData(), Qualified.GetData(), Ranks.Num());
 		const FSlot* Earliest = Out.Slots.IsValidIndex(EarliestIndex) ? &Out.Slots[EarliestIndex] : nullptr;
 		const TexCorruptPure::EFootprint Footprint = TexCorruptPure::JudgeFootprint(Out.SlotsQualified, Out.Slots.Num());
@@ -1090,7 +1150,7 @@ namespace AnomalyTexCorrupt
 			const FString FirstReason = Out.Slots.IsValidIndex(FirstOut) ? Out.Slots[FirstOut].Reason : FString(TEXT("unknown"));
 			RefuseEvent(Why::PartialFootprint, FString::Printf(TEXT("%d/%d:%s"), Out.SlotsQualified, Out.Slots.Num(), *FirstReason),
 				TEXT("V1P"));
-			return;
+			if (!bAll) { return; }
 		}
 
 		ComputeRequirement(Out);
@@ -1100,6 +1160,10 @@ namespace AnomalyTexCorrupt
 		{
 			RefuseEvent(Why::OverBudget, FString::Printf(TEXT("need_%lld_available_%lld_cap_%lld"), Out.RequiredBytes, Available, Cap),
 				TEXT("V2"));
+			return;
+		}
+		if (bRefused)
+		{
 			return;
 		}
 		Out.bApply = true;
@@ -1125,7 +1189,7 @@ namespace AnomalyTexCorrupt
 		EvaluateTree(World, In, Result);
 		if (!Result.bApply)
 		{
-			OutReason = Result.Reason;
+			OutReason = Result.CensusKey();
 		}
 		return Result.bApply;
 	}
@@ -1243,12 +1307,115 @@ namespace AnomalyTexCorrupt
 			int32 Eligible = 0;
 			int32 Refused = 0;
 			TMap<FString, int32> Reasons;
+			TMap<FString, int32> Subs;
+			int32 Objects = 0;
+			int32 Blocked = 0;
+			int32 Unassessed = 0;
+			int32 BGainObjects = 0;
+			TMap<FString, int32> KeyObjects;
+			TMap<FString, int32> KeyOnly;
+			TMap<FString, int32> NoteObjects;
+			TMap<FString, int32> Combos;
 		};
+
+		void CollectObjectKeys(const FTreeResult& R, TArray<FString>& OutKeys, TArray<FString>& OutNotes, bool& bOutUnassessed)
+		{
+			for (const FString& K : R.EventKeys)
+			{
+				OutKeys.AddUnique(K);
+			}
+			for (const FString& K : R.EventNotes)
+			{
+				OutNotes.AddUnique(K);
+			}
+			for (const FSlot& S : R.Slots)
+			{
+				if (S.bUntouched)
+				{
+					continue;
+				}
+				for (const FString& K : S.AllKeys)
+				{
+					OutKeys.AddUnique(K);
+				}
+				for (const FString& K : S.Notes)
+				{
+					OutNotes.AddUnique(K);
+				}
+				bOutUnassessed |= S.bUnassessed;
+			}
+			OutKeys.Sort([](const FString& L, const FString& R) { return L.Compare(R, ESearchCase::CaseSensitive) < 0; });
+			OutNotes.Sort([](const FString& L, const FString& R) { return L.Compare(R, ESearchCase::CaseSensitive) < 0; });
+		}
+
+		void AccumulateAllReasons(FCensusCounts& C, const FTreeResult& R)
+		{
+			TArray<FString> Keys;
+			TArray<FString> Notes;
+			bool bUnassessed = false;
+			CollectObjectKeys(R, Keys, Notes, bUnassessed);
+			if (Levers().bAllReasonsFirstOnly)
+			{
+				Keys.Reset();
+				if (!R.bApply)
+				{
+					Keys.Add(R.CensusKey());
+				}
+			}
+			++C.Objects;
+			if (!R.bApply)
+			{
+				++C.Blocked;
+				if (R.Reason == Why::PartialFootprint && R.ComponentsAdmittable > 0)
+				{
+					++C.BGainObjects;
+				}
+			}
+			if (bUnassessed)
+			{
+				++C.Unassessed;
+			}
+			for (const FString& K : Keys)
+			{
+				C.KeyObjects.FindOrAdd(K)++;
+			}
+			if (Keys.Num() == 1)
+			{
+				C.KeyOnly.FindOrAdd(Keys[0])++;
+			}
+			for (const FString& K : Notes)
+			{
+				C.NoteObjects.FindOrAdd(K)++;
+			}
+			if (Keys.Num() > 0)
+			{
+				C.Combos.FindOrAdd(FString::Join(Keys, TEXT("+")))++;
+			}
+		}
+
+		TArray<TPair<FString, int32>> SortedByCount(const TMap<FString, int32>& Map, int32 Limit)
+		{
+			TArray<TPair<FString, int32>> Out;
+			for (const TPair<FString, int32>& P : Map)
+			{
+				Out.Emplace(P.Key, P.Value);
+			}
+			Out.Sort([](const TPair<FString, int32>& L, const TPair<FString, int32>& R)
+			{
+				return L.Value != R.Value ? L.Value > R.Value : L.Key.Compare(R.Key, ESearchCase::CaseSensitive) < 0;
+			});
+			if (Limit > 0 && Out.Num() > Limit)
+			{
+				Out.SetNum(Limit);
+			}
+			return Out;
+		}
 
 		struct FOfficeCensusJob
 		{
 			TWeakObjectPtr<UWorld> World;
 			bool bAll = false;
+			bool bAllReasons = false;
 			bool bEnumerated = false;
 			bool bStatsUnchanged = true;
 			TArray<FString> Names;
@@ -1385,6 +1552,7 @@ namespace AnomalyTexCorrupt
 				FTreeInputs In;
 				In.Family = f == 0 ? EFamily::UV : EFamily::Normal;
 				In.bCensus = true;
+				In.bAllReasons = Job.bAllReasons;
 				In.TargetActor = Actor;
 				FTreeResult Result;
 				EvaluateTree(World, In, Result);
@@ -1396,6 +1564,11 @@ namespace AnomalyTexCorrupt
 				{
 					++Counts[f].Refused;
 					Counts[f].Reasons.FindOrAdd(Result.Reason)++;
+					Counts[f].Subs.FindOrAdd(Result.CensusKey())++;
+				}
+				if (Job.bAllReasons)
+				{
+					AccumulateAllReasons(Counts[f], Result);
 				}
 			}
 			if (FPlatformTime::Seconds() >= SliceEnd)
@@ -1450,6 +1623,38 @@ namespace AnomalyTexCorrupt
 			UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 id=%s eligible=%d refused=%d reasons=%s"),
 				f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption"), Counts[f].Eligible, Counts[f].Refused,
 				Reasons.IsEmpty() ? TEXT("-") : *Reasons);
+			FString Subs;
+			for (const TPair<FString, int32>& P : SortedByCount(Counts[f].Subs, 0))
+			{
+				Subs += FString::Printf(TEXT("%s%s:%d"), Subs.IsEmpty() ? TEXT("") : TEXT(","), *P.Key, P.Value);
+			}
+			UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 subs id=%s subs=%s"),
+				f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption"), Subs.IsEmpty() ? TEXT("-") : *Subs);
+		}
+		if (Job.bAllReasons)
+		{
+			for (int32 f = 0; f < 2; ++f)
+			{
+				const TCHAR* IdText = f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption");
+				const FCensusCounts& C = Counts[f];
+				UE_LOG(LogAnomaly, Display,
+					TEXT("IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s objects=%d eligible=%d blocked=%d unassessed=%d b_gain_objects=%d"),
+					IdText, C.Objects, C.Eligible, C.Blocked, C.Unassessed, C.BGainObjects);
+				for (const TPair<FString, int32>& P : SortedByCount(C.KeyObjects, 0))
+				{
+					const int32* Only = C.KeyOnly.Find(P.Key);
+					UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s key=%s objects=%d only=%d"),
+						IdText, *P.Key, P.Value, Only ? *Only : 0);
+				}
+				for (const TPair<FString, int32>& P : SortedByCount(C.NoteObjects, 0))
+				{
+					UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s note=%s objects=%d"), IdText, *P.Key, P.Value);
+				}
+				for (const TPair<FString, int32>& P : SortedByCount(C.Combos, 12))
+				{
+					UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s combo=%s objects=%d"), IdText, *P.Key, P.Value);
+				}
+			}
 		}
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 scanned=%d of=%d gone=%d stopped=%s seconds=%.1f"),
 			Job.Next, Names.Num(), Job.Gone, Stop, Elapsed);
@@ -1470,14 +1675,20 @@ namespace AnomalyTexCorrupt
 			TEXT("frame, and no sub-reasons. TIME-SLICED: about 4 ms of work per frame, a progress line every 2 s, and a hard stop ")
 			TEXT("at 120 s that prints the counts so far with 'scanned=K of=N stopped=time_limit'; it never blocks a frame for long. ")
 			TEXT("The end line reports the frames it spanned, its longest single frame of work (work_ms_max) and the longest ")
-			TEXT("frame-to-frame interval while it ran (frame_interval_ms_max). ")
-			TEXT("Usage: IAI.TexCorrupt.Census [all]"),
+			TEXT("frame-to-frame interval while it ran (frame_interval_ms_max). A 'subs' line per type counts the first refusal with its ")
+			TEXT("sub-reason (reason/sub; subs that could name content are reduced to the reason). 'allreasons' scans like 'all' but ")
+			TEXT("evaluates EVERY check for every candidate instead of stopping at the first failure, and prints per type: every ")
+			TEXT("blocking key with the objects failing it and the objects failing ONLY it, every non-blocking note, the top ")
+			TEXT("combinations, and b_gain_objects (refused only because not every part qualified, with at least one whole ")
+			TEXT("component qualifying). Checks that depend on a failed one are marked unassessed, not guessed. ")
+			TEXT("Usage: IAI.TexCorrupt.Census [all|allreasons]"),
 			FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 			{
-				const bool bAll = Args.Num() >= 1 && Args[0].Equals(TEXT("all"), ESearchCase::IgnoreCase);
+				const bool bAllReasons = Args.Num() >= 1 && Args[0].Equals(TEXT("allreasons"), ESearchCase::IgnoreCase);
+				const bool bAll = bAllReasons || (Args.Num() >= 1 && Args[0].Equals(TEXT("all"), ESearchCase::IgnoreCase));
 				if (Args.Num() >= 1 && !bAll)
 				{
-					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.TexCorrupt.Census [all]"));
+					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.TexCorrupt.Census [all|allreasons]"));
 					return;
 				}
 				TUniquePtr<FOfficeCensusJob>& Job = ActiveCensus();
@@ -1491,11 +1702,12 @@ namespace AnomalyTexCorrupt
 				Job = MakeUnique<FOfficeCensusJob>();
 				Job->World = World;
 				Job->bAll = bAll;
+				Job->bAllReasons = bAllReasons;
 				Job->StartSeconds = FPlatformTime::Seconds();
 				Job->NextProgressSeconds = CensusProgressSeconds;
 				UE_LOG(LogAnomaly, Display,
-					TEXT("IAI-TEXCORRUPT-CENSUS v1 begin scope=%s slice_ms=%d max_seconds=%d - time-sliced across frames, READ-ONLY."),
-					bAll ? TEXT("all") : TEXT("view"), (int32)(CensusSliceSeconds * 1000.0), (int32)CensusMaxSeconds);
+					TEXT("IAI-TEXCORRUPT-CENSUS v1 begin scope=%s slice_ms=%d max_seconds=%d allreasons=%d - time-sliced across frames, READ-ONLY."),
+					bAll ? TEXT("all") : TEXT("view"), (int32)(CensusSliceSeconds * 1000.0), (int32)CensusMaxSeconds, bAllReasons ? 1 : 0);
 				if (RunOfficeCensus(*Job))
 				{
 					Job.Reset();
