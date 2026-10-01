@@ -11,6 +11,26 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **090-09, 2026-10-01 — CODEX RE-CHECK ROUND A: "INSTALLED" IS WHAT RENDERS NOW; REVERT LEAVES NO OVERRIDE OF OURS; NANITE IS
+> GATED EVERY FRAME AND FAILS CLOSED; KIT 1.2 NEVER PASSES AN UNJUDGED RUN. R4 VERIFIED AND DESIGNED, NOT CODED (090-10).
+> Compile only (no game launch, no cook, no staging). Merged into m53.**
+> - **Cold start:** journal `docs/sessions/2026-10-01-090-09-codex-recheck-fixes-a.md`; archive
+>   `_binary_baselines\m52fix-09009-EBB70E9B\` (6/6 re-hashed). Spec `_reviews\090-08-chat-ruling-codex-recheck.md`.
+> - **Phase 0:** R1, R2, R3, R5, R7, R8, R10, R11 REAL; R6 REAL-BUT-UNREACHABLE in the shipped Development/Test configuration
+>   (fixed anyway); R4 async REAL and reachable on the delivery default (async + SVE), R4 sync unreachable by any shipped default.
+> - **R1/R3 (`1aa26fb`):** tri-state installed (`AnomalyInstallState.h`): a slot counts if its component is registered and
+>   rendering, the slot exists on the current mesh and resolves to our material (m53: our MID with its bindings). none ⇒
+>   `effect_interrupted`; partial ⇒ labelled + `label_effect_partial_frames` (G432). **R2:** revert covers every captured index
+>   and `max(slots, overrides)`, then asserts no override of ours remains (`REVERT-RESIDUAL`, G433). **R5:** every visible
+>   primitive counts (selection exclusions ignored); per-frame `nanite_unmaskable` (bit 64) + raw revert next tick. **R6:**
+>   fail closed (`nanite_probe_missing`, G435). **R10:** per-captured-frame cost from a shared sample window (G434). **R11:**
+>   spline meshes are not Nanite. Rule `…_v3_effect_rendered_nanite_gated`. Strict-include caught one missing include
+>   (`4fb6509`). **Kit 1.2 (`37bf185`):** R7 unjudged (a judged FAIL outranks it), R8 no AA excuse, `nanite N | unjudged N`.
+> - **Builds:** fix normal 0 warnings, strict 0/0 (after `4fb6509`), exe **`EBB70E9B`**, 63 UTF-16 string differences all
+>   090-09's own, lever audit 34/34. Suites: C++ 27 + 41 + 305 + 154 checks, 15 mutants fail; Python 15/15; kit 54/54.
+> - 🎯 **NEXT: 090-10 — R4 code (async freeze at the sample; sync one-deep history or `capture_unpaired`) and the extended smoke
+>   harness with the declared legs (journal §4), re-pinned to the new exe.** ⛔ No tag, no merge to master.
+>
 > 🛠 **090-07, 2026-09-30 — SHIPPING EXCLUDED BY DESCRIPTOR; THE OFFICE KIT READS `effect_interrupted`;
 > `tools/m52_log_counts.py`. Compile only (no game launch, no cook, no staging). Merged into m53 (`983215f` + the docs
 > merge); the m53 head is the Thursday pull target for both office hosts.**
