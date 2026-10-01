@@ -22,12 +22,13 @@ BUCKET_NAMES = ("virtual", "not streamable", "excluded", "shared", "too small", 
 
 FORMATS = {
     "purity": (
-        "stuck_low_mip: PURITY ENUMERATION for '%s' - scope ALL LOADED LEVELS (%d, active or not): %d component(s) "
-        "of every actor in them scanned, REGISTERED OR NOT (primitives of every type, plus decals), for %d "
-        "candidate texture(s) in %.2f ms; %d user(s) sit in an inactive loaded level and %d are unregistered. A "
-        "texture is held only if it has exactly ONE user component in that scope and that component belongs to "
-        "the target. Visibility is NOT consulted: an off-screen user still shows the blur the moment the camera "
-        "turns to it."),
+        "stuck_low_mip: PURITY ENUMERATION for '%s' - world '%s' (type=%s), scope ALL LOADED LEVELS OF THAT WORLD (%d, "
+        "active or not): %d component(s) of every actor in them scanned, REGISTERED OR NOT (primitives of every "
+        "type, plus decals), for %d candidate texture(s) in %.2f ms; %d user(s) sit in an inactive loaded level "
+        "and %d are unregistered. Other worlds (in Play In Editor, the editor's own world) are not scanned and "
+        "their users are not counted. A texture is held only if it has exactly ONE user component in that scope "
+        "and that component belongs to the target. Visibility is NOT consulted: an off-screen user still shows the "
+        "blur the moment the camera turns to it."),
     "holding": (
         "stuck_low_mip: matched %d component(s) for '%s' - HOLDING %d of %d candidate texture(s) [%s]; "
         "%d virtual, %d not streamable, %d excluded group, %d shared, %d too small for the ratio, %d "
@@ -36,8 +37,8 @@ FORMATS = {
         "streamer completes the stream-out are NOT labelled."),
     "held_none": (
         "stuck_low_mip: matched %d component(s) for '%s' with %d candidate texture(s) but HELD NONE [%s] - "
-        "%d virtual, %d not streamable or already at the floor, %d excluded LOD group, %d shared with a "
-        "visible component, %d too small for the ratio at the deepest achievable hold, %d imperceptible at "
+        "%d virtual, %d not streamable or already at the floor, %d excluded LOD group, %d shared with another "
+        "user component in this world, %d too small for the ratio at the deepest achievable hold, %d imperceptible at "
         "the explicitly requested depth. Applying nothing, so no fire is recorded and no label is written."),
     "shared_world": (
         "stuck_low_mip: REFUSED TEXTURE '%s' shared_world - %d user component(s) in the whole loaded "
@@ -180,8 +181,8 @@ def source_formats(src):
 
 
 SAMPLE = [
-    ("Log", "purity", ("SM_Rock", 3, 812, 4, 1.25, 0, 0)),
-    ("Log", "purity", ("SM_Pipe", 3, 812, 2, 0.75, 1, 0)),
+    ("Log", "purity", ("SM_Rock", "MainWorld", "PIE", 3, 812, 4, 1.25, 0, 0)),
+    ("Log", "purity", ("SM_Pipe", "MainWorld", "Game", 3, 812, 2, 0.75, 1, 0)),
     ("Log", "holding", (1, "SM_Rock", 2, 3, "auto-pool, gates ENFORCED", 0, 0, 0, 1, 0, 0, 1)),
     ("Warning", "held_none", (1, "SM_Crate", 3, "auto-pool, gates ENFORCED", 1, 0, 0, 2, 1, 0)),
     ("Warning", "held_none", (2, "SM_Pipe", 2, "targeted, selection gates BYPASSED", 0, 1, 0, 1, 0, 0)),
