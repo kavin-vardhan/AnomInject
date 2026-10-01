@@ -26,13 +26,16 @@ import tempfile
 import time
 import zlib
 
-KIT_VERSION = "1.2"
-EVALUATOR = "090-09"
+KIT_VERSION = "1.3"
+EVALUATOR = "090-10"
 METHOD = ("086-01 per-frame change on the target silhouette; 084-06 edge-local references, stuck_low_mip "
           "sharpness path and transition-aware gate; 084-07 labelled and partial rules; 090-07 effect_interrupted "
           "run edges read against the picture at the interruption; 090-09 a labelled run with an image it cannot "
           "read leaves its event unjudged unless a judged run fails, no anti-aliasing excuse on an interrupted or "
-          "nanite frame, nanite frames left out and the run end before them censored")
+          "nanite frame, nanite frames left out and the run end before them censored; 090-10 a labels row missing "
+          "inside a labelled run or between two runs leaves those runs unjudged, every PNG is checked whole before "
+          "either decoder reads it, capture_unpaired frames are left out with the run edges beside them censored, "
+          "and a session made only of them is refused")
 
 TYPE_MAP = {"blink": "blinking", "flicker": "blinking"}
 DELIVERED = ("blinking", "missing_object", "missing_texture", "corrupted_texture", "lod_popping",
@@ -47,9 +50,13 @@ NOT_JUDGEABLE = {
 AA_ONLY_REASONS = ("temporal_aa", "hide_return")
 INTERRUPT_REASON = "effect_interrupted"
 NANITE_REASON = "nanite_unmaskable"
-NO_AA_EXCUSE = (INTERRUPT_REASON, NANITE_REASON)
+UNPAIRED_REASON = "capture_unpaired"
+NO_AA_EXCUSE = (INTERRUPT_REASON, NANITE_REASON, UNPAIRED_REASON)
 KNOWN_REASONS = AA_ONLY_REASONS + ("partial", "camera_clipping_unconfirmed", "unresolved", INTERRUPT_REASON,
-                                   NANITE_REASON)
+                                   NANITE_REASON, UNPAIRED_REASON)
+ROW_MISSING = "labels row missing"
+LABELLED_UNPAIRED = "labelled frame unpaired"
+SYNC_ONLY = "sync-path capture: unsupported for delivery"
 
 MOVE_CM = 0.5
 MOVE_DEG = 0.05
@@ -192,8 +199,10 @@ class PngError(Exception):
 
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
 CHANNELS = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
+DECODE_ERRORS = (PngError, OSError, ValueError, SyntaxError, EOFError, zlib.error, struct.error, IndexError, KeyError)
 _PIL = None
 _PIL_TRIED = False
+_PNG_OK = {}
 
 
 def pillow():
@@ -240,6 +249,94 @@ def png_parse(path, need_data=True):
     if need_data and ctype_ == 3 and plte is None:
         raise PngError("palette PNG without a palette")
     return w, h, ctype_, plte, idat
+
+
+def png_check(path):
+    with open(path, "rb") as fh:
+        data = fh.read()
+    if data[:8] != PNG_SIG:
+        raise PngError("not a PNG")
+    n = len(data)
+    pos = 8
+    ihdr = None
+    plte = None
+    idat = []
+    ended = False
+    crc32 = zlib.crc32
+    unpack = struct.unpack_from
+    while pos < n:
+        if pos + 12 > n:
+            raise PngError("invalid PNG: a chunk is cut short")
+        length, ctype = unpack(">I4s", data, pos)
+        end = pos + 12 + length
+        if end > n:
+            raise PngError("invalid PNG: a chunk runs past the end of the file")
+        body = data[pos + 8:end - 4]
+        if crc32(body, crc32(ctype)) != unpack(">I", data, end - 4)[0]:
+            raise PngError("invalid PNG: chunk CRC mismatch")
+        if ihdr is None:
+            if ctype != b"IHDR" or length != 13:
+                raise PngError("invalid PNG: IHDR is not the first chunk")
+            ihdr = struct.unpack(">IIBBBBB", body)
+        elif ctype == b"IHDR":
+            raise PngError("invalid PNG: a second IHDR")
+        elif ctype == b"PLTE":
+            plte = body
+        elif ctype == b"IDAT":
+            idat.append(body)
+        elif ctype == b"IEND":
+            ended = True
+            pos = end
+            break
+        pos = end
+    if not ended:
+        raise PngError("invalid PNG: no IEND")
+    if pos != n:
+        raise PngError("invalid PNG: bytes after IEND")
+    w, h, depth, ct, comp, filt, inter = ihdr
+    if depth != 8 or inter != 0 or ct not in CHANNELS or comp != 0 or filt != 0:
+        raise PngError("unsupported PNG")
+    if not w or not h:
+        raise PngError("invalid PNG: empty image")
+    if ct == 3 and plte is None:
+        raise PngError("palette PNG without a palette")
+    if not idat:
+        raise PngError("invalid PNG: no image data")
+    stride = 1 + w * CHANNELS[ct]
+    need = h * stride
+    dobj = zlib.decompressobj()
+    try:
+        raw = dobj.decompress(b"".join(idat), need + 1)
+    except zlib.error:
+        raise PngError("invalid PNG: image data does not inflate")
+    if len(raw) > need:
+        raise PngError("invalid PNG: more image data than the image holds")
+    if not dobj.eof:
+        raise PngError("invalid PNG: image data stream does not end")
+    if len(raw) < need:
+        raise PngError("invalid PNG: image data shorter than the image")
+    if dobj.unused_data:
+        raise PngError("invalid PNG: bytes after the image data stream")
+    if max(raw[0::stride]) > 4:
+        raise PngError("invalid PNG: bad row filter")
+    return (w, h, ct, plte), raw
+
+
+def png_valid(path, keep=False):
+    st = os.stat(path)
+    key = (path, st.st_size, st.st_mtime_ns)
+    hit = _PNG_OK.get(key)
+    if isinstance(hit, str):
+        raise PngError(hit)
+    if hit is not None and not keep:
+        return hit, None
+    try:
+        info, raw = png_check(path)
+    except PngError as ex:
+        _PNG_OK[key] = str(ex)
+        raise
+    _PNG_OK[key] = info
+    return info, raw
 
 
 _SWAR = {}
@@ -302,15 +399,17 @@ def _unfilter(ft, raw, prev, bpp, nb):
 
 def decode_native(path, decoder, max_rows=None, max_cols=None):
     if decoder == "pillow":
-        w, h, ct, _plte, _ = png_parse(path, need_data=False)
-        plte = None
-        if ct == 3:
-            plte = png_parse(path)[3]
-        im = pillow().open(path)
+        (w, h, ct, plte), _raw = png_valid(path)
         want = {0: "L", 2: "RGB", 3: "P", 4: "LA", 6: "RGBA"}[ct]
-        if im.mode != want:
-            raise PngError("decoder mode mismatch")
-        data = im.tobytes()
+        try:
+            with pillow().open(path) as im:
+                if im.mode != want or im.size != (w, h):
+                    raise PngError("decoder mode mismatch")
+                data = im.tobytes()
+        except PngError:
+            raise
+        except DECODE_ERRORS as ex:
+            raise PngError("invalid PNG: the decoder refused it (%s)" % type(ex).__name__)
         ch = CHANNELS[ct]
         nrows = h if max_rows is None else max(0, min(h, max_rows))
         ncols = w if max_cols is None else max(0, min(w, max_cols))
@@ -318,19 +417,12 @@ def decode_native(path, decoder, max_rows=None, max_cols=None):
         nb = ncols * ch
         rows = [data[y * rs:y * rs + nb] for y in range(nrows)]
         return w, h, ct, plte, ncols, rows
-    w, h, ct, plte, idat = png_parse(path)
+    (w, h, ct, plte), buf = png_valid(path, True)
     ch = CHANNELS[ct]
     stride = 1 + w * ch
     nrows = h if max_rows is None else max(0, min(h, max_rows))
     ncols = w if max_cols is None else max(0, min(w, max_cols))
     nb = ncols * ch
-    need = nrows * stride
-    dobj = zlib.decompressobj()
-    buf = dobj.decompress(b"".join(idat), need)
-    while len(buf) < need and dobj.unconsumed_tail:
-        buf += dobj.decompress(dobj.unconsumed_tail, need - len(buf))
-    if len(buf) < need:
-        raise PngError("truncated image data")
     rows = []
     prev = bytes(nb)
     for y in range(nrows):
@@ -379,6 +471,16 @@ def rows_to_gray(rows, ct, plte, ncols):
     return [bytes(map(_luma, r[0::3], r[1::3], r[2::3])) for r in rgb]
 
 
+def _has_unpaired(rs):
+    return isinstance(rs, list) and any(str(q) == UNPAIRED_REASON for q in rs)
+
+
+def row_unpaired(r):
+    if r.get("capture_unpaired") or _has_unpaired(r.get("transition_reason")):
+        return True
+    return any(_has_unpaired(x.get("transition_reason")) for x in (r.get("anomalies") or []) if isinstance(x, dict))
+
+
 class Frame(object):
     __slots__ = ("w", "h", "rows", "ncols")
 
@@ -402,11 +504,17 @@ class Session(object):
         self.summary = jload(os.path.join(d, "run_summary.json"), {}) or {}
         self.ce_rows = [r for r in read_jsonl(os.path.join(d, "change_evidence.jsonl")) if r.get("kind") == "pair"]
         self.sis = sorted(self.rows)
+        self.unpaired = set(si for si, r in self.rows.items() if row_unpaired(r))
+        self.invalid = set()
         self._full = collections.OrderedDict()
         self._mask = collections.OrderedDict()
         self.decoded = 0
         self.decoded_partial = 0
         self.size = None
+
+    def bad_png(self, si, ex):
+        if str(ex).startswith("invalid PNG"):
+            self.invalid.add(si)
 
     def frame_path(self, si):
         r = self.rows.get(si)
@@ -426,7 +534,8 @@ class Session(object):
                 self.decoded += 1
                 if self.size is None:
                     self.size = (w, h)
-            except (PngError, OSError, zlib.error, ValueError):
+            except DECODE_ERRORS as ex:
+                self.bad_png(si, ex)
                 f = None
         self._full[si] = f
         while len(self._full) > 48:
@@ -441,7 +550,8 @@ class Session(object):
             return None
         try:
             w, h, ct, plte, ncols, rows = decode_native(p, self.decoder, max_rows, max_cols)
-        except (PngError, OSError, zlib.error, ValueError):
+        except DECODE_ERRORS as ex:
+            self.bad_png(si, ex)
             return None
         self.decoded_partial += 1
         if self.size is None:
@@ -457,7 +567,7 @@ class Session(object):
             try:
                 w, h, ct, plte, ncols, rows = decode_native(p, self.decoder)
                 m = rows_to_gray(rows, ct, plte, ncols)
-            except (PngError, OSError, zlib.error, ValueError):
+            except DECODE_ERRORS:
                 m = None
         self._mask[si] = m
         while len(self._mask) > 160:
@@ -556,7 +666,8 @@ def events_of(s):
                     starts[x.get("start_frame")] += 1
         sf = starts.most_common(1)[0][0] if starts else None
         ev = dict(ord=i, type=typ, L=L, Lset=set(L), runs=runs_of(L), node=node, start_frame=sf, entries={},
-                  T=set(), reasons={}, mv={}, bbox={}, disagree=0, has_reason=False, I=set(), N=set(), unknown=0)
+                  T=set(), reasons={}, mv={}, bbox={}, disagree=0, has_reason=False, I=set(), N=set(), U=set(),
+                  unknown=0)
         if sf is not None:
             for si in s.sis:
                 for x in (s.rows[si].get("anomalies") or []):
@@ -569,7 +680,7 @@ def events_of(s):
                                 ev["reasons"][si] = tuple(str(q) for q in rs)
                                 ev["has_reason"] = True
                                 ev["unknown"] += sum(1 for q in ev["reasons"][si] if q not in KNOWN_REASONS)
-                                if si not in ev["Lset"]:
+                                if si not in ev["Lset"] and si not in s.unpaired:
                                     if NANITE_REASON in ev["reasons"][si]:
                                         ev["N"].add(si)
                                     elif INTERRUPT_REASON in ev["reasons"][si]:
@@ -580,8 +691,16 @@ def events_of(s):
                             ev["disagree"] += 1
                         break
         for si in ev["T"]:
-            if si not in ev["reasons"]:
+            if si in s.unpaired:
+                rs = ev["reasons"].get(si, ())
+                if UNPAIRED_REASON not in rs:
+                    ev["reasons"][si] = (UNPAIRED_REASON,) + tuple(rs)
+            elif si not in ev["reasons"]:
                 ev["reasons"][si] = infer_reasons(si, ev, typ)
+        near = set(ev["entries"]) | ev["Lset"]
+        for a, b in ev["runs"]:
+            near.update((a - 1, b + 1))
+        ev["U"] = s.unpaired & near
         out.append(ev)
     return out
 
@@ -1056,9 +1175,10 @@ def analyse_d(s, ev, evs, taa):
     span_lo = max(span_lo, s.sis[0])
     span_hi = min(span_hi, s.sis[-1])
     span = [si for si in range(span_lo, span_hi + 1) if si in s.rows]
+    Us = s.unpaired
 
     def clean(si):
-        if si not in s.rows or si in Ls or si in Ts or si in other:
+        if si not in s.rows or si in Ls or si in Ts or si in other or si in Us:
             return False
         return not (s.rows[si].get("anomaly_present") and si not in mine)
 
@@ -1147,7 +1267,20 @@ def analyse_d(s, ev, evs, taa):
             si += step
         return out if step > 0 else out[::-1]
 
+    nojudge = {}
     for i, (a, b) in enumerate(lab_runs):
+        if any(si not in s.rows for si in range(a, b + 1)):
+            nojudge.setdefault(i, ROW_MISSING)
+        if i + 1 < len(lab_runs) and any(si not in s.rows for si in range(b + 1, lab_runs[i + 1][0])):
+            nojudge.setdefault(i, ROW_MISSING)
+            nojudge.setdefault(i + 1, ROW_MISSING)
+        if any(si in Us for si in range(a, b + 1)):
+            nojudge.setdefault(i, LABELLED_UNPAIRED)
+
+    for i, (a, b) in enumerate(lab_runs):
+        if i in nojudge:
+            why_unj[(a, b)] = nojudge[i]
+            continue
         lo_w = (lab_runs[i - 1][1] + a) // 2 + 1 if i > 0 else span_lo
         hi_w = (b + lab_runs[i + 1][0]) // 2 if i + 1 < len(lab_runs) else span_hi
         pre_int = int_stretch(a - 1, -1)
@@ -1177,19 +1310,24 @@ def analyse_d(s, ev, evs, taa):
         if s.brk(b) == "frame png missing":
             covered |= {b, b + 1}
         unread = [si for si in range(a - 1, b + 2)
-                  if si in s.rows and si not in Ns and si not in covered and V(si) is None]
+                  if si in s.rows and si not in Ns and si not in Us and si not in covered and V(si) is None]
         off_bad = [x for x, v in zip(roff, off_views) if v is None and x not in covered]
+        bad = s.invalid
         if any(x is None for x in on_views):
-            why_unj[(a, b)] = "onset reference unreadable"
+            why_unj[(a, b)] = "onset reference " + ("invalid" if bad.intersection(ron) else "unreadable")
             continue
         if off_bad:
-            why_unj[(a, b)] = "end reference unreadable"
+            why_unj[(a, b)] = "end reference " + ("invalid" if bad.intersection(off_bad) else "unreadable")
             continue
         if unread:
-            why_unj[(a, b)] = "frame unreadable"
+            why_unj[(a, b)] = "frame " + ("invalid" if bad.intersection(unread) else "unreadable")
             continue
         if (b + 1) in Ns:
             cens[("e", b)] = NANITE_REASON
+        if (b + 1) in Us:
+            cens[("e", b)] = UNPAIRED_REASON
+        if (a - 1) in Us:
+            cens[("s", a)] = UNPAIRED_REASON
         Ron = median_view(on_views)
         mu_on, thD_on, thP_on, thOB_on = noise_model(on_views, ctx)
         lab_med = None
@@ -1204,7 +1342,7 @@ def analyse_d(s, ev, evs, taa):
         ser_on = {}
         off_all = {}
         for si in range(lo_w, hi_w + 1):
-            if si not in s.rows or si in Ns:
+            if si not in s.rows or si in Ns or si in Us:
                 continue
             v = V(si)
             if v is None:
@@ -1364,6 +1502,7 @@ def analyse_d(s, ev, evs, taa):
     res["int_ends"] = sum(1 for ri in run_info if ri["int_end"])
     res["int_shows"] = shows
     res["nanite_ends"] = sum(1 for _a, b in lab_runs if (b + 1) in Ns)
+    res["unpaired_ends"] = sum((1 if (ri["a"] - 1) in Us else 0) + (1 if (ri["b"] + 1) in Us else 0) for ri in run_info)
     res["post1"] = []
     for ri in run_info:
         x = series.get(ri["b"] + 1)
@@ -1449,6 +1588,8 @@ def tables52(s, rois):
     my = max(r[3] for r in rois)
     mx = max(r[2] for r in rois)
     for si in s.sis:
+        if si in s.unpaired:
+            continue
         f = s.frame_part(si, my, mx)
         if f is None:
             continue
@@ -1567,14 +1708,27 @@ def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, t
     if not Lw:
         return dict(status="NO-LABEL")
     L0, L1 = Lw[0], Lw[-1]
-    Ns = set(si for si, rs in reasons.items() if NANITE_REASON in (rs or ()) and si not in set(Lw))
+    Us = s.unpaired
+    Ns = set(si for si, rs in reasons.items() if NANITE_REASON in (rs or ()) and si not in set(Lw) and si not in Us)
+    X = Ns | Us
     hi_cap = s.sis[-1]
     span_hi = min(L1 + SPAN_AFTER, hi_cap, (next_first - PRE_W - 1) if next_first is not None else hi_cap)
-    span = [si for si in range(L0 - PRE_W, span_hi + 1) if si in s.rows and si in rho and si not in Ns]
+    span = [si for si in range(L0 - PRE_W, span_hi + 1) if si in s.rows and si in rho and si not in X]
     if len(span) < PRE_W + len(Lw) + SUFFIX + 2:
         return dict(status="SHORT-SPAN")
-    unread = [si for si in range(L0 - 1, L1 + 2) if si in s.rows and si not in rho and si not in Ns]
-    prew = [si for si in range(L0 - PRE_N, L0) if si in rho and si not in Ns]
+    unread = [si for si in range(L0 - 1, L1 + 2) if si in s.rows and si not in rho and si not in X]
+    norow = [si for si in range(L0, L1 + 1) if si not in s.rows]
+    labu = [si for si in Lw if si in Us]
+    why = None
+    if norow:
+        why = ROW_MISSING
+    elif labu:
+        why = LABELLED_UNPAIRED
+    elif unread:
+        why = "frame " + ("invalid" if s.invalid.intersection(unread) else "unreadable")
+    unread = sorted(set(unread) | set(norow) | set(labu))
+    u_in = any(si in Us for si in range(L0 + 1, L1))
+    prew = [si for si in range(L0 - PRE_N, L0) if si in rho and si not in X]
     if len(prew) < 4:
         return dict(status="NO-PRE-LEVEL")
     pre = median([rho[x] for x in prew])
@@ -1582,7 +1736,7 @@ def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, t
     post = median([rho[x] for x in postw]) if len(postw) >= 4 else None
     first_row = min(e["rows"]) if e["rows"] else L0
     own = set(range(min(L0, first_row) - 1, L1 + SPAN_AFTER // 2))
-    ex = excl | own | Ns
+    ex = excl | own | X
     s_on, _n_on = local_sigma(rho, L0 - PRE_W, L0 - 1, ex)
     s_off, _n_off = local_sigma(rho, span_hi - 10, span_hi + 10, ex | set(range(L0 - 1, L1 + 12)))
     if s_on is None and s_off is None:
@@ -1636,6 +1790,10 @@ def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, t
             offc = offc or drift_c
         if (L1 + 1) in Ns:
             offc = offc or NANITE_REASON
+        if (L1 + 1) in Us:
+            offc = offc or UNPAIRED_REASON
+        if (L0 - 1) in Us:
+            onc = onc or UNPAIRED_REASON
         tg = transition_gate(Lw, [[L0, L1]], vis, span, reasons, drop, s_off, taa, pclass)
         fails, amb = split_censored(tg, Lw, onc, offc)
         early = []
@@ -1658,7 +1816,7 @@ def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, t
             raw_fails.append("labelled before the first visible frame")
         if la_def:
             raw_fails.append("labelled after the last visible frame")
-        cens = bool(onc or offc)
+        cens = bool(onc or offc or u_in)
         v_ta = "FAIL" if fails else ("CENSORED" if cens else "PASS")
         v_raw = "FAIL" if raw_fails else ("CENSORED" if cens else "PASS")
         st = (fv - L0) if fv is not None else None
@@ -1675,7 +1833,8 @@ def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, t
     if (L1 + 1) in drop and depth > 0:
         post1.append(round(max(0.0, drop[L1 + 1] / depth), 4))
     return dict(status="OK", measurable=bool(measurable), per=per, depth=depth, part_on=part_on, part_off=part_off,
-                post1=post1, warm=L0 < SETTLE_SKIP, unread=unread, nanite_ends=1 if (L1 + 1) in Ns else 0)
+                post1=post1, warm=L0 < SETTLE_SKIP, unread=unread, why=why, nanite_ends=1 if (L1 + 1) in Ns else 0,
+                unpaired_ends=(1 if (L1 + 1) in Us else 0) + (1 if (L0 - 1) in Us else 0))
 
 
 def analyse_session(d, decoder, types=None):
@@ -1696,7 +1855,7 @@ def analyse_session(d, decoder, types=None):
             continue
         row = dict(type=typ, ord=ev["ord"], rule=rule, disagree=ev["disagree"], ce=None, unknown=ev["unknown"],
                    int_frames=len(ev["I"]), int_gap=sum(1 for si in ev["I"] if ev["L"] and ev["L"][0] < si < ev["L"][-1]),
-                   nanite_frames=len(ev["N"]))
+                   nanite_frames=len(ev["N"]), unpaired_frames=len(ev["U"]))
         if typ in NOT_JUDGEABLE:
             row["status"] = "NOT-JUDGEABLE"
             out.append(row)
@@ -1799,7 +1958,7 @@ def analyse_m52(s, evs, taa):
         rs = dict(reasons_by.get(e["start_frame"]) or {})
         for si in T:
             if si not in rs:
-                rs[si] = ("temporal_aa",)
+                rs[si] = (UNPAIRED_REASON,) if si in s.unpaired else ("temporal_aa",)
         m = measure52(s, e, nf, tables[t], rois[t], excl - infl(own), has_record, lw, T, rs, taa)
         m["camera_moved"] = cam
         out[e["start_frame"]] = m
@@ -1844,6 +2003,9 @@ class Agg(object):
         self.nan_events = 0
         self.nan_frames = 0
         self.nan_ends = 0
+        self.un_events = 0
+        self.un_frames = 0
+        self.un_ends = 0
         self.unj_runs = 0
         self.unj_runs_fail = 0
 
@@ -1867,6 +2029,9 @@ def aggregate(rows):
         if r.get("nanite_frames"):
             a.nan_events += 1
             a.nan_frames += r["nanite_frames"]
+        if r.get("unpaired_frames"):
+            a.un_events += 1
+            a.un_frames += r["unpaired_frames"]
         st = r.get("status")
         if st == "NOT-JUDGEABLE":
             a.status["not-judgeable"] += 1
@@ -1898,6 +2063,7 @@ def aggregate(rows):
             a.int_shows += d.get("int_shows") or 0
         if r.get("nanite_frames"):
             a.nan_ends += (r["m52"] if r.get("path") == "m52" else d).get("nanite_ends") or 0
+        a.un_ends += (r["m52"] if r.get("path") == "m52" else d).get("unpaired_ends") or 0
         for c in r.get("ce") or []:
             a.ce_w[c] += 1
         per = r["per"]
@@ -1962,6 +2128,8 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
     w("temporal anti-aliasing: on %d | off %d | not recorded %d" % (si["taa"].get(True, 0), si["taa"].get(False, 0),
                                                                      si["taa"].get(None, 0)))
     w("sessions without target masks (box used, lower confidence) %d" % si["nomask"])
+    w("unpaired frames (written on the sync path, picture not paired with its label; left out of every check) %d in "
+      "%d session(s)" % (si.get("unpaired", 0), si.get("unpaired_sessions", 0)))
     aggs = aggregate(rows)
     tot_runs = sum(a.runs for a in aggs.values())
     tot_fb = sum(a.fb for a in aggs.values())
@@ -2017,8 +2185,10 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
               a.int_events, a.int_judged, a.int_ends, a.int_frames, a.int_gap, a.int_shows))
         w("nanite (object drew Nanite mid-event, frames left out): events %d | frames %d | judged run ends censored there %d" % (
             a.nan_events, a.nan_frames, a.nan_ends))
-        w("unjudged (an image needed to judge a run is missing or unreadable): events %d | runs %d, of them inside "
-          "failing events %d" % (a.status.get("unjudged", 0), a.unj_runs, a.unj_runs_fail))
+        w("unpaired (frame written on the sync path, its picture is the previous frame; left out): events %d | frames %d"
+          " | judged run edges censored there %d" % (a.un_events, a.un_frames, a.un_ends))
+        w("unjudged (a labels row or an image needed to judge a run is missing, unreadable or invalid): events %d | "
+          "runs %d, of them inside failing events %d" % (a.status.get("unjudged", 0), a.unj_runs, a.unj_runs_fail))
         w("transition reasons unknown to this kit: %d frame(s)" % a.unknown)
         w("m55 onset witness: %s" % _counter_line(a.ce_w, ("onset-on-first", "label-early", "no-change", "partial-first",
                                                              "unmeasured")))
@@ -2029,14 +2199,14 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
             w("  %-18s events %d, not judgeable by this kit" % (t, a.events))
             continue
         if not a.status.get("judged"):
-            w("  %-18s events %d, judged 0 | nanite %d | unjudged %d" % (t, a.events, a.nan_events,
-                                                                         a.status.get("unjudged", 0)))
+            w("  %-18s events %d, judged 0 | nanite %d | unjudged %d | unpaired %d" % (
+                t, a.events, a.nan_events, a.status.get("unjudged", 0), a.un_events))
             continue
         w("  %-18s judged %d | start %s | end %s | wrong-object %d (upper bound %d) | censored %d | fail %d | interrupted %d"
-          " | nanite %d | unjudged %d" % (
+          " | nanite %d | unjudged %d | unpaired %d" % (
               t, a.status.get("judged", 0), hist(a.S[RELEASE]["ta"]), hist(a.E[RELEASE]["ta"]), a.wrong - a.wrong_clean,
               a.wrong, a.cs + a.ce + a.us + a.ue, a.release.get("FAIL", 0), a.int_judged, a.nan_events,
-              a.status.get("unjudged", 0)))
+              a.status.get("unjudged", 0), a.un_events))
     w("")
     w("frames decoded %d | seconds %.0f" % (frames_decoded, elapsed))
     return "\n".join(lines) + "\n"
@@ -2057,6 +2227,28 @@ def find_sessions(paths):
     return found
 
 
+def sync_only(path):
+    n = 0
+    try:
+        with open(path, "r", encoding="utf-8-sig") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(r, dict) or not isinstance(r.get("session_index"), int):
+                    continue
+                if not row_unpaired(r):
+                    return False
+                n += 1
+    except OSError:
+        return False
+    return n > 0
+
+
 def refuse_reason(d):
     if not os.path.isfile(os.path.join(d, "labels.jsonl")):
         return "no labels"
@@ -2066,6 +2258,8 @@ def refuse_reason(d):
     sch = anno.get("label_schema")
     if sch is None or sch < 2:
         return "label schema 1"
+    if sync_only(os.path.join(d, "labels.jsonl")):
+        return SYNC_ONLY
     fr = os.path.join(d, "Actual_Frames")
     if not os.path.isdir(fr):
         return "no frames"
@@ -2085,7 +2279,7 @@ def refuse_reason(d):
 def run(paths, decoder, types=None):
     t0 = time.time()
     info = dict(read=0, refused=collections.Counter(), dups=0, res=collections.Counter(), rule=collections.Counter(),
-                taa=collections.Counter(), nomask=0)
+                taa=collections.Counter(), nomask=0, unpaired=0, unpaired_sessions=0)
     rows = []
     seen = set()
     frames = 0
@@ -2106,6 +2300,9 @@ def run(paths, decoder, types=None):
         info["taa"][taa] += 1
         if not os.path.isdir(os.path.join(d, "target_mask")):
             info["nomask"] += 1
+        if s.unpaired:
+            info["unpaired"] += len(s.unpaired)
+            info["unpaired_sessions"] += 1
         if s.size:
             info["res"][s.size] += 1
         frames += s.decoded + s.decoded_partial
@@ -2265,6 +2462,7 @@ def st_make(root, name, spec):
                               "affected_frames": {"frame_indices": sorted(L)}, "manifested": True,
                               "affected_objects": {"nodes": [{"name": "T%d" % k}]}})
     gap_at = spec.get("gap_before")
+    unp = spec.get("unpaired", {})
     written = {}
     obj_mask = [bytes(ST_MV if (ST_OBJ[0] <= x < ST_OBJ[2] and ST_OBJ[1] <= y < ST_OBJ[3]) else 0 for x in range(W))
                 for y in range(H)]
@@ -2281,6 +2479,8 @@ def st_make(root, name, spec):
         if spec.get("wrong") and any(si in ev["L"] for ev in evs):
             state["wrong"] = True
         rows = _st_frame(si, spec, state)
+        if unp.get(si) == "prev" and (si - 1) in written:
+            rows = written[si - 1]
         p = os.path.join(d, "Actual_Frames", "frame_%05d.png" % si)
         write_png(p, W, H, _to_ct(rows, ct), ct)
         written[si] = rows
@@ -2295,9 +2495,12 @@ def st_make(root, name, spec):
                    "bbox_px": [ST_OBJ[0], ST_OBJ[1], ST_OBJ[2] - ST_OBJ[0], ST_OBJ[3] - ST_OBJ[1]],
                    "mask_value": ST_MV, "target_pixels": -1}
             if spec.get("rule", "new") == "new":
-                ent["labelled"] = si in L
+                ent["labelled"] = si in L and si not in unp
             fl = ev.get("flags", {}).get(si)
-            if fl is not None:
+            if si in unp:
+                ent["transition"] = 1
+                ent["transition_reason"] = [UNPAIRED_REASON] + [q for q in (fl or ()) if q != UNPAIRED_REASON]
+            elif fl is not None:
                 ent["transition"] = 1
                 if fl:
                     ent["transition_reason"] = list(fl)
@@ -2311,7 +2514,7 @@ def st_make(root, name, spec):
             if not transition_only:
                 present = True
             entries.append(ent)
-            if si in L and si not in ev.get("mask_missing", ()):
+            if si in L and si not in ev.get("mask_missing", ()) and si not in unp:
                 mask_rows = obj_mask
         if mask_rows is not None:
             write_png(os.path.join(d, "target_mask", "frame_%05d.png" % si), W, H, mask_rows, 0)
@@ -2323,7 +2526,15 @@ def st_make(root, name, spec):
                "width": W, "height": H, "anomaly_present": present, "anomalies": entries,
                "mask_file": ("target_mask/frame_%05d.png" % si) if mask_rows is not None else None,
                "view": {"origin": origin, "rot": [0, 0, 0], "fovDeg": 90, "aspect": W / float(H), "valid": True}}
+        if si in unp:
+            row.pop("mask_file")
+            row.update({"capture_unpaired": True, "transition_reason": [UNPAIRED_REASON], "anomaly_present": False,
+                        "visible_positive": False})
+            if entries:
+                row["transition_present"] = True
         labels.append(row)
+    omit_rows = set(spec.get("omit_rows", ()))
+    labels = [r for r in labels if r["session_index"] not in omit_rows]
     random_order = sorted(labels, key=lambda r: (r["session_index"] * 7919) % 101)
     with open(os.path.join(d, "labels.jsonl"), "w", encoding="utf-8") as fh:
         for r in random_order:
@@ -2338,13 +2549,49 @@ def st_make(root, name, spec):
         f1 = any("effect_interrupted" in (fl or ()) for ev in evs for fl in ev.get("flags", {}).values())
         summ["label_labelled_rule"] = ("annotation_membership_per_policy_v2_effect_installed" if f1
                                        else "annotation_membership_per_policy_v1")
+    if unp:
+        summ["capture_unpaired_frames"] = len(unp)
+        summ["label_transition_capture_unpaired_entries"] = sum(
+            1 for r in labels if r.get("capture_unpaired") for _x in r["anomalies"])
     with open(os.path.join(d, "run_summary.json"), "w", encoding="utf-8") as fh:
         json.dump(summ, fh)
     for si in spec.get("omit", ()):
         os.remove(os.path.join(d, "Actual_Frames", "frame_%05d.png" % si))
     for si in spec.get("zero", ()):
         open(os.path.join(d, "Actual_Frames", "frame_%05d.png" % si), "wb").close()
+    for si, how in spec.get("damage", {}).items():
+        st_damage(os.path.join(d, "Actual_Frames", "frame_%05d.png" % si), how)
     return d, written
+
+
+def st_damage(path, how):
+    with open(path, "rb") as fh:
+        data = fh.read()
+    pos = 8
+    idat = None
+    while pos < len(data):
+        length, ctype = struct.unpack_from(">I4s", data, pos)
+        if ctype == b"IDAT" and idat is None:
+            idat = (pos, length)
+        pos += 12 + length
+    ip, il = idat
+    if how == "mid":
+        data = data[:ip + 8 + il // 2]
+    elif how == "tail":
+        data = data[:ip + 8 + il - 4]
+    elif how == "badcrc":
+        k = ip + 8 + il
+        data = data[:k] + bytes([data[k] ^ 0x5a]) + data[k + 1:]
+    elif how == "badihdr":
+        data = data[:29] + bytes([data[29] ^ 0x5a]) + data[30:]
+    elif how == "noiend":
+        data = data[:ip + 12 + il]
+    elif how == "after":
+        data = data + b"\x00\x00\x00\x00"
+    else:
+        raise ValueError(how)
+    with open(path, "wb") as fh:
+        fh.write(data)
 
 
 def _full(L, v=1.0):
@@ -2420,6 +2667,25 @@ def st_cases():
     tex("nanite_end", _full(range(40, 50)), ev={"flags": {si: ("nanite_unmaskable",) for si in range(48, 56)}})
     R3 = L + list(range(60, 68))
     tex("fail_beside_unjudged_run", _full(list(range(40, 49)) + list(range(60, 68))), labels=R3, omit=(57,))
+    rm = _full(L)
+    rm.pop(44)
+    tex("labels_row_missing_in_run", rm, omit_rows=(44,))
+    tex("labels_rows_missing_between_runs", _full(range(40, 56)), labels=list(range(40, 44)) + list(range(48, 56)),
+        omit_rows=(44, 45, 46, 47))
+    tex("frame_cut_mid", _full(L), damage={44: "mid"})
+    tex("frame_cut_tail", _full(L), damage={44: "tail"})
+    tex("frame_bad_crc", _full(range(40, 48)), labels=list(range(40, 47)), damage={47: "badcrc"})
+    tex("unpaired_end_prev", _full(L), unpaired={48: "prev"})
+    tex("unpaired_end_clean", _full(L), unpaired={48: "own"})
+    tex("unpaired_before_onset", _full(L), unpaired={39: "prev"})
+    tex("unpaired_after_late_1", _full(range(40, 47)), labels=L, unpaired={48: "prev"})
+    ghost48 = _full(L)
+    ghost48[48] = 0.7
+    tex("unpaired_aa_no_excuse", ghost48, taa=True, unpaired={48: "own"},
+        ev={"flags": {48: (UNPAIRED_REASON, "temporal_aa")}})
+    tex("unpaired_inside_hole", _full(L), labels=[40, 41, 42, 43, 45, 46, 47], unpaired={44: "prev"})
+    tex("unpaired_listed_in_annotation", _full(L), unpaired={44: "prev"})
+    tex("all_unpaired", _full(L), unpaired={si: "prev" for si in range(72)}, ev={"annotated": False})
     ghost = {si: 1.0 for si in L}
     ghost[48] = 0.08
     cases.append(("ghost_8pct", {"type": "blink", "kind": "hide", "n": 72, "events": [{"L": L, "pixels": ghost}]}))
@@ -2430,9 +2696,10 @@ def st_cases():
                                                                                          "pixels": {}}]}))
     L52 = list(range(60, 70))
 
-    def m52(name, pixels, flags=None, record=None, taa=False, labels=None, fire_pre=1, zero=()):
+    def m52(name, pixels, flags=None, record=None, taa=False, labels=None, fire_pre=1, zero=(), **kw):
         ev = {"L": labels or L52, "pixels": pixels, "flags": flags or {}, "record": record or {}, "fire_pre": fire_pre}
         spec = {"type": M52, "kind": "blur", "n": 190, "events": [ev], "taa": taa, "zero": zero}
+        spec.update(kw)
         cases.append((name, spec))
 
     m52("m52_exact", _full(L52))
@@ -2452,6 +2719,11 @@ def st_cases():
     m52("m52_taa_smear", p, flags=fl, taa=True)
     m52("m52_onset_frame_unreadable", _full(L52), labels=list(range(61, 70)), fire_pre=2, zero=(60,))
     m52("m52_late_3_unreadable_end", _full(L52), labels=list(range(63, 73)), fire_pre=4, zero=(73,))
+    p = _full(L52)
+    p[65] = 0.0
+    m52("m52_labels_row_missing", p, omit_rows=(65,))
+    m52("m52_frame_invalid", _full(L52), damage={65: "tail"})
+    m52("m52_unpaired_end", _full(L52), unpaired={70: "prev"})
     return cases
 
 
@@ -2561,6 +2833,45 @@ def st_expect():
         and r["d"]["unjudged"] == [dict(a=60, b=67, why="onset reference unreadable")], True)
     add("m52_late_3_unreadable_end", "stuck_low_mip label 3 late with an unreadable frame after: FAIL, not unjudged",
         lambda r: verdict(r) == "FAIL" and r["path"] == "m52" and r["m52"]["unread"] == [73], True)
+    add("labels_row_missing_in_run", "labels row missing inside a labelled run: unjudged, not skipped",
+        lambda r: r["status"] == "UNJUDGED" and "per" not in r
+        and r["d"]["unjudged"] == [dict(a=40, b=47, why=ROW_MISSING)], True)
+    add("labels_rows_missing_between_runs", "labels rows missing in the gap between two runs: both runs unjudged",
+        lambda r: r["status"] == "UNJUDGED" and "per" not in r
+        and sorted((u["a"], u["why"]) for u in r["d"]["unjudged"]) == [(40, ROW_MISSING), (48, ROW_MISSING)], True)
+    add("m52_labels_row_missing", "stuck_low_mip, labels row missing inside the label: unjudged",
+        lambda r: r["status"] == "UNJUDGED" and r["path"] == "m52" and r["m52"]["why"] == ROW_MISSING, True)
+    add("frame_cut_mid", "PNG cut in the middle of its image data inside a run: invalid, unjudged",
+        lambda r: r["status"] == "UNJUDGED" and r["d"]["unjudged"] == [dict(a=40, b=47, why="frame invalid")])
+    add("frame_cut_tail", "PNG cut inside its checksum tail (every row still decodes): invalid, unjudged",
+        lambda r: r["status"] == "UNJUDGED" and r["d"]["unjudged"] == [dict(a=40, b=47, why="frame invalid")])
+    add("frame_bad_crc", "bad chunk CRC on the frame after the end, label 1 early: invalid, unjudged",
+        lambda r: r["status"] == "UNJUDGED" and r["d"]["unjudged"][0]["why"] == "end reference invalid", True)
+    add("m52_frame_invalid", "stuck_low_mip, PNG cut inside its checksum tail inside the label: unjudged",
+        lambda r: r["status"] == "UNJUDGED" and r["path"] == "m52" and r["m52"]["why"] == "frame invalid")
+
+    def unp_end(r):
+        e = _edge(r)
+        return (verdict(r) == "CENSORED" and e["ce"] and e["cr"] == UNPAIRED_REASON and not r["per"]["t50"]["fails"]
+                and r["unpaired_frames"] == 1 and r["unknown"] == 0 and r["d"]["unpaired_ends"] == 1)
+
+    add("unpaired_end_prev", "unpaired frame after the end showing the previous picture: censored, not FAIL", unp_end)
+    add("unpaired_end_clean", "unpaired frame after the end with a clean picture: censored, not PASS", unp_end)
+    add("unpaired_after_late_1", "label 1 late beside an unpaired frame: censored, not PASS, not FAIL", unp_end, True)
+    add("unpaired_before_onset", "unpaired frame before the onset (previous, clean picture): onset censored, not PASS",
+        lambda r: verdict(r) == "CENSORED" and _edge(r)["cs"] and not _edge(r)["ce"] and _edge(r)["cr"] == UNPAIRED_REASON
+        and not r["per"]["t50"]["fails"] and r["unpaired_frames"] == 1 and r["d"]["unpaired_ends"] == 1)
+    add("unpaired_aa_no_excuse", "unpaired frame also flagged temporal_aa: no anti-aliasing excuse, censored",
+        lambda r: unp_end(r) and r["per"]["t50"]["excused"] == 0 and _edge(r)["end_ta"] == 0)
+    add("unpaired_inside_hole", "unpaired frame between two runs: both edges beside it censored, not FAIL",
+        lambda r: verdict(r) == "CENSORED" and len(r["per"]["t50"]["edges"]) == 2 and r["per"]["t50"]["edges"][0]["ce"]
+        and r["per"]["t50"]["edges"][1]["cs"] and r["per"]["t50"]["edges"][1]["cr"] == UNPAIRED_REASON
+        and not r["per"]["t50"]["fails"] and r["d"]["unpaired_ends"] == 2)
+    add("unpaired_listed_in_annotation", "annotation listing an unpaired frame: unjudged",
+        lambda r: r["status"] == "UNJUDGED" and r["d"]["unjudged"] == [dict(a=40, b=47, why=LABELLED_UNPAIRED)], True)
+    add("m52_unpaired_end", "stuck_low_mip, unpaired frame after the label: end censored, not FAIL",
+        lambda r: verdict(r) == "CENSORED" and r["path"] == "m52" and _edge(r)["ce"] and not r["per"]["t50"]["fails"]
+        and r["m52"]["unpaired_ends"] == 1)
     add("cc", "camera_clipping is not judgeable", lambda r: r["status"] == "NOT-JUDGEABLE" and "per" not in r)
     add("m52_exact", "stuck_low_mip exact PASS 0/0", lambda r: verdict(r) == "PASS" and _edge(r)["start"] == 0 and _edge(r)["end"] == 0)
     add("m52_label_late_3", "stuck_low_mip label 3 frames late FAILS, start -3",
@@ -2630,6 +2941,43 @@ def selftest(force_stdlib=False):
         lines.append("SELFTEST %-66s %s" % ("PNG decoder reproduces the written pixels (all 5 row filters, RGB/RGBA/grey, partial rows; %d decodes)" % checked,
                                           "ok" if dec_ok else "*** WRONG ***"))
         ok_all = ok_all and dec_ok
+        good = os.path.join(root, "good.png")
+        src5 = _st_frame(5, {"kind": "tex"}, {"f": 1.0})
+        write_png(good, ST_W, ST_H, src5, 2)
+        dmg_ok = True
+        dmg_n = 0
+        for how in ("mid", "tail", "badcrc", "badihdr", "noiend", "after"):
+            p = os.path.join(root, "damaged_%s.png" % how)
+            shutil.copyfile(good, p)
+            st_damage(p, how)
+            for dec in decs:
+                for mr in (None, 8):
+                    try:
+                        decode_native(p, dec, mr, None if mr is None else 16)
+                        dmg_ok = False
+                    except PngError:
+                        pass
+                    except Exception:
+                        dmg_ok = False
+                    dmg_n += 1
+        for dec in decs:
+            w, h, ct, plte, nc, rows = decode_native(good, dec)
+            dmg_ok = dmg_ok and rows_to_rgb(rows, ct, plte, nc) == src5
+        lines.append("SELFTEST %-66s %s" % ("damaged PNGs (cut, bad CRC, no IEND, bytes after it) refused by every decoder, full and partial (%d decodes)" % dmg_n,
+                                          "ok" if dmg_ok else "*** WRONG ***"))
+        ok_all = ok_all and dmg_ok
+        Lg = list(range(40, 48))
+        vis_g = set(range(40, 49))
+        span_g = list(range(30, 60))
+        drop_g = {si: (1.0 if si in vis_g else 0.0) for si in span_g}
+        drop_g[48] = 0.5
+        tg_u = transition_gate(Lg, [[40, 47]], vis_g, span_g, {48: (UNPAIRED_REASON, "temporal_aa")}, drop_g, 0.01, True)
+        tg_c = transition_gate(Lg, [[40, 47]], vis_g, span_g, {48: ("temporal_aa",)}, drop_g, 0.01, True)
+        gate_ok = (48 in tg_u["unl_x"] and 48 not in tg_u["exc_unl"] and 48 in tg_c["exc_unl"]
+                   and 48 not in tg_c["unl_x"])
+        lines.append("SELFTEST %-66s %s" % ("transition gate: temporal_aa excuses a tail frame, never one also marked capture_unpaired",
+                                          "ok" if gate_ok else "*** WRONG ***"))
+        ok_all = ok_all and gate_ok
         results = {}
         for dec in decs:
             res = {}
@@ -2658,6 +3006,12 @@ def selftest(force_stdlib=False):
             ok_all = ok_all and same
         else:
             lines.append("SELFTEST %-66s %s" % ("Pillow not installed: decoder-identity check skipped", "skipped"))
+        info_h, rows_h, _el, _fr = run([made["all_unpaired"]], "stdlib")
+        ref_ok = (refuse_reason(made["all_unpaired"]) == SYNC_ONLY and refuse_reason(made["unpaired_end_prev"]) is None
+                  and info_h["read"] == 0 and info_h["refused"].get(SYNC_ONLY) == 1 and not rows_h)
+        lines.append("SELFTEST %-66s %s" % ("a session made only of unpaired (sync-path) frames is refused, a mixed one is read",
+                                          "ok" if ref_ok else "*** WRONG ***"))
+        ok_all = ok_all and ref_ok
         info, rows, el, fr = run([made[n] for n, _s in cases], "stdlib")
         text = report(info, rows, "stdlib", el, fr)
         clean = not re.search(r"[\\/]|\.png|\.json|session_|frame_\d|\bT\d\b|st_|label_sync_selftest", text)
@@ -2667,7 +3021,8 @@ def selftest(force_stdlib=False):
         want_int = sum(1 for x in ct if x.get("status") == "OK" and x.get("int_frames"))
         tl = text.splitlines()
         rb = [l for l in tl if l.strip().startswith("corrupted_texture") and "| interrupted " in l]
-        m = re.search(r"\| interrupted (\d+) \| nanite (\d+) \| unjudged (\d+)$", rb[0].rstrip()) if len(rb) == 1 else None
+        m = (re.search(r"\| interrupted (\d+) \| nanite (\d+) \| unjudged (\d+) \| unpaired (\d+)$", rb[0].rstrip())
+             if len(rb) == 1 else None)
         rb_ok = want_int > 0 and m is not None and int(m.group(1)) == want_int
         lines.append("SELFTEST %-66s %s" % ("READ BACK carries the interrupted count (%d judged)" % want_int, "ok" if rb_ok else "*** WRONG ***"))
         ok_all = ok_all and rb_ok
@@ -2675,7 +3030,9 @@ def selftest(force_stdlib=False):
         lines.append("SELFTEST %-66s %s" % ("READ BACK carries the nanite count (1 event)", "ok" if nan_ok else "*** WRONG ***"))
         ok_all = ok_all and nan_ok
         want_unj = len(("reinstall_missing_reference", "reinstall_wrong_missing_reference", "edge_frame_unreadable",
-                        "onset_frame_unreadable", "interior_frame_missing"))
+                        "onset_frame_unreadable", "interior_frame_missing", "labels_row_missing_in_run",
+                        "labels_rows_missing_between_runs", "frame_cut_mid", "frame_cut_tail", "frame_bad_crc",
+                        "unpaired_listed_in_annotation"))
         hd = tl.index("== corrupted_texture ==") if "== corrupted_texture ==" in tl else -1
         ev_line = tl[hd + 1] if hd >= 0 else ""
         sec = []
@@ -2686,11 +3043,22 @@ def selftest(force_stdlib=False):
         unj_line = [l for l in sec if l.startswith("unjudged (")]
         unj_ok = (m is not None and int(m.group(3)) == want_unj and ("| unjudged %d |" % want_unj) in ev_line
                   and sum(1 for x in ct if x.get("status") == "UNJUDGED") == want_unj
-                  and len(unj_line) == 1 and unj_line[0].endswith("events %d | runs 8, of them inside failing events 1"
+                  and len(unj_line) == 1 and unj_line[0].endswith("events %d | runs 15, of them inside failing events 1"
                                                                   % want_unj))
         lines.append("SELFTEST %-66s %s" % ("READ BACK unjudged counts only unjudged events (%d); a failing one is listed" % want_unj,
                                           "ok" if unj_ok else "*** WRONG ***"))
         ok_all = ok_all and unj_ok
+        want_un = len(("unpaired_end_prev", "unpaired_end_clean", "unpaired_before_onset", "unpaired_after_late_1",
+                       "unpaired_aa_no_excuse", "unpaired_inside_hole", "unpaired_listed_in_annotation"))
+        un_line = [l for l in sec if l.startswith("unpaired (")]
+        un_ok = (m is not None and int(m.group(4)) == want_un
+                 and sum(1 for x in ct if x.get("unpaired_frames")) == want_un
+                 and len(un_line) == 1 and un_line[0].endswith("events %d | frames %d | judged run edges censored there 7"
+                                                               % (want_un, want_un))
+                 and "unpaired frames (written on the sync path" in text and ") 8 in 8 session(s)" in text)
+        lines.append("SELFTEST %-66s %s" % ("READ BACK carries the unpaired count (%d events); the refused session is not read" % want_un,
+                                          "ok" if un_ok else "*** WRONG ***"))
+        ok_all = ok_all and un_ok
         if doctored_passed:
             ok_all = False
             lines.append("SELFTEST *** THE KIT PASSED A DOCTORED LABEL (%d case(s)) - DO NOT USE ITS NUMBERS ***" % len(doctored_passed))
