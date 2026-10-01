@@ -22,7 +22,7 @@ Open a Command Prompt in the delivery folder and run these two lines, one after 
     python host-tools\label_sync_check.py --selftest
     python host-tools\label_sync_check.py "<your captures folder>\<the new session folder>" --out numbers.txt
 
-- The selftest takes about 1 minute. Its **last line must say `OK`**. If it says `FAILED`, stop and read
+- The selftest takes about 1 to 2 minutes. Its **last line must say `OK`**. If it says `FAILED`, stop and read
   that line back.
 - The check takes **about 5 to 10 minutes** for this capture when Pillow is installed, and **about 30 to 45
   minutes** without it (measured on our PC: 56 anomalies in 3 minutes with Pillow, 14 minutes without). The
@@ -32,11 +32,11 @@ Open a Command Prompt in the delivery folder and run these two lines, one after 
 ## 3. Read back
 Read the lines under **READ BACK**, one per anomaly, for example:
 
-    blinking           judged 12 | start {+0:24} | end {+0:24} | wrong-object 0 (upper bound 2) | censored 1 | fail 0 | interrupted 0 | nanite 0 | unjudged 0
+    blinking           judged 12 | start {+0:24} | end {+0:24} | wrong-object 0 (upper bound 2) | censored 1 | fail 0 | interrupted 0 | nanite 0 | unjudged 0 | unpaired 0
 
 For each anomaly read: **judged**, **start**, **end**, **wrong-object** (both numbers), **censored**, **fail**,
-**interrupted**, **nanite**, **unjudged**. Also read the **`sessions read`** line and the **`decoder:`** line. That
-is all; `numbers.txt` holds the same text.
+**interrupted**, **nanite**, **unjudged**, **unpaired**. Also read the **`sessions read`** line, the
+**`unpaired frames`** line and the **`decoder:`** line. That is all; `numbers.txt` holds the same text.
 
 **`interrupted`** counts anomalies the game removed partway through (for example by swapping the material back);
 their labels stop at that frame and are checked there, so it is not a failure by itself.
@@ -44,9 +44,15 @@ their labels stop at that frame and are checked there, so it is not a failure by
 **`nanite`** counts anomalies whose object turned out to draw Nanite partway through, so the plugin stopped
 labelling it and removed the effect; those frames are left out of the check, so it is not a failure by itself.
 
-**`unjudged`** counts anomalies the kit could not fully judge (for example a frame image is missing or unreadable);
-one that also shows a failure counts under **fail** instead. It is **not a pass**: copy the session folder again
-and re-run the check, and if it is still above 0, read it back.
+**`unjudged`** counts anomalies the kit could not fully judge (for example a frame image is missing, unreadable or
+damaged, or a line of `labels.jsonl` is missing); one that also shows a failure counts under **fail** instead. It is
+**not a pass**: copy the session folder again and re-run the check, and if it is still above 0, read it back.
+
+**`unpaired`** counts anomalies beside a frame written on the sync capture path, whose picture is the previous frame
+and not the one its label describes; the kit drops that frame and reads the label edge beside it as `censored`. It
+is a dropped frame, not a failure of the label. It should be 0 with the shipped settings; if it is not, read it
+back. A session made only of such frames is not judged at all: it is listed under `refused` as
+`sync-path capture: unsupported for delivery`.
 
 **`censored`** is not proof of correct timing: a one-frame interruption between two labelled runs (or another gap
 too short to measure) reads `censored`, not failed.
@@ -61,4 +67,5 @@ prints (numbers only).
   too close together to measure. Type it again (Step 1.2) and capture again.
 - **`camera_clipping`** always says **not judgeable by this kit**. That is expected.
 - **`refused`** on the `sessions read` line: the frames were JPEG or the labels were switched off. Capture
-  again with PNG.
+  again with PNG. If it says **`sync-path capture`**, the capture ran on the unsupported sync path (for example
+  `IAI.Capture.Async 0` was typed); restart the game so the default settings return, and capture again.
