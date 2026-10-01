@@ -1651,6 +1651,17 @@ namespace AnomalyViewport
 			return false;
 		}
 
+		return ProjectBoxToScreenRect(View, Box, OutMin, OutMax);
+	}
+
+	bool ProjectBoxToScreenRect(const FAnomalyViewInfo& View, const FBox& Box, FVector2D& OutMin, FVector2D& OutMax)
+	{
+		OutMin = OutMax = FVector2D::ZeroVector;
+		if (!View.bValid)
+		{
+			return false;
+		}
+
 		const FMatrix ViewProj = BuildViewProjectionMatrix(View);
 		if (!ProjectBoxToNormalizedRect(ViewProj, Box.GetCenter(), Box.GetExtent(), OutMin, OutMax))
 		{

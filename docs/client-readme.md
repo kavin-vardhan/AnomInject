@@ -856,15 +856,16 @@ One JSON object per line, one line per captured frame.
 | `seconds_remaining` | number | v1 | How long the fire had left at this frame. |
 | `bbox_valid` | bool | v1 | Whether the projected box could be computed for this frame. |
 | `bbox_norm` | `[x0,y0,x1,y1]` | v1 | The projected box, normalised 0–1, as **corners**. |
-| `bbox_px` | `[x,y,w,h]` | v1 | The projected box in pixels, as **origin + size**. Derived from the object's bounds, so it can be larger than what is drawn. |
+| `bbox_px` | `[x,y,w,h]` | v1 | The projected box in pixels, as **origin + size**. Derived from the object's bounds, so it can be larger than what is drawn. From build 090-10 the bounds are **frozen at the end of the game tick that rendered this frame** and projected with that frame's camera, so the box (and `bbox_valid`, `bbox_norm` and the on-screen test behind `labelled`) describes where the object was in **this** picture, even if it moves or is destroyed before the frame is written. Earlier builds re-read the object when the frame was written, one or two frames later. |
 | **`bbox_drawn_px`** | `[x,y,w,h]` \| null | **v2** | The box around the pixels the target **actually drew** on this frame, from the mask. `null` when nothing was drawn or nothing was measured. ⛔ **It does not replace `bbox_px`** — both ship. |
 | **`target_pixels`** | int | **v2** | See §8.4. `-1` = unmeasured. |
 | **`target_drawn_pixels`** | int | **v2** | See §8.4. The subset of `target_pixels` the target was actually drawn at. `-1` = unmeasured. |
 | **`observable`** | bool \| null | **v2** | See §8.4. `null` = unmeasured. |
 | `mask_value` | int | since target masks | This anomaly's pixel value in `target_mask/`. |
 | **`transition`** | `1` | **new** | **Only present when set.** This frame is uncertain for this event — why is in `transition_reason`; see §8.6a. |
-| **`transition_reason`** | array of string | **new** | **Only present with `transition`.** One or more of `temporal_aa`, `hide_return`, `partial`, `unresolved`, `camera_clipping_unconfirmed`, `effect_interrupted`, `nanite_unmaskable` — see §8.6a. |
-| **`labelled`** | bool | **new** | Whether this frame is in this event's `annotation.json` frame list (`injected_frames`) — the anomaly is in the picture on this frame by the label's own rule. It is written by the same rule, per anomaly, that builds that frame list (for `missing_texture` / `corrupted_texture`: the object's projected box is on screen **and the anomaly's material is still on every slot it replaced on this frame** — see `effect_interrupted`, §8.6a; for `blinking` / `missing_object`: the object is hidden; for `lod_popping` / `camera_clipping`: the anomaly is in its anomalous state; for `stuck_low_mip`: the frame's render record shows the hold). `false` on an entry means the event is running but its effect is not applied on this frame, or the entry is a transition-only one (§8.6a). What "applied" means for each anomaly is in §8.7. Absent on files from earlier builds and on single shots taken with `IAI.Capture.Shot` (those rows carry `label_rule: "legacy_shot"`). `run_summary.json` names the rule as `label_labelled_rule: "annotation_membership_per_policy_v2_effect_installed"` (builds before 090-05 wrote `"annotation_membership_per_policy_v1"`, which did not check that the texture anomaly's material was still on the object). |
+| **`transition_reason`** | array of string | **new** | **Only present with `transition`.** One or more of `temporal_aa`, `hide_return`, `partial`, `unresolved`, `camera_clipping_unconfirmed`, `effect_interrupted`, `nanite_unmaskable`, `capture_unpaired` — see §8.6a. |
+| **`capture_unpaired`** | `true` | **090-10** | **Row-level, only present when set** (with a row-level `transition_reason: ["capture_unpaired"]`). The frame was captured by the **synchronous** path, so its picture is not paired with its label: drop it (§8.6a). Never present with the shipped settings. |
+| **`labelled`** | bool | **new** | Whether this frame is in this event's `annotation.json` frame list (`injected_frames`) — the anomaly is in the picture on this frame by the label's own rule. It is written by the same rule, per anomaly, that builds that frame list (for `missing_texture` / `corrupted_texture`: the object's projected box is on screen **and at least one slot the anomaly replaced still renders its material on this frame** — see `effect_interrupted`, §8.6a; for `blinking` / `missing_object`: the object is hidden; for `lod_popping` / `camera_clipping`: the anomaly is in its anomalous state; for `stuck_low_mip`: the frame's render record shows the hold). `false` on an entry means the event is running but its effect is not applied on this frame, or the entry is a transition-only one (§8.6a). What "applied" means for each anomaly is in §8.7. Absent on files from earlier builds and on single shots taken with `IAI.Capture.Shot` (those rows carry `label_rule: "legacy_shot"`). A frame captured by the synchronous path (`capture_unpaired`) never has a labelled entry. `run_summary.json` names the rule as `label_labelled_rule: "annotation_membership_per_policy_v4_sample_bound"` (090-10: the on-screen test uses the bounds frozen for this picture, and synchronous frames are never labelled). Earlier names: `"…_v3_effect_rendered_nanite_gated"` (090-09: partial replacement stays labelled, Nanite-drawing frames are not), `"…_v2_effect_installed"` (090-05), `"annotation_membership_per_policy_v1"` (before 090-05, which did not check that the texture anomaly's material was still on the object). |
 
 **Rows where an event is active but not in the picture.** `anomaly_present` means *an event is active on this
 frame*; whether its effect is in the picture is `labelled` on the entry (and `visible_positive` on the row). These
@@ -909,6 +910,7 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
 | `camera_clipping` | `camera_clipping_unconfirmed` | a labelled frame where the geometry inside the clipped slab could not be confirmed triangle by triangle (see §8.6b) | the normal entry, plus `transition: 1` | yes | yes |
 | `missing_texture`, `corrupted_texture` | `effect_interrupted` | every captured frame of a running event on which **none** of the slots it replaced still renders its material, judged on the object as it renders now: the mesh component still registered and visible, the slot still present on its current mesh, and our material still the one that slot resolves to. Causes: reverted early (for example by a manual `IAI.Revert`), the game replaced the material (a damage flash, a material swap), hid the component or swapped its mesh, or the object was removed. If the game replaced only **some** of the slots, the frame stays labelled (the object still shows the effect) and is counted in `run_summary.label_effect_partial_frames`. Checked on every captured frame, at the same point as the label itself. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask is drawn for it) | **no** | **no** |
 | any anomaly on an object | `nanite_unmaskable` | with `IAI.Targets.AllowNanite 0` (the default), every frame on which the object draws a Nanite part — one that appeared while the event ran (a component added or made visible, a mesh change). The event is reverted at the next tick. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
+| any anomaly | `capture_unpaired` | every frame captured by the **synchronous** path: `IAI.Capture.Async 0`, or, with `IAI.Capture.SVE 0` (the UI-on option), a frame on which the game-viewport rectangle could not be found. That path reads the picture the game presented **before** the current tick while the anomaly state is read **during** it, so a change made in that tick is in the label and not in the picture. **With or without anti-aliasing. Never with the shipped settings** (asynchronous capture on, scene-colour capture on). | a transition-only entry on every anomaly of the frame (`labelled: false`, no target mask), plus row-level `capture_unpaired: true`; the frame is never listed in `annotation.json` | **no** | **no** |
 | every other anomaly | — | none | — | — | — |
 
 - **`partial` is not an anti-aliasing effect.** A blurry-texture event holds several textures of one object (for
@@ -950,12 +952,21 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
 | `camera_clipping_unconfirmed` | the clipping label rests on bounding boxes only (see §8.6b) and may be an over-label | drop the frame | keep as a positive only if you accept some false positives |
 | `effect_interrupted` | the event is still running but none of the slots it replaced renders its material on this frame. The effect may be fully or partly gone (a fading trace under temporal anti-aliasing, or parts of the object we did not record) | drop the frame | drop the frame — never use it as a negative |
 | `nanite_unmaskable` | the object now draws a Nanite part, so no mask can be made for it; the effect is reverted at the next tick | drop the frame | drop the frame — never use it as a negative |
+| `capture_unpaired` | captured by the synchronous path: the picture may be one game tick older than the label | drop the frame | drop the frame — never a positive, never a negative |
 
 A frame can carry more than one reason; apply the strictest one that is present.
+
+**The synchronous capture path is unsupported for delivery.** The shipped defaults (asynchronous capture and
+scene-colour capture both on, no ini key needed) never reach it; it is reached only by `IAI.Capture.Async 0`, or by
+`IAI.Capture.SVE 0` (the UI-on option) on a frame whose game-viewport rectangle cannot be found. Every frame it
+writes is flagged `capture_unpaired` as above, so a capture taken that way delivers no labelled frames from that
+path; `run_summary.json` counts them in `capture_unpaired_frames`, and the log prints one
+`CAPTURE-UNPAIRED` warning per run. If that count is not 0 on a capture meant for delivery, the capture settings
+were changed: restore them and capture again.
 - **Only under temporal anti-aliasing** (for `temporal_aa` and `hide_return`). The game's anti-aliasing method is read when the capture starts,
   from `r.AntiAliasingMethod`, and reported in `run_summary.json` as `label_aa_method`
   (`none`/`fxaa`/`taa`/`msaa`/`tsr`) and `label_temporal_aa`. Without TAA or TSR those two reasons never
-  appear (`partial`, `unresolved`, `camera_clipping_unconfirmed` and `effect_interrupted` still can). ⚠ The method is read once per capture; a project that disables anti-aliasing only through a
+  appear (`partial`, `unresolved`, `camera_clipping_unconfirmed`, `effect_interrupted`, `nanite_unmaskable` and `capture_unpaired` still can). ⚠ The method is read once per capture; a project that disables anti-aliasing only through a
   show flag or a camera setting is still reported by the console value.
 - **Across captures:** if a capture stops while a transition is still owed, the next capture's first frames
   carry it (counted in `label_transition_tracks_carried_in` and `label_hide_tracks_carried_in`), and so do the
@@ -977,10 +988,12 @@ A frame can carry more than one reason; apply the strictest one that is present.
   `label_entries_suppressed` (entries withheld because they were not labelled on that frame), the entries per
   reason (`label_transition_temporal_aa_entries`, `_hide_return_entries`, `_partial_entries`,
   `_camera_clipping_unconfirmed_entries`, `_unresolved_entries`, `_effect_interrupted_entries`,
-  `_nanite_unmaskable_entries`), `label_active_unlabelled_entries` (the rows of the table above),
-  `label_effect_partial_frames` (labelled frames on which the game had replaced some, not all, of a texture event's
-  slots), `nanite_midevent_reverts` and `refused_nanite_probe_missing`. The rule name is
-  `label_labelled_rule: annotation_membership_per_policy_v3_effect_rendered_nanite_gated`.
+  `_nanite_unmaskable_entries`, `_capture_unpaired_entries`), `label_active_unlabelled_entries` (the rows of the
+  table above), `label_effect_partial_frames` (labelled frames on which the game had replaced some, not all, of a
+  texture event's slots), `nanite_midevent_reverts`, `refused_nanite_probe_missing` and `capture_unpaired_frames`
+  (frames written by the synchronous path; also reported as `sync_frames_written`). The rule name is
+  `label_labelled_rule: annotation_membership_per_policy_v4_sample_bound`, and `label_geometry_source:
+  bounds_frozen_at_tick_end_sample` says where the label's box comes from (see `bbox_px`, §8).
 
 ### 8.6b `camera_clipping` — how a frame becomes positive
 

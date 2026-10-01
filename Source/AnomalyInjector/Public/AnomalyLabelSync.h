@@ -21,7 +21,8 @@ namespace AnomalyLabelSync
 	static constexpr unsigned char ReasonUnresolved = 16;
 	static constexpr unsigned char ReasonEffectInterrupted = 32;
 	static constexpr unsigned char ReasonNaniteUnmaskable = 64;
-	static constexpr int NumReasons = 7;
+	static constexpr unsigned char ReasonCaptureUnpaired = 128;
+	static constexpr int NumReasons = 8;
 
 	inline const char* DescribeReasonBit(int Bit)
 	{
@@ -34,6 +35,7 @@ namespace AnomalyLabelSync
 		case 4: return "unresolved";
 		case 5: return "effect_interrupted";
 		case 6: return "nanite_unmaskable";
+		case 7: return "capture_unpaired";
 		default: return "unknown";
 		}
 	}
@@ -41,7 +43,7 @@ namespace AnomalyLabelSync
 	inline unsigned char ReasonsOrLegacy(unsigned char Value)
 	{
 		return (Value != 0 && (Value & (ReasonTemporal | ReasonHideReturn | ReasonPartial | ReasonCameraUnconfirmed
-			| ReasonUnresolved | ReasonEffectInterrupted | ReasonNaniteUnmaskable)) == 0)
+			| ReasonUnresolved | ReasonEffectInterrupted | ReasonNaniteUnmaskable | ReasonCaptureUnpaired)) == 0)
 			? ReasonTemporal : Value;
 	}
 
@@ -96,6 +98,21 @@ namespace AnomalyLabelSync
 	inline EEntryEmit DecideNaniteEntry(EEntryEmit Current, bool bNaniteBlocked)
 	{
 		if (!bNaniteBlocked || Current == EEntryEmit::Suppress)
+		{
+			return Current;
+		}
+		return EEntryEmit::TransitionOnly;
+	}
+
+	inline bool IsAnnotationMemberPaired(EAnnotationPolicy Policy, bool bActive, bool bOnScreen, bool bInstalled,
+		bool bNaniteBlocked, bool bCaptureUnpaired)
+	{
+		return !bCaptureUnpaired && IsAnnotationMemberGated(Policy, bActive, bOnScreen, bInstalled, bNaniteBlocked);
+	}
+
+	inline EEntryEmit DecideUnpairedEntry(EEntryEmit Current, bool bCaptureUnpaired)
+	{
+		if (!bCaptureUnpaired || Current == EEntryEmit::Suppress)
 		{
 			return Current;
 		}
