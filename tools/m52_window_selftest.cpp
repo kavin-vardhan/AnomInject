@@ -1,5 +1,6 @@
 #include "../Source/AnomalyInjector/Public/AnomalyStuckMipWindow.h"
 #include "../Source/AnomalyInjector/Public/AnomalyLabelSync.h"
+#include "../Source/AnomalyInjector/Public/AnomalyInstallState.h"
 #include "m52_window_legacy_90dfa6f.h"
 
 #include <algorithm>
@@ -1831,6 +1832,41 @@ static void TestF1EffectInstalled()
 		"F1 reasons: effect_interrupted is its own sixth bit and is not rewritten as a legacy temporal flag");
 }
 
+static void TestR1PartialAndR5NaniteGate()
+{
+	using namespace AnomalyLabelSync;
+	Check(IsAnnotationMember(EAnnotationPolicy::FireWindow, true, true, AnomalyInstall::IsInstalledByte((unsigned char)AnomalyInstall::EState::Partial)),
+		"R1: a partially replaced effect (some targeted slots still ours) stays labelled");
+	Check(DecideInterruptedEntry(EEntryEmit::Normal, EAnnotationPolicy::FireWindow,
+		AnomalyInstall::IsInstalledByte((unsigned char)AnomalyInstall::EState::Partial)) == EEntryEmit::Normal,
+		"R1: a partial frame is not flagged effect_interrupted");
+	Check(DecideInterruptedEntry(EEntryEmit::Normal, EAnnotationPolicy::FireWindow,
+		AnomalyInstall::IsInstalledByte((unsigned char)AnomalyInstall::EState::None)) == EEntryEmit::TransitionOnly,
+		"R1: no targeted slot ours -> effect_interrupted");
+	Check(!IsAnnotationMemberGated(EAnnotationPolicy::FireWindow, true, true, true, true)
+		&& !IsAnnotationMemberGated(EAnnotationPolicy::ActorHidden, true, true, true, true)
+		&& !IsAnnotationMemberGated(EAnnotationPolicy::AnomalyState, true, true, true, true)
+		&& !IsAnnotationMemberGated(EAnnotationPolicy::RenderHeldWindow, true, true, true, true),
+		"R5: no policy labels a frame while the target draws a Nanite primitive");
+	Check(IsAnnotationMemberGated(EAnnotationPolicy::FireWindow, true, true, true, false)
+		&& IsAnnotationMemberGated(EAnnotationPolicy::ActorHidden, true, false, false, false),
+		"R5: without a Nanite block the membership is the old one");
+	Check(DecideNaniteEntry(EEntryEmit::Normal, true) == EEntryEmit::TransitionOnly
+		&& DecideNaniteEntry(EEntryEmit::Suppress, true) == EEntryEmit::Suppress
+		&& DecideNaniteEntry(EEntryEmit::Normal, false) == EEntryEmit::Normal
+		&& DecideNaniteEntry(EEntryEmit::TransitionOnly, true) == EEntryEmit::TransitionOnly,
+		"R5: a Nanite-blocked entry is written transition-only; a suppressed one stays suppressed");
+	Check(std::string(DescribeReasonBit(6)) == "nanite_unmaskable" && ReasonNaniteUnmaskable == 64
+		&& ReasonsOrLegacy(ReasonNaniteUnmaskable) == ReasonNaniteUnmaskable
+		&& ReasonsOrLegacy(ReasonNaniteUnmaskable | ReasonEffectInterrupted) == (ReasonNaniteUnmaskable | ReasonEffectInterrupted),
+		"R5 reasons: nanite_unmaskable is its own seventh bit and is not rewritten as a legacy temporal flag");
+	FNaniteRevertGate G;
+	Check(ShouldRequestNaniteRevert(G, true, true) && !ShouldRequestNaniteRevert(G, false, true) && !ShouldRequestNaniteRevert(G, true, false),
+		"R5: a revert is requested only for a blocked, still-active effect");
+	G.bRequested = true;
+	Check(!ShouldRequestNaniteRevert(G, true, true), "R5: the revert is requested once per event");
+}
+
 static void TestTransitionReasons()
 {
 	Check(AnomalyLabelSync::ReasonsOrLegacy(1) == AnomalyLabelSync::ReasonTemporal, "reasons: a legacy 1 reads as temporal_aa");
@@ -1842,7 +1878,7 @@ static void TestTransitionReasons()
 		&& std::string(AnomalyLabelSync::DescribeReasonBit(0)) == "temporal_aa", "reasons: the four reason names");
 	Check(AnomalyLabelSync::ReasonPartial != 0 && (AnomalyLabelSync::ReasonPartial & AnomalyLabelSync::ReasonTemporal) == 0,
 		"reasons: partial is its own bit, independent of temporal AA");
-	Check(std::string(AnomalyLabelSync::DescribeReasonBit(4)) == "unresolved" && AnomalyLabelSync::NumReasons == 6
+	Check(std::string(AnomalyLabelSync::DescribeReasonBit(4)) == "unresolved" && AnomalyLabelSync::NumReasons == 7
 		&& AnomalyLabelSync::ReasonsOrLegacy(AnomalyLabelSync::ReasonUnresolved) == AnomalyLabelSync::ReasonUnresolved,
 		"N4 reasons: 'unresolved' is its own fifth bit and is not rewritten as a legacy temporal flag");
 }
@@ -2375,6 +2411,7 @@ int main()
 	TestF4Retire();
 	TestAnnotationMembership();
 	TestF1EffectInstalled();
+	TestR1PartialAndR5NaniteGate();
 	TestN7RetireEveryAppliedIdentity();
 	TestA2ForcedHeldSet();
 	TestA4PriorCollision();

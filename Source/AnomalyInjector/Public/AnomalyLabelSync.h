@@ -20,7 +20,8 @@ namespace AnomalyLabelSync
 	static constexpr unsigned char ReasonCameraUnconfirmed = 8;
 	static constexpr unsigned char ReasonUnresolved = 16;
 	static constexpr unsigned char ReasonEffectInterrupted = 32;
-	static constexpr int NumReasons = 6;
+	static constexpr unsigned char ReasonNaniteUnmaskable = 64;
+	static constexpr int NumReasons = 7;
 
 	inline const char* DescribeReasonBit(int Bit)
 	{
@@ -32,6 +33,7 @@ namespace AnomalyLabelSync
 		case 3: return "camera_clipping_unconfirmed";
 		case 4: return "unresolved";
 		case 5: return "effect_interrupted";
+		case 6: return "nanite_unmaskable";
 		default: return "unknown";
 		}
 	}
@@ -39,7 +41,7 @@ namespace AnomalyLabelSync
 	inline unsigned char ReasonsOrLegacy(unsigned char Value)
 	{
 		return (Value != 0 && (Value & (ReasonTemporal | ReasonHideReturn | ReasonPartial | ReasonCameraUnconfirmed
-			| ReasonUnresolved | ReasonEffectInterrupted)) == 0)
+			| ReasonUnresolved | ReasonEffectInterrupted | ReasonNaniteUnmaskable)) == 0)
 			? ReasonTemporal : Value;
 	}
 
@@ -84,6 +86,31 @@ namespace AnomalyLabelSync
 			return Current;
 		}
 		return EEntryEmit::TransitionOnly;
+	}
+
+	inline bool IsAnnotationMemberGated(EAnnotationPolicy Policy, bool bActive, bool bOnScreen, bool bInstalled, bool bNaniteBlocked)
+	{
+		return !bNaniteBlocked && IsAnnotationMember(Policy, bActive, bOnScreen, bInstalled);
+	}
+
+	inline EEntryEmit DecideNaniteEntry(EEntryEmit Current, bool bNaniteBlocked)
+	{
+		if (!bNaniteBlocked || Current == EEntryEmit::Suppress)
+		{
+			return Current;
+		}
+		return EEntryEmit::TransitionOnly;
+	}
+
+	struct FNaniteRevertGate
+	{
+		bool bRequested = false;
+		bool bDone = false;
+	};
+
+	inline bool ShouldRequestNaniteRevert(const FNaniteRevertGate& G, bool bNaniteBlocked, bool bEffectActive)
+	{
+		return bNaniteBlocked && bEffectActive && !G.bRequested && !G.bDone;
 	}
 
 	static constexpr int AaNone = 0;

@@ -75,6 +75,7 @@ namespace AnomalyLabel
 		TArray<int32>   TargetDrawnPixels;
 		TArray<uint8>   FireLabelled;
 		TArray<uint8>   ConditionHeld;
+		TArray<uint8>   FireNaniteBlocked;
 		TArray<uint8>   Observable;
 		TArray<FIntRect> DrawnBounds;
 		TArray<FAnomalyTelemetry> Telemetry;
@@ -118,12 +119,18 @@ namespace AnomalyLabel
 
 	bool IsFireInstalledAt(const TArray<uint8>* FireInstalled, int32 FireIndex);
 
+	bool IsFireNaniteBlockedAt(const TArray<uint8>* FireNaniteBlocked, int32 FireIndex);
+
 	bool IsFireInAnnotation(const TArray<uint8>* FirePolicy, const TArray<uint8>* FireActive, const TArray<uint8>* FireOnScreen,
-		const TArray<uint8>* FireInstalled, int32 FireIndex);
+		const TArray<uint8>* FireInstalled, int32 FireIndex, const TArray<uint8>* FireNaniteBlocked = nullptr);
 
 	bool IsSnapshotEntryLabelled(const FCaptureSnapshot& Snapshot, int32 FireIndex);
 
 	int32 MarkInterruptedEffects(FCaptureSnapshot& Snapshot);
+
+	int32 MarkNaniteUnmaskable(FCaptureSnapshot& Snapshot);
+
+	bool FrameHasPartialLabelledEntry(const FCaptureSnapshot& Snapshot);
 
 	static constexpr int32 GTargetPixelsUnmeasured = -1;
 
@@ -267,7 +274,10 @@ namespace AnomalyLabel
 		int32 MaskTagRetireHostFlagKept = 0;
 		int32 MaskPriorCollisions = 0;
 		int32 MaskPriorCollisionQuarantined = 0;
-		int32 ReasonEntries[6] = { 0, 0, 0, 0, 0, 0 };
+		int32 ReasonEntries[7] = { 0, 0, 0, 0, 0, 0, 0 };
+		int32 LabelEffectPartialFrames = 0;
+		int32 NaniteMidEventReverts = 0;
+		int32 RefusedNaniteProbeMissing = 0;
 		int32 CarriedTransitionTracks = 0;
 		int32 CarriedHideTracks = 0;
 		int32 UnlabelledActiveEntries = 0;

@@ -50,7 +50,7 @@ Re-run `Setup.bat` any time your paths change (new game build, moved captures fo
 
 **Token (connects the dashboard to the game).** The dashboard and the game share a token so only your dashboard can control your game. This is already configured in the build you received — you do not need to enter or paste anything. (For reference it lives in `dashboard\config.json`; if the dashboard ever reports that the token was rejected, that is the file to check. `Setup.bat` checks that the dashboard can actually read it and stops if it cannot.)
 
-**Build configuration.** The plugin is excluded from Shipping builds by design; capture with Development or Test. A Shipping build of your game leaves every plugin module out, so it contains none of the plugin (no capture, no anomalies, no dashboard connection).
+**Build configuration.** The plugin's modules are not built for Shipping (all five code modules are excluded by the plugin descriptor); capture with Development or Test. A Shipping build of your game therefore has no capture, no anomalies and no dashboard connection. Only the code modules are left out: the plugin descriptor (with its content and its WebSocket networking dependency) is still part of a Shipping build, and any reference your own game code makes to plugin classes must be made conditional by you.
 
 ## 3. Running a capture session
 
@@ -328,7 +328,14 @@ python host-tools\label_sync_check.py <a session folder, or a folder of sessions
   judged at its own label edges: the last labelled frame against the picture at the interruption, 0 frames off
   to pass. If the effect came back, each labelled run is judged separately, and the frames between them must
   not show the effect. `interrupted` on the READ BACK line counts such events; it is not a failure by itself,
-  and an `effect_interrupted` flag is never read as an anti-aliasing flag.
+  and an `effect_interrupted` flag is never read as an anti-aliasing flag, whatever other reasons the frame carries.
+- **An event the kit cannot fully judge** (for example a frame image missing from the copied folder) reads
+  `unjudged`, never a pass; `unjudged` on the READ BACK line counts them. Re-copy the session folder.
+- **`nanite N`** counts events on which the object started drawing Nanite while the event ran
+  (`nanite_unmaskable`, §8.6a): the plugin stopped labelling and removed the effect, so that end is not a timing
+  claim and reads `censored`.
+- **Known limit:** a one-frame interruption between two labelled runs, or a gap too short to measure, reads
+  `censored`, not failed. A censored count is therefore not proof of correct timing.
 - **It cannot judge** `camera_clipping` (no target mask; its label is a whole-frame proxy), moving-camera
   events, effects too faint to measure, or frames the capture never saves. Its wrong-object count is an
   upper bound (shadows and reflections trip it too).
@@ -412,6 +419,8 @@ Commands you may actually need:
 Console equivalents of the dashboard sliders, in case you ever need them: `IAI.SetPollRadius 1800` (poll radius — note this one is in **centimeters**, so 1800 = 18 m; 0 = off) and `IAI.SetMinScreenCoverage 6` (coverage percentage; 0 = off).
 
 Everything else (starting/stopping capture, choosing anomalies) is easier from the dashboard, so those commands are the whole list.
+
+**Unsupported while a capture runs:** applying or reverting an anomaly by hand (`IAI.Apply` / `IAI.Revert`) for an anomaly type the capture is already firing. The capture's labels for that type follow whichever object the anomaly is currently on, so a manual re-apply to another object can make the capture's running event read as installed on the wrong object. Use `IAI.RevertAll` or the dashboard's Revert all button, which end the capture's events cleanly.
 
 ## 6. Capture rate & video speed
 
@@ -854,7 +863,7 @@ One JSON object per line, one line per captured frame.
 | **`observable`** | bool \| null | **v2** | See §8.4. `null` = unmeasured. |
 | `mask_value` | int | since target masks | This anomaly's pixel value in `target_mask/`. |
 | **`transition`** | `1` | **new** | **Only present when set.** This frame is uncertain for this event — why is in `transition_reason`; see §8.6a. |
-| **`transition_reason`** | array of string | **new** | **Only present with `transition`.** One or more of `temporal_aa`, `hide_return`, `partial`, `unresolved`, `camera_clipping_unconfirmed`, `effect_interrupted` — see §8.6a. |
+| **`transition_reason`** | array of string | **new** | **Only present with `transition`.** One or more of `temporal_aa`, `hide_return`, `partial`, `unresolved`, `camera_clipping_unconfirmed`, `effect_interrupted`, `nanite_unmaskable` — see §8.6a. |
 | **`labelled`** | bool | **new** | Whether this frame is in this event's `annotation.json` frame list (`injected_frames`) — the anomaly is in the picture on this frame by the label's own rule. It is written by the same rule, per anomaly, that builds that frame list (for `missing_texture` / `corrupted_texture`: the object's projected box is on screen **and the anomaly's material is still on every slot it replaced on this frame** — see `effect_interrupted`, §8.6a; for `blinking` / `missing_object`: the object is hidden; for `lod_popping` / `camera_clipping`: the anomaly is in its anomalous state; for `stuck_low_mip`: the frame's render record shows the hold). `false` on an entry means the event is running but its effect is not applied on this frame, or the entry is a transition-only one (§8.6a). What "applied" means for each anomaly is in §8.7. Absent on files from earlier builds and on single shots taken with `IAI.Capture.Shot` (those rows carry `label_rule: "legacy_shot"`). `run_summary.json` names the rule as `label_labelled_rule: "annotation_membership_per_policy_v2_effect_installed"` (builds before 090-05 wrote `"annotation_membership_per_policy_v1"`, which did not check that the texture anomaly's material was still on the object). |
 
 **Rows where an event is active but not in the picture.** `anomaly_present` means *an event is active on this
@@ -898,7 +907,8 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
 | `stuck_low_mip`, either edge | `partial` | every labelled frame whose **render record** shows the held textures only part of the way down — some at their held (blurry) level, others still sharp. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
 | `stuck_low_mip`, any labelled frame | `unresolved` | a labelled frame whose render record cannot say whether the whole set is held — a texture's level could not be read, its held level is unknown, or the frame has no texture record — and no texture it *can* read proves the set partial. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
 | `camera_clipping` | `camera_clipping_unconfirmed` | a labelled frame where the geometry inside the clipped slab could not be confirmed triangle by triangle (see §8.6b) | the normal entry, plus `transition: 1` | yes | yes |
-| `missing_texture`, `corrupted_texture` | `effect_interrupted` | every captured frame of a running event on which the anomaly's material is **no longer on** every slot it replaced — it was reverted early (for example by a manual `IAI.Revert`), the game replaced the material (a damage flash, a material swap), or the object was removed. Checked on every captured frame, at the same point as the label itself. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask is drawn for it) | **no** | **no** |
+| `missing_texture`, `corrupted_texture` | `effect_interrupted` | every captured frame of a running event on which **none** of the slots it replaced still renders its material, judged on the object as it renders now: the mesh component still registered and visible, the slot still present on its current mesh, and our material still the one that slot resolves to. Causes: reverted early (for example by a manual `IAI.Revert`), the game replaced the material (a damage flash, a material swap), hid the component or swapped its mesh, or the object was removed. If the game replaced only **some** of the slots, the frame stays labelled (the object still shows the effect) and is counted in `run_summary.label_effect_partial_frames`. Checked on every captured frame, at the same point as the label itself. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask is drawn for it) | **no** | **no** |
+| any anomaly on an object | `nanite_unmaskable` | with `IAI.Targets.AllowNanite 0` (the default), every frame on which the object draws a Nanite part — one that appeared while the event ran (a component added or made visible, a mesh change). The event is reverted at the next tick. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
 | every other anomaly | — | none | — | — | — |
 
 - **`partial` is not an anti-aliasing effect.** A blurry-texture event holds several textures of one object (for
@@ -938,7 +948,8 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
 | `partial` | `stuck_low_mip` is applied to only part of the object's textures | drop the frame | keep as a positive — the effect is real but weaker |
 | `unresolved` | `stuck_low_mip` is applied, but the record cannot say whether to all of the object's textures | drop the frame | keep as a positive — the effect is applied, its extent is unknown |
 | `camera_clipping_unconfirmed` | the clipping label rests on bounding boxes only (see §8.6b) and may be an over-label | drop the frame | keep as a positive only if you accept some false positives |
-| `effect_interrupted` | the event is still running but its material is not on the object on this frame, so the picture shows no anomaly there. With temporal anti-aliasing the first frames after it may still carry a fading trace, like the end of any texture event | drop the frame | treat as a negative (it is never labelled) |
+| `effect_interrupted` | the event is still running but none of the slots it replaced renders its material on this frame. The effect may be fully or partly gone (a fading trace under temporal anti-aliasing, or parts of the object we did not record) | drop the frame | drop the frame — never use it as a negative |
+| `nanite_unmaskable` | the object now draws a Nanite part, so no mask can be made for it; the effect is reverted at the next tick | drop the frame | drop the frame — never use it as a negative |
 
 A frame can carry more than one reason; apply the strictest one that is present.
 - **Only under temporal anti-aliasing** (for `temporal_aa` and `hide_return`). The game's anti-aliasing method is read when the capture starts,
@@ -965,8 +976,11 @@ A frame can carry more than one reason; apply the strictest one that is present.
 - `run_summary.json` also counts `label_transition_entries`, `label_transition_frames` and
   `label_entries_suppressed` (entries withheld because they were not labelled on that frame), the entries per
   reason (`label_transition_temporal_aa_entries`, `_hide_return_entries`, `_partial_entries`,
-  `_camera_clipping_unconfirmed_entries`, `_unresolved_entries`, `_effect_interrupted_entries`) and
-  `label_active_unlabelled_entries` (the rows of the table above).
+  `_camera_clipping_unconfirmed_entries`, `_unresolved_entries`, `_effect_interrupted_entries`,
+  `_nanite_unmaskable_entries`), `label_active_unlabelled_entries` (the rows of the table above),
+  `label_effect_partial_frames` (labelled frames on which the game had replaced some, not all, of a texture event's
+  slots), `nanite_midevent_reverts` and `refused_nanite_probe_missing`. The rule name is
+  `label_labelled_rule: annotation_membership_per_policy_v3_effect_rendered_nanite_gated`.
 
 ### 8.6b `camera_clipping` — how a frame becomes positive
 
@@ -1037,7 +1051,7 @@ Five fields answer five different questions about one frame. Keep them apart:
 | --- | --- | --- | --- | --- | --- | --- |
 | `blinking` | every burst frame | the frames on which the object is **hidden**, as the plugin's own hidden state stands after every game system has ticked for that frame | the burst's visible phases | the object's projected box, also on hidden frames (where it would be) | labelled frames (the would-be silhouette) | `hide_return` |
 | `missing_object` | every burst frame | the hidden frames — normally the whole burst | none expected | as `blinking` | labelled frames | `hide_return` (after the event) |
-| `missing_texture`, `corrupted_texture` | every burst frame | burst frames on which the object's projected box is on screen | frames with the box off screen | projected box | labelled frames | none |
+| `missing_texture`, `corrupted_texture` | every burst frame | burst frames on which the object's projected box is on screen **and** at least one slot the event replaced still renders its material (partial replacement stays labelled) | frames with the box off screen; `effect_interrupted` frames | projected box | labelled frames | `effect_interrupted`, `nanite_unmaskable` |
 | `lod_popping` | every burst frame | the frames on which the forced LOD is applied | the un-forced phases between pops | projected box | labelled frames | none |
 | `camera_clipping` | only the frames on which it is positive (§8.6b) — a whole-session anomaly whose entry appears only then | the same frames | none | the whole frame | never (`null` / `-1`) | `camera_clipping_unconfirmed` |
 | `stuck_low_mip` | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; under temporal anti-aliasing the 16 frames after the last held frame carry **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
@@ -1079,8 +1093,11 @@ label — it says an event is running, not that its effect is on screen.
 **What "proven" means here — the release rule, exactly.** We captured each anomaly on our own machine and, from the
 saved frames themselves, measured where each event's change in the picture crosses **half of its full strength** on
 the way in and on the way out (the "half-strength edge"). An event passes when those two crossings fall on the label's
-first and last frame — **0 frames off at both edges** — on every event judged, with the frames the label itself flags
-(`transition`, §8.6a) left out of the comparison. A capture passes when every judgeable event passes. The tools that did
+first and last frame — **0 frames off at both edges** — on every event judged. The anti-aliasing flags (`temporal_aa`,
+`hide_return`) excuse the edge they flag; `partial`/`unresolved`/`camera_clipping_unconfirmed` frames are labelled
+frames whose extent is uncertain; `effect_interrupted` frames are **never** excused — the label end is judged
+against the picture during the interruption, and an interruption that still shows the effect fails the event;
+a `nanite_unmaskable` end is not a timing claim and reads censored. A capture passes when every judgeable event passes. The tools that did
 this were first shown to fail on labels deliberately moved by one frame, so a pass is not the tool being blind. A proof
 says the label is **in step with the picture** by that rule; it does not say the anomaly is easy to see (that is
 `observable`, §8.4).
@@ -1142,23 +1159,34 @@ What each row leaves open, stated rather than implied:
 - **Masks:** long captures re-use mask values (the `m43` section below). In a capture on our large test level built to
   force it, two events held values at the same time and values were recycled 6 times; all 199 labelled frames had
   their mask, and no frame carried two events under one value.
-- **Nanite objects are skipped by default, so every labelled event has a real mask.** On Unreal Engine 5.1 the pass that
-  draws the mask cannot see objects rendered with Nanite (an engine limit). The plugin therefore refuses, before
-  applying anything, any target that draws **at least one** Nanite part, with the reason `nanite_unmaskable`: in the
-  Auto-pool (the object is dropped from the candidates before one is drawn), on a targeted fire, and on a direct
-  `IAI.Apply`. Each refused object is logged once per capture as `REFUSED-NANITE` and counted in `run_summary.json`
-  as `refused_nanite` (distinct objects), with the setting in effect in `nanite_target_policy`.
+- **Nanite objects are skipped by default.** On Unreal Engine 5.1 the pass that draws the mask cannot see objects
+  rendered with Nanite (an engine limit). The plugin therefore refuses, before applying anything, any target that draws
+  **at least one** visible Nanite part — counting every part the object draws, including one a target-name exclusion
+  pattern hides from selection — with the reason `nanite_unmaskable`: in the Auto-pool (the object is dropped from the
+  candidates before one is drawn), on a targeted fire, and on a direct `IAI.Apply`. The Auto-pool logs each refused
+  object once per capture as `REFUSED-NANITE`; a targeted fire or `IAI.Apply` logs every refusal. `run_summary.json`
+  counts distinct refused objects as `refused_nanite`, with the setting in effect in `nanite_target_policy`.
+  **If a Nanite part appears while an event runs** (a component added or made visible, a mesh change), every frame from
+  then on is unlabelled with `nanite_unmaskable` and the effect is reverted at the next tick (`nanite_midevent_reverts`).
+  **If the Nanite check itself is unavailable** (the capture module is not loaded), setting `0` refuses every target as
+  `nanite_probe_missing`, with an error line and `run_summary.refused_nanite_probe_missing`: the "skip Nanite" decision
+  holds even then. A spline mesh using a Nanite-enabled asset is drawn without Nanite on 5.1 and is **not** refused.
+  What this gives you: with target masks enabled (they need asynchronous capture at native output size; see the target-mask section), no
+  labelled frame comes from an object known to draw Nanite. It does not make every mask complete — occlusion, faint
+  effects and the mask's own scope limits still apply.
   **The trade-off: on a Nanite-heavy scene far fewer objects are eligible**, and a capture there can fire rarely or not
   at all. The setting is **`IAI.Targets.AllowNanite`** (console, `0` = skip, the default; `1` = allow; `default` clears
   the console value) or `AllowNaniteTargets=True` under `[AnomalyInjector]` in `DefaultGame.ini`; the console wins over
-  the ini. **With it set to `1`, the previous behaviour returns exactly:** anomalies fire on Nanite objects and are
+  the ini. **With it set to `1`, the previous admission returns** (the same objects are eligible and drawn in the same
+  order; the rest of the capture keeps this version's rules): anomalies fire on Nanite objects and are
   labelled normally, with the box from the object's projected bounds (`bbox_source: "projected"`), but their entries
   read `target_pixels: -1` and `observable: null`, the event reads `observability_measured: false` (so
   `affected_frames` equals `injected_frames`), the object never appears in `target_mask/`, and `run_summary.json`
   counts such events in `unmeasurable_targets_admitted`. `camera_clipping` has no target and is not affected.
 - **Not covered by any row:** a moving camera (other than `camera_clipping`'s scripted one), effects too faint to
   measure from the pixels, and a texture anomaly interrupted by the game — the `effect_interrupted` rule (§8.6a) is
-  proven by our checks of the rule itself and by a capture with an early revert, not on a real game's material swaps.
+  unit-tested; capture proof pending (no capture of an early revert, a partial replacement or a real game's material
+  swap has been run on this version yet).
   Step 7's label-sync check (section 3) measures the same thing on your own sessions.
 
 ### Reading `labels.jsonl` — the rows are not in order
