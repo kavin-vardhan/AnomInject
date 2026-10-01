@@ -542,6 +542,27 @@ static void TestPurityScope()
 		"purity: the unregistered user is counted and the texture is refused");
 	Check(!InPurityScope(Template) && !InPurityScope(Dead) && !InPurityScope(Unloaded),
 		"purity: templates, dead objects and components of unloaded levels are excluded");
+	FComponentScope OtherWorld;
+	OtherWorld.bInLoadedLevelOfWorld = false;
+	OtherWorld.bLevelActive = true;
+	OtherWorld.bRegistered = true;
+	OtherWorld.bPrimitiveOrDecal = true;
+	FComponentScope SameWorld = OtherWorld;
+	SameWorld.bInLoadedLevelOfWorld = true;
+	auto AllWorlds = [](const FComponentScope& C) { return !C.bTemplate && !C.bPendingKill && C.bPrimitiveOrDecal; };
+	auto CountWith = [&](bool bProduct, const FComponentScope& Other) -> EPurity
+	{
+		std::vector<unsigned long long> Users = { 7 };
+		if (bProduct ? InPurityScope(Other) : AllWorlds(Other)) { Users.push_back(44); }
+		int F = 0;
+		return ClassifyPurity(Users.data(), (int)Users.size(), Target, 1, &F);
+	};
+	Check(CountWith(true, OtherWorld) == EPurity::Pure,
+		"purity 090-10b2: the same texture used by a component of ANOTHER world (the editor world in PIE) is not counted, so the target reads pure");
+	Check(CountWith(true, SameWorld) == EPurity::Shared,
+		"purity 090-10b2: a second user in the SAME world is counted and the texture is refused");
+	Check(CountWith(false, OtherWorld) == EPurity::Shared,
+		"purity 090-10b2: a rule that counted every world would refuse the two-world case (the hypothesis the PIE evidence refutes)");
 }
 
 static void TestHoldMonitor()
