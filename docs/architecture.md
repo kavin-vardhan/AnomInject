@@ -667,6 +667,18 @@ per-slot and per-binding steps, then:
   **untouched** slots and do **not** qualify (`FSlot::IsQualified`), so the mask — whole components — never covers an
   unchanged slot. There is no partial application;
 - **V2** the whole footprint's bytes against the cap → `over_budget:need_…_available_…_cap_…`.
+
+**Host material readiness per slot (090-10b, 090-10b2), in this order:** metadata — the resolved material has a resource and a
+game-thread shader map (S5 `shader_map_unavailable`); **identity** — every usage the component's proxy needs is set, else the proxy
+draws the Default Material (`FindUsageRefusal`, S7 `default_material_path`; it runs before readiness so the cause is named); **draw
+readiness** (`ReadHostDrawReadiness`, S6) — the compile is finished (editor; else `shader_map_incomplete`, sub `<VF>:compile_pending`)
+and the material's mesh shader map for the component's vertex factory (`FLocalVertexFactory`, `FInstancedStaticMeshVertexFactory`,
+GPU-skin default/unlimited/passthrough, `FSplineMeshVertexFactory` by name) holds a base-pass vertex AND pixel shader
+(`TBasePassVS*`/`TBasePassPS*`, `TexCorruptPure::JudgeDrawReadiness`), else `draw_shaders_missing` (sub
+`<VF>:no_vertex_factory_shaders|no_base_pass_vs|no_base_pass_ps`) — the base pass would draw the fallback material
+(`BasePassRendering.cpp:507`). The whole-map completeness flag is reported (`TEXCORRUPT-SHADERMAP ... game_thread_complete=`) and never
+decided on: in the editor it stays 0 for materials that draw (on-demand compilation, G439), and it is cached for the usages the map was
+compiled with (G444). Limit: "a base-pass VS and PS for the VF", not the exact light-map-policy permutation the renderer picks.
 Then the apply transaction (steps 2–6: allocate, host MIDs, draw, read-back; a failure is rolled back and counted in
 `texcorrupt_rollback_<step>`) and the slot commit (step 7). `run_summary` always emits `texcorrupt_refused_<reason>`
 for every name in `AllFinalReasons()` (including `partial_footprint`), plus `texcorrupt_fires_applied`,

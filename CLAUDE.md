@@ -11,6 +11,67 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🩺 **090-10b2, 2026-10-01/02 — READINESS ASKS THE BASE PASS AND NAMES BOTH FAILURE DIRECTIONS; 090-10b IS WRITTEN UP; THE CENSUS
+> HOLDS ITS FRAMES AT OFFICE SCALE. PULL THE `feat/m53-uv-normal-corruption` HEAD: ITS `Source/` IS `61d186a`'s, EXE `E2BCE76B`,
+> THE BUILD EVERY 090-10b2 LEG RAN ON. Game launches at home (PIE + staged), no cook.**
+> - **Cold start:** journal `docs/sessions/2026-10-01-090-10b2-m52-pie-wrapup-census.md`, then 090-10b's
+>   `2026-10-01-090-10b-office-nothing-corrupts.md` (written by 090-10b2 from its run records; 090-10b ended INTERRUPTED).
+>   Harness `_reviews\090-10b2-*`; pre-declarations `E:\IA_BuildCache\_r910b2\predeclared.md`.
+> - **Readiness (`5fba7df`):** order metadata (S5) → **identity** (S7 `default_material_path`, the usage the proxy needs, now BEFORE
+>   readiness) → **draw readiness** (S6 `ReadHostDrawReadiness`): never decides on the whole-map flag (it is cached for the usages the
+>   map was compiled with, G444); the component's VF (local / ISM / GPU-skin incl. passthrough / spline by name) must hold a base-pass
+>   VS and PS; refusals `shader_map_incomplete:<VF>:compile_pending` (transient) and new **`draw_shaders_missing`**. Pure test 15/0,
+>   four mutants fail (whole-map only, the `0a69ea3` predicate, any-shader, identity-after-readiness).
+> - **In PIE (fixture, exe `E2BCE76B`):** targeted uv **6/6**, normal **6/6** visibly corrupt (healthy partial map:
+>   `game_thread_complete=0`, `FLocalVertexFactory` base-pass VS 1 / PS 1 → admitted); a spline drawing the Default Material
+>   (usage missing, editor auto-set off) refused `default_material_path:spline_mesh`, 0 events; a spline whose spline-VF shaders
+>   did not exist refused `shader_map_incomplete:compile_pending` while the editor compiled them on demand
+>   (`MaterialShared.cpp:3348-3388`), then admitted, 13/13 visibly corrupt; a stale "complete" flag (where `draw_shaders_missing` would stay permanent) could not be constructed in PIE and is pinned by the pure test. Staged: uv 6/6, normal 6/6.
+> - **stuck_low_mip:** the PIE `refused_shared` is the fixture's designed purity control (`_77`/`_78` share `T_TC_M52Shared`), not the
+>   editor world: the purity line now names its world (`world 'CB_TexCorruptLevel' (type=PIE) ... (1 ...): 98 component(s)`, 2 users)
+>   while the editor world holds 2 more copies that are not counted (G443). B9 vs B5 E1 gate: **PIE PASS 17/17** (t50, start/end +0),
+>   **staged PASS 16/16** (start +3 flagged, end +0) — staged identical to 084-09's B9. PIE MainWorld auto-pool 5/5 visibly blurred.
+> - **Census:** new `timing frames= work_ms_max= frame_interval_ms_max=` line; MainWorld max frame **36.7 ms PIE / 18.0 ms staged**
+>   (independent readers); office-scale PIE scene (15,343 actors) 63.9 ms, complete in 1.7 s; **can-fail**: office exe 150.8 ms staged
+>   (CSV) and 192.3 ms in PIE after a capture (`shader_map_incomplete:68`). ⚠ The `all` enumeration is not sliced: 195 ms first frame at
+>   40,343 actors (11 progress lines, complete in 22.6 s).
+> - **Builds:** strict 0/0 (64 TUs), lever 47/47, string scan vs `65607703` 35 (all this round's or one-byte artefacts), C++ base 7/7
+>   mutants 27/27, Python 27/27. Archive `_binary_baselines\m53-0910b2-E2BCE76B\` (6/6 re-hashed).
+> - ⚠ **Open:** an intermittent PIE end edge +1 on one event (also on 090-10b's `2F924FB3`; staged none) · the office's `runtime_lod_bias`
+>   (14,454 of 15,906) is 090-10c's · `draw_shaders_missing` in PIE needs a map whose flag reads complete (else the editor compiles on
+>   demand). ⛔ No tag, no merge to master.
+>
+> ---
+> 🚨 **090-10b, 2026-10-01 — "NOTHING CORRUPTS" ON THE SECOND OFFICE HOST IS FOUND, FIXED AND PROVEN FROM PIXELS IN A RUNNING
+> 🔻 *Block drafted by 090-10b before its watcher died (17:38) and committed by 090-10b2 from its records. Superseded as the
+> pull target by the 090-10b2 block above; the facts below stand.*
+> GAME: IN PLAY IN EDITOR EVERY uv/normal FIRE WAS REFUSED `shader_map_incomplete`. THE CENSUS FREEZE (O(N²)) IS FIXED. PULL THE
+> `feat/m53-uv-normal-corruption` HEAD: ITS `Source/` IS `0a69ea3`'s, EXE `65607703`. Game launches at home (PIE + staged), no cook.**
+> - **Cold start:** journal `docs/sessions/2026-10-01-090-10b-office-nothing-corrupts.md`; archive
+>   `_binary_baselines\m53-0910b-65607703\` (6/6 re-hashed); harness `_reviews\090-10b-*` (PIE driver `090-10b-pie.py`).
+> - **Cause (every m53 build since S1 `782bb5b`):** `TexCorruptTree.cpp` `ReadActiveBindings` (line 712 at `dcdb95b`) required
+>   `FMaterial::IsGameThreadShaderMapComplete()`; in the editor that whole-map flag (and its render-thread twin, measured) stays 0
+>   for host materials that visibly render, so every slot was refused. Cooked games have complete maps: the staged bench and editor
+>   `-game` corrupted on every build, PIE on none (G439). m53 had never been run in PIE before this round.
+> - **Fix:** `HostShadersReady` (in merge `c7bbc51`) — whole-map complete, else compile finished and the material's mesh shader map
+>   for the component's vertex factory holds shaders, logged once per material (`TEXCORRUPT-SHADERMAP ... -> admitted`);
+>   `CorruptorShadersReady` (`0a69ea3`) — the plugin's two corruptors get one `EnsureIsComplete` (the m47 prewarm's call) outside a
+>   capture too. Auto-pool keeps only uv/normal candidates the read-only tree admits. Census (`c0896df`): actor pointers, about
+>   4 ms per frame, progress every 2 s, stop at 120 s with `scanned=K of=N stopped=...` (G441).
+> - **Proof (exe `65607703`, AA-off, `CB_TexCorruptLevel`):** targeted uv **6/6** and normal **6/6** visibly corrupt in PIE (median
+>   drawn-box diff 39.8–53.6 and 9.3–17.5 against a null ≤ 0.35) and in the staged game (42.8–58.5, 11.1–22.3); edges 0 frames off
+>   on every judged event; PIE auto-pool uv 7 of 11, normal 11 of 17 visible; stuck_low_mip fires (MainWorld PIE auto-pool 5/5).
+>   **Can-fail:** office exe `8131479A` in PIE: uv 0 events, normal 0, auto-pool 0 (`shader_map_incomplete` 6, 6, 28).
+> - **Census:** MainWorld `all`, 343 candidates: office build 0.97 s inside one frame; now 0.008 s staged, same counts.
+> - **Builds:** strict 0/0 (64 TUs); lever 47/47; string scan vs `85395644` 79 = 59 new + 4 help text + 16 one-byte artefacts;
+>   C++ 6/6 + 23/23 mutants; Python 27/27.
+> - ⚠ **Open, not changed here:** stuck_low_mip's label starts 2–4 frames before its pixels on most MainWorld events, identical on the
+>   office exe (journal §4, §10). On MainWorld's settled view the visible uv/normal candidates are Nanite or `texture_not_parameter`
+>   (the Auto.Yield line says so). The fixture's invisible auto-pool events are flat/periodic textures, the same on every build.
+> - 🎯 **NEXT: the owner pulls this head at the office, plays in the editor, and reads out `tools\anomaly_refusal_counts.py`
+>   (`tools/OFFICE-CHECK.md`).** ⛔ No tag, no merge to master.
+>
+> ---
 > 🔀 **090-10 (m53 half), 2026-10-01 — R4 (GEOMETRY FROZEN AT THE SAMPLE; SYNC FRAMES `capture_unpaired`), THE CHECKER AND KIT 1.3
 > ARE MERGED INTO m53. Compile only (no game launch, no cook, no staging).**
 > - **Cold start:** the fix branch's block below and journal `docs/sessions/2026-10-01-090-10-r4-pairing-kit.md`; archive
