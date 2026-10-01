@@ -126,6 +126,7 @@ private:
 	void NoteYieldRound(FName Id, const TCHAR* Site, bool bApplied, const TMap<FString, int32>& Reasons);
 
 	TMap<FName, FAnomalyYieldTally> Yield;
+	double LastNoVisibleLogSeconds = -1.0e30;
 
 	TArray<FAutoLiveFire> LiveFires;
 
