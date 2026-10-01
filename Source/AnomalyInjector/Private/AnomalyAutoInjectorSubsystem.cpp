@@ -274,6 +274,22 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	TArray<TWeakObjectPtr<AActor>> Visible = AnomalyViewport::GetVisibleRenderableActors(World);
 	if (Visible.Num() == 0)
 	{
+		{
+			const double Now = FPlatformTime::Seconds();
+			if (Now - LastNoVisibleLogSeconds >= 10.0)
+			{
+				LastNoVisibleLogSeconds = Now;
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("Auto.Fire: no visible candidate this round - every renderable actor in view was removed by the ")
+					TEXT("screen-coverage cull (IAI.SetMinScreenCoverage, now %.2f%% of the viewport) or the poll radius ")
+					TEXT("(IAI.SetPollRadius, now %.0f cm), or none is in view. Nothing can fire until one passes."),
+					AnomalyViewport::GetMinScreenCoveragePct(), AnomalyViewport::GetPollRadius());
+			}
+			for (const FName& NoVisId : Eligible)
+			{
+				NoteYieldRound(NoVisId, TEXT("auto-pool"), false, TMap<FString, int32>{ { TEXT("no_visible_candidate"), 1 } });
+			}
+		}
 		return false;
 	}
 	Visible.Sort([](const TWeakObjectPtr<AActor>& A, const TWeakObjectPtr<AActor>& B)
