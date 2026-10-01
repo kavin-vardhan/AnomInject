@@ -9933,3 +9933,57 @@ exactly the expected size), so a damaged file is invalid — unreadable, hence u
 closed its sibling: a `labels.jsonl` row missing inside a labelled run was filtered out by `si in s.rows` before any rule saw it,
 so the run could PASS on evidence that was never there; now it is unjudged. **A filter that drops the data a verdict needs must
 report the drop, never shrink the question.**
+
+## G439 — In the editor a material's whole-map "complete" flag stays 0 while it draws: never gate an effect on it
+*(090-10b.)* m53 refused every uv_corruption and normal_corruption slot in Play In Editor with `shader_map_incomplete`, because
+its decision tree required `FMaterial::IsGameThreadShaderMapComplete()`. In the editor that flag (and its render-thread twin,
+measured by the first fix attempt) stays 0 for host materials that are visibly drawing their own textures, with no shader
+compiling at all; cooked games have complete maps, so the staged bench and editor `-game` never showed it, and m53 had never run
+in PIE. A mesh draws with the shaders its material has **for its vertex factory**; ask that (`GetMeshShaderMap(VF)` holds shaders
+and the material's compile is finished), not the whole-map flag. Same family as G232(b) and G231. The plugin's own two corruptor
+materials are the other half: the editor completes them only through `EnsureIsComplete`, which the m47 prewarm calls at capture
+start, so outside a capture a census in PIE read `corruptor_not_ready` on all 343 MainWorld candidates until the check made that
+call itself. **A readiness test copied from a cooked-build bench must be re-run in the editor before it ships to an editor user.**
+
+## G440 — `-ExecutePythonScript` plus `-pie` closes the editor one frame after the script; `-ExecCmds="py <script>"` does not
+*(090-10b.)* An editor started with `-pie -ExecutePythonScript=<driver>` began PIE, ran the driver (which only registers a slate
+tick callback), then at frame 3 tore PIE down and executed `QUIT_EDITOR` ("Engine exit requested (reason:
+UUnrealEdEngine::CloseEditor())"), with or without `-unattended`, with or without window focus forcing. `-pie` alone stays up;
+`-pie -ExecCmds="py <driver>"` stays up and drives a full capture. Mechanism not established. **Drive a PIE leg through
+`-ExecCmds="py ..."`.**
+
+## G441 — Resolving a candidate by name inside a loop over every actor is O(N²): the office census froze
+*(090-10b.)* `IAI.TexCorrupt.Census all` evaluated each renderable actor with `TargetQuery = "=" + Name`; the tree resolves that
+through `AnomalyTargeting::FindActorsMatching`, a `TActorIterator` scan of the whole world with two `GetName()` string builds per
+actor, twice per family (static and skinned components) and for two families: about 4 x N² name builds, all in one frame. The
+census now evaluates the actor pointer, slices about 4 ms per frame, prints progress every 2 s and stops at 120 s with
+`scanned=K of=N ... stopped=time_limit`. **When a loop already holds the object, pass the object.**
+
+## G442 — `[IO.File]` with a relative path uses the .NET current directory, not PowerShell's location
+*(090-10b.)* `cd <dir>; [IO.File]::ReadAllText('x.py')` read from the PowerShell process's startup directory (the main checkout),
+failed, and the following `WriteAllText('x.py', ...)` created a 0-byte `x.py` there — an untracked file in the protected m51
+checkout. It was moved out. Older untracked strays in that checkout (`081-23-lib.py`, `082-07-legs.py`, `089-04-common.py`) have
+the same shape; their cause is not established and they were not touched. **Always give `[IO.File]` an absolute path.**
+
+## G443 — Play In Editor has more than one world: scope every scan to the captured one, and prove the scope from the log
+*(090-10b2.)* In PIE the editor's own world, the PIE world (and asset-preview worlds) are loaded at once; the editor world holds a copy
+of every level actor, and assets (textures, materials) are shared between them. A scan built on `TObjectIterator`, on every loaded
+level, or on asset users, crosses worlds; a scan built on `World->GetLevels()` does not. **The brief that opened 090-10b2 asserted
+that stuck_low_mip's purity scan counted the editor world's copies; the PIE log refuted it before any code: `scope ALL LOADED LEVELS
+(1 ...): 98 component(s)`, two users of `T_TC_M52Shared`, both in the PIE world — the fixture's designed purity negative control
+(`TC_M52Hold`/`TC_M52Share`, `make_texcorrupt_fixture.py:1443-1446`).** The scan was already world-scoped (`GatherLoadedLevels(World)`);
+the log now names the world and says other worlds are not scanned, and the m52 selftest carries the two-world case with an all-worlds
+mutant that fails. **Rule: when a PIE refusal looks like a multi-world artefact, read the scan's own scope line and user list before
+believing it — and if the scan prints neither, make it print them.** Corollary: a stuck_low_mip hold acts on the shared texture, so the
+editor viewport's copy blurs too (not captured; harmless to labels).
+
+## G444 — A readiness gate validated only on fully compiled content passes everything at home and refuses everything at the office
+*(090-10b2; generalises G439.)* Every home gate for m53 ran in a cooked, staged game, where every shader map is complete; the editor
+compiles on demand, so the same gate refused every office object. The 090-10b repair kept a short-circuit on the whole-map flag, and
+**that flag is cached for the usages the map was compiled with**: set a usage afterwards (the editor does exactly this when a component
+needs it) and the flag can still read 1 while the component's vertex factory has no shaders and the base pass draws the Default
+Material. 090-10b2's readiness never decides on the flag: it asks for the base pass's vertex and pixel shaders for the component's
+vertex factory, checks identity (the usage the proxy needs, else Default Material) before readiness, and names each refusal
+(`default_material_path`, `draw_shaders_missing`, `shader_map_incomplete` = compile still running). **Rule: a gate on engine readiness
+must be proven in PIE on a healthy partial map (admitted, visibly works) AND on a genuinely broken one (refused by name, never
+labelled) before it ships; a cooked bench proves neither.** PRE-DELIVERY-CHECKLIST §0 carries the rule.

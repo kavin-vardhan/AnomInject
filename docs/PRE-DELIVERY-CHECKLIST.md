@@ -9,6 +9,38 @@ Companion docs: `client-delivery.md` (owner-facing: what delivery mode does and 
 
 ---
 
+## 0. 🆕 090-10b / 090-10b2 — NO BUILD GOES TO AN OFFICE HOST UNTIL IT HAS VISIBLY WORKED IN A RUNNING GAME AT HOME, IN PIE AND IN THE STAGED GAME
+
+🔻 *090-10b2 widened this from "visibly corrupted" to "visibly worked": every anomaly type the build changes, both readiness
+directions, and the census timing. A gate validated only on fully compiled content proves nothing about an editor user (G444).*
+
+m53 went to the second office host with every gate green and corrupted **nothing** there: the office runs the plugin in the
+editor, and in Play In Editor the decision tree refused every fire (`shader_map_incomplete`, G439). Every home gate had run in a
+cooked, staged game, where that flag is always set. Compile, unit, strict and lever gates do not see this class; only a running
+editor does.
+
+- [ ] **PIE**: the candidate build's editor DLLs on a host, `UnrealEditor.exe <uproject> CB_TexCorruptLevel -pie
+      -ExecCmds="py <driver>"` (driver: `_reviews\090-10b-pie.py`), targeted `uv_corruption` on `StaticMeshActor_0` and
+      `normal_corruption` on `StaticMeshActor_12`, 120 frames, AA-off arbiter. Every fire's labelled frames differ from the clean
+      frame before it by at least 4.0 (0..255, bbox mean) and by 4x the clean-to-clean null — the `090-10b-common.py: pixels`
+      reading. **Zero events is a STOP, whatever every other gate says.**
+- [ ] **Staged game**: the same two legs on the BenchGate package with the candidate exe. Same reading.
+- [ ] **Auto-pool**: one leg per mode with the three texture types ticked; at least one visibly corrupting fire per uv and normal
+      type, and an `Auto.Yield` line for any type that fired nothing (a type with neither is a STOP).
+- [ ] The log of the PIE leg carries one `IAI-STARTUP` line with `nanite_probe=registered`.
+- [ ] The label-pixel gate (`tools\verify_capture.py --dir <session> --label-pixel-gate`) on those sessions: 0 frames off at
+      both edges, AA off.
+- [ ] 🆕 090-10b2 **stuck_low_mip in PIE and staged**: the MainWorld rock (B9 recipe: `IAI.Capture.Config 2 4 8 30 0`, 1,200 frames,
+      `r.AntiAliasingMethod 0`, `IAI.Targets.AllowNanite 1`) with its B5 null (`IAI.Bench.StuckMipNoHold 1`): events fire and blur,
+      and the m52 E1 gate (`_reviews\084-09-eval.py`, t50) passes. A PIE `refused_shared` must name its users and its world
+      (`PURITY ENUMERATION ... world '<w>' (type=PIE)`) before anyone calls it a PIE defect (G443).
+- [ ] 🆕 090-10b2 **both readiness directions in PIE** (harness `_reviews\090-10b2-go.py`, legs `P_ISM_IDENTITY`, `P_ISM_MISSING`,
+      `P_ISM_HEALTHY`): a component drawing the Default Material is refused `default_material_path`; one whose vertex factory has no
+      base-pass shaders is refused `draw_shaders_missing`; neither carries a label; the healthy twin is admitted and visibly corrupts.
+- [ ] 🆕 090-10b2 **census timing**: `IAI.TexCorrupt.Census all` on MainWorld in PIE and staged, and on an office-scale PIE scene
+      (`P_CEN_BIG`, 15,000 spawned actors): no frame over 100 ms while it runs (independent frame-time reading), `progress` lines on
+      the large scene, and the `end` line's `frame_interval_ms_max` under the same bound.
+
 ## 1. Game build — `Config/DefaultGame.ini`
 
 - [ ] 🚨 **HOST PROJECT: `Project Settings > Engine > Rendering > Nanite > Support Nanite` is

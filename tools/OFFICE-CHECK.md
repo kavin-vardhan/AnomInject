@@ -69,3 +69,21 @@ prints (numbers only).
 - **`refused`** on the `sessions read` line: the frames were JPEG or the labels were switched off. Capture
   again with PNG. If it says **`sync-path capture`**, the capture ran on the unsupported sync path (for example
   `IAI.Capture.Async 0` was typed); restart the game so the default settings return, and capture again.
+
+## If an anomaly never shows: the one-command read-out (090-10b)
+
+It prints **numbers only** (no object, material, map or path name), so the result can be read aloud.
+
+1. Run the game (or Play in the editor) with the anomalies ticked in the dashboard for a minute or two, then stop.
+2. Open a Command Prompt in the project folder and run:
+
+       python Plugins\AnomalyInjector\tools\anomaly_refusal_counts.py --selftest
+       python Plugins\AnomalyInjector\tools\anomaly_refusal_counts.py "Saved\Logs\<project name>.log"
+
+   (The selftest's last line must say `OK`. For a packaged game the log is in the game's own `Saved\Logs` folder.)
+3. Read out every line. The ones that matter most: `STARTUP` (editor or not, Nanite probe registered or MISSING,
+   r.VirtualTextures), `ZERO-ELIGIBLE` (why a type found nothing it could change), `UV_CORRUPTION` / `NORMAL_CORRUPTION`
+   (applied and refused per reason), `TEXCORRUPT-SHADERMAP` and the stuck_low_mip block.
+   From 090-10b2 (m53 builds) the `TEXCORRUPT-SHADERMAP` count is split by verdict: `admitted`, `refused:compile_pending` (its shaders
+   are still compiling; it is tried again), `refused:no_vertex_factory_shaders` / `no_base_pass_vs` / `no_base_pass_ps` (the census reason
+   `draw_shaders_missing`); a census reason `default_material_path` means the game draws the default material on that mesh.
