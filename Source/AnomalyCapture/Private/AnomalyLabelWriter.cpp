@@ -9,6 +9,7 @@
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyCensus.h"
 #include "AnomalyLabelSync.h"
+#include "AnomalyInstallState.h"
 #include "AnomalyCaptureSubsystem.h"
 
 #include "Engine/World.h"
