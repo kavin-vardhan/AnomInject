@@ -9905,3 +9905,31 @@ and "could not tell" were the same value and a target was admitted. Unreachable 
 capture module registers the probe at startup), but the owner's decision was resting on a module's load order. Now `0` with no probe
 refuses every target as `nanite_probe_missing` (Error line, `run_summary.refused_nanite_probe_missing`); `1` stays the deliberate
 bypass. **Any "skip X" setting whose detector can be absent must decide "unknown" as "skip".**
+
+## G436 — A readback-completion handler sees a later world: freeze everything a label describes at the sample, and gate the completion path by source
+*(090-10, R4 async; next free number after G435, the max over 31 refs.)* `ProcessCompletedFrames` runs one or two ticks after the
+frame it completes (measured readback latency 1 frame on 98–99 % of samples, 2 on the rest), so a read of the live actor there —
+bounds for the box and the on-screen test, `GetPathName`, asset/component identity, selection provenance, even the camera path —
+describes a later picture. A static bench cannot show it: every banked leg's target is static, so frozen == live and every gate
+stays green. The fix is structural (freeze at the tick-end sample with the snapshot; project the frozen box with the frozen view),
+and the test has to be structural too: `tools/r4_pairing_gate.py` extracts the completion-path function bodies from the real source
+and fails on any live read, and its selftest builds mutants **of the production source** that read live bounds. A behavioural model
+alone could not express "this engine code reads the live actor".
+
+## G437 — "The sync path returns the previous frame, so it is already correct" was an ordering assumption, not a pairing guarantee
+*(090-10, R4 sync.)* m18 called the synchronous `ReadPixels` path correct because the picture is frame N−1 and the label was read
+before this tick's own transitions. That holds only if nothing else changed the anomaly's state earlier in the same tick; a host
+material swap, a move or a raw revert by another tickable lands in the label and not in the picture. Nothing on that path can tell
+the two cases apart, so ruling 2 flags every sync frame `capture_unpaired` (dropped, never labelled, never in `annotation.json`) and
+declares the path unsupported for delivery. **A pairing argument that rests on tick order must be written as a precondition, and
+when it cannot be checked the frame is flagged, not trusted.**
+
+## G438 — Two decoders that agree on every good file can disagree on a damaged one: validate the file once, the same way, before either decodes
+*(090-10, kit 1.3.)* The kit's stdlib PNG decoder skipped chunk CRCs, accepted a missing IEND and, on a partial read (the first rows
+only), decoded a file cut short after those rows; Pillow loads the whole image, refused the same file, and raised an uncaught
+`SyntaxError` on a bad CRC. "Both decoders give identical numbers" had only ever been tested on intact files. The fix is one strict
+validator run before every full and partial decode on both paths (CRC, framing, IHDR first, IEND last, zlib stream complete and
+exactly the expected size), so a damaged file is invalid — unreadable, hence unjudged — whichever decoder is used. The same round
+closed its sibling: a `labels.jsonl` row missing inside a labelled run was filtered out by `si in s.rows` before any rule saw it,
+so the run could PASS on evidence that was never there; now it is unjudged. **A filter that drops the data a verdict needs must
+report the drop, never shrink the question.**

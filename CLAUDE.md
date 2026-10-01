@@ -11,6 +11,38 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🔀 **090-10 (m53 half), 2026-10-01 — R4 (GEOMETRY FROZEN AT THE SAMPLE; SYNC FRAMES `capture_unpaired`), THE CHECKER AND KIT 1.3
+> ARE MERGED INTO m53. Compile only (no game launch, no cook, no staging).**
+> - **Cold start:** the fix branch's block below and journal `docs/sessions/2026-10-01-090-10-r4-pairing-kit.md`; archive
+>   `_binary_baselines\m53-09010-85395644\` (6/6 re-hashed).
+> - **Merges:** `54efd04` (R4; m53's `CapturedTelemetry` parameter of `AccumulateFrameEvents` kept, `FireGeometry` added after
+>   it; m53's sync-path accumulation removed with the fix side's), `bd6eb47` (checker + kit), then the docs. The texcorrupt
+>   types follow the same rules: their box and on-screen test come from the sample, and a sync frame never labels them.
+> - **Builds:** normal 0 warnings, strict 0/0 (64 header TUs), exe **`85395644`** — **the m53 head's code** (`git diff 54efd04
+>   HEAD -- Source` empty); 26 string differences, all this round's + one known artefact; lever audit 47/47. C++: fix suites
+>   5/5 + 20 mutants, m53 suites 6/6 + 23 mutants; Python 26/26.
+> - 🎯 **NEXT: 090-11 pins `85395644`.** ⛔ No tag, no merge to master.
+>
+> 🛠 **090-10, 2026-10-01 — R4 CLOSED IN CODE: A LABEL'S BOX AND ON-SCREEN TEST COME FROM THE TICK-END SAMPLE, NOT FROM THE LIVE
+> ACTOR AT READBACK; EVERY SYNC-PATH FRAME IS `capture_unpaired` (DROPPED, UNSUPPORTED FOR DELIVERY); KIT 1.3 CLOSES ITS TWO OLDER
+> LIMITS. Compile only (no game launch, no cook, no staging). Merged into m53.**
+> - **Cold start:** journal `docs/sessions/2026-10-01-090-10-r4-pairing-kit.md`; archives `_binary_baselines\m52fix-09010-F636D0A7\`
+>   and `m53-09010-85395644\` (6/6 re-hashed each). Spec `_reviews\090-09-chat-ruling-round-a.md` rulings 1–3.
+> - **R4 async (`5291059`):** the tick-end sample freezes each fire's renderable bounds + a whole_frame/box/none source
+>   (`AnomalyFrozenGeometry.h`), the transition/candidate boxes, `FirePos` and the event anchor identity; completion projects only
+>   the frozen box with the frozen view (`ProjectFrozenFireBox` → `AnomalyViewport::ProjectBoxToScreenRect`). One live handle
+>   remains at completion (the m26 mask record's actor pointer; computes nothing for the label). `tools/r4_pairing_gate.py`
+>   fails any live read in the completion path; its mutants of the real source that read live bounds fail (G436).
+> - **R4 sync:** reason bit 128 `capture_unpaired` on every entry + row-level flag; no labelled entry, no mask, never in
+>   `annotation.json`; `run_summary.capture_unpaired_frames`; readme: unsupported for delivery, never reached by the shipped
+>   defaults (G437). Rule `annotation_membership_per_policy_v4_sample_bound`. **Checker (`d6dc703`):** `--label-rule` knows the
+>   reason (51 cases; all-sync = NOT JUDGED, exit 3). **Kit 1.3 (`1ea522b`):** missing labels row ⇒ unjudged; one strict PNG
+>   validator for both decoders (G438); `| unpaired N`; selftest 73/73 on both decoders; regression 0 differences.
+> - **Builds:** both branches normal 0 warnings, strict 0/0; exes **fix `F636D0A7`**, **m53 `85395644`** (= the m53 head's
+>   code); string scans 28 / 26 differences, all this round's strings + known one-byte artefacts; lever audits 34/34, 47/47.
+>   C++ 5 suites + 20 mutants (m53 + its own 6 suites, 23 mutants); Python 18/18 on fix.
+> - 🎯 **NEXT: 090-11 — the bench levers (`DestroyTargetAt` etc.), the bench-gated old-rule switches and the extended harness,
+>   re-pinned to `85395644`.** ⛔ No tag, no merge to master.
 > 🔀 **090-09 (m53 half), 2026-10-01 — THE CODEX RE-CHECK ROUND A IS MERGED INTO m53 AND APPLIED TO `uv_corruption` /
 > `normal_corruption`. Compile only (no game launch, no cook, no staging).**
 > - **Cold start:** the fix branch's block below and journal `docs/sessions/2026-10-01-090-09-codex-recheck-fixes-a.md`;
