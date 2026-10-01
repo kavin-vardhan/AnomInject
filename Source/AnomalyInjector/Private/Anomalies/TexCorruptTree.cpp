@@ -773,6 +773,29 @@ namespace AnomalyTexCorrupt
 		return bReady;
 	}
 
+	bool CorruptorShadersReady(UMaterialInterface* Corruptor, UWorld* World)
+	{
+		if (!Corruptor || !World)
+		{
+			return false;
+		}
+		auto Complete = [Corruptor, World]()
+		{
+			FMaterialResource* Res = Corruptor->GetMaterialResource(World->FeatureLevel);
+			return Res && Res->GetGameThreadShaderMap() && Res->IsGameThreadShaderMapComplete();
+		};
+		if (Complete())
+		{
+			return true;
+		}
+#if WITH_EDITOR
+		Corruptor->EnsureIsComplete();
+		return Complete();
+#else
+		return false;
+#endif
+	}
+
 	void ReadActiveBindings(UWorld* World, UMaterialInterface* Resolved, const UPrimitiveComponent* Comp, TArray<FBinding>& OutBindings,
 		bool& bOutResourceOk, bool& bOutShaderMapOk, bool& bOutComplete)
 	{
@@ -882,7 +905,7 @@ namespace AnomalyTexCorrupt
 		{
 			UMaterialInterface* Needed = (In.Family == EFamily::UV) ? UvCorruptor : NormalCorruptor;
 			FMaterialResource* Res = Needed->GetMaterialResource(World->FeatureLevel);
-			if (!Res || !Res->GetGameThreadShaderMap() || !Res->IsGameThreadShaderMapComplete())
+			if (!Res || !CorruptorShadersReady(Needed, World))
 			{
 				RefuseEvent(Why::CorruptorNotReady, GetNameSafe(Needed), TEXT("E2"));
 				return;

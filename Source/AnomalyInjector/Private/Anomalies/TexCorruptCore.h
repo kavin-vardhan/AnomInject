@@ -329,6 +329,8 @@ namespace AnomalyTexCorrupt
 
 	bool HostShadersReady(UMaterialInterface* Material, const UPrimitiveComponent* Comp, UWorld* World);
 
+	bool CorruptorShadersReady(UMaterialInterface* Corruptor, UWorld* World);
+
 	bool CheckCorruptorContract(UMaterialInterface* Corruptor, const TArray<FName>& Scalars, const TArray<FName>& Textures,
 		FString& OutMissing);
 

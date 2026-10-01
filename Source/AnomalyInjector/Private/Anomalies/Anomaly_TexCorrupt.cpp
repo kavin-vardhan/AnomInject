@@ -989,7 +989,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		else
 		{
 			FMaterialResource* Res = Corruptor->GetMaterialResource(World->FeatureLevel);
-			if (!Res || !Res->GetGameThreadShaderMap() || !Res->IsGameThreadShaderMapComplete())
+			if (!Res || !CorruptorShadersReady(Corruptor, World))
 			{
 				Why4 = TEXT("corruptor_shader_map_incomplete");
 			}
