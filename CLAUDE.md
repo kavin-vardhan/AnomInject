@@ -11,6 +11,27 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🛠 **090-10, 2026-10-01 — R4 CLOSED IN CODE: A LABEL'S BOX AND ON-SCREEN TEST COME FROM THE TICK-END SAMPLE, NOT FROM THE LIVE
+> ACTOR AT READBACK; EVERY SYNC-PATH FRAME IS `capture_unpaired` (DROPPED, UNSUPPORTED FOR DELIVERY); KIT 1.3 CLOSES ITS TWO OLDER
+> LIMITS. Compile only (no game launch, no cook, no staging). Merged into m53.**
+> - **Cold start:** journal `docs/sessions/2026-10-01-090-10-r4-pairing-kit.md`; archives `_binary_baselines\m52fix-09010-F636D0A7\`
+>   and `m53-09010-85395644\` (6/6 re-hashed each). Spec `_reviews\090-09-chat-ruling-round-a.md` rulings 1–3.
+> - **R4 async (`5291059`):** the tick-end sample freezes each fire's renderable bounds + a whole_frame/box/none source
+>   (`AnomalyFrozenGeometry.h`), the transition/candidate boxes, `FirePos` and the event anchor identity; completion projects only
+>   the frozen box with the frozen view (`ProjectFrozenFireBox` → `AnomalyViewport::ProjectBoxToScreenRect`). One live handle
+>   remains at completion (the m26 mask record's actor pointer; computes nothing for the label). `tools/r4_pairing_gate.py`
+>   fails any live read in the completion path; its mutants of the real source that read live bounds fail (G436).
+> - **R4 sync:** reason bit 128 `capture_unpaired` on every entry + row-level flag; no labelled entry, no mask, never in
+>   `annotation.json`; `run_summary.capture_unpaired_frames`; readme: unsupported for delivery, never reached by the shipped
+>   defaults (G437). Rule `annotation_membership_per_policy_v4_sample_bound`. **Checker (`d6dc703`):** `--label-rule` knows the
+>   reason (51 cases; all-sync = NOT JUDGED, exit 3). **Kit 1.3 (`1ea522b`):** missing labels row ⇒ unjudged; one strict PNG
+>   validator for both decoders (G438); `| unpaired N`; selftest 73/73 on both decoders; regression 0 differences.
+> - **Builds:** both branches normal 0 warnings, strict 0/0; exes **fix `F636D0A7`**, **m53 `85395644`** (= the m53 head's
+>   code); string scans 28 / 26 differences, all this round's strings + known one-byte artefacts; lever audits 34/34, 47/47.
+>   C++ 5 suites + 20 mutants (m53 + its own 6 suites, 23 mutants); Python 18/18 on fix.
+> - 🎯 **NEXT: 090-11 — the bench levers (`DestroyTargetAt` etc.), the bench-gated old-rule switches and the extended harness,
+>   re-pinned to `85395644`.** ⛔ No tag, no merge to master.
+>
 > 🛠 **090-09, 2026-10-01 — CODEX RE-CHECK ROUND A: "INSTALLED" IS WHAT RENDERS NOW; REVERT LEAVES NO OVERRIDE OF OURS; NANITE IS
 > GATED EVERY FRAME AND FAILS CLOSED; KIT 1.2 NEVER PASSES AN UNJUDGED RUN. R4 VERIFIED AND DESIGNED, NOT CODED (090-10).
 > Compile only (no game launch, no cook, no staging). Merged into m53.**

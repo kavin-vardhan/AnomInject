@@ -991,6 +991,21 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   `USplineMeshComponent` (`RouteIsNanite`). Texture-swap revert restores or clears every captured index, including indices past
   the current mesh's slot count, sweeps `max(GetNumMaterials(), OverrideMaterials.Num())`, and asserts no override of ours remains
   (`REVERT-RESIDUAL`). Rule name `annotation_membership_per_policy_v3_effect_rendered_nanite_gated`.
+  **090-10 (R4, supersedes the projection sentences above where they differ):** a label's geometry is bound to the picture.
+  At the tick-end sample (`SampleDeferredActiveState` → `FreezeSampleGeometry`, also `FinishRun`'s final sample) each fire's
+  box is frozen with the installed state, identity and view: `AnomalyLabel::FreezeSnapshotGeometry` stores per fire a source
+  (`AnomalyFrozenGeometry.h`: `whole_frame` if the fire is whole-frame or its actor is gone with no target name, `box` if the
+  actor is alive with renderable bounds, else `none`) and the `GetActorRenderableBounds` box in `FCaptureSnapshot::FireGeometry`,
+  likewise `TransitionGeometry` and `CandidateGeometry`; `FirePos` and the per-event anchor identity (`FrozenAnchors`: node path,
+  asset, component class, node bounds, selection provenance, camera path) are frozen there too. At readback completion
+  `FillAnnotationInputs`, `BuildFrameLabelRecord` and `AccumulateFrameEvents` project only the frozen box with the frozen view
+  (`ProjectFrozenFireBox` → `AnomalyViewport::ProjectBoxToScreenRect`, which `ProjectActorBoundsToScreenRect` now calls after
+  its live bounds read); the m26 mask-record actor handle in `AccumulateFrameEvents` is the one remaining live read and computes
+  nothing for the frame's label. `tools/r4_pairing_gate.py` checks the completion-path bodies for live reads. The **synchronous**
+  capture block (`IAI.Capture.Async 0`, or the SVE-off rectangle fallback) sets `bCaptureUnpaired`: `MarkCaptureUnpaired` makes
+  every entry transition-only with reason bit 7 `capture_unpaired`, `BuildFrameLabelRecord` writes the row-level flag and never a
+  labelled entry, and the frame is not accumulated into `annotation.json` (`run_summary.capture_unpaired_frames`). Rule name
+  `annotation_membership_per_policy_v4_sample_bound`; `run_summary.label_geometry_source`.
   **084-07c:** `labelled` comes from ONE authority, `AnomalyLabelSync::IsAnnotationMember(policy, active, onScreen)` — the
   rule that builds `annotation.json`'s frame list, per class (FireWindow ⇒ the fire's box is on screen via the shared
   `AnomalyLabel::ProjectFireBox`; ActorHidden / AnomalyState ⇒ the activity bit; RenderHeldWindow ⇒ the render-record
