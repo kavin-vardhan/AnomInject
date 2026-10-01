@@ -856,6 +856,16 @@ bool UAnomalyInjectorSubsystem::GetAnomalyTelemetry(const FName& Id, FAnomalyTel
 	return (*Found)->GetTelemetry(Out);
 }
 
+FString UAnomalyInjectorSubsystem::GetAnomalyLastRefusalReason(const FName& Id) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid())
+	{
+		return FString();
+	}
+	return (*Found)->GetLastRefusalReason();
+}
+
 bool UAnomalyInjectorSubsystem::GetCameraClippingFrameEvaluation(FAnomalyNearClipSlabResult& OutSlab,
 	bool& bOutSphereProxy) const
 {

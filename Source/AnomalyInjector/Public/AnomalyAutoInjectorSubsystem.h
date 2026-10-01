@@ -31,6 +31,13 @@ struct FAutoLiveFireInfo
 	bool bWholeFrameExtent = false;
 };
 
+struct FAnomalyYieldTally
+{
+	int32 Rounds = 0;
+	TMap<FString, int32> Reasons;
+	double LastLineSeconds = -1.0e30;
+};
+
 UCLASS()
 class ANOMALYINJECTOR_API UAnomalyAutoInjectorSubsystem : public UTickableWorldSubsystem
 {
@@ -116,6 +123,9 @@ private:
 	void WarnOnCoexistence() const;
 	bool IsIdLive(FName Id) const;
 	bool IsActorLive(const AActor* Actor) const;
+	void NoteYieldRound(FName Id, const TCHAR* Site, bool bApplied, const TMap<FString, int32>& Reasons);
+
+	TMap<FName, FAnomalyYieldTally> Yield;
 
 	TArray<FAutoLiveFire> LiveFires;
 

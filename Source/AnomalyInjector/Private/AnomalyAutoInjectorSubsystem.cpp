@@ -90,6 +90,20 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 	UE_LOG(LogAnomaly, Log,
 		TEXT("AutoInjector subsystem initialized for world '%s' (Enable OFF; IAI.Auto.Enable 1 to show the UI, IAI.Auto.Run 1 to fire). Default pool: %s."),
 		*GetNameSafe(GetWorld()), *FString::Join(GetEnabledIds(), TEXT(", ")));
+
+	{
+		const UWorld* W = GetWorld();
+		const TCHAR* Kind = !W ? TEXT("none") : W->WorldType == EWorldType::PIE ? TEXT("PIE") : W->WorldType == EWorldType::Game ? TEXT("Game") : TEXT("other");
+		const IConsoleVariable* Vt = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VirtualTextures"));
+		const IConsoleVariable* Nanite = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.ProjectEnabled"));
+		UE_LOG(LogAnomaly, Display,
+			TEXT("IAI-STARTUP world='%s' type=%s editor=%d nanite_policy=%s nanite_probe=%s virtual_textures=%d nanite_project=%d - ")
+			TEXT("Nanite targets are refused unless IAI.Targets.AllowNanite is 1, and with no probe registered every target is ")
+			TEXT("refused (fail closed); virtual-textured textures are refused by stuck_low_mip and the texture-corruption anomalies."),
+			*GetNameSafe(W), Kind, GIsEditor ? 1 : 0, *AnomalyDefaults::DescribeAllowNaniteTargets(),
+			AnomalyViewport::HasNaniteComponentProbe() ? TEXT("registered") : TEXT("MISSING"),
+			Vt ? Vt->GetInt() : -1, Nanite ? Nanite->GetInt() : -1);
+	}
 }
 
 void UAnomalyAutoInjectorSubsystem::Deinitialize()
@@ -283,11 +297,13 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	int32 CensusUnseen = 0;
 	int32 CensusWindow = -1;
 	int32 NaniteRefused = 0;
+	int32 LiveOrGone = 0;
 	for (const TWeakObjectPtr<AActor>& Weak : Visible)
 	{
 		AActor* Actor = Weak.Get();
 		if (!Actor || IsActorLive(Actor))
 		{
+			++LiveOrGone;
 			continue;
 		}
 
@@ -367,8 +383,22 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		}
 	}
 
+	TMap<FString, int32> RoundReasons;
+	if (NaniteRefused > 0)
+	{
+		RoundReasons.Add(UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeNaniteReason()), NaniteRefused);
+	}
+	if (CensusExcluded > 0)
+	{
+		RoundReasons.Add(TEXT("census_excluded"), CensusExcluded);
+	}
 	if (Candidates.Num() == 0)
 	{
+		if (LiveOrGone > 0)
+		{
+			RoundReasons.Add(TEXT("already_live"), LiveOrGone);
+		}
+		NoteYieldRound(Id, TEXT("auto-pool"), false, RoundReasons);
 		if (NaniteRefused > 0)
 		{
 			UE_LOG(LogAnomaly, Log,
@@ -412,7 +442,59 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	}
 	UE_LOG(LogAnomaly, Log, TEXT("Auto.Fire: '%s' on '%s' -> %s."),
 		*Id.ToString(), *TargetName, bApplied ? TEXT("applied") : TEXT("0 matched"));
+	if (!bApplied)
+	{
+		const FString Why = Injector->GetAnomalyLastRefusalReason(Id);
+		RoundReasons.FindOrAdd(Why.IsEmpty() ? FString(TEXT("refused")) : Why) += 1;
+	}
+	NoteYieldRound(Id, TEXT("auto-pool"), bApplied, RoundReasons);
 	return bApplied;
+}
+
+void UAnomalyAutoInjectorSubsystem::NoteYieldRound(FName Id, const TCHAR* Site, bool bApplied, const TMap<FString, int32>& Reasons)
+{
+	FAnomalyYieldTally& T = Yield.FindOrAdd(Id);
+	if (bApplied)
+	{
+		T.Rounds = 0;
+		T.Reasons.Reset();
+		return;
+	}
+	++T.Rounds;
+	for (const TPair<FString, int32>& R : Reasons)
+	{
+		T.Reasons.FindOrAdd(R.Key) += R.Value;
+	}
+	const double Now = FPlatformTime::Seconds();
+	if (Now - T.LastLineSeconds < 10.0)
+	{
+		return;
+	}
+	int32 Candidates = 0;
+	TArray<TPair<FString, int32>> Sorted;
+	for (const TPair<FString, int32>& R : T.Reasons)
+	{
+		Candidates += R.Value;
+		Sorted.Emplace(R.Key, R.Value);
+	}
+	Sorted.Sort([](const TPair<FString, int32>& A, const TPair<FString, int32>& B)
+	{
+		return A.Value != B.Value ? A.Value > B.Value : A.Key < B.Key;
+	});
+	FString Text;
+	for (const TPair<FString, int32>& R : Sorted)
+	{
+		Text += FString::Printf(TEXT("%s%s %d"), Text.IsEmpty() ? TEXT("") : TEXT(", "), *R.Key, R.Value);
+	}
+	LastFireResult = FString::Printf(TEXT("%s: 0 of %d candidates eligible - %s"), *Id.ToString(), Candidates,
+		Text.IsEmpty() ? TEXT("no candidate") : *Text);
+	UE_LOG(LogAnomaly, Warning,
+		TEXT("Auto.Yield %s (%s, %d round(s) since the last line). Nothing of this type was applied; the line repeats at most ")
+		TEXT("every 10 s while it stays at zero."),
+		*LastFireResult, Site, T.Rounds);
+	T.LastLineSeconds = Now;
+	T.Rounds = 0;
+	T.Reasons.Reset();
 }
 
 void UAnomalyAutoInjectorSubsystem::SetCensusProvider(FAnomalyCensusQueryFn InQuery,
@@ -485,8 +567,9 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 	}
 	if (!Target)
 	{
-		LastFireResult = FString::Printf(TEXT("target %s: 0 matched (skipped)"), *ActorName);
 		UE_LOG(LogAnomaly, Log, TEXT("Auto.FireSpecific: '%s' on '%s' -> 0 matched."), *Id.ToString(), *ActorName);
+		NoteYieldRound(Id, TEXT("targeted"), false, TMap<FString, int32>{ { TEXT("no_match"), 1 } });
+		LastFireResult = FString::Printf(TEXT("target %s: 0 matched (skipped)"), *ActorName);
 		return false;
 	}
 
@@ -497,6 +580,8 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 		UE_LOG(LogAnomaly, Warning, TEXT("Auto.FireSpecific: '%s' on '%s' -> refused, %s (setting %s)."),
 			*Id.ToString(), *ActorName, UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeNaniteReason()),
 			*AnomalyDefaults::DescribeAllowNaniteTargets());
+		NoteYieldRound(Id, TEXT("targeted"), false,
+			TMap<FString, int32>{ { UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeNaniteReason()), 1 } });
 		return false;
 	}
 
@@ -526,6 +611,11 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 	}
 	UE_LOG(LogAnomaly, Log, TEXT("Auto.FireSpecific: '%s' on '%s' -> %s."),
 		*Id.ToString(), *TargetName, bApplied ? TEXT("applied") : TEXT("not applied"));
+	{
+		const FString Why = bApplied ? FString() : Injector->GetAnomalyLastRefusalReason(Id);
+		NoteYieldRound(Id, TEXT("targeted"), bApplied,
+			TMap<FString, int32>{ { Why.IsEmpty() ? FString(TEXT("refused")) : Why, 1 } });
+	}
 	return bApplied;
 }
 

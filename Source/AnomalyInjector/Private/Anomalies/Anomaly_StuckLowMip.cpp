@@ -367,13 +367,16 @@ namespace AnomalyStuckMip
 
 bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 {
+	LastRefusal = TEXT("refused");
 	if (!World)
 	{
+		LastRefusal = TEXT("no_world");
 		return false;
 	}
 	if (Args.Num() == 0 || Args[0].IsEmpty())
 	{
 		UE_LOG(LogAnomaly, Warning, TEXT("stuck_low_mip: usage <substring> [mip_levels]"));
+		LastRefusal = TEXT("usage");
 		return false;
 	}
 
@@ -413,6 +416,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	if (Meshes.Num() == 0)
 	{
 		UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: matched 0 mesh component(s) for '%s'."), *Substring);
+		LastRefusal = TEXT("no_mesh");
 		return false;
 	}
 
@@ -437,6 +441,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 				TEXT("with a baseline read from the ALREADY-HELD state, so the second event would record a baseline ")
 				TEXT("that is itself the anomaly. No fire is recorded and nothing is changed."),
 				*Substring, *PrimaryOwnerName, Held.Num());
+			LastRefusal = TEXT("already_held");
 			return false;
 		}
 		Revert();
@@ -583,6 +588,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 			TEXT("record the still-depressed count as this event's baseline, so the event could never read held:true ")
 			TEXT("and would produce no labelled frame at all. REFUSING is what makes that visible instead of silent."),
 			*Substring, *GetNameSafe(Tex), Resident, Baseline, Waited);
+		LastRefusal = TEXT("not_restored");
 		return false;
 	}
 
@@ -849,6 +855,19 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 			bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, selection gates BYPASSED"),
 			RefusedVirtual, RefusedNotStreamable, RefusedGroup, RefusedShared, RefusedTooSmallForRatio,
 			RefusedImperceptible);
+		{
+			const TPair<const TCHAR*, int32> Buckets[] = { { TEXT("virtual"), RefusedVirtual }, { TEXT("not_streamable"), RefusedNotStreamable }, { TEXT("excluded_group"), RefusedGroup }, { TEXT("shared"), RefusedShared }, { TEXT("too_small"), RefusedTooSmallForRatio }, { TEXT("imperceptible"), RefusedImperceptible } };
+			int32 Best = 0;
+			LastRefusal = TEXT("no_textures");
+			for (const TPair<const TCHAR*, int32>& B : Buckets)
+			{
+				if (B.Value > Best)
+				{
+					Best = B.Value;
+					LastRefusal = B.Key;
+				}
+			}
+		}
 		return false;
 	}
 
