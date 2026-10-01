@@ -485,6 +485,27 @@ int main()
 		Check("090-10c A2 effective bias: game, MipBias 1.7 -> 1", "1", Int(EffectiveStreamingMipBias(false, 1.7f, 0)));
 		Check("090-10c A2 effective bias: game, UseAllMips -> 0 (:325-328)", "0", Int(EffectiveStreamingMipBias(false, 2.0f, 1)));
 		Check("090-10c A2 effective bias: game, negative -> 0", "0", Int(EffectiveStreamingMipBias(false, -1.0f, 0)));
+		const long long MiB1 = 1048576LL;
+		FReqTex Four[] = { Tex(1, 4096, 4096, true), Tex(2, 4096, 4096, true), Tex(3, 4096, 4096, false), Tex(4, 4096, 4096, false) };
+		int Drop4[4] = {};
+		const bool bFour = FitRequirementToBudget(Four, 4, 128 * MiB1, 512, Drop4);
+		Check("090-10c copy ceiling: four 4096^2 maps fit a 128 MiB cap by dropping top mips", "true", Bool(bFour));
+		Check("090-10c copy ceiling: the reduced set is within the cap", "true", Bool(EventRequirement(Four, 4).Total() <= 128 * MiB1));
+		Check("090-10c copy ceiling: no copy below the 512 px floor", "true",
+			Bool(Four[0].W >= 512 && Four[1].W >= 512 && Four[2].W >= 512 && Four[3].W >= 512));
+		Check("090-10c copy ceiling: drops are 1 per halving (4096 -> 2048 is one)", "1", Int(Drop4[0] == 1 && Four[0].W == 2048 ? 1 : Drop4[0]));
+		FReqTex One[] = { Tex(1, 4096, 4096, true) };
+		int Drop1[1] = {};
+		Check("090-10c copy ceiling: one 4096^2 map cannot fit 1 MiB without going below the floor (over_budget stays)", "false",
+			Bool(FitRequirementToBudget(One, 1, 1 * MiB1, 512, Drop1)));
+		FReqTex Small[] = { Tex(1, 1024, 1024, true) };
+		int Drop0[1] = {};
+		Check("090-10c copy ceiling: a set that fits is not reduced", "0",
+			Int(FitRequirementToBudget(Small, 1, 128 * MiB1, 512, Drop0) ? Drop0[0] : -1));
+		FReqTex Dup[] = { Tex(7, 4096, 4096, true), Tex(7, 4096, 4096, true) };
+		int DropD[2] = {};
+		FitRequirementToBudget(Dup, 2, 64 * MiB1, 512, DropD);
+		Check("090-10c copy ceiling: a texture bound twice is reduced once, consistently", "true", Bool(DropD[0] == DropD[1] && Dup[0].W == Dup[1].W));
 	}
 
 	std::printf("\n[9] P2-5 allocation plan: the order Apply executes, and its byte total\n");

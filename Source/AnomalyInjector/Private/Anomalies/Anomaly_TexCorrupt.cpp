@@ -386,7 +386,7 @@ bool FAnomaly_TexCorrupt::SetupLevelMid(UWorld* World, FOutput& O, int32 Level, 
 	const int32 Hm = FMath::Max(1, O.H >> Level);
 	TArray<TPair<FName, float>> Scalars;
 	TArray<TPair<FName, UTexture*>> Textures;
-	Scalars.Emplace(Param::SrcMip, (float)SourceMipFor(O, Level) - EffectiveSrcMipCompensation());
+	Scalars.Emplace(Param::SrcMip, (float)(SourceMipFor(O, Level) + O.Drop) - EffectiveSrcMipCompensation());
 	Scalars.Emplace(Param::DbgChanSwap, Fault == EWrongCopy::ChanSwap ? 1.0f : 0.0f);
 	Scalars.Emplace(Param::DbgTexelShift, Fault == EWrongCopy::TexelShift ? 1.0f : 0.0f);
 	Scalars.Emplace(Param::TexelSizeU, 1.0f / (float)Wm);
@@ -459,7 +459,7 @@ bool FAnomaly_TexCorrupt::SetupLevelMid(UWorld* World, FOutput& O, int32 Level, 
 bool FAnomaly_TexCorrupt::EnqueueOutput(UWorld* World, FOutput& O, bool bClear)
 {
 	const TSharedRef<FTripwireHold, ESPMode::ThreadSafe> TripHold = MakeTripwireHold();
-	EnqueueTripwire(O.Source, O.M, O.W, O.H, O.FirstMip, O.SourceName, TripHold, false);
+	EnqueueTripwire(O.Source, O.RM, O.RW, O.RH, O.FirstMip, O.SourceName, TripHold, false);
 	bool bOk = true;
 	FScratchSet* S = O.M > 1 ? FindScratch(O.Key) : nullptr;
 	for (int32 m = 0; m < O.M; ++m)
@@ -487,7 +487,7 @@ bool FAnomaly_TexCorrupt::EnqueueOutput(UWorld* World, FOutput& O, bool bClear)
 	{
 		O.Target->UpdateResourceImmediate(false);
 	}
-	EnqueueTripwire(O.Source, O.M, O.W, O.H, O.FirstMip, O.SourceName, TripHold, true);
+	EnqueueTripwire(O.Source, O.RM, O.RW, O.RH, O.FirstMip, O.SourceName, TripHold, true);
 	return bOk;
 }
 
@@ -890,14 +890,18 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 				O.Source = B.Tex2D;
 				O.SourceName = B.Tex2D->GetPathName();
 				O.Class = B.Class;
-				O.M = B.M;
-				O.W = B.W;
-				O.H = B.H;
+				O.RW = B.W;
+				O.RH = B.H;
+				O.RM = B.M;
+				O.Drop = FMath::Clamp(B.CopyDrop, 0, FMath::Max(0, B.M - 1));
+				O.M = B.M - O.Drop;
+				O.W = FMath::Max(1, B.W >> O.Drop);
+				O.H = FMath::Max(1, B.H >> O.Drop);
 				O.FirstMip = B.FirstMip;
 				O.CookedM = B.CookedM;
-				O.Bytes = ChainBytes(B.W, B.H, B.M);
-				O.Key.W = B.W;
-				O.Key.H = B.H;
+				O.Bytes = ChainBytes(O.W, O.H, O.M);
+				O.Key.W = O.W;
+				O.Key.H = O.H;
 				O.Key.bSRGB = (B.Class == EClass::Colour);
 				OutputIndex.Add(B.Tex2D, Outputs.Num() - 1);
 			}
@@ -909,12 +913,13 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 			R.LayerIndex = B.Info.Index;
 			R.Class = LexClass(B.Class);
 			R.PixelFormat = GetPixelFormatString(B.Format);
-			R.W = B.W;
-			R.H = B.H;
-			R.M = B.M;
-			R.FirstMip = B.FirstMip;
+			const int32 Drop = FMath::Clamp(B.CopyDrop, 0, FMath::Max(0, B.M - 1));
+			R.W = FMath::Max(1, B.W >> Drop);
+			R.H = FMath::Max(1, B.H >> Drop);
+			R.M = B.M - Drop;
+			R.FirstMip = B.FirstMip + Drop;
 			R.CookedM = B.CookedM;
-			R.RtBytes = ChainBytes(B.W, B.H, B.M);
+			R.RtBytes = ChainBytes(R.W, R.H, R.M);
 		}
 	}
 

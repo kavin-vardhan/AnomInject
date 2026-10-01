@@ -253,6 +253,7 @@ namespace AnomalyTexCorrupt
 		int32 CookedW = 0;
 		int32 CookedH = 0;
 		int32 FirstMip = 0;
+		int32 CopyDrop = 0;
 		bool bResidentMappable = true;
 		bool bStreams = false;
 		bool bDefaultTexture = false;

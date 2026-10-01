@@ -102,12 +102,11 @@ namespace AnomalyTexCorrupt
 
 	float EffectiveSrcMipCompensation()
 	{
-		const int32 L = Levers().SrcMipCompensation;
-		if (L == 1)
+		if (Levers().SrcMipCompensation == 0)
 		{
-			return UTexture2D::GetGlobalMipMapLODBias();
+			return 0.0f;
 		}
-		return 0.0f;
+		return UTexture2D::GetGlobalMipMapLODBias();
 	}
 
 	struct FTripwireHold

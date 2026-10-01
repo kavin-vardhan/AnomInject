@@ -50,6 +50,10 @@ private:
 		int32 H = 0;
 		int32 FirstMip = 0;
 		int32 CookedM = 0;
+		int32 Drop = 0;
+		int32 RW = 0;
+		int32 RH = 0;
+		int32 RM = 0;
 		UTextureRenderTarget2D* Target = nullptr;
 		TArray<UMaterialInstanceDynamic*> LevelMids;
 		int64 Bytes = 0;

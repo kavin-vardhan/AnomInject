@@ -696,6 +696,50 @@ namespace AnomalyTexCorrupt
 			}
 		}
 
+		constexpr int32 CopyFloorPx = 512;
+
+		bool FitToBudget(FTreeResult& Out, int64 Available)
+		{
+			TArray<TexCorruptPure::FReqTex> Req;
+			TArray<FBinding*> Who;
+			for (FSlot& S : Out.Slots)
+			{
+				if (!S.IsSelected())
+				{
+					continue;
+				}
+				for (FBinding& B : S.Bindings)
+				{
+					if (B.bRequired && B.IsTransformable() && B.Tex2D)
+					{
+						TexCorruptPure::FReqTex& R = Req.AddDefaulted_GetRef();
+						R.Id = (long long)(UPTRINT)B.Tex2D;
+						R.W = B.W;
+						R.H = B.H;
+						R.M = B.M;
+						R.bSRGB = (B.Class == EClass::Colour);
+						Who.Add(&B);
+					}
+				}
+			}
+			TArray<int32> Drop;
+			Drop.SetNumZeroed(Req.Num());
+			const bool bFits = TexCorruptPure::FitRequirementToBudget(Req.GetData(), Req.Num(), Available, CopyFloorPx, Drop.GetData());
+			if (!bFits)
+			{
+				return false;
+			}
+			for (int32 i = 0; i < Who.Num(); ++i)
+			{
+				Who[i]->CopyDrop = Drop[i];
+			}
+			const TexCorruptPure::FRequirement R = TexCorruptPure::EventRequirement(Req.GetData(), Req.Num());
+			Out.DistinctTextures = R.DistinctTextures;
+			Out.ScratchClasses = R.ScratchClasses;
+			Out.RequiredBytes = (int64)R.Total();
+			return true;
+		}
+
 		void ComputeRequirement(FTreeResult& Out)
 		{
 			TArray<TexCorruptPure::FReqTex> Req;
@@ -1188,7 +1232,7 @@ namespace AnomalyTexCorrupt
 		}
 		if (Footprint == TexCorruptPure::EFootprint::Partial && Out.ComponentsAdmittable == 0)
 		{
-			const int32 FirstOut = TexCorruptPure::PickEarliestNonQualified(Ranks.GetData(), Qualified.GetData(), Ranks.Num());
+			const int32 FirstOut = TexCorruptPure::PickEarliestSlot(Ranks.GetData(), Untouched.GetData(), Qualified.GetData(), Ranks.Num());
 			const FString FirstReason = Out.Slots.IsValidIndex(FirstOut) ? Out.Slots[FirstOut].Reason : FString(TEXT("unknown"));
 			RefuseEvent(Why::PartialFootprint, FString::Printf(TEXT("%d/%d:%s"), Out.SlotsQualified, Out.Slots.Num(), *FirstReason),
 				TEXT("V1P"));
@@ -1200,9 +1244,14 @@ namespace AnomalyTexCorrupt
 		const int64 Available = Ledger().Available(Cap);
 		if (!TexCorruptPure::Fits(Out.RequiredBytes, Cap, Ledger().Live, Ledger().PendingSum()))
 		{
-			RefuseEvent(Why::OverBudget, FString::Printf(TEXT("need_%lld_available_%lld_cap_%lld"), Out.RequiredBytes, Available, Cap),
-				TEXT("V2"));
-			return;
+			const int64 Full = Out.RequiredBytes;
+			if (!FitToBudget(Out, Cap - Ledger().Live - Ledger().PendingSum()))
+			{
+				RefuseEvent(Why::OverBudget, FString::Printf(TEXT("need_%lld_available_%lld_cap_%lld"), Full, Available, Cap),
+					TEXT("V2"));
+				return;
+			}
+			Out.EventNotes.AddUnique(CensusKey(Why::OverBudget, TEXT("copy_reduced")));
 		}
 		if (bRefused)
 		{

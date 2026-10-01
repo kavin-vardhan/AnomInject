@@ -832,6 +832,50 @@ namespace TexCorruptPure
 		return Required <= Cap - Live - Pending;
 	}
 
+	inline bool FitRequirementToBudget(FReqTex* Tex, int N, long long Available, int FloorPx, int* OutDrop)
+	{
+		for (int i = 0; i < N; ++i)
+		{
+			OutDrop[i] = 0;
+		}
+		for (int Guard = 0; Guard < 1024; ++Guard)
+		{
+			if (EventRequirement(Tex, N).Total() <= Available)
+			{
+				return true;
+			}
+			int Best = -1;
+			for (int i = 0; i < N; ++i)
+			{
+				const int Larger = MaxInt(Tex[i].W, Tex[i].H);
+				if (Tex[i].M <= 1 || (Larger >> 1) < FloorPx)
+				{
+					continue;
+				}
+				if (Best < 0 || (long long)Tex[i].W * Tex[i].H > (long long)Tex[Best].W * Tex[Best].H)
+				{
+					Best = i;
+				}
+			}
+			if (Best < 0)
+			{
+				return false;
+			}
+			const long long Id = Tex[Best].Id;
+			for (int i = 0; i < N; ++i)
+			{
+				if (Tex[i].Id == Id)
+				{
+					Tex[i].W = MaxInt(1, Tex[i].W >> 1);
+					Tex[i].H = MaxInt(1, Tex[i].H >> 1);
+					Tex[i].M -= 1;
+					OutDrop[i] += 1;
+				}
+			}
+		}
+		return false;
+	}
+
 	inline int PickFirstFailing(const int* Steps, const bool* Required, int N)
 	{
 		int Best = -1;

@@ -259,8 +259,9 @@ namespace AnomalyTexCorrupt
 
 		FAutoConsoleCommand GSrcMipCompCmd(
 			TEXT("IAI.Bench.TexCorruptSrcMipCompensation"),
-			TEXT("BENCH DEVICE (090-10c). 1 = draw each copy level at SrcMip minus the global r.MipMapLODBias (for a sampler whose ")
-			TEXT("bias also applies to an explicit-LOD sample); -1/0 = product (no compensation). ")
+			TEXT("BENCH DEVICE (090-10c, A4 can-fail). -1 = product: each copy level is drawn at SrcMip minus the global ")
+			TEXT("r.MipMapLODBias, because the source's own sampler carries that bias and it applies to the explicit-LOD copy sample ")
+			TEXT("too (measured: without it identity differs by 17.9 under r.MipMapLODBias 1); 0 = no compensation; 1 = always. ")
 			TEXT("Usage: IAI.Bench.TexCorruptSrcMipCompensation <-1|0|1>"),
 			FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 			{
