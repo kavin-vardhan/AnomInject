@@ -617,14 +617,17 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 		GStuckMipStats.PurityInactiveLevelUsers += InactiveUsers;
 		GStuckMipStats.PurityUnregisteredUsers += UnregisteredUsers;
+		const TCHAR* WorldKind = !World ? TEXT("none") : World->WorldType == EWorldType::PIE ? TEXT("PIE") : World->WorldType == EWorldType::Game ? TEXT("Game") : TEXT("other");
 		UE_LOG(LogAnomaly, Log,
-			TEXT("stuck_low_mip: PURITY ENUMERATION for '%s' - scope ALL LOADED LEVELS (%d, active or not): %d component(s) ")
-			TEXT("of every actor in them scanned, REGISTERED OR NOT (primitives of every type, plus decals), for %d ")
-			TEXT("candidate texture(s) in %.2f ms; %d user(s) sit in an inactive loaded level and %d are unregistered. A ")
-			TEXT("texture is held only if it has exactly ONE user component in that scope and that component belongs to ")
-			TEXT("the target. Visibility is NOT consulted: an off-screen user still shows the blur the moment the camera ")
-			TEXT("turns to it."),
-			*Substring, LevelsScanned, ComponentsScanned, Wanted.Num(), PurityMs, InactiveUsers, UnregisteredUsers);
+			TEXT("stuck_low_mip: PURITY ENUMERATION for '%s' - world '%s' (type=%s), scope ALL LOADED LEVELS OF THAT WORLD (%d, ")
+			TEXT("active or not): %d component(s) of every actor in them scanned, REGISTERED OR NOT (primitives of every ")
+			TEXT("type, plus decals), for %d candidate texture(s) in %.2f ms; %d user(s) sit in an inactive loaded level ")
+			TEXT("and %d are unregistered. Other worlds (in Play In Editor, the editor's own world) are not scanned and ")
+			TEXT("their users are not counted. A texture is held only if it has exactly ONE user component in that scope ")
+			TEXT("and that component belongs to the target. Visibility is NOT consulted: an off-screen user still shows the ")
+			TEXT("blur the moment the camera turns to it."),
+			*Substring, *GetNameSafe(World), WorldKind, LevelsScanned, ComponentsScanned, Wanted.Num(), PurityMs, InactiveUsers,
+			UnregisteredUsers);
 	}
 
 	for (UTexture2D* Tex : Candidates)
@@ -912,8 +915,8 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		++GStuckMipStats.RefusedNoEligibleTextures;
 		UE_LOG(LogAnomaly, Warning,
 			TEXT("stuck_low_mip: matched %d component(s) for '%s' with %d candidate texture(s) but HELD NONE [%s] - ")
-			TEXT("%d virtual, %d not streamable or already at the floor, %d excluded LOD group, %d shared with a ")
-			TEXT("visible component, %d too small for the ratio at the deepest achievable hold, %d imperceptible at ")
+			TEXT("%d virtual, %d not streamable or already at the floor, %d excluded LOD group, %d shared with another ")
+			TEXT("user component in this world, %d too small for the ratio at the deepest achievable hold, %d imperceptible at ")
 			TEXT("the explicitly requested depth. Applying nothing, so no fire is recorded and no label is written."),
 			Meshes.Num(), *Substring, Candidates.Num(),
 			bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, selection gates BYPASSED"),
