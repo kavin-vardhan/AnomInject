@@ -1410,6 +1410,8 @@ namespace AnomalyTexCorrupt
 			&& StatsBefore.PoolLiveFires == StatsAfter.PoolLiveFires && StatsBefore.PoolIds == StatsAfter.PoolIds;
 		Job.bStatsUnchanged = bStatsUnchanged;
 		Job.MaxCallSeconds = FMath::Max(Job.MaxCallSeconds, FPlatformTime::Seconds() - CallStart);
+		const double WorkMsMax = Job.MaxCallSeconds * 1000.0;
+		const double FrameIntervalMsMax = Job.Calls > 1 ? Job.MaxIntervalSeconds * 1000.0 : -1.0;
 
 		const double Elapsed = FPlatformTime::Seconds() - Job.StartSeconds;
 		if (!Stop && Job.Next >= Names.Num())
@@ -1451,9 +1453,9 @@ namespace AnomalyTexCorrupt
 		}
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 scanned=%d of=%d gone=%d stopped=%s seconds=%.1f"),
 			Job.Next, Names.Num(), Job.Gone, Stop, Elapsed);
-		UE_LOG(LogAnomaly, Display,
-			TEXT("IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=%d frames=%d work_ms_max=%.2f frame_interval_ms_max=%.1f"),
-			bStatsUnchanged ? 1 : 0, Job.Calls, Job.MaxCallSeconds * 1000.0, Job.Calls > 1 ? Job.MaxIntervalSeconds * 1000.0 : -1.0);
+		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 timing frames=%d work_ms_max=%.2f frame_interval_ms_max=%.1f"),
+			Job.Calls, WorkMsMax, FrameIntervalMsMax);
+		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=%d"), bStatsUnchanged ? 1 : 0);
 		return true;
 	}
 
