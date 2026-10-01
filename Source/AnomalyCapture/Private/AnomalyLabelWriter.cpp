@@ -119,10 +119,14 @@ namespace
 		const AnomalyLabel::FCameraClipFrameDiag* CameraClip = nullptr,
 		const TArray<uint8>* FireActive = nullptr, const TArray<uint8>* TransitionFireReasons = nullptr,
 		const TArray<uint8>* FirePolicy = nullptr, const TArray<uint8>* FireOnScreen = nullptr,
-		const TArray<uint8>* FireInstalled = nullptr)
+		const TArray<uint8>* FireInstalled = nullptr,
+		const TArray<AnomalyLabel::FFrozenFireGeometry>* FireGeometry = nullptr,
+		const TArray<AnomalyLabel::FFrozenFireGeometry>* TransitionGeometry = nullptr,
+		bool bCaptureUnpaired = false)
 	{
 		OutNumLabels = 0;
 		int32 NumLabelledWithBox = 0;
+		static const AnomalyLabel::FFrozenFireGeometry GUnsampled{};
 
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		if (!FireActive)
@@ -142,9 +146,15 @@ namespace
 		{
 			Root->SetBoolField(TEXT("transition_present"), true);
 		}
+		if (bCaptureUnpaired)
+		{
+			Root->SetBoolField(TEXT("capture_unpaired"), true);
+			Root->SetArrayField(TEXT("transition_reason"), ReasonValues(AnomalyLabelSync::ReasonCaptureUnpaired));
+		}
 
 		TArray<TSharedPtr<FJsonValue>> Anoms;
-		auto EmitEntry = [&](const FAutoLiveFireInfo& F, int32 FireIndex, bool bTransition, bool bSetsPresent, uint8 Reasons)
+		auto EmitEntry = [&](const FAutoLiveFireInfo& F, int32 FireIndex, bool bTransition, bool bSetsPresent, uint8 Reasons,
+			const AnomalyLabel::FFrozenFireGeometry& Geometry)
 		{
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			O->SetStringField(TEXT("id"), F.Id.ToString());
@@ -180,7 +190,7 @@ namespace
 
 			FVector2D Min(FVector2D::ZeroVector);
 			FVector2D Max(FVector2D::ZeroVector);
-			const bool bValid = AnomalyLabel::ProjectFireBox(F, View, Min, Max);
+			const bool bValid = AnomalyLabel::ProjectFrozenFireBox(Geometry, View, Min, Max);
 			O->SetBoolField(TEXT("bbox_valid"), bValid);
 
 			O->SetArrayField(TEXT("bbox_norm"), { LabelNum(Min.X), LabelNum(Min.Y), LabelNum(Max.X), LabelNum(Max.Y) });
@@ -261,7 +271,7 @@ namespace
 			bool bLabelled = bSetsPresent;
 			if (FireActive)
 			{
-				bLabelled = bSetsPresent && FireIndex != INDEX_NONE
+				bLabelled = bSetsPresent && FireIndex != INDEX_NONE && !bCaptureUnpaired
 					&& AnomalyLabel::IsFireInAnnotation(FirePolicy, FireActive, FireOnScreen, FireInstalled, FireIndex);
 				O->SetBoolField(TEXT("labelled"), bLabelled);
 			}
@@ -283,7 +293,8 @@ namespace
 				continue;
 			}
 			EmitEntry(Fires[FireIndex], FireIndex, TransitionAt(EntryEmit, EntryTransition, FireIndex),
-				Mode == AnomalyLabelSync::EEntryEmit::Normal, ReasonsAt(EntryEmit, EntryTransition, FireIndex));
+				Mode == AnomalyLabelSync::EEntryEmit::Normal, ReasonsAt(EntryEmit, EntryTransition, FireIndex),
+				(FireGeometry && FireGeometry->IsValidIndex(FireIndex)) ? (*FireGeometry)[FireIndex] : GUnsampled);
 		}
 		if (TransitionFires)
 		{
@@ -291,7 +302,8 @@ namespace
 			{
 				const uint8 Reasons = (TransitionFireReasons && TransitionFireReasons->IsValidIndex(t))
 					? (*TransitionFireReasons)[t] : AnomalyLabelSync::ReasonTemporal;
-				EmitEntry((*TransitionFires)[t], INDEX_NONE, true, false, Reasons);
+				EmitEntry((*TransitionFires)[t], INDEX_NONE, true, false, Reasons,
+					(TransitionGeometry && TransitionGeometry->IsValidIndex(t)) ? (*TransitionGeometry)[t] : GUnsampled);
 			}
 		}
 		Root->SetArrayField(TEXT("anomalies"), Anoms);
@@ -361,6 +373,22 @@ namespace
 			TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Out);
 		FJsonSerializer::Serialize(Root, Writer);
 		return Out;
+	}
+
+	FString BuildLegacyShotRecord(const TArray<FAutoLiveFireInfo>& Fires, const FAnomalyViewInfo& View, int32 W, int32 H,
+		uint64 FrameIndex, int32 SessionIndex, double TimeSeconds, double WallSeconds, const FString& ImageName,
+		int32& OutNumLabels)
+	{
+		TArray<AnomalyLabel::FFrozenFireGeometry> Geometry;
+		Geometry.Reserve(Fires.Num());
+		for (const FAutoLiveFireInfo& F : Fires)
+		{
+			Geometry.Add(AnomalyLabel::FreezeFireGeometry(F));
+		}
+		return BuildFrameLabelRecord(Fires, View, W, H, FrameIndex, SessionIndex, TimeSeconds, WallSeconds, ImageName,
+			OutNumLabels, false, FString(), nullptr, AnomalyLabel::EAnomalyMaskState::Unmeasured, 0, 0, false,
+			nullptr, nullptr, nullptr, nullptr, false, nullptr, nullptr, nullptr, nullptr, nullptr,
+			nullptr, nullptr, nullptr, nullptr, nullptr, &Geometry, nullptr, false);
 	}
 
 	bool AppendRecordAndImage(const FString& OutputDir, const TArray<uint8>& ImageBytes,
@@ -663,8 +691,8 @@ namespace AnomalyLabel
 				EAnomalyMaskState::Unmeasured, 0, 0, false, nullptr, nullptr, nullptr, nullptr, false, nullptr,
 				&SyncFrame->EntryEmit, &SyncFrame->EntryTransition, &SyncFrame->TransitionFires, &SyncFrame->CameraClip,
 				&SyncFrame->FireActive, &SyncFrame->TransitionFireReasons, &SyncFrame->FirePolicy, &SyncFrame->FireOnScreen,
-				&SyncFrame->ConditionHeld)
-			: BuildFrameLabelRecord(Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
+				&SyncFrame->ConditionHeld, &SyncFrame->FireGeometry, &SyncFrame->TransitionGeometry, SyncFrame->bCaptureUnpaired)
+			: BuildLegacyShotRecord(Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
 				World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
 
 		if (!AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog, bWriteLabels))
@@ -688,7 +716,7 @@ namespace AnomalyLabel
 			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded, &Snapshot.Telemetry,
 			&Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires, &Snapshot.CameraClip,
 			&Snapshot.FireActive, &Snapshot.TransitionFireReasons, &Snapshot.FirePolicy, &Snapshot.FireOnScreen,
-			&Snapshot.ConditionHeld);
+			&Snapshot.ConditionHeld, &Snapshot.FireGeometry, &Snapshot.TransitionGeometry, Snapshot.bCaptureUnpaired);
 	}
 
 	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot)
@@ -696,21 +724,79 @@ namespace AnomalyLabel
 		return CountEntries(Snapshot.Fires.Num(), &Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires);
 	}
 
-	bool ProjectFireBox(const FAutoLiveFireInfo& F, const FAnomalyViewInfo& View, FVector2D& OutMin, FVector2D& OutMax)
+	FFrozenFireGeometry FreezeFireGeometry(const FAutoLiveFireInfo& F)
 	{
-		OutMin = FVector2D::ZeroVector;
-		OutMax = FVector2D::ZeroVector;
-		if (F.bWholeFrameExtent || (F.TargetActor.Get() == nullptr && F.Target.IsEmpty()))
+		const AActor* Actor = F.TargetActor.Get();
+		FBox Box(ForceInit);
+		const bool bBoxFound = Actor && AnomalyViewport::GetActorRenderableBounds(Actor, Box);
+		return AnomalyFrozenGeometry::Freeze(F.bWholeFrameExtent, Actor != nullptr, !F.Target.IsEmpty(), bBoxFound, Box);
+	}
+
+	void FreezeSnapshotGeometry(FCaptureSnapshot& Snapshot)
+	{
+		auto FreezeAll = [](const TArray<FAutoLiveFireInfo>& Fires, TArray<FFrozenFireGeometry>& Out)
 		{
-			OutMin = FVector2D(0.0, 0.0);
-			OutMax = FVector2D(1.0, 1.0);
-			return true;
-		}
-		if (const AActor* Actor = F.TargetActor.Get())
+			Out.Reset();
+			Out.Reserve(Fires.Num());
+			for (const FAutoLiveFireInfo& F : Fires)
+			{
+				Out.Add(FreezeFireGeometry(F));
+			}
+		};
+		FreezeAll(Snapshot.Fires, Snapshot.FireGeometry);
+		FreezeAll(Snapshot.TransitionFires, Snapshot.TransitionGeometry);
+		FreezeAll(Snapshot.TransitionCandidates, Snapshot.CandidateGeometry);
+	}
+
+	bool ProjectFrozenFireBox(const FFrozenFireGeometry& G, const FAnomalyViewInfo& View, FVector2D& OutMin, FVector2D& OutMax)
+	{
+		return AnomalyFrozenGeometry::Resolve(G, View,
+			[](const FAnomalyViewInfo& V, const FBox& B, FVector2D& Min, FVector2D& Max)
+			{
+				return AnomalyViewport::ProjectBoxToScreenRect(V, B, Min, Max);
+			},
+			OutMin, OutMax);
+	}
+
+	bool ProjectSnapshotFireBox(const FCaptureSnapshot& Snapshot, int32 FireIndex, FVector2D& OutMin, FVector2D& OutMax)
+	{
+		static const FFrozenFireGeometry GUnsampled{};
+		return ProjectFrozenFireBox(Snapshot.FireGeometry.IsValidIndex(FireIndex) ? Snapshot.FireGeometry[FireIndex] : GUnsampled,
+			Snapshot.View, OutMin, OutMax);
+	}
+
+	int32 MarkCaptureUnpaired(FCaptureSnapshot& Snapshot)
+	{
+		if (!Snapshot.bCaptureUnpaired)
 		{
-			return AnomalyViewport::ProjectActorBoundsToScreenRect(View, Actor, OutMin, OutMax);
+			return 0;
 		}
-		return false;
+		const int32 N = Snapshot.Fires.Num();
+		if (Snapshot.EntryEmit.Num() != N) { Snapshot.EntryEmit.SetNumZeroed(N); }
+		if (Snapshot.EntryTransition.Num() != N) { Snapshot.EntryTransition.SetNumZeroed(N); }
+		int32 Marked = 0;
+		for (int32 i = 0; i < N; ++i)
+		{
+			const AnomalyLabelSync::EEntryEmit Before = (AnomalyLabelSync::EEntryEmit)Snapshot.EntryEmit[i];
+			const AnomalyLabelSync::EEntryEmit After = AnomalyLabelSync::DecideUnpairedEntry(Before, true);
+			if (After == AnomalyLabelSync::EEntryEmit::Suppress)
+			{
+				continue;
+			}
+			Snapshot.EntryEmit[i] = (uint8)After;
+			Snapshot.EntryTransition[i] |= AnomalyLabelSync::ReasonCaptureUnpaired;
+			++Marked;
+		}
+		while (Snapshot.TransitionFireReasons.Num() < Snapshot.TransitionFires.Num())
+		{
+			Snapshot.TransitionFireReasons.Add(AnomalyLabelSync::ReasonTemporal);
+		}
+		for (int32 t = 0; t < Snapshot.TransitionFires.Num(); ++t)
+		{
+			Snapshot.TransitionFireReasons[t] |= AnomalyLabelSync::ReasonCaptureUnpaired;
+			++Marked;
+		}
+		return Marked;
 	}
 
 	bool IsFireInstalledAt(const TArray<uint8>* FireInstalled, int32 FireIndex)
@@ -1223,10 +1309,13 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("label_transition_unresolved_entries"), LabelSync->ReasonEntries[4]);
 			Root->SetNumberField(TEXT("label_transition_effect_interrupted_entries"), LabelSync->ReasonEntries[5]);
 			Root->SetNumberField(TEXT("label_transition_nanite_unmaskable_entries"), LabelSync->ReasonEntries[6]);
+			Root->SetNumberField(TEXT("label_transition_capture_unpaired_entries"), LabelSync->ReasonEntries[7]);
+			Root->SetNumberField(TEXT("capture_unpaired_frames"), LabelSync->SyncFramesWritten);
 			Root->SetNumberField(TEXT("label_effect_partial_frames"), LabelSync->LabelEffectPartialFrames);
 			Root->SetNumberField(TEXT("nanite_midevent_reverts"), LabelSync->NaniteMidEventReverts);
 			Root->SetNumberField(TEXT("refused_nanite_probe_missing"), LabelSync->RefusedNaniteProbeMissing);
-			Root->SetStringField(TEXT("label_labelled_rule"), TEXT("annotation_membership_per_policy_v3_effect_rendered_nanite_gated"));
+			Root->SetStringField(TEXT("label_labelled_rule"), TEXT("annotation_membership_per_policy_v4_sample_bound"));
+			Root->SetStringField(TEXT("label_geometry_source"), TEXT("bounds_frozen_at_tick_end_sample"));
 			Root->SetNumberField(TEXT("label_transition_tracks_carried_in"), LabelSync->CarriedTransitionTracks);
 			Root->SetNumberField(TEXT("label_hide_tracks_carried_in"), LabelSync->CarriedHideTracks);
 			Root->SetNumberField(TEXT("label_active_unlabelled_entries"), LabelSync->UnlabelledActiveEntries);

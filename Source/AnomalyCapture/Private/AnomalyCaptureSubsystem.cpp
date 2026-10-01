@@ -340,7 +340,7 @@ struct FAnomalyCaptureAsyncState
 	};
 	TMap<FString, FHideTrack> HideTracks;
 	TMap<FString, AnomalyStuckMipWindow::TPartialEdgeTrack<TArray<AnomalyStuckMipWindow::FSIRange>>> PartialTracks;
-	int32 LabelReasonEntries[7] = { 0, 0, 0, 0, 0, 0, 0 };
+	int32 LabelReasonEntries[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 	int32 UnlabelledActiveEntries = 0;
 	int64 InstalledChecks = 0;
 	uint64 InstalledCheckCycles = 0;
@@ -382,10 +382,22 @@ struct FAnomalyCaptureAsyncState
 	int32 CarriedTransitionTracksIn = 0;
 	int32 CarriedHideTracksIn = 0;
 	int32 SyncFramesWritten = 0;
+	struct FFrozenAnchor
+	{
+		FString CamPath;
+		FString NodePath;
+		FString AssetName;
+		FString ComponentClass;
+		FVector BoundsOrigin = FVector::ZeroVector;
+		FVector BoundsExtent = FVector::ZeroVector;
+		FSelectionProvenance Provenance;
+	};
+	TMap<FString, FFrozenAnchor> FrozenAnchors;
 
 	void ResetLabelSync()
 	{
 		SyncFramesWritten = 0;
+		FrozenAnchors.Reset();
 		LabelTransitionEntries = 0;
 		LabelTransitionFrames = 0;
 		LabelSuppressedEntries = 0;
@@ -4879,7 +4891,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 
 		AccumulateFrameEvents(Snap->Fires, Snap->FireActive, Snap->FirePolicy, Snap->FireOnScreen, Snap->ConditionHeld, Snap->FirePos,
 			Snap->View, Snap->NearClip, Snap->SessionIndex, Snap->TimeSeconds, &Snap->Observable, &Snap->DrawnBounds, &Snap->Telemetry,
-			&Snap->FireNaniteBlocked);
+			&Snap->FireNaniteBlocked, &Snap->FireGeometry);
 
 		FAnomalyAsyncWriter::FJob Job;
 		Job.OutputDir = RunDir;
@@ -5418,8 +5430,11 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		CloseConditionWindow();
 	}
 	SyncFrame.View = ProjView;
-	FillAnnotationInputs(SyncFrame);
 	StepHideTransitions(SyncFrame);
+	AnomalyLabel::FreezeSnapshotGeometry(SyncFrame);
+	FillAnnotationInputs(SyncFrame);
+	SyncFrame.bCaptureUnpaired = true;
+	AnomalyLabel::MarkCaptureUnpaired(SyncFrame);
 	const AnomalyLabel::FLabelEntryCounts SyncCounts = AnomalyLabel::CountLabelEntries(SyncFrame);
 	const bool bPositive = SyncCounts.bPresent;
 
@@ -5442,15 +5457,20 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 		LogFirstFrameMeasuredLine(NativeW, NativeH, WrittenW, WrittenH, bResampled);
 		NoteSyncWrittenSize(WrittenW, WrittenH, ImageName);
 
-		TArray<FVector> Pos;
-		Pos.Reserve(SyncFrame.Fires.Num());
-		for (const FAutoLiveFireInfo& F : SyncFrame.Fires)
-		{
-			const AActor* FActor = F.TargetActor.Get();
-			Pos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
-		}
 		if (Async.IsValid())
 		{
+			if (Async->SyncFramesWritten == 0)
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(090-10): CAPTURE-UNPAIRED si=%d path=%s - this frame was grabbed by the synchronous ")
+					TEXT("ReadPixels path, which returns the picture presented BEFORE this tick while the fire state was read ")
+					TEXT("during this tick, so its label is not paired with its picture. Every such frame is written with ")
+					TEXT("transition_reason capture_unpaired, no labelled entry and no mask, is never listed in annotation.json, ")
+					TEXT("and is counted in run_summary.capture_unpaired_frames. The sync path (IAI.Capture.Async 0, or the ")
+					TEXT("IAI.Capture.SVE 0 rectangle fallback) is UNSUPPORTED FOR DELIVERY; the shipped defaults never reach it. ")
+					TEXT("This line prints once per run - the counter is the reading."),
+					SessionFrameIndex, bAsyncCapture ? TEXT("async_rect_fallback") : TEXT("async_off"));
+			}
 			Async->LabelTransitionEntries += SyncCounts.TransitionEntries;
 			Async->LabelSuppressedEntries += SyncCounts.Suppressed;
 			if (SyncCounts.TransitionEntries > 0)
@@ -5466,19 +5486,6 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 			++Async->SyncFramesWritten;
 		}
 		const double NowT = World ? World->GetTimeSeconds() : 0.0;
-		const UAnomalyInjectorSubsystem* SyncInjector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
-		TArray<FAnomalyTelemetry> SyncTelemetry;
-		SyncTelemetry.SetNum(SyncFrame.Fires.Num());
-		for (int32 i = 0; i < SyncFrame.Fires.Num(); ++i)
-		{
-			if (SyncInjector)
-			{
-				SyncInjector->GetAnomalyTelemetry(SyncFrame.Fires[i].Id, SyncTelemetry[i]);
-			}
-		}
-		AccumulateFrameEvents(SyncFrame.Fires, SyncFrame.FireActive, SyncFrame.FirePolicy, SyncFrame.FireOnScreen,
-			SyncFrame.ConditionHeld, Pos, ProjView, GNearClippingPlane, SessionFrameIndex, NowT, nullptr, nullptr, &SyncTelemetry,
-			&SyncFrame.FireNaniteBlocked);
 		if (FirstFrameTimeSeconds < 0.0)
 		{
 			FirstFrameTimeSeconds = NowT;
@@ -5611,13 +5618,6 @@ void UAnomalyCaptureSubsystem::FinalizeArmedLabel()
 		}
 		FinalizeRenderTruthArm(*Snap);
 		AddDetachedTransitionCandidates(*Snap);
-	}
-	Snap->FirePos.Reset();
-	Snap->FirePos.Reserve(Snap->Fires.Num());
-	for (const FAutoLiveFireInfo& F : Snap->Fires)
-	{
-		const AActor* FActor = F.TargetActor.Get();
-		Snap->FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
 	}
 
 	DeferredActiveRequestId = ArmedLabelRequestId;
@@ -5989,6 +5989,7 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 		Snap->FireLabelled.Add(IsFireLabelledThisFrame(F) ? 1 : 0);
 	}
 	StepHideTransitions(*Snap);
+	FreezeSampleGeometry(*Snap);
 
 	{
 		const UWorld* CondWorld = GetWorld();
@@ -7114,6 +7115,9 @@ void UAnomalyCaptureSubsystem::HandleTrailReopens()
 			S->FirePos.SetNumZeroed(Before);
 			const AActor* TA = Trail.Fire.TargetActor.Get();
 			S->FirePos.Add(TA ? TA->GetActorLocation() : FVector::ZeroVector);
+			S->FireGeometry.SetNum(Before);
+			S->FireGeometry.Add(AnomalyLabel::FreezeFireGeometry(Trail.Fire));
+			FreezeEventAnchor(Trail.Fire);
 			if (S->MaskValues.Num() == Before)
 			{
 				S->MaskValues.Add(0);
@@ -7709,11 +7713,17 @@ static void AdoptCarriedLabelSync(FAnomalyCaptureAsyncState& A)
 	A.CarriedHideTracks.Reset();
 }
 
-static void AddTransitionFire(AnomalyLabel::FCaptureSnapshot& Snap, FAutoLiveFireInfo&& Fire, uint8 Reason)
+static void AddTransitionFire(AnomalyLabel::FCaptureSnapshot& Snap, FAutoLiveFireInfo&& Fire, uint8 Reason,
+	const AnomalyLabel::FFrozenFireGeometry* Geometry = nullptr)
 {
 	while (Snap.TransitionFireReasons.Num() < Snap.TransitionFires.Num())
 	{
 		Snap.TransitionFireReasons.Add(AnomalyLabelSync::ReasonTemporal);
+	}
+	if (Geometry)
+	{
+		Snap.TransitionGeometry.SetNum(Snap.TransitionFires.Num());
+		Snap.TransitionGeometry.Add(*Geometry);
 	}
 	Snap.TransitionFires.Add(MoveTemp(Fire));
 	Snap.TransitionFireReasons.Add(Reason);
@@ -7806,8 +7816,12 @@ void UAnomalyCaptureSubsystem::ResolveDetachedTransitionCandidates(AnomalyLabel:
 	{
 		return;
 	}
-	for (const FAutoLiveFireInfo& C : Snap.TransitionCandidates)
+	static const AnomalyLabel::FFrozenFireGeometry GUnsampled{};
+	for (int32 c = 0; c < Snap.TransitionCandidates.Num(); ++c)
 	{
+		const FAutoLiveFireInfo& C = Snap.TransitionCandidates[c];
+		const AnomalyLabel::FFrozenFireGeometry& CandidateGeometry =
+			Snap.CandidateGeometry.IsValidIndex(c) ? Snap.CandidateGeometry[c] : GUnsampled;
 		const bool bInFrame = Snap.Fires.ContainsByPredicate([&C](const FAutoLiveFireInfo& F)
 		{
 			return F.Id == C.Id && F.StartFrame == C.StartFrame;
@@ -7828,7 +7842,7 @@ void UAnomalyCaptureSubsystem::ResolveDetachedTransitionCandidates(AnomalyLabel:
 		{
 			FAutoLiveFireInfo Entry = C;
 			Entry.SecondsRemaining = 0;
-			AddTransitionFire(Snap, MoveTemp(Entry), AnomalyLabelSync::ReasonTemporal);
+			AddTransitionFire(Snap, MoveTemp(Entry), AnomalyLabelSync::ReasonTemporal, &CandidateGeometry);
 		}
 		else if (Track->OffWindowPassed(Snap.SessionIndex, Async->LabelOffFrames))
 		{
@@ -7836,6 +7850,7 @@ void UAnomalyCaptureSubsystem::ResolveDetachedTransitionCandidates(AnomalyLabel:
 		}
 	}
 	Snap.TransitionCandidates.Reset();
+	Snap.CandidateGeometry.Reset();
 }
 
 void UAnomalyCaptureSubsystem::RefreshMaskTagReleasability()
@@ -8172,6 +8187,46 @@ uint8 UAnomalyCaptureSubsystem::ResolveAnnotationPolicy(const FAutoLiveFireInfo&
 	return (uint8)AnomalyActiveSource::PolicyFor(ResolveAnomalyActiveSource(F.Id, bKnownId), IsRenderTruthFire(F));
 }
 
+static FString FrozenAnchorKey(const FAutoLiveFireInfo& F)
+{
+	return FString::Printf(TEXT("%s@%llu|%s"), *F.Id.ToString(), F.StartFrame, *F.Target);
+}
+
+void UAnomalyCaptureSubsystem::FreezeEventAnchor(const FAutoLiveFireInfo& F)
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	const FString Key = FrozenAnchorKey(F);
+	if (Async->FrozenAnchors.Contains(Key))
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	FAnomalyCaptureAsyncState::FFrozenAnchor& Anchor = Async->FrozenAnchors.Add(Key);
+	Anchor.CamPath = ResolveCameraPath(World);
+	if (const AActor* FActor = F.TargetActor.Get())
+	{
+		Anchor.NodePath = FActor->GetPathName();
+		ResolveNodeIdentity(FActor, Anchor.AssetName, Anchor.ComponentClass, Anchor.BoundsOrigin, Anchor.BoundsExtent);
+		AnomalyViewport::EvaluateSelectionProvenance(World, FActor, Anchor.Provenance);
+	}
+}
+
+void UAnomalyCaptureSubsystem::FreezeSampleGeometry(AnomalyLabel::FCaptureSnapshot& Snap)
+{
+	AnomalyLabel::FreezeSnapshotGeometry(Snap);
+	Snap.FirePos.Reset();
+	Snap.FirePos.Reserve(Snap.Fires.Num());
+	for (const FAutoLiveFireInfo& F : Snap.Fires)
+	{
+		const AActor* FActor = F.TargetActor.Get();
+		Snap.FirePos.Add(FActor ? FActor->GetActorLocation() : FVector::ZeroVector);
+		FreezeEventAnchor(F);
+	}
+}
+
 void UAnomalyCaptureSubsystem::FillAnnotationInputs(AnomalyLabel::FCaptureSnapshot& Snap) const
 {
 	const int32 N = Snap.Fires.Num();
@@ -8182,7 +8237,7 @@ void UAnomalyCaptureSubsystem::FillAnnotationInputs(AnomalyLabel::FCaptureSnapsh
 		Snap.FirePolicy[i] = ResolveAnnotationPolicy(Snap.Fires[i]);
 		FVector2D Min(FVector2D::ZeroVector);
 		FVector2D Max(FVector2D::ZeroVector);
-		Snap.FireOnScreen[i] = AnomalyLabel::ProjectFireBox(Snap.Fires[i], Snap.View, Min, Max) ? 1 : 0;
+		Snap.FireOnScreen[i] = AnomalyLabel::ProjectSnapshotFireBox(Snap, i, Min, Max) ? 1 : 0;
 	}
 	AnomalyLabel::MarkInterruptedEffects(Snap);
 	AnomalyLabel::MarkNaniteUnmaskable(Snap);
@@ -9187,7 +9242,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.MaskTagRetireHostFlagKept = Async->MaskMeasure.GetTagRetireHostFlagKept();
 			LabelSyncReport.MaskPriorCollisions = Async->MaskMeasure.GetPriorCollisions();
 			LabelSyncReport.MaskPriorCollisionQuarantined = Async->MaskMeasure.GetPriorCollisionQuarantined();
-			static_assert(AnomalyLabelSync::NumReasons == 7, "the reason arrays and the run_summary keys carry seven reasons");
+			static_assert(AnomalyLabelSync::NumReasons == 8, "the reason arrays and the run_summary keys carry eight reasons");
 			LabelSyncReport.LabelEffectPartialFrames = Async->LabelEffectPartialFrames;
 			LabelSyncReport.NaniteMidEventReverts = Async->NaniteMidEventReverts;
 			LabelSyncReport.RefusedNaniteProbeMissing = AnomalyViewport::GetNaniteProbeMissingRefusals();
@@ -9223,13 +9278,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.SyncFramesWritten = Async->SyncFramesWritten;
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(labelsync): TRANSITION REASONS temporal_aa=%d hide_return=%d partial=%d camera_clipping_unconfirmed=%d ")
-				TEXT("unresolved=%d effect_interrupted=%d nanite_unmaskable=%d; ")
-				TEXT("carried in: %d transition track(s), %d hide track(s); active-but-unlabelled entries %d; sync frames %d; ")
+				TEXT("unresolved=%d effect_interrupted=%d nanite_unmaskable=%d capture_unpaired=%d; ")
+				TEXT("carried in: %d transition track(s), %d hide track(s); active-but-unlabelled entries %d; ")
+				TEXT("sync (capture_unpaired) frames %d; ")
 				TEXT("mask retire: quarantined %d, host custom-depth-off holders restored value-only %d; ")
 				TEXT("mask_prior_collision %d (quarantined %d)"),
 				LabelSyncReport.ReasonEntries[0], LabelSyncReport.ReasonEntries[1], LabelSyncReport.ReasonEntries[2],
 				LabelSyncReport.ReasonEntries[3], LabelSyncReport.ReasonEntries[4], LabelSyncReport.ReasonEntries[5],
-				LabelSyncReport.ReasonEntries[6],
+				LabelSyncReport.ReasonEntries[6], LabelSyncReport.ReasonEntries[7],
 				LabelSyncReport.CarriedTransitionTracks,
 				LabelSyncReport.CarriedHideTracks,
 				LabelSyncReport.UnlabelledActiveEntries, LabelSyncReport.SyncFramesWritten,
@@ -9492,13 +9548,13 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 	const TArray<uint8>& FireInstalled, const TArray<FVector>& FirePos, const FAnomalyViewInfo& View,
 	float NearClip, int32 SessionIndex, double TimeSeconds, const TArray<uint8>* Observable,
 	const TArray<FIntRect>* DrawnBounds, const TArray<FAnomalyTelemetry>* CapturedTelemetry,
-	const TArray<uint8>* FireNaniteBlocked)
+	const TArray<uint8>* FireNaniteBlocked, const TArray<AnomalyLabel::FFrozenFireGeometry>* FireGeometry)
 {
 	if (!Async.IsValid())
 	{
 		return;
 	}
-	UWorld* World = GetWorld();
+	static const AnomalyLabel::FFrozenFireGeometry GUnsampled{};
 
 	for (int32 i = 0; i < Fires.Num(); ++i)
 	{
@@ -9538,15 +9594,17 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			Ev->CamFov = View.HorizontalFOVDeg;
 			Ev->CamAspect = View.AspectRatio;
 			Ev->CamNear = NearClip;
-			Ev->CamPath = ResolveCameraPath(World);
 			Ev->TicksMsec = (int64)FMath::RoundToDouble(TimeSeconds * 1000.0);
 			Ev->NodeName = F.Target;
-			if (const AActor* FActor = F.TargetActor.Get())
+			if (const FAnomalyCaptureAsyncState::FFrozenAnchor* Anchor = Async->FrozenAnchors.Find(FrozenAnchorKey(F)))
 			{
-				Ev->NodePath = FActor->GetPathName();
-				ResolveNodeIdentity(FActor, Ev->NodeAssetName, Ev->NodeComponentClass,
-					Ev->NodeBoundsOrigin, Ev->NodeBoundsExtent);
-				AnomalyViewport::EvaluateSelectionProvenance(World, FActor, Ev->Provenance);
+				Ev->CamPath = Anchor->CamPath;
+				Ev->NodePath = Anchor->NodePath;
+				Ev->NodeAssetName = Anchor->AssetName;
+				Ev->NodeComponentClass = Anchor->ComponentClass;
+				Ev->NodeBoundsOrigin = Anchor->BoundsOrigin;
+				Ev->NodeBoundsExtent = Anchor->BoundsExtent;
+				Ev->Provenance = Anchor->Provenance;
 			}
 			Ev->NodePos = FirePos.IsValidIndex(i) ? FirePos[i] : FVector::ZeroVector;
 		}
@@ -9559,7 +9617,8 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 		if (FireOnScreen.IsValidIndex(i) && FireOnScreen[i] != 0)
 		{
 			FVector2D Min(FVector2D::ZeroVector), Max(FVector2D::ZeroVector);
-			AnomalyLabel::ProjectFireBox(F, View, Min, Max);
+			AnomalyLabel::ProjectFrozenFireBox(
+				(FireGeometry && FireGeometry->IsValidIndex(i)) ? (*FireGeometry)[i] : GUnsampled, View, Min, Max);
 			Ev->AffectedFrames.Add(SessionIndex);
 			const double BoxW = FMath::Clamp((double)Max.X, 0.0, 1.0) - FMath::Clamp((double)Min.X, 0.0, 1.0);
 			const double BoxH = FMath::Clamp((double)Max.Y, 0.0, 1.0) - FMath::Clamp((double)Min.Y, 0.0, 1.0);

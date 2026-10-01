@@ -6,6 +6,7 @@
 #include "AnomalyTelemetry.h"
 #include "AnomalyViewport.h"
 #include "AnomalyAutoInjectorSubsystem.h"
+#include "AnomalyFrozenGeometry.h"
 
 class UWorld;
 struct FAnomalyCensusCounters;
@@ -49,6 +50,8 @@ namespace AnomalyLabel
 		default:                         return TEXT("unmeasured");
 		}
 	}
+
+	using FFrozenFireGeometry = AnomalyFrozenGeometry::TFrozen<FBox>;
 
 	struct FCaptureSnapshot
 	{
@@ -101,6 +104,11 @@ namespace AnomalyLabel
 		TArray<uint8> TransitionFireReasons;
 		TArray<FAutoLiveFireInfo> TransitionCandidates;
 
+		TArray<FFrozenFireGeometry> FireGeometry;
+		TArray<FFrozenFireGeometry> TransitionGeometry;
+		TArray<FFrozenFireGeometry> CandidateGeometry;
+		bool bCaptureUnpaired = false;
+
 		bool bViewGlobalPending = false;
 		bool bGlobalEarlyPositive = false;
 		FCameraClipFrameDiag CameraClip;
@@ -115,7 +123,15 @@ namespace AnomalyLabel
 
 	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot);
 
-	bool ProjectFireBox(const FAutoLiveFireInfo& F, const FAnomalyViewInfo& View, FVector2D& OutMin, FVector2D& OutMax);
+	FFrozenFireGeometry FreezeFireGeometry(const FAutoLiveFireInfo& F);
+
+	void FreezeSnapshotGeometry(FCaptureSnapshot& Snapshot);
+
+	bool ProjectFrozenFireBox(const FFrozenFireGeometry& G, const FAnomalyViewInfo& View, FVector2D& OutMin, FVector2D& OutMax);
+
+	bool ProjectSnapshotFireBox(const FCaptureSnapshot& Snapshot, int32 FireIndex, FVector2D& OutMin, FVector2D& OutMax);
+
+	int32 MarkCaptureUnpaired(FCaptureSnapshot& Snapshot);
 
 	bool IsFireInstalledAt(const TArray<uint8>* FireInstalled, int32 FireIndex);
 
@@ -275,7 +291,7 @@ namespace AnomalyLabel
 		int32 MaskTagRetireHostFlagKept = 0;
 		int32 MaskPriorCollisions = 0;
 		int32 MaskPriorCollisionQuarantined = 0;
-		int32 ReasonEntries[7] = { 0, 0, 0, 0, 0, 0, 0 };
+		int32 ReasonEntries[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 		int32 LabelEffectPartialFrames = 0;
 		int32 NaniteMidEventReverts = 0;
 		int32 RefusedNaniteProbeMissing = 0;

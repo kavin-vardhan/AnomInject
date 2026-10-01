@@ -160,6 +160,9 @@ namespace AnomalyViewport
 	ANOMALYINJECTOR_API bool ProjectActorBoundsToScreenRect(
 		const FAnomalyViewInfo& View, const AActor* Actor, FVector2D& OutMin, FVector2D& OutMax);
 
+	ANOMALYINJECTOR_API bool ProjectBoxToScreenRect(
+		const FAnomalyViewInfo& View, const FBox& Box, FVector2D& OutMin, FVector2D& OutMax);
+
 	ANOMALYINJECTOR_API float GetActorScreenCoveragePct(UWorld* World, const AActor* Actor);
 
 	ANOMALYINJECTOR_API float GetActorPollDistanceCm(UWorld* World, const AActor* Actor);

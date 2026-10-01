@@ -14,6 +14,7 @@ class FAnomalyPreviewTee;
 class FAnomalyRunLog;
 class UTexture2D;
 namespace AnomalyLabel { struct FCaptureSnapshot; }
+namespace AnomalyFrozenGeometry { template <class TBox> struct TFrozen; }
 
 struct FCameraClipRunAccum
 {
@@ -315,6 +316,8 @@ private:
 	void ServicePendingNaniteReverts();
 	uint8 ResolveAnnotationPolicy(const struct FAutoLiveFireInfo& F) const;
 	void FillAnnotationInputs(AnomalyLabel::FCaptureSnapshot& Snap) const;
+	void FreezeSampleGeometry(AnomalyLabel::FCaptureSnapshot& Snap);
+	void FreezeEventAnchor(const struct FAutoLiveFireInfo& F);
 	bool BurstAwaitsDeferredOnset(int32& OutPendingFires) const;
 	void NoteDeferredOnsetTimeout();
 	void FinishRun(bool bLogLine);
@@ -332,7 +335,8 @@ private:
 		const TArray<FVector>& FirePos, const FAnomalyViewInfo& View, float NearClip, int32 SessionIndex, double TimeSeconds,
 		const TArray<uint8>* Observable = nullptr, const TArray<FIntRect>* DrawnBounds = nullptr,
 		const TArray<struct FAnomalyTelemetry>* CapturedTelemetry = nullptr,
-		const TArray<uint8>* FireNaniteBlocked = nullptr);
+		const TArray<uint8>* FireNaniteBlocked = nullptr,
+		const TArray<AnomalyFrozenGeometry::TFrozen<FBox>>* FireGeometry = nullptr);
 	void WriteSessionAnnotationFile();
 
 	void ApplySessionGlobals();
