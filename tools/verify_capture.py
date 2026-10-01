@@ -202,8 +202,15 @@ transition_present equals "an entry carries transition", every flagged entry nam
 reason appears only on the anomaly that produces it, partial and camera_clipping_unconfirmed only on
 labelled entries, and temporal_aa / hide_return only when run_summary.label_temporal_aa is not false.
 A build before 084-07 wrote `transition` with no `transition_reason`; under OLD that is counted as legacy,
-not failed. Exit 0 no mismatch, 1 mismatch, 3 cannot run. --label-rule --selftest (and bare --selftest) prove it can
-fail both ways on synthetic sessions.
+not failed. A row with root `capture_unpaired: true` (090-10) is a sync-path frame (IAI.Capture.Async 0 or the
+SVE-off fallback) whose picture is not paired with its label: it must read anomaly_present / visible_positive false,
+every entry labelled false with transition 1 and capture_unpaired among its reasons, and no annotation.json frame
+list may name it (UNPAIRED-POSITIVE / -LABELLED / -LISTED / -INCONSISTENT, and UNPAIRED-COUNT against
+run_summary capture_unpaired_frames). capture_unpaired is a reason of every type, unlabelled-only, and never an
+anti-aliasing reason. Sync-path frames are dropped (never a positive, never a negative); the sync path is
+unsupported for delivery, and a session captured entirely on it is NOT JUDGED (exit 3).
+Exit 0 no mismatch, 1 mismatch, 3 cannot run or not judged. --label-rule --selftest (and bare --selftest) prove it
+can fail both ways on synthetic sessions.
 
 Usage:
     python verify_capture.py --dir <sessionDir> [--out <annotatedDir>] [--quiet] [--red-only]
@@ -3139,8 +3146,10 @@ def _emit(line):
         sys.stdout.flush()
 
 
+LABEL_RULE_UNPAIRED = "capture_unpaired"
 LABEL_RULE_REASONS = ("temporal_aa", "hide_return", "partial", "camera_clipping_unconfirmed", "unresolved",
-                      "effect_interrupted", "nanite_unmaskable")
+                      "effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED)
+LABEL_RULE_ANY_TYPE = (LABEL_RULE_UNPAIRED,)
 LABEL_RULE_FIRE_WINDOW_TYPES = ("missing_texture", "corrupted_texture", "uv_corruption", "normal_corruption",
                                 "lighting_mismatch", "lod_corruption", "null_effect", "solid_swap", "time_dilation")
 LABEL_RULE_REASON_TYPES = {
@@ -3154,8 +3163,10 @@ LABEL_RULE_REASON_TYPES = {
     + ("blinking", "missing_object", "stuck_low_mip", "lod_popping"),
 }
 LABEL_RULE_LABELLED_ONLY = ("partial", "camera_clipping_unconfirmed", "unresolved")
-LABEL_RULE_UNLABELLED_ONLY = ("effect_interrupted", "nanite_unmaskable")
+LABEL_RULE_UNLABELLED_ONLY = ("effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED)
 LABEL_RULE_TEMPORAL_ONLY = ("temporal_aa", "hide_return")
+LABEL_RULE_UNPAIRED_SENTENCE = ("sync-path frames are dropped: never a positive, never a negative, never a reference; "
+                                "the sync path is unsupported for delivery.")
 RULE_NEW = "NEW"
 RULE_OLD = "OLD"
 RULE_NONE = "NONE"
@@ -3163,7 +3174,9 @@ RULE_SHOT = "LEGACY_SHOT"
 LABEL_RULE_CHECKS = ("VP-MISMATCH", "TRANSITION-PRESENT-MISMATCH", "REASON-MISSING", "REASON-WITHOUT-TRANSITION",
                      "REASON-UNKNOWN", "REASON-MISPLACED", "REASON-ON-UNLABELLED", "REASON-ON-LABELLED",
                      "REASON-WITHOUT-TEMPORAL-AA",
-                     "LABELLED-EXTRA", "LABELLED-MISSING", "ENTRY-MISSING", "FRAME-MISSING")
+                     "LABELLED-EXTRA", "LABELLED-MISSING", "ENTRY-MISSING", "FRAME-MISSING",
+                     "UNPAIRED-POSITIVE", "UNPAIRED-LABELLED", "UNPAIRED-LISTED", "UNPAIRED-INCONSISTENT",
+                     "UNPAIRED-COUNT")
 
 
 def _lr_read_rows(cap_dir):
@@ -3206,8 +3219,12 @@ def _lr_read_events(cap_dir):
             lst = ev.get("affected_frames", {}) or {}
             which = "affected_frames"
         nodes = (ev.get("affected_objects", {}) or {}).get("nodes", []) or []
+        every = set()
+        for v in ev.values():
+            if isinstance(v, dict) and isinstance(v.get("frame_indices"), list):
+                every |= set(x for x in v["frame_indices"] if isinstance(x, int))
         out.append({"type": ev.get("anomaly_type", ""), "names": set(n.get("name", "") for n in nodes),
-                    "frames": set(lst.get("frame_indices", []) or []), "list": which,
+                    "frames": set(lst.get("frame_indices", []) or []), "list": which, "every": every,
                     "manifested": bool(ev.get("manifested", True))})
     return out, None
 
@@ -3229,7 +3246,12 @@ def label_rule_check(cap_dir, quiet=False):
     is refused. Transition reasons are read on both: transition_present must equal "an entry carries transition",
     every flagged entry must name a known reason, each reason may appear only on the anomaly that produces it,
     partial and camera_clipping_unconfirmed only on labelled entries (NEW rule), and temporal_aa / hide_return only
-    when run_summary says the run used temporal anti-aliasing. Exit 0 no mismatch, 1 mismatch, 3 cannot run.
+    when run_summary says the run used temporal anti-aliasing. A row with root capture_unpaired true is a sync-path
+    frame whose picture is not paired with its label: it must read anomaly_present and visible_positive false, every
+    entry labelled false with transition 1 and capture_unpaired among its reasons, and no annotation.json frame list
+    may name it; capture_unpaired is a reason of every type, unlabelled-only, and never an anti-aliasing reason, so
+    temporal_aa beside it excuses nothing. Such rows are dropped, never counted as evidence. Exit 0 no mismatch,
+    1 mismatch, 3 cannot run or not judged (every row on the sync path).
     """
     lines = ["LABEL-RULE (084-07b): anomaly_present / labelled / visible_positive / transition, read from the session"]
     rows, err = _lr_read_rows(cap_dir)
@@ -3279,6 +3301,9 @@ def label_rule_check(cap_dir, quiet=False):
     n_transition_rows = 0
     n_vetoed_labelled = 0
     n_legacy_unreasoned = 0
+    n_unpaired_rows = 0
+    n_unpaired_entries = 0
+    unpaired_sis = set()
     reason_counts = {}
     per_type = {}
 
@@ -3338,7 +3363,7 @@ def label_rule_check(cap_dir, quiet=False):
                     continue
                 key = (a.get("id", ""), reason)
                 reason_counts[key] = reason_counts.get(key, 0) + 1
-                if a.get("id", "") not in LABEL_RULE_REASON_TYPES[reason]:
+                if reason not in LABEL_RULE_ANY_TYPE and a.get("id", "") not in LABEL_RULE_REASON_TYPES[reason]:
                     fail("REASON-MISPLACED", si)
                 if rule == RULE_NEW and reason in LABEL_RULE_LABELLED_ONLY and a.get("labelled") is not True:
                     fail("REASON-ON-UNLABELLED", si)
@@ -3353,6 +3378,44 @@ def label_rule_check(cap_dir, quiet=False):
                         n_vetoed_labelled += 1
                     else:
                         fail("LABELLED-EXTRA", si)
+        unpaired = r.get("capture_unpaired") is True
+        root_why = r.get("transition_reason")
+        root_unpaired = isinstance(root_why, list) and LABEL_RULE_UNPAIRED in root_why
+        ent_unpaired = [a for a in ents if isinstance(a.get("transition_reason"), list)
+                        and LABEL_RULE_UNPAIRED in a["transition_reason"]]
+        n_unpaired_entries += len(ent_unpaired)
+        if unpaired:
+            n_unpaired_rows += 1
+            unpaired_sis.add(si)
+        if "capture_unpaired" in r and not unpaired:
+            fail("UNPAIRED-INCONSISTENT", si)
+        if unpaired:
+            if r.get("anomaly_present") is not False or r.get("visible_positive") is not False:
+                fail("UNPAIRED-POSITIVE", si)
+            if not root_unpaired or (ents and r.get("transition_present") is not True):
+                fail("UNPAIRED-INCONSISTENT", si)
+            for a in ents:
+                if a.get("labelled") is not False:
+                    fail("UNPAIRED-LABELLED", si)
+                if a.get("transition") != 1 or not any(a is b for b in ent_unpaired):
+                    fail("UNPAIRED-INCONSISTENT", si)
+        elif root_unpaired or ent_unpaired:
+            fail("UNPAIRED-INCONSISTENT", si)
+
+    listed_every = set()
+    for e in events:
+        listed_every |= e["every"]
+    for si in sorted(unpaired_sis & listed_every):
+        fail("UNPAIRED-LISTED", si)
+    rs_unpaired = rs.get("capture_unpaired_frames")
+    rs_unpaired_int = isinstance(rs_unpaired, int) and not isinstance(rs_unpaired, bool)
+    if "capture_unpaired_frames" in rs and (not rs_unpaired_int or rs_unpaired != n_unpaired_rows):
+        fail("UNPAIRED-COUNT", n_unpaired_rows)
+    sync_written = rs.get("sync_frames_written")
+    legacy_sync = (sync_written if "capture_unpaired_frames" not in rs and n_unpaired_rows == 0
+                   and isinstance(sync_written, int) and not isinstance(sync_written, bool) and sync_written > 0
+                   else 0)
+    all_sync = bool(rows) and (n_unpaired_rows == len(rows) or (legacy_sync and legacy_sync >= len(rows)))
 
     for e in events:
         for si in sorted(e["frames"]):
@@ -3403,24 +3466,47 @@ def label_rule_check(cap_dir, quiet=False):
         lines.append("  transitions, no reason : %d entr(ies) - a build before 084-07 wrote `transition` without "
                      "`transition_reason`; read as temporal_aa or hide_return, not as a defect" % n_legacy_unreasoned)
     lines.append("  label_temporal_aa      : %s (run_summary)" % ("absent" if temporal is None else temporal))
+    lines.append("  unpaired (sync path)   : %d row(s), %d entr(ies) carry capture_unpaired (run_summary "
+                 "capture_unpaired_frames %s) - %s"
+                 % (n_unpaired_rows, n_unpaired_entries,
+                    rs_unpaired if "capture_unpaired_frames" in rs else "absent", LABEL_RULE_UNPAIRED_SENTENCE))
+    if legacy_sync:
+        lines.append("  unpaired, not flagged  : run_summary sync_frames_written %d but no row carries capture_unpaired (a "
+                     "build before 090-10); this reader cannot tell which rows were on the sync path, and their labels "
+                     "are not paired with their pictures" % legacy_sync)
     lines.append("  annotation.json        : %d event(s), %d listed frame(s) (%s)"
                  % (len(events), sum(len(e["frames"]) for e in events),
                     ", ".join(sorted(set(e["list"] for e in events))) or "no list"))
     for cat in LABEL_RULE_CHECKS:
         sis = fails.get(cat)
-        if sis:
+        if sis and cat == "UNPAIRED-COUNT":
+            lines.append("  FAIL %-28s run_summary capture_unpaired_frames %s, rows carrying capture_unpaired %d"
+                         % (cat, rs_unpaired, n_unpaired_rows))
+        elif sis:
             lines.append("  FAIL %-28s %d  [%s]" % (cat, len(sis), _lr_first(sis)))
         elif not quiet:
             lines.append("  pass %s" % cat)
-    code = 1 if fails else 0
-    if code:
+    sync_txt = ("every row (%d) was captured on the sync path (IAI.Capture.Async 0 or the SVE-off fallback); its labels "
+                "are not paired with its pictures, so the session is not judged. The sync path is unsupported for "
+                "delivery." % len(rows))
+    if fails:
+        code = 1
         lines.append("LABEL-RULE: MISMATCH - %d check(s) failed (%s)" % (len(fails), ", ".join(sorted(fails))))
+        if all_sync:
+            lines.append("LABEL-RULE: also, " + sync_txt)
+    elif all_sync:
+        code = 3
+        lines.append("LABEL-RULE: NOT JUDGED - " + sync_txt)
     else:
-        lines.append("LABEL-RULE: NO MISMATCH under the %s rule" % rule)
+        code = 0
+        lines.append("LABEL-RULE: NO MISMATCH under the %s rule%s"
+                     % (rule, (" (%d sync-path row(s) dropped, not judged)" % n_unpaired_rows) if n_unpaired_rows else ""))
     detail = {"rule": rule, "fails": {k: sorted(set(v)) for k, v in fails.items()}, "rows": len(rows),
               "present": n_present, "vp_written": n_vp_written, "vp_rule": n_vp_rule,
               "active_unlabelled": n_active_unlabelled, "old_vp_unlisted": n_old_vp_unlisted,
               "vetoed_labelled": n_vetoed_labelled, "legacy_unreasoned": n_legacy_unreasoned,
+              "unpaired_rows": n_unpaired_rows, "unpaired_entries": n_unpaired_entries,
+              "legacy_sync": legacy_sync, "all_sync": all_sync, "judged": not all_sync,
               "reasons": {"%s/%s" % k: v for k, v in reason_counts.items()}}
     return code, lines, detail
 
@@ -3470,6 +3556,14 @@ def _lr_row(si, ents, vp=None, present=False):
     return row
 
 
+def _lr_unpaired_row(si, ents):
+    row = {"session_index": si, "anomaly_present": False, "anomalies": [dict(e) for e in ents],
+           "capture_unpaired": True, "transition_reason": [LABEL_RULE_UNPAIRED], "visible_positive": False}
+    if ents:
+        row["transition_present"] = True
+    return row
+
+
 def _lr_blink_session(labelled_keys=True, vp_override=None):
     hidden = {4, 5, 9, 10}
     rows = []
@@ -3491,15 +3585,19 @@ def _label_rule_selftest():
     NEW-rule sessions: an event-active unlabelled row must NOT count as a visible positive, and a row that says it does
     is a mismatch. OLD-rule sessions (no `labelled`): read under the old rule, said so, and not failed for following it.
     Plus: labelled vs annotation.json in both directions, the veto exception, transition-reason placement, and the
-    refusal of a session that mixes the two rules.
+    refusal of a session that mixes the two rules. Sync-path rows (capture_unpaired): a correct one is dropped and
+    counted; labelled, positive, listed or half-flagged ones fail; temporal_aa beside capture_unpaired excuses
+    nothing; and a session captured entirely on the sync path is not judged.
     """
     import shutil
     import tempfile
     root = tempfile.mkdtemp(prefix="lr_selftest_")
     results = []
 
-    def case(name, rows, events, want_code, want_rule=None, want_fail=None, rs=None, extra=None):
+    def case(name, rows, events, want_code, want_rule=None, want_fail=None, rs=None, extra=None, post=None):
         d = _lr_write(root, name, rows, events, rs)
+        if post is not None:
+            post(d)
         code, lines, detail = label_rule_check(d, quiet=True)
         ok = code == want_code
         if want_rule is not None:
@@ -3637,6 +3735,139 @@ def _label_rule_selftest():
              [("stuck_low_mip", "Rock", f1_listed | {25})], 1, RULE_NEW, "REASON-ON-LABELLED")
         case("R5_nanite_unmaskable_on_camera_clipping_FAILS", nan_rows("camera_clipping"),
              [("camera_clipping", "Rock", f1_listed)], 1, RULE_NEW, "REASON-MISPLACED")
+
+        unp_listed = {3, 4, 5, 6, 8, 9, 10}
+        unp_ev = [("missing_texture", "Rock", unp_listed)]
+        unp_rs = {"label_temporal_aa": True, "vetoed_events": 0, "capture_unpaired_frames": 2, "sync_frames_written": 2}
+
+        def unp_rows():
+            out = []
+            for si in range(12):
+                if si == 1:
+                    out.append(_lr_unpaired_row(si, []))
+                elif si == 7:
+                    out.append(_lr_unpaired_row(si, [
+                        _lr_entry("missing_texture", "Rock", False, True, (LABEL_RULE_UNPAIRED,)),
+                        _lr_entry("camera_clipping", "PlayerCamera", False, True, (LABEL_RULE_UNPAIRED,)),
+                        _lr_entry("time_dilation", "World", False, False, ("effect_interrupted", LABEL_RULE_UNPAIRED))]))
+                else:
+                    out.append(_lr_row(si, [_lr_entry("missing_texture", "Rock", si in unp_listed)] if 3 <= si <= 10
+                                       else [], present=3 <= si <= 10))
+            return out
+
+        def unp_with(si, fn):
+            rows_ = unp_rows()
+            new = fn(rows_[si])
+            if isinstance(new, dict):
+                rows_[si] = new
+            return rows_
+
+        case("U_a_sync_row_dropped_mixed_session_clean", unp_rows(), unp_ev, 0, RULE_NEW, rs=unp_rs,
+             extra=lambda d, l: d["unpaired_rows"] == 2 and d["unpaired_entries"] == 3 and d["judged"]
+             and d["vp_rule"] == 7 and d["reasons"].get("missing_texture/capture_unpaired") == 1
+             and d["reasons"].get("camera_clipping/capture_unpaired") == 1
+             and d["reasons"].get("time_dilation/capture_unpaired") == 1
+             and any(LABEL_RULE_UNPAIRED_SENTENCE in x for x in l)
+             and any("2 sync-path row(s) dropped" in x for x in l))
+        case("U_a2_unpaired_is_not_an_aa_reason_taa_off_clean", unp_rows(), unp_ev, 0, RULE_NEW,
+             rs=dict(unp_rs, label_temporal_aa=False), extra=lambda d, _l: d["unpaired_rows"] == 2)
+        case("U_a3_run_summary_count_disagrees_FAILS", unp_rows(), unp_ev, 1, RULE_NEW, "UNPAIRED-COUNT",
+             rs=dict(unp_rs, capture_unpaired_frames=3))
+        rows, ev = _lr_blink_session()
+        case("U_a4_sync_frames_written_but_no_row_flagged_FAILS", rows, ev, 1, RULE_NEW, "UNPAIRED-COUNT",
+             rs={"label_temporal_aa": True, "vetoed_events": 0, "capture_unpaired_frames": 2, "sync_frames_written": 2})
+
+        def labelled_sync(r):
+            r["anomalies"][0]["labelled"] = True
+        def positive_labelled_sync(r):
+            labelled_sync(r)
+            r.update(anomaly_present=True, visible_positive=True)
+        case("U_b0_control_labelled_unlisted_async_row_vetoed_clean",
+             unp_with(7, lambda r: _lr_row(7, [_lr_entry("missing_texture", "Rock", True)], present=True)),
+             unp_ev, 0, RULE_NEW, rs=dict(unp_rs, vetoed_events=1, capture_unpaired_frames=1),
+             extra=lambda d, _l: d["vetoed_labelled"] == 1)
+        case("U_b_sync_row_labelled_FAILS", unp_with(7, labelled_sync), unp_ev, 1, RULE_NEW, "UNPAIRED-LABELLED",
+             rs=dict(unp_rs, vetoed_events=1),
+             extra=lambda d, _l: "REASON-ON-LABELLED" in d["fails"] and "LABELLED-EXTRA" not in d["fails"])
+        case("U_b2_sync_row_anomaly_present_FAILS", unp_with(7, lambda r: r.update(anomaly_present=True)), unp_ev, 1,
+             RULE_NEW, "UNPAIRED-POSITIVE", rs=unp_rs, extra=lambda d, _l: set(d["fails"]) == {"UNPAIRED-POSITIVE"})
+        case("U_b3_sync_row_positive_and_labelled_FAILS", unp_with(7, positive_labelled_sync),
+             unp_ev, 1, RULE_NEW, "UNPAIRED-POSITIVE", rs=dict(unp_rs, vetoed_events=1),
+             extra=lambda d, _l: "UNPAIRED-LABELLED" in d["fails"] and "VP-MISMATCH" not in d["fails"])
+        case("U_c_sync_row_listed_FAILS", unp_rows(), [("missing_texture", "Rock", unp_listed | {7})], 1, RULE_NEW,
+             "UNPAIRED-LISTED", rs=unp_rs)
+
+        def list_in_affected_only(d):
+            p = os.path.join(d, "annotation.json")
+            with open(p, "r", encoding="utf-8") as fh:
+                ann = json.load(fh)
+            ann["anomalies"][0]["affected_frames"]["frame_indices"] = sorted(unp_listed | {7})
+            with open(p, "w", encoding="utf-8") as fh:
+                json.dump(ann, fh)
+        case("U_c2_sync_row_in_affected_frames_only_FAILS", unp_rows(), unp_ev, 1, RULE_NEW, "UNPAIRED-LISTED",
+             rs=unp_rs, post=list_in_affected_only, extra=lambda d, _l: set(d["fails"]) == {"UNPAIRED-LISTED"})
+        case("U_d_unpaired_reason_without_root_flag_FAILS",
+             unp_with(11, lambda r: _lr_row(11, [_lr_entry("missing_texture", "Rock", False, True,
+                                                           (LABEL_RULE_UNPAIRED,))])),
+             unp_ev, 1, RULE_NEW, "UNPAIRED-INCONSISTENT", rs=unp_rs,
+             extra=lambda d, _l: set(d["fails"]) == {"UNPAIRED-INCONSISTENT"})
+        case("U_d2_root_flag_entry_without_unpaired_reason_FAILS",
+             unp_with(7, lambda r: r["anomalies"][0].update(transition_reason=["effect_interrupted"])),
+             unp_ev, 1, RULE_NEW, "UNPAIRED-INCONSISTENT", rs=unp_rs,
+             extra=lambda d, _l: set(d["fails"]) == {"UNPAIRED-INCONSISTENT"})
+        case("U_d3_root_reason_without_root_flag_FAILS",
+             unp_with(0, lambda r: r.update(transition_reason=[LABEL_RULE_UNPAIRED])), unp_ev, 1, RULE_NEW,
+             "UNPAIRED-INCONSISTENT", rs=unp_rs, extra=lambda d, _l: set(d["fails"]) == {"UNPAIRED-INCONSISTENT"})
+
+        def aa_rows(sync):
+            held = {5, 6, 7, 8}
+            out = []
+            for si in range(12):
+                if si == 9:
+                    why = ("temporal_aa", LABEL_RULE_UNPAIRED) if sync else ("temporal_aa",)
+                    e = _lr_entry("stuck_low_mip", "Rock", True, True, why)
+                    out.append(_lr_unpaired_row(si, [e]) if sync else _lr_row(si, [e], present=True))
+                elif si in held:
+                    out.append(_lr_row(si, [_lr_entry("stuck_low_mip", "Rock", True, True,
+                                                      ("temporal_aa",) if si == 8 else None)], present=True))
+                else:
+                    out.append(_lr_row(si, [], present=False))
+            return out
+        aa_ev = [("stuck_low_mip", "Rock", {5, 6, 7, 8})]
+        case("U_e0_control_aa_edge_labelled_unlisted_vetoed_clean", aa_rows(False), aa_ev, 0, RULE_NEW,
+             rs={"label_temporal_aa": True, "vetoed_events": 1}, extra=lambda d, _l: d["vetoed_labelled"] == 1)
+        case("U_e_temporal_aa_beside_unpaired_excuses_nothing_FAILS", aa_rows(True), aa_ev, 1, RULE_NEW,
+             "UNPAIRED-LABELLED", rs={"label_temporal_aa": True, "vetoed_events": 1, "capture_unpaired_frames": 1},
+             extra=lambda d, _l: "REASON-ON-LABELLED" in d["fails"]
+             and d["reasons"].get("stuck_low_mip/capture_unpaired") == 1)
+
+        def all_sync_rows(labelled_at=None):
+            out = []
+            for si in range(10):
+                ents = []
+                if 3 <= si <= 8:
+                    why = ("hide_return", LABEL_RULE_UNPAIRED) if si == 4 else (LABEL_RULE_UNPAIRED,)
+                    ents.append(_lr_entry("blinking", "Cube", si == labelled_at, True, why))
+                out.append(_lr_unpaired_row(si, ents))
+            return out
+        all_rs = {"label_temporal_aa": True, "vetoed_events": 0, "capture_unpaired_frames": 10, "sync_frames_written": 10}
+        case("U_f_all_sync_session_not_judged", all_sync_rows(), [], 3, RULE_NEW, rs=all_rs,
+             extra=lambda d, l: d["all_sync"] and not d["judged"] and d["unpaired_rows"] == 10 and not d["fails"]
+             and any("NOT JUDGED" in x for x in l) and not any("NO MISMATCH" in x for x in l))
+        case("U_f2_all_sync_session_without_entries_not_judged", [_lr_unpaired_row(si, []) for si in range(6)], [], 3,
+             RULE_NONE, rs=dict(all_rs, capture_unpaired_frames=6, sync_frames_written=6),
+             extra=lambda d, _l: d["all_sync"] and not d["judged"])
+        case("U_f3_all_sync_session_labelled_row_FAILS", all_sync_rows(labelled_at=5), [], 1, RULE_NEW,
+             "UNPAIRED-LABELLED", rs=all_rs, extra=lambda d, l: d["all_sync"] and any("also, every row" in x for x in l))
+        rows, ev = _lr_blink_session()
+        case("U_f4_legacy_all_sync_by_run_summary_not_judged", rows, ev, 3, RULE_NEW,
+             rs={"label_temporal_aa": True, "vetoed_events": 0, "sync_frames_written": len(rows)},
+             extra=lambda d, l: d["legacy_sync"] == len(rows) and not d["judged"]
+             and any("unpaired, not flagged" in x for x in l))
+        rows, ev = _lr_blink_session()
+        case("U_f5_legacy_partial_sync_reported_still_judged", rows, ev, 0, RULE_NEW,
+             rs={"label_temporal_aa": True, "vetoed_events": 0, "sync_frames_written": 3},
+             extra=lambda d, l: d["legacy_sync"] == 3 and d["judged"] and any("unpaired, not flagged" in x for x in l))
         shot = [_lr_row(0, [_lr_entry("blinking", "Cube", None, True)], present=True)]
         shot[0]["label_rule"] = "legacy_shot"
         case("legacy_shot_read_under_old_meaning", shot, [], 0, RULE_SHOT,
@@ -3721,8 +3952,9 @@ def main():
     ap.add_argument("--label-rule", action="store_true",
                     help="read the session's anomaly_present / labelled / visible_positive / transition fields against "
                          "the rule its build wrote them under (NEW with `labelled`, OLD without, said which), cross-checked "
-                         "against annotation.json. Exit 0 no mismatch, 1 mismatch, 3 cannot run. With --selftest it proves "
-                         "the reader can fail both ways.")
+                         "against annotation.json; sync-path rows (capture_unpaired) are dropped and checked to be "
+                         "unlabelled and unlisted. Exit 0 no mismatch, 1 mismatch, 3 cannot run or not judged (every row "
+                         "on the sync path). With --selftest it proves the reader can fail both ways.")
     args = ap.parse_args()
 
     if args.selftest:
