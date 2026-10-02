@@ -14,15 +14,16 @@ namespace AnomalyLabelSync
 	static constexpr int DefaultOffFramesTemporal = 16;
 	static constexpr int DefaultHideFramesTemporal = 1;
 
-	static constexpr unsigned char ReasonTemporal = 1;
-	static constexpr unsigned char ReasonHideReturn = 2;
-	static constexpr unsigned char ReasonPartial = 4;
-	static constexpr unsigned char ReasonCameraUnconfirmed = 8;
-	static constexpr unsigned char ReasonUnresolved = 16;
-	static constexpr unsigned char ReasonEffectInterrupted = 32;
-	static constexpr unsigned char ReasonNaniteUnmaskable = 64;
-	static constexpr unsigned char ReasonCaptureUnpaired = 128;
-	static constexpr int NumReasons = 8;
+	static constexpr unsigned short ReasonTemporal = 1;
+	static constexpr unsigned short ReasonHideReturn = 2;
+	static constexpr unsigned short ReasonPartial = 4;
+	static constexpr unsigned short ReasonCameraUnconfirmed = 8;
+	static constexpr unsigned short ReasonUnresolved = 16;
+	static constexpr unsigned short ReasonEffectInterrupted = 32;
+	static constexpr unsigned short ReasonNaniteUnmaskable = 64;
+	static constexpr unsigned short ReasonCaptureUnpaired = 128;
+	static constexpr unsigned short ReasonPieEndSettle = 256;
+	static constexpr int NumReasons = 9;
 
 	inline const char* DescribeReasonBit(int Bit)
 	{
@@ -36,14 +37,16 @@ namespace AnomalyLabelSync
 		case 5: return "effect_interrupted";
 		case 6: return "nanite_unmaskable";
 		case 7: return "capture_unpaired";
+		case 8: return "pie_end_settle";
 		default: return "unknown";
 		}
 	}
 
-	inline unsigned char ReasonsOrLegacy(unsigned char Value)
+	inline unsigned short ReasonsOrLegacy(unsigned short Value)
 	{
 		return (Value != 0 && (Value & (ReasonTemporal | ReasonHideReturn | ReasonPartial | ReasonCameraUnconfirmed
-			| ReasonUnresolved | ReasonEffectInterrupted | ReasonNaniteUnmaskable | ReasonCaptureUnpaired)) == 0)
+			| ReasonUnresolved | ReasonEffectInterrupted | ReasonNaniteUnmaskable | ReasonCaptureUnpaired
+			| ReasonPieEndSettle)) == 0)
 			? ReasonTemporal : Value;
 	}
 
@@ -117,6 +120,36 @@ namespace AnomalyLabelSync
 			return Current;
 		}
 		return EEntryEmit::TransitionOnly;
+	}
+
+	enum class EPieSettleAction : unsigned char
+	{
+		None = 0,
+		FlagPresent = 1,
+		FlagGone = 2
+	};
+
+	inline bool TrackPieEndSettle(bool bPieWorld, EAnnotationPolicy Policy, bool bLabelledNow)
+	{
+		return bPieWorld && Policy == EAnnotationPolicy::FireWindow && bLabelledNow;
+	}
+
+	inline EPieSettleAction DecidePieEndSettle(bool bWasTrackedLabelled, bool bPresentNow, bool bLabelledNow)
+	{
+		if (!bWasTrackedLabelled)
+		{
+			return EPieSettleAction::None;
+		}
+		if (!bPresentNow)
+		{
+			return EPieSettleAction::FlagGone;
+		}
+		return bLabelledNow ? EPieSettleAction::None : EPieSettleAction::FlagPresent;
+	}
+
+	inline EEntryEmit DecidePieSettleEntry(EEntryEmit Current)
+	{
+		return Current == EEntryEmit::Suppress ? Current : EEntryEmit::TransitionOnly;
 	}
 
 	struct FNaniteRevertGate

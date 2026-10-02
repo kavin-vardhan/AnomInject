@@ -340,7 +340,15 @@ struct FAnomalyCaptureAsyncState
 	};
 	TMap<FString, FHideTrack> HideTracks;
 	TMap<FString, AnomalyStuckMipWindow::TPartialEdgeTrack<TArray<AnomalyStuckMipWindow::FSIRange>>> PartialTracks;
-	int32 LabelReasonEntries[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+	int32 LabelReasonEntries[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+	struct FPieSettleSlot
+	{
+		FAutoLiveFireInfo Fire;
+		bool bLabelled = false;
+	};
+	TMap<FString, FPieSettleSlot> PieSettleSlots;
+	bool bPieEndSettleActive = false;
+	int32 PieEndSettleFrames = 0;
 	int32 UnlabelledActiveEntries = 0;
 	int64 InstalledChecks = 0;
 	uint64 InstalledCheckCycles = 0;
@@ -406,6 +414,9 @@ struct FAnomalyCaptureAsyncState
 		PartialTracks.Reset();
 		CarriedTailFires.Reset();
 		for (int32 b = 0; b < AnomalyLabelSync::NumReasons; ++b) { LabelReasonEntries[b] = 0; }
+		PieSettleSlots.Reset();
+		bPieEndSettleActive = false;
+		PieEndSettleFrames = 0;
 		UnlabelledActiveEntries = 0;
 		InstalledChecks = 0;
 		InstalledCheckCycles = 0;
@@ -5432,6 +5443,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 	SyncFrame.View = ProjView;
 	StepHideTransitions(SyncFrame);
 	AnomalyLabel::FreezeSnapshotGeometry(SyncFrame);
+	StepPieEndSettle(SyncFrame, true);
 	FillAnnotationInputs(SyncFrame);
 	SyncFrame.bCaptureUnpaired = true;
 	AnomalyLabel::MarkCaptureUnpaired(SyncFrame);
@@ -6009,6 +6021,8 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 				NoteNaniteBlocked(F, Snap->SessionIndex);
 			}
 		}
+
+		StepPieEndSettle(*Snap, false);
 
 		Snap->Telemetry.Reset();
 		Snap->Telemetry.AddDefaulted(Snap->Fires.Num());
@@ -7600,6 +7614,16 @@ void UAnomalyCaptureSubsystem::ResolveLabelSyncForRun()
 	Async->LabelHideFrames = AnomalyLabelSync::ResolveTransitionFrames(Async->LabelHideCvar,
 		AnomalyLabelSync::DefaultHideFramesTemporal, Async->bLabelTemporalAa);
 	AdoptCarriedLabelSync(*Async);
+	Async->bPieEndSettleActive = World && World->WorldType == EWorldType::PIE;
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("=== Capture(labelsync): PIE END SETTLE %s FOR THIS RUN - capture world type %s === In a Play-In-Editor capture ")
+		TEXT("the first captured frame after each fire-window label run ends is written with transition_reason ")
+		TEXT("pie_end_settle (unlabelled, unmasked, never a member, never an anti-aliasing excuse) and counted in ")
+		TEXT("run_summary.pie_end_settle_frames; run_summary.pie_end_settle_active records this line's state. A staged or ")
+		TEXT("packaged game world never carries it."),
+		Async->bPieEndSettleActive ? TEXT("ON") : TEXT("OFF"),
+		!World ? TEXT("none") : (World->WorldType == EWorldType::PIE ? TEXT("PIE")
+			: (World->WorldType == EWorldType::Game ? TEXT("Game") : TEXT("other"))));
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("=== Capture(labelsync): EFFECTIVE FOR THIS RUN - anti-aliasing method %s (r.AntiAliasingMethod=%d, effective %d), ")
 		TEXT("temporal=%d; transition frames on=%d off=%d hide=%d (IAI.Label.TransitionOnFrames=%d TransitionOffFrames=%d ")
@@ -7617,7 +7641,7 @@ void UAnomalyCaptureSubsystem::ResolveLabelSyncForRun()
 
 static void CountEntryReasons(const AnomalyLabel::FCaptureSnapshot& Snap, int32* ReasonEntries, int32& UnlabelledActive)
 {
-	auto CountBits = [ReasonEntries](uint8 Bits)
+	auto CountBits = [ReasonEntries](uint16 Bits)
 	{
 		for (int32 b = 0; b < AnomalyLabelSync::NumReasons; ++b)
 		{
@@ -7628,7 +7652,7 @@ static void CountEntryReasons(const AnomalyLabel::FCaptureSnapshot& Snap, int32*
 	{
 		const AnomalyLabelSync::EEntryEmit Mode = Snap.EntryEmit.IsValidIndex(i)
 			? (AnomalyLabelSync::EEntryEmit)Snap.EntryEmit[i] : AnomalyLabelSync::EEntryEmit::Normal;
-		const uint8 Raw = Snap.EntryTransition.IsValidIndex(i) ? Snap.EntryTransition[i] : 0;
+		const uint16 Raw = Snap.EntryTransition.IsValidIndex(i) ? Snap.EntryTransition[i] : 0;
 		if (Mode == AnomalyLabelSync::EEntryEmit::TransitionOnly)
 		{
 			CountBits(Raw != 0 ? AnomalyLabelSync::ReasonsOrLegacy(Raw) : AnomalyLabelSync::ReasonTemporal);
@@ -7713,7 +7737,7 @@ static void AdoptCarriedLabelSync(FAnomalyCaptureAsyncState& A)
 	A.CarriedHideTracks.Reset();
 }
 
-static void AddTransitionFire(AnomalyLabel::FCaptureSnapshot& Snap, FAutoLiveFireInfo&& Fire, uint8 Reason,
+static void AddTransitionFire(AnomalyLabel::FCaptureSnapshot& Snap, FAutoLiveFireInfo&& Fire, uint16 Reason,
 	const AnomalyLabel::FFrozenFireGeometry* Geometry = nullptr)
 {
 	while (Snap.TransitionFireReasons.Num() < Snap.TransitionFires.Num())
@@ -7773,6 +7797,93 @@ void UAnomalyCaptureSubsystem::StepHideTransitions(AnomalyLabel::FCaptureSnapsho
 		if (AnomalyLabelSync::HideTrackDone(It.Value().Track))
 		{
 			It.RemoveCurrent();
+		}
+	}
+}
+
+bool UAnomalyCaptureSubsystem::IsSampledFireLabelled(const AnomalyLabel::FCaptureSnapshot& Snap, int32 FireIndex) const
+{
+	if (!Snap.Fires.IsValidIndex(FireIndex))
+	{
+		return false;
+	}
+	const AnomalyLabelSync::EAnnotationPolicy Policy =
+		(AnomalyLabelSync::EAnnotationPolicy)ResolveAnnotationPolicy(Snap.Fires[FireIndex]);
+	FVector2D Min(FVector2D::ZeroVector);
+	FVector2D Max(FVector2D::ZeroVector);
+	const bool bOnScreen = AnomalyLabel::ProjectSnapshotFireBox(Snap, FireIndex, Min, Max);
+	const bool bActive = Snap.FireActive.IsValidIndex(FireIndex) && Snap.FireActive[FireIndex] != 0;
+	return AnomalyLabelSync::IsAnnotationMemberGated(Policy, bActive, bOnScreen,
+		AnomalyLabel::IsFireInstalledAt(&Snap.ConditionHeld, FireIndex),
+		AnomalyLabel::IsFireNaniteBlockedAt(&Snap.FireNaniteBlocked, FireIndex));
+}
+
+void UAnomalyCaptureSubsystem::StepPieEndSettle(AnomalyLabel::FCaptureSnapshot& Snap, bool bUnpaired)
+{
+	if (!Async.IsValid())
+	{
+		return;
+	}
+	const int32 N = Snap.Fires.Num();
+	TSet<FString> Seen;
+	bool bFlagged = false;
+	for (int32 i = 0; i < N; ++i)
+	{
+		const FAutoLiveFireInfo& F = Snap.Fires[i];
+		const FString Key = FString::Printf(TEXT("%s@%llu|%s"), *F.Id.ToString(), F.StartFrame, *F.Target);
+		Seen.Add(Key);
+		const bool bLabelledNow = !bUnpaired && IsSampledFireLabelled(Snap, i);
+		const FAnomalyCaptureAsyncState::FPieSettleSlot* Slot = Async->PieSettleSlots.Find(Key);
+		const bool bWasLabelled = Slot && Slot->bLabelled;
+		if (AnomalyLabelSync::DecidePieEndSettle(bWasLabelled, true, bLabelledNow) == AnomalyLabelSync::EPieSettleAction::FlagPresent)
+		{
+			if (Snap.EntryEmit.Num() != N) { Snap.EntryEmit.SetNumZeroed(N); }
+			if (Snap.EntryTransition.Num() != N) { Snap.EntryTransition.SetNumZeroed(N); }
+			Snap.EntryEmit[i] = (uint8)AnomalyLabelSync::DecidePieSettleEntry((AnomalyLabelSync::EEntryEmit)Snap.EntryEmit[i]);
+			Snap.EntryTransition[i] |= AnomalyLabelSync::ReasonPieEndSettle;
+			bFlagged = true;
+		}
+		if (AnomalyLabelSync::TrackPieEndSettle(Async->bPieEndSettleActive,
+			(AnomalyLabelSync::EAnnotationPolicy)ResolveAnnotationPolicy(F), bLabelledNow))
+		{
+			FAnomalyCaptureAsyncState::FPieSettleSlot& S = Async->PieSettleSlots.FindOrAdd(Key);
+			S.Fire = F;
+			S.bLabelled = true;
+		}
+		else
+		{
+			Async->PieSettleSlots.Remove(Key);
+		}
+	}
+	for (auto It = Async->PieSettleSlots.CreateIterator(); It; ++It)
+	{
+		if (Seen.Contains(It.Key()))
+		{
+			continue;
+		}
+		if (AnomalyLabelSync::DecidePieEndSettle(It.Value().bLabelled, false, false) == AnomalyLabelSync::EPieSettleAction::FlagGone)
+		{
+			FAutoLiveFireInfo Gone = It.Value().Fire;
+			Gone.SecondsRemaining = 0;
+			const AnomalyLabel::FFrozenFireGeometry Geometry = AnomalyLabel::FreezeFireGeometry(Gone);
+			AddTransitionFire(Snap, MoveTemp(Gone), AnomalyLabelSync::ReasonPieEndSettle, &Geometry);
+			bFlagged = true;
+		}
+		It.RemoveCurrent();
+	}
+	if (bFlagged)
+	{
+		++Async->PieEndSettleFrames;
+		if (Async->PieEndSettleFrames == 1)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(labelsync): PIE END SETTLE si=%d - in a Play-In-Editor capture the first captured frame after a ")
+				TEXT("fire-window label's last labelled frame is written with transition_reason pie_end_settle: unlabelled, ")
+				TEXT("unmasked, never a member of the event and never an anti-aliasing excuse; run_summary.pie_end_settle_frames ")
+				TEXT("counts the frames. In PIE the picture was measured to stay changed one frame after the label end on about one ")
+				TEXT("event per run (090-10b2); the cause is not established. Staged and packaged runs never carry it. This line ")
+				TEXT("prints once per run - the counter is the reading."),
+				Snap.SessionIndex);
 		}
 	}
 }
@@ -7951,7 +8062,7 @@ void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot(AnomalyLabel::FCapture
 			const AnomalyStuckMipWindow::EHeldSet HeldSet = R->Held.Set;
 			const bool bPartialFrame = AnomalyStuckMipWindow::IsPartialMemberFrame(bMember, R->Held);
 			const bool bUnresolvedFrame = AnomalyStuckMipWindow::IsUnresolvedMemberFrame(bMember, R->Held);
-			Snap.EntryTransition[i] = (uint8)((bOnTransition ? AnomalyLabelSync::ReasonTemporal : 0)
+			Snap.EntryTransition[i] = (uint16)((bOnTransition ? AnomalyLabelSync::ReasonTemporal : 0)
 				| (bPartialFrame ? AnomalyLabelSync::ReasonPartial : 0)
 				| (bUnresolvedFrame ? AnomalyLabelSync::ReasonUnresolved : 0));
 			Async->PartialTracks.FindOrAdd(Key).Observe(Snap.SessionIndex, bMember, HeldSet);
@@ -9246,7 +9357,9 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.MaskTagRetireHostFlagKept = Async->MaskMeasure.GetTagRetireHostFlagKept();
 			LabelSyncReport.MaskPriorCollisions = Async->MaskMeasure.GetPriorCollisions();
 			LabelSyncReport.MaskPriorCollisionQuarantined = Async->MaskMeasure.GetPriorCollisionQuarantined();
-			static_assert(AnomalyLabelSync::NumReasons == 8, "the reason arrays and the run_summary keys carry eight reasons");
+			static_assert(AnomalyLabelSync::NumReasons == 9, "the reason arrays and the run_summary keys carry nine reasons");
+			LabelSyncReport.bPieEndSettleActive = Async->bPieEndSettleActive;
+			LabelSyncReport.PieEndSettleFrames = Async->PieEndSettleFrames;
 			LabelSyncReport.LabelEffectPartialFrames = Async->LabelEffectPartialFrames;
 			LabelSyncReport.NaniteMidEventReverts = Async->NaniteMidEventReverts;
 			LabelSyncReport.RefusedNaniteProbeMissing = AnomalyViewport::GetNaniteProbeMissingRefusals();
@@ -9282,14 +9395,16 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.SyncFramesWritten = Async->SyncFramesWritten;
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(labelsync): TRANSITION REASONS temporal_aa=%d hide_return=%d partial=%d camera_clipping_unconfirmed=%d ")
-				TEXT("unresolved=%d effect_interrupted=%d nanite_unmaskable=%d capture_unpaired=%d; ")
+				TEXT("unresolved=%d effect_interrupted=%d nanite_unmaskable=%d capture_unpaired=%d pie_end_settle=%d ")
+				TEXT("(pie_end_settle frames %d, active %d); ")
 				TEXT("carried in: %d transition track(s), %d hide track(s); active-but-unlabelled entries %d; ")
 				TEXT("sync (capture_unpaired) frames %d; ")
 				TEXT("mask retire: quarantined %d, host custom-depth-off holders restored value-only %d; ")
 				TEXT("mask_prior_collision %d (quarantined %d)"),
 				LabelSyncReport.ReasonEntries[0], LabelSyncReport.ReasonEntries[1], LabelSyncReport.ReasonEntries[2],
 				LabelSyncReport.ReasonEntries[3], LabelSyncReport.ReasonEntries[4], LabelSyncReport.ReasonEntries[5],
-				LabelSyncReport.ReasonEntries[6], LabelSyncReport.ReasonEntries[7],
+				LabelSyncReport.ReasonEntries[6], LabelSyncReport.ReasonEntries[7], LabelSyncReport.ReasonEntries[8],
+				LabelSyncReport.PieEndSettleFrames, LabelSyncReport.bPieEndSettleActive ? 1 : 0,
 				LabelSyncReport.CarriedTransitionTracks,
 				LabelSyncReport.CarriedHideTracks,
 				LabelSyncReport.UnlabelledActiveEntries, LabelSyncReport.SyncFramesWritten,

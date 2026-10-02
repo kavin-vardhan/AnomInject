@@ -234,6 +234,8 @@ private:
 	void ApplyRenderTruthToSnapshot(AnomalyLabel::FCaptureSnapshot& Snap);
 	void ResolveLabelSyncForRun();
 	void StepHideTransitions(AnomalyLabel::FCaptureSnapshot& Snap);
+	void StepPieEndSettle(AnomalyLabel::FCaptureSnapshot& Snap, bool bUnpaired);
+	bool IsSampledFireLabelled(const AnomalyLabel::FCaptureSnapshot& Snap, int32 FireIndex) const;
 	void AddDetachedTransitionCandidates(AnomalyLabel::FCaptureSnapshot& Snap);
 	void ResolveDetachedTransitionCandidates(AnomalyLabel::FCaptureSnapshot& Snap);
 	void RefreshMaskTagReleasability();

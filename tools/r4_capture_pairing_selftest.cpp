@@ -240,8 +240,8 @@ static void TestAsyncFreeze()
 
 static void TestSyncUnpaired()
 {
-	Check(std::string(DescribeReasonBit(7)) == "capture_unpaired" && ReasonCaptureUnpaired == 128 && NumReasons == 8,
-		"R4 sync: capture_unpaired is the eighth reason bit (128)");
+	Check(std::string(DescribeReasonBit(7)) == "capture_unpaired" && ReasonCaptureUnpaired == 128 && NumReasons == 9,
+		"R4 sync: capture_unpaired is the eighth reason bit (128); the ninth is pie_end_settle (256)");
 	Check(ReasonsOrLegacy(ReasonCaptureUnpaired) == ReasonCaptureUnpaired
 		&& (ReasonsOrLegacy(ReasonCaptureUnpaired) & ReasonTemporal) == 0
 		&& ReasonsOrLegacy(ReasonCaptureUnpaired | ReasonTemporal) == (ReasonCaptureUnpaired | ReasonTemporal),
