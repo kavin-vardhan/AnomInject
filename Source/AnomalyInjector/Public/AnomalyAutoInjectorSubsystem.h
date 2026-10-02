@@ -19,6 +19,7 @@ struct FAutoLiveFire
 	float SecondsRemaining = 0.0f;
 	uint64 StartFrame = 0;
 	bool bWholeFrameExtent = false;
+	bool bProxyBlur = false;
 };
 
 struct FAutoLiveFireInfo
@@ -29,6 +30,7 @@ struct FAutoLiveFireInfo
 	float SecondsRemaining = 0.0f;
 	uint64 StartFrame = 0;
 	bool bWholeFrameExtent = false;
+	bool bProxyBlur = false;
 };
 
 struct FAnomalyYieldTally

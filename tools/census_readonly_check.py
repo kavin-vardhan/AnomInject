@@ -22,11 +22,13 @@ QUIET_GETTERS = (
      r"\bbResolved\s*=\s*true\s*;"),
     ("defaults", "GetAllowTranslucentOnlyTargets", r"\bbool\s+GetAllowTranslucentOnlyTargets\s*\(", r"\bbResolved\s*=\s*true\s*;"),
     ("defaults", "GetAllowNaniteTargets", r"\bbool\s+GetAllowNaniteTargets\s*\(", r"\bbResolved\s*=\s*true\s*;"),
+    ("defaults", "GetStuckMipLevels", r"\bint32\s+GetStuckMipLevels\s*\(", r"\bbResolved\s*=\s*true\s*;"),
+    ("defaults", "GetStuckMipMinTexelRatio", r"\bfloat\s+GetStuckMipMinTexelRatio\s*\(", r"\bbResolved\s*=\s*true\s*;"),
 )
 CENSUS_REACH_FILES = ("vpcpp", "tree", "state")
 DEFAULTS_CALL_RX = re.compile(r"\bAnomalyDefaults\s*::\s*((?:Get|Describe)\w+)\s*\(")
 DEFAULTS_ALLOWED = {"GetExcludedTargetPatterns", "GetAllowTranslucentOnlyTargets", "DescribeAllowTranslucentOnlyTargets",
-                    "GetAllowNaniteTargets", "DescribeAllowNaniteTargets"}
+                    "GetAllowNaniteTargets", "DescribeAllowNaniteTargets", "GetStuckMipLevels", "GetStuckMipMinTexelRatio"}
 LAZY_RESOLVE_RX = re.compile(r"\bbResolved\s*=\s*true\s*;")
 CPP_KEYWORDS = {"if", "for", "while", "switch", "return", "sizeof", "TEXT", "UE_LOG", "static_cast", "reinterpret_cast",
                 "const_cast", "decltype", "catch"}
@@ -65,6 +67,7 @@ CENSUS_FORMATS = {
     "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s key=%s objects=%d only=%d": 4,
     "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s note=%s objects=%d": 3,
     "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s combo=%s objects=%d": 3,
+    "IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=%d proxy_eligible=%d auto_hold=%d auto_proxy=%d selected=%s": 5,
 }
 PRINTF_FORMATS = {"%s%s:%d"}
 
@@ -80,6 +83,12 @@ ARG_ALLOW = {norm(a) for a in (
     "*DescribeModeSet(EFamily::UV, GetEnabledModeMask(EFamily::UV))",
     "*DescribeModeSet(EFamily::Normal, GetEnabledModeMask(EFamily::Normal))",
     'f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption")',
+    'f == 2 ? TEXT("stuck_low_mip") : (f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption"))',
+    "Job.HoldEligible",
+    "Job.ProxyEligible",
+    "Job.AutoHoldEligible",
+    "Job.AutoProxyEligible",
+    "AnomalyStuckMip::LexRoute(AnomalyStuckMip::GetRoute())",
     "Counts[f].Eligible",
     "Counts[f].Refused",
     'Reasons.IsEmpty() ? TEXT("-") : *Reasons',
@@ -606,15 +615,16 @@ LOG_PREFIX_RX = re.compile(r"^\[(?P<ts>[^\]]*)\]\[\s*(?P<frame>\d+)\](?P<rest>.*
 LOG_CAT_RX = re.compile(r"^(?P<cat>[A-Za-z][A-Za-z0-9_]*):\s")
 CENSUS_LINE_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (scope=|id=|end\b)")
 CENSUS_AUX_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (begin|progress|scanned|timing)\b")
-CENSUS_KEYED_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (subs|allreasons) ")
+CENSUS_KEYED_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (subs|allreasons|routes) ")
 KEY = r"[A-Za-z0-9_./]+"
 CENSUS_KEYED_FORMATS = (
-    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 subs id=(uv|normal)_corruption subs=(-|" + KEY + r":\d+(," + KEY + r":\d+)*)\s*$"),
-    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=(uv|normal)_corruption objects=\d+ eligible=\d+ blocked=\d+ unassessed=\d+ "
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=\d+ proxy_eligible=\d+ auto_hold=\d+ auto_proxy=\d+ selected=(auto|hold|proxy)\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 subs id=((uv|normal)_corruption|stuck_low_mip) subs=(-|" + KEY + r":\d+(," + KEY + r":\d+)*)\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((uv|normal)_corruption|stuck_low_mip) objects=\d+ eligible=\d+ blocked=\d+ unassessed=\d+ "
                r"b_gain_objects=\d+\s*$"),
-    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=(uv|normal)_corruption key=" + KEY + r" objects=\d+ only=\d+\s*$"),
-    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=(uv|normal)_corruption note=" + KEY + r" objects=\d+\s*$"),
-    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=(uv|normal)_corruption combo=" + KEY + r"(\+" + KEY + r")* objects=\d+\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((uv|normal)_corruption|stuck_low_mip) key=" + KEY + r" objects=\d+ only=\d+\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((uv|normal)_corruption|stuck_low_mip) note=" + KEY + r" objects=\d+\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((uv|normal)_corruption|stuck_low_mip) combo=" + KEY + r"(\+" + KEY + r")* objects=\d+\s*$"),
 )
 SCANNED_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 scanned=(\d+) of=(\d+) gone=(\d+) stopped=(\w+) seconds=([\d.]+)")
 CENSUS_EXPECT = (
@@ -702,7 +712,10 @@ def check_log(text, cold):
                 messages.append(f"{tag}: plugin line inside the counts block: {r['text'].strip()[:160]}")
             else:
                 foreign += 1
-        if len(census) != len(CENSUS_EXPECT) or not all(rx.match(c) for rx, c in zip(CENSUS_EXPECT, census)):
+        expected = list(CENSUS_EXPECT)
+        if any("routes id=stuck_low_mip" in r["text"] for r in rows[start:end + 1]):
+            expected.insert(3, re.compile(r"IAI-TEXCORRUPT-CENSUS v1 id=stuck_low_mip eligible=\d+ refused=\d+ reasons=\S+\s*$"))
+        if len(census) != len(expected) or not all(rx.match(c) for rx, c in zip(expected, census)):
             verdict = "FAIL"
             messages.append(f"{tag}: the counts block is not scope / id=uv_corruption / id=normal_corruption / "
                             f"end stats_unchanged=1 ({len(census)} census line(s))")
@@ -813,7 +826,7 @@ def build_mutants(files):
          mutate(files, "state", r"\bFKnobResolution\s+KnobResolve\s*\(",
                 prepend("\n\t\t\tUE_LOG(LogAnomaly, Log, TEXT(\"texcorrupt: resolving %s\"), K.IniKey);"))),
         ("a census-reachable defaults getter that is not on the quiet list", "(g)",
-         mutate(files, "vpcpp", None, lambda t: t + "\nint32 CensusProbeLevels()\n{\n\treturn AnomalyDefaults::GetStuckMipLevels();\n}\n")),
+         mutate(files, "vpcpp", None, lambda t: t + "\nint32 CensusProbeLevels()\n{\n\treturn AnomalyDefaults::GetStuckMipMaxCoAffected();\n}\n")),
         ("a second lazy resolver in TexCorruptState", "(g)",
          mutate(files, "state", None,
                 lambda t: t + "\nint32 CensusProbeGet()\n{\n\tstatic bool bResolved = false;\n\tbResolved = true;\n\treturn 0;\n}\n")),

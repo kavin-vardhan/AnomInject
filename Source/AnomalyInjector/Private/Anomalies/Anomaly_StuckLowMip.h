@@ -87,6 +87,11 @@ private:
 		bool bTimeoutReported = false;
 	};
 
+#if !UE_BUILD_SHIPPING
+	TArray<FHeldTexture> BenchProxySources;
+	void RestoreBenchProxySources();
+#endif
+
 	static int32 HeldLevelOf(const FHeldTexture& H);
 
 	bool RunStreamerFence(int32& OutRetireFrames);

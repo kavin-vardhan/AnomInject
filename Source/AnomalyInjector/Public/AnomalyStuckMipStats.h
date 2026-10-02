@@ -4,6 +4,8 @@
 #include "AnomalyProxyBlurPolicy.h"
 
 class UTexture2D;
+class UWorld;
+class AActor;
 
 namespace AnomalyStuckMip
 {
@@ -56,6 +58,10 @@ namespace AnomalyStuckMip
 	ANOMALYINJECTOR_API FRunStats GetRunStats();
 	ANOMALYINJECTOR_API AnomalyProxyBlur::ERoute GetRoute();
 	ANOMALYINJECTOR_API const TCHAR* LexRoute(AnomalyProxyBlur::ERoute Route);
+	ANOMALYINJECTOR_API void GatherPurityActors(UWorld* World, TArray<TWeakObjectPtr<AActor>>& Out);
+	ANOMALYINJECTOR_API void CountActorTextureUsers(AActor* Actor, TMap<UTexture2D*, int32>& Out);
+	ANOMALYINJECTOR_API void InspectHold(AActor* Actor, const TMap<UTexture2D*, int32>& Users,
+		bool& bOutShared, bool& bOutEligible, TArray<FString>& OutReasons);
 
 	ANOMALYINJECTOR_API bool IsNoHoldLeverOn();
 

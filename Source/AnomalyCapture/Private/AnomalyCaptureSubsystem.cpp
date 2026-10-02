@@ -6316,13 +6316,13 @@ void UAnomalyCaptureSubsystem::ServicePendingNaniteReverts()
 
 bool UAnomalyCaptureSubsystem::IsRenderTruthFire(const FAutoLiveFireInfo& F) const
 {
-	if (!bRenderTruthRun)
+	if (!bRenderTruthRun || F.bProxyBlur)
 	{
 		return false;
 	}
 	UWorld* World = GetWorld();
 	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
-	return Injector && Injector->DoesAnomalyUseRenderTruth(F.Id);
+	return Injector && (F.Id == FName(TEXT("stuck_low_mip")) || Injector->DoesAnomalyUseRenderTruth(F.Id));
 }
 
 bool UAnomalyCaptureSubsystem::ResolveEventTextures(const FAutoLiveFireInfo& F, TArray<FAnomalyRenderTruthTexture>& Out)
@@ -8310,9 +8310,7 @@ void UAnomalyCaptureSubsystem::RegisterBenchStuckMipLevers()
 uint8 UAnomalyCaptureSubsystem::ResolveAnnotationPolicy(const FAutoLiveFireInfo& F) const
 {
 	bool bKnownId = false;
-	const UAnomalyInjectorSubsystem* Injector = GetWorld() ? GetWorld()->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
-	const bool bProxy = F.Id == FName(TEXT("stuck_low_mip")) && Injector && !Injector->DoesAnomalyUseRenderTruth(F.Id);
-	return (uint8)AnomalyProxyBlur::Policy(bProxy,
+	return (uint8)AnomalyProxyBlur::Policy(F.bProxyBlur,
 		AnomalyActiveSource::PolicyFor(ResolveAnomalyActiveSource(F.Id, bKnownId), IsRenderTruthFire(F)));
 }
 

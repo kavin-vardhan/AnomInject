@@ -405,6 +405,13 @@ namespace AnomalyDefaults
 
 	int32 GetStuckMipLevels()
 	{
+		if (AnomalyViewport::IsReadOnlyEnumeration())
+		{
+			if (StuckMipLevelsOverrideSet()) { return StuckMipLevelsOverride(); }
+			int32 Value = StuckMipLevelsCompiled;
+			if (GConfig) { GConfig->GetInt(SectionName(), StuckMipLevelsKey(), Value, GGameIni); }
+			return Value >= StuckMipLevelsMin && Value <= StuckMipLevelsMax ? Value : StuckMipLevelsCompiled;
+		}
 		if (StuckMipLevelsOverrideSet())
 		{
 			return StuckMipLevelsOverride();
@@ -648,6 +655,13 @@ namespace AnomalyDefaults
 
 	float GetStuckMipMinTexelRatio()
 	{
+		if (AnomalyViewport::IsReadOnlyEnumeration())
+		{
+			if (StuckMipMinTexelRatioOverrideSet()) { return StuckMipMinTexelRatioOverride(); }
+			float Value = StuckMipMinTexelRatioCompiled;
+			if (GConfig) { GConfig->GetFloat(SectionName(), StuckMipMinTexelRatioKey(), Value, GGameIni); }
+			return Value >= StuckMipMinTexelRatioMin && Value <= StuckMipMinTexelRatioMax ? Value : StuckMipMinTexelRatioCompiled;
+		}
 		if (StuckMipMinTexelRatioOverrideSet())
 		{
 			return StuckMipMinTexelRatioOverride();

@@ -592,6 +592,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		Fire.TargetName = TargetName;
 		Fire.SecondsRemaining = Hold;
 		Fire.StartFrame = GFrameCounter;
+		Fire.bProxyBlur = Id == FName(TEXT("stuck_low_mip")) && !Injector->DoesAnomalyUseRenderTruth(Id);
 		LiveFires.Add(Fire);
 		LastFireResult = FString::Printf(TEXT("fire %s on %s (hold %.1fs)"), *Id.ToString(), *TargetName, Hold);
 	}
@@ -812,6 +813,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 		Fire.TargetName = TargetName;
 		Fire.SecondsRemaining = Hold;
 		Fire.StartFrame = GFrameCounter;
+		Fire.bProxyBlur = Id == FName(TEXT("stuck_low_mip")) && !Injector->DoesAnomalyUseRenderTruth(Id);
 		Fire.bWholeFrameExtent = IsSessionGlobalId(Injector, Id);
 		LiveFires.Add(Fire);
 		LastFireResult = FString::Printf(TEXT("fire %s on %s (targeted)"), *Id.ToString(), *TargetName);
@@ -951,6 +953,7 @@ TArray<FAutoLiveFireInfo> UAnomalyAutoInjectorSubsystem::GetLiveFires() const
 		Info.SecondsRemaining = Fire.SecondsRemaining;
 		Info.StartFrame = Fire.StartFrame;
 		Info.bWholeFrameExtent = Fire.bWholeFrameExtent;
+		Info.bProxyBlur = Fire.bProxyBlur;
 		Result.Add(Info);
 	}
 	return Result;

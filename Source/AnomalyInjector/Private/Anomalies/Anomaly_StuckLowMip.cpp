@@ -2,6 +2,7 @@
 #include "Anomalies/Anomaly_TexCorrupt.h"
 
 #include "AnomalyDefaults.h"
+#include "AnomalyBenchGate.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyLod.h"
@@ -36,6 +37,7 @@ namespace
 	bool GStuckMipUnlinkLock = false;
 #if !UE_BUILD_SHIPPING
 	bool GStuckMipLegacyPurity = false;
+	bool GProxyBlurSharedSource = false;
 #endif
 	AnomalyStuckMip::FRunStats GStuckMipStats;
 
@@ -333,6 +335,66 @@ namespace
 
 namespace AnomalyStuckMip
 {
+	void GatherPurityActors(UWorld* World, TArray<TWeakObjectPtr<AActor>>& Out)
+	{
+		TSet<const ULevel*> Loaded;
+		GatherLoadedLevels(World, Loaded);
+		for (const ULevel* Level : Loaded)
+		{
+			for (AActor* Actor : Level->Actors) { if (Actor) { Out.Add(Actor); } }
+		}
+	}
+
+	void CountActorTextureUsers(AActor* Actor, TMap<UTexture2D*, int32>& Out)
+	{
+		if (!Actor) { return; }
+		TSet<const ULevel*> Loaded;
+		Loaded.Add(Actor->GetLevel());
+		TInlineComponentArray<UActorComponent*> Comps(Actor);
+		for (UActorComponent* C : Comps)
+		{
+			if (!C || !AnomalyStuckMipWindow::InPurityScope(DescribeComponentScope(C, Loaded))) { continue; }
+			TArray<UTexture*> Textures;
+			CollectAnyComponentTextures(C, Textures);
+			TSet<UTexture2D*> Unique;
+			for (UTexture* T : Textures) { if (UTexture2D* T2 = Cast<UTexture2D>(T)) { Unique.Add(T2); } }
+			for (UTexture2D* T : Unique) { ++Out.FindOrAdd(T); }
+		}
+	}
+
+	void InspectHold(AActor* Actor, const TMap<UTexture2D*, int32>& Users,
+		bool& bOutShared, bool& bOutEligible, TArray<FString>& OutReasons)
+	{
+		bOutShared = false;
+		bOutEligible = false;
+		OutReasons.Reset();
+		if (!Actor) { OutReasons.Add(TEXT("no_mesh")); return; }
+		TInlineComponentArray<UMeshComponent*> Meshes(Actor);
+		TArray<UTexture2D*> Textures;
+		for (UMeshComponent* C : Meshes) { CollectComponentTextures(C, Textures); }
+		if (Textures.Num() == 0) { OutReasons.Add(TEXT("no_textures")); }
+		for (UTexture2D* T : Textures)
+		{
+			const EEligibility Class = ClassifyTexture(T);
+			if (Class != EEligibility::Eligible)
+			{
+				OutReasons.AddUnique(Class == EEligibility::Virtual ? TEXT("virtual_texture")
+					: Class == EEligibility::ExcludedGroup ? TEXT("excluded_group") : TEXT("not_streamable"));
+				continue;
+			}
+			const int32 Count = Users.FindRef(T);
+			bOutShared |= Count > 1;
+			bool bCanHold = true;
+			if (Count != 1) { OutReasons.AddUnique(TEXT("shared_world")); bCanHold = false; }
+			if (T->HasPendingInitOrStreaming()) { OutReasons.AddUnique(TEXT("baseline_pending")); bCanHold = false; }
+			const FStreamableRenderResourceState& St = T->GetStreamableResourceState();
+			const int32 Target = AnomalyProxyBlur::TargetMips(T->GetNumResidentMips(), St.NumNonStreamingLODs, St.MaxNumLODs,
+				AnomalyDefaults::GetStuckMipLevels(), AnomalyDefaults::StuckMipMinResidentMips);
+			if (Target >= T->GetNumResidentMips()) { OutReasons.AddUnique(TEXT("already_at_floor")); bCanHold = false; }
+			bOutEligible |= bCanHold;
+		}
+	}
+
 	void ResetRunStats()
 	{
 		GStuckMipStats = FRunStats();
@@ -684,6 +746,26 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		{
 			++GStuckMipStats.FiresApplied;
 			++GStuckMipStats.ProxyFires;
+#if !UE_BUILD_SHIPPING
+			if (AnomalyBenchGate::IsEnabled() && GProxyBlurSharedSource)
+			{
+				for (UTexture2D* Tex : Candidates)
+				{
+					if (!Tex || ClassifyTexture(Tex) != EEligibility::Eligible) { continue; }
+					const FStreamableRenderResourceState& S = Tex->GetStreamableResourceState();
+					FHeldTexture& B = BenchProxySources.AddDefaulted_GetRef();
+					B.Texture = Tex;
+					B.SavedCinematicMips = Tex->NumCinematicMipLevels;
+					B.BaselineResidentMips = Tex->GetNumResidentMips();
+					B.TargetMips = AnomalyProxyBlur::TargetMips(B.BaselineResidentMips, S.NumNonStreamingLODs,
+						S.MaxNumLODs, Levels, AnomalyDefaults::StuckMipMinResidentMips);
+					Tex->NumCinematicMipLevels += S.MaxNumLODs - B.TargetMips;
+					Tex->UpdateCachedLODBias();
+					Tex->StreamOut(B.TargetMips);
+				}
+				UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.ProxyBlurSharedSource: changed %d shared source(s); co-user gate must FAIL."), BenchProxySources.Num());
+			}
+#endif
 		}
 		UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: ROUTE route=proxy result=%s shared_world=%d levels=%d target='%s'"),
 			bActive ? TEXT("applied") : TEXT("refused"), bShared ? 1 : 0, Levels, *Substring);
@@ -1046,6 +1128,9 @@ void FAnomaly_StuckLowMip::OnTargetLost(AActor* Actor, bool bWorldEnding)
 
 void FAnomaly_StuckLowMip::OnWorldTeardown()
 {
+#if !UE_BUILD_SHIPPING
+	RestoreBenchProxySources();
+#endif
 	if (Proxy) { Proxy->OnWorldTeardown(); }
 	StopHoldMonitor();
 	const int32 Unverified = Restoring.Num();
@@ -1075,6 +1160,9 @@ void FAnomaly_StuckLowMip::OnWorldTeardown()
 
 void FAnomaly_StuckLowMip::Revert()
 {
+#if !UE_BUILD_SHIPPING
+	RestoreBenchProxySources();
+#endif
 	if (bProxyRoute)
 	{
 		if (Proxy) { Proxy->Revert(); }
@@ -1879,6 +1967,32 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 }
 
 #if !UE_BUILD_SHIPPING
+void FAnomaly_StuckLowMip::RestoreBenchProxySources()
+{
+	for (const FHeldTexture& B : BenchProxySources)
+	{
+		if (UTexture2D* Tex = B.Texture.Get())
+		{
+			Tex->NumCinematicMipLevels = B.SavedCinematicMips;
+			Tex->UpdateCachedLODBias();
+			Tex->StreamIn(B.BaselineResidentMips, true);
+		}
+	}
+	BenchProxySources.Reset();
+}
+
+static FAutoConsoleCommand GBenchProxyBlurSharedSourceCmd(
+	TEXT("IAI.Bench.ProxyBlurSharedSource"),
+	TEXT("BENCH MUTANT <0|1>: proxy blur also changes the shared source; co-user pixels must reject it. Default OFF."),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		if (AnomalyBenchGate::IsEnabled() && Args.Num() == 1)
+		{
+			GProxyBlurSharedSource = FCString::Atoi(*Args[0]) != 0;
+			UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.ProxyBlurSharedSource -> %d"), GProxyBlurSharedSource ? 1 : 0);
+		}
+	}));
+
 static FAutoConsoleCommandWithWorldAndArgs GBenchStuckMipNoHoldCmd(
 	TEXT("IAI.Bench.StuckMipNoHold"),
 	TEXT("BENCH DEVICE, console only, default OFF - never in a client payload. ON makes stuck_low_mip do all of its ")

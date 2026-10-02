@@ -316,6 +316,7 @@ namespace AnomalyTexCorrupt
 
 	struct FTreeResult
 	{
+		bool bProxyBlur = false;
 		EFamily Family = EFamily::UV;
 		EMode Mode = EMode::None;
 		int32 TileN = 1;

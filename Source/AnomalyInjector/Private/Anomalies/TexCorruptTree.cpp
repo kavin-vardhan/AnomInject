@@ -1075,6 +1075,7 @@ namespace AnomalyTexCorrupt
 	void EvaluateTree(UWorld* World, const FTreeInputs& In, FTreeResult& Out)
 	{
 		Out = FTreeResult();
+		Out.bProxyBlur = In.bProxyBlur;
 		Out.Family = In.Family;
 		Out.Mode = In.Mode;
 		Out.TileN = In.TileN;
@@ -1396,7 +1397,7 @@ namespace AnomalyTexCorrupt
 			TEXT("TEXCORRUPT-%s family=%s mode=%s target='%s' final=%s step=%s slots=%d qualified=%d required_bytes=%lld ")
 			TEXT("distinct_textures=%d scratch_classes=%d cap=%s levers=[%s]%s components=%d admitted=%d skipped=%d selected_slots=%d ")
 			TEXT("notes=[%s]"),
-			Tag, LexFamily(Result.Family), LexMode(Result.Mode), *Result.TargetQuery, *Result.FinalKey(),
+			Tag, Result.bProxyBlur ? TEXT("blur") : LexFamily(Result.Family), LexMode(Result.Mode), *Result.TargetQuery, *Result.FinalKey(),
 			Result.EventStep.IsEmpty() ? TEXT("-") : *Result.EventStep, Result.Slots.Num(), Result.SlotsQualified,
 			Result.RequiredBytes, Result.DistinctTextures, Result.ScratchClasses, *DescribeMaxRtBytes(), *DescribeLevers(),
 			*Result.Attempt.Describe(), Result.ComponentsTouchable, Result.ComponentsAdmittable, Result.ComponentsSkipped,
@@ -1609,7 +1610,15 @@ namespace AnomalyTexCorrupt
 			int32 UniformNext = 0;
 			int32 UniformKicked = 0;
 			double UniformWaitStart = -1.0;
-			FCensusCounts Counts[2];
+			FCensusCounts Counts[3];
+			TArray<TWeakObjectPtr<AActor>> PurityActors;
+			TMap<UTexture2D*, int32> TextureUsers;
+			int32 PurityNext = 0;
+			bool bPurityStarted = false;
+			int32 HoldEligible = 0;
+			int32 ProxyEligible = 0;
+			int32 AutoHoldEligible = 0;
+			int32 AutoProxyEligible = 0;
 			double StartSeconds = 0.0;
 			double NextProgressSeconds = 0.0;
 			double LastCallSeconds = 0.0;
@@ -1718,7 +1727,20 @@ namespace AnomalyTexCorrupt
 				}
 			}
 		}
-		const bool bEvaluate = Job.bEnumerated && Job.bUniformDone;
+		if (Job.bEnumerated && Job.bUniformDone)
+		{
+			if (!Job.bPurityStarted)
+			{
+				Job.bPurityStarted = true;
+				AnomalyStuckMip::GatherPurityActors(World, Job.PurityActors);
+			}
+			const double End = FPlatformTime::Seconds() + CensusSliceSeconds;
+			while (Job.PurityNext < Job.PurityActors.Num() && FPlatformTime::Seconds() < End)
+			{
+				AnomalyStuckMip::CountActorTextureUsers(Job.PurityActors[Job.PurityNext++].Get(), Job.TextureUsers);
+			}
+		}
+		const bool bEvaluate = Job.bEnumerated && Job.bUniformDone && Job.bPurityStarted && Job.PurityNext >= Job.PurityActors.Num();
 		if (!Job.bEnumerated)
 		{
 			if (Job.bAll)
@@ -1785,15 +1807,35 @@ namespace AnomalyTexCorrupt
 				++Job.Gone;
 				continue;
 			}
-			for (int32 f = 0; f < 2; ++f)
+			for (int32 f = 0; f < 3; ++f)
 			{
 				FTreeInputs In;
-				In.Family = f == 0 ? EFamily::UV : EFamily::Normal;
+				In.Family = f == 1 ? EFamily::Normal : EFamily::UV;
+				In.bProxyBlur = f == 2;
+				In.BlurLevels = AnomalyDefaults::GetStuckMipLevels();
+				if (In.bProxyBlur) { In.Mode = EMode::ProxyBlur; }
 				In.bCensus = true;
 				In.bAllReasons = Job.bAllReasons;
 				In.TargetActor = Actor;
 				FTreeResult Result;
 				EvaluateTree(World, In, Result);
+				if (f == 2)
+				{
+					bool bShared = false, bHold = false;
+					TArray<FString> HoldReasons;
+					AnomalyStuckMip::InspectHold(Actor, Job.TextureUsers, bShared, bHold, HoldReasons);
+					Job.HoldEligible += bHold ? 1 : 0;
+					Job.ProxyEligible += Result.bApply ? 1 : 0;
+					Job.AutoHoldEligible += !bShared && bHold ? 1 : 0;
+					Job.AutoProxyEligible += bShared && Result.bApply ? 1 : 0;
+					if (AnomalyProxyBlur::SelectRoute(AnomalyStuckMip::GetRoute(), bShared) == AnomalyProxyBlur::ERoute::Hold)
+					{
+						Result = FTreeResult();
+						Result.bApply = bHold;
+						Result.Reason = bHold ? TEXT("APPLY") : (HoldReasons.Num() > 0 ? HoldReasons[0] : FString(TEXT("no_textures")));
+						Result.EventKeys = bHold ? TArray<FString>() : HoldReasons;
+					}
+				}
 				if (Result.bApply)
 				{
 					++Counts[f].Eligible;
@@ -1856,7 +1898,9 @@ namespace AnomalyTexCorrupt
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 scope=%s candidates=%d cap_bytes=%d uv_modes=%s normal_modes=%s"),
 			bAll ? TEXT("all") : TEXT("view"), Names.Num(), GetMaxRtBytes(), *DescribeModeSet(EFamily::UV, GetEnabledModeMask(EFamily::UV)),
 			*DescribeModeSet(EFamily::Normal, GetEnabledModeMask(EFamily::Normal)));
-		for (int32 f = 0; f < 2; ++f)
+		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=%d proxy_eligible=%d auto_hold=%d auto_proxy=%d selected=%s"),
+			Job.HoldEligible, Job.ProxyEligible, Job.AutoHoldEligible, Job.AutoProxyEligible, AnomalyStuckMip::LexRoute(AnomalyStuckMip::GetRoute()));
+		for (int32 f = 0; f < 3; ++f)
 		{
 			TArray<FString> Keys;
 			Counts[f].Reasons.GetKeys(Keys);
@@ -1867,7 +1911,7 @@ namespace AnomalyTexCorrupt
 				Reasons += FString::Printf(TEXT("%s%s:%d"), Reasons.IsEmpty() ? TEXT("") : TEXT(","), *Key, Counts[f].Reasons[Key]);
 			}
 			UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 id=%s eligible=%d refused=%d reasons=%s"),
-				f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption"), Counts[f].Eligible, Counts[f].Refused,
+				f == 2 ? TEXT("stuck_low_mip") : (f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption")), Counts[f].Eligible, Counts[f].Refused,
 				Reasons.IsEmpty() ? TEXT("-") : *Reasons);
 			FString Subs;
 			for (const TPair<FString, int32>& P : SortedByCount(Counts[f].Subs, 0))
@@ -1875,13 +1919,13 @@ namespace AnomalyTexCorrupt
 				Subs += FString::Printf(TEXT("%s%s:%d"), Subs.IsEmpty() ? TEXT("") : TEXT(","), *P.Key, P.Value);
 			}
 			UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 subs id=%s subs=%s"),
-				f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption"), Subs.IsEmpty() ? TEXT("-") : *Subs);
+				f == 2 ? TEXT("stuck_low_mip") : (f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption")), Subs.IsEmpty() ? TEXT("-") : *Subs);
 		}
 		if (Job.bAllReasons)
 		{
-			for (int32 f = 0; f < 2; ++f)
+			for (int32 f = 0; f < 3; ++f)
 			{
-				const TCHAR* IdText = f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption");
+				const TCHAR* IdText = f == 2 ? TEXT("stuck_low_mip") : (f == 0 ? TEXT("uv_corruption") : TEXT("normal_corruption"));
 				const FCensusCounts& C = Counts[f];
 				UE_LOG(LogAnomaly, Display,
 					TEXT("IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s objects=%d eligible=%d blocked=%d unassessed=%d b_gain_objects=%d"),

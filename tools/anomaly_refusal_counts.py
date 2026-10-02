@@ -36,19 +36,22 @@ STARTUP = re.compile(r"IAI-STARTUP world='[^']*' type=(\w+) editor=(\d) nanite_p
 YIELD = re.compile(r"Auto\.Yield ([a-z_]+): 0 of (\d+) candidates eligible - (.*?) \((auto-pool|targeted), (\d+) round")
 YIELD_ITEM = re.compile(r"([a-z_]+(?:/[A-Za-z0-9_.]+)?)(?::\S*)? (\d+)")
 KEY = r"[A-Za-z0-9_./]+"
-SUBS = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 subs id=((?:uv|normal)_corruption) subs=(-|" + KEY + r":\d+(?:," + KEY + r":\d+)*)\s*$")
-AR_HEAD = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((?:uv|normal)_corruption) objects=(\d+) eligible=(\d+) blocked=(\d+) "
+IDS = r"((?:uv|normal)_corruption|stuck_low_mip)"
+SUBS = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 subs id=" + IDS + r" subs=(-|" + KEY + r":\d+(?:," + KEY + r":\d+)*)\s*$")
+AR_HEAD = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=" + IDS + r" objects=(\d+) eligible=(\d+) blocked=(\d+) "
                      r"unassessed=(\d+) b_gain_objects=(\d+)\s*$")
-AR_KEY = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((?:uv|normal)_corruption) key=(" + KEY + r") objects=(\d+) only=(\d+)\s*$")
-AR_NOTE = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((?:uv|normal)_corruption) note=(" + KEY + r") objects=(\d+)\s*$")
-AR_COMBO = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((?:uv|normal)_corruption) combo=(" + KEY + r"(?:\+" + KEY + r")*) "
+AR_KEY = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=" + IDS + r" key=(" + KEY + r") objects=(\d+) only=(\d+)\s*$")
+AR_NOTE = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=" + IDS + r" note=(" + KEY + r") objects=(\d+)\s*$")
+AR_COMBO = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=" + IDS + r" combo=(" + KEY + r"(?:\+" + KEY + r")*) "
                       r"objects=(\d+)\s*$")
 AUTO_FIRE = re.compile(r"Auto\.Fire: '([a-z_]+)' on '.*?' -> (applied|0 matched)\.")
 AUTO_SPEC = re.compile(r"Auto\.FireSpecific: '([a-z_]+)' on '.*?' -> (applied|not applied|0 matched|refused)")
 AUTO_DRAW = re.compile(r"Auto\.Draw attempt=\d+ .*? id=([a-z_-]+) .*? result=(\w+)")
 NANITE = re.compile(r"REFUSED-NANITE actor=")
 NANITE_PROBE = re.compile(r"REFUSED-NANITE-PROBE-MISSING actor=")
-TC_HEAD = re.compile(r"TEXCORRUPT-(DECIDE|REFUSED) family=(uv|normal) mode=\S+ target='.*?' final=([A-Za-z_]+)")
+TC_HEAD = re.compile(r"TEXCORRUPT-(DECIDE|REFUSED) family=(uv|normal|blur) mode=\S+ target='.*?' final=([A-Za-z_]+)")
+ROUTES = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=(\d+) proxy_eligible=(\d+) auto_hold=(\d+) auto_proxy=(\d+) selected=(auto|hold|proxy)\s*$")
+ROUTE_FIRE = re.compile(r"stuck_low_mip: ROUTE route=(hold|proxy) result=applied ")
 TC_SLOT = re.compile(r"TEXCORRUPT-(?:DECIDE|REFUSED)\s+slot \S+ disposition=([a-z_]+)")
 TC_SHADERMAP = re.compile(r"TEXCORRUPT-SHADERMAP '.*?' game_thread_complete=(\d) .*?-> (admitted|refused)(?: (\w+))?")
 CENSUS = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (scope=\S+ candidates=\d+|id=\S+ eligible=\d+ refused=\d+|"
@@ -70,7 +73,7 @@ def reason_heads(text):
 def count(lines):
     c = dict(startup=[], yield_lines=Counter(), yield_reasons={}, yield_candidates=Counter(), auto=Counter(), spec=Counter(),
              draw=Counter(), nanite=0, nanite_probe=0, tc_applied=Counter(), tc_refused={}, tc_slots=Counter(),
-             tc_shadermap=Counter(), census=[], subs={}, allreasons={})
+             tc_shadermap=Counter(), census=[], subs={}, allreasons={}, routes=[], route_fires=Counter())
     for raw in lines:
         line = raw.rstrip("\r\n")
         m = STARTUP.search(line)
@@ -106,7 +109,7 @@ def count(lines):
             continue
         m = TC_HEAD.search(line)
         if m:
-            fam = "uv_corruption" if m.group(2) == "uv" else "normal_corruption"
+            fam = dict(uv="uv_corruption", normal="normal_corruption", blur="stuck_low_mip")[m.group(2)]
             if m.group(1) == "DECIDE":
                 c["tc_applied"][fam] += 1
             else:
@@ -148,6 +151,14 @@ def count(lines):
             a = c["allreasons"].setdefault(m.group(1), dict(head=None, keys={}, notes=Counter(), combos=Counter()))
             a["combos"][m.group(2)] = int(m.group(3))
             continue
+        m = ROUTES.search(line)
+        if m:
+            c["routes"].append(tuple(int(x) for x in m.groups()[:4]) + (m.group(5),))
+            continue
+        m = ROUTE_FIRE.search(line)
+        if m:
+            c["route_fires"][m.group(1)] += 1
+            continue
         m = CENSUS.search(line)
         if m:
             head = m.group(1)
@@ -182,7 +193,7 @@ def render(c, m52c):
     if c["draw"]:
         out.append("AUTO.DRAW results         %s" % fmt_counter(Counter({"%s:%s" % k: v for k, v in c["draw"].items()})))
     out.append("NANITE GATE               refused %d | refused probe-missing %d" % (c["nanite"], c["nanite_probe"]))
-    for fam in ("uv_corruption", "normal_corruption"):
+    for fam in ("uv_corruption", "normal_corruption", "stuck_low_mip"):
         out.append("%-25s applied %d | refused %d: %s" % (
             fam.upper(), c["tc_applied"].get(fam, 0), sum(c["tc_refused"].get(fam, Counter()).values()),
             fmt_counter(c["tc_refused"].get(fam, Counter()))))
@@ -190,6 +201,9 @@ def render(c, m52c):
     out.append("TEXCORRUPT-SHADERMAP      %s" % fmt_counter(c["tc_shadermap"]))
     for line in c["census"]:
         out.append("CENSUS                    %s" % line)
+    for routes in c["routes"]:
+        out.append("CENSUS ROUTES stuck_low_mip hold_eligible %d | proxy_eligible %d | auto_hold %d | auto_proxy %d | selected %s" % routes)
+    out.append("STUCK_LOW_MIP ROUTE FIRES  hold %d | proxy %d" % (c["route_fires"]["hold"], c["route_fires"]["proxy"]))
     for fam in sorted(c["subs"]):
         out.append("CENSUS SUBS %-13s %s" % (fam, fmt_counter(c["subs"][fam])))
     for fam in sorted(c["allreasons"]):
@@ -251,6 +265,16 @@ def allreasons_check(c):
         return 0, "PASS - every check is evaluated: " + "; ".join(multi)
     return 1, ("FAIL - no object fails more than one check (only == objects for every key, no combination): that is a "
                "first-failure census, not an all-reasons one")
+
+
+def route_check(c):
+    head = c["allreasons"].get("stuck_low_mip", {}).get("head")
+    if not c["routes"] or not head:
+        return 2, "missing blur route or allreasons counts"
+    hold, proxy, auto_hold, auto_proxy, selected = c["routes"][-1]
+    expected = dict(auto=auto_hold + auto_proxy, hold=hold, proxy=proxy)[selected]
+    ok = head[1] == expected and auto_hold <= hold and auto_proxy <= proxy and max(hold, proxy) <= head[0]
+    return (0 if ok else 1), ("PASS" if ok else "FAIL") + " - per-route eligible accounting"
 
 
 AR_SAMPLE_REAL = [
@@ -337,6 +361,21 @@ def selftest():
           allreasons_check(count(AR_SAMPLE_FIRST_ONLY))[0] == 1)
     check("allreasons-check says 2 when there is no table", allreasons_check(count(SAMPLE))[0] == 2)
     check("rendered all-reasons table carries no name", not re.search(r"Secret| M ", "\n".join(render(ar, m52.count([])))))
+    blur = [x.replace("uv_corruption", "stuck_low_mip") for x in AR_SAMPLE_REAL]
+    blur += ["IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=1 proxy_eligible=2 auto_hold=1 auto_proxy=1 selected=auto",
+             "stuck_low_mip: ROUTE route=proxy result=applied target='secret' k=4", "stuck_low_mip: ROUTE route=hold result=applied target='secret' k=3"]
+    bc = count(blur)
+    check("blur allreasons, per-route census and fire counts are read", bc["routes"] == [(1, 2, 1, 1, "auto")]
+          and bc["route_fires"] == Counter(hold=1, proxy=1) and allreasons_check(bc)[0] == 0)
+    check("blur first-failure mutant fails allreasons check", allreasons_check(count(
+          [x.replace("uv_corruption", "stuck_low_mip") for x in AR_SAMPLE_FIRST_ONLY]))[0] == 1)
+    check("missing route mutant cannot report route counts", not count(blur[:-3])["routes"])
+    check("swapped route values are distinguishable", count([blur[-3].replace("auto_hold=1", "auto_hold=0")])["routes"] != bc["routes"])
+    check("blur output carries no name", "secret" not in "\n".join(render(bc, m52.count([]))))
+    check("route accounting passes consistent counts", route_check(bc)[0] == 0)
+    check("route accounting rejects missing route mutant", route_check(count(blur[:-3]))[0] == 2)
+    check("route accounting rejects inconsistent eligible mutant", route_check(count(
+          [x.replace("auto_hold=1", "auto_hold=0") for x in blur]))[0] == 1)
     empty = render(count([]), m52.count([]))
     check("an empty log prints zeros and says the startup line is absent", "no IAI-STARTUP line" in empty[0])
     for l in lines:
@@ -351,15 +390,16 @@ def main(argv=None):
     ap.add_argument("--selftest", action="store_true", help="run the known-answer self test")
     ap.add_argument("--allreasons-check", action="store_true",
                     help="exit 0 if the log's allreasons table shows objects failing more than one check, 1 if not, 2 if absent")
+    ap.add_argument("--route-check", action="store_true", help="check blur per-route eligible accounting")
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
-    if a.allreasons_check:
+    if a.allreasons_check or a.route_check:
         if not a.log or not os.path.isfile(a.log):
             print("cannot read the log: file not found")
             return 2
-        rc, msg = allreasons_check(count(list(m52.read_lines(a.log))))
-        print("ALLREASONS-CHECK " + msg)
+        rc, msg = (route_check if a.route_check else allreasons_check)(count(list(m52.read_lines(a.log))))
+        print(("ROUTE-CHECK " if a.route_check else "ALLREASONS-CHECK ") + msg)
         return rc
     if not a.log:
         ap.print_help()
