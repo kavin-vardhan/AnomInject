@@ -11,6 +11,21 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧭 **090-10e, 2026-10-02 (finished by 090-10f2 Part 0) — THE "PIE END +1" WAS THE READER, NOT THE LABELS; `pie_end_settle`
+> SHIPS AS A PRECAUTION. Code `eacd308`, tools `257ff68`, readme `3b06311`; exe `68BA4D9A`. Merged into m53 (which also slices
+> the census listing).**
+> - **Cold start:** journal `docs/sessions/2026-10-02-090-10e-pie-endsettle-census-slice.md`.
+> - **Built:** transition reasons 8 → 16 bits; `pie_end_settle` (bit 256) marks, in PIE only, the first frame after each labelled
+>   run of a fire-window event as transition-only (unlabelled, unmasked, never a member, never an AA excuse); `run_summary`
+>   `pie_end_settle_active` / `_frames` / `label_transition_pie_end_settle_entries`. verify_capture `--label-rule` (65/65), the kit
+>   (84/84) and the E1 successor `_reviews\090-10e-eval.py` (13/13) know it.
+> - **Finding (G450):** the old edge reader used `affected_frames`, which leaves out a labelled frame whose PIE mask was unmeasured.
+>   Against `injected_frames`: 12 of 12 "end +1" vanish (147 events), 20 of 21 on older PIE sessions; 12 A legs = 84/84 in sync.
+> - **Builds:** strict 0/0 both branches, lever 34/34 (fix) and 52/52 (m53), Python 19/19 and 27/27. Archives
+>   `D:\IA_BankOverflow\_binary_baselines\m52fix-0910e-68BA4D9A\` and `m53-0910e-EBEED6F4\`.
+> - **Open → 090-10f2 Part M:** labelled early-PIE frames whose target mask is unmeasured. ⛔ No tag, no merge to master.
+>
+> ---
 > 🩺 **090-10b2, 2026-10-01/02 — stuck_low_mip's PIE "shared" WAS THE FIXTURE'S PURITY CONTROL, NOT THE EDITOR WORLD; THE PURITY LOG
 > NOW NAMES ITS WORLD; 090-10b IS WRITTEN UP; THE CHECKLIST RULE IS "VISIBLY WORKED IN PIE AND STAGED". Code head `a5f0a06`
 > (Source as `c60de04`), exe `5E93A74E`. The texture-corruption readiness change is m53-only (read its block). Merged into m53.**

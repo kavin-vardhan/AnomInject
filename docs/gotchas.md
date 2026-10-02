@@ -9047,3 +9047,11 @@ vertex factory, checks identity (the usage the proxy needs, else Default Materia
 (`default_material_path`, `draw_shaders_missing`, `shader_map_incomplete` = compile still running). **Rule: a gate on engine readiness
 must be proven in PIE on a healthy partial map (admitted, visibly works) AND on a genuinely broken one (refused by name, never
 labelled) before it ships; a cooked bench proves neither.** PRE-DELIVERY-CHECKLIST §0 carries the rule.
+## G450 — A label-edge reader that uses `affected_frames` reports a late end whenever the last labelled frame had no measured mask
+*(090-10e, finished by 090-10f2.)* `affected_frames` is the OBSERVABLE subset of the label (m49): a labelled frame whose target
+mask was not measured (`mask_state: "unmeasured"`, `target_pixels -1`, `observable null`) is left out of it. When that frame is
+the last labelled one, a reader comparing the picture against `affected_frames` thinks the label ended a frame early and reports
+"the picture stayed changed one frame after the label" — the "PIE end +1" of 090-10b2/090-10c. Against `injected_frames` the
+end +1 vanished on 12 of 12 (090-10e) and 20 of 21 (older PIE sessions; the 21st was an already-inconclusive rotating object).
+**Rule: judge a label's edges against the labelled set (`injected_frames`, or per-row `labelled`), never against an
+observability-filtered list; and when a reader says "late", check what its frame list leaves out before touching the labeller.**
