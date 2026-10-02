@@ -26,8 +26,8 @@ import tempfile
 import time
 import zlib
 
-KIT_VERSION = "1.3"
-EVALUATOR = "090-10"
+KIT_VERSION = "1.4"
+EVALUATOR = "090-10e"
 METHOD = ("086-01 per-frame change on the target silhouette; 084-06 edge-local references, stuck_low_mip "
           "sharpness path and transition-aware gate; 084-07 labelled and partial rules; 090-07 effect_interrupted "
           "run edges read against the picture at the interruption; 090-09 a labelled run with an image it cannot "
@@ -35,7 +35,11 @@ METHOD = ("086-01 per-frame change on the target silhouette; 084-06 edge-local r
           "nanite frame, nanite frames left out and the run end before them censored; 090-10 a labels row missing "
           "inside a labelled run or between two runs leaves those runs unjudged, every PNG is checked whole before "
           "either decoder reads it, capture_unpaired frames are left out with the run edges beside them censored, "
-          "and a session made only of them is refused")
+          "and a session made only of them is refused; 090-10e a pie_end_settle frame (the first frame after a "
+          "labelled run of a fire-window type in a Play-In-Editor capture) is left out of its event and is never a "
+          "reference or an anti-aliasing excuse, the run end is still judged on the next frame, which must read "
+          "clean, and the flag outside a PIE capture refuses the session while one on a labelled frame, on another "
+          "type or anywhere but the first frame after a run fails the event")
 
 TYPE_MAP = {"blink": "blinking", "flicker": "blinking"}
 DELIVERED = ("blinking", "missing_object", "missing_texture", "corrupted_texture", "lod_popping",
@@ -51,9 +55,16 @@ AA_ONLY_REASONS = ("temporal_aa", "hide_return")
 INTERRUPT_REASON = "effect_interrupted"
 NANITE_REASON = "nanite_unmaskable"
 UNPAIRED_REASON = "capture_unpaired"
-NO_AA_EXCUSE = (INTERRUPT_REASON, NANITE_REASON, UNPAIRED_REASON)
+PIE_REASON = "pie_end_settle"
+PIE_TYPES = ("missing_texture", "corrupted_texture", "uv_corruption", "normal_corruption", "lighting_mismatch",
+             "lod_corruption", "null_effect", "solid_swap", "time_dilation")
+NO_AA_EXCUSE = (INTERRUPT_REASON, NANITE_REASON, UNPAIRED_REASON, PIE_REASON)
 KNOWN_REASONS = AA_ONLY_REASONS + ("partial", "camera_clipping_unconfirmed", "unresolved", INTERRUPT_REASON,
-                                   NANITE_REASON, UNPAIRED_REASON)
+                                   NANITE_REASON, UNPAIRED_REASON, PIE_REASON)
+PIE_OUTSIDE = "pie_end_settle outside a PIE capture"
+PIE_LABELLED = "pie_end_settle on a labelled frame"
+PIE_TYPE = "pie_end_settle on a type without a fire window"
+PIE_PLACE = "pie_end_settle not on the first frame after a labelled run"
 ROW_MISSING = "labels row missing"
 LABELLED_UNPAIRED = "labelled frame unpaired"
 SYNC_ONLY = "sync-path capture: unsupported for delivery"
@@ -481,6 +492,33 @@ def row_unpaired(r):
     return any(_has_unpaired(x.get("transition_reason")) for x in (r.get("anomalies") or []) if isinstance(x, dict))
 
 
+def _has_pie(rs):
+    return isinstance(rs, list) and any(str(q) == PIE_REASON for q in rs)
+
+
+def pie_outside(d):
+    summ = jload(os.path.join(d, "run_summary.json"), None)
+    if isinstance(summ, dict) and summ.get("pie_end_settle_active") is True:
+        return False
+    try:
+        with open(os.path.join(d, "labels.jsonl"), "r", encoding="utf-8-sig") as fh:
+            for line in fh:
+                if PIE_REASON not in line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(r, dict):
+                    continue
+                if _has_pie(r.get("transition_reason")) or any(
+                        isinstance(x, dict) and _has_pie(x.get("transition_reason")) for x in (r.get("anomalies") or [])):
+                    return True
+    except OSError:
+        return False
+    return False
+
+
 class Frame(object):
     __slots__ = ("w", "h", "rows", "ncols")
 
@@ -502,6 +540,7 @@ class Session(object):
             if isinstance(si, int) and si not in self.rows:
                 self.rows[si] = r
         self.summary = jload(os.path.join(d, "run_summary.json"), {}) or {}
+        self.pie_active = isinstance(self.summary, dict) and self.summary.get("pie_end_settle_active") is True
         self.ce_rows = [r for r in read_jsonl(os.path.join(d, "change_evidence.jsonl")) if r.get("kind") == "pair"]
         self.sis = sorted(self.rows)
         self.unpaired = set(si for si, r in self.rows.items() if row_unpaired(r))
@@ -667,7 +706,7 @@ def events_of(s):
         sf = starts.most_common(1)[0][0] if starts else None
         ev = dict(ord=i, type=typ, L=L, Lset=set(L), runs=runs_of(L), node=node, start_frame=sf, entries={},
                   T=set(), reasons={}, mv={}, bbox={}, disagree=0, has_reason=False, I=set(), N=set(), U=set(),
-                  unknown=0)
+                  P=set(), pie_bad=[], unknown=0)
         if sf is not None:
             for si in s.sis:
                 for x in (s.rows[si].get("anomalies") or []):
@@ -697,6 +736,19 @@ def events_of(s):
                     ev["reasons"][si] = (UNPAIRED_REASON,) + tuple(rs)
             elif si not in ev["reasons"]:
                 ev["reasons"][si] = infer_reasons(si, ev, typ)
+        ends = set(b + 1 for _a, b in ev["runs"])
+        for si in sorted(ev["T"]):
+            if PIE_REASON not in ev["reasons"].get(si, ()):
+                continue
+            lab = bool((ev["entries"].get(si) or {}).get("labelled")) or si in ev["Lset"]
+            bad = [w for w, hit in ((PIE_OUTSIDE, not s.pie_active), (PIE_TYPE, typ not in PIE_TYPES),
+                                    (PIE_LABELLED, lab), (PIE_PLACE, not lab and si not in ends)) if hit]
+            for w in bad:
+                if w not in ev["pie_bad"]:
+                    ev["pie_bad"].append(w)
+            if not bad and si not in s.unpaired and si not in ev["N"]:
+                ev["P"].add(si)
+                ev["I"].discard(si)
         near = set(ev["entries"]) | ev["Lset"]
         for a, b in ev["runs"]:
             near.update((a - 1, b + 1))
@@ -1247,6 +1299,7 @@ def analyse_d(s, ev, evs, taa):
     fallback_runs = 0
     Is = ev["I"]
     Ns = ev["N"]
+    Ps = ev["P"]
     why_unj = {}
     pre_ref = []
 
@@ -1295,7 +1348,8 @@ def analyse_d(s, ev, evs, taa):
             if len(ron) < 2:
                 ron = refc
         nxt = lab_runs[i + 1][0] if i + 1 < len(lab_runs) else span_hi + 1
-        post_int = [si for si in int_stretch(b + 1, 1) if si < nxt]
+        b_next = b + 2 if (b + 1) in Ps else b + 1
+        post_int = [si for si in int_stretch(b_next, 1) if si < nxt]
         if len(post_int) >= POST_REF_N + 2:
             roff = post_int[-POST_REF_N:]
         elif post_int:
@@ -1309,8 +1363,11 @@ def analyse_d(s, ev, evs, taa):
             covered |= {a - 1, a}
         if s.brk(b) == "frame png missing":
             covered |= {b, b + 1}
-        unread = [si for si in range(a - 1, b + 2)
-                  if si in s.rows and si not in Ns and si not in Us and si not in covered and V(si) is None]
+        if b_next > b + 1 and s.brk(b + 1) == "frame png missing":
+            covered |= {b + 1, b + 2}
+        unread = [si for si in range(a - 1, b_next + 1)
+                  if si in s.rows and si not in Ns and si not in Us and si not in Ps and si not in covered
+                  and V(si) is None]
         off_bad = [x for x, v in zip(roff, off_views) if v is None and x not in covered]
         bad = s.invalid
         if any(x is None for x in on_views):
@@ -1342,7 +1399,7 @@ def analyse_d(s, ev, evs, taa):
         ser_on = {}
         off_all = {}
         for si in range(lo_w, hi_w + 1):
-            if si not in s.rows or si in Ns or si in Us:
+            if si not in s.rows or si in Ns or si in Us or si in Ps:
                 continue
             v = V(si)
             if v is None:
@@ -1350,6 +1407,8 @@ def analyse_d(s, ev, evs, taa):
             D, P, OB = metrics(v, Ron, ctx)
             ser_on[si] = (D, P)
             obflag[si] = OB > thOB_on
+        if b_next > b + 1 and b_next not in ser_on:
+            cens.setdefault(("e", b), PIE_REASON)
         settled = False
         k = 0
         if off_ok:
@@ -1503,6 +1562,7 @@ def analyse_d(s, ev, evs, taa):
     res["int_shows"] = shows
     res["nanite_ends"] = sum(1 for _a, b in lab_runs if (b + 1) in Ns)
     res["unpaired_ends"] = sum((1 if (ri["a"] - 1) in Us else 0) + (1 if (ri["b"] + 1) in Us else 0) for ri in run_info)
+    res["pie_ends"] = sum(1 for ri in run_info if (ri["b"] + 1) in Ps)
     res["post1"] = []
     for ri in run_info:
         x = series.get(ri["b"] + 1)
@@ -1517,7 +1577,7 @@ def analyse_d(s, ev, evs, taa):
             if m is None or not any(mv in row for row in m):
                 mm.append(si)
         for si in span:
-            if si in Ls:
+            if si in Ls or si in Ps:
                 continue
             m = s.mask(si)
             if m is not None and any(mv in row for row in m):
@@ -1855,7 +1915,8 @@ def analyse_session(d, decoder, types=None):
             continue
         row = dict(type=typ, ord=ev["ord"], rule=rule, disagree=ev["disagree"], ce=None, unknown=ev["unknown"],
                    int_frames=len(ev["I"]), int_gap=sum(1 for si in ev["I"] if ev["L"] and ev["L"][0] < si < ev["L"][-1]),
-                   nanite_frames=len(ev["N"]), unpaired_frames=len(ev["U"]))
+                   nanite_frames=len(ev["N"]), unpaired_frames=len(ev["U"]), pie_frames=len(ev["P"]),
+                   pie_bad=list(ev["pie_bad"]))
         if typ in NOT_JUDGEABLE:
             row["status"] = "NOT-JUDGEABLE"
             out.append(row)
@@ -1888,8 +1949,23 @@ def analyse_session(d, decoder, types=None):
             row["path"] = "d"
             row["d"] = dres
             row.update(_d_status(dres))
+        if ev["pie_bad"]:
+            pie_guard_fail(row, ev["pie_bad"])
         out.append(row)
     return s, rule, taa, out
+
+
+def pie_guard_fail(row, why):
+    per = row.get("per")
+    if per is None:
+        per = {n: dict(verdict="FAIL", verdict_raw="FAIL", edges=[], fails=[], stats={}, excused=0, strict00=False)
+               for n, _t in THRESH}
+        row["per"] = per
+        row["status"] = "OK"
+    for p in per.values():
+        p["fails"] = list(p["fails"]) + [w for w in why if w not in p["fails"]]
+        p["verdict"] = "FAIL"
+        p["verdict_raw"] = "FAIL"
 
 
 def _d_status(dres):
@@ -2006,6 +2082,11 @@ class Agg(object):
         self.un_events = 0
         self.un_frames = 0
         self.un_ends = 0
+        self.pie_events = 0
+        self.pie_frames = 0
+        self.pie_ends = 0
+        self.pie_bad_events = 0
+        self.pie_bad = collections.Counter()
         self.unj_runs = 0
         self.unj_runs_fail = 0
 
@@ -2032,6 +2113,12 @@ def aggregate(rows):
         if r.get("unpaired_frames"):
             a.un_events += 1
             a.un_frames += r["unpaired_frames"]
+        if r.get("pie_frames"):
+            a.pie_events += 1
+            a.pie_frames += r["pie_frames"]
+        if r.get("pie_bad"):
+            a.pie_bad_events += 1
+            a.pie_bad.update(r["pie_bad"])
         st = r.get("status")
         if st == "NOT-JUDGEABLE":
             a.status["not-judgeable"] += 1
@@ -2064,6 +2151,7 @@ def aggregate(rows):
         if r.get("nanite_frames"):
             a.nan_ends += (r["m52"] if r.get("path") == "m52" else d).get("nanite_ends") or 0
         a.un_ends += (r["m52"] if r.get("path") == "m52" else d).get("unpaired_ends") or 0
+        a.pie_ends += d.get("pie_ends") or 0
         for c in r.get("ce") or []:
             a.ce_w[c] += 1
         per = r["per"]
@@ -2131,6 +2219,21 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
     w("unpaired frames (written on the sync path, picture not paired with its label; left out of every check) %d in "
       "%d session(s)" % (si.get("unpaired", 0), si.get("unpaired_sessions", 0)))
     aggs = aggregate(rows)
+    pie_bad = collections.Counter()
+    for a in aggs.values():
+        pie_bad.update(a.pie_bad)
+    n_pie_out = si["refused"].get(PIE_OUTSIDE, 0)
+    n_pie_bad = sum(a.pie_bad_events for a in aggs.values())
+    w("pie_end_settle (Play-In-Editor capture; the first frame after a labelled run is left out of its event, never a "
+      "reference, and the run end is judged on the next frame): PIE sessions %d | frames dropped %d (%s) | judged run "
+      "ends with a dropped frame %d" % (
+          si.get("pie", 0), sum(a.pie_frames for a in aggs.values()),
+          ", ".join("%s %d" % (t, a.pie_frames) for t, a in aggs.items() if a.pie_frames) or "none",
+          sum(a.pie_ends for a in aggs.values())))
+    if n_pie_out or n_pie_bad:
+        w("*** PIE_END_SETTLE FLAG GUARD FAILED: %d session(s) refused (%s) | %d event(s) failed (%s); the flag "
+          "excuses nothing there ***" % (n_pie_out, PIE_OUTSIDE, n_pie_bad,
+                                         ", ".join("%s %d" % (k, v) for k, v in sorted(pie_bad.items())) or "none"))
     tot_runs = sum(a.runs for a in aggs.values())
     tot_fb = sum(a.fb for a in aggs.values())
     tot_52fb = sum(a.fallback_events for a in aggs.values())
@@ -2187,6 +2290,9 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
             a.nan_events, a.nan_frames, a.nan_ends))
         w("unpaired (frame written on the sync path, its picture is the previous frame; left out): events %d | frames %d"
           " | judged run edges censored there %d" % (a.un_events, a.un_frames, a.un_ends))
+        w("pie_end_settle (first frame after a labelled run left out; the run end judged on the next frame): events %d "
+          "| frames dropped %d | judged run ends with a dropped frame %d | flag guard failures %d" % (
+              a.pie_events, a.pie_frames, a.pie_ends, a.pie_bad_events))
         w("unjudged (a labels row or an image needed to judge a run is missing, unreadable or invalid): events %d | "
           "runs %d, of them inside failing events %d" % (a.status.get("unjudged", 0), a.unj_runs, a.unj_runs_fail))
         w("transition reasons unknown to this kit: %d frame(s)" % a.unknown)
@@ -2260,6 +2366,8 @@ def refuse_reason(d):
         return "label schema 1"
     if sync_only(os.path.join(d, "labels.jsonl")):
         return SYNC_ONLY
+    if pie_outside(d):
+        return PIE_OUTSIDE
     fr = os.path.join(d, "Actual_Frames")
     if not os.path.isdir(fr):
         return "no frames"
@@ -2279,7 +2387,7 @@ def refuse_reason(d):
 def run(paths, decoder, types=None):
     t0 = time.time()
     info = dict(read=0, refused=collections.Counter(), dups=0, res=collections.Counter(), rule=collections.Counter(),
-                taa=collections.Counter(), nomask=0, unpaired=0, unpaired_sessions=0)
+                taa=collections.Counter(), nomask=0, unpaired=0, unpaired_sessions=0, pie=0)
     rows = []
     seen = set()
     frames = 0
@@ -2303,6 +2411,8 @@ def run(paths, decoder, types=None):
         if s.unpaired:
             info["unpaired"] += len(s.unpaired)
             info["unpaired_sessions"] += 1
+        if s.pie_active:
+            info["pie"] += 1
         if s.size:
             info["res"][s.size] += 1
         frames += s.decoded + s.decoded_partial
@@ -2553,6 +2663,12 @@ def st_make(root, name, spec):
         summ["capture_unpaired_frames"] = len(unp)
         summ["label_transition_capture_unpaired_entries"] = sum(
             1 for r in labels if r.get("capture_unpaired") for _x in r["anomalies"])
+    if spec.get("pie") is not None:
+        pie_ents = [x for r in labels for x in r["anomalies"] if _has_pie(x.get("transition_reason"))]
+        summ["pie_end_settle_active"] = bool(spec["pie"])
+        summ["pie_end_settle_frames"] = sum(
+            1 for r in labels if any(_has_pie(x.get("transition_reason")) for x in r["anomalies"]))
+        summ["label_transition_pie_end_settle_entries"] = len(pie_ents)
     with open(os.path.join(d, "run_summary.json"), "w", encoding="utf-8") as fh:
         json.dump(summ, fh)
     for si in spec.get("omit", ()):
@@ -2686,6 +2802,19 @@ def st_cases():
     tex("unpaired_inside_hole", _full(L), labels=[40, 41, 42, 43, 45, 46, 47], unpaired={44: "prev"})
     tex("unpaired_listed_in_annotation", _full(L), unpaired={44: "prev"})
     tex("all_unpaired", _full(L), unpaired={si: "prev" for si in range(72)}, ev={"annotated": False})
+
+    def pie(name, pixels, flags=(48,), active=True, typ="missing_texture", kind="tex"):
+        ev = {"L": L, "pixels": pixels, "flags": {si: (PIE_REASON,) for si in flags}}
+        cases.append((name, {"type": typ, "kind": kind, "n": 72, "events": [ev], "pie": active}))
+
+    pie("pie_settle_one_late", _full(range(40, 49)))
+    pie("pie_settle_late_2", _full(range(40, 50)))
+    pie("pie_settle_not_pie", _full(range(40, 49)), active=False)
+    pie("pie_settle_unflagged_late_1", _full(range(40, 49)), flags=())
+    pie("pie_settle_on_clean_frame", _full(L))
+    pie("pie_settle_on_blinking", _full(L), typ="blink", kind="hide")
+    pie("pie_settle_two_flags", _full(range(40, 50)), flags=(48, 49))
+    pie("pie_settle_labelled", _full(L), flags=(47,))
     ghost = {si: 1.0 for si in L}
     ghost[48] = 0.08
     cases.append(("ghost_8pct", {"type": "blink", "kind": "hide", "n": 72, "events": [{"L": L, "pixels": ghost}]}))
@@ -2872,6 +3001,32 @@ def st_expect():
     add("m52_unpaired_end", "stuck_low_mip, unpaired frame after the label: end censored, not FAIL",
         lambda r: verdict(r) == "CENSORED" and r["path"] == "m52" and _edge(r)["ce"] and not r["per"]["t50"]["fails"]
         and r["m52"]["unpaired_ends"] == 1)
+
+    def pie_fails(r, why):
+        return verdict(r) == "FAIL" and raw(r) == "FAIL" and why in r["per"]["t50"]["fails"] and r["pie_bad"]
+
+    def pie_pass(r):
+        e = _edge(r)
+        return (verdict(r) == "PASS" and raw(r) == "PASS" and e["end"] == 0 and e["end_ta"] == 0 and e["start"] == 0
+                and not e["ce"] and r["pie_frames"] == 1 and r["d"]["pie_ends"] == 1 and not r["pie_bad"]
+                and r["unknown"] == 0 and r["per"]["t50"]["excused"] == 0)
+
+    add("pie_settle_one_late", "PIE: picture changed 1 frame past the label, that frame pie_end_settle: PASS 0/0",
+        pie_pass)
+    add("pie_settle_late_2", "PIE: still changed 2 frames past the label, only the first flagged: FAIL, end +2",
+        lambda r: verdict(r) == "FAIL" and _edge(r)["end"] == 2 and not _edge(r)["ce"] and not r["pie_bad"]
+        and "unlabelled visible" in r["per"]["t50"]["fails"] and r["pie_frames"] == 1, True)
+    add("pie_settle_not_pie", "pie_end_settle in a capture that is not PIE: flag ignored, FAIL",
+        lambda r: pie_fails(r, PIE_OUTSIDE) and r["pie_frames"] == 0 and _edge(r)["end"] == 1, True)
+    add("pie_settle_unflagged_late_1", "PIE: changed 1 frame past the label, no flag: FAIL, end +1",
+        lambda r: verdict(r) == "FAIL" and _edge(r)["end"] == 1 and r["pie_frames"] == 0 and not r["pie_bad"], True)
+    add("pie_settle_on_clean_frame", "PIE: picture ends with the label, flagged frame clean: PASS 0/0", pie_pass)
+    add("pie_settle_on_blinking", "pie_end_settle on blinking (no fire window): FAIL",
+        lambda r: pie_fails(r, PIE_TYPE) and r["pie_frames"] == 0, True)
+    add("pie_settle_two_flags", "PIE: changed 2 frames past the label, both flagged: FAIL",
+        lambda r: pie_fails(r, PIE_PLACE) and r["pie_frames"] == 1, True)
+    add("pie_settle_labelled", "pie_end_settle on a labelled frame: FAIL",
+        lambda r: pie_fails(r, PIE_LABELLED) and r["pie_frames"] == 0, True)
     add("cc", "camera_clipping is not judgeable", lambda r: r["status"] == "NOT-JUDGEABLE" and "per" not in r)
     add("m52_exact", "stuck_low_mip exact PASS 0/0", lambda r: verdict(r) == "PASS" and _edge(r)["start"] == 0 and _edge(r)["end"] == 0)
     add("m52_label_late_3", "stuck_low_mip label 3 frames late FAILS, start -3",
@@ -2978,6 +3133,13 @@ def selftest(force_stdlib=False):
         lines.append("SELFTEST %-66s %s" % ("transition gate: temporal_aa excuses a tail frame, never one also marked capture_unpaired",
                                           "ok" if gate_ok else "*** WRONG ***"))
         ok_all = ok_all and gate_ok
+        tg_p = transition_gate(Lg, [[40, 47]], vis_g, span_g, {48: (PIE_REASON, "temporal_aa")}, drop_g, 0.01, True)
+        tg_q = transition_gate(Lg, [[40, 47]], vis_g, span_g, {48: (PIE_REASON,)}, drop_g, 0.01, True)
+        pgate_ok = (48 in tg_p["unl_x"] and 48 not in tg_p["exc_unl"] and 48 in tg_q["unl_x"]
+                    and 48 not in tg_q["exc_unl"] and "unlabelled visible" in tg_q["fails"])
+        lines.append("SELFTEST %-66s %s" % ("transition gate: a pie_end_settle frame is never an anti-aliasing excuse",
+                                          "ok" if pgate_ok else "*** WRONG ***"))
+        ok_all = ok_all and pgate_ok
         results = {}
         for dec in decs:
             res = {}
@@ -3012,6 +3174,16 @@ def selftest(force_stdlib=False):
         lines.append("SELFTEST %-66s %s" % ("a session made only of unpaired (sync-path) frames is refused, a mixed one is read",
                                           "ok" if ref_ok else "*** WRONG ***"))
         ok_all = ok_all and ref_ok
+        info_p, rows_p, _el, _fr = run([made["pie_settle_not_pie"]], "stdlib")
+        text_p = report(info_p, rows_p, "stdlib", 0.0, 0)
+        pref_ok = (refuse_reason(made["pie_settle_not_pie"]) == PIE_OUTSIDE
+                   and refuse_reason(made["pie_settle_one_late"]) is None
+                   and refuse_reason(made["exact"]) is None
+                   and info_p["read"] == 0 and info_p["refused"].get(PIE_OUTSIDE) == 1 and not rows_p
+                   and ("*** PIE_END_SETTLE FLAG GUARD FAILED: 1 session(s) refused (%s)" % PIE_OUTSIDE) in text_p)
+        lines.append("SELFTEST %-66s %s" % ("pie_end_settle outside a PIE capture refuses the session, loudly; a PIE one is read",
+                                          "ok" if pref_ok else "*** WRONG ***"))
+        ok_all = ok_all and pref_ok
         info, rows, el, fr = run([made[n] for n, _s in cases], "stdlib")
         text = report(info, rows, "stdlib", el, fr)
         clean = not re.search(r"[\\/]|\.png|\.json|session_|frame_\d|\bT\d\b|st_|label_sync_selftest", text)
@@ -3059,6 +3231,21 @@ def selftest(force_stdlib=False):
         lines.append("SELFTEST %-66s %s" % ("READ BACK carries the unpaired count (%d events); the refused session is not read" % want_un,
                                           "ok" if un_ok else "*** WRONG ***"))
         ok_all = ok_all and un_ok
+        mt_sec = []
+        if "== missing_texture ==" in tl:
+            for l in tl[tl.index("== missing_texture ==") + 1:]:
+                if l.startswith("=="):
+                    break
+                mt_sec.append(l)
+        pie_line = [l for l in mt_sec if l.startswith("pie_end_settle (")]
+        pie_ok = (info["pie"] == 7 and "): PIE sessions 7 | frames dropped 4 (missing_texture 4) | judged run ends with a "
+                  "dropped frame 4" in text
+                  and ("1 session(s) refused (%s) | 3 event(s) failed (" % PIE_OUTSIDE) in text
+                  and len(pie_line) == 1 and pie_line[0].endswith(
+                      "events 4 | frames dropped 4 | judged run ends with a dropped frame 4 | flag guard failures 2"))
+        lines.append("SELFTEST %-66s %s" % ("report carries the pie_end_settle drops (4 frames) and its guard failures",
+                                          "ok" if pie_ok else "*** WRONG ***"))
+        ok_all = ok_all and pie_ok
         if doctored_passed:
             ok_all = False
             lines.append("SELFTEST *** THE KIT PASSED A DOCTORED LABEL (%d case(s)) - DO NOT USE ITS NUMBERS ***" % len(doctored_passed))
