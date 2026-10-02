@@ -1512,7 +1512,11 @@ namespace AnomalyTexCorrupt
 			bool bAll = false;
 			bool bAllReasons = false;
 			bool bEnumerated = false;
+			bool bSnapshotTaken = false;
 			bool bStatsUnchanged = true;
+			TArray<TWeakObjectPtr<AActor>> Pending;
+			int32 PendingNext = 0;
+			TArray<TPair<FString, TWeakObjectPtr<AActor>>> Found;
 			TArray<FString> Names;
 			TArray<TWeakObjectPtr<AActor>> Actors;
 			int32 Next = 0;
@@ -1585,27 +1589,57 @@ namespace AnomalyTexCorrupt
 		const FStatsSnapshot StatsBefore = TakeStatsSnapshot();
 
 		TArray<FString>& Names = Job.Names;
-		if (!Job.bEnumerated)
+		auto FinishEnumeration = [&Job, &Names]()
 		{
 			Job.bEnumerated = true;
-			TArray<TPair<FString, TWeakObjectPtr<AActor>>> Found;
+			Job.Pending.Empty();
+			Job.Found.Sort([](const TPair<FString, TWeakObjectPtr<AActor>>& L, const TPair<FString, TWeakObjectPtr<AActor>>& R)
+			{
+				return L.Key < R.Key;
+			});
+			for (const TPair<FString, TWeakObjectPtr<AActor>>& P : Job.Found)
+			{
+				Names.Add(P.Key);
+				Job.Actors.Add(P.Value);
+			}
+			Job.Found.Empty();
+		};
+		const bool bEvaluate = Job.bEnumerated;
+		if (!Job.bEnumerated)
+		{
 			if (Job.bAll)
 			{
-				for (TActorIterator<AActor> It(World); It; ++It)
+				if (!Job.bSnapshotTaken)
 				{
-					AActor* Actor = *It;
-					if (!Actor)
+					Job.bSnapshotTaken = true;
+					for (TActorIterator<AActor> It(World); It; ++It)
 					{
-						continue;
-					}
-					TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
-					for (UPrimitiveComponent* Prim : Prims)
-					{
-						if (AnomalyViewport::IsRenderableComponentReadOnly(Prim))
+						if (AActor* Actor = *It)
 						{
-							Found.Emplace(Actor->GetName(), Actor);
-							break;
+							Job.Pending.Add(Actor);
 						}
+					}
+				}
+				const double EnumEnd = FPlatformTime::Seconds() + CensusSliceSeconds;
+				while (Job.PendingNext < Job.Pending.Num())
+				{
+					AActor* Actor = Job.Pending[Job.PendingNext].Get();
+					++Job.PendingNext;
+					if (Actor)
+					{
+						TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
+						for (UPrimitiveComponent* Prim : Prims)
+						{
+							if (AnomalyViewport::IsRenderableComponentReadOnly(Prim))
+							{
+								Job.Found.Emplace(Actor->GetName(), Actor);
+								break;
+							}
+						}
+					}
+					if (FPlatformTime::Seconds() >= EnumEnd)
+					{
+						break;
 					}
 				}
 			}
@@ -1615,25 +1649,20 @@ namespace AnomalyTexCorrupt
 				{
 					if (AActor* Actor = Weak.Get())
 					{
-						Found.Emplace(Actor->GetName(), Actor);
+						Job.Found.Emplace(Actor->GetName(), Actor);
 					}
 				}
 			}
-			Found.Sort([](const TPair<FString, TWeakObjectPtr<AActor>>& L, const TPair<FString, TWeakObjectPtr<AActor>>& R)
+			if (Job.PendingNext >= Job.Pending.Num())
 			{
-				return L.Key < R.Key;
-			});
-			for (const TPair<FString, TWeakObjectPtr<AActor>>& P : Found)
-			{
-				Names.Add(P.Key);
-				Job.Actors.Add(P.Value);
+				FinishEnumeration();
 			}
 		}
 
 		FCensusCounts* Counts = Job.Counts;
 		const TCHAR* Stop = World ? nullptr : TEXT("world_gone");
 		const double SliceEnd = FPlatformTime::Seconds() + CensusSliceSeconds;
-		while (!Stop && Job.Next < Names.Num())
+		while (bEvaluate && !Stop && Job.Next < Names.Num())
 		{
 			AActor* Actor = Job.Actors[Job.Next].Get();
 			++Job.Next;
@@ -1682,17 +1711,25 @@ namespace AnomalyTexCorrupt
 		const double FrameIntervalMsMax = Job.Calls > 1 ? Job.MaxIntervalSeconds * 1000.0 : -1.0;
 
 		const double Elapsed = FPlatformTime::Seconds() - Job.StartSeconds;
-		if (!Stop && Job.Next >= Names.Num())
+		if (!Stop && Job.bEnumerated && Job.Next >= Names.Num())
 		{
 			Stop = TEXT("complete");
 		}
 		if (!Stop && Elapsed >= CensusMaxSeconds)
 		{
+			if (!Job.bEnumerated)
+			{
+				FinishEnumeration();
+			}
 			Stop = TEXT("time_limit");
+		}
+		if (Stop && !Job.bEnumerated)
+		{
+			FinishEnumeration();
 		}
 		if (!Stop)
 		{
-			if (Elapsed >= Job.NextProgressSeconds)
+			if (Job.bEnumerated && Elapsed >= Job.NextProgressSeconds)
 			{
 				Job.NextProgressSeconds = Elapsed + CensusProgressSeconds;
 				UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 progress scanned=%d of=%d seconds=%.1f"),
@@ -1767,7 +1804,9 @@ namespace AnomalyTexCorrupt
 			TEXT("mode (no allocation, draw or slot change; the mode step is skipped) with the effective cap and all-or-nothing, ")
 			TEXT("over the auto-pool's candidate set now (name-sorted), or with 'all' over every renderable actor in the loaded ")
 			TEXT("levels, and prints four IAI-TEXCORRUPT-CENSUS v1 lines of counts only: no actor, component, asset, path, map or ")
-			TEXT("frame, and no sub-reasons. TIME-SLICED: about 4 ms of work per frame, a progress line every 2 s, and a hard stop ")
+			TEXT("frame, and no sub-reasons. TIME-SLICED: about 4 ms of work per frame (the 'all' actor listing too: one cheap snapshot ")
+			TEXT("of actor pointers, then each actor's renderable test in slices, then evaluation from the next frame), a progress ")
+			TEXT("line every 2 s once the listing is done, and a hard stop ")
 			TEXT("at 120 s that prints the counts so far with 'scanned=K of=N stopped=time_limit'; it never blocks a frame for long. ")
 			TEXT("The end line reports the frames it spanned, its longest single frame of work (work_ms_max) and the longest ")
 			TEXT("frame-to-frame interval while it ran (frame_interval_ms_max). A 'subs' line per type counts the first refusal with its ")
