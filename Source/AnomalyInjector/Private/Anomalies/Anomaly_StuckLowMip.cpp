@@ -761,7 +761,8 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 						S.MaxNumLODs, Levels, AnomalyDefaults::StuckMipMinResidentMips);
 					Tex->NumCinematicMipLevels += S.MaxNumLODs - B.TargetMips;
 					Tex->UpdateCachedLODBias();
-					Tex->StreamOut(B.TargetMips);
+					UStreamableRenderAsset* Asset = Tex;
+					Asset->StreamOut(B.TargetMips);
 				}
 				UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.ProxyBlurSharedSource: changed %d shared source(s); co-user gate must FAIL."), BenchProxySources.Num());
 			}
@@ -1975,7 +1976,8 @@ void FAnomaly_StuckLowMip::RestoreBenchProxySources()
 		{
 			Tex->NumCinematicMipLevels = B.SavedCinematicMips;
 			Tex->UpdateCachedLODBias();
-			Tex->StreamIn(B.BaselineResidentMips, true);
+			UStreamableRenderAsset* Asset = Tex;
+			Asset->StreamIn(B.BaselineResidentMips, true);
 		}
 	}
 	BenchProxySources.Reset();

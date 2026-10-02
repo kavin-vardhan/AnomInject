@@ -817,6 +817,10 @@ def build_mutants(files):
          mutate(files, "defaults", QUIET_GETTERS[3][2], rx_sub(QUIET_GUARD_BLOCK, ""))),
         ("quiet return removed from GetAllowNaniteTargets", "(g)",
          mutate(files, "defaults", QUIET_GETTERS[4][2], rx_sub(QUIET_GUARD_BLOCK, ""))),
+        ("quiet return disabled in GetStuckMipLevels", "(g)",
+         mutate(files, "defaults", QUIET_GETTERS[5][2], rep("if (AnomalyViewport::IsReadOnlyEnumeration())", "if (false)"))),
+        ("quiet return disabled in GetStuckMipMinTexelRatio", "(g)",
+         mutate(files, "defaults", QUIET_GETTERS[6][2], rep("if (AnomalyViewport::IsReadOnlyEnumeration())", "if (false)"))),
         ("quiet return moved after the first-use flag in KnobGet", "(g)",
          mutate(files, "state", QUIET_GETTERS[0][2], chain(
              rx_sub(QUIET_GUARD_BLOCK, ""),
