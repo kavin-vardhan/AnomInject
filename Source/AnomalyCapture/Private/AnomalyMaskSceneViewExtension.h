@@ -32,6 +32,14 @@ inline const TCHAR* LexToStringAnomalyMaskReduceMode(EAnomalyMaskReduceMode Mode
 	}
 }
 
+class FAnomalyMaskArmBoundData : public ISceneViewFamilyExtentionData
+{
+public:
+	static const TCHAR* GSubclassIdentifier;
+	virtual const TCHAR* GetSubclassIdentifier() const override { return GSubclassIdentifier; }
+	uint64 Bound = 0;
+};
+
 class FAnomalyMaskSceneViewExtension : public FSceneViewExtensionBase
 {
 public:
@@ -39,7 +47,7 @@ public:
 
 	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override {}
 	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {}
-	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override {}
+	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override;
 	virtual void SubscribeToPostProcessingPass(EPostProcessingPass Pass,
 		FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled) override;
 	virtual int32 GetPriority() const override { return -1; }
@@ -54,6 +62,8 @@ public:
 	void EnqueueDrain(bool bFinal = false);
 	bool TakeMaskResult(uint64 RequestId, FAnomalyMaskResult& Out, bool bRemove = true);
 	int32 NumPendingArms() const;
+	int32 NumArmsHeldForOwnFamily() const { return ArmsHeldForOwnFamily.GetValue(); }
+	int32 NumFamiliesWithoutBound() const { return FamiliesWithoutBound.GetValue(); }
 	void CancelPendingOtherGeneration(const FAnomalyChangeIssuePtr& Current, TArray<uint64>& Cancelled);
 	void Reset();
 
@@ -82,6 +92,8 @@ private:
 	TArray<uint64> PendingArms;
 	TArray<uint8> PendingArmWantsPixels;
 	TArray<FAnomalyChangeIssuePtr> PendingChangeIssues;
+	TArray<uint64> PendingArmSeq;
+	uint64 NextArmSeq = 1;
 	uint32 DeferredFamilyFrame = MAX_uint32;
 	TSet<uint8> AssignedTags;
 	EAnomalyMaskReduceMode ReduceMode = EAnomalyMaskReduceMode::Gpu;
@@ -93,6 +105,9 @@ private:
 	TMap<uint64, FAnomalyMaskResult> Results;
 
 	FThreadSafeCounter GuardDrops;
+	FThreadSafeCounter ArmsHeldForOwnFamily;
+	FThreadSafeCounter FamiliesWithoutBound;
+	FThreadSafeCounter HeldLogLines;
 };
 
 #endif

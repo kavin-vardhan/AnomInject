@@ -5,6 +5,7 @@
 #include "AnomalyCaptureLog.h"
 #include "AnomalyStencilTag.h"
 #include "AnomalyChangeFamilyData.h"
+#include "AnomalyMaskServe.h"
 
 #include "SceneView.h"
 #include "RenderGraphBuilder.h"
@@ -42,9 +43,18 @@ static FScreenPassTexture FinalizeMaskAfterPassOutput(FRDGBuilder& GraphBuilder,
 	return MoveTemp(Output);
 }
 
+const TCHAR* FAnomalyMaskArmBoundData::GSubclassIdentifier = TEXT("AnomalyMaskArmBoundData.090-10f2");
+
 FAnomalyMaskSceneViewExtension::FAnomalyMaskSceneViewExtension(const FAutoRegister& AutoRegister)
 	: FSceneViewExtensionBase(AutoRegister)
 {
+}
+
+void FAnomalyMaskSceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
+{
+	FScopeLock Lock(&StateCS);
+	FAnomalyMaskArmBoundData* Data = InViewFamily.GetOrCreateExtentionData<FAnomalyMaskArmBoundData>();
+	Data->Bound = AnomalyMaskServe::BoundForFamily(NextArmSeq);
 }
 
 bool FAnomalyMaskSceneViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
@@ -59,6 +69,7 @@ void FAnomalyMaskSceneViewExtension::ArmMask(uint64 RequestId, bool bWantPixels,
 	PendingArms.Add(RequestId);
 	PendingArmWantsPixels.Add(bWantPixels ? 1 : 0);
 	PendingChangeIssues.Add(ChangeIssue);
+	PendingArmSeq.Add(NextArmSeq++);
 }
 
 void FAnomalyMaskSceneViewExtension::SetAssignedTags(const TSet<uint8>& InAssignedTags)
@@ -93,6 +104,7 @@ void FAnomalyMaskSceneViewExtension::CancelPendingOtherGeneration(const FAnomaly
 			PendingArms.RemoveAt(I);
 			PendingArmWantsPixels.RemoveAt(I);
 			PendingChangeIssues.RemoveAt(I);
+			PendingArmSeq.RemoveAt(I);
 		}
 	}
 }
@@ -104,6 +116,7 @@ void FAnomalyMaskSceneViewExtension::Reset()
 		PendingArms.Reset();
 		PendingArmWantsPixels.Reset();
 		PendingChangeIssues.Reset();
+		PendingArmSeq.Reset();
 		DeferredFamilyFrame = MAX_uint32;
 		AssignedTags.Reset();
 	}
@@ -148,8 +161,41 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		{
 			return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 		}
+		const FAnomalyMaskArmBoundData* BoundData = View.Family
+			? const_cast<FSceneViewFamily*>(View.Family)->GetExtentionData<FAnomalyMaskArmBoundData>() : nullptr;
+		const bool bHasBound = BoundData != nullptr;
+		const uint64 FamilyBound = bHasBound ? BoundData->Bound : 0;
+		if (!bHasBound)
+		{
+			FamiliesWithoutBound.Increment();
+		}
+		int32 NumBelong = 0;
 		FAnomalyChangeIssuePtr CurrentIssue;
-		for (const auto& Candidate : PendingChangeIssues) { if (Candidate.IsValid()) { CurrentIssue = Candidate; break; } }
+		for (int32 I = 0; I < PendingArms.Num(); ++I)
+		{
+			const uint64 Seq = PendingArmSeq.IsValidIndex(I) ? PendingArmSeq[I] : 0;
+			if (AnomalyMaskServe::ArmBelongsToFamily(Seq, bHasBound, FamilyBound))
+			{
+				++NumBelong;
+				if (!CurrentIssue.IsValid() && PendingChangeIssues.IsValidIndex(I) && PendingChangeIssues[I].IsValid())
+				{
+					CurrentIssue = PendingChangeIssues[I];
+				}
+			}
+		}
+		if (NumBelong == 0)
+		{
+			ArmsHeldForOwnFamily.Add(PendingArms.Num());
+			if (HeldLogLines.Increment() <= 32)
+			{
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(mask): ARM HOLD family frame %u bound %llu - all %d pending arm(s) were made after this family began ")
+					TEXT("rendering (the game thread is a frame ahead), so this render serves none of them; each waits for its own ")
+					TEXT("frame's render. Before 090-10f2 this render took them and the later frame's mask came back without pixels."),
+					View.Family ? View.Family->FrameNumber : 0u, FamilyBound, PendingArms.Num());
+			}
+			return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+		}
 		bool bAttach = false;
 		if (CurrentIssue.IsValid())
 		{
@@ -183,12 +229,47 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 			}
 			else if (Stage.IsValid()) { Stage->Diagnostic(TEXT("view_rejected")); }
 		}
-		ServedIds = MoveTemp(PendingArms);
-		ServedWantsPixels = MoveTemp(PendingArmWantsPixels);
-		ServedIssues = MoveTemp(PendingChangeIssues);
+		{
+			TArray<uint64> KeepIds;
+			TArray<uint8> KeepWants;
+			TArray<FAnomalyChangeIssuePtr> KeepIssues;
+			TArray<uint64> KeepSeq;
+			for (int32 I = 0; I < PendingArms.Num(); ++I)
+			{
+				const uint64 Seq = PendingArmSeq.IsValidIndex(I) ? PendingArmSeq[I] : 0;
+				const uint8 Wants = PendingArmWantsPixels.IsValidIndex(I) ? PendingArmWantsPixels[I] : 0;
+				const FAnomalyChangeIssuePtr Issue = PendingChangeIssues.IsValidIndex(I) ? PendingChangeIssues[I] : nullptr;
+				if (AnomalyMaskServe::ArmBelongsToFamily(Seq, bHasBound, FamilyBound))
+				{
+					ServedIds.Add(PendingArms[I]);
+					ServedWantsPixels.Add(Wants);
+					ServedIssues.Add(Issue);
+				}
+				else
+				{
+					KeepIds.Add(PendingArms[I]);
+					KeepWants.Add(Wants);
+					KeepIssues.Add(Issue);
+					KeepSeq.Add(Seq);
+				}
+			}
+			if (KeepIds.Num() > 0)
+			{
+				ArmsHeldForOwnFamily.Add(KeepIds.Num());
+				if (HeldLogLines.Increment() <= 32)
+				{
+					UE_LOG(LogAnomalyCapture, Log,
+						TEXT("Capture(mask): ARM HOLD family frame %u bound %llu - serving %d arm(s), holding %d made after this family ")
+						TEXT("began rendering; each held arm waits for its own frame's render."),
+						View.Family ? View.Family->FrameNumber : 0u, FamilyBound, ServedIds.Num(), KeepIds.Num());
+				}
+			}
+			PendingArms = MoveTemp(KeepIds);
+			PendingArmWantsPixels = MoveTemp(KeepWants);
+			PendingChangeIssues = MoveTemp(KeepIssues);
+			PendingArmSeq = MoveTemp(KeepSeq);
+		}
 		if (!bAttach) { UnattachedIssues = MoveTemp(ServedIssues); ServedIssues.Reset(); }
-		PendingArms.Reset();
-		PendingArmWantsPixels.Reset();
 		ServedWantsPixels.SetNumZeroed(ServedIds.Num());
 		RequestId = ServedIds[0];
 		for (uint8 W : ServedWantsPixels)
