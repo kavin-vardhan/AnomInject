@@ -10048,10 +10048,11 @@ observability-filtered list; and when a reader says "late", check what its frame
 the game thread at tick end; the game thread may run a frame ahead of the render thread (PIE warm-up, every early PIE leg). Frame
 N's pass then also took frame N+1's arm; only one arm per render gets the pixels, so frame N+1's labelled row shipped
 `mask_state: "unmeasured"` with no PNG — and had the pixels gone to it they would have been frame N's. Measured: 44 of 86 PIE
-legs (183 frames), every one with a render serving two capture arms; 0 of 31 staged legs. The fix keys each arm to the family it
+legs (183 frames), every one with a render serving two capture arms; 0 of 31 staged legs then, but 090-10f2's staged legs on the
+old binary showed 3 in 320 labelled frames (fixed build: 0 of 936, 0-15 holds per leg), so a packaged game is not immune. The fix keys each arm to the family it
 was made for (a sequence bound stamped at `BeginRenderViewFamily` and carried as family extension data across the renderer's copy).
 **Rule: when a game-thread request is served by a render-thread pass, bind the request to the frame it was made for (an identity
-the family carries), never to "whatever render runs next"; a lockstep bench (every staged leg here) cannot show the difference.**
+the family carries), never to "whatever render runs next"; a bench that is lockstep most of the time shows the difference only rarely.**
 ## G452 — A time-sliced job is only as sliced as its first step: the census's long frame was the actor listing
 *(090-10e.)* `IAI.TexCorrupt.Census all` sliced its evaluation at 4 ms but listed every actor (with a renderable test each) in its
 first frame: 63.9 ms at +15k actors, 86.6 ms at +40k. `TActorIterator` itself is cheap (it gathers by class); the per-actor test was
@@ -10076,7 +10077,7 @@ count, the picture) on a real multi-part object in a running game, not by readin
 *(090-10f2 Item 3.)* Cooked copies of fixture textures with `LODBias 1`, or in `TEXTUREGROUP_Project01` with a cooked
 `DefaultDeviceProfiles.ini` giving that group `LODBias=1`, arrive in the staged game with their top mip missing: 128 -> 64, 4096 ->
 2048 (non-streaming) and 2048 -> 1024 (streaming), with `asset_lod_bias=0` and `cached_lod_bias=0` at runtime. Both the old
-`65607703` and the new build corrupt them 7/7, so the staged can-fail for those variants cannot fire; only the cinematic variant
+`65607703` and the new build corrupt them (7/7; 6/6 on the streaming copies, whose first fire is refused for residency), so the staged can-fail for those variants cannot fire; only the cinematic variant
 (a runtime property) is refused by the old build (`runtime_lod_bias:cinematic`). The 090-10c bench lever that set a runtime bias
 on a cooked texture blanked it (G449) and now refuses. **Rule: a "runtime LOD bias" refusal is an editor/PIE phenomenon for
 per-texture and group bias; prove handling of those in PIE, prove the cooked case by the texture's cooked mip chain, and keep
