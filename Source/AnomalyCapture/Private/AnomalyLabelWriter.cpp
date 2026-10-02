@@ -44,7 +44,7 @@ namespace
 			? (AnomalyLabelSync::EEntryEmit)(*Modes)[Index] : AnomalyLabelSync::EEntryEmit::Normal;
 	}
 
-	bool TransitionAt(const TArray<uint8>* Modes, const TArray<uint8>* Transition, int32 Index)
+	bool TransitionAt(const TArray<uint8>* Modes, const TArray<uint16>* Transition, int32 Index)
 	{
 		const AnomalyLabelSync::EEntryEmit Mode = EmitAt(Modes, Index);
 		if (Mode == AnomalyLabelSync::EEntryEmit::TransitionOnly)
@@ -55,9 +55,9 @@ namespace
 			&& Transition && Transition->IsValidIndex(Index) && (*Transition)[Index] != 0;
 	}
 
-	uint8 ReasonsAt(const TArray<uint8>* Modes, const TArray<uint8>* Transition, int32 Index)
+	uint16 ReasonsAt(const TArray<uint8>* Modes, const TArray<uint16>* Transition, int32 Index)
 	{
-		const uint8 Raw = (Transition && Transition->IsValidIndex(Index)) ? (*Transition)[Index] : 0;
+		const uint16 Raw = (Transition && Transition->IsValidIndex(Index)) ? (*Transition)[Index] : 0;
 		if (EmitAt(Modes, Index) == AnomalyLabelSync::EEntryEmit::TransitionOnly)
 		{
 			return Raw != 0 ? AnomalyLabelSync::ReasonsOrLegacy(Raw) : AnomalyLabelSync::ReasonTemporal;
@@ -65,7 +65,7 @@ namespace
 		return AnomalyLabelSync::ReasonsOrLegacy(Raw);
 	}
 
-	TArray<TSharedPtr<FJsonValue>> ReasonValues(uint8 Bits)
+	TArray<TSharedPtr<FJsonValue>> ReasonValues(uint16 Bits)
 	{
 		TArray<TSharedPtr<FJsonValue>> Out;
 		for (int32 b = 0; b < AnomalyLabelSync::NumReasons; ++b)
@@ -78,7 +78,7 @@ namespace
 		return Out;
 	}
 
-	AnomalyLabel::FLabelEntryCounts CountEntries(int32 NumFires, const TArray<uint8>* Modes, const TArray<uint8>* Transition,
+	AnomalyLabel::FLabelEntryCounts CountEntries(int32 NumFires, const TArray<uint8>* Modes, const TArray<uint16>* Transition,
 		const TArray<FAutoLiveFireInfo>* TransitionFires)
 	{
 		AnomalyLabel::FLabelEntryCounts C;
@@ -114,10 +114,10 @@ namespace
 		const TArray<int32>* TargetPixels = nullptr, const TArray<uint8>* Observable = nullptr,
 		const TArray<FIntRect>* DrawnBounds = nullptr, const TArray<int32>* TargetDrawnPixels = nullptr,
 		bool bExposureDipScopeExcluded = false, const TArray<FAnomalyTelemetry>* Telemetry = nullptr,
-		const TArray<uint8>* EntryEmit = nullptr, const TArray<uint8>* EntryTransition = nullptr,
+		const TArray<uint8>* EntryEmit = nullptr, const TArray<uint16>* EntryTransition = nullptr,
 		const TArray<FAutoLiveFireInfo>* TransitionFires = nullptr,
 		const AnomalyLabel::FCameraClipFrameDiag* CameraClip = nullptr,
-		const TArray<uint8>* FireActive = nullptr, const TArray<uint8>* TransitionFireReasons = nullptr,
+		const TArray<uint8>* FireActive = nullptr, const TArray<uint16>* TransitionFireReasons = nullptr,
 		const TArray<uint8>* FirePolicy = nullptr, const TArray<uint8>* FireOnScreen = nullptr,
 		const TArray<uint8>* FireInstalled = nullptr,
 		const TArray<AnomalyLabel::FFrozenFireGeometry>* FireGeometry = nullptr,
@@ -153,7 +153,7 @@ namespace
 		}
 
 		TArray<TSharedPtr<FJsonValue>> Anoms;
-		auto EmitEntry = [&](const FAutoLiveFireInfo& F, int32 FireIndex, bool bTransition, bool bSetsPresent, uint8 Reasons,
+		auto EmitEntry = [&](const FAutoLiveFireInfo& F, int32 FireIndex, bool bTransition, bool bSetsPresent, uint16 Reasons,
 			const AnomalyLabel::FFrozenFireGeometry& Geometry)
 		{
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
@@ -300,7 +300,7 @@ namespace
 		{
 			for (int32 t = 0; t < TransitionFires->Num(); ++t)
 			{
-				const uint8 Reasons = (TransitionFireReasons && TransitionFireReasons->IsValidIndex(t))
+				const uint16 Reasons = (TransitionFireReasons && TransitionFireReasons->IsValidIndex(t))
 					? (*TransitionFireReasons)[t] : AnomalyLabelSync::ReasonTemporal;
 				EmitEntry((*TransitionFires)[t], INDEX_NONE, true, false, Reasons,
 					(TransitionGeometry && TransitionGeometry->IsValidIndex(t)) ? (*TransitionGeometry)[t] : GUnsampled);
@@ -1310,6 +1310,9 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("label_transition_effect_interrupted_entries"), LabelSync->ReasonEntries[5]);
 			Root->SetNumberField(TEXT("label_transition_nanite_unmaskable_entries"), LabelSync->ReasonEntries[6]);
 			Root->SetNumberField(TEXT("label_transition_capture_unpaired_entries"), LabelSync->ReasonEntries[7]);
+			Root->SetNumberField(TEXT("label_transition_pie_end_settle_entries"), LabelSync->ReasonEntries[8]);
+			Root->SetBoolField(TEXT("pie_end_settle_active"), LabelSync->bPieEndSettleActive);
+			Root->SetNumberField(TEXT("pie_end_settle_frames"), LabelSync->PieEndSettleFrames);
 			Root->SetNumberField(TEXT("capture_unpaired_frames"), LabelSync->SyncFramesWritten);
 			Root->SetNumberField(TEXT("label_effect_partial_frames"), LabelSync->LabelEffectPartialFrames);
 			Root->SetNumberField(TEXT("nanite_midevent_reverts"), LabelSync->NaniteMidEventReverts);

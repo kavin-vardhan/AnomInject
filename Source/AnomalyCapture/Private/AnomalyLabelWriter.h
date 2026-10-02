@@ -99,9 +99,9 @@ namespace AnomalyLabel
 		TArray<uint8> RenderSettled;
 
 		TArray<uint8> EntryEmit;
-		TArray<uint8> EntryTransition;
+		TArray<uint16> EntryTransition;
 		TArray<FAutoLiveFireInfo> TransitionFires;
-		TArray<uint8> TransitionFireReasons;
+		TArray<uint16> TransitionFireReasons;
 		TArray<FAutoLiveFireInfo> TransitionCandidates;
 
 		TArray<FFrozenFireGeometry> FireGeometry;
@@ -290,7 +290,9 @@ namespace AnomalyLabel
 		int32 MaskTagRetireHostFlagKept = 0;
 		int32 MaskPriorCollisions = 0;
 		int32 MaskPriorCollisionQuarantined = 0;
-		int32 ReasonEntries[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+		int32 ReasonEntries[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+		bool bPieEndSettleActive = false;
+		int32 PieEndSettleFrames = 0;
 		int32 LabelEffectPartialFrames = 0;
 		int32 NaniteMidEventReverts = 0;
 		int32 RefusedNaniteProbeMissing = 0;

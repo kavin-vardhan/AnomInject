@@ -1899,7 +1899,7 @@ static void TestTransitionReasons()
 		&& std::string(AnomalyLabelSync::DescribeReasonBit(0)) == "temporal_aa", "reasons: the four reason names");
 	Check(AnomalyLabelSync::ReasonPartial != 0 && (AnomalyLabelSync::ReasonPartial & AnomalyLabelSync::ReasonTemporal) == 0,
 		"reasons: partial is its own bit, independent of temporal AA");
-	Check(std::string(AnomalyLabelSync::DescribeReasonBit(4)) == "unresolved" && AnomalyLabelSync::NumReasons == 8
+	Check(std::string(AnomalyLabelSync::DescribeReasonBit(4)) == "unresolved" && AnomalyLabelSync::NumReasons == 9
 		&& AnomalyLabelSync::ReasonsOrLegacy(AnomalyLabelSync::ReasonUnresolved) == AnomalyLabelSync::ReasonUnresolved,
 		"N4 reasons: 'unresolved' is its own fifth bit and is not rewritten as a legacy temporal flag");
 }
