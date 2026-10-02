@@ -1749,28 +1749,35 @@ namespace AnomalyViewport
 		}
 
 		FBox Box(ForceInit);
-		if (HasEventComponentScope(Actor))
-		{
-			TArray<UPrimitiveComponent*> Prims;
-			Actor->GetComponents<UPrimitiveComponent>(Prims);
-			for (const UPrimitiveComponent* Prim : Prims)
-			{
-				if (IsRenderableGeometryComponent(Prim) && IsInEventComponentScope(Prim))
-				{
-					Box += Prim->Bounds.GetBox();
-				}
-			}
-			if (!Box.IsValid)
-			{
-				return false;
-			}
-		}
-		else if (!GetActorRenderableBounds(Actor, Box))
+		if (!GetActorLabelBounds(Actor, Box))
 		{
 			return false;
 		}
 
 		return ProjectBoxToScreenRect(View, Box, OutMin, OutMax);
+	}
+
+	bool GetActorLabelBounds(const AActor* Actor, FBox& OutBox)
+	{
+		OutBox = FBox(ForceInit);
+		if (!Actor)
+		{
+			return false;
+		}
+		if (!HasEventComponentScope(Actor))
+		{
+			return GetActorRenderableBounds(Actor, OutBox);
+		}
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (IsRenderableGeometryComponent(Prim) && IsInEventComponentScope(Prim))
+			{
+				OutBox += Prim->Bounds.GetBox();
+			}
+		}
+		return OutBox.IsValid != 0;
 	}
 
 	bool ProjectBoxToScreenRect(const FAnomalyViewInfo& View, const FBox& Box, FVector2D& OutMin, FVector2D& OutMax)

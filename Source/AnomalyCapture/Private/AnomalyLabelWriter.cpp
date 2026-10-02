@@ -728,7 +728,7 @@ namespace AnomalyLabel
 	{
 		const AActor* Actor = F.TargetActor.Get();
 		FBox Box(ForceInit);
-		const bool bBoxFound = Actor && AnomalyViewport::GetActorRenderableBounds(Actor, Box);
+		const bool bBoxFound = Actor && AnomalyViewport::GetActorLabelBounds(Actor, Box);
 		return AnomalyFrozenGeometry::Freeze(F.bWholeFrameExtent, Actor != nullptr, !F.Target.IsEmpty(), bBoxFound, Box);
 	}
 
