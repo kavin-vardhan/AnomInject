@@ -658,15 +658,37 @@ or not, and reset with the run stats. a, b, a⁻¹ and the hash are logged on DE
 `texcorrupt.scramble_*`.
 
 **Decision tree** (`EvaluateTree`, `TexCorruptTree.cpp`; no side effect when it refuses). Event steps E1–E7
-(`assets_unavailable`, `corruptor_not_ready`, `dxt5_normal_host`, `runtime_lod_bias` ×2, `mode_invalid` E6,
-`no_mesh`), then every slot of every candidate mesh component (`AnomalyLod::ResolveLodComponents`) through the
-per-slot and per-binding steps, then:
+(`assets_unavailable`, `corruptor_not_ready`, `dxt5_normal_host`, `mode_invalid` E6, `no_mesh`, E7N Nanite), then every
+slot of every candidate mesh component (`AnomalyLod::ResolveLodComponents`) through the per-slot and per-binding steps,
+then:
 - **V1** no slot qualifies → the earliest slot's reason (or `no_eligible_slot`);
-- **V1P (all-or-nothing, ND-1 strict)** `0 < qualified < slots` → `partial_footprint:<q>/<n>:<earliest non-qualifying
-  reason>` (`TexCorruptPure::JudgeFootprint`, `PickEarliestNonQualified`). `slot_empty` / `slot_translucent` are
-  **untouched** slots and do **not** qualify (`FSlot::IsQualified`), so the mask — whole components — never covers an
-  unchanged slot. There is no partial application;
-- **V2** the whole footprint's bytes against the cap → `over_budget:need_…_available_…_cap_…`.
+- **Per-component admission (090-10c, owner answer B).** Per mesh component, `TexCorruptPure::JudgeComponent(touchable,
+  qualified)`: untouched slots (`slot_empty`, `slot_translucent`) do not count; a component is admitted only if every
+  touchable slot qualifies, otherwise skipped whole (the mask is per component, so a component is never partly
+  corrupted). `FSlot::IsSelected()` = qualified and its component admitted; only selected slots are applied. **V1P**
+  `partial_footprint:<q>/<n>:<earliest BLOCKING slot's reason>` only when no component is admitted. When components are
+  skipped, Apply sets an **event component scope** (`AnomalyViewport::SetEventComponentScope`), read by
+  `AnomalyStencilTag::TagActor` / `VerifyActorStillTagged` (target mask, m26 measure) and by
+  `ProjectActorBoundsToScreenRect` (`bbox_px`), so the label covers the corrupted components only; cleared on restore and
+  world teardown;
+- **V2** the selected footprint's bytes against the cap; if over, **fit-to-budget** (`FitRequirementToBudget`) halves the
+  largest copy (never below 512 px) until it fits (`CopyDrop`, note `over_budget/copy_reduced`); only then
+  `over_budget:need_…_available_…_cap_…`.
+
+**Resident chain (090-10c, A2–A4).** In 5.1 per-texture, texture-group and cinematic bias and the streaming budget are
+residency only: the resource starts at cooked mip `AssetLODBias` and RHI mip 0 is cooked mip
+`F = AssetLODBias + MaxNumLODs − NumResidentLODs` (`Texture.cpp:1400-1436`, `Texture2DResource.cpp:101-110`,
+`StreamableRenderResourceState.h:71-83`). `GatherTextureFacts` sets W/H/M to that resident chain (cooked values kept in
+`CookedW/H/M`, `FirstMip = F`); the copy is allocated, drawn (`SampleLevel(k)` = cooked `F+k`), budgeted and tripwired on
+it. `runtime_lod_bias/*`, `streaming_pending` and `not_fully_resident` are **notes**; only an unmappable chain
+(`AssetLODBias + MaxNumLODs != cooked mips`) refuses `not_fully_resident:unmappable`. Streaming-bias notes read the
+effective state (`EffectiveStreamingMipBias`: 0 in the editor, floor outside, `UseAllMips` zero;
+`TextureStreamingHelpers.cpp:299, 325-328`). Size policy and the non-spatial exemption judge the cooked texture. A global
+`r.MipMapLODBias` (the texture sampler's `MipBias`, `Texture2DResource.cpp:83`) is put on the copy's RT sampler
+(`TextureRenderTarget2D.cpp:648-655` has none) and subtracted from `SrcMip`, because that sampler bias also applies to the
+explicit-LOD copy draw (measured: identity under `r.MipMapLODBias 1` differs by 17.9 without the subtraction, exact
+with it). The tripwire holds the source RHI texture from before the first level draw to after the last; a replacement in
+between is counted (`texcorrupt_copy_source_changed`), not refused.
 
 **Host material readiness per slot (090-10b, 090-10b2), in this order:** metadata — the resolved material has a resource and a
 game-thread shader map (S5 `shader_map_unavailable`); **identity** — every usage the component's proxy needs is set, else the proxy

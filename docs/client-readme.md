@@ -418,7 +418,7 @@ Commands you may actually need:
 * **`IAI.Capture.Fps 30`** — sets the capture rate in frames per second (default 30, allowed 1–240). See section 6 for how to choose the number. Can't be changed while a capture is running — stop first.
 * **`IAI.Capture.Status`** — shows the current capture settings and whether a run is active.
 * **`IAI.RevertAll`** — removes every active anomaly (same as the dashboard's Revert all button).
-* **`IAI.TexCorrupt.Census`** (or **`IAI.TexCorrupt.Census all`**) — counts how many objects the two texture-corruption anomalies could use right now, and why the others are declined. Read-only; prints counts, no names (§8.8).
+* **`IAI.TexCorrupt.Census`** (or **`IAI.TexCorrupt.Census all`**) — counts how many objects the two texture-corruption anomalies could use right now, and why the others are declined: the first reason per object, and a `subs` line with its detail (`reason/detail:count`). **`IAI.TexCorrupt.Census allreasons`** checks every rule for every object instead of stopping at the first, and prints each reason with how many objects it blocks and how many it blocks **alone**, the notes that no longer block, and the most common combinations. Read-only; prints counts, no names (§8.8).
 * **`stat FPS`** — shows the game's frames per second in the corner of the screen. Type it again to hide it. (The dashboard's top bar shows the same number.)
 
 Console equivalents of the dashboard sliders, in case you ever need them: `IAI.SetPollRadius 1800` (poll radius — note this one is in **centimeters**, so 1800 = 18 m; 0 = off) and `IAI.SetMinScreenCoverage 6` (coverage percentage; 0 = off).
@@ -1297,18 +1297,38 @@ prints the values in effect at its start. A value outside the allowed range is r
 The two mode lists drive the Auto-pool draw and the Targeted turn order; a mode named explicitly may be any delivered
 mode of that anomaly.
 
-**All or nothing, over the selected meshes.** The event first selects the target's mesh components — every static or
-skeletal mesh component of the object, or, when viewport scoping (`IAI.SetViewportScoping 1`) is on, only those in view
-at that moment — and then applies only if **every material slot of every selected mesh qualifies**. An
-empty slot and a translucent slot do not qualify. If only some slots qualify, the event is refused
-`partial_footprint:<qualified>/<slots>:<reason>` — for example `partial_footprint:12/30:not_fully_resident` means
-12 of 30 slots qualified and the first slot that did not was refused `not_fully_resident` — and nothing is touched:
-no slot is changed and no memory is taken. **There is never a partial application to the selected set.** What this
-does not promise: a mesh component that is out of view under viewport scoping, or one added or replaced after the event
-was applied, is not part of the event; and changing a slot's textures does not guarantee that every pixel of it
-changes (a nearly uniform texture, or a normal map under flat lighting, can look almost the same — see "When the picture
-barely changes" below). The box and the mask show **which object** the event is on, not that every pixel inside them
-changed. If no slot qualifies, the event is refused with the first slot's own reason instead.
+**Whole components, and only the parts that changed are labelled (since 090-10c).** The event first selects the
+target's mesh components — every static or skeletal mesh component of the object, or, when viewport scoping
+(`IAI.SetViewportScoping 1`) is on, only those in view at that moment. An empty slot and a translucent slot are left
+alone and **no longer count against the object**. A component is corrupted only if **every one of its other slots
+qualifies** — a component is never partly corrupted, because the mask cannot separate the slots of one component. A
+component with a slot that does not qualify is skipped whole. The event applies if at least one component is corrupted;
+when some are skipped, **the mask, the measured pixels and the projected box cover only the corrupted components**,
+and the event record says so: `texcorrupt.components_corrupted`, `texcorrupt.components_skipped`,
+`texcorrupt.slots_corrupted_list` (each corrupted `Component[slot]`), and `texcorrupt.slots_untouched` (every other
+slot with its reason; a qualifying slot of a skipped component reads `component_skipped`). If no component can be
+corrupted the event is refused `partial_footprint:<qualified>/<slots>:<reason>` (the first slot that blocks it) or, if
+no slot qualifies at all, with that slot's own reason, and nothing is touched. Within a corrupted component every
+texture its slots need is corrupted together, and everything is rolled back if any step fails. What this does not
+promise: a mesh component that is out of view under viewport scoping, or one added or replaced after the event was
+applied, is not part of the event; and changing a slot's textures does not guarantee that every pixel of it changes (a
+nearly uniform texture, or a normal map under flat lighting, can look almost the same — see "When the picture barely
+changes" below). The box and the mask show **which components** the event is on, not that every pixel inside them
+changed.
+
+**The texture as it is drawn (since 090-10c).** Real projects carry texture LOD bias — a texture's own LOD bias, a
+texture-group bias from the device profile (for example a lower texture-quality setting), cinematic mips — and a
+streamed world keeps most textures only partly resident. None of these refuse the event any more. The corrupted copy is
+made from the mips the game is drawing at that moment: the copy's top level is the highest mip that is in memory (the
+event record's `snapshot_mip` names that mip of the original, and `cooked_mip_count` the original's full count), so the
+corrupted object looks as sharp as the original did. If the game later streams sharper mips in, the original would have
+become sharper; the copy stays as it was and stays visibly corrupted until the event ends. A global `r.MipMapLODBias`
+is applied to the copy as it is to the original.
+
+**Memory (since 090-10c).** If an event's copies would exceed the memory cap, the largest copies are made at half size
+(again, if needed) until they fit — never below 512 pixels on the longer side. Such a copy is a little blurrier than the
+original as well as corrupted; the corruption stays plainly visible and the label is unchanged. `snapshot_mip` then names
+the smaller mip it was made from. Only if the copies still do not fit at that floor is the event refused `over_budget`.
 
 *Example from our large test level:* its floor object has 30 material slots. In an earlier measurement, 12 of them
 (21 on another run) qualified at the moment of the decision, so under this rule it is refused `partial_footprint`.
@@ -1331,14 +1351,14 @@ name as `texcorrupt_refused_<reason>`; each key is present with 0 when that reas
 | `assets_unavailable` | the plugin's own corruption materials are missing from the build — a packaging fault; every event is refused |
 | `corruptor_not_ready` | those materials' shaders are not compiled yet (early in a session) |
 | `dxt5_normal_host` | `normal_corruption` only: the project stores normal maps in the DXT5 layout, which this version does not handle |
-| `runtime_lod_bias` | a texture mip bias is active (globally or on one of the target's textures), so the texture on screen is not the full texture |
+| `runtime_lod_bias` | **no longer refuses (090-10c).** A mip bias (global, texture group, per texture, cinematic, streaming) is handled by copying the mips the texture is drawn with; it is reported by `IAI.TexCorrupt.Census allreasons` as a note |
 | `mode_invalid:<detail>` | the mode: `no_mode` (none given), `unknown:<text>`, `family:<mode>` (a mode of the other anomaly, including a deferred one), `not_in_delivery:<mode>` (a deferred mode of this anomaly), `no_mode_enabled` (Auto-pool with an empty mode list) |
 | `no_mesh` | no static or skeletal mesh matched the target |
 | `nanite_unmaskable` | the target draws at least one Nanite part, and Nanite targets are skipped by default (`IAI.Targets.AllowNanite 0`, §8.7a) because their events could not carry a mask. With the setting at `1` this step is skipped and the per-slot rules below decide |
-| a per-slot reason | why a slot did not qualify: `slot_empty`, `slot_translucent`, `host_mid` (the game already drives that slot through its own runtime material instance), `nanite_override`, `shader_map_unavailable`, `shader_map_incomplete` (the material's shaders are still compiling; tried again later), `draw_shaders_missing` (the material has no shaders for that kind of mesh, so the game would draw the default material instead), `default_material_path` (the mesh needs a material usage the material does not have, so the game draws the default material), `no_textures`, `no_normal_map` / `normal_unconnected` (`normal_corruption`), a texture reason (`virtual_texture`, `unsupported_type`, `excluded_group`, `texture_not_parameter`, `unsupported_encoding`, `mip_chain_shape`, `held_by_stuck_low_mip`, `resource_not_ready`, `streaming_pending`, `not_fully_resident`), `below_size_policy`, `map_set_over_cap`. It is the event's reason when no slot qualifies, and the `<reason>` of `partial_footprint` when some do |
+| a per-slot reason | why a slot did not qualify: `slot_empty`, `slot_translucent`, `host_mid` (the game already drives that slot through its own runtime material instance), `nanite_override`, `shader_map_unavailable`, `shader_map_incomplete` (the material's shaders are still compiling; tried again later), `draw_shaders_missing` (the material has no shaders for that kind of mesh, so the game would draw the default material instead), `default_material_path` (the mesh needs a material usage the material does not have, so the game draws the default material), `no_textures`, `no_normal_map` / `normal_unconnected` (`normal_corruption`), a texture reason (`virtual_texture`, `unsupported_type`, `excluded_group`, `texture_not_parameter`, `unsupported_encoding`, `mip_chain_shape`, `held_by_stuck_low_mip`, `resource_not_ready`, `not_fully_resident:unmappable` — the engine's resident mips cannot be matched to the texture's own; `streaming_pending` and plain `not_fully_resident` no longer refuse), `below_size_policy` (judged on the texture's own size, not on what is resident), `map_set_over_cap`. It is the event's reason when no slot qualifies, and the `<reason>` of `partial_footprint` when no component qualifies whole |
 | `no_eligible_slot` | the target has no slot to judge |
-| `partial_footprint` | some but not all slots qualify (above) |
-| `over_budget` | every slot qualifies, but the texture copies would exceed the memory cap (128 MiB by default, both anomalies together). Never downsampled to fit |
+| `partial_footprint` | some slots qualify, but no component has all of its slots qualifying (above) |
+| `over_budget` | the texture copies would exceed the memory cap (128 MiB by default, both anomalies together) even at the 512-pixel floor (above) |
 | `rt_alloc_failed`, `draw_precondition_failed`, `param_readback_mismatch` | a failure while applying. Everything already taken is released and nothing is left changed (counted in `texcorrupt_rollback_*`) |
 
 **Labels.** Both are labelled like `missing_texture` and `corrupted_texture` (§8.7): `anomaly_present` on every frame

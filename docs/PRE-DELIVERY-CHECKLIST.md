@@ -40,6 +40,15 @@ editor does.
 - [ ] 🆕 090-10b2 **census timing**: `IAI.TexCorrupt.Census all` on MainWorld in PIE and staged, and on an office-scale PIE scene
       (`P_CEN_BIG`, 15,000 spawned actors): no frame over 100 ms while it runs (independent frame-time reading), `progress` lines on
       the large scene, and the `end` line's `frame_interval_ms_max` under the same bound.
+- [ ] 🆕 090-10c **every gate against office-like content, all at once** (G445, G446): `IAI.TexCorrupt.Census allreasons` in PIE on
+      the fixture and on MainWorld with the office-like stressors (harness `_reviews\090-10c-go.py`, legs `P_F_OL_FIX` / `P_F_OL_MW`:
+      a scratch texture-group LODBias 1 device profile, `sg.TextureQuality 1`, `r.Streaming.PoolSize 300`, per-texture LODBias and
+      cinematic mips on a third of the objects each). **Zero eligible is a STOP**, and so is any blocking key that is not a genuine
+      product refusal (the bias / residency family must appear only as notes). `anomaly_refusal_counts.py --allreasons-check` on the
+      log must PASS and must FAIL on the same leg run with `IAI.Bench.TexCorruptAllReasonsFirstOnly 1`.
+- [ ] 🆕 090-10c **the bias variants in PIE and staged** (`090-10c-go.py chain2`): per-texture LODBias, texture-group bias, cinematic
+      mips, `r.MipMapLODBias 1`, `r.Streaming.MipBias 1` with `UsePerTextureBias` 1 and 0, a partly resident texture: uv and normal
+      visibly corrupt, identity exact, edges 0 frames off.
 
 ## 1. Game build — `Config/DefaultGame.ini`
 

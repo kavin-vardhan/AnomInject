@@ -11,6 +11,34 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧭 **090-10c, 2026-10-02 — THE OFFICE'S `runtime_lod_bias` WALL IS GONE: m53 NOW COPIES THE MIPS THE TEXTURE ACTUALLY RENDERS, AND
+> EVERY GATE WAS AUDITED AT HOME ON OFFICE-LIKE CONTENT FIRST. PULL THE `feat/m53-uv-normal-corruption` HEAD: ITS `Source/` IS
+> `dcd8d29`'s, EXE `B3103E32`, THE BUILD EVERY 090-10c PROOF LEG RAN ON. Game launches at home (PIE + staged), no cook.**
+> - **Cold start:** journal `docs/sessions/2026-10-01-090-10c-lodbias-office-gates.md` (§2 census before, §3 design, §4 after, §5 proof
+>   + can-fail, §6 the gate audit). Harness `_reviews\090-10c-*`; pre-declarations `E:\IA_BuildCache\_r910c\predeclared.md`.
+> - **Office command (PIE, after Play):** `IAI.TexCorrupt.Census allreasons` — every check for every object; per key the objects failing
+>   it and failing ONLY it, the notes, the top combinations and `b_gain_objects`. `tools/anomaly_refusal_counts.py` reads it.
+> - **Why the office refused:** per-texture `LODBias`, texture-group bias, cinematic mips and the streaming budget are RESIDENCY in UE 5.1
+>   (`Texture.cpp:1400-1436`, `Texture2DResource.cpp:101-110`, `StreamableRenderResourceState.h:71-83`); only `r.MipMapLODBias` reaches the
+>   sampler (`Texture2DResource.cpp:83`). The copy now starts at the resident first mip; `runtime_lod_bias` and partial residency are
+>   notes; only `not_fully_resident:unmappable` refuses. `r.MipMapLODBias` is matched (RT sampler bias + copy drawn at `SrcMip − bias`,
+>   G447). Over-budget sets halve their largest copy down to 512 px before refusing. B: a component is corrupted whole or skipped, and the
+>   mask/bbox cover only corrupted components.
+> - **Home, office-like content** (scratch texture-group LODBias 1, `sg.TextureQuality 1`, per-texture LODBias / cinematic on a third
+>   each): fixture uv eligible **0 → 72 of 82**, normal 0 → 8; MainWorld uv **0 → 33 of 343** (85 more blocked by Nanite alone).
+> - **Proof (PIE + staged, AA-off, ≥7 fires/type):** uv and normal visibly corrupt on every handled variant, identity exact (≤ null +
+>   0.05), edges in sync except the pre-existing PIE end +1. Can-fail `0a69ea3`: 0 events on V1–V6 in PIE (`per_texture`, `cinematic`,
+>   `global_sampler`, `global_streaming`, `not_fully_resident`).
+> - ⚠ **Not shown:** staged per-texture / cinematic (the bench lever blanks a cooked texture, G449) and staged texture-group bias (the
+>   saved profile did not reach the cooked build) · B's component-scope mask in engine (`b_gain_objects` 0 on every home census) ·
+>   automatic application on office-like MainWorld (its view candidates are Nanite or `texture_not_parameter` only). On the
+>   office-like fixture the auto-pool applied 28 events, 17 visibly corrupt with edges 17/17 in sync; the other 11 are on the 16×16
+>   `T_TC_Chain*` controls (no visible change, not investigated).
+> - **Builds:** strict 0/0 (64 header TUs, after the legs; the host relinked to `1D4F99C6`, same source), C++ base 7/7 mutants 27/27,
+>   Python 27/27, lever audit PASS (source, exe, DLLs), string scan vs `E2BCE76B` 135. Archive `_binary_baselines\m53-0910c-B3103E32\`.
+>   ⛔ No tag, no merge to master.
+>
+> ---
 > 🩺 **090-10b2, 2026-10-01/02 — READINESS ASKS THE BASE PASS AND NAMES BOTH FAILURE DIRECTIONS; 090-10b IS WRITTEN UP; THE CENSUS
 > HOLDS ITS FRAMES AT OFFICE SCALE. PULL THE `feat/m53-uv-normal-corruption` HEAD: ITS `Source/` IS `61d186a`'s, EXE `E2BCE76B`,
 > THE BUILD EVERY 090-10b2 LEG RAN ON. Game launches at home (PIE + staged), no cook.**

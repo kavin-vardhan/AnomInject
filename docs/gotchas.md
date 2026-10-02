@@ -9987,3 +9987,51 @@ vertex factory, checks identity (the usage the proxy needs, else Default Materia
 (`default_material_path`, `draw_shaders_missing`, `shader_map_incomplete` = compile still running). **Rule: a gate on engine readiness
 must be proven in PIE on a healthy partial map (admitted, visibly works) AND on a genuinely broken one (refused by name, never
 labelled) before it ships; a cooked bench proves neither.** PRE-DELIVERY-CHECKLIST §0 carries the rule.
+
+## G445 — Real projects carry texture LOD bias, and a streamed world keeps most textures only partly resident
+*(090-10c; max over all refs checked first: G444.)* The office's second host refused 14,454 of 15,906 UV candidates
+`runtime_lod_bias` on `0a69ea3`; every home gate had passed because the fixture's textures are 128 px, unbiased and fully
+resident. Texture-group bias from a device profile (a lower texture-quality setting), a per-texture `LODBias`, cinematic mips
+and the streaming budget are all **residency** in UE 5.1: the resource is created from cooked mip `AssetLODBias` and RHI mip 0
+is cooked mip `AssetLODBias + MaxNumLODs − NumResidentLODs` (`Texture.cpp:1400-1436`, `Texture2DResource.cpp:101-110`,
+`StreamableRenderResourceState.h:71-83`); only `r.MipMapLODBias` reaches the sampler (`Texture2DResource.cpp:83`). The
+streaming bias is not even applied in the editor (`TextureStreamingHelpers.cpp:299`), so a raw-cvar test refused every
+streamed texture under a "Medium" texture quality for no effect at all. **Rule: copy what the engine draws (the resident
+chain from its first mip), never refuse because a texture is not drawn at full detail; and read the effective engine state,
+not the cvar.** At home, office-like content (scratch texture-group LODBias 1, `sg.TextureQuality 1`, per-texture LODBias and
+cinematic mips on a third each) reproduces the office exactly: fixture uv 0 of 82 before, 72 of 82 after.
+
+## G446 — First-failure attribution hides the next gate; audit every gate against office-like content before the office does
+*(090-10c.)* The decision tree stops at the first failing check per object, so each office fix revealed the next blocker one
+trip later (`shader_map_incomplete`, then `runtime_lod_bias`). `IAI.TexCorrupt.Census allreasons` evaluates every check for
+every object (dependent checks marked unassessed) and prints, per key, the objects failing it and failing ONLY it, the notes,
+and the top combinations; its can-fail is the bench lever `IAI.Bench.TexCorruptAllReasonsFirstOnly 1`, which
+`anomaly_refusal_counts.py --allreasons-check` rejects. On MainWorld it showed the gate behind the bias at once: with resident
+2K/4K sets, 102 objects were `over_budget` at the 128 MB cap (fixed in the same round by fitting the copy to the budget).
+⚠ A dependent check (the budget, the footprint) is only reached when some slot qualifies, so a blanket earlier refusal still
+hides it; run the census again on the fixed build. **Rule: before an office trip, run `allreasons` at home on content that has
+the office's properties, and treat every key that is not a genuine product refusal as the next office failure.**
+
+## G447 — A texture's own sampler bias also applies to an explicit-LOD sample
+*(090-10c.)* The corruptor material samples the source with `SSM_FromTextureAsset` at an explicit mip (`TMVM_MIP_LEVEL`, i.e.
+`SampleLevel`). Under `r.MipMapLODBias 1` the source's sampler carries `MipBias = 1` (`Texture2DResource.cpp:83`) and on D3D12
+that bias is added to the explicit LOD too: the copy's level k held source mip k+1. With the copy's own render-target sampler
+also given the bias, identity differed by **17.9** (mean abs RGB in the drawn box; null 0.34); drawing at `SrcMip − bias` made
+it exact (0.35 against a 0.34 null), and leaving both out gave 3.4. **Rule: when a material samples a host texture at an
+explicit mip through the texture's own sampler, the sampler's global bias is part of the mip index; measure identity under a
+non-zero bias before trusting it.**
+
+## G448 — .NET file calls in PowerShell resolve a relative path against the process directory, not the current location
+*(090-10c.)* `[IO.File]::ReadAllText('Source\...')` after `cd E:\...\_r53_src` read from the process directory (the `m51`
+checkout), failed, and the following `WriteAllText` created a 0-byte untracked file in the `m51` checkout (deleted by receipt;
+nothing tracked changed). **Rule: give .NET file APIs absolute paths; `cd` does not move them.**
+
+## G449 — A runtime `UpdateResource` on a cooked texture blanks it, and its `LODBias` is ignored there anyway
+*(090-10c.)* The bench lever `IAI.Bench.TexCorruptHostTexBias` sets `LODBias` / `NumCinematicMipLevels` and calls
+`UpdateCachedLODBias` + `UpdateResource`. In PIE it reproduces a biased texture. In the staged (cooked) game `cached_lod_bias` stayed 0
+(the cooked texture's bias is the cooker's), and the re-created resource had no image: the uv target rendered **black** and the normal
+target a flat broken normal in clean frames before any event (box mean 0.2 against 113 on the twin leg). The two staged legs that used
+it were therefore invalid (no visible change, or a 144.9 "change" of a broken source) and are not counted. **Rule: in a cooked build,
+never re-create a texture's resource from a bench lever; reach a runtime bias through the device profile (the saved
+`DeviceProfiles.ini` layer works) and check the target's clean frames before reading any change.** Follow-up filed: the lever should
+refuse in a cooked build.
