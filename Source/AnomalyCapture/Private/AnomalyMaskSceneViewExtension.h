@@ -4,6 +4,7 @@
 
 #if ANOMALY_CAPTURE
 
+#include "SceneView.h"
 #include "SceneViewExtension.h"
 #include "RHIGPUReadback.h"
 #include "AnomalyMaskTypes.h"
