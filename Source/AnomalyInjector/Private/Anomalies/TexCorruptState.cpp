@@ -113,6 +113,7 @@ namespace AnomalyTexCorrupt
 		case EMode::Scramble:       return TEXT("scramble");
 		case EMode::Invert:         return TEXT("invert");
 		case EMode::GreenFlip:      return TEXT("green_flip");
+		case EMode::ProxyBlur:      return TEXT("proxy_blur");
 		default:                    return TEXT("none");
 		}
 	}

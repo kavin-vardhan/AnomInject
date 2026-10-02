@@ -163,6 +163,7 @@ struct FSessionEventAccum
 	FName Id = NAME_None;
 	FString Target;
 	FString Subtype;
+	FString StuckMipRoute;
 	uint64 StartFrame = 0;
 
 	TArray<int32> AffectedFrames;
@@ -2950,13 +2951,15 @@ void UAnomalyCaptureSubsystem::GatherAnomalyPrewarmMaterials(TArray<UMaterialInt
 
 bool UAnomalyCaptureSubsystem::IsTexCorruptWarmWanted() const
 {
-	if (bTargetedMode && AnomalyTexCorrupt::IsTexCorruptId(TargetAnomalyId))
+	if (bTargetedMode && (AnomalyTexCorrupt::IsTexCorruptId(TargetAnomalyId)
+		|| (TargetAnomalyId == FName(TEXT("stuck_low_mip")) && AnomalyStuckMip::GetRoute() != AnomalyProxyBlur::ERoute::Hold)))
 	{
 		return true;
 	}
 	UWorld* World = GetWorld();
 	const UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr;
-	return Auto && (Auto->IsAnomalyEnabled(FName(TEXT("uv_corruption"))) || Auto->IsAnomalyEnabled(FName(TEXT("normal_corruption"))));
+	return Auto && (Auto->IsAnomalyEnabled(FName(TEXT("uv_corruption"))) || Auto->IsAnomalyEnabled(FName(TEXT("normal_corruption")))
+		|| (Auto->IsAnomalyEnabled(FName(TEXT("stuck_low_mip"))) && AnomalyStuckMip::GetRoute() != AnomalyProxyBlur::ERoute::Hold));
 }
 
 const TCHAR* UAnomalyCaptureSubsystem::DescribeTexCorruptWarmDrawSource() const
@@ -8307,7 +8310,10 @@ void UAnomalyCaptureSubsystem::RegisterBenchStuckMipLevers()
 uint8 UAnomalyCaptureSubsystem::ResolveAnnotationPolicy(const FAutoLiveFireInfo& F) const
 {
 	bool bKnownId = false;
-	return (uint8)AnomalyActiveSource::PolicyFor(ResolveAnomalyActiveSource(F.Id, bKnownId), IsRenderTruthFire(F));
+	const UAnomalyInjectorSubsystem* Injector = GetWorld() ? GetWorld()->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	const bool bProxy = F.Id == FName(TEXT("stuck_low_mip")) && Injector && !Injector->DoesAnomalyUseRenderTruth(F.Id);
+	return (uint8)AnomalyProxyBlur::Policy(bProxy,
+		AnomalyActiveSource::PolicyFor(ResolveAnomalyActiveSource(F.Id, bKnownId), IsRenderTruthFire(F)));
 }
 
 static FString FrozenAnchorKey(const FAutoLiveFireInfo& F)
@@ -9092,6 +9098,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	const AnomalyStuckMip::FRunStats StuckMipStats = AnomalyStuckMip::GetRunStats();
 	AnomalyLabel::FStuckMipTelemetry StuckMipReport;
 	StuckMipReport.FiresApplied = StuckMipStats.FiresApplied;
+	StuckMipReport.HoldFires = StuckMipStats.HoldFires;
+	StuckMipReport.ProxyFires = StuckMipStats.ProxyFires;
 	StuckMipReport.TexturesHeld = StuckMipStats.TexturesHeld;
 	StuckMipReport.FramesHeld = StuckMipFramesHeld;
 	StuckMipReport.RefusedShared = StuckMipStats.RefusedShared;
@@ -9712,6 +9720,13 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 		}
 
 		const bool bNewAnchor = SessionIndex < Ev->AnchorIndex;
+		if (F.Id == FName(TEXT("stuck_low_mip")) && CapturedTelemetry && CapturedTelemetry->IsValidIndex(i))
+		{
+			for (const TPair<FString, FString>& KV : (*CapturedTelemetry)[i].Strings)
+			{
+				if (KV.Key == TEXT("stuck_mip.route")) { Ev->StuckMipRoute = KV.Value; }
+			}
+		}
 		if (AnomalyTexCorrupt::IsTexCorruptId(F.Id) && CapturedTelemetry && CapturedTelemetry->IsValidIndex(i))
 		{
 			static const FString GModeKey(TEXT("texcorrupt.mode"));
@@ -9854,6 +9869,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 
 		AnomalyLabel::FSessionEvent Out;
 		MapAnomalyToClient(Ev.Id, Out.AnomalyType, Out.AnomalySubtype);
+		Out.StuckMipRoute = Ev.StuckMipRoute;
 		if (!Ev.Subtype.IsEmpty())
 		{
 			Out.AnomalySubtype = Ev.Subtype;

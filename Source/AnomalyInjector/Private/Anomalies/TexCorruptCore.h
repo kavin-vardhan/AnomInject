@@ -42,7 +42,8 @@ namespace AnomalyTexCorrupt
 		Tile,
 		Scramble,
 		Invert,
-		GreenFlip
+		GreenFlip,
+		ProxyBlur
 	};
 
 	enum class EWrongCopy : uint8
@@ -255,6 +256,7 @@ namespace AnomalyTexCorrupt
 		int32 CookedH = 0;
 		int32 FirstMip = 0;
 		int32 CopyDrop = 0;
+		int32 BlurDrop = 0;
 		bool bResidentMappable = true;
 		bool bStreams = false;
 		bool bDefaultTexture = false;
@@ -341,6 +343,8 @@ namespace AnomalyTexCorrupt
 
 	struct FTreeInputs
 	{
+		bool bProxyBlur = false;
+		int32 BlurLevels = -1;
 		EFamily Family = EFamily::UV;
 		EMode Mode = EMode::None;
 		int32 TileN = 1;

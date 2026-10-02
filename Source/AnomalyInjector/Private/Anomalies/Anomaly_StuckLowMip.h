@@ -10,6 +10,7 @@ class UActorComponent;
 class ULevel;
 class UWorld;
 class UTexture2D;
+namespace AnomalyTexCorrupt { class FAnomaly_TexCorrupt; }
 
 class FAnomaly_StuckLowMip final : public IAnomaly
 {
@@ -32,8 +33,10 @@ public:
 	virtual void Revert() override;
 	virtual bool IsActive() const override { return bActive; }
 	virtual bool IsCurrentlyAnomalous() const override;
-	virtual bool HasDeferredOnset() const override { return true; }
-	virtual bool UsesRenderResidencyTruth() const override { return true; }
+	virtual bool HasDeferredOnset() const override { return !bProxyRoute; }
+	virtual bool UsesRenderResidencyTruth() const override { return !bProxyRoute; }
+	virtual bool IsVisualConditionHeld() const override;
+	virtual unsigned char GetVisualConditionState() const override;
 	virtual bool GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const override;
 	virtual bool GetRestoringRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const override;
 	virtual bool ConsumeHoldContamination(FString& OutReason) override;
@@ -45,6 +48,8 @@ public:
 	virtual FString GetLastRefusalReason() const override { return LastRefusal; }
 
 private:
+	TUniquePtr<AnomalyTexCorrupt::FAnomaly_TexCorrupt> Proxy;
+	bool bProxyRoute = false;
 	struct FHeldTexture
 	{
 		TWeakObjectPtr<UTexture2D> Texture;

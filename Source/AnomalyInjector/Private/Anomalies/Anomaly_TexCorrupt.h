@@ -36,6 +36,7 @@ public:
 	virtual bool WantsTargetLostNotification() const override { return true; }
 	virtual void OnTargetLost(AActor* Actor, bool bWorldEnding) override;
 	virtual void OnWorldTeardown() override;
+	virtual FString GetLastRefusalReason() const override { return LastRefusal; }
 
 	bool IsRevertSettlingIn(const UWorld* World) const;
 
@@ -147,6 +148,7 @@ private:
 	void ClearPartScope();
 
 	FName Id;
+	FString LastRefusal;
 	EFamily Family;
 
 	bool bActive = false;

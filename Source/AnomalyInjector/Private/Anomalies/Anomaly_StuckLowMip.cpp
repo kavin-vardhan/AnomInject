@@ -1,4 +1,5 @@
 #include "Anomalies/Anomaly_StuckLowMip.h"
+#include "Anomalies/Anomaly_TexCorrupt.h"
 
 #include "AnomalyDefaults.h"
 #include "AnomalyInjectorLog.h"
@@ -659,6 +660,36 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
+	bool bShared = false;
+	for (UTexture2D* Tex : Candidates)
+	{
+		if (ClassifyTexture(Tex) == EEligibility::Eligible)
+		{
+			const FWorldTextureUsers* Users = WorldUsers.Find(Tex);
+			bShared |= Users && Users->Components.Num() > 1;
+		}
+	}
+	bProxyRoute = AnomalyProxyBlur::SelectRoute(AnomalyStuckMip::GetRoute(), bShared) == AnomalyProxyBlur::ERoute::Proxy;
+	if (bProxyRoute)
+	{
+		if (!Proxy)
+		{
+			Proxy = MakeUnique<AnomalyTexCorrupt::FAnomaly_TexCorrupt>(GetId(), AnomalyTexCorrupt::EFamily::UV);
+		}
+		bActive = Proxy->Apply(World, { Substring, FString::FromInt(Levels) });
+		LastRefusal = Proxy->GetLastRefusalReason();
+		PrimaryOwner = const_cast<AActor*>(PrimaryActor);
+		PrimaryOwnerName = GetNameSafe(PrimaryActor);
+		if (bActive)
+		{
+			++GStuckMipStats.FiresApplied;
+			++GStuckMipStats.ProxyFires;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: ROUTE route=proxy result=%s shared_world=%d levels=%d target='%s'"),
+			bActive ? TEXT("applied") : TEXT("refused"), bShared ? 1 : 0, Levels, *Substring);
+		return bActive;
+	}
+
 	Held.Reset();
 	HeldOwners.Reset();
 	CapturedFramesSeen = 0;
@@ -939,6 +970,8 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 
 	++GStuckMipStats.FiresApplied;
+	++GStuckMipStats.HoldFires;
+	UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: ROUTE route=hold result=applied levels=%d target='%s'"), Levels, *Substring);
 	GStuckMipStats.TexturesHeld += Held.Num();
 
 	HeldWorld = World;
@@ -1013,6 +1046,7 @@ void FAnomaly_StuckLowMip::OnTargetLost(AActor* Actor, bool bWorldEnding)
 
 void FAnomaly_StuckLowMip::OnWorldTeardown()
 {
+	if (Proxy) { Proxy->OnWorldTeardown(); }
 	StopHoldMonitor();
 	const int32 Unverified = Restoring.Num();
 	GStuckMipStats.UnverifiedAtTeardown = Unverified;
@@ -1041,6 +1075,12 @@ void FAnomaly_StuckLowMip::OnWorldTeardown()
 
 void FAnomaly_StuckLowMip::Revert()
 {
+	if (bProxyRoute)
+	{
+		if (Proxy) { Proxy->Revert(); }
+		bActive = false;
+		return;
+	}
 	StopHoldMonitor();
 	ReleaseTargetWatch();
 
@@ -1228,6 +1268,11 @@ bool FAnomaly_StuckLowMip::IsAwaitingRestore(const UTexture2D* Tex) const
 
 void FAnomaly_StuckLowMip::TickAlways(float DeltaSeconds)
 {
+	if (Proxy) { Proxy->TickAlways(DeltaSeconds); }
+	if (bProxyRoute && bActive)
+	{
+		bActive = Proxy && Proxy->IsActive();
+	}
 	if (bActive && HeldOwners.Num() > 0 && !PrimaryOwner.IsValid())
 	{
 		++GStuckMipStats.RevertOnDestroy;
@@ -1349,6 +1394,11 @@ void FAnomaly_StuckLowMip::TickAlways(float DeltaSeconds)
 
 void FAnomaly_StuckLowMip::NoteCapturedFrame(bool bAnomalousThisFrame)
 {
+	if (bProxyRoute)
+	{
+		if (Proxy) { Proxy->NoteCapturedFrame(bAnomalousThisFrame); }
+		return;
+	}
 	if (!bActive)
 	{
 		return;
@@ -1372,6 +1422,7 @@ void FAnomaly_StuckLowMip::NoteCapturedFrame(bool bAnomalousThisFrame)
 
 bool FAnomaly_StuckLowMip::IsCurrentlyAnomalous() const
 {
+	if (bProxyRoute) { return bActive && Proxy && Proxy->IsVisualConditionHeld(); }
 	if (!bActive)
 	{
 		return false;
@@ -1392,6 +1443,16 @@ int32 FAnomaly_StuckLowMip::HeldLevelOf(const FHeldTexture& H)
 	const int32 Aim = H.PredictedMaxAllowedMips > 0 ? H.PredictedMaxAllowedMips : H.TargetMips;
 	const int32 Floor = FMath::Max(1, H.FloorMips);
 	return FMath::Clamp(Aim, Floor, FMath::Max(Floor, H.BaselineResidentMips));
+}
+
+bool FAnomaly_StuckLowMip::IsVisualConditionHeld() const
+{
+	return bProxyRoute ? (bActive && Proxy && Proxy->IsVisualConditionHeld()) : IsCurrentlyAnomalous();
+}
+
+unsigned char FAnomaly_StuckLowMip::GetVisualConditionState() const
+{
+	return bProxyRoute ? (bActive && Proxy ? Proxy->GetVisualConditionState() : 0) : (IsCurrentlyAnomalous() ? 1 : 0);
 }
 
 bool FAnomaly_StuckLowMip::GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const
@@ -1719,6 +1780,10 @@ void FAnomaly_StuckLowMip::ScanHoldForNewUsers(const TCHAR* Trigger)
 
 bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 {
+	if (bProxyRoute)
+	{
+		return bActive && Proxy && Proxy->GetTelemetry(Out);
+	}
 	if (!bActive || Held.Num() == 0)
 	{
 		return false;
@@ -1753,6 +1818,8 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 	const FHeldTexture& P = Held[FMath::Clamp(PrimaryIndex, 0, Held.Num() - 1)];
 	const UTexture2D* PrimaryTex = P.Texture.Get();
 	const int32 Resident = PrimaryTex ? PrimaryTex->GetNumResidentMips() : -1;
+	Out.AddString(TEXT("stuck_mip.route"), TEXT("hold"));
+	Out.AddInt(TEXT("stuck_mip.k"), P.FullMips - P.TargetMips);
 
 	Out.AddInt(TEXT("stuck_mip.primary_resident_mips"), Resident);
 	Out.AddInt(TEXT("stuck_mip.primary_baseline_mips"), P.BaselineResidentMips);
@@ -1778,6 +1845,7 @@ bool FAnomaly_StuckLowMip::GetTelemetry(FAnomalyTelemetry& Out) const
 		Rec.AddString(TEXT("name"), H.TextureName);
 		Rec.AddInt(TEXT("baseline_mips"), H.BaselineResidentMips);
 		Rec.AddInt(TEXT("forced_mips"), H.TargetMips);
+		Rec.AddInt(TEXT("k"), H.FullMips - H.TargetMips);
 		Rec.AddInt(TEXT("forced_top_px"), H.TopResidentPxAtTarget);
 		Rec.AddFloat(TEXT("ratio_at_pick"), (double)H.RatioAtPick);
 		Rec.AddInt(TEXT("resident_mips"), Now);

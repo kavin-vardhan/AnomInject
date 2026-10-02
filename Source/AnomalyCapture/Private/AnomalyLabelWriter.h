@@ -305,6 +305,8 @@ namespace AnomalyLabel
 
 	struct FStuckMipTelemetry
 	{
+		int32 HoldFires = 0;
+		int32 ProxyFires = 0;
 		int32 FiresApplied = 0;
 		int32 TexturesHeld = 0;
 		int32 FramesHeld = 0;
@@ -465,6 +467,7 @@ namespace AnomalyLabel
 	{
 		FString AnomalyType;
 		FString AnomalySubtype;
+		FString StuckMipRoute;
 		TArray<int32> FrameIndices;
 		TArray<int32> InjectedFrameIndices;
 		int32 ObservableFrameCount = 0;

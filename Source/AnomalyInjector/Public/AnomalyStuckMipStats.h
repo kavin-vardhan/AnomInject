@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AnomalyProxyBlurPolicy.h"
 
 class UTexture2D;
 
@@ -9,6 +10,8 @@ namespace AnomalyStuckMip
 	struct FRunStats
 	{
 		int32 FiresApplied = 0;
+		int32 HoldFires = 0;
+		int32 ProxyFires = 0;
 		int32 TexturesHeld = 0;
 		int32 RefusedNoEligibleTextures = 0;
 		int32 RefusedVirtual = 0;
@@ -51,6 +54,8 @@ namespace AnomalyStuckMip
 	ANOMALYINJECTOR_API void ResetRunStats();
 
 	ANOMALYINJECTOR_API FRunStats GetRunStats();
+	ANOMALYINJECTOR_API AnomalyProxyBlur::ERoute GetRoute();
+	ANOMALYINJECTOR_API const TCHAR* LexRoute(AnomalyProxyBlur::ERoute Route);
 
 	ANOMALYINJECTOR_API bool IsNoHoldLeverOn();
 

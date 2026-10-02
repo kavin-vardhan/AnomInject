@@ -16,6 +16,9 @@
 #include "Components/StaticMeshComponent.h"
 #include "Containers/Ticker.h"
 #include "EngineUtils.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAsset.h"
@@ -611,12 +614,45 @@ namespace AnomalyTexCorrupt
 			{
 				GatherTextureFacts(B);
 				EvaluateBinding(B, bAll);
+				if (In.bProxyBlur && B.Tex2D && B.bStreams)
+				{
+					const FStreamableRenderResourceState& St = B.Tex2D->GetStreamableResourceState();
+					const int32 Target = AnomalyProxyBlur::TargetMips(B.M, St.NumNonStreamingLODs, St.MaxNumLODs,
+						In.BlurLevels, AnomalyDefaults::StuckMipMinResidentMips);
+					B.BlurDrop = In.Mode == EMode::Identity ? 0 : AnomalyProxyBlur::CopyDrop(B.M, Target);
+					B.CopyDrop = B.BlurDrop;
+					FString DepthReason;
+					if (B.BlurDrop == 0 && In.Mode != EMode::Identity) { DepthReason = TEXT("already_at_floor"); }
+					if (UAnomalyInjectorSubsystem::IsAutoPoolSelection(World) && B.BlurDrop > 0)
+					{
+						FAnomalyViewInfo View;
+						FVector2D Min, Max;
+						if (S.Comp && AnomalyViewport::GetActiveViewInfo(World, View)
+							&& AnomalyViewport::ProjectBoxToScreenRect(View, S.Comp->Bounds.GetBox(), Min, Max))
+						{
+							const FIntPoint Size = GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport
+								? GEngine->GameViewport->Viewport->GetSizeXY() : FIntPoint(1920, 1080);
+							const double Side = FMath::Max((Max.X - Min.X) * Size.X, (Max.Y - Min.Y) * Size.Y);
+							const int32 Top = FMath::Max(1, B.W >> B.BlurDrop);
+							if (Side / Top < AnomalyDefaults::GetStuckMipMinTexelRatio())
+							{
+								DepthReason = In.BlurLevels < 0 ? TEXT("too_small_for_ratio") : TEXT("imperceptible");
+							}
+						}
+					}
+					if (!DepthReason.IsEmpty())
+					{
+						if (B.Step == 0) { FailBinding(B, 11, *DepthReason); }
+						if (bAll) { B.AllKeys.AddUnique(DepthReason); }
+					}
+				}
 			}
 
 			int32 RequiredCount = 0;
 			for (FBinding& B : S.Bindings)
 			{
-				const bool bInFamily = (In.Family == EFamily::UV) || (B.Tex2D && B.bNormalMap);
+				const bool bInFamily = In.bProxyBlur ? (B.Tex2D && B.bStreams && !B.Tex2D->NeverStream)
+					: ((In.Family == EFamily::UV) || (B.Tex2D && B.bNormalMap));
 				B.bRequired = bInFamily;
 				if (bInFamily && !B.IsTransformable() && B.Tex2D && TexCorruptPure::IsNonSpatial(B.CookedM, B.CookedW, B.CookedH))
 				{
@@ -652,6 +688,10 @@ namespace AnomalyTexCorrupt
 			if (In.Family == EFamily::Normal && RequiredCount == 0)
 			{
 				if (SlotFail(RankA2, Why::NoNormalMap, FString(), false)) { return; }
+			}
+			if (In.bProxyBlur && RequiredCount == 0)
+			{
+				if (SlotFail(RankA2, TEXT("not_streamable"), FString(), false)) { return; }
 			}
 			if (In.Family == EFamily::Normal && (!Root || !Root->IsPropertyConnected(MP_Normal)))
 			{
@@ -758,9 +798,9 @@ namespace AnomalyTexCorrupt
 					{
 						TexCorruptPure::FReqTex& R = Req.AddDefaulted_GetRef();
 						R.Id = (long long)(UPTRINT)B.Tex2D;
-						R.W = B.W;
-						R.H = B.H;
-						R.M = B.M;
+						R.W = FMath::Max(1, B.W >> B.CopyDrop);
+						R.H = FMath::Max(1, B.H >> B.CopyDrop);
+						R.M = B.M - B.CopyDrop;
 						R.bSRGB = (B.Class == EClass::Colour);
 						Who.Add(&B);
 					}
@@ -775,7 +815,7 @@ namespace AnomalyTexCorrupt
 			}
 			for (int32 i = 0; i < Who.Num(); ++i)
 			{
-				Who[i]->CopyDrop = Drop[i];
+				Who[i]->CopyDrop += Drop[i];
 			}
 			const TexCorruptPure::FRequirement R = TexCorruptPure::EventRequirement(Req.GetData(), Req.Num());
 			Out.DistinctTextures = R.DistinctTextures;
@@ -799,9 +839,9 @@ namespace AnomalyTexCorrupt
 					{
 						TexCorruptPure::FReqTex& R = Req.AddDefaulted_GetRef();
 						R.Id = (long long)(UPTRINT)B.Tex2D;
-						R.W = B.W;
-						R.H = B.H;
-						R.M = B.M;
+						R.W = FMath::Max(1, B.W >> B.CopyDrop);
+						R.H = FMath::Max(1, B.H >> B.CopyDrop);
+						R.M = B.M - B.CopyDrop;
 						R.bSRGB = (B.Class == EClass::Colour);
 					}
 				}

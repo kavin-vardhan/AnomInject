@@ -1097,6 +1097,8 @@ namespace AnomalyLabel
 		if (StuckMip)
 		{
 			Root->SetNumberField(TEXT("stuck_mip_fires_applied"), StuckMip->FiresApplied);
+			Root->SetNumberField(TEXT("stuck_mip_hold_fires"), StuckMip->HoldFires);
+			Root->SetNumberField(TEXT("stuck_mip_proxy_fires"), StuckMip->ProxyFires);
 			Root->SetNumberField(TEXT("stuck_mip_textures_held"), StuckMip->TexturesHeld);
 			Root->SetNumberField(TEXT("stuck_mip_frames_held"), StuckMip->FramesHeld);
 			Root->SetNumberField(TEXT("stuck_mip_refused_shared"), StuckMip->RefusedShared);
@@ -1435,6 +1437,7 @@ namespace AnomalyLabel
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			O->SetStringField(TEXT("anomaly_type"), E.AnomalyType);
 			O->SetStringField(TEXT("anomaly_subtype"), E.AnomalySubtype);
+			if (!E.StuckMipRoute.IsEmpty()) { O->SetStringField(TEXT("stuck_mip_route"), E.StuckMipRoute); }
 
 			{
 				TSharedRef<FJsonObject> AF = MakeShared<FJsonObject>();

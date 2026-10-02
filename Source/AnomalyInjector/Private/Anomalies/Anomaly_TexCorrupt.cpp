@@ -1,6 +1,7 @@
 #include "Anomalies/Anomaly_TexCorrupt.h"
 #include "Anomalies/TexCorruptPure.h"
 #include "AnomalyInstallState.h"
+#include "AnomalyDefaults.h"
 
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
@@ -714,6 +715,8 @@ void FAnomaly_TexCorrupt::ReleaseTargetWatch()
 
 bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 {
+	LastRefusal = TEXT("refused");
+	const bool bProxyBlur = Id == FName(TEXT("stuck_low_mip"));
 	const int32 Ordinal = TakeAttemptOrdinal(Family);
 	if (!World)
 	{
@@ -740,7 +743,11 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	EMode RequestedMode = EMode::None;
 	int32 RequestedTile = 1;
 	FString ModeRefusalSub;
-	if (bModeArg)
+	if (bProxyBlur)
+	{
+		RequestedMode = L.bIdentity && !bAutoPool ? EMode::Identity : EMode::ProxyBlur;
+	}
+	else if (bModeArg)
 	{
 		TexCorruptPure::EModeP Pure = TexCorruptPure::EModeP::None;
 		const TexCorruptPure::FModeName* Name = nullptr;
@@ -800,6 +807,8 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 
 	FTreeInputs In;
+	In.bProxyBlur = bProxyBlur;
+	In.BlurLevels = bProxyBlur && Args.Num() > 1 ? FCString::Atoi(*Args[1]) : AnomalyDefaults::GetStuckMipLevels();
 	In.Family = Family;
 	In.Mode = RequestedMode;
 	In.TileN = RequestedTile;
@@ -815,6 +824,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	LogTree(Tree, Tree.bApply ? TEXT("DECIDE") : TEXT("REFUSED"), true);
 	if (!Tree.bApply)
 	{
+		LastRefusal = Tree.CensusKey();
 		UE_LOG(LogAnomaly, Warning,
 			TEXT("%s: REFUSED %s (step %s) for '%s'%s. The decision tree has no side effect: nothing was reserved, allocated or ")
 			TEXT("touched, and the event records no fire."),
@@ -1169,7 +1179,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		{
 			ComponentsCorrupted += P.Value.Num();
 		}
-		if (ComponentsSkipped > 0 && !Levers().bNoPartScope)
+		if ((ComponentsSkipped > 0 || bProxyBlur) && !Levers().bNoPartScope)
 		{
 			for (const TPair<AActor*, TArray<const UPrimitiveComponent*>>& P : ByOwner)
 			{
@@ -1651,6 +1661,24 @@ bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 		return false;
 	}
 	Out.AddString(TEXT("texcorrupt.mode"), LexMode(Mode));
+	if (Id == FName(TEXT("stuck_low_mip")))
+	{
+		Out.AddString(TEXT("stuck_mip.route"), TEXT("proxy"));
+		Out.AddBool(TEXT("stuck_mip.held"), IsVisualConditionHeld());
+		Out.AddInt(TEXT("stuck_mip.k"), Outputs.Num() > 0 ? Outputs[0].FirstMip + Outputs[0].Drop : -1);
+		Out.AddInt(TEXT("stuck_mip.onset_latency_frames"), 0);
+		for (const FOutput& O : Outputs)
+		{
+			FAnomalyTelemetryFields& Rec = Out.AddArrayEntry(TEXT("stuck_mip.textures"));
+			Rec.AddString(TEXT("name"), O.SourceName);
+			Rec.AddInt(TEXT("k"), O.FirstMip + O.Drop);
+			Rec.AddInt(TEXT("resident_first_mip"), O.FirstMip);
+			Rec.AddInt(TEXT("resident_drop"), O.Drop);
+			Rec.AddInt(TEXT("baseline_mips"), O.RM);
+			Rec.AddInt(TEXT("forced_mips"), O.M);
+			Rec.AddInt(TEXT("forced_top_px"), O.W);
+		}
+	}
 	Out.AddString(TEXT("texcorrupt.expected_strength_class"), ExpectedStrengthClass(Mode));
 	Out.AddInt(TEXT("texcorrupt.slots_corrupted"), SlotsCorrupted);
 	Out.AddInt(TEXT("texcorrupt.slots_total"), SlotsTotal);
