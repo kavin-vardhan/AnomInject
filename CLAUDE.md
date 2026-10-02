@@ -15,7 +15,7 @@ and is the single source of truth for the project.
 > ARMS MADE BEFORE ITS FAMILY BEGAN RENDERING. Code `6f9ada2`; merged into m53 (read its 090-10f2 block for the proof).**
 > - **Cause (G451):** one Tonemap pass served every pending mask arm. In PIE warm-up the game thread armed frame N+1 before frame N's
 >   pass ran; frame N's render took both and only the first got pixels, so N+1's labelled row shipped `mask_state: "unmeasured"`
->   (no PNG). 44 of 86 PIE legs (183 frames), each with a render serving two capture arms; 0 of 31 staged legs.
+>   (no PNG). 44 of 86 PIE legs (183 frames), each with a render serving two capture arms; rare in staged (1 frame on the old build).
 > - **Fix:** each arm carries a sequence number; `BeginRenderViewFamily` attaches `FAnomalyMaskArmBoundData{Bound}` to the family and
 >   the pass serves only `seq <= Bound`. Rule `AnomalyMaskServe.h`; `mask_serve_selftest` 15/15, three mutants fail. Run log gains
 >   `ARM HOLD SUMMARY`. Readme §mask_state and architecture carry it.

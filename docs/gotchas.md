@@ -9060,7 +9060,8 @@ observability-filtered list; and when a reader says "late", check what its frame
 the game thread at tick end; the game thread may run a frame ahead of the render thread (PIE warm-up, every early PIE leg). Frame
 N's pass then also took frame N+1's arm; only one arm per render gets the pixels, so frame N+1's labelled row shipped
 `mask_state: "unmeasured"` with no PNG — and had the pixels gone to it they would have been frame N's. Measured: 44 of 86 PIE
-legs (183 frames), every one with a render serving two capture arms; 0 of 31 staged legs. The fix keys each arm to the family it
+legs (183 frames), every one with a render serving two capture arms; 0 of 31 staged legs then, but a later staged leg on the
+old build with a 4k texture showed 1 (and the fixed build's staged legs log 0-3 holds each), so a packaged game is not immune. The fix keys each arm to the family it
 was made for (a sequence bound stamped at `BeginRenderViewFamily` and carried as family extension data across the renderer's copy).
 **Rule: when a game-thread request is served by a render-thread pass, bind the request to the frame it was made for (an identity
-the family carries), never to "whatever render runs next"; a lockstep bench (every staged leg here) cannot show the difference.**
+the family carries), never to "whatever render runs next"; a bench that is lockstep most of the time shows the difference only rarely.**
