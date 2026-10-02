@@ -690,6 +690,29 @@ explicit-LOD copy draw (measured: identity under `r.MipMapLODBias 1` differs by 
 with it). The tripwire holds the source RHI texture from before the first level draw to after the last; a replacement in
 between is counted (`texcorrupt_copy_source_changed`), not refused.
 
+**Texture uniformity (090-10f2, A7 `texture_uniform`).** A UV rearrangement (`tile`, `scramble`) of a spatially constant
+texture, or an `invert` / `green_flip` of a flat normal, changes no pixel, so labelling it is a mislabel. After A6 a slot is
+refused `texture_uniform:<rule>` when **every** required transformable binding is measured uniform for the drawn mode
+(`TexCorruptPure::Uniform`): `no_spatial_variation` (tile/scramble; every channel's max − min ≤ 2/255), `flat_normal` (invert;
+X and Y within 0.5 ± 2/255), `flat_normal_y` (green_flip; Y); with no mode (census) the family rule; the bench identity and
+tile-probe modes are not checked. One measured-varying binding admits; a pending one refuses `texture_uniform:pending`
+(dependent), a failed one `texture_uniform:unmeasurable` — never assumed to vary. B treats it like any slot refusal (the component
+is skipped). The measurement (`TexCorruptUniform.cpp`) is the compute shader `FAnomalyTexStatsCS` (`AnomalyShaders`,
+`Shaders/Private/AnomalyTexStats.usf`) over the binding's **resident top mip** (RHI mip 0, raw values, sRGB decode off):
+per-channel min/max by order-preserving `uint` atomics into 9 uints, an `FRHIGPUBufferReadback` polled on the render thread,
+results published to a game-thread cache keyed by (texture, resident first mip). A core ticker kicks at most 4 textures per
+frame (16 in flight); no game-thread readback stall. The capture's `TexCorruptWarm` phase kicks the target's (targeted) or the
+visible set's (auto-pool) textures and holds the **uncaptured** warm phase until none are pending (≤ 300 frames); the census
+measures every listed actor's textures before judging any (≤ 30 s, `IAI-TEXCORRUPT-CENSUS v1 uniform ...`). Each measured
+texture logs one `UNIFORM-STATS` line. `AnomalyInjector` therefore has a private dependency on the plugin's own
+`AnomalyShaders` module (a global shader must load at `PostConfigInit`, G131); without `ANOMALY_SHADERS` (Shipping) the check is
+not built and refuses nothing. Limit: the top resident mip, not the mip a given view samples.
+
+**B and the projected box (090-10f2).** The event component scope (`SetEventComponentScope`) now also reaches the label box:
+`AnomalyViewport::GetActorLabelBounds` unions only scoped components and feeds both `FreezeFireGeometry` (the bounds frozen per
+picture since 090-10) and `ProjectActorBoundsToScreenRect`. Before, `bbox_px` / `bbox_norm` covered the whole actor while the
+mask, `bbox_drawn_px` and the m26 measure were scoped. `node.bounds` stays the whole actor (it describes the object).
+
 **Host material readiness per slot (090-10b, 090-10b2), in this order:** metadata — the resolved material has a resource and a
 game-thread shader map (S5 `shader_map_unavailable`); **identity** — every usage the component's proxy needs is set, else the proxy
 draws the Default Material (`FindUsageRefusal`, S7 `default_material_path`; it runs before readiness so the cause is named); **draw
