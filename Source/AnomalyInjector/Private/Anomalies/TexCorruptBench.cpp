@@ -311,12 +311,20 @@ namespace AnomalyTexCorrupt
 
 		FAutoConsoleCommandWithWorldAndArgs GHostTexBiasCmd(
 			TEXT("IAI.Bench.TexCorruptHostTexBias"),
-			TEXT("BENCH DEVICE (090-10c). Sets LODBias and NumCinematicMipLevels at runtime on every 2D texture the named actor's mesh ")
-			TEXT("slots use, and recreates their resources: the per-texture and cinematic LOD bias a real project carries, reached in a ")
-			TEXT("packaged bench build without a cook. '0' restores every texture it changed. ")
-			TEXT("Usage: IAI.Bench.TexCorruptHostTexBias <actor> <lod_bias> <cinematic_mips> | 0"),
+			TEXT("BENCH DEVICE (090-10c). EDITOR AND PIE ONLY. Sets LODBias and NumCinematicMipLevels at runtime on every 2D texture ")
+			TEXT("the named actor's mesh slots use, and recreates their resources: the per-texture and cinematic LOD bias a real project ")
+			TEXT("carries. REFUSED in a cooked (packaged or staged) build: there a runtime UpdateResource blanks the cooked texture and its ")
+			TEXT("LODBias is not applied (G449); bake the bias into the texture asset or use a cooked device profile instead. ")
+			TEXT("'0' restores every texture it changed. Usage: IAI.Bench.TexCorruptHostTexBias <actor> <lod_bias> <cinematic_mips> | 0"),
 			FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 			{
+				if (FPlatformProperties::RequiresCookedData())
+				{
+					UE_LOG(LogAnomaly, Warning,
+						TEXT("IAI.Bench.TexCorruptHostTexBias: REFUSED in a cooked build - a runtime UpdateResource on a cooked texture blanks it ")
+						TEXT("and its LODBias is not applied (G449). Nothing was changed. Bake the bias into the asset or use a cooked device profile."));
+					return;
+				}
 				if (Args.Num() == 1 && Args[0] == TEXT("0"))
 				{
 					RestoreHostTexBiases();
