@@ -9039,6 +9039,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				TEXT("frame, and m42 (persist tags, rotate values in place) is its fix. Its effect on PIXELS is ")
 				TEXT("UNMEASURED - the count is reported so the cost is visible, not so it can be claimed harmless."),
 				TargetMaskMeasured, TargetMaskHiddenBlank, TargetMaskUnavailable, TargetMaskTagFlips);
+			if (Async.IsValid() && Async->MaskExtension.IsValid())
+			{
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(mask): ARM HOLD SUMMARY holds=%d familiesWithoutBound=%d - a hold is a mask arm left pending ")
+					TEXT("because the family rendering at the time began before the arm was made; it is served by its own frame's ")
+					TEXT("render instead. familiesWithoutBound counts renders that carried no arm bound and served every pending arm."),
+					Async->MaskExtension->NumArmsHeldForOwnFamily(), Async->MaskExtension->NumFamiliesWithoutBound());
+			}
 		}
 		else if (bTargetMask)
 		{
