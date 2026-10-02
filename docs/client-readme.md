@@ -1313,6 +1313,12 @@ Every frame row carries **`mask_state`**, and it is the field to branch on:
 🚨 **`empty` and `unmeasured` are different facts and must not be merged.** `empty` is a measurement
 whose answer is zero; `unmeasured` is the absence of a measurement.
 
+📌 **(090-10f2) A frame with a labelled anomaly gets a measured mask.** Before this fix, in Play In Editor the
+first second or so of a capture could ship a labelled frame with `mask_state: "unmeasured"` (the mask for that
+frame was taken by the previous frame's render). Each mask request is now served only by its own frame's render.
+If you ever see a labelled frame (`labelled: true`) with `mask_state: "unmeasured"`, treat the mask as missing for
+that frame and report it.
+
 📌 **A mask file exists if and only if it has content.** No all-zero PNG is ever written, so you never
 have to test a file to find out whether it says anything.
 
