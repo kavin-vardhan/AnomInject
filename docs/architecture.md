@@ -1507,7 +1507,7 @@ tagged-vs-untagged differential needs. `armTick` is `GFrameCounter` at arm and j
 `FAnomalyMaskSceneViewExtension` keeps one pending list for every mask consumer (the target mask, the `m26`
 measure, the census, the pairing probe), and one Tonemap pass serves the pending arms (`m43`). Arms are made on
 the game thread at tick end; the pass runs on the render thread. When the render thread lags (mostly in PIE
-warm-up: 44 of 86 PIE legs; 0 of 31 earlier staged legs, but 1 staged frame in 090-10f2 on the old build with a 4k texture), frame N+1's arm was already pending when frame N's pass ran,
+warm-up: 44 of 86 PIE legs; 0 of 31 earlier staged legs, but 3 of 320 labelled frames in 090-10f2's staged legs on the old binary), frame N+1's arm was already pending when frame N's pass ran,
 so frame N's render served both — only the first got the mask pixels, and frame N+1's labelled row shipped
 `mask_state: "unmeasured"`. Now every arm carries a sequence number, `BeginRenderViewFamily` (game thread, after
 this frame's arms, before the next tick's) attaches `FAnomalyMaskArmBoundData{Bound}` to the family, and the pass
