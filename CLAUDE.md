@@ -11,6 +11,28 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧭 **090-10f2, 2026-10-02 — NO LABELLED FRAME WITHOUT ITS MASK, `texture_uniform` REFUSES TEXTURES THAT CANNOT SHOW THE
+> CORRUPTION, B'S SCOPE NOW COVERS THE LABEL BOX, AND COOKED BIAS IS PROVEN STAGED. PULL `feat/m53-uv-normal-corruption`: CODE `2dbf6f2`,
+> EXE `36C8E30A` (every PIE confirmation and every staged Item 3 leg ran on it). ⛔ No tag, no merge to master.**
+> - **Cold start:** journal `docs/sessions/2026-10-02-090-10f2-uniform-bscope-cooked.md`; harness `_reviews\090-10f2-*`, work dir
+>   `D:\IA_BankOverflow\_r910f2`.
+> - **Part M (fix branch `6f9ada2` + `7d4debc`, merged):** one Tonemap mask render served every pending arm, so in PIE warm-up frame N+1's
+>   arm got frame N's render and shipped `mask_state unmeasured` (55 of 672 labelled frames before; 3 of 320 staged on the old binary).
+>   Each arm now carries a sequence number bounded per view family at `BeginRenderViewFamily` (G451). After: **0 of 672 PIE, 0 of 936
+>   staged**.
+> - **Item 1 (`3e47fdb`, `2dbf6f2`): A7 `texture_uniform`** — a slot whose every required binding is uniform on the resident top mip
+>   (max − min ≤ 2/255; normals flat at 0.5 ± 2/255; green_flip judged on Y) is refused. GPU compute stats, cached per (texture,
+>   resident first mip), measured before the first captured frame. Office-like auto-pool: **28/28 visibly corrupt** (88801bd: 17/28);
+>   eligibility uv 72 → 32, normal 8 → 4 (each drop ONLY `texture_uniform`). G453.
+> - **Item 2 (`38fed49`, `4dfce28`):** two-part bench actor; mask, m26 and now `bbox_px` cover only the eligible part (bbox was the whole
+>   actor until `GetActorLabelBounds`, G454); ineligible part change 0.00; `NoPartScope` can-fail doubles m26 to 22,520.
+> - **Item 3 (cooks `f2a`/`f2b`/`f2c`):** staged V1/V2/V3 corrupt 7/7, identity at noise, edges 7/7. **The cook strips per-texture and
+>   group LOD bias** (G455), so the old binary passes V1/V2 too — the staged can-fail exists only for cinematic (refused, 0 events).
+>   `IAI.Bench.TexCorruptHostTexBias` refuses in cooked builds (G449).
+> - **Open (journal §6):** accept the cinematic-only staged can-fail; `texture_uniform:pending` costs a fire when residency changes
+>   after the pre-run measurement (1 of 7 on a streaming texture, safe direction); identity copy on a still-streaming texture.
+>
+> ---
 > 🧭 **090-10e, 2026-10-02 (finished by 090-10f2 Part 0) — THE "PIE END +1" WAS THE READER, NOT THE LABELS, AND THE CENSUS
 > LISTS ITS ACTORS IN SLICES. Census `64c0817` + the fix branch's `pie_end_settle` (merged); leg build exe `EBEED6F4`.**
 > - **Cold start:** journal `docs/sessions/2026-10-02-090-10e-pie-endsettle-census-slice.md`.

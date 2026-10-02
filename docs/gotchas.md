@@ -10052,3 +10052,33 @@ legs (183 frames), every one with a render serving two capture arms; 0 of 31 sta
 was made for (a sequence bound stamped at `BeginRenderViewFamily` and carried as family extension data across the renderer's copy).
 **Rule: when a game-thread request is served by a render-thread pass, bind the request to the frame it was made for (an identity
 the family carries), never to "whatever render runs next"; a lockstep bench (every staged leg here) cannot show the difference.**
+## G452 — A time-sliced job is only as sliced as its first step: the census's long frame was the actor listing
+*(090-10e.)* `IAI.TexCorrupt.Census all` sliced its evaluation at 4 ms but listed every actor (with a renderable test each) in its
+first frame: 63.9 ms at +15k actors, 86.6 ms at +40k. `TActorIterator` itself is cheap (it gathers by class); the per-actor test was
+the cost. Listing now snapshots pointers, tests them in the same slices, then evaluates: 37.5 ms and 50.8 ms, counts unchanged.
+**Rule: when a job is time-sliced, time its first frame too; the set-up step is part of the job.**
+## G453 — A corruption that rearranges or flips texels is invisible on content that is constant under it; measure before labelling
+*(090-10f2.)* 11 of 28 auto-pool events landed on 16x16 constant-colour controls and changed nothing visible, yet were labelled.
+`tile` / `scramble` move texels, so a spatially constant texture shows nothing; `invert` / `green_flip` negate normal XY / Y, so a
+flat normal shows nothing (a constant TILTED normal does change). Real content has these (default whites, flat normals, masks).
+m53 now measures each required texture's resident top mip on the GPU (min/max per channel) and refuses `texture_uniform` per
+drawn mode; the measurement is asynchronous, cached, and kicked in uncaptured frames before the first fire, and a texture still
+pending is refused, never assumed to vary. **Rule: a label claims a visible change, so an effect's visibility must be a property
+checked on the content it is applied to, by the mode actually drawn; when the check is asynchronous, the unknown state refuses.**
+## G454 — A scope applied in one projection function does not reach a label path that froze its geometry elsewhere
+*(090-10f2.)* 090-10c's B rule limited the mask, the m26 measure and "the bbox" to the corrupted components by adding the scope to
+`ProjectActorBoundsToScreenRect`. Since 090-10 the label box is projected from bounds frozen per picture (`FreezeFireGeometry`
+via `GetActorRenderableBounds`), which never saw the scope: on a two-part bench object `bbox_px` covered both parts (x 273 to 551)
+while the mask and `bbox_drawn_px` covered the eligible part (x 273 to 383). Fixed with `GetActorLabelBounds`, used by both.
+**Rule: prove a scoping rule by reading every output it is supposed to scope (mask pixels, `bbox_px`, `bbox_drawn_px`, the m26
+count, the picture) on a real multi-part object in a running game, not by reading the function the rule was added to.**
+## G455 — In a packaged Windows build, per-texture and texture-group LOD bias are applied by the cook, so there is no runtime bias to refuse
+*(090-10f2 Item 3.)* Cooked copies of fixture textures with `LODBias 1`, or in `TEXTUREGROUP_Project01` with a cooked
+`DefaultDeviceProfiles.ini` giving that group `LODBias=1`, arrive in the staged game with their top mip missing: 128 -> 64, 4096 ->
+2048 (non-streaming) and 2048 -> 1024 (streaming), with `asset_lod_bias=0` and `cached_lod_bias=0` at runtime. Both the old
+`65607703` and the new build corrupt them 7/7, so the staged can-fail for those variants cannot fire; only the cinematic variant
+(a runtime property) is refused by the old build (`runtime_lod_bias:cinematic`). The 090-10c bench lever that set a runtime bias
+on a cooked texture blanked it (G449) and now refuses. **Rule: a "runtime LOD bias" refusal is an editor/PIE phenomenon for
+per-texture and group bias; prove handling of those in PIE, prove the cooked case by the texture's cooked mip chain, and keep
+cinematic and streaming residency as the runtime cases a packaged build can show.** The device profile needs a dedicated group
+(here Project01) so one cook can carry the variant without biasing every other texture.
