@@ -10083,3 +10083,33 @@ on a cooked texture blanked it (G449) and now refuses. **Rule: a "runtime LOD bi
 per-texture and group bias; prove handling of those in PIE, prove the cooked case by the texture's cooked mip chain, and keep
 cinematic and streaming residency as the runtime cases a packaged build can show.** The device profile needs a dedicated group
 (here Project01) so one cook can carry the variant without biasing every other texture.
+
+## G456 — Freeze the blur route with the event, not with the current anomaly instance
+*(090-12.)* `stuck_low_mip` can now mean a pure texture's streaming hold or a target's private proxy. The former is labelled from
+render residency and has deferred onset; the latter uses installed-state FireWindow membership. An instance may have reverted
+or changed route when an asynchronous capture or annotation closes. Store `bProxyBlur` in the live fire and copy it into fire
+info; use that frozen value for annotation policy and render-truth dispatch. The event's `stuck_mip_route`, frame telemetry and
+run-summary route counts make the distinction explicit. A console or ini route change must not reinterpret an earlier event.
+
+## G457 — Zero settle must not consume an empty capture phase
+*(090-12.)* The m52 E1 reader correctly censored the proxy's first continuous-looking captures: `Config 2` left two uncaptured
+engine frames immediately after bind and revert. `Config 0` also entered the settle phase and consumed one tick despite having
+zero frames to settle. BeginFire/BeginRevert now select Positives/PostGap directly when K=0; positive K and render-truth restore
+trails keep their behavior. The engine-frame continuity check remains unchanged. A pixel edge at 0/0 is not an E1 PASS if its
+required adjacent engine frames were not captured.
+
+## G458 — A new label authority needs its own dispatch into temporal history tracking
+*(090-12.)* Routing proxy blur around render-residency truth also bypassed the code that created m52's temporal transition
+tracks. The labels were correct installed-state windows, but TSR retained a visible decaying tail: the first proxy TSR legs
+had zero temporal flags, 57 PIE / 49 staged unexcused half-strength frames, and failed E1. Proxy events now feed the existing
+3-on/16-off transition track from frozen-route installed membership, carry unfinished tails between runs, and merge temporal
+and PIE reasons into one entry. AA-off still resolves both counts to zero. Prove the transition dispatch with pixels under
+temporal AA; selecting FireWindow alone does not attach a temporal history policy.
+
+## G459 — A moving target can pass the RGB corruption gate with no anomaly applied
+*(090-12.)* Native MainWorld auto selected the animated bot for three hold events. Their bbox RGB changes were 8.120–8.499,
+above threshold 4, but the original E1 reader found only 0.26–1.72% sharpness loss in its canonical ROI (below its 6% floor).
+The identical `StuckMipNoHold` control had zero labelled/render-held frames yet gave 7.766, 8.814 and 9.457 in the same boxes
+and windows: all three RGB positives were motion-confounded. Do not count them as demonstrated blur or synchronized edges.
+Keep native results separate from the authored variant, which passed both routes and all five pixel edges in PIE and staged.
+The proxy proof and pure B9/B0 regression pass; the native hold limitation needs a ruling under the unchanged-hold constraint.

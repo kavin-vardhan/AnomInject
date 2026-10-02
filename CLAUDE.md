@@ -11,6 +11,28 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **090-12, 2026-10-02 — PROXY BLUR PROVED; NATIVE HOLD NEEDS-DECISION, `feat/m52-proxy-blur`, code `663a99b`, exe `CFFD276F`.**
+> Shared proxy blur passes PIE and staged. Overall NEEDS-DECISION: native hold RGB changes are motion-confounded (G459).
+> No office delivery approval, merge or tag. Blurry remains available but OFF by default.
+> - Cold start: `docs/sessions/2026-10-02-090-12-m52-proxy-blur.md`; predictions, harnesses and evidence at
+>   `D:\IA_BankOverflow\_r912`. Source worktree is `_r52p_src`; the host plugin is detached at the proved code.
+> - `IAI.Anomaly.StuckMipRoute auto|hold|proxy` (also ini): auto preserves hold for pure textures and binds a private resident-chain
+>   copy for shared textures. Per-texture `k`, per-event route, run counts and blurry all-reasons/per-route census are recorded.
+> - Installed-state FireWindow labels and B component scope reuse m53. Zero-settle captures are continuous (G457); proxy temporal
+>   tracking is dispatched separately from render-residency hold tracking (G458). No shared source is written in production.
+> - Code builds: strict and normal Editor/Game 0 errors / 0 warnings, 68 header TUs, lever audit 53/53. Proxy pure tests 129/0;
+>   eight route/depth/policy mutants fail. Archive `D:\IA_BankOverflow\_binary_baselines\m52-proxy-0912-CFFD276F` rehashed.
+> - Shared fixture: 1,022 users, twenty visible co-users measured on every fire. AA-off PIE 8/8 and staged 7/7 E1/FW PASS, raw 0/0;
+>   TSR 8/8 and 7/7 PASS under the declared 3/16 policy. All co-users unchanged, masks/both boxes/m26 scoped, zero unmasked labels.
+> - Pure hold: B9/B0 E1 PIE 17/17 each; staged 16/16 each against B5, zero unexcused t50 frames. UV/normal: 8/8 each in both modes.
+>   Authored MainWorld variant: 5/5 visibly blur and 5/5 edges in each mode (hold 3/proxy 2); auto eligibility hold 2/proxy 46.
+> - Native MainWorld: hold 3, proxy 0; RGB 3/3 is NOT a blur pass. No-hold control also exceeds the RGB threshold in all three
+>   windows; E1 is not measurable. Resolving native hold suitability requires a ruling because this brief preserves hold behavior.
+> - Old-base shared refusal, shared-source mutation, scope mutation, shifted labels and missing temporal dispatch all fail as intended.
+>   The service-interrupted staged B0 leg is preserved unscorable; the completed repeat is distinct. All staging/profile swaps restored.
+>
+> ---
+
 > 🧭 **090-10f2, 2026-10-02 — NO LABELLED FRAME WITHOUT ITS MASK, `texture_uniform` REFUSES TEXTURES THAT CANNOT SHOW THE
 > CORRUPTION, B'S SCOPE NOW COVERS THE LABEL BOX, AND COOKED BIAS IS PROVEN STAGED. PULL `feat/m53-uv-normal-corruption`: CODE `2dbf6f2`,
 > EXE `36C8E30A` (every PIE confirmation and every staged Item 3 leg ran on it). ⛔ No tag, no merge to master.**

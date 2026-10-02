@@ -396,7 +396,7 @@ The five unticked ones are **available, not disabled** — tick any of them when
 
 **`camera_clipping` is available but off by default**, because in Auto-pool mode it is held for the **whole session** rather than for a few frames — so on a first-person game the player's hands and weapon are sliced away in *every frame* of that capture. That is correct behaviour and it is what the anomaly looks like, but it is disruptive as a default. **Tick it whenever you want it** — see the explainer video and the note in section 7 first.
 
-**`stuck_low_mip` is available but off by default** for a different reason: its reach depends on how your game's textures are shared. It only holds a texture that **exactly one object in the whole loaded level uses** — the target itself — because holding a shared texture would blur every other object that uses it, on screen or not, while the label and mask name only the target. (The test is per texture: a target that shares some textures can still fire on the ones that are its own.) So on content where textures are shared between objects (a material reused across a scene, a texture atlas) it declines most targets and **fires rarely** — and it declines them loudly, with a counted reason in `run_summary` (`stuck_mip_refused_shared`), rather than producing labels you cannot see. On content with per-object textures it fires readily. **Tick it and read the `stuck_mip_refused_*` counters** in `run_summary.json` to see what your content gives it before relying on it for volume.
+**`stuck_low_mip` is available but off by default.** The default `auto` route uses the existing streaming hold for pure textures and a private copy when an eligible texture is shared. The private copy blurs only the target's admitted components; other objects continue to use the original texture. Explicit `hold` retains the shared-texture refusal. See §8.3aa for route selection and the different label policies. Read the per-route fire counts and refusal counts before relying on your content for volume.
 
 ### Live preview
 
@@ -573,6 +573,8 @@ Those frames stay in `injected_frames` and drop out of `affected_frames`.
 
 ### 8.3a `stuck_mip.*` — the blurry-texture anomaly's own evidence (new in m52)
 
+This subsection describes the **hold route**. Shared textures normally use the proxy route described in §8.3aa.
+
 These keys appear **only inside a `stuck_low_mip` anomaly entry**. A frame with no such
 anomaly, and a dataset produced by a build without this anomaly, carries none of them, so
 an existing parser is unaffected and `label_schema` stays **2**.
@@ -693,6 +695,37 @@ property of the capture schedule, not of this anomaly; the count is always in
 different intervals** and will normally differ by one. The per-frame key counts every captured
 frame from the one the anomaly was applied on; the run counter counts only the frames the
 WINDOW skipped, which begins one frame later.
+
+### 8.3aa Proxy blur: route selection and labels
+
+`IAI.Anomaly.StuckMipRoute auto|hold|proxy` selects the route for future events. `auto` is the default: an event uses private copies when an eligible candidate is shared in the loaded world, otherwise it uses hold. `hold` always uses the original purity-checked streaming route; `proxy` always uses private copies. The route is fixed for the event. `IAI.Anomaly.StuckMipRoute default` clears the console override. To configure it in `DefaultGame.ini`:
+
+```ini
+[AnomalyInjector]
+StuckMipRoute=auto
+```
+
+The proxy's largest mip is the source mip selected by the existing blur depth policy. Telemetry `k` is that absolute source mip index; `resident_drop` is the additional drop from the source's resident first mip. Bench identity uses zero additional drop, matching the original resident chain. It keeps the remaining resident mip chain and samples at the original UVs. Source textures are read only. Material instances bind the copies only on admitted target components; the mask, label box and pixel count cover those same components. Texture uniformity, copy size and memory limits use the texture-corruption machinery (§8.8). The existing automatic-selection size and perceptibility checks still apply. A target cannot carry this anomaly and UV/normal corruption simultaneously.
+
+Proxy labels use **FireWindow** membership: a frame is labelled while an installed proxy renders on the target within its fire window. There is no streaming onset wait. A displaced binding or lost target is `effect_interrupted`. Temporal AA uses the existing transition policy; PIE also carries the existing `pie_end_settle` precaution. The hold route retains its render-residency labels and restore tracking.
+
+| Field | Meaning |
+| --- | --- |
+| `annotation.json` event `stuck_mip_route` | `hold` or `proxy` for this event |
+| frame entry `stuck_mip.route` | the same route |
+| `stuck_mip.k` | the first copied source mip, including the source's resident offset; primary texture summary |
+| proxy `stuck_mip.textures` | per-copy `k`, `resident_first_mip`, `resident_drop`, `baseline_mips`, `forced_mips`, `forced_top_px` and source name |
+| proxy `stuck_mip.held` | an expected proxy binding remains installed; it does not claim a shared source was streamed down |
+| proxy `stuck_mip.onset_latency_frames` | `0`: onset is the bind frame |
+| `run_summary.stuck_mip_hold_fires`, `stuck_mip_proxy_fires` | applied events per route |
+| `run_summary.stuck_mip_label_source` | `proxy_installed_fire_window` for proxy-only runs, `per_event_route` for mixed runs, the existing source for hold-only runs |
+
+`IAI.TexCorrupt.Census allreasons` includes `id=stuck_low_mip` and a `routes` line with `hold_eligible`, `proxy_eligible`, `auto_hold` and `auto_proxy`. The first two describe each route independently and can overlap; the last two partition eligibility under auto. `tools/anomaly_refusal_counts.py` reads those counts, and `--route-check` checks their accounting. Census reports potential eligibility across its scope; on-screen size and current renderer state can still affect a fire.
+
+Blurry remains **available but OFF by default**. This feature branch does not change delivery approval or enable it in the default pool.
+
+Eligibility and fire counts do not measure visible blur strength. Validate the pictures with a suitable clean control: movement alone can produce a large pixel difference on an animated target. The native hold-route visual evidence remains under review; the private-copy fixture proof is recorded separately.
+
 ### 8.4 Visibility — `observable`, `target_pixels`, and the honest "we don't know"
 
 Every anomaly entry in `labels.jsonl` now carries two extra numbers, and the event-level fields above
@@ -839,7 +872,7 @@ One JSON object per line, one line per captured frame.
 | `t_wall` | number | v1 | Real-world seconds since the run started. |
 | `image` | string | v1 | The frame's filename. |
 | `width`, `height` | int | v1 | The written frame's size in pixels. |
-| `anomaly_present` | bool | v1 | Whether any anomaly was active on this frame. 🆕 **For `stuck_low_mip`, only a frame that is labelled for it counts** (it is in the event's `annotation.json` frame list); its frames before the blur takes hold and after the texture is back carry no positive entry. `camera_clipping`, a whole-session anomaly, adds its entry only on the frames where it is positive (§8.6b). Every other anomaly keeps the v1 meaning (an event is running). A transition-only entry (§8.6a) never sets it. Per anomaly: §8.7. |
+| `anomaly_present` | bool | v1 | Whether any anomaly was active on this frame. 🆕 **For the `stuck_low_mip` hold route, only a frame that is labelled for it counts** (it is in the event's `annotation.json` frame list); its frames before the blur takes hold and after the texture is back carry no positive entry. `camera_clipping`, a whole-session anomaly, adds its entry only on the frames where it is positive (§8.6b). Every other anomaly keeps the v1 meaning (an event is running). A transition-only entry (§8.6a) never sets it. Per anomaly: §8.7. |
 | **`transition_present`** | `true` | **new** | **Only present when true.** At least one entry on this frame carries `transition: 1` — see §8.6a. |
 | `visible_positive` | bool | v1, 🆕 **changed** | `anomaly_present` **and** at least one entry that is **labelled on this frame** (`labelled: true`, i.e. the frame is in that event's `annotation.json` frame list) has a valid box. 🆕 Before this build it only needed an active entry with a box, so a `blinking` frame whose object was visible, or a `lod_popping` frame between pops, read `true`; it now reads `false` there (see "Rows where an event is active but not in the picture" below). ⚠ **Sessions delivered before this build use the old rule.** Tell them apart by the entries: a file whose anomaly entries carry a `labelled` key uses the new rule; a file with no `labelled` key anywhere uses the old one, and for it the per-frame truth comes from `annotation.json`'s frame lists (§8.7). |
 | `anomalies` | array | v1 | One object per active anomaly — see below. |
@@ -913,10 +946,10 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
 | `stuck_low_mip`, either edge | `partial` | every labelled frame whose **render record** shows the held textures only part of the way down — some at their held (blurry) level, others still sharp. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
 | `stuck_low_mip`, any labelled frame | `unresolved` | a labelled frame whose render record cannot say whether the whole set is held — a texture's level could not be read, its held level is unknown, or the frame has no texture record — and no texture it *can* read proves the set partial. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
 | `camera_clipping` | `camera_clipping_unconfirmed` | a labelled frame where the geometry inside the clipped slab could not be confirmed triangle by triangle (see §8.6b) | the normal entry, plus `transition: 1` | yes | yes |
-| `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption` | `effect_interrupted` | every captured frame of a running event on which **none** of the slots it replaced still renders its material (for `uv_corruption` / `normal_corruption`: our corrupted material with its texture copies still bound), judged on the object as it renders now: the mesh component still registered and visible, the slot still present on its current mesh, and our material still the one that slot resolves to. Causes: reverted early (for example by a manual `IAI.Revert`), the game replaced the material (a damage flash, a material swap), hid the component or swapped its mesh, or the object was removed. If the game replaced only **some** of the slots, the frame stays labelled (the object still shows the effect) and is counted in `run_summary.label_effect_partial_frames`. Checked on every captured frame, at the same point as the label itself. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask is drawn for it) | **no** | **no** |
+| `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption`, `stuck_low_mip` proxy | `effect_interrupted` | every captured frame of a running event on which **none** of the slots it replaced still renders its material (for UV, normal and proxy blur: our material with its private texture copies still bound), judged on the object as it renders now: the mesh component still registered and visible, the slot still present on its current mesh, and our material still the one that slot resolves to. Causes: reverted early (for example by a manual `IAI.Revert`), the game replaced the material (a damage flash, a material swap), hid the component or swapped its mesh, or the object was removed. If the game replaced only **some** of the slots, the frame stays labelled (the object still shows the effect) and is counted in `run_summary.label_effect_partial_frames`. Checked on every captured frame, at the same point as the label itself. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask is drawn for it) | **no** | **no** |
 | any anomaly on an object | `nanite_unmaskable` | with `IAI.Targets.AllowNanite 0` (the default), every frame on which the object draws a Nanite part — one that appeared while the event ran (a component added or made visible, a mesh change). The event is reverted at the next tick. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
 | any anomaly | `capture_unpaired` | every frame captured by the **synchronous** path: `IAI.Capture.Async 0`, or, with `IAI.Capture.SVE 0` (the UI-on option), a frame on which the game-viewport rectangle could not be found. That path reads the picture the game presented **before** the current tick while the anomaly state is read **during** it, so a change made in that tick is in the label and not in the picture. **With or without anti-aliasing. Never with the shipped settings** (asynchronous capture on, scene-colour capture on). | a transition-only entry on every anomaly of the frame (`labelled: false`, no target mask), plus row-level `capture_unpaired: true`; the frame is never listed in `annotation.json` | **no** | **no** |
-| `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption` (every fire-window type) | `pie_end_settle` | **Play In Editor only:** the first captured frame after each labelled run of the event. It is a precaution, not a correction: an earlier reading suggested that in PIE the picture stayed changed one frame after the label ended, and that reading was traced to the checking tool, not the labels (it compared against `affected_frames`, which leaves out a labelled frame whose target mask was not measured; against `injected_frames` no event ended late). The flag only marks a frame that is already unlabelled, so keeping it costs one frame per event in PIE and nothing else. **Never in a packaged or staged game**; `run_summary.json` says whether the capture ran in PIE (`pie_end_settle_active`) and counts the frames (`pie_end_settle_frames`). | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
+| `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption`, `stuck_low_mip` proxy (every fire-window type) | `pie_end_settle` | **Play In Editor only:** the first captured frame after each labelled run of the event. It is a precaution, not a correction: an earlier reading suggested that in PIE the picture stayed changed one frame after the label ended, and that reading was traced to the checking tool, not the labels (it compared against `affected_frames`, which leaves out a labelled frame whose target mask was not measured; against `injected_frames` no event ended late). The flag only marks a frame that is already unlabelled, so keeping it costs one frame per event in PIE and nothing else. **Never in a packaged or staged game**; `run_summary.json` says whether the capture ran in PIE (`pie_end_settle_active`) and counts the frames (`pie_end_settle_frames`). | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
 | every other anomaly | — | none | — | — | — |
 
 - **`partial` is not an anti-aliasing effect.** A blurry-texture event holds several textures of one object (for
@@ -1060,7 +1093,7 @@ Five fields answer five different questions about one frame. Keep them apart:
 
 | Field | Level | The question it answers |
 | --- | --- | --- |
-| `anomaly_present` | row | Is an anomaly **event active** on this frame? (Its fire is running — for `stuck_low_mip`, its render-held window.) |
+| `anomaly_present` | row | Is an anomaly **event active** on this frame? (Its fire is running — for the `stuck_low_mip` hold route, its render-held window; proxy uses its fire window.) |
 | `labelled` | entry | Is this frame in **this event's frame list** in `annotation.json` (`injected_frames`) — is the anomaly **applied in the picture** by the label's own rule? |
 | `visible_positive` | row | `anomaly_present` and at least one `labelled` entry with a valid box. |
 | `observable` / `target_pixels` | entry | On a labelled frame, did the target actually **draw pixels** in this frame's render? (`null` / `-1` = not measured.) |
@@ -1075,7 +1108,8 @@ Five fields answer five different questions about one frame. Keep them apart:
 | `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption` | every burst frame | burst frames on which the object's projected box is on screen **and** at least one slot the event replaced still renders its material (partial replacement stays labelled) | frames with the box off screen; `effect_interrupted` frames | projected box | labelled frames | `effect_interrupted`, `nanite_unmaskable` |
 | `lod_popping` | every burst frame | the frames on which the forced LOD is applied | the un-forced phases between pops | projected box | labelled frames | none |
 | `camera_clipping` | only the frames on which it is positive (§8.6b) — a whole-session anomaly whose entry appears only then | the same frames | none | the whole frame | never (`null` / `-1`) | `camera_clipping_unconfirmed` |
-| `stuck_low_mip` | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; under temporal anti-aliasing the 16 frames after the last held frame carry **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
+| `stuck_low_mip`, hold route | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; under temporal anti-aliasing the 16 frames after the last held frame carry **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
+| `stuck_low_mip`, proxy route | every burst frame | burst frames with an installed proxy rendering on the target (§8.3aa) | off-screen or `effect_interrupted` frames | admitted components only | labelled frames | `effect_interrupted`, `temporal_aa`, `pie_end_settle` (PIE only) |
 
 `temporal_aa` and `hide_return` appear only under temporal anti-aliasing (TAA or TSR); `partial`, `unresolved` and
 `camera_clipping_unconfirmed` appear with any anti-aliasing setting.
