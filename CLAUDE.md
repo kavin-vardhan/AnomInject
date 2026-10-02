@@ -11,6 +11,20 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> 🧭 **090-10e, 2026-10-02 (finished by 090-10f2 Part 0) — THE "PIE END +1" WAS THE READER, NOT THE LABELS, AND THE CENSUS
+> LISTS ITS ACTORS IN SLICES. Census `64c0817` + the fix branch's `pie_end_settle` (merged); leg build exe `EBEED6F4`.**
+> - **Cold start:** journal `docs/sessions/2026-10-02-090-10e-pie-endsettle-census-slice.md`.
+> - **From the fix branch:** `pie_end_settle` marks, in PIE only, the first frame after each labelled run of a fire-window event as
+>   transition-only; it is a precaution: the old edge reader used `affected_frames`, which leaves out a labelled frame whose PIE mask was
+>   unmeasured (G450). Against `injected_frames`, 12 A legs = 84/84 events in sync; 12 of 12 old "end +1" vanish.
+> - **Census (m53 only):** the per-actor renderable test now runs in the 4 ms slices before sort/evaluate; longest frame in the census
+>   window, PIE: MainWorld 27.6 ms, +15k actors 37.5 ms (was 63.9), +40k 50.8 ms (was 86.6); staged MainWorld 16.2 ms; counts unchanged.
+> - **Builds:** strict 0/0 (64 header TUs), C++ 7/7 + 27/27 mutants and 6/6 + 26/26, Python 27/27, lever 52/52, string scan vs `dcd8d29`
+>   11/6 (this round's strings). Archive `D:\IA_BankOverflow\_binary_baselines\m53-0910e-EBEED6F4\`.
+> - **Open → 090-10f2:** labelled early-PIE frames with an unmeasured mask (Part M); `texture_uniform`; B scope in engine; cooked bias.
+>   ⛔ No tag, no merge to master.
+>
+> ---
 > 🧭 **090-10c, 2026-10-02 — THE OFFICE'S `runtime_lod_bias` WALL IS GONE: m53 NOW COPIES THE MIPS THE TEXTURE ACTUALLY RENDERS, AND
 > EVERY GATE WAS AUDITED AT HOME ON OFFICE-LIKE CONTENT FIRST. PULL THE `feat/m53-uv-normal-corruption` HEAD: ITS `Source/` IS
 > `dcd8d29`'s, EXE `B3103E32`, THE BUILD EVERY 090-10c PROOF LEG RAN ON. Game launches at home (PIE + staged), no cook.**
