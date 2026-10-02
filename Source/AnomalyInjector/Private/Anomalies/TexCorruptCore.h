@@ -92,6 +92,7 @@ namespace AnomalyTexCorrupt
 		extern const TCHAR* NormalUnconnected;
 		extern const TCHAR* BelowSizePolicy;
 		extern const TCHAR* MapSetOverCap;
+		extern const TCHAR* TextureUniform;
 		extern const TCHAR* NoEligibleSlot;
 		extern const TCHAR* PartialFootprint;
 		extern const TCHAR* OverBudget;
@@ -377,6 +378,19 @@ namespace AnomalyTexCorrupt
 
 	void ReadActiveBindings(UWorld* World, UMaterialInterface* Resolved, const UPrimitiveComponent* Comp, TArray<FBinding>& OutBindings,
 		bool& bOutResourceOk, bool& bOutShaderMapOk, bool& bOutComplete, FHostDrawReadiness* OutReadiness = nullptr);
+
+	namespace Uniform
+	{
+		TexCorruptPure::Uniform::EVerdict Query(UTexture2D* Tex, int32 FirstMip, int32 W, int32 H, TexCorruptPure::Uniform::ERule Rule,
+			FString& OutDetail);
+		bool Kick(UTexture2D* Tex);
+		int32 KickForActor(AActor* Actor);
+		void Pump();
+		int32 NumPending();
+		int32 NumMeasured();
+		void ResetCache();
+		FString DescribeCounters();
+	}
 
 	void EvaluateTree(UWorld* World, const FTreeInputs& In, FTreeResult& Out);
 

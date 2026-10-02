@@ -55,6 +55,19 @@ namespace AnomalyTexCorrupt
 		constexpr int32 RankA3 = TexCorruptPure::Rank::A3;
 		constexpr int32 RankA5 = TexCorruptPure::Rank::A5;
 		constexpr int32 RankA6 = TexCorruptPure::Rank::A6;
+		constexpr int32 RankA7 = TexCorruptPure::Rank::A7;
+
+		TexCorruptPure::EModeP ToPureModeForUniform(EMode Mode)
+		{
+			switch (Mode)
+			{
+			case EMode::Tile:      return TexCorruptPure::EModeP::Tile;
+			case EMode::Scramble:  return TexCorruptPure::EModeP::Scramble;
+			case EMode::Invert:    return TexCorruptPure::EModeP::Invert;
+			case EMode::GreenFlip: return TexCorruptPure::EModeP::GreenFlip;
+			default:               return TexCorruptPure::EModeP::None;
+			}
+		}
 		constexpr int32 MaxParentDepth = 16;
 
 		int32 ReadCVarInt(const TCHAR* Name, int32 Fallback)
@@ -689,6 +702,37 @@ namespace AnomalyTexCorrupt
 			if (RequiredCount > GetMaxTextures())
 			{
 				if (SlotFail(RankA6, Why::MapSetOverCap, FString::Printf(TEXT("%d_of_%d"), RequiredCount, GetMaxTextures()), false)) { return; }
+			}
+			{
+				const TexCorruptPure::Uniform::ERule Rule = TexCorruptPure::Uniform::RuleFor(ToPureFamily(In.Family), ToPureModeForUniform(In.Mode),
+					In.Mode == EMode::Identity || In.Mode == EMode::IdentityRedraw || In.Mode == EMode::TileProbe);
+				if (Rule != TexCorruptPure::Uniform::ERule::None)
+				{
+					TArray<TexCorruptPure::Uniform::EVerdict> Verdicts;
+					for (const FBinding& B : S.Bindings)
+					{
+						if (!B.bRequired || !B.IsTransformable() || !B.Tex2D)
+						{
+							continue;
+						}
+						FString Detail;
+						Verdicts.Add(Uniform::Query(B.Tex2D, B.FirstMip, B.W, B.H, Rule, Detail));
+					}
+					switch (TexCorruptPure::Uniform::JudgeSlot(Verdicts.GetData(), Verdicts.Num()))
+					{
+					case TexCorruptPure::Uniform::EVerdict::Uniform:
+						if (SlotFail(RankA7, Why::TextureUniform, UTF8_TO_TCHAR(TexCorruptPure::Uniform::LexRule(Rule)), false)) { return; }
+						break;
+					case TexCorruptPure::Uniform::EVerdict::Pending:
+						if (SlotFail(RankA7, Why::TextureUniform, TEXT("pending"), true)) { return; }
+						break;
+					case TexCorruptPure::Uniform::EVerdict::Unmeasurable:
+						if (SlotFail(RankA7, Why::TextureUniform, TEXT("unmeasurable"), false)) { return; }
+						break;
+					default:
+						break;
+					}
+				}
 			}
 			if (S.Step == 0)
 			{
@@ -1521,6 +1565,10 @@ namespace AnomalyTexCorrupt
 			TArray<TWeakObjectPtr<AActor>> Actors;
 			int32 Next = 0;
 			int32 Gone = 0;
+			bool bUniformDone = false;
+			int32 UniformNext = 0;
+			int32 UniformKicked = 0;
+			double UniformWaitStart = -1.0;
 			FCensusCounts Counts[2];
 			double StartSeconds = 0.0;
 			double NextProgressSeconds = 0.0;
@@ -1538,6 +1586,7 @@ namespace AnomalyTexCorrupt
 
 		constexpr double CensusSliceSeconds = 0.004;
 		constexpr double CensusMaxSeconds = 120.0;
+		constexpr double CensusUniformWaitSeconds = 30.0;
 		constexpr double CensusProgressSeconds = 2.0;
 	}
 
@@ -1604,7 +1653,33 @@ namespace AnomalyTexCorrupt
 			}
 			Job.Found.Empty();
 		};
-		const bool bEvaluate = Job.bEnumerated;
+		if (Job.bEnumerated && !Job.bUniformDone)
+		{
+			const double UniformEnd = FPlatformTime::Seconds() + CensusSliceSeconds;
+			while (Job.UniformNext < Job.Actors.Num() && FPlatformTime::Seconds() < UniformEnd)
+			{
+				Job.UniformKicked += Uniform::KickForActor(Job.Actors[Job.UniformNext].Get());
+				++Job.UniformNext;
+			}
+			if (Job.UniformNext >= Job.Actors.Num())
+			{
+				const double Now = FPlatformTime::Seconds();
+				if (Job.UniformWaitStart < 0.0)
+				{
+					Job.UniformWaitStart = Now;
+				}
+				const int32 Pending = Uniform::NumPending();
+				if (Pending == 0 || Now - Job.UniformWaitStart >= CensusUniformWaitSeconds)
+				{
+					Job.bUniformDone = true;
+					UE_LOG(LogAnomaly, Display,
+						TEXT("IAI-TEXCORRUPT-CENSUS v1 uniform kicked=%d pending=%d waited_s=%.1f %s - texture uniformity (texture_uniform) is ")
+						TEXT("measured on the GPU before any object is judged; a texture still pending is judged texture_uniform/pending."),
+						Job.UniformKicked, Pending, Now - Job.UniformWaitStart, *Uniform::DescribeCounters());
+				}
+			}
+		}
+		const bool bEvaluate = Job.bEnumerated && Job.bUniformDone;
 		if (!Job.bEnumerated)
 		{
 			if (Job.bAll)

@@ -17,6 +17,7 @@ namespace TexCorruptPure
 		constexpr int A3 = 32;
 		constexpr int A5 = 35;
 		constexpr int A6 = 36;
+		constexpr int A7 = 37;
 
 		inline int ForBindingStep(int TStep)
 		{
@@ -1634,5 +1635,148 @@ namespace TexCorruptPure
 			}
 		}
 		return R;
+	}
+	namespace Uniform
+	{
+		constexpr float TolRaw = 2.0f / 255.0f;
+		constexpr float FlatCentre = 0.5f;
+
+		enum class EVerdict : int
+		{
+			Varying,
+			Uniform,
+			Pending,
+			Unmeasurable,
+			NotChecked
+		};
+
+		enum class ERule : int
+		{
+			None,
+			AnyChannelRange,
+			NormalXY,
+			NormalY
+		};
+
+		struct FStats
+		{
+			bool bValid = false;
+			float Min[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+			float Max[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+			unsigned int Texels = 0;
+		};
+
+		inline const char* LexRule(ERule Rule)
+		{
+			switch (Rule)
+			{
+			case ERule::AnyChannelRange: return "no_spatial_variation";
+			case ERule::NormalXY:        return "flat_normal";
+			case ERule::NormalY:         return "flat_normal_y";
+			default:                     return "not_checked";
+			}
+		}
+
+		inline ERule RuleFor(EModeFamilyP Family, EModeP Mode, bool bBenchMode)
+		{
+			if (bBenchMode)
+			{
+				return ERule::None;
+			}
+			switch (Mode)
+			{
+			case EModeP::Tile:
+			case EModeP::Scramble:  return ERule::AnyChannelRange;
+			case EModeP::Invert:    return ERule::NormalXY;
+			case EModeP::GreenFlip: return ERule::NormalY;
+			default:
+				return Family == EModeFamilyP::UV ? ERule::AnyChannelRange : ERule::NormalXY;
+			}
+		}
+
+		inline bool DecodeStats(const unsigned int* Raw, unsigned int ExpectedTexels, FStats& Out)
+		{
+			Out = FStats();
+			if (!Raw || ExpectedTexels == 0 || Raw[8] != ExpectedTexels)
+			{
+				return false;
+			}
+			for (int C = 0; C < 4; ++C)
+			{
+				const unsigned int MinQ = ~Raw[C];
+				const unsigned int MaxQ = Raw[4 + C];
+				if (MinQ > 65535u || MaxQ > 65535u || MinQ > MaxQ)
+				{
+					return false;
+				}
+				Out.Min[C] = (float)MinQ / 65535.0f;
+				Out.Max[C] = (float)MaxQ / 65535.0f;
+			}
+			Out.Texels = Raw[8];
+			Out.bValid = true;
+			return true;
+		}
+
+		inline bool ChannelFlat(const FStats& S, int C, float Tol)
+		{
+			return S.Min[C] >= FlatCentre - Tol && S.Max[C] <= FlatCentre + Tol;
+		}
+
+		inline bool IsUniformUnder(ERule Rule, const FStats& S, float Tol)
+		{
+			if (!S.bValid)
+			{
+				return false;
+			}
+			switch (Rule)
+			{
+			case ERule::AnyChannelRange:
+				for (int C = 0; C < 4; ++C)
+				{
+					if (S.Max[C] - S.Min[C] > Tol)
+					{
+						return false;
+					}
+				}
+				return true;
+			case ERule::NormalXY:
+				return ChannelFlat(S, 0, Tol) && ChannelFlat(S, 1, Tol);
+			case ERule::NormalY:
+				return ChannelFlat(S, 1, Tol);
+			default:
+				return false;
+			}
+		}
+
+		inline EVerdict JudgeSlot(const EVerdict* PerBinding, int N)
+		{
+			if (N <= 0)
+			{
+				return EVerdict::NotChecked;
+			}
+			bool bAnyPending = false;
+			bool bAnyUnmeasurable = false;
+			bool bAllUniform = true;
+			for (int I = 0; I < N; ++I)
+			{
+				switch (PerBinding[I])
+				{
+				case EVerdict::Varying:      return EVerdict::Varying;
+				case EVerdict::NotChecked:   return EVerdict::NotChecked;
+				case EVerdict::Pending:      bAnyPending = true; bAllUniform = false; break;
+				case EVerdict::Unmeasurable: bAnyUnmeasurable = true; bAllUniform = false; break;
+				default: break;
+				}
+			}
+			if (bAnyPending)
+			{
+				return EVerdict::Pending;
+			}
+			if (bAnyUnmeasurable)
+			{
+				return EVerdict::Unmeasurable;
+			}
+			return bAllUniform ? EVerdict::Uniform : EVerdict::Varying;
+		}
 	}
 }

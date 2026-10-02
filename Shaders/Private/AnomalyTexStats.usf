@@ -1,0 +1,43 @@
+#include "/Engine/Private/Common.ush"
+
+Texture2D<float4> SourceTexture;
+RWBuffer<uint> OutStats;
+int2 SourceSize;
+
+groupshared uint GroupStats[9];
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 GroupId : SV_GroupID, uint3 GroupThreadId : SV_GroupThreadID, uint GroupIndex : SV_GroupIndex)
+{
+	if (GroupIndex < 9)
+	{
+		GroupStats[GroupIndex] = 0;
+	}
+	GroupMemoryBarrierWithGroupSync();
+
+	const int2 P = int2(GroupId.xy) * 8 + int2(GroupThreadId.xy);
+	if (P.x < SourceSize.x && P.y < SourceSize.y)
+	{
+		const float4 V = SourceTexture.Load(int3(P, 0));
+		const uint4 Q = uint4(round(saturate(V) * 65535.0));
+		InterlockedMax(GroupStats[0], ~Q.x);
+		InterlockedMax(GroupStats[1], ~Q.y);
+		InterlockedMax(GroupStats[2], ~Q.z);
+		InterlockedMax(GroupStats[3], ~Q.w);
+		InterlockedMax(GroupStats[4], Q.x);
+		InterlockedMax(GroupStats[5], Q.y);
+		InterlockedMax(GroupStats[6], Q.z);
+		InterlockedMax(GroupStats[7], Q.w);
+		InterlockedAdd(GroupStats[8], 1u);
+	}
+	GroupMemoryBarrierWithGroupSync();
+
+	if (GroupIndex < 8)
+	{
+		InterlockedMax(OutStats[GroupIndex], GroupStats[GroupIndex]);
+	}
+	else if (GroupIndex == 8)
+	{
+		InterlockedAdd(OutStats[8], GroupStats[8]);
+	}
+}

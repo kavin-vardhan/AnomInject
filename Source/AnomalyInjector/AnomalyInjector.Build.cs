@@ -18,7 +18,8 @@ public class AnomalyInjector : ModuleRules
 		{
 			"Foliage",
 			"RenderCore",
-			"RHI"
+			"RHI",
+			"AnomalyShaders"
 		});
 	}
 }

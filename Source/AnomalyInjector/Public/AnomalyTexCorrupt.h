@@ -54,5 +54,11 @@ namespace AnomalyTexCorrupt
 
 	ANOMALYINJECTOR_API void EndWarmDraw();
 
+	ANOMALYINJECTOR_API int32 KickUniformMeasurements(UWorld* World, const FString& TargetName);
+
+	ANOMALYINJECTOR_API int32 NumUniformMeasurementsPending();
+
+	ANOMALYINJECTOR_API FString DescribeUniformMeasurements();
+
 	ANOMALYINJECTOR_API void RestoreBenchAssetSlotMid(const TCHAR* Context);
 }

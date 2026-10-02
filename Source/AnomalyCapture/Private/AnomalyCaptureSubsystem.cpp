@@ -1061,10 +1061,22 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		{
 			bTexCorruptWarmBegun = true;
 			TexCorruptWarmDraws = AnomalyTexCorrupt::BeginWarmDraw(GetWorld());
+			TexCorruptUniformKicked = AnomalyTexCorrupt::KickUniformMeasurements(GetWorld(), bTargetedMode ? TargetActorName : FString());
+			TexCorruptUniformWaitFrames = 0;
 		}
 		if (PhaseFramesLeft > 0) { --PhaseFramesLeft; }
+		++TexCorruptUniformWaitFrames;
+		if (PhaseFramesLeft <= 0 && AnomalyTexCorrupt::NumUniformMeasurementsPending() > 0 && TexCorruptUniformWaitFrames < 300)
+		{
+			break;
+		}
 		if (PhaseFramesLeft <= 0)
 		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m53): TEXTURE UNIFORMITY measured before the first captured frame - kicked %d texture(s) for %s, waited %d ")
+				TEXT("uncaptured frame(s); %s. A slot whose every required texture is uniform for the drawn mode is refused texture_uniform."),
+				TexCorruptUniformKicked, bTargetedMode ? *FString::Printf(TEXT("target '%s'"), *TargetActorName) : TEXT("the visible set"),
+				TexCorruptUniformWaitFrames, *AnomalyTexCorrupt::DescribeUniformMeasurements());
 			AnomalyTexCorrupt::EndWarmDraw();
 			Phase = ECapturePhase::LeadIn;
 			PhaseFramesLeft = PreFrames;

@@ -536,6 +536,8 @@ private:
 	bool bTexCorruptWarmDrawFromConsole = false;
 	bool bTexCorruptWarmBegun = false;
 	int32 TexCorruptWarmDraws = -1;
+	int32 TexCorruptUniformKicked = 0;
+	int32 TexCorruptUniformWaitFrames = 0;
 	struct FExposureSample
 	{
 		double LumaAll = -1.0;

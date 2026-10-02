@@ -45,6 +45,7 @@ namespace AnomalyTexCorrupt
 		const TCHAR* NormalUnconnected = TEXT("normal_unconnected");
 		const TCHAR* BelowSizePolicy = TEXT("below_size_policy");
 		const TCHAR* MapSetOverCap = TEXT("map_set_over_cap");
+		const TCHAR* TextureUniform = TEXT("texture_uniform");
 		const TCHAR* NoEligibleSlot = TEXT("no_eligible_slot");
 		const TCHAR* PartialFootprint = TEXT("partial_footprint");
 		const TCHAR* OverBudget = TEXT("over_budget");
@@ -786,7 +787,7 @@ namespace AnomalyTexCorrupt
 			Why::UnsupportedType, Why::ExcludedGroup, Why::TextureNotParameter, Why::UnsupportedEncoding,
 			Why::MipChainShape, Why::HeldByStuckLowMip, Why::ResourceNotReady, Why::StreamingPending,
 			Why::NotFullyResident, Why::NoNormalMap, Why::NormalUnconnected, Why::BelowSizePolicy,
-			Why::MapSetOverCap, Why::NoEligibleSlot, Why::PartialFootprint, Why::OverBudget, Why::RtAllocFailed,
+			Why::MapSetOverCap, Why::TextureUniform, Why::NoEligibleSlot, Why::PartialFootprint, Why::OverBudget, Why::RtAllocFailed,
 			Why::DrawPreconditionFailed, Why::ParamReadbackMismatch };
 		return List;
 	}
