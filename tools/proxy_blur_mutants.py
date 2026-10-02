@@ -16,6 +16,8 @@ def main():
         "ignore_floor": ("Target < Floor ? Floor", "Target < Floor ? Target"),
         "proxy_state": ("bProxy ? AnomalyLabelSync::EAnnotationPolicy::FireWindow", "bProxy ? AnomalyLabelSync::EAnnotationPolicy::AnomalyState"),
         "hold_firewindow": (": HoldPolicy;", ": AnomalyLabelSync::EAnnotationPolicy::FireWindow;"),
+        "no_proxy_transition": ("return bProxy && (OnFrames > 0 || OffFrames > 0);", "return false;"),
+        "hold_transition": ("return bProxy && (OnFrames > 0 || OffFrames > 0);", "return OnFrames > 0 || OffFrames > 0;"),
     }
     created = []
     for name, (old, new) in mutations.items():

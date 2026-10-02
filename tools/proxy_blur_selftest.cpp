@@ -33,6 +33,23 @@ int main()
 	Check(!AnomalyLabelSync::IsAnnotationMember(Policy(true, P::AnomalyState), true, false, true));
 	Check(AnomalyLabelSync::IsEffectInterrupted(Policy(true, P::AnomalyState), false));
 	Check(!AnomalyLabelSync::IsEffectInterrupted(Policy(false, P::RenderHeldWindow), false));
+	Check(UsesTransitions(true, 3, 16));
+	Check(UsesTransitions(true, 0, 16));
+	Check(UsesTransitions(true, 3, 0));
+	Check(!UsesTransitions(true, 0, 0));
+	Check(!UsesTransitions(false, 3, 16));
+	AnomalyLabelSync::FEventTransitionTrack Track;
+	for (int Si = 0; Si < 48; ++Si)
+	{
+		bool On = false, Off = false;
+		Track.Observe(Si, Si < 20, 3, 16, On, Off);
+		Check(On == (Si < 3));
+		Check(Off == (Si >= 20 && Si < 36));
+	}
+	Track.Rebase(24);
+	Check(Track.LastMember() == -5);
+	Check(!Track.OffWindowPassed(0, 16));
+	Check(Track.OffWindowPassed(12, 16));
 	std::printf("proxy blur %d checks, %d failures\n", Checks, Failed);
 	return Failed ? 1 : 0;
 }

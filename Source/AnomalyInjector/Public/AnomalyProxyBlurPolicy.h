@@ -26,4 +26,9 @@ namespace AnomalyProxyBlur
 	{
 		return bProxy ? AnomalyLabelSync::EAnnotationPolicy::FireWindow : HoldPolicy;
 	}
+
+	inline bool UsesTransitions(bool bProxy, int OnFrames, int OffFrames)
+	{
+		return bProxy && (OnFrames > 0 || OffFrames > 0);
+	}
 }
