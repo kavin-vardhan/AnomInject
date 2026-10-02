@@ -1672,10 +1672,9 @@ namespace AnomalyTexCorrupt
 				if (Pending == 0 || Now - Job.UniformWaitStart >= CensusUniformWaitSeconds)
 				{
 					Job.bUniformDone = true;
-					UE_LOG(LogAnomaly, Display,
-						TEXT("IAI-TEXCORRUPT-CENSUS v1 uniform kicked=%d pending=%d waited_s=%.1f %s - texture uniformity (texture_uniform) is ")
-						TEXT("measured on the GPU before any object is judged; a texture still pending is judged texture_uniform/pending."),
-						Job.UniformKicked, Pending, Now - Job.UniformWaitStart, *Uniform::DescribeCounters());
+					const double UniformWaited = Now - Job.UniformWaitStart;
+					UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 uniform kicked=%d pending=%d measured=%d uniform=%d failed=%d waited_s=%.1f"),
+						Job.UniformKicked, Pending, Uniform::NumMeasured(), Uniform::NumUniformNoSpatial(), Uniform::NumFailed(), UniformWaited);
 				}
 			}
 		}

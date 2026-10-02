@@ -59,6 +59,7 @@ CENSUS_FORMATS = {
     "IAI-TEXCORRUPT-CENSUS v1 scanned=%d of=%d gone=%d stopped=%s seconds=%.1f": 5,
     "IAI-TEXCORRUPT-CENSUS v1 timing frames=%d work_ms_max=%.2f frame_interval_ms_max=%.1f": 3,
     "IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=%d": 1,
+    "IAI-TEXCORRUPT-CENSUS v1 uniform kicked=%d pending=%d measured=%d uniform=%d failed=%d waited_s=%.1f": 6,
     "IAI-TEXCORRUPT-CENSUS v1 subs id=%s subs=%s": 2,
     "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s objects=%d eligible=%d blocked=%d unassessed=%d b_gain_objects=%d": 6,
     "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s key=%s objects=%d only=%d": 4,
@@ -100,6 +101,12 @@ ARG_ALLOW = {norm(a) for a in (
     "*P.Key",
     "P.Value",
     "Only ? *Only : 0",
+    "Job.UniformKicked",
+    "Pending",
+    "Uniform::NumMeasured()",
+    "Uniform::NumUniformNoSpatial()",
+    "Uniform::NumFailed()",
+    "UniformWaited",
 )}
 PRINTF_ARG_ALLOW = {norm(a) for a in (
     'Reasons.IsEmpty() ? TEXT("") : TEXT(",")',

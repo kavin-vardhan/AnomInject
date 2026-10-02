@@ -485,6 +485,16 @@ namespace AnomalyTexCorrupt
 			return GMeasured;
 		}
 
+		int32 NumUniformNoSpatial()
+		{
+			return GUniformUv;
+		}
+
+		int32 NumFailed()
+		{
+			return GFailed;
+		}
+
 		void ResetCache()
 		{
 			Queue().Reset();

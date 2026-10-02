@@ -388,6 +388,8 @@ namespace AnomalyTexCorrupt
 		void Pump();
 		int32 NumPending();
 		int32 NumMeasured();
+		int32 NumUniformNoSpatial();
+		int32 NumFailed();
 		void ResetCache();
 		FString DescribeCounters();
 	}
