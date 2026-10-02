@@ -5245,8 +5245,8 @@ void UAnomalyCaptureSubsystem::BeginFire()
 
 	if (bTargetGlobalHeld)
 	{
-		Phase = ECapturePhase::SettleAfterFire;
-		PhaseFramesLeft = SettleFrames;
+		Phase = SettleFrames > 0 ? ECapturePhase::SettleAfterFire : ECapturePhase::Positives;
+		PhaseFramesLeft = SettleFrames > 0 ? SettleFrames : PositiveFrames;
 		return;
 	}
 
@@ -5274,8 +5274,8 @@ void UAnomalyCaptureSubsystem::BeginFire()
 			}
 		}
 	}
-	Phase = ECapturePhase::SettleAfterFire;
-	PhaseFramesLeft = SettleFrames;
+	Phase = SettleFrames > 0 ? ECapturePhase::SettleAfterFire : ECapturePhase::Positives;
+	PhaseFramesLeft = SettleFrames > 0 ? SettleFrames : PositiveFrames;
 }
 
 void UAnomalyCaptureSubsystem::BeginRevert()
@@ -5292,8 +5292,8 @@ void UAnomalyCaptureSubsystem::BeginRevert()
 		PhaseFramesLeft = 0;
 		return;
 	}
-	Phase = ECapturePhase::SettleAfterRevert;
-	PhaseFramesLeft = SettleFrames;
+	Phase = SettleFrames > 0 ? ECapturePhase::SettleAfterRevert : ECapturePhase::PostGap;
+	PhaseFramesLeft = SettleFrames > 0 ? SettleFrames : PostFrames;
 }
 
 void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
