@@ -256,6 +256,7 @@ void FAnomaly_TexCorrupt::ReleaseAllTargets()
 
 bool FAnomaly_TexCorrupt::FailAt(int32 Step, const TCHAR* Reason, const FString& Detail)
 {
+	LastRefusal = Reason;
 	const int64 CreatedAtFail = Account.Created;
 	const int64 NeverCreated = Account.Reserved - Account.Created;
 	ReleaseAllTargets();

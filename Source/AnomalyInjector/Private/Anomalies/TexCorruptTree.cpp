@@ -1958,11 +1958,11 @@ namespace AnomalyTexCorrupt
 	{
 		FAutoConsoleCommandWithWorldAndArgs GOfficeCensusCmd(
 			TEXT("IAI.TexCorrupt.Census"),
-			TEXT("m53 office census, READ-ONLY, in every build. Runs the uv_corruption and normal_corruption decision tree in census ")
+			TEXT("Texture office census, READ-ONLY, in every build. Runs uv_corruption, normal_corruption and stuck_low_mip in census ")
 			TEXT("mode (no allocation, draw or slot change; the mode step is skipped) with the effective cap and all-or-nothing, ")
 			TEXT("over the auto-pool's candidate set now (name-sorted), or with 'all' over every renderable actor in the loaded ")
-			TEXT("levels, and prints four IAI-TEXCORRUPT-CENSUS v1 lines of counts only: no actor, component, asset, path, map or ")
-			TEXT("frame, and no sub-reasons. TIME-SLICED: about 4 ms of work per frame (the 'all' actor listing too: one cheap snapshot ")
+			TEXT("levels, and prints IAI-TEXCORRUPT-CENSUS v1 counts, including blurry eligibility per route: no actor, component, ")
+			TEXT("asset, path or map names. TIME-SLICED: about 4 ms of work per frame (the 'all' actor listing too: one cheap snapshot ")
 			TEXT("of actor pointers, then each actor's renderable test in slices, then evaluation from the next frame), a progress ")
 			TEXT("line every 2 s once the listing is done, and a hard stop ")
 			TEXT("at 120 s that prints the counts so far with 'scanned=K of=N stopped=time_limit'; it never blocks a frame for long. ")

@@ -9115,8 +9115,10 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	StuckMipReport.OnsetPrerollMax = DeferredOnsetPrerollMax;
 	StuckMipReport.RevertOnDestroy = StuckMipStats.RevertOnDestroy;
 	StuckMipReport.UnverifiedAtTeardown = StuckMipStats.UnverifiedAtTeardown;
-	StuckMipReport.LabelSource = bRenderTruthRun ? TEXT("render_record")
-		: (GBenchStuckMipLegacyTiming ? TEXT("gt_mirror_legacy_bench") : TEXT("refused_no_render_record"));
+	StuckMipReport.LabelSource = StuckMipStats.ProxyFires > 0
+		? (StuckMipStats.HoldFires > 0 ? TEXT("per_event_route") : TEXT("proxy_installed_fire_window"))
+		: (bRenderTruthRun ? TEXT("render_record")
+			: (GBenchStuckMipLegacyTiming ? TEXT("gt_mirror_legacy_bench") : TEXT("refused_no_render_record")));
 	StuckMipReport.SettleTailSetting = StuckMipSettleTailFrames;
 	StuckMipReport.RefusedSharedWorld = StuckMipStats.RefusedSharedWorld;
 	StuckMipReport.RefusedBaselinePending = StuckMipStats.RefusedBaselinePending;
