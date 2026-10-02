@@ -209,6 +209,12 @@ list may name it (UNPAIRED-POSITIVE / -LABELLED / -LISTED / -INCONSISTENT, and U
 run_summary capture_unpaired_frames). capture_unpaired is a reason of every type, unlabelled-only, and never an
 anti-aliasing reason. Sync-path frames are dropped (never a positive, never a negative); the sync path is
 unsupported for delivery, and a session captured entirely on it is NOT JUDGED (exit 3).
+The pie_end_settle reason exists only in a Play-In-Editor capture (run_summary pie_end_settle_active true): it marks
+the first captured frame after each labelled run of a fire-window event, on an entry for that event labelled false
+with transition 1, and nowhere else (PIE-SETTLE-OUTSIDE-PIE / -MISSING / -MISPLACED / -LISTED, and PIE-SETTLE-COUNT
+against run_summary pie_end_settle_frames and label_transition_pie_end_settle_entries). It is a reason of fire-window
+types only, unlabelled-only, never listed and never an anti-aliasing reason; such frames are dropped (never a
+positive, never a negative, never a reference) and it excuses at most its own frame.
 Exit 0 no mismatch, 1 mismatch, 3 cannot run or not judged. --label-rule --selftest (and bare --selftest) prove it
 can fail both ways on synthetic sessions.
 
@@ -3147,8 +3153,9 @@ def _emit(line):
 
 
 LABEL_RULE_UNPAIRED = "capture_unpaired"
+LABEL_RULE_PIE_SETTLE = "pie_end_settle"
 LABEL_RULE_REASONS = ("temporal_aa", "hide_return", "partial", "camera_clipping_unconfirmed", "unresolved",
-                      "effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED)
+                      "effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED, LABEL_RULE_PIE_SETTLE)
 LABEL_RULE_ANY_TYPE = (LABEL_RULE_UNPAIRED,)
 LABEL_RULE_FIRE_WINDOW_TYPES = ("missing_texture", "corrupted_texture", "uv_corruption", "normal_corruption",
                                 "lighting_mismatch", "lod_corruption", "null_effect", "solid_swap", "time_dilation")
@@ -3161,12 +3168,17 @@ LABEL_RULE_REASON_TYPES = {
     "effect_interrupted": LABEL_RULE_FIRE_WINDOW_TYPES,
     "nanite_unmaskable": tuple(t for t in LABEL_RULE_FIRE_WINDOW_TYPES if t != "time_dilation")
     + ("blinking", "missing_object", "stuck_low_mip", "lod_popping"),
+    LABEL_RULE_PIE_SETTLE: LABEL_RULE_FIRE_WINDOW_TYPES,
 }
 LABEL_RULE_LABELLED_ONLY = ("partial", "camera_clipping_unconfirmed", "unresolved")
-LABEL_RULE_UNLABELLED_ONLY = ("effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED)
+LABEL_RULE_UNLABELLED_ONLY = ("effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED, LABEL_RULE_PIE_SETTLE)
 LABEL_RULE_TEMPORAL_ONLY = ("temporal_aa", "hide_return")
 LABEL_RULE_UNPAIRED_SENTENCE = ("sync-path frames are dropped: never a positive, never a negative, never a reference; "
                                 "the sync path is unsupported for delivery.")
+LABEL_RULE_PIE_SETTLE_KEYS = ("pie_end_settle_active", "pie_end_settle_frames", "label_transition_pie_end_settle_entries")
+LABEL_RULE_PIE_SETTLE_SENTENCE = ("PIE-only: the first frame after each fire-window label run is dropped: never a "
+                                  "positive, never a negative, never a reference; never an anti-aliasing excuse, and it "
+                                  "excuses at most its own frame.")
 RULE_NEW = "NEW"
 RULE_OLD = "OLD"
 RULE_NONE = "NONE"
@@ -3176,7 +3188,8 @@ LABEL_RULE_CHECKS = ("VP-MISMATCH", "TRANSITION-PRESENT-MISMATCH", "REASON-MISSI
                      "REASON-WITHOUT-TEMPORAL-AA",
                      "LABELLED-EXTRA", "LABELLED-MISSING", "ENTRY-MISSING", "FRAME-MISSING",
                      "UNPAIRED-POSITIVE", "UNPAIRED-LABELLED", "UNPAIRED-LISTED", "UNPAIRED-INCONSISTENT",
-                     "UNPAIRED-COUNT")
+                     "UNPAIRED-COUNT", "PIE-SETTLE-OUTSIDE-PIE", "PIE-SETTLE-MISSING", "PIE-SETTLE-MISPLACED",
+                     "PIE-SETTLE-LISTED", "PIE-SETTLE-COUNT")
 
 
 def _lr_read_rows(cap_dir):
@@ -3250,7 +3263,13 @@ def label_rule_check(cap_dir, quiet=False):
     frame whose picture is not paired with its label: it must read anomaly_present and visible_positive false, every
     entry labelled false with transition 1 and capture_unpaired among its reasons, and no annotation.json frame list
     may name it; capture_unpaired is a reason of every type, unlabelled-only, and never an anti-aliasing reason, so
-    temporal_aa beside it excuses nothing. Such rows are dropped, never counted as evidence. Exit 0 no mismatch,
+    temporal_aa beside it excuses nothing. Such rows are dropped, never counted as evidence. The pie_end_settle reason
+    exists only when run_summary pie_end_settle_active is true (a Play-In-Editor capture): for every fire-window event,
+    identified by (id, target_name, start_frame), the first row after each of its labelled runs carries an entry for
+    it labelled false with transition 1 and pie_end_settle among its reasons, and no other row does; it is a reason of
+    fire-window types only, unlabelled-only, never listed by its event and never an anti-aliasing reason, so it excuses
+    at most its own frame. A run ending on the last row is not checked, and run_summary pie_end_settle_frames /
+    label_transition_pie_end_settle_entries must count its rows and entries when present. Exit 0 no mismatch,
     1 mismatch, 3 cannot run or not judged (every row on the sync path).
     """
     lines = ["LABEL-RULE (084-07b): anomaly_present / labelled / visible_positive / transition, read from the session"]
@@ -3407,6 +3426,54 @@ def label_rule_check(cap_dir, quiet=False):
         listed_every |= e["every"]
     for si in sorted(unpaired_sis & listed_every):
         fail("UNPAIRED-LISTED", si)
+
+    def ev_key(a):
+        return a.get("id", ""), a.get("target_name", ""), a.get("start_frame")
+
+    pie_active = rs.get("pie_end_settle_active") is True
+    n_pie_rows = 0
+    n_pie_entries = 0
+    lab_keys = {}
+    lab_pairs = {}
+    pie_ents = {}
+    for r in rows:
+        si = r["session_index"]
+        ents = [a for a in (r.get("anomalies") or []) if isinstance(a, dict)]
+        lab = [a for a in ents if a.get("labelled") is True]
+        lab_keys[si] = set(ev_key(a) for a in lab)
+        lab_pairs[si] = set((a.get("id", ""), a.get("target_name", "")) for a in lab)
+        pie_ents[si] = [a for a in ents if isinstance(a.get("transition_reason"), list)
+                        and LABEL_RULE_PIE_SETTLE in a["transition_reason"]]
+    for r in rows:
+        si = r["session_index"]
+        mine = pie_ents[si]
+        n_pie_entries += len(mine)
+        if mine:
+            n_pie_rows += 1
+            if not pie_active:
+                fail("PIE-SETTLE-OUTSIDE-PIE", si)
+        for a in mine:
+            if ev_key(a) not in lab_keys.get(si - 1, ()):
+                fail("PIE-SETTLE-MISPLACED", si)
+            t = client_type(a.get("id", ""))
+            tgt = a.get("target_name", "")
+            if ((a.get("id", ""), tgt) not in lab_pairs[si]
+                    and any(e["type"] == t and tgt in e["names"] and si in e["every"] for e in events)):
+                fail("PIE-SETTLE-LISTED", si)
+        if not pie_active or si + 1 not in by_si:
+            continue
+        for k in lab_keys[si]:
+            if k[0] not in LABEL_RULE_FIRE_WINDOW_TYPES or k in lab_keys[si + 1]:
+                continue
+            if not any(ev_key(a) == k and a.get("transition") == 1 and a.get("labelled") is False
+                       for a in pie_ents[si + 1]):
+                fail("PIE-SETTLE-MISSING", si + 1)
+    rs_pie_frames = rs.get("pie_end_settle_frames")
+    rs_pie_entries = rs.get("label_transition_pie_end_settle_entries")
+    for key, have in (("pie_end_settle_frames", n_pie_rows), ("label_transition_pie_end_settle_entries", n_pie_entries)):
+        v = rs.get(key)
+        if key in rs and (not isinstance(v, int) or isinstance(v, bool) or v != have):
+            fail("PIE-SETTLE-COUNT", have)
     rs_unpaired = rs.get("capture_unpaired_frames")
     rs_unpaired_int = isinstance(rs_unpaired, int) and not isinstance(rs_unpaired, bool)
     if "capture_unpaired_frames" in rs and (not rs_unpaired_int or rs_unpaired != n_unpaired_rows):
@@ -3470,6 +3537,10 @@ def label_rule_check(cap_dir, quiet=False):
                  "capture_unpaired_frames %s) - %s"
                  % (n_unpaired_rows, n_unpaired_entries,
                     rs_unpaired if "capture_unpaired_frames" in rs else "absent", LABEL_RULE_UNPAIRED_SENTENCE))
+    pie_rs = [rs.get(k) if k in rs else "absent" for k in LABEL_RULE_PIE_SETTLE_KEYS]
+    lines.append("  pie_end_settle (PIE)   : %d row(s), %d entr(ies) carry pie_end_settle (run_summary pie_end_settle_active "
+                 "%s, pie_end_settle_frames %s, label_transition_pie_end_settle_entries %s) - %s"
+                 % (n_pie_rows, n_pie_entries, pie_rs[0], pie_rs[1], pie_rs[2], LABEL_RULE_PIE_SETTLE_SENTENCE))
     if legacy_sync:
         lines.append("  unpaired, not flagged  : run_summary sync_frames_written %d but no row carries capture_unpaired (a "
                      "build before 090-10); this reader cannot tell which rows were on the sync path, and their labels "
@@ -3482,6 +3553,12 @@ def label_rule_check(cap_dir, quiet=False):
         if sis and cat == "UNPAIRED-COUNT":
             lines.append("  FAIL %-28s run_summary capture_unpaired_frames %s, rows carrying capture_unpaired %d"
                          % (cat, rs_unpaired, n_unpaired_rows))
+        elif sis and cat == "PIE-SETTLE-COUNT":
+            lines.append("  FAIL %-28s run_summary pie_end_settle_frames %s, label_transition_pie_end_settle_entries %s; "
+                         "rows carrying pie_end_settle %d, entries %d"
+                         % (cat, rs_pie_frames if "pie_end_settle_frames" in rs else "absent",
+                            rs_pie_entries if "label_transition_pie_end_settle_entries" in rs else "absent",
+                            n_pie_rows, n_pie_entries))
         elif sis:
             lines.append("  FAIL %-28s %d  [%s]" % (cat, len(sis), _lr_first(sis)))
         elif not quiet:
@@ -3507,6 +3584,7 @@ def label_rule_check(cap_dir, quiet=False):
               "vetoed_labelled": n_vetoed_labelled, "legacy_unreasoned": n_legacy_unreasoned,
               "unpaired_rows": n_unpaired_rows, "unpaired_entries": n_unpaired_entries,
               "legacy_sync": legacy_sync, "all_sync": all_sync, "judged": not all_sync,
+              "pie_settle_active": pie_active, "pie_settle_rows": n_pie_rows, "pie_settle_entries": n_pie_entries,
               "reasons": {"%s/%s" % k: v for k, v in reason_counts.items()}}
     return code, lines, detail
 
@@ -3587,7 +3665,10 @@ def _label_rule_selftest():
     Plus: labelled vs annotation.json in both directions, the veto exception, transition-reason placement, and the
     refusal of a session that mixes the two rules. Sync-path rows (capture_unpaired): a correct one is dropped and
     counted; labelled, positive, listed or half-flagged ones fail; temporal_aa beside capture_unpaired excuses
-    nothing; and a session captured entirely on the sync path is not judged.
+    nothing; and a session captured entirely on the sync path is not judged. PIE end-settle flags (pie_end_settle): a
+    correct PIE session with anti-aliasing off passes; the same flags on a staged run, a PIE run that flags nothing,
+    a flag one frame late, on a labelled entry, on a blinking entry, for another event, after a missing row or on a
+    listed frame, and a count mismatch all fail; an old session without the keys and without flags passes.
     """
     import shutil
     import tempfile
@@ -3868,6 +3949,114 @@ def _label_rule_selftest():
         case("U_f5_legacy_partial_sync_reported_still_judged", rows, ev, 0, RULE_NEW,
              rs={"label_temporal_aa": True, "vetoed_events": 0, "sync_frames_written": 3},
              extra=lambda d, l: d["legacy_sync"] == 3 and d["judged"] and any("unpaired, not flagged" in x for x in l))
+
+        def pie_ent(aid, target, start, labelled, reasons=None, bbox=True):
+            e = _lr_entry(aid, target, labelled, bbox, reasons)
+            e["start_frame"] = start
+            return e
+
+        pie_a_on = {3, 4, 5, 8, 9, 10}
+        pie_c_on = {8, 9, 10}
+        pie_b_on = {14, 15, 16}
+        pie_ev = [("missing_texture", "Rock", pie_a_on), ("lod_corruption", "Pillar", pie_c_on),
+                  ("corrupted_texture", "Crate", pie_b_on)]
+        pie_rs = {"label_temporal_aa": False, "vetoed_events": 0, "pie_end_settle_active": True,
+                  "pie_end_settle_frames": 3, "label_transition_pie_end_settle_entries": 4}
+        pie_old_rs = {"label_temporal_aa": False, "vetoed_events": 0}
+
+        def pie_rows(flag=True, late=False, n=22):
+            flag_why = (LABEL_RULE_PIE_SETTLE,) if flag else ()
+            out = []
+            for si in range(n):
+                ents = []
+                if 3 <= si <= 10:
+                    ents.append(pie_ent("missing_texture", "Rock", 3, si in pie_a_on,
+                                        flag_why if si == 6 else None, si in pie_a_on))
+                elif si == 11 and flag:
+                    ents.append(pie_ent("missing_texture", "Rock", 3, False, flag_why))
+                if 8 <= si <= 10:
+                    ents.append(pie_ent("lod_corruption", "Pillar", 8, True))
+                elif si == 11 and flag:
+                    ents.append(pie_ent("lod_corruption", "Pillar", 8, False, flag_why))
+                if 14 <= si <= 19:
+                    why = None
+                    if si >= 17:
+                        why = ("effect_interrupted",) + (flag_why if si == (18 if late else 17) else ())
+                    ents.append(pie_ent("corrupted_texture", "Crate", 14, si in pie_b_on, why))
+                out.append(_lr_row(si, ents, present=3 <= si <= 10 or 14 <= si <= 16))
+            return out
+
+        def pie_with(fn, **kw):
+            rows_ = pie_rows(**kw)
+            fn(rows_)
+            return rows_
+
+        case("P_a_pie_settle_after_each_fire_window_run_clean", pie_rows(), pie_ev, 0, RULE_NEW, rs=pie_rs,
+             extra=lambda d, l: d["pie_settle_active"] and d["pie_settle_rows"] == 3 and d["pie_settle_entries"] == 4
+             and d["reasons"].get("missing_texture/pie_end_settle") == 2
+             and d["reasons"].get("lod_corruption/pie_end_settle") == 1
+             and d["reasons"].get("corrupted_texture/pie_end_settle") == 1
+             and d["reasons"].get("corrupted_texture/effect_interrupted") == 3
+             and any(LABEL_RULE_PIE_SETTLE_SENTENCE in x for x in l) and any("NO MISMATCH" in x for x in l))
+        case("P_b_same_flags_on_staged_run_FAILS", pie_rows(), pie_ev, 1, RULE_NEW, "PIE-SETTLE-OUTSIDE-PIE",
+             rs=dict(pie_rs, pie_end_settle_active=False),
+             extra=lambda d, _l: set(d["fails"]) == {"PIE-SETTLE-OUTSIDE-PIE"}
+             and d["fails"]["PIE-SETTLE-OUTSIDE-PIE"] == [6, 11, 17])
+        case("P_b2_same_flags_on_run_without_pie_keys_FAILS", pie_rows(), pie_ev, 1, RULE_NEW, "PIE-SETTLE-OUTSIDE-PIE",
+             rs=pie_old_rs, extra=lambda d, _l: set(d["fails"]) == {"PIE-SETTLE-OUTSIDE-PIE"})
+        case("P_c_pie_run_flags_nothing_FAILS", pie_rows(flag=False), pie_ev, 1, RULE_NEW, "PIE-SETTLE-MISSING",
+             rs=dict(pie_rs, pie_end_settle_frames=0, label_transition_pie_end_settle_entries=0),
+             extra=lambda d, _l: set(d["fails"]) == {"PIE-SETTLE-MISSING"}
+             and d["fails"]["PIE-SETTLE-MISSING"] == [6, 11, 17])
+        case("P_d_flag_one_frame_late_FAILS", pie_rows(late=True), pie_ev, 1, RULE_NEW, "PIE-SETTLE-MISPLACED", rs=pie_rs,
+             extra=lambda d, _l: set(d["fails"]) == {"PIE-SETTLE-MISPLACED", "PIE-SETTLE-MISSING"}
+             and d["fails"]["PIE-SETTLE-MISSING"] == [17] and d["fails"]["PIE-SETTLE-MISPLACED"] == [18])
+
+        def flag_labelled(rows_):
+            rows_[5]["anomalies"][0].update(transition=1, transition_reason=[LABEL_RULE_PIE_SETTLE])
+            rows_[5]["transition_present"] = True
+        case("P_e_flag_on_labelled_entry_FAILS", pie_with(flag_labelled), pie_ev, 1, RULE_NEW, "REASON-ON-LABELLED",
+             rs=dict(pie_rs, pie_end_settle_frames=4, label_transition_pie_end_settle_entries=5),
+             extra=lambda d, _l: set(d["fails"]) == {"REASON-ON-LABELLED"})
+        rows, ev = _lr_blink_session()
+        rows[6]["anomalies"][0]["transition_reason"].append(LABEL_RULE_PIE_SETTLE)
+        case("P_f_flag_on_blinking_entry_FAILS", rows, ev, 1, RULE_NEW, "REASON-MISPLACED",
+             rs={"label_temporal_aa": True, "vetoed_events": 0, "pie_end_settle_active": True,
+                 "pie_end_settle_frames": 1, "label_transition_pie_end_settle_entries": 1},
+             extra=lambda d, _l: set(d["fails"]) == {"REASON-MISPLACED"})
+        case("P_g_run_summary_frame_count_disagrees_FAILS", pie_rows(), pie_ev, 1, RULE_NEW, "PIE-SETTLE-COUNT",
+             rs=dict(pie_rs, pie_end_settle_frames=4),
+             extra=lambda d, l: set(d["fails"]) == {"PIE-SETTLE-COUNT"}
+             and any("rows carrying pie_end_settle 3, entries 4" in x for x in l))
+        case("P_g2_entry_count_equals_rows_not_entries_FAILS", pie_rows(), pie_ev, 1, RULE_NEW, "PIE-SETTLE-COUNT",
+             rs=dict(pie_rs, label_transition_pie_end_settle_entries=3),
+             extra=lambda d, _l: set(d["fails"]) == {"PIE-SETTLE-COUNT"})
+        case("P_h_flag_for_another_start_frame_FAILS",
+             pie_with(lambda rows_: rows_[6]["anomalies"][0].update(start_frame=99)), pie_ev, 1, RULE_NEW,
+             "PIE-SETTLE-MISPLACED", rs=pie_rs,
+             extra=lambda d, _l: set(d["fails"]) == {"PIE-SETTLE-MISPLACED", "PIE-SETTLE-MISSING"}
+             and d["fails"]["PIE-SETTLE-MISPLACED"] == [6] and d["fails"]["PIE-SETTLE-MISSING"] == [6])
+        case("P_i_old_session_without_keys_or_flags_clean", pie_rows(flag=False), pie_ev, 0, RULE_NEW, rs=pie_old_rs,
+             extra=lambda d, l: not d["pie_settle_active"] and d["pie_settle_rows"] == 0
+             and any("pie_end_settle_active absent" in x for x in l))
+
+        def list_settle_frame(d):
+            p = os.path.join(d, "annotation.json")
+            with open(p, "r", encoding="utf-8") as fh:
+                ann = json.load(fh)
+            ann["anomalies"][0]["affected_frames"]["frame_indices"] = sorted(pie_a_on | {6})
+            with open(p, "w", encoding="utf-8") as fh:
+                json.dump(ann, fh)
+        case("P_j_settle_frame_listed_by_its_event_FAILS", pie_rows(), pie_ev, 1, RULE_NEW, "PIE-SETTLE-LISTED",
+             rs=pie_rs, post=list_settle_frame,
+             extra=lambda d, _l: set(d["fails"]) == {"PIE-SETTLE-LISTED"} and d["fails"]["PIE-SETTLE-LISTED"] == [6])
+        case("P_k_flag_after_missing_row_FAILS", [r for r in pie_rows() if r["session_index"] != 5], pie_ev, 1,
+             RULE_NEW, "PIE-SETTLE-MISPLACED", rs=pie_rs,
+             extra=lambda d, _l: set(d["fails"]) == {"PIE-SETTLE-MISPLACED", "FRAME-MISSING"}
+             and d["fails"]["PIE-SETTLE-MISPLACED"] == [6])
+        case("P_l_run_ending_on_last_row_not_checked_clean", pie_rows(n=17), pie_ev, 0, RULE_NEW,
+             rs=dict(pie_rs, pie_end_settle_frames=2, label_transition_pie_end_settle_entries=3),
+             extra=lambda d, _l: d["pie_settle_rows"] == 2 and d["pie_settle_entries"] == 3)
         shot = [_lr_row(0, [_lr_entry("blinking", "Cube", None, True)], present=True)]
         shot[0]["label_rule"] = "legacy_shot"
         case("legacy_shot_read_under_old_meaning", shot, [], 0, RULE_SHOT,
@@ -3953,7 +4142,9 @@ def main():
                     help="read the session's anomaly_present / labelled / visible_positive / transition fields against "
                          "the rule its build wrote them under (NEW with `labelled`, OLD without, said which), cross-checked "
                          "against annotation.json; sync-path rows (capture_unpaired) are dropped and checked to be "
-                         "unlabelled and unlisted. Exit 0 no mismatch, 1 mismatch, 3 cannot run or not judged (every row "
+                         "unlabelled and unlisted; PIE end-settle frames (pie_end_settle) are checked to sit only on the "
+                         "first frame after each fire-window label run of a Play-In-Editor capture, unlabelled and "
+                         "unlisted, and are dropped. Exit 0 no mismatch, 1 mismatch, 3 cannot run or not judged (every row "
                          "on the sync path). With --selftest it proves the reader can fail both ways.")
     args = ap.parse_args()
 
