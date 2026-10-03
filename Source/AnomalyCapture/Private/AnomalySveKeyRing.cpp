@@ -4,6 +4,7 @@
 #if ANOMALY_CAPTURE
 
 #include "AnomalyCaptureLog.h"
+#include "AnomalyCaptureOwnership.h"
 
 #include "HAL/IConsoleManager.h"
 #include "HAL/ThreadSafeCounter.h"
@@ -97,13 +98,14 @@ namespace AnomalySveKeyRing
 		return Out;
 	}
 
-	void PublishKey(uint32 FamilyFrameNumber, uint64 RequestId, bool bWanted)
+	void PublishKey(uint32 FamilyFrameNumber, uint64 RequestId, bool bWanted, uint64 FamilyId)
 	{
 		const int32 Mode = GetForceMissMode();
 		const int32 Phase = GetForceMissPhase();
 
 		FKeyEntry Entry;
 		Entry.RequestId = RequestId;
+		Entry.FamilyId = FamilyId;
 		Entry.bWanted = bWanted;
 		Entry.bValid = true;
 
@@ -130,13 +132,13 @@ namespace AnomalySveKeyRing
 		}
 	}
 
-	bool LookupKey(uint32 FamilyFrameNumber, FKeyEntry& Out)
+	bool LookupKey(uint32 FamilyFrameNumber, FKeyEntry& Out, uint64 FamilyId)
 	{
 		{
 			FScopeLock Lock(&RingCS);
 			for (int32 i = Ring.Num() - 1; i >= 0; --i)
 			{
-				if (Ring[i].bValid && Ring[i].FamilyFrameNumber == FamilyFrameNumber)
+				if (Ring[i].bValid && AnomalyCaptureOwnership::MatchesFamilyKey(Ring[i].FamilyFrameNumber, Ring[i].FamilyId, FamilyFrameNumber, FamilyId))
 				{
 					Out = Ring[i];
 					Consumed.Increment();

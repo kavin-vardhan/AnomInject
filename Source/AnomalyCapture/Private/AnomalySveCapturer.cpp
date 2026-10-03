@@ -10,6 +10,7 @@
 #if ANOMALY_CAPTURE
 
 #include "AnomalyCaptureLog.h"
+#include "AnomalyCaptureOwnership.h"
 
 #include "CoreGlobals.h"
 #include "Engine/Texture2D.h"
@@ -27,6 +28,43 @@ void FAnomalySveCapturer::SetActive(bool bInActive)
 bool FAnomalySveCapturer::IsActive() const
 {
 	return ActiveFlag.GetValue() != 0;
+}
+
+void FAnomalySveCapturer::SetOwner(const FSceneInterface* Scene, const FRenderTarget* Target)
+{
+	FScopeLock Lock(&StateCS);
+	OwnerScene = Scene;
+	OwnerTarget = Target;
+}
+
+bool FAnomalySveCapturer::AcceptFamily(const FSceneInterface* Scene, const FRenderTarget* Target) const
+{
+	FScopeLock Lock(&StateCS);
+	if (AnomalyCaptureOwnership::IsOwner(OwnerScene, OwnerTarget, Scene, Target)) { return true; }
+	RejectedFamilies.Increment();
+	return false;
+}
+
+void FAnomalySveCapturer::TakeUnpaired(TArray<uint64>& Out)
+{
+	FScopeLock Lock(&StateCS);
+	Out = MoveTemp(Unpaired);
+	Unpaired.Reset();
+}
+
+void FAnomalySveCapturer::ExpireUnrendered(uint64 BeforeFrame)
+{
+	FScopeLock Lock(&StateCS);
+	for (auto It = UnrenderedFrames.CreateIterator(); It; ++It)
+	{
+		if (!AnomalyCaptureOwnership::HasExpired(It.Value(), BeforeFrame)) { continue; }
+		const uint64 Id = It.Key();
+		Unpaired.Add(Id);
+		PendingWanted.Remove(Id);
+		PendingIssues.Remove(Id);
+		RenderWatchByRequest.Remove(Id);
+		It.RemoveCurrent();
+	}
 }
 
 bool FAnomalySveCapturer::ExtendRenderWatch(uint64 RequestId, const TArray<UTexture2D*>& Added)
@@ -110,6 +148,7 @@ void FAnomalySveCapturer::ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr Cha
 	{
 		FScopeLock Lock(&StateCS);
 		PendingWanted.Add(RequestId);
+		UnrenderedFrames.Add(RequestId, GFrameCounter);
 		if (RenderWatch)
 		{
 			RenderWatchByRequest.Add(RequestId, *RenderWatch);
@@ -143,6 +182,7 @@ void FAnomalySveCapturer::CancelPendingOtherGeneration(const FAnomalyChangeIssue
 		{
 			Cancelled.Add(PendingWanted[I]);
 			PendingIssues.Remove(PendingWanted[I]);
+			UnrenderedFrames.Remove(PendingWanted[I]);
 			RenderWatchByRequest.Remove(PendingWanted[I]);
 			PendingWanted.RemoveAt(I);
 		}
@@ -173,6 +213,15 @@ bool FAnomalySveCapturer::ConsumeWantedForPublish(uint32 FamilyFrameNumber, uint
 	int32 TraceIndex = 0;
 	{
 		FScopeLock Lock(&StateCS);
+		while (PendingWanted.Num() > 0 && !AnomalyCaptureOwnership::IsSampleFrame(UnrenderedFrames.FindRef(PendingWanted[0]), GFrameCounter))
+		{
+			const uint64 Id = PendingWanted[0];
+			Unpaired.Add(Id);
+			UnrenderedFrames.Remove(Id);
+			PendingIssues.Remove(Id);
+			RenderWatchByRequest.Remove(Id);
+			PendingWanted.RemoveAt(0);
+		}
 		DepthBefore = PendingWanted.Num();
 		if (DepthBefore > 0)
 		{
@@ -214,6 +263,9 @@ void FAnomalySveCapturer::Reset()
 	{
 		FScopeLock Lock(&StateCS);
 		PendingWanted.Reset();
+		UnrenderedFrames.Reset();
+		Unpaired.Reset();
+		RejectedFamilies.Reset();
 		PendingIssues.Reset();
 		RenderWatchByRequest.Reset();
 		ChangeStage.Reset();
@@ -265,6 +317,10 @@ void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FI
 	TArray<FAnomalyRenderMipSample>&& RenderMips, bool bRenderRecord,
 	int32 TemporalAaMethod, bool bTemporalViewKnown, bool bTemporalUpscaler)
 {
+	{
+		FScopeLock Lock(&StateCS);
+		if (UnrenderedFrames.Remove(RequestId) == 0) { return; }
+	}
 	const bool bDual = LegacyReadback.IsValid();
 
 	FInFlight Item;
@@ -405,15 +461,17 @@ void FAnomalySveCapturer::CompareDualPath_RenderThread(FInFlight& Item, const FA
 		AnomalyReadback::IsDualPathForcedMismatch() ? 1 : 0);
 }
 
-void FAnomalySveCapturer::EnqueueDrain()
+void FAnomalySveCapturer::EnqueueDrain(bool bFinal)
 {
 	TWeakPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> WeakSelf = AsShared();
+	const uint64 BeforeFrame = GFrameCounter + (bFinal ? 1 : 0);
 
 	ENQUEUE_RENDER_COMMAND(AnomalySveCaptureDrain)(
-		[WeakSelf](FRHICommandListImmediate& RHICmdList)
+		[WeakSelf, BeforeFrame](FRHICommandListImmediate& RHICmdList)
 		{
 			if (TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Self = WeakSelf.Pin())
 			{
+				Self->ExpireUnrendered(BeforeFrame);
 				Self->Drain_RenderThread();
 			}
 		});
