@@ -67,6 +67,16 @@ int main()
 		const float Mn[4] = { 0.4f, 0.4f, 0.4f, 0.0f };
 		const float Mx[4] = { 0.4f, 0.4f, 0.4f, 1.0f };
 		Check(!IsUniformUnder(ERule::AnyChannelRange, Stats(Mn, Mx), Tol), "varying alpha alone is spatial variation");
+		Check(IsUniformUnder(RuleFor(EModeFamilyP::UV, EModeP::Tile, false, false), Stats(Mn, Mx), Tol), "opaque RGB-only material refuses alpha-only variation");
+		Check(!IsUniformUnder(RuleFor(EModeFamilyP::UV, EModeP::Tile, false, true), Stats(Mn, Mx), Tol), "masked or opacity-connected material admits alpha-only variation");
+		Check(IsUniformUnder(RuleFor(EModeFamilyP::UV, EModeP::Scramble, false, false), Stats(Mn, Mx), Tol), "scramble also ignores unused alpha");
+		Check(IsUniformUnder(RuleFor(EModeFamilyP::UV, EModeP::None, false, false), Stats(Mn, Mx), Tol), "census also ignores unused alpha");
+	}
+	{
+		const float Mn[4] = { 0.1f, 0.4f, 0.4f, 0.0f };
+		const float Mx[4] = { 0.9f, 0.4f, 0.4f, 1.0f };
+		Check(!IsUniformUnder(ERule::RGBChannelRange, Stats(Mn, Mx), Tol), "opaque RGB variation still admits");
+		Check(RuleFor(EModeFamilyP::Normal, EModeP::Invert, false, false) == ERule::NormalXY, "normal rule independent of alpha use");
 	}
 	{
 		const float Mn[4] = { 0.5f, 0.5f, 0.0f, 1.0f };

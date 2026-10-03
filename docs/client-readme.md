@@ -624,18 +624,17 @@ anomaly on a target that uses it is REFUSED and counted in
 `run_summary.stuck_mip_refused_not_restored`, so a later event can never record the
 still-depressed count as its own baseline.
 
-⛔ **The object must be big enough on screen for the blur to show.** The deepest hold the engine
+**Size and ratio refusals are selection heuristics.** The deepest hold the engine
 permits still leaves a mip of a certain width, and if the target's on-screen box is not at least
 **8×** that width the target is REFUSED and counted in
-`run_summary.stuck_mip_refused_too_small_for_ratio` — it produces no event at all, rather than a
-positive label you cannot see. (`stuck_mip_refused_imperceptible` is the same test applied to an
-explicitly requested mip depth that was simply too shallow; on an automatically chosen target it
+`run_summary.stuck_mip_refused_too_small_for_ratio` — it produces no event. This does not prove
+that a refused target could not visibly blur. (`stuck_mip_refused_imperceptible` is the same test applied to an
+explicitly requested mip depth; on an automatically chosen target it
 stays 0.)
 ⚠ **This is a size test, not a visibility guarantee.** It compares the object's on-screen box
 against the held mip's width and knows nothing about what the texture contains: a low-frequency
 surface — flat paint, a soft normal map — can pass it comfortably and still look unchanged. The
-per-frame `observable` field, which is measured from the rendered frame, remains the authoritative
-answer to "did this show".
+per-frame `observable` field measures drawn target pixels; it does not prove that blur changed their appearance.
 
 ⛔ **Not applicable to virtual textures.** A target whose textures are virtual-textured is
 refused and counted in `run_summary.stuck_mip_refused_virtual`; it produces no event.
@@ -1339,7 +1338,8 @@ target's mesh components — every static or skeletal mesh component of the obje
 alone and **no longer count against the object**. A component is corrupted only if **every one of its other slots
 qualifies** — a component is never partly corrupted, because the mask cannot separate the slots of one component. A
 component with a slot that does not qualify is skipped whole. The event applies if at least one component is corrupted;
-when some are skipped, **the mask, the measured pixels and the projected box cover only the corrupted components**
+**the mask, the measured pixels and the projected box always cover only the corrupted components**, including
+when an unchanged component has a null material slot and renders the engine default material
 (the projected box `bbox_px` / `bbox_norm` only since 090-10f2: before it, those two covered the whole object while the
 mask, `bbox_drawn_px` and the measured pixels were already limited — measured on a two-part bench object), and the
 event record says so: `texcorrupt.components_corrupted`, `texcorrupt.components_skipped`,
@@ -1362,6 +1362,11 @@ event record's `snapshot_mip` names that mip of the original, and `cooked_mip_co
 corrupted object looks as sharp as the original did. If the game later streams sharper mips in, the original would have
 become sharper; the copy stays as it was and stays visibly corrupted until the event ends. A global `r.MipMapLODBias`
 is applied to the copy as it is to the original.
+
+**Copy snapshot robustness limit.** Under heavy streaming churn, the copy draws are not bound to one coherent
+retained source snapshot. `rt_mip_mismatch` and `copy_source_changed` count detected changes but do not veto the
+event. Binding every draw to the retained snapshot and making a mismatch veto or revert-and-flag the event is a
+follow-up. A zero count on a capture does not remove this limit.
 
 **Memory (since 090-10c).** If an event's copies would exceed the memory cap, the largest copies are made at half size
 (again, if needed) until they fit — never below 512 pixels on the longer side. Such a copy is a little blurrier than the
@@ -1398,6 +1403,13 @@ name as `texcorrupt_refused_<reason>`; each key is present with 0 when that reas
 | `partial_footprint` | some slots qualify, but no component has all of its slots qualifying (above) |
 | `over_budget` | the texture copies would exceed the memory cap (128 MiB by default, both anomalies together) even at the 512-pixel floor (above) |
 | `rt_alloc_failed`, `draw_precondition_failed`, `param_readback_mismatch` | a failure while applying. Everything already taken is released and nothing is left changed (counted in `texcorrupt_rollback_*`) |
+
+`below_size_policy`, `too_small_for_ratio` and `imperceptible` are **selection heuristics**, not measured proofs
+that rejected content cannot visibly change. They remain in this delivery and can reduce yield.
+
+For UV-family `texture_uniform` checks, RGB variation is judged on every material. Alpha variation counts only
+when the slot material is masked or translucent, or has a connected opacity or opacity-mask input. An opaque
+RGB-only material with constant RGB and varying alpha is therefore refused.
 
 **Labels.** Both are labelled like `missing_texture` and `corrupted_texture` (§8.7): `anomaly_present` on every frame
 from apply to revert, and `labelled` (in `injected_frames`) on those frames where the object's projected box is on
@@ -1436,6 +1448,10 @@ most memory the copies used at once).
   objects are now refused `nanite_unmaskable` instead. Those captures ran with Nanite allowed (the previous behaviour). Their events were labelled exactly as the unmeasured contract
   says, and no change was seen on any other object. The mechanism is the same material swap, in the same frame, as
   `corrupted_texture`, whose label is proven on that level.
+
+**Known visibility limitations.** Variation only in a channel the material never samples (for example a packed
+map), or a normal map feeding a zero-strength normal input, can still produce a labelled event with no visible
+change. A measured visible-change gate at event onset is the follow-up; this delivery does not have that gate.
 
 ⚠ **When the picture barely changes — read this before training on these two.** An inverted or green-flipped
 normal map changes the shading only where light falls across the surface at an angle. Under flat, head-on or back
