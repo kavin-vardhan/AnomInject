@@ -136,8 +136,8 @@ static TAutoConsoleVariable<int32> GLabelTransitionOnFrames(TEXT("IAI.Label.Tran
 	TEXT("independent of this value and of anti-aliasing."));
 static TAutoConsoleVariable<int32> GLabelTransitionOffFrames(TEXT("IAI.Label.TransitionOffFrames"), -1,
 	TEXT("labels.jsonl transition flag: the N captured frames after the last labelled frame of a held-window or fire-window event carry ")
-	TEXT("an entry with transition=1 that does NOT set anomaly_present. Temporal or unknown AA only (0 when confirmed off). -1 (default) = 256 ")
-	TEXT("(091-03 measured tail plus margin). Override read at run start; effective value refreshed during capture and written to run_summary.label_transition_off_frames."));
+	TEXT("an entry with transition=1 that does NOT set anomaly_present. Temporal or unknown AA only (0 when confirmed off). -1 (default) = 40 ")
+	TEXT("(091-03 measured t10 tail plus four frames). Override read at run start; effective value refreshed during capture and written to run_summary.label_transition_off_frames."));
 static TAutoConsoleVariable<int32> GLabelTransitionHideFrames(TEXT("IAI.Label.TransitionHideFrames"), -1,
 	TEXT("labels.jsonl transition flag for hide anomalies (blinking, missing_object): the first N captured frames after the ")
 	TEXT("object returns carry transition=1. Temporal AA only (0 without it). -1 (default) = 1. Read at run start; echoed ")

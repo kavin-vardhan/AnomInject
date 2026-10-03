@@ -905,10 +905,11 @@ frame or two after it starts, and linger for a few frames after it ends. We meas
 with anti-aliasing off the labels and pixels agree exactly at both ends; with TAA the blur reaches its
 midpoint about **2 frames** after a blurry-texture event starts, falls below half of its depth **4 to 8 frames**
 after it ends, and a faint trace (5–45 % of the depth) can linger to **13–29 frames** after it ends. That is
-why older builds flagged 16 frames. The stricter 091-03 clean-reference measurement found a TSR tail up to 46
-frames and a TAA PIE tail of 203 frames on the detailed home fixture. The candidate default is now **256**
-post-label frames, with the configuration cap also 256. Final proof and its exact scope are in the 091-03 journal;
-the historical half-strength results below are not a strict clean-reference guarantee.
+why older builds flagged 16 frames. The 091-03 E1 measurement found a tail above 10% of the event's
+full strength lasting up to 26 frames under TSR and 36 under TAA. The default is **40** post-label frames:
+36 measured frames plus four frames of margin. The configuration cap remains 64. The unchanged half-strength
+E1 edge check is the release gate; smaller residuals above clean-to-clean variation are diagnostics, not a
+pixel-for-pixel clean guarantee. Final proof and its exact scope are in the 091-03 journal.
 
 Rather than move a label off the exact render, those frames carry an extra key, **`transition: 1`**, on
 the anomaly's entry, and the frame carries **`transition_present: true`**:
@@ -916,7 +917,7 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
 | Case | `transition_reason` | Which frames | The entry | Sets `anomaly_present`? | In positive frame lists? |
 | --- | --- | --- | --- | --- | --- |
 | `stuck_low_mip`, UV/normal and other fire-window events: start | `temporal_aa` | the event's first **3** labelled frames | the normal entry, plus `transition: 1` | yes | yes |
-| `stuck_low_mip`, UV/normal and other fire-window events: end | `temporal_aa` | the **256** captured frames after its last labelled frame | a transition-only entry (`target_pixels` −1, `observable` null; the frame's target mask does not include it) | **no** | **no** |
+| `stuck_low_mip`, UV/normal and other fire-window events: end | `temporal_aa` | the **40** captured frames after its last labelled frame | a transition-only entry (`target_pixels` −1, `observable` null; the frame's target mask does not include it) | **no** | **no** |
 | `blinking`, `missing_object` | `hide_return` | the **first** captured frame after the object reappears | `transition: 1` (inside a `blinking` burst this is on the burst's own entry; after the event ends it is a transition-only entry) | only if the event is still running, as before | no |
 | `stuck_low_mip`, either edge | `partial` | every labelled frame whose **render record** shows the held textures only part of the way down — some at their held (blurry) level, others still sharp. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
 | `stuck_low_mip`, any labelled frame | `unresolved` | a labelled frame whose render record cannot say whether the whole set is held — a texture's level could not be read, its held level is unknown, or the frame has no texture record — and no texture it *can* read proves the set partial. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
@@ -990,18 +991,20 @@ were changed: restore them and capture again.
   carry it (counted in `label_transition_tracks_carried_in` and `label_hide_tracks_carried_in`), and so do the
   captures after that while it is still owed — a short capture in between, or one that wrote no frames, passes it
   on. This treats the gap between captures as zero frames, which can only add flagged frames, never remove a label.
-- **The numbers are 3 / 256 / 1** under temporal anti-aliasing and **0 / 0 / 0** without it (091-03 measured offset;
+- **The numbers are 3 / 40 / 1** under temporal anti-aliasing and **0 / 0 / 0** without it (091-03 measured offset;
   earlier builds used 3 / 16 / 1 and 3 / 8 / 1). They are console variables —
   `IAI.Label.TransitionOnFrames`, `IAI.Label.TransitionOffFrames`, `IAI.Label.TransitionHideFrames`
-  (any negative value = the default; a value of 0 or more replaces it, capped at 256; without temporal or unknown evidence all three
+  (any negative value = the default; a value of 0 or more replaces it, capped at 64; without temporal or unknown evidence all three
   are 0 whatever is set) — and each capture reports the values it used in
   `run_summary.json` (`label_transition_on_frames`, `_off_frames`, `_hide_frames`, plus the `_cvar` values as set).
-  The 256 covers the measured 203-frame TAA PIE tail with margin. The previous 16-frame default failed the
-  strict home tail gate. This is a conservative exclusion window, not 256 additional positive labels.
+  The 40 covers the maximum measured E1 t10 tail of 36 frames with four frames of margin. The previous
+  16-frame default failed t10 coverage. This exclusion window does not add positive labels.
+  The half-strength gate in §8.7a remains the release rule. Residuals below t10 may outlast the window;
+  their measured lengths are reported separately. Always drop every declared transition frame.
+
 - **How to use it:** drop the union of schema 2.1 `transition_frames` before assigning training positives or negatives (§8.7).
-  The historical half-strength gate in §8.7a remains useful for label edges. The 091-03 tail gate separately
-  compares target pixels to an independent clean reference and measured clean-to-clean null; its final results
-  and unjudged cases are recorded in the journal. Do not infer a strict tail pass from a half-strength pass.
+  The unchanged half-strength gate in §8.7a remains the release rule. The offset window also covers the measured
+  t10 tail plus margin; the journal separately records smaller residuals above clean-to-clean variation.
 - `run_summary.json` also counts `label_transition_entries`, `label_transition_frames` and
   `label_entries_suppressed` (entries withheld because they were not labelled on that frame), the entries per
   reason (`label_transition_temporal_aa_entries`, `_hide_return_entries`, `_partial_entries`,
@@ -1178,7 +1181,7 @@ not listed was not run.
 | `missing_object` | large test level · natural and synthetic · AA on; large test level · natural · AA off | `hide_return` (temporal AA only) |
 | `missing_texture` | large test level · natural and synthetic · AA on; bench level · natural and synthetic · AA on | `effect_interrupted` (none occurred in these captures; see §8.6a) |
 | `corrupted_texture` | large test level · natural and synthetic · AA on | `effect_interrupted` (none occurred in these captures) |
-| `stuck_low_mip` | large test level (one object with its own textures) · natural · AA on, targeted and in an Auto-pool run; the same object · natural · AA off | `partial` and `unresolved` (an event's first labelled frames), and `temporal_aa` (its first 3 labelled frames and the current **256** frames after its last one; temporal AA only) |
+| `stuck_low_mip` | large test level (one object with its own textures) · natural · AA on, targeted and in an Auto-pool run; the same object · natural · AA off | `partial` and `unresolved` (an event's first labelled frames), and `temporal_aa` (its first 3 labelled frames and the current **40** frames after its last one; temporal AA only) |
 | `camera_clipping` | bench level with a scripted camera, judged on the **confirmed** frames · natural and synthetic · AA on; natural · AA off | `camera_clipping_unconfirmed` (over-labels by design — on our bench those frames showed no slice at all) |
 | `lod_popping` | a purpose-built test object whose detail levels differ strongly, about 23 pops per capture · natural and synthetic · AA on and AA off | nothing |
 | `uv_corruption` (`tile`, `scramble`) | a purpose-built test object (`TC_UC1`), one capture per mode · natural and synthetic · AA on; natural · AA off; and a second, natural AA-on capture per mode. Each capture: **16 complete events, plus 1 whose end runs past the end of the capture (its start is checked, its end cannot be)**. **Not yet checked on ordinary scenery** (§8.8) | `effect_interrupted` (none occurred in these captures) |
@@ -1196,7 +1199,7 @@ What each row leaves open, stated rather than implied:
   capture built to recycle mask values, **up to 5** on the first event after the game starts), each flagged `partial`.
   The label is right that the event has begun; the flag says the picture shows only part of it. With temporal AA the
   blur **fell below half strength 4 to 6 frames** after the label's last frame on the bench, inside the then-current 16 flagged
-  frames. The current strict-tail policy is wider (§8.6a); with AA off it fell below half strength on exactly the label's last
+  frames. The current t10 exclusion policy is wider (§8.6a); with AA off it fell below half strength on exactly the label's last
   frame.
 - **`stuck_low_mip` — how often it fires depends on your content.** It holds only textures that exactly one object uses
   (the Capture pool panel, section 4), so on scenes that share textures it fires rarely, and it is **off in Auto-pool by

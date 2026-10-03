@@ -1145,14 +1145,14 @@ static void TestTransitionTrackOrder()
 	FEventTransitionTrack Long;
 	Long.Observe(10, true, 3, DefaultOffFramesTemporal, bOn, bOff);
 	int TailFlags = 0;
-	for (int si = 11; si <= 267; ++si)
+	for (int si = 11; si <= 51; ++si)
 	{
 		Long.Observe(si, false, 3, DefaultOffFramesTemporal, bOn, bOff);
 		if (bOff) { ++TailFlags; }
 	}
-	Check(TailFlags == 256 && !bOff, "track: the measured-tail default includes +256 and excludes +257");
-	Check(!Long.OffWindowPassed(266, MaxTransitionFrames) && Long.OffWindowPassed(267, MaxTransitionFrames),
-		"track: retention cannot retire the 256-frame tail early");
+	Check(TailFlags == 40 && !bOff, "track: the measured-tail default includes +40 and excludes +41");
+	Check(!Long.OffWindowPassed(74, MaxTransitionFrames) && Long.OffWindowPassed(75, MaxTransitionFrames),
+		"track: retention preserves the bounded 64-frame history");
 }
 
 static void TestAaResolve()
@@ -1166,18 +1166,18 @@ static void TestAaResolve()
 	Check(!HasTemporalHistory(AaNone, true, false), "aa: confirmed off stays off");
 	Check(HasTemporalHistory(AaTemporal, true, false) && HasTemporalHistory(AaTsr, true, false), "aa: capture view TAA and TSR");
 	Check(ResolveTransitionFrames(-1, DefaultOnFramesTemporal, true) == 3
-		&& ResolveTransitionFrames(-1, DefaultOffFramesTemporal, true) == 256
-		&& ResolveTransitionFrames(-1, DefaultHideFramesTemporal, true) == 1, "aa: -1 resolves to 3/256/1 under temporal AA (091-03 measured offset)");
-	Check(DefaultOffFramesTemporal == 256 && MaxTransitionFrames >= DefaultOffFramesTemporal
+		&& ResolveTransitionFrames(-1, DefaultOffFramesTemporal, true) == 40
+		&& ResolveTransitionFrames(-1, DefaultHideFramesTemporal, true) == 1, "aa: -1 resolves to 3/40/1 under temporal AA (091-03 measured offset)");
+	Check(DefaultOffFramesTemporal == 40 && MaxTransitionFrames >= DefaultOffFramesTemporal
 		&& ResolveTransitionFrames(-1, DefaultOffFramesTemporal, false) == 0,
-		"aa: the off default is 256 under temporal AA, retained by the cap, and still 0 without it");
+		"aa: the off default is 40 under temporal AA, retained by the cap, and still 0 without it");
 	Check(ResolveTransitionFrames(8, DefaultOffFramesTemporal, true) == 8 && ResolveTransitionFrames(0, DefaultOffFramesTemporal, true) == 0
 		&& ResolveTransitionFrames(24, DefaultOffFramesTemporal, true) == 24,
 		"aa: an explicit IAI.Label.TransitionOffFrames still overrides the measured default (8 -> 8, 0 -> 0, 24 -> 24)");
 	Check(ResolveTransitionFrames(-1, 8, false) == 0 && ResolveTransitionFrames(5, 8, false) == 0,
 		"aa: without temporal AA every value is 0, even an explicit one");
 	Check(ResolveTransitionFrames(3, 8, true) == 3 && ResolveTransitionFrames(0, 8, true) == 0
-		&& ResolveTransitionFrames(1000, 8, true) == MaxTransitionFrames, "aa: an explicit value is used and clamped to 256");
+		&& ResolveTransitionFrames(1000, 8, true) == MaxTransitionFrames, "aa: an explicit value is used and clamped to 64");
 }
 
 struct FGateFrame
