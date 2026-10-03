@@ -1,9 +1,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MaterialTypes.h"
 #if __has_include("Materials/MaterialParameters.h")
 #include "Materials/MaterialParameters.h"
+#else
+#include "MaterialTypes.h"
 #endif
 #include "PixelFormat.h"
 #if __has_include("Templates/SharedPointerFwd.h")

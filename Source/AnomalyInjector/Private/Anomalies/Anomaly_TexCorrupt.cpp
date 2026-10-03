@@ -1,9 +1,10 @@
 #include "Anomalies/Anomaly_TexCorrupt.h"
 #include "Engine/Texture.h"
-#include "MaterialTypes.h"
 #include "Materials/MaterialInterface.h"
 #if __has_include("Materials/MaterialParameters.h")
 #include "Materials/MaterialParameters.h"
+#else
+#include "MaterialTypes.h"
 #endif
 #if __has_include("Templates/SharedPointerFwd.h")
 #include "Templates/SharedPointerFwd.h"
