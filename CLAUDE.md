@@ -18,6 +18,8 @@ and is the single source of truth for the project.
 >   The 16-frame window passes unchanged E1 t50 on proxy TSR/TAA PIE/staged but fails t10 coverage.
 > - Measured E1 t10 maximum: proxy TSR 26, TAA 36; UV 6, normal 2. Candidate offset 40 adds four frames;
 >   cap restored to 64. The provisional 256 builds `ab21086`/`5a8d3f7`/`fbed8a9` are superseded, not delivered.
+> - The 40 builds `c43f538`/`f9fac4e`/`96e7a32` passed normal 0/0 and proxy strict 0/0; final review now adds
+>   direct AA/upscaler defining headers (5.1/5.7 guarded fallback), requiring new builds before final proof.
 > - Ruling 2 supersedes the original strict-null gate: above-null/below-t10 tails are diagnostic only.
 >   Their measurements and all failed calibrations remain in the journal and evidence. Static hold is pending.
 > - A separate passive render-residency observer and matched AA-off legs test history versus re-streaming.
