@@ -22,7 +22,13 @@
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 #include "RenderingThread.h"
+#include "SceneUtils.h"
 #include "SceneView.h"
+#if __has_include("TemporalUpscaler.h")
+#include "TemporalUpscaler.h"
+#else
+#include "PostProcess/TemporalAA.h"
+#endif
 
 class FViewInfo;
 

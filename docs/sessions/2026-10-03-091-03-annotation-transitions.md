@@ -191,3 +191,13 @@ capture's SVE callback, source texture resident mips/first mip/resource identity
 It is gated by -IAIBench plus its diagnostic command-line flag and excluded from Shipping. The patch stays in
 the evidence folder and is restored by byte receipt, not merged into release. Matched AA-off captures and the
 unchanged E1 reader distinguish temporal tails from source re-streaming; no residency behavior change is authorized.
+
+## Final defining-header review
+
+The 40-window builds c43f538/f9fac4e/96e7a32 passed all normal builds and proxy strict builds at 0/0,
+with 68 independent header units per strict target. Lever audits 34/52/53 pass; string review has zero
+unresolved entries and all 11 current snapshots are archived/re-hashed. A final direct-header review adds
+SceneUtils.h for EAntiAliasingMethod and the upscaler definition directly: TemporalUpscaler.h on 5.7,
+PostProcess/TemporalAA.h on 5.1 via __has_include. The prior opaque pointer comparison compiled, but this
+keeps the brief's explicit include discipline. No behavior or window changes. New final builds/proof are
+required. Waiting launch helpers were stopped by verified owned PID; no engine or foreign process was killed.
