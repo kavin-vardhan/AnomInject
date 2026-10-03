@@ -51,5 +51,11 @@ The copied Windows GPU query had doubled escapes; only this job's copy was corre
 First normal build exited 0xC00000FD with `Stack overflow.` before a compiler diagnostic; a retry is retained
 separately. No security setting or foreign process was touched.
 
+The R4 source gate initially failed its literal requirement that hide transitions run before sample geometry is
+frozen. Capture-time AA requires resolving hide transitions at completion instead. The revised gate still requires
+geometry frozen at the tick-end sample, adds both transition functions to the completion-time live-read ban, and
+requires detached tails to use stored sampled geometry. Two new live-geometry mutants must fail. This is a declared
+post-failure gate adaptation to the implementation's ordering, not a relaxed pixel/edge/mask acceptance threshold.
+
 Full report destination:
 `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`.
