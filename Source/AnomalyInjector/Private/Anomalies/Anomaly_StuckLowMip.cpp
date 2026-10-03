@@ -1,5 +1,9 @@
 #include "Anomalies/Anomaly_StuckLowMip.h"
 #include "Anomalies/Anomaly_TexCorrupt.h"
+#include "RHIDefinitions.h"
+#if __has_include("RHIFeatureLevel.h")
+#include "RHIFeatureLevel.h"
+#endif
 #include "Components/ActorComponent.h"
 #include "Engine/Texture.h"
 #include "UObject/ObjectKey.h"

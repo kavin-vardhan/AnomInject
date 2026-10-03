@@ -1,4 +1,8 @@
 #include "Anomalies/TexCorruptCore.h"
+#include "RHI.h"
+#if __has_include("RHIFeatureLevel.h")
+#include "RHIFeatureLevel.h"
+#endif
 #include "Engine/Texture.h"
 #include "HAL/CriticalSection.h"
 #include "RHICommandList.h"
