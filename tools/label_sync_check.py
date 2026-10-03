@@ -27,7 +27,7 @@ import time
 import zlib
 
 KIT_VERSION = "1.5"
-EVALUATOR = "090-10e"
+EVALUATOR = "091-03"
 METHOD = ("086-01 per-frame change on the target silhouette; 084-06 edge-local references, stuck_low_mip "
           "sharpness path and transition-aware gate; 084-07 labelled and partial rules; 090-07 effect_interrupted "
           "run edges read against the picture at the interruption; 090-09 a labelled run with an image it cannot "
@@ -38,7 +38,7 @@ METHOD = ("086-01 per-frame change on the target silhouette; 084-06 edge-local r
           "and a session made only of them is refused; 090-10e a pie_end_settle frame (the first frame after a "
           "labelled run of a fire-window type in a Play-In-Editor capture) is left out of its event and is never a "
           "reference or an anti-aliasing excuse, the run end is still judged on the next frame, which must read "
-          "clean, and the flag outside a PIE capture refuses the session while one on a labelled frame, on another "
+          "clean or meet the temporal flag and measured-decay rules; the flag outside a PIE capture refuses the session while one on a labelled frame, on another "
           "type or anywhere but the first frame after a run fails the event")
 
 TYPE_MAP = {"blink": "blinking", "flicker": "blinking"}
@@ -737,11 +737,12 @@ def events_of(s):
             elif si not in ev["reasons"]:
                 ev["reasons"][si] = infer_reasons(si, ev, typ)
         ends = set(b + 1 for _a, b in ev["runs"])
+        ev["proxy_route"] = typ == M52 and any(x.get("stuck_mip.route") == "proxy" for x in ev["entries"].values())
         for si in sorted(ev["T"]):
             if PIE_REASON not in ev["reasons"].get(si, ()):
                 continue
             lab = bool((ev["entries"].get(si) or {}).get("labelled")) or si in ev["Lset"]
-            bad = [w for w, hit in ((PIE_OUTSIDE, not s.pie_active), (PIE_TYPE, typ not in PIE_TYPES),
+            bad = [w for w, hit in ((PIE_OUTSIDE, not s.pie_active), (PIE_TYPE, typ not in PIE_TYPES and not ev["proxy_route"]),
                                     (PIE_LABELLED, lab), (PIE_PLACE, not lab and si not in ends)) if hit]
             for w in bad:
                 if w not in ev["pie_bad"]:
@@ -1037,7 +1038,7 @@ def noise_model(views, ctx, want_ob=True):
     return muD, max(muD + K_SIG * sdD, muD + D_FLOOR), max(max(nP) * 2.0, P_FLOOR), max(max(nOB) * 2, OUT_BLOB_MIN)
 
 
-def transition_gate(L, runs, V, span, reasons, drop, sigma, taa, partial_class=None):
+def transition_gate(L, runs, V, span, reasons, drop, sigma, taa, partial_class=None, pie_excluded=()):
     Ls = set(L)
     sp = set(span)
     V = set(V) & sp
@@ -1083,7 +1084,7 @@ def transition_gate(L, runs, V, span, reasons, drop, sigma, taa, partial_class=N
         nxt = [a for a in starts if a > b]
         if nxt and si >= nxt[0]:
             continue
-        if all((x in V) for x in range(b + 1, si + 1)):
+        if all(x in V or (x == b + 1 and x in pie_excluded and x not in sp) for x in range(b + 1, si + 1)):
             exc_unl.add(si)
             stats["tail_excused"] += 1
     decay = []
@@ -1091,9 +1092,10 @@ def transition_gate(L, runs, V, span, reasons, drop, sigma, taa, partial_class=N
         after = [si for si in exc_unl if si > b and not any(a2 > b and a2 <= si for a2 in starts)]
         if not after or drop is None or sigma is None:
             continue
-        if (b + 1) not in drop or b not in drop:
+        first_tail = b + 2 if b + 1 in pie_excluded and b + 1 not in sp else b + 1
+        if first_tail not in drop or b not in drop:
             continue
-        ok = drop[b + 1] < drop[b] - DECAY_K * sigma
+        ok = drop[first_tail] < drop[b] - DECAY_K * sigma
         decay.append((b, ok))
     unl_x = [si for si in unl if si not in exc_unl]
     lnv_x = [si for si in lnv if si not in exc_lnv]
@@ -1514,7 +1516,8 @@ def analyse_d(s, ev, evs, taa):
     per = {}
     for name, t in THRESH:
         vis = set(si for si, v in series.items() if v["strict"] and v["frac"] >= t)
-        tg = transition_gate(L, lab_runs, vis, [si for si in span if si in series], reasons, drop, sig, taa)
+        tg = transition_gate(L, lab_runs, vis, [si for si in span if si in series], reasons, drop, sig, taa,
+                             pie_excluded=Ps)
         edges = []
         for ri in run_info:
             a, b = ri["a"], ri["b"]
@@ -1762,7 +1765,7 @@ def record_any_held(entry):
     return False if known else None
 
 
-def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, taa):
+def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, taa, Ps=()):
     Lw = sorted(label)
     Tset = set(T)
     if not Lw:
@@ -1770,7 +1773,7 @@ def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, t
     L0, L1 = Lw[0], Lw[-1]
     Us = s.unpaired
     Ns = set(si for si, rs in reasons.items() if NANITE_REASON in (rs or ()) and si not in set(Lw) and si not in Us)
-    X = Ns | Us
+    X = Ns | Us | set(Ps)
     hi_cap = s.sis[-1]
     span_hi = min(L1 + SPAN_AFTER, hi_cap, (next_first - PRE_W - 1) if next_first is not None else hi_cap)
     span = [si for si in range(L0 - PRE_W, span_hi + 1) if si in s.rows and si in rho and si not in X]
@@ -1854,7 +1857,7 @@ def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, t
             offc = offc or UNPAIRED_REASON
         if (L0 - 1) in Us:
             onc = onc or UNPAIRED_REASON
-        tg = transition_gate(Lw, [[L0, L1]], vis, span, reasons, drop, s_off, taa, pclass)
+        tg = transition_gate(Lw, [[L0, L1]], vis, span, reasons, drop, s_off, taa, pclass, Ps)
         fails, amb = split_censored(tg, Lw, onc, offc)
         early = []
         if has_record:
@@ -1894,7 +1897,8 @@ def measure52(s, e, next_first, rho, roi, excl, has_record, label, T, reasons, t
         post1.append(round(max(0.0, drop[L1 + 1] / depth), 4))
     return dict(status="OK", measurable=bool(measurable), per=per, depth=depth, part_on=part_on, part_off=part_off,
                 post1=post1, warm=L0 < SETTLE_SKIP, unread=unread, why=why, nanite_ends=1 if (L1 + 1) in Ns else 0,
-                unpaired_ends=(1 if (L1 + 1) in Us else 0) + (1 if (L0 - 1) in Us else 0))
+                unpaired_ends=(1 if (L1 + 1) in Us else 0) + (1 if (L0 - 1) in Us else 0),
+                pie_ends=1 if (L1 + 1) in Ps else 0)
 
 
 def analyse_session(d, decoder, types=None):
@@ -1984,10 +1988,14 @@ def analyse_m52(s, evs, taa):
         return {}
     ann = {}
     reasons_by = {}
+    pie_by = {}
+    proxy_by = {}
     for ev in evs:
         if ev["type"] == M52 and ev["start_frame"] is not None:
             ann[ev["start_frame"]] = ev["L"]
             reasons_by[ev["start_frame"]] = ev["reasons"]
+            pie_by[ev["start_frame"]] = ev["P"]
+            proxy_by[ev["start_frame"]] = ev["proxy_route"]
     has_record = any(v for e in ev52 for v in e["rstate"].values())
     f0 = None
     for si in s.sis:
@@ -2035,7 +2043,9 @@ def analyse_m52(s, evs, taa):
         for si in T:
             if si not in rs:
                 rs[si] = (UNPAIRED_REASON,) if si in s.unpaired else ("temporal_aa",)
-        m = measure52(s, e, nf, tables[t], rois[t], excl - infl(own), has_record, lw, T, rs, taa)
+        m = measure52(s, e, nf, tables[t], rois[t], excl - infl(own),
+                      has_record and not proxy_by.get(e["start_frame"], False), lw, T, rs, taa,
+                      pie_by.get(e["start_frame"], ()))
         m["camera_moved"] = cam
         out[e["start_frame"]] = m
     return out
@@ -2620,6 +2630,8 @@ def st_make(root, name, spec):
                 if fl:
                     ent["transition_reason"] = list(fl)
             if typ == M52:
+                if spec.get("m52_route"):
+                    ent["stuck_mip.route"] = spec["m52_route"]
                 rec = ev.get("record", {}).get(si, "held" if si in L else "baseline")
                 ent["stuck_mip.held"] = si in L
                 ent["stuck_mip.render_state"] = "held" if si in L else "none"
@@ -2757,6 +2769,12 @@ def st_cases():
     flags = {si: ("temporal_aa",) for si in range(48, 56)}
     flags.update({si: ("temporal_aa",) for si in (40, 41, 42)})
     tex("taa_smear_flagged", smear, taa=True, ev={"flags": flags})
+    pie_smear = _full(L)
+    pie_smear.update({48: 0.85, 49: 0.65, 50: 0.2})
+    pie_flags = {48: (PIE_REASON, "temporal_aa"), 49: ("temporal_aa",), 50: ("temporal_aa",)}
+    tex("pie_taa_smear", pie_smear, pie=True, taa=True, ev={"flags": pie_flags})
+    tex("pie_taa_missing_flag", pie_smear, pie=True, taa=True, ev={"flags": {48: (PIE_REASON,)}})
+    tex("pie_taa_no_decay", _full(range(40, 50)), pie=True, taa=True, ev={"flags": pie_flags})
     wrongflag = {39: ("temporal_aa",), 48: ("temporal_aa",)}
     tex("late_1_flag_covering", _full(range(39, 47)), labels=list(range(40, 49)), taa=True, ev={"flags": wrongflag})
     cut = ("effect_interrupted",)
@@ -2837,6 +2855,9 @@ def st_cases():
         cases.append((name, spec))
 
     m52("m52_exact", _full(L52))
+    m52("m52_proxy_pie_one", _full(range(60, 71)), flags={70: (PIE_REASON,)}, pie=True, m52_route="proxy")
+    m52("m52_proxy_pie_two", _full(range(60, 72)), flags={70: (PIE_REASON,)}, pie=True, m52_route="proxy")
+    m52("m52_hold_pie_invalid", _full(L52), flags={70: (PIE_REASON,)}, pie=True, m52_route="hold")
     m52("m52_label_late_3", _full(L52), labels=list(range(63, 73)), fire_pre=4)
     p = _full(L52)
     p.update({60: 0.3, 61: 0.3})
@@ -2851,6 +2872,12 @@ def st_cases():
     fl = {si: ("temporal_aa",) for si in range(70, 78)}
     fl.update({60: ("temporal_aa",), 61: ("temporal_aa",), 62: ("temporal_aa",)})
     m52("m52_taa_smear", p, flags=fl, taa=True)
+    p = _full(L52)
+    p.update({70: 0.85, 71: 0.65, 72: 0.2})
+    pf = {70: (PIE_REASON, "temporal_aa"), 71: ("temporal_aa",), 72: ("temporal_aa",)}
+    m52("m52_proxy_pie_taa", p, flags=pf, taa=True, pie=True, m52_route="proxy")
+    m52("m52_proxy_pie_missing_flag", p, flags={70: (PIE_REASON,)}, taa=True, pie=True, m52_route="proxy")
+    m52("m52_proxy_pie_no_decay", _full(range(60, 72)), flags=pf, taa=True, pie=True, m52_route="proxy")
     m52("m52_onset_frame_unreadable", _full(L52), labels=list(range(61, 70)), fire_pre=2, zero=(60,))
     m52("m52_late_3_unreadable_end", _full(L52), labels=list(range(63, 73)), fire_pre=4, zero=(73,))
     p = _full(L52)
@@ -2917,6 +2944,16 @@ def st_expect():
         lambda r: verdict(r) == "FAIL" and raw(r) == "FAIL" and r["rule"] == "old", True)
     add("taa_smear_flagged", "flagged TAA smear: transition-aware PASS end 0, raw end +1",
         lambda r: verdict(r) == "PASS" and _edge(r)["end_ta"] == 0 and _edge(r)["end"] == 1 and raw(r) == "FAIL")
+    for case in ("pie_taa_smear", "m52_proxy_pie_taa"):
+        add(case, case + ": decaying tail after excluded PIE frame PASS, raw FAIL",
+            lambda r: verdict(r) == "PASS" and _edge(r)["end_ta"] == 0 and raw(r) == "FAIL"
+            and r["pie_frames"] == 1 and r["per"]["t50"]["stats"].get("tail_excused", 0) > 0)
+    for case in ("pie_taa_missing_flag", "m52_proxy_pie_missing_flag"):
+        add(case, case + ": following unflagged tail FAILS",
+            lambda r: verdict(r) == "FAIL" and "unlabelled visible" in r["per"]["t50"]["fails"], True)
+    for case in ("pie_taa_no_decay", "m52_proxy_pie_no_decay"):
+        add(case, case + ": following undecayed tail FAILS",
+            lambda r: verdict(r) == "FAIL" and "excused tail did not decay" in r["per"]["t50"]["fails"], True)
     add("late_1_flag_covering", "label late by 1 with the flag wrongly covering it FAILS at 50 %",
         lambda r: verdict(r) == "FAIL", True)
     def all_edges_zero(r):
@@ -3034,6 +3071,13 @@ def st_expect():
         lambda r: pie_fails(r, PIE_LABELLED) and r["pie_frames"] == 0, True)
     add("cc", "camera_clipping is not judgeable", lambda r: r["status"] == "NOT-JUDGEABLE" and "per" not in r)
     add("m52_exact", "stuck_low_mip exact PASS 0/0", lambda r: verdict(r) == "PASS" and _edge(r)["start"] == 0 and _edge(r)["end"] == 0)
+    add("m52_proxy_pie_one", "proxy PIE: one settling frame excluded, sharpness edges PASS 0/0",
+        lambda r: verdict(r) == "PASS" and _edge(r)["start"] == 0 and _edge(r)["end"] == 0
+        and r["pie_frames"] == 1 and r["m52"]["pie_ends"] == 1 and not r["pie_bad"])
+    add("m52_proxy_pie_two", "proxy PIE: second unflagged changed frame FAILS",
+        lambda r: verdict(r) == "FAIL" and _edge(r)["end"] == 2 and not r["pie_bad"], True)
+    add("m52_hold_pie_invalid", "hold route with PIE settle flag FAILS type guard",
+        lambda r: pie_fails(r, PIE_TYPE) and r["pie_frames"] == 0, True)
     add("m52_label_late_3", "stuck_low_mip label 3 frames late FAILS, start -3",
         lambda r: verdict(r) == "FAIL" and _edge(r)["start"] == -3, True)
     add("m52_partial_confirmed","partial frames above the noise band: transition-aware PASS, raw start +2",
@@ -3243,12 +3287,12 @@ def selftest(force_stdlib=False):
                     break
                 mt_sec.append(l)
         pie_line = [l for l in mt_sec if l.startswith("pie_end_settle (")]
-        pie_ok = (info["pie"] == 7 and "): PIE sessions 7 | frames dropped 4 (missing_texture 4) | judged run ends with a "
-                  "dropped frame 4" in text
-                  and ("1 session(s) refused (%s) | 3 event(s) failed (" % PIE_OUTSIDE) in text
+        pie_ok = (info["pie"] == 16 and "): PIE sessions 16 | frames dropped 12 (missing_texture 4, corrupted_texture 3, stuck_low_mip 5) | judged run ends with a "
+                  "dropped frame 12" in text
+                  and ("1 session(s) refused (%s) | 4 event(s) failed (" % PIE_OUTSIDE) in text
                   and len(pie_line) == 1 and pie_line[0].endswith(
                       "events 4 | frames dropped 4 | judged run ends with a dropped frame 4 | flag guard failures 2"))
-        lines.append("SELFTEST %-66s %s" % ("report carries the pie_end_settle drops (4 frames) and its guard failures",
+        lines.append("SELFTEST %-66s %s" % ("report carries the pie_end_settle drops (12 frames) and its guard failures",
                                           "ok" if pie_ok else "*** WRONG ***"))
         ok_all = ok_all and pie_ok
         if doctored_passed:

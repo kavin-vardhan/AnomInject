@@ -10109,3 +10109,8 @@ can change subsequent views. The capture readback now carries its own postproces
 missing/unknown evidence is temporal, and a temporal observation is retained to run end so a later AA change cannot
 erase pending exclusions. A default-only startup log is not a measurement of a captured frame. AA-off does not disable
 independent uncertainty reasons such as capture_unpaired or PIE settle. Pixel tail coverage still requires the engine proof.
+
+A reader that drops the permitted first PIE settling frame must still evaluate a later temporal tail. Require recorded
+proxy-route evidence before accepting that flag on stuck_low_mip. Bridge only the already-validated first-frame exclusion
+when checking continuity, and compare the next measured tail frame against the last labelled frame for decay. Never turn
+the PIE frame itself into an AA excuse. Missing following flags and a tail that does not decay must still fail.

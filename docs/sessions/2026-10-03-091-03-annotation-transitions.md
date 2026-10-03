@@ -71,7 +71,7 @@ A retained proxy TSR capture also exposed a pre-existing verifier omission: its 
 PIE settle on a proxy-routed stuck_low_mip event. The reader now uses recorded route evidence to distinguish the
 proxy fire-window policy from hold; a hold-route mutation must still fail. This does not change pixel thresholds.
 
-## Close: NEEDS-DECISION, no push
+## Provisional stop before the ruling: NEEDS-DECISION, no push
 
 Normal Editor/Game builds passed with 0 errors and 0 warnings for final Source commits fix `1df4d26`, m53 `3f4f1c7`
 and proxy `8131578`. Proxy strict Editor/Game also passed 0/0 with 68 independent header TUs per target; its normal
@@ -109,3 +109,30 @@ first. Resolve the AA-off criterion and resume in a quiet bench window; rerun pr
 
 Full report destination:
 `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`.
+
+## Resumed after the orchestrator's 15:05 IST ruling
+
+Before the final report was delivered, `office-reads.txt` directed the implementer to `orchestrator-ruling-1.txt`.
+The ruling defines AA-off as zero temporal-AA reasons and zero temporal windows, preserving every independent
+transition reason. PIE proxy retains one `pie_end_settle` per fire; staged retains none absent other reasons.
+This supersedes the acceptance conflict and provisional stop above. Engine proof resumed behind the idle gate.
+
+The complete retained TSR consumer fixture (1728 hash-verified image copies, not a new candidate capture) exposed
+two reader gaps: the kit rejected proxy-route PIE flags, and dropping the permitted first post-label frame broke
+its temporal-tail continuity check. Recorded proxy route now permits the existing PIE exclusion. Only a validated
+first post-label PIE exclusion bridges continuity; it remains outside AA excuses and references. Decay is checked
+at the next measured tail frame against the last labelled frame. Generic and proxy controls cover flagged decay,
+a missing later flag and an undecayed tail. Hold-route/type/placement/unpaired guards remain active. No pixel
+threshold changed. The expanded kit passes 93 checks with identical results from both decoders. The first
+87-check run failed an aggregate expected-count assertion after three fixtures were added; all per-event cases
+passed. The count was corrected, then the six temporal/PIE cases added. All failure logs remain in `_r913/logs`.
+
+The first final proxy TSR PIE leg launched only after the gate passed (no foreign editor/game/heavy GPU process,
+human idle 130.5 s, headroom 33.3 GiB). It captured 8 fires, 384 labelled frames with zero missing measured masks,
+and exact labels/annotation equality on 152 transition frames. Captured view-method bits 0x10, upscaler 0,
+unknown 0, default 4. Tail coverage still requires the independent null capture; this is not a completed proof.
+The editor exited 0. A redundant same-content DLL restoration copy returned errno 13 immediately after exit;
+all five live DLL hashes exactly matched the prior receipt, so restoration was verified without rewriting them.
+The receipt-owned temporary profile was removed. The local harness now saves capture results before restoration,
+avoids redundant copies and always attempts receipt-owned profile cleanup. No security setting changed; no
+foreign process was touched. No security-block event was found in the read-only event query.

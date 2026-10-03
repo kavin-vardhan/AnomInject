@@ -11,26 +11,24 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **091-03, 2026-10-03 — ANNOTATION TRANSITIONS BUILT; RELEASE PROOF AND PUSH HELD (NEEDS-DECISION).**
-> Schema 2.1 exports each event's exact transition frames/reason counts and the session frame union. All existing
-> reasons, detached tails and exclusion-only events are retained. The README training recipe drops these frames.
-> Captured SVE frames carry their rendered view AA method and family upscaler evidence; defaults are re-read each
-> frame, missing evidence is temporal, and temporal evidence remains latched to run end. Run logs/summary name the source.
+> **091-03, 2026-10-03 — ANNOTATION TRANSITIONS BUILT; IN-ENGINE PROOF RUNNING; NO PUSH YET.**
+> Schema 2.1 exports exact per-event transition frames/reason counts and the session union, including detached tails
+> and every existing exclusion reason. Captured view AA/upscaler evidence is refreshed per frame; unknown is temporal.
 > - Built Source: fix `1df4d26` (exe `7B943716`), m53 `3f4f1c7` (`2468CB8D`), proxy `8131578` (`516CBFDF`).
->   All normal Editor/Game 0/0. Proxy strict Editor/Game 0/0, 68 header TUs per target, normal restoration verified.
->   Later reader/documentation commits preserve these Source trees. No branch was pushed; office remains at `e09fa9c`.
-> - Tool checks: annotation equality 5 tests with 10 doctored variants; verifier 44 tests; label rules 65; kit 84;
->   temporal/window policy 313 checks plus 4 failing mutants; R4 12; lever 12 selftest cases, branch audits 34/52/53.
->   Strings: intended schema/evidence text only after PE metadata and relocated-data review. Four binary sets archived
->   under `E:\IA_BuildCache\_r913\archives` (one superseded); 24 files re-hashed in copies and ZIPs.
-> - **Decision:** the brief asks both to export all existing reasons and for empty AA-off transitions. A retained AA-off
->   PIE proxy run has off-window 0 but 8 `pie_end_settle` entries. Preserve these exclusions; decide whether AA-off means
->   zero temporal-AA reasons, or authorize a separate PIE-settle policy change. No acceptance threshold was silently changed.
-> - **No engine launches/fires.** Final idle gate refused after 40.6 s: foreign UE 5.7 editor 15.31% GPU, human idle 30 s,
->   headroom 11.8 GiB. Required TSR/TAA/AA-off tail proof and deferred 091-02 section 0 remain undone. No office-ready claim.
-> - The second office host's typed readings are 171 transition entries and off-window 16: export omission is confirmed;
->   totals alone do not identify its particular two tail frames. Journal: `docs/sessions/2026-10-03-091-03-annotation-transitions.md`.
->   Full report: `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`. G461.
+>   All normal Editor/Game 0/0; proxy strict Editor/Game 0/0, 68 independent header TUs per target; restoration verified.
+>   Reader/docs commits preserve these Source trees. No branch pushed; office remains at `e09fa9c`.
+> - The orchestrator's 15:05 IST ruling resolves AA-off: zero temporal-AA reasons/windows; retain independent reasons
+>   exactly. PIE proxy therefore retains one `pie_end_settle` per fire. The previous NEEDS-DECISION is superseded.
+> - First proxy TSR PIE leg: 8 fires, 384 labelled frames, 0 missing measured masks; labels/annotation agree on 152
+>   transition frames. Actual capture-view evidence is method 4, no unknown read. Independent null/tail proof pending.
+> - Office kit now recognizes proxy-route PIE exclusions and checks temporal tails beyond the excluded first frame;
+>   93 known-answer checks pass on both decoders, including absent-flag, undecayed-tail and invalid-hold controls.
+>   The original 84-check suite was insufficient for this proxy PIE combination. Thresholds remain unchanged.
+> - Four binary snapshots archived under `E:\IA_BuildCache\_r913\archives` (one superseded), all 24 members re-hashed.
+>   Full detection, gate, build, archive and proof evidence is in `_r913` and the running report. G461.
+> - Second office host typed readings: 171 transition entries, off-window 16. Export omission confirmed; aggregate counts
+>   alone do not independently identify the particular two pixels/frames. Journal: `docs/sessions/2026-10-03-091-03-annotation-transitions.md`.
+>   Report: `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`.
 >
 > ---
 
