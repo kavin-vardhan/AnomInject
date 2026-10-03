@@ -11,21 +11,21 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **091-03, 2026-10-03 — STRICT TAIL GATE FAILS 16; 256-FRAME CANDIDATE AWAITING REBUILD/PROOF; NO PUSH.**
-> Schema 2.1 exports exact event transition indices/reason counts and the session union. Capture-view AA/upscaler
-> evidence is refreshed each frame; unknown is temporal. Actual candidate files agree exactly.
-> - Initial built Source: fix `1df4d26` (`7B943716`), m53 `3f4f1c7` (`2468CB8D`), proxy `8131578` (`516CBFDF`).
->   Normal Editor/Game all 0/0; proxy strict 0/0, 68 header TUs/target; archives re-hashed. These retain default 16.
-> - Actual strict-tail failures: proxy TSR PIE +44 / staged +46; UV TSR PIE +45; normal +18. No missing measured masks.
->   TAA PIE long diagnostic ends at +203. All those frames must be excluded, beyond the kit's older half-strength rule.
-> - Candidate now sets off default/cap 256 and preserves generic fire-window history across capture boundaries.
->   Pure 315 checks and six mutants pass. Final-source builds and the full proof matrix are still required.
-> - Staged TAA null validation and MainWorld hold color-reference measurement were unjudged, retained as failures.
->   A settled clean control and a copied static unique-texture hold fixture address measurement setup without a numeric tolerance.
-> - Office kit 93 checks pass on both decoders. Actual 16-window proxy TSR capture passes the old 50% kit at 0/0 while
->   failing the new strict tail gate. Annotation-doctored files fail equality and are refused by the kit.
-> - The 15:05 ruling resolves AA off: zero temporal reasons/windows; preserve PIE settle and every independent reason.
->   Typed second-office readings: 171 transition entries, off 16. Export omission is the direct reported cause.
+> **091-03, 2026-10-03 — RULING 2: E1 t50 GATE; 40-FRAME t10 WINDOW AWAITING FINAL PROOF; NO PUSH.**
+> Schema 2.1 exports exact event transition indices/reasons and the session union. Capture-view AA/upscaler
+> evidence refreshes every capture; unknown is temporal. Actual candidate annotation and labels agree exactly.
+> - Initial source fix `1df4d26`, m53 `3f4f1c7`, proxy `8131578` built normal 0/0; proxy strict 0/0.
+>   The 16-frame window passes unchanged E1 t50 on proxy TSR/TAA PIE/staged but fails t10 coverage.
+> - Measured E1 t10 maximum: proxy TSR 26, TAA 36; UV 6, normal 2. Candidate offset 40 adds four frames;
+>   cap restored to 64. The provisional 256 builds `ab21086`/`5a8d3f7`/`fbed8a9` are superseded, not delivered.
+> - Ruling 2 supersedes the original strict-null gate: above-null/below-t10 tails are diagnostic only.
+>   Their measurements and all failed calibrations remain in the journal and evidence. Static hold is pending.
+> - A separate passive render-residency observer and matched AA-off legs test history versus re-streaming.
+>   The observer patch is temporary and never merged. No residency behavior change is authorized.
+> - Generic fire-window tracks retain frozen geometry across captures. Final AA-switch/carry diagnostics,
+>   complete final-source proof, deferred 091-02 §0, final gates/archives and all pushes remain pending.
+> - AA off means zero temporal windows/reasons; independent exclusions such as PIE settle remain exported.
+>   Second-office typed readings: 171 transition entries, off 16. Export omission explains the reported gap.
 > - Journal `docs/sessions/2026-10-03-091-03-annotation-transitions.md`, G461, evidence `E:\IA_BuildCache\_r913`.
 >   Report `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`.
 >

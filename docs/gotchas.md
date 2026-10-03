@@ -9104,3 +9104,22 @@ default while retiring tracks at 64 would still drop the later entries. Candidat
 matrix. Preserve failed null calibrations and unjudgeable moving-scene measurements; never derive a null from
 post-event pixels. New generic fire-window tracks also need run-boundary carry, not just the existing held-window
 and hide-return registries.
+
+## 091-03 ruling 2: unchanged E1 gate and measured t10 coverage
+
+The orchestrator's 18:05 IST ruling supersedes the strict-null acceptance above. The unchanged 084-09 E1 t50
+reader remains the release gate; the window must additionally cover its t10 diagnostic plus a small margin.
+Initial 16-window measurements: proxy PIE TSR t10 +22..26 / TAA +36, staged TSR +23..24 / TAA +36; all t50
+events pass with zero unexcused frames. UV TSR PIE t10 +5..6 and normal +1..2, both t50 0/0. This justifies a
+40-frame common offset: maximum 36 plus four. The common value also safely covers a run that changes AA family;
+the existing temporal state deliberately retains evidence across such changes. The cap returns to 64.
+The provisional 256 build is retained but superseded; no source or proof gate silently treats it as delivered.
+Residuals above null but below t10 are diagnostics only, including staged TAA's repeated very small +507 excess.
+All failed/revised calibration records remain. The final matrix and static hold measurement are pending and
+must cover t10 within 40; an overrun requires another measured correction, never acceptance by annotation alone.
+
+Cause analysis uses a separately hashed temporary observer build: existing render-resource sampling at the
+capture's SVE callback, source texture resident mips/first mip/resource identity, no streaming state writes.
+It is gated by -IAIBench plus its diagnostic command-line flag and excluded from Shipping. The patch stays in
+the evidence folder and is restored by byte receipt, not merged into release. Matched AA-off captures and the
+unchanged E1 reader distinguish temporal tails from source re-streaming; no residency behavior change is authorized.
