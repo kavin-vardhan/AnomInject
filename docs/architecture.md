@@ -1177,8 +1177,8 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   `IAI.Label.TransitionOffFrames` frames after a labelled frame carry `transition: 1` (the latter as transition-only entries that
   set no `anomaly_present`), and hide types flag the first `IAI.Label.TransitionHideFrames` frames after the object returns.
   Pure logic: `AnomalyInjector/Public/AnomalyLabelSync.h`. **084-07:** every flagged entry names its reason in
-  `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); defaults 3/256/1 under
-  temporal AA or unknown evidence (091-03 measured TAA tail 203; prior off defaults 16 and 8), 0 when confirmed off. `partial`
+  `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); defaults 3/40/1 under
+  temporal AA or unknown evidence (091-03 E1 t10 maximum 36 plus four frames; cap 64; prior off defaults 16 and 8), 0 when confirmed off. `partial`
   is set, with or without temporal AA, on any m52 member frame whose render record shows the held set between baseline and the
   held level (`FAnomalyRenderTruthTexture::HeldResidentMips` carried into the watch; `AnomalyStuckMipWindow::ClassifyLevel` /
   `IsPartialHeldSet` / `FPartialEdgeTrack`). Entries carry `labelled` and `visible_positive` needs a labelled entry with a
@@ -1629,7 +1629,7 @@ events survive as exclusions, including when positive membership was vetoed. The
 The writer uses the same emission/reason predicates as the per-frame labels. `verify_capture.py --label-rule` and
 office kit 1.5 compare the two files. Temporal evidence travels with each SVE readback from the postprocess view;
 missing evidence fails safe and temporal protection stays latched through run end. Fire-window types share the
-3/256 onset/offset policy, with unfinished fire-window tracks carried into a following capture using their frozen geometry. The home pixel proof for this release is recorded separately in session 091-03.
+3/40 onset/offset policy, with unfinished fire-window tracks carried into a following capture using their frozen geometry. The home pixel proof for this release is recorded separately in session 091-03.
 
 `affected_frames` is the **OBSERVABLE subset**
 (+ `span_frame_count`); **`injected_frames`** keeps the pre-m49 subset unchanged; plus
