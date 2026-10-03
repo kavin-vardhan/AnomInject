@@ -11,24 +11,24 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **091-03, 2026-10-03 — RULING 2: E1 t50 GATE; 40-FRAME t10 WINDOW AWAITING FINAL PROOF; NO PUSH.**
+> **091-03, 2026-10-03 — BUILT LOCALLY; RELEASE PROOF BLOCKED; NOTHING PUSHED (NEEDS-DECISION).**
 > Schema 2.1 exports exact event transition indices/reasons and the session union. Capture-view AA/upscaler
-> evidence refreshes every capture; unknown is temporal. Actual candidate annotation and labels agree exactly.
-> - Initial source fix `1df4d26`, m53 `3f4f1c7`, proxy `8131578` built normal 0/0; proxy strict 0/0.
->   The 16-frame window passes unchanged E1 t50 on proxy TSR/TAA PIE/staged but fails t10 coverage.
-> - Measured E1 t10 maximum: proxy TSR 26, TAA 36; UV 6, normal 2. Candidate offset 40 adds four frames;
->   cap restored to 64. The provisional 256 builds `ab21086`/`5a8d3f7`/`fbed8a9` are superseded, not delivered.
-> - The 40 builds `c43f538`/`f9fac4e`/`96e7a32` passed normal 0/0 and proxy strict 0/0; final review now adds
->   direct AA/upscaler defining headers (5.1/5.7 guarded fallback), requiring new builds before final proof.
-> - Ruling 2 supersedes the original strict-null gate: above-null/below-t10 tails are diagnostic only.
->   Their measurements and all failed calibrations remain in the journal and evidence. Static hold is pending.
-> - A separate passive render-residency observer and matched AA-off legs test history versus re-streaming.
->   The observer patch is temporary and never merged. No residency behavior change is authorized.
-> - Generic fire-window tracks retain frozen geometry across captures. Final AA-switch/carry diagnostics,
->   complete final-source proof, deferred 091-02 §0, final gates/archives and all pushes remain pending.
-> - AA off means zero temporal windows/reasons; independent exclusions such as PIE settle remain exported.
->   Second-office typed readings: 171 transition entries, off 16. Export omission explains the reported gap.
-> - Journal `docs/sessions/2026-10-03-091-03-annotation-transitions.md`, G461, evidence `E:\IA_BuildCache\_r913`.
+> evidence refreshes every capture; unknown is temporal. Actual initial-candidate annotation and labels agree.
+> - Final built Source: fix `1413a73` / EXE `3D437AB3`, m53 `e874e28` / `75A9553C`, proxy `58386be` / `C7FB5212`.
+>   Normal Editor/Game 0/0 for all three; proxy strict Editor/Game 0/0, 68 header TUs each, normal restoration verified.
+>   Lever audits 34/52/53 pass; string review has zero unresolved entries; 14 binary snapshots archived/re-hashed.
+> - Ruling 2 keeps unchanged E1 t50 as the gate and requires t10 coverage plus margin. Initial 16-window proxy
+>   TSR/TAA PIE/staged passes t50 but fails t10; maximum t10 is 36. Current default is 40, cap 64; 256 is superseded.
+>   UV/normal initial TSR PIE t10 maxima are 6/2. Final 40-source matrix and static hold measurement are NOT RUN.
+> - Passive observer: proxy PIE TSR/TAA/off, three fires each, source eight resident mips and first mip 1 constant
+>   through every captured tail. AA off is exactly 0/0 in unchanged E1. UV/normal and staged cause checks remain open.
+> - The resumed gate stopped at D: 38.9 GiB free and memory headroom 0.9 GiB, with a foreign UE 5.7 editor open.
+>   No leg launched after that refusal; dependent waiters were stopped by verified own PID. No foreign process touched.
+> - Final-source proof, deferred 091-02 section 0, runtime AA-switch and capture-boundary carry tests remain open.
+>   No office-ready claim; no branch was pushed. Resume only after disk floors and the idle gate pass.
+> - AA off means zero temporal windows/reasons; independent PIE settle remains exported (ruling 1).
+>   Second-office readings: 171 transition entries, off 16; export omission explains the reported consumer gap.
+> - Journal `docs/sessions/2026-10-03-091-03-annotation-transitions.md`, G461; full evidence `E:\IA_BuildCache\_r913`.
 >   Report `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`.
 >
 
