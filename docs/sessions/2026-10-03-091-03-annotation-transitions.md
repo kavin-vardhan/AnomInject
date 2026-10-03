@@ -201,3 +201,58 @@ SceneUtils.h for EAntiAliasingMethod and the upscaler definition directly: Tempo
 PostProcess/TemporalAA.h on 5.1 via __has_include. The prior opaque pointer comparison compiled, but this
 keeps the brief's explicit include discipline. No behavior or window changes. New final builds/proof are
 required. Waiting launch helpers were stopped by verified owned PID; no engine or foreign process was killed.
+
+
+## Closing state after the disk-floor refusal: NEEDS-DECISION, no push
+
+Final Source builds are fix1413a73 (EXE3D437AB3), m53e874e28 (75A9553C), proxy58386be (C7FB5212).
+All normal Editor/Game builds passed 0 errors / 0 warnings. Proxy strict Editor/Game passed 0/0 with 68
+independent header units each; strict settings were restored and normal targets rebuilt 0/0. Lever audits
+34/52/53 pass. Metadata-aware ASCII/UTF-16 review has zero unresolved strings. Fourteen snapshots (84 binary
+entries), including superseded candidates and the separate observer, are archived and re-hashed including ZIP
+members. The inventory records 237 exe/DLL copies and 117 distinct hashes. Full hashes are in the report/ledger.
+The two changed existing CVar help strings are an explicit fields/log-only string-scan exception; no new CVar.
+
+Completed initial-16-source pixel evidence from the unchanged 084-09 E1 reader:
+
+| Leg | Fires | t50 tail | t10 tail | t50 unflagged | t10 unflagged |
+|---|---:|---:|---:|---:|---:|
+| Proxy TSR PIE | 8 | 7..8 | 22..26 | 0 | 61 |
+| Proxy TSR staged | 7 | 7..8 | 23..24 | 0 | 52 |
+| Proxy TAA PIE | 8 | 15 | 36 | 0 | 160 |
+| Proxy TAA staged | 7 | 11 | 36 | 0 | 140 |
+| UV TSR PIE | 8 | 0 | 5..6 | 0 | 0 |
+| Normal TSR PIE | 8 | 0 | 1..2 | 0 | 0 |
+
+All those capture files agree between annotation and labels; their labelled frames have measured masks.
+The short-window failures are retained can-fails, not passes of the new t10 requirement. The current 40 has
+not yet been measured in-engine. MainWorld hold was unjudgeable; the copied static unique-texture hold fixture
+was authored/cooked but not captured. Original fixture hashes remain unchanged. Above-null diagnostic lengths
+are TSR proxy44/46, UV45, normal18, TAA PIE203; staged TAA recurs through507 in a512-post run. The staged clean
+validation initially failed; the additional600-deferred clean run and all failed calibrations remain recorded.
+
+The passive observer (temporary patch SHA dbfce7d56316aa85307c4273f9ddad07bdbc5d205afec33e67bf1a1b97fccbe4,
+EXE81ED86AB) completed proxy PIE TSR/TAA/off, three fires each. Every sampled original-source record retains
+eight resident mips, first mip1 and the same resource identity within its leg. E1 t10 tails are24..26,36,0.
+AA off passes strict/t10/t50 at exact0/0, with zero temporal reasons/windows and three independent PIE settle
+entries. A one-frame shift makes unchanged E1 fail3/3, six unexcused frames. This supports history rather than
+source re-streaming for those proxy PIE legs only. No residency change was implemented. Observer code is not
+merged; its source was restored before the final production build.
+
+The resumed UV diagnostic gate stopped without launching at20:07 IST: D:38.9 GiB, memory headroom0.9 GiB,
+human idle795.4s, foreign UE5.7 editor PID110408. D: remains below the50 GiB floor. All remaining launch/reader
+waiters were stopped by verified own PID, with receipts. No foreign PID or security setting was changed.
+Final proxy TSR/TAA/off PIE/staged, final UV/normal and static hold, m53 section0, AA0->4->0 and run-boundary
+carry controls are NOT RUN. No new final-source pixel result or release-readiness claim is made; nothing pushed.
+
+The final queue was prepared before launch with eight attempts for seven-fire legs, four staged attempts for
+three-fire legs (staged warm-up previously consumed one), and512 post frames on TAA to retain below-t10
+diagnostics. The unchanged E1 gate and40 declaration were not relaxed. The final reader plans are saved but
+have produced no final results. Resume requires a new disk/idle gate and explicit handling of the retained
+NOT-QUIET record; never overwrite the failed receipt.
+
+Office reads were rechecked:171 entries, off16, no EFFECTIVE line supplied. Those totals establish temporal
+detection and flag emission, not the identity of the owner's two pixels/frames. All original staged files and
+the temporary device profile were restored by receipt; the host now has the final normal proxy binaries and
+clean Source. Harness originals and original fixture assets are unchanged. Settings, owned launches, transient
+restoration errors, gate adaptations, archives and all unpushed commits are enumerated in the full report.

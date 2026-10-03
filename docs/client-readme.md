@@ -960,7 +960,7 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
 
 | `transition_reason` | What the frame is | Training use (schema 2.1) |
 | --- | --- | --- |
-| `temporal_aa` | the anti-aliasing history may still show the previous state (onset) or a fading copy (the 16 frames after a `stuck_low_mip` event) | drop the frame |
+| `temporal_aa` | the anti-aliasing history may still show the previous state (onset) or a fading copy during the declared off window (40 frames by default) | drop the frame |
 | `hide_return` | the first frame after a hidden object reappears; the history may still show it missing | drop the frame |
 | `partial` | `stuck_low_mip` is applied to only part of the object's textures | drop the frame |
 | `unresolved` | `stuck_low_mip` is applied, but the record cannot say whether to all of the object's textures | drop the frame |
@@ -1105,7 +1105,7 @@ Five fields answer five different questions about one frame. Keep them apart:
 | `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption` | every burst frame | burst frames on which the object's projected box is on screen **and** at least one slot the event replaced still renders its material (partial replacement stays labelled) | frames with the box off screen; `effect_interrupted` frames | projected box | labelled frames | `effect_interrupted`, `nanite_unmaskable` |
 | `lod_popping` | every burst frame | the frames on which the forced LOD is applied | the un-forced phases between pops | projected box | labelled frames | none |
 | `camera_clipping` | only the frames on which it is positive (§8.6b) — a whole-session anomaly whose entry appears only then | the same frames | none | the whole frame | never (`null` / `-1`) | `camera_clipping_unconfirmed` |
-| `stuck_low_mip` | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; under temporal anti-aliasing the 16 frames after the last held frame carry **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
+| `stuck_low_mip` | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; under temporal anti-aliasing the off window after the last held frame (40 frames by default) carries **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
 
 `temporal_aa` and `hide_return` appear only under temporal anti-aliasing (TAA or TSR); `partial`, `unresolved` and
 `camera_clipping_unconfirmed` appear with any anti-aliasing setting.

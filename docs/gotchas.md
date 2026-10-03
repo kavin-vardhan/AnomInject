@@ -10115,13 +10115,12 @@ proxy-route evidence before accepting that flag on stuck_low_mip. Bridge only th
 when checking continuity, and compare the next measured tail frame against the last labelled frame for decay. Never turn
 the PIE frame itself into an AA excuse. Missing following flags and a tail that does not decay must still fail.
 
-The 091-03 strict clean-reference gate disproved the 16-frame offset even though the office kit's historical
-half-strength gate passed 8/8 at 0/0. Reproducible proxy tails reached 44/46 frames under TSR and 203 under TAA PIE;
-UV reached 45 and normal 18. Raise both the default and its retention/configuration cap: increasing only the
-default while retiring tracks at 64 would still drop the later entries. Candidate 256 must pass the final pixel
-matrix. Preserve failed null calibrations and unjudgeable moving-scene measurements; never derive a null from
-post-event pixels. New generic fire-window tracks also need run-boundary carry, not just the existing held-window
-and hide-return registries.
+The original 091-03 strict clean-reference criterion led to a provisional 256-window build. Ruling 2 below
+supersedes that criterion and candidate: current default 40, cap 64. Above-null proxy residuals reached 44/46
+frames under TSR and 203 under TAA PIE; UV reached 45 and normal 18. Those lengths are diagnostics, not the
+release gate or the basis for the final window. Preserve failed null calibrations and unjudgeable measurements;
+never derive a null from post-event pixels. Any declared window must fit its retention/configuration cap.
+New generic fire-window tracks also need run-boundary carry, not just held-window and hide-return registries.
 
 ## 091-03 ruling 2: unchanged E1 gate and measured t10 coverage
 
@@ -10146,3 +10145,10 @@ The new captured-view AA read also needs SceneUtils.h directly. The returned ITe
 opaque in SceneView.h, but its defining header belongs in the capture translation unit under the 091-02
 discipline: use TemporalUpscaler.h when present and PostProcess/TemporalAA.h on UE 5.1. Strict compilation
 alone does not establish that every type has its defining header directly.
+
+
+At the 091-03 stop, passive proxy PIE TSR/TAA/off sampling found eight resident source mips, first mip 1,
+and one unchanged resource identity throughout each capture. AA off passed unchanged E1 strict/t10/t50 at
+0/0. This supports temporal history for those measured proxy legs; it is not proof about UV/normal or staged
+residency, whose diagnostics were blocked. Final 40-source proof and the static hold fixture remain pending.
+Do not promote a schema-consistency pass or a successful build to a pixel-synchronization release claim.
