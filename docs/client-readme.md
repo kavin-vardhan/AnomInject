@@ -1141,8 +1141,10 @@ Five fields answer five different questions about one frame. Keep them apart:
 | `stuck_low_mip`, hold route | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; under temporal anti-aliasing the off window after the last held frame (40 frames by default) carries **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
 | `stuck_low_mip`, proxy route | every burst frame | burst frames with an installed proxy rendering on the target (§8.3aa) | off-screen or `effect_interrupted` frames | admitted components only | labelled frames | `effect_interrupted`, `temporal_aa`, `pie_end_settle` (PIE only) |
 
-`temporal_aa` and `hide_return` appear only under temporal anti-aliasing (TAA or TSR); `partial`, `unresolved` and
-`camera_clipping_unconfirmed` appear with any anti-aliasing setting.
+`temporal_aa` and `hide_return` use the capture-time temporal or unknown evidence described in §8.6a, including
+TAA, TSR and registered temporal upscalers. Fire-window events also carry temporal onset/offset flags and, in PIE,
+the independent `pie_end_settle` flag. Always read every emitted reason, including the additive flags beyond the
+table's per-type reasons. `partial`, `unresolved` and `camera_clipping_unconfirmed` can appear with any AA setting.
 
 **Masks and recycled mask values.** On a labelled frame whose target was measured, the target's pixels in
 `target_mask/` carry the entry's `mask_value`. There are 55 values (200–254), so a long capture **re-uses** them:
