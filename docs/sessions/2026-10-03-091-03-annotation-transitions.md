@@ -58,4 +58,19 @@ requires detached tails to use stored sampled geometry. Two new live-geometry mu
 post-failure gate adaptation to the implementation's ordering, not a relaxed pixel/edge/mask acceptance threshold.
 
 Full report destination:
+Typed office readings arrived in the run folder: 171 transition entries, off-window 16. This confirms temporal
+detection in that run; aggregate counts alone do not prove which particular two frames were flagged.
+
+**Acceptance conflict:** retained home AA-off PIE proxy session
+`D:\IA_BankOverflow\_r912\out\P_e1_663a99b\session_20261002-204552` reports temporal false, off-window 0,
+8 transition entries and 8 PIE settle frames. Thus exporting all existing reasons exactly and requiring an empty
+AA-off PIE `transition_frames` cannot both hold while preserving behavior. The implementation preserves exclusions.
+No gate was relaxed to call this green. Required decision: accept zero *temporal-AA* transitions for AA-off while
+retaining independent uncertainty reasons, or explicitly authorize a separate change to the PIE settle policy.
+
+A retained proxy TSR capture also exposed a pre-existing verifier omission: its reason whitelist did not permit
+PIE settle on a proxy-routed stuck_low_mip event. The reader now uses recorded route evidence to distinguish the
+proxy fire-window policy from hold; a hold-route mutation must still fail. This does not change pixel thresholds.
+
+Full report destination:
 `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`.
