@@ -136,3 +136,39 @@ all five live DLL hashes exactly matched the prior receipt, so restoration was v
 The receipt-owned temporary profile was removed. The local harness now saves capture results before restoration,
 avoids redundant copies and always attempts receipt-owned profile cleanup. No security setting changed; no
 foreign process was touched. No security-block event was found in the read-only event query.
+
+## Strict-tail measurements and revised candidate, before final rebuild
+
+The original 16-window candidate is an actual in-engine can-fail: strict target RGB MAE above an independent
+clean-to-clean null leaves 164 unflagged frames across eight proxy TSR PIE fires (maximum +44), 173 across seven
+staged fires (+46), 144 across eight UV TSR PIE fires (+45), and one across eight normal TSR PIE fires (+18).
+Annotation and labels agree exactly; coverage is the failure. The office kit still passes the proxy TSR leg 8/8
+at its historical half-strength 0/0, illustrating why that gate alone cannot establish the new requirement.
+
+Null calibration was revised openly after failures: median reference, a second identity null, a pool-disabled
+null, raw reference, then maximum pairwise RGB MAE over fixed first-128 post-warmup samples from independent clean
+captures. Reference index 192, fixed target region, no numeric floor or multiplier in the tail gate. Every
+preceding failed result remains in `_r913`. Held-out clean frames and live pre-fire windows must validate the
+bound. TAA PIE with 192 post frames still had a decaying excess at +190; a three-fire 512-post diagnostic found
+the last excess at +203, with later pre-fire windows clean. This is a finite measurement, not a persistent-floor
+claim. A single staged TAA null failed holdout validation (0.756620 versus 0.756451); an additional clean run
+after 600 deferred engine frames is planned under the same algorithm to test startup convergence. It remains
+unjudged until validated. These calibrations are measurement changes, not silently green results.
+
+The MainWorld hold leg was not judgeable under this reference method: null 8.5708 and insufficient visible change;
+the old E1 reader censored every end. Restricting a diagnostic to the measured target silhouette did not remove
+the clean variation. A copied static fixture now gives the target its own duplicated detailed texture/material,
+so the actual hold route is eligible. Original assets are hashed unchanged. Cook output, staging scratch and
+logs are isolated under `_r913`; fixture creation and restoration receipts are retained.
+
+The next candidate uses offset 256 and cap 256, rounding the reproducible 203 measurement upward with margin.
+Onset 3, hide 1, and confirmed-AA-off 0/0/0 are unchanged. Two existing CVar help strings are corrected for this
+value and capture-time detection; this is a disclosed exception to fields/log-only string additions, with no new
+CVar. The pure suite passes 315 checks; short-default and short-cap mutants join the four detection mutants.
+Review also found the new generic fire-window registry was not carried across captures. It now transfers its
+rebased track and frozen geometry like the held-window history. A capture-boundary diagnostic and an AA 0->4->0
+diagnostic are required before final close. Final builds, final-source proof and pushes remain pending.
+
+One harness waiter read the intermediate CAPTURED record before FILE-CHECKS-PASS and stopped before launching
+authoring. Waiters now wait through that state and owned JSON receipts publish atomically. The waiting cook
+helper was restarted by its recorded PID to isolate cooked/staged paths; no engine process or foreign PID was killed.
