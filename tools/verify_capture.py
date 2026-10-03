@@ -3393,6 +3393,14 @@ def label_rule_check(cap_dir, quiet=False):
     reason_counts = {}
     per_type = {}
 
+    def ev_key(a):
+        return a.get("id", ""), a.get("target_name", ""), a.get("start_frame")
+
+    proxy_keys = {ev_key(a) for a in entries if a.get("id") == "stuck_low_mip" and a.get("stuck_mip.route") == "proxy"}
+
+    def fire_window_key(key):
+        return key[0] in LABEL_RULE_FIRE_WINDOW_TYPES or key in proxy_keys
+
     def listed(entry, si):
         t = client_type(entry.get("id", ""))
         tgt = entry.get("target_name", "")
@@ -3449,7 +3457,8 @@ def label_rule_check(cap_dir, quiet=False):
                     continue
                 key = (a.get("id", ""), reason)
                 reason_counts[key] = reason_counts.get(key, 0) + 1
-                if reason not in LABEL_RULE_ANY_TYPE and a.get("id", "") not in LABEL_RULE_REASON_TYPES[reason]:
+                proxy_fire_reason = reason in ("effect_interrupted", LABEL_RULE_PIE_SETTLE) and ev_key(a) in proxy_keys
+                if reason not in LABEL_RULE_ANY_TYPE and a.get("id", "") not in LABEL_RULE_REASON_TYPES[reason] and not proxy_fire_reason:
                     fail("REASON-MISPLACED", si)
                 if rule == RULE_NEW and reason in LABEL_RULE_LABELLED_ONLY and a.get("labelled") is not True:
                     fail("REASON-ON-UNLABELLED", si)
@@ -3494,9 +3503,6 @@ def label_rule_check(cap_dir, quiet=False):
     for si in sorted(unpaired_sis & listed_every):
         fail("UNPAIRED-LISTED", si)
 
-    def ev_key(a):
-        return a.get("id", ""), a.get("target_name", ""), a.get("start_frame")
-
     pie_active = rs.get("pie_end_settle_active") is True
     n_pie_rows = 0
     n_pie_entries = 0
@@ -3530,7 +3536,7 @@ def label_rule_check(cap_dir, quiet=False):
         if not pie_active or si + 1 not in by_si:
             continue
         for k in lab_keys[si]:
-            if k[0] not in LABEL_RULE_FIRE_WINDOW_TYPES or k in lab_keys[si + 1]:
+            if not fire_window_key(k) or k in lab_keys[si + 1]:
                 continue
             if not any(ev_key(a) == k and a.get("transition") == 1 and a.get("labelled") is False
                        for a in pie_ents[si + 1]):
