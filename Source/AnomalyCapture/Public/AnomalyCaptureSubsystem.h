@@ -1,6 +1,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#if __has_include("Stats/LightweightStats.h")
+#include "Stats/LightweightStats.h"
+#endif
+#include "Stats/Stats.h"
+#if __has_include("Stats/StatsSystemTypes.h")
+#include "Stats/StatsSystemTypes.h"
+#endif
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "HAL/FileManager.h"
 #include "Engine/EngineBaseTypes.h"

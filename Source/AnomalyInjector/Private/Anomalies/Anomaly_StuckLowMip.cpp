@@ -1,5 +1,8 @@
 #include "Anomalies/Anomaly_StuckLowMip.h"
 #include "Anomalies/Anomaly_TexCorrupt.h"
+#include "Components/ActorComponent.h"
+#include "Engine/Texture.h"
+#include "UObject/ObjectKey.h"
 
 #include "AnomalyDefaults.h"
 #include "AnomalyBenchGate.h"

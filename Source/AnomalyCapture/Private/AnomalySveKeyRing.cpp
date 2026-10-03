@@ -1,4 +1,5 @@
 #include "AnomalySveKeyRing.h"
+#include "HAL/CriticalSection.h"
 
 #if ANOMALY_CAPTURE
 

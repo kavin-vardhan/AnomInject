@@ -1,4 +1,13 @@
 #include "Anomalies/TexCorruptCore.h"
+#include "Engine/Texture.h"
+#include "MaterialTypes.h"
+#include "Materials/MaterialInterface.h"
+#if __has_include("Materials/MaterialParameters.h")
+#include "Materials/MaterialParameters.h"
+#endif
+#include "PixelFormat.h"
+#include "Shader.h"
+#include "VertexFactory.h"
 #include "Anomalies/TexCorruptPure.h"
 
 #include "AnomalyAutoInjectorSubsystem.h"
@@ -22,6 +31,7 @@
 #include "Engine/MapBuildDataRegistry.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAsset.h"
+#include "Engine/SkinnedAssetCommon.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "Engine/TextureDefines.h"
@@ -32,6 +42,9 @@
 #include "Materials/MaterialInstance.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "MaterialShared.h"
+#if __has_include("MaterialDomain.h")
+#include "MaterialDomain.h"
+#endif
 #include "RHI.h"
 #include "RenderUtils.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"

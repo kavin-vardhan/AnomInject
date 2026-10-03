@@ -1,4 +1,11 @@
 #include "AnomalySveCapturer.h"
+#include "Engine/Texture.h"
+#include "PixelFormat.h"
+#include "RHIGPUReadback.h"
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 
 #if ANOMALY_CAPTURE
 

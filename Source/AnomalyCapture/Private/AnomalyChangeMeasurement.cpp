@@ -1,4 +1,5 @@
 #include "AnomalyChangeStage.h"
+#include "Dom/JsonValue.h"
 #if ANOMALY_CAPTURE
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"

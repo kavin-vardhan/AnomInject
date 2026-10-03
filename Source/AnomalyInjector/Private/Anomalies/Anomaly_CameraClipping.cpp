@@ -1,4 +1,5 @@
 #include "Anomalies/Anomaly_CameraClipping.h"
+#include "Camera/CameraTypes.h"
 
 #include "AnomalyArgs.h"
 #include "AnomalyDefaults.h"

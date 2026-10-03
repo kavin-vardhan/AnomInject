@@ -1,4 +1,14 @@
 #include "Anomalies/Anomaly_TexCorrupt.h"
+#include "Engine/Texture.h"
+#include "MaterialTypes.h"
+#include "Materials/MaterialInterface.h"
+#if __has_include("Materials/MaterialParameters.h")
+#include "Materials/MaterialParameters.h"
+#endif
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 #include "Anomalies/TexCorruptPure.h"
 #include "AnomalyInstallState.h"
 #include "AnomalyDefaults.h"
@@ -16,6 +26,10 @@
 #include "GameFramework/Actor.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "MaterialShared.h"
+#if __has_include("MaterialDomain.h")
+#include "MaterialDomain.h"
+#endif
 #include "HAL/PlatformTime.h"
 #include "Misc/App.h"
 #include "UObject/Package.h"
