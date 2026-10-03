@@ -295,3 +295,39 @@ off16, no EFFECTIVE line). Only this documentation is committed and merged forwa
 Release outcome: RED because required final-source engine proof cannot start. No schema/window policy
 decision is newly needed. Resolve the repeated startup failure in a safe bench window, then execute required
 items 1-3 in the resume order; optional diagnostics must not block delivery. Preserve both failed attempts.
+
+
+## Resume 2 completed: required final proof passes, GREEN
+
+The reviewer ruled the two first-Present failures environmental VRAM/device contention with the foreign editor, not a plugin defect. This is the reviewer's attribution. No product source changed. The new job gate forbids any foreign UnrealEditor at every sample and immediately before launch. All final legs passed it; no device removal recurred. A replay of the retained old foreign-editor gate is rejected by the actual new quiet function, and a mutant removing that condition is detected. Predictions preceded the launches.
+
+| Build / anomaly | Mode / AA | Fires | t50 tail | t10 tail | Exported tail | Labelled / missing masks |
+|---|---|---:|---:|---:|---|---|
+| 58386be / proxy | pie / TSR | 8 | 7..8 | 23..25 | 40 | 384 / 0 |
+| 58386be / proxy | pie / TAA | 8 | 15 | 37 | 40 | 384 / 0 |
+| 58386be / proxy | pie / off | 8 | 0 | 0 | 1 (independent PIE settle only) | 384 / 0 |
+| 58386be / proxy | staged / TSR | 7 | 7..8 | 23..24 | 40 | 336 / 0 |
+| 58386be / proxy | staged / TAA | 7 | 11 | 36 | 40 | 336 / 0 |
+| 58386be / proxy | staged / off | 7 | 0 | 0 | 0 (no transitions) | 336 / 0 |
+| 58386be / uv | pie / TSR | 3 | 0 | 4..5 | 40 | 144 / 0 |
+| 58386be / normal | pie / TSR | 3 | 0 | 1..2 | 40 | 144 / 0 |
+| 58386be / uv | staged / TSR | 4 | 0 | 3 | 40 | 192 / 0 |
+| 58386be / normal | staged / TSR | 4 | 0 | 0 | 40 | 192 / 0 |
+| e874e28 / uv | pie / off | 3 | 0 | 0 | 1 (independent PIE settle only) | 144 / 0 |
+| e874e28 / normal | pie / off | 3 | 0 | 0 | 1 (independent PIE settle only) | 144 / 0 |
+| e874e28 / uv | staged / off | 4 | 0 | 0 | 0 (no transitions) | 192 / 0 |
+| e874e28 / normal | staged / off | 4 | 0 | 0 | 0 (no transitions) | 192 / 0 |
+| 58386be / hold_static | pie / TSR | 3 | 7..8 | 24..25 | 40 | 165 / 0 |
+| 58386be / hold_static | staged / TSR | 4 | 7..8 | 23..24 | 40 | 196 / 0 |
+
+Every row passes E1 t50 with unchanged pixel thresholds and zero unflagged frames, covers all measured t10 tail frames in both files, has exact annotation/labels equality, and has no labelled frame without a measured mask. The AA-off UV/normal reader compatibility correction is described below. Shared proxy co-users: 20 per event, zero changes. These rows also close deferred 091-02 section 0 on m53 and proxy. AA off has zero temporal windows/reasons and raw strict/t10/t50 edges 0/0; independent PIE-settle rows remain exported per ruling 1.
+
+The selected window stays40. Initial t10 maximum36 selected four spare frames; final TAA PIE measured37, one above that prediction, leaving three spare frames. Final maximum across required legs is37, static hold25. No threshold/window was retuned after these results. Below-t10 E1 strict residuals remain diagnostics; full per-event results and prior independent-null failures/measurements are retained.
+
+Final-source office kit on TSR PIE judged8/8 with start/end0 and zero failures/wrong objects. Per-session verifier/annotation/mask checks pass on all16 required legs. Earlier selftests, compiled mutants, missing-mask, wrong-object, old-window, old-export and archive/string can-fails remain applicable because product Source and tools did not change during this resume. Normal/strict builds, include audit, lever audit and string scan remain the recorded final-source passes.
+
+Reader compatibility failure retained: raw084-09 UV diff rejected the first m53 AA-off PIE capture solely for its three valid pie_end_settle flags, despite raw strict/t10/t50 edges0/0 and zero pixel mismatches. This contradicts the already accepted ruling1. The AA-off UV/normal confirmation path now uses an exact copied existing090-10e successor; its13 tests pass, including negative controls and400 random no-PIE parity cases. For every affected final capture, raw084-09 and090-10e have identical visible-frame sets, depths and edges, with raw0/0. Original FAIL files remain. All proxy, temporal UV/normal and hold paths retain084-09; no pixel threshold or production source changed. The summary-level PIE validity guard is also honored.
+
+Harness repairs are disclosed and retained: the shared reader initially received a missing default receipt; it was then given the existing hashed detail-author.json, with unchanged ROI/thresholds and no capture rerun. The status-only aggregator counted list-valued unexcused frames by length. The staging helper expects EXE SHA8, so its source-commit argument was replaced by the selected build's existing SHA8 alias, retaining full hash verification; the unlaunched failed attempt was restored and retained under its original label. The first completed staged capture's EXE restore returned errno13 at+2s; no game/editor remained or matching Defender block was reported, and the same ordinary copy later restored all six originals. Subsequent staged post-exit delay is10s; no ACL/security change or permission bypass. Saved captures were reused and all failures kept.
+
+Required work completed in resume1 priority order. Optional remaining residency, runtime-switch and capture-boundary engine controls are deferred under the reviewer's scope; no extra diagnostic launches were added. Both original startup failures and earlier reports remain as superseded evidence. Profile/staging/editor/fixture restoration, archives and remotes are rechecked at close. Documentation changes are merged fix -> m53 -> proxy, with exact proved Source identity, before the authorized fast-forward-only push. The final report lists the exact resulting heads and push receipt. No outstanding product/schema/window decision.
