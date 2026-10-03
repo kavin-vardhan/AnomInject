@@ -1463,7 +1463,7 @@ lingered.
 these two never share a captured frame. `stuck_low_mip` counts as live from apply until its textures are seen back at
 full resolution in the rendered picture **and** every frame it labels, or flags `transition` after its last labelled
 frame, has been written **and** no render record it is still waiting on could show the blur again — which can be
-several frames after its event ends (with temporal anti-aliasing, up to 16 more frames for its `transition` tail,
+several frames after its event ends (with temporal anti-aliasing, the declared off window (40 frames by default) for its `transition` tail,
 including frames at the start of the next capture). `uv_corruption` / `normal_corruption` count as live from apply
 until 2 frames after their revert **and** until every captured frame that carries their entry has been written — so if
 one is reverted early during a capture (for example `IAI.Revert uv_corruption` in the console, or its object being
