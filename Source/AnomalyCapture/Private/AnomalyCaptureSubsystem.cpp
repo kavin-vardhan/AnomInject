@@ -1,4 +1,8 @@
 #include "AnomalyCaptureSubsystem.h"
+#include "RHIDefinitions.h"
+#if __has_include("RHIFeatureLevel.h")
+#include "RHIFeatureLevel.h"
+#endif
 #include "Components/ActorComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
