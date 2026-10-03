@@ -1148,6 +1148,11 @@ static void TestAaResolve()
 	using namespace AnomalyLabelSync;
 	Check(IsTemporalMethod(AaTemporal) && IsTemporalMethod(AaTsr), "aa: TAA and TSR are temporal");
 	Check(!IsTemporalMethod(AaNone) && !IsTemporalMethod(AaFxaa) && !IsTemporalMethod(AaMsaa), "aa: none/FXAA/MSAA are not");
+	Check(IsTemporalMethod(-1) && IsTemporalMethod(5) && IsTemporalMethod(99), "aa: unknown fails safe");
+	Check(HasTemporalHistory(AaNone, false, false), "aa: missing capture view fails safe");
+	Check(HasTemporalHistory(AaNone, true, true), "aa: registered temporal upscaler overrides off default");
+	Check(!HasTemporalHistory(AaNone, true, false), "aa: confirmed off stays off");
+	Check(HasTemporalHistory(AaTemporal, true, false) && HasTemporalHistory(AaTsr, true, false), "aa: capture view TAA and TSR");
 	Check(ResolveTransitionFrames(-1, DefaultOnFramesTemporal, true) == 3
 		&& ResolveTransitionFrames(-1, DefaultOffFramesTemporal, true) == 16
 		&& ResolveTransitionFrames(-1, DefaultHideFramesTemporal, true) == 1, "aa: -1 resolves to the ruled 3/16/1 under temporal AA (084-05b on/hide, 089-01 off)");

@@ -262,7 +262,8 @@ FAnomalyReadbackLatencyStats FAnomalySveCapturer::GetLatencyStats() const
 void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FIntRect& Rect,
 	const FIntPoint& SourceExtent, EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
 	TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback, const FAnomalyChangeReceipt& ChangeSubmission,
-	TArray<FAnomalyRenderMipSample>&& RenderMips, bool bRenderRecord)
+	TArray<FAnomalyRenderMipSample>&& RenderMips, bool bRenderRecord,
+	int32 TemporalAaMethod, bool bTemporalViewKnown, bool bTemporalUpscaler)
 {
 	const bool bDual = LegacyReadback.IsValid();
 
@@ -277,6 +278,9 @@ void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FI
 	Item.ChangeSubmission = ChangeSubmission;
 	Item.RenderMips = MoveTemp(RenderMips);
 	Item.bRenderRecord = bRenderRecord;
+	Item.TemporalAaMethod = TemporalAaMethod;
+	Item.bTemporalViewKnown = bTemporalViewKnown;
+	Item.bTemporalUpscaler = bTemporalUpscaler;
 	InFlight.Add(MoveTemp(Item));
 
 	Submits.Increment();
@@ -511,6 +515,9 @@ void FAnomalySveCapturer::Drain_RenderThread()
 			Frame.BytesPerPixel = BPP;
 			Frame.RenderMips = MoveTemp(Item.RenderMips);
 			Frame.bRenderRecord = Item.bRenderRecord;
+			Frame.TemporalAaMethod = Item.TemporalAaMethod;
+			Frame.bTemporalViewKnown = Item.bTemporalViewKnown;
+			Frame.bTemporalUpscaler = Item.bTemporalUpscaler;
 			Frame.RawBytes.SetNumUninitialized((int64)W * H * BPP);
 
 			const uint8* Base = static_cast<const uint8*>(Src);

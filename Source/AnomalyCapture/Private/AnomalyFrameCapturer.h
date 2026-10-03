@@ -50,6 +50,9 @@ struct FAnomalyCapturedFrame
 	TSharedPtr<const FAnomalyChangeReceipt, ESPMode::ThreadSafe> ChangeReceipt;
 	TArray<FAnomalyRenderMipSample> RenderMips;
 	bool bRenderRecord = false;
+	int32 TemporalAaMethod = -1;
+	bool bTemporalViewKnown = false;
+	bool bTemporalUpscaler = false;
 };
 
 struct FAnomalyReadbackLayout

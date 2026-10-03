@@ -244,6 +244,8 @@ private:
 	void ComputeRenderMembership(const FAnomalyCapturedFrame& Frame, const AnomalyLabel::FCaptureSnapshot& Snap);
 	void ApplyRenderTruthToSnapshot(AnomalyLabel::FCaptureSnapshot& Snap);
 	void ResolveLabelSyncForRun();
+	void RefreshLabelTemporalState(const FAnomalyCapturedFrame* Frame);
+	void StepFireWindowTransitions(AnomalyLabel::FCaptureSnapshot& Snap);
 	void StepHideTransitions(AnomalyLabel::FCaptureSnapshot& Snap);
 	void StepProxyBlurTransitions(AnomalyLabel::FCaptureSnapshot& Snap, bool bUnpaired);
 	void StepPieEndSettle(AnomalyLabel::FCaptureSnapshot& Snap, bool bUnpaired);
