@@ -166,12 +166,25 @@ namespace AnomalyStencilTag
 		Actor->GetComponents(Prims);
 		for (UPrimitiveComponent* Prim : Prims)
 		{
-			if (!AnomalyViewport::IsRenderableComponent(Prim) || !AnomalyViewport::IsInEventComponentScope(Prim))
+			if (!Prim) { continue; }
+			const TWeakObjectPtr<UPrimitiveComponent> Key(Prim);
+			const bool bInScope = AnomalyViewport::IsInEventComponentScope(Prim);
+			const FPriorStencilState* Prior = GTaggedComponents.Find(Key);
+			const AnomalyLabelSync::ERetireAction ExitAction = AnomalyLabelSync::DecideScopeExit(bInScope, Prior != nullptr,
+				Prim->CustomDepthStencilValue, Prim->bRenderCustomDepth, GAppliedValues.FindRef(Key));
+			if (ExitAction != AnomalyLabelSync::ERetireAction::Leave)
+			{
+				NotePriorRestore(Prim, Prior->CustomDepthStencilValue, Prior->bRenderCustomDepth);
+				Prim->SetCustomDepthStencilValue(Prior->CustomDepthStencilValue);
+				if (ExitAction == AnomalyLabelSync::ERetireAction::RestoreValueAndFlag) { Prim->SetRenderCustomDepth(Prior->bRenderCustomDepth); }
+				GTaggedComponents.Remove(Key);
+				GAppliedValues.Remove(Key);
+			}
+			if (!AnomalyViewport::IsRenderableComponent(Prim) || !bInScope)
 			{
 				continue;
 			}
 
-			const TWeakObjectPtr<UPrimitiveComponent> Key(Prim);
 			if (!GTaggedComponents.Contains(Key))
 			{
 				FPriorStencilState Prior;
