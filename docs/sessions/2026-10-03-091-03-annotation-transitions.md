@@ -256,3 +256,42 @@ detection and flag emission, not the identity of the owner's two pixels/frames. 
 the temporary device profile were restored by receipt; the host now has the final normal proxy binaries and
 clean Source. Harness originals and original fixture assets are unchanged. Settings, owned launches, transient
 restoration errors, gate adaptations, archives and all unpushed commits are enumerated in the full report.
+
+## Required-first resume: repeated startup failure, RED, no push
+
+The 20:49 resume accepted the schema, detection, 3/40/1 policy, office-kit corrections and proxy PIE history
+cause evidence. It attributed the earlier D: dip to the owner's growing page file; that attribution comes
+from the reviewer, not a measurement by this job. D: was now 60.4 GiB free and E: 345.1 GiB.
+Optional residency, AA-switch and carry controls were removed from the critical path. A new, predeclared
+sixteen-leg queue ordered six final proxy TSR/TAA/off PIE/staged legs first, then proxy UV/normal TSR and
+m53 UV/normal section-0 legs in both modes, then static Hold0913 TSR PIE/staged. Previous queues and refusal
+records were retained. No source, build, window or pixel threshold changed.
+
+| Attempt | Start / exit IST | Own engine PID | Gate: person idle / commit headroom | Engine result |
+|---|---|---:|---|---|
+| F_P_proxy_tsr_58386be | 20:58:11 / 20:58:39 | 102896 | 2580.0 s / 16.6 GiB | exit 3 before capture |
+| F_P_proxy_tsr_58386be_r1 | 21:02:06 / 21:02:29 | 106640 | 2815.6 s / 15.5 GiB | exit 3 before capture |
+
+Both launches passed three consecutive fresh samples: no foreign game/build/GPU-heavy process, GPU below
+10%, disk floors above 50 GiB. Foreign editor PID70836 was idle and untouched. Both used the exact final
+58386be editor DLLs, whose hashes match the archived C7FB5212 build, identical map/AA/capture settings and
+no window override. The first failed at D3D12 initial Present with DXGI_ERROR_DEVICE_REMOVED and Aftermath
+Timeout. One unchanged retry was declared before launch; it failed identically. Both processes exited
+themselves. Neither produced a capture session or anomaly fire. These are failed startup attempts, not E1
+passes or zero-tail measurements. All sixteen required pixel results and section 0 remain incomplete.
+
+The engine logs report 1834.89 and 737.48 MiB physical memory free at exit; the gate measures commit
+headroom, a different quantity. The device-loss cause is not established. No driver/TDR/render-path/security
+change, foreign process action, or further engine launch followed the repeated failure. The wrapper returned
+zero but the engine exit receipt recorded 3; the missing-capture check correctly stopped each queue.
+
+Both receipt-owned temporary profiles were removed; five editor DLLs were hash-restored to the final normal
+baseline. No staged leg ran. The six staged originals, original harnesses and fixture assets are rechecked at
+close. Archives and binary inventory are re-hashed; ten new backup copies introduce no new executable hash.
+The earlier report is retained as report-before-resume.md. Full failed launch receipts, logs, gate readings,
+queue plans and errors live under E:\IA_BuildCache\_r913. The typed office reads are unchanged (171 entries,
+off16, no EFFECTIVE line). Only this documentation is committed and merged forward; nothing is pushed.
+
+Release outcome: RED because required final-source engine proof cannot start. No schema/window policy
+decision is newly needed. Resolve the repeated startup failure in a safe bench window, then execute required
+items 1-3 in the resume order; optional diagnostics must not block delivery. Preserve both failed attempts.

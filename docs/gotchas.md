@@ -10152,3 +10152,12 @@ and one unchanged resource identity throughout each capture. AA off passed uncha
 0/0. This supports temporal history for those measured proxy legs; it is not proof about UV/normal or staged
 residency, whose diagnostics were blocked. Final 40-source proof and the static hold fixture remain pending.
 Do not promote a schema-consistency pass or a successful build to a pixel-synchronization release claim.
+
+The 20:49 resume passed the documented idle gate twice, yet the final proxy editor exited before capture at
+initial Present with DXGI_ERROR_DEVICE_REMOVED / Aftermath Timeout. An idle gate authorizes a launch; it does
+not certify renderer startup. The launcher wrapper returned zero while its launch receipt recorded engine
+exit 3. The independent requirement for a completed capture correctly rejected both attempts. Always inspect
+the engine exit receipt and capture completeness, not only the wrapper return code. Commit headroom in the
+gate was 16.6/15.5 GiB; physical memory free at the two exits was 1834.89/737.48 MiB. These are different
+measurements and do not by themselves establish the device-loss cause. No driver, TDR or security workaround
+was attempted; the foreign editor was not touched. A successful build remains insufficient release evidence.
