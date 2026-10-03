@@ -1,4 +1,13 @@
 #include "Anomalies/TexCorruptCore.h"
+#include "Engine/Texture.h"
+#include "HAL/CriticalSection.h"
+#include "RHICommandList.h"
+#include "RHIResources.h"
+#include "RenderGraphDefinitions.h"
+#if __has_include("RenderGraphFwd.h")
+#include "RenderGraphFwd.h"
+#endif
+#include "RenderGraphResources.h"
 
 #include "AnomalyInjectorLog.h"
 #include "AnomalyTargeting.h"

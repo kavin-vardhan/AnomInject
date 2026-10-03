@@ -1,6 +1,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MaterialTypes.h"
+#if __has_include("Materials/MaterialParameters.h")
+#include "Materials/MaterialParameters.h"
+#endif
+#include "PixelFormat.h"
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "MaterialShared.h"
 #include "Materials/MaterialInterface.h"

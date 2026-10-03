@@ -1,4 +1,8 @@
 #include "Modules/ModuleManager.h"
+#include "Camera/CameraTypes.h"
+#include "CollisionQueryParams.h"
+#include "Engine/EngineBaseTypes.h"
+#include "Engine/HitResult.h"
 #include "AnomalyCaptureSubsystem.h"
 #include "AnomalyViewport.h"
 #include "Camera/PlayerCameraManager.h"

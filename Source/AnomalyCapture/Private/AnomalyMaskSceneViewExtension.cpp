@@ -1,4 +1,17 @@
 #include "AnomalyMaskSceneViewExtension.h"
+#include "RHI.h"
+#include "RHICommandList.h"
+#include "RHIGPUReadback.h"
+#include "RHIResources.h"
+#include "RenderGraphDefinitions.h"
+#if __has_include("RenderGraphFwd.h")
+#include "RenderGraphFwd.h"
+#endif
+#include "RenderGraphResources.h"
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 
 #if ANOMALY_CAPTURE
 

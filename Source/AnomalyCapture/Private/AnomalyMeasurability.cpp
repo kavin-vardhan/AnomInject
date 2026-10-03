@@ -1,4 +1,8 @@
 #include "AnomalyMeasurability.h"
+#include "RHIDefinitions.h"
+#if __has_include("RHIShaderPlatform.h")
+#include "RHIShaderPlatform.h"
+#endif
 
 #if ANOMALY_CAPTURE
 

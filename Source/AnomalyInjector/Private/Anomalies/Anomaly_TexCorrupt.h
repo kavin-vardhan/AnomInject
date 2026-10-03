@@ -1,6 +1,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MaterialTypes.h"
+#if __has_include("Materials/MaterialParameters.h")
+#include "Materials/MaterialParameters.h"
+#endif
 #include "IAnomaly.h"
 #include "Anomalies/TexCorruptCore.h"
 

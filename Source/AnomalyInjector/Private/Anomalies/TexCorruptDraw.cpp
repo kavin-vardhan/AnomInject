@@ -1,4 +1,20 @@
 #include "Anomalies/TexCorruptCore.h"
+#include "Engine/Texture.h"
+#include "Engine/TextureDefines.h"
+#include "HAL/ThreadSafeCounter.h"
+#include "Materials/MaterialInterface.h"
+#include "RHICommandList.h"
+#if __has_include("RHIFwd.h")
+#include "RHIFwd.h"
+#endif
+#include "RenderGraphDefinitions.h"
+#if __has_include("RenderGraphFwd.h")
+#include "RenderGraphFwd.h"
+#endif
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"

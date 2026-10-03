@@ -1,4 +1,10 @@
 #include "AnomalyChangeStage.h"
+#include "Dom/JsonValue.h"
+#include "SceneInterface.h"
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 #if ANOMALY_CAPTURE
 #include "AnomalyCaptureLog.h"
 #include "Async/Async.h"

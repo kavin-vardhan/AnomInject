@@ -1,4 +1,6 @@
 #include "Anomalies/TexCorruptCore.h"
+#include "Engine/Texture.h"
+#include "Materials/MaterialInterface.h"
 
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"

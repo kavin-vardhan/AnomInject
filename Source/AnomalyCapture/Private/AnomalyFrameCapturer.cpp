@@ -1,4 +1,18 @@
 #include "AnomalyFrameCapturer.h"
+#include "HAL/CriticalSection.h"
+#include "HAL/ThreadSafeCounter.h"
+#include "RHI.h"
+#if __has_include("RHIAccess.h")
+#include "RHIAccess.h"
+#endif
+#include "RHIGPUReadback.h"
+#if __has_include("RHITransition.h")
+#include "RHITransition.h"
+#endif
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 
 #if ANOMALY_CAPTURE
 
