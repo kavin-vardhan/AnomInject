@@ -10141,3 +10141,8 @@ capture's SVE callback, source texture resident mips/first mip/resource identity
 It is gated by -IAIBench plus its diagnostic command-line flag and excluded from Shipping. The patch stays in
 the evidence folder and is restored by byte receipt, not merged into release. Matched AA-off captures and the
 unchanged E1 reader distinguish temporal tails from source re-streaming; no residency behavior change is authorized.
+
+The new captured-view AA read also needs SceneUtils.h directly. The returned ITemporalUpscaler pointer is
+opaque in SceneView.h, but its defining header belongs in the capture translation unit under the 091-02
+discipline: use TemporalUpscaler.h when present and PostProcess/TemporalAA.h on UE 5.1. Strict compilation
+alone does not establish that every type has its defining header directly.
