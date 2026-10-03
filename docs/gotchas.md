@@ -10191,3 +10191,15 @@ the engine exit receipt and capture completeness, not only the wrapper return co
 gate was 16.6/15.5 GiB; physical memory free at the two exits was 1834.89/737.48 MiB. These are different
 measurements and do not by themselves establish the device-loss cause. No driver, TDR or security workaround
 was attempted; the foreign editor was not touched. A successful build remains insufficient release evidence.
+
+
+091-03 resume 2 closure: the reviewer attributed the first-Present failures to foreign-editor VRAM/device
+contention. The stricter job gate forbids every foreign UnrealEditor, even idle, both during sampling and
+immediately before launch. The same product binaries then completed all 16 required legs without device
+removal. Keep the attribution separate from the observed recovery; do not change product source for this
+environmental ruling. The gate's retained-input replay and ignored-editor mutant are recorded. Final t10
+maximum 37 fits 40 with 3 spare frames; static hold maximum 25 also fits. Every final session exports exactly
+the labels' transitions, with zero unflagged E1 t50/t10 tail frames and zero missing measured masks. The
+deferred 091-02 section 0 is closed on the final m53/proxy builds. AA-off UV/normal confirmation uses the
+existing 090-10e reader's independent PIE exclusions, with raw 084-09 pixel/edge parity and 13 controls;
+the older reader's all-flags-under-AA-off rejection is retained, not counted as a pixel failure.
