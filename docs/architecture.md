@@ -949,15 +949,14 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   KEPT as hard negatives, not dropped (gotcha G42). The in-frustum-but-occluded sub-case is the deferred
   `GetLastRenderTimeOnScreen` refinement (G22).
 - **084-05a label sync (async path).** Per fire the snapshot may carry an emission mode (`EntryEmit`: normal / suppress /
-  transition-only), a `transition` bit and extra transition-only entries (`TransitionFires`); all empty for non-m52,
-  non-returning frames, which reproduces the older row exactly. **Render-truth (`stuck_low_mip`) fires** are positive only on
-  frames labelled for them; `anomaly_present` = at least one normal entry. **Under temporal AA** (TAA/TSR, resolved at run start
-  by `GetDefaultAntiAliasingMethod`) the first `IAI.Label.TransitionOnFrames` labelled m52 frames and the
+  transition-only), a `transition` bit and extra transition-only entries (`TransitionFires`); shared by render-truth and fire-window events, with detached post-label tails retained. **Render-truth (`stuck_low_mip`) fires** are positive only on
+  frames labelled for them; `anomaly_present` = at least one normal entry. **Under temporal history** (captured view TAA/TSR, registered upscaler, temporal default or unknown evidence,
+  re-evaluated each frame and latched through run end) the first `IAI.Label.TransitionOnFrames` labelled frames and the
   `IAI.Label.TransitionOffFrames` frames after a labelled frame carry `transition: 1` (the latter as transition-only entries that
   set no `anomaly_present`), and hide types flag the first `IAI.Label.TransitionHideFrames` frames after the object returns.
   Pure logic: `AnomalyInjector/Public/AnomalyLabelSync.h`. **084-07:** every flagged entry names its reason in
-  `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); defaults 3/16/1 under
-  temporal AA (the off default was 8 until 090-01; `AnomalyLabelSync::DefaultOffFramesTemporal`, ruled 089-01), 0 without. `partial`
+  `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); defaults 3/256/1 under
+  temporal AA or unknown evidence (091-03 measured TAA tail 203; prior off defaults 16 and 8), 0 when confirmed off. `partial`
   is set, with or without temporal AA, on any m52 member frame whose render record shows the held set between baseline and the
   held level (`FAnomalyRenderTruthTexture::HeldResidentMips` carried into the watch; `AnomalyStuckMipWindow::ClassifyLevel` /
   `IsPartialHeldSet` / `FPartialEdgeTrack`). Entries carry `labelled` and `visible_positive` needs a labelled entry with a
@@ -1004,7 +1003,8 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   nothing for the frame's label. `tools/r4_pairing_gate.py` checks the completion-path bodies for live reads. The **synchronous**
   capture block (`IAI.Capture.Async 0`, or the SVE-off rectangle fallback) sets `bCaptureUnpaired`: `MarkCaptureUnpaired` makes
   every entry transition-only with reason bit 7 `capture_unpaired`, `BuildFrameLabelRecord` writes the row-level flag and never a
-  labelled entry, and the frame is not accumulated into `annotation.json` (`run_summary.capture_unpaired_frames`). Rule name
+  labelled entry. The frame is excluded from positive membership but accumulated into schema 2.1 transition lists
+  (`run_summary.capture_unpaired_frames`). Rule name
   `annotation_membership_per_policy_v4_sample_bound`; `run_summary.label_geometry_source`.
   **084-07c:** `labelled` comes from ONE authority, `AnomalyLabelSync::IsAnnotationMember(policy, active, onScreen)` — the
   rule that builds `annotation.json`'s frame list, per class (FireWindow ⇒ the fire's box is on screen via the shared
@@ -1407,7 +1407,7 @@ events survive as exclusions, including when positive membership was vetoed. The
 The writer uses the same emission/reason predicates as the per-frame labels. `verify_capture.py --label-rule` and
 office kit 1.5 compare the two files. Temporal evidence travels with each SVE readback from the postprocess view;
 missing evidence fails safe and temporal protection stays latched through run end. Fire-window types share the
-3/16 onset/offset policy. The home pixel proof for this release is recorded separately in session 091-03.
+3/256 onset/offset policy, with unfinished fire-window tracks carried into a following capture using their frozen geometry. The home pixel proof for this release is recorded separately in session 091-03.
 
 `affected_frames` is the **OBSERVABLE subset**
 (+ `span_frame_count`); **`injected_frames`** keeps the pre-m49 subset unchanged; plus

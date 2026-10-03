@@ -9096,3 +9096,11 @@ A reader that drops the permitted first PIE settling frame must still evaluate a
 proxy-route evidence before accepting that flag on stuck_low_mip. Bridge only the already-validated first-frame exclusion
 when checking continuity, and compare the next measured tail frame against the last labelled frame for decay. Never turn
 the PIE frame itself into an AA excuse. Missing following flags and a tail that does not decay must still fail.
+
+The 091-03 strict clean-reference gate disproved the 16-frame offset even though the office kit's historical
+half-strength gate passed 8/8 at 0/0. Reproducible proxy tails reached 44/46 frames under TSR and 203 under TAA PIE;
+UV reached 45 and normal 18. Raise both the default and its retention/configuration cap: increasing only the
+default while retiring tracks at 64 would still drop the later entries. Candidate 256 must pass the final pixel
+matrix. Preserve failed null calibrations and unjudgeable moving-scene measurements; never derive a null from
+post-event pixels. New generic fire-window tracks also need run-boundary carry, not just the existing held-window
+and hide-return registries.
