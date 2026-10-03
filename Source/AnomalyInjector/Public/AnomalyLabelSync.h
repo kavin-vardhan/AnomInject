@@ -171,7 +171,12 @@ namespace AnomalyLabelSync
 
 	inline bool IsTemporalMethod(int Method)
 	{
-		return Method == AaTemporal || Method == AaTsr;
+		return Method != AaNone && Method != AaFxaa && Method != AaMsaa;
+	}
+
+	inline bool HasTemporalHistory(int Method, bool bViewKnown, bool bUpscaler)
+	{
+		return !bViewKnown || bUpscaler || IsTemporalMethod(Method);
 	}
 
 	inline const char* DescribeAaMethod(int Method)

@@ -254,7 +254,9 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 
 	ChangeSubmission.Rect = Rect; ChangeSubmission.Extent = SourceExtent; ChangeSubmission.Format = Texture->Desc.Format;
 	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, SourceExtent, Texture->Desc.Format,
-		MoveTemp(Readback), MoveTemp(LegacyReadback), ChangeSubmission, MoveTemp(RenderMips), bRenderRecord);
+		MoveTemp(Readback), MoveTemp(LegacyReadback), ChangeSubmission, MoveTemp(RenderMips), bRenderRecord,
+		(int32)View.AntiAliasingMethod, View.Family != nullptr,
+		View.Family && View.Family->GetTemporalUpscalerInterface() != nullptr);
 
 	return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }

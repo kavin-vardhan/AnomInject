@@ -3160,7 +3160,7 @@ LABEL_RULE_ANY_TYPE = (LABEL_RULE_UNPAIRED,)
 LABEL_RULE_FIRE_WINDOW_TYPES = ("missing_texture", "corrupted_texture", "uv_corruption", "normal_corruption",
                                 "lighting_mismatch", "lod_corruption", "null_effect", "solid_swap", "time_dilation")
 LABEL_RULE_REASON_TYPES = {
-    "temporal_aa": ("stuck_low_mip",),
+    "temporal_aa": ("stuck_low_mip",) + LABEL_RULE_FIRE_WINDOW_TYPES,
     "hide_return": ("blinking", "missing_object"),
     "partial": ("stuck_low_mip",),
     "camera_clipping_unconfirmed": ("camera_clipping",),
@@ -3189,7 +3189,7 @@ LABEL_RULE_CHECKS = ("VP-MISMATCH", "TRANSITION-PRESENT-MISMATCH", "REASON-MISSI
                      "LABELLED-EXTRA", "LABELLED-MISSING", "ENTRY-MISSING", "FRAME-MISSING",
                      "UNPAIRED-POSITIVE", "UNPAIRED-LABELLED", "UNPAIRED-LISTED", "UNPAIRED-INCONSISTENT",
                      "UNPAIRED-COUNT", "PIE-SETTLE-OUTSIDE-PIE", "PIE-SETTLE-MISSING", "PIE-SETTLE-MISPLACED",
-                     "PIE-SETTLE-LISTED", "PIE-SETTLE-COUNT")
+                     "PIE-SETTLE-LISTED", "PIE-SETTLE-COUNT", "ANNOTATION-TRANSITIONS")
 
 
 def _lr_read_rows(cap_dir):
@@ -3308,6 +3308,15 @@ def label_rule_check(cap_dir, quiet=False):
 
     def fail(cat, si):
         fails.setdefault(cat, []).append(si)
+
+    if not shot_rows:
+        from annotation_transition_check import check_session
+        transition_errors, transition_detail = check_session(cap_dir, require_schema=False)
+        if transition_errors:
+            fail("ANNOTATION-TRANSITIONS", -1)
+            lines.extend("  " + error for error in transition_errors)
+        elif not transition_detail.get("legacy"):
+            lines.append("  annotation transitions : exact match with labels.jsonl (%d frames)" % transition_detail['transition_frame_count'])
 
     by_si = {}
     for r in rows:
