@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **091-02, 2026-10-03 — INCLUDE COMPATIBILITY BUILT; OFFICE DELIVERY HELD (NEEDS-DECISION).**
+> Source changes are includes and their guards only: 45 files / 317 insertions on m53 and proxy; 38 / 242 on the fix branch.
+> Defining headers were checked in local UE 5.1.1 and the read-only UE 5.7.4 reference. The first office host's version is still unknown.
+> - Candidate source: m53 `869db52` (exe `FDE0A0F8`), proxy `0c6a558` (exe `A8F88ADD`), fix `c2d05ad` (exe `55DD161B`).
+>   Fix changes were merged forward into m53, then m53 into proxy. The documentation heads retain those exact Source trees.
+> - Proxy normal and strict Editor/Game: 0 errors / 0 warnings; 68 independent header TUs per strict target; restoration verified.
+>   Fix and m53 normal Editor/Game also 0/0. Lever audit 53/53, 0 failures; 12 selftest cases. String scan vs `CFFD276F`: no new
+>   semantic strings (two printable CodeView/PDB GUID fragments only). Source gate and measured negative controls pass. G460.
+> - **Required PRE-DELIVERY-CHECKLIST §0 has not run.** The final idle gate waited 194 s and refused: foreign editor PID 45800,
+>   34–36% GPU, human idle 67.5 s, memory headroom 19.7 GiB. Zero bench launches/fires; no staging/profile changes.
+>   No runtime-equivalence claim and no office-ready claim. No feature branch was pushed: the brief requires m53 proof before push.
+> - Resume with a quiet bench window: m53 UV/normal PIE+staged, then proxy UV/normal/shared proxy blur PIE+staged, >=3 fires each,
+>   unchanged pixel/edge/mask readers. Then fast-forward-push the named feature branches. Do not bypass the idle gate.
+> - Journal: `docs/sessions/2026-10-03-091-02-include-compat.md`; full evidence/harness copies: `E:\IA_BuildCache\_r912b`.
+>   Final binary archive `D:\IA_BankOverflow\09102-final-binaries.zip`, SHA-256
+>   `ccdd22969d00a47a7f7e7008a24a6da53516c7cd2fc29293ce1b8e41b4401ad8` (18 binaries verified).
+>
+> ---
+
 > 🧭 **090-10f2, 2026-10-02 — NO LABELLED FRAME WITHOUT ITS MASK, `texture_uniform` REFUSES TEXTURES THAT CANNOT SHOW THE
 > CORRUPTION, B'S SCOPE NOW COVERS THE LABEL BOX, AND COOKED BIAS IS PROVEN STAGED. PULL `feat/m53-uv-normal-corruption`: CODE `2dbf6f2`,
 > EXE `36C8E30A` (every PIE confirmation and every staged Item 3 leg ran on it). ⛔ No tag, no merge to master.**

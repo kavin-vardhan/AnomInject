@@ -10083,3 +10083,16 @@ on a cooked texture blanked it (G449) and now refuses. **Rule: a "runtime LOD bi
 per-texture and group bias; prove handling of those in PIE, prove the cooked case by the texture's cooked mip chain, and keep
 cinematic and streaming residency as the runtime cases a packaged build can show.** The device profile needs a dedicated group
 (here Project01) so one cook can carry the variant without biasing every other texture.
+
+
+## G460 — The strict-include gate is engine-version-blind; office engine layouts differ
+*(091-02.)* A home UE 5.1.1 strict build cannot detect a missing defining include in another engine layout. On the first office
+host, `MD_Surface`, `FSkeletalMeshLODInfo` and `FSkeletalMaterial` were unavailable despite the transitive includes that work at
+home. Read-only UE 5.7.4 confirms `EMaterialDomain` moved from `MaterialShared.h` to `MaterialDomain.h` (the former now only
+forward-declares it), while the skeletal structs still live in `Engine/SkinnedAssetCommon.h`. Include the defining headers in
+each actual user; retain the old interface and guard headers absent in 5.1 with `__has_include`. Audit moved RHI, pointer-mode,
+stats, material-parameter and postprocess-input definitions across all modules, including the shared fix branch. In 5.7,
+`MaterialTypes.h` is a deprecated stub: select `Materials/MaterialParameters.h` when present, with the old header as the fallback.
+The legacy `RHIResources.h` also needs `RHI.h` first; the initial strict run caught that prerequisite and is retained as evidence.
+**Rule: a strict build proves its selected engine layout only. Inspect both defining headers, compile the supported local
+engine, and retain the separate home visual proof before office delivery.** The first office host's actual version remains unknown.
