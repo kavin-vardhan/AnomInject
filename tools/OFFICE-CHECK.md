@@ -69,6 +69,9 @@ prints (numbers only).
 - **`refused`** on the `sessions read` line: the frames were JPEG or the labels were switched off. Capture
   again with PNG. If it says **`sync-path capture`**, the capture ran on the unsupported sync path (for example
   `IAI.Capture.Async 0` was typed); restart the game so the default settings return, and capture again.
+- **`annotation transitions mismatch`** means the settling-frame lists in `annotation.json` disagree with
+  `labels.jsonl`. Keep both original files together and read back this refusal; the kit does not judge that session.
+  Kit 1.5 checks schema 2.1 sessions automatically. Keep `verify_capture.py` beside `label_sync_check.py` in host-tools.
 
 ## If an anomaly never shows: the one-command read-out (090-10b)
 

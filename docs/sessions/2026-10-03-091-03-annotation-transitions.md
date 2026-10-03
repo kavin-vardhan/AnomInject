@@ -57,7 +57,6 @@ geometry frozen at the tick-end sample, adds both transition functions to the co
 requires detached tails to use stored sampled geometry. Two new live-geometry mutants must fail. This is a declared
 post-failure gate adaptation to the implementation's ordering, not a relaxed pixel/edge/mask acceptance threshold.
 
-Full report destination:
 Typed office readings arrived in the run folder: 171 transition entries, off-window 16. This confirms temporal
 detection in that run; aggregate counts alone do not prove which particular two frames were flagged.
 
@@ -71,6 +70,42 @@ retaining independent uncertainty reasons, or explicitly authorize a separate ch
 A retained proxy TSR capture also exposed a pre-existing verifier omission: its reason whitelist did not permit
 PIE settle on a proxy-routed stuck_low_mip event. The reader now uses recorded route evidence to distinguish the
 proxy fire-window policy from hold; a hold-route mutation must still fail. This does not change pixel thresholds.
+
+## Close: NEEDS-DECISION, no push
+
+Normal Editor/Game builds passed with 0 errors and 0 warnings for final Source commits fix `1df4d26`, m53 `3f4f1c7`
+and proxy `8131578`. Proxy strict Editor/Game also passed 0/0 with 68 independent header TUs per target; its normal
+configuration was restored and rebuilt 0/0. Exe SHA prefixes are `7B943716`, `2468CB8D`, `516CBFDF`. The preliminary
+fix `e151208` / `479BA61E` build was superseded by completion-time hide tracking and is archived separately.
+
+Two build failures remain on record: the initial fix UBT process exited 0xC00000FD with stack overflow before a
+compiler diagnostic; the initial m53 Game build failed with C1002, compiler out of heap space in pass 2. Unchanged
+retries passed. No compiler setting, security setting or foreign process was changed to obtain those passes.
+
+Annotation tests: 5 pass, including 10 doctored variants. Verifier unit tests: 44; label-rule selftest: 65; office
+kit: 84; temporal/window C++ checks: 313 plus four actual failing mutants; R4 source guard: 12 including the new
+completion live-geometry mutants. Lever selftest: 12; branch source/binary audits: fix 34, m53 52, proxy 53, no failures.
+A retained TSR capture was copied into a synthetic schema-2.1 consumer fixture: eight events, 152 unique transition
+frames. New-schema equality and verifier pass; missing-tail, wrong-reason and wrong-total mutations fail both and
+are refused by the kit. Its positive kit result is only past the schema guard: the JSON-only fixture is then refused
+for no frames. It is not a candidate engine capture or a pixel proof. Old annotation fails the strict new checker.
+
+ASCII/UTF-16 scan versus each 091-02 baseline found only intended field/evidence text after reviewing exported-symbol,
+debug and FH4 unwind records and matching unchanged constant data across PE pointer relocations. An appended foreign
+semantic-string mutant fails. All six binaries in each of four successful snapshots (including the superseded fix)
+were copied into archives, re-hashed and checked again inside ZIPs. Full hashes and paths are in `_r913/archives.json`
+and the report. Scratch PE review helpers do not ship in the plugin.
+
+The final read-only idle gate refused after 40.6 seconds: foreign UE 5.7 editor PID 71812, GPU up to 15.31%, human
+idle 30 seconds, commit headroom 11.8 GiB. Initial/mid-run refusals are retained too. The job launched no editor/game,
+changed no bench CVar, and made no staging/profile/fixture writes. Our harness copy additionally refuses missing idle
+or memory measurements. Originals are unchanged. Final Source trees are preserved in the local merged heads.
+
+Required proxy TSR/TAA/AA-off PIE/staged pixel legs, hold and UV/normal TSR tail legs, and deferred 091-02 section 0
+are all NOT RUN. Measured tails, zero unflagged tails and zero labelled frames without masks cannot be asserted.
+The declared off-window remains 16; no pixel threshold or transition window was retuned. The acceptance conflict
+above and the refused idle gate prevent a green release. No feature branch was pushed, as the brief requires proof
+first. Resolve the AA-off criterion and resume in a quiet bench window; rerun proof on these actual Source trees.
 
 Full report destination:
 `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`.

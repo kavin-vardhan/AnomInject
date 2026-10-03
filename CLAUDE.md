@@ -11,6 +11,29 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **091-03, 2026-10-03 — ANNOTATION TRANSITIONS BUILT; RELEASE PROOF AND PUSH HELD (NEEDS-DECISION).**
+> Schema 2.1 exports each event's exact transition frames/reason counts and the session frame union. All existing
+> reasons, detached tails and exclusion-only events are retained. The README training recipe drops these frames.
+> Captured SVE frames carry their rendered view AA method and family upscaler evidence; defaults are re-read each
+> frame, missing evidence is temporal, and temporal evidence remains latched to run end. Run logs/summary name the source.
+> - Built Source: fix `1df4d26` (exe `7B943716`), m53 `3f4f1c7` (`2468CB8D`), proxy `8131578` (`516CBFDF`).
+>   All normal Editor/Game 0/0. Proxy strict Editor/Game 0/0, 68 header TUs per target, normal restoration verified.
+>   Later reader/documentation commits preserve these Source trees. No branch was pushed; office remains at `e09fa9c`.
+> - Tool checks: annotation equality 5 tests with 10 doctored variants; verifier 44 tests; label rules 65; kit 84;
+>   temporal/window policy 313 checks plus 4 failing mutants; R4 12; lever 12 selftest cases, branch audits 34/52/53.
+>   Strings: intended schema/evidence text only after PE metadata and relocated-data review. Four binary sets archived
+>   under `E:\IA_BuildCache\_r913\archives` (one superseded); 24 files re-hashed in copies and ZIPs.
+> - **Decision:** the brief asks both to export all existing reasons and for empty AA-off transitions. A retained AA-off
+>   PIE proxy run has off-window 0 but 8 `pie_end_settle` entries. Preserve these exclusions; decide whether AA-off means
+>   zero temporal-AA reasons, or authorize a separate PIE-settle policy change. No acceptance threshold was silently changed.
+> - **No engine launches/fires.** Final idle gate refused after 40.6 s: foreign UE 5.7 editor 15.31% GPU, human idle 30 s,
+>   headroom 11.8 GiB. Required TSR/TAA/AA-off tail proof and deferred 091-02 section 0 remain undone. No office-ready claim.
+> - The second office host's typed readings are 171 transition entries and off-window 16: export omission is confirmed;
+>   totals alone do not identify its particular two tail frames. Journal: `docs/sessions/2026-10-03-091-03-annotation-transitions.md`.
+>   Full report: `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`. G461.
+>
+> ---
+
 > **091-02, 2026-10-03 — INCLUDE COMPATIBILITY BUILT; OFFICE DELIVERY HELD (NEEDS-DECISION).**
 > Source changes are includes and their guards only: 45 files / 317 insertions on m53 and proxy; 38 / 242 on the fix branch.
 > Defining headers were checked in local UE 5.1.1 and the read-only UE 5.7.4 reference. The first office host's version is still unknown.
