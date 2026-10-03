@@ -11,25 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **091-03, 2026-10-03 — ANNOTATION TRANSITIONS BUILT; IN-ENGINE PROOF RUNNING; NO PUSH YET.**
-> Schema 2.1 exports exact per-event transition frames/reason counts and the session union, including detached tails
-> and every existing exclusion reason. Captured view AA/upscaler evidence is refreshed per frame; unknown is temporal.
-> - Built Source: fix `1df4d26` (exe `7B943716`), m53 `3f4f1c7` (`2468CB8D`), proxy `8131578` (`516CBFDF`).
->   All normal Editor/Game 0/0; proxy strict Editor/Game 0/0, 68 independent header TUs per target; restoration verified.
->   Reader/docs commits preserve these Source trees. No branch pushed; office remains at `e09fa9c`.
-> - The orchestrator's 15:05 IST ruling resolves AA-off: zero temporal-AA reasons/windows; retain independent reasons
->   exactly. PIE proxy therefore retains one `pie_end_settle` per fire. The previous NEEDS-DECISION is superseded.
-> - First proxy TSR PIE leg: 8 fires, 384 labelled frames, 0 missing measured masks; labels/annotation agree on 152
->   transition frames. Actual capture-view evidence is method 4, no unknown read. Independent null/tail proof pending.
-> - Office kit now recognizes proxy-route PIE exclusions and checks temporal tails beyond the excluded first frame;
->   93 known-answer checks pass on both decoders, including absent-flag, undecayed-tail and invalid-hold controls.
->   The original 84-check suite was insufficient for this proxy PIE combination. Thresholds remain unchanged.
-> - Four binary snapshots archived under `E:\IA_BuildCache\_r913\archives` (one superseded), all 24 members re-hashed.
->   Full detection, gate, build, archive and proof evidence is in `_r913` and the running report. G461.
-> - Second office host typed readings: 171 transition entries, off-window 16. Export omission confirmed; aggregate counts
->   alone do not independently identify the particular two pixels/frames. Journal: `docs/sessions/2026-10-03-091-03-annotation-transitions.md`.
->   Report: `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`.
+> **091-03, 2026-10-03 — STRICT TAIL GATE FAILS 16; 256-FRAME CANDIDATE AWAITING REBUILD/PROOF; NO PUSH.**
+> Schema 2.1 exports exact event transition indices/reason counts and the session union. Capture-view AA/upscaler
+> evidence is refreshed each frame; unknown is temporal. Actual candidate files agree exactly.
+> - Initial built Source: fix `1df4d26` (`7B943716`), m53 `3f4f1c7` (`2468CB8D`), proxy `8131578` (`516CBFDF`).
+>   Normal Editor/Game all 0/0; proxy strict 0/0, 68 header TUs/target; archives re-hashed. These retain default 16.
+> - Actual strict-tail failures: proxy TSR PIE +44 / staged +46; UV TSR PIE +45; normal +18. No missing measured masks.
+>   TAA PIE long diagnostic ends at +203. All those frames must be excluded, beyond the kit's older half-strength rule.
+> - Candidate now sets off default/cap 256 and preserves generic fire-window history across capture boundaries.
+>   Pure 315 checks and six mutants pass. Final-source builds and the full proof matrix are still required.
+> - Staged TAA null validation and MainWorld hold color-reference measurement were unjudged, retained as failures.
+>   A settled clean control and a copied static unique-texture hold fixture address measurement setup without a numeric tolerance.
+> - Office kit 93 checks pass on both decoders. Actual 16-window proxy TSR capture passes the old 50% kit at 0/0 while
+>   failing the new strict tail gate. Annotation-doctored files fail equality and are refused by the kit.
+> - The 15:05 ruling resolves AA off: zero temporal reasons/windows; preserve PIE settle and every independent reason.
+>   Typed second-office readings: 171 transition entries, off 16. Export omission is the direct reported cause.
+> - Journal `docs/sessions/2026-10-03-091-03-annotation-transitions.md`, G461, evidence `E:\IA_BuildCache\_r913`.
+>   Report `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`.
 >
+
 > ---
 
 > **091-02, 2026-10-03 — INCLUDE COMPATIBILITY BUILT; OFFICE DELIVERY HELD (NEEDS-DECISION).**

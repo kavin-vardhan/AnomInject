@@ -938,23 +938,26 @@ frame or two after it starts, and linger for a few frames after it ends. We meas
 with anti-aliasing off the labels and pixels agree exactly at both ends; with TAA the blur reaches its
 midpoint about **2 frames** after a blurry-texture event starts, falls below half of its depth **4 to 8 frames**
 after it ends, and a faint trace (5–45 % of the depth) can linger to **13–29 frames** after it ends. That is
-why a `stuck_low_mip` event now flags **16** frames after its last labelled frame (it was 8 in earlier builds).
+why older builds flagged 16 frames. The stricter 091-03 clean-reference measurement found a TSR tail up to 46
+frames and a TAA PIE tail of 203 frames on the detailed home fixture. The candidate default is now **256**
+post-label frames, with the configuration cap also 256. Final proof and its exact scope are in the 091-03 journal;
+the historical half-strength results below are not a strict clean-reference guarantee.
 
 Rather than move a label off the exact render, those frames carry an extra key, **`transition: 1`**, on
 the anomaly's entry, and the frame carries **`transition_present: true`**:
 
-| Case | `transition_reason` | Which frames | The entry | Sets `anomaly_present`? | In `annotation.json`? |
+| Case | `transition_reason` | Which frames | The entry | Sets `anomaly_present`? | In positive frame lists? |
 | --- | --- | --- | --- | --- | --- |
-| `stuck_low_mip` start | `temporal_aa` | the event's first **3** labelled frames | the normal entry, plus `transition: 1` | yes | yes |
-| `stuck_low_mip` end | `temporal_aa` | the **16** captured frames after its last labelled frame | a transition-only entry (`target_pixels` −1, `observable` null; the frame's target mask does not include it) | **no** | **no** |
+| `stuck_low_mip`, UV/normal and other fire-window events: start | `temporal_aa` | the event's first **3** labelled frames | the normal entry, plus `transition: 1` | yes | yes |
+| `stuck_low_mip`, UV/normal and other fire-window events: end | `temporal_aa` | the **256** captured frames after its last labelled frame | a transition-only entry (`target_pixels` −1, `observable` null; the frame's target mask does not include it) | **no** | **no** |
 | `blinking`, `missing_object` | `hide_return` | the **first** captured frame after the object reappears | `transition: 1` (inside a `blinking` burst this is on the burst's own entry; after the event ends it is a transition-only entry) | only if the event is still running, as before | no |
 | `stuck_low_mip`, either edge | `partial` | every labelled frame whose **render record** shows the held textures only part of the way down — some at their held (blurry) level, others still sharp. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
 | `stuck_low_mip`, any labelled frame | `unresolved` | a labelled frame whose render record cannot say whether the whole set is held — a texture's level could not be read, its held level is unknown, or the frame has no texture record — and no texture it *can* read proves the set partial. **With or without anti-aliasing.** | the normal entry, plus `transition: 1` | yes | yes |
 | `camera_clipping` | `camera_clipping_unconfirmed` | a labelled frame where the geometry inside the clipped slab could not be confirmed triangle by triangle (see §8.6b) | the normal entry, plus `transition: 1` | yes | yes |
 | `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption`, `stuck_low_mip` proxy | `effect_interrupted` | every captured frame of a running event on which **none** of the slots it replaced still renders its material (for UV, normal and proxy blur: our material with its private texture copies still bound), judged on the object as it renders now: the mesh component still registered and visible, the slot still present on its current mesh, and our material still the one that slot resolves to. Causes: reverted early (for example by a manual `IAI.Revert`), the game replaced the material (a damage flash, a material swap), hid the component or swapped its mesh, or the object was removed. If the game replaced only **some** of the slots, the frame stays labelled (the object still shows the effect) and is counted in `run_summary.label_effect_partial_frames`. Checked on every captured frame, at the same point as the label itself. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask is drawn for it) | **no** | **no** |
 | any anomaly on an object | `nanite_unmaskable` | with `IAI.Targets.AllowNanite 0` (the default), every frame on which the object draws a Nanite part — one that appeared while the event ran (a component added or made visible, a mesh change). The event is reverted at the next tick. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
-| any anomaly | `capture_unpaired` | every frame captured by the **synchronous** path: `IAI.Capture.Async 0`, or, with `IAI.Capture.SVE 0` (the UI-on option), a frame on which the game-viewport rectangle could not be found. That path reads the picture the game presented **before** the current tick while the anomaly state is read **during** it, so a change made in that tick is in the label and not in the picture. **With or without anti-aliasing. Never with the shipped settings** (asynchronous capture on, scene-colour capture on). | a transition-only entry on every anomaly of the frame (`labelled: false`, no target mask), plus row-level `capture_unpaired: true`; the frame is never listed in `annotation.json` | **no** | **no** |
-| `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption`, `stuck_low_mip` proxy (every fire-window type) | `pie_end_settle` | **Play In Editor only:** the first captured frame after each labelled run of the event. It is a precaution, not a correction: an earlier reading suggested that in PIE the picture stayed changed one frame after the label ended, and that reading was traced to the checking tool, not the labels (it compared against `affected_frames`, which leaves out a labelled frame whose target mask was not measured; against `injected_frames` no event ended late). The flag only marks a frame that is already unlabelled, so keeping it costs one frame per event in PIE and nothing else. **Never in a packaged or staged game**; `run_summary.json` says whether the capture ran in PIE (`pie_end_settle_active`) and counts the frames (`pie_end_settle_frames`). | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
+| any anomaly | `capture_unpaired` | every frame captured by the **synchronous** path: `IAI.Capture.Async 0`, or, with `IAI.Capture.SVE 0` (the UI-on option), a frame on which the game-viewport rectangle could not be found. That path reads the picture the game presented **before** the current tick while the anomaly state is read **during** it, so a change made in that tick is in the label and not in the picture. **With or without anti-aliasing. Never with the shipped settings** (asynchronous capture on, scene-colour capture on). | a transition-only entry on every anomaly of the frame (`labelled: false`, no target mask), plus row-level `capture_unpaired: true`; the frame is excluded from positive lists and included in schema 2.1 `transition_frames` | **no** | **no** |
+| `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption`, proxy-route `stuck_low_mip` (every fire-window type) | `pie_end_settle` | **Play In Editor only:** the first captured frame after each labelled run of the event. It is a precaution, not a correction: an earlier reading suggested that in PIE the picture stayed changed one frame after the label ended, and that reading was traced to the checking tool, not the labels (it compared against `affected_frames`, which leaves out a labelled frame whose target mask was not measured; against `injected_frames` no event ended late). The flag only marks a frame that is already unlabelled, so keeping it costs one frame per event in PIE and nothing else. **Never in a packaged or staged game**; `run_summary.json` says whether the capture ran in PIE (`pie_end_settle_active`) and counts the frames (`pie_end_settle_frames`). | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
 | every other anomaly | — | none | — | — | — |
 
 - **`partial` is not an anti-aliasing effect.** A blurry-texture event holds several textures of one object (for
@@ -987,19 +990,20 @@ the anomaly's entry, and the frame carries **`transition_present: true`**:
 
 **What to do with each reason:**
 
-| `transition_reason` | What the frame is | For a strict training set | For a larger, noisier set |
-| --- | --- | --- | --- |
-| `temporal_aa` | the anti-aliasing history may still show the previous state (onset) or a fading copy (the 16 frames after a `stuck_low_mip` event) | drop the frame | keep the onset frames as positives (the effect is applied); keep the after-frames as negatives only if you accept a faint ghost |
-| `hide_return` | the first frame after a hidden object reappears; the history may still show it missing | drop the frame | treat as negative (the object is back) |
-| `partial` | `stuck_low_mip` is applied to only part of the object's textures | drop the frame | keep as a positive — the effect is real but weaker |
-| `unresolved` | `stuck_low_mip` is applied, but the record cannot say whether to all of the object's textures | drop the frame | keep as a positive — the effect is applied, its extent is unknown |
-| `camera_clipping_unconfirmed` | the clipping label rests on bounding boxes only (see §8.6b) and may be an over-label | drop the frame | keep as a positive only if you accept some false positives |
-| `effect_interrupted` | the event is still running but none of the slots it replaced renders its material on this frame. The effect may be fully or partly gone (a fading trace under temporal anti-aliasing, or parts of the object we did not record) | drop the frame | drop the frame — never use it as a negative |
-| `nanite_unmaskable` | the object now draws a Nanite part, so no mask can be made for it; the effect is reverted at the next tick | drop the frame | drop the frame — never use it as a negative |
-| `capture_unpaired` | captured by the synchronous path: the picture may be one game tick older than the label | drop the frame | drop the frame — never a positive, never a negative |
-| `pie_end_settle` | Play In Editor only: the frame right after a label ends, which may still show the effect | drop the frame | drop the frame — never a positive, never a negative; it is not an anti-aliasing flag and covers only its own frame |
+| `transition_reason` | What the frame is | Training use (schema 2.1) |
+| --- | --- | --- |
+| `temporal_aa` | the anti-aliasing history may still show the previous state (onset) or a fading copy (the 16 frames after a `stuck_low_mip` event) | drop the frame |
+| `hide_return` | the first frame after a hidden object reappears; the history may still show it missing | drop the frame |
+| `partial` | `stuck_low_mip` is applied to only part of the object's textures | drop the frame |
+| `unresolved` | `stuck_low_mip` is applied, but the record cannot say whether to all of the object's textures | drop the frame |
+| `camera_clipping_unconfirmed` | the clipping label rests on bounding boxes only (see §8.6b) and may be an over-label | drop the frame |
+| `effect_interrupted` | the event is still running but none of the slots it replaced renders its material on this frame. The effect may be fully or partly gone (a fading trace under temporal anti-aliasing, or parts of the object we did not record) | drop the frame |
+| `nanite_unmaskable` | the object now draws a Nanite part, so no mask can be made for it; the effect is reverted at the next tick | drop the frame |
+| `capture_unpaired` | captured by the synchronous path: the picture may be one game tick older than the label | drop the frame |
+| `pie_end_settle` | Play In Editor only: the frame right after a label ends, which may still show the effect | drop the frame |
 
-A frame can carry more than one reason; apply the strictest one that is present.
+A frame can carry more than one reason. Drop every transition frame from training: never use it as a positive or a negative.
+All the transition rows above appear in schema 2.1 `transition_frames`, including rows outside the positive lists.
 
 **The synchronous capture path is unsupported for delivery.** The shipped defaults (asynchronous capture and
 scene-colour capture both on, no ini key needed) never reach it; it is reached only by `IAI.Capture.Async 0`, or by
@@ -1008,27 +1012,29 @@ writes is flagged `capture_unpaired` as above, so a capture taken that way deliv
 path; `run_summary.json` counts them in `capture_unpaired_frames`, and the log prints one
 `CAPTURE-UNPAIRED` warning per run. If that count is not 0 on a capture meant for delivery, the capture settings
 were changed: restore them and capture again.
-- **Only under temporal anti-aliasing** (for `temporal_aa` and `hide_return`). The game's anti-aliasing method is read when the capture starts,
-  from `r.AntiAliasingMethod`, and reported in `run_summary.json` as `label_aa_method`
-  (`none`/`fxaa`/`taa`/`msaa`/`tsr`) and `label_temporal_aa`. Without TAA or TSR those two reasons never
-  appear (`partial`, `unresolved`, `camera_clipping_unconfirmed`, `effect_interrupted`, `nanite_unmaskable` and `capture_unpaired` still can). ⚠ The method is read once per capture; a project that disables anti-aliasing only through a
-  show flag or a camera setting is still reported by the console value.
+- **Capture-time temporal detection** (for `temporal_aa` and `hide_return`). Each scene-colour capture carries the rendered
+  view's AA method and temporal-upscaler evidence. Engine defaults are also re-read during the run, including the mobile
+  feature-level path. TAA, TSR, a registered temporal upscaler or missing/unknown evidence enables temporal flags.
+  Once observed, temporal protection stays on to run end so changing AA cannot erase a pending tail. This can add
+  exclusions after a method change. `label_temporal_source` records the evidence; `label_aa_method` and `label_temporal_aa`
+  report the method and effective temporal state. A confirmed AA-off run has zero temporal reasons/windows; independent
+  reasons such as `partial`, `capture_unpaired` and PIE-only `pie_end_settle` still export exactly.
 - **Across captures:** if a capture stops while a transition is still owed, the next capture's first frames
   carry it (counted in `label_transition_tracks_carried_in` and `label_hide_tracks_carried_in`), and so do the
   captures after that while it is still owed — a short capture in between, or one that wrote no frames, passes it
   on. This treats the gap between captures as zero frames, which can only add flagged frames, never remove a label.
-- **The numbers are 3 / 16 / 1** under temporal anti-aliasing and **0 / 0 / 0** without it (ruled for this build;
-  earlier builds used 3 / 8 / 1). They are console variables —
+- **The numbers are 3 / 256 / 1** under temporal anti-aliasing and **0 / 0 / 0** without it (091-03 measured offset;
+  earlier builds used 3 / 16 / 1 and 3 / 8 / 1). They are console variables —
   `IAI.Label.TransitionOnFrames`, `IAI.Label.TransitionOffFrames`, `IAI.Label.TransitionHideFrames`
-  (any negative value = the default; a value of 0 or more replaces it, capped at 64; without TAA or TSR all three
+  (any negative value = the default; a value of 0 or more replaces it, capped at 256; without temporal or unknown evidence all three
   are 0 whatever is set) — and each capture reports the values it used in
   `run_summary.json` (`label_transition_on_frames`, `_off_frames`, `_hide_frames`, plus the `_cvar` values as set).
-  The 16 is deliberately generous: the fade-out is usually gone by 8 frames, but a faint trace can outlast that,
-  and an extra flagged frame costs you one frame while a missed one puts a blurry frame in your negatives.
-- **How to use it:** for a strict training set, drop or down-weight frames with `transition_present`.
-  What we have proven about the frames without it is the release rule of §8.7a (the half-strength edge), not
-  pixel-for-pixel agreement: under temporal anti-aliasing a faint trace of an ended event can outlast its flagged
-  frames, and the start of an event can be up to a frame or two short of its full strength.
+  The 256 covers the measured 203-frame TAA PIE tail with margin. The previous 16-frame default failed the
+  strict home tail gate. This is a conservative exclusion window, not 256 additional positive labels.
+- **How to use it:** drop the union of schema 2.1 `transition_frames` before assigning training positives or negatives (§8.7).
+  The historical half-strength gate in §8.7a remains useful for label edges. The 091-03 tail gate separately
+  compares target pixels to an independent clean reference and measured clean-to-clean null; its final results
+  and unjudged cases are recorded in the journal. Do not infer a strict tail pass from a half-strength pass.
 - `run_summary.json` also counts `label_transition_entries`, `label_transition_frames` and
   `label_entries_suppressed` (entries withheld because they were not labelled on that frame), the entries per
   reason (`label_transition_temporal_aa_entries`, `_hide_return_entries`, `_partial_entries`,
@@ -1195,9 +1201,9 @@ What the rule does **not** establish, stated rather than implied:
 "Our bench level" is a purpose-built test level of simple shapes; "our large test level" is the main level of the
 sample game we develop on, with ordinary game scenery. "Natural" and "synthetic" order are the two orders in which the
 engine can update the game and the plugin within one frame (a game can use either); the synthetic order is forced with a
-bench switch. **Every capture below ran at 1280×720, paced at 30 frames a second, on our own machine; "AA on" means the
+bench switch. **This historical table predates 091-03. Every capture below ran at 1280×720, paced at 30 frames a second, on our own machine; "AA on" means the
 engine's TSR (`r.AntiAliasingMethod 4`) and "AA off" means method 0. Plain TAA (method 2), other resolutions and the
-office hosts have not been run yet.** The table lists exactly the combinations that were run and passed — a combination
+office hosts were not part of that historical table.** The 091-03 journal separately records the new TAA/TSR captures and their resolutions. The table lists exactly the combinations that were run and passed — a combination
 not listed was not run.
 
 | Anomaly | Captures that passed (content · tick order · anti-aliasing) | For a strict training set, drop frames carrying |
@@ -1206,7 +1212,7 @@ not listed was not run.
 | `missing_object` | large test level · natural and synthetic · AA on; large test level · natural · AA off | `hide_return` (temporal AA only) |
 | `missing_texture` | large test level · natural and synthetic · AA on; bench level · natural and synthetic · AA on | `effect_interrupted` (none occurred in these captures; see §8.6a) |
 | `corrupted_texture` | large test level · natural and synthetic · AA on | `effect_interrupted` (none occurred in these captures) |
-| `stuck_low_mip` | large test level (one object with its own textures) · natural · AA on, targeted and in an Auto-pool run; the same object · natural · AA off | `partial` and `unresolved` (an event's first labelled frames), and `temporal_aa` (its first 3 labelled frames and the **16** frames after its last one; temporal AA only) |
+| `stuck_low_mip` | large test level (one object with its own textures) · natural · AA on, targeted and in an Auto-pool run; the same object · natural · AA off | `partial` and `unresolved` (an event's first labelled frames), and `temporal_aa` (its first 3 labelled frames and the current **256** frames after its last one; temporal AA only) |
 | `camera_clipping` | bench level with a scripted camera, judged on the **confirmed** frames · natural and synthetic · AA on; natural · AA off | `camera_clipping_unconfirmed` (over-labels by design — on our bench those frames showed no slice at all) |
 | `lod_popping` | a purpose-built test object whose detail levels differ strongly, about 23 pops per capture · natural and synthetic · AA on and AA off | nothing |
 | `uv_corruption` (`tile`, `scramble`) | a purpose-built test object (`TC_UC1`), one capture per mode · natural and synthetic · AA on; natural · AA off; and a second, natural AA-on capture per mode. Each capture: **16 complete events, plus 1 whose end runs past the end of the capture (its start is checked, its end cannot be)**. **Not yet checked on ordinary scenery** (§8.8) | `effect_interrupted` (none occurred in these captures) |
@@ -1223,8 +1229,8 @@ What each row leaves open, stated rather than implied:
   event's first labelled frames can show only part of the blur. On our bench that was **2 frames per event** (3 in the
   capture built to recycle mask values, **up to 5** on the first event after the game starts), each flagged `partial`.
   The label is right that the event has begun; the flag says the picture shows only part of it. With temporal AA the
-  blur **fell below half strength 4 to 6 frames** after the label's last frame on the bench, well inside the 16 flagged
-  frames (a faint trace can last longer, §8.6a); with AA off it fell below half strength on exactly the label's last
+  blur **fell below half strength 4 to 6 frames** after the label's last frame on the bench, inside the then-current 16 flagged
+  frames. The current strict-tail policy is wider (§8.6a); with AA off it fell below half strength on exactly the label's last
   frame.
 - **`stuck_low_mip` — how often it fires depends on your content.** It holds only textures that exactly one object uses
   (the Capture pool panel, section 4), so on scenes that share textures it fires rarely, and it is **off in Auto-pool by

@@ -129,15 +129,15 @@ static TAutoConsoleVariable<int32> GStuckMipSettleTailFrames(TEXT("IAI.StuckMip.
 	TEXT("its baseline. Default 0. It exists for one measured case only: a residual that temporal history (anti-")
 	TEXT("aliasing) carries past the restore. Read at the start of each capture run; the effective value is echoed."));
 static TAutoConsoleVariable<int32> GLabelTransitionOnFrames(TEXT("IAI.Label.TransitionOnFrames"), -1,
-	TEXT("labels.jsonl transition flag: the first N labelled frames of a stuck_low_mip event carry transition=1. Applies ONLY ")
-	TEXT("under a temporal anti-aliasing method (TAA or TSR, read from r.AntiAliasingMethod at run start); without one the ")
+	TEXT("labels.jsonl transition flag: the first N labelled frames of a held-window or fire-window event carry transition=1. Applies ")
+	TEXT("when capture-time view/default evidence is temporal or unknown; without temporal or unknown evidence the ")
 	TEXT("effective value is 0. -1 (default) = 3 (ruled 084-05b). Read at the start of each capture run; echoed and ")
 	TEXT("written to run_summary.label_transition_on_frames. The 'partial' reason (held set part-way to its held level) is ")
 	TEXT("independent of this value and of anti-aliasing."));
 static TAutoConsoleVariable<int32> GLabelTransitionOffFrames(TEXT("IAI.Label.TransitionOffFrames"), -1,
-	TEXT("labels.jsonl transition flag: the N captured frames after the last labelled frame of a stuck_low_mip event carry ")
-	TEXT("an entry with transition=1 that does NOT set anomaly_present. Temporal AA only (0 without it). -1 (default) = 16 ")
-	TEXT("(ruled 089-01). Read at run start; echoed and written to run_summary.label_transition_off_frames."));
+	TEXT("labels.jsonl transition flag: the N captured frames after the last labelled frame of a held-window or fire-window event carry ")
+	TEXT("an entry with transition=1 that does NOT set anomaly_present. Temporal or unknown AA only (0 when confirmed off). -1 (default) = 256 ")
+	TEXT("(091-03 measured tail plus margin). Override read at run start; effective value refreshed during capture and written to run_summary.label_transition_off_frames."));
 static TAutoConsoleVariable<int32> GLabelTransitionHideFrames(TEXT("IAI.Label.TransitionHideFrames"), -1,
 	TEXT("labels.jsonl transition flag for hide anomalies (blinking, missing_object): the first N captured frames after the ")
 	TEXT("object returns carry transition=1. Temporal AA only (0 without it). -1 (default) = 1. Read at run start; echoed ")
@@ -425,6 +425,7 @@ struct FAnomalyCaptureAsyncState
 		bool bDetachedTail = false;
 	};
 	TArray<FCarriedTransition> CarriedTransitions;
+	TMap<FString, FFireWindowTrack> CarriedFireWindowTracks;
 	TMap<FString, FHideTrack> CarriedHideTracks;
 	TArray<FAutoLiveFireInfo> CarriedTailFires;
 	int32 CarriedTransitionTracksIn = 0;
@@ -7776,6 +7777,7 @@ static void CountEntryReasons(const AnomalyLabel::FCaptureSnapshot& Snap, int32*
 static void CarryLabelSyncAcrossRun(FAnomalyCaptureAsyncState& A, int32 LastSI)
 {
 	A.CarriedTransitions.Reset();
+	A.CarriedFireWindowTracks.Reset();
 	A.CarriedHideTracks.Reset();
 	for (const TPair<FString, AnomalyLabelSync::FEventTransitionTrack>& KV : A.TransitionTracks)
 	{
@@ -7799,6 +7801,15 @@ static void CarryLabelSyncAcrossRun(FAnomalyCaptureAsyncState& A, int32 LastSI)
 		C.bDetachedTail = D.bDetachedTail;
 		A.CarriedTransitions.Add(MoveTemp(C));
 	}
+	for (const TPair<FString, FAnomalyCaptureAsyncState::FFireWindowTrack>& KV : A.FireWindowTracks)
+	{
+		if (AnomalyLabelSync::ShouldCarryTransitionTrack(KV.Value.Track, LastSI, A.LabelOffFrames, false))
+		{
+			auto C = KV.Value;
+			C.Track = AnomalyLabelSync::CarryTransitionTrack(KV.Value.Track, LastSI);
+			A.CarriedFireWindowTracks.Add(KV.Key, MoveTemp(C));
+		}
+	}
 	for (const TPair<FString, FAnomalyCaptureAsyncState::FHideTrack>& KV : A.HideTracks)
 	{
 		if (AnomalyLabelSync::ShouldCarryHideTrack(KV.Value.Track))
@@ -7806,13 +7817,13 @@ static void CarryLabelSyncAcrossRun(FAnomalyCaptureAsyncState& A, int32 LastSI)
 			A.CarriedHideTracks.Add(KV.Key, KV.Value);
 		}
 	}
-	if (A.CarriedTransitions.Num() > 0 || A.CarriedHideTracks.Num() > 0)
+	if (A.CarriedTransitions.Num() > 0 || A.CarriedFireWindowTracks.Num() > 0 || A.CarriedHideTracks.Num() > 0)
 	{
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(labelsync): CARRY AT RUN END lastSI=%d - %d transition track(s) and %d hide track(s) still owe transition ")
 			TEXT("frames. The next run adopts them rebased so its first frames continue the same history (the boundary is ")
 			TEXT("treated as uninterrupted, which can only add flagged frames, never remove a label)."),
-			LastSI, A.CarriedTransitions.Num(), A.CarriedHideTracks.Num());
+			LastSI, A.CarriedTransitions.Num() + A.CarriedFireWindowTracks.Num(), A.CarriedHideTracks.Num());
 	}
 }
 
@@ -7832,7 +7843,13 @@ static void AdoptCarriedLabelSync(FAnomalyCaptureAsyncState& A)
 		A.HideTracks.Add(KV.Key, KV.Value);
 		++A.CarriedHideTracksIn;
 	}
+	for (const TPair<FString, FAnomalyCaptureAsyncState::FFireWindowTrack>& KV : A.CarriedFireWindowTracks)
+	{
+		A.FireWindowTracks.Add(KV.Key, KV.Value);
+		++A.CarriedTransitionTracksIn;
+	}
 	A.CarriedTransitions.Reset();
+	A.CarriedFireWindowTracks.Reset();
 	A.CarriedHideTracks.Reset();
 }
 
