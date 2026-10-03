@@ -1,4 +1,5 @@
 #include "AnomalyHiddenClass.h"
+#include "Components/ActorComponent.h"
 
 #include "AnomalyInjectorLog.h"
 

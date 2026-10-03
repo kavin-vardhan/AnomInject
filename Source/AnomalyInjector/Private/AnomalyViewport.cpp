@@ -1,4 +1,5 @@
 #include "AnomalyViewport.h"
+#include "CollisionShape.h"
 
 #include "AnomalyNearClipSlab.h"
 #include "AnomalyTargeting.h"

@@ -1,4 +1,26 @@
 #include "AnomalyCaptureSubsystem.h"
+#include "Components/ActorComponent.h"
+#include "Components/PrimitiveComponent.h"
+#include "Components/SceneComponent.h"
+#include "Engine/EngineBaseTypes.h"
+#include "Engine/Scene.h"
+#include "Engine/Texture.h"
+#include "Layout/Geometry.h"
+#if __has_include("Stats/LightweightStats.h")
+#include "Stats/LightweightStats.h"
+#endif
+#include "Stats/Stats.h"
+#if __has_include("Stats/StatsSystemTypes.h")
+#include "Stats/StatsSystemTypes.h"
+#endif
+#include "Subsystems/SubsystemCollection.h"
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
+#if __has_include("UObject/StrongObjectPtrTemplates.h")
+#include "UObject/StrongObjectPtrTemplates.h"
+#endif
 
 #include "AnomalyCaptureLog.h"
 #include "AnomalyBenchGate.h"

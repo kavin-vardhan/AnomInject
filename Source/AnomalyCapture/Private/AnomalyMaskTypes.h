@@ -1,6 +1,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 struct FAnomalyChangeReceipt;
 
 static constexpr int32 GAnomalyMaskDrawnUnmeasured = -1;

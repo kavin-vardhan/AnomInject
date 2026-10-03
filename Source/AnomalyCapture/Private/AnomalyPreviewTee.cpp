@@ -1,4 +1,8 @@
 #include "AnomalyPreviewTee.h"
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 
 #if ANOMALY_CAPTURE
 

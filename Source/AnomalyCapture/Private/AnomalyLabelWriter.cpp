@@ -1,4 +1,10 @@
 #include "AnomalyLabelWriter.h"
+#include "HAL/CriticalSection.h"
+#include "PixelFormat.h"
+#if __has_include("Templates/SharedPointerFwd.h")
+#include "Templates/SharedPointerFwd.h"
+#endif
+#include "Templates/SharedPointerInternals.h"
 
 #include "AnomalyCaptureLog.h"
 
