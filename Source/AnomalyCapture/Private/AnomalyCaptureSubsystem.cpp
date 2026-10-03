@@ -367,6 +367,7 @@ struct FAnomalyCaptureAsyncState
 	struct FHideTrack
 	{
 		FAutoLiveFireInfo Fire;
+		AnomalyLabel::FFrozenFireGeometry Geometry;
 		AnomalyLabelSync::FHideReturnTrack Track;
 	};
 	TMap<FString, FHideTrack> HideTracks;
@@ -4858,6 +4859,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		const FString ImageName = FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), Snap->SessionIndex, Ext);
 		int32 NumLabels = 0;
 		FillAnnotationInputs(*Snap);
+		StepHideTransitions(*Snap);
 		StepFireWindowTransitions(*Snap);
 		if (AnomalyLabel::FrameHasPartialLabelledEntry(*Snap))
 		{
@@ -5977,7 +5979,6 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 		Snap->FireLabelled.Add(IsFireLabelledThisFrame(F) ? 1 : 0);
 	}
 	RefreshLabelTemporalState(nullptr);
-	StepHideTransitions(*Snap);
 	FreezeSampleGeometry(*Snap);
 
 	{
@@ -7618,7 +7619,7 @@ void UAnomalyCaptureSubsystem::StepFireWindowTransitions(AnomalyLabel::FCaptureS
 
 void UAnomalyCaptureSubsystem::StepHideTransitions(AnomalyLabel::FCaptureSnapshot& Snap)
 {
-	if (!Async.IsValid() || Async->LabelHideFrames <= 0)
+	if (!Async.IsValid())
 	{
 		return;
 	}
@@ -7635,6 +7636,7 @@ void UAnomalyCaptureSubsystem::StepHideTransitions(AnomalyLabel::FCaptureSnapsho
 		Seen.Add(Key);
 		FAnomalyCaptureAsyncState::FHideTrack& H = Async->HideTracks.FindOrAdd(Key);
 		H.Fire = F;
+		if (Snap.FireGeometry.IsValidIndex(i)) { H.Geometry = Snap.FireGeometry[i]; }
 		const bool bHidden = Snap.FireLabelled.IsValidIndex(i) && Snap.FireLabelled[i] != 0;
 		if (AnomalyLabelSync::StepHideLive(H.Track, bHidden, Async->LabelHideFrames))
 		{
@@ -7655,7 +7657,7 @@ void UAnomalyCaptureSubsystem::StepHideTransitions(AnomalyLabel::FCaptureSnapsho
 		{
 			FAutoLiveFireInfo Returned = It.Value().Fire;
 			Returned.SecondsRemaining = 0;
-			AddTransitionFire(Snap, MoveTemp(Returned), AnomalyLabelSync::ReasonHideReturn);
+			AddTransitionFire(Snap, MoveTemp(Returned), AnomalyLabelSync::ReasonHideReturn, &It.Value().Geometry);
 		}
 		if (AnomalyLabelSync::HideTrackDone(It.Value().Track))
 		{

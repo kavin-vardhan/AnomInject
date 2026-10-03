@@ -26,7 +26,7 @@ import tempfile
 import time
 import zlib
 
-KIT_VERSION = "1.4"
+KIT_VERSION = "1.5"
 EVALUATOR = "090-10e"
 METHOD = ("086-01 per-frame change on the target silhouette; 084-06 edge-local references, stuck_low_mip "
           "sharpness path and transition-aware gate; 084-07 labelled and partial rules; 090-07 effect_interrupted "
@@ -2364,6 +2364,11 @@ def refuse_reason(d):
     sch = anno.get("label_schema")
     if sch is None or sch < 2:
         return "label schema 1"
+    if 'label_schema_minor' in anno or any('transition_frames' in e for e in anno.get('anomalies', [])):
+        from verify_capture import annotation_transition_check
+        errors, detail = annotation_transition_check(d)
+        if errors:
+            return "annotation transitions mismatch"
     if sync_only(os.path.join(d, "labels.jsonl")):
         return SYNC_ONLY
     if pie_outside(d):

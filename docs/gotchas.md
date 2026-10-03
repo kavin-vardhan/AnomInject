@@ -9078,3 +9078,16 @@ stats, material-parameter and postprocess-input definitions across all modules, 
 The legacy `RHIResources.h` also needs `RHI.h` first; the initial strict run caught that prerequisite and is retained as evidence.
 **Rule: a strict build proves its selected engine layout only. Inspect both defining headers, compile the supported local
 engine, and retain the separate home visual proof before office delivery.** The first office host's actual version remains unknown.
+
+## G461 — Transition flags must reach the session file; the AA default does not identify the rendered view
+*(091-03, source inspection.)* The old session writer exported no transition data, even when labels.jsonl already
+excluded a settling tail. Consumers using annotation.json therefore saw those frames as clean negatives. Export
+the same emitted entries, including detached tails and transition-only events; keep an event identity to distinguish
+successive fires on one actor. Compare actual files in both directions and show a doctored file failing.
+
+UE 5.1.1 reads a separate mobile AA default, applies show flags and view-state restrictions, and lets a registered
+third-party upscaler force temporal AA in the renderer after view-family setup. Runtime user/scalability settings
+can change subsequent views. The capture readback now carries its own postprocess view method and upscaler presence;
+missing/unknown evidence is temporal, and a temporal observation is retained to run end so a later AA change cannot
+erase pending exclusions. A default-only startup log is not a measurement of a captured frame. AA-off does not disable
+independent uncertainty reasons such as capture_unpaired or PIE settle. Pixel tail coverage still requires the engine proof.
