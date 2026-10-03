@@ -64,7 +64,8 @@ public:
 		EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
 		TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback = TUniquePtr<FRHIGPUTextureReadback>(),
 		const FAnomalyChangeReceipt& ChangeSubmission = FAnomalyChangeReceipt(),
-		TArray<FAnomalyRenderMipSample>&& RenderMips = TArray<FAnomalyRenderMipSample>(), bool bRenderRecord = false);
+		TArray<FAnomalyRenderMipSample>&& RenderMips = TArray<FAnomalyRenderMipSample>(), bool bRenderRecord = false,
+		int32 TemporalAaMethod = -1, bool bTemporalViewKnown = false, bool bTemporalUpscaler = false);
 
 	int32 GetDualPathComparisons() const;
 	int32 GetDualPathMismatches() const;
@@ -94,6 +95,9 @@ private:
 		FAnomalyChangeReceipt ChangeSubmission;
 		TArray<FAnomalyRenderMipSample> RenderMips;
 		bool bRenderRecord = false;
+		int32 TemporalAaMethod = -1;
+		bool bTemporalViewKnown = false;
+		bool bTemporalUpscaler = false;
 	};
 
 	void CompareDualPath_RenderThread(FInFlight& Item, const FAnomalyCapturedFrame& OwnedFrame);

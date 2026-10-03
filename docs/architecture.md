@@ -1622,7 +1622,16 @@ unmeasured early-out, so a mask-blind frame cannot hide a lost condition. ⚠ It
 `ActorHidden` and `AnomalyState` ids — only the two texture types have a real override — and that is where
 its zero is a reading rather than blindness.
 
-**`annotation.json` schema v2** (root `label_schema: 2`): `affected_frames` is the **OBSERVABLE subset**
+**`annotation.json` schema v2.1** (root `label_schema: 2`, `label_schema_minor: 1`): per-event `event_id` joins the
+per-frame entry, `transition_frames` contains its sorted unique settling/uncertainty frames, and `transition_reasons`
+counts every emitted reason. Root `transition_frame_count` counts the session union. Detached and transition-only
+events survive as exclusions, including when positive membership was vetoed. They never become positive members.
+The writer uses the same emission/reason predicates as the per-frame labels. `verify_capture.py --label-rule` and
+office kit 1.5 compare the two files. Temporal evidence travels with each SVE readback from the postprocess view;
+missing evidence fails safe and temporal protection stays latched through run end. Fire-window types share the
+3/16 onset/offset policy. The home pixel proof for this release is recorded separately in session 091-03.
+
+`affected_frames` is the **OBSERVABLE subset**
 (+ `span_frame_count`); **`injected_frames`** keeps the pre-m49 subset unchanged; plus
 `observable_frame_count`, `unmeasured_frame_count`, `observability_measured`. When nothing in an event was
 measured, `observability_measured` is `false` and `affected_frames` **falls back to the injected subset**

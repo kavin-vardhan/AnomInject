@@ -1,4 +1,5 @@
 #include "AnomalyLabelWriter.h"
+#include "Containers/Set.h"
 #include "HAL/CriticalSection.h"
 #include "PixelFormat.h"
 #if __has_include("Templates/SharedPointerFwd.h")
@@ -164,6 +165,7 @@ namespace
 		{
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
 			O->SetStringField(TEXT("id"), F.Id.ToString());
+			O->SetStringField(TEXT("event_id"), AnomalyLabel::EventId(F));
 			O->SetStringField(TEXT("target_name"), F.Target);
 			if (bTargetMask)
 			{
@@ -730,6 +732,37 @@ namespace AnomalyLabel
 		return CountEntries(Snapshot.Fires.Num(), &Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires);
 	}
 
+	FString EventId(const FAutoLiveFireInfo& Fire)
+	{
+		return FString::Printf(TEXT("%s@%llu|%s"), *Fire.Id.ToString(), Fire.StartFrame, *Fire.Target);
+	}
+
+	void AccumulateTransitions(const FCaptureSnapshot& S, TMap<FString, FSessionTransition>& Events)
+	{
+		auto Add = [&](const FAutoLiveFireInfo& Fire, uint16 Bits)
+		{
+			FSessionTransition& E = Events.FindOrAdd(EventId(Fire));
+			E.Fire = Fire;
+			E.Frames.AddUnique(S.SessionIndex);
+			for (const TSharedPtr<FJsonValue>& Reason : ReasonValues(Bits != 0 ? Bits : AnomalyLabelSync::ReasonTemporal))
+			{
+				++E.Reasons.FindOrAdd(Reason->AsString());
+			}
+		};
+		for (int32 i = 0; i < S.Fires.Num(); ++i)
+		{
+			if (TransitionAt(&S.EntryEmit, &S.EntryTransition, i))
+			{
+				Add(S.Fires[i], ReasonsAt(&S.EntryEmit, &S.EntryTransition, i));
+			}
+		}
+		for (int32 i = 0; i < S.TransitionFires.Num(); ++i)
+		{
+			Add(S.TransitionFires[i], S.TransitionFireReasons.IsValidIndex(i)
+				? S.TransitionFireReasons[i] : AnomalyLabelSync::ReasonTemporal);
+		}
+	}
+
 	FFrozenFireGeometry FreezeFireGeometry(const FAutoLiveFireInfo& F)
 	{
 		const AActor* Actor = F.TargetActor.Get();
@@ -1291,6 +1324,7 @@ namespace AnomalyLabel
 			Root->SetStringField(TEXT("label_aa_method"), LabelSync->AaMethod);
 			Root->SetNumberField(TEXT("label_aa_method_cvar"), LabelSync->AaMethodValue);
 			Root->SetBoolField(TEXT("label_temporal_aa"), LabelSync->bTemporalAa);
+			Root->SetStringField(TEXT("label_temporal_source"), LabelSync->TemporalSource);
 			Root->SetNumberField(TEXT("label_transition_on_frames"), LabelSync->OnFrames);
 			Root->SetNumberField(TEXT("label_transition_off_frames"), LabelSync->OffFrames);
 			Root->SetNumberField(TEXT("label_transition_hide_frames"), LabelSync->HideFrames);
@@ -1422,7 +1456,14 @@ namespace AnomalyLabel
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetNumberField(TEXT("label_schema"), 2);
+		Root->SetNumberField(TEXT("label_schema_minor"), 1);
 		Root->SetStringField(TEXT("session_id"), A.SessionId);
+		TSet<int32> TransitionFrames;
+		for (const TPair<FString, FSessionTransition>& KV : A.Transitions)
+		{
+			for (int32 Frame : KV.Value.Frames) { TransitionFrames.Add(Frame); }
+		}
+		Root->SetNumberField(TEXT("transition_frame_count"), TransitionFrames.Num());
 
 		{
 			TSharedRef<FJsonObject> V = MakeShared<FJsonObject>();
@@ -1439,6 +1480,18 @@ namespace AnomalyLabel
 		for (const FSessionEvent& E : A.Events)
 		{
 			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+			O->SetStringField(TEXT("event_id"), E.EventId);
+			TArray<TSharedPtr<FJsonValue>> TransitionIndices;
+			TSharedRef<FJsonObject> TransitionReasons = MakeShared<FJsonObject>();
+			if (const FSessionTransition* T = A.Transitions.Find(E.EventId))
+			{
+				TArray<int32> Sorted = T->Frames;
+				Sorted.Sort();
+				for (int32 Frame : Sorted) { TransitionIndices.Add(LabelNum(Frame)); }
+				for (const TPair<FString, int32>& KV : T->Reasons) { TransitionReasons->SetNumberField(KV.Key, KV.Value); }
+			}
+			O->SetArrayField(TEXT("transition_frames"), TransitionIndices);
+			O->SetObjectField(TEXT("transition_reasons"), TransitionReasons);
 			O->SetStringField(TEXT("anomaly_type"), E.AnomalyType);
 			O->SetStringField(TEXT("anomaly_subtype"), E.AnomalySubtype);
 

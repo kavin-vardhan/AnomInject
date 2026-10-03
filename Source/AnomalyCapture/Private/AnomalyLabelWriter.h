@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Containers/Map.h"
 #include "HAL/CriticalSection.h"
 #if __has_include("Templates/SharedPointerFwd.h")
 #include "Templates/SharedPointerFwd.h"
@@ -127,6 +128,16 @@ namespace AnomalyLabel
 	};
 
 	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot);
+
+	struct FSessionTransition
+	{
+		FAutoLiveFireInfo Fire;
+		TArray<int32> Frames;
+		TMap<FString, int32> Reasons;
+	};
+
+	FString EventId(const FAutoLiveFireInfo& Fire);
+	void AccumulateTransitions(const FCaptureSnapshot& Snapshot, TMap<FString, FSessionTransition>& Events);
 
 	FFrozenFireGeometry FreezeFireGeometry(const FAutoLiveFireInfo& F);
 
@@ -277,6 +288,7 @@ namespace AnomalyLabel
 	struct FLabelSyncTelemetry
 	{
 		FString AaMethod;
+		FString TemporalSource;
 		int32 AaMethodValue = 0;
 		bool bTemporalAa = false;
 		int32 OnFramesConfigured = -1;
@@ -468,6 +480,7 @@ namespace AnomalyLabel
 
 	struct FSessionEvent
 	{
+		FString EventId;
 		FString AnomalyType;
 		FString AnomalySubtype;
 		TArray<int32> FrameIndices;
@@ -504,6 +517,7 @@ namespace AnomalyLabel
 		FString SessionId;
 		FSessionVideo Video;
 		TArray<FSessionEvent> Events;
+		TMap<FString, FSessionTransition> Transitions;
 	};
 
 	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& Annotation);

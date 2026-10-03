@@ -12,6 +12,8 @@ COMPLETION = [
     (CAP, "void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot("),
     (CAP, "void UAnomalyCaptureSubsystem::ResolveDetachedTransitionCandidates("),
     (CAP, "void UAnomalyCaptureSubsystem::ComputeRenderMembership("),
+    (CAP, "void UAnomalyCaptureSubsystem::StepHideTransitions("),
+    (CAP, "void UAnomalyCaptureSubsystem::StepFireWindowTransitions("),
     (LW, "FString BuildFrameLabelRecord("),
     (LW, "FString BuildLabelRecordForSnapshot("),
     (LW, "bool ProjectFrozenFireBox("),
@@ -33,8 +35,12 @@ ALLOWED = (
 )
 
 REQUIRED = [
-    (CAP, "void UAnomalyCaptureSubsystem::SampleDeferredActiveState(", ("StepHideTransitions(*Snap);\n\tFreezeSampleGeometry(*Snap);",),
-     "the tick-end sample freezes the geometry right after the hide transitions"),
+    (CAP, "void UAnomalyCaptureSubsystem::SampleDeferredActiveState(", ("RefreshLabelTemporalState(nullptr);\n\tFreezeSampleGeometry(*Snap);",),
+     "the tick-end sample freezes geometry before deferred transition resolution"),
+    (CAP, "void UAnomalyCaptureSubsystem::StepHideTransitions(", ("H.Geometry = Snap.FireGeometry[i];", "&It.Value().Geometry"),
+     "hide transitions use sampled geometry, including detached returns"),
+    (CAP, "void UAnomalyCaptureSubsystem::StepFireWindowTransitions(", ("T.Geometry = Snap.FireGeometry[i];", "&T.Geometry"),
+     "fire-window transitions use sampled geometry, including detached tails"),
     (CAP, "void UAnomalyCaptureSubsystem::FreezeSampleGeometry(", ("AnomalyLabel::FreezeSnapshotGeometry(Snap);", "FreezeEventAnchor(F);"),
      "the sample freezes every fire's box, transition and candidate boxes, position and event anchor"),
     (CAP, "void UAnomalyCaptureSubsystem::FillAnnotationInputs(", ("AnomalyLabel::ProjectSnapshotFireBox(Snap, i, Min, Max)",),
@@ -51,7 +57,7 @@ REQUIRED = [
 
 ABSENT = [
     (CAP, "void UAnomalyCaptureSubsystem::CaptureCurrentFrame(", ("AccumulateFrameEvents(",),
-     "a sync-path frame never reaches annotation.json"),
+     "a sync-path frame never reaches positive annotation membership"),
     (CAP, "void UAnomalyCaptureSubsystem::FinalizeArmedLabel(", ("GetActorLocation(",),
      "the fire position is no longer read at the end of the capture tick, before the sample"),
 ]
@@ -145,7 +151,9 @@ MUTANTS = {
                          "AnomalyViewport::ProjectActorBoundsToScreenRect(View, F.TargetActor.Get(), Min, Max);"),
     "r4_live_anchor": (CAP, "\t\t\t\tEv->NodePath = Anchor->NodePath;\n",
                        "\t\t\t\tEv->NodePath = F.TargetActor.Get() ? F.TargetActor.Get()->GetPathName() : Anchor->NodePath;\n"),
-    "r4_sample_not_frozen": (CAP, "StepHideTransitions(*Snap);\n\tFreezeSampleGeometry(*Snap);", "StepHideTransitions(*Snap);"),
+    "r4_sample_not_frozen": (CAP, "RefreshLabelTemporalState(nullptr);\n\tFreezeSampleGeometry(*Snap);", "RefreshLabelTemporalState(nullptr);"),
+    "r4_hide_live_geometry": (CAP, "H.Geometry = Snap.FireGeometry[i];", "H.Geometry = AnomalyLabel::FreezeFireGeometry(F);"),
+    "r4_tail_live_geometry": (CAP, "T.Geometry = Snap.FireGeometry[i];", "T.Geometry = AnomalyLabel::FreezeFireGeometry(Fire);"),
     "r4_sync_not_flagged": (CAP, "\tSyncFrame.bCaptureUnpaired = true;\n", "\n"),
     "r4_sync_not_marked": (CAP, "\tAnomalyLabel::MarkCaptureUnpaired(SyncFrame);\n", "\n"),
     "r4_record_labels_unpaired": (LW, "FireIndex != INDEX_NONE && !bCaptureUnpaired", "FireIndex != INDEX_NONE"),

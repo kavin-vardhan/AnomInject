@@ -803,6 +803,11 @@ single unbroken run.
 | Key | v1 meaning | v2 meaning | Additive? |
 | --- | --- | --- | --- |
 | `label_schema` (root) | *absent* | `2` — the version marker | **Added** |
+| `label_schema_minor` (root) | *absent* | `1` — additive transition export (schema 2.1) | **Added** |
+| `event_id` | *absent* | Stable join with the entry in `labels.jsonl`: anomaly id, engine start frame and target name. Separate fires on one target have separate ids. | **Added** |
+| `transition_frames` | *absent* | Sorted, unique session frame indices with `transition: 1` for this event, including onset, detached post-label tails and every transition reason. These can overlap `injected_frames` or lie outside it. Drop them from training: never use as negatives, never as positives. | **Added** |
+| `transition_reasons` | *absent* | Map from each reason to its count of emitted transition entries for this event. An entry can have several reasons; the counts need not sum to the frame count. | **Added** |
+| `transition_frame_count` (root) | *absent* | Number of distinct session frames carrying at least one transition entry; overlapping events count once. | **Added** |
 | `affected_frames` | the frames the anomaly was **applied** on | the frames the anomaly is judged **visible** on (a subset of `injected_frames`) | ⚠ **MEANING CHANGED** — same key, narrower set |
 | `affected_frames.frame_indices` | applied frames | visible frames | ⚠ **MEANING CHANGED** |
 | `affected_frames.start_frame` / `end_frame` | first / last **applied** frame | first / last **visible** frame | ⚠ **MEANING CHANGED** |
@@ -1056,6 +1061,22 @@ touch the slab, the plugin traces a grid of rays **inside the slab only** agains
 
 ### 8.7 The per-frame label, anomaly by anomaly — and how to build a training label from it
 
+**First exclude settling and uncertain frames.** In schema 2.1, drop the union of all events' `transition_frames`
+before assigning positives or negatives: **never use as negatives, never as positives**. This includes frames after
+an event's last label, when the picture can still be settling. `transition_reasons` explains the entries counted;
+`transition_frame_count` counts their session-wide union. These fields exactly mirror `transition: 1` in `labels.jsonl`,
+joined by `event_id`, including non-AA reasons such as `partial`, `capture_unpaired` and `pie_end_settle`. An event that
+only contributes exclusions can have empty positive frame lists. For an older annotation without these fields,
+use the per-frame transition entries; absence of the new fields does not prove the picture has settled.
+
+Temporal detection reads the AA method and registered temporal upscaler from the rendered view paired with each
+captured frame. Defaults are also re-read during capture, including the engine's mobile/forward selection. Unknown
+view evidence is treated as temporal. Once temporal history is detected it remains protected until that run ends,
+even if the game changes AA settings. `run_summary.label_temporal_source` and the EFFECTIVE log line show the observed
+view-method bit mask (bit 2 = TAA, bit 4 = TSR), upscaler, unknown evidence and default method. Confirmed AA-off runs
+retain zero temporal windows; non-AA uncertainty flags remain independent. UV/normal and other fire-window types
+now receive temporal onset and offset flags as well as the existing PIE settle flag.
+
 Five fields answer five different questions about one frame. Keep them apart:
 
 | Field | Level | The question it answers |
@@ -1105,8 +1126,9 @@ than "applied in this frame", use `affected_frames` instead, which is the measur
 `observability_measured` is `true`. Every other frame is **negative** for that type, including the active-but-not-labelled
 rows in the table above: the event is running but its effect is not in the picture. Take the box from the entry
 (`bbox_drawn_px` when it is not `null`, else `bbox_px`; the whole frame for `camera_clipping`) and the pixels from
-`target_mask/` via the entry's `mask_value`. Finally, handle uncertainty: drop (strict) or down-weight every frame with
-`transition_present`, using the per-reason guidance in §8.6a. Do not use `anomaly_present` on its own as a positive
+`target_mask/` via the entry's `mask_value`. Finally, handle uncertainty: drop every frame with
+`transition_present`, using the per-reason guidance in §8.6a. For training, schema 2.1 requires dropping the
+`transition_frames` union as described above, even where the event also has a positive label. Do not use `anomaly_present` on its own as a positive
 label — it says an event is running, not that its effect is on screen.
 
 ### 8.7a How far each label is proven, anomaly by anomaly — and which flags to drop
