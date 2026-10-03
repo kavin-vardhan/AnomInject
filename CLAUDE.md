@@ -11,29 +11,26 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **091-03, 2026-10-03 — FINAL-SOURCE STARTUP FAILED TWICE; NOTHING PUSHED (RED).**
-> Schema 2.1 exports exact event transition indices/reasons and the session union. Capture-view AA/upscaler
-> evidence refreshes every capture; unknown is temporal. Actual initial-candidate annotation and labels agree.
-> - Final built Source: fix `1413a73` / EXE `3D437AB3`, m53 `e874e28` / `75A9553C`, proxy `58386be` / `C7FB5212`.
->   Normal Editor/Game 0/0 for all three; proxy strict Editor/Game 0/0, 68 header TUs each, normal restoration verified.
->   Lever audits 34/52/53 pass; string review has zero unresolved entries; 14 binary snapshots archived/re-hashed.
-> - Ruling 2 keeps unchanged E1 t50 as the gate and requires t10 coverage plus margin. Initial 16-window proxy
->   TSR/TAA PIE/staged passes t50 but fails t10; maximum t10 is 36. Current default is 40, cap 64; 256 is superseded.
->   UV/normal initial TSR PIE t10 maxima are 6/2. Final 40-source pixel matrix and static hold remain unmeasured.
-> - Passive observer: proxy PIE TSR/TAA/off, three fires each, source eight resident mips and first mip 1 constant
->   through every captured tail. AA off is exactly 0/0 in unchanged E1. Remaining cause/switch/carry tests are optional
->   under the 20:49 resume; the final matrix, deferred 091-02 section 0 and static hold remain required.
-> - D: recovered to 60.4 GiB. Both fresh three-sample gates passed with GPU below 10%, person idle over 43 minutes,
->   commit headroom 16.6/15.5 GiB and E: 345.1 GiB. The idle foreign UE 5.7 editor was left untouched.
-> - Proxy TSR PIE on the final source exited twice before any capture/fire: DXGI_ERROR_DEVICE_REMOVED at initial
->   Present, Aftermath Timeout, exit 3 (20:58 and 21:02 IST). The second attempt was an unchanged retry. Cause unknown.
->   Low physical memory at exit is an observation, not an established cause. No further engine launches; no push.
-> - Both temporary profiles were removed and editor binaries restored by hash. Source, renderer/driver/security
->   settings and all foreign processes were unchanged. Preserve both failures; resolve startup before release proof.
-> - AA off means zero temporal windows/reasons; independent PIE settle remains exported (ruling 1).
->   Second-office readings: 171 transition entries, off 16; export omission explains the reported consumer gap.
-> - Journal `docs/sessions/2026-10-03-091-03-annotation-transitions.md`, G461; full evidence `E:\IA_BuildCache\_r913`.
->   Report `D:\IntrusiveAnomalies\_relay\runs\2026-10-03-091-03-annotation-transitions\report.md`.
+> **091-03, completed 2026-10-04 — REQUIRED FINAL PROOF PASSES; RELEASE READY (GREEN).**
+> Schema 2.1 exports each event's exact transition indices/reasons and the session union. Drop these frames
+> from both positive and negative training examples. Capture-view AA/upscaler evidence refreshes every frame;
+> unknown is temporal. AA off has zero temporal windows/reasons; independent PIE-settle exclusions still export.
+> - Proved Source: fix `1413a73` / EXE `3D437AB3`, m53 `e874e28` / `75A9553C`, proxy `58386be` / `C7FB5212`.
+>   Documentation heads retain those exact Source trees. Normal Editor/Game all 0/0; proxy strict both 0/0,
+>   68 independent header TUs each. Lever audits 34/52/53; zero unresolved strings; archives re-hashed.
+> - Required matrix: proxy TSR/TAA/off PIE + staged, UV/normal TSR PIE + staged, m53 UV/normal PIE + staged,
+>   and static Hold0913 TSR PIE + staged: 16 legs, 80 visible fires, 3865 labelled frames, zero missing masks.
+>   Unchanged E1 t50 and t10 tail coverage: zero unflagged frames. Annotation equals labels on every session.
+>   Shared proxy's 20 co-users remain unchanged. The deferred 091-02 section 0 is complete on the final builds.
+> - Default 3/40/1 remains unchanged. Final maximum t10 tail is 37; static hold maximum is 25. All fit 40.
+>   Final TSR office kit: 8/8 judged, start/end 0, no failures or wrong objects. AA-off raw pixel edges are 0/0.
+> - The reviewer ruled the two earlier first-Present failures environmental VRAM/device contention. Resume 2
+>   forbids every foreign UnrealEditor at launch, even idle. All final launches passed that stricter gate;
+>   no device removal recurred. No source/driver/security change for the startup failures; all foreign PIDs untouched.
+> - Proxy PIE passive residency evidence supports temporal history. Remaining residency, AA-switch and carry
+>   engine diagnostics are optional under the resume and deferred; source/pure-test coverage remains recorded.
+> - Journal `docs/sessions/2026-10-03-091-03-annotation-transitions.md`, G461; evidence `E:\IA_BuildCache\_r913`.
+>   Exact pushed heads, binary hashes, restoration receipts and owner pull are in the run's final `report.md`.
 >
 
 > ---
