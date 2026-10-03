@@ -317,6 +317,10 @@ namespace AnomalyLabel
 		int32 CarriedHideTracks = 0;
 		int32 UnlabelledActiveEntries = 0;
 		int32 SyncFramesWritten = 0;
+		int32 CaptureUnpairedDropped = 0;
+		int32 ViewRejectedColour = 0;
+		int32 ViewRejectedMask = 0;
+		int32 MaskArmsExpired = 0;
 	};
 
 	struct FStuckMipTelemetry

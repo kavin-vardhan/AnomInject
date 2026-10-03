@@ -11,6 +11,8 @@ public:
 	virtual const TCHAR* GetSubclassIdentifier() const override { return GSubclassIdentifier; }
 	FAnomalyChangeIssuePtr Issue;
 	uint64 FamilyId = 0;
+	bool bCaptureBound = false;
+	bool bCaptureServed = false;
 	bool bColourServed = false;
 	bool bMaskServed = false;
 	bool Claim(const FSceneView& View, bool bMask);

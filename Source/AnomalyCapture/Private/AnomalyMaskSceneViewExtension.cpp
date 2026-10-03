@@ -19,6 +19,10 @@
 #include "AnomalyStencilTag.h"
 #include "AnomalyChangeFamilyData.h"
 #include "AnomalyMaskServe.h"
+#include "AnomalyCaptureOwnership.h"
+#include "CoreGlobals.h"
+#include "Engine/World.h"
+#include "UnrealClient.h"
 
 #include "SceneView.h"
 #include "RenderGraphBuilder.h"
@@ -69,14 +73,32 @@ FAnomalyMaskSceneViewExtension::FAnomalyMaskSceneViewExtension(const FAutoRegist
 void FAnomalyMaskSceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
 	FScopeLock Lock(&StateCS);
+	if (!AnomalyCaptureOwnership::IsOwner(OwnerScene, OwnerTarget, InViewFamily.Scene, InViewFamily.RenderTarget))
+	{
+		RejectedFamilies.Increment();
+		return;
+	}
 	FAnomalyMaskArmBoundData* Data = InViewFamily.GetOrCreateExtentionData<FAnomalyMaskArmBoundData>();
 	Data->Bound = AnomalyMaskServe::BoundForFamily(NextArmSeq);
+	Data->SampleFrame = GFrameCounter;
 }
 
 bool FAnomalyMaskSceneViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
 {
 	FScopeLock Lock(&StateCS);
-	return PendingArms.Num() > 0;
+	if (PendingArms.Num() == 0) { return false; }
+	const UWorld* World = Context.GetWorld();
+	if (AnomalyCaptureOwnership::IsOwner(OwnerScene, OwnerTarget, World ? World->Scene : nullptr,
+		static_cast<const FRenderTarget*>(Context.Viewport))) { return true; }
+	RejectedFamilies.Increment();
+	return false;
+}
+
+void FAnomalyMaskSceneViewExtension::SetOwner(const FSceneInterface* Scene, const FRenderTarget* Target)
+{
+	FScopeLock Lock(&StateCS);
+	OwnerScene = Scene;
+	OwnerTarget = Target;
 }
 
 void FAnomalyMaskSceneViewExtension::ArmMask(uint64 RequestId, bool bWantPixels, FAnomalyChangeIssuePtr ChangeIssue)
@@ -86,6 +108,7 @@ void FAnomalyMaskSceneViewExtension::ArmMask(uint64 RequestId, bool bWantPixels,
 	PendingArmWantsPixels.Add(bWantPixels ? 1 : 0);
 	PendingChangeIssues.Add(ChangeIssue);
 	PendingArmSeq.Add(NextArmSeq++);
+	PendingArmFrames.Add(GFrameCounter);
 }
 
 void FAnomalyMaskSceneViewExtension::SetAssignedTags(const TSet<uint8>& InAssignedTags)
@@ -121,6 +144,7 @@ void FAnomalyMaskSceneViewExtension::CancelPendingOtherGeneration(const FAnomaly
 			PendingArmWantsPixels.RemoveAt(I);
 			PendingChangeIssues.RemoveAt(I);
 			PendingArmSeq.RemoveAt(I);
+			PendingArmFrames.RemoveAt(I);
 		}
 	}
 }
@@ -133,6 +157,12 @@ void FAnomalyMaskSceneViewExtension::Reset()
 		PendingArmWantsPixels.Reset();
 		PendingChangeIssues.Reset();
 		PendingArmSeq.Reset();
+		PendingArmFrames.Reset();
+		RejectedFamilies.Reset();
+		ExpiredArms.Reset();
+		ArmsHeldForOwnFamily.Reset();
+		FamiliesWithoutBound.Reset();
+		HeldLogLines.Reset();
 		DeferredFamilyFrame = MAX_uint32;
 		AssignedTags.Reset();
 	}
@@ -177,6 +207,11 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		{
 			return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 		}
+		if (!View.Family || !AnomalyCaptureOwnership::IsOwner(OwnerScene, OwnerTarget, View.Family->Scene, View.Family->RenderTarget))
+		{
+			RejectedFamilies.Increment();
+			return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+		}
 		const FAnomalyMaskArmBoundData* BoundData = View.Family
 			? const_cast<FSceneViewFamily*>(View.Family)->GetExtentionData<FAnomalyMaskArmBoundData>() : nullptr;
 		const bool bHasBound = BoundData != nullptr;
@@ -184,13 +219,15 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 		if (!bHasBound)
 		{
 			FamiliesWithoutBound.Increment();
+			return FinalizeMaskAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 		}
 		int32 NumBelong = 0;
 		FAnomalyChangeIssuePtr CurrentIssue;
 		for (int32 I = 0; I < PendingArms.Num(); ++I)
 		{
 			const uint64 Seq = PendingArmSeq.IsValidIndex(I) ? PendingArmSeq[I] : 0;
-			if (AnomalyMaskServe::ArmBelongsToFamily(Seq, bHasBound, FamilyBound))
+			if (AnomalyMaskServe::ArmBelongsToFamily(Seq, bHasBound, FamilyBound)
+				&& AnomalyCaptureOwnership::IsSampleFrame(PendingArmFrames[I], BoundData->SampleFrame))
 			{
 				++NumBelong;
 				if (!CurrentIssue.IsValid() && PendingChangeIssues.IsValidIndex(I) && PendingChangeIssues[I].IsValid())
@@ -250,12 +287,14 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 			TArray<uint8> KeepWants;
 			TArray<FAnomalyChangeIssuePtr> KeepIssues;
 			TArray<uint64> KeepSeq;
+			TArray<uint64> KeepFrames;
 			for (int32 I = 0; I < PendingArms.Num(); ++I)
 			{
 				const uint64 Seq = PendingArmSeq.IsValidIndex(I) ? PendingArmSeq[I] : 0;
 				const uint8 Wants = PendingArmWantsPixels.IsValidIndex(I) ? PendingArmWantsPixels[I] : 0;
 				const FAnomalyChangeIssuePtr Issue = PendingChangeIssues.IsValidIndex(I) ? PendingChangeIssues[I] : nullptr;
-				if (AnomalyMaskServe::ArmBelongsToFamily(Seq, bHasBound, FamilyBound))
+				if (AnomalyMaskServe::ArmBelongsToFamily(Seq, bHasBound, FamilyBound)
+					&& AnomalyCaptureOwnership::IsSampleFrame(PendingArmFrames[I], BoundData->SampleFrame))
 				{
 					ServedIds.Add(PendingArms[I]);
 					ServedWantsPixels.Add(Wants);
@@ -267,6 +306,7 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 					KeepWants.Add(Wants);
 					KeepIssues.Add(Issue);
 					KeepSeq.Add(Seq);
+					KeepFrames.Add(PendingArmFrames[I]);
 				}
 			}
 			if (KeepIds.Num() > 0)
@@ -284,6 +324,7 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 			PendingArmWantsPixels = MoveTemp(KeepWants);
 			PendingChangeIssues = MoveTemp(KeepIssues);
 			PendingArmSeq = MoveTemp(KeepSeq);
+			PendingArmFrames = MoveTemp(KeepFrames);
 		}
 		if (!bAttach) { UnattachedIssues = MoveTemp(ServedIssues); ServedIssues.Reset(); }
 		ServedWantsPixels.SetNumZeroed(ServedIds.Num());
@@ -420,16 +461,39 @@ FScreenPassTexture FAnomalyMaskSceneViewExtension::AfterTonemap_RenderThread(FRD
 
 void FAnomalyMaskSceneViewExtension::EnqueueDrain(bool bFinal)
 {
+	const uint64 BeforeFrame = GFrameCounter + (bFinal ? 1 : 0);
 	TWeakPtr<FAnomalyMaskSceneViewExtension, ESPMode::ThreadSafe> WeakSelf =
 		StaticCastSharedRef<FAnomalyMaskSceneViewExtension>(AsShared());
 	ENQUEUE_RENDER_COMMAND(AnomalyMaskDrain)(
-		[WeakSelf, bFinal](FRHICommandListImmediate&)
+		[WeakSelf, bFinal, BeforeFrame](FRHICommandListImmediate&)
 		{
 			if (TSharedPtr<FAnomalyMaskSceneViewExtension, ESPMode::ThreadSafe> Self = WeakSelf.Pin())
 			{
+				Self->ExpireArms(BeforeFrame);
 				Self->Drain_RenderThread(bFinal);
 			}
 		});
+}
+
+void FAnomalyMaskSceneViewExtension::ExpireArms(uint64 BeforeFrame)
+{
+	TArray<uint64> Dropped;
+	{
+		FScopeLock Lock(&StateCS);
+		for (int32 I = PendingArms.Num() - 1; I >= 0; --I)
+		{
+			if (!AnomalyCaptureOwnership::HasExpired(PendingArmFrames[I], BeforeFrame)) { continue; }
+			Dropped.Add(PendingArms[I]);
+			PendingArms.RemoveAt(I);
+			PendingArmWantsPixels.RemoveAt(I);
+			PendingChangeIssues.RemoveAt(I);
+			PendingArmSeq.RemoveAt(I);
+			PendingArmFrames.RemoveAt(I);
+		}
+	}
+	FScopeLock Lock(&ResultsCS);
+	for (uint64 Id : Dropped) { Results.Add(Id, FAnomalyMaskResult()); }
+	ExpiredArms.Add(Dropped.Num());
 }
 
 void FAnomalyMaskSceneViewExtension::Drain_RenderThread(bool bFinal)

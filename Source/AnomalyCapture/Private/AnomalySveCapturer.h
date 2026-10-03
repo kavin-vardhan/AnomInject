@@ -17,6 +17,8 @@
 #include "RHIGPUReadback.h"
 
 class UTexture2D;
+class FSceneInterface;
+class FRenderTarget;
 
 struct FAnomalyReadbackLatencyStats
 {
@@ -47,6 +49,10 @@ public:
 
 	void SetActive(bool bInActive);
 	bool IsActive() const;
+	void SetOwner(const FSceneInterface* Scene, const FRenderTarget* Target);
+	bool AcceptFamily(const FSceneInterface* Scene, const FRenderTarget* Target) const;
+	int32 NumRejectedFamilies() const { return RejectedFamilies.GetValue(); }
+	void TakeUnpaired(TArray<uint64>& Out);
 
 	void ArmWanted(uint64 RequestId, FAnomalyChangeIssuePtr ChangeIssue = nullptr,
 		const TArray<class UTexture2D*>* RenderWatch = nullptr);
@@ -70,7 +76,7 @@ public:
 	int32 GetDualPathComparisons() const;
 	int32 GetDualPathMismatches() const;
 
-	void EnqueueDrain();
+	void EnqueueDrain(bool bFinal = false);
 	bool PopCompleted(FAnomalyCapturedFrame& Out);
 	int32 NumPendingApprox() const;
 
@@ -82,6 +88,7 @@ public:
 
 private:
 	void Drain_RenderThread();
+	void ExpireUnrendered(uint64 BeforeFrame);
 
 	struct FInFlight
 	{
@@ -104,6 +111,11 @@ private:
 
 	mutable FCriticalSection StateCS;
 	TArray<uint64> PendingWanted;
+	TMap<uint64, uint64> UnrenderedFrames;
+	TArray<uint64> Unpaired;
+	const FSceneInterface* OwnerScene = nullptr;
+	const FRenderTarget* OwnerTarget = nullptr;
+	mutable FThreadSafeCounter RejectedFamilies;
 	TMap<uint64, FAnomalyChangeIssuePtr> PendingIssues;
 	TMap<uint64, TArray<class UTexture2D*>> RenderWatchByRequest;
 	TWeakPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> ChangeStage;
