@@ -11,6 +11,12 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **091-05, 2026-10-04 — REVIEW FIXES IN PROGRESS; DO NOT MERGE YET.**
+> F1 capture ownership and F6 event identity checks are being implemented on the fix branch and merged forward.
+> F2 positive component scope and F3 material-aware alpha uniformity follow on m53. Required engine proof and
+> all build/archive gates remain pending; no 091-05 push is authorized until proof passes.
+> Journal: `docs/sessions/2026-10-04-091-05-review-fixes.md`; evidence: `E:/IA_BuildCache/_r915`.
+
 > **091-03, completed 2026-10-04 — REQUIRED FINAL PROOF PASSES; RELEASE READY (GREEN).**
 > Schema 2.1 exports each event's exact transition indices/reasons and the session union. Drop these frames
 > from both positive and negative training examples. Capture-view AA/upscaler evidence refreshes every frame;

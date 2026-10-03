@@ -1355,7 +1355,11 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("label_transition_pie_end_settle_entries"), LabelSync->ReasonEntries[8]);
 			Root->SetBoolField(TEXT("pie_end_settle_active"), LabelSync->bPieEndSettleActive);
 			Root->SetNumberField(TEXT("pie_end_settle_frames"), LabelSync->PieEndSettleFrames);
-			Root->SetNumberField(TEXT("capture_unpaired_frames"), LabelSync->SyncFramesWritten);
+			Root->SetNumberField(TEXT("capture_unpaired_frames"), LabelSync->SyncFramesWritten + LabelSync->CaptureUnpairedDropped);
+			Root->SetNumberField(TEXT("capture_unpaired_dropped"), LabelSync->CaptureUnpairedDropped);
+			Root->SetNumberField(TEXT("capture_view_rejected_colour"), LabelSync->ViewRejectedColour);
+			Root->SetNumberField(TEXT("capture_view_rejected_mask"), LabelSync->ViewRejectedMask);
+			Root->SetNumberField(TEXT("capture_mask_arms_expired"), LabelSync->MaskArmsExpired);
 			Root->SetNumberField(TEXT("label_effect_partial_frames"), LabelSync->LabelEffectPartialFrames);
 			Root->SetNumberField(TEXT("nanite_midevent_reverts"), LabelSync->NaniteMidEventReverts);
 			Root->SetNumberField(TEXT("refused_nanite_probe_missing"), LabelSync->RefusedNaniteProbeMissing);

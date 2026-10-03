@@ -40,6 +40,7 @@ public:
 	static const TCHAR* GSubclassIdentifier;
 	virtual const TCHAR* GetSubclassIdentifier() const override { return GSubclassIdentifier; }
 	uint64 Bound = 0;
+	uint64 SampleFrame = 0;
 };
 
 class FAnomalyMaskSceneViewExtension : public FSceneViewExtensionBase
@@ -59,6 +60,9 @@ protected:
 
 public:
 	void ArmMask(uint64 RequestId, bool bWantPixels = false, FAnomalyChangeIssuePtr ChangeIssue = nullptr);
+	void SetOwner(const FSceneInterface* Scene, const FRenderTarget* Target);
+	int32 NumRejectedFamilies() const { return RejectedFamilies.GetValue(); }
+	int32 NumExpiredArms() const { return ExpiredArms.GetValue(); }
 	void SetAssignedTags(const TSet<uint8>& InAssignedTags);
 	void SetReduceMode(EAnomalyMaskReduceMode InMode);
 	void EnqueueDrain(bool bFinal = false);
@@ -73,6 +77,7 @@ private:
 	FScreenPassTexture AfterTonemap_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View,
 		const FPostProcessMaterialInputs& Inputs);
 	void Drain_RenderThread(bool bFinal);
+	void ExpireArms(uint64 BeforeFrame);
 
 	struct FMaskInFlight
 	{
@@ -95,6 +100,11 @@ private:
 	TArray<uint8> PendingArmWantsPixels;
 	TArray<FAnomalyChangeIssuePtr> PendingChangeIssues;
 	TArray<uint64> PendingArmSeq;
+	TArray<uint64> PendingArmFrames;
+	const FSceneInterface* OwnerScene = nullptr;
+	const FRenderTarget* OwnerTarget = nullptr;
+	mutable FThreadSafeCounter RejectedFamilies;
+	FThreadSafeCounter ExpiredArms;
 	uint64 NextArmSeq = 1;
 	uint32 DeferredFamilyFrame = MAX_uint32;
 	TSet<uint8> AssignedTags;

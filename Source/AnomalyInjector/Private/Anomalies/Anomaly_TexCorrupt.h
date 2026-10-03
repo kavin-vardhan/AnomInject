@@ -151,6 +151,7 @@ private:
 	void RestoreAndRelease(double StartSeconds, int32 DelayedBy);
 	void FinishPendingRestore(const TCHAR* Context);
 	void ClearPartScope();
+	void UpdatePartScope();
 
 	FName Id;
 	FString LastRefusal;

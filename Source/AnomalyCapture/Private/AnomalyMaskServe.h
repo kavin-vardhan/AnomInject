@@ -4,7 +4,7 @@ namespace AnomalyMaskServe
 {
 	inline bool ArmBelongsToFamily(unsigned long long ArmSeq, bool bFamilyHasBound, unsigned long long FamilyBound)
 	{
-		return !bFamilyHasBound || ArmSeq <= FamilyBound;
+		return bFamilyHasBound && ArmSeq > 0 && ArmSeq <= FamilyBound;
 	}
 
 	inline unsigned long long BoundForFamily(unsigned long long NextArmSeq)

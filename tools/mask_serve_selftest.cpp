@@ -85,7 +85,7 @@ int main()
 		S.Arm();
 		S.Arm();
 		const std::vector<unsigned long long> R = S.Render(false, 0);
-		Check(R.size() == 2 && S.Pending.empty(), "a family with no bound serves every pending arm (the pre-090-10f2 behaviour)");
+		Check(R.empty() && S.Pending.size() == 2, "a family with no bound serves no pending arm");
 	}
 	{
 		FSim S;
@@ -101,6 +101,7 @@ int main()
 	Check(BoundForFamily(0) == 0, "bound never underflows");
 	Check(ArmBelongsToFamily(5, true, 5), "an arm at the bound belongs");
 	Check(!ArmBelongsToFamily(6, true, 5), "an arm past the bound does not belong");
+	Check(!ArmBelongsToFamily(0, true, 5), "an arm without a sequence does not belong");
 
 	std::printf("mask_serve_selftest: %d check(s), %d failure(s)\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;

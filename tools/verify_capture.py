@@ -3261,6 +3261,7 @@ def annotation_transition_check(directory, require_schema=True):
             errors.append('expected annotation schema 2.1')
         expected_frames = defaultdict(set)
         expected_reasons = defaultdict(Counter)
+        expected_ids = set()
         union = set()
         with (root / 'labels.jsonl').open(encoding='utf-8-sig') as stream:
             for line in stream:
@@ -3274,6 +3275,7 @@ def annotation_transition_check(directory, require_schema=True):
                     key = '%s@%d|%s' % (entry['id'], entry['start_frame'], entry['target_name'])
                     if entry.get('event_id') != key:
                         errors.append('labels event_id mismatch at %d' % si)
+                    expected_ids.add(key)
                     if entry.get('transition') != 1:
                         continue
                     reasons = entry.get('transition_reason')
@@ -3295,8 +3297,8 @@ def annotation_transition_check(directory, require_schema=True):
             reasons = event.get('transition_reasons')
             if not isinstance(reasons, dict) or not all(type(n) is int and n > 0 for n in reasons.values()) or reasons != dict(expected_reasons[key]):
                 errors.append('transition_reasons mismatch: %s' % key)
-        for key in expected_frames.keys() - seen:
-            errors.append('transition event missing from annotation: %s' % key)
+        for key in expected_ids - seen:
+            errors.append('labels event missing from annotation: %s' % key)
         count = annotation.get('transition_frame_count')
         if type(count) is not int or count != len(union):
             errors.append('transition_frame_count mismatch')
@@ -3549,7 +3551,10 @@ def label_rule_check(cap_dir, quiet=False):
             fail("PIE-SETTLE-COUNT", have)
     rs_unpaired = rs.get("capture_unpaired_frames")
     rs_unpaired_int = isinstance(rs_unpaired, int) and not isinstance(rs_unpaired, bool)
-    if "capture_unpaired_frames" in rs and (not rs_unpaired_int or rs_unpaired != n_unpaired_rows):
+    unpaired_dropped = rs.get("capture_unpaired_dropped", 0)
+    dropped_valid = type(unpaired_dropped) is int and unpaired_dropped >= 0
+    if "capture_unpaired_frames" in rs and (not rs_unpaired_int or not dropped_valid
+                                            or rs_unpaired != n_unpaired_rows + unpaired_dropped):
         fail("UNPAIRED-COUNT", n_unpaired_rows)
     sync_written = rs.get("sync_frames_written")
     legacy_sync = (sync_written if "capture_unpaired_frames" not in rs and n_unpaired_rows == 0
@@ -3927,6 +3932,12 @@ def _label_rule_selftest():
              rs=dict(unp_rs, label_temporal_aa=False), extra=lambda d, _l: d["unpaired_rows"] == 2)
         case("U_a3_run_summary_count_disagrees_FAILS", unp_rows(), unp_ev, 1, RULE_NEW, "UNPAIRED-COUNT",
              rs=dict(unp_rs, capture_unpaired_frames=3))
+        case("U_a3_dropped_owner_capture_count_clean", unp_rows(), unp_ev, 0, RULE_NEW,
+             rs=dict(unp_rs, capture_unpaired_frames=3, capture_unpaired_dropped=1))
+        case("U_a3_dropped_owner_capture_count_disagrees_FAILS", unp_rows(), unp_ev, 1, RULE_NEW, "UNPAIRED-COUNT",
+             rs=dict(unp_rs, capture_unpaired_frames=3, capture_unpaired_dropped=2))
+        case("U_a3_negative_dropped_count_FAILS", unp_rows(), unp_ev, 1, RULE_NEW, "UNPAIRED-COUNT",
+             rs=dict(unp_rs, capture_unpaired_frames=1, capture_unpaired_dropped=-1))
         rows, ev = _lr_blink_session()
         case("U_a4_sync_frames_written_but_no_row_flagged_FAILS", rows, ev, 1, RULE_NEW, "UNPAIRED-COUNT",
              rs={"label_temporal_aa": True, "vetoed_events": 0, "capture_unpaired_frames": 2, "sync_frames_written": 2})

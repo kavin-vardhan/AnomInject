@@ -1654,6 +1654,7 @@ namespace TexCorruptPure
 		{
 			None,
 			AnyChannelRange,
+			RGBChannelRange,
 			NormalXY,
 			NormalY
 		};
@@ -1671,13 +1672,14 @@ namespace TexCorruptPure
 			switch (Rule)
 			{
 			case ERule::AnyChannelRange: return "no_spatial_variation";
+			case ERule::RGBChannelRange: return "no_spatial_variation";
 			case ERule::NormalXY:        return "flat_normal";
 			case ERule::NormalY:         return "flat_normal_y";
 			default:                     return "not_checked";
 			}
 		}
 
-		inline ERule RuleFor(EModeFamilyP Family, EModeP Mode, bool bBenchMode)
+		inline ERule RuleFor(EModeFamilyP Family, EModeP Mode, bool bBenchMode, bool bUsesAlpha = true)
 		{
 			if (bBenchMode)
 			{
@@ -1686,11 +1688,11 @@ namespace TexCorruptPure
 			switch (Mode)
 			{
 			case EModeP::Tile:
-			case EModeP::Scramble:  return ERule::AnyChannelRange;
+			case EModeP::Scramble:  return bUsesAlpha ? ERule::AnyChannelRange : ERule::RGBChannelRange;
 			case EModeP::Invert:    return ERule::NormalXY;
 			case EModeP::GreenFlip: return ERule::NormalY;
 			default:
-				return Family == EModeFamilyP::UV ? ERule::AnyChannelRange : ERule::NormalXY;
+				return Family == EModeFamilyP::UV ? (bUsesAlpha ? ERule::AnyChannelRange : ERule::RGBChannelRange) : ERule::NormalXY;
 			}
 		}
 
@@ -1731,7 +1733,8 @@ namespace TexCorruptPure
 			switch (Rule)
 			{
 			case ERule::AnyChannelRange:
-				for (int C = 0; C < 4; ++C)
+			case ERule::RGBChannelRange:
+				for (int C = 0; C < (Rule == ERule::RGBChannelRange ? 3 : 4); ++C)
 				{
 					if (S.Max[C] - S.Min[C] > Tol)
 					{

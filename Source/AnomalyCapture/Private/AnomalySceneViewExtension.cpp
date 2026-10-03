@@ -18,6 +18,8 @@
 #include "AnomalyChangeFamilyData.h"
 
 #include "CoreGlobals.h"
+#include "Engine/World.h"
+#include "UnrealClient.h"
 #include "RHIGPUReadback.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
@@ -63,24 +65,30 @@ FAnomalySceneViewExtension::FAnomalySceneViewExtension(const FAutoRegister& Auto
 bool FAnomalySceneViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
 {
 	TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Cap = Capturer.Pin();
-	return Cap.IsValid() && Cap->IsActive();
+	const UWorld* World = Context.GetWorld();
+	return Cap.IsValid() && Cap->IsActive()
+		&& Cap->AcceptFamily(World ? World->Scene : nullptr, Context.Viewport);
 }
 
 void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
 	TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Cap = Capturer.Pin();
-	if (!Cap.IsValid())
+	if (!Cap.IsValid() || !Cap->AcceptFamily(InViewFamily.Scene, InViewFamily.RenderTarget))
 	{
 		return;
 	}
 
 	if (InViewFamily.Views.Num() == 0 || !InViewFamily.Views[0]
-		|| InViewFamily.Views[0]->bIsSceneCapture || InViewFamily.Views[0]->bIsReflectionCapture)
+		|| InViewFamily.Views[0]->bIsSceneCapture || InViewFamily.Views[0]->bIsReflectionCapture || InViewFamily.Views[0]->bIsPlanarReflection)
 	{
 		Cap->NoteIneligibleFamily();
 		return;
 	}
 
+	auto* CaptureData = InViewFamily.GetOrCreateExtentionData<FAnomalyChangeFamilyData>();
+	if (CaptureData->bCaptureBound) { return; }
+	CaptureData->bCaptureBound = true;
+	CaptureData->FamilyId = FAnomalyChangeFamilyData::NextId();
 	uint64 RequestId = 0;
 	if (auto* Existing = FAnomalyChangeFamilyData::Find(&InViewFamily))
 	{
@@ -112,7 +120,7 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 		if (PendingIssue.IsValid() && Stage->Gate(15, PendingIssue->SessionIndex))
 		{
 			Stage->Diagnostic(TEXT("pending_family_deferred"));
-			AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, 0, false);
+			AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, 0, false, CaptureData->FamilyId);
 			return;
 		}
 		if (PendingIssue.IsValid() && Stage->Gate(8, PendingIssue->SessionIndex))
@@ -137,13 +145,13 @@ void FAnomalySceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewF
 			if (IsOwnerFamily(Issue))
 			{
 				auto* Data = InViewFamily.GetOrCreateExtentionData<FAnomalyChangeFamilyData>();
-				Data->Issue = Issue; Data->FamilyId = FAnomalyChangeFamilyData::NextId();
+				Data->Issue = Issue;
 				LastChangeFamilyFrame = InViewFamily.FrameNumber; LastChangeEpoch = Issue->RunEpoch;
 			}
 			else { IssueStage->Unsupported(Issue, false); }
 		}
 	}
-	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, RequestId, bWanted);
+	AnomalySveKeyRing::PublishKey(InViewFamily.FrameNumber, RequestId, bWanted, CaptureData->FamilyId);
 }
 
 void FAnomalySceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass Pass,
@@ -165,15 +173,22 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	const FScreenPassTexture SceneColor = Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
 
 	TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> Cap = Capturer.Pin();
-	if (!Cap.IsValid() || !SceneColor.IsValid() || View.bIsSceneCapture || View.bIsReflectionCapture)
+	if (!Cap.IsValid() || !SceneColor.IsValid() || View.bIsSceneCapture || View.bIsReflectionCapture || View.bIsPlanarReflection
+		|| !View.Family || !Cap->AcceptFamily(View.Family->Scene, View.Family->RenderTarget))
 	{
 		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 	}
 
 	const uint32 FamilyFrame = View.Family ? View.Family->FrameNumber : 0;
+	auto* CaptureData = FAnomalyChangeFamilyData::Find(View.Family);
+	if (!CaptureData || !CaptureData->bCaptureBound || CaptureData->bCaptureServed)
+	{
+		return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
+	}
+	CaptureData->bCaptureServed = true;
 
 	AnomalySveKeyRing::FKeyEntry Entry;
-	if (!AnomalySveKeyRing::LookupKey(FamilyFrame, Entry))
+	if (!AnomalySveKeyRing::LookupKey(FamilyFrame, Entry, CaptureData->FamilyId))
 	{
 		const AnomalySveKeyRing::FCounters Counters = AnomalySveKeyRing::GetCounters();
 		UE_LOG(LogAnomalyCapture, Warning,
