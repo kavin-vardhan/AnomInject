@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
+#include "RHI.h"
 #if __has_include("RHIFwd.h")
 #include "RHIFwd.h"
 #endif

@@ -27,6 +27,9 @@
 class FViewInfo;
 
 #include "PostProcess/PostProcessMaterial.h"
+#if __has_include("PostProcess/PostProcessMaterialInputs.h")
+#include "PostProcess/PostProcessMaterialInputs.h"
+#endif
 #include "ScreenPass.h"
 #include "SceneRendering.h"
 
