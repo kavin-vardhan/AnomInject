@@ -169,14 +169,14 @@ namespace AnomalyStencilTag
 			if (!Prim) { continue; }
 			const TWeakObjectPtr<UPrimitiveComponent> Key(Prim);
 			const bool bInScope = AnomalyViewport::IsInEventComponentScope(Prim);
-			const FPriorStencilState* Prior = GTaggedComponents.Find(Key);
-			const AnomalyLabelSync::ERetireAction ExitAction = AnomalyLabelSync::DecideScopeExit(bInScope, Prior != nullptr,
+			const FPriorStencilState* TrackedPrior = GTaggedComponents.Find(Key);
+			const AnomalyLabelSync::ERetireAction ExitAction = AnomalyLabelSync::DecideScopeExit(bInScope, TrackedPrior != nullptr,
 				Prim->CustomDepthStencilValue, Prim->bRenderCustomDepth, GAppliedValues.FindRef(Key));
 			if (ExitAction != AnomalyLabelSync::ERetireAction::Leave)
 			{
-				NotePriorRestore(Prim, Prior->CustomDepthStencilValue, Prior->bRenderCustomDepth);
-				Prim->SetCustomDepthStencilValue(Prior->CustomDepthStencilValue);
-				if (ExitAction == AnomalyLabelSync::ERetireAction::RestoreValueAndFlag) { Prim->SetRenderCustomDepth(Prior->bRenderCustomDepth); }
+				NotePriorRestore(Prim, TrackedPrior->CustomDepthStencilValue, TrackedPrior->bRenderCustomDepth);
+				Prim->SetCustomDepthStencilValue(TrackedPrior->CustomDepthStencilValue);
+				if (ExitAction == AnomalyLabelSync::ERetireAction::RestoreValueAndFlag) { Prim->SetRenderCustomDepth(TrackedPrior->bRenderCustomDepth); }
 				GTaggedComponents.Remove(Key);
 				GAppliedValues.Remove(Key);
 			}
