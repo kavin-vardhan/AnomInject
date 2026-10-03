@@ -10113,3 +10113,16 @@ The identical `StuckMipNoHold` control had zero labelled/render-held frames yet 
 and windows: all three RGB positives were motion-confounded. Do not count them as demonstrated blur or synchronized edges.
 Keep native results separate from the authored variant, which passed both routes and all five pixel edges in PIE and staged.
 The proxy proof and pure B9/B0 regression pass; the native hold limitation needs a ruling under the unchanged-hold constraint.
+
+
+## G460 — The strict-include gate is engine-version-blind; office engine layouts differ
+*(091-02.)* A home UE 5.1.1 strict build cannot detect a missing defining include in another engine layout. On the first office
+host, `MD_Surface`, `FSkeletalMeshLODInfo` and `FSkeletalMaterial` were unavailable despite the transitive includes that work at
+home. Read-only UE 5.7.4 confirms `EMaterialDomain` moved from `MaterialShared.h` to `MaterialDomain.h` (the former now only
+forward-declares it), while the skeletal structs still live in `Engine/SkinnedAssetCommon.h`. Include the defining headers in
+each actual user; retain the old interface and guard headers absent in 5.1 with `__has_include`. Audit moved RHI, pointer-mode,
+stats, material-parameter and postprocess-input definitions across all modules, including the shared fix branch. In 5.7,
+`MaterialTypes.h` is a deprecated stub: select `Materials/MaterialParameters.h` when present, with the old header as the fallback.
+The legacy `RHIResources.h` also needs `RHI.h` first; the initial strict run caught that prerequisite and is retained as evidence.
+**Rule: a strict build proves its selected engine layout only. Inspect both defining headers, compile the supported local
+engine, and retain the separate home visual proof before office delivery.** The first office host's actual version remains unknown.
