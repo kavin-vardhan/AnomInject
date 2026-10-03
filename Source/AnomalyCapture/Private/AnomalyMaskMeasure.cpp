@@ -12,6 +12,9 @@
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
 #include "RHI.h"
+#if __has_include("RHIShaderPlatform.h")
+#include "RHIShaderPlatform.h"
+#endif
 
 namespace
 {
