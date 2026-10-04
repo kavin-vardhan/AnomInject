@@ -4632,6 +4632,15 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture(sve): capture_unpaired request=%llu si=%d - owner render skipped; snapshot dropped without labels or picture."),
 				Id, Snap->SessionIndex);
+			if (const FTargetMaskOutcome* Outcome = TargetMaskOutcome.Find(Snap->SessionIndex))
+			{
+				switch ((AnomalyLabel::EAnomalyMaskState)Outcome->State)
+				{
+				case AnomalyLabel::EAnomalyMaskState::Present: --TargetMaskMeasured; break;
+				case AnomalyLabel::EAnomalyMaskState::Empty: --TargetMaskHiddenBlank; break;
+				case AnomalyLabel::EAnomalyMaskState::Unmeasured: --TargetMaskUnavailable; break;
+				}
+			}
 			TargetMaskOutcome.Remove(Snap->SessionIndex);
 			TargetMaskPendingSessionIndex.Remove(Id);
 			TargetMaskPendingTags.Remove(Id);
