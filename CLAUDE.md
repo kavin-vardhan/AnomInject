@@ -17,6 +17,7 @@ and is the single source of truth for the project.
 > overrides retain their existing behavior. All other production source is unchanged, including labels,
 > capture, anomalies, non-temporal transition reasons and schema; no 091-05 or 091-06 changes.
 > Journal: `docs/sessions/2026-10-04-091-07-release-transitions-off.md`.
+> 091-08: client-readme limitations and FXAA tip; code unchanged from `23098fa`. Journal: `docs/sessions/2026-10-04-091-08-release-readme-limits.md`.
 
 > **091-03, completed 2026-10-04 — REQUIRED FINAL PROOF PASSES; RELEASE READY (GREEN).**
 > Schema 2.1 exports each event's exact transition indices/reasons and the session union. Drop these frames

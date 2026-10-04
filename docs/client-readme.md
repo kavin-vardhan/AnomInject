@@ -454,6 +454,12 @@ Your machine renders the game at some frame rate ("native fps") — check it in 
 * **An anomaly seems stuck on screen** — press **Revert all** in the dashboard (or run `IAI.RevertAll` in the console).
 * **Nothing captures / commands not recognized** — confirm you're running the provided build (capture features are included in this build).
 
+### Known limitations of this build
+
+* **Capture with one live game view.** Run the game in a new window (**Play → New Editor Window**) or as the packaged game, and close or pause other realtime editor viewports while capturing. With several realtime views open in the editor, a capture can occasionally record a frame from an editor view instead of the game view and label it as the game. Packaged and standalone games have one view and are not affected.
+* **Two rare edge cases for UV/normal corruption.** When the plugin cannot tell which parts of an object it changed, the label box and target mask cover the whole object even if only some parts look different. A texture that varies only in a channel the material does not use can also be swapped with no visible change; the event is still labelled. Both are rare. The labelled preview images (or the overlay inspector) make them easy to spot.
+* **Anti-aliasing tip.** With temporal anti-aliasing (TAA/TSR), the picture can trail the label by a frame or two at an event's start and end (see §8.7). To avoid it, use FXAA: add `-ExecCmds="r.AntiAliasingMethod 1"` to the game's launch command (merge it into an existing `-ExecCmds` with a comma, since only one is used), or type `r.AntiAliasingMethod 1` in the console before capturing. Type `r.AntiAliasingMethod` alone afterwards to check it reads **1**; some games reset it from their own graphics menu. **Project Settings → Rendering → Anti-Aliasing Method → FXAA** makes it permanent for a project.
+
 ### ffmpeg didn't download
 
 On locked-down corporate networks the automatic ffmpeg download can be blocked outright — even the revocation-check retry that `Setup.bat` performs. This only stops the **video** step: your captures still record fine (frames, labels, `annotation.json`), and they encode to MP4 later once ffmpeg is in place. To install it by hand:
@@ -1090,7 +1096,7 @@ touch the slab, the plugin traces a grid of rays **inside the slab only** agains
 
 ### 8.7 The per-frame label, anomaly by anomaly — and how to build a training label from it
 
-Under temporal anti-aliasing (TAA/TSR) the picture can trail the label by a few frames at an event's start and end; those frames are NOT flagged by default. Optional: set IAI.Label.TransitionOffFrames / OnFrames / HideFrames to flag them.
+Under temporal anti-aliasing (TAA/TSR) the picture can trail the label by a few frames at an event's start and end; those frames are NOT flagged by default. Optional: set IAI.Label.TransitionOffFrames / OnFrames / HideFrames to flag them. See the [anti-aliasing tip in section 7](#known-limitations-of-this-build) to use FXAA.
 
 **Exclude declared uncertain frames.** In schema 2.1, drop the union of all events' `transition_frames`
 before assigning positives or negatives: **never use as negatives, never as positives**. `transition_reasons` explains the entries counted;
