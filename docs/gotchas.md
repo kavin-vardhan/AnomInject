@@ -10205,3 +10205,29 @@ Colour and mask request IDs have separate namespaces. An active skipped-render c
 late mask results counted after the colour snapshots were gone. Locate these pending masks by session
 index, consume ready results, and drain late results as discard-only; exclude discarded requests from
 teardown counts. The 23a7da5 active control is the failing example.
+
+
+## G463 — 091-05: zero skipped components does not mean every rendered component changed
+
+A null material slot is untouched by the texture decision tree, yet its mesh can draw the engine default
+material. The old `ComponentsSkipped > 0` condition therefore left C2 in actor-wide masks and boxes when
+only C1 changed. Install the exact successfully committed component set every time, including an empty
+scope before a deferred commit, and clear it on exact revert. Narrowing a scope must also release a
+pre-fire census tag still owned by this plugin; otherwise subsequent m26 arms are discarded as orphaned.
+The null-slot fixture catches the old actor-wide mask on all 144 labelled frames. UV/normal PIE/staged each
+pass three fires on the final m53 source, with C1-only PNG/m26/bboxes and exact restores.
+
+Exact adjacent-frame C2 RGB bytes were too strong for the renderer's quantization noise: clean frames also
+differed by one or two levels. Phase matching and gamma-only tonemapping still failed exact equality;
+those failures are retained. Final proof uses the pre-existing co-user mean-noise envelope plus 0.05,
+requires zero C2 pixels above 12 levels, and rejects a planted 20-level change. No E1 threshold or temporal
+window was changed. Do not describe this result as byte-identical C2 pictures.
+
+## G464 — 091-05: alpha variation is evidence only when the slot material uses alpha
+
+For UV-family uniformity, ignore alpha unless blend mode or connected opacity inputs use it. Constant RGB
+with checker alpha is refused on the opaque fixture and admitted with visible change on the masked fixture,
+in PIE and staged. The old build labels three opaque events with only one-level noise. RGB variation in an
+unused packed-map channel and a normal texture feeding zero-strength normals remain visibility limits;
+the measured visible-change gate is a follow-up. Size/ratio refusals are selection heuristics, and a source
+RHI tripwire is not an atomic copy snapshot. Neither F4 nor F5 changes code in this delivery.
