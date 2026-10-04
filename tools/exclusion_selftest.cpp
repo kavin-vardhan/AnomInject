@@ -368,9 +368,9 @@ static void TestF1TemporalOffTail()
 	Check(T.TryDetach(106, false) && T.AllNotedProcessed(), "F1 setup: quiet detach with every noted request processed");
 	Check(Track.LastMember() == 101 && !Track.bOffDone, "F1 setup: last labelled frame 101, off tail still owed");
 
-	const FVerdict V = Row("F1 m53 admitted inside m52's TAA off-frames (closed, detached, processed, tail owed)", EFamily::M53,
+	const FVerdict V = Row("F1 m53 admitted with default TAA off-frames disabled", EFamily::M53,
 		M52Provider(ClassifyT(T, TransitionTailOwed(RunEmitsTransitionTail(true, Off), Track)), false), FM53Signals(),
-		EState::LabelTail, true, false);
+		EState::Closed, false, false);
 	(void)V;
 
 	int AdmitSI = -1;
@@ -390,11 +390,8 @@ static void TestF1TemporalOffTail()
 	{
 		bCoEntry = bCoEntry || (AdmitSI >= 0 && f >= AdmitSI);
 	}
-	Check((int)TailFrames.size() == Off && TailFrames.front() == 102 && TailFrames.back() == 101 + Off,
-		"F1 sequence: m52 transition entries on 102.." + std::to_string(101 + Off) + " (the " + std::to_string(Off)
-		+ " temporal off-frames after 101)");
-	Check(AdmitSI == 103 + Off, "F1 sequence: m53 first admitted at si " + std::to_string(103 + Off) + ", after frame "
-		+ std::to_string(102 + Off) + " closed the off window (got " + std::to_string(AdmitSI) + ")");
+	Check(TailFrames.empty(), "F1 sequence: no default temporal off-frames after 101");
+	Check(AdmitSI == 106, "F1 sequence: m53 admitted on the first tested frame 106 (got " + std::to_string(AdmitSI) + ")");
 	Check(!bCoEntry, "F1 sequence: no frame carries both an m52 transition entry and an m53 entry");
 	Row("F1 tail done releases", EFamily::M53, M52Provider(ClassifyT(T, TransitionTailOwed(true, Track)), false), FM53Signals(),
 		EState::Closed, false, false);
@@ -425,12 +422,12 @@ static void TestF1CarriedTailOnly()
 	{
 		Track.Observe(si, si <= 101 && si >= 98, On, Off, bOn, bOff);
 	}
-	Check(AnomalyLabelSync::ShouldCarryTransitionTrack(Track, 105, Off, false), "F1 carry: run ends at 105 inside the off window");
+	Check(!AnomalyLabelSync::ShouldCarryTransitionTrack(Track, 105, Off, false), "F1 carry: no default off window remains at 105");
 	FEventTransitionTrack Carried = AnomalyLabelSync::CarryTransitionTrack(Track, 105);
 	FTrailFacts NoTrail;
 	NoTrail.bLabelTail = TransitionTailOwed(RunEmitsTransitionTail(true, Off), Carried);
-	Row("F1 carried tail-only next run (no trail, off tail owed)", EFamily::M53, M52Provider(Classify(NoTrail), false),
-		FM53Signals(), EState::LabelTail, true, false);
+	Row("F1 next run with no default off tail", EFamily::M53, M52Provider(Classify(NoTrail), false),
+		FM53Signals(), EState::Idle, false, false);
 	std::vector<int> Emitted;
 	int AdmitSI = -1;
 	const FTrail Unused = FTrail();
@@ -450,10 +447,8 @@ static void TestF1CarriedTailOnly()
 	{
 		bCoEntry = bCoEntry || (AdmitSI >= 0 && f >= AdmitSI);
 	}
-	Check((int)Emitted.size() == Off - 4 && Emitted.front() == 0 && Emitted.back() == Off - 5,
-		"F1 carry: the next run's frames 0.." + std::to_string(Off - 5) + " carry the carried m52 transition entries (old frames 106.."
-		+ std::to_string(101 + Off) + ")");
-	Check(AdmitSI == Off - 3, "F1 carry: m53 first admitted at next-run si " + std::to_string(Off - 3) + " (got "
+	Check(Emitted.empty(), "F1 carry: no default temporal entries in the next run");
+	Check(AdmitSI == 0, "F1 carry: m53 first admitted at next-run si 0 (got "
 		+ std::to_string(AdmitSI) + ")");
 	Check(!bCoEntry, "F1 carry: no next-run frame carries both the carried m52 tail and an m53 entry");
 }

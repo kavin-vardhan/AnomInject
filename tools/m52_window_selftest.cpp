@@ -1150,7 +1150,7 @@ static void TestTransitionTrackOrder()
 		Long.Observe(si, false, 3, DefaultOffFramesTemporal, bOn, bOff);
 		if (bOff) { ++TailFlags; }
 	}
-	Check(TailFlags == 40 && !bOff, "track: the measured-tail default includes +40 and excludes +41");
+	Check(TailFlags == 0 && !bOff, "track: the release default emits no temporal tail flags");
 	Check(!Long.OffWindowPassed(74, MaxTransitionFrames) && Long.OffWindowPassed(75, MaxTransitionFrames),
 		"track: retention preserves the bounded 64-frame history");
 }
@@ -1165,12 +1165,16 @@ static void TestAaResolve()
 	Check(HasTemporalHistory(AaNone, true, true), "aa: registered temporal upscaler overrides off default");
 	Check(!HasTemporalHistory(AaNone, true, false), "aa: confirmed off stays off");
 	Check(HasTemporalHistory(AaTemporal, true, false) && HasTemporalHistory(AaTsr, true, false), "aa: capture view TAA and TSR");
-	Check(ResolveTransitionFrames(-1, DefaultOnFramesTemporal, true) == 3
-		&& ResolveTransitionFrames(-1, DefaultOffFramesTemporal, true) == 40
-		&& ResolveTransitionFrames(-1, DefaultHideFramesTemporal, true) == 1, "aa: -1 resolves to 3/40/1 under temporal AA (091-03 measured offset)");
-	Check(DefaultOffFramesTemporal == 40 && MaxTransitionFrames >= DefaultOffFramesTemporal
+	Check(ResolveTransitionFrames(-1, DefaultOnFramesTemporal, true) == 0
+		&& ResolveTransitionFrames(-1, DefaultOffFramesTemporal, true) == 0
+		&& ResolveTransitionFrames(-1, DefaultHideFramesTemporal, true) == 0, "aa: -1 resolves to 0/0/0 under temporal AA (owner's release choice)");
+	Check(DefaultOffFramesTemporal == 0 && MaxTransitionFrames >= DefaultOffFramesTemporal
 		&& ResolveTransitionFrames(-1, DefaultOffFramesTemporal, false) == 0,
-		"aa: the off default is 40 under temporal AA, retained by the cap, and still 0 without it");
+		"aa: the off default is 0 under temporal AA and without it");
+	Check(ResolveTransitionFrames(3, DefaultOnFramesTemporal, true) == 3
+		&& ResolveTransitionFrames(40, DefaultOffFramesTemporal, true) == 40
+		&& ResolveTransitionFrames(1, DefaultHideFramesTemporal, true) == 1,
+		"aa: explicit On/Off/Hide CVar values restore 3/40/1 over the zero defaults");
 	Check(ResolveTransitionFrames(8, DefaultOffFramesTemporal, true) == 8 && ResolveTransitionFrames(0, DefaultOffFramesTemporal, true) == 0
 		&& ResolveTransitionFrames(24, DefaultOffFramesTemporal, true) == 24,
 		"aa: an explicit IAI.Label.TransitionOffFrames still overrides the measured default (8 -> 8, 0 -> 0, 24 -> 24)");

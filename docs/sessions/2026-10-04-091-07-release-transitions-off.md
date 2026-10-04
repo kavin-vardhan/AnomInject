@@ -1,0 +1,9 @@
+# 091-07 — release freeze: temporal transitions off
+
+Owner decision, 2026-10-04: deliver `d660b5d6e67c7af8b0f264e59cf66ed02f433968` plus one behavior change on `release/2026-10-05`: temporal On/Off/Hide defaults are 0/0/0. Explicit nonnegative CVar values keep the existing resolver and cap. No capture, label membership, anomaly, schema, ownership, scope or alpha changes; no 091-05/091-06 code.
+
+The header constants and three CVar help strings change. Pure-test expectations cover zero defaults, and a new assertion restores 3/40/1 using explicit values. README field tables and section 8.7 explain optional flags. Non-temporal reasons remain byte-identical.
+
+Verification plan: detached release commit on the named build host; strict and normal Editor/Game builds at 0 errors/0 warnings, lever audit, string comparison against C7FB5212 allowing only the three help strings, archive/re-hash. One shared-proxy TSR PIE leg and one staged leg, at least three visible fires each, with no foreign UnrealEditor and fresh idle/disk receipts. Require zero temporal_aa reasons, zero On/Off summary windows, annotation/labels equality, unchanged labelled frame sets against the same retained baseline event schedule, and zero labelled frames without measured mask pixels. Old 3/40/1 source and retained captures must fail the new-default gate; doctored missing-mask/label cases must fail the readers. Temporal picture lag is an accepted owner choice and is recorded, not hidden by reinstating flags.
+
+Evidence and final results: `E:\IA_BuildCache\_r917`; full report: `D:\IntrusiveAnomalies\_relay\runs\2026-10-04-091-07-release-transitions-off\report.md`. Push only the new release branch after verification. The built/proved release commit is the pull target; final measured results are in the external report to preserve that exact commit.

@@ -10,9 +10,9 @@ namespace AnomalyLabelSync
 	};
 
 	static constexpr int MaxTransitionFrames = 64;
-	static constexpr int DefaultOnFramesTemporal = 3;
-	static constexpr int DefaultOffFramesTemporal = 40;
-	static constexpr int DefaultHideFramesTemporal = 1;
+	static constexpr int DefaultOnFramesTemporal = 0;
+	static constexpr int DefaultOffFramesTemporal = 0;
+	static constexpr int DefaultHideFramesTemporal = 0;
 
 	static constexpr unsigned short ReasonTemporal = 1;
 	static constexpr unsigned short ReasonHideReturn = 2;

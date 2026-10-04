@@ -11,6 +11,13 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **091-07, 2026-10-04 — RELEASE FREEZE, `release/2026-10-05`.**
+> Base: `d660b5d6e67c7af8b0f264e59cf66ed02f433968`. The single behavior change is temporal
+> transition defaults On/Off/Hide = **0/0/0**, by the owner's choice. Explicit nonnegative CVar
+> overrides retain their existing behavior. All other production source is unchanged, including labels,
+> capture, anomalies, non-temporal transition reasons and schema; no 091-05 or 091-06 changes.
+> Journal: `docs/sessions/2026-10-04-091-07-release-transitions-off.md`.
+
 > **091-03, completed 2026-10-04 — REQUIRED FINAL PROOF PASSES; RELEASE READY (GREEN).**
 > Schema 2.1 exports each event's exact transition indices/reasons and the session union. Drop these frames
 > from both positive and negative training examples. Capture-view AA/upscaler evidence refreshes every frame;

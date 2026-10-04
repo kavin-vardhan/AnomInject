@@ -131,16 +131,16 @@ static TAutoConsoleVariable<int32> GStuckMipSettleTailFrames(TEXT("IAI.StuckMip.
 static TAutoConsoleVariable<int32> GLabelTransitionOnFrames(TEXT("IAI.Label.TransitionOnFrames"), -1,
 	TEXT("labels.jsonl transition flag: the first N labelled frames of a held-window or fire-window event carry transition=1. Applies ")
 	TEXT("when capture-time view/default evidence is temporal or unknown; without temporal or unknown evidence the ")
-	TEXT("effective value is 0. -1 (default) = 3 (ruled 084-05b). Read at the start of each capture run; echoed and ")
+	TEXT("effective value is 0. -1 (default) = 0 (owner's choice, release freeze). Read at the start of each capture run; echoed and ")
 	TEXT("written to run_summary.label_transition_on_frames. The 'partial' reason (held set part-way to its held level) is ")
 	TEXT("independent of this value and of anti-aliasing."));
 static TAutoConsoleVariable<int32> GLabelTransitionOffFrames(TEXT("IAI.Label.TransitionOffFrames"), -1,
 	TEXT("labels.jsonl transition flag: the N captured frames after the last labelled frame of a held-window or fire-window event carry ")
-	TEXT("an entry with transition=1 that does NOT set anomaly_present. Temporal or unknown AA only (0 when confirmed off). -1 (default) = 40 ")
-	TEXT("(091-03 measured t10 tail plus four frames). Override read at run start; effective value refreshed during capture and written to run_summary.label_transition_off_frames."));
+	TEXT("an entry with transition=1 that does NOT set anomaly_present. Temporal or unknown AA only (0 when confirmed off). -1 (default) = 0 ")
+	TEXT("(owner's choice, release freeze). Override read at run start; effective value refreshed during capture and written to run_summary.label_transition_off_frames."));
 static TAutoConsoleVariable<int32> GLabelTransitionHideFrames(TEXT("IAI.Label.TransitionHideFrames"), -1,
 	TEXT("labels.jsonl transition flag for hide anomalies (blinking, missing_object): the first N captured frames after the ")
-	TEXT("object returns carry transition=1. Temporal AA only (0 without it). -1 (default) = 1. Read at run start; echoed ")
+	TEXT("object returns carry transition=1. Temporal AA only (0 without it). -1 (default) = 0 (owner's choice, release freeze). Read at run start; echoed ")
 	TEXT("and written to run_summary.label_transition_hide_frames."));
 static bool GBenchStuckMipLegacyTiming = false;
 static bool GBenchStuckMipLeversRegistered = false;
