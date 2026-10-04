@@ -1343,11 +1343,22 @@ grab point **and where its default came from** (compiled-in vs ini).
 | frame↔state pairing | **arm → next present** (order) | **identity** via the key ring (see below) |
 | implementation | `FAnomalyFrameCapturer` | `FAnomalySceneViewExtension` + `FAnomalySveCapturer` |
 
-**The key ring (`AnomalySveKeyRing`) is the whole of B′.** The game thread publishes
-`(FSceneViewFamily::FrameNumber → GFrameCounter, wanted)` at **`BeginRenderViewFamily`** — the only hook
-where `ViewFamily.FrameNumber` is assigned (`SetupViewFamily` still reports `UINT_MAX`). The
-render-thread pass looks the key up by `View.Family->FrameNumber` and recovers the `GFrameCounter`.
-Fixed capacity 64, oldest-evicted, four counters plus a corruption counter.
+**Capture ownership and the key ring (091-05).** The extension accepts only the capture world's scene and
+its game viewport render target, before dequeuing a request and again before render-thread service. UE 5.1
+constructs this family from `MyWorld->Scene` and `InViewport` (`GameViewportClient.cpp:1274`). Editor-world,
+other-viewport, scene-capture and reflection families cannot consume its colour request. Mask activation,
+family bounds and service use the same owner scene/target; a family without a bound serves no arm.
+
+The game thread publishes `(FSceneViewFamily::FrameNumber, FamilyId -> RequestId, wanted)` at
+`BeginRenderViewFamily`. The family-data serial prevents equal per-scene frame numbers from aliasing; a
+family binds and serves once. The request retains its sampled `GFrameCounter`, and mask arms retain that
+same sample frame as well as the existing sequence bound. A later owner family cannot consume a stale
+sample. A render-thread drain after the earlier queued renders expires any request whose owner render
+was skipped; the subsystem marks its snapshot `capture_unpaired` and drops it without picture or labels.
+`run_summary` counts `capture_unpaired_dropped`, `capture_view_rejected_colour`,
+`capture_view_rejected_mask` and `capture_mask_arms_expired`. `capture_unpaired_frames` includes these
+dropped requests plus the existing synchronous flagged rows. Rejection logs report counts only.
+The key ring retains fixed capacity 64, oldest eviction and its existing diagnostic counters.
 
 **The seam is `FAnomalyCapturedFrame::RequestId`.** That id is already the key
 `Async->PendingSnapshots` uses, so the SVE path swaps the *producer* of the id and touches **no

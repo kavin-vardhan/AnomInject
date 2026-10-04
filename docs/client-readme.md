@@ -837,7 +837,7 @@ One JSON object per line, one line per captured frame.
 
 | Field | Type | Since | Meaning |
 | --- | --- | --- | --- |
-| `session_index` | int | v1 | **The frame number, and the only join key.** `session_index` N is `Actual_Frames/frame_000NN.png`, frame N of the video, and frame N in `annotation.json`'s frame indices. |
+| `session_index` | int | v1 | **The capture index, and the only join key.** `session_index` N names `Actual_Frames/frame_000NN.png` and N in `annotation.json`'s frame indices. It is also the video frame number when no captures were dropped. Dropped owner renders leave index gaps (see section 8.6a); never substitute the labels row position. |
 | `frame_index` | int | v1 | The game engine's own internal frame counter. **Never join on this** — see the ordering note below. |
 | `t` | number | v1 | Game-clock seconds since the run started. |
 | `t_wall` | number | v1 | Real-world seconds since the run started. |
@@ -977,8 +977,16 @@ scene-colour capture both on, no ini key needed) never reach it; it is reached o
 `IAI.Capture.SVE 0` (the UI-on option) on a frame whose game-viewport rectangle cannot be found. Every frame it
 writes is flagged `capture_unpaired` as above, so a capture taken that way delivers no labelled frames from that
 path; `run_summary.json` counts them in `capture_unpaired_frames`, and the log prints one
-`CAPTURE-UNPAIRED` warning per run. If that count is not 0 on a capture meant for delivery, the capture settings
-were changed: restore them and capture again.
+`CAPTURE-UNPAIRED` warning per run. Synchronous flagged rows remain unsupported for delivery.
+
+**Skipped game renders (091-05).** Scene-colour capture accepts only the capture world's scene and its game
+viewport. Editor viewports cannot serve its colour or mask requests. If that game render is skipped, the
+request becomes `capture_unpaired` and is dropped: it writes neither a picture nor a labels row. Session
+indices can therefore have gaps; join by the recorded index rather than a row's position. A later render
+cannot reuse the old snapshot. `run_summary.capture_unpaired_dropped` counts these requests, and
+`capture_unpaired_frames` includes them plus synchronous flagged rows. The count-only diagnostics
+`capture_view_rejected_colour`, `capture_view_rejected_mask` and `capture_mask_arms_expired` record rejected
+families and expired mask arms. Review a nonzero dropped count before using the capture for delivery.
 - **Capture-time temporal detection** (for `temporal_aa` and `hide_return`). Each scene-colour capture carries the rendered
   view's AA method and temporal-upscaler evidence. Engine defaults are also re-read during the run, including the mobile
   feature-level path. TAA, TSR, a registered temporal upscaler or missing/unknown evidence enables temporal flags.
