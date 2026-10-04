@@ -667,10 +667,15 @@ then:
   touchable slot qualifies, otherwise skipped whole (the mask is per component, so a component is never partly
   corrupted). `FSlot::IsSelected()` = qualified and its component admitted; only selected slots are applied. **V1P**
   `partial_footprint:<q>/<n>:<earliest BLOCKING slot's reason>` only when no component is admitted. When components are
-  skipped, Apply sets an **event component scope** (`AnomalyViewport::SetEventComponentScope`), read by
+  skipped, or when untouched/null-material components exist, the mask still needs the actual changed set.
+  **091-05:** Apply always installs a positively enumerated **event component scope**
+  (`AnomalyViewport::SetEventComponentScope`) from committed slots whose host MID is actually installed; a
+  deferred/no-apply slot contributes nothing until commit. The scope is read by
   `AnomalyStencilTag::TagActor` / `VerifyActorStillTagged` (target mask, m26 measure) and by
   `ProjectActorBoundsToScreenRect` (`bbox_px`), so the label covers the corrupted components only; cleared on restore and
-  world teardown;
+  world teardown. When the scope excludes a previously census-tagged component, `TagActor` restores its
+  prior stencil state only if the current value is one the plugin applied; host replacement values and
+  host-disabled custom depth are preserved. This prevents an orphan tag from invalidating later m26 reads;
 - **V2** the selected footprint's bytes against the cap; if over, **fit-to-budget** (`FitRequirementToBudget`) halves the
   largest copy (never below 512 px) until it fits (`CopyDrop`, note `over_budget/copy_reduced`); only then
   `over_budget:need_…_available_…_cap_…`.
@@ -688,12 +693,15 @@ effective state (`EffectiveStreamingMipBias`: 0 in the editor, floor outside, `U
 (`TextureRenderTarget2D.cpp:648-655` has none) and subtracted from `SrcMip`, because that sampler bias also applies to the
 explicit-LOD copy draw (measured: identity under `r.MipMapLODBias 1` differs by 17.9 without the subtraction, exact
 with it). The tripwire holds the source RHI texture from before the first level draw to after the last; a replacement in
-between is counted (`texcorrupt_copy_source_changed`), not refused.
+between is counted (`texcorrupt_copy_source_changed`), not refused. That retained tripwire reference does
+not bind every copy draw to one coherent source snapshot under heavy streaming churn; this remains a
+robustness limitation, and the counters are not vetoes.
 
 **Texture uniformity (090-10f2, A7 `texture_uniform`).** A UV rearrangement (`tile`, `scramble`) of a spatially constant
 texture, or an `invert` / `green_flip` of a flat normal, changes no pixel, so labelling it is a mislabel. After A6 a slot is
 refused `texture_uniform:<rule>` when **every** required transformable binding is measured uniform for the drawn mode
-(`TexCorruptPure::Uniform`): `no_spatial_variation` (tile/scramble; every channel's max − min ≤ 2/255), `flat_normal` (invert;
+(`TexCorruptPure::Uniform`): `no_spatial_variation` (tile/scramble; RGB max − min ≤ 2/255, with alpha included
+only for masked/translucent materials or a connected opacity/opacity-mask property), `flat_normal` (invert;
 X and Y within 0.5 ± 2/255), `flat_normal_y` (green_flip; Y); with no mode (census) the family rule; the bench identity and
 tile-probe modes are not checked. One measured-varying binding admits; a pending one refuses `texture_uniform:pending`
 (dependent), a failed one `texture_uniform:unmeasurable` — never assumed to vary. B treats it like any slot refusal (the component
@@ -1343,11 +1351,22 @@ grab point **and where its default came from** (compiled-in vs ini).
 | frame↔state pairing | **arm → next present** (order) | **identity** via the key ring (see below) |
 | implementation | `FAnomalyFrameCapturer` | `FAnomalySceneViewExtension` + `FAnomalySveCapturer` |
 
-**The key ring (`AnomalySveKeyRing`) is the whole of B′.** The game thread publishes
-`(FSceneViewFamily::FrameNumber → GFrameCounter, wanted)` at **`BeginRenderViewFamily`** — the only hook
-where `ViewFamily.FrameNumber` is assigned (`SetupViewFamily` still reports `UINT_MAX`). The
-render-thread pass looks the key up by `View.Family->FrameNumber` and recovers the `GFrameCounter`.
-Fixed capacity 64, oldest-evicted, four counters plus a corruption counter.
+**Capture ownership and the key ring (091-05).** The extension accepts only the capture world's scene and
+its game viewport render target, before dequeuing a request and again before render-thread service. UE 5.1
+constructs this family from `MyWorld->Scene` and `InViewport` (`GameViewportClient.cpp:1274`). Editor-world,
+other-viewport, scene-capture and reflection families cannot consume its colour request. Mask activation,
+family bounds and service use the same owner scene/target; a family without a bound serves no arm.
+
+The game thread publishes `(FSceneViewFamily::FrameNumber, FamilyId -> RequestId, wanted)` at
+`BeginRenderViewFamily`. The family-data serial prevents equal per-scene frame numbers from aliasing; a
+family binds and serves once. The request retains its sampled `GFrameCounter`, and mask arms retain that
+same sample frame as well as the existing sequence bound. A later owner family cannot consume a stale
+sample. A render-thread drain after the earlier queued renders expires any request whose owner render
+was skipped; the subsystem marks its snapshot `capture_unpaired` and drops it without picture or labels.
+`run_summary` counts `capture_unpaired_dropped`, `capture_view_rejected_colour`,
+`capture_view_rejected_mask` and `capture_mask_arms_expired`. `capture_unpaired_frames` includes these
+dropped requests plus the existing synchronous flagged rows. Rejection logs report counts only.
+The key ring retains fixed capacity 64, oldest eviction and its existing diagnostic counters.
 
 **The seam is `FAnomalyCapturedFrame::RequestId`.** That id is already the key
 `Async->PendingSnapshots` uses, so the SVE path swaps the *producer* of the id and touches **no
