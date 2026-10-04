@@ -9155,3 +9155,35 @@ the labels' transitions, with zero unflagged E1 t50/t10 tail frames and zero mis
 deferred 091-02 section 0 is closed on the final m53/proxy builds. AA-off UV/normal confirmation uses the
 existing 090-10e reader's independent PIE exclusions, with raw 084-09 pixel/edge parity and 13 controls;
 the older reader's all-flags-under-AA-off rejection is retained, not counted as a pixel failure.
+
+
+## G462 - 091-05: family identity includes the scene, viewport and sampled frame
+
+An extension callback being non-scene-capture does not establish capture ownership. The editor's own
+world can render while PIE plays, and its per-scene FrameNumber can equal the game's. Check the owner
+scene and viewport before dequeue/service, bind the key ring to a unique family serial, and fail closed
+when a mask family has no bound. Sequence ordering alone also permits an old arm to be served by a later
+family after its owner render was skipped; retain the sampled game frame and expire after earlier queued
+renders. The expired snapshot is counted and dropped, never delivered with a later picture.
+
+The 091-04 predicate counterexample is a failing pure mutant. Engine proof uses new-window PIE and two
+realtime editor-world viewports, including editor redraws after capture sampling. A green plane exists only
+in the game world and is measured in every labelled image; family counts alone cannot prove picture
+ownership. An erased-marker control fails. Keep old-build pixel readings separate from its absence of new
+rejection counters: missing telemetry alone is not evidence of an old mislabel.
+
+F6 must collect labels-side event identities before filtering transition entries. A transition-free AA-off
+event can have a wrong annotation ID while both transition lists are empty. Check every labels-side ID,
+reject duplicate annotation IDs, and permit legitimate annotation-only unlabelled records. The review's
+wrong-ID control passes the old checker and fails both the new CLI and verify_capture hook.
+
+A dropped snapshot may already have a counted clean mask outcome. Removing the outcome without reversing
+that count leaves the summary larger than the written row set (the first skipped-render control had 909
+rows but 912 mask outcomes). Decrement only the existing outcome's matching counter before removal; do not
+turn a dropped request into a written unmeasured row. Check both clean-frame and active-event skips against
+actual written mask states. The 33adf06 capture is retained as this accounting gate's failing control.
+
+Colour and mask request IDs have separate namespaces. An active skipped-render control exposed three
+late mask results counted after the colour snapshots were gone. Locate these pending masks by session
+index, consume ready results, and drain late results as discard-only; exclude discarded requests from
+teardown counts. The 23a7da5 active control is the failing example.

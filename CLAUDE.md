@@ -11,11 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **091-05, 2026-10-04 — REVIEW FIXES IN PROGRESS; DO NOT MERGE YET.**
-> F1 capture ownership and F6 event identity checks are being implemented on the fix branch and merged forward.
-> F2 positive component scope and F3 material-aware alpha uniformity follow on m53. Required engine proof and
-> all build/archive gates remain pending; no 091-05 push is authorized until proof passes.
-> Journal: `docs/sessions/2026-10-04-091-05-review-fixes.md`; evidence: `E:/IA_BuildCache/_r915`.
+> **091-05, completed 2026-10-04 — REVIEW FIXES AND REQUIRED PROOF PASS; IMPLEMENTER GREEN.**
+> F1 binds colour/masks to the capture scene, viewport and sampled frame; skipped owner renders are counted
+> and dropped without pictures or labels. F6 checks every labels-side event ID, including transition-free events.
+> F2 always scopes UV/normal to installed components and releases excluded census tags. F3 ignores unused alpha.
+> Proved Source: fix `97c20f2` / EXE `FEA79D94`, m53 `839f429` / `57B70BF8`, proxy `dc42e35` / `3ADC2EA4`.
+> Documentation heads preserve those exact production trees. Editor/Game and strict includes are all 0/0;
+> lever audits pass, string review has no unresolved additions, and archives are re-hashed.
+> New-window PIE plus two realtime editor-world viewports passes for UV/shared proxy. C7FB5212 reproduces wrong-view
+> labelled pictures; null-material C2 masks and opaque alpha-only invisible events also fail the old build.
+> Final scope/alpha proofs, seven regression configurations, clean/active skipped-render controls and the TSR
+> office kit pass. E1 t50/t10 has zero unflagged disagreements; every labelled frame has a measured PNG mask.
+> Default 3/40/1 is unchanged. C2/co-user RGB is unchanged within a measured clean-frame noise envelope;
+> failed exact-byte comparisons and every harness/accounting correction remain in the evidence.
+> F4/F5 are documentation only. Packed unused channels, zero-strength normals and heavy-churn copy snapshots
+> remain the ruling's stated follow-ups; no measured visible-change gate was added. No new owner decision.
+> Journal: `docs/sessions/2026-10-04-091-05-review-fixes.md`; exact pushed heads and receipts: the 091-05 `report.md`.
+> Evidence: `E:/IA_BuildCache/_r915`. Independent reviewer ruling remains separate from this implementer result.
 
 > **091-03, completed 2026-10-04 — REQUIRED FINAL PROOF PASSES; RELEASE READY (GREEN).**
 > Schema 2.1 exports each event's exact transition indices/reasons and the session union. Drop these frames
