@@ -1795,6 +1795,12 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 			continue;
 		}
 
+		if (Pair.Value == INDEX_NONE)
+		{
+			Ready.Add(Pair.Key);
+			continue;
+		}
+
 		TSet<uint8> DroppedGated;
 		if (const TSet<uint8>* Gated = Async->MaskGatedTags.Find(Pair.Key))
 		{
@@ -4642,11 +4648,24 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 				}
 			}
 			TargetMaskOutcome.Remove(Snap->SessionIndex);
-			TargetMaskPendingSessionIndex.Remove(Id);
-			TargetMaskPendingTags.Remove(Id);
-			TargetMaskPendingTagEvent.Remove(Id);
-			Async->DeferredMasks.Remove(Id);
-			Async->MaskGatedTags.Remove(Id);
+			for (auto It = TargetMaskPendingSessionIndex.CreateIterator(); It; ++It)
+			{
+				if (It.Value() != Snap->SessionIndex) { continue; }
+				const uint64 MaskId = It.Key();
+				Async->MaskGatedTags.Remove(MaskId);
+				FAnomalyMaskResult Discarded;
+				if (Async->DeferredMasks.Remove(MaskId) > 0
+					|| Async->MaskExtension->TakeMaskResult(MaskId, Discarded, true))
+				{
+					TargetMaskPendingTags.Remove(MaskId);
+					TargetMaskPendingTagEvent.Remove(MaskId);
+					It.RemoveCurrent();
+				}
+				else
+				{
+					It.Value() = INDEX_NONE;
+				}
+			}
 			Async->PendingSnapshots.Remove(Id);
 		}
 	}
@@ -9182,13 +9201,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			}
 			for (const TPair<uint64, int32>& Pair : TargetMaskPendingSessionIndex)
 			{
+				if (Pair.Value == INDEX_NONE) { continue; }
+				++TargetMaskUnavailable;
 				UE_LOG(LogAnomalyCapture, Warning,
 					TEXT("Capture(m43): UNAVAILABLE session_index %d (id=%llu) - its mask readback never ")
 					TEXT("arrived. Its labels row says mask_file:null - NOT MEASURED, which is a different ")
 					TEXT("fact from a blank mask."),
 					Pair.Value, Pair.Key);
 			}
-			TargetMaskUnavailable += TargetMaskPendingSessionIndex.Num();
 			TargetMaskPendingSessionIndex.Reset();
 			TargetMaskPendingTags.Reset();
 			TargetMaskPendingTagEvent.Reset();
