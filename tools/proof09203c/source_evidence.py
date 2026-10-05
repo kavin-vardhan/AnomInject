@@ -9,6 +9,12 @@ for record in records:
     if 'path' in record:
         assert hashlib.sha256(Path(record['path']).read_bytes()).hexdigest() == record['sha256']
 evidence = [
+    ('Source/Runtime/Renderer/Private/VT/VirtualTextureSpace.cpp', 'const uint32 vAddress = Allocator.Alloc(VirtualTexture);', 'VT allocation reserves a virtual region; this operation does not clear its GPU page-table bytes'),
+    ('Source/Runtime/Renderer/Private/VT/VirtualTextureSpace.cpp', 'Allocator.Free(VirtualTexture);', 'Released virtual regions can be reused without a GPU clear in FreeVirtualTexture'),
+    ('Source/Runtime/RenderCore/Public/VirtualTexturing.h', 'inline const FVirtualTextureProducerHandle& GetProducerHandle(uint32 InLayerIndex)', 'Public allocated-VT producer ownership can be checked before initializing its region'),
+    ('Source/Runtime/RenderCore/Public/VirtualTexturing.h', 'inline uint32 GetVirtualPageX() const', 'Public allocated-VT coordinates scope page-table initialization and readback'),
+    ('Source/Runtime/RHI/Public/RHIResources.h', 'struct FRHIRenderPassInfo', 'Public RHI render pass permits zero initialization of a temporary integer render target'),
+    ('Source/Runtime/RHI/Public/RHI.h', 'struct FRHICopyTextureInfo', 'Public RHI copy specifies destination mip, position and extent for the private region'),
     ('Source/Runtime/RenderCore/Public/RendererInterface.h', 'virtual void RequestVirtualTextureTilesForRegion', 'Public request is scoped to an allocated VT'),
     ('Source/Runtime/RenderCore/Public/RendererInterface.h', 'virtual void LoadPendingVirtualTextureTiles', 'Public render-thread loader'),
     ('Source/Runtime/Renderer/Private/SceneRendering.cpp', 'FVirtualTextureSystem::Get().LoadPendingTiles(GraphBuilder, FeatureLevel);', 'Loader executes an RDG graph'),

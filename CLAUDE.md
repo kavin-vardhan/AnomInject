@@ -16,12 +16,16 @@ and is the single source of truth for the project.
 > Private-producer prefetch now passes Drop 0 on every measured bind/restore frame under the
 > unchanged frozen criterion: target peak 6.592774, limit 6.629029; both controls pass, drain 0/0.
 > No fallback was used. Production `proxy_vt` is integrated locally; normal and strict Editor/Game
-> source `a2632b0` builds 0 errors / 0 warnings, 70 isolated headers, final normal exe `3C135195`.
-> Final-runtime fixed-camera identity and 10 targeted PIE fires pass. Earlier runtime has 3 Auto
-> PIE and 5 staged targeted passes; final clean Auto/staged repeats and supplemental legs remain due.
+> source `46a52d0` builds 0 errors / 0 warnings, 70 isolated headers, final normal exe `FE338251`.
+> Source `a2632b0` passed fixed-camera identity and 21 fires: PIE targeted 10 / Auto 3, staged 5 / 3.
+> Its release-refusal, no-bind mutant and named-stack refusal pass; full repeats and remaining legs
+> are due on `46a52d0`, whose sole runtime change is the corrected VT-support startup message.
 > Every event has E1 strict/t50 0-frame edges, measured target masks, unchanged controls and clean revert.
 > Failed null-contamination, camera alignment and foreign-GPU interruptions remain recorded.
-> The native fixture has a fixed CameraActor; final Auto/staged, can-fails and regression are in progress.
+> `FE338251` passes native identity, all 21 positive fires, release/no-bind/stack/constant/uniform
+> controls, mixed bindings, destruction, displacement and world teardown. The no-request readiness
+> can-fail exposed stale page-table values and five changed frames; MainWorld/regression were not run.
+> The private allocation is now initialized before prefetch; corrected-build proofs remain pending.
 > No push. Host is temporarily detached on the proof source; restoration remains required.
 > Evidence `E:\IA_BuildCache\_r921\09203c`; journal `docs/sessions/2026-10-05-092-03-vt-proxy-blur.md`.
 > The owner item remains: a 128px minimum VT tile needs about 1024px on screen under the unchanged

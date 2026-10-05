@@ -232,12 +232,16 @@
     "sha256": "8f6b853902c4d7edd9ee62f9163383d64dbea37ff94da00eb7a93f5a8ddaf98e"
   },
   {
+    "name": "readiness-initialization-correction.md",
+    "sha256": "f0b19f793c7c4226e2dc39535db7f5f5c61148ab39cf83e3aece7c7501483c47"
+  },
+  {
     "name": "restore_host.py",
     "sha256": "588fda3c0ece6433ab27921fcc103abe5c377682d2122f85f564c08a1ef7639b"
   },
   {
     "name": "review_production_strings.py",
-    "sha256": "0d60a85c3a3851c02dd04a4e18af97e04e86fb8a07d503aadf80d4fbb8a24243"
+    "sha256": "11da92f9612274964b5f6c21fa49558498253f882a909229f1cd80bde4c68e98"
   },
   {
     "name": "run_queue.py",
@@ -249,7 +253,7 @@
   },
   {
     "name": "source_evidence.py",
-    "sha256": "30709fa0133489904e2aeacc742e70b0942f9c1256224e46823a6dd0f1d14f92"
+    "sha256": "80b3ca21f1721ace5b4f73d57cc71ae40011c79f406047fa4af820e201562471"
   },
   {
     "name": "startup-banner-correction.md",
@@ -286,6 +290,10 @@
   {
     "name": "verify_engine_sources.py",
     "sha256": "db11615d4f3c37c0bc692b52db9352091475f5f4c95d51363d676649d6bffbfc"
+  },
+  {
+    "name": "verify_pointer_fragments.py",
+    "sha256": "2c78f756923386add0747f9f220d7dffad48e7b02cb9c4b9b02327f3dd5b8450"
   },
   {
     "name": "world-end-criteria.md",
