@@ -8,11 +8,25 @@
 #include "Materials/MaterialInterface.h"
 #include "PixelFormat.h"
 #include "TextureResource.h"
+#if !UE_BUILD_SHIPPING
+#include "AnomalyBenchGate.h"
+#include "HAL/IConsoleManager.h"
+#endif
 
 namespace AnomalyTexCorrupt
 {
 	namespace
 	{
+#if !UE_BUILD_SHIPPING
+		bool bMiscount = false;
+		FAutoConsoleCommand MiscountCommand(TEXT("IAI.Bench.VTCensusMiscount"),
+			TEXT("Bench-only census mutant: overcount one compiled VT binding."),
+			FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+			{
+				if (!AnomalyBenchGate::IsEnabled()) { return; }
+				bMiscount = Args.Num() == 1 && Args[0] == TEXT("1");
+			}));
+#endif
 		int32 FormatBit(EPixelFormat Format)
 		{
 			switch (Format)
@@ -192,8 +206,12 @@ namespace AnomalyTexCorrupt
 
 	void PrintVTDiagnostics(const FVTDiagnostics& C, int32 Family)
 	{
+		int64 Bindings = C.Bindings;
+#if !UE_BUILD_SHIPPING
+		Bindings += bMiscount ? 1 : 0;
+#endif
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-VT-CENSUS v1 family=%d components=%lld vt_components=%lld bindings=%lld required_components=%lld required_bindings=%lld unread_slots=%lld"),
-			Family, C.Components, C.Touching, C.Bindings, C.RequiredComponents, C.RequiredBindings, C.UnreadSlots);
+			Family, C.Components, C.Touching, Bindings, C.RequiredComponents, C.RequiredBindings, C.UnreadSlots);
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-VT-CENSUS v1 family=%d only_vt=%lld only_vt_unassessed=%lld only_stack=%lld only_stack_unassessed=%lld"),
 			Family, C.OnlyVT, C.OnlyVTUnassessed, C.OnlyStack, C.OnlyStackUnassessed);
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-VT-CENSUS v1 family=%d streaming=%lld preallocated=%lld stacks=%s"),

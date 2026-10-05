@@ -1,6 +1,7 @@
 #include "Anomalies/AnomalyPrivateVT.h"
 #include "AnomalyBenchGate.h"
 #include "AnomalyInjectorLog.h"
+#include "AnomalyViewport.h"
 #include "Anomalies/TexCorruptCore.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/MeshComponent.h"
@@ -12,6 +13,8 @@
 #include "HAL/IConsoleManager.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Misc/Crc.h"
+#include "TextureResource.h"
 #include "UObject/Package.h"
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/UObjectIterator.h"
@@ -34,6 +37,51 @@ namespace AnomalyProxyVTBenchDetail
 
 	TUniquePtr<FProbe> Probe;
 	bool bNoBind = false;
+	FAutoConsoleCommandWithWorldAndArgs CensusStateCommand(TEXT("IAI.Bench.VTCensusState"),
+		TEXT("Bench-only: hash material bindings and texture resources/residency without changing them."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>&, UWorld* World)
+		{
+			if (!AnomalyBenchGate::IsEnabled() || !World) { return; }
+			AnomalyViewport::FReadOnlyEnumerationScope ReadOnly;
+			uint32 Materials = 0, Textures = 0;
+			int32 Slots = 0, Bindings = 0;
+			for (TActorIterator<AActor> It(World); It; ++It)
+			{
+				TInlineComponentArray<UMeshComponent*> Components(*It);
+				for (UMeshComponent* Component : Components)
+				{
+					for (int32 Slot = 0; Slot < Component->GetNumMaterials(); ++Slot)
+					{
+						UMaterialInterface* Material = Component->GetMaterial(Slot);
+						Materials = FCrc::MemCrc32(&Material, sizeof(Material), Materials);
+						++Slots;
+						TArray<AnomalyTexCorrupt::FBinding> Active;
+						bool Resource = false, Shader = false, Complete = false;
+						AnomalyTexCorrupt::ReadActiveBindings(World, Material, Component, Active, Resource, Shader, Complete);
+						for (const AnomalyTexCorrupt::FBinding& Binding : Active)
+						{
+							++Bindings;
+							const UTexture2D* Texture = Binding.Tex2D;
+							const FTextureResource* R = Texture ? Texture->GetResource() : nullptr;
+							const FVirtualTexture2DResource* VT = R ? R->GetVirtualTexture2DResource() : nullptr;
+							const uint32 Producer = VT ? VT->GetProducerHandle().PackedValue : 0;
+							const int32 Resident = Texture && !VT ? Texture->GetNumResidentMips() : -1;
+							const uint32 Flags = Texture ? (Texture->bForceMiplevelsToBeResident ? 1u : 0u)
+								| (Texture->bGlobalForceMipLevelsToBeResident ? 2u : 0u) | (Texture->NeverStream ? 4u : 0u) : 0u;
+							const double ForcedUntil = Texture ? Texture->ForceMipLevelsToBeResidentTimestamp : 0.0;
+							Textures = FCrc::MemCrc32(&Texture, sizeof(Texture), Textures);
+							Textures = FCrc::MemCrc32(&R, sizeof(R), Textures);
+							Textures = FCrc::MemCrc32(&Producer, sizeof(Producer), Textures);
+							Textures = FCrc::MemCrc32(&Resident, sizeof(Resident), Textures);
+							Textures = FCrc::MemCrc32(&Flags, sizeof(Flags), Textures);
+							Textures = FCrc::MemCrc32(&ForcedUntil, sizeof(ForcedUntil), Textures);
+						}
+					}
+				}
+			}
+			UE_LOG(LogAnomaly, Display, TEXT("VT-CENSUS-STATE slots=%d bindings=%d materials=%u textures=%u resources=%d producers=%d"),
+				Slots, Bindings, Materials, Textures, UAnomalyPrivateVT::LiveResources(), UAnomalyPrivateVT::LiveProducers());
+		}));
 	FAutoConsoleCommandWithWorldAndArgs InventoryCommand(TEXT("IAI.Bench.ProxyVTInventory"),
 		TEXT("Bench-only: enumerate genuine VT textures, mesh users, compiled named bindings and blurry tree eligibility."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>&, UWorld* World)
