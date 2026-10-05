@@ -354,7 +354,8 @@ namespace AnomalyTexCorrupt
 				B.CookedH = Tex->GetSizeY();
 				B.VTTileSize = VT->GetTileSize();
 				B.VTBorderSize = VT->GetBorderSize();
-				B.VTMaxDrop = FMath::CeilLogTwo(FMath::Max(VT->GetNumTilesX(), VT->GetNumTilesY()));
+				B.VTMaxDrop = FMath::Min(FMath::CeilLogTwo(FMath::Max(VT->GetNumTilesX(), VT->GetNumTilesY())),
+					FMath::FloorLog2(FMath::Max(1u, VT->GetSizeX() / FMath::Max(1u, VT->GetTileSize()))));
 				for (int32 m = 0; m < B.M; ++m) { B.LevelSizes.Add(FIntPoint(FMath::Max(1, B.W >> m), FMath::Max(1, B.H >> m))); }
 				return;
 			}

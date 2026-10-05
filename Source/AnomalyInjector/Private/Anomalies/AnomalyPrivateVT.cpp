@@ -90,7 +90,8 @@ bool UAnomalyPrivateVT::Initialize(UTexture2D* InSource, int32 InDrop, FString& 
 		return false;
 	}
 	const int32 SourceFirstMip = InSource->GetNumMips() - static_cast<int32>(VT->GetNumMips());
-	const int32 MaximumDrop = FMath::CeilLogTwo(FMath::Max(VT->GetNumTilesX(), VT->GetNumTilesY()));
+	const int32 MaximumDrop = FMath::Min(FMath::CeilLogTwo(FMath::Max(VT->GetNumTilesX(), VT->GetNumTilesY())),
+		FMath::FloorLog2(FMath::Max(1u, VT->GetSizeX() / FMath::Max(1u, VT->GetTileSize()))));
 	if (SourceFirstMip < 0 || InDrop > MaximumDrop || VT->GetNumLayers() == 0 || VT->GetTileSize() == 0)
 	{
 		OutReason = TEXT("virtual_texture:invalid_layout");

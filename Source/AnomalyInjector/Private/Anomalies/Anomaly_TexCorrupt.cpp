@@ -260,6 +260,19 @@ void FAnomaly_TexCorrupt::ReleaseAllTargets()
 	{
 		if (O.VirtualTarget)
 		{
+			for (FHostMid& HM : HostMids)
+			{
+				if (!HM.Mid) { continue; }
+				for (const TPair<FMaterialParameterInfo, UTexture*>& Pair : HM.Bound)
+				{
+					UTexture* Current = nullptr;
+					if (Pair.Value == O.VirtualTarget && HM.Mid->GetTextureParameterValue(FHashedMaterialParameterInfo(Pair.Key), Current, true)
+						&& Current == O.VirtualTarget)
+					{
+						HM.Mid->SetTextureParameterValueByInfo(Pair.Key, O.Source);
+					}
+				}
+			}
 			O.VirtualTarget->ReleasePrivate();
 			Account.ReleaseCreated(Ledger(), O.Bytes, GFrameCounter);
 			O.VirtualTarget = nullptr;
