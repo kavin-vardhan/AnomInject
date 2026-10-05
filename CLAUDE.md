@@ -11,7 +11,7 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **092-05, 2026-10-06 - PART A PASSES; PART B NOT YET IMPLEMENTED; FEATURE BRANCH ONLY.**
+> **092-05, 2026-10-06 - PART A PASSES AND IS PUSHED; PART B PROBE IN PROGRESS; FEATURE BRANCH ONLY.**
 > `feat/vt-blur-stacks` starts at accepted Proof A `af79520`; no protected branch or tag is moved.
 > Part A adds `IAI.TexCorrupt.Census vt` and `IAI.TexCorrupt.Census all vt`: numeric compiled-stack,
 > cooked-layer format, tile/border/address and component-only refusal diagnostics. Missing/dependent facts
@@ -24,6 +24,10 @@ and is the single source of truth for the project.
 > source for the existing 6% view filter and the cold mixed-footprint blocker; failed attempts are retained.
 > The inherited active census warmup exposed a D3D12 format-copy failure before diagnostics; preserved for
 > investigation before Part B. Part A authorizes no new firing behavior; multi-layer stacks still refuse.
+> Part A checkpoint is `94779af`. Part B probe `6bfca31` builds Editor/game 0/0, but its first valid runtime
+> refuses because the engine returns a non-null black indirection reference even for ordinary streaming stacks.
+> The correction checks the public allocation description and resolves page-table references after queued RHI updates.
+> Part B has no passing identity, positive or regression claim yet. The Part A archive and pushed checkpoint remain available.
 > Evidence `E:\IA_BuildCache\_r921\09205`; journal `docs/sessions/2026-10-06-092-05-vt-blur-stacks.md`.
 
 > **092-03c, 2026-10-05/06 - BOUNDED PROOF PASSES; NOT A DELIVERY.**

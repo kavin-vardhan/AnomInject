@@ -202,7 +202,7 @@ namespace AnomalyPrivateVTDetail
 		if (!Allocation || Allocation->GetNumTextureLayers() != static_cast<uint32>(Expected.Num())
 			|| (Expected.Num() > 1 && Allocation->GetDescription().bShareDuplicateLayers) || Allocation->GetDimensions() != 2
 			|| Allocation->GetNumPageTableTextures() != static_cast<uint32>(FMath::DivideAndRoundUp(Expected.Num(), 4))
-			|| Allocation->GetPageTableIndirectionTexture())
+			|| Allocation->GetDescription().IndirectionTextureSize != 0 || Allocation->GetDescription().AdaptiveLevelBias != 0)
 		{
 			Refuse(State, TEXT("virtual_texture:combined_mapping_layout"));
 			return false;
@@ -302,11 +302,13 @@ namespace AnomalyPrivateVTDetail
 			if (bRequestPages) { Renderer.RequestVirtualTextureTilesForRegion(Allocation, Size, FVector2D::ZeroVector, Size, FVector2D::ZeroVector, FVector2D(1, 1), Level); }
 		}
 		Renderer.LoadPendingVirtualTextureTiles(RHICmdList, GMaxRHIFeatureLevel);
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 #if ANOMALY_SHADERS
 		FRDGBuilder Graph(RHICmdList);
 		for (uint32 Table = 0; Table < Allocation->GetNumPageTableTextures(); ++Table)
 		{
 			FRHITexture* TableRHI = Allocation->GetPageTableTexture(Table);
+			if (TableRHI && TableRHI->GetTextureReference()) { TableRHI = TableRHI->GetTextureReference()->GetReferencedTexture(); }
 			if (!TableRHI) { Refuse(State, TEXT("virtual_texture:prefetch_table_lost")); return; }
 			FRDGTextureRef TableTexture = Graph.RegisterExternalTexture(CreateRenderTarget(TableRHI, TEXT("AnomalyVTPageCheck")));
 			for (uint32 Level = 0; Level <= Allocation->GetMaxLevel(); ++Level)
