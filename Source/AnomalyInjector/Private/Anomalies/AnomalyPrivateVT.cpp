@@ -3,11 +3,13 @@
 #include "EngineModule.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/ThreadSafeCounter.h"
+#include "PixelFormat.h"
 #include "RendererInterface.h"
 #include "RenderingThread.h"
 #include "RHIGPUReadback.h"
 #include "RHICommandList.h"
 #include "TextureResource.h"
+#include "Templates/Atomic.h"
 #include "VirtualTexturing.h"
 
 struct FAnomalyVTPrefetch
@@ -115,7 +117,7 @@ bool UAnomalyPrivateVT::Initialize(UTexture2D* InSource, int32 InDrop, FString& 
 	Initialized.Wait();
 	const FTextureResource* CreatedResource = GetResource();
 	const FVirtualTexture2DResource* PrivateVT = CreatedResource ? CreatedResource->GetVirtualTexture2DResource() : nullptr;
-	if (!PrivateVT || !PrivateVT->GetProducerHandle().IsValid() || PrivateVT->GetSizeX() != static_cast<uint32>(Width)
+	if (!PrivateVT || !PrivateVT->GetProducerHandle().IsValid() || PrivateVT->GetProducerHandle() == VT->GetProducerHandle() || PrivateVT->GetSizeX() != static_cast<uint32>(Width)
 		|| PrivateVT->GetSizeY() != static_cast<uint32>(Height) || PrivateVT->GetNumLayers() != VT->GetNumLayers()
 		|| PrivateVT->GetTileSize() != VT->GetTileSize() || PrivateVT->GetBorderSize() != VT->GetBorderSize())
 	{
@@ -243,7 +245,7 @@ bool UAnomalyPrivateVT::PollPrefetch(FString& OutReason)
 			return;
 		}
 		State->Pages.Store(Pages);
-		State->Attempts.FetchAdd(1);
+		State->Attempts.AddExchange(1);
 		IRendererModule& Renderer = GetRendererModule();
 		const FVector2D Size(Allocation->GetWidthInPixels(), Allocation->GetHeightInPixels());
 		for (uint32 Level = 0; Level <= Allocation->GetMaxLevel(); ++Level)
