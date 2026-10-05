@@ -5,5 +5,9 @@ public class AnomalyBench : ModuleRules
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PrivateDependencyModuleNames.AddRange(new[] { "Core", "CoreUObject", "Engine", "AnomalyInjector", "AnomalyCapture" });
+        if (Target.bBuildEditor)
+        {
+            PrivateDependencyModuleNames.Add("UnrealEd");
+        }
     }
 }
