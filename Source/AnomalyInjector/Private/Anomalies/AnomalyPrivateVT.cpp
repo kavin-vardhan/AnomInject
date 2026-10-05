@@ -54,9 +54,9 @@ bool UAnomalyPrivateVT::Initialize(UTexture2D* InSource, int32 InDrop, FString& 
 		return false;
 	}
 	FTexturePlatformData* Data = InSource->GetPlatformData();
-	const FTextureResource* Resource = InSource->GetResource();
-	const FVirtualTexture2DResource* VT = Resource ? Resource->GetVirtualTexture2DResource() : nullptr;
-	if (!Data || !Data->VTData || !VT || !Resource->IsInitialized() || InSource->HasPendingInitOrStreaming(false))
+	const FTextureResource* SourceResource = InSource->GetResource();
+	const FVirtualTexture2DResource* VT = SourceResource ? SourceResource->GetVirtualTexture2DResource() : nullptr;
+	if (!Data || !Data->VTData || !VT || !SourceResource->IsInitialized() || InSource->HasPendingInitOrStreaming(false))
 	{
 		OutReason = TEXT("virtual_texture:source_not_ready");
 		return false;
@@ -117,8 +117,8 @@ FTextureResource* UAnomalyPrivateVT::CreateResource()
 
 bool UAnomalyPrivateVT::IsCurrentlyVirtualTextured() const
 {
-	const FTextureResource* Resource = GetResource();
-	return Resource && Resource->GetVirtualTexture2DResource();
+	const FTextureResource* CurrentResource = GetResource();
+	return CurrentResource && CurrentResource->GetVirtualTexture2DResource();
 }
 
 void UAnomalyPrivateVT::ReleasePrivate()
