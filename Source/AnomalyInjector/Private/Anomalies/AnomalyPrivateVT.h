@@ -4,10 +4,12 @@
 #include "Engine/Texture2D.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Templates/SharedPointer.h"
+#include "RHIDefinitions.h"
 #include "AnomalyPrivateVT.generated.h"
 
 class FTextureResource;
 struct FAnomalyVTPrefetch;
+class UMaterialInstanceDynamic;
 
 UCLASS(Transient)
 class UAnomalyPrivateVT final : public UTexture
@@ -55,6 +57,9 @@ private:
 	bool bSkipRequests = false;
 #endif
 };
+
+bool AnomalyPrefetchVTMaterial(UMaterialInstanceDynamic* Material, const TArray<UAnomalyPrivateVT*>& Targets,
+	ERHIFeatureLevel::Type FeatureLevel, FString& OutReason);
 
 #if !UE_BUILD_SHIPPING
 bool AnomalyProxyVTBenchNoBind();

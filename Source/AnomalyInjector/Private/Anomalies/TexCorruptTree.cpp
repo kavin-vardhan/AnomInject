@@ -357,6 +357,10 @@ namespace AnomalyTexCorrupt
 				B.VTBorderSize = VT->GetBorderSize();
 				B.VTMaxDrop = FMath::Min(FMath::CeilLogTwo(FMath::Max(VT->GetNumTilesX(), VT->GetNumTilesY())),
 					FMath::FloorLog2(FMath::Max(1u, VT->GetSizeX() / FMath::Max(1u, VT->GetTileSize()))));
+				if (B.VTStackLayers > 1)
+				{
+					B.VTMaxDrop = FMath::Min(B.VTMaxDrop, static_cast<int32>(FMath::FloorLog2(FMath::Max(1u, VT->GetSizeY() / FMath::Max(1u, VT->GetTileSize())))));
+				}
 				for (int32 m = 0; m < B.M; ++m) { B.LevelSizes.Add(FIntPoint(FMath::Max(1, B.W >> m), FMath::Max(1, B.H >> m))); }
 				return;
 			}
@@ -530,7 +534,7 @@ namespace AnomalyTexCorrupt
 			if (B.bVirtual)
 			{
 				const FVirtualTexture2DResource* VT = B.Tex2D->GetResource()->GetVirtualTexture2DResource();
-				if (!VT || VT->GetNumLayers() != 1 || B.VTStackLayers != 1 || B.bVTPreallocatedStack)
+				if (!VT || VT->GetNumLayers() != 1 || (B.VTStackLayers < 1 || B.VTStackLayers > 8) || B.bVTPreallocatedStack)
 				{
 					if (Fail(8, Why::VirtualTexture, TEXT("stack_layout"), true)) { return; }
 				}
@@ -715,6 +719,56 @@ namespace AnomalyTexCorrupt
 					{
 						if (B.Step == 0) { FailBinding(B, 11, *DepthReason); }
 						if (bAll) { B.AllKeys.AddUnique(DepthReason); }
+					}
+				}
+			}
+
+			if (In.bProxyBlur)
+			{
+				FMaterialResource* MaterialResource = S.Resolved->GetMaterialResource(World->FeatureLevel);
+				FMaterialShaderMap* MaterialMap = MaterialResource ? MaterialResource->GetGameThreadShaderMap() : nullptr;
+				if (!MaterialMap)
+				{
+					if (SlotFail(RankS8, Why::VirtualTexture, TEXT("stack_material_lost"), true)) { return; }
+				}
+				else
+				{
+					for (const FMaterialVirtualTextureStack& Stack : MaterialMap->GetUniformExpressionSet().GetVTStacks())
+					{
+						FString StackFailure;
+						if (Stack.IsPreallocatedStack()) { StackFailure = TEXT("stack_preallocated"); }
+						const FBinding* First = nullptr;
+						int32 LayersFound = 0;
+						for (uint32 Layer = 0; Layer < Stack.GetNumLayers(); ++Layer)
+						{
+							const FBinding* Binding = S.Bindings.FindByPredicate([&Stack, Layer](const FBinding& B)
+							{
+								return B.Type == EMaterialTextureParameterType::Virtual && B.Index == Stack.LayerUniformExpressionIndices[Layer];
+							});
+							if (!Binding) { StackFailure = TEXT("stack_layer_missing"); break; }
+							++LayersFound;
+							if (Binding->ParamName.IsNone()) { StackFailure = TEXT("stack_unnamed"); break; }
+							if (!Binding->bVirtual || !Binding->Tex2D) { StackFailure = TEXT("stack_layer_unreplaceable"); break; }
+							if (Stack.GetNumLayers() > 1 && Binding->IsTransformable())
+							{
+								const FVirtualTexture2DResource* VT = Binding->Tex2D->GetResource()->GetVirtualTexture2DResource();
+								const int32 W = Binding->W >> Binding->CopyDrop;
+								const int32 H = Binding->H >> Binding->CopyDrop;
+								if (!VT || VT->GetSizeInBlocks() != FIntPoint(1, 1) || !FMath::IsPowerOfTwo(W) || !FMath::IsPowerOfTwo(H)
+									|| W < Binding->VTTileSize || H < Binding->VTTileSize)
+								{
+									StackFailure = TEXT("stack_geometry"); break;
+								}
+								if (First && (First->VTTileSize != Binding->VTTileSize || First->VTBorderSize != Binding->VTBorderSize
+									|| static_cast<int64>(First->W >> First->CopyDrop) * H != static_cast<int64>(First->H >> First->CopyDrop) * W))
+								{
+									StackFailure = TEXT("stack_geometry"); break;
+								}
+								First = Binding;
+							}
+						}
+						if (StackFailure.IsEmpty() && LayersFound != static_cast<int32>(Stack.GetNumLayers())) { StackFailure = TEXT("stack_layer_missing"); }
+						if (!StackFailure.IsEmpty() && SlotFail(RankS8, Why::VirtualTexture, StackFailure, true)) { return; }
 					}
 				}
 			}

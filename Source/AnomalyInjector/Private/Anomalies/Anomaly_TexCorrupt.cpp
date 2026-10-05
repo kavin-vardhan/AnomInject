@@ -1215,9 +1215,6 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 				}
 				const int32* Idx = OutputIndex.Find(B.Tex2D);
 				UTexture* Target = Idx ? (Outputs[*Idx].bVirtual ? static_cast<UTexture*>(Outputs[*Idx].VirtualTarget) : Outputs[*Idx].Target) : nullptr;
-#if !UE_BUILD_SHIPPING
-				if (B.bVirtual && AnomalyProxyVTBenchNoBind()) { Target = B.Tex2D; }
-#endif
 				HM->Mid->SetTextureParameterValueByInfo(B.Info, Target);
 				UTexture* Read = nullptr;
 				if (!Target || !HM->Mid->GetTextureParameterValue(FHashedMaterialParameterInfo(B.Info), Read, true) || Read != Target)
@@ -1235,6 +1232,27 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 				OS.HostMid = HM->Mid;
 			}
 		}
+	}
+
+	TArray<UAnomalyPrivateVT*> PrivateTargets;
+	for (const FOutput& Output : Outputs) { if (Output.VirtualTarget) { PrivateTargets.Add(Output.VirtualTarget); } }
+	for (FHostMid& Host : HostMids)
+	{
+		FString ReadinessReason;
+		if (!AnomalyPrefetchVTMaterial(Host.Mid, PrivateTargets, World->FeatureLevel, ReadinessReason))
+		{
+			return FailAt(6, Why::VirtualTexture, ReadinessReason);
+		}
+#if !UE_BUILD_SHIPPING
+		if (AnomalyProxyVTBenchNoBind())
+		{
+			for (TPair<FMaterialParameterInfo, UTexture*>& Pair : Host.Bound)
+			{
+				const FOutput* Output = Outputs.FindByPredicate([&Pair](const FOutput& O) { return O.VirtualTarget && O.VirtualTarget == Pair.Value; });
+				if (Output) { Pair.Value = Output->Source; Host.Mid->SetTextureParameterValueByInfo(Pair.Key, Pair.Value); }
+			}
+		}
+#endif
 	}
 
 	bool bCommitNow = true;

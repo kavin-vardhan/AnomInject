@@ -1,0 +1,21 @@
+#include "/Engine/Private/Common.ush"
+
+Texture2D<uint4> PageTable;
+RWBuffer<uint> Entries;
+int2 PageOrigin;
+int2 PageSize;
+uint PageLevel;
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 Id : SV_DispatchThreadID)
+{
+	if (Id.x < uint(PageSize.x) && Id.y < uint(PageSize.y))
+	{
+		const uint4 Values = PageTable.Load(int3(PageOrigin + int2(Id.xy), PageLevel));
+		const uint Index = (Id.y * PageSize.x + Id.x) * 4;
+		Entries[Index] = Values.x;
+		Entries[Index + 1] = Values.y;
+		Entries[Index + 2] = Values.z;
+		Entries[Index + 3] = Values.w;
+	}
+}

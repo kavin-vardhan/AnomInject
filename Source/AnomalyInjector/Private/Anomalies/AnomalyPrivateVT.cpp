@@ -1,5 +1,14 @@
 #include "Anomalies/AnomalyPrivateVT.h"
 #include "Engine/Texture2D.h"
+#include "AnomalyInjectorLog.h"
+#include "AnomalyVTPageCheckShader.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "MaterialShared.h"
+#include "HAL/PlatformProcess.h"
+#include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
+#include "RenderTargetPool.h"
+#include "ShaderParameterStruct.h"
 #include "EngineModule.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/ThreadSafeCounter.h"
@@ -18,13 +27,11 @@ struct FAnomalyVTPrefetch
 {
 	struct FReadback
 	{
-		TUniquePtr<FRHIGPUTextureReadback> Reader;
-		FTextureRHIRef Copy;
-		uint32 Level = 0;
+		TUniquePtr<FRHIGPUBufferReadback> Reader;
+		uint32 Levels[4] = {0, 0, 0, 0};
 		uint32 Layers = 0;
 		uint32 Width = 0;
 		uint32 Height = 0;
-		bool b16Bit = false;
 	};
 	TArray<FReadback> Readbacks;
 	TAtomic<int32> Status{0};
@@ -32,6 +39,9 @@ struct FAnomalyVTPrefetch
 	TAtomic<int32> Pages{0};
 	TAtomic<bool> InFlight{false};
 	bool bRootReady = false;
+	IAllocatedVirtualTexture* Allocation = nullptr;
+	FString Failure;
+	TArray<uint32> ProducerBiases;
 	double Started = FPlatformTime::Seconds();
 };
 
@@ -176,23 +186,174 @@ void UAnomalyPrivateVT::BeginDestroy()
 int32 UAnomalyPrivateVT::LiveResources() { return AnomalyPrivateVTDetail::ResourceCount.GetValue(); }
 int32 UAnomalyPrivateVT::LiveProducers() { return AnomalyPrivateVTDetail::ProducerCount.GetValue(); }
 
+
+namespace AnomalyPrivateVTDetail
+{
+	void Refuse(FAnomalyVTPrefetch& State, const TCHAR* Reason)
+	{
+		State.Failure = Reason;
+		State.Status.Store(2);
+		State.InFlight.Store(false);
+	}
+
+	bool ValidateAllocation(IAllocatedVirtualTexture* Allocation, const TArray<FVirtualTexture2DResource*>& Expected,
+		FAnomalyVTPrefetch& State)
+	{
+		if (!Allocation || Allocation->GetNumTextureLayers() != static_cast<uint32>(Expected.Num())
+			|| (Expected.Num() > 1 && Allocation->GetDescription().bShareDuplicateLayers) || Allocation->GetDimensions() != 2
+			|| Allocation->GetNumPageTableTextures() != static_cast<uint32>(FMath::DivideAndRoundUp(Expected.Num(), 4))
+			|| Allocation->GetPageTableIndirectionTexture())
+		{
+			Refuse(State, TEXT("virtual_texture:combined_mapping_layout"));
+			return false;
+		}
+		if (State.Allocation && State.Allocation != Allocation)
+		{
+			Refuse(State, TEXT("virtual_texture:combined_allocation_changed"));
+			return false;
+		}
+		State.Allocation = Allocation;
+		State.ProducerBiases.Reset();
+		for (int32 Layer = 0; Layer < Expected.Num(); ++Layer)
+		{
+			const FVirtualTexture2DResource* VT = Expected[Layer];
+			if (!VT || VT->GetNumLayers() != 1 || !VT->GetProducerHandle().IsValid()
+				|| Allocation->GetProducerHandle(Layer) != VT->GetProducerHandle()
+				|| Allocation->GetDescription().ProducerLayerIndex[Layer] != 0
+				|| VT->GetTileSize() != Allocation->GetVirtualTileSize() || VT->GetBorderSize() != Allocation->GetTileBorderSize())
+			{
+				Refuse(State, TEXT("virtual_texture:combined_producer_mismatch"));
+				return false;
+			}
+			const FIntPoint Blocks = VT->GetSizeInBlocks();
+			if (Blocks.X <= 0 || Blocks.Y <= 0 || static_cast<uint32>(Blocks.X) != Allocation->GetWidthInBlocks()
+				|| static_cast<uint32>(Blocks.Y) != Allocation->GetHeightInBlocks())
+			{
+				Refuse(State, TEXT("virtual_texture:combined_block_layout"));
+				return false;
+			}
+			const uint32 X = FMath::DivideAndRoundUp(VT->GetNumTilesX(), static_cast<uint32>(Blocks.X));
+			const uint32 Y = FMath::DivideAndRoundUp(VT->GetNumTilesY(), static_cast<uint32>(Blocks.Y));
+			const uint32 CommonX = Allocation->GetBlockWidthInTiles();
+			const uint32 CommonY = Allocation->GetBlockHeightInTiles();
+			if (X == 0 || Y == 0 || CommonX < X || CommonY < Y)
+			{
+				Refuse(State, TEXT("virtual_texture:combined_mip_bias"));
+				return false;
+			}
+			const uint32 BiasX = FMath::CeilLogTwo(CommonX / X);
+			const uint32 BiasY = FMath::CeilLogTwo(CommonY / Y);
+			if (BiasX != BiasY || (X << BiasX) != CommonX || (Y << BiasY) != CommonY
+				|| BiasX > Allocation->GetMaxLevel())
+			{
+				Refuse(State, TEXT("virtual_texture:combined_mip_bias"));
+				return false;
+			}
+			State.ProducerBiases.Add(BiasX);
+		}
+		return true;
+	}
+
+	void PollAllocation(FRHICommandListImmediate& RHICmdList, IAllocatedVirtualTexture* Allocation,
+		const TArray<FVirtualTexture2DResource*>& Expected, FAnomalyVTPrefetch& State, bool bRequestPages)
+	{
+		if (!ValidateAllocation(Allocation, Expected, State)) { return; }
+		uint32 Pages = 0;
+		for (uint32 Level = 0; Level <= Allocation->GetMaxLevel(); ++Level)
+		{
+			Pages += FMath::Max(1u, Allocation->GetWidthInTiles() >> Level)
+				* FMath::Max(1u, Allocation->GetHeightInTiles() >> Level) * Allocation->GetNumTextureLayers();
+		}
+		State.Pages.Store(Pages);
+		if (Pages > 512u) { Refuse(State, TEXT("virtual_texture:prefetch_page_cap")); return; }
+		bool bReady = State.Readbacks.Num() > 0;
+		for (FAnomalyVTPrefetch::FReadback& Row : State.Readbacks)
+		{
+			if (!Row.Reader->IsReady()) { State.InFlight.Store(false); return; }
+		}
+		for (FAnomalyVTPrefetch::FReadback& Row : State.Readbacks)
+		{
+			const uint32* Data = static_cast<const uint32*>(Row.Reader->Lock(Row.Width * Row.Height * 4u * sizeof(uint32)));
+			bReady &= Data != nullptr;
+			if (Data)
+			{
+				for (uint32 Pixel = 0; Pixel < Row.Width * Row.Height; ++Pixel)
+				{
+					for (uint32 Layer = 0; Layer < Row.Layers; ++Layer)
+					{
+						const uint32 Value = Data[Pixel * 4u + Layer];
+						bReady &= (Value >> 4u) != 0u && (Value & 15u) == Row.Levels[Layer];
+					}
+				}
+				Row.Reader->Unlock();
+			}
+		}
+		State.Readbacks.Reset();
+		if (bReady)
+		{
+			if (State.bRootReady) { State.Status.Store(1); State.InFlight.Store(false); return; }
+			State.bRootReady = true;
+		}
+		State.Attempts.AddExchange(1);
+		IRendererModule& Renderer = GetRendererModule();
+		const FVector2D Size(Allocation->GetWidthInPixels(), Allocation->GetHeightInPixels());
+		for (uint32 Level = State.bRootReady ? 0 : Allocation->GetMaxLevel(); Level <= Allocation->GetMaxLevel(); ++Level)
+		{
+			if (bRequestPages) { Renderer.RequestVirtualTextureTilesForRegion(Allocation, Size, FVector2D::ZeroVector, Size, FVector2D::ZeroVector, FVector2D(1, 1), Level); }
+		}
+		Renderer.LoadPendingVirtualTextureTiles(RHICmdList, GMaxRHIFeatureLevel);
+#if ANOMALY_SHADERS
+		FRDGBuilder Graph(RHICmdList);
+		for (uint32 Table = 0; Table < Allocation->GetNumPageTableTextures(); ++Table)
+		{
+			FRHITexture* TableRHI = Allocation->GetPageTableTexture(Table);
+			if (!TableRHI) { Refuse(State, TEXT("virtual_texture:prefetch_table_lost")); return; }
+			FRDGTextureRef TableTexture = Graph.RegisterExternalTexture(CreateRenderTarget(TableRHI, TEXT("AnomalyVTPageCheck")));
+			for (uint32 Level = 0; Level <= Allocation->GetMaxLevel(); ++Level)
+			{
+				FAnomalyVTPrefetch::FReadback& Row = State.Readbacks.AddDefaulted_GetRef();
+				Row.Layers = FMath::Min(4u, Allocation->GetNumTextureLayers() - Table * 4u);
+				Row.Width = FMath::Max(1u, Allocation->GetWidthInTiles() >> Level);
+				Row.Height = FMath::Max(1u, Allocation->GetHeightInTiles() >> Level);
+				for (uint32 Layer = 0; Layer < Row.Layers; ++Layer)
+				{
+					Row.Levels[Layer] = State.bRootReady ? FMath::Max(Level, State.ProducerBiases[Table * 4u + Layer]) : Allocation->GetMaxLevel();
+				}
+				FRDGBufferRef Buffer = Graph.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), Row.Width * Row.Height * 4u), TEXT("AnomalyVTPageEntries"));
+				FAnomalyVTPageCheckCS::FParameters* Params = Graph.AllocParameters<FAnomalyVTPageCheckCS::FParameters>();
+				Params->PageTable = Graph.CreateSRV(FRDGTextureSRVDesc::Create(TableTexture));
+				Params->Entries = Graph.CreateUAV(FRDGBufferUAVDesc(Buffer, PF_R32_UINT));
+				Params->PageOrigin = FIntPoint(Allocation->GetVirtualPageX() >> Level, Allocation->GetVirtualPageY() >> Level);
+				Params->PageSize = FIntPoint(Row.Width, Row.Height);
+				Params->PageLevel = Level;
+				TShaderMapRef<FAnomalyVTPageCheckCS> Shader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+				FComputeShaderUtils::AddPass(Graph, RDG_EVENT_NAME("AnomalyVTPageCheck"), Shader, Params, FComputeShaderUtils::GetGroupCount(Params->PageSize, 8));
+				Row.Reader = MakeUnique<FRHIGPUBufferReadback>(TEXT("AnomalyVTPageCheck"));
+				AddEnqueueCopyPass(Graph, Row.Reader.Get(), Buffer, Row.Width * Row.Height * 4u * sizeof(uint32));
+			}
+		}
+		Graph.Execute();
+		RHICmdList.SubmitCommandsHint();
+		State.InFlight.Store(false);
+#else
+		Refuse(State, TEXT("virtual_texture:prefetch_shader_unavailable"));
+#endif
+	}
+}
+
 bool UAnomalyPrivateVT::PollPrefetch(FString& OutReason)
 {
 	if (!Prefetch.IsValid()) { Prefetch = MakeShared<FAnomalyVTPrefetch, ESPMode::ThreadSafe>(); }
 	if (Prefetch->Status.Load() == 1) { return true; }
 	if (Prefetch->Status.Load() == 2 || Prefetch->Attempts.Load() >= 120 || FPlatformTime::Seconds() - Prefetch->Started > 10.0)
 	{
-		OutReason = TEXT("virtual_texture:prefetch_incomplete");
+		OutReason = Prefetch->Failure.IsEmpty() ? TEXT("virtual_texture:prefetch_incomplete") : Prefetch->Failure;
 		return false;
 	}
 	if (Prefetch->InFlight.Load()) { return false; }
 	FTextureResource* CurrentResource = GetResource();
 	FVirtualTexture2DResource* PrivateVT = CurrentResource ? CurrentResource->GetVirtualTexture2DResource() : nullptr;
-	if (!PrivateVT)
-	{
-		OutReason = TEXT("virtual_texture:prefetch_resource_lost");
-		return false;
-	}
+	if (!PrivateVT) { OutReason = TEXT("virtual_texture:prefetch_resource_lost"); return false; }
 	Prefetch->InFlight.Store(true);
 	const TSharedPtr<FAnomalyVTPrefetch, ESPMode::ThreadSafe> State = Prefetch;
 	bool bRequestPages = true;
@@ -201,118 +362,80 @@ bool UAnomalyPrivateVT::PollPrefetch(FString& OutReason)
 #endif
 	ENQUEUE_RENDER_COMMAND(AnomalyVTPrefetch)([PrivateVT, State, bRequestPages](FRHICommandListImmediate& RHICmdList)
 	{
-		bool bReady = State->Readbacks.Num() > 0;
-		for (FAnomalyVTPrefetch::FReadback& Row : State->Readbacks)
-		{
-			if (!Row.Reader->IsReady())
-			{
-				State->InFlight.Store(false);
-				return;
-			}
-		}
-		for (FAnomalyVTPrefetch::FReadback& Row : State->Readbacks)
-		{
-			int32 Pitch = 0;
-			const void* Data = Row.Reader->Lock(Pitch);
-			bReady &= Data != nullptr && Pitch >= static_cast<int32>(Row.Width);
-			if (Data && Pitch >= static_cast<int32>(Row.Width))
-			{
-				const uint32 Stride = GPixelFormats[Row.Copy->GetFormat()].BlockBytes / (Row.b16Bit ? 2u : 4u);
-				for (uint32 Y = 0; Y < Row.Height; ++Y)
-				{
-					for (uint32 X = 0; X < Row.Width; ++X)
-					{
-						for (uint32 Layer = 0; Layer < Row.Layers; ++Layer)
-						{
-							const uint32 Index = (Y * Pitch + X) * Stride + Layer;
-							const uint32 Value = Row.b16Bit ? static_cast<const uint16*>(Data)[Index] : static_cast<const uint32*>(Data)[Index];
-							bReady &= (Value >> 4u) != 0u && (Value & 15u) == Row.Level;
-						}
-					}
-				}
-			}
-			Row.Reader->Unlock();
-		}
-		State->Readbacks.Reset();
-		if (bReady)
-		{
-			if (State->bRootReady)
-			{
-				State->Status.Store(1);
-				State->InFlight.Store(false);
-				return;
-			}
-			State->bRootReady = true;
-		}
-		IAllocatedVirtualTexture* Allocation = PrivateVT->AcquireAllocatedVT();
-		uint32 Pages = 0;
-		for (uint32 Level = 0; Level <= Allocation->GetMaxLevel(); ++Level)
-		{
-			Pages += FMath::Max(1u, Allocation->GetWidthInTiles() >> Level) * FMath::Max(1u, Allocation->GetHeightInTiles() >> Level) * Allocation->GetNumTextureLayers();
-		}
-		if (Pages > 512u)
-		{
-			State->Status.Store(2);
-			State->InFlight.Store(false);
-			return;
-		}
-		State->Pages.Store(Pages);
-		if (State->Attempts.Load() == 0)
-		{
-			for (uint32 Layer = 0; Layer < Allocation->GetNumTextureLayers(); ++Layer)
-			{
-				if (Allocation->GetProducerHandle(Layer) != PrivateVT->GetProducerHandle())
-				{
-					State->Status.Store(2);
-					State->InFlight.Store(false);
-					return;
-				}
-			}
-		}
-		State->Attempts.AddExchange(1);
-		IRendererModule& Renderer = GetRendererModule();
-		const FVector2D Size(Allocation->GetWidthInPixels(), Allocation->GetHeightInPixels());
-		for (uint32 Level = State->bRootReady ? 0 : Allocation->GetMaxLevel(); Level <= Allocation->GetMaxLevel(); ++Level)
-		{
-			if (bRequestPages) { Renderer.RequestVirtualTextureTilesForRegion(Allocation, Size, FVector2D::ZeroVector, Size, FVector2D::ZeroVector, FVector2D(1, 1), Level); }
-		}
-		Renderer.LoadPendingVirtualTextureTiles(RHICmdList, GMaxRHIFeatureLevel);
-		for (uint32 Table = 0; Table < Allocation->GetNumPageTableTextures(); ++Table)
-		{
-			FRHITexture* PageTable = Allocation->GetPageTableTexture(Table);
-			if (!PageTable)
-			{
-				State->Status.Store(2);
-				State->InFlight.Store(false);
-				return;
-			}
-			for (uint32 Level = 0; Level <= Allocation->GetMaxLevel(); ++Level)
-			{
-				FAnomalyVTPrefetch::FReadback& Row = State->Readbacks.AddDefaulted_GetRef();
-				Row.Level = State->bRootReady ? Level : Allocation->GetMaxLevel();
-				Row.Layers = FMath::Min(4u, Allocation->GetNumTextureLayers() - Table * 4u);
-				Row.Width = FMath::Max(1u, Allocation->GetWidthInTiles() >> Level);
-				Row.Height = FMath::Max(1u, Allocation->GetHeightInTiles() >> Level);
-				Row.b16Bit = Allocation->GetPageTableFormat() == EVTPageTableFormat::UInt16;
-				const FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(TEXT("AnomalyVTPageCheck"), Row.Width, Row.Height, PageTable->GetFormat())
-					.SetFlags(ETextureCreateFlags::ShaderResource).SetInitialState(ERHIAccess::CopyDest);
-				Row.Copy = RHICreateTexture(Desc);
-				FRHICopyTextureInfo CopyInfo;
-				CopyInfo.SourceMipIndex = Level;
-				CopyInfo.SourcePosition = FIntVector(Allocation->GetVirtualPageX() >> Level, Allocation->GetVirtualPageY() >> Level, 0);
-				CopyInfo.Size = FIntVector(Row.Width, Row.Height, 1);
-				RHICmdList.Transition(FRHITransitionInfo(PageTable, ERHIAccess::Unknown, ERHIAccess::CopySrc));
-				RHICmdList.CopyTexture(PageTable, Row.Copy, CopyInfo);
-				RHICmdList.Transition(FRHITransitionInfo(PageTable, ERHIAccess::CopySrc, ERHIAccess::SRVMask));
-				RHICmdList.Transition(FRHITransitionInfo(Row.Copy, ERHIAccess::CopyDest, ERHIAccess::CopySrc));
-				Row.Reader = MakeUnique<FRHIGPUTextureReadback>(TEXT("AnomalyVTPageCheck"));
-				Row.Reader->EnqueueCopy(RHICmdList, Row.Copy);
-			}
-		}
-		RHICmdList.SubmitCommandsHint();
-		State->InFlight.Store(false);
+		TArray<FVirtualTexture2DResource*> Expected;
+		for (uint32 Layer = 0; Layer < PrivateVT->GetNumLayers(); ++Layer) { Expected.Add(PrivateVT); }
+		AnomalyPrivateVTDetail::PollAllocation(RHICmdList, PrivateVT->AcquireAllocatedVT(), Expected, *State, bRequestPages);
 	});
 	return false;
+}
+
+bool AnomalyPrefetchVTMaterial(UMaterialInstanceDynamic* Material, const TArray<UAnomalyPrivateVT*>& Targets,
+	ERHIFeatureLevel::Type FeatureLevel, FString& OutReason)
+{
+	if (!Material || Targets.Num() == 0) { return true; }
+	FMaterialResource* Resource = Material->GetMaterialResource(FeatureLevel);
+	const FMaterialShaderMap* ShaderMap = Resource ? Resource->GetGameThreadShaderMap() : nullptr;
+	FMaterialRenderProxy* Proxy = Material->GetRenderProxy();
+	if (!ShaderMap || !Proxy) { OutReason = TEXT("virtual_texture:combined_material_lost"); return false; }
+	const FUniformExpressionSet& Set = ShaderMap->GetUniformExpressionSet();
+	const TConstArrayView<FMaterialVirtualTextureStack> Stacks = Set.GetVTStacks();
+	for (int32 StackIndex = 0; StackIndex < Stacks.Num(); ++StackIndex)
+	{
+		const FMaterialVirtualTextureStack& Stack = Stacks[StackIndex];
+		if (Stack.IsPreallocatedStack()) { OutReason = TEXT("virtual_texture:stack_preallocated"); return false; }
+		TArray<FVirtualTexture2DResource*> Expected;
+		for (uint32 Layer = 0; Layer < Stack.GetNumLayers(); ++Layer)
+		{
+			const int32 Index = Stack.LayerUniformExpressionIndices[Layer];
+			if (Index < 0 || Index >= Set.GetNumTextures(EMaterialTextureParameterType::Virtual))
+			{
+				OutReason = TEXT("virtual_texture:stack_layer_missing"); return false;
+			}
+			const FMaterialTextureParameterInfo& Parameter = Set.GetTextureParameter(EMaterialTextureParameterType::Virtual, Index);
+			UTexture* Bound = nullptr;
+			if (Parameter.GetParameterName().IsNone() || !Material->GetTextureParameterValue(FHashedMaterialParameterInfo(Parameter.ParameterInfo), Bound, true))
+			{
+				OutReason = TEXT("virtual_texture:stack_unnamed"); return false;
+			}
+			UAnomalyPrivateVT* Private = Cast<UAnomalyPrivateVT>(Bound);
+			if (!Private || !Targets.Contains(Private) || !Private->GetResource())
+			{
+				OutReason = TEXT("virtual_texture:stack_layer_unreplaced"); return false;
+			}
+			Expected.Add(Private->GetResource()->GetVirtualTexture2DResource());
+		}
+		const TSharedPtr<FAnomalyVTPrefetch, ESPMode::ThreadSafe> State = MakeShared<FAnomalyVTPrefetch, ESPMode::ThreadSafe>();
+		while (State->Status.Load() == 0 && State->Attempts.Load() < 120 && FPlatformTime::Seconds() - State->Started <= 10.0)
+		{
+			ENQUEUE_RENDER_COMMAND(AnomalyVTCombinedPrefetch)([Proxy, FeatureLevel, ShaderMap, StackIndex, Expected, State](FRHICommandListImmediate& RHICmdList)
+			{
+				Proxy->UpdateUniformExpressionCacheIfNeeded(FeatureLevel);
+				FUniformExpressionCacheAsyncUpdateScope::WaitForTask();
+				const FUniformExpressionCache& Cache = Proxy->UniformExpressionCache[FeatureLevel];
+				if (!Cache.bUpToDate || Cache.CachedUniformExpressionShaderMap != ShaderMap || !Cache.AllocatedVTs.IsValidIndex(StackIndex))
+				{
+					AnomalyPrivateVTDetail::Refuse(*State, TEXT("virtual_texture:combined_cache_mismatch")); return;
+				}
+				AnomalyPrivateVTDetail::PollAllocation(RHICmdList, Cache.AllocatedVTs[StackIndex], Expected, *State, true);
+			});
+			FlushRenderingCommands();
+			if (State->Status.Load() == 0) { FPlatformProcess::SleepNoStats(0.001f); }
+		}
+		const bool bReady = State->Status.Load() == 1;
+		FString Biases;
+		for (int32 Layer = 0; Layer < State->ProducerBiases.Num(); ++Layer)
+		{
+			Biases += FString::Printf(TEXT("%s%d:%u:%d:%d"), Layer ? TEXT(",") : TEXT(""), Layer, State->ProducerBiases[Layer], Layer / 4, Layer % 4);
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: VT_COMBINED stack=%d layers=%d ready=%d pages=%d attempts=%d wait_ms=%.3f layer_bias_table_channel=%s"),
+			StackIndex, Expected.Num(), bReady ? 1 : 0, State->Pages.Load(), State->Attempts.Load(), (FPlatformTime::Seconds() - State->Started) * 1000.0, *Biases);
+		if (!bReady)
+		{
+			OutReason = State->Failure.IsEmpty() ? TEXT("virtual_texture:combined_prefetch_incomplete") : State->Failure;
+			return false;
+		}
+	}
+	return true;
 }
 
 int32 UAnomalyPrivateVT::PrefetchAttempts() const { return Prefetch.IsValid() ? Prefetch->Attempts.Load() : 0; }
