@@ -827,7 +827,7 @@ namespace AnomalyTexCorrupt
 							continue;
 						}
 						FString Detail;
-						Verdicts.Add(Uniform::Query(B.Tex2D, B.FirstMip, B.W, B.H, Rule, Detail));
+						Verdicts.Add(Uniform::Query(B.Tex2D, B.FirstMip, B.W, B.H, Rule, Detail, !In.bPassiveCensus));
 					}
 					switch (TexCorruptPure::Uniform::JudgeSlot(Verdicts.GetData(), Verdicts.Num()))
 					{
@@ -1811,7 +1811,7 @@ namespace AnomalyTexCorrupt
 			const double UniformEnd = FPlatformTime::Seconds() + CensusSliceSeconds;
 			while (Job.UniformNext < Job.Actors.Num() && FPlatformTime::Seconds() < UniformEnd)
 			{
-				Job.UniformKicked += Uniform::KickForActor(Job.Actors[Job.UniformNext].Get());
+				if (!Job.bVTDiagnostics) { Job.UniformKicked += Uniform::KickForActor(Job.Actors[Job.UniformNext].Get()); }
 				++Job.UniformNext;
 			}
 			if (Job.UniformNext >= Job.Actors.Num())
@@ -1920,6 +1920,7 @@ namespace AnomalyTexCorrupt
 				if (In.bProxyBlur) { In.Mode = EMode::ProxyBlur; }
 				In.bCensus = true;
 				In.bAllReasons = Job.bAllReasons;
+				In.bPassiveCensus = Job.bVTDiagnostics;
 				In.TargetActor = Actor;
 				FTreeResult Result;
 				EvaluateTree(World, In, Result);
@@ -2105,6 +2106,7 @@ namespace AnomalyTexCorrupt
 			TEXT("combinations, and b_gain_objects (refused only because not every part qualified, with at least one whole ")
 			TEXT("component qualifying). Checks that depend on a failed one are marked unassessed, not guessed. ")
 			TEXT("Add 'vt' for numeric VT stack, format, geometry and component-only refusal diagnostics. ")
+			TEXT("The 'vt' mode reads cached uniformity only; unmeasured uniformity stays pending and no texture measurement is requested. ")
 			TEXT("Usage: IAI.TexCorrupt.Census [all|allreasons] [vt]"),
 			FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 			{

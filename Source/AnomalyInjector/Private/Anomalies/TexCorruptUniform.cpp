@@ -357,7 +357,7 @@ namespace AnomalyTexCorrupt
 			}
 		}
 
-		EVerdict Query(UTexture2D* Tex, int32 FirstMip, int32 W, int32 H, ERule Rule, FString& OutDetail)
+		EVerdict Query(UTexture2D* Tex, int32 FirstMip, int32 W, int32 H, ERule Rule, FString& OutDetail, bool bAllowMeasurement)
 		{
 #if !ANOMALY_SHADERS
 			OutDetail = TEXT("not_built");
@@ -371,7 +371,7 @@ namespace AnomalyTexCorrupt
 			FEntry* E = Cache().Find(K);
 			if (!E || E->Weak.Get() != Tex)
 			{
-				Enqueue(Tex, FirstMip, W, H);
+				if (bAllowMeasurement) { Enqueue(Tex, FirstMip, W, H); }
 				return EVerdict::Pending;
 			}
 			switch (E->State)

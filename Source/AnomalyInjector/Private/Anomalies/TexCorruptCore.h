@@ -367,6 +367,7 @@ namespace AnomalyTexCorrupt
 		EMode Mode = EMode::None;
 		int32 TileN = 1;
 		bool bCensus = false;
+		bool bPassiveCensus = false;
 		bool bAllReasons = false;
 		bool bModeArgGiven = false;
 		FString ModeArg;
@@ -404,7 +405,7 @@ namespace AnomalyTexCorrupt
 	namespace Uniform
 	{
 		TexCorruptPure::Uniform::EVerdict Query(UTexture2D* Tex, int32 FirstMip, int32 W, int32 H, TexCorruptPure::Uniform::ERule Rule,
-			FString& OutDetail);
+			FString& OutDetail, bool bAllowMeasurement = true);
 		bool Kick(UTexture2D* Tex);
 		int32 KickForActor(AActor* Actor);
 		void Pump();
