@@ -1,11 +1,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/Texture.h"
+#include "Engine/Texture2D.h"
 #include "UObject/StrongObjectPtr.h"
 #include "AnomalyPrivateVT.generated.h"
 
-class UTexture2D;
 class FTextureResource;
 
 UCLASS(Transient)
