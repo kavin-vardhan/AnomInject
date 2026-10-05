@@ -1,7 +1,9 @@
 #include "Anomalies/AnomalyPrivateVT.h"
 #include "AnomalyBenchGate.h"
 #include "AnomalyInjectorLog.h"
+#include "Anomalies/TexCorruptCore.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/MeshComponent.h"
 #include "Containers/Ticker.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
@@ -12,6 +14,7 @@
 #include "Materials/MaterialInterface.h"
 #include "UObject/Package.h"
 #include "UObject/StrongObjectPtr.h"
+#include "UObject/UObjectIterator.h"
 
 #if !UE_BUILD_SHIPPING
 namespace AnomalyProxyVTBenchDetail
@@ -31,6 +34,84 @@ namespace AnomalyProxyVTBenchDetail
 
 	TUniquePtr<FProbe> Probe;
 	bool bNoBind = false;
+	FAutoConsoleCommandWithWorldAndArgs InventoryCommand(TEXT("IAI.Bench.ProxyVTInventory"),
+		TEXT("Bench-only: enumerate genuine VT textures, mesh users, compiled named bindings and blurry tree eligibility."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>&, UWorld* World)
+		{
+			if (!AnomalyBenchGate::IsEnabled() || !World) { return; }
+			TMap<UTexture2D*, TSet<FString>> Users;
+			TMap<UTexture2D*, TSet<FString>> Named;
+			TMap<UTexture2D*, TSet<FString>> Eligible;
+			int32 Meshes = 0;
+			int32 Unread = 0;
+			for (TActorIterator<AActor> It(World); It; ++It)
+			{
+				AActor* Actor = *It;
+				TSet<UTexture2D*> ActorVTs;
+				TInlineComponentArray<UMeshComponent*> Components(Actor);
+				for (UMeshComponent* Component : Components)
+				{
+					++Meshes;
+					for (int32 Slot = 0; Slot < Component->GetNumMaterials(); ++Slot)
+					{
+						UMaterialInterface* Material = Component->GetMaterial(Slot);
+						if (!Material) { continue; }
+						TArray<UTexture*> Used;
+						Material->GetUsedTextures(Used, EMaterialQualityLevel::Num, true, World->FeatureLevel, true);
+						bool bUsesVT = false;
+						for (UTexture* Texture : Used)
+						{
+							UTexture2D* VT = Cast<UTexture2D>(Texture);
+							if (VT && VT->IsCurrentlyVirtualTextured())
+							{
+								Users.FindOrAdd(VT).Add(Actor->GetName());
+								ActorVTs.Add(VT);
+								bUsesVT = true;
+							}
+						}
+						if (!bUsesVT) { continue; }
+						TArray<AnomalyTexCorrupt::FBinding> Bindings;
+						bool bResource = false, bShader = false, bComplete = false;
+						AnomalyTexCorrupt::ReadActiveBindings(World, Material, Component, Bindings, bResource, bShader, bComplete);
+						Unread += bResource && bShader && bComplete ? 0 : 1;
+						for (const AnomalyTexCorrupt::FBinding& Binding : Bindings)
+						{
+							if (Binding.Tex2D && Binding.Type == EMaterialTextureParameterType::Virtual && !Binding.ParamName.IsNone())
+							{
+								Named.FindOrAdd(Binding.Tex2D).Add(Actor->GetName());
+							}
+						}
+					}
+				}
+				if (ActorVTs.Num() > 0)
+				{
+					AnomalyTexCorrupt::Uniform::KickForActor(Actor);
+					AnomalyTexCorrupt::FTreeInputs Inputs;
+					Inputs.bProxyBlur = true;
+					Inputs.Mode = AnomalyTexCorrupt::EMode::ProxyBlur;
+					Inputs.bCensus = true;
+					Inputs.TargetActor = Actor;
+					AnomalyTexCorrupt::FTreeResult Result;
+					AnomalyTexCorrupt::EvaluateTree(World, Inputs, Result);
+					for (UTexture2D* Texture : ActorVTs)
+					{
+						if (Result.bApply) { Eligible.FindOrAdd(Texture).Add(Actor->GetName()); }
+						UE_LOG(LogAnomaly, Display, TEXT("PROXYVT-INVENTORY user actor='%s' texture='%s' eligible=%d reason='%s'"),
+							*Actor->GetName(), *Texture->GetPathName(), Result.bApply ? 1 : 0, *Result.FinalKey());
+					}
+				}
+			}
+			int32 Count = 0;
+			for (TObjectIterator<UTexture2D> It; It; ++It)
+			{
+				if (!It->IsCurrentlyVirtualTextured()) { continue; }
+				++Count;
+				UE_LOG(LogAnomaly, Display, TEXT("PROXYVT-INVENTORY texture='%s' users=%d named=%d eligible=%d"),
+					*It->GetPathName(), Users.FindRef(*It).Num(), Named.FindRef(*It).Num(), Eligible.FindRef(*It).Num());
+			}
+			UE_LOG(LogAnomaly, Display, TEXT("PROXYVT-INVENTORY end world='%s' genuine_vts=%d meshes=%d unread_vt_slots=%d resources=%d producers=%d"),
+				*World->GetName(), Count, Meshes, Unread, UAnomalyPrivateVT::LiveResources(), UAnomalyPrivateVT::LiveProducers());
+		}));
 	FAutoConsoleCommand NoBindCommand(TEXT("IAI.Bench.ProxyVTNoBind"),
 		TEXT("Bench-only mutant: install the host MID with its original VT source. Pixel-change proof must fail."),
 		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)

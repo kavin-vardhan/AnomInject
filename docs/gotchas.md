@@ -10236,3 +10236,15 @@ reclassify the four failing frames as a pass because later frames match. The exp
 no production route or labels were added, no later proof legs ran, and no commit was pushed.
 Source retention does not resolve this visible readiness issue. A further ruling is required
 before resuming; no source residency forcing, engine edit or global VT bias was attempted.
+
+
+## G464 - Private VT prefetch readiness is a pixel-edge requirement
+
+092-03c removes G463's four-frame Drop 0 transient by loading only the private producer before
+binding. `RequestVirtualTextureTilesForRegion` plus `LoadPendingVirtualTextureTiles` is not itself
+a readiness assertion: read back the private allocation's page-table entries and verify nonzero
+physical mappings at the requested levels. The frozen identity reader then passes every frame,
+including onset/restore, with peak 6.592774 below the original 6.629029 limit. No fallback or pixel
+threshold relaxation was used. Source residency must remain untouched. A bounded refusal is
+required if private preparation cannot complete. The production route's remaining proofs are
+separate from this constructor/prefetch identity result.

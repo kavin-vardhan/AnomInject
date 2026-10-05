@@ -704,12 +704,20 @@ WINDOW skipped, which begins one frame later.
 
 ### 8.3aa Proxy blur: route selection and labels
 
-**092-03 proof branch only:** `proxy_vt` is the proposed route for a private coarse streaming virtual
-texture. This branch contains a gated constructor probe, stopped at NEEDS-DECISION because
-Drop 0 visibly blurred four frames at binding before settling within the identity null limit.
-Normal blurry events still use the existing routes below and refuse VT. No `proxy_vt` label,
-census eligibility or support claim is available. Blurry stays off by default, and UV/normal and
-unnamed VT samples retain their existing refusals. See the 092-03 journal for the failed proof.
+**092-03 proof branch only, runtime validation in progress:** `proxy_vt` creates a private coarse
+streaming virtual texture for a named VT parameter. `auto` and explicit `proxy` use it for VT-bound
+targets. It preserves the host's compiled VT sampler and prepares the private pages before binding;
+the source texture and other users stay untouched. Mixed ordinary/VT targets use one transaction.
+Unsupported stack layouts and unnamed VT samples are refused; this bounded proof supports
+single-layer streaming-VT stacks. The event and frame route values are `proxy_vt`, with Drop,
+effective virtual width/height and tile size recorded per texture. Labels use the same installed
+FireWindow rule as ordinary proxy. UV/normal corruption and forced hold still refuse VT. Blurry
+stays off by default, and this feature branch has no delivery approval.
+
+The coarsest VT top is one tile (128px on this fixture). The unchanged 8x Auto rule therefore needs
+about 1024px on screen and may limit yield on the first office host. This is an owner decision item;
+the proof does not change the rule. See the 092-03 journal for the prefetch identity result and the
+remaining production proof.
 
 `IAI.Anomaly.StuckMipRoute auto|hold|proxy` selects the route for future events. `auto` is the default: an event uses private copies when an eligible candidate is shared in the loaded world, otherwise it uses hold. `hold` always uses the original purity-checked streaming route; `proxy` always uses private copies. The route is fixed for the event. `IAI.Anomaly.StuckMipRoute default` clears the console override. To configure it in `DefaultGame.ini`:
 
@@ -724,7 +732,7 @@ Proxy labels use **FireWindow** membership: a frame is labelled while an install
 
 | Field | Meaning |
 | --- | --- |
-| `annotation.json` event `stuck_mip_route` | `hold` or `proxy` for this event |
+| `annotation.json` event `stuck_mip_route` | `hold`, `proxy`, or proof-branch `proxy_vt` for this event |
 | frame entry `stuck_mip.route` | the same route |
 | `stuck_mip.k` | the first copied source mip, including the source's resident offset; primary texture summary |
 | proxy `stuck_mip.textures` | per-copy `k`, `resident_first_mip`, `resident_drop`, `baseline_mips`, `forced_mips`, `forced_top_px` and source name |
@@ -733,7 +741,7 @@ Proxy labels use **FireWindow** membership: a frame is labelled while an install
 | `run_summary.stuck_mip_hold_fires`, `stuck_mip_proxy_fires` | applied events per route |
 | `run_summary.stuck_mip_label_source` | `proxy_installed_fire_window` for proxy-only runs, `per_event_route` for mixed runs, the existing source for hold-only runs |
 
-`IAI.TexCorrupt.Census allreasons` includes `id=stuck_low_mip` and a `routes` line with `hold_eligible`, `proxy_eligible`, `auto_hold` and `auto_proxy`. The first two describe each route independently and can overlap; the last two partition eligibility under auto. `tools/anomaly_refusal_counts.py` reads those counts, and `--route-check` checks their accounting. Census reports potential eligibility across its scope; on-screen size and current renderer state can still affect a fire.
+`IAI.TexCorrupt.Census allreasons` includes `id=stuck_low_mip` and a `routes` line with `hold_eligible`, `proxy_eligible`, `auto_hold` and `auto_proxy`; this proof branch adds `proxy_vt_eligible` and `auto_proxy_vt`. The first two describe each route independently and can overlap; the last two partition eligibility under auto. `tools/anomaly_refusal_counts.py` reads those counts, and `--route-check` checks their accounting. Census reports potential eligibility across its scope; on-screen size and current renderer state can still affect a fire.
 
 Blurry remains **available but OFF by default**. This feature branch does not change delivery approval or enable it in the default pool.
 

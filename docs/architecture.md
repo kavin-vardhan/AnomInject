@@ -1,13 +1,22 @@
 # Architecture (living — current as-built)
 
-On `feat/vt-proxy-blur`, 092-03b adds an isolated constructor probe only. `UAnomalyPrivateVT`
-derives from `UTexture`, owns a genuine `FVirtualTexture2DResource`, retains its source with
-`TStrongObjectPtr`, and fences private producer/resource destruction before releasing the source.
-`IAI.Bench.ProxyVT` binds it through a private MID under the existing bench gate. Normal anomaly
-routing, census, capture, labels and defaults are unchanged; the requested production `proxy_vt`
-integration stopped after Drop 0 exceeded the identity pixel limit on four bind-edge frames.
-The steady private binding and one fenced restore worked, but neither the full route nor its
-label/lifetime proof is complete. See the 092-03 journal and G462-G463.
+On `feat/vt-proxy-blur`, 092-03c integrates a bounded private-VT blur route after the
+prefetch Drop 0 identity pass. `UAnomalyPrivateVT` derives from `UTexture`, retains its source
+without sharing ownership of platform data, and creates a genuine `FVirtualTexture2DResource`
+with an additional first-mip offset. It requests pages only from its own producer and reads GPU
+page tables to confirm exact requested levels before the private MID is installed. The source
+binding remains installed during the bounded preparation (maximum 10 seconds; named refusal).
+
+The existing proxy transaction handles ordinary and VT outputs together. This proof supports
+single-layer streaming-VT stacks with exact tile/border/format metadata; unsupported stack layouts
+and unnamed samples are refused before binding. VT uniformity uses the existing 2/255 rule,
+measured by GPU reduction over a prefetched private Drop 0 texture; source residency is untouched.
+Revert restores owned slots before fencing private resource release. VT counters report live
+resources/producers separately from the ordinary render-target ledger. Auto routes genuine VT
+candidates through proxy; frame/event telemetry calls that route `proxy_vt`. Existing FireWindow,
+interruption, masks and annotation machinery are reused without capture changes. UV/normal and
+the forced hold route still refuse VT. This is local proof work, not delivery approval; full runtime
+and staged gates remain pending. See the 092-03 journal and G462-G464.
 
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
 

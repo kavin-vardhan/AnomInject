@@ -11,17 +11,16 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **092-03b, 2026-10-05 - NEEDS-DECISION; DROP 0 IDENTITY FAILED AT BIND.**
-> Feature `feat/vt-proxy-blur`, base `d7eee97`; tested source `efd990d`, exe `5899E2A4`.
-> The private genuine VT bound and later matched the measured null range, but frames 124-127
-> exceeded the frozen identity limit (peak RGB MAD 11.678702, limit 6.629029). The brief's stop
-> condition fired. No production `proxy_vt` route, census/label changes, staged proof or push.
-> Co-user and ordinary controls stayed within their null limits; one restore drained private
-> resources/producers to zero. This is not the required 10-cycle or destruction lifetime proof.
-> Normal and strict Editor/Game: 0 errors / 0 warnings; 69 standalone headers checked per target.
-> Host source restored to detached `23098fa`, six original binaries rehashed, editor settings restored.
-> Evidence: `E:\IA_BuildCache\_r921`; report in the `2026-10-05-092-03b-vt-proxy-blur-proof` Relay run.
-> Journal: `docs/sessions/2026-10-05-092-03-vt-proxy-blur.md`; G462-G463. Protected refs unchanged.
+> **092-03c, 2026-10-05 - LOCAL PROOF IN PROGRESS; NOT A DELIVERY.**
+> Resumed `feat/vt-proxy-blur` at `465f2e7`, retaining every commit, under the 092-03b ruling.
+> Private-producer prefetch now passes Drop 0 on every measured bind/restore frame under the
+> unchanged frozen criterion: target peak 6.592774, limit 6.629029; both controls pass, drain 0/0.
+> No fallback was used. Production `proxy_vt` is integrated locally; normal Editor/Game source
+> `30663d8` builds 0 errors / 0 warnings, exe `ACE7CF7D`. Positive/staged/lifetime proof is pending.
+> No push. Host is temporarily detached on the proof source; restoration remains required.
+> Evidence `E:\IA_BuildCache\_r921\09203c`; journal `docs/sessions/2026-10-05-092-03-vt-proxy-blur.md`.
+> The owner item remains: a 128px minimum VT tile needs about 1024px on screen under the unchanged
+> 8x Auto rule. Blurry stays OFF by default. No release/protected ref, engine or selection rule changed.
 
 > **091-07, 2026-10-04 — RELEASE FREEZE, `release/2026-10-05`.**
 > Base: `d660b5d6e67c7af8b0f264e59cf66ed02f433968`. The single behavior change is temporal
