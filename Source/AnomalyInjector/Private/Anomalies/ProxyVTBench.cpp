@@ -68,13 +68,13 @@ namespace AnomalyProxyVTBenchDetail
 							const int32 Resident = Texture && !VT ? Texture->GetNumResidentMips() : -1;
 							const uint32 Flags = Texture ? (Texture->bForceMiplevelsToBeResident ? 1u : 0u)
 								| (Texture->bGlobalForceMipLevelsToBeResident ? 2u : 0u) | (Texture->NeverStream ? 4u : 0u) : 0u;
-							const double ForcedUntil = Texture ? Texture->ForceMipLevelsToBeResidentTimestamp : 0.0;
+							const bool Forced = Texture && Texture->ShouldMipLevelsBeForcedResident();
 							Textures = FCrc::MemCrc32(&Texture, sizeof(Texture), Textures);
 							Textures = FCrc::MemCrc32(&R, sizeof(R), Textures);
 							Textures = FCrc::MemCrc32(&Producer, sizeof(Producer), Textures);
 							Textures = FCrc::MemCrc32(&Resident, sizeof(Resident), Textures);
 							Textures = FCrc::MemCrc32(&Flags, sizeof(Flags), Textures);
-							Textures = FCrc::MemCrc32(&ForcedUntil, sizeof(ForcedUntil), Textures);
+							Textures = FCrc::MemCrc32(&Forced, sizeof(Forced), Textures);
 						}
 					}
 				}
