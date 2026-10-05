@@ -2,10 +2,14 @@
 
 #if WITH_EDITOR && !UE_BUILD_SHIPPING
 #include "AnomalyBenchGate.h"
+#include "Containers/Ticker.h"
 #include "Editor/UnrealEdEngine.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "PlayInEditorDataTypes.h"
 #include "Settings/LevelEditorPlaySettings.h"
+#include "Slate/SceneViewport.h"
 #include "UnrealEdGlobals.h"
 
 namespace
@@ -30,6 +34,17 @@ namespace
         Params.EditorPlaySettings = Settings;
         Params.bAllowOnlineSubsystem = false;
         GUnrealEd->RequestPlaySession(Params);
+        FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Width, Height, Attempts = 0](float) mutable
+        {
+            UGameViewportClient* Client = GUnrealEd && GUnrealEd->PlayWorld ? GUnrealEd->PlayWorld->GetGameViewport() : nullptr;
+            if (Client && Client->GetGameViewport())
+            {
+                Client->GetGameViewport()->SetFixedViewportSize(Width, Height);
+                UE_LOG(LogTemp, Log, TEXT("IAI.Bench.PlayWindow: fixed native viewport %dx%d"), Width, Height);
+                return false;
+            }
+            return ++Attempts < 600;
+        }));
         UE_LOG(LogTemp, Log, TEXT("IAI.Bench.PlayWindow: requested PIE client %dx%d"), Width, Height);
     }
 
