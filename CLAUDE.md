@@ -25,7 +25,9 @@ and is the single source of truth for the project.
 > `FE338251` passes native identity, all 21 positive fires, release/no-bind/stack/constant/uniform
 > controls, mixed bindings, destruction, displacement and world teardown. The no-request readiness
 > can-fail exposed stale page-table values and five changed frames; MainWorld/regression were not run.
-> The private allocation is now initialized before prefetch; corrected-build proofs remain pending.
+> Manual private page-table initialization passed identity/no-request but prevented positive events.
+> It is replaced by renderer-managed root priming, root readback, then full-range prefetch/readback;
+> corrected-build proofs remain pending. Both failed attempts and their binaries are preserved.
 > No push. Host is temporarily detached on the proof source; restoration remains required.
 > Evidence `E:\IA_BuildCache\_r921\09203c`; journal `docs/sessions/2026-10-05-092-03-vt-proxy-blur.md`.
 > The owner item remains: a 128px minimum VT tile needs about 1024px on screen under the unchanged

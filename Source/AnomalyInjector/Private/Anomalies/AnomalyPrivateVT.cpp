@@ -31,6 +31,7 @@ struct FAnomalyVTPrefetch
 	TAtomic<int32> Attempts{0};
 	TAtomic<int32> Pages{0};
 	TAtomic<bool> InFlight{false};
+	bool bRootReady = false;
 	double Started = FPlatformTime::Seconds();
 };
 
@@ -235,9 +236,13 @@ bool UAnomalyPrivateVT::PollPrefetch(FString& OutReason)
 		State->Readbacks.Reset();
 		if (bReady)
 		{
-			State->Status.Store(1);
-			State->InFlight.Store(false);
-			return;
+			if (State->bRootReady)
+			{
+				State->Status.Store(1);
+				State->InFlight.Store(false);
+				return;
+			}
+			State->bRootReady = true;
 		}
 		IAllocatedVirtualTexture* Allocation = PrivateVT->AcquireAllocatedVT();
 		uint32 Pages = 0;
@@ -263,44 +268,11 @@ bool UAnomalyPrivateVT::PollPrefetch(FString& OutReason)
 					return;
 				}
 			}
-			for (uint32 Table = 0; Table < Allocation->GetNumPageTableTextures(); ++Table)
-			{
-				FRHITexture* PageTable = Allocation->GetPageTableTexture(Table);
-				for (uint32 Level = 0; Level <= Allocation->GetMaxLevel(); ++Level)
-				{
-					const uint32 W = FMath::Max(1u, Allocation->GetWidthInTiles() >> Level);
-					const uint32 H = FMath::Max(1u, Allocation->GetHeightInTiles() >> Level);
-					const uint32 X = Allocation->GetVirtualPageX() >> Level;
-					const uint32 Y = Allocation->GetVirtualPageY() >> Level;
-					if (!PageTable || Level >= PageTable->GetNumMips()
-						|| X + W > FMath::Max(1u, PageTable->GetSizeX() >> Level)
-						|| Y + H > FMath::Max(1u, PageTable->GetSizeY() >> Level))
-					{
-						State->Status.Store(2);
-						State->InFlight.Store(false);
-						return;
-					}
-					const FRHITextureCreateDesc EmptyDesc = FRHITextureCreateDesc::Create2D(TEXT("AnomalyVTPageInitialize"), W, H, PageTable->GetFormat())
-						.SetFlags(ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::ShaderResource)
-						.SetClearValue(FClearValueBinding(FLinearColor(0, 0, 0, 0))).SetInitialState(ERHIAccess::RTV);
-					FTextureRHIRef Empty = RHICreateTexture(EmptyDesc);
-					RHICmdList.BeginRenderPass(FRHIRenderPassInfo(Empty, ERenderTargetActions::Clear_Store), TEXT("AnomalyVTPageInitialize"));
-					RHICmdList.EndRenderPass();
-					RHICmdList.Transition(FRHITransitionInfo(Empty, ERHIAccess::RTV, ERHIAccess::CopySrc));
-					FRHICopyTextureInfo InitializeInfo;
-					InitializeInfo.DestMipIndex = Level;
-					InitializeInfo.DestPosition = FIntVector(X, Y, 0);
-					InitializeInfo.Size = FIntVector(W, H, 1);
-					RHICmdList.Transition(FRHITransitionInfo(PageTable, ERHIAccess::Unknown, ERHIAccess::CopyDest));
-					RHICmdList.CopyTexture(Empty, PageTable, InitializeInfo);
-					RHICmdList.Transition(FRHITransitionInfo(PageTable, ERHIAccess::CopyDest, ERHIAccess::SRVMask));
-				}
-			}
 		}
 		State->Attempts.AddExchange(1);
 		IRendererModule& Renderer = GetRendererModule();
 		const FVector2D Size(Allocation->GetWidthInPixels(), Allocation->GetHeightInPixels());
-		for (uint32 Level = 0; Level <= Allocation->GetMaxLevel(); ++Level)
+		for (uint32 Level = State->bRootReady ? 0 : Allocation->GetMaxLevel(); Level <= Allocation->GetMaxLevel(); ++Level)
 		{
 			if (bRequestPages) { Renderer.RequestVirtualTextureTilesForRegion(Allocation, Size, FVector2D::ZeroVector, Size, FVector2D::ZeroVector, FVector2D(1, 1), Level); }
 		}
@@ -317,7 +289,7 @@ bool UAnomalyPrivateVT::PollPrefetch(FString& OutReason)
 			for (uint32 Level = 0; Level <= Allocation->GetMaxLevel(); ++Level)
 			{
 				FAnomalyVTPrefetch::FReadback& Row = State->Readbacks.AddDefaulted_GetRef();
-				Row.Level = Level;
+				Row.Level = State->bRootReady ? Level : Allocation->GetMaxLevel();
 				Row.Layers = FMath::Min(4u, Allocation->GetNumTextureLayers() - Table * 4u);
 				Row.Width = FMath::Max(1u, Allocation->GetWidthInTiles() >> Level);
 				Row.Height = FMath::Max(1u, Allocation->GetHeightInTiles() >> Level);
