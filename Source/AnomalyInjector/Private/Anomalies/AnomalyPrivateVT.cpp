@@ -39,6 +39,7 @@ struct FAnomalyVTPrefetch
 	TAtomic<int32> Pages{0};
 	TAtomic<bool> InFlight{false};
 	bool bRootReady = false;
+	bool bRetained = false;
 	IAllocatedVirtualTexture* Allocation = nullptr;
 	FString Failure;
 	TArray<uint32> ProducerBiases;
@@ -49,6 +50,7 @@ namespace AnomalyPrivateVTDetail
 {
 	FThreadSafeCounter ResourceCount;
 	FThreadSafeCounter ProducerCount;
+	FThreadSafeCounter CombinedReferenceCount;
 
 	class FAnomalyPrivateVTResource final : public FVirtualTexture2DResource
 	{
@@ -185,6 +187,17 @@ void UAnomalyPrivateVT::BeginDestroy()
 
 int32 UAnomalyPrivateVT::LiveResources() { return AnomalyPrivateVTDetail::ResourceCount.GetValue(); }
 int32 UAnomalyPrivateVT::LiveProducers() { return AnomalyPrivateVTDetail::ProducerCount.GetValue(); }
+int32 UAnomalyPrivateVT::LiveCombinedReferences() { return AnomalyPrivateVTDetail::CombinedReferenceCount.GetValue(); }
+
+void AnomalyReleaseVTReferences(TArray<IAllocatedVirtualTexture*>& Retained)
+{
+	for (IAllocatedVirtualTexture* Allocation : Retained)
+	{
+		GetRendererModule().DestroyVirtualTexture(Allocation);
+		AnomalyPrivateVTDetail::CombinedReferenceCount.Decrement();
+	}
+	Retained.Reset();
+}
 
 
 namespace AnomalyPrivateVTDetail
@@ -372,9 +385,16 @@ bool UAnomalyPrivateVT::PollPrefetch(FString& OutReason)
 }
 
 bool AnomalyPrefetchVTMaterial(UMaterialInstanceDynamic* Material, const TArray<UAnomalyPrivateVT*>& Targets,
-	ERHIFeatureLevel::Type FeatureLevel, FString& OutReason)
+	ERHIFeatureLevel::Type FeatureLevel, TArray<IAllocatedVirtualTexture*>& Retained, FString& OutReason)
 {
 	if (!Material || Targets.Num() == 0) { return true; }
+#if !UE_BUILD_SHIPPING
+	if (AnomalyProxyVTBenchEarlyBind())
+	{
+		UE_LOG(LogAnomaly, Warning, TEXT("VT-EARLY-BIND-MUTANT: combined allocation verification skipped"));
+		return true;
+	}
+#endif
 	FMaterialResource* Resource = Material->GetMaterialResource(FeatureLevel);
 	const FMaterialShaderMap* ShaderMap = Resource ? Resource->GetGameThreadShaderMap() : nullptr;
 	FMaterialRenderProxy* Proxy = Material->GetRenderProxy();
@@ -418,12 +438,27 @@ bool AnomalyPrefetchVTMaterial(UMaterialInstanceDynamic* Material, const TArray<
 				const FMaterialShaderMap* RenderMap = RenderMaterial ? RenderMaterial->GetRenderingThreadShaderMap() : nullptr;
 				const bool bSameStack = RenderMap && RenderMap->GetUniformExpressionSet().GetVTStacks().Num() == ShaderMap->GetUniformExpressionSet().GetVTStacks().Num()
 					&& RenderMap->GetUniformExpressionSet().GetVTStacks()[StackIndex] == Stack;
-				if (!Cache.bUpToDate || !RenderMap || Cache.CachedUniformExpressionShaderMap != RenderMap || !bSameStack || !Cache.AllocatedVTs.IsValidIndex(StackIndex))
+				if (!RenderMap || Cache.CachedUniformExpressionShaderMap != RenderMap || !bSameStack || !Cache.AllocatedVTs.IsValidIndex(StackIndex))
 				{
 					UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: VT_CACHE current=%d render_map=%d gt_matches_rt=%d cache_matches_rt=%d stack_matches=%d allocations=%d stack=%d"),
 						Cache.bUpToDate ? 1 : 0, RenderMap ? 1 : 0, RenderMap == ShaderMap ? 1 : 0,
 						Cache.CachedUniformExpressionShaderMap == RenderMap ? 1 : 0, bSameStack ? 1 : 0, Cache.AllocatedVTs.Num(), StackIndex);
 					AnomalyPrivateVTDetail::Refuse(*State, TEXT("virtual_texture:combined_cache_mismatch")); return;
+				}
+				IAllocatedVirtualTexture* MaterialAllocation = Cache.AllocatedVTs[StackIndex];
+				if (!State->bRetained && MaterialAllocation)
+				{
+					IAllocatedVirtualTexture* Pinned = GetRendererModule().AllocateVirtualTexture(MaterialAllocation->GetDescription());
+					if (Pinned != MaterialAllocation)
+					{
+						if (Pinned) { GetRendererModule().DestroyVirtualTexture(Pinned); }
+						AnomalyPrivateVTDetail::Refuse(*State, TEXT("virtual_texture:combined_reference_mismatch")); return;
+					}
+					State->Allocation = Pinned;
+					State->bRetained = true;
+					AnomalyPrivateVTDetail::CombinedReferenceCount.Increment();
+					UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: VT_CACHE_RETAIN stack=%d exact_material_allocation=1 shader_complete=%d refs=%d"),
+						StackIndex, Cache.bUpToDate ? 1 : 0, UAnomalyPrivateVT::LiveCombinedReferences());
 				}
 				AnomalyPrivateVTDetail::PollAllocation(RHICmdList, Cache.AllocatedVTs[StackIndex], Expected, *State, true);
 			});
@@ -431,6 +466,7 @@ bool AnomalyPrefetchVTMaterial(UMaterialInstanceDynamic* Material, const TArray<
 			if (State->Status.Load() == 0) { FPlatformProcess::SleepNoStats(0.001f); }
 		}
 		const bool bReady = State->Status.Load() == 1;
+		if (State->bRetained) { Retained.Add(State->Allocation); }
 		FString Biases;
 		for (int32 Layer = 0; Layer < State->ProducerBiases.Num(); ++Layer)
 		{

@@ -18,6 +18,7 @@ class UTexture2D;
 class UTextureRenderTarget2D;
 class UAnomalyPrivateVT;
 class UAnomalyInjectorSubsystem;
+class IAllocatedVirtualTexture;
 
 namespace AnomalyTexCorrupt
 {
@@ -85,6 +86,7 @@ private:
 		UMaterialInterface* Resolved = nullptr;
 		UMaterialInstanceDynamic* Mid = nullptr;
 		TArray<TPair<FMaterialParameterInfo, UTexture*>> Bound;
+		TArray<IAllocatedVirtualTexture*> VTReferences;
 	};
 
 	struct FOwnedSlot

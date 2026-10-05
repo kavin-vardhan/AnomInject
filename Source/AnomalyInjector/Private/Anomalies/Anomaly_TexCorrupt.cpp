@@ -256,6 +256,7 @@ void FAnomaly_TexCorrupt::ReleaseScratchSet(FScratchSet& S)
 
 void FAnomaly_TexCorrupt::ReleaseAllTargets()
 {
+	for (FHostMid& Host : HostMids) { AnomalyReleaseVTReferences(Host.VTReferences); }
 	for (FOutput& O : Outputs)
 	{
 		if (O.VirtualTarget)
@@ -422,6 +423,13 @@ bool FAnomaly_TexCorrupt::AllocateAll(FString& OutDetail)
 			S->Levels[St.Level] = T;
 		}
 	}
+#if !UE_BUILD_SHIPPING
+	if (AnomalyProxyVTBenchEarlyBind() && Outputs.ContainsByPredicate([](const FOutput& O) { return O.bVirtual; }))
+	{
+		UE_LOG(LogAnomaly, Warning, TEXT("VT-EARLY-BIND-MUTANT: private allocation verification skipped"));
+		return true;
+	}
+#endif
 	const double Started = FPlatformTime::Seconds();
 	bool bReady = false;
 	while (!bReady)
@@ -1239,17 +1247,18 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	for (FHostMid& Host : HostMids)
 	{
 		FString ReadinessReason;
-		if (!AnomalyPrefetchVTMaterial(Host.Mid, PrivateTargets, World->FeatureLevel, ReadinessReason))
+		if (!AnomalyPrefetchVTMaterial(Host.Mid, PrivateTargets, World->FeatureLevel, Host.VTReferences, ReadinessReason))
 		{
 			return FailAt(6, Why::VirtualTexture, ReadinessReason);
 		}
 #if !UE_BUILD_SHIPPING
-		if (AnomalyProxyVTBenchNoBind())
+		if (AnomalyProxyVTBenchNoBind() || AnomalyProxyVTBenchPartial())
 		{
+			int32 Kept = 0;
 			for (TPair<FMaterialParameterInfo, UTexture*>& Pair : Host.Bound)
 			{
 				const FOutput* Output = Outputs.FindByPredicate([&Pair](const FOutput& O) { return O.VirtualTarget && O.VirtualTarget == Pair.Value; });
-				if (Output) { Pair.Value = Output->Source; Host.Mid->SetTextureParameterValueByInfo(Pair.Key, Pair.Value); }
+				if (Output && (AnomalyProxyVTBenchNoBind() || Kept++ > 0)) { Pair.Value = Output->Source; Host.Mid->SetTextureParameterValueByInfo(Pair.Key, Pair.Value); }
 			}
 		}
 #endif
@@ -1650,6 +1659,7 @@ void FAnomaly_TexCorrupt::RestoreAndRelease(double StartSeconds, int32 DelayedBy
 	LetGoAll();
 
 	UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: VT_DRAIN resources=%d producers=%d"), UAnomalyPrivateVT::LiveResources(), UAnomalyPrivateVT::LiveProducers());
+	UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: VT_COMBINED_DRAIN refs=%d"), UAnomalyPrivateVT::LiveCombinedReferences());
 	UE_LOG(LogAnomaly, Log,
 		TEXT("%s: REVERT restored-exact=%d restored-default=%d left-to-game=%d unresolved=%d swept=%d residual=%d; every render target ")
 		TEXT("(scratch included) released, originals let go after their slots were restored; live=%lld pending=%lld.%s ")

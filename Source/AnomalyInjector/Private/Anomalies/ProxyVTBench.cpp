@@ -37,6 +37,24 @@ namespace AnomalyProxyVTBenchDetail
 
 	TUniquePtr<FProbe> Probe;
 	bool bNoBind = false;
+	bool bPartial = false;
+	bool bEarlyBind = false;
+	FAutoConsoleCommand PartialCommand(TEXT("IAI.Bench.ProxyVTPartial"),
+		TEXT("Bench-only mutant: retain only the first private layer in each host material."),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			if (!AnomalyBenchGate::IsEnabled()) { return; }
+			bPartial = Args.Num() == 1 && Args[0] == TEXT("1");
+			UE_LOG(LogAnomaly, Display, TEXT("IAI.Bench.ProxyVTPartial=%d"), bPartial ? 1 : 0);
+		}));
+	FAutoConsoleCommand EarlyBindCommand(TEXT("IAI.Bench.ProxyVTEarlyBind"),
+		TEXT("Bench-only mutant: bind private layers before standalone or combined prefetch verification."),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			if (!AnomalyBenchGate::IsEnabled()) { return; }
+			bEarlyBind = Args.Num() == 1 && Args[0] == TEXT("1");
+			UE_LOG(LogAnomaly, Display, TEXT("IAI.Bench.ProxyVTEarlyBind=%d"), bEarlyBind ? 1 : 0);
+		}));
 	FAutoConsoleCommandWithWorldAndArgs CensusStateCommand(TEXT("IAI.Bench.VTCensusState"),
 		TEXT("Bench-only: hash material bindings and texture resources/residency without changing them."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>&, UWorld* World)
@@ -287,5 +305,13 @@ namespace AnomalyProxyVTBenchDetail
 bool AnomalyProxyVTBenchNoBind()
 {
 	return AnomalyBenchGate::IsEnabled() && AnomalyProxyVTBenchDetail::bNoBind;
+}
+bool AnomalyProxyVTBenchPartial()
+{
+	return AnomalyBenchGate::IsEnabled() && AnomalyProxyVTBenchDetail::bPartial;
+}
+bool AnomalyProxyVTBenchEarlyBind()
+{
+	return AnomalyBenchGate::IsEnabled() && AnomalyProxyVTBenchDetail::bEarlyBind;
 }
 #endif

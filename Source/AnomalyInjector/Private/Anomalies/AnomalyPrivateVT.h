@@ -10,6 +10,7 @@
 class FTextureResource;
 struct FAnomalyVTPrefetch;
 class UMaterialInstanceDynamic;
+class IAllocatedVirtualTexture;
 
 UCLASS(Transient)
 class UAnomalyPrivateVT final : public UTexture
@@ -38,6 +39,7 @@ public:
 	int32 GetTileSize() const { return TileSize; }
 	static int32 LiveResources();
 	static int32 LiveProducers();
+	static int32 LiveCombinedReferences();
 #if !UE_BUILD_SHIPPING
 	void BenchSkipRequests() { bSkipRequests = true; }
 #endif
@@ -59,8 +61,11 @@ private:
 };
 
 bool AnomalyPrefetchVTMaterial(UMaterialInstanceDynamic* Material, const TArray<UAnomalyPrivateVT*>& Targets,
-	ERHIFeatureLevel::Type FeatureLevel, FString& OutReason);
+	ERHIFeatureLevel::Type FeatureLevel, TArray<IAllocatedVirtualTexture*>& Retained, FString& OutReason);
+void AnomalyReleaseVTReferences(TArray<IAllocatedVirtualTexture*>& Retained);
 
 #if !UE_BUILD_SHIPPING
 bool AnomalyProxyVTBenchNoBind();
+bool AnomalyProxyVTBenchPartial();
+bool AnomalyProxyVTBenchEarlyBind();
 #endif
