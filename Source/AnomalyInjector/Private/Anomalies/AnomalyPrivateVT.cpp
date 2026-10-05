@@ -409,13 +409,20 @@ bool AnomalyPrefetchVTMaterial(UMaterialInstanceDynamic* Material, const TArray<
 		const TSharedPtr<FAnomalyVTPrefetch, ESPMode::ThreadSafe> State = MakeShared<FAnomalyVTPrefetch, ESPMode::ThreadSafe>();
 		while (State->Status.Load() == 0 && State->Attempts.Load() < 120 && FPlatformTime::Seconds() - State->Started <= 10.0)
 		{
-			ENQUEUE_RENDER_COMMAND(AnomalyVTCombinedPrefetch)([Proxy, FeatureLevel, ShaderMap, StackIndex, Expected, State](FRHICommandListImmediate& RHICmdList)
+			ENQUEUE_RENDER_COMMAND(AnomalyVTCombinedPrefetch)([Proxy, FeatureLevel, ShaderMap, Stack, StackIndex, Expected, State](FRHICommandListImmediate& RHICmdList)
 			{
 				Proxy->UpdateUniformExpressionCacheIfNeeded(FeatureLevel);
 				FUniformExpressionCacheAsyncUpdateScope::WaitForTask();
 				const FUniformExpressionCache& Cache = Proxy->UniformExpressionCache[FeatureLevel];
-				if (!Cache.bUpToDate || Cache.CachedUniformExpressionShaderMap != ShaderMap || !Cache.AllocatedVTs.IsValidIndex(StackIndex))
+				const FMaterial* RenderMaterial = Proxy->GetMaterialNoFallback(FeatureLevel);
+				const FMaterialShaderMap* RenderMap = RenderMaterial ? RenderMaterial->GetRenderingThreadShaderMap() : nullptr;
+				const bool bSameStack = RenderMap && RenderMap->GetUniformExpressionSet().GetVTStacks().Num() == ShaderMap->GetUniformExpressionSet().GetVTStacks().Num()
+					&& RenderMap->GetUniformExpressionSet().GetVTStacks()[StackIndex] == Stack;
+				if (!Cache.bUpToDate || !RenderMap || Cache.CachedUniformExpressionShaderMap != RenderMap || !bSameStack || !Cache.AllocatedVTs.IsValidIndex(StackIndex))
 				{
+					UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: VT_CACHE current=%d render_map=%d gt_matches_rt=%d cache_matches_rt=%d stack_matches=%d allocations=%d stack=%d"),
+						Cache.bUpToDate ? 1 : 0, RenderMap ? 1 : 0, RenderMap == ShaderMap ? 1 : 0,
+						Cache.CachedUniformExpressionShaderMap == RenderMap ? 1 : 0, bSameStack ? 1 : 0, Cache.AllocatedVTs.Num(), StackIndex);
 					AnomalyPrivateVTDetail::Refuse(*State, TEXT("virtual_texture:combined_cache_mismatch")); return;
 				}
 				AnomalyPrivateVTDetail::PollAllocation(RHICmdList, Cache.AllocatedVTs[StackIndex], Expected, *State, true);

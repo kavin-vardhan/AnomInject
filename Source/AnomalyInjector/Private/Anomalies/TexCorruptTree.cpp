@@ -661,6 +661,18 @@ namespace AnomalyTexCorrupt
 					false)) { return; }
 			}
 
+			if (In.bProxyBlur)
+			{
+				FMaterialResource* MaterialResource = S.Resolved->GetMaterialResource(World->FeatureLevel);
+				FMaterialShaderMap* MaterialMap = MaterialResource ? MaterialResource->GetGameThreadShaderMap() : nullptr;
+				if (MaterialMap)
+				{
+					for (const FMaterialVirtualTextureStack& Stack : MaterialMap->GetUniformExpressionSet().GetVTStacks())
+					{
+						if (Stack.IsPreallocatedStack() && SlotFail(RankS8, Why::VirtualTexture, TEXT("stack_preallocated"), true)) { return; }
+					}
+				}
+			}
 			if (S.Bindings.Num() == 0)
 			{
 				if (SlotFail(RankS8, Why::NoTextures, FString(), true)) { return; }
