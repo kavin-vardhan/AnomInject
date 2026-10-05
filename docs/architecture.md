@@ -5,7 +5,9 @@ derives from `UTexture`, owns a genuine `FVirtualTexture2DResource`, retains its
 `TStrongObjectPtr`, and fences private producer/resource destruction before releasing the source.
 `IAI.Bench.ProxyVT` binds it through a private MID under the existing bench gate. Normal anomaly
 routing, census, capture, labels and defaults are unchanged; the requested production `proxy_vt`
-integration awaits identity proof. See the 092-03 journal and G462 for limits and evidence status.
+integration stopped after Drop 0 exceeded the identity pixel limit on four bind-edge frames.
+The steady private binding and one fenced restore worked, but neither the full route nor its
+label/lifetime proof is complete. See the 092-03 journal and G462-G463.
 
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
 

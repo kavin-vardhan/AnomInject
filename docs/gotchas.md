@@ -10220,3 +10220,19 @@ The probe fences that release before dropping its strong source reference. It ne
 platform data to a second owning UTexture2D. Source reimport/platform-data replacement remains a
 separate hardening concern: keeping the UObject alive does not freeze its platform-data pointer.
 The probe is restricted to an immutable authored fixture; it is not wired into ordinary anomaly fires.
+
+## G463 - A genuine private VT can fail Drop 0 identity at the binding edge
+
+092-03b source `efd990d`, PIE constructor probe, genuine 2048x2048 VT, first mip 0, Drop 0,
+tile 128: the private resource/producer bound through the unchanged compiled VT sample. The
+480-frame capture nevertheless exceeded the prewritten identity limit on session frames 124-127.
+Target peak mean absolute RGB difference was 11.678702 versus clean null 6.579029 + 0.05.
+The later private binding was within that limit, both control planes stayed within their own
+limits, and one restore drained both counters to zero. This is consistent with demand-loaded
+private pages initially providing coarser data; the cause was not isolated with a page-level trace.
+
+The frozen prediction required identity at bind/revert edges as well as after settling. Do not
+reclassify the four failing frames as a pass because later frames match. The explicit stop fired:
+no production route or labels were added, no later proof legs ran, and no commit was pushed.
+Source retention does not resolve this visible readiness issue. A further ruling is required
+before resuming; no source residency forcing, engine edit or global VT bias was attempted.

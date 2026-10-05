@@ -11,16 +11,17 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **092-03b, 2026-10-05 — PRIVATE VT CONSTRUCTOR PROBE; PROOF IN PROGRESS.**
-> Feature branch `feat/vt-proxy-blur`, based on release `d7eee97`; prototype source `bdd9378`.
-> Normal Editor/Game builds pass 0 errors / 0 warnings; exe `01BA2183`. This is a bench-only
-> constructor/binding probe, not an implemented `proxy_vt` anomaly route or a delivery.
-> The source retains borrowed VT built data through a strong source reference and render fences;
-> the private resource overrides the editor thumbnail path that otherwise writes the source reference.
-> Identity, positive PIE/staged, lifetime, can-fails and regressions have not run. No push is authorized
-> until the full proof passes. Current waits: D below the 50 GiB floor; foreign editor still open.
-> Evidence and prewritten predictions: `E:\IA_BuildCache\_r921`; journal
-> `docs/sessions/2026-10-05-092-03-vt-proxy-blur.md`; G462. Release and protected refs are untouched.
+> **092-03b, 2026-10-05 - NEEDS-DECISION; DROP 0 IDENTITY FAILED AT BIND.**
+> Feature `feat/vt-proxy-blur`, base `d7eee97`; tested source `efd990d`, exe `5899E2A4`.
+> The private genuine VT bound and later matched the measured null range, but frames 124-127
+> exceeded the frozen identity limit (peak RGB MAD 11.678702, limit 6.629029). The brief's stop
+> condition fired. No production `proxy_vt` route, census/label changes, staged proof or push.
+> Co-user and ordinary controls stayed within their null limits; one restore drained private
+> resources/producers to zero. This is not the required 10-cycle or destruction lifetime proof.
+> Normal and strict Editor/Game: 0 errors / 0 warnings; 69 standalone headers checked per target.
+> Host source restored to detached `23098fa`, six original binaries rehashed, editor settings restored.
+> Evidence: `E:\IA_BuildCache\_r921`; report in the `2026-10-05-092-03b-vt-proxy-blur-proof` Relay run.
+> Journal: `docs/sessions/2026-10-05-092-03-vt-proxy-blur.md`; G462-G463. Protected refs unchanged.
 
 > **091-07, 2026-10-04 — RELEASE FREEZE, `release/2026-10-05`.**
 > Base: `d660b5d6e67c7af8b0f264e59cf66ed02f433968`. The single behavior change is temporal

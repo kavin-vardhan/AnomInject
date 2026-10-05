@@ -705,10 +705,11 @@ WINDOW skipped, which begins one frame later.
 ### 8.3aa Proxy blur: route selection and labels
 
 **092-03 proof branch only:** `proxy_vt` is the proposed route for a private coarse streaming virtual
-texture. This branch currently contains a gated constructor/identity probe; normal blurry events
-still use the existing routes below and still refuse VT. No `proxy_vt` label, census eligibility or
-support claim is available until the required PIE and staged pixel proof passes. Blurry stays off by
-default, and UV/normal and unnamed VT samples retain their existing refusals.
+texture. This branch contains a gated constructor probe, stopped at NEEDS-DECISION because
+Drop 0 visibly blurred four frames at binding before settling within the identity null limit.
+Normal blurry events still use the existing routes below and refuse VT. No `proxy_vt` label,
+census eligibility or support claim is available. Blurry stays off by default, and UV/normal and
+unnamed VT samples retain their existing refusals. See the 092-03 journal for the failed proof.
 
 `IAI.Anomaly.StuckMipRoute auto|hold|proxy` selects the route for future events. `auto` is the default: an event uses private copies when an eligible candidate is shared in the loaded world, otherwise it uses hold. `hold` always uses the original purity-checked streaming route; `proxy` always uses private copies. The route is fixed for the event. `IAI.Anomaly.StuckMipRoute default` clears the console override. To configure it in `DefaultGame.ini`:
 
