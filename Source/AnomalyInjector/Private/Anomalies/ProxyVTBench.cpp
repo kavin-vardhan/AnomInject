@@ -13,7 +13,7 @@
 #include "UObject/StrongObjectPtr.h"
 
 #if !UE_BUILD_SHIPPING
-namespace
+namespace AnomalyProxyVTBenchDetail
 {
 	struct FProbe
 	{

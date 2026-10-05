@@ -4,7 +4,7 @@
 #include "RenderingThread.h"
 #include "TextureResource.h"
 
-namespace
+namespace AnomalyPrivateVTDetail
 {
 	FThreadSafeCounter ResourceCount;
 	FThreadSafeCounter ProducerCount;
@@ -87,8 +87,8 @@ bool UAnomalyPrivateVT::Initialize(UTexture2D* InSource, int32 InDrop, FString& 
 	FRenderCommandFence Initialized;
 	Initialized.BeginFence();
 	Initialized.Wait();
-	const FTextureResource* PrivateResource = GetResource();
-	const FVirtualTexture2DResource* PrivateVT = PrivateResource ? PrivateResource->GetVirtualTexture2DResource() : nullptr;
+	const FTextureResource* CreatedResource = GetResource();
+	const FVirtualTexture2DResource* PrivateVT = CreatedResource ? CreatedResource->GetVirtualTexture2DResource() : nullptr;
 	if (!PrivateVT || !PrivateVT->GetProducerHandle().IsValid() || PrivateVT->GetSizeX() != static_cast<uint32>(Width)
 		|| PrivateVT->GetSizeY() != static_cast<uint32>(Height) || PrivateVT->GetNumLayers() != VT->GetNumLayers()
 		|| PrivateVT->GetTileSize() != VT->GetTileSize() || PrivateVT->GetBorderSize() != VT->GetBorderSize())
@@ -112,7 +112,7 @@ bool UAnomalyPrivateVT::Initialize(UTexture2D* InSource, int32 InDrop, FString& 
 FTextureResource* UAnomalyPrivateVT::CreateResource()
 {
 	return SourcePin.IsValid() && BorrowedData
-		? new FAnomalyPrivateVTResource(SourcePin.Get(), BorrowedData, FirstMip + Drop) : nullptr;
+		? new AnomalyPrivateVTDetail::FAnomalyPrivateVTResource(SourcePin.Get(), BorrowedData, FirstMip + Drop) : nullptr;
 }
 
 bool UAnomalyPrivateVT::IsCurrentlyVirtualTextured() const
@@ -140,5 +140,5 @@ void UAnomalyPrivateVT::BeginDestroy()
 	Super::BeginDestroy();
 }
 
-int32 UAnomalyPrivateVT::LiveResources() { return ResourceCount.GetValue(); }
-int32 UAnomalyPrivateVT::LiveProducers() { return ProducerCount.GetValue(); }
+int32 UAnomalyPrivateVT::LiveResources() { return AnomalyPrivateVTDetail::ResourceCount.GetValue(); }
+int32 UAnomalyPrivateVT::LiveProducers() { return AnomalyPrivateVTDetail::ProducerCount.GetValue(); }
