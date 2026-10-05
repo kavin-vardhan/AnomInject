@@ -1,4 +1,5 @@
 #include "Anomalies/TexCorruptCore.h"
+#include "Anomalies/TexCorruptVTDiagnostics.h"
 #include "Engine/Texture.h"
 #include "Materials/MaterialInterface.h"
 #if __has_include("Materials/MaterialParameters.h")
@@ -1695,6 +1696,8 @@ namespace AnomalyTexCorrupt
 			TWeakObjectPtr<UWorld> World;
 			bool bAll = false;
 			bool bAllReasons = false;
+			bool bVTDiagnostics = false;
+			FVTDiagnostics VTDiagnostics[3];
 			bool bEnumerated = false;
 			bool bSnapshotTaken = false;
 			bool bStatsUnchanged = true;
@@ -1920,6 +1923,18 @@ namespace AnomalyTexCorrupt
 				In.TargetActor = Actor;
 				FTreeResult Result;
 				EvaluateTree(World, In, Result);
+				if (Job.bVTDiagnostics)
+				{
+					if (In.bAllReasons) { AccumulateVTDiagnostics(World, Result, Job.VTDiagnostics[f]); }
+					else
+					{
+						FTreeResult DiagnosticResult;
+						FTreeInputs DiagnosticInput = In;
+						DiagnosticInput.bAllReasons = true;
+						EvaluateTree(World, DiagnosticInput, DiagnosticResult);
+						AccumulateVTDiagnostics(World, DiagnosticResult, Job.VTDiagnostics[f]);
+					}
+				}
 				if (f == 2)
 				{
 					bool bShared = false, bHold = false;
@@ -2060,6 +2075,10 @@ namespace AnomalyTexCorrupt
 		}
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 scanned=%d of=%d gone=%d stopped=%s seconds=%.1f"),
 			Job.Next, Names.Num(), Job.Gone, Stop, Elapsed);
+		if (Job.bVTDiagnostics)
+		{
+			for (int32 Family = 0; Family < 3; ++Family) { PrintVTDiagnostics(Job.VTDiagnostics[Family], Family); }
+		}
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 timing frames=%d work_ms_max=%.2f frame_interval_ms_max=%.1f"),
 			Job.Calls, WorkMsMax, FrameIntervalMsMax);
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=%d"), bStatsUnchanged ? 1 : 0);
@@ -2085,14 +2104,21 @@ namespace AnomalyTexCorrupt
 			TEXT("blocking key with the objects failing it and the objects failing ONLY it, every non-blocking note, the top ")
 			TEXT("combinations, and b_gain_objects (refused only because not every part qualified, with at least one whole ")
 			TEXT("component qualifying). Checks that depend on a failed one are marked unassessed, not guessed. ")
-			TEXT("Usage: IAI.TexCorrupt.Census [all|allreasons]"),
+			TEXT("Add 'vt' for numeric VT stack, format, geometry and component-only refusal diagnostics. ")
+			TEXT("Usage: IAI.TexCorrupt.Census [all|allreasons] [vt]"),
 			FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 			{
-				const bool bAllReasons = Args.Num() >= 1 && Args[0].Equals(TEXT("allreasons"), ESearchCase::IgnoreCase);
-				const bool bAll = bAllReasons || (Args.Num() >= 1 && Args[0].Equals(TEXT("all"), ESearchCase::IgnoreCase));
-				if (Args.Num() >= 1 && !bAll)
+				bool bAllReasons = false, bAll = false, bVTDiagnostics = false, bValid = true;
+				for (const FString& Arg : Args)
 				{
-					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.TexCorrupt.Census [all|allreasons]"));
+					if (Arg.Equals(TEXT("vt"), ESearchCase::IgnoreCase)) { bVTDiagnostics = true; }
+					else if (Arg.Equals(TEXT("all"), ESearchCase::IgnoreCase)) { bAll = true; }
+					else if (Arg.Equals(TEXT("allreasons"), ESearchCase::IgnoreCase)) { bAll = true; bAllReasons = true; }
+					else { bValid = false; }
+				}
+				if (!bValid)
+				{
+					UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.TexCorrupt.Census [all|allreasons] [vt]"));
 					return;
 				}
 				TUniquePtr<FOfficeCensusJob>& Job = ActiveCensus();
@@ -2107,6 +2133,7 @@ namespace AnomalyTexCorrupt
 				Job->World = World;
 				Job->bAll = bAll;
 				Job->bAllReasons = bAllReasons;
+				Job->bVTDiagnostics = bVTDiagnostics;
 				Job->StartSeconds = FPlatformTime::Seconds();
 				Job->NextProgressSeconds = CensusProgressSeconds;
 				UE_LOG(LogAnomaly, Display,
