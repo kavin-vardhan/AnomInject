@@ -3,6 +3,7 @@
 #if WITH_EDITOR && !UE_BUILD_SHIPPING
 #include "AnomalyBenchGate.h"
 #include "Containers/Ticker.h"
+#include "Editor.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
@@ -15,6 +16,34 @@
 
 namespace
 {
+    struct FPausedEditorView
+    {
+        FLevelEditorViewportClient* Client = nullptr;
+        FViewportStateGetter Visibility;
+        bool bRealtime = false;
+    };
+
+    TArray<FPausedEditorView> PausedEditorViews;
+    FDelegateHandle EndPlayHandle;
+
+    void RestoreEditorViews(bool)
+    {
+        if (GUnrealEd)
+        {
+            for (const FPausedEditorView& Saved : PausedEditorViews)
+            {
+                if (GUnrealEd->GetLevelViewportClients().Contains(Saved.Client))
+                {
+                    Saved.Client->VisibilityDelegate = Saved.Visibility;
+                    Saved.Client->SetRealtime(Saved.bRealtime);
+                }
+            }
+        }
+        PausedEditorViews.Reset();
+        FEditorDelegates::EndPIE.Remove(EndPlayHandle);
+        EndPlayHandle.Reset();
+    }
+
     void PlayWindow(const TArray<FString>& Args)
     {
         if (!AnomalyBenchGate::IsEnabled() || !GUnrealEd || GUnrealEd->PlayWorld || Args.Num() != 2)
@@ -36,8 +65,14 @@ namespace
         Params.bAllowOnlineSubsystem = false;
         for (FLevelEditorViewportClient* Viewport : GUnrealEd->GetLevelViewportClients())
         {
-            if (Viewport) { Viewport->SetRealtime(false); }
+            if (Viewport)
+            {
+                PausedEditorViews.Add({ Viewport, Viewport->VisibilityDelegate, Viewport->IsRealtime() });
+                Viewport->SetRealtime(false);
+                Viewport->VisibilityDelegate.BindLambda([]() { return false; });
+            }
         }
+        EndPlayHandle = FEditorDelegates::EndPIE.AddStatic(&RestoreEditorViews);
         GUnrealEd->RequestPlaySession(Params);
         FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Width, Height, Attempts = 0](float) mutable
         {
@@ -48,7 +83,12 @@ namespace
                 UE_LOG(LogTemp, Log, TEXT("IAI.Bench.PlayWindow: fixed native viewport %dx%d"), Width, Height);
                 return false;
             }
-            return ++Attempts < 600;
+            if (++Attempts >= 600)
+            {
+                RestoreEditorViews(false);
+                return false;
+            }
+            return true;
         }));
         UE_LOG(LogTemp, Log, TEXT("IAI.Bench.PlayWindow: requested PIE client %dx%d"), Width, Height);
     }

@@ -1302,8 +1302,8 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	UE_LOG(LogAnomaly, Log,
 		TEXT("%s: APPLIED mode=%s tile=%d fault=%s noapply=%d on '%s' - %d output chain(s), %d scratch class(es), %d host MID(s), ")
 		TEXT("slots %d/%d committed, required=%lld reserved=%lld live=%lld pending=%lld peak=%lld cap=%s, condition read through ")
-		TEXT("the live predicate: %s (first failing index %d). Every level of every output was drawn from the source's own mip ")
-		TEXT("and copied, enqueued before any scene draw of this frame (plan R7.4).%s apply_ms=%.3f"),
+		TEXT("the live predicate: %s (first failing index %d). Ordinary output levels were drawn and copied from source mips; ")
+		TEXT("private VT outputs were prefetched and verified before the slot commit.%s apply_ms=%.3f"),
 		*Id.ToString(), LexMode(Mode), TileN, LexWrongCopy(Fault), NoApply, *In.TargetQuery, Outputs.Num(), Scratch.Num(),
 		HostMids.Num(), SlotsCorrupted, SlotsTotal, RequiredBytes, Account.Reserved, Ledger().Live, Ledger().PendingSum(),
 		Ledger().Peak, *DescribeMaxRtBytes(), ANSI_TO_TCHAR(TexCorruptPure::LexHeld(Reading)), FirstBad, *Attempt.Describe(), ApplyMs);
