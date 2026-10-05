@@ -778,7 +778,7 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 #endif
 		}
 		UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: ROUTE route=%s result=%s shared_world=%d levels=%d target='%s'"),
-			bHasVT ? TEXT("proxy_vt") : TEXT("proxy"), bActive ? TEXT("applied") : TEXT("refused"), bShared ? 1 : 0, Levels, *Substring);
+			(bActive ? Proxy->UsesPrivateVT() : bHasVT) ? TEXT("proxy_vt") : TEXT("proxy"), bActive ? TEXT("applied") : TEXT("refused"), bShared ? 1 : 0, Levels, *Substring);
 		return bActive;
 	}
 

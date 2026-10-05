@@ -1925,17 +1925,21 @@ namespace AnomalyTexCorrupt
 					bool bShared = false, bHold = false;
 					TArray<FString> HoldReasons;
 					AnomalyStuckMip::InspectHold(Actor, Job.TextureUsers, bShared, bHold, HoldReasons);
-					bool bHasVT = false;
+					bool bHasVT = false, bSelectedVT = false;
 					for (const FSlot& S : Result.Slots)
 					{
-						for (const FBinding& B : S.Bindings) { bHasVT |= B.bVirtual || B.Type == EMaterialTextureParameterType::Virtual; }
+						for (const FBinding& B : S.Bindings)
+						{
+							bHasVT |= B.bVirtual || B.Type == EMaterialTextureParameterType::Virtual;
+							bSelectedVT |= S.IsSelected() && B.bRequired && B.IsTransformable() && B.bVirtual;
+						}
 					}
 					Job.HoldEligible += bHold ? 1 : 0;
-					Job.ProxyEligible += !bHasVT && Result.bApply ? 1 : 0;
-					Job.ProxyVTEligible += bHasVT && Result.bApply ? 1 : 0;
+					Job.ProxyEligible += !bSelectedVT && Result.bApply ? 1 : 0;
+					Job.ProxyVTEligible += bSelectedVT && Result.bApply ? 1 : 0;
 					Job.AutoHoldEligible += !bShared && !bHasVT && bHold ? 1 : 0;
-					Job.AutoProxyEligible += bShared && !bHasVT && Result.bApply ? 1 : 0;
-					Job.AutoProxyVTEligible += bHasVT && Result.bApply ? 1 : 0;
+					Job.AutoProxyEligible += (bShared || bHasVT) && !bSelectedVT && Result.bApply ? 1 : 0;
+					Job.AutoProxyVTEligible += bSelectedVT && Result.bApply ? 1 : 0;
 					if (AnomalyProxyBlur::SelectRoute(AnomalyStuckMip::GetRoute(), bShared || bHasVT) == AnomalyProxyBlur::ERoute::Hold)
 					{
 						Result = FTreeResult();
