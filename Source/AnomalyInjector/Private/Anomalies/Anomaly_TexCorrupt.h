@@ -16,6 +16,7 @@ class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class UTexture2D;
 class UTextureRenderTarget2D;
+class UAnomalyPrivateVT;
 class UAnomalyInjectorSubsystem;
 
 namespace AnomalyTexCorrupt
@@ -44,6 +45,7 @@ public:
 	virtual FString GetLastRefusalReason() const override { return LastRefusal; }
 
 	bool IsRevertSettlingIn(const UWorld* World) const;
+	bool UsesPrivateVT() const;
 
 private:
 	struct FOutput
@@ -61,6 +63,9 @@ private:
 		int32 RH = 0;
 		int32 RM = 0;
 		UTextureRenderTarget2D* Target = nullptr;
+		UAnomalyPrivateVT* VirtualTarget = nullptr;
+		bool bVirtual = false;
+		int32 TileSize = 0;
 		TArray<UMaterialInstanceDynamic*> LevelMids;
 		int64 Bytes = 0;
 		FScratchKey Key;
@@ -79,7 +84,7 @@ private:
 	{
 		UMaterialInterface* Resolved = nullptr;
 		UMaterialInstanceDynamic* Mid = nullptr;
-		TArray<TPair<FMaterialParameterInfo, UTextureRenderTarget2D*>> Bound;
+		TArray<TPair<FMaterialParameterInfo, UTexture*>> Bound;
 	};
 
 	struct FOwnedSlot

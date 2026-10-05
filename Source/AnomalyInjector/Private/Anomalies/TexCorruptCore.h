@@ -269,6 +269,13 @@ namespace AnomalyTexCorrupt
 		int32 BlurDrop = 0;
 		bool bResidentMappable = true;
 		bool bStreams = false;
+		bool bVirtual = false;
+		int32 VTTileSize = 0;
+		int32 VTBorderSize = 0;
+		int32 VTMaxDrop = 0;
+		int64 VTBytes = 0;
+		int32 VTStackLayers = 0;
+		bool bVTPreallocatedStack = false;
 		bool bDefaultTexture = false;
 		int32 Step = 0;
 		FString Reason;

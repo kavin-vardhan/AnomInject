@@ -1,4 +1,5 @@
 #include "Anomalies/Anomaly_TexCorrupt.h"
+#include "Anomalies/AnomalyPrivateVT.h"
 #include "Engine/Texture.h"
 #include "Materials/MaterialInterface.h"
 #if __has_include("Materials/MaterialParameters.h")
@@ -32,6 +33,8 @@
 #include "MaterialDomain.h"
 #endif
 #include "HAL/PlatformTime.h"
+#include "HAL/PlatformProcess.h"
+#include "RenderingThread.h"
 #include "Misc/App.h"
 #include "UObject/Package.h"
 
@@ -255,6 +258,12 @@ void FAnomaly_TexCorrupt::ReleaseAllTargets()
 {
 	for (FOutput& O : Outputs)
 	{
+		if (O.VirtualTarget)
+		{
+			O.VirtualTarget->ReleasePrivate();
+			Account.ReleaseCreated(Ledger(), O.Bytes, GFrameCounter);
+			O.VirtualTarget = nullptr;
+		}
 		if (O.Target)
 		{
 			ReleaseTarget(O.Target);
@@ -298,8 +307,24 @@ bool FAnomaly_TexCorrupt::FailAt(int32 Step, const TCHAR* Reason, const FString&
 bool FAnomaly_TexCorrupt::AllocateAll(FString& OutDetail)
 {
 	TArray<TexCorruptPure::FReqTex> Req;
+	TArray<int32> OrdinaryIndices;
 	for (int32 i = 0; i < Outputs.Num(); ++i)
 	{
+		FOutput& O = Outputs[i];
+		if (O.bVirtual)
+		{
+			UAnomalyPrivateVT* Private = NewObject<UAnomalyPrivateVT>();
+			Hold(Private);
+			if (!Private->Initialize(O.Source, O.Drop, OutDetail)) { return false; }
+			O.VirtualTarget = Private;
+			if (!Account.NoteCreated(Ledger(), O.Bytes))
+			{
+				OutDetail = TEXT("virtual_texture:allocation_over_cap");
+				return false;
+			}
+			continue;
+		}
+		OrdinaryIndices.Add(i);
 		TexCorruptPure::FReqTex& R = Req.AddDefaulted_GetRef();
 		R.Id = i;
 		R.W = Outputs[i].W;
@@ -326,7 +351,7 @@ bool FAnomaly_TexCorrupt::AllocateAll(FString& OutDetail)
 	for (int32 k = 0; k < NumSteps; ++k)
 	{
 		const TexCorruptPure::FAllocStep& St = Steps[k];
-		FOutput& O = Outputs[St.Tex];
+		FOutput& O = Outputs[OrdinaryIndices[St.Tex]];
 		const bool bOutput = St.Kind == TexCorruptPure::AllocKind::Output;
 		FScratchSet* S = nullptr;
 		if (!bOutput)
@@ -382,6 +407,39 @@ bool FAnomaly_TexCorrupt::AllocateAll(FString& OutDetail)
 		else
 		{
 			S->Levels[St.Level] = T;
+		}
+	}
+	const double Started = FPlatformTime::Seconds();
+	bool bReady = false;
+	while (!bReady)
+	{
+		bReady = true;
+		for (FOutput& O : Outputs)
+		{
+			if (O.VirtualTarget && !O.VirtualTarget->PollPrefetch(OutDetail))
+			{
+				bReady = false;
+				if (!OutDetail.IsEmpty()) { return false; }
+			}
+		}
+		if (!bReady)
+		{
+			if (FPlatformTime::Seconds() - Started > 10.0)
+			{
+				OutDetail = TEXT("virtual_texture:prefetch_incomplete");
+				return false;
+			}
+			FlushRenderingCommands();
+			FPlatformProcess::SleepNoStats(0.001f);
+		}
+	}
+	for (const FOutput& O : Outputs)
+	{
+		if (O.VirtualTarget)
+		{
+			UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: VT_READY source='%s' first=%d drop=%d virtual=%dx%d tile=%d attempts=%d pages=%d wait_ms=%.3f"),
+				*O.SourceName, O.FirstMip, O.Drop, O.W, O.H, O.TileSize, O.VirtualTarget->PrefetchAttempts(), O.VirtualTarget->PrefetchPages(),
+				ElapsedMs(Started));
 		}
 	}
 	return true;
@@ -588,6 +646,11 @@ void FAnomaly_TexCorrupt::GatherCollateral(UWorld* World)
 				}
 				for (const FBinding& B : Bindings)
 				{
+					if (B.Tex2D && B.Tex2D->IsCurrentlyVirtualTextured())
+					{
+						++CollateralUnresolved;
+						continue;
+					}
 					if (TexCorruptPure::ClassifyCollateralEntry(B.Texture != nullptr, B.Tex2D != nullptr, CollateralUnresolved)
 						== TexCorruptPure::ECollEntry::Measured)
 					{
@@ -914,6 +977,8 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 			{
 				FOutput& O = Outputs.AddDefaulted_GetRef();
 				O.Source = B.Tex2D;
+				O.bVirtual = B.bVirtual;
+				O.TileSize = B.VTTileSize;
 				O.SourceName = B.Tex2D->GetPathName();
 				O.Class = B.Class;
 				O.RW = B.W;
@@ -925,7 +990,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 				O.H = FMath::Max(1, B.H >> O.Drop);
 				O.FirstMip = B.FirstMip;
 				O.CookedM = B.CookedM;
-				O.Bytes = ChainBytes(O.W, O.H, O.M);
+				O.Bytes = B.bVirtual ? B.VTBytes : ChainBytes(O.W, O.H, O.M);
 				O.Key.W = O.W;
 				O.Key.H = O.H;
 				O.Key.bSRGB = (B.Class == EClass::Colour);
@@ -1008,7 +1073,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		FString AllocDetail;
 		if (!AllocateAll(AllocDetail))
 		{
-			return FailAt(2, Why::RtAllocFailed, AllocDetail);
+			return FailAt(2, AllocDetail.StartsWith(TEXT("virtual_texture:")) ? *AllocDetail : Why::RtAllocFailed, AllocDetail);
 		}
 	}
 
@@ -1023,6 +1088,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 #endif
 	for (FOutput& O : Outputs)
 	{
+		if (O.bVirtual) { continue; }
 		for (int32 m = 0; m < O.M; ++m)
 		{
 			FString Failure;
@@ -1055,7 +1121,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 		for (const FOutput& O : Outputs)
 		{
-			if (Why4.IsEmpty() && !IsTargetDrawable(O.Target))
+			if (Why4.IsEmpty() && !O.bVirtual && !IsTargetDrawable(O.Target))
 			{
 				Why4 = FString::Printf(TEXT("output_resource_%s"), *O.SourceName);
 			}
@@ -1083,7 +1149,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	bool bDrawn = true;
 	for (FOutput& O : Outputs)
 	{
-		bDrawn &= EnqueueOutput(World, O, true);
+		if (!O.bVirtual) { bDrawn &= EnqueueOutput(World, O, true); }
 	}
 	if (!bDrawn)
 	{
@@ -1135,7 +1201,10 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 					continue;
 				}
 				const int32* Idx = OutputIndex.Find(B.Tex2D);
-				UTextureRenderTarget2D* Target = Idx ? Outputs[*Idx].Target : nullptr;
+				UTexture* Target = Idx ? (Outputs[*Idx].bVirtual ? static_cast<UTexture*>(Outputs[*Idx].VirtualTarget) : Outputs[*Idx].Target) : nullptr;
+#if !UE_BUILD_SHIPPING
+				if (B.bVirtual && AnomalyProxyVTBenchNoBind()) { Target = B.Tex2D; }
+#endif
 				HM->Mid->SetTextureParameterValueByInfo(B.Info, Target);
 				UTexture* Read = nullptr;
 				if (!Target || !HM->Mid->GetTextureParameterValue(FHashedMaterialParameterInfo(B.Info), Read, true) || Read != Target)
@@ -1549,6 +1618,7 @@ void FAnomaly_TexCorrupt::RestoreAndRelease(double StartSeconds, int32 DelayedBy
 	ReleaseAllTargets();
 	LetGoAll();
 
+	UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: VT_DRAIN resources=%d producers=%d"), UAnomalyPrivateVT::LiveResources(), UAnomalyPrivateVT::LiveProducers());
 	UE_LOG(LogAnomaly, Log,
 		TEXT("%s: REVERT restored-exact=%d restored-default=%d left-to-game=%d unresolved=%d swept=%d residual=%d; every render target ")
 		TEXT("(scratch included) released, originals let go after their slots were restored; live=%lld pending=%lld.%s ")
@@ -1578,7 +1648,7 @@ TexCorruptPure::EHeld FAnomaly_TexCorrupt::EvaluateCondition(int32& OutFirstBad)
 	TArray<bool> BindingReads;
 	for (const FHostMid& HM : HostMids)
 	{
-		for (const TPair<FMaterialParameterInfo, UTextureRenderTarget2D*>& Pair : HM.Bound)
+		for (const TPair<FMaterialParameterInfo, UTexture*>& Pair : HM.Bound)
 		{
 			UTexture* Read = nullptr;
 			BindingReads.Add(HM.Mid && Pair.Value && HM.Mid->GetTextureParameterValue(FHashedMaterialParameterInfo(Pair.Key), Read, true)
@@ -1620,7 +1690,7 @@ unsigned char FAnomaly_TexCorrupt::GetVisualConditionState() const
 				continue;
 			}
 			bBindingsHold = true;
-			for (const TPair<FMaterialParameterInfo, UTextureRenderTarget2D*>& Pair : HM.Bound)
+			for (const TPair<FMaterialParameterInfo, UTexture*>& Pair : HM.Bound)
 			{
 				UTexture* Read = nullptr;
 				if (!Pair.Value || !HM.Mid->GetTextureParameterValue(FHashedMaterialParameterInfo(Pair.Key), Read, true) || Read != Pair.Value)
@@ -1670,6 +1740,11 @@ void FAnomaly_TexCorrupt::NoteCapturedFrame(bool bAnomalousThisFrame)
 	LogCollateral(TEXT("labelled"));
 }
 
+bool FAnomaly_TexCorrupt::UsesPrivateVT() const
+{
+	return Outputs.ContainsByPredicate([](const FOutput& O) { return O.bVirtual; });
+}
+
 bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 {
 	if (!bActive)
@@ -1679,7 +1754,7 @@ bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddString(TEXT("texcorrupt.mode"), LexMode(Mode));
 	if (Id == FName(TEXT("stuck_low_mip")))
 	{
-		Out.AddString(TEXT("stuck_mip.route"), TEXT("proxy"));
+		Out.AddString(TEXT("stuck_mip.route"), UsesPrivateVT() ? TEXT("proxy_vt") : TEXT("proxy"));
 		Out.AddBool(TEXT("stuck_mip.held"), IsVisualConditionHeld());
 		Out.AddInt(TEXT("stuck_mip.k"), Outputs.Num() > 0 ? Outputs[0].FirstMip + Outputs[0].Drop : -1);
 		Out.AddInt(TEXT("stuck_mip.onset_latency_frames"), 0);
@@ -1688,8 +1763,19 @@ bool FAnomaly_TexCorrupt::GetTelemetry(FAnomalyTelemetry& Out) const
 			FAnomalyTelemetryFields& Rec = Out.AddArrayEntry(TEXT("stuck_mip.textures"));
 			Rec.AddString(TEXT("name"), O.SourceName);
 			Rec.AddInt(TEXT("k"), O.FirstMip + O.Drop);
-			Rec.AddInt(TEXT("resident_first_mip"), O.FirstMip);
-			Rec.AddInt(TEXT("resident_drop"), O.Drop);
+			if (O.bVirtual)
+			{
+				Rec.AddInt(TEXT("source_first_mip"), O.FirstMip);
+				Rec.AddInt(TEXT("drop"), O.Drop);
+				Rec.AddInt(TEXT("virtual_width"), O.W);
+				Rec.AddInt(TEXT("virtual_height"), O.H);
+				Rec.AddInt(TEXT("tile_size"), O.TileSize);
+			}
+			else
+			{
+				Rec.AddInt(TEXT("resident_first_mip"), O.FirstMip);
+				Rec.AddInt(TEXT("resident_drop"), O.Drop);
+			}
 			Rec.AddInt(TEXT("baseline_mips"), O.RM);
 			Rec.AddInt(TEXT("forced_mips"), O.M);
 			Rec.AddInt(TEXT("forced_top_px"), O.W);

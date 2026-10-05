@@ -191,7 +191,11 @@ bool UAnomalyPrivateVT::PollPrefetch(FString& OutReason)
 	}
 	Prefetch->InFlight.Store(true);
 	const TSharedPtr<FAnomalyVTPrefetch, ESPMode::ThreadSafe> State = Prefetch;
-	ENQUEUE_RENDER_COMMAND(AnomalyVTPrefetch)([PrivateVT, State](FRHICommandListImmediate& RHICmdList)
+	bool bRequestPages = true;
+#if !UE_BUILD_SHIPPING
+	bRequestPages = !bSkipRequests;
+#endif
+	ENQUEUE_RENDER_COMMAND(AnomalyVTPrefetch)([PrivateVT, State, bRequestPages](FRHICommandListImmediate& RHICmdList)
 	{
 		bool bReady = State->Readbacks.Num() > 0;
 		for (FAnomalyVTPrefetch::FReadback& Row : State->Readbacks)
@@ -250,7 +254,7 @@ bool UAnomalyPrivateVT::PollPrefetch(FString& OutReason)
 		const FVector2D Size(Allocation->GetWidthInPixels(), Allocation->GetHeightInPixels());
 		for (uint32 Level = 0; Level <= Allocation->GetMaxLevel(); ++Level)
 		{
-			Renderer.RequestVirtualTextureTilesForRegion(Allocation, Size, FVector2D::ZeroVector, Size, FVector2D::ZeroVector, FVector2D(1, 1), Level);
+			if (bRequestPages) { Renderer.RequestVirtualTextureTilesForRegion(Allocation, Size, FVector2D::ZeroVector, Size, FVector2D::ZeroVector, FVector2D(1, 1), Level); }
 		}
 		Renderer.LoadPendingVirtualTextureTiles(RHICmdList, GMaxRHIFeatureLevel);
 		for (uint32 Table = 0; Table < Allocation->GetNumPageTableTextures(); ++Table)
@@ -285,6 +289,7 @@ bool UAnomalyPrivateVT::PollPrefetch(FString& OutReason)
 				Row.Reader->EnqueueCopy(RHICmdList, Row.Copy);
 			}
 		}
+		RHICmdList.SubmitCommandsHint();
 		State->InFlight.Store(false);
 	});
 	return false;

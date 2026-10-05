@@ -36,6 +36,9 @@ public:
 	int32 GetTileSize() const { return TileSize; }
 	static int32 LiveResources();
 	static int32 LiveProducers();
+#if !UE_BUILD_SHIPPING
+	void BenchSkipRequests() { bSkipRequests = true; }
+#endif
 
 private:
 	TStrongObjectPtr<UTexture2D> SourcePin;
@@ -48,4 +51,11 @@ private:
 	int32 TileSize = 0;
 	TextureAddress AddressU = TA_Wrap;
 	TextureAddress AddressV = TA_Wrap;
+#if !UE_BUILD_SHIPPING
+	bool bSkipRequests = false;
+#endif
 };
+
+#if !UE_BUILD_SHIPPING
+bool AnomalyProxyVTBenchNoBind();
+#endif

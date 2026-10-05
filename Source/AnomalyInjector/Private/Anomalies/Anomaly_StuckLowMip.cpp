@@ -730,15 +730,17 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 
 	bool bShared = false;
+	bool bHasVT = false;
 	for (UTexture2D* Tex : Candidates)
 	{
+		bHasVT |= Tex && Tex->IsCurrentlyVirtualTextured();
 		if (ClassifyTexture(Tex) == EEligibility::Eligible)
 		{
 			const FWorldTextureUsers* Users = WorldUsers.Find(Tex);
 			bShared |= Users && Users->Components.Num() > 1;
 		}
 	}
-	bProxyRoute = AnomalyProxyBlur::SelectRoute(AnomalyStuckMip::GetRoute(), bShared) == AnomalyProxyBlur::ERoute::Proxy;
+	bProxyRoute = AnomalyProxyBlur::SelectRoute(AnomalyStuckMip::GetRoute(), bShared || bHasVT) == AnomalyProxyBlur::ERoute::Proxy;
 	if (bProxyRoute)
 	{
 		if (!Proxy)
@@ -775,8 +777,8 @@ bool FAnomaly_StuckLowMip::Apply(UWorld* World, const TArray<FString>& Args)
 			}
 #endif
 		}
-		UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: ROUTE route=proxy result=%s shared_world=%d levels=%d target='%s'"),
-			bActive ? TEXT("applied") : TEXT("refused"), bShared ? 1 : 0, Levels, *Substring);
+		UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: ROUTE route=%s result=%s shared_world=%d levels=%d target='%s'"),
+			bHasVT ? TEXT("proxy_vt") : TEXT("proxy"), bActive ? TEXT("applied") : TEXT("refused"), bShared ? 1 : 0, Levels, *Substring);
 		return bActive;
 	}
 

@@ -1,4 +1,5 @@
 #include "Anomalies/TexCorruptCore.h"
+#include "Anomalies/AnomalyPrivateVT.h"
 #include "RHI.h"
 #if __has_include("RHIFeatureLevel.h")
 #include "RHIFeatureLevel.h"
@@ -19,6 +20,7 @@
 #include "Components/MeshComponent.h"
 #include "Containers/Ticker.h"
 #include "Engine/Texture2D.h"
+#include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Materials/MaterialInterface.h"
 #include "RenderingThread.h"
@@ -27,6 +29,8 @@
 
 #if ANOMALY_SHADERS
 #include "AnomalyTexStatsShader.h"
+#include "AnomalyVTStatsShader.h"
+#include "VirtualTexturing.h"
 #include "GlobalShader.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
@@ -55,6 +59,7 @@ namespace AnomalyTexCorrupt
 			enum class EState : uint8
 			{
 				Queued,
+				PreparingVT,
 				InFlight,
 				Done,
 				Failed
@@ -71,6 +76,7 @@ namespace AnomalyTexCorrupt
 				uint64 Id = 0;
 				int32 Retries = 0;
 				FString Fail;
+				TStrongObjectPtr<UAnomalyPrivateVT> PrivateVT;
 			};
 
 			struct FPublished
@@ -180,6 +186,38 @@ namespace AnomalyTexCorrupt
 
 			void KickRT(FRHICommandListImmediate& RHICmdList, FTextureResource* Res, uint64 Id, int32 W, int32 H)
 			{
+				FVirtualTexture2DResource* VT = Res ? Res->GetVirtualTexture2DResource() : nullptr;
+				if (VT)
+				{
+					IAllocatedVirtualTexture* Allocation = VT->AcquireAllocatedVT();
+					FRDGBuilder GraphBuilder(RHICmdList);
+					FRDGTextureRef Physical = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(Allocation->GetPhysicalTexture(0), TEXT("AnomalyVTStatsPhysical")));
+					FRDGTextureRef PageTable = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(Allocation->GetPageTableTexture(0), TEXT("AnomalyVTStatsPageTable")));
+					FRDGTextureSRVDesc PhysicalDesc = FRDGTextureSRVDesc::CreateForMipLevel(Physical, 0);
+					PhysicalDesc.SRGBOverride = SRGBO_ForceDisable;
+					FRDGBufferRef Buffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 9), TEXT("AnomalyVTStats"));
+					FRDGBufferUAVRef Uav = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Buffer, PF_R32_UINT));
+					AddClearUAVPass(GraphBuilder, Uav, 0u);
+					FAnomalyVTStatsCS::FParameters* Params = GraphBuilder.AllocParameters<FAnomalyVTStatsCS::FParameters>();
+					Params->PhysicalTexture = GraphBuilder.CreateSRV(PhysicalDesc);
+					Params->PageTable = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMipLevel(PageTable, 0));
+					Params->OutStats = Uav;
+					Params->SourceSize = FIntPoint(W, H);
+					Params->PageOrigin = FIntPoint(Allocation->GetVirtualPageX(), Allocation->GetVirtualPageY());
+					Params->TileSize = Allocation->GetVirtualTileSize();
+					Params->BorderSize = Allocation->GetTileBorderSize();
+					Params->CoordinateBits = Allocation->GetPageTableFormat() == EVTPageTableFormat::UInt16 ? 6u : 8u;
+					TShaderMapRef<FAnomalyVTStatsCS> Shader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+					FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("AnomalyVTStats"), Shader, Params,
+						FComputeShaderUtils::GetGroupCount(FIntPoint(W, H), 8));
+					FInflightRT Item;
+					Item.Id = Id;
+					Item.Readback = MakeUnique<FRHIGPUBufferReadback>(TEXT("AnomalyVTStatsReadback"));
+					AddEnqueueCopyPass(GraphBuilder, Item.Readback.Get(), Buffer, 9 * sizeof(uint32));
+					GraphBuilder.Execute();
+					InflightRT().Add(MoveTemp(Item));
+					return;
+				}
 				FRHITexture* T = Res ? Res->TextureRHI.GetReference() : nullptr;
 				if (!T)
 				{
@@ -224,6 +262,16 @@ namespace AnomalyTexCorrupt
 #if ANOMALY_SHADERS
 			bool ResidentTop(UTexture2D* Tex, int32& OutFirst, int32& OutW, int32& OutH)
 			{
+				if (Tex && Tex->IsCurrentlyVirtualTextured())
+				{
+					const FTextureResource* Res = Tex->GetResource();
+					const FVirtualTexture2DResource* VT = Res ? Res->GetVirtualTexture2DResource() : nullptr;
+					if (!VT || VT->GetNumLayers() != 1 || !Res->IsInitialized()) { return false; }
+					OutFirst = Tex->GetNumMips() - static_cast<int32>(VT->GetNumMips());
+					OutW = VT->GetSizeX();
+					OutH = VT->GetSizeY();
+					return OutFirst >= 0 && OutW > 0 && OutH > 0;
+				}
 				const FTexturePlatformData* PD = Tex ? Tex->GetPlatformData() : nullptr;
 				if (!PD)
 				{
@@ -253,6 +301,20 @@ namespace AnomalyTexCorrupt
 					return;
 				}
 				GTickerAdded = true;
+				FWorldDelegates::OnWorldCleanup.AddLambda([](UWorld* World, bool, bool)
+				{
+					if (!World || (World->WorldType != EWorldType::PIE && World->WorldType != EWorldType::Game)) { return; }
+					for (auto It = Cache().CreateIterator(); It; ++It)
+					{
+						FEntry& E = It.Value();
+						UTexture2D* Texture = E.Weak.Get();
+						if (!E.PrivateVT.IsValid() && (!Texture || !Texture->IsCurrentlyVirtualTextured())) { continue; }
+						Queue().Remove(It.Key());
+						if (IdToKey().Remove(E.Id) > 0) { GInFlight = FMath::Max(0, GInFlight - 1); }
+						if (E.PrivateVT.IsValid()) { E.PrivateVT->ReleasePrivate(); E.PrivateVT.Reset(); }
+						It.RemoveCurrent();
+					}
+				});
 				FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float) -> bool
 				{
 					Pump();
@@ -315,6 +377,7 @@ namespace AnomalyTexCorrupt
 			switch (E->State)
 			{
 			case EState::Queued:
+			case EState::PreparingVT:
 			case EState::InFlight:
 				return EVerdict::Pending;
 			case EState::Failed:
@@ -335,7 +398,7 @@ namespace AnomalyTexCorrupt
 			int32 First = 0;
 			int32 W = 0;
 			int32 H = 0;
-			if (!Tex || Tex->IsCurrentlyVirtualTextured() || !ResidentTop(Tex, First, W, H))
+			if (!Tex || !ResidentTop(Tex, First, W, H))
 			{
 				return false;
 			}
@@ -404,6 +467,11 @@ namespace AnomalyTexCorrupt
 				{
 					continue;
 				}
+				if (E->PrivateVT.IsValid())
+				{
+					E->PrivateVT->ReleasePrivate();
+					E->PrivateVT.Reset();
+				}
 				if (P.bOk && TexCorruptPure::Uniform::DecodeStats(P.Raw, (uint32)E->W * (uint32)E->H, E->Stats))
 				{
 					E->State = EState::Done;
@@ -465,10 +533,50 @@ namespace AnomalyTexCorrupt
 				const uint64 Id = E->Id;
 				const int32 W = E->W;
 				const int32 H = E->H;
+				if (Tex->IsCurrentlyVirtualTextured())
+				{
+					E->PrivateVT.Reset(NewObject<UAnomalyPrivateVT>());
+					FString Failure;
+					if (!E->PrivateVT->Initialize(Tex, 0, Failure))
+					{
+						FPublished P;
+						P.Id = Id;
+						P.Fail = Failure;
+						Publish(MoveTemp(P));
+					}
+					else { E->State = EState::PreparingVT; }
+					continue;
+				}
 				ENQUEUE_RENDER_COMMAND(AnomalyTexStatsKick)([Res, Id, W, H](FRHICommandListImmediate& RHICmdList)
 				{
 					KickRT(RHICmdList, Res, Id, W, H);
 				});
+			}
+			for (TPair<FKey, FEntry>& Pair : Cache())
+			{
+				FEntry& E = Pair.Value;
+				if (E.State != EState::PreparingVT) { continue; }
+				FString Failure;
+				if (E.PrivateVT->PollPrefetch(Failure))
+				{
+					E.State = EState::InFlight;
+					FTextureResource* Res = E.PrivateVT->GetResource();
+					const uint64 Id = E.Id;
+					const int32 W = E.W;
+					const int32 H = E.H;
+					ENQUEUE_RENDER_COMMAND(AnomalyVTStatsKick)([Res, Id, W, H](FRHICommandListImmediate& RHICmdList)
+					{
+						KickRT(RHICmdList, Res, Id, W, H);
+					});
+				}
+				else if (!Failure.IsEmpty())
+				{
+					E.State = EState::InFlight;
+					FPublished P;
+					P.Id = E.Id;
+					P.Fail = Failure;
+					Publish(MoveTemp(P));
+				}
 			}
 			if (GInFlight > 0)
 			{
@@ -485,7 +593,7 @@ namespace AnomalyTexCorrupt
 			int32 N = 0;
 			for (const TPair<FKey, FEntry>& P : Cache())
 			{
-				if (P.Value.State == EState::Queued || P.Value.State == EState::InFlight)
+				if (P.Value.State == EState::Queued || P.Value.State == EState::PreparingVT || P.Value.State == EState::InFlight)
 				{
 					++N;
 				}

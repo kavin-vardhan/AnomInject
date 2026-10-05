@@ -50,8 +50,8 @@ AUTO_DRAW = re.compile(r"Auto\.Draw attempt=\d+ .*? id=([a-z_-]+) .*? result=(\w
 NANITE = re.compile(r"REFUSED-NANITE actor=")
 NANITE_PROBE = re.compile(r"REFUSED-NANITE-PROBE-MISSING actor=")
 TC_HEAD = re.compile(r"TEXCORRUPT-(DECIDE|REFUSED) family=(uv|normal|blur) mode=\S+ target='.*?' final=([A-Za-z_]+)")
-ROUTES = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=(\d+) proxy_eligible=(\d+) auto_hold=(\d+) auto_proxy=(\d+) selected=(auto|hold|proxy)\s*$")
-ROUTE_FIRE = re.compile(r"stuck_low_mip: ROUTE route=(hold|proxy) result=applied ")
+ROUTES = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=(\d+) proxy_eligible=(\d+) auto_hold=(\d+) auto_proxy=(\d+) selected=(auto|hold|proxy)(?: proxy_vt_eligible=(\d+) auto_proxy_vt=(\d+))?\s*$")
+ROUTE_FIRE = re.compile(r"stuck_low_mip: ROUTE route=(hold|proxy|proxy_vt) result=applied ")
 TC_SLOT = re.compile(r"TEXCORRUPT-(?:DECIDE|REFUSED)\s+slot \S+ disposition=([a-z_]+)")
 TC_SHADERMAP = re.compile(r"TEXCORRUPT-SHADERMAP '.*?' game_thread_complete=(\d) .*?-> (admitted|refused)(?: (\w+))?")
 CENSUS = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (scope=\S+ candidates=\d+|id=\S+ eligible=\d+ refused=\d+|"
@@ -153,7 +153,7 @@ def count(lines):
             continue
         m = ROUTES.search(line)
         if m:
-            c["routes"].append(tuple(int(x) for x in m.groups()[:4]) + (m.group(5),))
+            c["routes"].append(tuple(int(x) for x in m.groups()[:4]) + (m.group(5), int(m.group(6) or 0), int(m.group(7) or 0)))
             continue
         m = ROUTE_FIRE.search(line)
         if m:
@@ -202,8 +202,8 @@ def render(c, m52c):
     for line in c["census"]:
         out.append("CENSUS                    %s" % line)
     for routes in c["routes"]:
-        out.append("CENSUS ROUTES stuck_low_mip hold_eligible %d | proxy_eligible %d | auto_hold %d | auto_proxy %d | selected %s" % routes)
-    out.append("STUCK_LOW_MIP ROUTE FIRES  hold %d | proxy %d" % (c["route_fires"]["hold"], c["route_fires"]["proxy"]))
+        out.append("CENSUS ROUTES stuck_low_mip hold_eligible %d | proxy_eligible %d | auto_hold %d | auto_proxy %d | selected %s | proxy_vt_eligible %d | auto_proxy_vt %d" % routes)
+    out.append("STUCK_LOW_MIP ROUTE FIRES  hold %d | proxy %d | proxy_vt %d" % (c["route_fires"]["hold"], c["route_fires"]["proxy"], c["route_fires"]["proxy_vt"]))
     for fam in sorted(c["subs"]):
         out.append("CENSUS SUBS %-13s %s" % (fam, fmt_counter(c["subs"][fam])))
     for fam in sorted(c["allreasons"]):
@@ -271,9 +271,9 @@ def route_check(c):
     head = c["allreasons"].get("stuck_low_mip", {}).get("head")
     if not c["routes"] or not head:
         return 2, "missing blur route or allreasons counts"
-    hold, proxy, auto_hold, auto_proxy, selected = c["routes"][-1]
-    expected = dict(auto=auto_hold + auto_proxy, hold=hold, proxy=proxy)[selected]
-    ok = head[1] == expected and auto_hold <= hold and auto_proxy <= proxy and max(hold, proxy) <= head[0]
+    hold, proxy, auto_hold, auto_proxy, selected, proxy_vt, auto_proxy_vt = c["routes"][-1]
+    expected = dict(auto=auto_hold + auto_proxy + auto_proxy_vt, hold=hold, proxy=proxy + proxy_vt)[selected]
+    ok = head[1] == expected and auto_hold <= hold and auto_proxy <= proxy and auto_proxy_vt <= proxy_vt and max(hold, proxy + proxy_vt) <= head[0]
     return (0 if ok else 1), ("PASS" if ok else "FAIL") + " - per-route eligible accounting"
 
 
@@ -365,11 +365,18 @@ def selftest():
     blur += ["IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=1 proxy_eligible=2 auto_hold=1 auto_proxy=1 selected=auto",
              "stuck_low_mip: ROUTE route=proxy result=applied target='secret' k=4", "stuck_low_mip: ROUTE route=hold result=applied target='secret' k=3"]
     bc = count(blur)
-    check("blur allreasons, per-route census and fire counts are read", bc["routes"] == [(1, 2, 1, 1, "auto")]
+    check("blur allreasons, per-route census and fire counts are read", bc["routes"] == [(1, 2, 1, 1, "auto", 0, 0)]
           and bc["route_fires"] == Counter(hold=1, proxy=1) and allreasons_check(bc)[0] == 0)
     check("blur first-failure mutant fails allreasons check", allreasons_check(count(
           [x.replace("uv_corruption", "stuck_low_mip") for x in AR_SAMPLE_FIRST_ONLY]))[0] == 1)
     check("missing route mutant cannot report route counts", not count(blur[:-3])["routes"])
+    vt_line = "IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=0 proxy_eligible=0 auto_hold=0 auto_proxy=0 selected=auto proxy_vt_eligible=2 auto_proxy_vt=2"
+    vt_counts = count([vt_line, "stuck_low_mip: ROUTE route=proxy_vt result=applied "])
+    check("VT route and fires are preserved", vt_counts["routes"] == [(0, 0, 0, 0, "auto", 2, 2)] and vt_counts["route_fires"]["proxy_vt"] == 1)
+    vt_counts["allreasons"]["stuck_low_mip"] = dict(head=(2, 2))
+    check("VT route accounting passes", route_check(vt_counts)[0] == 0)
+    vt_counts["routes"][-1] = (0, 0, 0, 0, "auto", 2, 1)
+    check("VT route omission mutant fails accounting", route_check(vt_counts)[0] == 1)
     check("swapped route values are distinguishable", count([blur[-3].replace("auto_hold=1", "auto_hold=0")])["routes"] != bc["routes"])
     check("blur output carries no name", "secret" not in "\n".join(render(bc, m52.count([]))))
     check("route accounting passes consistent counts", route_check(bc)[0] == 0)

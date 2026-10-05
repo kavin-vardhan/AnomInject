@@ -30,6 +30,15 @@ namespace AnomalyProxyVTBenchDetail
 	};
 
 	TUniquePtr<FProbe> Probe;
+	bool bNoBind = false;
+	FAutoConsoleCommand NoBindCommand(TEXT("IAI.Bench.ProxyVTNoBind"),
+		TEXT("Bench-only mutant: install the host MID with its original VT source. Pixel-change proof must fail."),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			if (!AnomalyBenchGate::IsEnabled()) { return; }
+			bNoBind = Args.Num() == 1 && Args[0] == TEXT("1");
+			UE_LOG(LogAnomaly, Display, TEXT("IAI.Bench.ProxyVTNoBind=%d"), bNoBind ? 1 : 0);
+		}));
 
 	void Restore()
 	{
@@ -89,12 +98,12 @@ namespace AnomalyProxyVTBenchDetail
 
 	FAutoConsoleCommandWithWorldAndArgs Command(
 		TEXT("IAI.Bench.ProxyVT"),
-		TEXT("BENCH <actor-name> <texture-parameter> <drop>, or restore. Private VT identity/constructor proof."),
+		TEXT("BENCH <actor-name> <texture-parameter> <drop> [no_request], or restore. Private VT identity/constructor proof."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (!AnomalyBenchGate::IsEnabled()) { return; }
 			if (Args.Num() == 1 && Args[0] == TEXT("restore")) { Restore(); return; }
-			if (!World || Args.Num() != 3) { return; }
+			if (!World || (Args.Num() != 3 && Args.Num() != 4) || (Args.Num() == 4 && Args[3] != TEXT("no_request"))) { return; }
 			Restore();
 			UStaticMeshComponent* Component = nullptr;
 			for (TActorIterator<AActor> It(World); It; ++It)
@@ -122,6 +131,7 @@ namespace AnomalyProxyVTBenchDetail
 			NewProbe->Source.Reset(Source);
 			NewProbe->Parameter = Parameter;
 			NewProbe->Texture.Reset(NewObject<UAnomalyPrivateVT>(GetTransientPackage()));
+			if (Args.Num() == 4) { NewProbe->Texture->BenchSkipRequests(); }
 			FString Reason;
 			if (!NewProbe->Texture->Initialize(Source, FCString::Atoi(*Args[2]), Reason))
 			{
@@ -143,5 +153,10 @@ namespace AnomalyProxyVTBenchDetail
 		}
 	};
 	FWorldCleanup Cleanup;
+}
+
+bool AnomalyProxyVTBenchNoBind()
+{
+	return AnomalyBenchGate::IsEnabled() && AnomalyProxyVTBenchDetail::bNoBind;
 }
 #endif

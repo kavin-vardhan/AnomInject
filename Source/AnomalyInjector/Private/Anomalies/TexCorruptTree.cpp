@@ -338,6 +338,26 @@ namespace AnomalyTexCorrupt
 			{
 				return;
 			}
+			B.bVirtual = Tex->IsCurrentlyVirtualTextured();
+			if (B.bVirtual)
+			{
+				const FTextureResource* Res = Tex->GetResource();
+				const FVirtualTexture2DResource* VT = Res ? Res->GetVirtualTexture2DResource() : nullptr;
+				if (!VT) { return; }
+				B.Format = VT->GetFormat(0);
+				B.W = VT->GetSizeX();
+				B.H = VT->GetSizeY();
+				B.M = VT->GetNumMips();
+				B.FirstMip = Tex->GetNumMips() - B.M;
+				B.CookedM = Tex->GetNumMips();
+				B.CookedW = Tex->GetSizeX();
+				B.CookedH = Tex->GetSizeY();
+				B.VTTileSize = VT->GetTileSize();
+				B.VTBorderSize = VT->GetBorderSize();
+				B.VTMaxDrop = FMath::CeilLogTwo(FMath::Max(VT->GetNumTilesX(), VT->GetNumTilesY()));
+				for (int32 m = 0; m < B.M; ++m) { B.LevelSizes.Add(FIntPoint(FMath::Max(1, B.W >> m), FMath::Max(1, B.H >> m))); }
+				return;
+			}
 			if (const FTexturePlatformData* PD = Tex->GetPlatformData())
 			{
 				B.Format = PD->PixelFormat;
@@ -421,7 +441,7 @@ namespace AnomalyTexCorrupt
 			return EClass::None;
 		}
 
-		void EvaluateBinding(FBinding& B, bool bAll)
+		void EvaluateBinding(FBinding& B, bool bAll, bool bProxyBlur)
 		{
 			B.Step = 0;
 			B.Reason = Why::Transformable;
@@ -447,9 +467,12 @@ namespace AnomalyTexCorrupt
 
 			if (B.Type == EMaterialTextureParameterType::Virtual || (B.Tex2D && B.Tex2D->IsCurrentlyVirtualTextured()))
 			{
-				if (Fail(1, Why::VirtualTexture, LexTexType(B.Type), true)) { return; }
+				if (!bProxyBlur || B.Type != EMaterialTextureParameterType::Virtual || !B.bVirtual)
+				{
+					if (Fail(1, Why::VirtualTexture, LexTexType(B.Type), true)) { return; }
+				}
 			}
-			if (B.Type != EMaterialTextureParameterType::Standard2D || !B.Tex2D)
+			if ((B.Type != EMaterialTextureParameterType::Standard2D && !(bProxyBlur && B.bVirtual)) || !B.Tex2D)
 			{
 				if (Fail(2, Why::UnsupportedType,
 					B.Type != EMaterialTextureParameterType::Standard2D ? FString(LexTexType(B.Type))
@@ -501,6 +524,19 @@ namespace AnomalyTexCorrupt
 			if (!B.Tex2D->GetResource() || B.Tex2D->HasPendingRenderResourceInitialization())
 			{
 				if (Fail(8, Why::ResourceNotReady, TEXT("resource"), true)) { return; }
+			}
+			if (B.bVirtual)
+			{
+				const FVirtualTexture2DResource* VT = B.Tex2D->GetResource()->GetVirtualTexture2DResource();
+				if (!VT || VT->GetNumLayers() != 1 || B.VTStackLayers != 1 || B.bVTPreallocatedStack)
+				{
+					if (Fail(8, Why::VirtualTexture, TEXT("stack_layout"), true)) { return; }
+				}
+				if (B.FirstMip < 0 || B.VTTileSize <= 0 || B.W < B.VTTileSize || B.H < B.VTTileSize)
+				{
+					if (Fail(8, Why::VirtualTexture, TEXT("invalid_layout"), true)) { return; }
+				}
+				return;
 			}
 			if (B.Tex2D->HasPendingInitOrStreaming(false))
 			{
@@ -627,14 +663,28 @@ namespace AnomalyTexCorrupt
 			for (FBinding& B : S.Bindings)
 			{
 				GatherTextureFacts(B);
-				EvaluateBinding(B, bAll);
-				if (In.bProxyBlur && B.Tex2D && B.bStreams)
+				EvaluateBinding(B, bAll, In.bProxyBlur);
+				if (In.bProxyBlur && B.Tex2D && (B.bStreams || B.bVirtual))
 				{
 					const FStreamableRenderResourceState& St = B.Tex2D->GetStreamableResourceState();
-					const int32 Target = AnomalyProxyBlur::TargetMips(B.M, St.NumNonStreamingLODs, St.MaxNumLODs,
+					const int32 Target = AnomalyProxyBlur::TargetMips(B.M, B.bVirtual ? B.M - B.VTMaxDrop : St.NumNonStreamingLODs, B.bVirtual ? B.M : St.MaxNumLODs,
 						In.BlurLevels, AnomalyDefaults::StuckMipMinResidentMips);
 					B.BlurDrop = In.Mode == EMode::Identity ? 0 : AnomalyProxyBlur::CopyDrop(B.M, Target);
 					B.CopyDrop = B.BlurDrop;
+					if (B.bVirtual)
+					{
+						const int32 Tile = FMath::Max(1, B.VTTileSize);
+						int32 X = FMath::DivideAndRoundUp(FMath::Max(1, B.W >> B.CopyDrop), Tile);
+						int32 Y = FMath::DivideAndRoundUp(FMath::Max(1, B.H >> B.CopyDrop), Tile);
+						B.VTBytes = 0;
+						for (;;)
+						{
+							B.VTBytes += static_cast<int64>(X) * Y * FMath::Square(Tile + 2 * B.VTBorderSize) * 4;
+							if (X == 1 && Y == 1) { break; }
+							X = FMath::Max(1, X >> 1);
+							Y = FMath::Max(1, Y >> 1);
+						}
+					}
 					FString DepthReason;
 					if (B.BlurDrop == 0 && In.Mode != EMode::Identity) { DepthReason = TEXT("already_at_floor"); }
 					if (UAnomalyInjectorSubsystem::IsAutoPoolSelection(World) && B.BlurDrop > 0)
@@ -648,6 +698,11 @@ namespace AnomalyTexCorrupt
 								? GEngine->GameViewport->Viewport->GetSizeXY() : FIntPoint(1920, 1080);
 							const double Side = FMath::Max((Max.X - Min.X) * Size.X, (Max.Y - Min.Y) * Size.Y);
 							const int32 Top = FMath::Max(1, B.W >> B.BlurDrop);
+							if (B.bVirtual)
+							{
+								UE_LOG(LogAnomaly, Log, TEXT("stuck_low_mip: VT_PICK texture='%s' side_px=%.3f virtual_top=%d ratio=%.4f required_ratio=%.4f drop=%d tile=%d"),
+									*B.TextureName, Side, Top, Side / Top, AnomalyDefaults::GetStuckMipMinTexelRatio(), B.BlurDrop, B.VTTileSize);
+							}
 							if (Side / Top < AnomalyDefaults::GetStuckMipMinTexelRatio())
 							{
 								DepthReason = In.BlurLevels < 0 ? TEXT("too_small_for_ratio") : TEXT("imperceptible");
@@ -665,7 +720,7 @@ namespace AnomalyTexCorrupt
 			int32 RequiredCount = 0;
 			for (FBinding& B : S.Bindings)
 			{
-				const bool bInFamily = In.bProxyBlur ? (B.Tex2D && B.bStreams && !B.Tex2D->NeverStream)
+				const bool bInFamily = In.bProxyBlur ? (B.Type == EMaterialTextureParameterType::Virtual || (B.Tex2D && (B.bVirtual || (B.bStreams && !B.Tex2D->NeverStream))))
 					: ((In.Family == EFamily::UV) || (B.Tex2D && B.bNormalMap));
 				B.bRequired = bInFamily;
 				if (bInFamily && !B.IsTransformable() && B.Tex2D && TexCorruptPure::IsNonSpatial(B.CookedM, B.CookedW, B.CookedH))
@@ -798,6 +853,13 @@ namespace AnomalyTexCorrupt
 
 		bool FitToBudget(FTreeResult& Out, int64 Available)
 		{
+			for (const FSlot& S : Out.Slots)
+			{
+				for (const FBinding& B : S.Bindings)
+				{
+					if (S.IsSelected() && B.bRequired && B.bVirtual) { return false; }
+				}
+			}
 			TArray<TexCorruptPure::FReqTex> Req;
 			TArray<FBinding*> Who;
 			for (FSlot& S : Out.Slots)
@@ -841,6 +903,8 @@ namespace AnomalyTexCorrupt
 		void ComputeRequirement(FTreeResult& Out)
 		{
 			TArray<TexCorruptPure::FReqTex> Req;
+			TSet<UTexture2D*> VTs;
+			int64 VTBytes = 0;
 			for (const FSlot& S : Out.Slots)
 			{
 				if (!S.IsSelected())
@@ -851,6 +915,11 @@ namespace AnomalyTexCorrupt
 				{
 					if (B.bRequired && B.IsTransformable() && B.Tex2D)
 					{
+						if (B.bVirtual)
+						{
+							if (!VTs.Contains(B.Tex2D)) { VTs.Add(B.Tex2D); VTBytes += B.VTBytes; }
+							continue;
+						}
 						TexCorruptPure::FReqTex& R = Req.AddDefaulted_GetRef();
 						R.Id = (long long)(UPTRINT)B.Tex2D;
 						R.W = FMath::Max(1, B.W >> B.CopyDrop);
@@ -861,9 +930,9 @@ namespace AnomalyTexCorrupt
 				}
 			}
 			const TexCorruptPure::FRequirement R = TexCorruptPure::EventRequirement(Req.GetData(), Req.Num());
-			Out.DistinctTextures = R.DistinctTextures;
+			Out.DistinctTextures = R.DistinctTextures + VTs.Num();
 			Out.ScratchClasses = R.ScratchClasses;
-			Out.RequiredBytes = (int64)R.Total();
+			Out.RequiredBytes = (int64)R.Total() + VTBytes;
 		}
 	}
 	UAnomalyInjectorSubsystem* ResolveInjector(UWorld* World)
@@ -1075,6 +1144,16 @@ namespace AnomalyTexCorrupt
 				FBinding& B = OutBindings.AddDefaulted_GetRef();
 				B.Type = Type;
 				B.Index = i;
+				if (Type == EMaterialTextureParameterType::Virtual)
+				{
+					const FUniformExpressionSet::FVTPackedStackAndLayerIndex StackIndex = Set.GetVTStackAndLayerIndex(i);
+					const TConstArrayView<FMaterialVirtualTextureStack> Stacks = Set.GetVTStacks();
+					if (Stacks.IsValidIndex(StackIndex.StackIndex))
+					{
+						B.VTStackLayers = Stacks[StackIndex.StackIndex].GetNumLayers();
+						B.bVTPreallocatedStack = Stacks[StackIndex.StackIndex].IsPreallocatedStack();
+					}
+				}
 				B.ParamName = Entry.GetParameterName();
 				B.Info = FMaterialParameterInfo(Entry.ParameterInfo);
 				UTexture* Tex = nullptr;
@@ -1631,8 +1710,10 @@ namespace AnomalyTexCorrupt
 			bool bPurityStarted = false;
 			int32 HoldEligible = 0;
 			int32 ProxyEligible = 0;
+			int32 ProxyVTEligible = 0;
 			int32 AutoHoldEligible = 0;
 			int32 AutoProxyEligible = 0;
+			int32 AutoProxyVTEligible = 0;
 			double StartSeconds = 0.0;
 			double NextProgressSeconds = 0.0;
 			double LastCallSeconds = 0.0;
@@ -1838,11 +1919,18 @@ namespace AnomalyTexCorrupt
 					bool bShared = false, bHold = false;
 					TArray<FString> HoldReasons;
 					AnomalyStuckMip::InspectHold(Actor, Job.TextureUsers, bShared, bHold, HoldReasons);
+					bool bHasVT = false;
+					for (const FSlot& S : Result.Slots)
+					{
+						for (const FBinding& B : S.Bindings) { bHasVT |= B.bVirtual || B.Type == EMaterialTextureParameterType::Virtual; }
+					}
 					Job.HoldEligible += bHold ? 1 : 0;
-					Job.ProxyEligible += Result.bApply ? 1 : 0;
-					Job.AutoHoldEligible += !bShared && bHold ? 1 : 0;
-					Job.AutoProxyEligible += bShared && Result.bApply ? 1 : 0;
-					if (AnomalyProxyBlur::SelectRoute(AnomalyStuckMip::GetRoute(), bShared) == AnomalyProxyBlur::ERoute::Hold)
+					Job.ProxyEligible += !bHasVT && Result.bApply ? 1 : 0;
+					Job.ProxyVTEligible += bHasVT && Result.bApply ? 1 : 0;
+					Job.AutoHoldEligible += !bShared && !bHasVT && bHold ? 1 : 0;
+					Job.AutoProxyEligible += bShared && !bHasVT && Result.bApply ? 1 : 0;
+					Job.AutoProxyVTEligible += bHasVT && Result.bApply ? 1 : 0;
+					if (AnomalyProxyBlur::SelectRoute(AnomalyStuckMip::GetRoute(), bShared || bHasVT) == AnomalyProxyBlur::ERoute::Hold)
 					{
 						Result = FTreeResult();
 						Result.bApply = bHold;
@@ -1912,8 +2000,8 @@ namespace AnomalyTexCorrupt
 		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 scope=%s candidates=%d cap_bytes=%d uv_modes=%s normal_modes=%s"),
 			bAll ? TEXT("all") : TEXT("view"), Names.Num(), GetMaxRtBytes(), *DescribeModeSet(EFamily::UV, GetEnabledModeMask(EFamily::UV)),
 			*DescribeModeSet(EFamily::Normal, GetEnabledModeMask(EFamily::Normal)));
-		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=%d proxy_eligible=%d auto_hold=%d auto_proxy=%d selected=%s"),
-			Job.HoldEligible, Job.ProxyEligible, Job.AutoHoldEligible, Job.AutoProxyEligible, AnomalyStuckMip::LexRoute(AnomalyStuckMip::GetRoute()));
+		UE_LOG(LogAnomaly, Display, TEXT("IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=%d proxy_eligible=%d auto_hold=%d auto_proxy=%d selected=%s proxy_vt_eligible=%d auto_proxy_vt=%d"),
+			Job.HoldEligible, Job.ProxyEligible, Job.AutoHoldEligible, Job.AutoProxyEligible, AnomalyStuckMip::LexRoute(AnomalyStuckMip::GetRoute()), Job.ProxyVTEligible, Job.AutoProxyVTEligible);
 		for (int32 f = 0; f < 3; ++f)
 		{
 			TArray<FString> Keys;
