@@ -11,24 +11,14 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **092-05, 2026-10-06 - PART A PASSES AND IS PUSHED; PART B PROBE IN PROGRESS; FEATURE BRANCH ONLY.**
-> `feat/vt-blur-stacks` starts at accepted Proof A `af79520`; no protected branch or tag is moved.
-> Part A adds `IAI.TexCorrupt.Census vt` and `IAI.TexCorrupt.Census all vt`: numeric compiled-stack,
-> cooked-layer format, tile/border/address and component-only refusal diagnostics. Missing/dependent facts
-> remain explicit. The VT option reads cached uniformity without requesting measurement or residency.
-> Code `16b5f58`, final Part A exe `381ED90F`: four PIE and two staged census legs pass exact expected counts,
-> unchanged state fingerprints and 480 native frames per leg. Both real counting mutants are caught.
-> Normal/strict Editor and game builds are 0/0; 71 isolated headers per strict target, lever audits pass,
-> 46 string candidates resolved, six final binaries rehashed. The direct -nocompile cook passes.
-> New three-layer lit fixture is beside the accepted single-layer fixture. Expectations were corrected from
-> source for the existing 6% view filter and the cold mixed-footprint blocker; failed attempts are retained.
-> The inherited active census warmup exposed a D3D12 format-copy failure before diagnostics; preserved for
-> investigation before Part B. Part A authorizes no new firing behavior; multi-layer stacks still refuse.
-> Part A checkpoint is `94779af`. Part B probe `6bfca31` builds Editor/game 0/0, but its first valid runtime
-> refuses because the engine returns a non-null black indirection reference even for ordinary streaming stacks.
-> The correction checks the public allocation description and resolves page-table references after queued RHI updates.
-> Part B has no passing identity, positive or regression claim yet. The Part A archive and pushed checkpoint remain available.
-> Evidence `E:\IA_BuildCache\_r921\09205`; journal `docs/sessions/2026-10-06-092-05-vt-blur-stacks.md`.
+> **092-05, 2026-10-06 - PART A PUSHED; PART B FINAL CENSUS CAUGHT A DIAGNOSTIC REGRESSION.**
+> Part A remains complete at 94779af (runtime 16b5f58 / 381ED90F).
+> Part B runtime 1fda1cb / F3A8C68C passed identity, 21 positives, lifetime, can-fails and all five regressions.
+> Final passive census then caught an unnamed-stack required-binding undercount. The new early stack refusal
+> precedes the evaluator required flags; diagnostics must keep its independent family inference and explicit
+> nonspatial exemption. Frozen counts are unchanged. A diagnostic-only fix and full final-build rerun follow.
+> No Part B push yet; protected refs, default OFF, 8x/25%, engine and source residency remain unchanged.
+> Evidence E:/IA_BuildCache/_r921/09205; journal docs/sessions/2026-10-06-092-05-vt-blur-stacks.md.
 
 > **092-03c, 2026-10-05/06 - BOUNDED PROOF PASSES; NOT A DELIVERY.**
 > Resumed `feat/vt-proxy-blur` at `465f2e7`, retaining every commit, under the 092-03b ruling.

@@ -10323,3 +10323,42 @@ still includes the controls. Preserve the failed expectation, derive the correct
 and authored geometry, then freeze it before rerunning. Do not change selection to make a census
 expectation pass. Unreal Python Rotator positional arguments are roll,pitch,yaw; use named fields
 when reproducing a saved pitch/yaw/roll reading.
+
+## G472 - VT page tables and indirection APIs return texture references
+
+UE 5.1 creates a non-null black indirection reference even for a streaming stack without
+indirection. Test the public allocation description's IndirectionTextureSize and AdaptiveLevelBias.
+After explicit tile loading, flush queued RHI updates and resolve GetTextureReference's current
+target before registering the table for readback. The old reference descriptor can describe a
+default BGRA resource while the later target is an integer table. Integer loads into a GPU buffer
+avoid a format-dependent texture-copy readback and expose all four table channels. Preserve root
+priming, private producer ownership, nonzero addresses, exact mapped mip levels and all bounds.
+
+## G473 - Shader completeness is not combined VT allocation readiness
+
+In 092-05, a populated unbound MID's public uniform cache had bUpToDate=0 while its cached shader
+map, actual render-thread shader map, compiled stack and allocation all matched. MaterialShared
+sets that flag from shader-map completeness. The flag alone is not a label/picture blocker.
+Retain the actual cache allocation through the public descriptor allocator and assert that the
+returned pointer is identical. Validate every private producer, stack layer and page-table mapping;
+then read the actual combined allocation at all intended levels before committing any slot.
+The retained reference preserves that allocation across uniform-cache refreshes and must drain
+alongside private producers. Drop 0 with unequal source first mips exercises nonzero producer-local
+biases: the three-layer fixture reports biases 1,0,2 in compiled-layer order and 255 checked entries.
+The first full native identity run passed all 480 frames under the unchanged null+0.05 limit.
+
+## G474 - A fallback image can pass a whole-object change detector
+
+092-05's early-bind mutant under controlled staged root-production delay passed whole-target E1,
+because fallback pixels differed from the original. All three layers reached the intended blurred
+appearance fourteen frames after labels began. The independently frozen layer templates caught
+that onset mismatch. Keep both change magnitude and the intended appearance test; changing pixels
+alone does not prove that every required layer is rendered at its intended mip. An unconstrained
+editor early-bind mutant was inconclusive because WITH_EDITOR forces synchronous locked roots.
+Temporary game scheduling controls were restored from their queried values. The normal readiness
+path passed under the same delay, without increasing a production bound or touching source residency.
+
+
+### G475 - Unassessed binding flags are not false facts (092-05)
+
+The complete-stack unnamed refusal precedes the family-required assignment. A passive census must keep its independently inferred family requirement, applying the explicit nonspatial exemption only. Copying default bRequired=false from that early-returned binding drops three layers and incorrectly counts the unnamed component as VT-only. The frozen final census caught eight fields; no expected count was changed. Selection and firing remain untouched.

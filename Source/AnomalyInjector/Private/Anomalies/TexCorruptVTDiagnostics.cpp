@@ -147,7 +147,7 @@ namespace AnomalyTexCorrupt
 				{
 					if (Binding.Type == EMaterialTextureParameterType::Virtual && Binding.Index == Index)
 					{
-						bRequired = Binding.bRequired;
+						bRequired &= !Binding.bNonSpatialExempt;
 						break;
 					}
 				}
