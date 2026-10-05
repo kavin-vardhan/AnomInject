@@ -10304,3 +10304,22 @@ through the renderer. Read back the root mapping across the whole private region
 and verifying the full range. Never write the shared page table directly. On `c80ef9b` / `1EA292E8`,
 the unchanged no-request, original/native identity and complete positive/lifetime/regression matrix
 pass. The failed intermediate builds remain separate evidence; no gate was relaxed to accept them.
+
+## G470 - A numeric census must not start asynchronous texture measurements
+
+092-05 adds an opt-in passive `vt` census. The legacy census primes uniformity measurements,
+which can allocate private VT resources and emit texture-name-bearing logs after the count block.
+Skipping only the explicit prewarm is insufficient: a cache-missing Uniform::Query can enqueue
+the same work. The passive flag suppresses both entry points, reads cached answers and reports
+pending dependencies. Existing command forms and firing paths retain their behavior. State hashes,
+private counts, frame comparisons and a numeric-format/name-injection checker cover the new form.
+
+## G471 - View census counts retain the projected-size filter
+
+092-05 initially predicted that every visible fixture plane would appear in view scope. The
+unchanged viewport enumeration also applies its 6% projected-size minimum. A 1280x320 target
+at 1920x1080 covers 19.753086%; each 256x256 control covers 3.160494% and is omitted. All scope
+still includes the controls. Preserve the failed expectation, derive the correction from source
+and authored geometry, then freeze it before rerunning. Do not change selection to make a census
+expectation pass. Unreal Python Rotator positional arguments are roll,pitch,yaw; use named fields
+when reproducing a saved pitch/yaw/roll reading.

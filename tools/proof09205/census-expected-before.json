@@ -1,0 +1,678 @@
+{
+  "single-view": [
+    {
+      "family": 0,
+      "components": 3,
+      "vt_components": 2,
+      "bindings": 2,
+      "required_components": 2,
+      "required_bindings": 2,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 2,
+      "preallocated": 0,
+      "stacks": {
+        "1": 2,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "8": 2
+      },
+      "component_sets": {
+        "8": 2
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 2
+      },
+      "borders": {
+        "4": 2
+      },
+      "address_x": {
+        "0": 0,
+        "1": 2,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 2,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 0,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 2,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    },
+    {
+      "family": 1,
+      "components": 3,
+      "vt_components": 2,
+      "bindings": 2,
+      "required_components": 0,
+      "required_bindings": 0,
+      "unread_slots": 0,
+      "only_vt": 0,
+      "only_vt_unassessed": 0,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 2,
+      "preallocated": 0,
+      "stacks": {
+        "1": 2,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {},
+      "component_sets": {},
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 2
+      },
+      "borders": {
+        "4": 2
+      },
+      "address_x": {
+        "0": 0,
+        "1": 2,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 2,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 0,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 0,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    },
+    {
+      "family": 2,
+      "components": 3,
+      "vt_components": 2,
+      "bindings": 2,
+      "required_components": 2,
+      "required_bindings": 2,
+      "unread_slots": 0,
+      "only_vt": 0,
+      "only_vt_unassessed": 0,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 2,
+      "preallocated": 0,
+      "stacks": {
+        "1": 2,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "8": 2
+      },
+      "component_sets": {
+        "8": 2
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 2
+      },
+      "borders": {
+        "4": 2
+      },
+      "address_x": {
+        "0": 0,
+        "1": 2,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 2,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 0,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 2,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    }
+  ],
+  "single-all": [
+    {
+      "family": 0,
+      "components": 6,
+      "vt_components": 5,
+      "bindings": 6,
+      "required_components": 5,
+      "required_bindings": 6,
+      "unread_slots": 0,
+      "only_vt": 4,
+      "only_vt_unassessed": 4,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 5,
+      "preallocated": 0,
+      "stacks": {
+        "1": 4,
+        "2": 1,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "8": 6
+      },
+      "component_sets": {
+        "8": 5
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 6
+      },
+      "borders": {
+        "4": 6
+      },
+      "address_x": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 0,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 6,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    },
+    {
+      "family": 1,
+      "components": 6,
+      "vt_components": 5,
+      "bindings": 6,
+      "required_components": 0,
+      "required_bindings": 0,
+      "unread_slots": 0,
+      "only_vt": 0,
+      "only_vt_unassessed": 0,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 5,
+      "preallocated": 0,
+      "stacks": {
+        "1": 4,
+        "2": 1,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {},
+      "component_sets": {},
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 6
+      },
+      "borders": {
+        "4": 6
+      },
+      "address_x": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 0,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 0,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    },
+    {
+      "family": 2,
+      "components": 6,
+      "vt_components": 5,
+      "bindings": 6,
+      "required_components": 5,
+      "required_bindings": 6,
+      "unread_slots": 0,
+      "only_vt": 0,
+      "only_vt_unassessed": 0,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 5,
+      "preallocated": 0,
+      "stacks": {
+        "1": 4,
+        "2": 1,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "8": 6
+      },
+      "component_sets": {
+        "8": 5
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 6
+      },
+      "borders": {
+        "4": 6
+      },
+      "address_x": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 0,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 6,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    }
+  ],
+  "stacks-view": [
+    {
+      "family": 0,
+      "components": 3,
+      "vt_components": 2,
+      "bindings": 6,
+      "required_components": 2,
+      "required_bindings": 6,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 2,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 2,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "1": 2,
+        "8": 4
+      },
+      "component_sets": {
+        "9": 2
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 6
+      },
+      "borders": {
+        "4": 6
+      },
+      "address_x": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 2,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 4,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    },
+    {
+      "family": 1,
+      "components": 3,
+      "vt_components": 2,
+      "bindings": 6,
+      "required_components": 2,
+      "required_bindings": 2,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 2,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 2,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "1": 2
+      },
+      "component_sets": {
+        "1": 2
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 6
+      },
+      "borders": {
+        "4": 6
+      },
+      "address_x": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 2,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 0,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    },
+    {
+      "family": 2,
+      "components": 3,
+      "vt_components": 2,
+      "bindings": 6,
+      "required_components": 2,
+      "required_bindings": 6,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 2,
+      "only_stack_unassessed": 2,
+      "streaming": 2,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 2,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "1": 2,
+        "8": 4
+      },
+      "component_sets": {
+        "9": 2
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 6
+      },
+      "borders": {
+        "4": 6
+      },
+      "address_x": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 6,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 2,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 4,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    }
+  ],
+  "stacks-all": [
+    {
+      "family": 0,
+      "components": 4,
+      "vt_components": 3,
+      "bindings": 9,
+      "required_components": 3,
+      "required_bindings": 9,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 3,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 3,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "1": 3,
+        "8": 6
+      },
+      "component_sets": {
+        "9": 3
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 9
+      },
+      "borders": {
+        "4": 9
+      },
+      "address_x": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 3,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 6,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    },
+    {
+      "family": 1,
+      "components": 4,
+      "vt_components": 3,
+      "bindings": 9,
+      "required_components": 3,
+      "required_bindings": 3,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 3,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 3,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "1": 3
+      },
+      "component_sets": {
+        "1": 3
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 9
+      },
+      "borders": {
+        "4": 9
+      },
+      "address_x": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 3,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 0,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    },
+    {
+      "family": 2,
+      "components": 4,
+      "vt_components": 3,
+      "bindings": 9,
+      "required_components": 3,
+      "required_bindings": 9,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 2,
+      "only_stack_unassessed": 2,
+      "streaming": 3,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 3,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "1": 3,
+        "8": 6
+      },
+      "component_sets": {
+        "9": 3
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 9
+      },
+      "borders": {
+        "4": 9
+      },
+      "address_x": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 3,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 6,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    }
+  ]
+}

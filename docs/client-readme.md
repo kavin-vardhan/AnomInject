@@ -747,6 +747,8 @@ Proxy labels use **FireWindow** membership: a frame is labelled while an install
 
 `IAI.TexCorrupt.Census allreasons` includes `id=stuck_low_mip` and a `routes` line with `hold_eligible`, `proxy_eligible`, `auto_hold` and `auto_proxy`; this proof branch adds `proxy_vt_eligible` and `auto_proxy_vt`. Ordinary and VT-containing proxy candidates are separate groups. Hold eligibility can overlap their union. The three counts `auto_hold`, `auto_proxy` and `auto_proxy_vt` partition eligibility under auto. `tools/anomaly_refusal_counts.py` reads those counts, and `--route-check` checks their accounting. Census reports potential eligibility across its scope; on-screen size and current renderer state can still affect a fire.
 
+The `feat/vt-blur-stacks` branch adds the passive VT census described in §8.8. Multi-layer `proxy_vt` implementation and proof are still pending; the current runtime continues to refuse unsupported multi-layer stacks. This branch is not a delivery.
+
 Blurry remains **available but OFF by default**. This feature branch does not change delivery approval or enable it in the default pool.
 
 Eligibility and fire counts do not measure visible blur strength. Validate the pictures with a suitable clean control: movement alone can produce a large pixel difference on an animated target. The native hold-route visual evidence remains under review; the private-copy fixture proof is recorded separately.
@@ -1568,6 +1570,25 @@ setting (for example `texcorrupt: IAI.Anomaly.TexCorruptUvModes = ...`), even wh
 after the game starts; those messages appear later, at the setting's first real use. So the four lines above are
 everything the command prints. `stats_unchanged=1` on the last line is the command's own check that nothing changed;
 `0` means something changed and should be reported to us.
+
+**VT diagnostics on the proof branch (092-05).** Run `IAI.TexCorrupt.Census vt` for the current view, or **`IAI.TexCorrupt.Census all vt`** for all drawable actors in the loaded levels. `allreasons vt` also works. Copy only the printed counts; no asset, material, actor or level names are needed. Each `IAI-VT-CENSUS v1` line uses family code **0=UV, 1=normal, 2=blurry proxy**. The normal census output still precedes these added lines. In `vt` mode no uniformity measurement is started: cached measurements are read, and missing measurements retain the existing `texture_uniform` blocker. The reported eligibility is the current cache state, not promised yield after preparation.
+
+View scope retains the existing visibility, radius and projected-size filters (the compiled projected-size minimum is 6%). A small visible control can therefore be absent from view counts. Use `all vt` for the loaded-level inventory; neither form changes the filters or the 25% capture ceiling.
+
+| Field | How to read the numbers |
+| --- | --- |
+| `components`, `vt_components`, `bindings` | Evaluated opaque mesh components, those touching any compiled VT stack/binding, and compiled VT binding occurrences. Shared textures count once for each component/material-slot binding. |
+| `required_components`, `required_bindings` | Components and VT bindings required by this family; normal counts require normal-map bindings. |
+| `stacks=1:n,...,8:n`, `streaming`, `preallocated` | Each compiled stack is counted once per component/material slot, regardless of its layer count. These cover the complete touched material footprint for each family. |
+| `only_vt`, `only_stack` | Refused components with no other observed blocker in the all-reasons evaluator. `only_stack` is the exact `virtual_texture/stack_layout` subset. Known unnamed required bindings exclude a component from these counts. |
+| `only_vt_unassessed`, `only_stack_unassessed` | Subsets whose dependent checks could not be assessed. Subtract these to get fully assessed counts; none of these buckets promises a successful fire. |
+| `layers_bc5`, `layers_dxt5`, `layers_bc7`, `layers_dxt1`, `layers_bgra8`, `layers_other` | Actual runtime cooked VT resource layer formats for the family's required VT bindings. |
+| `binding_sets`, `component_sets` | Exact format-set histograms: BC5=1, DXT5=2, BC7=4, DXT1=8, BGRA8=16, other=32; combine bits by addition. `9:2` means two complete occurrences need BC5 and DXT1. A component is counted only when every required VT layer is known. Sum only masks contained in the proposed supported set. Zero means unread, never supported. |
+| `unread_slots`, `incomplete_components` | Missing compiled material facts or incomplete required VT format footprints; excluded from complete format-set counts. Preallocated stacks cannot be treated as complete UTexture footprints. |
+| `tiles`, `borders` | Binding histograms keyed by pixels. Tile 0 and border -1 mean unread. |
+| `address_x`, `address_y` | Per-binding addressing histograms by axis: 0 unread, 1 wrap, 2 clamp, 3 mirror. |
+
+These diagnostics do not change firing, eligibility rules, default pools, labels or masks. They do not request texture residency. Multi-layer support remains a separate bounded proof on the feature branch.
 
 **What ships in this delivery:** both anomalies, the four modes above, the settings, the census command and the
 `stuck_low_mip` exclusion. Both are in the Capture pool panel, **off by default**. **Deferred:** `drift`, `swap`,

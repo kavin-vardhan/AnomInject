@@ -67,7 +67,7 @@ CENSUS_FORMATS = {
     "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s key=%s objects=%d only=%d": 4,
     "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s note=%s objects=%d": 3,
     "IAI-TEXCORRUPT-CENSUS v1 allreasons id=%s combo=%s objects=%d": 3,
-    "IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=%d proxy_eligible=%d auto_hold=%d auto_proxy=%d selected=%s": 5,
+    "IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=%d proxy_eligible=%d auto_hold=%d auto_proxy=%d selected=%s proxy_vt_eligible=%d auto_proxy_vt=%d": 7,
 }
 PRINTF_FORMATS = {"%s%s:%d"}
 
@@ -77,6 +77,8 @@ def norm(s):
 
 
 ARG_ALLOW = {norm(a) for a in (
+    "Job.ProxyVTEligible",
+    "Job.AutoProxyVTEligible",
     'bAll ? TEXT("all") : TEXT("view")',
     "Names.Num()",
     "GetMaxRtBytes()",
@@ -615,10 +617,11 @@ LOG_PREFIX_RX = re.compile(r"^\[(?P<ts>[^\]]*)\]\[\s*(?P<frame>\d+)\](?P<rest>.*
 LOG_CAT_RX = re.compile(r"^(?P<cat>[A-Za-z][A-Za-z0-9_]*):\s")
 CENSUS_LINE_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (scope=|id=|end\b)")
 CENSUS_AUX_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (begin|progress|scanned|timing)\b")
-CENSUS_KEYED_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (subs|allreasons|routes) ")
+CENSUS_KEYED_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 (subs|allreasons|routes|uniform) ")
 KEY = r"[A-Za-z0-9_./]+"
 CENSUS_KEYED_FORMATS = (
-    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=\d+ proxy_eligible=\d+ auto_hold=\d+ auto_proxy=\d+ selected=(auto|hold|proxy)\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 uniform kicked=\d+ pending=\d+ measured=\d+ uniform=\d+ failed=\d+ waited_s=\d+\.\d+\s*$"),
+    re.compile(r"IAI-TEXCORRUPT-CENSUS v1 routes id=stuck_low_mip hold_eligible=\d+ proxy_eligible=\d+ auto_hold=\d+ auto_proxy=\d+ selected=(auto|hold|proxy)( proxy_vt_eligible=\d+ auto_proxy_vt=\d+)?\s*$"),
     re.compile(r"IAI-TEXCORRUPT-CENSUS v1 subs id=((uv|normal)_corruption|stuck_low_mip) subs=(-|" + KEY + r":\d+(," + KEY + r":\d+)*)\s*$"),
     re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((uv|normal)_corruption|stuck_low_mip) objects=\d+ eligible=\d+ blocked=\d+ unassessed=\d+ "
                r"b_gain_objects=\d+\s*$"),
@@ -627,6 +630,17 @@ CENSUS_KEYED_FORMATS = (
     re.compile(r"IAI-TEXCORRUPT-CENSUS v1 allreasons id=((uv|normal)_corruption|stuck_low_mip) combo=" + KEY + r"(\+" + KEY + r")* objects=\d+\s*$"),
 )
 SCANNED_RX = re.compile(r"IAI-TEXCORRUPT-CENSUS v1 scanned=(\d+) of=(\d+) gone=(\d+) stopped=(\w+) seconds=([\d.]+)")
+VT_HIST = r"-?\d+:\d+(?:,-?\d+:\d+)*"
+VT_FIELDS = (
+    "components vt_components bindings required_components required_bindings unread_slots",
+    "only_vt only_vt_unassessed only_stack only_stack_unassessed",
+    "streaming preallocated stacks:h",
+    "layers_bc5 layers_dxt5 layers_bc7 layers_dxt1 layers_bgra8 layers_other",
+    "binding_sets:h component_sets:h incomplete_components",
+    "tiles:h borders:h address_x:h address_y:h",
+)
+VT_FORMATS = [re.compile(r"IAI-VT-CENSUS v1 family=[012] " + " ".join(
+    field.replace(":h", "") + "=" + (VT_HIST if field.endswith(":h") else r"\d+") for field in fields.split()) + r"\s*$") for fields in VT_FIELDS]
 CENSUS_EXPECT = (
     re.compile(r"IAI-TEXCORRUPT-CENSUS v1 scope=(view|all) candidates=\d+ cap_bytes=\d+ uv_modes=\S+ normal_modes=\S+\s*$"),
     re.compile(r"IAI-TEXCORRUPT-CENSUS v1 id=uv_corruption eligible=\d+ refused=\d+ reasons=\S+\s*$"),
@@ -688,6 +702,12 @@ def check_log(text, cold):
         scanned = None
         for j in range(start, end + 1):
             r = rows[j]
+            if "IAI-VT-CENSUS" in r["text"]:
+                line = r["text"][r["text"].find("IAI-VT-CENSUS"):]
+                if r["frame"] != frame or not any(rx.fullmatch(line) for rx in VT_FORMATS):
+                    verdict = "FAIL"
+                    messages.append(f"{tag}: VT diagnostics outside their numeric format/frame: {line.strip()[:160]}")
+                continue
             if CENSUS_AUX_RX.search(r["text"]):
                 m = SCANNED_RX.search(r["text"])
                 if m:
@@ -893,6 +913,16 @@ def build_log_cases():
         ("090-10c an allreasons key carrying a name", True,
          init + block[:3] + [log_line(412, "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=uv_corruption key=nanite_override/M Rock objects=1 only=1")]
          + [block[3]], "FAIL"),
+        ("092-05 numeric VT histogram", True,
+         init + block[:3] + [log_line(412, "LogAnomaly: Display: IAI-VT-CENSUS v1 family=0 binding_sets=1:2,8:4 component_sets=9:2 incomplete_components=0")] + [block[3]], "PASS"),
+        ("092-05 VT histogram carrying a name", True,
+         init + block[:3] + [log_line(412, "LogAnomaly: Display: IAI-VT-CENSUS v1 family=0 binding_sets=AssetName:2 component_sets=9:2 incomplete_components=0")] + [block[3]], "FAIL"),
+        ("092-05 VT histogram on another frame", True,
+         init + block[:3] + [log_line(413, "LogAnomaly: Display: IAI-VT-CENSUS v1 family=0 binding_sets=1:2 component_sets=1:2 incomplete_components=0")] + [block[3]], "FAIL"),
+        ("accepted uniform preparation numeric summary", True,
+         init + [log_line(412, "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 uniform kicked=0 pending=0 measured=0 uniform=0 failed=0 waited_s=0.0")] + block, "PASS"),
+        ("uniform summary carrying a name", True,
+         init + [log_line(412, "LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 uniform kicked=0 pending=0 measured=0 uniform=0 failed=0 waited_s=0.0 asset=AssetName")] + block, "FAIL"),
     ]
 
 
