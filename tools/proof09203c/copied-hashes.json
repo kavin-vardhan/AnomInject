@@ -1,0 +1,234 @@
+[
+  {
+    "name": "archive_can_fail.py",
+    "sha256": "c7a9fd38744175e78ebc7e25dd6ffebf9d346be19b8e5175994cac66fd409260"
+  },
+  {
+    "name": "archive_probe.py",
+    "sha256": "95dce58d2bd9ed322a201bf241cf6f9d31ed7cf2543ea7e27ba381421dc135f1"
+  },
+  {
+    "name": "audit_probe.py",
+    "sha256": "5a1e37381ba7b4d58ec9ac7b8aa336511f568613fab7da395321522752cdf61b"
+  },
+  {
+    "name": "author_camera.py",
+    "sha256": "b7e1c352d6c09579a03c6ea0e1c116d81b7033043932865212f524db8d71b095"
+  },
+  {
+    "name": "author_extra.py",
+    "sha256": "199fad691661090b496c31dbdba680f3ddf6ee2f6ab888a56ca3667d4d8d9d6e"
+  },
+  {
+    "name": "author_vt.py",
+    "sha256": "83e4954273275ef5811faba23b2bffc74f7a8592dcc576d98636af92a88eaeb2"
+  },
+  {
+    "name": "build.py",
+    "sha256": "7c715bd4b757c3c0b99136bf3287b22bdbe72123c744c432d2a14e42113a998f"
+  },
+  {
+    "name": "canfail_positive.py",
+    "sha256": "c8abf80ff366cae621e6c9956b0e79d4f64cd07487f24909b14d0e5ac7804067"
+  },
+  {
+    "name": "check_identity.py",
+    "sha256": "15a3c1b533a0bfcf6c28acc37762ff6414d1577fa71fec554a7d570b3923220e"
+  },
+  {
+    "name": "check_lifetime.py",
+    "sha256": "ee56890ad0e8a8f8db9e6863cbf9173fc676d57cd776ba97ea08aec76bc1b00e"
+  },
+  {
+    "name": "check_native.py",
+    "sha256": "d1d16092ffa2ac867bc7f1e3af5e8818a4441c937a7020f2711e9e568da13555"
+  },
+  {
+    "name": "check_positive.py",
+    "sha256": "185f05cd345a04f32f4d9ccc0feaa05cf704d21dfa06c7fd5aae15914fdd0d11"
+  },
+  {
+    "name": "check_refusal.py",
+    "sha256": "58cbe1c7448dfbaeddb94e3dbeabe4332a0b5b338e6c533260bb73b0f3c62f55"
+  },
+  {
+    "name": "check_regression.py",
+    "sha256": "2f76a90373c8381c55961868b5bce288396f5163a3f4ae1242b25dbf20d47f69"
+  },
+  {
+    "name": "check_world_end.py",
+    "sha256": "47904db5490d1c4f4793a3f3f59183ec8975084e2683847272891bc6e0a8f7e4"
+  },
+  {
+    "name": "cook_guard.py",
+    "sha256": "80cbc025667c2f4eedd6d584d0bd21d44a935c0411f5305e18a39a07721911d1"
+  },
+  {
+    "name": "cook_vt.py",
+    "sha256": "0c519e3bd4aecb4682594a27b53a0e5335c89f7653c94e147f2ddba02b792cc6"
+  },
+  {
+    "name": "disk_gate.py",
+    "sha256": "ef2292f7b9a07625bc726827382b56d4d58bf64507491f88193f6d24e08d7280"
+  },
+  {
+    "name": "fixture_setup_step.py",
+    "sha256": "2a8c59b81cce91e1efdf9098704f6d9cd0ae063817ea827ed190663f1fe0040c"
+  },
+  {
+    "name": "identity_step.py",
+    "sha256": "6dc1056cefe38966b72efffd47103b725c491abecc62669ec1d3bbdff41ae68d"
+  },
+  {
+    "name": "idle_gate.py",
+    "sha256": "52331bdc7bf4043835e0ca00ee74f42266274df060caf3a7dc544aaac4b9cdba"
+  },
+  {
+    "name": "idle_monitor_canfail_v2.py",
+    "sha256": "a1dc5c2aeb530563ba4fdcd6a8c5ec6dac113f4ab428b8936731b04ab226f8b4"
+  },
+  {
+    "name": "launch_author.py",
+    "sha256": "c8981f97a65e8ca81eff4776791adb845eedacb8e388819e418f1a03e95991fd"
+  },
+  {
+    "name": "launch_camera.py",
+    "sha256": "05b0e151b3e34048d776446f64ad4fa5d9b1c5810d12138b6090dafceeffa496"
+  },
+  {
+    "name": "launch_extra.py",
+    "sha256": "baca03e0990adb95898b10c90de40fd721e734b443e43e327355120c0b7251a3"
+  },
+  {
+    "name": "launch_identity.py",
+    "sha256": "0ea0b4e444379c05cd7a27a4d879ce9a85698699c7fb9f99e830b61771a39750"
+  },
+  {
+    "name": "launch_inventory.py",
+    "sha256": "9978f01c63ed4e38457f090b98b475262724d74acb401b3842aaa818c0916d53"
+  },
+  {
+    "name": "launch_positive.py",
+    "sha256": "c6a16e786fcb8d2084b06862754b2185b3bee12bc8e99cf9659bb645e2bdf1da"
+  },
+  {
+    "name": "launch_regression.py",
+    "sha256": "14421cbc9c630650343bac32d05cc5b3b530a72ebd4b45b843143c219692def0"
+  },
+  {
+    "name": "launch_staged.py",
+    "sha256": "55f889b554a30ee10f1e2a4ada8bc069aec9568330f6f877d4635add03e96f1f"
+  },
+  {
+    "name": "launch_window.py",
+    "sha256": "cf3086e5403df68adce5d5722ebcb264485d3a1ba8f92f310fc291028eef5083"
+  },
+  {
+    "name": "lever_can_fail.py",
+    "sha256": "f7210d342a133068eaec4399d4e4d5dacfe4c32a2622fe7269c3e1606474d100"
+  },
+  {
+    "name": "lever_current.py",
+    "sha256": "7f50b4d8fb5e3331a544ae66e4ec3b953dfa2c376c1b44aee6457758411a765b"
+  },
+  {
+    "name": "lifetime_step.py",
+    "sha256": "0b2581b95a98749314b752cdecd560b1b28229212be8c94c64401664e0efd403"
+  },
+  {
+    "name": "pe_metadata.py",
+    "sha256": "57d0c6f349b1e40aec698f85656c55a4bff67d4e3a5f3505b5b177ea1db3c0f4"
+  },
+  {
+    "name": "pie_window_driver.py",
+    "sha256": "c99efaac7eee2bdd16ecacf57d963ccc01bba4ed8ad7348eb90b7e795bfe9993"
+  },
+  {
+    "name": "preflight.py",
+    "sha256": "aca2c14d9e5709ef28d7d2a68d4461d9933a075508bfedb22fa7b3bec0c8030a"
+  },
+  {
+    "name": "prepare_fixture.py",
+    "sha256": "7f8dd629c455719349e5b327f42531901c4f9b9f02d17616ea151e4a99e3315e"
+  },
+  {
+    "name": "process_snapshot.py",
+    "sha256": "1c44645688b7af7e83acea61897855ed8bbcaf8c92b7ae69a6bed7368fe6ccc0"
+  },
+  {
+    "name": "proof_environment.py",
+    "sha256": "6cea349e0e08dc9a6196b9977ac47aa8a2ee56a29c23fa2e9023e1c4b0b17966"
+  },
+  {
+    "name": "restore_host.py",
+    "sha256": "588fda3c0ece6433ab27921fcc103abe5c377682d2122f85f564c08a1ef7639b"
+  },
+  {
+    "name": "review_production_strings.py",
+    "sha256": "1461be6867f7343dd924674fd1a3da98c110209b31ac2706edf1ba77d7ce6e2f"
+  },
+  {
+    "name": "run_queue.py",
+    "sha256": "982efa795503b8b5a77636e316eb591a684d4373b0c487fa5422fd7940ece70b"
+  },
+  {
+    "name": "runtime_guard.py",
+    "sha256": "7f4a7d130b66e6fb0d398584a0e1f763f7606cf545be73c0e61a9a0c677276d8"
+  },
+  {
+    "name": "source_evidence.py",
+    "sha256": "30709fa0133489904e2aeacc742e70b0942f9c1256224e46823a6dd0f1d14f92"
+  },
+  {
+    "name": "strict_build.py",
+    "sha256": "22b4f3c4883eb01b696c1f0e38cb5d07e9be086a0a02042376475c35fd0595b1"
+  },
+  {
+    "name": "strict_driver.py",
+    "sha256": "9351be4212f3540a5845760706e07cbc67d82ecd7d5f7bdac00ff2efd2b2f075"
+  },
+  {
+    "name": "predictions.md",
+    "sha256": "f4f54130374bb4d57bec0a8e5b73858cba17d204811fa452c33aae89732d40f2"
+  },
+  {
+    "name": "positive-criteria.md",
+    "sha256": "0c34bf5c7509ecd16b14d3d9ceec9b8e5316fe31d67109dfcf6063c214c1d351"
+  },
+  {
+    "name": "lifetime-criteria.md",
+    "sha256": "cdf489382b83934aae226732be5d63626c9680e73c31b4eb3ebcd29020b3a6b8"
+  },
+  {
+    "name": "world-end-criteria.md",
+    "sha256": "8abe8f063e4c5a66e0f26d1c1aae719180b6754b52e1e1f12664bbc3fd8d876d"
+  },
+  {
+    "name": "camera-correction.md",
+    "sha256": "901b830349d3438b3ce24b32a26d360155bdb0e211c09e7159d61936affd6752"
+  },
+  {
+    "name": "harness-corrections.md",
+    "sha256": "18360d66c6632bfbf932518ec1fbf15c64d8757798081f4cc669fd12c7209916"
+  },
+  {
+    "name": "idle-monitor-correction.md",
+    "sha256": "81f5b288412cf34667d0a9178bf3bf11294d69c3c56f06a7b1181ba268ce3477"
+  },
+  {
+    "name": "criteria-before-first-positive.json",
+    "sha256": "9087f70e8a2fd37f3738ef604df9eb4c0132d83e765ead37523e6b819d48d613"
+  },
+  {
+    "name": "supplemental-criteria-frozen.json",
+    "sha256": "b629930cced0b18f1a67db5858f2c8e9f80086f85cc02e96cebbff6e0b08ff84"
+  },
+  {
+    "name": "supplemental-criteria-frozen-v2.json",
+    "sha256": "cde7ecbade12e1575f6999bbff940bc876347f9d369f98f337220f5c0a4ac0dd"
+  },
+  {
+    "name": "author_vt.json",
+    "sha256": "1b12c4efbed96e7d347695c0c06de323d7e737c9c0b53d4514fec59144794d58"
+  }
+]

@@ -17,13 +17,15 @@ and is the single source of truth for the project.
 > unchanged frozen criterion: target peak 6.592774, limit 6.629029; both controls pass, drain 0/0.
 > No fallback was used. Production `proxy_vt` is integrated locally; normal and strict Editor/Game
 > source `8829491` builds 0 errors / 0 warnings, 70 isolated headers, normal exe `311950E8`.
-> Ten initial PIE fires have E1 strict/t50 0-frame edges, but their positive gate FAILED: the harness
-> fired at frame 119 inside the frozen null. Corrected scheduling and route-reader reruns are pending.
-> Native 1920x1080 fixture identity passes; staged, can-fails and regression remain unproved.
+> Corrected PIE runs pass 10 targeted + 3 Auto fires; a clean staged run passes 5 targeted fires.
+> Every event has E1 strict/t50 0-frame edges, measured target masks, unchanged controls and clean revert.
+> The failed frame-119 null-contamination runs remain recorded. A staged camera-alignment failure led
+> to a fixed fixture CameraActor; its repeats, staged Auto, actual can-fails and regression remain pending.
 > No push. Host is temporarily detached on the proof source; restoration remains required.
 > Evidence `E:\IA_BuildCache\_r921\09203c`; journal `docs/sessions/2026-10-05-092-03-vt-proxy-blur.md`.
 > The owner item remains: a 128px minimum VT tile needs about 1024px on screen under the unchanged
-> 8x Auto rule. Blurry stays OFF by default. No release/protected ref, engine or selection rule changed.
+> 8x Auto rule. Blurry stays OFF by default. No release/protected ref, engine source/binary or selection rule changed.
+> The first RunUAT cook unexpectedly touched generated engine tool intermediates; this deviation is receipted.
 
 > **091-07, 2026-10-04 — RELEASE FREEZE, `release/2026-10-05`.**
 > Base: `d660b5d6e67c7af8b0f264e59cf66ed02f433968`. The single behavior change is temporal

@@ -10268,3 +10268,21 @@ unchanged null; rerun the whole proof instead of excluding the contaminated imag
 reader must also recognize proxy_vt as the existing proxy FireWindow policy. New synthetic
 controls prove staged, late, missing and unknown-route settle flags still fail. No pixel threshold
 or capture/label producer is changed by these harness corrections.
+
+## G467 - Fixed pixel ROIs require a saved camera in staged fixtures
+
+092-03c staged-targeted-01 had the intended camera origin and FOV but nonzero view rotation.
+Its target overlapped the fixed co-user ROI and failed both isolation and mask placement, despite
+zero E1 edge errors. A clean repeat passed; that does not make the fixture deterministic. The map
+had a PlayerStart but no CameraActor. Add a fixed auto-activated CameraActor in the new fixture
+and repeat the proof without moving ROIs or retuning limits. Player input is a plausible source of
+the rotation, not an established cause. Keep the failed capture and the clean repeat separately.
+
+## G468 - RunUAT can compile its own tool before a cook
+
+The first 092-03c RunUAT.bat invocation entered BuildUAT despite a no-engine-modification brief.
+It touched generated tool intermediates, though no tool binary or reviewed engine source changed.
+Preserve the receipt and report the deviation. To use an already built tool, invoke the bundled
+dotnet runtime with AutomationTool.dll and its `-nocompile` global option. Batch-only options are
+not necessarily valid AutomationTool options. `uebp_EngineSavedFolder`, `uebp_LogFolder` and
+`uebp_FinalLogFolder` place the commandlet's temporary and final logs in the authorized scratch.

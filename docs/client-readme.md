@@ -396,7 +396,7 @@ The five unticked ones are **available, not disabled** — tick any of them when
 
 **`camera_clipping` is available but off by default**, because in Auto-pool mode it is held for the **whole session** rather than for a few frames — so on a first-person game the player's hands and weapon are sliced away in *every frame* of that capture. That is correct behaviour and it is what the anomaly looks like, but it is disruptive as a default. **Tick it whenever you want it** — see the explainer video and the note in section 7 first.
 
-**`stuck_low_mip` is available but off by default.** The default `auto` route uses the existing streaming hold for pure textures and a private copy when an eligible texture is shared. The private copy blurs only the target's admitted components; other objects continue to use the original texture. Explicit `hold` retains the shared-texture refusal. See §8.3aa for route selection and the different label policies. Read the per-route fire counts and refusal counts before relying on your content for volume.
+**`stuck_low_mip` is available but off by default.** The default `auto` route uses the existing streaming hold for pure ordinary textures and a private copy when an eligible texture is shared. On this proof branch, a supported named streaming-VT binding also selects a private copy. The private copy blurs only the target's admitted components; other objects continue to use the original texture. Explicit `hold` retains the shared-texture and VT refusals. See §8.3aa for route selection and the different label policies. Read the per-route fire counts and refusal counts before relying on your content for volume.
 
 ### Live preview
 
@@ -734,14 +734,15 @@ Proxy labels use **FireWindow** membership: a frame is labelled while an install
 | --- | --- |
 | `annotation.json` event `stuck_mip_route` | `hold`, `proxy`, or proof-branch `proxy_vt` for this event |
 | frame entry `stuck_mip.route` | the same route |
-| `stuck_mip.k` | the first copied source mip, including the source's resident offset; primary texture summary |
-| proxy `stuck_mip.textures` | per-copy `k`, `resident_first_mip`, `resident_drop`, `baseline_mips`, `forced_mips`, `forced_top_px` and source name |
+| `stuck_mip.k` | the first copied source mip, including the source first mip; primary texture summary |
+| ordinary proxy `stuck_mip.textures` | per-copy `k`, `resident_first_mip`, `resident_drop`, `baseline_mips`, `forced_mips`, `forced_top_px` and source name |
+| VT entries in `stuck_mip.textures` | `source_first_mip`, `drop`, `virtual_width`, `virtual_height`, `tile_size`, plus the common mip counts, `k`, `forced_top_px` and source name; these describe virtual dimensions, not resident-page counts |
 | proxy `stuck_mip.held` | an expected proxy binding remains installed; it does not claim a shared source was streamed down |
 | proxy `stuck_mip.onset_latency_frames` | `0`: onset is the bind frame |
-| `run_summary.stuck_mip_hold_fires`, `stuck_mip_proxy_fires` | applied events per route |
+| `run_summary.stuck_mip_hold_fires`, `stuck_mip_proxy_fires` | applied hold events and private-copy events; the latter includes both `proxy` and `proxy_vt`, distinguished in each event |
 | `run_summary.stuck_mip_label_source` | `proxy_installed_fire_window` for proxy-only runs, `per_event_route` for mixed runs, the existing source for hold-only runs |
 
-`IAI.TexCorrupt.Census allreasons` includes `id=stuck_low_mip` and a `routes` line with `hold_eligible`, `proxy_eligible`, `auto_hold` and `auto_proxy`; this proof branch adds `proxy_vt_eligible` and `auto_proxy_vt`. Hold and proxy eligibility can overlap. The VT counts are subsets of their proxy counts, not extra candidates to add; `auto_hold` and `auto_proxy` partition eligibility under auto. `tools/anomaly_refusal_counts.py` reads those counts, and `--route-check` checks their accounting. Census reports potential eligibility across its scope; on-screen size and current renderer state can still affect a fire.
+`IAI.TexCorrupt.Census allreasons` includes `id=stuck_low_mip` and a `routes` line with `hold_eligible`, `proxy_eligible`, `auto_hold` and `auto_proxy`; this proof branch adds `proxy_vt_eligible` and `auto_proxy_vt`. Ordinary and VT-containing proxy candidates are separate groups. Hold eligibility can overlap their union. The three counts `auto_hold`, `auto_proxy` and `auto_proxy_vt` partition eligibility under auto. `tools/anomaly_refusal_counts.py` reads those counts, and `--route-check` checks their accounting. Census reports potential eligibility across its scope; on-screen size and current renderer state can still affect a fire.
 
 Blurry remains **available but OFF by default**. This feature branch does not change delivery approval or enable it in the default pool.
 

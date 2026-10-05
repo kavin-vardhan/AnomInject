@@ -1,0 +1,66 @@
+{
+  "created": [
+    "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/T_VTProof.T_VTProof",
+    "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/T_OrdinaryProof.T_OrdinaryProof",
+    "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/M_VTProof.M_VTProof",
+    "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/M_OrdinaryProof.M_OrdinaryProof",
+    "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/M_VTConstantLayer.M_VTConstantLayer",
+    "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/CB_ProxyBlurVT"
+  ],
+  "actors": [
+    {
+      "name": "StaticMeshActor_77",
+      "role": "target",
+      "box": [
+        64.0,
+        380.0,
+        1280,
+        320
+      ],
+      "material": "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/M_VTProof.M_VTProof"
+    },
+    {
+      "name": "StaticMeshActor_81",
+      "role": "co_user",
+      "box": [
+        1452.0,
+        192.0,
+        256,
+        256
+      ],
+      "material": "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/M_VTProof.M_VTProof"
+    },
+    {
+      "name": "StaticMeshActor_82",
+      "role": "ordinary",
+      "box": [
+        1452.0,
+        632.0,
+        256,
+        256
+      ],
+      "material": "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/M_OrdinaryProof.M_OrdinaryProof"
+    },
+    {
+      "name": "StaticMeshActor_83",
+      "role": "constant_layer",
+      "box": [
+        2344.0,
+        284.0,
+        512,
+        512
+      ],
+      "material": "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/M_VTConstantLayer.M_VTConstantLayer"
+    }
+  ],
+  "errors": [],
+  "map": "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/CB_ProxyBlurVT",
+  "reference_size": [
+    1920,
+    1080
+  ],
+  "plane_rotation": "<Struct 'Rotator' (0x0000025654E0AF60) {pitch: 90.000000, yaw: 180.000000, roll: 180.000000}>",
+  "texture": "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/T_VTProof.T_VTProof",
+  "ordinary_texture": "/Game/CaptureBenchTexCorrupt/ProxyVT0921C/T_OrdinaryProof.T_OrdinaryProof",
+  "virtual_flag": true
+}

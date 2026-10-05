@@ -1,0 +1,10 @@
+{
+  "time": 1791208707.0799708,
+  "before_lifetime_and_refusal_engine_legs": true,
+  "files": {
+    "lifetime-criteria.md": "cdf489382b83934aae226732be5d63626c9680e73c31b4eb3ebcd29020b3a6b8",
+    "check_lifetime.py": "d1b48ddcd817789ec44bf03bf1e4e7cfd58f9e93b8f2962e3cdc2619375bee0d",
+    "check_refusal.py": "6b6d2f1c623b4f891a9a734cb95f1497b27dc4addb201a0eb15a2b5e502672b3",
+    "harness-corrections.md": "18360d66c6632bfbf932518ec1fbf15c64d8757798081f4cc669fd12c7209916"
+  }
+}
