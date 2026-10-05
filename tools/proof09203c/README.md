@@ -59,3 +59,11 @@ The final native identity reader requires all 480 unique session indices and use
 its reference. `canfail_native_completeness.py` checks truncated and duplicate input. The original
 identity reader and every pixel threshold remain frozen. `proof_environment.py` checks feature/host
 Source, Shaders and descriptor tree equality as well as all six live binary hashes.
+
+Final runtime source c80ef9b / normal executable 1EA292E8 passes the complete proof. The final queue
+is `root-prime-final-queue01.json` in the evidence root; its 44 steps pass, including the expected
+positive-reader rejection of the no-bind mutant. Renderer-managed root priming supersedes both the
+stale-page readiness predicate and the failed manual GPU initialization. Their separate runs and
+archives remain. The host has been restored; replay requires an explicitly prepared isolated host,
+fresh output names and the same frozen readers. See the session journal and relay report for hashes,
+per-event measurements, 70 removed generated settings and the disclosed first-RunUAT deviation.

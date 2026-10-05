@@ -1,5 +1,13 @@
 # Setup runbook (living document)
 
+Proof branch `feat/vt-proxy-blur` adds named streaming-VT blur through the existing `auto`/`proxy`
+selectors, reported as `proxy_vt`. It remains OFF by default and has no delivery approval. The bounded
+092-03c reproduction uses an isolated host, the native `ProxyVT0921C` fixture and the scripts/criteria
+in [tools/proof09203c](../tools/proof09203c/README.md). The harness pins source and binary hashes,
+requires no foreign editor at launch, records owned PIDs, and restores temporary settings by receipt.
+Do not run its engine queues concurrently. The final tested runtime is c80ef9b / 1EA292E8; the original
+host source, binaries and settings were restored after proof. See the 092-03 journal for all results.
+
 Authoritative, replayable recipe to go from a clean StackOBot checkout to a running PIE
 session with the `AnomalyInjector` plugin loaded. Update this whenever the steps change.
 

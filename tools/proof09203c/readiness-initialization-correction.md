@@ -26,3 +26,8 @@ must still pass the original frozen 942x869 identity and the fixed 1920x1080 ide
 Then repeat the positive PIE/staged matrix, lifetime, can-fails, MainWorld inventory and regressions
 on the exact corrected binary. No selection, pixel, mask, E1 or timeout threshold changes. Rebuild
 both targets, strict include checks, audits and archives before accepting the new final build.
+
+Before the corrected can-fail is launched, require a positive prefetch-attempt count and the
+341-page Drop 0 footprint in its log. A zero-attempt initialization refusal would keep pixels
+safe but would not prove that the GPU readiness check rejects missing pages. Retain the unchanged
+reader and inspect this additional prerequisite explicitly.

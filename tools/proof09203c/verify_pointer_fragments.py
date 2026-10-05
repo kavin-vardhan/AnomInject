@@ -21,7 +21,12 @@ while cursor < end:
             relocations.add(page + (entry & 4095))
     cursor += count
 rows = json.loads((audit / 'fragment-address-evidence.json').read_text())
-selected = {"'7@|}K", '@p@P*$K', 'JIKQR8'}
+selected_sets = {
+    '1ea292e815e5acf5c6ab214043b7d255c0f35d7e456c23c0d4e0a67fe489e891': {"         '(((((((((0", '8M%iB@', '9Y>)FPS!B', 'ltuo@/', 'r_@v:K'},
+    'fe338251aab6bbfef0f0dc39baf7b2d91ce9e2356ba06d9763da314b28b20651': {"'7@|}K", '@p@P*$K', 'JIKQR8'},
+    '0f79605d3d9e66e6fc0685afaededf3430f5368db35fa452f1adf307c7315bcb': {"         '(((((((((P", ' A -NC', '0@ srF', '8M%iB`', '@p@p<$K', 'JIKQRx+iL', 'ltuo`<'},
+}
+selected = selected_sets[hashlib.sha256(binary.data).hexdigest()]
 result = []
 for row in rows:
     if row['string'] not in selected:

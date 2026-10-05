@@ -15,6 +15,7 @@ paths = [p for p in (repo / 'Source').rglob('*') if p.suffix in ('.h', '.cpp', '
 paths += list((repo / 'Shaders').rglob('*.usf'))
 paths += [engine / p for p in ('Core/Public/Containers/ArrayView.h', 'RHI/Public/RHICommandList.h', 'Engine/Classes/Engine/StreamableRenderAsset.h', 'CoreUObject/Public/UObject/StrongObjectPtr.h', 'Engine/Public/TextureResource.h', 'Core/Public/Delegates/DelegateInstancesImpl.h', 'RenderCore/Public/ShaderParameterMetadata.h')]
 texts = {}
+paths += [engine / p for p in ('RenderCore/Public/VirtualTexturing.h', 'RHI/Public/RHIResources.h', 'RHI/Public/RHI.h')]
 for path in paths:
     body = path.read_text(encoding='utf-8-sig')
     joined = re.sub(r'"\)\s*TEXT\("', '', body)
@@ -25,6 +26,10 @@ used = set()
 fragments = {'9Y>)F P!B', '@08~A`', '@8@HNA`', '@8@NA`', 'P08~A`', '`8@HVA`', 'r_@u:K'}
 fragments.update({'8M%iB0', '9Y>)F@R!B', '@08~ab', '@8@HNab', '@8@Nab', 'P08~ab', '`8@HVab', 'ltuo .'})
 fragments.update({"'7@|}K", '@p@P*$K', 'JIKQR8'})
+relocated_fragments = {"'7@|}K", '@p@P*$K', 'JIKQR8', "         '(((((((((P", ' A -NC', '0@ srF', '8M%iB`', '@p@p<$K', 'JIKQRx+iL', 'ltuo`<'}
+fragments.update(relocated_fragments)
+relocated_fragments.update({"         '(((((((((0", '8M%iB@', '9Y>)FPS!B', 'ltuo@/', 'r_@v:K'})
+fragments.update(relocated_fragments)
 for item in items:
     if not item['review'].startswith('UNRESOLVED') and not item['review'].endswith('source verification required'):
         continue
@@ -57,7 +62,7 @@ for item in items:
         row = next(r for r in addresses if r['file'] == item['file'] and r['string'] == value)
         assert all(p['embedded_address_candidates'] for p in row['evidence'])
         item.update(review='Exact manually reviewed printable run intersecting pointer/RVA data; byte and address context retained', address_evidence=row['evidence'])
-        if value in {"'7@|}K", '@p@P*$K', 'JIKQR8'}:
+        if value in relocated_fragments:
             confirmed = json.loads((audit / 'pe-pointer-relocations-final.json').read_text())
             assert confirmed['sha256'] == hashlib.sha256((archive / item['file']).read_bytes()).hexdigest()
             item['relocation_evidence'] = next(entry for entry in confirmed['rows'] if entry['string'] == value)

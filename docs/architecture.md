@@ -3,8 +3,10 @@
 On `feat/vt-proxy-blur`, 092-03c integrates a bounded private-VT blur route after the
 prefetch Drop 0 identity pass. `UAnomalyPrivateVT` derives from `UTexture`, retains its source
 without sharing ownership of platform data, and creates a genuine `FVirtualTexture2DResource`
-with an additional first-mip offset. It requests pages only from its own producer and reads GPU
-page tables to confirm exact requested levels before the private MID is installed. The source
+with an additional first-mip offset. It requests the root only from its own producer, verifies that
+coarse mapping across the private region, then requests every needed level and reads the GPU page
+table to confirm exact mappings before the private MID is installed. The renderer owns all page-table
+writes. Preparation is capped at 512 pages, 120 attempts and 10 seconds. The source
 binding remains installed during the bounded preparation (maximum 10 seconds; named refusal).
 
 The existing proxy transaction handles ordinary and VT outputs together. This proof supports
@@ -15,8 +17,10 @@ Revert restores owned slots before fencing private resource release. VT counters
 resources/producers separately from the ordinary render-target ledger. Auto routes genuine VT
 candidates through proxy; frame/event telemetry calls that route `proxy_vt`. Existing FireWindow,
 interruption, masks and annotation machinery are reused without capture changes. UV/normal and
-the forced hold route still refuse VT. This is local proof work, not delivery approval; full runtime
-and staged gates remain pending. See the 092-03 journal and G462-G464.
+the forced hold route still refuse VT. Runtime source c80ef9b / executable 1EA292E8 passes original
+and native identity, 21 PIE/staged positive events, isolation/revert/lifetime, can-fails and three fires
+each of hold/proxy/UV/normal regression. This bounded proof has no delivery approval. See the 092-03
+journal and G462-G469, including the superseded stale-page readiness failure.
 
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
 

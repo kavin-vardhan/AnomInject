@@ -11,24 +11,22 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **092-03c, 2026-10-05 - LOCAL PROOF IN PROGRESS; NOT A DELIVERY.**
+> **092-03c, 2026-10-05/06 - BOUNDED PROOF PASSES; NOT A DELIVERY.**
 > Resumed `feat/vt-proxy-blur` at `465f2e7`, retaining every commit, under the 092-03b ruling.
-> Private-producer prefetch now passes Drop 0 on every measured bind/restore frame under the
-> unchanged frozen criterion: target peak 6.592774, limit 6.629029; both controls pass, drain 0/0.
-> No fallback was used. Production `proxy_vt` is integrated locally; normal and strict Editor/Game
-> source `46a52d0` builds 0 errors / 0 warnings, 70 isolated headers, final normal exe `FE338251`.
-> Source `a2632b0` passed fixed-camera identity and 21 fires: PIE targeted 10 / Auto 3, staged 5 / 3.
-> Its release-refusal, no-bind mutant and named-stack refusal pass; full repeats and remaining legs
-> are due on `46a52d0`, whose sole runtime change is the corrected VT-support startup message.
-> Every event has E1 strict/t50 0-frame edges, measured target masks, unchanged controls and clean revert.
-> Failed null-contamination, camera alignment and foreign-GPU interruptions remain recorded.
-> `FE338251` passes native identity, all 21 positive fires, release/no-bind/stack/constant/uniform
-> controls, mixed bindings, destruction, displacement and world teardown. The no-request readiness
-> can-fail exposed stale page-table values and five changed frames; MainWorld/regression were not run.
-> Manual private page-table initialization passed identity/no-request but prevented positive events.
-> It is replaced by renderer-managed root priming, root readback, then full-range prefetch/readback;
-> corrected-build proofs remain pending. Both failed attempts and their binaries are preserved.
-> No push. Host is temporarily detached on the proof source; restoration remains required.
+> Tested runtime source `c80ef9bbbe6c6faf60dafe1e640dfd0e469ea098`, final normal exe `1EA292E8`.
+> Renderer-managed root priming/readback precedes full private prefetch/readback. No direct page-table writes.
+> Original Drop 0: all 480 frames pass the unchanged null+0.05 criterion, peak 6.595010 / limit 6.630434.
+> Native 1920x1080 identity also passes all 480 frames. No fallback was used; both controls pass, drain 0/0.
+> Final positives: PIE targeted 10 / Auto 3, staged targeted 5 / Auto 3; 3508 frames, 1008 labelled frames.
+> Every event has E1 strict/t10/t50 and raw RGB 0-frame edges, target-only masks/bboxes, annotation agreement,
+> unchanged controls and clean revert. All 21 drains are 0/0; ten consecutive cycles have constant allocation peak.
+> Release refusal, no-bind/no-request can-fails, named-stack/constant/uniform refusals, mixed bindings,
+> destruction, displacement and active world teardown pass. Hold/proxy/UV/normal regressions each pass 3 fires.
+> MainWorld: 604 mesh components; its two project VT textures have no mesh users or eligible named bindings.
+> Normal/strict Editor and game builds are 0 errors / 0 warnings; 70 isolated headers, lever audits pass,
+> 324 string candidates resolved, 18 archives / 108 binaries rehashed. Failed/superseded attempts are retained.
+> Host restored to detached `23098fa`, six original binaries and 156 settings; 70 created INIs removed by receipt.
+> Final feature-only push and exact documentation head are recorded in the relay report; no delivery approval.
 > Evidence `E:\IA_BuildCache\_r921\09203c`; journal `docs/sessions/2026-10-05-092-03-vt-proxy-blur.md`.
 > The owner item remains: a 128px minimum VT tile needs about 1024px on screen under the unchanged
 > 8x Auto rule. Blurry stays OFF by default. No release/protected ref, engine source/binary or selection rule changed.

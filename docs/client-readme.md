@@ -704,7 +704,7 @@ WINDOW skipped, which begins one frame later.
 
 ### 8.3aa Proxy blur: route selection and labels
 
-**092-03 proof branch only, runtime validation in progress:** `proxy_vt` creates a private coarse
+**092-03 proof branch only, bounded runtime proof passed:** `proxy_vt` creates a private coarse
 streaming virtual texture for a named VT parameter. `auto` and explicit `proxy` use it for VT-bound
 targets. It preserves the host's compiled VT sampler and prepares the private pages before binding;
 the source texture and other users stay untouched. Mixed ordinary/VT targets use one transaction.
@@ -712,12 +712,15 @@ Unsupported stack layouts and unnamed VT samples are refused; this bounded proof
 single-layer streaming-VT stacks. The event and frame route values are `proxy_vt`, with Drop,
 effective virtual width/height and tile size recorded per texture. Labels use the same installed
 FireWindow rule as ordinary proxy. UV/normal corruption and forced hold still refuse VT. Blurry
-stays off by default, and this feature branch has no delivery approval.
+stays off by default, and this feature branch has no delivery approval. Private preparation primes
+and verifies the root before requesting/verifying the full range; it is bounded at 512 pages,
+120 attempts and 10 seconds. The original binding remains installed if preparation cannot complete.
 
 The coarsest VT top is one tile (128px on this fixture). The unchanged 8x Auto rule therefore needs
 about 1024px on screen and may limit yield on the first office host. This is an owner decision item;
-the proof does not change the rule. See the 092-03 journal for the prefetch identity result and the
-remaining production proof.
+the proof does not change the rule. The final build passes original/native identity, 21 PIE/staged
+positive events, co-user isolation, revert/lifetime, can-fails and hold/proxy/UV/normal regressions.
+See the 092-03 journal for the evidence and the retained unsuccessful attempts.
 
 `IAI.Anomaly.StuckMipRoute auto|hold|proxy` selects the route for future events. `auto` is the default: an event uses private copies when an eligible candidate is shared in the loaded world or has a supported named streaming-VT binding; otherwise it uses hold. `hold` always uses the original purity-checked streaming route; `proxy` always uses private copies. The route is fixed for the event. `IAI.Anomaly.StuckMipRoute default` clears the console override. To configure it in `DefaultGame.ini`:
 

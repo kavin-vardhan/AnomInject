@@ -10286,3 +10286,21 @@ Preserve the receipt and report the deviation. To use an already built tool, inv
 dotnet runtime with AutomationTool.dll and its `-nocompile` global option. Batch-only options are
 not necessarily valid AutomationTool options. `uebp_EngineSavedFolder`, `uebp_LogFolder` and
 `uebp_FinalLogFolder` place the commandlet's temporary and final logs in the authorized scratch.
+
+## G469 - A reused VT page-table entry does not establish producer readiness
+
+The 092-03c no-request can-fail on `FE338251` exposed an invalid readiness claim: Drop 0 was bound
+after one attempt without explicit requests and five target frames exceeded the frozen null. VT
+allocation/free can reuse virtual addresses without clearing GPU page-table bytes. Nonzero physical
+addresses with the expected mip level alone can therefore describe a previous producer.
+
+Directly clearing the private GPU rectangle in `0F79605D` made that can-fail pass, but early uniformity
+prewarming found no page-table backing and refused every positive event. It also bypassed renderer CPU
+mapping state. Keep both failed implementations and their evidence; neither is a deliverable proof.
+
+The correction primes the private root through RequestVirtualTextureTilesForRegion and
+LoadPendingVirtualTextureTiles. SubmitRequests allocates backing and maps or invalidates new roots
+through the renderer. Read back the root mapping across the whole private region before requesting
+and verifying the full range. Never write the shared page table directly. On `c80ef9b` / `1EA292E8`,
+the unchanged no-request, original/native identity and complete positive/lifetime/regression matrix
+pass. The failed intermediate builds remain separate evidence; no gate was relaxed to accept them.

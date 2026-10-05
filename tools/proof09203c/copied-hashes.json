@@ -88,6 +88,14 @@
     "sha256": "99c8a46f5cf9066958ccaa4895ce8854e2a11293504079d7615d6948641cd655"
   },
   {
+    "name": "collect_binary_ledger.py",
+    "sha256": "7b7b977a4a35178f224073b78a0421a9c9aee5211ebe128a6ffcb52cefc6a089"
+  },
+  {
+    "name": "collect_levers.py",
+    "sha256": "640ec85c5ffda7fcc2d395568aac554bcac531b6db724d9b5b51503b613a5278"
+  },
+  {
     "name": "collect_positive.py",
     "sha256": "3b3ebe9f896b9da9d8aa6e8c6fb82baf6af9c323dab4ba5d1492842ad765d100"
   },
@@ -233,7 +241,11 @@
   },
   {
     "name": "readiness-initialization-correction.md",
-    "sha256": "f0b19f793c7c4226e2dc39535db7f5f5c61148ab39cf83e3aece7c7501483c47"
+    "sha256": "d9997264a129c5d96f6416c6416f372187d723e682b5277f19acb8de53025731"
+  },
+  {
+    "name": "readiness-root-prime-correction.md",
+    "sha256": "3b2b2960d44cc217eb8c16c93518e266c49813e256759fc73c2789f2629e9331"
   },
   {
     "name": "restore_host.py",
@@ -241,7 +253,11 @@
   },
   {
     "name": "review_production_strings.py",
-    "sha256": "11da92f9612274964b5f6c21fa49558498253f882a909229f1cd80bde4c68e98"
+    "sha256": "b67dc38b17dcf94c3df8c0bd46896d1784bb72e07f9c1ea2e2e3de3bbb96450e"
+  },
+  {
+    "name": "root-prime-criteria-frozen.json",
+    "sha256": "ed88a5c87809f60cb62305a5b5cf3b72bdc2d1dea1f1b3ce86be8d8eaa6883b7"
   },
   {
     "name": "run_queue.py",
@@ -253,7 +269,7 @@
   },
   {
     "name": "source_evidence.py",
-    "sha256": "80b3ca21f1721ace5b4f73d57cc71ae40011c79f406047fa4af820e201562471"
+    "sha256": "3900eabeae67250887b5ab2affd42c2120e1b444e66013f6e7d88b44458ac500"
   },
   {
     "name": "startup-banner-correction.md",
@@ -293,7 +309,7 @@
   },
   {
     "name": "verify_pointer_fragments.py",
-    "sha256": "2c78f756923386add0747f9f220d7dffad48e7b02cb9c4b9b02327f3dd5b8450"
+    "sha256": "cbb57077b6edd6b79c6277b30876d6b40ba12c218e8bb38ebe1b675ada5a4fa4"
   },
   {
     "name": "world-end-criteria.md",

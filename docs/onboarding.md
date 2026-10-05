@@ -1,5 +1,11 @@
 # Onboarding
 
+The `feat/vt-proxy-blur` proof branch adds private coarse VT replacement for supported named
+streaming-VT bindings. Its bounded identity, PIE/staged, lifetime and regression proof passes on
+c80ef9b / 1EA292E8; it is not an office delivery and blurry stays OFF by default. Read client-readme
+8.3aa and the [092-03 journal](sessions/2026-10-05-092-03-vt-proxy-blur.md) for stack limits, private
+prefetch and the unchanged 8x Auto rule. UV/normal still refuse VT.
+
 ## What this is
 `AnomalyInjector` is a UE5 plugin that injects **labeled visual anomalies** (graphics
 bugs) into UE5 games to produce synthetic training data for bug-detection ML. It is
