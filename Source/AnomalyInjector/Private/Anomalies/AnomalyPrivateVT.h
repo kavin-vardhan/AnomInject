@@ -3,9 +3,11 @@
 #include "CoreMinimal.h"
 #include "Engine/Texture2D.h"
 #include "UObject/StrongObjectPtr.h"
+#include "Templates/SharedPointer.h"
 #include "AnomalyPrivateVT.generated.h"
 
 class FTextureResource;
+struct FAnomalyVTPrefetch;
 
 UCLASS(Transient)
 class UAnomalyPrivateVT final : public UTexture
@@ -14,6 +16,9 @@ class UAnomalyPrivateVT final : public UTexture
 
 public:
 	bool Initialize(UTexture2D* InSource, int32 InDrop, FString& OutReason);
+	bool PollPrefetch(FString& OutReason);
+	int32 PrefetchAttempts() const;
+	int32 PrefetchPages() const;
 	void ReleasePrivate();
 	virtual FTextureResource* CreateResource() override;
 	virtual ETextureClass GetTextureClass() const override { return ETextureClass::TwoD; }
@@ -34,6 +39,7 @@ public:
 
 private:
 	TStrongObjectPtr<UTexture2D> SourcePin;
+	TSharedPtr<FAnomalyVTPrefetch, ESPMode::ThreadSafe> Prefetch;
 	struct FVirtualTextureBuiltData* BorrowedData = nullptr;
 	int32 FirstMip = 0;
 	int32 Drop = 0;
