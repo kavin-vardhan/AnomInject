@@ -13,7 +13,7 @@ from verify_capture import annotation_transition_check, label_rule_check
 
 root = w / 'runs' / sys.argv[1]
 reason = sys.argv[2]
-assert reason in ('virtual_texture', 'stack_layout', 'texture_uniform', 'prefetch_incomplete')
+assert reason in ('virtual_texture', 'stack_layout', 'texture_not_parameter', 'texture_uniform', 'prefetch_incomplete')
 sessions = list((root / 'out').glob('session_*'))
 assert len(sessions) == 1
 session = sessions[0]
@@ -38,7 +38,7 @@ null = {role: max(p['mad'][role] for p in pixels if p['frame'] < 120) for role i
 failures = {role: [p['frame'] for p in pixels if p['frame'] >= 120 and p['mad'][role] > null[role]+.05] for role in boxes}
 labelled = [row['session_index'] for row in rows if row.get('anomaly_present') or any(a.get('labelled') for a in row.get('anomalies', []))]
 log = (root / 'game.log').read_text(errors='replace')
-named = [line for line in log.splitlines() if reason in line and ('refus' in line.lower() or 'all_reasons' in line or 'reasons=' in line)]
+named = [line for line in log.splitlines() if reason in line and ('refus' in line.lower() or 'allreasons' in line or 'reason=' in line or 'reasons=' in line)]
 annotation_errors, detail = annotation_transition_check(session)
 rule_code, rule_lines, rule_detail = label_rule_check(session)
 launch = json.loads((root / 'launch.json').read_text())

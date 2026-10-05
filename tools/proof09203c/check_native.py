@@ -11,10 +11,12 @@ sessions = list((root / 'out').glob('session_*'))
 assert len(sessions) == 1
 session = sessions[0]
 rows = [json.loads(line) for line in (session / 'labels.jsonl').read_text().splitlines()]
+rows.sort(key=lambda row: row['session_index'])
+assert [row['session_index'] for row in rows] == list(range(480)), 'incomplete or duplicate identity frames'
 fixture = json.loads((w / 'author_vt.json').read_text())
 sizes = collections.Counter((r['width'], r['height']) for r in rows)
 assert set(sizes) == {(1920, 1080)}, sizes
-reference = np.asarray(Image.open(session / rows[100]['image']).convert('RGB'), dtype=np.int16)
+reference = np.asarray(Image.open(session / next(row for row in rows if row['session_index'] == 100)['image']).convert('RGB'), dtype=np.int16)
 boxes = {}
 for a in fixture['actors']:
     if a['role'] in ('target', 'co_user', 'ordinary'):

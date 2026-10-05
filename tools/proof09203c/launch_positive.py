@@ -40,9 +40,9 @@ if kind == 'auto':
     commands += ['IAI.Auto.Pool stuck_low_mip 1']
 elif kind == 'no_bind':
     commands += ['IAI.Bench.ProxyVTNoBind 1']
-elif kind not in ('targeted', 'destroy', 'displace', 'world_end', 'negative', 'uniform', 'mixed'):
+elif kind not in ('targeted', 'destroy', 'displace', 'world_end', 'negative', 'constant', 'uniform', 'mixed'):
     raise ValueError(kind)
-setup = {'negative': 'M_VTConstantLayer', 'uniform': 'M_UniformVT', 'mixed': 'M_MixedProof'}
+setup = {'negative': 'M_VTNamedStack', 'constant': 'M_VTConstantLayer', 'uniform': 'M_UniformVT', 'mixed': 'M_MixedProof'}
 if kind in setup:
     commands += ['PYSTEP ' + str(w / 'fixture_setup_step.py'), 'WAIT 5']
 commands += ['IAI.TexCorrupt.Census allreasons', 'WAIT 5', 'IAI.TexCorrupt.Census allreasons',
@@ -53,7 +53,7 @@ if kind != 'auto':
 commands += [command + ' oh=0']
 if kind in ('destroy', 'displace', 'world_end'):
     commands += ['PYSTEP ' + str(w / 'lifetime_step.py')]
-plan = dict(out_dir=str(out), settle_s=10, gap_ticks=2, done_timeout_s=600, post_s=10, cmds=commands,
+plan = dict(out_dir=str(out), settle_s=10, gap_ticks=2, done_timeout_s=600, post_s=1, cmds=commands,
             post_commands=['IAI.Bench.ProxyVTInventory'])
 if kind in setup:
     plan.update(fixture_material=setup[kind], fixture_setup_result=str(root / 'fixture-setup.json'))

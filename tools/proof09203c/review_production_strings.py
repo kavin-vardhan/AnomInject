@@ -23,6 +23,7 @@ for path in paths:
 pe = {}
 used = set()
 fragments = {'9Y>)F P!B', '@08~A`', '@8@HNA`', '@8@NA`', 'P08~A`', '`8@HVA`', 'r_@u:K'}
+fragments.update({'8M%iB0', '9Y>)F@R!B', '@08~ab', '@8@HNab', '@8@Nab', 'P08~ab', '`8@HVab', 'ltuo .'})
 for item in items:
     if not item['review'].startswith('UNRESOLVED') and not item['review'].endswith('source verification required'):
         continue

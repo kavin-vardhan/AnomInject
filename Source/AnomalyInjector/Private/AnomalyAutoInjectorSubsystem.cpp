@@ -139,7 +139,7 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 		UE_LOG(LogAnomaly, Display,
 			TEXT("IAI-STARTUP world='%s' type=%s editor=%d nanite_policy=%s nanite_probe=%s virtual_textures=%d nanite_project=%d - ")
 			TEXT("Nanite targets are refused unless IAI.Targets.AllowNanite is 1, and with no probe registered every target is ")
-			TEXT("refused (fail closed); virtual-textured textures are refused by stuck_low_mip and the texture-corruption anomalies."),
+			TEXT("refused (fail closed); stuck_low_mip supports eligible named streaming-VT bindings through proxy_vt; hold, UV and normal corruption still refuse VT bindings."),
 			*GetNameSafe(W), Kind, GIsEditor ? 1 : 0, *AnomalyDefaults::DescribeAllowNaniteTargets(),
 			AnomalyViewport::HasNaniteComponentProbe() ? TEXT("registered") : TEXT("MISSING"),
 			Vt ? Vt->GetInt() : -1, Nanite ? Nanite->GetInt() : -1);

@@ -35,8 +35,9 @@ python -B launch_regression.py <new-leg> hold
 python -B check_regression.py <new-leg>
 ```
 
-The no-bind positive reader is expected to fail. `negative` and `uniform` modes deliberately
-replace the target's material in the temporary PIE world and require refusal; `mixed` requires
+The no-bind positive reader is expected to fail. `negative`, `constant` and `uniform` modes deliberately
+replace the target's material in the temporary PIE world and require refusal; `negative` uses the
+separate two-named-parameter material created by `launch_named_stack.py`. `mixed` requires
 both replacement kinds in one event. `displace` and `world_end` exercise interruption and
 teardown. `launch_window.py <new-leg> no_request` exercises bounded private-prefetch refusal.
 Normal identity uses `launch_window.py` and `check_native.py`; the original frozen geometry uses
@@ -53,3 +54,8 @@ six binary hashes and every backed-up setting; it removes only receipted job-cre
 Source/build/audit gates and their can-fails are included. `copied-hashes.json` records the exact
 copies. Raw sessions, failed attempts and restoration receipts stay in the evidence root and
 the final relay report; a harness copy alone is not a proof verdict.
+
+The final native identity reader requires all 480 unique session indices and uses index 100 for
+its reference. `canfail_native_completeness.py` checks truncated and duplicate input. The original
+identity reader and every pixel threshold remain frozen. `proof_environment.py` checks feature/host
+Source, Shaders and descriptor tree equality as well as all six live binary hashes.

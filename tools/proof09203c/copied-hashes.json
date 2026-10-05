@@ -4,6 +4,10 @@
     "sha256": "c7a9fd38744175e78ebc7e25dd6ffebf9d346be19b8e5175994cac66fd409260"
   },
   {
+    "name": "archive_fixture.py",
+    "sha256": "5c44ad4ed9751be8b27b9b6d10eb0aab5a98eb7277fc665b397838d42d174fd3"
+  },
+  {
     "name": "archive_probe.py",
     "sha256": "95dce58d2bd9ed322a201bf241cf6f9d31ed7cf2543ea7e27ba381421dc135f1"
   },
@@ -20,6 +24,14 @@
     "sha256": "199fad691661090b496c31dbdba680f3ddf6ee2f6ab888a56ca3667d4d8d9d6e"
   },
   {
+    "name": "author_named_stack.py",
+    "sha256": "ba2d3600c97c2eff8f6e6e0110f3688bccfe07cc262b641948c1f5931a4523bb"
+  },
+  {
+    "name": "author_vt.json",
+    "sha256": "1b12c4efbed96e7d347695c0c06de323d7e737c9c0b53d4514fec59144794d58"
+  },
+  {
     "name": "author_vt.py",
     "sha256": "83e4954273275ef5811faba23b2bffc74f7a8592dcc576d98636af92a88eaeb2"
   },
@@ -28,8 +40,20 @@
     "sha256": "7c715bd4b757c3c0b99136bf3287b22bdbe72123c744c432d2a14e42113a998f"
   },
   {
+    "name": "camera-correction.md",
+    "sha256": "901b830349d3438b3ce24b32a26d360155bdb0e211c09e7159d61936affd6752"
+  },
+  {
+    "name": "canfail_native_completeness.py",
+    "sha256": "4b4294295bf40b5bdf567c8ec701ba9e40f9cce8fc0c127a680e3af1c5c5bdbf"
+  },
+  {
     "name": "canfail_positive.py",
     "sha256": "c8abf80ff366cae621e6c9956b0e79d4f64cd07487f24909b14d0e5ac7804067"
+  },
+  {
+    "name": "census-classification-correction.md",
+    "sha256": "4aeb26c80b2a1a03d1a7ac33c5f3b9ff76cd2cc2fb722a2cac73c6086a0a94f8"
   },
   {
     "name": "check_identity.py",
@@ -41,7 +65,7 @@
   },
   {
     "name": "check_native.py",
-    "sha256": "d1d16092ffa2ac867bc7f1e3af5e8818a4441c937a7020f2711e9e568da13555"
+    "sha256": "724cee65399ab42a46c06e7137614c7403033de13c2b2a7743ac937169028196"
   },
   {
     "name": "check_positive.py",
@@ -49,7 +73,7 @@
   },
   {
     "name": "check_refusal.py",
-    "sha256": "58cbe1c7448dfbaeddb94e3dbeabe4332a0b5b338e6c533260bb73b0f3c62f55"
+    "sha256": "d62d93489aa30a42e9a095ff2084f50a8522a14e7c8ca7add5c37a24a30cfe7e"
   },
   {
     "name": "check_regression.py",
@@ -60,12 +84,24 @@
     "sha256": "47904db5490d1c4f4793a3f3f59183ec8975084e2683847272891bc6e0a8f7e4"
   },
   {
+    "name": "collect_archives.py",
+    "sha256": "99c8a46f5cf9066958ccaa4895ce8854e2a11293504079d7615d6948641cd655"
+  },
+  {
+    "name": "collect_positive.py",
+    "sha256": "3b3ebe9f896b9da9d8aa6e8c6fb82baf6af9c323dab4ba5d1492842ad765d100"
+  },
+  {
     "name": "cook_guard.py",
     "sha256": "80cbc025667c2f4eedd6d584d0bd21d44a935c0411f5305e18a39a07721911d1"
   },
   {
     "name": "cook_vt.py",
     "sha256": "0c519e3bd4aecb4682594a27b53a0e5335c89f7653c94e147f2ddba02b792cc6"
+  },
+  {
+    "name": "criteria-before-first-positive.json",
+    "sha256": "9087f70e8a2fd37f3738ef604df9eb4c0132d83e765ead37523e6b819d48d613"
   },
   {
     "name": "disk_gate.py",
@@ -76,8 +112,16 @@
     "sha256": "2a8c59b81cce91e1efdf9098704f6d9cd0ae063817ea827ed190663f1fe0040c"
   },
   {
+    "name": "harness-corrections.md",
+    "sha256": "18360d66c6632bfbf932518ec1fbf15c64d8757798081f4cc669fd12c7209916"
+  },
+  {
     "name": "identity_step.py",
     "sha256": "6dc1056cefe38966b72efffd47103b725c491abecc62669ec1d3bbdff41ae68d"
+  },
+  {
+    "name": "idle-monitor-correction.md",
+    "sha256": "81f5b288412cf34667d0a9178bf3bf11294d69c3c56f06a7b1181ba268ce3477"
   },
   {
     "name": "idle_gate.py",
@@ -108,8 +152,12 @@
     "sha256": "9978f01c63ed4e38457f090b98b475262724d74acb401b3842aaa818c0916d53"
   },
   {
+    "name": "launch_named_stack.py",
+    "sha256": "cbd12a0c35964038ba9ac5a16ba7fcc1b0cf77410ffc5cfe3377d06cbc196d6f"
+  },
+  {
     "name": "launch_positive.py",
-    "sha256": "c6a16e786fcb8d2084b06862754b2185b3bee12bc8e99cf9659bb645e2bdf1da"
+    "sha256": "cef83f6eddc2756fde8b057b62d262c152fe1901187627a345e8863d7da4ef8d"
   },
   {
     "name": "launch_regression.py",
@@ -132,8 +180,20 @@
     "sha256": "7f50b4d8fb5e3331a544ae66e4ec3b953dfa2c376c1b44aee6457758411a765b"
   },
   {
+    "name": "lifetime-criteria.md",
+    "sha256": "cdf489382b83934aae226732be5d63626c9680e73c31b4eb3ebcd29020b3a6b8"
+  },
+  {
     "name": "lifetime_step.py",
     "sha256": "0b2581b95a98749314b752cdecd560b1b28229212be8c94c64401664e0efd403"
+  },
+  {
+    "name": "named-stack-criteria.md",
+    "sha256": "b7dd9dfe811e80e57f41f2040a62df60e2999bb924713873ed978d3575af085a"
+  },
+  {
+    "name": "native-reader-completeness.md",
+    "sha256": "41665a6f1ccbf5fcd76d2fec8389c5bba467e5b01469d89a4fda356c82685241"
   },
   {
     "name": "pe_metadata.py",
@@ -142,6 +202,18 @@
   {
     "name": "pie_window_driver.py",
     "sha256": "c99efaac7eee2bdd16ecacf57d963ccc01bba4ed8ad7348eb90b7e795bfe9993"
+  },
+  {
+    "name": "positive-criteria.md",
+    "sha256": "0c34bf5c7509ecd16b14d3d9ceec9b8e5316fe31d67109dfcf6063c214c1d351"
+  },
+  {
+    "name": "post-capture-hold-correction.md",
+    "sha256": "2482ca36addcaafdd44a14bf89335d0d43cc831779fbe14117b871edf3176c9b"
+  },
+  {
+    "name": "predictions.md",
+    "sha256": "f4f54130374bb4d57bec0a8e5b73858cba17d204811fa452c33aae89732d40f2"
   },
   {
     "name": "preflight.py",
@@ -157,7 +229,7 @@
   },
   {
     "name": "proof_environment.py",
-    "sha256": "6cea349e0e08dc9a6196b9977ac47aa8a2ee56a29c23fa2e9023e1c4b0b17966"
+    "sha256": "8f6b853902c4d7edd9ee62f9163383d64dbea37ff94da00eb7a93f5a8ddaf98e"
   },
   {
     "name": "restore_host.py",
@@ -165,7 +237,7 @@
   },
   {
     "name": "review_production_strings.py",
-    "sha256": "1461be6867f7343dd924674fd1a3da98c110209b31ac2706edf1ba77d7ce6e2f"
+    "sha256": "0d60a85c3a3851c02dd04a4e18af97e04e86fb8a07d503aadf80d4fbb8a24243"
   },
   {
     "name": "run_queue.py",
@@ -180,6 +252,10 @@
     "sha256": "30709fa0133489904e2aeacc742e70b0942f9c1256224e46823a6dd0f1d14f92"
   },
   {
+    "name": "startup-banner-correction.md",
+    "sha256": "17ff0dac453bac44290e31e79848ede799c2a1acbda284d97f3c7b39bb5ab0c3"
+  },
+  {
     "name": "strict_build.py",
     "sha256": "22b4f3c4883eb01b696c1f0e38cb5d07e9be086a0a02042376475c35fd0595b1"
   },
@@ -188,47 +264,31 @@
     "sha256": "9351be4212f3540a5845760706e07cbc67d82ecd7d5f7bdac00ff2efd2b2f075"
   },
   {
-    "name": "predictions.md",
-    "sha256": "f4f54130374bb4d57bec0a8e5b73858cba17d204811fa452c33aae89732d40f2"
+    "name": "string-review-a2632b0.md",
+    "sha256": "c668321de0ea65c560f69c0ca230fd28a7ad4f1fb33b52b9b63bf6cb97481ed5"
   },
   {
-    "name": "positive-criteria.md",
-    "sha256": "0c34bf5c7509ecd16b14d3d9ceec9b8e5316fe31d67109dfcf6063c214c1d351"
-  },
-  {
-    "name": "lifetime-criteria.md",
-    "sha256": "cdf489382b83934aae226732be5d63626c9680e73c31b4eb3ebcd29020b3a6b8"
-  },
-  {
-    "name": "world-end-criteria.md",
-    "sha256": "8abe8f063e4c5a66e0f26d1c1aae719180b6754b52e1e1f12664bbc3fd8d876d"
-  },
-  {
-    "name": "camera-correction.md",
-    "sha256": "901b830349d3438b3ce24b32a26d360155bdb0e211c09e7159d61936affd6752"
-  },
-  {
-    "name": "harness-corrections.md",
-    "sha256": "18360d66c6632bfbf932518ec1fbf15c64d8757798081f4cc669fd12c7209916"
-  },
-  {
-    "name": "idle-monitor-correction.md",
-    "sha256": "81f5b288412cf34667d0a9178bf3bf11294d69c3c56f06a7b1181ba268ce3477"
-  },
-  {
-    "name": "criteria-before-first-positive.json",
-    "sha256": "9087f70e8a2fd37f3738ef604df9eb4c0132d83e765ead37523e6b819d48d613"
-  },
-  {
-    "name": "supplemental-criteria-frozen.json",
-    "sha256": "b629930cced0b18f1a67db5858f2c8e9f80086f85cc02e96cebbff6e0b08ff84"
+    "name": "summarize_runs.py",
+    "sha256": "215ef72ec6127e01ad135c307f499387068bd36f71b181c7e602a1d091a0b491"
   },
   {
     "name": "supplemental-criteria-frozen-v2.json",
     "sha256": "cde7ecbade12e1575f6999bbff940bc876347f9d369f98f337220f5c0a4ac0dd"
   },
   {
-    "name": "author_vt.json",
-    "sha256": "1b12c4efbed96e7d347695c0c06de323d7e737c9c0b53d4514fec59144794d58"
+    "name": "supplemental-criteria-frozen-v3.json",
+    "sha256": "ca9f20c1db5dd6e2fe54bb73c4dce50ce964216195ecf7eff75a23e4c3a0376f"
+  },
+  {
+    "name": "supplemental-criteria-frozen.json",
+    "sha256": "b629930cced0b18f1a67db5858f2c8e9f80086f85cc02e96cebbff6e0b08ff84"
+  },
+  {
+    "name": "verify_engine_sources.py",
+    "sha256": "db11615d4f3c37c0bc692b52db9352091475f5f4c95d51363d676649d6bffbfc"
+  },
+  {
+    "name": "world-end-criteria.md",
+    "sha256": "8abe8f063e4c5a66e0f26d1c1aae719180b6754b52e1e1f12664bbc3fd8d876d"
   }
 ]

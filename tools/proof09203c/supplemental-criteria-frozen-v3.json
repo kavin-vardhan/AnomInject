@@ -1,0 +1,10 @@
+{
+  "time": 1791211609.5536945,
+  "hashes": {
+    "check_lifetime.py": "ee56890ad0e8a8f8db9e6863cbf9173fc676d57cd776ba97ea08aec76bc1b00e",
+    "check_refusal.py": "d62d93489aa30a42e9a095ff2084f50a8522a14e7c8ca7add5c37a24a30cfe7e",
+    "check_world_end.py": "47904db5490d1c4f4793a3f3f59183ec8975084e2683847272891bc6e0a8f7e4",
+    "named-stack-criteria.md": "b7dd9dfe811e80e57f41f2040a62df60e2999bb924713873ed978d3575af085a",
+    "world-end-criteria.md": "8abe8f063e4c5a66e0f26d1c1aae719180b6754b52e1e1f12664bbc3fd8d876d"
+  }
+}
