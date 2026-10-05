@@ -1146,12 +1146,17 @@ namespace AnomalyTexCorrupt
 				B.Index = i;
 				if (Type == EMaterialTextureParameterType::Virtual)
 				{
-					const FUniformExpressionSet::FVTPackedStackAndLayerIndex StackIndex = Set.GetVTStackAndLayerIndex(i);
 					const TConstArrayView<FMaterialVirtualTextureStack> Stacks = Set.GetVTStacks();
-					if (Stacks.IsValidIndex(StackIndex.StackIndex))
+					for (const FMaterialVirtualTextureStack& Stack : Stacks)
 					{
-						B.VTStackLayers = Stacks[StackIndex.StackIndex].GetNumLayers();
-						B.bVTPreallocatedStack = Stacks[StackIndex.StackIndex].IsPreallocatedStack();
+						for (uint32 Layer = 0; Layer < Stack.GetNumLayers(); ++Layer)
+						{
+							if (Stack.LayerUniformExpressionIndices[Layer] == i)
+							{
+								B.VTStackLayers = Stack.GetNumLayers();
+								B.bVTPreallocatedStack = Stack.IsPreallocatedStack();
+							}
+						}
 					}
 				}
 				B.ParamName = Entry.GetParameterName();

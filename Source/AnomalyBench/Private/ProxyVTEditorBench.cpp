@@ -7,6 +7,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
+#include "LevelEditorViewport.h"
 #include "PlayInEditorDataTypes.h"
 #include "Settings/LevelEditorPlaySettings.h"
 #include "Slate/SceneViewport.h"
@@ -33,6 +34,10 @@ namespace
         FRequestPlaySessionParams Params;
         Params.EditorPlaySettings = Settings;
         Params.bAllowOnlineSubsystem = false;
+        for (FLevelEditorViewportClient* Viewport : GUnrealEd->GetLevelViewportClients())
+        {
+            if (Viewport) { Viewport->SetRealtime(false); }
+        }
         GUnrealEd->RequestPlaySession(Params);
         FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Width, Height, Attempts = 0](float) mutable
         {
