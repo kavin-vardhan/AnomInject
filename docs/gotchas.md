@@ -10203,3 +10203,20 @@ the labels' transitions, with zero unflagged E1 t50/t10 tail frames and zero mis
 deferred 091-02 section 0 is closed on the final m53/proxy builds. AA-off UV/normal confirmation uses the
 existing 090-10e reader's independent PIE exclusions, with raw 084-09 pixel/edge parity and 13 controls;
 the older reader's all-flags-under-AA-off rejection is retained, not counted as a pixel failure.
+
+## G462 — A borrowed-source VT resource has an editor thumbnail side effect
+
+092-03b source inspection, UE 5.1.1: the exported `FVirtualTexture2DResource` constructor can take a
+source owner and its opaque built-data pointer, but its editor `InitializeEditorResources` path calls
+`RHIUpdateTextureReference(TextureOwner->TextureReference.TextureReferenceRHI, TextureRHI)`
+(`Texture2D.cpp:1476`). A private resource that keeps the original source as owner must suppress this
+thumbnail path to avoid writing the shared source reference. The probe overrides that virtual method;
+material VT sampling still uses the genuine producer and the host's compiled stack. This is source
+evidence, not a measured identity or isolation pass.
+
+The source owner must outlive the private uploader and its outstanding work. Producer release evicts
+its pages, waits for produce tasks, and deletes its uploader (`VirtualTextureProducer.cpp:11-38`).
+The probe fences that release before dropping its strong source reference. It never assigns borrowed
+platform data to a second owning UTexture2D. Source reimport/platform-data replacement remains a
+separate hardening concern: keeping the UObject alive does not freeze its platform-data pointer.
+The probe is restricted to an immutable authored fixture; it is not wired into ordinary anomaly fires.

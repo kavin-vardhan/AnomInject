@@ -1,5 +1,12 @@
 # Architecture (living — current as-built)
 
+On `feat/vt-proxy-blur`, 092-03b adds an isolated constructor probe only. `UAnomalyPrivateVT`
+derives from `UTexture`, owns a genuine `FVirtualTexture2DResource`, retains its source with
+`TStrongObjectPtr`, and fences private producer/resource destruction before releasing the source.
+`IAI.Bench.ProxyVT` binds it through a private MID under the existing bench gate. Normal anomaly
+routing, census, capture, labels and defaults are unchanged; the requested production `proxy_vt`
+integration awaits identity proof. See the 092-03 journal and G462 for limits and evidence status.
+
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
 
 The catalogue is **12 shipping entries** in every configuration (m53 added `uv_corruption` and

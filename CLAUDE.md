@@ -11,6 +11,17 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **092-03b, 2026-10-05 — PRIVATE VT CONSTRUCTOR PROBE; PROOF IN PROGRESS.**
+> Feature branch `feat/vt-proxy-blur`, based on release `d7eee97`; prototype source `bdd9378`.
+> Normal Editor/Game builds pass 0 errors / 0 warnings; exe `01BA2183`. This is a bench-only
+> constructor/binding probe, not an implemented `proxy_vt` anomaly route or a delivery.
+> The source retains borrowed VT built data through a strong source reference and render fences;
+> the private resource overrides the editor thumbnail path that otherwise writes the source reference.
+> Identity, positive PIE/staged, lifetime, can-fails and regressions have not run. No push is authorized
+> until the full proof passes. Current waits: D below the 50 GiB floor; foreign editor still open.
+> Evidence and prewritten predictions: `E:\IA_BuildCache\_r921`; journal
+> `docs/sessions/2026-10-05-092-03-vt-proxy-blur.md`; G462. Release and protected refs are untouched.
+
 > **091-07, 2026-10-04 — RELEASE FREEZE, `release/2026-10-05`.**
 > Base: `d660b5d6e67c7af8b0f264e59cf66ed02f433968`. The single behavior change is temporal
 > transition defaults On/Off/Hide = **0/0/0**, by the owner's choice. Explicit nonnegative CVar
