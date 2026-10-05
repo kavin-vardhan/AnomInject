@@ -3396,7 +3396,7 @@ def label_rule_check(cap_dir, quiet=False):
     def ev_key(a):
         return a.get("id", ""), a.get("target_name", ""), a.get("start_frame")
 
-    proxy_keys = {ev_key(a) for a in entries if a.get("id") == "stuck_low_mip" and a.get("stuck_mip.route") == "proxy"}
+    proxy_keys = {ev_key(a) for a in entries if a.get("id") == "stuck_low_mip" and a.get("stuck_mip.route") in ("proxy", "proxy_vt")}
 
     def fire_window_key(key):
         return key[0] in LABEL_RULE_FIRE_WINDOW_TYPES or key in proxy_keys
@@ -4130,6 +4130,26 @@ def _label_rule_selftest():
         case("P_l_run_ending_on_last_row_not_checked_clean", pie_rows(n=17), pie_ev, 0, RULE_NEW,
              rs=dict(pie_rs, pie_end_settle_frames=2, label_transition_pie_end_settle_entries=3),
              extra=lambda d, _l: d["pie_settle_rows"] == 2 and d["pie_settle_entries"] == 3)
+        def proxy_rows(route, **kw):
+            out = pie_rows(**kw)
+            for row in out:
+                for entry in row["anomalies"]:
+                    entry.update(id="stuck_low_mip", **{"stuck_mip.route": route})
+            return out
+
+        proxy_ev = [("stuck_low_mip", target, frames) for aid, target, frames in pie_ev]
+        for route in ("proxy", "proxy_vt"):
+            case("P_m_" + route + "_settle_and_interruption_clean", proxy_rows(route), proxy_ev, 0, RULE_NEW,
+                 rs=pie_rs, extra=lambda d, _l: d["pie_settle_entries"] == 4
+                 and d["reasons"].get("stuck_low_mip/effect_interrupted") == 3)
+            case("P_n_" + route + "_staged_settle_FAILS", proxy_rows(route), proxy_ev, 1, RULE_NEW,
+                 "PIE-SETTLE-OUTSIDE-PIE", rs=dict(pie_rs, pie_end_settle_active=False))
+            case("P_o_" + route + "_late_settle_FAILS", proxy_rows(route, late=True), proxy_ev, 1, RULE_NEW,
+                 "PIE-SETTLE-MISPLACED", rs=pie_rs)
+            case("P_p_" + route + "_missing_settle_FAILS", proxy_rows(route, flag=False), proxy_ev, 1, RULE_NEW,
+                 "PIE-SETTLE-MISSING", rs=dict(pie_rs, pie_end_settle_frames=0, label_transition_pie_end_settle_entries=0))
+        case("P_q_unknown_proxy_route_FAILS", proxy_rows("proxy_unknown"), proxy_ev, 1, RULE_NEW,
+             "REASON-MISPLACED", rs=pie_rs)
         shot = [_lr_row(0, [_lr_entry("blinking", "Cube", None, True)], present=True)]
         shot[0]["label_rule"] = "legacy_shot"
         case("legacy_shot_read_under_old_meaning", shot, [], 0, RULE_SHOT,

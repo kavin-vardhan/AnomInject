@@ -719,7 +719,7 @@ about 1024px on screen and may limit yield on the first office host. This is an 
 the proof does not change the rule. See the 092-03 journal for the prefetch identity result and the
 remaining production proof.
 
-`IAI.Anomaly.StuckMipRoute auto|hold|proxy` selects the route for future events. `auto` is the default: an event uses private copies when an eligible candidate is shared in the loaded world, otherwise it uses hold. `hold` always uses the original purity-checked streaming route; `proxy` always uses private copies. The route is fixed for the event. `IAI.Anomaly.StuckMipRoute default` clears the console override. To configure it in `DefaultGame.ini`:
+`IAI.Anomaly.StuckMipRoute auto|hold|proxy` selects the route for future events. `auto` is the default: an event uses private copies when an eligible candidate is shared in the loaded world or has a supported named streaming-VT binding; otherwise it uses hold. `hold` always uses the original purity-checked streaming route; `proxy` always uses private copies. The route is fixed for the event. `IAI.Anomaly.StuckMipRoute default` clears the console override. To configure it in `DefaultGame.ini`:
 
 ```ini
 [AnomalyInjector]
@@ -741,7 +741,7 @@ Proxy labels use **FireWindow** membership: a frame is labelled while an install
 | `run_summary.stuck_mip_hold_fires`, `stuck_mip_proxy_fires` | applied events per route |
 | `run_summary.stuck_mip_label_source` | `proxy_installed_fire_window` for proxy-only runs, `per_event_route` for mixed runs, the existing source for hold-only runs |
 
-`IAI.TexCorrupt.Census allreasons` includes `id=stuck_low_mip` and a `routes` line with `hold_eligible`, `proxy_eligible`, `auto_hold` and `auto_proxy`; this proof branch adds `proxy_vt_eligible` and `auto_proxy_vt`. The first two describe each route independently and can overlap; the last two partition eligibility under auto. `tools/anomaly_refusal_counts.py` reads those counts, and `--route-check` checks their accounting. Census reports potential eligibility across its scope; on-screen size and current renderer state can still affect a fire.
+`IAI.TexCorrupt.Census allreasons` includes `id=stuck_low_mip` and a `routes` line with `hold_eligible`, `proxy_eligible`, `auto_hold` and `auto_proxy`; this proof branch adds `proxy_vt_eligible` and `auto_proxy_vt`. Hold and proxy eligibility can overlap. The VT counts are subsets of their proxy counts, not extra candidates to add; `auto_hold` and `auto_proxy` partition eligibility under auto. `tools/anomaly_refusal_counts.py` reads those counts, and `--route-check` checks their accounting. Census reports potential eligibility across its scope; on-screen size and current renderer state can still affect a fire.
 
 Blurry remains **available but OFF by default**. This feature branch does not change delivery approval or enable it in the default pool.
 

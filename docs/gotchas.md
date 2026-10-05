@@ -10248,3 +10248,23 @@ including onset/restore, with peak 6.592774 below the original 6.629029 limit. N
 threshold relaxation was used. Source residency must remain untouched. A bounded refusal is
 required if private preparation cannot complete. The production route's remaining proofs are
 separate from this constructor/prefetch identity result.
+
+## G465 - A native PIE window can still capture an editor viewport family first
+
+092-03c measured a 942x869 first image followed by 1920x1080 images even after setting the
+new PIE viewport's fixed render size. Disabling editor realtime alone did not prevent that first
+family. The IAIBench-only PlayWindow helper temporarily hides editor viewport clients from
+render visibility, restores their delegates/realtime state on EndPIE, and leaves the capture path
+unchanged. ScreenPercentage 100 plus the editor PIE override disabled gives all 480 images at
+1920x1080 in fixture-native-full-04. That capture completed before foreign GPU work caused the
+guard to terminate the owned editor during shutdown; this interruption is recorded separately.
+
+## G466 - Fire schedules and new route names need independent reader coverage
+
+The first 092-03c production run used preFrames=120 but its first labelled/pixel-changed image
+was frame 119. The frozen null includes 0..119, so the positive gate correctly failed, despite
+ten E1 events passing at zero-frame edges. Requesting preFrames=121 puts onset outside that
+unchanged null; rerun the whole proof instead of excluding the contaminated image. The label
+reader must also recognize proxy_vt as the existing proxy FireWindow policy. New synthetic
+controls prove staged, late, missing and unknown-route settle flags still fail. No pixel threshold
+or capture/label producer is changed by these harness corrections.

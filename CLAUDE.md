@@ -15,8 +15,11 @@ and is the single source of truth for the project.
 > Resumed `feat/vt-proxy-blur` at `465f2e7`, retaining every commit, under the 092-03b ruling.
 > Private-producer prefetch now passes Drop 0 on every measured bind/restore frame under the
 > unchanged frozen criterion: target peak 6.592774, limit 6.629029; both controls pass, drain 0/0.
-> No fallback was used. Production `proxy_vt` is integrated locally; normal Editor/Game source
-> `30663d8` builds 0 errors / 0 warnings, exe `ACE7CF7D`. Positive/staged/lifetime proof is pending.
+> No fallback was used. Production `proxy_vt` is integrated locally; normal and strict Editor/Game
+> source `8829491` builds 0 errors / 0 warnings, 70 isolated headers, normal exe `311950E8`.
+> Ten initial PIE fires have E1 strict/t50 0-frame edges, but their positive gate FAILED: the harness
+> fired at frame 119 inside the frozen null. Corrected scheduling and route-reader reruns are pending.
+> Native 1920x1080 fixture identity passes; staged, can-fails and regression remain unproved.
 > No push. Host is temporarily detached on the proof source; restoration remains required.
 > Evidence `E:\IA_BuildCache\_r921\09203c`; journal `docs/sessions/2026-10-05-092-03-vt-proxy-blur.md`.
 > The owner item remains: a 128px minimum VT tile needs about 1024px on screen under the unchanged
